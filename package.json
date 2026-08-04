@@ -1,0 +1,31 @@
+{
+  "name": "yova-lite",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@fontsource/inter": "latest",
+    "@fontsource/sora": "latest",
+    "@supabase/ssr": "^0.12.4",
+    "@supabase/supabase-js": "^2.111.0",
+    "lucide-react": "latest",
+    "next": "latest",
+    "openai": "^7.3.0",
+    "react": "latest",
+    "react-dom": "latest",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "latest",
+    "@types/react": "latest",
+    "@types/react-dom": "latest",
+    "eslint": "latest",
+    "eslint-config-next": "latest",
+    "typescript": "^6.0.2"
+  }
+}

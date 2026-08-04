@@ -1,0 +1,9 @@
+Cellular respiration converts chemical energy from glucose into ATP.
+
+Glycolysis occurs in the cytoplasm and produces pyruvate, ATP, and NADH.
+The Krebs cycle occurs in the mitochondrial matrix.
+The electron transport chain uses a proton gradient across the inner mitochondrial membrane to produce most ATP.
+
+Important comparison:
+- Aerobic respiration uses oxygen and produces much more ATP.
+- Fermentation regenerates NAD+ when oxygen is unavailable.
