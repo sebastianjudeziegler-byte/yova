@@ -38,7 +38,16 @@ export async function requestEmailAuthentication({
     },
   });
 
-  if (error) throw new Error(error.message);
+  if (error) {
+    const rateLimited = error.code === "over_email_send_rate_limit"
+      || error.message.toLowerCase().includes("rate limit");
+
+    if (rateLimited) {
+      throw new Error("Too many sign-in emails were requested. Open the newest email already sent, or wait about an hour and try again.");
+    }
+
+    throw new Error("YOVA could not send the sign-in email. Check the address and try again.");
+  }
   return { mode: "supabase", emailSent: true };
 }
 
