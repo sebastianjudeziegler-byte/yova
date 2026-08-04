@@ -8,6 +8,7 @@ export function GET() {
   return NextResponse.json({
     planGeneration: isOpenAIPlanConfigured() ? "openai" : "preview",
     persistence: isSupabaseConfigured() ? "supabase" : "browser",
+    authentication: isSupabaseConfigured() ? "supabase-email" : "browser-preview",
   }, {
     headers: { "Cache-Control": "no-store" },
   });

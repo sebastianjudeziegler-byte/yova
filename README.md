@@ -16,6 +16,8 @@ YOVA Lite is a personalized learning planner and guided study system. This repos
 - Inside-YOVA and outside-YOVA study modes
 - Starting-point diagnostic and generated plan preview
 - Local private-alpha account entry and returning-user sign-in
+- Supabase email-link authentication path with secure callback and session refresh
+- Automatic browser-preview/cloud-auth switching based on environment configuration
 - Versioned browser persistence for onboarding, plans, sessions, and results
 - Production-oriented Supabase schema with per-user security policies
 - Official OpenAI SDK and Responses API integration with Structured Outputs
@@ -29,7 +31,7 @@ YOVA Lite is a personalized learning planner and guided study system. This repos
 
 ## Data modes
 
-The app currently runs in local private-alpha mode, so the browser remembers the account and product data between visits. The production data boundary, server client, and transactional plan save are prepared for Supabase; connecting a project URL, publishable key, migrations, and real authentication is a separate, explicit step.
+The app currently runs in local private-alpha mode, so the browser remembers the account and product data between visits. When a Supabase project URL and publishable key are present, the same account screen automatically switches to passwordless email-link authentication backed by cookie sessions. The production data boundary, server client, row-level policies, and transactional plan save are prepared for Supabase; connecting the project and running its migrations remain explicit deployment steps.
 
 TXT and Markdown materials are read locally for the current plan request. PDFs are accepted but only staged until server-side storage and extraction are connected; the app does not pretend that staged PDFs have been analyzed.
 
@@ -49,5 +51,14 @@ The plan-creation UI calls a real internal endpoint and validates both sides of 
 Copy `.env.example` to `.env.local` and add a server-only `OPENAI_API_KEY` when the OpenAI provider is connected. Never expose this key in a variable beginning with `NEXT_PUBLIC_`.
 
 `GET /api/system/status` safely reports whether this running copy is using OpenAI or the preview generator, and Supabase or browser persistence.
+
+## Authentication
+
+YOVA uses two honest modes:
+
+- Without Supabase credentials, account entry is a browser-only private-alpha preview.
+- With Supabase credentials, YOVA emails a temporary sign-in link, processes the secure callback at `/auth/callback`, stores the session in cookies, and refreshes that session through the Next.js proxy.
+
+No user password is stored by YOVA in either mode.
 
 See `docs/TECH-BIRDSEYE.md` for the founder-oriented technical explanation.

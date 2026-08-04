@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { BrandMark } from "@/components/brand-mark";
 import { PlanCreator } from "@/components/plan-creator";
+import { getAuthenticatedAccount, getAuthMode, requestEmailAuthentication, signOutAuthenticatedAccount } from "@/lib/auth/client";
 import { makeId, makeUuid, type LearningPlan, type PreviewAccount, type SessionCompletion } from "@/lib/domain";
 import { clearPreviewSnapshot, loadPreviewSnapshot, savePreviewSnapshot } from "@/lib/persistence/preview-store";
 import { buildPlanProfileSummary } from "@/lib/personalization/profile-summary";
@@ -66,24 +67,41 @@ export function YovaPrototype() {
   const sessionTotalAnswers = activeLessonSteps.filter((step) => step.question).length;
 
   useEffect(() => {
-    const saved = loadPreviewSnapshot();
-    if (saved) {
-      setAccount(saved.account);
-      setSignedIn(saved.signedIn);
-      setAnswers(saved.onboardingAnswers);
-      setOnboardingCompleted(saved.onboardingCompleted);
-      setAlphaEntered(saved.alphaEntered);
-      setPlans(saved.plans);
-      setSelectedPlanId(saved.plans.filter((plan) => plan.status === "active").at(-1)?.id ?? null);
-      setSessionCompletions(saved.sessionCompletions);
+    let cancelled = false;
 
-      if (saved.signedIn && saved.account) {
+    async function openYova() {
+      const saved = loadPreviewSnapshot();
+      if (saved) {
+        setAccount(saved.account);
+        setSignedIn(saved.signedIn);
+        setAnswers(saved.onboardingAnswers);
+        setOnboardingCompleted(saved.onboardingCompleted);
+        setAlphaEntered(saved.alphaEntered);
+        setPlans(saved.plans);
+        setSelectedPlanId(saved.plans.filter((plan) => plan.status === "active").at(-1)?.id ?? null);
+        setSessionCompletions(saved.sessionCompletions);
+      }
+
+      const cloudAccount = await getAuthenticatedAccount();
+      if (cancelled) return;
+
+      if (cloudAccount) {
+        setAccount(cloudAccount);
+        setSignedIn(true);
+        if (saved?.alphaEntered) setStage(saved.plans.length ? "app" : "plan-creator");
+        else if (saved?.onboardingCompleted) setStage("paywall");
+        else setStage("onboarding-intro");
+      } else if (saved?.signedIn && saved.account && getAuthMode() === "preview") {
         if (saved.alphaEntered) setStage(saved.plans.length ? "app" : "plan-creator");
         else if (saved.onboardingCompleted) setStage("paywall");
         else setStage("onboarding-intro");
       }
+
+      setReady(true);
     }
-    setReady(true);
+
+    void openYova();
+    return () => { cancelled = true; };
   }, []);
 
   useEffect(() => {
@@ -228,7 +246,12 @@ export function YovaPrototype() {
   if (stage === "complete") return <SessionComplete correctAnswers={sessionCorrectAnswers} totalAnswers={sessionTotalAnswers} onFinish={() => { completeActiveSession(sessionCorrectAnswers, sessionTotalAnswers); setStage("app"); setActiveTab("Home"); }} />;
 
   return (
-    <AppShell activeTab={activeTab} onTab={setActiveTab} account={account} onSignOut={() => { setSignedIn(false); setStage("landing"); }}>
+    <AppShell activeTab={activeTab} onTab={setActiveTab} account={account} onSignOut={() => {
+      void signOutAuthenticatedAccount().finally(() => {
+        setSignedIn(false);
+        setStage("landing");
+      });
+    }}>
       {activeTab === "Home" && <HomeScreen account={account} plans={activePlans} plan={activePlan} onStart={() => startSession(activePlan?.id)} onSelectPlan={setSelectedPlanId} onCreatePlan={() => setStage("plan-creator")} />}
       {activeTab === "Learning" && <LearningScreen plans={activePlans} plan={activePlan} onSelectPlan={setSelectedPlanId} onStart={() => startSession(activePlan?.id)} onCreatePlan={() => setStage("plan-creator")} />}
       {activeTab === "Agenda" && <AgendaScreen plans={activePlans} onStart={startSession} />}
@@ -265,9 +288,12 @@ function AccountEntry({ mode, existingAccount, onBack, onContinue }: { mode: Acc
   const [displayName, setDisplayName] = useState(existingAccount?.displayName ?? "Maya");
   const [email, setEmail] = useState(existingAccount?.email ?? "maya@example.com");
   const [error, setError] = useState("");
+  const [pending, setPending] = useState(false);
+  const [emailSent, setEmailSent] = useState(false);
   const isCreate = mode === "create";
+  const authMode = getAuthMode();
 
-  const submit = () => {
+  const submit = async () => {
     const normalizedEmail = email.trim().toLowerCase();
     if (!normalizedEmail.includes("@")) {
       setError("Enter a valid email address.");
@@ -277,20 +303,44 @@ function AccountEntry({ mode, existingAccount, onBack, onContinue }: { mode: Acc
       setError("Enter your first name.");
       return;
     }
-    if (!isCreate && (!existingAccount || existingAccount.email !== normalizedEmail)) {
+    if (authMode === "preview" && !isCreate && (!existingAccount || existingAccount.email !== normalizedEmail)) {
       setError("No private-alpha account is saved for this email in this browser yet.");
       return;
     }
 
-    onContinue(existingAccount && !isCreate ? existingAccount : {
-      id: makeId("preview_user"),
-      email: normalizedEmail,
-      displayName: displayName.trim(),
-      createdAt: new Date().toISOString(),
-    });
+    setPending(true);
+    setError("");
+    try {
+      const result = await requestEmailAuthentication({
+        email: normalizedEmail,
+        displayName: displayName.trim(),
+        shouldCreateUser: isCreate,
+      });
+
+      if (result.mode === "supabase") {
+        setEmailSent(true);
+        return;
+      }
+
+      onContinue(existingAccount && !isCreate ? existingAccount : {
+        id: makeId("preview_user"),
+        email: normalizedEmail,
+        displayName: displayName.trim(),
+        createdAt: new Date().toISOString(),
+        identityMode: "preview",
+      });
+    } catch (authenticationError) {
+      setError(authenticationError instanceof Error ? authenticationError.message : "YOVA could not start sign-in. Try again.");
+    } finally {
+      setPending(false);
+    }
   };
 
-  return <main className="account-shell"><header><BrandMark /><button className="button ghost" onClick={onBack}><ArrowLeft size={17} /> Back</button></header><section className="account-card"><span className="step-label">{isCreate ? "CREATE YOUR ACCOUNT" : "WELCOME BACK"}</span><h1>{isCreate ? "Start building your YOVA." : "Continue your learning."}</h1><p>{isCreate ? "Your account keeps your profile, plans, sessions, and progress together." : "Use the email attached to this browser’s private-alpha account."}</p>{isCreate && <label><span>First name</span><input value={displayName} onChange={(event) => { setDisplayName(event.target.value); setError(""); }} autoComplete="given-name" /></label>}<label><span>Email address</span><div className="input-with-icon"><Mail size={18} /><input type="email" value={email} onChange={(event) => { setEmail(event.target.value); setError(""); }} autoComplete="email" /></div></label>{error && <p className="form-error">{error}</p>}<button className="button primary large full" onClick={submit}>{isCreate ? "Continue" : "Sign in"} <ArrowRight size={18} /></button><div className="preview-notice"><strong>Private-alpha storage</strong><span>For now, this browser remembers the prototype. Real email verification activates when the cloud project is connected.</span></div></section></main>;
+  if (emailSent) {
+    return <main className="account-shell"><header><BrandMark /><button className="button ghost" onClick={onBack}><ArrowLeft size={17} /> Back</button></header><section className="account-card email-sent"><div className="mail-check"><Mail size={24} /></div><span className="step-label">CHECK YOUR EMAIL</span><h1>Your secure sign-in link is on its way.</h1><p>Open the message sent to <strong>{email.trim().toLowerCase()}</strong>. The link will bring you back to YOVA and finish signing you in.</p><button className="button secondary large full" onClick={() => setEmailSent(false)}>Use a different email</button><div className="preview-notice"><strong>No password to remember</strong><span>The link is temporary and can only be used to finish this sign-in.</span></div></section></main>;
+  }
+
+  return <main className="account-shell"><header><BrandMark /><button className="button ghost" onClick={onBack}><ArrowLeft size={17} /> Back</button></header><section className="account-card"><span className="step-label">{isCreate ? "CREATE YOUR ACCOUNT" : "WELCOME BACK"}</span><h1>{isCreate ? "Start building your YOVA." : "Continue your learning."}</h1><p>{isCreate ? "Your account keeps your profile, plans, sessions, and progress together." : authMode === "supabase" ? "Enter your email and YOVA will send you a secure sign-in link." : "Use the email attached to this browser’s private-alpha account."}</p>{isCreate && <label><span>First name</span><input value={displayName} onChange={(event) => { setDisplayName(event.target.value); setError(""); }} autoComplete="given-name" disabled={pending} /></label>}<label><span>Email address</span><div className="input-with-icon"><Mail size={18} /><input type="email" value={email} onChange={(event) => { setEmail(event.target.value); setError(""); }} autoComplete="email" disabled={pending} /></div></label>{error && <p className="form-error">{error}</p>}<button className="button primary large full" onClick={() => void submit()} disabled={pending}>{pending ? "Sending secure link…" : isCreate ? "Continue" : "Sign in"} {!pending && <ArrowRight size={18} />}</button><div className="preview-notice"><strong>{authMode === "supabase" ? "Secure cloud account" : "Private-alpha storage"}</strong><span>{authMode === "supabase" ? "YOVA uses a temporary email link instead of storing a password." : "For now, this browser remembers the prototype. Real email verification activates when the cloud project is connected."}</span></div></section></main>;
 }
 
 function OnboardingIntro({ onStart }: { onStart: () => void }) {
@@ -314,7 +364,7 @@ function PaywallPreview({ onContinue }: { onContinue: () => void }) {
 
 function AppShell({ activeTab, onTab, account, onSignOut, children }: { activeTab: Tab; onTab: (tab: Tab) => void; account: PreviewAccount | null; onSignOut: () => void; children: React.ReactNode }) {
   const initial = account?.displayName.trim().charAt(0).toUpperCase() || "Y";
-  return <div className="app-shell"><aside className="sidebar"><BrandMark /> <nav>{navItems.map(({ label, icon: Icon }) => <button key={label} className={activeTab === label ? "active" : ""} onClick={() => onTab(label)}><Icon size={19} />{label}</button>)}</nav><div className="sidebar-bottom"><button onClick={onSignOut}><LogOut size={18} /> Sign out</button><div className="account-dot">{initial}</div><div><strong>{account?.displayName || "YOVA user"}</strong><span>Private alpha</span></div></div></aside><main className="app-content">{children}</main></div>;
+  return <div className="app-shell"><aside className="sidebar"><BrandMark /> <nav>{navItems.map(({ label, icon: Icon }) => <button key={label} className={activeTab === label ? "active" : ""} onClick={() => onTab(label)}><Icon size={19} />{label}</button>)}</nav><div className="sidebar-bottom"><button onClick={onSignOut}><LogOut size={18} /> Sign out</button><div className="account-dot">{initial}</div><div><strong>{account?.displayName || "YOVA user"}</strong><span>{account?.identityMode === "supabase" ? "Cloud account" : "Private alpha"}</span></div></div></aside><main className="app-content">{children}</main></div>;
 }
 
 function PageHeader({ eyebrow, title, description }: { eyebrow?: string; title: string; description?: string }) { return <header className="page-header">{eyebrow && <span className="step-label">{eyebrow}</span>}<h1>{title}</h1>{description && <p>{description}</p>}</header>; }

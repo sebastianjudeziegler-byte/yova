@@ -18,6 +18,7 @@ export type PreviewAccount = {
   email: string;
   displayName: string;
   createdAt: string;
+  identityMode?: "preview" | "supabase";
 };
 
 export type LearningPlanSession = {

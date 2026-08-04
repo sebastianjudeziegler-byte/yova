@@ -68,7 +68,9 @@ This is not yet cloud storage and it is not a replacement for secure authenticat
 
 An account answers, “Who is allowed into this data?” A learner profile answers, “How should YOVA initially help this person?” They are deliberately separate.
 
-The account will ultimately be verified by Supabase Auth. The learner profile stores study-relevant preferences such as desired guidance, realistic session length, explanation preference, and common blockers. Observed patterns come from completed sessions and learning events rather than unsupported personality labels.
+The account can now be verified by Supabase Auth as soon as cloud credentials are connected. The account screen has an abstraction boundary: it uses a local preview identity without Supabase, then automatically switches to temporary email-link authentication when Supabase is configured. The same interface survives while the implementation underneath becomes real.
+
+The email link returns through a callback route, where YOVA exchanges its temporary code for a secure cookie-backed session. A lightweight Next.js proxy refreshes that session when necessary. The learner profile separately stores study-relevant preferences such as desired guidance, realistic session length, explanation preference, and common blockers. Observed patterns come from completed sessions and learning events rather than unsupported personality labels.
 
 ## 8. The durable hierarchy
 
