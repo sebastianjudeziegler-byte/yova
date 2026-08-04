@@ -28,6 +28,11 @@ import { makeId, makeUuid, type LearningPlan, type PreviewAccount, type SessionC
 import { clearPreviewSnapshot, loadPreviewSnapshot, savePreviewSnapshot } from "@/lib/persistence/preview-store";
 import { buildPlanProfileSummary } from "@/lib/personalization/profile-summary";
 import { onboardingQuestions } from "@/lib/sample-data";
+import {
+  completeAuthenticatedPlanSession,
+  loadAuthenticatedLearningState,
+  saveAuthenticatedLearnerProfile,
+} from "@/lib/supabase/learning-state-repository";
 
 type Stage = "landing" | "account" | "onboarding-intro" | "onboarding" | "profile" | "paywall" | "app" | "plan-creator" | "session" | "complete";
 type Tab = "Home" | "Learning" | "Agenda" | "Ask YOVA" | "You";
@@ -59,6 +64,7 @@ export function YovaPrototype() {
   const [sessionStep, setSessionStep] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
   const [sessionResponses, setSessionResponses] = useState<Record<number, string>>({});
+  const [cloudSyncIssue, setCloudSyncIssue] = useState<string | null>(null);
 
   const activePlans = plans.filter((plan) => plan.status === "active");
   const activePlan = activePlans.find((plan) => plan.id === selectedPlanId) ?? activePlans[activePlans.length - 1] ?? null;
@@ -86,11 +92,52 @@ export function YovaPrototype() {
       if (cancelled) return;
 
       if (cloudAccount) {
-        setAccount(cloudAccount);
-        setSignedIn(true);
-        if (saved?.alphaEntered) setStage(saved.plans.length ? "app" : "plan-creator");
-        else if (saved?.onboardingCompleted) setStage("paywall");
-        else setStage("onboarding-intro");
+        const localAccountMatches = saved?.account?.id === cloudAccount.id;
+
+        try {
+          const cloudState = await loadAuthenticatedLearningState();
+          if (cancelled) return;
+
+          const restoredAccount = cloudState?.displayName
+            ? { ...cloudAccount, displayName: cloudState.displayName }
+            : cloudAccount;
+          const cloudPlans = cloudState?.plans ?? [];
+          const cloudOnboardingCompleted = cloudState?.onboardingCompleted ?? false;
+          const restoredAlphaEntered = localAccountMatches ? Boolean(saved?.alphaEntered) : false;
+
+          setAccount(restoredAccount);
+          setSignedIn(true);
+          setAnswers(cloudState?.onboardingAnswers ?? []);
+          setOnboardingCompleted(cloudOnboardingCompleted);
+          setAlphaEntered(restoredAlphaEntered);
+          setPlans(cloudPlans);
+          setSelectedPlanId(cloudPlans.filter((plan) => plan.status === "active").at(-1)?.id ?? null);
+          setSessionCompletions(cloudState?.sessionCompletions ?? []);
+          setCloudSyncIssue(null);
+
+          if (cloudPlans.some((plan) => plan.status === "active")) setStage("app");
+          else if (cloudOnboardingCompleted && restoredAlphaEntered) setStage("plan-creator");
+          else if (cloudOnboardingCompleted) setStage("paywall");
+          else setStage("onboarding-intro");
+        } catch (error) {
+          setAccount(cloudAccount);
+          setSignedIn(true);
+          setCloudSyncIssue(error instanceof Error ? error.message : "YOVA could not load your cloud data.");
+
+          if (localAccountMatches && saved) {
+            if (saved.alphaEntered) setStage(saved.plans.length ? "app" : "plan-creator");
+            else if (saved.onboardingCompleted) setStage("paywall");
+            else setStage("onboarding-intro");
+          } else {
+            setAnswers([]);
+            setOnboardingCompleted(false);
+            setAlphaEntered(false);
+            setPlans([]);
+            setSelectedPlanId(null);
+            setSessionCompletions([]);
+            setStage("onboarding-intro");
+          }
+        }
       } else if (saved?.signedIn && saved.account && getAuthMode() === "preview") {
         if (saved.alphaEntered) setStage(saved.plans.length ? "app" : "plan-creator");
         else if (saved.onboardingCompleted) setStage("paywall");
@@ -119,6 +166,24 @@ export function YovaPrototype() {
     });
   }, [ready, account, signedIn, answers, onboardingCompleted, alphaEntered, plans, sessionCompletions]);
 
+  useEffect(() => {
+    if (!ready || !onboardingCompleted || account?.identityMode !== "supabase") return;
+    let cancelled = false;
+
+    void saveAuthenticatedLearnerProfile({
+      displayName: account.displayName,
+      onboardingAnswers: answers,
+    }).then(() => {
+      if (!cancelled) setCloudSyncIssue(null);
+    }).catch((error: unknown) => {
+      if (!cancelled) {
+        setCloudSyncIssue(error instanceof Error ? error.message : "YOVA could not sync your learning profile.");
+      }
+    });
+
+    return () => { cancelled = true; };
+  }, [ready, onboardingCompleted, account, answers]);
+
   const startSession = (planId?: string) => {
     if (planId) setSelectedPlanId(planId);
     setSessionStep(0);
@@ -132,20 +197,7 @@ export function YovaPrototype() {
     const currentSession = activePlan.sessions.find((session) => session.status === "ready");
     if (!currentSession) return;
 
-    setPlans((currentPlans) => currentPlans.map((plan) => {
-      if (plan.id !== activePlan.id) return plan;
-      const nextSequence = currentSession.sequence + 1;
-      return {
-        ...plan,
-        sessions: plan.sessions.map((session) => {
-          if (session.id === currentSession.id) return { ...session, status: "complete" as const };
-          if (session.sequence === nextSequence && session.status === "upcoming") return { ...session, status: "ready" as const };
-          return session;
-        }),
-      };
-    }));
-
-    setSessionCompletions((current) => [...current, {
+    const completion: SessionCompletion = {
       id: makeUuid(),
       planId: activePlan.id,
       planSessionId: currentSession.id,
@@ -154,7 +206,34 @@ export function YovaPrototype() {
       totalAnswers,
       feedback: "about_right",
       observedGap: correctAnswers < totalAnswers ? `One or more details in ${activePlan.topic}` : "No major gap detected in the required check",
-    }]);
+    };
+
+    setPlans((currentPlans) => currentPlans.map((plan) => {
+      if (plan.id !== activePlan.id) return plan;
+      const nextSequence = currentSession.sequence + 1;
+      const updatedSessions = plan.sessions.map((session) => {
+        if (session.id === currentSession.id) return { ...session, status: "complete" as const };
+        if (session.sequence === nextSequence && session.status === "upcoming") return { ...session, status: "ready" as const };
+        return session;
+      });
+      return {
+        ...plan,
+        status: updatedSessions.some((session) => session.status === "ready" || session.status === "upcoming")
+          ? plan.status
+          : "completed",
+        sessions: updatedSessions,
+      };
+    }));
+
+    setSessionCompletions((current) => [...current, completion]);
+
+    if (account?.identityMode === "supabase") {
+      void completeAuthenticatedPlanSession(completion, currentSession.estimatedMinutes)
+        .then(() => setCloudSyncIssue(null))
+        .catch((error: unknown) => {
+          setCloudSyncIssue(error instanceof Error ? error.message : "YOVA could not sync this session.");
+        });
+    }
   };
 
   const resetAlphaData = () => {
@@ -246,7 +325,7 @@ export function YovaPrototype() {
   if (stage === "complete") return <SessionComplete correctAnswers={sessionCorrectAnswers} totalAnswers={sessionTotalAnswers} onFinish={() => { completeActiveSession(sessionCorrectAnswers, sessionTotalAnswers); setStage("app"); setActiveTab("Home"); }} />;
 
   return (
-    <AppShell activeTab={activeTab} onTab={setActiveTab} account={account} onSignOut={() => {
+    <AppShell activeTab={activeTab} onTab={setActiveTab} account={account} cloudSyncIssue={cloudSyncIssue} onSignOut={() => {
       void signOutAuthenticatedAccount().finally(() => {
         setSignedIn(false);
         setStage("landing");
@@ -362,9 +441,9 @@ function PaywallPreview({ onContinue }: { onContinue: () => void }) {
   return <main className="centered-shell dark"><BrandMark /><section className="setup-card paywall"><span className="step-label">YOVA LITE</span><h1>A study system built around you.</h1><p>Plans, method selection, guided sessions, progress memory, and adjustments based on what happens next.</p><ul className="check-list"><li><Check /> Determine what you already know</li><li><Check /> Choose methods that fit the task and your tendencies</li><li><Check /> Tell you exactly how to perform each method</li><li><Check /> Adjust the next session using your results</li></ul><button className="button primary large full" onClick={onContinue}>Continue to private alpha</button><small>Payments will be connected after the core experience is validated.</small></section></main>;
 }
 
-function AppShell({ activeTab, onTab, account, onSignOut, children }: { activeTab: Tab; onTab: (tab: Tab) => void; account: PreviewAccount | null; onSignOut: () => void; children: React.ReactNode }) {
+function AppShell({ activeTab, onTab, account, cloudSyncIssue, onSignOut, children }: { activeTab: Tab; onTab: (tab: Tab) => void; account: PreviewAccount | null; cloudSyncIssue: string | null; onSignOut: () => void; children: React.ReactNode }) {
   const initial = account?.displayName.trim().charAt(0).toUpperCase() || "Y";
-  return <div className="app-shell"><aside className="sidebar"><BrandMark /> <nav>{navItems.map(({ label, icon: Icon }) => <button key={label} className={activeTab === label ? "active" : ""} onClick={() => onTab(label)}><Icon size={19} />{label}</button>)}</nav><div className="sidebar-bottom"><button onClick={onSignOut}><LogOut size={18} /> Sign out</button><div className="account-dot">{initial}</div><div><strong>{account?.displayName || "YOVA user"}</strong><span>{account?.identityMode === "supabase" ? "Cloud account" : "Private alpha"}</span></div></div></aside><main className="app-content">{children}</main></div>;
+  return <div className="app-shell"><aside className="sidebar"><BrandMark /> <nav>{navItems.map(({ label, icon: Icon }) => <button key={label} className={activeTab === label ? "active" : ""} onClick={() => onTab(label)}><Icon size={19} />{label}</button>)}</nav><div className="sidebar-bottom"><button onClick={onSignOut}><LogOut size={18} /> Sign out</button><div className="account-dot">{initial}</div><div><strong>{account?.displayName || "YOVA user"}</strong><span>{account?.identityMode === "supabase" ? "Cloud account" : "Private alpha"}</span></div></div></aside><main className="app-content">{cloudSyncIssue && <div className="cloud-sync-warning"><strong>Cloud sync needs attention.</strong><span>{cloudSyncIssue} Your latest work is still saved in this browser.</span></div>}{children}</main></div>;
 }
 
 function PageHeader({ eyebrow, title, description }: { eyebrow?: string; title: string; description?: string }) { return <header className="page-header">{eyebrow && <span className="step-label">{eyebrow}</span>}<h1>{title}</h1>{description && <p>{description}</p>}</header>; }

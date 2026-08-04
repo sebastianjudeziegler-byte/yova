@@ -142,6 +142,20 @@ h1, h2, h3, p { margin-top: 0; }
 .sidebar-bottom span { color: #8591aa; font-size: 11px; margin-top: 3px; }
 .account-dot { width: 34px; height: 34px; display: grid; place-items: center; background: var(--blue); border-radius: 50%; font-weight: 700; }
 .app-content { min-width: 0; }
+.cloud-sync-warning {
+  margin: 18px 24px 0;
+  padding: 12px 15px;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  color: #7c4a03;
+  border: 1px solid #f3d299;
+  border-radius: 11px;
+  background: #fff8e8;
+  font-size: 12px;
+  line-height: 1.45;
+}
+.cloud-sync-warning strong { flex: 0 0 auto; color: #6d3f00; }
 .page { width: min(100%, 1050px); margin: 0 auto; padding: 62px 52px 80px; }
 .page-header { margin-bottom: 32px; }
 .page-header h1 { margin: 10px 0 8px; font-size: 38px; }
