@@ -177,6 +177,18 @@ h1, h2, h3, p { margin-top: 0; }
 .ask-bar > svg { color: var(--blue); }
 .ask-bar input { flex: 1; border: 0; outline: 0; background: transparent; }
 .ask-bar button, .session-ask button { width: 36px; height: 36px; border: 0; border-radius: 9px; color: white; background: var(--navy); }
+.ask-bar button:disabled { cursor: not-allowed; opacity: .55; }
+.button-spinner {
+  width: 15px;
+  height: 15px;
+  display: inline-block;
+  border: 2px solid rgba(255,255,255,.42);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: yova-spin .7s linear infinite;
+}
+.button-spinner.dark { border-color: #ccd3e0; border-top-color: var(--navy); }
+@keyframes yova-spin { to { transform: rotate(360deg); } }
 .quick-actions { display: grid; grid-template-columns: repeat(2,1fr); gap: 12px; }
 .quick-actions button { padding: 17px; display: flex; gap: 13px; text-align: left; border: 1px solid var(--border); border-radius: 12px; background: white; }
 .quick-actions svg { color: var(--blue); }
@@ -237,9 +249,17 @@ h1, h2, h3, p { margin-top: 0; }
 .ask-page { min-height: 100vh; display: flex; flex-direction: column; }
 .context-pill { width: fit-content; padding: 8px 11px; display: flex; gap: 7px; align-items: center; color: var(--muted); background: white; border: 1px solid var(--border); border-radius: 9px; font-size: 12px; }
 .chat-space { flex: 1; padding: 50px 6%; }
+.chat-thread { display: grid; gap: 26px; }
 .yova-message { display: flex; align-items: flex-start; gap: 13px; }
 .yova-message strong { font-size: 13px; }
-.yova-message p { max-width: 650px; margin-top: 6px; line-height: 1.6; }
+.yova-message p { max-width: 650px; margin-top: 6px; line-height: 1.6; white-space: pre-wrap; }
+.user-message { max-width: min(72%,650px); margin-left: auto; padding: 13px 16px; color: #18213a; border: 1px solid #dce3f4; border-radius: 14px 14px 4px 14px; background: var(--soft-blue); }
+.user-message strong { color: var(--blue); font-size: 11px; text-transform: uppercase; letter-spacing: .06em; }
+.user-message p { margin: 5px 0 0; line-height: 1.55; white-space: pre-wrap; }
+.user-message.pending { opacity: .65; }
+.chat-loading { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 13px; }
+.chat-error { margin-top: 22px; padding: 11px 13px; display: flex; align-items: flex-start; gap: 8px; color: #8b4513; border: 1px solid #efd4b2; border-radius: 10px; background: #fff8ed; font-size: 12px; line-height: 1.45; }
+.chat-error svg { flex: 0 0 auto; margin-top: 1px; }
 .prompt-grid { margin: 32px 0 0 51px; display: grid; grid-template-columns: repeat(2,1fr); gap: 9px; }
 .prompt-grid button { padding: 13px; text-align: left; border: 1px solid var(--border); border-radius: 10px; background: white; color: var(--muted); }
 .you-grid { display: grid; grid-template-columns: 1fr 1.1fr; gap: 18px; }

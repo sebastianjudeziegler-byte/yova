@@ -3,10 +3,17 @@ import "server-only";
 type RateRecord = { count: number; resetsAt: number };
 
 const WINDOW_MS = 60_000;
-const MAX_REQUESTS = 6;
 const records = new Map<string, RateRecord>();
 
 export function checkPlanGenerationRateLimit(key: string) {
+  return checkRateLimit(`plan:${key}`, 6);
+}
+
+export function checkTutorRateLimit(key: string) {
+  return checkRateLimit(`tutor:${key}`, 20);
+}
+
+function checkRateLimit(key: string, maxRequests: number) {
   const now = Date.now();
   const existing = records.get(key);
 
@@ -15,7 +22,7 @@ export function checkPlanGenerationRateLimit(key: string) {
     return { allowed: true, retryAfterSeconds: 0 };
   }
 
-  if (existing.count >= MAX_REQUESTS) {
+  if (existing.count >= maxRequests) {
     return {
       allowed: false,
       retryAfterSeconds: Math.max(1, Math.ceil((existing.resetsAt - now) / 1_000)),

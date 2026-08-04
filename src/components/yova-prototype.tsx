@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import {
+  AlertCircle,
   ArrowLeft,
   ArrowRight,
   BookOpen,
@@ -33,6 +34,11 @@ import {
   loadAuthenticatedLearningState,
   saveAuthenticatedLearnerProfile,
 } from "@/lib/supabase/learning-state-repository";
+import {
+  TutorHistoryResponseSchema,
+  TutorResponseSchema,
+  type TutorMessage,
+} from "@/lib/tutor/schema";
 
 type Stage = "landing" | "account" | "onboarding-intro" | "onboarding" | "profile" | "paywall" | "app" | "plan-creator" | "session" | "complete";
 type Tab = "Home" | "Learning" | "Agenda" | "Ask YOVA" | "You";
@@ -65,6 +71,7 @@ export function YovaPrototype() {
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
   const [sessionResponses, setSessionResponses] = useState<Record<number, string>>({});
   const [cloudSyncIssue, setCloudSyncIssue] = useState<string | null>(null);
+  const [tutorQuestion, setTutorQuestion] = useState("");
 
   const activePlans = plans.filter((plan) => plan.status === "active");
   const activePlan = activePlans.find((plan) => plan.id === selectedPlanId) ?? activePlans[activePlans.length - 1] ?? null;
@@ -331,10 +338,10 @@ export function YovaPrototype() {
         setStage("landing");
       });
     }}>
-      {activeTab === "Home" && <HomeScreen account={account} plans={activePlans} plan={activePlan} onStart={() => startSession(activePlan?.id)} onSelectPlan={setSelectedPlanId} onCreatePlan={() => setStage("plan-creator")} />}
+      {activeTab === "Home" && <HomeScreen account={account} plans={activePlans} plan={activePlan} tutorQuestion={tutorQuestion} onTutorQuestion={setTutorQuestion} onOpenTutor={() => setActiveTab("Ask YOVA")} onStart={() => startSession(activePlan?.id)} onSelectPlan={setSelectedPlanId} onCreatePlan={() => setStage("plan-creator")} />}
       {activeTab === "Learning" && <LearningScreen plans={activePlans} plan={activePlan} onSelectPlan={setSelectedPlanId} onStart={() => startSession(activePlan?.id)} onCreatePlan={() => setStage("plan-creator")} />}
       {activeTab === "Agenda" && <AgendaScreen plans={activePlans} onStart={startSession} />}
-      {activeTab === "Ask YOVA" && <AskScreen plan={activePlan} />}
+      {activeTab === "Ask YOVA" && <AskScreen key={activePlan?.id ?? "general"} plan={activePlan} question={tutorQuestion} onQuestion={setTutorQuestion} />}
       {activeTab === "You" && <YouScreen account={account} sessionCompletions={sessionCompletions} onReset={resetAlphaData} />}
     </AppShell>
   );
@@ -448,15 +455,17 @@ function AppShell({ activeTab, onTab, account, cloudSyncIssue, onSignOut, childr
 
 function PageHeader({ eyebrow, title, description }: { eyebrow?: string; title: string; description?: string }) { return <header className="page-header">{eyebrow && <span className="step-label">{eyebrow}</span>}<h1>{title}</h1>{description && <p>{description}</p>}</header>; }
 
-function HomeScreen({ account, plans, plan, onStart, onSelectPlan, onCreatePlan }: { account: PreviewAccount | null; plans: LearningPlan[]; plan: LearningPlan | null; onStart: () => void; onSelectPlan: (planId: string) => void; onCreatePlan: () => void }) {
+function HomeScreen({ account, plans, plan, tutorQuestion, onTutorQuestion, onOpenTutor, onStart, onSelectPlan, onCreatePlan }: { account: PreviewAccount | null; plans: LearningPlan[]; plan: LearningPlan | null; tutorQuestion: string; onTutorQuestion: (question: string) => void; onOpenTutor: () => void; onStart: () => void; onSelectPlan: (planId: string) => void; onCreatePlan: () => void }) {
   const readySession = plan?.sessions.find((session) => session.status === "ready") ?? null;
   const completedCount = plan?.sessions.filter((session) => session.status === "complete").length ?? 0;
   const firstName = account?.displayName.split(" ")[0] || "there";
 
-  return <div className="page"><PageHeader eyebrow="MONDAY, AUGUST 3" title={`Good afternoon, ${firstName}.`} description="Here is the most useful next step across your active learning." />{plan && readySession ? <section className="recommendation-card"><div className="rec-top"><span className="eyebrow light"><Sparkles size={15} /> Recommended next</span><span>{completedCount} of {plan.sessions.length} sessions complete</span></div><div className="rec-body"><div><span className="subject-label">{plan.title.toUpperCase()}</span><h2>{readySession.title}</h2><div className="meta-row"><span><Target size={16} /> {readySession.method}</span><span><Clock3 size={16} /> {readySession.amountLabel}</span></div></div><button className="button white large" onClick={onStart}>Start session <ArrowRight size={18} /></button></div><div className="reason-grid"><div><strong>Why now</strong><p>This is the first unfinished session in your selected plan and fits today’s availability.</p></div><div><strong>Why this method</strong><p>{readySession.methodReason}</p></div></div></section> : <section className="empty-home"><span className="eyebrow"><Sparkles size={15} /> Start here</span><h2>Build your first learning plan.</h2><p>Tell YOVA what you need to learn. Materials are optional.</p><button className="button primary large" onClick={onCreatePlan}>Create a plan <ArrowRight size={18} /></button></section>}<AskBar /><section className="quick-actions"><button><Plus size={18} /><span><strong>Study something now</strong><small>Build one focused session</small></span></button><button onClick={onCreatePlan}><BookOpen size={18} /><span><strong>{plan ? "Create another plan" : "Create a plan"}</strong><small>Prepare for a larger goal</small></span></button></section>{plans.length > 0 && <section className="section-block"><div className="section-title"><h3>Active learning</h3><span>{plans.length} {plans.length === 1 ? "goal" : "goals"}</span></div><div className="compact-items">{plans.map((item) => { const next = item.sessions.find((session) => session.status === "ready"); return <button className={item.id === plan?.id ? "selected" : ""} key={item.id} onClick={() => onSelectPlan(item.id)}><span className="item-icon blue">{item.title.charAt(0)}</span><span><strong>{item.title}</strong><small>{next ? `${next.method} · Next` : "Plan complete"}</small></span><ChevronRight /></button>; })}</div></section>}</div>;
+  return <div className="page"><PageHeader eyebrow="MONDAY, AUGUST 3" title={`Good afternoon, ${firstName}.`} description="Here is the most useful next step across your active learning." />{plan && readySession ? <section className="recommendation-card"><div className="rec-top"><span className="eyebrow light"><Sparkles size={15} /> Recommended next</span><span>{completedCount} of {plan.sessions.length} sessions complete</span></div><div className="rec-body"><div><span className="subject-label">{plan.title.toUpperCase()}</span><h2>{readySession.title}</h2><div className="meta-row"><span><Target size={16} /> {readySession.method}</span><span><Clock3 size={16} /> {readySession.amountLabel}</span></div></div><button className="button white large" onClick={onStart}>Start session <ArrowRight size={18} /></button></div><div className="reason-grid"><div><strong>Why now</strong><p>This is the first unfinished session in your selected plan and fits today’s availability.</p></div><div><strong>Why this method</strong><p>{readySession.methodReason}</p></div></div></section> : <section className="empty-home"><span className="eyebrow"><Sparkles size={15} /> Start here</span><h2>Build your first learning plan.</h2><p>Tell YOVA what you need to learn. Materials are optional.</p><button className="button primary large" onClick={onCreatePlan}>Create a plan <ArrowRight size={18} /></button></section>}<AskBar value={tutorQuestion} onChange={onTutorQuestion} onSubmit={onOpenTutor} /><section className="quick-actions"><button><Plus size={18} /><span><strong>Study something now</strong><small>Build one focused session</small></span></button><button onClick={onCreatePlan}><BookOpen size={18} /><span><strong>{plan ? "Create another plan" : "Create a plan"}</strong><small>Prepare for a larger goal</small></span></button></section>{plans.length > 0 && <section className="section-block"><div className="section-title"><h3>Active learning</h3><span>{plans.length} {plans.length === 1 ? "goal" : "goals"}</span></div><div className="compact-items">{plans.map((item) => { const next = item.sessions.find((session) => session.status === "ready"); return <button className={item.id === plan?.id ? "selected" : ""} key={item.id} onClick={() => onSelectPlan(item.id)}><span className="item-icon blue">{item.title.charAt(0)}</span><span><strong>{item.title}</strong><small>{next ? `${next.method} · Next` : "Plan complete"}</small></span><ChevronRight /></button>; })}</div></section>}</div>;
 }
 
-function AskBar() { return <div className="ask-bar"><Sparkles size={20} /><input aria-label="Ask YOVA" placeholder="Ask YOVA anything or describe what you need…" /><button aria-label="Send"><Send size={18} /></button></div>; }
+function AskBar({ value, onChange, onSubmit, pending = false }: { value: string; onChange: (value: string) => void; onSubmit: () => void; pending?: boolean }) {
+  return <form className="ask-bar" onSubmit={(event) => { event.preventDefault(); if (value.trim() && !pending) onSubmit(); }}><Sparkles size={20} /><input aria-label="Ask YOVA" placeholder="Ask YOVA anything or describe what you need…" value={value} disabled={pending} onChange={(event) => onChange(event.target.value)} /><button aria-label="Send" type="submit" disabled={!value.trim() || pending}>{pending ? <span className="button-spinner" /> : <Send size={18} />}</button></form>;
+}
 
 function LearningScreen({ plans, plan, onSelectPlan, onStart, onCreatePlan }: { plans: LearningPlan[]; plan: LearningPlan | null; onSelectPlan: (planId: string) => void; onStart: () => void; onCreatePlan: () => void }) {
   if (!plan) return <div className="page"><PageHeader eyebrow="LEARNING" title="What you’re working toward" description="Each goal keeps its plan, materials, sessions, resources, and progress together." /><section className="empty-home"><h2>No active learning yet.</h2><p>Create a plan to begin.</p><button className="button primary" onClick={onCreatePlan}>Create a plan</button></section></div>;
@@ -470,7 +479,94 @@ function AgendaScreen({ plans, onStart }: { plans: LearningPlan[]; onStart: (pla
   return <div className="page"><PageHeader eyebrow="AGENDA" title="Today and this week" description="One unified view of sessions and deadlines across your learning." /><section className="section-block"><div className="section-title"><h3>Upcoming</h3><button>Adjust agenda</button></div><div className="agenda-list">{availableSessions.length ? availableSessions.slice(0, 6).map(({ plan, session }) => <article key={session.id} className={session.status === "ready" ? "primary-agenda" : ""}><span className="agenda-window">{formatWindow(session.scheduledFor)}</span><div><strong>{session.title}</strong><small>{plan.title} · {session.estimatedMinutes} min</small></div>{session.status === "ready" ? <button className="button primary" onClick={() => onStart(plan.id)}>Start</button> : <button className="button ghost">Move</button>}</article>) : <p className="muted">Your upcoming sessions will appear here.</p>}</div></section><section className="week-strip">{availableSessions.slice(0, 5).map(({ plan, session }) => <div key={session.id}><span>{formatDay(session.scheduledFor)}</span><strong>{new Date(session.scheduledFor).getDate()}</strong><small>{plan.title}: {session.title}</small></div>)}</section></div>;
 }
 
-function AskScreen({ plan }: { plan: LearningPlan | null }) { return <div className="page ask-page"><PageHeader eyebrow="ASK YOVA" title="Get help in context" description="Ask about a topic, plan, session, or study problem." />{plan && <div className="context-pill"><BookOpen size={15} /> Context: {plan.title} <ChevronRight size={15} /></div>}<div className="chat-space"><div className="yova-message"><BrandMark compact /><div><strong>YOVA</strong><p>What would you like help with? I can explain a concept, quiz you, or propose a change to your current plan.</p></div></div><div className="prompt-grid"><button>Explain the electron transport chain simply</button><button>Quiz me on my weakest area</button><button>Why is retrieval next?</button><button>Make today’s session shorter</button></div></div><AskBar /></div>; }
+function AskScreen({ plan, question, onQuestion }: { plan: LearningPlan | null; question: string; onQuestion: (question: string) => void }) {
+  const [threadId, setThreadId] = useState<string | null>(null);
+  const [messages, setMessages] = useState<TutorMessage[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(true);
+  const [sending, setSending] = useState(false);
+  const [outgoingQuestion, setOutgoingQuestion] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const query = plan ? `?planId=${encodeURIComponent(plan.id)}` : "";
+
+    void fetch(`/api/tutor${query}`, { signal: controller.signal, cache: "no-store" })
+      .then(async (response) => {
+        const body: unknown = await response.json();
+        if (!response.ok) {
+          const message = typeof body === "object" && body && "error" in body && typeof body.error === "string"
+            ? body.error
+            : "YOVA could not load this tutor conversation.";
+          throw new Error(message);
+        }
+        const parsed = TutorHistoryResponseSchema.safeParse(body);
+        if (!parsed.success) throw new Error("The saved tutor conversation was not in a safe format.");
+        setThreadId(parsed.data.threadId);
+        setMessages(parsed.data.messages);
+      })
+      .catch((requestError: unknown) => {
+        if (!controller.signal.aborted) {
+          setError(requestError instanceof Error ? requestError.message : "YOVA could not load this tutor conversation.");
+        }
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setHistoryLoading(false);
+      });
+
+    return () => controller.abort();
+  }, [plan]);
+
+  const sendQuestion = async (suggestedQuestion?: string) => {
+    const nextQuestion = (suggestedQuestion ?? question).trim();
+    if (!nextQuestion || sending || historyLoading) return;
+
+    setSending(true);
+    setOutgoingQuestion(nextQuestion);
+    setError(null);
+    onQuestion("");
+
+    try {
+      const response = await fetch("/api/tutor", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          question: nextQuestion,
+          planId: plan?.id ?? null,
+          threadId,
+          history: messages.slice(-12).map(({ role, content }) => ({ role, content })),
+        }),
+      });
+      const body: unknown = await response.json();
+      if (!response.ok) {
+        const message = typeof body === "object" && body && "error" in body && typeof body.error === "string"
+          ? body.error
+          : "Ask YOVA could not answer right now.";
+        throw new Error(message);
+      }
+
+      const parsed = TutorResponseSchema.safeParse(body);
+      if (!parsed.success) throw new Error("The tutor answer came back in an unsafe format.");
+      setThreadId(parsed.data.persistence === "supabase" ? parsed.data.threadId : null);
+      setMessages((current) => [...current, ...parsed.data.messages]);
+      if (parsed.data.persistence === "browser") {
+        setError("The answer worked, but this exchange did not reach cloud storage. Keep this page open if you need it.");
+      }
+    } catch (requestError) {
+      onQuestion(nextQuestion);
+      setError(requestError instanceof Error ? requestError.message : "Ask YOVA could not answer right now.");
+    } finally {
+      setOutgoingQuestion(null);
+      setSending(false);
+    }
+  };
+
+  const suggestedPrompts = plan
+    ? ["Explain the current topic simply", "Quiz me on my weakest area", "Why is this method next?", "How can I make today’s session shorter?"]
+    : ["Help me understand a difficult topic", "Quiz me on something I am learning", "Which study method should I use?", "Help me start a 20-minute study session"];
+
+  return <div className="page ask-page"><PageHeader eyebrow="ASK YOVA" title="Get help in context" description="Ask about a topic, plan, session, or study problem." />{plan ? <div className="context-pill"><BookOpen size={15} /> Context: {plan.title} <ChevronRight size={15} /></div> : <div className="context-pill"><Sparkles size={15} /> General learning conversation</div>}<div className="chat-space">{historyLoading ? <div className="chat-loading"><span className="button-spinner dark" /> Loading your conversation…</div> : <div className="chat-thread">{messages.length === 0 && <div className="yova-message"><BrandMark compact /><div><strong>YOVA</strong><p>What would you like help with? I can explain a concept, quiz you, or help you decide what to do next.</p></div></div>}{messages.map((message) => message.role === "assistant" ? <div className="yova-message" key={message.id}><BrandMark compact /><div><strong>YOVA</strong><p>{message.content}</p></div></div> : <div className="user-message" key={message.id}><strong>You</strong><p>{message.content}</p></div>)}{outgoingQuestion && <div className="user-message pending" aria-live="polite"><strong>You</strong><p>{outgoingQuestion}</p></div>}</div>}{messages.length === 0 && !outgoingQuestion && !historyLoading && <div className="prompt-grid">{suggestedPrompts.map((prompt) => <button key={prompt} disabled={sending} onClick={() => void sendQuestion(prompt)}>{prompt}</button>)}</div>}{error && <div className="chat-error"><AlertCircle size={16} /><span>{error}</span></div>}</div><AskBar value={question} onChange={onQuestion} onSubmit={() => void sendQuestion()} pending={sending || historyLoading} /></div>;
+}
 
 function YouScreen({ account, sessionCompletions, onReset }: { account: PreviewAccount | null; sessionCompletions: SessionCompletion[]; onReset: () => void }) {
   const [confirmReset, setConfirmReset] = useState(false);
