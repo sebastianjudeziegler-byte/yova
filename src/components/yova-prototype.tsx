@@ -285,8 +285,8 @@ function Landing({ onCreate, onSignIn }: { onCreate: () => void; onSignIn: () =>
 }
 
 function AccountEntry({ mode, existingAccount, onBack, onContinue }: { mode: AccountMode; existingAccount: PreviewAccount | null; onBack: () => void; onContinue: (account: PreviewAccount) => void }) {
-  const [displayName, setDisplayName] = useState(existingAccount?.displayName ?? "Maya");
-  const [email, setEmail] = useState(existingAccount?.email ?? "maya@example.com");
+  const [displayName, setDisplayName] = useState(existingAccount?.displayName ?? "");
+  const [email, setEmail] = useState(existingAccount?.email ?? "");
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
   const [emailSent, setEmailSent] = useState(false);

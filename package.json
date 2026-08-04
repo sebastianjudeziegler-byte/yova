@@ -6,7 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "eslint ."
   },
   "dependencies": {
     "@fontsource/inter": "latest",
@@ -24,8 +24,9 @@
     "@types/node": "latest",
     "@types/react": "latest",
     "@types/react-dom": "latest",
-    "eslint": "latest",
+    "eslint": "^9.39.5",
     "eslint-config-next": "latest",
+    "supabase": "^2.111.0",
     "typescript": "^6.0.2"
   }
 }

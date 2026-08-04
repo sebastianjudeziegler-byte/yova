@@ -2,9 +2,11 @@ node_modules
 .pnpm-store
 .next
 out
+supabase/.temp
 .env
 .env.local
 !.env.example
 *.log
 *.swp
+*.tsbuildinfo
 .DS_Store
