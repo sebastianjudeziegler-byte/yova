@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import { BrandMark } from "@/components/brand-mark";
 import type { LearningMaterial, LearningPlan } from "@/lib/domain";
-import { prepareMaterialFiles } from "@/lib/materials/intake";
+import { deleteUploadedMaterial, uploadMaterialFiles } from "@/lib/materials/intake";
 import {
   PlanGenerationResponseSchema,
   type PlanGenerationResponse,
@@ -33,11 +33,12 @@ const availability = [
 
 export function PlanCreator({ onExit, onFinish, profileSummary }: { onExit: () => void; onFinish: (plan: LearningPlan) => void; profileSummary: string }) {
   const [step, setStep] = useState<PlanStep>("goal");
-  const [goal, setGoal] = useState("I have an AP Biology test next Friday on photosynthesis and cellular respiration.");
+  const [goal, setGoal] = useState("");
   const [materialMode, setMaterialMode] = useState<"upload" | "none" | null>(null);
   const [materials, setMaterials] = useState<LearningMaterial[]>([]);
   const [materialError, setMaterialError] = useState<string | null>(null);
   const [processingMaterials, setProcessingMaterials] = useState(false);
+  const [removingMaterialId, setRemovingMaterialId] = useState<string | null>(null);
   const [studyMode, setStudyMode] = useState<"inside" | "outside" | null>(null);
   const [diagnosticIndex, setDiagnosticIndex] = useState(0);
   const [diagnosticAnswers, setDiagnosticAnswers] = useState<string[]>([]);
@@ -115,7 +116,7 @@ export function PlanCreator({ onExit, onFinish, profileSummary }: { onExit: () =
 
     try {
       const incoming = Array.from(files);
-      const { accepted, errors } = await prepareMaterialFiles(incoming, materials);
+      const { accepted, errors } = await uploadMaterialFiles(incoming, materials);
       setMaterialError(errors[0] ?? null);
       if (accepted.length) setMaterials((current) => [...current, ...accepted]);
     } finally {
@@ -123,9 +124,17 @@ export function PlanCreator({ onExit, onFinish, profileSummary }: { onExit: () =
     }
   };
 
-  const removeMaterial = (id: string) => {
-    setMaterials((current) => current.filter((material) => material.id !== id));
+  const removeMaterial = async (id: string) => {
+    setRemovingMaterialId(id);
     setMaterialError(null);
+    try {
+      await deleteUploadedMaterial(id);
+      setMaterials((current) => current.filter((material) => material.id !== id));
+    } catch (error) {
+      setMaterialError(error instanceof Error ? error.message : "YOVA could not remove this material.");
+    } finally {
+      setRemovingMaterialId(null);
+    }
   };
 
   return (
@@ -139,7 +148,7 @@ export function PlanCreator({ onExit, onFinish, profileSummary }: { onExit: () =
 
       {step === "goal" && (
         <PlanPanel eyebrow="CREATE A PLAN" title="What do you need to learn or prepare for?" description="Write it naturally. YOVA will organize the details before anything is created.">
-          <textarea className="goal-input" value={goal} onChange={(event) => setGoal(event.target.value)} />
+          <textarea className="goal-input" placeholder="Example: I have a biology test next Friday on photosynthesis and cellular respiration." value={goal} onChange={(event) => setGoal(event.target.value)} />
           <PlanActions onBack={onExit} backLabel="Cancel" onNext={() => setStep("understood")} nextDisabled={!goal.trim()} />
         </PlanPanel>
       )}
@@ -162,12 +171,12 @@ export function PlanCreator({ onExit, onFinish, profileSummary }: { onExit: () =
             <label className="upload-dropzone">
               <Upload size={20} />
               <span><strong>{processingMaterials ? "Reading files…" : "Choose materials"}</strong><small>Up to 5 files · 10 MB each</small></span>
-              <input aria-label="Choose learning materials" type="file" multiple accept=".pdf,.txt,.md,text/plain,text/markdown,application/pdf" disabled={processingMaterials} onChange={(event) => { void addMaterials(event.target.files); event.target.value = ""; }} />
+              <input aria-label="Choose learning materials" type="file" multiple accept=".pdf,.txt,.md,text/plain,text/markdown,application/pdf" disabled={processingMaterials || Boolean(removingMaterialId)} onChange={(event) => { void addMaterials(event.target.files); event.target.value = ""; }} />
             </label>
-            {materials.length > 0 && <div className="material-files">{materials.map((material) => <div key={material.id}><FileText /><span><strong>{material.name}</strong><small>{material.processingStatus === "ready" ? `Text read · ${material.textContent?.length.toLocaleString() ?? 0} characters` : "PDF selected · secure processing connects next"}</small></span><button aria-label={`Remove ${material.name}`} onClick={() => removeMaterial(material.id)}><Trash2 size={16} /></button></div>)}<p>{materials.filter((material) => material.processingStatus === "ready").length} readable now · {materials.filter((material) => material.processingStatus === "staged").length} staged for PDF processing</p></div>}
+            {materials.length > 0 && <div className="material-files">{materials.map((material) => <div key={material.id}><FileText /><span><strong>{material.name}</strong><small>Securely stored · text ready for YOVA</small></span><button aria-label={`Remove ${material.name}`} disabled={removingMaterialId === material.id} onClick={() => void removeMaterial(material.id)}>{removingMaterialId === material.id ? <span className="button-spinner dark" /> : <Trash2 size={16} />}</button></div>)}<p>{materials.length} {materials.length === 1 ? "material" : "materials"} ready for plan generation</p></div>}
           </div>}
           {materialError && <p className="material-error"><AlertCircle size={15} /> {materialError}</p>}
-          <PlanActions onBack={back} onNext={() => setStep("mode")} nextDisabled={!materialMode || processingMaterials || (materialMode === "upload" && materials.length === 0)} />
+          <PlanActions onBack={back} onNext={() => setStep("mode")} nextDisabled={!materialMode || processingMaterials || Boolean(removingMaterialId) || (materialMode === "upload" && materials.length === 0)} />
         </PlanPanel>
       )}
 

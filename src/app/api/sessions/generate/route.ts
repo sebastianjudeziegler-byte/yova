@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { buildMaterialExcerpts } from "@/lib/materials/context";
 import { isOpenAISessionConfigured } from "@/lib/openai/config";
 import { generateSessionWithOpenAI } from "@/lib/openai/session-generator";
 import {
@@ -86,7 +87,7 @@ export async function POST(request: Request) {
     if (planError || learnerError || planSessionsError) throw planError ?? learnerError ?? planSessionsError;
     if (!plan) return NextResponse.json({ error: "That learning plan was not found." }, { status: 404 });
 
-    const [{ data: learningItem, error: itemError }, attemptsResult] = await Promise.all([
+    const [{ data: learningItem, error: itemError }, attemptsResult, { data: materialRows, error: materialsError }] = await Promise.all([
       supabase
         .from("learning_items")
         .select("title,topic,kind,deadline,source_mode,study_mode")
@@ -101,9 +102,16 @@ export async function POST(request: Request) {
           .order("completed_at", { ascending: false })
           .limit(3)
         : Promise.resolve({ data: [], error: null }),
+      supabase
+        .from("materials")
+        .select("filename,extracted_text")
+        .eq("learning_item_id", plan.learning_item_id)
+        .eq("processing_status", "ready")
+        .order("created_at", { ascending: true })
+        .limit(5),
     ]);
 
-    if (itemError || attemptsResult.error) throw itemError ?? attemptsResult.error;
+    if (itemError || attemptsResult.error || materialsError) throw itemError ?? attemptsResult.error ?? materialsError;
     if (!learningItem) return NextResponse.json({ error: "That learning goal was not found." }, { status: 404 });
 
     const generated = await generateSessionWithOpenAI({
@@ -116,6 +124,7 @@ export async function POST(request: Request) {
         studyMode: learningItem.study_mode,
       },
       planRationale: plan.rationale,
+      materials: buildMaterialExcerpts(materialRows ?? []),
       session: {
         title: planSession.title,
         objective: planSession.objective,

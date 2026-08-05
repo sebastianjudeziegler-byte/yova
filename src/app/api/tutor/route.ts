@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { buildMaterialExcerpts } from "@/lib/materials/context";
 import { generateTutorAnswer, type TutorLearningContext } from "@/lib/openai/tutor-generator";
 import { isOpenAITutorConfigured } from "@/lib/openai/config";
 import { checkTutorRateLimit, requestRateLimitKey } from "@/lib/server/rate-limit";
@@ -199,6 +200,7 @@ async function loadTutorContext(supabase: SupabaseClient, planId: string | null)
         title: null,
         topic: null,
         planRationale: null,
+        materials: [],
         currentSession: null,
         learnerProfile: profile,
       },
@@ -213,7 +215,7 @@ async function loadTutorContext(supabase: SupabaseClient, planId: string | null)
   if (planError) throw planError;
   if (!plan) throw new TutorPlanNotFoundError("That learning plan could not be found.");
 
-  const [{ data: item, error: itemError }, { data: sessionRows, error: sessionError }] = await Promise.all([
+  const [{ data: item, error: itemError }, { data: sessionRows, error: sessionError }, { data: materialRows, error: materialsError }] = await Promise.all([
     supabase
       .from("learning_items")
       .select("title,topic")
@@ -226,8 +228,15 @@ async function loadTutorContext(supabase: SupabaseClient, planId: string | null)
       .in("status", ["ready", "upcoming"])
       .order("sequence", { ascending: true })
       .limit(1),
+    supabase
+      .from("materials")
+      .select("filename,extracted_text")
+      .eq("learning_item_id", plan.learning_item_id)
+      .eq("processing_status", "ready")
+      .order("created_at", { ascending: true })
+      .limit(5),
   ]);
-  if (itemError || sessionError) throw itemError ?? sessionError;
+  if (itemError || sessionError || materialsError) throw itemError ?? sessionError ?? materialsError;
   if (!item) throw new TutorPlanNotFoundError("That learning goal could not be found.");
 
   const currentSessionRow = sessionRows?.[0] ?? null;
@@ -237,6 +246,7 @@ async function loadTutorContext(supabase: SupabaseClient, planId: string | null)
       title: item.title,
       topic: item.topic,
       planRationale: plan.rationale,
+      materials: buildMaterialExcerpts(materialRows ?? []),
       currentSession: currentSessionRow ? {
         title: currentSessionRow.title,
         objective: currentSessionRow.objective,

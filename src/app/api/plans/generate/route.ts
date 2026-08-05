@@ -8,7 +8,9 @@ import {
   PlanGenerationResponseSchema,
 } from "@/lib/plan-generation/schema";
 import { checkPlanGenerationRateLimit, requestRateLimitKey } from "@/lib/server/rate-limit";
+import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { persistPlanForAuthenticatedUser } from "@/lib/supabase/plan-repository";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -16,6 +18,15 @@ export const maxDuration = 60;
 export async function POST(request: Request) {
   const requestId = crypto.randomUUID();
   const startedAt = Date.now();
+  const supabase = isSupabaseConfigured() ? await createSupabaseServerClient() : null;
+  const { data: { user }, error: userError } = supabase
+    ? await supabase.auth.getUser()
+    : { data: { user: null }, error: null };
+
+  if (supabase && (userError || !user)) {
+    return NextResponse.json({ error: "Sign in before generating a learning plan." }, { status: 401 });
+  }
+
   let body: unknown;
 
   try {
@@ -39,8 +50,48 @@ export async function POST(request: Request) {
     );
   }
 
+  let planRequest = parsedRequest.data;
+  if (planRequest.materialMode === "upload") {
+    if (!supabase || !user) {
+      return NextResponse.json({ error: "Secure material uploads are not connected yet." }, { status: 503 });
+    }
+
+    const requestedIds = planRequest.materials.map((material) => material.id);
+    const { data: uploadedMaterials, error: materialError } = await supabase
+      .from("material_uploads")
+      .select("id,filename,mime_type,byte_size,processing_status,extracted_text")
+      .in("id", requestedIds);
+
+    if (materialError) {
+      return NextResponse.json({ error: "YOVA could not load your uploaded materials." }, { status: 500 });
+    }
+
+    const materialById = new Map((uploadedMaterials ?? []).map((material) => [material.id, material]));
+    const hydratedMaterials = planRequest.materials.map((requested) => {
+      const stored = materialById.get(requested.id);
+      if (!stored || stored.processing_status !== "ready" || !stored.extracted_text) return null;
+      return {
+        id: stored.id,
+        name: stored.filename,
+        mimeType: stored.mime_type,
+        sizeBytes: stored.byte_size,
+        textContent: stored.extracted_text,
+        processingStatus: "ready" as const,
+      };
+    });
+
+    if (hydratedMaterials.some((material) => material === null)) {
+      return NextResponse.json({ error: "One or more materials are missing, expired, or not ready." }, { status: 422 });
+    }
+
+    planRequest = {
+      ...planRequest,
+      materials: hydratedMaterials.filter((material) => material !== null),
+    };
+  }
+
   if (isOpenAIPlanConfigured()) {
-    const rateLimit = checkPlanGenerationRateLimit(requestRateLimitKey(request));
+    const rateLimit = checkPlanGenerationRateLimit(`${user?.id ?? "preview"}:${requestRateLimitKey(request)}`);
     if (!rateLimit.allowed) {
       return NextResponse.json(
         { error: "Too many plans were requested at once. Wait a moment and try again.", code: "rate_limited", requestId },
@@ -56,12 +107,12 @@ export async function POST(request: Request) {
     }
 
     try {
-      const generated = await generatePlanWithOpenAI(parsedRequest.data);
-      const plan = materializePlanDraft(generated.draft, parsedRequest.data);
+      const generated = await generatePlanWithOpenAI(planRequest);
+      const plan = materializePlanDraft(generated.draft, planRequest);
       let persistence: "browser" | "supabase" = "browser";
 
       try {
-        persistence = await persistPlanForAuthenticatedUser(plan, parsedRequest.data);
+        persistence = await persistPlanForAuthenticatedUser(plan, planRequest);
       } catch {
         console.error("YOVA plan persistence failed", { requestId });
       }
@@ -101,11 +152,11 @@ export async function POST(request: Request) {
     }
   }
 
-  const previewPlan = generatePreviewPlan(parsedRequest.data);
+  const previewPlan = generatePreviewPlan(planRequest);
   let previewPersistence: "browser" | "supabase" = "browser";
 
   try {
-    previewPersistence = await persistPlanForAuthenticatedUser(previewPlan, parsedRequest.data);
+    previewPersistence = await persistPlanForAuthenticatedUser(previewPlan, planRequest);
   } catch {
     console.error("YOVA preview-plan persistence failed", { requestId });
   }

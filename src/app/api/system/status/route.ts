@@ -9,6 +9,7 @@ export function GET() {
     planGeneration: isOpenAIPlanConfigured() ? "openai" : "preview",
     guidedSessions: isOpenAISessionConfigured() ? "openai" : "unavailable",
     tutor: isOpenAITutorConfigured() ? "openai" : "unavailable",
+    materials: isSupabaseConfigured() ? "private-supabase" : "unavailable",
     persistence: isSupabaseConfigured() ? "supabase" : "browser",
     authentication: isSupabaseConfigured() ? "supabase-email" : "browser-preview",
   }, {

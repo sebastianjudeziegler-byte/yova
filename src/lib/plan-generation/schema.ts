@@ -1,12 +1,12 @@
 import { z } from "zod";
 
 export const MaterialInputSchema = z.object({
-  id: z.string().min(1).max(120),
+  id: z.string().uuid(),
   name: z.string().trim().min(1).max(180),
   mimeType: z.string().trim().min(1).max(100),
   sizeBytes: z.number().int().min(1).max(10 * 1024 * 1024),
   textContent: z.string().max(50_000).nullable(),
-  processingStatus: z.enum(["ready", "staged"]),
+  processingStatus: z.literal("ready"),
 });
 
 export const StoredMaterialSchema = MaterialInputSchema.extend({

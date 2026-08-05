@@ -1,12 +1,14 @@
 import "server-only";
 import { getOpenAIClient } from "@/lib/openai/client";
 import { getOpenAITutorConfig } from "@/lib/openai/config";
+import type { MaterialExcerpt } from "@/lib/materials/context";
 import type { TutorRequest } from "@/lib/tutor/schema";
 
 export type TutorLearningContext = {
   title: string | null;
   topic: string | null;
   planRationale: string | null;
+  materials: MaterialExcerpt[];
   currentSession: {
     title: string;
     objective: string;
@@ -35,6 +37,7 @@ When teaching:
 - Prefer active attempts, retrieval, worked examples, and precise feedback over passive rereading.
 - Adapt the execution of a sound method to the user's stated tendencies, but do not claim a fixed learning style or diagnose them.
 - If evidence is limited, say "based on what you have told YOVA so far" instead of making a strong claim.
+- When material excerpts are supplied, ground factual answers about the learning goal in those excerpts and state when the provided material does not answer the question.
 - Explain why a method fits when the user asks what to do next.
 - Do not claim that you changed a plan unless the application confirms the change.
 - If the question is unrelated to learning, answer briefly and guide the user back to their goal when helpful.

@@ -17,6 +17,10 @@ export function checkSessionGenerationRateLimit(key: string) {
   return checkRateLimit(`session:${key}`, 10);
 }
 
+export function checkMaterialUploadRateLimit(key: string) {
+  return checkRateLimit(`material:${key}`, 12);
+}
+
 function checkRateLimit(key: string, maxRequests: number) {
   const now = Date.now();
   const existing = records.get(key);
