@@ -452,7 +452,7 @@ export function YovaPrototype() {
       });
     }}>
       {activeTab === "Home" && <HomeScreen account={account} plans={activePlans} plan={activePlan} tutorQuestion={tutorQuestion} onTutorQuestion={setTutorQuestion} onOpenTutor={() => setActiveTab("Ask YOVA")} onStart={() => void startSession(activePlan?.id)} onSelectPlan={setSelectedPlanId} onCreatePlan={() => setStage("plan-creator")} onStudyNow={() => setStage("study-now")} />}
-      {activeTab === "Learning" && <LearningScreen plans={activePlans} plan={activePlan} onSelectPlan={setSelectedPlanId} onStart={() => void startSession(activePlan?.id)} onCreatePlan={() => setStage("plan-creator")} />}
+      {activeTab === "Learning" && <LearningScreen plans={plans} selectedPlanId={selectedPlanId} sessionCompletions={sessionCompletions} onSelectPlan={setSelectedPlanId} onStart={(planId) => void startSession(planId)} onCreatePlan={() => setStage("plan-creator")} />}
       {activeTab === "Agenda" && <AgendaScreen plans={activePlans} onStart={(planId) => void startSession(planId)} />}
       {activeTab === "Ask YOVA" && <AskScreen key={activePlan?.id ?? "general"} plan={activePlan} question={tutorQuestion} onQuestion={setTutorQuestion} />}
       {activeTab === "You" && <YouScreen account={account} sessionCompletions={sessionCompletions} onReset={resetAlphaData} />}
@@ -592,11 +592,51 @@ function AskBar({ value, onChange, onSubmit, pending = false }: { value: string;
   return <form className="ask-bar" onSubmit={(event) => { event.preventDefault(); if (value.trim() && !pending) onSubmit(); }}><Sparkles size={20} /><input aria-label="Ask YOVA" placeholder="Ask YOVA anything or describe what you need…" value={value} disabled={pending} onChange={(event) => onChange(event.target.value)} /><button aria-label="Send" type="submit" disabled={!value.trim() || pending}>{pending ? <span className="button-spinner" /> : <Send size={18} />}</button></form>;
 }
 
-function LearningScreen({ plans, plan, onSelectPlan, onStart, onCreatePlan }: { plans: LearningPlan[]; plan: LearningPlan | null; onSelectPlan: (planId: string) => void; onStart: () => void; onCreatePlan: () => void }) {
-  if (!plan) return <div className="page"><PageHeader eyebrow="LEARNING" title="What you’re working toward" description="Each goal keeps its plan, materials, sessions, resources, and progress together." /><section className="empty-home"><h2>No active learning yet.</h2><p>Create a plan to begin.</p><button className="button primary" onClick={onCreatePlan}>Create a plan</button></section></div>;
+function LearningScreen({ plans, selectedPlanId, sessionCompletions, onSelectPlan, onStart, onCreatePlan }: { plans: LearningPlan[]; selectedPlanId: string | null; sessionCompletions: SessionCompletion[]; onSelectPlan: (planId: string) => void; onStart: (planId: string) => void; onCreatePlan: () => void }) {
+  const [view, setView] = useState<"active" | "recent" | "archive">("active");
+  const [browsedPlanId, setBrowsedPlanId] = useState<string | null>(null);
+  const visiblePlans = plans.filter((plan) => {
+    if (view === "active") return plan.status === "active";
+    if (view === "recent") return plan.status === "completed";
+    return plan.status === "archived";
+  });
+  const preferredId = view === "active" ? selectedPlanId : browsedPlanId;
+  const plan = visiblePlans.find((item) => item.id === preferredId) ?? visiblePlans.at(-1) ?? null;
+  const viewLabels = {
+    active: { empty: "No active learning yet.", description: "Start one focused session or create a plan for a larger goal." },
+    recent: { empty: "No completed studies yet.", description: "Finished sessions and plans will remain here so you can review what happened." },
+    archive: { empty: "Nothing is archived.", description: "Learning items you intentionally put away will appear here." },
+  };
+
+  const selectPlan = (planId: string) => {
+    setBrowsedPlanId(planId);
+    if (view === "active") onSelectPlan(planId);
+  };
+
+  return <div className="page">
+    <PageHeader eyebrow="LEARNING" title="What you’re working toward" description="Each goal keeps its plan, sessions, methods, and progress together." />
+    <div className="tabs">
+      <button className={view === "active" ? "active" : ""} onClick={() => { setView("active"); setBrowsedPlanId(null); }}>Active</button>
+      <button className={view === "recent" ? "active" : ""} onClick={() => { setView("recent"); setBrowsedPlanId(null); }}>Recent studies</button>
+      <button className={view === "archive" ? "active" : ""} onClick={() => { setView("archive"); setBrowsedPlanId(null); }}>Archive</button>
+    </div>
+    {!plan ? <section className="empty-home"><h2>{viewLabels[view].empty}</h2><p>{viewLabels[view].description}</p>{view === "active" && <div className="empty-home-actions"><button className="button primary" onClick={onCreatePlan}>Create a plan</button></div>}</section> : <LearningPlanDetail plan={plan} plans={visiblePlans} view={view} completions={sessionCompletions.filter((completion) => completion.planId === plan.id)} onSelectPlan={selectPlan} onStart={() => onStart(plan.id)} />}
+  </div>;
+}
+
+function LearningPlanDetail({ plan, plans, view, completions, onSelectPlan, onStart }: { plan: LearningPlan; plans: LearningPlan[]; view: "active" | "recent" | "archive"; completions: SessionCompletion[]; onSelectPlan: (planId: string) => void; onStart: () => void }) {
   const completeCount = plan.sessions.filter((session) => session.status === "complete").length;
   const readySession = plan.sessions.find((session) => session.status === "ready");
-  return <div className="page"><PageHeader eyebrow="LEARNING" title="What you’re working toward" description="Each goal keeps its plan, materials, sessions, resources, and progress together." /><div className="tabs"><button className="active">Active</button><button>Recent studies</button><button>Archive</button></div>{plans.length > 1 && <div className="plan-switcher">{plans.map((item) => { const done = item.sessions.filter((session) => session.status === "complete").length; return <button className={item.id === plan.id ? "selected" : ""} key={item.id} onClick={() => onSelectPlan(item.id)}><span>{item.kind}</span><strong>{item.title}</strong><small>{done} of {item.sessions.length} sessions</small></button>; })}</div>}<section className="learning-hero"><div><span className="subject-label">{plan.kind.toUpperCase()} · {formatPlanDeadline(plan.deadline)}</span><h2>{plan.title}</h2><p>{plan.topic}</p><div className="progress-line"><div style={{ width: `${(completeCount / plan.sessions.length) * 100}%` }} /></div><small>{completeCount} of {plan.sessions.length} sessions complete</small></div>{readySession && <button className="button primary" onClick={onStart}>Start next session</button>}</section><section className="section-block"><div className="section-title"><h3>Plan timeline</h3><button>Adjust plan</button></div><div className="timeline">{plan.sessions.map((session) => <div className={`timeline-row ${session.status}`} key={session.id}><span className="timeline-node">{session.status === "complete" ? <Check size={15} /> : null}</span><div><strong>{session.title}</strong><small>{session.method} · {formatSessionTime(session.scheduledFor)}</small></div><span>{session.estimatedMinutes} min</span></div>)}</div></section></div>;
+  const totalCorrect = completions.reduce((sum, completion) => sum + completion.correctAnswers, 0);
+  const totalChecks = completions.reduce((sum, completion) => sum + completion.totalAnswers, 0);
+  const accuracy = totalChecks ? `${Math.round((totalCorrect / totalChecks) * 100)}%` : "—";
+
+  return <>
+    {plans.length > 1 && <div className="plan-switcher">{plans.map((item) => { const done = item.sessions.filter((session) => session.status === "complete").length; return <button className={item.id === plan.id ? "selected" : ""} key={item.id} onClick={() => onSelectPlan(item.id)}><span>{item.kind}</span><strong>{item.title}</strong><small>{done} of {item.sessions.length} sessions</small></button>; })}</div>}
+    <section className="learning-hero"><div><span className="subject-label">{plan.kind.toUpperCase()} · {formatPlanDeadline(plan.deadline)}</span><h2>{plan.title}</h2><p>{plan.topic}</p><div className="progress-line"><div style={{ width: `${(completeCount / plan.sessions.length) * 100}%` }} /></div><small>{completeCount} of {plan.sessions.length} sessions complete</small></div>{view === "active" && readySession && <button className="button primary" onClick={onStart}>Start next session</button>}</section>
+    {view === "recent" && <section className="learning-history-summary"><div><span>Completed</span><strong>{formatCompletionDate(completions.at(-1)?.completedAt ?? plan.createdAt)}</strong></div><div><span>Knowledge-check accuracy</span><strong>{accuracy}</strong></div><div><span>Last session felt</span><strong>{formatFeedback(completions.at(-1)?.feedback)}</strong></div></section>}
+    <section className="section-block"><div className="section-title"><h3>{view === "recent" ? "What you completed" : "Plan timeline"}</h3><span>{plan.sourceMode === "user_materials" ? "Your materials" : "YOVA-created content"}</span></div><div className="timeline">{plan.sessions.map((session) => <div className={`timeline-row ${session.status}`} key={session.id}><span className="timeline-node">{session.status === "complete" ? <Check size={15} /> : null}</span><div><strong>{session.title}</strong><small>{session.method} · {formatSessionTime(session.scheduledFor)}</small></div><span>{session.estimatedMinutes} min</span></div>)}</div></section>
+  </>;
 }
 
 function AgendaScreen({ plans, onStart }: { plans: LearningPlan[]; onStart: (planId?: string) => void }) {
@@ -805,4 +845,15 @@ function formatDay(isoDate: string) {
 function formatPlanDeadline(deadline: string | null) {
   if (!deadline) return "FLEXIBLE";
   return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(new Date(deadline)).toUpperCase();
+}
+
+function formatCompletionDate(value: string) {
+  return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" }).format(new Date(value));
+}
+
+function formatFeedback(value?: SessionCompletion["feedback"]) {
+  if (value === "too_easy") return "Too easy";
+  if (value === "too_difficult") return "Too difficult";
+  if (value === "about_right") return "About right";
+  return "Not rated";
 }
