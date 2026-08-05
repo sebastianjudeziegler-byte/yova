@@ -259,6 +259,20 @@ h1, h2, h3, p { margin-top: 0; }
 .learning-history-summary span, .learning-history-summary strong { display: block; }
 .learning-history-summary span { color: var(--muted); font-size: 11px; }
 .learning-history-summary strong { margin-top: 7px; }
+.plan-sources { padding: 20px 24px; }
+.source-material-list { display: grid; }
+.source-material-list > div { padding: 12px 0; display: grid; grid-template-columns: 28px 1fr auto; align-items: center; gap: 10px; border-top: 1px solid #eef0f4; }
+.source-material-list > div:first-child { border-top: 0; }
+.source-material-list > div > svg { color: var(--blue); }
+.source-material-list strong,
+.source-material-list small { display: block; }
+.source-material-list small { margin-top: 3px; color: var(--muted); }
+.source-created,
+.source-empty { padding: 14px; display: flex; align-items: flex-start; gap: 10px; color: #314268; border-radius: 11px; background: var(--soft-blue); }
+.source-created svg,
+.source-empty svg { flex: 0 0 auto; color: var(--blue); }
+.source-created p,
+.source-empty p { margin: 4px 0 0; color: var(--muted); font-size: 12px; line-height: 1.55; }
 .progress-line { width: 290px; max-width: 100%; height: 5px; margin: 18px 0 8px; background: rgba(255,255,255,.12); border-radius: 10px; }
 .progress-line div { height: 100%; background: var(--blue); border-radius: 10px; }
 .timeline { display: grid; }

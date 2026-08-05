@@ -76,6 +76,15 @@ type SessionAttemptRow = {
   result_data: unknown;
 };
 
+type MaterialRow = {
+  id: string;
+  learning_item_id: string;
+  filename: string;
+  mime_type: string;
+  byte_size: number;
+  processing_status: string;
+};
+
 export type CloudLearningState = {
   displayName: string;
   onboardingCompleted: boolean;
@@ -91,13 +100,14 @@ export async function loadAuthenticatedLearningState(): Promise<CloudLearningSta
   const { data: authData, error: authError } = await supabase.auth.getUser();
   if (authError || !authData.user) return null;
 
-  const [profileResult, learnerProfileResult, itemsResult, plansResult, sessionsResult, attemptsResult] = await Promise.all([
+  const [profileResult, learnerProfileResult, itemsResult, plansResult, sessionsResult, attemptsResult, materialsResult] = await Promise.all([
     supabase.from("profiles").select("display_name,onboarding_completed_at").maybeSingle(),
     supabase.from("learner_profiles").select("common_blocker,guidance_preference,preferred_session_min,preferred_session_max,explanation_preference,focus_frequency,starting_pattern,energy_window,primary_improvement_goal,additional_context").maybeSingle(),
     supabase.from("learning_items").select("id,title,kind,topic,deadline,source_mode,study_mode,created_at").order("created_at", { ascending: true }),
     supabase.from("plans").select("id,learning_item_id,status,rationale,created_at").order("created_at", { ascending: true }),
     supabase.from("plan_sessions").select("id,plan_id,sequence,title,objective,method,method_rationale,scheduled_for,estimated_minutes,status,step_data").order("sequence", { ascending: true }),
     supabase.from("session_attempts").select("id,plan_session_id,completed_at,correct_answers,total_answers,user_feedback,result_data").not("completed_at", "is", null).order("completed_at", { ascending: true }),
+    supabase.from("materials").select("id,learning_item_id,filename,mime_type,byte_size,processing_status").eq("processing_status", "ready").order("created_at", { ascending: true }),
   ]);
 
   const error = profileResult.error
@@ -105,7 +115,8 @@ export async function loadAuthenticatedLearningState(): Promise<CloudLearningSta
     ?? itemsResult.error
     ?? plansResult.error
     ?? sessionsResult.error
-    ?? attemptsResult.error;
+    ?? attemptsResult.error
+    ?? materialsResult.error;
   if (error) throw new Error("YOVA could not load your cloud learning data.");
 
   const profile = profileResult.data as ProfileRow | null;
@@ -114,10 +125,25 @@ export async function loadAuthenticatedLearningState(): Promise<CloudLearningSta
   const planRows = (plansResult.data ?? []) as PlanRow[];
   const sessionRows = (sessionsResult.data ?? []) as PlanSessionRow[];
   const attemptRows = (attemptsResult.data ?? []) as SessionAttemptRow[];
+  const materialRows = (materialsResult.data ?? []) as MaterialRow[];
 
   const itemsById = new Map(itemRows.map((item) => [item.id, item]));
   const sessionsByPlanId = new Map<string, LearningPlanSession[]>();
   const planIdBySessionId = new Map<string, string>();
+  const materialsByItemId = new Map<string, LearningPlan["materials"]>();
+
+  for (const row of materialRows) {
+    const current = materialsByItemId.get(row.learning_item_id) ?? [];
+    current.push({
+      id: row.id,
+      name: row.filename,
+      mimeType: row.mime_type,
+      sizeBytes: row.byte_size,
+      textContent: null,
+      processingStatus: "ready",
+    });
+    materialsByItemId.set(row.learning_item_id, current);
+  }
 
   for (const row of sessionRows) {
     const amountLabel = readTextProperty(row.step_data, "amountLabel")
@@ -159,6 +185,7 @@ export async function loadAuthenticatedLearningState(): Promise<CloudLearningSta
       studyMode: item.study_mode,
       rationale: planRow.rationale,
       createdAt: planRow.created_at || item.created_at,
+      materials: materialsByItemId.get(item.id) ?? [],
       sessions,
     }];
   });
