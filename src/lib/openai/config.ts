@@ -6,6 +6,7 @@ export type OpenAIPlanConfig = {
 };
 
 export type OpenAITutorConfig = OpenAIPlanConfig;
+export type OpenAISessionConfig = OpenAIPlanConfig;
 
 export function getOpenAIPlanConfig(): OpenAIPlanConfig | null {
   const apiKey = process.env.OPENAI_API_KEY?.trim();
@@ -33,4 +34,18 @@ export function getOpenAITutorConfig(): OpenAITutorConfig | null {
 
 export function isOpenAITutorConfigured() {
   return getOpenAITutorConfig() !== null;
+}
+
+export function getOpenAISessionConfig(): OpenAISessionConfig | null {
+  const planConfig = getOpenAIPlanConfig();
+  if (!planConfig) return null;
+
+  return {
+    apiKey: planConfig.apiKey,
+    model: process.env.OPENAI_SESSION_MODEL?.trim() || planConfig.model,
+  };
+}
+
+export function isOpenAISessionConfigured() {
+  return getOpenAISessionConfig() !== null;
 }

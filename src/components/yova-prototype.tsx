@@ -34,16 +34,24 @@ import {
   loadAuthenticatedLearningState,
   saveAuthenticatedLearnerProfile,
 } from "@/lib/supabase/learning-state-repository";
+import { SessionGenerationResponseSchema } from "@/lib/session-generation/schema";
 import {
   TutorHistoryResponseSchema,
   TutorResponseSchema,
   type TutorMessage,
 } from "@/lib/tutor/schema";
 
-type Stage = "landing" | "account" | "onboarding-intro" | "onboarding" | "profile" | "paywall" | "app" | "plan-creator" | "session" | "complete";
+type Stage = "landing" | "account" | "onboarding-intro" | "onboarding" | "profile" | "paywall" | "app" | "plan-creator" | "session-loading" | "session" | "complete";
 type Tab = "Home" | "Learning" | "Agenda" | "Ask YOVA" | "You";
 type AccountMode = "create" | "sign-in";
-type LessonStep = { label: string; title: string; body: string; question: string[] | null };
+type LessonStep = {
+  label: string;
+  title: string;
+  body: string;
+  question: string[] | null;
+  correctAnswer: string | null;
+  feedback: string | null;
+};
 
 const navItems: Array<{ label: Tab; icon: typeof Home }> = [
   { label: "Home", icon: Home },
@@ -70,13 +78,16 @@ export function YovaPrototype() {
   const [sessionStep, setSessionStep] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
   const [sessionResponses, setSessionResponses] = useState<Record<number, string>>({});
+  const [generatedLessonSteps, setGeneratedLessonSteps] = useState<LessonStep[] | null>(null);
+  const [sessionRationale, setSessionRationale] = useState<string | null>(null);
+  const [sessionGenerationIssue, setSessionGenerationIssue] = useState<string | null>(null);
   const [cloudSyncIssue, setCloudSyncIssue] = useState<string | null>(null);
   const [tutorQuestion, setTutorQuestion] = useState("");
 
   const activePlans = plans.filter((plan) => plan.status === "active");
   const activePlan = activePlans.find((plan) => plan.id === selectedPlanId) ?? activePlans[activePlans.length - 1] ?? null;
-  const activeLessonSteps = lessonStepsFor(activePlan);
-  const sessionCorrectAnswers = Object.entries(sessionResponses).filter(([step, answer]) => activeLessonSteps[Number(step)]?.question?.[0] === answer).length;
+  const activeLessonSteps = generatedLessonSteps ?? lessonStepsFor(activePlan);
+  const sessionCorrectAnswers = Object.entries(sessionResponses).filter(([step, answer]) => activeLessonSteps[Number(step)]?.correctAnswer === answer).length;
   const sessionTotalAnswers = activeLessonSteps.filter((step) => step.question).length;
 
   useEffect(() => {
@@ -84,7 +95,8 @@ export function YovaPrototype() {
 
     async function openYova() {
       const saved = loadPreviewSnapshot();
-      if (saved) {
+      const authMode = getAuthMode();
+      if (saved && authMode === "preview") {
         setAccount(saved.account);
         setSignedIn(saved.signedIn);
         setAnswers(saved.onboardingAnswers);
@@ -145,10 +157,21 @@ export function YovaPrototype() {
             setStage("onboarding-intro");
           }
         }
-      } else if (saved?.signedIn && saved.account && getAuthMode() === "preview") {
+      } else if (saved?.signedIn && saved.account && authMode === "preview") {
         if (saved.alphaEntered) setStage(saved.plans.length ? "app" : "plan-creator");
         else if (saved.onboardingCompleted) setStage("paywall");
         else setStage("onboarding-intro");
+      } else if (authMode === "supabase") {
+        clearPreviewSnapshot();
+        setAccount(null);
+        setSignedIn(false);
+        setAnswers([]);
+        setOnboardingCompleted(false);
+        setAlphaEntered(false);
+        setPlans([]);
+        setSelectedPlanId(null);
+        setSessionCompletions([]);
+        setStage("landing");
       }
 
       setReady(true);
@@ -159,7 +182,7 @@ export function YovaPrototype() {
   }, []);
 
   useEffect(() => {
-    if (!ready || !account) return;
+    if (!ready || !account || !signedIn) return;
     savePreviewSnapshot({
       version: 1,
       account,
@@ -191,15 +214,62 @@ export function YovaPrototype() {
     return () => { cancelled = true; };
   }, [ready, onboardingCompleted, account, answers]);
 
-  const startSession = (planId?: string) => {
-    if (planId) setSelectedPlanId(planId);
+  const startSession = async (planId?: string) => {
+    const requestedPlan = activePlans.find((plan) => plan.id === planId) ?? activePlan;
+    if (!requestedPlan) return;
+
+    const requestedSession = requestedPlan.sessions.find((session) => session.status === "ready")
+      ?? requestedPlan.sessions.find((session) => session.status === "upcoming");
+    if (!requestedSession) return;
+
+    setSelectedPlanId(requestedPlan.id);
     setSessionStep(0);
     setSelectedAnswer(null);
     setSessionResponses({});
-    setStage("session");
+    setGeneratedLessonSteps(null);
+    setSessionRationale(null);
+    setSessionGenerationIssue(null);
+    setStage("session-loading");
+
+    try {
+      const response = await fetch("/api/sessions/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ planId: requestedPlan.id, planSessionId: requestedSession.id }),
+      });
+      const body: unknown = await response.json();
+      if (!response.ok) {
+        const message = typeof body === "object" && body && "error" in body && typeof body.error === "string"
+          ? body.error
+          : "YOVA could not generate this guided session.";
+        throw new Error(message);
+      }
+
+      const parsed = SessionGenerationResponseSchema.safeParse(body);
+      if (!parsed.success) throw new Error("The generated session came back in an unsafe format.");
+
+      setGeneratedLessonSteps(parsed.data.session.activities.map((activity) => ({
+        label: activity.label,
+        title: activity.title,
+        body: activity.body,
+        question: activity.type === "multiple_choice" ? activity.choices : null,
+        correctAnswer: activity.correctAnswer,
+        feedback: activity.feedback,
+      })));
+      setSessionRationale(parsed.data.session.rationale);
+      if (parsed.data.generation.persistence === "browser") {
+        setSessionGenerationIssue("This session is ready, but YOVA could not cache it in your cloud account.");
+      }
+    } catch (error) {
+      setGeneratedLessonSteps(lessonStepsFor(requestedPlan));
+      setSessionRationale(requestedSession.methodReason);
+      setSessionGenerationIssue(`${error instanceof Error ? error.message : "YOVA could not generate this session."} A safe built-in session was loaded instead.`);
+    } finally {
+      setStage("session");
+    }
   };
 
-  const completeActiveSession = (correctAnswers: number, totalAnswers: number) => {
+  const completeActiveSession = (correctAnswers: number, totalAnswers: number, feedback: SessionCompletion["feedback"]) => {
     if (!activePlan) return;
     const currentSession = activePlan.sessions.find((session) => session.status === "ready");
     if (!currentSession) return;
@@ -211,8 +281,11 @@ export function YovaPrototype() {
       completedAt: new Date().toISOString(),
       correctAnswers,
       totalAnswers,
-      feedback: "about_right",
-      observedGap: correctAnswers < totalAnswers ? `One or more details in ${activePlan.topic}` : "No major gap detected in the required check",
+      feedback,
+      observedGap: activeLessonSteps
+        .filter((step, index) => step.question && sessionResponses[index] !== step.correctAnswer)
+        .map((step) => step.title)
+        .join("; ") || "No major gap detected in the required check",
     };
 
     setPlans((currentPlans) => currentPlans.map((plan) => {
@@ -257,6 +330,9 @@ export function YovaPrototype() {
     setSessionStep(0);
     setSelectedAnswer(null);
     setSessionResponses({});
+    setGeneratedLessonSteps(null);
+    setSessionRationale(null);
+    setSessionGenerationIssue(null);
     setActiveTab("Home");
     setAccountMode("create");
     setStage("landing");
@@ -307,6 +383,7 @@ export function YovaPrototype() {
   if (stage === "profile") return <ProfileSummary onContinue={() => setStage("paywall")} />;
   if (stage === "paywall") return <PaywallPreview onContinue={() => { setAlphaEntered(true); setStage(plans.length ? "app" : "plan-creator"); }} />;
   if (stage === "plan-creator") return <PlanCreator profileSummary={buildPlanProfileSummary(answers)} onExit={() => setStage(plans.length ? "app" : "paywall")} onFinish={(plan) => { setPlans((current) => [...current, plan]); setSelectedPlanId(plan.id); setStage("app"); setActiveTab("Learning"); }} />;
+  if (stage === "session-loading") return <SessionLoading plan={activePlan} onExit={() => setStage("app")} />;
   if (stage === "session") {
     return (
       <GuidedSession
@@ -314,6 +391,8 @@ export function YovaPrototype() {
         steps={activeLessonSteps}
         step={sessionStep}
         selectedAnswer={selectedAnswer}
+        rationale={sessionRationale}
+        issue={sessionGenerationIssue}
         onSelect={(answer) => {
           setSelectedAnswer(answer);
           setSessionResponses((current) => ({ ...current, [sessionStep]: answer }));
@@ -329,18 +408,27 @@ export function YovaPrototype() {
       />
     );
   }
-  if (stage === "complete") return <SessionComplete correctAnswers={sessionCorrectAnswers} totalAnswers={sessionTotalAnswers} onFinish={() => { completeActiveSession(sessionCorrectAnswers, sessionTotalAnswers); setStage("app"); setActiveTab("Home"); }} />;
+  if (stage === "complete") return <SessionComplete stepCount={activeLessonSteps.length} correctAnswers={sessionCorrectAnswers} totalAnswers={sessionTotalAnswers} onFinish={(feedback) => { completeActiveSession(sessionCorrectAnswers, sessionTotalAnswers, feedback); setStage("app"); setActiveTab("Home"); }} />;
 
   return (
     <AppShell activeTab={activeTab} onTab={setActiveTab} account={account} cloudSyncIssue={cloudSyncIssue} onSignOut={() => {
       void signOutAuthenticatedAccount().finally(() => {
+        clearPreviewSnapshot();
+        setAccount(null);
         setSignedIn(false);
+        setAnswers([]);
+        setOnboardingCompleted(false);
+        setAlphaEntered(false);
+        setPlans([]);
+        setSelectedPlanId(null);
+        setSessionCompletions([]);
+        setActiveTab("Home");
         setStage("landing");
       });
     }}>
-      {activeTab === "Home" && <HomeScreen account={account} plans={activePlans} plan={activePlan} tutorQuestion={tutorQuestion} onTutorQuestion={setTutorQuestion} onOpenTutor={() => setActiveTab("Ask YOVA")} onStart={() => startSession(activePlan?.id)} onSelectPlan={setSelectedPlanId} onCreatePlan={() => setStage("plan-creator")} />}
-      {activeTab === "Learning" && <LearningScreen plans={activePlans} plan={activePlan} onSelectPlan={setSelectedPlanId} onStart={() => startSession(activePlan?.id)} onCreatePlan={() => setStage("plan-creator")} />}
-      {activeTab === "Agenda" && <AgendaScreen plans={activePlans} onStart={startSession} />}
+      {activeTab === "Home" && <HomeScreen account={account} plans={activePlans} plan={activePlan} tutorQuestion={tutorQuestion} onTutorQuestion={setTutorQuestion} onOpenTutor={() => setActiveTab("Ask YOVA")} onStart={() => void startSession(activePlan?.id)} onSelectPlan={setSelectedPlanId} onCreatePlan={() => setStage("plan-creator")} />}
+      {activeTab === "Learning" && <LearningScreen plans={activePlans} plan={activePlan} onSelectPlan={setSelectedPlanId} onStart={() => void startSession(activePlan?.id)} onCreatePlan={() => setStage("plan-creator")} />}
+      {activeTab === "Agenda" && <AgendaScreen plans={activePlans} onStart={(planId) => void startSession(planId)} />}
       {activeTab === "Ask YOVA" && <AskScreen key={activePlan?.id ?? "general"} plan={activePlan} question={tutorQuestion} onQuestion={setTutorQuestion} />}
       {activeTab === "You" && <YouScreen account={account} sessionCompletions={sessionCompletions} onReset={resetAlphaData} />}
     </AppShell>
@@ -577,54 +665,73 @@ function YouScreen({ account, sessionCompletions, onReset }: { account: PreviewA
 }
 
 function lessonStepsFor(plan: LearningPlan | null): LessonStep[] {
-  if (!plan) return [{ label: "Set up", title: "No session selected", body: "Return Home and select a learning goal first.", question: null }];
+  if (!plan) return [{ label: "Set up", title: "No session selected", body: "Return Home and select a learning goal first.", question: null, correctAnswer: null, feedback: null }];
 
   const current = plan.sessions.find((session) => session.status === "ready") ?? plan.sessions.find((session) => session.status === "upcoming");
 
   if (plan.studyMode === "outside_yova") {
     return [
-      { label: "Set up", title: "Prepare your outside study block", body: `Open the material you use for ${plan.topic}. Keep only that source and a place to work visible.`, question: null },
-      { label: "Your task", title: current?.title ?? "Complete the planned work", body: `${current?.objective ?? "Work through the next planned objective."} Use ${current?.method.toLowerCase() ?? "the selected method"} for about ${current?.estimatedMinutes ?? 20} minutes.`, question: null },
-      { label: "Method check", title: "What should happen before you check the source?", body: "The method works only if you make a real attempt before looking for the answer.", question: ["Attempt the task from memory", "Reread everything first", "Copy the source wording", "Switch topics"] },
-      { label: "Return to YOVA", title: "Record what needs another pass", body: "Note the one idea or step that felt least stable. YOVA will use that signal when the session result is saved.", question: null },
+      lessonInstruction("Set up", "Prepare your outside study block", `Open the material you use for ${plan.topic}. Keep only that source and a place to work visible.`),
+      lessonInstruction("Your task", current?.title ?? "Complete the planned work", `${current?.objective ?? "Work through the next planned objective."} Use ${current?.method.toLowerCase() ?? "the selected method"} for about ${current?.estimatedMinutes ?? 20} minutes.`),
+      lessonQuestion("Method check", "What should happen before you check the source?", "The method works only if you make a real attempt before looking for the answer.", ["Attempt the task from memory", "Reread everything first", "Copy the source wording", "Switch topics"], "Attempt the task from memory", "Active retrieval requires a genuine attempt before looking at the source."),
+      lessonInstruction("Return to YOVA", "Record what needs another pass", "Note the one idea or step that felt least stable. YOVA will use that signal when the session result is saved."),
     ];
   }
 
   if (/biology|photosynthesis|cellular respiration/i.test(plan.topic)) {
     return [
-      { label: "Set up", title: "Closed-note retrieval", body: "Try to produce each answer before looking. Review only what you miss, then retry the missed item later.", question: null },
-      { label: "Question 1 of 2", title: "Which stage of cellular respiration happens first?", body: "Answer from memory. Familiarity is not the same as being able to retrieve it.", question: ["Glycolysis", "Krebs cycle", "Electron transport chain", "Fermentation"] },
-      { label: "Question 2 of 2", title: "Where does glycolysis occur?", body: "Choose the location without opening your notes.", question: ["Cytoplasm", "Mitochondrial matrix", "Nucleus", "Cell membrane"] },
-      { label: "Repair the gap", title: "Compare before moving on", body: "Glycolysis occurs in the cytoplasm. Most later stages occur in the mitochondrion. Keep that contrast available for the next mixed-practice session.", question: null },
+      lessonInstruction("Set up", "Closed-note retrieval", "Try to produce each answer before looking. Review only what you miss, then retry the missed item later."),
+      lessonQuestion("Question 1 of 2", "Which stage of cellular respiration happens first?", "Answer from memory. Familiarity is not the same as being able to retrieve it.", ["Glycolysis", "Krebs cycle", "Electron transport chain", "Fermentation"], "Glycolysis", "Glycolysis is the first stage and begins breaking glucose down before the Krebs cycle and electron transport chain."),
+      lessonQuestion("Question 2 of 2", "Where does glycolysis occur?", "Choose the location without opening your notes.", ["Cytoplasm", "Mitochondrial matrix", "Nucleus", "Cell membrane"], "Cytoplasm", "Glycolysis occurs in the cytoplasm; later aerobic stages occur in the mitochondrion."),
+      lessonInstruction("Repair the gap", "Compare before moving on", "Glycolysis occurs in the cytoplasm. Most later stages occur in the mitochondrion. Keep that contrast available for the next mixed-practice session."),
     ];
   }
 
   if (/finance|investing|budget|credit|interest/i.test(plan.topic)) {
     return [
-      { label: "Set up", title: "Build the decision framework", body: "Start with the practical purpose of each concept. The goal is to make a sound decision, not merely recognize vocabulary.", question: null },
-      { label: "Question 1 of 2", title: "What is the main purpose of a budget?", body: "Choose the answer that describes an active decision tool.", question: ["Direct money toward priorities and constraints", "Predict every future expense perfectly", "Eliminate all optional spending", "Track only large purchases"] },
-      { label: "Question 2 of 2", title: "Which example shows compound growth?", body: "Look for growth that earns additional growth over time.", question: ["Interest earning interest", "A one-time discount", "A fixed monthly fee", "Cash kept at zero interest"] },
-      { label: "Apply", title: "Connect the ideas to one real decision", body: "Choose one current spending, saving, debt, or investing decision and name the concept that should guide it.", question: null },
+      lessonInstruction("Set up", "Build the decision framework", "Start with the practical purpose of each concept. The goal is to make a sound decision, not merely recognize vocabulary."),
+      lessonQuestion("Question 1 of 2", "What is the main purpose of a budget?", "Choose the answer that describes an active decision tool.", ["Direct money toward priorities and constraints", "Predict every future expense perfectly", "Eliminate all optional spending", "Track only large purchases"], "Direct money toward priorities and constraints", "A budget is a decision tool for directing limited money toward priorities and known constraints."),
+      lessonQuestion("Question 2 of 2", "Which example shows compound growth?", "Look for growth that earns additional growth over time.", ["Interest earning interest", "A one-time discount", "A fixed monthly fee", "Cash kept at zero interest"], "Interest earning interest", "Compound growth happens when previous growth is included in the base that produces future growth."),
+      lessonInstruction("Apply", "Connect the ideas to one real decision", "Choose one current spending, saving, debt, or investing decision and name the concept that should guide it."),
     ];
   }
 
   return [
-    { label: "Set up", title: current?.method ?? "Focused learning", body: current?.methodReason ?? "Begin with one clearly bounded objective.", question: null },
-    { label: "Retrieval check", title: "What makes this an active learning step?", body: "Choose the action that produces evidence of what you can do without support.", question: ["Explain or apply it before checking", "Read it repeatedly", "Highlight every sentence", "Keep all examples visible"] },
-    { label: "Practice", title: current?.title ?? "Apply the next idea", body: current?.objective ?? `Use the plan to practice ${plan.topic}.`, question: null },
-    { label: "Wrap up", title: "Name the least stable idea", body: "A specific gap is useful information. YOVA will use it to shape the next recommendation.", question: null },
+    lessonInstruction("Set up", current?.method ?? "Focused learning", current?.methodReason ?? "Begin with one clearly bounded objective."),
+    lessonQuestion("Retrieval check", "What makes this an active learning step?", "Choose the action that produces evidence of what you can do without support.", ["Explain or apply it before checking", "Read it repeatedly", "Highlight every sentence", "Keep all examples visible"], "Explain or apply it before checking", "Producing an answer before checking creates evidence of what you can retrieve or apply independently."),
+    lessonInstruction("Practice", current?.title ?? "Apply the next idea", current?.objective ?? `Use the plan to practice ${plan.topic}.`),
+    lessonInstruction("Wrap up", "Name the least stable idea", "A specific gap is useful information. YOVA will use it to shape the next recommendation."),
   ];
 }
 
-function GuidedSession({ plan, steps, step, selectedAnswer, onSelect, onExit, onNext }: { plan: LearningPlan | null; steps: LessonStep[]; step: number; selectedAnswer: string | null; onSelect: (answer: string) => void; onExit: () => void; onNext: () => void }) {
-  const content = steps[step];
-  const currentSession = plan?.sessions.find((session) => session.status === "ready") ?? null;
-  return <main className="session-shell"><header className="session-top"><BrandMark compact /><div><span>{plan?.title ?? "YOVA session"}</span><strong>{currentSession?.title ?? "Guided learning"}</strong></div><div className="session-progress"><span>{step + 1} of {steps.length} sections</span><div><i style={{ width: `${((step + 1) / steps.length) * 100}%` }} /></div></div><button className="button ghost" onClick={onExit}>Exit</button></header><section className="session-content"><span className="step-label">{content.label}</span><h1>{content.title}</h1><p>{content.body}</p>{content.question && <div className="answer-grid">{content.question.map((answer) => <button key={answer} className={selectedAnswer === answer ? "selected" : ""} onClick={() => onSelect(answer)}>{answer}{selectedAnswer === answer && <Check size={18} />}</button>)}</div>}{selectedAnswer && <div className="feedback"><Check size={20} /><div><strong>{selectedAnswer === content.question?.[0] ? "Correct." : "Useful miss."}</strong><p>{selectedAnswer === content.question?.[0] ? "You selected the action or idea the method depends on." : "YOVA will record this as something to repair before the next step."}</p></div></div>}<button className="button primary large" onClick={onNext} disabled={Boolean(content.question) && !selectedAnswer}>{step === steps.length - 1 ? "Complete session" : "Continue"} <ArrowRight size={18} /></button></section><div className="session-ask"><input placeholder="Ask YOVA about this session…" /><button><Send size={18} /></button></div></main>;
+function lessonInstruction(label: string, title: string, body: string): LessonStep {
+  return { label, title, body, question: null, correctAnswer: null, feedback: null };
 }
 
-function SessionComplete({ correctAnswers, totalAnswers, onFinish }: { correctAnswers: number; totalAnswers: number; onFinish: () => void }) {
+function lessonQuestion(label: string, title: string, body: string, choices: string[], correctAnswer: string, feedback: string): LessonStep {
+  return { label, title, body, question: choices, correctAnswer, feedback };
+}
+
+function SessionLoading({ plan, onExit }: { plan: LearningPlan | null; onExit: () => void }) {
+  return <main className="centered-shell session-loading"><BrandMark /><section><span className="button-spinner dark" /><span className="step-label">BUILDING YOUR SESSION</span><h1>Turning your plan into guided work.</h1><p>YOVA is selecting the right activity sequence, generating knowledge checks, and preparing feedback for {plan?.topic ?? "your goal"}.</p><button className="button ghost" onClick={onExit}>Cancel</button></section></main>;
+}
+
+function GuidedSession({ plan, steps, step, selectedAnswer, rationale, issue, onSelect, onExit, onNext }: { plan: LearningPlan | null; steps: LessonStep[]; step: number; selectedAnswer: string | null; rationale: string | null; issue: string | null; onSelect: (answer: string) => void; onExit: () => void; onNext: () => void }) {
+  const content = steps[step];
+  const currentSession = plan?.sessions.find((session) => session.status === "ready") ?? null;
+  const isCorrect = Boolean(selectedAnswer && selectedAnswer === content.correctAnswer);
+  const explanation = isCorrect
+    ? content.feedback
+    : content.correctAnswer
+      ? `The correct answer is “${content.correctAnswer}.” ${content.feedback ?? "YOVA will bring this idea back for another attempt."}`
+      : content.feedback;
+  return <main className="session-shell"><header className="session-top"><BrandMark compact /><div><span>{plan?.title ?? "YOVA session"}</span><strong>{currentSession?.title ?? "Guided learning"}</strong></div><div className="session-progress"><span>{step + 1} of {steps.length} sections</span><div><i style={{ width: `${((step + 1) / steps.length) * 100}%` }} /></div></div><button className="button ghost" onClick={onExit}>Exit</button></header><section className="session-content">{step === 0 && rationale && <div className="session-rationale"><Sparkles size={17} /><div><strong>Why this session fits</strong><p>{rationale}</p></div></div>}{issue && step === 0 && <div className="session-issue"><AlertCircle size={17} /><span>{issue}</span></div>}<span className="step-label">{content.label}</span><h1>{content.title}</h1><p>{content.body}</p>{content.question && <div className="answer-grid">{content.question.map((answer) => <button key={answer} className={selectedAnswer === answer ? "selected" : ""} onClick={() => onSelect(answer)}>{answer}{selectedAnswer === answer && <Check size={18} />}</button>)}</div>}{selectedAnswer && <div className={`feedback ${isCorrect ? "" : "incorrect"}`}>{isCorrect ? <Check size={20} /> : <AlertCircle size={20} />}<div><strong>{isCorrect ? "Correct." : "Useful miss."}</strong><p>{explanation}</p></div></div>}<button className="button primary large" onClick={onNext} disabled={Boolean(content.question) && !selectedAnswer}>{step === steps.length - 1 ? "Complete session" : "Continue"} <ArrowRight size={18} /></button></section><div className="session-ask"><input placeholder="Ask YOVA about this session…" /><button><Send size={18} /></button></div></main>;
+}
+
+function SessionComplete({ stepCount, correctAnswers, totalAnswers, onFinish }: { stepCount: number; correctAnswers: number; totalAnswers: number; onFinish: (feedback: SessionCompletion["feedback"]) => void }) {
+  const [feedback, setFeedback] = useState<SessionCompletion["feedback"]>("about_right");
   const hasGap = correctAnswers < totalAnswers;
-  return <main className="centered-shell completion"><BrandMark /><section className="setup-card wide"><div className="completion-icon"><Check size={28} /></div><span className="step-label">SESSION COMPLETE</span><h1>You completed this session.</h1><p>{hasGap ? "One or more details need another pass. YOVA will bring those details back before moving to harder application." : "You completed the required check. YOVA can now move the plan forward without adding unnecessary review."}</p><div className="result-grid"><div><span>Session steps</span><strong>4 of 4</strong></div><div><span>Knowledge checks</span><strong>{correctAnswers} of {totalAnswers}</strong></div><div><span>Next review</span><strong>Tomorrow</strong></div></div><div className="adaptation"><Sparkles size={19} /><div><strong>{hasGap ? "Tomorrow’s session was adjusted" : "Tomorrow’s session is ready"}</strong><p>{hasGap ? "Missed details will return in a short repair step before new material." : "The plan will continue into its next method without adding unnecessary review."}</p></div></div><p className="feedback-label">How did this session feel?</p><div className="feeling-row"><button>Too easy</button><button className="selected">About right</button><button>Too difficult</button></div><button className="button primary large full" onClick={onFinish}>Return Home</button></section></main>;
+  return <main className="centered-shell completion"><BrandMark /><section className="setup-card wide"><div className="completion-icon"><Check size={28} /></div><span className="step-label">SESSION COMPLETE</span><h1>You completed this session.</h1><p>{hasGap ? "One or more details need another pass. YOVA will bring those details back before moving to harder application." : "You completed the required check. YOVA can now move the plan forward without adding unnecessary review."}</p><div className="result-grid"><div><span>Session steps</span><strong>{stepCount} of {stepCount}</strong></div><div><span>Knowledge checks</span><strong>{correctAnswers} of {totalAnswers}</strong></div><div><span>Next review</span><strong>Tomorrow</strong></div></div><div className="adaptation"><Sparkles size={19} /><div><strong>{hasGap ? "Tomorrow’s session was adjusted" : "Tomorrow’s session is ready"}</strong><p>{hasGap ? "Missed details will return in a short repair step before new material." : "The plan will continue into its next method without adding unnecessary review."}</p></div></div><p className="feedback-label">How did this session feel?</p><div className="feeling-row"><button className={feedback === "too_easy" ? "selected" : ""} onClick={() => setFeedback("too_easy")}>Too easy</button><button className={feedback === "about_right" ? "selected" : ""} onClick={() => setFeedback("about_right")}>About right</button><button className={feedback === "too_difficult" ? "selected" : ""} onClick={() => setFeedback("too_difficult")}>Too difficult</button></div><button className="button primary large full" onClick={() => onFinish(feedback)}>Return Home</button></section></main>;
 }
 
 function formatSessionTime(isoDate: string) {

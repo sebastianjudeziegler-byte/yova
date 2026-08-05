@@ -290,11 +290,21 @@ h1, h2, h3, p { margin-top: 0; }
 .session-content { width: min(100% - 40px, 700px); margin: 90px auto; }
 .session-content h1 { margin: 13px 0; font-size: 36px; }
 .session-content > p { color: var(--muted); font-size: 17px; line-height: 1.7; }
+.session-loading { text-align: center; }
+.session-loading > section { width: min(100% - 40px, 620px); display: grid; justify-items: center; gap: 16px; }
+.session-loading h1 { margin: 0; font-size: 34px; }
+.session-loading p { margin: 0; color: var(--muted); line-height: 1.7; }
+.session-rationale { margin: 0 0 30px; padding: 16px; display: flex; gap: 11px; color: #43368d; background: #f1efff; border-radius: 11px; }
+.session-rationale svg { flex: 0 0 auto; }
+.session-rationale p { margin: 4px 0 0; line-height: 1.55; }
+.session-issue { margin: -18px 0 28px; padding: 12px 14px; display: flex; gap: 9px; align-items: flex-start; color: #7a4a00; background: #fff7e8; border: 1px solid #f7d69a; border-radius: 10px; font-size: 13px; line-height: 1.5; }
+.session-issue svg { flex: 0 0 auto; }
 .answer-grid { margin: 28px 0; display: grid; gap: 10px; }
 .answer-grid button { padding: 15px; display: flex; justify-content: space-between; border: 1px solid var(--border); border-radius: 11px; background: white; text-align: left; }
 .answer-grid button:hover, .answer-grid button.selected { border-color: var(--blue); background: var(--soft-blue); }
 .feedback { margin: 20px 0; padding: 16px; display: flex; gap: 11px; color: #175c42; background: #ecfbf4; border-radius: 11px; }
 .feedback p { margin: 4px 0 0; }
+.feedback.incorrect { color: #8b3e10; background: #fff3eb; }
 .session-ask { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); width: min(calc(100% - 40px),700px); padding: 10px; display: flex; gap: 10px; background: white; border: 1px solid var(--border); border-radius: 13px; box-shadow: var(--shadow); }
 .session-ask input { flex: 1; padding: 0 6px; border: 0; outline: 0; }
 .completion-icon { width: 58px; height: 58px; margin-bottom: 20px; display: grid; place-items: center; color: white; background: var(--success); border-radius: 50%; }

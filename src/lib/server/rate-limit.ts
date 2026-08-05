@@ -13,6 +13,10 @@ export function checkTutorRateLimit(key: string) {
   return checkRateLimit(`tutor:${key}`, 20);
 }
 
+export function checkSessionGenerationRateLimit(key: string) {
+  return checkRateLimit(`session:${key}`, 10);
+}
+
 function checkRateLimit(key: string, maxRequests: number) {
   const now = Date.now();
   const existing = records.get(key);
