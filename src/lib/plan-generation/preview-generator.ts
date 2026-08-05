@@ -85,13 +85,16 @@ const METHODS = [
 export function generatePreviewPlan(request: PlanGenerationRequest): LearningPlan {
   const subject = SUBJECTS.find(({ matches }) => matches.test(request.goal))?.subject ?? DEFAULT_SUBJECT;
   const deadline = inferDeadline(request.goal);
+  const sessionTitles = request.intent === "study_now"
+    ? [studyNowTitle(subject)]
+    : subject.sessionTitles;
   const draft = GeneratedPlanDraftSchema.parse({
     title: subject.title,
     topic: subject.topic,
     kind: subject.kind,
-    deadline: deadline?.toISOString() ?? null,
+    deadline: request.intent === "study_now" ? null : deadline?.toISOString() ?? null,
     rationale: buildRationale(request),
-    sessions: subject.sessionTitles.map((title, index) => {
+    sessions: sessionTitles.map((title, index) => {
       const availability = request.availability[index % request.availability.length];
       const minutes = Math.min(availability.minutes, index === 4 ? 10 : 20 + index * 5);
 
@@ -118,7 +121,15 @@ function buildRationale(request: PlanGenerationRequest) {
     ? "clear instructions that can be completed outside the app"
     : "guided work inside YOVA";
 
+  if (request.intent === "study_now") {
+    return `This focused session uses ${sourcePhrase} and ${executionPhrase}. It starts from the learner's stated knowledge, fits the time available now, and keeps every step explicit.`;
+  }
+
   return `The plan starts with retrieval to reveal exact gaps, then moves through explanation, practice, and review. It uses ${sourcePhrase} and ${executionPhrase}, while keeping activity blocks short and explicit to match the learner profile.`;
+}
+
+function studyNowTitle(subject: PreviewSubject) {
+  return subject.sessionTitles[0].replace(/^Retrieve/, "Focused review:");
 }
 
 function objectiveFor(index: number, topic: string) {

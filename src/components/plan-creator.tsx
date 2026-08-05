@@ -76,6 +76,7 @@ export function PlanCreator({ onExit, onFinish, profileSummary }: { onExit: () =
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          intent: "plan",
           goal,
           materialMode,
           materials: materialMode === "upload" ? materials : [],

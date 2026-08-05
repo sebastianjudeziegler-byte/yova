@@ -14,6 +14,7 @@ export const StoredMaterialSchema = MaterialInputSchema.extend({
 });
 
 export const PlanGenerationRequestSchema = z.object({
+  intent: z.enum(["plan", "study_now"]).default("plan"),
   goal: z.string().trim().min(10).max(600),
   materialMode: z.enum(["upload", "none"]),
   materials: z.array(MaterialInputSchema).max(5),

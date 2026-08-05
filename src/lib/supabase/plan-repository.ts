@@ -15,6 +15,7 @@ export async function persistPlanForAuthenticatedUser(
   if (userError || !user) return "browser";
 
   const generationInputs = {
+    intent: request.intent,
     goal: request.goal,
     materialMode: request.materialMode,
     materials: request.materials.map(({ id, name, mimeType, sizeBytes, processingStatus }) => ({

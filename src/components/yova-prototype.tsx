@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { BrandMark } from "@/components/brand-mark";
 import { PlanCreator } from "@/components/plan-creator";
+import { StudyNowCreator } from "@/components/study-now-creator";
 import { getAuthenticatedAccount, getAuthMode, requestEmailAuthentication, signOutAuthenticatedAccount } from "@/lib/auth/client";
 import { makeId, makeUuid, type LearningPlan, type PreviewAccount, type SessionCompletion } from "@/lib/domain";
 import { clearPreviewSnapshot, loadPreviewSnapshot, savePreviewSnapshot } from "@/lib/persistence/preview-store";
@@ -41,7 +42,7 @@ import {
   type TutorMessage,
 } from "@/lib/tutor/schema";
 
-type Stage = "landing" | "account" | "onboarding-intro" | "onboarding" | "profile" | "paywall" | "app" | "plan-creator" | "session-loading" | "session" | "complete";
+type Stage = "landing" | "account" | "onboarding-intro" | "onboarding" | "profile" | "paywall" | "app" | "plan-creator" | "study-now" | "session-loading" | "session" | "complete";
 type Tab = "Home" | "Learning" | "Agenda" | "Ask YOVA" | "You";
 type AccountMode = "create" | "sign-in";
 type LessonStep = {
@@ -135,7 +136,7 @@ export function YovaPrototype() {
           setCloudSyncIssue(null);
 
           if (cloudPlans.some((plan) => plan.status === "active")) setStage("app");
-          else if (cloudOnboardingCompleted && restoredAlphaEntered) setStage("plan-creator");
+          else if (cloudOnboardingCompleted && restoredAlphaEntered) setStage("app");
           else if (cloudOnboardingCompleted) setStage("paywall");
           else setStage("onboarding-intro");
         } catch (error) {
@@ -144,7 +145,7 @@ export function YovaPrototype() {
           setCloudSyncIssue(error instanceof Error ? error.message : "YOVA could not load your cloud data.");
 
           if (localAccountMatches && saved) {
-            if (saved.alphaEntered) setStage(saved.plans.length ? "app" : "plan-creator");
+            if (saved.alphaEntered) setStage("app");
             else if (saved.onboardingCompleted) setStage("paywall");
             else setStage("onboarding-intro");
           } else {
@@ -158,7 +159,7 @@ export function YovaPrototype() {
           }
         }
       } else if (saved?.signedIn && saved.account && authMode === "preview") {
-        if (saved.alphaEntered) setStage(saved.plans.length ? "app" : "plan-creator");
+        if (saved.alphaEntered) setStage("app");
         else if (saved.onboardingCompleted) setStage("paywall");
         else setStage("onboarding-intro");
       } else if (authMode === "supabase") {
@@ -214,8 +215,8 @@ export function YovaPrototype() {
     return () => { cancelled = true; };
   }, [ready, onboardingCompleted, account, answers]);
 
-  const startSession = async (planId?: string) => {
-    const requestedPlan = activePlans.find((plan) => plan.id === planId) ?? activePlan;
+  const startSession = async (planId?: string, planOverride?: LearningPlan) => {
+    const requestedPlan = planOverride ?? activePlans.find((plan) => plan.id === planId) ?? activePlan;
     if (!requestedPlan) return;
 
     const requestedSession = requestedPlan.sessions.find((session) => session.status === "ready")
@@ -354,7 +355,7 @@ export function YovaPrototype() {
       }
       setAccount(nextAccount);
       setSignedIn(true);
-      if (accountMode === "sign-in" && onboardingCompleted) setStage(alphaEntered ? (plans.length ? "app" : "plan-creator") : "paywall");
+      if (accountMode === "sign-in" && onboardingCompleted) setStage(alphaEntered ? "app" : "paywall");
       else setStage("onboarding-intro");
     }} />;
   }
@@ -381,8 +382,9 @@ export function YovaPrototype() {
     );
   }
   if (stage === "profile") return <ProfileSummary onContinue={() => setStage("paywall")} />;
-  if (stage === "paywall") return <PaywallPreview onContinue={() => { setAlphaEntered(true); setStage(plans.length ? "app" : "plan-creator"); }} />;
-  if (stage === "plan-creator") return <PlanCreator profileSummary={buildPlanProfileSummary(answers)} onExit={() => setStage(plans.length ? "app" : "paywall")} onFinish={(plan) => { setPlans((current) => [...current, plan]); setSelectedPlanId(plan.id); setStage("app"); setActiveTab("Learning"); }} />;
+  if (stage === "paywall") return <PaywallPreview onContinue={() => { setAlphaEntered(true); setStage("app"); }} />;
+  if (stage === "plan-creator") return <PlanCreator profileSummary={buildPlanProfileSummary(answers)} onExit={() => setStage("app")} onFinish={(plan) => { setPlans((current) => [...current, plan]); setSelectedPlanId(plan.id); setStage("app"); setActiveTab("Learning"); }} />;
+  if (stage === "study-now") return <StudyNowCreator profileSummary={buildPlanProfileSummary(answers)} onExit={() => setStage("app")} onFinish={(plan) => { setPlans((current) => [...current, plan]); setSelectedPlanId(plan.id); void startSession(plan.id, plan); }} />;
   if (stage === "session-loading") return <SessionLoading plan={activePlan} onExit={() => setStage("app")} />;
   if (stage === "session") {
     return (
@@ -426,7 +428,7 @@ export function YovaPrototype() {
         setStage("landing");
       });
     }}>
-      {activeTab === "Home" && <HomeScreen account={account} plans={activePlans} plan={activePlan} tutorQuestion={tutorQuestion} onTutorQuestion={setTutorQuestion} onOpenTutor={() => setActiveTab("Ask YOVA")} onStart={() => void startSession(activePlan?.id)} onSelectPlan={setSelectedPlanId} onCreatePlan={() => setStage("plan-creator")} />}
+      {activeTab === "Home" && <HomeScreen account={account} plans={activePlans} plan={activePlan} tutorQuestion={tutorQuestion} onTutorQuestion={setTutorQuestion} onOpenTutor={() => setActiveTab("Ask YOVA")} onStart={() => void startSession(activePlan?.id)} onSelectPlan={setSelectedPlanId} onCreatePlan={() => setStage("plan-creator")} onStudyNow={() => setStage("study-now")} />}
       {activeTab === "Learning" && <LearningScreen plans={activePlans} plan={activePlan} onSelectPlan={setSelectedPlanId} onStart={() => void startSession(activePlan?.id)} onCreatePlan={() => setStage("plan-creator")} />}
       {activeTab === "Agenda" && <AgendaScreen plans={activePlans} onStart={(planId) => void startSession(planId)} />}
       {activeTab === "Ask YOVA" && <AskScreen key={activePlan?.id ?? "general"} plan={activePlan} question={tutorQuestion} onQuestion={setTutorQuestion} />}
@@ -543,13 +545,13 @@ function AppShell({ activeTab, onTab, account, cloudSyncIssue, onSignOut, childr
 
 function PageHeader({ eyebrow, title, description }: { eyebrow?: string; title: string; description?: string }) { return <header className="page-header">{eyebrow && <span className="step-label">{eyebrow}</span>}<h1>{title}</h1>{description && <p>{description}</p>}</header>; }
 
-function HomeScreen({ account, plans, plan, tutorQuestion, onTutorQuestion, onOpenTutor, onStart, onSelectPlan, onCreatePlan }: { account: PreviewAccount | null; plans: LearningPlan[]; plan: LearningPlan | null; tutorQuestion: string; onTutorQuestion: (question: string) => void; onOpenTutor: () => void; onStart: () => void; onSelectPlan: (planId: string) => void; onCreatePlan: () => void }) {
+function HomeScreen({ account, plans, plan, tutorQuestion, onTutorQuestion, onOpenTutor, onStart, onSelectPlan, onCreatePlan, onStudyNow }: { account: PreviewAccount | null; plans: LearningPlan[]; plan: LearningPlan | null; tutorQuestion: string; onTutorQuestion: (question: string) => void; onOpenTutor: () => void; onStart: () => void; onSelectPlan: (planId: string) => void; onCreatePlan: () => void; onStudyNow: () => void }) {
   const readySession = plan?.sessions.find((session) => session.status === "ready") ?? null;
   const completedCount = plan?.sessions.filter((session) => session.status === "complete").length ?? 0;
   const firstName = account?.displayName.split(" ")[0] || "there";
   const now = new Date();
 
-  return <div className="page"><PageHeader eyebrow={formatHomeDate(now)} title={`${greetingFor(now)}, ${firstName}.`} description="Here is the most useful next step across your active learning." />{plan && readySession ? <section className="recommendation-card"><div className="rec-top"><span className="eyebrow light"><Sparkles size={15} /> Recommended next</span><span>{completedCount} of {plan.sessions.length} sessions complete</span></div><div className="rec-body"><div><span className="subject-label">{plan.title.toUpperCase()}</span><h2>{readySession.title}</h2><div className="meta-row"><span><Target size={16} /> {readySession.method}</span><span><Clock3 size={16} /> {readySession.amountLabel}</span></div></div><button className="button white large" onClick={onStart}>Start session <ArrowRight size={18} /></button></div><div className="reason-grid"><div><strong>Why now</strong><p>This is the first unfinished session in your selected plan and fits today’s availability.</p></div><div><strong>Why this method</strong><p>{readySession.methodReason}</p></div></div></section> : <section className="empty-home"><span className="eyebrow"><Sparkles size={15} /> Start here</span><h2>Build your first learning plan.</h2><p>Tell YOVA what you need to learn. Materials are optional.</p><button className="button primary large" onClick={onCreatePlan}>Create a plan <ArrowRight size={18} /></button></section>}<AskBar value={tutorQuestion} onChange={onTutorQuestion} onSubmit={onOpenTutor} /><section className="quick-actions"><button><Plus size={18} /><span><strong>Study something now</strong><small>Build one focused session</small></span></button><button onClick={onCreatePlan}><BookOpen size={18} /><span><strong>{plan ? "Create another plan" : "Create a plan"}</strong><small>Prepare for a larger goal</small></span></button></section>{plans.length > 0 && <section className="section-block"><div className="section-title"><h3>Active learning</h3><span>{plans.length} {plans.length === 1 ? "goal" : "goals"}</span></div><div className="compact-items">{plans.map((item) => { const next = item.sessions.find((session) => session.status === "ready"); return <button className={item.id === plan?.id ? "selected" : ""} key={item.id} onClick={() => onSelectPlan(item.id)}><span className="item-icon blue">{item.title.charAt(0)}</span><span><strong>{item.title}</strong><small>{next ? `${next.method} · Next` : "Plan complete"}</small></span><ChevronRight /></button>; })}</div></section>}</div>;
+  return <div className="page"><PageHeader eyebrow={formatHomeDate(now)} title={`${greetingFor(now)}, ${firstName}.`} description="Here is the most useful next step across your active learning." />{plan && readySession ? <section className="recommendation-card"><div className="rec-top"><span className="eyebrow light"><Sparkles size={15} /> Recommended next</span><span>{completedCount} of {plan.sessions.length} sessions complete</span></div><div className="rec-body"><div><span className="subject-label">{plan.title.toUpperCase()}</span><h2>{readySession.title}</h2><div className="meta-row"><span><Target size={16} /> {readySession.method}</span><span><Clock3 size={16} /> {readySession.amountLabel}</span></div></div><button className="button white large" onClick={onStart}>Start session <ArrowRight size={18} /></button></div><div className="reason-grid"><div><strong>Why now</strong><p>This is the first unfinished session in your selected plan and fits today’s availability.</p></div><div><strong>Why this method</strong><p>{readySession.methodReason}</p></div></div></section> : <section className="empty-home"><span className="eyebrow"><Sparkles size={15} /> Start here</span><h2>What do you want to learn?</h2><p>Start one focused session now or build a plan for a larger goal. Materials are optional.</p><div className="empty-home-actions"><button className="button primary large" onClick={onStudyNow}>Study something now <ArrowRight size={18} /></button><button className="button secondary large" onClick={onCreatePlan}>Create a plan</button></div></section>}<AskBar value={tutorQuestion} onChange={onTutorQuestion} onSubmit={onOpenTutor} /><section className="quick-actions"><button onClick={onStudyNow}><Plus size={18} /><span><strong>Study something now</strong><small>Build one focused session</small></span></button><button onClick={onCreatePlan}><BookOpen size={18} /><span><strong>{plan ? "Create another plan" : "Create a plan"}</strong><small>Prepare for a larger goal</small></span></button></section>{plans.length > 0 && <section className="section-block"><div className="section-title"><h3>Active learning</h3><span>{plans.length} {plans.length === 1 ? "goal" : "goals"}</span></div><div className="compact-items">{plans.map((item) => { const next = item.sessions.find((session) => session.status === "ready"); return <button className={item.id === plan?.id ? "selected" : ""} key={item.id} onClick={() => onSelectPlan(item.id)}><span className="item-icon blue">{item.title.charAt(0)}</span><span><strong>{item.title}</strong><small>{next ? `${next.method} · Next` : "Plan complete"}</small></span><ChevronRight /></button>; })}</div></section>}</div>;
 }
 
 function formatHomeDate(date: Date) {

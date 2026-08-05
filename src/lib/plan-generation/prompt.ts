@@ -14,6 +14,10 @@ Success criteria:
 - fit sessions inside the supplied availability
 - return only the structured plan requested by the schema
 
+Intent rules:
+- when plan_intent is "study_now", return exactly one session scheduled for now; it must fit the single supplied availability window
+- when plan_intent is "plan", return a realistic multi-session sequence when the goal requires it
+
 Constraints:
 - do not diagnose medical or psychological conditions
 - do not claim that a learner "learns best" from limited evidence
@@ -47,6 +51,7 @@ export function buildPlanGeneratorInput(request: PlanGenerationRequest) {
 
   return JSON.stringify({
     current_datetime_utc: new Date().toISOString(),
+    plan_intent: request.intent,
     learner_time_zone: request.timeZone,
     learner_goal: request.goal,
     content_source: request.materialMode === "upload"
