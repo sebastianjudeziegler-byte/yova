@@ -61,6 +61,17 @@ export type SessionCompletion = {
   observedGap: string;
 };
 
+export type NextSessionAdaptation = {
+  planSessionId: string;
+  title: string;
+  objective: string;
+  method: string;
+  methodReason: string;
+  estimatedMinutes: number;
+  amountLabel: string;
+  explanation: string;
+};
+
 export type YovaPreviewSnapshot = {
   version: 1;
   account: PreviewAccount | null;

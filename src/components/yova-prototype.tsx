@@ -26,9 +26,10 @@ import { BrandMark } from "@/components/brand-mark";
 import { PlanCreator } from "@/components/plan-creator";
 import { StudyNowCreator } from "@/components/study-now-creator";
 import { getAuthenticatedAccount, getAuthMode, requestEmailAuthentication, signOutAuthenticatedAccount } from "@/lib/auth/client";
-import { makeId, makeUuid, type LearningPlan, type PreviewAccount, type SessionCompletion } from "@/lib/domain";
+import { makeId, makeUuid, type LearningPlan, type LearningPlanSession, type PreviewAccount, type SessionCompletion } from "@/lib/domain";
 import { clearPreviewSnapshot, loadPreviewSnapshot, savePreviewSnapshot } from "@/lib/persistence/preview-store";
 import { buildPlanProfileSummary } from "@/lib/personalization/profile-summary";
+import { buildNextSessionAdaptation } from "@/lib/personalization/session-adaptation";
 import { onboardingQuestions } from "@/lib/sample-data";
 import {
   completeAuthenticatedPlanSession,
@@ -90,6 +91,10 @@ export function YovaPrototype() {
   const activeLessonSteps = generatedLessonSteps ?? lessonStepsFor(activePlan);
   const sessionCorrectAnswers = Object.entries(sessionResponses).filter(([step, answer]) => activeLessonSteps[Number(step)]?.correctAnswer === answer).length;
   const sessionTotalAnswers = activeLessonSteps.filter((step) => step.question).length;
+  const sessionObservedGap = activeLessonSteps
+    .filter((step, index) => step.question && sessionResponses[index] !== step.correctAnswer)
+    .map((step) => step.title)
+    .join("; ") || "No major gap detected in the required check";
 
   useEffect(() => {
     let cancelled = false;
@@ -283,18 +288,30 @@ export function YovaPrototype() {
       correctAnswers,
       totalAnswers,
       feedback,
-      observedGap: activeLessonSteps
-        .filter((step, index) => step.question && sessionResponses[index] !== step.correctAnswer)
-        .map((step) => step.title)
-        .join("; ") || "No major gap detected in the required check",
+      observedGap: sessionObservedGap,
     };
+    const nextSession = activePlan.sessions.find((session) => session.sequence === currentSession.sequence + 1) ?? null;
+    const adaptation = buildNextSessionAdaptation(nextSession, completion);
 
     setPlans((currentPlans) => currentPlans.map((plan) => {
       if (plan.id !== activePlan.id) return plan;
       const nextSequence = currentSession.sequence + 1;
       const updatedSessions = plan.sessions.map((session) => {
         if (session.id === currentSession.id) return { ...session, status: "complete" as const };
-        if (session.sequence === nextSequence && session.status === "upcoming") return { ...session, status: "ready" as const };
+        if (session.sequence === nextSequence && session.status === "upcoming") {
+          return adaptation?.planSessionId === session.id
+            ? {
+              ...session,
+              title: adaptation.title,
+              objective: adaptation.objective,
+              method: adaptation.method,
+              methodReason: adaptation.methodReason,
+              estimatedMinutes: adaptation.estimatedMinutes,
+              amountLabel: adaptation.amountLabel,
+              status: "ready" as const,
+            }
+            : { ...session, status: "ready" as const };
+        }
         return session;
       });
       return {
@@ -309,7 +326,7 @@ export function YovaPrototype() {
     setSessionCompletions((current) => [...current, completion]);
 
     if (account?.identityMode === "supabase") {
-      void completeAuthenticatedPlanSession(completion, currentSession.estimatedMinutes)
+      void completeAuthenticatedPlanSession(completion, currentSession.estimatedMinutes, adaptation)
         .then(() => setCloudSyncIssue(null))
         .catch((error: unknown) => {
           setCloudSyncIssue(error instanceof Error ? error.message : "YOVA could not sync this session.");
@@ -410,7 +427,13 @@ export function YovaPrototype() {
       />
     );
   }
-  if (stage === "complete") return <SessionComplete stepCount={activeLessonSteps.length} correctAnswers={sessionCorrectAnswers} totalAnswers={sessionTotalAnswers} onFinish={(feedback) => { completeActiveSession(sessionCorrectAnswers, sessionTotalAnswers, feedback); setStage("app"); setActiveTab("Home"); }} />;
+  if (stage === "complete") {
+    const currentSession = activePlan?.sessions.find((session) => session.status === "ready") ?? null;
+    const nextSession = currentSession
+      ? activePlan?.sessions.find((session) => session.sequence === currentSession.sequence + 1) ?? null
+      : null;
+    return <SessionComplete stepCount={activeLessonSteps.length} correctAnswers={sessionCorrectAnswers} totalAnswers={sessionTotalAnswers} observedGap={sessionObservedGap} nextSession={nextSession} onFinish={(feedback) => { completeActiveSession(sessionCorrectAnswers, sessionTotalAnswers, feedback); setStage("app"); setActiveTab("Home"); }} />;
+  }
 
   return (
     <AppShell activeTab={activeTab} onTab={setActiveTab} account={account} cloudSyncIssue={cloudSyncIssue} onSignOut={() => {
@@ -742,10 +765,26 @@ function GuidedSession({ plan, steps, step, selectedAnswer, rationale, issue, on
   return <main className="session-shell"><header className="session-top"><BrandMark compact /><div><span>{plan?.title ?? "YOVA session"}</span><strong>{currentSession?.title ?? "Guided learning"}</strong></div><div className="session-progress"><span>{step + 1} of {steps.length} sections</span><div><i style={{ width: `${((step + 1) / steps.length) * 100}%` }} /></div></div><button className="button ghost" onClick={onExit}>Exit</button></header><section className="session-content">{step === 0 && rationale && <div className="session-rationale"><Sparkles size={17} /><div><strong>Why this session fits</strong><p>{rationale}</p></div></div>}{issue && step === 0 && <div className="session-issue"><AlertCircle size={17} /><span>{issue}</span></div>}<span className="step-label">{content.label}</span><h1>{content.title}</h1><p>{content.body}</p>{content.question && <div className="answer-grid">{content.question.map((answer) => <button key={answer} className={selectedAnswer === answer ? "selected" : ""} onClick={() => onSelect(answer)}>{answer}{selectedAnswer === answer && <Check size={18} />}</button>)}</div>}{selectedAnswer && <div className={`feedback ${isCorrect ? "" : "incorrect"}`}>{isCorrect ? <Check size={20} /> : <AlertCircle size={20} />}<div><strong>{isCorrect ? "Correct." : "Useful miss."}</strong><p>{explanation}</p></div></div>}<button className="button primary large" onClick={onNext} disabled={Boolean(content.question) && !selectedAnswer}>{step === steps.length - 1 ? "Complete session" : "Continue"} <ArrowRight size={18} /></button></section><div className="session-ask"><input placeholder="Ask YOVA about this session…" /><button><Send size={18} /></button></div></main>;
 }
 
-function SessionComplete({ stepCount, correctAnswers, totalAnswers, onFinish }: { stepCount: number; correctAnswers: number; totalAnswers: number; onFinish: (feedback: SessionCompletion["feedback"]) => void }) {
+function SessionComplete({ stepCount, correctAnswers, totalAnswers, observedGap, nextSession, onFinish }: { stepCount: number; correctAnswers: number; totalAnswers: number; observedGap: string; nextSession: LearningPlanSession | null; onFinish: (feedback: SessionCompletion["feedback"]) => void }) {
   const [feedback, setFeedback] = useState<SessionCompletion["feedback"]>("about_right");
-  const hasGap = correctAnswers < totalAnswers;
-  return <main className="centered-shell completion"><BrandMark /><section className="setup-card wide"><div className="completion-icon"><Check size={28} /></div><span className="step-label">SESSION COMPLETE</span><h1>You completed this session.</h1><p>{hasGap ? "One or more details need another pass. YOVA will bring those details back before moving to harder application." : "You completed the required check. YOVA can now move the plan forward without adding unnecessary review."}</p><div className="result-grid"><div><span>Session steps</span><strong>{stepCount} of {stepCount}</strong></div><div><span>Knowledge checks</span><strong>{correctAnswers} of {totalAnswers}</strong></div><div><span>Next review</span><strong>Tomorrow</strong></div></div><div className="adaptation"><Sparkles size={19} /><div><strong>{hasGap ? "Tomorrow’s session was adjusted" : "Tomorrow’s session is ready"}</strong><p>{hasGap ? "Missed details will return in a short repair step before new material." : "The plan will continue into its next method without adding unnecessary review."}</p></div></div><p className="feedback-label">How did this session feel?</p><div className="feeling-row"><button className={feedback === "too_easy" ? "selected" : ""} onClick={() => setFeedback("too_easy")}>Too easy</button><button className={feedback === "about_right" ? "selected" : ""} onClick={() => setFeedback("about_right")}>About right</button><button className={feedback === "too_difficult" ? "selected" : ""} onClick={() => setFeedback("too_difficult")}>Too difficult</button></div><button className="button primary large full" onClick={() => onFinish(feedback)}>Return Home</button></section></main>;
+  const hasGap = totalAnswers > 0 && correctAnswers < totalAnswers;
+  const proposedAdaptation = buildNextSessionAdaptation(nextSession, {
+    id: "completion-preview",
+    planId: "completion-preview",
+    planSessionId: "completion-preview",
+    completedAt: new Date().toISOString(),
+    correctAnswers,
+    totalAnswers,
+    feedback,
+    observedGap,
+  });
+  const nextStatus = !nextSession
+    ? { title: "This learning item is complete", explanation: "There is no remaining session to adjust. This result is still saved to your learning history." }
+    : proposedAdaptation
+      ? { title: "YOVA will adjust the next session", explanation: proposedAdaptation.explanation }
+      : { title: "The next session is ready", explanation: "This result does not justify changing the planned method, so YOVA will continue without inventing an adjustment." };
+
+  return <main className="centered-shell completion"><BrandMark /><section className="setup-card wide"><div className="completion-icon"><Check size={28} /></div><span className="step-label">SESSION COMPLETE</span><h1>You completed this session.</h1><p>{hasGap ? "One or more details need another pass. YOVA can now use the actual result when deciding what comes next." : "You completed the required check. YOVA can move forward without adding unnecessary review."}</p><div className="result-grid"><div><span>Session steps</span><strong>{stepCount} of {stepCount}</strong></div><div><span>Knowledge checks</span><strong>{correctAnswers} of {totalAnswers}</strong></div><div><span>Next step</span><strong>{nextSession ? nextSession.title : "Goal complete"}</strong></div></div><p className="feedback-label">How did this session feel?</p><div className="feeling-row"><button className={feedback === "too_easy" ? "selected" : ""} onClick={() => setFeedback("too_easy")}>Too easy</button><button className={feedback === "about_right" ? "selected" : ""} onClick={() => setFeedback("about_right")}>About right</button><button className={feedback === "too_difficult" ? "selected" : ""} onClick={() => setFeedback("too_difficult")}>Too difficult</button></div><div className="adaptation"><Sparkles size={19} /><div><strong>{nextStatus.title}</strong><p>{nextStatus.explanation}</p></div></div><button className="button primary large full" onClick={() => onFinish(feedback)}>Save result and return Home</button></section></main>;
 }
 
 function formatSessionTime(isoDate: string) {

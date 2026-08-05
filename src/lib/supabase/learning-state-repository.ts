@@ -3,6 +3,7 @@
 import type {
   LearningPlan,
   LearningPlanSession,
+  NextSessionAdaptation,
   PlanStatus,
   SessionCompletion,
   SessionStatus,
@@ -214,7 +215,7 @@ export async function saveAuthenticatedLearnerProfile(input: {
   if (error) throw new Error("YOVA could not save your learning profile to the cloud.");
 }
 
-export async function completeAuthenticatedPlanSession(completion: SessionCompletion, actualMinutes?: number) {
+export async function completeAuthenticatedPlanSession(completion: SessionCompletion, actualMinutes?: number, adaptation?: NextSessionAdaptation | null) {
   if (!isSupabaseConfigured()) return;
   const supabase = createSupabaseBrowserClient();
   const { error } = await supabase.rpc("complete_plan_session", {
@@ -227,6 +228,7 @@ export async function completeAuthenticatedPlanSession(completion: SessionComple
       totalAnswers: completion.totalAnswers,
       feedback: completion.feedback,
       observedGap: completion.observedGap,
+      nextSessionAdjustment: adaptation ?? null,
     },
   });
 
