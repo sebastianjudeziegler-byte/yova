@@ -408,7 +408,7 @@ export function YovaPrototype() {
       />
     );
   }
-  if (stage === "profile") return <ProfileSummary onContinue={() => setStage("paywall")} />;
+  if (stage === "profile") return <ProfileSummary answers={answers} onContinue={() => setStage("paywall")} />;
   if (stage === "paywall") return <PaywallPreview onContinue={() => { setAlphaEntered(true); setStage("app"); }} />;
   if (stage === "plan-creator") return <PlanCreator profileSummary={buildPlanProfileSummary(answers)} onExit={() => setStage("app")} onFinish={(plan) => { setPlans((current) => [...current, plan]); setSelectedPlanId(plan.id); setStage("app"); setActiveTab("Learning"); }} />;
   if (stage === "study-now") return <StudyNowCreator profileSummary={buildPlanProfileSummary(answers)} onExit={() => setStage("app")} onFinish={(plan) => { setPlans((current) => [...current, plan]); setSelectedPlanId(plan.id); void startSession(plan.id, plan); }} />;
@@ -465,7 +465,7 @@ export function YovaPrototype() {
       {activeTab === "Learning" && <LearningScreen plans={plans} selectedPlanId={selectedPlanId} sessionCompletions={sessionCompletions} onSelectPlan={setSelectedPlanId} onStart={(planId) => void startSession(planId)} onCreatePlan={() => setStage("plan-creator")} />}
       {activeTab === "Agenda" && <AgendaScreen plans={activePlans} onStart={(planId) => void startSession(planId)} onReschedule={rescheduleSession} />}
       {activeTab === "Ask YOVA" && <AskScreen key={activePlan?.id ?? "general"} plan={activePlan} question={tutorQuestion} onQuestion={setTutorQuestion} />}
-      {activeTab === "You" && <YouScreen account={account} sessionCompletions={sessionCompletions} onReset={resetAlphaData} />}
+      {activeTab === "You" && <YouScreen account={account} answers={answers} sessionCompletions={sessionCompletions} onAnswersChange={setAnswers} onReset={resetAlphaData} />}
     </AppShell>
   );
 }
@@ -561,8 +561,8 @@ function OnboardingQuestion({ index, answer, onAnswer, onNext, onBack }: { index
   return <main className="onboarding-shell"><header><BrandMark /><span>{index + 1} of {onboardingQuestions.length}</span></header><div className="progress-track"><div style={{ width: `${((index + 1) / onboardingQuestions.length) * 100}%` }} /></div><section className="question-wrap"><span className="step-label">YOUR STARTING PROFILE</span><h2>{question.prompt}</h2>{question.optional && <p className="muted">Optional — you can skip this or change it later.</p>}<div className="option-list">{question.options.map((option) => <button key={option} className={`option ${answer === option ? "selected" : ""}`} onClick={() => onAnswer(option)}><span>{option}</span>{answer === option && <Check size={18} />}</button>)}</div><footer className="question-footer"><button className="button ghost" onClick={onBack} disabled={index === 0}><ArrowLeft size={17} /> Back</button><button className="button primary" onClick={onNext} disabled={!answer && !question.optional}>{index === onboardingQuestions.length - 1 ? "Build my setup" : "Continue"} <ArrowRight size={17} /></button></footer></section></main>;
 }
 
-function ProfileSummary({ onContinue }: { onContinue: () => void }) {
-  return <main className="centered-shell"><BrandMark /><section className="setup-card wide"><span className="eyebrow"><Sparkles size={15} /> Your starting setup</span><h1>YOVA will begin like this.</h1><p>This is a transparent starting point. It will change as YOVA learns from your completed sessions.</p><div className="profile-grid"><ProfileItem title="Structure" value="Clear, ordered steps" note="Fewer decisions when you begin" /><ProfileItem title="Session size" value="20–30 minutes" note="Short required sets first" /><ProfileItem title="Explanations" value="Examples before practice" note="Then support gradually fades" /><ProfileItem title="Focus support" value="One topic at a time" note="Visible progress and clear stopping points" /></div><button className="button primary large full" onClick={onContinue}>Continue <ArrowRight size={18} /></button></section></main>;
+function ProfileSummary({ answers, onContinue }: { answers: string[]; onContinue: () => void }) {
+  return <main className="centered-shell"><BrandMark /><section className="setup-card wide"><span className="eyebrow"><Sparkles size={15} /> Your starting setup</span><h1>YOVA will begin like this.</h1><p>This is a transparent starting point based on your answers. It can change as you update your preferences and complete sessions.</p><div className="profile-grid"><ProfileItem title="Guidance" value={answers[1] || "Not answered yet"} note="Controls how much YOVA decides for you" /><ProfileItem title="Session size" value={answers[2] || "Not answered yet"} note="Used as a starting estimate" /><ProfileItem title="Explanations" value={answers[3] || "Not answered yet"} note="Shapes how difficult material is introduced" /><ProfileItem title="Focus pattern" value={answers[4] || "Not answered yet"} note="Helps YOVA keep sessions manageable" /></div><button className="button primary large full" onClick={onContinue}>Continue <ArrowRight size={18} /></button></section></main>;
 }
 
 function ProfileItem({ title, value, note }: { title: string; value: string; note: string }) { return <div className="profile-item"><span>{title}</span><strong>{value}</strong><small>{note}</small></div>; }
@@ -796,12 +796,60 @@ function AskScreen({ plan, question, onQuestion }: { plan: LearningPlan | null; 
   return <div className="page ask-page"><PageHeader eyebrow="ASK YOVA" title="Get help in context" description="Ask about a topic, plan, session, or study problem." />{plan ? <div className="context-pill"><BookOpen size={15} /> Context: {plan.title} <ChevronRight size={15} /></div> : <div className="context-pill"><Sparkles size={15} /> General learning conversation</div>}<div className="chat-space">{historyLoading ? <div className="chat-loading"><span className="button-spinner dark" /> Loading your conversation…</div> : <div className="chat-thread">{messages.length === 0 && <div className="yova-message"><BrandMark compact /><div><strong>YOVA</strong><p>What would you like help with? I can explain a concept, quiz you, or help you decide what to do next.</p></div></div>}{messages.map((message) => message.role === "assistant" ? <div className="yova-message" key={message.id}><BrandMark compact /><div><strong>YOVA</strong><p>{message.content}</p></div></div> : <div className="user-message" key={message.id}><strong>You</strong><p>{message.content}</p></div>)}{outgoingQuestion && <div className="user-message pending" aria-live="polite"><strong>You</strong><p>{outgoingQuestion}</p></div>}</div>}{messages.length === 0 && !outgoingQuestion && !historyLoading && <div className="prompt-grid">{suggestedPrompts.map((prompt) => <button key={prompt} disabled={sending} onClick={() => void sendQuestion(prompt)}>{prompt}</button>)}</div>}{error && <div className="chat-error"><AlertCircle size={16} /><span>{error}</span></div>}</div><AskBar value={question} onChange={onQuestion} onSubmit={() => void sendQuestion()} pending={sending || historyLoading} /></div>;
 }
 
-function YouScreen({ account, sessionCompletions, onReset }: { account: PreviewAccount | null; sessionCompletions: SessionCompletion[]; onReset: () => void }) {
+const editablePreferenceIndexes = [0, 1, 2, 3, 4, 5, 6, 7, 9] as const;
+
+function observedLearningInsight(sessionCompletions: SessionCompletion[], accuracyPercent: number | null) {
+  if (sessionCompletions.length === 0) {
+    return "YOVA needs completed sessions before it can responsibly show observed patterns.";
+  }
+
+  const difficultRatings = sessionCompletions.filter((completion) => completion.feedback === "too_difficult").length;
+  const easyRatings = sessionCompletions.filter((completion) => completion.feedback === "too_easy").length;
+
+  if (sessionCompletions.length >= 2 && difficultRatings > sessionCompletions.length / 2) {
+    return "Most of your recent sessions felt too difficult. YOVA will use that signal to add more explanation and smaller steps, then keep checking whether it helps.";
+  }
+
+  if (sessionCompletions.length >= 2 && easyRatings > sessionCompletions.length / 2 && accuracyPercent !== null && accuracyPercent >= 80) {
+    return "Your recent checks were accurate and often felt easy. YOVA can cautiously increase the challenge with more application and less review.";
+  }
+
+  if (accuracyPercent !== null && accuracyPercent < 60) {
+    return "Your recent checks revealed knowledge gaps. YOVA will prioritize repairing missed ideas before adding harder practice.";
+  }
+
+  return "You are beginning to build a real learning history. YOVA will compare completion, quiz results, and your feedback before changing future sessions.";
+}
+
+function YouScreen({ account, answers, sessionCompletions, onAnswersChange, onReset }: { account: PreviewAccount | null; answers: string[]; sessionCompletions: SessionCompletion[]; onAnswersChange: (answers: string[]) => void; onReset: () => void }) {
   const [confirmReset, setConfirmReset] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [draftAnswers, setDraftAnswers] = useState<string[]>(answers);
   const totalCorrect = sessionCompletions.reduce((sum, completion) => sum + completion.correctAnswers, 0);
   const totalAnswers = sessionCompletions.reduce((sum, completion) => sum + completion.totalAnswers, 0);
-  const accuracy = totalAnswers ? `${Math.round((totalCorrect / totalAnswers) * 100)}%` : "—";
-  return <div className="page"><PageHeader eyebrow="YOU" title="Your learning, in one place" description="What you have told YOVA, what it has cautiously noticed, and your overall progress." /><div className="you-grid"><section className="section-block"><div className="section-title"><h3>Your starting preferences</h3><button>Edit</button></div><ProfileItem title="Account" value={account?.email || "Not connected"} note="Private-alpha identity" /><ProfileItem title="Guidance" value="Clear, ordered steps" note="Show fewer choices during sessions" /><ProfileItem title="Session size" value="20–30 minutes" note="Use as a starting estimate" /><ProfileItem title="Explanation" value="Examples first" note="Fade support into independent practice" /></section><section className="section-block"><div className="section-title"><h3>What YOVA has noticed</h3><span className="data-badge">Early signal</span></div><div className="insight"><Sparkles size={18} /><p>{sessionCompletions.length ? "You completed the required retrieval session. YOVA will keep testing whether shorter, clearly bounded sessions remain useful." : "YOVA needs completed sessions before it can responsibly show observed patterns."}</p></div><div className="metric-row"><div><strong>{sessionCompletions.length}</strong><span>sessions completed</span></div><div><strong>{accuracy}</strong><span>recent quiz accuracy</span></div></div></section><section className="section-block alpha-data-card"><div><h3>Private-alpha data</h3><p>Reset the account, onboarding answers, plans, and session results stored in this browser.</p></div>{confirmReset ? <div className="reset-confirm"><strong>This cannot be undone.</strong><span>Only this browser’s private-alpha data will be removed.</span><div><button className="button ghost" onClick={() => setConfirmReset(false)}>Cancel</button><button className="button danger" onClick={onReset}><Trash2 size={16} /> Reset everything</button></div></div> : <button className="button ghost danger-outline" onClick={() => setConfirmReset(true)}><Trash2 size={16} /> Reset private-alpha data</button>}</section></div></div>;
+  const accuracyPercent = totalAnswers ? Math.round((totalCorrect / totalAnswers) * 100) : null;
+  const accuracy = accuracyPercent === null ? "—" : `${accuracyPercent}%`;
+  const startEditing = () => {
+    setDraftAnswers([...answers]);
+    setEditing(true);
+  };
+  const cancelEditing = () => {
+    setDraftAnswers([...answers]);
+    setEditing(false);
+  };
+  const savePreferences = () => {
+    onAnswersChange(draftAnswers);
+    setEditing(false);
+  };
+  const updateDraftAnswer = (index: number, answer: string) => {
+    setDraftAnswers((current) => {
+      const next = [...current];
+      next[index] = answer;
+      return next;
+    });
+  };
+
+  return <div className="page"><PageHeader eyebrow="YOU" title="Your learning, in one place" description="What you have told YOVA, what it has cautiously noticed, and your overall progress." /><div className="you-grid"><section className={`section-block preference-card ${editing ? "editing" : ""}`}><div className="section-title"><h3>Your learning preferences</h3>{editing ? <span className="data-badge">Editing</span> : <button onClick={startEditing}>Edit</button>}</div>{editing ? <div className="preference-editor"><p>These answers shape session length, guidance, explanations, and plan structure. You can change them whenever your needs change.</p>{editablePreferenceIndexes.map((index) => { const question = onboardingQuestions[index]; return <label key={question.prompt}><span>{question.prompt}</span><select value={draftAnswers[index] ?? ""} onChange={(event) => updateDraftAnswer(index, event.target.value)}><option value="">Not answered</option>{question.options.map((option) => <option key={option} value={option}>{option}</option>)}</select></label>; })}<div className="preference-actions"><button className="button ghost" onClick={cancelEditing}>Cancel</button><button className="button primary" onClick={savePreferences}><Check size={16} /> Save preferences</button></div><small>For signed-in accounts, saved preferences are also synced to YOVA’s database.</small></div> : <><ProfileItem title="Account" value={account?.email || "Not connected"} note="Your signed-in identity" /><ProfileItem title="Main blocker" value={answers[0] || "Not answered yet"} note="Shapes how YOVA helps you begin" /><ProfileItem title="Guidance" value={answers[1] || "Not answered yet"} note="Controls how much YOVA decides for you" /><ProfileItem title="Session size" value={answers[2] || "Not answered yet"} note="Used as a starting estimate, not a fixed limit" /><ProfileItem title="Explanation" value={answers[3] || "Not answered yet"} note="Shapes how difficult material is introduced" /></>}</section><section className="section-block"><div className="section-title"><h3>What YOVA has noticed</h3><span className="data-badge">{sessionCompletions.length < 3 ? "Early signal" : "Observed pattern"}</span></div><div className="insight"><Sparkles size={18} /><p>{observedLearningInsight(sessionCompletions, accuracyPercent)}</p></div><div className="metric-row"><div><strong>{sessionCompletions.length}</strong><span>sessions completed</span></div><div><strong>{accuracy}</strong><span>recent quiz accuracy</span></div></div></section><section className="section-block alpha-data-card"><div><h3>Private-alpha data</h3><p>Reset the account, onboarding answers, plans, and session results stored in this browser.</p></div>{confirmReset ? <div className="reset-confirm"><strong>This cannot be undone.</strong><span>Only this browser’s private-alpha data will be removed.</span><div><button className="button ghost" onClick={() => setConfirmReset(false)}>Cancel</button><button className="button danger" onClick={onReset}><Trash2 size={16} /> Reset everything</button></div></div> : <button className="button ghost danger-outline" onClick={() => setConfirmReset(true)}><Trash2 size={16} /> Reset private-alpha data</button>}</section></div></div>;
 }
 
 function lessonStepsFor(plan: LearningPlan | null): LessonStep[] {

@@ -281,6 +281,15 @@ h1, h2, h3, p { margin-top: 0; }
 .you-grid { display: grid; grid-template-columns: 1fr 1.1fr; gap: 18px; }
 .you-grid .section-block { margin: 0; }
 .you-grid .profile-item { margin-top: 9px; }
+.preference-card.editing { grid-row: span 2; }
+.preference-editor { display: grid; gap: 15px; }
+.preference-editor > p { margin: -4px 0 5px; color: var(--muted); font-size: 13px; line-height: 1.55; }
+.preference-editor label { display: grid; gap: 7px; }
+.preference-editor label > span { color: #35415b; font-size: 12px; font-weight: 600; line-height: 1.4; }
+.preference-editor select { width: 100%; min-height: 44px; padding: 0 36px 0 12px; color: var(--text); border: 1px solid var(--border); border-radius: 9px; background: white; font: inherit; }
+.preference-editor select:focus { outline: 2px solid rgba(52,107,255,.18); border-color: var(--blue); }
+.preference-editor > small { color: var(--muted); font-size: 11px; line-height: 1.5; }
+.preference-actions { margin-top: 3px; display: flex; justify-content: flex-end; gap: 8px; }
 .alpha-data-card { grid-column: 1 / -1; padding: 18px 20px; display: flex; align-items: center; justify-content: space-between; gap: 24px; }
 .alpha-data-card h3 { margin: 0 0 5px; }
 .alpha-data-card p { margin: 0; color: var(--muted); font-size: 12px; }
@@ -691,6 +700,7 @@ h1, h2, h3, p { margin-top: 0; }
   .sidebar-bottom { display: none; }
   .page { padding: 44px 24px 70px; }
   .you-grid { grid-template-columns: 1fr; }
+  .preference-card.editing { grid-row: auto; }
   .alpha-data-card { align-items: stretch; flex-direction: column; }
   .week-strip { grid-template-columns: repeat(2,1fr); }
   .week-strip div { border-bottom: 1px solid var(--border); }
