@@ -802,7 +802,63 @@ function GuidedSession({ plan, steps, step, selectedAnswer, rationale, issue, on
     : content.correctAnswer
       ? `The correct answer is “${content.correctAnswer}.” ${content.feedback ?? "YOVA will bring this idea back for another attempt."}`
       : content.feedback;
-  return <main className="session-shell"><header className="session-top"><BrandMark compact /><div><span>{plan?.title ?? "YOVA session"}</span><strong>{currentSession?.title ?? "Guided learning"}</strong></div><div className="session-progress"><span>{step + 1} of {steps.length} sections</span><div><i style={{ width: `${((step + 1) / steps.length) * 100}%` }} /></div></div><button className="button ghost" onClick={onExit}>Exit</button></header><section className="session-content">{step === 0 && rationale && <div className="session-rationale"><Sparkles size={17} /><div><strong>Why this session fits</strong><p>{rationale}</p></div></div>}{issue && step === 0 && <div className="session-issue"><AlertCircle size={17} /><span>{issue}</span></div>}<span className="step-label">{content.label}</span><h1>{content.title}</h1><p>{content.body}</p>{content.question && <div className="answer-grid">{content.question.map((answer) => <button key={answer} className={selectedAnswer === answer ? "selected" : ""} onClick={() => onSelect(answer)}>{answer}{selectedAnswer === answer && <Check size={18} />}</button>)}</div>}{selectedAnswer && <div className={`feedback ${isCorrect ? "" : "incorrect"}`}>{isCorrect ? <Check size={20} /> : <AlertCircle size={20} />}<div><strong>{isCorrect ? "Correct." : "Useful miss."}</strong><p>{explanation}</p></div></div>}<button className="button primary large" onClick={onNext} disabled={Boolean(content.question) && !selectedAnswer}>{step === steps.length - 1 ? "Complete session" : "Continue"} <ArrowRight size={18} /></button></section><div className="session-ask"><input placeholder="Ask YOVA about this session…" /><button><Send size={18} /></button></div></main>;
+  return <main className="session-shell"><header className="session-top"><BrandMark compact /><div><span>{plan?.title ?? "YOVA session"}</span><strong>{currentSession?.title ?? "Guided learning"}</strong></div><div className="session-progress"><span>{step + 1} of {steps.length} sections</span><div><i style={{ width: `${((step + 1) / steps.length) * 100}%` }} /></div></div><button className="button ghost" onClick={onExit}>Exit</button></header><section className="session-content">{step === 0 && rationale && <div className="session-rationale"><Sparkles size={17} /><div><strong>Why this session fits</strong><p>{rationale}</p></div></div>}{issue && step === 0 && <div className="session-issue"><AlertCircle size={17} /><span>{issue}</span></div>}<span className="step-label">{content.label}</span><h1>{content.title}</h1><p>{content.body}</p>{content.question && <div className="answer-grid">{content.question.map((answer) => <button key={answer} className={selectedAnswer === answer ? "selected" : ""} onClick={() => onSelect(answer)}>{answer}{selectedAnswer === answer && <Check size={18} />}</button>)}</div>}{selectedAnswer && <div className={`feedback ${isCorrect ? "" : "incorrect"}`}>{isCorrect ? <Check size={20} /> : <AlertCircle size={20} />}<div><strong>{isCorrect ? "Correct." : "Useful miss."}</strong><p>{explanation}</p></div></div>}<button className="button primary large" onClick={onNext} disabled={Boolean(content.question) && !selectedAnswer}>{step === steps.length - 1 ? "Complete session" : "Continue"} <ArrowRight size={18} /></button></section><SessionTutor plan={plan} activityTitle={content.title} /></main>;
+}
+
+function SessionTutor({ plan, activityTitle }: { plan: LearningPlan | null; activityTitle: string }) {
+  const [question, setQuestion] = useState("");
+  const [threadId, setThreadId] = useState<string | null>(null);
+  const [messages, setMessages] = useState<TutorMessage[]>([]);
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const latestAnswer = [...messages].reverse().find((message) => message.role === "assistant")?.content ?? null;
+
+  const ask = async () => {
+    const nextQuestion = question.trim();
+    if (!nextQuestion || pending || !plan) return;
+    setPending(true);
+    setError(null);
+
+    try {
+      const response = await fetch("/api/tutor", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          question: nextQuestion,
+          planId: plan.id,
+          threadId,
+          history: messages.slice(-8).map(({ role, content }) => ({ role, content })),
+          sessionContext: { activityTitle },
+        }),
+      });
+      const body: unknown = await response.json();
+      if (!response.ok) {
+        const message = typeof body === "object" && body && "error" in body && typeof body.error === "string"
+          ? body.error
+          : "YOVA could not answer during this session.";
+        throw new Error(message);
+      }
+
+      const parsed = TutorResponseSchema.safeParse(body);
+      if (!parsed.success) throw new Error("The tutor answer came back in an unsafe format.");
+      setThreadId(parsed.data.persistence === "supabase" ? parsed.data.threadId : null);
+      setMessages((current) => [...current, ...parsed.data.messages]);
+      setQuestion("");
+      if (parsed.data.persistence === "browser") setError("The answer worked, but this exchange did not reach cloud storage.");
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "YOVA could not answer during this session.");
+    } finally {
+      setPending(false);
+    }
+  };
+
+  return <aside className={`session-tutor ${latestAnswer || error ? "open" : ""}`}>
+    {(latestAnswer || error) && <div className="session-tutor-response">{latestAnswer && <><span><Sparkles size={15} /> YOVA · {activityTitle}</span><p>{latestAnswer}</p></>}{error && <div className="session-tutor-error"><AlertCircle size={15} /> {error}</div>}</div>}
+    <form className="session-ask" onSubmit={(event) => { event.preventDefault(); void ask(); }}>
+      <input aria-label="Ask YOVA about this session" placeholder="Ask YOVA about this session…" value={question} disabled={pending || !plan} onChange={(event) => setQuestion(event.target.value)} />
+      <button aria-label="Send session question" type="submit" disabled={!question.trim() || pending || !plan}>{pending ? <span className="button-spinner" /> : <Send size={18} />}</button>
+    </form>
+  </aside>;
 }
 
 function SessionComplete({ stepCount, correctAnswers, totalAnswers, observedGap, nextSession, onFinish }: { stepCount: number; correctAnswers: number; totalAnswers: number; observedGap: string; nextSession: LearningPlanSession | null; onFinish: (feedback: SessionCompletion["feedback"]) => void }) {

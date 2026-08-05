@@ -314,6 +314,14 @@ h1, h2, h3, p { margin-top: 0; }
 .feedback.incorrect { color: #8b3e10; background: #fff3eb; }
 .session-ask { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); width: min(calc(100% - 40px),700px); padding: 10px; display: flex; gap: 10px; background: white; border: 1px solid var(--border); border-radius: 13px; box-shadow: var(--shadow); }
 .session-ask input { flex: 1; padding: 0 6px; border: 0; outline: 0; }
+.session-ask button { width: 38px; height: 38px; display: grid; place-items: center; color: white; border: 0; border-radius: 9px; background: var(--blue); }
+.session-ask button:disabled { opacity: .5; cursor: not-allowed; }
+.session-tutor { position: fixed; z-index: 8; left: 50%; bottom: 24px; transform: translateX(-50%); width: min(calc(100% - 40px),700px); }
+.session-tutor .session-ask { position: static; transform: none; width: 100%; }
+.session-tutor-response { max-height: 240px; margin-bottom: 8px; padding: 16px 18px; overflow-y: auto; color: var(--text); border: 1px solid var(--border); border-radius: 13px; background: rgba(255,255,255,.98); box-shadow: var(--shadow); }
+.session-tutor-response > span { display: flex; align-items: center; gap: 7px; color: var(--blue); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
+.session-tutor-response > p { margin: 8px 0 0; white-space: pre-wrap; font-size: 13px; line-height: 1.6; }
+.session-tutor-error { margin-top: 9px; padding: 9px 11px; display: flex; align-items: flex-start; gap: 7px; color: #b42318; border-radius: 8px; background: #fff1f0; font-size: 12px; }
 .completion-icon { width: 58px; height: 58px; margin-bottom: 20px; display: grid; place-items: center; color: white; background: var(--success); border-radius: 50%; }
 .result-grid { margin: 25px 0; display: grid; grid-template-columns: repeat(3,1fr); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
 .result-grid div { padding: 16px; border-left: 1px solid var(--border); }

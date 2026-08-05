@@ -18,6 +18,9 @@ export const TutorRequestSchema = z.object({
   planId: z.string().uuid().nullable().optional(),
   threadId: z.string().uuid().nullable().optional(),
   history: z.array(TutorHistoryMessageSchema).max(12).default([]),
+  sessionContext: z.object({
+    activityTitle: z.string().trim().min(1).max(180),
+  }).nullable().optional(),
 });
 
 export const TutorResponseSchema = z.object({
