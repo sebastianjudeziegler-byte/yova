@@ -236,6 +236,23 @@ h1, h2, h3, p { margin-top: 0; }
 .learning-hero-actions { display: flex; align-items: center; gap: 9px; }
 .button.hero-secondary { color: white; border: 1px solid rgba(255,255,255,.24); background: rgba(255,255,255,.08); }
 .button.hero-secondary:hover:not(:disabled) { background: rgba(255,255,255,.14); }
+.plan-adjustment-panel { margin-top: 16px; padding: 24px; border: 1px solid #c9d5ff; border-radius: 15px; background: #f8f9ff; box-shadow: 0 14px 34px rgba(52,107,255,.08); }
+.plan-adjustment-heading h3 { margin: 7px 0 5px; }
+.plan-adjustment-heading p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.55; }
+.plan-adjustment-grid { margin-top: 20px; display: grid; grid-template-columns: repeat(2,1fr); gap: 12px; }
+.plan-adjustment-grid label { padding: 15px; display: grid; gap: 7px; border: 1px solid var(--border); border-radius: 11px; background: white; }
+.plan-adjustment-grid label > span,
+.adjustment-mode > span { color: #35415b; font-size: 12px; font-weight: 700; }
+.plan-adjustment-grid input,
+.plan-adjustment-grid select { width: 100%; min-height: 42px; padding: 0 10px; color: var(--text); border: 1px solid var(--border); border-radius: 8px; background: white; font: inherit; }
+.plan-adjustment-grid small { color: var(--muted); line-height: 1.45; }
+.adjustment-mode { margin-top: 17px; }
+.adjustment-mode > div { margin-top: 8px; display: grid; grid-template-columns: repeat(2,1fr); gap: 9px; }
+.adjustment-mode button { padding: 14px; display: grid; grid-template-columns: 24px 1fr; gap: 2px 9px; color: var(--text); text-align: left; border: 1px solid var(--border); border-radius: 10px; background: white; }
+.adjustment-mode button svg { grid-row: 1 / 3; color: var(--blue); }
+.adjustment-mode button small { color: var(--muted); }
+.adjustment-mode button.selected { border-color: var(--blue); background: var(--soft-blue); }
+.plan-adjustment-panel footer { margin-top: 18px; display: flex; justify-content: flex-end; gap: 8px; }
 .learning-history-summary { margin: 15px 0; display: grid; grid-template-columns: repeat(3,1fr); border: 1px solid var(--border); border-radius: 13px; overflow: hidden; background: white; }
 .learning-history-summary div { min-height: 82px; padding: 17px; border-left: 1px solid var(--border); }
 .learning-history-summary div:first-child { border-left: 0; }
@@ -737,6 +754,8 @@ h1, h2, h3, p { margin-top: 0; }
   .hero-card { min-height: 650px; padding: 50px 25px; }
   .hero-card h1 { font-size: 50px; }
   .hero-actions, .rec-body, .learning-hero { align-items: stretch; flex-direction: column; }
+  .learning-hero-actions { align-items: stretch; flex-direction: column; }
+  .plan-adjustment-grid, .adjustment-mode > div { grid-template-columns: 1fr; }
   .how-yova-works { margin-top: 52px; padding: 0 4px; }
   .how-steps { grid-template-columns: 1fr; }
   .product-proof, .profile-grid, .quick-actions, .reason-grid, .prompt-grid, .result-grid, .learning-history-summary { grid-template-columns: 1fr; }
