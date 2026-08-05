@@ -9,6 +9,8 @@ import {
   TutorHistoryResponseSchema,
   TutorRequestSchema,
   TutorResponseSchema,
+  type TutorProposedAction,
+  type TutorRequest,
 } from "@/lib/tutor/schema";
 
 export const runtime = "nodejs";
@@ -118,7 +120,8 @@ export async function POST(request: Request) {
       }
     }
 
-    const generated = await generateTutorAnswer(parsed.data, context);
+    const proposedAction = buildTutorProposedAction(parsed.data, planId, context);
+    const generated = await generateTutorAnswer(parsed.data, context, proposedAction);
     const userMessageId = crypto.randomUUID();
     const assistantMessageId = crypto.randomUUID();
     const userCreatedAt = new Date().toISOString();
@@ -163,6 +166,7 @@ export async function POST(request: Request) {
       ],
       model: generated.model,
       persistence,
+      proposedAction,
     }), {
       headers: {
         "Cache-Control": "no-store",
@@ -223,7 +227,7 @@ async function loadTutorContext(supabase: SupabaseClient, planId: string | null)
       .maybeSingle(),
     supabase
       .from("plan_sessions")
-      .select("title,objective,method,method_rationale")
+      .select("id,title,objective,method,method_rationale,estimated_minutes")
       .eq("plan_id", planId)
       .in("status", ["ready", "upcoming"])
       .order("sequence", { ascending: true })
@@ -248,13 +252,42 @@ async function loadTutorContext(supabase: SupabaseClient, planId: string | null)
       planRationale: plan.rationale,
       materials: buildMaterialExcerpts(materialRows ?? []),
       currentSession: currentSessionRow ? {
+        id: currentSessionRow.id,
         title: currentSessionRow.title,
         objective: currentSessionRow.objective,
         method: currentSessionRow.method,
         methodReason: currentSessionRow.method_rationale,
+        estimatedMinutes: currentSessionRow.estimated_minutes,
       } : null,
       learnerProfile: profile,
     },
+  };
+}
+
+function buildTutorProposedAction(
+  request: TutorRequest,
+  planId: string | null,
+  context: TutorLearningContext,
+): TutorProposedAction | null {
+  if (!planId || request.sessionContext || !context.currentSession) return null;
+
+  const minuteMatch = request.question.match(/\b(\d{1,2})\s*(?:minutes?|mins?)\b/i);
+  const asksToChangeSession = /\b(?:only have|shorten|shorter|reduce|change|make|fit|condense|cut)\b/i.test(request.question);
+  if (!minuteMatch || !asksToChangeSession) return null;
+
+  const minutes = Number(minuteMatch[1]);
+  if (!Number.isInteger(minutes) || minutes < 5 || minutes >= context.currentSession.estimatedMinutes) {
+    return null;
+  }
+
+  return {
+    id: crypto.randomUUID(),
+    type: "shorten_current_session",
+    planId,
+    planSessionId: context.currentSession.id,
+    minutes,
+    title: `Make “${context.currentSession.title}” ${minutes} minutes`,
+    explanation: "Only this unfinished session will change. YOVA will regenerate its activities to fit the shorter time when you start it.",
   };
 }
 

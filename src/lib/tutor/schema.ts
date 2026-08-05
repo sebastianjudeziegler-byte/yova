@@ -23,11 +23,22 @@ export const TutorRequestSchema = z.object({
   }).nullable().optional(),
 });
 
+export const TutorProposedActionSchema = z.object({
+  id: z.string().uuid(),
+  type: z.literal("shorten_current_session"),
+  planId: z.string().uuid(),
+  planSessionId: z.string().uuid(),
+  minutes: z.number().int().min(5).max(90),
+  title: z.string().trim().min(1).max(180),
+  explanation: z.string().trim().min(1).max(500),
+});
+
 export const TutorResponseSchema = z.object({
   threadId: z.string().uuid(),
   messages: z.array(TutorMessageSchema).length(2),
   model: z.string(),
   persistence: z.enum(["browser", "supabase"]),
+  proposedAction: TutorProposedActionSchema.nullable().default(null),
 });
 
 export const TutorHistoryResponseSchema = z.object({
@@ -38,3 +49,4 @@ export const TutorHistoryResponseSchema = z.object({
 export type TutorMessage = z.infer<typeof TutorMessageSchema>;
 export type TutorRequest = z.infer<typeof TutorRequestSchema>;
 export type TutorResponse = z.infer<typeof TutorResponseSchema>;
+export type TutorProposedAction = z.infer<typeof TutorProposedActionSchema>;

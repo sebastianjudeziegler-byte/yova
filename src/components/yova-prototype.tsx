@@ -47,10 +47,12 @@ import {
 } from "@/lib/supabase/learning-state-repository";
 import { SessionGenerationResponseSchema } from "@/lib/session-generation/schema";
 import { RescheduleSessionResponseSchema } from "@/lib/scheduling/schema";
+import { SessionDurationAdjustmentResponseSchema } from "@/lib/scheduling/session-adjustment-schema";
 import {
   TutorHistoryResponseSchema,
   TutorResponseSchema,
   type TutorMessage,
+  type TutorProposedAction,
 } from "@/lib/tutor/schema";
 
 type Stage = "landing" | "account" | "onboarding-intro" | "onboarding" | "profile" | "paywall" | "app" | "plan-creator" | "study-now" | "session-loading" | "session" | "complete";
@@ -450,6 +452,35 @@ export function YovaPrototype() {
     } : plan));
   };
 
+  const applyTutorAction = async (action: TutorProposedAction) => {
+    const response = await fetch("/api/sessions/duration", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        planSessionId: action.planSessionId,
+        estimatedMinutes: action.minutes,
+      }),
+    });
+    const body: unknown = await response.json();
+    if (!response.ok) {
+      const message = typeof body === "object" && body && "error" in body && typeof body.error === "string"
+        ? body.error
+        : "YOVA could not apply that change.";
+      throw new Error(message);
+    }
+
+    const parsed = SessionDurationAdjustmentResponseSchema.safeParse(body);
+    if (!parsed.success) throw new Error("The changed session came back in an unsafe format.");
+    setPlans((current) => current.map((plan) => plan.id === parsed.data.planId ? {
+      ...plan,
+      sessions: plan.sessions.map((session) => session.id === parsed.data.planSessionId ? {
+        ...session,
+        estimatedMinutes: parsed.data.estimatedMinutes,
+        amountLabel: parsed.data.amountLabel,
+      } : session),
+    } : plan));
+  };
+
   if (!ready) return <LoadingAccount />;
 
   if (stage === "landing") return <Landing onCreate={() => { setAccountMode("create"); setStage("account"); }} onSignIn={() => { setAccountMode("sign-in"); setStage("account"); }} />;
@@ -548,7 +579,7 @@ export function YovaPrototype() {
       {activeTab === "Home" && <HomeScreen account={account} plans={activePlans} plan={recommendedPlan} tutorQuestion={tutorQuestion} onTutorQuestion={setTutorQuestion} onOpenTutor={() => setActiveTab("Ask YOVA")} onStart={() => void startSession(recommendedPlan?.id)} onOpenPlan={(planId) => { setSelectedPlanId(planId); setActiveTab("Learning"); }} onCreatePlan={() => setStage("plan-creator")} onStudyNow={() => setStage("study-now")} />}
       {activeTab === "Learning" && <LearningScreen plans={plans} selectedPlanId={selectedPlanId} sessionCompletions={sessionCompletions} onSelectPlan={setSelectedPlanId} onStart={(planId) => void startSession(planId)} onCreatePlan={() => setStage("plan-creator")} onArchiveStateChange={changePlanArchiveState} onAdjustPlan={adjustPlan} onAttachMaterials={attachMaterials} />}
       {activeTab === "Agenda" && <AgendaScreen plans={activePlans} onStart={(planId) => void startSession(planId)} onReschedule={rescheduleSession} />}
-      {activeTab === "Ask YOVA" && <AskScreen key={activePlan?.id ?? "general"} plan={activePlan} question={tutorQuestion} onQuestion={setTutorQuestion} />}
+      {activeTab === "Ask YOVA" && <AskScreen key={activePlan?.id ?? "general"} plan={activePlan} question={tutorQuestion} onQuestion={setTutorQuestion} onApplyAction={applyTutorAction} />}
       {activeTab === "You" && <YouScreen account={account} answers={answers} sessionCompletions={sessionCompletions} onAnswersChange={setAnswers} onReset={resetAlphaData} />}
     </AppShell>
   );
@@ -925,13 +956,15 @@ function AgendaScreen({ plans, onStart, onReschedule }: { plans: LearningPlan[];
   </div>;
 }
 
-function AskScreen({ plan, question, onQuestion }: { plan: LearningPlan | null; question: string; onQuestion: (question: string) => void }) {
+function AskScreen({ plan, question, onQuestion, onApplyAction }: { plan: LearningPlan | null; question: string; onQuestion: (question: string) => void; onApplyAction: (action: TutorProposedAction) => Promise<void> }) {
   const [threadId, setThreadId] = useState<string | null>(null);
   const [messages, setMessages] = useState<TutorMessage[]>([]);
   const [historyLoading, setHistoryLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [outgoingQuestion, setOutgoingQuestion] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [proposedAction, setProposedAction] = useState<TutorProposedAction | null>(null);
+  const [actionStatus, setActionStatus] = useState<"idle" | "applying" | "applied">("idle");
 
   useEffect(() => {
     const controller = new AbortController();
@@ -970,6 +1003,8 @@ function AskScreen({ plan, question, onQuestion }: { plan: LearningPlan | null; 
     setSending(true);
     setOutgoingQuestion(nextQuestion);
     setError(null);
+    setProposedAction(null);
+    setActionStatus("idle");
     onQuestion("");
 
     try {
@@ -995,6 +1030,7 @@ function AskScreen({ plan, question, onQuestion }: { plan: LearningPlan | null; 
       if (!parsed.success) throw new Error("The tutor answer came back in an unsafe format.");
       setThreadId(parsed.data.persistence === "supabase" ? parsed.data.threadId : null);
       setMessages((current) => [...current, ...parsed.data.messages]);
+      setProposedAction(parsed.data.proposedAction);
       if (parsed.data.persistence === "browser") {
         setError("The answer worked, but this exchange did not reach cloud storage. Keep this page open if you need it.");
       }
@@ -1007,11 +1043,24 @@ function AskScreen({ plan, question, onQuestion }: { plan: LearningPlan | null; 
     }
   };
 
+  const approveAction = async () => {
+    if (!proposedAction || actionStatus !== "idle") return;
+    setActionStatus("applying");
+    setError(null);
+    try {
+      await onApplyAction(proposedAction);
+      setActionStatus("applied");
+    } catch (requestError) {
+      setActionStatus("idle");
+      setError(requestError instanceof Error ? requestError.message : "YOVA could not apply that change.");
+    }
+  };
+
   const suggestedPrompts = plan
-    ? ["Explain the current topic simply", "Quiz me on my weakest area", "Why is this method next?", "How can I make today’s session shorter?"]
+    ? ["Explain the current topic simply", "Quiz me on my weakest area", "Why is this method next?", "I only have 15 minutes today"]
     : ["Help me understand a difficult topic", "Quiz me on something I am learning", "Which study method should I use?", "Help me start a 20-minute study session"];
 
-  return <div className="page ask-page"><PageHeader eyebrow="ASK YOVA" title="Get help in context" description="Ask about a topic, plan, session, or study problem." />{plan ? <div className="context-pill"><BookOpen size={15} /> Context: {plan.title} <ChevronRight size={15} /></div> : <div className="context-pill"><Sparkles size={15} /> General learning conversation</div>}<div className="chat-space">{historyLoading ? <div className="chat-loading"><span className="button-spinner dark" /> Loading your conversation…</div> : <div className="chat-thread">{messages.length === 0 && <div className="yova-message"><BrandMark compact /><div><strong>YOVA</strong><p>What would you like help with? I can explain a concept, quiz you, or help you decide what to do next.</p></div></div>}{messages.map((message) => message.role === "assistant" ? <div className="yova-message" key={message.id}><BrandMark compact /><div><strong>YOVA</strong><p>{message.content}</p></div></div> : <div className="user-message" key={message.id}><strong>You</strong><p>{message.content}</p></div>)}{outgoingQuestion && <div className="user-message pending" aria-live="polite"><strong>You</strong><p>{outgoingQuestion}</p></div>}</div>}{messages.length === 0 && !outgoingQuestion && !historyLoading && <div className="prompt-grid">{suggestedPrompts.map((prompt) => <button key={prompt} disabled={sending} onClick={() => void sendQuestion(prompt)}>{prompt}</button>)}</div>}{error && <div className="chat-error"><AlertCircle size={16} /><span>{error}</span></div>}</div><AskBar value={question} onChange={onQuestion} onSubmit={() => void sendQuestion()} pending={sending || historyLoading} /></div>;
+  return <div className="page ask-page"><PageHeader eyebrow="ASK YOVA" title="Get help in context" description="Ask about a topic, plan, session, or study problem." />{plan ? <div className="context-pill"><BookOpen size={15} /> Context: {plan.title} <ChevronRight size={15} /></div> : <div className="context-pill"><Sparkles size={15} /> General learning conversation</div>}<div className="chat-space">{historyLoading ? <div className="chat-loading"><span className="button-spinner dark" /> Loading your conversation…</div> : <div className="chat-thread">{messages.length === 0 && <div className="yova-message"><BrandMark compact /><div><strong>YOVA</strong><p>What would you like help with? I can explain a concept, quiz you, or help you decide what to do next.</p></div></div>}{messages.map((message) => message.role === "assistant" ? <div className="yova-message" key={message.id}><BrandMark compact /><div><strong>YOVA</strong><p>{message.content}</p></div></div> : <div className="user-message" key={message.id}><strong>You</strong><p>{message.content}</p></div>)}{outgoingQuestion && <div className="user-message pending" aria-live="polite"><strong>You</strong><p>{outgoingQuestion}</p></div>}</div>}{proposedAction && <section className={`tutor-action-card ${actionStatus === "applied" ? "applied" : ""}`} aria-live="polite"><div className="tutor-action-icon">{actionStatus === "applied" ? <Check size={18} /> : <Clock3 size={18} />}</div><div><span className="step-label">{actionStatus === "applied" ? "CHANGE APPLIED" : "PROPOSED CHANGE"}</span><h3>{proposedAction.title}</h3><p>{actionStatus === "applied" ? `Your next session is now ${proposedAction.minutes} minutes. Its activities will be regenerated when you start.` : proposedAction.explanation}</p></div><button className="button primary" disabled={actionStatus !== "idle"} onClick={() => void approveAction()}>{actionStatus === "applying" ? <><span className="button-spinner" /> Applying</> : actionStatus === "applied" ? <><Check size={16} /> Applied</> : "Approve change"}</button></section>}{messages.length === 0 && !outgoingQuestion && !historyLoading && <div className="prompt-grid">{suggestedPrompts.map((prompt) => <button key={prompt} disabled={sending} onClick={() => void sendQuestion(prompt)}>{prompt}</button>)}</div>}{error && <div className="chat-error"><AlertCircle size={16} /><span>{error}</span></div>}</div><AskBar value={question} onChange={onQuestion} onSubmit={() => void sendQuestion()} pending={sending || historyLoading} /></div>;
 }
 
 const editablePreferenceIndexes = [0, 1, 2, 3, 4, 5, 6, 7, 9] as const;
