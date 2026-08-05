@@ -508,12 +508,17 @@ function Landing({ onCreate, onSignIn }: { onCreate: () => void; onSignIn: () =>
         <span className="eyebrow"><Sparkles size={15} /> Personalized around how you actually study</span>
         <h1>Know exactly what<br />to study next.</h1>
         <p>Tell YOVA what you need to learn. It figures out where you are, builds the plan, and guides each session.</p>
-        <div className="hero-actions"><button className="button primary large" onClick={onCreate}>Create account <ArrowRight size={18} /></button><button className="button secondary large">See how it works</button></div>
+        <div className="hero-actions"><button className="button primary large" onClick={onCreate}>Create account <ArrowRight size={18} /></button><a className="button secondary large" href="#how-yova-works">See how it works</a></div>
         <div className="product-proof">
           <div><strong>What</strong><span>Cellular respiration retrieval</span></div>
           <div><strong>Why now</strong><span>Your test is in four days.</span></div>
           <div><strong>How</strong><span>12 closed-note questions, then repair gaps.</span></div>
         </div>
+      </section>
+      <section className="how-yova-works" id="how-yova-works">
+        <div><span className="step-label">HOW YOVA WORKS</span><h2>Personalization becomes a study session.</h2><p>YOVA keeps the first experience simple while using your goal, schedule, current knowledge, and learning tendencies underneath.</p></div>
+        <div className="how-steps"><article><span>1</span><h3>Tell YOVA about you</h3><p>Answer ten short questions about guidance, focus, starting, explanations, and realistic session length.</p></article><article><span>2</span><h3>Add a goal—not necessarily a file</h3><p>Upload your own materials, ask YOVA to create the content, or use YOVA as a guide while studying elsewhere.</p></article><article><span>3</span><h3>Follow one clear next step</h3><p>YOVA builds the plan, explains the selected method, guides the session, and uses the result when deciding what comes next.</p></article></div>
+        <button className="button primary large" onClick={onCreate}>Build my YOVA <ArrowRight size={18} /></button>
       </section>
     </main>
   );
@@ -579,7 +584,7 @@ function AccountEntry({ mode, existingAccount, onBack, onContinue }: { mode: Acc
 }
 
 function OnboardingIntro({ onStart }: { onStart: () => void }) {
-  return <main className="centered-shell"><BrandMark /><section className="setup-card"><span className="step-label">SET UP YOUR YOVA</span><h1>Make YOVA fit how you actually study.</h1><p>Ten short questions help YOVA build realistic plans, choose useful methods, and guide you at the right level. About two minutes.</p><div className="info-strip"><Sparkles size={20} /><span>This creates starting preferences—not a brain type. YOVA will update carefully based on what you actually do.</span></div><button className="button primary large full" onClick={onStart}>Personalize YOVA <ArrowRight size={18} /></button><button className="text-button">Skip for now</button></section></main>;
+  return <main className="centered-shell"><BrandMark /><section className="setup-card"><span className="step-label">SET UP YOUR YOVA</span><h1>Make YOVA fit how you actually study.</h1><p>Ten short questions help YOVA build realistic plans, choose useful methods, and guide you at the right level. About two minutes.</p><div className="info-strip"><Sparkles size={20} /><span>This creates starting preferences—not a brain type. YOVA will update carefully based on what you actually do.</span></div><button className="button primary large full" onClick={onStart}>Personalize YOVA <ArrowRight size={18} /></button></section></main>;
 }
 
 function OnboardingQuestion({ index, answer, onAnswer, onNext, onBack }: { index: number; answer?: string; onAnswer: (answer: string) => void; onNext: () => void; onBack: () => void }) {
