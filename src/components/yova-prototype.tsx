@@ -37,6 +37,7 @@ import {
   saveAuthenticatedLearnerProfile,
 } from "@/lib/supabase/learning-state-repository";
 import { SessionGenerationResponseSchema } from "@/lib/session-generation/schema";
+import { RescheduleSessionResponseSchema } from "@/lib/scheduling/schema";
 import {
   TutorHistoryResponseSchema,
   TutorResponseSchema,
@@ -356,6 +357,15 @@ export function YovaPrototype() {
     setStage("landing");
   };
 
+  const rescheduleSession = (planId: string, planSessionId: string, scheduledFor: string) => {
+    setPlans((current) => current.map((plan) => plan.id !== planId ? plan : {
+      ...plan,
+      sessions: plan.sessions.map((session) => session.id === planSessionId
+        ? { ...session, scheduledFor }
+        : session),
+    }));
+  };
+
   if (!ready) return <LoadingAccount />;
 
   if (stage === "landing") return <Landing onCreate={() => { setAccountMode("create"); setStage("account"); }} onSignIn={() => { setAccountMode("sign-in"); setStage("account"); }} />;
@@ -453,7 +463,7 @@ export function YovaPrototype() {
     }}>
       {activeTab === "Home" && <HomeScreen account={account} plans={activePlans} plan={activePlan} tutorQuestion={tutorQuestion} onTutorQuestion={setTutorQuestion} onOpenTutor={() => setActiveTab("Ask YOVA")} onStart={() => void startSession(activePlan?.id)} onSelectPlan={setSelectedPlanId} onCreatePlan={() => setStage("plan-creator")} onStudyNow={() => setStage("study-now")} />}
       {activeTab === "Learning" && <LearningScreen plans={plans} selectedPlanId={selectedPlanId} sessionCompletions={sessionCompletions} onSelectPlan={setSelectedPlanId} onStart={(planId) => void startSession(planId)} onCreatePlan={() => setStage("plan-creator")} />}
-      {activeTab === "Agenda" && <AgendaScreen plans={activePlans} onStart={(planId) => void startSession(planId)} />}
+      {activeTab === "Agenda" && <AgendaScreen plans={activePlans} onStart={(planId) => void startSession(planId)} onReschedule={rescheduleSession} />}
       {activeTab === "Ask YOVA" && <AskScreen key={activePlan?.id ?? "general"} plan={activePlan} question={tutorQuestion} onQuestion={setTutorQuestion} />}
       {activeTab === "You" && <YouScreen account={account} sessionCompletions={sessionCompletions} onReset={resetAlphaData} />}
     </AppShell>
@@ -639,9 +649,62 @@ function LearningPlanDetail({ plan, plans, view, completions, onSelectPlan, onSt
   </>;
 }
 
-function AgendaScreen({ plans, onStart }: { plans: LearningPlan[]; onStart: (planId?: string) => void }) {
-  const availableSessions = plans.flatMap((plan) => plan.sessions.filter((session) => session.status !== "complete").map((session) => ({ plan, session }))).sort((a, b) => new Date(a.session.scheduledFor).getTime() - new Date(b.session.scheduledFor).getTime());
-  return <div className="page"><PageHeader eyebrow="AGENDA" title="Today and this week" description="One unified view of sessions and deadlines across your learning." /><section className="section-block"><div className="section-title"><h3>Upcoming</h3><button>Adjust agenda</button></div><div className="agenda-list">{availableSessions.length ? availableSessions.slice(0, 6).map(({ plan, session }) => <article key={session.id} className={session.status === "ready" ? "primary-agenda" : ""}><span className="agenda-window">{formatWindow(session.scheduledFor)}</span><div><strong>{session.title}</strong><small>{plan.title} · {session.estimatedMinutes} min</small></div>{session.status === "ready" ? <button className="button primary" onClick={() => onStart(plan.id)}>Start</button> : <button className="button ghost">Move</button>}</article>) : <p className="muted">Your upcoming sessions will appear here.</p>}</div></section><section className="week-strip">{availableSessions.slice(0, 5).map(({ plan, session }) => <div key={session.id}><span>{formatDay(session.scheduledFor)}</span><strong>{new Date(session.scheduledFor).getDate()}</strong><small>{plan.title}: {session.title}</small></div>)}</section></div>;
+function AgendaScreen({ plans, onStart, onReschedule }: { plans: LearningPlan[]; onStart: (planId?: string) => void; onReschedule: (planId: string, planSessionId: string, scheduledFor: string) => void }) {
+  const [editing, setEditing] = useState(false);
+  const [moving, setMoving] = useState<{ planId: string; sessionId: string } | null>(null);
+  const [customTime, setCustomTime] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const availableSessions = plans
+    .flatMap((plan) => plan.sessions.filter((session) => session.status !== "complete" && session.status !== "skipped").map((session) => ({ plan, session })))
+    .sort((a, b) => new Date(a.session.scheduledFor).getTime() - new Date(b.session.scheduledFor).getTime());
+  const movingEntry = moving
+    ? availableSessions.find(({ plan, session }) => plan.id === moving.planId && session.id === moving.sessionId) ?? null
+    : null;
+
+  const openMove = (planId: string, sessionId: string, scheduledFor: string) => {
+    setMoving({ planId, sessionId });
+    setCustomTime(toLocalDateTimeInput(scheduledFor));
+    setError(null);
+  };
+
+  const saveMove = async (scheduledFor: string) => {
+    if (!movingEntry || saving) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const response = await fetch("/api/sessions/schedule", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ planSessionId: movingEntry.session.id, scheduledFor }),
+      });
+      const body: unknown = await response.json();
+      if (!response.ok) {
+        const message = typeof body === "object" && body && "error" in body && typeof body.error === "string"
+          ? body.error
+          : "YOVA could not move that session.";
+        throw new Error(message);
+      }
+      const parsed = RescheduleSessionResponseSchema.safeParse(body);
+      if (!parsed.success) throw new Error("The new session time came back in an unsafe format.");
+      onReschedule(movingEntry.plan.id, parsed.data.planSessionId, parsed.data.scheduledFor);
+      setMoving(null);
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "YOVA could not move that session.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return <div className="page">
+    <PageHeader eyebrow="AGENDA" title="Today and this week" description="One unified view of sessions and deadlines across your learning." />
+    <section className="section-block">
+      <div className="section-title"><h3>Upcoming</h3>{availableSessions.length > 0 && <button onClick={() => { setEditing((value) => !value); setMoving(null); setError(null); }}>{editing ? "Done adjusting" : "Adjust agenda"}</button>}</div>
+      <div className="agenda-list">{availableSessions.length ? availableSessions.slice(0, 8).map(({ plan, session }) => <article key={session.id} className={session.status === "ready" ? "primary-agenda" : ""}><span className="agenda-window">{formatAgendaTime(session.scheduledFor)}</span><div><strong>{session.title}</strong><small>{plan.title} · {session.estimatedMinutes} min</small></div>{editing || session.status !== "ready" ? <button className="button ghost" onClick={() => openMove(plan.id, session.id, session.scheduledFor)}>Move</button> : <button className="button primary" onClick={() => onStart(plan.id)}>Start</button>}</article>) : <p className="muted">Your upcoming sessions will appear here after you create a plan or focused session.</p>}</div>
+    </section>
+    {movingEntry && <section className="agenda-move-panel" aria-live="polite"><div><span className="step-label">MOVE SESSION</span><h3>{movingEntry.session.title}</h3><p>Choose a new time. The learning order and session content will stay the same.</p></div><div className="agenda-quick-times"><button onClick={() => void saveMove(moveByDays(movingEntry.session.scheduledFor, 1))} disabled={saving}>Tomorrow</button><button onClick={() => void saveMove(moveByDays(movingEntry.session.scheduledFor, 2))} disabled={saving}>In two days</button><button onClick={() => void saveMove(moveByDays(movingEntry.session.scheduledFor, 7))} disabled={saving}>Next week</button></div><label><span>Custom date and time</span><input type="datetime-local" min={toLocalDateTimeInput(new Date().toISOString())} value={customTime} disabled={saving} onChange={(event) => setCustomTime(event.target.value)} /></label>{error && <div className="chat-error"><AlertCircle size={16} /><span>{error}</span></div>}<footer><button className="button ghost" onClick={() => { setMoving(null); setError(null); }} disabled={saving}>Cancel</button><button className="button primary" onClick={() => { const date = new Date(customTime); if (Number.isNaN(date.getTime())) { setError("Choose a valid date and time."); return; } void saveMove(date.toISOString()); }} disabled={!customTime || saving}>{saving ? <span className="button-spinner" /> : "Save new time"}</button></footer></section>}
+    <section className="week-strip">{availableSessions.slice(0, 5).map(({ plan, session }) => <div key={session.id}><span>{formatDay(session.scheduledFor)}</span><strong>{new Date(session.scheduledFor).getDate()}</strong><small>{plan.title}: {session.title}</small></div>)}</section>
+  </div>;
 }
 
 function AskScreen({ plan, question, onQuestion }: { plan: LearningPlan | null; question: string; onQuestion: (question: string) => void }) {
@@ -887,11 +950,27 @@ function formatSessionTime(isoDate: string) {
   return new Intl.DateTimeFormat("en-US", { weekday: "short", hour: "numeric", minute: "2-digit" }).format(new Date(isoDate));
 }
 
-function formatWindow(isoDate: string) {
-  const hour = new Date(isoDate).getHours();
-  if (hour < 12) return "Morning";
-  if (hour < 17) return "Afternoon";
-  return "Evening";
+function formatAgendaTime(isoDate: string) {
+  return new Intl.DateTimeFormat("en-US", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(new Date(isoDate));
+}
+
+function moveByDays(isoDate: string, days: number) {
+  const scheduled = new Date(isoDate);
+  const date = scheduled.getTime() > Date.now() ? scheduled : new Date();
+  date.setDate(date.getDate() + days);
+  return date.toISOString();
+}
+
+function toLocalDateTimeInput(isoDate: string) {
+  const date = new Date(isoDate);
+  const pad = (value: number) => String(value).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
 function formatDay(isoDate: string) {
