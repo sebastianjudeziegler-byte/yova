@@ -55,7 +55,9 @@ Requirements:
 - Create 3 to 8 short activities that fit the estimated duration.
 - Use concise instructions and one obvious action at a time.
 - Include at least one meaningful multiple-choice knowledge check with 3 to 5 plausible choices.
-- The correct answer must exactly match one choice, and feedback must explain the concept rather than merely say correct.
+- Include at least one free_response activity that makes the learner produce an answer from memory before seeing a concise reference answer.
+- For free_response, leave choices empty, put the reference answer in correctAnswer, and use feedback to explain what a strong answer must contain. The learner will assess their own attempt honestly.
+- For multiple_choice, correctAnswer must exactly match one choice, and feedback must explain the concept rather than merely say correct.
 - Put choices in varied order. Do not always place the correct answer first.
 - If the user is studying inside YOVA, include the minimum explanation or example needed before retrieval or application.
 - If the user is studying outside YOVA, guide the outside work precisely and use the knowledge check to verify the method or core concept.

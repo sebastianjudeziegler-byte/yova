@@ -65,6 +65,7 @@ type Stage = "landing" | "account" | "onboarding-intro" | "onboarding" | "profil
 type Tab = "Home" | "Learning" | "Agenda" | "Ask YOVA" | "You";
 type AccountMode = "create" | "sign-in";
 type LessonStep = {
+  type: "instruction" | "multiple_choice" | "free_response" | "reflection";
   label: string;
   title: string;
   body: string;
@@ -97,7 +98,8 @@ export function YovaPrototype() {
   const [sessionCompletions, setSessionCompletions] = useState<SessionCompletion[]>([]);
   const [sessionStep, setSessionStep] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
-  const [sessionResponses, setSessionResponses] = useState<Record<number, string>>({});
+  const [sessionOutcomes, setSessionOutcomes] = useState<Record<number, boolean>>({});
+  const [answerRevealed, setAnswerRevealed] = useState(false);
   const [generatedLessonSteps, setGeneratedLessonSteps] = useState<LessonStep[] | null>(null);
   const [sessionRationale, setSessionRationale] = useState<string | null>(null);
   const [sessionGenerationIssue, setSessionGenerationIssue] = useState<string | null>(null);
@@ -108,10 +110,10 @@ export function YovaPrototype() {
   const activePlan = activePlans.find((plan) => plan.id === selectedPlanId) ?? activePlans[activePlans.length - 1] ?? null;
   const recommendedPlan = chooseRecommendedPlan(activePlans);
   const activeLessonSteps = generatedLessonSteps ?? lessonStepsFor(activePlan);
-  const sessionCorrectAnswers = Object.entries(sessionResponses).filter(([step, answer]) => activeLessonSteps[Number(step)]?.correctAnswer === answer).length;
-  const sessionTotalAnswers = activeLessonSteps.filter((step) => step.question).length;
+  const sessionCorrectAnswers = Object.values(sessionOutcomes).filter(Boolean).length;
+  const sessionTotalAnswers = activeLessonSteps.filter((step) => step.type === "multiple_choice" || step.type === "free_response").length;
   const sessionObservedGap = activeLessonSteps
-    .filter((step, index) => step.question && sessionResponses[index] !== step.correctAnswer)
+    .filter((step, index) => (step.type === "multiple_choice" || step.type === "free_response") && sessionOutcomes[index] === false)
     .map((step) => step.title)
     .join("; ") || "No major gap detected in the required check";
 
@@ -270,7 +272,8 @@ export function YovaPrototype() {
     setSelectedPlanId(requestedPlan.id);
     setSessionStep(0);
     setSelectedAnswer(null);
-    setSessionResponses({});
+    setSessionOutcomes({});
+    setAnswerRevealed(false);
     setGeneratedLessonSteps(null);
     setSessionRationale(null);
     setSessionGenerationIssue(null);
@@ -294,6 +297,7 @@ export function YovaPrototype() {
       if (!parsed.success) throw new Error("The generated session came back in an unsafe format.");
 
       setGeneratedLessonSteps(parsed.data.session.activities.map((activity) => ({
+        type: activity.type,
         label: activity.label,
         title: activity.title,
         body: activity.body,
@@ -403,7 +407,8 @@ export function YovaPrototype() {
     setSessionCompletions([]);
     setSessionStep(0);
     setSelectedAnswer(null);
-    setSessionResponses({});
+    setSessionOutcomes({});
+    setAnswerRevealed(false);
     setGeneratedLessonSteps(null);
     setSessionRationale(null);
     setSessionGenerationIssue(null);
@@ -587,18 +592,24 @@ export function YovaPrototype() {
         steps={activeLessonSteps}
         step={sessionStep}
         selectedAnswer={selectedAnswer}
+        outcome={sessionOutcomes[sessionStep]}
+        answerRevealed={answerRevealed}
         rationale={sessionRationale}
         issue={sessionGenerationIssue}
         onSelect={(answer) => {
           setSelectedAnswer(answer);
-          setSessionResponses((current) => ({ ...current, [sessionStep]: answer }));
         }}
+        onEvaluate={(correct) => {
+          setSessionOutcomes((current) => ({ ...current, [sessionStep]: correct }));
+        }}
+        onReveal={() => setAnswerRevealed(true)}
         onExit={() => setStage("app")}
         onNext={() => {
           if (sessionStep === activeLessonSteps.length - 1) setStage("complete");
           else {
             setSessionStep((value) => value + 1);
             setSelectedAnswer(null);
+            setAnswerRevealed(false);
           }
         }}
       />
@@ -1204,7 +1215,7 @@ function YouScreen({ account, answers, sessionCompletions, onAnswersChange, onRe
 }
 
 function lessonStepsFor(plan: LearningPlan | null): LessonStep[] {
-  if (!plan) return [{ label: "Set up", title: "No session selected", body: "Return Home and select a learning goal first.", question: null, correctAnswer: null, feedback: null }];
+  if (!plan) return [{ type: "instruction", label: "Set up", title: "No session selected", body: "Return Home and select a learning goal first.", question: null, correctAnswer: null, feedback: null }];
 
   const current = plan.sessions.find((session) => session.status === "ready") ?? plan.sessions.find((session) => session.status === "upcoming");
 
@@ -1213,6 +1224,7 @@ function lessonStepsFor(plan: LearningPlan | null): LessonStep[] {
       lessonInstruction("Set up", "Prepare your outside study block", `Open the material you use for ${plan.topic}. Keep only that source and a place to work visible.`),
       lessonInstruction("Your task", current?.title ?? "Complete the planned work", `${current?.objective ?? "Work through the next planned objective."} Use ${current?.method.toLowerCase() ?? "the selected method"} for about ${current?.estimatedMinutes ?? 20} minutes.`),
       lessonQuestion("Method check", "What should happen before you check the source?", "The method works only if you make a real attempt before looking for the answer.", ["Attempt the task from memory", "Reread everything first", "Copy the source wording", "Switch topics"], "Attempt the task from memory", "Active retrieval requires a genuine attempt before looking at the source."),
+      lessonFreeResponse("Recall check", "Write the main idea without reopening the source", "Explain the most important idea or step you just practiced. Use your own words and include one detail that makes the explanation specific.", "A strong response states the central idea or step accurately, explains it in the learner's own words, and includes one relevant supporting detail from the source.", "Compare the meaning, not the exact wording. If the central idea or supporting detail is missing, mark it as needing another pass."),
       lessonInstruction("Return to YOVA", "Record what needs another pass", "Note the one idea or step that felt least stable. YOVA will use that signal when the session result is saved."),
     ];
   }
@@ -1222,6 +1234,7 @@ function lessonStepsFor(plan: LearningPlan | null): LessonStep[] {
       lessonInstruction("Set up", "Closed-note retrieval", "Try to produce each answer before looking. Review only what you miss, then retry the missed item later."),
       lessonQuestion("Question 1 of 2", "Which stage of cellular respiration happens first?", "Answer from memory. Familiarity is not the same as being able to retrieve it.", ["Glycolysis", "Krebs cycle", "Electron transport chain", "Fermentation"], "Glycolysis", "Glycolysis is the first stage and begins breaking glucose down before the Krebs cycle and electron transport chain."),
       lessonQuestion("Question 2 of 2", "Where does glycolysis occur?", "Choose the location without opening your notes.", ["Cytoplasm", "Mitochondrial matrix", "Nucleus", "Cell membrane"], "Cytoplasm", "Glycolysis occurs in the cytoplasm; later aerobic stages occur in the mitochondrion."),
+      lessonFreeResponse("Explain from memory", "Why can glycolysis begin without oxygen?", "Answer without reopening the explanation. Focus on what glycolysis directly requires and where it happens.", "Glycolysis does not directly require oxygen and occurs in the cytoplasm, so it can begin before the oxygen-dependent stages of aerobic respiration.", "A strong answer mentions that glycolysis does not directly require oxygen. Mentioning that it occurs in the cytoplasm makes the explanation more complete."),
       lessonInstruction("Repair the gap", "Compare before moving on", "Glycolysis occurs in the cytoplasm. Most later stages occur in the mitochondrion. Keep that contrast available for the next mixed-practice session."),
     ];
   }
@@ -1231,6 +1244,7 @@ function lessonStepsFor(plan: LearningPlan | null): LessonStep[] {
       lessonInstruction("Set up", "Build the decision framework", "Start with the practical purpose of each concept. The goal is to make a sound decision, not merely recognize vocabulary."),
       lessonQuestion("Question 1 of 2", "What is the main purpose of a budget?", "Choose the answer that describes an active decision tool.", ["Direct money toward priorities and constraints", "Predict every future expense perfectly", "Eliminate all optional spending", "Track only large purchases"], "Direct money toward priorities and constraints", "A budget is a decision tool for directing limited money toward priorities and known constraints."),
       lessonQuestion("Question 2 of 2", "Which example shows compound growth?", "Look for growth that earns additional growth over time.", ["Interest earning interest", "A one-time discount", "A fixed monthly fee", "Cash kept at zero interest"], "Interest earning interest", "Compound growth happens when previous growth is included in the base that produces future growth."),
+      lessonFreeResponse("Explain from memory", "How does compound growth build over time?", "Describe the mechanism in your own words rather than repeating a definition.", "Compound growth occurs when earlier gains become part of the base, allowing later gains to earn additional growth too.", "A strong answer explains that prior gains remain in the base and can themselves produce future gains."),
       lessonInstruction("Apply", "Connect the ideas to one real decision", "Choose one current spending, saving, debt, or investing decision and name the concept that should guide it."),
     ];
   }
@@ -1239,16 +1253,21 @@ function lessonStepsFor(plan: LearningPlan | null): LessonStep[] {
     lessonInstruction("Set up", current?.method ?? "Focused learning", current?.methodReason ?? "Begin with one clearly bounded objective."),
     lessonQuestion("Retrieval check", "What makes this an active learning step?", "Choose the action that produces evidence of what you can do without support.", ["Explain or apply it before checking", "Read it repeatedly", "Highlight every sentence", "Keep all examples visible"], "Explain or apply it before checking", "Producing an answer before checking creates evidence of what you can retrieve or apply independently."),
     lessonInstruction("Practice", current?.title ?? "Apply the next idea", current?.objective ?? `Use the plan to practice ${plan.topic}.`),
+    lessonFreeResponse("Recall from memory", `Explain the core idea behind ${plan.topic}`, "Write what you can produce without looking. Include the main idea and one supporting detail, step, or example.", `A strong response accurately states the main idea behind ${plan.topic} and supports it with one relevant detail, step, or example.`, "Compare the substance of your response with the reference. Exact wording is not required, but the central idea and one specific support should be present."),
     lessonInstruction("Wrap up", "Name the least stable idea", "A specific gap is useful information. YOVA will use it to shape the next recommendation."),
   ];
 }
 
 function lessonInstruction(label: string, title: string, body: string): LessonStep {
-  return { label, title, body, question: null, correctAnswer: null, feedback: null };
+  return { type: "instruction", label, title, body, question: null, correctAnswer: null, feedback: null };
 }
 
 function lessonQuestion(label: string, title: string, body: string, choices: string[], correctAnswer: string, feedback: string): LessonStep {
-  return { label, title, body, question: choices, correctAnswer, feedback };
+  return { type: "multiple_choice", label, title, body, question: choices, correctAnswer, feedback };
+}
+
+function lessonFreeResponse(label: string, title: string, body: string, referenceAnswer: string, feedback: string): LessonStep {
+  return { type: "free_response", label, title, body, question: null, correctAnswer: referenceAnswer, feedback };
 }
 
 function SessionLoading({ plan, onExit }: { plan: LearningPlan | null; onExit: () => void }) {
@@ -1259,16 +1278,19 @@ function SessionGenerationError({ plan, issue, onExit, onRetry }: { plan: Learni
   return <main className="centered-shell"><BrandMark /><section className="plan-error-state" role="alert"><span><AlertCircle /></span><span className="step-label">SOURCE-SAFE STOP</span><h1>YOVA did not replace your material.</h1><p>{issue ?? "YOVA could not build this source-grounded session yet."}</p><p>Nothing was marked complete. You can retry, or return to {plan?.title ?? "the learning goal"} and check its source files.</p><div><button className="button ghost" onClick={onExit}><ArrowLeft size={17} /> Return to learning</button><button className="button primary" onClick={onRetry}>Try again <ArrowRight size={17} /></button></div></section></main>;
 }
 
-function GuidedSession({ plan, steps, step, selectedAnswer, rationale, issue, onSelect, onExit, onNext }: { plan: LearningPlan | null; steps: LessonStep[]; step: number; selectedAnswer: string | null; rationale: string | null; issue: string | null; onSelect: (answer: string) => void; onExit: () => void; onNext: () => void }) {
+function GuidedSession({ plan, steps, step, selectedAnswer, outcome, answerRevealed, rationale, issue, onSelect, onEvaluate, onReveal, onExit, onNext }: { plan: LearningPlan | null; steps: LessonStep[]; step: number; selectedAnswer: string | null; outcome: boolean | undefined; answerRevealed: boolean; rationale: string | null; issue: string | null; onSelect: (answer: string) => void; onEvaluate: (correct: boolean) => void; onReveal: () => void; onExit: () => void; onNext: () => void }) {
   const content = steps[step];
   const currentSession = plan?.sessions.find((session) => session.status === "ready") ?? null;
-  const isCorrect = Boolean(selectedAnswer && selectedAnswer === content.correctAnswer);
+  const isQuestion = content.type === "multiple_choice" || content.type === "free_response";
+  const isCorrect = outcome === true;
   const explanation = isCorrect
     ? content.feedback
     : content.correctAnswer
       ? `The correct answer is “${content.correctAnswer}.” ${content.feedback ?? "YOVA will bring this idea back for another attempt."}`
       : content.feedback;
-  return <main className="session-shell"><header className="session-top"><BrandMark compact /><div><span>{plan?.title ?? "YOVA session"}</span><strong>{currentSession?.title ?? "Guided learning"}</strong></div><div className="session-progress"><span>{step + 1} of {steps.length} sections</span><div><i style={{ width: `${((step + 1) / steps.length) * 100}%` }} /></div></div><button className="button ghost" onClick={onExit}>Exit</button></header><section className="session-content">{step === 0 && rationale && <div className="session-rationale"><Sparkles size={17} /><div><strong>Why this session fits</strong><p>{rationale}</p></div></div>}{issue && step === 0 && <div className="session-issue"><AlertCircle size={17} /><span>{issue}</span></div>}<span className="step-label">{content.label}</span><h1>{content.title}</h1><p>{content.body}</p>{content.question && <div className="answer-grid">{content.question.map((answer) => <button key={answer} className={selectedAnswer === answer ? "selected" : ""} onClick={() => onSelect(answer)}>{answer}{selectedAnswer === answer && <Check size={18} />}</button>)}</div>}{selectedAnswer && <div className={`feedback ${isCorrect ? "" : "incorrect"}`}>{isCorrect ? <Check size={20} /> : <AlertCircle size={20} />}<div><strong>{isCorrect ? "Correct." : "Useful miss."}</strong><p>{explanation}</p></div></div>}<button className="button primary large" onClick={onNext} disabled={Boolean(content.question) && !selectedAnswer}>{step === steps.length - 1 ? "Complete session" : "Continue"} <ArrowRight size={18} /></button></section><SessionTutor plan={plan} activityTitle={content.title} /></main>;
+  const canContinue = !isQuestion || outcome !== undefined;
+
+  return <main className="session-shell"><header className="session-top"><BrandMark compact /><div><span>{plan?.title ?? "YOVA session"}</span><strong>{currentSession?.title ?? "Guided learning"}</strong></div><div className="session-progress"><span>{step + 1} of {steps.length} sections</span><div><i style={{ width: `${((step + 1) / steps.length) * 100}%` }} /></div></div><button className="button ghost" onClick={onExit}>Exit</button></header><section className="session-content">{step === 0 && rationale && <div className="session-rationale"><Sparkles size={17} /><div><strong>Why this session fits</strong><p>{rationale}</p></div></div>}{issue && step === 0 && <div className="session-issue"><AlertCircle size={17} /><span>{issue}</span></div>}<span className="step-label">{content.label}</span><h1>{content.title}</h1><p>{content.body}</p>{content.type === "multiple_choice" && content.question && <div className="answer-grid">{content.question.map((answer) => <button key={answer} className={selectedAnswer === answer ? "selected" : ""} disabled={selectedAnswer !== null} onClick={() => { onSelect(answer); onEvaluate(answer === content.correctAnswer); }}>{answer}{selectedAnswer === answer && <Check size={18} />}</button>)}</div>}{content.type === "multiple_choice" && outcome !== undefined && <div className={`feedback ${isCorrect ? "" : "incorrect"}`}>{isCorrect ? <Check size={20} /> : <AlertCircle size={20} />}<div><strong>{isCorrect ? "Correct." : "Useful miss."}</strong><p>{explanation}</p></div></div>}{content.type === "free_response" && <div className="recall-response"><label htmlFor={`recall-${step}`}><span>Your answer from memory</span><textarea id={`recall-${step}`} rows={6} value={selectedAnswer ?? ""} disabled={answerRevealed} placeholder="Write what you can remember before checking…" onChange={(event) => onSelect(event.target.value)} /></label>{!answerRevealed ? <button className="button secondary" disabled={!selectedAnswer?.trim()} onClick={onReveal}>Check my answer</button> : <div className="recall-review"><span className="step-label">REFERENCE ANSWER</span><p>{content.correctAnswer}</p>{content.feedback && <small>{content.feedback}</small>}<div className="recall-actions"><span>How did your answer compare?</span><button className={outcome === true ? "selected" : ""} onClick={() => onEvaluate(true)}><Check size={17} /> I got the key idea</button><button className={outcome === false ? "selected needs-work" : ""} onClick={() => onEvaluate(false)}><AlertCircle size={17} /> Needs another pass</button></div><small className="privacy-note">Your typed response stays in this session. YOVA saves only whether this concept felt secure or needs review.</small></div>}</div>}<button className="button primary large" onClick={onNext} disabled={!canContinue}>{step === steps.length - 1 ? "Complete session" : "Continue"} <ArrowRight size={18} /></button></section><SessionTutor plan={plan} activityTitle={content.title} /></main>;
 }
 
 function SessionTutor({ plan, activityTitle }: { plan: LearningPlan | null; activityTitle: string }) {

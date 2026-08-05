@@ -386,9 +386,26 @@ h1, h2, h3, p { margin-top: 0; }
 .answer-grid { margin: 28px 0; display: grid; gap: 10px; }
 .answer-grid button { padding: 15px; display: flex; justify-content: space-between; border: 1px solid var(--border); border-radius: 11px; background: white; text-align: left; }
 .answer-grid button:hover, .answer-grid button.selected { border-color: var(--blue); background: var(--soft-blue); }
+.answer-grid button:disabled { color: inherit; cursor: default; }
 .feedback { margin: 20px 0; padding: 16px; display: flex; gap: 11px; color: #175c42; background: #ecfbf4; border-radius: 11px; }
 .feedback p { margin: 4px 0 0; }
 .feedback.incorrect { color: #8b3e10; background: #fff3eb; }
+.recall-response { margin: 28px 0; display: grid; gap: 14px; }
+.recall-response label { display: grid; gap: 8px; }
+.recall-response label > span { color: var(--text); font-size: 13px; font-weight: 700; }
+.recall-response textarea { width: 100%; min-height: 150px; padding: 15px; resize: vertical; color: var(--text); border: 1px solid var(--border); border-radius: 11px; outline: 0; background: white; font: inherit; line-height: 1.6; }
+.recall-response textarea:focus { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(52,107,255,.1); }
+.recall-response textarea:disabled { color: var(--text); background: #f8f9fc; opacity: 1; }
+.recall-response > .button { justify-self: start; }
+.recall-review { padding: 18px; border: 1px solid #d9d2ff; border-radius: 12px; background: #f8f6ff; }
+.recall-review > p { margin: 9px 0; color: var(--text); line-height: 1.65; }
+.recall-review > small { display: block; color: var(--muted); line-height: 1.55; }
+.recall-actions { margin-top: 18px; display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
+.recall-actions > span { grid-column: 1 / -1; color: var(--text); font-size: 13px; font-weight: 700; }
+.recall-actions button { padding: 11px 12px; display: flex; align-items: center; justify-content: center; gap: 7px; color: var(--text); border: 1px solid var(--border); border-radius: 9px; background: white; }
+.recall-actions button:hover, .recall-actions button.selected { color: #175c42; border-color: #63b393; background: #ecfbf4; }
+.recall-actions button.needs-work:hover, .recall-actions button.needs-work.selected { color: #8b3e10; border-color: #e5aa85; background: #fff3eb; }
+.recall-review .privacy-note { margin-top: 14px; padding-top: 12px; border-top: 1px solid #e4dfff; }
 .session-ask { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); width: min(calc(100% - 40px),700px); padding: 10px; display: flex; gap: 10px; background: white; border: 1px solid var(--border); border-radius: 13px; box-shadow: var(--shadow); }
 .session-ask input { flex: 1; padding: 0 6px; border: 0; outline: 0; }
 .session-ask button { width: 38px; height: 38px; display: grid; place-items: center; color: white; border: 0; border-radius: 9px; background: var(--blue); }
@@ -820,6 +837,8 @@ h1, h2, h3, p { margin-top: 0; }
   .session-progress { grid-column: 1 / -1; grid-row: 2; }
   .session-content { margin: 55px auto; }
   .session-content h1 { font-size: 30px; }
+  .recall-actions { grid-template-columns: 1fr; }
+  .recall-actions > span { grid-column: auto; }
   .result-grid div { border-left: 0; border-top: 1px solid var(--border); }
   .result-grid div:first-child { border-top: 0; }
   .plan-shell { padding: 0 16px 48px; }

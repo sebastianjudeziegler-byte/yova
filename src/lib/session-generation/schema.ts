@@ -9,9 +9,9 @@ export const GeneratedSessionActivitySchema = z.object({
   label: z.string().trim().min(2).max(50),
   title: z.string().trim().min(3).max(140),
   body: z.string().trim().min(10).max(900),
-  type: z.enum(["instruction", "multiple_choice", "reflection"]),
+  type: z.enum(["instruction", "multiple_choice", "free_response", "reflection"]),
   choices: z.array(z.string().trim().min(1).max(220)).max(5),
-  correctAnswer: z.string().trim().min(1).max(220).nullable(),
+  correctAnswer: z.string().trim().min(1).max(600).nullable(),
   feedback: z.string().trim().min(5).max(500).nullable(),
 }).superRefine((activity, context) => {
   if (activity.type === "multiple_choice") {
@@ -23,6 +23,13 @@ export const GeneratedSessionActivitySchema = z.object({
     }
     if (!activity.feedback) {
       context.addIssue({ code: "custom", path: ["feedback"], message: "Knowledge checks need explanatory feedback." });
+    }
+  } else if (activity.type === "free_response") {
+    if (activity.choices.length) {
+      context.addIssue({ code: "custom", path: ["choices"], message: "Free-response activities cannot contain choices." });
+    }
+    if (!activity.correctAnswer || !activity.feedback) {
+      context.addIssue({ code: "custom", path: ["correctAnswer"], message: "Free-response activities need a reference answer and feedback." });
     }
   } else if (activity.choices.length || activity.correctAnswer) {
     context.addIssue({ code: "custom", path: ["choices"], message: "Non-question activities cannot contain answer choices." });
@@ -36,10 +43,13 @@ export const GeneratedSessionDraftSchema = z.object({
   if (!session.activities.some((activity) => activity.type === "multiple_choice")) {
     context.addIssue({ code: "custom", path: ["activities"], message: "A guided session needs at least one knowledge check." });
   }
+  if (!session.activities.some((activity) => activity.type === "free_response")) {
+    context.addIssue({ code: "custom", path: ["activities"], message: "A guided session needs at least one typed active-recall attempt." });
+  }
 });
 
 export const CachedGeneratedSessionSchema = GeneratedSessionDraftSchema.extend({
-  schemaVersion: z.literal(1),
+  schemaVersion: z.literal(2),
   model: z.string().min(1),
   generatedAt: z.string().datetime({ offset: true }),
 });

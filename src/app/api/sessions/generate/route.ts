@@ -156,7 +156,7 @@ export async function POST(request: Request) {
     });
 
     const cachedSession = CachedGeneratedSessionSchema.parse({
-      schemaVersion: 1,
+      schemaVersion: 2,
       ...generated.draft,
       model: generated.model,
       generatedAt: new Date().toISOString(),
