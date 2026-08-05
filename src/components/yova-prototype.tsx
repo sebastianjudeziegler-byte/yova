@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import {
   AlertCircle,
+  Archive,
   ArrowLeft,
   ArrowRight,
   BookOpen,
@@ -17,6 +18,7 @@ import {
   Mail,
   MessageCircleMore,
   Plus,
+  RotateCcw,
   Send,
   Sparkles,
   Target,
@@ -31,6 +33,7 @@ import { clearPreviewSnapshot, loadPreviewSnapshot, savePreviewSnapshot } from "
 import { buildPlanProfileSummary } from "@/lib/personalization/profile-summary";
 import { buildNextSessionAdaptation } from "@/lib/personalization/session-adaptation";
 import { onboardingQuestions } from "@/lib/sample-data";
+import { PlanArchiveResponseSchema } from "@/lib/learning/status-schema";
 import {
   completeAuthenticatedPlanSession,
   loadAuthenticatedLearningState,
@@ -366,6 +369,28 @@ export function YovaPrototype() {
     }));
   };
 
+  const changePlanArchiveState = async (planId: string, action: "archive" | "restore") => {
+    const response = await fetch("/api/plans/status", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ planId, action }),
+    });
+    const body: unknown = await response.json();
+    if (!response.ok) {
+      const message = typeof body === "object" && body && "error" in body && typeof body.error === "string"
+        ? body.error
+        : "YOVA could not update that learning goal.";
+      throw new Error(message);
+    }
+    const parsed = PlanArchiveResponseSchema.safeParse(body);
+    if (!parsed.success) throw new Error("The learning goal came back in an unsafe format.");
+    setPlans((current) => current.map((plan) => plan.id === parsed.data.planId ? { ...plan, status: parsed.data.status } : plan));
+    if (parsed.data.status !== "active" && selectedPlanId === parsed.data.planId) {
+      setSelectedPlanId(null);
+    }
+    return parsed.data.status;
+  };
+
   if (!ready) return <LoadingAccount />;
 
   if (stage === "landing") return <Landing onCreate={() => { setAccountMode("create"); setStage("account"); }} onSignIn={() => { setAccountMode("sign-in"); setStage("account"); }} />;
@@ -462,7 +487,7 @@ export function YovaPrototype() {
       });
     }}>
       {activeTab === "Home" && <HomeScreen account={account} plans={activePlans} plan={activePlan} tutorQuestion={tutorQuestion} onTutorQuestion={setTutorQuestion} onOpenTutor={() => setActiveTab("Ask YOVA")} onStart={() => void startSession(activePlan?.id)} onSelectPlan={setSelectedPlanId} onCreatePlan={() => setStage("plan-creator")} onStudyNow={() => setStage("study-now")} />}
-      {activeTab === "Learning" && <LearningScreen plans={plans} selectedPlanId={selectedPlanId} sessionCompletions={sessionCompletions} onSelectPlan={setSelectedPlanId} onStart={(planId) => void startSession(planId)} onCreatePlan={() => setStage("plan-creator")} />}
+      {activeTab === "Learning" && <LearningScreen plans={plans} selectedPlanId={selectedPlanId} sessionCompletions={sessionCompletions} onSelectPlan={setSelectedPlanId} onStart={(planId) => void startSession(planId)} onCreatePlan={() => setStage("plan-creator")} onArchiveStateChange={changePlanArchiveState} />}
       {activeTab === "Agenda" && <AgendaScreen plans={activePlans} onStart={(planId) => void startSession(planId)} onReschedule={rescheduleSession} />}
       {activeTab === "Ask YOVA" && <AskScreen key={activePlan?.id ?? "general"} plan={activePlan} question={tutorQuestion} onQuestion={setTutorQuestion} />}
       {activeTab === "You" && <YouScreen account={account} answers={answers} sessionCompletions={sessionCompletions} onAnswersChange={setAnswers} onReset={resetAlphaData} />}
@@ -602,9 +627,11 @@ function AskBar({ value, onChange, onSubmit, pending = false }: { value: string;
   return <form className="ask-bar" onSubmit={(event) => { event.preventDefault(); if (value.trim() && !pending) onSubmit(); }}><Sparkles size={20} /><input aria-label="Ask YOVA" placeholder="Ask YOVA anything or describe what you need…" value={value} disabled={pending} onChange={(event) => onChange(event.target.value)} /><button aria-label="Send" type="submit" disabled={!value.trim() || pending}>{pending ? <span className="button-spinner" /> : <Send size={18} />}</button></form>;
 }
 
-function LearningScreen({ plans, selectedPlanId, sessionCompletions, onSelectPlan, onStart, onCreatePlan }: { plans: LearningPlan[]; selectedPlanId: string | null; sessionCompletions: SessionCompletion[]; onSelectPlan: (planId: string) => void; onStart: (planId: string) => void; onCreatePlan: () => void }) {
+function LearningScreen({ plans, selectedPlanId, sessionCompletions, onSelectPlan, onStart, onCreatePlan, onArchiveStateChange }: { plans: LearningPlan[]; selectedPlanId: string | null; sessionCompletions: SessionCompletion[]; onSelectPlan: (planId: string) => void; onStart: (planId: string) => void; onCreatePlan: () => void; onArchiveStateChange: (planId: string, action: "archive" | "restore") => Promise<LearningPlan["status"]> }) {
   const [view, setView] = useState<"active" | "recent" | "archive">("active");
   const [browsedPlanId, setBrowsedPlanId] = useState<string | null>(null);
+  const [changingPlanId, setChangingPlanId] = useState<string | null>(null);
+  const [statusError, setStatusError] = useState<string | null>(null);
   const visiblePlans = plans.filter((plan) => {
     if (view === "active") return plan.status === "active";
     if (view === "recent") return plan.status === "completed";
@@ -623,6 +650,21 @@ function LearningScreen({ plans, selectedPlanId, sessionCompletions, onSelectPla
     if (view === "active") onSelectPlan(planId);
   };
 
+  const changeArchiveState = async (planId: string, action: "archive" | "restore") => {
+    setChangingPlanId(planId);
+    setStatusError(null);
+    try {
+      const status = await onArchiveStateChange(planId, action);
+      setBrowsedPlanId(null);
+      if (status === "archived") setView("archive");
+      else setView(status === "completed" ? "recent" : "active");
+    } catch (error) {
+      setStatusError(error instanceof Error ? error.message : "YOVA could not update that learning goal.");
+    } finally {
+      setChangingPlanId(null);
+    }
+  };
+
   return <div className="page">
     <PageHeader eyebrow="LEARNING" title="What you’re working toward" description="Each goal keeps its plan, sessions, methods, and progress together." />
     <div className="tabs">
@@ -630,11 +672,12 @@ function LearningScreen({ plans, selectedPlanId, sessionCompletions, onSelectPla
       <button className={view === "recent" ? "active" : ""} onClick={() => { setView("recent"); setBrowsedPlanId(null); }}>Recent studies</button>
       <button className={view === "archive" ? "active" : ""} onClick={() => { setView("archive"); setBrowsedPlanId(null); }}>Archive</button>
     </div>
-    {!plan ? <section className="empty-home"><h2>{viewLabels[view].empty}</h2><p>{viewLabels[view].description}</p>{view === "active" && <div className="empty-home-actions"><button className="button primary" onClick={onCreatePlan}>Create a plan</button></div>}</section> : <LearningPlanDetail plan={plan} plans={visiblePlans} view={view} completions={sessionCompletions.filter((completion) => completion.planId === plan.id)} onSelectPlan={selectPlan} onStart={() => onStart(plan.id)} />}
+    {statusError && <div className="chat-error"><AlertCircle size={16} /><span>{statusError}</span></div>}
+    {!plan ? <section className="empty-home"><h2>{viewLabels[view].empty}</h2><p>{viewLabels[view].description}</p>{view === "active" && <div className="empty-home-actions"><button className="button primary" onClick={onCreatePlan}>Create a plan</button></div>}</section> : <LearningPlanDetail plan={plan} plans={visiblePlans} view={view} completions={sessionCompletions.filter((completion) => completion.planId === plan.id)} changingStatus={changingPlanId === plan.id} onSelectPlan={selectPlan} onStart={() => onStart(plan.id)} onArchiveStateChange={(action) => void changeArchiveState(plan.id, action)} />}
   </div>;
 }
 
-function LearningPlanDetail({ plan, plans, view, completions, onSelectPlan, onStart }: { plan: LearningPlan; plans: LearningPlan[]; view: "active" | "recent" | "archive"; completions: SessionCompletion[]; onSelectPlan: (planId: string) => void; onStart: () => void }) {
+function LearningPlanDetail({ plan, plans, view, completions, changingStatus, onSelectPlan, onStart, onArchiveStateChange }: { plan: LearningPlan; plans: LearningPlan[]; view: "active" | "recent" | "archive"; completions: SessionCompletion[]; changingStatus: boolean; onSelectPlan: (planId: string) => void; onStart: () => void; onArchiveStateChange: (action: "archive" | "restore") => void }) {
   const completeCount = plan.sessions.filter((session) => session.status === "complete").length;
   const readySession = plan.sessions.find((session) => session.status === "ready");
   const totalCorrect = completions.reduce((sum, completion) => sum + completion.correctAnswers, 0);
@@ -643,7 +686,7 @@ function LearningPlanDetail({ plan, plans, view, completions, onSelectPlan, onSt
 
   return <>
     {plans.length > 1 && <div className="plan-switcher">{plans.map((item) => { const done = item.sessions.filter((session) => session.status === "complete").length; return <button className={item.id === plan.id ? "selected" : ""} key={item.id} onClick={() => onSelectPlan(item.id)}><span>{item.kind}</span><strong>{item.title}</strong><small>{done} of {item.sessions.length} sessions</small></button>; })}</div>}
-    <section className="learning-hero"><div><span className="subject-label">{plan.kind.toUpperCase()} · {formatPlanDeadline(plan.deadline)}</span><h2>{plan.title}</h2><p>{plan.topic}</p><div className="progress-line"><div style={{ width: `${(completeCount / plan.sessions.length) * 100}%` }} /></div><small>{completeCount} of {plan.sessions.length} sessions complete</small></div>{view === "active" && readySession && <button className="button primary" onClick={onStart}>Start next session</button>}</section>
+    <section className="learning-hero"><div><span className="subject-label">{plan.kind.toUpperCase()} · {formatPlanDeadline(plan.deadline)}</span><h2>{plan.title}</h2><p>{plan.topic}</p><div className="progress-line"><div style={{ width: `${(completeCount / plan.sessions.length) * 100}%` }} /></div><small>{completeCount} of {plan.sessions.length} sessions complete</small></div><div className="learning-hero-actions">{view === "active" && readySession && <button className="button primary" onClick={onStart}>Start next session</button>}<button className="button hero-secondary" disabled={changingStatus} onClick={() => onArchiveStateChange(view === "archive" ? "restore" : "archive")}>{changingStatus ? <span className="button-spinner" /> : view === "archive" ? <><RotateCcw size={16} /> Restore</> : <><Archive size={16} /> Archive</>}</button></div></section>
     {view === "recent" && <section className="learning-history-summary"><div><span>Completed</span><strong>{formatCompletionDate(completions.at(-1)?.completedAt ?? plan.createdAt)}</strong></div><div><span>Knowledge-check accuracy</span><strong>{accuracy}</strong></div><div><span>Last session felt</span><strong>{formatFeedback(completions.at(-1)?.feedback)}</strong></div></section>}
     <section className="section-block"><div className="section-title"><h3>{view === "recent" ? "What you completed" : "Plan timeline"}</h3><span>{plan.sourceMode === "user_materials" ? "Your materials" : "YOVA-created content"}</span></div><div className="timeline">{plan.sessions.map((session) => <div className={`timeline-row ${session.status}`} key={session.id}><span className="timeline-node">{session.status === "complete" ? <Check size={15} /> : null}</span><div><strong>{session.title}</strong><small>{session.method} · {formatSessionTime(session.scheduledFor)}</small></div><span>{session.estimatedMinutes} min</span></div>)}</div></section>
   </>;

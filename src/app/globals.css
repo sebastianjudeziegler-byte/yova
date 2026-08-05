@@ -224,6 +224,9 @@ h1, h2, h3, p { margin-top: 0; }
 .learning-hero { padding: 26px; display: flex; align-items: center; justify-content: space-between; gap: 24px; border-radius: 17px; color: white; background: var(--navy); }
 .learning-hero h2 { margin: 7px 0; font-size: 27px; }
 .learning-hero p, .learning-hero small { color: #b8c2d8; }
+.learning-hero-actions { display: flex; align-items: center; gap: 9px; }
+.button.hero-secondary { color: white; border: 1px solid rgba(255,255,255,.24); background: rgba(255,255,255,.08); }
+.button.hero-secondary:hover:not(:disabled) { background: rgba(255,255,255,.14); }
 .learning-history-summary { margin: 15px 0; display: grid; grid-template-columns: repeat(3,1fr); border: 1px solid var(--border); border-radius: 13px; overflow: hidden; background: white; }
 .learning-history-summary div { min-height: 82px; padding: 17px; border-left: 1px solid var(--border); }
 .learning-history-summary div:first-child { border-left: 0; }
