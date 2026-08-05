@@ -4,6 +4,13 @@ import type { PlanGenerationRequest } from "@/lib/plan-generation/schema";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
+export class PlanPersistenceError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "PlanPersistenceError";
+  }
+}
+
 export async function persistPlanForAuthenticatedUser(
   plan: LearningPlan,
   request: PlanGenerationRequest,
@@ -12,7 +19,7 @@ export async function persistPlanForAuthenticatedUser(
 
   const supabase = await createSupabaseServerClient();
   const { data: { user }, error: userError } = await supabase.auth.getUser();
-  if (userError || !user) return "browser";
+  if (userError || !user) throw new PlanPersistenceError("The signed-in account could not be verified while saving the plan.");
 
   const generationInputs = {
     intent: request.intent,
@@ -39,6 +46,6 @@ export async function persistPlanForAuthenticatedUser(
     },
   });
 
-  if (error) throw new Error("Supabase could not persist the generated plan.");
+  if (error) throw new PlanPersistenceError("Supabase could not persist the generated plan.");
   return "supabase";
 }

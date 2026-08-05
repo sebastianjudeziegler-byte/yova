@@ -9,7 +9,7 @@ import {
 } from "@/lib/plan-generation/schema";
 import { checkPlanGenerationRateLimit, requestRateLimitKey } from "@/lib/server/rate-limit";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
-import { persistPlanForAuthenticatedUser } from "@/lib/supabase/plan-repository";
+import { persistPlanForAuthenticatedUser, PlanPersistenceError } from "@/lib/supabase/plan-repository";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
@@ -109,13 +109,7 @@ export async function POST(request: Request) {
     try {
       const generated = await generatePlanWithOpenAI(planRequest);
       const plan = materializePlanDraft(generated.draft, planRequest);
-      let persistence: "browser" | "supabase" = "browser";
-
-      try {
-        persistence = await persistPlanForAuthenticatedUser(plan, planRequest);
-      } catch {
-        console.error("YOVA plan persistence failed", { requestId });
-      }
+      const persistence = await persistPlanForAuthenticatedUser(plan, planRequest);
 
       const response = PlanGenerationResponseSchema.parse({
         plan,
@@ -136,6 +130,20 @@ export async function POST(request: Request) {
         },
       });
     } catch (error) {
+      if (error instanceof PlanPersistenceError) {
+        console.error("YOVA plan persistence failed", { requestId });
+        return NextResponse.json(
+          {
+            error: "YOVA created the plan but could not save it safely. Nothing was activated; try again in a moment.",
+            code: "persistence_failed",
+            requestId,
+          },
+          {
+            status: 503,
+            headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId },
+          },
+        );
+      }
       const reason = error instanceof OpenAIPlanGenerationError ? error.reason : "provider_error";
       console.error("YOVA plan generation failed", { requestId, reason });
       return NextResponse.json(
@@ -153,12 +161,29 @@ export async function POST(request: Request) {
   }
 
   const previewPlan = generatePreviewPlan(planRequest);
-  let previewPersistence: "browser" | "supabase" = "browser";
+  let previewPersistence: "browser" | "supabase";
 
   try {
     previewPersistence = await persistPlanForAuthenticatedUser(previewPlan, planRequest);
-  } catch {
+  } catch (error) {
     console.error("YOVA preview-plan persistence failed", { requestId });
+    if (error instanceof PlanPersistenceError) {
+      return NextResponse.json(
+        {
+          error: "YOVA created the plan but could not save it safely. Nothing was activated; try again in a moment.",
+          code: "persistence_failed",
+          requestId,
+        },
+        {
+          status: 503,
+          headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId },
+        },
+      );
+    }
+    return NextResponse.json(
+      { error: "YOVA could not save the plan safely. Nothing was activated; try again in a moment.", code: "persistence_failed", requestId },
+      { status: 500, headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId } },
+    );
   }
 
   const response = PlanGenerationResponseSchema.parse({
