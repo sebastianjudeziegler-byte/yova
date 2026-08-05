@@ -6,6 +6,7 @@ export const SessionGenerationRequestSchema = z.object({
 });
 
 export const GeneratedSessionActivitySchema = z.object({
+  concept: z.string().trim().min(2).max(120).nullable(),
   label: z.string().trim().min(2).max(50),
   title: z.string().trim().min(3).max(140),
   body: z.string().trim().min(10).max(900),
@@ -15,6 +16,9 @@ export const GeneratedSessionActivitySchema = z.object({
   feedback: z.string().trim().min(5).max(500).nullable(),
 }).superRefine((activity, context) => {
   if (activity.type === "multiple_choice") {
+    if (!activity.concept) {
+      context.addIssue({ code: "custom", path: ["concept"], message: "Knowledge checks need a named concept." });
+    }
     if (activity.choices.length < 3) {
       context.addIssue({ code: "custom", path: ["choices"], message: "Multiple-choice activities need at least three choices." });
     }
@@ -25,14 +29,17 @@ export const GeneratedSessionActivitySchema = z.object({
       context.addIssue({ code: "custom", path: ["feedback"], message: "Knowledge checks need explanatory feedback." });
     }
   } else if (activity.type === "free_response") {
+    if (!activity.concept) {
+      context.addIssue({ code: "custom", path: ["concept"], message: "Free-response activities need a named concept." });
+    }
     if (activity.choices.length) {
       context.addIssue({ code: "custom", path: ["choices"], message: "Free-response activities cannot contain choices." });
     }
     if (!activity.correctAnswer || !activity.feedback) {
       context.addIssue({ code: "custom", path: ["correctAnswer"], message: "Free-response activities need a reference answer and feedback." });
     }
-  } else if (activity.choices.length || activity.correctAnswer) {
-    context.addIssue({ code: "custom", path: ["choices"], message: "Non-question activities cannot contain answer choices." });
+  } else if (activity.choices.length || activity.correctAnswer || activity.concept) {
+    context.addIssue({ code: "custom", path: ["choices"], message: "Non-question activities cannot contain question data." });
   }
 });
 
@@ -49,7 +56,7 @@ export const GeneratedSessionDraftSchema = z.object({
 });
 
 export const CachedGeneratedSessionSchema = GeneratedSessionDraftSchema.extend({
-  schemaVersion: z.literal(2),
+  schemaVersion: z.literal(3),
   model: z.string().min(1),
   generatedAt: z.string().datetime({ offset: true }),
 });

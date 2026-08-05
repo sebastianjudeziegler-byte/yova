@@ -50,6 +50,12 @@ export type LearningPlan = {
   sessions: LearningPlanSession[];
 };
 
+export type ConceptEvidence = {
+  concept: string;
+  outcome: "secure" | "needs_review";
+  activityType: "multiple_choice" | "free_response";
+};
+
 export type SessionCompletion = {
   id: string;
   planId: string;
@@ -59,6 +65,7 @@ export type SessionCompletion = {
   totalAnswers: number;
   feedback: "too_easy" | "about_right" | "too_difficult";
   observedGap: string;
+  conceptEvidence: ConceptEvidence[];
 };
 
 export type NextSessionAdaptation = {

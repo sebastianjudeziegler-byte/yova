@@ -2,6 +2,7 @@
 
 import { z } from "zod";
 import type { NextSessionAdaptation, SessionCompletion } from "@/lib/domain";
+import { ConceptEvidenceListSchema } from "@/lib/learning/concept-evidence";
 import { completeAuthenticatedPlanSession } from "@/lib/supabase/learning-state-repository";
 
 const STORAGE_KEY = "yova.cloud-sync-outbox.v1";
@@ -15,6 +16,7 @@ const SessionCompletionSchema = z.object({
   totalAnswers: z.number().int().min(0),
   feedback: z.enum(["too_easy", "about_right", "too_difficult"]),
   observedGap: z.string().min(1).max(2_000),
+  conceptEvidence: ConceptEvidenceListSchema.default([]),
 });
 
 const NextSessionAdaptationSchema = z.object({

@@ -10,6 +10,7 @@ import type {
   SourceMode,
   StudyMode,
 } from "@/lib/domain";
+import { readConceptEvidenceProperty } from "@/lib/learning/concept-evidence";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 
@@ -203,6 +204,7 @@ export async function loadAuthenticatedLearningState(): Promise<CloudLearningSta
       totalAnswers: attempt.total_answers ?? 0,
       feedback: isSessionFeedback(attempt.user_feedback) ? attempt.user_feedback : "about_right",
       observedGap: readTextProperty(attempt.result_data, "observedGap") || "No observation recorded",
+      conceptEvidence: readConceptEvidenceProperty(attempt.result_data),
     }];
   });
 
@@ -255,6 +257,7 @@ export async function completeAuthenticatedPlanSession(completion: SessionComple
       totalAnswers: completion.totalAnswers,
       feedback: completion.feedback,
       observedGap: completion.observedGap,
+      conceptEvidence: completion.conceptEvidence,
       nextSessionAdjustment: adaptation ?? null,
     },
   });

@@ -31,7 +31,8 @@ import { BrandMark } from "@/components/brand-mark";
 import { PlanCreator } from "@/components/plan-creator";
 import { StudyNowCreator } from "@/components/study-now-creator";
 import { getAuthenticatedAccount, getAuthMode, requestEmailAuthentication, signOutAuthenticatedAccount } from "@/lib/auth/client";
-import { makeId, makeUuid, type LearningPlan, type LearningPlanSession, type PreviewAccount, type SessionCompletion } from "@/lib/domain";
+import { makeId, makeUuid, type ConceptEvidence, type LearningPlan, type LearningPlanSession, type PreviewAccount, type SessionCompletion } from "@/lib/domain";
+import { summarizeConceptEvidence, type ConceptSignal } from "@/lib/learning/concept-evidence";
 import { clearPreviewSnapshot, loadPreviewSnapshot, savePreviewSnapshot } from "@/lib/persistence/preview-store";
 import { buildPlanProfileSummary } from "@/lib/personalization/profile-summary";
 import { buildNextSessionAdaptation } from "@/lib/personalization/session-adaptation";
@@ -66,6 +67,7 @@ type Tab = "Home" | "Learning" | "Agenda" | "Ask YOVA" | "You";
 type AccountMode = "create" | "sign-in";
 type LessonStep = {
   type: "instruction" | "multiple_choice" | "free_response" | "reflection";
+  concept: string | null;
   label: string;
   title: string;
   body: string;
@@ -112,9 +114,18 @@ export function YovaPrototype() {
   const activeLessonSteps = generatedLessonSteps ?? lessonStepsFor(activePlan);
   const sessionCorrectAnswers = Object.values(sessionOutcomes).filter(Boolean).length;
   const sessionTotalAnswers = activeLessonSteps.filter((step) => step.type === "multiple_choice" || step.type === "free_response").length;
+  const sessionConceptEvidence = activeLessonSteps.flatMap<ConceptEvidence>((step, index) => {
+    const outcome = sessionOutcomes[index];
+    if ((step.type !== "multiple_choice" && step.type !== "free_response") || !step.concept || outcome === undefined) return [];
+    return [{
+      concept: step.concept,
+      outcome: outcome ? "secure" : "needs_review",
+      activityType: step.type,
+    }];
+  });
   const sessionObservedGap = activeLessonSteps
     .filter((step, index) => (step.type === "multiple_choice" || step.type === "free_response") && sessionOutcomes[index] === false)
-    .map((step) => step.title)
+    .map((step) => step.concept ?? step.title)
     .join("; ") || "No major gap detected in the required check";
 
   useEffect(() => {
@@ -298,6 +309,7 @@ export function YovaPrototype() {
 
       setGeneratedLessonSteps(parsed.data.session.activities.map((activity) => ({
         type: activity.type,
+        concept: activity.concept,
         label: activity.label,
         title: activity.title,
         body: activity.body,
@@ -338,6 +350,7 @@ export function YovaPrototype() {
       totalAnswers,
       feedback,
       observedGap: sessionObservedGap,
+      conceptEvidence: sessionConceptEvidence,
     };
     const nextSession = activePlan.sessions.find((session) => session.sequence === currentSession.sequence + 1) ?? null;
     const adaptation = buildNextSessionAdaptation(nextSession, completion);
@@ -927,6 +940,7 @@ function LearningPlanDetail({ plan, plans, view, completions, changingStatus, on
   const totalCorrect = completions.reduce((sum, completion) => sum + completion.correctAnswers, 0);
   const totalChecks = completions.reduce((sum, completion) => sum + completion.totalAnswers, 0);
   const accuracy = totalChecks ? `${Math.round((totalCorrect / totalChecks) * 100)}%` : "—";
+  const conceptSignals = summarizeConceptEvidence(completions);
 
   return <>
     {plans.length > 1 && <div className="plan-switcher">{plans.map((item) => { const done = item.sessions.filter((session) => session.status === "complete").length; return <button className={item.id === plan.id ? "selected" : ""} key={item.id} onClick={() => onSelectPlan(item.id)}><span>{item.kind}</span><strong>{item.title}</strong><small>{done} of {item.sessions.length} sessions</small></button>; })}</div>}
@@ -934,8 +948,20 @@ function LearningPlanDetail({ plan, plans, view, completions, changingStatus, on
     {view === "active" && showAdjustments && <PlanAdjustmentPanel plan={plan} onCancel={() => setShowAdjustments(false)} onSave={async (input) => { await onAdjustPlan(input); setShowAdjustments(false); }} />}
     {view === "recent" && <section className="learning-history-summary"><div><span>Completed</span><strong>{formatCompletionDate(completions.at(-1)?.completedAt ?? plan.createdAt)}</strong></div><div><span>Knowledge-check accuracy</span><strong>{accuracy}</strong></div><div><span>Last session felt</span><strong>{formatFeedback(completions.at(-1)?.feedback)}</strong></div></section>}
     <PlanSources plan={plan} editable={view === "active"} onAttach={onAttachMaterials} />
+    <ConceptSignalsPanel signals={conceptSignals} />
     <section className="section-block"><div className="section-title"><h3>{view === "recent" ? "What you completed" : "Plan timeline"}</h3><span>{plan.sourceMode === "user_materials" ? "Your materials" : "YOVA-created content"}</span></div><div className="timeline">{plan.sessions.map((session) => <div className={`timeline-row ${session.status}`} key={session.id}><span className="timeline-node">{session.status === "complete" ? <Check size={15} /> : null}</span><div><strong>{session.title}</strong><small>{session.method} · {formatSessionTime(session.scheduledFor)}</small></div><span>{session.estimatedMinutes} min</span></div>)}</div></section>
   </>;
+}
+
+function ConceptSignalsPanel({ signals }: { signals: ConceptSignal[] }) {
+  if (!signals.length) return null;
+  const visibleSignals = signals.slice(0, 8);
+  return <section className="section-block concept-signals"><div className="section-title"><div><h3>Current learning signals</h3><p>Based only on answers and self-checks completed in YOVA.</p></div><span>{signals.length} observed</span></div><div className="concept-signal-list">{visibleSignals.map((signal) => <div className={signal.status} key={signal.concept.toLocaleLowerCase()}><span>{signal.status === "needs_review" ? <AlertCircle size={16} /> : <Check size={16} />}</span><div><strong>{signal.concept}</strong><small>{formatConceptSignal(signal)}</small></div><em>{signal.status === "needs_review" ? "Review" : signal.status === "showing_strength" ? "Repeatedly secure" : "Early signal"}</em></div>)}</div>{signals.length > visibleSignals.length && <small className="concept-signal-overflow">{signals.length - visibleSignals.length} more signals will be considered when YOVA builds future sessions.</small>}</section>;
+}
+
+function formatConceptSignal(signal: ConceptSignal) {
+  if (signal.attempts === 1) return signal.lastOutcome === "secure" ? "Secure in the first observed check" : "Needs another attempt after the first check";
+  return `${signal.secureAttempts} secure ${signal.secureAttempts === 1 ? "check" : "checks"} across ${signal.attempts} attempts`;
 }
 
 function PlanSources({ plan, editable, onAttach }: { plan: LearningPlan; editable: boolean; onAttach: (planId: string, materialIds: string[]) => Promise<void> }) {
@@ -1215,7 +1241,7 @@ function YouScreen({ account, answers, sessionCompletions, onAnswersChange, onRe
 }
 
 function lessonStepsFor(plan: LearningPlan | null): LessonStep[] {
-  if (!plan) return [{ type: "instruction", label: "Set up", title: "No session selected", body: "Return Home and select a learning goal first.", question: null, correctAnswer: null, feedback: null }];
+  if (!plan) return [{ type: "instruction", concept: null, label: "Set up", title: "No session selected", body: "Return Home and select a learning goal first.", question: null, correctAnswer: null, feedback: null }];
 
   const current = plan.sessions.find((session) => session.status === "ready") ?? plan.sessions.find((session) => session.status === "upcoming");
 
@@ -1223,8 +1249,8 @@ function lessonStepsFor(plan: LearningPlan | null): LessonStep[] {
     return [
       lessonInstruction("Set up", "Prepare your outside study block", `Open the material you use for ${plan.topic}. Keep only that source and a place to work visible.`),
       lessonInstruction("Your task", current?.title ?? "Complete the planned work", `${current?.objective ?? "Work through the next planned objective."} Use ${current?.method.toLowerCase() ?? "the selected method"} for about ${current?.estimatedMinutes ?? 20} minutes.`),
-      lessonQuestion("Method check", "What should happen before you check the source?", "The method works only if you make a real attempt before looking for the answer.", ["Attempt the task from memory", "Reread everything first", "Copy the source wording", "Switch topics"], "Attempt the task from memory", "Active retrieval requires a genuine attempt before looking at the source."),
-      lessonFreeResponse("Recall check", "Write the main idea without reopening the source", "Explain the most important idea or step you just practiced. Use your own words and include one detail that makes the explanation specific.", "A strong response states the central idea or step accurately, explains it in the learner's own words, and includes one relevant supporting detail from the source.", "Compare the meaning, not the exact wording. If the central idea or supporting detail is missing, mark it as needing another pass."),
+      lessonQuestion("Method check", "What should happen before you check the source?", "The method works only if you make a real attempt before looking for the answer.", ["Attempt the task from memory", "Reread everything first", "Copy the source wording", "Switch topics"], "Attempt the task from memory", "Active retrieval requires a genuine attempt before looking at the source.", "Retrieval before review"),
+      lessonFreeResponse("Recall check", "Write the main idea without reopening the source", "Explain the most important idea or step you just practiced. Use your own words and include one detail that makes the explanation specific.", "A strong response states the central idea or step accurately, explains it in the learner's own words, and includes one relevant supporting detail from the source.", "Compare the meaning, not the exact wording. If the central idea or supporting detail is missing, mark it as needing another pass.", plan.topic),
       lessonInstruction("Return to YOVA", "Record what needs another pass", "Note the one idea or step that felt least stable. YOVA will use that signal when the session result is saved."),
     ];
   }
@@ -1232,9 +1258,9 @@ function lessonStepsFor(plan: LearningPlan | null): LessonStep[] {
   if (/biology|photosynthesis|cellular respiration/i.test(plan.topic)) {
     return [
       lessonInstruction("Set up", "Closed-note retrieval", "Try to produce each answer before looking. Review only what you miss, then retry the missed item later."),
-      lessonQuestion("Question 1 of 2", "Which stage of cellular respiration happens first?", "Answer from memory. Familiarity is not the same as being able to retrieve it.", ["Glycolysis", "Krebs cycle", "Electron transport chain", "Fermentation"], "Glycolysis", "Glycolysis is the first stage and begins breaking glucose down before the Krebs cycle and electron transport chain."),
-      lessonQuestion("Question 2 of 2", "Where does glycolysis occur?", "Choose the location without opening your notes.", ["Cytoplasm", "Mitochondrial matrix", "Nucleus", "Cell membrane"], "Cytoplasm", "Glycolysis occurs in the cytoplasm; later aerobic stages occur in the mitochondrion."),
-      lessonFreeResponse("Explain from memory", "Why can glycolysis begin without oxygen?", "Answer without reopening the explanation. Focus on what glycolysis directly requires and where it happens.", "Glycolysis does not directly require oxygen and occurs in the cytoplasm, so it can begin before the oxygen-dependent stages of aerobic respiration.", "A strong answer mentions that glycolysis does not directly require oxygen. Mentioning that it occurs in the cytoplasm makes the explanation more complete."),
+      lessonQuestion("Question 1 of 2", "Which stage of cellular respiration happens first?", "Answer from memory. Familiarity is not the same as being able to retrieve it.", ["Glycolysis", "Krebs cycle", "Electron transport chain", "Fermentation"], "Glycolysis", "Glycolysis is the first stage and begins breaking glucose down before the Krebs cycle and electron transport chain.", "Cellular respiration sequence"),
+      lessonQuestion("Question 2 of 2", "Where does glycolysis occur?", "Choose the location without opening your notes.", ["Cytoplasm", "Mitochondrial matrix", "Nucleus", "Cell membrane"], "Cytoplasm", "Glycolysis occurs in the cytoplasm; later aerobic stages occur in the mitochondrion.", "Glycolysis location"),
+      lessonFreeResponse("Explain from memory", "Why can glycolysis begin without oxygen?", "Answer without reopening the explanation. Focus on what glycolysis directly requires and where it happens.", "Glycolysis does not directly require oxygen and occurs in the cytoplasm, so it can begin before the oxygen-dependent stages of aerobic respiration.", "A strong answer mentions that glycolysis does not directly require oxygen. Mentioning that it occurs in the cytoplasm makes the explanation more complete.", "Glycolysis oxygen requirement"),
       lessonInstruction("Repair the gap", "Compare before moving on", "Glycolysis occurs in the cytoplasm. Most later stages occur in the mitochondrion. Keep that contrast available for the next mixed-practice session."),
     ];
   }
@@ -1242,32 +1268,36 @@ function lessonStepsFor(plan: LearningPlan | null): LessonStep[] {
   if (/finance|investing|budget|credit|interest/i.test(plan.topic)) {
     return [
       lessonInstruction("Set up", "Build the decision framework", "Start with the practical purpose of each concept. The goal is to make a sound decision, not merely recognize vocabulary."),
-      lessonQuestion("Question 1 of 2", "What is the main purpose of a budget?", "Choose the answer that describes an active decision tool.", ["Direct money toward priorities and constraints", "Predict every future expense perfectly", "Eliminate all optional spending", "Track only large purchases"], "Direct money toward priorities and constraints", "A budget is a decision tool for directing limited money toward priorities and known constraints."),
-      lessonQuestion("Question 2 of 2", "Which example shows compound growth?", "Look for growth that earns additional growth over time.", ["Interest earning interest", "A one-time discount", "A fixed monthly fee", "Cash kept at zero interest"], "Interest earning interest", "Compound growth happens when previous growth is included in the base that produces future growth."),
-      lessonFreeResponse("Explain from memory", "How does compound growth build over time?", "Describe the mechanism in your own words rather than repeating a definition.", "Compound growth occurs when earlier gains become part of the base, allowing later gains to earn additional growth too.", "A strong answer explains that prior gains remain in the base and can themselves produce future gains."),
+      lessonQuestion("Question 1 of 2", "What is the main purpose of a budget?", "Choose the answer that describes an active decision tool.", ["Direct money toward priorities and constraints", "Predict every future expense perfectly", "Eliminate all optional spending", "Track only large purchases"], "Direct money toward priorities and constraints", "A budget is a decision tool for directing limited money toward priorities and known constraints.", "Purpose of a budget"),
+      lessonQuestion("Question 2 of 2", "Which example shows compound growth?", "Look for growth that earns additional growth over time.", ["Interest earning interest", "A one-time discount", "A fixed monthly fee", "Cash kept at zero interest"], "Interest earning interest", "Compound growth happens when previous growth is included in the base that produces future growth.", "Compound growth"),
+      lessonFreeResponse("Explain from memory", "How does compound growth build over time?", "Describe the mechanism in your own words rather than repeating a definition.", "Compound growth occurs when earlier gains become part of the base, allowing later gains to earn additional growth too.", "A strong answer explains that prior gains remain in the base and can themselves produce future gains.", "Compound growth"),
       lessonInstruction("Apply", "Connect the ideas to one real decision", "Choose one current spending, saving, debt, or investing decision and name the concept that should guide it."),
     ];
   }
 
   return [
     lessonInstruction("Set up", current?.method ?? "Focused learning", current?.methodReason ?? "Begin with one clearly bounded objective."),
-    lessonQuestion("Retrieval check", "What makes this an active learning step?", "Choose the action that produces evidence of what you can do without support.", ["Explain or apply it before checking", "Read it repeatedly", "Highlight every sentence", "Keep all examples visible"], "Explain or apply it before checking", "Producing an answer before checking creates evidence of what you can retrieve or apply independently."),
+    lessonQuestion("Retrieval check", "What makes this an active learning step?", "Choose the action that produces evidence of what you can do without support.", ["Explain or apply it before checking", "Read it repeatedly", "Highlight every sentence", "Keep all examples visible"], "Explain or apply it before checking", "Producing an answer before checking creates evidence of what you can retrieve or apply independently.", "Active retrieval"),
     lessonInstruction("Practice", current?.title ?? "Apply the next idea", current?.objective ?? `Use the plan to practice ${plan.topic}.`),
-    lessonFreeResponse("Recall from memory", `Explain the core idea behind ${plan.topic}`, "Write what you can produce without looking. Include the main idea and one supporting detail, step, or example.", `A strong response accurately states the main idea behind ${plan.topic} and supports it with one relevant detail, step, or example.`, "Compare the substance of your response with the reference. Exact wording is not required, but the central idea and one specific support should be present."),
+    lessonFreeResponse("Recall from memory", `Explain the core idea behind ${plan.topic}`, "Write what you can produce without looking. Include the main idea and one supporting detail, step, or example.", `A strong response accurately states the main idea behind ${plan.topic} and supports it with one relevant detail, step, or example.`, "Compare the substance of your response with the reference. Exact wording is not required, but the central idea and one specific support should be present.", plan.topic),
     lessonInstruction("Wrap up", "Name the least stable idea", "A specific gap is useful information. YOVA will use it to shape the next recommendation."),
   ];
 }
 
 function lessonInstruction(label: string, title: string, body: string): LessonStep {
-  return { type: "instruction", label, title, body, question: null, correctAnswer: null, feedback: null };
+  return { type: "instruction", concept: null, label, title, body, question: null, correctAnswer: null, feedback: null };
 }
 
-function lessonQuestion(label: string, title: string, body: string, choices: string[], correctAnswer: string, feedback: string): LessonStep {
-  return { type: "multiple_choice", label, title, body, question: choices, correctAnswer, feedback };
+function lessonQuestion(label: string, title: string, body: string, choices: string[], correctAnswer: string, feedback: string, concept = title): LessonStep {
+  return { type: "multiple_choice", concept: normalizeConceptName(concept), label, title, body, question: choices, correctAnswer, feedback };
 }
 
-function lessonFreeResponse(label: string, title: string, body: string, referenceAnswer: string, feedback: string): LessonStep {
-  return { type: "free_response", label, title, body, question: null, correctAnswer: referenceAnswer, feedback };
+function lessonFreeResponse(label: string, title: string, body: string, referenceAnswer: string, feedback: string, concept = title): LessonStep {
+  return { type: "free_response", concept: normalizeConceptName(concept), label, title, body, question: null, correctAnswer: referenceAnswer, feedback };
+}
+
+function normalizeConceptName(value: string) {
+  return value.trim().replace(/\s+/g, " ").slice(0, 120) || "Session concept";
 }
 
 function SessionLoading({ plan, onExit }: { plan: LearningPlan | null; onExit: () => void }) {
@@ -1361,6 +1391,7 @@ function SessionComplete({ stepCount, correctAnswers, totalAnswers, observedGap,
     totalAnswers,
     feedback,
     observedGap,
+    conceptEvidence: [],
   });
   const nextStatus = !nextSession
     ? { title: "This learning item is complete", explanation: "There is no remaining session to adjust. This result is still saved to your learning history." }

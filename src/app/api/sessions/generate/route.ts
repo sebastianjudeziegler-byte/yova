@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { buildMaterialExcerpts } from "@/lib/materials/context";
+import { readConceptEvidenceProperty, summarizeConceptEvidence } from "@/lib/learning/concept-evidence";
 import { isOpenAISessionConfigured } from "@/lib/openai/config";
 import { generateSessionWithOpenAI } from "@/lib/openai/session-generator";
 import {
@@ -100,7 +101,7 @@ export async function POST(request: Request) {
           .in("plan_session_id", planSessionRows.map((session) => session.id))
           .not("completed_at", "is", null)
           .order("completed_at", { ascending: false })
-          .limit(3)
+          .limit(12)
         : Promise.resolve({ data: [], error: null }),
       supabase
         .from("materials")
@@ -122,6 +123,7 @@ export async function POST(request: Request) {
       }, { status: 409, headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId } });
     }
 
+    const recentAttempts = attemptsResult.data ?? [];
     const generated = await generateSessionWithOpenAI({
       learningGoal: {
         title: learningItem.title,
@@ -148,15 +150,19 @@ export async function POST(request: Request) {
         startingPattern: learnerProfile.starting_pattern,
         primaryImprovementGoal: learnerProfile.primary_improvement_goal,
       } : null,
-      recentResults: (attemptsResult.data ?? []).map((attempt) => ({
+      recentResults: recentAttempts.slice(0, 3).map((attempt) => ({
         correctAnswers: attempt.correct_answers,
         totalAnswers: attempt.total_answers,
         observedGap: readTextProperty(attempt.result_data, "observedGap") || null,
       })),
+      conceptSignals: summarizeConceptEvidence(recentAttempts.map((attempt) => ({
+        completedAt: attempt.completed_at ?? new Date(0).toISOString(),
+        conceptEvidence: readConceptEvidenceProperty(attempt.result_data),
+      }))).slice(0, 20),
     });
 
     const cachedSession = CachedGeneratedSessionSchema.parse({
-      schemaVersion: 2,
+      schemaVersion: 3,
       ...generated.draft,
       model: generated.model,
       generatedAt: new Date().toISOString(),
