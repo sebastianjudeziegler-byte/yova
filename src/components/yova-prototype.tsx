@@ -92,6 +92,7 @@ export function YovaPrototype() {
 
   const activePlans = plans.filter((plan) => plan.status === "active");
   const activePlan = activePlans.find((plan) => plan.id === selectedPlanId) ?? activePlans[activePlans.length - 1] ?? null;
+  const recommendedPlan = chooseRecommendedPlan(activePlans);
   const activeLessonSteps = generatedLessonSteps ?? lessonStepsFor(activePlan);
   const sessionCorrectAnswers = Object.entries(sessionResponses).filter(([step, answer]) => activeLessonSteps[Number(step)]?.correctAnswer === answer).length;
   const sessionTotalAnswers = activeLessonSteps.filter((step) => step.question).length;
@@ -486,7 +487,7 @@ export function YovaPrototype() {
         setStage("landing");
       });
     }}>
-      {activeTab === "Home" && <HomeScreen account={account} plans={activePlans} plan={activePlan} tutorQuestion={tutorQuestion} onTutorQuestion={setTutorQuestion} onOpenTutor={() => setActiveTab("Ask YOVA")} onStart={() => void startSession(activePlan?.id)} onSelectPlan={setSelectedPlanId} onCreatePlan={() => setStage("plan-creator")} onStudyNow={() => setStage("study-now")} />}
+      {activeTab === "Home" && <HomeScreen account={account} plans={activePlans} plan={recommendedPlan} tutorQuestion={tutorQuestion} onTutorQuestion={setTutorQuestion} onOpenTutor={() => setActiveTab("Ask YOVA")} onStart={() => void startSession(recommendedPlan?.id)} onOpenPlan={(planId) => { setSelectedPlanId(planId); setActiveTab("Learning"); }} onCreatePlan={() => setStage("plan-creator")} onStudyNow={() => setStage("study-now")} />}
       {activeTab === "Learning" && <LearningScreen plans={plans} selectedPlanId={selectedPlanId} sessionCompletions={sessionCompletions} onSelectPlan={setSelectedPlanId} onStart={(planId) => void startSession(planId)} onCreatePlan={() => setStage("plan-creator")} onArchiveStateChange={changePlanArchiveState} />}
       {activeTab === "Agenda" && <AgendaScreen plans={activePlans} onStart={(planId) => void startSession(planId)} onReschedule={rescheduleSession} />}
       {activeTab === "Ask YOVA" && <AskScreen key={activePlan?.id ?? "general"} plan={activePlan} question={tutorQuestion} onQuestion={setTutorQuestion} />}
@@ -603,13 +604,66 @@ function AppShell({ activeTab, onTab, account, cloudSyncIssue, onSignOut, childr
 
 function PageHeader({ eyebrow, title, description }: { eyebrow?: string; title: string; description?: string }) { return <header className="page-header">{eyebrow && <span className="step-label">{eyebrow}</span>}<h1>{title}</h1>{description && <p>{description}</p>}</header>; }
 
-function HomeScreen({ account, plans, plan, tutorQuestion, onTutorQuestion, onOpenTutor, onStart, onSelectPlan, onCreatePlan, onStudyNow }: { account: PreviewAccount | null; plans: LearningPlan[]; plan: LearningPlan | null; tutorQuestion: string; onTutorQuestion: (question: string) => void; onOpenTutor: () => void; onStart: () => void; onSelectPlan: (planId: string) => void; onCreatePlan: () => void; onStudyNow: () => void }) {
+function HomeScreen({ account, plans, plan, tutorQuestion, onTutorQuestion, onOpenTutor, onStart, onOpenPlan, onCreatePlan, onStudyNow }: { account: PreviewAccount | null; plans: LearningPlan[]; plan: LearningPlan | null; tutorQuestion: string; onTutorQuestion: (question: string) => void; onOpenTutor: () => void; onStart: () => void; onOpenPlan: (planId: string) => void; onCreatePlan: () => void; onStudyNow: () => void }) {
   const readySession = plan?.sessions.find((session) => session.status === "ready") ?? null;
   const completedCount = plan?.sessions.filter((session) => session.status === "complete").length ?? 0;
   const firstName = account?.displayName.split(" ")[0] || "there";
   const now = new Date();
 
-  return <div className="page"><PageHeader eyebrow={formatHomeDate(now)} title={`${greetingFor(now)}, ${firstName}.`} description="Here is the most useful next step across your active learning." />{plan && readySession ? <section className="recommendation-card"><div className="rec-top"><span className="eyebrow light"><Sparkles size={15} /> Recommended next</span><span>{completedCount} of {plan.sessions.length} sessions complete</span></div><div className="rec-body"><div><span className="subject-label">{plan.title.toUpperCase()}</span><h2>{readySession.title}</h2><div className="meta-row"><span><Target size={16} /> {readySession.method}</span><span><Clock3 size={16} /> {readySession.amountLabel}</span></div></div><button className="button white large" onClick={onStart}>Start session <ArrowRight size={18} /></button></div><div className="reason-grid"><div><strong>Why now</strong><p>This is the first unfinished session in your selected plan and fits today’s availability.</p></div><div><strong>Why this method</strong><p>{readySession.methodReason}</p></div></div></section> : <section className="empty-home"><span className="eyebrow"><Sparkles size={15} /> Start here</span><h2>What do you want to learn?</h2><p>Start one focused session now or build a plan for a larger goal. Materials are optional.</p><div className="empty-home-actions"><button className="button primary large" onClick={onStudyNow}>Study something now <ArrowRight size={18} /></button><button className="button secondary large" onClick={onCreatePlan}>Create a plan</button></div></section>}<AskBar value={tutorQuestion} onChange={onTutorQuestion} onSubmit={onOpenTutor} /><section className="quick-actions"><button onClick={onStudyNow}><Plus size={18} /><span><strong>Study something now</strong><small>Build one focused session</small></span></button><button onClick={onCreatePlan}><BookOpen size={18} /><span><strong>{plan ? "Create another plan" : "Create a plan"}</strong><small>Prepare for a larger goal</small></span></button></section>{plans.length > 0 && <section className="section-block"><div className="section-title"><h3>Active learning</h3><span>{plans.length} {plans.length === 1 ? "goal" : "goals"}</span></div><div className="compact-items">{plans.map((item) => { const next = item.sessions.find((session) => session.status === "ready"); return <button className={item.id === plan?.id ? "selected" : ""} key={item.id} onClick={() => onSelectPlan(item.id)}><span className="item-icon blue">{item.title.charAt(0)}</span><span><strong>{item.title}</strong><small>{next ? `${next.method} · Next` : "Plan complete"}</small></span><ChevronRight /></button>; })}</div></section>}</div>;
+  return <div className="page"><PageHeader eyebrow={formatHomeDate(now)} title={`${greetingFor(now)}, ${firstName}.`} description="Here is the most useful next step across your active learning." />{plan && readySession ? <section className="recommendation-card"><div className="rec-top"><span className="eyebrow light"><Sparkles size={15} /> Recommended next</span><span>{completedCount} of {plan.sessions.length} sessions complete</span></div><div className="rec-body"><div><span className="subject-label">{plan.title.toUpperCase()}</span><h2>{readySession.title}</h2><div className="meta-row"><span><Target size={16} /> {readySession.method}</span><span><Clock3 size={16} /> {readySession.amountLabel}</span></div></div><button className="button white large" onClick={onStart}>Start session <ArrowRight size={18} /></button></div><div className="reason-grid"><div><strong>Why now</strong><p>{recommendationReason(plan, readySession, now)}</p></div><div><strong>Why this method</strong><p>{readySession.methodReason}</p></div></div></section> : <section className="empty-home"><span className="eyebrow"><Sparkles size={15} /> Start here</span><h2>What do you want to learn?</h2><p>Start one focused session now or build a plan for a larger goal. Materials are optional.</p><div className="empty-home-actions"><button className="button primary large" onClick={onStudyNow}>Study something now <ArrowRight size={18} /></button><button className="button secondary large" onClick={onCreatePlan}>Create a plan</button></div></section>}<AskBar value={tutorQuestion} onChange={onTutorQuestion} onSubmit={onOpenTutor} /><section className="quick-actions"><button onClick={onStudyNow}><Plus size={18} /><span><strong>Study something now</strong><small>Build one focused session</small></span></button><button onClick={onCreatePlan}><BookOpen size={18} /><span><strong>{plan ? "Create another plan" : "Create a plan"}</strong><small>Prepare for a larger goal</small></span></button></section>{plans.length > 0 && <section className="section-block"><div className="section-title"><h3>Active learning</h3><span>{plans.length} {plans.length === 1 ? "goal" : "goals"}</span></div><div className="compact-items">{plans.map((item) => { const next = item.sessions.find((session) => session.status === "ready"); return <button className={item.id === plan?.id ? "selected" : ""} key={item.id} onClick={() => onOpenPlan(item.id)}><span className="item-icon blue">{item.title.charAt(0)}</span><span><strong>{item.title}</strong><small>{next ? `${next.method} · ${formatSessionTime(next.scheduledFor)}` : "Plan complete"}</small></span><ChevronRight /></button>; })}</div></section>}</div>;
+}
+
+function chooseRecommendedPlan(plans: LearningPlan[]) {
+  const now = Date.now();
+  const threeDays = 3 * 24 * 60 * 60 * 1000;
+  const candidates = plans.flatMap((plan) => {
+    const session = plan.sessions.find((item) => item.status === "ready");
+    return session ? [{ plan, session }] : [];
+  });
+
+  candidates.sort((left, right) => {
+    const leftScheduled = new Date(left.session.scheduledFor).getTime();
+    const rightScheduled = new Date(right.session.scheduledFor).getTime();
+    const leftOverdue = leftScheduled <= now;
+    const rightOverdue = rightScheduled <= now;
+    if (leftOverdue !== rightOverdue) return leftOverdue ? -1 : 1;
+
+    const leftDeadline = left.plan.deadline ? new Date(left.plan.deadline).getTime() : Number.POSITIVE_INFINITY;
+    const rightDeadline = right.plan.deadline ? new Date(right.plan.deadline).getTime() : Number.POSITIVE_INFINITY;
+    const leftUrgent = leftDeadline - now <= threeDays;
+    const rightUrgent = rightDeadline - now <= threeDays;
+    if (leftUrgent !== rightUrgent) return leftUrgent ? -1 : 1;
+    if (leftUrgent && leftDeadline !== rightDeadline) return leftDeadline - rightDeadline;
+    return leftScheduled - rightScheduled;
+  });
+
+  return candidates[0]?.plan ?? null;
+}
+
+function recommendationReason(plan: LearningPlan, session: LearningPlanSession, now: Date) {
+  const scheduled = new Date(session.scheduledFor);
+  const scheduledDay = scheduled.toDateString();
+  if (scheduled.getTime() <= now.getTime()) {
+    return `This is your earliest ready session and it is due ${formatRelativeSchedule(scheduled, now)}.`;
+  }
+
+  if (plan.deadline) {
+    const deadline = new Date(plan.deadline);
+    const daysRemaining = Math.ceil((deadline.getTime() - now.getTime()) / (24 * 60 * 60 * 1000));
+    if (daysRemaining <= 0) return "This goal’s deadline has arrived, so its next ready session takes priority.";
+    if (daysRemaining <= 3) return `This goal is due in ${daysRemaining} ${daysRemaining === 1 ? "day" : "days"}, so its next ready session takes priority.`;
+  }
+
+  if (scheduledDay === now.toDateString()) return "This is the earliest ready session scheduled for today across your active goals.";
+  return `This is the earliest ready session across your active goals, scheduled for ${formatSessionTime(session.scheduledFor)}.`;
+}
+
+function formatRelativeSchedule(scheduled: Date, now: Date) {
+  if (scheduled.toDateString() === now.toDateString()) return "today";
+  const yesterday = new Date(now);
+  yesterday.setDate(yesterday.getDate() - 1);
+  if (scheduled.toDateString() === yesterday.toDateString()) return "yesterday";
+  return formatSessionTime(scheduled.toISOString());
 }
 
 function formatHomeDate(date: Date) {
