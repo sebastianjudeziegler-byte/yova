@@ -49,6 +49,12 @@ import { SessionGenerationResponseSchema } from "@/lib/session-generation/schema
 import { RescheduleSessionResponseSchema } from "@/lib/scheduling/schema";
 import { SessionDurationAdjustmentResponseSchema } from "@/lib/scheduling/session-adjustment-schema";
 import {
+  clearQueuedSessionCompletions,
+  flushQueuedSessionCompletions,
+  queueSessionCompletion,
+  removeQueuedSessionCompletion,
+} from "@/lib/sync/session-completion-outbox";
+import {
   TutorHistoryResponseSchema,
   TutorResponseSchema,
   type TutorMessage,
@@ -133,6 +139,7 @@ export function YovaPrototype() {
         const localAccountMatches = saved?.account?.id === cloudAccount.id;
 
         try {
+          const retryResult = await flushQueuedSessionCompletions(cloudAccount.id);
           const cloudState = await loadAuthenticatedLearningState();
           if (cancelled) return;
 
@@ -151,7 +158,9 @@ export function YovaPrototype() {
           setPlans(cloudPlans);
           setSelectedPlanId(cloudPlans.filter((plan) => plan.status === "active").at(-1)?.id ?? null);
           setSessionCompletions(cloudState?.sessionCompletions ?? []);
-          setCloudSyncIssue(null);
+          setCloudSyncIssue(retryResult.remaining > 0
+            ? `${retryResult.remaining} completed ${retryResult.remaining === 1 ? "session is" : "sessions are"} waiting to sync.`
+            : null);
 
           if (cloudPlans.some((plan) => plan.status === "active")) setStage("app");
           else if (cloudOnboardingCompleted && restoredAlphaEntered) setStage("app");
@@ -163,6 +172,12 @@ export function YovaPrototype() {
           setCloudSyncIssue(error instanceof Error ? error.message : "YOVA could not load your cloud data.");
 
           if (localAccountMatches && saved) {
+            setAnswers(saved.onboardingAnswers);
+            setOnboardingCompleted(saved.onboardingCompleted);
+            setAlphaEntered(saved.alphaEntered);
+            setPlans(saved.plans);
+            setSelectedPlanId(saved.plans.filter((plan) => plan.status === "active").at(-1)?.id ?? null);
+            setSessionCompletions(saved.sessionCompletions);
             if (saved.alphaEntered) setStage("app");
             else if (saved.onboardingCompleted) setStage("paywall");
             else setStage("onboarding-intro");
@@ -214,6 +229,17 @@ export function YovaPrototype() {
       updatedAt: new Date().toISOString(),
     });
   }, [ready, account, signedIn, answers, onboardingCompleted, alphaEntered, plans, sessionCompletions]);
+
+  useEffect(() => {
+    if (account?.identityMode !== "supabase") return;
+
+    const retryQueuedWork = () => {
+      void syncPendingCloudWork(account, answers, onboardingCompleted).then(setCloudSyncIssue);
+    };
+
+    window.addEventListener("online", retryQueuedWork);
+    return () => window.removeEventListener("online", retryQueuedWork);
+  }, [account, answers, onboardingCompleted]);
 
   useEffect(() => {
     if (!ready || !onboardingCompleted || account?.identityMode !== "supabase") return;
@@ -339,8 +365,18 @@ export function YovaPrototype() {
     setSessionCompletions((current) => [...current, completion]);
 
     if (account?.identityMode === "supabase") {
+      queueSessionCompletion({
+        userId: account.id,
+        completion,
+        actualMinutes: currentSession.estimatedMinutes,
+        adaptation,
+        queuedAt: new Date().toISOString(),
+      });
       void completeAuthenticatedPlanSession(completion, currentSession.estimatedMinutes, adaptation)
-        .then(() => setCloudSyncIssue(null))
+        .then(() => {
+          removeQueuedSessionCompletion(completion.id);
+          setCloudSyncIssue(null);
+        })
         .catch((error: unknown) => {
           setCloudSyncIssue(error instanceof Error ? error.message : "YOVA could not sync this session.");
         });
@@ -348,6 +384,7 @@ export function YovaPrototype() {
   };
 
   const resetAlphaData = () => {
+    if (account?.identityMode === "supabase") clearQueuedSessionCompletions(account.id);
     clearPreviewSnapshot();
     setAccount(null);
     setSignedIn(false);
@@ -481,6 +518,14 @@ export function YovaPrototype() {
     } : plan));
   };
 
+  const retryCloudSync = async () => {
+    if (account?.identityMode !== "supabase") return;
+
+    const issue = await syncPendingCloudWork(account, answers, onboardingCompleted);
+    setCloudSyncIssue(issue);
+    if (issue) throw new Error(issue);
+  };
+
   if (!ready) return <LoadingAccount />;
 
   if (stage === "landing") return <Landing onCreate={() => { setAccountMode("create"); setStage("account"); }} onSignIn={() => { setAccountMode("sign-in"); setStage("account"); }} />;
@@ -561,7 +606,7 @@ export function YovaPrototype() {
   }
 
   return (
-    <AppShell activeTab={activeTab} onTab={setActiveTab} account={account} cloudSyncIssue={cloudSyncIssue} onSignOut={() => {
+    <AppShell activeTab={activeTab} onTab={setActiveTab} account={account} cloudSyncIssue={cloudSyncIssue} onRetryCloudSync={retryCloudSync} onSignOut={() => {
       void signOutAuthenticatedAccount().finally(() => {
         clearPreviewSnapshot();
         setAccount(null);
@@ -583,6 +628,26 @@ export function YovaPrototype() {
       {activeTab === "You" && <YouScreen account={account} answers={answers} sessionCompletions={sessionCompletions} onAnswersChange={setAnswers} onReset={resetAlphaData} />}
     </AppShell>
   );
+}
+
+async function syncPendingCloudWork(account: PreviewAccount, answers: string[], onboardingCompleted: boolean) {
+  let profileIssue: string | null = null;
+  if (onboardingCompleted) {
+    try {
+      await saveAuthenticatedLearnerProfile({
+        displayName: account.displayName,
+        onboardingAnswers: answers,
+      });
+    } catch (error) {
+      profileIssue = error instanceof Error ? error.message : "YOVA could not sync your learning profile.";
+    }
+  }
+
+  const result = await flushQueuedSessionCompletions(account.id);
+  if (result.remaining > 0) {
+    return `${result.remaining} completed ${result.remaining === 1 ? "session is" : "sessions are"} still waiting to sync.`;
+  }
+  return profileIssue;
 }
 
 function LoadingAccount() {
@@ -691,9 +756,21 @@ function PaywallPreview({ onContinue }: { onContinue: () => void }) {
   return <main className="centered-shell dark"><BrandMark /><section className="setup-card paywall"><span className="step-label">YOVA LITE</span><h1>A study system built around you.</h1><p>Plans, method selection, guided sessions, progress memory, and adjustments based on what happens next.</p><ul className="check-list"><li><Check /> Determine what you already know</li><li><Check /> Choose methods that fit the task and your tendencies</li><li><Check /> Tell you exactly how to perform each method</li><li><Check /> Adjust the next session using your results</li></ul><button className="button primary large full" onClick={onContinue}>Continue to private alpha</button><small>Payments will be connected after the core experience is validated.</small></section></main>;
 }
 
-function AppShell({ activeTab, onTab, account, cloudSyncIssue, onSignOut, children }: { activeTab: Tab; onTab: (tab: Tab) => void; account: PreviewAccount | null; cloudSyncIssue: string | null; onSignOut: () => void; children: React.ReactNode }) {
+function AppShell({ activeTab, onTab, account, cloudSyncIssue, onRetryCloudSync, onSignOut, children }: { activeTab: Tab; onTab: (tab: Tab) => void; account: PreviewAccount | null; cloudSyncIssue: string | null; onRetryCloudSync: () => Promise<void>; onSignOut: () => void; children: React.ReactNode }) {
   const initial = account?.displayName.trim().charAt(0).toUpperCase() || "Y";
-  return <div className="app-shell"><aside className="sidebar"><BrandMark /> <nav>{navItems.map(({ label, icon: Icon }) => <button key={label} className={activeTab === label ? "active" : ""} onClick={() => onTab(label)}><Icon size={19} />{label}</button>)}</nav><div className="sidebar-bottom"><button onClick={onSignOut}><LogOut size={18} /> Sign out</button><div className="account-dot">{initial}</div><div><strong>{account?.displayName || "YOVA user"}</strong><span>{account?.identityMode === "supabase" ? "Cloud account" : "Private alpha"}</span></div></div></aside><main className="app-content">{cloudSyncIssue && <div className="cloud-sync-warning"><strong>Cloud sync needs attention.</strong><span>{cloudSyncIssue} Your latest work is still saved in this browser.</span></div>}{children}</main></div>;
+  const [retrying, setRetrying] = useState(false);
+  const retry = async () => {
+    if (retrying) return;
+    setRetrying(true);
+    try {
+      await onRetryCloudSync();
+    } catch {
+      // The parent keeps the most useful user-facing sync message visible.
+    } finally {
+      setRetrying(false);
+    }
+  };
+  return <div className="app-shell"><aside className="sidebar"><BrandMark /> <nav>{navItems.map(({ label, icon: Icon }) => <button key={label} className={activeTab === label ? "active" : ""} onClick={() => onTab(label)}><Icon size={19} />{label}</button>)}</nav><div className="sidebar-bottom"><button onClick={onSignOut}><LogOut size={18} /> Sign out</button><div className="account-dot">{initial}</div><div><strong>{account?.displayName || "YOVA user"}</strong><span>{account?.identityMode === "supabase" ? "Cloud account" : "Private alpha"}</span></div></div></aside><main className="app-content">{cloudSyncIssue && <div className="cloud-sync-warning"><strong>Cloud sync needs attention.</strong><span>{cloudSyncIssue} Your latest work is still saved in this browser.</span><button disabled={retrying} onClick={() => void retry()}>{retrying ? "Retrying…" : "Retry now"}</button></div>}{children}</main></div>;
 }
 
 function PageHeader({ eyebrow, title, description }: { eyebrow?: string; title: string; description?: string }) { return <header className="page-header">{eyebrow && <span className="step-label">{eyebrow}</span>}<h1>{title}</h1>{description && <p>{description}</p>}</header>; }

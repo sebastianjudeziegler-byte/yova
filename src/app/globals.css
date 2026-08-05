@@ -165,6 +165,9 @@ h1, h2, h3, p { margin-top: 0; }
   line-height: 1.45;
 }
 .cloud-sync-warning strong { flex: 0 0 auto; color: #6d3f00; }
+.cloud-sync-warning span { flex: 1; }
+.cloud-sync-warning button { flex: 0 0 auto; padding: 2px 0; color: #6d3f00; border: 0; border-bottom: 1px solid currentColor; background: transparent; font: inherit; font-weight: 700; }
+.cloud-sync-warning button:disabled { opacity: .55; }
 .page { width: min(100%, 1050px); margin: 0 auto; padding: 62px 52px 80px; }
 .page-header { margin-bottom: 32px; }
 .page-header h1 { margin: 10px 0 8px; font-size: 38px; }
