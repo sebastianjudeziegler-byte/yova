@@ -27,7 +27,7 @@ export async function persistPlanForAuthenticatedUser(
     })),
     studyMode: request.studyMode,
     timeZone: request.timeZone,
-    diagnosticAnswers: request.diagnosticAnswers,
+    diagnosticResponses: request.diagnosticResponses,
     availability: request.availability,
     profileSummary: request.profileSummary,
   };

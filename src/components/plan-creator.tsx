@@ -19,6 +19,7 @@ import type { LearningMaterial, LearningPlan } from "@/lib/domain";
 import { deleteUploadedMaterial, uploadMaterialFiles } from "@/lib/materials/intake";
 import {
   PlanGenerationResponseSchema,
+  type DiagnosticResponse,
   type PlanGenerationResponse,
 } from "@/lib/plan-generation/schema";
 
@@ -30,6 +31,12 @@ type AvailabilityChoice = {
   window: "Morning" | "Afternoon" | "Evening";
   minutes: number;
   enabled: boolean;
+};
+
+type DiagnosticQuestion = {
+  prompt: string;
+  options: string[];
+  correctAnswer?: string;
 };
 
 export function PlanCreator({ onExit, onFinish, profileSummary }: { onExit: () => void; onFinish: (plan: LearningPlan) => void; profileSummary: string }) {
@@ -52,6 +59,7 @@ export function PlanCreator({ onExit, onFinish, profileSummary }: { onExit: () =
     .map(({ day, window, minutes }) => ({ day, window, minutes }));
   const goalPreview = previewGoal(goal, deadlineDate);
   const diagnosticQuestions = questionsForGoal(goal);
+  const diagnosticResponses = buildDiagnosticResponses(diagnosticQuestions, diagnosticAnswers);
 
   const stepNumber = ({ goal: 1, understood: 1, materials: 2, mode: 3, schedule: 4, diagnostic: 5, confirm: 6, loading: 6, error: 6, result: 6 } as Record<PlanStep, number>)[step];
 
@@ -89,7 +97,7 @@ export function PlanCreator({ onExit, onFinish, profileSummary }: { onExit: () =
           studyMode,
           deadline: deadlineDate ? deadlineAtEndOfDay(deadlineDate) : null,
           timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
-          diagnosticAnswers,
+          diagnosticResponses,
           availability,
           profileSummary,
         }),
@@ -216,7 +224,7 @@ export function PlanCreator({ onExit, onFinish, profileSummary }: { onExit: () =
 
       {step === "confirm" && (
         <PlanPanel eyebrow="FINAL CHECK" title="Everything YOVA will use" description="Review the inputs and change anything before your plan is generated.">
-          <div className="confirmation-list"><SummaryFact label="Goal" value={goal} /><SummaryFact label="Target date" value={deadlineDate ? formatDateOnly(deadlineDate) : "No fixed deadline"} /><SummaryFact label="Starting point" value={diagnosticAnswers[diagnosticAnswers.length - 1] ?? "Starting check completed"} /><SummaryFact label="Availability" value={`${availability.length} selected ${availability.length === 1 ? "window" : "windows"}: ${availability.map((slot) => `${slot.day} ${slot.window.toLowerCase()} (${slot.minutes} min)`).join(", ")}`} /><SummaryFact label="Study mode" value={studyMode === "outside" ? "Primarily outside YOVA" : "Primarily inside YOVA"} /><SummaryFact label="Sources" value={materialMode === "upload" ? `${materials.length} ${materials.length === 1 ? "uploaded material" : "uploaded materials"}: ${materials.map((material) => material.name).join(", ")}` : "YOVA-generated content from the goal"} /><SummaryFact label="Profile considerations" value={profileSummary} /></div>
+          <div className="confirmation-list"><SummaryFact label="Goal" value={goal} /><SummaryFact label="Target date" value={deadlineDate ? formatDateOnly(deadlineDate) : "No fixed deadline"} /><SummaryFact label="Starting evidence" value={summarizeDiagnosticResponses(diagnosticResponses)} /><SummaryFact label="Availability" value={`${availability.length} selected ${availability.length === 1 ? "window" : "windows"}: ${availability.map((slot) => `${slot.day} ${slot.window.toLowerCase()} (${slot.minutes} min)`).join(", ")}`} /><SummaryFact label="Study mode" value={studyMode === "outside" ? "Primarily outside YOVA" : "Primarily inside YOVA"} /><SummaryFact label="Sources" value={materialMode === "upload" ? `${materials.length} ${materials.length === 1 ? "uploaded material" : "uploaded materials"}: ${materials.map((material) => material.name).join(", ")}` : "YOVA-generated content from the goal"} /><SummaryFact label="Profile considerations" value={profileSummary} /></div>
           <PlanActions onBack={back} onNext={() => void generatePlan()} nextLabel="Generate my plan" />
         </PlanPanel>
       )}
@@ -329,17 +337,17 @@ function formatDateOnly(value: string) {
   return new Intl.DateTimeFormat("en-US", { weekday: "long", month: "short", day: "numeric" }).format(new Date(`${value}T12:00:00`));
 }
 
-function questionsForGoal(goal: string) {
+function questionsForGoal(goal: string): DiagnosticQuestion[] {
   if (/biology|photosynthesis|cellular respiration/i.test(goal)) {
     return [
-      { prompt: "What is the main purpose of cellular respiration?", options: ["Produce ATP", "Store genetic information", "Build cell membranes", "Transport water"] },
-      { prompt: "Where does glycolysis occur?", options: ["Cytoplasm", "Mitochondrial matrix", "Nucleus", "Cell membrane"] },
+      { prompt: "What is the main purpose of cellular respiration?", options: ["Produce ATP", "Store genetic information", "Build cell membranes", "Transport water"], correctAnswer: "Produce ATP" },
+      { prompt: "Where does glycolysis occur?", options: ["Cytoplasm", "Mitochondrial matrix", "Nucleus", "Cell membrane"], correctAnswer: "Cytoplasm" },
       { prompt: "How confident are you that you could explain both processes without notes?", options: ["Not confident", "Somewhat confident", "Very confident"] },
     ];
   }
   if (/calculus|derivative|product rule|quotient rule/i.test(goal)) {
     return [
-      { prompt: "What does a derivative describe?", options: ["A rate of change", "Only the area under a curve", "A fixed intercept", "I do not know yet"] },
+      { prompt: "What does a derivative describe?", options: ["A rate of change", "Only the area under a curve", "A fixed intercept", "I do not know yet"], correctAnswer: "A rate of change" },
       { prompt: "Which practice feels least stable right now?", options: ["Power rule", "Product and quotient rules", "Chain rule", "Applications"] },
       { prompt: "How confident are you solving a derivative without an example beside you?", options: ["Not confident", "Somewhat confident", "Very confident"] },
     ];
@@ -356,4 +364,26 @@ function questionsForGoal(goal: string) {
     { prompt: "What should this plan help you do?", options: ["Understand it", "Remember it", "Apply it", "Prepare for an assessment"] },
     { prompt: "How confident are you working without guidance?", options: ["Not confident", "Somewhat confident", "Very confident"] },
   ];
+}
+
+function buildDiagnosticResponses(questions: DiagnosticQuestion[], answers: string[]): DiagnosticResponse[] {
+  return questions.flatMap((question, index) => {
+    const answer = answers[index]?.trim();
+    if (!answer) return [];
+    return [{
+      question: question.prompt,
+      answer,
+      evaluation: question.correctAnswer
+        ? answer === question.correctAnswer ? "correct" : "incorrect"
+        : "self_report",
+    }];
+  });
+}
+
+function summarizeDiagnosticResponses(responses: DiagnosticResponse[]) {
+  const checked = responses.filter((response) => response.evaluation !== "self_report");
+  const correct = checked.filter((response) => response.evaluation === "correct").length;
+  const reported = responses.filter((response) => response.evaluation === "self_report").map((response) => response.answer);
+  const knowledgeSummary = checked.length ? `${correct} of ${checked.length} knowledge checks correct` : "Self-reported starting point";
+  return reported.length ? `${knowledgeSummary} · ${reported.join(" · ")}` : knowledgeSummary;
 }

@@ -63,7 +63,7 @@ export function buildPlanGeneratorInput(request: PlanGenerationRequest) {
     execution_location: request.studyMode === "outside"
       ? "Primarily outside YOVA, with precise directions and return checks"
       : "Primarily inside YOVA with guided steps",
-    starting_check_answers: request.diagnosticAnswers,
+    starting_check_responses: request.diagnosticResponses,
     availability: request.availability,
     learner_profile_summary: request.profileSummary,
   }, null, 2);

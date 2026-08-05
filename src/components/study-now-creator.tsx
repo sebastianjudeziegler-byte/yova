@@ -91,9 +91,17 @@ export function StudyNowCreator({
           materials: sourceChoice === "materials" ? materials : [],
           studyMode: sourceChoice === "outside" ? "outside" : "inside",
           timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
-          diagnosticAnswers: [
-            `Starting point: ${startingPoint}`,
-            `The learner wants one focused session right now, lasting ${minutes} minutes.`,
+          diagnosticResponses: [
+            {
+              question: "Where are you starting with this topic?",
+              answer: startingPoint,
+              evaluation: "self_report",
+            },
+            {
+              question: "What kind of session do you want right now?",
+              answer: `One focused session lasting ${minutes} minutes`,
+              evaluation: "self_report",
+            },
           ],
           availability: [{
             day: new Intl.DateTimeFormat("en-US", { weekday: "long" }).format(now),

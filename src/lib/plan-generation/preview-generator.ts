@@ -144,8 +144,9 @@ function objectiveFor(index: number, topic: string) {
 }
 
 function reasonFor(index: number, request: PlanGenerationRequest) {
-  const answers = request.diagnosticAnswers.join(" ").toLowerCase();
-  const confidenceIsLimited = /not confident|somewhat confident|i do not know/.test(answers);
+  const answers = request.diagnosticResponses.map((response) => response.answer).join(" ").toLowerCase();
+  const hasIncorrectAnswer = request.diagnosticResponses.some((response) => response.evaluation === "incorrect");
+  const confidenceIsLimited = hasIncorrectAnswer || /not confident|somewhat confident|i do not know/.test(answers);
   const reasons = [
     confidenceIsLimited
       ? "The starting check suggests recognition is stronger than independent recall."

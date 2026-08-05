@@ -13,6 +13,12 @@ export const StoredMaterialSchema = MaterialInputSchema.extend({
   textContent: z.null(),
 });
 
+export const DiagnosticResponseSchema = z.object({
+  question: z.string().trim().min(3).max(240),
+  answer: z.string().trim().min(1).max(160),
+  evaluation: z.enum(["correct", "incorrect", "self_report"]),
+});
+
 export const PlanGenerationRequestSchema = z.object({
   intent: z.enum(["plan", "study_now"]).default("plan"),
   goal: z.string().trim().min(10).max(600),
@@ -28,7 +34,7 @@ export const PlanGenerationRequestSchema = z.object({
       return false;
     }
   }, "Use a valid time zone."),
-  diagnosticAnswers: z.array(z.string().trim().min(1).max(160)).min(1).max(12),
+  diagnosticResponses: z.array(DiagnosticResponseSchema).min(1).max(12),
   availability: z.array(z.object({
     day: z.string().trim().min(1).max(20),
     window: z.string().trim().min(1).max(40),
@@ -103,5 +109,6 @@ export const PlanGenerationResponseSchema = z.object({
 });
 
 export type PlanGenerationRequest = z.infer<typeof PlanGenerationRequestSchema>;
+export type DiagnosticResponse = z.infer<typeof DiagnosticResponseSchema>;
 export type GeneratedPlanDraft = z.infer<typeof GeneratedPlanDraftSchema>;
 export type PlanGenerationResponse = z.infer<typeof PlanGenerationResponseSchema>;
