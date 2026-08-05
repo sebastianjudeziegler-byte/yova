@@ -260,6 +260,11 @@ h1, h2, h3, p { margin-top: 0; }
 .learning-history-summary span { color: var(--muted); font-size: 11px; }
 .learning-history-summary strong { margin-top: 7px; }
 .plan-sources { padding: 20px 24px; }
+.source-heading-actions { display: flex; align-items: center; gap: 10px; }
+.source-heading-actions > span { color: var(--muted); font-size: 12px; }
+.button.source-upload { padding: 8px 10px; color: var(--blue); border: 1px solid #c9d5ff; background: white; font-size: 12px; cursor: pointer; }
+.button.source-upload.disabled { cursor: wait; opacity: .62; }
+.source-upload input { position: absolute; width: 1px; height: 1px; overflow: hidden; opacity: 0; pointer-events: none; }
 .source-material-list { display: grid; }
 .source-material-list > div { padding: 12px 0; display: grid; grid-template-columns: 28px 1fr auto; align-items: center; gap: 10px; border-top: 1px solid #eef0f4; }
 .source-material-list > div:first-child { border-top: 0; }
@@ -273,6 +278,7 @@ h1, h2, h3, p { margin-top: 0; }
 .source-empty svg { flex: 0 0 auto; color: var(--blue); }
 .source-created p,
 .source-empty p { margin: 4px 0 0; color: var(--muted); font-size: 12px; line-height: 1.55; }
+.source-limit { margin: 12px 0 0; color: var(--muted); font-size: 11px; }
 .progress-line { width: 290px; max-width: 100%; height: 5px; margin: 18px 0 8px; background: rgba(255,255,255,.12); border-radius: 10px; }
 .progress-line div { height: 100%; background: var(--blue); border-radius: 10px; }
 .timeline { display: grid; }
@@ -769,6 +775,8 @@ h1, h2, h3, p { margin-top: 0; }
   .hero-card h1 { font-size: 50px; }
   .hero-actions, .rec-body, .learning-hero { align-items: stretch; flex-direction: column; }
   .learning-hero-actions { align-items: stretch; flex-direction: column; }
+  .plan-sources .section-title,
+  .source-heading-actions { align-items: flex-start; flex-direction: column; gap: 8px; }
   .plan-adjustment-grid, .adjustment-mode > div { grid-template-columns: 1fr; }
   .how-yova-works { margin-top: 52px; padding: 0 4px; }
   .how-steps { grid-template-columns: 1fr; }

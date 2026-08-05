@@ -25,6 +25,7 @@ import {
   Sparkles,
   Target,
   Trash2,
+  Upload,
 } from "lucide-react";
 import { BrandMark } from "@/components/brand-mark";
 import { PlanCreator } from "@/components/plan-creator";
@@ -37,6 +38,8 @@ import { buildNextSessionAdaptation } from "@/lib/personalization/session-adapta
 import { onboardingQuestions } from "@/lib/sample-data";
 import { PlanAdjustmentResponseSchema, type PlanAdjustmentRequest } from "@/lib/learning/adjustment-schema";
 import { PlanArchiveResponseSchema } from "@/lib/learning/status-schema";
+import { MaterialAttachmentResponseSchema } from "@/lib/materials/attachment-schema";
+import { deleteUploadedMaterial, uploadMaterialFiles } from "@/lib/materials/intake";
 import {
   completeAuthenticatedPlanSession,
   loadAuthenticatedLearningState,
@@ -425,6 +428,28 @@ export function YovaPrototype() {
     }));
   };
 
+  const attachMaterials = async (planId: string, materialIds: string[]) => {
+    const response = await fetch("/api/materials/attach", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ planId, materialIds }),
+    });
+    const body: unknown = await response.json();
+    if (!response.ok) {
+      const message = typeof body === "object" && body && "error" in body && typeof body.error === "string"
+        ? body.error
+        : "YOVA could not attach those materials.";
+      throw new Error(message);
+    }
+    const parsed = MaterialAttachmentResponseSchema.safeParse(body);
+    if (!parsed.success) throw new Error("The attached materials came back in an unsafe format.");
+    setPlans((current) => current.map((plan) => plan.id === parsed.data.planId ? {
+      ...plan,
+      sourceMode: parsed.data.sourceMode,
+      materials: parsed.data.materials,
+    } : plan));
+  };
+
   if (!ready) return <LoadingAccount />;
 
   if (stage === "landing") return <Landing onCreate={() => { setAccountMode("create"); setStage("account"); }} onSignIn={() => { setAccountMode("sign-in"); setStage("account"); }} />;
@@ -521,7 +546,7 @@ export function YovaPrototype() {
       });
     }}>
       {activeTab === "Home" && <HomeScreen account={account} plans={activePlans} plan={recommendedPlan} tutorQuestion={tutorQuestion} onTutorQuestion={setTutorQuestion} onOpenTutor={() => setActiveTab("Ask YOVA")} onStart={() => void startSession(recommendedPlan?.id)} onOpenPlan={(planId) => { setSelectedPlanId(planId); setActiveTab("Learning"); }} onCreatePlan={() => setStage("plan-creator")} onStudyNow={() => setStage("study-now")} />}
-      {activeTab === "Learning" && <LearningScreen plans={plans} selectedPlanId={selectedPlanId} sessionCompletions={sessionCompletions} onSelectPlan={setSelectedPlanId} onStart={(planId) => void startSession(planId)} onCreatePlan={() => setStage("plan-creator")} onArchiveStateChange={changePlanArchiveState} onAdjustPlan={adjustPlan} />}
+      {activeTab === "Learning" && <LearningScreen plans={plans} selectedPlanId={selectedPlanId} sessionCompletions={sessionCompletions} onSelectPlan={setSelectedPlanId} onStart={(planId) => void startSession(planId)} onCreatePlan={() => setStage("plan-creator")} onArchiveStateChange={changePlanArchiveState} onAdjustPlan={adjustPlan} onAttachMaterials={attachMaterials} />}
       {activeTab === "Agenda" && <AgendaScreen plans={activePlans} onStart={(planId) => void startSession(planId)} onReschedule={rescheduleSession} />}
       {activeTab === "Ask YOVA" && <AskScreen key={activePlan?.id ?? "general"} plan={activePlan} question={tutorQuestion} onQuestion={setTutorQuestion} />}
       {activeTab === "You" && <YouScreen account={account} answers={answers} sessionCompletions={sessionCompletions} onAnswersChange={setAnswers} onReset={resetAlphaData} />}
@@ -719,7 +744,7 @@ function AskBar({ value, onChange, onSubmit, pending = false }: { value: string;
   return <form className="ask-bar" onSubmit={(event) => { event.preventDefault(); if (value.trim() && !pending) onSubmit(); }}><Sparkles size={20} /><input aria-label="Ask YOVA" placeholder="Ask YOVA anything or describe what you need…" value={value} disabled={pending} onChange={(event) => onChange(event.target.value)} /><button aria-label="Send" type="submit" disabled={!value.trim() || pending}>{pending ? <span className="button-spinner" /> : <Send size={18} />}</button></form>;
 }
 
-function LearningScreen({ plans, selectedPlanId, sessionCompletions, onSelectPlan, onStart, onCreatePlan, onArchiveStateChange, onAdjustPlan }: { plans: LearningPlan[]; selectedPlanId: string | null; sessionCompletions: SessionCompletion[]; onSelectPlan: (planId: string) => void; onStart: (planId: string) => void; onCreatePlan: () => void; onArchiveStateChange: (planId: string, action: "archive" | "restore") => Promise<LearningPlan["status"]>; onAdjustPlan: (input: PlanAdjustmentRequest) => Promise<void> }) {
+function LearningScreen({ plans, selectedPlanId, sessionCompletions, onSelectPlan, onStart, onCreatePlan, onArchiveStateChange, onAdjustPlan, onAttachMaterials }: { plans: LearningPlan[]; selectedPlanId: string | null; sessionCompletions: SessionCompletion[]; onSelectPlan: (planId: string) => void; onStart: (planId: string) => void; onCreatePlan: () => void; onArchiveStateChange: (planId: string, action: "archive" | "restore") => Promise<LearningPlan["status"]>; onAdjustPlan: (input: PlanAdjustmentRequest) => Promise<void>; onAttachMaterials: (planId: string, materialIds: string[]) => Promise<void> }) {
   const [view, setView] = useState<"active" | "recent" | "archive">("active");
   const [browsedPlanId, setBrowsedPlanId] = useState<string | null>(null);
   const [changingPlanId, setChangingPlanId] = useState<string | null>(null);
@@ -765,11 +790,11 @@ function LearningScreen({ plans, selectedPlanId, sessionCompletions, onSelectPla
       <button className={view === "archive" ? "active" : ""} onClick={() => { setView("archive"); setBrowsedPlanId(null); }}>Archive</button>
     </div>
     {statusError && <div className="chat-error"><AlertCircle size={16} /><span>{statusError}</span></div>}
-    {!plan ? <section className="empty-home"><h2>{viewLabels[view].empty}</h2><p>{viewLabels[view].description}</p>{view === "active" && <div className="empty-home-actions"><button className="button primary" onClick={onCreatePlan}>Create a plan</button></div>}</section> : <LearningPlanDetail plan={plan} plans={visiblePlans} view={view} completions={sessionCompletions.filter((completion) => completion.planId === plan.id)} changingStatus={changingPlanId === plan.id} onSelectPlan={selectPlan} onStart={() => onStart(plan.id)} onArchiveStateChange={(action) => void changeArchiveState(plan.id, action)} onAdjustPlan={onAdjustPlan} />}
+    {!plan ? <section className="empty-home"><h2>{viewLabels[view].empty}</h2><p>{viewLabels[view].description}</p>{view === "active" && <div className="empty-home-actions"><button className="button primary" onClick={onCreatePlan}>Create a plan</button></div>}</section> : <LearningPlanDetail plan={plan} plans={visiblePlans} view={view} completions={sessionCompletions.filter((completion) => completion.planId === plan.id)} changingStatus={changingPlanId === plan.id} onSelectPlan={selectPlan} onStart={() => onStart(plan.id)} onArchiveStateChange={(action) => void changeArchiveState(plan.id, action)} onAdjustPlan={onAdjustPlan} onAttachMaterials={onAttachMaterials} />}
   </div>;
 }
 
-function LearningPlanDetail({ plan, plans, view, completions, changingStatus, onSelectPlan, onStart, onArchiveStateChange, onAdjustPlan }: { plan: LearningPlan; plans: LearningPlan[]; view: "active" | "recent" | "archive"; completions: SessionCompletion[]; changingStatus: boolean; onSelectPlan: (planId: string) => void; onStart: () => void; onArchiveStateChange: (action: "archive" | "restore") => void; onAdjustPlan: (input: PlanAdjustmentRequest) => Promise<void> }) {
+function LearningPlanDetail({ plan, plans, view, completions, changingStatus, onSelectPlan, onStart, onArchiveStateChange, onAdjustPlan, onAttachMaterials }: { plan: LearningPlan; plans: LearningPlan[]; view: "active" | "recent" | "archive"; completions: SessionCompletion[]; changingStatus: boolean; onSelectPlan: (planId: string) => void; onStart: () => void; onArchiveStateChange: (action: "archive" | "restore") => void; onAdjustPlan: (input: PlanAdjustmentRequest) => Promise<void>; onAttachMaterials: (planId: string, materialIds: string[]) => Promise<void> }) {
   const [showAdjustments, setShowAdjustments] = useState(false);
   const completeCount = plan.sessions.filter((session) => session.status === "complete").length;
   const readySession = plan.sessions.find((session) => session.status === "ready");
@@ -782,9 +807,36 @@ function LearningPlanDetail({ plan, plans, view, completions, changingStatus, on
     <section className="learning-hero"><div><span className="subject-label">{plan.kind.toUpperCase()} · {formatPlanDeadline(plan.deadline)}</span><h2>{plan.title}</h2><p>{plan.topic}</p><div className="progress-line"><div style={{ width: `${(completeCount / plan.sessions.length) * 100}%` }} /></div><small>{completeCount} of {plan.sessions.length} sessions complete</small></div><div className="learning-hero-actions">{view === "active" && readySession && <button className="button primary" onClick={onStart}>Start next session</button>}{view === "active" && <button className="button hero-secondary" onClick={() => setShowAdjustments((value) => !value)}><Settings2 size={16} /> {showAdjustments ? "Close" : "Adjust"}</button>}<button className="button hero-secondary" disabled={changingStatus} onClick={() => onArchiveStateChange(view === "archive" ? "restore" : "archive")}>{changingStatus ? <span className="button-spinner" /> : view === "archive" ? <><RotateCcw size={16} /> Restore</> : <><Archive size={16} /> Archive</>}</button></div></section>
     {view === "active" && showAdjustments && <PlanAdjustmentPanel plan={plan} onCancel={() => setShowAdjustments(false)} onSave={async (input) => { await onAdjustPlan(input); setShowAdjustments(false); }} />}
     {view === "recent" && <section className="learning-history-summary"><div><span>Completed</span><strong>{formatCompletionDate(completions.at(-1)?.completedAt ?? plan.createdAt)}</strong></div><div><span>Knowledge-check accuracy</span><strong>{accuracy}</strong></div><div><span>Last session felt</span><strong>{formatFeedback(completions.at(-1)?.feedback)}</strong></div></section>}
-    <section className="section-block plan-sources"><div className="section-title"><h3>Learning source</h3><span>{plan.sourceMode === "user_materials" ? `${plan.materials?.length ?? 0} uploaded` : "Created by YOVA"}</span></div>{plan.sourceMode === "user_materials" ? <>{plan.materials?.length ? <div className="source-material-list">{plan.materials.map((material) => <div key={material.id}><FileText size={18} /><span><strong>{material.name}</strong><small>{formatFileSize(material.sizeBytes)} · Private source for this goal</small></span><span className="data-badge">Ready</span></div>)}</div> : <div className="source-empty"><AlertCircle size={17} /><p>This goal expects uploaded sources, but their metadata could not be loaded. Guided sessions will stop rather than silently inventing source content.</p></div>}</> : <div className="source-created"><Sparkles size={18} /><div><strong>YOVA-generated learning content</strong><p>Explanations, questions, and practice are created from the goal instead of an uploaded document.</p></div></div>}</section>
+    <PlanSources plan={plan} editable={view === "active"} onAttach={onAttachMaterials} />
     <section className="section-block"><div className="section-title"><h3>{view === "recent" ? "What you completed" : "Plan timeline"}</h3><span>{plan.sourceMode === "user_materials" ? "Your materials" : "YOVA-created content"}</span></div><div className="timeline">{plan.sessions.map((session) => <div className={`timeline-row ${session.status}`} key={session.id}><span className="timeline-node">{session.status === "complete" ? <Check size={15} /> : null}</span><div><strong>{session.title}</strong><small>{session.method} · {formatSessionTime(session.scheduledFor)}</small></div><span>{session.estimatedMinutes} min</span></div>)}</div></section>
   </>;
+}
+
+function PlanSources({ plan, editable, onAttach }: { plan: LearningPlan; editable: boolean; onAttach: (planId: string, materialIds: string[]) => Promise<void> }) {
+  const [adding, setAdding] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const materials = plan.materials ?? [];
+  const atLimit = materials.length >= 5;
+
+  const addFiles = async (files: FileList | null) => {
+    if (!files?.length || adding) return;
+    setAdding(true);
+    setError(null);
+    const { accepted, errors } = await uploadMaterialFiles(Array.from(files), materials);
+
+    if (accepted.length) {
+      try {
+        await onAttach(plan.id, accepted.map((material) => material.id));
+      } catch (attachError) {
+        await Promise.allSettled(accepted.map((material) => deleteUploadedMaterial(material.id)));
+        setError(attachError instanceof Error ? attachError.message : "YOVA could not attach those materials.");
+      }
+    }
+    if (errors.length) setError(errors[0]);
+    setAdding(false);
+  };
+
+  return <section className="section-block plan-sources"><div className="section-title"><h3>Learning source</h3><div className="source-heading-actions"><span>{plan.sourceMode === "user_materials" ? `${materials.length} uploaded` : "Created by YOVA"}</span>{editable && !atLimit && <label className={`button source-upload ${adding ? "disabled" : ""}`}><Upload size={15} /> {adding ? "Processing…" : "Add sources"}<input aria-label="Add source materials" type="file" multiple accept=".pdf,.txt,.md,text/plain,text/markdown,application/pdf" disabled={adding} onChange={(event) => { void addFiles(event.target.files); event.target.value = ""; }} /></label>}</div></div>{materials.length ? <div className="source-material-list">{materials.map((material) => <div key={material.id}><FileText size={18} /><span><strong>{material.name}</strong><small>{formatFileSize(material.sizeBytes)} · Private source for this goal</small></span><span className="data-badge">Ready</span></div>)}</div> : plan.sourceMode === "user_materials" ? <div className="source-empty"><AlertCircle size={17} /><p>This goal expects uploaded sources, but their metadata could not be loaded. Guided sessions will stop rather than silently inventing source content.</p></div> : <div className="source-created"><Sparkles size={18} /><div><strong>YOVA-generated learning content</strong><p>Explanations, questions, and practice are created from the goal. You can add private source files later.</p></div></div>}{atLimit && editable && <p className="source-limit">This goal has reached the five-material limit for the private alpha.</p>}{error && <div className="chat-error"><AlertCircle size={16} /><span>{error}</span></div>}</section>;
 }
 
 function PlanAdjustmentPanel({ plan, onCancel, onSave }: { plan: LearningPlan; onCancel: () => void; onSave: (input: PlanAdjustmentRequest) => Promise<void> }) {
