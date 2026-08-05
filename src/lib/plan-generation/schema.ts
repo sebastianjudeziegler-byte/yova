@@ -19,6 +19,7 @@ export const PlanGenerationRequestSchema = z.object({
   materialMode: z.enum(["upload", "none"]),
   materials: z.array(MaterialInputSchema).max(5),
   studyMode: z.enum(["inside", "outside"]),
+  deadline: z.string().datetime({ offset: true }).nullable().default(null),
   timeZone: z.string().trim().min(1).max(80).refine((value) => {
     try {
       new Intl.DateTimeFormat("en-US", { timeZone: value }).format();

@@ -12,6 +12,7 @@ Success criteria:
 - start with retrieval or assessment when the learner is already reviewing
 - make every method choice explainable in plain language
 - fit sessions inside the supplied availability
+- when a learner-supplied deadline exists, schedule every session no later than that deadline
 - return only the structured plan requested by the schema
 
 Intent rules:
@@ -54,6 +55,7 @@ export function buildPlanGeneratorInput(request: PlanGenerationRequest) {
     plan_intent: request.intent,
     learner_time_zone: request.timeZone,
     learner_goal: request.goal,
+    learner_supplied_deadline: request.deadline,
     content_source: request.materialMode === "upload"
       ? "Uploaded learner materials"
       : "YOVA-generated learning content",

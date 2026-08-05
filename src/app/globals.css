@@ -558,7 +558,7 @@ h1, h2, h3, p { margin-top: 0; }
 .deadline-card span,
 .deadline-card strong { display: block; }
 .deadline-card span { margin-bottom: 3px; color: var(--muted); font-size: 11px; }
-.deadline-card button { padding: 7px 10px; color: var(--blue); border: 0; background: transparent; font-weight: 600; }
+.deadline-card input { min-height: 40px; padding: 0 10px; color: var(--text); border: 1px solid var(--border); border-radius: 8px; background: white; font: inherit; }
 .availability-list { margin-top: 13px; display: grid; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; background: white; }
 .availability-list > div {
   min-height: 50px;
@@ -572,6 +572,14 @@ h1, h2, h3, p { margin-top: 0; }
 .availability-list > div:first-child { border-top: 0; }
 .availability-list svg { width: 18px; height: 18px; padding: 3px; color: white; background: var(--success); border-radius: 50%; }
 .availability-list span { color: var(--muted); font-size: 12px; }
+.availability-list.editable > div { grid-template-columns: 24px minmax(95px,1fr) minmax(105px,1fr) 90px; }
+.availability-list.editable > div:not(.enabled) { background: #fafbfc; opacity: .62; }
+.availability-list.editable strong,
+.availability-list.editable small { display: block; }
+.availability-list.editable small { margin-top: 2px; color: var(--muted); font-size: 10px; }
+.availability-toggle { width: 19px; height: 19px; padding: 0; display: grid; place-items: center; color: white; border: 1px solid #bdc5d1; border-radius: 50%; background: white; }
+.availability-list .enabled .availability-toggle { border-color: var(--success); background: var(--success); }
+.availability-list.editable select { width: 100%; min-height: 36px; padding: 0 7px; color: var(--text); border: 1px solid var(--border); border-radius: 7px; background: white; font: inherit; font-size: 12px; }
 .plain-note { margin: 13px 0 0; color: var(--muted); font-size: 12px; line-height: 1.55; }
 .diagnostic-options { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; }
 .diagnostic-options button {
@@ -754,6 +762,8 @@ h1, h2, h3, p { margin-top: 0; }
   .understood-grid, .confirmation-list, .choice-cards, .mode-cards, .mode-cards.three-up, .diagnostic-options, .study-now-options, .study-now-options.compact { grid-template-columns: 1fr; }
   .choice-cards > button, .mode-cards > button { min-height: 105px; }
   .availability-list > div { grid-template-columns: 22px 1fr auto; padding: 10px 12px; }
+  .availability-list.editable > div { grid-template-columns: 22px 1fr; }
+  .availability-list.editable select { grid-column: 2; }
   .availability-list > div span:first-of-type { grid-column: 2; }
   .plan-loading { margin-top: 74px; }
   .generated-heading { padding: 27px 22px; }

@@ -84,7 +84,7 @@ const METHODS = [
 
 export function generatePreviewPlan(request: PlanGenerationRequest): LearningPlan {
   const subject = SUBJECTS.find(({ matches }) => matches.test(request.goal))?.subject ?? DEFAULT_SUBJECT;
-  const deadline = inferDeadline(request.goal);
+  const deadline = request.deadline ? new Date(request.deadline) : inferDeadline(request.goal);
   const sessionTitles = request.intent === "study_now"
     ? [studyNowTitle(subject)]
     : subject.sessionTitles;

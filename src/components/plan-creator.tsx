@@ -24,12 +24,13 @@ import {
 
 type PlanStep = "goal" | "understood" | "materials" | "mode" | "schedule" | "diagnostic" | "confirm" | "loading" | "error" | "result";
 
-const availability = [
-  { day: "Monday", window: "Afternoon", minutes: 30 },
-  { day: "Tuesday", window: "Evening", minutes: 30 },
-  { day: "Wednesday", window: "Afternoon", minutes: 45 },
-  { day: "Thursday", window: "Evening", minutes: 30 },
-];
+type AvailabilityChoice = {
+  day: string;
+  dateLabel: string;
+  window: "Morning" | "Afternoon" | "Evening";
+  minutes: number;
+  enabled: boolean;
+};
 
 export function PlanCreator({ onExit, onFinish, profileSummary }: { onExit: () => void; onFinish: (plan: LearningPlan) => void; profileSummary: string }) {
   const [step, setStep] = useState<PlanStep>("goal");
@@ -40,11 +41,16 @@ export function PlanCreator({ onExit, onFinish, profileSummary }: { onExit: () =
   const [processingMaterials, setProcessingMaterials] = useState(false);
   const [removingMaterialId, setRemovingMaterialId] = useState<string | null>(null);
   const [studyMode, setStudyMode] = useState<"inside" | "outside" | null>(null);
+  const [deadlineDate, setDeadlineDate] = useState("");
+  const [availabilityChoices, setAvailabilityChoices] = useState<AvailabilityChoice[]>(() => defaultAvailability(profileSummary));
   const [diagnosticIndex, setDiagnosticIndex] = useState(0);
   const [diagnosticAnswers, setDiagnosticAnswers] = useState<string[]>([]);
   const [generatedPlan, setGeneratedPlan] = useState<PlanGenerationResponse | null>(null);
   const [generationError, setGenerationError] = useState<string | null>(null);
-  const goalPreview = previewGoal(goal);
+  const availability = availabilityChoices
+    .filter((choice) => choice.enabled)
+    .map(({ day, window, minutes }) => ({ day, window, minutes }));
+  const goalPreview = previewGoal(goal, deadlineDate);
   const diagnosticQuestions = questionsForGoal(goal);
 
   const stepNumber = ({ goal: 1, understood: 1, materials: 2, mode: 3, schedule: 4, diagnostic: 5, confirm: 6, loading: 6, error: 6, result: 6 } as Record<PlanStep, number>)[step];
@@ -81,6 +87,7 @@ export function PlanCreator({ onExit, onFinish, profileSummary }: { onExit: () =
           materialMode,
           materials: materialMode === "upload" ? materials : [],
           studyMode,
+          deadline: deadlineDate ? deadlineAtEndOfDay(deadlineDate) : null,
           timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
           diagnosticAnswers,
           availability,
@@ -187,16 +194,16 @@ export function PlanCreator({ onExit, onFinish, profileSummary }: { onExit: () =
             <button className={studyMode === "inside" ? "selected" : ""} onClick={() => setStudyMode("inside")}><BookOpen /><span><strong>Study inside YOVA</strong><small>YOVA teaches, quizzes, and guides each step.</small></span>{studyMode === "inside" && <Check />}</button>
             <button className={studyMode === "outside" ? "selected" : ""} onClick={() => setStudyMode("outside")}><Layers3 /><span><strong>Study outside YOVA</strong><small>YOVA selects the method and gives exact instructions for using books, notes, or another course.</small></span>{studyMode === "outside" && <Check />}</button>
           </div>
-          <PlanActions onBack={back} onNext={() => setStep("schedule")} nextDisabled={!studyMode} />
+          <PlanActions onBack={back} onNext={() => { if (!deadlineDate) setDeadlineDate(deadlineDateFromGoal(goal)); setStep("schedule"); }} nextDisabled={!studyMode} />
         </PlanPanel>
       )}
 
       {step === "schedule" && (
         <PlanPanel eyebrow="DEADLINE AND AVAILABILITY" title="When can you realistically study?" description="Broad windows are enough. YOVA does not need control of the student’s calendar.">
-          <div className="deadline-card"><CalendarDays /><div><span>{goalPreview.hasDeadline ? "Target date" : "Timeframe"}</span><strong>{goalPreview.deadline}</strong></div><button>Edit</button></div>
-          <div className="availability-list">{availability.map(({ day, window, minutes }) => <div key={day}><Check /><strong>{day}</strong><span>{window}</span><span>{minutes} min</span></div>)}</div>
-          <p className="plain-note">YOVA used your afternoon preference and usual 20–30-minute session length. You can change any window.</p>
-          <PlanActions onBack={back} onNext={() => setStep("diagnostic")} />
+          <label className="deadline-card"><CalendarDays /><div><span>Target date · optional</span><strong>{deadlineDate ? formatDateOnly(deadlineDate) : "No fixed deadline"}</strong></div><input type="date" min={todayDateInput()} value={deadlineDate} onChange={(event) => setDeadlineDate(event.target.value)} /></label>
+          <div className="availability-list editable">{availabilityChoices.map((choice, index) => <div className={choice.enabled ? "enabled" : ""} key={`${choice.day}-${choice.dateLabel}`}><button className="availability-toggle" type="button" aria-label={`${choice.enabled ? "Remove" : "Add"} ${choice.day}`} aria-pressed={choice.enabled} onClick={() => setAvailabilityChoices((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, enabled: !item.enabled } : item))}>{choice.enabled && <Check size={14} />}</button><div><strong>{choice.day}</strong><small>{choice.dateLabel}</small></div><select aria-label={`${choice.day} time window`} value={choice.window} disabled={!choice.enabled} onChange={(event) => setAvailabilityChoices((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, window: event.target.value as AvailabilityChoice["window"] } : item))}><option>Morning</option><option>Afternoon</option><option>Evening</option></select><select aria-label={`${choice.day} available minutes`} value={choice.minutes} disabled={!choice.enabled} onChange={(event) => setAvailabilityChoices((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, minutes: Number(event.target.value) } : item))}><option value={15}>15 min</option><option value={25}>25 min</option><option value={30}>30 min</option><option value={45}>45 min</option><option value={60}>60 min</option></select></div>)}</div>
+          <p className="plain-note">Select at least one realistic window. YOVA uses these limits when deciding how much work belongs in each session.</p>
+          <PlanActions onBack={back} onNext={() => setStep("diagnostic")} nextDisabled={availability.length === 0} />
         </PlanPanel>
       )}
 
@@ -209,7 +216,7 @@ export function PlanCreator({ onExit, onFinish, profileSummary }: { onExit: () =
 
       {step === "confirm" && (
         <PlanPanel eyebrow="FINAL CHECK" title="Everything YOVA will use" description="Review the inputs and change anything before your plan is generated.">
-          <div className="confirmation-list"><SummaryFact label="Goal" value={goal} /><SummaryFact label="Starting point" value={diagnosticAnswers[diagnosticAnswers.length - 1] ?? "Starting check completed"} /><SummaryFact label="Availability" value="Four realistic study windows" /><SummaryFact label="Study mode" value={studyMode === "outside" ? "Primarily outside YOVA" : "Primarily inside YOVA"} /><SummaryFact label="Sources" value={materialMode === "upload" ? `${materials.length} ${materials.length === 1 ? "uploaded material" : "uploaded materials"}: ${materials.map((material) => material.name).join(", ")}` : "YOVA-generated content from the goal"} /><SummaryFact label="Profile considerations" value="Clear structure, examples first, shorter activity blocks" /></div>
+          <div className="confirmation-list"><SummaryFact label="Goal" value={goal} /><SummaryFact label="Target date" value={deadlineDate ? formatDateOnly(deadlineDate) : "No fixed deadline"} /><SummaryFact label="Starting point" value={diagnosticAnswers[diagnosticAnswers.length - 1] ?? "Starting check completed"} /><SummaryFact label="Availability" value={`${availability.length} selected ${availability.length === 1 ? "window" : "windows"}: ${availability.map((slot) => `${slot.day} ${slot.window.toLowerCase()} (${slot.minutes} min)`).join(", ")}`} /><SummaryFact label="Study mode" value={studyMode === "outside" ? "Primarily outside YOVA" : "Primarily inside YOVA"} /><SummaryFact label="Sources" value={materialMode === "upload" ? `${materials.length} ${materials.length === 1 ? "uploaded material" : "uploaded materials"}: ${materials.map((material) => material.name).join(", ")}` : "YOVA-generated content from the goal"} /><SummaryFact label="Profile considerations" value={profileSummary} /></div>
           <PlanActions onBack={back} onNext={() => void generatePlan()} nextLabel="Generate my plan" />
         </PlanPanel>
       )}
@@ -260,17 +267,66 @@ function formatSessionDate(value: string) {
   }).format(new Date(value));
 }
 
-function previewGoal(goal: string) {
+function previewGoal(goal: string, deadlineDate: string) {
+  const suppliedDeadline = deadlineDate ? formatDateOnly(deadlineDate) : null;
   if (/biology|photosynthesis|cellular respiration/i.test(goal)) {
-    return { title: "AP Biology Unit 3", topic: "Photosynthesis and cellular respiration", task: "Concept learning and mixed assessment review", deadline: "Next Friday", hasDeadline: true };
+    return { title: "AP Biology Unit 3", topic: "Photosynthesis and cellular respiration", task: "Concept learning and mixed assessment review", deadline: suppliedDeadline ?? (/next friday/i.test(goal) ? "Next Friday" : "Confirm during scheduling"), hasDeadline: Boolean(suppliedDeadline || /test|exam|quiz|friday|tomorrow/i.test(goal)) };
   }
   if (/calculus|derivative|product rule|quotient rule/i.test(goal)) {
-    return { title: "Calculus: Derivatives", topic: "Derivative rules and applied problem solving", task: "Worked examples followed by independent practice", deadline: /test|exam|quiz|friday/i.test(goal) ? "Inferred from your request" : "Flexible", hasDeadline: /test|exam|quiz|friday/i.test(goal) };
+    return { title: "Calculus: Derivatives", topic: "Derivative rules and applied problem solving", task: "Worked examples followed by independent practice", deadline: suppliedDeadline ?? (/test|exam|quiz|friday|tomorrow/i.test(goal) ? "Confirm during scheduling" : "Flexible"), hasDeadline: Boolean(suppliedDeadline || /test|exam|quiz|friday|tomorrow/i.test(goal)) };
   }
   if (/finance|investing|budget|credit|interest/i.test(goal)) {
-    return { title: "Personal Finance Fundamentals", topic: "Practical finance concepts and decisions", task: "Concept learning followed by realistic scenarios", deadline: "Flexible", hasDeadline: false };
+    return { title: "Personal Finance Fundamentals", topic: "Practical finance concepts and decisions", task: "Concept learning followed by realistic scenarios", deadline: suppliedDeadline ?? "Flexible", hasDeadline: Boolean(suppliedDeadline) };
   }
-  return { title: "Your learning goal", topic: "YOVA will organize the concepts during generation", task: "Understanding, retrieval, and applied practice", deadline: /test|exam|quiz|deadline/i.test(goal) ? "Inferred from your request" : "Flexible", hasDeadline: /test|exam|quiz|deadline/i.test(goal) };
+  return { title: "Your learning goal", topic: "YOVA will organize the concepts during generation", task: "Understanding, retrieval, and applied practice", deadline: suppliedDeadline ?? (/test|exam|quiz|deadline|friday|tomorrow/i.test(goal) ? "Confirm during scheduling" : "Flexible"), hasDeadline: Boolean(suppliedDeadline || /test|exam|quiz|deadline|friday|tomorrow/i.test(goal)) };
+}
+
+function defaultAvailability(profileSummary: string): AvailabilityChoice[] {
+  const preferredWindow: AvailabilityChoice["window"] = /morning/i.test(profileSummary)
+    ? "Morning"
+    : /evening|late night/i.test(profileSummary)
+      ? "Evening"
+      : "Afternoon";
+  const sessionRange = profileSummary.match(/(10|20|30|45)[–-](15|30|45|60) minutes/i);
+  const preferredMinutes = sessionRange ? Number(sessionRange[2]) : 30;
+
+  return Array.from({ length: 5 }, (_, index) => {
+    const date = new Date();
+    date.setDate(date.getDate() + index);
+    return {
+      day: new Intl.DateTimeFormat("en-US", { weekday: "long" }).format(date),
+      dateLabel: new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(date),
+      window: preferredWindow,
+      minutes: preferredMinutes,
+      enabled: index < 4,
+    };
+  });
+}
+
+function todayDateInput() {
+  const date = new Date();
+  const offset = date.getTimezoneOffset();
+  return new Date(date.getTime() - offset * 60_000).toISOString().slice(0, 10);
+}
+
+function deadlineDateFromGoal(goal: string) {
+  const date = new Date();
+  if (/tomorrow/i.test(goal)) date.setDate(date.getDate() + 1);
+  else if (/next friday|\bfriday\b/i.test(goal)) {
+    const daysUntilFriday = (5 - date.getDay() + 7) % 7 || 7;
+    date.setDate(date.getDate() + daysUntilFriday);
+  } else return "";
+
+  const offset = date.getTimezoneOffset();
+  return new Date(date.getTime() - offset * 60_000).toISOString().slice(0, 10);
+}
+
+function deadlineAtEndOfDay(value: string) {
+  return new Date(`${value}T23:59:00`).toISOString();
+}
+
+function formatDateOnly(value: string) {
+  return new Intl.DateTimeFormat("en-US", { weekday: "long", month: "short", day: "numeric" }).format(new Date(`${value}T12:00:00`));
 }
 
 function questionsForGoal(goal: string) {
