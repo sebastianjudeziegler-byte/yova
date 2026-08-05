@@ -114,6 +114,14 @@ export async function POST(request: Request) {
     if (itemError || attemptsResult.error || materialsError) throw itemError ?? attemptsResult.error ?? materialsError;
     if (!learningItem) return NextResponse.json({ error: "That learning goal was not found." }, { status: 404 });
 
+    const materialExcerpts = buildMaterialExcerpts(materialRows ?? []);
+    if (learningItem.source_mode === "user_materials" && materialExcerpts.length === 0) {
+      return NextResponse.json({
+        error: "YOVA could not read enough source text to build this session safely. Reopen the learning goal and add a readable PDF, TXT, or Markdown file.",
+        requestId,
+      }, { status: 409, headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId } });
+    }
+
     const generated = await generateSessionWithOpenAI({
       learningGoal: {
         title: learningItem.title,
@@ -124,7 +132,7 @@ export async function POST(request: Request) {
         studyMode: learningItem.study_mode,
       },
       planRationale: plan.rationale,
-      materials: buildMaterialExcerpts(materialRows ?? []),
+      materials: materialExcerpts,
       session: {
         title: planSession.title,
         objective: planSession.objective,

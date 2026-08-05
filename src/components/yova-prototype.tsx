@@ -61,7 +61,7 @@ import {
   type TutorProposedAction,
 } from "@/lib/tutor/schema";
 
-type Stage = "landing" | "account" | "onboarding-intro" | "onboarding" | "profile" | "paywall" | "app" | "plan-creator" | "study-now" | "session-loading" | "session" | "complete";
+type Stage = "landing" | "account" | "onboarding-intro" | "onboarding" | "profile" | "paywall" | "app" | "plan-creator" | "study-now" | "session-loading" | "session-error" | "session" | "complete";
 type Tab = "Home" | "Learning" | "Agenda" | "Ask YOVA" | "You";
 type AccountMode = "create" | "sign-in";
 type LessonStep = {
@@ -305,11 +305,17 @@ export function YovaPrototype() {
       if (parsed.data.generation.persistence === "browser") {
         setSessionGenerationIssue("This session is ready, but YOVA could not cache it in your cloud account.");
       }
+      setStage("session");
     } catch (error) {
+      const message = error instanceof Error ? error.message : "YOVA could not generate this session.";
+      if (requestedPlan.sourceMode === "user_materials") {
+        setSessionGenerationIssue(message);
+        setStage("session-error");
+        return;
+      }
       setGeneratedLessonSteps(lessonStepsFor(requestedPlan));
       setSessionRationale(requestedSession.methodReason);
-      setSessionGenerationIssue(`${error instanceof Error ? error.message : "YOVA could not generate this session."} A safe built-in session was loaded instead.`);
-    } finally {
+      setSessionGenerationIssue(`${message} A safe built-in session was loaded instead.`);
       setStage("session");
     }
   };
@@ -573,6 +579,7 @@ export function YovaPrototype() {
   if (stage === "plan-creator") return <PlanCreator profileSummary={buildPlanProfileSummary(answers)} onExit={() => setStage("app")} onFinish={(plan) => { setPlans((current) => [...current, plan]); setSelectedPlanId(plan.id); setStage("app"); setActiveTab("Learning"); }} />;
   if (stage === "study-now") return <StudyNowCreator profileSummary={buildPlanProfileSummary(answers)} onExit={() => setStage("app")} onFinish={(plan) => { setPlans((current) => [...current, plan]); setSelectedPlanId(plan.id); void startSession(plan.id, plan); }} />;
   if (stage === "session-loading") return <SessionLoading plan={activePlan} onExit={() => setStage("app")} />;
+  if (stage === "session-error") return <SessionGenerationError plan={activePlan} issue={sessionGenerationIssue} onExit={() => setStage("app")} onRetry={() => void startSession(activePlan?.id)} />;
   if (stage === "session") {
     return (
       <GuidedSession
@@ -1246,6 +1253,10 @@ function lessonQuestion(label: string, title: string, body: string, choices: str
 
 function SessionLoading({ plan, onExit }: { plan: LearningPlan | null; onExit: () => void }) {
   return <main className="centered-shell session-loading"><BrandMark /><section><span className="button-spinner dark" /><span className="step-label">BUILDING YOUR SESSION</span><h1>Turning your plan into guided work.</h1><p>YOVA is selecting the right activity sequence, generating knowledge checks, and preparing feedback for {plan?.topic ?? "your goal"}.</p><button className="button ghost" onClick={onExit}>Cancel</button></section></main>;
+}
+
+function SessionGenerationError({ plan, issue, onExit, onRetry }: { plan: LearningPlan | null; issue: string | null; onExit: () => void; onRetry: () => void }) {
+  return <main className="centered-shell"><BrandMark /><section className="plan-error-state" role="alert"><span><AlertCircle /></span><span className="step-label">SOURCE-SAFE STOP</span><h1>YOVA did not replace your material.</h1><p>{issue ?? "YOVA could not build this source-grounded session yet."}</p><p>Nothing was marked complete. You can retry, or return to {plan?.title ?? "the learning goal"} and check its source files.</p><div><button className="button ghost" onClick={onExit}><ArrowLeft size={17} /> Return to learning</button><button className="button primary" onClick={onRetry}>Try again <ArrowRight size={17} /></button></div></section></main>;
 }
 
 function GuidedSession({ plan, steps, step, selectedAnswer, rationale, issue, onSelect, onExit, onNext }: { plan: LearningPlan | null; steps: LessonStep[]; step: number; selectedAnswer: string | null; rationale: string | null; issue: string | null; onSelect: (answer: string) => void; onExit: () => void; onNext: () => void }) {

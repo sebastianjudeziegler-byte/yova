@@ -696,6 +696,7 @@ h1, h2, h3, p { margin-top: 0; }
 .plan-error-state > span { width: 52px; height: 52px; margin: 0 auto 18px; display: grid; place-items: center; border-radius: 50%; background: #fff1f0; color: #b42318; }
 .plan-error-state h1 { margin: 0 0 10px; font-size: 30px; }
 .plan-error-state p { margin: 0; color: var(--muted); line-height: 1.65; }
+.plan-error-state p + p { margin-top: 10px; }
 .plan-error-state > div { margin-top: 26px; display: flex; justify-content: center; gap: 10px; }
 @keyframes planPulse { to { transform: translateY(-4px) scale(1.03); } }
 @keyframes planSpin { to { transform: rotate(360deg); } }

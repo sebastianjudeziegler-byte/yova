@@ -15,7 +15,8 @@ export function buildMaterialExcerpts(
   const excerpts: MaterialExcerpt[] = [];
 
   for (const row of rows) {
-    if (remaining <= 0 || !row.extracted_text?.trim()) break;
+    if (remaining <= 0) break;
+    if (!row.extracted_text?.trim()) continue;
     const normalized = row.extracted_text.trim();
     const excerptLength = Math.min(normalized.length, perMaterialLimit, remaining);
     excerpts.push({
