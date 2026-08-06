@@ -29,6 +29,33 @@ export type SessionEvidenceSummary = {
   completedImmediateRepairs: number;
 };
 
+export type CompletionConceptSummary = {
+  showingStrength: string[];
+  needsAnotherCheck: string[];
+};
+
+export function summarizeCompletionConcepts(
+  evidence: ConceptEvidence[],
+): CompletionConceptSummary {
+  const concepts = new Map<string, { label: string; needsReview: boolean }>();
+
+  for (const item of evidence) {
+    const key = item.concept.trim().toLocaleLowerCase();
+    if (!key) continue;
+    const current = concepts.get(key);
+    concepts.set(key, {
+      label: current?.label ?? item.concept.trim(),
+      needsReview: current?.needsReview === true || item.outcome === "needs_review",
+    });
+  }
+
+  return Array.from(concepts.values()).reduce<CompletionConceptSummary>((summary, concept) => {
+    if (concept.needsReview) summary.needsAnotherCheck.push(concept.label);
+    else summary.showingStrength.push(concept.label);
+    return summary;
+  }, { showingStrength: [], needsAnotherCheck: [] });
+}
+
 export function summarizeSessionEvidence(
   steps: GuidedSessionStep[],
   outcomes: Record<number, boolean>,

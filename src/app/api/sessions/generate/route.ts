@@ -15,6 +15,7 @@ import {
 } from "@/lib/session-generation/schema";
 import { checkSessionGenerationRateLimit, requestRateLimitKey } from "@/lib/server/rate-limit";
 import { claimAIRequest } from "@/lib/server/ai-usage";
+import { isDevelopmentPreviewRequest } from "@/lib/server/development-preview";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -23,11 +24,12 @@ export const maxDuration = 120;
 
 export async function POST(request: Request) {
   const requestId = crypto.randomUUID();
+  const developmentPreview = isDevelopmentPreviewRequest(request);
   const supabase = isSupabaseConfigured() ? await createSupabaseServerClient() : null;
   const { data: { user }, error: userError } = supabase
     ? await supabase.auth.getUser()
     : { data: { user: null }, error: null };
-  if (supabase && (userError || !user)) {
+  if (!developmentPreview && supabase && (userError || !user)) {
     return NextResponse.json({ error: "Sign in to generate this guided session." }, { status: 401 });
   }
 
@@ -43,7 +45,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "YOVA could not identify the requested plan session." }, { status: 422 });
   }
 
-  if (!supabase || !user) {
+  if (developmentPreview || !supabase || !user) {
     return generateBrowserPreviewSession(request, parsed.data, requestId);
   }
 
@@ -352,6 +354,7 @@ function emptyGenerationStats(): SessionGenerationStats {
     attempts: 0,
     repairAttempted: false,
     repairReason: "none",
+    repairDetail: null,
     inputTokens: 0,
     cachedInputTokens: 0,
     cacheWriteTokens: 0,
@@ -373,6 +376,7 @@ function logSuccessfulGeneration(
     attempts: stats.attempts,
     repairAttempted: stats.repairAttempted,
     repairReason: stats.repairReason,
+    ...(process.env.NODE_ENV === "development" ? { repairDetail: stats.repairDetail } : {}),
     inputTokens: stats.inputTokens,
     cachedInputTokens: stats.cachedInputTokens,
     cacheWriteTokens: stats.cacheWriteTokens,

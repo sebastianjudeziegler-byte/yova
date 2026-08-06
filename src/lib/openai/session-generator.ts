@@ -96,6 +96,7 @@ export type SessionGenerationStats = {
   attempts: number;
   repairAttempted: boolean;
   repairReason: "none" | "structured_output" | "incomplete_response" | "semantic_validation";
+  repairDetail: string | null;
   inputTokens: number;
   cachedInputTokens: number;
   cacheWriteTokens: number;
@@ -125,7 +126,7 @@ Requirements:
 - For a study session, make the first topic activity an unsupported retrieval or application attempt. Show explanations only after the attempt, target the exposed gap, and include a later retry or transfer question.
 - Use the catalog's how and completion fields as the scientific source, but rewrite them concisely for this exact session rather than copying every line mechanically.
 - Create 3 to 8 short activities that fit the estimated duration. Give every activity a realistic estimatedMinutes value. Required activity minutes must fit inside the session estimate; all activity minutes may exceed it by at most 2 minutes.
-- For sessions of 15 minutes or less, use no more than 4 activities and focus on one or two essential ideas. For 16 to 30 minutes, use no more than 5 activities. Longer sessions may use up to 8 only when the content requires it.
+- For sessions of 15 minutes or less, use no more than 4 activities and focus on one coherent concept cluster. That cluster may contain up to 3 tightly related essential ideas, such as three roles in one model. For 16 to 30 minutes, use no more than 5 activities. Longer sessions may use up to 8 only when the content requires it.
 - Mark the teaching, core attempt, and evidence-producing checks requiredForCompletion. Optional reflection or extension may be false. At least one question must be required.
 - Use concise instructions and one obvious action at a time.
 - Include at least one meaningful multiple-choice knowledge check with 3 to 5 plausible choices.
@@ -245,13 +246,15 @@ export async function generateSessionWithOpenAI(
   let response;
   let repairAttempted = false;
   let repairReason: SessionGenerationStats["repairReason"] = "none";
+  let repairDetail: string | null = null;
   try {
     response = await requestDraft(null);
   } catch (error) {
     if (!(error instanceof Error) || error.name !== "ZodError") throw error;
     repairAttempted = true;
     repairReason = "structured_output";
-    response = await requestDraft("The structured session shape was invalid.");
+    repairDetail = "The structured session shape was invalid.";
+    response = await requestDraft(repairDetail);
   }
 
   let parsed = parseGeneratedSessionDraft(response.output_parsed);
@@ -265,7 +268,10 @@ export async function generateSessionWithOpenAI(
       : !parsed.success
         ? "structured_output"
         : "semantic_validation";
-    response = await requestDraft(semanticIssue ?? "The structured session shape was invalid or incomplete.");
+    repairDetail = response.status !== "completed"
+      ? `The model response ended with status ${response.status}.`
+      : semanticIssue ?? "The structured session shape was invalid or incomplete.";
+    response = await requestDraft(repairDetail);
     parsed = parseGeneratedSessionDraft(response.output_parsed);
     semanticIssue = parsed.success
       ? validateGeneratedSession(parsed.data, context, observedMethodOutcomes, conceptReviewSchedule, scaffoldProgression)
@@ -289,6 +295,7 @@ export async function generateSessionWithOpenAI(
       attempts: usage.attempts,
       repairAttempted,
       repairReason,
+      repairDetail,
       inputTokens: usage.inputTokens,
       cachedInputTokens: usage.cachedInputTokens,
       cacheWriteTokens: usage.cacheWriteTokens,
@@ -382,8 +389,8 @@ function validateSessionTimeBudget(draft: GeneratedSessionDraft, estimatedMinute
   if (draft.activities.length > maximumActivities) {
     return `A ${estimatedMinutes}-minute session may contain at most ${maximumActivities} focused activities.`;
   }
-  if (estimatedMinutes <= 15 && draft.coverage.essentialIdeas.length > 2) {
-    return "A 15-minute session must focus on no more than two essential ideas and defer the rest.";
+  if (estimatedMinutes <= 15 && draft.coverage.essentialIdeas.length > 3) {
+    return "A 15-minute session must focus on one coherent concept cluster with no more than three tightly related essential ideas and defer the rest.";
   }
 
   return null;

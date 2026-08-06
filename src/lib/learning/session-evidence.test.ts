@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildImmediateRepairAfterMiss,
   buildImmediateRepairSteps,
+  summarizeCompletionConcepts,
   summarizeSessionEvidence,
   type GuidedSessionStep,
 } from "@/lib/learning/session-evidence";
@@ -109,6 +110,29 @@ describe("summarizeSessionEvidence", () => {
       correctAnswers: 1,
       totalAnswers: 1,
       observedGap: "No major gap detected in the required check",
+    });
+  });
+});
+
+describe("summarizeCompletionConcepts", () => {
+  it("keeps a concept in review when the session contains mixed evidence", () => {
+    expect(summarizeCompletionConcepts([
+      { concept: "Product rule", outcome: "secure", activityType: "multiple_choice" },
+      { concept: "Product rule", outcome: "needs_review", activityType: "free_response" },
+      { concept: "Chain rule", outcome: "secure", activityType: "free_response" },
+    ])).toEqual({
+      showingStrength: ["Chain rule"],
+      needsAnotherCheck: ["Product rule"],
+    });
+  });
+
+  it("deduplicates concept names without changing the learner-facing label", () => {
+    expect(summarizeCompletionConcepts([
+      { concept: "Cellular respiration", outcome: "secure", activityType: "multiple_choice" },
+      { concept: "cellular respiration", outcome: "secure", activityType: "free_response" },
+    ])).toEqual({
+      showingStrength: ["Cellular respiration"],
+      needsAnotherCheck: [],
     });
   });
 });

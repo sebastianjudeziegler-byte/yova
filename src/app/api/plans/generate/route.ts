@@ -9,6 +9,7 @@ import {
 } from "@/lib/plan-generation/schema";
 import { checkPlanGenerationRateLimit, requestRateLimitKey } from "@/lib/server/rate-limit";
 import { claimAIRequest } from "@/lib/server/ai-usage";
+import { isDevelopmentPreviewRequest } from "@/lib/server/development-preview";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { persistPlanForAuthenticatedUser, PlanPersistenceError } from "@/lib/supabase/plan-repository";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -19,12 +20,13 @@ export const maxDuration = 60;
 export async function POST(request: Request) {
   const requestId = crypto.randomUUID();
   const startedAt = Date.now();
+  const developmentPreview = isDevelopmentPreviewRequest(request);
   const supabase = isSupabaseConfigured() ? await createSupabaseServerClient() : null;
   const { data: { user }, error: userError } = supabase
     ? await supabase.auth.getUser()
     : { data: { user: null }, error: null };
 
-  if (supabase && (userError || !user)) {
+  if (!developmentPreview && supabase && (userError || !user)) {
     return NextResponse.json({ error: "Sign in before generating a learning plan." }, { status: 401 });
   }
 
@@ -135,7 +137,9 @@ export async function POST(request: Request) {
     try {
       const generated = await generatePlanWithOpenAI(planRequest);
       const plan = materializePlanDraft(generated.draft, planRequest);
-      const persistence = await persistPlanForAuthenticatedUser(plan, planRequest);
+      const persistence = developmentPreview
+        ? "browser" as const
+        : await persistPlanForAuthenticatedUser(plan, planRequest);
 
       const response = PlanGenerationResponseSchema.parse({
         plan,
@@ -190,7 +194,9 @@ export async function POST(request: Request) {
   let previewPersistence: "browser" | "supabase";
 
   try {
-    previewPersistence = await persistPlanForAuthenticatedUser(previewPlan, planRequest);
+    previewPersistence = developmentPreview
+      ? "browser"
+      : await persistPlanForAuthenticatedUser(previewPlan, planRequest);
   } catch (error) {
     console.error("YOVA preview-plan persistence failed", { requestId });
     if (error instanceof PlanPersistenceError) {
