@@ -59,8 +59,8 @@ These percentages are directional, not engineering math. A product can have most
 
 ### Required before inviting outside testers
 
-1. Deploy a staging/alpha URL.
-2. Configure reliable authentication email delivery and production redirect URLs.
+1. Verify the existing Vercel deployment with the production smoke test and a real user journey.
+2. Configure reliable authentication email delivery and confirm production redirect URLs.
 3. Run complete journeys on mobile and desktop with several real accounts.
 4. Test representative biology, math, writing, coding, and general-learning goals.
 5. Test good, poor, scanned, and oversized source files.

@@ -10,7 +10,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "readiness": "node scripts/check-readiness.mjs",
-    "readiness:production": "node scripts/check-readiness.mjs --production"
+    "readiness:production": "node scripts/check-readiness.mjs --production",
+    "smoke:production": "node scripts/smoke-deployment.mjs"
   },
   "dependencies": {
     "@fontsource/inter": "latest",

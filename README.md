@@ -43,6 +43,14 @@ Before a production deployment:
 pnpm readiness:production
 ```
 
+After Vercel provides a public URL:
+
+```bash
+pnpm smoke:production -- https://YOUR-YOVA-DOMAIN
+```
+
+See [`docs/VERCEL-CHECKLIST.md`](docs/VERCEL-CHECKLIST.md) for the production environment, Supabase redirect, and sign-in email checklist.
+
 The readiness command reports whether required connections exist without printing secret values.
 
 ## Configuration
