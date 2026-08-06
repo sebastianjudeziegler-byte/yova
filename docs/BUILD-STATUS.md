@@ -15,9 +15,9 @@ Estimated completion depends on which finish line is meant:
 
 | Finish line | Current estimate | Meaning |
 |---|---:|---|
-| Functional product core | 91% | The differentiated YOVA learning loop works, including readiness routing and confidence calibration, with automated quality coverage |
-| Invite-only private alpha | 91% | Deployment, support, monitoring, source-quality safeguards, and full first-pass plan/session quality suites are connected; reliable email delivery and focused end-to-end testing remain |
-| Credible public beta | 71% | Trust, monitoring, and five-path live plan and guided-session gates exist; human output review, browser automation, external alerts, policy review, and tester-driven polish remain |
+| Functional product core | 93% | The differentiated loop now routes readiness, calibrates confidence, repairs misses immediately, and schedules delayed verification without inflating mastery |
+| Invite-only private alpha | 92% | Deployment, support, monitoring, quality safeguards, atomic learning-state updates, and full first-pass quality suites are connected; reliable email delivery and production end-to-end testing remain |
+| Credible public beta | 73% | Trust, monitoring, five-path live quality gates, and the core repair-and-verify loop exist; human output review, broader browser automation, external alerts, policy review, and tester-driven polish remain |
 | Paid polished launch | 35% | Also needs billing, entitlements, cost controls by plan, and more operational maturity |
 
 These percentages are directional, not engineering math. A product can have most features built and still need significant reliability work before strangers should pay for it.
@@ -64,10 +64,14 @@ A cross-browser six-digit email-code flow is implemented and tested behind a ser
 - Teaching-first sessions must begin with instruction or a model, while practice-first sessions must begin with an unsupported attempt before explanation
 - Knowledge checks capture confidence before the answer, allowing YOVA to distinguish possible misconceptions from correct-but-uncertain knowledge
 - Confidence evidence is stored without the learner’s typed response, shown transparently at completion, and used to choose misconception repair versus independent confirmation
+- A missed check now creates an immediate explain-back before the session can finish, but that retry is explicitly excluded from accuracy and mastery evidence
+- A last-session miss creates a short delayed verification session instead of allowing the learning goal to appear complete
+- High-confidence misses use a teaching-first misconception-repair follow-up; ordinary misses use practice-first spaced retrieval and error repair
+- Session evidence counts only completed checks, preventing unfinished questions in a resumed session from being silently scored as wrong
 
 ### Honest scientific-product status
 
-The software loop is close to private-alpha readiness, but the broader learning-science vision is earlier. The new catalog and router establish the correct architecture; method-specific interactions, metacognitive calibration, concept-level spacing, and stronger outcome comparisons remain. “Private alpha 90%” therefore means the product can be tested safely—not that 90% of the long-term adaptive-learning system is complete.
+The software loop is close to private-alpha readiness, but the broader learning-science vision is earlier. The catalog, router, confidence calibration, immediate repair, and delayed verification establish the correct architecture; richer method-specific interactions, concept-level scheduling, and stronger outcome comparisons remain. “Private alpha 92%” therefore means the product can be tested safely—not that 92% of the long-term adaptive-learning system is complete.
 
 ### Backend and infrastructure
 
@@ -78,6 +82,7 @@ The software loop is close to private-alpha readiness, but the broader learning-
 - OpenAI Structured Outputs for plans and guided sessions
 - Durable AI usage limits and short-window rate limits
 - Offline retry queues for completions and interruptions
+- Atomic completion plus delayed-follow-up persistence, so the cloud cannot save “goal complete” while losing the required verification session
 - Privacy-safe product analytics
 - Privacy-safe production error reports with a documented founder triage workflow
 - Private support-request workflow with validation, ownership rules, and spam limits

@@ -307,7 +307,11 @@ export async function saveAuthenticatedLearnerProfile(input: {
   if (error) throw new Error("YOVA could not save your learning profile to the cloud.");
 }
 
-export async function completeAuthenticatedPlanSession(completion: SessionCompletion, adaptation?: NextSessionAdaptation | null) {
+export async function completeAuthenticatedPlanSession(
+  completion: SessionCompletion,
+  adaptation?: NextSessionAdaptation | null,
+  followUpSession?: LearningPlanSession | null,
+) {
   if (!isSupabaseConfigured()) return;
   const supabase = createSupabaseBrowserClient();
   const { error } = await supabase.rpc("complete_plan_session", {
@@ -325,6 +329,19 @@ export async function completeAuthenticatedPlanSession(completion: SessionComple
       conceptEvidence: completion.conceptEvidence,
       confidenceEvidence: completion.confidenceEvidence,
       nextSessionAdjustment: adaptation ?? null,
+      followUpSession: followUpSession ? {
+        id: followUpSession.id,
+        sequence: followUpSession.sequence,
+        title: followUpSession.title,
+        objective: followUpSession.objective,
+        method: followUpSession.method,
+        methodReason: followUpSession.methodReason,
+        scheduledFor: followUpSession.scheduledFor,
+        estimatedMinutes: followUpSession.estimatedMinutes,
+        amountLabel: followUpSession.amountLabel,
+        learningMode: followUpSession.learningMode,
+        explanation: followUpSession.adaptationNote?.explanation ?? followUpSession.methodReason,
+      } : null,
     },
   });
 

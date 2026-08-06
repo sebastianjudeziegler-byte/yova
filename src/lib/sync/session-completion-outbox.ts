@@ -1,7 +1,7 @@
 "use client";
 
 import { z } from "zod";
-import type { NextSessionAdaptation, SessionCompletion } from "@/lib/domain";
+import type { LearningPlanSession, NextSessionAdaptation, SessionCompletion } from "@/lib/domain";
 import { ConceptEvidenceListSchema } from "@/lib/learning/concept-evidence";
 import { ConfidenceEvidenceListSchema } from "@/lib/learning/confidence-calibration";
 import { completeAuthenticatedPlanSession } from "@/lib/supabase/learning-state-repository";
@@ -36,10 +36,29 @@ const NextSessionAdaptationSchema = z.object({
   explanation: z.string().min(1).max(900),
 });
 
+const FollowUpSessionSchema = z.object({
+  id: z.string().uuid(),
+  sequence: z.number().int().positive(),
+  title: z.string().min(1).max(180),
+  objective: z.string().min(1).max(900),
+  method: z.string().min(1).max(180),
+  methodReason: z.string().min(1).max(900),
+  scheduledFor: z.string().datetime({ offset: true }),
+  estimatedMinutes: z.number().int().min(5).max(180),
+  amountLabel: z.string().min(1).max(180),
+  learningMode: z.enum(["learn", "study"]),
+  status: z.literal("ready"),
+  adaptationNote: z.object({
+    explanation: z.string().min(1).max(900),
+    adaptedAt: z.string().datetime({ offset: true }),
+  }).optional(),
+});
+
 const PendingSessionCompletionSchema = z.object({
   userId: z.string().uuid(),
   completion: SessionCompletionSchema,
   adaptation: NextSessionAdaptationSchema.nullable(),
+  followUpSession: FollowUpSessionSchema.nullable().default(null),
   queuedAt: z.string().datetime({ offset: true }),
 });
 
@@ -47,6 +66,7 @@ export type PendingSessionCompletion = {
   userId: string;
   completion: SessionCompletion;
   adaptation: NextSessionAdaptation | null;
+  followUpSession: LearningPlanSession | null;
   queuedAt: string;
 };
 
@@ -76,7 +96,7 @@ export async function flushQueuedSessionCompletions(userId: string) {
 
   for (const entry of queued) {
     try {
-      await completeAuthenticatedPlanSession(entry.completion, entry.adaptation);
+      await completeAuthenticatedPlanSession(entry.completion, entry.adaptation, entry.followUpSession);
       removeQueuedSessionCompletion(entry.completion.id);
       synced += 1;
     } catch {

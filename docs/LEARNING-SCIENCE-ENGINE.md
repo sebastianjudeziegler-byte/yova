@@ -90,6 +90,9 @@ The current engine:
 - shows the learner what, why, how, and done at the beginning of the session;
 - captures confidence before knowledge checks and compares it with the result;
 - distinguishes possible misconceptions from correct-but-uncertain knowledge when adapting the next session;
+- requires an immediate explain-back when a knowledge check is missed, while preserving the original miss as evidence;
+- excludes that immediate repair from mastery scoring because seeing the correction and repeating it is not durable recall;
+- schedules a delayed verification session when the final session in a goal exposes a gap, so a one-session goal cannot be marked complete prematurely;
 - keeps method choice separate from productivity adjustments.
 
 This is a hybrid system. Deterministic TypeScript protects the scientific boundaries. OpenAI handles nuance, subject-specific teaching, wording, examples, and activity composition.
@@ -122,8 +125,9 @@ The defensible direction is not “we use retrieval practice.” Any study produ
 3. It selects a method with an inspectable reason.
 4. It teaches the user how to execute that method.
 5. It captures concept-level results and confidence.
-6. It schedules the next attempt based on what happened.
-7. It compares methods only after repeated, comparable evidence.
+6. It repairs an exposed misunderstanding before the learner leaves, without pretending that repair proves mastery.
+7. It schedules a new attempt after a delay based on what happened.
+8. It compares methods only after repeated, comparable evidence.
 
 That closed loop can eventually become a meaningful learning decision system rather than a static resource generator.
 
@@ -131,7 +135,7 @@ That closed loop can eventually become a meaningful learning decision system rat
 
 1. Add method-specific session mechanics instead of rendering every method as the same quiz flow.
 2. Schedule concept-level retrieval attempts, not only whole sessions.
-3. Add immediate retry and delayed retry queues for missed items.
+3. Extend the current immediate-repair and delayed-verification loop into a concept-level review scheduler with repeat policies.
 4. Track scaffold level so worked examples genuinely fade across attempts.
 5. Compare method outcomes only within similar task families and knowledge stages.
 6. Review outputs with learning-science and subject-matter experts before broad claims.

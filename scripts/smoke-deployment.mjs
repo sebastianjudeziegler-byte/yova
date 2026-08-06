@@ -79,13 +79,13 @@ try {
   else fail("x-powered-by should not be exposed");
 
   for (const [path, identity] of [
-    ["/privacy", "Privacy Notice"],
-    ["/terms", "Private Alpha Terms"],
-    ["/support", "YOVA Support"],
+    ["/privacy", /Privacy Notice/i],
+    ["/terms", /Private Alpha Terms/i],
+    ["/support", /YOVA Support/i],
   ]) {
     const trustResponse = await request(`${origin}${path}`);
     const trustHtml = await trustResponse.text();
-    if (trustResponse.ok && trustHtml.includes(identity)) pass(`${path} trust page is available`);
+    if (trustResponse.ok && identity.test(trustHtml)) pass(`${path} trust page is available`);
     else fail(`${path} trust page was not available or had unexpected content`);
   }
 

@@ -1,0 +1,76 @@
+import { describe, expect, it } from "vitest";
+import type { LearningPlanSession, SessionCompletion } from "@/lib/domain";
+import { buildDelayedVerificationSession } from "@/lib/learning/delayed-verification";
+
+const completedSession: LearningPlanSession = {
+  id: "session-current",
+  sequence: 1,
+  title: "Focused review",
+  objective: "Review cellular respiration.",
+  method: "Retrieval practice",
+  methodReason: "Practice from memory.",
+  scheduledFor: "2026-08-05T16:00:00.000Z",
+  estimatedMinutes: 25,
+  amountLabel: "3 checks · about 25 min",
+  learningMode: "study",
+  status: "ready",
+};
+
+function completion(overrides: Partial<SessionCompletion> = {}): SessionCompletion {
+  return {
+    id: "completion-current",
+    planId: "plan-current",
+    planSessionId: completedSession.id,
+    startedAt: "2026-08-05T16:00:00.000Z",
+    completedAt: "2026-08-05T16:25:00.000Z",
+    plannedMinutes: 25,
+    actualMinutes: 25,
+    correctAnswers: 2,
+    totalAnswers: 3,
+    feedback: "about_right",
+    observedGap: "Cellular respiration sequence",
+    conceptEvidence: [],
+    confidenceEvidence: [],
+    ...overrides,
+  };
+}
+
+describe("buildDelayedVerificationSession", () => {
+  it("schedules a short spaced check after a one-off session miss", () => {
+    const result = buildDelayedVerificationSession(completedSession, completion());
+
+    expect(result).toMatchObject({
+      sequence: 2,
+      estimatedMinutes: 10,
+      method: "Spaced retrieval and error repair",
+      learningMode: "study",
+      status: "ready",
+    });
+    expect(result?.scheduledFor).toBe("2026-08-06T16:25:00.000Z");
+    expect(result?.adaptationNote?.explanation).toContain("delayed retrieval");
+  });
+
+  it("uses teaching-first misconception repair for a confident miss", () => {
+    const result = buildDelayedVerificationSession(completedSession, completion({
+      confidenceEvidence: [{
+        concept: "Cellular respiration sequence",
+        confidence: "very_sure",
+        correct: false,
+        activityType: "multiple_choice",
+      }],
+    }));
+
+    expect(result).toMatchObject({
+      method: "Misconception repair and delayed transfer",
+      learningMode: "learn",
+    });
+  });
+
+  it("does not manufacture follow-up work after a secure check", () => {
+    expect(buildDelayedVerificationSession(completedSession, completion({
+      correctAnswers: 3,
+      totalAnswers: 3,
+      observedGap: "No major gap detected in the required check",
+    }))).toBeNull();
+  });
+});
