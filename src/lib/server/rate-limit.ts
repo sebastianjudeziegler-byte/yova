@@ -21,6 +21,10 @@ export function checkMaterialUploadRateLimit(key: string) {
   return checkRateLimit(`material:${key}`, 12);
 }
 
+export function checkProductEventRateLimit(key: string) {
+  return checkRateLimit(`event:${key}`, 60);
+}
+
 function checkRateLimit(key: string, maxRequests: number) {
   const now = Date.now();
   const existing = records.get(key);

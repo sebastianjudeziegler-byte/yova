@@ -1,0 +1,66 @@
+import { z } from "zod";
+
+const SourceModeSchema = z.enum(["user_materials", "yova_generated"]);
+const StudyModeSchema = z.enum(["inside_yova", "outside_yova"]);
+
+export const ProductEventRequestSchema = z.discriminatedUnion("eventName", [
+  z.object({
+    eventName: z.literal("onboarding_started"),
+    context: z.object({}).strict(),
+  }).strict(),
+  z.object({
+    eventName: z.literal("onboarding_completed"),
+    context: z.object({
+      answeredQuestionCount: z.number().int().min(0).max(10),
+    }).strict(),
+  }).strict(),
+  z.object({
+    eventName: z.literal("alpha_entered"),
+    context: z.object({}).strict(),
+  }).strict(),
+  z.object({
+    eventName: z.literal("plan_created"),
+    context: z.object({
+      intent: z.enum(["study_now", "build_plan"]),
+      sourceMode: SourceModeSchema,
+      studyMode: StudyModeSchema,
+      sessionCount: z.number().int().min(1).max(60),
+    }).strict(),
+  }).strict(),
+  z.object({
+    eventName: z.literal("session_started"),
+    context: z.object({
+      sourceMode: SourceModeSchema,
+      studyMode: StudyModeSchema,
+      resumed: z.boolean(),
+    }).strict(),
+  }).strict(),
+  z.object({
+    eventName: z.literal("session_completed"),
+    context: z.object({
+      plannedMinutes: z.number().int().min(1).max(360),
+      actualMinutes: z.number().int().min(1).max(720),
+      correctAnswers: z.number().int().min(0).max(100),
+      totalAnswers: z.number().int().min(0).max(100),
+      feedback: z.enum(["too_easy", "about_right", "too_difficult"]),
+      adaptedNextSession: z.boolean(),
+    }).strict(),
+  }).strict(),
+  z.object({
+    eventName: z.literal("session_interrupted"),
+    context: z.object({
+      actualMinutes: z.number().int().min(1).max(720),
+      completedSteps: z.number().int().min(0).max(20),
+      totalSteps: z.number().int().min(1).max(20),
+    }).strict(),
+  }).strict(),
+  z.object({
+    eventName: z.literal("tutor_message_sent"),
+    context: z.object({
+      linkedToPlan: z.boolean(),
+      surface: z.enum(["ask_yova", "guided_session"]),
+    }).strict(),
+  }).strict(),
+]);
+
+export type ProductEventRequest = z.infer<typeof ProductEventRequestSchema>;
