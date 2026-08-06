@@ -1,4 +1,4 @@
-import type { YovaPreviewSnapshot } from "@/lib/domain";
+import type { SessionInterruption, YovaPreviewSnapshot } from "@/lib/domain";
 
 const STORAGE_KEY = "yova.preview.v1";
 
@@ -9,10 +9,19 @@ export function loadPreviewSnapshot(): YovaPreviewSnapshot | null {
     const stored = window.localStorage.getItem(STORAGE_KEY);
     if (!stored) return null;
     const parsed: unknown = JSON.parse(stored);
-    return isPreviewSnapshot(parsed) ? parsed : null;
+    if (!isPreviewSnapshot(parsed)) return null;
+    return {
+      ...parsed,
+      sessionInterruptions: readSessionInterruptions(parsed),
+    };
   } catch {
     return null;
   }
+}
+
+function readSessionInterruptions(snapshot: YovaPreviewSnapshot | Record<string, unknown>): SessionInterruption[] {
+  const value = (snapshot as Record<string, unknown>).sessionInterruptions;
+  return Array.isArray(value) ? value as SessionInterruption[] : [];
 }
 
 export function savePreviewSnapshot(snapshot: YovaPreviewSnapshot) {
@@ -36,4 +45,3 @@ function isPreviewSnapshot(value: unknown): value is YovaPreviewSnapshot {
     && typeof candidate.onboardingCompleted === "boolean"
     && typeof candidate.alphaEntered === "boolean";
 }
-

@@ -88,7 +88,7 @@ export async function POST(request: Request) {
     if (planError || learnerError || planSessionsError) throw planError ?? learnerError ?? planSessionsError;
     if (!plan) return NextResponse.json({ error: "That learning plan was not found." }, { status: 404 });
 
-    const [{ data: learningItem, error: itemError }, attemptsResult, { data: materialRows, error: materialsError }] = await Promise.all([
+    const [{ data: learningItem, error: itemError }, attemptsResult, { data: materialRows, error: materialsError }, interruptionsResult] = await Promise.all([
       supabase
         .from("learning_items")
         .select("title,topic,kind,deadline,source_mode,study_mode")
@@ -110,9 +110,18 @@ export async function POST(request: Request) {
         .eq("processing_status", "ready")
         .order("created_at", { ascending: true })
         .limit(5),
+      planSessionRows?.length
+        ? supabase
+          .from("learning_events")
+          .select("occurred_at,event_data")
+          .eq("event_type", "session_interrupted")
+          .in("plan_session_id", planSessionRows.map((session) => session.id))
+          .order("occurred_at", { ascending: false })
+          .limit(6)
+        : Promise.resolve({ data: [], error: null }),
     ]);
 
-    if (itemError || attemptsResult.error || materialsError) throw itemError ?? attemptsResult.error ?? materialsError;
+    if (itemError || attemptsResult.error || materialsError || interruptionsResult.error) throw itemError ?? attemptsResult.error ?? materialsError ?? interruptionsResult.error;
     if (!learningItem) return NextResponse.json({ error: "That learning goal was not found." }, { status: 404 });
 
     const materialExcerpts = buildMaterialExcerpts(materialRows ?? []);
@@ -156,6 +165,13 @@ export async function POST(request: Request) {
         observedGap: readTextProperty(attempt.result_data, "observedGap") || null,
         plannedMinutes: readNumberProperty(attempt.result_data, "plannedMinutes"),
         actualMinutes: attempt.actual_minutes,
+      })),
+      recentInterruptions: (interruptionsResult.data ?? []).slice(0, 4).map((event) => ({
+        occurredAt: event.occurred_at,
+        plannedMinutes: readNumberProperty(event.event_data, "plannedMinutes"),
+        actualMinutes: readNumberProperty(event.event_data, "actualMinutes"),
+        completedSteps: readNumberProperty(event.event_data, "completedSteps"),
+        totalSteps: readNumberProperty(event.event_data, "totalSteps"),
       })),
       conceptSignals: summarizeConceptEvidence(recentAttempts.map((attempt) => ({
         completedAt: attempt.completed_at ?? new Date(0).toISOString(),

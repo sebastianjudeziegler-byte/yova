@@ -435,6 +435,13 @@ h1, h2, h3, p { margin-top: 0; }
 .session-tutor-response > span { display: flex; align-items: center; gap: 7px; color: var(--blue); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
 .session-tutor-response > p { margin: 8px 0 0; white-space: pre-wrap; font-size: 13px; line-height: 1.6; }
 .session-tutor-error { margin-top: 9px; padding: 9px 11px; display: flex; align-items: flex-start; gap: 7px; color: #b42318; border-radius: 8px; background: #fff1f0; font-size: 12px; }
+.session-exit-backdrop { position: fixed; z-index: 30; inset: 0; padding: 24px; display: grid; place-items: center; background: rgba(11,16,32,.56); backdrop-filter: blur(5px); }
+.session-exit-dialog { width: min(100%, 480px); padding: 30px; color: var(--text); border: 1px solid rgba(255,255,255,.7); border-radius: 18px; background: white; box-shadow: 0 28px 80px rgba(11,16,32,.24); }
+.session-exit-icon { width: 46px; height: 46px; margin-bottom: 18px; display: grid; place-items: center; color: var(--blue); border-radius: 13px; background: var(--soft-blue); }
+.session-exit-dialog h2 { margin: 9px 0 10px; font-size: 25px; }
+.session-exit-dialog > p { margin: 0; color: var(--muted); line-height: 1.65; }
+.session-exit-summary { margin: 20px 0; padding: 13px 15px; display: flex; justify-content: space-between; gap: 12px; color: #35415b; border: 1px solid var(--border); border-radius: 10px; background: #f8f9fc; font-size: 12px; font-weight: 600; }
+.session-exit-actions { display: flex; justify-content: flex-end; gap: 9px; }
 .completion-icon { width: 58px; height: 58px; margin-bottom: 20px; display: grid; place-items: center; color: white; background: var(--success); border-radius: 50%; }
 .result-grid { margin: 25px 0; display: grid; grid-template-columns: repeat(4,1fr); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
 .result-grid div { padding: 16px; border-left: 1px solid var(--border); }
@@ -859,6 +866,8 @@ h1, h2, h3, p { margin-top: 0; }
   .session-progress { grid-column: 1 / -1; grid-row: 2; }
   .session-content { margin: 55px auto; }
   .session-content h1 { font-size: 30px; }
+  .session-exit-dialog { padding: 24px 20px; }
+  .session-exit-summary, .session-exit-actions { align-items: stretch; flex-direction: column; }
   .recall-actions { grid-template-columns: 1fr; }
   .recall-actions > span { grid-column: auto; }
   .result-grid div { border-left: 0; border-top: 1px solid var(--border); }

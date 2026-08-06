@@ -71,6 +71,18 @@ export type SessionCompletion = {
   conceptEvidence: ConceptEvidence[];
 };
 
+export type SessionInterruption = {
+  id: string;
+  planId: string;
+  planSessionId: string;
+  startedAt: string;
+  interruptedAt: string;
+  plannedMinutes: number;
+  actualMinutes: number;
+  completedSteps: number;
+  totalSteps: number;
+};
+
 export type NextSessionAdaptation = {
   planSessionId: string;
   title: string;
@@ -91,6 +103,7 @@ export type YovaPreviewSnapshot = {
   alphaEntered: boolean;
   plans: LearningPlan[];
   sessionCompletions: SessionCompletion[];
+  sessionInterruptions: SessionInterruption[];
   updatedAt: string;
 };
 
