@@ -9,12 +9,15 @@ In the YOVA Vercel project, open **Settings → Environment Variables**. Product
 ```text
 NEXT_PUBLIC_SUPABASE_URL
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+AUTH_EMAIL_CODE_VERIFICATION
 OPENAI_API_KEY
 OPENAI_PLAN_MODEL
 SITE_URL
 ```
 
 `SITE_URL` should be the final public `https://` address with no path. The OpenAI key must never be named `NEXT_PUBLIC_OPENAI_API_KEY`; that prefix would expose it to browsers.
+
+Keep `AUTH_EMAIL_CODE_VERIFICATION` set to `false` until custom SMTP is active and the Supabase Magic link or OTP template displays `{{ .Token }}`. Then set it to `true` and redeploy.
 
 `OPENAI_SESSION_MODEL` and `OPENAI_TUTOR_MODEL` are optional. When blank, YOVA uses `OPENAI_PLAN_MODEL` for all three jobs.
 

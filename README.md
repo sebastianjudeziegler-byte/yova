@@ -59,6 +59,7 @@ Copy `.env.example` to `.env.local` and configure:
 
 - `NEXT_PUBLIC_SUPABASE_URL`: public Supabase project URL
 - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`: browser-safe Supabase key
+- `AUTH_EMAIL_CODE_VERIFICATION`: enables the 6-digit email-code form after custom SMTP and the matching Supabase email template are configured
 - `OPENAI_API_KEY`: server-only OpenAI credential
 - `OPENAI_PLAN_MODEL`: primary structured-generation model
 - `OPENAI_SESSION_MODEL`: optional guided-session override

@@ -1,6 +1,7 @@
 "use client";
 
 import type { PreviewAccount } from "@/lib/domain";
+import { isCompleteEmailVerificationCode, normalizeEmailVerificationCode } from "@/lib/auth/verification-code";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 
@@ -68,19 +69,32 @@ export async function getAuthenticatedAccount(): Promise<PreviewAccount | null> 
   if (sessionError || !sessionData.session) return null;
 
   const { data, error } = await withAuthTimeout(supabase.auth.getUser());
-  if (error || !data.user?.email) return null;
+  if (error) return null;
+  return previewAccountFromUser(data.user);
+}
 
-  const displayName = typeof data.user.user_metadata?.display_name === "string"
-    ? data.user.user_metadata.display_name.trim()
-    : "";
+export async function verifyEmailAuthenticationCode(email: string, code: string): Promise<PreviewAccount> {
+  if (!isSupabaseConfigured()) throw new Error("Email verification is unavailable until YOVA's cloud account service is connected.");
 
-  return {
-    id: data.user.id,
-    email: data.user.email,
-    displayName: displayName || data.user.email.split("@")[0],
-    createdAt: data.user.created_at,
-    identityMode: "supabase",
-  };
+  const normalizedCode = normalizeEmailVerificationCode(code);
+  if (!isCompleteEmailVerificationCode(normalizedCode)) {
+    throw new Error("Enter the complete 6-digit code from the newest YOVA email.");
+  }
+
+  const supabase = createSupabaseBrowserClient();
+  const { data, error } = await withAuthTimeout(supabase.auth.verifyOtp({
+    email: email.trim().toLowerCase(),
+    token: normalizedCode,
+    type: "email",
+  }));
+
+  if (error) {
+    throw new Error("That code is incorrect or expired. Check the newest YOVA email and try again.");
+  }
+
+  const account = previewAccountFromUser(data.user);
+  if (!account) throw new Error("YOVA verified the code but could not finish opening the account. Try again.");
+  return account;
 }
 
 export async function signOutAuthenticatedAccount() {
@@ -103,4 +117,25 @@ async function withAuthTimeout<T>(request: PromiseLike<T>): Promise<T> {
   } finally {
     if (timeoutId) clearTimeout(timeoutId);
   }
+}
+
+function previewAccountFromUser(user: {
+  id: string;
+  email?: string;
+  created_at: string;
+  user_metadata?: Record<string, unknown>;
+} | null): PreviewAccount | null {
+  if (!user?.email) return null;
+
+  const displayName = typeof user.user_metadata?.display_name === "string"
+    ? user.user_metadata.display_name.trim()
+    : "";
+
+  return {
+    id: user.id,
+    email: user.email,
+    displayName: displayName || user.email.split("@")[0],
+    createdAt: user.created_at,
+    identityMode: "supabase",
+  };
 }

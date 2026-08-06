@@ -109,6 +109,13 @@ h1, h2, h3, p { margin-top: 0; }
 .account-card.email-sent { text-align: center; }
 .account-card.email-sent > p { margin-bottom: 24px; }
 .mail-check { width: 52px; height: 52px; margin: 0 auto 20px; display: grid; place-items: center; color: var(--blue); background: var(--soft-blue); border-radius: 50%; }
+.email-code-entry { margin: 22px 0; padding: 20px; border: 1px solid #d9e1ff; border-radius: 14px; background: #f8f9ff; text-align: left; }
+.email-code-entry > p { margin: 7px 0 14px; color: var(--muted); font-size: 13px; line-height: 1.5; }
+.email-code-entry label { margin: 0 0 13px; }
+.email-code-entry input { text-align: center; font: 600 24px/1 "Inter", sans-serif; letter-spacing: .28em; }
+.email-code-entry .form-error { margin: 0 0 13px!important; }
+.email-link-option { margin: 20px 0 12px; display: grid; gap: 4px; color: var(--muted); font-size: 12px; line-height: 1.5; }
+.email-link-option strong { color: var(--text); font-size: 13px; }
 .button:disabled, input:disabled { cursor: not-allowed; opacity: .62; }
 
 .centered-shell { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 24px; padding: 40px 20px; background: radial-gradient(circle at 75% 15%, rgba(52,107,255,.11), transparent 25%), var(--off-white); }

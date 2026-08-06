@@ -32,7 +32,8 @@ import { PlanCreator } from "@/components/plan-creator";
 import { StudyNowCreator } from "@/components/study-now-creator";
 import { trackProductEvent } from "@/lib/analytics/client";
 import { describeAuthCallbackResult } from "@/lib/auth/callback-result";
-import { AuthConnectionError, getAuthenticatedAccount, getAuthMode, requestEmailAuthentication, signOutAuthenticatedAccount } from "@/lib/auth/client";
+import { AuthConnectionError, getAuthenticatedAccount, getAuthMode, requestEmailAuthentication, signOutAuthenticatedAccount, verifyEmailAuthenticationCode } from "@/lib/auth/client";
+import { isCompleteEmailVerificationCode, normalizeEmailVerificationCode } from "@/lib/auth/verification-code";
 import { makeId, makeUuid, type ConceptEvidence, type LearningPlan, type LearningPlanSession, type PreviewAccount, type SessionCompletion, type SessionInterruption } from "@/lib/domain";
 import { summarizeConceptEvidence, type ConceptSignal } from "@/lib/learning/concept-evidence";
 import { clearPreviewSnapshot, loadPreviewSnapshot, savePreviewSnapshot } from "@/lib/persistence/preview-store";
@@ -94,7 +95,7 @@ const navItems: Array<{ label: Tab; icon: typeof Home }> = [
   { label: "You", icon: CircleUserRound },
 ];
 
-export function YovaPrototype() {
+export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailCodeVerificationEnabled?: boolean }) {
   const [ready, setReady] = useState(false);
   const [stage, setStage] = useState<Stage>("landing");
   const [activeTab, setActiveTab] = useState<Tab>("Home");
@@ -738,7 +739,7 @@ export function YovaPrototype() {
 
   if (stage === "landing") return <Landing authIssue={authStartupIssue} onRetryAuth={() => { setReady(false); setAuthCheckAttempt((attempt) => attempt + 1); }} onCreate={() => { setAccountMode("create"); setStage("account"); }} onSignIn={() => { setAccountMode("sign-in"); setStage("account"); }} />;
   if (stage === "account") {
-    return <AccountEntry mode={accountMode} existingAccount={account} onBack={() => setStage("landing")} onContinue={(nextAccount) => {
+    return <AccountEntry mode={accountMode} existingAccount={account} emailCodeVerificationEnabled={emailCodeVerificationEnabled} onBack={() => setStage("landing")} onContinue={(nextAccount) => {
       if (accountMode === "create") {
         clearPreviewSnapshot();
         setAnswers([]);
@@ -943,12 +944,13 @@ function Landing({ authIssue, onRetryAuth, onCreate, onSignIn }: { authIssue: st
   );
 }
 
-function AccountEntry({ mode, existingAccount, onBack, onContinue }: { mode: AccountMode; existingAccount: PreviewAccount | null; onBack: () => void; onContinue: (account: PreviewAccount) => void }) {
+function AccountEntry({ mode, existingAccount, emailCodeVerificationEnabled, onBack, onContinue }: { mode: AccountMode; existingAccount: PreviewAccount | null; emailCodeVerificationEnabled: boolean; onBack: () => void; onContinue: (account: PreviewAccount) => void }) {
   const [displayName, setDisplayName] = useState(existingAccount?.displayName ?? "");
   const [email, setEmail] = useState(existingAccount?.email ?? "");
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
   const [emailSent, setEmailSent] = useState(false);
+  const [verificationCode, setVerificationCode] = useState("");
   const isCreate = mode === "create";
   const authMode = getAuthMode();
 
@@ -995,11 +997,24 @@ function AccountEntry({ mode, existingAccount, onBack, onContinue }: { mode: Acc
     }
   };
 
+  const verifyCode = async () => {
+    setPending(true);
+    setError("");
+    try {
+      const verifiedAccount = await verifyEmailAuthenticationCode(email, verificationCode);
+      onContinue(verifiedAccount);
+    } catch (authenticationError) {
+      setError(authenticationError instanceof Error ? authenticationError.message : "YOVA could not verify that code. Try again.");
+    } finally {
+      setPending(false);
+    }
+  };
+
   if (emailSent) {
-    return <main className="account-shell"><header><BrandMark /><button className="button ghost" onClick={onBack}><ArrowLeft size={17} /> Back</button></header><section className="account-card email-sent"><div className="mail-check"><Mail size={24} /></div><span className="step-label">CHECK YOUR EMAIL</span><h1>Your secure sign-in link is on its way.</h1><p>Open the message sent to <strong>{email.trim().toLowerCase()}</strong>. The link will bring you back to YOVA and finish signing you in.</p><button className="button primary large full" onClick={() => window.location.reload()}>I opened the link — check sign-in</button><button className="button secondary large full" onClick={() => setEmailSent(false)}>Use a different email</button><div className="preview-notice"><strong>Use the same browser</strong><span>For this private alpha, open the email link in the browser where you requested it. If the link opened a new tab, return here and check sign-in.</span></div></section></main>;
+    return <main className="account-shell"><header><BrandMark /><button className="button ghost" onClick={onBack}><ArrowLeft size={17} /> Back</button></header><section className="account-card email-sent"><div className="mail-check"><Mail size={24} /></div><span className="step-label">CHECK YOUR EMAIL</span><h1>Your secure sign-in email is on its way.</h1><p>We sent it to <strong>{email.trim().toLowerCase()}</strong>.</p>{emailCodeVerificationEnabled && <div className="email-code-entry"><span className="step-label">EASIEST OPTION</span><p>Enter the 6-digit code from the newest YOVA email.</p><label><span>Verification code</span><input value={verificationCode} onChange={(event) => { setVerificationCode(normalizeEmailVerificationCode(event.target.value)); setError(""); }} inputMode="numeric" autoComplete="one-time-code" maxLength={6} placeholder="000000" aria-label="6-digit verification code" disabled={pending} /></label>{error && <p className="form-error">{error}</p>}<button className="button primary large full" onClick={() => void verifyCode()} disabled={pending || !isCompleteEmailVerificationCode(verificationCode)}>{pending ? "Verifying…" : "Verify and continue"} {!pending && <ArrowRight size={18} />}</button></div>}<div className="email-link-option"><strong>{emailCodeVerificationEnabled ? "Or use the secure link" : "Open the secure link"}</strong><span>Open the newest email link in the browser where you requested it, then return here.</span></div><button className={emailCodeVerificationEnabled ? "button secondary large full" : "button primary large full"} onClick={() => window.location.reload()}>I opened the link — check sign-in</button><button className="button ghost large full" onClick={() => { setEmailSent(false); setVerificationCode(""); setError(""); }}>Use a different email</button><div className="preview-notice"><strong>{emailCodeVerificationEnabled ? "The code works across browsers" : "Use the same browser"}</strong><span>{emailCodeVerificationEnabled ? "If the link opens somewhere else, enter the email code here instead." : "For this private alpha, the secure link must open in the browser where you requested it."}</span></div></section></main>;
   }
 
-  return <main className="account-shell"><header><BrandMark /><button className="button ghost" onClick={onBack}><ArrowLeft size={17} /> Back</button></header><section className="account-card"><span className="step-label">{isCreate ? "CREATE YOUR ACCOUNT" : "WELCOME BACK"}</span><h1>{isCreate ? "Start building your YOVA." : "Continue your learning."}</h1><p>{isCreate ? "Your account keeps your profile, plans, sessions, and progress together." : authMode === "supabase" ? "Enter your email and YOVA will send you a secure sign-in link." : "Use the email attached to this browser’s private-alpha account."}</p>{isCreate && <label><span>First name</span><input value={displayName} onChange={(event) => { setDisplayName(event.target.value); setError(""); }} autoComplete="given-name" disabled={pending} /></label>}<label><span>Email address</span><div className="input-with-icon"><Mail size={18} /><input type="email" value={email} onChange={(event) => { setEmail(event.target.value); setError(""); }} autoComplete="email" disabled={pending} /></div></label>{error && <p className="form-error">{error}</p>}<button className="button primary large full" onClick={() => void submit()} disabled={pending}>{pending ? "Sending secure link…" : isCreate ? "Continue" : "Sign in"} {!pending && <ArrowRight size={18} />}</button><div className="preview-notice"><strong>{authMode === "supabase" ? "Secure cloud account" : "Private-alpha storage"}</strong><span>{authMode === "supabase" ? "YOVA uses a temporary email link instead of storing a password." : "For now, this browser remembers the prototype. Real email verification activates when the cloud project is connected."}</span></div></section></main>;
+  return <main className="account-shell"><header><BrandMark /><button className="button ghost" onClick={onBack}><ArrowLeft size={17} /> Back</button></header><section className="account-card"><span className="step-label">{isCreate ? "CREATE YOUR ACCOUNT" : "WELCOME BACK"}</span><h1>{isCreate ? "Start building your YOVA." : "Continue your learning."}</h1><p>{isCreate ? "Your account keeps your profile, plans, sessions, and progress together." : authMode === "supabase" ? emailCodeVerificationEnabled ? "Enter your email and YOVA will send you a secure code and sign-in link." : "Enter your email and YOVA will send you a secure sign-in link." : "Use the email attached to this browser’s private-alpha account."}</p>{isCreate && <label><span>First name</span><input value={displayName} onChange={(event) => { setDisplayName(event.target.value); setError(""); }} autoComplete="given-name" disabled={pending} /></label>}<label><span>Email address</span><div className="input-with-icon"><Mail size={18} /><input type="email" value={email} onChange={(event) => { setEmail(event.target.value); setError(""); }} autoComplete="email" disabled={pending} /></div></label>{error && <p className="form-error">{error}</p>}<button className="button primary large full" onClick={() => void submit()} disabled={pending}>{pending ? "Sending secure email…" : isCreate ? "Continue" : "Sign in"} {!pending && <ArrowRight size={18} />}</button><div className="preview-notice"><strong>{authMode === "supabase" ? "Secure cloud account" : "Private-alpha storage"}</strong><span>{authMode === "supabase" ? emailCodeVerificationEnabled ? "YOVA verifies a temporary email code or link instead of storing a password." : "YOVA uses a temporary email link instead of storing a password." : "For now, this browser remembers the prototype. Real email verification activates when the cloud project is connected."}</span></div></section></main>;
 }
 
 function consumeAuthCallbackIssue() {

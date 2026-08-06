@@ -28,7 +28,9 @@ Public deployment: `https://yova-roan.vercel.app`
 
 The public page, YOVA identity, security headers, cache policy, OpenAI generation routes, Supabase persistence, private material storage, and authentication configuration pass the automated production smoke test. Vercel environment variables and Supabase production redirect URLs are configured.
 
-A real production passwordless email was delivered successfully. The first return test did not establish a session in the original browser, most likely because the email link opened in a different browser context from the one that requested it. YOVA now gives explicit same-browser guidance, a session recheck action, and useful recovery messages. Supabase's default email service is limited to two emails per hour, so custom SMTP is still required before outside testing.
+A real production passwordless email was delivered successfully. The first return test did not establish a session in the original browser, most likely because the email link opened in a different browser context from the one that requested it. YOVA now gives explicit same-browser guidance, a session recheck action, and useful recovery messages.
+
+A cross-browser six-digit email-code flow is implemented and tested behind a server-controlled feature switch. It will remain hidden until custom SMTP is connected and the Supabase email template includes the code. Supabase's default email service is limited to two emails per hour and does not allow template editing, so custom SMTP is still required before outside testing.
 
 ## What is complete
 

@@ -8,6 +8,7 @@ export const dynamic = "force-dynamic";
 export default function HomePage() {
   const productionNeedsConfiguration = process.env.NODE_ENV === "production"
     && (!isSupabaseConfigured() || !isOpenAIPlanConfigured());
+  const emailCodeVerificationEnabled = process.env.AUTH_EMAIL_CODE_VERIFICATION === "true";
 
   if (productionNeedsConfiguration) {
     return (
@@ -23,5 +24,5 @@ export default function HomePage() {
     );
   }
 
-  return <YovaPrototype />;
+  return <YovaPrototype emailCodeVerificationEnabled={emailCodeVerificationEnabled} />;
 }
