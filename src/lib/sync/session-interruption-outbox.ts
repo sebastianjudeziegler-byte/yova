@@ -2,6 +2,10 @@
 
 import { z } from "zod";
 import type { SessionInterruption } from "@/lib/domain";
+import {
+  SessionEvidenceSnapshotSchema,
+  SessionPendingRepairSchema,
+} from "@/lib/learning/session-resume";
 import { recordAuthenticatedSessionInterruption } from "@/lib/supabase/learning-state-repository";
 
 const STORAGE_KEY = "yova.session-interruption-outbox.v1";
@@ -16,6 +20,9 @@ const SessionInterruptionSchema = z.object({
   actualMinutes: z.number().int().min(1).max(360),
   completedSteps: z.number().int().min(0).max(24),
   totalSteps: z.number().int().min(1).max(24),
+  resumeStep: z.number().int().min(0).max(24).optional(),
+  evidence: SessionEvidenceSnapshotSchema.optional(),
+  pendingRepair: SessionPendingRepairSchema.optional(),
 });
 
 const PendingSessionInterruptionSchema = z.object({

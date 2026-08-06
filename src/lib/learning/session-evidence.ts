@@ -2,6 +2,7 @@ import type {
   ConfidenceEvidence,
   ConfidenceLevel,
   ConceptEvidence,
+  SessionEvidenceSnapshot,
 } from "@/lib/domain";
 
 export type GuidedSessionStep = {
@@ -20,14 +21,7 @@ export type GuidedSessionStep = {
   evidenceRole?: "assessment" | "immediate_repair";
 };
 
-export type SessionEvidenceSummary = {
-  correctAnswers: number;
-  totalAnswers: number;
-  conceptEvidence: ConceptEvidence[];
-  confidenceEvidence: ConfidenceEvidence[];
-  observedGap: string;
-  completedImmediateRepairs: number;
-};
+export type SessionEvidenceSummary = SessionEvidenceSnapshot;
 
 export type CompletionConceptSummary = {
   showingStrength: string[];
@@ -107,6 +101,29 @@ export function summarizeSessionEvidence(
     confidenceEvidence,
     observedGap: observedGaps.join("; ") || "No major gap detected in the required check",
     completedImmediateRepairs,
+  };
+}
+
+export function mergeSessionEvidenceSummaries(
+  ...summaries: Array<SessionEvidenceSummary | null | undefined>
+): SessionEvidenceSummary {
+  const present = summaries.filter((summary): summary is SessionEvidenceSummary => Boolean(summary));
+  const conceptEvidence = present.flatMap((summary) => summary.conceptEvidence);
+  const needsReview = new Map<string, string>();
+
+  for (const item of conceptEvidence) {
+    if (item.outcome !== "needs_review") continue;
+    const concept = item.concept.trim();
+    if (concept) needsReview.set(concept.toLocaleLowerCase(), concept);
+  }
+
+  return {
+    correctAnswers: present.reduce((sum, summary) => sum + summary.correctAnswers, 0),
+    totalAnswers: present.reduce((sum, summary) => sum + summary.totalAnswers, 0),
+    conceptEvidence,
+    confidenceEvidence: present.flatMap((summary) => summary.confidenceEvidence),
+    observedGap: [...needsReview.values()].join("; ") || "No major gap detected in the required check",
+    completedImmediateRepairs: present.reduce((sum, summary) => sum + summary.completedImmediateRepairs, 0),
   };
 }
 

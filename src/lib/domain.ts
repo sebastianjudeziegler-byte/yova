@@ -145,6 +145,23 @@ export type SessionCompletion = {
   confidenceEvidence: ConfidenceEvidence[];
 };
 
+export type SessionEvidenceSnapshot = {
+  correctAnswers: number;
+  totalAnswers: number;
+  conceptEvidence: ConceptEvidence[];
+  confidenceEvidence: ConfidenceEvidence[];
+  observedGap: string;
+  completedImmediateRepairs: number;
+};
+
+export type SessionPendingRepair = {
+  concept: string;
+  title: string;
+  body: string;
+  correctAnswer: string;
+  feedback: string | null;
+};
+
 export type SessionInterruption = {
   id: string;
   planId: string;
@@ -155,6 +172,9 @@ export type SessionInterruption = {
   actualMinutes: number;
   completedSteps: number;
   totalSteps: number;
+  resumeStep?: number;
+  evidence?: SessionEvidenceSnapshot;
+  pendingRepair?: SessionPendingRepair;
 };
 
 export type NextSessionAdaptation = {

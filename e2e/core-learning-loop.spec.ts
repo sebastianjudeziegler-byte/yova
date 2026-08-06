@@ -44,6 +44,11 @@ test("a confident misconception is repaired now and verified later", async ({ pa
   await page.getByRole("button", { name: "Repair this idea" }).click();
 
   await expect(page.getByText("Repair now, verify later")).toBeVisible();
+  await leaveSession(page, "2 of 6 required steps finished");
+  await expect(page.getByText("Continue where you left off")).toBeVisible();
+  await page.getByRole("button", { name: "Continue session" }).click();
+  await expect(page.getByText("Repair now, verify later")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Explain Cellular respiration sequence again in your own words" })).toBeVisible();
   await expect(page.getByText(/not saved as proof of mastery/i)).not.toBeVisible();
   await page.getByLabel("Corrected idea in your own words").fill(
     "Glycolysis happens first, followed by the Krebs cycle and electron transport chain.",
@@ -140,7 +145,7 @@ test("a new topic is taught before YOVA asks for independent performance", async
   await expect(page.getByRole("group", { name: /Before answering/ })).toBeVisible();
 });
 
-test("a learner can stop twice and still resume at the latest unfinished activity", async ({ page }) => {
+test("a learner can stop twice without losing progress or earlier evidence", async ({ page }) => {
   await createPreviewAccount(page);
   await completeOnboarding(page);
 
@@ -162,11 +167,25 @@ test("a learner can stop twice and still resume at the latest unfinished activit
   await page.getByRole("button", { name: "Continue session" }).click();
   await expect(page.getByRole("heading", { name: "Trace one financial choice" })).toBeVisible();
   await page.getByRole("button", { name: "Continue" }).click();
-  await leaveSession(page, "2 of 5 required steps finished");
+  await page.getByRole("button", { name: "The earlier gain remains in the base" }).click();
+  await expect(page.getByText("Correct.", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Continue" }).click();
+  await leaveSession(page, "3 of 5 required steps finished");
 
-  await expect(page.getByText("2 sections saved", { exact: true })).toBeVisible();
+  await expect(page.getByText("3 sections saved", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Continue session" }).click();
-  await expect(page.getByRole("heading", { name: "What makes the second year compound growth?" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Explain compound growth in your own words" })).toBeVisible();
+  await page.getByRole("button", { name: "Somewhat sure" }).click();
+  await page.getByLabel("Perform independently").fill(
+    "Earlier gains remain in the base, so the same percentage can produce larger gains later.",
+  );
+  await page.getByRole("button", { name: "Check my answer" }).click();
+  await page.getByRole("button", { name: "I got the key idea" }).click();
+  await page.getByRole("button", { name: "Continue" }).click();
+  await page.getByRole("button", { name: "Finish this content" }).click();
+
+  await expect(page.getByText("2 of 2", { exact: true })).toBeVisible();
+  await expect(page.getByText("Evidence checks", { exact: true })).toBeVisible();
 });
 
 test("the product shell keeps every core destination and creation path usable", async ({ page }) => {

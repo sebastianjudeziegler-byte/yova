@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildImmediateRepairAfterMiss,
   buildImmediateRepairSteps,
+  mergeSessionEvidenceSummaries,
   summarizeCompletionConcepts,
   summarizeSessionEvidence,
   type GuidedSessionStep,
@@ -110,6 +111,26 @@ describe("summarizeSessionEvidence", () => {
       correctAnswers: 1,
       totalAnswers: 1,
       observedGap: "No major gap detected in the required check",
+    });
+  });
+
+  it("combines evidence collected before and after an interruption", () => {
+    const beforePause = summarizeSessionEvidence(
+      steps.slice(0, 1),
+      { 0: false },
+      { 0: "very_sure" },
+    );
+    const afterPause = summarizeSessionEvidence(
+      steps,
+      { 1: true },
+      { 1: "somewhat_sure" },
+    );
+
+    expect(mergeSessionEvidenceSummaries(beforePause, afterPause)).toMatchObject({
+      correctAnswers: 1,
+      totalAnswers: 2,
+      observedGap: "Product rule",
+      completedImmediateRepairs: 0,
     });
   });
 });

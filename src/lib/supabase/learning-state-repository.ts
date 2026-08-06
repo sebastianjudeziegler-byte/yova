@@ -13,6 +13,10 @@ import type {
 } from "@/lib/domain";
 import { readConceptEvidenceProperty } from "@/lib/learning/concept-evidence";
 import { readConfidenceEvidenceProperty } from "@/lib/learning/confidence-calibration";
+import {
+  readSessionEvidenceSnapshot,
+  readSessionPendingRepair,
+} from "@/lib/learning/session-resume";
 import { inferLegacySessionLearningMode } from "@/lib/learning/learning-intent";
 import { readSessionAdaptationNote } from "@/lib/personalization/adaptation-note";
 import { readSessionResourceFromStepData } from "@/lib/session-generation/resource";
@@ -249,6 +253,9 @@ export async function loadAuthenticatedLearningState(): Promise<CloudLearningSta
     const actualMinutes = readNumberProperty(event.event_data, "actualMinutes");
     const completedSteps = readNumberProperty(event.event_data, "completedSteps");
     const totalSteps = readNumberProperty(event.event_data, "totalSteps");
+    const resumeStep = readNumberProperty(event.event_data, "resumeStep");
+    const evidence = readSessionEvidenceSnapshot(readProperty(event.event_data, "evidence"));
+    const pendingRepair = readSessionPendingRepair(readProperty(event.event_data, "pendingRepair"));
     if (!planId || !attemptId || !startedAt || plannedMinutes === null || actualMinutes === null || completedSteps === null || totalSteps === null) return [];
 
     return [{
@@ -261,6 +268,9 @@ export async function loadAuthenticatedLearningState(): Promise<CloudLearningSta
       actualMinutes,
       completedSteps,
       totalSteps,
+      ...(resumeStep === null ? {} : { resumeStep }),
+      ...(evidence ? { evidence } : {}),
+      ...(pendingRepair ? { pendingRepair } : {}),
     }];
   });
 
@@ -402,6 +412,9 @@ export async function recordAuthenticatedSessionInterruption(interruption: Sessi
       actualMinutes: interruption.actualMinutes,
       completedSteps: interruption.completedSteps,
       totalSteps: interruption.totalSteps,
+      resumeStep: interruption.resumeStep,
+      evidence: interruption.evidence,
+      pendingRepair: interruption.pendingRepair,
     },
   });
 
@@ -453,6 +466,11 @@ function readTextProperty(value: unknown, key: string) {
   if (!value || typeof value !== "object" || Array.isArray(value)) return "";
   const property = (value as Record<string, unknown>)[key];
   return typeof property === "string" ? property : "";
+}
+
+function readProperty(value: unknown, key: string) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  return (value as Record<string, unknown>)[key];
 }
 
 function readNumberProperty(value: unknown, key: string) {

@@ -46,6 +46,7 @@ import {
   type PreviewAccount,
   type SessionCompletion,
   type SessionCoverage,
+  type SessionEvidenceSnapshot,
   type SessionInterruption,
   type SessionMethodBriefing,
   type SessionResource,
@@ -74,12 +75,13 @@ import {
 } from "@/lib/learning/scaffold-progression";
 import {
   buildImmediateRepairAfterMiss,
+  mergeSessionEvidenceSummaries,
   summarizeCompletionConcepts,
   summarizeSessionEvidence,
   type GuidedSessionStep,
 } from "@/lib/learning/session-evidence";
 import { shouldRequestConfidence } from "@/lib/learning/session-interaction";
-import { resumableSessionProgress } from "@/lib/learning/session-resume";
+import { restoreInterruptedLesson, resumableSessionProgress } from "@/lib/learning/session-resume";
 import { clearPreviewSnapshot, loadPreviewSnapshot, savePreviewSnapshot } from "@/lib/persistence/preview-store";
 import { buildPlanProfileSummary } from "@/lib/personalization/profile-summary";
 import { createSessionAdaptationNote } from "@/lib/personalization/adaptation-note";
@@ -158,6 +160,7 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
   const [sessionOutcomes, setSessionOutcomes] = useState<Record<number, boolean>>({});
   const [sessionConfidence, setSessionConfidence] = useState<Record<number, ConfidenceLevel>>({});
+  const [resumedSessionEvidence, setResumedSessionEvidence] = useState<SessionEvidenceSnapshot | null>(null);
   const [answerRevealed, setAnswerRevealed] = useState(false);
   const [generatedLessonSteps, setGeneratedLessonSteps] = useState<LessonStep[] | null>(null);
   const [sessionRationale, setSessionRationale] = useState<string | null>(null);
@@ -181,7 +184,10 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
   const activePlan = activePlans.find((plan) => plan.id === selectedPlanId) ?? activePlans[activePlans.length - 1] ?? null;
   const recommendedPlan = chooseRecommendedPlan(activePlans);
   const activeLessonSteps = generatedLessonSteps ?? lessonStepsFor(activePlan);
-  const sessionEvidence = summarizeSessionEvidence(activeLessonSteps, sessionOutcomes, sessionConfidence);
+  const sessionEvidence = mergeSessionEvidenceSummaries(
+    resumedSessionEvidence,
+    summarizeSessionEvidence(activeLessonSteps, sessionOutcomes, sessionConfidence),
+  );
   const capturedSessionSeconds = Math.max(1, sessionElapsedSeconds);
   const capturedSessionMinutes = Math.max(1, Math.ceil(capturedSessionSeconds / 60));
 
@@ -400,6 +406,7 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
     setSelectedAnswer(null);
     setSessionOutcomes({});
     setSessionConfidence({});
+    setResumedSessionEvidence(resumePoint?.evidence ?? null);
     setAnswerRevealed(false);
     setGeneratedLessonSteps(null);
     setSessionRationale(null);
@@ -491,8 +498,9 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
           ? { ...session, resource: reusableResource }
           : session),
       }));
-      setGeneratedLessonSteps(nextLessonSteps);
-      if (resumePoint) setSessionStep(Math.min(resumePoint.completedSteps, nextLessonSteps.length - 1));
+      const restoredLesson = restoreInterruptedLesson(nextLessonSteps, resumePoint);
+      setGeneratedLessonSteps(restoredLesson.steps);
+      setSessionStep(restoredLesson.step);
       setSessionRationale(parsed.data.session.rationale);
       setSessionCoverage(parsed.data.session.coverage);
       setSessionMethodBriefing(parsed.data.session.methodBriefing);
@@ -534,8 +542,9 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
           ? { ...session, resource: fallbackResource }
           : session),
       }));
-      setGeneratedLessonSteps(fallbackSteps);
-      if (resumePoint) setSessionStep(Math.min(resumePoint.completedSteps, fallbackSteps.length - 1));
+      const restoredLesson = restoreInterruptedLesson(fallbackSteps, resumePoint);
+      setGeneratedLessonSteps(restoredLesson.steps);
+      setSessionStep(restoredLesson.step);
       setSessionRationale(requestedSession.methodReason);
       setSessionCoverage(fallbackCoverageFor(requestedSession));
       setSessionMethodBriefing(null);
@@ -685,6 +694,24 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
 
     const interruptedAt = new Date();
     const actualMinutes = Math.max(1, Math.ceil((interruptedAt.getTime() - sessionStartedAt) / 60_000));
+    const completedLessonSteps = activeLessonSteps.slice(0, sessionStep);
+    const interruptionEvidence = mergeSessionEvidenceSummaries(
+      resumedSessionEvidence,
+      summarizeSessionEvidence(completedLessonSteps, sessionOutcomes, sessionConfidence),
+    );
+    const resumeStep = completedLessonSteps.filter((step) => step.evidenceRole !== "immediate_repair").length;
+    const currentStep = activeLessonSteps[sessionStep];
+    const pendingRepair = currentStep?.evidenceRole === "immediate_repair"
+      && currentStep.concept
+      && currentStep.correctAnswer
+      ? {
+        concept: currentStep.concept,
+        title: currentStep.title,
+        body: currentStep.body,
+        correctAnswer: currentStep.correctAnswer,
+        feedback: currentStep.feedback,
+      }
+      : undefined;
     const interruption: SessionInterruption = {
       id: makeUuid(),
       planId: activePlan.id,
@@ -695,6 +722,9 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
       actualMinutes,
       completedSteps: Math.min(sessionStep, activeLessonSteps.length),
       totalSteps: activeLessonSteps.length,
+      resumeStep,
+      evidence: interruptionEvidence,
+      pendingRepair,
     };
 
     trackProductEvent({
@@ -710,6 +740,7 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
     setSessionStartedAt(null);
     setSessionCompletedAt(null);
     setSessionElapsedSeconds(0);
+    setResumedSessionEvidence(null);
     setStage("app");
     setActiveTab("Home");
 
@@ -760,6 +791,8 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
     setSessionStep(0);
     setSelectedAnswer(null);
     setSessionOutcomes({});
+    setSessionConfidence({});
+    setResumedSessionEvidence(null);
     setAnswerRevealed(false);
     setGeneratedLessonSteps(null);
     setSessionRationale(null);

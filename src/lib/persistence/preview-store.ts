@@ -1,6 +1,10 @@
 import type { LearningPlan, SessionCompletion, SessionInterruption, YovaPreviewSnapshot } from "@/lib/domain";
 import { ConfidenceEvidenceListSchema } from "@/lib/learning/confidence-calibration";
 import { inferLegacySessionLearningMode } from "@/lib/learning/learning-intent";
+import {
+  readSessionEvidenceSnapshot,
+  readSessionPendingRepair,
+} from "@/lib/learning/session-resume";
 
 const STORAGE_KEY = "yova.preview.v1";
 
@@ -51,7 +55,21 @@ function normalizePreviewPlan(plan: LearningPlan): LearningPlan {
 
 function readSessionInterruptions(snapshot: YovaPreviewSnapshot | Record<string, unknown>): SessionInterruption[] {
   const value = (snapshot as Record<string, unknown>).sessionInterruptions;
-  return Array.isArray(value) ? value as SessionInterruption[] : [];
+  if (!Array.isArray(value)) return [];
+
+  return value.flatMap<SessionInterruption>((entry) => {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) return [];
+    const interruption = entry as SessionInterruption;
+    const evidence = readSessionEvidenceSnapshot((entry as Record<string, unknown>).evidence);
+    const pendingRepair = readSessionPendingRepair((entry as Record<string, unknown>).pendingRepair);
+    const resumeStep = (entry as Record<string, unknown>).resumeStep;
+    return [{
+      ...interruption,
+      ...(typeof resumeStep === "number" && Number.isInteger(resumeStep) ? { resumeStep } : {}),
+      ...(evidence ? { evidence } : {}),
+      ...(pendingRepair ? { pendingRepair } : {}),
+    }];
+  });
 }
 
 export function savePreviewSnapshot(snapshot: YovaPreviewSnapshot) {

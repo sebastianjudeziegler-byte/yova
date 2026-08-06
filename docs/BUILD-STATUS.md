@@ -64,6 +64,7 @@ A cross-browser six-digit email-code flow is implemented and tested behind a ser
 - Concept-level evidence distinguishes early signals, review needs, and repeated strength
 - Actual duration and repeated interruptions cautiously influence future work
 - A learner can interrupt the same session more than once and resume from the latest saved content step instead of losing the newer resume point
+- Paused sessions preserve completed concept, accuracy, and confidence evidence without storing typed answers; if a learner leaves during a required repair, that repair returns before new work
 - Completed sessions are grouped by method so YOVA can show early, promising, or support-needed signals without claiming a fixed learning style
 - Diagnosed-condition answers are excluded from model personalization context
 - A task-first learning-science router now bounds OpenAI to nine named methods instead of relying on a free-form “personalized plan” prompt

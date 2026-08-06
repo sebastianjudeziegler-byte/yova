@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { SessionInterruption } from "@/lib/domain";
-import { resumableSessionProgress } from "@/lib/learning/session-resume";
+import type { GuidedSessionStep } from "@/lib/learning/session-evidence";
+import {
+  restoreInterruptedLesson,
+  resumableSessionProgress,
+} from "@/lib/learning/session-resume";
 
 function interruption(
   id: string,
@@ -40,5 +44,53 @@ describe("resumableSessionProgress", () => {
     ]);
 
     expect(result).toBeNull();
+  });
+
+  it("restores an unfinished repair before the next original activity", () => {
+    const baseSteps: GuidedSessionStep[] = [
+      {
+        methodPhase: "retrieve",
+        type: "multiple_choice",
+        concept: "Product rule",
+        label: "Check",
+        title: "Choose the derivative",
+        body: "Answer before checking.",
+        question: ["f'g + fg'", "f'g'"],
+        correctAnswer: "f'g + fg'",
+        feedback: "Differentiate each factor once.",
+      },
+      {
+        methodPhase: "transfer",
+        type: "free_response",
+        concept: "Product rule transfer",
+        label: "Apply",
+        title: "Use the rule",
+        body: "Apply it to a new example.",
+        question: null,
+        correctAnswer: "Use two derivative terms.",
+        feedback: "Each factor changes in one term.",
+      },
+    ];
+    const stopped = {
+      ...interruption("repair-pending", 1, "2026-08-06T18:15:00.000Z"),
+      resumeStep: 1,
+      pendingRepair: {
+        concept: "Product rule",
+        title: "Explain Product rule again in your own words",
+        body: "State the corrected rule without looking back.",
+        correctAnswer: "f'g + fg'",
+        feedback: "Differentiate each factor once.",
+      },
+    };
+
+    const restored = restoreInterruptedLesson(baseSteps, stopped);
+
+    expect(restored.step).toBe(1);
+    expect(restored.steps).toHaveLength(3);
+    expect(restored.steps[1]).toMatchObject({
+      evidenceRole: "immediate_repair",
+      concept: "Product rule",
+    });
+    expect(restored.steps[2].title).toBe("Use the rule");
   });
 });
