@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { readSessionResourceFromStepData, toSessionResource } from "@/lib/session-generation/resource";
-import type { SessionGenerationResponse } from "@/lib/session-generation/schema";
+import { GeneratedSessionDraftSchema, type SessionGenerationResponse } from "@/lib/session-generation/schema";
 
 const generatedSession: SessionGenerationResponse["session"] = {
-  schemaVersion: 8,
+  schemaVersion: 9,
   model: "gpt-test",
   generatedAt: "2026-08-05T18:00:00.000Z",
   rationale: "This sequence teaches the core idea before checking recall and application.",
@@ -101,5 +101,27 @@ describe("session resources", () => {
   it("ignores missing or unsafe cached content", () => {
     expect(readSessionResourceFromStepData(null)).toBeUndefined();
     expect(readSessionResourceFromStepData({ generatedSession: { rationale: "too small" } })).toBeUndefined();
+  });
+
+  it("rejects a teaching-first session that hides the lesson inside an instruction paragraph", () => {
+    const invalidSession = {
+      ...generatedSession,
+      activities: [
+        {
+          ...generatedSession.activities[0],
+          methodPhase: "orient",
+          teaching: null,
+          body: "Read the lesson text placed in this generic instruction field before continuing.",
+        },
+        ...generatedSession.activities.slice(1),
+      ],
+    };
+
+    const result = GeneratedSessionDraftSchema.safeParse(invalidSession);
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues.some((issue) => issue.path.join(".") === "activities.0.teaching")).toBe(true);
+    }
   });
 });

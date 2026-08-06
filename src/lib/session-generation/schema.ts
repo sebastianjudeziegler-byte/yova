@@ -102,11 +102,11 @@ export const SessionCoverageSchema = z.object({
 
 export const TeachingBlockSchema = z.object({
   keyIdea: z.string().trim().min(10).max(220),
-  explanation: z.string().trim().min(40).max(1_200),
+  explanation: z.string().trim().min(40).max(700),
   example: z.object({
-    setup: z.string().trim().min(10).max(300),
-    steps: z.array(z.string().trim().min(8).max(280)).min(2).max(5),
-    takeaway: z.string().trim().min(10).max(260),
+    setup: z.string().trim().min(10).max(180),
+    steps: z.array(z.string().trim().min(8).max(200)).min(2).max(5),
+    takeaway: z.string().trim().min(10).max(180),
   }).nullable(),
   commonMistake: z.object({
     mistake: z.string().trim().min(8).max(240),
@@ -121,7 +121,7 @@ export const GeneratedSessionActivitySchema = z.object({
   requiredForCompletion: z.boolean(),
   label: z.string().trim().min(2).max(50),
   title: z.string().trim().min(3).max(140),
-  body: z.string().trim().min(10).max(900),
+  body: z.string().trim().min(10).max(320),
   teaching: TeachingBlockSchema.nullable(),
   type: z.enum(["instruction", "multiple_choice", "free_response", "reflection"]),
   choices: z.array(z.string().trim().min(1).max(220)).max(5),
@@ -209,6 +209,9 @@ export const GeneratedSessionDraftSchema = z.object({
   if (session.methodBriefing.learningMode === "learn" && firstActivity?.type !== "instruction") {
     context.addIssue({ code: "custom", path: ["activities", 0], message: "Teaching-first sessions must begin with a concise explanation or model." });
   }
+  if (session.methodBriefing.learningMode === "learn" && !firstActivity?.teaching) {
+    context.addIssue({ code: "custom", path: ["activities", 0, "teaching"], message: "Teaching-first sessions must begin with a structured subject lesson, not a paragraph in the instruction field." });
+  }
   if (session.methodBriefing.learningMode === "study" && firstActivity?.type !== "multiple_choice" && firstActivity?.type !== "free_response") {
     context.addIssue({ code: "custom", path: ["activities", 0], message: "Practice-first sessions must begin with an unsupported attempt." });
   }
@@ -218,7 +221,7 @@ export const GeneratedSessionDraftSchema = z.object({
 });
 
 export const CachedGeneratedSessionSchema = GeneratedSessionDraftSchema.extend({
-  schemaVersion: z.literal(8),
+  schemaVersion: z.literal(9),
   model: z.string().min(1),
   generatedAt: z.string().datetime({ offset: true }),
   supportPlan: SessionSupportPlanSchema.optional(),

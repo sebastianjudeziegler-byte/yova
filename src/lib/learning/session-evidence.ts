@@ -104,6 +104,8 @@ export function buildImmediateRepairSteps(
     missedConcepts.add(step.concept.toLocaleLowerCase());
     return [{
       methodPhase: "repair",
+      estimatedMinutes: 2,
+      requiredForCompletion: true,
       type: "free_response",
       concept: step.concept,
       label: "REPAIR CHECK",
@@ -117,6 +119,29 @@ export function buildImmediateRepairSteps(
       evidenceRole: "immediate_repair",
     }];
   });
+}
+
+export function buildImmediateRepairAfterMiss(
+  steps: GuidedSessionStep[],
+  currentIndex: number,
+  outcomes: Record<number, boolean>,
+  maximumRepairs = 2,
+) {
+  const current = steps[currentIndex];
+  if (
+    !current
+    || outcomes[currentIndex] !== false
+    || current.evidenceRole === "immediate_repair"
+    || !isKnowledgeCheck(current)
+  ) return null;
+
+  const existingRepairs = steps.filter((step) => step.evidenceRole === "immediate_repair");
+  if (existingRepairs.length >= maximumRepairs) return null;
+  if (existingRepairs.some((step) => step.concept?.toLocaleLowerCase() === current.concept?.toLocaleLowerCase())) {
+    return null;
+  }
+
+  return buildImmediateRepairSteps([current], { 0: false }, 1)[0] ?? null;
 }
 
 function isKnowledgeCheck(step: GuidedSessionStep): step is GuidedSessionStep & {

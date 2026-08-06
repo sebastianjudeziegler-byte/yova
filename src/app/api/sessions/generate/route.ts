@@ -232,7 +232,7 @@ export async function POST(request: Request) {
     });
 
     const cachedSession = CachedGeneratedSessionSchema.parse({
-      schemaVersion: 8,
+      schemaVersion: 9,
       ...generated.draft,
       supportPlan: generated.supportPlan,
       model: generated.model,
@@ -308,7 +308,7 @@ async function generateBrowserPreviewSession(
       materials: [],
     });
     const session = CachedGeneratedSessionSchema.parse({
-      schemaVersion: 8,
+      schemaVersion: 9,
       ...generated.draft,
       supportPlan: generated.supportPlan,
       model: generated.model,

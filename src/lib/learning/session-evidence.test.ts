@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildImmediateRepairAfterMiss,
   buildImmediateRepairSteps,
   summarizeSessionEvidence,
   type GuidedSessionStep,
@@ -51,6 +52,26 @@ describe("buildImmediateRepairSteps", () => {
     }];
 
     expect(buildImmediateRepairSteps(repeatedMisses, { 0: false, 1: false, 2: false })).toHaveLength(2);
+  });
+});
+
+describe("buildImmediateRepairAfterMiss", () => {
+  it("creates the repair directly after the missed activity", () => {
+    const repair = buildImmediateRepairAfterMiss(steps, 0, { 0: false });
+
+    expect(repair).toMatchObject({
+      methodPhase: "repair",
+      estimatedMinutes: 2,
+      requiredForCompletion: true,
+      evidenceRole: "immediate_repair",
+      concept: "Product rule",
+    });
+  });
+
+  it("does not duplicate an already inserted concept repair", () => {
+    const existingRepair = buildImmediateRepairSteps(steps, { 0: false })[0];
+
+    expect(buildImmediateRepairAfterMiss([...steps, existingRepair], 0, { 0: false })).toBeNull();
   });
 });
 

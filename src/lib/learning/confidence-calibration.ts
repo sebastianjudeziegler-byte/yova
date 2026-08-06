@@ -63,7 +63,7 @@ export function summarizeConfidenceCalibration(
       highConfidenceMisses,
       lowConfidenceSuccesses,
       title: "A confident answer needs repair",
-      explanation: "You felt very sure about an answer that did not hold up. YOVA will treat that as a possible misconception and use explanation followed by a new application—not repetition alone.",
+      explanation: "You felt very sure about an answer that did not hold up. YOVA will treat that as a possible misconception and use explanation followed by a new application instead of repetition alone.",
     };
   }
 
@@ -106,5 +106,5 @@ export function confidenceResultMessage(confidence: ConfidenceEvidence["confiden
   if (confidence === "guessing" && correct) {
     return "You knew more than you expected. YOVA will confirm this with another independent attempt instead of reteaching immediately.";
   }
-  return "This confidence rating is consistent with the result and becomes one small piece of evidence—not a permanent label.";
+  return "This confidence rating is consistent with the result. It becomes one small piece of evidence, not a permanent label.";
 }

@@ -30,6 +30,7 @@ import {
   GeneratedSessionDraftSchema,
   type GeneratedSessionDraft,
 } from "@/lib/session-generation/schema";
+import { polishGeneratedSessionTypography } from "@/lib/session-generation/typography";
 
 export type SessionGenerationContext = {
   learningGoal: {
@@ -105,8 +106,10 @@ Requirements:
 - Select the method first, then follow the matching methodFidelityContract as a hard sequence—not merely as wording. Tag every activity with the methodPhase that describes what the learner actually does in that activity.
 - Never misuse a methodPhase label to pass validation. A model activity must contain a complete example or explanation; guided_practice must remove some support; independent_practice must withhold the solution; repair must compare and correct; transfer must use a different prompt or application; schedule_return must name a delayed retrieval point.
 - For a learn session, teach or model the target before the first knowledge check, then fade support toward an independent attempt. The checks verify whether teaching worked; they are not the main content.
-- Every model-phase instruction must contain a teaching block. The teaching block must explain the actual subject matter, not the study method: state the key idea, explain the mechanism or procedure in connected prose, give a worked concrete example when useful, and correct one plausible misconception when relevant.
-- Keep body as the learner's immediate action or setup. Put the substantive lesson in teaching so the interface can present the idea, walkthrough, and common mistake clearly instead of as one undifferentiated paragraph.
+- Every model-phase instruction must contain a teaching block. In every learn session, the first activity must also contain a teaching block even when its method phase is orient. The teaching block must explain the actual subject matter, not the study method: state the key idea, explain the mechanism or procedure in connected prose, give a worked concrete example when useful, and correct one plausible misconception when relevant.
+- Keep body under two short sentences and use it only for the learner's immediate action or setup. Never place a lesson, bullet list, study guide, or example inside body. Put the substantive lesson in teaching so the interface can present the idea, walkthrough, and common mistake as separate visual sections.
+- Do not number activity labels; the interface supplies step numbers. Use short labels such as Learn, Try, Explain, Check, or Repair.
+- Do not use em dashes, en dashes, or bullet glyphs in learner-facing text. Use ordinary sentences and the structured arrays supplied by the schema.
 - For a study session, make the first topic activity an unsupported retrieval or application attempt. Show explanations only after the attempt, target the exposed gap, and include a later retry or transfer question.
 - Use the catalog's how and completion fields as the scientific source, but rewrite them concisely for this exact session rather than copying every line mechanically.
 - Create 3 to 8 short activities that fit the estimated duration. Give every activity a realistic estimatedMinutes value. Required activity minutes must fit inside the session estimate; all activity minutes may exceed it by at most 2 minutes.
@@ -205,14 +208,14 @@ export async function generateSessionWithOpenAI(
     response = await requestDraft("The structured session shape was invalid.");
   }
 
-  let parsed = GeneratedSessionDraftSchema.safeParse(response.output_parsed);
+  let parsed = parseGeneratedSessionDraft(response.output_parsed);
   let semanticIssue = parsed.success
     ? validateGeneratedSession(parsed.data, context, observedMethodOutcomes, conceptReviewSchedule, scaffoldProgression)
     : null;
   if ((response.status !== "completed" || !parsed.success || semanticIssue) && !repairAttempted) {
     repairAttempted = true;
     response = await requestDraft(semanticIssue ?? "The structured session shape was invalid or incomplete.");
-    parsed = GeneratedSessionDraftSchema.safeParse(response.output_parsed);
+    parsed = parseGeneratedSessionDraft(response.output_parsed);
     semanticIssue = parsed.success
       ? validateGeneratedSession(parsed.data, context, observedMethodOutcomes, conceptReviewSchedule, scaffoldProgression)
       : null;
@@ -231,6 +234,12 @@ export async function generateSessionWithOpenAI(
       learningMode: parsed.data.methodBriefing.learningMode,
     }),
   };
+}
+
+function parseGeneratedSessionDraft(value: unknown) {
+  const parsed = GeneratedSessionDraftSchema.safeParse(value);
+  if (!parsed.success) return parsed;
+  return GeneratedSessionDraftSchema.safeParse(polishGeneratedSessionTypography(parsed.data));
 }
 
 function validateGeneratedSession(

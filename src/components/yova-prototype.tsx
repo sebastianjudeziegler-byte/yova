@@ -27,6 +27,7 @@ import {
   Target,
   Trash2,
   Upload,
+  X,
 } from "lucide-react";
 import { BrandMark } from "@/components/brand-mark";
 import { PlanCreator } from "@/components/plan-creator";
@@ -72,7 +73,7 @@ import {
   type SessionSupportPlan,
 } from "@/lib/learning/scaffold-progression";
 import {
-  buildImmediateRepairSteps,
+  buildImmediateRepairAfterMiss,
   summarizeSessionEvidence,
   type GuidedSessionStep,
 } from "@/lib/learning/session-evidence";
@@ -98,6 +99,7 @@ import {
 import { SessionGenerationResponseSchema } from "@/lib/session-generation/schema";
 import { buildPreviewSessionContext } from "@/lib/session-generation/preview-context";
 import { toSessionResource } from "@/lib/session-generation/resource";
+import { polishActivityLabel } from "@/lib/session-generation/typography";
 import { RescheduleSessionResponseSchema } from "@/lib/scheduling/schema";
 import { isSessionOverdue, recoverySessionMinutes, tomorrowAtSessionTime } from "@/lib/scheduling/recovery";
 import {
@@ -161,7 +163,6 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
   const [sessionSupportPlan, setSessionSupportPlan] = useState<SessionSupportPlan | null>(null);
   const [sessionSourceGrounding, setSessionSourceGrounding] = useState<SessionSourceGrounding | null>(null);
   const [sessionGenerationIssue, setSessionGenerationIssue] = useState<string | null>(null);
-  const [repairStepsAdded, setRepairStepsAdded] = useState(false);
   const [sessionStartedAt, setSessionStartedAt] = useState<number | null>(null);
   const [sessionCompletedAt, setSessionCompletedAt] = useState<string | null>(null);
   const [sessionElapsedSeconds, setSessionElapsedSeconds] = useState(0);
@@ -397,7 +398,6 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
     setSessionSupportPlan(null);
     setSessionSourceGrounding(null);
     setSessionGenerationIssue(null);
-    setRepairStepsAdded(false);
     setSessionStartedAt(null);
     setSessionCompletedAt(null);
     setSessionElapsedSeconds(0);
@@ -731,7 +731,6 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
     setSessionRationale(null);
     setSessionSupportPlan(null);
     setSessionGenerationIssue(null);
-    setRepairStepsAdded(false);
     setSessionStartedAt(null);
     setSessionCompletedAt(null);
     setSessionElapsedSeconds(0);
@@ -1010,18 +1009,24 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
         onReveal={() => setAnswerRevealed(true)}
         onExit={interruptActiveSession}
         onNext={() => {
+          const immediateRepair = buildImmediateRepairAfterMiss(
+            activeLessonSteps,
+            sessionStep,
+            sessionOutcomes,
+          );
+          if (immediateRepair) {
+            setGeneratedLessonSteps([
+              ...activeLessonSteps.slice(0, sessionStep + 1),
+              immediateRepair,
+              ...activeLessonSteps.slice(sessionStep + 1),
+            ]);
+            setSessionStep((value) => value + 1);
+            setSelectedAnswer(null);
+            setAnswerRevealed(false);
+            return;
+          }
+
           if (sessionStep === activeLessonSteps.length - 1) {
-            if (!repairStepsAdded) {
-              const immediateRepairs = buildImmediateRepairSteps(activeLessonSteps, sessionOutcomes);
-              setRepairStepsAdded(true);
-              if (immediateRepairs.length > 0) {
-                setGeneratedLessonSteps([...activeLessonSteps, ...immediateRepairs]);
-                setSessionStep((value) => value + 1);
-                setSelectedAnswer(null);
-                setAnswerRevealed(false);
-                return;
-              }
-            }
             const finishedAt = Date.now();
             if (sessionStartedAt) setSessionElapsedSeconds(Math.max(1, Math.round((finishedAt - sessionStartedAt) / 1_000)));
             setSessionCompletedAt(new Date(finishedAt).toISOString());
@@ -2038,10 +2043,12 @@ function GuidedSession({ plan, steps, step, selectedAnswer, outcome, confidence,
   const isImmediateRepair = content.evidenceRole === "immediate_repair";
   const requiresConfidence = isQuestion && !isImmediateRepair;
   const isCorrect = outcome === true;
+  const correctAnswer = content.correctAnswer?.trim() ?? "";
+  const punctuatedCorrectAnswer = correctAnswer && !/[.!?]$/.test(correctAnswer) ? `${correctAnswer}.` : correctAnswer;
   const explanation = isCorrect
     ? content.feedback
-    : content.correctAnswer
-      ? `The correct answer is “${content.correctAnswer}.” ${content.feedback ?? "YOVA will bring this idea back for another attempt."}`
+    : punctuatedCorrectAnswer
+      ? `The correct answer is “${punctuatedCorrectAnswer}” ${content.feedback ?? "YOVA will bring this idea back for another attempt."}`
       : content.feedback;
   const canContinue = !isQuestion || outcome !== undefined;
   const phase = content.methodPhase ? getMethodPhasePresentation(content.methodPhase) : null;
@@ -2049,6 +2056,7 @@ function GuidedSession({ plan, steps, step, selectedAnswer, outcome, confidence,
   const requiredSteps = steps.filter((item) => item.requiredForCompletion !== false);
   const completedRequiredSteps = steps.slice(0, step).filter((item) => item.requiredForCompletion !== false).length;
   const requiredProgress = requiredSteps.length ? Math.round((completedRequiredSteps / requiredSteps.length) * 100) : 0;
+  const activityLabel = polishActivityLabel(content.label) || "Activity";
 
   return <main className="session-shell">
     <header className="session-top">
@@ -2064,17 +2072,14 @@ function GuidedSession({ plan, steps, step, selectedAnswer, outcome, confidence,
       {issue && step === 0 && <div className="session-issue"><AlertCircle size={17} /><span>{issue}</span></div>}
       {phase && phasePosition && <MethodPhaseCoach phase={phase} current={phasePosition.current} total={phasePosition.total} />}
       {isImmediateRepair && <div className="immediate-repair-note"><RotateCcw size={17} /><div><strong>Repair now, verify later</strong><p>This explain-back helps correct the idea before you leave. YOVA will preserve the original miss and check the concept again in a later session.</p></div></div>}
-      <div className="session-step-meta"><span className="step-label">{content.label}</span>{content.estimatedMinutes && <span><Clock3 size={13} /> about {content.estimatedMinutes} min</span>}</div>
-      <h1>{content.title}</h1>
-      <p>{content.body}</p>
+      <header className="session-activity-header"><div className="session-step-meta"><div><span>STEP {step + 1} OF {steps.length}</span><strong>{activityLabel}</strong></div>{content.estimatedMinutes && <span><Clock3 size={13} /> About {content.estimatedMinutes} min</span>}</div><h1>{content.title}</h1><p>{content.body}</p></header>
       {content.teaching && <TeachingLessonCard teaching={content.teaching} />}
       {step === 0 && (sourceGrounding || rationale) && <details className="session-context-details"><summary>Sources and why YOVA chose this approach</summary>{sourceGrounding && <SourceGroundingCard grounding={sourceGrounding} />}{rationale && <div className="session-rationale"><Sparkles size={17} /><div><strong>Why this session fits</strong><p>{rationale}</p></div></div>}</details>}
       {requiresConfidence && <ConfidenceCheck value={confidence} locked={outcome !== undefined || answerRevealed} onChange={onConfidence} />}
       {content.type === "multiple_choice" && content.question && <div className="answer-grid">{content.question.map((answer) => <button key={answer} className={selectedAnswer === answer ? "selected" : ""} disabled={selectedAnswer !== null || (requiresConfidence && !confidence)} onClick={() => { onSelect(answer); onEvaluate(answer === content.correctAnswer); }}>{answer}{selectedAnswer === answer && <Check size={18} />}</button>)}</div>}
-      {content.type === "multiple_choice" && outcome !== undefined && <><div className={`feedback ${isCorrect ? "" : "incorrect"}`}>{isCorrect ? <Check size={20} /> : <AlertCircle size={20} />}<div><strong>{isCorrect ? "Correct." : "Useful miss."}</strong><p>{explanation}</p></div></div>{confidence && <p className="confidence-result"><Sparkles size={15} /> {confidenceResultMessage(confidence, isCorrect)}</p>}</>}
+      {content.type === "multiple_choice" && outcome !== undefined && <><div className={`feedback ${isCorrect ? "" : "incorrect"}`}>{isCorrect ? <Check size={20} /> : <AlertCircle size={20} />}<div><strong>{isCorrect ? "Correct." : "Useful miss. Repair it now."}</strong><p>{explanation}</p></div></div>{confidence && <p className="confidence-result"><Sparkles size={15} /> {confidenceResultMessage(confidence, isCorrect)}</p>}</>}
       {content.type === "free_response" && <div className="recall-response"><label htmlFor={`recall-${step}`}><span>{isImmediateRepair ? "Corrected idea in your own words" : phase?.label ?? "Your answer from memory"}</span><textarea id={`recall-${step}`} rows={6} value={selectedAnswer ?? ""} disabled={answerRevealed || (requiresConfidence && !confidence)} placeholder={isImmediateRepair ? "Explain the corrected idea without copying the wording…" : confidence ? phase?.instruction ?? "Write what you can remember before checking…" : "Choose your confidence first…"} onChange={(event) => onSelect(event.target.value)} /></label>{!answerRevealed ? <button className="button secondary" disabled={!selectedAnswer?.trim() || (requiresConfidence && !confidence)} onClick={onReveal}>Check my answer</button> : <div className="recall-review"><span className="step-label">REFERENCE ANSWER</span><p>{content.correctAnswer}</p>{content.feedback && <small>{content.feedback}</small>}<div className="recall-actions"><span>How did your answer compare?</span><button className={outcome === true ? "selected" : ""} onClick={() => onEvaluate(true)}><Check size={17} /> I got the key idea</button><button className={outcome === false ? "selected needs-work" : ""} onClick={() => onEvaluate(false)}><AlertCircle size={17} /> Needs another pass</button></div>{confidence && outcome !== undefined && <p className="confidence-result"><Sparkles size={15} /> {confidenceResultMessage(confidence, outcome)}</p>}<small className="privacy-note">{isImmediateRepair ? "This immediate explain-back is not saved as proof of mastery. The original miss remains scheduled for later verification." : "Your typed response stays in this session. YOVA saves only whether this concept felt secure or needs review, plus your confidence level and the support that was available."}</small></div>}</div>}
-      <button className="button primary large" onClick={onNext} disabled={!canContinue}>{step === steps.length - 1 ? "Finish this content" : "Continue"} <ArrowRight size={18} /></button>
-      {step === steps.length - 1 && <p className="completion-rule"><Check size={14} /> Completion means the required content and checks were attempted. Time alone never completes a session.</p>}
+      <footer className="session-action-bar">{step === steps.length - 1 && <p className="completion-rule"><Check size={14} /> Required content and checks must be attempted before this session is complete.</p>}<button className="button primary large" onClick={onNext} disabled={!canContinue}>{outcome === false && !isImmediateRepair ? "Repair this idea" : step === steps.length - 1 ? "Finish this content" : "Continue"} <ArrowRight size={18} /></button></footer>
     </section>
     <SessionTutor plan={plan} activityTitle={content.title} analyticsEnabled={analyticsEnabled} />
     {confirmingExit && <div className="session-exit-backdrop"><section className="session-exit-dialog" role="dialog" aria-modal="true" aria-labelledby="session-exit-title"><div className="session-exit-icon"><Clock3 size={21} /></div><span className="step-label">LEAVE THIS SESSION?</span><h2 id="session-exit-title">Your plan will stay open.</h2><p>YOVA will remember how long you studied and exactly which content steps you reached. Unfinished answers will not be treated as knowledge evidence.</p><div className="session-exit-summary"><span>{formatElapsedDuration(elapsedSeconds)} studied</span><span>{completedRequiredSteps} of {requiredSteps.length} required steps finished</span></div><div className="session-exit-actions"><button className="button ghost" onClick={() => setConfirmingExit(false)}>Keep studying</button><button className="button primary" onClick={onExit}>Save progress and leave</button></div></section></div>}
@@ -2128,6 +2133,7 @@ function SupportProgressionCard({ plan }: { plan: SessionSupportPlan }) {
 }
 
 function SessionTutor({ plan, activityTitle, analyticsEnabled }: { plan: LearningPlan | null; activityTitle: string; analyticsEnabled: boolean }) {
+  const [expanded, setExpanded] = useState(false);
   const [question, setQuestion] = useState("");
   const [threadId, setThreadId] = useState<string | null>(null);
   const [messages, setMessages] = useState<TutorMessage[]>([]);
@@ -2179,12 +2185,8 @@ function SessionTutor({ plan, activityTitle, analyticsEnabled }: { plan: Learnin
     }
   };
 
-  return <aside className={`session-tutor ${latestAnswer || error ? "open" : ""}`}>
-    {(latestAnswer || error) && <div className="session-tutor-response">{latestAnswer && <><span><Sparkles size={15} /> YOVA · {activityTitle}</span><p>{latestAnswer}</p></>}{error && <div className="session-tutor-error"><AlertCircle size={15} /> {error}</div>}</div>}
-    <form className="session-ask" onSubmit={(event) => { event.preventDefault(); void ask(); }}>
-      <input aria-label="Ask YOVA about this session" placeholder="Ask YOVA about this session…" value={question} disabled={pending || !plan} onChange={(event) => setQuestion(event.target.value)} />
-      <button aria-label="Send session question" type="submit" disabled={!question.trim() || pending || !plan}>{pending ? <span className="button-spinner" /> : <Send size={18} />}</button>
-    </form>
+  return <aside className={`session-tutor ${expanded ? "expanded" : "collapsed"}`}>
+    {!expanded ? <button className="session-tutor-launcher" aria-expanded="false" onClick={() => setExpanded(true)}><MessageCircleMore size={18} /><span>Ask YOVA</span></button> : <section className="session-tutor-panel" aria-label="Ask YOVA about this session"><header><div><Sparkles size={15} /><strong>Ask YOVA</strong></div><button aria-label="Close session tutor" onClick={() => setExpanded(false)}><X size={17} /></button></header>{(latestAnswer || error) && <div className="session-tutor-response">{latestAnswer && <><span><Sparkles size={15} /> YOVA · {activityTitle}</span><p>{latestAnswer}</p></>}{error && <div className="session-tutor-error"><AlertCircle size={15} /> {error}</div>}</div>}<form className="session-ask" onSubmit={(event) => { event.preventDefault(); void ask(); }}><input aria-label="Ask YOVA about this session" placeholder="Ask about this step…" value={question} disabled={pending || !plan} onChange={(event) => setQuestion(event.target.value)} /><button aria-label="Send session question" type="submit" disabled={!question.trim() || pending || !plan}>{pending ? <span className="button-spinner" /> : <Send size={18} />}</button></form></section>}
   </aside>;
 }
 
@@ -2216,7 +2218,7 @@ function SessionComplete({ requiredContentCount, repairCount, elapsedSeconds, ac
       ? { title: "YOVA will adjust the next session", explanation: proposedAdaptation.explanation }
       : { title: "The next session is ready", explanation: "This result does not justify changing the planned method, so YOVA will continue without inventing an adjustment." };
 
-  return <main className="centered-shell completion"><BrandMark /><section className="setup-card wide"><div className="completion-icon"><Check size={28} /></div><span className="step-label">CONTENT SLICE COMPLETE</span><h1>You finished the required work.</h1><p>{hasGap ? "You reached every required content check, and one or more details need another pass. Completion records the work finished—not mastery that has not been shown yet." : "You completed the required content and produced the planned evidence. Time is recorded as context, not as proof of completion."}</p><div className="result-grid"><div><span>Required content</span><strong>{requiredContentCount} of {requiredContentCount}</strong></div><div><span>Time used</span><strong>{formatElapsedDuration(elapsedSeconds)}</strong></div><div><span>Knowledge checks</span><strong>{correctAnswers} of {totalAnswers}</strong></div><div><span>Next step</span><strong>{nextSession ? nextSession.title : willScheduleVerification ? "Delayed verification" : "Goal complete"}</strong></div></div>{repairCount > 0 && <div className="repair-completion-summary"><RotateCcw size={19} /><div><strong>{repairCount} immediate {repairCount === 1 ? "repair" : "repairs"} completed</strong><p>You explained the corrected {repairCount === 1 ? "idea" : "ideas"} before leaving. YOVA kept the original {repairCount === 1 ? "miss" : "misses"} as review evidence because an immediate retry is not the same as durable recall.</p></div></div>}<div className={`calibration-summary ${calibration.pattern}`}><Target size={19} /><div><strong>{calibration.title}</strong><p>{calibration.explanation}</p></div></div><p className="feedback-label">How did this session feel?</p><div className="feeling-row"><button className={feedback === "too_easy" ? "selected" : ""} onClick={() => setFeedback("too_easy")}>Too easy</button><button className={feedback === "about_right" ? "selected" : ""} onClick={() => setFeedback("about_right")}>About right</button><button className={feedback === "too_difficult" ? "selected" : ""} onClick={() => setFeedback("too_difficult")}>Too difficult</button></div><div className="adaptation"><Sparkles size={19} /><div><strong>{nextStatus.title}</strong><p>{nextStatus.explanation}</p></div></div><button className="button primary large full" onClick={() => onFinish(feedback)}>Save result and return Home</button></section></main>;
+  return <main className="centered-shell completion"><BrandMark /><section className="setup-card wide"><div className="completion-icon"><Check size={28} /></div><span className="step-label">CONTENT SLICE COMPLETE</span><h1>You finished the required work.</h1><p>{hasGap ? "You reached every required content check, and one or more details need another pass. Completion records the work finished. It does not claim mastery that has not been shown yet." : "You completed the required content and produced the planned evidence. Time is recorded as context, not as proof of completion."}</p><div className="result-grid"><div><span>Required content</span><strong>{requiredContentCount} of {requiredContentCount}</strong></div><div><span>Time used</span><strong>{formatElapsedDuration(elapsedSeconds)}</strong></div><div><span>Knowledge checks</span><strong>{correctAnswers} of {totalAnswers}</strong></div><div><span>Next step</span><strong>{nextSession ? nextSession.title : willScheduleVerification ? "Delayed verification" : "Goal complete"}</strong></div></div>{repairCount > 0 && <div className="repair-completion-summary"><RotateCcw size={19} /><div><strong>{repairCount} immediate {repairCount === 1 ? "repair" : "repairs"} completed</strong><p>You explained the corrected {repairCount === 1 ? "idea" : "ideas"} before leaving. YOVA kept the original {repairCount === 1 ? "miss" : "misses"} as review evidence because an immediate retry is not the same as durable recall.</p></div></div>}<div className={`calibration-summary ${calibration.pattern}`}><Target size={19} /><div><strong>{calibration.title}</strong><p>{calibration.explanation}</p></div></div><p className="feedback-label">How did this session feel?</p><div className="feeling-row"><button className={feedback === "too_easy" ? "selected" : ""} onClick={() => setFeedback("too_easy")}>Too easy</button><button className={feedback === "about_right" ? "selected" : ""} onClick={() => setFeedback("about_right")}>About right</button><button className={feedback === "too_difficult" ? "selected" : ""} onClick={() => setFeedback("too_difficult")}>Too difficult</button></div><div className="adaptation"><Sparkles size={19} /><div><strong>{nextStatus.title}</strong><p>{nextStatus.explanation}</p></div></div><button className="button primary large full" onClick={() => onFinish(feedback)}>Save result and return Home</button></section></main>;
 }
 
 function formatElapsedDuration(totalSeconds: number) {
