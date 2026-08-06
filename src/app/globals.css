@@ -523,6 +523,20 @@ h1, h2, h3, p { margin-top: 0; }
 .method-roadmap small { display: block; }
 .method-roadmap b { color: #283653; font-size: 11px; line-height: 1.35; }
 .method-roadmap small { margin-top: 4px; color: #68758e; font-size: 9px; line-height: 1.35; }
+.support-progression { margin-top: 14px; padding: 13px 14px; display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: center; gap: 13px; border: 1px solid #cdd8f7; border-radius: 11px; background: rgba(255,255,255,.8); }
+.method-roadmap.standalone + .support-progression { margin: -10px 0 22px; }
+.support-progression > div > span,
+.support-progression > div > strong { display: block; }
+.support-progression > div > span { color: var(--blue); font-size: 9px; font-weight: 850; letter-spacing: .08em; text-transform: uppercase; }
+.support-progression > div > strong { margin-top: 4px; color: var(--navy); font-size: 13px; }
+.support-progression p { margin: 4px 0 0; color: #59677f; font-size: 11px; line-height: 1.5; }
+.support-progression em { padding: 6px 8px; color: #405279; border-radius: 7px; background: #edf2ff; font-size: 9px; font-style: normal; font-weight: 800; white-space: nowrap; }
+.support-progression.supported_start { border-color: #e6c8a6; background: #fffaf4; }
+.support-progression.supported_start > div > span { color: #9a5b13; }
+.support-progression.supported_start em { color: #805426; background: #fff0dc; }
+.support-progression.independent_start { border-color: #bcdacb; background: #f5fbf8; }
+.support-progression.independent_start > div > span { color: #167052; }
+.support-progression.independent_start em { color: #27624e; background: #e6f6ee; }
 .method-briefing-grid { margin-top: 19px; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .method-briefing-grid > div { padding: 13px; border: 1px solid rgba(194, 205, 233, .85); border-radius: 10px; background: rgba(255, 255, 255, .78); }
 .method-briefing strong { font-size: 12px; }
@@ -1134,6 +1148,8 @@ h1, h2, h3, p { margin-top: 0; }
   .method-briefing { padding: 18px; }
   .method-briefing-head { align-items: flex-start; flex-direction: column; }
   .method-briefing-grid { grid-template-columns: 1fr; }
+  .support-progression { grid-template-columns: 1fr; }
+  .support-progression em { width: fit-content; }
   .method-phase-coach { grid-template-columns: 1fr; }
   .method-phase-coach em { width: fit-content; }
   .session-exit-dialog { padding: 24px 20px; }

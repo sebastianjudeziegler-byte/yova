@@ -14,6 +14,12 @@ import type { LearningIntent, SessionLearningMode } from "@/lib/domain";
 import { buildLearningScienceRoutingBrief } from "@/lib/learning/method-router";
 import { methodFidelityContractsForPrompt, validateMethodFidelity } from "@/lib/learning/method-fidelity";
 import {
+  buildSessionSupportPlan,
+  validateScaffoldProgression,
+  type ScaffoldProgressionSignal,
+  type SessionSupportPlan,
+} from "@/lib/learning/scaffold-progression";
+import {
   buildMethodOutcomeSignals,
   validateMethodOutcomeAdaptation,
   type MethodOutcomeSignal,
@@ -71,12 +77,14 @@ export type SessionGenerationContext = {
     totalSteps: number | null;
   }>;
   conceptSignals: ConceptSignal[];
+  scaffoldSignals?: ScaffoldProgressionSignal[];
 };
 
 export type OpenAISessionResult = {
   draft: GeneratedSessionDraft;
   model: string;
   responseId: string;
+  supportPlan: SessionSupportPlan;
 };
 
 const SESSION_GENERATOR_INSTRUCTIONS = `You design one guided YOVA learning session.
@@ -114,6 +122,8 @@ Requirements:
 - Use observedMethodOutcomes only to modify the delivery of a method that still fits the task. These plan-specific observations are not causal proof and never establish a fixed best method or learning style.
 - A needs_more_support method outcome normally calls for a clearer model, smaller first action, or more guided practice before independence—not automatic abandonment of an evidence-backed method. A promising outcome may justify cautiously fading support or increasing transfer difficulty. An early signal must not change the normal task-first route.
 - When the selected method has a needs_more_support or promising outcome, put the exact delivery change in methodBriefing.personalization so the learner can see how YOVA adapted. Do not merely say the session is personalized.
+- Follow scaffoldProgression as evidence about how much help to show, not as a fixed ability label. restore_support means briefly model or guide the named concept before a fresh independent check. fade_support means remove some earlier help and require an independent check. independent_transfer means withhold guided support and use a different transfer or discrimination task.
+- Preserve each scaffoldProgression concept name exactly in its matching question. Do not claim that one successful attempt proves independence; the deterministic progression policy decides when support may fade.
 - Treat a recent possible_misconception calibration pattern as stronger than an ordinary miss: briefly rebuild the idea, make the learner distinguish it from the tempting wrong model, and require a different application. Treat underestimated_knowledge as a reason to confirm independently rather than reteach the whole topic. Never turn confidence into a fixed learner label.
 - Treat session timing as scheduling evidence, not proof of learning quality. When at least two recent sessions consistently ran much longer or shorter than planned, adjust the amount of work to better fit the current estimate without labeling the learner.
 - Treat one interrupted session as ordinary life, not a learner trait. Only when at least two recent sessions in this plan ended early may you cautiously reduce activity count, make the first action smaller, or split the work. Never treat interruption as evidence of low ability or poor knowledge.
@@ -150,6 +160,7 @@ export async function generateSessionWithOpenAI(
   const methodFidelityContracts = methodFidelityContractsForPrompt(learningScienceRouting.allowedMethodIds);
   const observedMethodOutcomes = buildMethodOutcomeSignals(context.recentResults);
   const conceptReviewSchedule = buildConceptReviewSchedule(context.conceptSignals);
+  const scaffoldProgression = context.scaffoldSignals ?? [];
 
   const requestDraft = (repairReason: string | null) => getOpenAIClient().responses.parse({
     model: config.model,
@@ -158,10 +169,12 @@ export async function generateSessionWithOpenAI(
       : SESSION_GENERATOR_INSTRUCTIONS,
     input: `Build the next guided session from this YOVA context:\n${JSON.stringify({
       ...context,
+      scaffoldSignals: undefined,
       learningScienceRouting,
       methodFidelityContracts,
       observedMethodOutcomes,
       conceptReviewSchedule,
+      scaffoldProgression,
       sourceGroundingPolicy,
     })}`,
     reasoning: { effort: "low" },
@@ -185,14 +198,14 @@ export async function generateSessionWithOpenAI(
 
   let parsed = GeneratedSessionDraftSchema.safeParse(response.output_parsed);
   let semanticIssue = parsed.success
-    ? validateGeneratedSession(parsed.data, context, observedMethodOutcomes, conceptReviewSchedule)
+    ? validateGeneratedSession(parsed.data, context, observedMethodOutcomes, conceptReviewSchedule, scaffoldProgression)
     : null;
   if ((response.status !== "completed" || !parsed.success || semanticIssue) && !repairAttempted) {
     repairAttempted = true;
     response = await requestDraft(semanticIssue ?? "The structured session shape was invalid or incomplete.");
     parsed = GeneratedSessionDraftSchema.safeParse(response.output_parsed);
     semanticIssue = parsed.success
-      ? validateGeneratedSession(parsed.data, context, observedMethodOutcomes, conceptReviewSchedule)
+      ? validateGeneratedSession(parsed.data, context, observedMethodOutcomes, conceptReviewSchedule, scaffoldProgression)
       : null;
   }
   if (response.status !== "completed" || !parsed.success || semanticIssue) {
@@ -203,6 +216,11 @@ export async function generateSessionWithOpenAI(
     draft: parsed.data,
     model: response.model,
     responseId: response.id,
+    supportPlan: buildSessionSupportPlan({
+      signals: scaffoldProgression,
+      activities: parsed.data.activities,
+      learningMode: parsed.data.methodBriefing.learningMode,
+    }),
   };
 }
 
@@ -211,6 +229,7 @@ function validateGeneratedSession(
   context: SessionGenerationContext,
   observedMethodOutcomes: MethodOutcomeSignal[],
   conceptReviewSchedule: ConceptReviewDirective[],
+  scaffoldProgression: ScaffoldProgressionSignal[],
 ) {
   return validateSessionSourceGrounding({
     sourceMode: context.learningGoal.sourceMode,
@@ -226,6 +245,9 @@ function validateGeneratedSession(
     signals: observedMethodOutcomes,
   }) ?? validateConceptReviewSchedule({
     schedule: conceptReviewSchedule,
+    activities: draft.activities,
+  }) ?? validateScaffoldProgression({
+    signals: scaffoldProgression,
     activities: draft.activities,
   });
 }

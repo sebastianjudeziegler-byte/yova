@@ -12,6 +12,7 @@ describe("readConceptEvidenceProperty", () => {
           concept: "Electron transport chain",
           outcome: "needs_review",
           activityType: "free_response",
+          methodPhase: "independent_practice",
         },
       ],
     })).toEqual([
@@ -19,6 +20,7 @@ describe("readConceptEvidenceProperty", () => {
         concept: "Electron transport chain",
         outcome: "needs_review",
         activityType: "free_response",
+        methodPhase: "independent_practice",
       },
     ]);
   });

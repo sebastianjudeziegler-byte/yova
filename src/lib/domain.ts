@@ -58,6 +58,7 @@ export type SessionSourceGrounding = {
 export type SessionResource = {
   rationale: string;
   methodBriefing?: SessionMethodBriefing;
+  supportPlan?: import("@/lib/learning/scaffold-progression").SessionSupportPlan;
   sourceGrounding?: SessionSourceGrounding;
   activities: SessionResourceActivity[];
   generatedAt: string;
@@ -108,6 +109,7 @@ export type ConceptEvidence = {
   concept: string;
   outcome: "secure" | "needs_review";
   activityType: "multiple_choice" | "free_response";
+  methodPhase?: import("@/lib/learning/method-fidelity").MethodPhase;
 };
 
 export type ConfidenceLevel = "guessing" | "somewhat_sure" | "very_sure";

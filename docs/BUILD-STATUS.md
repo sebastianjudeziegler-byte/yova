@@ -77,6 +77,9 @@ A cross-browser six-digit email-code flow is implemented and tested behind a ser
 - Worked-example fading must move from a complete model to reduced support to independent performance; interleaving must mix distinct categories; reading, outlining, coding, retrieval, spacing, and practice-test methods each have their own enforced progression
 - Guided sessions now turn those internal roles into a learner-facing method roadmap, showing the support progression before the work begins
 - Every activity explains its current phase—such as model, retrieve, repair, or transfer—and whether the answer, source, feedback, or scaffold should be visible
+- Completed concept evidence now records whether success or difficulty occurred during guided practice, independent retrieval, or transfer instead of treating every correct answer as equivalent
+- YOVA uses that phase-specific history to restore a model after difficulty, fade guidance after an initial secure check, or require a different independent transfer after repeated unsupported success
+- Every newly generated session shows a plain-language Support Progression card explaining how much help is available and which completed evidence justified that decision
 - Safe built-in fallback sessions use the same phase model, so a failed generation request cannot silently turn YOVA into an unstructured generic quiz
 - Future guided sessions now receive the actual method, result, and difficulty feedback from earlier sessions in the same plan instead of seeing scores without method context
 - YOVA waits for repeated comparable evidence before changing method delivery, then adds support after repeated difficulty or cautiously fades support after promising results
@@ -89,7 +92,7 @@ A cross-browser six-digit email-code flow is implemented and tested behind a ser
 
 ### Honest scientific-product status
 
-The software loop is close to private-alpha readiness, but the broader learning-science vision is earlier. The catalog, router, teaching/practice separation, visible method phases, confidence calibration, immediate repair, actionable concept-level review scheduling, and first behavior-based method adaptations establish the correct architecture; specialized interactions, scaffold tracking across attempts, and longer-term controlled outcome comparisons remain. “Private alpha 94%” therefore means the product can be tested safely—not that 94% of the long-term adaptive-learning system is complete.
+The software loop is close to private-alpha readiness, but the broader learning-science vision is earlier. The catalog, router, teaching/practice separation, visible method phases, confidence calibration, immediate repair, actionable concept-level review scheduling, phase-specific support fading, and first behavior-based method adaptations establish the correct architecture; specialized interactions and longer-term controlled outcome comparisons remain. “Private alpha 94%” therefore means the product can be tested safely—not that 94% of the long-term adaptive-learning system is complete.
 
 ### Backend and infrastructure
 

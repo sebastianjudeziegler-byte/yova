@@ -59,6 +59,18 @@ export const SessionGenerationRequestSchema = z.object({
       lastObservedAt: z.string().datetime({ offset: true }),
       status: z.enum(["early_signal", "needs_review", "showing_strength"]),
     })).max(20),
+    scaffoldSignals: z.array(z.object({
+      concept: z.string().trim().min(2).max(120),
+      checks: z.number().int().min(1).max(100),
+      supportedChecks: z.number().int().min(0).max(100),
+      independentChecks: z.number().int().min(0).max(100),
+      secureIndependentChecks: z.number().int().min(0).max(100),
+      latestOutcome: z.enum(["secure", "needs_review"]),
+      latestPhase: z.enum(METHOD_PHASES),
+      status: z.enum(["collect_evidence", "restore_support", "fade_support", "independent_transfer"]),
+      evidence: z.string().trim().min(10).max(500),
+      guidance: z.string().trim().min(10).max(500),
+    })).max(20),
   }).optional(),
 });
 
@@ -140,6 +152,14 @@ export const SessionSourceGroundingSchema = z.object({
   }
 });
 
+export const SessionSupportPlanSchema = z.object({
+  level: z.enum(["supported_start", "fading", "independent_start"]),
+  title: z.string().trim().min(3).max(180),
+  explanation: z.string().trim().min(20).max(600),
+  evidenceLabel: z.string().trim().min(3).max(180),
+  concept: z.string().trim().min(2).max(120).nullable(),
+});
+
 export const GeneratedSessionDraftSchema = z.object({
   rationale: z.string().trim().min(20).max(700),
   methodBriefing: SessionMethodBriefingSchema,
@@ -165,6 +185,7 @@ export const CachedGeneratedSessionSchema = GeneratedSessionDraftSchema.extend({
   schemaVersion: z.literal(7),
   model: z.string().min(1),
   generatedAt: z.string().datetime({ offset: true }),
+  supportPlan: SessionSupportPlanSchema.optional(),
 });
 
 export const SessionGenerationResponseSchema = z.object({

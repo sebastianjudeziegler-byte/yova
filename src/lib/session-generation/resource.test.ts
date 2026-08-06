@@ -19,6 +19,13 @@ const generatedSession: SessionGenerationResponse["session"] = {
     completion: "The answer has been attempted from memory and every missing idea has been marked for review.",
     personalization: [],
   },
+  supportPlan: {
+    level: "fading",
+    title: "Support reduced for Retrieval practice",
+    explanation: "The prior guided check was secure, so this session removes some help before another independent attempt.",
+    evidenceLabel: "1 completed check",
+    concept: "Retrieval practice",
+  },
   activities: [
     {
       methodPhase: "model",
@@ -62,6 +69,7 @@ describe("session resources", () => {
     expect(resource.origin).toBe("generated");
     expect(resource.generatedAt).toBe(generatedSession.generatedAt);
     expect(resource.methodBriefing?.methodId).toBe("retrieval_practice");
+    expect(resource.supportPlan?.level).toBe("fading");
     expect(resource.activities).toHaveLength(3);
     expect(resource.activities[1].correctAnswer).toBe("Recall before reviewing");
   });

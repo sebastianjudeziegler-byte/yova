@@ -4,6 +4,7 @@ import { readConceptEvidenceProperty, summarizeConceptEvidence } from "@/lib/lea
 import { readConfidenceEvidenceProperty, summarizeConfidenceCalibration } from "@/lib/learning/confidence-calibration";
 import { inferLegacySessionLearningMode } from "@/lib/learning/learning-intent";
 import { methodIdFromText } from "@/lib/learning/method-router";
+import { buildScaffoldProgressionSignals } from "@/lib/learning/scaffold-progression";
 import { isOpenAISessionConfigured } from "@/lib/openai/config";
 import { generateSessionWithOpenAI } from "@/lib/openai/session-generator";
 import {
@@ -173,6 +174,10 @@ export async function POST(request: Request) {
         },
       );
     }
+    const completionEvidence = recentAttempts.map((attempt) => ({
+      completedAt: attempt.completed_at ?? new Date(0).toISOString(),
+      conceptEvidence: readConceptEvidenceProperty(attempt.result_data),
+    }));
     const generated = await generateSessionWithOpenAI({
       learningGoal: {
         title: learningItem.title,
@@ -220,15 +225,14 @@ export async function POST(request: Request) {
         completedSteps: readNumberProperty(event.event_data, "completedSteps"),
         totalSteps: readNumberProperty(event.event_data, "totalSteps"),
       })),
-      conceptSignals: summarizeConceptEvidence(recentAttempts.map((attempt) => ({
-        completedAt: attempt.completed_at ?? new Date(0).toISOString(),
-        conceptEvidence: readConceptEvidenceProperty(attempt.result_data),
-      }))).slice(0, 20),
+      conceptSignals: summarizeConceptEvidence(completionEvidence).slice(0, 20),
+      scaffoldSignals: buildScaffoldProgressionSignals(completionEvidence).slice(0, 20),
     });
 
     const cachedSession = CachedGeneratedSessionSchema.parse({
       schemaVersion: 7,
       ...generated.draft,
+      supportPlan: generated.supportPlan,
       model: generated.model,
       generatedAt: new Date().toISOString(),
     });
@@ -304,6 +308,7 @@ async function generateBrowserPreviewSession(
     const session = CachedGeneratedSessionSchema.parse({
       schemaVersion: 7,
       ...generated.draft,
+      supportPlan: generated.supportPlan,
       model: generated.model,
       generatedAt: new Date().toISOString(),
     });

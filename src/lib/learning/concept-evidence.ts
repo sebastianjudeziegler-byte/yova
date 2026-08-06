@@ -1,10 +1,12 @@
 import { z } from "zod";
 import type { ConceptEvidence, SessionCompletion } from "@/lib/domain";
+import { METHOD_PHASES } from "@/lib/learning/method-fidelity";
 
 export const ConceptEvidenceSchema = z.object({
   concept: z.string().trim().min(2).max(120),
   outcome: z.enum(["secure", "needs_review"]),
   activityType: z.enum(["multiple_choice", "free_response"]),
+  methodPhase: z.enum(METHOD_PHASES).optional(),
 });
 
 export const ConceptEvidenceListSchema = z.array(ConceptEvidenceSchema).max(24);

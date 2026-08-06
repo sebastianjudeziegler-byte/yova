@@ -46,6 +46,7 @@ const completion: SessionCompletion = {
     concept: "Calvin cycle",
     outcome: "needs_review",
     activityType: "free_response",
+    methodPhase: "independent_practice",
   }],
   confidenceEvidence: [{
     concept: "Calvin cycle",
@@ -104,6 +105,10 @@ describe("buildPreviewSessionContext", () => {
       concept: "Calvin cycle",
       status: "needs_review",
     });
+    expect(result.scaffoldSignals[0]).toMatchObject({
+      concept: "Calvin cycle",
+      status: "restore_support",
+    });
   });
 
   it("does not leak evidence from a different learning plan", () => {
@@ -118,5 +123,6 @@ describe("buildPreviewSessionContext", () => {
     expect(result.recentResults).toEqual([]);
     expect(result.recentInterruptions).toEqual([]);
     expect(result.conceptSignals).toEqual([]);
+    expect(result.scaffoldSignals).toEqual([]);
   });
 });

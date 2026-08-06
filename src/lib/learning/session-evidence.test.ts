@@ -7,6 +7,7 @@ import {
 
 const steps: GuidedSessionStep[] = [
   {
+    methodPhase: "retrieve",
     type: "multiple_choice",
     concept: "Product rule",
     label: "CHECK",
@@ -17,6 +18,7 @@ const steps: GuidedSessionStep[] = [
     feedback: "Differentiate each factor while leaving the other unchanged, then add the two terms.",
   },
   {
+    methodPhase: "independent_practice",
     type: "free_response",
     concept: "Chain rule",
     label: "RECALL",
@@ -71,6 +73,7 @@ describe("summarizeSessionEvidence", () => {
     expect(summary.conceptEvidence[0]).toMatchObject({
       concept: "Product rule",
       outcome: "needs_review",
+      methodPhase: "retrieve",
     });
   });
 

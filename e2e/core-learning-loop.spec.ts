@@ -30,6 +30,7 @@ test("a confident misconception is repaired now and verified later", async ({ pa
   await page.getByRole("button", { name: /Build and start session/ }).click();
 
   await expect(page.getByRole("heading", { name: "Closed-note retrieval" })).toBeVisible();
+  await expect(page.getByLabel("Support progression")).toContainText("Start without support");
   const retrievalRoadmap = page.getByLabel("Session method sequence");
   await expect(retrievalRoadmap).toContainText("Attempt from memory");
   await expect(retrievalRoadmap).toContainText("Compare and repair");
@@ -107,6 +108,7 @@ test("a new topic is taught before YOVA asks for independent performance", async
   await page.getByRole("button", { name: /Build and start session/ }).click();
 
   await expect(page.getByRole("heading", { name: "Use money concepts as decision tools" })).toBeVisible();
+  await expect(page.getByLabel("Support progression")).toContainText("Support fades inside this session");
   const teachingRoadmap = page.getByLabel("Session method sequence");
   await expect(teachingRoadmap).toContainText("See a complete model");
   await expect(teachingRoadmap).toContainText("Practice with less help");

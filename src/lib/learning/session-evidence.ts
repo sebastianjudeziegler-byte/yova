@@ -56,6 +56,7 @@ export function summarizeSessionEvidence(
       concept: step.concept,
       outcome: outcome ? "secure" : "needs_review",
       activityType: step.type,
+      methodPhase: step.methodPhase,
     });
 
     const confidenceLevel = confidence[index];

@@ -7,6 +7,7 @@ import type {
 import { summarizeConceptEvidence } from "@/lib/learning/concept-evidence";
 import { summarizeConfidenceCalibration } from "@/lib/learning/confidence-calibration";
 import { methodIdFromText } from "@/lib/learning/method-router";
+import { buildScaffoldProgressionSignals } from "@/lib/learning/scaffold-progression";
 import type { PreviewSessionGenerationContext } from "@/lib/session-generation/schema";
 
 export function buildPreviewSessionContext({
@@ -78,5 +79,6 @@ export function buildPreviewSessionContext({
       totalSteps: interruption.totalSteps,
     })),
     conceptSignals: summarizeConceptEvidence(recentCompletions).slice(0, 20),
+    scaffoldSignals: buildScaffoldProgressionSignals(recentCompletions).slice(0, 20),
   };
 }

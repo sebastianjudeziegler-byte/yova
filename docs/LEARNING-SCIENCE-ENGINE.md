@@ -90,6 +90,10 @@ The current engine:
 - shows the learner what, why, how, and done at the beginning of the session;
 - renders the session's real method phases as a visible roadmap rather than leaving the sequence hidden in AI metadata;
 - labels each activity with its learner action and current support state, such as “See a complete model — Full support” or “Perform independently — Support hidden”;
+- records the phase attached to every completed knowledge check, so a guided success is no longer treated as equivalent to an unsupported success;
+- builds a concept-level support trajectory from completed evidence: restore support after a gap, fade it after an initial secure check, and require changed-context transfer after repeated independent success;
+- validates that the generated activity sequence actually performs that support decision, rather than trusting personalized wording;
+- shows the resulting Support Progression and its evidence basis at the start of the learner's session;
 - preserves the same phase structure in built-in fallback sessions when generation is unavailable;
 - captures confidence before knowledge checks and compares it with the result;
 - distinguishes possible misconceptions from correct-but-uncertain knowledge when adapting the next session;
@@ -143,9 +147,8 @@ That closed loop can eventually become a meaningful learning decision system rat
 ## Next scientific product layers
 
 1. Add specialized interaction mechanics for work that cannot be represented well by text, multiple choice, or typed explanation—for example multi-step mathematics, code execution, and learner-built diagrams.
-2. Track scaffold level so worked examples genuinely fade across attempts.
-3. Compare method outcomes only within similar task families and knowledge stages.
-4. Review outputs with learning-science and subject-matter experts before broad claims.
+2. Compare method outcomes only within similar task families and knowledge stages.
+3. Review outputs with learning-science and subject-matter experts before broad claims.
 
 ## Evidence anchors
 
