@@ -10,6 +10,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "eval:plans": "node scripts/run-plan-evaluations.mjs",
+    "eval:sessions": "node scripts/run-session-evaluations.mjs",
     "readiness": "node scripts/check-readiness.mjs",
     "readiness:production": "node scripts/check-readiness.mjs --production",
     "smoke:production": "node scripts/smoke-deployment.mjs"

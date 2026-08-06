@@ -15,9 +15,9 @@ Estimated completion depends on which finish line is meant:
 
 | Finish line | Current estimate | Meaning |
 |---|---:|---|
-| Functional product core | 88% | The differentiated YOVA learning loop works |
-| Invite-only private alpha | 88% | Deployment, support, monitoring, source-quality safeguards, and the first live plan-quality suite are connected; reliable email delivery and focused end-to-end testing remain |
-| Credible public beta | 67% | Trust, monitoring, and a live five-path plan-quality gate exist; session-quality evaluation, browser automation, external alerts, policy review, and tester-driven polish remain |
+| Functional product core | 89% | The differentiated YOVA learning loop works and plan/session quality now has automated coverage |
+| Invite-only private alpha | 89% | Deployment, support, monitoring, source-quality safeguards, and live AI-quality checkpoints are connected; reliable email delivery and focused end-to-end testing remain |
+| Credible public beta | 69% | Trust, monitoring, a five-path plan gate, and the first guided-session quality gate exist; broader live session review, browser automation, external alerts, policy review, and tester-driven polish remain |
 | Paid polished launch | 35% | Also needs billing, entitlements, cost controls by plan, and more operational maturity |
 
 These percentages are directional, not engineering math. A product can have most features built and still need significant reliability work before strangers should pay for it.
@@ -73,6 +73,8 @@ A cross-browser six-digit email-code flow is implemented and tested behind a ser
 - Material-quality checks that reject unreadable sources and warn when coverage is short or truncated
 - Five-case plan-quality evaluation covering biology, math, writing, coding, and general learning
 - First live OpenAI plan suite passed: five student and general-learning paths scored 100/100 against the required rubric
+- Guided-session quality evaluation checks active effort, feedback, task fit, source grounding, weak-concept priority, and personalization restraint
+- Live biology and targeted calculus sessions pass; the evaluator exposed and verified a repair to cross-session concept naming
 - Private-alpha Privacy, Terms, Support, and clear AI/source limitation pages
 - Production build, security headers, error screens, and social metadata
 
@@ -84,14 +86,15 @@ A cross-browser six-digit email-code flow is implemented and tested behind a ser
 2. Configure reliable authentication email delivery through a custom SMTP provider.
 3. Run complete journeys on mobile and desktop with several real accounts.
 4. Manually review representative generated plans for wording, factual usefulness, and educational judgment; all five paths now pass the automated rubric.
-5. Manually verify the automated source-quality safeguards with good, poor, scanned, and oversized real files.
-6. Practice the founder error and support-review workflow with real alpha failures.
+5. Run and review the remaining writing, coding, and general-learning live session cases.
+6. Manually verify the automated source-quality safeguards with good, poor, scanned, and oversized real files.
+7. Practice the founder error and support-review workflow with real alpha failures.
 
 ### Required before a broad public beta
 
 1. External review of the private-alpha privacy and terms drafts before broad distribution.
 2. Accessibility and mobile interaction audit.
-3. Structured quality evaluation for plan and session outputs.
+3. Complete live guided-session quality coverage and human review of representative outputs.
 4. Cost and latency measurements from real usage.
 5. External error alerts and a dedicated founder/admin workflow as tester volume grows.
 6. Two or three product iterations based on tester behavior.

@@ -1,0 +1,218 @@
+import type { SessionGenerationContext } from "@/lib/openai/session-generator";
+
+export type SessionTaskFamily = "conceptual" | "problem_solving" | "writing" | "coding" | "general";
+
+export type SessionEvaluationCase = {
+  id: string;
+  label: string;
+  taskFamily: SessionTaskFamily;
+  context: SessionGenerationContext;
+  expectedSourceTerms: string[];
+};
+
+export function buildSessionEvaluationCases(): SessionEvaluationCase[] {
+  return [
+    evaluationCase({
+      id: "biology_initial_teaching",
+      label: "Biology teaching from learner notes",
+      taskFamily: "conceptual",
+      expectedSourceTerms: ["cellular respiration", "photosynthesis"],
+      context: {
+        learningGoal: {
+          title: "AP Biology Unit 3",
+          topic: "Cellular respiration and photosynthesis",
+          kind: "test",
+          deadline: "2026-08-13T23:00:00.000Z",
+          sourceMode: "user_materials",
+          studyMode: "inside_yova",
+        },
+        planRationale: "Build the relationship between both energy processes before asking for closed-note comparison.",
+        materials: [{
+          name: "biology-notes.txt",
+          text: "Cellular respiration converts glucose and oxygen into ATP. Glycolysis occurs in the cytoplasm. The Krebs cycle and electron transport chain occur in the mitochondria. Photosynthesis stores light energy in glucose through light-dependent reactions and the Calvin cycle. Compare the inputs, outputs, locations, and energy transformations of both processes.",
+          truncated: false,
+        }],
+        session: {
+          title: "Connect respiration and photosynthesis",
+          objective: "Explain how cellular respiration and photosynthesis transform and exchange energy and matter.",
+          method: "Concise concept model, then active retrieval",
+          methodReason: "The learner recognizes individual stages but cannot yet connect them without notes.",
+          estimatedMinutes: 25,
+        },
+        learnerProfile: {
+          commonBlocker: "Large tasks feel difficult to start",
+          guidancePreference: "One visible step at a time",
+          explanationPreference: "One concrete example before independent work",
+          focusFrequency: "Usually completes 25-minute sessions",
+          startingPattern: "Starts more consistently when the first action is small",
+          primaryImprovementGoal: "Understand concepts and retain them",
+        },
+        recentResults: [],
+        recentInterruptions: [],
+        conceptSignals: [],
+      },
+    }),
+    evaluationCase({
+      id: "calculus_targeted_repair",
+      label: "Calculus repair after a weak check",
+      taskFamily: "problem_solving",
+      expectedSourceTerms: [],
+      context: {
+        learningGoal: {
+          title: "Derivative rules",
+          topic: "Product rule and quotient rule",
+          kind: "skill",
+          deadline: "2026-08-13T23:00:00.000Z",
+          sourceMode: "yova_generated",
+          studyMode: "inside_yova",
+        },
+        planRationale: "Repair the identified quotient-rule gap before returning to mixed derivative practice.",
+        materials: [],
+        session: {
+          title: "Repair the quotient rule",
+          objective: "Use a worked example to repair the quotient-rule setup, then solve a similar derivative independently.",
+          method: "Worked example fading, then retrieval",
+          methodReason: "The previous check showed repeated setup errors on the quotient rule.",
+          estimatedMinutes: 25,
+        },
+        learnerProfile: {
+          commonBlocker: "Hesitates when a problem has several steps",
+          guidancePreference: "Show one complete example, then reduce support",
+          explanationPreference: "Explain why each algebraic step is needed",
+          focusFrequency: "Prefers 25 to 30 minutes",
+          startingPattern: "Begins more readily with a concrete first problem",
+          primaryImprovementGoal: "Solve problems independently",
+        },
+        recentResults: [{
+          correctAnswers: 1,
+          totalAnswers: 4,
+          observedGap: "Quotient rule setup and denominator squaring",
+          plannedMinutes: 25,
+          actualMinutes: 25,
+        }],
+        recentInterruptions: [],
+        conceptSignals: [{
+          concept: "Quotient rule",
+          attempts: 2,
+          secureAttempts: 0,
+          needsReviewAttempts: 2,
+          lastOutcome: "needs_review",
+          lastObservedAt: "2026-08-05T18:00:00.000Z",
+          status: "needs_review",
+        }],
+      },
+    }),
+    evaluationCase({
+      id: "history_writing_outside",
+      label: "History writing outside YOVA",
+      taskFamily: "writing",
+      expectedSourceTerms: [],
+      context: {
+        learningGoal: {
+          title: "Comparative history essay",
+          topic: "Organize a defensible thesis and evidence from a textbook and class notes",
+          kind: "course",
+          deadline: "2026-08-13T23:00:00.000Z",
+          sourceMode: "yova_generated",
+          studyMode: "outside_yova",
+        },
+        planRationale: "Turn a vague writing task into a bounded evidence-selection and outlining workflow.",
+        materials: [],
+        session: {
+          title: "Build the evidence outline",
+          objective: "Use the learner's textbook and notes to draft a comparative thesis and match evidence to each claim.",
+          method: "Retrieval-based outlining and focused drafting",
+          methodReason: "A visible checklist reduces ambiguity while keeping the historical claims grounded in the learner's own sources.",
+          estimatedMinutes: 30,
+        },
+        learnerProfile: {
+          commonBlocker: "Vague writing tasks feel overwhelming",
+          guidancePreference: "A checklist and one visible first step",
+          explanationPreference: "Direct examples of structure",
+          focusFrequency: "Usually works in 25-minute blocks",
+          startingPattern: "Starts after the task is narrowed",
+          primaryImprovementGoal: "Write clearer arguments",
+        },
+        recentResults: [],
+        recentInterruptions: [],
+        conceptSignals: [],
+      },
+    }),
+    evaluationCase({
+      id: "javascript_scaffold_fading",
+      label: "Beginner JavaScript with fading support",
+      taskFamily: "coding",
+      expectedSourceTerms: [],
+      context: {
+        learningGoal: {
+          title: "JavaScript array methods",
+          topic: "Use map, filter, and reduce in small programs",
+          kind: "skill",
+          deadline: null,
+          sourceMode: "yova_generated",
+          studyMode: "inside_yova",
+        },
+        planRationale: "Begin with one traceable example, then fade support before an independent coding decision.",
+        materials: [],
+        session: {
+          title: "Choose and use array methods",
+          objective: "Distinguish map, filter, and reduce, then choose the correct method for a small transformation.",
+          method: "Scaffolded example, code tracing, then independent practice",
+          methodReason: "The learner can read simple code but cannot yet select and write an array-method solution independently.",
+          estimatedMinutes: 30,
+        },
+        learnerProfile: {
+          commonBlocker: "Open-ended coding prompts create hesitation",
+          guidancePreference: "Fade support after one complete example",
+          explanationPreference: "Concise explanations tied to code",
+          focusFrequency: "Prefers 30-minute sessions",
+          startingPattern: "Begins with a concrete example",
+          primaryImprovementGoal: "Write small programs without help",
+        },
+        recentResults: [],
+        recentInterruptions: [],
+        conceptSignals: [],
+      },
+    }),
+    evaluationCase({
+      id: "finance_practical_application",
+      label: "General-learning finance application",
+      taskFamily: "general",
+      expectedSourceTerms: [],
+      context: {
+        learningGoal: {
+          title: "Personal finance fundamentals",
+          topic: "Budgeting, credit, debt, and index-fund investing",
+          kind: "topic",
+          deadline: null,
+          sourceMode: "yova_generated",
+          studyMode: "inside_yova",
+        },
+        planRationale: "Use practical decisions and short retrieval checks rather than a passive finance summary.",
+        materials: [],
+        session: {
+          title: "Understand credit and interest",
+          objective: "Explain how interest and credit utilization affect borrowing decisions, then apply them to a realistic scenario.",
+          method: "Concrete example, retrieval, and scenario application",
+          methodReason: "The learner wants practical examples and has little prior knowledge of credit and interest.",
+          estimatedMinutes: 30,
+        },
+        learnerProfile: {
+          commonBlocker: "Abstract explanations are difficult to apply",
+          guidancePreference: "Moderate structure",
+          explanationPreference: "Practical examples",
+          focusFrequency: "Three manageable sessions per week",
+          startingPattern: "Starts when the outcome is concrete",
+          primaryImprovementGoal: "Make more informed financial decisions",
+        },
+        recentResults: [],
+        recentInterruptions: [],
+        conceptSignals: [],
+      },
+    }),
+  ];
+}
+
+function evaluationCase(value: SessionEvaluationCase): SessionEvaluationCase {
+  return value;
+}
