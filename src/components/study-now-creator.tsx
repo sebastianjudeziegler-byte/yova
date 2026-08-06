@@ -15,6 +15,7 @@ import {
 import { BrandMark } from "@/components/brand-mark";
 import type { LearningMaterial, LearningPlan } from "@/lib/domain";
 import { deleteUploadedMaterial, uploadMaterialFiles } from "@/lib/materials/intake";
+import { reportProductError } from "@/lib/monitoring/client";
 import { PlanGenerationResponseSchema } from "@/lib/plan-generation/schema";
 
 type StudyNowStep = "setup" | "source" | "loading" | "error";
@@ -78,6 +79,7 @@ export function StudyNowCreator({
     if (!sourceChoice) return;
     setGenerationError(null);
     setStep("loading");
+    let requestId: string | null = null;
 
     try {
       const now = new Date();
@@ -111,6 +113,7 @@ export function StudyNowCreator({
           profileSummary,
         }),
       });
+      requestId = response.headers.get("X-Yova-Request-Id");
 
       const body: unknown = await response.json();
       if (!response.ok) {
@@ -127,6 +130,11 @@ export function StudyNowCreator({
 
       onFinish(parsed.data.plan);
     } catch (error) {
+      reportProductError({
+        surface: "plan_generation",
+        errorCode: "study_now_generation_failed",
+        requestId,
+      });
       setGenerationError(error instanceof Error ? error.message : "YOVA could not build this session yet.");
       setStep("error");
     }

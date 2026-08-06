@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 
 import { SystemStateScreen } from "@/components/system-state-screen";
+import { reportProductError } from "@/lib/monitoring/client";
 
 export default function ErrorScreen({
   error,
@@ -12,7 +13,12 @@ export default function ErrorScreen({
   retry: () => void;
 }) {
   useEffect(() => {
-    console.error("YOVA route render failed", error);
+    reportProductError({
+      surface: "route_boundary",
+      errorCode: "route_render_failed",
+      digest: error.digest,
+    });
+    if (process.env.NODE_ENV !== "production") console.error("YOVA route render failed", error);
   }, [error]);
 
   return (

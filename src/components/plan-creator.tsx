@@ -17,6 +17,7 @@ import {
 import { BrandMark } from "@/components/brand-mark";
 import type { LearningMaterial, LearningPlan } from "@/lib/domain";
 import { deleteUploadedMaterial, uploadMaterialFiles } from "@/lib/materials/intake";
+import { reportProductError } from "@/lib/monitoring/client";
 import {
   PlanGenerationResponseSchema,
   type DiagnosticResponse,
@@ -84,6 +85,7 @@ export function PlanCreator({ onExit, onFinish, profileSummary }: { onExit: () =
 
     setGenerationError(null);
     setStep("loading");
+    let requestId: string | null = null;
 
     try {
       const response = await fetch("/api/plans/generate", {
@@ -102,6 +104,7 @@ export function PlanCreator({ onExit, onFinish, profileSummary }: { onExit: () =
           profileSummary,
         }),
       });
+      requestId = response.headers.get("X-Yova-Request-Id");
 
       const body: unknown = await response.json();
 
@@ -118,6 +121,11 @@ export function PlanCreator({ onExit, onFinish, profileSummary }: { onExit: () =
       setGeneratedPlan(parsed.data);
       setStep("result");
     } catch (error) {
+      reportProductError({
+        surface: "plan_generation",
+        errorCode: "plan_generation_failed",
+        requestId,
+      });
       setGenerationError(error instanceof Error ? error.message : "YOVA could not build this plan yet.");
       setStep("error");
     }

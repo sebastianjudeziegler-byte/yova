@@ -29,6 +29,10 @@ export function checkSupportRequestRateLimit(key: string) {
   return checkRateLimit(`support:${key}`, 5);
 }
 
+export function checkErrorReportRateLimit(key: string) {
+  return checkRateLimit(`error:${key}`, 10);
+}
+
 function checkRateLimit(key: string, maxRequests: number) {
   const now = Date.now();
   const existing = records.get(key);

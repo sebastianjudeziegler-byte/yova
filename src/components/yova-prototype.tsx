@@ -53,6 +53,7 @@ import { buildPlanProfileSummary } from "@/lib/personalization/profile-summary";
 import { createSessionAdaptationNote } from "@/lib/personalization/adaptation-note";
 import { buildNextSessionAdaptation } from "@/lib/personalization/session-adaptation";
 import { buildMethodSignals, type MethodSignal } from "@/lib/personalization/method-signals";
+import { reportProductError } from "@/lib/monitoring/client";
 import { onboardingQuestions } from "@/lib/sample-data";
 import { PlanAdjustmentResponseSchema, type PlanAdjustmentRequest } from "@/lib/learning/adjustment-schema";
 import { PlanArchiveResponseSchema } from "@/lib/learning/status-schema";
@@ -235,6 +236,7 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
           else if (cloudOnboardingCompleted) setStage("paywall");
           else setStage("onboarding-intro");
         } catch (error) {
+          reportProductError({ surface: "cloud_sync", errorCode: "cloud_state_load_failed" });
           setAccount(cloudAccount);
           setSignedIn(true);
           setCloudSyncIssue(error instanceof Error ? error.message : "YOVA could not load your cloud data.");
@@ -324,6 +326,7 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
       if (!cancelled) setCloudSyncIssue(null);
     }).catch((error: unknown) => {
       if (!cancelled) {
+        reportProductError({ surface: "cloud_sync", errorCode: "learner_profile_sync_failed" });
         setCloudSyncIssue(error instanceof Error ? error.message : "YOVA could not sync your learning profile.");
       }
     });
@@ -378,6 +381,7 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
     setSessionCompletedAt(null);
     setSessionElapsedSeconds(0);
     setStage("session-loading");
+    let requestId: string | null = null;
 
     try {
       const response = await fetch("/api/sessions/generate", {
@@ -397,6 +401,7 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
           } : {}),
         }),
       });
+      requestId = response.headers.get("X-Yova-Request-Id");
       const body: unknown = await response.json().catch(() => null);
       if (!response.ok) {
         const message = typeof body === "object" && body && "error" in body && typeof body.error === "string"
@@ -433,6 +438,11 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
       }
       beginTimedSession(requestedPlan, Boolean(resumePoint));
     } catch (error) {
+      reportProductError({
+        surface: "session_generation",
+        errorCode: "guided_session_generation_failed",
+        requestId,
+      });
       const message = error instanceof Error ? error.message : "YOVA could not generate this session.";
       if (requestedPlan.sourceMode === "user_materials") {
         setSessionGenerationIssue(message);
@@ -536,6 +546,7 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
           setCloudSyncIssue(null);
         })
         .catch((error: unknown) => {
+          reportProductError({ surface: "session_completion", errorCode: "session_completion_sync_failed" });
           setCloudSyncIssue(error instanceof Error ? error.message : "YOVA could not sync this session.");
         });
     }
@@ -594,6 +605,7 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
           setCloudSyncIssue(null);
         })
         .catch((error: unknown) => {
+          reportProductError({ surface: "session_completion", errorCode: "session_interruption_sync_failed" });
           setCloudSyncIssue(error instanceof Error ? error.message : "YOVA could not sync the interrupted session.");
         });
     }
@@ -1535,6 +1547,7 @@ function AskScreen({ plan, question, onQuestion, onApplyAction, analyticsEnabled
         setError("The answer worked, but this exchange did not reach cloud storage. Keep this page open if you need it.");
       }
     } catch (requestError) {
+      reportProductError({ surface: "tutor", errorCode: "tutor_request_failed" });
       onQuestion(nextQuestion);
       setError(requestError instanceof Error ? requestError.message : "Ask YOVA could not answer right now.");
     } finally {
@@ -1821,6 +1834,7 @@ function SessionTutor({ plan, activityTitle, analyticsEnabled }: { plan: Learnin
       setQuestion("");
       if (parsed.data.persistence === "browser") setError("The answer worked, but this exchange did not reach cloud storage.");
     } catch (requestError) {
+      reportProductError({ surface: "tutor", errorCode: "session_tutor_request_failed" });
       setError(requestError instanceof Error ? requestError.message : "YOVA could not answer during this session.");
     } finally {
       setPending(false);

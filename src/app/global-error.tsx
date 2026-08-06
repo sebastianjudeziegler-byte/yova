@@ -8,6 +8,7 @@ import "@fontsource/sora/700.css";
 import { useEffect } from "react";
 
 import { SystemStateScreen } from "@/components/system-state-screen";
+import { reportProductError } from "@/lib/monitoring/client";
 
 export default function GlobalError({
   error,
@@ -17,7 +18,12 @@ export default function GlobalError({
   retry: () => void;
 }) {
   useEffect(() => {
-    console.error("YOVA root render failed", error);
+    reportProductError({
+      surface: "global_boundary",
+      errorCode: "root_render_failed",
+      digest: error.digest,
+    });
+    if (process.env.NODE_ENV !== "production") console.error("YOVA root render failed", error);
   }, [error]);
 
   return (

@@ -11,6 +11,7 @@ The database currently stores:
 - contextual tutor conversations
 - durable OpenAI usage windows
 - privacy-safe product funnel events
+- privacy-safe technical error reports with no study content or stack traces
 - private support requests linked to the signed-in tester
 
 Row Level Security checks the signed-in user on every user-owned table. The browser receives only the project URL and publishable key; an administrator key is not used by the application.

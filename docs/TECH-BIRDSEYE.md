@@ -22,7 +22,7 @@ OpenAI generates structured plans, learning activities, explanations, questions,
 
 ### Data and infrastructure
 
-Supabase provides authentication, Postgres data, and private file storage. GitHub preserves code history. Vercel builds and runs the Next.js server at YOVA's public URL. Monitoring and billing are still separate future systems.
+Supabase provides authentication, Postgres data, and private file storage. GitHub preserves code history. Vercel builds and runs the Next.js server at YOVA's public URL. YOVA now has a narrow first-party error-monitoring layer; external alerting and billing are still future systems.
 
 ### Trust and support
 
@@ -62,7 +62,8 @@ Authenticated account
   │     └── tutor thread
   ├── learning events
   ├── AI usage windows
-  └── privacy-safe product events
+  ├── privacy-safe product events
+  └── privacy-safe error reports
 ```
 
 A learning item is a meaningful goal such as an exam, topic, book, course, or skill. A plan is the sequence for reaching that goal. A session is one bounded unit of work. An attempt is what actually happened when the user studied.
@@ -135,6 +136,15 @@ The You screen also groups completed sessions into broad method families such as
 - security headers and private storage
 - automated tests for core adaptation and evidence rules
 - privacy-safe funnel events
+- privacy-safe error signals with route, surface, time, and request references
+
+### Error monitoring versus product analytics
+
+Product analytics answers questions such as: **Did a tester finish onboarding or complete a session?** Error monitoring answers: **Which product surface failed, when, and can the founder connect it to a server request?**
+
+YOVA's browser sends a stable error code rather than a raw JavaScript error. The API authenticates the tester, validates a strict schema, rate-limits reports, and stores a private Supabase row. Query strings, study content, tutor text, learner answers, arbitrary messages, and stack traces are excluded by design. If monitoring itself fails, it returns silently so it cannot trap the user in a second error.
+
+This is first-party monitoring: it is enough for a small private alpha and teaches the architecture clearly. A larger beta should add external alerts and automated grouping rather than expecting the founder to watch a database table continuously.
 
 ## 10. Preview mode versus cloud mode
 
@@ -175,7 +185,7 @@ The most important remaining layers are:
 1. public deployment and production environment configuration;
 2. reliable transactional email for authentication;
 3. automated end-to-end tests and subject-quality evaluation;
-4. production error monitoring and a repeatable founder support workflow;
+4. external error alerts and broader automated end-to-end coverage;
 5. external review of the privacy/terms drafts;
 6. Stripe and server-enforced entitlements when payment validation begins.
 

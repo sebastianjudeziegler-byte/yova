@@ -16,8 +16,8 @@ Estimated completion depends on which finish line is meant:
 | Finish line | Current estimate | Meaning |
 |---|---:|---|
 | Functional product core | 88% | The differentiated YOVA learning loop works |
-| Invite-only private alpha | 84% | Deployment and a private support path are connected; reliable email delivery and focused end-to-end testing remain |
-| Credible public beta | 60% | Trust pages exist; monitoring, broader QA, external policy review, and tester-driven polish remain |
+| Invite-only private alpha | 86% | Deployment, support, and privacy-safe error review are connected; reliable email delivery and focused end-to-end testing remain |
+| Credible public beta | 62% | Trust and monitoring foundations exist; broader QA, external alerts, policy review, and tester-driven polish remain |
 | Paid polished launch | 35% | Also needs billing, entitlements, cost controls by plan, and more operational maturity |
 
 These percentages are directional, not engineering math. A product can have most features built and still need significant reliability work before strangers should pay for it.
@@ -68,6 +68,7 @@ A cross-browser six-digit email-code flow is implemented and tested behind a ser
 - Durable AI usage limits and short-window rate limits
 - Offline retry queues for completions and interruptions
 - Privacy-safe product analytics
+- Privacy-safe production error reports with a documented founder triage workflow
 - Private support-request workflow with validation, ownership rules, and spam limits
 - Private-alpha Privacy, Terms, Support, and clear AI/source limitation pages
 - Production build, security headers, error screens, and social metadata
@@ -81,7 +82,7 @@ A cross-browser six-digit email-code flow is implemented and tested behind a ser
 3. Run complete journeys on mobile and desktop with several real accounts.
 4. Test representative biology, math, writing, coding, and general-learning goals.
 5. Test good, poor, scanned, and oversized source files.
-6. Add production error monitoring and practice the founder support-review workflow.
+6. Practice the founder error and support-review workflow with real alpha failures.
 
 ### Required before a broad public beta
 
@@ -89,7 +90,7 @@ A cross-browser six-digit email-code flow is implemented and tested behind a ser
 2. Accessibility and mobile interaction audit.
 3. Structured quality evaluation for plan and session outputs.
 4. Cost and latency measurements from real usage.
-5. A founder/admin workflow for reviewing errors and funnel analytics.
+5. External error alerts and a dedicated founder/admin workflow as tester volume grows.
 6. Two or three product iterations based on tester behavior.
 
 ### Required before charging broadly
@@ -109,14 +110,14 @@ Assuming focused daily work with Codex and fast product decisions:
 - finish the real production sign-in journey
 - configure a reliable email provider
 - verify a saved plan and completed session through the deployed environment
-- add production monitoring and founder-visible error reporting
+- practice the new founder error-review workflow with a controlled failure
 
 ### Following 3–5 days: trustworthy private alpha
 
 - complete mobile/desktop journeys
 - subject and material quality tests
 - fix the highest-impact failures
-- add monitoring, privacy/support basics, and tester instructions
+- add concise tester instructions and external alerts if the invite group grows
 
 ### Days 8–14: real-user iteration
 

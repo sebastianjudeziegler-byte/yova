@@ -89,6 +89,18 @@ try {
     else fail(`${path} trust page was not available or had unexpected content`);
   }
 
+  const monitoringResponse = await request(`${origin}/api/errors`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      surface: "route_boundary",
+      errorCode: "production_smoke_signal",
+      routePath: "/",
+    }),
+  });
+  if (monitoringResponse.status === 204) pass("Privacy-safe error intake fails silently for signed-out visitors");
+  else fail(`Error intake returned ${monitoringResponse.status} instead of 204`);
+
   const statusResponse = await request(`${origin}/api/system/status`, {
     headers: { Accept: "application/json" },
   });
