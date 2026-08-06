@@ -14,6 +14,15 @@ export type EmailAuthResult =
   | { mode: "preview" }
   | { mode: "supabase"; emailSent: true };
 
+const AUTH_CHECK_TIMEOUT_MS = 8_000;
+
+export class AuthConnectionError extends Error {
+  constructor() {
+    super("YOVA could not reach its secure account service. Check your connection and try again.");
+    this.name = "AuthConnectionError";
+  }
+}
+
 export function getAuthMode() {
   return isSupabaseConfigured() ? "supabase" as const : "preview" as const;
 }
@@ -55,7 +64,10 @@ export async function getAuthenticatedAccount(): Promise<PreviewAccount | null> 
   if (!isSupabaseConfigured()) return null;
 
   const supabase = createSupabaseBrowserClient();
-  const { data, error } = await supabase.auth.getUser();
+  const { data: sessionData, error: sessionError } = await withAuthTimeout(supabase.auth.getSession());
+  if (sessionError || !sessionData.session) return null;
+
+  const { data, error } = await withAuthTimeout(supabase.auth.getUser());
   if (error || !data.user?.email) return null;
 
   const displayName = typeof data.user.user_metadata?.display_name === "string"
@@ -76,4 +88,19 @@ export async function signOutAuthenticatedAccount() {
   const supabase = createSupabaseBrowserClient();
   const { error } = await supabase.auth.signOut();
   if (error) throw new Error(error.message);
+}
+
+async function withAuthTimeout<T>(request: PromiseLike<T>): Promise<T> {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+
+  try {
+    return await Promise.race([
+      Promise.resolve(request),
+      new Promise<never>((_, reject) => {
+        timeoutId = setTimeout(() => reject(new AuthConnectionError()), AUTH_CHECK_TIMEOUT_MS);
+      }),
+    ]);
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+  }
 }

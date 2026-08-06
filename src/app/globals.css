@@ -101,6 +101,11 @@ h1, h2, h3, p { margin-top: 0; }
 .form-error { margin: -3px 0 13px!important; color: #b42318!important; font-size: 12px; }
 .preview-notice { margin-top: 18px; padding: 13px; display: grid; gap: 4px; color: #435170; background: var(--soft-blue); border-radius: 10px; font-size: 11px; line-height: 1.5; }
 .preview-notice strong { color: #2e4b99; }
+.auth-startup-warning { width: min(1180px, calc(100% - 48px)); margin: 20px auto 0; padding: 14px 16px; display: flex; align-items: center; gap: 12px; color: #8a3b16; background: #fff8ed; border: 1px solid #f4d7b7; border-radius: 12px; }
+.auth-startup-warning > div { flex: 1; display: grid; gap: 3px; }
+.auth-startup-warning strong { color: #6e2f13; font-size: 13px; }
+.auth-startup-warning span { font-size: 12px; line-height: 1.45; }
+.auth-startup-warning .button { flex: none; }
 .account-card.email-sent { text-align: center; }
 .account-card.email-sent > p { margin-bottom: 24px; }
 .mail-check { width: 52px; height: 52px; margin: 0 auto 20px; display: grid; place-items: center; color: var(--blue); background: var(--soft-blue); border-radius: 50%; }
@@ -810,6 +815,8 @@ h1, h2, h3, p { margin-top: 0; }
 
 @media (max-width: 620px) {
   .entry-shell { padding: 18px 14px; }
+  .auth-startup-warning { width: 100%; align-items: flex-start; flex-wrap: wrap; }
+  .auth-startup-warning .button { width: 100%; }
   .account-shell { padding: 18px 14px 40px; }
   .account-card { margin-top: 38px; padding: 30px 22px; }
   .account-card h1 { font-size: 32px; }

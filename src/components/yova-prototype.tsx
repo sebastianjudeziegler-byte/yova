@@ -30,7 +30,7 @@ import {
 import { BrandMark } from "@/components/brand-mark";
 import { PlanCreator } from "@/components/plan-creator";
 import { StudyNowCreator } from "@/components/study-now-creator";
-import { getAuthenticatedAccount, getAuthMode, requestEmailAuthentication, signOutAuthenticatedAccount } from "@/lib/auth/client";
+import { AuthConnectionError, getAuthenticatedAccount, getAuthMode, requestEmailAuthentication, signOutAuthenticatedAccount } from "@/lib/auth/client";
 import { makeId, makeUuid, type ConceptEvidence, type LearningPlan, type LearningPlanSession, type PreviewAccount, type SessionCompletion } from "@/lib/domain";
 import { summarizeConceptEvidence, type ConceptSignal } from "@/lib/learning/concept-evidence";
 import { clearPreviewSnapshot, loadPreviewSnapshot, savePreviewSnapshot } from "@/lib/persistence/preview-store";
@@ -106,6 +106,8 @@ export function YovaPrototype() {
   const [sessionRationale, setSessionRationale] = useState<string | null>(null);
   const [sessionGenerationIssue, setSessionGenerationIssue] = useState<string | null>(null);
   const [cloudSyncIssue, setCloudSyncIssue] = useState<string | null>(null);
+  const [authStartupIssue, setAuthStartupIssue] = useState<string | null>(null);
+  const [authCheckAttempt, setAuthCheckAttempt] = useState(0);
   const [tutorQuestion, setTutorQuestion] = useState("");
 
   const activePlans = plans.filter((plan) => plan.status === "active");
@@ -132,6 +134,7 @@ export function YovaPrototype() {
     let cancelled = false;
 
     async function openYova() {
+      setAuthStartupIssue(null);
       const saved = loadPreviewSnapshot();
       const authMode = getAuthMode();
       if (saved && authMode === "preview") {
@@ -145,7 +148,18 @@ export function YovaPrototype() {
         setSessionCompletions(saved.sessionCompletions);
       }
 
-      const cloudAccount = await getAuthenticatedAccount();
+      let cloudAccount: PreviewAccount | null;
+      try {
+        cloudAccount = await getAuthenticatedAccount();
+      } catch (error) {
+        if (cancelled) return;
+        setAuthStartupIssue(error instanceof AuthConnectionError
+          ? error.message
+          : "YOVA could not check your account securely. Try again in a moment.");
+        setStage("landing");
+        setReady(true);
+        return;
+      }
       if (cancelled) return;
 
       if (cloudAccount) {
@@ -226,7 +240,7 @@ export function YovaPrototype() {
 
     void openYova();
     return () => { cancelled = true; };
-  }, []);
+  }, [authCheckAttempt]);
 
   useEffect(() => {
     if (!ready || !account || !signedIn) return;
@@ -552,7 +566,7 @@ export function YovaPrototype() {
 
   if (!ready) return <LoadingAccount />;
 
-  if (stage === "landing") return <Landing onCreate={() => { setAccountMode("create"); setStage("account"); }} onSignIn={() => { setAccountMode("sign-in"); setStage("account"); }} />;
+  if (stage === "landing") return <Landing authIssue={authStartupIssue} onRetryAuth={() => { setReady(false); setAuthCheckAttempt((attempt) => attempt + 1); }} onCreate={() => { setAccountMode("create"); setStage("account"); }} onSignIn={() => { setAccountMode("sign-in"); setStage("account"); }} />;
   if (stage === "account") {
     return <AccountEntry mode={accountMode} existingAccount={account} onBack={() => setStage("landing")} onContinue={(nextAccount) => {
       if (accountMode === "create") {
@@ -685,10 +699,11 @@ function LoadingAccount() {
   return <main className="centered-shell"><BrandMark /><p className="muted">Opening your YOVA…</p></main>;
 }
 
-function Landing({ onCreate, onSignIn }: { onCreate: () => void; onSignIn: () => void }) {
+function Landing({ authIssue, onRetryAuth, onCreate, onSignIn }: { authIssue: string | null; onRetryAuth: () => void; onCreate: () => void; onSignIn: () => void }) {
   return (
     <main className="entry-shell">
       <header className="entry-nav"><BrandMark /><button className="button ghost" onClick={onSignIn}>Sign in</button></header>
+      {authIssue && <section className="auth-startup-warning" role="alert"><AlertCircle size={19} /><div><strong>Account connection interrupted</strong><span>{authIssue}</span></div><button className="button secondary" onClick={onRetryAuth}>Try again</button></section>}
       <section className="hero-card">
         <span className="eyebrow"><Sparkles size={15} /> Personalized around how you actually study</span>
         <h1>Know exactly what<br />to study next.</h1>
