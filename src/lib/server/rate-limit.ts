@@ -17,6 +17,10 @@ export function checkSessionGenerationRateLimit(key: string) {
   return checkRateLimit(`session:${key}`, 10);
 }
 
+export function checkAnswerEvaluationRateLimit(key: string) {
+  return checkRateLimit(`answer:${key}`, 24);
+}
+
 export function checkMaterialUploadRateLimit(key: string) {
   return checkRateLimit(`material:${key}`, 12);
 }

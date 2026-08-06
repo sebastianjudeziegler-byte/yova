@@ -49,6 +49,7 @@ A cross-browser six-digit email-code flow is implemented and tested behind a ser
 - Study Now and multi-session plans
 - Optional materials or YOVA-created content
 - Guided teaching, multiple choice, typed recall, and feedback
+- Typed explanations receive a bounded AI-assisted formative check against the activity's reference answer and rubric; the learner can correct YOVA's judgment, and the typed response is not saved in YOVA's database
 - Safe built-in biology, calculus, and finance sessions now provide real instruction and worked examples when teaching must come before independent performance
 - Generated explanations and practice remain reusable inside their learning goal
 - Contextual tutoring inside and outside sessions
@@ -110,6 +111,7 @@ The software loop is close to private-alpha readiness, but the broader learning-
 - Cached session resources reload from Supabase without another OpenAI request
 - OpenAI Structured Outputs for plans and guided sessions
 - Durable AI usage limits and short-window rate limits
+- Answer checks have their own server-enforced allowance, preventing a useful formative interaction from becoming an uncontrolled OpenAI cost path
 - Offline retry queues for completions and interruptions
 - Atomic completion plus delayed-follow-up persistence, so the cloud cannot save “goal complete” while losing the required verification session
 - Atomic completed-goal review activation, so the cloud cannot reopen a learning goal without also preserving the evidence-based retrieval session that caused it

@@ -838,6 +838,16 @@ h1, h2, h3, p { margin-top: 0; }
 .recall-review { padding: 18px; border: 1px solid #d9d2ff; border-radius: 12px; background: #f8f6ff; }
 .recall-review > p { margin: 9px 0; color: var(--text); line-height: 1.65; }
 .recall-review > small { display: block; color: var(--muted); line-height: 1.55; }
+.answer-evaluation { margin: -4px -4px 18px; padding: 16px; display: grid; gap: 8px; color: var(--text); border: 1px solid #b9d7ca; border-radius: 10px; background: #f2fbf7; }
+.answer-evaluation.needs_review { border-color: #efc7aa; background: #fff8f2; }
+.answer-evaluation.uncertain { border-color: #cdd5e2; background: #f7f9fc; }
+.answer-evaluation > strong { font-size: 16px; }
+.answer-evaluation > p { margin: 0; color: var(--text-soft); line-height: 1.55; }
+.answer-evaluation > div { margin-top: 5px; }
+.answer-evaluation > div > span { font-size: 12px; font-weight: 700; }
+.answer-evaluation ul { margin: 6px 0 0; padding-left: 20px; color: var(--text-soft); font-size: 13px; line-height: 1.5; }
+.answer-evaluation-fallback { margin: -4px -4px 18px; padding: 13px 14px; display: flex; align-items: flex-start; gap: 9px; color: #8b3e10; border: 1px solid #efc7aa; border-radius: 10px; background: #fff8f2; }
+.answer-evaluation-fallback p { margin: 0; line-height: 1.5; }
 .recall-actions { margin-top: 18px; display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
 .recall-actions > span { grid-column: 1 / -1; color: var(--text); font-size: 13px; font-weight: 700; }
 .recall-actions button { padding: 11px 12px; display: flex; align-items: center; justify-content: center; gap: 7px; color: var(--text); border: 1px solid var(--border); border-radius: 9px; background: white; }

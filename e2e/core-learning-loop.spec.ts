@@ -180,6 +180,9 @@ test("a learner can stop twice without losing progress or earlier evidence", asy
     "Earlier gains remain in the base, so the same percentage can produce larger gains later.",
   );
   await page.getByRole("button", { name: "Check my answer" }).click();
+  await expect(page.getByText("YOVA'S FORMATIVE CHECK")).toBeVisible();
+  await expect(page.getByText("The key idea is present.")).toBeVisible();
+  await expect(page.getByText(/one-time AI check and is not saved/i)).toBeVisible();
   await page.getByRole("button", { name: "I got the key idea" }).click();
   await page.getByRole("button", { name: "Continue" }).click();
   await page.getByRole("button", { name: "Finish this content" }).click();
