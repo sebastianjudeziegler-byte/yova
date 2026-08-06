@@ -77,6 +77,7 @@ A cross-browser six-digit email-code flow is implemented and tested behind a ser
 - Knowledge checks capture confidence before the answer, allowing YOVA to distinguish possible misconceptions from correct-but-uncertain knowledge
 - Confidence evidence is stored without the learner’s typed response, shown transparently at completion, and used to choose misconception repair versus independent confirmation
 - A missed check now creates an immediate explain-back before the session can finish, but that retry is explicitly excluded from accuracy and mastery evidence
+- When a typed explanation misses a key relationship, YOVA now carries the evaluator's specific missing ideas into the explain-back instead of giving a generic retry; the correction is checked for meaning while remaining excluded from durable mastery evidence
 - A last-session miss creates a short delayed verification session instead of allowing the learning goal to appear complete
 - High-confidence misses use a teaching-first misconception-repair follow-up; ordinary misses use practice-first spaced retrieval and error repair
 - Session evidence counts only completed checks, preventing unfinished questions in a resumed session from being silently scored as wrong

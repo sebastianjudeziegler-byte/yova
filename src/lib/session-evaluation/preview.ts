@@ -32,7 +32,7 @@ export function evaluatePreviewAnswer(request: AnswerEvaluationRequest): AnswerE
       : [...referenceTokens]
         .filter((token) => !learnerTokens.has(token))
         .slice(0, 2)
-        .map((token) => `Check the part of the answer involving “${token}.”`),
+        .map((token) => `The relationship involving “${token}” is still missing.`),
   };
 }
 

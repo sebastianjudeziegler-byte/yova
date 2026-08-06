@@ -75,6 +75,20 @@ describe("buildImmediateRepairAfterMiss", () => {
 
     expect(buildImmediateRepairAfterMiss([...steps, existingRepair], 0, { 0: false })).toBeNull();
   });
+
+  it("turns evaluator feedback into a specific repair target", () => {
+    const repair = buildImmediateRepairAfterMiss(
+      steps,
+      0,
+      { 0: false },
+      2,
+      ["Explain why both factors contribute to the derivative."],
+    );
+
+    expect(repair?.body).toContain("both factors contribute");
+    expect(repair?.body).toContain("verify it again later");
+    expect(repair?.body.length).toBeLessThanOrEqual(320);
+  });
 });
 
 describe("summarizeSessionEvidence", () => {

@@ -170,6 +170,7 @@ export function buildImmediateRepairAfterMiss(
   currentIndex: number,
   outcomes: Record<number, boolean>,
   maximumRepairs = 2,
+  repairFocus: string[] = [],
 ) {
   const current = steps[currentIndex];
   if (
@@ -185,7 +186,19 @@ export function buildImmediateRepairAfterMiss(
     return null;
   }
 
-  return buildImmediateRepairSteps([current], { 0: false }, 1)[0] ?? null;
+  const repair = buildImmediateRepairSteps([current], { 0: false }, 1)[0] ?? null;
+  const focusedIdeas = repairFocus
+    .map((idea) => idea.trim())
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((idea) => idea.slice(0, 80));
+
+  if (!repair || focusedIdeas.length === 0) return repair;
+
+  return {
+    ...repair,
+    body: `Use these missing ideas in your correction: ${focusedIdeas.join(" ")} Explain the corrected relationship from memory in your own words. YOVA will check it now and verify it again later.`,
+  };
 }
 
 function isKnowledgeCheck(step: GuidedSessionStep): step is GuidedSessionStep & {

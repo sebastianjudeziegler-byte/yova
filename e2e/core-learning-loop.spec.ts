@@ -54,6 +54,8 @@ test("a confident misconception is repaired now and verified later", async ({ pa
     "Glycolysis happens first, followed by the Krebs cycle and electron transport chain.",
   );
   await page.getByRole("button", { name: "Check my answer" }).click();
+  await expect(page.getByText("YOVA'S FORMATIVE CHECK")).toBeVisible();
+  await expect(page.getByText("The key idea is present.")).toBeVisible();
   await page.getByRole("button", { name: "I got the key idea" }).click();
   await expect(page.getByText(/not saved as proof of mastery/i)).toBeVisible();
   await page.getByRole("button", { name: "Continue" }).click();
@@ -143,6 +145,19 @@ test("a new topic is taught before YOVA asks for independent performance", async
   await expect(page.getByRole("heading", { name: "Explain compound growth in your own words" })).toBeVisible();
   await expect(page.getByLabel("Method phase 3 of 4")).toContainText("Perform independently");
   await expect(page.getByRole("group", { name: /Before answering/ })).toBeVisible();
+  await page.getByRole("button", { name: "Somewhat sure" }).click();
+  await page.getByLabel("Perform independently").fill("The amount gets bigger.");
+  await page.getByRole("button", { name: "Check my answer" }).click();
+  await expect(page.getByText("One or more key ideas need repair.")).toBeVisible();
+  await page.getByRole("button", { name: "Repair this idea" }).click();
+
+  await expect(page.getByText(/Use these missing ideas in your correction:/)).toBeVisible();
+  await page.getByLabel("Corrected idea in your own words").fill(
+    "Earlier gains stay in the base, so later percentage gains apply to the original amount and its accumulated growth.",
+  );
+  await page.getByRole("button", { name: "Check my answer" }).click();
+  await expect(page.getByText("YOVA'S FORMATIVE CHECK")).toBeVisible();
+  await expect(page.getByText("The key idea is present.")).toBeVisible();
 });
 
 test("a learner can stop twice without losing progress or earlier evidence", async ({ page }) => {
