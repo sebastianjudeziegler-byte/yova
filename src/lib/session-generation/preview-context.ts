@@ -5,6 +5,7 @@ import type {
   SessionInterruption,
 } from "@/lib/domain";
 import { summarizeConceptEvidence } from "@/lib/learning/concept-evidence";
+import { summarizeConfidenceCalibration } from "@/lib/learning/confidence-calibration";
 import type { PreviewSessionGenerationContext } from "@/lib/session-generation/schema";
 
 export function buildPreviewSessionContext({
@@ -60,6 +61,7 @@ export function buildPreviewSessionContext({
       observedGap: completion.observedGap || null,
       plannedMinutes: completion.plannedMinutes,
       actualMinutes: completion.actualMinutes,
+      calibrationPattern: summarizeConfidenceCalibration(completion.confidenceEvidence).pattern,
     })),
     recentInterruptions: recentInterruptions.slice(0, 4).map((interruption) => ({
       occurredAt: interruption.interruptedAt,

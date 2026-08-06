@@ -93,6 +93,7 @@ export function buildSessionEvaluationCases(): SessionEvaluationCase[] {
           observedGap: "Quotient rule setup and denominator squaring",
           plannedMinutes: 25,
           actualMinutes: 25,
+          calibrationPattern: "possible_misconception",
         }],
         recentInterruptions: [],
         conceptSignals: [{

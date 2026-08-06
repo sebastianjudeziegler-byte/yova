@@ -46,6 +46,7 @@ export const ProductEventRequestSchema = z.discriminatedUnion("eventName", [
       totalAnswers: z.number().int().min(0).max(100),
       feedback: z.enum(["too_easy", "about_right", "too_difficult"]),
       adaptedNextSession: z.boolean(),
+      calibrationPattern: z.enum(["insufficient", "possible_misconception", "underestimated_knowledge", "well_calibrated", "mixed"]),
     }).strict(),
   }).strict(),
   z.object({

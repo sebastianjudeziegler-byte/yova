@@ -38,6 +38,8 @@ import { isCompleteEmailVerificationCode, normalizeEmailVerificationCode } from 
 import {
   makeId,
   makeUuid,
+  type ConfidenceEvidence,
+  type ConfidenceLevel,
   type ConceptEvidence,
   type LearningPlan,
   type LearningPlanSession,
@@ -49,6 +51,7 @@ import {
   type SessionResourceActivity,
 } from "@/lib/domain";
 import { summarizeConceptEvidence, type ConceptSignal } from "@/lib/learning/concept-evidence";
+import { confidenceResultMessage, summarizeConfidenceCalibration } from "@/lib/learning/confidence-calibration";
 import { clearPreviewSnapshot, loadPreviewSnapshot, savePreviewSnapshot } from "@/lib/persistence/preview-store";
 import { buildPlanProfileSummary } from "@/lib/personalization/profile-summary";
 import { createSessionAdaptationNote } from "@/lib/personalization/adaptation-note";
@@ -132,6 +135,7 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
   const [sessionStep, setSessionStep] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
   const [sessionOutcomes, setSessionOutcomes] = useState<Record<number, boolean>>({});
+  const [sessionConfidence, setSessionConfidence] = useState<Record<number, ConfidenceLevel>>({});
   const [answerRevealed, setAnswerRevealed] = useState(false);
   const [generatedLessonSteps, setGeneratedLessonSteps] = useState<LessonStep[] | null>(null);
   const [sessionRationale, setSessionRationale] = useState<string | null>(null);
@@ -158,6 +162,17 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
     return [{
       concept: step.concept,
       outcome: outcome ? "secure" : "needs_review",
+      activityType: step.type,
+    }];
+  });
+  const sessionConfidenceEvidence = activeLessonSteps.flatMap<ConfidenceEvidence>((step, index) => {
+    const outcome = sessionOutcomes[index];
+    const confidence = sessionConfidence[index];
+    if ((step.type !== "multiple_choice" && step.type !== "free_response") || !step.concept || outcome === undefined || !confidence) return [];
+    return [{
+      concept: step.concept,
+      confidence,
+      correct: outcome,
       activityType: step.type,
     }];
   });
@@ -376,6 +391,7 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
     setSessionStep(0);
     setSelectedAnswer(null);
     setSessionOutcomes({});
+    setSessionConfidence({});
     setAnswerRevealed(false);
     setGeneratedLessonSteps(null);
     setSessionRationale(null);
@@ -489,6 +505,7 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
       feedback,
       observedGap: sessionObservedGap,
       conceptEvidence: sessionConceptEvidence,
+      confidenceEvidence: sessionConfidenceEvidence,
     };
     const nextSession = activePlan.sessions.find((session) => session.sequence === currentSession.sequence + 1) ?? null;
     const adaptation = buildNextSessionAdaptation(nextSession, completion);
@@ -502,6 +519,7 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
         totalAnswers: completion.totalAnswers,
         feedback: completion.feedback,
         adaptedNextSession: adaptation !== null,
+        calibrationPattern: summarizeConfidenceCalibration(completion.confidenceEvidence).pattern,
       },
     }, analyticsEnabled);
 
@@ -892,6 +910,7 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
         step={sessionStep}
         selectedAnswer={selectedAnswer}
         outcome={sessionOutcomes[sessionStep]}
+        confidence={sessionConfidence[sessionStep]}
         answerRevealed={answerRevealed}
         elapsedSeconds={sessionElapsedSeconds}
         rationale={sessionRationale}
@@ -903,6 +922,9 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
         }}
         onEvaluate={(correct) => {
           setSessionOutcomes((current) => ({ ...current, [sessionStep]: correct }));
+        }}
+        onConfidence={(confidence) => {
+          setSessionConfidence((current) => ({ ...current, [sessionStep]: confidence }));
         }}
         onReveal={() => setAnswerRevealed(true)}
         onExit={interruptActiveSession}
@@ -927,7 +949,7 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
     const nextSession = currentSession
       ? activePlan?.sessions.find((session) => session.sequence === currentSession.sequence + 1) ?? null
       : null;
-    return <SessionComplete stepCount={activeLessonSteps.length} elapsedSeconds={capturedSessionSeconds} actualMinutes={capturedSessionMinutes} correctAnswers={sessionCorrectAnswers} totalAnswers={sessionTotalAnswers} observedGap={sessionObservedGap} nextSession={nextSession} onFinish={(feedback) => { completeActiveSession(sessionCorrectAnswers, sessionTotalAnswers, feedback, capturedSessionMinutes); setStage("app"); setActiveTab("Home"); }} />;
+    return <SessionComplete stepCount={activeLessonSteps.length} elapsedSeconds={capturedSessionSeconds} actualMinutes={capturedSessionMinutes} correctAnswers={sessionCorrectAnswers} totalAnswers={sessionTotalAnswers} observedGap={sessionObservedGap} confidenceEvidence={sessionConfidenceEvidence} nextSession={nextSession} onFinish={(feedback) => { completeActiveSession(sessionCorrectAnswers, sessionTotalAnswers, feedback, capturedSessionMinutes); setStage("app"); setActiveTab("Home"); }} />;
   }
 
   return (
@@ -1598,6 +1620,16 @@ function observedLearningInsight(sessionCompletions: SessionCompletion[], sessio
     return "You have left multiple recent sessions before finishing. YOVA will treat that as a scheduling signal and cautiously reduce or restructure future session scope—not as evidence about your ability.";
   }
 
+  const calibration = summarizeConfidenceCalibration(
+    sessionCompletions.flatMap((completion) => completion.confidenceEvidence),
+  );
+  if (calibration.pattern === "possible_misconception" || calibration.pattern === "mixed") {
+    return "At least one answer felt very certain but did not hold up. YOVA will treat that as a possible misconception, rebuild the idea briefly, and check it through a different application.";
+  }
+  if (calibration.pattern === "underestimated_knowledge") {
+    return "You have answered correctly while feeling unsure. YOVA will use independent confirmation to build evidence-based confidence instead of reteaching material you can already produce.";
+  }
+
   const difficultRatings = sessionCompletions.filter((completion) => completion.feedback === "too_difficult").length;
   const easyRatings = sessionCompletions.filter((completion) => completion.feedback === "too_easy").length;
 
@@ -1783,7 +1815,7 @@ function SessionGenerationError({ plan, issue, onExit, onRetry }: { plan: Learni
   return <main className="centered-shell"><BrandMark /><section className="plan-error-state" role="alert"><span><AlertCircle /></span><span className="step-label">SOURCE-SAFE STOP</span><h1>YOVA did not replace your material.</h1><p>{issue ?? "YOVA could not build this source-grounded session yet."}</p><p>Nothing was marked complete. You can retry, or return to {plan?.title ?? "the learning goal"} and check its source files.</p><div><button className="button ghost" onClick={onExit}><ArrowLeft size={17} /> Return to learning</button><button className="button primary" onClick={onRetry}>Try again <ArrowRight size={17} /></button></div></section></main>;
 }
 
-function GuidedSession({ plan, steps, step, selectedAnswer, outcome, answerRevealed, elapsedSeconds, rationale, methodBriefing, issue, analyticsEnabled, onSelect, onEvaluate, onReveal, onExit, onNext }: { plan: LearningPlan | null; steps: LessonStep[]; step: number; selectedAnswer: string | null; outcome: boolean | undefined; answerRevealed: boolean; elapsedSeconds: number; rationale: string | null; methodBriefing: SessionMethodBriefing | null; issue: string | null; analyticsEnabled: boolean; onSelect: (answer: string) => void; onEvaluate: (correct: boolean) => void; onReveal: () => void; onExit: () => void; onNext: () => void }) {
+function GuidedSession({ plan, steps, step, selectedAnswer, outcome, confidence, answerRevealed, elapsedSeconds, rationale, methodBriefing, issue, analyticsEnabled, onSelect, onEvaluate, onConfidence, onReveal, onExit, onNext }: { plan: LearningPlan | null; steps: LessonStep[]; step: number; selectedAnswer: string | null; outcome: boolean | undefined; confidence: ConfidenceLevel | undefined; answerRevealed: boolean; elapsedSeconds: number; rationale: string | null; methodBriefing: SessionMethodBriefing | null; issue: string | null; analyticsEnabled: boolean; onSelect: (answer: string) => void; onEvaluate: (correct: boolean) => void; onConfidence: (confidence: ConfidenceLevel) => void; onReveal: () => void; onExit: () => void; onNext: () => void }) {
   const [confirmingExit, setConfirmingExit] = useState(false);
   const content = steps[step];
   const currentSession = plan?.sessions.find((session) => session.status === "ready") ?? null;
@@ -1796,7 +1828,17 @@ function GuidedSession({ plan, steps, step, selectedAnswer, outcome, answerRevea
       : content.feedback;
   const canContinue = !isQuestion || outcome !== undefined;
 
-  return <main className="session-shell"><header className="session-top"><BrandMark compact /><div><span>{plan?.title ?? "YOVA session"}</span><strong>{currentSession?.title ?? "Guided learning"}</strong></div><div className="session-progress"><span>{step + 1} of {steps.length} sections · {formatElapsedDuration(elapsedSeconds)} elapsed</span><div><i style={{ width: `${((step + 1) / steps.length) * 100}%` }} /></div></div><button className="button ghost" onClick={() => setConfirmingExit(true)}>Exit</button></header><section className="session-content">{step === 0 && methodBriefing && <MethodBriefingCard briefing={methodBriefing} />}{step === 0 && rationale && <div className="session-rationale"><Sparkles size={17} /><div><strong>Why this session fits</strong><p>{rationale}</p></div></div>}{issue && step === 0 && <div className="session-issue"><AlertCircle size={17} /><span>{issue}</span></div>}<span className="step-label">{content.label}</span><h1>{content.title}</h1><p>{content.body}</p>{content.type === "multiple_choice" && content.question && <div className="answer-grid">{content.question.map((answer) => <button key={answer} className={selectedAnswer === answer ? "selected" : ""} disabled={selectedAnswer !== null} onClick={() => { onSelect(answer); onEvaluate(answer === content.correctAnswer); }}>{answer}{selectedAnswer === answer && <Check size={18} />}</button>)}</div>}{content.type === "multiple_choice" && outcome !== undefined && <div className={`feedback ${isCorrect ? "" : "incorrect"}`}>{isCorrect ? <Check size={20} /> : <AlertCircle size={20} />}<div><strong>{isCorrect ? "Correct." : "Useful miss."}</strong><p>{explanation}</p></div></div>}{content.type === "free_response" && <div className="recall-response"><label htmlFor={`recall-${step}`}><span>Your answer from memory</span><textarea id={`recall-${step}`} rows={6} value={selectedAnswer ?? ""} disabled={answerRevealed} placeholder="Write what you can remember before checking…" onChange={(event) => onSelect(event.target.value)} /></label>{!answerRevealed ? <button className="button secondary" disabled={!selectedAnswer?.trim()} onClick={onReveal}>Check my answer</button> : <div className="recall-review"><span className="step-label">REFERENCE ANSWER</span><p>{content.correctAnswer}</p>{content.feedback && <small>{content.feedback}</small>}<div className="recall-actions"><span>How did your answer compare?</span><button className={outcome === true ? "selected" : ""} onClick={() => onEvaluate(true)}><Check size={17} /> I got the key idea</button><button className={outcome === false ? "selected needs-work" : ""} onClick={() => onEvaluate(false)}><AlertCircle size={17} /> Needs another pass</button></div><small className="privacy-note">Your typed response stays in this session. YOVA saves only whether this concept felt secure or needs review.</small></div>}</div>}<button className="button primary large" onClick={onNext} disabled={!canContinue}>{step === steps.length - 1 ? "Complete session" : "Continue"} <ArrowRight size={18} /></button></section><SessionTutor plan={plan} activityTitle={content.title} analyticsEnabled={analyticsEnabled} />{confirmingExit && <div className="session-exit-backdrop"><section className="session-exit-dialog" role="dialog" aria-modal="true" aria-labelledby="session-exit-title"><div className="session-exit-icon"><Clock3 size={21} /></div><span className="step-label">LEAVE THIS SESSION?</span><h2 id="session-exit-title">Your plan will stay open.</h2><p>YOVA will remember how long you studied and how far you reached. Unfinished answers will not be treated as knowledge evidence.</p><div className="session-exit-summary"><span>{formatElapsedDuration(elapsedSeconds)} studied</span><span>{step} of {steps.length} sections finished</span></div><div className="session-exit-actions"><button className="button ghost" onClick={() => setConfirmingExit(false)}>Keep studying</button><button className="button primary" onClick={onExit}>Save progress and leave</button></div></section></div>}</main>;
+  return <main className="session-shell"><header className="session-top"><BrandMark compact /><div><span>{plan?.title ?? "YOVA session"}</span><strong>{currentSession?.title ?? "Guided learning"}</strong></div><div className="session-progress"><span>{step + 1} of {steps.length} sections · {formatElapsedDuration(elapsedSeconds)} elapsed</span><div><i style={{ width: `${((step + 1) / steps.length) * 100}%` }} /></div></div><button className="button ghost" onClick={() => setConfirmingExit(true)}>Exit</button></header><section className="session-content">{step === 0 && methodBriefing && <MethodBriefingCard briefing={methodBriefing} />}{step === 0 && rationale && <div className="session-rationale"><Sparkles size={17} /><div><strong>Why this session fits</strong><p>{rationale}</p></div></div>}{issue && step === 0 && <div className="session-issue"><AlertCircle size={17} /><span>{issue}</span></div>}<span className="step-label">{content.label}</span><h1>{content.title}</h1><p>{content.body}</p>{isQuestion && <ConfidenceCheck value={confidence} locked={outcome !== undefined || answerRevealed} onChange={onConfidence} />}{content.type === "multiple_choice" && content.question && <div className="answer-grid">{content.question.map((answer) => <button key={answer} className={selectedAnswer === answer ? "selected" : ""} disabled={selectedAnswer !== null || !confidence} onClick={() => { onSelect(answer); onEvaluate(answer === content.correctAnswer); }}>{answer}{selectedAnswer === answer && <Check size={18} />}</button>)}</div>}{content.type === "multiple_choice" && outcome !== undefined && <><div className={`feedback ${isCorrect ? "" : "incorrect"}`}>{isCorrect ? <Check size={20} /> : <AlertCircle size={20} />}<div><strong>{isCorrect ? "Correct." : "Useful miss."}</strong><p>{explanation}</p></div></div>{confidence && <p className="confidence-result"><Sparkles size={15} /> {confidenceResultMessage(confidence, isCorrect)}</p>}</>}{content.type === "free_response" && <div className="recall-response"><label htmlFor={`recall-${step}`}><span>Your answer from memory</span><textarea id={`recall-${step}`} rows={6} value={selectedAnswer ?? ""} disabled={answerRevealed || !confidence} placeholder={confidence ? "Write what you can remember before checking…" : "Choose your confidence first…"} onChange={(event) => onSelect(event.target.value)} /></label>{!answerRevealed ? <button className="button secondary" disabled={!selectedAnswer?.trim() || !confidence} onClick={onReveal}>Check my answer</button> : <div className="recall-review"><span className="step-label">REFERENCE ANSWER</span><p>{content.correctAnswer}</p>{content.feedback && <small>{content.feedback}</small>}<div className="recall-actions"><span>How did your answer compare?</span><button className={outcome === true ? "selected" : ""} onClick={() => onEvaluate(true)}><Check size={17} /> I got the key idea</button><button className={outcome === false ? "selected needs-work" : ""} onClick={() => onEvaluate(false)}><AlertCircle size={17} /> Needs another pass</button></div>{confidence && outcome !== undefined && <p className="confidence-result"><Sparkles size={15} /> {confidenceResultMessage(confidence, outcome)}</p>}<small className="privacy-note">Your typed response stays in this session. YOVA saves only whether this concept felt secure or needs review, plus your confidence level.</small></div>}</div>}<button className="button primary large" onClick={onNext} disabled={!canContinue}>{step === steps.length - 1 ? "Complete session" : "Continue"} <ArrowRight size={18} /></button></section><SessionTutor plan={plan} activityTitle={content.title} analyticsEnabled={analyticsEnabled} />{confirmingExit && <div className="session-exit-backdrop"><section className="session-exit-dialog" role="dialog" aria-modal="true" aria-labelledby="session-exit-title"><div className="session-exit-icon"><Clock3 size={21} /></div><span className="step-label">LEAVE THIS SESSION?</span><h2 id="session-exit-title">Your plan will stay open.</h2><p>YOVA will remember how long you studied and how far you reached. Unfinished answers will not be treated as knowledge evidence.</p><div className="session-exit-summary"><span>{formatElapsedDuration(elapsedSeconds)} studied</span><span>{step} of {steps.length} sections finished</span></div><div className="session-exit-actions"><button className="button ghost" onClick={() => setConfirmingExit(false)}>Keep studying</button><button className="button primary" onClick={onExit}>Save progress and leave</button></div></section></div>}</main>;
+}
+
+function ConfidenceCheck({ value, locked, onChange }: { value: ConfidenceLevel | undefined; locked: boolean; onChange: (value: ConfidenceLevel) => void }) {
+  const options: Array<{ value: ConfidenceLevel; label: string }> = [
+    { value: "guessing", label: "Mostly guessing" },
+    { value: "somewhat_sure", label: "Somewhat sure" },
+    { value: "very_sure", label: "Very sure" },
+  ];
+
+  return <fieldset className="confidence-check"><legend>Before answering, how sure are you?</legend><p>This helps YOVA separate a memory slip from a confident misconception.</p><div>{options.map((option) => <button type="button" key={option.value} className={value === option.value ? "selected" : ""} disabled={locked} onClick={() => onChange(option.value)}>{option.label}{value === option.value && <Check size={15} />}</button>)}</div></fieldset>;
 }
 
 function MethodBriefingCard({ briefing }: { briefing: SessionMethodBriefing }) {
@@ -1865,9 +1907,10 @@ function SessionTutor({ plan, activityTitle, analyticsEnabled }: { plan: Learnin
   </aside>;
 }
 
-function SessionComplete({ stepCount, elapsedSeconds, actualMinutes, correctAnswers, totalAnswers, observedGap, nextSession, onFinish }: { stepCount: number; elapsedSeconds: number; actualMinutes: number; correctAnswers: number; totalAnswers: number; observedGap: string; nextSession: LearningPlanSession | null; onFinish: (feedback: SessionCompletion["feedback"]) => void }) {
+function SessionComplete({ stepCount, elapsedSeconds, actualMinutes, correctAnswers, totalAnswers, observedGap, confidenceEvidence, nextSession, onFinish }: { stepCount: number; elapsedSeconds: number; actualMinutes: number; correctAnswers: number; totalAnswers: number; observedGap: string; confidenceEvidence: ConfidenceEvidence[]; nextSession: LearningPlanSession | null; onFinish: (feedback: SessionCompletion["feedback"]) => void }) {
   const [feedback, setFeedback] = useState<SessionCompletion["feedback"]>("about_right");
   const hasGap = totalAnswers > 0 && correctAnswers < totalAnswers;
+  const calibration = summarizeConfidenceCalibration(confidenceEvidence);
   const proposedAdaptation = buildNextSessionAdaptation(nextSession, {
     id: "completion-preview",
     planId: "completion-preview",
@@ -1881,6 +1924,7 @@ function SessionComplete({ stepCount, elapsedSeconds, actualMinutes, correctAnsw
     feedback,
     observedGap,
     conceptEvidence: [],
+    confidenceEvidence,
   });
   const nextStatus = !nextSession
     ? { title: "This learning item is complete", explanation: "There is no remaining session to adjust. This result is still saved to your learning history." }
@@ -1888,7 +1932,7 @@ function SessionComplete({ stepCount, elapsedSeconds, actualMinutes, correctAnsw
       ? { title: "YOVA will adjust the next session", explanation: proposedAdaptation.explanation }
       : { title: "The next session is ready", explanation: "This result does not justify changing the planned method, so YOVA will continue without inventing an adjustment." };
 
-  return <main className="centered-shell completion"><BrandMark /><section className="setup-card wide"><div className="completion-icon"><Check size={28} /></div><span className="step-label">SESSION COMPLETE</span><h1>You completed this session.</h1><p>{hasGap ? "One or more details need another pass. YOVA can now use the actual result when deciding what comes next." : "You completed the required check. YOVA can move forward without adding unnecessary review."}</p><div className="result-grid"><div><span>Session steps</span><strong>{stepCount} of {stepCount}</strong></div><div><span>Time studied</span><strong>{formatElapsedDuration(elapsedSeconds)}</strong></div><div><span>Knowledge checks</span><strong>{correctAnswers} of {totalAnswers}</strong></div><div><span>Next step</span><strong>{nextSession ? nextSession.title : "Goal complete"}</strong></div></div><p className="feedback-label">How did this session feel?</p><div className="feeling-row"><button className={feedback === "too_easy" ? "selected" : ""} onClick={() => setFeedback("too_easy")}>Too easy</button><button className={feedback === "about_right" ? "selected" : ""} onClick={() => setFeedback("about_right")}>About right</button><button className={feedback === "too_difficult" ? "selected" : ""} onClick={() => setFeedback("too_difficult")}>Too difficult</button></div><div className="adaptation"><Sparkles size={19} /><div><strong>{nextStatus.title}</strong><p>{nextStatus.explanation}</p></div></div><button className="button primary large full" onClick={() => onFinish(feedback)}>Save result and return Home</button></section></main>;
+  return <main className="centered-shell completion"><BrandMark /><section className="setup-card wide"><div className="completion-icon"><Check size={28} /></div><span className="step-label">SESSION COMPLETE</span><h1>You completed this session.</h1><p>{hasGap ? "One or more details need another pass. YOVA can now use the actual result when deciding what comes next." : "You completed the required check. YOVA can move forward without adding unnecessary review."}</p><div className="result-grid"><div><span>Session steps</span><strong>{stepCount} of {stepCount}</strong></div><div><span>Time studied</span><strong>{formatElapsedDuration(elapsedSeconds)}</strong></div><div><span>Knowledge checks</span><strong>{correctAnswers} of {totalAnswers}</strong></div><div><span>Next step</span><strong>{nextSession ? nextSession.title : "Goal complete"}</strong></div></div><div className={`calibration-summary ${calibration.pattern}`}><Target size={19} /><div><strong>{calibration.title}</strong><p>{calibration.explanation}</p></div></div><p className="feedback-label">How did this session feel?</p><div className="feeling-row"><button className={feedback === "too_easy" ? "selected" : ""} onClick={() => setFeedback("too_easy")}>Too easy</button><button className={feedback === "about_right" ? "selected" : ""} onClick={() => setFeedback("about_right")}>About right</button><button className={feedback === "too_difficult" ? "selected" : ""} onClick={() => setFeedback("too_difficult")}>Too difficult</button></div><div className="adaptation"><Sparkles size={19} /><div><strong>{nextStatus.title}</strong><p>{nextStatus.explanation}</p></div></div><button className="button primary large full" onClick={() => onFinish(feedback)}>Save result and return Home</button></section></main>;
 }
 
 function formatElapsedDuration(totalSeconds: number) {

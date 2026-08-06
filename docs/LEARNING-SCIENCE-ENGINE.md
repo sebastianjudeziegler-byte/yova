@@ -88,6 +88,8 @@ The current engine:
 - requires the generated session to return a structured method briefing;
 - validates that the chosen method is allowed for that task;
 - shows the learner what, why, how, and done at the beginning of the session;
+- captures confidence before knowledge checks and compares it with the result;
+- distinguishes possible misconceptions from correct-but-uncertain knowledge when adapting the next session;
 - keeps method choice separate from productivity adjustments.
 
 This is a hybrid system. Deterministic TypeScript protects the scientific boundaries. OpenAI handles nuance, subject-specific teaching, wording, examples, and activity composition.
@@ -128,12 +130,11 @@ That closed loop can eventually become a meaningful learning decision system rat
 ## Next scientific product layers
 
 1. Add method-specific session mechanics instead of rendering every method as the same quiz flow.
-2. Capture confidence before answers and compare it with performance.
-3. Schedule concept-level retrieval attempts, not only whole sessions.
-4. Add immediate retry and delayed retry queues for missed items.
-5. Track scaffold level so worked examples genuinely fade across attempts.
-6. Compare method outcomes only within similar task families and knowledge stages.
-7. Review outputs with learning-science and subject-matter experts before broad claims.
+2. Schedule concept-level retrieval attempts, not only whole sessions.
+3. Add immediate retry and delayed retry queues for missed items.
+4. Track scaffold level so worked examples genuinely fade across attempts.
+5. Compare method outcomes only within similar task families and knowledge stages.
+6. Review outputs with learning-science and subject-matter experts before broad claims.
 
 ## Evidence anchors
 

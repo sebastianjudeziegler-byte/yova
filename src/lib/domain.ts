@@ -98,6 +98,15 @@ export type ConceptEvidence = {
   activityType: "multiple_choice" | "free_response";
 };
 
+export type ConfidenceLevel = "guessing" | "somewhat_sure" | "very_sure";
+
+export type ConfidenceEvidence = {
+  concept: string;
+  confidence: ConfidenceLevel;
+  correct: boolean;
+  activityType: "multiple_choice" | "free_response";
+};
+
 export type SessionCompletion = {
   id: string;
   planId: string;
@@ -111,6 +120,7 @@ export type SessionCompletion = {
   feedback: "too_easy" | "about_right" | "too_difficult";
   observedGap: string;
   conceptEvidence: ConceptEvidence[];
+  confidenceEvidence: ConfidenceEvidence[];
 };
 
 export type SessionInterruption = {

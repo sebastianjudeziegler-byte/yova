@@ -3,6 +3,7 @@ import type {
   NextSessionAdaptation,
   SessionCompletion,
 } from "@/lib/domain";
+import { summarizeConfidenceCalibration } from "@/lib/learning/confidence-calibration";
 
 export function buildNextSessionAdaptation(
   nextSession: LearningPlanSession | null,
@@ -16,6 +17,37 @@ export function buildNextSessionAdaptation(
     : null;
   const gap = conciseGap(completion.observedGap);
   const needsRepair = accuracy !== null && accuracy < 0.8;
+  const calibration = summarizeConfidenceCalibration(completion.confidenceEvidence);
+
+  if (calibration.pattern === "possible_misconception" || calibration.pattern === "mixed") {
+    const explanation = `YOVA found a high-confidence miss involving ${gap}. The next session will challenge the idea with a concise explanation and a different application so a possible misconception is repaired, not merely repeated.`;
+    return {
+      planSessionId: nextSession.id,
+      title: `Rebuild ${gap}, then ${lowercaseFirst(nextSession.title)}`,
+      objective: `Repair the possible misconception about ${gap} with a concise explanation and a different application, then continue into: ${nextSession.objective}`,
+      method: "Misconception repair and transfer practice",
+      methodReason: explanation,
+      estimatedMinutes: nextSession.estimatedMinutes,
+      amountLabel: `Concept repair + transfer check · about ${nextSession.estimatedMinutes} min`,
+      learningMode: "learn",
+      explanation,
+    };
+  }
+
+  if (calibration.pattern === "underestimated_knowledge" && accuracy !== null && accuracy >= 0.8) {
+    const explanation = "You answered correctly while feeling unsure. YOVA will use another independent application to build evidence-based confidence without reteaching material you already demonstrated.";
+    return {
+      planSessionId: nextSession.id,
+      title: nextSession.title,
+      objective: `Confirm the demonstrated knowledge with a new independent application, then continue into: ${nextSession.objective}`,
+      method: "Independent confirmation, then planned practice",
+      methodReason: explanation,
+      estimatedMinutes: nextSession.estimatedMinutes,
+      amountLabel: `Confidence check + planned work · about ${nextSession.estimatedMinutes} min`,
+      learningMode: "study",
+      explanation,
+    };
+  }
 
   if (needsRepair) {
     const needsMoreSupport = accuracy < 0.5 || completion.feedback === "too_difficult";

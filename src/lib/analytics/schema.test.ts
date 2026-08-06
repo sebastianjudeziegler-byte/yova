@@ -36,7 +36,23 @@ describe("ProductEventRequestSchema", () => {
         totalAnswers: 3,
         feedback: "about_right",
         adaptedNextSession: false,
+        calibrationPattern: "well_calibrated",
       },
     }).success).toBe(false);
+  });
+
+  it("accepts a privacy-safe confidence calibration pattern", () => {
+    expect(ProductEventRequestSchema.safeParse({
+      eventName: "session_completed",
+      context: {
+        plannedMinutes: 25,
+        actualMinutes: 22,
+        correctAnswers: 2,
+        totalAnswers: 3,
+        feedback: "about_right",
+        adaptedNextSession: true,
+        calibrationPattern: "possible_misconception",
+      },
+    }).success).toBe(true);
   });
 });

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { CORE_METHOD_IDS, LEARNING_TASK_TYPES } from "@/lib/learning/method-catalog";
+import { CALIBRATION_PATTERNS } from "@/lib/learning/confidence-calibration";
 
 export const SessionGenerationRequestSchema = z.object({
   planId: z.string().uuid(),
@@ -37,6 +38,7 @@ export const SessionGenerationRequestSchema = z.object({
       observedGap: z.string().trim().max(500).nullable(),
       plannedMinutes: z.number().int().min(1).max(300).nullable(),
       actualMinutes: z.number().int().min(1).max(300).nullable(),
+      calibrationPattern: z.enum(CALIBRATION_PATTERNS),
     })).max(3),
     recentInterruptions: z.array(z.object({
       occurredAt: z.string().datetime({ offset: true }),

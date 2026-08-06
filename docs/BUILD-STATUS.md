@@ -15,8 +15,8 @@ Estimated completion depends on which finish line is meant:
 
 | Finish line | Current estimate | Meaning |
 |---|---:|---|
-| Functional product core | 89% | The differentiated YOVA learning loop works and plan/session quality now has automated coverage |
-| Invite-only private alpha | 90% | Deployment, support, monitoring, source-quality safeguards, and full first-pass plan/session quality suites are connected; reliable email delivery and focused end-to-end testing remain |
+| Functional product core | 91% | The differentiated YOVA learning loop works, including readiness routing and confidence calibration, with automated quality coverage |
+| Invite-only private alpha | 91% | Deployment, support, monitoring, source-quality safeguards, and full first-pass plan/session quality suites are connected; reliable email delivery and focused end-to-end testing remain |
 | Credible public beta | 71% | Trust, monitoring, and five-path live plan and guided-session gates exist; human output review, browser automation, external alerts, policy review, and tester-driven polish remain |
 | Paid polished launch | 35% | Also needs billing, entitlements, cost controls by plan, and more operational maturity |
 
@@ -62,6 +62,8 @@ A cross-browser six-digit email-code flow is implemented and tested behind a ser
 - Learner tendencies are treated as delivery modifiers rather than fixed brain types or replacements for task-appropriate methods
 - YOVA infers whether to teach first or practice first from concrete starting-point evidence; plans can transition between the two and weak results can switch the next session back to targeted teaching
 - Teaching-first sessions must begin with instruction or a model, while practice-first sessions must begin with an unsupported attempt before explanation
+- Knowledge checks capture confidence before the answer, allowing YOVA to distinguish possible misconceptions from correct-but-uncertain knowledge
+- Confidence evidence is stored without the learner’s typed response, shown transparently at completion, and used to choose misconception repair versus independent confirmation
 
 ### Honest scientific-product status
 

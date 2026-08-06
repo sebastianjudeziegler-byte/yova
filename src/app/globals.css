@@ -508,13 +508,23 @@ h1, h2, h3, p { margin-top: 0; }
 .method-briefing details ul { margin: 9px 0 0; padding-left: 18px; color: #5d6b83; font-size: 11px; line-height: 1.6; }
 .session-issue { margin: -18px 0 28px; padding: 12px 14px; display: flex; gap: 9px; align-items: flex-start; color: #7a4a00; background: #fff7e8; border: 1px solid #f7d69a; border-radius: 10px; font-size: 13px; line-height: 1.5; }
 .session-issue svg { flex: 0 0 auto; }
+.confidence-check { margin: 24px 0 10px; padding: 15px; border: 1px solid #d9d2ff; border-radius: 12px; background: #faf9ff; }
+.confidence-check legend { padding: 0 6px; color: var(--text); font-size: 13px; font-weight: 750; }
+.confidence-check > p { margin: 0 0 12px; color: var(--muted); font-size: 11px; line-height: 1.5; }
+.confidence-check > div { display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; }
+.confidence-check button { min-height: 42px; padding: 9px 11px; display: flex; align-items: center; justify-content: center; gap: 7px; color: #46536d; border: 1px solid #d7ddeb; border-radius: 9px; background: white; font-size: 11px; font-weight: 700; }
+.confidence-check button:hover, .confidence-check button.selected { color: var(--blue); border-color: var(--blue); background: var(--soft-blue); }
+.confidence-check button:disabled { cursor: default; }
 .answer-grid { margin: 28px 0; display: grid; gap: 10px; }
 .answer-grid button { padding: 15px; display: flex; justify-content: space-between; border: 1px solid var(--border); border-radius: 11px; background: white; text-align: left; }
 .answer-grid button:hover, .answer-grid button.selected { border-color: var(--blue); background: var(--soft-blue); }
 .answer-grid button:disabled { color: inherit; cursor: default; }
+.answer-grid button:disabled:not(.selected) { opacity: .58; }
 .feedback { margin: 20px 0; padding: 16px; display: flex; gap: 11px; color: #175c42; background: #ecfbf4; border-radius: 11px; }
 .feedback p { margin: 4px 0 0; }
 .feedback.incorrect { color: #8b3e10; background: #fff3eb; }
+.confidence-result { margin: -7px 0 20px; padding: 11px 13px; display: flex; align-items: flex-start; gap: 8px; color: #4f467f; border: 1px solid #ded8ff; border-radius: 9px; background: #f7f5ff; font-size: 11px; line-height: 1.55; }
+.confidence-result svg { flex: 0 0 auto; margin-top: 1px; color: var(--violet); }
 .recall-response { margin: 28px 0; display: grid; gap: 14px; }
 .recall-response label { display: grid; gap: 8px; }
 .recall-response label > span { color: var(--text); font-size: 13px; font-weight: 700; }
@@ -557,6 +567,13 @@ h1, h2, h3, p { margin-top: 0; }
 .result-grid strong { margin-top: 6px; }
 .adaptation { background: #f1efff; color: #43368d; }
 .adaptation p { margin: 4px 0 0; }
+.calibration-summary { margin: 0 0 20px; padding: 15px 16px; display: flex; align-items: flex-start; gap: 11px; color: #33415e; border: 1px solid #dce3f0; border-radius: 11px; background: #f8faff; }
+.calibration-summary > svg { flex: 0 0 auto; color: var(--blue); }
+.calibration-summary p { margin: 5px 0 0; color: #5c6980; font-size: 12px; line-height: 1.55; }
+.calibration-summary.possible_misconception, .calibration-summary.mixed { color: #7d3917; border-color: #f1c8ac; background: #fff7f1; }
+.calibration-summary.possible_misconception > svg, .calibration-summary.mixed > svg { color: #c5672d; }
+.calibration-summary.underestimated_knowledge { color: #245a49; border-color: #b9dfd0; background: #f1fbf7; }
+.calibration-summary.underestimated_knowledge > svg { color: #318469; }
 .feedback-label { margin-top: 28px; color: var(--text)!important; font-weight: 600; }
 .feeling-row { display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; margin: 10px 0 25px; }
 .feeling-row button { padding: 11px; border: 1px solid var(--border); border-radius: 9px; background: white; }
@@ -1046,6 +1063,7 @@ h1, h2, h3, p { margin-top: 0; }
   .session-exit-summary, .session-exit-actions { align-items: stretch; flex-direction: column; }
   .recall-actions { grid-template-columns: 1fr; }
   .recall-actions > span { grid-column: auto; }
+  .confidence-check > div { grid-template-columns: 1fr; }
   .result-grid div { border-left: 0; border-top: 1px solid var(--border); }
   .result-grid div:first-child { border-top: 0; }
   .plan-shell { padding: 0 16px 48px; }

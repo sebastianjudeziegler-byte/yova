@@ -58,6 +58,7 @@ function makeCompletion(
     feedback: "about_right",
     observedGap: "No major gap was detected",
     conceptEvidence: [],
+    confidenceEvidence: [],
     ...overrides,
   };
 }

@@ -1,4 +1,5 @@
-import type { LearningPlan, SessionInterruption, YovaPreviewSnapshot } from "@/lib/domain";
+import type { LearningPlan, SessionCompletion, SessionInterruption, YovaPreviewSnapshot } from "@/lib/domain";
+import { ConfidenceEvidenceListSchema } from "@/lib/learning/confidence-calibration";
 import { inferLegacySessionLearningMode } from "@/lib/learning/learning-intent";
 
 const STORAGE_KEY = "yova.preview.v1";
@@ -14,11 +15,22 @@ export function loadPreviewSnapshot(): YovaPreviewSnapshot | null {
     return {
       ...parsed,
       plans: parsed.plans.map(normalizePreviewPlan),
+      sessionCompletions: parsed.sessionCompletions.map(normalizePreviewCompletion),
       sessionInterruptions: readSessionInterruptions(parsed),
     };
   } catch {
     return null;
   }
+}
+
+function normalizePreviewCompletion(completion: SessionCompletion): SessionCompletion {
+  const parsed = ConfidenceEvidenceListSchema.safeParse(
+    (completion as SessionCompletion & { confidenceEvidence?: unknown }).confidenceEvidence,
+  );
+  return {
+    ...completion,
+    confidenceEvidence: parsed.success ? parsed.data : [],
+  };
 }
 
 function normalizePreviewPlan(plan: LearningPlan): LearningPlan {

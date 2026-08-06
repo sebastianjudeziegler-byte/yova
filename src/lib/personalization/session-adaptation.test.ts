@@ -32,6 +32,7 @@ function makeCompletion(
     feedback: "about_right",
     observedGap: "electron transport chain; ATP production",
     conceptEvidence: [],
+    confidenceEvidence: [],
     ...overrides,
   };
 }
@@ -71,6 +72,46 @@ describe("buildNextSessionAdaptation", () => {
     expect(result?.learningMode).toBe("study");
     expect(result?.title).toBe("Repair gaps, then apply cellular respiration");
     expect(result?.amountLabel).toBe("Targeted repair + planned work · about 25 min");
+  });
+
+  it("repairs a high-confidence miss even when overall accuracy is otherwise strong", () => {
+    const result = buildNextSessionAdaptation(
+      nextSession,
+      makeCompletion({
+        correctAnswers: 4,
+        totalAnswers: 5,
+        confidenceEvidence: [{
+          concept: "electron transport chain",
+          confidence: "very_sure",
+          correct: false,
+          activityType: "multiple_choice",
+        }],
+      }),
+    );
+
+    expect(result?.method).toBe("Misconception repair and transfer practice");
+    expect(result?.learningMode).toBe("learn");
+    expect(result?.explanation).toContain("high-confidence miss");
+  });
+
+  it("confirms correct but uncertain knowledge without reteaching it", () => {
+    const result = buildNextSessionAdaptation(
+      nextSession,
+      makeCompletion({
+        correctAnswers: 5,
+        totalAnswers: 5,
+        confidenceEvidence: [{
+          concept: "electron transport chain",
+          confidence: "guessing",
+          correct: true,
+          activityType: "free_response",
+        }],
+      }),
+    );
+
+    expect(result?.method).toBe("Independent confirmation, then planned practice");
+    expect(result?.learningMode).toBe("study");
+    expect(result?.explanation).toContain("without reteaching");
   });
 
   it("uses a safe fallback when no specific missed concept was found", () => {

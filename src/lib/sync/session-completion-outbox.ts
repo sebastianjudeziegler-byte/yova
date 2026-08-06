@@ -3,6 +3,7 @@
 import { z } from "zod";
 import type { NextSessionAdaptation, SessionCompletion } from "@/lib/domain";
 import { ConceptEvidenceListSchema } from "@/lib/learning/concept-evidence";
+import { ConfidenceEvidenceListSchema } from "@/lib/learning/confidence-calibration";
 import { completeAuthenticatedPlanSession } from "@/lib/supabase/learning-state-repository";
 
 const STORAGE_KEY = "yova.cloud-sync-outbox.v1";
@@ -20,6 +21,7 @@ const SessionCompletionSchema = z.object({
   feedback: z.enum(["too_easy", "about_right", "too_difficult"]),
   observedGap: z.string().min(1).max(2_000),
   conceptEvidence: ConceptEvidenceListSchema.default([]),
+  confidenceEvidence: ConfidenceEvidenceListSchema.default([]),
 });
 
 const NextSessionAdaptationSchema = z.object({

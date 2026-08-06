@@ -6,6 +6,7 @@ import type { MaterialExcerpt } from "@/lib/materials/context";
 import type { ConceptSignal } from "@/lib/learning/concept-evidence";
 import type { LearningIntent, SessionLearningMode } from "@/lib/domain";
 import { buildLearningScienceRoutingBrief } from "@/lib/learning/method-router";
+import type { CalibrationPattern } from "@/lib/learning/confidence-calibration";
 import {
   GeneratedSessionDraftSchema,
   type GeneratedSessionDraft,
@@ -45,6 +46,7 @@ export type SessionGenerationContext = {
     observedGap: string | null;
     plannedMinutes: number | null;
     actualMinutes: number | null;
+    calibrationPattern: CalibrationPattern;
   }>;
   recentInterruptions: Array<{
     occurredAt: string;
@@ -88,6 +90,7 @@ Requirements:
 - If the user is studying outside YOVA, guide the outside work precisely and use the knowledge check to verify the method or core concept.
 - When sourceMode is user_materials, ground factual teaching and questions in the supplied material excerpts. Do not claim coverage beyond those excerpts.
 - Use recent results conservatively. If there is little evidence, do not claim YOVA knows what works best.
+- Treat a recent possible_misconception calibration pattern as stronger than an ordinary miss: briefly rebuild the idea, make the learner distinguish it from the tempting wrong model, and require a different application. Treat underestimated_knowledge as a reason to confirm independently rather than reteach the whole topic. Never turn confidence into a fixed learner label.
 - Treat session timing as scheduling evidence, not proof of learning quality. When at least two recent sessions consistently ran much longer or shorter than planned, adjust the amount of work to better fit the current estimate without labeling the learner.
 - Treat one interrupted session as ordinary life, not a learner trait. Only when at least two recent sessions in this plan ended early may you cautiously reduce activity count, make the first action smaller, or split the work. Never treat interruption as evidence of low ability or poor knowledge.
 - Prioritize conceptSignals marked needs_review when they fit this session. Treat early_signal and showing_strength as evidence, never as proof of mastery.
@@ -116,9 +119,11 @@ export async function generateSessionWithOpenAI(
     interruptionCount: context.recentInterruptions.length,
   });
 
-  const response = await getOpenAIClient().responses.parse({
+  const requestDraft = (repairAttempt: boolean) => getOpenAIClient().responses.parse({
     model: config.model,
-    instructions: SESSION_GENERATOR_INSTRUCTIONS,
+    instructions: repairAttempt
+      ? `${SESSION_GENERATOR_INSTRUCTIONS}\n\nREPAIR ATTEMPT: The previous response failed YOVA's activity-order or question-integrity validation. Re-check the learningMode first-activity rule, every question's answer/feedback fields, and the exact allowed method before responding.`
+      : SESSION_GENERATOR_INSTRUCTIONS,
     input: `Build the next guided session from this YOVA context:\n${JSON.stringify({
       ...context,
       learningScienceRouting,
@@ -132,9 +137,24 @@ export async function generateSessionWithOpenAI(
     store: false,
   });
 
-  const parsed = GeneratedSessionDraftSchema.safeParse(response.output_parsed);
+  let response;
+  let repairAttempted = false;
+  try {
+    response = await requestDraft(false);
+  } catch (error) {
+    if (!(error instanceof Error) || error.name !== "ZodError") throw error;
+    repairAttempted = true;
+    response = await requestDraft(true);
+  }
+
+  let parsed = GeneratedSessionDraftSchema.safeParse(response.output_parsed);
+  if ((response.status !== "completed" || !parsed.success) && !repairAttempted) {
+    repairAttempted = true;
+    response = await requestDraft(true);
+    parsed = GeneratedSessionDraftSchema.safeParse(response.output_parsed);
+  }
   if (response.status !== "completed" || !parsed.success) {
-    throw new Error("OpenAI did not return a complete, safe guided session.");
+    throw new Error("OpenAI did not return a complete, safe guided session after one repair attempt.");
   }
 
   return {

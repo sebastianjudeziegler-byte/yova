@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { buildMaterialExcerpts } from "@/lib/materials/context";
 import { readConceptEvidenceProperty, summarizeConceptEvidence } from "@/lib/learning/concept-evidence";
+import { readConfidenceEvidenceProperty, summarizeConfidenceCalibration } from "@/lib/learning/confidence-calibration";
 import { inferLegacySessionLearningMode } from "@/lib/learning/learning-intent";
 import { isOpenAISessionConfigured } from "@/lib/openai/config";
 import { generateSessionWithOpenAI } from "@/lib/openai/session-generator";
@@ -199,6 +200,9 @@ export async function POST(request: Request) {
         observedGap: readTextProperty(attempt.result_data, "observedGap") || null,
         plannedMinutes: readNumberProperty(attempt.result_data, "plannedMinutes"),
         actualMinutes: attempt.actual_minutes,
+        calibrationPattern: summarizeConfidenceCalibration(
+          readConfidenceEvidenceProperty(attempt.result_data),
+        ).pattern,
       })),
       recentInterruptions: (interruptionsResult.data ?? []).slice(0, 4).map((event) => ({
         occurredAt: event.occurred_at,

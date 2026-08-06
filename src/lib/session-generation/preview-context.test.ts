@@ -47,6 +47,12 @@ const completion: SessionCompletion = {
     outcome: "needs_review",
     activityType: "free_response",
   }],
+  confidenceEvidence: [{
+    concept: "Calvin cycle",
+    confidence: "very_sure",
+    correct: false,
+    activityType: "free_response",
+  }],
 };
 
 const interruption: SessionInterruption = {
@@ -87,7 +93,10 @@ describe("buildPreviewSessionContext", () => {
       explanationPreference: "A concrete example first",
     });
     expect(JSON.stringify(result)).not.toContain("ADHD");
-    expect(result.recentResults[0]).toMatchObject({ observedGap: "Calvin cycle" });
+    expect(result.recentResults[0]).toMatchObject({
+      observedGap: "Calvin cycle",
+      calibrationPattern: "possible_misconception",
+    });
     expect(result.recentInterruptions[0]).toMatchObject({ completedSteps: 1, totalSteps: 5 });
     expect(result.conceptSignals[0]).toMatchObject({
       concept: "Calvin cycle",

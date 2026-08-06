@@ -12,6 +12,7 @@ import type {
   StudyMode,
 } from "@/lib/domain";
 import { readConceptEvidenceProperty } from "@/lib/learning/concept-evidence";
+import { readConfidenceEvidenceProperty } from "@/lib/learning/confidence-calibration";
 import { inferLegacySessionLearningMode } from "@/lib/learning/learning-intent";
 import { readSessionAdaptationNote } from "@/lib/personalization/adaptation-note";
 import { readSessionResourceFromStepData } from "@/lib/session-generation/resource";
@@ -231,6 +232,7 @@ export async function loadAuthenticatedLearningState(): Promise<CloudLearningSta
       feedback: isSessionFeedback(attempt.user_feedback) ? attempt.user_feedback : "about_right",
       observedGap: readTextProperty(attempt.result_data, "observedGap") || "No observation recorded",
       conceptEvidence: readConceptEvidenceProperty(attempt.result_data),
+      confidenceEvidence: readConfidenceEvidenceProperty(attempt.result_data),
     }];
   });
 
@@ -321,6 +323,7 @@ export async function completeAuthenticatedPlanSession(completion: SessionComple
       feedback: completion.feedback,
       observedGap: completion.observedGap,
       conceptEvidence: completion.conceptEvidence,
+      confidenceEvidence: completion.confidenceEvidence,
       nextSessionAdjustment: adaptation ?? null,
     },
   });

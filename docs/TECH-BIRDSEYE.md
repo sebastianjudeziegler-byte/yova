@@ -205,7 +205,7 @@ The most important remaining layers are:
 
 1. public deployment and production environment configuration;
 2. reliable transactional email for authentication;
-3. method-specific learning interactions, metacognitive calibration, and concept-level spacing;
+3. method-specific learning interactions and concept-level spacing;
 4. automated end-to-end tests and subject-quality evaluation;
 5. external error alerts and broader automated end-to-end coverage;
 6. external review of the privacy/terms drafts;
