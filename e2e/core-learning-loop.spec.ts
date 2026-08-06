@@ -158,6 +158,41 @@ test("the product shell keeps every core destination and creation path usable", 
   await expect(page.getByRole("heading", { name: "What do you want help with?" })).toBeVisible();
 });
 
+test("a multi-session plan uses one clear source decision from setup to Learning", async ({ page }) => {
+  await createPreviewAccount(page);
+  await completeOnboarding(page);
+
+  await page.getByRole("button", { name: /Create a plan For a test/ }).click();
+  await page.getByPlaceholder("Example: I have a biology test next Friday on photosynthesis and cellular respiration.").fill(
+    "I have a biology test next Friday on cellular respiration.",
+  );
+  await page.getByRole("button", { name: "Continue" }).click();
+
+  await expect(page.getByRole("heading", { name: "Where should the learning come from?" })).toBeVisible();
+  await expect(page.getByText("YOUR GOAL")).toBeVisible();
+  await page.getByRole("button", { name: /Create it for me/ }).click();
+  await page.getByRole("button", { name: "Continue" }).click();
+
+  await expect(page.getByRole("heading", { name: "When can you realistically study?" })).toBeVisible();
+  await page.getByRole("button", { name: "Continue" }).click();
+
+  await page.getByRole("button", { name: "Produce ATP" }).click();
+  await page.getByRole("button", { name: "Next question" }).click();
+  await page.getByRole("button", { name: "Cytoplasm" }).click();
+  await page.getByRole("button", { name: "Next question" }).click();
+  await page.getByRole("button", { name: "Somewhat confident" }).click();
+  await page.getByRole("button", { name: "Review information" }).click();
+
+  await expect(page.getByRole("heading", { name: "Everything YOVA will use" })).toBeVisible();
+  await expect(page.getByText("Guided inside YOVA with YOVA-created teaching and practice")).toBeVisible();
+  await page.getByRole("button", { name: "Generate my plan" }).click();
+
+  await expect(page.getByText("Plan active")).toBeVisible();
+  await page.getByRole("button", { name: "Go to Learning" }).click();
+  await expect(page.getByRole("heading", { name: "Your plan" })).toBeVisible();
+  await expect(page.getByText("Created by YOVA", { exact: true })).toBeVisible();
+});
+
 async function createPreviewAccount(page: Page) {
   await page.goto("/");
   await page.getByRole("button", { name: "Build my plan" }).click();

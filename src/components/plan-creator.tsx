@@ -5,7 +5,6 @@ import {
   AlertCircle,
   ArrowLeft,
   ArrowRight,
-  BookOpen,
   CalendarDays,
   Check,
   FileText,
@@ -23,9 +22,10 @@ import {
   type DiagnosticResponse,
   type PlanGenerationResponse,
 } from "@/lib/plan-generation/schema";
-import { LEARNING_INTENT_COPY, recommendLearningIntent, resolveLearningIntent } from "@/lib/learning/learning-intent";
+import { LEARNING_INTENT_COPY, resolveLearningIntent } from "@/lib/learning/learning-intent";
 
-type PlanStep = "goal" | "understood" | "materials" | "mode" | "schedule" | "diagnostic" | "confirm" | "loading" | "error" | "result";
+type PlanStep = "goal" | "source" | "schedule" | "diagnostic" | "confirm" | "loading" | "error" | "result";
+type SourceChoice = "materials" | "yova" | "outside";
 
 type AvailabilityChoice = {
   day: string;
@@ -44,13 +44,12 @@ type DiagnosticQuestion = {
 export function PlanCreator({ onExit, onFinish, profileSummary }: { onExit: () => void; onFinish: (plan: LearningPlan) => void; profileSummary: string }) {
   const [step, setStep] = useState<PlanStep>("goal");
   const [goal, setGoal] = useState("");
-  const [materialMode, setMaterialMode] = useState<"upload" | "none" | null>(null);
+  const [sourceChoice, setSourceChoice] = useState<SourceChoice | null>(null);
   const [materials, setMaterials] = useState<LearningMaterial[]>([]);
   const [materialError, setMaterialError] = useState<string | null>(null);
   const [materialNotice, setMaterialNotice] = useState<string | null>(null);
   const [processingMaterials, setProcessingMaterials] = useState(false);
   const [removingMaterialId, setRemovingMaterialId] = useState<string | null>(null);
-  const [studyMode, setStudyMode] = useState<"inside" | "outside" | null>(null);
   const [deadlineDate, setDeadlineDate] = useState("");
   const [availabilityChoices, setAvailabilityChoices] = useState<AvailabilityChoice[]>(() => defaultAvailability(profileSummary));
   const [diagnosticIndex, setDiagnosticIndex] = useState(0);
@@ -60,21 +59,17 @@ export function PlanCreator({ onExit, onFinish, profileSummary }: { onExit: () =
   const availability = availabilityChoices
     .filter((choice) => choice.enabled)
     .map(({ day, window, minutes }) => ({ day, window, minutes }));
-  const goalPreview = previewGoal(goal, deadlineDate);
   const diagnosticQuestions = questionsForGoal(goal);
   const diagnosticResponses = buildDiagnosticResponses(diagnosticQuestions, diagnosticAnswers);
-  const preliminaryApproach = recommendLearningIntent(goal);
   const learningApproach = resolveLearningIntent({ goal, diagnosticResponses });
 
-  const stepNumber = ({ goal: 1, understood: 1, materials: 2, mode: 3, schedule: 4, diagnostic: 5, confirm: 6, loading: 6, error: 6, result: 6 } as Record<PlanStep, number>)[step];
+  const stepNumber = ({ goal: 1, source: 2, schedule: 3, diagnostic: 4, confirm: 5, loading: 5, error: 5, result: 5 } as Record<PlanStep, number>)[step];
 
   const back = () => {
     const previous: Record<PlanStep, PlanStep> = {
       goal: "goal",
-      understood: "goal",
-      materials: "understood",
-      mode: "materials",
-      schedule: "mode",
+      source: "goal",
+      schedule: "source",
       diagnostic: "schedule",
       confirm: "diagnostic",
       loading: "confirm",
@@ -85,7 +80,10 @@ export function PlanCreator({ onExit, onFinish, profileSummary }: { onExit: () =
   };
 
   const generatePlan = async () => {
-    if (!materialMode || !studyMode) return;
+    if (!sourceChoice) return;
+
+    const materialMode = sourceChoice === "materials" ? "upload" : "none";
+    const studyMode = sourceChoice === "outside" ? "outside" : "inside";
 
     setGenerationError(null);
     setStep("loading");
@@ -100,7 +98,7 @@ export function PlanCreator({ onExit, onFinish, profileSummary }: { onExit: () =
           learningIntent: learningApproach.intent,
           goal,
           materialMode,
-          materials: materialMode === "upload" ? materials : [],
+          materials: sourceChoice === "materials" ? materials : [],
           studyMode,
           deadline: deadlineDate ? deadlineAtEndOfDay(deadlineDate) : null,
           timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
@@ -139,7 +137,7 @@ export function PlanCreator({ onExit, onFinish, profileSummary }: { onExit: () =
   const addMaterials = async (files: FileList | null) => {
     if (!files?.length) return;
 
-    setMaterialMode("upload");
+    setSourceChoice("materials");
     setMaterialError(null);
     setMaterialNotice(null);
     setProcessingMaterials(true);
@@ -173,33 +171,28 @@ export function PlanCreator({ onExit, onFinish, profileSummary }: { onExit: () =
     <main className={`plan-shell ${step === "result" ? "plan-result-shell" : ""}`}>
       <header className="plan-header">
         <BrandMark />
-        {step !== "result" && <span>Step {stepNumber} of 6</span>}
+        {step !== "result" && <span>Step {stepNumber} of 5</span>}
         {step !== "result" && <button className="button ghost" onClick={onExit}>Exit</button>}
       </header>
-      {step !== "result" && <div className="plan-progress"><i style={{ width: `${(stepNumber / 6) * 100}%` }} /></div>}
+      {step !== "result" && <div className="plan-progress"><i style={{ width: `${(stepNumber / 5) * 100}%` }} /></div>}
 
       {step === "goal" && (
         <PlanPanel eyebrow="CREATE A PLAN" title="What do you need to learn or prepare for?" description="Write it naturally. YOVA will organize the details before anything is created.">
           <textarea className="goal-input" placeholder="Example: I have a biology test next Friday on photosynthesis and cellular respiration." value={goal} onChange={(event) => setGoal(event.target.value)} />
-          <PlanActions onBack={onExit} backLabel="Cancel" onNext={() => setStep("understood")} nextDisabled={!goal.trim()} />
+          <p className="goal-input-hint">Include the topic and, if relevant, the test, deadline, or result you want.</p>
+          <PlanActions onBack={onExit} backLabel="Cancel" onNext={() => setStep("source")} nextDisabled={goal.trim().length < 10} />
         </PlanPanel>
       )}
 
-      {step === "understood" && (
-        <PlanPanel eyebrow="HERE IS WHAT YOVA UNDERSTOOD" title={goalPreview.title} description="Check the goal before we build around it.">
-          <div className="understood-grid"><SummaryFact label="Your request" value={goal} /><SummaryFact label="Deadline" value={goalPreview.deadline} /><SummaryFact label="Focus" value={goalPreview.topic} /><SummaryFact label="Likely task" value={goalPreview.task} /></div>
-          <div className="source-note"><Sparkles size={18} /><p><strong>Current starting recommendation: {LEARNING_INTENT_COPY[preliminaryApproach.intent].name}.</strong> {preliminaryApproach.reason} The starting check will confirm this before YOVA builds the plan.</p></div>
-          <PlanActions onBack={back} onNext={() => setStep("materials")} />
-        </PlanPanel>
-      )}
-
-      {step === "materials" && (
-        <PlanPanel eyebrow="OPTIONAL MATERIALS" title="Do you have materials YOVA should use?" description="Materials are optional. If you have none, YOVA can create the explanations, questions, and learning sequence from the topic.">
-          <div className="choice-cards">
-            <button className={materialMode === "upload" ? "selected" : ""} onClick={() => setMaterialMode("upload")}><Upload /><span><strong>Use my materials</strong><small>Study guides, PDF slides, notes, review sheets, or textbook excerpts</small></span>{materialMode === "upload" && <Check />}</button>
-            <button className={materialMode === "none" ? "selected" : ""} onClick={() => { setMaterialMode("none"); setMaterialError(null); setMaterialNotice(null); }}><Sparkles /><span><strong>I do not have materials</strong><small>YOVA creates the learning content from the goal</small></span>{materialMode === "none" && <Check />}</button>
+      {step === "source" && (
+        <PlanPanel eyebrow="CHOOSE HOW YOVA SHOULD HELP" title="Where should the learning come from?" description="Pick one starting mode. YOVA will use the same choice throughout the plan, and you can still change it later.">
+          <div className="plan-goal-echo"><span>YOUR GOAL</span><p>{goal}</p><button className="button ghost" onClick={() => setStep("goal")}>Edit</button></div>
+          <div className="mode-cards three-up">
+            <button className={sourceChoice === "materials" ? "selected" : ""} onClick={() => setSourceChoice("materials")}><Upload /><span><strong>Use my materials</strong><small>Build from study guides, PDF slides, notes, review sheets, or textbook excerpts.</small></span>{sourceChoice === "materials" && <Check />}</button>
+            <button className={sourceChoice === "yova" ? "selected" : ""} onClick={() => { setSourceChoice("yova"); setMaterialError(null); setMaterialNotice(null); }}><Sparkles /><span><strong>Create it for me</strong><small>YOVA creates the teaching, examples, and practice from the topic.</small></span>{sourceChoice === "yova" && <Check />}</button>
+            <button className={sourceChoice === "outside" ? "selected" : ""} onClick={() => { setSourceChoice("outside"); setMaterialError(null); setMaterialNotice(null); }}><Layers3 /><span><strong>Guide me outside YOVA</strong><small>YOVA chooses the method and gives exact steps for another trusted source.</small></span>{sourceChoice === "outside" && <Check />}</button>
           </div>
-          {materialMode === "upload" && <div className="material-uploader">
+          {sourceChoice === "materials" && <div className="material-uploader">
             <label className="upload-dropzone">
               <Upload size={20} />
               <span><strong>{processingMaterials ? "Reading files…" : "Choose materials"}</strong><small>Up to 5 files · 10 MB each</small></span>
@@ -211,17 +204,7 @@ export function PlanCreator({ onExit, onFinish, profileSummary }: { onExit: () =
           </div>}
           {materialNotice && <p className="material-notice"><AlertCircle size={15} /> {materialNotice}</p>}
           {materialError && <p className="material-error"><AlertCircle size={15} /> {materialError}</p>}
-          <PlanActions onBack={back} onNext={() => setStep("mode")} nextDisabled={!materialMode || processingMaterials || Boolean(removingMaterialId) || (materialMode === "upload" && materials.length === 0)} />
-        </PlanPanel>
-      )}
-
-      {step === "mode" && (
-        <PlanPanel eyebrow="WORK LOCATION" title="Where should most of the work happen?" description="This is a starting preference. You can mix both locations later.">
-          <div className="mode-cards">
-            <button className={studyMode === "inside" ? "selected" : ""} onClick={() => setStudyMode("inside")}><BookOpen /><span><strong>Work inside YOVA</strong><small>YOVA teaches, checks understanding, and guides each step.</small></span>{studyMode === "inside" && <Check />}</button>
-            <button className={studyMode === "outside" ? "selected" : ""} onClick={() => setStudyMode("outside")}><Layers3 /><span><strong>Use another source</strong><small>YOVA selects the method and gives exact instructions for using books, notes, or another course.</small></span>{studyMode === "outside" && <Check />}</button>
-          </div>
-          <PlanActions onBack={back} onNext={() => { if (!deadlineDate) setDeadlineDate(deadlineDateFromGoal(goal)); setStep("schedule"); }} nextDisabled={!studyMode} />
+          <PlanActions onBack={back} onNext={() => { if (!deadlineDate) setDeadlineDate(deadlineDateFromGoal(goal)); setStep("schedule"); }} nextDisabled={!sourceChoice || processingMaterials || Boolean(removingMaterialId) || (sourceChoice === "materials" && materials.length === 0)} />
         </PlanPanel>
       )}
 
@@ -243,7 +226,7 @@ export function PlanCreator({ onExit, onFinish, profileSummary }: { onExit: () =
 
       {step === "confirm" && (
         <PlanPanel eyebrow="FINAL CHECK" title="Everything YOVA will use" description="Review the inputs and change anything before your plan is generated.">
-          <div className="confirmation-list"><SummaryFact label="Goal" value={goal} /><SummaryFact label="Target date" value={deadlineDate ? formatDateOnly(deadlineDate) : "No fixed deadline"} /><SummaryFact label="Starting evidence" value={summarizeDiagnosticResponses(diagnosticResponses)} /><SummaryFact label="How YOVA will start" value={`${LEARNING_INTENT_COPY[learningApproach.intent].name}: ${learningApproach.reason}`} /><SummaryFact label="Availability" value={`${availability.length} selected ${availability.length === 1 ? "window" : "windows"}: ${availability.map((slot) => `${slot.day} ${slot.window.toLowerCase()} (${slot.minutes} min)`).join(", ")}`} /><SummaryFact label="Work location" value={studyMode === "outside" ? "Using another source with YOVA guidance" : "Primarily inside YOVA"} /><SummaryFact label="Sources" value={materialMode === "upload" ? `${materials.length} ${materials.length === 1 ? "uploaded material" : "uploaded materials"}: ${materials.map((material) => material.name).join(", ")}` : "YOVA-generated content from the goal"} /><SummaryFact label="Profile considerations" value={profileSummary} /></div>
+          <div className="confirmation-list"><SummaryFact label="Goal" value={goal} /><SummaryFact label="Target date" value={deadlineDate ? formatDateOnly(deadlineDate) : "No fixed deadline"} /><SummaryFact label="Starting evidence" value={summarizeDiagnosticResponses(diagnosticResponses)} /><SummaryFact label="How YOVA will start" value={`${LEARNING_INTENT_COPY[learningApproach.intent].name}: ${learningApproach.reason}`} /><SummaryFact label="Availability" value={`${availability.length} selected ${availability.length === 1 ? "window" : "windows"}: ${availability.map((slot) => `${slot.day} ${slot.window.toLowerCase()} (${slot.minutes} min)`).join(", ")}`} /><SummaryFact label="Learning mode" value={sourceChoice === "outside" ? "YOVA-guided plan using another trusted source" : sourceChoice === "materials" ? "Guided inside YOVA from your uploaded materials" : "Guided inside YOVA with YOVA-created teaching and practice"} /><SummaryFact label="Sources" value={sourceChoice === "materials" ? `${materials.length} ${materials.length === 1 ? "uploaded material" : "uploaded materials"}: ${materials.map((material) => material.name).join(", ")}` : sourceChoice === "outside" ? "The source you choose outside YOVA" : "YOVA-generated content from the goal"} /><SummaryFact label="Saved learning profile" value="Session length, structure, explanation style, focus support, and study timing from onboarding" /></div>
           <PlanActions onBack={back} onNext={() => void generatePlan()} nextLabel="Generate my plan" />
         </PlanPanel>
       )}
@@ -292,20 +275,6 @@ function formatSessionDate(value: string) {
     hour: "numeric",
     minute: "2-digit",
   }).format(new Date(value));
-}
-
-function previewGoal(goal: string, deadlineDate: string) {
-  const suppliedDeadline = deadlineDate ? formatDateOnly(deadlineDate) : null;
-  if (/biology|photosynthesis|cellular respiration/i.test(goal)) {
-    return { title: "AP Biology Unit 3", topic: "Photosynthesis and cellular respiration", task: "Concept learning and mixed assessment review", deadline: suppliedDeadline ?? (/next friday/i.test(goal) ? "Next Friday" : "Confirm during scheduling"), hasDeadline: Boolean(suppliedDeadline || /test|exam|quiz|friday|tomorrow/i.test(goal)) };
-  }
-  if (/calculus|derivative|product rule|quotient rule/i.test(goal)) {
-    return { title: "Calculus: Derivatives", topic: "Derivative rules and applied problem solving", task: "Worked examples followed by independent practice", deadline: suppliedDeadline ?? (/test|exam|quiz|friday|tomorrow/i.test(goal) ? "Confirm during scheduling" : "Flexible"), hasDeadline: Boolean(suppliedDeadline || /test|exam|quiz|friday|tomorrow/i.test(goal)) };
-  }
-  if (/finance|investing|budget|credit|interest/i.test(goal)) {
-    return { title: "Personal Finance Fundamentals", topic: "Practical finance concepts and decisions", task: "Concept learning followed by realistic scenarios", deadline: suppliedDeadline ?? "Flexible", hasDeadline: Boolean(suppliedDeadline) };
-  }
-  return { title: "Your learning goal", topic: "YOVA will organize the concepts during generation", task: "Understanding, retrieval, and applied practice", deadline: suppliedDeadline ?? (/test|exam|quiz|deadline|friday|tomorrow/i.test(goal) ? "Confirm during scheduling" : "Flexible"), hasDeadline: Boolean(suppliedDeadline || /test|exam|quiz|deadline|friday|tomorrow/i.test(goal)) };
 }
 
 function defaultAvailability(profileSummary: string): AvailabilityChoice[] {
