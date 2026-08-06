@@ -51,6 +51,11 @@ import {
   type SessionSourceGrounding,
 } from "@/lib/domain";
 import { summarizeConceptEvidence, type ConceptSignal } from "@/lib/learning/concept-evidence";
+import {
+  buildConceptReviewAgenda,
+  buildConceptReviewSession,
+  type ConceptReviewAgendaItem,
+} from "@/lib/learning/concept-review-agenda";
 import { buildConceptReviewSchedule } from "@/lib/learning/concept-review-scheduler";
 import { confidenceResultMessage, summarizeConfidenceCalibration } from "@/lib/learning/confidence-calibration";
 import { buildDelayedVerificationSession } from "@/lib/learning/delayed-verification";
@@ -77,6 +82,7 @@ import { PlanArchiveResponseSchema } from "@/lib/learning/status-schema";
 import { MaterialAttachmentResponseSchema } from "@/lib/materials/attachment-schema";
 import { deleteUploadedMaterial, uploadMaterialFiles } from "@/lib/materials/intake";
 import {
+  activateAuthenticatedConceptReviewSession,
   completeAuthenticatedPlanSession,
   loadAuthenticatedLearningState,
   recordAuthenticatedSessionInterruption,
@@ -471,6 +477,31 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
       setSessionGenerationIssue(`${message} A safe built-in session was loaded instead.`);
       beginTimedSession(requestedPlan, Boolean(resumePoint));
     }
+  };
+
+  const activateConceptReview = async (item: ConceptReviewAgendaItem) => {
+    const plan = plans.find((candidate) => candidate.id === item.planId);
+    if (!plan) throw new Error("YOVA could not find the learning goal for this review.");
+
+    if (item.action === "start_next_session") {
+      await startSession(plan.id);
+      return;
+    }
+    if (item.action !== "activate_review") return;
+
+    const reviewSession = buildConceptReviewSession(plan, item);
+    if (account?.identityMode === "supabase") {
+      await activateAuthenticatedConceptReviewSession(plan.id, reviewSession);
+    }
+
+    const activatedPlan: LearningPlan = {
+      ...plan,
+      status: "active",
+      sessions: [...plan.sessions, reviewSession],
+    };
+    setPlans((current) => current.map((candidate) => candidate.id === plan.id ? activatedPlan : candidate));
+    setSelectedPlanId(plan.id);
+    await startSession(plan.id, activatedPlan);
   };
 
   const completeActiveSession = (correctAnswers: number, totalAnswers: number, feedback: SessionCompletion["feedback"], actualMinutes: number) => {
@@ -977,7 +1008,7 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
     }}>
       {activeTab === "Home" && <HomeScreen account={account} plans={activePlans} plan={recommendedPlan} sessionInterruptions={sessionInterruptions} tutorQuestion={tutorQuestion} onTutorQuestion={setTutorQuestion} onOpenTutor={() => setActiveTab("Ask YOVA")} onStart={() => void startSession(recommendedPlan?.id)} onOpenPlan={(planId) => { setSelectedPlanId(planId); setActiveTab("Learning"); }} onCreatePlan={() => setStage("plan-creator")} onStudyNow={() => setStage("study-now")} />}
       {activeTab === "Learning" && <LearningScreen plans={plans} selectedPlanId={selectedPlanId} sessionCompletions={sessionCompletions} sessionInterruptions={sessionInterruptions} onSelectPlan={setSelectedPlanId} onStart={(planId) => void startSession(planId)} onCreatePlan={() => setStage("plan-creator")} onArchiveStateChange={changePlanArchiveState} onAdjustPlan={adjustPlan} onAttachMaterials={attachMaterials} />}
-      {activeTab === "Agenda" && <AgendaScreen plans={activePlans} sessionInterruptions={sessionInterruptions} onStart={(planId) => void startSession(planId)} onReschedule={rescheduleSession} onAdjustDuration={adjustSessionDuration} />}
+      {activeTab === "Agenda" && <AgendaScreen plans={plans.filter((plan) => plan.status !== "archived")} sessionCompletions={sessionCompletions} sessionInterruptions={sessionInterruptions} onStart={(planId) => void startSession(planId)} onActivateReview={activateConceptReview} onReschedule={rescheduleSession} onAdjustDuration={adjustSessionDuration} />}
       {activeTab === "Ask YOVA" && <AskScreen key={activePlan?.id ?? "general"} plan={activePlan} question={tutorQuestion} onQuestion={setTutorQuestion} onApplyAction={applyTutorAction} analyticsEnabled={analyticsEnabled} />}
       {activeTab === "You" && <YouScreen account={account} answers={answers} plans={plans} sessionCompletions={sessionCompletions} sessionInterruptions={sessionInterruptions} onAnswersChange={setAnswers} onReset={resetYovaData} />}
     </AppShell>
@@ -1414,7 +1445,7 @@ function PlanAdjustmentPanel({ plan, onCancel, onSave }: { plan: LearningPlan; o
   return <section className="plan-adjustment-panel"><div className="plan-adjustment-heading"><div><span className="step-label">ADJUST UNFINISHED WORK</span><h3>Change the plan without losing progress</h3><p>{unfinishedCount} unfinished {unfinishedCount === 1 ? "session will" : "sessions will"} use these settings. Completed sessions stay exactly as they are.</p></div></div><div className="plan-adjustment-grid"><label><span>Target date</span><input type="date" min={localDateInput(new Date().toISOString())} value={deadlineDate} disabled={saving} onChange={(event) => setDeadlineDate(event.target.value)} /><small>Optional. Agenda times are changed separately.</small></label><label><span>Future session length</span><select value={minutes} disabled={saving} onChange={(event) => setMinutes(Number(event.target.value))}><option value={15}>15 minutes</option><option value={25}>25 minutes</option><option value={30}>30 minutes</option><option value={45}>45 minutes</option><option value={60}>60 minutes</option></select><small>Applies only to ready and upcoming sessions.</small></label></div><div className="adjustment-mode"><span>Where should future sessions happen?</span><div><button className={studyMode === "inside_yova" ? "selected" : ""} disabled={saving} onClick={() => setStudyMode("inside_yova")}><BookOpen size={17} /><strong>Inside YOVA</strong><small>Teaching, questions, and feedback in the app</small></button><button className={studyMode === "outside_yova" ? "selected" : ""} disabled={saving} onClick={() => setStudyMode("outside_yova")}><LibraryBig size={17} /><strong>Outside YOVA</strong><small>Exact instructions for another source or workspace</small></button></div></div>{error && <div className="chat-error"><AlertCircle size={16} /><span>{error}</span></div>}<footer><button className="button ghost" disabled={saving} onClick={onCancel}>Cancel</button><button className="button primary" disabled={saving || unfinishedCount === 0} onClick={() => void save()}>{saving ? <span className="button-spinner" /> : <><Check size={16} /> Save adjustments</>}</button></footer></section>;
 }
 
-function AgendaScreen({ plans, sessionInterruptions, onStart, onReschedule, onAdjustDuration }: { plans: LearningPlan[]; sessionInterruptions: SessionInterruption[]; onStart: (planId?: string) => void; onReschedule: (planId: string, planSessionId: string, scheduledFor: string) => void; onAdjustDuration: (planSessionId: string, estimatedMinutes: number) => Promise<void> }) {
+function AgendaScreen({ plans, sessionCompletions, sessionInterruptions, onStart, onActivateReview, onReschedule, onAdjustDuration }: { plans: LearningPlan[]; sessionCompletions: SessionCompletion[]; sessionInterruptions: SessionInterruption[]; onStart: (planId?: string) => void; onActivateReview: (item: ConceptReviewAgendaItem) => Promise<void>; onReschedule: (planId: string, planSessionId: string, scheduledFor: string) => void; onAdjustDuration: (planSessionId: string, estimatedMinutes: number) => Promise<void> }) {
   const [editing, setEditing] = useState(false);
   const [moving, setMoving] = useState<{ planId: string; sessionId: string } | null>(null);
   const [customTime, setCustomTime] = useState("");
@@ -1422,6 +1453,9 @@ function AgendaScreen({ plans, sessionInterruptions, onStart, onReschedule, onAd
   const [error, setError] = useState<string | null>(null);
   const [recoveryAction, setRecoveryAction] = useState<"shorten" | "move" | null>(null);
   const [recoveryError, setRecoveryError] = useState<string | null>(null);
+  const [reviewAction, setReviewAction] = useState<string | null>(null);
+  const [reviewError, setReviewError] = useState<string | null>(null);
+  const conceptReviews = buildConceptReviewAgenda(plans, sessionCompletions);
   const availableSessions = plans
     .flatMap((plan) => plan.sessions.filter((session) => session.status !== "complete" && session.status !== "skipped").map((session) => ({ plan, session })))
     .sort((a, b) => new Date(a.session.scheduledFor).getTime() - new Date(b.session.scheduledFor).getTime());
@@ -1495,9 +1529,22 @@ function AgendaScreen({ plans, sessionInterruptions, onStart, onReschedule, onAd
     }
   };
 
+  const beginConceptReview = async (item: ConceptReviewAgendaItem) => {
+    if (item.action === "scheduled" || reviewAction) return;
+    setReviewAction(`${item.planId}:${item.concept.toLocaleLowerCase()}`);
+    setReviewError(null);
+    try {
+      await onActivateReview(item);
+    } catch (requestError) {
+      setReviewError(requestError instanceof Error ? requestError.message : "YOVA could not start that concept review.");
+      setReviewAction(null);
+    }
+  };
+
   return <div className="page">
     <PageHeader eyebrow="AGENDA" title="Today and this week" description="One unified view of sessions and deadlines across your learning." />
     {overdueEntry && <section className="agenda-recovery" aria-live="polite"><div className="agenda-recovery-copy"><span className="step-label">PLAN NEEDS A RESET</span><h2>You missed a session. The plan is still recoverable.</h2><p><strong>{overdueEntry.session.title}</strong> for {overdueEntry.plan.title} was scheduled for {formatAgendaTime(overdueEntry.session.scheduledFor)}. Choose the smallest useful next move—YOVA will not punish the rest of the plan.</p></div><div className="agenda-recovery-actions"><button className="button primary" disabled={Boolean(recoveryAction)} onClick={() => onStart(overdueEntry.plan.id)}>Start it now</button>{recoveryMinutes !== null && recoveryMinutes < overdueEntry.session.estimatedMinutes && <button className="button secondary" disabled={Boolean(recoveryAction)} onClick={() => void shortenAndStart()}>{recoveryAction === "shorten" ? <span className="button-spinner dark" /> : null} Make it {recoveryMinutes} min</button>}<button className="button ghost" disabled={Boolean(recoveryAction)} onClick={() => void moveOverdueToTomorrow()}>{recoveryAction === "move" ? <span className="button-spinner dark" /> : null} Move to tomorrow</button></div>{recoveryError && <div className="chat-error"><AlertCircle size={16} /><span>{recoveryError}</span></div>}</section>}
+    {conceptReviews.length > 0 && <section className="section-block review-agenda"><div className="section-title"><div><h3>Retrieval queue</h3><p>Concepts return when completed checks show that another attempt would be useful.</p></div><span>{conceptReviews.filter((item) => item.timing === "due").length} due</span></div><div className="review-agenda-list">{conceptReviews.slice(0, 6).map((item) => { const actionKey = `${item.planId}:${item.concept.toLocaleLowerCase()}`; const loading = reviewAction === actionKey; return <article className={`${item.priority} ${item.timing}`} key={actionKey}><span className="review-agenda-icon">{item.reviewType === "repair_and_retrieve" ? <RotateCcw size={17} /> : <Target size={17} />}</span><div><span>{formatReviewType(item.reviewType)} · {item.timingLabel}</span><strong>{item.concept}</strong><small>{item.planTitle} · {item.instruction}</small></div>{item.action === "scheduled" ? <em>Scheduled</em> : <button className={item.action === "activate_review" ? "button primary" : "button secondary"} disabled={Boolean(reviewAction)} onClick={() => void beginConceptReview(item)}>{loading ? <span className="button-spinner dark" /> : null}{item.action === "activate_review" ? "Start short check" : "Start next session"}</button>}</article>; })}</div><small className="concept-review-note">These return dates are transparent review heuristics. A new completed check can move the next return sooner or later.</small>{reviewError && <div className="chat-error"><AlertCircle size={16} /><span>{reviewError}</span></div>}</section>}
     <section className="section-block">
       <div className="section-title"><h3>Upcoming</h3>{availableSessions.length > 0 && <button onClick={() => { setEditing((value) => !value); setMoving(null); setError(null); }}>{editing ? "Done adjusting" : "Adjust agenda"}</button>}</div>
       <div className="agenda-list">{availableSessions.length ? availableSessions.slice(0, 8).map(({ plan, session }) => { const resumePoint = resumableSessionProgress(session.id, sessionInterruptions); const overdue = session.status === "ready" && isSessionOverdue(session.scheduledFor); return <article key={session.id} className={`${session.status === "ready" ? "primary-agenda" : ""} ${overdue ? "overdue-agenda" : ""}`}><span className="agenda-window">{overdue ? "Overdue · " : ""}{formatAgendaTime(session.scheduledFor)}</span><div><strong>{session.title}</strong><small>{resumePoint ? `${plan.title} · continue at section ${resumePoint.completedSteps + 1}` : `${plan.title} · ${session.estimatedMinutes} min`}</small></div>{editing || session.status !== "ready" ? <button className="button ghost" onClick={() => openMove(plan.id, session.id, session.scheduledFor)}>Move</button> : <button className="button primary" onClick={() => onStart(plan.id)}>{resumePoint ? "Continue" : "Start"}</button>}</article>; }) : <p className="muted">Your upcoming sessions will appear here after you create a plan or focused session.</p>}</div>
@@ -2034,6 +2081,12 @@ function formatAgendaTime(isoDate: string) {
     hour: "numeric",
     minute: "2-digit",
   }).format(new Date(isoDate));
+}
+
+function formatReviewType(reviewType: ConceptReviewAgendaItem["reviewType"]) {
+  if (reviewType === "repair_and_retrieve") return "Retrieve and repair";
+  if (reviewType === "maintenance_transfer") return "Light transfer";
+  return "Independent verification";
 }
 
 function moveByDays(isoDate: string, days: number) {

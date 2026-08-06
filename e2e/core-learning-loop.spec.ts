@@ -80,6 +80,11 @@ test("a confident misconception is repaired now and verified later", async ({ pa
   await expect(page.getByText("1 of 2 sessions complete")).toBeVisible();
   await expect(page.getByText("Adjusted using your last session")).toBeVisible();
 
+  await page.getByRole("button", { name: "Agenda", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Retrieval queue" })).toBeVisible();
+  await expect(page.getByText("Cellular respiration sequence", { exact: true })).toBeVisible();
+  await expect(page.getByText(/Return tomorrow|Due for retrieval/)).toBeVisible();
+
   await page.getByRole("button", { name: "Learning", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Concept review schedule" })).toBeVisible();
   await expect(page.getByText("Cellular respiration sequence", { exact: true })).toBeVisible();

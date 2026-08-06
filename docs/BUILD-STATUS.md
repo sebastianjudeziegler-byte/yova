@@ -15,7 +15,7 @@ Estimated completion depends on which finish line is meant:
 
 | Finish line | Current estimate | Meaning |
 |---|---:|---|
-| Functional product core | 98% | The differentiated loop now routes readiness, enforces and visibly teaches method-specific activity sequences, repairs misses, schedules concept-level returns, controls how thin learner sources are supplemented, and uses repeated plan-specific method outcomes to adjust support |
+| Functional product core | 99% | The differentiated loop now routes readiness, visibly teaches method-specific activity sequences, repairs misses, schedules and launches concept-level returns, controls how thin learner sources are supplemented, and uses repeated plan-specific method outcomes to adjust support |
 | Invite-only private alpha | 94% | Deployment, safeguards, atomic learning-state updates, and automated teaching and practice journeys on desktop and mobile are connected; reliable email delivery and authenticated production testing remain |
 | Credible public beta | 75% | Trust, monitoring, five-path live quality gates, CI, phone-sized coverage, and reload persistence checks exist; human output review, more device coverage, external alerts, policy review, and tester-driven polish remain |
 | Paid polished launch | 35% | Also needs billing, entitlements, cost controls by plan, and more operational maturity |
@@ -83,11 +83,13 @@ A cross-browser six-digit email-code flow is implemented and tested behind a ser
 - The backend rejects generated sessions that ignore a meaningful method-outcome signal or turn observational results into a fixed “best method” or learning-style claim
 - Every observed concept now receives a transparent next-return policy: quick retrieval and repair after a miss, verification after an early success, or a lighter transfer check after repeated secure evidence
 - Concept return intervals are visible inside the learning goal and explicitly described as review heuristics rather than permanent mastery predictions
-- A due repair concept is sent to the session generator with its exact stored name, and the backend rejects a generated session that skips it for lower-priority review
+- Due review concepts are sent to the session generator with their exact stored names, and the backend rejects a generated session that skips the highest-priority return for lower-priority work
+- Agenda now includes a retrieval queue derived from completed concept evidence, rather than from a generic repetition counter
+- A due concept in an active plan is forced into the next session; a due concept in a completed plan can reopen the original goal with one bounded five- or ten-minute verification session
 
 ### Honest scientific-product status
 
-The software loop is close to private-alpha readiness, but the broader learning-science vision is earlier. The catalog, router, teaching/practice separation, visible method phases, confidence calibration, immediate repair, concept-level review scheduling, and first behavior-based method adaptations establish the correct architecture; specialized interactions, scaffold tracking across attempts, and longer-term controlled outcome comparisons remain. “Private alpha 94%” therefore means the product can be tested safely—not that 94% of the long-term adaptive-learning system is complete.
+The software loop is close to private-alpha readiness, but the broader learning-science vision is earlier. The catalog, router, teaching/practice separation, visible method phases, confidence calibration, immediate repair, actionable concept-level review scheduling, and first behavior-based method adaptations establish the correct architecture; specialized interactions, scaffold tracking across attempts, and longer-term controlled outcome comparisons remain. “Private alpha 94%” therefore means the product can be tested safely—not that 94% of the long-term adaptive-learning system is complete.
 
 ### Backend and infrastructure
 
@@ -99,6 +101,7 @@ The software loop is close to private-alpha readiness, but the broader learning-
 - Durable AI usage limits and short-window rate limits
 - Offline retry queues for completions and interruptions
 - Atomic completion plus delayed-follow-up persistence, so the cloud cannot save “goal complete” while losing the required verification session
+- Atomic completed-goal review activation, so the cloud cannot reopen a learning goal without also preserving the evidence-based retrieval session that caused it
 - Playwright now verifies both fundamental paths: teaching a genuinely new topic before testing it, and repairing a confident misconception before delayed verification
 - Both paths run at desktop and Pixel-sized mobile viewports; the adaptive path also reloads the app to prove that the adjusted learning state persists
 - GitHub Actions now runs unit tests, lint, the production build, and the complete browser journey on every push to `main` and every pull request

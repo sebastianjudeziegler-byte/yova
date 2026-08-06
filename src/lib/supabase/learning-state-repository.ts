@@ -182,6 +182,8 @@ export async function loadAuthenticatedLearningState(): Promise<CloudLearningSta
       status: row.status,
       resource: readSessionResourceFromStepData(row.step_data),
       adaptationNote: readSessionAdaptationNote(row.step_data),
+      reviewConcept: readTextProperty(row.step_data, "reviewConcept") || undefined,
+      reviewType: readConceptReviewType(row.step_data),
     };
 
     const current = sessionsByPlanId.get(row.plan_id) ?? [];
@@ -355,6 +357,36 @@ export async function completeAuthenticatedPlanSession(
   }
 }
 
+export async function activateAuthenticatedConceptReviewSession(
+  planId: string,
+  session: LearningPlanSession,
+) {
+  if (!isSupabaseConfigured()) return;
+  const supabase = createSupabaseBrowserClient();
+  const { error } = await supabase.rpc("activate_concept_review", {
+    payload: {
+      planId,
+      session: {
+        id: session.id,
+        sequence: session.sequence,
+        title: session.title,
+        objective: session.objective,
+        method: session.method,
+        methodReason: session.methodReason,
+        scheduledFor: session.scheduledFor,
+        estimatedMinutes: session.estimatedMinutes,
+        amountLabel: session.amountLabel,
+        learningMode: session.learningMode,
+        explanation: session.adaptationNote?.explanation ?? session.methodReason,
+        reviewConcept: session.reviewConcept,
+        reviewType: session.reviewType,
+      },
+    },
+  });
+
+  if (error) throw new Error("YOVA could not reopen this goal for its scheduled review.");
+}
+
 export async function recordAuthenticatedSessionInterruption(interruption: SessionInterruption) {
   if (!isSupabaseConfigured()) return;
   const supabase = createSupabaseBrowserClient();
@@ -406,6 +438,13 @@ function formatSessionRange(minimum: number | null, maximum: number | null) {
 
 function isSessionFeedback(value: unknown): value is SessionCompletion["feedback"] {
   return value === "too_easy" || value === "about_right" || value === "too_difficult";
+}
+
+function readConceptReviewType(value: unknown): LearningPlanSession["reviewType"] | undefined {
+  const candidate = readTextProperty(value, "reviewType");
+  return candidate === "repair_and_retrieve" || candidate === "verify" || candidate === "maintenance_transfer"
+    ? candidate
+    : undefined;
 }
 
 function readTextProperty(value: unknown, key: string) {

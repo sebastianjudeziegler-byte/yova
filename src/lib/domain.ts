@@ -83,6 +83,8 @@ export type LearningPlanSession = {
   status: SessionStatus;
   resource?: SessionResource;
   adaptationNote?: SessionAdaptationNote;
+  reviewConcept?: string;
+  reviewType?: "repair_and_retrieve" | "verify" | "maintenance_transfer";
 };
 
 export type LearningPlan = {

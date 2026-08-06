@@ -104,4 +104,22 @@ describe("validateConceptReviewSchedule", () => {
       activities: [{ type: "free_response", concept: "electron transport chain" }],
     })).toBeNull();
   });
+
+  it("also requires due verification after an earlier secure check", () => {
+    const verificationSchedule = buildConceptReviewSchedule(
+      [signal({
+        concept: "ATP",
+        status: "early_signal",
+        lastOutcome: "secure",
+        secureAttempts: 1,
+        needsReviewAttempts: 0,
+      })],
+      new Date("2026-08-08T18:00:00.000Z"),
+    );
+
+    expect(validateConceptReviewSchedule({
+      schedule: verificationSchedule,
+      activities: [{ type: "multiple_choice", concept: "Glycolysis" }],
+    })).toContain("ATP");
+  });
 });

@@ -38,17 +38,15 @@ export function validateConceptReviewSchedule({
   schedule: ConceptReviewDirective[];
   activities: Array<{ type: string; concept: string | null }>;
 }) {
-  const dueRepair = schedule.find((directive) => (
-    directive.timing === "due" && directive.reviewType === "repair_and_retrieve"
-  ));
-  if (!dueRepair) return null;
+  const dueReview = schedule.find((directive) => directive.timing === "due");
+  if (!dueReview) return null;
 
   const checkedConcepts = activities
     .filter((activity) => activity.type === "multiple_choice" || activity.type === "free_response")
     .map((activity) => activity.concept?.trim().toLocaleLowerCase())
     .filter(Boolean);
-  if (!checkedConcepts.includes(dueRepair.concept.trim().toLocaleLowerCase())) {
-    return `The due concept ${dueRepair.concept} must appear in a knowledge check before lower-priority review.`;
+  if (!checkedConcepts.includes(dueReview.concept.trim().toLocaleLowerCase())) {
+    return `The due concept ${dueReview.concept} must appear in a knowledge check before lower-priority review.`;
   }
 
   return null;

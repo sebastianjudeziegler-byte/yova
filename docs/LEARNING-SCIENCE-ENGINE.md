@@ -98,7 +98,9 @@ The current engine:
 - schedules a delayed verification session when the final session in a goal exposes a gap, so a one-session goal cannot be marked complete prematurely;
 - gives every observed concept a transparent return policy based on its latest completed evidence;
 - schedules a quick retrieval-and-repair return after a miss, verification after an early success, and a lighter transfer check after repeated secure evidence;
-- feeds due concept reviews into generated sessions and rejects a session that skips a due repair concept;
+- feeds due concept reviews into generated sessions and rejects a session that skips the highest-priority due concept;
+- turns completed concept evidence into an actionable Agenda retrieval queue;
+- routes a due concept into the next active session or atomically reopens a completed goal with one bounded verification session, preserving its original history;
 - describes the intervals as product heuristics rather than a perfect memory or mastery prediction;
 - keeps method choice separate from productivity adjustments.
 
@@ -141,10 +143,9 @@ That closed loop can eventually become a meaningful learning decision system rat
 ## Next scientific product layers
 
 1. Add specialized interaction mechanics for work that cannot be represented well by text, multiple choice, or typed explanation—for example multi-step mathematics, code execution, and learner-built diagrams.
-2. Turn more due concept reviews into small agenda-level retrieval events when they do not justify a full session.
-3. Track scaffold level so worked examples genuinely fade across attempts.
-4. Compare method outcomes only within similar task families and knowledge stages.
-5. Review outputs with learning-science and subject-matter experts before broad claims.
+2. Track scaffold level so worked examples genuinely fade across attempts.
+3. Compare method outcomes only within similar task families and knowledge stages.
+4. Review outputs with learning-science and subject-matter experts before broad claims.
 
 ## Evidence anchors
 
