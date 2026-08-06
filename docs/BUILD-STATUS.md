@@ -39,6 +39,8 @@ A cross-browser six-digit email-code flow is implemented and tested behind a ser
 - Rebuilt visual foundation using the real YOVA app icon, a reusable brand mark, a calmer light product shell, consistent navigation, and responsive mobile bottom navigation
 - Reworked landing page around one clear promise and one primary action, with a realistic in-product session preview instead of a presentation-style hero
 - Reworked Home around the three foundational paths: follow YOVA's recommended next session, create a learning plan, or study something now
+- Rebuilt Learning as a scalable goal library: users now see compact active, completed, and archived goal cards before opening a focused plan detail
+- Learning goal details now put the actual session sequence first, followed by adaptations, sources, generated resources, and concept evidence
 - Branded landing and account journey
 - Ten-question personalization onboarding
 - Home, Learning, Agenda, Ask YOVA, and You

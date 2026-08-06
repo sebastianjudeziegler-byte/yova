@@ -87,6 +87,9 @@ test("a confident misconception is repaired now and verified later", async ({ pa
   await expect(page.getByText(/Return tomorrow|Due for retrieval/)).toBeVisible();
 
   await page.getByRole("button", { name: "Learning", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "What you’re working toward" })).toBeVisible();
+  await expect(page.getByText("Active goals")).toBeVisible();
+  await page.getByRole("button", { name: /Open goal/ }).click();
   await expect(page.getByRole("heading", { name: "Concept review schedule" })).toBeVisible();
   await expect(page.getByText("Cellular respiration sequence", { exact: true })).toBeVisible();
   await expect(page.getByText(/Return tomorrow|Due for retrieval/)).toBeVisible();

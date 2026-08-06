@@ -145,6 +145,7 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
   const [answers, setAnswers] = useState<string[]>([]);
   const [plans, setPlans] = useState<LearningPlan[]>([]);
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
+  const [learningDetailPlanId, setLearningDetailPlanId] = useState<string | null>(null);
   const [sessionCompletions, setSessionCompletions] = useState<SessionCompletion[]>([]);
   const [sessionInterruptions, setSessionInterruptions] = useState<SessionInterruption[]>([]);
   const [sessionStep, setSessionStep] = useState(0);
@@ -286,6 +287,7 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
         setAlphaEntered(false);
         setPlans([]);
         setSelectedPlanId(null);
+        setLearningDetailPlanId(null);
         setSessionCompletions([]);
         setSessionInterruptions([]);
         setStage("landing");
@@ -935,6 +937,7 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
     }, analyticsEnabled);
     setPlans((current) => [...current, plan]);
     setSelectedPlanId(plan.id);
+    setLearningDetailPlanId(plan.id);
     setStage("app");
     setActiveTab("Learning");
   }} />;
@@ -1019,7 +1022,7 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
   }
 
   return (
-    <AppShell activeTab={activeTab} onTab={setActiveTab} account={account} cloudSyncIssue={cloudSyncIssue} onRetryCloudSync={retryCloudSync} onCreatePlan={() => setStage("plan-creator")} onSignOut={() => {
+    <AppShell activeTab={activeTab} onTab={(tab) => { if (tab === "Learning") setLearningDetailPlanId(null); setActiveTab(tab); }} account={account} cloudSyncIssue={cloudSyncIssue} onRetryCloudSync={retryCloudSync} onCreatePlan={() => setStage("plan-creator")} onSignOut={() => {
       void signOutAuthenticatedAccount().finally(() => {
         clearPreviewSnapshot();
         setAccount(null);
@@ -1035,8 +1038,8 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
         setStage("landing");
       });
     }}>
-      {activeTab === "Home" && <HomeScreen account={account} plans={activePlans} plan={recommendedPlan} sessionInterruptions={sessionInterruptions} tutorQuestion={tutorQuestion} onTutorQuestion={setTutorQuestion} onOpenTutor={() => setActiveTab("Ask YOVA")} onStart={() => void startSession(recommendedPlan?.id)} onOpenPlan={(planId) => { setSelectedPlanId(planId); setActiveTab("Learning"); }} onCreatePlan={() => setStage("plan-creator")} onStudyNow={() => setStage("study-now")} />}
-      {activeTab === "Learning" && <LearningScreen plans={plans} selectedPlanId={selectedPlanId} sessionCompletions={sessionCompletions} sessionInterruptions={sessionInterruptions} onSelectPlan={setSelectedPlanId} onStart={(planId) => void startSession(planId)} onCreatePlan={() => setStage("plan-creator")} onArchiveStateChange={changePlanArchiveState} onAdjustPlan={adjustPlan} onAttachMaterials={attachMaterials} />}
+      {activeTab === "Home" && <HomeScreen account={account} plans={activePlans} plan={recommendedPlan} sessionInterruptions={sessionInterruptions} tutorQuestion={tutorQuestion} onTutorQuestion={setTutorQuestion} onOpenTutor={() => setActiveTab("Ask YOVA")} onStart={() => void startSession(recommendedPlan?.id)} onOpenPlan={(planId) => { setSelectedPlanId(planId); setLearningDetailPlanId(planId); setActiveTab("Learning"); }} onCreatePlan={() => setStage("plan-creator")} onStudyNow={() => setStage("study-now")} />}
+      {activeTab === "Learning" && <LearningScreen plans={plans} detailPlanId={learningDetailPlanId} sessionCompletions={sessionCompletions} sessionInterruptions={sessionInterruptions} onOpenPlan={(planId) => { setSelectedPlanId(planId); setLearningDetailPlanId(planId); }} onClosePlan={() => setLearningDetailPlanId(null)} onStart={(planId) => void startSession(planId)} onCreatePlan={() => setStage("plan-creator")} onArchiveStateChange={changePlanArchiveState} onAdjustPlan={adjustPlan} onAttachMaterials={attachMaterials} />}
       {activeTab === "Agenda" && <AgendaScreen plans={plans.filter((plan) => plan.status !== "archived")} sessionCompletions={sessionCompletions} sessionInterruptions={sessionInterruptions} onStart={(planId) => void startSession(planId)} onActivateReview={activateConceptReview} onReschedule={rescheduleSession} onAdjustDuration={adjustSessionDuration} />}
       {activeTab === "Ask YOVA" && <AskScreen key={activePlan?.id ?? "general"} plan={activePlan} question={tutorQuestion} onQuestion={setTutorQuestion} onApplyAction={applyTutorAction} analyticsEnabled={analyticsEnabled} />}
       {activeTab === "You" && <YouScreen account={account} answers={answers} plans={plans} sessionCompletions={sessionCompletions} sessionInterruptions={sessionInterruptions} onAnswersChange={setAnswers} onReset={resetYovaData} />}
@@ -1315,9 +1318,8 @@ function AskBar({ value, onChange, onSubmit, pending = false }: { value: string;
   return <form className="ask-bar" onSubmit={(event) => { event.preventDefault(); if (value.trim() && !pending) onSubmit(); }}><Sparkles size={20} /><input aria-label="Ask YOVA" placeholder="Ask YOVA anything or describe what you need…" value={value} disabled={pending} onChange={(event) => onChange(event.target.value)} /><button aria-label="Send" type="submit" disabled={!value.trim() || pending}>{pending ? <span className="button-spinner" /> : <Send size={18} />}</button></form>;
 }
 
-function LearningScreen({ plans, selectedPlanId, sessionCompletions, sessionInterruptions, onSelectPlan, onStart, onCreatePlan, onArchiveStateChange, onAdjustPlan, onAttachMaterials }: { plans: LearningPlan[]; selectedPlanId: string | null; sessionCompletions: SessionCompletion[]; sessionInterruptions: SessionInterruption[]; onSelectPlan: (planId: string) => void; onStart: (planId: string) => void; onCreatePlan: () => void; onArchiveStateChange: (planId: string, action: "archive" | "restore") => Promise<LearningPlan["status"]>; onAdjustPlan: (input: PlanAdjustmentRequest) => Promise<void>; onAttachMaterials: (planId: string, materialIds: string[]) => Promise<void> }) {
+function LearningScreen({ plans, detailPlanId, sessionCompletions, sessionInterruptions, onOpenPlan, onClosePlan, onStart, onCreatePlan, onArchiveStateChange, onAdjustPlan, onAttachMaterials }: { plans: LearningPlan[]; detailPlanId: string | null; sessionCompletions: SessionCompletion[]; sessionInterruptions: SessionInterruption[]; onOpenPlan: (planId: string) => void; onClosePlan: () => void; onStart: (planId: string) => void; onCreatePlan: () => void; onArchiveStateChange: (planId: string, action: "archive" | "restore") => Promise<LearningPlan["status"]>; onAdjustPlan: (input: PlanAdjustmentRequest) => Promise<void>; onAttachMaterials: (planId: string, materialIds: string[]) => Promise<void> }) {
   const [view, setView] = useState<"active" | "recent" | "archive">("active");
-  const [browsedPlanId, setBrowsedPlanId] = useState<string | null>(null);
   const [changingPlanId, setChangingPlanId] = useState<string | null>(null);
   const [statusError, setStatusError] = useState<string | null>(null);
   const visiblePlans = plans.filter((plan) => {
@@ -1325,17 +1327,11 @@ function LearningScreen({ plans, selectedPlanId, sessionCompletions, sessionInte
     if (view === "recent") return plan.status === "completed";
     return plan.status === "archived";
   });
-  const preferredId = view === "active" ? selectedPlanId : browsedPlanId;
-  const plan = visiblePlans.find((item) => item.id === preferredId) ?? visiblePlans.at(-1) ?? null;
+  const plan = visiblePlans.find((item) => item.id === detailPlanId) ?? null;
   const viewLabels = {
     active: { empty: "No active learning yet.", description: "Start one focused session or create a plan for a larger goal." },
     recent: { empty: "No completed studies yet.", description: "Finished sessions and plans will remain here so you can review what happened." },
     archive: { empty: "Nothing is archived.", description: "Learning items you intentionally put away will appear here." },
-  };
-
-  const selectPlan = (planId: string) => {
-    setBrowsedPlanId(planId);
-    if (view === "active") onSelectPlan(planId);
   };
 
   const changeArchiveState = async (planId: string, action: "archive" | "restore") => {
@@ -1343,7 +1339,7 @@ function LearningScreen({ plans, selectedPlanId, sessionCompletions, sessionInte
     setStatusError(null);
     try {
       const status = await onArchiveStateChange(planId, action);
-      setBrowsedPlanId(null);
+      onClosePlan();
       if (status === "archived") setView("archive");
       else setView(status === "completed" ? "recent" : "active");
     } catch (error) {
@@ -1353,19 +1349,47 @@ function LearningScreen({ plans, selectedPlanId, sessionCompletions, sessionInte
     }
   };
 
-  return <div className="page">
-    <PageHeader eyebrow="LEARNING" title="What you’re working toward" description="Each goal keeps its plan, sessions, methods, and progress together." />
+  const changeView = (nextView: "active" | "recent" | "archive") => {
+    setView(nextView);
+    onClosePlan();
+  };
+
+  return <div className="page learning-page">
+    <div className="learning-index-header"><PageHeader eyebrow="LEARNING" title="What you’re working toward" description="Every goal keeps its plan, materials, sessions, and progress in one place." /><button className="button primary" onClick={onCreatePlan}><Plus size={17} /> New plan</button></div>
     <div className="tabs">
-      <button className={view === "active" ? "active" : ""} onClick={() => { setView("active"); setBrowsedPlanId(null); }}>Active</button>
-      <button className={view === "recent" ? "active" : ""} onClick={() => { setView("recent"); setBrowsedPlanId(null); }}>Recent studies</button>
-      <button className={view === "archive" ? "active" : ""} onClick={() => { setView("archive"); setBrowsedPlanId(null); }}>Archive</button>
+      <button className={view === "active" ? "active" : ""} onClick={() => changeView("active")}>Active <span>{plans.filter((item) => item.status === "active").length}</span></button>
+      <button className={view === "recent" ? "active" : ""} onClick={() => changeView("recent")}>Completed <span>{plans.filter((item) => item.status === "completed").length}</span></button>
+      <button className={view === "archive" ? "active" : ""} onClick={() => changeView("archive")}>Archive <span>{plans.filter((item) => item.status === "archived").length}</span></button>
     </div>
     {statusError && <div className="chat-error"><AlertCircle size={16} /><span>{statusError}</span></div>}
-    {!plan ? <section className="empty-home"><h2>{viewLabels[view].empty}</h2><p>{viewLabels[view].description}</p>{view === "active" && <div className="empty-home-actions"><button className="button primary" onClick={onCreatePlan}>Create a plan</button></div>}</section> : <LearningPlanDetail plan={plan} plans={visiblePlans} view={view} completions={sessionCompletions.filter((completion) => completion.planId === plan.id)} interruptions={sessionInterruptions.filter((interruption) => interruption.planId === plan.id)} changingStatus={changingPlanId === plan.id} onSelectPlan={selectPlan} onStart={() => onStart(plan.id)} onArchiveStateChange={(action) => void changeArchiveState(plan.id, action)} onAdjustPlan={onAdjustPlan} onAttachMaterials={onAttachMaterials} />}
+    {plan ? <LearningPlanDetail plan={plan} view={view} completions={sessionCompletions.filter((completion) => completion.planId === plan.id)} interruptions={sessionInterruptions.filter((interruption) => interruption.planId === plan.id)} changingStatus={changingPlanId === plan.id} onBack={onClosePlan} onStart={() => onStart(plan.id)} onArchiveStateChange={(action) => void changeArchiveState(plan.id, action)} onAdjustPlan={onAdjustPlan} onAttachMaterials={onAttachMaterials} /> : visiblePlans.length ? <LearningOverview plans={visiblePlans} allPlans={plans} view={view} interruptions={sessionInterruptions} onOpenPlan={onOpenPlan} onStart={onStart} /> : <section className="learning-empty"><span className="learning-empty-icon"><LibraryBig size={22} /></span><h2>{viewLabels[view].empty}</h2><p>{viewLabels[view].description}</p>{view === "active" && <button className="button primary" onClick={onCreatePlan}>Create your first plan <ArrowRight size={17} /></button>}</section>}
   </div>;
 }
 
-function LearningPlanDetail({ plan, plans, view, completions, interruptions, changingStatus, onSelectPlan, onStart, onArchiveStateChange, onAdjustPlan, onAttachMaterials }: { plan: LearningPlan; plans: LearningPlan[]; view: "active" | "recent" | "archive"; completions: SessionCompletion[]; interruptions: SessionInterruption[]; changingStatus: boolean; onSelectPlan: (planId: string) => void; onStart: () => void; onArchiveStateChange: (action: "archive" | "restore") => void; onAdjustPlan: (input: PlanAdjustmentRequest) => Promise<void>; onAttachMaterials: (planId: string, materialIds: string[]) => Promise<void> }) {
+function LearningOverview({ plans, allPlans, view, interruptions, onOpenPlan, onStart }: { plans: LearningPlan[]; allPlans: LearningPlan[]; view: "active" | "recent" | "archive"; interruptions: SessionInterruption[]; onOpenPlan: (planId: string) => void; onStart: (planId: string) => void }) {
+  const activeCount = allPlans.filter((plan) => plan.status === "active").length;
+  const sessionsAhead = allPlans.filter((plan) => plan.status === "active").reduce((count, plan) => count + plan.sessions.filter((session) => session.status === "ready" || session.status === "upcoming").length, 0);
+  const completedCount = allPlans.filter((plan) => plan.status === "completed").length;
+
+  return <>
+    <section className="learning-summary" aria-label="Learning overview"><div><span>Active goals</span><strong>{activeCount}</strong></div><div><span>Sessions ahead</span><strong>{sessionsAhead}</strong></div><div><span>Completed goals</span><strong>{completedCount}</strong></div></section>
+    <section className="learning-card-grid">{plans.map((plan) => {
+      const done = plan.sessions.filter((session) => session.status === "complete").length;
+      const readySession = plan.sessions.find((session) => session.status === "ready");
+      const resumePoint = readySession ? resumableSessionProgress(readySession.id, interruptions.filter((interruption) => interruption.planId === plan.id)) : null;
+      const progress = plan.sessions.length ? Math.round((done / plan.sessions.length) * 100) : 0;
+      return <article className="learning-goal-card" key={plan.id}>
+        <div className="learning-card-top"><span className="learning-card-icon">{plan.title.charAt(0).toUpperCase()}</span><span className="learning-card-kind">{plan.kind}</span><span className={`learning-card-status ${plan.status}`}>{plan.status === "active" ? formatPlanDeadline(plan.deadline) : plan.status}</span></div>
+        <div className="learning-card-copy"><h2>{plan.title}</h2><p>{plan.topic}</p></div>
+        <div className="learning-card-progress"><div><span style={{ width: `${progress}%` }} /></div><small>{done} of {plan.sessions.length} sessions complete</small></div>
+        <div className="learning-card-next"><span>{view === "active" ? "NEXT SESSION" : "PLAN SUMMARY"}</span><strong>{readySession ? readySession.title : plan.status === "completed" ? "Goal completed" : "Saved learning goal"}</strong><small>{readySession ? `${resumePoint ? `Continue at section ${resumePoint.completedSteps + 1}` : formatSessionTime(readySession.scheduledFor)} · ${readySession.estimatedMinutes} min` : `${plan.sessions.length} planned sessions`}</small></div>
+        <footer><button className="button secondary" onClick={() => onOpenPlan(plan.id)}>Open goal <ChevronRight size={16} /></button>{view === "active" && readySession && <button className="button primary" onClick={() => onStart(plan.id)}>{resumePoint ? "Continue" : "Start next"}</button>}</footer>
+      </article>;
+    })}</section>
+  </>;
+}
+
+function LearningPlanDetail({ plan, view, completions, interruptions, changingStatus, onBack, onStart, onArchiveStateChange, onAdjustPlan, onAttachMaterials }: { plan: LearningPlan; view: "active" | "recent" | "archive"; completions: SessionCompletion[]; interruptions: SessionInterruption[]; changingStatus: boolean; onBack: () => void; onStart: () => void; onArchiveStateChange: (action: "archive" | "restore") => void; onAdjustPlan: (input: PlanAdjustmentRequest) => Promise<void>; onAttachMaterials: (planId: string, materialIds: string[]) => Promise<void> }) {
   const [showAdjustments, setShowAdjustments] = useState(false);
   const completeCount = plan.sessions.filter((session) => session.status === "complete").length;
   const readySession = plan.sessions.find((session) => session.status === "ready");
@@ -1376,15 +1400,15 @@ function LearningPlanDetail({ plan, plans, view, completions, interruptions, cha
   const conceptSignals = summarizeConceptEvidence(completions);
 
   return <>
-    {plans.length > 1 && <div className="plan-switcher">{plans.map((item) => { const done = item.sessions.filter((session) => session.status === "complete").length; return <button className={item.id === plan.id ? "selected" : ""} key={item.id} onClick={() => onSelectPlan(item.id)}><span>{item.kind}</span><strong>{item.title}</strong><small>{done} of {item.sessions.length} sessions</small></button>; })}</div>}
+    <button className="learning-back" onClick={onBack}><ArrowLeft size={16} /> All {view === "recent" ? "completed learning" : view === "archive" ? "archived learning" : "active learning"}</button>
     <section className="learning-hero"><div><span className="subject-label">{plan.kind.toUpperCase()} · {formatPlanDeadline(plan.deadline)}</span><h2>{plan.title}</h2><p>{plan.topic}</p><span className="learning-approach-badge">{plan.learningIntent === "learn" ? <BookOpen size={14} /> : <Target size={14} />}{plan.learningIntent === "learn" ? "Building understanding, then practice" : "Practice, diagnose, and repair"}</span><div className="progress-line"><div style={{ width: `${(completeCount / plan.sessions.length) * 100}%` }} /></div><small>{resumePoint ? `${resumePoint.completedSteps} of ${resumePoint.totalSteps} sections saved in the current session` : `${completeCount} of ${plan.sessions.length} sessions complete`}</small></div><div className="learning-hero-actions">{view === "active" && readySession && <button className="button primary" onClick={onStart}>{resumePoint ? "Continue session" : "Start next session"}</button>}{view === "active" && <button className="button hero-secondary" onClick={() => setShowAdjustments((value) => !value)}><Settings2 size={16} /> {showAdjustments ? "Close" : "Adjust"}</button>}<button className="button hero-secondary" disabled={changingStatus} onClick={() => onArchiveStateChange(view === "archive" ? "restore" : "archive")}>{changingStatus ? <span className="button-spinner" /> : view === "archive" ? <><RotateCcw size={16} /> Restore</> : <><Archive size={16} /> Archive</>}</button></div></section>
     {view === "active" && showAdjustments && <PlanAdjustmentPanel plan={plan} onCancel={() => setShowAdjustments(false)} onSave={async (input) => { await onAdjustPlan(input); setShowAdjustments(false); }} />}
     {view === "recent" && <section className="learning-history-summary"><div><span>Completed</span><strong>{formatCompletionDate(completions.at(-1)?.completedAt ?? plan.createdAt)}</strong></div><div><span>Knowledge-check accuracy</span><strong>{accuracy}</strong></div><div><span>Last session felt</span><strong>{formatFeedback(completions.at(-1)?.feedback)}</strong></div></section>}
-    <PlanSources plan={plan} editable={view === "active"} onAttach={onAttachMaterials} />
+    <section className="section-block plan-timeline"><div className="section-title"><div><h3>{view === "recent" ? "What you completed" : "Your plan"}</h3><p>The sequence YOVA will guide you through, one session at a time.</p></div><span>{plan.sessions.length} sessions</span></div><div className="timeline">{plan.sessions.map((session) => <div className={`timeline-row ${session.status}`} key={session.id}><span className="timeline-node">{session.status === "complete" ? <Check size={15} /> : null}</span><div><strong>{session.title}</strong><small><b>{session.learningMode === "learn" ? "Teaching first" : "Practice first"}</b> · {session.method} · {formatSessionTime(session.scheduledFor)}</small></div><span>{session.estimatedMinutes} min</span></div>)}</div></section>
     <PlanAdaptations plan={plan} />
+    <PlanSources plan={plan} editable={view === "active"} onAttach={onAttachMaterials} />
     <PlanResources plan={plan} />
     <ConceptSignalsPanel signals={conceptSignals} />
-    <section className="section-block"><div className="section-title"><h3>{view === "recent" ? "What you completed" : "Plan timeline"}</h3><span>{plan.sourceMode === "user_materials" ? "Your materials" : "YOVA-created content"}</span></div><div className="timeline">{plan.sessions.map((session) => <div className={`timeline-row ${session.status}`} key={session.id}><span className="timeline-node">{session.status === "complete" ? <Check size={15} /> : null}</span><div><strong>{session.title}</strong><small><b>{session.learningMode === "learn" ? "Teaching first" : "Practice first"}</b> · {session.method} · {formatSessionTime(session.scheduledFor)}</small></div><span>{session.estimatedMinutes} min</span></div>)}</div></section>
   </>;
 }
 
