@@ -3,10 +3,20 @@ import { readSessionResourceFromStepData, toSessionResource } from "@/lib/sessio
 import type { SessionGenerationResponse } from "@/lib/session-generation/schema";
 
 const generatedSession: SessionGenerationResponse["session"] = {
-  schemaVersion: 3,
+  schemaVersion: 4,
   model: "gpt-test",
   generatedAt: "2026-08-05T18:00:00.000Z",
   rationale: "This sequence teaches the core idea before checking recall and application.",
+  methodBriefing: {
+    taskType: "conceptual_learning",
+    methodId: "retrieval_practice",
+    name: "Retrieval practice",
+    what: "Produce an answer from memory before looking at the explanation.",
+    why: "This creates objective evidence of what is available without support before the learner reviews the idea.",
+    how: ["Hide the explanation and attempt the answer.", "Compare, repair the gap, and retry it later."],
+    completion: "The answer has been attempted from memory and every missing idea has been marked for review.",
+    personalization: [],
+  },
   activities: [
     {
       type: "instruction",
@@ -46,6 +56,7 @@ describe("session resources", () => {
     const resource = toSessionResource(generatedSession);
     expect(resource.origin).toBe("generated");
     expect(resource.generatedAt).toBe(generatedSession.generatedAt);
+    expect(resource.methodBriefing?.methodId).toBe("retrieval_practice");
     expect(resource.activities).toHaveLength(3);
     expect(resource.activities[1].correctAnswer).toBe("Recall before reviewing");
   });

@@ -57,6 +57,13 @@ A cross-browser six-digit email-code flow is implemented and tested behind a ser
 - Actual duration and repeated interruptions cautiously influence future work
 - Completed sessions are grouped by method so YOVA can show early, promising, or support-needed signals without claiming a fixed learning style
 - Diagnosed-condition answers are excluded from model personalization context
+- A task-first learning-science router now bounds OpenAI to nine named methods instead of relying on a free-form “personalized plan” prompt
+- Every new guided session must explain what the selected method is, why it fits, how to execute it, and what completion means
+- Learner tendencies are treated as delivery modifiers rather than fixed brain types or replacements for task-appropriate methods
+
+### Honest scientific-product status
+
+The software loop is close to private-alpha readiness, but the broader learning-science vision is earlier. The new catalog and router establish the correct architecture; method-specific interactions, metacognitive calibration, concept-level spacing, and stronger outcome comparisons remain. “Private alpha 90%” therefore means the product can be tested safely—not that 90% of the long-term adaptive-learning system is complete.
 
 ### Backend and infrastructure
 

@@ -4,6 +4,7 @@ import { getOpenAIClient } from "@/lib/openai/client";
 import { getOpenAISessionConfig } from "@/lib/openai/config";
 import type { MaterialExcerpt } from "@/lib/materials/context";
 import type { ConceptSignal } from "@/lib/learning/concept-evidence";
+import { buildLearningScienceRoutingBrief } from "@/lib/learning/method-router";
 import {
   GeneratedSessionDraftSchema,
   type GeneratedSessionDraft,
@@ -63,6 +64,10 @@ const SESSION_GENERATOR_INSTRUCTIONS = `You design one guided YOVA learning sess
 Use the task and objective to select the learning activities. Personalize how the method is executed using the learner profile, but never invent a fixed learning style or diagnose the user.
 
 Requirements:
+- Use learningScienceRouting as YOVA's scientific guardrail. Select methodBriefing.methodId from allowedMethodIds, normally use suggestedPrimaryMethodId, and depart from it only when the supplied task evidence clearly supports another allowed method.
+- Fill methodBriefing with the task type, catalog method, what the learner will do, why it fits this task and current knowledge, exact execution steps, and a concrete completion condition.
+- The method briefing must explain the learning method itself. Keep productivity or tendency-based delivery changes in methodBriefing.personalization.
+- Use the catalog's how and completion fields as the scientific source, but rewrite them concisely for this exact session rather than copying every line mechanically.
 - Create 3 to 8 short activities that fit the estimated duration.
 - Use concise instructions and one obvious action at a time.
 - Include at least one meaningful multiple-choice knowledge check with 3 to 5 plausible choices.
@@ -70,6 +75,7 @@ Requirements:
 - Give every multiple_choice and free_response activity one concise concept name. Set concept to null for instructions and reflections.
 - For free_response, leave choices empty, put the reference answer in correctAnswer, and use feedback to explain what a strong answer must contain. The learner will assess their own attempt honestly.
 - For multiple_choice, correctAnswer must exactly match one choice, and feedback must explain the concept rather than merely say correct.
+- Every question's feedback must be a useful explanatory sentence of at least 20 characters. Every free-response reference answer must contain enough substance to compare meaning, not a one-word answer.
 - Put choices in varied order. Do not always place the correct answer first.
 - If the user is studying inside YOVA, include the minimum explanation or example needed before retrieval or application.
 - If the user is studying outside YOVA, guide the outside work precisely and use the knowledge check to verify the method or core concept.
@@ -88,10 +94,26 @@ export async function generateSessionWithOpenAI(
   const config = getOpenAISessionConfig();
   if (!config) throw new Error("OpenAI is not configured on the YOVA server.");
 
+  const learningScienceRouting = buildLearningScienceRoutingBrief({
+    goalTitle: context.learningGoal.title,
+    goalTopic: context.learningGoal.topic,
+    goalKind: context.learningGoal.kind,
+    sessionTitle: context.session.title,
+    sessionObjective: context.session.objective,
+    plannedMethod: context.session.method,
+    plannedMethodReason: context.session.methodReason,
+    learnerProfile: context.learnerProfile,
+    recentResults: context.recentResults,
+    interruptionCount: context.recentInterruptions.length,
+  });
+
   const response = await getOpenAIClient().responses.parse({
     model: config.model,
     instructions: SESSION_GENERATOR_INSTRUCTIONS,
-    input: `Build the next guided session from this YOVA context:\n${JSON.stringify(context)}`,
+    input: `Build the next guided session from this YOVA context:\n${JSON.stringify({
+      ...context,
+      learningScienceRouting,
+    })}`,
     reasoning: { effort: "low" },
     text: {
       format: zodTextFormat(GeneratedSessionDraftSchema, "yova_guided_session"),

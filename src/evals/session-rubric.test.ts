@@ -7,6 +7,16 @@ const biologyCase = buildSessionEvaluationCases()[0];
 
 const strongSession = GeneratedSessionDraftSchema.parse({
   rationale: "A short source-grounded explanation comes first, followed by two different retrieval attempts that expose gaps before review.",
+  methodBriefing: {
+    taskType: "conceptual_learning",
+    methodId: "retrieval_practice",
+    name: "Retrieval practice",
+    what: "Produce the biology relationship from memory before returning to the notes.",
+    why: "The learner has an initial explanation and now needs objective evidence of which parts can be recalled independently.",
+    how: ["Close the notes and attempt the prompt.", "Compare the answer and repair only the missing parts."],
+    completion: "Both target ideas have been attempted from memory and each missing part is identified.",
+    personalization: ["Keep the first attempt short and show one visible step at a time."],
+  },
   activities: [
     {
       type: "instruction",
@@ -58,6 +68,16 @@ describe("session quality rubric", () => {
   it("rejects generic, unsupported personalization and weak task alignment", () => {
     const weakSession = GeneratedSessionDraftSchema.parse({
       rationale: "Because you are a visual learner, this session uses a generic diagram and then asks two unrelated questions.",
+      methodBriefing: {
+        taskType: "conceptual_learning",
+        methodId: "self_explanation",
+        name: "Generic visual review",
+        what: "Look at a generic diagram and try to remember it for the next question.",
+        why: "This was selected because you are a visual learner and therefore learn best from diagrams.",
+        how: ["Look at the diagram for several minutes.", "Try to remember what it looked like."],
+        completion: "The diagram has been viewed and the learner feels familiar with the content.",
+        personalization: ["The session assumes a fixed visual learning style."],
+      },
       activities: [
         {
           type: "instruction",

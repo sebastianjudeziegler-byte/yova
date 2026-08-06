@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { CORE_METHOD_IDS, LEARNING_TASK_TYPES } from "@/lib/learning/method-catalog";
 
 export const SessionGenerationRequestSchema = z.object({
   planId: z.string().uuid(),
@@ -59,6 +60,17 @@ export type PreviewSessionGenerationContext = NonNullable<
   SessionGenerationRequest["previewContext"]
 >;
 
+export const SessionMethodBriefingSchema = z.object({
+  taskType: z.enum(LEARNING_TASK_TYPES),
+  methodId: z.enum(CORE_METHOD_IDS),
+  name: z.string().trim().min(3).max(90),
+  what: z.string().trim().min(15).max(280),
+  why: z.string().trim().min(20).max(500),
+  how: z.array(z.string().trim().min(8).max(240)).min(2).max(5),
+  completion: z.string().trim().min(15).max(300),
+  personalization: z.array(z.string().trim().min(10).max(280)).max(3),
+});
+
 export const GeneratedSessionActivitySchema = z.object({
   concept: z.string().trim().min(2).max(120).nullable(),
   label: z.string().trim().min(2).max(50),
@@ -67,7 +79,7 @@ export const GeneratedSessionActivitySchema = z.object({
   type: z.enum(["instruction", "multiple_choice", "free_response", "reflection"]),
   choices: z.array(z.string().trim().min(1).max(220)).max(5),
   correctAnswer: z.string().trim().min(1).max(600).nullable(),
-  feedback: z.string().trim().min(5).max(500).nullable(),
+  feedback: z.string().trim().min(20).max(500).nullable(),
 }).superRefine((activity, context) => {
   if (activity.type === "multiple_choice") {
     if (!activity.concept) {
@@ -99,6 +111,7 @@ export const GeneratedSessionActivitySchema = z.object({
 
 export const GeneratedSessionDraftSchema = z.object({
   rationale: z.string().trim().min(20).max(700),
+  methodBriefing: SessionMethodBriefingSchema,
   activities: z.array(GeneratedSessionActivitySchema).min(3).max(8),
 }).superRefine((session, context) => {
   if (!session.activities.some((activity) => activity.type === "multiple_choice")) {
@@ -110,7 +123,7 @@ export const GeneratedSessionDraftSchema = z.object({
 });
 
 export const CachedGeneratedSessionSchema = GeneratedSessionDraftSchema.extend({
-  schemaVersion: z.literal(3),
+  schemaVersion: z.literal(4),
   model: z.string().min(1),
   generatedAt: z.string().datetime({ offset: true }),
 });
@@ -125,4 +138,5 @@ export const SessionGenerationResponseSchema = z.object({
 });
 
 export type GeneratedSessionDraft = z.infer<typeof GeneratedSessionDraftSchema>;
+export type SessionMethodBriefing = z.infer<typeof SessionMethodBriefingSchema>;
 export type SessionGenerationResponse = z.infer<typeof SessionGenerationResponseSchema>;

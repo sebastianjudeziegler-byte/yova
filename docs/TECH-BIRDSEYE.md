@@ -121,6 +121,21 @@ YOVA combines four categories of evidence:
 
 Code decides what evidence is safe and relevant. OpenAI uses that bounded context to create the teaching language and activity sequence. A single interruption is not treated as a personality trait, and one correct answer is not called mastery.
 
+### The learning-science engine
+
+YOVA now has a formal catalog of nine core methods and a task-first router. Ordinary TypeScript classifies the learning job and current knowledge stage, selects a bounded set of scientifically appropriate methods, and derives cautious delivery adjustments. OpenAI then chooses within those boundaries and composes the actual session.
+
+Every generated session must return a structured method briefing:
+
+```text
+what the learner is doing
+why the method fits this task and current knowledge
+how to execute it
+what completion means
+```
+
+This division matters. The model has room for subject-specific judgment, but it cannot silently replace a problem-solving method with a productivity trick merely because the user mentioned procrastination. See `docs/LEARNING-SCIENCE-ENGINE.md` for the catalog, evidence tiers, and remaining scientific work.
+
 When a completed session justifies changing the next one, YOVA stores the explanation with that future session. The same evidence is restored after sign-in and shown on Home and inside the plan. This makes adaptation inspectable: the user can see which result changed the plan instead of being asked to trust a vague “personalized” label.
 
 The You screen also groups completed sessions into broad method families such as retrieval, guided explanation, and application practice. Ordinary TypeScript—not OpenAI—calculates completion counts, check accuracy, difficulty feedback, and interruptions. YOVA labels one session as early evidence, requires repeated comparable checks before showing a promising signal, and never turns this history into a fixed “learning style.”
@@ -188,9 +203,10 @@ The most important remaining layers are:
 
 1. public deployment and production environment configuration;
 2. reliable transactional email for authentication;
-3. automated end-to-end tests and subject-quality evaluation;
-4. external error alerts and broader automated end-to-end coverage;
-5. external review of the privacy/terms drafts;
-6. Stripe and server-enforced entitlements when payment validation begins.
+3. method-specific learning interactions, metacognitive calibration, and concept-level spacing;
+4. automated end-to-end tests and subject-quality evaluation;
+5. external error alerts and broader automated end-to-end coverage;
+6. external review of the privacy/terms drafts;
+7. Stripe and server-enforced entitlements when payment validation begins.
 
 See `BUILD-STATUS.md` for the current percentages and timeline.

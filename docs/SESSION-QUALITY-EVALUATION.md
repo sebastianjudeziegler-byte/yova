@@ -22,6 +22,7 @@ The first session suite covers:
 - uploaded material remains the factual anchor;
 - known `needs_review` concepts appear in the session;
 - outside-YOVA sessions provide a concrete action using the learner's external source;
+- the selected method comes from the task-appropriate catalog and explains what, why, how, and completion;
 - the rationale explains the sequence;
 - learner-facing language avoids fixed brain types, diagnoses, and learning-style claims.
 
@@ -60,3 +61,15 @@ On August 5, 2026:
 The first calculus run scored 90/100 because it did not preserve the stored concept label. The generation instruction now requires an applicable `needs_review` concept to be reused exactly in at least one question's concept field. The next live run passed. This is a product-memory repair, not cosmetic prompt tuning: consistent concept names allow YOVA to accumulate evidence across sessions.
 
 All five live cases now pass the automated rubric. Human review of factual explanations, distractor quality, tone, and real learner usefulness remains necessary. Future tester failures should become new evaluation cases instead of being treated as isolated anecdotes.
+
+## Learning-science engine rerun
+
+After the formal method catalog and structured method briefing were added on August 5, the full live plan suite still passed five of five cases at 100/100. The live guided-session suite selected the intended catalog methods across the cases:
+
+- biology: self-explanation;
+- calculus: worked example fading;
+- history writing: retrieval-based outlining;
+- JavaScript: scaffolded coding with fading;
+- finance: retrieval practice.
+
+The first JavaScript rerun scored 85/100 because one question returned feedback that was structurally valid but too thin to be educationally useful. YOVA now requires at least a full explanatory sentence in every question's feedback contract. The targeted JavaScript rerun passed 100/100. This shows the evaluator is checking teaching quality boundaries, not only whether OpenAI returned valid JSON.

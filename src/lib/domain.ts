@@ -4,6 +4,17 @@ export type SessionStatus = "ready" | "upcoming" | "complete" | "skipped";
 export type SourceMode = "user_materials" | "yova_generated";
 export type StudyMode = "inside_yova" | "outside_yova";
 
+export type SessionMethodBriefing = {
+  taskType: "memorization" | "conceptual_learning" | "problem_solving" | "reading_to_quiz" | "writing_argumentation" | "programming" | "mixed_assessment";
+  methodId: "retrieval_practice" | "spaced_retrieval" | "self_explanation" | "worked_example_fading" | "interleaved_practice" | "read_recall_review" | "retrieval_based_outlining" | "scaffolded_coding" | "practice_test_error_repair";
+  name: string;
+  what: string;
+  why: string;
+  how: string[];
+  completion: string;
+  personalization: string[];
+};
+
 export type LearningMaterial = {
   id: string;
   name: string;
@@ -34,6 +45,7 @@ export type SessionResourceActivity = {
 
 export type SessionResource = {
   rationale: string;
+  methodBriefing?: SessionMethodBriefing;
   activities: SessionResourceActivity[];
   generatedAt: string;
   origin: "generated" | "built_in";
