@@ -4,6 +4,7 @@ import { buildMaterialExcerpts } from "@/lib/materials/context";
 import { generateTutorAnswer, type TutorLearningContext } from "@/lib/openai/tutor-generator";
 import { isOpenAITutorConfigured } from "@/lib/openai/config";
 import { checkTutorRateLimit, requestRateLimitKey } from "@/lib/server/rate-limit";
+import { claimAIRequest } from "@/lib/server/ai-usage";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import {
   TutorHistoryResponseSchema,
@@ -118,6 +119,29 @@ export async function POST(request: Request) {
       if (threadError || !existingThread || existingThread.learning_item_id !== learningItemId) {
         return NextResponse.json({ error: "That tutor conversation does not belong to this learning goal." }, { status: 403 });
       }
+    }
+
+    let durableLimit: Awaited<ReturnType<typeof claimAIRequest>>;
+    try {
+      durableLimit = await claimAIRequest(supabase, "tutor_message");
+    } catch {
+      return NextResponse.json(
+        { error: "Ask YOVA paused before using OpenAI because it could not verify the account’s AI budget." },
+        { status: 503, headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId } },
+      );
+    }
+    if (!durableLimit.allowed) {
+      return NextResponse.json(
+        { error: "This account has reached its Ask YOVA allowance. Try again after the limit resets." },
+        {
+          status: 429,
+          headers: {
+            "Cache-Control": "no-store",
+            "Retry-After": String(durableLimit.retryAfterSeconds),
+            "X-Yova-Request-Id": requestId,
+          },
+        },
+      );
     }
 
     const proposedAction = buildTutorProposedAction(parsed.data, planId, context);

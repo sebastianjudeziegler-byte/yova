@@ -8,6 +8,7 @@ import {
   PlanGenerationResponseSchema,
 } from "@/lib/plan-generation/schema";
 import { checkPlanGenerationRateLimit, requestRateLimitKey } from "@/lib/server/rate-limit";
+import { claimAIRequest } from "@/lib/server/ai-usage";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { persistPlanForAuthenticatedUser, PlanPersistenceError } from "@/lib/supabase/plan-repository";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -104,6 +105,31 @@ export async function POST(request: Request) {
           },
         },
       );
+    }
+
+    if (supabase && user) {
+      let durableLimit: Awaited<ReturnType<typeof claimAIRequest>>;
+      try {
+        durableLimit = await claimAIRequest(supabase, "plan_generation");
+      } catch {
+        return NextResponse.json(
+          { error: "YOVA paused before using OpenAI because it could not verify the account’s AI budget.", code: "usage_gate_unavailable", requestId },
+          { status: 503, headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId } },
+        );
+      }
+      if (!durableLimit.allowed) {
+        return NextResponse.json(
+          { error: "This account has reached its plan-generation allowance. Try again after the limit resets.", code: "rate_limited", requestId },
+          {
+            status: 429,
+            headers: {
+              "Cache-Control": "no-store",
+              "Retry-After": String(durableLimit.retryAfterSeconds),
+              "X-Yova-Request-Id": requestId,
+            },
+          },
+        );
+      }
     }
 
     try {

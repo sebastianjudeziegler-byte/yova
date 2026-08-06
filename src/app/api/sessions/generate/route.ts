@@ -9,6 +9,7 @@ import {
   SessionGenerationResponseSchema,
 } from "@/lib/session-generation/schema";
 import { checkSessionGenerationRateLimit, requestRateLimitKey } from "@/lib/server/rate-limit";
+import { claimAIRequest } from "@/lib/server/ai-usage";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
@@ -133,6 +134,28 @@ export async function POST(request: Request) {
     }
 
     const recentAttempts = attemptsResult.data ?? [];
+    let durableLimit: Awaited<ReturnType<typeof claimAIRequest>>;
+    try {
+      durableLimit = await claimAIRequest(supabase, "session_generation");
+    } catch {
+      return NextResponse.json(
+        { error: "YOVA paused before using OpenAI because it could not verify the account’s AI budget." },
+        { status: 503, headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId } },
+      );
+    }
+    if (!durableLimit.allowed) {
+      return NextResponse.json(
+        { error: "This account has reached its guided-session allowance. Try again after the limit resets." },
+        {
+          status: 429,
+          headers: {
+            "Cache-Control": "no-store",
+            "Retry-After": String(durableLimit.retryAfterSeconds),
+            "X-Yova-Request-Id": requestId,
+          },
+        },
+      );
+    }
     const generated = await generateSessionWithOpenAI({
       learningGoal: {
         title: learningItem.title,
