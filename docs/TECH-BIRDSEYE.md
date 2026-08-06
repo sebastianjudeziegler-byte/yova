@@ -178,8 +178,9 @@ This is why pushing to GitHub does not automatically make `localhost:3000` avail
 - **Integration test:** checks multiple connected pieces, such as an authenticated API writing a valid row.
 - **End-to-end test:** acts like a user from account entry through session completion.
 - **Production smoke test:** checks the deployed system with its real configuration.
+- **AI quality evaluation:** scores real generated plans against product-specific learning, timing, safety, and personalization criteria.
 
-YOVA currently has automated unit tests plus repeated manual end-to-end walkthroughs. Broader automated end-to-end coverage remains launch work.
+YOVA currently has automated unit tests, an opt-in five-case OpenAI plan evaluation, and repeated manual end-to-end walkthroughs. The live evaluation consumes API credits, so ordinary builds never trigger it. Broader automated browser end-to-end coverage remains launch work.
 
 ## 13. The next technical systems
 

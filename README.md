@@ -37,6 +37,14 @@ pnpm lint
 pnpm build
 ```
 
+An optional live plan-quality suite is also available. It sends five representative cases to OpenAI and therefore consumes API credits:
+
+```bash
+pnpm eval:plans
+```
+
+See [`docs/QUALITY-EVALUATION.md`](docs/QUALITY-EVALUATION.md) before running it.
+
 Before a production deployment:
 
 ```bash

@@ -9,6 +9,7 @@
     "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest",
+    "eval:plans": "YOVA_RUN_LIVE_EVALS=1 vitest run src/evals/plan-quality.live.test.ts --reporter=verbose",
     "readiness": "node scripts/check-readiness.mjs",
     "readiness:production": "node scripts/check-readiness.mjs --production",
     "smoke:production": "node scripts/smoke-deployment.mjs"
