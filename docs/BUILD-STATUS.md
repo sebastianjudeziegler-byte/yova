@@ -16,8 +16,8 @@ Estimated completion depends on which finish line is meant:
 | Finish line | Current estimate | Meaning |
 |---|---:|---|
 | Functional product core | 88% | The differentiated YOVA learning loop works |
-| Invite-only private alpha | 82% | Deployment is connected; reliable email delivery and focused end-to-end testing remain |
-| Credible public beta | 58% | Also needs monitoring, broader QA, support/privacy pages, and tester-driven polish |
+| Invite-only private alpha | 84% | Deployment and a private support path are connected; reliable email delivery and focused end-to-end testing remain |
+| Credible public beta | 60% | Trust pages exist; monitoring, broader QA, external policy review, and tester-driven polish remain |
 | Paid polished launch | 35% | Also needs billing, entitlements, cost controls by plan, and more operational maturity |
 
 These percentages are directional, not engineering math. A product can have most features built and still need significant reliability work before strangers should pay for it.
@@ -68,6 +68,8 @@ A cross-browser six-digit email-code flow is implemented and tested behind a ser
 - Durable AI usage limits and short-window rate limits
 - Offline retry queues for completions and interruptions
 - Privacy-safe product analytics
+- Private support-request workflow with validation, ownership rules, and spam limits
+- Private-alpha Privacy, Terms, Support, and clear AI/source limitation pages
 - Production build, security headers, error screens, and social metadata
 
 ## What remains
@@ -79,11 +81,11 @@ A cross-browser six-digit email-code flow is implemented and tested behind a ser
 3. Run complete journeys on mobile and desktop with several real accounts.
 4. Test representative biology, math, writing, coding, and general-learning goals.
 5. Test good, poor, scanned, and oversized source files.
-6. Add production error monitoring and a simple support path.
+6. Add production error monitoring and practice the founder support-review workflow.
 
 ### Required before a broad public beta
 
-1. Privacy policy, terms, clear AI/source limitations, and support documentation.
+1. External review of the private-alpha privacy and terms drafts before broad distribution.
 2. Accessibility and mobile interaction audit.
 3. Structured quality evaluation for plan and session outputs.
 4. Cost and latency measurements from real usage.

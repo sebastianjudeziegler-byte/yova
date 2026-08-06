@@ -25,6 +25,10 @@ export function checkProductEventRateLimit(key: string) {
   return checkRateLimit(`event:${key}`, 60);
 }
 
+export function checkSupportRequestRateLimit(key: string) {
+  return checkRateLimit(`support:${key}`, 5);
+}
+
 function checkRateLimit(key: string, maxRequests: number) {
   const now = Date.now();
   const existing = records.get(key);

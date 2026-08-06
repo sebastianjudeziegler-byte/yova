@@ -24,6 +24,10 @@ OpenAI generates structured plans, learning activities, explanations, questions,
 
 Supabase provides authentication, Postgres data, and private file storage. GitHub preserves code history. Vercel builds and runs the Next.js server at YOVA's public URL. Monitoring and billing are still separate future systems.
 
+### Trust and support
+
+Privacy, private-alpha terms, and support are public pages with their own URLs and metadata. A signed-in support submission crosses a validated API boundary, is rate-limited, and becomes a private Supabase row tied to the tester's account. This means support is an operational data workflow, not merely a mail link. Founder review currently happens in Supabase; a dedicated admin console is later work.
+
 ## 2. The core request flow
 
 ```text
@@ -171,8 +175,8 @@ The most important remaining layers are:
 1. public deployment and production environment configuration;
 2. reliable transactional email for authentication;
 3. automated end-to-end tests and subject-quality evaluation;
-4. production error monitoring and support workflows;
-5. privacy/terms pages;
+4. production error monitoring and a repeatable founder support workflow;
+5. external review of the privacy/terms drafts;
 6. Stripe and server-enforced entitlements when payment validation begins.
 
 See `BUILD-STATUS.md` for the current percentages and timeline.

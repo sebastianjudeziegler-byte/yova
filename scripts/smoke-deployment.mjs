@@ -78,6 +78,17 @@ try {
   if (!homeResponse.headers.get("x-powered-by")) pass("Framework identity header is hidden");
   else fail("x-powered-by should not be exposed");
 
+  for (const [path, identity] of [
+    ["/privacy", "Privacy Notice"],
+    ["/terms", "Private Alpha Terms"],
+    ["/support", "YOVA Support"],
+  ]) {
+    const trustResponse = await request(`${origin}${path}`);
+    const trustHtml = await trustResponse.text();
+    if (trustResponse.ok && trustHtml.includes(identity)) pass(`${path} trust page is available`);
+    else fail(`${path} trust page was not available or had unexpected content`);
+  }
+
   const statusResponse = await request(`${origin}/api/system/status`, {
     headers: { Accept: "application/json" },
   });
