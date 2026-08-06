@@ -63,6 +63,7 @@ A cross-browser six-digit email-code flow is implemented and tested behind a ser
 - Evidence-based plan adjustments remain visible after reload on Home and inside the learning goal
 - Concept-level evidence distinguishes early signals, review needs, and repeated strength
 - Actual duration and repeated interruptions cautiously influence future work
+- A learner can interrupt the same session more than once and resume from the latest saved content step instead of losing the newer resume point
 - Completed sessions are grouped by method so YOVA can show early, promising, or support-needed signals without claiming a fixed learning style
 - Diagnosed-condition answers are excluded from model personalization context
 - A task-first learning-science router now bounds OpenAI to nine named methods instead of relying on a free-form “personalized plan” prompt
@@ -113,6 +114,7 @@ The software loop is close to private-alpha readiness, but the broader learning-
 - Atomic completed-goal review activation, so the cloud cannot reopen a learning goal without also preserving the evidence-based retrieval session that caused it
 - Playwright now verifies both fundamental paths: teaching a genuinely new topic before testing it, and repairing a confident misconception before delayed verification
 - Playwright also verifies that all five primary destinations and both creation paths remain reachable on desktop and mobile
+- Playwright verifies repeated stop-and-return behavior on desktop and mobile, including two interruptions inside the same unfinished session
 - Preview mode now has a safe service boundary for Ask YOVA, so the product shell does not crash merely because Supabase is unavailable
 - Both paths run at desktop and Pixel-sized mobile viewports; the adaptive path also reloads the app to prove that the adjusted learning state persists
 - GitHub Actions now runs unit tests, lint, the production build, and the complete browser journey on every push to `main` and every pull request

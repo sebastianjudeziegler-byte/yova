@@ -30,17 +30,27 @@ test("a confident misconception is repaired now and verified later", async ({ pa
   await page.getByRole("button", { name: /Build and start session/ }).click();
 
   await expect(page.getByRole("heading", { name: "Closed-note retrieval" })).toBeVisible();
-  await expect(page.getByLabel("Support progression")).toContainText("Start without support");
-  const retrievalRoadmap = page.getByLabel("Session method sequence");
+  await expect(page.getByLabel("Support progression").first()).toContainText("Start without support");
+  const retrievalRoadmap = page.getByLabel("Session method sequence").first();
   await expect(retrievalRoadmap).toContainText("Attempt from memory");
   await expect(retrievalRoadmap).toContainText("Compare and repair");
   await expect(page.getByLabel("Method phase 1 of 3")).toContainText("Orient to the target");
-  await expect(page.getByText(/Retrieval verifies that confident recognition/)).toBeVisible();
+  await expect(page.getByText(/Try to produce each answer before looking/)).toBeVisible();
   await page.getByRole("button", { name: "Continue" }).click();
 
   await page.getByRole("button", { name: "Very sure" }).click();
   await page.getByRole("button", { name: "Krebs cycle" }).click();
   await expect(page.getByText(/possible misconception/i)).toBeVisible();
+  await page.getByRole("button", { name: "Repair this idea" }).click();
+
+  await expect(page.getByText("Repair now, verify later")).toBeVisible();
+  await expect(page.getByText(/not saved as proof of mastery/i)).not.toBeVisible();
+  await page.getByLabel("Corrected idea in your own words").fill(
+    "Glycolysis happens first, followed by the Krebs cycle and electron transport chain.",
+  );
+  await page.getByRole("button", { name: "Check my answer" }).click();
+  await page.getByRole("button", { name: "I got the key idea" }).click();
+  await expect(page.getByText(/not saved as proof of mastery/i)).toBeVisible();
   await page.getByRole("button", { name: "Continue" }).click();
 
   await page.getByRole("button", { name: "Somewhat sure" }).click();
@@ -54,23 +64,15 @@ test("a confident misconception is repaired now and verified later", async ({ pa
   await page.getByRole("button", { name: "Check my answer" }).click();
   await page.getByRole("button", { name: "I got the key idea" }).click();
   await page.getByRole("button", { name: "Continue" }).click();
-  await page.getByRole("button", { name: "Complete session" }).click();
-
-  await expect(page.getByText("Repair now, verify later")).toBeVisible();
-  await expect(page.getByText(/not saved as proof of mastery/i)).not.toBeVisible();
-  await page.getByLabel("Corrected idea in your own words").fill(
-    "Glycolysis happens first, followed by the Krebs cycle and electron transport chain.",
-  );
-  await page.getByRole("button", { name: "Check my answer" }).click();
-  await page.getByRole("button", { name: "I got the key idea" }).click();
-  await expect(page.getByText(/not saved as proof of mastery/i)).toBeVisible();
-  await page.getByRole("button", { name: "Complete session" }).click();
+  await page.getByRole("button", { name: "Finish this content" }).click();
 
   await expect(page.getByText("2 of 3")).toBeVisible();
+  await expect(page.getByText("Evidence checks")).toBeVisible();
+  await expect(page.getByText("Recorded, not graded")).toBeVisible();
   await expect(page.getByText("1 immediate repair completed")).toBeVisible();
-  await expect(page.getByText("Delayed verification", { exact: true })).toBeVisible();
-  await expect(page.getByText("YOVA will verify this after a delay")).toBeVisible();
-  await page.getByRole("button", { name: "Save result and return Home" }).click();
+  await expect(page.getByText("Cellular respiration sequence", { exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "A delayed verification check" })).toBeVisible();
+  await page.getByRole("button", { name: "Save and see what’s next" }).click();
 
   await expect(page.getByRole("heading", { name: /Repair and verify Cellular respiration sequence/i })).toBeVisible();
   await expect(page.getByText("Misconception repair and delayed transfer", { exact: true })).toBeVisible();
@@ -111,8 +113,8 @@ test("a new topic is taught before YOVA asks for independent performance", async
   await page.getByRole("button", { name: /Build and start session/ }).click();
 
   await expect(page.getByRole("heading", { name: "Use money concepts as decision tools" })).toBeVisible();
-  await expect(page.getByLabel("Support progression")).toContainText("Support fades inside this session");
-  const teachingRoadmap = page.getByLabel("Session method sequence");
+  await expect(page.getByLabel("Support progression").first()).toContainText("Support fades inside this session");
+  const teachingRoadmap = page.getByLabel("Session method sequence").first();
   await expect(teachingRoadmap).toContainText("See a complete model");
   await expect(teachingRoadmap).toContainText("Practice with less help");
   await expect(teachingRoadmap).toContainText("Perform independently");
@@ -128,7 +130,43 @@ test("a new topic is taught before YOVA asks for independent performance", async
   await page.getByRole("button", { name: "Continue" }).click();
 
   await expect(page.getByRole("heading", { name: "What makes the second year compound growth?" })).toBeVisible();
+  await expect(page.getByRole("group", { name: /Before answering/ })).not.toBeVisible();
+  await page.getByRole("button", { name: "The earlier gain remains in the base" }).click();
+  await expect(page.getByText("Correct.", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Continue" }).click();
+
+  await expect(page.getByRole("heading", { name: "Explain compound growth in your own words" })).toBeVisible();
+  await expect(page.getByLabel("Method phase 3 of 4")).toContainText("Perform independently");
   await expect(page.getByRole("group", { name: /Before answering/ })).toBeVisible();
+});
+
+test("a learner can stop twice and still resume at the latest unfinished activity", async ({ page }) => {
+  await createPreviewAccount(page);
+  await completeOnboarding(page);
+
+  await page.getByRole("button", { name: "Study something now", exact: true }).first().click();
+  await page.getByPlaceholder("Example: Help me understand the product rule and practice using it.").fill(
+    "Help me understand compound growth and personal finance basics.",
+  );
+  await page.getByRole("button", { name: "I haven't learned this yet" }).click();
+  await page.getByRole("button", { name: /Choose how YOVA should help/ }).click();
+  await page.getByRole("button", { name: /Create it for me/ }).click();
+  await page.getByRole("button", { name: /Build and start session/ }).click();
+
+  await expect(page.getByRole("heading", { name: "Use money concepts as decision tools" })).toBeVisible();
+  await page.getByRole("button", { name: "Continue" }).click();
+  await leaveSession(page, "1 of 5 required steps finished");
+
+  await expect(page.getByText("Continue where you left off")).toBeVisible();
+  await expect(page.getByText("1 section saved", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Continue session" }).click();
+  await expect(page.getByRole("heading", { name: "Trace one financial choice" })).toBeVisible();
+  await page.getByRole("button", { name: "Continue" }).click();
+  await leaveSession(page, "2 of 5 required steps finished");
+
+  await expect(page.getByText("2 sections saved", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Continue session" }).click();
+  await expect(page.getByRole("heading", { name: "What makes the second year compound growth?" })).toBeVisible();
 });
 
 test("the product shell keeps every core destination and creation path usable", async ({ page }) => {
@@ -214,4 +252,10 @@ async function completeOnboarding(page: Page) {
   await expect(page.getByRole("heading", { name: "YOVA will begin like this." })).toBeVisible();
   await page.getByRole("button", { name: "Continue" }).click();
   await page.getByRole("button", { name: "Continue to private alpha" }).click();
+}
+
+async function leaveSession(page: Page, progressText: string) {
+  await page.getByRole("button", { name: "Exit" }).dispatchEvent("click");
+  await expect(page.getByRole("dialog", { name: "Your plan will stay open." })).toContainText(progressText);
+  await page.getByRole("button", { name: "Save progress and leave" }).click();
 }
