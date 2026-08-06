@@ -60,7 +60,10 @@ export type SessionCompletion = {
   id: string;
   planId: string;
   planSessionId: string;
+  startedAt: string;
   completedAt: string;
+  plannedMinutes: number;
+  actualMinutes: number;
   correctAnswers: number;
   totalAnswers: number;
   feedback: "too_easy" | "about_right" | "too_difficult";

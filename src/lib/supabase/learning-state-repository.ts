@@ -70,7 +70,9 @@ type PlanSessionRow = {
 type SessionAttemptRow = {
   id: string;
   plan_session_id: string;
+  started_at: string;
   completed_at: string | null;
+  actual_minutes: number | null;
   correct_answers: number | null;
   total_answers: number | null;
   user_feedback: SessionCompletion["feedback"] | null;
@@ -107,7 +109,7 @@ export async function loadAuthenticatedLearningState(): Promise<CloudLearningSta
     supabase.from("learning_items").select("id,title,kind,topic,deadline,source_mode,study_mode,created_at").order("created_at", { ascending: true }),
     supabase.from("plans").select("id,learning_item_id,status,rationale,created_at").order("created_at", { ascending: true }),
     supabase.from("plan_sessions").select("id,plan_id,sequence,title,objective,method,method_rationale,scheduled_for,estimated_minutes,status,step_data").order("sequence", { ascending: true }),
-    supabase.from("session_attempts").select("id,plan_session_id,completed_at,correct_answers,total_answers,user_feedback,result_data").not("completed_at", "is", null).order("completed_at", { ascending: true }),
+    supabase.from("session_attempts").select("id,plan_session_id,started_at,completed_at,actual_minutes,correct_answers,total_answers,user_feedback,result_data").not("completed_at", "is", null).order("completed_at", { ascending: true }),
     supabase.from("materials").select("id,learning_item_id,filename,mime_type,byte_size,processing_status").eq("processing_status", "ready").order("created_at", { ascending: true }),
   ]);
 
@@ -131,6 +133,7 @@ export async function loadAuthenticatedLearningState(): Promise<CloudLearningSta
   const itemsById = new Map(itemRows.map((item) => [item.id, item]));
   const sessionsByPlanId = new Map<string, LearningPlanSession[]>();
   const planIdBySessionId = new Map<string, string>();
+  const plannedMinutesBySessionId = new Map<string, number>();
   const materialsByItemId = new Map<string, LearningPlan["materials"]>();
 
   for (const row of materialRows) {
@@ -166,6 +169,7 @@ export async function loadAuthenticatedLearningState(): Promise<CloudLearningSta
     current.push(session);
     sessionsByPlanId.set(row.plan_id, current);
     planIdBySessionId.set(row.id, row.plan_id);
+    plannedMinutesBySessionId.set(row.id, row.estimated_minutes);
   }
 
   const plans = planRows.flatMap<LearningPlan>((planRow) => {
@@ -199,7 +203,10 @@ export async function loadAuthenticatedLearningState(): Promise<CloudLearningSta
       id: attempt.id,
       planId,
       planSessionId: attempt.plan_session_id,
+      startedAt: attempt.started_at,
       completedAt: attempt.completed_at,
+      plannedMinutes: plannedMinutesBySessionId.get(attempt.plan_session_id) ?? attempt.actual_minutes ?? 1,
+      actualMinutes: attempt.actual_minutes ?? 1,
       correctAnswers: attempt.correct_answers ?? 0,
       totalAnswers: attempt.total_answers ?? 0,
       feedback: isSessionFeedback(attempt.user_feedback) ? attempt.user_feedback : "about_right",
@@ -244,15 +251,17 @@ export async function saveAuthenticatedLearnerProfile(input: {
   if (error) throw new Error("YOVA could not save your learning profile to the cloud.");
 }
 
-export async function completeAuthenticatedPlanSession(completion: SessionCompletion, actualMinutes?: number, adaptation?: NextSessionAdaptation | null) {
+export async function completeAuthenticatedPlanSession(completion: SessionCompletion, adaptation?: NextSessionAdaptation | null) {
   if (!isSupabaseConfigured()) return;
   const supabase = createSupabaseBrowserClient();
   const { error } = await supabase.rpc("complete_plan_session", {
     payload: {
       attemptId: completion.id,
       planSessionId: completion.planSessionId,
+      startedAt: completion.startedAt,
       completedAt: completion.completedAt,
-      actualMinutes: actualMinutes ?? null,
+      plannedMinutes: completion.plannedMinutes,
+      actualMinutes: completion.actualMinutes,
       correctAnswers: completion.correctAnswers,
       totalAnswers: completion.totalAnswers,
       feedback: completion.feedback,

@@ -11,7 +11,10 @@ const SessionCompletionSchema = z.object({
   id: z.string().uuid(),
   planId: z.string().uuid(),
   planSessionId: z.string().uuid(),
+  startedAt: z.string().datetime({ offset: true }),
   completedAt: z.string().datetime({ offset: true }),
+  plannedMinutes: z.number().int().min(5).max(180),
+  actualMinutes: z.number().int().min(1).max(360),
   correctAnswers: z.number().int().min(0),
   totalAnswers: z.number().int().min(0),
   feedback: z.enum(["too_easy", "about_right", "too_difficult"]),
@@ -33,7 +36,6 @@ const NextSessionAdaptationSchema = z.object({
 const PendingSessionCompletionSchema = z.object({
   userId: z.string().uuid(),
   completion: SessionCompletionSchema,
-  actualMinutes: z.number().int().min(1).max(360),
   adaptation: NextSessionAdaptationSchema.nullable(),
   queuedAt: z.string().datetime({ offset: true }),
 });
@@ -41,7 +43,6 @@ const PendingSessionCompletionSchema = z.object({
 export type PendingSessionCompletion = {
   userId: string;
   completion: SessionCompletion;
-  actualMinutes: number;
   adaptation: NextSessionAdaptation | null;
   queuedAt: string;
 };
@@ -72,7 +73,7 @@ export async function flushQueuedSessionCompletions(userId: string) {
 
   for (const entry of queued) {
     try {
-      await completeAuthenticatedPlanSession(entry.completion, entry.actualMinutes, entry.adaptation);
+      await completeAuthenticatedPlanSession(entry.completion, entry.adaptation);
       removeQueuedSessionCompletion(entry.completion.id);
       synced += 1;
     } catch {

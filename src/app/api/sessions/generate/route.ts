@@ -97,7 +97,7 @@ export async function POST(request: Request) {
       planSessionRows?.length
         ? supabase
           .from("session_attempts")
-          .select("correct_answers,total_answers,result_data,completed_at")
+          .select("correct_answers,total_answers,actual_minutes,result_data,completed_at")
           .in("plan_session_id", planSessionRows.map((session) => session.id))
           .not("completed_at", "is", null)
           .order("completed_at", { ascending: false })
@@ -154,6 +154,8 @@ export async function POST(request: Request) {
         correctAnswers: attempt.correct_answers,
         totalAnswers: attempt.total_answers,
         observedGap: readTextProperty(attempt.result_data, "observedGap") || null,
+        plannedMinutes: readNumberProperty(attempt.result_data, "plannedMinutes"),
+        actualMinutes: attempt.actual_minutes,
       })),
       conceptSignals: summarizeConceptEvidence(recentAttempts.map((attempt) => ({
         completedAt: attempt.completed_at ?? new Date(0).toISOString(),
@@ -204,4 +206,10 @@ function readTextProperty(value: unknown, key: string) {
   if (!value || typeof value !== "object" || Array.isArray(value)) return "";
   const property = (value as Record<string, unknown>)[key];
   return typeof property === "string" ? property : "";
+}
+
+function readNumberProperty(value: unknown, key: string) {
+  if (!value || typeof value !== "object") return null;
+  const candidate = (value as Record<string, unknown>)[key];
+  return typeof candidate === "number" && Number.isFinite(candidate) ? candidate : null;
 }
