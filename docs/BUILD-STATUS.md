@@ -72,6 +72,7 @@ A cross-browser six-digit email-code flow is implemented and tested behind a ser
 - Private support-request workflow with validation, ownership rules, and spam limits
 - Material-quality checks that reject unreadable sources and warn when coverage is short or truncated
 - Five-case plan-quality evaluation covering biology, math, writing, coding, and general learning
+- First live OpenAI quality checkpoint passed: the calculus plan scored 100/100 against the required rubric
 - Private-alpha Privacy, Terms, Support, and clear AI/source limitation pages
 - Production build, security headers, error screens, and social metadata
 
@@ -82,7 +83,7 @@ A cross-browser six-digit email-code flow is implemented and tested behind a ser
 1. Complete a same-browser production authentication return test and then run the full plan-and-session journey.
 2. Configure reliable authentication email delivery through a custom SMTP provider.
 3. Run complete journeys on mobile and desktop with several real accounts.
-4. Run the live five-case plan suite, inspect failures, and manually study the resulting plans.
+4. Run and manually review the remaining four live plan cases; the calculus case already passes the automated rubric.
 5. Manually verify the automated source-quality safeguards with good, poor, scanned, and oversized real files.
 6. Practice the founder error and support-review workflow with real alpha failures.
 

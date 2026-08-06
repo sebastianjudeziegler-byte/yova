@@ -1,10 +1,7 @@
-import nextEnv from "@next/env";
 import { describe, expect, test, vi } from "vitest";
 import { buildPlanEvaluationCases } from "@/evals/plan-cases";
 import { evaluatePlanDraft } from "@/evals/plan-rubric";
 
-const { loadEnvConfig } = nextEnv;
-loadEnvConfig(process.cwd(), true);
 vi.mock("server-only", () => ({}));
 
 const liveEvaluationEnabled = process.env.YOVA_RUN_LIVE_EVALS === "1";

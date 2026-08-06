@@ -34,6 +34,8 @@ Required failures fail the case even when the numerical score is high. The overa
 
 `pnpm eval:plans` sends all five cases to the configured OpenAI model and scores the real generated plans. This command consumes API credits and is intentionally never part of an ordinary build, deployment, or test run.
 
+The evaluator loads the same server-only `.env.local` configuration as the local app before starting the test process. It checks that an OpenAI key exists without printing the key or making it available to the browser.
+
 To evaluate one case while tuning a prompt:
 
 ```bash
@@ -41,6 +43,12 @@ YOVA_EVAL_CASE=calculus_problem_solving pnpm eval:plans
 ```
 
 Available case IDs are defined in `src/evals/plan-cases.ts`.
+
+## First live checkpoint
+
+On August 5, 2026, the calculus problem-solving case passed the configured live model at 100/100. It produced three distinct sessions, scheduled each one inside the learner's supplied availability, remained before the deadline, used problem-solving methods throughout, and gave learner-facing reasons without fixed “brain type” claims.
+
+This is one passing scenario, not a claim that every generated plan is high quality. The other four cases still need live execution and human review before the suite is considered complete.
 
 ## How to use results
 
