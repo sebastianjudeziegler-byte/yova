@@ -1,6 +1,6 @@
 # YOVA Learning Science Engine
 
-Updated: August 5, 2026
+Updated: August 6, 2026
 
 ## Product thesis
 
@@ -93,6 +93,10 @@ The current engine:
 - requires an immediate explain-back when a knowledge check is missed, while preserving the original miss as evidence;
 - excludes that immediate repair from mastery scoring because seeing the correction and repeating it is not durable recall;
 - schedules a delayed verification session when the final session in a goal exposes a gap, so a one-session goal cannot be marked complete prematurely;
+- gives every observed concept a transparent return policy based on its latest completed evidence;
+- schedules a quick retrieval-and-repair return after a miss, verification after an early success, and a lighter transfer check after repeated secure evidence;
+- feeds due concept reviews into generated sessions and rejects a session that skips a due repair concept;
+- describes the intervals as product heuristics rather than a perfect memory or mastery prediction;
 - keeps method choice separate from productivity adjustments.
 
 This is a hybrid system. Deterministic TypeScript protects the scientific boundaries. OpenAI handles nuance, subject-specific teaching, wording, examples, and activity composition.
@@ -134,11 +138,10 @@ That closed loop can eventually become a meaningful learning decision system rat
 ## Next scientific product layers
 
 1. Add method-specific session mechanics instead of rendering every method as the same quiz flow.
-2. Schedule concept-level retrieval attempts, not only whole sessions.
-3. Extend the current immediate-repair and delayed-verification loop into a concept-level review scheduler with repeat policies.
-4. Track scaffold level so worked examples genuinely fade across attempts.
-5. Compare method outcomes only within similar task families and knowledge stages.
-6. Review outputs with learning-science and subject-matter experts before broad claims.
+2. Turn more due concept reviews into small agenda-level retrieval events when they do not justify a full session.
+3. Track scaffold level so worked examples genuinely fade across attempts.
+4. Compare method outcomes only within similar task families and knowledge stages.
+5. Review outputs with learning-science and subject-matter experts before broad claims.
 
 ## Evidence anchors
 

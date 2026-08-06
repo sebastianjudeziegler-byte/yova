@@ -51,6 +51,7 @@ import {
   type SessionSourceGrounding,
 } from "@/lib/domain";
 import { summarizeConceptEvidence, type ConceptSignal } from "@/lib/learning/concept-evidence";
+import { buildConceptReviewSchedule } from "@/lib/learning/concept-review-scheduler";
 import { confidenceResultMessage, summarizeConfidenceCalibration } from "@/lib/learning/confidence-calibration";
 import { buildDelayedVerificationSession } from "@/lib/learning/delayed-verification";
 import {
@@ -1339,7 +1340,11 @@ function ResourceActivityCard({ activity }: { activity: SessionResourceActivity 
 function ConceptSignalsPanel({ signals }: { signals: ConceptSignal[] }) {
   if (!signals.length) return null;
   const visibleSignals = signals.slice(0, 8);
-  return <section className="section-block concept-signals"><div className="section-title"><div><h3>Current learning signals</h3><p>Based only on answers and self-checks completed in YOVA.</p></div><span>{signals.length} observed</span></div><div className="concept-signal-list">{visibleSignals.map((signal) => <div className={signal.status} key={signal.concept.toLocaleLowerCase()}><span>{signal.status === "needs_review" ? <AlertCircle size={16} /> : <Check size={16} />}</span><div><strong>{signal.concept}</strong><small>{formatConceptSignal(signal)}</small></div><em>{signal.status === "needs_review" ? "Review" : signal.status === "showing_strength" ? "Repeatedly secure" : "Early signal"}</em></div>)}</div>{signals.length > visibleSignals.length && <small className="concept-signal-overflow">{signals.length - visibleSignals.length} more signals will be considered when YOVA builds future sessions.</small>}</section>;
+  const reviewByConcept = new Map(buildConceptReviewSchedule(signals).map((review) => [
+    review.concept.toLocaleLowerCase(),
+    review,
+  ]));
+  return <section className="section-block concept-signals"><div className="section-title"><div><h3>Concept review schedule</h3><p>YOVA uses completed checks to decide what should return sooner, later, or only briefly.</p></div><span>{signals.length} observed</span></div><div className="concept-signal-list">{visibleSignals.map((signal) => { const review = reviewByConcept.get(signal.concept.toLocaleLowerCase()); return <div className={signal.status} key={signal.concept.toLocaleLowerCase()}><span>{signal.status === "needs_review" ? <AlertCircle size={16} /> : <Check size={16} />}</span><div><strong>{signal.concept}</strong><small>{formatConceptSignal(signal)}</small></div><em className={review?.timing === "due" ? "review-due" : ""}>{review?.timingLabel ?? "Collecting evidence"}</em></div>; })}</div>{signals.length > visibleSignals.length && <small className="concept-signal-overflow">{signals.length - visibleSignals.length} more signals will be considered when YOVA builds future sessions.</small>}<small className="concept-review-note">These are transparent review intervals, not predictions that a concept is permanently mastered. Another completed check can move the next return.</small></section>;
 }
 
 function formatConceptSignal(signal: ConceptSignal) {

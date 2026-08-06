@@ -299,7 +299,9 @@ h1, h2, h3, p { margin-top: 0; }
 .concept-signal-list > div.needs_review > span { color: #8b3e10; background: #fff0e7; }
 .concept-signal-list > div.needs_review em { color: #8b3e10; background: #fff0e7; }
 .concept-signal-list > div.showing_strength em { color: #175c42; background: #ecfbf4; }
+.concept-signal-list em.review-due { color: #8b3e10; background: #fff0e7; }
 .concept-signal-overflow { display: block; margin-top: 12px; color: var(--muted); }
+.concept-review-note { display: block; margin-top: 12px; color: var(--muted); font-size: 11px; line-height: 1.5; }
 .plan-sources { padding: 20px 24px; }
 .source-heading-actions { display: flex; align-items: center; gap: 10px; }
 .source-heading-actions > span { color: var(--muted); font-size: 12px; }

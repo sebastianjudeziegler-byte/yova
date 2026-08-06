@@ -75,6 +75,12 @@ test("a confident misconception is repaired now and verified later", async ({ pa
   await expect(page.getByRole("heading", { name: /Repair and verify Cellular respiration sequence/i })).toBeVisible();
   await expect(page.getByText("1 of 2 sessions complete")).toBeVisible();
   await expect(page.getByText("Adjusted using your last session")).toBeVisible();
+
+  await page.getByRole("button", { name: "Learning", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Concept review schedule" })).toBeVisible();
+  await expect(page.getByText("Cellular respiration sequence", { exact: true })).toBeVisible();
+  await expect(page.getByText(/Return tomorrow|Due for retrieval/)).toBeVisible();
+  await expect(page.getByText(/not predictions that a concept is permanently mastered/i)).toBeVisible();
 });
 
 test("a new topic is taught before YOVA asks for independent performance", async ({ page }) => {
