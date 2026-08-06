@@ -36,5 +36,8 @@ describe.skipIf(!liveEvaluationEnabled)("live OpenAI session quality", () => {
 
     expect(result.requiredFailures).toEqual([]);
     expect(result.score).toBeGreaterThanOrEqual(80);
+    if (evaluationCase.expectedGroundingMode) {
+      expect(generated.draft.sourceGrounding?.mode).toBe(evaluationCase.expectedGroundingMode);
+    }
   }, 90_000);
 });

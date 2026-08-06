@@ -136,7 +136,7 @@ Requirements:
 - Every question's feedback must be a useful explanatory sentence of at least 20 characters. Every free-response reference answer must contain enough substance to compare meaning, not a one-word answer.
 - Put choices in varied order. Do not always place the correct answer first.
 - If the user is studying inside YOVA, include the minimum explanation or example needed before retrieval or application.
-- If the user is studying outside YOVA, guide the outside work precisely and use the knowledge check to verify the method or core concept.
+- If outsideAppContract is present, follow it exactly. Include at least one instruction whose body tells the learner which source or workspace to open, one concrete action to complete there, and when to return to YOVA. Keep all three directions together in that activity. Do not pretend YOVA can see outside work or fabricate claims from an unseen source.
 - When sourceMode is user_materials, ground factual teaching and questions in the supplied material excerpts. Do not claim coverage beyond those excerpts.
 - When sourceMode is user_materials, treat the learner's material as the scope anchor. Set sourceGrounding and copy every anchor excerpt exactly from the named source so YOVA can verify it before showing the session.
 - Follow sourceGroundingPolicy. Use materials_only when the source contains enough explanation for this session. Use materials_plus_ai only when supplementationAllowed is true and the material names or outlines an in-scope idea without enough explanation or example to teach it.
@@ -196,6 +196,14 @@ export async function generateSessionWithOpenAI(
   const observedMethodOutcomes = buildMethodOutcomeSignals(context.recentResults);
   const conceptReviewSchedule = buildConceptReviewSchedule(context.conceptSignals);
   const scaffoldProgression = context.scaffoldSignals ?? [];
+  const outsideAppContract = context.learningGoal.studyMode === "outside_yova"
+    ? {
+      required: true,
+      instructionTemplate: "Open your [source or workspace] and complete [one concrete action] there. Return to YOVA for [one specific check].",
+      sourceExamples: ["textbook", "class notes", "notebook", "document", "course materials"],
+      constraint: "All three directions must appear together in the body of an instruction activity.",
+    }
+    : null;
 
   const requestDraft = async (repairReason: string | null) => {
     usage.attempts += 1;
@@ -213,6 +221,7 @@ export async function generateSessionWithOpenAI(
         conceptReviewSchedule,
         scaffoldProgression,
         sourceGroundingPolicy,
+        outsideAppContract,
       })}`,
       reasoning: { effort: "low" },
       text: {
@@ -220,7 +229,7 @@ export async function generateSessionWithOpenAI(
         verbosity: "low",
       },
       max_output_tokens: 4_000,
-      prompt_cache_key: "yova-guided-session-v9",
+      prompt_cache_key: "yova-guided-session-v10",
       store: false,
     });
 
@@ -263,7 +272,7 @@ export async function generateSessionWithOpenAI(
       : null;
   }
   if (response.status !== "completed" || !parsed.success || semanticIssue) {
-    throw new Error("OpenAI did not return a complete, safe guided session after one repair attempt.");
+    throw new Error(`OpenAI did not return a complete, safe guided session after one repair attempt.${semanticIssue ? ` ${semanticIssue}` : ""}`);
   }
 
   return {
@@ -303,10 +312,12 @@ function validateGeneratedSession(
 ) {
   return validateSessionTimeBudget(draft, context.session.estimatedMinutes)
     ?? validateSubstantiveTeaching(draft)
+    ?? validateOutsideAppGuidance(draft, context.learningGoal.studyMode)
     ?? validateSessionSourceGrounding({
     sourceMode: context.learningGoal.sourceMode,
     materials: context.materials,
     grounding: draft.sourceGrounding,
+    learningMode: context.session.learningMode,
   }) ?? validateMethodFidelity({
     methodId: draft.methodBriefing.methodId,
     learningMode: draft.methodBriefing.learningMode,
@@ -322,6 +333,20 @@ function validateGeneratedSession(
     signals: scaffoldProgression,
     activities: draft.activities,
   });
+}
+
+function validateOutsideAppGuidance(draft: GeneratedSessionDraft, studyMode: string) {
+  if (studyMode !== "outside_yova") return null;
+  const concreteDirection = draft.activities.some((activity) => {
+    if (activity.type !== "instruction") return false;
+    const namesSource = /open (the|your)|your (textbook|class notes|notes|source|materials?)|in your (document|notebook)|on paper/i.test(activity.body);
+    const namesAction = /draft|write|read|review|solve|complete|outline|highlight|compare|label|trace|practice|select|record/i.test(activity.body);
+    const namesReturn = /return (to yova|here)|come back (to yova|here)/i.test(activity.body);
+    return namesSource && namesAction && namesReturn;
+  });
+  return concreteDirection
+    ? null
+    : "An outside-YOVA session must include an instruction that explicitly tells the learner what source or workspace to open, what work to do there, and when to return to YOVA.";
 }
 
 function validateSubstantiveTeaching(draft: GeneratedSessionDraft) {

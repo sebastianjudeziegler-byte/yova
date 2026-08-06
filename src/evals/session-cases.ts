@@ -8,6 +8,7 @@ export type SessionEvaluationCase = {
   taskFamily: SessionTaskFamily;
   context: SessionGenerationContext;
   expectedSourceTerms: string[];
+  expectedGroundingMode?: "materials_only" | "materials_plus_ai";
 };
 
 export function buildSessionEvaluationCases(): SessionEvaluationCase[] {
@@ -229,6 +230,87 @@ export function buildSessionEvaluationCases(): SessionEvaluationCase[] {
           focusFrequency: "Three manageable sessions per week",
           startingPattern: "Starts when the outcome is concrete",
           primaryImprovementGoal: "Make more informed financial decisions",
+        },
+        recentResults: [],
+        recentInterruptions: [],
+        conceptSignals: [],
+      },
+    }),
+    evaluationCase({
+      id: "short_vocabulary_review",
+      label: "Fifteen-minute vocabulary review",
+      taskFamily: "conceptual",
+      expectedSourceTerms: [],
+      context: {
+        learningGoal: {
+          title: "Psychology vocabulary quiz",
+          topic: "Classical conditioning terms and examples",
+          kind: "test",
+          deadline: "2026-08-07T18:00:00.000Z",
+          sourceMode: "yova_generated",
+          studyMode: "inside_yova",
+          learningIntent: "study",
+        },
+        planRationale: "Use a narrow retrieval set and one transfer example instead of squeezing the whole unit into fifteen minutes.",
+        materials: [],
+        session: {
+          title: "Retrieve the conditioning model",
+          objective: "Distinguish unconditioned, conditioned, and neutral stimuli, then classify one new example.",
+          method: "Closed-note retrieval and targeted repair",
+          methodReason: "The learner has seen the material and needs a short evidence-producing review before tomorrow's quiz.",
+          estimatedMinutes: 15,
+          learningMode: "study",
+        },
+        learnerProfile: {
+          commonBlocker: "Long review lists create overwhelm",
+          guidancePreference: "One visible step at a time",
+          explanationPreference: "Short correction after an attempt",
+          focusFrequency: "Often has fifteen-minute windows",
+          startingPattern: "Begins when the scope is small",
+          primaryImprovementGoal: "Recall terms accurately under quiz conditions",
+        },
+        recentResults: [],
+        recentInterruptions: [],
+        conceptSignals: [],
+      },
+    }),
+    evaluationCase({
+      id: "thin_biology_outline_support",
+      label: "Teaching from a thin biology study guide",
+      taskFamily: "conceptual",
+      expectedSourceTerms: ["mitosis", "checkpoints"],
+      expectedGroundingMode: "materials_plus_ai",
+      context: {
+        learningGoal: {
+          title: "Cell cycle study guide",
+          topic: "Mitosis, cell-cycle checkpoints, and cancer",
+          kind: "test",
+          deadline: "2026-08-10T18:00:00.000Z",
+          sourceMode: "user_materials",
+          studyMode: "inside_yova",
+          learningIntent: "learn",
+        },
+        planRationale: "Use the uploaded guide as the exact scope while supplying only the missing explanation needed to make its listed ideas understandable.",
+        materials: [{
+          name: "rough-study-guide.txt",
+          text: "Cell cycle study guide\n- Know the phases of mitosis\n- Explain why checkpoints matter\n- Connect failed cell-cycle regulation to cancer\n- Compare normal division with uncontrolled division",
+          truncated: false,
+        }],
+        session: {
+          title: "Build the checkpoint model",
+          objective: "Explain how cell-cycle checkpoints control division and why failed regulation can contribute to cancer.",
+          method: "Concise concept model, self-explanation, then application",
+          methodReason: "The uploaded guide names the required ideas but does not explain the causal relationship between them.",
+          estimatedMinutes: 20,
+          learningMode: "learn",
+        },
+        learnerProfile: {
+          commonBlocker: "Study guides feel like disconnected lists",
+          guidancePreference: "Connect the ideas before asking for recall",
+          explanationPreference: "One causal example",
+          focusFrequency: "Prefers twenty-minute sessions",
+          startingPattern: "Starts when the first relationship is clear",
+          primaryImprovementGoal: "Understand the material before memorizing it",
         },
         recentResults: [],
         recentInterruptions: [],

@@ -221,7 +221,7 @@ export const GeneratedSessionDraftSchema = z.object({
 });
 
 export const CachedGeneratedSessionSchema = GeneratedSessionDraftSchema.extend({
-  schemaVersion: z.literal(9),
+  schemaVersion: z.literal(10),
   model: z.string().min(1),
   generatedAt: z.string().datetime({ offset: true }),
   supportPlan: SessionSupportPlanSchema.optional(),

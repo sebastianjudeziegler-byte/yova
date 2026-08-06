@@ -3,6 +3,7 @@ import type { SessionSourceGrounding } from "@/lib/session-generation/schema";
 
 export type MaterialSupportPolicy = {
   supplementationAllowed: boolean;
+  supplementationRequiredForTeaching: boolean;
   reason: string;
 };
 
@@ -19,12 +20,14 @@ export function buildMaterialSupportPolicy(materials: MaterialExcerpt[]): Materi
   if (words.length < 300 || outlineRatio >= 0.45) {
     return {
       supplementationAllowed: true,
+      supplementationRequiredForTeaching: words.length < 120 || outlineRatio >= 0.7,
       reason: "The uploaded material is short or outline-heavy. It should define the session scope, while YOVA may add only the explanation or example needed to teach those listed ideas.",
     };
   }
 
   return {
     supplementationAllowed: false,
+    supplementationRequiredForTeaching: false,
     reason: "The uploaded material contains substantial explanatory text. Keep factual teaching inside the source and do not add outside content unless a later learner request explicitly asks for it.",
   };
 }
@@ -33,10 +36,12 @@ export function validateSessionSourceGrounding({
   sourceMode,
   materials,
   grounding,
+  learningMode,
 }: {
   sourceMode: string;
   materials: MaterialExcerpt[];
   grounding: SessionSourceGrounding | null;
+  learningMode?: "learn" | "study";
 }): string | null {
   if (sourceMode !== "user_materials") {
     return grounding === null ? null : "YOVA-generated sessions must not claim uploaded-source grounding.";
@@ -58,6 +63,9 @@ export function validateSessionSourceGrounding({
   }
 
   const policy = buildMaterialSupportPolicy(materials);
+  if (learningMode === "learn" && policy.supplementationRequiredForTeaching && grounding.mode !== "materials_plus_ai") {
+    return "The uploaded source only outlines the topic, so a learn session must disclose bounded AI teaching support instead of pretending the outline contains a full explanation.";
+  }
   if (grounding.mode === "materials_plus_ai" && !policy.supplementationAllowed) {
     return "The source already contains substantial explanations, so outside supplementation was not justified.";
   }

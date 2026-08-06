@@ -15,11 +15,17 @@ const explanatoryMaterial = [{
 
 describe("material support policy", () => {
   it("allows bounded teaching support for a rough outline", () => {
-    expect(buildMaterialSupportPolicy(outlineMaterial).supplementationAllowed).toBe(true);
+    expect(buildMaterialSupportPolicy(outlineMaterial)).toMatchObject({
+      supplementationAllowed: true,
+      supplementationRequiredForTeaching: true,
+    });
   });
 
   it("keeps a substantial explanatory source material-only", () => {
-    expect(buildMaterialSupportPolicy(explanatoryMaterial).supplementationAllowed).toBe(false);
+    expect(buildMaterialSupportPolicy(explanatoryMaterial)).toMatchObject({
+      supplementationAllowed: false,
+      supplementationRequiredForTeaching: false,
+    });
   });
 });
 
@@ -57,6 +63,25 @@ describe("session source grounding", () => {
         supplements: [],
       },
     })).toMatch(/could not be verified/i);
+  });
+
+  it("requires disclosed teaching support when a new learner uploads only an outline", () => {
+    expect(validateSessionSourceGrounding({
+      sourceMode: "user_materials",
+      materials: outlineMaterial,
+      learningMode: "learn",
+      grounding: {
+        mode: "materials_only",
+        summary: "The session claims the short outline contains enough detail to teach the complete process.",
+        sourceNames: ["unit-guide.txt"],
+        anchors: [{
+          sourceName: "unit-guide.txt",
+          excerpt: "Know the location and purpose of each stage.",
+          usedFor: "The line defines the requested scope but does not teach the process itself.",
+        }],
+        supplements: [],
+      },
+    })).toMatch(/must disclose bounded AI teaching support/i);
   });
 
   it("rejects unnecessary AI supplementation when the source is already substantial", () => {
