@@ -22,6 +22,7 @@ export function materializePlanDraft(
     status: "active",
     sourceMode: request.materialMode === "upload" ? "user_materials" : "yova_generated",
     studyMode: request.studyMode === "outside" ? "outside_yova" : "inside_yova",
+    learningIntent: request.learningIntent,
     rationale: draft.rationale,
     createdAt: new Date().toISOString(),
     materials: request.materials.map((material) => ({
@@ -40,6 +41,7 @@ export function materializePlanDraft(
         scheduledFor: request.intent === "study_now" ? new Date().toISOString() : session.scheduledFor,
         estimatedMinutes,
         amountLabel: request.intent === "study_now" ? `Focused session · about ${estimatedMinutes} min` : session.amountLabel,
+        learningMode: session.learningMode,
         status: index === 0 ? "ready" as const : "upcoming" as const,
       };
     }),

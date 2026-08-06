@@ -24,6 +24,7 @@ export const ProductEventRequestSchema = z.discriminatedUnion("eventName", [
       intent: z.enum(["study_now", "build_plan"]),
       sourceMode: SourceModeSchema,
       studyMode: StudyModeSchema,
+      learningApproach: z.enum(["learn", "study"]),
       sessionCount: z.number().int().min(1).max(60),
     }).strict(),
   }).strict(),
@@ -32,6 +33,7 @@ export const ProductEventRequestSchema = z.discriminatedUnion("eventName", [
     context: z.object({
       sourceMode: SourceModeSchema,
       studyMode: StudyModeSchema,
+      learningApproach: z.enum(["learn", "study"]),
       resumed: z.boolean(),
     }).strict(),
   }).strict(),

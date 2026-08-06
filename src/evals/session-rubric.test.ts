@@ -8,6 +8,7 @@ const biologyCase = buildSessionEvaluationCases()[0];
 const strongSession = GeneratedSessionDraftSchema.parse({
   rationale: "A short source-grounded explanation comes first, followed by two different retrieval attempts that expose gaps before review.",
   methodBriefing: {
+    learningMode: "learn",
     taskType: "conceptual_learning",
     methodId: "retrieval_practice",
     name: "Retrieval practice",
@@ -69,6 +70,7 @@ describe("session quality rubric", () => {
     const weakSession = GeneratedSessionDraftSchema.parse({
       rationale: "Because you are a visual learner, this session uses a generic diagram and then asks two unrelated questions.",
       methodBriefing: {
+        learningMode: "learn",
         taskType: "conceptual_learning",
         methodId: "self_explanation",
         name: "Generic visual review",
@@ -122,5 +124,18 @@ describe("session quality rubric", () => {
     expect(result.passed).toBe(false);
     expect(result.requiredFailures).toContain("Learner materials remain the factual anchor");
     expect(result.requiredFailures).toContain("No fixed brain, diagnosis, or learning-style claim");
+  });
+});
+
+describe("session quality language safeguards", () => {
+  it("does not mistake a diagnostic check for a medical diagnosis claim", () => {
+    const result = evaluateSessionDraft(
+      { ...strongSession, rationale: "A short diagnostic check showed which biology idea should be repaired before independent retrieval." },
+      biologyCase.context,
+      biologyCase.taskFamily,
+      biologyCase.expectedSourceTerms,
+    );
+
+    expect(result.requiredFailures).not.toContain("No fixed brain, diagnosis, or learning-style claim");
   });
 });

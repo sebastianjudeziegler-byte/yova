@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { buildMaterialExcerpts } from "@/lib/materials/context";
 import { readConceptEvidenceProperty, summarizeConceptEvidence } from "@/lib/learning/concept-evidence";
+import { inferLegacySessionLearningMode } from "@/lib/learning/learning-intent";
 import { isOpenAISessionConfigured } from "@/lib/openai/config";
 import { generateSessionWithOpenAI } from "@/lib/openai/session-generator";
 import {
@@ -81,7 +82,7 @@ export async function POST(request: Request) {
     const [{ data: plan, error: planError }, { data: learnerProfile, error: learnerError }, { data: planSessionRows, error: planSessionsError }] = await Promise.all([
       supabase
         .from("plans")
-        .select("learning_item_id,rationale")
+        .select("learning_item_id,rationale,generation_inputs")
         .eq("id", parsed.data.planId)
         .maybeSingle(),
       supabase
@@ -172,6 +173,7 @@ export async function POST(request: Request) {
         deadline: learningItem.deadline,
         sourceMode: learningItem.source_mode,
         studyMode: learningItem.study_mode,
+        learningIntent: readLearningIntent(plan.generation_inputs),
       },
       planRationale: plan.rationale,
       materials: materialExcerpts,
@@ -181,6 +183,7 @@ export async function POST(request: Request) {
         method: planSession.method,
         methodReason: planSession.method_rationale,
         estimatedMinutes: planSession.estimated_minutes,
+        learningMode: readSessionLearningMode(planSession.step_data, planSession.method, planSession.objective),
       },
       learnerProfile: learnerProfile ? {
         commonBlocker: learnerProfile.common_blocker,
@@ -211,7 +214,7 @@ export async function POST(request: Request) {
     });
 
     const cachedSession = CachedGeneratedSessionSchema.parse({
-      schemaVersion: 4,
+      schemaVersion: 5,
       ...generated.draft,
       model: generated.model,
       generatedAt: new Date().toISOString(),
@@ -286,7 +289,7 @@ async function generateBrowserPreviewSession(
       materials: [],
     });
     const session = CachedGeneratedSessionSchema.parse({
-      schemaVersion: 4,
+      schemaVersion: 5,
       ...generated.draft,
       model: generated.model,
       generatedAt: new Date().toISOString(),
@@ -330,4 +333,18 @@ function readNumberProperty(value: unknown, key: string) {
   if (!value || typeof value !== "object") return null;
   const candidate = (value as Record<string, unknown>)[key];
   return typeof candidate === "number" && Number.isFinite(candidate) ? candidate : null;
+}
+
+function readLearningIntent(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return "study" as const;
+  const candidate = (value as Record<string, unknown>).learningIntent;
+  return candidate === "learn" || candidate === "study" ? candidate : "study" as const;
+}
+
+function readSessionLearningMode(value: unknown, method: string, objective: string) {
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    const candidate = (value as Record<string, unknown>).learningMode;
+    if (candidate === "learn" || candidate === "study") return candidate;
+  }
+  return inferLegacySessionLearningMode(method, objective);
 }

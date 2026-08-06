@@ -22,7 +22,7 @@ export type SessionQualityResult = {
 
 const TASK_PATTERNS: Record<SessionTaskFamily, RegExp> = {
   conceptual: /explain|connect|compare|concept|model|retriev|recall|apply|process/i,
-  problem_solving: /worked|example|solve|problem|practice|calculate|step|equation/i,
+  problem_solving: /worked|example|solve|problem|practice|calculate|step|equation|derivativ|differentiat|rule|setup/i,
   writing: /thesis|evidence|outline|draft|write|claim|revise|argument/i,
   coding: /code|implement|debug|trace|array|function|program|map|filter|reduce/i,
   general: /explain|example|scenario|apply|practice|review|compare|decision|calculate/i,
@@ -82,8 +82,10 @@ export function evaluateSessionDraft(
       activity.type === "instruction"
       && /your (textbook|notes|source|materials?)|open (the|your)|on paper|draft|write/i.test(activity.body)
     ));
-  const noOverclaim = !/learns? best|learning style|brain type|visual learner|auditory learner|kinesthetic learner|because (you have|of your) adhd|diagnos/i.test(combined);
+  const noOverclaim = !/learns? best|learning style|brain type|visual learner|auditory learner|kinesthetic learner|because (you have|of your) adhd|diagnos(?:is|ed|e)\b/i.test(combined);
   const routing = buildLearningScienceRoutingBrief({
+    learningIntent: context.learningGoal.learningIntent,
+    sessionLearningMode: context.session.learningMode,
     goalTitle: context.learningGoal.title,
     goalTopic: context.learningGoal.topic,
     goalKind: context.learningGoal.kind,
@@ -95,12 +97,16 @@ export function evaluateSessionDraft(
     recentResults: context.recentResults,
     interruptionCount: context.recentInterruptions.length,
   });
-  const methodInstructionComplete = draft.methodBriefing.taskType === routing.taskType
+  const methodInstructionComplete = draft.methodBriefing.learningMode === routing.sessionLearningMode
+    && draft.methodBriefing.taskType === routing.taskType
     && routing.allowedMethodIds.includes(draft.methodBriefing.methodId)
     && draft.methodBriefing.how.length >= 2
     && draft.methodBriefing.what.length >= 15
     && draft.methodBriefing.why.length >= 20
     && draft.methodBriefing.completion.length >= 15;
+  const firstActivityMatchesApproach = draft.methodBriefing.learningMode === "learn"
+    ? draft.activities[0]?.type === "instruction"
+    : draft.activities[0]?.type === "multiple_choice" || draft.activities[0]?.type === "free_response";
 
   const checks: SessionQualityCheck[] = [
     check("activity_pacing", "Activity count fits the session", draft.activities.length >= 3 && draft.activities.length <= maximumActivities, 10, true, `${draft.activities.length}/${maximumActivities} maximum activities for ${context.session.estimatedMinutes} minutes`),
@@ -112,6 +118,7 @@ export function evaluateSessionDraft(
     check("weak_concept_priority", "Known review concepts are addressed", priorityConceptsUsed, 10, true, reviewConcepts.length ? `Review concepts: ${reviewConcepts.join(", ")}` : "No prior review signal"),
     check("outside_guidance", "Outside-app work receives concrete directions", outsideGuidance, 5, true, context.learningGoal.studyMode === "outside_yova" ? "Outside-work instruction inspected" : "Inside-YOVA session"),
     check("method_instruction", "Method briefing explains what, why, how, and done", methodInstructionComplete, 0, true, `${draft.methodBriefing.methodId} for ${draft.methodBriefing.taskType}`),
+    check("learning_approach", "Teaching and practice start differently", firstActivityMatchesApproach, 0, true, `${draft.methodBriefing.learningMode} session starts with ${draft.activities[0]?.type ?? "nothing"}`),
     check("explainability", "The session explains why it is structured this way", draft.rationale.trim().length >= 40, 5, false, `${draft.rationale.trim().length} rationale characters`),
     check("no_personality_overclaim", "No fixed brain, diagnosis, or learning-style claim", noOverclaim, 5, true, "Checked learner-facing session text"),
   ];

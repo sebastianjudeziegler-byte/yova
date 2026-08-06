@@ -9,6 +9,8 @@ import {
 describe("learning-science method router", () => {
   it("classifies the task before considering learner delivery preferences", () => {
     const routing = buildLearningScienceRoutingBrief({
+      learningIntent: "study",
+      sessionLearningMode: "study",
       goalTitle: "Calculus derivatives",
       goalTopic: "Solve product-rule and quotient-rule problems",
       goalKind: "skill",

@@ -35,6 +35,7 @@ export function buildPreviewSessionContext({
       deadline: plan.deadline,
       sourceMode: plan.sourceMode,
       studyMode: plan.studyMode,
+      learningIntent: plan.learningIntent,
     },
     planRationale: plan.rationale,
     session: {
@@ -43,6 +44,7 @@ export function buildPreviewSessionContext({
       method: session.method,
       methodReason: session.methodReason,
       estimatedMinutes: session.estimatedMinutes,
+      learningMode: session.learningMode,
     },
     learnerProfile: {
       commonBlocker: onboardingAnswers[0] || null,

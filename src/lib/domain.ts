@@ -3,8 +3,11 @@ export type PlanStatus = "draft" | "active" | "completed" | "archived";
 export type SessionStatus = "ready" | "upcoming" | "complete" | "skipped";
 export type SourceMode = "user_materials" | "yova_generated";
 export type StudyMode = "inside_yova" | "outside_yova";
+export type LearningIntent = "learn" | "study";
+export type SessionLearningMode = "learn" | "study";
 
 export type SessionMethodBriefing = {
+  learningMode: SessionLearningMode;
   taskType: "memorization" | "conceptual_learning" | "problem_solving" | "reading_to_quiz" | "writing_argumentation" | "programming" | "mixed_assessment";
   methodId: "retrieval_practice" | "spaced_retrieval" | "self_explanation" | "worked_example_fading" | "interleaved_practice" | "read_recall_review" | "retrieval_based_outlining" | "scaffolded_coding" | "practice_test_error_repair";
   name: string;
@@ -66,6 +69,7 @@ export type LearningPlanSession = {
   scheduledFor: string;
   estimatedMinutes: number;
   amountLabel: string;
+  learningMode: SessionLearningMode;
   status: SessionStatus;
   resource?: SessionResource;
   adaptationNote?: SessionAdaptationNote;
@@ -81,6 +85,7 @@ export type LearningPlan = {
   status: PlanStatus;
   sourceMode: SourceMode;
   studyMode: StudyMode;
+  learningIntent: LearningIntent;
   rationale: string;
   createdAt: string;
   materials?: LearningMaterial[];
@@ -128,6 +133,7 @@ export type NextSessionAdaptation = {
   methodReason: string;
   estimatedMinutes: number;
   amountLabel: string;
+  learningMode: SessionLearningMode;
   explanation: string;
 };
 

@@ -4,6 +4,7 @@ import { getOpenAIClient } from "@/lib/openai/client";
 import { getOpenAISessionConfig } from "@/lib/openai/config";
 import type { MaterialExcerpt } from "@/lib/materials/context";
 import type { ConceptSignal } from "@/lib/learning/concept-evidence";
+import type { LearningIntent, SessionLearningMode } from "@/lib/domain";
 import { buildLearningScienceRoutingBrief } from "@/lib/learning/method-router";
 import {
   GeneratedSessionDraftSchema,
@@ -18,6 +19,7 @@ export type SessionGenerationContext = {
     deadline: string | null;
     sourceMode: string;
     studyMode: string;
+    learningIntent: LearningIntent;
   };
   planRationale: string;
   materials: MaterialExcerpt[];
@@ -27,6 +29,7 @@ export type SessionGenerationContext = {
     method: string;
     methodReason: string;
     estimatedMinutes: number;
+    learningMode: SessionLearningMode;
   };
   learnerProfile: {
     commonBlocker: string | null;
@@ -67,6 +70,10 @@ Requirements:
 - Use learningScienceRouting as YOVA's scientific guardrail. Select methodBriefing.methodId from allowedMethodIds, normally use suggestedPrimaryMethodId, and depart from it only when the supplied task evidence clearly supports another allowed method.
 - Fill methodBriefing with the task type, catalog method, what the learner will do, why it fits this task and current knowledge, exact execution steps, and a concrete completion condition.
 - The method briefing must explain the learning method itself. Keep productivity or tendency-based delivery changes in methodBriefing.personalization.
+- methodBriefing.learningMode must exactly match learningScienceRouting.sessionLearningMode.
+- Follow learningScienceRouting.executionContract as a hard activity-order rule.
+- For a learn session, teach or model the target before the first knowledge check, then fade support toward an independent attempt. The checks verify whether teaching worked; they are not the main content.
+- For a study session, make the first topic activity an unsupported retrieval or application attempt. Show explanations only after the attempt, target the exposed gap, and include a later retry or transfer question.
 - Use the catalog's how and completion fields as the scientific source, but rewrite them concisely for this exact session rather than copying every line mechanically.
 - Create 3 to 8 short activities that fit the estimated duration.
 - Use concise instructions and one obvious action at a time.
@@ -95,6 +102,8 @@ export async function generateSessionWithOpenAI(
   if (!config) throw new Error("OpenAI is not configured on the YOVA server.");
 
   const learningScienceRouting = buildLearningScienceRoutingBrief({
+    learningIntent: context.learningGoal.learningIntent,
+    sessionLearningMode: context.session.learningMode,
     goalTitle: context.learningGoal.title,
     goalTopic: context.learningGoal.topic,
     goalKind: context.learningGoal.kind,

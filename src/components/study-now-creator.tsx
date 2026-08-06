@@ -17,16 +17,17 @@ import type { LearningMaterial, LearningPlan } from "@/lib/domain";
 import { deleteUploadedMaterial, uploadMaterialFiles } from "@/lib/materials/intake";
 import { reportProductError } from "@/lib/monitoring/client";
 import { PlanGenerationResponseSchema } from "@/lib/plan-generation/schema";
+import { LEARNING_INTENT_COPY, resolveLearningIntent } from "@/lib/learning/learning-intent";
 
 type StudyNowStep = "setup" | "source" | "loading" | "error";
 type SourceChoice = "materials" | "yova" | "outside";
 
 const timeChoices = [15, 25, 40, 60] as const;
 const startingPoints = [
-  "I am new to this",
-  "I know a few basics",
-  "I understand the basics",
-  "I am mostly reviewing",
+  "I haven't learned this yet",
+  "I've seen it, but it doesn't make sense yet",
+  "I understand the basics but need practice",
+  "I know it and want to test my recall",
 ] as const;
 
 export function StudyNowCreator({
@@ -41,7 +42,7 @@ export function StudyNowCreator({
   const [step, setStep] = useState<StudyNowStep>("setup");
   const [goal, setGoal] = useState("");
   const [minutes, setMinutes] = useState<(typeof timeChoices)[number]>(25);
-  const [startingPoint, setStartingPoint] = useState<(typeof startingPoints)[number]>("I know a few basics");
+  const [startingPoint, setStartingPoint] = useState<(typeof startingPoints)[number]>("I understand the basics but need practice");
   const [sourceChoice, setSourceChoice] = useState<SourceChoice | null>(null);
   const [materials, setMaterials] = useState<LearningMaterial[]>([]);
   const [materialError, setMaterialError] = useState<string | null>(null);
@@ -87,11 +88,13 @@ export function StudyNowCreator({
 
     try {
       const now = new Date();
+      const learningApproach = resolveLearningIntent({ goal, startingPoint });
       const response = await fetch("/api/plans/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           intent: "study_now",
+          learningIntent: learningApproach.intent,
           goal,
           materialMode: sourceChoice === "materials" ? "upload" : "none",
           materials: sourceChoice === "materials" ? materials : [],
@@ -155,7 +158,7 @@ export function StudyNowCreator({
 
       {step === "setup" && (
         <section className="plan-panel">
-          <span className="step-label">STUDY SOMETHING NOW</span>
+          <span className="step-label">FOCUSED SESSION</span>
           <h1>What do you want help with?</h1>
           <p className="plan-description">Describe the result you want. YOVA will turn it into one focused session—not a multi-day plan.</p>
           <textarea
@@ -169,10 +172,11 @@ export function StudyNowCreator({
             <div className="study-now-options compact">{timeChoices.map((choice) => <button className={minutes === choice ? "selected" : ""} key={choice} onClick={() => setMinutes(choice)}>{choice} min{minutes === choice && <Check size={16} />}</button>)}</div>
           </div>
           <div className="study-now-field">
-            <strong>Where are you starting?</strong>
+            <strong>Which sounds most like you right now?</strong>
             <div className="study-now-options">{startingPoints.map((choice) => <button className={startingPoint === choice ? "selected" : ""} key={choice} onClick={() => setStartingPoint(choice)}>{choice}{startingPoint === choice && <Check size={16} />}</button>)}</div>
+            <p className="approach-preview"><Sparkles size={15} /><span><strong>Starting approach: {LEARNING_INTENT_COPY[resolveLearningIntent({ goal, startingPoint }).intent].shortName}.</strong> {resolveLearningIntent({ goal, startingPoint }).reason}</span></p>
           </div>
-          <footer className="plan-actions"><button className="button ghost" onClick={onExit}><ArrowLeft size={17} /> Cancel</button><button className="button primary" disabled={goal.trim().length < 10} onClick={() => setStep("source")}>Choose how to study <ArrowRight size={17} /></button></footer>
+          <footer className="plan-actions"><button className="button ghost" onClick={onExit}><ArrowLeft size={17} /> Cancel</button><button className="button primary" disabled={goal.trim().length < 10} onClick={() => setStep("source")}>Choose how YOVA should help <ArrowRight size={17} /></button></footer>
         </section>
       )}
 
@@ -200,7 +204,7 @@ export function StudyNowCreator({
         </section>
       )}
 
-      {step === "loading" && <section className="plan-loading"><span className="loading-orbit"><Sparkles /></span><h1>Building your session…</h1><p>Matching the task, your starting point, and the time you have right now.</p><div><span className="done"><Check /> Understanding the goal</span><span className="done"><Check /> Choosing a useful method</span><span className="active"><span /> Creating the guided activities</span></div></section>}
+      {step === "loading" && <section className="plan-loading"><span className="loading-orbit"><Sparkles /></span><h1>Building your session…</h1><p>Deciding what needs teaching, what should be practiced, and how to use the time you have now.</p><div><span className="done"><Check /> Understanding the goal</span><span className="done"><Check /> Choosing teaching-first or practice-first</span><span className="active"><span /> Creating the guided activities</span></div></section>}
 
       {step === "error" && <section className="plan-error-state"><span><AlertCircle /></span><h1>Your information is safe.</h1><p>{generationError ?? "YOVA could not build the session yet."}</p><div><button className="button ghost" onClick={() => setStep("source")}><ArrowLeft size={17} /> Review choices</button><button className="button primary" onClick={() => void generateSession()}>Try again <ArrowRight size={17} /></button></div></section>}
     </main>

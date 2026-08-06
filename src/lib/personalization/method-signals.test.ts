@@ -18,6 +18,7 @@ function makeSession(id: string, method: string): LearningPlanSession {
     scheduledFor: "2026-08-05",
     estimatedMinutes: 25,
     amountLabel: "25 minutes",
+    learningMode: "study",
     status: "complete",
   };
 }
@@ -33,6 +34,7 @@ function makePlan(sessions: LearningPlanSession[]): LearningPlan {
     status: "active",
     sourceMode: "yova_generated",
     studyMode: "inside_yova",
+    learningIntent: "study",
     rationale: "Prepare for the test.",
     createdAt: "2026-08-01T18:00:00.000Z",
     sessions,

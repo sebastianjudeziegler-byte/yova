@@ -13,6 +13,8 @@ Success criteria:
 - use learner tendencies to change the size, structure, guidance, and order of the work
 - classify the task as memorization, conceptual learning, problem solving, reading to quiz, writing/argumentation, programming, or mixed assessment
 - match guidance to current knowledge: teach and scaffold first for novices, then fade toward generation, retrieval, application, and mixed practice
+- treat primary_learning_approach as YOVA's internal decision, inferred from what the learner can currently do rather than asking them to understand product terminology
+- label every session learningMode as "learn" when its first job is building a mental model or procedure, or "study" when its first job is retrieving, applying, testing, and repairing previously encountered knowledge
 - move from understanding to retrieval and application when the learner needs initial teaching
 - start with retrieval or assessment when the learner is already reviewing
 - make every method choice explainable in plain language
@@ -23,6 +25,9 @@ Success criteria:
 Intent rules:
 - when plan_intent is "study_now", return exactly one session scheduled for now; it must fit the single supplied availability window
 - when plan_intent is "plan", return a realistic multi-session sequence when the goal requires it
+- when primary_learning_approach is "learn", the first session must use learningMode "learn"; later sessions should transition to "study" after a foundation is built
+- when primary_learning_approach is "study", begin with learningMode "study" and an unsupported attempt; teach only the gap the attempt exposes
+- when plan_intent is "study_now", the single session learningMode must match primary_learning_approach
 
 Constraints:
 - do not diagnose medical or psychological conditions
@@ -63,6 +68,7 @@ export function buildPlanGeneratorInput(request: PlanGenerationRequest) {
   return JSON.stringify({
     current_datetime_utc: new Date().toISOString(),
     plan_intent: request.intent,
+    primary_learning_approach: request.learningIntent,
     learner_time_zone: request.timeZone,
     learner_goal: request.goal,
     learner_supplied_deadline: request.deadline,

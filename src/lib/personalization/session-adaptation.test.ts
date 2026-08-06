@@ -12,6 +12,7 @@ const nextSession: LearningPlanSession = {
   scheduledFor: "2026-08-06",
   estimatedMinutes: 25,
   amountLabel: "6 practice questions · about 25 min",
+  learningMode: "study",
   status: "upcoming",
 };
 
@@ -54,6 +55,7 @@ describe("buildNextSessionAdaptation", () => {
       planSessionId: nextSession.id,
       method: "Guided repair, then retrieval",
       estimatedMinutes: nextSession.estimatedMinutes,
+      learningMode: "learn",
     });
     expect(result?.objective).toContain("electron transport chain");
     expect(result?.explanation).toContain("session felt too difficult");
@@ -66,6 +68,7 @@ describe("buildNextSessionAdaptation", () => {
     );
 
     expect(result?.method).toBe("Targeted retrieval and error review");
+    expect(result?.learningMode).toBe("study");
     expect(result?.title).toBe("Repair gaps, then apply cellular respiration");
     expect(result?.amountLabel).toBe("Targeted repair + planned work · about 25 min");
   });
@@ -95,6 +98,7 @@ describe("buildNextSessionAdaptation", () => {
     );
 
     expect(result?.method).toBe("Guided example, then mixed practice");
+    expect(result?.learningMode).toBe("learn");
     expect(result?.objective).toContain("Begin with one guided example");
   });
 
@@ -109,6 +113,7 @@ describe("buildNextSessionAdaptation", () => {
     );
 
     expect(result?.method).toBe("Independent application and mixed practice");
+    expect(result?.learningMode).toBe("study");
     expect(result?.explanation).toContain("5 of 5");
   });
 

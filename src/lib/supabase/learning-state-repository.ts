@@ -12,6 +12,7 @@ import type {
   StudyMode,
 } from "@/lib/domain";
 import { readConceptEvidenceProperty } from "@/lib/learning/concept-evidence";
+import { inferLegacySessionLearningMode } from "@/lib/learning/learning-intent";
 import { readSessionAdaptationNote } from "@/lib/personalization/adaptation-note";
 import { readSessionResourceFromStepData } from "@/lib/session-generation/resource";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -53,6 +54,7 @@ type PlanRow = {
   learning_item_id: string;
   status: PlanStatus;
   rationale: string;
+  generation_inputs: unknown;
   created_at: string;
 };
 
@@ -117,7 +119,7 @@ export async function loadAuthenticatedLearningState(): Promise<CloudLearningSta
     supabase.from("profiles").select("display_name,onboarding_completed_at").maybeSingle(),
     supabase.from("learner_profiles").select("common_blocker,guidance_preference,preferred_session_min,preferred_session_max,explanation_preference,focus_frequency,starting_pattern,energy_window,primary_improvement_goal,additional_context").maybeSingle(),
     supabase.from("learning_items").select("id,title,kind,topic,deadline,source_mode,study_mode,created_at").order("created_at", { ascending: true }),
-    supabase.from("plans").select("id,learning_item_id,status,rationale,created_at").order("created_at", { ascending: true }),
+    supabase.from("plans").select("id,learning_item_id,status,rationale,generation_inputs,created_at").order("created_at", { ascending: true }),
     supabase.from("plan_sessions").select("id,plan_id,sequence,title,objective,method,method_rationale,scheduled_for,estimated_minutes,status,step_data").order("sequence", { ascending: true }),
     supabase.from("session_attempts").select("id,plan_session_id,started_at,completed_at,actual_minutes,correct_answers,total_answers,user_feedback,result_data").not("completed_at", "is", null).order("completed_at", { ascending: true }),
     supabase.from("materials").select("id,learning_item_id,filename,mime_type,byte_size,processing_status").eq("processing_status", "ready").order("created_at", { ascending: true }),
@@ -175,6 +177,7 @@ export async function loadAuthenticatedLearningState(): Promise<CloudLearningSta
       scheduledFor: row.scheduled_for ?? new Date().toISOString(),
       estimatedMinutes: row.estimated_minutes,
       amountLabel,
+      learningMode: readLearningMode(row.step_data) ?? inferLegacySessionLearningMode(row.method, row.objective),
       status: row.status,
       resource: readSessionResourceFromStepData(row.step_data),
       adaptationNote: readSessionAdaptationNote(row.step_data),
@@ -203,6 +206,7 @@ export async function loadAuthenticatedLearningState(): Promise<CloudLearningSta
       status: planRow.status,
       sourceMode: item.source_mode,
       studyMode: item.study_mode,
+      learningIntent: readLearningIntent(planRow.generation_inputs),
       rationale: planRow.rationale,
       createdAt: planRow.created_at || item.created_at,
       materials: materialsByItemId.get(item.id) ?? [],
@@ -264,6 +268,16 @@ export async function loadAuthenticatedLearningState(): Promise<CloudLearningSta
   };
 }
 
+function readLearningMode(value: unknown) {
+  const candidate = readTextProperty(value, "learningMode");
+  return candidate === "learn" || candidate === "study" ? candidate : null;
+}
+
+function readLearningIntent(value: unknown) {
+  const candidate = readTextProperty(value, "learningIntent");
+  return candidate === "learn" || candidate === "study" ? candidate : "study";
+}
+
 export async function saveAuthenticatedLearnerProfile(input: {
   displayName: string;
   onboardingAnswers: string[];
@@ -312,6 +326,13 @@ export async function completeAuthenticatedPlanSession(completion: SessionComple
   });
 
   if (error) throw new Error("YOVA saved this session in your browser but could not sync it to the cloud.");
+  if (adaptation) {
+    const { error: modeError } = await supabase.rpc("set_plan_session_learning_mode", {
+      requested_session_id: adaptation.planSessionId,
+      requested_learning_mode: adaptation.learningMode,
+    });
+    if (modeError) throw new Error("YOVA saved this session but could not sync the next session’s teaching approach.");
+  }
 }
 
 export async function recordAuthenticatedSessionInterruption(interruption: SessionInterruption) {

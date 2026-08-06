@@ -9,6 +9,7 @@ describe("ProductEventRequestSchema", () => {
         intent: "study_now",
         sourceMode: "yova_generated",
         studyMode: "inside_yova",
+        learningApproach: "study",
         sessionCount: 1,
       },
     }).success).toBe(true);

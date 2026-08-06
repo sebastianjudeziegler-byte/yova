@@ -34,6 +34,7 @@ export function buildNextSessionAdaptation(
       methodReason: explanation,
       estimatedMinutes: nextSession.estimatedMinutes,
       amountLabel: `Targeted repair + planned work · about ${nextSession.estimatedMinutes} min`,
+      learningMode: needsMoreSupport ? "learn" : "study",
       explanation,
     };
   }
@@ -48,6 +49,7 @@ export function buildNextSessionAdaptation(
       methodReason: explanation,
       estimatedMinutes: nextSession.estimatedMinutes,
       amountLabel: `One guided example + planned work · about ${nextSession.estimatedMinutes} min`,
+      learningMode: "learn",
       explanation,
     };
   }
@@ -62,6 +64,7 @@ export function buildNextSessionAdaptation(
       methodReason: explanation,
       estimatedMinutes: nextSession.estimatedMinutes,
       amountLabel: `Higher-challenge practice · about ${nextSession.estimatedMinutes} min`,
+      learningMode: "study",
       explanation,
     };
   }

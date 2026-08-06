@@ -30,6 +30,7 @@ const NextSessionAdaptationSchema = z.object({
   methodReason: z.string().min(1).max(900),
   estimatedMinutes: z.number().int().min(5).max(180),
   amountLabel: z.string().min(1).max(180),
+  learningMode: z.enum(["learn", "study"]).default("study"),
   explanation: z.string().min(1).max(900),
 });
 

@@ -4,10 +4,14 @@ import {
   type LearningTaskType,
   learningScienceCatalogForPrompt,
 } from "@/lib/learning/method-catalog";
+import type { LearningIntent, SessionLearningMode } from "@/lib/domain";
+import { learningModeContract } from "@/lib/learning/learning-intent";
 
 export type KnowledgeStage = "novice" | "developing" | "retrieval_ready";
 
 export type MethodRoutingInput = {
+  learningIntent: LearningIntent;
+  sessionLearningMode: SessionLearningMode;
   goalTitle: string;
   goalTopic: string;
   goalKind: string;
@@ -31,6 +35,8 @@ export type MethodRoutingInput = {
 };
 
 export type LearningScienceRoutingBrief = {
+  learningIntent: LearningIntent;
+  sessionLearningMode: SessionLearningMode;
   taskType: LearningTaskType;
   knowledgeStage: KnowledgeStage;
   suggestedPrimaryMethodId: CoreMethodId;
@@ -39,6 +45,7 @@ export type LearningScienceRoutingBrief = {
   deliveryModifiers: string[];
   decisionBasis: string[];
   guardrails: string[];
+  executionContract: ReturnType<typeof learningModeContract>;
 };
 
 const TASK_METHODS: Record<LearningTaskType, Record<KnowledgeStage, CoreMethodId[]>> = {
@@ -101,6 +108,8 @@ export function buildLearningScienceRoutingBrief(input: MethodRoutingInput): Lea
   }
 
   return {
+    learningIntent: input.learningIntent,
+    sessionLearningMode: input.sessionLearningMode,
     taskType,
     knowledgeStage,
     suggestedPrimaryMethodId: allowedMethodIds[0],
@@ -109,6 +118,9 @@ export function buildLearningScienceRoutingBrief(input: MethodRoutingInput): Lea
     deliveryModifiers: inferDeliveryModifiers(input),
     decisionBasis: [
       `Task classification: ${taskType.replaceAll("_", " ")} from the goal and session objective.`,
+      input.sessionLearningMode === "learn"
+        ? "Session approach: teach and model before unsupported performance."
+        : "Session approach: begin with an unsupported attempt, then repair the exposed gap.",
       knowledgeStage === "novice"
         ? "Knowledge stage: novice or not yet demonstrated; preserve instruction and scaffolding."
         : knowledgeStage === "retrieval_ready"
@@ -124,6 +136,7 @@ export function buildLearningScienceRoutingBrief(input: MethodRoutingInput): Lea
       "Prefer observed performance over self-report when the two conflict, but require repeated evidence before making strong claims.",
       "The method briefing must tell the learner what they are doing, why, how to do it, and what completion means.",
     ],
+    executionContract: learningModeContract(input.sessionLearningMode),
   };
 }
 

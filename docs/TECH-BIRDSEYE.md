@@ -125,6 +125,8 @@ Code decides what evidence is safe and relevant. OpenAI uses that bounded contex
 
 YOVA now has a formal catalog of nine core methods and a task-first router. Ordinary TypeScript classifies the learning job and current knowledge stage, selects a bounded set of scientifically appropriate methods, and derives cautious delivery adjustments. OpenAI then chooses within those boundaries and composes the actual session.
 
+There is a second boundary around **teaching versus practice**. The interface asks what the learner can currently do, ordinary application code translates that into teaching-first or practice-first, and OpenAI must follow the matching activity order. This is a useful example of product architecture: the language model writes the subject-specific content, while YOVA’s code decides the educational rules it is allowed to follow.
+
 Every generated session must return a structured method briefing:
 
 ```text

@@ -60,6 +60,8 @@ A cross-browser six-digit email-code flow is implemented and tested behind a ser
 - A task-first learning-science router now bounds OpenAI to nine named methods instead of relying on a free-form “personalized plan” prompt
 - Every new guided session must explain what the selected method is, why it fits, how to execute it, and what completion means
 - Learner tendencies are treated as delivery modifiers rather than fixed brain types or replacements for task-appropriate methods
+- YOVA infers whether to teach first or practice first from concrete starting-point evidence; plans can transition between the two and weak results can switch the next session back to targeted teaching
+- Teaching-first sessions must begin with instruction or a model, while practice-first sessions must begin with an unsupported attempt before explanation
 
 ### Honest scientific-product status
 

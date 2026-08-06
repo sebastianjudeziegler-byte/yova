@@ -106,6 +106,7 @@ export function generatePreviewPlan(request: PlanGenerationRequest): LearningPla
         scheduledFor: scheduledDate(index, availability.window, deadline).toISOString(),
         estimatedMinutes: minutes,
         amountLabel: amountFor(index, minutes),
+        learningMode: sessionLearningMode(request, index),
       };
     }),
   });
@@ -122,14 +123,26 @@ function buildRationale(request: PlanGenerationRequest) {
     : "guided work inside YOVA";
 
   if (request.intent === "study_now") {
-    return `This focused session uses ${sourcePhrase} and ${executionPhrase}. It starts from the learner's stated knowledge, fits the time available now, and keeps every step explicit.`;
+    const approach = request.learningIntent === "learn"
+      ? "teaches a compact foundation before guided and independent attempts"
+      : "starts with an attempt from memory, then repairs only the exposed gaps";
+    return `This focused session ${approach}. It uses ${sourcePhrase} and ${executionPhrase}, fits the time available now, and keeps every step explicit.`;
   }
 
-  return `The plan starts with retrieval to reveal exact gaps, then moves through explanation, practice, and review. It uses ${sourcePhrase} and ${executionPhrase}, while keeping activity blocks short and explicit to match the learner profile.`;
+  const approach = request.learningIntent === "learn"
+    ? "The plan builds an initial mental model, fades guidance, and then transitions into retrieval and application."
+    : "The plan starts with retrieval to reveal exact gaps, then uses targeted explanation, retry, and later review.";
+  return `${approach} It uses ${sourcePhrase} and ${executionPhrase}, while keeping activity blocks short and explicit to match the learner profile.`;
 }
 
 function studyNowTitle(subject: PreviewSubject) {
   return subject.sessionTitles[0].replace(/^Retrieve/, "Focused review:");
+}
+
+function sessionLearningMode(request: PlanGenerationRequest, index: number) {
+  if (request.intent === "study_now") return request.learningIntent;
+  if (request.learningIntent === "study") return "study" as const;
+  return index < 2 ? "learn" as const : "study" as const;
 }
 
 function objectiveFor(index: number, topic: string) {

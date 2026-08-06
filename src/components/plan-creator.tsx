@@ -23,6 +23,7 @@ import {
   type DiagnosticResponse,
   type PlanGenerationResponse,
 } from "@/lib/plan-generation/schema";
+import { LEARNING_INTENT_COPY, recommendLearningIntent, resolveLearningIntent } from "@/lib/learning/learning-intent";
 
 type PlanStep = "goal" | "understood" | "materials" | "mode" | "schedule" | "diagnostic" | "confirm" | "loading" | "error" | "result";
 
@@ -62,6 +63,8 @@ export function PlanCreator({ onExit, onFinish, profileSummary }: { onExit: () =
   const goalPreview = previewGoal(goal, deadlineDate);
   const diagnosticQuestions = questionsForGoal(goal);
   const diagnosticResponses = buildDiagnosticResponses(diagnosticQuestions, diagnosticAnswers);
+  const preliminaryApproach = recommendLearningIntent(goal);
+  const learningApproach = resolveLearningIntent({ goal, diagnosticResponses });
 
   const stepNumber = ({ goal: 1, understood: 1, materials: 2, mode: 3, schedule: 4, diagnostic: 5, confirm: 6, loading: 6, error: 6, result: 6 } as Record<PlanStep, number>)[step];
 
@@ -94,6 +97,7 @@ export function PlanCreator({ onExit, onFinish, profileSummary }: { onExit: () =
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           intent: "plan",
+          learningIntent: learningApproach.intent,
           goal,
           materialMode,
           materials: materialMode === "upload" ? materials : [],
@@ -184,7 +188,7 @@ export function PlanCreator({ onExit, onFinish, profileSummary }: { onExit: () =
       {step === "understood" && (
         <PlanPanel eyebrow="HERE IS WHAT YOVA UNDERSTOOD" title={goalPreview.title} description="Check the goal before we build around it.">
           <div className="understood-grid"><SummaryFact label="Your request" value={goal} /><SummaryFact label="Deadline" value={goalPreview.deadline} /><SummaryFact label="Focus" value={goalPreview.topic} /><SummaryFact label="Likely task" value={goalPreview.task} /></div>
-          <div className="source-note"><Sparkles size={18} /><p>YOVA will use these details to decide what to teach first, how many sessions fit, and which methods match the task.</p></div>
+          <div className="source-note"><Sparkles size={18} /><p><strong>Current starting recommendation: {LEARNING_INTENT_COPY[preliminaryApproach.intent].name}.</strong> {preliminaryApproach.reason} The starting check will confirm this before YOVA builds the plan.</p></div>
           <PlanActions onBack={back} onNext={() => setStep("materials")} />
         </PlanPanel>
       )}
@@ -210,10 +214,10 @@ export function PlanCreator({ onExit, onFinish, profileSummary }: { onExit: () =
       )}
 
       {step === "mode" && (
-        <PlanPanel eyebrow="DEFAULT STUDY MODE" title="Where should most of the studying happen?" description="This is a starting preference. The student can mix both modes later.">
+        <PlanPanel eyebrow="WORK LOCATION" title="Where should most of the work happen?" description="This is a starting preference. You can mix both locations later.">
           <div className="mode-cards">
-            <button className={studyMode === "inside" ? "selected" : ""} onClick={() => setStudyMode("inside")}><BookOpen /><span><strong>Study inside YOVA</strong><small>YOVA teaches, quizzes, and guides each step.</small></span>{studyMode === "inside" && <Check />}</button>
-            <button className={studyMode === "outside" ? "selected" : ""} onClick={() => setStudyMode("outside")}><Layers3 /><span><strong>Study outside YOVA</strong><small>YOVA selects the method and gives exact instructions for using books, notes, or another course.</small></span>{studyMode === "outside" && <Check />}</button>
+            <button className={studyMode === "inside" ? "selected" : ""} onClick={() => setStudyMode("inside")}><BookOpen /><span><strong>Work inside YOVA</strong><small>YOVA teaches, checks understanding, and guides each step.</small></span>{studyMode === "inside" && <Check />}</button>
+            <button className={studyMode === "outside" ? "selected" : ""} onClick={() => setStudyMode("outside")}><Layers3 /><span><strong>Use another source</strong><small>YOVA selects the method and gives exact instructions for using books, notes, or another course.</small></span>{studyMode === "outside" && <Check />}</button>
           </div>
           <PlanActions onBack={back} onNext={() => { if (!deadlineDate) setDeadlineDate(deadlineDateFromGoal(goal)); setStep("schedule"); }} nextDisabled={!studyMode} />
         </PlanPanel>
@@ -237,12 +241,12 @@ export function PlanCreator({ onExit, onFinish, profileSummary }: { onExit: () =
 
       {step === "confirm" && (
         <PlanPanel eyebrow="FINAL CHECK" title="Everything YOVA will use" description="Review the inputs and change anything before your plan is generated.">
-          <div className="confirmation-list"><SummaryFact label="Goal" value={goal} /><SummaryFact label="Target date" value={deadlineDate ? formatDateOnly(deadlineDate) : "No fixed deadline"} /><SummaryFact label="Starting evidence" value={summarizeDiagnosticResponses(diagnosticResponses)} /><SummaryFact label="Availability" value={`${availability.length} selected ${availability.length === 1 ? "window" : "windows"}: ${availability.map((slot) => `${slot.day} ${slot.window.toLowerCase()} (${slot.minutes} min)`).join(", ")}`} /><SummaryFact label="Study mode" value={studyMode === "outside" ? "Primarily outside YOVA" : "Primarily inside YOVA"} /><SummaryFact label="Sources" value={materialMode === "upload" ? `${materials.length} ${materials.length === 1 ? "uploaded material" : "uploaded materials"}: ${materials.map((material) => material.name).join(", ")}` : "YOVA-generated content from the goal"} /><SummaryFact label="Profile considerations" value={profileSummary} /></div>
+          <div className="confirmation-list"><SummaryFact label="Goal" value={goal} /><SummaryFact label="Target date" value={deadlineDate ? formatDateOnly(deadlineDate) : "No fixed deadline"} /><SummaryFact label="Starting evidence" value={summarizeDiagnosticResponses(diagnosticResponses)} /><SummaryFact label="How YOVA will start" value={`${LEARNING_INTENT_COPY[learningApproach.intent].name}: ${learningApproach.reason}`} /><SummaryFact label="Availability" value={`${availability.length} selected ${availability.length === 1 ? "window" : "windows"}: ${availability.map((slot) => `${slot.day} ${slot.window.toLowerCase()} (${slot.minutes} min)`).join(", ")}`} /><SummaryFact label="Work location" value={studyMode === "outside" ? "Using another source with YOVA guidance" : "Primarily inside YOVA"} /><SummaryFact label="Sources" value={materialMode === "upload" ? `${materials.length} ${materials.length === 1 ? "uploaded material" : "uploaded materials"}: ${materials.map((material) => material.name).join(", ")}` : "YOVA-generated content from the goal"} /><SummaryFact label="Profile considerations" value={profileSummary} /></div>
           <PlanActions onBack={back} onNext={() => void generatePlan()} nextLabel="Generate my plan" />
         </PlanPanel>
       )}
 
-      {step === "loading" && <section className="plan-loading"><span className="loading-orbit"><Sparkles /></span><h1>Building your plan…</h1><p>Matching the task, starting point, schedule, and learning methods.</p><div><span className="done"><Check /> Reviewing your goal</span><span className="done"><Check /> Identifying current knowledge</span><span className="active"><span /> Sequencing realistic sessions</span></div></section>}
+      {step === "loading" && <section className="plan-loading"><span className="loading-orbit"><Sparkles /></span><h1>Building your plan…</h1><p>Separating what needs to be taught from what should be practiced and retrieved.</p><div><span className="done"><Check /> Reviewing your goal</span><span className="done"><Check /> Identifying the starting approach</span><span className="active"><span /> Sequencing teaching and practice</span></div></section>}
 
       {step === "error" && (
         <section className="plan-error-state">
@@ -261,7 +265,7 @@ export function PlanCreator({ onExit, onFinish, profileSummary }: { onExit: () =
           <div className="generated-heading"><div><span className="eyebrow"><Sparkles size={15} /> Plan active</span><h1>{generatedPlan.plan.title}</h1><p>{generatedPlan.plan.sessions.length} focused sessions organized around the goal.</p></div><button className="button primary large" onClick={() => onFinish(generatedPlan.plan)}>Go to Learning <ArrowRight size={18} /></button></div>
           <div className="why-plan"><Sparkles /><div><strong>Why this plan</strong><p>{generatedPlan.plan.rationale}</p></div></div>
           {generatedPlan.generation.notice && <div className="generation-notice"><span>Alpha note</span><p>{generatedPlan.generation.notice}</p></div>}
-          <div className="generated-timeline">{generatedPlan.plan.sessions.map((session) => <article key={session.id}><span>{session.sequence}</span><div><small>{formatSessionDate(session.scheduledFor)}</small><h3>{session.title}</h3><p>{session.method}</p></div><strong>{session.amountLabel}</strong></article>)}</div>
+          <div className="generated-timeline">{generatedPlan.plan.sessions.map((session) => <article key={session.id}><span>{session.sequence}</span><div><small>{session.learningMode === "learn" ? "TEACHING FIRST" : "PRACTICE FIRST"} · {formatSessionDate(session.scheduledFor)}</small><h3>{session.title}</h3><p>{session.method}</p></div><strong>{session.amountLabel}</strong></article>)}</div>
         </section>
       )}
     </main>

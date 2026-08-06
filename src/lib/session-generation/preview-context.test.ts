@@ -12,6 +12,7 @@ const plan: LearningPlan = {
   status: "active",
   sourceMode: "yova_generated",
   studyMode: "inside_yova",
+  learningIntent: "learn",
   rationale: "Begin with an example, then use retrieval and practice to expose gaps.",
   createdAt: "2026-08-05T16:00:00.000Z",
   sessions: [{
@@ -24,6 +25,7 @@ const plan: LearningPlan = {
     scheduledFor: "2026-08-05T16:00:00.000Z",
     estimatedMinutes: 25,
     amountLabel: "Focused session · about 25 min",
+    learningMode: "learn",
     status: "ready",
   }],
 };

@@ -92,6 +92,25 @@ The current engine:
 
 This is a hybrid system. Deterministic TypeScript protects the scientific boundaries. OpenAI handles nuance, subject-specific teaching, wording, examples, and activity composition.
 
+## Teaching-first versus practice-first
+
+YOVA separates two jobs that ordinary study generators often blend together:
+
+- **Teaching first:** build an accurate idea or procedure, guide one attempt, fade the help, then check independent performance.
+- **Practice first:** start with retrieval or application before showing the answer, identify the gap, review only that gap, then retry.
+
+The learner is not asked to understand “learning mode” or “study mode.” YOVA asks what the learner can currently do: whether the material is new, unclear, understood but unpracticed, or ready for a recall test. That concrete answer becomes an internal learning approach.
+
+Every generated plan session carries its own approach. A larger plan can begin with teaching-first sessions and later transition into practice-first sessions. A review plan begins practice-first, but a weak result can convert the next session into teaching-first repair.
+
+The OpenAI session generator is bounded by a different activity-order contract for each approach:
+
+1. Teaching-first sessions must begin with an explanation, model, or complete example.
+2. Practice-first sessions must begin with an unsupported question or application attempt.
+3. Both approaches must eventually require independent work and produce evidence for the next session.
+
+This distinction is visible on Home, the plan timeline, the generated-plan result, and the method briefing. The learner can understand what YOVA is trying to accomplish without choosing educational terminology.
+
 ## What makes the long-term product interesting
 
 The defensible direction is not “we use retrieval practice.” Any study product can add flashcards. The stronger system is:

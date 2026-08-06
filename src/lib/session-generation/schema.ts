@@ -12,6 +12,7 @@ export const SessionGenerationRequestSchema = z.object({
       deadline: z.string().trim().max(80).nullable(),
       sourceMode: z.enum(["user_materials", "yova_generated"]),
       studyMode: z.enum(["inside_yova", "outside_yova"]),
+      learningIntent: z.enum(["learn", "study"]),
     }),
     planRationale: z.string().trim().min(10).max(1_200),
     session: z.object({
@@ -20,6 +21,7 @@ export const SessionGenerationRequestSchema = z.object({
       method: z.string().trim().min(2).max(160),
       methodReason: z.string().trim().min(5).max(800),
       estimatedMinutes: z.number().int().min(5).max(180),
+      learningMode: z.enum(["learn", "study"]),
     }),
     learnerProfile: z.object({
       commonBlocker: z.string().trim().max(240).nullable(),
@@ -61,6 +63,7 @@ export type PreviewSessionGenerationContext = NonNullable<
 >;
 
 export const SessionMethodBriefingSchema = z.object({
+  learningMode: z.enum(["learn", "study"]),
   taskType: z.enum(LEARNING_TASK_TYPES),
   methodId: z.enum(CORE_METHOD_IDS),
   name: z.string().trim().min(3).max(90),
@@ -120,10 +123,17 @@ export const GeneratedSessionDraftSchema = z.object({
   if (!session.activities.some((activity) => activity.type === "free_response")) {
     context.addIssue({ code: "custom", path: ["activities"], message: "A guided session needs at least one typed active-recall attempt." });
   }
+  const firstActivity = session.activities[0];
+  if (session.methodBriefing.learningMode === "learn" && firstActivity?.type !== "instruction") {
+    context.addIssue({ code: "custom", path: ["activities", 0], message: "Teaching-first sessions must begin with a concise explanation or model." });
+  }
+  if (session.methodBriefing.learningMode === "study" && firstActivity?.type !== "multiple_choice" && firstActivity?.type !== "free_response") {
+    context.addIssue({ code: "custom", path: ["activities", 0], message: "Practice-first sessions must begin with an unsupported attempt." });
+  }
 });
 
 export const CachedGeneratedSessionSchema = GeneratedSessionDraftSchema.extend({
-  schemaVersion: z.literal(4),
+  schemaVersion: z.literal(5),
   model: z.string().min(1),
   generatedAt: z.string().datetime({ offset: true }),
 });

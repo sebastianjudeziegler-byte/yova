@@ -25,6 +25,7 @@ export function buildSessionEvaluationCases(): SessionEvaluationCase[] {
           deadline: "2026-08-13T23:00:00.000Z",
           sourceMode: "user_materials",
           studyMode: "inside_yova",
+          learningIntent: "learn",
         },
         planRationale: "Build the relationship between both energy processes before asking for closed-note comparison.",
         materials: [{
@@ -38,6 +39,7 @@ export function buildSessionEvaluationCases(): SessionEvaluationCase[] {
           method: "Concise concept model, then active retrieval",
           methodReason: "The learner recognizes individual stages but cannot yet connect them without notes.",
           estimatedMinutes: 25,
+          learningMode: "learn",
         },
         learnerProfile: {
           commonBlocker: "Large tasks feel difficult to start",
@@ -65,6 +67,7 @@ export function buildSessionEvaluationCases(): SessionEvaluationCase[] {
           deadline: "2026-08-13T23:00:00.000Z",
           sourceMode: "yova_generated",
           studyMode: "inside_yova",
+          learningIntent: "study",
         },
         planRationale: "Repair the identified quotient-rule gap before returning to mixed derivative practice.",
         materials: [],
@@ -74,6 +77,7 @@ export function buildSessionEvaluationCases(): SessionEvaluationCase[] {
           method: "Worked example fading, then retrieval",
           methodReason: "The previous check showed repeated setup errors on the quotient rule.",
           estimatedMinutes: 25,
+          learningMode: "study",
         },
         learnerProfile: {
           commonBlocker: "Hesitates when a problem has several steps",
@@ -115,6 +119,7 @@ export function buildSessionEvaluationCases(): SessionEvaluationCase[] {
           deadline: "2026-08-13T23:00:00.000Z",
           sourceMode: "yova_generated",
           studyMode: "outside_yova",
+          learningIntent: "learn",
         },
         planRationale: "Turn a vague writing task into a bounded evidence-selection and outlining workflow.",
         materials: [],
@@ -124,6 +129,7 @@ export function buildSessionEvaluationCases(): SessionEvaluationCase[] {
           method: "Retrieval-based outlining and focused drafting",
           methodReason: "A visible checklist reduces ambiguity while keeping the historical claims grounded in the learner's own sources.",
           estimatedMinutes: 30,
+          learningMode: "learn",
         },
         learnerProfile: {
           commonBlocker: "Vague writing tasks feel overwhelming",
@@ -151,6 +157,7 @@ export function buildSessionEvaluationCases(): SessionEvaluationCase[] {
           deadline: null,
           sourceMode: "yova_generated",
           studyMode: "inside_yova",
+          learningIntent: "learn",
         },
         planRationale: "Begin with one traceable example, then fade support before an independent coding decision.",
         materials: [],
@@ -160,6 +167,7 @@ export function buildSessionEvaluationCases(): SessionEvaluationCase[] {
           method: "Scaffolded example, code tracing, then independent practice",
           methodReason: "The learner can read simple code but cannot yet select and write an array-method solution independently.",
           estimatedMinutes: 30,
+          learningMode: "learn",
         },
         learnerProfile: {
           commonBlocker: "Open-ended coding prompts create hesitation",
@@ -187,6 +195,7 @@ export function buildSessionEvaluationCases(): SessionEvaluationCase[] {
           deadline: null,
           sourceMode: "yova_generated",
           studyMode: "inside_yova",
+          learningIntent: "learn",
         },
         planRationale: "Use practical decisions and short retrieval checks rather than a passive finance summary.",
         materials: [],
@@ -196,6 +205,7 @@ export function buildSessionEvaluationCases(): SessionEvaluationCase[] {
           method: "Concrete example, retrieval, and scenario application",
           methodReason: "The learner wants practical examples and has little prior knowledge of credit and interest.",
           estimatedMinutes: 30,
+          learningMode: "learn",
         },
         learnerProfile: {
           commonBlocker: "Abstract explanations are difficult to apply",

@@ -23,6 +23,7 @@ export async function persistPlanForAuthenticatedUser(
 
   const generationInputs = {
     intent: request.intent,
+    learningIntent: request.learningIntent,
     goal: request.goal,
     materialMode: request.materialMode,
     materials: request.materials.map(({ id, name, mimeType, sizeBytes, processingStatus }) => ({

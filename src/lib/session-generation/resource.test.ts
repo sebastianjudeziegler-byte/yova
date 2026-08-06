@@ -3,11 +3,12 @@ import { readSessionResourceFromStepData, toSessionResource } from "@/lib/sessio
 import type { SessionGenerationResponse } from "@/lib/session-generation/schema";
 
 const generatedSession: SessionGenerationResponse["session"] = {
-  schemaVersion: 4,
+  schemaVersion: 5,
   model: "gpt-test",
   generatedAt: "2026-08-05T18:00:00.000Z",
   rationale: "This sequence teaches the core idea before checking recall and application.",
   methodBriefing: {
+    learningMode: "learn",
     taskType: "conceptual_learning",
     methodId: "retrieval_practice",
     name: "Retrieval practice",

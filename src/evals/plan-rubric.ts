@@ -55,6 +55,10 @@ export function evaluatePlanDraft(
   const progression = progressionSignals(draft);
   const sourceLanguageIsSafe = request.materialMode !== "upload"
     || !/your (notes|materials|sources?) (show|prove|confirm|suggest) (that )?you (struggle|prefer|learn|focus|procrastinate)/i.test(combined);
+  const approachProgression = request.learningIntent === "learn"
+    ? draft.sessions[0]?.learningMode === "learn"
+      && (request.intent === "study_now" || draft.sessions.some((session) => session.learningMode === "study"))
+    : draft.sessions[0]?.learningMode === "study";
 
   const checks: PlanQualityCheck[] = [
     check("session_count", "Useful number of sessions", draft.sessions.length >= 2 && draft.sessions.length <= 14, 10, true, `${draft.sessions.length} sessions generated`),
@@ -62,6 +66,7 @@ export function evaluatePlanDraft(
     check("deadline_fit", "No work is scheduled after the deadline", !hasDeadlineViolation, 15, true, request.deadline ? `Deadline: ${request.deadline}` : "No fixed deadline"),
     check("method_alignment", "Methods fit the task", alignedSessions >= Math.ceil(draft.sessions.length * 0.6), 20, true, `${alignedSessions} of ${draft.sessions.length} sessions use ${taskFamily.replace("_", " ")} methods`),
     check("learning_progression", "Plan progresses toward retrieval or application", progression.early && progression.later, 15, true, progression.detail),
+    check("learning_approach", "Plan separates teaching from practice", approachProgression, 0, true, `Requested ${request.learningIntent}; session sequence: ${draft.sessions.map((session) => session.learningMode).join(" → ")}`),
     check("explainability", "Every method has a meaningful reason", draft.sessions.every((session) => session.methodReason.trim().length >= 20), 10, false, "Method reasons are visible to the learner"),
     check("distinct_objectives", "Sessions are not repetitive", uniqueObjectives === draft.sessions.length, 5, false, `${uniqueObjectives} distinct objectives across ${draft.sessions.length} sessions`),
     check("no_personality_overclaim", "No fixed brain or learning-style claims", !/learns? best|learning style|brain type|because (you have|of your) adhd|visual learner|auditory learner|kinesthetic learner/i.test(combined), 5, true, "Checked all learner-facing plan text"),

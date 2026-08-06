@@ -20,6 +20,7 @@ export function buildPlanEvaluationCases(now = new Date()): PlanEvaluationCase[]
       label: "Biology test with learner notes",
       taskFamily: "conceptual",
       goal: "Prepare for a biology test on cellular respiration and photosynthesis in seven days.",
+      learningIntent: "study",
       deadline: deadline.toISOString(),
       materialMode: "upload",
       materials: [{
@@ -40,6 +41,7 @@ export function buildPlanEvaluationCases(now = new Date()): PlanEvaluationCase[]
       label: "Calculus problem-solving plan",
       taskFamily: "problem_solving",
       goal: "Learn the product rule and quotient rule, then solve mixed derivative problems accurately.",
+      learningIntent: "learn",
       deadline: deadline.toISOString(),
       materialMode: "none",
       materials: [],
@@ -53,6 +55,7 @@ export function buildPlanEvaluationCases(now = new Date()): PlanEvaluationCase[]
       label: "History essay using outside sources",
       taskFamily: "writing",
       goal: "Plan and draft a comparative history essay using evidence from my textbook and class notes.",
+      learningIntent: "learn",
       deadline: deadline.toISOString(),
       materialMode: "none",
       materials: [],
@@ -66,6 +69,7 @@ export function buildPlanEvaluationCases(now = new Date()): PlanEvaluationCase[]
       label: "Beginner JavaScript practice",
       taskFamily: "coding",
       goal: "Understand JavaScript array methods and use map, filter, and reduce in small programs.",
+      learningIntent: "learn",
       deadline: null,
       materialMode: "none",
       materials: [],
@@ -79,6 +83,7 @@ export function buildPlanEvaluationCases(now = new Date()): PlanEvaluationCase[]
       label: "General-learning finance pathway",
       taskFamily: "general",
       goal: "Learn personal finance fundamentals including budgeting, credit, debt, and index-fund investing.",
+      learningIntent: "learn",
       deadline: null,
       materialMode: "none",
       materials: [],
@@ -95,6 +100,7 @@ function evaluationCase(input: {
   label: string;
   taskFamily: PlanTaskFamily;
   goal: string;
+  learningIntent: "learn" | "study";
   deadline: string | null;
   materialMode: "upload" | "none";
   materials: PlanGenerationRequest["materials"];
@@ -109,6 +115,7 @@ function evaluationCase(input: {
     taskFamily: input.taskFamily,
     request: PlanGenerationRequestSchema.parse({
       intent: "plan",
+      learningIntent: input.learningIntent,
       goal: input.goal,
       materialMode: input.materialMode,
       materials: input.materials,

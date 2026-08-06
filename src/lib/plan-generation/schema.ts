@@ -21,6 +21,7 @@ export const DiagnosticResponseSchema = z.object({
 
 export const PlanGenerationRequestSchema = z.object({
   intent: z.enum(["plan", "study_now"]).default("plan"),
+  learningIntent: z.enum(["learn", "study"]),
   goal: z.string().trim().min(10).max(600),
   materialMode: z.enum(["upload", "none"]),
   materials: z.array(MaterialInputSchema).max(5),
@@ -58,6 +59,7 @@ export const GeneratedSessionDraftSchema = z.object({
   scheduledFor: z.string().datetime({ offset: true }),
   estimatedMinutes: z.number().int().min(5).max(180),
   amountLabel: z.string().trim().min(3).max(100),
+  learningMode: z.enum(["learn", "study"]),
 });
 
 export const GeneratedPlanDraftSchema = z.object({
@@ -79,6 +81,7 @@ export const LearningPlanSchema = z.object({
   status: z.enum(["draft", "active", "completed", "archived"]),
   sourceMode: z.enum(["user_materials", "yova_generated"]),
   studyMode: z.enum(["inside_yova", "outside_yova"]),
+  learningIntent: z.enum(["learn", "study"]),
   rationale: z.string().min(1),
   createdAt: z.string().datetime({ offset: true }),
   materials: z.array(StoredMaterialSchema).max(5),
@@ -92,6 +95,7 @@ export const LearningPlanSchema = z.object({
     scheduledFor: z.string().datetime({ offset: true }),
     estimatedMinutes: z.number().int().min(5).max(180),
     amountLabel: z.string().min(1),
+    learningMode: z.enum(["learn", "study"]),
     status: z.enum(["ready", "upcoming", "complete", "skipped"]),
   })).min(1).max(14),
 });

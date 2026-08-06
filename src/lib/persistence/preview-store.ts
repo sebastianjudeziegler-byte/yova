@@ -1,4 +1,5 @@
-import type { SessionInterruption, YovaPreviewSnapshot } from "@/lib/domain";
+import type { LearningPlan, SessionInterruption, YovaPreviewSnapshot } from "@/lib/domain";
+import { inferLegacySessionLearningMode } from "@/lib/learning/learning-intent";
 
 const STORAGE_KEY = "yova.preview.v1";
 
@@ -12,11 +13,28 @@ export function loadPreviewSnapshot(): YovaPreviewSnapshot | null {
     if (!isPreviewSnapshot(parsed)) return null;
     return {
       ...parsed,
+      plans: parsed.plans.map(normalizePreviewPlan),
       sessionInterruptions: readSessionInterruptions(parsed),
     };
   } catch {
     return null;
   }
+}
+
+function normalizePreviewPlan(plan: LearningPlan): LearningPlan {
+  const learningIntent = plan.learningIntent === "learn" || plan.learningIntent === "study"
+    ? plan.learningIntent
+    : "study";
+  return {
+    ...plan,
+    learningIntent,
+    sessions: plan.sessions.map((session) => ({
+      ...session,
+      learningMode: session.learningMode === "learn" || session.learningMode === "study"
+        ? session.learningMode
+        : inferLegacySessionLearningMode(session.method, session.objective),
+    })),
+  };
 }
 
 function readSessionInterruptions(snapshot: YovaPreviewSnapshot | Record<string, unknown>): SessionInterruption[] {
