@@ -7,9 +7,11 @@ import {
   CachedGeneratedSessionSchema,
   SessionGenerationRequestSchema,
   SessionGenerationResponseSchema,
+  type SessionGenerationRequest,
 } from "@/lib/session-generation/schema";
 import { checkSessionGenerationRateLimit, requestRateLimitKey } from "@/lib/server/rate-limit";
 import { claimAIRequest } from "@/lib/server/ai-usage";
+import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
@@ -17,9 +19,11 @@ export const maxDuration = 60;
 
 export async function POST(request: Request) {
   const requestId = crypto.randomUUID();
-  const supabase = await createSupabaseServerClient();
-  const { data: { user }, error: userError } = await supabase.auth.getUser();
-  if (userError || !user) {
+  const supabase = isSupabaseConfigured() ? await createSupabaseServerClient() : null;
+  const { data: { user }, error: userError } = supabase
+    ? await supabase.auth.getUser()
+    : { data: { user: null }, error: null };
+  if (supabase && (userError || !user)) {
     return NextResponse.json({ error: "Sign in to generate this guided session." }, { status: 401 });
   }
 
@@ -33,6 +37,10 @@ export async function POST(request: Request) {
   const parsed = SessionGenerationRequestSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json({ error: "YOVA could not identify the requested plan session." }, { status: 422 });
+  }
+
+  if (!supabase || !user) {
+    return generateBrowserPreviewSession(request, parsed.data, requestId);
   }
 
   const { data: planSession, error: sessionError } = await supabase
@@ -232,6 +240,77 @@ export async function POST(request: Request) {
       { status: 502, headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId } },
     );
   }
+}
+
+async function generateBrowserPreviewSession(
+  request: Request,
+  input: SessionGenerationRequest,
+  requestId: string,
+) {
+  if (!input.previewContext) {
+    return NextResponse.json(
+      { error: "YOVA needs the current browser plan before it can build this session." },
+      { status: 422, headers: responseHeaders(requestId) },
+    );
+  }
+  if (input.previewContext.learningGoal.sourceMode === "user_materials") {
+    return NextResponse.json(
+      { error: "Secure uploaded-material sessions require a connected cloud account." },
+      { status: 503, headers: responseHeaders(requestId) },
+    );
+  }
+  if (!isOpenAISessionConfigured()) {
+    return NextResponse.json(
+      { error: "Live guided-session generation is not connected yet." },
+      { status: 503, headers: responseHeaders(requestId) },
+    );
+  }
+
+  const rateLimit = checkSessionGenerationRateLimit(`preview:${requestRateLimitKey(request)}`);
+  if (!rateLimit.allowed) {
+    return NextResponse.json(
+      { error: "Too many sessions were generated at once. Wait a moment and try again." },
+      {
+        status: 429,
+        headers: {
+          ...responseHeaders(requestId),
+          "Retry-After": String(rateLimit.retryAfterSeconds),
+        },
+      },
+    );
+  }
+
+  try {
+    const generated = await generateSessionWithOpenAI({
+      ...input.previewContext,
+      materials: [],
+    });
+    const session = CachedGeneratedSessionSchema.parse({
+      schemaVersion: 3,
+      ...generated.draft,
+      model: generated.model,
+      generatedAt: new Date().toISOString(),
+    });
+
+    return NextResponse.json(SessionGenerationResponseSchema.parse({
+      planSessionId: input.planSessionId,
+      session,
+      generation: { mode: "openai", persistence: "browser" },
+    }), { headers: responseHeaders(requestId) });
+  } catch (error) {
+    console.error("YOVA browser guided-session generation failed", {
+      requestId,
+      reason: error instanceof Error ? error.name : "unknown",
+    });
+    return NextResponse.json(
+      { error: "YOVA could not prepare this guided session right now. Try again in a moment.", requestId },
+      { status: 502, headers: responseHeaders(requestId) },
+    );
+  }
+}
+
+function responseHeaders(requestId: string) {
+  return { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId };
 }
 
 function readCachedSession(stepData: unknown) {

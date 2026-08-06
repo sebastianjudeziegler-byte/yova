@@ -48,6 +48,7 @@ import {
   saveAuthenticatedLearnerProfile,
 } from "@/lib/supabase/learning-state-repository";
 import { SessionGenerationResponseSchema } from "@/lib/session-generation/schema";
+import { buildPreviewSessionContext } from "@/lib/session-generation/preview-context";
 import { RescheduleSessionResponseSchema } from "@/lib/scheduling/schema";
 import { SessionDurationAdjustmentResponseSchema } from "@/lib/scheduling/session-adjustment-schema";
 import {
@@ -351,9 +352,21 @@ export function YovaPrototype() {
       const response = await fetch("/api/sessions/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ planId: requestedPlan.id, planSessionId: requestedSession.id }),
+        body: JSON.stringify({
+          planId: requestedPlan.id,
+          planSessionId: requestedSession.id,
+          ...(account?.identityMode === "preview" ? {
+            previewContext: buildPreviewSessionContext({
+              plan: requestedPlan,
+              session: requestedSession,
+              onboardingAnswers: answers,
+              completions: sessionCompletions,
+              interruptions: sessionInterruptions,
+            }),
+          } : {}),
+        }),
       });
-      const body: unknown = await response.json();
+      const body: unknown = await response.json().catch(() => null);
       if (!response.ok) {
         const message = typeof body === "object" && body && "error" in body && typeof body.error === "string"
           ? body.error
@@ -377,7 +390,7 @@ export function YovaPrototype() {
       setGeneratedLessonSteps(nextLessonSteps);
       if (resumePoint) setSessionStep(Math.min(resumePoint.completedSteps, nextLessonSteps.length - 1));
       setSessionRationale(parsed.data.session.rationale);
-      if (parsed.data.generation.persistence === "browser") {
+      if (parsed.data.generation.persistence === "browser" && account?.identityMode === "supabase") {
         setSessionGenerationIssue("This session is ready, but YOVA could not cache it in your cloud account.");
       }
       beginTimedSession();

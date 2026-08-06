@@ -3,7 +3,61 @@ import { z } from "zod";
 export const SessionGenerationRequestSchema = z.object({
   planId: z.string().uuid(),
   planSessionId: z.string().uuid(),
+  previewContext: z.object({
+    learningGoal: z.object({
+      title: z.string().trim().min(2).max(160),
+      topic: z.string().trim().min(2).max(500),
+      kind: z.enum(["test", "topic", "course", "book", "skill"]),
+      deadline: z.string().trim().max(80).nullable(),
+      sourceMode: z.enum(["user_materials", "yova_generated"]),
+      studyMode: z.enum(["inside_yova", "outside_yova"]),
+    }),
+    planRationale: z.string().trim().min(10).max(1_200),
+    session: z.object({
+      title: z.string().trim().min(2).max(160),
+      objective: z.string().trim().min(5).max(800),
+      method: z.string().trim().min(2).max(160),
+      methodReason: z.string().trim().min(5).max(800),
+      estimatedMinutes: z.number().int().min(5).max(180),
+    }),
+    learnerProfile: z.object({
+      commonBlocker: z.string().trim().max(240).nullable(),
+      guidancePreference: z.string().trim().max(240).nullable(),
+      explanationPreference: z.string().trim().max(240).nullable(),
+      focusFrequency: z.string().trim().max(240).nullable(),
+      startingPattern: z.string().trim().max(240).nullable(),
+      primaryImprovementGoal: z.string().trim().max(240).nullable(),
+    }).nullable(),
+    recentResults: z.array(z.object({
+      correctAnswers: z.number().int().min(0).max(100).nullable(),
+      totalAnswers: z.number().int().min(0).max(100).nullable(),
+      observedGap: z.string().trim().max(500).nullable(),
+      plannedMinutes: z.number().int().min(1).max(300).nullable(),
+      actualMinutes: z.number().int().min(1).max(300).nullable(),
+    })).max(3),
+    recentInterruptions: z.array(z.object({
+      occurredAt: z.string().datetime({ offset: true }),
+      plannedMinutes: z.number().int().min(1).max(300).nullable(),
+      actualMinutes: z.number().int().min(1).max(300).nullable(),
+      completedSteps: z.number().int().min(0).max(20).nullable(),
+      totalSteps: z.number().int().min(1).max(20).nullable(),
+    })).max(4),
+    conceptSignals: z.array(z.object({
+      concept: z.string().trim().min(2).max(120),
+      attempts: z.number().int().min(1).max(100),
+      secureAttempts: z.number().int().min(0).max(100),
+      needsReviewAttempts: z.number().int().min(0).max(100),
+      lastOutcome: z.enum(["secure", "needs_review"]),
+      lastObservedAt: z.string().datetime({ offset: true }),
+      status: z.enum(["early_signal", "needs_review", "showing_strength"]),
+    })).max(20),
+  }).optional(),
 });
+
+export type SessionGenerationRequest = z.infer<typeof SessionGenerationRequestSchema>;
+export type PreviewSessionGenerationContext = NonNullable<
+  SessionGenerationRequest["previewContext"]
+>;
 
 export const GeneratedSessionActivitySchema = z.object({
   concept: z.string().trim().min(2).max(120).nullable(),
