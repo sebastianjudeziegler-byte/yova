@@ -18,7 +18,7 @@ test("a confident misconception is repaired now and verified later", async ({ pa
   await completeOnboarding(page);
 
   await expect(page.getByRole("heading", { name: /Good (morning|afternoon|evening), Learner\./ })).toBeVisible();
-  await page.getByRole("button", { name: /Start a focused session/ }).first().click();
+  await page.getByRole("button", { name: "Study something now", exact: true }).first().click();
 
   await page.getByPlaceholder("Example: Help me understand the product rule and practice using it.").fill(
     "Help me review cellular respiration and test what I remember.",
@@ -97,7 +97,7 @@ test("a new topic is taught before YOVA asks for independent performance", async
   await createPreviewAccount(page);
   await completeOnboarding(page);
 
-  await page.getByRole("button", { name: /Start a focused session/ }).first().click();
+  await page.getByRole("button", { name: "Study something now", exact: true }).first().click();
   await page.getByPlaceholder("Example: Help me understand the product rule and practice using it.").fill(
     "Help me understand compound growth and personal finance basics.",
   );
@@ -128,9 +128,36 @@ test("a new topic is taught before YOVA asks for independent performance", async
   await expect(page.getByRole("group", { name: /Before answering/ })).toBeVisible();
 });
 
+test("the product shell keeps every core destination and creation path usable", async ({ page }) => {
+  await createPreviewAccount(page);
+  await completeOnboarding(page);
+
+  await expect(page.getByRole("heading", { name: /Good (morning|afternoon|evening), Learner\./ })).toBeVisible();
+
+  await page.getByRole("button", { name: "Learning", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "What you’re working toward" })).toBeVisible();
+
+  await page.getByRole("button", { name: "Agenda", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Today and this week" })).toBeVisible();
+
+  await page.getByRole("button", { name: "Ask YOVA", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Get help in context" })).toBeVisible();
+
+  await page.getByRole("button", { name: "You", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Your learning, in one place" })).toBeVisible();
+
+  await page.getByRole("button", { name: "Home", exact: true }).click();
+  await page.getByRole("button", { name: /Create a plan For a test/ }).click();
+  await expect(page.getByRole("heading", { name: "What do you need to learn or prepare for?" })).toBeVisible();
+  await page.getByRole("button", { name: "Cancel" }).click();
+
+  await page.getByRole("button", { name: "Study something now", exact: true }).first().click();
+  await expect(page.getByRole("heading", { name: "What do you want help with?" })).toBeVisible();
+});
+
 async function createPreviewAccount(page: Page) {
   await page.goto("/");
-  await page.getByRole("button", { name: "Create account" }).click();
+  await page.getByRole("button", { name: "Build my plan" }).click();
   await page.getByLabel("First name").fill("Learner");
   await page.getByLabel("Email address").fill("learning-loop@example.com");
   await page.getByRole("button", { name: "Continue" }).click();

@@ -5,6 +5,7 @@ import { generateTutorAnswer, type TutorLearningContext } from "@/lib/openai/tut
 import { isOpenAITutorConfigured } from "@/lib/openai/config";
 import { checkTutorRateLimit, requestRateLimitKey } from "@/lib/server/rate-limit";
 import { claimAIRequest } from "@/lib/server/ai-usage";
+import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import {
   TutorHistoryResponseSchema,
@@ -23,6 +24,13 @@ type TutorContextResult = {
 };
 
 export async function GET(request: Request) {
+  if (!isSupabaseConfigured()) {
+    return NextResponse.json(
+      TutorHistoryResponseSchema.parse({ threadId: null, messages: [] }),
+      { headers: { "Cache-Control": "no-store" } },
+    );
+  }
+
   const supabase = await createSupabaseServerClient();
   const { data: { user }, error: userError } = await supabase.auth.getUser();
   if (userError || !user) return NextResponse.json({ error: "Sign in to use Ask YOVA." }, { status: 401 });
@@ -75,6 +83,13 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   const requestId = crypto.randomUUID();
+  if (!isSupabaseConfigured()) {
+    return NextResponse.json(
+      { error: "Ask YOVA needs the secure cloud account connection before it can answer." },
+      { status: 503, headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId } },
+    );
+  }
+
   const supabase = await createSupabaseServerClient();
   const { data: { user }, error: userError } = await supabase.auth.getUser();
   if (userError || !user) {

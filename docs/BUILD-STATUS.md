@@ -36,6 +36,9 @@ A cross-browser six-digit email-code flow is implemented and tested behind a ser
 
 ### Product experience
 
+- Rebuilt visual foundation using the real YOVA app icon, a reusable brand mark, a calmer light product shell, consistent navigation, and responsive mobile bottom navigation
+- Reworked landing page around one clear promise and one primary action, with a realistic in-product session preview instead of a presentation-style hero
+- Reworked Home around the three foundational paths: follow YOVA's recommended next session, create a learning plan, or study something now
 - Branded landing and account journey
 - Ten-question personalization onboarding
 - Home, Learning, Agenda, Ask YOVA, and You
@@ -106,6 +109,8 @@ The software loop is close to private-alpha readiness, but the broader learning-
 - Atomic completion plus delayed-follow-up persistence, so the cloud cannot save “goal complete” while losing the required verification session
 - Atomic completed-goal review activation, so the cloud cannot reopen a learning goal without also preserving the evidence-based retrieval session that caused it
 - Playwright now verifies both fundamental paths: teaching a genuinely new topic before testing it, and repairing a confident misconception before delayed verification
+- Playwright also verifies that all five primary destinations and both creation paths remain reachable on desktop and mobile
+- Preview mode now has a safe service boundary for Ask YOVA, so the product shell does not crash merely because Supabase is unavailable
 - Both paths run at desktop and Pixel-sized mobile viewports; the adaptive path also reloads the app to prove that the adjusted learning state persists
 - GitHub Actions now runs unit tests, lint, the production build, and the complete browser journey on every push to `main` and every pull request
 - Failed browser checks preserve screenshots, video, and traces for diagnosis instead of relying on a tester to describe what happened
