@@ -16,7 +16,7 @@ Estimated completion depends on which finish line is meant:
 | Finish line | Current estimate | Meaning |
 |---|---:|---|
 | Functional product core | 85% | The differentiated YOVA learning loop works |
-| Invite-only private alpha | 75% | Needs deployment, reliable email delivery, and focused end-to-end testing |
+| Invite-only private alpha | 80% | Deployment is connected; reliable email delivery and focused end-to-end testing remain |
 | Credible public beta | 55% | Also needs monitoring, broader QA, support/privacy pages, and tester-driven polish |
 | Paid polished launch | 35% | Also needs billing, entitlements, cost controls by plan, and more operational maturity |
 
@@ -26,7 +26,9 @@ These percentages are directional, not engineering math. A product can have most
 
 Public deployment: `https://yova-roan.vercel.app`
 
-The public page, YOVA identity, security headers, cache policy, and authentication callback recovery passed the automated smoke test. The deployed environment did not yet expose its Supabase or OpenAI connections, so it was correctly identified as browser-preview mode rather than a usable cloud alpha. Vercel environment variables, Supabase redirect URLs, and a redeployment are the immediate production boundary.
+The public page, YOVA identity, security headers, cache policy, OpenAI generation routes, Supabase persistence, private material storage, and authentication configuration pass the automated production smoke test. Vercel environment variables and Supabase production redirect URLs are configured.
+
+A real production passwordless email was delivered successfully. The first return test did not establish a session in the original browser, most likely because the email link opened in a different browser context from the one that requested it. YOVA now gives explicit same-browser guidance, a session recheck action, and useful recovery messages. Supabase's default email service is limited to two emails per hour, so custom SMTP is still required before outside testing.
 
 ## What is complete
 
@@ -65,8 +67,8 @@ The public page, YOVA identity, security headers, cache policy, and authenticati
 
 ### Required before inviting outside testers
 
-1. Verify the existing Vercel deployment with the production smoke test and a real user journey.
-2. Configure reliable authentication email delivery and confirm production redirect URLs.
+1. Complete a same-browser production authentication return test and then run the full plan-and-session journey.
+2. Configure reliable authentication email delivery through a custom SMTP provider.
 3. Run complete journeys on mobile and desktop with several real accounts.
 4. Test representative biology, math, writing, coding, and general-learning goals.
 5. Test good, poor, scanned, and oversized source files.
@@ -93,12 +95,12 @@ The public page, YOVA identity, security headers, cache policy, and authenticati
 
 Assuming focused daily work with Codex and fast product decisions:
 
-### Next 2–3 days: deployable alpha
+### Next 1–2 days: deployable alpha
 
-- production-readiness configuration
-- Vercel deployment
-- Supabase production redirects and reliable email provider
-- smoke tests against the deployed environment
+- finish the real production sign-in journey
+- configure a reliable email provider
+- verify a saved plan and completed session through the deployed environment
+- add production monitoring and founder-visible error reporting
 
 ### Following 3–5 days: trustworthy private alpha
 

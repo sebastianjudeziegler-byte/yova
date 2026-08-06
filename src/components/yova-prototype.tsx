@@ -31,6 +31,7 @@ import { BrandMark } from "@/components/brand-mark";
 import { PlanCreator } from "@/components/plan-creator";
 import { StudyNowCreator } from "@/components/study-now-creator";
 import { trackProductEvent } from "@/lib/analytics/client";
+import { describeAuthCallbackResult } from "@/lib/auth/callback-result";
 import { AuthConnectionError, getAuthenticatedAccount, getAuthMode, requestEmailAuthentication, signOutAuthenticatedAccount } from "@/lib/auth/client";
 import { makeId, makeUuid, type ConceptEvidence, type LearningPlan, type LearningPlanSession, type PreviewAccount, type SessionCompletion, type SessionInterruption } from "@/lib/domain";
 import { summarizeConceptEvidence, type ConceptSignal } from "@/lib/learning/concept-evidence";
@@ -150,7 +151,8 @@ export function YovaPrototype() {
     let cancelled = false;
 
     async function openYova() {
-      setAuthStartupIssue(null);
+      const callbackIssue = consumeAuthCallbackIssue();
+      if (callbackIssue) setAuthStartupIssue(callbackIssue);
       const saved = loadPreviewSnapshot();
       const authMode = getAuthMode();
       if (saved && authMode === "preview") {
@@ -180,6 +182,7 @@ export function YovaPrototype() {
       if (cancelled) return;
 
       if (cloudAccount) {
+        setAuthStartupIssue(null);
         const localAccountMatches = saved?.account?.id === cloudAccount.id;
 
         try {
@@ -993,10 +996,20 @@ function AccountEntry({ mode, existingAccount, onBack, onContinue }: { mode: Acc
   };
 
   if (emailSent) {
-    return <main className="account-shell"><header><BrandMark /><button className="button ghost" onClick={onBack}><ArrowLeft size={17} /> Back</button></header><section className="account-card email-sent"><div className="mail-check"><Mail size={24} /></div><span className="step-label">CHECK YOUR EMAIL</span><h1>Your secure sign-in link is on its way.</h1><p>Open the message sent to <strong>{email.trim().toLowerCase()}</strong>. The link will bring you back to YOVA and finish signing you in.</p><button className="button secondary large full" onClick={() => setEmailSent(false)}>Use a different email</button><div className="preview-notice"><strong>No password to remember</strong><span>The link is temporary and can only be used to finish this sign-in.</span></div></section></main>;
+    return <main className="account-shell"><header><BrandMark /><button className="button ghost" onClick={onBack}><ArrowLeft size={17} /> Back</button></header><section className="account-card email-sent"><div className="mail-check"><Mail size={24} /></div><span className="step-label">CHECK YOUR EMAIL</span><h1>Your secure sign-in link is on its way.</h1><p>Open the message sent to <strong>{email.trim().toLowerCase()}</strong>. The link will bring you back to YOVA and finish signing you in.</p><button className="button primary large full" onClick={() => window.location.reload()}>I opened the link — check sign-in</button><button className="button secondary large full" onClick={() => setEmailSent(false)}>Use a different email</button><div className="preview-notice"><strong>Use the same browser</strong><span>For this private alpha, open the email link in the browser where you requested it. If the link opened a new tab, return here and check sign-in.</span></div></section></main>;
   }
 
   return <main className="account-shell"><header><BrandMark /><button className="button ghost" onClick={onBack}><ArrowLeft size={17} /> Back</button></header><section className="account-card"><span className="step-label">{isCreate ? "CREATE YOUR ACCOUNT" : "WELCOME BACK"}</span><h1>{isCreate ? "Start building your YOVA." : "Continue your learning."}</h1><p>{isCreate ? "Your account keeps your profile, plans, sessions, and progress together." : authMode === "supabase" ? "Enter your email and YOVA will send you a secure sign-in link." : "Use the email attached to this browser’s private-alpha account."}</p>{isCreate && <label><span>First name</span><input value={displayName} onChange={(event) => { setDisplayName(event.target.value); setError(""); }} autoComplete="given-name" disabled={pending} /></label>}<label><span>Email address</span><div className="input-with-icon"><Mail size={18} /><input type="email" value={email} onChange={(event) => { setEmail(event.target.value); setError(""); }} autoComplete="email" disabled={pending} /></div></label>{error && <p className="form-error">{error}</p>}<button className="button primary large full" onClick={() => void submit()} disabled={pending}>{pending ? "Sending secure link…" : isCreate ? "Continue" : "Sign in"} {!pending && <ArrowRight size={18} />}</button><div className="preview-notice"><strong>{authMode === "supabase" ? "Secure cloud account" : "Private-alpha storage"}</strong><span>{authMode === "supabase" ? "YOVA uses a temporary email link instead of storing a password." : "For now, this browser remembers the prototype. Real email verification activates when the cloud project is connected."}</span></div></section></main>;
+}
+
+function consumeAuthCallbackIssue() {
+  const url = new URL(window.location.href);
+  const issue = describeAuthCallbackResult(url.searchParams.get("auth"));
+  if (!issue) return null;
+
+  url.searchParams.delete("auth");
+  window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
+  return issue;
 }
 
 function OnboardingIntro({ onStart }: { onStart: () => void }) {

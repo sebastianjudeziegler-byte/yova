@@ -20,6 +20,11 @@ export async function GET(request: NextRequest) {
   const { error } = await supabase.auth.exchangeCodeForSession(code);
 
   if (error) {
+    console.error("YOVA authentication callback exchange failed", {
+      code: error.code ?? "unknown",
+      name: error.name,
+      status: error.status ?? null,
+    });
     const errorUrl = new URL("/", requestUrl.origin);
     errorUrl.searchParams.set("auth", "failed");
     return NextResponse.redirect(errorUrl);
