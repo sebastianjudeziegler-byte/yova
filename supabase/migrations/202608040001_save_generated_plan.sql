@@ -83,7 +83,12 @@ begin
       (session ->> 'scheduledFor')::timestamptz,
       (session ->> 'estimatedMinutes')::smallint,
       session ->> 'status',
-      jsonb_build_object('amountLabel', session ->> 'amountLabel')
+      jsonb_build_object(
+        'amountLabel', session ->> 'amountLabel',
+        'learningMode', session ->> 'learningMode',
+        'contentTargets', coalesce(session -> 'contentTargets', '[]'::jsonb),
+        'completionEvidence', coalesce(session -> 'completionEvidence', '[]'::jsonb)
+      )
     );
   end loop;
 

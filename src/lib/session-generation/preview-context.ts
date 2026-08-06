@@ -48,6 +48,8 @@ export function buildPreviewSessionContext({
       methodReason: session.methodReason,
       estimatedMinutes: session.estimatedMinutes,
       learningMode: session.learningMode,
+      contentTargets: session.contentTargets ?? [],
+      completionEvidence: session.completionEvidence ?? [],
     },
     learnerProfile: {
       commonBlocker: onboardingAnswers[0] || null,

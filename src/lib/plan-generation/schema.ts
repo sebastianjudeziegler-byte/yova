@@ -60,6 +60,8 @@ export const GeneratedSessionDraftSchema = z.object({
   estimatedMinutes: z.number().int().min(5).max(180),
   amountLabel: z.string().trim().min(3).max(100),
   learningMode: z.enum(["learn", "study"]),
+  contentTargets: z.array(z.string().trim().min(5).max(180)).min(1).max(6),
+  completionEvidence: z.array(z.string().trim().min(8).max(220)).min(1).max(4),
 });
 
 export const GeneratedPlanDraftSchema = z.object({
@@ -96,6 +98,8 @@ export const LearningPlanSchema = z.object({
     estimatedMinutes: z.number().int().min(5).max(180),
     amountLabel: z.string().min(1),
     learningMode: z.enum(["learn", "study"]),
+    contentTargets: z.array(z.string().min(1)).default([]),
+    completionEvidence: z.array(z.string().min(1)).default([]),
     status: z.enum(["ready", "upcoming", "complete", "skipped"]),
   })).min(1).max(14),
 });

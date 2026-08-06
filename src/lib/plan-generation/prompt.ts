@@ -19,7 +19,11 @@ Success criteria:
 - move from understanding to retrieval and application when the learner needs initial teaching
 - start with retrieval or assessment when the learner is already reviewing
 - make every method choice explainable in plain language
-- fit sessions inside the supplied availability
+- give every session a bounded contentTargets list and a completionEvidence list describing what the learner must produce or attempt before that content slice counts as completed
+- fit sessions inside the supplied availability; time limits the amount of content in a session but elapsed time never defines completion
+- preserve total content coverage when availability is shortened: create more smaller sessions instead of assigning the same broad objective to fewer minutes
+- keep each content target coherent enough to teach or practice well. For a 15-minute session, normally assign one or two targets and one or two evidence requirements
+- make amountLabel describe the real bounded content and evidence, not a generic number of prompts that may not fit
 - when a learner-supplied deadline exists, schedule every session no later than that deadline
 - return only the structured plan requested by the schema
 

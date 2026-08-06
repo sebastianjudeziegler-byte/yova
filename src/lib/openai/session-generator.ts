@@ -50,6 +50,8 @@ export type SessionGenerationContext = {
     methodReason: string;
     estimatedMinutes: number;
     learningMode: SessionLearningMode;
+    contentTargets?: string[];
+    completionEvidence?: string[];
   };
   learnerProfile: {
     commonBlocker: string | null;
@@ -94,15 +96,22 @@ Use the task and objective to select the learning activities. Personalize how th
 Requirements:
 - Use learningScienceRouting as YOVA's scientific guardrail. Select methodBriefing.methodId from allowedMethodIds, normally use suggestedPrimaryMethodId, and depart from it only when the supplied task evidence clearly supports another allowed method.
 - Fill methodBriefing with the task type, catalog method, what the learner will do, why it fits this task and current knowledge, exact execution steps, and a concrete completion condition.
+- Build coverage before activities. coverage.focus is the bounded content slice for this session; essentialIdeas are what will actually be taught or practiced now; completionEvidence describes what the learner must produce before this slice counts as completed; deferredContent explicitly names in-scope content that does not fit and must remain for a future session.
+- Session time is a capacity constraint, never the definition of completion. A session is complete only after every requiredForCompletion activity is attempted. Do not treat exposure, elapsed time, reading, or button-clicking as evidence of completion.
+- Preserve the planned contentTargets and completionEvidence when supplied. If they cannot fit honestly, teach a smaller coherent subset now and put the remainder in coverage.deferredContent. Never compress a broad 45-minute objective into a superficial 15-minute pass.
 - The method briefing must explain the learning method itself. Keep productivity or tendency-based delivery changes in methodBriefing.personalization.
 - methodBriefing.learningMode must exactly match learningScienceRouting.sessionLearningMode.
 - Follow learningScienceRouting.executionContract as a hard activity-order rule.
 - Select the method first, then follow the matching methodFidelityContract as a hard sequence—not merely as wording. Tag every activity with the methodPhase that describes what the learner actually does in that activity.
 - Never misuse a methodPhase label to pass validation. A model activity must contain a complete example or explanation; guided_practice must remove some support; independent_practice must withhold the solution; repair must compare and correct; transfer must use a different prompt or application; schedule_return must name a delayed retrieval point.
 - For a learn session, teach or model the target before the first knowledge check, then fade support toward an independent attempt. The checks verify whether teaching worked; they are not the main content.
+- Every model-phase instruction must contain a teaching block. The teaching block must explain the actual subject matter, not the study method: state the key idea, explain the mechanism or procedure in connected prose, give a worked concrete example when useful, and correct one plausible misconception when relevant.
+- Keep body as the learner's immediate action or setup. Put the substantive lesson in teaching so the interface can present the idea, walkthrough, and common mistake clearly instead of as one undifferentiated paragraph.
 - For a study session, make the first topic activity an unsupported retrieval or application attempt. Show explanations only after the attempt, target the exposed gap, and include a later retry or transfer question.
 - Use the catalog's how and completion fields as the scientific source, but rewrite them concisely for this exact session rather than copying every line mechanically.
-- Create 3 to 8 short activities that fit the estimated duration.
+- Create 3 to 8 short activities that fit the estimated duration. Give every activity a realistic estimatedMinutes value. Required activity minutes must fit inside the session estimate; all activity minutes may exceed it by at most 2 minutes.
+- For sessions of 15 minutes or less, use no more than 4 activities and focus on one or two essential ideas. For 16 to 30 minutes, use no more than 5 activities. Longer sessions may use up to 8 only when the content requires it.
+- Mark the teaching, core attempt, and evidence-producing checks requiredForCompletion. Optional reflection or extension may be false. At least one question must be required.
 - Use concise instructions and one obvious action at a time.
 - Include at least one meaningful multiple-choice knowledge check with 3 to 5 plausible choices.
 - Include at least one free_response activity that makes the learner produce an answer from memory before seeing a concise reference answer.
@@ -231,7 +240,8 @@ function validateGeneratedSession(
   conceptReviewSchedule: ConceptReviewDirective[],
   scaffoldProgression: ScaffoldProgressionSignal[],
 ) {
-  return validateSessionSourceGrounding({
+  return validateSessionTimeBudget(draft, context.session.estimatedMinutes)
+    ?? validateSessionSourceGrounding({
     sourceMode: context.learningGoal.sourceMode,
     materials: context.materials,
     grounding: draft.sourceGrounding,
@@ -250,4 +260,28 @@ function validateGeneratedSession(
     signals: scaffoldProgression,
     activities: draft.activities,
   });
+}
+
+function validateSessionTimeBudget(draft: GeneratedSessionDraft, estimatedMinutes: number) {
+  const totalMinutes = draft.activities.reduce((total, activity) => total + activity.estimatedMinutes, 0);
+  const requiredMinutes = draft.activities
+    .filter((activity) => activity.requiredForCompletion)
+    .reduce((total, activity) => total + activity.estimatedMinutes, 0);
+
+  if (requiredMinutes > estimatedMinutes) {
+    return `Required content needs ${requiredMinutes} minutes, but the session allows ${estimatedMinutes}. Reduce the current content slice and defer the remainder.`;
+  }
+  if (totalMinutes > estimatedMinutes + 2) {
+    return `The activity sequence needs ${totalMinutes} minutes, which does not fit the ${estimatedMinutes}-minute session.`;
+  }
+
+  const maximumActivities = estimatedMinutes <= 15 ? 4 : estimatedMinutes <= 30 ? 5 : 8;
+  if (draft.activities.length > maximumActivities) {
+    return `A ${estimatedMinutes}-minute session may contain at most ${maximumActivities} focused activities.`;
+  }
+  if (estimatedMinutes <= 15 && draft.coverage.essentialIdeas.length > 2) {
+    return "A 15-minute session must focus on no more than two essential ideas and defer the rest.";
+  }
+
+  return null;
 }

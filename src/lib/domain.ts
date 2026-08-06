@@ -5,6 +5,8 @@ export type SourceMode = "user_materials" | "yova_generated";
 export type StudyMode = "inside_yova" | "outside_yova";
 export type LearningIntent = "learn" | "study";
 export type SessionLearningMode = "learn" | "study";
+export type SessionCoverage = import("@/lib/session-generation/schema").SessionCoverage;
+export type TeachingBlock = import("@/lib/session-generation/schema").TeachingBlock;
 
 export type SessionMethodBriefing = {
   learningMode: SessionLearningMode;
@@ -37,11 +39,14 @@ export type PreviewAccount = {
 
 export type SessionResourceActivity = {
   methodPhase?: import("@/lib/learning/method-fidelity").MethodPhase;
+  estimatedMinutes?: number;
+  requiredForCompletion?: boolean;
   type: "instruction" | "multiple_choice" | "free_response" | "reflection";
   concept: string | null;
   label: string;
   title: string;
   body: string;
+  teaching?: import("@/lib/session-generation/schema").TeachingBlock | null;
   choices: string[];
   correctAnswer: string | null;
   feedback: string | null;
@@ -57,6 +62,7 @@ export type SessionSourceGrounding = {
 
 export type SessionResource = {
   rationale: string;
+  coverage?: import("@/lib/session-generation/schema").SessionCoverage;
   methodBriefing?: SessionMethodBriefing;
   supportPlan?: import("@/lib/learning/scaffold-progression").SessionSupportPlan;
   sourceGrounding?: SessionSourceGrounding;
@@ -81,6 +87,8 @@ export type LearningPlanSession = {
   estimatedMinutes: number;
   amountLabel: string;
   learningMode: SessionLearningMode;
+  contentTargets?: string[];
+  completionEvidence?: string[];
   status: SessionStatus;
   resource?: SessionResource;
   adaptationNote?: SessionAdaptationNote;

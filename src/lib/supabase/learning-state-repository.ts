@@ -179,6 +179,8 @@ export async function loadAuthenticatedLearningState(): Promise<CloudLearningSta
       estimatedMinutes: row.estimated_minutes,
       amountLabel,
       learningMode: readLearningMode(row.step_data) ?? inferLegacySessionLearningMode(row.method, row.objective),
+      contentTargets: readStringArrayProperty(row.step_data, "contentTargets"),
+      completionEvidence: readStringArrayProperty(row.step_data, "completionEvidence"),
       status: row.status,
       resource: readSessionResourceFromStepData(row.step_data),
       adaptationNote: readSessionAdaptationNote(row.step_data),
@@ -457,4 +459,11 @@ function readNumberProperty(value: unknown, key: string) {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const property = (value as Record<string, unknown>)[key];
   return typeof property === "number" && Number.isFinite(property) ? property : null;
+}
+
+function readStringArrayProperty(value: unknown, key: string) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return [];
+  const property = (value as Record<string, unknown>)[key];
+  if (!Array.isArray(property)) return [];
+  return property.filter((item): item is string => typeof item === "string" && item.trim().length > 0).slice(0, 6);
 }

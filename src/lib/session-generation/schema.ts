@@ -24,6 +24,8 @@ export const SessionGenerationRequestSchema = z.object({
       methodReason: z.string().trim().min(5).max(800),
       estimatedMinutes: z.number().int().min(5).max(180),
       learningMode: z.enum(["learn", "study"]),
+      contentTargets: z.array(z.string().trim().min(5).max(180)).max(6).default([]),
+      completionEvidence: z.array(z.string().trim().min(8).max(220)).max(4).default([]),
     }),
     learnerProfile: z.object({
       commonBlocker: z.string().trim().max(240).nullable(),
@@ -91,12 +93,36 @@ export const SessionMethodBriefingSchema = z.object({
   personalization: z.array(z.string().trim().min(10).max(280)).max(3),
 });
 
+export const SessionCoverageSchema = z.object({
+  focus: z.string().trim().min(10).max(240),
+  essentialIdeas: z.array(z.string().trim().min(5).max(180)).min(1).max(4),
+  completionEvidence: z.array(z.string().trim().min(8).max(220)).min(1).max(3),
+  deferredContent: z.array(z.string().trim().min(5).max(180)).max(4),
+});
+
+export const TeachingBlockSchema = z.object({
+  keyIdea: z.string().trim().min(10).max(220),
+  explanation: z.string().trim().min(40).max(1_200),
+  example: z.object({
+    setup: z.string().trim().min(10).max(300),
+    steps: z.array(z.string().trim().min(8).max(280)).min(2).max(5),
+    takeaway: z.string().trim().min(10).max(260),
+  }).nullable(),
+  commonMistake: z.object({
+    mistake: z.string().trim().min(8).max(240),
+    correction: z.string().trim().min(10).max(300),
+  }).nullable(),
+});
+
 export const GeneratedSessionActivitySchema = z.object({
   methodPhase: z.enum(METHOD_PHASES),
   concept: z.string().trim().min(2).max(120).nullable(),
+  estimatedMinutes: z.number().int().min(1).max(20),
+  requiredForCompletion: z.boolean(),
   label: z.string().trim().min(2).max(50),
   title: z.string().trim().min(3).max(140),
   body: z.string().trim().min(10).max(900),
+  teaching: TeachingBlockSchema.nullable(),
   type: z.enum(["instruction", "multiple_choice", "free_response", "reflection"]),
   choices: z.array(z.string().trim().min(1).max(220)).max(5),
   correctAnswer: z.string().trim().min(1).max(600).nullable(),
@@ -127,6 +153,12 @@ export const GeneratedSessionActivitySchema = z.object({
     }
   } else if (activity.choices.length || activity.correctAnswer || activity.concept) {
     context.addIssue({ code: "custom", path: ["choices"], message: "Non-question activities cannot contain question data." });
+  }
+  if (activity.methodPhase === "model" && !activity.teaching) {
+    context.addIssue({ code: "custom", path: ["teaching"], message: "Model activities need a structured teaching block." });
+  }
+  if (activity.type !== "instruction" && activity.teaching) {
+    context.addIssue({ code: "custom", path: ["teaching"], message: "Only instruction activities can contain teaching blocks." });
   }
 });
 
@@ -162,6 +194,7 @@ export const SessionSupportPlanSchema = z.object({
 
 export const GeneratedSessionDraftSchema = z.object({
   rationale: z.string().trim().min(20).max(700),
+  coverage: SessionCoverageSchema,
   methodBriefing: SessionMethodBriefingSchema,
   sourceGrounding: SessionSourceGroundingSchema.nullable(),
   activities: z.array(GeneratedSessionActivitySchema).min(3).max(8),
@@ -179,10 +212,13 @@ export const GeneratedSessionDraftSchema = z.object({
   if (session.methodBriefing.learningMode === "study" && firstActivity?.type !== "multiple_choice" && firstActivity?.type !== "free_response") {
     context.addIssue({ code: "custom", path: ["activities", 0], message: "Practice-first sessions must begin with an unsupported attempt." });
   }
+  if (!session.activities.some((activity) => activity.requiredForCompletion && (activity.type === "multiple_choice" || activity.type === "free_response"))) {
+    context.addIssue({ code: "custom", path: ["activities"], message: "Completion must require at least one knowledge-producing attempt." });
+  }
 });
 
 export const CachedGeneratedSessionSchema = GeneratedSessionDraftSchema.extend({
-  schemaVersion: z.literal(7),
+  schemaVersion: z.literal(8),
   model: z.string().min(1),
   generatedAt: z.string().datetime({ offset: true }),
   supportPlan: SessionSupportPlanSchema.optional(),
@@ -199,5 +235,7 @@ export const SessionGenerationResponseSchema = z.object({
 
 export type GeneratedSessionDraft = z.infer<typeof GeneratedSessionDraftSchema>;
 export type SessionMethodBriefing = z.infer<typeof SessionMethodBriefingSchema>;
+export type SessionCoverage = z.infer<typeof SessionCoverageSchema>;
+export type TeachingBlock = z.infer<typeof TeachingBlockSchema>;
 export type SessionSourceGrounding = z.infer<typeof SessionSourceGroundingSchema>;
 export type SessionGenerationResponse = z.infer<typeof SessionGenerationResponseSchema>;

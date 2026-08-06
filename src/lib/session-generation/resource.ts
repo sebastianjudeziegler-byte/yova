@@ -12,16 +12,20 @@ export function toSessionResource(
 ): SessionResource {
   return {
     rationale: session.rationale,
+    coverage: session.coverage,
     methodBriefing: session.methodBriefing,
     supportPlan: session.supportPlan,
     sourceGrounding: session.sourceGrounding ?? undefined,
     activities: session.activities.map((activity) => ({
       methodPhase: activity.methodPhase,
+      estimatedMinutes: activity.estimatedMinutes,
+      requiredForCompletion: activity.requiredForCompletion,
       type: activity.type,
       concept: activity.concept,
       label: activity.label,
       title: activity.title,
       body: activity.body,
+      teaching: activity.teaching,
       choices: activity.choices,
       correctAnswer: activity.correctAnswer,
       feedback: activity.feedback,

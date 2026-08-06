@@ -62,5 +62,7 @@ function session(sequence: number, title: string, objective: string, method: str
     estimatedMinutes,
     amountLabel: `${estimatedMinutes} minutes of focused work`,
     learningMode: sequence < 3 ? "learn" as const : "study" as const,
+    contentTargets: [objective],
+    completionEvidence: ["Complete one independent attempt for this objective"],
   };
 }

@@ -42,6 +42,8 @@ export function materializePlanDraft(
         estimatedMinutes,
         amountLabel: request.intent === "study_now" ? `Focused session · about ${estimatedMinutes} min` : session.amountLabel,
         learningMode: session.learningMode,
+        contentTargets: session.contentTargets,
+        completionEvidence: session.completionEvidence,
         status: index === 0 ? "ready" as const : "upcoming" as const,
       };
     }),

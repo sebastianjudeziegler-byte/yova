@@ -197,6 +197,8 @@ export async function POST(request: Request) {
         methodReason: planSession.method_rationale,
         estimatedMinutes: planSession.estimated_minutes,
         learningMode: readSessionLearningMode(planSession.step_data, planSession.method, planSession.objective),
+        contentTargets: readStringArrayProperty(planSession.step_data, "contentTargets"),
+        completionEvidence: readStringArrayProperty(planSession.step_data, "completionEvidence"),
       },
       learnerProfile: learnerProfile ? {
         commonBlocker: learnerProfile.common_blocker,
@@ -230,7 +232,7 @@ export async function POST(request: Request) {
     });
 
     const cachedSession = CachedGeneratedSessionSchema.parse({
-      schemaVersion: 7,
+      schemaVersion: 8,
       ...generated.draft,
       supportPlan: generated.supportPlan,
       model: generated.model,
@@ -306,7 +308,7 @@ async function generateBrowserPreviewSession(
       materials: [],
     });
     const session = CachedGeneratedSessionSchema.parse({
-      schemaVersion: 7,
+      schemaVersion: 8,
       ...generated.draft,
       supportPlan: generated.supportPlan,
       model: generated.model,
@@ -360,6 +362,13 @@ function readNumberProperty(value: unknown, key: string) {
   if (!value || typeof value !== "object") return null;
   const candidate = (value as Record<string, unknown>)[key];
   return typeof candidate === "number" && Number.isFinite(candidate) ? candidate : null;
+}
+
+function readStringArrayProperty(value: unknown, key: string) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return [];
+  const candidate = (value as Record<string, unknown>)[key];
+  if (!Array.isArray(candidate)) return [];
+  return candidate.filter((item): item is string => typeof item === "string" && item.trim().length > 0).slice(0, 6);
 }
 
 function readLearningIntent(value: unknown) {

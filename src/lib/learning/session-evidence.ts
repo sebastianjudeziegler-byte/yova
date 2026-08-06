@@ -6,11 +6,14 @@ import type {
 
 export type GuidedSessionStep = {
   methodPhase?: import("@/lib/learning/method-fidelity").MethodPhase;
+  estimatedMinutes?: number;
+  requiredForCompletion?: boolean;
   type: "instruction" | "multiple_choice" | "free_response" | "reflection";
   concept: string | null;
   label: string;
   title: string;
   body: string;
+  teaching?: import("@/lib/session-generation/schema").TeachingBlock | null;
   question: string[] | null;
   correctAnswer: string | null;
   feedback: string | null;

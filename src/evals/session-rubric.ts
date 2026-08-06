@@ -39,6 +39,13 @@ export function evaluateSessionDraft(
     activity.label,
     activity.title,
     activity.body,
+    activity.teaching?.keyIdea,
+    activity.teaching?.explanation,
+    activity.teaching?.example?.setup,
+    ...(activity.teaching?.example?.steps ?? []),
+    activity.teaching?.example?.takeaway,
+    activity.teaching?.commonMistake?.mistake,
+    activity.teaching?.commonMistake?.correction,
     activity.correctAnswer,
     activity.feedback,
     ...activity.choices,
@@ -51,7 +58,13 @@ export function evaluateSessionDraft(
     draft.methodBriefing.completion,
     ...draft.methodBriefing.personalization,
   ].join(" ");
-  const combined = [draft.rationale, methodText, ...activityText].join(" ");
+  const coverageText = [
+    draft.coverage.focus,
+    ...draft.coverage.essentialIdeas,
+    ...draft.coverage.completionEvidence,
+    ...draft.coverage.deferredContent,
+  ].join(" ");
+  const combined = [draft.rationale, coverageText, methodText, ...activityText].join(" ");
   const questions = draft.activities.filter((activity) => (
     activity.type === "multiple_choice" || activity.type === "free_response"
   ));
@@ -113,6 +126,23 @@ export function evaluateSessionDraft(
     learningMode: draft.methodBriefing.learningMode,
     activities: draft.activities,
   });
+  const requiredActivities = draft.activities.filter((activity) => activity.requiredForCompletion);
+  const requiredMinutes = requiredActivities.reduce((total, activity) => total + activity.estimatedMinutes, 0);
+  const totalMinutes = draft.activities.reduce((total, activity) => total + activity.estimatedMinutes, 0);
+  const timeBudgetHonest = requiredMinutes <= context.session.estimatedMinutes
+    && totalMinutes <= context.session.estimatedMinutes + 2;
+  const requiredQuestionCount = requiredActivities.filter((activity) => (
+    activity.type === "multiple_choice" || activity.type === "free_response"
+  )).length;
+  const completionIsEvidenceBased = draft.coverage.completionEvidence.length > 0
+    && requiredQuestionCount > 0;
+  const teachingActivities = draft.activities.filter((activity) => activity.methodPhase === "model");
+  const teachingIsSubstantive = draft.methodBriefing.learningMode !== "learn"
+    || teachingActivities.some((activity) => (
+      Boolean(activity.teaching)
+      && (activity.teaching?.explanation.length ?? 0) >= 80
+      && Boolean(activity.teaching?.example || activity.teaching?.commonMistake)
+    ));
 
   const checks: SessionQualityCheck[] = [
     check("activity_pacing", "Activity count fits the session", draft.activities.length >= 3 && draft.activities.length <= maximumActivities, 10, true, `${draft.activities.length}/${maximumActivities} maximum activities for ${context.session.estimatedMinutes} minutes`),
@@ -126,6 +156,9 @@ export function evaluateSessionDraft(
     check("method_instruction", "Method briefing explains what, why, how, and done", methodInstructionComplete, 0, true, `${draft.methodBriefing.methodId} for ${draft.methodBriefing.taskType}`),
     check("method_fidelity", "Activities actually execute the named learning method", methodFidelityIssue === null, 0, true, methodFidelityIssue ?? `Required ${draft.methodBriefing.methodId} phases appear in order`),
     check("learning_approach", "Teaching and practice start differently", firstActivityMatchesApproach, 0, true, `${draft.methodBriefing.learningMode} session starts with ${draft.activities[0]?.type ?? "nothing"}`),
+    check("honest_time_budget", "Required content fits the stated time window", timeBudgetHonest, 0, true, `${requiredMinutes} required and ${totalMinutes} total minutes inside a ${context.session.estimatedMinutes}-minute window`),
+    check("content_completion", "Completion requires observable learning evidence", completionIsEvidenceBased, 0, true, `${requiredActivities.length} required activities and ${requiredQuestionCount} required checks`),
+    check("substantive_teaching", "Learning sessions teach before they test", teachingIsSubstantive, 0, true, `${teachingActivities.length} modeled teaching activities inspected`),
     check("explainability", "The session explains why it is structured this way", draft.rationale.trim().length >= 40, 5, false, `${draft.rationale.trim().length} rationale characters`),
     check("no_personality_overclaim", "No fixed brain, diagnosis, or learning-style claim", noOverclaim, 5, true, "Checked learner-facing session text"),
   ];

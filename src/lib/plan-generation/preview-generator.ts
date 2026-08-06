@@ -85,33 +85,81 @@ const METHODS = [
 export function generatePreviewPlan(request: PlanGenerationRequest): LearningPlan {
   const subject = SUBJECTS.find(({ matches }) => matches.test(request.goal))?.subject ?? DEFAULT_SUBJECT;
   const deadline = request.deadline ? new Date(request.deadline) : inferDeadline(request.goal);
-  const sessionTitles = request.intent === "study_now"
-    ? [studyNowTitle(subject)]
-    : subject.sessionTitles;
+  const targetMinutes = request.availability[0]?.minutes ?? 25;
+  const sessionBlueprints = request.intent === "study_now"
+    ? [previewBlueprint(subject, request, 0, 0, 1, targetMinutes)]
+    : subject.sessionTitles.flatMap((_, phaseIndex) => {
+      const baseMinutes = [25, 30, 30, 35, 10][phaseIndex];
+      const partCount = Math.max(1, Math.ceil(baseMinutes / targetMinutes));
+      return Array.from({ length: partCount }, (_, partIndex) => (
+        previewBlueprint(subject, request, phaseIndex, partIndex, partCount, Math.min(targetMinutes, baseMinutes))
+      ));
+    }).slice(0, 14);
   const draft = GeneratedPlanDraftSchema.parse({
     title: subject.title,
     topic: subject.topic,
     kind: subject.kind,
     deadline: request.intent === "study_now" ? null : deadline?.toISOString() ?? null,
     rationale: buildRationale(request),
-    sessions: sessionTitles.map((title, index) => {
+    sessions: sessionBlueprints.map((blueprint, index) => {
       const availability = request.availability[index % request.availability.length];
-      const minutes = Math.min(availability.minutes, index === 4 ? 10 : 20 + index * 5);
+      const minutes = Math.min(availability.minutes, blueprint.minutes);
 
       return {
-        title,
-        objective: objectiveFor(index, subject.topic),
-        method: METHODS[index],
-        methodReason: reasonFor(index, request),
-        scheduledFor: scheduledDate(index, availability.window, deadline).toISOString(),
+        title: blueprint.title,
+        objective: blueprint.objective,
+        method: METHODS[blueprint.phaseIndex],
+        methodReason: reasonFor(blueprint.phaseIndex, request),
+        scheduledFor: scheduledDate(index, sessionBlueprints.length, availability.window, deadline).toISOString(),
         estimatedMinutes: minutes,
-        amountLabel: amountFor(index, minutes),
-        learningMode: sessionLearningMode(request, index),
+        amountLabel: `${blueprint.contentTargets.length} focused ${blueprint.contentTargets.length === 1 ? "target" : "targets"} + evidence check · about ${minutes} min`,
+        learningMode: sessionLearningMode(request, blueprint.phaseIndex),
+        contentTargets: blueprint.contentTargets,
+        completionEvidence: blueprint.completionEvidence,
       };
     }),
   });
 
   return materializePlanDraft(draft, request);
+}
+
+function previewBlueprint(subject: PreviewSubject, request: PlanGenerationRequest, phaseIndex: number, partIndex: number, partCount: number, minutes: number) {
+  const title = request.intent === "study_now" ? studyNowTitle(subject) : subject.sessionTitles[phaseIndex];
+  const targets = contentTargetsFor(phaseIndex, subject.topic);
+  const distributedTargets = targets.filter((_, index) => index % partCount === partIndex);
+  const contentTargets = distributedTargets.length ? distributedTargets : [`The next bounded part of ${targets[Math.min(partIndex, targets.length - 1)]}`];
+  const partLabel = partCount > 1 ? ` · Part ${partIndex + 1} of ${partCount}` : "";
+  return {
+    phaseIndex,
+    minutes,
+    title: `${title}${partLabel}`,
+    objective: partCount > 1
+      ? `${objectiveFor(phaseIndex, subject.topic)} This session covers only part ${partIndex + 1} of ${partCount}; the remaining content stays in later sessions.`
+      : objectiveFor(phaseIndex, subject.topic),
+    contentTargets,
+    completionEvidence: completionEvidenceFor(phaseIndex, contentTargets),
+  };
+}
+
+function contentTargetsFor(index: number, topic: string) {
+  return [
+    [`The core vocabulary and relationships in ${topic}`, `The current starting gaps revealed without notes`],
+    [`A clear mental model of the weakest idea in ${topic}`, "One concrete example that shows how the idea works"],
+    ["Choosing the correct idea in mixed situations", "Explaining why tempting alternatives do not fit"],
+    ["Representative unsupported questions", "Errors repaired with a different follow-up prompt", "One independent transfer attempt"],
+    ["The highest-priority ideas still due for retrieval"],
+  ][index];
+}
+
+function completionEvidenceFor(index: number, targets: string[]) {
+  const evidence = [
+    "Attempt each target from memory and identify the unstable detail",
+    "Explain the central relationship and complete one check without the model visible",
+    "Choose and apply the correct idea in a new prompt",
+    "Complete the assigned questions and correct each exposed error",
+    "Retrieve the priority ideas once without notes",
+  ][index];
+  return [evidence, targets.length > 1 ? "Produce evidence for each listed content target" : "Produce evidence for the listed content target"];
 }
 
 function buildRationale(request: PlanGenerationRequest) {
@@ -172,11 +220,6 @@ function reasonFor(index: number, request: PlanGenerationRequest) {
   return reasons[index];
 }
 
-function amountFor(index: number, minutes: number) {
-  const labels = ["10 recall prompts", "3 focused sections", "8 mixed questions", "15-question check", "5 priority prompts"];
-  return `${labels[index]} · about ${minutes} min`;
-}
-
 function upcomingFridayAtNine() {
   const date = new Date();
   const daysUntilFriday = (5 - date.getDay() + 7) % 7 || 7;
@@ -189,8 +232,8 @@ function inferDeadline(goal: string) {
   return /next friday|test|exam|quiz|deadline/i.test(goal) ? upcomingFridayAtNine() : null;
 }
 
-function scheduledDate(index: number, window: string, deadline: Date | null) {
-  if (index === 4) {
+function scheduledDate(index: number, totalSessions: number, window: string, deadline: Date | null) {
+  if (index === totalSessions - 1) {
     const finalReview = deadline ? new Date(deadline) : new Date();
     if (!deadline) finalReview.setDate(finalReview.getDate() + 4);
     finalReview.setHours(8, 0, 0, 0);
@@ -198,7 +241,11 @@ function scheduledDate(index: number, window: string, deadline: Date | null) {
   }
 
   const date = new Date();
-  date.setDate(date.getDate() + index);
+  const latestDayOffset = deadline
+    ? Math.max(0, Math.floor((deadline.getTime() - date.getTime()) / (24 * 60 * 60 * 1_000)) - 1)
+    : Math.max(0, totalSessions - 1);
+  const dayOffset = totalSessions <= 1 ? 0 : Math.floor((index / (totalSessions - 1)) * latestDayOffset);
+  date.setDate(date.getDate() + dayOffset);
 
   const hour = /morning/i.test(window) ? 8 : /evening/i.test(window) ? 18 : 15;
   date.setHours(hour, 30, 0, 0);
