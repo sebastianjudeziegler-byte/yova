@@ -308,6 +308,36 @@ h1, h2, h3, p { margin-top: 0; }
 .source-created p,
 .source-empty p { margin: 4px 0 0; color: var(--muted); font-size: 12px; line-height: 1.55; }
 .source-limit { margin: 12px 0 0; color: var(--muted); font-size: 11px; }
+.plan-resources .section-title { align-items: flex-start; }
+.plan-resources .section-title h3 { margin-bottom: 5px; }
+.plan-resources .section-title p { max-width: 610px; margin: 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
+.plan-resources .section-title > span { color: var(--muted); font-size: 12px; white-space: nowrap; }
+.resource-empty { padding: 16px; display: flex; align-items: flex-start; gap: 11px; color: #314268; border: 1px dashed #c9d5ff; border-radius: 11px; background: #f8f9ff; }
+.resource-empty svg { flex: 0 0 auto; color: var(--blue); }
+.resource-empty p { margin: 5px 0 0; color: var(--muted); font-size: 12px; line-height: 1.55; }
+.resource-pack-list { display: grid; gap: 10px; }
+.resource-pack { overflow: hidden; border: 1px solid var(--border); border-radius: 12px; background: white; }
+.resource-pack > summary { padding: 16px 18px; display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: center; gap: 14px; list-style: none; cursor: pointer; }
+.resource-pack > summary::-webkit-details-marker { display: none; }
+.resource-pack > summary div { min-width: 0; }
+.resource-pack > summary span,
+.resource-pack > summary strong { display: block; }
+.resource-pack > summary span { margin-bottom: 4px; color: var(--blue); font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.resource-pack > summary strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.resource-pack > summary small { color: var(--muted); white-space: nowrap; }
+.resource-pack[open] > summary { background: #fbfcff; }
+.resource-pack-content { padding: 16px 18px 18px; display: grid; gap: 11px; border-top: 1px solid var(--border); background: #fbfcff; }
+.resource-rationale { margin: 0 0 3px; color: #4f5e78; font-size: 12px; line-height: 1.55; }
+.resource-activity { padding: 16px; border: 1px solid var(--border); border-radius: 11px; background: white; }
+.resource-activity.resource-practice { border-color: #cdd7fb; background: #f9faff; }
+.resource-activity-label { color: var(--blue); font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.resource-activity h4 { margin: 6px 0 5px; font-size: 15px; }
+.resource-activity > p { margin: 0; color: #4c5870; font-size: 13px; line-height: 1.6; }
+.resource-choices { margin: 13px 0 0; padding-left: 22px; display: grid; gap: 7px; color: #3f4b63; font-size: 12px; }
+.resource-answer { margin-top: 14px; padding-top: 12px; border-top: 1px solid #dfe5f5; }
+.resource-answer > summary { width: fit-content; color: var(--blue); font-size: 12px; font-weight: 700; cursor: pointer; }
+.resource-answer p { margin: 10px 0 4px; color: var(--text); font-size: 13px; line-height: 1.55; }
+.resource-answer small { display: block; color: var(--muted); line-height: 1.5; }
 .progress-line { width: 290px; max-width: 100%; height: 5px; margin: 18px 0 8px; background: rgba(255,255,255,.12); border-radius: 10px; }
 .progress-line div { height: 100%; background: var(--blue); border-radius: 10px; }
 .timeline { display: grid; }
@@ -840,7 +870,9 @@ h1, h2, h3, p { margin-top: 0; }
   .hero-actions, .rec-body, .learning-hero { align-items: stretch; flex-direction: column; }
   .learning-hero-actions { align-items: stretch; flex-direction: column; }
   .plan-sources .section-title,
+  .plan-resources .section-title,
   .source-heading-actions { align-items: flex-start; flex-direction: column; gap: 8px; }
+  .resource-pack > summary { grid-template-columns: 1fr; gap: 7px; }
   .plan-adjustment-grid, .adjustment-mode > div { grid-template-columns: 1fr; }
   .how-yova-works { margin-top: 52px; padding: 0 4px; }
   .how-steps { grid-template-columns: 1fr; }

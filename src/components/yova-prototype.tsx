@@ -34,7 +34,18 @@ import { trackProductEvent } from "@/lib/analytics/client";
 import { describeAuthCallbackResult } from "@/lib/auth/callback-result";
 import { AuthConnectionError, getAuthenticatedAccount, getAuthMode, requestEmailAuthentication, signOutAuthenticatedAccount, verifyEmailAuthenticationCode } from "@/lib/auth/client";
 import { isCompleteEmailVerificationCode, normalizeEmailVerificationCode } from "@/lib/auth/verification-code";
-import { makeId, makeUuid, type ConceptEvidence, type LearningPlan, type LearningPlanSession, type PreviewAccount, type SessionCompletion, type SessionInterruption } from "@/lib/domain";
+import {
+  makeId,
+  makeUuid,
+  type ConceptEvidence,
+  type LearningPlan,
+  type LearningPlanSession,
+  type PreviewAccount,
+  type SessionCompletion,
+  type SessionInterruption,
+  type SessionResource,
+  type SessionResourceActivity,
+} from "@/lib/domain";
 import { summarizeConceptEvidence, type ConceptSignal } from "@/lib/learning/concept-evidence";
 import { clearPreviewSnapshot, loadPreviewSnapshot, savePreviewSnapshot } from "@/lib/persistence/preview-store";
 import { buildPlanProfileSummary } from "@/lib/personalization/profile-summary";
@@ -52,6 +63,7 @@ import {
 } from "@/lib/supabase/learning-state-repository";
 import { SessionGenerationResponseSchema } from "@/lib/session-generation/schema";
 import { buildPreviewSessionContext } from "@/lib/session-generation/preview-context";
+import { toSessionResource } from "@/lib/session-generation/resource";
 import { RescheduleSessionResponseSchema } from "@/lib/scheduling/schema";
 import { SessionDurationAdjustmentResponseSchema } from "@/lib/scheduling/session-adjustment-schema";
 import {
@@ -391,6 +403,7 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
       const parsed = SessionGenerationResponseSchema.safeParse(body);
       if (!parsed.success) throw new Error("The generated session came back in an unsafe format.");
 
+      const reusableResource = toSessionResource(parsed.data.session);
       const nextLessonSteps = parsed.data.session.activities.map((activity) => ({
         type: activity.type,
         concept: activity.concept,
@@ -400,6 +413,12 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
         question: activity.type === "multiple_choice" ? activity.choices : null,
         correctAnswer: activity.correctAnswer,
         feedback: activity.feedback,
+      }));
+      setPlans((current) => current.map((plan) => plan.id !== requestedPlan.id ? plan : {
+        ...plan,
+        sessions: plan.sessions.map((session) => session.id === requestedSession.id
+          ? { ...session, resource: reusableResource }
+          : session),
       }));
       setGeneratedLessonSteps(nextLessonSteps);
       if (resumePoint) setSessionStep(Math.min(resumePoint.completedSteps, nextLessonSteps.length - 1));
@@ -416,6 +435,13 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
         return;
       }
       const fallbackSteps = lessonStepsFor(requestedPlan);
+      const fallbackResource = reusableResourceFromLessonSteps(fallbackSteps, requestedSession.methodReason);
+      setPlans((current) => current.map((plan) => plan.id !== requestedPlan.id ? plan : {
+        ...plan,
+        sessions: plan.sessions.map((session) => session.id === requestedSession.id
+          ? { ...session, resource: fallbackResource }
+          : session),
+      }));
       setGeneratedLessonSteps(fallbackSteps);
       if (resumePoint) setSessionStep(Math.min(resumePoint.completedSteps, fallbackSteps.length - 1));
       setSessionRationale(requestedSession.methodReason);
@@ -473,6 +499,7 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
               methodReason: adaptation.methodReason,
               estimatedMinutes: adaptation.estimatedMinutes,
               amountLabel: adaptation.amountLabel,
+              resource: undefined,
               status: "ready" as const,
             }
             : { ...session, status: "ready" as const };
@@ -670,7 +697,7 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
         studyMode: parsed.data.studyMode,
         sessions: plan.sessions.map((session) => {
           const update = sessionUpdates.get(session.id);
-          return update ? { ...session, estimatedMinutes: update.estimatedMinutes, amountLabel: update.amountLabel } : session;
+          return update ? { ...session, estimatedMinutes: update.estimatedMinutes, amountLabel: update.amountLabel, resource: undefined } : session;
         }),
       };
     }));
@@ -695,6 +722,9 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
       ...plan,
       sourceMode: parsed.data.sourceMode,
       materials: parsed.data.materials,
+      sessions: plan.sessions.map((session) => session.status === "ready" || session.status === "upcoming"
+        ? { ...session, resource: undefined }
+        : session),
     } : plan));
   };
 
@@ -723,6 +753,7 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
         ...session,
         estimatedMinutes: parsed.data.estimatedMinutes,
         amountLabel: parsed.data.amountLabel,
+        resource: undefined,
       } : session),
     } : plan));
   };
@@ -1217,9 +1248,30 @@ function LearningPlanDetail({ plan, plans, view, completions, interruptions, cha
     {view === "active" && showAdjustments && <PlanAdjustmentPanel plan={plan} onCancel={() => setShowAdjustments(false)} onSave={async (input) => { await onAdjustPlan(input); setShowAdjustments(false); }} />}
     {view === "recent" && <section className="learning-history-summary"><div><span>Completed</span><strong>{formatCompletionDate(completions.at(-1)?.completedAt ?? plan.createdAt)}</strong></div><div><span>Knowledge-check accuracy</span><strong>{accuracy}</strong></div><div><span>Last session felt</span><strong>{formatFeedback(completions.at(-1)?.feedback)}</strong></div></section>}
     <PlanSources plan={plan} editable={view === "active"} onAttach={onAttachMaterials} />
+    <PlanResources plan={plan} />
     <ConceptSignalsPanel signals={conceptSignals} />
     <section className="section-block"><div className="section-title"><h3>{view === "recent" ? "What you completed" : "Plan timeline"}</h3><span>{plan.sourceMode === "user_materials" ? "Your materials" : "YOVA-created content"}</span></div><div className="timeline">{plan.sessions.map((session) => <div className={`timeline-row ${session.status}`} key={session.id}><span className="timeline-node">{session.status === "complete" ? <Check size={15} /> : null}</span><div><strong>{session.title}</strong><small>{session.method} · {formatSessionTime(session.scheduledFor)}</small></div><span>{session.estimatedMinutes} min</span></div>)}</div></section>
   </>;
+}
+
+function PlanResources({ plan }: { plan: LearningPlan }) {
+  const available = plan.sessions.filter((session) => session.resource && session.resource.activities.some((activity) => activity.type !== "reflection"));
+
+  if (!available.length) {
+    return <section className="section-block plan-resources"><div className="section-title"><div><h3>Study resources</h3><p>Reusable explanations and practice, attached to the session that needed them.</p></div><span>Created when relevant</span></div><div className="resource-empty"><Sparkles size={18} /><div><strong>Nothing extra to browse yet</strong><p>YOVA creates the teaching and practice needed for a session when you first start it. Those resources will stay here afterward.</p></div></div></section>;
+  }
+
+  return <section className="section-block plan-resources"><div className="section-title"><div><h3>Study resources</h3><p>These came from the sessions YOVA selected for this goal—not from a generic tool list.</p></div><span>{available.length} {available.length === 1 ? "pack" : "packs"} ready</span></div><div className="resource-pack-list">{available.map((session) => {
+    const resource = session.resource as SessionResource;
+    const teachingCount = resource.activities.filter((activity) => activity.type === "instruction").length;
+    const practiceCount = resource.activities.filter((activity) => activity.type === "multiple_choice" || activity.type === "free_response").length;
+    return <details className="resource-pack" key={session.id}><summary><div><span>{session.method}</span><strong>{session.title}</strong></div><small>{teachingCount ? `${teachingCount} teaching` : ""}{teachingCount && practiceCount ? " · " : ""}{practiceCount ? `${practiceCount} practice` : ""}</small></summary><div className="resource-pack-content"><p className="resource-rationale">{resource.rationale}</p>{resource.activities.filter((activity) => activity.type !== "reflection").map((activity, index) => <ResourceActivityCard activity={activity} key={`${activity.title}-${index}`} />)}</div></details>;
+  })}</div></section>;
+}
+
+function ResourceActivityCard({ activity }: { activity: SessionResourceActivity }) {
+  const isQuestion = activity.type === "multiple_choice" || activity.type === "free_response";
+  return <article className={isQuestion ? "resource-activity resource-practice" : "resource-activity resource-note"}><span className="resource-activity-label">{isQuestion ? activity.type === "multiple_choice" ? "Knowledge check" : "Active recall" : activity.label}</span><h4>{activity.title}</h4><p>{activity.body}</p>{activity.choices.length > 0 && <ol className="resource-choices">{activity.choices.map((choice) => <li key={choice}>{choice}</li>)}</ol>}{isQuestion && activity.correctAnswer && <details className="resource-answer"><summary>Show answer</summary><p>{activity.correctAnswer}</p>{activity.feedback && <small>{activity.feedback}</small>}</details>}</article>;
 }
 
 function ConceptSignalsPanel({ signals }: { signals: ConceptSignal[] }) {
@@ -1555,6 +1607,24 @@ function formatStudyMinutes(totalMinutes: number) {
   const hours = Math.floor(totalMinutes / 60);
   const minutes = totalMinutes % 60;
   return minutes ? `${hours}h ${minutes}m` : `${hours}h`;
+}
+
+function reusableResourceFromLessonSteps(steps: LessonStep[], rationale: string): SessionResource {
+  return {
+    rationale,
+    generatedAt: new Date().toISOString(),
+    origin: "built_in",
+    activities: steps.map((step) => ({
+      type: step.type,
+      concept: step.concept,
+      label: step.label,
+      title: step.title,
+      body: step.body,
+      choices: step.question ?? [],
+      correctAnswer: step.correctAnswer,
+      feedback: step.feedback,
+    })),
+  };
 }
 
 function lessonStepsFor(plan: LearningPlan | null): LessonStep[] {

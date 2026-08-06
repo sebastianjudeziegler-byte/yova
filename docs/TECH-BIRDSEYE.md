@@ -22,7 +22,7 @@ OpenAI generates structured plans, learning activities, explanations, questions,
 
 ### Data and infrastructure
 
-Supabase provides authentication, Postgres data, and private file storage. GitHub preserves code history. A deployment platform will run the Next.js server on a public URL. Monitoring and billing are still separate future systems.
+Supabase provides authentication, Postgres data, and private file storage. GitHub preserves code history. Vercel builds and runs the Next.js server at YOVA's public URL. Monitoring and billing are still separate future systems.
 
 ## 2. The core request flow
 
@@ -82,6 +82,12 @@ These are intentionally separate because a good AI response that fails to save s
 A schema is a machine-checkable contract. YOVA uses Zod schemas around browser requests and OpenAI responses.
 
 Without a schema, a model could return an attractive paragraph when the product needs six session objects. With a schema, each session must include fields such as objective, method, duration, and schedule. Invalid content is stopped before it becomes product state.
+
+### Reusing generated session resources
+
+When YOVA first builds a guided session, it already saves that structured session with the plan session in the database. The Learning screen now reads that same saved content and presents its explanations, active-recall prompts, and questions as a reusable resource pack.
+
+This avoids a second OpenAI call and avoids creating a disconnected copy of the content. If the user changes the future session setup or adds new source material, YOVA clears the affected cached pack so outdated practice is not presented as current.
 
 ## 7. Material handling
 

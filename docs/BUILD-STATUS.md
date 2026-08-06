@@ -42,6 +42,7 @@ A cross-browser six-digit email-code flow is implemented and tested behind a ser
 - Study Now and multi-session plans
 - Optional materials or YOVA-created content
 - Guided teaching, multiple choice, typed recall, and feedback
+- Generated explanations and practice remain reusable inside their learning goal
 - Contextual tutoring inside and outside sessions
 - Visible reasons for methods and recommendations
 
@@ -59,6 +60,7 @@ A cross-browser six-digit email-code flow is implemented and tested behind a ser
 - Supabase passwordless authentication and cookie sessions
 - Row-level database security and private file storage
 - Atomic plan persistence and reload from the cloud
+- Cached session resources reload from Supabase without another OpenAI request
 - OpenAI Structured Outputs for plans and guided sessions
 - Durable AI usage limits and short-window rate limits
 - Offline retry queues for completions and interruptions

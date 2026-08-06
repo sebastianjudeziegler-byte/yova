@@ -21,6 +21,24 @@ export type PreviewAccount = {
   identityMode?: "preview" | "supabase";
 };
 
+export type SessionResourceActivity = {
+  type: "instruction" | "multiple_choice" | "free_response" | "reflection";
+  concept: string | null;
+  label: string;
+  title: string;
+  body: string;
+  choices: string[];
+  correctAnswer: string | null;
+  feedback: string | null;
+};
+
+export type SessionResource = {
+  rationale: string;
+  activities: SessionResourceActivity[];
+  generatedAt: string;
+  origin: "generated" | "built_in";
+};
+
 export type LearningPlanSession = {
   id: string;
   sequence: number;
@@ -32,6 +50,7 @@ export type LearningPlanSession = {
   estimatedMinutes: number;
   amountLabel: string;
   status: SessionStatus;
+  resource?: SessionResource;
 };
 
 export type LearningPlan = {
