@@ -50,6 +50,7 @@ A cross-browser six-digit email-code flow is implemented and tested behind a ser
 - Optional materials or YOVA-created content
 - Guided teaching, multiple choice, typed recall, and feedback
 - Typed explanations receive a bounded AI-assisted formative check against the activity's reference answer and rubric; the learner can correct YOVA's judgment, and the typed response is not saved in YOVA's database
+- Formative answer judgment is protected by a repeatable human-labeled benchmark spanning correct paraphrases, confident misconceptions, incomplete causal explanations, equivalent math notation, concise programming answers, and genuinely ambiguous prompts
 - Safe built-in biology, calculus, and finance sessions now provide real instruction and worked examples when teaching must come before independent performance
 - Generated explanations and practice remain reusable inside their learning goal
 - Contextual tutoring inside and outside sessions
@@ -132,6 +133,7 @@ The software loop is close to private-alpha readiness, but the broader learning-
 - Guided-session quality evaluation checks active effort, feedback, task fit, source grounding, weak-concept priority, and personalization restraint
 - The five-case live session suite now also verifies method fidelity; biology, calculus, outside-app writing, beginner coding, and general finance each passed the stricter contracts at 100/100
 - First live OpenAI guided-session suite passed across biology, calculus, outside-app writing, beginner coding, and general finance
+- The first live OpenAI answer-judgment suite matched all seven human labels, including accepting equivalent wording while rejecting keyword-rich misconceptions and withholding judgment when the activity itself lacked enough context
 - The session evaluator exposed and verified a repair to cross-session concept naming before the suite passed
 - Private-alpha Privacy, Terms, Support, and clear AI/source limitation pages
 - Production build, security headers, error screens, and social metadata

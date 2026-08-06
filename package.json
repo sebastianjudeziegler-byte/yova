@@ -14,6 +14,7 @@
     "test:e2e:headed": "playwright test --headed",
     "eval:plans": "node scripts/run-plan-evaluations.mjs",
     "eval:sessions": "node scripts/run-session-evaluations.mjs",
+    "eval:answers": "node scripts/run-answer-evaluations.mjs",
     "readiness": "node scripts/check-readiness.mjs",
     "readiness:production": "node scripts/check-readiness.mjs --production",
     "smoke:production": "node scripts/smoke-deployment.mjs"
