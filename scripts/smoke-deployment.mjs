@@ -1,4 +1,7 @@
-const suppliedUrl = process.argv[2]?.trim() || process.env.YOVA_DEPLOYMENT_URL?.trim();
+const suppliedUrl = process.argv
+  .slice(2)
+  .find((argument) => argument !== "--" && !argument.startsWith("-"))
+  ?.trim() || process.env.YOVA_DEPLOYMENT_URL?.trim();
 
 function fail(message) {
   console.error(`FAIL  ${message}`);

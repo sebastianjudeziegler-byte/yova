@@ -22,6 +22,12 @@ Estimated completion depends on which finish line is meant:
 
 These percentages are directional, not engineering math. A product can have most features built and still need significant reliability work before strangers should pay for it.
 
+## Current deployment status
+
+Public deployment: `https://yova-roan.vercel.app`
+
+The public page, YOVA identity, security headers, cache policy, and authentication callback recovery passed the automated smoke test. The deployed environment did not yet expose its Supabase or OpenAI connections, so it was correctly identified as browser-preview mode rather than a usable cloud alpha. Vercel environment variables, Supabase redirect URLs, and a redeployment are the immediate production boundary.
+
 ## What is complete
 
 ### Product experience

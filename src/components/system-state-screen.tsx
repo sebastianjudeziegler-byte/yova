@@ -9,8 +9,10 @@ type SystemStateScreenProps = {
   title: string;
   description: string;
   documentTitle: string;
+  reload?: boolean;
   retry?: () => void;
   reference?: string;
+  showHomeAction?: boolean;
 };
 
 function YovaSystemMark() {
@@ -53,28 +55,41 @@ export function SystemStateScreen({
   title,
   description,
   documentTitle,
+  reload = false,
   retry,
   reference,
+  showHomeAction = true,
 }: SystemStateScreenProps) {
+  const isError = Boolean(retry || reload);
+  const showActions = isError || showHomeAction;
+
   return (
     <main className={styles.shell}>
       <title>{documentTitle}</title>
       <section className={styles.card} aria-labelledby="system-state-title">
         <YovaSystemMark />
-        <StatusIcon isError={Boolean(retry)} />
+        <StatusIcon isError={isError} />
         <p className={styles.eyebrow}>{eyebrow}</p>
         <h1 id="system-state-title">{title}</h1>
         <p className={styles.description}>{description}</p>
-        <div className={styles.actions}>
-          {retry && (
-            <button className={styles.primary} type="button" onClick={retry}>
-              Try again
-            </button>
-          )}
-          <Link className={retry ? styles.secondary : styles.primary} href="/">
-            Go to YOVA home
-          </Link>
-        </div>
+        {showActions && (
+          <div className={styles.actions}>
+            {(retry || reload) && (
+              <button
+                className={styles.primary}
+                type="button"
+                onClick={retry ?? (() => window.location.reload())}
+              >
+                Try again
+              </button>
+            )}
+            {showHomeAction && (
+              <Link className={isError ? styles.secondary : styles.primary} href="/">
+                Go to YOVA home
+              </Link>
+            )}
+          </div>
+        )}
         {reference && <p className={styles.reference}>Support reference: {reference}</p>}
       </section>
     </main>

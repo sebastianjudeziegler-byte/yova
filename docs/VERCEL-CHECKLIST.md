@@ -20,6 +20,8 @@ SITE_URL
 
 After adding or changing variables, redeploy the latest Git commit. A deployment that happened before the variables were added does not automatically gain them.
 
+YOVA deliberately fails closed in production when Supabase or OpenAI is missing. Localhost can still use preview mode, but a public deployment shows a setup screen instead of pretending that browser-only data is a durable account.
+
 ## 2. Configure Supabase redirect URLs
 
 In Supabase, open **Authentication → URL Configuration**.
