@@ -94,6 +94,8 @@ describe("buildPreviewSessionContext", () => {
     });
     expect(JSON.stringify(result)).not.toContain("ADHD");
     expect(result.recentResults[0]).toMatchObject({
+      methodId: "retrieval_practice",
+      feedback: "about_right",
       observedGap: "Calvin cycle",
       calibrationPattern: "possible_misconception",
     });

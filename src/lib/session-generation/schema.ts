@@ -34,13 +34,15 @@ export const SessionGenerationRequestSchema = z.object({
       primaryImprovementGoal: z.string().trim().max(240).nullable(),
     }).nullable(),
     recentResults: z.array(z.object({
+      methodId: z.enum(CORE_METHOD_IDS).nullable(),
       correctAnswers: z.number().int().min(0).max(100).nullable(),
       totalAnswers: z.number().int().min(0).max(100).nullable(),
+      feedback: z.enum(["too_easy", "about_right", "too_difficult"]).nullable(),
       observedGap: z.string().trim().max(500).nullable(),
       plannedMinutes: z.number().int().min(1).max(300).nullable(),
       actualMinutes: z.number().int().min(1).max(300).nullable(),
       calibrationPattern: z.enum(CALIBRATION_PATTERNS),
-    })).max(3),
+    })).max(8),
     recentInterruptions: z.array(z.object({
       occurredAt: z.string().datetime({ offset: true }),
       plannedMinutes: z.number().int().min(1).max(300).nullable(),

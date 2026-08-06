@@ -3,6 +3,7 @@ import { buildMaterialExcerpts } from "@/lib/materials/context";
 import { readConceptEvidenceProperty, summarizeConceptEvidence } from "@/lib/learning/concept-evidence";
 import { readConfidenceEvidenceProperty, summarizeConfidenceCalibration } from "@/lib/learning/confidence-calibration";
 import { inferLegacySessionLearningMode } from "@/lib/learning/learning-intent";
+import { methodIdFromText } from "@/lib/learning/method-router";
 import { isOpenAISessionConfigured } from "@/lib/openai/config";
 import { generateSessionWithOpenAI } from "@/lib/openai/session-generator";
 import {
@@ -92,7 +93,7 @@ export async function POST(request: Request) {
         .maybeSingle(),
       supabase
         .from("plan_sessions")
-        .select("id")
+        .select("id,method,step_data")
         .eq("plan_id", parsed.data.planId),
     ]);
 
@@ -108,7 +109,7 @@ export async function POST(request: Request) {
       planSessionRows?.length
         ? supabase
           .from("session_attempts")
-          .select("correct_answers,total_answers,actual_minutes,result_data,completed_at")
+          .select("plan_session_id,correct_answers,total_answers,actual_minutes,user_feedback,result_data,completed_at")
           .in("plan_session_id", planSessionRows.map((session) => session.id))
           .not("completed_at", "is", null)
           .order("completed_at", { ascending: false })
@@ -144,6 +145,12 @@ export async function POST(request: Request) {
     }
 
     const recentAttempts = attemptsResult.data ?? [];
+    const methodIdBySession = new Map(
+      (planSessionRows ?? []).map((session) => [
+        session.id,
+        readMethodId(session.step_data, session.method),
+      ]),
+    );
     let durableLimit: Awaited<ReturnType<typeof claimAIRequest>>;
     try {
       durableLimit = await claimAIRequest(supabase, "session_generation");
@@ -194,9 +201,11 @@ export async function POST(request: Request) {
         startingPattern: learnerProfile.starting_pattern,
         primaryImprovementGoal: learnerProfile.primary_improvement_goal,
       } : null,
-      recentResults: recentAttempts.slice(0, 3).map((attempt) => ({
+      recentResults: recentAttempts.slice(0, 8).map((attempt) => ({
+        methodId: methodIdBySession.get(attempt.plan_session_id) ?? null,
         correctAnswers: attempt.correct_answers,
         totalAnswers: attempt.total_answers,
+        feedback: readSessionFeedback(attempt.user_feedback),
         observedGap: readTextProperty(attempt.result_data, "observedGap") || null,
         plannedMinutes: readNumberProperty(attempt.result_data, "plannedMinutes"),
         actualMinutes: attempt.actual_minutes,
@@ -325,6 +334,15 @@ function readCachedSession(stepData: unknown) {
   const candidate = (stepData as Record<string, unknown>).generatedSession;
   const parsed = CachedGeneratedSessionSchema.safeParse(candidate);
   return parsed.success ? parsed.data : null;
+}
+
+function readMethodId(stepData: unknown, method: string) {
+  return readCachedSession(stepData)?.methodBriefing.methodId ?? methodIdFromText(method);
+}
+
+function readSessionFeedback(value: unknown) {
+  if (value === "too_easy" || value === "about_right" || value === "too_difficult") return value;
+  return null;
 }
 
 function readTextProperty(value: unknown, key: string) {

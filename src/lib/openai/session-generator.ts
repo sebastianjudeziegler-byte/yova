@@ -8,6 +8,12 @@ import type { ConceptSignal } from "@/lib/learning/concept-evidence";
 import type { LearningIntent, SessionLearningMode } from "@/lib/domain";
 import { buildLearningScienceRoutingBrief } from "@/lib/learning/method-router";
 import { methodFidelityContractsForPrompt, validateMethodFidelity } from "@/lib/learning/method-fidelity";
+import {
+  buildMethodOutcomeSignals,
+  validateMethodOutcomeAdaptation,
+  type MethodOutcomeSignal,
+} from "@/lib/personalization/method-outcomes";
+import type { CoreMethodId } from "@/lib/learning/method-catalog";
 import type { CalibrationPattern } from "@/lib/learning/confidence-calibration";
 import {
   GeneratedSessionDraftSchema,
@@ -43,8 +49,10 @@ export type SessionGenerationContext = {
     primaryImprovementGoal: string | null;
   } | null;
   recentResults: Array<{
+    methodId: CoreMethodId | null;
     correctAnswers: number | null;
     totalAnswers: number | null;
+    feedback: "too_easy" | "about_right" | "too_difficult" | null;
     observedGap: string | null;
     plannedMinutes: number | null;
     actualMinutes: number | null;
@@ -98,6 +106,9 @@ Requirements:
 - Any supplement must be a concise, well-established explanation or example for an idea already inside the uploaded scope. Never add unrelated curriculum, guess what a teacher will test, contradict the source, or hide that YOVA supplied the detail. List each addition in sourceGrounding.supplements.
 - When sourceMode is not user_materials, set sourceGrounding to null.
 - Use recent results conservatively. If there is little evidence, do not claim YOVA knows what works best.
+- Use observedMethodOutcomes only to modify the delivery of a method that still fits the task. These plan-specific observations are not causal proof and never establish a fixed best method or learning style.
+- A needs_more_support method outcome normally calls for a clearer model, smaller first action, or more guided practice before independence—not automatic abandonment of an evidence-backed method. A promising outcome may justify cautiously fading support or increasing transfer difficulty. An early signal must not change the normal task-first route.
+- When the selected method has a needs_more_support or promising outcome, put the exact delivery change in methodBriefing.personalization so the learner can see how YOVA adapted. Do not merely say the session is personalized.
 - Treat a recent possible_misconception calibration pattern as stronger than an ordinary miss: briefly rebuild the idea, make the learner distinguish it from the tempting wrong model, and require a different application. Treat underestimated_knowledge as a reason to confirm independently rather than reteach the whole topic. Never turn confidence into a fixed learner label.
 - Treat session timing as scheduling evidence, not proof of learning quality. When at least two recent sessions consistently ran much longer or shorter than planned, adjust the amount of work to better fit the current estimate without labeling the learner.
 - Treat one interrupted session as ordinary life, not a learner trait. Only when at least two recent sessions in this plan ended early may you cautiously reduce activity count, make the first action smaller, or split the work. Never treat interruption as evidence of low ability or poor knowledge.
@@ -130,6 +141,7 @@ export async function generateSessionWithOpenAI(
     ? buildMaterialSupportPolicy(context.materials)
     : null;
   const methodFidelityContracts = methodFidelityContractsForPrompt(learningScienceRouting.allowedMethodIds);
+  const observedMethodOutcomes = buildMethodOutcomeSignals(context.recentResults);
 
   const requestDraft = (repairReason: string | null) => getOpenAIClient().responses.parse({
     model: config.model,
@@ -140,6 +152,7 @@ export async function generateSessionWithOpenAI(
       ...context,
       learningScienceRouting,
       methodFidelityContracts,
+      observedMethodOutcomes,
       sourceGroundingPolicy,
     })}`,
     reasoning: { effort: "low" },
@@ -163,13 +176,15 @@ export async function generateSessionWithOpenAI(
 
   let parsed = GeneratedSessionDraftSchema.safeParse(response.output_parsed);
   let semanticIssue = parsed.success
-    ? validateGeneratedSession(parsed.data, context)
+    ? validateGeneratedSession(parsed.data, context, observedMethodOutcomes)
     : null;
   if ((response.status !== "completed" || !parsed.success || semanticIssue) && !repairAttempted) {
     repairAttempted = true;
     response = await requestDraft(semanticIssue ?? "The structured session shape was invalid or incomplete.");
     parsed = GeneratedSessionDraftSchema.safeParse(response.output_parsed);
-    semanticIssue = parsed.success ? validateGeneratedSession(parsed.data, context) : null;
+    semanticIssue = parsed.success
+      ? validateGeneratedSession(parsed.data, context, observedMethodOutcomes)
+      : null;
   }
   if (response.status !== "completed" || !parsed.success || semanticIssue) {
     throw new Error("OpenAI did not return a complete, safe guided session after one repair attempt.");
@@ -182,7 +197,11 @@ export async function generateSessionWithOpenAI(
   };
 }
 
-function validateGeneratedSession(draft: GeneratedSessionDraft, context: SessionGenerationContext) {
+function validateGeneratedSession(
+  draft: GeneratedSessionDraft,
+  context: SessionGenerationContext,
+  observedMethodOutcomes: MethodOutcomeSignal[],
+) {
   return validateSessionSourceGrounding({
     sourceMode: context.learningGoal.sourceMode,
     materials: context.materials,
@@ -191,5 +210,9 @@ function validateGeneratedSession(draft: GeneratedSessionDraft, context: Session
     methodId: draft.methodBriefing.methodId,
     learningMode: draft.methodBriefing.learningMode,
     activities: draft.activities,
+  }) ?? validateMethodOutcomeAdaptation({
+    methodId: draft.methodBriefing.methodId,
+    personalization: draft.methodBriefing.personalization,
+    signals: observedMethodOutcomes,
   });
 }

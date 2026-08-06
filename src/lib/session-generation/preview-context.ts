@@ -6,6 +6,7 @@ import type {
 } from "@/lib/domain";
 import { summarizeConceptEvidence } from "@/lib/learning/concept-evidence";
 import { summarizeConfidenceCalibration } from "@/lib/learning/confidence-calibration";
+import { methodIdFromText } from "@/lib/learning/method-router";
 import type { PreviewSessionGenerationContext } from "@/lib/session-generation/schema";
 
 export function buildPreviewSessionContext({
@@ -55,14 +56,20 @@ export function buildPreviewSessionContext({
       startingPattern: onboardingAnswers[5] || null,
       primaryImprovementGoal: onboardingAnswers[7] || null,
     },
-    recentResults: recentCompletions.slice(0, 3).map((completion) => ({
-      correctAnswers: completion.correctAnswers,
-      totalAnswers: completion.totalAnswers,
-      observedGap: completion.observedGap || null,
-      plannedMinutes: completion.plannedMinutes,
-      actualMinutes: completion.actualMinutes,
-      calibrationPattern: summarizeConfidenceCalibration(completion.confidenceEvidence).pattern,
-    })),
+    recentResults: recentCompletions.slice(0, 8).map((completion) => {
+      const completedSession = plan.sessions.find((candidate) => candidate.id === completion.planSessionId);
+      return {
+        methodId: completedSession?.resource?.methodBriefing?.methodId
+          ?? (completedSession ? methodIdFromText(completedSession.method) : null),
+        correctAnswers: completion.correctAnswers,
+        totalAnswers: completion.totalAnswers,
+        feedback: completion.feedback,
+        observedGap: completion.observedGap || null,
+        plannedMinutes: completion.plannedMinutes,
+        actualMinutes: completion.actualMinutes,
+        calibrationPattern: summarizeConfidenceCalibration(completion.confidenceEvidence).pattern,
+      };
+    }),
     recentInterruptions: recentInterruptions.slice(0, 4).map((interruption) => ({
       occurredAt: interruption.interruptedAt,
       plannedMinutes: interruption.plannedMinutes,
