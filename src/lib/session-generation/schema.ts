@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { CORE_METHOD_IDS, LEARNING_TASK_TYPES } from "@/lib/learning/method-catalog";
 import { CALIBRATION_PATTERNS } from "@/lib/learning/confidence-calibration";
+import { METHOD_PHASES } from "@/lib/learning/method-fidelity";
 
 export const SessionGenerationRequestSchema = z.object({
   planId: z.string().uuid(),
@@ -77,6 +78,7 @@ export const SessionMethodBriefingSchema = z.object({
 });
 
 export const GeneratedSessionActivitySchema = z.object({
+  methodPhase: z.enum(METHOD_PHASES),
   concept: z.string().trim().min(2).max(120).nullable(),
   label: z.string().trim().min(2).max(50),
   title: z.string().trim().min(3).max(140),
@@ -158,7 +160,7 @@ export const GeneratedSessionDraftSchema = z.object({
 });
 
 export const CachedGeneratedSessionSchema = GeneratedSessionDraftSchema.extend({
-  schemaVersion: z.literal(6),
+  schemaVersion: z.literal(7),
   model: z.string().min(1),
   generatedAt: z.string().datetime({ offset: true }),
 });

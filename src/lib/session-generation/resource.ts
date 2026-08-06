@@ -15,6 +15,7 @@ export function toSessionResource(
     methodBriefing: session.methodBriefing,
     sourceGrounding: session.sourceGrounding ?? undefined,
     activities: session.activities.map((activity) => ({
+      methodPhase: activity.methodPhase,
       type: activity.type,
       concept: activity.concept,
       label: activity.label,

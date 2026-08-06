@@ -411,6 +411,7 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
 
       const reusableResource = toSessionResource(parsed.data.session);
       const nextLessonSteps = parsed.data.session.activities.map((activity) => ({
+        methodPhase: activity.methodPhase,
         type: activity.type,
         concept: activity.concept,
         label: activity.label,

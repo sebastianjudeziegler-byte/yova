@@ -36,6 +36,7 @@ export type PreviewAccount = {
 };
 
 export type SessionResourceActivity = {
+  methodPhase?: import("@/lib/learning/method-fidelity").MethodPhase;
   type: "instruction" | "multiple_choice" | "free_response" | "reflection";
   concept: string | null;
   label: string;

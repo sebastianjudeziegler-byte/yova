@@ -15,7 +15,7 @@ Estimated completion depends on which finish line is meant:
 
 | Finish line | Current estimate | Meaning |
 |---|---:|---|
-| Functional product core | 95% | The differentiated loop now routes readiness, enforces teaching-first versus practice-first, repairs misses, schedules delayed verification, and controls how thin learner sources are supplemented |
+| Functional product core | 96% | The differentiated loop now routes readiness, enforces teaching-first versus practice-first, verifies method-specific activity sequences, repairs misses, schedules delayed verification, and controls how thin learner sources are supplemented |
 | Invite-only private alpha | 94% | Deployment, safeguards, atomic learning-state updates, and automated teaching and practice journeys on desktop and mobile are connected; reliable email delivery and authenticated production testing remain |
 | Credible public beta | 75% | Trust, monitoring, five-path live quality gates, CI, phone-sized coverage, and reload persistence checks exist; human output review, more device coverage, external alerts, policy review, and tester-driven polish remain |
 | Paid polished launch | 35% | Also needs billing, entitlements, cost controls by plan, and more operational maturity |
@@ -73,6 +73,8 @@ A cross-browser six-digit email-code flow is implemented and tested behind a ser
 - Rough study guides and outline-style uploads can define the factual scope while YOVA supplies only the missing explanation or example needed to teach an in-scope idea
 - Substantial explanatory uploads stay material-only by default, preventing YOVA from adding outside content merely because it can
 - Source-based sessions now carry verified text anchors and disclose every AI-supplied teaching addition to the learner
+- Every generated activity now carries a learning-phase role, and the backend rejects sessions that only name a method without executing its required sequence
+- Worked-example fading must move from a complete model to reduced support to independent performance; interleaving must mix distinct categories; reading, outlining, coding, retrieval, spacing, and practice-test methods each have their own enforced progression
 
 ### Honest scientific-product status
 
@@ -100,6 +102,7 @@ The software loop is close to private-alpha readiness, but the broader learning-
 - Five-case plan-quality evaluation covering biology, math, writing, coding, and general learning
 - First live OpenAI plan suite passed: five student and general-learning paths scored 100/100 against the required rubric
 - Guided-session quality evaluation checks active effort, feedback, task fit, source grounding, weak-concept priority, and personalization restraint
+- The five-case live session suite now also verifies method fidelity; biology, calculus, outside-app writing, beginner coding, and general finance each passed the stricter contracts at 100/100
 - First live OpenAI guided-session suite passed across biology, calculus, outside-app writing, beginner coding, and general finance
 - The session evaluator exposed and verified a repair to cross-session concept naming before the suite passed
 - Private-alpha Privacy, Terms, Support, and clear AI/source limitation pages

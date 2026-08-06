@@ -3,7 +3,7 @@ import { readSessionResourceFromStepData, toSessionResource } from "@/lib/sessio
 import type { SessionGenerationResponse } from "@/lib/session-generation/schema";
 
 const generatedSession: SessionGenerationResponse["session"] = {
-  schemaVersion: 6,
+  schemaVersion: 7,
   model: "gpt-test",
   generatedAt: "2026-08-05T18:00:00.000Z",
   rationale: "This sequence teaches the core idea before checking recall and application.",
@@ -21,6 +21,7 @@ const generatedSession: SessionGenerationResponse["session"] = {
   },
   activities: [
     {
+      methodPhase: "model",
       type: "instruction",
       concept: null,
       label: "Learn",
@@ -31,6 +32,7 @@ const generatedSession: SessionGenerationResponse["session"] = {
       feedback: null,
     },
     {
+      methodPhase: "retrieve",
       type: "multiple_choice",
       concept: "Retrieval practice",
       label: "Check",
@@ -41,6 +43,7 @@ const generatedSession: SessionGenerationResponse["session"] = {
       feedback: "Retrieval practice asks the learner to produce an answer before checking the source.",
     },
     {
+      methodPhase: "repair",
       type: "free_response",
       concept: "Retrieval practice",
       label: "Explain",

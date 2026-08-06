@@ -34,6 +34,7 @@ const strongSession = GeneratedSessionDraftSchema.parse({
   },
   activities: [
     {
+      methodPhase: "model",
       type: "instruction",
       concept: null,
       label: "Connect",
@@ -44,6 +45,7 @@ const strongSession = GeneratedSessionDraftSchema.parse({
       feedback: null,
     },
     {
+      methodPhase: "retrieve",
       type: "multiple_choice",
       concept: "Cellular respiration",
       label: "Check",
@@ -54,6 +56,7 @@ const strongSession = GeneratedSessionDraftSchema.parse({
       feedback: "Glycolysis occurs in the cytoplasm before later respiration stages continue in the mitochondria.",
     },
     {
+      methodPhase: "repair",
       type: "free_response",
       concept: "Photosynthesis and respiration",
       label: "Retrieve",
@@ -97,6 +100,7 @@ describe("session quality rubric", () => {
       },
       activities: [
         {
+          methodPhase: "model",
           type: "instruction",
           concept: null,
           label: "Read",
@@ -107,6 +111,7 @@ describe("session quality rubric", () => {
           feedback: null,
         },
         {
+          methodPhase: "retrieve",
           type: "multiple_choice",
           concept: "Memory",
           label: "Check",
@@ -117,6 +122,7 @@ describe("session quality rubric", () => {
           feedback: "The instruction above told the learner to look at a generic diagram for several minutes.",
         },
         {
+          methodPhase: "explain",
           type: "free_response",
           concept: "Memory",
           label: "Reflect",

@@ -2,6 +2,7 @@ import type { SessionGenerationContext } from "@/lib/openai/session-generator";
 import type { GeneratedSessionDraft } from "@/lib/session-generation/schema";
 import type { SessionTaskFamily } from "@/evals/session-cases";
 import { buildLearningScienceRoutingBrief } from "@/lib/learning/method-router";
+import { validateMethodFidelity } from "@/lib/learning/method-fidelity";
 
 export type SessionQualityCheck = {
   id: string;
@@ -107,6 +108,11 @@ export function evaluateSessionDraft(
   const firstActivityMatchesApproach = draft.methodBriefing.learningMode === "learn"
     ? draft.activities[0]?.type === "instruction"
     : draft.activities[0]?.type === "multiple_choice" || draft.activities[0]?.type === "free_response";
+  const methodFidelityIssue = validateMethodFidelity({
+    methodId: draft.methodBriefing.methodId,
+    learningMode: draft.methodBriefing.learningMode,
+    activities: draft.activities,
+  });
 
   const checks: SessionQualityCheck[] = [
     check("activity_pacing", "Activity count fits the session", draft.activities.length >= 3 && draft.activities.length <= maximumActivities, 10, true, `${draft.activities.length}/${maximumActivities} maximum activities for ${context.session.estimatedMinutes} minutes`),
@@ -118,6 +124,7 @@ export function evaluateSessionDraft(
     check("weak_concept_priority", "Known review concepts are addressed", priorityConceptsUsed, 10, true, reviewConcepts.length ? `Review concepts: ${reviewConcepts.join(", ")}` : "No prior review signal"),
     check("outside_guidance", "Outside-app work receives concrete directions", outsideGuidance, 5, true, context.learningGoal.studyMode === "outside_yova" ? "Outside-work instruction inspected" : "Inside-YOVA session"),
     check("method_instruction", "Method briefing explains what, why, how, and done", methodInstructionComplete, 0, true, `${draft.methodBriefing.methodId} for ${draft.methodBriefing.taskType}`),
+    check("method_fidelity", "Activities actually execute the named learning method", methodFidelityIssue === null, 0, true, methodFidelityIssue ?? `Required ${draft.methodBriefing.methodId} phases appear in order`),
     check("learning_approach", "Teaching and practice start differently", firstActivityMatchesApproach, 0, true, `${draft.methodBriefing.learningMode} session starts with ${draft.activities[0]?.type ?? "nothing"}`),
     check("explainability", "The session explains why it is structured this way", draft.rationale.trim().length >= 40, 5, false, `${draft.rationale.trim().length} rationale characters`),
     check("no_personality_overclaim", "No fixed brain, diagnosis, or learning-style claim", noOverclaim, 5, true, "Checked learner-facing session text"),

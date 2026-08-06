@@ -7,6 +7,7 @@ import { buildMaterialSupportPolicy, validateSessionSourceGrounding } from "@/li
 import type { ConceptSignal } from "@/lib/learning/concept-evidence";
 import type { LearningIntent, SessionLearningMode } from "@/lib/domain";
 import { buildLearningScienceRoutingBrief } from "@/lib/learning/method-router";
+import { methodFidelityContractsForPrompt, validateMethodFidelity } from "@/lib/learning/method-fidelity";
 import type { CalibrationPattern } from "@/lib/learning/confidence-calibration";
 import {
   GeneratedSessionDraftSchema,
@@ -75,6 +76,8 @@ Requirements:
 - The method briefing must explain the learning method itself. Keep productivity or tendency-based delivery changes in methodBriefing.personalization.
 - methodBriefing.learningMode must exactly match learningScienceRouting.sessionLearningMode.
 - Follow learningScienceRouting.executionContract as a hard activity-order rule.
+- Select the method first, then follow the matching methodFidelityContract as a hard sequence—not merely as wording. Tag every activity with the methodPhase that describes what the learner actually does in that activity.
+- Never misuse a methodPhase label to pass validation. A model activity must contain a complete example or explanation; guided_practice must remove some support; independent_practice must withhold the solution; repair must compare and correct; transfer must use a different prompt or application; schedule_return must name a delayed retrieval point.
 - For a learn session, teach or model the target before the first knowledge check, then fade support toward an independent attempt. The checks verify whether teaching worked; they are not the main content.
 - For a study session, make the first topic activity an unsupported retrieval or application attempt. Show explanations only after the attempt, target the exposed gap, and include a later retry or transfer question.
 - Use the catalog's how and completion fields as the scientific source, but rewrite them concisely for this exact session rather than copying every line mechanically.
@@ -126,6 +129,7 @@ export async function generateSessionWithOpenAI(
   const sourceGroundingPolicy = context.learningGoal.sourceMode === "user_materials"
     ? buildMaterialSupportPolicy(context.materials)
     : null;
+  const methodFidelityContracts = methodFidelityContractsForPrompt(learningScienceRouting.allowedMethodIds);
 
   const requestDraft = (repairReason: string | null) => getOpenAIClient().responses.parse({
     model: config.model,
@@ -135,6 +139,7 @@ export async function generateSessionWithOpenAI(
     input: `Build the next guided session from this YOVA context:\n${JSON.stringify({
       ...context,
       learningScienceRouting,
+      methodFidelityContracts,
       sourceGroundingPolicy,
     })}`,
     reasoning: { effort: "low" },
@@ -157,26 +162,16 @@ export async function generateSessionWithOpenAI(
   }
 
   let parsed = GeneratedSessionDraftSchema.safeParse(response.output_parsed);
-  let groundingIssue = parsed.success
-    ? validateSessionSourceGrounding({
-      sourceMode: context.learningGoal.sourceMode,
-      materials: context.materials,
-      grounding: parsed.data.sourceGrounding,
-    })
+  let semanticIssue = parsed.success
+    ? validateGeneratedSession(parsed.data, context)
     : null;
-  if ((response.status !== "completed" || !parsed.success || groundingIssue) && !repairAttempted) {
+  if ((response.status !== "completed" || !parsed.success || semanticIssue) && !repairAttempted) {
     repairAttempted = true;
-    response = await requestDraft(groundingIssue ?? "The structured session shape was invalid or incomplete.");
+    response = await requestDraft(semanticIssue ?? "The structured session shape was invalid or incomplete.");
     parsed = GeneratedSessionDraftSchema.safeParse(response.output_parsed);
-    groundingIssue = parsed.success
-      ? validateSessionSourceGrounding({
-        sourceMode: context.learningGoal.sourceMode,
-        materials: context.materials,
-        grounding: parsed.data.sourceGrounding,
-      })
-      : null;
+    semanticIssue = parsed.success ? validateGeneratedSession(parsed.data, context) : null;
   }
-  if (response.status !== "completed" || !parsed.success || groundingIssue) {
+  if (response.status !== "completed" || !parsed.success || semanticIssue) {
     throw new Error("OpenAI did not return a complete, safe guided session after one repair attempt.");
   }
 
@@ -185,4 +180,16 @@ export async function generateSessionWithOpenAI(
     model: response.model,
     responseId: response.id,
   };
+}
+
+function validateGeneratedSession(draft: GeneratedSessionDraft, context: SessionGenerationContext) {
+  return validateSessionSourceGrounding({
+    sourceMode: context.learningGoal.sourceMode,
+    materials: context.materials,
+    grounding: draft.sourceGrounding,
+  }) ?? validateMethodFidelity({
+    methodId: draft.methodBriefing.methodId,
+    learningMode: draft.methodBriefing.learningMode,
+    activities: draft.activities,
+  });
 }

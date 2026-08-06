@@ -5,6 +5,7 @@ import type {
 } from "@/lib/domain";
 
 export type GuidedSessionStep = {
+  methodPhase?: import("@/lib/learning/method-fidelity").MethodPhase;
   type: "instruction" | "multiple_choice" | "free_response" | "reflection";
   concept: string | null;
   label: string;
@@ -98,6 +99,7 @@ export function buildImmediateRepairSteps(
 
     missedConcepts.add(step.concept.toLocaleLowerCase());
     return [{
+      methodPhase: "repair",
       type: "free_response",
       concept: step.concept,
       label: "REPAIR CHECK",
