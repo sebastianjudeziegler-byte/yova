@@ -1754,6 +1754,10 @@ function lessonStepsFor(plan: LearningPlan | null): LessonStep[] {
     ];
   }
 
+  if (current?.learningMode === "learn") {
+    return teachingFirstLessonStepsFor(plan, current);
+  }
+
   if (/biology|photosynthesis|cellular respiration/i.test(plan.topic)) {
     return [
       lessonInstruction("Set up", "Closed-note retrieval", "Try to produce each answer before looking. Review only what you miss, then retry the missed item later."),
@@ -1780,6 +1784,46 @@ function lessonStepsFor(plan: LearningPlan | null): LessonStep[] {
     lessonInstruction("Practice", current?.title ?? "Apply the next idea", current?.objective ?? `Use the plan to practice ${plan.topic}.`),
     lessonFreeResponse("Recall from memory", `Explain the core idea behind ${plan.topic}`, "Write what you can produce without looking. Include the main idea and one supporting detail, step, or example.", `A strong response accurately states the main idea behind ${plan.topic} and supports it with one relevant detail, step, or example.`, "Compare the substance of your response with the reference. Exact wording is not required, but the central idea and one specific support should be present.", plan.topic),
     lessonInstruction("Wrap up", "Name the least stable idea", "A specific gap is useful information. YOVA will use it to shape the next recommendation."),
+  ];
+}
+
+function teachingFirstLessonStepsFor(plan: LearningPlan, current: LearningPlanSession): LessonStep[] {
+  if (/biology|photosynthesis|cellular respiration/i.test(plan.topic)) {
+    return [
+      lessonInstruction("Learn", "Build the cellular-respiration map", "Cellular respiration transfers energy from glucose into ATP across linked stages. Glycolysis begins in the cytoplasm. The Krebs cycle and electron transport chain follow in the mitochondrion."),
+      lessonInstruction("Worked example", "Trace one glucose molecule", "Start with glycolysis splitting glucose into pyruvate. A bridging step converts pyruvate to acetyl-CoA, which enters the Krebs cycle. The cycle supplies high-energy carriers to the electron transport chain, where their energy supports most ATP production."),
+      lessonQuestion("Guided check", "Which sequence matches the model you just learned?", "Use the stage map above rather than guessing from vocabulary.", ["Glycolysis → Krebs cycle → electron transport chain", "Krebs cycle → glycolysis → electron transport chain", "Electron transport chain → glycolysis → Krebs cycle", "Fermentation → Krebs cycle → glycolysis"], "Glycolysis → Krebs cycle → electron transport chain", "Glycolysis begins the process, the Krebs cycle continues extracting energy, and the electron transport chain follows using high-energy carriers.", "Cellular respiration sequence"),
+      lessonFreeResponse("Independent explanation", "Explain how the three stages connect", "Rebuild the sequence in your own words without reopening the model. State where glycolysis begins and what passes from one stage toward the next.", "Glycolysis begins in the cytoplasm and starts breaking down glucose. Its products feed later mitochondrial stages; the Krebs cycle produces high-energy carriers that support the electron transport chain and ATP production.", "A strong answer gives the correct order, places glycolysis in the cytoplasm, and explains at least one connection between stages.", "Cellular respiration sequence"),
+      lessonInstruction("Wrap up", "Keep the map, not isolated labels", "The next useful step is retrieving the sequence after a delay and applying it to a new question. One guided success is a starting point, not proof of durable mastery."),
+    ];
+  }
+
+  if (/calculus|derivative|product rule|quotient rule/i.test(plan.topic)) {
+    return [
+      lessonInstruction("Learn", "See the product rule before using it", "When two functions are multiplied, differentiate one while leaving the other unchanged, then switch their roles and add the results: (fg)' = f'g + fg'."),
+      lessonInstruction("Worked example", "Differentiate x² sin(x)", "Differentiate x² and keep sin(x): 2x sin(x). Then keep x² and differentiate sin(x): x² cos(x). Add them: 2x sin(x) + x² cos(x)."),
+      lessonQuestion("Guided check", "Which expression correctly applies the product rule?", "Match the two-part structure from the example.", ["f'g + fg'", "f'g'", "fg'", "f'g"], "f'g + fg'", "The product rule adds two terms so each factor is differentiated once while the other is held unchanged.", "Product rule structure"),
+      lessonFreeResponse("Independent explanation", "Explain why the product rule has two terms", "Explain the structure without copying the formula alone.", "A product can change because either factor changes. The two terms represent differentiating the first factor while holding the second, then differentiating the second while holding the first.", "A strong answer connects each term to one factor changing while the other remains in place.", "Product rule meaning"),
+      lessonInstruction("Wrap up", "Fade the example next", "The next attempt should use a new product with less support so YOVA can see whether the procedure transfers."),
+    ];
+  }
+
+  if (/finance|investing|budget|credit|interest/i.test(plan.topic)) {
+    return [
+      lessonInstruction("Learn", "Use money concepts as decision tools", "A budget directs limited income toward priorities and constraints. Compound growth describes gains becoming part of the base that can produce future gains. Both concepts help compare choices over time."),
+      lessonInstruction("Worked example", "Trace one financial choice", "If $100 earns 10%, it becomes $110. A second 10% gain is calculated from $110, not the original $100, producing $121. The earlier $10 gain joined the base and produced an additional gain."),
+      lessonQuestion("Guided check", "What makes the second year compound growth?", "Use the example you just followed.", ["The earlier gain remains in the base", "The rate must increase every year", "A fee is added to the balance", "The original amount is ignored"], "The earlier gain remains in the base", "Compounding occurs because prior gains remain invested and can themselves produce later gains.", "Compound growth mechanism"),
+      lessonFreeResponse("Independent explanation", "Explain compound growth in your own words", "Describe why later gains can become larger even when the rate stays the same.", "Earlier gains remain in the base, so future percentage gains apply to the original amount plus accumulated growth.", "A strong answer explains that prior gains stay in the base and can produce additional growth.", "Compound growth mechanism"),
+      lessonInstruction("Apply next", "Connect the model to a real decision", "The next useful step is comparing two saving, debt, or investing choices using the time horizon and compounding—not merely repeating the definition."),
+    ];
+  }
+
+  return [
+    lessonInstruction("Learn", current.title, current.objective),
+    lessonInstruction("Model", "See the structure before trying it alone", `${current.methodReason} Focus on the central relationship or procedure, then use the next check to reconstruct it without support.`),
+    lessonQuestion("Guided check", "What should happen after an initial explanation?", "Choose the step that turns an explanation into evidence of understanding.", ["Attempt an explanation or application without support", "Read the same wording repeatedly", "Highlight every sentence", "Switch to an unrelated topic"], "Attempt an explanation or application without support", "Independent explanation or application reveals whether the new model can be produced without the teaching still visible.", "Independent production"),
+    lessonFreeResponse("Independent explanation", `Explain the central idea behind ${plan.topic}`, "State the main relationship, process, or procedure in your own words and include one concrete detail.", `A strong response states the central idea behind ${plan.topic} accurately and supports it with one relevant detail, step, or example.`, "Compare the meaning rather than exact wording. If the central idea or concrete support is missing, mark it for another teaching pass.", plan.topic),
+    lessonInstruction("Wrap up", "Use the result to choose the next step", "A correct independent explanation supports moving into practice. A gap supports another example or a smaller teaching step before harder work."),
   ];
 }
 

@@ -70,6 +70,39 @@ test("a confident misconception is repaired now and verified later", async ({ pa
   await expect(page.getByRole("heading", { name: /Repair and verify Cellular respiration sequence/i })).toBeVisible();
   await expect(page.getByText("Misconception repair and delayed transfer", { exact: true })).toBeVisible();
   await expect(page.getByText("Adjusted using your last session")).toBeVisible();
+
+  await page.reload();
+  await expect(page.getByRole("heading", { name: /Repair and verify Cellular respiration sequence/i })).toBeVisible();
+  await expect(page.getByText("1 of 2 sessions complete")).toBeVisible();
+  await expect(page.getByText("Adjusted using your last session")).toBeVisible();
+});
+
+test("a new topic is taught before YOVA asks for independent performance", async ({ page }) => {
+  await createPreviewAccount(page);
+  await completeOnboarding(page);
+
+  await page.getByRole("button", { name: /Start a focused session/ }).first().click();
+  await page.getByPlaceholder("Example: Help me understand the product rule and practice using it.").fill(
+    "Help me understand compound growth and personal finance basics.",
+  );
+  await page.getByRole("button", { name: "I haven't learned this yet" }).click();
+  await expect(page.getByText("Starting approach: Teaching first.")).toBeVisible();
+  await page.getByRole("button", { name: /Choose how YOVA should help/ }).click();
+  await page.getByRole("button", { name: /Create it for me/ }).click();
+  await page.getByRole("button", { name: /Build and start session/ }).click();
+
+  await expect(page.getByRole("heading", { name: "Use money concepts as decision tools" })).toBeVisible();
+  await expect(page.getByText(/A budget directs limited income/)).toBeVisible();
+  await expect(page.getByRole("group", { name: /Before answering/ })).not.toBeVisible();
+  await page.getByRole("button", { name: "Continue" }).click();
+
+  await expect(page.getByRole("heading", { name: "Trace one financial choice" })).toBeVisible();
+  await expect(page.getByText(/If \$100 earns 10%/)).toBeVisible();
+  await expect(page.getByRole("group", { name: /Before answering/ })).not.toBeVisible();
+  await page.getByRole("button", { name: "Continue" }).click();
+
+  await expect(page.getByRole("heading", { name: "What makes the second year compound growth?" })).toBeVisible();
+  await expect(page.getByRole("group", { name: /Before answering/ })).toBeVisible();
 });
 
 async function createPreviewAccount(page: Page) {

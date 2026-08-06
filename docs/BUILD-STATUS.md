@@ -1,6 +1,6 @@
 # YOVA build status and launch map
 
-Updated: August 5, 2026
+Updated: August 6, 2026
 
 ## Honest progress snapshot
 
@@ -15,9 +15,9 @@ Estimated completion depends on which finish line is meant:
 
 | Finish line | Current estimate | Meaning |
 |---|---:|---|
-| Functional product core | 93% | The differentiated loop now routes readiness, calibrates confidence, repairs misses immediately, and schedules delayed verification without inflating mastery |
-| Invite-only private alpha | 93% | Deployment, support, monitoring, quality safeguards, atomic learning-state updates, and an automated core learner journey are connected; reliable email delivery and authenticated production testing remain |
-| Credible public beta | 74% | Trust, monitoring, five-path live quality gates, CI, and the core repair-and-verify browser test exist; human output review, broader device coverage, external alerts, policy review, and tester-driven polish remain |
+| Functional product core | 94% | The differentiated loop now routes readiness, enforces teaching-first versus practice-first, repairs misses, and schedules delayed verification without inflating mastery |
+| Invite-only private alpha | 94% | Deployment, safeguards, atomic learning-state updates, and automated teaching and practice journeys on desktop and mobile are connected; reliable email delivery and authenticated production testing remain |
+| Credible public beta | 75% | Trust, monitoring, five-path live quality gates, CI, phone-sized coverage, and reload persistence checks exist; human output review, more device coverage, external alerts, policy review, and tester-driven polish remain |
 | Paid polished launch | 35% | Also needs billing, entitlements, cost controls by plan, and more operational maturity |
 
 These percentages are directional, not engineering math. A product can have most features built and still need significant reliability work before strangers should pay for it.
@@ -43,6 +43,7 @@ A cross-browser six-digit email-code flow is implemented and tested behind a ser
 - Study Now and multi-session plans
 - Optional materials or YOVA-created content
 - Guided teaching, multiple choice, typed recall, and feedback
+- Safe built-in biology, calculus, and finance sessions now provide real instruction and worked examples when teaching must come before independent performance
 - Generated explanations and practice remain reusable inside their learning goal
 - Contextual tutoring inside and outside sessions
 - Visible reasons for methods and recommendations
@@ -71,7 +72,7 @@ A cross-browser six-digit email-code flow is implemented and tested behind a ser
 
 ### Honest scientific-product status
 
-The software loop is close to private-alpha readiness, but the broader learning-science vision is earlier. The catalog, router, confidence calibration, immediate repair, and delayed verification establish the correct architecture; richer method-specific interactions, concept-level scheduling, and stronger outcome comparisons remain. “Private alpha 92%” therefore means the product can be tested safely—not that 92% of the long-term adaptive-learning system is complete.
+The software loop is close to private-alpha readiness, but the broader learning-science vision is earlier. The catalog, router, teaching/practice separation, confidence calibration, immediate repair, and delayed verification establish the correct architecture; richer method-specific interactions, concept-level scheduling, and stronger outcome comparisons remain. “Private alpha 94%” therefore means the product can be tested safely—not that 94% of the long-term adaptive-learning system is complete.
 
 ### Backend and infrastructure
 
@@ -83,7 +84,8 @@ The software loop is close to private-alpha readiness, but the broader learning-
 - Durable AI usage limits and short-window rate limits
 - Offline retry queues for completions and interruptions
 - Atomic completion plus delayed-follow-up persistence, so the cloud cannot save “goal complete” while losing the required verification session
-- A Playwright browser test now completes account setup, all ten onboarding questions, focused-session creation, a confident misconception, immediate repair, delayed verification, and the adapted Home recommendation
+- Playwright now verifies both fundamental paths: teaching a genuinely new topic before testing it, and repairing a confident misconception before delayed verification
+- Both paths run at desktop and Pixel-sized mobile viewports; the adaptive path also reloads the app to prove that the adjusted learning state persists
 - GitHub Actions now runs unit tests, lint, the production build, and the complete browser journey on every push to `main` and every pull request
 - Failed browser checks preserve screenshots, video, and traces for diagnosis instead of relying on a tester to describe what happened
 - Privacy-safe product analytics
