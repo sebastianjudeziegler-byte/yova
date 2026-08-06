@@ -118,6 +118,7 @@ When a completed session justifies changing the next one, YOVA stores the explan
 ## 9. Reliability systems already present
 
 - validated server and AI contracts
+- overdue-session recovery composed from the existing secure scheduling and duration APIs
 - short-window API rate limits
 - durable per-account OpenAI allowances
 - atomic plan saving

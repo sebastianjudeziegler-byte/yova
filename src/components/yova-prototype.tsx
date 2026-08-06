@@ -67,6 +67,7 @@ import { buildPreviewSessionContext } from "@/lib/session-generation/preview-con
 import { toSessionResource } from "@/lib/session-generation/resource";
 import { RescheduleSessionResponseSchema } from "@/lib/scheduling/schema";
 import { SessionDurationAdjustmentResponseSchema } from "@/lib/scheduling/session-adjustment-schema";
+import { isSessionOverdue, recoverySessionMinutes, tomorrowAtSessionTime } from "@/lib/scheduling/recovery";
 import {
   clearQueuedSessionCompletions,
   flushQueuedSessionCompletions,
@@ -99,6 +100,7 @@ type LessonStep = {
   correctAnswer: string | null;
   feedback: string | null;
 };
+type AgendaEntry = { plan: LearningPlan; session: LearningPlanSession };
 
 const navItems: Array<{ label: Tab; icon: typeof Home }> = [
   { label: "Home", icon: Home },
@@ -730,13 +732,13 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
     } : plan));
   };
 
-  const applyTutorAction = async (action: TutorProposedAction) => {
+  const adjustSessionDuration = async (planSessionId: string, estimatedMinutes: number) => {
     const response = await fetch("/api/sessions/duration", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        planSessionId: action.planSessionId,
-        estimatedMinutes: action.minutes,
+        planSessionId,
+        estimatedMinutes,
       }),
     });
     const body: unknown = await response.json();
@@ -758,6 +760,10 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
         resource: undefined,
       } : session),
     } : plan));
+  };
+
+  const applyTutorAction = async (action: TutorProposedAction) => {
+    await adjustSessionDuration(action.planSessionId, action.minutes);
   };
 
   const retryCloudSync = async () => {
@@ -919,7 +925,7 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
     }}>
       {activeTab === "Home" && <HomeScreen account={account} plans={activePlans} plan={recommendedPlan} sessionInterruptions={sessionInterruptions} tutorQuestion={tutorQuestion} onTutorQuestion={setTutorQuestion} onOpenTutor={() => setActiveTab("Ask YOVA")} onStart={() => void startSession(recommendedPlan?.id)} onOpenPlan={(planId) => { setSelectedPlanId(planId); setActiveTab("Learning"); }} onCreatePlan={() => setStage("plan-creator")} onStudyNow={() => setStage("study-now")} />}
       {activeTab === "Learning" && <LearningScreen plans={plans} selectedPlanId={selectedPlanId} sessionCompletions={sessionCompletions} sessionInterruptions={sessionInterruptions} onSelectPlan={setSelectedPlanId} onStart={(planId) => void startSession(planId)} onCreatePlan={() => setStage("plan-creator")} onArchiveStateChange={changePlanArchiveState} onAdjustPlan={adjustPlan} onAttachMaterials={attachMaterials} />}
-      {activeTab === "Agenda" && <AgendaScreen plans={activePlans} sessionInterruptions={sessionInterruptions} onStart={(planId) => void startSession(planId)} onReschedule={rescheduleSession} />}
+      {activeTab === "Agenda" && <AgendaScreen plans={activePlans} sessionInterruptions={sessionInterruptions} onStart={(planId) => void startSession(planId)} onReschedule={rescheduleSession} onAdjustDuration={adjustSessionDuration} />}
       {activeTab === "Ask YOVA" && <AskScreen key={activePlan?.id ?? "general"} plan={activePlan} question={tutorQuestion} onQuestion={setTutorQuestion} onApplyAction={applyTutorAction} analyticsEnabled={analyticsEnabled} />}
       {activeTab === "You" && <YouScreen account={account} answers={answers} sessionCompletions={sessionCompletions} sessionInterruptions={sessionInterruptions} onAnswersChange={setAnswers} onReset={resetYovaData} />}
     </AppShell>
@@ -1350,15 +1356,19 @@ function PlanAdjustmentPanel({ plan, onCancel, onSave }: { plan: LearningPlan; o
   return <section className="plan-adjustment-panel"><div className="plan-adjustment-heading"><div><span className="step-label">ADJUST UNFINISHED WORK</span><h3>Change the plan without losing progress</h3><p>{unfinishedCount} unfinished {unfinishedCount === 1 ? "session will" : "sessions will"} use these settings. Completed sessions stay exactly as they are.</p></div></div><div className="plan-adjustment-grid"><label><span>Target date</span><input type="date" min={localDateInput(new Date().toISOString())} value={deadlineDate} disabled={saving} onChange={(event) => setDeadlineDate(event.target.value)} /><small>Optional. Agenda times are changed separately.</small></label><label><span>Future session length</span><select value={minutes} disabled={saving} onChange={(event) => setMinutes(Number(event.target.value))}><option value={15}>15 minutes</option><option value={25}>25 minutes</option><option value={30}>30 minutes</option><option value={45}>45 minutes</option><option value={60}>60 minutes</option></select><small>Applies only to ready and upcoming sessions.</small></label></div><div className="adjustment-mode"><span>Where should future sessions happen?</span><div><button className={studyMode === "inside_yova" ? "selected" : ""} disabled={saving} onClick={() => setStudyMode("inside_yova")}><BookOpen size={17} /><strong>Inside YOVA</strong><small>Teaching, questions, and feedback in the app</small></button><button className={studyMode === "outside_yova" ? "selected" : ""} disabled={saving} onClick={() => setStudyMode("outside_yova")}><LibraryBig size={17} /><strong>Outside YOVA</strong><small>Exact instructions for another source or workspace</small></button></div></div>{error && <div className="chat-error"><AlertCircle size={16} /><span>{error}</span></div>}<footer><button className="button ghost" disabled={saving} onClick={onCancel}>Cancel</button><button className="button primary" disabled={saving || unfinishedCount === 0} onClick={() => void save()}>{saving ? <span className="button-spinner" /> : <><Check size={16} /> Save adjustments</>}</button></footer></section>;
 }
 
-function AgendaScreen({ plans, sessionInterruptions, onStart, onReschedule }: { plans: LearningPlan[]; sessionInterruptions: SessionInterruption[]; onStart: (planId?: string) => void; onReschedule: (planId: string, planSessionId: string, scheduledFor: string) => void }) {
+function AgendaScreen({ plans, sessionInterruptions, onStart, onReschedule, onAdjustDuration }: { plans: LearningPlan[]; sessionInterruptions: SessionInterruption[]; onStart: (planId?: string) => void; onReschedule: (planId: string, planSessionId: string, scheduledFor: string) => void; onAdjustDuration: (planSessionId: string, estimatedMinutes: number) => Promise<void> }) {
   const [editing, setEditing] = useState(false);
   const [moving, setMoving] = useState<{ planId: string; sessionId: string } | null>(null);
   const [customTime, setCustomTime] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [recoveryAction, setRecoveryAction] = useState<"shorten" | "move" | null>(null);
+  const [recoveryError, setRecoveryError] = useState<string | null>(null);
   const availableSessions = plans
     .flatMap((plan) => plan.sessions.filter((session) => session.status !== "complete" && session.status !== "skipped").map((session) => ({ plan, session })))
     .sort((a, b) => new Date(a.session.scheduledFor).getTime() - new Date(b.session.scheduledFor).getTime());
+  const overdueEntry = availableSessions.find(({ session }) => session.status === "ready" && isSessionOverdue(session.scheduledFor)) ?? null;
+  const recoveryMinutes = overdueEntry ? recoverySessionMinutes(overdueEntry.session.estimatedMinutes) : null;
   const movingEntry = moving
     ? availableSessions.find(({ plan, session }) => plan.id === moving.planId && session.id === moving.sessionId) ?? null
     : null;
@@ -1369,26 +1379,30 @@ function AgendaScreen({ plans, sessionInterruptions, onStart, onReschedule }: { 
     setError(null);
   };
 
+  const rescheduleEntry = async (entry: AgendaEntry, scheduledFor: string) => {
+    const response = await fetch("/api/sessions/schedule", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ planSessionId: entry.session.id, scheduledFor }),
+      });
+    const body: unknown = await response.json();
+    if (!response.ok) {
+      const message = typeof body === "object" && body && "error" in body && typeof body.error === "string"
+        ? body.error
+        : "YOVA could not move that session.";
+      throw new Error(message);
+    }
+    const parsed = RescheduleSessionResponseSchema.safeParse(body);
+    if (!parsed.success) throw new Error("The new session time came back in an unsafe format.");
+    onReschedule(entry.plan.id, parsed.data.planSessionId, parsed.data.scheduledFor);
+  };
+
   const saveMove = async (scheduledFor: string) => {
     if (!movingEntry || saving) return;
     setSaving(true);
     setError(null);
     try {
-      const response = await fetch("/api/sessions/schedule", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ planSessionId: movingEntry.session.id, scheduledFor }),
-      });
-      const body: unknown = await response.json();
-      if (!response.ok) {
-        const message = typeof body === "object" && body && "error" in body && typeof body.error === "string"
-          ? body.error
-          : "YOVA could not move that session.";
-        throw new Error(message);
-      }
-      const parsed = RescheduleSessionResponseSchema.safeParse(body);
-      if (!parsed.success) throw new Error("The new session time came back in an unsafe format.");
-      onReschedule(movingEntry.plan.id, parsed.data.planSessionId, parsed.data.scheduledFor);
+      await rescheduleEntry(movingEntry, scheduledFor);
       setMoving(null);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "YOVA could not move that session.");
@@ -1397,11 +1411,38 @@ function AgendaScreen({ plans, sessionInterruptions, onStart, onReschedule }: { 
     }
   };
 
+  const shortenAndStart = async () => {
+    if (!overdueEntry || recoveryMinutes === null || recoveryAction) return;
+    setRecoveryAction("shorten");
+    setRecoveryError(null);
+    try {
+      await onAdjustDuration(overdueEntry.session.id, recoveryMinutes);
+      onStart(overdueEntry.plan.id);
+    } catch (requestError) {
+      setRecoveryError(requestError instanceof Error ? requestError.message : "YOVA could not shorten that session.");
+      setRecoveryAction(null);
+    }
+  };
+
+  const moveOverdueToTomorrow = async () => {
+    if (!overdueEntry || recoveryAction) return;
+    setRecoveryAction("move");
+    setRecoveryError(null);
+    try {
+      await rescheduleEntry(overdueEntry, tomorrowAtSessionTime(overdueEntry.session.scheduledFor));
+    } catch (requestError) {
+      setRecoveryError(requestError instanceof Error ? requestError.message : "YOVA could not move that session.");
+    } finally {
+      setRecoveryAction(null);
+    }
+  };
+
   return <div className="page">
     <PageHeader eyebrow="AGENDA" title="Today and this week" description="One unified view of sessions and deadlines across your learning." />
+    {overdueEntry && <section className="agenda-recovery" aria-live="polite"><div className="agenda-recovery-copy"><span className="step-label">PLAN NEEDS A RESET</span><h2>You missed a session. The plan is still recoverable.</h2><p><strong>{overdueEntry.session.title}</strong> for {overdueEntry.plan.title} was scheduled for {formatAgendaTime(overdueEntry.session.scheduledFor)}. Choose the smallest useful next move—YOVA will not punish the rest of the plan.</p></div><div className="agenda-recovery-actions"><button className="button primary" disabled={Boolean(recoveryAction)} onClick={() => onStart(overdueEntry.plan.id)}>Start it now</button>{recoveryMinutes !== null && recoveryMinutes < overdueEntry.session.estimatedMinutes && <button className="button secondary" disabled={Boolean(recoveryAction)} onClick={() => void shortenAndStart()}>{recoveryAction === "shorten" ? <span className="button-spinner dark" /> : null} Make it {recoveryMinutes} min</button>}<button className="button ghost" disabled={Boolean(recoveryAction)} onClick={() => void moveOverdueToTomorrow()}>{recoveryAction === "move" ? <span className="button-spinner dark" /> : null} Move to tomorrow</button></div>{recoveryError && <div className="chat-error"><AlertCircle size={16} /><span>{recoveryError}</span></div>}</section>}
     <section className="section-block">
       <div className="section-title"><h3>Upcoming</h3>{availableSessions.length > 0 && <button onClick={() => { setEditing((value) => !value); setMoving(null); setError(null); }}>{editing ? "Done adjusting" : "Adjust agenda"}</button>}</div>
-      <div className="agenda-list">{availableSessions.length ? availableSessions.slice(0, 8).map(({ plan, session }) => { const resumePoint = resumableSessionProgress(session.id, sessionInterruptions); return <article key={session.id} className={session.status === "ready" ? "primary-agenda" : ""}><span className="agenda-window">{formatAgendaTime(session.scheduledFor)}</span><div><strong>{session.title}</strong><small>{resumePoint ? `${plan.title} · continue at section ${resumePoint.completedSteps + 1}` : `${plan.title} · ${session.estimatedMinutes} min`}</small></div>{editing || session.status !== "ready" ? <button className="button ghost" onClick={() => openMove(plan.id, session.id, session.scheduledFor)}>Move</button> : <button className="button primary" onClick={() => onStart(plan.id)}>{resumePoint ? "Continue" : "Start"}</button>}</article>; }) : <p className="muted">Your upcoming sessions will appear here after you create a plan or focused session.</p>}</div>
+      <div className="agenda-list">{availableSessions.length ? availableSessions.slice(0, 8).map(({ plan, session }) => { const resumePoint = resumableSessionProgress(session.id, sessionInterruptions); const overdue = session.status === "ready" && isSessionOverdue(session.scheduledFor); return <article key={session.id} className={`${session.status === "ready" ? "primary-agenda" : ""} ${overdue ? "overdue-agenda" : ""}`}><span className="agenda-window">{overdue ? "Overdue · " : ""}{formatAgendaTime(session.scheduledFor)}</span><div><strong>{session.title}</strong><small>{resumePoint ? `${plan.title} · continue at section ${resumePoint.completedSteps + 1}` : `${plan.title} · ${session.estimatedMinutes} min`}</small></div>{editing || session.status !== "ready" ? <button className="button ghost" onClick={() => openMove(plan.id, session.id, session.scheduledFor)}>Move</button> : <button className="button primary" onClick={() => onStart(plan.id)}>{resumePoint ? "Continue" : "Start"}</button>}</article>; }) : <p className="muted">Your upcoming sessions will appear here after you create a plan or focused session.</p>}</div>
     </section>
     {movingEntry && <section className="agenda-move-panel" aria-live="polite"><div><span className="step-label">MOVE SESSION</span><h3>{movingEntry.session.title}</h3><p>Choose a new time. The learning order and session content will stay the same.</p></div><div className="agenda-quick-times"><button onClick={() => void saveMove(moveByDays(movingEntry.session.scheduledFor, 1))} disabled={saving}>Tomorrow</button><button onClick={() => void saveMove(moveByDays(movingEntry.session.scheduledFor, 2))} disabled={saving}>In two days</button><button onClick={() => void saveMove(moveByDays(movingEntry.session.scheduledFor, 7))} disabled={saving}>Next week</button></div><label><span>Custom date and time</span><input type="datetime-local" min={toLocalDateTimeInput(new Date().toISOString())} value={customTime} disabled={saving} onChange={(event) => setCustomTime(event.target.value)} /></label>{error && <div className="chat-error"><AlertCircle size={16} /><span>{error}</span></div>}<footer><button className="button ghost" onClick={() => { setMoving(null); setError(null); }} disabled={saving}>Cancel</button><button className="button primary" onClick={() => { const date = new Date(customTime); if (Number.isNaN(date.getTime())) { setError("Choose a valid date and time."); return; } void saveMove(date.toISOString()); }} disabled={!customTime || saving}>{saving ? <span className="button-spinner" /> : "Save new time"}</button></footer></section>}
     <section className="week-strip">{availableSessions.slice(0, 5).map(({ plan, session }) => <div key={session.id}><span>{formatDay(session.scheduledFor)}</span><strong>{new Date(session.scheduledFor).getDate()}</strong><small>{plan.title}: {session.title}</small></div>)}</section>

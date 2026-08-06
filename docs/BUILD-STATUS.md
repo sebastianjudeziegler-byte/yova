@@ -39,6 +39,7 @@ A cross-browser six-digit email-code flow is implemented and tested behind a ser
 - Branded landing and account journey
 - Ten-question personalization onboarding
 - Home, Learning, Agenda, Ask YOVA, and You
+- Missed-session recovery with start-now, shorter-session, or move-to-tomorrow choices
 - Study Now and multi-session plans
 - Optional materials or YOVA-created content
 - Guided teaching, multiple choice, typed recall, and feedback
