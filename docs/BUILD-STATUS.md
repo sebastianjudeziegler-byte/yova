@@ -16,8 +16,8 @@ Estimated completion depends on which finish line is meant:
 | Finish line | Current estimate | Meaning |
 |---|---:|---|
 | Functional product core | 93% | The differentiated loop now routes readiness, calibrates confidence, repairs misses immediately, and schedules delayed verification without inflating mastery |
-| Invite-only private alpha | 92% | Deployment, support, monitoring, quality safeguards, atomic learning-state updates, and full first-pass quality suites are connected; reliable email delivery and production end-to-end testing remain |
-| Credible public beta | 73% | Trust, monitoring, five-path live quality gates, and the core repair-and-verify loop exist; human output review, broader browser automation, external alerts, policy review, and tester-driven polish remain |
+| Invite-only private alpha | 93% | Deployment, support, monitoring, quality safeguards, atomic learning-state updates, and an automated core learner journey are connected; reliable email delivery and authenticated production testing remain |
+| Credible public beta | 74% | Trust, monitoring, five-path live quality gates, CI, and the core repair-and-verify browser test exist; human output review, broader device coverage, external alerts, policy review, and tester-driven polish remain |
 | Paid polished launch | 35% | Also needs billing, entitlements, cost controls by plan, and more operational maturity |
 
 These percentages are directional, not engineering math. A product can have most features built and still need significant reliability work before strangers should pay for it.
@@ -83,6 +83,9 @@ The software loop is close to private-alpha readiness, but the broader learning-
 - Durable AI usage limits and short-window rate limits
 - Offline retry queues for completions and interruptions
 - Atomic completion plus delayed-follow-up persistence, so the cloud cannot save “goal complete” while losing the required verification session
+- A Playwright browser test now completes account setup, all ten onboarding questions, focused-session creation, a confident misconception, immediate repair, delayed verification, and the adapted Home recommendation
+- GitHub Actions now runs unit tests, lint, the production build, and the complete browser journey on every push to `main` and every pull request
+- Failed browser checks preserve screenshots, video, and traces for diagnosis instead of relying on a tester to describe what happened
 - Privacy-safe product analytics
 - Privacy-safe production error reports with a documented founder triage workflow
 - Private support-request workflow with validation, ownership rules, and spam limits

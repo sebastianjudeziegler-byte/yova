@@ -2,6 +2,7 @@
   "name": "yova-lite",
   "version": "0.1.0",
   "private": true,
+  "packageManager": "pnpm@11.16.0",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -9,6 +10,8 @@
     "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:e2e": "playwright test",
+    "test:e2e:headed": "playwright test --headed",
     "eval:plans": "node scripts/run-plan-evaluations.mjs",
     "eval:sessions": "node scripts/run-session-evaluations.mjs",
     "readiness": "node scripts/check-readiness.mjs",
@@ -30,6 +33,7 @@
   },
   "devDependencies": {
     "@next/env": "16.3.0",
+    "@playwright/test": "^1.62.1",
     "@types/node": "latest",
     "@types/react": "latest",
     "@types/react-dom": "latest",

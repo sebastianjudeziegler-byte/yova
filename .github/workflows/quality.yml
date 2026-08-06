@@ -1,0 +1,57 @@
+name: YOVA quality
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: yova-quality-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out YOVA
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.16.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install isolated browser
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Run learning-engine tests
+        run: pnpm test
+
+      - name: Check code quality
+        run: pnpm lint
+
+      - name: Build production app
+        run: pnpm build
+
+      - name: Run core learner journey
+        run: pnpm test:e2e
+
+      - name: Upload browser evidence on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: yova-browser-test-evidence
+          path: test-results
+          if-no-files-found: ignore
+          retention-days: 7
