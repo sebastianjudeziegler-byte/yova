@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { extractMaterialText, MaterialExtractionError } from "@/lib/materials/extract";
+import { assessMaterialQuality } from "@/lib/materials/quality";
 import {
   MaterialDeleteRequestSchema,
   MaterialProcessRequestSchema,
@@ -178,6 +179,9 @@ function materialResponse(
   const record = metadata && typeof metadata === "object" && !Array.isArray(metadata)
     ? metadata as Record<string, unknown>
     : {};
+  const truncated = record.textTruncated === true;
+  const quality = assessMaterialQuality(extractedText, truncated);
+  const responseQuality = quality.status === "unusable" ? "limited" : quality.status;
   return MaterialUploadResponseSchema.parse({
     material: {
       id: upload.id,
@@ -189,8 +193,11 @@ function materialResponse(
     },
     extraction: {
       characters: extractedText.length,
+      words: quality.wordCount,
       pages: typeof record.pageCount === "number" ? record.pageCount : null,
-      truncated: record.textTruncated === true,
+      truncated,
+      quality: responseQuality,
+      notice: quality.notice,
     },
   });
 }

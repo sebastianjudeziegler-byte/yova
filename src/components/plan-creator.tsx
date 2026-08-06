@@ -46,6 +46,7 @@ export function PlanCreator({ onExit, onFinish, profileSummary }: { onExit: () =
   const [materialMode, setMaterialMode] = useState<"upload" | "none" | null>(null);
   const [materials, setMaterials] = useState<LearningMaterial[]>([]);
   const [materialError, setMaterialError] = useState<string | null>(null);
+  const [materialNotice, setMaterialNotice] = useState<string | null>(null);
   const [processingMaterials, setProcessingMaterials] = useState(false);
   const [removingMaterialId, setRemovingMaterialId] = useState<string | null>(null);
   const [studyMode, setStudyMode] = useState<"inside" | "outside" | null>(null);
@@ -136,12 +137,14 @@ export function PlanCreator({ onExit, onFinish, profileSummary }: { onExit: () =
 
     setMaterialMode("upload");
     setMaterialError(null);
+    setMaterialNotice(null);
     setProcessingMaterials(true);
 
     try {
       const incoming = Array.from(files);
-      const { accepted, errors } = await uploadMaterialFiles(incoming, materials);
+      const { accepted, errors, notices } = await uploadMaterialFiles(incoming, materials);
       setMaterialError(errors[0] ?? null);
+      setMaterialNotice(notices[0] ?? null);
       if (accepted.length) setMaterials((current) => [...current, ...accepted]);
     } finally {
       setProcessingMaterials(false);
@@ -151,6 +154,7 @@ export function PlanCreator({ onExit, onFinish, profileSummary }: { onExit: () =
   const removeMaterial = async (id: string) => {
     setRemovingMaterialId(id);
     setMaterialError(null);
+    setMaterialNotice(null);
     try {
       await deleteUploadedMaterial(id);
       setMaterials((current) => current.filter((material) => material.id !== id));
@@ -189,7 +193,7 @@ export function PlanCreator({ onExit, onFinish, profileSummary }: { onExit: () =
         <PlanPanel eyebrow="OPTIONAL MATERIALS" title="Do you have materials YOVA should use?" description="Materials are optional. If you have none, YOVA can create the explanations, questions, and learning sequence from the topic.">
           <div className="choice-cards">
             <button className={materialMode === "upload" ? "selected" : ""} onClick={() => setMaterialMode("upload")}><Upload /><span><strong>Use my materials</strong><small>Add PDF, TXT, or Markdown files</small></span>{materialMode === "upload" && <Check />}</button>
-            <button className={materialMode === "none" ? "selected" : ""} onClick={() => { setMaterialMode("none"); setMaterialError(null); }}><Sparkles /><span><strong>I do not have materials</strong><small>YOVA creates the learning content from the goal</small></span>{materialMode === "none" && <Check />}</button>
+            <button className={materialMode === "none" ? "selected" : ""} onClick={() => { setMaterialMode("none"); setMaterialError(null); setMaterialNotice(null); }}><Sparkles /><span><strong>I do not have materials</strong><small>YOVA creates the learning content from the goal</small></span>{materialMode === "none" && <Check />}</button>
           </div>
           {materialMode === "upload" && <div className="material-uploader">
             <label className="upload-dropzone">
@@ -199,6 +203,7 @@ export function PlanCreator({ onExit, onFinish, profileSummary }: { onExit: () =
             </label>
             {materials.length > 0 && <div className="material-files">{materials.map((material) => <div key={material.id}><FileText /><span><strong>{material.name}</strong><small>Securely stored · text ready for YOVA</small></span><button aria-label={`Remove ${material.name}`} disabled={removingMaterialId === material.id} onClick={() => void removeMaterial(material.id)}>{removingMaterialId === material.id ? <span className="button-spinner dark" /> : <Trash2 size={16} />}</button></div>)}<p>{materials.length} {materials.length === 1 ? "material" : "materials"} ready for plan generation</p></div>}
           </div>}
+          {materialNotice && <p className="material-notice"><AlertCircle size={15} /> {materialNotice}</p>}
           {materialError && <p className="material-error"><AlertCircle size={15} /> {materialError}</p>}
           <PlanActions onBack={back} onNext={() => setStep("mode")} nextDisabled={!materialMode || processingMaterials || Boolean(removingMaterialId) || (materialMode === "upload" && materials.length === 0)} />
         </PlanPanel>

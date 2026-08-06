@@ -1,5 +1,7 @@
 import "server-only";
 
+import { assessMaterialQuality } from "@/lib/materials/quality";
+
 const MAX_EXTRACTED_CHARACTERS = 50_000;
 const MAX_PDF_PAGES = 150;
 
@@ -31,11 +33,13 @@ function extractPlainText(bytes: Uint8Array): ExtractedMaterial {
   const normalized = normalizeText(decoded);
   if (!normalized) throw new MaterialExtractionError("This file does not contain readable text.");
 
-  return {
+  const extracted = {
     text: normalized.slice(0, MAX_EXTRACTED_CHARACTERS),
     pages: null,
     truncated: normalized.length > MAX_EXTRACTED_CHARACTERS,
   };
+  assertUsableMaterial(extracted);
+  return extracted;
 }
 
 async function extractPdfText(bytes: Uint8Array): Promise<ExtractedMaterial> {
@@ -79,14 +83,21 @@ async function extractPdfText(bytes: Uint8Array): Promise<ExtractedMaterial> {
       throw new MaterialExtractionError("YOVA could not find selectable text in this PDF. Scanned-image PDFs need OCR, which is not enabled yet.");
     }
 
-    return {
+    const extracted = {
       text,
       pages: pageCount,
       truncated: pageCount > pagesToRead || characterCount >= MAX_EXTRACTED_CHARACTERS,
     };
+    assertUsableMaterial(extracted);
+    return extracted;
   } finally {
     await loadingTask.destroy();
   }
+}
+
+function assertUsableMaterial(material: ExtractedMaterial) {
+  const quality = assessMaterialQuality(material.text, material.truncated);
+  if (quality.status === "unusable") throw new MaterialExtractionError(quality.notice ?? "This file does not contain enough readable learning content.");
 }
 
 function normalizeText(value: string) {

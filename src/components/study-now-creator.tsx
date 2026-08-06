@@ -45,6 +45,7 @@ export function StudyNowCreator({
   const [sourceChoice, setSourceChoice] = useState<SourceChoice | null>(null);
   const [materials, setMaterials] = useState<LearningMaterial[]>([]);
   const [materialError, setMaterialError] = useState<string | null>(null);
+  const [materialNotice, setMaterialNotice] = useState<string | null>(null);
   const [processingMaterials, setProcessingMaterials] = useState(false);
   const [removingMaterialId, setRemovingMaterialId] = useState<string | null>(null);
   const [generationError, setGenerationError] = useState<string | null>(null);
@@ -52,10 +53,12 @@ export function StudyNowCreator({
   const addMaterials = async (files: FileList | null) => {
     if (!files?.length) return;
     setMaterialError(null);
+    setMaterialNotice(null);
     setProcessingMaterials(true);
     try {
-      const { accepted, errors } = await uploadMaterialFiles(Array.from(files), materials);
+      const { accepted, errors, notices } = await uploadMaterialFiles(Array.from(files), materials);
       setMaterialError(errors[0] ?? null);
+      setMaterialNotice(notices[0] ?? null);
       if (accepted.length) setMaterials((current) => [...current, ...accepted]);
     } finally {
       setProcessingMaterials(false);
@@ -65,6 +68,7 @@ export function StudyNowCreator({
   const removeMaterial = async (id: string) => {
     setRemovingMaterialId(id);
     setMaterialError(null);
+    setMaterialNotice(null);
     try {
       await deleteUploadedMaterial(id);
       setMaterials((current) => current.filter((material) => material.id !== id));
@@ -179,8 +183,8 @@ export function StudyNowCreator({
           <p className="plan-description">This decides where the content comes from and where most of the work happens.</p>
           <div className="mode-cards three-up">
             <button className={sourceChoice === "materials" ? "selected" : ""} onClick={() => setSourceChoice("materials")}><Upload /><span><strong>Use my materials</strong><small>Build the session from my PDF, TXT, or Markdown files.</small></span>{sourceChoice === "materials" && <Check />}</button>
-            <button className={sourceChoice === "yova" ? "selected" : ""} onClick={() => { setSourceChoice("yova"); setMaterialError(null); }}><Sparkles /><span><strong>Create it for me</strong><small>YOVA creates the teaching and practice from the topic.</small></span>{sourceChoice === "yova" && <Check />}</button>
-            <button className={sourceChoice === "outside" ? "selected" : ""} onClick={() => { setSourceChoice("outside"); setMaterialError(null); }}><Layers3 /><span><strong>Guide me outside YOVA</strong><small>Get a method and exact steps for using another source.</small></span>{sourceChoice === "outside" && <Check />}</button>
+            <button className={sourceChoice === "yova" ? "selected" : ""} onClick={() => { setSourceChoice("yova"); setMaterialError(null); setMaterialNotice(null); }}><Sparkles /><span><strong>Create it for me</strong><small>YOVA creates the teaching and practice from the topic.</small></span>{sourceChoice === "yova" && <Check />}</button>
+            <button className={sourceChoice === "outside" ? "selected" : ""} onClick={() => { setSourceChoice("outside"); setMaterialError(null); setMaterialNotice(null); }}><Layers3 /><span><strong>Guide me outside YOVA</strong><small>Get a method and exact steps for using another source.</small></span>{sourceChoice === "outside" && <Check />}</button>
           </div>
           {sourceChoice === "materials" && <div className="material-uploader">
             <label className="upload-dropzone">
@@ -190,6 +194,7 @@ export function StudyNowCreator({
             </label>
             {materials.length > 0 && <div className="material-files">{materials.map((material) => <div key={material.id}><FileText /><span><strong>{material.name}</strong><small>Securely stored · ready for this session</small></span><button aria-label={`Remove ${material.name}`} disabled={removingMaterialId === material.id} onClick={() => void removeMaterial(material.id)}>{removingMaterialId === material.id ? <span className="button-spinner dark" /> : <Trash2 size={16} />}</button></div>)}</div>}
           </div>}
+          {materialNotice && <p className="material-notice"><AlertCircle size={15} /> {materialNotice}</p>}
           {materialError && <p className="material-error"><AlertCircle size={15} /> {materialError}</p>}
           <footer className="plan-actions"><button className="button ghost" onClick={() => setStep("setup")}><ArrowLeft size={17} /> Back</button><button className="button primary" disabled={!sourceChoice || processingMaterials || Boolean(removingMaterialId) || (sourceChoice === "materials" && materials.length === 0)} onClick={() => void generateSession()}>Build and start session <ArrowRight size={17} /></button></footer>
         </section>

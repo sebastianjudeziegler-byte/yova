@@ -16,8 +16,8 @@ Estimated completion depends on which finish line is meant:
 | Finish line | Current estimate | Meaning |
 |---|---:|---|
 | Functional product core | 88% | The differentiated YOVA learning loop works |
-| Invite-only private alpha | 86% | Deployment, support, and privacy-safe error review are connected; reliable email delivery and focused end-to-end testing remain |
-| Credible public beta | 62% | Trust and monitoring foundations exist; broader QA, external alerts, policy review, and tester-driven polish remain |
+| Invite-only private alpha | 87% | Deployment, support, monitoring, and source-quality safeguards are connected; reliable email delivery and focused end-to-end testing remain |
+| Credible public beta | 63% | Trust and reliability foundations exist; broader QA, external alerts, policy review, and tester-driven polish remain |
 | Paid polished launch | 35% | Also needs billing, entitlements, cost controls by plan, and more operational maturity |
 
 These percentages are directional, not engineering math. A product can have most features built and still need significant reliability work before strangers should pay for it.
@@ -70,6 +70,7 @@ A cross-browser six-digit email-code flow is implemented and tested behind a ser
 - Privacy-safe product analytics
 - Privacy-safe production error reports with a documented founder triage workflow
 - Private support-request workflow with validation, ownership rules, and spam limits
+- Material-quality checks that reject unreadable sources and warn when coverage is short or truncated
 - Private-alpha Privacy, Terms, Support, and clear AI/source limitation pages
 - Production build, security headers, error screens, and social metadata
 
@@ -81,7 +82,7 @@ A cross-browser six-digit email-code flow is implemented and tested behind a ser
 2. Configure reliable authentication email delivery through a custom SMTP provider.
 3. Run complete journeys on mobile and desktop with several real accounts.
 4. Test representative biology, math, writing, coding, and general-learning goals.
-5. Test good, poor, scanned, and oversized source files.
+5. Manually verify the automated source-quality safeguards with good, poor, scanned, and oversized real files.
 6. Practice the founder error and support-review workflow with real alpha failures.
 
 ### Required before a broad public beta

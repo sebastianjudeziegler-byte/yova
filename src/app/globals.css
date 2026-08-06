@@ -769,6 +769,7 @@ h1, h2, h3, p { margin-top: 0; }
 .material-files small { margin-top: 3px; color: var(--success); font-size: 11px; }
 .material-files p { margin: 0; padding: 11px 15px; color: var(--muted); background: #fafbfc; font-size: 12px; }
 .material-error { margin: 11px 0 0!important; padding: 10px 12px; display: flex; align-items: center; gap: 8px; color: #b42318!important; border-radius: 9px; background: #fff1f0; font-size: 12px!important; }
+.material-notice { margin: 11px 0 0!important; padding: 10px 12px; display: flex; align-items: center; gap: 8px; color: #694100!important; border: 1px solid #f2d58b; border-radius: 9px; background: #fff9e8; font-size: 12px!important; line-height: 1.5; }
 .deadline-card {
   padding: 17px;
   display: grid;

@@ -9,11 +9,12 @@ export const MATERIAL_LIMITS = {
 
 export async function uploadMaterialFiles(files: File[], existing: LearningMaterial[]) {
   if (existing.length + files.length > MATERIAL_LIMITS.maxFiles) {
-    return { accepted: [] as LearningMaterial[], errors: [`Use up to ${MATERIAL_LIMITS.maxFiles} files for one plan.`] };
+    return { accepted: [] as LearningMaterial[], errors: [`Use up to ${MATERIAL_LIMITS.maxFiles} files for one plan.`], notices: [] as string[] };
   }
 
   const accepted: LearningMaterial[] = [];
   const errors: string[] = [];
+  const notices: string[] = [];
 
   for (const file of files) {
     if (!/\.(pdf|txt|md)$/i.test(file.name)) {
@@ -71,12 +72,13 @@ export async function uploadMaterialFiles(files: File[], existing: LearningMater
       const parsed = MaterialUploadResponseSchema.safeParse(body);
       if (!parsed.success) throw new Error(`YOVA could not verify the saved copy of ${file.name}.`);
       accepted.push(parsed.data.material);
+      if (parsed.data.extraction.notice) notices.push(`${file.name}: ${parsed.data.extraction.notice}`);
     } catch (error) {
       errors.push(error instanceof Error ? error.message : `YOVA could not upload ${file.name}.`);
     }
   }
 
-  return { accepted, errors };
+  return { accepted, errors, notices };
 }
 
 export async function deleteUploadedMaterial(materialId: string) {

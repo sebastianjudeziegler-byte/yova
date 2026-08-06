@@ -30,8 +30,11 @@ export const MaterialUploadResponseSchema = z.object({
   material: UploadedMaterialSchema,
   extraction: z.object({
     characters: z.number().int().positive().max(50_000),
+    words: z.number().int().nonnegative(),
     pages: z.number().int().positive().nullable(),
     truncated: z.boolean(),
+    quality: z.enum(["ready", "limited"]),
+    notice: z.string().trim().min(1).max(240).nullable(),
   }),
 });
 

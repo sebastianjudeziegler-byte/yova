@@ -102,10 +102,13 @@ Authenticated users may upload PDF, TXT, and Markdown files. YOVA:
 2. stores the original privately in Supabase Storage;
 3. extracts bounded text on the server;
 4. stores processing status and extracted text in protected rows;
-5. supplies only bounded source excerpts to generation;
-6. stops source-grounded sessions if a readable source is unavailable.
+5. checks whether the extracted content is substantial enough to use;
+6. supplies only bounded source excerpts to generation;
+7. stops source-grounded sessions if a readable source is unavailable.
 
 Uploaded text is treated as untrusted content, not as instructions to the system.
+
+Material quality has three practical states. **Ready** means YOVA found substantial readable content. **Limited** means the file is usable but short or reached the 50,000-character extraction boundary, so the user sees a warning. **Unusable** means the file is scanned without selectable text, damaged, binary, or contains too little readable content; YOVA removes the failed staged upload and asks for a clearer source instead of pretending it can generate a grounded plan.
 
 ## 8. Personalization in Lite
 
