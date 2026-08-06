@@ -45,7 +45,7 @@ The command loads the local server-only OpenAI configuration before starting Vit
 
 This quality gate does not prove learning outcomes. It prevents defined structural failures and creates a repeatable checkpoint for changes to the session prompt or personalization logic.
 
-## First live checkpoints
+## First live suite
 
 On August 5, 2026:
 
@@ -53,7 +53,10 @@ On August 5, 2026:
 |---|---:|---|
 | Biology teaching from learner notes | 100/100 | Six time-bounded activities, three learner-response steps, and explicit use of both expected source concepts |
 | Calculus repair after a weak check | 100/100 after one prompt repair | Four practice activities reused the exact `Quotient rule` review label so new evidence remains connected to the stored weak concept |
+| History writing outside YOVA | 100/100 | Concrete textbook-and-notes directions, thesis selection, retrieval-based outlining, and evidence-to-claim checking |
+| Beginner JavaScript with fading support | 100/100 | One concise teaching step followed by five tracing, selection, explanation, and coding activities |
+| General-learning personal finance | 100/100 | Practical interest and credit-utilization examples followed by retrieval and scenario decisions |
 
 The first calculus run scored 90/100 because it did not preserve the stored concept label. The generation instruction now requires an applicable `needs_review` concept to be reused exactly in at least one question's concept field. The next live run passed. This is a product-memory repair, not cosmetic prompt tuning: consistent concept names allow YOVA to accumulate evidence across sessions.
 
-The remaining writing, coding, and general-learning session cases still need live execution and human review.
+All five live cases now pass the automated rubric. Human review of factual explanations, distractor quality, tone, and real learner usefulness remains necessary. Future tester failures should become new evaluation cases instead of being treated as isolated anecdotes.

@@ -16,8 +16,8 @@ Estimated completion depends on which finish line is meant:
 | Finish line | Current estimate | Meaning |
 |---|---:|---|
 | Functional product core | 89% | The differentiated YOVA learning loop works and plan/session quality now has automated coverage |
-| Invite-only private alpha | 89% | Deployment, support, monitoring, source-quality safeguards, and live AI-quality checkpoints are connected; reliable email delivery and focused end-to-end testing remain |
-| Credible public beta | 69% | Trust, monitoring, a five-path plan gate, and the first guided-session quality gate exist; broader live session review, browser automation, external alerts, policy review, and tester-driven polish remain |
+| Invite-only private alpha | 90% | Deployment, support, monitoring, source-quality safeguards, and full first-pass plan/session quality suites are connected; reliable email delivery and focused end-to-end testing remain |
+| Credible public beta | 71% | Trust, monitoring, and five-path live plan and guided-session gates exist; human output review, browser automation, external alerts, policy review, and tester-driven polish remain |
 | Paid polished launch | 35% | Also needs billing, entitlements, cost controls by plan, and more operational maturity |
 
 These percentages are directional, not engineering math. A product can have most features built and still need significant reliability work before strangers should pay for it.
@@ -74,7 +74,8 @@ A cross-browser six-digit email-code flow is implemented and tested behind a ser
 - Five-case plan-quality evaluation covering biology, math, writing, coding, and general learning
 - First live OpenAI plan suite passed: five student and general-learning paths scored 100/100 against the required rubric
 - Guided-session quality evaluation checks active effort, feedback, task fit, source grounding, weak-concept priority, and personalization restraint
-- Live biology and targeted calculus sessions pass; the evaluator exposed and verified a repair to cross-session concept naming
+- First live OpenAI guided-session suite passed across biology, calculus, outside-app writing, beginner coding, and general finance
+- The session evaluator exposed and verified a repair to cross-session concept naming before the suite passed
 - Private-alpha Privacy, Terms, Support, and clear AI/source limitation pages
 - Production build, security headers, error screens, and social metadata
 
@@ -86,7 +87,7 @@ A cross-browser six-digit email-code flow is implemented and tested behind a ser
 2. Configure reliable authentication email delivery through a custom SMTP provider.
 3. Run complete journeys on mobile and desktop with several real accounts.
 4. Manually review representative generated plans for wording, factual usefulness, and educational judgment; all five paths now pass the automated rubric.
-5. Run and review the remaining writing, coding, and general-learning live session cases.
+5. Manually review representative session explanations, distractors, feedback, tone, and factual usefulness; all five paths now pass the automated rubric.
 6. Manually verify the automated source-quality safeguards with good, poor, scanned, and oversized real files.
 7. Practice the founder error and support-review workflow with real alpha failures.
 
@@ -94,7 +95,7 @@ A cross-browser six-digit email-code flow is implemented and tested behind a ser
 
 1. External review of the private-alpha privacy and terms drafts before broad distribution.
 2. Accessibility and mobile interaction audit.
-3. Complete live guided-session quality coverage and human review of representative outputs.
+3. Complete human review of representative plan and guided-session outputs.
 4. Cost and latency measurements from real usage.
 5. External error alerts and a dedicated founder/admin workflow as tester volume grows.
 6. Two or three product iterations based on tester behavior.
