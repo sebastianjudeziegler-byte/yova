@@ -16,8 +16,8 @@ Estimated completion depends on which finish line is meant:
 | Finish line | Current estimate | Meaning |
 |---|---:|---|
 | Functional product core | 88% | The differentiated YOVA learning loop works |
-| Invite-only private alpha | 87% | Deployment, support, monitoring, and source-quality safeguards are connected; reliable email delivery and focused end-to-end testing remain |
-| Credible public beta | 65% | Trust, monitoring, and a first AI-quality gate exist; browser automation, external alerts, policy review, and tester-driven polish remain |
+| Invite-only private alpha | 88% | Deployment, support, monitoring, source-quality safeguards, and the first live plan-quality suite are connected; reliable email delivery and focused end-to-end testing remain |
+| Credible public beta | 67% | Trust, monitoring, and a live five-path plan-quality gate exist; session-quality evaluation, browser automation, external alerts, policy review, and tester-driven polish remain |
 | Paid polished launch | 35% | Also needs billing, entitlements, cost controls by plan, and more operational maturity |
 
 These percentages are directional, not engineering math. A product can have most features built and still need significant reliability work before strangers should pay for it.
@@ -72,7 +72,7 @@ A cross-browser six-digit email-code flow is implemented and tested behind a ser
 - Private support-request workflow with validation, ownership rules, and spam limits
 - Material-quality checks that reject unreadable sources and warn when coverage is short or truncated
 - Five-case plan-quality evaluation covering biology, math, writing, coding, and general learning
-- First live OpenAI quality checkpoint passed: the calculus plan scored 100/100 against the required rubric
+- First live OpenAI plan suite passed: five student and general-learning paths scored 100/100 against the required rubric
 - Private-alpha Privacy, Terms, Support, and clear AI/source limitation pages
 - Production build, security headers, error screens, and social metadata
 
@@ -83,7 +83,7 @@ A cross-browser six-digit email-code flow is implemented and tested behind a ser
 1. Complete a same-browser production authentication return test and then run the full plan-and-session journey.
 2. Configure reliable authentication email delivery through a custom SMTP provider.
 3. Run complete journeys on mobile and desktop with several real accounts.
-4. Run and manually review the remaining four live plan cases; the calculus case already passes the automated rubric.
+4. Manually review representative generated plans for wording, factual usefulness, and educational judgment; all five paths now pass the automated rubric.
 5. Manually verify the automated source-quality safeguards with good, poor, scanned, and oversized real files.
 6. Practice the founder error and support-review workflow with real alpha failures.
 

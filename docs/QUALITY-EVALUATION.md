@@ -44,11 +44,21 @@ YOVA_EVAL_CASE=calculus_problem_solving pnpm eval:plans
 
 Available case IDs are defined in `src/evals/plan-cases.ts`.
 
-## First live checkpoint
+## First live suite
 
-On August 5, 2026, the calculus problem-solving case passed the configured live model at 100/100. It produced three distinct sessions, scheduled each one inside the learner's supplied availability, remained before the deadline, used problem-solving methods throughout, and gave learner-facing reasons without fixed “brain type” claims.
+On August 5, 2026, all five cases passed the configured live model against the automated rubric:
 
-This is one passing scenario, not a claim that every generated plan is high quality. The other four cases still need live execution and human review before the suite is considered complete.
+| Case | Score | Sessions |
+|---|---:|---:|
+| Biology test using learner notes | 100/100 | 4 |
+| Calculus problem solving | 100/100 | 3 |
+| History essay using outside sources | 100/100 | 3 |
+| Beginner JavaScript practice | 100/100 | 4 |
+| General-learning personal finance | 100/100 | 12 |
+
+Across the suite, sessions fit supplied availability, deadline-bound plans stayed before their deadlines, methods matched the task family, objectives were distinct, and no plan used fixed “brain type” claims. The uploaded-material case also passed the source-restraint check.
+
+This is not proof that every generated plan is high quality or that YOVA improves learning outcomes. The automated gate catches defined structural failures. Human review of wording, factual usefulness, and educational judgment remains necessary.
 
 ## How to use results
 
