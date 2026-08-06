@@ -113,6 +113,8 @@ YOVA combines four categories of evidence:
 
 Code decides what evidence is safe and relevant. OpenAI uses that bounded context to create the teaching language and activity sequence. A single interruption is not treated as a personality trait, and one correct answer is not called mastery.
 
+When a completed session justifies changing the next one, YOVA stores the explanation with that future session. The same evidence is restored after sign-in and shown on Home and inside the plan. This makes adaptation inspectable: the user can see which result changed the plan instead of being asked to trust a vague “personalized” label.
+
 ## 9. Reliability systems already present
 
 - validated server and AI contracts

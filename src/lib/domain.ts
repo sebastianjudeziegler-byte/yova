@@ -39,6 +39,11 @@ export type SessionResource = {
   origin: "generated" | "built_in";
 };
 
+export type SessionAdaptationNote = {
+  explanation: string;
+  adaptedAt: string;
+};
+
 export type LearningPlanSession = {
   id: string;
   sequence: number;
@@ -51,6 +56,7 @@ export type LearningPlanSession = {
   amountLabel: string;
   status: SessionStatus;
   resource?: SessionResource;
+  adaptationNote?: SessionAdaptationNote;
 };
 
 export type LearningPlan = {

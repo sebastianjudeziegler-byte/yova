@@ -190,6 +190,7 @@ h1, h2, h3, p { margin-top: 0; }
 .rec-body { padding: 30px; display: flex; justify-content: space-between; align-items: end; gap: 25px; }
 .rec-body h2 { font-size: 30px; margin: 7px 0 16px; }
 .subject-label { color: #8ca9ff; font-size: 11px; letter-spacing: .11em; font-weight: 700; }
+.adaptation-proof { width: fit-content; margin-top: 10px; padding: 5px 8px; display: flex; align-items: center; gap: 5px; color: #d8e1ff; border: 1px solid rgba(140,169,255,.35); border-radius: 7px; background: rgba(52,107,255,.13); font-size: 10px; font-weight: 700; letter-spacing: .02em; }
 .meta-row { display: flex; flex-wrap: wrap; gap: 18px; color: #c4cde0; font-size: 13px; }
 .meta-row span { display: flex; align-items: center; gap: 7px; }
 .reason-grid { display: grid; grid-template-columns: repeat(2,1fr); border-top: 1px solid rgba(255,255,255,.1); }
@@ -308,6 +309,17 @@ h1, h2, h3, p { margin-top: 0; }
 .source-created p,
 .source-empty p { margin: 4px 0 0; color: var(--muted); font-size: 12px; line-height: 1.55; }
 .source-limit { margin: 12px 0 0; color: var(--muted); font-size: 11px; }
+.plan-adaptations .section-title { align-items: flex-start; }
+.plan-adaptations .section-title h3 { margin-bottom: 5px; }
+.plan-adaptations .section-title p { margin: 0; color: var(--muted); font-size: 12px; }
+.plan-adaptations .section-title > span { color: var(--muted); font-size: 12px; white-space: nowrap; }
+.adaptation-list { display: grid; gap: 9px; }
+.adaptation-list article { padding: 15px; display: grid; grid-template-columns: 32px minmax(0,1fr); gap: 11px; border: 1px solid #cbd6fb; border-radius: 11px; background: #f9faff; }
+.adaptation-list article > span { width: 32px; height: 32px; display: grid; place-items: center; color: var(--blue); border-radius: 9px; background: var(--soft-blue); }
+.adaptation-list strong,
+.adaptation-list small { display: block; }
+.adaptation-list p { margin: 5px 0; color: #4c5870; font-size: 12px; line-height: 1.55; }
+.adaptation-list small { color: var(--muted); font-size: 10px; }
 .plan-resources .section-title { align-items: flex-start; }
 .plan-resources .section-title h3 { margin-bottom: 5px; }
 .plan-resources .section-title p { max-width: 610px; margin: 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
@@ -870,6 +882,7 @@ h1, h2, h3, p { margin-top: 0; }
   .hero-actions, .rec-body, .learning-hero { align-items: stretch; flex-direction: column; }
   .learning-hero-actions { align-items: stretch; flex-direction: column; }
   .plan-sources .section-title,
+  .plan-adaptations .section-title,
   .plan-resources .section-title,
   .source-heading-actions { align-items: flex-start; flex-direction: column; gap: 8px; }
   .resource-pack > summary { grid-template-columns: 1fr; gap: 7px; }

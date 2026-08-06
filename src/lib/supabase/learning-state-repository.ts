@@ -12,6 +12,7 @@ import type {
   StudyMode,
 } from "@/lib/domain";
 import { readConceptEvidenceProperty } from "@/lib/learning/concept-evidence";
+import { readSessionAdaptationNote } from "@/lib/personalization/adaptation-note";
 import { readSessionResourceFromStepData } from "@/lib/session-generation/resource";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
@@ -176,6 +177,7 @@ export async function loadAuthenticatedLearningState(): Promise<CloudLearningSta
       amountLabel,
       status: row.status,
       resource: readSessionResourceFromStepData(row.step_data),
+      adaptationNote: readSessionAdaptationNote(row.step_data),
     };
 
     const current = sessionsByPlanId.get(row.plan_id) ?? [];

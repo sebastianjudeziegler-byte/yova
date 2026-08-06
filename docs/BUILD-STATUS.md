@@ -51,6 +51,7 @@ A cross-browser six-digit email-code flow is implemented and tested behind a ser
 - Explicit preferences shape plan and session generation
 - Diagnostics communicate current knowledge to the planner
 - Session accuracy and self-feedback influence the next session
+- Evidence-based plan adjustments remain visible after reload on Home and inside the learning goal
 - Concept-level evidence distinguishes early signals, review needs, and repeated strength
 - Actual duration and repeated interruptions cautiously influence future work
 - Diagnosed-condition answers are excluded from model personalization context
