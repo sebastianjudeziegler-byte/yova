@@ -1,64 +1,71 @@
 # YOVA Lite
 
-YOVA Lite is a personalized learning planner and guided study system. This repository begins with a realistic sample-data alpha so the product experience can be validated before database, AI, file-processing, and billing integrations are added.
+YOVA Lite is a personalized learning planner and guided study system. A learner can describe a goal, optionally upload source material, receive a structured plan, complete guided sessions, ask a contextual tutor for help, and have later recommendations adjust using actual results.
 
-## Current slice
+## What works now
 
-- Landing and account-entry simulation
-- Ten-question personalization onboarding
-- Starting-profile explanation
-- Paywall preview
-- Five-destination application shell
-- AP Biology learning plan
-- Complete sample plan-creation journey
-- Real optional PDF, TXT, and Markdown material picker with validation
-- No-material path for AI-generated learning content
+- Passwordless Supabase accounts and per-user cloud data
+- Ten-question onboarding and editable learning preferences
+- One-off Study Now sessions and multi-session learning plans
+- Optional private PDF, TXT, and Markdown uploads with server-side extraction
+- OpenAI-generated plans, guided sessions, explanations, retrieval, quizzes, and tutor responses
 - Inside-YOVA and outside-YOVA study modes
-- Starting-point diagnostic and generated plan preview
-- Local private-alpha account entry and returning-user sign-in
-- Supabase email-link authentication path with secure callback and session refresh
-- Automatic browser-preview/cloud-auth switching based on environment configuration
-- Versioned browser persistence for onboarding, plans, sessions, and results
-- Production-oriented Supabase schema with per-user security policies
-- Official OpenAI SDK and Responses API integration with Structured Outputs
-- Honest automatic preview/live generation mode
-- Server-side generation timeouts, retry limits, rate limiting, and request IDs
-- Database-ready UUIDs and atomic authenticated plan persistence
-- Backend readiness endpoint at `/api/system/status`
-- Guided retrieval session
-- Completion and adaptation feedback
-- Confirmed private-alpha data reset
+- Home recommendations, Learning, Agenda, Ask YOVA, and You
+- Session timing, interruptions, resumable progress, concept evidence, and lightweight next-session adaptation
+- Plan adjustments, rescheduling, archiving, material attachment, and learning-data reset
+- Durable OpenAI usage protection and server rate limits
+- Privacy-safe first-party product analytics
+- Branded metadata, recovery screens, security headers, and automated tests
 
-## Data modes
+The linked Supabase project is active and migrations in `supabase/migrations/` are the database source of truth. Without Supabase configuration, YOVA deliberately switches to browser-preview mode. Without an OpenAI key, plan creation uses a clearly labeled deterministic preview engine.
 
-The app currently runs in local private-alpha mode, so the browser remembers the account and product data between visits. When a Supabase project URL and publishable key are present, the same account screen automatically switches to passwordless email-link authentication backed by cookie sessions. The production data boundary, server client, row-level policies, and transactional plan save are prepared for Supabase; connecting the project and running its migrations remain explicit deployment steps.
-
-TXT and Markdown materials are read locally for the current plan request. PDFs are accepted but only staged until server-side storage and extraction are connected; the app does not pretend that staged PDFs have been analyzed.
-
-## Local development
+## Run locally
 
 ```bash
 pnpm install
+pnpm readiness
 pnpm dev
 ```
 
-Then open `http://localhost:3000`.
+Open `http://localhost:3000`.
 
-## AI plan generation
+Quality checks:
 
-The plan-creation UI calls a real internal endpoint and validates both sides of the exchange. That endpoint is connected to the official OpenAI JavaScript SDK, Responses API, and Structured Outputs. When `OPENAI_API_KEY` is absent, it deliberately returns deterministic preview plans and labels them as previews.
+```bash
+pnpm test
+pnpm lint
+pnpm build
+```
 
-Copy `.env.example` to `.env.local` and add a server-only `OPENAI_API_KEY` when the OpenAI provider is connected. Never expose this key in a variable beginning with `NEXT_PUBLIC_`.
+Before a production deployment:
 
-`GET /api/system/status` safely reports whether this running copy is using OpenAI or the preview generator, and Supabase or browser persistence.
+```bash
+pnpm readiness:production
+```
 
-## Authentication
+The readiness command reports whether required connections exist without printing secret values.
 
-YOVA uses two honest modes:
+## Configuration
 
-- Without Supabase credentials, account entry is a browser-only private-alpha preview.
-- With Supabase credentials, YOVA emails a temporary sign-in link, processes the secure callback at `/auth/callback`, stores the session in cookies, and refreshes that session through the Next.js proxy.
+Copy `.env.example` to `.env.local` and configure:
 
-No user password is stored by YOVA in either mode.
+- `NEXT_PUBLIC_SUPABASE_URL`: public Supabase project URL
+- `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`: browser-safe Supabase key
+- `OPENAI_API_KEY`: server-only OpenAI credential
+- `OPENAI_PLAN_MODEL`: primary structured-generation model
+- `OPENAI_SESSION_MODEL`: optional guided-session override
+- `OPENAI_TUTOR_MODEL`: optional tutor override
+- `SITE_URL`: canonical public origin for production metadata and auth redirects
 
-See `docs/TECH-BIRDSEYE.md` for the founder-oriented technical explanation.
+Never prefix the OpenAI key with `NEXT_PUBLIC_`. Variables with that prefix are bundled into browser code.
+
+`GET /api/system/status` reports only safe capability modes; it never returns credentials.
+
+## Architecture in one sentence
+
+The browser renders the product, YOVA route handlers enforce the rules, OpenAI generates validated learning content, and Supabase provides identity, private storage, and durable memory.
+
+Founder-oriented explanations and the living launch timeline are in:
+
+- `docs/TECH-BIRDSEYE.md`
+- `docs/BUILD-STATUS.md`
