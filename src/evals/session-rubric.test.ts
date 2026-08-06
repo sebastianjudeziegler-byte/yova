@@ -7,6 +7,20 @@ const biologyCase = buildSessionEvaluationCases()[0];
 
 const strongSession = GeneratedSessionDraftSchema.parse({
   rationale: "A short source-grounded explanation comes first, followed by two different retrieval attempts that expose gaps before review.",
+  sourceGrounding: {
+    mode: "materials_plus_ai",
+    summary: "The learner's notes define the biology scope, while YOVA supplies only a concise connecting explanation.",
+    sourceNames: ["biology-notes.txt"],
+    anchors: [{
+      sourceName: "biology-notes.txt",
+      excerpt: "Cellular respiration converts glucose and oxygen into ATP.",
+      usedFor: "This source statement anchors the session's explanation of cellular respiration.",
+    }],
+    supplements: [{
+      topic: "Relationship between the two processes",
+      reason: "The source lists both processes, while the session briefly models how to compare them.",
+    }],
+  },
   methodBriefing: {
     learningMode: "learn",
     taskType: "conceptual_learning",
@@ -69,6 +83,7 @@ describe("session quality rubric", () => {
   it("rejects generic, unsupported personalization and weak task alignment", () => {
     const weakSession = GeneratedSessionDraftSchema.parse({
       rationale: "Because you are a visual learner, this session uses a generic diagram and then asks two unrelated questions.",
+      sourceGrounding: null,
       methodBriefing: {
         learningMode: "learn",
         taskType: "conceptual_learning",

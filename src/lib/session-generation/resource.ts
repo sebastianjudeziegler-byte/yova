@@ -13,6 +13,7 @@ export function toSessionResource(
   return {
     rationale: session.rationale,
     methodBriefing: session.methodBriefing,
+    sourceGrounding: session.sourceGrounding ?? undefined,
     activities: session.activities.map((activity) => ({
       type: activity.type,
       concept: activity.concept,

@@ -30,7 +30,7 @@ export function assessMaterialQuality(text: string, truncated: boolean): Materia
     return {
       status: "limited",
       wordCount: tokens.length,
-      notice: "YOVA found a small amount of readable text. It can use this file, but the generated coverage may be narrow.",
+      notice: "YOVA found a short source. It will use this file to set the scope and may add clearly labeled explanations where the source only lists a topic.",
     };
   }
 

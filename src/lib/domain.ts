@@ -46,9 +46,18 @@ export type SessionResourceActivity = {
   feedback: string | null;
 };
 
+export type SessionSourceGrounding = {
+  mode: "materials_only" | "materials_plus_ai";
+  summary: string;
+  sourceNames: string[];
+  anchors: Array<{ sourceName: string; excerpt: string; usedFor: string }>;
+  supplements: Array<{ topic: string; reason: string }>;
+};
+
 export type SessionResource = {
   rationale: string;
   methodBriefing?: SessionMethodBriefing;
+  sourceGrounding?: SessionSourceGrounding;
   activities: SessionResourceActivity[];
   generatedAt: string;
   origin: "generated" | "built_in";

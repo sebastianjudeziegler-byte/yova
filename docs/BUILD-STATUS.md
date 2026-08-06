@@ -15,7 +15,7 @@ Estimated completion depends on which finish line is meant:
 
 | Finish line | Current estimate | Meaning |
 |---|---:|---|
-| Functional product core | 94% | The differentiated loop now routes readiness, enforces teaching-first versus practice-first, repairs misses, and schedules delayed verification without inflating mastery |
+| Functional product core | 95% | The differentiated loop now routes readiness, enforces teaching-first versus practice-first, repairs misses, schedules delayed verification, and controls how thin learner sources are supplemented |
 | Invite-only private alpha | 94% | Deployment, safeguards, atomic learning-state updates, and automated teaching and practice journeys on desktop and mobile are connected; reliable email delivery and authenticated production testing remain |
 | Credible public beta | 75% | Trust, monitoring, five-path live quality gates, CI, phone-sized coverage, and reload persistence checks exist; human output review, more device coverage, external alerts, policy review, and tester-driven polish remain |
 | Paid polished launch | 35% | Also needs billing, entitlements, cost controls by plan, and more operational maturity |
@@ -47,6 +47,7 @@ A cross-browser six-digit email-code flow is implemented and tested behind a ser
 - Generated explanations and practice remain reusable inside their learning goal
 - Contextual tutoring inside and outside sessions
 - Visible reasons for methods and recommendations
+- Upload guidance now names useful source examples: teacher study guides, PDF lecture slides, class notes, review sheets, and readable textbook excerpts
 
 ### Personalization and adaptation
 
@@ -69,6 +70,9 @@ A cross-browser six-digit email-code flow is implemented and tested behind a ser
 - A last-session miss creates a short delayed verification session instead of allowing the learning goal to appear complete
 - High-confidence misses use a teaching-first misconception-repair follow-up; ordinary misses use practice-first spaced retrieval and error repair
 - Session evidence counts only completed checks, preventing unfinished questions in a resumed session from being silently scored as wrong
+- Rough study guides and outline-style uploads can define the factual scope while YOVA supplies only the missing explanation or example needed to teach an in-scope idea
+- Substantial explanatory uploads stay material-only by default, preventing YOVA from adding outside content merely because it can
+- Source-based sessions now carry verified text anchors and disclose every AI-supplied teaching addition to the learner
 
 ### Honest scientific-product status
 
@@ -92,6 +96,7 @@ The software loop is close to private-alpha readiness, but the broader learning-
 - Privacy-safe production error reports with a documented founder triage workflow
 - Private support-request workflow with validation, ownership rules, and spam limits
 - Material-quality checks that reject unreadable sources and warn when coverage is short or truncated
+- Source-grounding validation rejects invented filenames, unverifiable quotations, and unnecessary AI supplementation before a session reaches the learner
 - Five-case plan-quality evaluation covering biology, math, writing, coding, and general learning
 - First live OpenAI plan suite passed: five student and general-learning paths scored 100/100 against the required rubric
 - Guided-session quality evaluation checks active effort, feedback, task fit, source grounding, weak-concept priority, and personalization restraint
@@ -109,7 +114,7 @@ The software loop is close to private-alpha readiness, but the broader learning-
 3. Run complete journeys on mobile and desktop with several real accounts.
 4. Manually review representative generated plans for wording, factual usefulness, and educational judgment; all five paths now pass the automated rubric.
 5. Manually review representative session explanations, distractors, feedback, tone, and factual usefulness; all five paths now pass the automated rubric.
-6. Manually verify the automated source-quality safeguards with good, poor, scanned, and oversized real files.
+6. Manually verify source handling with complete notes, a rough study guide, scanned files, and oversized real files—including whether supplementation is accurate and appropriately limited.
 7. Practice the founder error and support-review workflow with real alpha failures.
 
 ### Required before a broad public beta

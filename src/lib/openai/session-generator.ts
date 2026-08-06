@@ -3,6 +3,7 @@ import { zodTextFormat } from "openai/helpers/zod";
 import { getOpenAIClient } from "@/lib/openai/client";
 import { getOpenAISessionConfig } from "@/lib/openai/config";
 import type { MaterialExcerpt } from "@/lib/materials/context";
+import { buildMaterialSupportPolicy, validateSessionSourceGrounding } from "@/lib/materials/grounding";
 import type { ConceptSignal } from "@/lib/learning/concept-evidence";
 import type { LearningIntent, SessionLearningMode } from "@/lib/domain";
 import { buildLearningScienceRoutingBrief } from "@/lib/learning/method-router";
@@ -89,6 +90,10 @@ Requirements:
 - If the user is studying inside YOVA, include the minimum explanation or example needed before retrieval or application.
 - If the user is studying outside YOVA, guide the outside work precisely and use the knowledge check to verify the method or core concept.
 - When sourceMode is user_materials, ground factual teaching and questions in the supplied material excerpts. Do not claim coverage beyond those excerpts.
+- When sourceMode is user_materials, treat the learner's material as the scope anchor. Set sourceGrounding and copy every anchor excerpt exactly from the named source so YOVA can verify it before showing the session.
+- Follow sourceGroundingPolicy. Use materials_only when the source contains enough explanation for this session. Use materials_plus_ai only when supplementationAllowed is true and the material names or outlines an in-scope idea without enough explanation or example to teach it.
+- Any supplement must be a concise, well-established explanation or example for an idea already inside the uploaded scope. Never add unrelated curriculum, guess what a teacher will test, contradict the source, or hide that YOVA supplied the detail. List each addition in sourceGrounding.supplements.
+- When sourceMode is not user_materials, set sourceGrounding to null.
 - Use recent results conservatively. If there is little evidence, do not claim YOVA knows what works best.
 - Treat a recent possible_misconception calibration pattern as stronger than an ordinary miss: briefly rebuild the idea, make the learner distinguish it from the tempting wrong model, and require a different application. Treat underestimated_knowledge as a reason to confirm independently rather than reteach the whole topic. Never turn confidence into a fixed learner label.
 - Treat session timing as scheduling evidence, not proof of learning quality. When at least two recent sessions consistently ran much longer or shorter than planned, adjust the amount of work to better fit the current estimate without labeling the learner.
@@ -118,15 +123,19 @@ export async function generateSessionWithOpenAI(
     recentResults: context.recentResults,
     interruptionCount: context.recentInterruptions.length,
   });
+  const sourceGroundingPolicy = context.learningGoal.sourceMode === "user_materials"
+    ? buildMaterialSupportPolicy(context.materials)
+    : null;
 
-  const requestDraft = (repairAttempt: boolean) => getOpenAIClient().responses.parse({
+  const requestDraft = (repairReason: string | null) => getOpenAIClient().responses.parse({
     model: config.model,
-    instructions: repairAttempt
-      ? `${SESSION_GENERATOR_INSTRUCTIONS}\n\nREPAIR ATTEMPT: The previous response failed YOVA's activity-order or question-integrity validation. Re-check the learningMode first-activity rule, every question's answer/feedback fields, and the exact allowed method before responding.`
+    instructions: repairReason
+      ? `${SESSION_GENERATOR_INSTRUCTIONS}\n\nREPAIR ATTEMPT: The previous response failed YOVA's validation: ${repairReason} Re-check the learningMode activity-order rule, question integrity, allowed method, and source-grounding policy before responding.`
       : SESSION_GENERATOR_INSTRUCTIONS,
     input: `Build the next guided session from this YOVA context:\n${JSON.stringify({
       ...context,
       learningScienceRouting,
+      sourceGroundingPolicy,
     })}`,
     reasoning: { effort: "low" },
     text: {
@@ -140,20 +149,34 @@ export async function generateSessionWithOpenAI(
   let response;
   let repairAttempted = false;
   try {
-    response = await requestDraft(false);
+    response = await requestDraft(null);
   } catch (error) {
     if (!(error instanceof Error) || error.name !== "ZodError") throw error;
     repairAttempted = true;
-    response = await requestDraft(true);
+    response = await requestDraft("The structured session shape was invalid.");
   }
 
   let parsed = GeneratedSessionDraftSchema.safeParse(response.output_parsed);
-  if ((response.status !== "completed" || !parsed.success) && !repairAttempted) {
+  let groundingIssue = parsed.success
+    ? validateSessionSourceGrounding({
+      sourceMode: context.learningGoal.sourceMode,
+      materials: context.materials,
+      grounding: parsed.data.sourceGrounding,
+    })
+    : null;
+  if ((response.status !== "completed" || !parsed.success || groundingIssue) && !repairAttempted) {
     repairAttempted = true;
-    response = await requestDraft(true);
+    response = await requestDraft(groundingIssue ?? "The structured session shape was invalid or incomplete.");
     parsed = GeneratedSessionDraftSchema.safeParse(response.output_parsed);
+    groundingIssue = parsed.success
+      ? validateSessionSourceGrounding({
+        sourceMode: context.learningGoal.sourceMode,
+        materials: context.materials,
+        grounding: parsed.data.sourceGrounding,
+      })
+      : null;
   }
-  if (response.status !== "completed" || !parsed.success) {
+  if (response.status !== "completed" || !parsed.success || groundingIssue) {
     throw new Error("OpenAI did not return a complete, safe guided session after one repair attempt.");
   }
 

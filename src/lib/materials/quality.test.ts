@@ -17,7 +17,7 @@ describe("assessMaterialQuality", () => {
       false,
     );
     expect(quality.status).toBe("limited");
-    expect(quality.notice).toContain("small amount");
+    expect(quality.notice).toContain("set the scope");
   });
 
   it("rejects empty and symbol-heavy files", () => {

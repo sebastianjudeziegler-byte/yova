@@ -196,7 +196,7 @@ export function PlanCreator({ onExit, onFinish, profileSummary }: { onExit: () =
       {step === "materials" && (
         <PlanPanel eyebrow="OPTIONAL MATERIALS" title="Do you have materials YOVA should use?" description="Materials are optional. If you have none, YOVA can create the explanations, questions, and learning sequence from the topic.">
           <div className="choice-cards">
-            <button className={materialMode === "upload" ? "selected" : ""} onClick={() => setMaterialMode("upload")}><Upload /><span><strong>Use my materials</strong><small>Add PDF, TXT, or Markdown files</small></span>{materialMode === "upload" && <Check />}</button>
+            <button className={materialMode === "upload" ? "selected" : ""} onClick={() => setMaterialMode("upload")}><Upload /><span><strong>Use my materials</strong><small>Study guides, PDF slides, notes, review sheets, or textbook excerpts</small></span>{materialMode === "upload" && <Check />}</button>
             <button className={materialMode === "none" ? "selected" : ""} onClick={() => { setMaterialMode("none"); setMaterialError(null); setMaterialNotice(null); }}><Sparkles /><span><strong>I do not have materials</strong><small>YOVA creates the learning content from the goal</small></span>{materialMode === "none" && <Check />}</button>
           </div>
           {materialMode === "upload" && <div className="material-uploader">
@@ -205,6 +205,8 @@ export function PlanCreator({ onExit, onFinish, profileSummary }: { onExit: () =
               <span><strong>{processingMaterials ? "Reading files…" : "Choose materials"}</strong><small>Up to 5 files · 10 MB each</small></span>
               <input aria-label="Choose learning materials" type="file" multiple accept=".pdf,.txt,.md,text/plain,text/markdown,application/pdf" disabled={processingMaterials || Boolean(removingMaterialId)} onChange={(event) => { void addMaterials(event.target.files); event.target.value = ""; }} />
             </label>
+            <p className="material-examples"><strong>Useful examples:</strong> teacher study guide · lecture slides exported as PDF · class notes · review sheet · readable textbook excerpt</p>
+            <p className="material-supplement-note"><Sparkles size={14} /> If a source only lists topics, YOVA can fill in the minimum explanation needed—while keeping your material as the scope and showing what it added.</p>
             {materials.length > 0 && <div className="material-files">{materials.map((material) => <div key={material.id}><FileText /><span><strong>{material.name}</strong><small>Securely stored · text ready for YOVA</small></span><button aria-label={`Remove ${material.name}`} disabled={removingMaterialId === material.id} onClick={() => void removeMaterial(material.id)}>{removingMaterialId === material.id ? <span className="button-spinner dark" /> : <Trash2 size={16} />}</button></div>)}<p>{materials.length} {materials.length === 1 ? "material" : "materials"} ready for plan generation</p></div>}
           </div>}
           {materialNotice && <p className="material-notice"><AlertCircle size={15} /> {materialNotice}</p>}

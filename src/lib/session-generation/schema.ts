@@ -114,9 +114,32 @@ export const GeneratedSessionActivitySchema = z.object({
   }
 });
 
+export const SessionSourceGroundingSchema = z.object({
+  mode: z.enum(["materials_only", "materials_plus_ai"]),
+  summary: z.string().trim().min(20).max(420),
+  sourceNames: z.array(z.string().trim().min(1).max(180)).min(1).max(5),
+  anchors: z.array(z.object({
+    sourceName: z.string().trim().min(1).max(180),
+    excerpt: z.string().trim().min(12).max(240),
+    usedFor: z.string().trim().min(10).max(240),
+  })).min(1).max(4),
+  supplements: z.array(z.object({
+    topic: z.string().trim().min(2).max(140),
+    reason: z.string().trim().min(15).max(280),
+  })).max(3),
+}).superRefine((grounding, context) => {
+  if (grounding.mode === "materials_only" && grounding.supplements.length > 0) {
+    context.addIssue({ code: "custom", path: ["supplements"], message: "Material-only sessions cannot list AI supplements." });
+  }
+  if (grounding.mode === "materials_plus_ai" && grounding.supplements.length === 0) {
+    context.addIssue({ code: "custom", path: ["supplements"], message: "Supplemented sessions must explain what YOVA added." });
+  }
+});
+
 export const GeneratedSessionDraftSchema = z.object({
   rationale: z.string().trim().min(20).max(700),
   methodBriefing: SessionMethodBriefingSchema,
+  sourceGrounding: SessionSourceGroundingSchema.nullable(),
   activities: z.array(GeneratedSessionActivitySchema).min(3).max(8),
 }).superRefine((session, context) => {
   if (!session.activities.some((activity) => activity.type === "multiple_choice")) {
@@ -135,7 +158,7 @@ export const GeneratedSessionDraftSchema = z.object({
 });
 
 export const CachedGeneratedSessionSchema = GeneratedSessionDraftSchema.extend({
-  schemaVersion: z.literal(5),
+  schemaVersion: z.literal(6),
   model: z.string().min(1),
   generatedAt: z.string().datetime({ offset: true }),
 });
@@ -151,4 +174,5 @@ export const SessionGenerationResponseSchema = z.object({
 
 export type GeneratedSessionDraft = z.infer<typeof GeneratedSessionDraftSchema>;
 export type SessionMethodBriefing = z.infer<typeof SessionMethodBriefingSchema>;
+export type SessionSourceGrounding = z.infer<typeof SessionSourceGroundingSchema>;
 export type SessionGenerationResponse = z.infer<typeof SessionGenerationResponseSchema>;
