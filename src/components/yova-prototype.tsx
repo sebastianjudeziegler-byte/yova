@@ -518,14 +518,24 @@ export function YovaPrototype() {
     }
   };
 
-  const resetAlphaData = () => {
-    if (account?.identityMode === "supabase") {
+  const resetYovaData = async () => {
+    const isCloudAccount = account?.identityMode === "supabase";
+    if (isCloudAccount) {
+      const response = await fetch("/api/account/learning-data", {
+        method: "DELETE",
+        headers: { "X-Yova-Confirm": "reset-learning-data" },
+      });
+      if (!response.ok) {
+        const body: unknown = await response.json().catch(() => null);
+        const message = typeof body === "object" && body && "error" in body && typeof body.error === "string"
+          ? body.error
+          : "YOVA could not reset your cloud learning data.";
+        throw new Error(message);
+      }
       clearQueuedSessionCompletions(account.id);
       clearQueuedSessionInterruptions(account.id);
     }
     clearPreviewSnapshot();
-    setAccount(null);
-    setSignedIn(false);
     setOnboardingCompleted(false);
     setAlphaEntered(false);
     setQuestionIndex(0);
@@ -544,9 +554,17 @@ export function YovaPrototype() {
     setSessionStartedAt(null);
     setSessionCompletedAt(null);
     setSessionElapsedSeconds(0);
+    setCloudSyncIssue(null);
     setActiveTab("Home");
     setAccountMode("create");
-    setStage("landing");
+    if (isCloudAccount) {
+      setSignedIn(true);
+      setStage("onboarding-intro");
+    } else {
+      setAccount(null);
+      setSignedIn(false);
+      setStage("landing");
+    }
   };
 
   const rescheduleSession = (planId: string, planSessionId: string, scheduledFor: string) => {
@@ -783,7 +801,7 @@ export function YovaPrototype() {
       {activeTab === "Learning" && <LearningScreen plans={plans} selectedPlanId={selectedPlanId} sessionCompletions={sessionCompletions} sessionInterruptions={sessionInterruptions} onSelectPlan={setSelectedPlanId} onStart={(planId) => void startSession(planId)} onCreatePlan={() => setStage("plan-creator")} onArchiveStateChange={changePlanArchiveState} onAdjustPlan={adjustPlan} onAttachMaterials={attachMaterials} />}
       {activeTab === "Agenda" && <AgendaScreen plans={activePlans} sessionInterruptions={sessionInterruptions} onStart={(planId) => void startSession(planId)} onReschedule={rescheduleSession} />}
       {activeTab === "Ask YOVA" && <AskScreen key={activePlan?.id ?? "general"} plan={activePlan} question={tutorQuestion} onQuestion={setTutorQuestion} onApplyAction={applyTutorAction} />}
-      {activeTab === "You" && <YouScreen account={account} answers={answers} sessionCompletions={sessionCompletions} sessionInterruptions={sessionInterruptions} onAnswersChange={setAnswers} onReset={resetAlphaData} />}
+      {activeTab === "You" && <YouScreen account={account} answers={answers} sessionCompletions={sessionCompletions} sessionInterruptions={sessionInterruptions} onAnswersChange={setAnswers} onReset={resetYovaData} />}
     </AppShell>
   );
 }
@@ -1367,8 +1385,10 @@ function observedLearningInsight(sessionCompletions: SessionCompletion[], sessio
   return "You are beginning to build a real learning history. YOVA will compare completion, quiz results, and your feedback before changing future sessions.";
 }
 
-function YouScreen({ account, answers, sessionCompletions, sessionInterruptions, onAnswersChange, onReset }: { account: PreviewAccount | null; answers: string[]; sessionCompletions: SessionCompletion[]; sessionInterruptions: SessionInterruption[]; onAnswersChange: (answers: string[]) => void; onReset: () => void }) {
+function YouScreen({ account, answers, sessionCompletions, sessionInterruptions, onAnswersChange, onReset }: { account: PreviewAccount | null; answers: string[]; sessionCompletions: SessionCompletion[]; sessionInterruptions: SessionInterruption[]; onAnswersChange: (answers: string[]) => void; onReset: () => Promise<void> }) {
   const [confirmReset, setConfirmReset] = useState(false);
+  const [resetting, setResetting] = useState(false);
+  const [resetError, setResetError] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
   const [draftAnswers, setDraftAnswers] = useState<string[]>(answers);
   const totalCorrect = sessionCompletions.reduce((sum, completion) => sum + completion.correctAnswers, 0);
@@ -1378,6 +1398,7 @@ function YouScreen({ account, answers, sessionCompletions, sessionInterruptions,
   const totalStudyMinutes = sessionCompletions.reduce((sum, completion) => sum + (Number.isFinite(completion.actualMinutes) ? completion.actualMinutes : 0), 0)
     + sessionInterruptions.reduce((sum, interruption) => sum + (Number.isFinite(interruption.actualMinutes) ? interruption.actualMinutes : 0), 0);
   const observedEventCount = sessionCompletions.length + sessionInterruptions.length;
+  const isCloudAccount = account?.identityMode === "supabase";
   const startEditing = () => {
     setDraftAnswers([...answers]);
     setEditing(true);
@@ -1398,7 +1419,19 @@ function YouScreen({ account, answers, sessionCompletions, sessionInterruptions,
     });
   };
 
-  return <div className="page"><PageHeader eyebrow="YOU" title="Your learning, in one place" description="What you have told YOVA, what it has cautiously noticed, and your overall progress." /><div className="you-grid"><section className={`section-block preference-card ${editing ? "editing" : ""}`}><div className="section-title"><h3>Your learning preferences</h3>{editing ? <span className="data-badge">Editing</span> : <button onClick={startEditing}>Edit</button>}</div>{editing ? <div className="preference-editor"><p>These answers shape session length, guidance, explanations, and plan structure. You can change them whenever your needs change.</p>{editablePreferenceIndexes.map((index) => { const question = onboardingQuestions[index]; return <label key={question.prompt}><span>{question.prompt}</span><select value={draftAnswers[index] ?? ""} onChange={(event) => updateDraftAnswer(index, event.target.value)}><option value="">Not answered</option>{question.options.map((option) => <option key={option} value={option}>{option}</option>)}</select></label>; })}<div className="preference-actions"><button className="button ghost" onClick={cancelEditing}>Cancel</button><button className="button primary" onClick={savePreferences}><Check size={16} /> Save preferences</button></div><small>For signed-in accounts, saved preferences are also synced to YOVA’s database.</small></div> : <><ProfileItem title="Account" value={account?.email || "Not connected"} note="Your signed-in identity" /><ProfileItem title="Main blocker" value={answers[0] || "Not answered yet"} note="Shapes how YOVA helps you begin" /><ProfileItem title="Guidance" value={answers[1] || "Not answered yet"} note="Controls how much YOVA decides for you" /><ProfileItem title="Session size" value={answers[2] || "Not answered yet"} note="Used as a starting estimate, not a fixed limit" /><ProfileItem title="Explanation" value={answers[3] || "Not answered yet"} note="Shapes how difficult material is introduced" /></>}</section><section className="section-block"><div className="section-title"><h3>What YOVA has noticed</h3><span className="data-badge">{observedEventCount < 3 ? "Early signal" : "Observed pattern"}</span></div><div className="insight"><Sparkles size={18} /><p>{observedLearningInsight(sessionCompletions, sessionInterruptions, accuracyPercent)}</p></div><div className="metric-row"><div><strong>{sessionCompletions.length}</strong><span>sessions completed</span></div><div><strong>{formatStudyMinutes(totalStudyMinutes)}</strong><span>time studied</span></div><div><strong>{accuracy}</strong><span>recent quiz accuracy</span></div></div></section><section className="section-block alpha-data-card"><div><h3>Private-alpha data</h3><p>Reset the account, onboarding answers, plans, and session results stored in this browser.</p></div>{confirmReset ? <div className="reset-confirm"><strong>This cannot be undone.</strong><span>Only this browser’s private-alpha data will be removed.</span><div><button className="button ghost" onClick={() => setConfirmReset(false)}>Cancel</button><button className="button danger" onClick={onReset}><Trash2 size={16} /> Reset everything</button></div></div> : <button className="button ghost danger-outline" onClick={() => setConfirmReset(true)}><Trash2 size={16} /> Reset private-alpha data</button>}</section></div></div>;
+  const confirmDataReset = async () => {
+    if (resetting) return;
+    setResetting(true);
+    setResetError(null);
+    try {
+      await onReset();
+    } catch (error) {
+      setResetError(error instanceof Error ? error.message : "YOVA could not reset your learning data.");
+      setResetting(false);
+    }
+  };
+
+  return <div className="page"><PageHeader eyebrow="YOU" title="Your learning, in one place" description="What you have told YOVA, what it has cautiously noticed, and your overall progress." /><div className="you-grid"><section className={`section-block preference-card ${editing ? "editing" : ""}`}><div className="section-title"><h3>Your learning preferences</h3>{editing ? <span className="data-badge">Editing</span> : <button onClick={startEditing}>Edit</button>}</div>{editing ? <div className="preference-editor"><p>These answers shape session length, guidance, explanations, and plan structure. You can change them whenever your needs change.</p>{editablePreferenceIndexes.map((index) => { const question = onboardingQuestions[index]; return <label key={question.prompt}><span>{question.prompt}</span><select value={draftAnswers[index] ?? ""} onChange={(event) => updateDraftAnswer(index, event.target.value)}><option value="">Not answered</option>{question.options.map((option) => <option key={option} value={option}>{option}</option>)}</select></label>; })}<div className="preference-actions"><button className="button ghost" onClick={cancelEditing}>Cancel</button><button className="button primary" onClick={savePreferences}><Check size={16} /> Save preferences</button></div><small>For signed-in accounts, saved preferences are also synced to YOVA’s database.</small></div> : <><ProfileItem title="Account" value={account?.email || "Not connected"} note="Your signed-in identity" /><ProfileItem title="Main blocker" value={answers[0] || "Not answered yet"} note="Shapes how YOVA helps you begin" /><ProfileItem title="Guidance" value={answers[1] || "Not answered yet"} note="Controls how much YOVA decides for you" /><ProfileItem title="Session size" value={answers[2] || "Not answered yet"} note="Used as a starting estimate, not a fixed limit" /><ProfileItem title="Explanation" value={answers[3] || "Not answered yet"} note="Shapes how difficult material is introduced" /></>}</section><section className="section-block"><div className="section-title"><h3>What YOVA has noticed</h3><span className="data-badge">{observedEventCount < 3 ? "Early signal" : "Observed pattern"}</span></div><div className="insight"><Sparkles size={18} /><p>{observedLearningInsight(sessionCompletions, sessionInterruptions, accuracyPercent)}</p></div><div className="metric-row"><div><strong>{sessionCompletions.length}</strong><span>sessions completed</span></div><div><strong>{formatStudyMinutes(totalStudyMinutes)}</strong><span>time studied</span></div><div><strong>{accuracy}</strong><span>recent quiz accuracy</span></div></div></section><section className="section-block alpha-data-card"><div><h3>{isCloudAccount ? "Cloud learning data" : "Private-alpha data"}</h3><p>{isCloudAccount ? "Remove your learning profile, plans, tutor conversations, results, and private uploaded materials. Your login identity will remain available." : "Reset the account, onboarding answers, plans, and session results stored in this browser."}</p></div>{confirmReset ? <div className="reset-confirm"><strong>This cannot be undone.</strong><span>{isCloudAccount ? "YOVA will permanently remove your cloud learning data and uploaded files." : "Only this browser’s private-alpha data will be removed."}</span>{resetError && <span className="reset-error">{resetError}</span>}<div><button className="button ghost" disabled={resetting} onClick={() => { setConfirmReset(false); setResetError(null); }}>Cancel</button><button className="button danger" disabled={resetting} onClick={() => void confirmDataReset()}>{resetting ? <span className="button-spinner" /> : <Trash2 size={16} />} {resetting ? "Resetting…" : isCloudAccount ? "Reset learning data" : "Reset everything"}</button></div></div> : <button className="button ghost danger-outline" onClick={() => setConfirmReset(true)}><Trash2 size={16} /> {isCloudAccount ? "Reset learning data" : "Reset private-alpha data"}</button>}</section></div></div>;
 }
 
 function formatStudyMinutes(totalMinutes: number) {

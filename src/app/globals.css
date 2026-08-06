@@ -373,6 +373,7 @@ h1, h2, h3, p { margin-top: 0; }
 .alpha-data-card p { margin: 0; color: var(--muted); font-size: 12px; }
 .reset-confirm { padding: 12px; display: grid; gap: 4px; border: 1px solid #ffd2ce; border-radius: 10px; background: #fff8f7; }
 .reset-confirm > span { color: var(--muted); font-size: 11px; }
+.reset-confirm > .reset-error { color: #b42318; line-height: 1.45; }
 .reset-confirm > div { margin-top: 7px; display: flex; justify-content: flex-end; gap: 8px; }
 .button.danger { color: white; background: #b42318; }
 .button.danger-outline { color: #b42318; border-color: #f1b7b1; }
