@@ -88,6 +88,9 @@ The current engine:
 - requires the generated session to return a structured method briefing;
 - validates that the chosen method is allowed for that task;
 - shows the learner what, why, how, and done at the beginning of the session;
+- renders the session's real method phases as a visible roadmap rather than leaving the sequence hidden in AI metadata;
+- labels each activity with its learner action and current support state, such as “See a complete model — Full support” or “Perform independently — Support hidden”;
+- preserves the same phase structure in built-in fallback sessions when generation is unavailable;
 - captures confidence before knowledge checks and compares it with the result;
 - distinguishes possible misconceptions from correct-but-uncertain knowledge when adapting the next session;
 - requires an immediate explain-back when a knowledge check is missed, while preserving the original miss as evidence;
@@ -137,7 +140,7 @@ That closed loop can eventually become a meaningful learning decision system rat
 
 ## Next scientific product layers
 
-1. Add method-specific session mechanics instead of rendering every method as the same quiz flow.
+1. Add specialized interaction mechanics for work that cannot be represented well by text, multiple choice, or typed explanation—for example multi-step mathematics, code execution, and learner-built diagrams.
 2. Turn more due concept reviews into small agenda-level retrieval events when they do not justify a full session.
 3. Track scaffold level so worked examples genuinely fade across attempts.
 4. Compare method outcomes only within similar task families and knowledge stages.

@@ -15,7 +15,7 @@ Estimated completion depends on which finish line is meant:
 
 | Finish line | Current estimate | Meaning |
 |---|---:|---|
-| Functional product core | 98% | The differentiated loop now routes readiness, enforces teaching-first versus practice-first, verifies method-specific activity sequences, repairs misses, schedules concept-level returns, controls how thin learner sources are supplemented, and uses repeated plan-specific method outcomes to adjust support |
+| Functional product core | 98% | The differentiated loop now routes readiness, enforces and visibly teaches method-specific activity sequences, repairs misses, schedules concept-level returns, controls how thin learner sources are supplemented, and uses repeated plan-specific method outcomes to adjust support |
 | Invite-only private alpha | 94% | Deployment, safeguards, atomic learning-state updates, and automated teaching and practice journeys on desktop and mobile are connected; reliable email delivery and authenticated production testing remain |
 | Credible public beta | 75% | Trust, monitoring, five-path live quality gates, CI, phone-sized coverage, and reload persistence checks exist; human output review, more device coverage, external alerts, policy review, and tester-driven polish remain |
 | Paid polished launch | 35% | Also needs billing, entitlements, cost controls by plan, and more operational maturity |
@@ -75,6 +75,9 @@ A cross-browser six-digit email-code flow is implemented and tested behind a ser
 - Source-based sessions now carry verified text anchors and disclose every AI-supplied teaching addition to the learner
 - Every generated activity now carries a learning-phase role, and the backend rejects sessions that only name a method without executing its required sequence
 - Worked-example fading must move from a complete model to reduced support to independent performance; interleaving must mix distinct categories; reading, outlining, coding, retrieval, spacing, and practice-test methods each have their own enforced progression
+- Guided sessions now turn those internal roles into a learner-facing method roadmap, showing the support progression before the work begins
+- Every activity explains its current phase—such as model, retrieve, repair, or transfer—and whether the answer, source, feedback, or scaffold should be visible
+- Safe built-in fallback sessions use the same phase model, so a failed generation request cannot silently turn YOVA into an unstructured generic quiz
 - Future guided sessions now receive the actual method, result, and difficulty feedback from earlier sessions in the same plan instead of seeing scores without method context
 - YOVA waits for repeated comparable evidence before changing method delivery, then adds support after repeated difficulty or cautiously fades support after promising results
 - The backend rejects generated sessions that ignore a meaningful method-outcome signal or turn observational results into a fixed “best method” or learning-style claim
@@ -84,7 +87,7 @@ A cross-browser six-digit email-code flow is implemented and tested behind a ser
 
 ### Honest scientific-product status
 
-The software loop is close to private-alpha readiness, but the broader learning-science vision is earlier. The catalog, router, teaching/practice separation, confidence calibration, immediate repair, concept-level review scheduling, and first behavior-based method adaptations establish the correct architecture; richer method-specific interactions, scaffold tracking, and longer-term controlled outcome comparisons remain. “Private alpha 94%” therefore means the product can be tested safely—not that 94% of the long-term adaptive-learning system is complete.
+The software loop is close to private-alpha readiness, but the broader learning-science vision is earlier. The catalog, router, teaching/practice separation, visible method phases, confidence calibration, immediate repair, concept-level review scheduling, and first behavior-based method adaptations establish the correct architecture; specialized interactions, scaffold tracking across attempts, and longer-term controlled outcome comparisons remain. “Private alpha 94%” therefore means the product can be tested safely—not that 94% of the long-term adaptive-learning system is complete.
 
 ### Backend and infrastructure
 
