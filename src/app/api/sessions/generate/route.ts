@@ -6,7 +6,7 @@ import { inferLegacySessionLearningMode } from "@/lib/learning/learning-intent";
 import { methodIdFromText } from "@/lib/learning/method-router";
 import { buildScaffoldProgressionSignals } from "@/lib/learning/scaffold-progression";
 import { isOpenAISessionConfigured } from "@/lib/openai/config";
-import { generateSessionWithOpenAI } from "@/lib/openai/session-generator";
+import { generateSessionWithOpenAI, type SessionGenerationStats } from "@/lib/openai/session-generator";
 import {
   CachedGeneratedSessionSchema,
   SessionGenerationRequestSchema,
@@ -19,7 +19,7 @@ import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
+export const maxDuration = 120;
 
 export async function POST(request: Request) {
   const requestId = crypto.randomUUID();
@@ -66,7 +66,7 @@ export async function POST(request: Request) {
       planSessionId: planSession.id,
       session: cached,
       generation: { mode: "cache", persistence: "supabase" },
-    }), { headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId } });
+    }), { headers: responseHeaders(requestId, emptyGenerationStats()) });
   }
 
   if (!isOpenAISessionConfigured()) {
@@ -246,6 +246,7 @@ export async function POST(request: Request) {
     });
 
     if (cacheError) console.error("YOVA generated-session cache failed", { requestId });
+    logSuccessfulGeneration(requestId, generated.model, generated.generationStats, "supabase");
 
     return NextResponse.json(SessionGenerationResponseSchema.parse({
       planSessionId: planSession.id,
@@ -254,7 +255,7 @@ export async function POST(request: Request) {
         mode: "openai",
         persistence: cacheError ? "browser" : "supabase",
       },
-    }), { headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId } });
+    }), { headers: responseHeaders(requestId, generated.generationStats) });
   } catch (error) {
     console.error("YOVA guided-session generation failed", { requestId, reason: error instanceof Error ? error.name : "unknown" });
     return NextResponse.json(
@@ -314,12 +315,13 @@ async function generateBrowserPreviewSession(
       model: generated.model,
       generatedAt: new Date().toISOString(),
     });
+    logSuccessfulGeneration(requestId, generated.model, generated.generationStats, "browser");
 
     return NextResponse.json(SessionGenerationResponseSchema.parse({
       planSessionId: input.planSessionId,
       session,
       generation: { mode: "openai", persistence: "browser" },
-    }), { headers: responseHeaders(requestId) });
+    }), { headers: responseHeaders(requestId, generated.generationStats) });
   } catch (error) {
     console.error("YOVA browser guided-session generation failed", {
       requestId,
@@ -332,8 +334,50 @@ async function generateBrowserPreviewSession(
   }
 }
 
-function responseHeaders(requestId: string) {
-  return { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId };
+function responseHeaders(requestId: string, stats?: SessionGenerationStats) {
+  return {
+    "Cache-Control": "no-store",
+    "X-Yova-Request-Id": requestId,
+    ...(stats ? {
+      "X-Yova-Generation-Ms": String(stats.elapsedMs),
+      "X-Yova-Generation-Attempts": String(stats.attempts),
+      "X-Yova-Prompt-Cache-Hit": String(stats.cachedInputTokens > 0),
+    } : {}),
+  };
+}
+
+function emptyGenerationStats(): SessionGenerationStats {
+  return {
+    elapsedMs: 0,
+    attempts: 0,
+    repairAttempted: false,
+    repairReason: "none",
+    inputTokens: 0,
+    cachedInputTokens: 0,
+    cacheWriteTokens: 0,
+    outputTokens: 0,
+  };
+}
+
+function logSuccessfulGeneration(
+  requestId: string,
+  model: string,
+  stats: SessionGenerationStats,
+  persistence: "browser" | "supabase",
+) {
+  console.info("YOVA guided-session generation completed", {
+    requestId,
+    model,
+    persistence,
+    elapsedMs: stats.elapsedMs,
+    attempts: stats.attempts,
+    repairAttempted: stats.repairAttempted,
+    repairReason: stats.repairReason,
+    inputTokens: stats.inputTokens,
+    cachedInputTokens: stats.cachedInputTokens,
+    cacheWriteTokens: stats.cacheWriteTokens,
+    outputTokens: stats.outputTokens,
+  });
 }
 
 function readCachedSession(stepData: unknown) {

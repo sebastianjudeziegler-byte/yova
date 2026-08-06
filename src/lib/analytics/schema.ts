@@ -38,6 +38,15 @@ export const ProductEventRequestSchema = z.discriminatedUnion("eventName", [
     }).strict(),
   }).strict(),
   z.object({
+    eventName: z.literal("session_generated"),
+    context: z.object({
+      mode: z.enum(["openai", "cache"]),
+      latencyMs: z.number().int().min(0).max(180_000),
+      attempts: z.number().int().min(0).max(2),
+      promptCacheHit: z.boolean(),
+    }).strict(),
+  }).strict(),
+  z.object({
     eventName: z.literal("session_completed"),
     context: z.object({
       plannedMinutes: z.number().int().min(1).max(360),

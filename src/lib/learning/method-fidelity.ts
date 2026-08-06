@@ -84,8 +84,8 @@ const CONTRACTS: Record<CoreMethodId, MethodFidelityContract> = {
   },
 };
 
-export function methodFidelityContractsForPrompt(ids: CoreMethodId[]) {
-  return ids.map((id) => ({ id, ...CONTRACTS[id] }));
+export function methodFidelityContractsForPrompt(ids: CoreMethodId[], learningMode: SessionLearningMode) {
+  return ids.map((id) => ({ id, ...contractForMode(id, learningMode) }));
 }
 
 export function validateMethodFidelity({
@@ -97,15 +97,7 @@ export function validateMethodFidelity({
   learningMode: SessionLearningMode;
   activities: MethodActivity[];
 }): string | null {
-  const base = CONTRACTS[methodId];
-  const contract = methodId === "read_recall_review" && learningMode === "study"
-    ? {
-      ...base,
-      requiredPhases: ["retrieve", "read_source", "transfer"] as MethodPhase[],
-      orderedPhases: ["retrieve", "read_source", "transfer"] as MethodPhase[],
-      purpose: "Attempt recall first, reread only the exposed gap, then verify the correction with a different prompt.",
-    }
-    : base;
+  const contract = contractForMode(methodId, learningMode);
   const phases = activities.map((activity) => activity.methodPhase);
   const invalidPhaseActivity = activities.find((activity) => !phaseMatchesActivity(activity));
   if (invalidPhaseActivity) {
@@ -142,6 +134,26 @@ export function validateMethodFidelity({
   }
 
   return null;
+}
+
+function contractForMode(methodId: CoreMethodId, learningMode: SessionLearningMode): MethodFidelityContract {
+  const base = CONTRACTS[methodId];
+  if (methodId === "read_recall_review" && learningMode === "study") {
+    return {
+      ...base,
+      requiredPhases: ["retrieve", "read_source", "transfer"],
+      orderedPhases: ["retrieve", "read_source", "transfer"],
+      purpose: "Attempt recall first, reread only the exposed gap, then verify the correction with a different prompt.",
+    };
+  }
+  if (learningMode !== "learn" || base.requiredPhases.includes("model")) return base;
+
+  return {
+    ...base,
+    purpose: `Build an accurate subject model first. Then ${base.purpose.charAt(0).toLowerCase()}${base.purpose.slice(1)}`,
+    requiredPhases: ["model", ...base.requiredPhases],
+    orderedPhases: ["model", ...base.orderedPhases],
+  };
 }
 
 function phaseMatchesActivity(activity: MethodActivity) {

@@ -25,6 +25,7 @@ describe.skipIf(!liveEvaluationEnabled)("live OpenAI session quality", () => {
     );
 
     console.info(`\nYOVA session evaluation · ${evaluationCase.label} · ${result.score}/100`);
+    console.info(`Generation · ${generated.model} · ${(generated.generationStats.elapsedMs / 1_000).toFixed(1)}s · ${generated.generationStats.attempts} ${generated.generationStats.attempts === 1 ? "attempt" : "attempts"} · ${generated.generationStats.cachedInputTokens.toLocaleString()} cached input tokens`);
     for (const activity of generated.draft.activities) {
       console.info(`${activity.type.padEnd(16)} ${activity.concept ?? "—"} · ${activity.title}`);
     }

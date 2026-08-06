@@ -88,6 +88,18 @@ export type OpenAISessionResult = {
   model: string;
   responseId: string;
   supportPlan: SessionSupportPlan;
+  generationStats: SessionGenerationStats;
+};
+
+export type SessionGenerationStats = {
+  elapsedMs: number;
+  attempts: number;
+  repairAttempted: boolean;
+  repairReason: "none" | "structured_output" | "incomplete_response" | "semantic_validation";
+  inputTokens: number;
+  cachedInputTokens: number;
+  cacheWriteTokens: number;
+  outputTokens: number;
 };
 
 const SESSION_GENERATOR_INSTRUCTIONS = `You design one guided YOVA learning session.
@@ -151,6 +163,14 @@ export async function generateSessionWithOpenAI(
 ): Promise<OpenAISessionResult> {
   const config = getOpenAISessionConfig();
   if (!config) throw new Error("OpenAI is not configured on the YOVA server.");
+  const generationStartedAt = Date.now();
+  const usage = {
+    attempts: 0,
+    inputTokens: 0,
+    cachedInputTokens: 0,
+    cacheWriteTokens: 0,
+    outputTokens: 0,
+  };
 
   const learningScienceRouting = buildLearningScienceRoutingBrief({
     learningIntent: context.learningGoal.learningIntent,
@@ -169,42 +189,59 @@ export async function generateSessionWithOpenAI(
   const sourceGroundingPolicy = context.learningGoal.sourceMode === "user_materials"
     ? buildMaterialSupportPolicy(context.materials)
     : null;
-  const methodFidelityContracts = methodFidelityContractsForPrompt(learningScienceRouting.allowedMethodIds);
+  const methodFidelityContracts = methodFidelityContractsForPrompt(
+    learningScienceRouting.allowedMethodIds,
+    learningScienceRouting.sessionLearningMode,
+  );
   const observedMethodOutcomes = buildMethodOutcomeSignals(context.recentResults);
   const conceptReviewSchedule = buildConceptReviewSchedule(context.conceptSignals);
   const scaffoldProgression = context.scaffoldSignals ?? [];
 
-  const requestDraft = (repairReason: string | null) => getOpenAIClient().responses.parse({
-    model: config.model,
-    instructions: repairReason
-      ? `${SESSION_GENERATOR_INSTRUCTIONS}\n\nREPAIR ATTEMPT: The previous response failed YOVA's validation: ${repairReason} Re-check the learningMode activity-order rule, question integrity, allowed method, and source-grounding policy before responding.`
-      : SESSION_GENERATOR_INSTRUCTIONS,
-    input: `Build the next guided session from this YOVA context:\n${JSON.stringify({
-      ...context,
-      scaffoldSignals: undefined,
-      learningScienceRouting,
-      methodFidelityContracts,
-      observedMethodOutcomes,
-      conceptReviewSchedule,
-      scaffoldProgression,
-      sourceGroundingPolicy,
-    })}`,
-    reasoning: { effort: "low" },
-    text: {
-      format: zodTextFormat(GeneratedSessionDraftSchema, "yova_guided_session"),
-      verbosity: "low",
-    },
-    max_output_tokens: 4_000,
-    store: false,
-  });
+  const requestDraft = async (repairReason: string | null) => {
+    usage.attempts += 1;
+    const response = await getOpenAIClient().responses.parse({
+      model: config.model,
+      instructions: repairReason
+        ? `${SESSION_GENERATOR_INSTRUCTIONS}\n\nREPAIR ATTEMPT: The previous response failed YOVA's validation: ${repairReason} Re-check the learningMode activity-order rule, question integrity, allowed method, and source-grounding policy before responding.`
+        : SESSION_GENERATOR_INSTRUCTIONS,
+      input: `Build the next guided session from this YOVA context:\n${JSON.stringify({
+        ...context,
+        scaffoldSignals: undefined,
+        learningScienceRouting,
+        methodFidelityContracts,
+        observedMethodOutcomes,
+        conceptReviewSchedule,
+        scaffoldProgression,
+        sourceGroundingPolicy,
+      })}`,
+      reasoning: { effort: "low" },
+      text: {
+        format: zodTextFormat(GeneratedSessionDraftSchema, "yova_guided_session"),
+        verbosity: "low",
+      },
+      max_output_tokens: 4_000,
+      prompt_cache_key: "yova-guided-session-v9",
+      store: false,
+    });
+
+    if (response.usage) {
+      usage.inputTokens += response.usage.input_tokens;
+      usage.cachedInputTokens += response.usage.input_tokens_details.cached_tokens;
+      usage.cacheWriteTokens += response.usage.input_tokens_details.cache_write_tokens;
+      usage.outputTokens += response.usage.output_tokens;
+    }
+    return response;
+  };
 
   let response;
   let repairAttempted = false;
+  let repairReason: SessionGenerationStats["repairReason"] = "none";
   try {
     response = await requestDraft(null);
   } catch (error) {
     if (!(error instanceof Error) || error.name !== "ZodError") throw error;
     repairAttempted = true;
+    repairReason = "structured_output";
     response = await requestDraft("The structured session shape was invalid.");
   }
 
@@ -214,6 +251,11 @@ export async function generateSessionWithOpenAI(
     : null;
   if ((response.status !== "completed" || !parsed.success || semanticIssue) && !repairAttempted) {
     repairAttempted = true;
+    repairReason = response.status !== "completed"
+      ? "incomplete_response"
+      : !parsed.success
+        ? "structured_output"
+        : "semantic_validation";
     response = await requestDraft(semanticIssue ?? "The structured session shape was invalid or incomplete.");
     parsed = parseGeneratedSessionDraft(response.output_parsed);
     semanticIssue = parsed.success
@@ -233,6 +275,16 @@ export async function generateSessionWithOpenAI(
       activities: parsed.data.activities,
       learningMode: parsed.data.methodBriefing.learningMode,
     }),
+    generationStats: {
+      elapsedMs: Date.now() - generationStartedAt,
+      attempts: usage.attempts,
+      repairAttempted,
+      repairReason,
+      inputTokens: usage.inputTokens,
+      cachedInputTokens: usage.cachedInputTokens,
+      cacheWriteTokens: usage.cacheWriteTokens,
+      outputTokens: usage.outputTokens,
+    },
   };
 }
 
@@ -250,6 +302,7 @@ function validateGeneratedSession(
   scaffoldProgression: ScaffoldProgressionSignal[],
 ) {
   return validateSessionTimeBudget(draft, context.session.estimatedMinutes)
+    ?? validateSubstantiveTeaching(draft)
     ?? validateSessionSourceGrounding({
     sourceMode: context.learningGoal.sourceMode,
     materials: context.materials,
@@ -269,6 +322,22 @@ function validateGeneratedSession(
     signals: scaffoldProgression,
     activities: draft.activities,
   });
+}
+
+function validateSubstantiveTeaching(draft: GeneratedSessionDraft) {
+  if (draft.methodBriefing.learningMode !== "learn") return null;
+
+  const substantiveModel = draft.activities.some((activity) => (
+    activity.methodPhase === "model"
+    && activity.type === "instruction"
+    && Boolean(activity.teaching)
+    && (activity.teaching?.explanation.length ?? 0) >= 80
+    && Boolean(activity.teaching?.example || activity.teaching?.commonMistake)
+  ));
+
+  return substantiveModel
+    ? null
+    : "A learn session must include a model-phase teaching activity with a real subject explanation and either a worked example or a corrected misconception before independent checks.";
 }
 
 function validateSessionTimeBudget(draft: GeneratedSessionDraft, estimatedMinutes: number) {

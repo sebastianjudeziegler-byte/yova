@@ -43,4 +43,18 @@ describe("learning-method fidelity", () => {
       activities: [activity("retrieve", "free_response", "Main claim"), activity("read_source"), activity("transfer", "multiple_choice", "Supporting evidence")],
     })).toBeNull();
   });
+
+  it("requires an accurate model before retrieval practice when the learner is still learning", () => {
+    expect(validateMethodFidelity({
+      methodId: "retrieval_practice",
+      learningMode: "learn",
+      activities: [activity("retrieve", "free_response", "Credit utilization"), activity("repair")],
+    })).toMatch(/missing required learning phase.*model/i);
+
+    expect(validateMethodFidelity({
+      methodId: "retrieval_practice",
+      learningMode: "learn",
+      activities: [activity("model"), activity("retrieve", "free_response", "Credit utilization"), activity("repair")],
+    })).toBeNull();
+  });
 });

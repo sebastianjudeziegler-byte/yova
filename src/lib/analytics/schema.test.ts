@@ -55,4 +55,28 @@ describe("ProductEventRequestSchema", () => {
       },
     }).success).toBe(true);
   });
+
+  it("accepts privacy-safe session generation performance facts", () => {
+    expect(ProductEventRequestSchema.safeParse({
+      eventName: "session_generated",
+      context: {
+        mode: "openai",
+        latencyMs: 24_500,
+        attempts: 1,
+        promptCacheHit: true,
+      },
+    }).success).toBe(true);
+  });
+
+  it("rejects impossible session generation attempts", () => {
+    expect(ProductEventRequestSchema.safeParse({
+      eventName: "session_generated",
+      context: {
+        mode: "openai",
+        latencyMs: 24_500,
+        attempts: 4,
+        promptCacheHit: false,
+      },
+    }).success).toBe(false);
+  });
 });

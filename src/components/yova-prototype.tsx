@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
   AlertCircle,
@@ -170,6 +170,7 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
   const [authStartupIssue, setAuthStartupIssue] = useState<string | null>(null);
   const [authCheckAttempt, setAuthCheckAttempt] = useState(0);
   const [tutorQuestion, setTutorQuestion] = useState("");
+  const sessionGenerationAbortRef = useRef<AbortController | null>(null);
   const analyticsEnabled = account?.identityMode === "supabase";
 
   const activePlans = plans.filter((plan) => plan.status === "active");
@@ -402,6 +403,9 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
     setSessionCompletedAt(null);
     setSessionElapsedSeconds(0);
     setStage("session-loading");
+    sessionGenerationAbortRef.current?.abort();
+    const generationController = new AbortController();
+    sessionGenerationAbortRef.current = generationController;
     let requestId: string | null = null;
 
     try {
@@ -421,8 +425,12 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
             }),
           } : {}),
         }),
+        signal: generationController.signal,
       });
       requestId = response.headers.get("X-Yova-Request-Id");
+      const generationLatencyMs = readBoundedIntegerHeader(response, "X-Yova-Generation-Ms", 180_000);
+      const generationAttempts = readBoundedIntegerHeader(response, "X-Yova-Generation-Attempts", 2);
+      const promptCacheHit = response.headers.get("X-Yova-Prompt-Cache-Hit") === "true";
       const body: unknown = await response.json().catch(() => null);
       if (!response.ok) {
         const message = typeof body === "object" && body && "error" in body && typeof body.error === "string"
@@ -433,6 +441,15 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
 
       const parsed = SessionGenerationResponseSchema.safeParse(body);
       if (!parsed.success) throw new Error("The generated session came back in an unsafe format.");
+      trackProductEvent({
+        eventName: "session_generated",
+        context: {
+          mode: parsed.data.generation.mode,
+          latencyMs: generationLatencyMs,
+          attempts: generationAttempts,
+          promptCacheHit,
+        },
+      }, analyticsEnabled);
 
       const nextLessonSteps = parsed.data.session.activities.map((activity) => ({
         methodPhase: activity.methodPhase,
@@ -474,6 +491,7 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
       }
       beginTimedSession(requestedPlan, Boolean(resumePoint));
     } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") return;
       reportProductError({
         surface: "session_generation",
         errorCode: "guided_session_generation_failed",
@@ -513,6 +531,10 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
       setSessionSourceGrounding(null);
       setSessionGenerationIssue(`${message} A safe built-in session was loaded instead.`);
       beginTimedSession(requestedPlan, Boolean(resumePoint));
+    } finally {
+      if (sessionGenerationAbortRef.current === generationController) {
+        sessionGenerationAbortRef.current = null;
+      }
     }
   };
 
@@ -977,7 +999,11 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
     setSelectedPlanId(plan.id);
     void startSession(plan.id, plan);
   }} />;
-  if (stage === "session-loading") return <SessionLoading plan={activePlan} onExit={() => setStage("app")} />;
+  if (stage === "session-loading") return <SessionLoading plan={activePlan} onExit={() => {
+    sessionGenerationAbortRef.current?.abort();
+    sessionGenerationAbortRef.current = null;
+    setStage("app");
+  }} />;
   if (stage === "session-error") return <SessionGenerationError plan={activePlan} issue={sessionGenerationIssue} onExit={() => setStage("app")} onRetry={() => void startSession(activePlan?.id)} />;
   if (stage === "session") {
     return (
@@ -2028,7 +2054,23 @@ function normalizeConceptName(value: string) {
 }
 
 function SessionLoading({ plan, onExit }: { plan: LearningPlan | null; onExit: () => void }) {
-  return <main className="centered-shell session-loading"><BrandMark /><section><span className="button-spinner dark" /><span className="step-label">BUILDING YOUR SESSION</span><h1>Turning your plan into guided work.</h1><p>YOVA is selecting the right activity sequence, checking source coverage, and adding teaching support only where it is needed for {plan?.topic ?? "your goal"}.</p><button className="button ghost" onClick={onExit}>Cancel</button></section></main>;
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+
+  useEffect(() => {
+    const startedAt = Date.now();
+    const timer = window.setInterval(() => {
+      setElapsedSeconds(Math.floor((Date.now() - startedAt) / 1_000));
+    }, 1_000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  const status = elapsedSeconds < 20
+    ? "Preparing the content and activity sequence."
+    : elapsedSeconds < 45
+      ? "Building and checking the guided lesson."
+      : "This is taking longer than usual. Keep this page open while YOVA finishes the lesson.";
+
+  return <main className="centered-shell session-loading"><BrandMark /><section><div className="session-loading-orbit" aria-hidden="true"><span className="button-spinner dark" /><Sparkles size={22} /></div><span className="step-label">PREPARING YOUR SESSION</span><h1>Building one focused path through <em>{plan?.topic ?? "your goal"}</em>.</h1><p>YOVA is turning the next objective into a lesson you can actually complete, not a generic pile of study tools.</p><div className="session-building-list" aria-label="What YOVA is preparing"><article><Target size={18} /><div><strong>Bounded content</strong><span>Only the ideas that fit this session</span></div></article><article><Sparkles size={18} /><div><strong>Learning method</strong><span>Selected for the task, then adapted to you</span></div></article><article><BookOpen size={18} /><div><strong>Teaching and practice</strong><span>Explanation first when the topic is new</span></div></article><article><Check size={18} /><div><strong>Completion evidence</strong><span>Finished work, not elapsed time</span></div></article></div><div className="session-building-status" role="status" aria-live="polite"><Clock3 size={17} /><div><strong>{status}</strong><span>{formatElapsedDuration(elapsedSeconds)} elapsed</span></div></div><button className="button ghost" onClick={onExit}>Cancel</button></section></main>;
 }
 
 function SessionGenerationError({ plan, issue, onExit, onRetry }: { plan: LearningPlan | null; issue: string | null; onExit: () => void; onRetry: () => void }) {
@@ -2228,6 +2270,12 @@ function formatElapsedDuration(totalSeconds: number) {
   const seconds = safeSeconds % 60;
   if (hours > 0) return `${hours}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
   return `${minutes}:${String(seconds).padStart(2, "0")}`;
+}
+
+function readBoundedIntegerHeader(response: Response, name: string, maximum: number) {
+  const parsed = Number(response.headers.get(name));
+  if (!Number.isInteger(parsed) || parsed < 0 || parsed > maximum) return 0;
+  return parsed;
 }
 
 function formatSessionTime(isoDate: string) {
