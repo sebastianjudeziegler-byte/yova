@@ -442,6 +442,22 @@ h1, h2, h3, p { margin-top: 0; }
 .metric-row div { padding-top: 18px; display: flex; flex-direction: column; gap: 5px; }
 .metric-row strong { font-family: "Sora"; font-size: 28px; }
 .metric-row span { color: var(--muted); font-size: 12px; }
+.method-evidence-card { grid-column: 1 / -1; }
+.method-evidence-card .section-title { align-items: flex-start; }
+.method-evidence-card .section-title h3 { margin-bottom: 4px; }
+.method-evidence-card .section-title p { margin: 0; color: var(--muted); font-size: 12px; }
+.method-signal-grid { margin-top: 18px; display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; }
+.method-signal { padding: 15px; border: 1px solid var(--border); border-radius: 11px; background: #fbfcff; }
+.method-signal > div { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.method-signal > div > span { padding: 4px 7px; border-radius: 6px; color: #6b55ce; background: #f0edff; font-size: 10px; font-weight: 700; white-space: nowrap; }
+.method-signal.promising > div > span { color: #18724a; background: #eaf8f0; }
+.method-signal.needs_support > div > span { color: #9a4f0a; background: #fff3e7; }
+.method-signal p { margin: 9px 0; color: var(--muted); font-size: 12px; line-height: 1.55; }
+.method-signal small { color: #52617c; font-size: 10px; line-height: 1.45; }
+.method-evidence-empty { margin-top: 16px; padding: 16px; display: flex; gap: 10px; color: var(--muted); border: 1px dashed #cad3e7; border-radius: 11px; background: #fbfcff; }
+.method-evidence-empty svg { flex: 0 0 auto; color: var(--violet); }
+.method-evidence-empty p { margin: 0; font-size: 12px; line-height: 1.55; }
+.method-evidence-card footer { margin-top: 14px; color: var(--muted); font-size: 10px; }
 
 .session-shell { min-height: 100vh; padding-bottom: 100px; background: white; }
 .session-top { min-height: 72px; padding: 12px 24px; display: grid; grid-template-columns: 42px 1fr minmax(180px,260px) auto; align-items: center; gap: 15px; border-bottom: 1px solid var(--border); }
@@ -870,6 +886,7 @@ h1, h2, h3, p { margin-top: 0; }
   .sidebar-bottom { display: none; }
   .page { padding: 44px 24px 70px; }
   .you-grid { grid-template-columns: 1fr; }
+  .method-signal-grid { grid-template-columns: 1fr; }
   .preference-card.editing { grid-row: auto; }
   .alpha-data-card { align-items: stretch; flex-direction: column; }
   .week-strip { grid-template-columns: repeat(2,1fr); }

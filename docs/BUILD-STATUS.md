@@ -15,9 +15,9 @@ Estimated completion depends on which finish line is meant:
 
 | Finish line | Current estimate | Meaning |
 |---|---:|---|
-| Functional product core | 85% | The differentiated YOVA learning loop works |
-| Invite-only private alpha | 80% | Deployment is connected; reliable email delivery and focused end-to-end testing remain |
-| Credible public beta | 55% | Also needs monitoring, broader QA, support/privacy pages, and tester-driven polish |
+| Functional product core | 88% | The differentiated YOVA learning loop works |
+| Invite-only private alpha | 82% | Deployment is connected; reliable email delivery and focused end-to-end testing remain |
+| Credible public beta | 58% | Also needs monitoring, broader QA, support/privacy pages, and tester-driven polish |
 | Paid polished launch | 35% | Also needs billing, entitlements, cost controls by plan, and more operational maturity |
 
 These percentages are directional, not engineering math. A product can have most features built and still need significant reliability work before strangers should pay for it.
@@ -55,6 +55,7 @@ A cross-browser six-digit email-code flow is implemented and tested behind a ser
 - Evidence-based plan adjustments remain visible after reload on Home and inside the learning goal
 - Concept-level evidence distinguishes early signals, review needs, and repeated strength
 - Actual duration and repeated interruptions cautiously influence future work
+- Completed sessions are grouped by method so YOVA can show early, promising, or support-needed signals without claiming a fixed learning style
 - Diagnosed-condition answers are excluded from model personalization context
 
 ### Backend and infrastructure

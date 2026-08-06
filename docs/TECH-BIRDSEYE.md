@@ -115,6 +115,8 @@ Code decides what evidence is safe and relevant. OpenAI uses that bounded contex
 
 When a completed session justifies changing the next one, YOVA stores the explanation with that future session. The same evidence is restored after sign-in and shown on Home and inside the plan. This makes adaptation inspectable: the user can see which result changed the plan instead of being asked to trust a vague “personalized” label.
 
+The You screen also groups completed sessions into broad method families such as retrieval, guided explanation, and application practice. Ordinary TypeScript—not OpenAI—calculates completion counts, check accuracy, difficulty feedback, and interruptions. YOVA labels one session as early evidence, requires repeated comparable checks before showing a promising signal, and never turns this history into a fixed “learning style.”
+
 ## 9. Reliability systems already present
 
 - validated server and AI contracts
