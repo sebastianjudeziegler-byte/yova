@@ -89,4 +89,47 @@ describe("personalization recommendations", () => {
     expect(result.map((item) => item.id)).not.toContain("reduce-switching");
     expect(result.find((item) => item.id === "learner-correction-active")?.explanation).toMatch(/compare it with future task-specific evidence/i);
   });
+
+  it("recommends restoring support when repeated method results are weak", () => {
+    const sessions = [1, 2].map((sequence) => ({
+      id: `00000000-0000-4000-8000-00000000001${sequence}`,
+      sequence,
+      title: `Product-rule practice ${sequence}`,
+      objective: "Choose and apply the product rule independently.",
+      method: "Application practice",
+      methodReason: "Problems require independent method selection.",
+      scheduledFor: `2026-08-0${6 + sequence}T12:00:00.000Z`,
+      estimatedMinutes: 20,
+      amountLabel: "Four problems",
+      learningMode: "study" as const,
+      status: "complete" as const,
+    }));
+    const methodPlan: LearningPlan = { ...plan, sessions };
+    const completions: SessionCompletion[] = sessions.map((session, index) => ({
+      id: `00000000-0000-4000-8000-00000000002${index}`,
+      planId: methodPlan.id,
+      planSessionId: session.id,
+      startedAt: "2026-08-06T12:00:00.000Z",
+      completedAt: `2026-08-0${7 + index}T12:20:00.000Z`,
+      plannedMinutes: 20,
+      actualMinutes: 20,
+      correctAnswers: 1,
+      totalAnswers: 4,
+      feedback: "too_difficult",
+      observedGap: "Selecting the product rule",
+      conceptEvidence: [],
+      confidenceEvidence: [],
+    }));
+
+    const result = buildPersonalizationRecommendations({
+      answers: Array.from({ length: 16 }, () => "answered"),
+      plans: [methodPlan],
+      completions,
+      interruptions: [],
+    });
+
+    expect(result.find((item) => item.id.startsWith("restore-support"))).toMatchObject({
+      action: "start_session",
+    });
+  });
 });

@@ -9,6 +9,7 @@ export const SessionGenerationRequestSchema = z.object({
   sessionAdjustment: z.object({
     familiarity: z.enum(["as_planned", "already_know", "need_teaching", "challenge_me"]),
     availableMinutes: z.number().int().min(10).max(90).nullable(),
+    knownTargets: z.array(z.string().trim().min(2).max(180)).max(4).default([]),
     note: z.string().trim().max(500),
   }).optional(),
   previewContext: z.object({

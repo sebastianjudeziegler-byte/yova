@@ -8,6 +8,7 @@ import {
   deepProfileAnswerCount,
   expandedLearnerContextFromAnswers,
 } from "@/lib/personalization/learner-profile";
+import { buildMethodSignals } from "@/lib/personalization/method-signals";
 
 export type PersonalizationRecommendation = {
   id: string;
@@ -93,6 +94,31 @@ export function buildPersonalizationRecommendations({
       action: "none",
       actionLabel: null,
       priority: 85,
+    });
+  }
+
+  const methodSignals = buildMethodSignals(plans, completions, interruptions);
+  const methodNeedingSupport = methodSignals.find((signal) => signal.status === "needs_support");
+  const promisingMethod = methodSignals.find((signal) => signal.status === "promising");
+  if (methodNeedingSupport) {
+    recommendations.push({
+      id: `restore-support-${methodNeedingSupport.family}`,
+      title: `Keep ${methodNeedingSupport.label.toLowerCase()}, but restore support first`,
+      explanation: "The method still fits the task, but recent checks suggest its execution needs a clearer model, smaller first step, or more guided practice before independence.",
+      evidence: `${methodNeedingSupport.sessions} comparable sessions · ${methodNeedingSupport.averageAccuracy ?? 0}% check accuracy`,
+      action: "start_session",
+      actionLabel: "Use the adjusted next session",
+      priority: 88,
+    });
+  } else if (promisingMethod) {
+    recommendations.push({
+      id: `fade-support-${promisingMethod.family}`,
+      title: `Cautiously fade support during ${promisingMethod.label.toLowerCase()}`,
+      explanation: "Repeated results are promising enough to make the next attempt more independent or add a transfer challenge. This is still task-specific evidence, not a permanent learning-style label.",
+      evidence: `${promisingMethod.sessions} comparable sessions · ${promisingMethod.averageAccuracy}% check accuracy`,
+      action: "start_session",
+      actionLabel: "Try the next step",
+      priority: 75,
     });
   }
 

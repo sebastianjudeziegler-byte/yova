@@ -28,7 +28,16 @@ test("a confident misconception is repaired now and verified later", async ({ pa
   await page.getByRole("button", { name: /Choose how YOVA should help/ }).click();
   await page.getByRole("button", { name: /Create it for me/ }).click();
   await page.getByRole("button", { name: /Build and start session/ }).click();
-  await confirmSessionSetup(page);
+  await expect(page.getByRole("heading", { name: "Make sure YOVA starts in the right place." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Why this session is different for you" })).toBeVisible();
+  await expect(page.getByText("Starting hypothesis").first()).toBeVisible();
+  await page.getByRole("button", { name: "I already know some of this" }).click();
+  await expect(page.getByText(/YOVA will not skip them based only on this claim/i)).toBeVisible();
+  const claimedKnownTarget = page.locator(".known-targets button").first();
+  await expect(claimedKnownTarget).toBeVisible();
+  await claimedKnownTarget.click();
+  await expect(claimedKnownTarget).toHaveAttribute("aria-pressed", "true");
+  await page.getByRole("button", { name: "Prepare this session" }).click();
 
   await expect(page.getByRole("heading", { name: "Closed-note retrieval" })).toBeVisible();
   await expect(page.getByLabel("Support progression").first()).toContainText("Start without support");

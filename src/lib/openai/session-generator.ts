@@ -36,6 +36,7 @@ import {
   type GeneratedSessionDraft,
 } from "@/lib/session-generation/schema";
 import { validateSessionCompletionContract } from "@/lib/session-generation/completion-contract";
+import { validateSessionAdjustmentFidelity } from "@/lib/session-generation/adjustment-fidelity";
 import { polishGeneratedSessionTypography } from "@/lib/session-generation/typography";
 
 export type SessionGenerationContext = {
@@ -158,7 +159,7 @@ Requirements:
 - Any supplement must be a concise, well-established explanation or example for an idea already inside the uploaded scope. Never add unrelated curriculum, guess what a teacher will test, contradict the source, or hide that YOVA supplied the detail. List each addition in sourceGrounding.supplements.
 - When sourceMode is not user_materials, set sourceGrounding to null.
 - Use recent results conservatively. If there is little evidence, do not claim YOVA knows what works best.
-- Treat sessionAdjustment as the learner's current update, not proof of knowledge. If familiarity is already_know, begin with a bounded unsupported diagnostic and skip only what the learner demonstrates. If familiarity is need_teaching, give accurate subject teaching before an independent check. If familiarity is challenge_me, reduce introductory review and use independent application or transfer. Respect availableMinutes as the current capacity limit and use note only as learner-provided context.
+- Treat sessionAdjustment as the learner's current update, not proof of knowledge. If familiarity is already_know, begin with a bounded unsupported diagnostic before any teaching model and skip only what the learner demonstrates. If knownTargets are supplied, verify those named targets first. If familiarity is need_teaching, give accurate subject teaching before an independent check. If familiarity is challenge_me, reduce introductory review and use independent application or transfer. Respect availableMinutes as the current capacity limit and use note only as learner-provided context.
 - Use observedMethodOutcomes only to modify the delivery of a method that still fits the task. These plan-specific observations are not causal proof and never establish a fixed best method or learning style.
 - A needs_more_support method outcome normally calls for a clearer model, smaller first action, or more guided practice before independence—not automatic abandonment of an evidence-backed method. A promising outcome may justify cautiously fading support or increasing transfer difficulty. An early signal must not change the normal task-first route.
 - When the selected method has a needs_more_support or promising outcome, put the exact delivery change in methodBriefing.personalization so the learner can see how YOVA adapted. Do not merely say the session is personalized.
@@ -330,7 +331,7 @@ function applyCurrentSessionAdjustment(context: SessionGenerationContext): Sessi
       ? "study"
       : context.session.learningMode;
   const currentUpdate = adjustment.familiarity === "already_know"
-    ? "The learner reports already knowing some of this content. Verify that claim with an unsupported attempt and omit only what the evidence supports."
+    ? `The learner reports already knowing some of this content.${adjustment.knownTargets.length ? ` Claimed known targets: ${adjustment.knownTargets.join("; ")}.` : ""} Verify the claim with an unsupported attempt before any teaching model and omit only what the evidence supports.`
     : adjustment.familiarity === "need_teaching"
       ? "The learner asked for teaching before practice. Build an accurate model or explanation before reducing support."
       : adjustment.familiarity === "challenge_me"
@@ -365,6 +366,7 @@ function validateGeneratedSession(
 ) {
   return validateSessionTimeBudget(draft, context.session.estimatedMinutes)
     ?? validateLearningScienceRoutingSelection(draft.methodBriefing, learningScienceRouting)
+    ?? validateSessionAdjustmentFidelity(draft, context.sessionAdjustment)
     ?? validateSessionCompletionContract({
       essentialIdeas: draft.coverage.essentialIdeas,
       evidenceMap: draft.coverage.evidenceMap,

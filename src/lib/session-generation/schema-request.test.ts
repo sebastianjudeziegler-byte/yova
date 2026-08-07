@@ -13,11 +13,32 @@ describe("session generation adjustment", () => {
       sessionAdjustment: {
         familiarity: "already_know",
         availableMinutes: 15,
+        knownTargets: ["Differentiate products", "Differentiate quotients"],
         note: "I can already differentiate the product and quotient rules.",
       },
     });
 
     expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.sessionAdjustment?.knownTargets).toEqual([
+        "Differentiate products",
+        "Differentiate quotients",
+      ]);
+    }
+  });
+
+  it("defaults the known-content list for older clients", () => {
+    const result = SessionGenerationRequestSchema.safeParse({
+      ...base,
+      sessionAdjustment: {
+        familiarity: "as_planned",
+        availableMinutes: null,
+        note: "",
+      },
+    });
+
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.sessionAdjustment?.knownTargets).toEqual([]);
   });
 
   it("rejects time windows too short to support a meaningful guided session", () => {
