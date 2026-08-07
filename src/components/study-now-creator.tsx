@@ -18,6 +18,7 @@ import { deleteUploadedMaterial, uploadMaterialFiles } from "@/lib/materials/int
 import { reportProductError } from "@/lib/monitoring/client";
 import { PlanGenerationResponseSchema } from "@/lib/plan-generation/schema";
 import { LEARNING_INTENT_COPY, resolveLearningIntent } from "@/lib/learning/learning-intent";
+import { assessGoalContext } from "@/lib/learning/goal-context";
 
 type StudyNowStep = "setup" | "source" | "loading" | "error";
 type SourceChoice = "materials" | "yova" | "outside";
@@ -50,6 +51,10 @@ export function StudyNowCreator({
   const [processingMaterials, setProcessingMaterials] = useState(false);
   const [removingMaterialId, setRemovingMaterialId] = useState<string | null>(null);
   const [generationError, setGenerationError] = useState<string | null>(null);
+  const goalContext = assessGoalContext(
+    goal,
+    sourceChoice === "materials" && materials.length > 0,
+  );
 
   const addMaterials = async (files: FileList | null) => {
     if (!files?.length) return;
@@ -167,6 +172,9 @@ export function StudyNowCreator({
             value={goal}
             onChange={(event) => setGoal(event.target.value)}
           />
+          {!assessGoalContext(goal).hasEnoughContext && (
+            <p className="goal-context-warning"><AlertCircle size={16} /> Add the actual topic before asking YOVA to create the content. A class label such as “Unit 3” does not tell YOVA what your teacher included.</p>
+          )}
           <div className="study-now-field">
             <strong>How much time do you have?</strong>
             <div className="study-now-options compact">{timeChoices.map((choice) => <button className={minutes === choice ? "selected" : ""} key={choice} onClick={() => setMinutes(choice)}>{choice} min{minutes === choice && <Check size={16} />}</button>)}</div>
@@ -202,7 +210,8 @@ export function StudyNowCreator({
           </div>}
           {materialNotice && <p className="material-notice"><AlertCircle size={15} /> {materialNotice}</p>}
           {materialError && <p className="material-error"><AlertCircle size={15} /> {materialError}</p>}
-          <footer className="plan-actions"><button className="button ghost" onClick={() => setStep("setup")}><ArrowLeft size={17} /> Back</button><button className="button primary" disabled={!sourceChoice || processingMaterials || Boolean(removingMaterialId) || (sourceChoice === "materials" && materials.length === 0)} onClick={() => void generateSession()}>Build and start session <ArrowRight size={17} /></button></footer>
+          {sourceChoice && !goalContext.hasEnoughContext && <p className="goal-context-warning" role="alert"><AlertCircle size={16} /> {goalContext.message}</p>}
+          <footer className="plan-actions"><button className="button ghost" onClick={() => setStep("setup")}><ArrowLeft size={17} /> Back</button><button className="button primary" disabled={!sourceChoice || !goalContext.hasEnoughContext || processingMaterials || Boolean(removingMaterialId) || (sourceChoice === "materials" && materials.length === 0)} onClick={() => void generateSession()}>Build and start session <ArrowRight size={17} /></button></footer>
         </section>
       )}
 

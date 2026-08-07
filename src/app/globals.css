@@ -1034,6 +1034,8 @@ h1, h2, h3, p { margin-top: 0; }
 }
 .goal-input:focus { border-color: var(--blue); box-shadow: 0 0 0 4px rgba(52,107,255,.1); }
 .goal-input-hint { margin: 9px 2px 0; color: var(--muted); font-size: 11px; line-height: 1.5; }
+.goal-context-warning { margin: 12px 0 0!important; padding: 12px 14px; display: flex; align-items: flex-start; gap: 9px; color: #8a321f!important; border: 1px solid #f3c7b8; border-radius: 10px; background: #fff7f3; font-size: 12px!important; line-height: 1.55!important; }
+.goal-context-warning > svg { flex: 0 0 auto; margin-top: 1px; }
 .plan-goal-echo {
   margin: -4px 0 18px;
   padding: 13px 14px;

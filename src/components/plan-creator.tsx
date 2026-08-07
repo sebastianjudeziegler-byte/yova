@@ -23,6 +23,7 @@ import {
   type PlanGenerationResponse,
 } from "@/lib/plan-generation/schema";
 import { LEARNING_INTENT_COPY, resolveLearningIntent } from "@/lib/learning/learning-intent";
+import { assessGoalContext } from "@/lib/learning/goal-context";
 
 type PlanStep = "goal" | "source" | "schedule" | "diagnostic" | "confirm" | "loading" | "error" | "result";
 type SourceChoice = "materials" | "yova" | "outside";
@@ -62,6 +63,10 @@ export function PlanCreator({ onExit, onFinish, profileSummary }: { onExit: () =
   const diagnosticQuestions = questionsForGoal(goal);
   const diagnosticResponses = buildDiagnosticResponses(diagnosticQuestions, diagnosticAnswers);
   const learningApproach = resolveLearningIntent({ goal, diagnosticResponses });
+  const goalContext = assessGoalContext(
+    goal,
+    sourceChoice === "materials" && materials.length > 0,
+  );
 
   const stepNumber = ({ goal: 1, source: 2, schedule: 3, diagnostic: 4, confirm: 5, loading: 5, error: 5, result: 5 } as Record<PlanStep, number>)[step];
 
@@ -180,6 +185,7 @@ export function PlanCreator({ onExit, onFinish, profileSummary }: { onExit: () =
         <PlanPanel eyebrow="CREATE A PLAN" title="What do you need to learn or prepare for?" description="Write it naturally. YOVA will organize the details before anything is created.">
           <textarea className="goal-input" placeholder="Example: I have a biology test next Friday on photosynthesis and cellular respiration." value={goal} onChange={(event) => setGoal(event.target.value)} />
           <p className="goal-input-hint">Include the topic and, if relevant, the test, deadline, or result you want.</p>
+          {!assessGoalContext(goal).hasEnoughContext && <p className="goal-context-warning"><AlertCircle size={16} /> Add the actual topic, or continue and choose Use my materials so YOVA can identify what the class label contains.</p>}
           <PlanActions onBack={onExit} backLabel="Cancel" onNext={() => setStep("source")} nextDisabled={goal.trim().length < 10} />
         </PlanPanel>
       )}
@@ -204,7 +210,8 @@ export function PlanCreator({ onExit, onFinish, profileSummary }: { onExit: () =
           </div>}
           {materialNotice && <p className="material-notice"><AlertCircle size={15} /> {materialNotice}</p>}
           {materialError && <p className="material-error"><AlertCircle size={15} /> {materialError}</p>}
-          <PlanActions onBack={back} onNext={() => { if (!deadlineDate) setDeadlineDate(deadlineDateFromGoal(goal)); setStep("schedule"); }} nextDisabled={!sourceChoice || processingMaterials || Boolean(removingMaterialId) || (sourceChoice === "materials" && materials.length === 0)} />
+          {sourceChoice && !goalContext.hasEnoughContext && <p className="goal-context-warning" role="alert"><AlertCircle size={16} /> {goalContext.message}</p>}
+          <PlanActions onBack={back} onNext={() => { if (!deadlineDate) setDeadlineDate(deadlineDateFromGoal(goal)); setStep("schedule"); }} nextDisabled={!sourceChoice || !goalContext.hasEnoughContext || processingMaterials || Boolean(removingMaterialId) || (sourceChoice === "materials" && materials.length === 0)} />
         </PlanPanel>
       )}
 

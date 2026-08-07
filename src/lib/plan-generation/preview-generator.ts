@@ -15,6 +15,21 @@ type PreviewSubject = {
 
 const SUBJECTS: Array<{ matches: RegExp; subject: PreviewSubject }> = [
   {
+    matches: /product rule/i,
+    subject: {
+      title: "Calculus: Product Rule",
+      topic: "The product rule for derivatives",
+      kind: "skill",
+      sessionTitles: [
+        "Recall the product-rule structure",
+        "Study a worked product-rule example",
+        "Solve with fading support",
+        "Complete mixed product-rule practice",
+        "Repair the last mistakes",
+      ],
+    },
+  },
+  {
     matches: /biology|photosynthesis|cellular respiration/i,
     subject: {
       title: "AP Biology Unit 3",

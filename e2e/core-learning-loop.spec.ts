@@ -160,6 +160,52 @@ test("a new topic is taught before YOVA asks for independent performance", async
   await expect(page.getByText("The key idea is present.")).toBeVisible();
 });
 
+test("an opaque class label is stopped until the learner names the actual calculus concept", async ({ page }) => {
+  await createPreviewAccount(page);
+  await completeOnboarding(page);
+
+  await page.getByRole("button", { name: "Study something now", exact: true }).first().click();
+  const goalInput = page.getByPlaceholder("Example: Help me understand the product rule and practice using it.");
+  await goalInput.fill("Start Calc Unit 3");
+  await expect(page.getByText(/class label such as “Unit 3” does not tell YOVA/i)).toBeVisible();
+  await page.getByRole("button", { name: /Choose how YOVA should help/ }).click();
+  await page.getByRole("button", { name: /Create it for me/ }).click();
+
+  await expect(page.getByText(/YOVA does not know what your class includes/)).toBeVisible();
+  await expect(page.getByRole("button", { name: /Build and start session/ })).toBeDisabled();
+
+  await page.getByRole("button", { name: "Back" }).click();
+  await goalInput.fill("Help me learn the product rule in calculus");
+  await page.getByRole("button", { name: /Choose how YOVA should help/ }).click();
+  await page.getByRole("button", { name: /Create it for me/ }).click();
+  await page.getByRole("button", { name: /Build and start session/ }).click();
+
+  await expect(page.getByRole("heading", { name: "Recall the product-rule structure" })).toBeVisible();
+  await expect(page.getByText(/product rule adds two terms/i)).not.toBeVisible();
+  await expect(page.getByText("See the structure before trying it alone", { exact: true })).not.toBeVisible();
+  await page.getByRole("button", { name: "Continue" }).click();
+  await expect(page.getByRole("heading", { name: "Which expression correctly applies the product rule?" })).toBeVisible();
+});
+
+test("a failed unknown-topic lesson stops instead of showing generic learning-method filler", async ({ page }) => {
+  await createPreviewAccount(page);
+  await completeOnboarding(page);
+
+  await page.getByRole("button", { name: "Study something now", exact: true }).first().click();
+  await page.getByPlaceholder("Example: Help me understand the product rule and practice using it.").fill(
+    "Help me understand eigenvalues and eigenvectors from scratch",
+  );
+  await page.getByRole("button", { name: "I haven't learned this yet" }).click();
+  await page.getByRole("button", { name: /Choose how YOVA should help/ }).click();
+  await page.getByRole("button", { name: /Create it for me/ }).click();
+  await page.getByRole("button", { name: /Build and start session/ }).click();
+
+  await expect(page.getByRole("heading", { name: "YOVA did not substitute unrelated content." })).toBeVisible();
+  await expect(page.getByText(/stopped instead of substituting generic content/i)).toBeVisible();
+  await expect(page.getByText("See the structure before trying it alone", { exact: true })).not.toBeVisible();
+  await expect(page.getByRole("heading", { name: "What should happen after an initial explanation?" })).not.toBeVisible();
+});
+
 test("a learner can stop twice without losing progress or earlier evidence", async ({ page }) => {
   await createPreviewAccount(page);
   await completeOnboarding(page);

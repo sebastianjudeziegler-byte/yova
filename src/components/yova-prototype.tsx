@@ -522,12 +522,14 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
         requestId,
       });
       const message = error instanceof Error ? error.message : "YOVA could not generate this session.";
-      if (requestedPlan.sourceMode === "user_materials") {
-        setSessionGenerationIssue(message);
+      const fallbackSteps = account?.identityMode === "preview"
+        ? subjectSpecificLessonStepsFor(requestedPlan)
+        : null;
+      if (!fallbackSteps) {
+        setSessionGenerationIssue(`${message} YOVA stopped instead of substituting generic content for ${requestedPlan.topic}.`);
         setStage("session-error");
         return;
       }
-      const fallbackSteps = lessonStepsFor(requestedPlan);
       const fallbackSupportPlan = buildSessionSupportPlan({
         signals: buildScaffoldProgressionSignals(
           sessionCompletions.filter((completion) => completion.planId === requestedPlan.id),
@@ -2002,7 +2004,20 @@ function fallbackCoverageFor(session: LearningPlanSession, steps: LessonStep[]):
 }
 
 function lessonStepsFor(plan: LearningPlan | null): LessonStep[] {
-  if (!plan) return [{ type: "instruction", concept: null, label: "Set up", title: "No session selected", body: "Return Home and select a learning goal first.", question: null, correctAnswer: null, feedback: null }];
+  return subjectSpecificLessonStepsFor(plan) ?? [{
+    type: "instruction",
+    concept: null,
+    label: "Content needed",
+    title: "YOVA needs the actual topic before this session can begin",
+    body: "Return to the learning goal and name the concept or add material that identifies what should be taught.",
+    question: null,
+    correctAnswer: null,
+    feedback: null,
+  }];
+}
+
+function subjectSpecificLessonStepsFor(plan: LearningPlan | null): LessonStep[] | null {
+  if (!plan) return null;
 
   const current = plan.sessions.find((session) => session.status === "ready") ?? plan.sessions.find((session) => session.status === "upcoming");
 
@@ -2017,7 +2032,7 @@ function lessonStepsFor(plan: LearningPlan | null): LessonStep[] {
   }
 
   if (current?.learningMode === "learn") {
-    return teachingFirstLessonStepsFor(plan, current);
+    return teachingFirstLessonStepsFor(plan);
   }
 
   if (/biology|photosynthesis|cellular respiration/i.test(plan.topic)) {
@@ -2027,6 +2042,16 @@ function lessonStepsFor(plan: LearningPlan | null): LessonStep[] {
       lessonQuestion("Question 2 of 2", "Where does glycolysis occur?", "Choose the location without opening your notes.", ["Cytoplasm", "Mitochondrial matrix", "Nucleus", "Cell membrane"], "Cytoplasm", "Glycolysis occurs in the cytoplasm; later aerobic stages occur in the mitochondrion.", "Glycolysis location", "retrieve"),
       lessonFreeResponse("Explain from memory", "Why can glycolysis begin without oxygen?", "Answer without reopening the explanation. Focus on what glycolysis directly requires and where it happens.", "Glycolysis does not directly require oxygen and occurs in the cytoplasm, so it can begin before the oxygen-dependent stages of aerobic respiration.", "A strong answer mentions that glycolysis does not directly require oxygen. Mentioning that it occurs in the cytoplasm makes the explanation more complete.", "Glycolysis oxygen requirement", "retrieve"),
       lessonInstruction("Repair the gap", "Compare before moving on", "Glycolysis occurs in the cytoplasm. Most later stages occur in the mitochondrion. Keep that contrast available for the next mixed-practice session.", "repair"),
+    ];
+  }
+
+  if (/product rule/i.test(plan.topic)) {
+    return [
+      lessonInstruction("Set up", "Recall the product-rule structure", "Try each step before looking back at the rule. The goal is to choose and apply both terms, not only recognize the formula.", "orient"),
+      lessonQuestion("Structure check", "Which expression correctly applies the product rule?", "Differentiate each factor once while the other factor stays in place.", ["f'g + fg'", "f'g'", "fg'", "f'g"], "f'g + fg'", "The product rule adds two terms: first f'g, then fg'.", "Product rule structure", "retrieve"),
+      lessonQuestion("Application check", "What is the derivative of x²sin(x)?", "Apply the two-term structure before choosing.", ["2x sin(x) + x² cos(x)", "2x cos(x)", "x² cos(x)", "2x sin(x)"], "2x sin(x) + x² cos(x)", "Differentiate x² while keeping sin(x), then keep x² while differentiating sin(x), and add the terms.", "Applying the product rule", "independent_practice"),
+      lessonFreeResponse("Explain the method", "Why does the product rule contain two terms?", "Explain what changes in each term without copying the formula alone.", "A product can change because either factor changes. One term differentiates the first factor while keeping the second, and the other term differentiates the second while keeping the first.", "A strong answer connects each term to one factor changing while the other stays in place.", "Product rule meaning", "explain"),
+      lessonInstruction("Wrap up", "Use a new product next", "Apply the same structure to a different pair of functions without the example visible. That transfer is stronger evidence than repeating the original problem.", "transfer"),
     ];
   }
 
@@ -2040,16 +2065,10 @@ function lessonStepsFor(plan: LearningPlan | null): LessonStep[] {
     ];
   }
 
-  return [
-    lessonInstruction("Set up", current?.method ?? "Focused learning", current?.methodReason ?? "Begin with one clearly bounded objective.", "orient"),
-    lessonQuestion("Retrieval check", "What makes this an active learning step?", "Choose the action that produces evidence of what you can do without support.", ["Explain or apply it before checking", "Read it repeatedly", "Highlight every sentence", "Keep all examples visible"], "Explain or apply it before checking", "Producing an answer before checking creates evidence of what you can retrieve or apply independently.", "Active retrieval", "retrieve"),
-    lessonInstruction("Practice", current?.title ?? "Apply the next idea", current?.objective ?? `Use the plan to practice ${plan.topic}.`, "independent_practice"),
-    lessonFreeResponse("Recall from memory", `Explain the core idea behind ${plan.topic}`, "Write what you can produce without looking. Include the main idea and one supporting detail, step, or example.", `A strong response accurately states the main idea behind ${plan.topic} and supports it with one relevant detail, step, or example.`, "Compare the substance of your response with the reference. Exact wording is not required, but the central idea and one specific support should be present.", plan.topic, "retrieve"),
-    lessonInstruction("Wrap up", "Name the least stable idea", "A specific gap is useful information. YOVA will use it to shape the next recommendation.", "reflect"),
-  ];
+  return null;
 }
 
-function teachingFirstLessonStepsFor(plan: LearningPlan, current: LearningPlanSession): LessonStep[] {
+function teachingFirstLessonStepsFor(plan: LearningPlan): LessonStep[] | null {
   if (/biology|photosynthesis|cellular respiration/i.test(plan.topic)) {
     return [
       lessonInstruction("Learn", "Build the cellular-respiration map", "Cellular respiration transfers energy from glucose into ATP across linked stages. Glycolysis begins in the cytoplasm. The Krebs cycle and electron transport chain follow in the mitochondrion.", "model"),
@@ -2060,7 +2079,7 @@ function teachingFirstLessonStepsFor(plan: LearningPlan, current: LearningPlanSe
     ];
   }
 
-  if (/calculus|derivative|product rule|quotient rule/i.test(plan.topic)) {
+  if (/product rule/i.test(plan.topic)) {
     return [
       lessonInstruction("Learn", "See the product rule before using it", "When two functions are multiplied, differentiate one while leaving the other unchanged, then switch their roles and add the results: (fg)' = f'g + fg'.", "model"),
       lessonInstruction("Worked example", "Differentiate x² sin(x)", "Differentiate x² and keep sin(x): 2x sin(x). Then keep x² and differentiate sin(x): x² cos(x). Add them: 2x sin(x) + x² cos(x).", "model"),
@@ -2080,13 +2099,7 @@ function teachingFirstLessonStepsFor(plan: LearningPlan, current: LearningPlanSe
     ];
   }
 
-  return [
-    lessonInstruction("Learn", current.title, current.objective, "model"),
-    lessonInstruction("Model", "See the structure before trying it alone", `${current.methodReason} Focus on the central relationship or procedure, then use the next check to reconstruct it without support.`, "model"),
-    lessonQuestion("Guided check", "What should happen after an initial explanation?", "Choose the step that turns an explanation into evidence of understanding.", ["Attempt an explanation or application without support", "Read the same wording repeatedly", "Highlight every sentence", "Switch to an unrelated topic"], "Attempt an explanation or application without support", "Independent explanation or application reveals whether the new model can be produced without the teaching still visible.", "Independent production", "guided_practice"),
-    lessonFreeResponse("Independent explanation", `Explain the central idea behind ${plan.topic}`, "State the main relationship, process, or procedure in your own words and include one concrete detail.", `A strong response states the central idea behind ${plan.topic} accurately and supports it with one relevant detail, step, or example.`, "Compare the meaning rather than exact wording. If the central idea or concrete support is missing, mark it for another teaching pass.", plan.topic, "independent_practice"),
-    lessonInstruction("Wrap up", "Use the result to choose the next step", "A correct independent explanation supports moving into practice. A gap supports another example or a smaller teaching step before harder work.", "reflect"),
-  ];
+  return null;
 }
 
 function lessonInstruction(label: string, title: string, body: string, methodPhase?: MethodPhase): LessonStep {
@@ -2132,7 +2145,7 @@ function SessionLoading({ plan, onExit }: { plan: LearningPlan | null; onExit: (
 }
 
 function SessionGenerationError({ plan, issue, onExit, onRetry }: { plan: LearningPlan | null; issue: string | null; onExit: () => void; onRetry: () => void }) {
-  return <main className="centered-shell"><BrandMark /><section className="plan-error-state" role="alert"><span><AlertCircle /></span><span className="step-label">SOURCE-SAFE STOP</span><h1>YOVA did not replace your material.</h1><p>{issue ?? "YOVA could not build this source-grounded session yet."}</p><p>Nothing was marked complete. You can retry, or return to {plan?.title ?? "the learning goal"} and check its source files.</p><div><button className="button ghost" onClick={onExit}><ArrowLeft size={17} /> Return to learning</button><button className="button primary" onClick={onRetry}>Try again <ArrowRight size={17} /></button></div></section></main>;
+  return <main className="centered-shell"><BrandMark /><section className="plan-error-state" role="alert"><span><AlertCircle /></span><span className="step-label">SAFE STOP</span><h1>YOVA did not substitute unrelated content.</h1><p>{issue ?? "YOVA could not build this session safely yet."}</p><p>Nothing was marked complete. Return to {plan?.title ?? "the learning goal"} to clarify the topic or source, or retry the same request.</p><div><button className="button ghost" onClick={onExit}><ArrowLeft size={17} /> Return to learning</button><button className="button primary" onClick={onRetry}>Try again <ArrowRight size={17} /></button></div></section></main>;
 }
 
 function GuidedSession({ plan, steps, step, selectedAnswer, outcome, confidence, answerRevealed, elapsedSeconds, rationale, coverage, methodBriefing, supportPlan, sourceGrounding, issue, analyticsEnabled, browserPreviewMode, onSelect, onEvaluate, onConfidence, onReveal, onExit, onNext }: { plan: LearningPlan | null; steps: LessonStep[]; step: number; selectedAnswer: string | null; outcome: boolean | undefined; confidence: ConfidenceLevel | undefined; answerRevealed: boolean; elapsedSeconds: number; rationale: string | null; coverage: SessionCoverage | null; methodBriefing: SessionMethodBriefing | null; supportPlan: SessionSupportPlan | null; sourceGrounding: SessionSourceGrounding | null; issue: string | null; analyticsEnabled: boolean; browserPreviewMode: boolean; onSelect: (answer: string) => void; onEvaluate: (correct: boolean) => void; onConfidence: (confidence: ConfidenceLevel) => void; onReveal: () => void; onExit: () => void; onNext: (evaluation: AnswerEvaluationResponse | null) => void }) {

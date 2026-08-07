@@ -15,9 +15,9 @@ Estimated completion depends on which finish line is meant:
 
 | Finish line | Current estimate | Meaning |
 |---|---:|---|
-| Functional product core | 99% | The differentiated loop now routes readiness, visibly teaches method-specific activity sequences, repairs misses, schedules and launches concept-level returns, controls how thin learner sources are supplemented, and uses repeated plan-specific method outcomes to adjust support |
-| Invite-only private alpha | 94% | Deployment, safeguards, atomic learning-state updates, and automated teaching and practice journeys on desktop and mobile are connected; reliable email delivery and authenticated production testing remain |
-| Credible public beta | 75% | Trust, monitoring, five-path live quality gates, CI, phone-sized coverage, and reload persistence checks exist; human output review, more device coverage, external alerts, policy review, and tester-driven polish remain |
+| Functional product core | 96% | The differentiated loop works, but realistic-input testing exposed an unacceptable generic-content fallback. That path is now removed and vague class labels are stopped, but more adversarial journeys are still required before calling the core finished. |
+| Invite-only private alpha | 88% | Deployment, safeguards, atomic learning-state updates, and automated teaching and practice journeys on desktop and mobile are connected; reliable email delivery, authenticated production testing, and broader real-input testing remain. |
+| Credible public beta | 68% | Trust, monitoring, live quality gates, CI, phone-sized coverage, and reload persistence checks exist; human output review, adversarial journey coverage, more devices, external alerts, policy review, and tester-driven polish remain. |
 | Paid polished launch | 35% | Also needs billing, entitlements, cost controls by plan, and more operational maturity |
 
 These percentages are directional, not engineering math. A product can have most features built and still need significant reliability work before strangers should pay for it.
@@ -51,7 +51,8 @@ A cross-browser six-digit email-code flow is implemented and tested behind a ser
 - Guided teaching, multiple choice, typed recall, and feedback
 - Typed explanations receive a bounded AI-assisted formative check against the activity's reference answer and rubric; the learner can correct YOVA's judgment, and the typed response is not saved in YOVA's database
 - Formative answer judgment is protected by a repeatable human-labeled benchmark spanning correct paraphrases, confident misconceptions, incomplete causal explanations, equivalent math notation, concise programming answers, and genuinely ambiguous prompts
-- Safe built-in biology, calculus, and finance sessions now provide real instruction and worked examples when teaching must come before independent performance
+- Development preview mode has subject-specific biology, product-rule calculus, and finance sessions; production stops safely when live generation fails instead of substituting a generic learning-method exercise
+- Class-local labels such as “Calc Unit 3” are no longer treated as teachable content by themselves: the learner must name the actual concept or upload material that defines the scope
 - Generated explanations and practice remain reusable inside their learning goal
 - Contextual tutoring inside and outside sessions
 - Visible reasons for methods and recommendations
@@ -92,7 +93,7 @@ A cross-browser six-digit email-code flow is implemented and tested behind a ser
 - Completed concept evidence now records whether success or difficulty occurred during guided practice, independent retrieval, or transfer instead of treating every correct answer as equivalent
 - YOVA uses that phase-specific history to restore a model after difficulty, fade guidance after an initial secure check, or require a different independent transfer after repeated unsupported success
 - Every newly generated session shows a plain-language Support Progression card explaining how much help is available and which completed evidence justified that decision
-- Safe built-in fallback sessions use the same phase model, so a failed generation request cannot silently turn YOVA into an unstructured generic quiz
+- Subject-specific development fallbacks use the same phase model; unknown topics and every production generation failure now stop safely rather than silently becoming unrelated generic content
 - Future guided sessions now receive the actual method, result, and difficulty feedback from earlier sessions in the same plan instead of seeing scores without method context
 - YOVA waits for repeated comparable evidence before changing method delivery, then adds support after repeated difficulty or cautiously fades support after promising results
 - The backend rejects generated sessions that ignore a meaningful method-outcome signal or turn observational results into a fixed “best method” or learning-style claim
@@ -120,6 +121,8 @@ The software loop is close to private-alpha readiness, but the broader learning-
 - Atomic completed-goal review activation, so the cloud cannot reopen a learning goal without also preserving the evidence-based retrieval session that caused it
 - Playwright now verifies both fundamental paths: teaching a genuinely new topic before testing it, and repairing a confident misconception before delayed verification
 - Playwright also verifies that all five primary destinations and both creation paths remain reachable on desktop and mobile
+- Playwright verifies that an opaque label such as “Calc Unit 3” is stopped, can be repaired into a real product-rule request, and never opens the generic meta-learning screens that caused the production failure
+- Playwright verifies that an unknown-topic generation failure stops explicitly instead of presenting unrelated content as a lesson
 - Playwright verifies repeated stop-and-return behavior on desktop and mobile, including two interruptions inside the same unfinished session
 - Preview mode now has a safe service boundary for Ask YOVA, so the product shell does not crash merely because Supabase is unavailable
 - Both paths run at desktop and Pixel-sized mobile viewports; the adaptive path also reloads the app to prove that the adjusted learning state persists
@@ -133,8 +136,8 @@ The software loop is close to private-alpha readiness, but the broader learning-
 - Five-case plan-quality evaluation covering biology, math, writing, coding, and general learning
 - First live OpenAI plan suite passed: five student and general-learning paths scored 100/100 against the required rubric
 - Guided-session quality evaluation checks active effort, feedback, task fit, source grounding, weak-concept priority, and personalization restraint
-- The five-case live session suite now also verifies method fidelity; biology, calculus, outside-app writing, beginner coding, and general finance each passed the stricter contracts at 100/100
-- First live OpenAI guided-session suite passed across biology, calculus, outside-app writing, beginner coding, and general finance
+- The live session suite covers biology, calculus teaching and repair, outside-app writing, beginner coding, general finance, short vocabulary review, and thin-source supplementation
+- The two calculus paths rerun after the real-user failure both scored 100/100: a 15-minute first lesson used one model, one guided check, and one independent application; the targeted repair used five quotient-rule activities and fit its 25-minute limit
 - The first live OpenAI answer-judgment suite matched all seven human labels, including accepting equivalent wording while rejecting keyword-rich misconceptions and withholding judgment when the activity itself lacked enough context
 - A live source-grounded biology generation passed the stricter completion contract at 100/100, with all three essential ideas attached to required checks before the session could count as complete
 - The session evaluator exposed and verified a repair to cross-session concept naming before the suite passed

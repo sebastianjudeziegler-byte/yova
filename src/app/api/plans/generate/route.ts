@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { isOpenAIPlanConfigured } from "@/lib/openai/config";
+import { assessGoalContext } from "@/lib/learning/goal-context";
 import { generatePlanWithOpenAI, OpenAIPlanGenerationError } from "@/lib/openai/plan-generator";
 import { materializePlanDraft } from "@/lib/plan-generation/materialize-plan";
 import { generatePreviewPlan } from "@/lib/plan-generation/preview-generator";
@@ -50,6 +51,20 @@ export async function POST(request: Request) {
         fields: parsedRequest.error.flatten().fieldErrors,
       },
       { status: 422, headers: { "X-Yova-Request-Id": requestId } },
+    );
+  }
+
+  const goalContext = assessGoalContext(
+    parsedRequest.data.goal,
+    parsedRequest.data.materialMode === "upload" && parsedRequest.data.materials.length > 0,
+  );
+  if (!goalContext.hasEnoughContext) {
+    return NextResponse.json(
+      {
+        error: goalContext.message,
+        code: "goal_needs_detail",
+      },
+      { status: 422, headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId } },
     );
   }
 
