@@ -26,6 +26,12 @@ export type MethodRoutingInput = {
     focusFrequency: string | null;
     startingPattern: string | null;
     primaryImprovementGoal: string | null;
+    processingPreference?: string | null;
+    memoryChallenge?: string | null;
+    supportPreference?: string | null;
+    workspacePreference?: string | null;
+    freeformContext?: string | null;
+    observationCorrection?: string | null;
   } | null;
   recentResults: Array<{
     correctAnswers: number | null;
@@ -47,6 +53,27 @@ export type LearningScienceRoutingBrief = {
   guardrails: string[];
   executionContract: ReturnType<typeof learningModeContract>;
 };
+
+export function validateLearningScienceRoutingSelection({
+  taskType,
+  methodId,
+  learningMode,
+}: {
+  taskType: LearningTaskType;
+  methodId: CoreMethodId;
+  learningMode: SessionLearningMode;
+}, routing: LearningScienceRoutingBrief) {
+  if (taskType !== routing.taskType) {
+    return `The method briefing labeled this as ${taskType.replaceAll("_", " ")}, but the deterministic task router classified it as ${routing.taskType.replaceAll("_", " ")}.`;
+  }
+  if (learningMode !== routing.sessionLearningMode) {
+    return `The method briefing changed the required ${routing.sessionLearningMode} session into ${learningMode}.`;
+  }
+  if (!routing.allowedMethodIds.includes(methodId)) {
+    return `The selected method ${methodId} is not allowed for this task and knowledge stage.`;
+  }
+  return null;
+}
 
 const TASK_METHODS: Record<LearningTaskType, Record<KnowledgeStage, CoreMethodId[]>> = {
   memorization: {
@@ -197,11 +224,38 @@ function inferDeliveryModifiers(input: MethodRoutingInput) {
   if (/concise|direct|short explanation/i.test(profileText)) {
     modifiers.push("Keep explanations concise and make the active attempt more prominent than the prose.");
   }
+  if (/big picture/i.test(profileText)) {
+    modifiers.push("Begin new teaching with a concise whole-to-parts map, then connect each detail back to that model.");
+  }
+  if (/compare|similar ideas|confuse similar/i.test(profileText)) {
+    modifiers.push("Use a contrast or discrimination check so the learner must distinguish similar ideas instead of recognizing them separately.");
+  }
+  if (/cannot recall|forget.*few days|do not retain/i.test(profileText)) {
+    modifiers.push("Require closed-note retrieval now and preserve the idea for a later retrieval check; do not treat recognition as completion.");
+  }
+  if (/cannot apply|not independently|with help/i.test(profileText)) {
+    modifiers.push("Move from one bounded model or guided attempt to a genuinely independent application before counting the content as secure.");
+  }
+  if (/small hint/i.test(profileText)) {
+    modifiers.push("After a miss, offer the smallest useful hint before revealing a complete solution when the activity permits.");
+  }
+  if (/different example/i.test(profileText)) {
+    modifiers.push("When repair is needed, change the example while preserving the underlying concept so the learner cannot succeed through surface repetition alone.");
+  }
+  if (/explain the mistake directly/i.test(profileText)) {
+    modifiers.push("Name the incorrect relationship directly, contrast it with the correct model, and require a fresh attempt.");
+  }
+  if (/least guidance/i.test(profileText)) {
+    modifiers.push("Start with the least support justified by current evidence, and restore guidance only after a real attempt exposes a gap.");
+  }
+  if (input.learnerProfile?.observationCorrection) {
+    modifiers.push(`Respect this learner correction when it is relevant: ${input.learnerProfile.observationCorrection}`);
+  }
   if (input.interruptionCount >= 2) {
     modifiers.push("Recent sessions ended early more than once; reduce switching and keep the activity count conservative without lowering intellectual challenge.");
   }
 
-  return modifiers.length ? modifiers.slice(0, 4) : [
+  return modifiers.length ? modifiers.slice(0, 6) : [
     "No repeated delivery preference is established yet; use a clear, moderate amount of guidance and learn from the result.",
   ];
 }

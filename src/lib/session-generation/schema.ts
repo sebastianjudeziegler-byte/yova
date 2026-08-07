@@ -6,6 +6,11 @@ import { METHOD_PHASES } from "@/lib/learning/method-fidelity";
 export const SessionGenerationRequestSchema = z.object({
   planId: z.string().uuid(),
   planSessionId: z.string().uuid(),
+  sessionAdjustment: z.object({
+    familiarity: z.enum(["as_planned", "already_know", "need_teaching", "challenge_me"]),
+    availableMinutes: z.number().int().min(10).max(90).nullable(),
+    note: z.string().trim().max(500),
+  }).optional(),
   previewContext: z.object({
     learningGoal: z.object({
       title: z.string().trim().min(2).max(160),
@@ -34,6 +39,12 @@ export const SessionGenerationRequestSchema = z.object({
       focusFrequency: z.string().trim().max(240).nullable(),
       startingPattern: z.string().trim().max(240).nullable(),
       primaryImprovementGoal: z.string().trim().max(240).nullable(),
+      processingPreference: z.string().trim().max(240).nullable().optional(),
+      memoryChallenge: z.string().trim().max(240).nullable().optional(),
+      supportPreference: z.string().trim().max(240).nullable().optional(),
+      workspacePreference: z.string().trim().max(240).nullable().optional(),
+      freeformContext: z.string().trim().max(800).nullable().optional(),
+      observationCorrection: z.string().trim().max(500).nullable().optional(),
     }).nullable(),
     recentResults: z.array(z.object({
       methodId: z.enum(CORE_METHOD_IDS).nullable(),
@@ -77,6 +88,7 @@ export const SessionGenerationRequestSchema = z.object({
 });
 
 export type SessionGenerationRequest = z.infer<typeof SessionGenerationRequestSchema>;
+export type SessionAdjustment = NonNullable<SessionGenerationRequest["sessionAdjustment"]>;
 export type PreviewSessionGenerationContext = NonNullable<
   SessionGenerationRequest["previewContext"]
 >;

@@ -12,14 +12,17 @@ export function shouldRequestConfidence({
   isQuestion,
   isImmediateRepair,
   methodPhase,
+  priorConfidenceCaptured = false,
 }: {
   isQuestion: boolean;
   isImmediateRepair: boolean;
   methodPhase?: MethodPhase;
+  priorConfidenceCaptured?: boolean;
 }) {
   return Boolean(
     isQuestion
       && !isImmediateRepair
+      && !priorConfidenceCaptured
       && methodPhase
       && CALIBRATION_PHASES.has(methodPhase),
   );

@@ -22,6 +22,12 @@ export type TutorLearningContext = {
     guidancePreference: string | null;
     explanationPreference: string | null;
     primaryImprovementGoal: string | null;
+    processingPreference?: string | null;
+    memoryChallenge?: string | null;
+    supportPreference?: string | null;
+    workspacePreference?: string | null;
+    freeformContext?: string | null;
+    observationCorrection?: string | null;
   } | null;
 };
 

@@ -7,6 +7,7 @@ import { methodIdFromText } from "@/lib/learning/method-router";
 import { buildScaffoldProgressionSignals } from "@/lib/learning/scaffold-progression";
 import { isOpenAISessionConfigured } from "@/lib/openai/config";
 import { generateSessionWithOpenAI, type SessionGenerationStats } from "@/lib/openai/session-generator";
+import { expandedLearnerContextFromStored } from "@/lib/personalization/learner-profile";
 import {
   CachedGeneratedSessionSchema,
   SessionGenerationRequestSchema,
@@ -63,7 +64,7 @@ export async function POST(request: Request) {
   }
 
   const cached = readCachedSession(planSession.step_data);
-  if (cached) {
+  if (cached && !parsed.data.sessionAdjustment) {
     return NextResponse.json(SessionGenerationResponseSchema.parse({
       planSessionId: planSession.id,
       session: cached,
@@ -92,7 +93,7 @@ export async function POST(request: Request) {
         .maybeSingle(),
       supabase
         .from("learner_profiles")
-        .select("common_blocker,guidance_preference,explanation_preference,focus_frequency,starting_pattern,primary_improvement_goal")
+        .select("common_blocker,guidance_preference,explanation_preference,focus_frequency,starting_pattern,primary_improvement_goal,additional_context")
         .maybeSingle(),
       supabase
         .from("plan_sessions")
@@ -180,6 +181,7 @@ export async function POST(request: Request) {
       completedAt: attempt.completed_at ?? new Date(0).toISOString(),
       conceptEvidence: readConceptEvidenceProperty(attempt.result_data),
     }));
+    const expandedProfile = expandedLearnerContextFromStored(learnerProfile?.additional_context ?? null);
     const generated = await generateSessionWithOpenAI({
       learningGoal: {
         title: learningItem.title,
@@ -209,7 +211,9 @@ export async function POST(request: Request) {
         focusFrequency: learnerProfile.focus_frequency,
         startingPattern: learnerProfile.starting_pattern,
         primaryImprovementGoal: learnerProfile.primary_improvement_goal,
+        ...expandedProfile,
       } : null,
+      sessionAdjustment: parsed.data.sessionAdjustment ?? null,
       recentResults: recentAttempts.slice(0, 8).map((attempt) => ({
         methodId: methodIdBySession.get(attempt.plan_session_id) ?? null,
         correctAnswers: attempt.correct_answers,
@@ -309,6 +313,7 @@ async function generateBrowserPreviewSession(
     const generated = await generateSessionWithOpenAI({
       ...input.previewContext,
       materials: [],
+      sessionAdjustment: input.sessionAdjustment ?? null,
     });
     const session = CachedGeneratedSessionSchema.parse({
       schemaVersion: 11,

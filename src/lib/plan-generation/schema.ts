@@ -41,7 +41,7 @@ export const PlanGenerationRequestSchema = z.object({
     window: z.string().trim().min(1).max(40),
     minutes: z.number().int().min(5).max(180),
   })).min(1).max(14),
-  profileSummary: z.string().trim().min(10).max(800),
+  profileSummary: z.string().trim().min(10).max(1_600),
 }).superRefine((value, context) => {
   if (value.materialMode === "upload" && value.materials.length === 0) {
     context.addIssue({ code: "custom", path: ["materials"], message: "Add at least one material or choose no materials." });

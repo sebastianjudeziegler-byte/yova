@@ -8,6 +8,7 @@ import { summarizeConceptEvidence } from "@/lib/learning/concept-evidence";
 import { summarizeConfidenceCalibration } from "@/lib/learning/confidence-calibration";
 import { methodIdFromText } from "@/lib/learning/method-router";
 import { buildScaffoldProgressionSignals } from "@/lib/learning/scaffold-progression";
+import { expandedLearnerContextFromAnswers } from "@/lib/personalization/learner-profile";
 import type { PreviewSessionGenerationContext } from "@/lib/session-generation/schema";
 
 export function buildPreviewSessionContext({
@@ -29,6 +30,7 @@ export function buildPreviewSessionContext({
   const recentInterruptions = interruptions
     .filter((interruption) => interruption.planId === plan.id)
     .sort((left, right) => right.interruptedAt.localeCompare(left.interruptedAt));
+  const expandedProfile = expandedLearnerContextFromAnswers(onboardingAnswers);
 
   return {
     learningGoal: {
@@ -58,6 +60,7 @@ export function buildPreviewSessionContext({
       focusFrequency: onboardingAnswers[4] || null,
       startingPattern: onboardingAnswers[5] || null,
       primaryImprovementGoal: onboardingAnswers[7] || null,
+      ...expandedProfile,
     },
     recentResults: recentCompletions.slice(0, 8).map((completion) => {
       const completedSession = plan.sessions.find((candidate) => candidate.id === completion.planSessionId);

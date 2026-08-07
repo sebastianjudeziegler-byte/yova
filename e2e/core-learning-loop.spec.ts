@@ -28,6 +28,7 @@ test("a confident misconception is repaired now and verified later", async ({ pa
   await page.getByRole("button", { name: /Choose how YOVA should help/ }).click();
   await page.getByRole("button", { name: /Create it for me/ }).click();
   await page.getByRole("button", { name: /Build and start session/ }).click();
+  await confirmSessionSetup(page);
 
   await expect(page.getByRole("heading", { name: "Closed-note retrieval" })).toBeVisible();
   await expect(page.getByLabel("Support progression").first()).toContainText("Start without support");
@@ -64,7 +65,6 @@ test("a confident misconception is repaired now and verified later", async ({ pa
   await page.getByRole("button", { name: "Cytoplasm" }).click();
   await page.getByRole("button", { name: "Continue" }).click();
 
-  await page.getByRole("button", { name: "Somewhat sure" }).click();
   await page.getByLabel("Attempt from memory").fill(
     "Glycolysis occurs in the cytoplasm and does not directly require oxygen.",
   );
@@ -118,6 +118,7 @@ test("a new topic is taught before YOVA asks for independent performance", async
   await page.getByRole("button", { name: /Choose how YOVA should help/ }).click();
   await page.getByRole("button", { name: /Create it for me/ }).click();
   await page.getByRole("button", { name: /Build and start session/ }).click();
+  await confirmSessionSetup(page);
 
   await expect(page.getByRole("heading", { name: "Use money concepts as decision tools" })).toBeVisible();
   await expect(page.getByLabel("Support progression").first()).toContainText("Support fades inside this session");
@@ -128,23 +129,23 @@ test("a new topic is taught before YOVA asks for independent performance", async
   await expect(teachingRoadmap).toContainText("Apply it in a new context");
   await expect(page.getByLabel("Method phase 1 of 4")).toContainText("See a complete model");
   await expect(page.getByText(/A budget directs limited income/)).toBeVisible();
-  await expect(page.getByRole("group", { name: /Before answering/ })).not.toBeVisible();
+  await expect(page.getByRole("group", { name: /One quick confidence check/ })).not.toBeVisible();
   await page.getByRole("button", { name: "Continue" }).click();
 
   await expect(page.getByRole("heading", { name: "Trace one financial choice" })).toBeVisible();
   await expect(page.getByText(/If \$100 earns 10%/)).toBeVisible();
-  await expect(page.getByRole("group", { name: /Before answering/ })).not.toBeVisible();
+  await expect(page.getByRole("group", { name: /One quick confidence check/ })).not.toBeVisible();
   await page.getByRole("button", { name: "Continue" }).click();
 
   await expect(page.getByRole("heading", { name: "What makes the second year compound growth?" })).toBeVisible();
-  await expect(page.getByRole("group", { name: /Before answering/ })).not.toBeVisible();
+  await expect(page.getByRole("group", { name: /One quick confidence check/ })).not.toBeVisible();
   await page.getByRole("button", { name: "The earlier gain remains in the base" }).click();
   await expect(page.getByText("Correct.", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Continue" }).click();
 
   await expect(page.getByRole("heading", { name: "Explain compound growth in your own words" })).toBeVisible();
   await expect(page.getByLabel("Method phase 3 of 4")).toContainText("Perform independently");
-  await expect(page.getByRole("group", { name: /Before answering/ })).toBeVisible();
+  await expect(page.getByRole("group", { name: /One quick confidence check/ })).toBeVisible();
   await page.getByRole("button", { name: "Somewhat sure" }).click();
   await page.getByLabel("Perform independently").fill("The amount gets bigger.");
   await page.getByRole("button", { name: "Check my answer" }).click();
@@ -178,6 +179,7 @@ test("an opaque class label is stopped until the learner names the actual calcul
   await expect(page.getByText("Start Calc Unit 3: Product rule", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: /Build and start session/ })).toBeEnabled();
   await page.getByRole("button", { name: /Build and start session/ }).click();
+  await confirmSessionSetup(page);
 
   await expect(page.getByRole("heading", { name: "Recall the product-rule structure" })).toBeVisible();
   await expect(page.getByText(/product rule adds two terms/i)).not.toBeVisible();
@@ -198,6 +200,7 @@ test("a failed unknown-topic lesson stops instead of showing generic learning-me
   await page.getByRole("button", { name: /Choose how YOVA should help/ }).click();
   await page.getByRole("button", { name: /Create it for me/ }).click();
   await page.getByRole("button", { name: /Build and start session/ }).click();
+  await confirmSessionSetup(page);
 
   await expect(page.getByRole("heading", { name: "YOVA did not substitute unrelated content." })).toBeVisible();
   await expect(page.getByText(/stopped instead of substituting generic content/i)).toBeVisible();
@@ -216,6 +219,7 @@ test("outside study gives a concrete source-based session instead of pretending 
   await page.getByRole("button", { name: /Choose how YOVA should help/ }).click();
   await page.getByRole("button", { name: /Guide me outside YOVA/ }).click();
   await page.getByRole("button", { name: /Build and start session/ }).click();
+  await confirmSessionSetup(page);
 
   await expect(page.getByRole("heading", { name: "Prepare your outside study block" })).toBeVisible();
   await expect(page.getByText(/Open the material you use for Draft a comparative history thesis using my textbook evidence\. Keep only that source and a place to work visible/i)).toBeVisible();
@@ -304,6 +308,7 @@ test("a learner can stop twice without losing progress or earlier evidence", asy
   await page.getByRole("button", { name: /Choose how YOVA should help/ }).click();
   await page.getByRole("button", { name: /Create it for me/ }).click();
   await page.getByRole("button", { name: /Build and start session/ }).click();
+  await confirmSessionSetup(page);
 
   await expect(page.getByRole("heading", { name: "Use money concepts as decision tools" })).toBeVisible();
   await page.getByRole("button", { name: "Continue" }).click();
@@ -452,4 +457,10 @@ async function leaveSession(page: Page, progressText: string) {
   await page.getByRole("button", { name: "Exit" }).dispatchEvent("click");
   await expect(page.getByRole("dialog", { name: "Your plan will stay open." })).toContainText(progressText);
   await page.getByRole("button", { name: "Save progress and leave" }).click();
+}
+
+async function confirmSessionSetup(page: Page) {
+  await expect(page.getByRole("heading", { name: "Make sure YOVA starts in the right place." })).toBeVisible();
+  await expect(page.getByText(/verify what you know through the session rather than trusting a confidence rating/i)).toBeVisible();
+  await page.getByRole("button", { name: "Prepare this session" }).click();
 }

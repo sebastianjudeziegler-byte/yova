@@ -27,6 +27,17 @@ function matchingDraft() {
 }
 
 describe("plan activation contract", () => {
+  it("accepts the richer learner profile used by personalized plan generation", () => {
+    const draft = matchingDraft();
+    const detailedProfile = Array.from({ length: 14 }, (_, index) => `Signal ${index + 1}: examples, independent application, and bounded support.`).join(" ");
+
+    expect(detailedProfile.length).toBeGreaterThan(800);
+    expect(PlanGenerationRequestSchema.safeParse({
+      ...draft.generationRequest,
+      profileSummary: detailedProfile,
+    }).success).toBe(true);
+  });
+
   it("accepts a generated draft that still matches its setup", () => {
     const draft = matchingDraft();
 

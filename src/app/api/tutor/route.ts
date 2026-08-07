@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { buildMaterialExcerpts } from "@/lib/materials/context";
+import { expandedLearnerContextFromStored } from "@/lib/personalization/learner-profile";
 import { generateTutorAnswer, type TutorLearningContext } from "@/lib/openai/tutor-generator";
 import { isOpenAITutorConfigured } from "@/lib/openai/config";
 import { checkTutorRateLimit, requestRateLimitKey } from "@/lib/server/rate-limit";
@@ -225,7 +226,7 @@ export async function POST(request: Request) {
 async function loadTutorContext(supabase: SupabaseClient, planId: string | null): Promise<TutorContextResult> {
   const { data: learnerProfile, error: learnerError } = await supabase
     .from("learner_profiles")
-    .select("common_blocker,guidance_preference,explanation_preference,primary_improvement_goal")
+    .select("common_blocker,guidance_preference,explanation_preference,primary_improvement_goal,additional_context")
     .maybeSingle();
   if (learnerError) throw learnerError;
 
@@ -234,6 +235,7 @@ async function loadTutorContext(supabase: SupabaseClient, planId: string | null)
     guidancePreference: learnerProfile.guidance_preference,
     explanationPreference: learnerProfile.explanation_preference,
     primaryImprovementGoal: learnerProfile.primary_improvement_goal,
+    ...expandedLearnerContextFromStored(learnerProfile.additional_context),
   } : null;
 
   if (!planId) {

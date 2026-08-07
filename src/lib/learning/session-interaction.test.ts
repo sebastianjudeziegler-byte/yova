@@ -15,4 +15,13 @@ describe("session interaction", () => {
   it("does not ask on non-question activities", () => {
     expect(shouldRequestConfidence({ isQuestion: false, isImmediateRepair: false, methodPhase: "retrieve" })).toBe(false);
   });
+
+  it("asks at most once after a prior calibration rating exists", () => {
+    expect(shouldRequestConfidence({
+      isQuestion: true,
+      isImmediateRepair: false,
+      methodPhase: "transfer",
+      priorConfidenceCaptured: true,
+    })).toBe(false);
+  });
 });

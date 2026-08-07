@@ -19,11 +19,14 @@ import {
 } from "@/lib/learning/session-resume";
 import { inferLegacySessionLearningMode } from "@/lib/learning/learning-intent";
 import { readSessionAdaptationNote } from "@/lib/personalization/adaptation-note";
+import {
+  encodeAdditionalLearnerContext,
+  LEARNER_ANSWER_COUNT,
+  mergeStoredAdditionalContext,
+} from "@/lib/personalization/learner-profile";
 import { readSessionResourceFromStepData } from "@/lib/session-generation/resource";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
-
-const ONBOARDING_ANSWER_COUNT = 10;
 
 type ProfileRow = {
   display_name: string;
@@ -314,7 +317,7 @@ export async function saveAuthenticatedLearnerProfile(input: {
       startingPattern: input.onboardingAnswers[5] ?? "",
       energyWindow: input.onboardingAnswers[6] ?? "",
       primaryImprovementGoal: input.onboardingAnswers[7] ?? "",
-      additionalContext: input.onboardingAnswers[9] ?? "",
+      additionalContext: encodeAdditionalLearnerContext(input.onboardingAnswers),
     },
   });
 
@@ -422,7 +425,7 @@ export async function recordAuthenticatedSessionInterruption(interruption: Sessi
 }
 
 function learnerProfileToAnswers(profile: LearnerProfileRow | null) {
-  const answers = Array.from({ length: ONBOARDING_ANSWER_COUNT }, () => "");
+  const answers = Array.from({ length: LEARNER_ANSWER_COUNT }, () => "");
   if (!profile) return answers;
 
   answers[0] = profile.common_blocker ?? "";
@@ -435,8 +438,7 @@ function learnerProfileToAnswers(profile: LearnerProfileRow | null) {
   answers[7] = profile.primary_improvement_goal ?? "";
   // Index 8 is intentionally excluded. It is the optional health-related answer,
   // which YOVA does not need to retain for this first cloud personalization loop.
-  answers[9] = profile.additional_context ?? "";
-  return answers;
+  return mergeStoredAdditionalContext(answers, profile.additional_context);
 }
 
 function parseSessionRange(answer?: string): [number | null, number | null] {
