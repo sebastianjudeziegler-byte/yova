@@ -3,7 +3,7 @@ import { polishActivityLabel, polishLearnerText } from "@/lib/session-generation
 
 describe("session typography", () => {
   it("removes generated dash and bullet punctuation from learner text", () => {
-    expect(polishLearnerText("Resources now—such as staff • product development")).toBe(
+    expect(polishLearnerText("Resources now\u2014such as staff • product development")).toBe(
       "Resources now, such as staff; product development",
     );
   });

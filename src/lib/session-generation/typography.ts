@@ -50,7 +50,7 @@ export function polishGeneratedSessionTypography(draft: GeneratedSessionDraft): 
 
 export function polishLearnerText(value: string) {
   return value
-    .replace(/\s*[—–]\s*/g, ", ")
+    .replace(/\s*[\u2014\u2013]\s*/g, ", ")
     .replace(/\s*•\s*/g, "; ")
     .replace(/\s+([,.;:!?])/g, "$1")
     .replace(/,{2,}/g, ",")

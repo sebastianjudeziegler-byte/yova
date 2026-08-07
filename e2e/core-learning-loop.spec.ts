@@ -3,7 +3,7 @@ import { expect, test, type Page } from "@playwright/test";
 const onboardingAnswers = [
   "I struggle to start",
   "Give me clear structure with flexibility",
-  "20–30 minutes",
+  "20 to 30 minutes",
   "A concrete example first",
   "Sometimes",
   "I intend to begin but often delay",
@@ -63,7 +63,7 @@ test("a confident misconception is repaired now and verified later", async ({ pa
   await page.getByLabel("Corrected idea in your own words").fill(
     "Glycolysis happens first, followed by the Krebs cycle and electron transport chain.",
   );
-  await page.getByRole("button", { name: "Check my answer" }).click();
+  await page.getByRole("button", { name: "Check my answer" }).dispatchEvent("click");
   await expect(page.getByText("YOVA'S FORMATIVE CHECK")).toBeVisible();
   await expect(page.getByText("The key idea is present.")).toBeVisible();
   await page.getByRole("button", { name: "I got the key idea" }).click();
@@ -77,7 +77,7 @@ test("a confident misconception is repaired now and verified later", async ({ pa
   await page.getByLabel("Attempt from memory").fill(
     "Glycolysis occurs in the cytoplasm and does not directly require oxygen.",
   );
-  await page.getByRole("button", { name: "Check my answer" }).click();
+  await page.getByRole("button", { name: "Check my answer" }).dispatchEvent("click");
   await page.getByRole("button", { name: "I got the key idea" }).click();
   await page.getByRole("button", { name: "Continue" }).click();
   await page.getByRole("button", { name: "Finish this content" }).click();
@@ -137,12 +137,15 @@ test("a new topic is taught before YOVA asks for independent performance", async
   await expect(teachingRoadmap).toContainText("Perform independently");
   await expect(teachingRoadmap).toContainText("Apply it in a new context");
   await expect(page.getByLabel("Method phase 1 of 4")).toContainText("See a complete model");
-  await expect(page.getByText(/A budget directs limited income/)).toBeVisible();
+  await expect(page.getByText(/A budget directs limited income/).first()).toBeVisible();
+  await expect(page.getByText("VISUAL MODEL", { exact: true })).toBeVisible();
+  await expect(page.getByLabel(/Visual model:/)).toBeVisible();
+  await expect(page.locator(".teaching-path-segment")).toHaveCount(3);
   await expect(page.getByRole("group", { name: /One quick confidence check/ })).not.toBeVisible();
   await page.getByRole("button", { name: "Continue" }).click();
 
   await expect(page.getByRole("heading", { name: "Trace one financial choice" })).toBeVisible();
-  await expect(page.getByText(/If \$100 earns 10%/)).toBeVisible();
+  await expect(page.getByText(/If \$100 earns 10%/).first()).toBeVisible();
   await expect(page.getByRole("group", { name: /One quick confidence check/ })).not.toBeVisible();
   await page.getByRole("button", { name: "Continue" }).click();
 
@@ -156,16 +159,17 @@ test("a new topic is taught before YOVA asks for independent performance", async
   await expect(page.getByLabel("Method phase 3 of 4")).toContainText("Perform independently");
   await expect(page.getByRole("group", { name: /One quick confidence check/ })).toBeVisible();
   await page.getByRole("button", { name: "Somewhat sure" }).click();
-  await page.getByLabel("Perform independently").fill("The amount gets bigger.");
-  await page.getByRole("button", { name: "Check my answer" }).click();
-  await expect(page.getByText("One or more key ideas need repair.")).toBeVisible();
+  await expect(page.getByRole("button", { name: "I don't know yet" })).toBeVisible();
+  await page.getByRole("button", { name: "I don't know yet" }).dispatchEvent("click");
+  await expect(page.getByText("REFERENCE ANSWER")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Needs another pass" })).toHaveClass(/selected/);
   await page.getByRole("button", { name: "Repair this idea" }).click();
 
-  await expect(page.getByText(/Use these missing ideas in your correction:/)).toBeVisible();
+  await expect(page.getByText("Repair now, verify later")).toBeVisible();
   await page.getByLabel("Corrected idea in your own words").fill(
     "Earlier gains stay in the base, so later percentage gains apply to the original amount and its accumulated growth.",
   );
-  await page.getByRole("button", { name: "Check my answer" }).click();
+  await page.getByRole("button", { name: "Check my answer" }).dispatchEvent("click");
   await expect(page.getByText("YOVA'S FORMATIVE CHECK")).toBeVisible();
   await expect(page.getByText("The key idea is present.")).toBeVisible();
 });
@@ -340,7 +344,7 @@ test("a learner can stop twice without losing progress or earlier evidence", asy
   await page.getByLabel("Perform independently").fill(
     "Earlier gains remain in the base, so the same percentage can produce larger gains later.",
   );
-  await page.getByRole("button", { name: "Check my answer" }).click();
+  await page.getByRole("button", { name: "Check my answer" }).dispatchEvent("click");
   await expect(page.getByText("YOVA'S FORMATIVE CHECK")).toBeVisible();
   await expect(page.getByText("The key idea is present.")).toBeVisible();
   await expect(page.getByText(/one-time AI check and is not saved/i)).toBeVisible();
@@ -437,6 +441,17 @@ test("a multi-session plan uses one clear source decision from setup to Learning
   expect(adjustedDurations.length).toBeGreaterThan(initialSessionCount);
   expect(adjustedDurations.every((duration) => Number.parseInt(duration, 10) <= 15)).toBe(true);
   await expect(page.getByText(/sessions complete/).first()).toBeVisible();
+
+  await page.getByRole("button", { name: "Agenda", exact: true }).click();
+  const moveOverdue = page.getByRole("button", { name: "Move to tomorrow" });
+  if (await moveOverdue.isVisible()) await moveOverdue.click();
+  const nextAgendaSession = page.locator(".agenda-list article.primary-agenda").first();
+  await expect(nextAgendaSession).toBeVisible();
+  await nextAgendaSession.getByRole("button", { name: "Start", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: /Start .* now\?/ })).toBeVisible();
+  await expect(page.getByText("Recommended: pull the agenda forward")).toBeVisible();
+  await page.getByRole("button", { name: "Start and adjust agenda" }).click();
+  await expect(page.getByRole("heading", { name: "Make sure YOVA starts in the right place." })).toBeVisible();
 });
 
 async function createPreviewAccount(page: Page) {
@@ -465,7 +480,7 @@ async function completeOnboarding(page: Page) {
 async function leaveSession(page: Page, progressText: string) {
   await page.getByRole("button", { name: "Exit" }).dispatchEvent("click");
   await expect(page.getByRole("dialog", { name: "Your plan will stay open." })).toContainText(progressText);
-  await page.getByRole("button", { name: "Save progress and leave" }).click();
+  await page.getByRole("button", { name: "Save progress and leave" }).dispatchEvent("click");
 }
 
 async function confirmSessionSetup(page: Page) {

@@ -16,7 +16,7 @@ export const onboardingQuestions: Question[] = [
   },
   {
     prompt: "What study-session length usually feels realistic?",
-    options: ["10–15 minutes", "20–30 minutes", "30–45 minutes", "45–60 minutes", "It depends"],
+    options: ["10 to 15 minutes", "20 to 30 minutes", "30 to 45 minutes", "45 to 60 minutes", "It depends"],
   },
   {
     prompt: "When a topic is difficult, what usually helps most?",

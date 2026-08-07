@@ -261,7 +261,7 @@ export function PlanCreator({ onExit, onFinish, profileSummary }: { onExit: () =
               <input aria-label="Choose learning materials" type="file" multiple accept=".pdf,.txt,.md,text/plain,text/markdown,application/pdf" disabled={processingMaterials || Boolean(removingMaterialId)} onChange={(event) => { void addMaterials(event.target.files); event.target.value = ""; }} />
             </label>
             <p className="material-examples"><strong>Useful examples:</strong> teacher study guide · lecture slides exported as PDF · class notes · review sheet · readable textbook excerpt</p>
-            <p className="material-supplement-note"><Sparkles size={14} /> If a source only lists topics, YOVA can fill in the minimum explanation needed—while keeping your material as the scope and showing what it added.</p>
+            <p className="material-supplement-note"><Sparkles size={14} /> If a source only lists topics, YOVA can fill in the minimum explanation needed while keeping your material as the scope and showing what it added.</p>
             {materials.length > 0 && <div className="material-files">{materials.map((material) => <div key={material.id}><FileText /><span><strong>{material.name}</strong><small>Securely stored · text ready for YOVA</small></span><button aria-label={`Remove ${material.name}`} disabled={removingMaterialId === material.id} onClick={() => void removeMaterial(material.id)}>{removingMaterialId === material.id ? <span className="button-spinner dark" /> : <Trash2 size={16} />}</button></div>)}<p>{materials.length} {materials.length === 1 ? "material" : "materials"} ready for plan generation</p></div>}
           </div>}
           {materialNotice && <p className="material-notice"><AlertCircle size={15} /> {materialNotice}</p>}
@@ -326,7 +326,7 @@ export function PlanCreator({ onExit, onFinish, profileSummary }: { onExit: () =
               <div><span>CONTENT</span><strong>{generatedPlan.plan.topic}</strong></div>
               <div><span>STARTING APPROACH</span><strong>{generatedPlan.plan.learningIntent === "learn" ? "Teach first, then remove support" : "Practice first, then repair gaps"}</strong></div>
               <div><span>LEARNING SOURCE</span><strong>{sourceChoice === "materials" ? `${materials.length} uploaded ${materials.length === 1 ? "source" : "sources"}` : sourceChoice === "outside" ? "Your trusted source outside YOVA" : "Teaching and practice created by YOVA"}</strong></div>
-              <div><span>PACE</span><strong>{generatedPlan.plan.sessions.length} sessions · {Math.min(...generatedPlan.plan.sessions.map((session) => session.estimatedMinutes))}–{Math.max(...generatedPlan.plan.sessions.map((session) => session.estimatedMinutes))} minutes each</strong></div>
+              <div><span>PACE</span><strong>{generatedPlan.plan.sessions.length} sessions · {Math.min(...generatedPlan.plan.sessions.map((session) => session.estimatedMinutes))} to {Math.max(...generatedPlan.plan.sessions.map((session) => session.estimatedMinutes))} minutes each</strong></div>
             </div>
             <div className="plan-revision-actions" aria-label="Change this plan before saving">
               <button className="button ghost" onClick={() => reviseGeneratedPlan("goal")}>Change content</button>
@@ -369,7 +369,7 @@ function defaultAvailability(profileSummary: string): AvailabilityChoice[] {
     : /evening|late night/i.test(profileSummary)
       ? "Evening"
       : "Afternoon";
-  const sessionRange = profileSummary.match(/(10|20|30|45)[–-](15|30|45|60) minutes/i);
+  const sessionRange = profileSummary.match(/(10|20|30|45)\s*(?:to|-)\s*(15|30|45|60) minutes/i);
   const preferredMinutes = sessionRange ? Number(sessionRange[2]) : 30;
 
   return Array.from({ length: 5 }, (_, index) => {

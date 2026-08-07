@@ -186,7 +186,7 @@ export function StudyNowCreator({
         <section className="plan-panel">
           <span className="step-label">FOCUSED SESSION</span>
           <h1>What do you want help with?</h1>
-          <p className="plan-description">Describe the result you want. YOVA will turn it into one focused session—not a multi-day plan.</p>
+          <p className="plan-description">Describe the result you want. YOVA will turn it into one focused session, not a multi-day plan.</p>
           <textarea
             className="goal-input"
             placeholder="Example: Help me understand the product rule and practice using it."

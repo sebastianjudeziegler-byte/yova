@@ -7,18 +7,28 @@ import {
   Archive,
   ArrowLeft,
   ArrowRight,
+  Atom,
+  BadgeDollarSign,
   BookOpen,
+  BookMarked,
   CalendarDays,
+  Calculator,
   Check,
   ChevronRight,
   CircleUserRound,
   Clock3,
+  Code2,
+  Dna,
   FileText,
+  FlaskConical,
+  Globe2,
   Home,
+  Landmark,
   LibraryBig,
   LogOut,
   Mail,
   MessageCircleMore,
+  Microscope,
   Plus,
   RotateCcw,
   Send,
@@ -127,6 +137,11 @@ import {
 import { RescheduleSessionResponseSchema } from "@/lib/scheduling/schema";
 import { isSessionOverdue, recoverySessionMinutes, tomorrowAtSessionTime } from "@/lib/scheduling/recovery";
 import {
+  applyAdvancedSchedule,
+  buildAdvancedSchedule,
+  isSessionAheadOfSchedule,
+} from "@/lib/scheduling/advance";
+import {
   clearQueuedSessionCompletions,
   flushQueuedSessionCompletions,
   queueSessionCompletion,
@@ -198,12 +213,19 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
   const [browserPreviewMode, setBrowserPreviewMode] = useState(false);
   const [tutorQuestion, setTutorQuestion] = useState("");
   const [pendingSessionPlan, setPendingSessionPlan] = useState<LearningPlan | null>(null);
+  const [earlySessionPlanId, setEarlySessionPlanId] = useState<string | null>(null);
+  const [earlySchedulePending, setEarlySchedulePending] = useState(false);
+  const [earlyScheduleIssue, setEarlyScheduleIssue] = useState<string | null>(null);
   const sessionGenerationAbortRef = useRef<AbortController | null>(null);
   const analyticsEnabled = account?.identityMode === "supabase";
 
   const activePlans = plans.filter((plan) => plan.status === "active");
   const activePlan = activePlans.find((plan) => plan.id === selectedPlanId) ?? activePlans[activePlans.length - 1] ?? null;
   const recommendedPlan = chooseRecommendedPlan(activePlans);
+  const earlySessionPlan = earlySessionPlanId
+    ? activePlans.find((plan) => plan.id === earlySessionPlanId) ?? null
+    : null;
+  const earlySession = earlySessionPlan?.sessions.find((session) => session.status === "ready") ?? null;
   const activeLessonSteps = generatedLessonSteps ?? lessonStepsFor(activePlan);
   const sessionEvidence = mergeSessionEvidenceSummaries(
     resumedSessionEvidence,
@@ -421,8 +443,7 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
     const requestedPlan = planOverride ?? activePlans.find((plan) => plan.id === planId) ?? activePlan;
     if (!requestedPlan) return;
 
-    const requestedSession = requestedPlan.sessions.find((session) => session.status === "ready")
-      ?? requestedPlan.sessions.find((session) => session.status === "upcoming");
+    const requestedSession = requestedPlan.sessions.find((session) => session.status === "ready");
     if (!requestedSession) return;
     const resumePoint = resumableSessionProgress(requestedSession.id, sessionInterruptions);
 
@@ -600,6 +621,67 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
       if (sessionGenerationAbortRef.current === generationController) {
         sessionGenerationAbortRef.current = null;
       }
+    }
+  };
+
+  const requestSessionStart = (planId?: string) => {
+    const requestedPlan = activePlans.find((plan) => plan.id === planId) ?? activePlan;
+    const requestedSession = requestedPlan?.sessions.find((session) => session.status === "ready");
+    if (!requestedPlan || !requestedSession) return;
+    const resumePoint = resumableSessionProgress(requestedSession.id, sessionInterruptions);
+    if (!resumePoint && isSessionAheadOfSchedule(requestedSession)) {
+      setEarlySessionPlanId(requestedPlan.id);
+      setEarlyScheduleIssue(null);
+      return;
+    }
+    void startSession(requestedPlan.id);
+  };
+
+  const startEarlySession = async (shiftRemainingPlan: boolean) => {
+    const requestedPlan = activePlans.find((plan) => plan.id === earlySessionPlanId);
+    if (!requestedPlan || earlySchedulePending) return;
+
+    if (!shiftRemainingPlan) {
+      setEarlySessionPlanId(null);
+      setEarlyScheduleIssue(null);
+      await startSession(requestedPlan.id);
+      return;
+    }
+
+    setEarlySchedulePending(true);
+    setEarlyScheduleIssue(null);
+    try {
+      const updates = buildAdvancedSchedule(requestedPlan);
+      if (account?.identityMode === "supabase") {
+        await Promise.all(updates.map(async (update) => {
+          const response = await fetch("/api/sessions/schedule", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              planSessionId: update.planSessionId,
+              scheduledFor: update.scheduledFor,
+            }),
+          });
+          const body: unknown = await response.json().catch(() => null);
+          if (!response.ok) {
+            const message = typeof body === "object" && body && "error" in body && typeof body.error === "string"
+              ? body.error
+              : "YOVA could not move the remaining agenda.";
+            throw new Error(message);
+          }
+          if (!RescheduleSessionResponseSchema.safeParse(body).success) {
+            throw new Error("YOVA changed a date but could not safely confirm it.");
+          }
+        }));
+      }
+      const advancedPlan = applyAdvancedSchedule(requestedPlan, updates);
+      setPlans((current) => current.map((plan) => plan.id === advancedPlan.id ? advancedPlan : plan));
+      setEarlySessionPlanId(null);
+      await startSession(advancedPlan.id, advancedPlan);
+    } catch (error) {
+      setEarlyScheduleIssue(error instanceof Error ? error.message : "YOVA could not pull the plan forward.");
+    } finally {
+      setEarlySchedulePending(false);
     }
   };
 
@@ -846,6 +928,8 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
     setSessionCompletedAt(null);
     setSessionElapsedSeconds(0);
     setCloudSyncIssue(null);
+    setEarlySessionPlanId(null);
+    setEarlyScheduleIssue(null);
     setActiveTab("Home");
     setAccountMode("create");
     if (isCloudAccount) {
@@ -1177,7 +1261,7 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
     return <SessionComplete requiredContentCount={activeLessonSteps.filter((step) => step.requiredForCompletion !== false).length} repairCount={sessionEvidence.completedImmediateRepairs} elapsedSeconds={capturedSessionSeconds} actualMinutes={capturedSessionMinutes} correctAnswers={sessionEvidence.correctAnswers} totalAnswers={sessionEvidence.totalAnswers} observedGap={sessionEvidence.observedGap} conceptEvidence={sessionEvidence.conceptEvidence} confidenceEvidence={sessionEvidence.confidenceEvidence} nextSession={nextSession} onFinish={(feedback) => { completeActiveSession(sessionEvidence.correctAnswers, sessionEvidence.totalAnswers, feedback, capturedSessionMinutes); setStage("app"); setActiveTab("Home"); }} />;
   }
 
-  return (
+  return <>
     <AppShell activeTab={activeTab} onTab={(tab) => { if (tab === "Learning") setLearningDetailPlanId(null); setActiveTab(tab); }} account={account} cloudSyncIssue={cloudSyncIssue} onRetryCloudSync={retryCloudSync} onCreatePlan={() => setStage("plan-creator")} onSignOut={() => {
       void signOutAuthenticatedAccount().finally(() => {
         clearPreviewSnapshot();
@@ -1194,13 +1278,14 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
         setStage("landing");
       });
     }}>
-      {activeTab === "Home" && <HomeScreen account={account} answers={answers} plans={activePlans} plan={recommendedPlan} sessionCompletions={sessionCompletions} sessionInterruptions={sessionInterruptions} tutorQuestion={tutorQuestion} onTutorQuestion={setTutorQuestion} onOpenTutor={() => setActiveTab("Ask YOVA")} onOpenYou={() => setActiveTab("You")} onStart={() => void startSession(recommendedPlan?.id)} onOpenPlan={(planId) => { setSelectedPlanId(planId); setLearningDetailPlanId(planId); setActiveTab("Learning"); }} onCreatePlan={() => setStage("plan-creator")} onStudyNow={() => setStage("study-now")} />}
-      {activeTab === "Learning" && <LearningScreen plans={plans} detailPlanId={learningDetailPlanId} sessionCompletions={sessionCompletions} sessionInterruptions={sessionInterruptions} onOpenPlan={(planId) => { setSelectedPlanId(planId); setLearningDetailPlanId(planId); }} onClosePlan={() => setLearningDetailPlanId(null)} onStart={(planId) => void startSession(planId)} onCreatePlan={() => setStage("plan-creator")} onArchiveStateChange={changePlanArchiveState} onAdjustPlan={adjustPlan} onAttachMaterials={attachMaterials} />}
-      {activeTab === "Agenda" && <AgendaScreen plans={plans.filter((plan) => plan.status !== "archived")} sessionCompletions={sessionCompletions} sessionInterruptions={sessionInterruptions} onStart={(planId) => void startSession(planId)} onActivateReview={activateConceptReview} onReschedule={rescheduleSession} onAdjustDuration={adjustSessionDuration} />}
+      {activeTab === "Home" && <HomeScreen account={account} answers={answers} plans={activePlans} plan={recommendedPlan} sessionCompletions={sessionCompletions} sessionInterruptions={sessionInterruptions} tutorQuestion={tutorQuestion} onTutorQuestion={setTutorQuestion} onOpenTutor={() => setActiveTab("Ask YOVA")} onOpenYou={() => setActiveTab("You")} onStart={() => requestSessionStart(recommendedPlan?.id)} onOpenPlan={(planId) => { setSelectedPlanId(planId); setLearningDetailPlanId(planId); setActiveTab("Learning"); }} onCreatePlan={() => setStage("plan-creator")} onStudyNow={() => setStage("study-now")} />}
+      {activeTab === "Learning" && <LearningScreen plans={plans} detailPlanId={learningDetailPlanId} sessionCompletions={sessionCompletions} sessionInterruptions={sessionInterruptions} onOpenPlan={(planId) => { setSelectedPlanId(planId); setLearningDetailPlanId(planId); }} onClosePlan={() => setLearningDetailPlanId(null)} onStart={requestSessionStart} onCreatePlan={() => setStage("plan-creator")} onArchiveStateChange={changePlanArchiveState} onAdjustPlan={adjustPlan} onAttachMaterials={attachMaterials} />}
+      {activeTab === "Agenda" && <AgendaScreen plans={plans.filter((plan) => plan.status !== "archived")} sessionCompletions={sessionCompletions} sessionInterruptions={sessionInterruptions} previewMode={account?.identityMode === "preview"} onStart={requestSessionStart} onActivateReview={activateConceptReview} onReschedule={rescheduleSession} onAdjustDuration={adjustSessionDuration} />}
       {activeTab === "Ask YOVA" && <AskScreen key={activePlan?.id ?? "general"} plan={activePlan} question={tutorQuestion} onQuestion={setTutorQuestion} onApplyAction={applyTutorAction} analyticsEnabled={analyticsEnabled} />}
-      {activeTab === "You" && <YouScreen account={account} answers={answers} plans={plans} sessionCompletions={sessionCompletions} sessionInterruptions={sessionInterruptions} onAnswersChange={setAnswers} onStart={() => void startSession(recommendedPlan?.id)} onOpenLearning={() => { if (recommendedPlan) { setSelectedPlanId(recommendedPlan.id); setLearningDetailPlanId(recommendedPlan.id); } setActiveTab("Learning"); }} onReset={resetYovaData} />}
+      {activeTab === "You" && <YouScreen account={account} answers={answers} plans={plans} sessionCompletions={sessionCompletions} sessionInterruptions={sessionInterruptions} onAnswersChange={setAnswers} onStart={() => requestSessionStart(recommendedPlan?.id)} onOpenLearning={() => { if (recommendedPlan) { setSelectedPlanId(recommendedPlan.id); setLearningDetailPlanId(recommendedPlan.id); } setActiveTab("Learning"); }} onReset={resetYovaData} />}
     </AppShell>
-  );
+    {earlySessionPlan && earlySession && <EarlySessionDialog plan={earlySessionPlan} session={earlySession} pending={earlySchedulePending} issue={earlyScheduleIssue} onCancel={() => { setEarlySessionPlanId(null); setEarlyScheduleIssue(null); }} onStart={(shiftRemainingPlan) => void startEarlySession(shiftRemainingPlan)} />}
+  </>;
 }
 
 async function syncPendingCloudWork(account: PreviewAccount, answers: string[], onboardingCompleted: boolean) {
@@ -1238,7 +1323,7 @@ function Landing({ authIssue, onRetryAuth, onCreate, onSignIn }: { authIssue: st
         <div className="hero-copy">
           <span className="eyebrow"><Sparkles size={15} /> A study plan built around you</span>
           <h1>Know what to study next.</h1>
-          <p>Bring your notes—or just name the topic. YOVA builds the plan, chooses the learning method, and guides you through the work.</p>
+          <p>Bring your notes, or just name the topic. YOVA builds the plan, chooses the learning method, and guides you through the work.</p>
           <div className="hero-actions"><button className="button primary large" onClick={onCreate}>Build my plan <ArrowRight size={18} /></button><a className="button secondary large" href="#how-yova-works">See how it works</a></div>
           <div className="hero-trust"><Check size={16} /><span>No upload required</span><Check size={16} /><span>Methods explained as you study</span></div>
         </div>
@@ -1259,7 +1344,7 @@ function Landing({ authIssue, onRetryAuth, onCreate, onSignIn }: { authIssue: st
       </section>
       <section className="how-yova-works" id="how-yova-works">
         <div><span className="step-label">HOW YOVA WORKS</span><h2>From a goal to a guided session.</h2><p>The setup stays simple. YOVA uses your starting point, schedule, materials, and completed work to decide what happens inside each session.</p></div>
-        <div className="how-steps"><article><span>1</span><h3>Tell YOVA the goal</h3><p>Prepare for a test, understand a topic, or build a longer learning plan.</p></article><article><span>2</span><h3>Add materials—or do not</h3><p>Use notes, slides, PDFs, AI-created lessons, or outside resources you already trust.</p></article><article><span>3</span><h3>Follow one clear next step</h3><p>YOVA chooses and explains the method, guides the work, then updates what comes next.</p></article></div>
+        <div className="how-steps"><article><span>1</span><h3>Tell YOVA the goal</h3><p>Prepare for a test, understand a topic, or build a longer learning plan.</p></article><article><span>2</span><h3>Add materials, or do not</h3><p>Use notes, slides, PDFs, AI-created lessons, or outside resources you already trust.</p></article><article><span>3</span><h3>Follow one clear next step</h3><p>YOVA chooses and explains the method, guides the work, then updates what comes next.</p></article></div>
         <button className="button primary large" onClick={onCreate}>Build my YOVA <ArrowRight size={18} /></button>
       </section>
       <footer className="entry-trust-links"><span>YOVA private alpha</span><nav aria-label="Trust and support"><Link href="/privacy">Privacy</Link><Link href="/terms">Terms</Link><Link href="/support">Support</Link></nav></footer>
@@ -1339,7 +1424,7 @@ function AccountEntry({ mode, existingAccount, emailCodeVerificationEnabled, bro
   };
 
   if (emailSent) {
-    return <main className="account-shell"><header><BrandMark /><button className="button ghost" onClick={onBack}><ArrowLeft size={17} /> Back</button></header><section className="account-card email-sent"><div className="mail-check"><Mail size={24} /></div><span className="step-label">CHECK YOUR EMAIL</span><h1>Your secure sign-in email is on its way.</h1><p>We sent it to <strong>{email.trim().toLowerCase()}</strong>.</p>{emailCodeVerificationEnabled && <div className="email-code-entry"><span className="step-label">EASIEST OPTION</span><p>Enter the 6-digit code from the newest YOVA email.</p><label><span>Verification code</span><input value={verificationCode} onChange={(event) => { setVerificationCode(normalizeEmailVerificationCode(event.target.value)); setError(""); }} inputMode="numeric" autoComplete="one-time-code" maxLength={6} placeholder="000000" aria-label="6-digit verification code" disabled={pending} /></label>{error && <p className="form-error">{error}</p>}<button className="button primary large full" onClick={() => void verifyCode()} disabled={pending || !isCompleteEmailVerificationCode(verificationCode)}>{pending ? "Verifying…" : "Verify and continue"} {!pending && <ArrowRight size={18} />}</button></div>}<div className="email-link-option"><strong>{emailCodeVerificationEnabled ? "Or use the secure link" : "Open the secure link"}</strong><span>Open the newest email link in the browser where you requested it, then return here.</span></div><button className={emailCodeVerificationEnabled ? "button secondary large full" : "button primary large full"} onClick={() => window.location.reload()}>I opened the link — check sign-in</button><button className="button ghost large full" onClick={() => { setEmailSent(false); setVerificationCode(""); setError(""); }}>Use a different email</button><div className="preview-notice"><strong>{emailCodeVerificationEnabled ? "The code works across browsers" : "Use the same browser"}</strong><span>{emailCodeVerificationEnabled ? "If the link opens somewhere else, enter the email code here instead." : "For this private alpha, the secure link must open in the browser where you requested it."}</span></div></section></main>;
+    return <main className="account-shell"><header><BrandMark /><button className="button ghost" onClick={onBack}><ArrowLeft size={17} /> Back</button></header><section className="account-card email-sent"><div className="mail-check"><Mail size={24} /></div><span className="step-label">CHECK YOUR EMAIL</span><h1>Your secure sign-in email is on its way.</h1><p>We sent it to <strong>{email.trim().toLowerCase()}</strong>.</p>{emailCodeVerificationEnabled && <div className="email-code-entry"><span className="step-label">EASIEST OPTION</span><p>Enter the 6-digit code from the newest YOVA email.</p><label><span>Verification code</span><input value={verificationCode} onChange={(event) => { setVerificationCode(normalizeEmailVerificationCode(event.target.value)); setError(""); }} inputMode="numeric" autoComplete="one-time-code" maxLength={6} placeholder="000000" aria-label="6-digit verification code" disabled={pending} /></label>{error && <p className="form-error">{error}</p>}<button className="button primary large full" onClick={() => void verifyCode()} disabled={pending || !isCompleteEmailVerificationCode(verificationCode)}>{pending ? "Verifying…" : "Verify and continue"} {!pending && <ArrowRight size={18} />}</button></div>}<div className="email-link-option"><strong>{emailCodeVerificationEnabled ? "Or use the secure link" : "Open the secure link"}</strong><span>Open the newest email link in the browser where you requested it, then return here.</span></div><button className={emailCodeVerificationEnabled ? "button secondary large full" : "button primary large full"} onClick={() => window.location.reload()}>I opened the link. Check sign-in</button><button className="button ghost large full" onClick={() => { setEmailSent(false); setVerificationCode(""); setError(""); }}>Use a different email</button><div className="preview-notice"><strong>{emailCodeVerificationEnabled ? "The code works across browsers" : "Use the same browser"}</strong><span>{emailCodeVerificationEnabled ? "If the link opens somewhere else, enter the email code here instead." : "For this private alpha, the secure link must open in the browser where you requested it."}</span></div></section></main>;
   }
 
   return <main className="account-shell"><header><BrandMark /><button className="button ghost" onClick={onBack}><ArrowLeft size={17} /> Back</button></header><section className="account-card"><span className="step-label">{isCreate ? "CREATE YOUR ACCOUNT" : "WELCOME BACK"}</span><h1>{isCreate ? "Start building your YOVA." : "Continue your learning."}</h1><p>{isCreate ? "Your account keeps your profile, plans, sessions, and progress together." : authMode === "supabase" ? emailCodeVerificationEnabled ? "Enter your email and YOVA will send you a secure code and sign-in link." : "Enter your email and YOVA will send you a secure sign-in link." : "Use the email attached to this browser’s private-alpha account."}</p>{isCreate && <label><span>First name</span><input value={displayName} onChange={(event) => { setDisplayName(event.target.value); setError(""); }} autoComplete="given-name" disabled={pending} /></label>}<label><span>Email address</span><div className="input-with-icon"><Mail size={18} /><input type="email" value={email} onChange={(event) => { setEmail(event.target.value); setError(""); }} autoComplete="email" disabled={pending} /></div></label>{error && <p className="form-error">{error}</p>}<button className="button primary large full" onClick={() => void submit()} disabled={pending}>{pending ? "Sending secure email…" : isCreate ? "Continue" : "Sign in"} {!pending && <ArrowRight size={18} />}</button>{isCreate && <p className="account-consent">By continuing, you agree to the <Link href="/terms">Private Alpha Terms</Link> and acknowledge the <Link href="/privacy">Privacy Notice</Link>.</p>}<div className="preview-notice"><strong>{authMode === "supabase" ? "Secure cloud account" : "Private-alpha storage"}</strong><span>{authMode === "supabase" ? emailCodeVerificationEnabled ? "YOVA verifies a temporary email code or link instead of storing a password." : "YOVA uses a temporary email link instead of storing a password." : "For now, this browser remembers the prototype. Real email verification activates when the cloud project is connected."}</span></div></section></main>;
@@ -1356,12 +1441,12 @@ function consumeAuthCallbackIssue() {
 }
 
 function OnboardingIntro({ onStart }: { onStart: () => void }) {
-  return <main className="centered-shell"><BrandMark /><section className="setup-card"><span className="step-label">SET UP YOUR YOVA</span><h1>Make YOVA fit how you actually study.</h1><p>Ten short questions help YOVA build realistic plans, choose useful methods, and guide you at the right level. About two minutes.</p><div className="info-strip"><Sparkles size={20} /><span>This creates starting preferences—not a brain type. YOVA will update carefully based on what you actually do.</span></div><button className="button primary large full" onClick={onStart}>Personalize YOVA <ArrowRight size={18} /></button></section></main>;
+  return <main className="centered-shell"><BrandMark /><section className="setup-card"><span className="step-label">SET UP YOUR YOVA</span><h1>Make YOVA fit how you actually study.</h1><p>Ten short questions help YOVA build realistic plans, choose useful methods, and guide you at the right level. About two minutes.</p><div className="info-strip"><Sparkles size={20} /><span>This creates starting preferences, not a brain type. YOVA will update carefully based on what you actually do.</span></div><button className="button primary large full" onClick={onStart}>Personalize YOVA <ArrowRight size={18} /></button></section></main>;
 }
 
 function OnboardingQuestion({ index, answer, onAnswer, onNext, onBack }: { index: number; answer?: string; onAnswer: (answer: string) => void; onNext: () => void; onBack: () => void }) {
   const question = onboardingQuestions[index];
-  return <main className="onboarding-shell"><header><BrandMark /><span>{index + 1} of {onboardingQuestions.length}</span></header><div className="progress-track"><div style={{ width: `${((index + 1) / onboardingQuestions.length) * 100}%` }} /></div><section className="question-wrap"><span className="step-label">YOUR STARTING PROFILE</span><h2>{question.prompt}</h2>{question.optional && <p className="muted">Optional — you can skip this or change it later.</p>}<div className="option-list">{question.options.map((option) => <button key={option} className={`option ${answer === option ? "selected" : ""}`} onClick={() => onAnswer(option)}><span>{option}</span>{answer === option && <Check size={18} />}</button>)}</div><footer className="question-footer"><button className="button ghost" onClick={onBack} disabled={index === 0}><ArrowLeft size={17} /> Back</button><button className="button primary" onClick={onNext} disabled={!answer && !question.optional}>{index === onboardingQuestions.length - 1 ? "Build my setup" : "Continue"} <ArrowRight size={17} /></button></footer></section></main>;
+  return <main className="onboarding-shell"><header><BrandMark /><span>{index + 1} of {onboardingQuestions.length}</span></header><div className="progress-track"><div style={{ width: `${((index + 1) / onboardingQuestions.length) * 100}%` }} /></div><section className="question-wrap"><span className="step-label">YOUR STARTING PROFILE</span><h2>{question.prompt}</h2>{question.optional && <p className="muted">Optional: you can skip this or change it later.</p>}<div className="option-list">{question.options.map((option) => <button key={option} className={`option ${answer === option ? "selected" : ""}`} onClick={() => onAnswer(option)}><span>{option}</span>{answer === option && <Check size={18} />}</button>)}</div><footer className="question-footer"><button className="button ghost" onClick={onBack} disabled={index === 0}><ArrowLeft size={17} /> Back</button><button className="button primary" onClick={onNext} disabled={!answer && !question.optional}>{index === onboardingQuestions.length - 1 ? "Build my setup" : "Continue"} <ArrowRight size={17} /></button></footer></section></main>;
 }
 
 function ProfileSummary({ answers, onContinue }: { answers: string[]; onContinue: () => void }) {
@@ -1372,6 +1457,11 @@ function ProfileItem({ title, value, note }: { title: string; value: string; not
 
 function PaywallPreview({ onContinue }: { onContinue: () => void }) {
   return <main className="centered-shell dark"><BrandMark /><section className="setup-card paywall"><span className="step-label">YOVA LITE</span><h1>A study system built around you.</h1><p>Plans, method selection, guided sessions, progress memory, and adjustments based on what happens next.</p><ul className="check-list"><li><Check /> Determine what you already know</li><li><Check /> Choose methods that fit the task and your tendencies</li><li><Check /> Tell you exactly how to perform each method</li><li><Check /> Adjust the next session using your results</li></ul><button className="button primary large full" onClick={onContinue}>Continue to private alpha</button><small>Payments will be connected after the core experience is validated.</small></section></main>;
+}
+
+function EarlySessionDialog({ plan, session, pending, issue, onCancel, onStart }: { plan: LearningPlan; session: LearningPlanSession; pending: boolean; issue: string | null; onCancel: () => void; onStart: (shiftRemainingPlan: boolean) => void }) {
+  const unfinishedCount = plan.sessions.filter((item) => item.status === "ready" || item.status === "upcoming").length;
+  return <div className="early-session-backdrop"><section className="early-session-dialog" role="dialog" aria-modal="true" aria-labelledby="early-session-title"><span className="early-session-icon"><CalendarDays size={22} /></span><span className="step-label">YOU ARE AHEAD OF SCHEDULE</span><h2 id="early-session-title">Start {session.title} now?</h2><p>This session is planned for {formatAgendaTime(session.scheduledFor)}. You can move forward now without skipping any unfinished content.</p><div className="early-schedule-choice"><Sparkles size={18} /><div><strong>Recommended: pull the agenda forward</strong><p>YOVA will move this session to now and shift the remaining {Math.max(0, unfinishedCount - 1)} {unfinishedCount - 1 === 1 ? "session" : "sessions"} by the same amount. The learning order and spacing stay intact.</p></div></div>{issue && <div className="chat-error"><AlertCircle size={16} /><span>{issue}</span></div>}<div className="early-session-actions"><button className="button ghost" disabled={pending} onClick={onCancel}>Cancel</button><button className="button secondary" disabled={pending} onClick={() => onStart(false)}>Start now, keep dates</button><button className="button primary" disabled={pending} onClick={() => onStart(true)}>{pending ? <span className="button-spinner" /> : <CalendarDays size={16} />} Start and adjust agenda</button></div></section></div>;
 }
 
 function AppShell({ activeTab, onTab, account, cloudSyncIssue, onRetryCloudSync, onCreatePlan, onSignOut, children }: { activeTab: Tab; onTab: (tab: Tab) => void; account: PreviewAccount | null; cloudSyncIssue: string | null; onRetryCloudSync: () => Promise<void>; onCreatePlan: () => void; onSignOut: () => void; children: React.ReactNode }) {
@@ -1406,7 +1496,32 @@ function HomeScreen({ account, answers, plans, plan, sessionCompletions, session
   const firstName = account?.displayName.split(" ")[0] || "there";
   const now = new Date();
 
-  return <div className="page home-page"><header className="home-header"><div><span className="step-label">{formatHomeDate(now)}</span><h1>{greetingFor(now)}, {firstName}.</h1><p>{plan && readySession ? "Your next learning step is ready." : "What would you like to learn or prepare for?"}</p></div><button className="button secondary" onClick={onCreatePlan}><Plus size={17} /> New plan</button></header>{plan && readySession ? <section className="recommendation-card"><div className="rec-top"><span><Sparkles size={15} /> {resumePoint ? "Continue where you left off" : "Recommended next"}</span><span>{completedCount} of {plan.sessions.length} sessions complete</span></div><div className="rec-body"><div className="rec-copy"><span className="subject-label">{plan.title.toUpperCase()}</span>{readySession.adaptationNote && <span className="adaptation-proof"><Sparkles size={13} /> Adjusted using your last session</span>}<h2>{readySession.title}</h2><div className="meta-row"><span>{readySession.learningMode === "learn" ? <BookOpen size={16} /> : <Target size={16} />}{readySession.learningMode === "learn" ? "Teaching first" : "Practice first"}</span><span><Target size={16} /> {readySession.method}</span><span><Clock3 size={16} /> {readySession.amountLabel}</span>{resumePoint && <span><Check size={16} /> {resumePoint.completedSteps} {resumePoint.completedSteps === 1 ? "section" : "sections"} saved</span>}</div></div><button className="button white large" onClick={onStart}>{resumePoint ? "Continue session" : "Start session"} <ArrowRight size={18} /></button></div><div className="reason-grid"><div><strong>{resumePoint ? "Resume point" : "Why this is next"}</strong><p>{resumePoint ? `YOVA saved your first ${resumePoint.completedSteps} ${resumePoint.completedSteps === 1 ? "section" : "sections"}. You will continue with the next unfinished activity.` : recommendationReason(plan, readySession, now)}</p></div><div><strong>{readySession.adaptationNote ? "What changed" : "How you will study"}</strong><p>{readySession.adaptationNote?.explanation ?? readySession.methodReason}</p></div></div></section> : <section className="empty-home"><div className="empty-home-copy"><span className="eyebrow"><Sparkles size={15} /> Start here</span><h2>Turn any goal into a clear next step.</h2><p>Use your own materials, let YOVA create the content, or get a plan for studying somewhere else.</p></div><div className="empty-home-actions"><button className="button primary large" onClick={onCreatePlan}>Create a learning plan <ArrowRight size={18} /></button><button className="button secondary large" onClick={onStudyNow}>Study something now</button></div></section>}{personalizationRecommendation && <section className="home-personalization-recommendation"><div className="home-personalization-icon"><Sparkles size={18} /></div><div><span>YOVA RECOMMENDS</span><strong>{personalizationRecommendation.title}</strong><p>{personalizationRecommendation.explanation}</p><small>{personalizationRecommendation.evidence}</small></div>{personalizationRecommendation.action === "improve_profile" ? <button onClick={onOpenYou}>{personalizationRecommendation.actionLabel}</button> : personalizationRecommendation.action === "open_learning" && plan ? <button onClick={() => onOpenPlan(plan.id)}>{personalizationRecommendation.actionLabel}</button> : personalizationRecommendation.action === "start_session" ? <button onClick={onStart}>{personalizationRecommendation.actionLabel}</button> : null}</section>}<section className="home-command"><span>Ask YOVA</span><AskBar value={tutorQuestion} onChange={onTutorQuestion} onSubmit={onOpenTutor} /></section><section className="home-section"><div className="section-title"><div><h3>Start something</h3><p>Choose the amount of structure you need.</p></div></div><div className="quick-actions"><button onClick={onCreatePlan}><span className="quick-action-icon"><BookOpen size={19} /></span><span><strong>{plan ? "Create another plan" : "Create a plan"}</strong><small>For a test, course unit, book, or longer goal</small></span><ArrowRight size={17} /></button><button onClick={onStudyNow}><span className="quick-action-icon"><Target size={19} /></span><span><strong>Study something now</strong><small>Build one focused session around what you need today</small></span><ArrowRight size={17} /></button></div></section>{plans.length > 0 && <section className="section-block active-learning-block"><div className="section-title"><div><h3>Your learning</h3><p>Open a goal to see its plan, sources, and progress.</p></div><span>{plans.length} active</span></div><div className="compact-items">{plans.map((item) => { const next = item.sessions.find((session) => session.status === "ready"); const saved = next ? resumableSessionProgress(next.id, sessionInterruptions) : null; return <button className={item.id === plan?.id ? "selected" : ""} key={item.id} onClick={() => onOpenPlan(item.id)}><span className="item-icon blue">{item.title.charAt(0)}</span><span><strong>{item.title}</strong><small>{next ? saved ? `Continue at section ${saved.completedSteps + 1}` : `${next.learningMode === "learn" ? "Teaching first" : "Practice first"} · ${formatSessionTime(next.scheduledFor)}` : "Plan complete"}</small></span><ChevronRight /></button>; })}</div></section>}</div>;
+  return <div className="page home-page"><header className="home-header"><div><span className="step-label">{formatHomeDate(now)}</span><h1>{greetingFor(now)}, {firstName}.</h1><p>{plan && readySession ? "Your next learning step is ready." : "What would you like to learn or prepare for?"}</p></div><button className="button secondary" onClick={onCreatePlan}><Plus size={17} /> New plan</button></header>{plan && readySession ? <section className="recommendation-card"><div className="rec-top"><span><Sparkles size={15} /> {resumePoint ? "Continue where you left off" : "Recommended next"}</span><span>{completedCount} of {plan.sessions.length} sessions complete</span></div><div className="rec-body"><div className="rec-copy"><span className="subject-label">{plan.title.toUpperCase()}</span>{readySession.adaptationNote && <span className="adaptation-proof"><Sparkles size={13} /> Adjusted using your last session</span>}<h2>{readySession.title}</h2><div className="meta-row"><span>{readySession.learningMode === "learn" ? <BookOpen size={16} /> : <Target size={16} />}{readySession.learningMode === "learn" ? "Teaching first" : "Practice first"}</span><span><Target size={16} /> {readySession.method}</span><span><Clock3 size={16} /> {readySession.amountLabel}</span>{resumePoint && <span><Check size={16} /> {resumePoint.completedSteps} {resumePoint.completedSteps === 1 ? "section" : "sections"} saved</span>}</div></div><button className="button white large" onClick={onStart}>{resumePoint ? "Continue session" : "Start session"} <ArrowRight size={18} /></button></div><div className="reason-grid"><div><strong>{resumePoint ? "Resume point" : "Why this is next"}</strong><p>{resumePoint ? `YOVA saved your first ${resumePoint.completedSteps} ${resumePoint.completedSteps === 1 ? "section" : "sections"}. You will continue with the next unfinished activity.` : recommendationReason(plan, readySession, now)}</p></div><div><strong>{readySession.adaptationNote ? "What changed" : "How you will study"}</strong><p>{readySession.adaptationNote?.explanation ?? readySession.methodReason}</p></div></div></section> : <section className="empty-home"><div className="empty-home-copy"><span className="eyebrow"><Sparkles size={15} /> Start here</span><h2>Turn any goal into a clear next step.</h2><p>Use your own materials, let YOVA create the content, or get a plan for studying somewhere else.</p></div><div className="empty-home-actions"><button className="button primary large" onClick={onCreatePlan}>Create a learning plan <ArrowRight size={18} /></button><button className="button secondary large" onClick={onStudyNow}>Study something now</button></div></section>}{personalizationRecommendation && <section className="home-personalization-recommendation"><div className="home-personalization-icon"><Sparkles size={18} /></div><div><span>YOVA RECOMMENDS</span><strong>{personalizationRecommendation.title}</strong><p>{personalizationRecommendation.explanation}</p><small>{personalizationRecommendation.evidence}</small></div>{personalizationRecommendation.action === "improve_profile" ? <button onClick={onOpenYou}>{personalizationRecommendation.actionLabel}</button> : personalizationRecommendation.action === "open_learning" && plan ? <button onClick={() => onOpenPlan(plan.id)}>{personalizationRecommendation.actionLabel}</button> : personalizationRecommendation.action === "start_session" ? <button onClick={onStart}>{personalizationRecommendation.actionLabel}</button> : null}</section>}<section className="home-command"><span>Ask YOVA</span><AskBar value={tutorQuestion} onChange={onTutorQuestion} onSubmit={onOpenTutor} /></section><section className="home-section"><div className="section-title"><div><h3>Start something</h3><p>Choose the amount of structure you need.</p></div></div><div className="quick-actions"><button onClick={onCreatePlan}><span className="quick-action-icon"><BookOpen size={19} /></span><span><strong>{plan ? "Create another plan" : "Create a plan"}</strong><small>For a test, course unit, book, or longer goal</small></span><ArrowRight size={17} /></button><button onClick={onStudyNow}><span className="quick-action-icon"><Target size={19} /></span><span><strong>Study something now</strong><small>Build one focused session around what you need today</small></span><ArrowRight size={17} /></button></div></section>{plans.length > 0 && <section className="section-block active-learning-block"><div className="section-title"><div><h3>Your learning</h3><p>Open a goal to see its plan, sources, and progress.</p></div><span>{plans.length} active</span></div><div className="compact-items">{plans.map((item) => { const next = item.sessions.find((session) => session.status === "ready"); const saved = next ? resumableSessionProgress(next.id, sessionInterruptions) : null; return <button className={item.id === plan?.id ? "selected" : ""} key={item.id} onClick={() => onOpenPlan(item.id)}><SubjectIcon plan={item} compact /><span><strong>{item.title}</strong><small>{next ? saved ? `Continue at section ${saved.completedSteps + 1}` : `${next.learningMode === "learn" ? "Teaching first" : "Practice first"} · ${formatSessionTime(next.scheduledFor)}` : "Plan complete"}</small></span><ChevronRight /></button>; })}</div></section>}</div>;
+}
+
+function SubjectIcon({ plan, compact = false }: { plan: LearningPlan; compact?: boolean }) {
+  const text = `${plan.title} ${plan.topic}`.toLocaleLowerCase();
+  const subject = /bio|cell|anatom|health|nutrition|photosynth|respirat/.test(text)
+    ? { Icon: Dna, theme: "life" }
+    : /chem|molecule|reaction|organic/.test(text)
+      ? { Icon: FlaskConical, theme: "chemistry" }
+      : /calc|math|algebra|geometry|derivative|statistic/.test(text)
+        ? { Icon: Calculator, theme: "math" }
+        : /physics|force|motion|energy|electric/.test(text)
+          ? { Icon: Atom, theme: "physics" }
+          : /history|government|politic|civic|law/.test(text)
+            ? { Icon: Landmark, theme: "humanities" }
+            : /finance|business|economic|invest|account/.test(text)
+              ? { Icon: BadgeDollarSign, theme: "finance" }
+              : /code|program|software|computer|javascript|python/.test(text)
+                ? { Icon: Code2, theme: "computing" }
+                : /geograph|world|environment/.test(text)
+                  ? { Icon: Globe2, theme: "world" }
+                  : /science|research|lab/.test(text)
+                    ? { Icon: Microscope, theme: "life" }
+                    : { Icon: BookMarked, theme: "general" };
+  const SubjectGlyph = subject.Icon;
+  return <span className={`subject-icon ${subject.theme} ${compact ? "compact" : ""}`} aria-hidden="true"><SubjectGlyph size={compact ? 18 : 20} /></span>;
 }
 
 function chooseRecommendedPlan(plans: LearningPlan[]) {
@@ -1538,7 +1653,7 @@ function LearningOverview({ plans, allPlans, view, interruptions, onOpenPlan, on
       const resumePoint = readySession ? resumableSessionProgress(readySession.id, interruptions.filter((interruption) => interruption.planId === plan.id)) : null;
       const progress = plan.sessions.length ? Math.round((done / plan.sessions.length) * 100) : 0;
       return <article className="learning-goal-card" key={plan.id}>
-        <div className="learning-card-top"><span className="learning-card-icon">{plan.title.charAt(0).toUpperCase()}</span><span className="learning-card-kind">{plan.kind}</span><span className={`learning-card-status ${plan.status}`}>{plan.status === "active" ? formatPlanDeadline(plan.deadline) : plan.status}</span></div>
+        <div className="learning-card-top"><SubjectIcon plan={plan} /><span className="learning-card-kind">{plan.kind}</span><span className={`learning-card-status ${plan.status}`}>{plan.status === "active" ? formatPlanDeadline(plan.deadline) : plan.status}</span></div>
         <div className="learning-card-copy"><h2>{plan.title}</h2><p>{plan.topic}</p></div>
         <div className="learning-card-progress"><div><span style={{ width: `${progress}%` }} /></div><small>{done} of {plan.sessions.length} sessions complete</small></div>
         <div className="learning-card-next"><span>{view === "active" ? "NEXT SESSION" : "PLAN SUMMARY"}</span><strong>{readySession ? readySession.title : plan.status === "completed" ? "Goal completed" : "Saved learning goal"}</strong><small>{readySession ? `${resumePoint ? `Continue at section ${resumePoint.completedSteps + 1}` : formatSessionTime(readySession.scheduledFor)} · ${readySession.estimatedMinutes} min` : `${plan.sessions.length} planned sessions`}</small></div>
@@ -1555,7 +1670,7 @@ function LearningPlanDetail({ plan, view, completions, interruptions, changingSt
   const resumePoint = readySession ? resumableSessionProgress(readySession.id, interruptions) : null;
   const totalCorrect = completions.reduce((sum, completion) => sum + completion.correctAnswers, 0);
   const totalChecks = completions.reduce((sum, completion) => sum + completion.totalAnswers, 0);
-  const accuracy = totalChecks ? `${Math.round((totalCorrect / totalChecks) * 100)}%` : "—";
+  const accuracy = totalChecks ? `${Math.round((totalCorrect / totalChecks) * 100)}%` : "No data";
   const conceptSignals = summarizeConceptEvidence(completions);
 
   return <>
@@ -1585,7 +1700,7 @@ function PlanResources({ plan }: { plan: LearningPlan }) {
     return <section className="section-block plan-resources"><div className="section-title"><div><h3>Study resources</h3><p>Reusable explanations and practice, attached to the session that needed them.</p></div><span>Created when relevant</span></div><div className="resource-empty"><Sparkles size={18} /><div><strong>Nothing extra to browse yet</strong><p>YOVA creates the teaching and practice needed for a session when you first start it. Those resources will stay here afterward.</p></div></div></section>;
   }
 
-  return <section className="section-block plan-resources"><div className="section-title"><div><h3>Study resources</h3><p>These came from the sessions YOVA selected for this goal—not from a generic tool list.</p></div><span>{available.length} {available.length === 1 ? "pack" : "packs"} ready</span></div><div className="resource-pack-list">{available.map((session) => {
+  return <section className="section-block plan-resources"><div className="section-title"><div><h3>Study resources</h3><p>These came from the sessions YOVA selected for this goal, not from a generic tool list.</p></div><span>{available.length} {available.length === 1 ? "pack" : "packs"} ready</span></div><div className="resource-pack-list">{available.map((session) => {
     const resource = session.resource as SessionResource;
     const teachingCount = resource.activities.filter((activity) => activity.type === "instruction").length;
     const practiceCount = resource.activities.filter((activity) => activity.type === "multiple_choice" || activity.type === "free_response").length;
@@ -1666,10 +1781,10 @@ function PlanAdjustmentPanel({ plan, onCancel, onSave }: { plan: LearningPlan; o
     }
   };
 
-  return <section className="plan-adjustment-panel"><div className="plan-adjustment-heading"><div><span className="step-label">ADJUST UNFINISHED WORK</span><h3>Change the plan without losing content</h3><p>YOVA will re-slice the unfinished content to fit the new window. Shorter windows can create more sessions; finished sessions stay exactly as they are.</p></div></div><div className="plan-adjustment-grid"><label><span>Target date</span><input type="date" min={localDateInput(new Date().toISOString())} value={deadlineDate} disabled={saving} onChange={(event) => setDeadlineDate(event.target.value)} /><small>Optional. Agenda times are changed separately.</small></label><label><span>Future session window</span><select value={minutes} disabled={saving} onChange={(event) => setMinutes(Number(event.target.value))}><option value={15}>15 minutes</option><option value={25}>25 minutes</option><option value={30}>30 minutes</option><option value={45}>45 minutes</option><option value={60}>60 minutes</option></select><small>Time controls the size of each content slice—not whether it counts as complete.</small></label></div><div className="adjustment-content-rule"><Target size={18} /><div><strong>Content stays primary</strong><p>The current {unfinishedCount} unfinished {unfinishedCount === 1 ? "session" : "sessions"} may become a different number of focused sessions. A session finishes only after its required content checks are attempted.</p></div></div><div className="adjustment-mode"><span>Where should future sessions happen?</span><div><button className={studyMode === "inside_yova" ? "selected" : ""} disabled={saving} onClick={() => setStudyMode("inside_yova")}><BookOpen size={17} /><strong>Inside YOVA</strong><small>Teaching, questions, and feedback in the app</small></button><button className={studyMode === "outside_yova" ? "selected" : ""} disabled={saving} onClick={() => setStudyMode("outside_yova")}><LibraryBig size={17} /><strong>Outside YOVA</strong><small>Exact instructions for another source or workspace</small></button></div></div>{error && <div className="chat-error"><AlertCircle size={16} /><span>{error}</span></div>}<footer><button className="button ghost" disabled={saving} onClick={onCancel}>Cancel</button><button className="button primary" disabled={saving || unfinishedCount === 0} onClick={() => void save()}>{saving ? <span className="button-spinner" /> : <><Check size={16} /> Rebuild unfinished plan</>}</button></footer></section>;
+  return <section className="plan-adjustment-panel"><div className="plan-adjustment-heading"><div><span className="step-label">ADJUST UNFINISHED WORK</span><h3>Change the plan without losing content</h3><p>YOVA will re-slice the unfinished content to fit the new window. Shorter windows can create more sessions; finished sessions stay exactly as they are.</p></div></div><div className="plan-adjustment-grid"><label><span>Target date</span><input type="date" min={localDateInput(new Date().toISOString())} value={deadlineDate} disabled={saving} onChange={(event) => setDeadlineDate(event.target.value)} /><small>Optional. Agenda times are changed separately.</small></label><label><span>Future session window</span><select value={minutes} disabled={saving} onChange={(event) => setMinutes(Number(event.target.value))}><option value={15}>15 minutes</option><option value={25}>25 minutes</option><option value={30}>30 minutes</option><option value={45}>45 minutes</option><option value={60}>60 minutes</option></select><small>Time controls the size of each content slice, not whether it counts as complete.</small></label></div><div className="adjustment-content-rule"><Target size={18} /><div><strong>Content stays primary</strong><p>The current {unfinishedCount} unfinished {unfinishedCount === 1 ? "session" : "sessions"} may become a different number of focused sessions. A session finishes only after its required content checks are attempted.</p></div></div><div className="adjustment-mode"><span>Where should future sessions happen?</span><div><button className={studyMode === "inside_yova" ? "selected" : ""} disabled={saving} onClick={() => setStudyMode("inside_yova")}><BookOpen size={17} /><strong>Inside YOVA</strong><small>Teaching, questions, and feedback in the app</small></button><button className={studyMode === "outside_yova" ? "selected" : ""} disabled={saving} onClick={() => setStudyMode("outside_yova")}><LibraryBig size={17} /><strong>Outside YOVA</strong><small>Exact instructions for another source or workspace</small></button></div></div>{error && <div className="chat-error"><AlertCircle size={16} /><span>{error}</span></div>}<footer><button className="button ghost" disabled={saving} onClick={onCancel}>Cancel</button><button className="button primary" disabled={saving || unfinishedCount === 0} onClick={() => void save()}>{saving ? <span className="button-spinner" /> : <><Check size={16} /> Rebuild unfinished plan</>}</button></footer></section>;
 }
 
-function AgendaScreen({ plans, sessionCompletions, sessionInterruptions, onStart, onActivateReview, onReschedule, onAdjustDuration }: { plans: LearningPlan[]; sessionCompletions: SessionCompletion[]; sessionInterruptions: SessionInterruption[]; onStart: (planId?: string) => void; onActivateReview: (item: ConceptReviewAgendaItem) => Promise<void>; onReschedule: (planId: string, planSessionId: string, scheduledFor: string) => void; onAdjustDuration: (planSessionId: string, estimatedMinutes: number) => Promise<void> }) {
+function AgendaScreen({ plans, sessionCompletions, sessionInterruptions, previewMode, onStart, onActivateReview, onReschedule, onAdjustDuration }: { plans: LearningPlan[]; sessionCompletions: SessionCompletion[]; sessionInterruptions: SessionInterruption[]; previewMode: boolean; onStart: (planId?: string) => void; onActivateReview: (item: ConceptReviewAgendaItem) => Promise<void>; onReschedule: (planId: string, planSessionId: string, scheduledFor: string) => void; onAdjustDuration: (planSessionId: string, estimatedMinutes: number) => Promise<void> }) {
   const [editing, setEditing] = useState(false);
   const [moving, setMoving] = useState<{ planId: string; sessionId: string } | null>(null);
   const [customTime, setCustomTime] = useState("");
@@ -1696,6 +1811,10 @@ function AgendaScreen({ plans, sessionCompletions, sessionInterruptions, onStart
   };
 
   const rescheduleEntry = async (entry: AgendaEntry, scheduledFor: string) => {
+    if (previewMode) {
+      onReschedule(entry.plan.id, entry.session.id, scheduledFor);
+      return;
+    }
     const response = await fetch("/api/sessions/schedule", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -1767,7 +1886,7 @@ function AgendaScreen({ plans, sessionCompletions, sessionInterruptions, onStart
 
   return <div className="page">
     <PageHeader eyebrow="AGENDA" title="Today and this week" description="One unified view of sessions and deadlines across your learning." />
-    {overdueEntry && <section className="agenda-recovery" aria-live="polite"><div className="agenda-recovery-copy"><span className="step-label">PLAN NEEDS A RESET</span><h2>You missed a session. The plan is still recoverable.</h2><p><strong>{overdueEntry.session.title}</strong> for {overdueEntry.plan.title} was scheduled for {formatAgendaTime(overdueEntry.session.scheduledFor)}. Choose the smallest useful next move—YOVA will not punish the rest of the plan.</p></div><div className="agenda-recovery-actions"><button className="button primary" disabled={Boolean(recoveryAction)} onClick={() => onStart(overdueEntry.plan.id)}>Start it now</button>{recoveryMinutes !== null && recoveryMinutes < overdueEntry.session.estimatedMinutes && <button className="button secondary" disabled={Boolean(recoveryAction)} onClick={() => void shortenAndStart()}>{recoveryAction === "shorten" ? <span className="button-spinner dark" /> : null} Split remaining work into {recoveryMinutes}-min sessions</button>}<button className="button ghost" disabled={Boolean(recoveryAction)} onClick={() => void moveOverdueToTomorrow()}>{recoveryAction === "move" ? <span className="button-spinner dark" /> : null} Move to tomorrow</button></div>{recoveryError && <div className="chat-error"><AlertCircle size={16} /><span>{recoveryError}</span></div>}</section>}
+    {overdueEntry && <section className="agenda-recovery" aria-live="polite"><div className="agenda-recovery-copy"><span className="step-label">PLAN NEEDS A RESET</span><h2>You missed a session. The plan is still recoverable.</h2><p><strong>{overdueEntry.session.title}</strong> for {overdueEntry.plan.title} was scheduled for {formatAgendaTime(overdueEntry.session.scheduledFor)}. Choose the smallest useful next move. YOVA will not punish the rest of the plan.</p></div><div className="agenda-recovery-actions"><button className="button primary" disabled={Boolean(recoveryAction)} onClick={() => onStart(overdueEntry.plan.id)}>Start it now</button>{recoveryMinutes !== null && recoveryMinutes < overdueEntry.session.estimatedMinutes && <button className="button secondary" disabled={Boolean(recoveryAction)} onClick={() => void shortenAndStart()}>{recoveryAction === "shorten" ? <span className="button-spinner dark" /> : null} Split remaining work into {recoveryMinutes}-min sessions</button>}<button className="button ghost" disabled={Boolean(recoveryAction)} onClick={() => void moveOverdueToTomorrow()}>{recoveryAction === "move" ? <span className="button-spinner dark" /> : null} Move to tomorrow</button></div>{recoveryError && <div className="chat-error"><AlertCircle size={16} /><span>{recoveryError}</span></div>}</section>}
     {conceptReviews.length > 0 && <section className="section-block review-agenda"><div className="section-title"><div><h3>Retrieval queue</h3><p>Concepts return when completed checks show that another attempt would be useful.</p></div><span>{conceptReviews.filter((item) => item.timing === "due").length} due</span></div><div className="review-agenda-list">{conceptReviews.slice(0, 6).map((item) => { const actionKey = `${item.planId}:${item.concept.toLocaleLowerCase()}`; const loading = reviewAction === actionKey; return <article className={`${item.priority} ${item.timing}`} key={actionKey}><span className="review-agenda-icon">{item.reviewType === "repair_and_retrieve" ? <RotateCcw size={17} /> : <Target size={17} />}</span><div><span>{formatReviewType(item.reviewType)} · {item.timingLabel}</span><strong>{item.concept}</strong><small>{item.planTitle} · {item.instruction}</small></div>{item.action === "scheduled" ? <em>Scheduled</em> : <button className={item.action === "activate_review" ? "button primary" : "button secondary"} disabled={Boolean(reviewAction)} onClick={() => void beginConceptReview(item)}>{loading ? <span className="button-spinner dark" /> : null}{item.action === "activate_review" ? "Start short check" : "Start next session"}</button>}</article>; })}</div><small className="concept-review-note">These return dates are transparent review heuristics. A new completed check can move the next return sooner or later.</small>{reviewError && <div className="chat-error"><AlertCircle size={16} /><span>{reviewError}</span></div>}</section>}
     <section className="section-block">
       <div className="section-title"><h3>Upcoming</h3>{availableSessions.length > 0 && <button onClick={() => { setEditing((value) => !value); setMoving(null); setError(null); }}>{editing ? "Done adjusting" : "Adjust agenda"}</button>}</div>
@@ -1899,7 +2018,7 @@ function observedLearningInsight(sessionCompletions: SessionCompletion[], sessio
 
   const recentInterruptions = sessionInterruptions.slice(-4);
   if (recentInterruptions.length >= 2) {
-    return "You have left multiple recent sessions before finishing. YOVA will treat that as a scheduling signal and cautiously reduce or restructure future session scope—not as evidence about your ability.";
+    return "You have left multiple recent sessions before finishing. YOVA will treat that as a scheduling signal and cautiously reduce or restructure future session scope, not as evidence about your ability.";
   }
 
   const calibration = summarizeConfidenceCalibration(
@@ -1962,7 +2081,7 @@ function YouScreen({ account, answers, plans, sessionCompletions, sessionInterru
   const totalCorrect = sessionCompletions.reduce((sum, completion) => sum + completion.correctAnswers, 0);
   const totalAnswers = sessionCompletions.reduce((sum, completion) => sum + completion.totalAnswers, 0);
   const accuracyPercent = totalAnswers ? Math.round((totalCorrect / totalAnswers) * 100) : null;
-  const accuracy = accuracyPercent === null ? "—" : `${accuracyPercent}%`;
+  const accuracy = accuracyPercent === null ? "No data" : `${accuracyPercent}%`;
   const totalStudyMinutes = sessionCompletions.reduce((sum, completion) => sum + (Number.isFinite(completion.actualMinutes) ? completion.actualMinutes : 0), 0)
     + sessionInterruptions.reduce((sum, interruption) => sum + (Number.isFinite(interruption.actualMinutes) ? interruption.actualMinutes : 0), 0);
   const observedEventCount = sessionCompletions.length + sessionInterruptions.length;
@@ -2022,7 +2141,7 @@ function PersonalizationRecommendationCard({ recommendation, onImproveProfile, o
 }
 
 function formatStudyMinutes(totalMinutes: number) {
-  if (totalMinutes <= 0) return "—";
+  if (totalMinutes <= 0) return "No data";
   if (totalMinutes < 60) return `${totalMinutes}m`;
   const hours = Math.floor(totalMinutes / 60);
   const minutes = totalMinutes % 60;
@@ -2166,7 +2285,7 @@ function teachingFirstLessonStepsFor(plan: LearningPlan): LessonStep[] | null {
       lessonInstruction("Worked example", "Trace one financial choice", "If $100 earns 10%, it becomes $110. A second 10% gain is calculated from $110, not the original $100, producing $121. The earlier $10 gain joined the base and produced an additional gain.", "model"),
       lessonQuestion("Guided check", "What makes the second year compound growth?", "Use the example you just followed.", ["The earlier gain remains in the base", "The rate must increase every year", "A fee is added to the balance", "The original amount is ignored"], "The earlier gain remains in the base", "Compounding occurs because prior gains remain invested and can themselves produce later gains.", "Compound growth mechanism", "guided_practice"),
       lessonFreeResponse("Independent explanation", "Explain compound growth in your own words", "Describe why later gains can become larger even when the rate stays the same.", "Earlier gains remain in the base, so future percentage gains apply to the original amount plus accumulated growth.", "A strong answer explains that prior gains stay in the base and can produce additional growth.", "Compound growth mechanism", "independent_practice"),
-      lessonInstruction("Apply next", "Connect the model to a real decision", "The next useful step is comparing two saving, debt, or investing choices using the time horizon and compounding—not merely repeating the definition.", "transfer"),
+      lessonInstruction("Apply next", "Connect the model to a real decision", "The next useful step is comparing two saving, debt, or investing choices using the time horizon and compounding, not merely repeating the definition.", "transfer"),
     ];
   }
 
@@ -2206,9 +2325,7 @@ function isVerifiableKnownTarget(value: string) {
 }
 
 function SessionSetup({ plan, answers, completions, interruptions, onExit, onStart }: { plan: LearningPlan | null; answers: string[]; completions: SessionCompletion[]; interruptions: SessionInterruption[]; onExit: () => void; onStart: (adjustment: SessionAdjustment | null) => void }) {
-  const session = plan?.sessions.find((item) => item.status === "ready")
-    ?? plan?.sessions.find((item) => item.status === "upcoming")
-    ?? null;
+  const session = plan?.sessions.find((item) => item.status === "ready") ?? null;
   const [familiarity, setFamiliarity] = useState<SessionAdjustment["familiarity"]>("as_planned");
   const [availableMinutes, setAvailableMinutes] = useState<number | null>(null);
   const [selectedKnownTargets, setSelectedKnownTargets] = useState<string[]>([]);
@@ -2406,6 +2523,14 @@ function GuidedSession({ plan, steps, step, selectedAnswer, outcome, confidence,
     }
   };
 
+  const revealUnknownAnswer = () => {
+    if (answerEvaluationPending || answerRevealed) return;
+    if (requiresConfidence && !confidence) onConfidence("guessing");
+    onSelect("I do not know this yet.");
+    onEvaluate(false);
+    onReveal();
+  };
+
   return <main className="session-shell">
     <header className="session-top">
       <BrandMark compact />
@@ -2433,7 +2558,7 @@ function GuidedSession({ plan, steps, step, selectedAnswer, outcome, confidence,
           return <button key={answer} className={answerState} disabled={selectedAnswer !== null || (requiresConfidence && !confidence)} onClick={() => { onSelect(answer); onEvaluate(answer === content.correctAnswer); }}><span>{answer}</span>{answerState === "correct" ? <Check size={18} /> : answerState === "incorrect" ? <X size={18} /> : null}</button>;
         })}</div>}
       {content.type === "multiple_choice" && outcome !== undefined && <><div className={`feedback ${isCorrect ? "" : "incorrect"}`}>{isCorrect ? <Check size={20} /> : <AlertCircle size={20} />}<div><strong>{isCorrect ? "Correct." : "Useful miss. Repair it now."}</strong><p>{explanation}</p></div></div>{confidence && <p className="confidence-result"><Sparkles size={15} /> {confidenceResultMessage(confidence, isCorrect)}</p>}</>}
-      {content.type === "free_response" && <div className="recall-response"><label htmlFor={`recall-${step}`}><span>{isImmediateRepair ? "Corrected idea in your own words" : phase?.label ?? "Your answer from memory"}</span><textarea id={`recall-${step}`} rows={6} value={selectedAnswer ?? ""} disabled={answerRevealed || answerEvaluationPending || (requiresConfidence && !confidence)} placeholder={isImmediateRepair ? "Explain the corrected idea without copying the wording…" : requiresConfidence && !confidence ? "Choose your confidence first…" : phase?.instruction ?? "Write what you can remember before checking…"} onChange={(event) => onSelect(event.target.value)} /></label>{!answerRevealed ? <button className="button secondary" disabled={!selectedAnswer?.trim() || answerEvaluationPending || (requiresConfidence && !confidence)} onClick={() => void checkFreeResponse()}>{answerEvaluationPending ? <><span className="button-spinner dark" /> Checking the key idea…</> : "Check my answer"}</button> : <div className="recall-review">{answerEvaluation && <section className={`answer-evaluation ${answerEvaluation.verdict}`}><span className="step-label">YOVA&apos;S FORMATIVE CHECK</span><strong>{answerEvaluation.verdict === "secure" ? "The key idea is present." : answerEvaluation.verdict === "needs_review" ? "One or more key ideas need repair." : "YOVA could not judge this confidently."}</strong><p>{answerEvaluation.feedback}</p>{answerEvaluation.matchedIdeas.length > 0 && <div><span>What your answer showed</span><ul>{answerEvaluation.matchedIdeas.map((idea) => <li key={idea}>{idea}</li>)}</ul></div>}{answerEvaluation.missingIdeas.length > 0 && <div><span>What to check</span><ul>{answerEvaluation.missingIdeas.map((idea) => <li key={idea}>{idea}</li>)}</ul></div>}</section>}{answerEvaluationIssue && <div className="answer-evaluation-fallback"><AlertCircle size={17} /><p>{answerEvaluationIssue} Use the reference answer and your own judgment below.</p></div>}<span className="step-label">REFERENCE ANSWER</span><p>{content.correctAnswer}</p>{content.feedback && <small>{content.feedback}</small>}<div className="recall-actions"><span>{answerEvaluation ? "Confirm or correct YOVA’s check" : "How did your answer compare?"}</span><button className={outcome === true ? "selected" : ""} onClick={() => onEvaluate(true)}><Check size={17} /> I got the key idea</button><button className={outcome === false ? "selected needs-work" : ""} onClick={() => onEvaluate(false)}><AlertCircle size={17} /> Needs another pass</button></div>{confidence && outcome !== undefined && <p className="confidence-result"><Sparkles size={15} /> {confidenceResultMessage(confidence, outcome)}</p>}<small className="privacy-note">{isImmediateRepair ? "This immediate explain-back is not saved as proof of mastery. The original miss remains scheduled for later verification." : answerEvaluation ? "Your answer was sent for a one-time AI check and is not saved. YOVA keeps only the concept result, confidence, and support level." : "Your typed answer is not saved. YOVA keeps only the concept result, confidence, and support level."}</small></div>}</div>}
+      {content.type === "free_response" && <div className="recall-response"><label htmlFor={`recall-${step}`}><span>{isImmediateRepair ? "Corrected idea in your own words" : phase?.label ?? "Your answer from memory"}</span><textarea id={`recall-${step}`} rows={6} value={selectedAnswer ?? ""} disabled={answerRevealed || answerEvaluationPending || (requiresConfidence && !confidence)} placeholder={isImmediateRepair ? "Explain the corrected idea without copying the wording…" : requiresConfidence && !confidence ? "Choose your confidence first…" : phase?.instruction ?? "Write what you can remember before checking…"} onChange={(event) => onSelect(event.target.value)} /></label>{!answerRevealed ? <div className="recall-submit-actions"><button className="button secondary" disabled={!selectedAnswer?.trim() || answerEvaluationPending || (requiresConfidence && !confidence)} onClick={() => void checkFreeResponse()}>{answerEvaluationPending ? <><span className="button-spinner dark" /> Checking the key idea…</> : "Check my answer"}</button><button className="button ghost unknown-answer" disabled={answerEvaluationPending} onClick={revealUnknownAnswer}><AlertCircle size={16} /> I don&apos;t know yet</button><small>YOVA will show the model and record a gap without treating it as failure.</small></div> : <div className="recall-review">{answerEvaluation && <section className={`answer-evaluation ${answerEvaluation.verdict}`}><span className="step-label">YOVA&apos;S FORMATIVE CHECK</span><strong>{answerEvaluation.verdict === "secure" ? "The key idea is present." : answerEvaluation.verdict === "needs_review" ? "One or more key ideas need repair." : "YOVA could not judge this confidently."}</strong><p>{answerEvaluation.feedback}</p>{answerEvaluation.matchedIdeas.length > 0 && <div><span>What your answer showed</span><ul>{answerEvaluation.matchedIdeas.map((idea) => <li key={idea}>{idea}</li>)}</ul></div>}{answerEvaluation.missingIdeas.length > 0 && <div><span>What to check</span><ul>{answerEvaluation.missingIdeas.map((idea) => <li key={idea}>{idea}</li>)}</ul></div>}</section>}{answerEvaluationIssue && <div className="answer-evaluation-fallback"><AlertCircle size={17} /><p>{answerEvaluationIssue} Use the reference answer and your own judgment below.</p></div>}<span className="step-label">REFERENCE ANSWER</span><p>{content.correctAnswer}</p>{content.feedback && <small>{content.feedback}</small>}<div className="recall-actions"><span>{answerEvaluation ? "Confirm or correct YOVA’s check" : "How did your answer compare?"}</span><button className={outcome === true ? "selected" : ""} onClick={() => onEvaluate(true)}><Check size={17} /> I got the key idea</button><button className={outcome === false ? "selected needs-work" : ""} onClick={() => onEvaluate(false)}><AlertCircle size={17} /> Needs another pass</button></div>{confidence && outcome !== undefined && <p className="confidence-result"><Sparkles size={15} /> {confidenceResultMessage(confidence, outcome)}</p>}<small className="privacy-note">{isImmediateRepair ? "This immediate explain-back is not saved as proof of mastery. The original miss remains scheduled for later verification." : answerEvaluation ? "Your answer was sent for a one-time AI check and is not saved. YOVA keeps only the concept result, confidence, and support level." : "Your typed answer is not saved. YOVA keeps only the concept result, confidence, and support level."}</small></div>}</div>}
         <footer className="session-action-bar">{step === steps.length - 1 && <p className="completion-rule"><Check size={14} /> Completion is based on the required learning work, not on running out the clock.</p>}<button className="button primary large" onClick={() => onNext(answerEvaluation)} disabled={!canContinue}>{outcome === false && !isImmediateRepair ? "Repair this idea" : step === steps.length - 1 ? "Finish this content" : "Continue"} <ArrowRight size={18} /></button></footer>
       </section>
     </section>
@@ -2466,7 +2591,36 @@ function SessionGuidePanel({ session, capacityMinutes, coverage, steps, step, me
 }
 
 function TeachingLessonCard({ teaching }: { teaching: NonNullable<LessonStep["teaching"]> }) {
-  return <section className="teaching-lesson" aria-label="Teaching explanation"><div className="teaching-core"><span>CORE IDEA</span><strong>{teaching.keyIdea}</strong><p>{teaching.explanation}</p></div>{teaching.example && <div className="worked-example"><span>WORKED WALKTHROUGH</span><h3>{teaching.example.setup}</h3><ol>{teaching.example.steps.map((item) => <li key={item}>{item}</li>)}</ol><p><strong>Takeaway:</strong> {teaching.example.takeaway}</p></div>}{teaching.commonMistake && <div className="common-mistake"><AlertCircle size={17} /><div><span>COMMON MIX-UP</span><p><s>{teaching.commonMistake.mistake}</s></p><strong>{teaching.commonMistake.correction}</strong></div></div>}</section>;
+  const visualSteps = teaching.example?.steps ?? visualModelSteps(teaching.explanation);
+  return <section className="teaching-lesson" aria-label="Teaching explanation"><div className="teaching-core"><span>CORE IDEA</span><strong>{teaching.keyIdea}</strong><p>{teaching.explanation}</p></div>{visualSteps.length >= 2 && <TeachingPathDiagram setup={teaching.example?.setup ?? teaching.keyIdea} steps={visualSteps} takeaway={teaching.example?.takeaway ?? teaching.keyIdea} />}{teaching.example && <div className="worked-example"><span>WORKED WALKTHROUGH</span><h3>{teaching.example.setup}</h3><ol>{teaching.example.steps.map((item) => <li key={item}>{item}</li>)}</ol><p><strong>Takeaway:</strong> {teaching.example.takeaway}</p></div>}{teaching.commonMistake && <div className="common-mistake"><AlertCircle size={17} /><div><span>COMMON MIX-UP</span><p><s>{teaching.commonMistake.mistake}</s></p><strong>{teaching.commonMistake.correction}</strong></div></div>}</section>;
+}
+
+function visualModelSteps(explanation: string) {
+  const sentences = explanation
+    .split(/(?<=[.!?])\s+/)
+    .map((sentence) => sentence.trim().replace(/[.!?]+$/, ""))
+    .filter((sentence) => sentence.length >= 8);
+  if (sentences.length >= 2) return sentences.slice(0, 5);
+  return explanation
+    .split(/(?:;|:\s+|,\s+(?:then|and then)\s+)/i)
+    .map((clause) => clause.trim().replace(/[.!?]+$/, ""))
+    .filter((clause) => clause.length >= 8)
+    .slice(0, 5);
+}
+
+function TeachingPathDiagram({ setup, steps, takeaway }: { setup: string; steps: string[]; takeaway: string }) {
+  if (steps.length < 2) return null;
+  const visibleSteps = steps.slice(0, 5);
+  return <figure className="teaching-path-diagram" aria-label={`Visual model: ${setup}`}><figcaption><span>VISUAL MODEL</span><strong>{setup}</strong></figcaption><div className="teaching-path-flow">{visibleSteps.map((item, index) => <div className="teaching-path-segment" key={`${index}-${item}`}><article><span>{index + 1}</span><p>{shortVisualLabel(item)}</p></article>{index < visibleSteps.length - 1 && <ArrowRight size={18} aria-hidden="true" />}</div>)}</div><p className="teaching-path-takeaway"><Target size={15} /><span>{takeaway}</span></p></figure>;
+}
+
+function shortVisualLabel(value: string) {
+  const normalized = value.trim().replace(/\s+/g, " ");
+  const beforeDetail = normalized.split(/,\s+(?:where|which|so|then)\b/i)[0]
+    .replace(/^(?:start|move|continue|next|then|finally)\s+(?:at|in|into|to|with|outside)?\s*/i, "")
+    .trim();
+  const words = beforeDetail.split(" ");
+  return words.length <= 10 ? beforeDetail : `${words.slice(0, 10).join(" ")}…`;
 }
 
 function MethodPhaseCoach({ phase, current, total }: { phase: ReturnType<typeof getMethodPhasePresentation>; current: number; total: number }) {

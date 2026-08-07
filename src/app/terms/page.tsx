@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 };
 
 export default function TermsPage() {
-  return <TrustPage eyebrow="PRIVATE ALPHA TERMS" title="A learning tool—not a promise of results." summary="These terms set straightforward expectations while YOVA is being tested and improved.">
+  return <TrustPage eyebrow="PRIVATE ALPHA TERMS" title="A learning tool, not a promise of results." summary="These terms set straightforward expectations while YOVA is being tested and improved.">
     <section><h2>1. Using the alpha</h2><p>By creating an account or using YOVA, you agree to these terms and the <Link href="/privacy">Privacy Notice</Link>. You must be at least 13. If you are under the age of majority where you live, you must have permission from a parent or legal guardian.</p></section>
     <section><h2>2. What YOVA provides</h2><p>YOVA creates educational plans, resources, guided sessions, and tutoring assistance. The private alpha may change, become unavailable, produce errors, or lose features as testing continues. Access is currently offered for evaluation and may be limited or ended.</p></section>
     <section><h2>3. Educational and AI limitations</h2><p>YOVA can be incomplete or wrong. It does not guarantee grades, test performance, mastery, admissions outcomes, or professional qualifications. Verify important information against your instructor, official course materials, or another authoritative source. YOVA is not a substitute for a teacher, school accommodation, medical professional, or emergency service.</p></section>

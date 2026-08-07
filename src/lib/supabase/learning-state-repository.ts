@@ -450,7 +450,7 @@ function parseSessionRange(answer?: string): [number | null, number | null] {
 
 function formatSessionRange(minimum: number | null, maximum: number | null) {
   if (minimum === null || maximum === null) return "";
-  return `${minimum}–${maximum} minutes`;
+  return `${minimum} to ${maximum} minutes`;
 }
 
 function isSessionFeedback(value: unknown): value is SessionCompletion["feedback"] {

@@ -30,7 +30,7 @@ describe.skipIf(!liveEvaluationEnabled)("live OpenAI session quality", () => {
       console.info(`Repair trigger · ${generated.generationStats.repairDetail}`);
     }
     for (const activity of generated.draft.activities) {
-      console.info(`${activity.type.padEnd(16)} ${activity.concept ?? "—"} · ${activity.title}`);
+      console.info(`${activity.type.padEnd(16)} ${activity.concept ?? "none"} · ${activity.title}`);
     }
     console.info("");
     for (const check of result.checks) {

@@ -56,7 +56,7 @@ export function YovaSocialImage() {
           Know exactly what to study next.
         </div>
         <div style={{ maxWidth: 850, marginTop: 24, display: "flex", color: "#C8D2E8", fontSize: 27, lineHeight: 1.45 }}>
-          YOVA turns your goals, materials, schedule, and progress into a clear plan—and guides you through it.
+          YOVA turns your goals, materials, schedule, and progress into a clear plan, then guides you through it.
         </div>
       </div>
 

@@ -76,7 +76,7 @@ describe("buildPreviewSessionContext", () => {
       onboardingAnswers: [
         "I struggle to start",
         "Give me clear structure with flexibility",
-        "20–30 minutes",
+        "20 to 30 minutes",
         "A concrete example first",
         "Sometimes",
         "I intend to begin but often delay",
