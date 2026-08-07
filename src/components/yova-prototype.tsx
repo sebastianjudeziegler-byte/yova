@@ -550,7 +550,7 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
       setGeneratedLessonSteps(restoredLesson.steps);
       setSessionStep(restoredLesson.step);
       setSessionRationale(requestedSession.methodReason);
-      setSessionCoverage(fallbackCoverageFor(requestedSession));
+      setSessionCoverage(fallbackCoverageFor(requestedSession, fallbackSteps));
       setSessionMethodBriefing(null);
       setSessionSupportPlan(fallbackSupportPlan);
       setSessionSourceGrounding(null);
@@ -1979,16 +1979,24 @@ function reusableResourceFromLessonSteps(steps: LessonStep[], rationale: string)
   };
 }
 
-function fallbackCoverageFor(session: LearningPlanSession): SessionCoverage {
+function fallbackCoverageFor(session: LearningPlanSession, steps: LessonStep[]): SessionCoverage {
   const ideas = session.contentTargets?.length
     ? session.contentTargets.slice(0, session.estimatedMinutes <= 15 ? 2 : 4)
     : [session.objective];
+  const checkConcepts = [...new Set(steps
+    .filter((step) => step.type === "multiple_choice" || step.type === "free_response")
+    .map((step) => step.concept)
+    .filter((concept): concept is string => Boolean(concept)))];
   return {
     focus: session.objective,
     essentialIdeas: ideas,
     completionEvidence: session.completionEvidence?.length
       ? session.completionEvidence.slice(0, 3)
       : ["Complete the independent check and identify any idea that still needs review."],
+    evidenceMap: ideas.map((idea, index) => ({
+      essentialIdea: idea,
+      activityConcept: checkConcepts[index] ?? checkConcepts[0] ?? session.objective,
+    })),
     deferredContent: [],
   };
 }
@@ -2260,7 +2268,7 @@ function SessionGuidePanel({ session, coverage, steps, step, methodBriefing, sup
     })}</div>
     <div className="session-guide-evidence"><Target size={15} /><p><span>Finished means</span>{evidence[0]}</p></div>
     <details className="session-guide-details"><summary>Why this plan and method</summary>{methodBriefing && <div className="session-guide-explanation"><strong>What you are doing</strong><p>{methodBriefing.what}</p><strong>Why it fits</strong><p>{methodBriefing.why}</p>{rationale && <p>{rationale}</p>}<strong>How to use it</strong><ol>{methodBriefing.how.map((instruction) => <li key={instruction}>{instruction}</li>)}</ol></div>}<MethodRoadmap steps={steps} />{supportPlan && <SupportProgressionCard plan={supportPlan} />}</details>
-    <details className="session-guide-details"><summary>Content and sources</summary><div className="session-guide-lists"><strong>In this session</strong><ul>{ideas.map((item, index) => <li key={`${index}-${item}`}>{item}</li>)}</ul>{coverage?.deferredContent.length ? <><strong>Saved for later</strong><ul>{coverage.deferredContent.map((item, index) => <li key={`${index}-${item}`}>{item}</li>)}</ul></> : null}</div>{sourceGrounding && <SourceGroundingCard grounding={sourceGrounding} />}</details>
+    <details className="session-guide-details"><summary>Content and sources</summary><div className="session-guide-lists"><strong>In this session</strong><ul>{ideas.map((item, index) => <li key={`${index}-${item}`}>{item}</li>)}</ul>{coverage?.evidenceMap.length ? <><strong>How completion is checked</strong><ul>{coverage.evidenceMap.map((mapping) => <li key={`${mapping.essentialIdea}-${mapping.activityConcept}`}>{mapping.essentialIdea}: checked through {mapping.activityConcept}</li>)}</ul></> : null}{coverage?.deferredContent.length ? <><strong>Saved for later</strong><ul>{coverage.deferredContent.map((item, index) => <li key={`${index}-${item}`}>{item}</li>)}</ul></> : null}</div>{sourceGrounding && <SourceGroundingCard grounding={sourceGrounding} />}</details>
   </>;
   return <aside className="session-guide"><div className="session-guide-desktop">{guide}</div><details className="session-guide-mobile"><summary><span><strong>Session path</strong><small>Step {step + 1} of {steps.length} · {roadmap.length} learning phases</small></span><ChevronRight size={17} /></summary><div>{guide}</div></details></aside>;
 }

@@ -3,7 +3,7 @@ import { readSessionResourceFromStepData, toSessionResource } from "@/lib/sessio
 import { GeneratedSessionDraftSchema, type SessionGenerationResponse } from "@/lib/session-generation/schema";
 
 const generatedSession: SessionGenerationResponse["session"] = {
-  schemaVersion: 10,
+  schemaVersion: 11,
   model: "gpt-test",
   generatedAt: "2026-08-05T18:00:00.000Z",
   rationale: "This sequence teaches the core idea before checking recall and application.",
@@ -11,6 +11,10 @@ const generatedSession: SessionGenerationResponse["session"] = {
     focus: "Understand and retrieve the purpose of retrieval practice.",
     essentialIdeas: ["Retrieval happens before answer review"],
     completionEvidence: ["Explain the purpose of attempting an answer from memory"],
+    evidenceMap: [{
+      essentialIdea: "Retrieval happens before answer review",
+      activityConcept: "Retrieval practice",
+    }],
     deferredContent: [],
   },
   sourceGrounding: null,

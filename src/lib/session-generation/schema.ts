@@ -97,6 +97,10 @@ export const SessionCoverageSchema = z.object({
   focus: z.string().trim().min(10).max(240),
   essentialIdeas: z.array(z.string().trim().min(5).max(180)).min(1).max(4),
   completionEvidence: z.array(z.string().trim().min(8).max(220)).min(1).max(3),
+  evidenceMap: z.array(z.object({
+    essentialIdea: z.string().trim().min(5).max(180),
+    activityConcept: z.string().trim().min(2).max(120),
+  })).min(1).max(4),
   deferredContent: z.array(z.string().trim().min(5).max(180)).max(4),
 });
 
@@ -221,7 +225,7 @@ export const GeneratedSessionDraftSchema = z.object({
 });
 
 export const CachedGeneratedSessionSchema = GeneratedSessionDraftSchema.extend({
-  schemaVersion: z.literal(10),
+  schemaVersion: z.literal(11),
   model: z.string().min(1),
   generatedAt: z.string().datetime({ offset: true }),
   supportPlan: SessionSupportPlanSchema.optional(),

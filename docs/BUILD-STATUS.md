@@ -81,6 +81,7 @@ A cross-browser six-digit email-code flow is implemented and tested behind a ser
 - A last-session miss creates a short delayed verification session instead of allowing the learning goal to appear complete
 - High-confidence misses use a teaching-first misconception-repair follow-up; ordinary misses use practice-first spaced retrieval and error repair
 - Session evidence counts only completed checks, preventing unfinished questions in a resumed session from being silently scored as wrong
+- Every stated essential idea in a generated session must now map to a named required knowledge check; the server rejects or repairs sessions that teach a target without collecting evidence for it, and learners can inspect the mapping inside the session guide
 - Rough study guides and outline-style uploads can define the factual scope while YOVA supplies only the missing explanation or example needed to teach an in-scope idea
 - Substantial explanatory uploads stay material-only by default, preventing YOVA from adding outside content merely because it can
 - Source-based sessions now carry verified text anchors and disclose every AI-supplied teaching addition to the learner
@@ -135,6 +136,7 @@ The software loop is close to private-alpha readiness, but the broader learning-
 - The five-case live session suite now also verifies method fidelity; biology, calculus, outside-app writing, beginner coding, and general finance each passed the stricter contracts at 100/100
 - First live OpenAI guided-session suite passed across biology, calculus, outside-app writing, beginner coding, and general finance
 - The first live OpenAI answer-judgment suite matched all seven human labels, including accepting equivalent wording while rejecting keyword-rich misconceptions and withholding judgment when the activity itself lacked enough context
+- A live source-grounded biology generation passed the stricter completion contract at 100/100, with all three essential ideas attached to required checks before the session could count as complete
 - The session evaluator exposed and verified a repair to cross-session concept naming before the suite passed
 - Private-alpha Privacy, Terms, Support, and clear AI/source limitation pages
 - Production build, security headers, error screens, and social metadata

@@ -11,6 +11,10 @@ const strongSession = GeneratedSessionDraftSchema.parse({
     focus: "Connect cellular respiration and photosynthesis, then retrieve the relationship.",
     essentialIdeas: ["Energy storage and release", "The location of glycolysis"],
     completionEvidence: ["Answer one location check and explain the energy relationship from memory"],
+    evidenceMap: [
+      { essentialIdea: "Energy storage and release", activityConcept: "Photosynthesis and respiration" },
+      { essentialIdea: "The location of glycolysis", activityConcept: "Cellular respiration" },
+    ],
     deferredContent: [],
   },
   sourceGrounding: {
@@ -117,6 +121,7 @@ describe("session quality rubric", () => {
         focus: "Look at a generic diagram and answer unrelated questions.",
         essentialIdeas: ["Generic diagram familiarity"],
         completionEvidence: ["Describe the generic activity"],
+        evidenceMap: [{ essentialIdea: "Generic diagram familiarity", activityConcept: "Memory" }],
         deferredContent: [],
       },
       sourceGrounding: null,

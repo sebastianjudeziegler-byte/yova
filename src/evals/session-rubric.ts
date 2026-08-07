@@ -3,6 +3,7 @@ import type { GeneratedSessionDraft } from "@/lib/session-generation/schema";
 import type { SessionTaskFamily } from "@/evals/session-cases";
 import { buildLearningScienceRoutingBrief } from "@/lib/learning/method-router";
 import { validateMethodFidelity } from "@/lib/learning/method-fidelity";
+import { validateSessionCompletionContract } from "@/lib/session-generation/completion-contract";
 
 export type SessionQualityCheck = {
   id: string;
@@ -134,8 +135,14 @@ export function evaluateSessionDraft(
   const requiredQuestionCount = requiredActivities.filter((activity) => (
     activity.type === "multiple_choice" || activity.type === "free_response"
   )).length;
+  const completionContractIssue = validateSessionCompletionContract({
+    essentialIdeas: draft.coverage.essentialIdeas,
+    evidenceMap: draft.coverage.evidenceMap,
+    activities: draft.activities,
+  });
   const completionIsEvidenceBased = draft.coverage.completionEvidence.length > 0
-    && requiredQuestionCount > 0;
+    && requiredQuestionCount > 0
+    && completionContractIssue === null;
   const teachingActivities = draft.activities.filter((activity) => activity.methodPhase === "model");
   const teachingIsSubstantive = draft.methodBriefing.learningMode !== "learn"
     || teachingActivities.some((activity) => (
@@ -157,7 +164,7 @@ export function evaluateSessionDraft(
     check("method_fidelity", "Activities actually execute the named learning method", methodFidelityIssue === null, 0, true, methodFidelityIssue ?? `Required ${draft.methodBriefing.methodId} phases appear in order`),
     check("learning_approach", "Teaching and practice start differently", firstActivityMatchesApproach, 0, true, `${draft.methodBriefing.learningMode} session starts with ${draft.activities[0]?.type ?? "nothing"}`),
     check("honest_time_budget", "Required content fits the stated time window", timeBudgetHonest, 0, true, `${requiredMinutes} required and ${totalMinutes} total minutes inside a ${context.session.estimatedMinutes}-minute window`),
-    check("content_completion", "Completion requires observable learning evidence", completionIsEvidenceBased, 0, true, `${requiredActivities.length} required activities and ${requiredQuestionCount} required checks`),
+    check("content_completion", "Every target idea has required learning evidence", completionIsEvidenceBased, 0, true, completionContractIssue ?? `${draft.coverage.essentialIdeas.length} essential ideas mapped to ${requiredQuestionCount} required checks`),
     check("substantive_teaching", "Learning sessions teach before they test", teachingIsSubstantive, 0, true, `${teachingActivities.length} modeled teaching activities inspected`),
     check("explainability", "The session explains why it is structured this way", draft.rationale.trim().length >= 40, 5, false, `${draft.rationale.trim().length} rationale characters`),
     check("no_personality_overclaim", "No fixed brain, diagnosis, or learning-style claim", noOverclaim, 5, true, "Checked learner-facing session text"),

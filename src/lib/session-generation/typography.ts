@@ -8,6 +8,10 @@ export function polishGeneratedSessionTypography(draft: GeneratedSessionDraft): 
       focus: polishLearnerText(draft.coverage.focus),
       essentialIdeas: draft.coverage.essentialIdeas.map(polishLearnerText),
       completionEvidence: draft.coverage.completionEvidence.map(polishLearnerText),
+      evidenceMap: draft.coverage.evidenceMap.map((mapping) => ({
+        essentialIdea: polishLearnerText(mapping.essentialIdea),
+        activityConcept: polishLearnerText(mapping.activityConcept),
+      })),
       deferredContent: draft.coverage.deferredContent.map(polishLearnerText),
     },
     methodBriefing: {

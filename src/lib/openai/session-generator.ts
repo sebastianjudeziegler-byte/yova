@@ -30,6 +30,7 @@ import {
   GeneratedSessionDraftSchema,
   type GeneratedSessionDraft,
 } from "@/lib/session-generation/schema";
+import { validateSessionCompletionContract } from "@/lib/session-generation/completion-contract";
 import { polishGeneratedSessionTypography } from "@/lib/session-generation/typography";
 
 export type SessionGenerationContext = {
@@ -111,6 +112,7 @@ Requirements:
 - Use learningScienceRouting as YOVA's scientific guardrail. Select methodBriefing.methodId from allowedMethodIds, normally use suggestedPrimaryMethodId, and depart from it only when the supplied task evidence clearly supports another allowed method.
 - Fill methodBriefing with the task type, catalog method, what the learner will do, why it fits this task and current knowledge, exact execution steps, and a concrete completion condition.
 - Build coverage before activities. coverage.focus is the bounded content slice for this session; essentialIdeas are what will actually be taught or practiced now; completionEvidence describes what the learner must produce before this slice counts as completed; deferredContent explicitly names in-scope content that does not fit and must remain for a future session.
+- Build coverage.evidenceMap after choosing the activities. Repeat every essentialIdeas entry exactly once and point it to the exact concept name of a required multiple-choice or free-response activity that tests that idea. A session may not claim an essential idea is covered if it only appears in teaching or an optional activity.
 - Session time is a capacity constraint, never the definition of completion. A session is complete only after every requiredForCompletion activity is attempted. Do not treat exposure, elapsed time, reading, or button-clicking as evidence of completion.
 - Preserve the planned contentTargets and completionEvidence when supplied. If they cannot fit honestly, teach a smaller coherent subset now and put the remainder in coverage.deferredContent. Never compress a broad 45-minute objective into a superficial 15-minute pass.
 - The method briefing must explain the learning method itself. Keep productivity or tendency-based delivery changes in methodBriefing.personalization.
@@ -132,7 +134,7 @@ Requirements:
 - Include at least one meaningful multiple-choice knowledge check with 3 to 5 plausible choices.
 - Include at least one free_response activity that makes the learner produce an answer from memory before seeing a concise reference answer.
 - Give every multiple_choice and free_response activity one concise concept name. Set concept to null for instructions and reflections.
-- For free_response, leave choices empty, put the reference answer in correctAnswer, and use feedback to explain what a strong answer must contain. The learner will assess their own attempt honestly.
+- For free_response, leave choices empty, put a concise meaning-based reference answer in correctAnswer, and make feedback a clear rubric naming the essential relationships a strong answer must contain. YOVA uses both for a bounded formative check, and the learner can correct that judgment.
 - For multiple_choice, correctAnswer must exactly match one choice, and feedback must explain the concept rather than merely say correct.
 - Every question's feedback must be a useful explanatory sentence of at least 20 characters. Every free-response reference answer must contain enough substance to compare meaning, not a one-word answer.
 - Put choices in varied order. Do not always place the correct answer first.
@@ -318,6 +320,11 @@ function validateGeneratedSession(
   scaffoldProgression: ScaffoldProgressionSignal[],
 ) {
   return validateSessionTimeBudget(draft, context.session.estimatedMinutes)
+    ?? validateSessionCompletionContract({
+      essentialIdeas: draft.coverage.essentialIdeas,
+      evidenceMap: draft.coverage.evidenceMap,
+      activities: draft.activities,
+    })
     ?? validateSubstantiveTeaching(draft)
     ?? validateOutsideAppGuidance(draft, context.learningGoal.studyMode)
     ?? validateSessionSourceGrounding({
