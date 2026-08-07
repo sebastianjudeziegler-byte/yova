@@ -72,4 +72,25 @@ describe("buildFallbackMethodBriefing", () => {
     expect(briefing.methodId).toBe("worked_example_fading");
     expect(briefing.name).toBe("Worked example fading");
   });
+
+  it("does not let the old method override what the learner is actually doing", () => {
+    const session = makeSession({
+      title: "Understand what mitochondria do",
+      objective: "Explain the function of mitochondria in cellular respiration.",
+      method: "Scaffolded coding",
+      methodReason: "This stale method should be replaced.",
+      learningMode: "learn",
+    });
+    const plan = makePlan(session, {
+      title: "Cellular respiration",
+      topic: "Learn the role of mitochondria in making ATP",
+      kind: "topic",
+      studyMode: "inside_yova",
+    });
+
+    const briefing = buildFallbackMethodBriefing(plan, session);
+
+    expect(briefing.taskType).toBe("conceptual_learning");
+    expect(briefing.methodId).toBe("self_explanation");
+  });
 });

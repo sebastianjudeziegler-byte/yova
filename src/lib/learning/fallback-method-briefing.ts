@@ -35,7 +35,6 @@ export function buildFallbackMethodBriefing(
     plan.kind,
     session.title,
     session.objective,
-    session.method,
   ].join(" "));
   const namedMethodId = methodIdFromText(session.method);
   const methodId = namedMethodId && getCoreLearningMethod(namedMethodId).taskTypes.includes(taskType)

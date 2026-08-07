@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildLearningScienceRoutingBrief,
+  classifyLearningTask,
   inferKnowledgeStage,
   inferLearningTaskType,
   methodIdFromText,
@@ -54,6 +55,46 @@ describe("learning-science method router", () => {
     expect(inferLearningTaskType("Draft a comparative essay thesis from a rubric")).toBe("writing_argumentation");
     expect(inferLearningTaskType("Trace a JavaScript array function")).toBe("programming");
     expect(methodIdFromText("Closed-note retrieval with spaced review")).toBe("spaced_retrieval");
+  });
+
+  it.each([
+    ["Understand the function of mitochondria in cellular respiration", "conceptual_learning"],
+    ["Explain the function of proteins in cell membranes", "conceptual_learning"],
+    ["Understand the genetic code and how codons map to amino acids", "conceptual_learning"],
+    ["Learn photosynthesis from this article", "conceptual_learning"],
+    ["Graph quadratic functions and solve for their roots", "problem_solving"],
+    ["Calculate limiting reagent amounts in chemistry problems", "problem_solving"],
+    ["Write a Python function that filters an array", "programming"],
+    ["Debug a JavaScript function and test the corrected code", "programming"],
+    ["Read this history article and prepare for a reading quiz", "reading_to_quiz"],
+    ["Summarize the assigned textbook chapter before the quiz", "reading_to_quiz"],
+    ["Memorize French vocabulary definitions", "memorization"],
+    ["Recall the dates and facts from the Civil War unit", "memorization"],
+    ["Draft a comparative essay using the writing rubric", "writing_argumentation"],
+    ["Prepare for a cumulative biology final with a practice test", "mixed_assessment"],
+  ] as const)("routes %s as %s", (scenario, expectedTaskType) => {
+    expect(classifyLearningTask(scenario).taskType).toBe(expectedTaskType);
+  });
+
+  it("uses the session objective instead of letting a source or old method determine the task", () => {
+    const routing = buildLearningScienceRoutingBrief({
+      learningIntent: "learn",
+      sessionLearningMode: "learn",
+      goalTitle: "Photosynthesis article",
+      goalTopic: "Learn how light-dependent reactions produce energy carriers",
+      goalKind: "topic",
+      sessionTitle: "Build the photosynthesis model",
+      sessionObjective: "Explain how light energy becomes chemical energy and why each stage matters",
+      plannedMethod: "Read-recall-review",
+      plannedMethodReason: "The source is an article.",
+      learnerProfile: null,
+      recentResults: [],
+      interruptionCount: 0,
+    });
+
+    expect(routing.taskType).toBe("conceptual_learning");
+    expect(routing.allowedMethodIds).toContain("self_explanation");
+    expect(routing.decisionBasis[0]).toMatch(/understanding|how or why reasoning/i);
   });
 
   it("rejects a model-generated task label that contradicts the deterministic router", () => {

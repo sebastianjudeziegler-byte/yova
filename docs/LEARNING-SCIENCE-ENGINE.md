@@ -1,6 +1,6 @@
 # YOVA Learning Science Engine
 
-Updated: August 6, 2026
+Updated: August 7, 2026
 
 ## Product thesis
 
@@ -82,6 +82,8 @@ These ideas may become useful when repeated comparable data supports them. Until
 The current engine:
 
 - classifies each session into a task family;
+- weighs action signals from the goal and current objective instead of trusting the first matching keyword, so phrases such as “protein function,” “genetic code,” or “an article about photosynthesis” do not accidentally become programming or reading drills;
+- gives the current session objective more influence than a broad goal title, source label, or stale AI method name;
 - estimates a coarse knowledge stage from the plan and repeated performance;
 - creates a bounded list of approved methods;
 - gives OpenAI the catalog, evidence basis, delivery modifiers, and guardrails;

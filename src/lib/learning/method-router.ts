@@ -9,6 +9,12 @@ import { learningModeContract } from "@/lib/learning/learning-intent";
 
 export type KnowledgeStage = "novice" | "developing" | "retrieval_ready";
 
+export type LearningTaskClassification = {
+  taskType: LearningTaskType;
+  confidence: "clear" | "mixed" | "default";
+  evidence: string[];
+};
+
 export type MethodRoutingInput = {
   learningIntent: LearningIntent;
   sessionLearningMode: SessionLearningMode;
@@ -114,6 +120,14 @@ const TASK_METHODS: Record<LearningTaskType, Record<KnowledgeStage, CoreMethodId
 };
 
 export function buildLearningScienceRoutingBrief(input: MethodRoutingInput): LearningScienceRoutingBrief {
+  const taskClassification = classifyLearningTaskParts([
+    { text: input.goalTitle, importance: 1 },
+    { text: input.goalTopic, importance: 1.25 },
+    { text: input.goalKind, importance: 0.5 },
+    { text: input.sessionTitle, importance: 1.75 },
+    { text: input.sessionObjective, importance: 2.25 },
+  ]);
+  const taskType = taskClassification.taskType;
   const combined = [
     input.goalTitle,
     input.goalTopic,
@@ -123,7 +137,6 @@ export function buildLearningScienceRoutingBrief(input: MethodRoutingInput): Lea
     input.plannedMethod,
     input.plannedMethodReason,
   ].join(" ");
-  const taskType = inferLearningTaskType(combined);
   const knowledgeStage = inferKnowledgeStage(input.recentResults, combined);
   const allowedMethodIds = [...TASK_METHODS[taskType][knowledgeStage]];
   const plannedMethodId = methodIdFromText(input.plannedMethod);
@@ -144,7 +157,9 @@ export function buildLearningScienceRoutingBrief(input: MethodRoutingInput): Lea
     methods: learningScienceCatalogForPrompt(allowedMethodIds),
     deliveryModifiers: inferDeliveryModifiers(input),
     decisionBasis: [
-      `Task classification: ${taskType.replaceAll("_", " ")} from the goal and session objective.`,
+      taskClassification.evidence.length > 0
+        ? `Task classification: ${taskType.replaceAll("_", " ")} from signals such as ${taskClassification.evidence.join(", ")}.`
+        : `Task classification: ${taskType.replaceAll("_", " ")} because the goal is primarily about building understanding.`,
       input.sessionLearningMode === "learn"
         ? "Session approach: teach and model before unsupported performance."
         : "Session approach: begin with an unsupported attempt, then repair the exposed gap.",
@@ -168,13 +183,109 @@ export function buildLearningScienceRoutingBrief(input: MethodRoutingInput): Lea
 }
 
 export function inferLearningTaskType(text: string): LearningTaskType {
-  if (/\b(code|coding|program|programming|javascript|typescript|python|debug|function|array|algorithm)\b/i.test(text)) return "programming";
-  if (/\b(essay|writing|argument|thesis|draft|outline|rubric|claim|evidence paragraph)\b/i.test(text)) return "writing_argumentation";
-  if (/\b(calculus|algebra|equation|derivative|problem[- ]solving|solve|worked example|word problem|physics|chemistry calculation)\b/i.test(text)) return "problem_solving";
-  if (/\b(reading|chapter|textbook|article|lecture|read-recall|read-recite|reading quiz)\b/i.test(text)) return "reading_to_quiz";
-  if (/\b(vocabulary|terms|definitions|dates|facts|memorize|memorization|flashcards?)\b/i.test(text)) return "memorization";
-  if (/\b(practice test|mock exam|mixed assessment|final review|cumulative|exam readiness)\b/i.test(text)) return "mixed_assessment";
-  return "conceptual_learning";
+  return classifyLearningTask(text).taskType;
+}
+
+type WeightedTaskSignal = {
+  pattern: RegExp;
+  weight: number;
+  evidence: string;
+};
+
+const TASK_SIGNAL_RULES: Record<LearningTaskType, WeightedTaskSignal[]> = {
+  memorization: [
+    { pattern: /\b(memorize|memorization|commit .* to memory)\b/i, weight: 7, evidence: "memorization" },
+    { pattern: /\b(vocabulary|flashcards?|term[- ]definition|definitions?|dates and facts|facts and dates)\b/i, weight: 5, evidence: "facts or terms" },
+    { pattern: /\b(recall (?:the )?(?:terms|definitions|dates|facts)|learn (?:the )?(?:terms|definitions|dates|facts))\b/i, weight: 4, evidence: "fact recall" },
+  ],
+  conceptual_learning: [
+    { pattern: /\b(understand|explain|conceptualize|make sense of)\b/i, weight: 5, evidence: "understanding or explanation" },
+    { pattern: /\b(how|why)\b.{0,70}\b(works?|happens?|changes?|causes?|affects?|relates?|matters?)\b/i, weight: 5, evidence: "how or why reasoning" },
+    { pattern: /\b(function|role|purpose) of\b/i, weight: 6, evidence: "function or purpose" },
+    { pattern: /\b(process|mechanism|relationship|cause and effect|big picture|mental model|meaning)\b/i, weight: 3, evidence: "concept structure" },
+    { pattern: /\b(learn|teach)\b/i, weight: 2, evidence: "initial learning" },
+  ],
+  problem_solving: [
+    { pattern: /\b(solve|calculate|compute|differentiate|integrate|derive|evaluate)\b/i, weight: 7, evidence: "solving or calculation" },
+    { pattern: /\b(graph|apply)\b.{0,45}\b(functions?|equations?|formula|rule|theorem)\b/i, weight: 6, evidence: "mathematical application" },
+    { pattern: /\b(calculus|algebra|derivatives?|integrals?|equations?|word problems?|problem[- ]solving|worked examples?|chemistry calculation|physics problems?)\b/i, weight: 4, evidence: "quantitative problem solving" },
+  ],
+  reading_to_quiz: [
+    { pattern: /\b(read|review)\b.{0,45}\b(article|chapter|textbook|passage|lecture|assigned reading)\b/i, weight: 7, evidence: "assigned reading" },
+    { pattern: /\b(reading quiz|read[- ]recall|read[- ]recite|question[- ]led reading)\b/i, weight: 7, evidence: "reading check" },
+    { pattern: /\b(summarize|annotate|analyze)\b.{0,45}\b(article|chapter|passage|reading|lecture)\b/i, weight: 5, evidence: "reading analysis" },
+    { pattern: /\b(article|chapter|textbook|passage|lecture)\b/i, weight: 1, evidence: "source reading" },
+  ],
+  writing_argumentation: [
+    { pattern: /\b(write|draft|revise|compose)\b.{0,45}\b(essay|argument|thesis|outline|paragraph|paper|response)\b/i, weight: 8, evidence: "writing production" },
+    { pattern: /\b(essay|argumentative writing|thesis statement|evidence paragraph|writing rubric)\b/i, weight: 6, evidence: "argument or essay" },
+    { pattern: /\b(claim|evidence|reasoning)\b.{0,45}\b(paragraph|essay|argument|rubric)\b/i, weight: 5, evidence: "claim and evidence" },
+  ],
+  programming: [
+    { pattern: /\b(javascript|typescript|python|java|swift|kotlin|rust|react|sql|html|css|c\+\+)\b/i, weight: 8, evidence: "programming language" },
+    { pattern: /\b(write|build|implement|debug|refactor|trace|run|test)\b.{0,45}\b(code|program|script|function|class|component|algorithm)\b/i, weight: 8, evidence: "code creation or debugging" },
+    { pattern: /\b(coding|programming|code tracing|software development)\b/i, weight: 7, evidence: "programming task" },
+    { pattern: /\b(loop|variable|data structure|api endpoint|unit test|compiler)\b/i, weight: 4, evidence: "programming construct" },
+  ],
+  mixed_assessment: [
+    { pattern: /\b(practice test|mock exam|mixed assessment|cumulative (?:test|exam|review)|final review|exam readiness)\b/i, weight: 10, evidence: "mixed assessment" },
+    { pattern: /\b(prepare|review|study)\b.{0,45}\b(final exam|cumulative exam|practice exam)\b/i, weight: 8, evidence: "cumulative preparation" },
+  ],
+};
+
+const TASK_TIE_BREAK_ORDER: LearningTaskType[] = [
+  "mixed_assessment",
+  "writing_argumentation",
+  "programming",
+  "problem_solving",
+  "memorization",
+  "reading_to_quiz",
+  "conceptual_learning",
+];
+
+export function classifyLearningTask(text: string): LearningTaskClassification {
+  return classifyLearningTaskParts([{ text, importance: 1 }]);
+}
+
+function classifyLearningTaskParts(parts: Array<{ text: string; importance: number }>): LearningTaskClassification {
+  const scores = Object.fromEntries(
+    TASK_TIE_BREAK_ORDER.map((taskType) => [taskType, 0]),
+  ) as Record<LearningTaskType, number>;
+  const evidence = TASK_TIE_BREAK_ORDER.reduce<Record<LearningTaskType, string[]>>((result, taskType) => {
+    result[taskType] = [];
+    return result;
+  }, {} as Record<LearningTaskType, string[]>);
+
+  for (const part of parts) {
+    const text = part.text.trim();
+    if (!text) continue;
+    for (const taskType of TASK_TIE_BREAK_ORDER) {
+      for (const signal of TASK_SIGNAL_RULES[taskType]) {
+        if (!signal.pattern.test(text)) continue;
+        scores[taskType] += signal.weight * part.importance;
+        if (!evidence[taskType].includes(signal.evidence)) {
+          evidence[taskType].push(signal.evidence);
+        }
+      }
+    }
+  }
+
+  const ranked = TASK_TIE_BREAK_ORDER
+    .map((taskType) => ({ taskType, score: scores[taskType] }))
+    .sort((left, right) => right.score - left.score
+      || TASK_TIE_BREAK_ORDER.indexOf(left.taskType) - TASK_TIE_BREAK_ORDER.indexOf(right.taskType));
+  const winner = ranked[0];
+  const runnerUp = ranked[1];
+
+  if (!winner || winner.score <= 0) {
+    return { taskType: "conceptual_learning", confidence: "default", evidence: [] };
+  }
+
+  return {
+    taskType: winner.taskType,
+    confidence: winner.score >= 5 && winner.score - runnerUp.score >= 2 ? "clear" : "mixed",
+    evidence: evidence[winner.taskType].slice(0, 3),
+  };
 }
 
 export function inferKnowledgeStage(results: MethodRoutingInput["recentResults"], text: string): KnowledgeStage {

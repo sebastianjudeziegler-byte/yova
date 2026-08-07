@@ -88,6 +88,8 @@ A cross-browser six-digit email-code flow is implemented and tested behind a ser
 - Every new guided session must explain what the selected method is, why it fits, how to execute it, and what completion means
 - Learner tendencies are treated as delivery modifiers rather than fixed brain types or replacements for task-appropriate methods
 - YOVA infers whether to teach first or practice first from concrete starting-point evidence; plans can transition between the two and weak results can switch the next session back to targeted teaching
+- The task router now weighs what the learner is being asked to do instead of taking the first matching keyword; biology functions, algebra functions, genetic code, source articles, essays, coding, memorization, and mixed exams are covered by regression scenarios
+- Current session objectives outweigh broad source labels and stale method names, and the non-AI fallback replaces an old method when it does not fit the actual task
 - Teaching-first sessions must begin with instruction or a model, while practice-first sessions must begin with an unsupported attempt before explanation
 - Knowledge checks capture confidence before the answer, allowing YOVA to distinguish possible misconceptions from correct-but-uncertain knowledge
 - Confidence evidence is stored without the learner’s typed response, shown transparently at completion, and used to choose misconception repair versus independent confirmation

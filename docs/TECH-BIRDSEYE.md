@@ -208,7 +208,7 @@ This is why pushing to GitHub does not automatically make `localhost:3000` avail
 - **Production smoke test:** checks the deployed system with its real configuration.
 - **AI quality evaluation:** scores real generated plans against product-specific learning, timing, safety, and personalization criteria.
 
-YOVA currently has 219 passing unit tests, thirteen foundational browser journeys exercised at desktop and phone-sized viewports, and opt-in live OpenAI evaluations for plans, sessions, and typed-answer judgment. The live evaluations consume API credits, so ordinary builds never trigger them. Real authenticated production journeys and broader human output review remain launch work.
+YOVA currently has 256 passing unit tests, thirteen foundational browser journeys exercised at both desktop and phone-sized viewports for 26 passing browser runs, and opt-in live OpenAI evaluations for plans, sessions, and typed-answer judgment. The live evaluations consume API credits, so ordinary builds never trigger them. Real authenticated production journeys and broader human output review remain launch work.
 
 ## 13. The next technical systems
 
