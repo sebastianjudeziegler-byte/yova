@@ -146,6 +146,8 @@ import { RescheduleSessionResponseSchema } from "@/lib/scheduling/schema";
 import {
   buildAgendaBalanceSuggestion,
   buildAgendaDayGroups,
+  buildDailyCapacityPlan,
+  localDateKey,
   summarizeAgenda,
 } from "@/lib/scheduling/agenda-insights";
 import { isSessionOverdue, recoverySessionMinutes, tomorrowAtSessionTime } from "@/lib/scheduling/recovery";
@@ -1843,6 +1845,9 @@ function AgendaScreen({ plans, sessionCompletions, sessionInterruptions, preview
   const [reviewError, setReviewError] = useState<string | null>(null);
   const [balanceAction, setBalanceAction] = useState(false);
   const [balanceError, setBalanceError] = useState<string | null>(null);
+  const [todayCapacity, setTodayCapacity] = useState<number | null>(null);
+  const [capacityAction, setCapacityAction] = useState<"move" | "split" | null>(null);
+  const [capacityError, setCapacityError] = useState<string | null>(null);
   const conceptReviews = buildConceptReviewAgenda(plans, sessionCompletions);
   const availableSessions = plans
     .flatMap((plan) => plan.sessions.filter((session) => session.status !== "complete" && session.status !== "skipped").map((session) => ({ plan, session })))
@@ -1855,6 +1860,9 @@ function AgendaScreen({ plans, sessionCompletions, sessionInterruptions, preview
   const agendaSummary = summarizeAgenda(availableSessions, plans);
   const dayGroups = buildAgendaDayGroups(availableSessions);
   const balanceSuggestion = buildAgendaBalanceSuggestion(availableSessions);
+  const capacityPlan = todayCapacity === null ? null : buildDailyCapacityPlan(availableSessions, todayCapacity);
+  const showBalanceSuggestion = balanceSuggestion
+    && (todayCapacity === null || balanceSuggestion.fromDateKey !== localDateKey(new Date()));
 
   const openMove = (planId: string, sessionId: string, scheduledFor: string) => {
     setMoving({ planId, sessionId });
@@ -1949,6 +1957,32 @@ function AgendaScreen({ plans, sessionCompletions, sessionInterruptions, preview
     }
   };
 
+  const applyCapacityMove = async () => {
+    if (capacityPlan?.status !== "move" || !capacityPlan.entry || !capacityPlan.scheduledFor || capacityAction) return;
+    setCapacityAction("move");
+    setCapacityError(null);
+    try {
+      await rescheduleEntry(capacityPlan.entry, capacityPlan.scheduledFor);
+    } catch (requestError) {
+      setCapacityError(requestError instanceof Error ? requestError.message : "YOVA could not adjust today's schedule.");
+    } finally {
+      setCapacityAction(null);
+    }
+  };
+
+  const applyCapacitySplit = async () => {
+    if (capacityPlan?.status !== "split" || !capacityPlan.entry || capacityPlan.splitMinutes === null || capacityAction) return;
+    setCapacityAction("split");
+    setCapacityError(null);
+    try {
+      await onAdjustDuration(capacityPlan.entry.session.id, capacityPlan.splitMinutes);
+    } catch (requestError) {
+      setCapacityError(requestError instanceof Error ? requestError.message : "YOVA could not split that learning content.");
+    } finally {
+      setCapacityAction(null);
+    }
+  };
+
   return <div className="page">
     <PageHeader eyebrow="AGENDA" title="A realistic learning week" description="See the work across every goal, protect your deadlines, and let YOVA flag a schedule that is becoming unrealistic." />
     <section className="agenda-overview" aria-label="Agenda overview">
@@ -1958,7 +1992,22 @@ function AgendaScreen({ plans, sessionCompletions, sessionInterruptions, preview
       <article><span><BookOpen size={18} /> Active goals</span><strong>{agendaSummary.activeGoals}</strong><small>Combined into one agenda</small></article>
     </section>
     <section className="agenda-planning-basis"><Sparkles size={18} /><div><strong>What YOVA is planning around</strong><p>Session order, selected availability, deadlines, unfinished work, and concept reviews. You stay in control of every proposed move.</p></div></section>
-    {balanceSuggestion && <section className="agenda-balance-card" aria-live="polite"><span className="agenda-balance-icon"><Sparkles size={20} /></span><div><span className="step-label">YOVA RECOMMENDS</span><h2>Make {agendaDateLabel(balanceSuggestion.fromDateKey)} more realistic</h2><p>Move <strong>{balanceSuggestion.entry.session.title}</strong> to {agendaDateLabel(balanceSuggestion.toDateKey)}. The original day drops from {balanceSuggestion.beforeMinutes} to {balanceSuggestion.afterMinutes} minutes, and the new day becomes {balanceSuggestion.targetMinutes} minutes.</p><small>{balanceSuggestion.reason}</small></div><button className="button primary" disabled={balanceAction} onClick={() => void applyBalanceSuggestion()}>{balanceAction ? <><span className="button-spinner" /> Rebalancing</> : "Approve move"}</button>{balanceError && <div className="chat-error"><AlertCircle size={16} /><span>{balanceError}</span></div>}</section>}
+    <section className="agenda-capacity-planner" aria-label="Plan around today's available time">
+      <div className="agenda-capacity-heading"><span className="agenda-capacity-icon"><Clock3 size={20} /></span><div><span className="step-label">TODAY’S REALITY</span><h2>How much time do you actually have today?</h2><p>YOVA will protect urgent work, preserve the learning sequence, and carry unfinished content forward. Time changes the shape of the plan, not what you still need to learn.</p></div></div>
+      <div className="agenda-capacity-options" role="group" aria-label="Available learning time today">{[15, 30, 45, 60, 90].map((minutes) => <button key={minutes} type="button" aria-pressed={todayCapacity === minutes} aria-label={`I have ${minutes} minutes today`} onClick={() => { setTodayCapacity(minutes); setCapacityError(null); }}>{minutes}<small>min</small></button>)}</div>
+      {capacityPlan && <div className={`agenda-capacity-result ${capacityPlan.status}`} aria-live="polite">
+        <div>
+          <span>{capacityPlan.status === "fits" ? "TODAY ALREADY FITS" : capacityPlan.status === "empty" ? "NO CHANGE NEEDED" : capacityPlan.status === "blocked" ? "YOUR CHOICE IS NEEDED" : "YOVA RECOMMENDS"}</span>
+          {capacityPlan.status === "move" && capacityPlan.entry && capacityPlan.toDateKey && <><strong>Move {capacityPlan.entry.session.title} to {agendaDateLabel(capacityPlan.toDateKey)}</strong><p>Today drops from {capacityPlan.todayMinutes} to {capacityPlan.projectedMinutes} minutes. {capacityPlan.reason}</p></>}
+          {capacityPlan.status === "split" && capacityPlan.entry && capacityPlan.splitMinutes !== null && <><strong>Split {capacityPlan.entry.plan.title} into {capacityPlan.splitMinutes}-minute content blocks</strong><p>Today drops from {capacityPlan.todayMinutes} to {capacityPlan.projectedMinutes} minutes. No content is marked complete or deleted. {capacityPlan.reason}</p></>}
+          {(capacityPlan.status === "fits" || capacityPlan.status === "empty" || capacityPlan.status === "blocked") && <><strong>{capacityPlan.status === "fits" ? `${capacityPlan.todayMinutes} minutes of content fits your ${capacityPlan.capacityMinutes}-minute window` : capacityPlan.status === "empty" ? "Your day is open for learning" : "YOVA will not make an unsafe automatic change"}</strong><p>{capacityPlan.reason}</p></>}
+        </div>
+        {capacityPlan.status === "move" && <button className="button primary" disabled={Boolean(capacityAction)} onClick={() => void applyCapacityMove()}>{capacityAction === "move" ? <><span className="button-spinner" /> Moving</> : "Approve move"}</button>}
+        {capacityPlan.status === "split" && <button className="button primary" disabled={Boolean(capacityAction)} onClick={() => void applyCapacitySplit()}>{capacityAction === "split" ? <><span className="button-spinner" /> Rebuilding</> : "Approve content split"}</button>}
+      </div>}
+      {capacityError && <div className="chat-error"><AlertCircle size={16} /><span>{capacityError}</span></div>}
+    </section>
+    {showBalanceSuggestion && <section className="agenda-balance-card" aria-live="polite"><span className="agenda-balance-icon"><Sparkles size={20} /></span><div><span className="step-label">YOVA RECOMMENDS</span><h2>Make {agendaDateLabel(balanceSuggestion.fromDateKey)} more realistic</h2><p>Move <strong>{balanceSuggestion.entry.session.title}</strong> to {agendaDateLabel(balanceSuggestion.toDateKey)}. The original day drops from {balanceSuggestion.beforeMinutes} to {balanceSuggestion.afterMinutes} minutes, and the new day becomes {balanceSuggestion.targetMinutes} minutes.</p><small>{balanceSuggestion.reason}</small></div><button className="button primary" disabled={balanceAction} onClick={() => void applyBalanceSuggestion()}>{balanceAction ? <><span className="button-spinner" /> Rebalancing</> : "Approve move"}</button>{balanceError && <div className="chat-error"><AlertCircle size={16} /><span>{balanceError}</span></div>}</section>}
     {overdueEntry && <section className="agenda-recovery" aria-live="polite"><div className="agenda-recovery-copy"><span className="step-label">PLAN NEEDS A RESET</span><h2>You missed a session. The plan is still recoverable.</h2><p><strong>{overdueEntry.session.title}</strong> for {overdueEntry.plan.title} was scheduled for {formatAgendaTime(overdueEntry.session.scheduledFor)}. Choose the smallest useful next move. YOVA will not punish the rest of the plan.</p></div><div className="agenda-recovery-actions"><button className="button primary" disabled={Boolean(recoveryAction)} onClick={() => onStart(overdueEntry.plan.id)}>Start it now</button>{recoveryMinutes !== null && recoveryMinutes < overdueEntry.session.estimatedMinutes && <button className="button secondary" disabled={Boolean(recoveryAction)} onClick={() => void shortenAndStart()}>{recoveryAction === "shorten" ? <span className="button-spinner dark" /> : null} Split remaining work into {recoveryMinutes}-min sessions</button>}<button className="button ghost" disabled={Boolean(recoveryAction)} onClick={() => void moveOverdueToTomorrow()}>{recoveryAction === "move" ? <span className="button-spinner dark" /> : null} Move to tomorrow</button></div>{recoveryError && <div className="chat-error"><AlertCircle size={16} /><span>{recoveryError}</span></div>}</section>}
     <section className="section-block agenda-schedule">
       <div className="section-title"><div><h3>Your learning schedule</h3><p>Each day shows the actual amount of planned work, not just calendar events.</p></div><span>Next 14 days</span></div>

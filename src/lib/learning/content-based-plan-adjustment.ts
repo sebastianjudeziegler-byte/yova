@@ -34,6 +34,7 @@ export function buildContentBasedReplacementSessions(
   }
 
   let sequence = startingSequence;
+  let lastScheduledTime = Number.NEGATIVE_INFINITY;
   const replacements: ReplacementPlanSession[] = [];
 
   for (const [originSessionId, group] of groups) {
@@ -52,7 +53,8 @@ export function buildContentBasedReplacementSessions(
       const segmentMinutes = evenMinutes + (segmentIndex < extraMinutes ? 1 : 0);
       const contentTargets = distributeStrings(targets, segmentIndex, segmentCount, first.objective);
       const completionEvidence = distributeStrings(evidence, segmentIndex, segmentCount, "Produce an independent attempt for this content slice");
-      const scheduledFor = shiftedSchedule(first.scheduled_for, segmentIndex);
+      const scheduledFor = sequencedSchedule(first.scheduled_for, segmentIndex, lastScheduledTime);
+      lastScheduledTime = new Date(scheduledFor).getTime();
       replacements.push({
         id: segmentIndex === 0 ? first.id : makeUuid(),
         sequence,
@@ -118,4 +120,12 @@ function shiftedSchedule(value: string | null, days: number) {
   if (Number.isNaN(date.getTime())) return new Date().toISOString();
   date.setDate(date.getDate() + days);
   return date.toISOString();
+}
+
+function sequencedSchedule(value: string | null, days: number, lastScheduledTime: number) {
+  const candidate = new Date(shiftedSchedule(value, days));
+  while (candidate.getTime() <= lastScheduledTime) {
+    candidate.setDate(candidate.getDate() + 1);
+  }
+  return candidate.toISOString();
 }

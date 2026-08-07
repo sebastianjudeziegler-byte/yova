@@ -21,6 +21,18 @@ export type AgendaBalanceSuggestion = {
   reason: string;
 };
 
+export type DailyCapacityPlan = {
+  status: "empty" | "fits" | "move" | "split" | "blocked";
+  capacityMinutes: number;
+  todayMinutes: number;
+  projectedMinutes: number;
+  entry: ScheduledLearningEntry | null;
+  scheduledFor: string | null;
+  toDateKey: string | null;
+  splitMinutes: number | null;
+  reason: string;
+};
+
 export function buildAgendaDayGroups(entries: ScheduledLearningEntry[], now = new Date(), days = 14) {
   const firstDay = startOfLocalDay(now);
   const finalDay = startOfLocalDay(addLocalDays(now, days));
@@ -112,6 +124,94 @@ export function buildAgendaBalanceSuggestion(entries: ScheduledLearningEntry[], 
   return null;
 }
 
+export function buildDailyCapacityPlan(
+  entries: ScheduledLearningEntry[],
+  requestedCapacityMinutes: number,
+  now = new Date(),
+): DailyCapacityPlan {
+  const capacityMinutes = Math.max(10, Math.min(180, Math.round(requestedCapacityMinutes)));
+  const todayKey = localDateKey(now);
+  const todayEntries = entries
+    .filter(({ session }) => localDateKey(new Date(session.scheduledFor)) === todayKey)
+    .sort((left, right) => capacityPriority(left, right));
+  const todayMinutes = sumMinutes(todayEntries);
+
+  if (!todayEntries.length) {
+    return {
+      status: "empty",
+      capacityMinutes,
+      todayMinutes: 0,
+      projectedMinutes: 0,
+      entry: null,
+      scheduledFor: null,
+      toDateKey: null,
+      splitMinutes: null,
+      reason: "Nothing is scheduled today, so YOVA does not need to move or compress any learning content.",
+    };
+  }
+
+  if (todayMinutes <= capacityMinutes) {
+    return {
+      status: "fits",
+      capacityMinutes,
+      todayMinutes,
+      projectedMinutes: todayMinutes,
+      entry: null,
+      scheduledFor: null,
+      toDateKey: null,
+      splitMinutes: null,
+      reason: "The planned content already fits the time available. YOVA will keep the learning sequence unchanged.",
+    };
+  }
+
+  const groups = buildAgendaDayGroups(entries, now, 10);
+  const candidates = [...todayEntries].sort(capacityMovePriority);
+  for (const entry of candidates) {
+    const target = findCapacityMoveTarget(entry, entries, groups, now);
+    if (!target) continue;
+    return {
+      status: "move",
+      capacityMinutes,
+      todayMinutes,
+      projectedMinutes: todayMinutes - entry.session.estimatedMinutes,
+      entry,
+      scheduledFor: target.scheduledFor,
+      toDateKey: target.toDateKey,
+      splitMinutes: null,
+      reason: target.reason,
+    };
+  }
+
+  for (const entry of [...todayEntries].sort((left, right) => right.session.estimatedMinutes - left.session.estimatedMinutes)) {
+    const minutesWithoutEntry = todayMinutes - entry.session.estimatedMinutes;
+    const splitMinutes = capacityMinutes - minutesWithoutEntry;
+    if (splitMinutes < 10 || splitMinutes >= entry.session.estimatedMinutes) continue;
+    return {
+      status: "split",
+      capacityMinutes,
+      todayMinutes,
+      projectedMinutes: minutesWithoutEntry + splitMinutes,
+      entry,
+      scheduledFor: null,
+      toDateKey: null,
+      splitMinutes,
+      reason: `The deadline and learning order make a move unsafe. Splitting ${entry.plan.title} keeps only a bounded content block today and carries the unfinished content forward.`,
+    };
+  }
+
+  return {
+    status: "blocked",
+    capacityMinutes,
+    todayMinutes,
+    projectedMinutes: todayMinutes,
+    entry: null,
+    scheduledFor: null,
+    toDateKey: null,
+    splitMinutes: null,
+    reason: "YOVA could not find a safe automatic change that preserves the current deadlines and learning order. Move a session manually or update a goal deadline.",
+  };
+}
+
 export function localDateKey(date: Date) {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -127,6 +227,68 @@ function loadFor(minutes: number, sessions: number): AgendaDayGroup["load"] {
   if (minutes > 75 || sessions >= 3) return "heavy";
   if (minutes >= 30 || sessions >= 2) return "focused";
   return "light";
+}
+
+function capacityPriority(left: ScheduledLearningEntry, right: ScheduledLearningEntry) {
+  const leftReady = left.session.status === "ready" ? 0 : 1;
+  const rightReady = right.session.status === "ready" ? 0 : 1;
+  if (leftReady !== rightReady) return leftReady - rightReady;
+  const leftDeadline = deadlineTime(left.plan);
+  const rightDeadline = deadlineTime(right.plan);
+  if (leftDeadline !== rightDeadline) return leftDeadline - rightDeadline;
+  return new Date(left.session.scheduledFor).getTime() - new Date(right.session.scheduledFor).getTime();
+}
+
+function capacityMovePriority(left: ScheduledLearningEntry, right: ScheduledLearningEntry) {
+  const leftUpcoming = left.session.status === "upcoming" ? 0 : 1;
+  const rightUpcoming = right.session.status === "upcoming" ? 0 : 1;
+  if (leftUpcoming !== rightUpcoming) return leftUpcoming - rightUpcoming;
+  const leftDeadline = deadlineTime(left.plan);
+  const rightDeadline = deadlineTime(right.plan);
+  if (leftDeadline !== rightDeadline) return rightDeadline - leftDeadline;
+  return new Date(right.session.scheduledFor).getTime() - new Date(left.session.scheduledFor).getTime();
+}
+
+function deadlineTime(plan: LearningPlan) {
+  if (!plan.deadline) return Number.POSITIVE_INFINITY;
+  const deadline = new Date(plan.deadline).getTime();
+  return Number.isNaN(deadline) ? Number.POSITIVE_INFINITY : deadline;
+}
+
+function findCapacityMoveTarget(
+  entry: ScheduledLearningEntry,
+  entries: ScheduledLearningEntry[],
+  groups: AgendaDayGroup[],
+  now: Date,
+) {
+  const planEntries = entries
+    .filter(({ plan }) => plan.id === entry.plan.id)
+    .sort((left, right) => left.session.sequence - right.session.sequence);
+  const sourceIndex = planEntries.findIndex(({ session }) => session.id === entry.session.id);
+  const previousTime = sourceIndex > 0
+    ? new Date(planEntries[sourceIndex - 1].session.scheduledFor).getTime()
+    : Number.NEGATIVE_INFINITY;
+  const nextTime = sourceIndex >= 0 && sourceIndex < planEntries.length - 1
+    ? new Date(planEntries[sourceIndex + 1].session.scheduledFor).getTime()
+    : Number.POSITIVE_INFINITY;
+  const source = new Date(entry.session.scheduledFor);
+
+  for (let offset = 1; offset <= 7; offset += 1) {
+    const target = addLocalDays(source, offset);
+    if (target <= now || target.getTime() <= previousTime || target.getTime() >= nextTime) continue;
+    if (entry.plan.deadline && target > new Date(entry.plan.deadline)) continue;
+    const toDateKey = localDateKey(target);
+    const targetGroup = groups.find((group) => group.dateKey === toDateKey);
+    const targetMinutes = targetGroup?.totalMinutes ?? 0;
+    const targetSessions = targetGroup?.entries.length ?? 0;
+    if (loadFor(targetMinutes + entry.session.estimatedMinutes, targetSessions + 1) === "heavy") continue;
+    return {
+      scheduledFor: target.toISOString(),
+      toDateKey,
+      reason: `This protects the more urgent work, keeps ${entry.plan.title} in sequence, and avoids creating another crowded day.`,
+    };
+  }
+  return null;
 }
 
 function startOfLocalDay(value: Date) {

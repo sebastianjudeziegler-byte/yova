@@ -40,4 +40,21 @@ describe("content-based plan adjustment", () => {
 
     expect(sessions.map((session) => session.estimatedMinutes)).toEqual([10, 10]);
   });
+
+  it("keeps replacement content in chronological learning order when original sessions shared a date", () => {
+    const sessions = buildContentBasedReplacementSessions([
+      originalSession,
+      {
+        ...originalSession,
+        id: "10000000-1000-4000-8000-100000000002",
+        sequence: 2,
+        title: "Apply the cellular respiration model",
+        status: "upcoming" as const,
+      },
+    ], 15, 1);
+
+    const scheduledTimes = sessions.map((session) => new Date(session.scheduledFor).getTime());
+    expect(scheduledTimes).toEqual([...scheduledTimes].sort((left, right) => left - right));
+    expect(new Set(scheduledTimes).size).toBe(scheduledTimes.length);
+  });
 });

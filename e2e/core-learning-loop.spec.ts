@@ -617,6 +617,9 @@ test("a multi-session plan uses one clear source decision from setup to Learning
   if (await moveOverdue.isVisible()) await moveOverdue.click();
   await expect(page.getByRole("heading", { name: "A realistic learning week" })).toBeVisible();
   await expect(page.getByText("What YOVA is planning around")).toBeVisible();
+  await page.getByRole("button", { name: "I have 15 minutes today" }).click();
+  await expect(page.locator(".agenda-capacity-result")).not.toHaveClass(/blocked/);
+  await expect(page.locator(".agenda-capacity-result")).toContainText(/TODAY ALREADY FITS|NO CHANGE NEEDED/);
   const nextAgendaSession = page.locator(".agenda-day article.ready").first();
   await expect(nextAgendaSession).toBeVisible();
   await nextAgendaSession.getByRole("button", { name: "Start", exact: true }).click();
