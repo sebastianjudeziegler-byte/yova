@@ -93,4 +93,27 @@ describe("buildFallbackMethodBriefing", () => {
     expect(briefing.taskType).toBe("conceptual_learning");
     expect(briefing.methodId).toBe("self_explanation");
   });
+
+  it("replaces a review method when a conceptual session must teach first", () => {
+    const session = makeSession({
+      title: "Build the cellular respiration model",
+      objective: "Explain how the stages of cellular respiration connect and produce ATP.",
+      method: "Closed-note retrieval",
+      methodReason: "The original plan named a review method.",
+      learningMode: "learn",
+    });
+    const plan = makePlan(session, {
+      title: "Cellular respiration",
+      topic: "Understand cellular respiration and ATP production",
+      kind: "topic",
+      studyMode: "inside_yova",
+      learningIntent: "learn",
+    });
+
+    const briefing = buildFallbackMethodBriefing(plan, session);
+
+    expect(briefing.taskType).toBe("conceptual_learning");
+    expect(briefing.methodId).toBe("self_explanation");
+    expect(briefing.name).toBe("Self-explanation");
+  });
 });

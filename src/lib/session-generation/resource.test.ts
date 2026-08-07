@@ -3,7 +3,7 @@ import { readSessionResourceFromStepData, toSessionResource } from "@/lib/sessio
 import { GeneratedSessionDraftSchema, type SessionGenerationResponse } from "@/lib/session-generation/schema";
 
 const generatedSession: SessionGenerationResponse["session"] = {
-  schemaVersion: 12,
+  schemaVersion: 13,
   model: "gpt-test",
   generatedAt: "2026-08-05T18:00:00.000Z",
   rationale: "This sequence teaches the core idea before checking recall and application.",

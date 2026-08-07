@@ -33,6 +33,8 @@ export const SessionGenerationRequestSchema = z.object({
       learningMode: z.enum(["learn", "study"]),
       contentTargets: z.array(z.string().trim().min(5).max(180)).max(6).default([]),
       completionEvidence: z.array(z.string().trim().min(8).max(220)).max(4).default([]),
+      reviewConcept: z.string().trim().min(2).max(120).nullable().optional(),
+      reviewType: z.enum(["repair_and_retrieve", "verify", "maintenance_transfer"]).nullable().optional(),
     }),
     learnerProfile: z.object({
       commonBlocker: z.string().trim().max(240).nullable(),
@@ -220,9 +222,6 @@ export const GeneratedSessionDraftSchema = z.object({
   if (!session.activities.some((activity) => activity.type === "multiple_choice")) {
     context.addIssue({ code: "custom", path: ["activities"], message: "A guided session needs at least one knowledge check." });
   }
-  if (!session.activities.some((activity) => activity.type === "free_response")) {
-    context.addIssue({ code: "custom", path: ["activities"], message: "A guided session needs at least one typed active-recall attempt." });
-  }
   const firstActivity = session.activities[0];
   if (session.methodBriefing.learningMode === "learn" && firstActivity?.type !== "instruction") {
     context.addIssue({ code: "custom", path: ["activities", 0], message: "Teaching-first sessions must begin with a concise explanation or model." });
@@ -239,7 +238,7 @@ export const GeneratedSessionDraftSchema = z.object({
 });
 
 export const CachedGeneratedSessionSchema = GeneratedSessionDraftSchema.extend({
-  schemaVersion: z.literal(12),
+  schemaVersion: z.literal(13),
   model: z.string().min(1),
   generatedAt: z.string().datetime({ offset: true }),
   supportPlan: SessionSupportPlanSchema.optional(),

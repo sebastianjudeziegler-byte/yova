@@ -16,7 +16,15 @@ import {
   validateLearningScienceRoutingSelection,
   type LearningScienceRoutingBrief,
 } from "@/lib/learning/method-router";
+import { learningScienceCatalogForPrompt } from "@/lib/learning/method-catalog";
 import { methodFidelityContractsForPrompt, validateMethodFidelity } from "@/lib/learning/method-fidelity";
+import { learningModeContract } from "@/lib/learning/learning-intent";
+import {
+  adaptDeliveryPolicyForScheduledRetrieval,
+  inferScheduledRetrievalType,
+  scheduledRetrievalContract,
+  validateScheduledRetrievalSession,
+} from "@/lib/learning/scheduled-retrieval";
 import {
   buildSessionSupportPlan,
   validateScaffoldProgression,
@@ -65,6 +73,8 @@ export type SessionGenerationContext = {
     learningMode: SessionLearningMode;
     contentTargets?: string[];
     completionEvidence?: string[];
+    reviewConcept?: string | null;
+    reviewType?: "repair_and_retrieve" | "verify" | "maintenance_transfer" | null;
   };
   learnerProfile: {
     commonBlocker: string | null;
@@ -135,6 +145,7 @@ Requirements:
 - Session time is a capacity constraint, never the definition of completion. A session is complete only after every requiredForCompletion activity is attempted. Do not treat exposure, elapsed time, reading, or button-clicking as evidence of completion.
 - Preserve the planned contentTargets and completionEvidence when supplied. If they cannot fit honestly, teach a smaller coherent subset now and put the remainder in coverage.deferredContent. Never compress a broad 45-minute objective into a superficial 15-minute pass.
 - The method briefing must explain the learning method itself. Keep productivity or tendency-based delivery changes in methodBriefing.personalization.
+- When quickReviewContract is present, it replaces the normal full-session activity mix. Follow it exactly: three short multiple-choice questions, no typed response, no confidence request, and no teaching before the first answer. This is a calm scheduled return, not another full lesson.
 - Follow sessionDeliveryPolicy as YOVA's explicit delivery contract. The task-selected method remains primary, while this policy controls how teaching is presented, how a miss is repaired, what kind of later evidence is emphasized, how much structure is visible, and how small the session starts.
 - For a learn session, apply sessionDeliveryPolicy.presentation to the opening teaching block. For a study session, preserve the unsupported first attempt and apply the presentation policy only when teaching or repair is subsequently needed.
 - Follow sessionDeliveryPolicy.repair after a miss. A hint-first policy preserves another attempt before revealing the answer. Alternate-example uses a new case. Direct-correction names and replaces the wrong relationship. Smaller-steps restores one intermediate step at a time. Retry-independently uses a fresh unsupported prompt after concise feedback.
@@ -194,6 +205,7 @@ export async function generateSessionWithOpenAI(
   originalContext: SessionGenerationContext,
 ): Promise<OpenAISessionResult> {
   const context = applyCurrentSessionAdjustment(originalContext);
+  const quickReviewContract = scheduledRetrievalContract(context.session);
   const config = getOpenAISessionConfig();
   if (!config) throw new Error("OpenAI is not configured on the YOVA server.");
   const generationStartedAt = Date.now();
@@ -205,7 +217,7 @@ export async function generateSessionWithOpenAI(
     outputTokens: 0,
   };
 
-  const learningScienceRouting = buildLearningScienceRoutingBrief({
+  const baseLearningScienceRouting = buildLearningScienceRoutingBrief({
     learningIntent: context.learningGoal.learningIntent,
     sessionLearningMode: context.session.learningMode,
     goalTitle: context.learningGoal.title,
@@ -219,23 +231,44 @@ export async function generateSessionWithOpenAI(
     recentResults: context.recentResults,
     interruptionCount: context.recentInterruptions.length,
   });
+  const learningScienceRouting: LearningScienceRoutingBrief = quickReviewContract
+    ? {
+      ...baseLearningScienceRouting,
+      sessionLearningMode: "study",
+      knowledgeStage: "retrieval_ready",
+      suggestedPrimaryMethodId: "retrieval_practice",
+      allowedMethodIds: ["retrieval_practice"],
+      methods: learningScienceCatalogForPrompt(["retrieval_practice"]),
+      decisionBasis: [
+        `Scheduled retrieval: ${quickReviewContract.reviewType.replaceAll("_", " ")} for ${quickReviewContract.concept ?? "the target concept"}.`,
+        "The learner already encountered this content, so YOVA will ask for a brief unsupported answer before feedback.",
+        ...baseLearningScienceRouting.decisionBasis,
+      ],
+      executionContract: learningModeContract("study"),
+    }
+    : baseLearningScienceRouting;
   const sourceGroundingPolicy = context.learningGoal.sourceMode === "user_materials"
     ? buildMaterialSupportPolicy(context.materials)
     : null;
-  const methodFidelityContracts = methodFidelityContractsForPrompt(
-    learningScienceRouting.allowedMethodIds,
-    learningScienceRouting.sessionLearningMode,
-  );
+  const methodFidelityContracts = quickReviewContract
+    ? null
+    : methodFidelityContractsForPrompt(
+      learningScienceRouting.allowedMethodIds,
+      learningScienceRouting.sessionLearningMode,
+    );
   const observedMethodOutcomes = buildMethodOutcomeSignals(context.recentResults);
   const conceptReviewSchedule = buildConceptReviewSchedule(context.conceptSignals);
   const scaffoldProgression = context.scaffoldSignals ?? [];
-  const sessionDeliveryPolicy = buildSessionDeliveryPolicy({
+  const baselineDeliveryPolicy = buildSessionDeliveryPolicy({
     learnerProfile: context.learnerProfile,
     recentResults: context.recentResults,
     recentInterruptions: context.recentInterruptions,
     learningMode: context.session.learningMode,
     estimatedMinutes: context.session.estimatedMinutes,
   });
+  const sessionDeliveryPolicy = quickReviewContract
+    ? adaptDeliveryPolicyForScheduledRetrieval(baselineDeliveryPolicy, quickReviewContract.concept)
+    : baselineDeliveryPolicy;
   const outsideAppContract = context.learningGoal.studyMode === "outside_yova"
     ? {
       required: true,
@@ -261,6 +294,7 @@ export async function generateSessionWithOpenAI(
         conceptReviewSchedule,
         scaffoldProgression,
         sessionDeliveryPolicy,
+        quickReviewContract,
         sourceGroundingPolicy,
         outsideAppContract,
       })}`,
@@ -270,7 +304,7 @@ export async function generateSessionWithOpenAI(
         verbosity: "low",
       },
       max_output_tokens: 4_000,
-      prompt_cache_key: "yova-guided-session-v12",
+      prompt_cache_key: "yova-guided-session-v13",
       store: false,
     });
 
@@ -325,11 +359,19 @@ export async function generateSessionWithOpenAI(
     draft: parsed.data,
     model: response.model,
     responseId: response.id,
-    supportPlan: buildSessionSupportPlan({
-      signals: scaffoldProgression,
-      activities: parsed.data.activities,
-      learningMode: parsed.data.methodBriefing.learningMode,
-    }),
+    supportPlan: quickReviewContract
+      ? {
+        level: "independent_start",
+        title: "Quick retrieval check",
+        explanation: quickReviewContract.learnerPromise,
+        evidenceLabel: quickReviewContract.evidenceBoundary,
+        concept: quickReviewContract.concept,
+      }
+      : buildSessionSupportPlan({
+        signals: scaffoldProgression,
+        activities: parsed.data.activities,
+        learningMode: parsed.data.methodBriefing.learningMode,
+      }),
     deliveryPolicy: sessionDeliveryPolicy,
     generationStats: {
       elapsedMs: Date.now() - generationStartedAt,
@@ -349,12 +391,17 @@ function applyCurrentSessionAdjustment(context: SessionGenerationContext): Sessi
   const adjustment = context.sessionAdjustment;
   if (!adjustment) return context;
 
-  const nextLearningMode = adjustment.familiarity === "need_teaching"
+  const scheduledRetrieval = inferScheduledRetrievalType(context.session);
+  const nextLearningMode = scheduledRetrieval
+    ? "study"
+    : adjustment.familiarity === "need_teaching"
     ? "learn"
     : adjustment.familiarity === "already_know" || adjustment.familiarity === "challenge_me"
       ? "study"
       : context.session.learningMode;
-  const currentUpdate = adjustment.familiarity === "already_know"
+  const currentUpdate = scheduledRetrieval
+    ? "This is a scheduled low-stress retrieval. Keep it multiple-choice only and use the result to decide what should return next."
+    : adjustment.familiarity === "already_know"
     ? `The learner reports already knowing some of this content.${adjustment.knownTargets.length ? ` Claimed known targets: ${adjustment.knownTargets.join("; ")}.` : ""} Verify the claim with an unsupported attempt before any teaching model and omit only what the evidence supports.`
     : adjustment.familiarity === "need_teaching"
       ? "The learner asked for teaching before practice. Build an accurate model or explanation before reducing support."
@@ -389,14 +436,20 @@ function validateGeneratedSession(
   scaffoldProgression: ScaffoldProgressionSignal[],
   sessionDeliveryPolicy: SessionDeliveryPolicy,
 ) {
+  const scheduledRetrieval = Boolean(inferScheduledRetrievalType(context.session));
+  const activityFormatIssue = scheduledRetrieval
+    ? validateScheduledRetrievalSession(draft, context.session)
+    : validateStandardGuidedSessionActivityMix(draft);
+
   return validateSessionTimeBudget(draft, context.session.estimatedMinutes)
     ?? validateLearningScienceRoutingSelection(draft.methodBriefing, learningScienceRouting)
     ?? validateSessionAdjustmentFidelity(draft, context.sessionAdjustment)
-    ?? validateSessionDeliveryPolicy({
+    ?? activityFormatIssue
+    ?? (scheduledRetrieval ? null : validateSessionDeliveryPolicy({
       policy: sessionDeliveryPolicy,
       learningMode: draft.methodBriefing.learningMode,
       activities: draft.activities,
-    })
+    }))
     ?? validateSessionCompletionContract({
       essentialIdeas: draft.coverage.essentialIdeas,
       evidenceMap: draft.coverage.evidenceMap,
@@ -409,21 +462,27 @@ function validateGeneratedSession(
     materials: context.materials,
     grounding: draft.sourceGrounding,
     learningMode: context.session.learningMode,
-  }) ?? validateMethodFidelity({
+  }) ?? (scheduledRetrieval ? null : validateMethodFidelity({
     methodId: draft.methodBriefing.methodId,
     learningMode: draft.methodBriefing.learningMode,
     activities: draft.activities,
-  }) ?? validateMethodOutcomeAdaptation({
+  })) ?? validateMethodOutcomeAdaptation({
     methodId: draft.methodBriefing.methodId,
     personalization: draft.methodBriefing.personalization,
     signals: observedMethodOutcomes,
   }) ?? validateConceptReviewSchedule({
     schedule: conceptReviewSchedule,
     activities: draft.activities,
-  }) ?? validateScaffoldProgression({
+  }) ?? (scheduledRetrieval ? null : validateScaffoldProgression({
     signals: scaffoldProgression,
     activities: draft.activities,
-  });
+  }));
+}
+
+function validateStandardGuidedSessionActivityMix(draft: GeneratedSessionDraft) {
+  return draft.activities.some((activity) => activity.type === "free_response")
+    ? null
+    : "A full guided session needs at least one typed active-recall attempt. Only scheduled retrieval checks may be multiple-choice only.";
 }
 
 function validateOutsideAppGuidance(draft: GeneratedSessionDraft, studyMode: string) {

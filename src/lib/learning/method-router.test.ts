@@ -97,6 +97,27 @@ describe("learning-science method router", () => {
     expect(routing.decisionBasis[0]).toMatch(/understanding|how or why reasoning/i);
   });
 
+  it("does not label first instruction as a practice-only method", () => {
+    const routing = buildLearningScienceRoutingBrief({
+      learningIntent: "learn",
+      sessionLearningMode: "learn",
+      goalTitle: "Cellular respiration",
+      goalTopic: "Understand how cellular respiration produces ATP",
+      goalKind: "topic",
+      sessionTitle: "Build the cellular respiration model",
+      sessionObjective: "Explain how the stages connect and why each stage matters",
+      plannedMethod: "Closed-note retrieval",
+      plannedMethodReason: "The original plan named a review method.",
+      learnerProfile: null,
+      recentResults: [],
+      interruptionCount: 0,
+    });
+
+    expect(routing.knowledgeStage).toBe("novice");
+    expect(routing.suggestedPrimaryMethodId).toBe("self_explanation");
+    expect(routing.allowedMethodIds).not.toContain("retrieval_practice");
+  });
+
   it("rejects a model-generated task label that contradicts the deterministic router", () => {
     const routing = buildLearningScienceRoutingBrief({
       learningIntent: "learn",

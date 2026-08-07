@@ -5,6 +5,7 @@ import { readConfidenceEvidenceProperty, summarizeConfidenceCalibration } from "
 import { inferLegacySessionLearningMode } from "@/lib/learning/learning-intent";
 import { methodIdFromText } from "@/lib/learning/method-router";
 import { buildScaffoldProgressionSignals } from "@/lib/learning/scaffold-progression";
+import { inferScheduledRetrievalConcept, inferScheduledRetrievalType } from "@/lib/learning/scheduled-retrieval";
 import { isOpenAISessionConfigured } from "@/lib/openai/config";
 import { generateSessionWithOpenAI, type SessionGenerationStats } from "@/lib/openai/session-generator";
 import { expandedLearnerContextFromStored } from "@/lib/personalization/learner-profile";
@@ -203,6 +204,15 @@ export async function POST(request: Request) {
         learningMode: readSessionLearningMode(planSession.step_data, planSession.method, planSession.objective),
         contentTargets: readStringArrayProperty(planSession.step_data, "contentTargets"),
         completionEvidence: readStringArrayProperty(planSession.step_data, "completionEvidence"),
+        reviewConcept: inferScheduledRetrievalConcept({
+          title: planSession.title,
+          reviewConcept: readTextProperty(planSession.step_data, "reviewConcept") || undefined,
+        }),
+        reviewType: inferScheduledRetrievalType({
+          title: planSession.title,
+          method: planSession.method,
+          reviewType: readReviewType(planSession.step_data),
+        }),
       },
       learnerProfile: learnerProfile ? {
         commonBlocker: learnerProfile.common_blocker,
@@ -238,7 +248,7 @@ export async function POST(request: Request) {
     });
 
     const cachedSession = CachedGeneratedSessionSchema.parse({
-      schemaVersion: 12,
+      schemaVersion: 13,
       ...generated.draft,
       supportPlan: generated.supportPlan,
       deliveryPolicy: generated.deliveryPolicy,
@@ -317,7 +327,7 @@ async function generateBrowserPreviewSession(
       sessionAdjustment: input.sessionAdjustment ?? null,
     });
     const session = CachedGeneratedSessionSchema.parse({
-      schemaVersion: 12,
+      schemaVersion: 13,
       ...generated.draft,
       supportPlan: generated.supportPlan,
       deliveryPolicy: generated.deliveryPolicy,
@@ -400,6 +410,13 @@ function readCachedSession(stepData: unknown) {
 
 function readMethodId(stepData: unknown, method: string) {
   return readCachedSession(stepData)?.methodBriefing.methodId ?? methodIdFromText(method);
+}
+
+function readReviewType(stepData: unknown) {
+  const candidate = readTextProperty(stepData, "reviewType");
+  return candidate === "repair_and_retrieve" || candidate === "verify" || candidate === "maintenance_transfer"
+    ? candidate
+    : null;
 }
 
 function readSessionFeedback(value: unknown) {

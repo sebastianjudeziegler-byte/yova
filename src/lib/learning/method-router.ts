@@ -119,6 +119,24 @@ const TASK_METHODS: Record<LearningTaskType, Record<KnowledgeStage, CoreMethodId
   },
 };
 
+const TEACHING_FIRST_METHODS = new Set<CoreMethodId>([
+  "self_explanation",
+  "worked_example_fading",
+  "read_recall_review",
+  "retrieval_based_outlining",
+  "scaffolded_coding",
+]);
+
+export function methodFitsSessionMode(
+  methodId: CoreMethodId,
+  taskType: LearningTaskType,
+  learningMode: SessionLearningMode,
+) {
+  if (learningMode === "study") return true;
+  if (taskType === "memorization") return methodId === "retrieval_practice";
+  return TEACHING_FIRST_METHODS.has(methodId);
+}
+
 export function buildLearningScienceRoutingBrief(input: MethodRoutingInput): LearningScienceRoutingBrief {
   const taskClassification = classifyLearningTaskParts([
     { text: input.goalTitle, importance: 1 },
@@ -137,11 +155,20 @@ export function buildLearningScienceRoutingBrief(input: MethodRoutingInput): Lea
     input.plannedMethod,
     input.plannedMethodReason,
   ].join(" ");
-  const knowledgeStage = inferKnowledgeStage(input.recentResults, combined);
-  const allowedMethodIds = [...TASK_METHODS[taskType][knowledgeStage]];
+  const observedKnowledgeStage = inferKnowledgeStage(input.recentResults, combined);
+  const knowledgeStage = input.sessionLearningMode === "learn" ? "novice" : observedKnowledgeStage;
+  const stageMethods = TASK_METHODS[taskType][knowledgeStage];
+  const modeCompatibleMethods = stageMethods.filter((methodId) => (
+    methodFitsSessionMode(methodId, taskType, input.sessionLearningMode)
+  ));
+  const allowedMethodIds = [...(modeCompatibleMethods.length ? modeCompatibleMethods : stageMethods)];
   const plannedMethodId = methodIdFromText(input.plannedMethod);
 
-  if (plannedMethodId && CORE_METHOD_CATALOG[plannedMethodId].taskTypes.includes(taskType)) {
+  if (
+    plannedMethodId
+    && CORE_METHOD_CATALOG[plannedMethodId].taskTypes.includes(taskType)
+    && methodFitsSessionMode(plannedMethodId, taskType, input.sessionLearningMode)
+  ) {
     const existingIndex = allowedMethodIds.indexOf(plannedMethodId);
     if (existingIndex >= 0) allowedMethodIds.splice(existingIndex, 1);
     allowedMethodIds.unshift(plannedMethodId);

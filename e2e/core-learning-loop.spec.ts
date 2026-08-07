@@ -44,6 +44,8 @@ test("a confident misconception is repaired now and verified later", async ({ pa
   await openMobileSessionGuide(page);
   await expect(page.getByText("How YOVA adapted this").filter({ visible: true }).first()).toBeVisible();
   await expect(page.getByText(/asked for concrete examples before rules/i).filter({ visible: true }).first()).toBeVisible();
+  await expect(page.locator(".session-method-playbook:visible")).toContainText("WHY THIS METHOD");
+  await expect(page.locator(".session-method-playbook:visible")).toContainText("Use it like this");
   await expect(page.getByLabel("Support progression").first()).toContainText("Start without support");
   const retrievalRoadmap = page.getByLabel("Session method sequence").first();
   await expect(retrievalRoadmap).toContainText("Attempt from memory");
@@ -108,6 +110,27 @@ test("a confident misconception is repaired now and verified later", async ({ pa
   await expect(page.getByText("1 of 2 sessions complete")).toBeVisible();
   await expect(page.getByText("Adjusted using your last session")).toBeVisible();
 
+  await page.route("**/api/sessions/generate", async (route) => {
+    const request = route.request().postDataJSON() as { planSessionId: string };
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(quickScheduledReviewResponse(request.planSessionId)),
+    });
+  });
+  await page.getByRole("button", { name: "Start session", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: /Start Repair and verify Cellular respiration sequence now/i })).toBeVisible();
+  await page.getByRole("button", { name: "Start now, keep dates" }).click();
+  await expect(page.getByRole("heading", { name: "Which stage begins cellular respiration?" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Here is how YOVA plans to start." })).not.toBeVisible();
+  await expect(page.locator(".quick-review-promise")).toContainText("Three multiple-choice questions");
+  await expect(page.locator(".answer-grid button")).toHaveCount(4);
+  await expect(page.getByRole("group", { name: /One quick confidence check/ })).not.toBeVisible();
+  await openMobileSessionGuide(page);
+  await expect(page.locator(".session-method-playbook:visible")).toHaveAttribute("aria-label", "How to use Retrieval practice");
+  await leaveSession(page, "0 of 3 required steps finished");
+  await page.unroute("**/api/sessions/generate");
+
   await page.getByRole("button", { name: "Agenda", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Retrieval queue" })).toBeVisible();
   await expect(page.getByText("Cellular respiration sequence", { exact: true })).toBeVisible();
@@ -167,6 +190,12 @@ test("a new topic is taught before YOVA asks for independent performance", async
   await page.getByRole("button", { name: "Next: Explore the model" }).click();
   await page.getByRole("button", { name: "Continue" }).click();
 
+  await expect(page.getByRole("heading", { name: "What makes the second year compound growth?" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Review the model" })).toBeVisible();
+  await page.getByRole("button", { name: "Review the model" }).click();
+  await expect(page.getByRole("dialog", { name: /Review the model, then return to the same question/i })).toBeVisible();
+  await expect(page.getByText("Your answer and session progress stay exactly where they are.")).toBeVisible();
+  await page.getByRole("button", { name: "Back to the question" }).click();
   await expect(page.getByRole("heading", { name: "What makes the second year compound growth?" })).toBeVisible();
   await expect(page.getByRole("group", { name: /One quick confidence check/ })).not.toBeVisible();
   await page.getByRole("button", { name: "The earlier gain remains in the base" }).click();
@@ -711,4 +740,120 @@ async function confirmSessionSetup(page: Page) {
   await page.getByRole("button", { name: "Continue" }).click();
   await expect(page.getByRole("heading", { name: "Set the pace for today." })).toBeVisible();
   await page.getByRole("button", { name: "Prepare this session" }).click();
+}
+
+function quickScheduledReviewResponse(planSessionId: string) {
+  const concept = "Cellular respiration sequence";
+  const questions = [
+    {
+      methodPhase: "retrieve",
+      title: "Which stage begins cellular respiration?",
+      body: "Choose from memory before using the feedback to check the sequence.",
+      choices: ["Glycolysis", "Krebs cycle", "Electron transport chain", "Fermentation"],
+      correctAnswer: "Glycolysis",
+      feedback: "Glycolysis begins cellular respiration before the Krebs cycle and electron transport chain.",
+    },
+    {
+      methodPhase: "discriminate",
+      title: "Which order matches the main aerobic pathway?",
+      body: "Distinguish the complete sequence from the tempting reversed alternatives.",
+      choices: [
+        "Glycolysis, Krebs cycle, electron transport chain",
+        "Krebs cycle, glycolysis, electron transport chain",
+        "Electron transport chain, Krebs cycle, glycolysis",
+        "Fermentation, glycolysis, Krebs cycle",
+      ],
+      correctAnswer: "Glycolysis, Krebs cycle, electron transport chain",
+      feedback: "The main sequence moves from glycolysis to the Krebs cycle and then the electron transport chain.",
+    },
+    {
+      methodPhase: "transfer",
+      title: "A pathway is blocked before the Krebs cycle. Which stage can still occur first?",
+      body: "Apply the sequence to a slightly different situation without reopening the lesson.",
+      choices: ["Glycolysis", "Electron transport chain", "Krebs cycle", "ATP synthase only"],
+      correctAnswer: "Glycolysis",
+      feedback: "Glycolysis occurs before the Krebs cycle, so it is the stage that can begin first in this sequence.",
+    },
+  ];
+
+  return {
+    planSessionId,
+    session: {
+      schemaVersion: 13,
+      model: "e2e-scheduled-review",
+      generatedAt: new Date().toISOString(),
+      rationale: "A short delayed retrieval gives YOVA evidence without turning the return into another full lesson.",
+      coverage: {
+        focus: "Retrieve and distinguish the cellular respiration sequence after a delay.",
+        essentialIdeas: [concept],
+        completionEvidence: ["Answer all three multiple-choice questions before reviewing the result."],
+        evidenceMap: [{ essentialIdea: concept, activityConcept: concept }],
+        deferredContent: [],
+      },
+      methodBriefing: {
+        learningMode: "study",
+        taskType: "conceptual_learning",
+        methodId: "retrieval_practice",
+        name: "Retrieval practice",
+        what: "Produce an answer from memory before looking at corrective feedback.",
+        why: "A short delayed attempt checks whether the repaired sequence remains available after time has passed.",
+        how: [
+          "Answer one multiple-choice question from memory.",
+          "Use the feedback to repair only what was missing.",
+          "Continue to a differently worded check.",
+        ],
+        completion: "All three scheduled questions have been answered once.",
+        personalization: ["YOVA reduced this return to three low-pressure choices so it stays easy to begin."],
+      },
+      sourceGrounding: null,
+      supportPlan: {
+        level: "independent_start",
+        title: "Quick retrieval check",
+        explanation: "Answer before feedback, then use the result to decide whether this idea needs another return.",
+        evidenceLabel: "This is a lightweight return signal, not proof of permanent mastery.",
+        concept,
+      },
+      deliveryPolicy: {
+        schemaVersion: 1,
+        evidenceStatus: "observed_pattern",
+        presentation: {
+          mode: "task_aligned",
+          label: "Answer first",
+          instruction: "Show the question before any explanation or corrective feedback.",
+        },
+        repair: {
+          mode: "direct_correction",
+          label: "Concise correction",
+          instruction: "Name the corrected relationship directly after a missed answer.",
+        },
+        retention: {
+          mode: "retrieval",
+          label: "Quick retrieval",
+          instruction: "Ask for an answer before feedback, then use a fresh question to check the idea.",
+        },
+        workspace: {
+          mode: "one_step",
+          label: "One question at a time",
+          instruction: "Keep the review calm, direct, and easy to resume by showing one question at a time.",
+        },
+        pacing: {
+          firstActionMinutes: 1,
+          maximumActivities: 3,
+          reason: "Scheduled retrieval should be a small return to prior content, not another full study session.",
+        },
+        learnerFacingReasons: ["This scheduled return uses three choices so the learner can begin with very little friction."],
+        signalsUsed: ["previous missed answer"],
+      },
+      activities: questions.map((question, index) => ({
+        ...question,
+        concept,
+        estimatedMinutes: index === 0 ? 1 : 2,
+        requiredForCompletion: true,
+        label: `Quick check ${index + 1}`,
+        teaching: null,
+        type: "multiple_choice",
+      })),
+    },
+    generation: { mode: "openai", persistence: "browser" },
+  };
 }

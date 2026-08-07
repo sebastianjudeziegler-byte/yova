@@ -104,6 +104,7 @@ import {
   type GuidedSessionStep,
 } from "@/lib/learning/session-evidence";
 import { shouldRequestConfidence } from "@/lib/learning/session-interaction";
+import { isScheduledRetrievalSession } from "@/lib/learning/scheduled-retrieval";
 import { restoreInterruptedLesson, resumableSessionProgress } from "@/lib/learning/session-resume";
 import { selectFreeResponseMode } from "@/lib/learning/response-mode";
 import { clearPreviewSnapshot, loadPreviewSnapshot, savePreviewSnapshot } from "@/lib/persistence/preview-store";
@@ -497,7 +498,7 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
     if (!requestedSession) return;
     const resumePoint = resumableSessionProgress(requestedSession.id, sessionInterruptions);
 
-    if (!resumePoint && adjustment === undefined) {
+    if (!resumePoint && adjustment === undefined && !isScheduledRetrievalSession(requestedSession)) {
       setSelectedPlanId(requestedPlan.id);
       setPendingSessionPlan(requestedPlan);
       setStage("session-setup");
@@ -626,7 +627,7 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
         requestId,
       });
       const message = error instanceof Error ? error.message : "YOVA could not generate this session.";
-      const fallbackSteps = account?.identityMode === "preview"
+      const fallbackSteps = account?.identityMode === "preview" && !isScheduledRetrievalSession(requestedSession)
         ? subjectSpecificLessonStepsFor(requestedPlan)
         : null;
       if (!fallbackSteps) {
@@ -2772,12 +2773,17 @@ function GuidedSession({ plan, steps, step, selectedAnswer, outcome, confidence,
   const [answerEvaluationPending, setAnswerEvaluationPending] = useState(false);
   const [advancing, setAdvancing] = useState(false);
   const [teachingProgress, setTeachingProgress] = useState({ step, page: 0 });
+  const [reviewingModel, setReviewingModel] = useState(false);
   const content = steps[step];
   const teachingPage = teachingProgress.step === step ? teachingProgress.page : 0;
   const currentSession = plan?.sessions.find((session) => session.status === "ready") ?? null;
+  const quickScheduledReview = isScheduledRetrievalSession(currentSession);
+  const reviewableTeaching = [...steps.slice(0, step)]
+    .reverse()
+    .find((candidate) => candidate.teaching)?.teaching ?? null;
   const isQuestion = content.type === "multiple_choice" || content.type === "free_response";
   const isImmediateRepair = content.evidenceRole === "immediate_repair";
-  const requiresConfidence = shouldRequestConfidence({
+  const requiresConfidence = !quickScheduledReview && shouldRequestConfidence({
     isQuestion,
     isImmediateRepair,
     methodPhase: content.methodPhase,
@@ -2891,9 +2897,11 @@ function GuidedSession({ plan, steps, step, selectedAnswer, outcome, confidence,
       <section className="session-workspace">
         {issue && step === 0 && <div className="session-issue"><AlertCircle size={17} /><span>{issue}</span></div>}
         {phase && phasePosition && <MethodPhaseCoach phase={phase} current={phasePosition.current} total={phasePosition.total} />}
+        {quickScheduledReview && <div className="quick-review-promise"><Target size={17} /><div><strong>Quick scheduled check</strong><p>Three multiple-choice questions. No typing and no confidence rating. This is a low-pressure return to the idea, not a grade.</p></div></div>}
         {isImmediateRepair && <div className="immediate-repair-note"><RotateCcw size={17} /><div><strong>Repair now, verify later</strong><p>Correct the idea now. YOVA will still check it again later because an immediate retry is not proof that it will stick.</p></div></div>}
         {isImmediateRepair && content.repairSupport && <RuntimeRepairSupportCard support={content.repairSupport} />}
         <header className="session-activity-header"><div className="session-step-meta"><div><span>STEP {step + 1} OF {steps.length}</span><strong>{activityLabel}</strong></div>{content.estimatedMinutes && <span><Clock3 size={13} /> About {content.estimatedMinutes} min</span>}</div><h1><LearningContent content={content.title} inline /></h1>{content.body && <LearningContent content={content.body} className="session-activity-instruction" />}</header>
+        {reviewableTeaching && isQuestion && <div className="session-model-reference"><BookOpen size={18} /><div><span>PREVIOUS MODEL AVAILABLE</span><strong><LearningContent content={reviewableTeaching.keyIdea} inline /></strong><small>Open it without losing this question or your place.</small></div><button className="button secondary" type="button" onClick={() => setReviewingModel(true)}>Review the model</button></div>}
         {content.teaching && <TeachingLessonCard teaching={content.teaching} panel={teachingPanels[teachingPage] ?? "idea"} panelIndex={teachingPage} panelCount={teachingPanels.length} panelLabels={teachingPanels} />}
         {requiresConfidence && <ConfidenceCheck value={confidence} locked={outcome !== undefined || answerRevealed} onChange={onConfidence} />}
         {content.type === "multiple_choice" && content.question && <div className="answer-grid">{content.question.map((answer) => {
@@ -2961,6 +2969,7 @@ function GuidedSession({ plan, steps, step, selectedAnswer, outcome, confidence,
       selectedAnswer={selectedAnswer}
       analyticsEnabled={analyticsEnabled}
     />
+    {reviewingModel && reviewableTeaching && <div className="session-model-review-backdrop"><section className="session-model-review-dialog" role="dialog" aria-modal="true" aria-labelledby="session-model-review-title"><header><div><span className="step-label">REFERENCE MODEL</span><h2 id="session-model-review-title">Review the model, then return to the same question.</h2><p>Your answer and session progress stay exactly where they are.</p></div><button className="button ghost" type="button" onClick={() => setReviewingModel(false)}><X size={17} /> Return to question</button></header><div className="session-model-review-content"><TeachingLessonCard teaching={reviewableTeaching} /></div><footer><button className="button primary" type="button" onClick={() => setReviewingModel(false)}><ArrowLeft size={17} /> Back to the question</button></footer></section></div>}
     {confirmingExit && <div className="session-exit-backdrop"><section className="session-exit-dialog" role="dialog" aria-modal="true" aria-labelledby="session-exit-title"><div className="session-exit-icon"><Clock3 size={21} /></div><span className="step-label">LEAVE THIS SESSION?</span><h2 id="session-exit-title">Your plan will stay open.</h2><p>YOVA will remember how long you studied and exactly which content steps you reached. Unfinished answers will not be treated as knowledge evidence.</p><div className="session-exit-summary"><span>{formatElapsedDuration(elapsedSeconds)} studied</span><span>{completedRequiredSteps} of {requiredSteps.length} required steps finished</span></div><div className="session-exit-actions"><button className="button ghost" onClick={() => setConfirmingExit(false)}>Keep studying</button><button className="button primary" onClick={onExit}>Save progress and leave</button></div></section></div>}
   </main>;
 }
@@ -2979,19 +2988,25 @@ function SessionGuidePanel({ session, capacityMinutes, coverage, steps, step, me
   const evidence = coverage?.completionEvidence.length ? coverage.completionEvidence : session?.completionEvidence ?? ["Attempt the required check without hidden support."];
   const ideas = coverage?.essentialIdeas.length ? coverage.essentialIdeas : session?.contentTargets ?? [focus];
   const roadmap = buildMethodPhaseRoadmap(steps.map((item) => item.methodPhase));
-  const modeLabel = methodBriefing?.learningMode === "learn" ? "Teaching first" : "Practice first";
+  const quickScheduledReview = isScheduledRetrievalSession(session);
+  const modeLabel = quickScheduledReview ? "Quick scheduled review" : methodBriefing?.learningMode === "learn" ? "Teaching first" : "Practice first";
   const taskLabel = methodBriefing?.taskType.replaceAll("_", " ") ?? "guided learning";
+  const adaptationReasons = (deliveryPolicy?.learnerFacingReasons.length
+    ? deliveryPolicy.learnerFacingReasons
+    : methodBriefing?.personalization ?? []).slice(0, 2);
   const guide = <>
     <div className="session-guide-focus"><span className="step-label">TODAY&apos;S TARGET</span><h2>{focus}</h2><div><Clock3 size={14} /><span>{capacityMinutes ?? session?.estimatedMinutes ?? 20} minute window</span></div></div>
     <div className="session-guide-method"><div><BookOpen size={16} /><span>{modeLabel}</span></div><strong>{methodBriefing?.name ?? "Guided method"}</strong><small>{taskLabel}</small></div>
-    {(deliveryPolicy?.learnerFacingReasons[0] || methodBriefing?.personalization[0]) && <div className="session-personalization-proof"><Sparkles size={15} /><p><span>How YOVA adapted this</span>{deliveryPolicy?.learnerFacingReasons[0] ?? methodBriefing?.personalization[0]}</p></div>}
+    {quickScheduledReview && <div className="session-quick-review-card"><Target size={15} /><p><span>Low-pressure return</span>Three multiple-choice questions, shown one at a time. No typed response and no confidence rating.</p></div>}
+    {methodBriefing && <section className="session-method-playbook" aria-label={`How to use ${methodBriefing.name}`}><span>WHY THIS METHOD</span><p>{methodBriefing.why}</p><strong>Use it like this</strong><ol>{methodBriefing.how.slice(0, 3).map((instruction) => <li key={instruction}>{instruction}</li>)}</ol></section>}
+    {adaptationReasons.length > 0 && <div className="session-personalization-proof"><Sparkles size={15} /><div><span>How YOVA adapted this method</span><ul>{adaptationReasons.map((reason) => <li key={reason}>{reason}</li>)}</ul></div></div>}
     <div className="session-guide-path"><strong>Session path</strong>{steps.map((item, index) => {
       const presentation = item.methodPhase ? getMethodPhasePresentation(item.methodPhase) : null;
       const state = index < step ? "complete" : index === step ? "current" : "upcoming";
       return <div key={`${index}-${item.label}-${item.title}`} className={state}><span>{state === "complete" ? <Check size={13} /> : index + 1}</span><p><strong>{polishActivityLabel(item.label) || presentation?.label || "Activity"}</strong><small>{presentation?.label ?? item.title}</small></p></div>;
     })}</div>
     <div className="session-guide-evidence"><Target size={15} /><p><span>Finished means</span>{evidence[0]}</p></div>
-    <details className="session-guide-details"><summary>Why this plan and method</summary>{methodBriefing && <div className="session-guide-explanation"><strong>What you are doing</strong><p>{methodBriefing.what}</p><strong>Why it fits the task</strong><p>{methodBriefing.why}</p>{rationale && <p>{rationale}</p>}<strong>How to use it</strong><ol>{methodBriefing.how.map((instruction) => <li key={instruction}>{instruction}</li>)}</ol></div>}{deliveryPolicy && <div className="session-delivery-details"><strong>How delivery changed</strong><div><span>{deliveryPolicy.presentation.label}</span><span>{deliveryPolicy.repair.label}</span><span>{deliveryPolicy.retention.label}</span></div>{deliveryPolicy.learnerFacingReasons.slice(1).map((reason) => <p key={reason}>{reason}</p>)}<small>{deliveryEvidenceLabel(deliveryPolicy.evidenceStatus)}</small></div>}<MethodRoadmap steps={steps} />{supportPlan && <SupportProgressionCard plan={supportPlan} />}</details>
+    <details className="session-guide-details"><summary>More about this method</summary>{methodBriefing && <div className="session-guide-explanation"><strong>What you are doing</strong><p>{methodBriefing.what}</p><strong>Completion rule</strong><p>{methodBriefing.completion}</p>{rationale && <><strong>How it fits this plan</strong><p>{rationale}</p></>}</div>}{deliveryPolicy && <div className="session-delivery-details"><strong>Delivery settings</strong><div><span>{deliveryPolicy.presentation.label}</span><span>{deliveryPolicy.repair.label}</span><span>{deliveryPolicy.retention.label}</span></div><small>{deliveryEvidenceLabel(deliveryPolicy.evidenceStatus)}</small></div>}<MethodRoadmap steps={steps} />{supportPlan && <SupportProgressionCard plan={supportPlan} />}</details>
     <details className="session-guide-details"><summary>Content and sources</summary><div className="session-guide-lists"><strong>In this session</strong><ul>{ideas.map((item, index) => <li key={`${index}-${item}`}>{item}</li>)}</ul>{coverage?.evidenceMap.length ? <><strong>How completion is checked</strong><ul>{coverage.evidenceMap.map((mapping) => <li key={`${mapping.essentialIdea}-${mapping.activityConcept}`}>{mapping.essentialIdea}: checked through {mapping.activityConcept}</li>)}</ul></> : null}{coverage?.deferredContent.length ? <><strong>Saved for later</strong><ul>{coverage.deferredContent.map((item, index) => <li key={`${index}-${item}`}>{item}</li>)}</ul></> : null}</div>{sourceGrounding && <SourceGroundingCard grounding={sourceGrounding} />}</details>
   </>;
   return <aside className="session-guide"><div className="session-guide-desktop">{guide}</div><details className="session-guide-mobile"><summary><span><strong>{methodBriefing?.name ?? "Session path"}</strong><small>Step {step + 1} of {steps.length} · {roadmap.length} learning phases</small></span><ChevronRight size={17} /></summary><div>{guide}</div></details></aside>;

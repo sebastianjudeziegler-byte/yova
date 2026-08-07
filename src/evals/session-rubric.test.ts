@@ -34,12 +34,12 @@ const strongSession = GeneratedSessionDraftSchema.parse({
   methodBriefing: {
     learningMode: "learn",
     taskType: "conceptual_learning",
-    methodId: "retrieval_practice",
-    name: "Retrieval practice",
-    what: "Produce the biology relationship from memory before returning to the notes.",
-    why: "The learner has an initial explanation and now needs objective evidence of which parts can be recalled independently.",
-    how: ["Close the notes and attempt the prompt.", "Compare the answer and repair only the missing parts."],
-    completion: "Both target ideas have been attempted from memory and each missing part is identified.",
+    methodId: "self_explanation",
+    name: "Self-explanation",
+    what: "Study an accurate relationship, then explain the biology connection from memory in your own words.",
+    why: "The learner is still building the concept, so a correct model should come before an explanation that exposes shallow understanding.",
+    how: ["Study the concise model and example.", "Close the model and explain the relationship in your own words."],
+    completion: "Both target ideas appear accurately in an independent explanation and any missing part is identified.",
     personalization: ["Keep the first attempt short and show one visible step at a time."],
   },
   activities: [
@@ -84,7 +84,7 @@ const strongSession = GeneratedSessionDraftSchema.parse({
       feedback: "Glycolysis occurs in the cytoplasm before later respiration stages continue in the mitochondria.",
     },
     {
-      methodPhase: "repair",
+      methodPhase: "explain",
       estimatedMinutes: 5,
       requiredForCompletion: true,
       type: "free_response",

@@ -856,12 +856,25 @@ h1, h2, h3, p { margin-top: 0; }
 .session-guide-focus > div { display: flex; align-items: center; gap: 6px; color: #68758c; font-size: 10px; font-weight: 700; }
 .session-guide-method { margin-top: 16px; padding: 12px 13px; display: grid; border: 1px solid #cfdbfa; border-radius: 11px; background: linear-gradient(135deg,#edf3ff,#f1edff); }
 .session-guide-method > div { display: flex; align-items: center; gap: 7px; color: #3a5ab7; font-size: 9px; font-weight: 850; letter-spacing: .06em; text-transform: uppercase; }
-.session-guide-method > strong { margin-top: 8px; font-size: 12px; line-height: 1.35; }
-.session-guide-method > small { margin-top: 3px; color: #68758c; font-size: 9px; text-transform: capitalize; }
+.session-guide-method > strong { margin-top: 8px; font-size: 14px; line-height: 1.4; }
+.session-guide-method > small { margin-top: 3px; color: #68758c; font-size: 10px; text-transform: capitalize; }
+.session-quick-review-card { margin-top: 9px; padding: 11px 12px; display: flex; align-items: flex-start; gap: 8px; color: #21624a; border: 1px solid #bfe1d1; border-radius: 9px; background: #eefaf4; }
+.session-quick-review-card svg { flex: 0 0 auto; margin-top: 2px; }
+.session-quick-review-card p { margin: 0; font-size: 10px; line-height: 1.55; }
+.session-quick-review-card p span { display: block; margin-bottom: 3px; font-weight: 850; text-transform: uppercase; letter-spacing: .04em; }
+.session-method-playbook { margin-top: 9px; padding: 13px; color: #40506d; border: 1px solid #d6def1; border-radius: 10px; background: rgba(255,255,255,.84); }
+.session-method-playbook > span { display: block; color: var(--blue); font-size: 9px; font-weight: 850; letter-spacing: .07em; }
+.session-method-playbook > p { margin: 6px 0 0; font-size: 11px; line-height: 1.55; }
+.session-method-playbook > strong { display: block; margin-top: 11px; color: var(--navy); font-size: 11px; }
+.session-method-playbook ol { margin: 7px 0 0; padding: 0; display: grid; gap: 7px; list-style: none; counter-reset: visible-method-step; }
+.session-method-playbook li { position: relative; min-height: 20px; padding-left: 27px; font-size: 10px; line-height: 1.5; counter-increment: visible-method-step; }
+.session-method-playbook li::before { content: counter(visible-method-step); position: absolute; top: 0; left: 0; width: 19px; height: 19px; display: grid; place-items: center; color: white; border-radius: 50%; background: var(--blue); font-size: 8px; font-weight: 850; }
 .session-personalization-proof { margin-top: 9px; padding: 11px 12px; display: flex; align-items: flex-start; gap: 8px; color: #4f3fa3; border: 1px solid #ddd6ff; border-radius: 9px; background: #f7f5ff; }
 .session-personalization-proof svg { flex: 0 0 auto; margin-top: 1px; }
-.session-personalization-proof p { margin: 0; font-size: 9px; line-height: 1.5; overflow-wrap: anywhere; }
-.session-personalization-proof p span { display: block; margin-bottom: 2px; font-weight: 850; text-transform: uppercase; letter-spacing: .04em; }
+.session-personalization-proof > div { min-width: 0; }
+.session-personalization-proof > div > span { display: block; margin-bottom: 5px; font-size: 9px; font-weight: 850; text-transform: uppercase; letter-spacing: .04em; }
+.session-personalization-proof ul { margin: 0; padding-left: 15px; display: grid; gap: 5px; font-size: 10px; line-height: 1.5; }
+.session-personalization-proof li { overflow-wrap: anywhere; }
 .session-guide-path { margin-top: 19px; }
 .session-guide-path > strong { display: block; margin-bottom: 10px; font-size: 11px; }
 .session-guide-path > div { position: relative; min-height: 43px; padding: 0 0 10px 34px; display: flex; align-items: flex-start; color: #7a8599; }
@@ -913,6 +926,16 @@ h1, h2, h3, p { margin-top: 0; }
 .session-activity-header { margin: 0 0 18px; padding: 22px 24px; border: 1px solid #dce3f1; border-radius: 17px; background: linear-gradient(145deg,#fff,#f8faff); box-shadow: 0 10px 30px rgba(25,42,79,.055); }
 .session-activity-header h1 { max-width: 660px; margin: 17px 0 10px; font-size: clamp(29px,4vw,38px); line-height: 1.16; letter-spacing: -.035em; }
 .session-activity-instruction { max-width: 650px; margin: 0; color: #526079; font-size: 16px; line-height: 1.65; white-space: pre-line; overflow-wrap: anywhere; }
+.session-model-reference { margin: -4px 0 18px; padding: 14px 15px; display: grid; grid-template-columns: auto minmax(0,1fr) auto; align-items: center; gap: 11px; color: #405279; border: 1px solid #ccd8f5; border-radius: 12px; background: #f6f9ff; }
+.session-model-reference > svg { color: var(--blue); }
+.session-model-reference > div { min-width: 0; }
+.session-model-reference span,
+.session-model-reference strong,
+.session-model-reference small { display: block; }
+.session-model-reference span { color: var(--blue); font-size: 9px; font-weight: 850; letter-spacing: .07em; }
+.session-model-reference strong { margin-top: 4px; color: var(--navy); font-size: 13px; line-height: 1.45; }
+.session-model-reference small { margin-top: 3px; color: #68758c; font-size: 10px; }
+.session-model-reference .button { min-height: 38px; white-space: nowrap; }
 .session-step-meta { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .session-step-meta > div { display: flex; align-items: center; gap: 9px; }
 .session-step-meta > div > span { padding: 5px 7px; color: #3155bc; border-radius: 6px; background: #eaf0ff; font-size: 9px; font-weight: 850; letter-spacing: .06em; }
@@ -1118,6 +1141,9 @@ h1, h2, h3, p { margin-top: 0; }
 .source-supplements li small { margin-top: 2px; color: #6b7890; font-size: 10px; line-height: 1.45; }
 .session-issue { margin: -18px 0 28px; padding: 12px 14px; display: flex; gap: 9px; align-items: flex-start; color: #7a4a00; background: #fff7e8; border: 1px solid #f7d69a; border-radius: 10px; font-size: 13px; line-height: 1.5; }
 .session-issue svg { flex: 0 0 auto; }
+.quick-review-promise { margin: 0 0 22px; padding: 14px 15px; display: flex; align-items: flex-start; gap: 10px; color: #245f49; border: 1px solid #bfe0d0; border-radius: 12px; background: #f0faf5; }
+.quick-review-promise svg { flex: 0 0 auto; margin-top: 2px; }
+.quick-review-promise p { margin: 4px 0 0; font-size: 13px; line-height: 1.55; }
 .immediate-repair-note { margin: 0 0 26px; padding: 15px 16px; display: flex; align-items: flex-start; gap: 11px; color: #43368d; border: 1px solid #d8d1ff; border-radius: 11px; background: #f6f3ff; }
 .immediate-repair-note svg { flex: 0 0 auto; margin-top: 1px; color: var(--violet); }
 .immediate-repair-note p { margin: 4px 0 0; font-size: 12px; line-height: 1.6; }
@@ -1241,6 +1267,17 @@ h1, h2, h3, p { margin-top: 0; }
 .session-tutor-thinking { padding: 7px 3px; display: flex; align-items: center; gap: 8px; color: #66738a; font-size: 11px; }
 .session-tutor-error { margin-top: 9px; padding: 9px 11px; display: flex; align-items: flex-start; gap: 7px; color: #b42318; border-radius: 8px; background: #fff1f0; font-size: 12px; }
 .session-tutor-privacy { padding: 7px 4px 1px; display: block; color: #8a95a8; font-size: 9px; line-height: 1.4; }
+.session-model-review-backdrop { position: fixed; z-index: 35; inset: 0; padding: 24px; display: grid; place-items: center; overflow-y: auto; background: rgba(11,16,32,.62); backdrop-filter: blur(6px); }
+.session-model-review-dialog { width: min(100%,900px); max-height: calc(100vh - 48px); display: grid; grid-template-rows: auto minmax(0,1fr) auto; overflow: hidden; color: var(--text); border: 1px solid rgba(255,255,255,.72); border-radius: 20px; background: white; box-shadow: 0 30px 90px rgba(11,16,32,.28); }
+.session-model-review-dialog > header { padding: 22px 24px; display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; border-bottom: 1px solid var(--border); }
+.session-model-review-dialog > header > div { min-width: 0; }
+.session-model-review-dialog h2 { margin: 6px 0 5px; font-family: var(--font-sora),sans-serif; font-size: 23px; line-height: 1.3; }
+.session-model-review-dialog header p { margin: 0; color: #68758c; font-size: 13px; line-height: 1.55; }
+.session-model-review-dialog > header .button { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 6px; }
+.session-model-review-content { padding: 24px; overflow-y: auto; background: #f8faff; }
+.session-model-review-content .teaching-lesson { display: grid; gap: 16px; }
+.session-model-review-dialog > footer { padding: 16px 24px; display: flex; justify-content: flex-end; border-top: 1px solid var(--border); }
+.session-model-review-dialog > footer .button { display: inline-flex; align-items: center; gap: 7px; }
 .session-exit-backdrop { position: fixed; z-index: 30; inset: 0; padding: 24px; display: grid; place-items: center; overflow-y: auto; background: rgba(11,16,32,.56); backdrop-filter: blur(5px); }
 .session-exit-dialog { width: min(100%, 480px); padding: 30px; color: var(--text); border: 1px solid rgba(255,255,255,.7); border-radius: 18px; background: white; box-shadow: 0 28px 80px rgba(11,16,32,.24); }
 .session-exit-icon { width: 46px; height: 46px; margin-bottom: 18px; display: grid; place-items: center; color: var(--blue); border-radius: 13px; background: var(--soft-blue); }
@@ -2016,6 +2053,8 @@ h1, h2, h3, p { margin-top: 0; }
   .session-content { width: min(100% - 28px,760px); margin: 22px auto 105px; grid-template-columns: 1fr; }
   .session-activity-header { padding: 18px; }
   .session-activity-header h1 { font-size: 29px; }
+  .session-model-reference { grid-template-columns: auto minmax(0,1fr); }
+  .session-model-reference .button { grid-column: 1 / -1; width: 100%; justify-content: center; }
   .runtime-repair-support > header { align-items: flex-start; flex-direction: column; }
   .runtime-repair-reason { padding-inline: 13px; }
   .runtime-repair-model { margin-inline: 12px; padding: 15px; }
@@ -2052,8 +2091,14 @@ h1, h2, h3, p { margin-top: 0; }
   .method-phase-coach { grid-template-columns: 1fr; }
   .method-phase-coach em { width: fit-content; }
   .session-exit-dialog { padding: 24px 20px; }
-  .session-exit-backdrop, .early-session-backdrop { padding: 14px; place-items: start center; }
-  .session-exit-dialog, .early-session-dialog { margin-block: auto; }
+  .session-exit-backdrop, .early-session-backdrop, .session-model-review-backdrop { padding: 14px; place-items: start center; }
+  .session-exit-dialog, .early-session-dialog, .session-model-review-dialog { margin-block: auto; }
+  .session-model-review-dialog { max-height: calc(100vh - 28px); }
+  .session-model-review-dialog > header { padding: 18px; align-items: stretch; flex-direction: column; }
+  .session-model-review-dialog > header .button { justify-content: center; }
+  .session-model-review-content { padding: 14px; }
+  .session-model-review-dialog > footer { padding: 14px; }
+  .session-model-review-dialog > footer .button { width: 100%; justify-content: center; }
   .session-exit-summary, .session-exit-actions { align-items: stretch; flex-direction: column; }
   .early-session-dialog { padding: 25px 20px; }
   .early-session-actions { align-items: stretch; flex-direction: column; }

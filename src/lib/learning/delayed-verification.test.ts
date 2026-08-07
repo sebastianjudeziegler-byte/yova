@@ -44,13 +44,15 @@ describe("buildDelayedVerificationSession", () => {
       estimatedMinutes: 10,
       method: "Spaced retrieval and error repair",
       learningMode: "study",
+      reviewConcept: "Cellular respiration sequence",
+      reviewType: "verify",
       status: "ready",
     });
     expect(result?.scheduledFor).toBe("2026-08-06T16:25:00.000Z");
     expect(result?.adaptationNote?.explanation).toContain("delayed retrieval");
   });
 
-  it("uses teaching-first misconception repair for a confident miss", () => {
+  it("keeps a confident-miss return short while preserving the repair signal", () => {
     const result = buildDelayedVerificationSession(completedSession, completion({
       confidenceEvidence: [{
         concept: "Cellular respiration sequence",
@@ -62,7 +64,9 @@ describe("buildDelayedVerificationSession", () => {
 
     expect(result).toMatchObject({
       method: "Misconception repair and delayed transfer",
-      learningMode: "learn",
+      learningMode: "study",
+      reviewConcept: "Cellular respiration sequence",
+      reviewType: "repair_and_retrieve",
     });
   });
 

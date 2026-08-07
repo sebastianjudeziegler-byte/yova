@@ -10,6 +10,7 @@ import {
 } from "@/lib/learning/method-catalog";
 import {
   inferLearningTaskType,
+  methodFitsSessionMode,
   methodIdFromText,
 } from "@/lib/learning/method-router";
 import type { SessionDeliveryPolicy } from "@/lib/personalization/session-delivery-policy";
@@ -37,7 +38,9 @@ export function buildFallbackMethodBriefing(
     session.objective,
   ].join(" "));
   const namedMethodId = methodIdFromText(session.method);
-  const methodId = namedMethodId && getCoreLearningMethod(namedMethodId).taskTypes.includes(taskType)
+  const methodId = namedMethodId
+    && getCoreLearningMethod(namedMethodId).taskTypes.includes(taskType)
+    && methodFitsSessionMode(namedMethodId, taskType, session.learningMode)
     ? namedMethodId
     : DEFAULT_METHOD_BY_TASK[taskType];
   const method = getCoreLearningMethod(methodId);

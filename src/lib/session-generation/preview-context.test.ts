@@ -125,4 +125,26 @@ describe("buildPreviewSessionContext", () => {
     expect(result.conceptSignals).toEqual([]);
     expect(result.scaffoldSignals).toEqual([]);
   });
+
+  it("preserves the scheduled-review contract when building generation context", () => {
+    const reviewSession = {
+      ...plan.sessions[0],
+      learningMode: "study" as const,
+      reviewConcept: "Calvin cycle",
+      reviewType: "verify" as const,
+    };
+    const result = buildPreviewSessionContext({
+      plan: { ...plan, sessions: [reviewSession] },
+      session: reviewSession,
+      onboardingAnswers: [],
+      completions: [completion],
+      interruptions: [],
+    });
+
+    expect(result.session).toMatchObject({
+      learningMode: "study",
+      reviewConcept: "Calvin cycle",
+      reviewType: "verify",
+    });
+  });
 });

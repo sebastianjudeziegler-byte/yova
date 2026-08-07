@@ -37,8 +37,10 @@ export function buildDelayedVerificationSession(
     scheduledFor: scheduledFor.toISOString(),
     estimatedMinutes: 10,
     amountLabel: "Delayed verification · about 10 min",
-    learningMode: needsMisconceptionRepair ? "learn" : "study",
+    learningMode: "study",
     adaptationNote: createSessionAdaptationNote(explanation, completion.completedAt),
+    reviewConcept: gap,
+    reviewType: needsMisconceptionRepair ? "repair_and_retrieve" : "verify",
     status: "ready",
   };
 }

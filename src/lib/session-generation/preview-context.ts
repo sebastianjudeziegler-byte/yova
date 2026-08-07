@@ -8,6 +8,7 @@ import { summarizeConceptEvidence } from "@/lib/learning/concept-evidence";
 import { summarizeConfidenceCalibration } from "@/lib/learning/confidence-calibration";
 import { methodIdFromText } from "@/lib/learning/method-router";
 import { buildScaffoldProgressionSignals } from "@/lib/learning/scaffold-progression";
+import { inferScheduledRetrievalConcept, inferScheduledRetrievalType } from "@/lib/learning/scheduled-retrieval";
 import { expandedLearnerContextFromAnswers } from "@/lib/personalization/learner-profile";
 import type { PreviewSessionGenerationContext } from "@/lib/session-generation/schema";
 
@@ -52,6 +53,8 @@ export function buildPreviewSessionContext({
       learningMode: session.learningMode,
       contentTargets: session.contentTargets ?? [],
       completionEvidence: session.completionEvidence ?? [],
+      reviewConcept: inferScheduledRetrievalConcept(session),
+      reviewType: inferScheduledRetrievalType(session),
     },
     learnerProfile: {
       commonBlocker: onboardingAnswers[0] || null,
