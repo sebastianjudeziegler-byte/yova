@@ -354,8 +354,16 @@ test("a multi-session plan uses one clear source decision from setup to Learning
   await expect(page.getByText("Guided inside YOVA with YOVA-created teaching and practice")).toBeVisible();
   await page.getByRole("button", { name: "Generate my plan" }).click();
 
-  await expect(page.getByText("Plan active")).toBeVisible();
-  await page.getByRole("button", { name: "Go to Learning" }).click();
+  await expect(page.getByText("Plan ready")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Does this plan match what you need?" })).toBeVisible();
+  await expect(page.getByText("Nothing is active until you confirm it below.")).toBeVisible();
+  await page.getByRole("button", { name: "Change schedule" }).click();
+  await expect(page.getByRole("heading", { name: "When can you realistically study?" })).toBeVisible();
+  await page.getByRole("button", { name: "Continue" }).click();
+  await page.getByRole("button", { name: "Review information" }).click();
+  await page.getByRole("button", { name: "Generate my plan" }).click();
+  await expect(page.getByText("Plan ready")).toBeVisible();
+  await page.getByRole("button", { name: "Use this plan" }).click();
   await expect(page.getByRole("heading", { name: "Your plan" })).toBeVisible();
   await expect(page.getByText("Created by YOVA", { exact: true })).toBeVisible();
 

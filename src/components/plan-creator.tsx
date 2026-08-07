@@ -173,6 +173,17 @@ export function PlanCreator({ onExit, onFinish, profileSummary }: { onExit: () =
     }
   };
 
+  const reviseGeneratedPlan = (target: "goal" | "source" | "schedule" | "diagnostic") => {
+    setGeneratedPlan(null);
+    setGenerationError(null);
+    if (target === "goal") {
+      setDiagnosticAnswers([]);
+      setDiagnosticIndex(0);
+    }
+    if (target === "diagnostic") setDiagnosticIndex(0);
+    setStep(target);
+  };
+
   return (
     <main className={`plan-shell ${step === "result" ? "plan-result-shell" : ""}`}>
       <header className="plan-header">
@@ -261,10 +272,26 @@ export function PlanCreator({ onExit, onFinish, profileSummary }: { onExit: () =
 
       {step === "result" && generatedPlan && (
         <section className="generated-plan">
-          <div className="generated-heading"><div><span className="eyebrow"><Sparkles size={15} /> Plan active</span><h1>{generatedPlan.plan.title}</h1><p>{generatedPlan.plan.sessions.length} focused sessions organized around the goal.</p></div><button className="button primary large" onClick={() => onFinish(generatedPlan.plan)}>Go to Learning <ArrowRight size={18} /></button></div>
+          <div className="generated-heading"><div><span className="eyebrow"><Sparkles size={15} /> Plan ready</span><h1>{generatedPlan.plan.title}</h1><p>{generatedPlan.plan.sessions.length} focused sessions organized around the goal. Nothing is active until you confirm it below.</p></div></div>
           <div className="why-plan"><Sparkles /><div><strong>Why this plan</strong><p>{generatedPlan.plan.rationale}</p></div></div>
           {generatedPlan.generation.notice && <div className="generation-notice"><span>Alpha note</span><p>{generatedPlan.generation.notice}</p></div>}
           <div className="generated-timeline">{generatedPlan.plan.sessions.map((session) => <article key={session.id}><span>{session.sequence}</span><div><small>{session.learningMode === "learn" ? "TEACHING FIRST" : "PRACTICE FIRST"} · {formatSessionDate(session.scheduledFor)}</small><h3>{session.title}</h3><p>{session.method}</p></div><strong>{session.amountLabel}</strong></article>)}</div>
+          <section className="plan-alignment-check" aria-labelledby="plan-alignment-title">
+            <div className="plan-alignment-heading"><span className="step-label">BEFORE YOVA SAVES THIS</span><h2 id="plan-alignment-title">Does this plan match what you need?</h2><p>Check the content, starting approach, source, and pace. If one part is wrong, change that input and YOVA will rebuild the draft.</p></div>
+            <div className="plan-alignment-facts">
+              <div><span>CONTENT</span><strong>{generatedPlan.plan.topic}</strong></div>
+              <div><span>STARTING APPROACH</span><strong>{generatedPlan.plan.learningIntent === "learn" ? "Teach first, then remove support" : "Practice first, then repair gaps"}</strong></div>
+              <div><span>LEARNING SOURCE</span><strong>{sourceChoice === "materials" ? `${materials.length} uploaded ${materials.length === 1 ? "source" : "sources"}` : sourceChoice === "outside" ? "Your trusted source outside YOVA" : "Teaching and practice created by YOVA"}</strong></div>
+              <div><span>PACE</span><strong>{generatedPlan.plan.sessions.length} sessions · {Math.min(...generatedPlan.plan.sessions.map((session) => session.estimatedMinutes))}–{Math.max(...generatedPlan.plan.sessions.map((session) => session.estimatedMinutes))} minutes each</strong></div>
+            </div>
+            <div className="plan-revision-actions" aria-label="Change this plan before saving">
+              <button className="button ghost" onClick={() => reviseGeneratedPlan("goal")}>Change content</button>
+              <button className="button ghost" onClick={() => reviseGeneratedPlan("source")}>Change source</button>
+              <button className="button ghost" onClick={() => reviseGeneratedPlan("schedule")}>Change schedule</button>
+              <button className="button ghost" onClick={() => reviseGeneratedPlan("diagnostic")}>Change starting level</button>
+            </div>
+            <div className="plan-activation"><div><Check size={18} /><span><strong>Confirm only when this looks right.</strong><small>YOVA will save the plan and make its first session available.</small></span></div><button className="button primary large" onClick={() => onFinish(generatedPlan.plan)}>Use this plan <ArrowRight size={18} /></button></div>
+          </section>
         </section>
       )}
     </main>

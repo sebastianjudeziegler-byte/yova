@@ -42,6 +42,7 @@ A cross-browser six-digit email-code flow is implemented and tested behind a ser
 - Rebuilt Learning as a scalable goal library: users now see compact active, completed, and archived goal cards before opening a focused plan detail
 - Learning goal details now put the actual session sequence first, followed by adaptations, sources, generated resources, and concept evidence
 - Simplified multi-session plan creation to one consistent five-step journey and the same three source choices used by Study Now: use uploaded materials, let YOVA create the teaching, or receive guidance while studying elsewhere
+- Generated plans remain unsaved drafts until the learner confirms that the content, starting approach, source, and pace match the request; each input can be corrected directly from the review screen before activation
 - Branded landing and account journey
 - Ten-question personalization onboarding
 - Home, Learning, Agenda, Ask YOVA, and You
