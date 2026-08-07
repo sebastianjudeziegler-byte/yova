@@ -78,7 +78,6 @@ import {
 } from "@/lib/learning/concept-review-agenda";
 import { buildConceptReviewSchedule } from "@/lib/learning/concept-review-scheduler";
 import { confidenceResultMessage, summarizeConfidenceCalibration } from "@/lib/learning/confidence-calibration";
-import { buildDelayedVerificationSession } from "@/lib/learning/delayed-verification";
 import type { MethodPhase } from "@/lib/learning/method-fidelity";
 import {
   buildMethodPhaseRoadmap,
@@ -110,7 +109,10 @@ import { selectFreeResponseMode } from "@/lib/learning/response-mode";
 import { clearPreviewSnapshot, loadPreviewSnapshot, savePreviewSnapshot } from "@/lib/persistence/preview-store";
 import { buildPlanProfileSummary } from "@/lib/personalization/profile-summary";
 import { createSessionAdaptationNote } from "@/lib/personalization/adaptation-note";
-import { buildNextSessionAdaptation } from "@/lib/personalization/session-adaptation";
+import {
+  approvedPostSessionChanges,
+  buildPostSessionDecision,
+} from "@/lib/personalization/post-session-decision";
 import { buildMethodSignals, type MethodSignal } from "@/lib/personalization/method-signals";
 import {
   DEEP_PROFILE_QUESTIONS,
@@ -277,6 +279,10 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
     }
     setActiveTab(tab);
   };
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  }, [stage, activeTab]);
 
   useEffect(() => {
     let cancelled = false;
@@ -772,7 +778,7 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
     await startSession(plan.id, activatedPlan);
   };
 
-  const completeActiveSession = (correctAnswers: number, totalAnswers: number, feedback: SessionCompletion["feedback"], actualMinutes: number) => {
+  const completeActiveSession = (correctAnswers: number, totalAnswers: number, feedback: SessionCompletion["feedback"], actualMinutes: number, applyRecommendedChange: boolean) => {
     if (!activePlan) return;
     const currentSession = activePlan.sessions.find((session) => session.status === "ready");
     if (!currentSession) return;
@@ -793,10 +799,10 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
       confidenceEvidence: sessionEvidence.confidenceEvidence,
     };
     const nextSession = activePlan.sessions.find((session) => session.sequence === currentSession.sequence + 1) ?? null;
-    const adaptation = buildNextSessionAdaptation(nextSession, completion);
-    const delayedVerification = nextSession
-      ? null
-      : buildDelayedVerificationSession(currentSession, completion);
+    const decision = buildPostSessionDecision(currentSession, nextSession, completion);
+    const approvedChanges = approvedPostSessionChanges(decision, applyRecommendedChange);
+    const adaptation = approvedChanges.adaptation;
+    const delayedVerification = approvedChanges.followUpSession;
 
     trackProductEvent({
       eventName: "session_completed",
@@ -1389,7 +1395,7 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
     const nextSession = currentSession
       ? activePlan?.sessions.find((session) => session.sequence === currentSession.sequence + 1) ?? null
       : null;
-    return <SessionComplete requiredContentCount={activeLessonSteps.filter((step) => step.requiredForCompletion !== false).length} repairCount={sessionEvidence.completedImmediateRepairs} elapsedSeconds={capturedSessionSeconds} actualMinutes={capturedSessionMinutes} correctAnswers={sessionEvidence.correctAnswers} totalAnswers={sessionEvidence.totalAnswers} observedGap={sessionEvidence.observedGap} conceptEvidence={sessionEvidence.conceptEvidence} confidenceEvidence={sessionEvidence.confidenceEvidence} nextSession={nextSession} onFinish={(feedback) => { completeActiveSession(sessionEvidence.correctAnswers, sessionEvidence.totalAnswers, feedback, capturedSessionMinutes); setStage("app"); setActiveTab("Home"); }} />;
+    return <SessionComplete currentSession={currentSession} requiredContentCount={activeLessonSteps.filter((step) => step.requiredForCompletion !== false).length} repairCount={sessionEvidence.completedImmediateRepairs} elapsedSeconds={capturedSessionSeconds} actualMinutes={capturedSessionMinutes} correctAnswers={sessionEvidence.correctAnswers} totalAnswers={sessionEvidence.totalAnswers} observedGap={sessionEvidence.observedGap} conceptEvidence={sessionEvidence.conceptEvidence} confidenceEvidence={sessionEvidence.confidenceEvidence} nextSession={nextSession} onFinish={(feedback, applyRecommendedChange) => { completeActiveSession(sessionEvidence.correctAnswers, sessionEvidence.totalAnswers, feedback, capturedSessionMinutes, applyRecommendedChange); setStage("app"); setActiveTab("Home"); }} />;
   }
 
   return <>
@@ -3219,36 +3225,48 @@ function sessionTutorQuickActions(activityType: LessonStep["type"], answerState:
   ];
 }
 
-function SessionComplete({ requiredContentCount, repairCount, elapsedSeconds, actualMinutes, correctAnswers, totalAnswers, observedGap, conceptEvidence, confidenceEvidence, nextSession, onFinish }: { requiredContentCount: number; repairCount: number; elapsedSeconds: number; actualMinutes: number; correctAnswers: number; totalAnswers: number; observedGap: string; conceptEvidence: SessionCompletion["conceptEvidence"]; confidenceEvidence: ConfidenceEvidence[]; nextSession: LearningPlanSession | null; onFinish: (feedback: SessionCompletion["feedback"]) => void }) {
+function SessionComplete({ currentSession, requiredContentCount, repairCount, elapsedSeconds, actualMinutes, correctAnswers, totalAnswers, observedGap, conceptEvidence, confidenceEvidence, nextSession, onFinish }: { currentSession: LearningPlanSession | null; requiredContentCount: number; repairCount: number; elapsedSeconds: number; actualMinutes: number; correctAnswers: number; totalAnswers: number; observedGap: string; conceptEvidence: SessionCompletion["conceptEvidence"]; confidenceEvidence: ConfidenceEvidence[]; nextSession: LearningPlanSession | null; onFinish: (feedback: SessionCompletion["feedback"], applyRecommendedChange: boolean) => void }) {
   const [feedback, setFeedback] = useState<SessionCompletion["feedback"]>("about_right");
   const hasGap = totalAnswers > 0 && correctAnswers < totalAnswers;
-  const willScheduleVerification = !nextSession && hasGap;
-  const calibration = summarizeConfidenceCalibration(confidenceEvidence);
   const conceptSummary = summarizeCompletionConcepts(conceptEvidence);
-  const proposedAdaptation = buildNextSessionAdaptation(nextSession, {
-    id: "completion-preview",
-    planId: "completion-preview",
-    planSessionId: "completion-preview",
+  const completionPreview: SessionCompletion = {
+    id: "00000000-0000-4000-8000-000000000001",
+    planId: "00000000-0000-4000-8000-000000000002",
+    planSessionId: currentSession?.id ?? "00000000-0000-4000-8000-000000000003",
     startedAt: "1970-01-01T00:00:00.000Z",
     completedAt: "1970-01-01T00:00:00.000Z",
-    plannedMinutes: nextSession?.estimatedMinutes ?? actualMinutes,
+    plannedMinutes: currentSession?.estimatedMinutes ?? actualMinutes,
     actualMinutes,
     correctAnswers,
     totalAnswers,
     feedback,
     observedGap,
-    conceptEvidence: [],
+    conceptEvidence,
     confidenceEvidence,
-  });
-  const nextStatus = willScheduleVerification
-    ? { title: "YOVA will verify this after a delay", explanation: "A short check will be ready tomorrow. The time gap matters: immediate repetition can repair an idea, but delayed retrieval gives stronger evidence that it will hold up." }
-    : !nextSession
-      ? { title: "This learning item is complete", explanation: "There is no remaining session to adjust. This result is still saved to your learning history." }
-    : proposedAdaptation
-      ? { title: "YOVA will adjust the next session", explanation: proposedAdaptation.explanation }
-      : { title: "The next session is ready", explanation: "This result does not justify changing the planned method, so YOVA will continue without inventing an adjustment." };
+  };
+  const decision = currentSession
+    ? buildPostSessionDecision(currentSession, nextSession, completionPreview)
+    : null;
+  const hasRecommendedChange = decision?.kind === "adapt_next_session" || decision?.kind === "add_delayed_verification";
+  const keepLabel = decision?.kind === "add_delayed_verification"
+    ? "Finish without adding review"
+    : "Keep current plan";
 
-  return <main className="centered-shell completion"><BrandMark /><section className="completion-card"><header className="completion-heading"><div className={`completion-icon ${hasGap ? "needs-review" : ""}`}>{hasGap ? <RotateCcw size={27} /> : <Check size={28} />}</div><div><span className="step-label">SESSION COMPLETE</span><h1>{hasGap ? "The work is done. One part needs another check." : "Today’s checks held up."}</h1><p>You completed every required step. YOVA uses your answers to decide what comes next; time only records how long the work took.</p></div></header><div className="result-grid"><div><span>Required steps</span><strong>{requiredContentCount} of {requiredContentCount}</strong><small>All attempted</small></div><div><span>Evidence checks</span><strong>{correctAnswers} of {totalAnswers}</strong><small>Answered correctly</small></div><div><span>Time used</span><strong>{formatElapsedDuration(elapsedSeconds)}</strong><small>Recorded, not graded</small></div></div>{conceptSummary.showingStrength.length > 0 || conceptSummary.needsAnotherCheck.length > 0 ? <section className="completion-evidence"><div><span><Check size={15} /> Showing strength today</span>{conceptSummary.showingStrength.length > 0 ? <ul>{conceptSummary.showingStrength.map((concept) => <li key={concept}>{concept}</li>)}</ul> : <p>No concept has enough successful evidence yet.</p>}</div><div className={conceptSummary.needsAnotherCheck.length > 0 ? "needs-review" : ""}><span><RotateCcw size={15} /> Needs another check</span>{conceptSummary.needsAnotherCheck.length > 0 ? <ul>{conceptSummary.needsAnotherCheck.map((concept) => <li key={concept}>{concept}</li>)}</ul> : <p>No gap appeared in today’s required checks.</p>}</div></section> : null}{repairCount > 0 && <div className="repair-completion-summary"><RotateCcw size={19} /><div><strong>{repairCount} immediate {repairCount === 1 ? "repair" : "repairs"} completed</strong><p>You corrected the {repairCount === 1 ? "idea" : "ideas"} before leaving. The original {repairCount === 1 ? "miss remains" : "misses remain"} as evidence so YOVA can verify the learning after a delay.</p></div></div>}{calibration.pattern !== "insufficient" && <div className={`calibration-summary ${calibration.pattern}`}><Target size={19} /><div><strong>{calibration.title}</strong><p>{calibration.explanation}</p></div></div>}<section className="completion-next"><div className="completion-next-icon"><Sparkles size={20} /></div><div><span>NEXT UP</span><h2>{nextSession ? nextSession.title : willScheduleVerification ? "A delayed verification check" : "This learning item is complete"}</h2>{nextSession && <small>{formatAgendaTime(nextSession.scheduledFor)} · {nextSession.estimatedMinutes} minutes</small>}<p>{nextStatus.explanation}</p></div></section><section className="completion-feedback"><div><strong>Help YOVA tune the next session</strong><p>How did the level of challenge feel?</p></div><div className="feeling-row"><button className={feedback === "too_easy" ? "selected" : ""} onClick={() => setFeedback("too_easy")}>Too easy</button><button className={feedback === "about_right" ? "selected" : ""} onClick={() => setFeedback("about_right")}>About right</button><button className={feedback === "too_difficult" ? "selected" : ""} onClick={() => setFeedback("too_difficult")}>Too difficult</button></div></section><button className="button primary large full" onClick={() => onFinish(feedback)}>Save and see what’s next <ArrowRight size={18} /></button></section></main>;
+  return <main className="centered-shell completion">
+    <BrandMark />
+    <section className="completion-card">
+      <header className="completion-heading">
+        <div className={`completion-icon ${hasGap ? "needs-review" : ""}`}>{hasGap ? <RotateCcw size={27} /> : <Check size={28} />}</div>
+        <div><span className="step-label">SESSION COMPLETE</span><h1>{hasGap ? "The work is done. One part needs another check." : "Today’s checks held up."}</h1><p>You completed every required step. YOVA uses the work you produced, not the clock, to decide what should happen next.</p></div>
+      </header>
+      <div className="result-grid"><div><span>Required steps</span><strong>{requiredContentCount} of {requiredContentCount}</strong><small>All attempted</small></div><div><span>Evidence checks</span><strong>{correctAnswers} of {totalAnswers}</strong><small>Answered correctly</small></div><div><span>Time used</span><strong>{formatElapsedDuration(elapsedSeconds)}</strong><small>Recorded, not graded</small></div></div>
+      {(conceptSummary.showingStrength.length > 0 || conceptSummary.needsAnotherCheck.length > 0) && <section className="completion-evidence"><div><span><Check size={15} /> Showing strength today</span>{conceptSummary.showingStrength.length > 0 ? <ul>{conceptSummary.showingStrength.map((concept) => <li key={concept}>{concept}</li>)}</ul> : <p>No concept has enough successful evidence yet.</p>}</div><div className={conceptSummary.needsAnotherCheck.length > 0 ? "needs-review" : ""}><span><RotateCcw size={15} /> Needs another check</span>{conceptSummary.needsAnotherCheck.length > 0 ? <ul>{conceptSummary.needsAnotherCheck.map((concept) => <li key={concept}>{concept}</li>)}</ul> : <p>No gap appeared in today’s required checks.</p>}</div></section>}
+      {repairCount > 0 && <div className="completion-repair-note"><RotateCcw size={17} /><p>You repaired {repairCount === 1 ? "one idea" : `${repairCount} ideas`} during the session. YOVA still treats the original miss as evidence that deserves another check.</p></div>}
+      <section className="completion-feedback"><div><strong>How did the challenge feel?</strong><p>Your answer can change YOVA’s recommendation below.</p></div><div className="feeling-row"><button className={feedback === "too_easy" ? "selected" : ""} onClick={() => setFeedback("too_easy")}>Too easy</button><button className={feedback === "about_right" ? "selected" : ""} onClick={() => setFeedback("about_right")}>About right</button><button className={feedback === "too_difficult" ? "selected" : ""} onClick={() => setFeedback("too_difficult")}>Too difficult</button></div></section>
+      {decision && <section className={`completion-decision ${hasRecommendedChange ? "recommended" : "unchanged"}`}><header><div className="completion-next-icon">{hasRecommendedChange ? <Sparkles size={20} /> : <Check size={20} />}</div><div><span>{hasRecommendedChange ? "YOVA RECOMMENDS" : "NO CHANGE NEEDED"}</span><h2>{decision.title}</h2><p>{decision.explanation}</p></div></header>{decision.changes.length > 0 && <ol>{decision.changes.map((change) => <li key={change}>{change}</li>)}</ol>}<div className="completion-decision-next"><span>Next</span><strong>{decision.nextTitle}</strong>{nextSession && <small>{formatAgendaTime(nextSession.scheduledFor)} · {nextSession.estimatedMinutes} minutes</small>}</div>{hasRecommendedChange && <small className="completion-approval-note">This is only a recommendation. Nothing changes until you approve it.</small>}</section>}
+      {hasRecommendedChange ? <div className="completion-decision-actions"><button className="button ghost large" onClick={() => onFinish(feedback, false)}>{keepLabel}</button><button className="button primary large" onClick={() => onFinish(feedback, true)}>Update my plan <ArrowRight size={18} /></button></div> : <button className="button primary large full" onClick={() => onFinish(feedback, false)}>Finish and continue <ArrowRight size={18} /></button>}
+    </section>
+  </main>;
 }
 
 function formatElapsedDuration(totalSeconds: number) {

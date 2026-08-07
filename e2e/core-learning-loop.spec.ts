@@ -89,13 +89,15 @@ test("a confident misconception is repaired now and verified later", async ({ pa
   await page.getByRole("button", { name: "Continue" }).click();
   await page.getByRole("button", { name: "Finish this content" }).click();
 
+  await expect(page.getByRole("heading", { name: "The work is done. One part needs another check." })).toBeInViewport();
   await expect(page.getByText("2 of 3")).toBeVisible();
   await expect(page.getByText("Evidence checks")).toBeVisible();
   await expect(page.getByText("Recorded, not graded")).toBeVisible();
-  await expect(page.getByText("1 immediate repair completed")).toBeVisible();
+  await expect(page.getByText(/You repaired one idea during the session/)).toBeVisible();
   await expect(page.getByText("Cellular respiration sequence", { exact: true })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "A delayed verification check" })).toBeVisible();
-  await page.getByRole("button", { name: "Save and see what’s next" }).click();
+  await expect(page.getByRole("heading", { name: "Add a short delayed check" })).toBeVisible();
+  await expect(page.getByText("Nothing changes until you approve it.")).toBeVisible();
+  await page.getByRole("button", { name: "Update my plan" }).click();
 
   await expect(page.getByRole("heading", { name: /Repair and verify Cellular respiration sequence/i })).toBeVisible();
   await expect(page.getByText("Misconception repair and delayed transfer", { exact: true })).toBeVisible();

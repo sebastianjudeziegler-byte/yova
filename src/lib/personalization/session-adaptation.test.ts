@@ -55,11 +55,12 @@ describe("buildNextSessionAdaptation", () => {
     expect(result).toMatchObject({
       planSessionId: nextSession.id,
       method: "Guided repair, then retrieval",
-      estimatedMinutes: nextSession.estimatedMinutes,
+      estimatedMinutes: 20,
       learningMode: "learn",
     });
     expect(result?.objective).toContain("electron transport chain");
-    expect(result?.explanation).toContain("session felt too difficult");
+    expect(result?.explanation).toContain("felt too difficult");
+    expect(result?.explanation).toContain("shortened from 25 to 20 minutes");
   });
 
   it("uses targeted retrieval for a smaller knowledge gap", () => {
@@ -140,6 +141,7 @@ describe("buildNextSessionAdaptation", () => {
 
     expect(result?.method).toBe("Guided example, then mixed practice");
     expect(result?.learningMode).toBe("learn");
+    expect(result?.estimatedMinutes).toBe(20);
     expect(result?.objective).toContain("Begin with one guided example");
   });
 
