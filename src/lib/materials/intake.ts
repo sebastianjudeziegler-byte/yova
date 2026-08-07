@@ -1,4 +1,5 @@
 import type { LearningMaterial } from "../domain";
+import { ExternalMaterialResponseSchema } from "@/lib/materials/external-source-schema";
 import { MaterialStageResponseSchema, MaterialUploadResponseSchema } from "@/lib/materials/schema";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
@@ -94,4 +95,22 @@ export async function deleteUploadedMaterial(materialId: string) {
     ? body.error
     : "YOVA could not remove this material.";
   throw new Error(message);
+}
+
+export async function importLinkedMaterial(url: string, transcript?: string) {
+  const response = await fetch("/api/materials/link", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ url, transcript: transcript?.trim() || undefined }),
+  });
+  const body: unknown = await response.json().catch(() => null);
+  if (!response.ok) {
+    const message = typeof body === "object" && body && "error" in body && typeof body.error === "string"
+      ? body.error
+      : "YOVA could not import this link.";
+    throw new Error(message);
+  }
+  const parsed = ExternalMaterialResponseSchema.safeParse(body);
+  if (!parsed.success) throw new Error("The imported material came back in an unsafe format.");
+  return parsed.data;
 }

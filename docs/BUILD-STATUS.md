@@ -15,7 +15,7 @@ Estimated completion depends on which finish line is meant:
 
 | Finish line | Current estimate | Meaning |
 |---|---:|---|
-| Functional product core | 98% | The differentiated loop works, generic-content substitution is blocked, vague class labels trigger an in-flow clarification question, technical lessons render structured mathematics, and twelve foundational journeys pass on desktop and mobile. More real-user and adversarial input coverage is still required before calling the core finished. |
+| Functional product core | 98% | The differentiated loop works, generic-content substitution is blocked, vague class labels trigger an in-flow clarification question, source links feed the grounded-material pipeline, Agenda reasons about workload, and thirteen foundational journeys run on desktop and mobile. More real-user and adversarial input coverage is still required before calling the core finished. |
 | Invite-only private alpha | 90% | Deployment, safeguards, atomic learning-state updates, and automated teaching, practice, outside-study, interruption, tutoring, technical-content, and plan-rebuild journeys are connected; reliable email delivery, authenticated production testing, and broader real-input testing remain. |
 | Credible public beta | 70% | Trust, monitoring, live quality gates, CI, phone-sized coverage, reload persistence, and wider journey checks exist; human output review, more devices, external alerts, policy review, and tester-driven polish remain. |
 | Paid polished launch | 35% | Also needs billing, entitlements, cost controls by plan, and more operational maturity |
@@ -67,6 +67,10 @@ A cross-browser six-digit email-code flow is implemented and tested behind a ser
 - Quantitative free responses now use a structured workpad with numbered reasoning steps and a separate final answer instead of forcing calculations into one generic explanation box; YOVA evaluates both the method and result through the existing privacy-bounded formative check
 - Visible reasons for methods and recommendations
 - Upload guidance now names useful source examples: teacher study guides, PDF lecture slides, class notes, review sheets, and readable textbook excerpts
+- A learner can add a public article URL as private learning material. YOVA follows only bounded public HTTPS pages, extracts readable text on the server, checks its quality, and does not attempt to bypass paywalls or account access
+- YouTube links are recognized and titled through the public video metadata surface. YOVA then asks the learner to paste the transcript shown by YouTube and stores that explicit transcript as the source instead of silently scraping it
+- Article and YouTube transcript sources can be added during plan creation, Study Now, or later inside an existing learning goal
+- Agenda now summarizes today, the next seven days, the next deadline, and all active goals; groups sessions by day with real minute totals; preserves missed-session recovery and concept reviews; and can propose a safe workload-balancing move for the learner to approve
 
 ### Personalization and adaptation
 
@@ -111,6 +115,7 @@ A cross-browser six-digit email-code flow is implemented and tested behind a ser
 - Concept return intervals are visible inside the learning goal and explicitly described as review heuristics rather than permanent mastery predictions
 - Due review concepts are sent to the session generator with their exact stored names, and the backend rejects a generated session that skips the highest-priority return for lower-priority work
 - Agenda now includes a retrieval queue derived from completed concept evidence, rather than from a generic repetition counter
+- Agenda workload recommendations are deterministic and inspectable: YOVA identifies a crowded day, checks the plan sequence and deadline, finds a lighter nearby day, and changes the saved schedule only after approval
 - A due concept in an active plan is forced into the next session; a due concept in a completed plan can reopen the original goal with one bounded five- or ten-minute verification session
 
 ### Honest scientific-product status
@@ -137,6 +142,7 @@ The software loop is close to private-alpha readiness, but the broader learning-
 - Playwright verifies that outside-study guidance preserves the learner’s actual writing goal and keeps the selected learning method visible on both desktop and mobile
 - Playwright verifies that changing a plan from 45-minute to 15-minute windows creates additional bounded sessions while preserving the content workload instead of treating elapsed time as completion
 - Playwright verifies repeated stop-and-return behavior on desktop and mobile, including two interruptions inside the same unfinished session
+- Playwright verifies that the material journey visibly supports files, articles, and YouTube transcripts on desktop and mobile
 - Preview mode now has a safe service boundary for Ask YOVA, so the product shell does not crash merely because Supabase is unavailable
 - Both paths run at desktop and Pixel-sized mobile viewports; the adaptive path also reloads the app to prove that the adjusted learning state persists
 - GitHub Actions now runs unit tests, lint, the production build, and the complete browser journey on every push to `main` and every pull request
@@ -145,6 +151,7 @@ The software loop is close to private-alpha readiness, but the broader learning-
 - Privacy-safe production error reports with a documented founder triage workflow
 - Private support-request workflow with validation, ownership rules, and spam limits
 - Material-quality checks that reject unreadable sources and warn when coverage is short or truncated
+- External material intake validates public URLs, blocks private-network requests and unsafe redirects, caps remote page size and time, and keeps imported text under the same 50,000-character grounding boundary as uploaded files
 - Source-grounding validation rejects invented filenames, unverifiable quotations, and unnecessary AI supplementation before a session reaches the learner
 - Five-case plan-quality evaluation covering biology, math, writing, coding, and general learning
 - First live OpenAI plan suite passed: five student and general-learning paths scored 100/100 against the required rubric

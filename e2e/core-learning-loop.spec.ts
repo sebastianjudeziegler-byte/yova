@@ -397,7 +397,7 @@ test("the product shell keeps every core destination and creation path usable", 
   await expect(page.getByRole("heading", { name: "What you’re working toward" })).toBeVisible();
 
   await page.getByRole("button", { name: "Agenda", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Today and this week" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "A realistic learning week" })).toBeVisible();
 
   await page.getByRole("button", { name: "Ask YOVA", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Get help in context" })).toBeVisible();
@@ -615,13 +615,32 @@ test("a multi-session plan uses one clear source decision from setup to Learning
   await page.getByRole("button", { name: "Agenda", exact: true }).click();
   const moveOverdue = page.getByRole("button", { name: "Move to tomorrow" });
   if (await moveOverdue.isVisible()) await moveOverdue.click();
-  const nextAgendaSession = page.locator(".agenda-list article.primary-agenda").first();
+  await expect(page.getByRole("heading", { name: "A realistic learning week" })).toBeVisible();
+  await expect(page.getByText("What YOVA is planning around")).toBeVisible();
+  const nextAgendaSession = page.locator(".agenda-day article.ready").first();
   await expect(nextAgendaSession).toBeVisible();
   await nextAgendaSession.getByRole("button", { name: "Start", exact: true }).click();
   await expect(page.getByRole("dialog", { name: /Start .* now\?/ })).toBeVisible();
   await expect(page.getByText("Recommended: pull the agenda forward")).toBeVisible();
   await page.getByRole("button", { name: "Start and adjust agenda" }).click();
   await expect(page.getByRole("heading", { name: "Make sure YOVA starts in the right place." })).toBeVisible();
+});
+
+test("material setup clearly supports files, articles, and YouTube transcripts", async ({ page }) => {
+  await createPreviewAccount(page);
+  await completeOnboarding(page);
+
+  await page.getByRole("button", { name: "Study something now", exact: true }).first().click();
+  await page.getByPlaceholder("Example: Help me understand the product rule and practice using it.").fill(
+    "Help me understand how ecosystems respond to invasive species.",
+  );
+  await page.getByRole("button", { name: /Choose how YOVA should help/ }).click();
+  await page.getByRole("button", { name: /Use my materials/ }).click();
+  await expect(page.getByRole("button", { name: /Add an article or YouTube video/ })).toBeVisible();
+  await page.getByRole("button", { name: /Add an article or YouTube video/ }).click();
+  await expect(page.getByRole("region", { name: "Add material from a link" })).toContainText("Public article");
+  await expect(page.getByRole("region", { name: "Add material from a link" })).toContainText("YouTube transcript");
+  await expect(page.getByText(/does not bypass paywalls or sign-ins/i)).toBeVisible();
 });
 
 async function createPreviewAccount(page: Page) {

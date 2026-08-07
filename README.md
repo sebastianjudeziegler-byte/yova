@@ -9,12 +9,12 @@ YOVA Lite is a personalized learning planner and guided study system. A learner 
 - One-off Study Now sessions and multi-session learning plans
 - In-flow clarification when a class label such as “Calc Unit 3” does not identify the actual topic
 - Plan-alignment review before a generated draft becomes an active learning goal
-- Optional private PDF, TXT, and Markdown uploads with server-side extraction
+- Optional private PDF, TXT, and Markdown uploads, public article imports, and YouTube transcript sources with server-side extraction
 - OpenAI-generated plans, guided sessions, explanations, retrieval, quizzes, and tutor responses
 - Subject-aware session interactions, including a step-by-step quantitative workpad that checks both reasoning and the final result
 - Inside-YOVA and outside-YOVA study modes
 - Content-based plan resizing when the learner’s available session time changes
-- Home recommendations, Learning, Agenda, Ask YOVA, and You
+- Home recommendations, Learning, a workload-aware Agenda, Ask YOVA, and You
 - Session timing, interruptions, resumable progress, concept evidence, and lightweight next-session adaptation
 - Plan adjustments, rescheduling, archiving, material attachment, and learning-data reset
 - Durable OpenAI usage protection and server rate limits

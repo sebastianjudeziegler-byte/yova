@@ -100,7 +100,7 @@ This avoids a second OpenAI call and avoids creating a disconnected copy of the 
 
 ## 7. Material handling
 
-Authenticated users may upload PDF, TXT, and Markdown files. YOVA:
+Authenticated users may upload PDF, TXT, and Markdown files, import a public article, or attach the transcript of a YouTube video. YOVA:
 
 1. checks file type, count, size, and ownership;
 2. stores the original privately in Supabase Storage;
@@ -111,6 +111,10 @@ Authenticated users may upload PDF, TXT, and Markdown files. YOVA:
 7. stops source-grounded sessions if a readable source is unavailable.
 
 Uploaded text is treated as untrusted content, not as instructions to the system.
+
+Article importing is a **server-side ingestion boundary**. The browser sends a URL to YOVA, the server verifies that it is a public HTTPS address, blocks private-network destinations and unsafe redirects, limits the download size and time, extracts the readable page text, and stores the result as a private text material. A paywalled, signed-in, unsupported, or unreadable page is rejected instead of bypassed.
+
+YouTube works differently. A normal video URL gives YOVA the public video title, but reliable caption download requires an authorized YouTube data flow. Lite therefore asks the learner to open YouTube's visible transcript, copy it, and paste it into YOVA. That is a deliberate product boundary: a slightly more explicit step is preferable to an unofficial scraper that could stop working or import the wrong text.
 
 Material quality has three practical states. **Ready** means YOVA found substantial readable content. **Limited** means the file is usable but short or reached the 50,000-character extraction boundary, so the user sees a warning. **Unusable** means the file is scanned without selectable text, damaged, binary, or contains too little readable content; YOVA removes the failed staged upload and asks for a clearer source instead of pretending it can generate a grounded plan.
 
@@ -152,6 +156,7 @@ The You screen also groups completed sessions into broad method families such as
 
 - validated server and AI contracts
 - overdue-session recovery composed from the existing secure scheduling and duration APIs
+- a workload-aware Agenda that groups real session minutes by day and proposes sequence-safe, deadline-safe moves for learner approval
 - short-window API rate limits
 - durable per-account OpenAI allowances
 - atomic plan saving
@@ -203,7 +208,7 @@ This is why pushing to GitHub does not automatically make `localhost:3000` avail
 - **Production smoke test:** checks the deployed system with its real configuration.
 - **AI quality evaluation:** scores real generated plans against product-specific learning, timing, safety, and personalization criteria.
 
-YOVA currently has 177 passing unit tests, ten foundational browser journeys exercised at desktop and phone-sized viewports, and opt-in live OpenAI evaluations for plans, sessions, and typed-answer judgment. The live evaluations consume API credits, so ordinary builds never trigger them. Real authenticated production journeys and broader human output review remain launch work.
+YOVA currently has 219 passing unit tests, thirteen foundational browser journeys exercised at desktop and phone-sized viewports, and opt-in live OpenAI evaluations for plans, sessions, and typed-answer judgment. The live evaluations consume API credits, so ordinary builds never trigger them. Real authenticated production journeys and broader human output review remain launch work.
 
 ## 13. The next technical systems
 

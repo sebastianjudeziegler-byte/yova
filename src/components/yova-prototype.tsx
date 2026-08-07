@@ -43,6 +43,7 @@ import {
 } from "lucide-react";
 import { BrandMark } from "@/components/brand-mark";
 import { LearningContent } from "@/components/learning-content";
+import { MaterialLinkImporter } from "@/components/material-link-importer";
 import { PlanCreator } from "@/components/plan-creator";
 import { QuantitativeWorkpad } from "@/components/quantitative-workpad";
 import { StudyNowCreator } from "@/components/study-now-creator";
@@ -56,6 +57,7 @@ import {
   makeUuid,
   type ConfidenceEvidence,
   type ConfidenceLevel,
+  type LearningMaterial,
   type LearningPlan,
   type LearningPlanSession,
   type PreviewAccount,
@@ -141,6 +143,11 @@ import {
   type AnswerEvaluationResponse,
 } from "@/lib/session-evaluation/schema";
 import { RescheduleSessionResponseSchema } from "@/lib/scheduling/schema";
+import {
+  buildAgendaBalanceSuggestion,
+  buildAgendaDayGroups,
+  summarizeAgenda,
+} from "@/lib/scheduling/agenda-insights";
 import { isSessionOverdue, recoverySessionMinutes, tomorrowAtSessionTime } from "@/lib/scheduling/recovery";
 import {
   applyAdvancedSchedule,
@@ -1756,6 +1763,7 @@ function formatConceptSignal(signal: ConceptSignal) {
 function PlanSources({ plan, editable, onAttach }: { plan: LearningPlan; editable: boolean; onAttach: (planId: string, materialIds: string[]) => Promise<void> }) {
   const [adding, setAdding] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const materials = plan.materials ?? [];
   const atLimit = materials.length >= 5;
 
@@ -1763,6 +1771,7 @@ function PlanSources({ plan, editable, onAttach }: { plan: LearningPlan; editabl
     if (!files?.length || adding) return;
     setAdding(true);
     setError(null);
+    setNotice(null);
     const { accepted, errors } = await uploadMaterialFiles(Array.from(files), materials);
 
     if (accepted.length) {
@@ -1777,7 +1786,22 @@ function PlanSources({ plan, editable, onAttach }: { plan: LearningPlan; editabl
     setAdding(false);
   };
 
-  return <section className="section-block plan-sources"><div className="section-title"><h3>Learning source</h3><div className="source-heading-actions"><span>{plan.sourceMode === "user_materials" ? `${materials.length} uploaded` : "Created by YOVA"}</span>{editable && !atLimit && <label className={`button source-upload ${adding ? "disabled" : ""}`}><Upload size={15} /> {adding ? "Processing…" : "Add sources"}<input aria-label="Add source materials" type="file" multiple accept=".pdf,.txt,.md,text/plain,text/markdown,application/pdf" disabled={adding} onChange={(event) => { void addFiles(event.target.files); event.target.value = ""; }} /></label>}</div></div>{materials.length ? <div className="source-material-list">{materials.map((material) => <div key={material.id}><FileText size={18} /><span><strong>{material.name}</strong><small>{formatFileSize(material.sizeBytes)} · Private source for this goal</small></span><span className="data-badge">Ready</span></div>)}</div> : plan.sourceMode === "user_materials" ? <div className="source-empty"><AlertCircle size={17} /><p>This goal expects uploaded sources, but their metadata could not be loaded. Guided sessions will stop rather than silently inventing source content.</p></div> : <div className="source-created"><Sparkles size={18} /><div><strong>YOVA-generated learning content</strong><p>Explanations, questions, and practice are created from the goal. You can add private source files later.</p></div></div>}{atLimit && editable && <p className="source-limit">This goal has reached the five-material limit for the private alpha.</p>}{error && <div className="chat-error"><AlertCircle size={16} /><span>{error}</span></div>}</section>;
+  const addLinkedSource = async (material: LearningMaterial, materialNotice: string | null) => {
+    setAdding(true);
+    setError(null);
+    setNotice(null);
+    try {
+      await onAttach(plan.id, [material.id]);
+      setNotice(materialNotice);
+    } catch (attachError) {
+      await deleteUploadedMaterial(material.id).catch(() => undefined);
+      setError(attachError instanceof Error ? attachError.message : "YOVA could not attach that source.");
+    } finally {
+      setAdding(false);
+    }
+  };
+
+  return <section className="section-block plan-sources"><div className="section-title"><h3>Learning source</h3><div className="source-heading-actions"><span>{plan.sourceMode === "user_materials" ? `${materials.length} uploaded` : "Created by YOVA"}</span>{editable && !atLimit && <label className={`button source-upload ${adding ? "disabled" : ""}`}><Upload size={15} /> {adding ? "Processing…" : "Add files"}<input aria-label="Add source materials" type="file" multiple accept=".pdf,.txt,.md,text/plain,text/markdown,application/pdf" disabled={adding} onChange={(event) => { void addFiles(event.target.files); event.target.value = ""; }} /></label>}</div></div>{materials.length ? <div className="source-material-list">{materials.map((material) => <div key={material.id}><FileText size={18} /><span><strong>{material.name}</strong><small>{formatFileSize(material.sizeBytes)} · Private source for this goal</small></span><span className="data-badge">Ready</span></div>)}</div> : plan.sourceMode === "user_materials" ? <div className="source-empty"><AlertCircle size={17} /><p>This goal expects uploaded sources, but their metadata could not be loaded. Guided sessions will stop rather than silently inventing source content.</p></div> : <div className="source-created"><Sparkles size={18} /><div><strong>YOVA-generated learning content</strong><p>Explanations, questions, and practice are created from the goal. You can add private sources later.</p></div></div>}{editable && !atLimit && <MaterialLinkImporter existingCount={materials.length} disabled={adding} onImported={(material, materialNotice) => { void addLinkedSource(material, materialNotice); }} />}{atLimit && editable && <p className="source-limit">This goal has reached the five-material limit for the private alpha.</p>}{notice && <p className="material-notice"><AlertCircle size={15} /> {notice}</p>}{error && <div className="chat-error"><AlertCircle size={16} /><span>{error}</span></div>}</section>;
 }
 
 function PlanAdjustmentPanel({ plan, onCancel, onSave }: { plan: LearningPlan; onCancel: () => void; onSave: (input: PlanAdjustmentRequest) => Promise<void> }) {
@@ -1809,7 +1833,6 @@ function PlanAdjustmentPanel({ plan, onCancel, onSave }: { plan: LearningPlan; o
 }
 
 function AgendaScreen({ plans, sessionCompletions, sessionInterruptions, previewMode, onStart, onActivateReview, onReschedule, onAdjustDuration }: { plans: LearningPlan[]; sessionCompletions: SessionCompletion[]; sessionInterruptions: SessionInterruption[]; previewMode: boolean; onStart: (planId?: string) => void; onActivateReview: (item: ConceptReviewAgendaItem) => Promise<void>; onReschedule: (planId: string, planSessionId: string, scheduledFor: string) => void; onAdjustDuration: (planSessionId: string, estimatedMinutes: number) => Promise<void> }) {
-  const [editing, setEditing] = useState(false);
   const [moving, setMoving] = useState<{ planId: string; sessionId: string } | null>(null);
   const [customTime, setCustomTime] = useState("");
   const [saving, setSaving] = useState(false);
@@ -1818,6 +1841,8 @@ function AgendaScreen({ plans, sessionCompletions, sessionInterruptions, preview
   const [recoveryError, setRecoveryError] = useState<string | null>(null);
   const [reviewAction, setReviewAction] = useState<string | null>(null);
   const [reviewError, setReviewError] = useState<string | null>(null);
+  const [balanceAction, setBalanceAction] = useState(false);
+  const [balanceError, setBalanceError] = useState<string | null>(null);
   const conceptReviews = buildConceptReviewAgenda(plans, sessionCompletions);
   const availableSessions = plans
     .flatMap((plan) => plan.sessions.filter((session) => session.status !== "complete" && session.status !== "skipped").map((session) => ({ plan, session })))
@@ -1827,6 +1852,9 @@ function AgendaScreen({ plans, sessionCompletions, sessionInterruptions, preview
   const movingEntry = moving
     ? availableSessions.find(({ plan, session }) => plan.id === moving.planId && session.id === moving.sessionId) ?? null
     : null;
+  const agendaSummary = summarizeAgenda(availableSessions, plans);
+  const dayGroups = buildAgendaDayGroups(availableSessions);
+  const balanceSuggestion = buildAgendaBalanceSuggestion(availableSessions);
 
   const openMove = (planId: string, sessionId: string, scheduledFor: string) => {
     setMoving({ planId, sessionId });
@@ -1908,16 +1936,36 @@ function AgendaScreen({ plans, sessionCompletions, sessionInterruptions, preview
     }
   };
 
+  const applyBalanceSuggestion = async () => {
+    if (!balanceSuggestion || balanceAction) return;
+    setBalanceAction(true);
+    setBalanceError(null);
+    try {
+      await rescheduleEntry(balanceSuggestion.entry, balanceSuggestion.scheduledFor);
+    } catch (requestError) {
+      setBalanceError(requestError instanceof Error ? requestError.message : "YOVA could not rebalance that session.");
+    } finally {
+      setBalanceAction(false);
+    }
+  };
+
   return <div className="page">
-    <PageHeader eyebrow="AGENDA" title="Today and this week" description="One unified view of sessions and deadlines across your learning." />
+    <PageHeader eyebrow="AGENDA" title="A realistic learning week" description="See the work across every goal, protect your deadlines, and let YOVA flag a schedule that is becoming unrealistic." />
+    <section className="agenda-overview" aria-label="Agenda overview">
+      <article className={agendaSummary.todayMinutes > 75 || agendaSummary.todaySessions >= 3 ? "attention" : "primary"}><span><Clock3 size={18} /> Today</span><strong>{agendaSummary.todayMinutes} min</strong><small>{agendaSummary.todaySessions ? `${agendaSummary.todaySessions} planned ${agendaSummary.todaySessions === 1 ? "session" : "sessions"}` : "No session scheduled"}</small></article>
+      <article><span><CalendarDays size={18} /> Next 7 days</span><strong>{agendaSummary.weekMinutes} min</strong><small>{agendaSummary.weekSessions} planned {agendaSummary.weekSessions === 1 ? "session" : "sessions"}</small></article>
+      <article><span><Target size={18} /> Next deadline</span><strong>{agendaSummary.nextDeadline ? shortDeadlineDate(agendaSummary.nextDeadline.date) : "Flexible"}</strong><small>{agendaSummary.nextDeadline?.plan.title ?? "No fixed deadline"}</small></article>
+      <article><span><BookOpen size={18} /> Active goals</span><strong>{agendaSummary.activeGoals}</strong><small>Combined into one agenda</small></article>
+    </section>
+    <section className="agenda-planning-basis"><Sparkles size={18} /><div><strong>What YOVA is planning around</strong><p>Session order, selected availability, deadlines, unfinished work, and concept reviews. You stay in control of every proposed move.</p></div></section>
+    {balanceSuggestion && <section className="agenda-balance-card" aria-live="polite"><span className="agenda-balance-icon"><Sparkles size={20} /></span><div><span className="step-label">YOVA RECOMMENDS</span><h2>Make {agendaDateLabel(balanceSuggestion.fromDateKey)} more realistic</h2><p>Move <strong>{balanceSuggestion.entry.session.title}</strong> to {agendaDateLabel(balanceSuggestion.toDateKey)}. The original day drops from {balanceSuggestion.beforeMinutes} to {balanceSuggestion.afterMinutes} minutes, and the new day becomes {balanceSuggestion.targetMinutes} minutes.</p><small>{balanceSuggestion.reason}</small></div><button className="button primary" disabled={balanceAction} onClick={() => void applyBalanceSuggestion()}>{balanceAction ? <><span className="button-spinner" /> Rebalancing</> : "Approve move"}</button>{balanceError && <div className="chat-error"><AlertCircle size={16} /><span>{balanceError}</span></div>}</section>}
     {overdueEntry && <section className="agenda-recovery" aria-live="polite"><div className="agenda-recovery-copy"><span className="step-label">PLAN NEEDS A RESET</span><h2>You missed a session. The plan is still recoverable.</h2><p><strong>{overdueEntry.session.title}</strong> for {overdueEntry.plan.title} was scheduled for {formatAgendaTime(overdueEntry.session.scheduledFor)}. Choose the smallest useful next move. YOVA will not punish the rest of the plan.</p></div><div className="agenda-recovery-actions"><button className="button primary" disabled={Boolean(recoveryAction)} onClick={() => onStart(overdueEntry.plan.id)}>Start it now</button>{recoveryMinutes !== null && recoveryMinutes < overdueEntry.session.estimatedMinutes && <button className="button secondary" disabled={Boolean(recoveryAction)} onClick={() => void shortenAndStart()}>{recoveryAction === "shorten" ? <span className="button-spinner dark" /> : null} Split remaining work into {recoveryMinutes}-min sessions</button>}<button className="button ghost" disabled={Boolean(recoveryAction)} onClick={() => void moveOverdueToTomorrow()}>{recoveryAction === "move" ? <span className="button-spinner dark" /> : null} Move to tomorrow</button></div>{recoveryError && <div className="chat-error"><AlertCircle size={16} /><span>{recoveryError}</span></div>}</section>}
-    {conceptReviews.length > 0 && <section className="section-block review-agenda"><div className="section-title"><div><h3>Retrieval queue</h3><p>Concepts return when completed checks show that another attempt would be useful.</p></div><span>{conceptReviews.filter((item) => item.timing === "due").length} due</span></div><div className="review-agenda-list">{conceptReviews.slice(0, 6).map((item) => { const actionKey = `${item.planId}:${item.concept.toLocaleLowerCase()}`; const loading = reviewAction === actionKey; return <article className={`${item.priority} ${item.timing}`} key={actionKey}><span className="review-agenda-icon">{item.reviewType === "repair_and_retrieve" ? <RotateCcw size={17} /> : <Target size={17} />}</span><div><span>{formatReviewType(item.reviewType)} · {item.timingLabel}</span><strong>{item.concept}</strong><small>{item.planTitle} · {item.instruction}</small></div>{item.action === "scheduled" ? <em>Scheduled</em> : <button className={item.action === "activate_review" ? "button primary" : "button secondary"} disabled={Boolean(reviewAction)} onClick={() => void beginConceptReview(item)}>{loading ? <span className="button-spinner dark" /> : null}{item.action === "activate_review" ? "Start short check" : "Start next session"}</button>}</article>; })}</div><small className="concept-review-note">These return dates are transparent review heuristics. A new completed check can move the next return sooner or later.</small>{reviewError && <div className="chat-error"><AlertCircle size={16} /><span>{reviewError}</span></div>}</section>}
-    <section className="section-block">
-      <div className="section-title"><h3>Upcoming</h3>{availableSessions.length > 0 && <button onClick={() => { setEditing((value) => !value); setMoving(null); setError(null); }}>{editing ? "Done adjusting" : "Adjust agenda"}</button>}</div>
-      <div className="agenda-list">{availableSessions.length ? availableSessions.slice(0, 8).map(({ plan, session }) => { const resumePoint = resumableSessionProgress(session.id, sessionInterruptions); const overdue = session.status === "ready" && isSessionOverdue(session.scheduledFor); return <article key={session.id} className={`${session.status === "ready" ? "primary-agenda" : ""} ${overdue ? "overdue-agenda" : ""}`}><span className="agenda-window">{overdue ? "Overdue · " : ""}{formatAgendaTime(session.scheduledFor)}</span><div><strong>{session.title}</strong><small>{resumePoint ? `${plan.title} · continue at section ${resumePoint.completedSteps + 1}` : `${plan.title} · ${session.estimatedMinutes} min`}</small></div>{editing || session.status !== "ready" ? <button className="button ghost" onClick={() => openMove(plan.id, session.id, session.scheduledFor)}>Move</button> : <button className="button primary" onClick={() => onStart(plan.id)}>{resumePoint ? "Continue" : "Start"}</button>}</article>; }) : <p className="muted">Your upcoming sessions will appear here after you create a plan or focused session.</p>}</div>
+    <section className="section-block agenda-schedule">
+      <div className="section-title"><div><h3>Your learning schedule</h3><p>Each day shows the actual amount of planned work, not just calendar events.</p></div><span>Next 14 days</span></div>
+      {dayGroups.length ? <div className="agenda-day-groups">{dayGroups.map((group) => <section className={`agenda-day ${group.load}`} key={group.dateKey}><header><div><span>{agendaDayEyebrow(group.date)}</span><h4>{agendaFullDate(group.date)}</h4></div><span className="agenda-load"><strong>{group.totalMinutes} min</strong><small>{group.entries.length} {group.entries.length === 1 ? "session" : "sessions"}</small></span></header><div>{group.entries.map(({ plan, session }) => { const resumePoint = resumableSessionProgress(session.id, sessionInterruptions); const overdue = session.status === "ready" && isSessionOverdue(session.scheduledFor); return <article className={`${session.status === "ready" ? "ready" : ""} ${overdue ? "overdue" : ""}`} key={session.id}><SubjectIcon plan={plan} compact /><div className="agenda-session-copy"><span>{overdue ? "Overdue" : formatAgendaClock(session.scheduledFor)} · {session.learningMode === "learn" ? "Learn" : "Practice"}</span><strong>{session.title}</strong><small>{plan.title} · {session.method} · {session.estimatedMinutes} min{resumePoint ? ` · Continue at section ${resumePoint.completedSteps + 1}` : ""}</small></div><div className="agenda-session-actions">{session.status === "ready" && <button className="button primary" onClick={() => onStart(plan.id)}>{resumePoint ? "Continue" : "Start"}</button>}<button className="button ghost" onClick={() => openMove(plan.id, session.id, session.scheduledFor)}>Move</button></div></article>; })}</div></section>)}</div> : <div className="agenda-empty"><CalendarDays size={22} /><strong>Your schedule is clear</strong><p>Create a plan or focused session and YOVA will organize the work here.</p></div>}
     </section>
     {movingEntry && <section className="agenda-move-panel" aria-live="polite"><div><span className="step-label">MOVE SESSION</span><h3>{movingEntry.session.title}</h3><p>Choose a new time. The learning order and session content will stay the same.</p></div><div className="agenda-quick-times"><button onClick={() => void saveMove(moveByDays(movingEntry.session.scheduledFor, 1))} disabled={saving}>Tomorrow</button><button onClick={() => void saveMove(moveByDays(movingEntry.session.scheduledFor, 2))} disabled={saving}>In two days</button><button onClick={() => void saveMove(moveByDays(movingEntry.session.scheduledFor, 7))} disabled={saving}>Next week</button></div><label><span>Custom date and time</span><input type="datetime-local" min={toLocalDateTimeInput(new Date().toISOString())} value={customTime} disabled={saving} onChange={(event) => setCustomTime(event.target.value)} /></label>{error && <div className="chat-error"><AlertCircle size={16} /><span>{error}</span></div>}<footer><button className="button ghost" onClick={() => { setMoving(null); setError(null); }} disabled={saving}>Cancel</button><button className="button primary" onClick={() => { const date = new Date(customTime); if (Number.isNaN(date.getTime())) { setError("Choose a valid date and time."); return; } void saveMove(date.toISOString()); }} disabled={!customTime || saving}>{saving ? <span className="button-spinner" /> : "Save new time"}</button></footer></section>}
-    <section className="week-strip">{availableSessions.slice(0, 5).map(({ plan, session }) => <div key={session.id}><span>{formatDay(session.scheduledFor)}</span><strong>{new Date(session.scheduledFor).getDate()}</strong><small>{plan.title}: {session.title}</small></div>)}</section>
+    {conceptReviews.length > 0 && <section className="section-block review-agenda"><div className="section-title"><div><h3>Retrieval queue</h3><p>Concepts return when completed checks show that another attempt would be useful.</p></div><span>{conceptReviews.filter((item) => item.timing === "due").length} due</span></div><div className="review-agenda-list">{conceptReviews.slice(0, 6).map((item) => { const actionKey = `${item.planId}:${item.concept.toLocaleLowerCase()}`; const loading = reviewAction === actionKey; return <article className={`${item.priority} ${item.timing}`} key={actionKey}><span className="review-agenda-icon">{item.reviewType === "repair_and_retrieve" ? <RotateCcw size={17} /> : <Target size={17} />}</span><div><span>{formatReviewType(item.reviewType)} · {item.timingLabel}</span><strong>{item.concept}</strong><small>{item.planTitle} · {item.instruction}</small></div>{item.action === "scheduled" ? <em>Scheduled</em> : <button className={item.action === "activate_review" ? "button primary" : "button secondary"} disabled={Boolean(reviewAction)} onClick={() => void beginConceptReview(item)}>{loading ? <span className="button-spinner dark" /> : null}{item.action === "activate_review" ? "Start short check" : "Start next session"}</button>}</article>; })}</div><small className="concept-review-note">These return dates are transparent review heuristics. A new completed check can move the next return sooner or later.</small>{reviewError && <div className="chat-error"><AlertCircle size={16} /><span>{reviewError}</span></div>}</section>}
   </div>;
 }
 
@@ -2982,6 +3030,32 @@ function formatAgendaTime(isoDate: string) {
   }).format(new Date(isoDate));
 }
 
+function formatAgendaClock(isoDate: string) {
+  return new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" }).format(new Date(isoDate));
+}
+
+function agendaDayEyebrow(date: Date) {
+  const today = new Date();
+  const tomorrow = new Date(today);
+  tomorrow.setDate(today.getDate() + 1);
+  if (localDateInput(date.toISOString()) === localDateInput(today.toISOString())) return "TODAY";
+  if (localDateInput(date.toISOString()) === localDateInput(tomorrow.toISOString())) return "TOMORROW";
+  return new Intl.DateTimeFormat("en-US", { weekday: "long" }).format(date).toUpperCase();
+}
+
+function agendaFullDate(date: Date) {
+  return new Intl.DateTimeFormat("en-US", { month: "long", day: "numeric" }).format(date);
+}
+
+function agendaDateLabel(dateKey: string) {
+  const [year, month, day] = dateKey.split("-").map(Number);
+  return new Intl.DateTimeFormat("en-US", { weekday: "long", month: "short", day: "numeric" }).format(new Date(year, month - 1, day));
+}
+
+function shortDeadlineDate(date: Date) {
+  return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(date);
+}
+
 function formatReviewType(reviewType: ConceptReviewAgendaItem["reviewType"]) {
   if (reviewType === "repair_and_retrieve") return "Retrieve and repair";
   if (reviewType === "maintenance_transfer") return "Light transfer";
@@ -3005,10 +3079,6 @@ function localDateInput(isoDate: string) {
   const date = new Date(isoDate);
   const pad = (value: number) => String(value).padStart(2, "0");
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
-}
-
-function formatDay(isoDate: string) {
-  return new Intl.DateTimeFormat("en-US", { weekday: "short" }).format(new Date(isoDate)).toUpperCase();
 }
 
 function formatPlanDeadline(deadline: string | null) {
