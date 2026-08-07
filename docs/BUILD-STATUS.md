@@ -15,9 +15,9 @@ Estimated completion depends on which finish line is meant:
 
 | Finish line | Current estimate | Meaning |
 |---|---:|---|
-| Functional product core | 97% | The differentiated loop works, generic-content substitution is blocked, vague class labels now trigger an in-flow clarification question, and ten foundational journeys pass on desktop and mobile. More real-user and adversarial input coverage is still required before calling the core finished. |
-| Invite-only private alpha | 89% | Deployment, safeguards, atomic learning-state updates, and automated teaching, practice, outside-study, interruption, and plan-rebuild journeys are connected; reliable email delivery, authenticated production testing, and broader real-input testing remain. |
-| Credible public beta | 69% | Trust, monitoring, live quality gates, CI, phone-sized coverage, reload persistence, and wider journey checks exist; human output review, more devices, external alerts, policy review, and tester-driven polish remain. |
+| Functional product core | 98% | The differentiated loop works, generic-content substitution is blocked, vague class labels trigger an in-flow clarification question, technical lessons render structured mathematics, and twelve foundational journeys pass on desktop and mobile. More real-user and adversarial input coverage is still required before calling the core finished. |
+| Invite-only private alpha | 90% | Deployment, safeguards, atomic learning-state updates, and automated teaching, practice, outside-study, interruption, tutoring, technical-content, and plan-rebuild journeys are connected; reliable email delivery, authenticated production testing, and broader real-input testing remain. |
+| Credible public beta | 70% | Trust, monitoring, live quality gates, CI, phone-sized coverage, reload persistence, and wider journey checks exist; human output review, more devices, external alerts, policy review, and tester-driven polish remain. |
 | Paid polished launch | 35% | Also needs billing, entitlements, cost controls by plan, and more operational maturity |
 
 These percentages are directional, not engineering math. A product can have most features built and still need significant reliability work before strangers should pay for it.
@@ -62,6 +62,8 @@ A cross-browser six-digit email-code flow is implemented and tested behind a ser
 - In-session tutoring now receives the exact current activity, learning phase, concept, instructions, answer state, and safe reference context instead of only a broad topic title
 - Quick session-help actions distinguish hints, alternate explanations, analogous examples, understanding checks, and gap repair; hint requests are explicitly prevented from giving away the current answer
 - Session tutor conversations use the same readable Markdown and mathematics renderer as Ask YOVA, while typed free responses remain outside tutor context
+- Guided sessions now use one accessible rich-content renderer across instructions, teaching explanations, worked examples, answer choices, feedback, reference answers, and saved resources; raw LaTeX and Markdown no longer leak into the learner interface
+- Mathematical generation is explicitly required to separate setup, transformations, and final result, while the renderer safely distinguishes equations from financial amounts such as $100
 - Visible reasons for methods and recommendations
 - Upload guidance now names useful source examples: teacher study guides, PDF lecture slides, class notes, review sheets, and readable textbook excerpts
 
@@ -112,7 +114,7 @@ A cross-browser six-digit email-code flow is implemented and tested behind a ser
 
 ### Honest scientific-product status
 
-The software loop is close to private-alpha readiness, but the broader learning-science vision is earlier. The catalog, router, teaching/practice separation, visible method phases, confidence calibration, immediate repair, actionable concept-level review scheduling, phase-specific support fading, and first behavior-based method adaptations establish the correct architecture; specialized interactions and longer-term controlled outcome comparisons remain. “Private alpha 94%” therefore means the product can be tested safely—not that 94% of the long-term adaptive-learning system is complete.
+The software loop is close to private-alpha readiness, but the broader learning-science vision is earlier. The catalog, router, teaching/practice separation, visible method phases, confidence calibration, immediate repair, actionable concept-level review scheduling, phase-specific support fading, and first behavior-based method adaptations establish the correct architecture; specialized interactions and longer-term controlled outcome comparisons remain. “Private alpha 90%” therefore means the product can be tested safely, not that 90% of the long-term adaptive-learning system is complete.
 
 ### Backend and infrastructure
 
@@ -128,6 +130,7 @@ The software loop is close to private-alpha readiness, but the broader learning-
 - Atomic completed-goal review activation, so the cloud cannot reopen a learning goal without also preserving the evidence-based retrieval session that caused it
 - Playwright now verifies both fundamental paths: teaching a genuinely new topic before testing it, and repairing a confident misconception before delayed verification
 - Playwright also verifies that all five primary destinations and both creation paths remain reachable on desktop and mobile
+- Playwright verifies that calculus answer choices render as accessible equations without exposing raw delimiters on desktop and mobile
 - Playwright verifies that an opaque label such as “Calc Unit 3” is stopped, can be repaired into a real product-rule request, and never opens the generic meta-learning screens that caused the production failure
 - Playwright verifies that an unknown-topic generation failure stops explicitly instead of presenting unrelated content as a lesson
 - Playwright verifies that outside-study guidance preserves the learner’s actual writing goal and keeps the selected learning method visible on both desktop and mobile

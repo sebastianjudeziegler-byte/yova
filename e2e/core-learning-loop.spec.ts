@@ -199,6 +199,13 @@ test("an opaque class label is stopped until the learner names the actual calcul
   await expect(page.getByText("See the structure before trying it alone", { exact: true })).not.toBeVisible();
   await page.getByRole("button", { name: "Continue" }).click();
   await expect(page.getByRole("heading", { name: "Which expression correctly applies the product rule?" })).toBeVisible();
+  await expect(page.locator(".answer-grid .katex")).toHaveCount(4);
+  await expect(page.locator(".session-workspace")).not.toContainText("$f'g + fg'$");
+  const workspaceWidth = await page.locator(".session-workspace").evaluate((element) => ({
+    client: element.clientWidth,
+    scroll: element.scrollWidth,
+  }));
+  expect(workspaceWidth.scroll).toBeLessThanOrEqual(workspaceWidth.client + 1);
 });
 
 test("a failed unknown-topic lesson stops instead of showing generic learning-method filler", async ({ page }) => {

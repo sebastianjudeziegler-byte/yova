@@ -16,4 +16,9 @@ $$`);
     expect(normalizeTutorMarkdown("**Core idea** \u2014 retrieve it first\n\n- Try once"))
       .toBe("**Core idea**, retrieve it first\n\n- Try once");
   });
+
+  it("escapes ordinary currency while preserving delimited equations", () => {
+    expect(normalizeTutorMarkdown("USD example: $100 becomes $110. Equation: $2x + 3$."))
+      .toBe("USD example: \\$100 becomes \\$110. Equation: $2x + 3$.");
+  });
 });
