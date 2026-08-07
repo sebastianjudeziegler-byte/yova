@@ -1,5 +1,6 @@
 import "server-only";
 import type { LearningPlan } from "@/lib/domain";
+import { isSamePersistedPlan } from "@/lib/plan-generation/persisted-plan";
 import type { PlanGenerationRequest } from "@/lib/plan-generation/schema";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -47,6 +48,19 @@ export async function persistPlanForAuthenticatedUser(
     },
   });
 
-  if (error) throw new PlanPersistenceError("Supabase could not persist the generated plan.");
+  if (error) {
+    // The database transaction may have completed even if its response was lost.
+    // Confirm the exact user-owned plan before reporting failure so a safe retry is
+    // indistinguishable from the original successful activation.
+    const { data: existingPlan, error: lookupError } = await supabase
+      .from("plans")
+      .select("id,learning_item_id,status")
+      .eq("id", plan.id)
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (!lookupError && isSamePersistedPlan(existingPlan, plan)) return "supabase";
+    throw new PlanPersistenceError("Supabase could not persist the generated plan.");
+  }
   return "supabase";
 }

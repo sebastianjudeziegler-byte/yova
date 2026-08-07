@@ -84,6 +84,8 @@ These are intentionally separate because a good AI response that fails to save s
 
 YOVA saves authenticated plans through a database transaction: the learning item, plan, and sessions either succeed together or fail together. Study Now uses the same two server steps, but performs confirmation immediately because the learner explicitly asked to build and start one focused session. This is a useful backend principle: the server lifecycle matches the promise made by the interface.
 
+Activation is also retry-safe. If Supabase completes the transaction but the response is lost, YOVA checks for that exact user-owned plan before reporting failure. Repeating the same activation therefore returns the original plan instead of creating another one. This property is called **idempotency**.
+
 ## 6. Why schemas matter
 
 A schema is a machine-checkable contract. YOVA uses Zod schemas around browser requests and OpenAI responses.
@@ -199,18 +201,17 @@ This is why pushing to GitHub does not automatically make `localhost:3000` avail
 - **Production smoke test:** checks the deployed system with its real configuration.
 - **AI quality evaluation:** scores real generated plans against product-specific learning, timing, safety, and personalization criteria.
 
-YOVA currently has automated unit tests, an opt-in five-case OpenAI plan evaluation, and repeated manual end-to-end walkthroughs. The live evaluation consumes API credits, so ordinary builds never trigger it. Broader automated browser end-to-end coverage remains launch work.
+YOVA currently has 177 passing unit tests, ten foundational browser journeys exercised at desktop and phone-sized viewports, and opt-in live OpenAI evaluations for plans, sessions, and typed-answer judgment. The live evaluations consume API credits, so ordinary builds never trigger them. Real authenticated production journeys and broader human output review remain launch work.
 
 ## 13. The next technical systems
 
 The most important remaining layers are:
 
-1. public deployment and production environment configuration;
-2. reliable transactional email for authentication;
-3. method-specific learning interactions and concept-level spacing;
-4. automated end-to-end tests and subject-quality evaluation;
-5. external error alerts and broader automated end-to-end coverage;
-6. external review of the privacy/terms drafts;
-7. Stripe and server-enforced entitlements when payment validation begins.
+1. reliable transactional email and a complete authenticated production journey;
+2. real learner testing plus human review of plan, session, and source quality;
+3. accessibility and broader device interaction review;
+4. external error alerts and a more efficient founder-support workflow as tester volume grows;
+5. external review of the privacy/terms drafts;
+6. Stripe and server-enforced entitlements when payment validation begins.
 
 See `BUILD-STATUS.md` for the current percentages and timeline.

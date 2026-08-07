@@ -281,6 +281,15 @@ test("plan generation remains a draft until the learner activates it", async ({ 
   expect(activationResponse.status()).toBe(200);
   expect(activated.plan.status).toBe("active");
   expect(activated.activation.persistence).toBe("browser");
+
+  const repeatedActivation = await request.post("/api/plans/activate", {
+    data: { plan: generated.plan, generationRequest },
+  });
+  const repeated = await repeatedActivation.json();
+
+  expect(repeatedActivation.status()).toBe(200);
+  expect(repeated.plan.id).toBe(activated.plan.id);
+  expect(repeated.plan.learningItemId).toBe(activated.plan.learningItemId);
 });
 
 test("a learner can stop twice without losing progress or earlier evidence", async ({ page }) => {

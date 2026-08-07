@@ -43,6 +43,7 @@ A cross-browser six-digit email-code flow is implemented and tested behind a ser
 - Learning goal details now put the actual session sequence first, followed by adaptations, sources, generated resources, and concept evidence
 - Simplified multi-session plan creation to one consistent five-step journey and the same three source choices used by Study Now: use uploaded materials, let YOVA create the teaching, or receive guidance while studying elsewhere
 - Generated plans remain unsaved drafts in both the browser and backend until the learner confirms that the content, starting approach, source, and pace match the request; activation is now a separate validated API and atomic database action, so revising a draft cannot create duplicate active plans
+- Plan activation is retry-safe: if the database saves successfully but the browser loses the response, YOVA recognizes the exact existing plan instead of surfacing a false failure or creating a duplicate
 - Branded landing and account journey
 - Ten-question personalization onboarding
 - Home, Learning, Agenda, Ask YOVA, and You
