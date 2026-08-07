@@ -1121,6 +1121,27 @@ h1, h2, h3, p { margin-top: 0; }
 .immediate-repair-note { margin: 0 0 26px; padding: 15px 16px; display: flex; align-items: flex-start; gap: 11px; color: #43368d; border: 1px solid #d8d1ff; border-radius: 11px; background: #f6f3ff; }
 .immediate-repair-note svg { flex: 0 0 auto; margin-top: 1px; color: var(--violet); }
 .immediate-repair-note p { margin: 4px 0 0; font-size: 12px; line-height: 1.6; }
+.runtime-repair-support { margin: -12px 0 24px; overflow: hidden; color: var(--navy); border: 1px solid #cbd7f7; border-radius: 16px; background: linear-gradient(145deg,#f9fbff,#f5f3ff); box-shadow: 0 12px 34px rgba(31,53,109,.07); }
+.runtime-repair-support > header { padding: 14px 17px; display: flex; align-items: center; justify-content: space-between; gap: 14px; color: #4e4390; border-bottom: 1px solid #dfe3f4; background: rgba(255,255,255,.68); }
+.runtime-repair-support > header > div { display: flex; align-items: center; gap: 7px; }
+.runtime-repair-support > header span { font-size: 9px; font-weight: 850; letter-spacing: .09em; }
+.runtime-repair-support > header strong { padding: 6px 9px; border-radius: 8px; background: #ebe7ff; font-size: 10px; white-space: nowrap; }
+.runtime-repair-reason { padding: 16px 18px 0; }
+.runtime-repair-reason > span,
+.runtime-repair-model > span { color: var(--blue); font-size: 9px; font-weight: 850; letter-spacing: .08em; text-transform: uppercase; }
+.runtime-repair-reason p { margin: 5px 0 0; color: #53617b; font-size: 12px; line-height: 1.6; }
+.runtime-repair-model { margin: 15px 17px 0; padding: 18px; border: 1px solid #d7dff3; border-radius: 13px; background: white; }
+.runtime-repair-model h2 { margin: 7px 0 9px; font-size: 19px; line-height: 1.35; }
+.runtime-repair-model > .learning-rich-text { margin: 0; color: #3f4e68; font-size: 13px; line-height: 1.7; }
+.runtime-repair-model ol { margin: 14px 0 0; padding: 0; display: grid; gap: 8px; list-style: none; counter-reset: repair-step; }
+.runtime-repair-model li { position: relative; min-height: 35px; padding: 9px 11px 9px 42px; color: #36455f; border-radius: 9px; background: #f5f7fc; font-size: 12px; line-height: 1.55; counter-increment: repair-step; }
+.runtime-repair-model li::before { content: counter(repair-step); position: absolute; top: 9px; left: 11px; width: 21px; height: 21px; display: grid; place-items: center; color: white; border-radius: 7px; background: var(--blue); font-size: 9px; font-weight: 800; }
+.runtime-repair-target { margin: 14px 17px 17px; padding: 11px 12px; display: flex; align-items: flex-start; gap: 8px; color: #286049; border-radius: 9px; background: #eaf8f0; font-size: 11px; line-height: 1.55; }
+.runtime-repair-target svg { flex: 0 0 auto; margin-top: 1px; }
+.runtime-repair-support.direct_correction { border-color: #e3c1a5; background: linear-gradient(145deg,#fffaf5,#fff6ed); }
+.runtime-repair-support.direct_correction > header strong { color: #7c491e; background: #ffead8; }
+.runtime-repair-support.retry_independently { border-color: #bcdacb; background: linear-gradient(145deg,#f8fcfa,#eff9f4); }
+.runtime-repair-support.retry_independently > header strong { color: #27624e; background: #e2f4eb; }
 .confidence-check { margin: 24px 0 10px; padding: 15px; border: 1px solid #d9d2ff; border-radius: 12px; background: #faf9ff; }
 .confidence-check legend { padding: 0 6px; color: var(--text); font-size: 13px; font-weight: 750; }
 .confidence-check > p { margin: 0 0 12px; color: var(--muted); font-size: 11px; line-height: 1.5; }
@@ -1971,6 +1992,10 @@ h1, h2, h3, p { margin-top: 0; }
   .session-content { width: min(100% - 28px,760px); margin: 22px auto 105px; grid-template-columns: 1fr; }
   .session-activity-header { padding: 18px; }
   .session-activity-header h1 { font-size: 29px; }
+  .runtime-repair-support > header { align-items: flex-start; flex-direction: column; }
+  .runtime-repair-reason { padding-inline: 13px; }
+  .runtime-repair-model { margin-inline: 12px; padding: 15px; }
+  .runtime-repair-target { margin-inline: 12px; }
   .session-action-bar { align-items: stretch; flex-direction: column; }
   .session-action-bar .button { width: 100%; }
   .session-tutor { right: 14px; bottom: 14px; }

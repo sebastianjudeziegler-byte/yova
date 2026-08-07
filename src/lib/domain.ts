@@ -161,6 +161,7 @@ export type SessionPendingRepair = {
   body: string;
   correctAnswer: string;
   feedback: string | null;
+  repairSupport?: import("@/lib/session-repair/schema").RuntimeRepairSupport;
 };
 
 export type SessionInterruption = {

@@ -68,6 +68,17 @@ describe("ProductEventRequestSchema", () => {
     }).success).toBe(true);
   });
 
+  it("records adaptive repair behavior without storing learning content", () => {
+    expect(ProductEventRequestSchema.safeParse({
+      eventName: "session_repair_adapted",
+      context: {
+        repairMode: "direct_correction",
+        generationMode: "openai",
+        confidenceSignal: "very_sure",
+      },
+    }).success).toBe(true);
+  });
+
   it("rejects impossible session generation attempts", () => {
     expect(ProductEventRequestSchema.safeParse({
       eventName: "session_generated",

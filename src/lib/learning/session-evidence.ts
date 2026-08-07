@@ -4,6 +4,7 @@ import type {
   ConceptEvidence,
   SessionEvidenceSnapshot,
 } from "@/lib/domain";
+import type { RuntimeRepairSupport } from "@/lib/session-repair/schema";
 
 export type GuidedSessionStep = {
   methodPhase?: import("@/lib/learning/method-fidelity").MethodPhase;
@@ -19,6 +20,7 @@ export type GuidedSessionStep = {
   correctAnswer: string | null;
   feedback: string | null;
   evidenceRole?: "assessment" | "immediate_repair";
+  repairSupport?: RuntimeRepairSupport;
 };
 
 export type SessionEvidenceSummary = SessionEvidenceSnapshot;
@@ -171,6 +173,7 @@ export function buildImmediateRepairAfterMiss(
   outcomes: Record<number, boolean>,
   maximumRepairs = 2,
   repairFocus: string[] = [],
+  repairSupport?: RuntimeRepairSupport,
 ) {
   const current = steps[currentIndex];
   if (
@@ -193,7 +196,19 @@ export function buildImmediateRepairAfterMiss(
     .slice(0, 2)
     .map((idea) => idea.slice(0, 80));
 
-  if (!repair || focusedIdeas.length === 0) return repair;
+  if (!repair) return null;
+
+  if (repairSupport) {
+    return {
+      ...repair,
+      estimatedMinutes: Math.min(6, Math.max(2, repairSupport.steps.length + 2)),
+      title: repairSupport.title,
+      body: `${repairSupport.retryPrompt} YOVA will check it now and verify it again later.`,
+      repairSupport,
+    };
+  }
+
+  if (focusedIdeas.length === 0) return repair;
 
   return {
     ...repair,

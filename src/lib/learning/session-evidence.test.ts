@@ -89,6 +89,36 @@ describe("buildImmediateRepairAfterMiss", () => {
     expect(repair?.body).toContain("verify it again later");
     expect(repair?.body.length).toBeLessThanOrEqual(320);
   });
+
+  it("turns a runtime repair decision into a visibly different support step", () => {
+    const repair = buildImmediateRepairAfterMiss(
+      steps,
+      0,
+      { 0: false },
+      2,
+      [],
+      {
+        mode: "direct_correction",
+        modeLabel: "Name and replace the error",
+        personalizationReason: "The learner was very sure, so the exact mismatch is named before the retry.",
+        title: "Replace the missing product-rule term",
+        supportHeading: "Direct correction",
+        explanation: "Both factors contribute one derivative term.",
+        steps: ["Differentiate the first factor.", "Differentiate the second factor.", "Add both terms."],
+        retryPrompt: "State the complete product rule and explain why both terms are required.",
+        targetReminder: "The original product-rule target remains unchanged.",
+      },
+    );
+
+    expect(repair).toMatchObject({
+      title: "Replace the missing product-rule term",
+      estimatedMinutes: 5,
+      repairSupport: {
+        mode: "direct_correction",
+      },
+    });
+    expect(repair?.body).toContain("State the complete product rule");
+  });
 });
 
 describe("summarizeSessionEvidence", () => {

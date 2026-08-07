@@ -58,11 +58,14 @@ test("a confident misconception is repaired now and verified later", async ({ pa
   await page.getByRole("button", { name: "Repair this idea" }).click();
 
   await expect(page.getByText("Repair now, verify later")).toBeVisible();
+  await expect(page.getByText("YOVA CHANGED THE SUPPORT")).toBeVisible();
+  await expect(page.getByText("Name and replace the error")).toBeVisible();
+  await expect(page.getByText(/very sure about this answer/i)).toBeVisible();
   await leaveSession(page, "2 of 6 required steps finished");
   await expect(page.getByText("Continue where you left off")).toBeVisible();
   await page.getByRole("button", { name: "Continue session" }).click();
   await expect(page.getByText("Repair now, verify later")).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Explain Cellular respiration sequence again in your own words" })).toBeVisible();
+  await expect(page.locator(".session-activity-header").getByRole("heading", { name: /Replace the mistaken Cellular respiration sequence relationship/i })).toBeVisible();
   await expect(page.getByText(/not saved as proof of mastery/i)).not.toBeVisible();
   await page.getByLabel("Corrected idea in your own words").fill(
     "Glycolysis happens first, followed by the Krebs cycle and electron transport chain.",
@@ -106,7 +109,7 @@ test("a confident misconception is repaired now and verified later", async ({ pa
   await page.getByRole("button", { name: "Agenda", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Retrieval queue" })).toBeVisible();
   await expect(page.getByText("Cellular respiration sequence", { exact: true })).toBeVisible();
-  await expect(page.getByText(/Return tomorrow|Due for retrieval/)).toBeVisible();
+  await expect(page.getByText(/Return tomorrow|Return in 2 days|Due for retrieval/)).toBeVisible();
 
   await page.getByRole("button", { name: "Learning", exact: true }).click();
   await expect(page.getByRole("heading", { name: "What you’re working toward" })).toBeVisible();
@@ -114,7 +117,7 @@ test("a confident misconception is repaired now and verified later", async ({ pa
   await page.getByRole("button", { name: /Open goal/ }).click();
   await expect(page.getByRole("heading", { name: "Concept review schedule" })).toBeVisible();
   await expect(page.getByText("Cellular respiration sequence", { exact: true })).toBeVisible();
-  await expect(page.getByText(/Return tomorrow|Due for retrieval/)).toBeVisible();
+  await expect(page.getByText(/Return tomorrow|Return in 2 days|Due for retrieval/)).toBeVisible();
   await expect(page.getByText(/not predictions that a concept is permanently mastered/i)).toBeVisible();
 });
 
@@ -179,6 +182,9 @@ test("a new topic is taught before YOVA asks for independent performance", async
   await page.getByRole("button", { name: "Repair this idea" }).click();
 
   await expect(page.getByText("Repair now, verify later")).toBeVisible();
+  await expect(page.getByText("YOVA CHANGED THE SUPPORT")).toBeVisible();
+  await expect(page.getByText("Restore one step at a time")).toBeVisible();
+  await expect(page.getByText(/marked this answer as uncertain/i)).toBeVisible();
   await page.getByLabel("Corrected idea in your own words").fill(
     "Earlier gains stay in the base, so later percentage gains apply to the original amount and its accumulated growth.",
   );

@@ -58,6 +58,17 @@ describe("resumableSessionProgress", () => {
         question: ["f'g + fg'", "f'g'"],
         correctAnswer: "f'g + fg'",
         feedback: "Differentiate each factor once.",
+        repairSupport: {
+          mode: "hint_first" as const,
+          modeLabel: "One clue first",
+          personalizationReason: "The learner asked for a bounded hint before the complete correction.",
+          title: "Use one clue, then retry the product rule",
+          supportHeading: "One bounded clue",
+          explanation: "Both original factors still appear in the completed derivative.",
+          steps: [],
+          retryPrompt: "State the complete rule again without copying the reference answer.",
+          targetReminder: "The original product-rule target remains unchanged.",
+        },
       },
       {
         methodPhase: "transfer",
@@ -80,6 +91,17 @@ describe("resumableSessionProgress", () => {
         body: "State the corrected rule without looking back.",
         correctAnswer: "f'g + fg'",
         feedback: "Differentiate each factor once.",
+        repairSupport: {
+          mode: "hint_first" as const,
+          modeLabel: "One clue first",
+          personalizationReason: "The learner asked for a bounded hint before the complete correction.",
+          title: "Use one clue, then retry the product rule",
+          supportHeading: "One bounded clue",
+          explanation: "Both original factors still appear in the completed derivative.",
+          steps: [],
+          retryPrompt: "State the complete rule again without copying the reference answer.",
+          targetReminder: "The original product-rule target remains unchanged.",
+        },
       },
     };
 
@@ -90,6 +112,9 @@ describe("resumableSessionProgress", () => {
     expect(restored.steps[1]).toMatchObject({
       evidenceRole: "immediate_repair",
       concept: "Product rule",
+      repairSupport: {
+        mode: "hint_first",
+      },
     });
     expect(restored.steps[2].title).toBe("Use the rule");
   });

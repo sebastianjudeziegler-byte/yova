@@ -67,6 +67,14 @@ export const ProductEventRequestSchema = z.discriminatedUnion("eventName", [
     }).strict(),
   }).strict(),
   z.object({
+    eventName: z.literal("session_repair_adapted"),
+    context: z.object({
+      repairMode: z.enum(["hint_first", "alternate_example", "direct_correction", "smaller_steps", "retry_independently"]),
+      generationMode: z.enum(["openai", "preview", "fallback"]),
+      confidenceSignal: z.enum(["none", "guessing", "somewhat_sure", "very_sure"]),
+    }).strict(),
+  }).strict(),
+  z.object({
     eventName: z.literal("tutor_message_sent"),
     context: z.object({
       linkedToPlan: z.boolean(),

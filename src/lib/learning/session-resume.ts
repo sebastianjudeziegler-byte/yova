@@ -7,6 +7,7 @@ import type {
 import { ConceptEvidenceListSchema } from "@/lib/learning/concept-evidence";
 import { ConfidenceEvidenceListSchema } from "@/lib/learning/confidence-calibration";
 import type { GuidedSessionStep } from "@/lib/learning/session-evidence";
+import { RuntimeRepairSupportSchema } from "@/lib/session-repair/schema";
 
 export const SessionEvidenceSnapshotSchema = z.object({
   correctAnswers: z.number().int().min(0).max(24),
@@ -23,6 +24,7 @@ export const SessionPendingRepairSchema = z.object({
   body: z.string().trim().min(10).max(700),
   correctAnswer: z.string().trim().min(1).max(700),
   feedback: z.string().trim().min(1).max(900).nullable(),
+  repairSupport: RuntimeRepairSupportSchema.optional(),
 });
 
 export function resumableSessionProgress(
@@ -74,6 +76,7 @@ export function restoreInterruptedLesson(
     correctAnswer: pendingRepair.correctAnswer,
     feedback: pendingRepair.feedback,
     evidenceRole: "immediate_repair",
+    ...(pendingRepair.repairSupport ? { repairSupport: pendingRepair.repairSupport } : {}),
   };
 
   return {
