@@ -28,15 +28,16 @@ test("a confident misconception is repaired now and verified later", async ({ pa
   await page.getByRole("button", { name: /Choose how YOVA should help/ }).click();
   await page.getByRole("button", { name: /Create it for me/ }).click();
   await page.getByRole("button", { name: /Build and start session/ }).click();
-  await expect(page.getByRole("heading", { name: "Make sure YOVA starts in the right place." })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Why this session is different for you" })).toBeVisible();
-  await expect(page.getByText("Starting hypothesis").first()).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Here is how YOVA plans to start." })).toBeVisible();
+  await expect(page.getByLabel("Why YOVA chose this approach")).toContainText("Start with evidence, then repair only the gap");
+  await page.getByRole("button", { name: "Continue" }).click();
   await page.getByRole("button", { name: "I already know some of this" }).click();
-  await expect(page.getByText(/YOVA will not skip them based only on this claim/i)).toBeVisible();
+  await expect(page.getByText(/skip them only after you demonstrate them/i)).toBeVisible();
   const claimedKnownTarget = page.locator(".known-targets button").first();
   await expect(claimedKnownTarget).toBeVisible();
   await claimedKnownTarget.click();
   await expect(claimedKnownTarget).toHaveAttribute("aria-pressed", "true");
+  await page.getByRole("button", { name: "Continue" }).click();
   await page.getByRole("button", { name: "Prepare this session" }).click();
 
   await expect(page.getByRole("heading", { name: "Closed-note retrieval" })).toBeVisible();
@@ -138,15 +139,21 @@ test("a new topic is taught before YOVA asks for independent performance", async
   await expect(teachingRoadmap).toContainText("Apply it in a new context");
   await expect(page.getByLabel("Method phase 1 of 4")).toContainText("See a complete model");
   await expect(page.getByText(/A budget directs limited income/).first()).toBeVisible();
-  await expect(page.getByText("VISUAL MODEL", { exact: true })).toBeVisible();
-  await expect(page.getByLabel(/Visual model:/)).toBeVisible();
-  await expect(page.locator(".teaching-path-segment")).toHaveCount(3);
+  await expect(page.getByText("Part 1 of 2", { exact: true })).toBeVisible();
+  await expect(page.getByText("INTERACTIVE MODEL", { exact: true })).not.toBeVisible();
   await expect(page.getByRole("group", { name: /One quick confidence check/ })).not.toBeVisible();
+  await page.getByRole("button", { name: "Next: Explore the model" }).click();
+  await expect(page.getByText("INTERACTIVE MODEL", { exact: true })).toBeVisible();
+  await expect(page.getByLabel(/Interactive model:/)).toBeVisible();
+  await expect(page.getByRole("tablist", { name: "Model parts" }).getByRole("tab")).toHaveCount(3);
+  await page.getByRole("button", { name: "Next part" }).click();
+  await expect(page.getByLabel(/Interactive model:/)).toContainText("2 of 3");
   await page.getByRole("button", { name: "Continue" }).click();
 
   await expect(page.getByRole("heading", { name: "Trace one financial choice" })).toBeVisible();
   await expect(page.getByText(/If \$100 earns 10%/).first()).toBeVisible();
   await expect(page.getByRole("group", { name: /One quick confidence check/ })).not.toBeVisible();
+  await page.getByRole("button", { name: "Next: Explore the model" }).click();
   await page.getByRole("button", { name: "Continue" }).click();
 
   await expect(page.getByRole("heading", { name: "What makes the second year compound growth?" })).toBeVisible();
@@ -355,6 +362,7 @@ test("a learner can stop twice without losing progress or earlier evidence", asy
   await confirmSessionSetup(page);
 
   await expect(page.getByRole("heading", { name: "Use money concepts as decision tools" })).toBeVisible();
+  await page.getByRole("button", { name: "Next: Explore the model" }).click();
   await page.getByRole("button", { name: "Continue" }).click();
   await leaveSession(page, "1 of 5 required steps finished");
 
@@ -362,6 +370,7 @@ test("a learner can stop twice without losing progress or earlier evidence", asy
   await expect(page.getByText("1 section saved", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Continue session" }).click();
   await expect(page.getByRole("heading", { name: "Trace one financial choice" })).toBeVisible();
+  await page.getByRole("button", { name: "Next: Explore the model" }).click();
   await page.getByRole("button", { name: "Continue" }).click();
   await page.getByRole("button", { name: "The earlier gain remains in the base" }).click();
   await expect(page.getByText("Correct.", { exact: true })).toBeVisible();
@@ -626,7 +635,7 @@ test("a multi-session plan uses one clear source decision from setup to Learning
   await expect(page.getByRole("dialog", { name: /Start .* now\?/ })).toBeVisible();
   await expect(page.getByText("Recommended: pull the agenda forward")).toBeVisible();
   await page.getByRole("button", { name: "Start and adjust agenda" }).click();
-  await expect(page.getByRole("heading", { name: "Make sure YOVA starts in the right place." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Here is how YOVA plans to start." })).toBeVisible();
 });
 
 test("material setup clearly supports files, articles, and YouTube transcripts", async ({ page }) => {
@@ -676,7 +685,11 @@ async function leaveSession(page: Page, progressText: string) {
 }
 
 async function confirmSessionSetup(page: Page) {
-  await expect(page.getByRole("heading", { name: "Make sure YOVA starts in the right place." })).toBeVisible();
-  await expect(page.getByText(/verify what you know through the session rather than trusting a confidence rating/i)).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Here is how YOVA plans to start." })).toBeVisible();
+  await expect(page.getByLabel("Why YOVA chose this approach")).toBeVisible();
+  await page.getByRole("button", { name: "Continue" }).click();
+  await expect(page.getByRole("heading", { name: "Has anything changed?" })).toBeVisible();
+  await page.getByRole("button", { name: "Continue" }).click();
+  await expect(page.getByRole("heading", { name: "Set the pace for today." })).toBeVisible();
   await page.getByRole("button", { name: "Prepare this session" }).click();
 }

@@ -2519,6 +2519,7 @@ function isVerifiableKnownTarget(value: string) {
 
 function SessionSetup({ plan, answers, completions, interruptions, onExit, onStart }: { plan: LearningPlan | null; answers: string[]; completions: SessionCompletion[]; interruptions: SessionInterruption[]; onExit: () => void; onStart: (adjustment: SessionAdjustment | null) => void }) {
   const session = plan?.sessions.find((item) => item.status === "ready") ?? null;
+  const [setupPage, setSetupPage] = useState(0);
   const [familiarity, setFamiliarity] = useState<SessionAdjustment["familiarity"]>("as_planned");
   const [availableMinutes, setAvailableMinutes] = useState<number | null>(null);
   const [selectedKnownTargets, setSelectedKnownTargets] = useState<string[]>([]);
@@ -2565,6 +2566,11 @@ function SessionSetup({ plan, answers, completions, interruptions, onExit, onSta
     completions: completions.filter((completion) => completion.planId === plan.id),
     interruptions: interruptions.filter((interruption) => interruption.planId === plan.id),
   });
+  const taskDecision = decisionSignals.find((signal) => signal.kind === "task") ?? decisionSignals[0];
+  const personalDecision = decisionSignals.find((signal) => signal.strength === "observed")
+    ?? decisionSignals.find((signal) => signal.kind === "learner")
+    ?? decisionSignals.find((signal) => signal.kind === "source")
+    ?? null;
 
   const toggleKnownTarget = (target: string) => {
     setSelectedKnownTargets((current) => current.includes(target)
@@ -2599,14 +2605,34 @@ function SessionSetup({ plan, answers, completions, interruptions, onExit, onSta
   return <main className="session-setup-shell">
     <header><BrandMark /><button className="button ghost" onClick={onExit}>Cancel</button></header>
     <section className="session-setup-card">
-      <div className="session-setup-copy"><span className="step-label">QUICK SESSION UPDATE</span><h1>Make sure YOVA starts in the right place.</h1><p>This is optional context, not another test. YOVA will verify what you know through the session rather than trusting a confidence rating.</p></div>
-      <section className="session-current-assumption"><div><span>CURRENT TARGET</span><strong>{session.title}</strong><p>{session.objective}</p></div><div><span>PLANNED APPROACH</span><strong>{session.learningMode === "learn" ? "Teaching before independent work" : "Independent attempt before repair"}</strong><p>{session.method} · about {session.estimatedMinutes} minutes</p></div></section>
-      <section className="session-decision-map" aria-label="What YOVA is using for this session"><div className="session-decision-heading"><div><span className="step-label">YOVA&apos;S CURRENT READ</span><h2>Why this session is different for you</h2><p>Task requirements choose the method. Your context and actual results change how YOVA delivers it.</p></div><span>{decisionSignals.filter((signal) => signal.strength === "observed").length ? "Uses observed evidence" : "Starting hypothesis"}</span></div><div className="session-decision-grid">{decisionSignals.map((signal) => <article className={signal.strength} key={signal.kind}><span>{signal.label}</span><strong>{signal.title}</strong><p>{signal.detail}</p><small>{signal.strength === "observed" ? "Observed in YOVA" : signal.strength === "direct" ? "Known from this goal" : "You told YOVA"}</small></article>)}</div></section>
-      <fieldset className="session-readiness-options"><legend>Has anything changed since the plan was created?</legend><div>{options.map((option) => <button type="button" key={option.value} className={familiarity === option.value ? "selected" : ""} onClick={() => setFamiliarity(option.value)}><span>{familiarity === option.value ? <Check size={16} /> : <Target size={16} />}</span><div><strong>{option.title}</strong><small>{option.description}</small></div></button>)}</div></fieldset>
-      {familiarity === "already_know" && <fieldset className="known-targets"><legend>Which parts do you think you already know?</legend>{targetChoices.length ? <><p>Select any that should be verified first. YOVA will not skip them based only on this claim.</p><div>{targetChoices.map((target) => <button type="button" aria-pressed={selectedKnownTargets.includes(target)} className={selectedKnownTargets.includes(target) ? "selected" : ""} key={target} onClick={() => toggleKnownTarget(target)}><span>{selectedKnownTargets.includes(target) ? <Check size={15} /> : null}</span>{target}</button>)}</div></> : <p>Name the concepts in the context box below. YOVA will turn the claim into an unsupported check before deciding what to omit.</p>}</fieldset>}
-      <div className="session-context-row"><label><span>Time available right now</span><select value={availableMinutes ?? ""} onChange={(event) => setAvailableMinutes(event.target.value ? Number(event.target.value) : null)}><option value="">Keep the planned {session.estimatedMinutes} minutes</option>{[10, 15, 20, 25, 30, 45, 60].filter((minutes) => minutes !== session.estimatedMinutes).map((minutes) => <option key={minutes} value={minutes}>{minutes} minutes</option>)}</select><small>A shorter window reduces today&apos;s content slice. It does not make incomplete content count as finished.</small></label><label><span>Anything YOVA should account for today?</span><textarea rows={3} maxLength={500} value={note} placeholder="Optional: name what you already know, what confused you, or what this session must cover." onChange={(event) => setNote(event.target.value)} /><small>{note.length}/500 · More specific context usually produces a better session.</small></label></div>
-      <div className="session-setup-proof"><Sparkles size={19} /><div><strong>What will change</strong><p>{adjustmentExplanation}</p></div></div>
-      <footer><button className="button ghost" onClick={onExit}>Not now</button><button className="button primary large" onClick={start}>Prepare this session <ArrowRight size={18} /></button></footer>
+      <nav className="session-setup-progress" aria-label="Session setup progress">
+        {["Direction", "Starting point", "Today"].map((label, index) => <div className={index === setupPage ? "current" : index < setupPage ? "complete" : ""} key={label}><span>{index < setupPage ? <Check size={13} /> : index + 1}</span><strong>{label}</strong></div>)}
+      </nav>
+
+      {setupPage === 0 && <>
+        <div className="session-setup-copy"><span className="step-label">SESSION DIRECTION</span><h1>Here is how YOVA plans to start.</h1><p>First see the target and method. You can correct the starting point on the next page.</p></div>
+        <section className="session-current-assumption"><div><span>CURRENT TARGET</span><strong>{session.title}</strong><p>{session.objective}</p></div><div><span>PLANNED APPROACH</span><strong>{session.learningMode === "learn" ? "Teaching before independent work" : "Independent attempt before repair"}</strong><p>{session.method}, about {session.estimatedMinutes} minutes</p></div></section>
+        {taskDecision && <section className="session-decision-spotlight" aria-label="Why YOVA chose this approach"><div className="session-decision-icon"><Sparkles size={19} /></div><div><span>WHY THIS APPROACH</span><h2>{taskDecision.title}</h2><p>{taskDecision.detail}</p>{personalDecision && <aside><strong>{personalDecision.strength === "observed" ? "Adjusted from your work" : "Adjusted from your context"}</strong><span>{personalDecision.title}</span></aside>}</div></section>}
+      </>}
+
+      {setupPage === 1 && <>
+        <div className="session-setup-copy"><span className="step-label">STARTING POINT</span><h1>Has anything changed?</h1><p>Choose the closest answer. YOVA will still verify knowledge through the session.</p></div>
+        <fieldset className="session-readiness-options"><legend>Where should this session begin?</legend><div>{options.map((option) => <button type="button" key={option.value} className={familiarity === option.value ? "selected" : ""} onClick={() => setFamiliarity(option.value)}><span>{familiarity === option.value ? <Check size={16} /> : <Target size={16} />}</span><div><strong>{option.title}</strong><small>{option.description}</small></div></button>)}</div></fieldset>
+        {familiarity === "already_know" && <fieldset className="known-targets"><legend>Which parts should YOVA verify first?</legend>{targetChoices.length ? <><p>Select any that may already be familiar. YOVA will skip them only after you demonstrate them.</p><div>{targetChoices.map((target) => <button type="button" aria-pressed={selectedKnownTargets.includes(target)} className={selectedKnownTargets.includes(target) ? "selected" : ""} key={target} onClick={() => toggleKnownTarget(target)}><span>{selectedKnownTargets.includes(target) ? <Check size={15} /> : null}</span>{target}</button>)}</div></> : <p>Name the concepts on the next page. YOVA will check them before deciding what to omit.</p>}</fieldset>}
+      </>}
+
+      {setupPage === 2 && <>
+        <div className="session-setup-copy"><span className="step-label">TODAY&apos;S CONTEXT</span><h1>Set the pace for today.</h1><p>Only add what changed or what YOVA could not know from the plan.</p></div>
+        <div className="session-context-row"><label><span>Time available right now</span><select value={availableMinutes ?? ""} onChange={(event) => setAvailableMinutes(event.target.value ? Number(event.target.value) : null)}><option value="">Keep the planned {session.estimatedMinutes} minutes</option>{[10, 15, 20, 25, 30, 45, 60].filter((minutes) => minutes !== session.estimatedMinutes).map((minutes) => <option key={minutes} value={minutes}>{minutes} minutes</option>)}</select><small>Shorter time changes today&apos;s content slice, not what counts as learned.</small></label><label><span>Anything YOVA should account for?</span><textarea rows={4} maxLength={500} value={note} placeholder="Optional: what you already know, what was confusing, or what this session must cover." onChange={(event) => setNote(event.target.value)} /><small>{note.length}/500</small></label></div>
+        <div className="session-setup-proof"><Sparkles size={19} /><div><strong>How YOVA will begin</strong><p>{adjustmentExplanation}</p></div></div>
+      </>}
+
+      <footer>
+        <button className="button ghost" onClick={setupPage === 0 ? onExit : () => setSetupPage((current) => Math.max(0, current - 1))}>{setupPage === 0 ? "Not now" : <><ArrowLeft size={17} /> Back</>}</button>
+        {setupPage < 2
+          ? <button className="button primary large" onClick={() => setSetupPage((current) => Math.min(2, current + 1))}>Continue <ArrowRight size={18} /></button>
+          : <button className="button primary large" onClick={start}>Prepare this session <ArrowRight size={18} /></button>}
+      </footer>
     </section>
   </main>;
 }
@@ -2640,7 +2666,9 @@ function GuidedSession({ plan, steps, step, selectedAnswer, outcome, confidence,
   const [answerEvaluation, setAnswerEvaluation] = useState<AnswerEvaluationResponse | null>(null);
   const [answerEvaluationIssue, setAnswerEvaluationIssue] = useState<string | null>(null);
   const [answerEvaluationPending, setAnswerEvaluationPending] = useState(false);
+  const [teachingProgress, setTeachingProgress] = useState({ step, page: 0 });
   const content = steps[step];
+  const teachingPage = teachingProgress.step === step ? teachingProgress.page : 0;
   const currentSession = plan?.sessions.find((session) => session.status === "ready") ?? null;
   const isQuestion = content.type === "multiple_choice" || content.type === "free_response";
   const isImmediateRepair = content.evidenceRole === "immediate_repair";
@@ -2658,7 +2686,10 @@ function GuidedSession({ plan, steps, step, selectedAnswer, outcome, confidence,
     : punctuatedCorrectAnswer
       ? `The correct answer is “${punctuatedCorrectAnswer}” ${content.feedback ?? "YOVA will bring this idea back for another attempt."}`
       : content.feedback;
-  const canContinue = !isQuestion || outcome !== undefined;
+  const teachingPanels = content.teaching ? teachingPanelsFor(content.teaching) : [];
+  const teachingComplete = teachingPanels.length === 0 || teachingPage >= teachingPanels.length - 1;
+  const nextTeachingPanel = teachingPanels[teachingPage + 1] ?? null;
+  const canContinue = (!isQuestion || outcome !== undefined) && teachingComplete;
   const phase = content.methodPhase ? getMethodPhasePresentation(content.methodPhase) : null;
   const phasePosition = methodPhasePosition(steps.map((item) => item.methodPhase), step);
   const requiredSteps = steps.filter((item) => item.requiredForCompletion !== false);
@@ -2746,7 +2777,7 @@ function GuidedSession({ plan, steps, step, selectedAnswer, outcome, confidence,
         {phase && phasePosition && <MethodPhaseCoach phase={phase} current={phasePosition.current} total={phasePosition.total} />}
         {isImmediateRepair && <div className="immediate-repair-note"><RotateCcw size={17} /><div><strong>Repair now, verify later</strong><p>Correct the idea now. YOVA will still check it again later because an immediate retry is not proof that it will stick.</p></div></div>}
         <header className="session-activity-header"><div className="session-step-meta"><div><span>STEP {step + 1} OF {steps.length}</span><strong>{activityLabel}</strong></div>{content.estimatedMinutes && <span><Clock3 size={13} /> About {content.estimatedMinutes} min</span>}</div><h1><LearningContent content={content.title} inline /></h1>{content.body && <LearningContent content={content.body} className="session-activity-instruction" />}</header>
-        {content.teaching && <TeachingLessonCard teaching={content.teaching} />}
+        {content.teaching && <TeachingLessonCard teaching={content.teaching} panel={teachingPanels[teachingPage] ?? "idea"} panelIndex={teachingPage} panelCount={teachingPanels.length} />}
         {requiresConfidence && <ConfidenceCheck value={confidence} locked={outcome !== undefined || answerRevealed} onChange={onConfidence} />}
         {content.type === "multiple_choice" && content.question && <div className="answer-grid">{content.question.map((answer) => {
           const answerState = outcome !== undefined && answer === content.correctAnswer
@@ -2802,7 +2833,7 @@ function GuidedSession({ plan, steps, step, selectedAnswer, outcome, confidence,
           <small className="privacy-note">{isImmediateRepair ? "This immediate explain-back is not saved as proof of mastery. The original miss remains scheduled for later verification." : answerEvaluation ? "Your answer was sent for a one-time AI check and is not saved. YOVA keeps only the concept result, confidence, and support level." : "Your typed answer is not saved. YOVA keeps only the concept result, confidence, and support level."}</small>
         </div>}
       </div>}
-        <footer className="session-action-bar">{step === steps.length - 1 && <p className="completion-rule"><Check size={14} /> Completion is based on the required learning work, not on running out the clock.</p>}<button className="button primary large" onClick={() => onNext(answerEvaluation)} disabled={!canContinue}>{outcome === false && !isImmediateRepair ? "Repair this idea" : step === steps.length - 1 ? "Finish this content" : "Continue"} <ArrowRight size={18} /></button></footer>
+        <footer className="session-action-bar">{step === steps.length - 1 && teachingComplete && <p className="completion-rule"><Check size={14} /> Completion is based on the required learning work, not on running out the clock.</p>}<button className="button primary large" onClick={() => nextTeachingPanel ? setTeachingProgress({ step, page: teachingPage + 1 }) : onNext(answerEvaluation)} disabled={!canContinue && !nextTeachingPanel}>{nextTeachingPanel ? `Next: ${teachingPanelLabel(nextTeachingPanel)}` : outcome === false && !isImmediateRepair ? "Repair this idea" : step === steps.length - 1 ? "Finish this content" : "Continue"} <ArrowRight size={18} /></button></footer>
       </section>
     </section>
     <SessionTutor
@@ -2840,9 +2871,41 @@ function SessionGuidePanel({ session, capacityMinutes, coverage, steps, step, me
   return <aside className="session-guide"><div className="session-guide-desktop">{guide}</div><details className="session-guide-mobile"><summary><span><strong>{methodBriefing?.name ?? "Session path"}</strong><small>Step {step + 1} of {steps.length} · {roadmap.length} learning phases</small></span><ChevronRight size={17} /></summary><div>{guide}</div></details></aside>;
 }
 
-function TeachingLessonCard({ teaching }: { teaching: NonNullable<LessonStep["teaching"]> }) {
+type TeachingPanel = "idea" | "model" | "example" | "mixup";
+
+function teachingPanelsFor(teaching: NonNullable<LessonStep["teaching"]>): TeachingPanel[] {
+  const panels: TeachingPanel[] = ["idea"];
   const visualSteps = teaching.example?.steps ?? visualModelSteps(teaching.explanation);
-  return <section className="teaching-lesson" aria-label="Teaching explanation"><div className="teaching-core"><span>CORE IDEA</span><strong><LearningContent content={teaching.keyIdea} inline /></strong><LearningContent content={teaching.explanation} /></div>{visualSteps.length >= 2 && <TeachingPathDiagram setup={teaching.example?.setup ?? teaching.keyIdea} steps={visualSteps} takeaway={teaching.example?.takeaway ?? teaching.keyIdea} />}{teaching.example && <div className="worked-example"><span>WORKED WALKTHROUGH</span><h3><LearningContent content={teaching.example.setup} inline /></h3><ol>{teaching.example.steps.map((item) => <li key={item}><LearningContent content={item} /></li>)}</ol><div className="worked-example-takeaway"><strong>Takeaway:</strong><LearningContent content={teaching.example.takeaway} inline /></div></div>}{teaching.commonMistake && <div className="common-mistake"><AlertCircle size={17} /><div><span>COMMON MIX-UP</span><s><LearningContent content={teaching.commonMistake.mistake} inline /></s><strong><LearningContent content={teaching.commonMistake.correction} inline /></strong></div></div>}</section>;
+  if (visualSteps.length >= 2) panels.push("model");
+  if (teaching.example) panels.push("example");
+  if (teaching.commonMistake) panels.push("mixup");
+  return panels;
+}
+
+function teachingPanelLabel(panel: TeachingPanel) {
+  if (panel === "idea") return "Core idea";
+  if (panel === "model") return "Explore the model";
+  if (panel === "example") return "Worked example";
+  return "Common mix-up";
+}
+
+function TeachingLessonCard({ teaching, panel, panelIndex = 0, panelCount }: { teaching: NonNullable<LessonStep["teaching"]>; panel?: TeachingPanel; panelIndex?: number; panelCount?: number }) {
+  const visualSteps = teaching.example?.steps ?? visualModelSteps(teaching.explanation);
+  const panelLabels = teachingPanelsFor(teaching);
+  const activePanel = panel ?? "idea";
+  const showFullResource = panel === undefined;
+  const totalPanels = panelCount ?? panelLabels.length;
+
+  return <section className="teaching-lesson" aria-label="Guided teaching sequence">
+    {!showFullResource && <header className="teaching-stage-header">
+      <div><span>GUIDED EXPLANATION</span><strong>Part {panelIndex + 1} of {totalPanels}</strong></div>
+      <ol>{panelLabels.map((label, index) => <li className={index === panelIndex ? "current" : index < panelIndex ? "complete" : ""} key={label}><span>{index < panelIndex ? <Check size={11} /> : index + 1}</span>{teachingPanelLabel(label)}</li>)}</ol>
+    </header>}
+    {(showFullResource || activePanel === "idea") && <div className="teaching-core"><span>CORE IDEA</span><strong><LearningContent content={teaching.keyIdea} inline /></strong><LearningContent content={teaching.explanation} /></div>}
+    {(showFullResource || activePanel === "model") && visualSteps.length >= 2 && <TeachingPathDiagram setup={teaching.example?.setup ?? teaching.keyIdea} steps={visualSteps} takeaway={teaching.example?.takeaway ?? teaching.keyIdea} />}
+    {(showFullResource || activePanel === "example") && teaching.example && <div className="worked-example"><span>WORKED EXAMPLE</span><h3><LearningContent content={teaching.example.setup} inline /></h3><ol>{teaching.example.steps.map((item) => <li key={item}><LearningContent content={item} /></li>)}</ol><div className="worked-example-takeaway"><strong>What this shows:</strong><LearningContent content={teaching.example.takeaway} inline /></div></div>}
+    {(showFullResource || activePanel === "mixup") && teaching.commonMistake && <div className="common-mistake"><AlertCircle size={17} /><div><span>COMMON MIX-UP</span><s><LearningContent content={teaching.commonMistake.mistake} inline /></s><strong><LearningContent content={teaching.commonMistake.correction} inline /></strong></div></div>}
+  </section>;
 }
 
 function visualModelSteps(explanation: string) {
@@ -2859,9 +2922,18 @@ function visualModelSteps(explanation: string) {
 }
 
 function TeachingPathDiagram({ setup, steps, takeaway }: { setup: string; steps: string[]; takeaway: string }) {
-  if (steps.length < 2) return null;
+  const [modelProgress, setModelProgress] = useState({ setup, step: 0 });
   const visibleSteps = steps.slice(0, 5);
-  return <figure className="teaching-path-diagram" aria-label={`Visual model: ${setup}`}><figcaption><span>VISUAL MODEL</span><strong><LearningContent content={setup} inline /></strong></figcaption><div className="teaching-path-flow">{visibleSteps.map((item, index) => <div className="teaching-path-segment" key={`${index}-${item}`}><article><span>{index + 1}</span><LearningContent content={shortVisualLabel(item)} /></article>{index < visibleSteps.length - 1 && <ArrowRight size={18} aria-hidden="true" />}</div>)}</div><div className="teaching-path-takeaway"><Target size={15} /><LearningContent content={takeaway} inline /></div></figure>;
+  const activeStep = modelProgress.setup === setup ? modelProgress.step : 0;
+  if (visibleSteps.length < 2) return null;
+  const activeContent = visibleSteps[activeStep];
+  return <figure className="teaching-path-diagram" aria-label={`Interactive model: ${setup}`}>
+    <figcaption><div><span>INTERACTIVE MODEL</span><em>{activeStep + 1} of {visibleSteps.length}</em></div><strong><LearningContent content={setup} inline /></strong><p>Move through one part at a time. Notice what changes and how it connects to the next part.</p></figcaption>
+    <div className="teaching-model-tabs" role="tablist" aria-label="Model parts">{visibleSteps.map((item, index) => <button type="button" role="tab" aria-selected={index === activeStep} className={index === activeStep ? "current" : index < activeStep ? "visited" : ""} key={`${index}-${item}`} onClick={() => setModelProgress({ setup, step: index })}><span>{index + 1}</span><strong>{shortVisualLabel(item)}</strong></button>)}</div>
+    <article className="teaching-model-focus" role="tabpanel"><span>PART {activeStep + 1}</span><LearningContent content={activeContent} /></article>
+    <div className="teaching-model-controls"><button type="button" className="button ghost" disabled={activeStep === 0} onClick={() => setModelProgress({ setup, step: Math.max(0, activeStep - 1) })}><ArrowLeft size={16} /> Previous part</button>{activeStep < visibleSteps.length - 1 ? <button type="button" className="button secondary" onClick={() => setModelProgress({ setup, step: Math.min(visibleSteps.length - 1, activeStep + 1) })}>Next part <ArrowRight size={16} /></button> : <span><Check size={15} /> Model explored</span>}</div>
+    {activeStep === visibleSteps.length - 1 && <div className="teaching-path-takeaway"><Target size={15} /><div><strong>Connection to remember</strong><LearningContent content={takeaway} inline /></div></div>}
+  </figure>;
 }
 
 function shortVisualLabel(value: string) {
