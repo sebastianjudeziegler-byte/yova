@@ -52,6 +52,8 @@ export const SessionGenerationRequestSchema = z.object({
     }).nullable(),
     recentResults: z.array(z.object({
       methodId: z.enum(CORE_METHOD_IDS).nullable(),
+      taskType: z.enum(LEARNING_TASK_TYPES).nullable(),
+      knowledgeStage: z.enum(["novice", "developing", "retrieval_ready"]).nullable(),
       correctAnswers: z.number().int().min(0).max(100).nullable(),
       totalAnswers: z.number().int().min(0).max(100).nullable(),
       feedback: z.enum(["too_easy", "about_right", "too_difficult"]).nullable(),
@@ -241,6 +243,10 @@ export const CachedGeneratedSessionSchema = GeneratedSessionDraftSchema.extend({
   schemaVersion: z.literal(13),
   model: z.string().min(1),
   generatedAt: z.string().datetime({ offset: true }),
+  routingContext: z.object({
+    taskType: z.enum(LEARNING_TASK_TYPES),
+    knowledgeStage: z.enum(["novice", "developing", "retrieval_ready"]),
+  }).optional(),
   supportPlan: SessionSupportPlanSchema.optional(),
   deliveryPolicy: SessionDeliveryPolicySchema,
 });

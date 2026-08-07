@@ -14,9 +14,14 @@ import type { LearningIntent, SessionLearningMode } from "@/lib/domain";
 import {
   buildLearningScienceRoutingBrief,
   validateLearningScienceRoutingSelection,
+  type KnowledgeStage,
   type LearningScienceRoutingBrief,
 } from "@/lib/learning/method-router";
-import { learningScienceCatalogForPrompt } from "@/lib/learning/method-catalog";
+import {
+  learningScienceCatalogForPrompt,
+  type CoreMethodId,
+  type LearningTaskType,
+} from "@/lib/learning/method-catalog";
 import { methodFidelityContractsForPrompt, validateMethodFidelity } from "@/lib/learning/method-fidelity";
 import { learningModeContract } from "@/lib/learning/learning-intent";
 import {
@@ -41,7 +46,6 @@ import {
   validateSessionDeliveryPolicy,
   type SessionDeliveryPolicy,
 } from "@/lib/personalization/session-delivery-policy";
-import type { CoreMethodId } from "@/lib/learning/method-catalog";
 import type { CalibrationPattern } from "@/lib/learning/confidence-calibration";
 import {
   GeneratedSessionDraftSchema,
@@ -93,6 +97,8 @@ export type SessionGenerationContext = {
   sessionAdjustment?: SessionAdjustment | null;
   recentResults: Array<{
     methodId: CoreMethodId | null;
+    taskType: LearningTaskType | null;
+    knowledgeStage: KnowledgeStage | null;
     correctAnswers: number | null;
     totalAnswers: number | null;
     feedback: "too_easy" | "about_right" | "too_difficult" | null;
@@ -116,6 +122,10 @@ export type OpenAISessionResult = {
   draft: GeneratedSessionDraft;
   model: string;
   responseId: string;
+  routingContext: {
+    taskType: LearningTaskType;
+    knowledgeStage: KnowledgeStage;
+  };
   supportPlan: SessionSupportPlan;
   deliveryPolicy: SessionDeliveryPolicy;
   generationStats: SessionGenerationStats;
@@ -256,7 +266,10 @@ export async function generateSessionWithOpenAI(
       learningScienceRouting.allowedMethodIds,
       learningScienceRouting.sessionLearningMode,
     );
-  const observedMethodOutcomes = buildMethodOutcomeSignals(context.recentResults);
+  const observedMethodOutcomes = buildMethodOutcomeSignals(context.recentResults, {
+    taskType: learningScienceRouting.taskType,
+    knowledgeStage: learningScienceRouting.knowledgeStage,
+  });
   const conceptReviewSchedule = buildConceptReviewSchedule(context.conceptSignals);
   const scaffoldProgression = context.scaffoldSignals ?? [];
   const baselineDeliveryPolicy = buildSessionDeliveryPolicy({
@@ -359,6 +372,10 @@ export async function generateSessionWithOpenAI(
     draft: parsed.data,
     model: response.model,
     responseId: response.id,
+    routingContext: {
+      taskType: learningScienceRouting.taskType,
+      knowledgeStage: learningScienceRouting.knowledgeStage,
+    },
     supportPlan: quickReviewContract
       ? {
         level: "independent_start",

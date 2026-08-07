@@ -4,6 +4,12 @@ import type {
   SessionCompletion,
   SessionInterruption,
 } from "@/lib/domain";
+import type { LearningTaskType } from "@/lib/learning/method-catalog";
+import {
+  inferKnowledgeStage,
+  inferLearningTaskType,
+  type KnowledgeStage,
+} from "@/lib/learning/method-router";
 
 export type MethodFamily =
   | "guided_explanation"
@@ -17,6 +23,9 @@ export type MethodSignalStatus = "early_signal" | "promising" | "needs_support";
 export type MethodSignal = {
   family: MethodFamily;
   label: string;
+  taskType: LearningTaskType;
+  knowledgeStage: KnowledgeStage;
+  comparisonLabel: string;
   sessions: number;
   checkedAnswers: number;
   correctAnswers: number;
@@ -90,18 +99,23 @@ export function buildMethodSignals(
   completions: SessionCompletion[],
   interruptions: SessionInterruption[],
 ): MethodSignal[] {
-  const sessionsById = new Map<string, LearningPlanSession>();
+  const sessionsById = new Map<string, { plan: LearningPlan; session: LearningPlanSession }>();
   for (const plan of plans) {
-    for (const session of plan.sessions) sessionsById.set(session.id, session);
+    for (const session of plan.sessions) sessionsById.set(session.id, { plan, session });
   }
 
-  const grouped = new Map<MethodFamily, Omit<MethodSignal, "label" | "status" | "summary" | "averageAccuracy">>();
+  const grouped = new Map<string, Omit<MethodSignal, "label" | "status" | "summary" | "averageAccuracy" | "comparisonLabel">>();
   for (const completion of completions) {
-    const session = sessionsById.get(completion.planSessionId);
-    if (!session) continue;
+    const source = sessionsById.get(completion.planSessionId);
+    if (!source) continue;
+    const { plan, session } = source;
     const family = methodFamily(session);
-    const current = grouped.get(family) ?? {
+    const comparison = comparisonContext(plan, session);
+    const key = `${family}:${comparison.taskType}:${comparison.knowledgeStage}`;
+    const current = grouped.get(key) ?? {
       family,
+      taskType: comparison.taskType,
+      knowledgeStage: comparison.knowledgeStage,
       sessions: 0,
       checkedAnswers: 0,
       correctAnswers: 0,
@@ -114,14 +128,16 @@ export function buildMethodSignals(
     current.correctAnswers += Math.max(0, Math.min(completion.correctAnswers, completion.totalAnswers));
     if (completion.feedback === "too_difficult") current.difficultRatings += 1;
     if (completion.feedback === "too_easy") current.easyRatings += 1;
-    grouped.set(family, current);
+    grouped.set(key, current);
   }
 
   for (const interruption of interruptions) {
-    const session = sessionsById.get(interruption.planSessionId);
-    if (!session) continue;
+    const source = sessionsById.get(interruption.planSessionId);
+    if (!source) continue;
+    const { plan, session } = source;
     const family = methodFamily(session);
-    const current = grouped.get(family);
+    const comparison = comparisonContext(plan, session);
+    const current = grouped.get(`${family}:${comparison.taskType}:${comparison.knowledgeStage}`);
     if (current) current.interruptions += 1;
   }
 
@@ -139,10 +155,42 @@ export function buildMethodSignals(
       return {
         ...signal,
         label: methodLabels[signal.family],
+        comparisonLabel: comparisonLabel(signal.taskType, signal.knowledgeStage),
         averageAccuracy,
         status,
         summary: signalSummary(status, signal.sessions, signal.checkedAnswers, averageAccuracy),
       };
     })
     .sort((left, right) => right.sessions - left.sessions || left.label.localeCompare(right.label));
+}
+
+function comparisonContext(plan: LearningPlan, session: LearningPlanSession) {
+  const comparisonText = [plan.title, plan.topic, session.title, session.objective, session.method].join(" ");
+  return {
+    taskType: session.resource?.routingContext?.taskType
+      ?? session.resource?.methodBriefing?.taskType
+      ?? inferLearningTaskType(comparisonText),
+    knowledgeStage: session.resource?.routingContext?.knowledgeStage
+      ?? (session.learningMode === "learn"
+        ? "novice" as const
+        : inferKnowledgeStage([], comparisonText)),
+  };
+}
+
+function comparisonLabel(taskType: LearningTaskType, knowledgeStage: KnowledgeStage) {
+  const taskLabels: Record<LearningTaskType, string> = {
+    memorization: "memorization",
+    conceptual_learning: "concept learning",
+    problem_solving: "problem solving",
+    reading_to_quiz: "reading and recall",
+    writing_argumentation: "writing and argumentation",
+    programming: "programming",
+    mixed_assessment: "mixed assessment",
+  };
+  const stage = knowledgeStage === "novice"
+    ? "initial learning"
+    : knowledgeStage === "retrieval_ready"
+      ? "independent retrieval"
+      : "developing knowledge";
+  return `${taskLabels[taskType]} · ${stage}`;
 }

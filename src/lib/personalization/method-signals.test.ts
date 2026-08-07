@@ -97,6 +97,38 @@ describe("buildMethodSignals", () => {
       status: "promising",
     });
     expect(signals[0].summary).toContain("not proof");
+    expect(signals[0].comparisonLabel).toContain("concept learning");
+  });
+
+  it("keeps the same method separate across unrelated tasks", () => {
+    const biologySession = makeSession("session_biology", "Active recall");
+    const calculusSession = {
+      ...makeSession("session_calculus", "Active recall"),
+      title: "Solve derivative problems",
+      objective: "Differentiate equations and apply the product rule independently.",
+    };
+    const calculusPlan: LearningPlan = {
+      ...makePlan([calculusSession]),
+      id: "plan_calculus",
+      learningItemId: "item_calculus",
+      title: "Calculus derivatives",
+      topic: "Product rule problems",
+    };
+
+    const signals = buildMethodSignals(
+      [makePlan([biologySession]), calculusPlan],
+      [
+        makeCompletion("session_biology"),
+        { ...makeCompletion("session_calculus"), planId: "plan_calculus" },
+      ],
+      [],
+    );
+
+    expect(signals).toHaveLength(2);
+    expect(signals.every((signal) => signal.sessions === 1)).toBe(true);
+    expect(new Set(signals.map((signal) => signal.taskType))).toEqual(
+      new Set(["conceptual_learning", "problem_solving"]),
+    );
   });
 
   it("keeps one session as early evidence instead of declaring a best method", () => {

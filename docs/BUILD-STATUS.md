@@ -112,6 +112,8 @@ A cross-browser six-digit email-code flow is implemented and tested behind a ser
 - Subject-specific development fallbacks use the same phase model; unknown topics and every production generation failure now stop safely rather than silently becoming unrelated generic content
 - Future guided sessions now receive the actual method, result, and difficulty feedback from earlier sessions in the same plan instead of seeing scores without method context
 - YOVA waits for repeated comparable evidence before changing method delivery, then adds support after repeated difficulty or cautiously fades support after promising results
+- Every generated session now stores its deterministic task type and knowledge stage. Method-outcome adaptation only uses sessions from the same task family and stage, so beginner concept teaching cannot silently influence advanced problem solving or retrieval-ready work
+- The You page shows that comparison scope in plain language, letting learners see exactly which kind and stage of work supports a method observation
 - The backend rejects generated sessions that ignore a meaningful method-outcome signal or turn observational results into a fixed “best method” or learning-style claim
 - Every observed concept now receives a transparent next-return policy: quick retrieval and repair after a miss, verification after an early success, or a lighter transfer check after repeated secure evidence
 - Concept return intervals are visible inside the learning goal and explicitly described as review heuristics rather than permanent mastery predictions

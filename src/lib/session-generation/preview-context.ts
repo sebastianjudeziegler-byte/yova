@@ -6,7 +6,12 @@ import type {
 } from "@/lib/domain";
 import { summarizeConceptEvidence } from "@/lib/learning/concept-evidence";
 import { summarizeConfidenceCalibration } from "@/lib/learning/confidence-calibration";
-import { methodIdFromText } from "@/lib/learning/method-router";
+import {
+  inferKnowledgeStage,
+  inferLearningTaskType,
+  methodIdFromText,
+  type KnowledgeStage,
+} from "@/lib/learning/method-router";
 import { buildScaffoldProgressionSignals } from "@/lib/learning/scaffold-progression";
 import { inferScheduledRetrievalConcept, inferScheduledRetrievalType } from "@/lib/learning/scheduled-retrieval";
 import { expandedLearnerContextFromAnswers } from "@/lib/personalization/learner-profile";
@@ -67,9 +72,14 @@ export function buildPreviewSessionContext({
     },
     recentResults: recentCompletions.slice(0, 8).map((completion) => {
       const completedSession = plan.sessions.find((candidate) => candidate.id === completion.planSessionId);
+      const comparisonContext = completedSession
+        ? completedSessionComparisonContext(plan, completedSession)
+        : null;
       return {
         methodId: completedSession?.resource?.methodBriefing?.methodId
           ?? (completedSession ? methodIdFromText(completedSession.method) : null),
+        taskType: comparisonContext?.taskType ?? null,
+        knowledgeStage: comparisonContext?.knowledgeStage ?? null,
         correctAnswers: completion.correctAnswers,
         totalAnswers: completion.totalAnswers,
         feedback: completion.feedback,
@@ -88,5 +98,30 @@ export function buildPreviewSessionContext({
     })),
     conceptSignals: summarizeConceptEvidence(recentCompletions).slice(0, 20),
     scaffoldSignals: buildScaffoldProgressionSignals(recentCompletions).slice(0, 20),
+  };
+}
+
+function completedSessionComparisonContext(
+  plan: LearningPlan,
+  session: LearningPlanSession,
+): {
+  taskType: NonNullable<PreviewSessionGenerationContext["recentResults"][number]["taskType"]>;
+  knowledgeStage: KnowledgeStage;
+} {
+  const comparisonText = [
+    plan.title,
+    plan.topic,
+    session.title,
+    session.objective,
+    session.method,
+  ].join(" ");
+  return {
+    taskType: session.resource?.routingContext?.taskType
+      ?? session.resource?.methodBriefing?.taskType
+      ?? inferLearningTaskType(comparisonText),
+    knowledgeStage: session.resource?.routingContext?.knowledgeStage
+      ?? (session.learningMode === "learn"
+        ? "novice"
+        : inferKnowledgeStage([], comparisonText)),
   };
 }

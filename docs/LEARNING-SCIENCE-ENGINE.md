@@ -153,7 +153,7 @@ That closed loop can eventually become a meaningful learning decision system rat
 ## Next scientific product layers
 
 1. Expand specialized learner-input mechanics beyond the new quantitative workpad. The first version captures numbered mathematical reasoning and a final answer; future versions can attach feedback to each exact line, execute code, and evaluate learner-built diagrams.
-2. Compare method outcomes only within similar task families and knowledge stages.
+2. Build controlled method comparisons within comparable task-and-stage groups once real usage provides enough repeated data. YOVA now prevents unrelated tasks and knowledge stages from being pooled together.
 3. Review outputs with learning-science and subject-matter experts before broad claims.
 
 ## Evidence anchors

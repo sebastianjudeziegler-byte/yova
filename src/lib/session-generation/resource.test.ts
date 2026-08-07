@@ -6,6 +6,10 @@ const generatedSession: SessionGenerationResponse["session"] = {
   schemaVersion: 13,
   model: "gpt-test",
   generatedAt: "2026-08-05T18:00:00.000Z",
+  routingContext: {
+    taskType: "conceptual_learning",
+    knowledgeStage: "novice",
+  },
   rationale: "This sequence teaches the core idea before checking recall and application.",
   coverage: {
     focus: "Understand and retrieve the purpose of retrieval practice.",
@@ -125,6 +129,10 @@ describe("session resources", () => {
     expect(resource.generatedAt).toBe(generatedSession.generatedAt);
     expect(resource.methodBriefing?.methodId).toBe("retrieval_practice");
     expect(resource.supportPlan?.level).toBe("fading");
+    expect(resource.routingContext).toEqual({
+      taskType: "conceptual_learning",
+      knowledgeStage: "novice",
+    });
     expect(resource.activities).toHaveLength(3);
     expect(resource.activities[1].correctAnswer).toBe("Recall before reviewing");
   });

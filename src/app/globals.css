@@ -763,6 +763,7 @@ h1, h2, h3, p { margin-top: 0; }
 .method-signal.needs_support > div > span { color: #9a4f0a; background: #fff3e7; }
 .method-signal p { margin: 9px 0; color: var(--muted); font-size: 12px; line-height: 1.55; }
 .method-signal small { color: #52617c; font-size: 10px; line-height: 1.45; }
+.method-signal .method-comparison-scope { display: block; margin-top: 8px; color: #3157b6; font-weight: 700; letter-spacing: .01em; }
 .method-evidence-empty { margin-top: 16px; padding: 16px; display: flex; gap: 10px; color: var(--muted); border: 1px dashed #cad3e7; border-radius: 11px; background: #fbfcff; }
 .method-evidence-empty svg { flex: 0 0 auto; color: var(--violet); }
 .method-evidence-empty p { margin: 0; font-size: 12px; line-height: 1.55; }

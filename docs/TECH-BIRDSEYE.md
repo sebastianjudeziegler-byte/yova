@@ -150,7 +150,7 @@ YOVA also chooses the interaction shape from the learning task. A conceptual res
 
 When a completed session justifies changing the next one, YOVA stores the explanation with that future session. The same evidence is restored after sign-in and shown on Home and inside the plan. This makes adaptation inspectable: the user can see which result changed the plan instead of being asked to trust a vague “personalized” label.
 
-The You screen also groups completed sessions into broad method families such as retrieval, guided explanation, and application practice. Ordinary TypeScript—not OpenAI—calculates completion counts, check accuracy, difficulty feedback, and interruptions. YOVA labels one session as early evidence, requires repeated comparable checks before showing a promising signal, and never turns this history into a fixed “learning style.”
+The You screen also groups completed sessions into method families such as retrieval, guided explanation, and application practice. Ordinary TypeScript—not OpenAI—calculates completion counts, check accuracy, difficulty feedback, and interruptions. Each generated session stores the task type and knowledge stage chosen by the deterministic router. That means YOVA only pools method evidence from comparable work: concept learning is not mixed with calculus problem solving, and initial supported teaching is not treated as equivalent to independent retrieval. YOVA labels one session as early evidence, requires repeated comparable checks before showing a promising signal, and never turns this history into a fixed “learning style.”
 
 ## 9. Reliability systems already present
 
@@ -208,7 +208,7 @@ This is why pushing to GitHub does not automatically make `localhost:3000` avail
 - **Production smoke test:** checks the deployed system with its real configuration.
 - **AI quality evaluation:** scores real generated plans against product-specific learning, timing, safety, and personalization criteria.
 
-YOVA currently has 267 passing unit tests, thirteen foundational browser journeys exercised at both desktop and phone-sized viewports for 26 passing browser runs, and opt-in live OpenAI evaluations for plans, sessions, and typed-answer judgment. The live evaluations consume API credits, so ordinary builds never trigger them. Real authenticated production journeys and broader human output review remain launch work.
+YOVA currently has 277 passing unit tests, thirteen foundational browser journeys exercised at both desktop and phone-sized viewports for 26 passing browser runs, and opt-in live OpenAI evaluations for plans, sessions, and typed-answer judgment. The live evaluations consume API credits, so ordinary builds never trigger them. Real authenticated production journeys and broader human output review remain launch work.
 
 ## 13. The next technical systems
 

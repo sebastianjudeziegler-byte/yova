@@ -3,7 +3,11 @@ import { buildMaterialExcerpts } from "@/lib/materials/context";
 import { readConceptEvidenceProperty, summarizeConceptEvidence } from "@/lib/learning/concept-evidence";
 import { readConfidenceEvidenceProperty, summarizeConfidenceCalibration } from "@/lib/learning/confidence-calibration";
 import { inferLegacySessionLearningMode } from "@/lib/learning/learning-intent";
-import { methodIdFromText } from "@/lib/learning/method-router";
+import {
+  inferKnowledgeStage,
+  inferLearningTaskType,
+  methodIdFromText,
+} from "@/lib/learning/method-router";
 import { buildScaffoldProgressionSignals } from "@/lib/learning/scaffold-progression";
 import { inferScheduledRetrievalConcept, inferScheduledRetrievalType } from "@/lib/learning/scheduled-retrieval";
 import { isOpenAISessionConfigured } from "@/lib/openai/config";
@@ -98,7 +102,7 @@ export async function POST(request: Request) {
         .maybeSingle(),
       supabase
         .from("plan_sessions")
-        .select("id,method,step_data")
+        .select("id,title,objective,method,step_data")
         .eq("plan_id", parsed.data.planId),
     ]);
 
@@ -154,6 +158,17 @@ export async function POST(request: Request) {
       (planSessionRows ?? []).map((session) => [
         session.id,
         readMethodId(session.step_data, session.method),
+      ]),
+    );
+    const comparisonContextBySession = new Map(
+      (planSessionRows ?? []).map((session) => [
+        session.id,
+        readCompletedSessionComparisonContext(
+          session.step_data,
+          session.method,
+          session.title,
+          session.objective,
+        ),
       ]),
     );
     let durableLimit: Awaited<ReturnType<typeof claimAIRequest>>;
@@ -226,6 +241,8 @@ export async function POST(request: Request) {
       sessionAdjustment: parsed.data.sessionAdjustment ?? null,
       recentResults: recentAttempts.slice(0, 8).map((attempt) => ({
         methodId: methodIdBySession.get(attempt.plan_session_id) ?? null,
+        taskType: comparisonContextBySession.get(attempt.plan_session_id)?.taskType ?? null,
+        knowledgeStage: comparisonContextBySession.get(attempt.plan_session_id)?.knowledgeStage ?? null,
         correctAnswers: attempt.correct_answers,
         totalAnswers: attempt.total_answers,
         feedback: readSessionFeedback(attempt.user_feedback),
@@ -250,6 +267,7 @@ export async function POST(request: Request) {
     const cachedSession = CachedGeneratedSessionSchema.parse({
       schemaVersion: 13,
       ...generated.draft,
+      routingContext: generated.routingContext,
       supportPlan: generated.supportPlan,
       deliveryPolicy: generated.deliveryPolicy,
       model: generated.model,
@@ -329,6 +347,7 @@ async function generateBrowserPreviewSession(
     const session = CachedGeneratedSessionSchema.parse({
       schemaVersion: 13,
       ...generated.draft,
+      routingContext: generated.routingContext,
       supportPlan: generated.supportPlan,
       deliveryPolicy: generated.deliveryPolicy,
       model: generated.model,
@@ -410,6 +429,24 @@ function readCachedSession(stepData: unknown) {
 
 function readMethodId(stepData: unknown, method: string) {
   return readCachedSession(stepData)?.methodBriefing.methodId ?? methodIdFromText(method);
+}
+
+function readCompletedSessionComparisonContext(
+  stepData: unknown,
+  method: string,
+  title: string,
+  objective: string,
+) {
+  const cached = readCachedSession(stepData);
+  const comparisonText = [title, objective, method].join(" ");
+  const learningMode = readSessionLearningMode(stepData, method, objective);
+  return {
+    taskType: cached?.routingContext?.taskType
+      ?? cached?.methodBriefing.taskType
+      ?? inferLearningTaskType(comparisonText),
+    knowledgeStage: cached?.routingContext?.knowledgeStage
+      ?? (learningMode === "learn" ? "novice" as const : inferKnowledgeStage([], comparisonText)),
+  };
 }
 
 function readReviewType(stepData: unknown) {

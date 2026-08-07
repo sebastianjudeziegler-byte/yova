@@ -1,7 +1,9 @@
 import {
   CORE_METHOD_CATALOG,
   type CoreMethodId,
+  type LearningTaskType,
 } from "@/lib/learning/method-catalog";
+import type { KnowledgeStage } from "@/lib/learning/method-router";
 
 export type MethodOutcomeStatus =
   | "early_signal"
@@ -11,6 +13,8 @@ export type MethodOutcomeStatus =
 
 export type MethodOutcomeAttempt = {
   methodId: CoreMethodId | null;
+  taskType?: LearningTaskType | null;
+  knowledgeStage?: KnowledgeStage | null;
   correctAnswers: number | null;
   totalAnswers: number | null;
   feedback: "too_easy" | "about_right" | "too_difficult" | null;
@@ -19,6 +23,9 @@ export type MethodOutcomeAttempt = {
 export type MethodOutcomeSignal = {
   methodId: CoreMethodId;
   methodName: string;
+  taskType: LearningTaskType;
+  knowledgeStage: KnowledgeStage;
+  comparisonLabel: string;
   sessions: number;
   checkedAnswers: number;
   accuracyPercent: number | null;
@@ -33,6 +40,10 @@ const MINIMUM_CHECKED_ANSWERS = 4;
 
 export function buildMethodOutcomeSignals(
   attempts: MethodOutcomeAttempt[],
+  comparison: {
+    taskType: LearningTaskType;
+    knowledgeStage: KnowledgeStage;
+  },
 ): MethodOutcomeSignal[] {
   const grouped = new Map<CoreMethodId, {
     sessions: number;
@@ -42,7 +53,11 @@ export function buildMethodOutcomeSignals(
   }>();
 
   for (const attempt of attempts) {
-    if (!attempt.methodId) continue;
+    if (
+      !attempt.methodId
+      || attempt.taskType !== comparison.taskType
+      || attempt.knowledgeStage !== comparison.knowledgeStage
+    ) continue;
     const current = grouped.get(attempt.methodId) ?? {
       sessions: 0,
       correctAnswers: 0,
@@ -81,10 +96,14 @@ export function buildMethodOutcomeSignals(
             ? "promising"
             : "mixed";
       const methodName = CORE_METHOD_CATALOG[methodId].name;
+      const comparisonLabel = `${taskLabel(comparison.taskType)} at the ${stageLabel(comparison.knowledgeStage)} stage`;
 
       return {
         methodId,
         methodName,
+        taskType: comparison.taskType,
+        knowledgeStage: comparison.knowledgeStage,
+        comparisonLabel,
         sessions: result.sessions,
         checkedAnswers: result.checkedAnswers,
         accuracyPercent,
@@ -92,6 +111,7 @@ export function buildMethodOutcomeSignals(
         status,
         evidence: evidenceStatement({
           methodName,
+          comparisonLabel,
           sessions: result.sessions,
           checkedAnswers: result.checkedAnswers,
           accuracyPercent,
@@ -139,6 +159,7 @@ export function validateMethodOutcomeAdaptation({
 
 function evidenceStatement({
   methodName,
+  comparisonLabel,
   sessions,
   checkedAnswers,
   accuracyPercent,
@@ -146,6 +167,7 @@ function evidenceStatement({
   status,
 }: {
   methodName: string;
+  comparisonLabel: string;
   sessions: number;
   checkedAnswers: number;
   accuracyPercent: number | null;
@@ -153,15 +175,34 @@ function evidenceStatement({
   status: MethodOutcomeStatus;
 }) {
   if (status === "early_signal") {
-    return `${methodName} has only ${sessions} comparable ${sessions === 1 ? "session" : "sessions"} and ${checkedAnswers} checked answers in this plan. That is not enough evidence to change the learning method confidently.`;
+    return `${methodName} has only ${sessions} comparable ${sessions === 1 ? "session" : "sessions"} and ${checkedAnswers} checked answers for ${comparisonLabel}. That is not enough evidence to change the learning method confidently.`;
   }
   if (status === "needs_more_support") {
-    return `${methodName} currently has ${accuracyPercent}% check accuracy across ${sessions} sessions${difficultRatings ? ` and ${difficultRatings} difficult ${difficultRatings === 1 ? "rating" : "ratings"}` : ""}. This suggests the execution needs more support, not that the evidence-backed method is inherently wrong for the learner.`;
+    return `${methodName} currently has ${accuracyPercent}% check accuracy across ${sessions} comparable sessions for ${comparisonLabel}${difficultRatings ? ` and ${difficultRatings} difficult ${difficultRatings === 1 ? "rating" : "ratings"}` : ""}. This suggests the execution needs more support, not that the evidence-backed method is inherently wrong for the learner.`;
   }
   if (status === "promising") {
-    return `${methodName} currently has ${accuracyPercent}% check accuracy across ${sessions} sessions. This is a promising plan-specific observation, not proof that the learner has a fixed best method.`;
+    return `${methodName} currently has ${accuracyPercent}% check accuracy across ${sessions} comparable sessions for ${comparisonLabel}. This is a promising plan-specific observation, not proof that the learner has a fixed best method.`;
   }
-  return `${methodName} currently has ${accuracyPercent}% check accuracy across ${sessions} sessions. The evidence is mixed, so preserve task fit and make only cautious delivery changes.`;
+  return `${methodName} currently has ${accuracyPercent}% check accuracy across ${sessions} comparable sessions for ${comparisonLabel}. The evidence is mixed, so preserve task fit and make only cautious delivery changes.`;
+}
+
+function taskLabel(taskType: LearningTaskType) {
+  const labels: Record<LearningTaskType, string> = {
+    memorization: "memorization",
+    conceptual_learning: "concept learning",
+    problem_solving: "problem solving",
+    reading_to_quiz: "reading and recall",
+    writing_argumentation: "writing and argumentation",
+    programming: "programming",
+    mixed_assessment: "mixed assessment",
+  };
+  return labels[taskType];
+}
+
+function stageLabel(knowledgeStage: KnowledgeStage) {
+  if (knowledgeStage === "novice") return "initial-learning";
+  if (knowledgeStage === "retrieval_ready") return "independent-retrieval";
+  return "developing-knowledge";
 }
 
 function deliveryGuidance(status: MethodOutcomeStatus) {

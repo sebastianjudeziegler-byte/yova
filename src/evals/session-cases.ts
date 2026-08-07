@@ -129,6 +129,8 @@ export function buildSessionEvaluationCases(): SessionEvaluationCase[] {
         recentResults: [
           {
             methodId: "worked_example_fading",
+            taskType: "problem_solving",
+            knowledgeStage: "novice",
             correctAnswers: 1,
             totalAnswers: 4,
             feedback: "too_difficult",
@@ -139,6 +141,8 @@ export function buildSessionEvaluationCases(): SessionEvaluationCase[] {
           },
           {
             methodId: "worked_example_fading",
+            taskType: "problem_solving",
+            knowledgeStage: "novice",
             correctAnswers: 2,
             totalAnswers: 4,
             feedback: "too_difficult",
