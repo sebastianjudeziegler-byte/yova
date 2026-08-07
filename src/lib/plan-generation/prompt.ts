@@ -48,6 +48,7 @@ Constraints:
 - write methodReason so it identifies the task or knowledge evidence behind the choice, not merely a preference
 - prefer one useful next action over a large menu of tools
 - use concise, calm, non-judgmental language
+- write clean interface text without Markdown syntax, em dashes, or en dashes
 
 Approved YOVA learning-science method catalog:
 ${LEARNING_SCIENCE_METHODS}

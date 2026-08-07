@@ -28,6 +28,12 @@ Each case includes a goal, starting evidence, availability, source choice, execu
 
 Required failures fail the case even when the numerical score is high. The overall passing threshold is 80/100.
 
+## Runtime quality gate
+
+The evaluation suite measures broad quality across representative cases. A smaller deterministic version now also runs on every real OpenAI plan before the plan can reach the learner. It rejects impossible schedules, sessions that exceed the learner's available time, repeated objectives, passive completion rules, methods from the wrong task family, teaching plans that never reach independent practice, fixed learning-style or diagnosis claims, and raw formatting that would look broken in the interface.
+
+When the first generated plan fails, OpenAI receives the complete list of detected problems and gets one controlled repair attempt. If the replacement still fails, YOVA stops safely instead of displaying a plausible-looking but educationally invalid plan. A valid first response is accepted immediately, so the extra API request is used only when the quality gate detects a real problem.
+
 ## Two kinds of evaluation
 
 `pnpm test` runs the rubric against controlled local fixtures. It is free, fast, and confirms that the scoring rules behave as intended.

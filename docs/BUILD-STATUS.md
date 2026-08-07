@@ -156,6 +156,7 @@ The software loop is close to private-alpha readiness, but the broader learning-
 - External material intake validates public URLs, blocks private-network requests and unsafe redirects, caps remote page size and time, and keeps imported text under the same 50,000-character grounding boundary as uploaded files
 - Source-grounding validation rejects invented filenames, unverifiable quotations, and unnecessary AI supplementation before a session reaches the learner
 - Five-case plan-quality evaluation covering biology, math, writing, coding, and general learning
+- Live plan generation now runs through a deterministic educational quality gate before the learner sees it; invalid timing, repeated objectives, mismatched methods, passive completion, broken teaching-to-practice progression, fixed learning-style claims, and raw Markdown or dash typography trigger one bounded regeneration attempt and then fail safely
 - First live OpenAI plan suite passed: five student and general-learning paths scored 100/100 against the required rubric
 - Guided-session quality evaluation checks active effort, feedback, task fit, source grounding, weak-concept priority, and personalization restraint
 - The live session suite covers biology, calculus teaching and repair, outside-app writing, beginner coding, general finance, short vocabulary review, and thin-source supplementation
