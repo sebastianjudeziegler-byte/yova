@@ -112,7 +112,48 @@ export const PlanGenerationResponseSchema = z.object({
     notice: z.string().nullable(),
     requestId: z.string().min(1),
     durationMs: z.number().int().nonnegative(),
+    persistence: z.literal("draft"),
+  }),
+});
+
+export const PlanActivationRequestSchema = z.object({
+  plan: LearningPlanSchema.extend({ status: z.literal("draft") }),
+  generationRequest: PlanGenerationRequestSchema,
+}).superRefine(({ plan, generationRequest }, context) => {
+  const expectedSourceMode = generationRequest.materialMode === "upload"
+    ? "user_materials"
+    : "yova_generated";
+  const expectedStudyMode = generationRequest.studyMode === "outside"
+    ? "outside_yova"
+    : "inside_yova";
+  const planMaterialIds = plan.materials.map((material) => material.id).sort();
+  const requestMaterialIds = generationRequest.materials.map((material) => material.id).sort();
+
+  if (plan.sourceMode !== expectedSourceMode) {
+    context.addIssue({ code: "custom", path: ["plan", "sourceMode"], message: "The draft source no longer matches the request." });
+  }
+  if (plan.studyMode !== expectedStudyMode) {
+    context.addIssue({ code: "custom", path: ["plan", "studyMode"], message: "The draft study mode no longer matches the request." });
+  }
+  if (plan.learningIntent !== generationRequest.learningIntent) {
+    context.addIssue({ code: "custom", path: ["plan", "learningIntent"], message: "The draft starting approach no longer matches the request." });
+  }
+  if (JSON.stringify(planMaterialIds) !== JSON.stringify(requestMaterialIds)) {
+    context.addIssue({ code: "custom", path: ["plan", "materials"], message: "The draft materials no longer match the request." });
+  }
+  if (generationRequest.intent === "study_now" && plan.sessions.length !== 1) {
+    context.addIssue({ code: "custom", path: ["plan", "sessions"], message: "A focused session must contain exactly one session." });
+  }
+  if (![plan.id, plan.learningItemId, ...plan.sessions.map((session) => session.id)].every((id) => z.string().uuid().safeParse(id).success)) {
+    context.addIssue({ code: "custom", path: ["plan", "id"], message: "The draft contains an invalid identifier." });
+  }
+});
+
+export const PlanActivationResponseSchema = z.object({
+  plan: LearningPlanSchema.extend({ status: z.literal("active") }),
+  activation: z.object({
     persistence: z.enum(["browser", "supabase"]),
+    requestId: z.string().min(1),
   }),
 });
 
@@ -120,3 +161,5 @@ export type PlanGenerationRequest = z.infer<typeof PlanGenerationRequestSchema>;
 export type DiagnosticResponse = z.infer<typeof DiagnosticResponseSchema>;
 export type GeneratedPlanDraft = z.infer<typeof GeneratedPlanDraftSchema>;
 export type PlanGenerationResponse = z.infer<typeof PlanGenerationResponseSchema>;
+export type PlanActivationRequest = z.infer<typeof PlanActivationRequestSchema>;
+export type PlanActivationResponse = z.infer<typeof PlanActivationResponseSchema>;

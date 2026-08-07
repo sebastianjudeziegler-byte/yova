@@ -19,7 +19,7 @@ export function materializePlanDraft(
     topic: draft.topic,
     kind: draft.kind,
     deadline: request.intent === "study_now" ? null : request.deadline ?? draft.deadline,
-    status: "active",
+    status: "draft",
     sourceMode: request.materialMode === "upload" ? "user_materials" : "yova_generated",
     studyMode: request.studyMode === "outside" ? "outside_yova" : "inside_yova",
     learningIntent: request.learningIntent,

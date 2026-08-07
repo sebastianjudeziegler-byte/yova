@@ -80,7 +80,9 @@ Supabase sends passwordless email links and maintains a secure cookie session. R
 
 Generation creates content. Persistence saves it.
 
-These are intentionally separate because a good AI response that fails to save should not appear as an active plan. YOVA saves authenticated plans through a database transaction: the learning item, plan, and sessions either succeed together or fail together.
+These are intentionally separate because a good AI response that fails to save should not appear as an active plan. `/api/plans/generate` now returns an unsaved draft. The learner can inspect the content, source, starting approach, and pace without creating database rows. Only `/api/plans/activate`, called after the learner confirms the draft, changes its status to active and saves it.
+
+YOVA saves authenticated plans through a database transaction: the learning item, plan, and sessions either succeed together or fail together. Study Now uses the same two server steps, but performs confirmation immediately because the learner explicitly asked to build and start one focused session. This is a useful backend principle: the server lifecycle matches the promise made by the interface.
 
 ## 6. Why schemas matter
 

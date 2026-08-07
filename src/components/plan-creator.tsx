@@ -19,8 +19,11 @@ import type { LearningMaterial, LearningPlan } from "@/lib/domain";
 import { deleteUploadedMaterial, uploadMaterialFiles } from "@/lib/materials/intake";
 import { reportProductError } from "@/lib/monitoring/client";
 import {
+  PlanActivationResponseSchema,
+  PlanGenerationRequestSchema,
   PlanGenerationResponseSchema,
   type DiagnosticResponse,
+  type PlanGenerationRequest,
   type PlanGenerationResponse,
 } from "@/lib/plan-generation/schema";
 import { LEARNING_INTENT_COPY, resolveLearningIntent } from "@/lib/learning/learning-intent";
@@ -57,7 +60,10 @@ export function PlanCreator({ onExit, onFinish, profileSummary }: { onExit: () =
   const [diagnosticIndex, setDiagnosticIndex] = useState(0);
   const [diagnosticAnswers, setDiagnosticAnswers] = useState<string[]>([]);
   const [generatedPlan, setGeneratedPlan] = useState<PlanGenerationResponse | null>(null);
+  const [generatedFrom, setGeneratedFrom] = useState<PlanGenerationRequest | null>(null);
   const [generationError, setGenerationError] = useState<string | null>(null);
+  const [activationError, setActivationError] = useState<string | null>(null);
+  const [activating, setActivating] = useState(false);
   const availability = availabilityChoices
     .filter((choice) => choice.enabled)
     .map(({ day, window, minutes }) => ({ day, window, minutes }));
@@ -88,30 +94,29 @@ export function PlanCreator({ onExit, onFinish, profileSummary }: { onExit: () =
   const generatePlan = async () => {
     if (!sourceChoice) return;
 
-    const materialMode = sourceChoice === "materials" ? "upload" : "none";
-    const studyMode = sourceChoice === "outside" ? "outside" : "inside";
-
     setGenerationError(null);
+    setActivationError(null);
     setStep("loading");
     let requestId: string | null = null;
 
     try {
+      const planRequest = PlanGenerationRequestSchema.parse({
+        intent: "plan",
+        learningIntent: learningApproach.intent,
+        goal,
+        materialMode: sourceChoice === "materials" ? "upload" : "none",
+        materials: sourceChoice === "materials" ? materials : [],
+        studyMode: sourceChoice === "outside" ? "outside" : "inside",
+        deadline: deadlineDate ? deadlineAtEndOfDay(deadlineDate) : null,
+        timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
+        diagnosticResponses,
+        availability,
+        profileSummary,
+      });
       const response = await fetch("/api/plans/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          intent: "plan",
-          learningIntent: learningApproach.intent,
-          goal,
-          materialMode,
-          materials: sourceChoice === "materials" ? materials : [],
-          studyMode,
-          deadline: deadlineDate ? deadlineAtEndOfDay(deadlineDate) : null,
-          timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
-          diagnosticResponses,
-          availability,
-          profileSummary,
-        }),
+        body: JSON.stringify(planRequest),
       });
       requestId = response.headers.get("X-Yova-Request-Id");
 
@@ -128,6 +133,7 @@ export function PlanCreator({ onExit, onFinish, profileSummary }: { onExit: () =
       if (!parsed.success) throw new Error("The plan came back in an unsafe format, so YOVA did not save it.");
 
       setGeneratedPlan(parsed.data);
+      setGeneratedFrom(planRequest);
       setStep("result");
     } catch (error) {
       reportProductError({
@@ -175,13 +181,51 @@ export function PlanCreator({ onExit, onFinish, profileSummary }: { onExit: () =
 
   const reviseGeneratedPlan = (target: "goal" | "source" | "schedule" | "diagnostic") => {
     setGeneratedPlan(null);
+    setGeneratedFrom(null);
     setGenerationError(null);
+    setActivationError(null);
     if (target === "goal") {
       setDiagnosticAnswers([]);
       setDiagnosticIndex(0);
     }
     if (target === "diagnostic") setDiagnosticIndex(0);
     setStep(target);
+  };
+
+  const activateGeneratedPlan = async () => {
+    if (!generatedPlan || !generatedFrom || activating) return;
+    setActivationError(null);
+    setActivating(true);
+    let requestId: string | null = null;
+
+    try {
+      const response = await fetch("/api/plans/activate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ plan: generatedPlan.plan, generationRequest: generatedFrom }),
+      });
+      requestId = response.headers.get("X-Yova-Request-Id");
+      const body: unknown = await response.json();
+      if (!response.ok) {
+        const message = typeof body === "object" && body && "error" in body && typeof body.error === "string"
+          ? body.error
+          : "YOVA could not activate this plan yet.";
+        throw new Error(message);
+      }
+
+      const parsed = PlanActivationResponseSchema.safeParse(body);
+      if (!parsed.success) throw new Error("The saved plan came back in an unsafe format, so YOVA did not open it.");
+      onFinish(parsed.data.plan);
+    } catch (error) {
+      reportProductError({
+        surface: "plan_generation",
+        errorCode: "plan_activation_failed",
+        requestId,
+      });
+      setActivationError(error instanceof Error ? error.message : "YOVA could not activate this plan yet.");
+    } finally {
+      setActivating(false);
+    }
   };
 
   return (
@@ -290,7 +334,8 @@ export function PlanCreator({ onExit, onFinish, profileSummary }: { onExit: () =
               <button className="button ghost" onClick={() => reviseGeneratedPlan("schedule")}>Change schedule</button>
               <button className="button ghost" onClick={() => reviseGeneratedPlan("diagnostic")}>Change starting level</button>
             </div>
-            <div className="plan-activation"><div><Check size={18} /><span><strong>Confirm only when this looks right.</strong><small>YOVA will save the plan and make its first session available.</small></span></div><button className="button primary large" onClick={() => onFinish(generatedPlan.plan)}>Use this plan <ArrowRight size={18} /></button></div>
+            {activationError && <p className="plan-activation-error"><AlertCircle size={16} /> {activationError}</p>}
+            <div className="plan-activation"><div><Check size={18} /><span><strong>Confirm only when this looks right.</strong><small>YOVA will save the plan and make its first session available.</small></span></div><button className="button primary large" disabled={activating} onClick={() => void activateGeneratedPlan()}>{activating ? <><span className="button-spinner" /> Saving plan…</> : <>Use this plan <ArrowRight size={18} /></>}</button></div>
           </section>
         </section>
       )}

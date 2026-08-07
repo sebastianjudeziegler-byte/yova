@@ -248,6 +248,41 @@ test("the backend rejects an opaque goal even when the browser guard is bypassed
   expect(body.code).toBe("goal_needs_detail");
 });
 
+test("plan generation remains a draft until the learner activates it", async ({ request }) => {
+  const generationRequest = {
+    intent: "plan",
+    learningIntent: "learn",
+    goal: "Understand photosynthesis and cellular respiration for my biology test",
+    materialMode: "none",
+    materials: [],
+    studyMode: "inside",
+    deadline: "2026-08-14T23:59:00.000Z",
+    timeZone: "America/Los_Angeles",
+    diagnosticResponses: [{
+      question: "Where are you starting?",
+      answer: "I have not learned this yet",
+      evaluation: "self_report",
+    }],
+    availability: [{ day: "Monday", window: "Evening", minutes: 25 }],
+    profileSummary: "The learner prefers direct explanations, examples, and short structured sessions.",
+  };
+  const generationResponse = await request.post("/api/plans/generate", { data: generationRequest });
+  const generated = await generationResponse.json();
+
+  expect(generationResponse.status()).toBe(200);
+  expect(generated.plan.status).toBe("draft");
+  expect(generated.generation.persistence).toBe("draft");
+
+  const activationResponse = await request.post("/api/plans/activate", {
+    data: { plan: generated.plan, generationRequest },
+  });
+  const activated = await activationResponse.json();
+
+  expect(activationResponse.status()).toBe(200);
+  expect(activated.plan.status).toBe("active");
+  expect(activated.activation.persistence).toBe("browser");
+});
+
 test("a learner can stop twice without losing progress or earlier evidence", async ({ page }) => {
   await createPreviewAccount(page);
   await completeOnboarding(page);

@@ -17,7 +17,11 @@ import { GoalClarification } from "@/components/goal-clarification";
 import type { LearningMaterial, LearningPlan } from "@/lib/domain";
 import { deleteUploadedMaterial, uploadMaterialFiles } from "@/lib/materials/intake";
 import { reportProductError } from "@/lib/monitoring/client";
-import { PlanGenerationResponseSchema } from "@/lib/plan-generation/schema";
+import {
+  PlanActivationResponseSchema,
+  PlanGenerationRequestSchema,
+  PlanGenerationResponseSchema,
+} from "@/lib/plan-generation/schema";
 import { LEARNING_INTENT_COPY, resolveLearningIntent } from "@/lib/learning/learning-intent";
 import { assessGoalContext } from "@/lib/learning/goal-context";
 
@@ -95,36 +99,37 @@ export function StudyNowCreator({
     try {
       const now = new Date();
       const learningApproach = resolveLearningIntent({ goal, startingPoint });
+      const planRequest = PlanGenerationRequestSchema.parse({
+        intent: "study_now",
+        learningIntent: learningApproach.intent,
+        goal,
+        materialMode: sourceChoice === "materials" ? "upload" : "none",
+        materials: sourceChoice === "materials" ? materials : [],
+        studyMode: sourceChoice === "outside" ? "outside" : "inside",
+        timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
+        diagnosticResponses: [
+          {
+            question: "Where are you starting with this topic?",
+            answer: startingPoint,
+            evaluation: "self_report",
+          },
+          {
+            question: "What kind of session do you want right now?",
+            answer: `One focused session lasting ${minutes} minutes`,
+            evaluation: "self_report",
+          },
+        ],
+        availability: [{
+          day: new Intl.DateTimeFormat("en-US", { weekday: "long" }).format(now),
+          window: "Now",
+          minutes,
+        }],
+        profileSummary,
+      });
       const response = await fetch("/api/plans/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          intent: "study_now",
-          learningIntent: learningApproach.intent,
-          goal,
-          materialMode: sourceChoice === "materials" ? "upload" : "none",
-          materials: sourceChoice === "materials" ? materials : [],
-          studyMode: sourceChoice === "outside" ? "outside" : "inside",
-          timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
-          diagnosticResponses: [
-            {
-              question: "Where are you starting with this topic?",
-              answer: startingPoint,
-              evaluation: "self_report",
-            },
-            {
-              question: "What kind of session do you want right now?",
-              answer: `One focused session lasting ${minutes} minutes`,
-              evaluation: "self_report",
-            },
-          ],
-          availability: [{
-            day: new Intl.DateTimeFormat("en-US", { weekday: "long" }).format(now),
-            window: "Now",
-            minutes,
-          }],
-          profileSummary,
-        }),
+        body: JSON.stringify(planRequest),
       });
       requestId = response.headers.get("X-Yova-Request-Id");
 
@@ -141,7 +146,22 @@ export function StudyNowCreator({
         throw new Error("The session came back in an unsafe format, so YOVA did not open it.");
       }
 
-      onFinish(parsed.data.plan);
+      const activationResponse = await fetch("/api/plans/activate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ plan: parsed.data.plan, generationRequest: planRequest }),
+      });
+      requestId = activationResponse.headers.get("X-Yova-Request-Id") ?? requestId;
+      const activationBody: unknown = await activationResponse.json();
+      if (!activationResponse.ok) {
+        const message = typeof activationBody === "object" && activationBody && "error" in activationBody && typeof activationBody.error === "string"
+          ? activationBody.error
+          : "YOVA could not save this focused session yet.";
+        throw new Error(message);
+      }
+      const activated = PlanActivationResponseSchema.safeParse(activationBody);
+      if (!activated.success) throw new Error("The saved session came back in an unsafe format, so YOVA did not open it.");
+      onFinish(activated.data.plan);
     } catch (error) {
       reportProductError({
         surface: "plan_generation",

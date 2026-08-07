@@ -15,7 +15,7 @@ Estimated completion depends on which finish line is meant:
 
 | Finish line | Current estimate | Meaning |
 |---|---:|---|
-| Functional product core | 97% | The differentiated loop works, generic-content substitution is blocked, vague class labels now trigger an in-flow clarification question, and nine foundational journeys pass on desktop and mobile. More real-user and adversarial input coverage is still required before calling the core finished. |
+| Functional product core | 97% | The differentiated loop works, generic-content substitution is blocked, vague class labels now trigger an in-flow clarification question, and ten foundational journeys pass on desktop and mobile. More real-user and adversarial input coverage is still required before calling the core finished. |
 | Invite-only private alpha | 89% | Deployment, safeguards, atomic learning-state updates, and automated teaching, practice, outside-study, interruption, and plan-rebuild journeys are connected; reliable email delivery, authenticated production testing, and broader real-input testing remain. |
 | Credible public beta | 69% | Trust, monitoring, live quality gates, CI, phone-sized coverage, reload persistence, and wider journey checks exist; human output review, more devices, external alerts, policy review, and tester-driven polish remain. |
 | Paid polished launch | 35% | Also needs billing, entitlements, cost controls by plan, and more operational maturity |
@@ -42,7 +42,7 @@ A cross-browser six-digit email-code flow is implemented and tested behind a ser
 - Rebuilt Learning as a scalable goal library: users now see compact active, completed, and archived goal cards before opening a focused plan detail
 - Learning goal details now put the actual session sequence first, followed by adaptations, sources, generated resources, and concept evidence
 - Simplified multi-session plan creation to one consistent five-step journey and the same three source choices used by Study Now: use uploaded materials, let YOVA create the teaching, or receive guidance while studying elsewhere
-- Generated plans remain unsaved drafts until the learner confirms that the content, starting approach, source, and pace match the request; each input can be corrected directly from the review screen before activation
+- Generated plans remain unsaved drafts in both the browser and backend until the learner confirms that the content, starting approach, source, and pace match the request; activation is now a separate validated API and atomic database action, so revising a draft cannot create duplicate active plans
 - Branded landing and account journey
 - Ten-question personalization onboarding
 - Home, Learning, Agenda, Ask YOVA, and You

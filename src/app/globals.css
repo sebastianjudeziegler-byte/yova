@@ -1367,6 +1367,8 @@ h1, h2, h3, p { margin-top: 0; }
 .plan-alignment-facts strong { color: var(--navy); font-size: 13px; line-height: 1.5; }
 .plan-revision-actions { padding: 15px 20px; display: flex; flex-wrap: wrap; gap: 8px; border-bottom: 1px solid #edf0f5; }
 .plan-revision-actions .button { min-height: 38px; padding: 0 13px; font-size: 11px; }
+.plan-activation-error { margin: 0; padding: 13px 20px; display: flex; align-items: center; gap: 8px; color: #b42318; border-bottom: 1px solid #fecdca; background: #fff6f5; font-size: 12px; line-height: 1.5; }
+.plan-activation-error svg { flex: 0 0 auto; }
 .plan-activation { padding: 20px; display: flex; align-items: center; justify-content: space-between; gap: 18px; }
 .plan-activation > div { display: flex; align-items: center; gap: 11px; }
 .plan-activation > div > svg { flex: 0 0 auto; color: #16835e; }
