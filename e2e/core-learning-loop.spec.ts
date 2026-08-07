@@ -41,6 +41,9 @@ test("a confident misconception is repaired now and verified later", async ({ pa
   await page.getByRole("button", { name: "Prepare this session" }).click();
 
   await expect(page.getByRole("heading", { name: "Closed-note retrieval" })).toBeVisible();
+  await openMobileSessionGuide(page);
+  await expect(page.getByText("How YOVA adapted this").filter({ visible: true }).first()).toBeVisible();
+  await expect(page.getByText(/asked for concrete examples before rules/i).filter({ visible: true }).first()).toBeVisible();
   await expect(page.getByLabel("Support progression").first()).toContainText("Start without support");
   const retrievalRoadmap = page.getByLabel("Session method sequence").first();
   await expect(retrievalRoadmap).toContainText("Attempt from memory");
@@ -131,6 +134,9 @@ test("a new topic is taught before YOVA asks for independent performance", async
   await confirmSessionSetup(page);
 
   await expect(page.getByRole("heading", { name: "Use money concepts as decision tools" })).toBeVisible();
+  await openMobileSessionGuide(page);
+  await expect(page.getByText("How YOVA adapted this").filter({ visible: true }).first()).toBeVisible();
+  await expect(page.getByText(/asked for concrete examples before rules/i).filter({ visible: true }).first()).toBeVisible();
   await expect(page.getByLabel("Support progression").first()).toContainText("Support fades inside this session");
   const teachingRoadmap = page.getByLabel("Session method sequence").first();
   await expect(teachingRoadmap).toContainText("See a complete model");
@@ -654,6 +660,11 @@ test("material setup clearly supports files, articles, and YouTube transcripts",
   await expect(page.getByRole("region", { name: "Add material from a link" })).toContainText("YouTube transcript");
   await expect(page.getByText(/does not bypass paywalls or sign-ins/i)).toBeVisible();
 });
+
+async function openMobileSessionGuide(page: Page) {
+  const mobileGuide = page.locator(".session-guide-mobile");
+  if (await mobileGuide.isVisible()) await mobileGuide.locator(":scope > summary").click();
+}
 
 async function createPreviewAccount(page: Page) {
   await page.goto("/");

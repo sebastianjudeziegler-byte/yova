@@ -238,9 +238,10 @@ export async function POST(request: Request) {
     });
 
     const cachedSession = CachedGeneratedSessionSchema.parse({
-      schemaVersion: 11,
+      schemaVersion: 12,
       ...generated.draft,
       supportPlan: generated.supportPlan,
+      deliveryPolicy: generated.deliveryPolicy,
       model: generated.model,
       generatedAt: new Date().toISOString(),
     });
@@ -316,9 +317,10 @@ async function generateBrowserPreviewSession(
       sessionAdjustment: input.sessionAdjustment ?? null,
     });
     const session = CachedGeneratedSessionSchema.parse({
-      schemaVersion: 11,
+      schemaVersion: 12,
       ...generated.draft,
       supportPlan: generated.supportPlan,
+      deliveryPolicy: generated.deliveryPolicy,
       model: generated.model,
       generatedAt: new Date().toISOString(),
     });

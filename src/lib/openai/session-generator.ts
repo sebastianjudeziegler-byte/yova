@@ -28,6 +28,11 @@ import {
   validateMethodOutcomeAdaptation,
   type MethodOutcomeSignal,
 } from "@/lib/personalization/method-outcomes";
+import {
+  buildSessionDeliveryPolicy,
+  validateSessionDeliveryPolicy,
+  type SessionDeliveryPolicy,
+} from "@/lib/personalization/session-delivery-policy";
 import type { CoreMethodId } from "@/lib/learning/method-catalog";
 import type { CalibrationPattern } from "@/lib/learning/confidence-calibration";
 import {
@@ -102,6 +107,7 @@ export type OpenAISessionResult = {
   model: string;
   responseId: string;
   supportPlan: SessionSupportPlan;
+  deliveryPolicy: SessionDeliveryPolicy;
   generationStats: SessionGenerationStats;
 };
 
@@ -129,6 +135,12 @@ Requirements:
 - Session time is a capacity constraint, never the definition of completion. A session is complete only after every requiredForCompletion activity is attempted. Do not treat exposure, elapsed time, reading, or button-clicking as evidence of completion.
 - Preserve the planned contentTargets and completionEvidence when supplied. If they cannot fit honestly, teach a smaller coherent subset now and put the remainder in coverage.deferredContent. Never compress a broad 45-minute objective into a superficial 15-minute pass.
 - The method briefing must explain the learning method itself. Keep productivity or tendency-based delivery changes in methodBriefing.personalization.
+- Follow sessionDeliveryPolicy as YOVA's explicit delivery contract. The task-selected method remains primary, while this policy controls how teaching is presented, how a miss is repaired, what kind of later evidence is emphasized, how much structure is visible, and how small the session starts.
+- For a learn session, apply sessionDeliveryPolicy.presentation to the opening teaching block. For a study session, preserve the unsupported first attempt and apply the presentation policy only when teaching or repair is subsequently needed.
+- Follow sessionDeliveryPolicy.repair after a miss. A hint-first policy preserves another attempt before revealing the answer. Alternate-example uses a new case. Direct-correction names and replaces the wrong relationship. Smaller-steps restores one intermediate step at a time. Retry-independently uses a fresh unsupported prompt after concise feedback.
+- Follow sessionDeliveryPolicy.retention in the evidence sequence. Delayed retrieval requires a schedule_return activity with a specific future return. Transfer requires a different application tagged transfer. Fade-support requires a later independent_practice or transfer attempt. Discrimination uses plausible close alternatives and makes the decisive difference explicit.
+- Keep the number of activities at or below sessionDeliveryPolicy.pacing.maximumActivities and keep the first action close to sessionDeliveryPolicy.pacing.firstActionMinutes. Do not use these pacing changes as evidence of ability.
+- Copy two or three concise learner-facing explanations from sessionDeliveryPolicy.learnerFacingReasons into methodBriefing.personalization. Describe the exact session change instead of claiming a fixed learning style.
 - methodBriefing.learningMode must exactly match learningScienceRouting.sessionLearningMode.
 - Follow learningScienceRouting.executionContract as a hard activity-order rule.
 - Select the method first, then follow the matching methodFidelityContract as a hard sequence, not merely as wording. Tag every activity with the methodPhase that describes what the learner actually does in that activity.
@@ -217,6 +229,13 @@ export async function generateSessionWithOpenAI(
   const observedMethodOutcomes = buildMethodOutcomeSignals(context.recentResults);
   const conceptReviewSchedule = buildConceptReviewSchedule(context.conceptSignals);
   const scaffoldProgression = context.scaffoldSignals ?? [];
+  const sessionDeliveryPolicy = buildSessionDeliveryPolicy({
+    learnerProfile: context.learnerProfile,
+    recentResults: context.recentResults,
+    recentInterruptions: context.recentInterruptions,
+    learningMode: context.session.learningMode,
+    estimatedMinutes: context.session.estimatedMinutes,
+  });
   const outsideAppContract = context.learningGoal.studyMode === "outside_yova"
     ? {
       required: true,
@@ -231,7 +250,7 @@ export async function generateSessionWithOpenAI(
     const response = await getOpenAIClient().responses.parse({
       model: config.model,
       instructions: repairReason
-        ? `${SESSION_GENERATOR_INSTRUCTIONS}\n\nREPAIR ATTEMPT: The previous response failed YOVA's validation: ${repairReason} Re-check the learningMode activity-order rule, question integrity, allowed method, and source-grounding policy before responding.`
+        ? `${SESSION_GENERATOR_INSTRUCTIONS}\n\nREPAIR ATTEMPT: The previous response failed YOVA's validation: ${repairReason} Re-check the learningMode activity-order rule, learner delivery policy, question integrity, allowed method, and source-grounding policy before responding.`
         : SESSION_GENERATOR_INSTRUCTIONS,
       input: `Build the next guided session from this YOVA context:\n${JSON.stringify({
         ...context,
@@ -241,6 +260,7 @@ export async function generateSessionWithOpenAI(
         observedMethodOutcomes,
         conceptReviewSchedule,
         scaffoldProgression,
+        sessionDeliveryPolicy,
         sourceGroundingPolicy,
         outsideAppContract,
       })}`,
@@ -250,7 +270,7 @@ export async function generateSessionWithOpenAI(
         verbosity: "low",
       },
       max_output_tokens: 4_000,
-      prompt_cache_key: "yova-guided-session-v10",
+      prompt_cache_key: "yova-guided-session-v12",
       store: false,
     });
 
@@ -279,7 +299,7 @@ export async function generateSessionWithOpenAI(
 
   let parsed = parseGeneratedSessionDraft(response.output_parsed);
   let semanticIssue = parsed.success
-    ? validateGeneratedSession(parsed.data, context, learningScienceRouting, observedMethodOutcomes, conceptReviewSchedule, scaffoldProgression)
+    ? validateGeneratedSession(parsed.data, context, learningScienceRouting, observedMethodOutcomes, conceptReviewSchedule, scaffoldProgression, sessionDeliveryPolicy)
     : null;
   if ((response.status !== "completed" || !parsed.success || semanticIssue) && !repairAttempted) {
     repairAttempted = true;
@@ -294,7 +314,7 @@ export async function generateSessionWithOpenAI(
     response = await requestDraft(repairDetail);
     parsed = parseGeneratedSessionDraft(response.output_parsed);
     semanticIssue = parsed.success
-      ? validateGeneratedSession(parsed.data, context, learningScienceRouting, observedMethodOutcomes, conceptReviewSchedule, scaffoldProgression)
+      ? validateGeneratedSession(parsed.data, context, learningScienceRouting, observedMethodOutcomes, conceptReviewSchedule, scaffoldProgression, sessionDeliveryPolicy)
       : null;
   }
   if (response.status !== "completed" || !parsed.success || semanticIssue) {
@@ -310,6 +330,7 @@ export async function generateSessionWithOpenAI(
       activities: parsed.data.activities,
       learningMode: parsed.data.methodBriefing.learningMode,
     }),
+    deliveryPolicy: sessionDeliveryPolicy,
     generationStats: {
       elapsedMs: Date.now() - generationStartedAt,
       attempts: usage.attempts,
@@ -366,10 +387,16 @@ function validateGeneratedSession(
   observedMethodOutcomes: MethodOutcomeSignal[],
   conceptReviewSchedule: ConceptReviewDirective[],
   scaffoldProgression: ScaffoldProgressionSignal[],
+  sessionDeliveryPolicy: SessionDeliveryPolicy,
 ) {
   return validateSessionTimeBudget(draft, context.session.estimatedMinutes)
     ?? validateLearningScienceRoutingSelection(draft.methodBriefing, learningScienceRouting)
     ?? validateSessionAdjustmentFidelity(draft, context.sessionAdjustment)
+    ?? validateSessionDeliveryPolicy({
+      policy: sessionDeliveryPolicy,
+      learningMode: draft.methodBriefing.learningMode,
+      activities: draft.activities,
+    })
     ?? validateSessionCompletionContract({
       essentialIdeas: draft.coverage.essentialIdeas,
       evidenceMap: draft.coverage.evidenceMap,

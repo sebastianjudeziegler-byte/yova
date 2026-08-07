@@ -117,6 +117,10 @@ import {
   type PersonalizationRecommendation,
 } from "@/lib/personalization/recommendations";
 import { buildSessionDecisionSignals } from "@/lib/personalization/session-decision";
+import {
+  buildSessionDeliveryPolicy,
+  type SessionDeliveryPolicy,
+} from "@/lib/personalization/session-delivery-policy";
 import { reportProductError } from "@/lib/monitoring/client";
 import { onboardingQuestions } from "@/lib/sample-data";
 import { PlanAdjustmentResponseSchema, type PlanAdjustmentRequest } from "@/lib/learning/adjustment-schema";
@@ -217,6 +221,7 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
   const [generatedLessonSteps, setGeneratedLessonSteps] = useState<LessonStep[] | null>(null);
   const [sessionRationale, setSessionRationale] = useState<string | null>(null);
   const [sessionMethodBriefing, setSessionMethodBriefing] = useState<SessionMethodBriefing | null>(null);
+  const [sessionDeliveryPolicy, setSessionDeliveryPolicy] = useState<SessionDeliveryPolicy | null>(null);
   const [sessionCoverage, setSessionCoverage] = useState<SessionCoverage | null>(null);
   const [sessionSupportPlan, setSessionSupportPlan] = useState<SessionSupportPlan | null>(null);
   const [sessionSourceGrounding, setSessionSourceGrounding] = useState<SessionSourceGrounding | null>(null);
@@ -498,6 +503,7 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
     setGeneratedLessonSteps(null);
     setSessionRationale(null);
     setSessionMethodBriefing(null);
+    setSessionDeliveryPolicy(null);
     setSessionCoverage(null);
     setSessionSupportPlan(null);
     setSessionSourceGrounding(null);
@@ -593,6 +599,7 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
       setSessionRationale(parsed.data.session.rationale);
       setSessionCoverage(parsed.data.session.coverage);
       setSessionMethodBriefing(parsed.data.session.methodBriefing);
+      setSessionDeliveryPolicy(parsed.data.session.deliveryPolicy);
       setSessionSupportPlan(supportPlan);
       setSessionSourceGrounding(parsed.data.session.sourceGrounding);
       if (parsed.data.generation.persistence === "browser" && account?.identityMode === "supabase") {
@@ -627,11 +634,26 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
         learningMode: requestedSession.learningMode,
       });
       const fallbackCoverage = fallbackCoverageFor(requestedSession, fallbackSteps);
-      const fallbackMethodBriefing = buildFallbackMethodBriefing(requestedPlan, requestedSession);
+      const fallbackContext = buildPreviewSessionContext({
+        plan: requestedPlan,
+        session: requestedSession,
+        onboardingAnswers: answers,
+        completions: sessionCompletions,
+        interruptions: sessionInterruptions,
+      });
+      const fallbackDeliveryPolicy = buildSessionDeliveryPolicy({
+        learnerProfile: fallbackContext.learnerProfile,
+        recentResults: fallbackContext.recentResults,
+        recentInterruptions: fallbackContext.recentInterruptions,
+        learningMode: requestedSession.learningMode,
+        estimatedMinutes: adjustment?.availableMinutes ?? requestedSession.estimatedMinutes,
+      });
+      const fallbackMethodBriefing = buildFallbackMethodBriefing(requestedPlan, requestedSession, fallbackDeliveryPolicy);
       const fallbackResource = {
         ...reusableResourceFromLessonSteps(fallbackSteps, requestedSession.methodReason),
         coverage: fallbackCoverage,
         methodBriefing: fallbackMethodBriefing,
+        deliveryPolicy: fallbackDeliveryPolicy,
         supportPlan: fallbackSupportPlan,
       };
       setPlans((current) => current.map((plan) => plan.id !== requestedPlan.id ? plan : {
@@ -646,6 +668,7 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
       setSessionRationale(requestedSession.methodReason);
       setSessionCoverage(fallbackCoverage);
       setSessionMethodBriefing(fallbackMethodBriefing);
+      setSessionDeliveryPolicy(fallbackDeliveryPolicy);
       setSessionSupportPlan(fallbackSupportPlan);
       setSessionSourceGrounding(null);
       setSessionGenerationIssue(`${message} A safe built-in session was loaded instead.`);
@@ -1235,6 +1258,7 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
         rationale={sessionRationale}
         coverage={sessionCoverage}
         methodBriefing={sessionMethodBriefing}
+        deliveryPolicy={sessionDeliveryPolicy}
         supportPlan={sessionSupportPlan}
         sourceGrounding={sessionSourceGrounding}
         issue={sessionGenerationIssue}
@@ -2661,7 +2685,7 @@ function SessionGenerationError({ plan, issue, onExit, onRetry }: { plan: Learni
   return <main className="centered-shell"><BrandMark /><section className="plan-error-state" role="alert"><span><AlertCircle /></span><span className="step-label">SAFE STOP</span><h1>YOVA did not substitute unrelated content.</h1><p>{issue ?? "YOVA could not build this session safely yet."}</p><p>Nothing was marked complete. Return to {plan?.title ?? "the learning goal"} to clarify the topic or source, or retry the same request.</p><div><button className="button ghost" onClick={onExit}><ArrowLeft size={17} /> Return to learning</button><button className="button primary" onClick={onRetry}>Try again <ArrowRight size={17} /></button></div></section></main>;
 }
 
-function GuidedSession({ plan, steps, step, selectedAnswer, outcome, confidence, priorConfidenceCaptured, answerRevealed, elapsedSeconds, capacityMinutes, rationale, coverage, methodBriefing, supportPlan, sourceGrounding, issue, analyticsEnabled, browserPreviewMode, onSelect, onEvaluate, onConfidence, onReveal, onExit, onNext }: { plan: LearningPlan | null; steps: LessonStep[]; step: number; selectedAnswer: string | null; outcome: boolean | undefined; confidence: ConfidenceLevel | undefined; priorConfidenceCaptured: boolean; answerRevealed: boolean; elapsedSeconds: number; capacityMinutes: number | null; rationale: string | null; coverage: SessionCoverage | null; methodBriefing: SessionMethodBriefing | null; supportPlan: SessionSupportPlan | null; sourceGrounding: SessionSourceGrounding | null; issue: string | null; analyticsEnabled: boolean; browserPreviewMode: boolean; onSelect: (answer: string) => void; onEvaluate: (correct: boolean) => void; onConfidence: (confidence: ConfidenceLevel) => void; onReveal: () => void; onExit: () => void; onNext: (evaluation: AnswerEvaluationResponse | null) => void }) {
+function GuidedSession({ plan, steps, step, selectedAnswer, outcome, confidence, priorConfidenceCaptured, answerRevealed, elapsedSeconds, capacityMinutes, rationale, coverage, methodBriefing, deliveryPolicy, supportPlan, sourceGrounding, issue, analyticsEnabled, browserPreviewMode, onSelect, onEvaluate, onConfidence, onReveal, onExit, onNext }: { plan: LearningPlan | null; steps: LessonStep[]; step: number; selectedAnswer: string | null; outcome: boolean | undefined; confidence: ConfidenceLevel | undefined; priorConfidenceCaptured: boolean; answerRevealed: boolean; elapsedSeconds: number; capacityMinutes: number | null; rationale: string | null; coverage: SessionCoverage | null; methodBriefing: SessionMethodBriefing | null; deliveryPolicy: SessionDeliveryPolicy | null; supportPlan: SessionSupportPlan | null; sourceGrounding: SessionSourceGrounding | null; issue: string | null; analyticsEnabled: boolean; browserPreviewMode: boolean; onSelect: (answer: string) => void; onEvaluate: (correct: boolean) => void; onConfidence: (confidence: ConfidenceLevel) => void; onReveal: () => void; onExit: () => void; onNext: (evaluation: AnswerEvaluationResponse | null) => void }) {
   const [confirmingExit, setConfirmingExit] = useState(false);
   const [answerEvaluation, setAnswerEvaluation] = useState<AnswerEvaluationResponse | null>(null);
   const [answerEvaluationIssue, setAnswerEvaluationIssue] = useState<string | null>(null);
@@ -2686,7 +2710,7 @@ function GuidedSession({ plan, steps, step, selectedAnswer, outcome, confidence,
     : punctuatedCorrectAnswer
       ? `The correct answer is “${punctuatedCorrectAnswer}” ${content.feedback ?? "YOVA will bring this idea back for another attempt."}`
       : content.feedback;
-  const teachingPanels = content.teaching ? teachingPanelsFor(content.teaching) : [];
+  const teachingPanels = content.teaching ? teachingPanelsFor(content.teaching, deliveryPolicy?.presentation.mode) : [];
   const teachingComplete = teachingPanels.length === 0 || teachingPage >= teachingPanels.length - 1;
   const nextTeachingPanel = teachingPanels[teachingPage + 1] ?? null;
   const canContinue = (!isQuestion || outcome !== undefined) && teachingComplete;
@@ -2771,13 +2795,13 @@ function GuidedSession({ plan, steps, step, selectedAnswer, outcome, confidence,
       <button className="button ghost" onClick={() => setConfirmingExit(true)}>Exit</button>
     </header>
     <section className="session-content">
-      <SessionGuidePanel session={currentSession} capacityMinutes={capacityMinutes} coverage={coverage} steps={steps} step={step} methodBriefing={methodBriefing} supportPlan={supportPlan} sourceGrounding={sourceGrounding} rationale={rationale} />
+      <SessionGuidePanel session={currentSession} capacityMinutes={capacityMinutes} coverage={coverage} steps={steps} step={step} methodBriefing={methodBriefing} deliveryPolicy={deliveryPolicy} supportPlan={supportPlan} sourceGrounding={sourceGrounding} rationale={rationale} />
       <section className="session-workspace">
         {issue && step === 0 && <div className="session-issue"><AlertCircle size={17} /><span>{issue}</span></div>}
         {phase && phasePosition && <MethodPhaseCoach phase={phase} current={phasePosition.current} total={phasePosition.total} />}
         {isImmediateRepair && <div className="immediate-repair-note"><RotateCcw size={17} /><div><strong>Repair now, verify later</strong><p>Correct the idea now. YOVA will still check it again later because an immediate retry is not proof that it will stick.</p></div></div>}
         <header className="session-activity-header"><div className="session-step-meta"><div><span>STEP {step + 1} OF {steps.length}</span><strong>{activityLabel}</strong></div>{content.estimatedMinutes && <span><Clock3 size={13} /> About {content.estimatedMinutes} min</span>}</div><h1><LearningContent content={content.title} inline /></h1>{content.body && <LearningContent content={content.body} className="session-activity-instruction" />}</header>
-        {content.teaching && <TeachingLessonCard teaching={content.teaching} panel={teachingPanels[teachingPage] ?? "idea"} panelIndex={teachingPage} panelCount={teachingPanels.length} />}
+        {content.teaching && <TeachingLessonCard teaching={content.teaching} panel={teachingPanels[teachingPage] ?? "idea"} panelIndex={teachingPage} panelCount={teachingPanels.length} panelLabels={teachingPanels} />}
         {requiresConfidence && <ConfidenceCheck value={confidence} locked={outcome !== undefined || answerRevealed} onChange={onConfidence} />}
         {content.type === "multiple_choice" && content.question && <div className="answer-grid">{content.question.map((answer) => {
           const answerState = outcome !== undefined && answer === content.correctAnswer
@@ -2848,7 +2872,7 @@ function GuidedSession({ plan, steps, step, selectedAnswer, outcome, confidence,
   </main>;
 }
 
-function SessionGuidePanel({ session, capacityMinutes, coverage, steps, step, methodBriefing, supportPlan, sourceGrounding, rationale }: { session: LearningPlanSession | null; capacityMinutes: number | null; coverage: SessionCoverage | null; steps: LessonStep[]; step: number; methodBriefing: SessionMethodBriefing | null; supportPlan: SessionSupportPlan | null; sourceGrounding: SessionSourceGrounding | null; rationale: string | null }) {
+function SessionGuidePanel({ session, capacityMinutes, coverage, steps, step, methodBriefing, deliveryPolicy, supportPlan, sourceGrounding, rationale }: { session: LearningPlanSession | null; capacityMinutes: number | null; coverage: SessionCoverage | null; steps: LessonStep[]; step: number; methodBriefing: SessionMethodBriefing | null; deliveryPolicy: SessionDeliveryPolicy | null; supportPlan: SessionSupportPlan | null; sourceGrounding: SessionSourceGrounding | null; rationale: string | null }) {
   const focus = coverage?.focus ?? session?.objective ?? "Complete the next bounded learning objective.";
   const evidence = coverage?.completionEvidence.length ? coverage.completionEvidence : session?.completionEvidence ?? ["Attempt the required check without hidden support."];
   const ideas = coverage?.essentialIdeas.length ? coverage.essentialIdeas : session?.contentTargets ?? [focus];
@@ -2858,27 +2882,36 @@ function SessionGuidePanel({ session, capacityMinutes, coverage, steps, step, me
   const guide = <>
     <div className="session-guide-focus"><span className="step-label">TODAY&apos;S TARGET</span><h2>{focus}</h2><div><Clock3 size={14} /><span>{capacityMinutes ?? session?.estimatedMinutes ?? 20} minute window</span></div></div>
     <div className="session-guide-method"><div><BookOpen size={16} /><span>{modeLabel}</span></div><strong>{methodBriefing?.name ?? "Guided method"}</strong><small>{taskLabel}</small></div>
-    {methodBriefing?.personalization[0] && <div className="session-personalization-proof"><Sparkles size={15} /><p><span>Why this fits you</span>{methodBriefing.personalization[0]}</p></div>}
+    {(deliveryPolicy?.learnerFacingReasons[0] || methodBriefing?.personalization[0]) && <div className="session-personalization-proof"><Sparkles size={15} /><p><span>How YOVA adapted this</span>{deliveryPolicy?.learnerFacingReasons[0] ?? methodBriefing?.personalization[0]}</p></div>}
     <div className="session-guide-path"><strong>Session path</strong>{steps.map((item, index) => {
       const presentation = item.methodPhase ? getMethodPhasePresentation(item.methodPhase) : null;
       const state = index < step ? "complete" : index === step ? "current" : "upcoming";
       return <div key={`${index}-${item.label}-${item.title}`} className={state}><span>{state === "complete" ? <Check size={13} /> : index + 1}</span><p><strong>{polishActivityLabel(item.label) || presentation?.label || "Activity"}</strong><small>{presentation?.label ?? item.title}</small></p></div>;
     })}</div>
     <div className="session-guide-evidence"><Target size={15} /><p><span>Finished means</span>{evidence[0]}</p></div>
-    <details className="session-guide-details"><summary>Why this plan and method</summary>{methodBriefing && <div className="session-guide-explanation"><strong>What you are doing</strong><p>{methodBriefing.what}</p><strong>Why it fits</strong><p>{methodBriefing.why}</p>{rationale && <p>{rationale}</p>}<strong>How to use it</strong><ol>{methodBriefing.how.map((instruction) => <li key={instruction}>{instruction}</li>)}</ol></div>}<MethodRoadmap steps={steps} />{supportPlan && <SupportProgressionCard plan={supportPlan} />}</details>
+    <details className="session-guide-details"><summary>Why this plan and method</summary>{methodBriefing && <div className="session-guide-explanation"><strong>What you are doing</strong><p>{methodBriefing.what}</p><strong>Why it fits the task</strong><p>{methodBriefing.why}</p>{rationale && <p>{rationale}</p>}<strong>How to use it</strong><ol>{methodBriefing.how.map((instruction) => <li key={instruction}>{instruction}</li>)}</ol></div>}{deliveryPolicy && <div className="session-delivery-details"><strong>How delivery changed</strong><div><span>{deliveryPolicy.presentation.label}</span><span>{deliveryPolicy.repair.label}</span><span>{deliveryPolicy.retention.label}</span></div>{deliveryPolicy.learnerFacingReasons.slice(1).map((reason) => <p key={reason}>{reason}</p>)}<small>{deliveryEvidenceLabel(deliveryPolicy.evidenceStatus)}</small></div>}<MethodRoadmap steps={steps} />{supportPlan && <SupportProgressionCard plan={supportPlan} />}</details>
     <details className="session-guide-details"><summary>Content and sources</summary><div className="session-guide-lists"><strong>In this session</strong><ul>{ideas.map((item, index) => <li key={`${index}-${item}`}>{item}</li>)}</ul>{coverage?.evidenceMap.length ? <><strong>How completion is checked</strong><ul>{coverage.evidenceMap.map((mapping) => <li key={`${mapping.essentialIdea}-${mapping.activityConcept}`}>{mapping.essentialIdea}: checked through {mapping.activityConcept}</li>)}</ul></> : null}{coverage?.deferredContent.length ? <><strong>Saved for later</strong><ul>{coverage.deferredContent.map((item, index) => <li key={`${index}-${item}`}>{item}</li>)}</ul></> : null}</div>{sourceGrounding && <SourceGroundingCard grounding={sourceGrounding} />}</details>
   </>;
   return <aside className="session-guide"><div className="session-guide-desktop">{guide}</div><details className="session-guide-mobile"><summary><span><strong>{methodBriefing?.name ?? "Session path"}</strong><small>Step {step + 1} of {steps.length} · {roadmap.length} learning phases</small></span><ChevronRight size={17} /></summary><div>{guide}</div></details></aside>;
 }
 
+function deliveryEvidenceLabel(status: SessionDeliveryPolicy["evidenceStatus"]) {
+  if (status === "blended") return "Uses your stated preferences plus repeated behavior observed in YOVA.";
+  if (status === "observed_pattern") return "Uses a repeated behavior pattern observed in YOVA.";
+  if (status === "starting_hypothesis") return "Uses what you told YOVA as a starting hypothesis. Session results can change it.";
+  return "Uses the task as the baseline until YOVA has enough learner evidence.";
+}
+
 type TeachingPanel = "idea" | "model" | "example" | "mixup";
 
-function teachingPanelsFor(teaching: NonNullable<LessonStep["teaching"]>): TeachingPanel[] {
+function teachingPanelsFor(teaching: NonNullable<LessonStep["teaching"]>, presentationMode?: SessionDeliveryPolicy["presentation"]["mode"]): TeachingPanel[] {
   const panels: TeachingPanel[] = ["idea"];
   const visualSteps = teaching.example?.steps ?? visualModelSteps(teaching.explanation);
   if (visualSteps.length >= 2) panels.push("model");
   if (teaching.example) panels.push("example");
   if (teaching.commonMistake) panels.push("mixup");
+  if (presentationMode === "example_first" && panels.includes("example")) return ["example", ...panels.filter((panel) => panel !== "example")];
+  if (presentationMode === "compare_first" && panels.includes("mixup")) return ["idea", "mixup", ...panels.filter((panel) => panel !== "idea" && panel !== "mixup")];
   return panels;
 }
 
@@ -2889,9 +2922,9 @@ function teachingPanelLabel(panel: TeachingPanel) {
   return "Common mix-up";
 }
 
-function TeachingLessonCard({ teaching, panel, panelIndex = 0, panelCount }: { teaching: NonNullable<LessonStep["teaching"]>; panel?: TeachingPanel; panelIndex?: number; panelCount?: number }) {
+function TeachingLessonCard({ teaching, panel, panelIndex = 0, panelCount, panelLabels: providedPanelLabels }: { teaching: NonNullable<LessonStep["teaching"]>; panel?: TeachingPanel; panelIndex?: number; panelCount?: number; panelLabels?: TeachingPanel[] }) {
   const visualSteps = teaching.example?.steps ?? visualModelSteps(teaching.explanation);
-  const panelLabels = teachingPanelsFor(teaching);
+  const panelLabels = providedPanelLabels ?? teachingPanelsFor(teaching);
   const activePanel = panel ?? "idea";
   const showFullResource = panel === undefined;
   const totalPanels = panelCount ?? panelLabels.length;

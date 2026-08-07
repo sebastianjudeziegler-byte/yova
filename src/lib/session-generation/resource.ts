@@ -14,6 +14,7 @@ export function toSessionResource(
     rationale: session.rationale,
     coverage: session.coverage,
     methodBriefing: session.methodBriefing,
+    deliveryPolicy: session.deliveryPolicy,
     supportPlan: session.supportPlan,
     sourceGrounding: session.sourceGrounding ?? undefined,
     activities: session.activities.map((activity) => ({

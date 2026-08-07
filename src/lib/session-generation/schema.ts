@@ -2,6 +2,7 @@ import { z } from "zod";
 import { CORE_METHOD_IDS, LEARNING_TASK_TYPES } from "@/lib/learning/method-catalog";
 import { CALIBRATION_PATTERNS } from "@/lib/learning/confidence-calibration";
 import { METHOD_PHASES } from "@/lib/learning/method-fidelity";
+import { SessionDeliveryPolicySchema } from "@/lib/personalization/session-delivery-policy";
 
 export const SessionGenerationRequestSchema = z.object({
   planId: z.string().uuid(),
@@ -238,10 +239,11 @@ export const GeneratedSessionDraftSchema = z.object({
 });
 
 export const CachedGeneratedSessionSchema = GeneratedSessionDraftSchema.extend({
-  schemaVersion: z.literal(11),
+  schemaVersion: z.literal(12),
   model: z.string().min(1),
   generatedAt: z.string().datetime({ offset: true }),
   supportPlan: SessionSupportPlanSchema.optional(),
+  deliveryPolicy: SessionDeliveryPolicySchema,
 });
 
 export const SessionGenerationResponseSchema = z.object({

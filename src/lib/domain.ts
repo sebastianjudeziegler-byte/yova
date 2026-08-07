@@ -64,6 +64,7 @@ export type SessionResource = {
   rationale: string;
   coverage?: import("@/lib/session-generation/schema").SessionCoverage;
   methodBriefing?: SessionMethodBriefing;
+  deliveryPolicy?: import("@/lib/personalization/session-delivery-policy").SessionDeliveryPolicy;
   supportPlan?: import("@/lib/learning/scaffold-progression").SessionSupportPlan;
   sourceGrounding?: SessionSourceGrounding;
   activities: SessionResourceActivity[];

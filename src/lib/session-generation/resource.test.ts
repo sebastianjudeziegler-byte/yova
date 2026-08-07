@@ -3,7 +3,7 @@ import { readSessionResourceFromStepData, toSessionResource } from "@/lib/sessio
 import { GeneratedSessionDraftSchema, type SessionGenerationResponse } from "@/lib/session-generation/schema";
 
 const generatedSession: SessionGenerationResponse["session"] = {
-  schemaVersion: 11,
+  schemaVersion: 12,
   model: "gpt-test",
   generatedAt: "2026-08-05T18:00:00.000Z",
   rationale: "This sequence teaches the core idea before checking recall and application.",
@@ -28,6 +28,37 @@ const generatedSession: SessionGenerationResponse["session"] = {
     how: ["Hide the explanation and attempt the answer.", "Compare, repair the gap, and retry it later."],
     completion: "The answer has been attempted from memory and every missing idea has been marked for review.",
     personalization: [],
+  },
+  deliveryPolicy: {
+    schemaVersion: 1,
+    evidenceStatus: "starting_hypothesis",
+    presentation: {
+      mode: "example_first",
+      label: "Example first",
+      instruction: "Begin the explanation with one concrete case before naming the general rule.",
+    },
+    repair: {
+      mode: "hint_first",
+      label: "Hint first",
+      instruction: "After a miss, reveal one bounded cue before showing the complete correction.",
+    },
+    retention: {
+      mode: "retrieval",
+      label: "Recall without cues",
+      instruction: "Require retrieval without visible notes before answer review.",
+    },
+    workspace: {
+      mode: "one_step",
+      label: "One step at a time",
+      instruction: "Keep only the current action prominent while preserving an optional path preview.",
+    },
+    pacing: {
+      firstActionMinutes: 4,
+      maximumActivities: 5,
+      reason: "There is not enough repeated behavior evidence to change the normal session size.",
+    },
+    learnerFacingReasons: ["You asked for concrete examples before rules, so YOVA will make the first explanation example-led."],
+    signalsUsed: ["A concrete example before the rule"],
   },
   supportPlan: {
     level: "fading",

@@ -12,6 +12,7 @@ import {
   inferLearningTaskType,
   methodIdFromText,
 } from "@/lib/learning/method-router";
+import type { SessionDeliveryPolicy } from "@/lib/personalization/session-delivery-policy";
 
 const DEFAULT_METHOD_BY_TASK: Record<LearningTaskType, CoreMethodId> = {
   memorization: "retrieval_practice",
@@ -26,6 +27,7 @@ const DEFAULT_METHOD_BY_TASK: Record<LearningTaskType, CoreMethodId> = {
 export function buildFallbackMethodBriefing(
   plan: LearningPlan,
   session: LearningPlanSession,
+  deliveryPolicy?: SessionDeliveryPolicy,
 ): SessionMethodBriefing {
   const taskType = inferLearningTaskType([
     plan.title,
@@ -51,7 +53,7 @@ export function buildFallbackMethodBriefing(
     why: session.methodReason.trim() || method.why,
     how: method.how,
     completion,
-    personalization: [
+    personalization: deliveryPolicy?.learnerFacingReasons.slice(0, 3) ?? [
       `The method follows the ${taskType.replaceAll("_", " ")} task in this learning goal.`,
       `The amount of work is bounded to the current ${session.estimatedMinutes}-minute window.`,
       plan.studyMode === "outside_yova"
