@@ -106,6 +106,8 @@ The current engine:
 - turns completed concept evidence into an actionable Agenda retrieval queue;
 - routes a due concept into the next active session or atomically reopens a completed goal with one bounded verification session, preserving its original history;
 - describes the intervals as product heuristics rather than a perfect memory or mastery prediction;
+- keeps in-session tutoring anchored to the exact current activity and support phase, so a hint preserves the learner's attempt and a repair explanation addresses the observed gap rather than replacing the session with generic chat;
+- gives the tutor answer state but never the learner's typed free response, separating useful coaching context from unnecessary storage or transmission;
 - keeps method choice separate from productivity adjustments.
 
 This is a hybrid system. Deterministic TypeScript protects the scientific boundaries. OpenAI handles nuance, subject-specific teaching, wording, examples, and activity composition.

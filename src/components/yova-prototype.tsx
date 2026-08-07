@@ -162,6 +162,7 @@ import {
   TutorThreadListResponseSchema,
   type TutorMessage,
   type TutorProposedAction,
+  type TutorRequest,
   type TutorThreadSummary,
 } from "@/lib/tutor/schema";
 
@@ -2654,7 +2655,14 @@ function GuidedSession({ plan, steps, step, selectedAnswer, outcome, confidence,
         <footer className="session-action-bar">{step === steps.length - 1 && <p className="completion-rule"><Check size={14} /> Completion is based on the required learning work, not on running out the clock.</p>}<button className="button primary large" onClick={() => onNext(answerEvaluation)} disabled={!canContinue}>{outcome === false && !isImmediateRepair ? "Repair this idea" : step === steps.length - 1 ? "Finish this content" : "Continue"} <ArrowRight size={18} /></button></footer>
       </section>
     </section>
-    <SessionTutor plan={plan} activityTitle={content.title} analyticsEnabled={analyticsEnabled} />
+    <SessionTutor
+      plan={plan}
+      activity={content}
+      outcome={outcome}
+      answerRevealed={answerRevealed}
+      selectedAnswer={selectedAnswer}
+      analyticsEnabled={analyticsEnabled}
+    />
     {confirmingExit && <div className="session-exit-backdrop"><section className="session-exit-dialog" role="dialog" aria-modal="true" aria-labelledby="session-exit-title"><div className="session-exit-icon"><Clock3 size={21} /></div><span className="step-label">LEAVE THIS SESSION?</span><h2 id="session-exit-title">Your plan will stay open.</h2><p>YOVA will remember how long you studied and exactly which content steps you reached. Unfinished answers will not be treated as knowledge evidence.</p><div className="session-exit-summary"><span>{formatElapsedDuration(elapsedSeconds)} studied</span><span>{completedRequiredSteps} of {requiredSteps.length} required steps finished</span></div><div className="session-exit-actions"><button className="button ghost" onClick={() => setConfirmingExit(false)}>Keep studying</button><button className="button primary" onClick={onExit}>Save progress and leave</button></div></section></div>}
   </main>;
 }
@@ -2745,17 +2753,39 @@ function SupportProgressionCard({ plan }: { plan: SessionSupportPlan }) {
   return <section className={`support-progression ${plan.level}`} aria-label="Support progression"><div><span>{levelLabel}</span><strong>{plan.title}</strong><p>{plan.explanation}</p></div><em>{plan.evidenceLabel}</em></section>;
 }
 
-function SessionTutor({ plan, activityTitle, analyticsEnabled }: { plan: LearningPlan | null; activityTitle: string; analyticsEnabled: boolean }) {
+type SessionTutorHelpIntent = NonNullable<TutorRequest["sessionContext"]>["helpIntent"];
+
+function SessionTutor({ plan, activity, outcome, answerRevealed, selectedAnswer, analyticsEnabled }: {
+  plan: LearningPlan | null;
+  activity: LessonStep;
+  outcome: boolean | undefined;
+  answerRevealed: boolean;
+  selectedAnswer: string | null;
+  analyticsEnabled: boolean;
+}) {
   const [expanded, setExpanded] = useState(false);
   const [question, setQuestion] = useState("");
   const [threadId, setThreadId] = useState<string | null>(null);
   const [messages, setMessages] = useState<TutorMessage[]>([]);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const latestAnswer = [...messages].reverse().find((message) => message.role === "assistant")?.content ?? null;
+  const answerState = outcome === true
+    ? "correct"
+    : outcome === false
+      ? answerRevealed ? "revealed" : "incorrect"
+      : answerRevealed
+        ? "revealed"
+        : "not_attempted";
+  const teachingSummary = activity.teaching
+    ? [activity.teaching.keyIdea, activity.teaching.explanation, activity.teaching.example?.takeaway]
+      .filter(Boolean)
+      .join("\n")
+      .slice(0, 1_200)
+    : null;
+  const quickActions = sessionTutorQuickActions(activity.type, answerState);
 
-  const ask = async () => {
-    const nextQuestion = question.trim();
+  const ask = async (prompt = question, helpIntent: SessionTutorHelpIntent = "open_question") => {
+    const nextQuestion = prompt.trim();
     if (!nextQuestion || pending || !plan) return;
     setPending(true);
     setError(null);
@@ -2773,7 +2803,20 @@ function SessionTutor({ plan, activityTitle, analyticsEnabled }: { plan: Learnin
           planId: plan.id,
           threadId,
           history: messages.slice(-8).map(({ role, content }) => ({ role, content })),
-          sessionContext: { activityTitle },
+          sessionContext: {
+            activityTitle: activity.title,
+            activityType: activity.type,
+            activityInstruction: activity.body,
+            concept: activity.concept,
+            methodPhase: activity.methodPhase ?? null,
+            teachingSummary,
+            choices: activity.question ?? [],
+            referenceAnswer: activity.correctAnswer,
+            feedback: activity.feedback,
+            answerState,
+            selectedChoice: activity.type === "multiple_choice" ? selectedAnswer : null,
+            helpIntent,
+          },
         }),
       });
       const body: unknown = await response.json();
@@ -2799,8 +2842,30 @@ function SessionTutor({ plan, activityTitle, analyticsEnabled }: { plan: Learnin
   };
 
   return <aside className={`session-tutor ${expanded ? "expanded" : "collapsed"}`}>
-    {!expanded ? <button className="session-tutor-launcher" aria-expanded="false" onClick={() => setExpanded(true)}><MessageCircleMore size={18} /><span>Ask YOVA</span></button> : <section className="session-tutor-panel" aria-label="Ask YOVA about this session"><header><div><Sparkles size={15} /><strong>Ask YOVA</strong></div><button aria-label="Close session tutor" onClick={() => setExpanded(false)}><X size={17} /></button></header>{(latestAnswer || error) && <div className="session-tutor-response">{latestAnswer && <><span><Sparkles size={15} /> YOVA · {activityTitle}</span><p>{latestAnswer}</p></>}{error && <div className="session-tutor-error"><AlertCircle size={15} /> {error}</div>}</div>}<form className="session-ask" onSubmit={(event) => { event.preventDefault(); void ask(); }}><input aria-label="Ask YOVA about this session" placeholder="Ask about this step…" value={question} disabled={pending || !plan} onChange={(event) => setQuestion(event.target.value)} /><button aria-label="Send session question" type="submit" disabled={!question.trim() || pending || !plan}>{pending ? <span className="button-spinner" /> : <Send size={18} />}</button></form></section>}
+    {!expanded ? <button className="session-tutor-launcher" aria-expanded="false" onClick={() => setExpanded(true)}><MessageCircleMore size={18} /><span>Ask YOVA</span></button> : <section className="session-tutor-panel" aria-label="Ask YOVA about this session"><header><div><Sparkles size={15} /><span><strong>Help with this step</strong><small>{activity.title}</small></span></div><button aria-label="Close session tutor" onClick={() => setExpanded(false)}><X size={17} /></button></header><div className="session-tutor-quick-actions" aria-label="Quick help options">{quickActions.map((action) => <button key={action.intent} disabled={pending || !plan} onClick={() => void ask(action.prompt, action.intent)}>{action.label}</button>)}</div>{(messages.length > 0 || pending || error) && <div className="session-tutor-response" aria-live="polite">{messages.slice(-6).map((message) => message.role === "assistant" ? <div className="session-tutor-assistant" key={message.id}><span><Sparkles size={14} /> YOVA</span><TutorMessageContent content={message.content} /></div> : <div className="session-tutor-user" key={message.id}><span>You</span><p>{message.content}</p></div>)}{pending && <div className="session-tutor-thinking"><span className="button-spinner dark" /> Building help for this exact step…</div>}{error && <div className="session-tutor-error"><AlertCircle size={15} /> {error}</div>}</div>}<form className="session-ask" onSubmit={(event) => { event.preventDefault(); void ask(); }}><input aria-label="Ask YOVA about this session" placeholder="Ask about this exact step…" value={question} disabled={pending || !plan} onChange={(event) => setQuestion(event.target.value)} /><button aria-label="Send session question" type="submit" disabled={!question.trim() || pending || !plan}>{pending ? <span className="button-spinner" /> : <Send size={18} />}</button></form><small className="session-tutor-privacy">YOVA sees the step and result, but not your typed free response.</small></section>}
   </aside>;
+}
+
+function sessionTutorQuickActions(activityType: LessonStep["type"], answerState: "not_attempted" | "correct" | "incorrect" | "revealed"): Array<{ label: string; prompt: string; intent: SessionTutorHelpIntent }> {
+  if (answerState === "incorrect" || answerState === "revealed") {
+    return [
+      { label: "Help me repair this", prompt: "Help me repair the specific gap in this step without doing the next attempt for me.", intent: "repair_gap" },
+      { label: "Explain it differently", prompt: "Explain the idea in this step in a genuinely different way.", intent: "explain_differently" },
+      { label: "Show a similar example", prompt: "Show me a new, similar example without solving this exact check for me.", intent: "show_example" },
+    ];
+  }
+  if (activityType === "multiple_choice" || activityType === "free_response") {
+    return [
+      { label: "Give me one hint", prompt: "Give me one hint for this step without revealing the answer.", intent: "give_hint" },
+      { label: "Explain the idea", prompt: "Explain the core idea for this step in a different way, then let me attempt it.", intent: "explain_differently" },
+      { label: "Show a similar example", prompt: "Show me a new, similar example without solving this exact check for me.", intent: "show_example" },
+    ];
+  }
+  return [
+    { label: "Explain it differently", prompt: "Explain this step using a genuinely different representation or analogy.", intent: "explain_differently" },
+    { label: "Show an example", prompt: "Show me one concrete example of the idea in this step.", intent: "show_example" },
+    { label: "Check my understanding", prompt: "Ask me one short question that checks this step, and wait for my answer.", intent: "check_understanding" },
+  ];
 }
 
 function SessionComplete({ requiredContentCount, repairCount, elapsedSeconds, actualMinutes, correctAnswers, totalAnswers, observedGap, conceptEvidence, confidenceEvidence, nextSession, onFinish }: { requiredContentCount: number; repairCount: number; elapsedSeconds: number; actualMinutes: number; correctAnswers: number; totalAnswers: number; observedGap: string; conceptEvidence: SessionCompletion["conceptEvidence"]; confidenceEvidence: ConfidenceEvidence[]; nextSession: LearningPlanSession | null; onFinish: (feedback: SessionCompletion["feedback"]) => void }) {

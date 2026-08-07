@@ -441,6 +441,77 @@ test("Ask YOVA turns structured explanations and math into readable interface co
   await expect(page.locator(".tutor-rich-text")).not.toContainText("**");
 });
 
+test("the session tutor stays anchored to the exact learning activity", async ({ page }) => {
+  await createPreviewAccount(page);
+  await completeOnboarding(page);
+
+  let capturedRequest: { sessionContext?: Record<string, unknown> } = {};
+  await page.route("**/api/tutor", async (route) => {
+    if (route.request().method() !== "POST") {
+      await route.continue();
+      return;
+    }
+    capturedRequest = route.request().postDataJSON() as { sessionContext?: Record<string, unknown> };
+    const threadId = "20000000-0000-4000-8000-000000000001";
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        threadId,
+        messages: [
+          {
+            id: "20000000-0000-4000-8000-000000000002",
+            threadId,
+            role: "user",
+            content: "Show me one concrete example of the idea in this step.",
+            createdAt: "2026-08-06T21:00:00.000Z",
+          },
+          {
+            id: "20000000-0000-4000-8000-000000000003",
+            threadId,
+            role: "assistant",
+            content: "**Example:** if $100$ grows by $10$, the new base is $110$. The next percentage gain uses that larger base.",
+            createdAt: "2026-08-06T21:00:01.000Z",
+          },
+        ],
+        model: "test-model",
+        persistence: "browser",
+        proposedAction: null,
+      }),
+    });
+  });
+
+  await page.getByRole("button", { name: "Study something now", exact: true }).first().click();
+  await page.getByPlaceholder("Example: Help me understand the product rule and practice using it.").fill(
+    "Help me understand compound growth and personal finance basics.",
+  );
+  await page.getByRole("button", { name: "I haven't learned this yet" }).click();
+  await page.getByRole("button", { name: /Choose how YOVA should help/ }).click();
+  await page.getByRole("button", { name: /Create it for me/ }).click();
+  await page.getByRole("button", { name: /Build and start session/ }).click();
+  await confirmSessionSetup(page);
+
+  await expect(page.getByRole("heading", { name: "Use money concepts as decision tools" })).toBeVisible();
+  await page.getByRole("button", { name: "Ask YOVA", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Explain it differently" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Show an example" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Check my understanding" })).toBeVisible();
+  await page.getByRole("button", { name: "Show an example" }).click();
+
+  await expect(page.locator(".session-tutor-assistant .tutor-rich-text strong")).toHaveText("Example:");
+  await expect(page.locator(".session-tutor-assistant .katex").first()).toBeVisible();
+  await expect(page.locator(".session-tutor-response")).not.toContainText("**");
+  await expect(page.getByText("YOVA sees the step and result, but not your typed free response.")).toBeVisible();
+
+  const sessionContext = capturedRequest.sessionContext ?? {};
+  expect(sessionContext.activityTitle).toBe("Use money concepts as decision tools");
+  expect(sessionContext.activityType).toBe("instruction");
+  expect(sessionContext.helpIntent).toBe("show_example");
+  expect(sessionContext.answerState).toBe("not_attempted");
+  expect(sessionContext.selectedChoice).toBeNull();
+  expect(String(sessionContext.teachingSummary)).toContain("budget");
+});
+
 test("a multi-session plan uses one clear source decision from setup to Learning", async ({ page }) => {
   await createPreviewAccount(page);
   await completeOnboarding(page);

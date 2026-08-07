@@ -20,6 +20,24 @@ export const TutorRequestSchema = z.object({
   history: z.array(TutorHistoryMessageSchema).max(12).default([]),
   sessionContext: z.object({
     activityTitle: z.string().trim().min(1).max(180),
+    activityType: z.enum(["instruction", "multiple_choice", "free_response", "reflection"]),
+    activityInstruction: z.string().trim().min(1).max(500),
+    concept: z.string().trim().min(1).max(180).nullable(),
+    methodPhase: z.string().trim().min(1).max(80).nullable(),
+    teachingSummary: z.string().trim().min(1).max(1_200).nullable(),
+    choices: z.array(z.string().trim().min(1).max(220)).max(5),
+    referenceAnswer: z.string().trim().min(1).max(800).nullable(),
+    feedback: z.string().trim().min(1).max(600).nullable(),
+    answerState: z.enum(["not_attempted", "correct", "incorrect", "revealed"]),
+    selectedChoice: z.string().trim().min(1).max(220).nullable(),
+    helpIntent: z.enum([
+      "open_question",
+      "explain_differently",
+      "show_example",
+      "give_hint",
+      "check_understanding",
+      "repair_gap",
+    ]),
   }).nullable().optional(),
 });
 

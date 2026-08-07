@@ -59,6 +59,9 @@ A cross-browser six-digit email-code flow is implemented and tested behind a ser
 - Outside-study preview sessions preserve the learner’s exact goal, choose a task-appropriate method such as retrieval-based outlining or worked-example fading, and state what evidence the learner should bring back
 - Generated explanations and practice remain reusable inside their learning goal
 - Contextual tutoring inside and outside sessions
+- In-session tutoring now receives the exact current activity, learning phase, concept, instructions, answer state, and safe reference context instead of only a broad topic title
+- Quick session-help actions distinguish hints, alternate explanations, analogous examples, understanding checks, and gap repair; hint requests are explicitly prevented from giving away the current answer
+- Session tutor conversations use the same readable Markdown and mathematics renderer as Ask YOVA, while typed free responses remain outside tutor context
 - Visible reasons for methods and recommendations
 - Upload guidance now names useful source examples: teacher study guides, PDF lecture slides, class notes, review sheets, and readable textbook excerpts
 
