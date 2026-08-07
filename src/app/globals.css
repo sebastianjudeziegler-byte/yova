@@ -1036,6 +1036,18 @@ h1, h2, h3, p { margin-top: 0; }
 .goal-input-hint { margin: 9px 2px 0; color: var(--muted); font-size: 11px; line-height: 1.5; }
 .goal-context-warning { margin: 12px 0 0!important; padding: 12px 14px; display: flex; align-items: flex-start; gap: 9px; color: #8a321f!important; border: 1px solid #f3c7b8; border-radius: 10px; background: #fff7f3; font-size: 12px!important; line-height: 1.55!important; }
 .goal-context-warning > svg { flex: 0 0 auto; margin-top: 1px; }
+.goal-clarification { margin: 18px 0 0; padding: 20px; border: 1px solid #bfd0ff; border-radius: 16px; background: linear-gradient(145deg, #f9fbff, #f2f4ff); box-shadow: 0 16px 38px rgba(31, 56, 117, .08); }
+.goal-clarification .step-label { display: flex; align-items: center; gap: 6px; }
+.goal-clarification h2 { margin: 8px 0 6px; font-family: var(--font-sora), sans-serif; font-size: clamp(19px, 2.2vw, 25px); letter-spacing: -.035em; }
+.goal-clarification > p { margin: 0; max-width: 720px; color: var(--muted); font-size: 13px; line-height: 1.6; }
+.clarification-suggestions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+.clarification-suggestions button { padding: 9px 12px; border: 1px solid var(--border); border-radius: 9px; background: #fff; color: var(--text); font: 600 12px var(--font-inter), sans-serif; cursor: pointer; }
+.clarification-suggestions button:hover, .clarification-suggestions button.selected { border-color: var(--blue); background: #edf2ff; color: #173fa8; }
+.clarification-input { display: grid; gap: 7px; margin-top: 15px; }
+.clarification-input span { color: var(--text); font-size: 12px; font-weight: 700; }
+.clarification-input input { width: 100%; padding: 12px 13px; border: 1px solid var(--border); border-radius: 10px; background: #fff; color: var(--text); font: 500 14px var(--font-inter), sans-serif; outline: none; }
+.clarification-input input:focus { border-color: var(--blue); box-shadow: 0 0 0 4px rgba(52,107,255,.1); }
+.clarification-actions { display: flex; justify-content: space-between; gap: 10px; margin-top: 16px; }
 .plan-goal-echo {
   margin: -4px 0 18px;
   padding: 13px 14px;
@@ -1413,6 +1425,8 @@ h1, h2, h3, p { margin-top: 0; }
   .trust-content { padding: 12px 24px 36px; }
   .hero-actions, .rec-body, .learning-hero { align-items: stretch; flex-direction: column; }
   .hero-actions .button { width: 100%; }
+  .clarification-actions { align-items: stretch; flex-direction: column-reverse; }
+  .clarification-actions .button { width: 100%; }
   .learning-hero-actions { align-items: stretch; flex-direction: column; }
   .plan-sources .section-title,
   .plan-adaptations .section-title,

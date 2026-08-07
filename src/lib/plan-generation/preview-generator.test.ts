@@ -32,4 +32,19 @@ describe("preview plan time windows", () => {
     expect(fifteenMinutePlan.sessions.every((session) => session.contentTargets?.length)).toBe(true);
     expect(fifteenMinutePlan.sessions.every((session) => session.completionEvidence?.length)).toBe(true);
   });
+
+  it("preserves an unrecognized goal as the topic instead of replacing it with a generic placeholder", () => {
+    const request = requestWithMinutes(25);
+    const plan = generatePreviewPlan({
+      ...request,
+      goal: "Draft a comparative history thesis using my textbook evidence",
+      studyMode: "outside",
+    });
+
+    expect(plan.topic).toBe("Draft a comparative history thesis using my textbook evidence");
+    expect(plan.studyMode).toBe("outside_yova");
+    expect(plan.sessions[0].method).toBe("Retrieval-based outlining");
+    expect(plan.sessions[0].objective).toContain("Draft a comparative history thesis");
+    expect(plan.sessions[0].objective).not.toContain("Recall the main ideas");
+  });
 });

@@ -56,3 +56,19 @@ export function assessGoalContext(goal: string, hasUsableMaterials = false): Goa
     message: "YOVA does not know what your class includes in that unit, chapter, or test. Add the actual concept, such as ‘product rule’ or ‘cellular respiration,’ or choose Use my materials and upload something that names the content.",
   };
 }
+
+export function goalClarificationSuggestions(goal: string): string[] {
+  if (/\bcalc(?:ulus)?\b|derivative|integral/i.test(goal)) {
+    return ["Limits and continuity", "Derivative basics", "Product rule", "Chain rule", "Applications of derivatives"];
+  }
+  if (/\bbio(?:logy)?\b/i.test(goal)) {
+    return ["Cellular respiration", "Photosynthesis", "Genetics and inheritance", "Cell division and mitosis"];
+  }
+  if (/\bchem(?:istry)?\b/i.test(goal)) {
+    return ["Atomic structure", "Chemical bonding", "Stoichiometry", "Acids and bases"];
+  }
+  if (/history|apush|world history/i.test(goal)) {
+    return ["Causes and effects", "Compare two periods or events", "Key people and evidence", "Essay or short-answer practice"];
+  }
+  return [];
+}

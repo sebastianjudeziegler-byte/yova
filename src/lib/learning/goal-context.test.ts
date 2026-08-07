@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { assessGoalContext } from "@/lib/learning/goal-context";
+import { assessGoalContext, goalClarificationSuggestions } from "@/lib/learning/goal-context";
 
 describe("goal context assessment", () => {
   it.each([
@@ -36,5 +36,15 @@ describe("goal context assessment", () => {
 
   it("allows a class-local label when uploaded material supplies the missing scope", () => {
     expect(assessGoalContext("Start Calc Unit 3", true).hasEnoughContext).toBe(true);
+  });
+
+  it("offers subject-relevant clarification choices without pretending to know the class scope", () => {
+    expect(goalClarificationSuggestions("Start Calc Unit 3")).toEqual(expect.arrayContaining([
+      "Derivative basics",
+      "Product rule",
+      "Chain rule",
+    ]));
+    expect(goalClarificationSuggestions("Biology test Friday")).toContain("Cellular respiration");
+    expect(goalClarificationSuggestions("Review module 4")).toEqual([]);
   });
 });

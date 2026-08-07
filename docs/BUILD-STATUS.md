@@ -15,9 +15,9 @@ Estimated completion depends on which finish line is meant:
 
 | Finish line | Current estimate | Meaning |
 |---|---:|---|
-| Functional product core | 96% | The differentiated loop works, but realistic-input testing exposed an unacceptable generic-content fallback. That path is now removed and vague class labels are stopped, but more adversarial journeys are still required before calling the core finished. |
-| Invite-only private alpha | 88% | Deployment, safeguards, atomic learning-state updates, and automated teaching and practice journeys on desktop and mobile are connected; reliable email delivery, authenticated production testing, and broader real-input testing remain. |
-| Credible public beta | 68% | Trust, monitoring, live quality gates, CI, phone-sized coverage, and reload persistence checks exist; human output review, adversarial journey coverage, more devices, external alerts, policy review, and tester-driven polish remain. |
+| Functional product core | 97% | The differentiated loop works, generic-content substitution is blocked, vague class labels now trigger an in-flow clarification question, and nine foundational journeys pass on desktop and mobile. More real-user and adversarial input coverage is still required before calling the core finished. |
+| Invite-only private alpha | 89% | Deployment, safeguards, atomic learning-state updates, and automated teaching, practice, outside-study, interruption, and plan-rebuild journeys are connected; reliable email delivery, authenticated production testing, and broader real-input testing remain. |
+| Credible public beta | 69% | Trust, monitoring, live quality gates, CI, phone-sized coverage, reload persistence, and wider journey checks exist; human output review, more devices, external alerts, policy review, and tester-driven polish remain. |
 | Paid polished launch | 35% | Also needs billing, entitlements, cost controls by plan, and more operational maturity |
 
 These percentages are directional, not engineering math. A product can have most features built and still need significant reliability work before strangers should pay for it.
@@ -53,6 +53,8 @@ A cross-browser six-digit email-code flow is implemented and tested behind a ser
 - Formative answer judgment is protected by a repeatable human-labeled benchmark spanning correct paraphrases, confident misconceptions, incomplete causal explanations, equivalent math notation, concise programming answers, and genuinely ambiguous prompts
 - Development preview mode has subject-specific biology, product-rule calculus, and finance sessions; production stops safely when live generation fails instead of substituting a generic learning-method exercise
 - Class-local labels such as “Calc Unit 3” are no longer treated as teachable content by themselves: the learner must name the actual concept or upload material that defines the scope
+- When a class-local label is too vague, YOVA now asks one focused follow-up inside the creation flow and offers cautious subject-relevant examples without pretending to know the teacher’s curriculum
+- Outside-study preview sessions preserve the learner’s exact goal, choose a task-appropriate method such as retrieval-based outlining or worked-example fading, and state what evidence the learner should bring back
 - Generated explanations and practice remain reusable inside their learning goal
 - Contextual tutoring inside and outside sessions
 - Visible reasons for methods and recommendations
@@ -123,6 +125,8 @@ The software loop is close to private-alpha readiness, but the broader learning-
 - Playwright also verifies that all five primary destinations and both creation paths remain reachable on desktop and mobile
 - Playwright verifies that an opaque label such as “Calc Unit 3” is stopped, can be repaired into a real product-rule request, and never opens the generic meta-learning screens that caused the production failure
 - Playwright verifies that an unknown-topic generation failure stops explicitly instead of presenting unrelated content as a lesson
+- Playwright verifies that outside-study guidance preserves the learner’s actual writing goal and keeps the selected learning method visible on both desktop and mobile
+- Playwright verifies that changing a plan from 45-minute to 15-minute windows creates additional bounded sessions while preserving the content workload instead of treating elapsed time as completion
 - Playwright verifies repeated stop-and-return behavior on desktop and mobile, including two interruptions inside the same unfinished session
 - Preview mode now has a safe service boundary for Ask YOVA, so the product shell does not crash merely because Supabase is unavailable
 - Both paths run at desktop and Pixel-sized mobile viewports; the adaptive path also reloads the app to prove that the adjusted learning state persists

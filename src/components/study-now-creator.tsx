@@ -13,6 +13,7 @@ import {
   Upload,
 } from "lucide-react";
 import { BrandMark } from "@/components/brand-mark";
+import { GoalClarification } from "@/components/goal-clarification";
 import type { LearningMaterial, LearningPlan } from "@/lib/domain";
 import { deleteUploadedMaterial, uploadMaterialFiles } from "@/lib/materials/intake";
 import { reportProductError } from "@/lib/monitoring/client";
@@ -193,6 +194,7 @@ export function StudyNowCreator({
           <span className="step-label">CHOOSE A SOURCE</span>
           <h1>How should YOVA help?</h1>
           <p className="plan-description">This decides where the content comes from and where most of the work happens.</p>
+          <div className="plan-goal-echo"><span>YOUR REQUEST</span><p>{goal}</p><button className="button ghost" onClick={() => setStep("setup")}>Edit</button></div>
           <div className="mode-cards three-up">
             <button className={sourceChoice === "materials" ? "selected" : ""} onClick={() => setSourceChoice("materials")}><Upload /><span><strong>Use my materials</strong><small>Study guides, PDF slides, notes, review sheets, or textbook excerpts.</small></span>{sourceChoice === "materials" && <Check />}</button>
             <button className={sourceChoice === "yova" ? "selected" : ""} onClick={() => { setSourceChoice("yova"); setMaterialError(null); setMaterialNotice(null); }}><Sparkles /><span><strong>Create it for me</strong><small>YOVA creates the teaching and practice from the topic.</small></span>{sourceChoice === "yova" && <Check />}</button>
@@ -210,7 +212,13 @@ export function StudyNowCreator({
           </div>}
           {materialNotice && <p className="material-notice"><AlertCircle size={15} /> {materialNotice}</p>}
           {materialError && <p className="material-error"><AlertCircle size={15} /> {materialError}</p>}
-          {sourceChoice && !goalContext.hasEnoughContext && <p className="goal-context-warning" role="alert"><AlertCircle size={16} /> {goalContext.message}</p>}
+          {sourceChoice && sourceChoice !== "materials" && !goalContext.hasEnoughContext && (
+            <GoalClarification
+              goal={goal}
+              onClarify={(detail) => setGoal(`${goal.trim().replace(/[.:]\s*$/, "")}: ${detail}`)}
+              onUseMaterials={() => setSourceChoice("materials")}
+            />
+          )}
           <footer className="plan-actions"><button className="button ghost" onClick={() => setStep("setup")}><ArrowLeft size={17} /> Back</button><button className="button primary" disabled={!sourceChoice || !goalContext.hasEnoughContext || processingMaterials || Boolean(removingMaterialId) || (sourceChoice === "materials" && materials.length === 0)} onClick={() => void generateSession()}>Build and start session <ArrowRight size={17} /></button></footer>
         </section>
       )}

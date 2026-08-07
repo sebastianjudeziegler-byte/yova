@@ -14,6 +14,7 @@ import {
   Upload,
 } from "lucide-react";
 import { BrandMark } from "@/components/brand-mark";
+import { GoalClarification } from "@/components/goal-clarification";
 import type { LearningMaterial, LearningPlan } from "@/lib/domain";
 import { deleteUploadedMaterial, uploadMaterialFiles } from "@/lib/materials/intake";
 import { reportProductError } from "@/lib/monitoring/client";
@@ -210,7 +211,13 @@ export function PlanCreator({ onExit, onFinish, profileSummary }: { onExit: () =
           </div>}
           {materialNotice && <p className="material-notice"><AlertCircle size={15} /> {materialNotice}</p>}
           {materialError && <p className="material-error"><AlertCircle size={15} /> {materialError}</p>}
-          {sourceChoice && !goalContext.hasEnoughContext && <p className="goal-context-warning" role="alert"><AlertCircle size={16} /> {goalContext.message}</p>}
+          {sourceChoice && sourceChoice !== "materials" && !goalContext.hasEnoughContext && (
+            <GoalClarification
+              goal={goal}
+              onClarify={(detail) => setGoal(`${goal.trim().replace(/[.:]\s*$/, "")}: ${detail}`)}
+              onUseMaterials={() => setSourceChoice("materials")}
+            />
+          )}
           <PlanActions onBack={back} onNext={() => { if (!deadlineDate) setDeadlineDate(deadlineDateFromGoal(goal)); setStep("schedule"); }} nextDisabled={!sourceChoice || !goalContext.hasEnoughContext || processingMaterials || Boolean(removingMaterialId) || (sourceChoice === "materials" && materials.length === 0)} />
         </PlanPanel>
       )}

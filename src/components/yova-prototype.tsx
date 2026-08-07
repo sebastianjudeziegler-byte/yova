@@ -68,6 +68,7 @@ import {
   getMethodPhasePresentation,
   methodPhasePosition,
 } from "@/lib/learning/method-phase-presentation";
+import { buildFallbackMethodBriefing } from "@/lib/learning/fallback-method-briefing";
 import {
   buildScaffoldProgressionSignals,
   buildSessionSupportPlan,
@@ -541,7 +542,14 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
         })),
         learningMode: requestedSession.learningMode,
       });
-      const fallbackResource = { ...reusableResourceFromLessonSteps(fallbackSteps, requestedSession.methodReason), supportPlan: fallbackSupportPlan };
+      const fallbackCoverage = fallbackCoverageFor(requestedSession, fallbackSteps);
+      const fallbackMethodBriefing = buildFallbackMethodBriefing(requestedPlan, requestedSession);
+      const fallbackResource = {
+        ...reusableResourceFromLessonSteps(fallbackSteps, requestedSession.methodReason),
+        coverage: fallbackCoverage,
+        methodBriefing: fallbackMethodBriefing,
+        supportPlan: fallbackSupportPlan,
+      };
       setPlans((current) => current.map((plan) => plan.id !== requestedPlan.id ? plan : {
         ...plan,
         sessions: plan.sessions.map((session) => session.id === requestedSession.id
@@ -552,8 +560,8 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
       setGeneratedLessonSteps(restoredLesson.steps);
       setSessionStep(restoredLesson.step);
       setSessionRationale(requestedSession.methodReason);
-      setSessionCoverage(fallbackCoverageFor(requestedSession, fallbackSteps));
-      setSessionMethodBriefing(null);
+      setSessionCoverage(fallbackCoverage);
+      setSessionMethodBriefing(fallbackMethodBriefing);
       setSessionSupportPlan(fallbackSupportPlan);
       setSessionSourceGrounding(null);
       setSessionGenerationIssue(`${message} A safe built-in session was loaded instead.`);
@@ -2283,7 +2291,7 @@ function SessionGuidePanel({ session, coverage, steps, step, methodBriefing, sup
     <details className="session-guide-details"><summary>Why this plan and method</summary>{methodBriefing && <div className="session-guide-explanation"><strong>What you are doing</strong><p>{methodBriefing.what}</p><strong>Why it fits</strong><p>{methodBriefing.why}</p>{rationale && <p>{rationale}</p>}<strong>How to use it</strong><ol>{methodBriefing.how.map((instruction) => <li key={instruction}>{instruction}</li>)}</ol></div>}<MethodRoadmap steps={steps} />{supportPlan && <SupportProgressionCard plan={supportPlan} />}</details>
     <details className="session-guide-details"><summary>Content and sources</summary><div className="session-guide-lists"><strong>In this session</strong><ul>{ideas.map((item, index) => <li key={`${index}-${item}`}>{item}</li>)}</ul>{coverage?.evidenceMap.length ? <><strong>How completion is checked</strong><ul>{coverage.evidenceMap.map((mapping) => <li key={`${mapping.essentialIdea}-${mapping.activityConcept}`}>{mapping.essentialIdea}: checked through {mapping.activityConcept}</li>)}</ul></> : null}{coverage?.deferredContent.length ? <><strong>Saved for later</strong><ul>{coverage.deferredContent.map((item, index) => <li key={`${index}-${item}`}>{item}</li>)}</ul></> : null}</div>{sourceGrounding && <SourceGroundingCard grounding={sourceGrounding} />}</details>
   </>;
-  return <aside className="session-guide"><div className="session-guide-desktop">{guide}</div><details className="session-guide-mobile"><summary><span><strong>Session path</strong><small>Step {step + 1} of {steps.length} · {roadmap.length} learning phases</small></span><ChevronRight size={17} /></summary><div>{guide}</div></details></aside>;
+  return <aside className="session-guide"><div className="session-guide-desktop">{guide}</div><details className="session-guide-mobile"><summary><span><strong>{methodBriefing?.name ?? "Session path"}</strong><small>Step {step + 1} of {steps.length} · {roadmap.length} learning phases</small></span><ChevronRight size={17} /></summary><div>{guide}</div></details></aside>;
 }
 
 function TeachingLessonCard({ teaching }: { teaching: NonNullable<LessonStep["teaching"]> }) {

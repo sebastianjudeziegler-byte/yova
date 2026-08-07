@@ -98,7 +98,10 @@ const METHODS = [
 ] as const;
 
 export function generatePreviewPlan(request: PlanGenerationRequest): LearningPlan {
-  const subject = SUBJECTS.find(({ matches }) => matches.test(request.goal))?.subject ?? DEFAULT_SUBJECT;
+  const subject = SUBJECTS.find(({ matches }) => matches.test(request.goal))?.subject ?? {
+    ...DEFAULT_SUBJECT,
+    topic: request.goal.trim(),
+  };
   const deadline = request.deadline ? new Date(request.deadline) : inferDeadline(request.goal);
   const targetMinutes = request.availability[0]?.minutes ?? 25;
   const sessionBlueprints = request.intent === "study_now"
@@ -123,8 +126,8 @@ export function generatePreviewPlan(request: PlanGenerationRequest): LearningPla
       return {
         title: blueprint.title,
         objective: blueprint.objective,
-        method: METHODS[blueprint.phaseIndex],
-        methodReason: reasonFor(blueprint.phaseIndex, request),
+        method: request.studyMode === "outside" ? outsideMethodFor(request.goal) : METHODS[blueprint.phaseIndex],
+        methodReason: request.studyMode === "outside" ? outsideMethodReason(request.goal) : reasonFor(blueprint.phaseIndex, request),
         scheduledFor: scheduledDate(index, sessionBlueprints.length, availability.window, deadline).toISOString(),
         estimatedMinutes: minutes,
         amountLabel: `${blueprint.contentTargets.length} focused ${blueprint.contentTargets.length === 1 ? "target" : "targets"} + evidence check · about ${minutes} min`,
@@ -139,6 +142,21 @@ export function generatePreviewPlan(request: PlanGenerationRequest): LearningPla
 }
 
 function previewBlueprint(subject: PreviewSubject, request: PlanGenerationRequest, phaseIndex: number, partIndex: number, partCount: number, minutes: number) {
+  if (request.studyMode === "outside") {
+    const partLabel = partCount > 1 ? ` · Part ${partIndex + 1} of ${partCount}` : "";
+    return {
+      phaseIndex,
+      minutes,
+      title: `${request.intent === "study_now" ? "Work through your source" : subject.sessionTitles[phaseIndex]}${partLabel}`,
+      objective: `Use your chosen source to make concrete progress on “${request.goal.trim()},” then return to YOVA with evidence of what you produced or understood.`,
+      contentTargets: [subject.topic],
+      completionEvidence: [
+        "Complete the assigned action using the outside source",
+        "Return to YOVA and explain the result, decision, or remaining gap without copying the source",
+      ],
+    };
+  }
+
   const title = request.intent === "study_now" ? studyNowTitle(subject) : subject.sessionTitles[phaseIndex];
   const targets = contentTargetsFor(phaseIndex, subject.topic);
   const distributedTargets = targets.filter((_, index) => index % partCount === partIndex);
@@ -154,6 +172,26 @@ function previewBlueprint(subject: PreviewSubject, request: PlanGenerationReques
     contentTargets,
     completionEvidence: completionEvidenceFor(phaseIndex, contentTargets),
   };
+}
+
+function outsideMethodFor(goal: string) {
+  if (/essay|thesis|argument|draft|writing|evidence/i.test(goal)) return "Retrieval-based outlining";
+  if (/calculus|math|algebra|equation|problem|solve|physics|chemistry/i.test(goal)) return "Worked example fading";
+  if (/read|chapter|article|textbook/i.test(goal)) return "Read, recall, and review";
+  return "Active retrieval with a source check";
+}
+
+function outsideMethodReason(goal: string) {
+  if (/essay|thesis|argument|draft|writing|evidence/i.test(goal)) {
+    return "A source-grounded outline turns the outside reading into claims and evidence before drafting, while keeping the factual content in the learner’s own materials.";
+  }
+  if (/calculus|math|algebra|equation|problem|solve|physics|chemistry/i.test(goal)) {
+    return "One worked example from the learner’s source provides a model, then support should fade before an independent problem.";
+  }
+  if (/read|chapter|article|textbook/i.test(goal)) {
+    return "Short reading segments followed by closed-source recall produce evidence of understanding without asking YOVA to replace the source.";
+  }
+  return "The learner should attempt the target from the trusted source, close it, and then produce evidence of what remains available without support.";
 }
 
 function contentTargetsFor(index: number, topic: string) {

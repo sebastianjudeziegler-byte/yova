@@ -171,13 +171,12 @@ test("an opaque class label is stopped until the learner names the actual calcul
   await page.getByRole("button", { name: /Choose how YOVA should help/ }).click();
   await page.getByRole("button", { name: /Create it for me/ }).click();
 
-  await expect(page.getByText(/YOVA does not know what your class includes/)).toBeVisible();
+  await expect(page.getByRole("heading", { name: "What topics or skills does this actually cover?" })).toBeVisible();
   await expect(page.getByRole("button", { name: /Build and start session/ })).toBeDisabled();
-
-  await page.getByRole("button", { name: "Back" }).click();
-  await goalInput.fill("Help me learn the product rule in calculus");
-  await page.getByRole("button", { name: /Choose how YOVA should help/ }).click();
-  await page.getByRole("button", { name: /Create it for me/ }).click();
+  await page.getByRole("button", { name: "Product rule", exact: true }).click();
+  await page.getByRole("button", { name: /Use this topic/ }).click();
+  await expect(page.getByText("Start Calc Unit 3: Product rule", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: /Build and start session/ })).toBeEnabled();
   await page.getByRole("button", { name: /Build and start session/ }).click();
 
   await expect(page.getByRole("heading", { name: "Recall the product-rule structure" })).toBeVisible();
@@ -204,6 +203,49 @@ test("a failed unknown-topic lesson stops instead of showing generic learning-me
   await expect(page.getByText(/stopped instead of substituting generic content/i)).toBeVisible();
   await expect(page.getByText("See the structure before trying it alone", { exact: true })).not.toBeVisible();
   await expect(page.getByRole("heading", { name: "What should happen after an initial explanation?" })).not.toBeVisible();
+});
+
+test("outside study gives a concrete source-based session instead of pretending YOVA owns the content", async ({ page }) => {
+  await createPreviewAccount(page);
+  await completeOnboarding(page);
+
+  await page.getByRole("button", { name: "Study something now", exact: true }).first().click();
+  await page.getByPlaceholder("Example: Help me understand the product rule and practice using it.").fill(
+    "Draft a comparative history thesis using my textbook evidence",
+  );
+  await page.getByRole("button", { name: /Choose how YOVA should help/ }).click();
+  await page.getByRole("button", { name: /Guide me outside YOVA/ }).click();
+  await page.getByRole("button", { name: /Build and start session/ }).click();
+
+  await expect(page.getByRole("heading", { name: "Prepare your outside study block" })).toBeVisible();
+  await expect(page.getByText(/Open the material you use for Draft a comparative history thesis using my textbook evidence\. Keep only that source and a place to work visible/i)).toBeVisible();
+  await expect(page.locator("strong:visible").filter({ hasText: /^Retrieval-based outlining$/ })).toBeVisible();
+});
+
+test("the backend rejects an opaque goal even when the browser guard is bypassed", async ({ request }) => {
+  const response = await request.post("/api/plans/generate", {
+    data: {
+      intent: "study_now",
+      learningIntent: "learn",
+      goal: "Start Calc Unit 3",
+      materialMode: "none",
+      materials: [],
+      studyMode: "inside",
+      deadline: null,
+      timeZone: "America/Los_Angeles",
+      diagnosticResponses: [{
+        question: "Where are you starting?",
+        answer: "I have not learned this yet",
+        evaluation: "self_report",
+      }],
+      availability: [{ day: "Today", window: "Now", minutes: 15 }],
+      profileSummary: "The learner wants a short, clearly structured session.",
+    },
+  });
+  const body = await response.json();
+
+  expect(response.status()).toBe(422);
+  expect(body.code).toBe("goal_needs_detail");
 });
 
 test("a learner can stop twice without losing progress or earlier evidence", async ({ page }) => {
@@ -295,6 +337,10 @@ test("a multi-session plan uses one clear source decision from setup to Learning
   await page.getByRole("button", { name: "Continue" }).click();
 
   await expect(page.getByRole("heading", { name: "When can you realistically study?" })).toBeVisible();
+  const enabledMinuteSelectors = page.locator("select[aria-label$='available minutes']:not([disabled])");
+  for (let index = 0; index < await enabledMinuteSelectors.count(); index += 1) {
+    await enabledMinuteSelectors.nth(index).selectOption("45");
+  }
   await page.getByRole("button", { name: "Continue" }).click();
 
   await page.getByRole("button", { name: "Produce ATP" }).click();
@@ -312,6 +358,19 @@ test("a multi-session plan uses one clear source decision from setup to Learning
   await page.getByRole("button", { name: "Go to Learning" }).click();
   await expect(page.getByRole("heading", { name: "Your plan" })).toBeVisible();
   await expect(page.getByText("Created by YOVA", { exact: true })).toBeVisible();
+
+  const initialSessionCount = await page.locator(".timeline-row").count();
+  expect(initialSessionCount).toBeGreaterThan(0);
+  await page.getByRole("button", { name: "Adjust", exact: true }).click();
+  await expect(page.getByText(/Shorter windows can create more sessions/)).toBeVisible();
+  await page.getByRole("combobox", { name: /Future session window/ }).selectOption("15");
+  await page.getByRole("button", { name: "Rebuild unfinished plan" }).click();
+
+  await expect.poll(async () => page.locator(".timeline-row").count()).toBeGreaterThan(initialSessionCount);
+  const adjustedDurations = await page.locator(".timeline-row > span:last-child").allTextContents();
+  expect(adjustedDurations.length).toBeGreaterThan(initialSessionCount);
+  expect(adjustedDurations.every((duration) => Number.parseInt(duration, 10) <= 15)).toBe(true);
+  await expect(page.getByText(/sessions complete/).first()).toBeVisible();
 });
 
 async function createPreviewAccount(page: Page) {
