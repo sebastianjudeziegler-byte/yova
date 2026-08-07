@@ -108,7 +108,7 @@ export const SessionMethodBriefingSchema = z.object({
   why: z.string().trim().min(20).max(500),
   how: z.array(z.string().trim().min(8).max(240)).min(2).max(5),
   completion: z.string().trim().min(15).max(300),
-  personalization: z.array(z.string().trim().min(10).max(280)).max(3),
+  personalization: z.array(z.string().trim().min(20).max(280)).min(1).max(3),
 });
 
 export const SessionCoverageSchema = z.object({
@@ -178,9 +178,6 @@ export const GeneratedSessionActivitySchema = z.object({
   }
   if (activity.methodPhase === "model" && !activity.teaching) {
     context.addIssue({ code: "custom", path: ["teaching"], message: "Model activities need a structured teaching block." });
-  }
-  if (activity.type !== "instruction" && activity.teaching) {
-    context.addIssue({ code: "custom", path: ["teaching"], message: "Only instruction activities can contain teaching blocks." });
   }
 });
 

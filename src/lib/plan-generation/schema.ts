@@ -107,7 +107,7 @@ export const LearningPlanSchema = z.object({
 export const PlanGenerationResponseSchema = z.object({
   plan: LearningPlanSchema,
   generation: z.object({
-    mode: z.enum(["preview", "openai"]),
+    mode: z.enum(["preview", "openai", "system"]),
     model: z.string().nullable(),
     notice: z.string().nullable(),
     requestId: z.string().min(1),

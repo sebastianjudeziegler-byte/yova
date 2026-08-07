@@ -13,6 +13,25 @@ const completedSession: LearningPlanSession = {
   estimatedMinutes: 25,
   amountLabel: "3 checks · about 25 min",
   learningMode: "study",
+  resource: {
+    rationale: "A prior practice session checked one bounded relationship.",
+    activities: [{
+      methodPhase: "independent_practice",
+      estimatedMinutes: 3,
+      requiredForCompletion: true,
+      type: "multiple_choice",
+      concept: "Cellular respiration sequence",
+      label: "Check",
+      title: "Trace energy through the three stages",
+      body: "Glycolysis occurs in the cytosol, the citric acid cycle in the matrix, and oxidative phosphorylation at the inner mitochondrial membrane. Which order is correct?",
+      teaching: null,
+      choices: ["Cytosol, matrix, inner membrane", "Matrix, cytosol, inner membrane", "Inner membrane, matrix, cytosol"],
+      correctAnswer: "Cytosol, matrix, inner membrane",
+      feedback: "The pathway moves from glycolysis in the cytosol to the matrix and then to the inner membrane.",
+    }],
+    generatedAt: "2026-08-05T15:55:00.000Z",
+    origin: "generated",
+  },
   status: "ready",
 };
 
@@ -50,6 +69,8 @@ describe("buildDelayedVerificationSession", () => {
     });
     expect(result?.scheduledFor).toBe("2026-08-06T16:25:00.000Z");
     expect(result?.adaptationNote?.explanation).toContain("delayed retrieval");
+    expect(result?.objective).toContain("self-contained questions");
+    expect(result?.methodReason).toContain("Glycolysis occurs in the cytosol");
   });
 
   it("keeps a confident-miss return short while preserving the repair signal", () => {

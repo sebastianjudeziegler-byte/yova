@@ -74,7 +74,7 @@ console.log(`YOVA ${production ? "production" : "local"} readiness`);
 for (const check of checks) {
   console.log(`${check.passed ? "PASS" : "FAIL"}  ${check.name}: ${check.detail}`);
 }
-console.log(`Models: plan=${process.env.OPENAI_PLAN_MODEL?.trim() || "gpt-5.6"}, session=${process.env.OPENAI_SESSION_MODEL?.trim() || "same as plan"}, tutor=${process.env.OPENAI_TUTOR_MODEL?.trim() || "same as plan"}`);
+console.log(`Models: plan=${process.env.OPENAI_PLAN_MODEL?.trim() || "gpt-5.6"}, session=${process.env.OPENAI_SESSION_MODEL?.trim() || "gpt-5.4-mini"}, tutor=${process.env.OPENAI_TUTOR_MODEL?.trim() || "same as plan"}`);
 
 if (failed.length) {
   console.error(`${failed.length} required readiness ${failed.length === 1 ? "check needs" : "checks need"} attention.`);

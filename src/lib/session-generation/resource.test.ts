@@ -31,7 +31,7 @@ const generatedSession: SessionGenerationResponse["session"] = {
     why: "This creates objective evidence of what is available without support before the learner reviews the idea.",
     how: ["Hide the explanation and attempt the answer.", "Compare, repair the gap, and retry it later."],
     completion: "The answer has been attempted from memory and every missing idea has been marked for review.",
-    personalization: [],
+    personalization: ["You asked for concrete examples before rules, so the session begins with one complete example."],
   },
   deliveryPolicy: {
     schemaVersion: 1,

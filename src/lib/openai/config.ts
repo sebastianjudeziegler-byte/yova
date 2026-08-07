@@ -43,7 +43,9 @@ export function getOpenAISessionConfig(): OpenAISessionConfig | null {
 
   return {
     apiKey: planConfig.apiKey,
-    model: process.env.OPENAI_SESSION_MODEL?.trim() || planConfig.model,
+    // Plans benefit from deeper deliberation. A guided session is a bounded,
+    // schema-constrained workload that must feel immediate in the product.
+    model: process.env.OPENAI_SESSION_MODEL?.trim() || "gpt-5.4-mini",
   };
 }
 

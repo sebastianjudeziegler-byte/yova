@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { validateSessionCompletionContract } from "@/lib/session-generation/completion-contract";
+import {
+  reconcileSessionCompletionMap,
+  validateSessionCompletionContract,
+} from "@/lib/session-generation/completion-contract";
 
 const activities = [
   { type: "instruction" as const, concept: null, requiredForCompletion: true },
@@ -17,6 +20,38 @@ describe("session completion contract", () => {
       ],
       activities,
     })).toBeNull();
+  });
+
+  it("accepts one unambiguous longer version of the same concept label", () => {
+    expect(validateSessionCompletionContract({
+      essentialIdeas: ["Equity funding can dilute founder ownership"],
+      evidenceMap: [{
+        essentialIdea: "Equity funding can dilute founder ownership",
+        activityConcept: "Dilution",
+      }],
+      activities: [{
+        type: "multiple_choice",
+        concept: "Equity dilution",
+        requiredForCompletion: true,
+      }],
+    })).toBeNull();
+  });
+
+  it("reconciles a uniquely related model label to the question's stored concept", () => {
+    const reconciled = reconcileSessionCompletionMap({
+      coverage: {
+        evidenceMap: [{
+          essentialIdea: "Investment terms determine who gets what and under which conditions",
+          activityConcept: "Term sheets",
+        }],
+      },
+      activities: [
+        { type: "multiple_choice" as const, concept: "Funding stages", requiredForCompletion: true },
+        { type: "multiple_choice" as const, concept: "Investment terms", requiredForCompletion: true },
+      ],
+    });
+
+    expect(reconciled.coverage.evidenceMap[0].activityConcept).toBe("Investment terms");
   });
 
   it("rejects an essential idea that is only stated but never checked", () => {

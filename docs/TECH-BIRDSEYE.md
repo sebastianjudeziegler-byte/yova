@@ -98,6 +98,8 @@ When YOVA first builds a guided session, it already saves that structured sessio
 
 This avoids a second OpenAI call and avoids creating a disconnected copy of the content. If the user changes the future session setup or adds new source material, YOVA clears the affected cached pack so outdated practice is not presented as current.
 
+The same rule now applies to learner-profile changes. YOVA compares the saved profile with the incoming profile before clearing anything. A real change to explanation preferences, session range, blockers, or deeper learning context clears only unfinished cached lessons. An identical profile sync after sign-in leaves the cache intact, while completed attempts remain untouched.
+
 ## 7. Material handling
 
 Authenticated users may upload PDF, TXT, and Markdown files, import a public article, or attach the transcript of a YouTube video. YOVA:
@@ -208,7 +210,7 @@ This is why pushing to GitHub does not automatically make `localhost:3000` avail
 - **Production smoke test:** checks the deployed system with its real configuration.
 - **AI quality evaluation:** scores real generated plans against product-specific learning, timing, safety, and personalization criteria.
 
-YOVA currently has 277 passing unit tests, thirteen foundational browser journeys exercised at both desktop and phone-sized viewports for 26 passing browser runs, and opt-in live OpenAI evaluations for plans, sessions, and typed-answer judgment. The live evaluations consume API credits, so ordinary builds never trigger them. Real authenticated production journeys and broader human output review remain launch work.
+YOVA currently has 287 passing unit tests, thirteen foundational browser journeys exercised at both desktop and phone-sized viewports for 26 passing browser runs, and opt-in live OpenAI evaluations for plans, sessions, and typed-answer judgment. The live evaluations consume API credits, so ordinary builds never trigger them. Real authenticated production journeys and broader human output review remain launch work.
 
 ## 13. The next technical systems
 

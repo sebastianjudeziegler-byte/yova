@@ -75,7 +75,7 @@ Copy `.env.example` to `.env.local` and configure:
 - `AUTH_EMAIL_CODE_VERIFICATION`: enables the 6-digit email-code form after custom SMTP and the matching Supabase email template are configured
 - `OPENAI_API_KEY`: server-only OpenAI credential
 - `OPENAI_PLAN_MODEL`: primary structured-generation model
-- `OPENAI_SESSION_MODEL`: optional guided-session override
+- `OPENAI_SESSION_MODEL`: optional guided-session override; defaults to the faster `gpt-5.4-mini`
 - `OPENAI_TUTOR_MODEL`: optional tutor override
 - `SITE_URL`: canonical public origin for production metadata and auth redirects
 

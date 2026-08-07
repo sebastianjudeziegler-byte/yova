@@ -20,6 +20,10 @@ export function buildDelayedVerificationSession(
   const explanation = needsMisconceptionRepair
     ? `YOVA scheduled a delayed check because ${gap} included a high-confidence miss. The next attempt will rebuild the idea briefly, then use a different application.`
     : `YOVA scheduled a delayed retrieval check for ${gap}. The original miss remains review evidence until it holds up after time has passed.`;
+  const sourceContext = reviewSourceContext(completedSession, gap);
+  const contextDirection = sourceContext
+    ? ` Use this original task context to write new, self-contained questions: ${sourceContext}`
+    : " Every new question must restate all facts, values, or definitions the learner needs.";
 
   return {
     id: makeUuid(),
@@ -29,11 +33,11 @@ export function buildDelayedVerificationSession(
       : `Verify ${gap} after a delay`,
     objective: needsMisconceptionRepair
       ? `Rebuild the idea behind ${gap}, distinguish it from the tempting wrong model, and verify it with a different application.`
-      : `Retrieve ${gap} without reopening the prior answer, then apply it once in a new context.`,
+      : `Answer three self-contained questions about ${gap} after time has passed, then repair any part that no longer holds.`,
     method: needsMisconceptionRepair
       ? "Misconception repair and delayed transfer"
       : "Spaced retrieval and error repair",
-    methodReason: explanation,
+    methodReason: `${explanation}${contextDirection}`.slice(0, 900),
     scheduledFor: scheduledFor.toISOString(),
     estimatedMinutes: 10,
     amountLabel: "Delayed verification · about 10 min",
@@ -43,6 +47,24 @@ export function buildDelayedVerificationSession(
     reviewType: needsMisconceptionRepair ? "repair_and_retrieve" : "verify",
     status: "ready",
   };
+}
+
+function reviewSourceContext(session: LearningPlanSession, gap: string) {
+  const questions = session.resource?.activities.filter((activity) => (
+    activity.type === "multiple_choice" || activity.type === "free_response"
+  )) ?? [];
+  const normalizedGap = gap.toLocaleLowerCase();
+  const matchingQuestion = questions.find((activity) => {
+    const concept = activity.concept?.trim().toLocaleLowerCase();
+    return concept && (
+      concept === normalizedGap
+      || concept.includes(normalizedGap)
+      || normalizedGap.includes(concept)
+    );
+  }) ?? questions[0];
+  if (!matchingQuestion) return null;
+
+  return `${matchingQuestion.title}. ${matchingQuestion.body}`.replace(/\s+/g, " ").trim().slice(0, 420);
 }
 
 function conciseGap(value: string) {

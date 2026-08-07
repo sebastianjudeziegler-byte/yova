@@ -11,9 +11,30 @@ type PreviewSubject = {
   topic: string;
   kind: GeneratedPlanDraft["kind"];
   sessionTitles: [string, string, string, string, string];
+  focusedTargets?: string[];
 };
 
 const SUBJECTS: Array<{ matches: RegExp; subject: PreviewSubject }> = [
+  {
+    matches: /startup.*fund|funding.*startup|term sheets?|dilution.*investor/i,
+    subject: {
+      title: "Startup Funding Foundations",
+      topic: "Startup funding stages, investors, instruments, dilution, and term sheets",
+      kind: "topic",
+      sessionTitles: [
+        "Build the startup funding map",
+        "Compare funding instruments",
+        "Reason about dilution",
+        "Read a simple term sheet",
+        "Connect the full funding decision",
+      ],
+      focusedTargets: [
+        "How funding stages and investor types connect",
+        "How common funding instruments change ownership or repayment",
+        "How dilution and term-sheet terms affect founders and investors",
+      ],
+    },
+  },
   {
     matches: /product rule/i,
     subject: {
@@ -126,8 +147,16 @@ export function generatePreviewPlan(request: PlanGenerationRequest): LearningPla
       return {
         title: blueprint.title,
         objective: blueprint.objective,
-        method: request.studyMode === "outside" ? outsideMethodFor(request.goal) : METHODS[blueprint.phaseIndex],
-        methodReason: request.studyMode === "outside" ? outsideMethodReason(request.goal) : reasonFor(blueprint.phaseIndex, request),
+        method: request.studyMode === "outside"
+          ? outsideMethodFor(request.goal)
+          : request.intent === "study_now" && request.learningIntent === "learn"
+            ? "Self-explanation with worked example fading"
+            : METHODS[blueprint.phaseIndex],
+        methodReason: request.studyMode === "outside"
+          ? outsideMethodReason(request.goal)
+          : request.intent === "study_now" && request.learningIntent === "learn"
+            ? "The learner has not built this foundation yet, so YOVA should explain the overall model, walk through one concrete example, and then reduce support for a short understanding check."
+            : reasonFor(blueprint.phaseIndex, request),
         scheduledFor: scheduledDate(index, sessionBlueprints.length, availability.window, deadline).toISOString(),
         estimatedMinutes: minutes,
         amountLabel: `${blueprint.contentTargets.length} focused ${blueprint.contentTargets.length === 1 ? "target" : "targets"} + evidence check · about ${minutes} min`,
@@ -157,7 +186,30 @@ function previewBlueprint(subject: PreviewSubject, request: PlanGenerationReques
     };
   }
 
-  const title = request.intent === "study_now" ? studyNowTitle(subject) : subject.sessionTitles[phaseIndex];
+  if (request.intent === "study_now") {
+    const contentTargets = subject.focusedTargets ?? [subject.topic];
+    const learningFirst = request.learningIntent === "learn";
+    return {
+      phaseIndex: 0,
+      minutes,
+      title: studyNowTitle(subject),
+      objective: learningFirst
+        ? `Build a clear first mental model of ${subject.topic}, work through one concrete example, and then explain the central relationships without the model visible.`
+        : `Retrieve and apply the main ideas in ${subject.topic} without notes, then repair only the gaps the attempt reveals.`,
+      contentTargets,
+      completionEvidence: learningFirst
+        ? [
+            "Explain the central relationships in plain language after the model is hidden",
+            "Complete one short application or distinction check with reduced support",
+          ]
+        : [
+            "Attempt each target without notes before viewing feedback",
+            "Correct the exposed gap and complete one new check without support",
+          ],
+    };
+  }
+
+  const title = subject.sessionTitles[phaseIndex];
   const targets = contentTargetsFor(phaseIndex, subject.topic);
   const distributedTargets = targets.filter((_, index) => index % partCount === partIndex);
   const contentTargets = distributedTargets.length ? distributedTargets : [`The next bounded part of ${targets[Math.min(partIndex, targets.length - 1)]}`];

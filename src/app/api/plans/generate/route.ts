@@ -107,6 +107,29 @@ export async function POST(request: Request) {
     };
   }
 
+  // A one-off session does not need an AI-generated multi-day plan. The
+  // deterministic router can define its target and learning approach
+  // immediately; the session generator still creates the subject teaching,
+  // examples, and checks that follow.
+  if (planRequest.intent === "study_now") {
+    const focusedPlan = generatePreviewPlan(planRequest);
+    const response = PlanGenerationResponseSchema.parse({
+      plan: focusedPlan,
+      generation: {
+        mode: "system",
+        model: null,
+        notice: null,
+        requestId,
+        durationMs: Date.now() - startedAt,
+        persistence: "draft",
+      },
+    });
+
+    return NextResponse.json(response, {
+      headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId },
+    });
+  }
+
   if (isOpenAIPlanConfigured()) {
     const rateLimit = checkPlanGenerationRateLimit(`${user?.id ?? "preview"}:${requestRateLimitKey(request)}`);
     if (!rateLimit.allowed) {

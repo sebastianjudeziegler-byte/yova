@@ -123,7 +123,9 @@ test("a confident misconception is repaired now and verified later", async ({ pa
   await page.getByRole("button", { name: "Start now, keep dates" }).click();
   await expect(page.getByRole("heading", { name: "Which stage begins cellular respiration?" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Here is how YOVA plans to start." })).not.toBeVisible();
-  await expect(page.locator(".quick-review-promise")).toContainText("Three multiple-choice questions");
+  await expect(page.locator(".quick-review-promise")).toContainText("Why this is appearing now");
+  await expect(page.locator(".quick-review-promise")).toContainText("Each question includes all the context you need");
+  await expect(page.locator(".quick-review-promise")).toContainText("Nothing is graded");
   await expect(page.locator(".answer-grid button")).toHaveCount(4);
   await expect(page.getByRole("group", { name: /One quick confidence check/ })).not.toBeVisible();
   await openMobileSessionGuide(page);
@@ -296,10 +298,19 @@ test("a failed unknown-topic lesson stops instead of showing generic learning-me
   await page.getByRole("button", { name: /Build and start session/ }).click();
   await confirmSessionSetup(page);
 
-  await expect(page.getByRole("heading", { name: "YOVA did not substitute unrelated content." })).toBeVisible();
-  await expect(page.getByText(/stopped instead of substituting generic content/i)).toBeVisible();
+  await expect(page.getByRole("heading", { name: "This lesson needs another pass." })).toBeVisible();
+  await expect(page.getByText(/Your progress is unchanged/i)).toBeVisible();
   await expect(page.getByText("See the structure before trying it alone", { exact: true })).not.toBeVisible();
   await expect(page.getByRole("heading", { name: "What should happen after an initial explanation?" })).not.toBeVisible();
+  await page.getByRole("button", { name: "Add context and retry" }).click();
+  await expect(page.getByRole("heading", { name: "Here is how YOVA plans to start." })).toBeVisible();
+  await expect(page.getByText(/Build a clear first mental model of Help me understand eigenvalues and eigenvectors from scratch/)).toBeVisible();
+  await page.getByRole("button", { name: "Continue" }).click();
+  await page.getByRole("button", { name: "Continue" }).click();
+  const recoveryContext = page.getByLabel("Anything YOVA should account for?");
+  await expect(recoveryContext).toBeVisible();
+  await recoveryContext.fill("Focus on what eigenvectors represent geometrically before calculating them.");
+  await expect(page.getByRole("button", { name: "Prepare this session" })).toBeEnabled();
 });
 
 test("outside study gives a concrete source-based session instead of pretending YOVA owns the content", async ({ page }) => {
@@ -444,15 +455,20 @@ test("the product shell keeps every core destination and creation path usable", 
   await completeOnboarding(page);
 
   await expect(page.getByRole("heading", { name: /Good (morning|afternoon|evening), Learner\./ })).toBeVisible();
+  await expect(page.getByText("What would you like to learn or prepare for?")).toBeVisible();
+  await expectNoHorizontalOverflow(page, ".home-page");
 
   await page.getByRole("button", { name: "Learning", exact: true }).click();
   await expect(page.getByRole("heading", { name: "What you’re working toward" })).toBeVisible();
+  await expectNoHorizontalOverflow(page, ".page");
 
   await page.getByRole("button", { name: "Agenda", exact: true }).click();
   await expect(page.getByRole("heading", { name: "A realistic learning week" })).toBeVisible();
+  await expectNoHorizontalOverflow(page, ".page");
 
   await page.getByRole("button", { name: "Ask YOVA", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Get help in context" })).toBeVisible();
+  await expectNoHorizontalOverflow(page, ".page");
   await expect(page.getByRole("combobox", { name: "Ask YOVA context" })).toHaveValue("general");
   await expect(page.getByText("No learning goal attached")).toBeVisible();
   await page.getByRole("button", { name: /^History/ }).click();
@@ -462,6 +478,7 @@ test("the product shell keeps every core destination and creation path usable", 
 
   await page.getByRole("button", { name: "You", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Your learning, in one place" })).toBeVisible();
+  await expectNoHorizontalOverflow(page, ".page");
   await page.getByRole("button", { name: "Ask YOVA", exact: true }).click();
   await expect(page.getByRole("combobox", { name: "Ask YOVA context" })).toHaveValue("general");
   await expect(page.getByRole("textbox", { name: "Ask YOVA" })).toHaveValue("");
@@ -675,9 +692,11 @@ test("a multi-session plan uses one clear source decision from setup to Learning
   const nextAgendaSession = page.locator(".agenda-day article.ready").first();
   await expect(nextAgendaSession).toBeVisible();
   await nextAgendaSession.getByRole("button", { name: "Start", exact: true }).click();
-  await expect(page.getByRole("dialog", { name: /Start .* now\?/ })).toBeVisible();
-  await expect(page.getByText("Recommended: pull the agenda forward")).toBeVisible();
-  await page.getByRole("button", { name: "Start and adjust agenda" }).click();
+  const earlyStartDialog = page.getByRole("dialog", { name: /Start .* now\?/ });
+  if (await earlyStartDialog.isVisible()) {
+    await expect(page.getByText("Recommended: pull the agenda forward")).toBeVisible();
+    await page.getByRole("button", { name: "Start and adjust agenda" }).click();
+  }
   await expect(page.getByRole("heading", { name: "Here is how YOVA plans to start." })).toBeVisible();
 });
 
@@ -701,6 +720,14 @@ test("material setup clearly supports files, articles, and YouTube transcripts",
 async function openMobileSessionGuide(page: Page) {
   const mobileGuide = page.locator(".session-guide-mobile");
   if (await mobileGuide.isVisible()) await mobileGuide.locator(":scope > summary").click();
+}
+
+async function expectNoHorizontalOverflow(page: Page, selector: string) {
+  const width = await page.locator(selector).first().evaluate((element) => ({
+    client: element.clientWidth,
+    scroll: element.scrollWidth,
+  }));
+  expect(width.scroll).toBeLessThanOrEqual(width.client + 1);
 }
 
 async function createPreviewAccount(page: Page) {

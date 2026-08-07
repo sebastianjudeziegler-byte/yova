@@ -47,4 +47,50 @@ describe("preview plan time windows", () => {
     expect(plan.sessions[0].objective).toContain("Draft a comparative history thesis");
     expect(plan.sessions[0].objective).not.toContain("Recall the main ideas");
   });
+
+  it("routes a new startup-funding learner into teaching before practice", () => {
+    const request = requestWithMinutes(25);
+    const plan = generatePreviewPlan({
+      ...request,
+      intent: "study_now",
+      goal: "Teach me startup funding stages, instruments, dilution, investors, and term sheets from the beginning.",
+      deadline: null,
+    });
+
+    expect(plan.title).toBe("Startup Funding Foundations");
+    expect(plan.sessions).toHaveLength(1);
+    expect(plan.sessions[0]).toMatchObject({
+      title: "Build the startup funding map",
+      method: "Self-explanation with worked example fading",
+      learningMode: "learn",
+      estimatedMinutes: 25,
+    });
+    expect(plan.sessions[0].objective).toMatch(/first mental model/i);
+    expect(plan.sessions[0].contentTargets).toEqual([
+      "How funding stages and investor types connect",
+      "How common funding instruments change ownership or repayment",
+      "How dilution and term-sheet terms affect founders and investors",
+    ]);
+    expect(plan.sessions[0].completionEvidence).toEqual(expect.arrayContaining([
+      expect.stringMatching(/explain the central relationships/i),
+    ]));
+  });
+
+  it("routes a familiar one-off topic into retrieval before repair", () => {
+    const request = requestWithMinutes(15);
+    const plan = generatePreviewPlan({
+      ...request,
+      intent: "study_now",
+      learningIntent: "study",
+      goal: "Review startup funding stages and test whether I remember the dilution tradeoff.",
+      deadline: null,
+    });
+
+    expect(plan.sessions).toHaveLength(1);
+    expect(plan.sessions[0].method).toBe("Closed-note retrieval");
+    expect(plan.sessions[0].objective).toMatch(/without notes/i);
+    expect(plan.sessions[0].completionEvidence).toEqual(expect.arrayContaining([
+      expect.stringMatching(/attempt each target without notes/i),
+    ]));
+  });
 });

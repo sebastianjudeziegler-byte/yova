@@ -28,7 +28,10 @@ export function polishGeneratedSessionTypography(draft: GeneratedSessionDraft): 
       label: polishActivityLabel(activity.label),
       title: polishLearnerText(activity.title),
       body: polishLearnerText(activity.body),
-      teaching: activity.teaching ? {
+      // Structured output can redundantly repeat the teaching block on later
+      // questions. Keep teaching only on instruction screens so practice never
+      // reveals or duplicates the lesson model.
+      teaching: activity.type === "instruction" && activity.teaching ? {
         keyIdea: polishLearnerText(activity.teaching.keyIdea),
         explanation: polishLearnerText(activity.teaching.explanation),
         example: activity.teaching.example ? {

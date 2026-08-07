@@ -631,7 +631,7 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
         ? subjectSpecificLessonStepsFor(requestedPlan)
         : null;
       if (!fallbackSteps) {
-        setSessionGenerationIssue(`${message} YOVA stopped instead of substituting generic content for ${requestedPlan.topic}.`);
+        setSessionGenerationIssue(message);
         setStage("session-error");
         return;
       }
@@ -1352,7 +1352,18 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
     sessionGenerationAbortRef.current = null;
     setStage("app");
   }} />;
-  if (stage === "session-error") return <SessionGenerationError plan={activePlan} issue={sessionGenerationIssue} onExit={() => setStage("app")} onRetry={() => void startSession(activePlan?.id)} />;
+  if (stage === "session-error") return <SessionGenerationError
+    plan={activePlan}
+    issue={sessionGenerationIssue}
+    onExit={() => setStage("app")}
+    onAdjust={() => {
+      if (!activePlan) return;
+      setPendingSessionPlan(activePlan);
+      setSessionGenerationIssue(null);
+      setStage("session-setup");
+    }}
+    onRetry={() => void startSession(activePlan?.id, activePlan ?? undefined, null)}
+  />;
   if (stage === "session") {
     return (
       <GuidedSession
@@ -1634,7 +1645,81 @@ function HomeScreen({ account, answers, plans, plan, sessionCompletions, session
   const firstName = account?.displayName.split(" ")[0] || "there";
   const now = new Date();
 
-  return <div className="page home-page"><header className="home-header"><div><span className="step-label">{formatHomeDate(now)}</span><h1>{greetingFor(now)}, {firstName}.</h1><p>{plan && readySession ? "Your next learning step is ready." : "What would you like to learn or prepare for?"}</p></div><button className="button secondary" onClick={onCreatePlan}><Plus size={17} /> New plan</button></header>{plan && readySession ? <section className="recommendation-card"><div className="rec-top"><span><Sparkles size={15} /> {resumePoint ? "Continue where you left off" : "Recommended next"}</span><span>{completedCount} of {plan.sessions.length} sessions complete</span></div><div className="rec-body"><div className="rec-copy"><span className="subject-label">{plan.title.toUpperCase()}</span>{readySession.adaptationNote && <span className="adaptation-proof"><Sparkles size={13} /> Adjusted using your last session</span>}<h2>{readySession.title}</h2><div className="meta-row"><span>{readySession.learningMode === "learn" ? <BookOpen size={16} /> : <Target size={16} />}{readySession.learningMode === "learn" ? "Teaching first" : "Practice first"}</span><span><Target size={16} /> {readySession.method}</span><span><Clock3 size={16} /> {readySession.amountLabel}</span>{resumePoint && <span><Check size={16} /> {resumePoint.completedSteps} {resumePoint.completedSteps === 1 ? "section" : "sections"} saved</span>}</div></div><button className="button white large" onClick={onStart}>{resumePoint ? "Continue session" : "Start session"} <ArrowRight size={18} /></button></div><div className="reason-grid"><div><strong>{resumePoint ? "Resume point" : "Why this is next"}</strong><p>{resumePoint ? `YOVA saved your first ${resumePoint.completedSteps} ${resumePoint.completedSteps === 1 ? "section" : "sections"}. You will continue with the next unfinished activity.` : recommendationReason(plan, readySession, now)}</p></div><div><strong>{readySession.adaptationNote ? "What changed" : "How you will study"}</strong><p>{readySession.adaptationNote?.explanation ?? readySession.methodReason}</p></div></div></section> : <section className="empty-home"><div className="empty-home-copy"><span className="eyebrow"><Sparkles size={15} /> Start here</span><h2>Turn any goal into a clear next step.</h2><p>Use your own materials, let YOVA create the content, or get a plan for studying somewhere else.</p></div><div className="empty-home-actions"><button className="button primary large" onClick={onCreatePlan}>Create a learning plan <ArrowRight size={18} /></button><button className="button secondary large" onClick={onStudyNow}>Study something now</button></div></section>}{personalizationRecommendation && <section className="home-personalization-recommendation"><div className="home-personalization-icon"><Sparkles size={18} /></div><div><span>YOVA RECOMMENDS</span><strong>{personalizationRecommendation.title}</strong><p>{personalizationRecommendation.explanation}</p><small>{personalizationRecommendation.evidence}</small></div>{personalizationRecommendation.action === "improve_profile" ? <button onClick={onOpenYou}>{personalizationRecommendation.actionLabel}</button> : personalizationRecommendation.action === "open_learning" && plan ? <button onClick={() => onOpenPlan(plan.id)}>{personalizationRecommendation.actionLabel}</button> : personalizationRecommendation.action === "start_session" ? <button onClick={onStart}>{personalizationRecommendation.actionLabel}</button> : null}</section>}<section className="home-command"><span>Ask YOVA</span><AskBar value={tutorQuestion} onChange={onTutorQuestion} onSubmit={onOpenTutor} /></section><section className="home-section"><div className="section-title"><div><h3>Start something</h3><p>Choose the amount of structure you need.</p></div></div><div className="quick-actions"><button onClick={onCreatePlan}><span className="quick-action-icon"><BookOpen size={19} /></span><span><strong>{plan ? "Create another plan" : "Create a plan"}</strong><small>For a test, course unit, book, or longer goal</small></span><ArrowRight size={17} /></button><button onClick={onStudyNow}><span className="quick-action-icon"><Target size={19} /></span><span><strong>Study something now</strong><small>Build one focused session around what you need today</small></span><ArrowRight size={17} /></button></div></section>{plans.length > 0 && <section className="section-block active-learning-block"><div className="section-title"><div><h3>Your learning</h3><p>Open a goal to see its plan, sources, and progress.</p></div><span>{plans.length} active</span></div><div className="compact-items">{plans.map((item) => { const next = item.sessions.find((session) => session.status === "ready"); const saved = next ? resumableSessionProgress(next.id, sessionInterruptions) : null; return <button className={item.id === plan?.id ? "selected" : ""} key={item.id} onClick={() => onOpenPlan(item.id)}><SubjectIcon plan={item} compact /><span><strong>{item.title}</strong><small>{next ? saved ? `Continue at section ${saved.completedSteps + 1}` : `${next.learningMode === "learn" ? "Teaching first" : "Practice first"} · ${formatSessionTime(next.scheduledFor)}` : "Plan complete"}</small></span><ChevronRight /></button>; })}</div></section>}</div>;
+  const whyNow = resumePoint
+    ? resumePoint.completedSteps === 1
+      ? "Your first section is saved. Continue with the next unfinished activity."
+      : `Your first ${resumePoint.completedSteps} sections are saved. Continue with the next unfinished activity.`
+    : plan && readySession
+      ? recommendationReason(plan, readySession, now)
+      : null;
+  const methodFit = readySession?.adaptationNote?.explanation ?? readySession?.methodReason ?? null;
+
+  return <div className="page home-page">
+    <header className="home-header">
+      <div>
+        <span className="home-date">{formatHomeDate(now)}</span>
+        <h1>{greetingFor(now)}, {firstName}.</h1>
+        <p>{plan && readySession ? "Here is the clearest next step." : "What would you like to learn or prepare for?"}</p>
+      </div>
+      <button className="button secondary" onClick={onCreatePlan}><Plus size={17} /> New plan</button>
+    </header>
+
+    {plan && readySession ? <section className="recommendation-card">
+      <div className="rec-top">
+        <span><Target size={14} /> {resumePoint ? "Continue where you left off" : "Next up"}</span>
+        <span>{completedCount} of {plan.sessions.length} sessions complete</span>
+      </div>
+      <div className="rec-body">
+        <div className="rec-copy">
+          <span className="subject-label">{plan.title}</span>
+          {readySession.adaptationNote && <span className="adaptation-proof"><Check size={13} /> Adjusted using your last session</span>}
+          <h2>{readySession.title}</h2>
+          <div className="meta-row">
+            <span>{readySession.learningMode === "learn" ? <BookOpen size={16} /> : <Target size={16} />}{readySession.learningMode === "learn" ? "Teaching first" : "Practice first"}</span>
+            <span><Target size={16} /> {readySession.method}</span>
+            <span><Clock3 size={16} /> {readySession.amountLabel}</span>
+            {resumePoint && <span><Check size={16} /> {resumePoint.completedSteps} {resumePoint.completedSteps === 1 ? "section" : "sections"} saved</span>}
+          </div>
+        </div>
+        <button className="button white large" onClick={onStart}>{resumePoint ? "Continue session" : "Start session"} <ArrowRight size={18} /></button>
+      </div>
+      <div className="rec-rationale">
+        <div><strong>{resumePoint ? "Where you left off" : "Why now"}</strong><p>{whyNow}</p></div>
+        {methodFit && <details><summary>{readySession.adaptationNote ? "See what changed" : "Why this method"}</summary><p>{methodFit}</p></details>}
+      </div>
+    </section> : <section className="empty-home">
+      <div className="empty-home-copy"><span className="eyebrow"><BookOpen size={15} /> Start here</span><h2>Turn any goal into a clear next step.</h2><p>Use your own materials, let YOVA create the content, or get a plan for studying somewhere else.</p></div>
+      <div className="empty-home-actions"><button className="button primary large" onClick={onCreatePlan}>Create a learning plan <ArrowRight size={18} /></button><button className="button secondary large" onClick={onStudyNow}>Study something now</button></div>
+    </section>}
+
+    <section className="home-command">
+      <span>Ask YOVA</span>
+      <AskBar value={tutorQuestion} onChange={onTutorQuestion} onSubmit={onOpenTutor} />
+    </section>
+
+    <section className="home-section">
+      <div className="section-title"><div><h3>Choose a starting point</h3><p>A longer plan or one focused session.</p></div></div>
+      <div className="quick-actions">
+        <button onClick={onCreatePlan}><span className="quick-action-icon"><BookOpen size={19} /></span><span><strong>{plan ? "Create another plan" : "Create a plan"}</strong><small>For a test, unit, book, or longer goal</small></span><ArrowRight size={17} /></button>
+        <button onClick={onStudyNow}><span className="quick-action-icon"><Target size={19} /></span><span><strong>Study something now</strong><small>One focused session for what you need today</small></span><ArrowRight size={17} /></button>
+      </div>
+    </section>
+
+    {personalizationRecommendation && <section className="home-personalization-recommendation">
+      <div className="home-personalization-icon"><Settings2 size={17} /></div>
+      <div><span>Personalization suggestion</span><strong>{personalizationRecommendation.title}</strong><p>{personalizationRecommendation.explanation}</p><small>{personalizationRecommendation.evidence}</small></div>
+      {personalizationRecommendation.action === "improve_profile" ? <button onClick={onOpenYou}>{personalizationRecommendation.actionLabel}</button> : personalizationRecommendation.action === "open_learning" && plan ? <button onClick={() => onOpenPlan(plan.id)}>{personalizationRecommendation.actionLabel}</button> : personalizationRecommendation.action === "start_session" ? <button onClick={onStart}>{personalizationRecommendation.actionLabel}</button> : null}
+    </section>}
+
+    {plans.length > 0 && <section className="section-block active-learning-block">
+      <div className="section-title"><div><h3>Your learning</h3><p>Plans, sources, and progress.</p></div><span>{plans.length} active</span></div>
+      <div className="compact-items">{plans.map((item) => {
+        const next = item.sessions.find((session) => session.status === "ready");
+        const saved = next ? resumableSessionProgress(next.id, sessionInterruptions) : null;
+        return <button className={item.id === plan?.id ? "selected" : ""} key={item.id} onClick={() => onOpenPlan(item.id)}><SubjectIcon plan={item} compact /><span><strong>{item.title}</strong><small>{next ? saved ? `Continue at section ${saved.completedSteps + 1}` : `${next.learningMode === "learn" ? "Teaching first" : "Practice first"} · ${formatSessionTime(next.scheduledFor)}` : "Plan complete"}</small></span><ChevronRight /></button>;
+      })}</div>
+    </section>}
+  </div>;
 }
 
 function SubjectIcon({ plan, compact = false }: { plan: LearningPlan; compact?: boolean }) {
@@ -1716,7 +1801,7 @@ function formatRelativeSchedule(scheduled: Date, now: Date) {
 }
 
 function formatHomeDate(date: Date) {
-  return new Intl.DateTimeFormat("en-US", { weekday: "long", month: "long", day: "numeric" }).format(date).toUpperCase();
+  return new Intl.DateTimeFormat("en-US", { weekday: "long", month: "long", day: "numeric" }).format(date);
 }
 
 function greetingFor(date: Date) {
@@ -2762,8 +2847,8 @@ function SessionLoading({ plan, onExit }: { plan: LearningPlan | null; onExit: (
   return <main className="centered-shell session-loading"><BrandMark /><section><div className="session-loading-orbit" aria-hidden="true"><span className="button-spinner dark" /><Sparkles size={22} /></div><span className="step-label">PREPARING YOUR SESSION</span><h1>Building one focused path through <em>{plan?.topic ?? "your goal"}</em>.</h1><p>YOVA is turning the next objective into a lesson you can actually complete, not a generic pile of study tools.</p><div className="session-building-list" aria-label="What YOVA is preparing"><article><Target size={18} /><div><strong>Bounded content</strong><span>Only the ideas that fit this session</span></div></article><article><Sparkles size={18} /><div><strong>Learning method</strong><span>Selected for the task, then adapted to you</span></div></article><article><BookOpen size={18} /><div><strong>Teaching and practice</strong><span>Explanation first when the topic is new</span></div></article><article><Check size={18} /><div><strong>Completion evidence</strong><span>Finished work, not elapsed time</span></div></article></div><div className="session-building-status" role="status" aria-live="polite"><Clock3 size={17} /><div><strong>{status}</strong><span>{formatElapsedDuration(elapsedSeconds)} elapsed</span></div></div><button className="button ghost" onClick={onExit}>Cancel</button></section></main>;
 }
 
-function SessionGenerationError({ plan, issue, onExit, onRetry }: { plan: LearningPlan | null; issue: string | null; onExit: () => void; onRetry: () => void }) {
-  return <main className="centered-shell"><BrandMark /><section className="plan-error-state" role="alert"><span><AlertCircle /></span><span className="step-label">SAFE STOP</span><h1>YOVA did not substitute unrelated content.</h1><p>{issue ?? "YOVA could not build this session safely yet."}</p><p>Nothing was marked complete. Return to {plan?.title ?? "the learning goal"} to clarify the topic or source, or retry the same request.</p><div><button className="button ghost" onClick={onExit}><ArrowLeft size={17} /> Return to learning</button><button className="button primary" onClick={onRetry}>Try again <ArrowRight size={17} /></button></div></section></main>;
+function SessionGenerationError({ plan, issue, onExit, onAdjust, onRetry }: { plan: LearningPlan | null; issue: string | null; onExit: () => void; onAdjust: () => void; onRetry: () => void }) {
+  return <main className="centered-shell"><BrandMark /><section className="plan-error-state session-error-state" role="alert"><span><AlertCircle /></span><span className="step-label">SESSION NOT READY</span><h1>This lesson needs another pass.</h1><p>{issue ?? "YOVA could not finish a reliable session this time."}</p><p>Your progress is unchanged. Add one sentence about what this lesson should cover, or retry the same request if this appears to be a temporary problem.</p><div className="session-error-recovery"><button className="button primary" onClick={onAdjust}>Add context and retry <ArrowRight size={17} /></button><button className="button secondary" onClick={onRetry}>Retry same request</button><button className="button ghost" onClick={onExit}><ArrowLeft size={17} /> Review {plan?.title ?? "the goal"}</button></div></section></main>;
 }
 
 function GuidedSession({ plan, steps, step, selectedAnswer, outcome, confidence, priorConfidenceCaptured, answerRevealed, elapsedSeconds, capacityMinutes, rationale, coverage, methodBriefing, deliveryPolicy, supportPlan, sourceGrounding, issue, analyticsEnabled, browserPreviewMode, onSelect, onEvaluate, onConfidence, onReveal, onExit, onNext }: { plan: LearningPlan | null; steps: LessonStep[]; step: number; selectedAnswer: string | null; outcome: boolean | undefined; confidence: ConfidenceLevel | undefined; priorConfidenceCaptured: boolean; answerRevealed: boolean; elapsedSeconds: number; capacityMinutes: number | null; rationale: string | null; coverage: SessionCoverage | null; methodBriefing: SessionMethodBriefing | null; deliveryPolicy: SessionDeliveryPolicy | null; supportPlan: SessionSupportPlan | null; sourceGrounding: SessionSourceGrounding | null; issue: string | null; analyticsEnabled: boolean; browserPreviewMode: boolean; onSelect: (answer: string) => void; onEvaluate: (correct: boolean) => void; onConfidence: (confidence: ConfidenceLevel) => void; onReveal: () => void; onExit: () => void; onNext: (evaluation: AnswerEvaluationResponse | null) => void | Promise<void> }) {
@@ -2897,7 +2982,7 @@ function GuidedSession({ plan, steps, step, selectedAnswer, outcome, confidence,
       <section className="session-workspace">
         {issue && step === 0 && <div className="session-issue"><AlertCircle size={17} /><span>{issue}</span></div>}
         {phase && phasePosition && <MethodPhaseCoach phase={phase} current={phasePosition.current} total={phasePosition.total} />}
-        {quickScheduledReview && <div className="quick-review-promise"><Target size={17} /><div><strong>Quick scheduled check</strong><p>Three multiple-choice questions. No typing and no confidence rating. This is a low-pressure return to the idea, not a grade.</p></div></div>}
+        {quickScheduledReview && <div className="quick-review-promise"><Target size={17} /><div><strong>Why this is appearing now</strong><p>YOVA is checking whether {currentSession?.reviewConcept ?? "this idea"} is still available after time has passed. Each question includes all the context you need. Nothing is graded.</p></div></div>}
         {isImmediateRepair && <div className="immediate-repair-note"><RotateCcw size={17} /><div><strong>Repair now, verify later</strong><p>Correct the idea now. YOVA will still check it again later because an immediate retry is not proof that it will stick.</p></div></div>}
         {isImmediateRepair && content.repairSupport && <RuntimeRepairSupportCard support={content.repairSupport} />}
         <header className="session-activity-header"><div className="session-step-meta"><div><span>STEP {step + 1} OF {steps.length}</span><strong>{activityLabel}</strong></div>{content.estimatedMinutes && <span><Clock3 size={13} /> About {content.estimatedMinutes} min</span>}</div><h1><LearningContent content={content.title} inline /></h1>{content.body && <LearningContent content={content.body} className="session-activity-instruction" />}</header>
@@ -2997,7 +3082,7 @@ function SessionGuidePanel({ session, capacityMinutes, coverage, steps, step, me
   const guide = <>
     <div className="session-guide-focus"><span className="step-label">TODAY&apos;S TARGET</span><h2>{focus}</h2><div><Clock3 size={14} /><span>{capacityMinutes ?? session?.estimatedMinutes ?? 20} minute window</span></div></div>
     <div className="session-guide-method"><div><BookOpen size={16} /><span>{modeLabel}</span></div><strong>{methodBriefing?.name ?? "Guided method"}</strong><small>{taskLabel}</small></div>
-    {quickScheduledReview && <div className="session-quick-review-card"><Target size={15} /><p><span>Low-pressure return</span>Three multiple-choice questions, shown one at a time. No typed response and no confidence rating.</p></div>}
+    {quickScheduledReview && <div className="session-quick-review-card"><Target size={15} /><p><span>Low-pressure return</span>Three self-contained multiple-choice questions, shown one at a time. No typed response and no confidence rating.</p></div>}
     {methodBriefing && <section className="session-method-playbook" aria-label={`How to use ${methodBriefing.name}`}><span>WHY THIS METHOD</span><p>{methodBriefing.why}</p><strong>Use it like this</strong><ol>{methodBriefing.how.slice(0, 3).map((instruction) => <li key={instruction}>{instruction}</li>)}</ol></section>}
     {adaptationReasons.length > 0 && <div className="session-personalization-proof"><Sparkles size={15} /><div><span>How YOVA adapted this method</span><ul>{adaptationReasons.map((reason) => <li key={reason}>{reason}</li>)}</ul></div></div>}
     <div className="session-guide-path"><strong>Session path</strong>{steps.map((item, index) => {

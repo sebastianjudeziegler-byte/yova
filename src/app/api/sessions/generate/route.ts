@@ -292,7 +292,13 @@ export async function POST(request: Request) {
       },
     }), { headers: responseHeaders(requestId, generated.generationStats) });
   } catch (error) {
-    console.error("YOVA guided-session generation failed", { requestId, reason: error instanceof Error ? error.name : "unknown" });
+    console.error("YOVA guided-session generation failed", {
+      requestId,
+      reason: error instanceof Error ? error.name : "unknown",
+      ...(process.env.NODE_ENV === "development" && error instanceof Error
+        ? { detail: error.message }
+        : {}),
+    });
     return NextResponse.json(
       { error: "YOVA could not prepare this guided session right now. Try again in a moment.", requestId },
       { status: 502, headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId } },
@@ -364,6 +370,9 @@ async function generateBrowserPreviewSession(
     console.error("YOVA browser guided-session generation failed", {
       requestId,
       reason: error instanceof Error ? error.name : "unknown",
+      ...(process.env.NODE_ENV === "development" && error instanceof Error
+        ? { detail: error.message }
+        : {}),
     });
     return NextResponse.json(
       { error: "YOVA could not prepare this guided session right now. Try again in a moment.", requestId },
