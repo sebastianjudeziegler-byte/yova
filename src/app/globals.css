@@ -533,12 +533,38 @@ h1, h2, h3, p { margin-top: 0; }
 .week-strip span, .week-strip small { color: var(--muted); font-size: 11px; }
 
 .ask-page { min-height: 100vh; display: flex; flex-direction: column; }
-.context-pill { width: fit-content; padding: 8px 11px; display: flex; gap: 7px; align-items: center; color: var(--muted); background: white; border: 1px solid var(--border); border-radius: 9px; font-size: 12px; }
-.chat-space { flex: 1; padding: 50px 6%; }
-.chat-thread { display: grid; gap: 26px; }
+.ask-toolbar { width: min(100%,900px); margin: 1px auto 0; display: flex; align-items: flex-end; justify-content: space-between; gap: 14px; }
+.tutor-context-select { display: grid; gap: 6px; }
+.tutor-context-select > span { color: var(--muted); font-size: 10px; font-weight: 750; letter-spacing: .06em; text-transform: uppercase; }
+.tutor-context-select > div { min-width: min(430px,60vw); height: 43px; padding: 0 11px; display: flex; align-items: center; gap: 8px; color: var(--blue); border: 1px solid var(--border); border-radius: 11px; background: white; box-shadow: var(--shadow-sm); }
+.tutor-context-select select { min-width: 0; height: 100%; flex: 1; color: var(--text); border: 0; outline: 0; background: transparent; font-weight: 650; }
+.ask-toolbar-actions { display: flex; align-items: center; gap: 8px; }
+.ask-toolbar-actions .button { min-height: 43px; }
+.ask-toolbar-actions .button > span { min-width: 20px; height: 20px; padding: 0 6px; display: grid; place-items: center; color: white; border-radius: 999px; background: var(--blue); font-size: 9px; }
+.ask-context-banner { width: min(100%,900px); margin: 14px auto 0; padding: 12px 14px; display: flex; align-items: center; gap: 11px; border: 1px solid #dce3f4; border-radius: 12px; background: linear-gradient(135deg,#fbfcff,#f5f7ff); }
+.ask-context-banner > div { min-width: 0; display: grid; gap: 2px; }
+.ask-context-banner > div > span { color: var(--blue); font-size: 9px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+.ask-context-banner strong { overflow: hidden; color: var(--navy); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.ask-context-banner small { color: var(--muted); font-size: 10px; line-height: 1.45; }
+.general-context-icon { width: 34px; height: 34px; display: grid; place-items: center; flex: 0 0 auto; color: var(--violet); border-radius: 10px; background: #eeeaff; }
+.chat-space { width: min(100%,900px); margin: 0 auto; flex: 1; padding: 36px 0 24px; }
+.chat-thread { display: grid; gap: 28px; }
 .yova-message { display: flex; align-items: flex-start; gap: 13px; }
-.yova-message strong { font-size: 13px; }
-.yova-message p { max-width: 650px; margin-top: 6px; line-height: 1.6; white-space: pre-wrap; }
+.yova-message > div:last-child { min-width: 0; max-width: 760px; }
+.yova-message > div > strong { font-size: 12px; }
+.yova-message.welcome > div > p { max-width: 680px; margin: 7px 0 0; color: #526078; line-height: 1.65; }
+.tutor-rich-text { margin-top: 7px; color: #28344b; font-size: 14px; line-height: 1.72; overflow-wrap: anywhere; }
+.tutor-rich-text > :first-child { margin-top: 0; }
+.tutor-rich-text > :last-child { margin-bottom: 0; }
+.tutor-rich-text p { margin: 0 0 13px; }
+.tutor-rich-text strong { color: var(--navy); font-weight: 720; }
+.tutor-rich-text ul, .tutor-rich-text ol { margin: 9px 0 15px; padding-left: 23px; }
+.tutor-rich-text li { margin: 5px 0; padding-left: 3px; }
+.tutor-rich-text h1, .tutor-rich-text h2, .tutor-rich-text h3 { margin: 20px 0 8px; color: var(--navy); font-family: "Sora",sans-serif; line-height: 1.3; }
+.tutor-rich-text h1 { font-size: 20px; }.tutor-rich-text h2 { font-size: 18px; }.tutor-rich-text h3 { font-size: 16px; }
+.tutor-rich-text code:not(.math-inline) { padding: 2px 5px; border-radius: 5px; background: #eef1f7; font-size: .9em; }
+.tutor-rich-text blockquote { margin: 14px 0; padding: 10px 14px; color: #47566f; border-left: 3px solid var(--blue); background: #f7f9ff; }
+.tutor-rich-text .katex-display { margin: 15px 0; padding: 14px; overflow-x: auto; border: 1px solid #e0e5f0; border-radius: 10px; background: #fbfcff; }
 .user-message { max-width: min(72%,650px); margin-left: auto; padding: 13px 16px; color: #18213a; border: 1px solid #dce3f4; border-radius: 14px 14px 4px 14px; background: var(--soft-blue); }
 .user-message strong { color: var(--blue); font-size: 11px; text-transform: uppercase; letter-spacing: .06em; }
 .user-message p { margin: 5px 0 0; line-height: 1.55; white-space: pre-wrap; }
@@ -555,6 +581,25 @@ h1, h2, h3, p { margin-top: 0; }
 .tutor-action-card .button { white-space: nowrap; }
 .prompt-grid { margin: 32px 0 0 51px; display: grid; grid-template-columns: repeat(2,1fr); gap: 9px; }
 .prompt-grid button { padding: 13px; text-align: left; border: 1px solid var(--border); border-radius: 10px; background: white; color: var(--muted); }
+.prompt-grid button:hover { color: var(--blue); border-color: #c8d5fa; background: #f8faff; }
+.ask-composer { position: sticky; z-index: 4; bottom: 16px; width: min(100%,900px); margin: auto 0 0; padding-top: 16px; background: linear-gradient(180deg,rgba(246,247,251,0),var(--off-white) 30%); }
+.ask-composer .ask-bar { border-color: #cdd7ef; box-shadow: 0 16px 38px rgba(22,36,70,.12); }
+.ask-composer > small { margin-top: 7px; display: block; color: var(--muted); text-align: center; font-size: 9px; }
+.tutor-history-backdrop { position: fixed; z-index: 54; inset: 0; border: 0; background: rgba(11,16,32,.36); backdrop-filter: blur(3px); }
+.tutor-history-panel { position: fixed; z-index: 55; top: 0; right: 0; bottom: 0; width: min(420px,92vw); padding: 25px 20px; display: flex; flex-direction: column; color: var(--text); background: white; box-shadow: -24px 0 70px rgba(11,16,32,.2); }
+.tutor-history-panel > header { padding-bottom: 18px; display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; border-bottom: 1px solid var(--border); }
+.tutor-history-panel h2 { margin: 6px 0 0; font-size: 24px; }
+.tutor-history-panel > header > button { width: 36px; height: 36px; margin-right: 42px; display: grid; place-items: center; color: var(--muted); border: 1px solid var(--border); border-radius: 9px; background: white; }
+.tutor-history-list { margin-top: 15px; display: grid; gap: 8px; overflow-y: auto; }
+.tutor-history-list button { padding: 13px; display: grid; gap: 5px; text-align: left; color: var(--text); border: 1px solid var(--border); border-radius: 11px; background: #fbfcff; }
+.tutor-history-list button:hover, .tutor-history-list button.selected { border-color: #b9c9f8; background: var(--soft-blue); }
+.tutor-history-list button > span { color: var(--blue); font-size: 9px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; }
+.tutor-history-list button > strong { overflow: hidden; font-size: 12px; line-height: 1.4; text-overflow: ellipsis; white-space: nowrap; }
+.tutor-history-list button > small { color: var(--muted); font-size: 9px; }
+.tutor-history-empty { margin: auto; display: grid; justify-items: center; color: var(--muted); text-align: center; }
+.tutor-history-empty svg { margin-bottom: 12px; color: var(--blue); }
+.tutor-history-empty strong { color: var(--navy); }
+.tutor-history-empty p { max-width: 240px; margin: 7px 0 0; font-size: 12px; line-height: 1.5; }
 .you-grid { display: grid; grid-template-columns: 1fr 1.1fr; gap: 18px; }
 .you-grid .section-block { margin: 0; }
 .you-grid .profile-item { margin-top: 9px; }
@@ -1655,7 +1700,21 @@ h1, h2, h3, p { margin-top: 0; }
   .review-agenda-list article > em { width: fit-content; grid-column: 2; }
   .agenda-quick-times { grid-template-columns: 1fr; }
   .week-strip { grid-template-columns: 1fr; }
+  .ask-toolbar { align-items: stretch; flex-direction: column; }
+  .tutor-context-select > div { width: 100%; min-width: 0; }
+  .ask-toolbar-actions { display: grid; grid-template-columns: 1fr 1fr; }
+  .ask-toolbar-actions .button { width: 100%; }
+  .ask-context-banner { align-items: flex-start; }
+  .ask-context-banner small { display: block; margin-top: 2px; }
+  .chat-space { padding: 28px 0 18px; }
+  .chat-thread { gap: 24px; }
+  .yova-message { gap: 10px; }
+  .yova-message > .brand-lockup { flex: 0 0 auto; }
+  .tutor-rich-text { font-size: 13px; line-height: 1.68; }
+  .user-message { max-width: 92%; }
   .prompt-grid { margin-left: 0; }
+  .ask-composer { bottom: 82px; }
+  .tutor-history-panel { width: 100%; padding: 20px 16px 82px; }
   .session-top { grid-template-columns: 38px 1fr auto; }
   .session-setup-shell { padding: 16px 13px 35px; }
   .session-setup-card { margin-top: 24px; border-radius: 16px; }

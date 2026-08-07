@@ -46,7 +46,21 @@ export const TutorHistoryResponseSchema = z.object({
   messages: z.array(TutorMessageSchema),
 });
 
+export const TutorThreadSummarySchema = z.object({
+  id: z.string().uuid(),
+  title: z.string().trim().min(1).max(120),
+  learningItemId: z.string().uuid().nullable(),
+  contextTitle: z.string().trim().min(1).max(180).nullable(),
+  createdAt: z.string().datetime({ offset: true }),
+  updatedAt: z.string().datetime({ offset: true }),
+});
+
+export const TutorThreadListResponseSchema = z.object({
+  threads: z.array(TutorThreadSummarySchema).max(50),
+});
+
 export type TutorMessage = z.infer<typeof TutorMessageSchema>;
 export type TutorRequest = z.infer<typeof TutorRequestSchema>;
 export type TutorResponse = z.infer<typeof TutorResponseSchema>;
 export type TutorProposedAction = z.infer<typeof TutorProposedActionSchema>;
+export type TutorThreadSummary = z.infer<typeof TutorThreadSummarySchema>;

@@ -370,9 +370,19 @@ test("the product shell keeps every core destination and creation path usable", 
 
   await page.getByRole("button", { name: "Ask YOVA", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Get help in context" })).toBeVisible();
+  await expect(page.getByRole("combobox", { name: "Ask YOVA context" })).toHaveValue("general");
+  await expect(page.getByText("No learning goal attached")).toBeVisible();
+  await page.getByRole("button", { name: /^History/ }).click();
+  await expect(page.getByRole("dialog", { name: "Previous chats" })).toBeVisible();
+  await page.getByRole("button", { name: "Close conversation history" }).last().click();
+  await page.getByRole("textbox", { name: "Ask YOVA" }).fill("An unsent draft");
 
   await page.getByRole("button", { name: "You", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Your learning, in one place" })).toBeVisible();
+  await page.getByRole("button", { name: "Ask YOVA", exact: true }).click();
+  await expect(page.getByRole("combobox", { name: "Ask YOVA context" })).toHaveValue("general");
+  await expect(page.getByRole("textbox", { name: "Ask YOVA" })).toHaveValue("");
+  await page.getByRole("button", { name: "You", exact: true }).click();
 
   await page.getByRole("button", { name: "Home", exact: true }).click();
   await page.getByRole("button", { name: /Create a plan For a test/ }).click();
@@ -381,6 +391,54 @@ test("the product shell keeps every core destination and creation path usable", 
 
   await page.getByRole("button", { name: "Study something now", exact: true }).first().click();
   await expect(page.getByRole("heading", { name: "What do you want help with?" })).toBeVisible();
+});
+
+test("Ask YOVA turns structured explanations and math into readable interface content", async ({ page }) => {
+  await createPreviewAccount(page);
+  await completeOnboarding(page);
+
+  await page.route("**/api/tutor", async (route) => {
+    if (route.request().method() !== "POST") {
+      await route.continue();
+      return;
+    }
+    const threadId = "10000000-0000-4000-8000-000000000001";
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        threadId,
+        messages: [
+          {
+            id: "10000000-0000-4000-8000-000000000002",
+            threadId,
+            role: "user",
+            content: "Explain the derivative at x equals 2.",
+            createdAt: "2026-08-06T20:00:00.000Z",
+          },
+          {
+            id: "10000000-0000-4000-8000-000000000003",
+            threadId,
+            role: "assistant",
+            content: "**Core idea:** the derivative is the instantaneous rate of change.\n\nUse $f'(2)=4$.\n\n1. Compare nearby points.\n2. Shrink the interval.",
+            createdAt: "2026-08-06T20:00:01.000Z",
+          },
+        ],
+        model: "test-model",
+        persistence: "browser",
+        proposedAction: null,
+      }),
+    });
+  });
+
+  await page.getByRole("button", { name: "Ask YOVA", exact: true }).click();
+  await page.getByRole("textbox", { name: "Ask YOVA" }).fill("Explain the derivative at x equals 2.");
+  await page.getByRole("button", { name: "Send" }).click();
+
+  await expect(page.locator(".tutor-rich-text strong")).toHaveText("Core idea:");
+  await expect(page.locator(".tutor-rich-text .katex")).toBeVisible();
+  await expect(page.locator(".tutor-rich-text li")).toHaveCount(2);
+  await expect(page.locator(".tutor-rich-text")).not.toContainText("**");
 });
 
 test("a multi-session plan uses one clear source decision from setup to Learning", async ({ page }) => {
@@ -441,6 +499,16 @@ test("a multi-session plan uses one clear source decision from setup to Learning
   expect(adjustedDurations.length).toBeGreaterThan(initialSessionCount);
   expect(adjustedDurations.every((duration) => Number.parseInt(duration, 10) <= 15)).toBe(true);
   await expect(page.getByText(/sessions complete/).first()).toBeVisible();
+
+  await page.getByRole("button", { name: "Ask YOVA", exact: true }).click();
+  const tutorContext = page.getByRole("combobox", { name: "Ask YOVA context" });
+  await expect(tutorContext).toHaveValue("general");
+  await tutorContext.selectOption({ label: "AP Biology Unit 3" });
+  await expect(page.getByText("Using learning context")).toBeVisible();
+  await expect(page.getByText("YOVA can use this goal's materials, next session, and learner evidence.")).toBeVisible();
+  await page.getByRole("button", { name: "Learning", exact: true }).click();
+  await page.getByRole("button", { name: "Ask YOVA", exact: true }).click();
+  await expect(page.getByRole("combobox", { name: "Ask YOVA context" })).toHaveValue("general");
 
   await page.getByRole("button", { name: "Agenda", exact: true }).click();
   const moveOverdue = page.getByRole("button", { name: "Move to tomorrow" });

@@ -24,12 +24,17 @@
     "@fontsource/sora": "latest",
     "@supabase/ssr": "^0.12.4",
     "@supabase/supabase-js": "^2.111.0",
+    "katex": "^0.18.1",
     "lucide-react": "latest",
     "next": "latest",
     "openai": "^7.3.0",
     "pdfjs-dist": "^6.2.108",
     "react": "latest",
     "react-dom": "latest",
+    "react-markdown": "^10.1.0",
+    "rehype-katex": "^7.0.1",
+    "remark-gfm": "^4.0.1",
+    "remark-math": "^6.0.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {

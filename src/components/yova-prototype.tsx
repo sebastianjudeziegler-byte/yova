@@ -22,12 +22,14 @@ import {
   FileText,
   FlaskConical,
   Globe2,
+  History,
   Home,
   Landmark,
   LibraryBig,
   LogOut,
   Mail,
   MessageCircleMore,
+  MessageSquarePlus,
   Microscope,
   Plus,
   RotateCcw,
@@ -42,6 +44,7 @@ import {
 import { BrandMark } from "@/components/brand-mark";
 import { PlanCreator } from "@/components/plan-creator";
 import { StudyNowCreator } from "@/components/study-now-creator";
+import { TutorMessageContent } from "@/components/tutor-message-content";
 import { trackProductEvent } from "@/lib/analytics/client";
 import { describeAuthCallbackResult } from "@/lib/auth/callback-result";
 import { AuthConnectionError, getAuthenticatedAccount, getAuthMode, requestEmailAuthentication, signOutAuthenticatedAccount, verifyEmailAuthenticationCode } from "@/lib/auth/client";
@@ -156,8 +159,10 @@ import {
 import {
   TutorHistoryResponseSchema,
   TutorResponseSchema,
+  TutorThreadListResponseSchema,
   type TutorMessage,
   type TutorProposedAction,
+  type TutorThreadSummary,
 } from "@/lib/tutor/schema";
 
 type Stage = "landing" | "account" | "onboarding-intro" | "onboarding" | "profile" | "paywall" | "app" | "plan-creator" | "study-now" | "session-setup" | "session-loading" | "session-error" | "session" | "complete";
@@ -212,6 +217,7 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
   const [authCheckAttempt, setAuthCheckAttempt] = useState(0);
   const [browserPreviewMode, setBrowserPreviewMode] = useState(false);
   const [tutorQuestion, setTutorQuestion] = useState("");
+  const [tutorEntryKey, setTutorEntryKey] = useState(0);
   const [pendingSessionPlan, setPendingSessionPlan] = useState<LearningPlan | null>(null);
   const [earlySessionPlanId, setEarlySessionPlanId] = useState<string | null>(null);
   const [earlySchedulePending, setEarlySchedulePending] = useState(false);
@@ -233,6 +239,20 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
   );
   const capturedSessionSeconds = Math.max(1, sessionElapsedSeconds);
   const capturedSessionMinutes = Math.max(1, Math.ceil(capturedSessionSeconds / 60));
+
+  const openAskYova = () => {
+    setTutorEntryKey((value) => value + 1);
+    setActiveTab("Ask YOVA");
+  };
+
+  const openTab = (tab: Tab) => {
+    if (tab === "Learning") setLearningDetailPlanId(null);
+    if (tab === "Ask YOVA" && activeTab !== "Ask YOVA") {
+      setTutorEntryKey((value) => value + 1);
+      if (activeTab !== "Home") setTutorQuestion("");
+    }
+    setActiveTab(tab);
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -1262,7 +1282,7 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
   }
 
   return <>
-    <AppShell activeTab={activeTab} onTab={(tab) => { if (tab === "Learning") setLearningDetailPlanId(null); setActiveTab(tab); }} account={account} cloudSyncIssue={cloudSyncIssue} onRetryCloudSync={retryCloudSync} onCreatePlan={() => setStage("plan-creator")} onSignOut={() => {
+    <AppShell activeTab={activeTab} onTab={openTab} account={account} cloudSyncIssue={cloudSyncIssue} onRetryCloudSync={retryCloudSync} onCreatePlan={() => setStage("plan-creator")} onSignOut={() => {
       void signOutAuthenticatedAccount().finally(() => {
         clearPreviewSnapshot();
         setAccount(null);
@@ -1278,10 +1298,10 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
         setStage("landing");
       });
     }}>
-      {activeTab === "Home" && <HomeScreen account={account} answers={answers} plans={activePlans} plan={recommendedPlan} sessionCompletions={sessionCompletions} sessionInterruptions={sessionInterruptions} tutorQuestion={tutorQuestion} onTutorQuestion={setTutorQuestion} onOpenTutor={() => setActiveTab("Ask YOVA")} onOpenYou={() => setActiveTab("You")} onStart={() => requestSessionStart(recommendedPlan?.id)} onOpenPlan={(planId) => { setSelectedPlanId(planId); setLearningDetailPlanId(planId); setActiveTab("Learning"); }} onCreatePlan={() => setStage("plan-creator")} onStudyNow={() => setStage("study-now")} />}
+      {activeTab === "Home" && <HomeScreen account={account} answers={answers} plans={activePlans} plan={recommendedPlan} sessionCompletions={sessionCompletions} sessionInterruptions={sessionInterruptions} tutorQuestion={tutorQuestion} onTutorQuestion={setTutorQuestion} onOpenTutor={openAskYova} onOpenYou={() => setActiveTab("You")} onStart={() => requestSessionStart(recommendedPlan?.id)} onOpenPlan={(planId) => { setSelectedPlanId(planId); setLearningDetailPlanId(planId); setActiveTab("Learning"); }} onCreatePlan={() => setStage("plan-creator")} onStudyNow={() => setStage("study-now")} />}
       {activeTab === "Learning" && <LearningScreen plans={plans} detailPlanId={learningDetailPlanId} sessionCompletions={sessionCompletions} sessionInterruptions={sessionInterruptions} onOpenPlan={(planId) => { setSelectedPlanId(planId); setLearningDetailPlanId(planId); }} onClosePlan={() => setLearningDetailPlanId(null)} onStart={requestSessionStart} onCreatePlan={() => setStage("plan-creator")} onArchiveStateChange={changePlanArchiveState} onAdjustPlan={adjustPlan} onAttachMaterials={attachMaterials} />}
       {activeTab === "Agenda" && <AgendaScreen plans={plans.filter((plan) => plan.status !== "archived")} sessionCompletions={sessionCompletions} sessionInterruptions={sessionInterruptions} previewMode={account?.identityMode === "preview"} onStart={requestSessionStart} onActivateReview={activateConceptReview} onReschedule={rescheduleSession} onAdjustDuration={adjustSessionDuration} />}
-      {activeTab === "Ask YOVA" && <AskScreen key={activePlan?.id ?? "general"} plan={activePlan} question={tutorQuestion} onQuestion={setTutorQuestion} onApplyAction={applyTutorAction} analyticsEnabled={analyticsEnabled} />}
+      {activeTab === "Ask YOVA" && <AskScreen key={tutorEntryKey} plans={plans} question={tutorQuestion} onQuestion={setTutorQuestion} onApplyAction={applyTutorAction} analyticsEnabled={analyticsEnabled} />}
       {activeTab === "You" && <YouScreen account={account} answers={answers} plans={plans} sessionCompletions={sessionCompletions} sessionInterruptions={sessionInterruptions} onAnswersChange={setAnswers} onStart={() => requestSessionStart(recommendedPlan?.id)} onOpenLearning={() => { if (recommendedPlan) { setSelectedPlanId(recommendedPlan.id); setLearningDetailPlanId(recommendedPlan.id); } setActiveTab("Learning"); }} onReset={resetYovaData} />}
     </AppShell>
     {earlySessionPlan && earlySession && <EarlySessionDialog plan={earlySessionPlan} session={earlySession} pending={earlySchedulePending} issue={earlyScheduleIssue} onCancel={() => { setEarlySessionPlanId(null); setEarlyScheduleIssue(null); }} onStart={(shiftRemainingPlan) => void startEarlySession(shiftRemainingPlan)} />}
@@ -1897,37 +1917,41 @@ function AgendaScreen({ plans, sessionCompletions, sessionInterruptions, preview
   </div>;
 }
 
-function AskScreen({ plan, question, onQuestion, onApplyAction, analyticsEnabled }: { plan: LearningPlan | null; question: string; onQuestion: (question: string) => void; onApplyAction: (action: TutorProposedAction) => Promise<void>; analyticsEnabled: boolean }) {
+function AskScreen({ plans, question, onQuestion, onApplyAction, analyticsEnabled }: { plans: LearningPlan[]; question: string; onQuestion: (question: string) => void; onApplyAction: (action: TutorProposedAction) => Promise<void>; analyticsEnabled: boolean }) {
+  const [contextPlanId, setContextPlanId] = useState<string | null>(null);
   const [threadId, setThreadId] = useState<string | null>(null);
   const [messages, setMessages] = useState<TutorMessage[]>([]);
-  const [historyLoading, setHistoryLoading] = useState(true);
+  const [threads, setThreads] = useState<TutorThreadSummary[]>([]);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [threadLoading, setThreadLoading] = useState(false);
+  const [historyError, setHistoryError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [outgoingQuestion, setOutgoingQuestion] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [proposedAction, setProposedAction] = useState<TutorProposedAction | null>(null);
   const [actionStatus, setActionStatus] = useState<"idle" | "applying" | "applied">("idle");
+  const plan = contextPlanId ? plans.find((item) => item.id === contextPlanId) ?? null : null;
+  const selectablePlans = plans.filter((item) => item.status !== "archived");
 
   useEffect(() => {
     const controller = new AbortController();
-    const query = plan ? `?planId=${encodeURIComponent(plan.id)}` : "";
-
-    void fetch(`/api/tutor${query}`, { signal: controller.signal, cache: "no-store" })
+    void fetch("/api/tutor?mode=threads", { signal: controller.signal, cache: "no-store" })
       .then(async (response) => {
         const body: unknown = await response.json();
         if (!response.ok) {
           const message = typeof body === "object" && body && "error" in body && typeof body.error === "string"
             ? body.error
-            : "YOVA could not load this tutor conversation.";
+            : "YOVA could not load your previous conversations.";
           throw new Error(message);
         }
-        const parsed = TutorHistoryResponseSchema.safeParse(body);
-        if (!parsed.success) throw new Error("The saved tutor conversation was not in a safe format.");
-        setThreadId(parsed.data.threadId);
-        setMessages(parsed.data.messages);
+        const parsed = TutorThreadListResponseSchema.safeParse(body);
+        if (!parsed.success) throw new Error("The saved conversation list was not in a safe format.");
+        setThreads(parsed.data.threads);
       })
       .catch((requestError: unknown) => {
         if (!controller.signal.aborted) {
-          setError(requestError instanceof Error ? requestError.message : "YOVA could not load this tutor conversation.");
+          setHistoryError(requestError instanceof Error ? requestError.message : "YOVA could not load your previous conversations.");
         }
       })
       .finally(() => {
@@ -1935,11 +1959,67 @@ function AskScreen({ plan, question, onQuestion, onApplyAction, analyticsEnabled
       });
 
     return () => controller.abort();
-  }, [plan]);
+  }, []);
+
+  const resetConversation = (nextPlanId: string | null = contextPlanId) => {
+    setContextPlanId(nextPlanId);
+    setThreadId(null);
+    setMessages([]);
+    setOutgoingQuestion(null);
+    setError(null);
+    setProposedAction(null);
+    setActionStatus("idle");
+    onQuestion("");
+  };
+
+  const refreshThreadHistory = async () => {
+    try {
+      const response = await fetch("/api/tutor?mode=threads", { cache: "no-store" });
+      const body: unknown = await response.json();
+      if (!response.ok) throw new Error("YOVA could not refresh your previous conversations.");
+      const parsed = TutorThreadListResponseSchema.safeParse(body);
+      if (parsed.success) setThreads(parsed.data.threads);
+    } catch {
+      // The open conversation is still usable if the history index cannot refresh.
+    }
+  };
+
+  const openSavedThread = async (thread: TutorThreadSummary) => {
+    if (threadLoading || sending) return;
+    setThreadLoading(true);
+    setHistoryError(null);
+    setError(null);
+    try {
+      const response = await fetch(`/api/tutor?threadId=${encodeURIComponent(thread.id)}`, { cache: "no-store" });
+      const body: unknown = await response.json();
+      if (!response.ok) {
+        const message = typeof body === "object" && body && "error" in body && typeof body.error === "string"
+          ? body.error
+          : "YOVA could not open that conversation.";
+        throw new Error(message);
+      }
+      const parsed = TutorHistoryResponseSchema.safeParse(body);
+      if (!parsed.success) throw new Error("The saved tutor conversation was not in a safe format.");
+      const linkedPlan = thread.learningItemId
+        ? plans.find((item) => item.learningItemId === thread.learningItemId) ?? null
+        : null;
+      setContextPlanId(linkedPlan?.id ?? null);
+      setThreadId(parsed.data.threadId);
+      setMessages(parsed.data.messages);
+      setProposedAction(null);
+      setActionStatus("idle");
+      onQuestion("");
+      setHistoryOpen(false);
+    } catch (requestError) {
+      setHistoryError(requestError instanceof Error ? requestError.message : "YOVA could not open that conversation.");
+    } finally {
+      setThreadLoading(false);
+    }
+  };
 
   const sendQuestion = async (suggestedQuestion?: string) => {
     const nextQuestion = (suggestedQuestion ?? question).trim();
-    if (!nextQuestion || sending || historyLoading) return;
+    if (!nextQuestion || sending || threadLoading) return;
 
     setSending(true);
     setOutgoingQuestion(nextQuestion);
@@ -1976,6 +2056,7 @@ function AskScreen({ plan, question, onQuestion, onApplyAction, analyticsEnabled
       setThreadId(parsed.data.persistence === "supabase" ? parsed.data.threadId : null);
       setMessages((current) => [...current, ...parsed.data.messages]);
       setProposedAction(parsed.data.proposedAction);
+      void refreshThreadHistory();
       if (parsed.data.persistence === "browser") {
         setError("The answer worked, but this exchange did not reach cloud storage. Keep this page open if you need it.");
       }
@@ -2006,7 +2087,18 @@ function AskScreen({ plan, question, onQuestion, onApplyAction, analyticsEnabled
     ? ["Explain the current topic simply", "Quiz me on my weakest area", "Why is this method next?", "I only have 15 minutes today"]
     : ["Help me understand a difficult topic", "Quiz me on something I am learning", "Which study method should I use?", "Help me start a 20-minute study session"];
 
-  return <div className="page ask-page"><PageHeader eyebrow="ASK YOVA" title="Get help in context" description="Ask about a topic, plan, session, or study problem." />{plan ? <div className="context-pill"><BookOpen size={15} /> Context: {plan.title} <ChevronRight size={15} /></div> : <div className="context-pill"><Sparkles size={15} /> General learning conversation</div>}<div className="chat-space">{historyLoading ? <div className="chat-loading"><span className="button-spinner dark" /> Loading your conversation…</div> : <div className="chat-thread">{messages.length === 0 && <div className="yova-message"><BrandMark compact /><div><strong>YOVA</strong><p>What would you like help with? I can explain a concept, quiz you, or help you decide what to do next.</p></div></div>}{messages.map((message) => message.role === "assistant" ? <div className="yova-message" key={message.id}><BrandMark compact /><div><strong>YOVA</strong><p>{message.content}</p></div></div> : <div className="user-message" key={message.id}><strong>You</strong><p>{message.content}</p></div>)}{outgoingQuestion && <div className="user-message pending" aria-live="polite"><strong>You</strong><p>{outgoingQuestion}</p></div>}</div>}{proposedAction && <section className={`tutor-action-card ${actionStatus === "applied" ? "applied" : ""}`} aria-live="polite"><div className="tutor-action-icon">{actionStatus === "applied" ? <Check size={18} /> : <Clock3 size={18} />}</div><div><span className="step-label">{actionStatus === "applied" ? "CHANGE APPLIED" : "PROPOSED CHANGE"}</span><h3>{proposedAction.title}</h3><p>{actionStatus === "applied" ? `Your unfinished content is now divided into ${proposedAction.minutes}-minute windows. YOVA may add sessions so none of the required content disappears.` : proposedAction.explanation}</p></div><button className="button primary" disabled={actionStatus !== "idle"} onClick={() => void approveAction()}>{actionStatus === "applying" ? <><span className="button-spinner" /> Applying</> : actionStatus === "applied" ? <><Check size={16} /> Applied</> : "Approve change"}</button></section>}{messages.length === 0 && !outgoingQuestion && !historyLoading && <div className="prompt-grid">{suggestedPrompts.map((prompt) => <button key={prompt} disabled={sending} onClick={() => void sendQuestion(prompt)}>{prompt}</button>)}</div>}{error && <div className="chat-error"><AlertCircle size={16} /><span>{error}</span></div>}</div><AskBar value={question} onChange={onQuestion} onSubmit={() => void sendQuestion()} pending={sending || historyLoading} /></div>;
+  return <div className="page ask-page"><PageHeader eyebrow="ASK YOVA" title="Get help in context" description="Start general, or connect a learning goal when YOVA needs its materials and progress." /><div className="ask-toolbar"><label className="tutor-context-select"><span>Context</span><div><BookOpen size={16} /><select aria-label="Ask YOVA context" value={contextPlanId ?? "general"} disabled={sending || threadLoading} onChange={(event) => resetConversation(event.target.value === "general" ? null : event.target.value)}><option value="general">General</option>{selectablePlans.map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}</select></div></label><div className="ask-toolbar-actions"><button className="button secondary" disabled={sending || threadLoading} onClick={() => resetConversation()}><MessageSquarePlus size={16} /> New chat</button><button className="button secondary" aria-expanded={historyOpen} onClick={() => setHistoryOpen(true)}><History size={16} /> History{threads.length > 0 ? <span>{threads.length}</span> : null}</button></div></div><section className="ask-context-banner">{plan ? <><SubjectIcon plan={plan} compact /><div><span>Using learning context</span><strong>{plan.title}</strong><small>YOVA can use this goal&apos;s materials, next session, and learner evidence.</small></div></> : <><span className="general-context-icon"><Sparkles size={18} /></span><div><span>General conversation</span><strong>No learning goal attached</strong><small>Choose a goal above only when its specific context would help.</small></div></>}</section><div className="chat-space">{threadLoading ? <div className="chat-loading"><span className="button-spinner dark" /> Opening conversation…</div> : <div className="chat-thread">{messages.length === 0 && <div className="yova-message welcome"><BrandMark compact /><div><strong>YOVA</strong><p>{plan ? `What would you like help with in ${plan.title}? I can use its learning context without changing the plan unless you approve it.` : "What would you like help with? This is a fresh general conversation. You can attach a learning goal at any time."}</p></div></div>}{messages.map((message) => message.role === "assistant" ? <div className="yova-message" key={message.id}><BrandMark compact /><div><strong>YOVA</strong><TutorMessageContent content={message.content} /></div></div> : <div className="user-message" key={message.id}><strong>You</strong><p>{message.content}</p></div>)}{outgoingQuestion && <div className="user-message pending" aria-live="polite"><strong>You</strong><p>{outgoingQuestion}</p></div>}</div>}{proposedAction && <section className={`tutor-action-card ${actionStatus === "applied" ? "applied" : ""}`} aria-live="polite"><div className="tutor-action-icon">{actionStatus === "applied" ? <Check size={18} /> : <Clock3 size={18} />}</div><div><span className="step-label">{actionStatus === "applied" ? "CHANGE APPLIED" : "PROPOSED CHANGE"}</span><h3>{proposedAction.title}</h3><p>{actionStatus === "applied" ? `Your unfinished content is now divided into ${proposedAction.minutes}-minute windows. YOVA may add sessions so none of the required content disappears.` : proposedAction.explanation}</p></div><button className="button primary" disabled={actionStatus !== "idle"} onClick={() => void approveAction()}>{actionStatus === "applying" ? <><span className="button-spinner" /> Applying</> : actionStatus === "applied" ? <><Check size={16} /> Applied</> : "Approve change"}</button></section>}{messages.length === 0 && !outgoingQuestion && !threadLoading && <div className="prompt-grid">{suggestedPrompts.map((prompt) => <button key={prompt} disabled={sending} onClick={() => void sendQuestion(prompt)}>{prompt}</button>)}</div>}{error && <div className="chat-error"><AlertCircle size={16} /><span>{error}</span></div>}</div><div className="ask-composer"><AskBar value={question} onChange={onQuestion} onSubmit={() => void sendQuestion()} pending={sending || threadLoading} /><small>{plan ? `YOVA will answer using ${plan.title}.` : "General mode does not use a specific plan or its materials."}</small></div>{historyOpen && <><button className="tutor-history-backdrop" aria-label="Close conversation history" onClick={() => setHistoryOpen(false)} /><aside className="tutor-history-panel" role="dialog" aria-modal="true" aria-labelledby="tutor-history-title"><header><div><span className="step-label">ASK YOVA</span><h2 id="tutor-history-title">Previous chats</h2></div><button aria-label="Close conversation history" onClick={() => setHistoryOpen(false)}><X size={19} /></button></header>{historyLoading || threadLoading ? <div className="chat-loading"><span className="button-spinner dark" /> Loading chats…</div> : historyError ? <div className="chat-error"><AlertCircle size={16} /><span>{historyError}</span></div> : threads.length === 0 ? <div className="tutor-history-empty"><History size={21} /><strong>No saved chats yet</strong><p>Your finished Ask YOVA conversations will appear here.</p></div> : <div className="tutor-history-list">{threads.map((thread) => <button key={thread.id} className={thread.id === threadId ? "selected" : ""} onClick={() => void openSavedThread(thread)}><span>{thread.contextTitle ?? "General"}</span><strong>{thread.title}</strong><small>{formatTutorThreadDate(thread.updatedAt)}</small></button>)}</div>}</aside></>}</div>;
+}
+
+function formatTutorThreadDate(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Saved conversation";
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(date);
 }
 
 const editablePreferenceIndexes = [0, 1, 2, 3, 4, 5, 6, 7, 9] as const;

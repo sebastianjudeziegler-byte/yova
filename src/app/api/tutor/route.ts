@@ -12,6 +12,7 @@ import {
   TutorHistoryResponseSchema,
   TutorRequestSchema,
   TutorResponseSchema,
+  TutorThreadListResponseSchema,
   type TutorProposedAction,
   type TutorRequest,
 } from "@/lib/tutor/schema";
@@ -26,6 +27,10 @@ type TutorContextResult = {
 
 export async function GET(request: Request) {
   if (!isSupabaseConfigured()) {
+    const mode = new URL(request.url).searchParams.get("mode");
+    if (mode === "threads") {
+      return NextResponse.json(TutorThreadListResponseSchema.parse({ threads: [] }));
+    }
     return NextResponse.json(
       TutorHistoryResponseSchema.parse({ threadId: null, messages: [] }),
       { headers: { "Cache-Control": "no-store" } },
@@ -36,24 +41,80 @@ export async function GET(request: Request) {
   const { data: { user }, error: userError } = await supabase.auth.getUser();
   if (userError || !user) return NextResponse.json({ error: "Sign in to use Ask YOVA." }, { status: 401 });
 
-  const requestedPlanId = new URL(request.url).searchParams.get("planId");
+  const searchParams = new URL(request.url).searchParams;
+  if (searchParams.get("mode") === "threads") {
+    try {
+      const { data: threadRows, error: threadError } = await supabase
+        .from("tutor_threads")
+        .select("id,learning_item_id,title,created_at,updated_at")
+        .order("updated_at", { ascending: false })
+        .limit(50);
+      if (threadError) throw threadError;
+
+      const learningItemIds = Array.from(new Set(
+        (threadRows ?? [])
+          .map((thread) => thread.learning_item_id)
+          .filter((value): value is string => typeof value === "string"),
+      ));
+      const contextTitles = new Map<string, string>();
+      if (learningItemIds.length > 0) {
+        const { data: itemRows, error: itemError } = await supabase
+          .from("learning_items")
+          .select("id,title")
+          .in("id", learningItemIds);
+        if (itemError) throw itemError;
+        for (const item of itemRows ?? []) contextTitles.set(item.id, item.title);
+      }
+
+      return NextResponse.json(TutorThreadListResponseSchema.parse({
+        threads: (threadRows ?? []).map((thread) => ({
+          id: thread.id,
+          title: thread.title,
+          learningItemId: thread.learning_item_id,
+          contextTitle: thread.learning_item_id ? contextTitles.get(thread.learning_item_id) ?? "Learning goal" : null,
+          createdAt: thread.created_at,
+          updatedAt: thread.updated_at,
+        })),
+      }), { headers: { "Cache-Control": "no-store" } });
+    } catch {
+      return NextResponse.json({ error: "YOVA could not load your previous conversations." }, { status: 500 });
+    }
+  }
+
+  const requestedThreadId = searchParams.get("threadId");
+  if (requestedThreadId && !isUuid(requestedThreadId)) {
+    return NextResponse.json({ error: "That tutor conversation is not valid." }, { status: 400 });
+  }
+
+  const requestedPlanId = searchParams.get("planId");
   const planId = requestedPlanId || null;
   if (planId && !isUuid(planId)) return NextResponse.json({ error: "That learning plan is not valid." }, { status: 400 });
 
   try {
-    const { learningItemId } = await loadTutorContext(supabase, planId);
-    let threadQuery = supabase
-      .from("tutor_threads")
-      .select("id")
-      .order("updated_at", { ascending: false })
-      .limit(1);
-    threadQuery = learningItemId
-      ? threadQuery.eq("learning_item_id", learningItemId)
-      : threadQuery.is("learning_item_id", null);
+    let threadId = requestedThreadId;
+    if (threadId) {
+      const { data: thread, error: threadError } = await supabase
+        .from("tutor_threads")
+        .select("id")
+        .eq("id", threadId)
+        .maybeSingle();
+      if (threadError) throw threadError;
+      if (!thread) return NextResponse.json({ error: "That tutor conversation could not be found." }, { status: 404 });
+    } else {
+      const { learningItemId } = await loadTutorContext(supabase, planId);
+      let threadQuery = supabase
+        .from("tutor_threads")
+        .select("id")
+        .order("updated_at", { ascending: false })
+        .limit(1);
+      threadQuery = learningItemId
+        ? threadQuery.eq("learning_item_id", learningItemId)
+        : threadQuery.is("learning_item_id", null);
 
-    const { data: threadRows, error: threadError } = await threadQuery;
-    if (threadError) throw threadError;
-    const threadId = threadRows?.[0]?.id ?? null;
+      const { data: threadRows, error: threadError } = await threadQuery;
+      if (threadError) throw threadError;
+      threadId = threadRows?.[0]?.id ?? null;
+    }
 
     if (!threadId) {
       return NextResponse.json(TutorHistoryResponseSchema.parse({ threadId: null, messages: [] }));
