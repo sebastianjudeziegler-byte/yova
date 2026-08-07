@@ -206,6 +206,30 @@ test("an opaque class label is stopped until the learner names the actual calcul
     scroll: element.scrollWidth,
   }));
   expect(workspaceWidth.scroll).toBeLessThanOrEqual(workspaceWidth.client + 1);
+
+  await page.getByRole("button", { name: "Somewhat sure" }).click();
+  await page.locator(".answer-grid button").first().click();
+  await expect(page.getByText("Correct.", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Continue" }).click();
+
+  await expect(page.getByRole("heading", { name: /derivative of/ })).toBeVisible();
+  await page.locator(".answer-grid button").first().click();
+  await expect(page.getByText("Correct.", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Continue" }).click();
+
+  await expect(page.getByRole("heading", { name: /Differentiate/ })).toBeVisible();
+  await expect(page.getByLabel("Show your reasoning")).toBeVisible();
+  await page.getByLabel("Reasoning step 1").fill("Use the product rule with x^3 as the first factor and e^x as the second.");
+  await page.getByLabel("Reasoning step 2").fill("Differentiate each factor once: 3x^2e^x + x^3e^x.");
+  await page.getByLabel("Final answer").fill("3x^2e^x + x^3e^x");
+  await page.getByRole("button", { name: "Check my work" }).dispatchEvent("click");
+  await expect(page.getByText("YOVA'S FORMATIVE CHECK")).toBeVisible();
+  await expect(page.getByText("The key idea is present.")).toBeVisible();
+  const workpadWidth = await page.getByLabel("Show your reasoning").evaluate((element) => ({
+    client: element.clientWidth,
+    scroll: element.scrollWidth,
+  }));
+  expect(workpadWidth.scroll).toBeLessThanOrEqual(workpadWidth.client + 1);
 });
 
 test("a failed unknown-topic lesson stops instead of showing generic learning-method filler", async ({ page }) => {

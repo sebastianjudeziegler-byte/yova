@@ -64,6 +64,7 @@ A cross-browser six-digit email-code flow is implemented and tested behind a ser
 - Session tutor conversations use the same readable Markdown and mathematics renderer as Ask YOVA, while typed free responses remain outside tutor context
 - Guided sessions now use one accessible rich-content renderer across instructions, teaching explanations, worked examples, answer choices, feedback, reference answers, and saved resources; raw LaTeX and Markdown no longer leak into the learner interface
 - Mathematical generation is explicitly required to separate setup, transformations, and final result, while the renderer safely distinguishes equations from financial amounts such as $100
+- Quantitative free responses now use a structured workpad with numbered reasoning steps and a separate final answer instead of forcing calculations into one generic explanation box; YOVA evaluates both the method and result through the existing privacy-bounded formative check
 - Visible reasons for methods and recommendations
 - Upload guidance now names useful source examples: teacher study guides, PDF lecture slides, class notes, review sheets, and readable textbook excerpts
 
@@ -130,7 +131,7 @@ The software loop is close to private-alpha readiness, but the broader learning-
 - Atomic completed-goal review activation, so the cloud cannot reopen a learning goal without also preserving the evidence-based retrieval session that caused it
 - Playwright now verifies both fundamental paths: teaching a genuinely new topic before testing it, and repairing a confident misconception before delayed verification
 - Playwright also verifies that all five primary destinations and both creation paths remain reachable on desktop and mobile
-- Playwright verifies that calculus answer choices render as accessible equations without exposing raw delimiters on desktop and mobile
+- Playwright verifies that calculus answer choices render as accessible equations without exposing raw delimiters, and that a learner can submit multi-step calculus work for formative feedback without horizontal overflow on desktop or mobile
 - Playwright verifies that an opaque label such as “Calc Unit 3” is stopped, can be repaired into a real product-rule request, and never opens the generic meta-learning screens that caused the production failure
 - Playwright verifies that an unknown-topic generation failure stops explicitly instead of presenting unrelated content as a lesson
 - Playwright verifies that outside-study guidance preserves the learner’s actual writing goal and keeps the selected learning method visible on both desktop and mobile

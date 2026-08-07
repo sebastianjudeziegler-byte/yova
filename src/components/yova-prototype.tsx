@@ -44,6 +44,7 @@ import {
 import { BrandMark } from "@/components/brand-mark";
 import { LearningContent } from "@/components/learning-content";
 import { PlanCreator } from "@/components/plan-creator";
+import { QuantitativeWorkpad } from "@/components/quantitative-workpad";
 import { StudyNowCreator } from "@/components/study-now-creator";
 import { TutorMessageContent } from "@/components/tutor-message-content";
 import { trackProductEvent } from "@/lib/analytics/client";
@@ -97,6 +98,7 @@ import {
 } from "@/lib/learning/session-evidence";
 import { shouldRequestConfidence } from "@/lib/learning/session-interaction";
 import { restoreInterruptedLesson, resumableSessionProgress } from "@/lib/learning/session-resume";
+import { selectFreeResponseMode } from "@/lib/learning/response-mode";
 import { clearPreviewSnapshot, loadPreviewSnapshot, savePreviewSnapshot } from "@/lib/persistence/preview-store";
 import { buildPlanProfileSummary } from "@/lib/personalization/profile-summary";
 import { createSessionAdaptationNote } from "@/lib/personalization/adaptation-note";
@@ -2334,7 +2336,7 @@ function subjectSpecificLessonStepsFor(plan: LearningPlan | null): LessonStep[] 
       lessonInstruction("Set up", "Recall the product-rule structure", "Try each step before looking back at the rule. The goal is to choose and apply both terms, not only recognize the formula.", "orient"),
       lessonQuestion("Structure check", "Which expression correctly applies the product rule?", "Differentiate each factor once while the other factor stays in place.", ["$f'g + fg'$", "$f'g'$", "$fg'$", "$f'g$"], "$f'g + fg'$", "The product rule adds two terms: first $f'g$, then $fg'$.", "Product rule structure", "retrieve"),
       lessonQuestion("Application check", "What is the derivative of $x^2\\sin(x)$?", "Apply the two-term structure before choosing.", ["$2x\\sin(x) + x^2\\cos(x)$", "$2x\\cos(x)$", "$x^2\\cos(x)$", "$2x\\sin(x)$"], "$2x\\sin(x) + x^2\\cos(x)$", "Differentiate $x^2$ while keeping $\\sin(x)$, then keep $x^2$ while differentiating $\\sin(x)$, and add the terms.", "Applying the product rule", "independent_practice"),
-      lessonFreeResponse("Explain the method", "Why does the product rule contain two terms?", "Explain what changes in each term without copying the formula alone.", "A product can change because either factor changes. One term differentiates the first factor while keeping the second, and the other term differentiates the second while keeping the first.", "A strong answer connects each term to one factor changing while the other stays in place.", "Product rule meaning", "explain"),
+      lessonFreeResponse("Show your work", "Differentiate $x^3e^x$", "Show the two product-rule terms before giving the final derivative.", "$3x^2e^x + x^3e^x$", "A strong response differentiates $x^3$ while keeping $e^x$, then keeps $x^3$ while differentiating $e^x$, and adds both terms.", "Applying the product rule", "independent_practice"),
       lessonInstruction("Wrap up", "Use a new product next", "Apply the same structure to a different pair of functions without the example visible. That transfer is stronger evidence than repeating the original problem.", "transfer"),
     ];
   }
@@ -2368,7 +2370,7 @@ function teachingFirstLessonStepsFor(plan: LearningPlan): LessonStep[] | null {
       lessonInstruction("Learn", "See the product rule before using it", "When two functions are multiplied, differentiate one while leaving the other unchanged. Then switch their roles and add the results: $\\frac{d}{dx}[f(x)g(x)] = f'(x)g(x) + f(x)g'(x)$.", "model"),
       lessonInstruction("Worked example", "Differentiate $x^2\\sin(x)$", "Differentiate $x^2$ and keep $\\sin(x)$: $2x\\sin(x)$. Then keep $x^2$ and differentiate $\\sin(x)$: $x^2\\cos(x)$. Add them: $2x\\sin(x) + x^2\\cos(x)$.", "model"),
       lessonQuestion("Guided check", "Which expression correctly applies the product rule?", "Match the two-part structure from the example.", ["$f'g + fg'$", "$f'g'$", "$fg'$", "$f'g$"], "$f'g + fg'$", "The product rule adds two terms so each factor is differentiated once while the other is held unchanged.", "Product rule structure", "guided_practice"),
-      lessonFreeResponse("Independent explanation", "Explain why the product rule has two terms", "Explain the structure without copying the formula alone.", "A product can change because either factor changes. The two terms represent differentiating the first factor while holding the second, then differentiating the second while holding the first.", "A strong answer connects each term to one factor changing while the other remains in place.", "Product rule meaning", "independent_practice"),
+      lessonFreeResponse("Independent work", "Differentiate $x^3e^x$", "Use the model with less support. Show the two product-rule terms before giving the final derivative.", "$3x^2e^x + x^3e^x$", "A strong response differentiates $x^3$ while keeping $e^x$, then keeps $x^3$ while differentiating $e^x$, and adds both terms.", "Applying the product rule", "independent_practice"),
       lessonInstruction("Wrap up", "Fade the example next", "The next attempt should use a new product with less support so YOVA can see whether the procedure transfers.", "transfer"),
     ];
   }
@@ -2566,6 +2568,14 @@ function GuidedSession({ plan, steps, step, selectedAnswer, outcome, confidence,
   const completedRequiredSteps = steps.slice(0, step).filter((item) => item.requiredForCompletion !== false).length;
   const requiredProgress = requiredSteps.length ? Math.round((completedRequiredSteps / requiredSteps.length) * 100) : 0;
   const activityLabel = polishActivityLabel(content.label) || "Activity";
+  const freeResponseMode = content.type === "free_response"
+    ? selectFreeResponseMode({
+      taskType: methodBriefing?.taskType,
+      title: content.title,
+      prompt: content.body,
+      referenceAnswer: content.correctAnswer ?? "",
+    })
+    : "explanation";
 
   const checkFreeResponse = async () => {
     if (!selectedAnswer?.trim() || answerEvaluationPending) return;
@@ -2652,7 +2662,49 @@ function GuidedSession({ plan, steps, step, selectedAnswer, outcome, confidence,
           return <button key={answer} className={answerState} disabled={selectedAnswer !== null || (requiresConfidence && !confidence)} onClick={() => { onSelect(answer); onEvaluate(answer === content.correctAnswer); }}><LearningContent content={answer} inline />{answerState === "correct" ? <Check size={18} /> : answerState === "incorrect" ? <X size={18} /> : null}</button>;
         })}</div>}
       {content.type === "multiple_choice" && outcome !== undefined && <><div className={`feedback ${isCorrect ? "" : "incorrect"}`}>{isCorrect ? <Check size={20} /> : <AlertCircle size={20} />}<div><strong>{isCorrect ? "Correct." : "Useful miss. Repair it now."}</strong>{explanation && <LearningContent content={explanation} />}</div></div>{confidence && <p className="confidence-result"><Sparkles size={15} /> {confidenceResultMessage(confidence, isCorrect)}</p>}</>}
-      {content.type === "free_response" && <div className="recall-response"><label htmlFor={`recall-${step}`}><span>{isImmediateRepair ? "Corrected idea in your own words" : phase?.label ?? "Your answer from memory"}</span><textarea id={`recall-${step}`} rows={6} value={selectedAnswer ?? ""} disabled={answerRevealed || answerEvaluationPending || (requiresConfidence && !confidence)} placeholder={isImmediateRepair ? "Explain the corrected idea without copying the wording…" : requiresConfidence && !confidence ? "Choose your confidence first…" : phase?.instruction ?? "Write what you can remember before checking…"} onChange={(event) => onSelect(event.target.value)} /></label>{!answerRevealed ? <div className="recall-submit-actions"><button className="button secondary" disabled={!selectedAnswer?.trim() || answerEvaluationPending || (requiresConfidence && !confidence)} onClick={() => void checkFreeResponse()}>{answerEvaluationPending ? <><span className="button-spinner dark" /> Checking the key idea…</> : "Check my answer"}</button><button className="button ghost unknown-answer" disabled={answerEvaluationPending} onClick={revealUnknownAnswer}><AlertCircle size={16} /> I don&apos;t know yet</button><small>YOVA will show the model and record a gap without treating it as failure.</small></div> : <div className="recall-review">{answerEvaluation && <section className={`answer-evaluation ${answerEvaluation.verdict}`}><span className="step-label">YOVA&apos;S FORMATIVE CHECK</span><strong>{answerEvaluation.verdict === "secure" ? "The key idea is present." : answerEvaluation.verdict === "needs_review" ? "One or more key ideas need repair." : "YOVA could not judge this confidently."}</strong><LearningContent content={answerEvaluation.feedback} />{answerEvaluation.matchedIdeas.length > 0 && <div><span>What your answer showed</span><ul>{answerEvaluation.matchedIdeas.map((idea) => <li key={idea}><LearningContent content={idea} inline /></li>)}</ul></div>}{answerEvaluation.missingIdeas.length > 0 && <div><span>What to check</span><ul>{answerEvaluation.missingIdeas.map((idea) => <li key={idea}><LearningContent content={idea} inline /></li>)}</ul></div>}</section>}{answerEvaluationIssue && <div className="answer-evaluation-fallback"><AlertCircle size={17} /><p>{answerEvaluationIssue} Use the reference answer and your own judgment below.</p></div>}<span className="step-label">REFERENCE ANSWER</span><LearningContent content={content.correctAnswer ?? ""} className="reference-answer" />{content.feedback && <LearningContent content={content.feedback} className="reference-rubric" />}<div className="recall-actions"><span>{answerEvaluation ? "Confirm or correct YOVA’s check" : "How did your answer compare?"}</span><button className={outcome === true ? "selected" : ""} onClick={() => onEvaluate(true)}><Check size={17} /> I got the key idea</button><button className={outcome === false ? "selected needs-work" : ""} onClick={() => onEvaluate(false)}><AlertCircle size={17} /> Needs another pass</button></div>{confidence && outcome !== undefined && <p className="confidence-result"><Sparkles size={15} /> {confidenceResultMessage(confidence, outcome)}</p>}<small className="privacy-note">{isImmediateRepair ? "This immediate explain-back is not saved as proof of mastery. The original miss remains scheduled for later verification." : answerEvaluation ? "Your answer was sent for a one-time AI check and is not saved. YOVA keeps only the concept result, confidence, and support level." : "Your typed answer is not saved. YOVA keeps only the concept result, confidence, and support level."}</small></div>}</div>}
+      {content.type === "free_response" && <div className="recall-response">
+        {freeResponseMode === "quantitative_workpad"
+          ? <QuantitativeWorkpad
+            value={selectedAnswer ?? ""}
+            disabled={answerRevealed || answerEvaluationPending || (requiresConfidence && !confidence)}
+            onChange={onSelect}
+          />
+          : <label htmlFor={`recall-${step}`}>
+            <span>{isImmediateRepair ? "Corrected idea in your own words" : phase?.label ?? "Your answer from memory"}</span>
+            <textarea
+              id={`recall-${step}`}
+              rows={6}
+              value={selectedAnswer ?? ""}
+              disabled={answerRevealed || answerEvaluationPending || (requiresConfidence && !confidence)}
+              placeholder={isImmediateRepair ? "Explain the corrected idea without copying the wording..." : requiresConfidence && !confidence ? "Choose your confidence first..." : phase?.instruction ?? "Write what you can remember before checking..."}
+              onChange={(event) => onSelect(event.target.value)}
+            />
+          </label>}
+        {!answerRevealed ? <div className="recall-submit-actions">
+          <button className="button secondary" disabled={!selectedAnswer?.trim() || answerEvaluationPending || (requiresConfidence && !confidence)} onClick={() => void checkFreeResponse()}>
+            {answerEvaluationPending
+              ? <><span className="button-spinner dark" /> Checking your work...</>
+              : freeResponseMode === "quantitative_workpad" ? "Check my work" : "Check my answer"}
+          </button>
+          <button className="button ghost unknown-answer" disabled={answerEvaluationPending} onClick={revealUnknownAnswer}><AlertCircle size={16} /> I don&apos;t know yet</button>
+          <small>YOVA will show the model and record a gap without treating it as failure.</small>
+        </div> : <div className="recall-review">
+          {answerEvaluation && <section className={`answer-evaluation ${answerEvaluation.verdict}`}>
+            <span className="step-label">YOVA&apos;S FORMATIVE CHECK</span>
+            <strong>{answerEvaluation.verdict === "secure" ? "The key idea is present." : answerEvaluation.verdict === "needs_review" ? "One or more key ideas need repair." : "YOVA could not judge this confidently."}</strong>
+            <LearningContent content={answerEvaluation.feedback} />
+            {answerEvaluation.matchedIdeas.length > 0 && <div><span>What your answer showed</span><ul>{answerEvaluation.matchedIdeas.map((idea) => <li key={idea}><LearningContent content={idea} inline /></li>)}</ul></div>}
+            {answerEvaluation.missingIdeas.length > 0 && <div><span>What to check</span><ul>{answerEvaluation.missingIdeas.map((idea) => <li key={idea}><LearningContent content={idea} inline /></li>)}</ul></div>}
+          </section>}
+          {answerEvaluationIssue && <div className="answer-evaluation-fallback"><AlertCircle size={17} /><p>{answerEvaluationIssue} Use the reference answer and your own judgment below.</p></div>}
+          <span className="step-label">REFERENCE ANSWER</span>
+          <LearningContent content={content.correctAnswer ?? ""} className="reference-answer" />
+          {content.feedback && <LearningContent content={content.feedback} className="reference-rubric" />}
+          <div className="recall-actions"><span>{answerEvaluation ? "Confirm or correct YOVA’s check" : "How did your answer compare?"}</span><button className={outcome === true ? "selected" : ""} onClick={() => onEvaluate(true)}><Check size={17} /> I got the key idea</button><button className={outcome === false ? "selected needs-work" : ""} onClick={() => onEvaluate(false)}><AlertCircle size={17} /> Needs another pass</button></div>
+          {confidence && outcome !== undefined && <p className="confidence-result"><Sparkles size={15} /> {confidenceResultMessage(confidence, outcome)}</p>}
+          <small className="privacy-note">{isImmediateRepair ? "This immediate explain-back is not saved as proof of mastery. The original miss remains scheduled for later verification." : answerEvaluation ? "Your answer was sent for a one-time AI check and is not saved. YOVA keeps only the concept result, confidence, and support level." : "Your typed answer is not saved. YOVA keeps only the concept result, confidence, and support level."}</small>
+        </div>}
+      </div>}
         <footer className="session-action-bar">{step === steps.length - 1 && <p className="completion-rule"><Check size={14} /> Completion is based on the required learning work, not on running out the clock.</p>}<button className="button primary large" onClick={() => onNext(answerEvaluation)} disabled={!canContinue}>{outcome === false && !isImmediateRepair ? "Repair this idea" : step === steps.length - 1 ? "Finish this content" : "Continue"} <ArrowRight size={18} /></button></footer>
       </section>
     </section>

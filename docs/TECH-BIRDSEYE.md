@@ -142,6 +142,8 @@ what completion means
 
 This division matters. The model has room for subject-specific judgment, but it cannot silently replace a problem-solving method with a productivity trick merely because the user mentioned procrastination. See `docs/LEARNING-SCIENCE-ENGINE.md` for the catalog, evidence tiers, and remaining scientific work.
 
+YOVA also chooses the interaction shape from the learning task. A conceptual response uses a normal explanation field. A quantitative problem-solving response uses a workpad with numbered reasoning steps and a separate final answer. The browser combines those fields into one bounded answer, the server validates it, and the answer evaluator checks the process and conclusion separately. The typed work is not stored; only the concept result, confidence, and support level become durable learning evidence. This is the difference between adding a decorative math form and building a real learning interaction through the full stack.
+
 When a completed session justifies changing the next one, YOVA stores the explanation with that future session. The same evidence is restored after sign-in and shown on Home and inside the plan. This makes adaptation inspectable: the user can see which result changed the plan instead of being asked to trust a vague “personalized” label.
 
 The You screen also groups completed sessions into broad method families such as retrieval, guided explanation, and application practice. Ordinary TypeScript—not OpenAI—calculates completion counts, check accuracy, difficulty feedback, and interruptions. YOVA labels one session as early evidence, requires repeated comparable checks before showing a promising signal, and never turns this history into a fixed “learning style.”

@@ -1015,6 +1015,24 @@ h1, h2, h3, p { margin-top: 0; }
 .recall-response textarea:focus { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(52,107,255,.1); }
 .recall-response textarea:disabled { color: var(--text); background: #f8f9fc; opacity: 1; }
 .recall-response > .button { justify-self: start; }
+.quantitative-workpad { overflow: hidden; border: 1px solid #cbd7f7; border-radius: 14px; background: linear-gradient(145deg,#fbfcff,#f6f8ff); }
+.quantitative-workpad > header { padding: 16px 17px; display: flex; align-items: flex-start; gap: 12px; border-bottom: 1px solid #dce4f8; background: rgba(255,255,255,.72); }
+.quantitative-workpad > header > span { width: 36px; height: 36px; flex: 0 0 auto; display: grid; place-items: center; color: var(--blue); border-radius: 10px; background: var(--soft-blue); }
+.quantitative-workpad > header strong { color: var(--navy); font-size: 14px; }
+.quantitative-workpad > header p { margin: 4px 0 0; color: var(--muted); font-size: 11px; line-height: 1.5; }
+.workpad-steps { padding: 17px; display: grid; gap: 10px; }
+.workpad-steps label { grid-template-columns: 28px minmax(0,1fr); align-items: start; gap: 10px; }
+.workpad-steps label > span { width: 28px; height: 28px; margin-top: 8px; display: grid; place-items: center; color: white; border-radius: 50%; background: var(--blue); font-size: 11px; font-weight: 800; }
+.quantitative-workpad .workpad-steps textarea { min-height: 58px; padding: 10px 12px; resize: vertical; border-color: #d8dfef; background: white; line-height: 1.45; }
+.workpad-row-actions { padding: 0 17px 14px 55px; display: flex; gap: 8px; }
+.workpad-row-actions button { padding: 7px 9px; display: flex; align-items: center; gap: 5px; color: #50617d; border: 1px solid #d9dfeb; border-radius: 8px; background: white; font-size: 10px; font-weight: 700; }
+.workpad-row-actions button:hover { color: var(--blue); border-color: #bfcdfa; background: #f7f9ff; }
+.workpad-row-actions button:disabled { opacity: .45; cursor: not-allowed; }
+.workpad-final { padding: 15px 17px 17px; border-top: 1px solid #dce4f8; background: rgba(237,242,255,.52); }
+.workpad-final > span { color: var(--navy) !important; font-size: 11px !important; letter-spacing: .03em; text-transform: uppercase; }
+.workpad-final input { width: 100%; padding: 12px 13px; color: var(--text); border: 1px solid #bdcaf0; border-radius: 9px; outline: 0; background: white; font: inherit; font-weight: 650; }
+.workpad-final input:focus { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(52,107,255,.1); }
+.workpad-final input:disabled { color: var(--text); background: #f8f9fc; opacity: 1; }
 .recall-submit-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 9px; }
 .recall-submit-actions > small { flex-basis: 100%; color: var(--muted); font-size: 10px; line-height: 1.5; }
 .unknown-answer { color: #58657b !important; }
@@ -1796,6 +1814,12 @@ h1, h2, h3, p { margin-top: 0; }
   .early-session-actions .button { width: 100%; }
   .recall-submit-actions { align-items: stretch; flex-direction: column; }
   .recall-submit-actions .button { width: 100%; }
+  .quantitative-workpad > header { padding: 14px; }
+  .workpad-steps { padding: 14px; }
+  .workpad-steps label { grid-template-columns: 24px minmax(0,1fr); gap: 8px; }
+  .workpad-steps label > span { width: 24px; height: 24px; }
+  .workpad-row-actions { padding: 0 14px 12px 46px; flex-wrap: wrap; }
+  .workpad-final { padding: 14px; }
   .recall-actions { grid-template-columns: 1fr; }
   .recall-actions > span { grid-column: auto; }
   .confidence-check > div { grid-template-columns: 1fr; }

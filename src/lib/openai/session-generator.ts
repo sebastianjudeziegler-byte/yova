@@ -150,6 +150,7 @@ Requirements:
 - Include at least one free_response activity that makes the learner produce an answer from memory before seeing a concise reference answer.
 - Give every multiple_choice and free_response activity one concise concept name. Set concept to null for instructions and reflections.
 - For free_response, leave choices empty, put a concise meaning-based reference answer in correctAnswer, and make feedback a clear rubric naming the essential relationships a strong answer must contain. YOVA uses both for a bounded formative check, and the learner can correct that judgment.
+- For quantitative problem-solving free responses, ask for a concrete calculation or solution and explicitly tell the learner to show the key steps before the final answer. Put the worked result in correctAnswer and name the required method steps in feedback. Do not turn every mathematics prompt into a verbal explanation.
 - For multiple_choice, correctAnswer must exactly match one choice, and feedback must explain the concept rather than merely say correct.
 - Every question's feedback must be a useful explanatory sentence of at least 20 characters. Every free-response reference answer must contain enough substance to compare meaning, not a one-word answer.
 - Put choices in varied order. Do not always place the correct answer first.
