@@ -19,7 +19,11 @@ add constraint product_events_event_name_check check (event_name in (
   'generation_observed'
 ));
 
-create table public.founder_accounts (
+-- This table was created manually in the linked alpha project before the
+-- migration history was reconciled. Keeping the statement idempotent lets the
+-- reviewed migration finish safely in environments where that table already
+-- exists, while the remaining grants and RPC are still applied below.
+create table if not exists public.founder_accounts (
   user_id uuid primary key references auth.users(id) on delete cascade,
   created_at timestamptz not null default now()
 );
@@ -84,4 +88,3 @@ $$;
 
 revoke all on function public.founder_generation_reliability(integer) from public;
 grant execute on function public.founder_generation_reliability(integer) to authenticated;
-

@@ -5,6 +5,7 @@ import {
   type ExtractedMaterial,
 } from "@/lib/materials/extract";
 import { assessMaterialQuality } from "@/lib/materials/quality";
+import { storePrivateMaterial } from "@/lib/materials/storage-upload";
 import {
   MaterialDeleteRequestSchema,
   MaterialProcessRequestSchema,
@@ -112,16 +113,18 @@ export async function PUT(request: Request) {
   if (uploadError || !upload) return NextResponse.json({ error: "That staged upload was not found." }, { status: 404 });
   if (Number(upload.byte_size) !== file.size) return NextResponse.json({ error: "The selected file changed before upload." }, { status: 422 });
 
-  const { error: storageError } = await supabase.storage.from("learning-materials").upload(upload.storage_path, file, {
-    contentType: upload.mime_type,
-    // A privacy extension can interrupt a signed upload after Supabase has
-    // created a partial object. This endpoint owns the exact staged path, so
-    // replacing that incomplete object is safe and makes the fallback useful.
-    upsert: true,
-  });
-  if (storageError) {
-    console.error("YOVA same-origin material upload failed", { requestId, reason: "storage_upload" });
-    return NextResponse.json({ error: "YOVA could not securely upload this file. Try exporting the document as PDF again or paste the study-guide topics." }, { status: 500 });
+  const stored = await storePrivateMaterial(
+    supabase.storage.from("learning-materials"),
+    upload.storage_path,
+    file,
+    upload.mime_type,
+  );
+  if (!stored.ok) {
+    console.error("YOVA same-origin material upload failed", { requestId, reason: stored.reason });
+    return NextResponse.json(
+      { error: "YOVA could not securely upload this file. Try again before exporting or changing the document.", requestId },
+      { status: 500, headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId } },
+    );
   }
   return new NextResponse(null, { status: 204, headers: { "X-Yova-Request-Id": requestId } });
 }
