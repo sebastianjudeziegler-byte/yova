@@ -36,7 +36,7 @@ type StartingEvidence = {
 
 export function resolveLearningIntent(evidence: StartingEvidence): LearningIntentRecommendation {
   const startingPoint = evidence.startingPoint?.toLowerCase() ?? "";
-  if (/haven't learned|have not learned|new to|doesn't make sense|does not make sense|starting from scratch/.test(startingPoint)) {
+  if (/haven't learned|have not learned|new to|completely new|know nothing|none yet|never (?:learned|seen)|doesn't make sense|does not make sense|starting from scratch/.test(startingPoint)) {
     return {
       intent: "learn",
       reason: "You said this is new or not yet clear, so YOVA should build understanding before expecting recall.",
@@ -55,7 +55,7 @@ export function resolveLearningIntent(evidence: StartingEvidence): LearningInten
     .filter((response) => response.evaluation === "self_report")
     .map((response) => response.answer.toLowerCase())
     .join(" ");
-  const selfReportSignalsMissingFoundation = /do not know|don't know|no idea|cannot explain|can't explain|not confident|starting from scratch|never learned|doesn't make sense|does not make sense/.test(selfReportText);
+  const selfReportSignalsMissingFoundation = /do not know|don't know|know nothing|no idea|none yet|completely new|cannot explain|can't explain|not confident|starting from scratch|never (?:learned|seen)|doesn't make sense|does not make sense/.test(selfReportText);
   const allChecksIncorrect = objectiveChecks.length >= 2
     && objectiveChecks.every((response) => response.evaluation === "incorrect");
   if (selfReportSignalsMissingFoundation || allChecksIncorrect) {
@@ -75,6 +75,41 @@ export function resolveLearningIntent(evidence: StartingEvidence): LearningInten
   }
 
   return recommendLearningIntent(evidence.goal);
+}
+
+type EffectiveSessionModeInput = {
+  planLearningIntent: LearningIntent;
+  plannedMode: SessionLearningMode;
+  completedSessionCount: number;
+  familiarity?: "as_planned" | "already_know" | "need_teaching" | "challenge_me" | null;
+};
+
+/**
+ * Resolve the mode that the learner should actually receive now.
+ *
+ * The saved session is a proposal. Direct learner evidence is authoritative:
+ * a learner who asked to build a foundation cannot be sent into unsupported
+ * retrieval before completing any teaching. This also repairs older saved
+ * plans whose first session was incorrectly labelled practice-first.
+ */
+export function resolveEffectiveSessionLearningMode({
+  planLearningIntent,
+  plannedMode,
+  completedSessionCount,
+  familiarity = null,
+}: EffectiveSessionModeInput): SessionLearningMode {
+  if (familiarity === "need_teaching") return "learn";
+  if (familiarity === "already_know" || familiarity === "challenge_me") return "study";
+  if (planLearningIntent === "learn" && completedSessionCount === 0) return "learn";
+  return plannedMode;
+}
+
+export function teachingFirstSessionCopy(topic: string) {
+  return {
+    method: "Guided explanation and self-explanation",
+    methodReason: "You are building this foundation, so YOVA will teach a clear model and example before asking you to work without support.",
+    objective: `Build an accurate first mental model of ${topic}, use one concrete example, and then explain the central relationship with less support.`,
+  };
 }
 
 export function recommendLearningIntent(goal: string): LearningIntentRecommendation {

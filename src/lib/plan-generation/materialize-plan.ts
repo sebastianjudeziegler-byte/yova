@@ -4,6 +4,7 @@ import {
   type GeneratedPlanDraft,
   type PlanGenerationRequest,
 } from "@/lib/plan-generation/schema";
+import { teachingFirstSessionCopy } from "@/lib/learning/learning-intent";
 
 export function materializePlanDraft(
   untrustedDraft: GeneratedPlanDraft,
@@ -34,14 +35,20 @@ export function materializePlanDraft(
         ? Math.min(session.estimatedMinutes, request.availability[0]?.minutes ?? session.estimatedMinutes)
         : session.estimatedMinutes;
 
+      const learningMode = index === 0 ? request.learningIntent : session.learningMode;
+      const repairedTeachingStart = learningMode === "learn" && session.learningMode !== "learn"
+        ? teachingFirstSessionCopy(draft.topic)
+        : null;
+
       return {
         id: makeUuid(),
         sequence: index + 1,
         ...session,
+        ...(repairedTeachingStart ?? {}),
         scheduledFor: request.intent === "study_now" ? new Date().toISOString() : session.scheduledFor,
         estimatedMinutes,
         amountLabel: request.intent === "study_now" ? `Focused session · about ${estimatedMinutes} min` : session.amountLabel,
-        learningMode: session.learningMode,
+        learningMode,
         contentTargets: session.contentTargets,
         completionEvidence: session.completionEvidence,
         status: index === 0 ? "ready" as const : "upcoming" as const,

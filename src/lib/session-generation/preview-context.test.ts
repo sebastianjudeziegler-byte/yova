@@ -149,4 +149,24 @@ describe("buildPreviewSessionContext", () => {
       reviewType: "verify",
     });
   });
+
+  it("repairs an old practice-first first session when the plan says the learner needs teaching", () => {
+    const staleSession = {
+      ...plan.sessions[0],
+      learningMode: "study" as const,
+      method: "Retrieval practice",
+      objective: "Recall the causes of World War I without notes.",
+    };
+    const result = buildPreviewSessionContext({
+      plan: { ...plan, topic: "World War I", sessions: [staleSession] },
+      session: staleSession,
+      onboardingAnswers: [],
+      completions: [],
+      interruptions: [],
+    });
+
+    expect(result.session.learningMode).toBe("learn");
+    expect(result.session.method).toMatch(/explanation/i);
+    expect(result.session.objective).toMatch(/first mental model/i);
+  });
 });

@@ -12,6 +12,10 @@ import {
   methodIdFromText,
   type KnowledgeStage,
 } from "@/lib/learning/method-router";
+import {
+  resolveEffectiveSessionLearningMode,
+  teachingFirstSessionCopy,
+} from "@/lib/learning/learning-intent";
 import { buildScaffoldProgressionSignals } from "@/lib/learning/scaffold-progression";
 import { inferScheduledRetrievalConcept, inferScheduledRetrievalType } from "@/lib/learning/scheduled-retrieval";
 import { expandedLearnerContextFromAnswers } from "@/lib/personalization/learner-profile";
@@ -37,6 +41,14 @@ export function buildPreviewSessionContext({
     .filter((interruption) => interruption.planId === plan.id)
     .sort((left, right) => right.interruptedAt.localeCompare(left.interruptedAt));
   const expandedProfile = expandedLearnerContextFromAnswers(onboardingAnswers);
+  const effectiveLearningMode = resolveEffectiveSessionLearningMode({
+    planLearningIntent: plan.learningIntent,
+    plannedMode: session.learningMode,
+    completedSessionCount: recentCompletions.length,
+  });
+  const repairedTeachingStart = effectiveLearningMode === "learn" && session.learningMode !== "learn"
+    ? teachingFirstSessionCopy(plan.topic)
+    : null;
 
   return {
     learningGoal: {
@@ -51,11 +63,11 @@ export function buildPreviewSessionContext({
     planRationale: plan.rationale,
     session: {
       title: session.title,
-      objective: session.objective,
-      method: session.method,
-      methodReason: session.methodReason,
+      objective: repairedTeachingStart?.objective ?? session.objective,
+      method: repairedTeachingStart?.method ?? session.method,
+      methodReason: repairedTeachingStart?.methodReason ?? session.methodReason,
       estimatedMinutes: session.estimatedMinutes,
-      learningMode: session.learningMode,
+      learningMode: effectiveLearningMode,
       contentTargets: session.contentTargets ?? [],
       completionEvidence: session.completionEvidence ?? [],
       reviewConcept: inferScheduledRetrievalConcept(session),

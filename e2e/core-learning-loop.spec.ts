@@ -149,6 +149,13 @@ test("a confident misconception is repaired now and verified later", async ({ pa
 });
 
 test("a new topic is taught before YOVA asks for independent performance", async ({ page }) => {
+  await page.route("**/api/sessions/generate", async (route) => {
+    await route.fulfill({
+      status: 502,
+      contentType: "application/json",
+      body: JSON.stringify({ error: "Use the deterministic built-in lesson for this browser journey." }),
+    });
+  });
   await createPreviewAccount(page);
   await completeOnboarding(page);
 
@@ -163,10 +170,11 @@ test("a new topic is taught before YOVA asks for independent performance", async
   await page.getByRole("button", { name: /Build and start session/ }).click();
   await confirmSessionSetup(page);
 
-  await expect(page.getByRole("heading", { name: "Use money concepts as decision tools" })).toBeVisible();
+  await expect(page.getByLabel(/Method phase 1 of/)).toContainText("See a complete model");
   await expect(page.getByLabel("How YOVA adapted this session")).toContainText("The method comes from the task");
   await expect(page.getByLabel("How YOVA adapted this session")).toContainText(/concrete examples before rules/i);
   await openMobileSessionGuide(page);
+  await expect(page.getByText("Teaching first", { exact: true }).filter({ visible: true }).first()).toBeVisible();
   await expect(page.getByText("How YOVA adapted this").filter({ visible: true }).first()).toBeVisible();
   await expect(page.getByText(/asked for concrete examples before rules/i).filter({ visible: true }).first()).toBeVisible();
   await expect(page.getByLabel("Support progression").first()).toContainText("Support fades inside this session");
@@ -403,7 +411,7 @@ test("home lets the learner browse prioritized recommendations without opening e
   await completeOnboarding(page);
 
   await createOneOffLearningSession(page, "Help me understand compound growth and personal finance basics.");
-  await expect(page.getByRole("heading", { name: "Use money concepts as decision tools" })).toBeVisible();
+  await expect(page.locator(".method-phase-coach:visible")).toContainText("See a complete model");
   await exitSessionWithoutProgress(page);
 
   await createOneOffLearningSession(page, "Teach me startup funding stages, instruments, investors, and dilution from the beginning.");

@@ -2,7 +2,11 @@ import { NextResponse } from "next/server";
 import { buildMaterialExcerpts } from "@/lib/materials/context";
 import { readConceptEvidenceProperty, summarizeConceptEvidence } from "@/lib/learning/concept-evidence";
 import { readConfidenceEvidenceProperty, summarizeConfidenceCalibration } from "@/lib/learning/confidence-calibration";
-import { inferLegacySessionLearningMode } from "@/lib/learning/learning-intent";
+import {
+  inferLegacySessionLearningMode,
+  resolveEffectiveSessionLearningMode,
+  teachingFirstSessionCopy,
+} from "@/lib/learning/learning-intent";
 import {
   inferKnowledgeStage,
   inferLearningTaskType,
@@ -71,27 +75,6 @@ export async function POST(request: Request) {
   }
   if (!planSession || planSession.plan_id !== parsed.data.planId) {
     return NextResponse.json({ error: "That guided session was not found." }, { status: 404 });
-  }
-
-  const cached = readCachedSession(planSession.step_data);
-  if (cached && !parsed.data.sessionAdjustment) {
-    return NextResponse.json(SessionGenerationResponseSchema.parse({
-      planSessionId: planSession.id,
-      session: cached,
-      generation: { mode: "cache", persistence: "supabase" },
-    }), { headers: responseHeaders(requestId, emptyGenerationStats()) });
-  }
-
-  if (!isOpenAISessionConfigured()) {
-    return NextResponse.json({ error: "Live guided-session generation is not connected yet." }, { status: 503 });
-  }
-
-  const rateLimit = checkSessionGenerationRateLimit(`${user.id}:${requestRateLimitKey(request)}`);
-  if (!rateLimit.allowed) {
-    return NextResponse.json(
-      { error: "Too many sessions were generated at once. Wait a moment and try again." },
-      { status: 429, headers: { "Retry-After": String(rateLimit.retryAfterSeconds) } },
-    );
   }
 
   try {
@@ -177,6 +160,46 @@ export async function POST(request: Request) {
         ),
       ]),
     );
+    const planLearningIntent = readLearningIntent(plan.generation_inputs);
+    const savedLearningMode = readSessionLearningMode(
+      planSession.step_data,
+      planSession.method,
+      planSession.objective,
+    );
+    const effectiveLearningMode = resolveEffectiveSessionLearningMode({
+      planLearningIntent,
+      plannedMode: savedLearningMode,
+      completedSessionCount: recentAttempts.length,
+      familiarity: parsed.data.sessionAdjustment?.familiarity ?? null,
+    });
+    const repairedTeachingStart = effectiveLearningMode === "learn" && savedLearningMode !== "learn"
+      ? teachingFirstSessionCopy(learningItem.topic)
+      : null;
+    const cached = readCachedSession(planSession.step_data);
+    if (
+      cached
+      && !parsed.data.sessionAdjustment
+      && cached.methodBriefing.learningMode === effectiveLearningMode
+    ) {
+      return NextResponse.json(SessionGenerationResponseSchema.parse({
+        planSessionId: planSession.id,
+        session: cached,
+        generation: { mode: "cache", persistence: "supabase" },
+      }), { headers: responseHeaders(requestId, emptyGenerationStats()) });
+    }
+
+    if (!isOpenAISessionConfigured()) {
+      return NextResponse.json({ error: "Live guided-session generation is not connected yet." }, { status: 503 });
+    }
+
+    const rateLimit = checkSessionGenerationRateLimit(`${user.id}:${requestRateLimitKey(request)}`);
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        { error: "Too many sessions were generated at once. Wait a moment and try again." },
+        { status: 429, headers: { "Retry-After": String(rateLimit.retryAfterSeconds) } },
+      );
+    }
+
     let durableLimit: Awaited<ReturnType<typeof claimAIRequest>>;
     try {
       durableLimit = await claimAIRequest(supabase, "session_generation");
@@ -212,17 +235,17 @@ export async function POST(request: Request) {
         deadline: learningItem.deadline,
         sourceMode: effectiveSourceMode,
         studyMode: learningItem.study_mode,
-        learningIntent: readLearningIntent(plan.generation_inputs),
+        learningIntent: planLearningIntent,
       },
       planRationale: plan.rationale,
       materials: materialExcerpts,
       session: {
         title: planSession.title,
-        objective: planSession.objective,
-        method: planSession.method,
-        methodReason: planSession.method_rationale,
+        objective: repairedTeachingStart?.objective ?? planSession.objective,
+        method: repairedTeachingStart?.method ?? planSession.method,
+        methodReason: repairedTeachingStart?.methodReason ?? planSession.method_rationale,
         estimatedMinutes: planSession.estimated_minutes,
-        learningMode: readSessionLearningMode(planSession.step_data, planSession.method, planSession.objective),
+        learningMode: effectiveLearningMode,
         contentTargets: readStringArrayProperty(planSession.step_data, "contentTargets"),
         completionEvidence: readStringArrayProperty(planSession.step_data, "completionEvidence"),
         reviewConcept: inferScheduledRetrievalConcept({

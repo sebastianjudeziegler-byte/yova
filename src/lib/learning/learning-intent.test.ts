@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   learningModeContract,
+  resolveEffectiveSessionLearningMode,
   resolveLearningIntent,
 } from "@/lib/learning/learning-intent";
 
@@ -46,6 +47,39 @@ describe("learning approach router", () => {
         { answer: "I cannot explain this yet", evaluation: "self_report" },
       ],
     })).toMatchObject({ intent: "learn" });
+  });
+
+  it("treats completely new and know nothing as hard teaching-first signals", () => {
+    expect(resolveLearningIntent({
+      goal: "Prepare for a World War I test",
+      diagnosticResponses: [
+        { answer: "Completely new", evaluation: "self_report" },
+        { answer: "I know nothing about this yet", evaluation: "self_report" },
+      ],
+    })).toMatchObject({ intent: "learn" });
+  });
+
+  it("repairs a stale practice-first session before a new learner has received teaching", () => {
+    expect(resolveEffectiveSessionLearningMode({
+      planLearningIntent: "learn",
+      plannedMode: "study",
+      completedSessionCount: 0,
+      familiarity: "as_planned",
+    })).toBe("learn");
+  });
+
+  it("allows explicit learner overrides and later planned practice", () => {
+    expect(resolveEffectiveSessionLearningMode({
+      planLearningIntent: "learn",
+      plannedMode: "learn",
+      completedSessionCount: 0,
+      familiarity: "challenge_me",
+    })).toBe("study");
+    expect(resolveEffectiveSessionLearningMode({
+      planLearningIntent: "learn",
+      plannedMode: "study",
+      completedSessionCount: 1,
+    })).toBe("study");
   });
 
   it("gives teaching and practice different first-activity contracts", () => {
