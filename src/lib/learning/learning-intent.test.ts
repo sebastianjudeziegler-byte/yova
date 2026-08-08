@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  inferSessionFamiliarityFromText,
   learningModeContract,
   resolveEffectiveSessionLearningMode,
   resolveLearningIntent,
@@ -57,6 +58,12 @@ describe("learning approach router", () => {
         { answer: "I know nothing about this yet", evaluation: "self_report" },
       ],
     })).toMatchObject({ intent: "learn" });
+  });
+
+  it("turns plain session notes about ground zero into a teaching-first override", () => {
+    expect(inferSessionFamiliarityFromText("I'm starting from ground zero pretty much")).toBe("need_teaching");
+    expect(inferSessionFamiliarityFromText("I already know the basics and want a harder check")).toBe("challenge_me");
+    expect(inferSessionFamiliarityFromText("Continue with the current plan")).toBeNull();
   });
 
   it("repairs a stale practice-first session before a new learner has received teaching", () => {

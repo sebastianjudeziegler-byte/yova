@@ -42,3 +42,10 @@ Open `support_requests` in the Supabase Table Editor.
 - **After every release:** verify the newest GitHub commit is the commit Vercel deployed.
 
 This is the operational difference between a demo and an alpha: the product does not merely work on the founder's laptop; there is a repeatable way to notice, investigate, and close problems experienced by real testers.
+# Generation reliability
+
+Production plan and session generation now records privacy-safe operational events in `product_events`. The event includes only pass/fail status, a stable validator name, repair outcome, elapsed time, token counts, and model name. It never contains learner goals, source text, questions, answers, profile context, or provider response identifiers.
+
+After applying the latest migrations and adding the founder account to `founder_accounts`, open `/founder/reliability` to see first-pass rate, post-repair success rate, p50/p95 latency, and the three validators failing most often.
+
+Outside tester email instructions are in `docs/TESTER-EMAIL-SETUP.md`.

@@ -86,6 +86,7 @@ export function PlanCreator({ onExit, onFinish, profileSummary, browserPreviewMo
   ));
   const [diagnosticIndex, setDiagnosticIndex] = useState(0);
   const [diagnosticAnswers, setDiagnosticAnswers] = useState<string[]>([]);
+  const [startingContext, setStartingContext] = useState("");
   const [generatedPlan, setGeneratedPlan] = useState<PlanGenerationResponse | null>(null);
   const [generatedFrom, setGeneratedFrom] = useState<PlanGenerationRequest | null>(null);
   const [generationError, setGenerationError] = useState<string | null>(null);
@@ -100,7 +101,11 @@ export function PlanCreator({ onExit, onFinish, profileSummary, browserPreviewMo
   }, {});
   const diagnosticQuestions = questionsForGoal(goal);
   const diagnosticResponses = buildDiagnosticResponses(diagnosticQuestions, diagnosticAnswers);
-  const learningApproach = resolveLearningIntent({ goal, diagnosticResponses });
+  const learningApproach = resolveLearningIntent({
+    goal,
+    startingPoint: `${startingContext} ${diagnosticAnswers[0] ?? ""}`,
+    diagnosticResponses,
+  });
   const goalContext = assessGoalContext(
     goal,
     sourceChoice === "materials" && materials.length > 0,
@@ -136,6 +141,7 @@ export function PlanCreator({ onExit, onFinish, profileSummary, browserPreviewMo
         intent: "plan",
         learningIntent: learningApproach.intent,
         goal,
+        startingContext,
         materialMode: sourceChoice === "materials" ? "upload" : "none",
         materials: sourceChoice === "materials" ? materials : [],
         studyMode: sourceChoice === "outside" ? "outside" : "inside",
@@ -407,13 +413,14 @@ export function PlanCreator({ onExit, onFinish, profileSummary, browserPreviewMo
       {step === "diagnostic" && (
         <PlanPanel eyebrow={`STARTING-POINT CHECK · ${diagnosticIndex + 1} OF ${diagnosticQuestions.length}`} title={diagnosticQuestions[diagnosticIndex].prompt} description="The check is intentionally easy. Its purpose is to avoid repeating what you already know.">
           <div className="diagnostic-options">{diagnosticQuestions[diagnosticIndex].options.map((option) => <button className={diagnosticAnswers[diagnosticIndex] === option ? "selected" : ""} key={option} onClick={() => { const next = [...diagnosticAnswers]; next[diagnosticIndex] = option; setDiagnosticAnswers(next); }}>{option}{diagnosticAnswers[diagnosticIndex] === option && <Check />}</button>)}</div>
+          {diagnosticIndex === 0 && <label className="starting-context-field"><span>Tell YOVA anything the choices missed</span><textarea rows={4} maxLength={800} value={startingContext} placeholder="Optional: what you already understand, where you feel lost, or what this plan must focus on." onChange={(event) => setStartingContext(event.target.value)} /><small>This changes what YOVA teaches first, how much support it gives, and how the plan is divided. {startingContext.length}/800</small></label>}
           <PlanActions onBack={diagnosticIndex === 0 ? back : () => setDiagnosticIndex((value) => value - 1)} onNext={() => { if (diagnosticIndex === diagnosticQuestions.length - 1) setStep("confirm"); else setDiagnosticIndex((value) => value + 1); }} nextLabel={diagnosticIndex === diagnosticQuestions.length - 1 ? "Review information" : "Next question"} nextDisabled={!diagnosticAnswers[diagnosticIndex]} />
         </PlanPanel>
       )}
 
       {step === "confirm" && (
         <PlanPanel eyebrow="FINAL CHECK" title="Everything YOVA will use" description="Review the inputs and change anything before your plan is generated.">
-          <div className="confirmation-list"><SummaryFact label="Goal" value={goal} /><SummaryFact label="Target date" value={deadlineDate ? formatDateOnly(deadlineDate) : "No fixed deadline"} /><SummaryFact label="Starting evidence" value={summarizeDiagnosticResponses(diagnosticResponses)} /><SummaryFact label="How YOVA will start" value={`${LEARNING_INTENT_COPY[learningApproach.intent].name}: ${learningApproach.reason}`} /><SummaryFact label="Availability" value={`${availability.length} selected ${availability.length === 1 ? "window" : "windows"}: ${availability.map((slot) => `${slot.day} ${slot.window.toLowerCase()} (${slot.minutes} min)`).join(", ")}`} /><SummaryFact label="Learning mode" value={sourceChoice === "outside" ? "YOVA-guided plan using another trusted source" : sourceChoice === "materials" ? "Guided inside YOVA from your uploaded materials" : "Guided inside YOVA with YOVA-created teaching and practice"} /><SummaryFact label="Sources" value={sourceChoice === "materials" ? `${materials.length} ${materials.length === 1 ? "uploaded material" : "uploaded materials"}: ${materials.map((material) => material.name).join(", ")}` : sourceChoice === "outside" ? "The source you choose outside YOVA" : "YOVA-generated content from the goal"} /><SummaryFact label="Saved learning profile" value="Session length, structure, explanation style, focus support, and study timing from onboarding" /></div>
+          <div className="confirmation-list"><SummaryFact label="Goal" value={goal} /><SummaryFact label="Target date" value={deadlineDate ? formatDateOnly(deadlineDate) : "No fixed deadline"} /><SummaryFact label="Starting evidence" value={`${summarizeDiagnosticResponses(diagnosticResponses)}${startingContext.trim() ? `. Your note: ${startingContext.trim()}` : ""}`} /><SummaryFact label="How YOVA will start" value={`${LEARNING_INTENT_COPY[learningApproach.intent].name}: ${learningApproach.reason}`} /><SummaryFact label="Availability" value={`${availability.length} selected ${availability.length === 1 ? "window" : "windows"}: ${availability.map((slot) => `${slot.day} ${slot.window.toLowerCase()} (${slot.minutes} min)`).join(", ")}`} /><SummaryFact label="Learning mode" value={sourceChoice === "outside" ? "YOVA-guided plan using another trusted source" : sourceChoice === "materials" ? "Guided inside YOVA from your uploaded materials" : "Guided inside YOVA with YOVA-created teaching and practice"} /><SummaryFact label="Sources" value={sourceChoice === "materials" ? `${materials.length} ${materials.length === 1 ? "uploaded material" : "uploaded materials"}: ${materials.map((material) => material.name).join(", ")}` : sourceChoice === "outside" ? "The source you choose outside YOVA" : "YOVA-generated content from the goal"} /><SummaryFact label="Saved learning profile" value="Session length, structure, explanation style, focus support, and study timing from onboarding" /></div>
           <PlanActions onBack={back} onNext={() => void generatePlan()} nextLabel="Generate my plan" />
         </PlanPanel>
       )}

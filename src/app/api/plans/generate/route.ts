@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
+import { generationEnvironment } from "@/lib/analytics/generation-observation";
+import { recordGenerationObservation } from "@/lib/analytics/generation-observation-server";
 import { isOpenAIPlanConfigured } from "@/lib/openai/config";
 import { assessGoalContext } from "@/lib/learning/goal-context";
+import { resolveLearningIntent } from "@/lib/learning/learning-intent";
 import { generatePlanWithOpenAI, OpenAIPlanGenerationError } from "@/lib/openai/plan-generator";
 import { materializePlanDraft } from "@/lib/plan-generation/materialize-plan";
 import { generatePreviewPlan } from "@/lib/plan-generation/preview-generator";
@@ -67,7 +70,15 @@ export async function POST(request: Request) {
     );
   }
 
-  let planRequest = parsedRequest.data;
+  const resolvedApproach = resolveLearningIntent({
+    goal: parsedRequest.data.goal,
+    startingPoint: parsedRequest.data.startingContext,
+    diagnosticResponses: parsedRequest.data.diagnosticResponses,
+  });
+  let planRequest = {
+    ...parsedRequest.data,
+    learningIntent: resolvedApproach.intent,
+  };
   if (planRequest.materialMode === "upload") {
     if (!supabase || !user) {
       return NextResponse.json({ error: "Secure material uploads are not connected yet." }, { status: 503 });
@@ -125,6 +136,12 @@ export async function POST(request: Request) {
       },
     });
 
+    await recordGenerationObservation(supabase, user?.id, {
+      ...emptyPlanObservation(Date.now() - startedAt),
+      generationType: "plan",
+      environment: generationEnvironment(),
+      finalOutcome: "success",
+    });
     return NextResponse.json(response, {
       headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId },
     });
@@ -138,6 +155,8 @@ export async function POST(request: Request) {
         requestId,
         startedAt,
         "YOVA used its reliable planning engine because live AI planning was temporarily busy. Review the draft before saving it; the guided sessions will still teach and check the exact topic.",
+        supabase,
+        user?.id,
       );
     }
 
@@ -151,6 +170,8 @@ export async function POST(request: Request) {
           requestId,
           startedAt,
           "YOVA used its reliable planning engine because live AI planning was temporarily unavailable. Review the draft before saving it; the guided sessions will still teach and check the exact topic.",
+          supabase,
+          user?.id,
         );
       }
       if (!durableLimit.allowed) {
@@ -159,6 +180,8 @@ export async function POST(request: Request) {
           requestId,
           startedAt,
           "YOVA used its reliable planning engine because this account's live AI planning allowance is currently unavailable. Review the draft before saving it; the guided sessions will still teach and check the exact topic.",
+          supabase,
+          user?.id,
         );
       }
     }
@@ -179,6 +202,23 @@ export async function POST(request: Request) {
         },
       });
 
+      await recordGenerationObservation(supabase, user?.id, {
+        generationType: "plan",
+        environment: generationEnvironment(),
+        finalOutcome: "success",
+        firstAttemptPassed: generated.generationStats.firstAttemptPassed,
+        failedValidator: generated.generationStats.failedValidator,
+        repairAttempted: generated.generationStats.repairAttempted,
+        repairSucceeded: generated.generationStats.repairSucceeded,
+        elapsedMs: generated.generationStats.elapsedMs,
+        attempts: generated.generationStats.attempts,
+        inputTokens: generated.generationStats.inputTokens,
+        cachedInputTokens: generated.generationStats.cachedInputTokens,
+        cacheWriteTokens: generated.generationStats.cacheWriteTokens,
+        outputTokens: generated.generationStats.outputTokens,
+        model: generated.model,
+      });
+
       return NextResponse.json(response, {
         headers: {
           "Cache-Control": "no-store",
@@ -193,6 +233,9 @@ export async function POST(request: Request) {
         requestId,
         startedAt,
         "YOVA used its reliable planning engine for this first draft. Review the plan before saving it; each guided session will still create teaching and practice for the exact topic.",
+        supabase,
+        user?.id,
+        error instanceof OpenAIPlanGenerationError ? error.generationStats : undefined,
       );
     }
   }
@@ -210,16 +253,26 @@ export async function POST(request: Request) {
     },
   });
 
+  await recordGenerationObservation(supabase, user?.id, {
+    ...emptyPlanObservation(Date.now() - startedAt),
+    generationType: "plan",
+    environment: generationEnvironment(),
+    finalOutcome: "success",
+  });
+
   return NextResponse.json(response, {
     headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId },
   });
 }
 
-function reliableDraftResponse(
+async function reliableDraftResponse(
   planRequest: Parameters<typeof generatePreviewPlan>[0],
   requestId: string,
   startedAt: number,
   notice: string,
+  supabase: Parameters<typeof recordGenerationObservation>[0],
+  userId: string | null | undefined,
+  failedStats?: OpenAIPlanGenerationError["generationStats"],
 ) {
   const reliablePlan = generatePreviewPlan(planRequest);
   const response = PlanGenerationResponseSchema.parse({
@@ -234,7 +287,45 @@ function reliableDraftResponse(
     },
   });
 
+  await recordGenerationObservation(supabase, userId, failedStats ? {
+    generationType: "plan",
+    environment: generationEnvironment(),
+    finalOutcome: "fallback",
+    firstAttemptPassed: failedStats.firstAttemptPassed,
+    failedValidator: failedStats.failedValidator,
+    repairAttempted: failedStats.repairAttempted,
+    repairSucceeded: failedStats.repairSucceeded,
+    elapsedMs: failedStats.elapsedMs,
+    attempts: failedStats.attempts,
+    inputTokens: failedStats.inputTokens,
+    cachedInputTokens: failedStats.cachedInputTokens,
+    cacheWriteTokens: failedStats.cacheWriteTokens,
+    outputTokens: failedStats.outputTokens,
+    model: null,
+  } : {
+    ...emptyPlanObservation(Date.now() - startedAt),
+    generationType: "plan",
+    environment: generationEnvironment(),
+    finalOutcome: "fallback",
+  });
+
   return NextResponse.json(response, {
     headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId },
   });
+}
+
+function emptyPlanObservation(elapsedMs: number) {
+  return {
+    firstAttemptPassed: null,
+    failedValidator: null,
+    repairAttempted: false,
+    repairSucceeded: null,
+    elapsedMs,
+    attempts: 0,
+    inputTokens: 0,
+    cachedInputTokens: 0,
+    cacheWriteTokens: 0,
+    outputTokens: 0,
+    model: null,
+  } as const;
 }

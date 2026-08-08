@@ -1,9 +1,12 @@
 import { NextResponse } from "next/server";
+import { generationEnvironment } from "@/lib/analytics/generation-observation";
+import { recordGenerationObservation } from "@/lib/analytics/generation-observation-server";
 import { buildMaterialExcerpts } from "@/lib/materials/context";
 import { readConceptEvidenceProperty, summarizeConceptEvidence } from "@/lib/learning/concept-evidence";
 import { readConfidenceEvidenceProperty, summarizeConfidenceCalibration } from "@/lib/learning/confidence-calibration";
 import {
   inferLegacySessionLearningMode,
+  inferSessionFamiliarityFromText,
   resolveEffectiveSessionLearningMode,
   teachingFirstSessionCopy,
 } from "@/lib/learning/learning-intent";
@@ -18,6 +21,7 @@ import { isOpenAISessionConfigured } from "@/lib/openai/config";
 import { generateReliableSessionWithOpenAI } from "@/lib/openai/reliable-session-generator";
 import {
   generateSessionWithOpenAI,
+  SessionGenerationFailure,
   type SessionGenerationContext,
   type SessionGenerationStats,
 } from "@/lib/openai/session-generator";
@@ -39,6 +43,7 @@ export const maxDuration = 120;
 
 export async function POST(request: Request) {
   const requestId = crypto.randomUUID();
+  const startedAt = Date.now();
   const developmentPreview = isDevelopmentPreviewRequest(request);
   const supabase = isSupabaseConfigured() ? await createSupabaseServerClient() : null;
   const { data: { user }, error: userError } = supabase
@@ -60,8 +65,24 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "YOVA could not identify the requested plan session." }, { status: 422 });
   }
 
+  const inferredFamiliarity = parsed.data.sessionAdjustment
+    ? inferSessionFamiliarityFromText(parsed.data.sessionAdjustment.note)
+    : null;
+  const sessionAdjustment = parsed.data.sessionAdjustment
+    ? {
+      ...parsed.data.sessionAdjustment,
+      familiarity: parsed.data.sessionAdjustment.familiarity === "as_planned" && inferredFamiliarity
+        ? inferredFamiliarity
+        : parsed.data.sessionAdjustment.familiarity,
+    }
+    : undefined;
+  const normalizedInput: SessionGenerationRequest = {
+    ...parsed.data,
+    sessionAdjustment,
+  };
+
   if (developmentPreview || !supabase || !user) {
-    return generateBrowserPreviewSession(request, parsed.data, requestId);
+    return generateBrowserPreviewSession(request, normalizedInput, requestId);
   }
 
   const { data: planSession, error: sessionError } = await supabase
@@ -170,7 +191,7 @@ export async function POST(request: Request) {
       planLearningIntent,
       plannedMode: savedLearningMode,
       completedSessionCount: recentAttempts.length,
-      familiarity: parsed.data.sessionAdjustment?.familiarity ?? null,
+      familiarity: sessionAdjustment?.familiarity ?? null,
     });
     const repairedTeachingStart = effectiveLearningMode === "learn" && savedLearningMode !== "learn"
       ? teachingFirstSessionCopy(learningItem.topic)
@@ -178,9 +199,15 @@ export async function POST(request: Request) {
     const cached = readCachedSession(planSession.step_data);
     if (
       cached
-      && !parsed.data.sessionAdjustment
+      && !sessionAdjustment
       && cached.methodBriefing.learningMode === effectiveLearningMode
     ) {
+      await recordGenerationObservation(supabase, user.id, {
+        ...emptySessionObservation(Date.now() - startedAt),
+        generationType: "session",
+        environment: generationEnvironment(),
+        finalOutcome: "cache",
+      });
       return NextResponse.json(SessionGenerationResponseSchema.parse({
         planSessionId: planSession.id,
         session: cached,
@@ -267,7 +294,7 @@ export async function POST(request: Request) {
         primaryImprovementGoal: learnerProfile.primary_improvement_goal,
         ...expandedProfile,
       } : null,
-      sessionAdjustment: parsed.data.sessionAdjustment ?? null,
+      sessionAdjustment: sessionAdjustment ?? null,
       recentResults: recentAttempts.slice(0, 8).map((attempt) => ({
         methodId: methodIdBySession.get(attempt.plan_session_id) ?? null,
         taskType: comparisonContextBySession.get(attempt.plan_session_id)?.taskType ?? null,
@@ -314,6 +341,11 @@ export async function POST(request: Request) {
 
     if (cacheError) console.error("YOVA generated-session cache failed", { requestId });
     logSuccessfulGeneration(requestId, generated.model, generated.generationStats, "supabase");
+    await recordGenerationObservation(supabase, user.id, observationFromSessionStats(
+      generated.generationStats,
+      generated.model,
+      "success",
+    ));
 
     return NextResponse.json(SessionGenerationResponseSchema.parse({
       planSessionId: planSession.id,
@@ -331,6 +363,14 @@ export async function POST(request: Request) {
         ? { detail: error.message }
         : {}),
     });
+    const stats = error instanceof SessionGenerationFailure
+      ? error.generationStats
+      : {
+        ...emptyGenerationStats(),
+        elapsedMs: Date.now() - startedAt,
+        failedValidator: "session_provider_request" as const,
+      };
+    await recordGenerationObservation(supabase, user.id, observationFromSessionStats(stats, null, "failure"));
     return NextResponse.json(
       { error: "YOVA could not prepare this guided session right now. Try again in a moment.", requestId },
       { status: 502, headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId } },
@@ -435,13 +475,55 @@ function emptyGenerationStats(): SessionGenerationStats {
   return {
     elapsedMs: 0,
     attempts: 0,
+    firstAttemptPassed: null,
+    failedValidator: null,
     repairAttempted: false,
+    repairSucceeded: null,
     repairReason: "none",
     repairDetail: null,
     inputTokens: 0,
     cachedInputTokens: 0,
     cacheWriteTokens: 0,
     outputTokens: 0,
+  };
+}
+
+function emptySessionObservation(elapsedMs: number) {
+  return {
+    firstAttemptPassed: null,
+    failedValidator: null,
+    repairAttempted: false,
+    repairSucceeded: null,
+    elapsedMs,
+    attempts: 0,
+    inputTokens: 0,
+    cachedInputTokens: 0,
+    cacheWriteTokens: 0,
+    outputTokens: 0,
+    model: null,
+  } as const;
+}
+
+function observationFromSessionStats(
+  stats: SessionGenerationStats,
+  model: string | null,
+  finalOutcome: "success" | "failure",
+) {
+  return {
+    generationType: "session" as const,
+    environment: generationEnvironment(),
+    finalOutcome,
+    firstAttemptPassed: stats.firstAttemptPassed,
+    failedValidator: stats.failedValidator,
+    repairAttempted: stats.repairAttempted,
+    repairSucceeded: stats.repairSucceeded,
+    elapsedMs: stats.elapsedMs,
+    attempts: stats.attempts,
+    inputTokens: stats.inputTokens,
+    cachedInputTokens: stats.cachedInputTokens,
+    cacheWriteTokens: stats.cacheWriteTokens,
+    outputTokens: stats.outputTokens,
+    model,
   };
 }
 

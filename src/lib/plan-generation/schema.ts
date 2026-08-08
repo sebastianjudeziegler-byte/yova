@@ -23,6 +23,7 @@ export const PlanGenerationRequestSchema = z.object({
   intent: z.enum(["plan", "study_now"]).default("plan"),
   learningIntent: z.enum(["learn", "study"]),
   goal: z.string().trim().min(10).max(600),
+  startingContext: z.string().trim().max(800).optional(),
   materialMode: z.enum(["upload", "none"]),
   materials: z.array(MaterialInputSchema).max(5),
   studyMode: z.enum(["inside", "outside"]),

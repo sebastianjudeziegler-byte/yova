@@ -26,6 +26,7 @@ export async function persistPlanForAuthenticatedUser(
     intent: request.intent,
     learningIntent: request.learningIntent,
     goal: request.goal,
+    startingContext: request.startingContext ?? "",
     materialMode: request.materialMode,
     materials: request.materials.map(({ id, name, mimeType, sizeBytes, processingStatus }) => ({
       id,

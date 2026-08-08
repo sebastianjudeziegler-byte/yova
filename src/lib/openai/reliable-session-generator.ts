@@ -6,10 +6,11 @@ import { buildLearningScienceRoutingBrief } from "@/lib/learning/method-router";
 import { buildSessionSupportPlan } from "@/lib/learning/scaffold-progression";
 import { getOpenAIClient } from "@/lib/openai/client";
 import { getOpenAISessionConfig } from "@/lib/openai/config";
-import type {
-  OpenAISessionResult,
-  SessionGenerationContext,
-  SessionGenerationStats,
+import {
+  SessionGenerationFailure,
+  type OpenAISessionResult,
+  type SessionGenerationContext,
+  type SessionGenerationStats,
 } from "@/lib/openai/session-generator";
 import { buildSessionDeliveryPolicy } from "@/lib/personalization/session-delivery-policy";
 import {
@@ -101,49 +102,124 @@ export async function generateReliableSessionWithOpenAI(
     estimatedMinutes: context.session.estimatedMinutes,
   });
 
-  const response = await getOpenAIClient().responses.parse({
-    model: config.model,
-    instructions: RELIABLE_LESSON_INSTRUCTIONS,
-    input: `Prepare the next lesson from this context:\n${JSON.stringify({
-      goal: context.learningGoal,
-      session: context.session,
-      learnerDelivery: {
-        presentation: deliveryPolicy.presentation,
-        repair: deliveryPolicy.repair,
-        pacing: deliveryPolicy.pacing,
-      },
-      materials: context.materials,
-    })}`,
-    reasoning: { effort: "none" },
-    text: {
-      format: zodTextFormat(ReliableLessonContentSchema, "yova_reliable_lesson"),
-      verbosity: "low",
-    },
-    max_output_tokens: 2_200,
-    prompt_cache_key: "yova-reliable-lesson-v1",
-    store: false,
-  }, {
-    maxRetries: 0,
-    timeout: 14_000,
-  });
+  const usage = {
+    attempts: 0,
+    inputTokens: 0,
+    cachedInputTokens: 0,
+    cacheWriteTokens: 0,
+    outputTokens: 0,
+  };
+  let response: Awaited<ReturnType<ReturnType<typeof getOpenAIClient>["responses"]["parse"]>> | null = null;
+  let lesson: z.infer<typeof ReliableLessonContentSchema> | null = null;
+  let failedValidator: SessionGenerationStats["failedValidator"] = null;
+  let repairDetail: string | null = null;
 
-  if (response.status !== "completed" || !response.output_parsed) {
-    throw new Error("OpenAI did not return a complete subject lesson.");
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    usage.attempts += 1;
+    try {
+      response = await getOpenAIClient().responses.parse({
+        model: config.model,
+        instructions: repairDetail
+          ? `${RELIABLE_LESSON_INSTRUCTIONS}\n\nREPAIR ATTEMPT: The previous lesson failed validation: ${repairDetail} Return a complete corrected lesson.`
+          : RELIABLE_LESSON_INSTRUCTIONS,
+        input: `Prepare the next lesson from this context:\n${JSON.stringify({
+          goal: context.learningGoal,
+          session: context.session,
+          learnerDelivery: {
+            presentation: deliveryPolicy.presentation,
+            repair: deliveryPolicy.repair,
+            pacing: deliveryPolicy.pacing,
+          },
+          materials: context.materials,
+        })}`,
+        reasoning: { effort: "none" },
+        text: {
+          format: zodTextFormat(ReliableLessonContentSchema, "yova_reliable_lesson"),
+          verbosity: "low",
+        },
+        max_output_tokens: 2_200,
+        prompt_cache_key: "yova-reliable-lesson-v2",
+        store: false,
+      }, {
+        maxRetries: 0,
+        timeout: 14_000,
+      });
+    } catch (error) {
+      if (attempt === 0 && error instanceof Error && error.name === "ZodError") {
+        failedValidator = "reliable_lesson_structure";
+        repairDetail = "The lesson did not match YOVA's required teaching structure.";
+        continue;
+      }
+      throw new SessionGenerationFailure("OpenAI could not prepare the subject lesson.", {
+        elapsedMs: Date.now() - startedAt,
+        attempts: usage.attempts,
+        firstAttemptPassed: false,
+        failedValidator: error instanceof Error && error.name === "ZodError" ? "reliable_lesson_structure" : "session_provider_request",
+        repairAttempted: usage.attempts > 1,
+        repairSucceeded: usage.attempts > 1 ? false : null,
+        repairReason: error instanceof Error && error.name === "ZodError" ? "structured_output" : "none",
+        repairDetail,
+        inputTokens: usage.inputTokens,
+        cachedInputTokens: usage.cachedInputTokens,
+        cacheWriteTokens: usage.cacheWriteTokens,
+        outputTokens: usage.outputTokens,
+      });
+    }
+
+    if (response.usage) {
+      usage.inputTokens += response.usage.input_tokens;
+      usage.cachedInputTokens += response.usage.input_tokens_details.cached_tokens;
+      usage.cacheWriteTokens += response.usage.input_tokens_details.cache_write_tokens;
+      usage.outputTokens += response.usage.output_tokens;
+    }
+    if (response.status !== "completed") {
+      failedValidator ??= "reliable_lesson_response_status";
+      repairDetail = `The lesson response ended with status ${response.status}.`;
+      continue;
+    }
+    const parsedLesson = ReliableLessonContentSchema.safeParse(response.output_parsed);
+    if (!parsedLesson.success) {
+      failedValidator ??= "reliable_lesson_structure";
+      repairDetail = "The lesson did not match YOVA's required teaching structure.";
+      continue;
+    }
+    lesson = parsedLesson.data;
+    break;
   }
 
-  const lesson = ReliableLessonContentSchema.parse(response.output_parsed);
+  if (!response || !lesson) {
+    throw new SessionGenerationFailure("OpenAI did not return a complete subject lesson after one repair attempt.", {
+      elapsedMs: Date.now() - startedAt,
+      attempts: usage.attempts,
+      firstAttemptPassed: false,
+      failedValidator: failedValidator ?? "reliable_lesson_structure",
+      repairAttempted: usage.attempts > 1,
+      repairSucceeded: usage.attempts > 1 ? false : null,
+      repairReason: failedValidator === "reliable_lesson_response_status" ? "incomplete_response" : "structured_output",
+      repairDetail,
+      inputTokens: usage.inputTokens,
+      cachedInputTokens: usage.cachedInputTokens,
+      cacheWriteTokens: usage.cacheWriteTokens,
+      outputTokens: usage.outputTokens,
+    });
+  }
+
   const draft = buildReliableDraft({ context, lesson, routing, deliveryPolicy });
-  const usage = response.usage;
   const generationStats: SessionGenerationStats = {
     elapsedMs: Date.now() - startedAt,
-    attempts: 1,
-    repairAttempted: false,
-    repairReason: "none",
-    repairDetail: null,
-    inputTokens: usage?.input_tokens ?? 0,
-    cachedInputTokens: usage?.input_tokens_details.cached_tokens ?? 0,
-    cacheWriteTokens: usage?.input_tokens_details.cache_write_tokens ?? 0,
-    outputTokens: usage?.output_tokens ?? 0,
+    attempts: usage.attempts,
+    firstAttemptPassed: usage.attempts === 1,
+    failedValidator,
+    repairAttempted: usage.attempts > 1,
+    repairSucceeded: usage.attempts > 1 ? true : null,
+    repairReason: usage.attempts > 1
+      ? failedValidator === "reliable_lesson_response_status" ? "incomplete_response" : "structured_output"
+      : "none",
+    repairDetail: usage.attempts > 1 ? repairDetail : null,
+    inputTokens: usage.inputTokens,
+    cachedInputTokens: usage.cachedInputTokens,
+    cacheWriteTokens: usage.cacheWriteTokens,
+    outputTokens: usage.outputTokens,
   };
 
   return {

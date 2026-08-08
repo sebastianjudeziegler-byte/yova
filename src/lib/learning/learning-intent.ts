@@ -77,6 +77,18 @@ export function resolveLearningIntent(evidence: StartingEvidence): LearningInten
   return recommendLearningIntent(evidence.goal);
 }
 
+export function inferSessionFamiliarityFromText(note: string) {
+  const normalized = note.trim().toLowerCase();
+  if (!normalized) return null;
+  if (/\b(ground zero|know (?:nothing|very little)|completely new|brand new|never (?:learned|seen)|start from (?:scratch|the basics)|teach (?:me|this)|need (?:this|it) taught|do not understand|don't understand|no foundation)\b/.test(normalized)) {
+    return "need_teaching" as const;
+  }
+  if (/\b(already know|already learned|skip the basics|mostly review|just review|challenge me|make it harder)\b/.test(normalized)) {
+    return /challenge|harder/.test(normalized) ? "challenge_me" as const : "already_know" as const;
+  }
+  return null;
+}
+
 type EffectiveSessionModeInput = {
   planLearningIntent: LearningIntent;
   plannedMode: SessionLearningMode;

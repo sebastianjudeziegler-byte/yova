@@ -74,6 +74,7 @@ import {
   type SessionSourceGrounding,
 } from "@/lib/domain";
 import { summarizeConceptEvidence, type ConceptSignal } from "@/lib/learning/concept-evidence";
+import { inferSessionFamiliarityFromText } from "@/lib/learning/learning-intent";
 import {
   buildConceptReviewAgenda,
   buildConceptReviewSession,
@@ -2959,25 +2960,31 @@ function SessionSetup({ plan, answers, completions, interruptions, onExit, onSta
 
   const start = () => {
     const trimmedNote = note.trim();
+    const effectiveFamiliarity = familiarity === "as_planned"
+      ? inferSessionFamiliarityFromText(trimmedNote) ?? familiarity
+      : familiarity;
     if (familiarity === "as_planned" && availableMinutes === null && !trimmedNote) {
       onStart(null);
       return;
     }
     onStart({
-      familiarity,
+      familiarity: effectiveFamiliarity,
       availableMinutes,
-      knownTargets: familiarity === "already_know" ? selectedKnownTargets : [],
+      knownTargets: effectiveFamiliarity === "already_know" ? selectedKnownTargets : [],
       note: trimmedNote,
     });
   };
 
-  const adjustmentExplanation = familiarity === "already_know"
+  const explainedFamiliarity = familiarity === "as_planned"
+    ? inferSessionFamiliarityFromText(note) ?? familiarity
+    : familiarity;
+  const adjustmentExplanation = explainedFamiliarity === "already_know"
     ? selectedKnownTargets.length
       ? `YOVA will verify ${selectedKnownTargets.length === 1 ? "the concept you selected" : `the ${selectedKnownTargets.length} concepts you selected`} without support, then avoid reteaching only what you demonstrate.`
       : "YOVA will begin with evidence, then avoid reteaching anything you can demonstrate."
-    : familiarity === "need_teaching"
-      ? "YOVA will build a subject explanation or model before asking for unsupported performance."
-      : familiarity === "challenge_me"
+    : explainedFamiliarity === "need_teaching"
+      ? "YOVA will switch this session to teaching first. The result will inform later sessions, while larger plan changes remain visible for your approval."
+      : explainedFamiliarity === "challenge_me"
         ? "YOVA will emphasize independent application and transfer rather than introductory review."
         : "YOVA will keep the plan's current starting point and still adapt future sessions from the result.";
 

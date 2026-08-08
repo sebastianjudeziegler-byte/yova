@@ -84,6 +84,7 @@ export function buildPlanGeneratorInput(request: PlanGenerationRequest) {
     primary_learning_approach: request.learningIntent,
     learner_time_zone: request.timeZone,
     learner_goal: request.goal,
+    learner_starting_context: request.startingContext || null,
     learner_supplied_deadline: request.deadline,
     content_source: request.materialMode === "upload"
       ? "Uploaded learner materials"
