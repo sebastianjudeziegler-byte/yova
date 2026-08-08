@@ -19,6 +19,7 @@ export function loadPreviewSnapshot(): YovaPreviewSnapshot | null {
     return {
       ...parsed,
       plans: parsed.plans.map(normalizePreviewPlan),
+      deadlineMilestones: Array.isArray(parsed.deadlineMilestones) ? parsed.deadlineMilestones : [],
       sessionCompletions: parsed.sessionCompletions.map(normalizePreviewCompletion),
       sessionInterruptions: readSessionInterruptions(parsed),
     };

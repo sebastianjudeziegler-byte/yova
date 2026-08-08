@@ -45,6 +45,26 @@ describe("plan activation contract", () => {
     expect(PlanActivationRequestSchema.safeParse(draft).success).toBe(true);
   });
 
+  it("allows non-knowledge work to skip an irrelevant diagnostic", () => {
+    const generationRequest = PlanGenerationRequestSchema.parse({
+      ...matchingDraft().generationRequest,
+      goal: "Complete a 1,500-word history essay using the assigned sources.",
+      startingContext: "I have not started the essay yet.",
+      diagnosticResponses: [],
+    });
+    const plan = generatePreviewPlan(generationRequest);
+
+    expect(PlanActivationRequestSchema.safeParse({ plan, generationRequest }).success).toBe(true);
+  });
+
+  it("uses the learner evidence that generation used when validating activation", () => {
+    const draft = matchingDraft();
+
+    expect(draft.generationRequest.learningIntent).toBe("learn");
+    expect(draft.plan.learningIntent).toBe("learn");
+    expect(PlanActivationRequestSchema.safeParse(draft).success).toBe(true);
+  });
+
   it("rejects an already active plan", () => {
     const draft = matchingDraft();
 

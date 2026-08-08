@@ -5,6 +5,7 @@ import {
   type PlanGenerationRequest,
 } from "@/lib/plan-generation/schema";
 import { teachingFirstSessionCopy } from "@/lib/learning/learning-intent";
+import { deriveLearningTitle } from "@/lib/intake/interpret";
 
 export function materializePlanDraft(
   untrustedDraft: GeneratedPlanDraft,
@@ -12,18 +13,24 @@ export function materializePlanDraft(
 ): LearningPlan {
   const draft = GeneratedPlanDraftSchema.parse(untrustedDraft);
   const planId = makeUuid();
+  const genericTitle = /^(personalized learning plan|learning plan|study plan|new learning goal)$/i.test(draft.title.trim());
+  const title = genericTitle ? deriveLearningTitle(request.goal) : draft.title;
+  const topic = /^(the goal and concepts described by the learner|learning topic|general topic)$/i.test(draft.topic.trim())
+    ? request.goal.trim().slice(0, 300)
+    : draft.topic;
 
   return {
     id: planId,
     learningItemId: makeUuid(),
-    title: draft.title,
-    topic: draft.topic,
+    title,
+    topic,
     kind: draft.kind,
     deadline: request.intent === "study_now" ? null : request.deadline ?? draft.deadline,
     status: "draft",
     sourceMode: request.materialMode === "upload" ? "user_materials" : "yova_generated",
     studyMode: request.studyMode === "outside" ? "outside_yova" : "inside_yova",
     learningIntent: request.learningIntent,
+    creationIntent: request.intent,
     rationale: draft.rationale,
     createdAt: new Date().toISOString(),
     materials: request.materials.map((material) => ({
@@ -37,7 +44,7 @@ export function materializePlanDraft(
 
       const learningMode = index === 0 ? request.learningIntent : session.learningMode;
       const repairedTeachingStart = learningMode === "learn" && session.learningMode !== "learn"
-        ? teachingFirstSessionCopy(draft.topic)
+        ? teachingFirstSessionCopy(topic)
         : null;
 
       return {

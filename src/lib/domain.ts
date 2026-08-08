@@ -5,6 +5,16 @@ export type SourceMode = "user_materials" | "yova_generated";
 export type StudyMode = "inside_yova" | "outside_yova";
 export type LearningIntent = "learn" | "study";
 export type SessionLearningMode = "learn" | "study";
+
+export type DeadlineMilestone = {
+  id: string;
+  title: string;
+  description: string;
+  dueAt: string;
+  status: "open" | "completed";
+  linkedLearningItemId: string | null;
+  createdAt: string;
+};
 export type SessionCoverage = import("@/lib/session-generation/schema").SessionCoverage;
 export type TeachingBlock = import("@/lib/session-generation/schema").TeachingBlock;
 
@@ -112,6 +122,7 @@ export type LearningPlan = {
   sourceMode: SourceMode;
   studyMode: StudyMode;
   learningIntent: LearningIntent;
+  creationIntent?: "plan" | "study_now";
   rationale: string;
   createdAt: string;
   materials?: LearningMaterial[];
@@ -203,6 +214,7 @@ export type YovaPreviewSnapshot = {
   onboardingCompleted: boolean;
   alphaEntered: boolean;
   plans: LearningPlan[];
+  deadlineMilestones?: DeadlineMilestone[];
   sessionCompletions: SessionCompletion[];
   sessionInterruptions: SessionInterruption[];
   updatedAt: string;

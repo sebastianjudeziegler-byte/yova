@@ -85,6 +85,47 @@ export async function POST(request: Request) {
   }), { headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId } });
 }
 
+// Browser-to-storage signed uploads can be blocked by privacy extensions or
+// strict cross-site storage rules. This authenticated same-origin fallback is
+// intentionally bounded to the same staged record and file limits.
+export async function PUT(request: Request) {
+  const requestId = crypto.randomUUID();
+  const supabase = await createSupabaseServerClient();
+  const { data: { user }, error: userError } = await supabase.auth.getUser();
+  if (userError || !user) return NextResponse.json({ error: "Sign in before adding learning materials." }, { status: 401 });
+
+  const form = await request.formData().catch(() => null);
+  const materialId = form?.get("materialId");
+  const file = form?.get("file");
+  if (typeof materialId !== "string" || !(file instanceof File)) {
+    return NextResponse.json({ error: "YOVA could not identify this upload." }, { status: 422 });
+  }
+  if (file.size < 1 || file.size > 10 * 1024 * 1024) {
+    return NextResponse.json({ error: "Choose a file up to 10 MB." }, { status: 422 });
+  }
+
+  const { data: upload, error: uploadError } = await supabase
+    .from("material_uploads")
+    .select("storage_path,mime_type,byte_size")
+    .eq("id", materialId)
+    .maybeSingle();
+  if (uploadError || !upload) return NextResponse.json({ error: "That staged upload was not found." }, { status: 404 });
+  if (Number(upload.byte_size) !== file.size) return NextResponse.json({ error: "The selected file changed before upload." }, { status: 422 });
+
+  const { error: storageError } = await supabase.storage.from("learning-materials").upload(upload.storage_path, file, {
+    contentType: upload.mime_type,
+    // A privacy extension can interrupt a signed upload after Supabase has
+    // created a partial object. This endpoint owns the exact staged path, so
+    // replacing that incomplete object is safe and makes the fallback useful.
+    upsert: true,
+  });
+  if (storageError) {
+    console.error("YOVA same-origin material upload failed", { requestId, reason: "storage_upload" });
+    return NextResponse.json({ error: "YOVA could not securely upload this file. Try exporting the document as PDF again or paste the study-guide topics." }, { status: 500 });
+  }
+  return new NextResponse(null, { status: 204, headers: { "X-Yova-Request-Id": requestId } });
+}
+
 // Downloads the just-uploaded private object on the server, validates it,
 // extracts bounded text, and marks it ready for plan generation.
 export async function PATCH(request: Request) {
@@ -235,9 +276,10 @@ function materialResponse(
 
 function resolveMimeType(name: string, suppliedMimeType: string): SupportedMimeType | null {
   const extension = name.split(".").pop()?.toLowerCase();
-  if (extension === "pdf" && (!suppliedMimeType || suppliedMimeType === "application/pdf")) return "application/pdf";
-  if (extension === "txt" && (!suppliedMimeType || suppliedMimeType === "text/plain")) return "text/plain";
-  if ((extension === "md" || extension === "markdown") && (!suppliedMimeType || suppliedMimeType === "text/plain" || suppliedMimeType === "text/markdown")) return "text/markdown";
+  const genericType = !suppliedMimeType || suppliedMimeType === "application/octet-stream";
+  if (extension === "pdf" && (genericType || suppliedMimeType === "application/pdf")) return "application/pdf";
+  if (extension === "txt" && (genericType || suppliedMimeType === "text/plain")) return "text/plain";
+  if ((extension === "md" || extension === "markdown") && (genericType || suppliedMimeType === "text/plain" || suppliedMimeType === "text/markdown")) return "text/markdown";
   return null;
 }
 

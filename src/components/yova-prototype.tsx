@@ -45,6 +45,7 @@ import {
   X,
 } from "lucide-react";
 import { BrandMark } from "@/components/brand-mark";
+import { AddToYova } from "@/components/add-to-yova";
 import { LearningContent } from "@/components/learning-content";
 import { MaterialLinkImporter } from "@/components/material-link-importer";
 import { PlanCreator } from "@/components/plan-creator";
@@ -60,6 +61,7 @@ import {
   makeUuid,
   type ConfidenceEvidence,
   type ConfidenceLevel,
+  type DeadlineMilestone,
   type LearningMaterial,
   type LearningPlan,
   type LearningPlanSession,
@@ -73,6 +75,8 @@ import {
   type SessionResourceActivity,
   type SessionSourceGrounding,
 } from "@/lib/domain";
+import type { AddIntakeSeed } from "@/lib/intake/schema";
+import { DeadlineMilestoneSchema } from "@/lib/milestones/schema";
 import { summarizeConceptEvidence, type ConceptSignal } from "@/lib/learning/concept-evidence";
 import { inferSessionFamiliarityFromText } from "@/lib/learning/learning-intent";
 import {
@@ -197,7 +201,7 @@ import {
   type TutorThreadSummary,
 } from "@/lib/tutor/schema";
 
-type Stage = "landing" | "account" | "onboarding-intro" | "onboarding" | "profile" | "paywall" | "app" | "plan-creator" | "study-now" | "session-setup" | "session-loading" | "session-error" | "session" | "complete";
+type Stage = "landing" | "account" | "onboarding-intro" | "onboarding" | "profile" | "paywall" | "app" | "add" | "plan-creator" | "study-now" | "session-setup" | "session-loading" | "session-error" | "session" | "complete";
 type Tab = "Home" | "Learning" | "Agenda" | "Ask YOVA" | "You";
 type AccountMode = "create" | "sign-in";
 type LessonStep = GuidedSessionStep;
@@ -223,6 +227,9 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
   const [questionIndex, setQuestionIndex] = useState(0);
   const [answers, setAnswers] = useState<string[]>([]);
   const [plans, setPlans] = useState<LearningPlan[]>([]);
+  const [deadlineMilestones, setDeadlineMilestones] = useState<DeadlineMilestone[]>([]);
+  const [creatorSeed, setCreatorSeed] = useState<AddIntakeSeed | null>(null);
+  const [creatorMilestoneId, setCreatorMilestoneId] = useState<string | null>(null);
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
   const [learningDetailPlanId, setLearningDetailPlanId] = useState<string | null>(null);
   const [sessionCompletions, setSessionCompletions] = useState<SessionCompletion[]>([]);
@@ -309,6 +316,7 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
         setOnboardingCompleted(saved.onboardingCompleted);
         setAlphaEntered(saved.alphaEntered);
         setPlans(saved.plans);
+        setDeadlineMilestones(saved.deadlineMilestones ?? []);
         setSelectedPlanId(saved.plans.filter((plan) => plan.status === "active").at(-1)?.id ?? null);
         setSessionCompletions(saved.sessionCompletions);
         setSessionInterruptions(saved.sessionInterruptions);
@@ -353,6 +361,7 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
           setOnboardingCompleted(cloudOnboardingCompleted);
           setAlphaEntered(restoredAlphaEntered);
           setPlans(cloudPlans);
+          setDeadlineMilestones(cloudState?.deadlineMilestones ?? []);
           setSelectedPlanId(cloudPlans.filter((plan) => plan.status === "active").at(-1)?.id ?? null);
           setSessionCompletions(cloudState?.sessionCompletions ?? []);
           setSessionInterruptions(cloudState?.sessionInterruptions ?? []);
@@ -376,6 +385,7 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
             setOnboardingCompleted(saved.onboardingCompleted);
             setAlphaEntered(saved.alphaEntered);
             setPlans(saved.plans);
+            setDeadlineMilestones(saved.deadlineMilestones ?? []);
             setSelectedPlanId(saved.plans.filter((plan) => plan.status === "active").at(-1)?.id ?? null);
             setSessionCompletions(saved.sessionCompletions);
             setSessionInterruptions(saved.sessionInterruptions);
@@ -387,6 +397,7 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
             setOnboardingCompleted(false);
             setAlphaEntered(false);
             setPlans([]);
+            setDeadlineMilestones([]);
             setSelectedPlanId(null);
             setSessionCompletions([]);
             setSessionInterruptions([]);
@@ -405,6 +416,7 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
         setOnboardingCompleted(false);
         setAlphaEntered(false);
         setPlans([]);
+        setDeadlineMilestones([]);
         setSelectedPlanId(null);
         setLearningDetailPlanId(null);
         setSessionCompletions([]);
@@ -429,11 +441,12 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
       onboardingCompleted,
       alphaEntered,
       plans,
+      deadlineMilestones,
       sessionCompletions,
       sessionInterruptions,
       updatedAt: new Date().toISOString(),
     });
-  }, [ready, account, signedIn, answers, onboardingCompleted, alphaEntered, plans, sessionCompletions, sessionInterruptions]);
+  }, [ready, account, signedIn, answers, onboardingCompleted, alphaEntered, plans, deadlineMilestones, sessionCompletions, sessionInterruptions]);
 
   useEffect(() => {
     if (account?.identityMode !== "supabase") return;
@@ -997,6 +1010,7 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
     setQuestionIndex(0);
     setAnswers([]);
     setPlans([]);
+    setDeadlineMilestones([]);
     setSelectedPlanId(null);
     setSessionCompletions([]);
     setSessionInterruptions([]);
@@ -1195,6 +1209,82 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
     setLearningDetailPlanId(activePlan.id);
   };
 
+  const saveDeadlineMilestone = async (draft: Omit<DeadlineMilestone, "id" | "status" | "createdAt">) => {
+    if (account?.identityMode === "preview" || browserPreviewMode) {
+      const milestone: DeadlineMilestone = {
+        ...draft,
+        id: makeUuid(),
+        status: "open",
+        createdAt: new Date().toISOString(),
+      };
+      setDeadlineMilestones((current) => [...current, milestone]);
+      return milestone;
+    }
+    const response = await fetch("/api/milestones", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(draft),
+    });
+    const body: unknown = await response.json().catch(() => null);
+    const parsed = DeadlineMilestoneSchema.safeParse(readApiProperty(body, "milestone"));
+    if (!response.ok || !parsed.success) throw new Error(readApiError(body) ?? "YOVA could not save this deadline yet.");
+    setDeadlineMilestones((current) => [...current, parsed.data]);
+    return parsed.data;
+  };
+
+  const updateDeadlineMilestone = async (id: string, changes: Partial<Pick<DeadlineMilestone, "title" | "description" | "dueAt" | "status" | "linkedLearningItemId">>) => {
+    if (account?.identityMode === "preview" || browserPreviewMode) {
+      setDeadlineMilestones((current) => current.map((milestone) => milestone.id === id ? { ...milestone, ...changes } : milestone));
+      return;
+    }
+    const response = await fetch("/api/milestones", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, ...changes }),
+    });
+    const body: unknown = await response.json().catch(() => null);
+    const parsed = DeadlineMilestoneSchema.safeParse(readApiProperty(body, "milestone"));
+    if (!response.ok || !parsed.success) throw new Error(readApiError(body) ?? "YOVA could not update this deadline.");
+    setDeadlineMilestones((current) => current.map((milestone) => milestone.id === id ? parsed.data : milestone));
+  };
+
+  const deleteDeadlineMilestone = async (id: string) => {
+    if (account?.identityMode !== "preview" && !browserPreviewMode) {
+      const response = await fetch("/api/milestones", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+      if (!response.ok) {
+        const body: unknown = await response.json().catch(() => null);
+        throw new Error(readApiError(body) ?? "YOVA could not delete this deadline.");
+      }
+    }
+    setDeadlineMilestones((current) => current.filter((milestone) => milestone.id !== id));
+  };
+
+  const preserveSeedDeadline = (plan: LearningPlan) => {
+    const seed = creatorSeed;
+    const milestoneId = creatorMilestoneId;
+    setCreatorSeed(null);
+    setCreatorMilestoneId(null);
+    if (milestoneId) {
+      void updateDeadlineMilestone(milestoneId, { linkedLearningItemId: plan.learningItemId }).catch(() => {
+        setCloudSyncIssue("The learning plan was saved, but its deadline still needs to be linked.");
+      });
+      return;
+    }
+    if (!seed?.dueAt) return;
+    void saveDeadlineMilestone({
+      title: seed.title,
+      description: seed.objective,
+      dueAt: seed.dueAt,
+      linkedLearningItemId: plan.learningItemId,
+    }).catch(() => {
+      setCloudSyncIssue("The learning plan was saved, but its deadline still needs to be added to Agenda.");
+    });
+  };
+
   const retryCloudSync = async () => {
     if (account?.identityMode !== "supabase") return;
 
@@ -1312,6 +1402,7 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
         setOnboardingCompleted(false);
         setAlphaEntered(false);
         setPlans([]);
+        setDeadlineMilestones([]);
         setSessionCompletions([]);
         setSessionInterruptions([]);
         setQuestionIndex(0);
@@ -1357,7 +1448,14 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
     setAlphaEntered(true);
     setStage("app");
   }} />;
-  if (stage === "plan-creator") return <PlanCreator browserPreviewMode={browserPreviewMode || account?.identityMode === "preview"} profileSummary={buildPlanProfileSummary(answers)} onExit={() => setStage("app")} onFinish={(plan) => {
+  if (stage === "add") return <AddToYova
+    previewMode={browserPreviewMode || account?.identityMode === "preview"}
+    onExit={() => { setCreatorSeed(null); setCreatorMilestoneId(null); setStage("app"); }}
+    onTrackDeadline={saveDeadlineMilestone}
+    onCreatePlan={(seed) => { setCreatorSeed(seed); setCreatorMilestoneId(null); setStage("plan-creator"); }}
+    onCreateSession={(seed) => { setCreatorSeed(seed); setCreatorMilestoneId(null); setStage("study-now"); }}
+  />;
+  if (stage === "plan-creator") return <PlanCreator seed={creatorSeed ?? undefined} browserPreviewMode={browserPreviewMode || account?.identityMode === "preview"} profileSummary={buildPlanProfileSummary(answers)} onExit={() => { setCreatorSeed(null); setCreatorMilestoneId(null); setStage("app"); }} onFinish={(plan) => {
     trackProductEvent({
       eventName: "plan_created",
       context: {
@@ -1369,12 +1467,13 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
       },
     }, analyticsEnabled);
     setPlans((current) => [...current, plan]);
+    preserveSeedDeadline(plan);
     setSelectedPlanId(plan.id);
     setLearningDetailPlanId(plan.id);
     setStage("app");
     setActiveTab("Learning");
   }} />;
-  if (stage === "study-now") return <StudyNowCreator profileSummary={buildPlanProfileSummary(answers)} onExit={() => setStage("app")} onFinish={(plan) => {
+  if (stage === "study-now") return <StudyNowCreator seed={creatorSeed} profileSummary={buildPlanProfileSummary(answers)} onExit={() => { setCreatorSeed(null); setCreatorMilestoneId(null); setStage("app"); }} onFinish={(plan) => {
     trackProductEvent({
       eventName: "plan_created",
       context: {
@@ -1386,6 +1485,7 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
       },
     }, analyticsEnabled);
     setPlans((current) => [...current, plan]);
+    preserveSeedDeadline(plan);
     setSelectedPlanId(plan.id);
     void startSession(plan.id, plan);
   }} />;
@@ -1455,7 +1555,7 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
   }
 
   return <>
-    <AppShell activeTab={activeTab} onTab={openTab} account={account} cloudSyncIssue={cloudSyncIssue} onRetryCloudSync={retryCloudSync} onCreatePlan={() => setStage("plan-creator")} onSignOut={() => {
+    <AppShell activeTab={activeTab} onTab={openTab} account={account} cloudSyncIssue={cloudSyncIssue} onRetryCloudSync={retryCloudSync} onCreatePlan={() => setStage("add")} onSignOut={() => {
       void signOutAuthenticatedAccount().finally(() => {
         clearPreviewSnapshot();
         setAccount(null);
@@ -1464,6 +1564,7 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
         setOnboardingCompleted(false);
         setAlphaEntered(false);
         setPlans([]);
+        setDeadlineMilestones([]);
         setSelectedPlanId(null);
         setSessionCompletions([]);
         setSessionInterruptions([]);
@@ -1471,9 +1572,9 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
         setStage("landing");
       });
     }}>
-      {activeTab === "Home" && <HomeScreen account={account} answers={answers} plans={activePlans} plan={recommendedPlan} sessionCompletions={sessionCompletions} sessionInterruptions={sessionInterruptions} tutorQuestion={tutorQuestion} onTutorQuestion={setTutorQuestion} onOpenTutor={openAskYova} onOpenYou={() => setActiveTab("You")} onStart={(planId) => requestSessionStart(planId)} onOpenPlan={(planId) => { setSelectedPlanId(planId); setLearningDetailPlanId(planId); setActiveTab("Learning"); }} onCreatePlan={() => setStage("plan-creator")} onStudyNow={() => setStage("study-now")} />}
-      {activeTab === "Learning" && <LearningScreen plans={plans} detailPlanId={learningDetailPlanId} sessionCompletions={sessionCompletions} sessionInterruptions={sessionInterruptions} onOpenPlan={(planId) => { setSelectedPlanId(planId); setLearningDetailPlanId(planId); }} onClosePlan={() => setLearningDetailPlanId(null)} onStart={requestSessionStart} onCreatePlan={() => setStage("plan-creator")} onArchiveStateChange={changePlanArchiveState} onAdjustPlan={adjustPlan} onAttachMaterials={attachMaterials} />}
-      {activeTab === "Agenda" && <AgendaScreen plans={plans.filter((plan) => plan.status !== "archived")} sessionCompletions={sessionCompletions} sessionInterruptions={sessionInterruptions} previewMode={account?.identityMode === "preview"} onStart={requestSessionStart} onActivateReview={activateConceptReview} onReschedule={rescheduleSession} onAdjustDuration={adjustSessionDuration} />}
+      {activeTab === "Home" && <HomeScreen account={account} answers={answers} plans={activePlans} plan={recommendedPlan} sessionCompletions={sessionCompletions} sessionInterruptions={sessionInterruptions} tutorQuestion={tutorQuestion} onTutorQuestion={setTutorQuestion} onOpenTutor={openAskYova} onOpenYou={() => setActiveTab("You")} onStart={(planId) => requestSessionStart(planId)} onOpenPlan={(planId) => { setSelectedPlanId(planId); setLearningDetailPlanId(planId); setActiveTab("Learning"); }} onCreatePlan={() => setStage("add")} onStudyNow={() => { setCreatorSeed(null); setCreatorMilestoneId(null); setStage("study-now"); }} />}
+      {activeTab === "Learning" && <LearningScreen plans={plans} detailPlanId={learningDetailPlanId} sessionCompletions={sessionCompletions} sessionInterruptions={sessionInterruptions} onOpenPlan={(planId) => { setSelectedPlanId(planId); setLearningDetailPlanId(planId); }} onClosePlan={() => setLearningDetailPlanId(null)} onStart={requestSessionStart} onCreatePlan={() => setStage("add")} onArchiveStateChange={changePlanArchiveState} onAdjustPlan={adjustPlan} onAttachMaterials={attachMaterials} />}
+      {activeTab === "Agenda" && <AgendaScreen plans={plans.filter((plan) => plan.status !== "archived")} milestones={deadlineMilestones} sessionCompletions={sessionCompletions} sessionInterruptions={sessionInterruptions} previewMode={account?.identityMode === "preview"} onAdd={() => setStage("add")} onStart={requestSessionStart} onActivateReview={activateConceptReview} onReschedule={rescheduleSession} onAdjustDuration={adjustSessionDuration} onUpdateMilestone={updateDeadlineMilestone} onDeleteMilestone={deleteDeadlineMilestone} onConvertMilestone={(milestone, outcome) => { setCreatorSeed({ title: milestone.title, objective: milestone.description || `Complete ${milestone.title}`, itemType: "assignment", dueAt: milestone.dueAt, scope: milestone.description || milestone.title, progress: "", materialsSummary: "No materials attached yet.", missingFields: milestone.description ? [] : ["scope"], description: milestone.description || milestone.title, materials: [] }); setCreatorMilestoneId(milestone.id); setStage(outcome === "session" ? "study-now" : "plan-creator"); }} />}
       {activeTab === "Ask YOVA" && <AskScreen key={tutorEntryKey} plans={plans} question={tutorQuestion} onQuestion={setTutorQuestion} onApplyAction={applyTutorAction} analyticsEnabled={analyticsEnabled} />}
       {activeTab === "You" && <YouScreen account={account} answers={answers} plans={plans} sessionCompletions={sessionCompletions} sessionInterruptions={sessionInterruptions} onAnswersChange={setAnswers} onStart={() => requestSessionStart(recommendedPlan?.id)} onOpenLearning={() => { if (recommendedPlan) { setSelectedPlanId(recommendedPlan.id); setLearningDetailPlanId(recommendedPlan.id); } setActiveTab("Learning"); }} onReset={resetYovaData} />}
     </AppShell>
@@ -1671,7 +1772,7 @@ function AppShell({ activeTab, onTab, account, cloudSyncIssue, onRetryCloudSync,
       setRetrying(false);
     }
   };
-  return <div className="app-shell"><a className="skip-link" href="#main-content">Skip to main content</a><aside className="sidebar"><BrandMark /><button className="sidebar-create" onClick={onCreatePlan}><Plus size={18} /><span>New plan</span></button><nav aria-label="Main navigation">{navItems.map(({ label, icon: Icon }) => <button key={label} className={activeTab === label ? "active" : ""} onClick={() => onTab(label)}><Icon size={19} /><span>{label}</span></button>)}</nav><nav className="sidebar-trust-links" aria-label="Trust and support"><Link href="/support">Support</Link><Link href="/privacy">Privacy</Link><Link href="/terms">Terms</Link></nav><div className="sidebar-bottom"><div className="account-dot">{initial}</div><div><strong>{account?.displayName || "YOVA user"}</strong><span>{account?.identityMode === "supabase" ? "Cloud account" : "Private alpha"}</span></div><button aria-label="Sign out" title="Sign out" onClick={onSignOut}><LogOut size={17} /></button></div></aside><main className="app-content" id="main-content" tabIndex={-1}>{cloudSyncIssue && <div className="cloud-sync-warning"><strong>Cloud sync needs attention.</strong><span>{cloudSyncIssue} Your latest work is still saved in this browser.</span><button disabled={retrying} onClick={() => void retry()}>{retrying ? "Retrying…" : "Retry now"}</button></div>}{children}</main></div>;
+  return <div className="app-shell"><a className="skip-link" href="#main-content">Skip to main content</a><aside className="sidebar"><BrandMark /><button className="sidebar-create" onClick={onCreatePlan}><Plus size={18} /><span>Add</span></button><nav aria-label="Main navigation">{navItems.map(({ label, icon: Icon }) => <button key={label} className={activeTab === label ? "active" : ""} onClick={() => onTab(label)}><Icon size={19} /><span>{label}</span></button>)}</nav><nav className="sidebar-trust-links" aria-label="Trust and support"><Link href="/support">Support</Link><Link href="/privacy">Privacy</Link><Link href="/terms">Terms</Link></nav><div className="sidebar-bottom"><div className="account-dot">{initial}</div><div><strong>{account?.displayName || "YOVA user"}</strong><span>{account?.identityMode === "supabase" ? "Cloud account" : "Private alpha"}</span></div><button aria-label="Sign out" title="Sign out" onClick={onSignOut}><LogOut size={17} /></button></div></aside><main className="app-content" id="main-content" tabIndex={-1}>{cloudSyncIssue && <div className="cloud-sync-warning"><strong>Cloud sync needs attention.</strong><span>{cloudSyncIssue} Your latest work is still saved in this browser.</span><button disabled={retrying} onClick={() => void retry()}>{retrying ? "Retrying…" : "Retry now"}</button></div>}{children}</main></div>;
 }
 
 function PageHeader({ eyebrow, title, description }: { eyebrow?: string; title: string; description?: string }) { return <header className="page-header">{eyebrow && <span className="step-label">{eyebrow}</span>}<h1>{title}</h1>{description && <p>{description}</p>}</header>; }
@@ -1727,7 +1828,7 @@ function HomeScreen({ account, answers, plans, plan, sessionCompletions, session
         <h1>{greetingFor(now)}, {firstName}.</h1>
         <p>{displayedPlan && readySession ? "Here is the clearest next step." : "What would you like to learn or prepare for?"}</p>
       </div>
-      <button className="button secondary" onClick={onCreatePlan}><Plus size={17} /> New plan</button>
+      <button className="button secondary" onClick={onCreatePlan}><Plus size={17} /> Add</button>
     </header>
 
     {displayedPlan && readySession ? <section
@@ -1771,7 +1872,7 @@ function HomeScreen({ account, answers, plans, plan, sessionCompletions, session
       {recommendations.length > 1 && <div className="rec-swipe-hint" aria-hidden="true"><span /><p>Swipe or use the arrows to see other plans</p><span /></div>}
     </section> : <section className="empty-home">
       <div className="empty-home-copy"><span className="eyebrow"><BookOpen size={15} /> Start here</span><h2>Turn any goal into a clear next step.</h2><p>Use your own materials, let YOVA create the content, or get a plan for studying somewhere else.</p></div>
-      <div className="empty-home-actions"><button className="button primary large" onClick={onCreatePlan}>Create a learning plan <ArrowRight size={18} /></button><button className="button secondary large" onClick={onStudyNow}>Study something now</button></div>
+      <div className="empty-home-actions"><button className="button primary large" onClick={onCreatePlan}>Add something to YOVA <ArrowRight size={18} /></button><button className="button secondary large" onClick={onStudyNow}>Study something now</button></div>
     </section>}
 
     <section className="home-command">
@@ -1782,8 +1883,8 @@ function HomeScreen({ account, answers, plans, plan, sessionCompletions, session
     <section className="home-section">
       <div className="section-title"><div><h3>Choose a starting point</h3><p>A longer plan or one focused session.</p></div></div>
       <div className="quick-actions">
-        <button onClick={onCreatePlan}><span className="quick-action-icon"><BookOpen size={19} /></span><span><strong>{plan ? "Create another plan" : "Create a plan"}</strong><small>For a test, unit, book, or longer goal</small></span><ArrowRight size={17} /></button>
-        <button onClick={onStudyNow}><span className="quick-action-icon"><Target size={19} /></span><span><strong>Study something now</strong><small>One focused session for what you need today</small></span><ArrowRight size={17} /></button>
+        <button onClick={onCreatePlan}><span className="quick-action-icon"><Plus size={19} /></span><span><strong>Add to YOVA</strong><small>Describe a deadline, assignment, topic, or learning goal</small></span><ArrowRight size={17} /></button>
+        <button onClick={onStudyNow}><span className="quick-action-icon"><Target size={19} /></span><span><strong>Study something now</strong><small>Shortcut to one focused session</small></span><ArrowRight size={17} /></button>
       </div>
     </section>
 
@@ -1875,14 +1976,14 @@ function LearningScreen({ plans, detailPlanId, sessionCompletions, sessionInterr
   const [changingPlanId, setChangingPlanId] = useState<string | null>(null);
   const [statusError, setStatusError] = useState<string | null>(null);
   const visiblePlans = plans.filter((plan) => {
-    if (view === "active") return plan.status === "active";
-    if (view === "recent") return plan.status === "completed";
+    if (view === "active") return plan.status === "active" && plan.creationIntent !== "study_now";
+    if (view === "recent") return plan.status === "completed" || (plan.creationIntent === "study_now" && plan.status !== "archived");
     return plan.status === "archived";
   });
   const plan = visiblePlans.find((item) => item.id === detailPlanId) ?? null;
   const viewLabels = {
     active: { empty: "No active learning yet.", description: "Start one focused session or create a plan for a larger goal." },
-    recent: { empty: "No completed studies yet.", description: "Finished sessions and plans will remain here so you can review what happened." },
+    recent: { empty: "No recent studies yet.", description: "Focused sessions and completed plans will remain here so you can review what happened." },
     archive: { empty: "Nothing is archived.", description: "Learning items you intentionally put away will appear here." },
   };
 
@@ -1907,20 +2008,21 @@ function LearningScreen({ plans, detailPlanId, sessionCompletions, sessionInterr
   };
 
   return <div className="page learning-page">
-    <div className="learning-index-header"><PageHeader eyebrow="LEARNING" title="What you’re working toward" description="Every goal keeps its plan, materials, sessions, and progress in one place." /><button className="button primary" onClick={onCreatePlan}><Plus size={17} /> New plan</button></div>
+    <div className="learning-index-header"><PageHeader eyebrow="LEARNING" title="What you’re working toward" description="Every goal keeps its plan, materials, sessions, and progress in one place." /><button className="button primary" onClick={onCreatePlan}><Plus size={17} /> Add</button></div>
     <div className="tabs">
-      <button className={view === "active" ? "active" : ""} onClick={() => changeView("active")}>Active <span>{plans.filter((item) => item.status === "active").length}</span></button>
-      <button className={view === "recent" ? "active" : ""} onClick={() => changeView("recent")}>Completed <span>{plans.filter((item) => item.status === "completed").length}</span></button>
+      <button className={view === "active" ? "active" : ""} onClick={() => changeView("active")}>Active <span>{plans.filter((item) => item.status === "active" && item.creationIntent !== "study_now").length}</span></button>
+      <button className={view === "recent" ? "active" : ""} onClick={() => changeView("recent")}>Recent <span>{plans.filter((item) => item.status === "completed" || (item.creationIntent === "study_now" && item.status !== "archived")).length}</span></button>
       <button className={view === "archive" ? "active" : ""} onClick={() => changeView("archive")}>Archive <span>{plans.filter((item) => item.status === "archived").length}</span></button>
     </div>
     {statusError && <div className="chat-error"><AlertCircle size={16} /><span>{statusError}</span></div>}
-    {plan ? <LearningPlanDetail plan={plan} view={view} completions={sessionCompletions.filter((completion) => completion.planId === plan.id)} interruptions={sessionInterruptions.filter((interruption) => interruption.planId === plan.id)} changingStatus={changingPlanId === plan.id} onBack={onClosePlan} onStart={() => onStart(plan.id)} onArchiveStateChange={(action) => void changeArchiveState(plan.id, action)} onAdjustPlan={onAdjustPlan} onAttachMaterials={onAttachMaterials} /> : visiblePlans.length ? <LearningOverview plans={visiblePlans} allPlans={plans} view={view} interruptions={sessionInterruptions} onOpenPlan={onOpenPlan} onStart={onStart} /> : <section className="learning-empty"><span className="learning-empty-icon"><LibraryBig size={22} /></span><h2>{viewLabels[view].empty}</h2><p>{viewLabels[view].description}</p>{view === "active" && <button className="button primary" onClick={onCreatePlan}>Create your first plan <ArrowRight size={17} /></button>}</section>}
+    {plan ? <LearningPlanDetail plan={plan} view={view} completions={sessionCompletions.filter((completion) => completion.planId === plan.id)} interruptions={sessionInterruptions.filter((interruption) => interruption.planId === plan.id)} changingStatus={changingPlanId === plan.id} onBack={onClosePlan} onStart={() => onStart(plan.id)} onArchiveStateChange={(action) => void changeArchiveState(plan.id, action)} onAdjustPlan={onAdjustPlan} onAttachMaterials={onAttachMaterials} /> : visiblePlans.length ? <LearningOverview plans={visiblePlans} allPlans={plans} view={view} interruptions={sessionInterruptions} onOpenPlan={onOpenPlan} onStart={onStart} /> : <section className="learning-empty"><span className="learning-empty-icon"><LibraryBig size={22} /></span><h2>{viewLabels[view].empty}</h2><p>{viewLabels[view].description}</p>{view === "active" && <button className="button primary" onClick={onCreatePlan}>Add your first goal <ArrowRight size={17} /></button>}</section>}
   </div>;
 }
 
 function LearningOverview({ plans, allPlans, view, interruptions, onOpenPlan, onStart }: { plans: LearningPlan[]; allPlans: LearningPlan[]; view: "active" | "recent" | "archive"; interruptions: SessionInterruption[]; onOpenPlan: (planId: string) => void; onStart: (planId: string) => void }) {
-  const activeCount = allPlans.filter((plan) => plan.status === "active").length;
-  const sessionsAhead = allPlans.filter((plan) => plan.status === "active").reduce((count, plan) => count + plan.sessions.filter((session) => session.status === "ready" || session.status === "upcoming").length, 0);
+  const activeLearningPlans = allPlans.filter((plan) => plan.status === "active" && plan.creationIntent !== "study_now");
+  const activeCount = activeLearningPlans.length;
+  const sessionsAhead = activeLearningPlans.reduce((count, plan) => count + plan.sessions.filter((session) => session.status === "ready" || session.status === "upcoming").length, 0);
   const completedCount = allPlans.filter((plan) => plan.status === "completed").length;
 
   return <>
@@ -1952,7 +2054,7 @@ function LearningPlanDetail({ plan, view, completions, interruptions, changingSt
   const conceptSignals = summarizeConceptEvidence(completions);
 
   return <>
-    <button className="learning-back" onClick={onBack}><ArrowLeft size={16} /> All {view === "recent" ? "completed learning" : view === "archive" ? "archived learning" : "active learning"}</button>
+    <button className="learning-back" onClick={onBack}><ArrowLeft size={16} /> All {view === "recent" ? "recent learning" : view === "archive" ? "archived learning" : "active learning"}</button>
     <section className="learning-hero"><div><span className="subject-label">{plan.kind.toUpperCase()} · {formatPlanDeadline(plan.deadline)}</span><h2>{plan.title}</h2><p>{plan.topic}</p><span className="learning-approach-badge">{plan.learningIntent === "learn" ? <BookOpen size={14} /> : <Target size={14} />}{plan.learningIntent === "learn" ? "Building understanding, then practice" : "Practice, diagnose, and repair"}</span><div className="progress-line"><div style={{ width: `${(completeCount / plan.sessions.length) * 100}%` }} /></div><small>{resumePoint ? `${resumePoint.completedSteps} of ${resumePoint.totalSteps} sections saved in the current session` : `${completeCount} of ${plan.sessions.length} sessions complete`}</small></div><div className="learning-hero-actions">{view === "active" && readySession && <button className="button primary" onClick={onStart}>{resumePoint ? "Continue session" : "Start next session"}</button>}{view === "active" && <button className="button hero-secondary" onClick={() => setShowAdjustments((value) => !value)}><Settings2 size={16} /> {showAdjustments ? "Close" : "Adjust"}</button>}<button className="button hero-secondary" disabled={changingStatus} onClick={() => onArchiveStateChange(view === "archive" ? "restore" : "archive")}>{changingStatus ? <span className="button-spinner" /> : view === "archive" ? <><RotateCcw size={16} /> Restore</> : <><Archive size={16} /> Archive</>}</button></div></section>
     {view === "active" && showAdjustments && <PlanAdjustmentPanel plan={plan} onCancel={() => setShowAdjustments(false)} onSave={async (input) => { await onAdjustPlan(input); setShowAdjustments(false); }} />}
     {view === "recent" && <section className="learning-history-summary"><div><span>Completed</span><strong>{formatCompletionDate(completions.at(-1)?.completedAt ?? plan.createdAt)}</strong></div><div><span>Knowledge-check accuracy</span><strong>{accuracy}</strong></div><div><span>Last session felt</span><strong>{formatFeedback(completions.at(-1)?.feedback)}</strong></div></section>}
@@ -2081,7 +2183,7 @@ function PlanAdjustmentPanel({ plan, onCancel, onSave }: { plan: LearningPlan; o
   return <section className="plan-adjustment-panel"><div className="plan-adjustment-heading"><div><span className="step-label">ADJUST UNFINISHED WORK</span><h3>Change the plan without losing progress</h3><p>Tell YOVA when the course is on the wrong track, or change its timing and study location. Completed sessions stay exactly as they are.</p></div></div><label className="plan-direction-field"><span>What should be different?</span><textarea rows={4} maxLength={500} value={direction} disabled={saving} placeholder="Example: Keep this conceptual. I do not want calculation exercises. Focus on founder decisions, investor incentives, and real examples." onChange={(event) => setDirection(event.target.value)} /><small>Optional. YOVA will rebuild only unfinished sessions. The next session setup will show the revised target and method. {direction.length}/500</small><div><button type="button" onClick={() => setDirection("Keep this conceptual. Do not include math or calculation exercises.")}>No calculations</button><button type="button" onClick={() => setDirection("Teach the foundations first, then use concrete examples before practice.")}>Teach it first</button><button type="button" onClick={() => setDirection("Use more real examples and case scenarios before independent work.")}>More examples</button></div></label><div className="plan-adjustment-grid"><label><span>Target date</span><input type="date" min={localDateInput(new Date().toISOString())} value={deadlineDate} disabled={saving} onChange={(event) => setDeadlineDate(event.target.value)} /><small>Optional. Agenda times are changed separately.</small></label><label><span>Future session window</span><select value={minutes} disabled={saving} onChange={(event) => setMinutes(Number(event.target.value))}><option value={15}>15 minutes</option><option value={25}>25 minutes</option><option value={30}>30 minutes</option><option value={45}>45 minutes</option><option value={60}>60 minutes</option></select><small>Time controls the size of each content slice, not whether it counts as complete.</small></label></div><div className="adjustment-content-rule"><Target size={18} /><div><strong>Progress stays intact</strong><p>The current {unfinishedCount} unfinished {unfinishedCount === 1 ? "session" : "sessions"} can be rewritten or divided differently. Finished sessions and recorded learning evidence are never erased.</p></div></div><div className="adjustment-mode"><span>Where should future sessions happen?</span><div><button className={studyMode === "inside_yova" ? "selected" : ""} disabled={saving} onClick={() => setStudyMode("inside_yova")}><BookOpen size={17} /><strong>Inside YOVA</strong><small>Teaching, questions, and feedback in the app</small></button><button className={studyMode === "outside_yova" ? "selected" : ""} disabled={saving} onClick={() => setStudyMode("outside_yova")}><LibraryBig size={17} /><strong>Outside YOVA</strong><small>Exact instructions for another source or workspace</small></button></div></div>{error && <div className="chat-error"><AlertCircle size={16} /><span>{error}</span></div>}<footer><button className="button ghost" disabled={saving} onClick={onCancel}>Cancel</button><button className="button primary" disabled={saving || unfinishedCount === 0} onClick={() => void save()}>{saving ? <span className="button-spinner" /> : <><Check size={16} /> Approve and rebuild plan</>}</button></footer></section>;
 }
 
-function AgendaScreen({ plans, sessionCompletions, sessionInterruptions, previewMode, onStart, onActivateReview, onReschedule, onAdjustDuration }: { plans: LearningPlan[]; sessionCompletions: SessionCompletion[]; sessionInterruptions: SessionInterruption[]; previewMode: boolean; onStart: (planId?: string) => void; onActivateReview: (item: ConceptReviewAgendaItem) => Promise<void>; onReschedule: (planId: string, planSessionId: string, scheduledFor: string) => void; onAdjustDuration: (planSessionId: string, estimatedMinutes: number) => Promise<void> }) {
+function AgendaScreen({ plans, milestones, sessionCompletions, sessionInterruptions, previewMode, onAdd, onStart, onActivateReview, onReschedule, onAdjustDuration, onUpdateMilestone, onDeleteMilestone, onConvertMilestone }: { plans: LearningPlan[]; milestones: DeadlineMilestone[]; sessionCompletions: SessionCompletion[]; sessionInterruptions: SessionInterruption[]; previewMode: boolean; onAdd: () => void; onStart: (planId?: string) => void; onActivateReview: (item: ConceptReviewAgendaItem) => Promise<void>; onReschedule: (planId: string, planSessionId: string, scheduledFor: string) => void; onAdjustDuration: (planSessionId: string, estimatedMinutes: number) => Promise<void>; onUpdateMilestone: (id: string, changes: Partial<Pick<DeadlineMilestone, "title" | "description" | "dueAt" | "status" | "linkedLearningItemId">>) => Promise<void>; onDeleteMilestone: (id: string) => Promise<void>; onConvertMilestone: (milestone: DeadlineMilestone, outcome: "session" | "plan") => void }) {
   const [moving, setMoving] = useState<{ planId: string; sessionId: string } | null>(null);
   const [customTime, setCustomTime] = useState("");
   const [saving, setSaving] = useState(false);
@@ -2095,6 +2197,9 @@ function AgendaScreen({ plans, sessionCompletions, sessionInterruptions, preview
   const [todayCapacity, setTodayCapacity] = useState<number | null>(null);
   const [capacityAction, setCapacityAction] = useState<"move" | "split" | null>(null);
   const [capacityError, setCapacityError] = useState<string | null>(null);
+  const [editingMilestone, setEditingMilestone] = useState<DeadlineMilestone | null>(null);
+  const [milestoneAction, setMilestoneAction] = useState<string | null>(null);
+  const [milestoneError, setMilestoneError] = useState<string | null>(null);
   const conceptReviews = buildConceptReviewAgenda(plans, sessionCompletions);
   const availableSessions = plans
     .flatMap((plan) => plan.sessions.filter((session) => session.status !== "complete" && session.status !== "skipped").map((session) => ({ plan, session })))
@@ -2122,7 +2227,20 @@ function AgendaScreen({ plans, sessionCompletions, sessionInterruptions, preview
       load: group?.load ?? "light",
     };
   });
-  const selectedDay = weekDays.find((day) => day.dateKey === selectedDateKey) ?? weekDays[0];
+  const selectedGroup = groupByDate.get(selectedDateKey);
+  const selectedDay = weekDays.find((day) => day.dateKey === selectedDateKey) ?? {
+    date: dateFromLocalKey(selectedDateKey),
+    dateKey: selectedDateKey,
+    entries: selectedGroup?.entries ?? [],
+    totalMinutes: selectedGroup?.totalMinutes ?? 0,
+    load: selectedGroup?.load ?? "light",
+  };
+  const selectedMilestones = milestones
+    .filter((milestone) => localDateKey(new Date(milestone.dueAt)) === selectedDay.dateKey)
+    .sort((left, right) => new Date(left.dueAt).getTime() - new Date(right.dueAt).getTime());
+  const nextOpenMilestone = milestones
+    .filter((milestone) => milestone.status === "open" && localDateKey(new Date(milestone.dueAt)) >= localDateKey(new Date()))
+    .sort((left, right) => new Date(left.dueAt).getTime() - new Date(right.dueAt).getTime())[0] ?? null;
   const balanceSuggestion = buildAgendaBalanceSuggestion(availableSessions);
   const capacityPlan = todayCapacity === null ? null : buildDailyCapacityPlan(availableSessions, todayCapacity);
   const [adjustmentsOpen, setAdjustmentsOpen] = useState(
@@ -2250,10 +2368,37 @@ function AgendaScreen({ plans, sessionCompletions, sessionInterruptions, preview
     }
   };
 
+  const changeMilestone = async (milestone: DeadlineMilestone, changes: Partial<Pick<DeadlineMilestone, "title" | "description" | "dueAt" | "status">>) => {
+    if (milestoneAction) return;
+    setMilestoneAction(milestone.id);
+    setMilestoneError(null);
+    try {
+      await onUpdateMilestone(milestone.id, changes);
+      setEditingMilestone(null);
+    } catch (requestError) {
+      setMilestoneError(requestError instanceof Error ? requestError.message : "YOVA could not update this deadline.");
+    } finally {
+      setMilestoneAction(null);
+    }
+  };
+
+  const removeMilestone = async (milestone: DeadlineMilestone) => {
+    if (milestoneAction || !window.confirm(`Delete ${milestone.title}?`)) return;
+    setMilestoneAction(milestone.id);
+    setMilestoneError(null);
+    try {
+      await onDeleteMilestone(milestone.id);
+    } catch (requestError) {
+      setMilestoneError(requestError instanceof Error ? requestError.message : "YOVA could not delete this deadline.");
+    } finally {
+      setMilestoneAction(null);
+    }
+  };
+
   return <div className="page agenda-page">
     <PageHeader eyebrow="AGENDA" title="Your week at a glance" description={`${agendaSummary.weekSessions} planned ${agendaSummary.weekSessions === 1 ? "session" : "sessions"} · ${agendaSummary.weekMinutes} minutes · one learning schedule across every active goal.`} />
     <nav className="agenda-week-selector" aria-label="Choose an agenda day">
-      {weekDays.map((day, index) => <button type="button" key={day.dateKey} className={`${selectedDay.dateKey === day.dateKey ? "selected" : ""} ${day.load}`} aria-pressed={selectedDay.dateKey === day.dateKey} onClick={() => setSelectedDateKey(day.dateKey)}><span>{index === 0 ? "Today" : new Intl.DateTimeFormat("en-US", { weekday: "short" }).format(day.date)}</span><strong>{new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(day.date)}</strong><small>{day.totalMinutes} min</small><em>{day.entries.length} {day.entries.length === 1 ? "session" : "sessions"}</em></button>)}
+      {weekDays.map((day, index) => { const dueCount = milestones.filter((milestone) => milestone.status === "open" && localDateKey(new Date(milestone.dueAt)) === day.dateKey).length; return <button type="button" key={day.dateKey} className={`${selectedDay.dateKey === day.dateKey ? "selected" : ""} ${day.load} ${dueCount ? "has-deadline" : ""}`} aria-pressed={selectedDay.dateKey === day.dateKey} onClick={() => setSelectedDateKey(day.dateKey)}><span>{index === 0 ? "Today" : new Intl.DateTimeFormat("en-US", { weekday: "short" }).format(day.date)}</span><strong>{new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(day.date)}</strong><small>{day.totalMinutes} min</small><em>{dueCount ? `${dueCount} due` : `${day.entries.length} ${day.entries.length === 1 ? "session" : "sessions"}`}</em></button>; })}
     </nav>
     <details className="agenda-adjustment-tools" open={adjustmentsOpen} onToggle={(event) => setAdjustmentsOpen(event.currentTarget.open)}>
       <summary><span className="agenda-capacity-icon"><Settings2 size={19} /></span><div><strong>Adjust today&apos;s plan</strong><small>Tell YOVA how much time you have and review any proposed schedule change.</small></div><ChevronRight size={18} /></summary>
@@ -2281,20 +2426,30 @@ function AgendaScreen({ plans, sessionCompletions, sessionInterruptions, preview
     <div className="agenda-main-grid">
       <section className="agenda-day-detail">
         <header><div><span>{agendaDayEyebrow(selectedDay.date)}</span><h2>{agendaFullDate(selectedDay.date)}</h2></div><div><strong>{selectedDay.totalMinutes} min planned</strong><small>{selectedDay.entries.length} {selectedDay.entries.length === 1 ? "session" : "sessions"}</small></div></header>
+        {selectedMilestones.length > 0 && <div className="agenda-milestones"><span className="step-label">DUE THIS DAY</span>{selectedMilestones.map((milestone) => <article className={milestone.status} key={milestone.id}><span className="agenda-milestone-icon"><CalendarDays size={18} /></span><div><strong>{milestone.title}</strong><small>{milestone.description || (milestone.linkedLearningItemId ? "Linked to a learning goal" : "Deadline only")}</small></div><div className="agenda-milestone-actions">{milestone.status === "open" && <button onClick={() => void changeMilestone(milestone, { status: "completed" })} disabled={milestoneAction === milestone.id}><Check size={16} /> Complete</button>}<button onClick={() => setEditingMilestone(milestone)} disabled={Boolean(milestoneAction)}>Edit</button>{!milestone.linkedLearningItemId && <><button onClick={() => onConvertMilestone(milestone, "session")} disabled={Boolean(milestoneAction)}>One session</button><button onClick={() => onConvertMilestone(milestone, "plan")} disabled={Boolean(milestoneAction)}>Create plan</button></>}<button className="danger" aria-label={`Delete ${milestone.title}`} onClick={() => void removeMilestone(milestone)} disabled={Boolean(milestoneAction)}><Trash2 size={16} /></button></div></article>)}</div>}
         <div className="agenda-periods">
-          {(["Morning", "Afternoon", "Evening"] as const).map((period) => {
+          {selectedDay.entries.length === 0 ? <div className="agenda-day-empty"><Clock3 size={21} /><div><strong>Nothing planned today</strong><small>Add something you need to learn, prepare for, or complete.</small><button className="button secondary" onClick={onAdd}>+ Add</button></div></div> : (["Morning", "Afternoon", "Evening"] as const).map((period) => {
             const periodEntries = selectedDay.entries.filter(({ session }) => agendaPeriod(session.scheduledFor) === period);
-            return <section className="agenda-period" key={period}><header>{period === "Morning" ? <SunMedium size={17} /> : period === "Evening" ? <Moon size={17} /> : <Clock3 size={17} />}<strong>{period}</strong></header>{periodEntries.length ? <div>{periodEntries.map(({ plan, session }) => { const resumePoint = resumableSessionProgress(session.id, sessionInterruptions); const overdue = session.status === "ready" && isSessionOverdue(session.scheduledFor); return <article className={`${session.status === "ready" ? "ready" : ""} ${overdue ? "overdue" : ""}`} key={session.id}><SubjectIcon plan={plan} compact /><div className="agenda-session-copy"><span>{overdue ? "Overdue" : formatAgendaClock(session.scheduledFor)} · {session.learningMode === "learn" ? "Learn" : "Practice"}</span><strong>{session.title}</strong><small>{plan.title} · {session.method} · {session.estimatedMinutes} min{resumePoint ? ` · Continue at section ${resumePoint.completedSteps + 1}` : ""}</small></div><div className="agenda-session-actions">{session.status === "ready" && <button className="button primary" onClick={() => onStart(plan.id)}>{resumePoint ? "Continue" : "Start"}</button>}<button className="button ghost" onClick={() => openMove(plan.id, session.id, session.scheduledFor)}>Move</button></div></article>; })}</div> : <div className="agenda-period-empty"><span>No sessions planned</span><small>This time is available for review or catch-up.</small></div>}</section>;
+            if (!periodEntries.length) return null;
+            return <section className="agenda-period" key={period}><header>{period === "Morning" ? <SunMedium size={17} /> : period === "Evening" ? <Moon size={17} /> : <Clock3 size={17} />}<strong>{period}</strong></header><div>{periodEntries.map(({ plan, session }) => { const resumePoint = resumableSessionProgress(session.id, sessionInterruptions); const overdue = session.status === "ready" && isSessionOverdue(session.scheduledFor); return <article className={`${session.status === "ready" ? "ready" : ""} ${overdue ? "overdue" : ""}`} key={session.id}><SubjectIcon plan={plan} compact /><div className="agenda-session-copy"><span>{overdue ? "Overdue" : formatAgendaClock(session.scheduledFor)} · {session.learningMode === "learn" ? "Learn" : "Practice"}</span><strong>{session.title}</strong><small>{plan.title} · {session.method} · {session.estimatedMinutes} min{resumePoint ? ` · Continue at section ${resumePoint.completedSteps + 1}` : ""}</small></div><div className="agenda-session-actions">{session.status === "ready" && <button className="button primary" onClick={() => onStart(plan.id)}>{resumePoint ? "Continue" : "Start"}</button>}<button className="button ghost" onClick={() => openMove(plan.id, session.id, session.scheduledFor)}>Move</button></div></article>; })}</div></section>;
           })}
         </div>
       </section>
       <aside className="agenda-summary-rail">
-        <section><CalendarDays size={19} /><div><span>Next deadline</span><strong>{agendaSummary.nextDeadline ? shortDeadlineDate(agendaSummary.nextDeadline.date) : "Flexible"}</strong><small>{agendaSummary.nextDeadline?.plan.title ?? "No fixed deadline"}</small></div></section>
+        <button
+          type="button"
+          className="agenda-summary-card"
+          disabled={!nextOpenMilestone}
+          aria-label={nextOpenMilestone ? `Open ${nextOpenMilestone.title} deadline` : "No deadline to open"}
+          onClick={() => nextOpenMilestone && setSelectedDateKey(localDateKey(new Date(nextOpenMilestone.dueAt)))}
+        ><CalendarDays size={19} /><div><span>Next deadline</span><strong>{nextOpenMilestone ? shortDeadlineDate(new Date(nextOpenMilestone.dueAt)) : agendaSummary.nextDeadline ? shortDeadlineDate(agendaSummary.nextDeadline.date) : "Flexible"}</strong><small>{nextOpenMilestone?.title ?? agendaSummary.nextDeadline?.plan.title ?? "No fixed deadline"}</small></div></button>
         <section><BookOpen size={19} /><div><span>Active goals</span><strong>{agendaSummary.activeGoals}</strong><small>Combined into this week</small></div></section>
         <section><Target size={19} /><div><span>This week</span><strong>{agendaSummary.weekMinutes} min</strong><small>{agendaSummary.weekSessions} learning sessions</small></div></section>
         <section className="agenda-rail-reviews"><header><RotateCcw size={18} /><div><span>Due for review</span><strong>{conceptReviews.filter((item) => item.timing === "due").length} due</strong></div></header>{conceptReviews.slice(0, 3).map((item) => <div key={`${item.planId}:${item.concept}`}><span>{item.concept}</span><small>{item.timingLabel}</small></div>)}</section>
       </aside>
     </div>
+    {editingMilestone && <section className="agenda-move-panel milestone-editor" aria-live="polite"><div><span className="step-label">EDIT DEADLINE</span><h3>Keep the due item accurate</h3><p>This changes the Agenda marker. It does not invent a study plan.</p></div><label><span>Title</span><input value={editingMilestone.title} onChange={(event) => setEditingMilestone({ ...editingMilestone, title: event.target.value })} /></label><label><span>Due date</span><input type="date" value={localDateKey(new Date(editingMilestone.dueAt))} onChange={(event) => { const dueAt = new Date(`${event.target.value}T23:59:59`); if (!Number.isNaN(dueAt.getTime())) setEditingMilestone({ ...editingMilestone, dueAt: dueAt.toISOString() }); }} /></label><label><span>Notes</span><textarea rows={3} value={editingMilestone.description} onChange={(event) => setEditingMilestone({ ...editingMilestone, description: event.target.value })} /></label>{milestoneError && <div className="chat-error"><AlertCircle size={16} /><span>{milestoneError}</span></div>}<footer><button className="button ghost" onClick={() => { setEditingMilestone(null); setMilestoneError(null); }} disabled={Boolean(milestoneAction)}>Cancel</button><button className="button primary" onClick={() => void changeMilestone(editingMilestone, { title: editingMilestone.title, description: editingMilestone.description, dueAt: editingMilestone.dueAt })} disabled={Boolean(milestoneAction) || editingMilestone.title.trim().length < 2}>{milestoneAction ? <span className="button-spinner" /> : "Save deadline"}</button></footer></section>}
+    {milestoneError && !editingMilestone && <div className="chat-error"><AlertCircle size={16} /><span>{milestoneError}</span></div>}
     {movingEntry && <section className="agenda-move-panel" aria-live="polite"><div><span className="step-label">MOVE SESSION</span><h3>{movingEntry.session.title}</h3><p>Choose a new time. The learning order and session content will stay the same.</p></div><div className="agenda-quick-times"><button onClick={() => void saveMove(moveByDays(movingEntry.session.scheduledFor, 1))} disabled={saving}>Tomorrow</button><button onClick={() => void saveMove(moveByDays(movingEntry.session.scheduledFor, 2))} disabled={saving}>In two days</button><button onClick={() => void saveMove(moveByDays(movingEntry.session.scheduledFor, 7))} disabled={saving}>Next week</button></div><label><span>Custom date and time</span><input type="datetime-local" min={toLocalDateTimeInput(new Date().toISOString())} value={customTime} disabled={saving} onChange={(event) => setCustomTime(event.target.value)} /></label>{error && <div className="chat-error"><AlertCircle size={16} /><span>{error}</span></div>}<footer><button className="button ghost" onClick={() => { setMoving(null); setError(null); }} disabled={saving}>Cancel</button><button className="button primary" onClick={() => { const date = new Date(customTime); if (Number.isNaN(date.getTime())) { setError("Choose a valid date and time."); return; } void saveMove(date.toISOString()); }} disabled={!customTime || saving}>{saving ? <span className="button-spinner" /> : "Save new time"}</button></footer></section>}
     {conceptReviews.length > 0 && <section className="section-block review-agenda"><div className="section-title"><div><h3>Retrieval queue</h3><p>Concepts return when completed checks show that another attempt would be useful.</p></div><span>{conceptReviews.filter((item) => item.timing === "due").length} due</span></div><div className="review-agenda-list">{conceptReviews.slice(0, 6).map((item) => { const actionKey = `${item.planId}:${item.concept.toLocaleLowerCase()}`; const loading = reviewAction === actionKey; return <article className={`${item.priority} ${item.timing}`} key={actionKey}><span className="review-agenda-icon">{item.reviewType === "repair_and_retrieve" ? <RotateCcw size={17} /> : <Target size={17} />}</span><div><span>{formatReviewType(item.reviewType)} · {item.timingLabel}</span><strong>{item.concept}</strong><small>{item.planTitle} · {item.instruction}</small></div>{item.action === "scheduled" ? <em>Scheduled</em> : <button className={item.action === "activate_review" ? "button primary" : "button secondary"} disabled={Boolean(reviewAction)} onClick={() => void beginConceptReview(item)}>{loading ? <span className="button-spinner dark" /> : null}{item.action === "activate_review" ? "Start short check" : "Start next session"}</button>}</article>; })}</div><small className="concept-review-note">These return dates are transparent review heuristics. A new completed check can move the next return sooner or later.</small>{reviewError && <div className="chat-error"><AlertCircle size={16} /><span>{reviewError}</span></div>}</section>}
   </div>;
@@ -3314,7 +3469,7 @@ function SessionGuidePanel({ session, capacityMinutes, coverage, steps, step, me
     <details className="session-guide-details"><summary>More about this method</summary>{methodBriefing && <div className="session-guide-explanation"><strong>What you are doing</strong><p>{methodBriefing.what}</p><strong>Completion rule</strong><p>{methodBriefing.completion}</p>{rationale && <><strong>How it fits this plan</strong><p>{rationale}</p></>}</div>}{deliveryPolicy && <div className="session-delivery-details"><strong>Delivery settings</strong><div><span>{deliveryPolicy.presentation.label}</span><span>{deliveryPolicy.repair.label}</span><span>{deliveryPolicy.retention.label}</span></div><small>{deliveryEvidenceLabel(deliveryPolicy.evidenceStatus)}</small></div>}<MethodRoadmap steps={steps} />{supportPlan && <SupportProgressionCard plan={supportPlan} />}</details>
     <details className="session-guide-details"><summary>Content and sources</summary><div className="session-guide-lists"><strong>In this session</strong><ul>{ideas.map((item, index) => <li key={`${index}-${item}`}>{item}</li>)}</ul>{coverage?.evidenceMap.length ? <><strong>How completion is checked</strong><ul>{coverage.evidenceMap.map((mapping) => <li key={`${mapping.essentialIdea}-${mapping.activityConcept}`}>{mapping.essentialIdea}: checked through {mapping.activityConcept}</li>)}</ul></> : null}{coverage?.deferredContent.length ? <><strong>Saved for later</strong><ul>{coverage.deferredContent.map((item, index) => <li key={`${index}-${item}`}>{item}</li>)}</ul></> : null}</div>{sourceGrounding && <SourceGroundingCard grounding={sourceGrounding} />}</details>
   </>;
-  return <aside className="session-guide"><div className="session-guide-desktop">{guide}</div><details className="session-guide-mobile"><summary><span><strong>{methodBriefing?.name ?? "Session path"}</strong><small>Step {step + 1} of {steps.length} · {roadmap.length} learning phases</small></span><ChevronRight size={17} /></summary><div>{guide}</div></details></aside>;
+  return <aside className="session-guide"><div className="session-guide-desktop">{guide}</div><details className="session-guide-mobile"><summary><span><strong>{methodBriefing?.name ?? "Session path"}</strong><small>{modeLabel} · Step {step + 1} of {steps.length} · {roadmap.length} learning phases</small></span><ChevronRight size={17} /></summary><div>{guide}</div></details></aside>;
 }
 
 function deliveryEvidenceLabel(status: SessionDeliveryPolicy["evidenceStatus"]) {
@@ -3519,7 +3674,7 @@ function SessionTutor({ plan, activity, outcome, answerRevealed, selectedAnswer,
   };
 
   return <aside className={`session-tutor ${expanded ? "expanded" : "collapsed"}`}>
-    {!expanded ? <button className="session-tutor-launcher" aria-expanded="false" onClick={() => setExpanded(true)}><MessageCircleMore size={18} /><span>Ask YOVA</span></button> : <section className="session-tutor-panel" aria-label="Ask YOVA about this session"><header><div><Sparkles size={15} /><span><strong>Help with this step</strong><small>{activity.title}</small></span></div><button aria-label="Close session tutor" onClick={() => setExpanded(false)}><X size={17} /></button></header><div className="session-tutor-quick-actions" aria-label="Quick help options">{quickActions.map((action) => <button key={action.intent} disabled={pending || !plan} onClick={() => void ask(action.prompt, action.intent)}>{action.label}</button>)}</div>{(messages.length > 0 || pending || error) && <div className="session-tutor-response" aria-live="polite">{messages.slice(-6).map((message) => message.role === "assistant" ? <div className="session-tutor-assistant" key={message.id}><span><Sparkles size={14} /> YOVA</span><TutorMessageContent content={message.content} /></div> : <div className="session-tutor-user" key={message.id}><span>You</span><p>{message.content}</p></div>)}{pending && <div className="session-tutor-thinking"><span className="button-spinner dark" /> Building help for this exact step…</div>}{error && <div className="session-tutor-error"><AlertCircle size={15} /> {error}</div>}</div>}<form className="session-ask" onSubmit={(event) => { event.preventDefault(); void ask(); }}><input aria-label="Ask YOVA about this session" placeholder="Ask about this exact step…" value={question} disabled={pending || !plan} onChange={(event) => setQuestion(event.target.value)} /><button aria-label="Send session question" type="submit" disabled={!question.trim() || pending || !plan}>{pending ? <span className="button-spinner" /> : <Send size={18} />}</button></form><small className="session-tutor-privacy">YOVA sees the step and result, but not your typed free response.</small></section>}
+    {!expanded ? <button className="session-tutor-launcher" aria-label="Ask YOVA" aria-expanded="false" onClick={() => setExpanded(true)}><MessageCircleMore size={18} /><span>Ask YOVA</span></button> : <section className="session-tutor-panel" aria-label="Ask YOVA about this session"><header><div><Sparkles size={15} /><span><strong>Help with this step</strong><small>{activity.title}</small></span></div><button aria-label="Close session tutor" onClick={() => setExpanded(false)}><X size={17} /></button></header><div className="session-tutor-quick-actions" aria-label="Quick help options">{quickActions.map((action) => <button key={action.intent} disabled={pending || !plan} onClick={() => void ask(action.prompt, action.intent)}>{action.label}</button>)}</div>{(messages.length > 0 || pending || error) && <div className="session-tutor-response" aria-live="polite">{messages.slice(-6).map((message) => message.role === "assistant" ? <div className="session-tutor-assistant" key={message.id}><span><Sparkles size={14} /> YOVA</span><TutorMessageContent content={message.content} /></div> : <div className="session-tutor-user" key={message.id}><span>You</span><p>{message.content}</p></div>)}{pending && <div className="session-tutor-thinking"><span className="button-spinner dark" /> Building help for this exact step…</div>}{error && <div className="session-tutor-error"><AlertCircle size={15} /> {error}</div>}</div>}<form className="session-ask" onSubmit={(event) => { event.preventDefault(); void ask(); }}><input aria-label="Ask YOVA about this session" placeholder="Ask about this exact step…" value={question} disabled={pending || !plan} onChange={(event) => setQuestion(event.target.value)} /><button aria-label="Send session question" type="submit" disabled={!question.trim() || pending || !plan}>{pending ? <span className="button-spinner" /> : <Send size={18} />}</button></form><small className="session-tutor-privacy">YOVA sees the step and result, but not your typed free response.</small></section>}
   </aside>;
 }
 
@@ -3604,6 +3759,17 @@ function readBoundedIntegerHeader(response: Response, name: string, maximum: num
   return parsed;
 }
 
+function readApiProperty(value: unknown, key: string) {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)[key]
+    : null;
+}
+
+function readApiError(value: unknown) {
+  const error = readApiProperty(value, "error");
+  return typeof error === "string" ? error : null;
+}
+
 function formatSessionTime(isoDate: string) {
   return new Intl.DateTimeFormat("en-US", { weekday: "short", hour: "numeric", minute: "2-digit" }).format(new Date(isoDate));
 }
@@ -3645,6 +3811,12 @@ function agendaFullDate(date: Date) {
 function agendaDateLabel(dateKey: string) {
   const [year, month, day] = dateKey.split("-").map(Number);
   return new Intl.DateTimeFormat("en-US", { weekday: "long", month: "short", day: "numeric" }).format(new Date(year, month - 1, day));
+}
+
+function dateFromLocalKey(dateKey: string) {
+  const [year, month, day] = dateKey.split("-").map(Number);
+  const date = new Date(year, month - 1, day);
+  return Number.isNaN(date.getTime()) ? new Date() : date;
 }
 
 function shortDeadlineDate(date: Date) {

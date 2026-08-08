@@ -26,11 +26,12 @@ import {
 } from "@/lib/plan-generation/schema";
 import { LEARNING_INTENT_COPY, resolveLearningIntent } from "@/lib/learning/learning-intent";
 import { assessGoalContext } from "@/lib/learning/goal-context";
+import type { AddIntakeSeed } from "@/lib/intake/schema";
 
 type StudyNowStep = "setup" | "source" | "loading" | "error";
 type SourceChoice = "materials" | "yova" | "outside";
 
-const timeChoices = [15, 25, 40, 60] as const;
+const timeChoices = [15, 20, 25, 40, 60] as const;
 const startingPoints = [
   "I haven't learned this yet",
   "I've seen it, but it doesn't make sense yet",
@@ -42,17 +43,19 @@ export function StudyNowCreator({
   onExit,
   onFinish,
   profileSummary,
+  seed = null,
 }: {
   onExit: () => void;
   onFinish: (plan: LearningPlan) => void;
   profileSummary: string;
+  seed?: AddIntakeSeed | null;
 }) {
-  const [step, setStep] = useState<StudyNowStep>("setup");
-  const [goal, setGoal] = useState("");
-  const [minutes, setMinutes] = useState<(typeof timeChoices)[number]>(25);
-  const [startingPoint, setStartingPoint] = useState<(typeof startingPoints)[number]>("I understand the basics but need practice");
-  const [sourceChoice, setSourceChoice] = useState<SourceChoice | null>(null);
-  const [materials, setMaterials] = useState<LearningMaterial[]>([]);
+  const [step, setStep] = useState<StudyNowStep>(seed ? "source" : "setup");
+  const [goal, setGoal] = useState(seed ? `${seed.title}. ${seed.objective} Scope: ${seed.scope}` : "");
+  const [minutes, setMinutes] = useState<(typeof timeChoices)[number]>(() => seedMinutes(seed));
+  const [startingPoint, setStartingPoint] = useState<(typeof startingPoints)[number]>(seedStartingPoint(seed));
+  const [sourceChoice, setSourceChoice] = useState<SourceChoice | null>(seed ? seedSourceChoice(seed) : null);
+  const [materials, setMaterials] = useState<LearningMaterial[]>(seed?.materials ?? []);
   const [materialError, setMaterialError] = useState<string | null>(null);
   const [materialNotice, setMaterialNotice] = useState<string | null>(null);
   const [processingMaterials, setProcessingMaterials] = useState(false);
@@ -107,7 +110,7 @@ export function StudyNowCreator({
         goal,
         materialMode: sourceChoice === "materials" ? "upload" : "none",
         materials: sourceChoice === "materials" ? materials : [],
-        studyMode: sourceChoice === "outside" ? "outside" : "inside",
+        studyMode: seed?.itemType === "assignment" || sourceChoice === "outside" ? "outside" : "inside",
         timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
         diagnosticResponses: [
           {
@@ -251,4 +254,23 @@ export function StudyNowCreator({
       {step === "error" && <section className="plan-error-state"><span><AlertCircle /></span><h1>Your information is safe.</h1><p>{generationError ?? "YOVA could not build the session yet."}</p><div><button className="button ghost" onClick={() => setStep("source")}><ArrowLeft size={17} /> Review choices</button><button className="button primary" onClick={() => void generateSession()}>Try again <ArrowRight size={17} /></button></div></section>}
     </main>
   );
+}
+
+function seedStartingPoint(seed: AddIntakeSeed | null): (typeof startingPoints)[number] {
+  if (!seed?.progress) return "I understand the basics but need practice";
+  if (/beginning|ground zero|nothing|new/i.test(seed.progress)) return "I haven't learned this yet";
+  if (/exposure|seen|doesn't make sense/i.test(seed.progress)) return "I've seen it, but it doesn't make sense yet";
+  if (/review|foundation|basics/i.test(seed.progress)) return "I understand the basics but need practice";
+  return "I understand the basics but need practice";
+}
+
+function seedSourceChoice(seed: AddIntakeSeed): SourceChoice {
+  if (seed.materials.length) return "materials";
+  if (seed.itemType === "assignment") return "outside";
+  return "yova";
+}
+
+function seedMinutes(seed: AddIntakeSeed | null): (typeof timeChoices)[number] {
+  if (!seed?.requestedMinutes) return 25;
+  return timeChoices.reduce((closest, candidate) => Math.abs(candidate - seed.requestedMinutes!) < Math.abs(closest - seed.requestedMinutes!) ? candidate : closest, timeChoices[0]);
 }

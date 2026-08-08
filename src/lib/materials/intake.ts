@@ -65,8 +65,18 @@ export async function uploadMaterialFiles(files: File[], existing: LearningMater
         .from("learning-materials")
         .uploadToSignedUrl(staged.data.storagePath, staged.data.token, file, { contentType: staged.data.mimeType });
       if (storageError) {
-        await deleteUploadedMaterial(staged.data.materialId).catch(() => undefined);
-        throw new Error(`YOVA could not securely upload ${file.name}.`);
+        const fallback = new FormData();
+        fallback.set("materialId", staged.data.materialId);
+        fallback.set("file", file);
+        const fallbackResponse = await fetch("/api/materials", { method: "PUT", body: fallback });
+        if (!fallbackResponse.ok) {
+          await deleteUploadedMaterial(staged.data.materialId).catch(() => undefined);
+          const fallbackBody: unknown = await fallbackResponse.json().catch(() => null);
+          const fallbackMessage = typeof fallbackBody === "object" && fallbackBody && "error" in fallbackBody && typeof fallbackBody.error === "string"
+            ? fallbackBody.error
+            : `YOVA could not securely upload ${file.name}.`;
+          throw new Error(fallbackMessage);
+        }
       }
 
       const response = await fetch("/api/materials", {

@@ -1,6 +1,7 @@
 "use client";
 
 import type {
+  DeadlineMilestone,
   LearningPlan,
   LearningPlanSession,
   NextSessionAdaptation,
@@ -112,6 +113,7 @@ export type CloudLearningState = {
   onboardingCompleted: boolean;
   onboardingAnswers: string[];
   plans: LearningPlan[];
+  deadlineMilestones: DeadlineMilestone[];
   sessionCompletions: SessionCompletion[];
   sessionInterruptions: SessionInterruption[];
 };
@@ -123,7 +125,7 @@ export async function loadAuthenticatedLearningState(): Promise<CloudLearningSta
   const { data: authData, error: authError } = await supabase.auth.getUser();
   if (authError || !authData.user) return null;
 
-  const [profileResult, learnerProfileResult, itemsResult, plansResult, sessionsResult, attemptsResult, materialsResult, interruptionsResult] = await Promise.all([
+  const [profileResult, learnerProfileResult, itemsResult, plansResult, sessionsResult, attemptsResult, materialsResult, interruptionsResult, milestonesResult] = await Promise.all([
     supabase.from("profiles").select("display_name,onboarding_completed_at").maybeSingle(),
     supabase.from("learner_profiles").select("common_blocker,guidance_preference,preferred_session_min,preferred_session_max,explanation_preference,focus_frequency,starting_pattern,energy_window,primary_improvement_goal,additional_context").maybeSingle(),
     supabase.from("learning_items").select("id,title,kind,topic,deadline,source_mode,study_mode,created_at").order("created_at", { ascending: true }),
@@ -132,6 +134,7 @@ export async function loadAuthenticatedLearningState(): Promise<CloudLearningSta
     supabase.from("session_attempts").select("id,plan_session_id,started_at,completed_at,actual_minutes,correct_answers,total_answers,user_feedback,result_data").not("completed_at", "is", null).order("completed_at", { ascending: true }),
     supabase.from("materials").select("id,learning_item_id,filename,mime_type,byte_size,processing_status").eq("processing_status", "ready").order("created_at", { ascending: true }),
     supabase.from("learning_events").select("plan_session_id,occurred_at,event_data").eq("event_type", "session_interrupted").order("occurred_at", { ascending: true }),
+    supabase.from("deadline_milestones").select("id,title,description,due_at,status,linked_learning_item_id,created_at").order("due_at", { ascending: true }),
   ]);
 
   const error = profileResult.error
@@ -152,6 +155,18 @@ export async function loadAuthenticatedLearningState(): Promise<CloudLearningSta
   const attemptRows = (attemptsResult.data ?? []) as SessionAttemptRow[];
   const materialRows = (materialsResult.data ?? []) as MaterialRow[];
   const interruptionRows = (interruptionsResult.data ?? []) as LearningEventRow[];
+  const deadlineMilestones = milestonesResult.error ? [] : (milestonesResult.data ?? []).flatMap<DeadlineMilestone>((row) => {
+    if (!row.id || !row.title || !row.due_at || !row.created_at) return [];
+    return [{
+      id: row.id,
+      title: row.title,
+      description: row.description ?? "",
+      dueAt: row.due_at,
+      status: row.status === "completed" ? "completed" : "open",
+      linkedLearningItemId: row.linked_learning_item_id ?? null,
+      createdAt: row.created_at,
+    }];
+  });
 
   const itemsById = new Map(itemRows.map((item) => [item.id, item]));
   const sessionsByPlanId = new Map<string, LearningPlanSession[]>();
@@ -219,6 +234,7 @@ export async function loadAuthenticatedLearningState(): Promise<CloudLearningSta
       sourceMode: item.source_mode,
       studyMode: item.study_mode,
       learningIntent: readLearningIntent(planRow.generation_inputs),
+      creationIntent: readCreationIntent(planRow.generation_inputs),
       rationale: planRow.rationale,
       createdAt: planRow.created_at || item.created_at,
       materials: materialsByItemId.get(item.id) ?? [],
@@ -282,6 +298,7 @@ export async function loadAuthenticatedLearningState(): Promise<CloudLearningSta
     onboardingCompleted: Boolean(profile?.onboarding_completed_at),
     onboardingAnswers: learnerProfileToAnswers(learnerProfile),
     plans,
+    deadlineMilestones,
     sessionCompletions,
     sessionInterruptions,
   };
@@ -295,6 +312,11 @@ function readLearningMode(value: unknown) {
 function readLearningIntent(value: unknown) {
   const candidate = readTextProperty(value, "learningIntent");
   return candidate === "learn" || candidate === "study" ? candidate : "study";
+}
+
+function readCreationIntent(value: unknown): LearningPlan["creationIntent"] {
+  const candidate = readTextProperty(value, "intent");
+  return candidate === "study_now" ? "study_now" : "plan";
 }
 
 export async function saveAuthenticatedLearnerProfile(input: {

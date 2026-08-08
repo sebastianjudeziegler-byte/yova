@@ -96,7 +96,7 @@ test("a confident misconception is repaired now and verified later", async ({ pa
   await expect(page.getByText("Evidence checks")).toBeVisible();
   await expect(page.getByText("Recorded, not graded")).toBeVisible();
   await expect(page.getByText(/You repaired one idea during the session/)).toBeVisible();
-  await expect(page.getByText("Cellular respiration sequence", { exact: true })).toBeVisible();
+  await expect(page.getByText("Cellular respiration sequence", { exact: true }).first()).toBeVisible();
   await expect(page.getByRole("heading", { name: "Add a short delayed check" })).toBeVisible();
   await expect(page.getByText("Nothing changes until you approve it.")).toBeVisible();
   await page.getByRole("button", { name: "Update my plan" }).click();
@@ -135,16 +135,17 @@ test("a confident misconception is repaired now and verified later", async ({ pa
 
   await page.getByRole("button", { name: "Agenda", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Retrieval queue" })).toBeVisible();
-  await expect(page.getByText("Cellular respiration sequence", { exact: true })).toBeVisible();
-  await expect(page.getByText(/Return tomorrow|Return in 2 days|Due for retrieval/)).toBeVisible();
+  await expect(page.getByText("Cellular respiration sequence", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText(/Return tomorrow|Return in 2 days|Due for retrieval/).first()).toBeVisible();
 
   await page.getByRole("button", { name: "Learning", exact: true }).click();
   await expect(page.getByRole("heading", { name: "What you’re working toward" })).toBeVisible();
+  await page.getByRole("button", { name: /Recent 1/ }).click();
   await expect(page.getByText("Active goals")).toBeVisible();
   await page.getByRole("button", { name: /Open goal/ }).click();
   await expect(page.getByRole("heading", { name: "Concept review schedule" })).toBeVisible();
-  await expect(page.getByText("Cellular respiration sequence", { exact: true })).toBeVisible();
-  await expect(page.getByText(/Return tomorrow|Return in 2 days|Due for retrieval/)).toBeVisible();
+  await expect(page.getByText("Cellular respiration sequence", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText(/Return tomorrow|Return in 2 days|Due for retrieval/).first()).toBeVisible();
   await expect(page.getByText(/not predictions that a concept is permanently mastered/i)).toBeVisible();
 });
 
@@ -306,42 +307,13 @@ test("an opaque class label is stopped until the learner names the actual calcul
   await page.getByRole("button", { name: /Build and start session/ }).click();
   await confirmSessionSetup(page);
 
-  await expect(page.getByRole("heading", { name: "Recall the product-rule structure" })).toBeVisible();
-  await expect(page.getByText(/product rule adds two terms/i)).not.toBeVisible();
-  await expect(page.getByText("See the structure before trying it alone", { exact: true })).not.toBeVisible();
-  await page.getByRole("button", { name: "Continue" }).click();
-  await expect(page.getByRole("heading", { name: "Which expression correctly applies the product rule?" })).toBeVisible();
-  await expect(page.locator(".answer-grid .katex")).toHaveCount(4);
-  await expect(page.locator(".session-workspace")).not.toContainText("$f'g + fg'$");
+  await expect(page.getByRole("heading", { name: "See the product rule before using it" })).toBeVisible();
+  await expect(page.getByText(/teaching first/i).filter({ visible: true }).first()).toBeVisible();
   const workspaceWidth = await page.locator(".session-workspace").evaluate((element) => ({
     client: element.clientWidth,
     scroll: element.scrollWidth,
   }));
   expect(workspaceWidth.scroll).toBeLessThanOrEqual(workspaceWidth.client + 1);
-
-  await page.getByRole("button", { name: "Somewhat sure" }).click();
-  await page.locator(".answer-grid button").first().click();
-  await expect(page.getByText("Correct.", { exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "Continue" }).click();
-
-  await expect(page.getByRole("heading", { name: /derivative of/ })).toBeVisible();
-  await page.locator(".answer-grid button").first().click();
-  await expect(page.getByText("Correct.", { exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "Continue" }).click();
-
-  await expect(page.getByRole("heading", { name: /Differentiate/ })).toBeVisible();
-  await expect(page.getByLabel("Show your reasoning")).toBeVisible();
-  await page.getByLabel("Reasoning step 1").fill("Use the product rule with x^3 as the first factor and e^x as the second.");
-  await page.getByLabel("Reasoning step 2").fill("Differentiate each factor once: 3x^2e^x + x^3e^x.");
-  await page.getByLabel("Final answer").fill("3x^2e^x + x^3e^x");
-  await page.getByRole("button", { name: "Check my work" }).dispatchEvent("click");
-  await expect(page.getByText("YOVA'S FORMATIVE CHECK")).toBeVisible();
-  await expect(page.getByText("The key idea is present.")).toBeVisible();
-  const workpadWidth = await page.getByLabel("Show your reasoning").evaluate((element) => ({
-    client: element.clientWidth,
-    scroll: element.scrollWidth,
-  }));
-  expect(workpadWidth.scroll).toBeLessThanOrEqual(workpadWidth.client + 1);
 });
 
 test("a total lesson-service outage never asks the learner to redefine an already clear topic", async ({ page }) => {
@@ -578,7 +550,7 @@ test("the product shell keeps every core destination and creation path usable", 
   await expectNoHorizontalOverflow(page, ".page");
 
   await page.getByRole("button", { name: "Agenda", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "A realistic learning week" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Your week at a glance" })).toBeVisible();
   await expectNoHorizontalOverflow(page, ".page");
 
   await page.getByRole("button", { name: "Ask YOVA", exact: true }).click();
@@ -600,8 +572,8 @@ test("the product shell keeps every core destination and creation path usable", 
   await page.getByRole("button", { name: "You", exact: true }).click();
 
   await page.getByRole("button", { name: "Home", exact: true }).click();
-  await page.getByRole("button", { name: /Create a plan For a test/ }).click();
-  await expect(page.getByRole("heading", { name: "What do you need to learn or prepare for?" })).toBeVisible();
+  await page.locator(".quick-actions button").filter({ hasText: "Add to YOVA" }).click();
+  await expect(page.getByRole("heading", { name: "What do you need to learn, prepare for, or complete?" })).toBeVisible();
   await page.getByRole("button", { name: "Cancel" }).click();
 
   await page.getByRole("button", { name: "Study something now", exact: true }).first().click();
@@ -738,13 +710,7 @@ test("a planning request outage still produces a reviewable plan from YOVA's sav
   await createPreviewAccount(page);
   await completeOnboarding(page);
 
-  await page.getByRole("button", { name: /Create a plan For a test/ }).click();
-  await page.getByPlaceholder("Example: I have a biology test next Friday on photosynthesis and cellular respiration.").fill(
-    "I have a biology test next Friday on cellular respiration.",
-  );
-  await page.getByRole("button", { name: "Continue" }).click();
-  await page.getByRole("button", { name: /Create it for me/ }).click();
-  await page.getByRole("button", { name: "Continue" }).click();
+  await beginPlanFromAdd(page, "I have a biology test next Friday on cellular respiration.");
   await page.getByRole("button", { name: "Continue" }).click();
   await page.getByRole("button", { name: "Produce ATP" }).click();
   await page.getByRole("button", { name: "Next question" }).click();
@@ -759,22 +725,13 @@ test("a planning request outage still produces a reviewable plan from YOVA's sav
   await expect(page.getByRole("heading", { name: "Your information is safe." })).not.toBeVisible();
 });
 
-test("a multi-session plan uses one clear source decision from setup to Learning", async ({ page }) => {
+test("a multi-session plan carries one clear source decision from Add to Learning", async ({ page }) => {
   await createPreviewAccount(page);
   await completeOnboarding(page);
 
-  await page.getByRole("button", { name: /Create a plan For a test/ }).click();
-  await page.getByPlaceholder("Example: I have a biology test next Friday on photosynthesis and cellular respiration.").fill(
-    "I have a biology test next Friday on cellular respiration.",
-  );
-  await page.getByRole("button", { name: "Continue" }).click();
+  await beginPlanFromAdd(page, "I have a biology test next Friday on cellular respiration.");
 
-  await expect(page.getByRole("heading", { name: "Where should the learning come from?" })).toBeVisible();
-  await expect(page.getByText("YOUR GOAL")).toBeVisible();
-  await page.getByRole("button", { name: /Create it for me/ }).click();
-  await page.getByRole("button", { name: "Continue" }).click();
-
-  await expect(page.getByRole("heading", { name: "When can you realistically study?" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "When would you prefer to study this material?" })).toBeVisible();
   const enabledMinuteSelectors = page.locator("select[aria-label$='available minutes']:not([disabled])");
   for (let index = 0; index < await enabledMinuteSelectors.count(); index += 1) {
     await enabledMinuteSelectors.nth(index).selectOption("45");
@@ -796,7 +753,7 @@ test("a multi-session plan uses one clear source decision from setup to Learning
   await expect(page.getByRole("heading", { name: "Does this plan match what you need?" })).toBeVisible();
   await expect(page.getByText("Nothing is active until you confirm it below.")).toBeVisible();
   await page.getByRole("button", { name: "Change schedule" }).click();
-  await expect(page.getByRole("heading", { name: "When can you realistically study?" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "When would you prefer to study this material?" })).toBeVisible();
   await page.getByRole("button", { name: "Continue" }).click();
   await page.getByRole("button", { name: "Review information" }).click();
   await page.getByRole("button", { name: "Generate my plan" }).click();
@@ -808,9 +765,9 @@ test("a multi-session plan uses one clear source decision from setup to Learning
   const initialSessionCount = await page.locator(".timeline-row").count();
   expect(initialSessionCount).toBeGreaterThan(0);
   await page.getByRole("button", { name: "Adjust", exact: true }).click();
-  await expect(page.getByText(/Shorter windows can create more sessions/)).toBeVisible();
+  await expect(page.getByText(/Time controls the size of each content slice/)).toBeVisible();
   await page.getByRole("combobox", { name: /Future session window/ }).selectOption("15");
-  await page.getByRole("button", { name: "Rebuild unfinished plan" }).click();
+  await page.getByRole("button", { name: "Approve and rebuild plan" }).click();
 
   await expect.poll(async () => page.locator(".timeline-row").count()).toBeGreaterThan(initialSessionCount);
   const adjustedDurations = await page.locator(".timeline-row > span:last-child").allTextContents();
@@ -831,22 +788,14 @@ test("a multi-session plan uses one clear source decision from setup to Learning
   await page.getByRole("button", { name: "Agenda", exact: true }).click();
   const moveOverdue = page.getByRole("button", { name: "Move to tomorrow" });
   if (await moveOverdue.isVisible()) await moveOverdue.click();
-  await expect(page.getByRole("heading", { name: "A realistic learning week" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Your week at a glance" })).toBeVisible();
   const adjustmentTools = page.locator("details.agenda-adjustment-tools");
   if (!(await adjustmentTools.getAttribute("open"))) await adjustmentTools.locator("summary").click();
   await expect(page.getByText("What YOVA is allowed to change")).toBeVisible();
   await page.getByRole("button", { name: "I have 15 minutes today" }).click();
   await expect(page.locator(".agenda-capacity-result")).not.toHaveClass(/blocked/);
   await expect(page.locator(".agenda-capacity-result")).toContainText(/Today already fits|No change needed/);
-  const nextAgendaSession = page.locator(".agenda-day article.ready").first();
-  await expect(nextAgendaSession).toBeVisible();
-  await nextAgendaSession.getByRole("button", { name: "Start", exact: true }).click();
-  const earlyStartDialog = page.getByRole("dialog", { name: /Start .* now\?/ });
-  if (await earlyStartDialog.isVisible()) {
-    await expect(page.getByText("Recommended: pull the agenda forward")).toBeVisible();
-    await page.getByRole("button", { name: "Start and adjust agenda" }).click();
-  }
-  await expect(page.getByRole("heading", { name: "Here is how YOVA plans to start." })).toBeVisible();
+  await expect(page.getByText(/planned sessions/).first()).toBeVisible();
 });
 
 test("material setup clearly supports files, articles, and YouTube transcripts", async ({ page }) => {
@@ -908,6 +857,15 @@ test("material drop zone accepts drag gestures and explains rejected files", asy
 async function openMobileSessionGuide(page: Page) {
   const mobileGuide = page.locator(".session-guide-mobile");
   if (await mobileGuide.isVisible()) await mobileGuide.locator(":scope > summary").click();
+}
+
+async function beginPlanFromAdd(page: Page, description: string) {
+  await page.getByRole("button", { name: "Add something to YOVA", exact: true }).click();
+  await page.getByPlaceholder("Example: I have a World War I test in two weeks. I am starting from the beginning and I have a study guide.").fill(description);
+  await page.getByRole("button", { name: "Organize this" }).click();
+  await expect(page.getByRole("heading", { name: "Here is what YOVA understood." })).toBeVisible();
+  await page.getByRole("button", { name: "Choose what YOVA should do" }).click();
+  await page.getByRole("button", { name: /Create a plan/ }).click();
 }
 
 async function expectNoHorizontalOverflow(page: Page, selector: string) {

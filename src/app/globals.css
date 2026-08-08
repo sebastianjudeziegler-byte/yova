@@ -564,8 +564,11 @@ h1, h2, h3, p { margin-top: 0; }
 .agenda-period-empty span { font-size: 11px; font-weight: 650; }
 .agenda-period-empty small { font-size: 9px; }
 .agenda-summary-rail { display: grid; gap: 10px; }
-.agenda-summary-rail > section { padding: 16px; display: grid; grid-template-columns: 26px minmax(0,1fr); align-items: start; gap: 9px; border: 1px solid #dde3ed; border-radius: 14px; background: white; }
-.agenda-summary-rail > section > svg { color: var(--blue); }
+.agenda-summary-rail > section, .agenda-summary-rail > .agenda-summary-card { width: 100%; padding: 16px; display: grid; grid-template-columns: 26px minmax(0,1fr); align-items: start; gap: 9px; border: 1px solid #dde3ed; border-radius: 14px; background: white; text-align: left; }
+.agenda-summary-rail > section > svg, .agenda-summary-rail > .agenda-summary-card > svg { color: var(--blue); }
+.agenda-summary-card:not(:disabled) { cursor: pointer; transition: border-color .16s ease, box-shadow .16s ease, transform .16s ease; }
+.agenda-summary-card:not(:disabled):hover { border-color: #b7c8ff; box-shadow: 0 8px 22px rgba(52,107,255,.1); transform: translateY(-1px); }
+.agenda-summary-card:disabled { color: inherit; cursor: default; opacity: 1; }
 .agenda-summary-rail span, .agenda-summary-rail strong, .agenda-summary-rail small { display: block; }
 .agenda-summary-rail span { color: #65728a; font-size: 9px; font-weight: 750; text-transform: uppercase; letter-spacing: .05em; }
 .agenda-summary-rail strong { margin-top: 5px; color: var(--navy); font-size: 16px; }
@@ -2485,4 +2488,99 @@ h1, h2, h3, p { margin-top: 0; }
 .starting-context-field small {
   color: #667085;
   line-height: 1.45;
+}
+
+/* Universal Add intake */
+.add-shell {
+  min-height: 100vh;
+  padding: 22px clamp(18px, 4vw, 64px) 64px;
+  color: var(--text);
+  background: radial-gradient(circle at 78% 4%, rgba(122, 92, 255, .1), transparent 30%), var(--off-white);
+}
+.add-header { width: min(1120px, 100%); margin: 0 auto; display: flex; align-items: center; justify-content: space-between; }
+.add-panel { width: min(980px, 100%); margin: clamp(42px, 8vh, 92px) auto 0; padding: clamp(28px, 5vw, 58px); border: 1px solid #e0e5ef; border-radius: 24px; background: white; box-shadow: 0 24px 75px rgba(11, 16, 32, .08); }
+.add-panel > h1 { max-width: 800px; margin: 12px 0; font-size: clamp(36px, 5vw, 56px); line-height: 1.08; letter-spacing: -.045em; }
+.add-panel > p { max-width: 720px; margin: 0 0 28px; color: #667085; font-size: 17px; line-height: 1.65; }
+.add-describe > textarea { width: 100%; min-height: 190px; padding: 22px 24px; resize: vertical; color: var(--text); border: 1px solid #cfd7e8; border-radius: 18px; background: #fbfcff; font: 400 19px/1.6 Inter, sans-serif; }
+.add-describe > textarea:focus, .add-review-grid input:focus, .add-review-grid textarea:focus, .add-review-grid select:focus { outline: 4px solid rgba(52, 107, 255, .13); border-color: var(--blue); background: white; }
+.add-materials-heading { margin: 28px 0 12px; display: flex; align-items: center; justify-content: space-between; gap: 20px; }
+.add-materials-heading > div { display: grid; gap: 4px; }
+.add-materials-heading strong { font-size: 17px; }
+.add-materials-heading span { color: #667085; font-size: 14px; line-height: 1.5; }
+.add-attachment-label { padding: 8px 11px; display: inline-flex; align-items: center; gap: 7px; color: #52617b!important; border: 1px solid #dde3ee; border-radius: 9px; background: #f8faff; font-size: 12px!important; font-weight: 650; white-space: nowrap; }
+.add-panel > footer { margin-top: 32px; padding-top: 22px; display: flex; align-items: center; justify-content: space-between; gap: 14px; border-top: 1px solid #e7eaf0; }
+.add-panel > footer .button { min-height: 52px; padding-inline: 20px; font-size: 15px; }
+.add-review-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+.add-review-grid label { display: grid; gap: 8px; color: #344054; font-size: 13px; font-weight: 700; }
+.add-review-grid label.wide { grid-column: 1 / -1; }
+.add-review-grid input, .add-review-grid select, .add-review-grid textarea { width: 100%; min-height: 52px; padding: 13px 15px; color: var(--text); border: 1px solid #d5dce9; border-radius: 12px; background: #fff; font: 400 16px/1.5 Inter, sans-serif; }
+.add-review-grid textarea { min-height: 104px; resize: vertical; }
+.add-source-summary, .add-outcome-summary { margin-top: 22px; padding: 17px 18px; display: flex; align-items: center; gap: 13px; border: 1px solid #dfe5f2; border-radius: 14px; background: #f8faff; }
+.add-source-summary > div, .add-outcome-summary { display: grid; gap: 4px; }
+.add-source-summary strong, .add-outcome-summary strong { font-size: 16px; }
+.add-source-summary span, .add-outcome-summary span { color: #667085; font-size: 13px; line-height: 1.5; }
+.add-outcome-options { display: grid; gap: 13px; }
+.add-outcome-options > button { min-height: 92px; padding: 18px 20px; display: grid; grid-template-columns: 42px minmax(0, 1fr) auto; align-items: center; gap: 15px; color: var(--text); text-align: left; border: 1px solid #d8dfed; border-radius: 16px; background: white; cursor: pointer; transition: transform .15s ease, border-color .15s ease, box-shadow .15s ease; }
+.add-outcome-options > button:hover { transform: translateY(-1px); border-color: #8eabff; box-shadow: 0 12px 30px rgba(52, 107, 255, .09); }
+.add-outcome-options > button > svg:first-child { width: 42px; height: 42px; padding: 10px; color: var(--blue); border-radius: 12px; background: var(--soft-blue); }
+.add-outcome-options > button > svg:last-child { width: 18px; color: #8390a7; }
+.add-outcome-options span { display: grid; gap: 5px; }
+.add-outcome-options strong { font-size: 17px; }
+.add-outcome-options small { color: #667085; font-size: 14px; line-height: 1.45; }
+
+/* Agenda milestones and calmer empty states */
+.agenda-week-selector button.has-deadline { border-color: #f2b895; background: #fff9f5; }
+.agenda-week-selector button.has-deadline em { color: #a84a20; font-weight: 750; }
+.agenda-milestones { padding: 18px 20px 4px; display: grid; gap: 10px; }
+.agenda-milestones > article { min-height: 76px; padding: 14px 16px; display: grid; grid-template-columns: 38px minmax(0, 1fr) auto; align-items: center; gap: 13px; border: 1px solid #f0c7ad; border-radius: 13px; background: #fffaf7; }
+.agenda-milestones > article.completed { opacity: .68; border-color: #dce6df; background: #f6fbf7; }
+.agenda-milestone-icon { width: 38px; height: 38px; display: grid; place-items: center; color: #b75526; border-radius: 11px; background: #fff0e7; }
+.agenda-milestones article > div { display: grid; gap: 4px; }
+.agenda-milestones article strong { font-size: 15px; }
+.agenda-milestones article small { color: #69758a; font-size: 12px; line-height: 1.45; }
+.agenda-milestone-actions { display: flex!important; align-items: center; gap: 6px!important; }
+.agenda-milestone-actions button { min-height: 36px; padding: 0 10px; display: inline-flex; align-items: center; gap: 5px; color: #46536a; border: 1px solid #dbe1eb; border-radius: 9px; background: white; font: 650 12px/1 Inter, sans-serif; cursor: pointer; }
+.agenda-milestone-actions button.danger { width: 36px; padding: 0; justify-content: center; color: #b42318; }
+.agenda-day-empty { min-height: 150px; padding: 32px; display: flex; align-items: center; justify-content: center; gap: 13px; color: #8290a5; text-align: left; }
+.agenda-day-empty strong { display: block; color: #46536a; font-size: 16px; }
+.agenda-day-empty small { display: block; margin-top: 5px; font-size: 13px; }
+.agenda-day-empty .button { min-height: 40px; margin-top: 14px; padding-inline: 16px; }
+.milestone-editor { grid-template-columns: 1fr 1fr; }
+.milestone-editor > div:first-child, .milestone-editor > label:last-of-type, .milestone-editor > footer, .milestone-editor > .chat-error { grid-column: 1 / -1; }
+.milestone-editor textarea { width: 100%; padding: 12px 14px; border: 1px solid #d5dce9; border-radius: 10px; font: 400 15px/1.5 Inter, sans-serif; resize: vertical; }
+
+/* Readability pass for frequently used product surfaces. These override the
+   older compact dashboard scale without changing the overall layout. */
+.agenda-week-selector button small, .agenda-week-selector button em, .agenda-summary-rail small, .agenda-session-copy small, .learning-card-next small, .learning-card-progress small { font-size: 12px; }
+.agenda-week-selector button span, .learning-card-kind, .learning-card-status, .learning-card-next > span { font-size: 12px; }
+.agenda-week-selector button strong { font-size: 16px; }
+.agenda-day-detail > header span { font-size: 11px; }
+.agenda-day-detail > header h2 { font-size: 23px; }
+.agenda-day-detail > header > div:last-child strong { font-size: 13px; }
+.agenda-day-detail > header > div:last-child small { font-size: 12px; }
+.agenda-summary-rail span, .agenda-period > header strong { font-size: 12px; }
+.agenda-summary-rail strong { font-size: 18px; }
+.agenda-adjustment-tools > summary strong { font-size: 15px; }
+.agenda-adjustment-tools > summary small { font-size: 12px; }
+.agenda-session-copy > span { font-size: 11px; }
+.agenda-session-copy > strong { font-size: 15px; }
+.learning-card-copy h2 { font-size: 21px; }
+.learning-card-copy p { font-size: 14px; }
+.learning-card-next strong { font-size: 15px; }
+.session-guide small, .method-briefing small, .session-step-meta, .session-overview p { font-size: 13px; }
+
+@media (max-width: 720px) {
+  .add-shell { padding: 16px 13px 40px; }
+  .add-panel { margin-top: 24px; padding: 26px 18px; border-radius: 18px; }
+  .add-panel > h1 { font-size: 34px; }
+  .add-panel > p { font-size: 16px; }
+  .add-review-grid { grid-template-columns: 1fr; }
+  .add-review-grid label.wide { grid-column: auto; }
+  .add-materials-heading { align-items: flex-start; flex-direction: column; }
+  .add-panel > footer { align-items: stretch; flex-direction: column-reverse; }
+  .add-panel > footer .button { width: 100%; justify-content: center; }
+  .agenda-milestones > article { grid-template-columns: 38px minmax(0, 1fr); }
+  .agenda-milestone-actions { grid-column: 1 / -1; flex-wrap: wrap; }
+  .milestone-editor { grid-template-columns: 1fr; }
+  .milestone-editor > div:first-child, .milestone-editor > label:last-of-type, .milestone-editor > footer { grid-column: auto; }
 }

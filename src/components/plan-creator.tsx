@@ -35,6 +35,7 @@ import {
 import { generatePreviewPlan } from "@/lib/plan-generation/preview-generator";
 import { inferPlanScopeContract } from "@/lib/plan-generation/scope-contract";
 import { LEARNING_INTENT_COPY, resolveLearningIntent } from "@/lib/learning/learning-intent";
+import type { AddIntakeSeed } from "@/lib/intake/schema";
 import { assessGoalContext } from "@/lib/learning/goal-context";
 import {
   deadlineDateFromGoal,
@@ -63,17 +64,17 @@ type DiagnosticQuestion = {
   correctAnswer?: string;
 };
 
-export function PlanCreator({ onExit, onFinish, profileSummary, browserPreviewMode = false }: { onExit: () => void; onFinish: (plan: LearningPlan) => void; profileSummary: string; browserPreviewMode?: boolean }) {
+export function PlanCreator({ onExit, onFinish, profileSummary, browserPreviewMode = false, seed = null }: { onExit: () => void; onFinish: (plan: LearningPlan) => void; profileSummary: string; browserPreviewMode?: boolean; seed?: AddIntakeSeed | null }) {
   const scheduleRecommendation = recommendStudySchedule(profileSummary);
-  const [step, setStep] = useState<PlanStep>("goal");
-  const [goal, setGoal] = useState("");
-  const [sourceChoice, setSourceChoice] = useState<SourceChoice | null>(null);
-  const [materials, setMaterials] = useState<LearningMaterial[]>([]);
+  const [step, setStep] = useState<PlanStep>(seed ? "schedule" : "goal");
+  const [goal, setGoal] = useState(seed ? seedGoal(seed) : "");
+  const [sourceChoice, setSourceChoice] = useState<SourceChoice | null>(seed ? seedSourceChoice(seed) : null);
+  const [materials, setMaterials] = useState<LearningMaterial[]>(seed?.materials ?? []);
   const [materialError, setMaterialError] = useState<string | null>(null);
   const [materialNotice, setMaterialNotice] = useState<string | null>(null);
   const [processingMaterials, setProcessingMaterials] = useState(false);
   const [removingMaterialId, setRemovingMaterialId] = useState<string | null>(null);
-  const [deadlineDate, setDeadlineDate] = useState("");
+  const [deadlineDate, setDeadlineDate] = useState(seed?.dueAt ? localDateInputFromIso(seed.dueAt) : "");
   const [studyFrequency, setStudyFrequency] = useState<StudyFrequency>(scheduleRecommendation.frequency);
   const [preferredWindows, setPreferredWindows] = useState<StudyWindow[]>([scheduleRecommendation.window]);
   const [sessionLength, setSessionLength] = useState<StudySessionLength>(scheduleRecommendation.minutes);
@@ -87,7 +88,7 @@ export function PlanCreator({ onExit, onFinish, profileSummary, browserPreviewMo
   ));
   const [diagnosticIndex, setDiagnosticIndex] = useState(0);
   const [diagnosticAnswers, setDiagnosticAnswers] = useState<string[]>([]);
-  const [startingContext, setStartingContext] = useState("");
+  const [startingContext, setStartingContext] = useState(seed?.progress ?? "");
   const [generatedPlan, setGeneratedPlan] = useState<PlanGenerationResponse | null>(null);
   const [generatedFrom, setGeneratedFrom] = useState<PlanGenerationRequest | null>(null);
   const [generationError, setGenerationError] = useState<string | null>(null);
@@ -147,7 +148,7 @@ export function PlanCreator({ onExit, onFinish, profileSummary, browserPreviewMo
         startingContext,
         materialMode: sourceChoice === "materials" ? "upload" : "none",
         materials: sourceChoice === "materials" ? materials : [],
-        studyMode: sourceChoice === "outside" ? "outside" : "inside",
+        studyMode: seed?.itemType === "assignment" || sourceChoice === "outside" ? "outside" : "inside",
         deadline: deadlineDate ? deadlineAtEndOfDay(deadlineDate) : null,
         timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
         diagnosticResponses,
@@ -396,7 +397,7 @@ export function PlanCreator({ onExit, onFinish, profileSummary, browserPreviewMo
               <small className="schedule-preview-note">These are availability limits, not mandatory appointments. YOVA will only schedule the amount of learning the plan actually needs.</small>
             </aside>
           </div>
-          <PlanActions onBack={back} onNext={() => setStep("diagnostic")} nextDisabled={availability.length === 0} />
+          <PlanActions onBack={back} onNext={() => setStep(seed?.itemType === "assignment" ? "confirm" : "diagnostic")} nextDisabled={availability.length === 0} />
         </PlanPanel>
       )}
 
@@ -409,7 +410,7 @@ export function PlanCreator({ onExit, onFinish, profileSummary, browserPreviewMo
             </header>
             <div className="availability-list editable">{availabilityChoices.map((choice, index) => <div className={choice.enabled ? "enabled" : ""} key={`${choice.day}-${choice.dateLabel}`}><button className="availability-toggle" type="button" aria-label={`${choice.enabled ? "Remove" : "Add"} ${choice.day}`} aria-pressed={choice.enabled} onClick={() => setAvailabilityChoices((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, enabled: !item.enabled } : item))}>{choice.enabled && <Check size={14} />}</button><div><strong>{choice.day}</strong><small>{choice.dateLabel}</small></div><select aria-label={`${choice.day} time window`} value={choice.window} disabled={!choice.enabled} onChange={(event) => setAvailabilityChoices((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, window: event.target.value as AvailabilityChoice["window"] } : item))}><option>Morning</option><option>Afternoon</option><option>Evening</option></select><select aria-label={`${choice.day} available minutes`} value={choice.minutes} disabled={!choice.enabled} onChange={(event) => setAvailabilityChoices((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, minutes: Number(event.target.value) } : item))}><option value={15}>15 min</option><option value={25}>25 min</option><option value={30}>30 min</option><option value={45}>45 min</option><option value={60}>60 min</option></select></div>)}</div>
           </section>
-          <PlanActions onBack={() => setCustomScheduleOpen(false)} backLabel="Quick choices" onNext={() => setStep("diagnostic")} nextLabel="Use this timetable" nextDisabled={availability.length === 0} />
+          <PlanActions onBack={() => setCustomScheduleOpen(false)} backLabel="Quick choices" onNext={() => setStep(seed?.itemType === "assignment" ? "confirm" : "diagnostic")} nextLabel="Use this timetable" nextDisabled={availability.length === 0} />
         </PlanPanel>
       )}
 
@@ -579,6 +580,15 @@ function todayDateInput() {
   return new Date(date.getTime() - offset * 60_000).toISOString().slice(0, 10);
 }
 
+function localDateInputFromIso(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 function deadlineAtEndOfDay(value: string) {
   return new Date(`${value}T23:59:00`).toISOString();
 }
@@ -638,9 +648,23 @@ function buildDiagnosticResponses(questions: DiagnosticQuestion[], answers: stri
 }
 
 function summarizeDiagnosticResponses(responses: DiagnosticResponse[]) {
+  if (responses.length === 0) return "No knowledge quiz needed for this type of work";
   const checked = responses.filter((response) => response.evaluation !== "self_report");
   const correct = checked.filter((response) => response.evaluation === "correct").length;
   const reported = responses.filter((response) => response.evaluation === "self_report").map((response) => response.answer);
   const knowledgeSummary = checked.length ? `${correct} of ${checked.length} knowledge checks correct` : "Self-reported starting point";
   return reported.length ? `${knowledgeSummary} · ${reported.join(" · ")}` : knowledgeSummary;
+}
+
+function seedGoal(seed: AddIntakeSeed) {
+  // The interpretation already derives objective and scope from the original
+  // description. Hand the original request to planning once instead of
+  // repeating the same prose in several generated fields.
+  return `${seed.title}. ${seed.description}${seed.progress ? `. Starting point: ${seed.progress}` : ""}`;
+}
+
+function seedSourceChoice(seed: AddIntakeSeed): SourceChoice {
+  if (seed.materials.length) return "materials";
+  if (seed.itemType === "assignment") return "outside";
+  return "yova";
 }

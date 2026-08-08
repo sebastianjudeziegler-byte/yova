@@ -55,7 +55,7 @@ export function resolveLearningIntent(evidence: StartingEvidence): LearningInten
     .filter((response) => response.evaluation === "self_report")
     .map((response) => response.answer.toLowerCase())
     .join(" ");
-  const selfReportSignalsMissingFoundation = /do not know|don't know|know nothing|no idea|none yet|completely new|cannot explain|can't explain|not confident|starting from scratch|never (?:learned|seen)|doesn't make sense|does not make sense/.test(selfReportText);
+  const selfReportSignalsMissingFoundation = /do not know|don't know|know nothing|no idea|none yet|completely new|have not learned|haven't learned|not learned this yet|cannot explain|can't explain|not confident|starting from scratch|never (?:learned|seen)|doesn't make sense|does not make sense/.test(selfReportText);
   const allChecksIncorrect = objectiveChecks.length >= 2
     && objectiveChecks.every((response) => response.evaluation === "incorrect");
   if (selfReportSignalsMissingFoundation || allChecksIncorrect) {

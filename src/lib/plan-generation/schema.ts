@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { resolveLearningIntent } from "@/lib/learning/learning-intent";
 
 export const MaterialInputSchema = z.object({
   id: z.string().uuid(),
@@ -36,7 +37,9 @@ export const PlanGenerationRequestSchema = z.object({
       return false;
     }
   }, "Use a valid time zone."),
-  diagnosticResponses: z.array(DiagnosticResponseSchema).min(1).max(12),
+  // Work products such as essays and projects do not always need an academic
+  // knowledge check before YOVA can organize a useful plan.
+  diagnosticResponses: z.array(DiagnosticResponseSchema).max(12),
   availability: z.array(z.object({
     day: z.string().trim().min(1).max(20),
     window: z.string().trim().min(1).max(40),
@@ -85,6 +88,7 @@ export const LearningPlanSchema = z.object({
   sourceMode: z.enum(["user_materials", "yova_generated"]),
   studyMode: z.enum(["inside_yova", "outside_yova"]),
   learningIntent: z.enum(["learn", "study"]),
+  creationIntent: z.enum(["plan", "study_now"]).default("plan"),
   rationale: z.string().min(1),
   createdAt: z.string().datetime({ offset: true }),
   materials: z.array(StoredMaterialSchema).max(5),
@@ -129,6 +133,11 @@ export const PlanActivationRequestSchema = z.object({
     : "inside_yova";
   const planMaterialIds = plan.materials.map((material) => material.id).sort();
   const requestMaterialIds = generationRequest.materials.map((material) => material.id).sort();
+  const expectedLearningIntent = resolveLearningIntent({
+    goal: generationRequest.goal,
+    startingPoint: generationRequest.startingContext,
+    diagnosticResponses: generationRequest.diagnosticResponses,
+  }).intent;
 
   if (plan.sourceMode !== expectedSourceMode) {
     context.addIssue({ code: "custom", path: ["plan", "sourceMode"], message: "The draft source no longer matches the request." });
@@ -136,7 +145,10 @@ export const PlanActivationRequestSchema = z.object({
   if (plan.studyMode !== expectedStudyMode) {
     context.addIssue({ code: "custom", path: ["plan", "studyMode"], message: "The draft study mode no longer matches the request." });
   }
-  if (plan.learningIntent !== generationRequest.learningIntent) {
+  // Generation resolves the starting approach from the learner's latest
+  // evidence on the server. Activation must repeat that same decision instead
+  // of trusting the older client recommendation that was sent with the draft.
+  if (plan.learningIntent !== expectedLearningIntent) {
     context.addIssue({ code: "custom", path: ["plan", "learningIntent"], message: "The draft starting approach no longer matches the request." });
   }
   if (JSON.stringify(planMaterialIds) !== JSON.stringify(requestMaterialIds)) {

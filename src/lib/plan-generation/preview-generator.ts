@@ -9,6 +9,7 @@ import {
   inferPlanScopeContract,
   type PlanScopeContract,
 } from "@/lib/plan-generation/scope-contract";
+import { deriveLearningTitle } from "@/lib/intake/interpret";
 
 type PreviewBlueprint = {
   phaseIndex: number;
@@ -132,7 +133,7 @@ const SUBJECTS: Array<{ matches: RegExp; subject: PreviewSubject }> = [
 ];
 
 const DEFAULT_SUBJECT: PreviewSubject = {
-  title: "Personalized learning plan",
+  title: "New learning goal",
   topic: "The goal and concepts described by the learner",
   kind: "topic",
   sessionTitles: [
@@ -161,9 +162,11 @@ const LEARNING_METHODS = [
 ] as const;
 
 export function generatePreviewPlan(request: PlanGenerationRequest): LearningPlan {
+  const derivedTitle = deriveLearningTitle(request.goal);
   const subject = SUBJECTS.find(({ matches }) => matches.test(request.goal))?.subject ?? {
     ...DEFAULT_SUBJECT,
-    topic: request.goal.trim(),
+    title: derivedTitle,
+    topic: derivePreviewTopic(request.goal, derivedTitle),
   };
   const deadline = request.deadline ? new Date(request.deadline) : inferDeadline(request.goal);
   const targetMinutes = request.availability[0]?.minutes ?? 25;
@@ -355,6 +358,22 @@ function shortTopic(topic: string) {
   return topic.length > 52 ? `${topic.slice(0, 49).trim()}...` : topic;
 }
 
+function derivePreviewTopic(goal: string, title: string) {
+  const titlePattern = new RegExp(`^${escapeRegExp(title)}[.:]?\\s*`, "i");
+  const cleaned = goal
+    .replace(titlePattern, "")
+    .replace(/\s+Scope:\s.*$/i, "")
+    .replace(/\s+Starting point:\s.*$/i, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  const topic = cleaned || goal.trim() || title;
+  return topic.length > 120 ? `${topic.slice(0, 117).trim()}...` : topic;
+}
+
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 function previewBlueprint(subject: PreviewSubject, request: PlanGenerationRequest, phaseIndex: number, partIndex: number, partCount: number, minutes: number): PreviewBlueprint {
   if (request.studyMode === "outside") {
     const partLabel = partCount > 1 ? ` · Part ${partIndex + 1} of ${partCount}` : "";
@@ -362,7 +381,7 @@ function previewBlueprint(subject: PreviewSubject, request: PlanGenerationReques
       phaseIndex,
       minutes,
       title: `${request.intent === "study_now" ? "Work through your source" : subject.sessionTitles[phaseIndex]}${partLabel}`,
-      objective: `Use your chosen source to make concrete progress on “${request.goal.trim()},” then return to YOVA with evidence of what you produced or understood.`,
+      objective: `Use your chosen source to make concrete progress on ${subject.topic}, then return to YOVA with evidence of what you produced or understood.`,
       contentTargets: [subject.topic],
       completionEvidence: [
         "Complete the assigned action using the outside source",
