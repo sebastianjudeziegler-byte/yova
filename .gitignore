@@ -13,3 +13,6 @@ supabase/.temp
 .DS_Store
 playwright-report
 test-results
+
+# Local social-media and slideshow exports are not part of the application.
+/marketing/
