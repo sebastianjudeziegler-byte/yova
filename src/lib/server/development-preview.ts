@@ -3,7 +3,8 @@ export function isDevelopmentPreviewRequest(
   nodeEnvironment = process.env.NODE_ENV,
 ) {
   if (nodeEnvironment !== "development") return false;
-  if (request.headers.get("X-Yova-Development-Preview") === "guided-session") return true;
+  const explicitPreviewSurface = request.headers.get("X-Yova-Development-Preview");
+  if (explicitPreviewSurface === "guided-session" || explicitPreviewSurface === "plan-creator") return true;
 
   const referrer = request.headers.get("referer");
   if (!referrer) return false;

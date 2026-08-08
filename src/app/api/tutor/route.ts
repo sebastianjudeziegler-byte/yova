@@ -371,7 +371,21 @@ function buildTutorProposedAction(
   planId: string | null,
   context: TutorLearningContext,
 ): TutorProposedAction | null {
-  if (!planId || request.sessionContext || !context.currentSession) return null;
+  if (!planId || !context.currentSession) return null;
+
+  const directionRequest = extractPlanDirectionRequest(request.question);
+  if (directionRequest) {
+    return {
+      id: crypto.randomUUID(),
+      type: "redirect_plan",
+      planId,
+      direction: directionRequest,
+      title: "Redirect the unfinished plan",
+      explanation: "YOVA will preserve completed work and rebuild only the unfinished sessions around this direction. Review the proposal before applying it.",
+    };
+  }
+
+  if (request.sessionContext) return null;
 
   const minuteMatch = request.question.match(/\b(\d{1,2})\s*(?:minutes?|mins?)\b/i);
   const asksToChangeSession = /\b(?:only have|shorten|shorter|reduce|change|make|fit|condense|cut)\b/i.test(request.question);
@@ -391,6 +405,16 @@ function buildTutorProposedAction(
     title: `Make “${context.currentSession.title}” ${minutes} minutes`,
     explanation: "Only this unfinished session will change. YOVA will regenerate its activities to fit the shorter time when you start it.",
   };
+}
+
+function extractPlanDirectionRequest(question: string) {
+  const normalized = question.trim().replace(/\s+/g, " ");
+  const explicitlyRejectsWork = /\b(?:do not|don't|dont|no longer|stop|avoid|remove|skip|less|without)\b.{0,70}\b(?:math|maths|calculation|calculations|formula|formulas|practice|quizzes|quiz|topic|section|content)\b/i.test(normalized);
+  const explicitlyRedirects = /\b(?:change|adjust|update|redirect|rebuild|revise)\b.{0,45}\b(?:course|plan|sessions?|direction|focus|content)\b/i.test(normalized)
+    || /\b(?:focus|concentrate)\b.{0,25}\b(?:on|more on)\b/i.test(normalized)
+    || /\b(?:wrong track|not what i want|course should|plan should|instead focus)\b/i.test(normalized);
+  if (!explicitlyRejectsWork && !explicitlyRedirects) return null;
+  return normalized.slice(0, 500);
 }
 
 function isUuid(value: string) {

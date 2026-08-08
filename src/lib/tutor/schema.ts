@@ -41,7 +41,7 @@ export const TutorRequestSchema = z.object({
   }).nullable().optional(),
 });
 
-export const TutorProposedActionSchema = z.object({
+const ShortenSessionActionSchema = z.object({
   id: z.string().uuid(),
   type: z.literal("shorten_current_session"),
   planId: z.string().uuid(),
@@ -50,6 +50,20 @@ export const TutorProposedActionSchema = z.object({
   title: z.string().trim().min(1).max(180),
   explanation: z.string().trim().min(1).max(500),
 });
+
+const RedirectPlanActionSchema = z.object({
+  id: z.string().uuid(),
+  type: z.literal("redirect_plan"),
+  planId: z.string().uuid(),
+  direction: z.string().trim().min(5).max(500),
+  title: z.string().trim().min(1).max(180),
+  explanation: z.string().trim().min(1).max(500),
+});
+
+export const TutorProposedActionSchema = z.discriminatedUnion("type", [
+  ShortenSessionActionSchema,
+  RedirectPlanActionSchema,
+]);
 
 export const TutorResponseSchema = z.object({
   threadId: z.string().uuid(),

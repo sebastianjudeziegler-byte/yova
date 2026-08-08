@@ -136,6 +136,7 @@ import { reportProductError } from "@/lib/monitoring/client";
 import { onboardingQuestions } from "@/lib/sample-data";
 import { PlanAdjustmentResponseSchema, type PlanAdjustmentRequest } from "@/lib/learning/adjustment-schema";
 import { buildContentBasedReplacementSessions } from "@/lib/learning/content-based-plan-adjustment";
+import { applyPlanDirectionFallback } from "@/lib/learning/plan-direction";
 import { PlanArchiveResponseSchema } from "@/lib/learning/status-schema";
 import { MaterialAttachmentResponseSchema } from "@/lib/materials/attachment-schema";
 import { deleteUploadedMaterial, uploadMaterialFiles } from "@/lib/materials/intake";
@@ -1061,8 +1062,7 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
       if (!plan) throw new Error("YOVA could not find that plan.");
       const settledSessions = plan.sessions.filter((session) => session.status === "complete" || session.status === "skipped");
       const unfinishedSessions = plan.sessions.filter((session) => session.status === "ready" || session.status === "upcoming");
-      const replacements = buildContentBasedReplacementSessions(
-        unfinishedSessions.map((session) => ({
+      const adjustableSessions = unfinishedSessions.map((session) => ({
           id: session.id,
           sequence: session.sequence,
           title: session.title,
@@ -1077,7 +1077,12 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
             contentTargets: session.contentTargets ?? [],
             completionEvidence: session.completionEvidence ?? [],
           },
-        })),
+        }));
+      const redirectedSessions = input.direction
+        ? applyPlanDirectionFallback(adjustableSessions, input.direction, plan.topic)
+        : adjustableSessions;
+      const replacements = buildContentBasedReplacementSessions(
+        redirectedSessions,
         input.futureSessionMinutes,
         Math.max(0, ...settledSessions.map((session) => session.sequence)) + 1,
       );
@@ -1155,7 +1160,36 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
   };
 
   const applyTutorAction = async (action: TutorProposedAction) => {
-    await adjustSessionDuration(action.planSessionId, action.minutes);
+    if (action.type === "shorten_current_session") {
+      await adjustSessionDuration(action.planSessionId, action.minutes);
+      return;
+    }
+    const plan = plans.find((candidate) => candidate.id === action.planId);
+    if (!plan) throw new Error("YOVA could not find that plan.");
+    const firstUnfinished = plan.sessions.find((session) => session.status === "ready" || session.status === "upcoming");
+    await adjustPlan({
+      planId: plan.id,
+      deadline: plan.deadline,
+      studyMode: plan.studyMode,
+      futureSessionMinutes: firstUnfinished?.estimatedMinutes ?? 25,
+      direction: action.direction,
+    });
+  };
+
+  const redirectActivePlan = async (direction: string) => {
+    if (!activePlan) throw new Error("YOVA could not find the active plan.");
+    const firstUnfinished = activePlan.sessions.find((session) => session.status === "ready" || session.status === "upcoming");
+    await adjustPlan({
+      planId: activePlan.id,
+      deadline: activePlan.deadline,
+      studyMode: activePlan.studyMode,
+      futureSessionMinutes: firstUnfinished?.estimatedMinutes ?? 25,
+      direction,
+    });
+    setStage("app");
+    setActiveTab("Learning");
+    setSelectedPlanId(activePlan.id);
+    setLearningDetailPlanId(activePlan.id);
   };
 
   const retryCloudSync = async () => {
@@ -1320,7 +1354,7 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
     setAlphaEntered(true);
     setStage("app");
   }} />;
-  if (stage === "plan-creator") return <PlanCreator profileSummary={buildPlanProfileSummary(answers)} onExit={() => setStage("app")} onFinish={(plan) => {
+  if (stage === "plan-creator") return <PlanCreator browserPreviewMode={browserPreviewMode || account?.identityMode === "preview"} profileSummary={buildPlanProfileSummary(answers)} onExit={() => setStage("app")} onFinish={(plan) => {
     trackProductEvent({
       eventName: "plan_created",
       context: {
@@ -1404,6 +1438,7 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
         }}
         onReveal={() => setAnswerRevealed(true)}
         onExit={interruptActiveSession}
+        onRedirectPlan={redirectActivePlan}
         onNext={advanceActiveSession}
       />
     );
@@ -2018,6 +2053,7 @@ function PlanAdjustmentPanel({ plan, onCancel, onSave }: { plan: LearningPlan; o
   const [deadlineDate, setDeadlineDate] = useState(plan.deadline ? localDateInput(plan.deadline) : "");
   const [minutes, setMinutes] = useState(firstUnfinished?.estimatedMinutes ?? 25);
   const [studyMode, setStudyMode] = useState(plan.studyMode);
+  const [direction, setDirection] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const unfinishedCount = plan.sessions.filter((session) => session.status === "ready" || session.status === "upcoming").length;
@@ -2031,6 +2067,7 @@ function PlanAdjustmentPanel({ plan, onCancel, onSave }: { plan: LearningPlan; o
         deadline: deadlineDate ? new Date(`${deadlineDate}T23:59:00`).toISOString() : null,
         studyMode,
         futureSessionMinutes: minutes,
+        direction: direction.trim() || null,
       });
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : "YOVA could not adjust this plan.");
@@ -2038,7 +2075,7 @@ function PlanAdjustmentPanel({ plan, onCancel, onSave }: { plan: LearningPlan; o
     }
   };
 
-  return <section className="plan-adjustment-panel"><div className="plan-adjustment-heading"><div><span className="step-label">ADJUST UNFINISHED WORK</span><h3>Change the plan without losing content</h3><p>YOVA will re-slice the unfinished content to fit the new window. Shorter windows can create more sessions; finished sessions stay exactly as they are.</p></div></div><div className="plan-adjustment-grid"><label><span>Target date</span><input type="date" min={localDateInput(new Date().toISOString())} value={deadlineDate} disabled={saving} onChange={(event) => setDeadlineDate(event.target.value)} /><small>Optional. Agenda times are changed separately.</small></label><label><span>Future session window</span><select value={minutes} disabled={saving} onChange={(event) => setMinutes(Number(event.target.value))}><option value={15}>15 minutes</option><option value={25}>25 minutes</option><option value={30}>30 minutes</option><option value={45}>45 minutes</option><option value={60}>60 minutes</option></select><small>Time controls the size of each content slice, not whether it counts as complete.</small></label></div><div className="adjustment-content-rule"><Target size={18} /><div><strong>Content stays primary</strong><p>The current {unfinishedCount} unfinished {unfinishedCount === 1 ? "session" : "sessions"} may become a different number of focused sessions. A session finishes only after its required content checks are attempted.</p></div></div><div className="adjustment-mode"><span>Where should future sessions happen?</span><div><button className={studyMode === "inside_yova" ? "selected" : ""} disabled={saving} onClick={() => setStudyMode("inside_yova")}><BookOpen size={17} /><strong>Inside YOVA</strong><small>Teaching, questions, and feedback in the app</small></button><button className={studyMode === "outside_yova" ? "selected" : ""} disabled={saving} onClick={() => setStudyMode("outside_yova")}><LibraryBig size={17} /><strong>Outside YOVA</strong><small>Exact instructions for another source or workspace</small></button></div></div>{error && <div className="chat-error"><AlertCircle size={16} /><span>{error}</span></div>}<footer><button className="button ghost" disabled={saving} onClick={onCancel}>Cancel</button><button className="button primary" disabled={saving || unfinishedCount === 0} onClick={() => void save()}>{saving ? <span className="button-spinner" /> : <><Check size={16} /> Rebuild unfinished plan</>}</button></footer></section>;
+  return <section className="plan-adjustment-panel"><div className="plan-adjustment-heading"><div><span className="step-label">ADJUST UNFINISHED WORK</span><h3>Change the plan without losing progress</h3><p>Tell YOVA when the course is on the wrong track, or change its timing and study location. Completed sessions stay exactly as they are.</p></div></div><label className="plan-direction-field"><span>What should be different?</span><textarea rows={4} maxLength={500} value={direction} disabled={saving} placeholder="Example: Keep this conceptual. I do not want calculation exercises. Focus on founder decisions, investor incentives, and real examples." onChange={(event) => setDirection(event.target.value)} /><small>Optional. YOVA will rebuild only unfinished sessions. The next session setup will show the revised target and method. {direction.length}/500</small><div><button type="button" onClick={() => setDirection("Keep this conceptual. Do not include math or calculation exercises.")}>No calculations</button><button type="button" onClick={() => setDirection("Teach the foundations first, then use concrete examples before practice.")}>Teach it first</button><button type="button" onClick={() => setDirection("Use more real examples and case scenarios before independent work.")}>More examples</button></div></label><div className="plan-adjustment-grid"><label><span>Target date</span><input type="date" min={localDateInput(new Date().toISOString())} value={deadlineDate} disabled={saving} onChange={(event) => setDeadlineDate(event.target.value)} /><small>Optional. Agenda times are changed separately.</small></label><label><span>Future session window</span><select value={minutes} disabled={saving} onChange={(event) => setMinutes(Number(event.target.value))}><option value={15}>15 minutes</option><option value={25}>25 minutes</option><option value={30}>30 minutes</option><option value={45}>45 minutes</option><option value={60}>60 minutes</option></select><small>Time controls the size of each content slice, not whether it counts as complete.</small></label></div><div className="adjustment-content-rule"><Target size={18} /><div><strong>Progress stays intact</strong><p>The current {unfinishedCount} unfinished {unfinishedCount === 1 ? "session" : "sessions"} can be rewritten or divided differently. Finished sessions and recorded learning evidence are never erased.</p></div></div><div className="adjustment-mode"><span>Where should future sessions happen?</span><div><button className={studyMode === "inside_yova" ? "selected" : ""} disabled={saving} onClick={() => setStudyMode("inside_yova")}><BookOpen size={17} /><strong>Inside YOVA</strong><small>Teaching, questions, and feedback in the app</small></button><button className={studyMode === "outside_yova" ? "selected" : ""} disabled={saving} onClick={() => setStudyMode("outside_yova")}><LibraryBig size={17} /><strong>Outside YOVA</strong><small>Exact instructions for another source or workspace</small></button></div></div>{error && <div className="chat-error"><AlertCircle size={16} /><span>{error}</span></div>}<footer><button className="button ghost" disabled={saving} onClick={onCancel}>Cancel</button><button className="button primary" disabled={saving || unfinishedCount === 0} onClick={() => void save()}>{saving ? <span className="button-spinner" /> : <><Check size={16} /> Approve and rebuild plan</>}</button></footer></section>;
 }
 
 function AgendaScreen({ plans, sessionCompletions, sessionInterruptions, previewMode, onStart, onActivateReview, onReschedule, onAdjustDuration }: { plans: LearningPlan[]; sessionCompletions: SessionCompletion[]; sessionInterruptions: SessionInterruption[]; previewMode: boolean; onStart: (planId?: string) => void; onActivateReview: (item: ConceptReviewAgendaItem) => Promise<void>; onReschedule: (planId: string, planSessionId: string, scheduledFor: string) => void; onAdjustDuration: (planSessionId: string, estimatedMinutes: number) => Promise<void> }) {
@@ -2400,10 +2437,10 @@ function AskScreen({ plans, question, onQuestion, onApplyAction, analyticsEnable
   };
 
   const suggestedPrompts = plan
-    ? ["Explain the current topic simply", "Quiz me on my weakest area", "Why is this method next?", "I only have 15 minutes today"]
+    ? ["Explain the current topic simply", "Quiz me on my weakest area", "Change what this plan focuses on", "I only have 15 minutes today"]
     : ["Help me understand a difficult topic", "Quiz me on something I am learning", "Which study method should I use?", "Help me start a 20-minute study session"];
 
-  return <div className="page ask-page"><PageHeader eyebrow="ASK YOVA" title="Get help in context" description="Start general, or connect a learning goal when YOVA needs its materials and progress." /><div className="ask-toolbar"><label className="tutor-context-select"><span>Context</span><div><BookOpen size={16} /><select aria-label="Ask YOVA context" value={contextPlanId ?? "general"} disabled={sending || threadLoading} onChange={(event) => resetConversation(event.target.value === "general" ? null : event.target.value)}><option value="general">General</option>{selectablePlans.map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}</select></div></label><div className="ask-toolbar-actions"><button className="button secondary" disabled={sending || threadLoading} onClick={() => resetConversation()}><MessageSquarePlus size={16} /> New chat</button><button className="button secondary" aria-expanded={historyOpen} onClick={() => setHistoryOpen(true)}><History size={16} /> History{threads.length > 0 ? <span>{threads.length}</span> : null}</button></div></div><section className="ask-context-banner">{plan ? <><SubjectIcon plan={plan} compact /><div><span>Using learning context</span><strong>{plan.title}</strong><small>YOVA can use this goal&apos;s materials, next session, and learner evidence.</small></div></> : <><span className="general-context-icon"><Sparkles size={18} /></span><div><span>General conversation</span><strong>No learning goal attached</strong><small>Choose a goal above only when its specific context would help.</small></div></>}</section><div className="chat-space">{threadLoading ? <div className="chat-loading"><span className="button-spinner dark" /> Opening conversation…</div> : <div className="chat-thread">{messages.length === 0 && <div className="yova-message welcome"><BrandMark compact /><div><strong>YOVA</strong><p>{plan ? `What would you like help with in ${plan.title}? I can use its learning context without changing the plan unless you approve it.` : "What would you like help with? This is a fresh general conversation. You can attach a learning goal at any time."}</p></div></div>}{messages.map((message) => message.role === "assistant" ? <div className="yova-message" key={message.id}><BrandMark compact /><div><strong>YOVA</strong><TutorMessageContent content={message.content} /></div></div> : <div className="user-message" key={message.id}><strong>You</strong><p>{message.content}</p></div>)}{outgoingQuestion && <div className="user-message pending" aria-live="polite"><strong>You</strong><p>{outgoingQuestion}</p></div>}</div>}{proposedAction && <section className={`tutor-action-card ${actionStatus === "applied" ? "applied" : ""}`} aria-live="polite"><div className="tutor-action-icon">{actionStatus === "applied" ? <Check size={18} /> : <Clock3 size={18} />}</div><div><span className="step-label">{actionStatus === "applied" ? "CHANGE APPLIED" : "PROPOSED CHANGE"}</span><h3>{proposedAction.title}</h3><p>{actionStatus === "applied" ? `Your unfinished content is now divided into ${proposedAction.minutes}-minute windows. YOVA may add sessions so none of the required content disappears.` : proposedAction.explanation}</p></div><button className="button primary" disabled={actionStatus !== "idle"} onClick={() => void approveAction()}>{actionStatus === "applying" ? <><span className="button-spinner" /> Applying</> : actionStatus === "applied" ? <><Check size={16} /> Applied</> : "Approve change"}</button></section>}{messages.length === 0 && !outgoingQuestion && !threadLoading && <div className="prompt-grid">{suggestedPrompts.map((prompt) => <button key={prompt} disabled={sending} onClick={() => void sendQuestion(prompt)}>{prompt}</button>)}</div>}{error && <div className="chat-error"><AlertCircle size={16} /><span>{error}</span></div>}</div><div className="ask-composer"><AskBar value={question} onChange={onQuestion} onSubmit={() => void sendQuestion()} pending={sending || threadLoading} /><small>{plan ? `YOVA will answer using ${plan.title}.` : "General mode does not use a specific plan or its materials."}</small></div>{historyOpen && <><button className="tutor-history-backdrop" aria-label="Close conversation history" onClick={() => setHistoryOpen(false)} /><aside className="tutor-history-panel" role="dialog" aria-modal="true" aria-labelledby="tutor-history-title"><header><div><span className="step-label">ASK YOVA</span><h2 id="tutor-history-title">Previous chats</h2></div><button aria-label="Close conversation history" onClick={() => setHistoryOpen(false)}><X size={19} /></button></header>{historyLoading || threadLoading ? <div className="chat-loading"><span className="button-spinner dark" /> Loading chats…</div> : historyError ? <div className="chat-error"><AlertCircle size={16} /><span>{historyError}</span></div> : threads.length === 0 ? <div className="tutor-history-empty"><History size={21} /><strong>No saved chats yet</strong><p>Your finished Ask YOVA conversations will appear here.</p></div> : <div className="tutor-history-list">{threads.map((thread) => <button key={thread.id} className={thread.id === threadId ? "selected" : ""} onClick={() => void openSavedThread(thread)}><span>{thread.contextTitle ?? "General"}</span><strong>{thread.title}</strong><small>{formatTutorThreadDate(thread.updatedAt)}</small></button>)}</div>}</aside></>}</div>;
+  return <div className="page ask-page"><PageHeader eyebrow="ASK YOVA" title="Get help in context" description="Start general, or connect a learning goal when YOVA needs its materials and progress." /><div className="ask-toolbar"><label className="tutor-context-select"><span>Context</span><div><BookOpen size={16} /><select aria-label="Ask YOVA context" value={contextPlanId ?? "general"} disabled={sending || threadLoading} onChange={(event) => resetConversation(event.target.value === "general" ? null : event.target.value)}><option value="general">General</option>{selectablePlans.map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}</select></div></label><div className="ask-toolbar-actions"><button className="button secondary" disabled={sending || threadLoading} onClick={() => resetConversation()}><MessageSquarePlus size={16} /> New chat</button><button className="button secondary" aria-expanded={historyOpen} onClick={() => setHistoryOpen(true)}><History size={16} /> History{threads.length > 0 ? <span>{threads.length}</span> : null}</button></div></div><section className="ask-context-banner">{plan ? <><SubjectIcon plan={plan} compact /><div><span>Using learning context</span><strong>{plan.title}</strong><small>YOVA can use this goal&apos;s materials, next session, and learner evidence.</small></div></> : <><span className="general-context-icon"><Sparkles size={18} /></span><div><span>General conversation</span><strong>No learning goal attached</strong><small>Choose a goal above only when its specific context would help.</small></div></>}</section><div className="chat-space">{threadLoading ? <div className="chat-loading"><span className="button-spinner dark" /> Opening conversation…</div> : <div className="chat-thread">{messages.length === 0 && <div className="yova-message welcome"><BrandMark compact /><div><strong>YOVA</strong><p>{plan ? `What would you like help with in ${plan.title}? I can use its learning context without changing the plan unless you approve it.` : "What would you like help with? This is a fresh general conversation. You can attach a learning goal at any time."}</p></div></div>}{messages.map((message) => message.role === "assistant" ? <div className="yova-message" key={message.id}><BrandMark compact /><div><strong>YOVA</strong><TutorMessageContent content={message.content} /></div></div> : <div className="user-message" key={message.id}><strong>You</strong><p>{message.content}</p></div>)}{outgoingQuestion && <div className="user-message pending" aria-live="polite"><strong>You</strong><p>{outgoingQuestion}</p></div>}</div>}{proposedAction && <section className={`tutor-action-card ${actionStatus === "applied" ? "applied" : ""}`} aria-live="polite"><div className="tutor-action-icon">{actionStatus === "applied" ? <Check size={18} /> : proposedAction.type === "redirect_plan" ? <Settings2 size={18} /> : <Clock3 size={18} />}</div><div><span className="step-label">{actionStatus === "applied" ? "CHANGE APPLIED" : "PROPOSED CHANGE"}</span><h3>{proposedAction.title}</h3><p>{actionStatus === "applied" ? proposedAction.type === "redirect_plan" ? "Completed work stayed intact. YOVA rebuilt the unfinished sessions around the direction you approved." : `Your unfinished content is now divided into ${proposedAction.minutes}-minute windows. YOVA may add sessions so none of the required content disappears.` : proposedAction.explanation}</p></div><button className="button primary" disabled={actionStatus !== "idle"} onClick={() => void approveAction()}>{actionStatus === "applying" ? <><span className="button-spinner" /> Applying</> : actionStatus === "applied" ? <><Check size={16} /> Applied</> : "Approve change"}</button></section>}{messages.length === 0 && !outgoingQuestion && !threadLoading && <div className="prompt-grid">{suggestedPrompts.map((prompt) => <button key={prompt} disabled={sending} onClick={() => void sendQuestion(prompt)}>{prompt}</button>)}</div>}{error && <div className="chat-error"><AlertCircle size={16} /><span>{error}</span></div>}</div><div className="ask-composer"><AskBar value={question} onChange={onQuestion} onSubmit={() => void sendQuestion()} pending={sending || threadLoading} /><small>{plan ? `YOVA will answer using ${plan.title}. Plan changes always require your approval.` : "General mode does not use a specific plan or its materials."}</small></div>{historyOpen && <><button className="tutor-history-backdrop" aria-label="Close conversation history" onClick={() => setHistoryOpen(false)} /><aside className="tutor-history-panel" role="dialog" aria-modal="true" aria-labelledby="tutor-history-title"><header><div><span className="step-label">ASK YOVA</span><h2 id="tutor-history-title">Previous chats</h2></div><button aria-label="Close conversation history" onClick={() => setHistoryOpen(false)}><X size={19} /></button></header>{historyLoading || threadLoading ? <div className="chat-loading"><span className="button-spinner dark" /> Loading chats…</div> : historyError ? <div className="chat-error"><AlertCircle size={16} /><span>{historyError}</span></div> : threads.length === 0 ? <div className="tutor-history-empty"><History size={21} /><strong>No saved chats yet</strong><p>Your finished Ask YOVA conversations will appear here.</p></div> : <div className="tutor-history-list">{threads.map((thread) => <button key={thread.id} className={thread.id === threadId ? "selected" : ""} onClick={() => void openSavedThread(thread)}><span>{thread.contextTitle ?? "General"}</span><strong>{thread.title}</strong><small>{formatTutorThreadDate(thread.updatedAt)}</small></button>)}</div>}</aside></>}</div>;
 }
 
 function formatTutorThreadDate(value: string) {
@@ -2974,8 +3011,12 @@ function SessionGenerationError({ plan, issue, onExit, onRetry }: { plan: Learni
   return <main className="centered-shell"><BrandMark /><section className="plan-error-state session-error-state" role="alert"><span><AlertCircle /></span><span className="step-label">LESSON SERVICE INTERRUPTED</span><h1>YOVA already knows what this lesson should cover.</h1><p>{issue ?? "The lesson service did not respond this time."}</p><p>Your goal, planned objective, learning profile, and progress are still intact. You do not need to explain the lesson again.</p><div className="session-error-recovery"><button className="button primary" onClick={onRetry}>Prepare this lesson again <ArrowRight size={17} /></button><button className="button ghost" onClick={onExit}><ArrowLeft size={17} /> Return to {plan?.title ?? "the goal"}</button></div></section></main>;
 }
 
-function GuidedSession({ plan, steps, step, selectedAnswer, outcome, confidence, priorConfidenceCaptured, answerRevealed, elapsedSeconds, capacityMinutes, rationale, coverage, methodBriefing, deliveryPolicy, supportPlan, sourceGrounding, issue, analyticsEnabled, browserPreviewMode, onSelect, onEvaluate, onConfidence, onReveal, onExit, onNext }: { plan: LearningPlan | null; steps: LessonStep[]; step: number; selectedAnswer: string | null; outcome: boolean | undefined; confidence: ConfidenceLevel | undefined; priorConfidenceCaptured: boolean; answerRevealed: boolean; elapsedSeconds: number; capacityMinutes: number | null; rationale: string | null; coverage: SessionCoverage | null; methodBriefing: SessionMethodBriefing | null; deliveryPolicy: SessionDeliveryPolicy | null; supportPlan: SessionSupportPlan | null; sourceGrounding: SessionSourceGrounding | null; issue: string | null; analyticsEnabled: boolean; browserPreviewMode: boolean; onSelect: (answer: string) => void; onEvaluate: (correct: boolean) => void; onConfidence: (confidence: ConfidenceLevel) => void; onReveal: () => void; onExit: () => void; onNext: (evaluation: AnswerEvaluationResponse | null) => void | Promise<void> }) {
+function GuidedSession({ plan, steps, step, selectedAnswer, outcome, confidence, priorConfidenceCaptured, answerRevealed, elapsedSeconds, capacityMinutes, rationale, coverage, methodBriefing, deliveryPolicy, supportPlan, sourceGrounding, issue, analyticsEnabled, browserPreviewMode, onSelect, onEvaluate, onConfidence, onReveal, onExit, onRedirectPlan, onNext }: { plan: LearningPlan | null; steps: LessonStep[]; step: number; selectedAnswer: string | null; outcome: boolean | undefined; confidence: ConfidenceLevel | undefined; priorConfidenceCaptured: boolean; answerRevealed: boolean; elapsedSeconds: number; capacityMinutes: number | null; rationale: string | null; coverage: SessionCoverage | null; methodBriefing: SessionMethodBriefing | null; deliveryPolicy: SessionDeliveryPolicy | null; supportPlan: SessionSupportPlan | null; sourceGrounding: SessionSourceGrounding | null; issue: string | null; analyticsEnabled: boolean; browserPreviewMode: boolean; onSelect: (answer: string) => void; onEvaluate: (correct: boolean) => void; onConfidence: (confidence: ConfidenceLevel) => void; onReveal: () => void; onExit: () => void; onRedirectPlan: (direction: string) => Promise<void>; onNext: (evaluation: AnswerEvaluationResponse | null) => void | Promise<void> }) {
   const [confirmingExit, setConfirmingExit] = useState(false);
+  const [changingDirection, setChangingDirection] = useState(false);
+  const [directionRequest, setDirectionRequest] = useState("");
+  const [directionPending, setDirectionPending] = useState(false);
+  const [directionIssue, setDirectionIssue] = useState<string | null>(null);
   const [answerEvaluation, setAnswerEvaluation] = useState<AnswerEvaluationResponse | null>(null);
   const [answerEvaluationIssue, setAnswerEvaluationIssue] = useState<string | null>(null);
   const [answerEvaluationPending, setAnswerEvaluationPending] = useState(false);
@@ -3096,12 +3137,25 @@ function GuidedSession({ plan, steps, step, selectedAnswer, outcome, confidence,
     }
   };
 
+  const redirectPlan = async () => {
+    const nextDirection = directionRequest.trim();
+    if (nextDirection.length < 5 || directionPending) return;
+    setDirectionPending(true);
+    setDirectionIssue(null);
+    try {
+      await onRedirectPlan(nextDirection);
+    } catch (error) {
+      setDirectionIssue(error instanceof Error ? error.message : "YOVA could not redirect this plan.");
+      setDirectionPending(false);
+    }
+  };
+
   return <main className="session-shell">
     <header className="session-top">
       <BrandMark compact />
       <div><span>{plan?.title ?? "YOVA session"}</span><strong>{currentSession?.title ?? "Guided learning"}</strong></div>
       <div className="session-progress"><span>{completedRequiredSteps} of {requiredSteps.length} required steps complete · {formatElapsedDuration(elapsedSeconds)} elapsed</span><div><i style={{ width: `${requiredProgress}%` }} /></div></div>
-      <button className="button ghost" onClick={() => setConfirmingExit(true)}>Exit</button>
+      <div className="session-top-actions"><button className="button ghost session-direction-button" onClick={() => setChangingDirection(true)}><Settings2 size={16} /> Change direction</button><button className="button ghost" onClick={() => setConfirmingExit(true)}>Exit</button></div>
     </header>
     <section className="session-content">
       <SessionGuidePanel session={currentSession} capacityMinutes={capacityMinutes} coverage={coverage} steps={steps} step={step} methodBriefing={methodBriefing} deliveryPolicy={deliveryPolicy} supportPlan={supportPlan} sourceGrounding={sourceGrounding} rationale={rationale} />
@@ -3184,6 +3238,7 @@ function GuidedSession({ plan, steps, step, selectedAnswer, outcome, confidence,
       analyticsEnabled={analyticsEnabled}
     />
     {reviewingModel && reviewableTeaching && <div className="session-model-review-backdrop"><section className="session-model-review-dialog" role="dialog" aria-modal="true" aria-labelledby="session-model-review-title"><header><div><span className="step-label">REFERENCE MODEL</span><h2 id="session-model-review-title">Review the model, then return to the same question.</h2><p>Your answer and session progress stay exactly where they are.</p></div><button className="button ghost" type="button" onClick={() => setReviewingModel(false)}><X size={17} /> Return to question</button></header><div className="session-model-review-content"><TeachingLessonCard teaching={reviewableTeaching} /></div><footer><button className="button primary" type="button" onClick={() => setReviewingModel(false)}><ArrowLeft size={17} /> Back to the question</button></footer></section></div>}
+    {changingDirection && <div className="plan-direction-backdrop"><section className="plan-direction-dialog" role="dialog" aria-modal="true" aria-labelledby="plan-direction-title"><header><span className="plan-direction-icon"><Settings2 size={21} /></span><div><span className="step-label">CHANGE THE COURSE DIRECTION</span><h2 id="plan-direction-title">Tell YOVA what is off track.</h2><p>Completed work and learning evidence will stay. YOVA will rebuild only the unfinished sessions after you approve this change.</p></div></header><label><span>What should be different?</span><textarea autoFocus rows={5} maxLength={500} value={directionRequest} disabled={directionPending} placeholder="Example: I do not want math exercises. Keep the remaining course conceptual and focus on founder decisions, investors, and real startup examples." onChange={(event) => setDirectionRequest(event.target.value)} /><small>{directionRequest.length}/500</small></label><div className="plan-direction-examples"><button type="button" onClick={() => setDirectionRequest("Keep this conceptual. Do not include math or calculation exercises.")}>No calculations</button><button type="button" onClick={() => setDirectionRequest("Teach the foundations first and use concrete examples before practice.")}>Teach the basics first</button><button type="button" onClick={() => setDirectionRequest("Focus more on real examples and practical decisions.")}>More real examples</button></div>{directionIssue && <div className="chat-error"><AlertCircle size={16} /><span>{directionIssue}</span></div>}<footer><button className="button ghost" disabled={directionPending} onClick={() => { setChangingDirection(false); setDirectionIssue(null); }}>Keep this plan</button><button className="button primary large" disabled={directionPending || directionRequest.trim().length < 5} onClick={() => void redirectPlan()}>{directionPending ? <><span className="button-spinner" /> Rebuilding plan</> : <>Approve and rebuild <ArrowRight size={18} /></>}</button></footer></section></div>}
     {confirmingExit && <div className="session-exit-backdrop"><section className="session-exit-dialog" role="dialog" aria-modal="true" aria-labelledby="session-exit-title"><div className="session-exit-icon"><Clock3 size={21} /></div><span className="step-label">LEAVE THIS SESSION?</span><h2 id="session-exit-title">Your plan will stay open.</h2><p>YOVA will remember how long you studied and exactly which content steps you reached. Unfinished answers will not be treated as knowledge evidence.</p><div className="session-exit-summary"><span>{formatElapsedDuration(elapsedSeconds)} studied</span><span>{completedRequiredSteps} of {requiredSteps.length} required steps finished</span></div><div className="session-exit-actions"><button className="button ghost" onClick={() => setConfirmingExit(false)}>Keep studying</button><button className="button primary" onClick={onExit}>Save progress and leave</button></div></section></div>}
   </main>;
 }

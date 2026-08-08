@@ -7,6 +7,11 @@ import {
   buildContentBasedReplacementSessions,
   type AdjustableSessionRow,
 } from "@/lib/learning/content-based-plan-adjustment";
+import {
+  applyPlanDirectionFallback,
+  planDirectionConflictsWithRequest,
+} from "@/lib/learning/plan-direction";
+import { redirectPlanWithOpenAI } from "@/lib/openai/plan-redirector";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
@@ -46,8 +51,44 @@ export async function PATCH(request: Request) {
     .filter((session) => session.status === "complete" || session.status === "skipped")
     .map((session) => session.sequence);
   const unfinished = sessionRows.filter((session) => session.status === "ready" || session.status === "upcoming") as AdjustableSessionRow[];
+  let redirectedUnfinished = unfinished;
+  if (parsed.data.direction) {
+    const { data: planRow, error: planError } = await supabase
+      .from("plans")
+      .select("learning_item_id")
+      .eq("id", parsed.data.planId)
+      .eq("user_id", user.id)
+      .maybeSingle();
+    if (planError || !planRow) {
+      return NextResponse.json({ error: "YOVA could not find the learning goal behind that plan." }, { status: 404 });
+    }
+    const { data: itemRow, error: itemError } = await supabase
+      .from("learning_items")
+      .select("title,topic")
+      .eq("id", planRow.learning_item_id)
+      .eq("user_id", user.id)
+      .maybeSingle();
+    if (itemError || !itemRow) {
+      return NextResponse.json({ error: "YOVA could not load that learning goal." }, { status: 409 });
+    }
+
+    try {
+      const generated = await redirectPlanWithOpenAI({
+        title: itemRow.title,
+        topic: itemRow.topic,
+        direction: parsed.data.direction,
+        sessions: unfinished,
+      });
+      redirectedUnfinished = planDirectionConflictsWithRequest(generated, parsed.data.direction)
+        ? applyPlanDirectionFallback(unfinished, parsed.data.direction, itemRow.topic)
+        : generated;
+    } catch {
+      redirectedUnfinished = applyPlanDirectionFallback(unfinished, parsed.data.direction, itemRow.topic);
+    }
+  }
+
   const replacementSessions = buildContentBasedReplacementSessions(
-    unfinished,
+    redirectedUnfinished,
     parsed.data.futureSessionMinutes,
     Math.max(0, ...settledSequences) + 1,
   );
@@ -64,6 +105,7 @@ export async function PATCH(request: Request) {
 
   const response = PlanAdjustmentResponseSchema.safeParse({
     ...(typeof data === "object" && data && !Array.isArray(data) ? data : {}),
+    directionApplied: parsed.data.direction ?? null,
     persistence: "supabase",
   });
   if (!response.success) {

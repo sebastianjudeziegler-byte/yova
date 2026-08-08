@@ -18,4 +18,13 @@ describe("isDevelopmentPreviewRequest", () => {
 
     expect(isDevelopmentPreviewRequest(request, "development")).toBe(false);
   });
+
+  it("allows the plan creator preview header only during development", () => {
+    const request = new Request("http://192.168.1.10:3000/api/plans/activate", {
+      headers: { "X-Yova-Development-Preview": "plan-creator" },
+    });
+
+    expect(isDevelopmentPreviewRequest(request, "development")).toBe(true);
+    expect(isDevelopmentPreviewRequest(request, "production")).toBe(false);
+  });
 });

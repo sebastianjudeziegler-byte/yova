@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { TutorRequestSchema } from "@/lib/tutor/schema";
+import { TutorProposedActionSchema, TutorRequestSchema } from "@/lib/tutor/schema";
 
 const sessionContext = {
   activityTitle: "Explain why the product rule has two terms",
@@ -41,5 +41,20 @@ describe("tutor session context", () => {
     });
 
     expect(result.success).toBe(false);
+  });
+});
+
+describe("tutor plan actions", () => {
+  it("accepts a learner-approved plan direction change", () => {
+    const action = TutorProposedActionSchema.parse({
+      id: "20000000-0000-4000-8000-000000000001",
+      type: "redirect_plan",
+      planId: "10000000-0000-4000-8000-000000000001",
+      direction: "Keep the remaining plan conceptual and do not use calculations.",
+      title: "Rebuild the unfinished plan",
+      explanation: "Completed work stays unchanged. Only unfinished sessions will be redirected.",
+    });
+
+    expect(action.type).toBe("redirect_plan");
   });
 });

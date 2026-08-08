@@ -17,7 +17,7 @@ import { BrandMark } from "@/components/brand-mark";
 import { GoalClarification } from "@/components/goal-clarification";
 import { MaterialFileDropzone } from "@/components/material-file-dropzone";
 import { MaterialLinkImporter } from "@/components/material-link-importer";
-import type { LearningMaterial, LearningPlan } from "@/lib/domain";
+import { makeId, type LearningMaterial, type LearningPlan } from "@/lib/domain";
 import { deleteUploadedMaterial, uploadMaterialFiles } from "@/lib/materials/intake";
 import { reportProductError } from "@/lib/monitoring/client";
 import {
@@ -49,7 +49,7 @@ type DiagnosticQuestion = {
   correctAnswer?: string;
 };
 
-export function PlanCreator({ onExit, onFinish, profileSummary }: { onExit: () => void; onFinish: (plan: LearningPlan) => void; profileSummary: string }) {
+export function PlanCreator({ onExit, onFinish, profileSummary, browserPreviewMode = false }: { onExit: () => void; onFinish: (plan: LearningPlan) => void; profileSummary: string; browserPreviewMode?: boolean }) {
   const [step, setStep] = useState<PlanStep>("goal");
   const [goal, setGoal] = useState("");
   const [sourceChoice, setSourceChoice] = useState<SourceChoice | null>(null);
@@ -119,7 +119,10 @@ export function PlanCreator({ onExit, onFinish, profileSummary }: { onExit: () =
       });
       const response = await fetch("/api/plans/generate", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(browserPreviewMode ? { "X-Yova-Development-Preview": "plan-creator" } : {}),
+        },
         body: JSON.stringify(planRequest),
       });
       requestId = response.headers.get("X-Yova-Request-Id");
@@ -153,7 +156,7 @@ export function PlanCreator({ onExit, onFinish, profileSummary }: { onExit: () =
             mode: "system",
             model: null,
             notice: "YOVA used its reliable planning engine because the live planning request was interrupted. Review this draft before saving it. The guided lessons will still use the exact topic and your learning profile.",
-            requestId: requestId ?? crypto.randomUUID(),
+            requestId: requestId ?? makeId("plan_request"),
             durationMs: 0,
             persistence: "draft",
           },
@@ -222,7 +225,10 @@ export function PlanCreator({ onExit, onFinish, profileSummary }: { onExit: () =
     try {
       const response = await fetch("/api/plans/activate", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(browserPreviewMode ? { "X-Yova-Development-Preview": "plan-creator" } : {}),
+        },
         body: JSON.stringify({ plan: generatedPlan.plan, generationRequest: generatedFrom }),
       });
       requestId = response.headers.get("X-Yova-Request-Id");
