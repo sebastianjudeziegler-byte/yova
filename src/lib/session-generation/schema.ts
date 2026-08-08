@@ -254,7 +254,7 @@ export const GeneratedSessionDraftSchema = z.object({
 });
 
 export const CachedGeneratedSessionSchema = GeneratedSessionDraftSchema.extend({
-  schemaVersion: z.literal(13),
+  schemaVersion: z.literal(14),
   model: z.string().min(1),
   generatedAt: z.string().datetime({ offset: true }),
   routingContext: z.object({

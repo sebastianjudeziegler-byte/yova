@@ -68,6 +68,7 @@ describe("learning-science method router", () => {
     ["Debug a JavaScript function and test the corrected code", "programming"],
     ["Read this history article and prepare for a reading quiz", "reading_to_quiz"],
     ["Summarize the assigned textbook chapter before the quiz", "reading_to_quiz"],
+    ["Use imagery and passage details to support a close-reading interpretation", "reading_to_quiz"],
     ["Memorize French vocabulary definitions", "memorization"],
     ["Recall the dates and facts from the Civil War unit", "memorization"],
     ["Draft a comparative essay using the writing rubric", "writing_argumentation"],

@@ -15,8 +15,8 @@ describe.skipIf(!liveEvaluationEnabled)("live OpenAI session quality", () => {
   });
 
   test.each(evaluationCases)("$label", async (evaluationCase) => {
-    const { generateSessionWithOpenAI } = await import("@/lib/openai/session-generator");
-    const generated = await generateSessionWithOpenAI(evaluationCase.context);
+    const { generateProductionSessionWithOpenAI } = await import("@/lib/openai/session-generation-strategy");
+    const generated = await generateProductionSessionWithOpenAI(evaluationCase.context);
     const result = evaluateSessionDraft(
       generated.draft,
       evaluationCase.context,

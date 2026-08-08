@@ -3,7 +3,7 @@ import { readSessionResourceFromStepData, toSessionResource } from "@/lib/sessio
 import { GeneratedSessionDraftSchema, type SessionGenerationResponse } from "@/lib/session-generation/schema";
 
 const generatedSession: SessionGenerationResponse["session"] = {
-  schemaVersion: 13,
+  schemaVersion: 14,
   model: "gpt-test",
   generatedAt: "2026-08-05T18:00:00.000Z",
   routingContext: {
@@ -144,6 +144,9 @@ describe("session resources", () => {
   it("ignores missing or unsafe cached content", () => {
     expect(readSessionResourceFromStepData(null)).toBeUndefined();
     expect(readSessionResourceFromStepData({ generatedSession: { rationale: "too small" } })).toBeUndefined();
+    expect(readSessionResourceFromStepData({
+      generatedSession: { ...generatedSession, schemaVersion: 13 },
+    })).toBeUndefined();
   });
 
   it("rejects a teaching-first session that hides the lesson inside an instruction paragraph", () => {

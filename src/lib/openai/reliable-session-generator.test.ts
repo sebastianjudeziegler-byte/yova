@@ -143,4 +143,55 @@ describe("reliable OpenAI session generation", () => {
     expect(result.draft.activities[0]?.methodPhase).toBe("retrieve");
     expect(result.draft.activities[1]?.teaching?.keyIdea).toContain("biological night");
   });
+
+  it("uses the compact path only when its activity shape can execute the routed method", async () => {
+    const { canGenerateReliableSession } = await import("@/lib/openai/reliable-session-generator");
+
+    expect(canGenerateReliableSession(context("learn"))).toBe(true);
+    expect(canGenerateReliableSession(context("study"))).toBe(true);
+
+    const readingContext = context("learn");
+    readingContext.learningGoal = {
+      ...readingContext.learningGoal,
+      title: "Read a history chapter",
+      topic: "Read a World War I chapter for a quiz and recall the causal sequence",
+      kind: "test",
+    };
+    readingContext.session = {
+      ...readingContext.session,
+      title: "Read and recall the alliance system",
+      objective: "Read the assigned section, recall the causal sequence closed-source, and repair gaps from the text.",
+      method: "Read, recall, review",
+      methodReason: "The learner must remember and explain a bounded reading for a quiz.",
+    };
+
+    expect(canGenerateReliableSession(readingContext)).toBe(false);
+  });
+
+  it("reserves the full adaptive engine for longer, external, or evidence-rich sessions", async () => {
+    const { canGenerateReliableSession } = await import("@/lib/openai/reliable-session-generator");
+
+    const longSession = context("learn");
+    longSession.session.estimatedMinutes = 45;
+    expect(canGenerateReliableSession(longSession)).toBe(false);
+
+    const outsideSession = context("learn");
+    outsideSession.learningGoal.studyMode = "outside_yova";
+    expect(canGenerateReliableSession(outsideSession)).toBe(false);
+
+    const evidenceRichSession = context("study");
+    evidenceRichSession.recentResults = [{
+      methodId: "retrieval_practice",
+      taskType: "conceptual_learning",
+      knowledgeStage: "developing",
+      correctAnswers: 1,
+      totalAnswers: 3,
+      feedback: "too_difficult",
+      observedGap: "Melatonin is a timing signal rather than a sedative",
+      plannedMinutes: 15,
+      actualMinutes: 15,
+      calibrationPattern: "possible_misconception",
+    }];
+    expect(canGenerateReliableSession(evidenceRichSession)).toBe(false);
+  });
 });

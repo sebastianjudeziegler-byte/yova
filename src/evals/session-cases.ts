@@ -378,7 +378,7 @@ export function buildSessionEvaluationCases(): SessionEvaluationCase[] {
     evaluationCase({
       id: "startup_funding_foundations",
       label: "Startup funding foundations for a new learner",
-      taskFamily: "general",
+      taskFamily: "conceptual",
       expectedSourceTerms: [],
       context: {
         learningGoal: {

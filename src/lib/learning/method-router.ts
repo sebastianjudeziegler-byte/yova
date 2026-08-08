@@ -240,6 +240,7 @@ const TASK_SIGNAL_RULES: Record<LearningTaskType, WeightedTaskSignal[]> = {
   reading_to_quiz: [
     { pattern: /\b(read|review)\b.{0,45}\b(article|chapter|textbook|passage|lecture|assigned reading)\b/i, weight: 7, evidence: "assigned reading" },
     { pattern: /\b(reading quiz|read[- ]recall|read[- ]recite|question[- ]led reading)\b/i, weight: 7, evidence: "reading check" },
+    { pattern: /\b(close reading|textual evidence|passage details?|imagery and setting|support an interpretation)\b/i, weight: 7, evidence: "close reading or textual interpretation" },
     { pattern: /\b(summarize|annotate|analyze)\b.{0,45}\b(article|chapter|passage|reading|lecture)\b/i, weight: 5, evidence: "reading analysis" },
     { pattern: /\b(article|chapter|textbook|passage|lecture)\b/i, weight: 1, evidence: "source reading" },
   ],

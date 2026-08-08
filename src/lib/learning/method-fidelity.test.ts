@@ -1,9 +1,21 @@
 import { describe, expect, it } from "vitest";
-import { validateMethodFidelity, type MethodPhase } from "@/lib/learning/method-fidelity";
+import {
+  methodFidelityContractForPrompt,
+  validateMethodFidelity,
+  type MethodPhase,
+} from "@/lib/learning/method-fidelity";
 
 const activity = (methodPhase: MethodPhase, type: "instruction" | "multiple_choice" | "free_response" | "reflection" = "instruction", concept: string | null = null) => ({ methodPhase, type, concept });
 
 describe("learning-method fidelity", () => {
+  it("makes the recommended method contract explicit for the generator", () => {
+    expect(methodFidelityContractForPrompt("read_recall_review", "learn")).toMatchObject({
+      id: "read_recall_review",
+      requiredPhases: ["model", "read_source", "retrieve", "repair"],
+      orderedPhases: ["model", "read_source", "retrieve", "repair"],
+    });
+  });
+
   it("accepts a worked example that fades toward independent performance", () => {
     expect(validateMethodFidelity({
       methodId: "worked_example_fading",

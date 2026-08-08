@@ -989,7 +989,7 @@ function quickScheduledReviewResponse(planSessionId: string) {
   return {
     planSessionId,
     session: {
-      schemaVersion: 13,
+      schemaVersion: 14,
       model: "e2e-scheduled-review",
       generatedAt: new Date().toISOString(),
       rationale: "A short delayed retrieval gives YOVA evidence without turning the return into another full lesson.",

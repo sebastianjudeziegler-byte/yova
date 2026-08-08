@@ -85,7 +85,11 @@ const CONTRACTS: Record<CoreMethodId, MethodFidelityContract> = {
 };
 
 export function methodFidelityContractsForPrompt(ids: CoreMethodId[], learningMode: SessionLearningMode) {
-  return ids.map((id) => ({ id, ...contractForMode(id, learningMode) }));
+  return ids.map((id) => methodFidelityContractForPrompt(id, learningMode));
+}
+
+export function methodFidelityContractForPrompt(id: CoreMethodId, learningMode: SessionLearningMode) {
+  return { id, ...contractForMode(id, learningMode) };
 }
 
 export function validateMethodFidelity({

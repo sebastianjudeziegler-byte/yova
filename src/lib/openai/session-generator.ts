@@ -23,7 +23,11 @@ import {
   type CoreMethodId,
   type LearningTaskType,
 } from "@/lib/learning/method-catalog";
-import { methodFidelityContractsForPrompt, validateMethodFidelity } from "@/lib/learning/method-fidelity";
+import {
+  methodFidelityContractForPrompt,
+  methodFidelityContractsForPrompt,
+  validateMethodFidelity,
+} from "@/lib/learning/method-fidelity";
 import { learningModeContract } from "@/lib/learning/learning-intent";
 import {
   adaptDeliveryPolicyForScheduledRetrieval,
@@ -206,6 +210,7 @@ Requirements:
 - methodBriefing.learningMode must exactly match learningScienceRouting.sessionLearningMode.
 - Follow learningScienceRouting.executionContract as a hard activity-order rule.
 - Select the method first, then follow the matching methodFidelityContract as a hard sequence, not merely as wording. Tag every activity with the methodPhase that describes what the learner actually does in that activity.
+- Normally use recommendedMethodFidelityContract. Copy all of its required phases into the activities exactly once and in the stated order before adding optional phases. If the task evidence justifies a different allowed method, follow that method's matching contract from methodFidelityContracts with the same precision.
 - Never misuse a methodPhase label to pass validation. A model activity must contain a complete example or explanation; guided_practice must remove some support; independent_practice must withhold the solution; repair must compare and correct; transfer must use a different prompt or application; schedule_return must name a delayed retrieval point.
 - For a learn session, teach or model the target before the first knowledge check, then fade support toward an independent attempt. The checks verify whether teaching worked; they are not the main content.
 - Every model-phase instruction must contain a teaching block. In every learn session, the first activity must also contain a teaching block even when its method phase is orient. The teaching block must explain the actual subject matter, not the study method: state the key idea and explain the mechanism or procedure in connected prose. For every learn session, include at least one concrete worked example or one plausible misconception with its correction. Do not leave both teaching.example and teaching.commonMistake empty.
@@ -320,6 +325,12 @@ export async function generateSessionWithOpenAI(
       learningScienceRouting.allowedMethodIds,
       learningScienceRouting.sessionLearningMode,
     );
+  const recommendedMethodFidelityContract = quickReviewContract
+    ? null
+    : methodFidelityContractForPrompt(
+      learningScienceRouting.suggestedPrimaryMethodId,
+      learningScienceRouting.sessionLearningMode,
+    );
   const observedMethodOutcomes = buildMethodOutcomeSignals(context.recentResults, {
     taskType: learningScienceRouting.taskType,
     knowledgeStage: learningScienceRouting.knowledgeStage,
@@ -368,6 +379,7 @@ export async function generateSessionWithOpenAI(
         ...context,
         scaffoldSignals: undefined,
         learningScienceRouting,
+        recommendedMethodFidelityContract,
         methodFidelityContracts,
         observedMethodOutcomes,
         conceptReviewSchedule,

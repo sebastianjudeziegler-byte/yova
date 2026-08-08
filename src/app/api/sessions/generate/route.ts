@@ -18,9 +18,10 @@ import {
 import { buildScaffoldProgressionSignals } from "@/lib/learning/scaffold-progression";
 import { inferScheduledRetrievalConcept, inferScheduledRetrievalType } from "@/lib/learning/scheduled-retrieval";
 import { isOpenAISessionConfigured } from "@/lib/openai/config";
-import { generateReliableSessionWithOpenAI } from "@/lib/openai/reliable-session-generator";
 import {
-  generateSessionWithOpenAI,
+  generateProductionSessionWithOpenAI,
+} from "@/lib/openai/session-generation-strategy";
+import {
   SessionGenerationFailure,
   type SessionGenerationContext,
   type SessionGenerationStats,
@@ -341,12 +342,10 @@ export async function POST(request: Request) {
       conceptSignals: summarizeConceptEvidence(completionEvidence).slice(0, 20),
       scaffoldSignals: buildScaffoldProgressionSignals(completionEvidence).slice(0, 20),
     };
-    const generated = inferScheduledRetrievalType(generationContext.session)
-      ? await generateSessionWithOpenAI(generationContext)
-      : await generateReliableSessionWithOpenAI(generationContext);
+    const generated = await generateProductionSessionWithOpenAI(generationContext);
 
     const cachedSession = CachedGeneratedSessionSchema.parse({
-      schemaVersion: 13,
+      schemaVersion: 14,
       ...generated.draft,
       routingContext: generated.routingContext,
       supportPlan: generated.supportPlan,
@@ -447,11 +446,9 @@ async function generateBrowserPreviewSession(
       materials: [],
       sessionAdjustment: input.sessionAdjustment ?? null,
     };
-    const generated = inferScheduledRetrievalType(generationContext.session)
-      ? await generateSessionWithOpenAI(generationContext)
-      : await generateReliableSessionWithOpenAI(generationContext);
+    const generated = await generateProductionSessionWithOpenAI(generationContext);
     const session = CachedGeneratedSessionSchema.parse({
-      schemaVersion: 13,
+      schemaVersion: 14,
       ...generated.draft,
       routingContext: generated.routingContext,
       supportPlan: generated.supportPlan,
