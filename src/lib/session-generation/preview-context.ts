@@ -61,6 +61,27 @@ export function buildPreviewSessionContext({
       learningIntent: plan.learningIntent,
     },
     planRationale: plan.rationale,
+    journey: {
+      currentSequence: session.sequence,
+      totalSessions: plan.sessions.length,
+      previousSessions: plan.sessions
+        .filter((candidate) => candidate.sequence < session.sequence)
+        .map((candidate) => ({
+          sequence: candidate.sequence,
+          title: candidate.title,
+          objective: candidate.objective,
+          status: candidate.status,
+          contentTargets: candidate.contentTargets ?? [],
+        })),
+      nextSessions: plan.sessions
+        .filter((candidate) => candidate.sequence > session.sequence)
+        .map((candidate) => ({
+          sequence: candidate.sequence,
+          title: candidate.title,
+          objective: candidate.objective,
+          contentTargets: candidate.contentTargets ?? [],
+        })),
+    },
     session: {
       title: session.title,
       objective: repairedTeachingStart?.objective ?? session.objective,

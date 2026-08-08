@@ -7,6 +7,7 @@ import type {
   GeneratedPlanDraft,
   PlanGenerationRequest,
 } from "@/lib/plan-generation/schema";
+import { inferPlanScopeContract } from "@/lib/plan-generation/scope-contract";
 
 const ACTIVE_EVIDENCE_PATTERN = /\b(answer|apply|attempt|build|calculate|choose|classify|compare|complete|construct|create|debug|demonstrate|distinguish|draft|evaluate|explain|formulate|identify|implement|label|map|outline|perform|produce|recall|retrieve|revise|select|solve|summarize|test|trace|write)\b/i;
 const OVERCLAIM_PATTERN = /learns? best|learning style|brain type|visual learner|auditory learner|kinesthetic learner|because (?:you have|of your) adhd|diagnos(?:is|ed|e)\b/i;
@@ -17,9 +18,22 @@ export function validateGeneratedPlanQuality(
   request: PlanGenerationRequest,
 ): string | null {
   const issues: string[] = [];
+  const scope = inferPlanScopeContract(request);
 
   if (request.intent === "study_now" && draft.sessions.length !== 1) {
     issues.push("A study-now request must produce exactly one focused session.");
+  }
+
+  if (request.intent === "plan" && draft.sessions.length < scope.minimumSessions) {
+    issues.push(`${scope.label} needs at least ${scope.minimumSessions} sessions so the requested scope is not superficially compressed.`);
+  }
+  if (request.intent === "plan" && draft.sessions.length > scope.maximumSessions) {
+    issues.push(`${scope.label} should use no more than ${scope.maximumSessions} sessions in YOVA Lite.`);
+  }
+
+  const teachingSessions = draft.sessions.filter((session) => session.learningMode === "learn").length;
+  if (request.intent === "plan" && teachingSessions < scope.minimumTeachingSessions) {
+    issues.push(`${scope.label} needs at least ${scope.minimumTeachingSessions} teaching-first sessions before or between unsupported practice.`);
   }
 
   if (draft.sessions[0]?.learningMode !== request.learningIntent) {

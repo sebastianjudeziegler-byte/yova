@@ -69,6 +69,41 @@ const interruption: SessionInterruption = {
 };
 
 describe("buildPreviewSessionContext", () => {
+  it("tells the generator exactly where the session sits in the learning journey", () => {
+    const secondSession = {
+      ...plan.sessions[0],
+      id: "00000000-0000-4000-8000-000000000013",
+      sequence: 2,
+      title: "Connect light reactions to the Calvin cycle",
+      objective: "Explain how the products of the light reactions support carbon fixation.",
+      contentTargets: ["The relationship between ATP, NADPH, and carbon fixation"],
+      status: "upcoming" as const,
+    };
+    const thirdSession = {
+      ...plan.sessions[0],
+      id: "00000000-0000-4000-8000-000000000014",
+      sequence: 3,
+      title: "Apply the complete photosynthesis model",
+      objective: "Predict how changing light or carbon dioxide affects the process.",
+      contentTargets: ["Transfer the complete model to a new condition"],
+      status: "upcoming" as const,
+    };
+    const result = buildPreviewSessionContext({
+      plan: { ...plan, sessions: [{ ...plan.sessions[0], contentTargets: ["Carbon movement through photosynthesis"], status: "complete" }, secondSession, thirdSession] },
+      session: secondSession,
+      onboardingAnswers: [],
+      completions: [],
+      interruptions: [],
+    });
+
+    expect(result.journey).toMatchObject({ currentSequence: 2, totalSessions: 3 });
+    expect(result.journey.previousSessions[0]).toMatchObject({ sequence: 1, status: "complete" });
+    expect(result.journey.nextSessions[0]).toMatchObject({
+      sequence: 3,
+      contentTargets: ["Transfer the complete model to a new condition"],
+    });
+  });
+
   it("passes only useful personalization and learning evidence to the server", () => {
     const result = buildPreviewSessionContext({
       plan,

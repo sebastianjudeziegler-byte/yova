@@ -33,6 +33,7 @@ import {
   type PlanGenerationResponse,
 } from "@/lib/plan-generation/schema";
 import { generatePreviewPlan } from "@/lib/plan-generation/preview-generator";
+import { inferPlanScopeContract } from "@/lib/plan-generation/scope-contract";
 import { LEARNING_INTENT_COPY, resolveLearningIntent } from "@/lib/learning/learning-intent";
 import { assessGoalContext } from "@/lib/learning/goal-context";
 import {
@@ -110,6 +111,8 @@ export function PlanCreator({ onExit, onFinish, profileSummary, browserPreviewMo
     goal,
     sourceChoice === "materials" && materials.length > 0,
   );
+  const generatedScope = generatedFrom ? inferPlanScopeContract(generatedFrom) : null;
+  const generatedPhases = generatedPlan ? groupPlanSessions(generatedPlan.plan.sessions) : [];
 
   const stepNumber = ({ goal: 1, source: 2, schedule: 3, diagnostic: 4, confirm: 5, loading: 5, error: 5, result: 5 } as Record<PlanStep, number>)[step];
 
@@ -441,10 +444,10 @@ export function PlanCreator({ onExit, onFinish, profileSummary, browserPreviewMo
 
       {step === "result" && generatedPlan && (
         <section className="generated-plan">
-          <div className="generated-heading"><div><span className="eyebrow"><Sparkles size={15} /> Plan ready</span><h1>{generatedPlan.plan.title}</h1><p>{generatedPlan.plan.sessions.length} focused sessions organized around the goal. Nothing is active until you confirm it below.</p></div></div>
+          <div className="generated-heading"><div><span className="eyebrow"><Sparkles size={15} /> Plan ready</span><h1>{generatedPlan.plan.title}</h1><p>{generatedPlan.plan.sessions.length} sessions organized into a coherent path. Nothing is active until you confirm it below.</p></div>{generatedScope && <span className="generated-scope-label">{generatedScope.label}</span>}</div>
           <div className="why-plan"><Sparkles /><div><strong>Why this plan</strong><p>{generatedPlan.plan.rationale}</p></div></div>
           {generatedPlan.generation.notice && <div className="generation-notice"><span>Alpha note</span><p>{generatedPlan.generation.notice}</p></div>}
-          <div className="generated-timeline">{generatedPlan.plan.sessions.map((session) => <article key={session.id}><span>{session.sequence}</span><div><small>{session.learningMode === "learn" ? "TEACHING FIRST" : "PRACTICE FIRST"} · {formatSessionDate(session.scheduledFor)}</small><h3>{session.title}</h3><p>{session.method}</p></div><strong>{session.amountLabel}</strong></article>)}</div>
+          <div className="generated-roadmap" aria-label="Learning roadmap">{generatedPhases.map((phase) => <section className="generated-phase" key={`${phase.key}-${phase.number}`}><header><div><span>{phase.number}</span><div><small>PLAN PHASE</small><h2>{phase.label}</h2></div></div><p>{phase.description}</p></header><div className="generated-timeline">{phase.sessions.map((session) => <article key={session.id}><span>{session.sequence}</span><div><small>{session.learningMode === "learn" ? "TEACHING FIRST" : "PRACTICE FIRST"} · {formatSessionDate(session.scheduledFor)}</small><h3>{session.title}</h3><p>{session.method}</p></div><strong>{session.amountLabel}</strong></article>)}</div></section>)}</div>
           <section className="plan-alignment-check" aria-labelledby="plan-alignment-title">
             <div className="plan-alignment-heading"><span className="step-label">BEFORE YOVA SAVES THIS</span><h2 id="plan-alignment-title">Does this plan match what you need?</h2><p>Check the content, starting approach, source, and pace. If one part is wrong, change that input and YOVA will rebuild the draft.</p></div>
             <div className="plan-alignment-facts">
@@ -486,6 +489,52 @@ function formatSessionDate(value: string) {
     hour: "numeric",
     minute: "2-digit",
   }).format(new Date(value));
+}
+
+function groupPlanSessions(sessions: LearningPlan["sessions"]) {
+  const phaseDefinitions = {
+    foundation: {
+      label: "Build the foundation",
+      description: "Learn the prerequisite ideas and see how the pieces connect before support is removed.",
+    },
+    guided: {
+      label: "Learn with guidance",
+      description: "Work through examples and reconstruct the reasoning with progressively less help.",
+    },
+    practice: {
+      label: "Practice and apply",
+      description: "Produce answers independently, use the ideas in new situations, and repair exposed gaps.",
+    },
+    review: {
+      label: "Verify and retain",
+      description: "Return after a delay and confirm that the important ideas are still available without support.",
+    },
+  } as const;
+  type PhaseKey = keyof typeof phaseDefinitions;
+  const groups: Array<{
+    key: PhaseKey;
+    label: string;
+    description: string;
+    number: number;
+    sessions: LearningPlan["sessions"];
+  }> = [];
+
+  sessions.forEach((session, index) => {
+    const methodText = `${session.title} ${session.method}`;
+    const key: PhaseKey = index === sessions.length - 1 || /spaced|review|verify|retain|consolidate/i.test(methodText)
+      ? "review"
+      : session.learningMode === "learn"
+        ? index === 0 ? "foundation" : "guided"
+        : "practice";
+    const previous = groups.at(-1);
+    if (previous?.key === key) {
+      previous.sessions.push(session);
+      return;
+    }
+    groups.push({ key, ...phaseDefinitions[key], number: groups.length + 1, sessions: [session] });
+  });
+
+  return groups;
 }
 
 function defaultAvailability(profileSummary: string): AvailabilityChoice[] {

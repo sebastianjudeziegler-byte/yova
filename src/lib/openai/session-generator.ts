@@ -75,6 +75,23 @@ export type SessionGenerationContext = {
     learningIntent: LearningIntent;
   };
   planRationale: string;
+  journey?: {
+    currentSequence: number;
+    totalSessions: number;
+    previousSessions: Array<{
+      sequence: number;
+      title: string;
+      objective: string;
+      status: "ready" | "upcoming" | "complete" | "skipped";
+      contentTargets: string[];
+    }>;
+    nextSessions: Array<{
+      sequence: number;
+      title: string;
+      objective: string;
+      contentTargets: string[];
+    }>;
+  };
   materials: MaterialExcerpt[];
   session: {
     title: string;
@@ -166,6 +183,10 @@ const SESSION_GENERATOR_INSTRUCTIONS = `You design one guided YOVA learning sess
 Use the task and objective to select the learning activities. Personalize how the method is executed using the learner profile, but never invent a fixed learning style or diagnose the user.
 
 Requirements:
+- When journey is supplied, treat it as the map for this lesson. Build only the current session's bounded objective, assume only completed previous sessions supplied prior instruction, and leave named future targets for their later sessions.
+- Open with enough orientation that the learner understands how today's target connects to the overall goal. Do not repeat an earlier lesson merely because it is related, and do not jump ahead into a future module.
+- When currentSequence is 1 and the learner is a novice, establish the prerequisite model in plain language before questions. When the plan is broad, this session is one coherent foundation inside a longer pathway, not a compressed survey of the whole subject.
+- When a previous session is skipped or incomplete, do not silently assume its target is secure. Restore only the prerequisite needed for today's objective and defer the rest.
 - Use learningScienceRouting as YOVA's scientific guardrail. Select methodBriefing.methodId from allowedMethodIds, normally use suggestedPrimaryMethodId, and depart from it only when the supplied task evidence clearly supports another allowed method.
 - Fill methodBriefing with the task type, catalog method, what the learner will do, why it fits this task and current knowledge, exact execution steps, and a concrete completion condition.
 - Build coverage before activities. coverage.focus is the bounded content slice for this session; essentialIdeas are what will actually be taught or practiced now; completionEvidence describes what the learner must produce before this slice counts as completed; deferredContent explicitly names in-scope content that does not fit and must remain for a future session.

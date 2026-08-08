@@ -5,6 +5,20 @@ import {
   type GeneratedPlanDraft,
   type PlanGenerationRequest,
 } from "@/lib/plan-generation/schema";
+import {
+  inferPlanScopeContract,
+  type PlanScopeContract,
+} from "@/lib/plan-generation/scope-contract";
+
+type PreviewBlueprint = {
+  phaseIndex: number;
+  minutes: number;
+  title: string;
+  objective: string;
+  contentTargets: string[];
+  completionEvidence: string[];
+  learningMode?: "learn" | "study";
+};
 
 type PreviewSubject = {
   title: string;
@@ -153,21 +167,16 @@ export function generatePreviewPlan(request: PlanGenerationRequest): LearningPla
   };
   const deadline = request.deadline ? new Date(request.deadline) : inferDeadline(request.goal);
   const targetMinutes = request.availability[0]?.minutes ?? 25;
-  const sessionBlueprints = request.intent === "study_now"
+  const scope = inferPlanScopeContract(request);
+  const sessionBlueprints: PreviewBlueprint[] = request.intent === "study_now"
     ? [previewBlueprint(subject, request, 0, 0, 1, targetMinutes)]
-    : subject.sessionTitles.flatMap((_, phaseIndex) => {
-      const baseMinutes = [25, 30, 30, 35, 10][phaseIndex];
-      const partCount = Math.max(1, Math.ceil(baseMinutes / targetMinutes));
-      return Array.from({ length: partCount }, (_, partIndex) => (
-        previewBlueprint(subject, request, phaseIndex, partIndex, partCount, Math.min(targetMinutes, baseMinutes))
-      ));
-    }).slice(0, 14);
+    : buildScopedBlueprints(subject, request, scope, targetMinutes);
   const draft = GeneratedPlanDraftSchema.parse({
     title: subject.title,
     topic: subject.topic,
-    kind: subject.kind,
+    kind: scope.band === "broad_course" ? "course" : subject.kind,
     deadline: request.intent === "study_now" ? null : deadline?.toISOString() ?? null,
-    rationale: buildRationale(request),
+    rationale: `${buildRationale(request)} ${scope.explanation}`,
     sessions: sessionBlueprints.map((blueprint, index) => {
       const availability = request.availability[index % request.availability.length];
       const minutes = Math.min(availability.minutes, blueprint.minutes);
@@ -192,7 +201,7 @@ export function generatePreviewPlan(request: PlanGenerationRequest): LearningPla
         scheduledFor: scheduledDate(index, sessionBlueprints.length, availability.window, deadline).toISOString(),
         estimatedMinutes: minutes,
         amountLabel: `${blueprint.contentTargets.length} focused ${blueprint.contentTargets.length === 1 ? "target" : "targets"} + evidence check · about ${minutes} min`,
-        learningMode: sessionLearningMode(request, blueprint.phaseIndex),
+        learningMode: blueprint.learningMode ?? sessionLearningMode(request, blueprint.phaseIndex),
         contentTargets: blueprint.contentTargets,
         completionEvidence: blueprint.completionEvidence,
       };
@@ -202,7 +211,151 @@ export function generatePreviewPlan(request: PlanGenerationRequest): LearningPla
   return materializePlanDraft(draft, request);
 }
 
-function previewBlueprint(subject: PreviewSubject, request: PlanGenerationRequest, phaseIndex: number, partIndex: number, partCount: number, minutes: number) {
+function buildScopedBlueprints(
+  subject: PreviewSubject,
+  request: PlanGenerationRequest,
+  scope: PlanScopeContract,
+  targetMinutes: number,
+): PreviewBlueprint[] {
+  if (scope.band === "broad_course") {
+    return /calculus/i.test(request.goal)
+      ? broadCalculusBlueprints(targetMinutes)
+      : broadCourseBlueprints(subject, scope.recommendedSessions, targetMinutes);
+  }
+
+  if (scope.band === "focused_skill") {
+    return focusedSkillBlueprints(subject, request, targetMinutes);
+  }
+
+  return subject.sessionTitles.flatMap((_, phaseIndex) => {
+      const baseMinutes = [25, 30, 30, 35, 10][phaseIndex];
+      const partCount = Math.max(1, Math.ceil(baseMinutes / targetMinutes));
+      return Array.from({ length: partCount }, (_, partIndex) => (
+        previewBlueprint(subject, request, phaseIndex, partIndex, partCount, Math.min(targetMinutes, baseMinutes))
+      ));
+    }).slice(0, scope.maximumSessions);
+}
+
+function focusedSkillBlueprints(
+  subject: PreviewSubject,
+  request: PlanGenerationRequest,
+  minutes: number,
+): PreviewBlueprint[] {
+  const topic = subject.topic;
+  const specificProductRule = /product rule/i.test(request.goal);
+  const phases = specificProductRule ? [
+    {
+      phaseIndex: 0,
+      learningMode: "learn" as const,
+      title: "Understand why the product rule works",
+      objective: "Build the product rule from the idea that both factors change, then identify every part of the formula in one concrete example.",
+      contentTargets: ["The product-rule structure and why both terms are necessary"],
+      completionEvidence: ["Explain why differentiating each factor separately is incomplete"],
+    },
+    {
+      phaseIndex: 1,
+      learningMode: "learn" as const,
+      title: "Follow one complete product-rule example",
+      objective: "Work through one derivative step by step, then reconstruct the setup with less support.",
+      contentTargets: ["Substituting each function and derivative into the product rule"],
+      completionEvidence: ["Set up and simplify one similar derivative with reduced guidance"],
+    },
+    {
+      phaseIndex: 2,
+      learningMode: "study" as const,
+      title: "Practice choosing and applying the rule",
+      objective: "Distinguish product-rule problems from single-function derivatives and solve a short guided set.",
+      contentTargets: ["Recognizing when the product rule applies", "Applying it without a displayed model"],
+      completionEvidence: ["Choose the correct rule and solve two representative problems"],
+    },
+    {
+      phaseIndex: 4,
+      learningMode: "study" as const,
+      title: "Verify the product rule independently",
+      objective: "Complete a delayed mixed check and repair only the exact step that remains unstable.",
+      contentTargets: ["Independent product-rule use in a new expression"],
+      completionEvidence: ["Solve one transfer problem and explain the key setup decision"],
+    },
+  ] : [
+    {
+      phaseIndex: 0,
+      learningMode: "learn" as const,
+      title: `Build the model for ${shortTopic(topic)}`,
+      objective: `Learn the central relationship in ${topic} and see one complete example before attempting it alone.`,
+      contentTargets: [`The central structure of ${topic}`],
+      completionEvidence: ["Explain the structure in plain language after the model is hidden"],
+    },
+    {
+      phaseIndex: 1,
+      learningMode: "learn" as const,
+      title: "Work through a complete example",
+      objective: "Follow one representative example, then reproduce the important decision with less support.",
+      contentTargets: [`One complete worked example of ${topic}`],
+      completionEvidence: ["Complete one similar example with reduced guidance"],
+    },
+    {
+      phaseIndex: 2,
+      learningMode: "study" as const,
+      title: "Practice the skill with fading help",
+      objective: "Use the skill in a short set where prompts gradually remove the original support.",
+      contentTargets: [`Recognizing and applying ${topic}`],
+      completionEvidence: ["Complete two representative attempts without reopening the model"],
+    },
+    {
+      phaseIndex: 4,
+      learningMode: "study" as const,
+      title: "Verify the skill after a delay",
+      objective: "Return to the skill without notes and repair only what is no longer available independently.",
+      contentTargets: [`Independent retrieval and use of ${topic}`],
+      completionEvidence: ["Complete one delayed transfer check without support"],
+    },
+  ];
+
+  return phases.map((phase) => ({ ...phase, minutes: Math.max(10, Math.min(minutes, 30)) }));
+}
+
+function broadCalculusBlueprints(minutes: number): PreviewBlueprint[] {
+  const phases: Array<Omit<PreviewBlueprint, "minutes">> = [
+    { phaseIndex: 0, learningMode: "learn", title: "Build the function and graph foundation", objective: "Connect functions, notation, graphs, and average rate of change before calculus introduces instantaneous change.", contentTargets: ["Functions, graphs, and average rate of change"], completionEvidence: ["Interpret a function and explain an average rate from a graph"] },
+    { phaseIndex: 0, learningMode: "learn", title: "Understand limits as approaching behavior", objective: "Build an intuitive model of a limit using tables, graphs, and nearby values before using limit rules.", contentTargets: ["Limits from graphs and nearby values"], completionEvidence: ["Estimate and explain one limit from multiple representations"] },
+    { phaseIndex: 1, learningMode: "learn", title: "Connect limit rules and continuity", objective: "Use limit rules, identify continuity, and explain how discontinuities change what can be concluded.", contentTargets: ["Limit rules", "Continuity and discontinuity"], completionEvidence: ["Evaluate one limit and classify one continuity example"] },
+    { phaseIndex: 0, learningMode: "learn", title: "Build the derivative from first principles", objective: "Connect secant slopes, tangent slopes, and the difference quotient to define an instantaneous rate of change.", contentTargets: ["The derivative as a limit of average rates"], completionEvidence: ["Explain the derivative definition and interpret it in context"] },
+    { phaseIndex: 1, learningMode: "learn", title: "Learn the core derivative rules", objective: "Develop the power, constant, sum, and difference rules through worked examples with gradually reduced support.", contentTargets: ["Power and constant rules", "Sum and difference rules"], completionEvidence: ["Differentiate a short combination and explain each rule used"] },
+    { phaseIndex: 1, learningMode: "learn", title: "Connect product, quotient, and chain rules", objective: "Learn how structure determines which derivative rule to use, then trace one example of each compound rule.", contentTargets: ["Product and quotient rules", "Chain rule"], completionEvidence: ["Choose and apply the correct compound rule in two examples"] },
+    { phaseIndex: 2, learningMode: "learn", title: "Use implicit differentiation and related rates", objective: "Extend derivative rules to implicit relationships and changing quantities through guided problem setup.", contentTargets: ["Implicit differentiation", "Related-rates modeling"], completionEvidence: ["Set up one implicit or related-rates problem with reduced support"] },
+    { phaseIndex: 2, learningMode: "study", title: "Apply derivatives to behavior and optimization", objective: "Use derivatives to analyze increasing behavior, extrema, concavity, and one optimization situation.", contentTargets: ["Curve analysis", "Optimization"], completionEvidence: ["Justify one graph conclusion and solve one bounded application"] },
+    { phaseIndex: 0, learningMode: "learn", title: "Build the accumulation and integral model", objective: "Connect accumulated change, area, Riemann sums, and antiderivatives before learning integration procedures.", contentTargets: ["Accumulation and signed area", "Antiderivatives"], completionEvidence: ["Explain what a definite integral represents in one context"] },
+    { phaseIndex: 1, learningMode: "learn", title: "Connect derivatives and integrals", objective: "Use the Fundamental Theorem of Calculus to connect accumulation functions, derivatives, and definite integrals.", contentTargets: ["The Fundamental Theorem of Calculus"], completionEvidence: ["Explain and apply both directions of the theorem in a simple example"] },
+    { phaseIndex: 2, learningMode: "learn", title: "Learn core integration techniques and uses", objective: "Practice basic substitution and apply integrals to net change, area, and average value.", contentTargets: ["Basic substitution", "Applications of definite integrals"], completionEvidence: ["Choose and complete one integration method and one application"] },
+    { phaseIndex: 4, learningMode: "study", title: "Complete a cumulative calculus transfer", objective: "Choose among limit, derivative, and integral ideas in mixed problems, then identify the next gap to revisit.", contentTargets: ["Method selection across calculus", "Independent transfer"], completionEvidence: ["Complete a mixed check and explain why each selected method fits"] },
+  ];
+  return phases.map((phase) => ({ ...phase, minutes: Math.max(10, Math.min(minutes, 35)) }));
+}
+
+function broadCourseBlueprints(subject: PreviewSubject, count: number, minutes: number): PreviewBlueprint[] {
+  const topic = subject.topic;
+  const phases: Array<Omit<PreviewBlueprint, "minutes">> = [
+    { phaseIndex: 0, learningMode: "learn", title: "Map the subject and its prerequisites", objective: `See how the major parts of ${topic} connect and identify the foundation needed for later modules.`, contentTargets: [`The organizing map and prerequisites for ${topic}`], completionEvidence: ["Explain the major parts and their order in plain language"] },
+    { phaseIndex: 0, learningMode: "learn", title: "Build the first foundational model", objective: `Learn the first major relationship in ${topic} through an explanation and one concrete example.`, contentTargets: [`The first foundational relationship in ${topic}`], completionEvidence: ["Reconstruct the first foundation without the model visible"] },
+    { phaseIndex: 1, learningMode: "learn", title: "Build the second foundational model", objective: `Connect the next major idea in ${topic} to the foundation already established.`, contentTargets: [`The second foundational relationship in ${topic}`], completionEvidence: ["Complete one similar example with reduced guidance"] },
+    { phaseIndex: 1, learningMode: "learn", title: "Connect the foundational ideas", objective: "Compare the first major concepts and explain when each one matters.", contentTargets: ["Connections and distinctions between the foundational ideas"], completionEvidence: ["Compare the foundations and correct one common confusion"] },
+    { phaseIndex: 2, learningMode: "learn", title: "Learn the first application cluster", objective: "Use the foundational model in the first representative family of applications.", contentTargets: [`The first major application area in ${topic}`], completionEvidence: ["Complete one guided application and explain the choice made"] },
+    { phaseIndex: 2, learningMode: "learn", title: "Learn the second application cluster", objective: "Extend the model to a second representative family of applications.", contentTargets: [`The second major application area in ${topic}`], completionEvidence: ["Complete one new application with reduced support"] },
+    { phaseIndex: 2, learningMode: "study", title: "Distinguish the major approaches", objective: "Choose among the approaches learned so far and explain why the alternatives do not fit.", contentTargets: ["Method selection across the major concepts"], completionEvidence: ["Classify and complete a short mixed set"] },
+    { phaseIndex: 3, learningMode: "study", title: "Apply the ideas independently", objective: "Use the subject model in new situations without the original teaching prompts visible.", contentTargets: [`Independent application across ${topic}`], completionEvidence: ["Complete two representative transfer attempts"] },
+    { phaseIndex: 3, learningMode: "study", title: "Repair the highest-priority gaps", objective: "Use errors from independent work to revisit only the concepts that remain unstable.", contentTargets: ["The most important gaps exposed by independent work"], completionEvidence: ["Correct each exposed gap and retry it in a different prompt"] },
+    { phaseIndex: 4, learningMode: "study", title: "Complete a cumulative review", objective: "Retrieve and apply the major ideas after a delay, then name what still needs another pass.", contentTargets: [`Cumulative retrieval across ${topic}`], completionEvidence: ["Complete a cumulative check without notes"] },
+    { phaseIndex: 4, learningMode: "study", title: "Transfer the subject to a new context", objective: "Use the connected framework in one unfamiliar scenario that requires selecting the right ideas.", contentTargets: [`Transfer beyond the original examples in ${topic}`], completionEvidence: ["Complete one unfamiliar application and justify the approach"] },
+    { phaseIndex: 4, learningMode: "study", title: "Consolidate the learning pathway", objective: "Summarize the durable framework, verify priority ideas, and identify the next meaningful learning goal.", contentTargets: [`The durable framework for ${topic}`], completionEvidence: ["Explain the full framework and complete a final priority check"] },
+  ];
+  return phases.slice(0, count).map((phase) => ({ ...phase, minutes: Math.max(10, Math.min(minutes, 35)) }));
+}
+
+function shortTopic(topic: string) {
+  return topic.length > 52 ? `${topic.slice(0, 49).trim()}...` : topic;
+}
+
+function previewBlueprint(subject: PreviewSubject, request: PlanGenerationRequest, phaseIndex: number, partIndex: number, partCount: number, minutes: number): PreviewBlueprint {
   if (request.studyMode === "outside") {
     const partLabel = partCount > 1 ? ` · Part ${partIndex + 1} of ${partCount}` : "";
     return {
@@ -410,9 +563,8 @@ function inferDeadline(goal: string) {
 }
 
 function scheduledDate(index: number, totalSessions: number, window: string, deadline: Date | null) {
-  if (index === totalSessions - 1) {
-    const finalReview = deadline ? new Date(deadline) : new Date();
-    if (!deadline) finalReview.setDate(finalReview.getDate() + 4);
+  if (deadline && index === totalSessions - 1) {
+    const finalReview = new Date(deadline);
     finalReview.setHours(8, 0, 0, 0);
     return finalReview;
   }

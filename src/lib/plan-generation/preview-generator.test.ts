@@ -23,6 +23,41 @@ function requestWithMinutes(minutes: number) {
 }
 
 describe("preview plan time windows", () => {
+  it("maps one calculus skill to a short progression and all of calculus to a course pathway", () => {
+    const base = requestWithMinutes(25);
+    const productRule = generatePreviewPlan({
+      ...base,
+      goal: "Learn the product rule from scratch and use it independently.",
+      deadline: null,
+    });
+    const fullCalculus = generatePreviewPlan({
+      ...base,
+      goal: "Learn all of calculus from the beginning.",
+      deadline: null,
+    });
+
+    expect(productRule.kind).toBe("skill");
+    expect(productRule.sessions).toHaveLength(4);
+    expect(productRule.sessions.slice(0, 2).every((session) => session.learningMode === "learn")).toBe(true);
+    expect(productRule.sessions.at(-1)?.learningMode).toBe("study");
+
+    expect(fullCalculus.kind).toBe("course");
+    expect(fullCalculus.sessions).toHaveLength(12);
+    expect(fullCalculus.sessions.length).toBeGreaterThan(productRule.sessions.length);
+    expect(fullCalculus.sessions.map((session) => session.title)).toEqual(expect.arrayContaining([
+      "Understand limits as approaching behavior",
+      "Build the derivative from first principles",
+      "Build the accumulation and integral model",
+      "Complete a cumulative calculus transfer",
+    ]));
+    expect(fullCalculus.sessions.filter((session) => session.learningMode === "learn").length).toBeGreaterThanOrEqual(4);
+    expect(fullCalculus.sessions.map((session) => new Date(session.scheduledFor).getTime())).toEqual(
+      [...fullCalculus.sessions]
+        .map((session) => new Date(session.scheduledFor).getTime())
+        .sort((left, right) => left - right),
+    );
+  });
+
   it("creates more bounded sessions when the same content must fit shorter windows", () => {
     const fortyFiveMinutePlan = generatePreviewPlan(requestWithMinutes(45));
     const fifteenMinutePlan = generatePreviewPlan(requestWithMinutes(15));

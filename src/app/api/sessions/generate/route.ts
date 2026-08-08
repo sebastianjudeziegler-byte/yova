@@ -87,7 +87,7 @@ export async function POST(request: Request) {
 
   const { data: planSession, error: sessionError } = await supabase
     .from("plan_sessions")
-    .select("id,plan_id,title,objective,method,method_rationale,estimated_minutes,step_data")
+    .select("id,plan_id,sequence,status,title,objective,method,method_rationale,estimated_minutes,step_data")
     .eq("id", parsed.data.planSessionId)
     .maybeSingle();
 
@@ -111,8 +111,9 @@ export async function POST(request: Request) {
         .maybeSingle(),
       supabase
         .from("plan_sessions")
-        .select("id,title,objective,method,step_data")
-        .eq("plan_id", parsed.data.planId),
+        .select("id,sequence,status,title,objective,method,step_data")
+        .eq("plan_id", parsed.data.planId)
+        .order("sequence", { ascending: true }),
     ]);
 
     if (planError || learnerError || planSessionsError) throw planError ?? learnerError ?? planSessionsError;
@@ -265,6 +266,27 @@ export async function POST(request: Request) {
         learningIntent: planLearningIntent,
       },
       planRationale: plan.rationale,
+      journey: {
+        currentSequence: planSession.sequence,
+        totalSessions: planSessionRows?.length ?? 1,
+        previousSessions: (planSessionRows ?? [])
+          .filter((candidate) => candidate.sequence < planSession.sequence)
+          .map((candidate) => ({
+            sequence: candidate.sequence,
+            title: candidate.title,
+            objective: candidate.objective,
+            status: candidate.status,
+            contentTargets: readStringArrayProperty(candidate.step_data, "contentTargets"),
+          })),
+        nextSessions: (planSessionRows ?? [])
+          .filter((candidate) => candidate.sequence > planSession.sequence)
+          .map((candidate) => ({
+            sequence: candidate.sequence,
+            title: candidate.title,
+            objective: candidate.objective,
+            contentTargets: readStringArrayProperty(candidate.step_data, "contentTargets"),
+          })),
+      },
       materials: materialExcerpts,
       session: {
         title: planSession.title,

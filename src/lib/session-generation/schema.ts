@@ -24,6 +24,23 @@ export const SessionGenerationRequestSchema = z.object({
       learningIntent: z.enum(["learn", "study"]),
     }),
     planRationale: z.string().trim().min(10).max(1_200),
+    journey: z.object({
+      currentSequence: z.number().int().positive(),
+      totalSessions: z.number().int().positive().max(14),
+      previousSessions: z.array(z.object({
+        sequence: z.number().int().positive(),
+        title: z.string().trim().min(2).max(160),
+        objective: z.string().trim().min(5).max(800),
+        status: z.enum(["ready", "upcoming", "complete", "skipped"]),
+        contentTargets: z.array(z.string().trim().min(5).max(180)).max(6),
+      })).max(13),
+      nextSessions: z.array(z.object({
+        sequence: z.number().int().positive(),
+        title: z.string().trim().min(2).max(160),
+        objective: z.string().trim().min(5).max(800),
+        contentTargets: z.array(z.string().trim().min(5).max(180)).max(6),
+      })).max(13),
+    }),
     session: z.object({
       title: z.string().trim().min(2).max(160),
       objective: z.string().trim().min(5).max(800),

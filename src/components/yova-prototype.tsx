@@ -3189,7 +3189,7 @@ function GuidedSession({ plan, steps, step, selectedAnswer, outcome, confidence,
   return <main className="session-shell">
     <header className="session-top">
       <BrandMark compact />
-      <div><span>{plan?.title ?? "YOVA session"}</span><strong>{currentSession?.title ?? "Guided learning"}</strong></div>
+      <div><span>{plan?.title ?? "YOVA session"}{plan && currentSession ? ` · Session ${currentSession.sequence} of ${plan.sessions.length}` : ""}</span><strong>{currentSession?.title ?? "Guided learning"}</strong></div>
       <div className="session-progress"><span>{completedRequiredSteps} of {requiredSteps.length} required steps complete · {formatElapsedDuration(elapsedSeconds)} elapsed</span><div><i style={{ width: `${requiredProgress}%` }} /></div></div>
       <div className="session-top-actions"><button className="button ghost session-direction-button" onClick={() => setChangingDirection(true)}><Settings2 size={16} /> Change direction</button><button className="button ghost" onClick={() => setConfirmingExit(true)}>Exit</button></div>
     </header>

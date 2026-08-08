@@ -1,6 +1,7 @@
 import type { PlanGenerationRequest } from "@/lib/plan-generation/schema";
 import { learningScienceCatalogForPrompt } from "@/lib/learning/method-catalog";
 import { buildMaterialSupportPolicy } from "@/lib/materials/grounding";
+import { inferPlanScopeContract } from "@/lib/plan-generation/scope-contract";
 
 const LEARNING_SCIENCE_METHODS = JSON.stringify(learningScienceCatalogForPrompt(), null, 2);
 
@@ -30,6 +31,10 @@ Success criteria:
 Intent rules:
 - when plan_intent is "study_now", return exactly one session scheduled for now; it must fit the single supplied availability window
 - when plan_intent is "plan", return a realistic multi-session sequence when the goal requires it
+- obey the supplied scope_contract. A focused skill must not be inflated into a course, while a broad course must not be compressed into a handful of generic sessions
+- for a broad course, name the major modules explicitly and give each session a bounded role in the journey; do not imply that one session teaches the entire subject
+- for a novice, use at least scope_contract.minimumTeachingSessions teaching-first sessions across the plan and establish prerequisites before dependent skills
+- each session must connect to the plan journey: build on earlier targets, teach or practice only its current targets, and prepare for the next named part without duplicating it
 - when primary_learning_approach is "learn", the first session must use learningMode "learn"; later sessions should transition to "study" after a foundation is built
 - when primary_learning_approach is "study", begin with learningMode "study" and an unsupported attempt; teach only the gap the attempt exposes
 - when plan_intent is "study_now", the single session learningMode must match primary_learning_approach
@@ -77,11 +82,21 @@ export function buildPlanGeneratorInput(request: PlanGenerationRequest) {
       .filter((material): material is typeof material & { extracted_text: string } => Boolean(material.extracted_text))
       .map((material) => ({ name: material.name, text: material.extracted_text, truncated: material.text_was_truncated })))
     : null;
+  const scopeContract = inferPlanScopeContract(request);
 
   return JSON.stringify({
     current_datetime_utc: new Date().toISOString(),
     plan_intent: request.intent,
     primary_learning_approach: request.learningIntent,
+    scope_contract: {
+      category: scopeContract.band,
+      learner_facing_label: scopeContract.label,
+      minimum_sessions: scopeContract.minimumSessions,
+      recommended_sessions: scopeContract.recommendedSessions,
+      maximum_sessions: scopeContract.maximumSessions,
+      minimum_teaching_first_sessions: scopeContract.minimumTeachingSessions,
+      reason: scopeContract.explanation,
+    },
     learner_time_zone: request.timeZone,
     learner_goal: request.goal,
     learner_starting_context: request.startingContext || null,
