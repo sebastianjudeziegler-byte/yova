@@ -1267,8 +1267,11 @@ h1, h2, h3, p { margin-top: 0; }
 .unknown-answer { color: #58657b !important; }
 .unknown-answer:hover { color: var(--blue) !important; border-color: #cbd8fb !important; background: #f5f8ff !important; }
 .recall-review { padding: 18px; border: 1px solid #d9d2ff; border-radius: 12px; background: #f8f6ff; }
-.recall-review > .reference-answer { margin: 9px 0; color: var(--text); line-height: 1.65; }
-.recall-review > .reference-rubric { color: var(--muted); font-size: 11px; line-height: 1.55; }
+.model-answer-card { margin-top: 4px; padding: 20px; border: 1px solid #cbd7f5; border-radius: 13px; background: white; box-shadow: 0 8px 22px rgba(31,53,109,.055); }
+.model-answer-card > .reference-answer { margin: 10px 0 0; color: var(--text); font-size: 16px; line-height: 1.72; }
+.model-answer-card > details { margin-top: 15px; padding-top: 13px; border-top: 1px solid #e2e7f1; }
+.model-answer-card > details > summary { color: #52617b; cursor: pointer; font-size: 12px; font-weight: 750; }
+.model-answer-card .reference-rubric { margin: 9px 0 0; color: var(--muted); font-size: 12px; line-height: 1.6; }
 .answer-evaluation { margin: -4px -4px 18px; padding: 16px; display: grid; gap: 8px; color: var(--text); border: 1px solid #b9d7ca; border-radius: 10px; background: #f2fbf7; }
 .answer-evaluation.needs_review { border-color: #efc7aa; background: #fff8f2; }
 .answer-evaluation.uncertain { border-color: #cdd5e2; background: #f7f9fc; }
@@ -2125,7 +2128,8 @@ h1, h2, h3, p { margin-top: 0; }
   .session-action-bar { align-items: stretch; flex-direction: column; }
   .session-action-bar .button { width: 100%; }
   .session-tutor { right: 14px; bottom: 14px; }
-  .session-tutor-launcher { min-height: 42px; padding: 0 14px; }
+  .session-tutor-launcher { width: 46px; min-height: 46px; padding: 0; justify-content: center; border-radius: 50%; }
+  .session-tutor-launcher span { display: none; }
   .session-overview-head { flex-direction: column; }
   .session-overview-grid { grid-template-columns: 1fr; }
   .session-overview { padding: 17px; }
@@ -2166,8 +2170,9 @@ h1, h2, h3, p { margin-top: 0; }
   .early-session-dialog { padding: 25px 20px; }
   .early-session-actions { align-items: stretch; flex-direction: column; }
   .early-session-actions .button { width: 100%; }
-  .recall-submit-actions { align-items: stretch; flex-direction: column; }
+  .recall-submit-actions { align-items: stretch; flex-direction: column; flex-wrap: nowrap; }
   .recall-submit-actions .button { width: 100%; }
+  .recall-submit-actions > small { flex-basis: auto; }
   .quantitative-workpad > header { padding: 14px; }
   .workpad-steps { padding: 14px; }
   .workpad-steps label { grid-template-columns: 24px minmax(0,1fr); gap: 8px; }

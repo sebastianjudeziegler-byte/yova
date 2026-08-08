@@ -133,16 +133,11 @@ export async function POST(request: Request) {
   if (isOpenAIPlanConfigured()) {
     const rateLimit = checkPlanGenerationRateLimit(`${user?.id ?? "preview"}:${requestRateLimitKey(request)}`);
     if (!rateLimit.allowed) {
-      return NextResponse.json(
-        { error: "Too many plans were requested at once. Wait a moment and try again.", code: "rate_limited", requestId },
-        {
-          status: 429,
-          headers: {
-            "Cache-Control": "no-store",
-            "Retry-After": String(rateLimit.retryAfterSeconds),
-            "X-Yova-Request-Id": requestId,
-          },
-        },
+      return reliableDraftResponse(
+        planRequest,
+        requestId,
+        startedAt,
+        "YOVA used its reliable planning engine because live AI planning was temporarily busy. Review the draft before saving it; the guided sessions will still teach and check the exact topic.",
       );
     }
 
@@ -151,22 +146,19 @@ export async function POST(request: Request) {
       try {
         durableLimit = await claimAIRequest(supabase, "plan_generation");
       } catch {
-        return NextResponse.json(
-          { error: "YOVA paused before using OpenAI because it could not verify the account’s AI budget.", code: "usage_gate_unavailable", requestId },
-          { status: 503, headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId } },
+        return reliableDraftResponse(
+          planRequest,
+          requestId,
+          startedAt,
+          "YOVA used its reliable planning engine because live AI planning was temporarily unavailable. Review the draft before saving it; the guided sessions will still teach and check the exact topic.",
         );
       }
       if (!durableLimit.allowed) {
-        return NextResponse.json(
-          { error: "This account has reached its plan-generation allowance. Try again after the limit resets.", code: "rate_limited", requestId },
-          {
-            status: 429,
-            headers: {
-              "Cache-Control": "no-store",
-              "Retry-After": String(durableLimit.retryAfterSeconds),
-              "X-Yova-Request-Id": requestId,
-            },
-          },
+        return reliableDraftResponse(
+          planRequest,
+          requestId,
+          startedAt,
+          "YOVA used its reliable planning engine because this account's live AI planning allowance is currently unavailable. Review the draft before saving it; the guided sessions will still teach and check the exact topic.",
         );
       }
     }
@@ -196,16 +188,11 @@ export async function POST(request: Request) {
     } catch (error) {
       const reason = error instanceof OpenAIPlanGenerationError ? error.reason : "provider_error";
       console.error("YOVA plan generation failed", { requestId, reason });
-      return NextResponse.json(
-        {
-          error: "YOVA could not generate this plan right now. Your information was not saved; try again in a moment.",
-          code: "generation_failed",
-          requestId,
-        },
-        {
-          status: 502,
-          headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId },
-        },
+      return reliableDraftResponse(
+        planRequest,
+        requestId,
+        startedAt,
+        "YOVA used its reliable planning engine for this first draft. Review the plan before saving it; each guided session will still create teaching and practice for the exact topic.",
       );
     }
   }
@@ -217,6 +204,30 @@ export async function POST(request: Request) {
       mode: "preview",
       model: null,
       notice: "This plan used YOVA's validated preview engine. Live AI generation becomes available when the server API key is connected.",
+      requestId,
+      durationMs: Date.now() - startedAt,
+      persistence: "draft",
+    },
+  });
+
+  return NextResponse.json(response, {
+    headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId },
+  });
+}
+
+function reliableDraftResponse(
+  planRequest: Parameters<typeof generatePreviewPlan>[0],
+  requestId: string,
+  startedAt: number,
+  notice: string,
+) {
+  const reliablePlan = generatePreviewPlan(planRequest);
+  const response = PlanGenerationResponseSchema.parse({
+    plan: reliablePlan,
+    generation: {
+      mode: "system",
+      model: null,
+      notice,
       requestId,
       durationMs: Date.now() - startedAt,
       persistence: "draft",

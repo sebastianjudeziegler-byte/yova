@@ -16,6 +16,26 @@ type PreviewSubject = {
 
 const SUBJECTS: Array<{ matches: RegExp; subject: PreviewSubject }> = [
   {
+    matches: /world war (?:i|1)|wwi|first world war/i,
+    subject: {
+      title: "World War I Study Plan",
+      topic: "World War I causes, escalation, major turning points, and consequences",
+      kind: "test",
+      sessionTitles: [
+        "Build the causes and escalation map",
+        "Connect the alliances and major fronts",
+        "Explain the turning points",
+        "Practice historical cause and effect",
+        "Complete a final retrieval review",
+      ],
+      focusedTargets: [
+        "Long-term causes and the July Crisis",
+        "How alliances and mobilization widened the war",
+        "Major turning points and consequences",
+      ],
+    },
+  },
+  {
     matches: /startup.*fund|funding.*startup|term sheets?|dilution.*investor/i,
     subject: {
       title: "Startup Funding Foundations",

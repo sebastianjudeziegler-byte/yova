@@ -155,8 +155,8 @@ export function buildImmediateRepairSteps(
       type: "free_response",
       concept: step.concept,
       label: "REPAIR CHECK",
-      title: `Explain ${step.concept} again in your own words`,
-      body: `Without looking back, state the corrected idea and why it replaces the answer you gave before. This immediate retry repairs the explanation now; YOVA will still check it again later.`,
+      title: `Repair ${step.concept}`,
+      body: "Review the correction, then explain the relationship once in your own words. YOVA will check it again later to see whether it remains available.",
       question: null,
       correctAnswer: step.correctAnswer,
       feedback: step.feedback
@@ -212,7 +212,7 @@ export function buildImmediateRepairAfterMiss(
 
   return {
     ...repair,
-    body: `Use these missing ideas in your correction: ${focusedIdeas.join(" ")} Explain the corrected relationship from memory in your own words. YOVA will check it now and verify it again later.`,
+    body: `Focus on these missing ideas: ${focusedIdeas.join("; ")}. Review the correction, then explain the relationship once in your own words. YOVA will verify it again later.`,
   };
 }
 

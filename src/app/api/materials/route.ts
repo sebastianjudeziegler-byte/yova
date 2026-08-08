@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
-import { extractMaterialText, MaterialExtractionError } from "@/lib/materials/extract";
+import {
+  extractMaterialText,
+  MaterialExtractionError,
+  type ExtractedMaterial,
+} from "@/lib/materials/extract";
 import { assessMaterialQuality } from "@/lib/materials/quality";
 import {
   MaterialDeleteRequestSchema,
@@ -9,6 +13,7 @@ import {
   MaterialUploadResponseSchema,
 } from "@/lib/materials/schema";
 import { checkMaterialUploadRateLimit, requestRateLimitKey } from "@/lib/server/rate-limit";
+import { extractScannedPdfTextWithOpenAI } from "@/lib/openai/pdf-text-extractor";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
@@ -19,6 +24,7 @@ type SupportedMimeType = "application/pdf" | "text/plain" | "text/markdown";
 // Creates a user-owned staging record and a short-lived token. The browser
 // sends the file directly to Supabase Storage, avoiding hosting request limits.
 export async function POST(request: Request) {
+  const requestId = crypto.randomUUID();
   const supabase = await createSupabaseServerClient();
   const { data: { user }, error: userError } = await supabase.auth.getUser();
   if (userError || !user) {
@@ -58,7 +64,8 @@ export async function POST(request: Request) {
   });
 
   if (insertError) {
-    return NextResponse.json({ error: "YOVA could not prepare a secure upload." }, { status: 500 });
+    console.error("YOVA material staging failed", { requestId, reason: "database_insert" });
+    return NextResponse.json({ error: "YOVA could not prepare a secure upload.", requestId }, { status: 500, headers: { "X-Yova-Request-Id": requestId } });
   }
 
   const { data: signedUpload, error: signedUploadError } = await supabase.storage
@@ -66,7 +73,8 @@ export async function POST(request: Request) {
     .createSignedUploadUrl(storagePath);
   if (signedUploadError || !signedUpload?.token) {
     await supabase.from("material_uploads").delete().eq("id", materialId);
-    return NextResponse.json({ error: "YOVA could not prepare a secure upload." }, { status: 500 });
+    console.error("YOVA material staging failed", { requestId, reason: "signed_upload" });
+    return NextResponse.json({ error: "YOVA could not prepare a secure upload.", requestId }, { status: 500, headers: { "X-Yova-Request-Id": requestId } });
   }
 
   return NextResponse.json(MaterialStageResponseSchema.parse({
@@ -74,7 +82,7 @@ export async function POST(request: Request) {
     storagePath,
     token: signedUpload.token,
     mimeType,
-  }), { headers: { "Cache-Control": "no-store" } });
+  }), { headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId } });
 }
 
 // Downloads the just-uploaded private object on the server, validates it,
@@ -119,8 +127,28 @@ export async function PATCH(request: Request) {
     const bytes = new Uint8Array(await storedFile.arrayBuffer());
     if (bytes.byteLength !== Number(upload.byte_size)) throw new MaterialExtractionError("The uploaded file size did not match the selected file.");
 
-    const extracted = await extractMaterialText(bytes, upload.mime_type as SupportedMimeType);
-    const metadata = { pageCount: extracted.pages, textTruncated: extracted.truncated };
+    let extracted: ExtractedMaterial;
+    let aiAssistedExtraction = false;
+    try {
+      extracted = await extractMaterialText(bytes, upload.mime_type as SupportedMimeType);
+    } catch (error) {
+      const imageOnlyPdf = upload.mime_type === "application/pdf"
+        && error instanceof MaterialExtractionError
+        && error.message.includes("selectable text");
+      if (!imageOnlyPdf) throw error;
+
+      const recovered = await extractScannedPdfTextWithOpenAI(bytes, upload.filename).catch(() => null);
+      if (!recovered) {
+        throw new MaterialExtractionError("YOVA could not read text from this scanned PDF. Try a text-based PDF, paste the study-guide topics into your goal, or choose Create it for me.");
+      }
+      const recoveredQuality = assessMaterialQuality(recovered.text, recovered.truncated);
+      if (recoveredQuality.status === "unusable") {
+        throw new MaterialExtractionError(recoveredQuality.notice ?? "YOVA could not find enough readable learning content in this scanned PDF.");
+      }
+      extracted = recovered;
+      aiAssistedExtraction = true;
+    }
+    const metadata = { pageCount: extracted.pages, textTruncated: extracted.truncated, aiAssistedExtraction };
     const { error: updateError } = await supabase
       .from("material_uploads")
       .update({ processing_status: "ready", extracted_text: extracted.text, metadata })
@@ -180,6 +208,7 @@ function materialResponse(
     ? metadata as Record<string, unknown>
     : {};
   const truncated = record.textTruncated === true;
+  const aiAssistedExtraction = record.aiAssistedExtraction === true;
   const quality = assessMaterialQuality(extractedText, truncated);
   const responseQuality = quality.status === "unusable" ? "limited" : quality.status;
   return MaterialUploadResponseSchema.parse({
@@ -197,7 +226,9 @@ function materialResponse(
       pages: typeof record.pageCount === "number" ? record.pageCount : null,
       truncated,
       quality: responseQuality,
-      notice: quality.notice,
+      notice: aiAssistedExtraction
+        ? "YOVA read this scanned PDF with AI because it did not contain selectable text. Review the generated plan against the original document before relying on it."
+        : quality.notice,
     },
   });
 }

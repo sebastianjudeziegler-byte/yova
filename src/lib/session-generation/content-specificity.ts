@@ -14,6 +14,13 @@ const GENERIC_PLACEHOLDER_PATTERNS = [
   /\bperform independently\b/i,
 ];
 
+const RUBRIC_LIKE_REFERENCE_PATTERNS = [
+  /^\s*(?:a|an|the)\s+(?:strong|good|complete|correct|accurate)\s+(?:answer|response|explanation)\b/i,
+  /^\s*(?:the\s+)?learner\s+(?:should|must|needs?\s+to)\b/i,
+  /^\s*(?:the\s+)?(?:answer|response|explanation)\s+(?:should|must|needs?\s+to)\b/i,
+  /\b(?:strong|good|complete|correct|accurate)\s+(?:answer|response)\s+(?:should|must|needs?\s+to|includes?|states?|explains?|mentions?)\b/i,
+];
+
 const IGNORED_TOKENS = new Set([
   "about", "after", "again", "apply", "before", "build", "class", "complete", "concept", "course",
   "current", "different", "explain", "first", "from", "goal", "help", "idea", "learn", "learning",
@@ -53,6 +60,9 @@ export function validateSessionContentSpecificity({
 
   for (const activity of draft.activities) {
     if (activity.type !== "multiple_choice" && activity.type !== "free_response") continue;
+    if (activity.type === "free_response" && isRubricLikeReferenceAnswer(activity.correctAnswer ?? "")) {
+      return `The free-response activity "${activity.title}" gives grading instructions instead of the actual subject answer.`;
+    }
     const questionText = [
       activity.title,
       activity.body,
@@ -82,6 +92,11 @@ export function validateSessionContentSpecificity({
   }
 
   return null;
+}
+
+export function isRubricLikeReferenceAnswer(value: string) {
+  const normalized = value.trim();
+  return !normalized || RUBRIC_LIKE_REFERENCE_PATTERNS.some((pattern) => pattern.test(normalized));
 }
 
 function activitySubjectText(activity: GeneratedSessionDraft["activities"][number]) {

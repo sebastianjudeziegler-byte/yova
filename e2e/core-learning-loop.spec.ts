@@ -212,7 +212,7 @@ test("a new topic is taught before YOVA asks for independent performance", async
   await page.getByRole("button", { name: "Somewhat sure" }).click();
   await expect(page.getByRole("button", { name: "I don't know yet" })).toBeVisible();
   await page.getByRole("button", { name: "I don't know yet" }).dispatchEvent("click");
-  await expect(page.getByText("REFERENCE ANSWER")).toBeVisible();
+  await expect(page.getByText("MODEL ANSWER")).toBeVisible();
   await expect(page.getByRole("button", { name: "Needs another pass" })).toHaveClass(/selected/);
   await page.getByRole("button", { name: "Repair this idea" }).click();
 
@@ -226,6 +226,56 @@ test("a new topic is taught before YOVA asks for independent performance", async
   await page.getByRole("button", { name: "Check my answer" }).dispatchEvent("click");
   await expect(page.getByText("YOVA'S FORMATIVE CHECK")).toBeVisible();
   await expect(page.getByText("The key idea is present.")).toBeVisible();
+});
+
+test("a World War I beginner receives real teaching and a direct model answer", async ({ page }) => {
+  await page.route("**/api/sessions/generate", async (route) => {
+    await route.fulfill({
+      status: 502,
+      contentType: "application/json",
+      body: JSON.stringify({ error: "Use the built-in subject session for this reliability test." }),
+    });
+  });
+  await createPreviewAccount(page);
+  await completeOnboarding(page);
+
+  await page.getByRole("button", { name: "Study something now", exact: true }).first().click();
+  await page.getByPlaceholder("Example: Help me understand the product rule and practice using it.").fill(
+    "Teach me the causes of World War I and how the conflict spread across Europe.",
+  );
+  await page.getByRole("button", { name: "I haven't learned this yet" }).click();
+  await page.getByRole("button", { name: /Choose how YOVA should help/ }).click();
+  await page.getByRole("button", { name: /Create it for me/ }).click();
+  await page.getByRole("button", { name: /Build and start session/ }).click();
+  await confirmSessionSetup(page);
+
+  await expect(page.getByRole("heading", { name: "Build the World War I cause map" })).toBeVisible();
+  await expect(page.getByText(/On June 28, 1914/)).toBeVisible();
+  await page.getByRole("button", { name: "Next: Core idea" }).click();
+  await expect(page.getByText(/Militarism increased armies/)).toBeVisible();
+  await expect(page.locator(".session-workspace")).not.toContainText("the first concept listed");
+  await expect(page.locator(".session-workspace")).not.toContainText("A strong response states the main idea");
+
+  await page.getByRole("button", { name: "Next: Explore the model" }).click();
+  await expect(page.getByText(/On June 28, 1914/).first()).toBeVisible();
+  await page.getByRole("button", { name: "Next: Common mix-up" }).click();
+  await expect(page.getByText("The assassination alone made a world war inevitable.")).toBeVisible();
+  await page.getByRole("button", { name: "Continue" }).click();
+
+  await expect(page.getByRole("heading", { name: "Which explanation best describes the outbreak of World War I?" })).toBeVisible();
+  await page.getByRole("button", { name: "Long-term tensions made Europe unstable, and decisions during the July Crisis widened the assassination crisis into war" }).click();
+  await page.getByRole("button", { name: "Continue" }).click();
+
+  await expect(page.getByRole("heading", { name: "Rebuild the escalation in your own words" })).toBeVisible();
+  await expectNoHorizontalOverflow(page, ".session-shell");
+  const confidence = page.getByRole("button", { name: "Somewhat sure" });
+  if (await confidence.isVisible()) await confidence.click();
+  const unknownAnswer = page.getByRole("button", { name: "I don't know yet" });
+  await expect(unknownAnswer).toBeInViewport();
+  await unknownAnswer.dispatchEvent("click");
+  await expect(page.getByText("MODEL ANSWER")).toBeVisible();
+  await expect(page.locator(".model-answer-card")).toContainText("Austria-Hungary responded to the assassination with an ultimatum");
+  await expect(page.locator(".model-answer-card")).not.toContainText("A strong response");
 });
 
 test("an opaque class label is stopped until the learner names the actual calculus concept", async ({ page }) => {
@@ -821,11 +871,25 @@ async function openMobileSessionGuide(page: Page) {
 }
 
 async function expectNoHorizontalOverflow(page: Page, selector: string) {
-  const width = await page.locator(selector).first().evaluate((element) => ({
+  const overflow = await page.locator(selector).first().evaluate((element) => ({
     client: element.clientWidth,
     scroll: element.scrollWidth,
+    offenders: Array.from(element.querySelectorAll<HTMLElement>("*")).map((child) => {
+      const rect = child.getBoundingClientRect();
+      return {
+        tag: child.tagName.toLowerCase(),
+        className: child.className,
+        client: child.clientWidth,
+        scroll: child.scrollWidth,
+        width: Math.round(rect.width),
+        right: Math.round(rect.right),
+      };
+    }).filter((item) => item.scroll > item.client + 1 || item.width > window.innerWidth + 1 || item.right > window.innerWidth + 1).slice(0, 12),
   }));
-  expect(width.scroll).toBeLessThanOrEqual(width.client + 1);
+  expect(
+    overflow.scroll,
+    `Horizontal overflow in ${selector}: ${JSON.stringify(overflow.offenders)}`,
+  ).toBeLessThanOrEqual(overflow.client + 1);
 }
 
 async function createPreviewAccount(page: Page) {

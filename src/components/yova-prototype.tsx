@@ -531,6 +531,11 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
     sessionGenerationAbortRef.current?.abort();
     const generationController = new AbortController();
     sessionGenerationAbortRef.current = generationController;
+    let generationTimedOut = false;
+    const generationTimeoutId = window.setTimeout(() => {
+      generationTimedOut = true;
+      generationController.abort();
+    }, 20_000);
     let requestId: string | null = null;
 
     try {
@@ -622,13 +627,17 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
       }
       beginTimedSession(requestedPlan, Boolean(resumePoint));
     } catch (error) {
-      if (error instanceof DOMException && error.name === "AbortError") return;
+      if (error instanceof DOMException && error.name === "AbortError" && !generationTimedOut) return;
       reportProductError({
         surface: "session_generation",
         errorCode: "guided_session_generation_failed",
         requestId,
       });
-      const message = error instanceof Error ? error.message : "YOVA could not generate this session.";
+      const message = generationTimedOut
+        ? "Live lesson generation took too long."
+        : error instanceof Error
+          ? error.message
+          : "YOVA could not generate this session.";
       const fallbackSteps = !isScheduledRetrievalSession(requestedSession)
         ? subjectSpecificLessonStepsFor(requestedPlan)
         : null;
@@ -689,6 +698,7 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
       setSessionGenerationIssue(`${message} A safe built-in session was loaded instead.`);
       beginTimedSession(requestedPlan, Boolean(resumePoint));
     } finally {
+      window.clearTimeout(generationTimeoutId);
       if (sessionGenerationAbortRef.current === generationController) {
         sessionGenerationAbortRef.current = null;
       }
@@ -2620,8 +2630,8 @@ function subjectSpecificLessonStepsFor(plan: LearningPlan | null): LessonStep[] 
       lessonInstruction("Set up", "Prepare your outside study block", `Open the material you use for ${plan.topic}. Keep only that source and a place to work visible.`, "orient"),
       lessonInstruction("Your task", current?.title ?? "Complete the planned work", `${current?.objective ?? "Work through the next planned objective."} Use ${current?.method.toLowerCase() ?? "the selected method"} for about ${current?.estimatedMinutes ?? 20} minutes.`, "independent_practice"),
       lessonQuestion("Method check", "What should happen before you check the source?", "The method works only if you make a real attempt before looking for the answer.", ["Attempt the task from memory", "Reread everything first", "Copy the source wording", "Switch topics"], "Attempt the task from memory", "Active retrieval requires a genuine attempt before looking at the source.", "Retrieval before review", "retrieve"),
-      lessonFreeResponse("Recall check", "Write the main idea without reopening the source", "Explain the most important idea or step you just practiced. Use your own words and include one detail that makes the explanation specific.", "A strong response states the central idea or step accurately, explains it in the learner's own words, and includes one relevant supporting detail from the source.", "Compare the meaning, not the exact wording. If the central idea or supporting detail is missing, mark it as needing another pass.", plan.topic, "retrieve"),
-      lessonInstruction("Return to YOVA", "Record what needs another pass", "Note the one idea or step that felt least stable. YOVA will use that signal when the session result is saved.", "reflect"),
+      lessonInstruction("Record", "Write what you can now produce without the source", "In your own notes, write the central idea or complete the target problem without reopening the source. Then compare it directly with your trusted material and mark the first specific gap.", "retrieve"),
+      lessonInstruction("Return to YOVA", "Name the exact gap", "Record one concrete idea, step, date, relationship, or example that needs another pass. YOVA will use that signal when the session result is saved.", "reflect"),
     ];
   }
 
@@ -2636,6 +2646,15 @@ function subjectSpecificLessonStepsFor(plan: LearningPlan | null): LessonStep[] 
       lessonQuestion("Question 2 of 2", "Where does glycolysis occur?", "Choose the location without opening your notes.", ["Cytoplasm", "Mitochondrial matrix", "Nucleus", "Cell membrane"], "Cytoplasm", "Glycolysis occurs in the cytoplasm; later aerobic stages occur in the mitochondrion.", "Glycolysis location", "retrieve"),
       lessonFreeResponse("Explain from memory", "Why can glycolysis begin without oxygen?", "Answer without reopening the explanation. Focus on what glycolysis directly requires and where it happens.", "Glycolysis does not directly require oxygen and occurs in the cytoplasm, so it can begin before the oxygen-dependent stages of aerobic respiration.", "A strong answer mentions that glycolysis does not directly require oxygen. Mentioning that it occurs in the cytoplasm makes the explanation more complete.", "Glycolysis oxygen requirement", "retrieve"),
       lessonInstruction("Repair the gap", "Compare before moving on", "Glycolysis occurs in the cytoplasm. Most later stages occur in the mitochondrion. Keep that contrast available for the next mixed-practice session.", "repair"),
+    ];
+  }
+
+  if (/world war (?:i|1)|wwi|first world war/i.test(plan.topic)) {
+    return [
+      lessonQuestion("Recall", "What turned the Sarajevo assassination into a European war?", "Choose the explanation that connects the immediate trigger to the wider political system.", ["Alliance commitments, mobilization plans, and decisions during the July Crisis widened the conflict", "The assassination automatically forced every European country to declare war", "European alliances had already legally required a world war for decades", "The conflict spread only because the United States entered immediately"], "Alliance commitments, mobilization plans, and decisions during the July Crisis widened the conflict", "The assassination was the trigger. Ultimatums, alliance commitments, military mobilizations, and government decisions during the July Crisis expanded a regional dispute into a wider war.", "World War I escalation", "retrieve"),
+      lessonQuestion("Distinguish", "Which statement best separates a long-term cause from the immediate trigger?", "Identify the background tension and the event that activated the crisis.", ["Militarism and alliance rivalry were long-term causes; the assassination of Archduke Franz Ferdinand was the immediate trigger", "The assassination was a long-term cause; trench warfare was the immediate trigger", "The Treaty of Versailles was a long-term cause; nationalism was the trigger", "United States entry was a long-term cause; imperialism was the trigger"], "Militarism and alliance rivalry were long-term causes; the assassination of Archduke Franz Ferdinand was the immediate trigger", "Militarism, alliance rivalry, imperial competition, and nationalism raised tension over time. The June 1914 assassination triggered the July Crisis that led to war.", "Long-term causes and immediate trigger", "discriminate"),
+      lessonFreeResponse("Explain", "Explain how a regional crisis became a wider war", "Connect the assassination, Austria-Hungary's response to Serbia, mobilization, and the alliance system in a short cause-and-effect explanation.", "After Archduke Franz Ferdinand was assassinated, Austria-Hungary issued an ultimatum to Serbia and then declared war. Russian mobilization in support of Serbia, German support for Austria-Hungary, and declarations of war involving France and Belgium widened the regional crisis into a European war.", "A complete explanation connects the trigger to government decisions, mobilization, and alliances rather than treating the assassination as the only cause.", "July Crisis escalation", "transfer"),
+      lessonInstruction("Repair", "Keep causes, trigger, and escalation separate", "Long-term tensions made Europe vulnerable to war. The assassination triggered the July Crisis. Ultimatums, mobilizations, alliance commitments, and declarations of war expanded the conflict.", "repair"),
     ];
   }
 
@@ -2672,6 +2691,34 @@ function subjectSpecificLessonStepsFor(plan: LearningPlan | null): LessonStep[] 
 }
 
 function teachingFirstLessonStepsFor(plan: LearningPlan): LessonStep[] | null {
+  if (/world war (?:i|1)|wwi|first world war/i.test(plan.topic)) {
+    return [
+      lessonTeachingInstruction(
+        "Learn",
+        "Build the World War I cause map",
+        "World War I began when long-term European tensions interacted with a specific political crisis in 1914.",
+        "Militarism increased armies and made rapid mobilization central to national plans. Alliance systems linked the security decisions of several countries. Imperial rivalry and nationalism created recurring tension. The assassination of Archduke Franz Ferdinand did not mechanically cause the entire war by itself. It triggered the July Crisis, when leaders chose ultimatums, mobilization, and declarations of war that widened the conflict.",
+        {
+          setup: "Trace the crisis from Sarajevo to a wider European war.",
+          steps: [
+            "On June 28, 1914, a Bosnian Serb nationalist assassinated Archduke Franz Ferdinand of Austria-Hungary in Sarajevo.",
+            "Austria-Hungary, supported by Germany, issued a severe ultimatum to Serbia and declared war after Serbia did not accept every demand.",
+            "Russia mobilized in support of Serbia. Germany declared war on Russia and France and invaded Belgium as part of its military plan.",
+            "Britain entered after Germany invaded neutral Belgium, turning the regional crisis into a wider European war.",
+          ],
+          takeaway: "The assassination was the trigger. The war widened because existing tensions shaped the choices governments made during the July Crisis.",
+        },
+        {
+          mistake: "The assassination alone made a world war inevitable.",
+          correction: "The assassination opened a crisis. Political choices, alliance commitments, and mobilization plans transformed that crisis into a wider war.",
+        },
+      ),
+      lessonQuestion("Try", "Which explanation best describes the outbreak of World War I?", "Use the cause map, then choose the option that separates background causes from the immediate crisis.", ["Long-term tensions made Europe unstable, and decisions during the July Crisis widened the assassination crisis into war", "The assassination instantly and automatically forced every country to fight", "The Treaty of Versailles caused the war before it was signed", "The United States began the European alliance system in 1914"], "Long-term tensions made Europe unstable, and decisions during the July Crisis widened the assassination crisis into war", "Long-term pressures created risk, while the assassination and subsequent government decisions provided the immediate path into war.", "World War I causes and trigger", "guided_practice"),
+      lessonFreeResponse("Explain", "Rebuild the escalation in your own words", "Without reopening the model, explain how the assassination led from an Austria-Hungary and Serbia crisis to a wider European war.", "Austria-Hungary responded to the assassination with an ultimatum and a declaration of war against Serbia. Russian mobilization, German backing of Austria-Hungary, declarations of war against Russia and France, and the invasion of Belgium activated wider commitments and brought more powers into the conflict.", "The explanation should connect at least three steps in the escalation and show that government decisions and alliances widened the original crisis.", "July Crisis escalation", "independent_practice"),
+      lessonInstruction("Return", "Retrieve the map after a delay", "Later, rebuild three layers from memory: long-term tensions, the assassination as trigger, and the July Crisis decisions that widened the war.", "schedule_return"),
+    ];
+  }
+
   if (/biology|photosynthesis|cellular respiration/i.test(plan.topic)) {
     return [
       lessonInstruction("Learn", "Build the cellular-respiration map", "Cellular respiration transfers energy from glucose into ATP across linked stages. Glycolysis begins in the cytoplasm. The Krebs cycle and electron transport chain follow in the mitochondrion.", "model"),
@@ -2759,7 +2806,7 @@ function lessonTeachingInstruction(
     concept: null,
     label,
     title,
-    body: "Build the big picture first. You will explain the funding decision without this model in the next steps.",
+    body: "Build the big picture first. You will use the model without support in the next steps.",
     teaching: { keyIdea, explanation, example, commonMistake },
     question: null,
     correctAnswer: null,
@@ -3120,10 +3167,12 @@ function GuidedSession({ plan, steps, step, selectedAnswer, outcome, confidence,
             {answerEvaluation.matchedIdeas.length > 0 && <div><span>What your answer showed</span><ul>{answerEvaluation.matchedIdeas.map((idea) => <li key={idea}><LearningContent content={idea} inline /></li>)}</ul></div>}
             {answerEvaluation.missingIdeas.length > 0 && <div><span>What to check</span><ul>{answerEvaluation.missingIdeas.map((idea) => <li key={idea}><LearningContent content={idea} inline /></li>)}</ul></div>}
           </section>}
-          {answerEvaluationIssue && <div className="answer-evaluation-fallback"><AlertCircle size={17} /><p>{answerEvaluationIssue} Use the reference answer and your own judgment below.</p></div>}
-          <span className="step-label">REFERENCE ANSWER</span>
-          <LearningContent content={content.correctAnswer ?? ""} className="reference-answer" />
-          {content.feedback && <LearningContent content={content.feedback} className="reference-rubric" />}
+          {answerEvaluationIssue && <div className="answer-evaluation-fallback"><AlertCircle size={17} /><p>{answerEvaluationIssue} Compare your work with the model answer below.</p></div>}
+          <section className="model-answer-card">
+            <span className="step-label">MODEL ANSWER</span>
+            <LearningContent content={content.correctAnswer ?? ""} className="reference-answer" />
+            {content.feedback && <details><summary>What this answer needs to show</summary><LearningContent content={content.feedback} className="reference-rubric" /></details>}
+          </section>
           <div className="recall-actions"><span>{answerEvaluation ? "Confirm or correct YOVA’s check" : "How did your answer compare?"}</span><button className={outcome === true ? "selected" : ""} onClick={() => onEvaluate(true)}><Check size={17} /> I got the key idea</button><button className={outcome === false ? "selected needs-work" : ""} onClick={() => onEvaluate(false)}><AlertCircle size={17} /> Needs another pass</button></div>
           {confidence && outcome !== undefined && <p className="confidence-result"><Sparkles size={15} /> {confidenceResultMessage(confidence, outcome)}</p>}
           <small className="privacy-note">{isImmediateRepair ? "This immediate explain-back is not saved as proof of mastery. The original miss remains scheduled for later verification." : answerEvaluation ? "Your answer was sent for a one-time AI check and is not saved. YOVA keeps only the concept result, confidence, and support level." : "Your typed answer is not saved. YOVA keeps only the concept result, confidence, and support level."}</small>

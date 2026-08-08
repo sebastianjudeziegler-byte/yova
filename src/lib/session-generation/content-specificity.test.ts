@@ -148,6 +148,22 @@ describe("session content specificity", () => {
     })).toContain("generic placeholder");
   });
 
+  it("rejects a grading rubric presented as the model answer", () => {
+    const draft = {
+      ...baseDraft,
+      activities: baseDraft.activities.map((activity) => activity.type === "free_response" ? {
+        ...activity,
+        correctAnswer: "A strong response states the main idea behind startup funding stages and supports it with one relevant detail.",
+      } : activity),
+    };
+
+    expect(validateSessionContentSpecificity({
+      draft,
+      goalTopic: "Startup funding stages, investors, and dilution",
+      sessionObjective: "Explain the funding sequence and ownership tradeoffs",
+    })).toContain("grading instructions instead of the actual subject answer");
+  });
+
   it("rejects a session that repeats the same screen instead of progressing", () => {
     const first = baseDraft.activities[0];
     const draft = {

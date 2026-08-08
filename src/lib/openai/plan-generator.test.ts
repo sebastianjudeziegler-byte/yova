@@ -80,6 +80,7 @@ describe("OpenAI plan generation quality repair", () => {
 
     expect(result.responseId).toBe("response-valid");
     expect(parseResponse).toHaveBeenCalledTimes(1);
+    expect(parseResponse.mock.calls[0]?.[1]).toEqual({ maxRetries: 0, timeout: 12_000 });
   });
 
   it("gives OpenAI one specific repair attempt after an educational-quality failure", async () => {

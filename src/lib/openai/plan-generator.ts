@@ -48,6 +48,9 @@ export async function generatePlanWithOpenAI(
       },
       max_output_tokens: 5_000,
       store: false,
+    }, {
+      maxRetries: 0,
+      timeout: 12_000,
     });
 
     let response = await requestDraft(null);
