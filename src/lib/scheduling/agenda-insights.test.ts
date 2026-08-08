@@ -68,4 +68,26 @@ describe("agenda insights", () => {
     expect(result.projectedMinutes).toBe(20);
   });
 
+  it("does not claim one move fixes a day that would still exceed the learner's capacity", () => {
+    const first = plan([session("biology", 6, 10, 30, 1)], 7, "biology", "Biology review");
+    const second = plan([session("history", 6, 13, 30, 1)], 10, "history", "History source analysis");
+    const third = plan([session("finance", 6, 16, 30, 1)], 14, "finance", "Finance foundations");
+    const entries = [first, second, third].flatMap((item) => item.sessions.map((scheduled) => ({ plan: item, session: scheduled })));
+    const result = buildDailyCapacityPlan(entries, 15, now);
+    expect(result.status).toBe("blocked");
+    expect(result.projectedMinutes).toBe(90);
+  });
+
+  it("only suggests rebalancing when the proposed move actually clears the crowded source day", () => {
+    const learningPlan = plan([
+      session("a", 6, 10, 30, 1),
+      session("b", 6, 12, 30, 2),
+      session("c", 6, 14, 10, 3),
+      session("d", 6, 16, 10, 4),
+      session("e", 6, 18, 10, 5),
+    ]);
+    const entries = learningPlan.sessions.map((item) => ({ plan: learningPlan, session: item }));
+    expect(buildAgendaBalanceSuggestion(entries, now)).toBeNull();
+  });
+
 });

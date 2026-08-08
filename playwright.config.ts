@@ -1,7 +1,8 @@
 import { defineConfig, devices } from "@playwright/test";
 
 const port = 3100;
-const baseURL = `http://127.0.0.1:${port}`;
+const externalBaseURL = process.env.YOVA_E2E_BASE_URL?.trim();
+const baseURL = externalBaseURL || `http://127.0.0.1:${port}`;
 
 export default defineConfig({
   testDir: "./e2e",
@@ -26,7 +27,7 @@ export default defineConfig({
       use: { ...devices["Pixel 7"] },
     },
   ],
-  webServer: {
+  webServer: externalBaseURL ? undefined : {
     command: `pnpm dev --hostname 127.0.0.1 --port ${port}`,
     url: baseURL,
     reuseExistingServer: !process.env.CI,
@@ -38,6 +39,7 @@ export default defineConfig({
       OPENAI_API_KEY: "",
       AUTH_EMAIL_CODE_VERIFICATION: "false",
       SITE_URL: baseURL,
+      YOVA_E2E: "1",
     },
   },
 });

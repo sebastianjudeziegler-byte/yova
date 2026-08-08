@@ -8,7 +8,7 @@ import "./globals.css";
 import type { Metadata, Viewport } from "next";
 import { getSiteUrl } from "@/lib/site-url";
 
-const title = "YOVA Lite · Know What to Study Next";
+const title = "YOVA · Know What to Study Next";
 const description = "YOVA builds personalized study plans and guided sessions around your goal, materials, schedule, habits, and progress.";
 
 export const metadata: Metadata = {

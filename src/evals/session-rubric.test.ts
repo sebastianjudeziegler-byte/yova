@@ -40,7 +40,7 @@ const strongSession = GeneratedSessionDraftSchema.parse({
     why: "The learner is still building the concept, so a correct model should come before an explanation that exposes shallow understanding.",
     how: ["Study the concise model and example.", "Close the model and explain the relationship in your own words."],
     completion: "Both target ideas appear accurately in an independent explanation and any missing part is identified.",
-    personalization: ["Keep the first attempt short and show one visible step at a time."],
+    personalization: ["You asked for concrete examples before rules, so YOVA will make the first explanation example-led."],
   },
   activities: [
     {

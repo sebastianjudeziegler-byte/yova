@@ -22,6 +22,7 @@ describe.skipIf(!liveEvaluationEnabled)("live OpenAI session quality", () => {
       evaluationCase.context,
       evaluationCase.taskFamily,
       evaluationCase.expectedSourceTerms,
+      generated.deliveryPolicy,
     );
 
     console.info(`\nYOVA session evaluation · ${evaluationCase.label} · ${result.score}/100`);

@@ -116,7 +116,7 @@ export function buildSessionDeliveryPolicy({
     },
     learnerFacingReasons: learnerFacingReasons.length
       ? learnerFacingReasons
-      : ["YOVA is using the task and current objective as the starting point until it has more learner evidence."],
+      : ["YOVA is using the current task and session objective as the starting point until your completed work provides more evidence."],
     signalsUsed: unique([...selfReportSignals, ...observedSignals]).slice(0, 6),
   });
 }
@@ -180,6 +180,7 @@ function presentationPolicy(value: string | null | undefined, learningMode: Sess
   if (normalized.includes("small steps") || normalized.includes("clear sequence")) return policyPart("step_by_step", "Step by step", `${studyPrefix}show the model as a short visible sequence with one operation or relationship per step.`, "You asked for a clear sequence, so YOVA will break the model into visible steps.");
   if (normalized.includes("trying it")) return policyPart("prediction_then_model", "Predict, then model", `${studyPrefix}use a brief prediction or partial attempt to activate prior knowledge before revealing the complete model.`, "You asked to try ideas early, so YOVA will use a brief prediction before the complete model when the task allows it.");
   if (normalized.includes("comparing similar")) return policyPart("compare_first", "Contrast first", `${studyPrefix}contrast the target with the most plausible similar idea and name the difference explicitly.`, "You said similar ideas can be useful side by side, so YOVA will make the important contrast visible.");
+  if (normalized.includes("concise") || normalized.includes("short explanation")) return policyPart("task_aligned", "Concise explanation", `${studyPrefix}keep the explanation brief and tie every rule to the action the learner must perform.`, "You asked for concise explanations, so YOVA will connect each brief explanation directly to the task you perform.");
   return policyPart("task_aligned", "Task-led presentation", `${studyPrefix}present the content in the sequence best supported by the current task.`, null);
 }
 

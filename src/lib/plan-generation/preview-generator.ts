@@ -118,6 +118,14 @@ const METHODS = [
   "Spaced final review",
 ] as const;
 
+const LEARNING_METHODS = [
+  "Guided explanation and self-explanation",
+  "Worked example fading",
+  "Guided retrieval and distinction practice",
+  "Independent application and error repair",
+  "Spaced retrieval",
+] as const;
+
 export function generatePreviewPlan(request: PlanGenerationRequest): LearningPlan {
   const subject = SUBJECTS.find(({ matches }) => matches.test(request.goal))?.subject ?? {
     ...DEFAULT_SUBJECT,
@@ -151,12 +159,16 @@ export function generatePreviewPlan(request: PlanGenerationRequest): LearningPla
           ? outsideMethodFor(request.goal)
           : request.intent === "study_now" && request.learningIntent === "learn"
             ? "Self-explanation with worked example fading"
-            : METHODS[blueprint.phaseIndex],
+            : request.learningIntent === "learn"
+              ? LEARNING_METHODS[blueprint.phaseIndex]
+              : METHODS[blueprint.phaseIndex],
         methodReason: request.studyMode === "outside"
           ? outsideMethodReason(request.goal)
           : request.intent === "study_now" && request.learningIntent === "learn"
             ? "The learner has not built this foundation yet, so YOVA should explain the overall model, walk through one concrete example, and then reduce support for a short understanding check."
-            : reasonFor(blueprint.phaseIndex, request),
+            : request.learningIntent === "learn"
+              ? learningReasonFor(blueprint.phaseIndex)
+              : reasonFor(blueprint.phaseIndex, request),
         scheduledFor: scheduledDate(index, sessionBlueprints.length, availability.window, deadline).toISOString(),
         estimatedMinutes: minutes,
         amountLabel: `${blueprint.contentTargets.length} focused ${blueprint.contentTargets.length === 1 ? "target" : "targets"} + evidence check · about ${minutes} min`,
@@ -209,7 +221,9 @@ function previewBlueprint(subject: PreviewSubject, request: PlanGenerationReques
     };
   }
 
-  const title = subject.sessionTitles[phaseIndex];
+  const title = request.learningIntent === "learn"
+    ? learningTitleFor(subject.sessionTitles[phaseIndex], phaseIndex)
+    : subject.sessionTitles[phaseIndex];
   const targets = contentTargetsFor(phaseIndex, subject.topic);
   const distributedTargets = targets.filter((_, index) => index % partCount === partIndex);
   const contentTargets = distributedTargets.length ? distributedTargets : [`The next bounded part of ${targets[Math.min(partIndex, targets.length - 1)]}`];
@@ -219,10 +233,12 @@ function previewBlueprint(subject: PreviewSubject, request: PlanGenerationReques
     minutes,
     title: `${title}${partLabel}`,
     objective: partCount > 1
-      ? `${objectiveFor(phaseIndex, subject.topic)} This session covers only part ${partIndex + 1} of ${partCount}; the remaining content stays in later sessions.`
-      : objectiveFor(phaseIndex, subject.topic),
+      ? `${request.learningIntent === "learn" ? learningObjectiveFor(phaseIndex, subject.topic) : objectiveFor(phaseIndex, subject.topic)} This session covers only part ${partIndex + 1} of ${partCount}; the remaining content stays in later sessions.`
+      : request.learningIntent === "learn" ? learningObjectiveFor(phaseIndex, subject.topic) : objectiveFor(phaseIndex, subject.topic),
     contentTargets,
-    completionEvidence: completionEvidenceFor(phaseIndex, contentTargets),
+    completionEvidence: request.learningIntent === "learn"
+      ? learningCompletionEvidenceFor(phaseIndex, contentTargets)
+      : completionEvidenceFor(phaseIndex, contentTargets),
   };
 }
 
@@ -289,7 +305,12 @@ function buildRationale(request: PlanGenerationRequest) {
 }
 
 function studyNowTitle(subject: PreviewSubject) {
-  return subject.sessionTitles[0].replace(/^Retrieve/, "Focused review:");
+  return subject.sessionTitles[0].replace(/^(Retrieve|Recall)/, "Focused review:");
+}
+
+function learningTitleFor(title: string, index: number) {
+  if (index !== 0) return title;
+  return title.replace(/^(Retrieve|Recall)/, "Build a first model of");
 }
 
 function sessionLearningMode(request: PlanGenerationRequest, index: number) {
@@ -307,6 +328,37 @@ function objectiveFor(index: number, topic: string) {
     "Retrieve the highest-priority ideas once more before the deadline.",
   ];
   return objectives[index];
+}
+
+function learningObjectiveFor(index: number, topic: string) {
+  return [
+    `Build an accurate first mental model of ${topic} through a concise explanation and one concrete example.`,
+    `Use a worked example to connect the main parts of ${topic}, then reconstruct the reasoning with less support.`,
+    `Retrieve and distinguish the central ideas in ${topic} after the teaching model is hidden.`,
+    `Apply the ideas in a new situation, diagnose any error, and retry without the original support.`,
+    `Retrieve the highest-priority ideas in ${topic} after a delay and repair only what remains unstable.`,
+  ][index];
+}
+
+function learningCompletionEvidenceFor(index: number, targets: string[]) {
+  const evidence = [
+    "Explain the central relationship in plain language after the model is hidden",
+    "Complete one similar example with reduced support and explain the key decision",
+    "Retrieve each central idea and distinguish it from a plausible alternative",
+    "Complete one independent transfer attempt and correct any exposed error",
+    "Retrieve the priority ideas once without notes after a delay",
+  ][index];
+  return [evidence, targets.length > 1 ? "Produce evidence for each listed content target" : "Produce evidence for the listed content target"];
+}
+
+function learningReasonFor(index: number) {
+  return [
+    "The learner is building this foundation, so YOVA should teach a coherent model before asking for unsupported recall.",
+    "A complete example makes the reasoning visible before support is deliberately reduced.",
+    "Retrieval now checks whether the taught model remains available without the explanation on screen.",
+    "Independent application tests whether the learner can transfer the idea rather than repeat the example.",
+    "A delayed return strengthens access to the idea while keeping review focused on what remains unstable.",
+  ][index];
 }
 
 function reasonFor(index: number, request: PlanGenerationRequest) {

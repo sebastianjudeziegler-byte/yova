@@ -1,6 +1,6 @@
-# YOVA Lite
+# YOVA
 
-YOVA Lite is a personalized learning planner and guided study system. A learner can describe a goal, optionally upload source material, receive a structured plan, complete guided sessions, ask a contextual tutor for help, and have later recommendations adjust using actual results.
+YOVA is a personalized learning planner and guided study system. A learner can describe a goal, optionally upload source material, receive a structured plan, complete guided sessions, ask a contextual tutor for help, and have later recommendations adjust using actual results.
 
 ## What works now
 

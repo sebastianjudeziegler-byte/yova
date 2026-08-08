@@ -59,7 +59,9 @@ import {
 } from "@/lib/session-generation/completion-contract";
 import { validateSessionAdjustmentFidelity } from "@/lib/session-generation/adjustment-fidelity";
 import { validateSessionQuestionContext } from "@/lib/session-generation/question-context";
+import { validateSessionContentSpecificity } from "@/lib/session-generation/content-specificity";
 import { polishGeneratedSessionTypography } from "@/lib/session-generation/typography";
+import { validateVisibleAdaptation } from "@/lib/personalization/visible-adaptation";
 
 export type SessionGenerationContext = {
   learningGoal: {
@@ -168,16 +170,19 @@ Requirements:
 - Follow sessionDeliveryPolicy.retention in the evidence sequence. Delayed retrieval requires a schedule_return activity with a specific future return. Transfer requires a different application tagged transfer. Fade-support requires a later independent_practice or transfer attempt. Discrimination uses plausible close alternatives and makes the decisive difference explicit.
 - Keep the number of activities at or below sessionDeliveryPolicy.pacing.maximumActivities and keep the first action close to sessionDeliveryPolicy.pacing.firstActionMinutes. Do not use these pacing changes as evidence of ability.
 - Copy two or three concise learner-facing explanations from sessionDeliveryPolicy.learnerFacingReasons into methodBriefing.personalization. Describe the exact session change instead of claiming a fixed learning style.
+- Every personalization explanation must be traceable to sessionDeliveryPolicy.learnerFacingReasons. Do not invent a learner trait, preference, or behavioral pattern that is absent from the supplied policy.
 - methodBriefing.learningMode must exactly match learningScienceRouting.sessionLearningMode.
 - Follow learningScienceRouting.executionContract as a hard activity-order rule.
 - Select the method first, then follow the matching methodFidelityContract as a hard sequence, not merely as wording. Tag every activity with the methodPhase that describes what the learner actually does in that activity.
 - Never misuse a methodPhase label to pass validation. A model activity must contain a complete example or explanation; guided_practice must remove some support; independent_practice must withhold the solution; repair must compare and correct; transfer must use a different prompt or application; schedule_return must name a delayed retrieval point.
 - For a learn session, teach or model the target before the first knowledge check, then fade support toward an independent attempt. The checks verify whether teaching worked; they are not the main content.
 - Every model-phase instruction must contain a teaching block. In every learn session, the first activity must also contain a teaching block even when its method phase is orient. The teaching block must explain the actual subject matter, not the study method: state the key idea and explain the mechanism or procedure in connected prose. For every learn session, include at least one concrete worked example or one plausible misconception with its correction. Do not leave both teaching.example and teaching.commonMistake empty.
+- Keep activity fields type-safe. instruction and reflection must use choices: [], concept: null, correctAnswer: null, and feedback: null. free_response must use choices: [] and include a concept, reference answer, and feedback. multiple_choice must include a concept, 3 to 5 choices, an exactly matching correct answer, and feedback. Never leave question data on a non-question activity.
 - Keep body under two short sentences and use it only for the learner's immediate action or setup. Never place a lesson, bullet list, study guide, or example inside body. Put the substantive lesson in teaching so the interface can present the idea, walkthrough, and common mistake as separate visual sections.
 - For mathematics, statistics, physics, chemistry equations, and symbolic logic, format every symbolic expression with KaTeX-compatible LaTeX. Use $...$ for inline expressions and $$...$$ for a standalone equation. Keep explanatory prose outside the delimiters. Do not emit raw \\( ... \\) or \\[ ... \\] delimiters. Write currency as USD 100 when a dollar sign could be confused with a math delimiter.
 - In worked mathematical examples, show the setup, each transformation, and the final result as separate steps. Never compress a multi-step derivation into one prose sentence or provide a formula without explaining what each part does.
 - Do not number activity labels; the interface supplies step numbers. Use short labels such as Learn, Try, Explain, Check, or Repair.
+- Never use placeholder subject language such as "the first concept listed," "the subject matter," "provided context," or "a relevant idea." Name the actual concept, relationship, process, text, problem, or decision on every screen.
 - Do not use em dashes, en dashes, or bullet glyphs in learner-facing text. Use ordinary sentences and the structured arrays supplied by the schema.
 - For a study session, make the first topic activity an unsupported retrieval or application attempt. Show explanations only after the attempt, target the exposed gap, and include a later retry or transfer question.
 - Use the catalog's how and completion fields as the scientific source, but rewrite them concisely for this exact session rather than copying every line mechanically.
@@ -199,6 +204,7 @@ Requirements:
 - When sourceMode is user_materials, treat the learner's material as the scope anchor. Set sourceGrounding and copy every anchor excerpt exactly from the named source so YOVA can verify it before showing the session.
 - Follow sourceGroundingPolicy. Use materials_only when the source contains enough explanation for this session. Use materials_plus_ai only when supplementationAllowed is true and the material names or outlines an in-scope idea without enough explanation or example to teach it.
 - Any supplement must be a concise, well-established explanation or example for an idea already inside the uploaded scope. Never add unrelated curriculum, guess what a teacher will test, contradict the source, or hide that YOVA supplied the detail. List each addition in sourceGrounding.supplements.
+- Every sourceGrounding.supplements topic must repeat at least one concrete term from the supplied material excerpt so the addition can be verified as in scope. For a short passage, tie method help to exact passage terms such as named characters, objects, events, or images.
 - When sourceMode is not user_materials, set sourceGrounding to null.
 - Use recent results conservatively. If there is little evidence, do not claim YOVA knows what works best.
 - Treat sessionAdjustment as the learner's current update, not proof of knowledge. If familiarity is already_know, begin with a bounded unsupported diagnostic before any teaching model and skip only what the learner demonstrates. If knownTargets are supplied, verify those named targets first. If familiarity is need_teaching, give accurate subject teaching before an independent check. If familiarity is challenge_me, reduce introductory review and use independent application or transfer. Respect availableMinutes as the current capacity limit and use note only as learner-provided context.
@@ -371,11 +377,11 @@ export async function generateSessionWithOpenAI(
     if (!(error instanceof Error) || error.name !== "ZodError") throw error;
     repairAttempted = true;
     repairReason = "structured_output";
-    repairDetail = "The structured session shape was invalid.";
+    repairDetail = `The structured session shape was invalid. Fix this exact schema issue: ${error.message.slice(0, 700)}`;
     response = await requestDraft(repairDetail);
   }
 
-  let parsed = parseGeneratedSessionDraft(response.output_parsed, learningScienceRouting, context.session);
+  let parsed = parseGeneratedSessionDraft(response.output_parsed, learningScienceRouting, context.session, sessionDeliveryPolicy);
   let semanticIssue = parsed.success
     ? validateGeneratedSession(parsed.data, context, learningScienceRouting, observedMethodOutcomes, conceptReviewSchedule, scaffoldProgression, sessionDeliveryPolicy)
     : null;
@@ -390,7 +396,7 @@ export async function generateSessionWithOpenAI(
       ? `The model response ended with status ${response.status}.`
       : semanticIssue ?? "The structured session shape was invalid or incomplete.";
     response = await requestDraft(repairDetail);
-    parsed = parseGeneratedSessionDraft(response.output_parsed, learningScienceRouting, context.session);
+    parsed = parseGeneratedSessionDraft(response.output_parsed, learningScienceRouting, context.session, sessionDeliveryPolicy);
     semanticIssue = parsed.success
       ? validateGeneratedSession(parsed.data, context, learningScienceRouting, observedMethodOutcomes, conceptReviewSchedule, scaffoldProgression, sessionDeliveryPolicy)
       : null;
@@ -642,6 +648,7 @@ function parseGeneratedSessionDraft(
   value: unknown,
   routing: LearningScienceRoutingBrief,
   session: SessionGenerationContext["session"],
+  deliveryPolicy: SessionDeliveryPolicy,
 ) {
   const parsed = GeneratedSessionDraftSchema.safeParse(value);
   if (!parsed.success) return parsed;
@@ -654,6 +661,7 @@ function parseGeneratedSessionDraft(
       ...parsed.data.methodBriefing,
       learningMode: routing.sessionLearningMode,
       taskType: routing.taskType,
+      personalization: deliveryPolicy.learnerFacingReasons.slice(0, 3),
       ...(routing.allowedMethodIds.length === 1
         ? { methodId: routing.allowedMethodIds[0]! }
         : {}),
@@ -688,6 +696,11 @@ function validateGeneratedSession(
     ?? validateSessionAdjustmentFidelity(draft, context.sessionAdjustment)
     ?? activityFormatIssue
     ?? validateSessionQuestionContext(draft)
+    ?? validateSessionContentSpecificity({
+      draft,
+      goalTopic: context.learningGoal.topic,
+      sessionObjective: context.session.objective,
+    })
     ?? (scheduledRetrieval ? null : validateSessionDeliveryPolicy({
       policy: sessionDeliveryPolicy,
       learningMode: draft.methodBriefing.learningMode,
@@ -699,6 +712,7 @@ function validateGeneratedSession(
       activities: draft.activities,
     })
     ?? validateSubstantiveTeaching(draft)
+    ?? validateVisibleAdaptation(draft.methodBriefing.personalization, sessionDeliveryPolicy)
     ?? validateOutsideAppGuidance(draft, context.learningGoal.studyMode)
     ?? validateSessionSourceGrounding({
     sourceMode: context.learningGoal.sourceMode,

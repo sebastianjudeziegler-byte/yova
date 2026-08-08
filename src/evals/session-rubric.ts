@@ -6,6 +6,12 @@ import { validateMethodFidelity } from "@/lib/learning/method-fidelity";
 import { isScheduledRetrievalSession } from "@/lib/learning/scheduled-retrieval";
 import { validateSessionCompletionContract } from "@/lib/session-generation/completion-contract";
 import { validateSessionQuestionContext } from "@/lib/session-generation/question-context";
+import { validateSessionContentSpecificity } from "@/lib/session-generation/content-specificity";
+import {
+  buildSessionDeliveryPolicy,
+  type SessionDeliveryPolicy,
+} from "@/lib/personalization/session-delivery-policy";
+import { validateVisibleAdaptation } from "@/lib/personalization/visible-adaptation";
 
 export type SessionQualityCheck = {
   id: string;
@@ -27,8 +33,10 @@ export type SessionQualityResult = {
 const TASK_PATTERNS: Record<SessionTaskFamily, RegExp> = {
   conceptual: /explain|connect|compare|concept|model|retriev|recall|apply|process/i,
   problem_solving: /worked|example|solve|problem|practice|calculate|step|equation|derivativ|differentiat|rule|setup/i,
+  reading: /passage|text|detail|evidence|interpret|imagery|setting|claim|annotat|quote|read/i,
   writing: /thesis|evidence|outline|draft|write|claim|revise|argument/i,
   coding: /code|implement|debug|trace|array|function|program|map|filter|reduce/i,
+  language: /ask|answer|dialogue|exchange|speak|sentence|conversation|present tense|routine|question|respond|verb|grammar|spanish/i,
   general: /explain|example|scenario|apply|practice|review|compare|decision|calculate/i,
 };
 
@@ -37,6 +45,7 @@ export function evaluateSessionDraft(
   context: SessionGenerationContext,
   taskFamily: SessionTaskFamily,
   expectedSourceTerms: string[] = [],
+  generatedDeliveryPolicy?: SessionDeliveryPolicy,
 ): SessionQualityResult {
   const activityText = draft.activities.map((activity) => [
     activity.label,
@@ -163,6 +172,22 @@ export function evaluateSessionDraft(
       && Boolean(activity.teaching?.example || activity.teaching?.commonMistake)
     ));
   const questionContextIssue = validateSessionQuestionContext(draft);
+  const contentSpecificityIssue = validateSessionContentSpecificity({
+    draft,
+    goalTopic: context.learningGoal.topic,
+    sessionObjective: context.session.objective,
+  });
+  const deliveryPolicy = generatedDeliveryPolicy ?? buildSessionDeliveryPolicy({
+    learnerProfile: context.learnerProfile,
+    recentResults: context.recentResults,
+    recentInterruptions: context.recentInterruptions,
+    learningMode: context.session.learningMode,
+    estimatedMinutes: context.session.estimatedMinutes,
+  });
+  const visibleAdaptationIssue = validateVisibleAdaptation(
+    draft.methodBriefing.personalization,
+    deliveryPolicy,
+  );
 
   const checks: SessionQualityCheck[] = [
     check("activity_pacing", "Activity count fits the session", draft.activities.length >= 3 && draft.activities.length <= maximumActivities, 10, true, `${draft.activities.length}/${maximumActivities} maximum activities for ${context.session.estimatedMinutes} minutes`),
@@ -179,8 +204,9 @@ export function evaluateSessionDraft(
     check("honest_time_budget", "Required content fits the stated time window", timeBudgetHonest, 0, true, `${requiredMinutes} required and ${totalMinutes} total minutes inside a ${context.session.estimatedMinutes}-minute window`),
     check("content_completion", "Every target idea has required learning evidence", completionIsEvidenceBased, 0, true, completionContractIssue ?? `${draft.coverage.essentialIdeas.length} essential ideas mapped to ${requiredQuestionCount} required checks`),
     check("question_context", "Every question includes the context needed to answer", questionContextIssue === null, 0, true, questionContextIssue ?? `${questions.length} self-contained questions inspected`),
+    check("content_specificity", "The lesson names and teaches the actual subject content", contentSpecificityIssue === null, 0, true, contentSpecificityIssue ?? "Topic language and teaching coverage inspected"),
     check("substantive_teaching", "Learning sessions teach before they test", teachingIsSubstantive, 0, true, `${teachingActivities.length} modeled teaching activities inspected`),
-    check("visible_personalization", "The learner can see a concrete delivery adjustment", visiblePersonalization, 0, true, `${draft.methodBriefing.personalization.length} learner-facing adjustment explanations inspected`),
+    check("visible_personalization", "The learner can see a concrete evidence-linked delivery adjustment", visiblePersonalization && visibleAdaptationIssue === null, 0, true, visibleAdaptationIssue ?? `${draft.methodBriefing.personalization.length} learner-facing adjustment explanations inspected`),
     check("explainability", "The session explains why it is structured this way", draft.rationale.trim().length >= 40, 5, false, `${draft.rationale.trim().length} rationale characters`),
     check("no_personality_overclaim", "No fixed brain, diagnosis, or learning-style claim", noOverclaim, 5, true, "Checked learner-facing session text"),
   ];

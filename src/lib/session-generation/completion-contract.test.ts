@@ -54,6 +54,39 @@ describe("session completion contract", () => {
     expect(reconciled.coverage.evidenceMap[0].activityConcept).toBe("Investment terms");
   });
 
+  it("uses the actual question wording when a literary evidence label drifts", () => {
+    const reconciled = reconcileSessionCompletionMap({
+      coverage: {
+        evidenceMap: [{
+          essentialIdea: "The unopened door and Mara's closed posture suggest hesitation or uncertainty",
+          activityConcept: "Door and posture meaning",
+        }],
+      },
+      activities: [
+        {
+          type: "multiple_choice" as const,
+          concept: "Setting and tension",
+          requiredForCompletion: true,
+          title: "What does the storm contribute?",
+          body: "Choose the interpretation best supported by the storm pressing against the windows.",
+          choices: ["Tension", "Relief", "Celebration"],
+          correctAnswer: "Tension",
+        },
+        {
+          type: "free_response" as const,
+          concept: "Mara's hesitation",
+          requiredForCompletion: true,
+          title: "Connect the unopened door to Mara's posture",
+          body: "Explain how the trembling handle and her hands in her pockets suggest hesitation.",
+          choices: [],
+          correctAnswer: "The closed posture and unopened door suggest that Mara is hesitant to act.",
+        },
+      ],
+    });
+
+    expect(reconciled.coverage.evidenceMap[0].activityConcept).toBe("Mara's hesitation");
+  });
+
   it("rejects an essential idea that is only stated but never checked", () => {
     expect(validateSessionCompletionContract({
       essentialIdeas: ["ATP stores usable energy", "The stages pass products forward"],

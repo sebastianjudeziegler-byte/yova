@@ -76,6 +76,14 @@ describe("preview plan time windows", () => {
     ]));
   });
 
+  it("teaches before unsupported recall when a multi-session goal is new", () => {
+    const plan = generatePreviewPlan(requestWithMinutes(25));
+    expect(plan.sessions[0].learningMode).toBe("learn");
+    expect(plan.sessions[0].method).toBe("Guided explanation and self-explanation");
+    expect(plan.sessions[0].objective).toMatch(/first mental model/i);
+    expect(plan.sessions[0].completionEvidence?.[0]).toMatch(/after the model is hidden/i);
+  });
+
   it("routes a familiar one-off topic into retrieval before repair", () => {
     const request = requestWithMinutes(15);
     const plan = generatePreviewPlan({
@@ -92,5 +100,20 @@ describe("preview plan time windows", () => {
     expect(plan.sessions[0].completionEvidence).toEqual(expect.arrayContaining([
       expect.stringMatching(/attempt each target without notes/i),
     ]));
+  });
+
+  it.each([
+    ["history writing", "Draft a comparative history thesis using evidence from two primary sources", "outside", "Retrieval-based outlining"],
+    ["close reading", "Read a short story and explain how the storm imagery changes the narrator", "outside", "Read, recall, and review"],
+    ["programming", "Learn JavaScript array methods and use them in a small data transformation", "inside", "Guided explanation and self-explanation"],
+    ["language", "Learn enough Spanish to introduce myself and ask basic follow-up questions", "inside", "Guided explanation and self-explanation"],
+    ["general learning", "Understand how moral hazard changes incentives in insurance markets", "inside", "Guided explanation and self-explanation"],
+  ] as const)("keeps the %s journey specific and method-led", (_label, goal, studyMode, expectedMethod) => {
+    const request = requestWithMinutes(25);
+    const plan = generatePreviewPlan({ ...request, goal, studyMode });
+    expect(plan.sessions.length).toBeGreaterThan(0);
+    expect(plan.sessions[0].method).toBe(expectedMethod);
+    expect(plan.sessions[0].objective).not.toMatch(/first concept listed|relevant concept|current objective/i);
+    expect(plan.sessions.every((item) => item.contentTargets?.length && item.completionEvidence?.length)).toBe(true);
   });
 });

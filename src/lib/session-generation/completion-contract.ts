@@ -8,6 +8,10 @@ export type SessionCompletionContract = {
     type: "instruction" | "multiple_choice" | "free_response" | "reflection";
     concept: string | null;
     requiredForCompletion: boolean;
+    title?: string;
+    body?: string;
+    correctAnswer?: string | null;
+    choices?: string[];
   }>;
 };
 
@@ -25,15 +29,12 @@ type CompletionMappedDraft = {
  * YOVA discard an otherwise valid lesson.
  */
 export function reconcileSessionCompletionMap<T extends CompletionMappedDraft>(draft: T): T {
-  const requiredConcepts = unique(
-    draft.activities
-      .filter((activity) => (
-        activity.requiredForCompletion
-        && (activity.type === "multiple_choice" || activity.type === "free_response")
-        && activity.concept
-      ))
-      .map((activity) => activity.concept?.trim() ?? ""),
-  );
+  const requiredActivities = draft.activities.filter((activity) => (
+    activity.requiredForCompletion
+    && (activity.type === "multiple_choice" || activity.type === "free_response")
+    && activity.concept
+  ));
+  const requiredConcepts = unique(requiredActivities.map((activity) => activity.concept?.trim() ?? ""));
 
   return {
     ...draft,
@@ -41,7 +42,7 @@ export function reconcileSessionCompletionMap<T extends CompletionMappedDraft>(d
       ...draft.coverage,
       evidenceMap: draft.coverage.evidenceMap.map((mapping) => ({
         ...mapping,
-        activityConcept: canonicalActivityConcept(mapping, requiredConcepts),
+        activityConcept: canonicalActivityConcept(mapping, requiredConcepts, requiredActivities),
       })),
     },
   };
@@ -105,6 +106,7 @@ function matchesRequiredConcept(value: string, requiredConcepts: Set<string>) {
 function canonicalActivityConcept(
   mapping: { essentialIdea: string; activityConcept: string },
   requiredConcepts: string[],
+  requiredActivities: SessionCompletionContract["activities"],
 ) {
   const exact = requiredConcepts.find((concept) => normalize(concept) === normalize(mapping.activityConcept));
   if (exact) return exact;
@@ -120,7 +122,15 @@ function canonicalActivityConcept(
   const ranked = requiredConcepts
     .map((concept) => ({
       concept,
-      score: meaningfulTokens(concept).filter((token) => sourceTokens.includes(token)).length,
+      score: Math.max(...requiredActivities
+        .filter((activity) => normalize(activity.concept ?? "") === normalize(concept))
+        .map((activity) => meaningfulTokens([
+          activity.concept,
+          activity.title,
+          activity.body,
+          activity.correctAnswer,
+          ...(activity.choices ?? []),
+        ].filter(Boolean).join(" ")).filter((token) => sourceTokens.includes(token)).length)),
     }))
     .sort((left, right) => right.score - left.score);
   if (ranked[0]?.score && ranked[0].score > (ranked[1]?.score ?? 0)) return ranked[0].concept;

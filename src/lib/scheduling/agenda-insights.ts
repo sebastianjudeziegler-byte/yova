@@ -99,6 +99,9 @@ export function buildAgendaBalanceSuggestion(entries: ScheduledLearningEntry[], 
       .sort((a, b) => a.session.sequence - b.session.sequence);
     const previousTime = sourceIndex > 0 ? new Date(planEntries[sourceIndex - 1].session.scheduledFor).getTime() : Number.NEGATIVE_INFINITY;
     const nextTime = sourceIndex >= 0 && sourceIndex < planEntries.length - 1 ? new Date(planEntries[sourceIndex + 1].session.scheduledFor).getTime() : Number.POSITIVE_INFINITY;
+    const sourceMinutesAfterMove = heavy.totalMinutes - entry.session.estimatedMinutes;
+    const sourceSessionsAfterMove = heavy.entries.length - 1;
+    if (loadFor(sourceMinutesAfterMove, sourceSessionsAfterMove) === "heavy") continue;
 
     for (let offset = 1; offset <= 3; offset += 1) {
       const target = addLocalDays(sourceDate, offset);
@@ -167,13 +170,15 @@ export function buildDailyCapacityPlan(
   const groups = buildAgendaDayGroups(entries, now, 10);
   const candidates = [...todayEntries].sort(capacityMovePriority);
   for (const entry of candidates) {
+    const projectedMinutes = todayMinutes - entry.session.estimatedMinutes;
+    if (projectedMinutes > capacityMinutes) continue;
     const target = findCapacityMoveTarget(entry, entries, groups, now);
     if (!target) continue;
     return {
       status: "move",
       capacityMinutes,
       todayMinutes,
-      projectedMinutes: todayMinutes - entry.session.estimatedMinutes,
+      projectedMinutes,
       entry,
       scheduledFor: target.scheduledFor,
       toDateKey: target.toDateKey,

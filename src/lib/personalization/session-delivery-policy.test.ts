@@ -82,6 +82,22 @@ describe("session delivery policy", () => {
     expect(policy.learnerFacingReasons.join(" ")).toContain("getting started");
   });
 
+  it("turns a concise explanation request into a visible delivery decision", () => {
+    const policy = buildSessionDeliveryPolicy({
+      learnerProfile: {
+        explanationPreference: "Keep grammar explanations concise and tied to speech",
+      },
+      recentResults: noResults,
+      recentInterruptions: noInterruptions,
+      learningMode: "learn",
+      estimatedMinutes: 20,
+    });
+
+    expect(policy.presentation.label).toBe("Concise explanation");
+    expect(policy.presentation.instruction).toContain("tie every rule to the action");
+    expect(policy.learnerFacingReasons.join(" ")).toContain("concise explanations");
+  });
+
   it("uses repeated early exits to narrow pacing without changing the learning target", () => {
     const policy = buildSessionDeliveryPolicy({
       learnerProfile: {

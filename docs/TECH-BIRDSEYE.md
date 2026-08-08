@@ -116,11 +116,11 @@ Uploaded text is treated as untrusted content, not as instructions to the system
 
 Article importing is a **server-side ingestion boundary**. The browser sends a URL to YOVA, the server verifies that it is a public HTTPS address, blocks private-network destinations and unsafe redirects, limits the download size and time, extracts the readable page text, and stores the result as a private text material. A paywalled, signed-in, unsupported, or unreadable page is rejected instead of bypassed.
 
-YouTube works differently. A normal video URL gives YOVA the public video title, but reliable caption download requires an authorized YouTube data flow. Lite therefore asks the learner to open YouTube's visible transcript, copy it, and paste it into YOVA. That is a deliberate product boundary: a slightly more explicit step is preferable to an unofficial scraper that could stop working or import the wrong text.
+YouTube works differently. A normal video URL gives YOVA the public video title, but reliable caption download requires an authorized YouTube data flow. YOVA therefore asks the learner to open YouTube's visible transcript, copy it, and paste it into YOVA. That is a deliberate product boundary: a slightly more explicit step is preferable to an unofficial scraper that could stop working or import the wrong text.
 
 Material quality has three practical states. **Ready** means YOVA found substantial readable content. **Limited** means the file is usable but short or reached the 50,000-character extraction boundary, so the user sees a warning. **Unusable** means the file is scanned without selectable text, damaged, binary, or contains too little readable content; YOVA removes the failed staged upload and asks for a clearer source instead of pretending it can generate a grounded plan.
 
-## 8. Personalization in Lite
+## 8. Personalization in YOVA
 
 YOVA combines four categories of evidence:
 
