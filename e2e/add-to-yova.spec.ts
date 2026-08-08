@@ -22,7 +22,7 @@ test("a deadline can live in Agenda, be completed, and stay out of Learning", as
   await page.getByRole("button", { name: /Choose what YOVA should do/ }).click();
   await page.getByRole("button", { name: /Track the deadline/ }).click();
 
-  await expect(page.getByRole("heading", { name: /Good (morning|afternoon|evening), Learner\./ })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Your week at a glance" })).toBeVisible();
   await page.reload();
   await page.getByRole("button", { name: "Agenda", exact: true }).click();
   await page.getByRole("button", { name: "Open Lab Report deadline" }).click();
@@ -122,7 +122,8 @@ test("one account never sees another account's deadline", async ({ browser }) =>
 });
 
 async function openAdd(page: Page, description: string) {
-  await page.getByRole("button", { name: "Add something to YOVA", exact: true }).click();
+  await page.getByRole("button", { name: "Agenda", exact: true }).click();
+  await page.getByRole("button", { name: "Add to Agenda", exact: true }).click();
   await expect(page.getByRole("heading", { name: "What do you need to learn, prepare for, or complete?" })).toBeVisible();
   await page.getByPlaceholder(/I have a World War I test/).fill(description);
   await page.getByRole("button", { name: /Organize this/ }).click();

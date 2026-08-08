@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { interpretIntake } from "@/lib/intake/interpret";
+import { interpretIntake, resolveLearningTitle } from "@/lib/intake/interpret";
 
 const NOW = new Date("2026-08-07T12:00:00-07:00");
 
@@ -87,5 +87,19 @@ describe("universal Add intake", () => {
     expect(focused.requestedMinutes).toBe(20);
     expect(assignment.itemType).toBe("assignment");
     expect(assignment.dueAt).not.toBeNull();
+  });
+
+  it("repairs generic saved plan names from their actual topic", () => {
+    expect(resolveLearningTitle(
+      "Personalized learning plan",
+      "I want to learn new vocabulary words so I can be better in conversation",
+    )).toBe("Conversation Vocabulary Builder");
+  });
+
+  it("turns sentence-like assignment names into a concise subject title", () => {
+    expect(resolveLearningTitle(
+      "Thermodynamics Essay. I Have an Essay That I Have",
+      "I have an essay about thermodynamics due next week",
+    )).toBe("Thermodynamics Essay");
   });
 });

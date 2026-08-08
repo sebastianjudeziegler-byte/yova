@@ -1,6 +1,7 @@
 import type { LearningPlan, SessionCompletion, SessionInterruption, YovaPreviewSnapshot } from "@/lib/domain";
 import { ConfidenceEvidenceListSchema } from "@/lib/learning/confidence-calibration";
 import { inferLegacySessionLearningMode } from "@/lib/learning/learning-intent";
+import { resolveLearningTitle } from "@/lib/intake/interpret";
 import {
   readSessionEvidenceSnapshot,
   readSessionPendingRepair,
@@ -44,6 +45,7 @@ function normalizePreviewPlan(plan: LearningPlan): LearningPlan {
     : "study";
   return {
     ...plan,
+    title: resolveLearningTitle(plan.title, plan.topic),
     learningIntent,
     sessions: plan.sessions.map((session) => ({
       ...session,

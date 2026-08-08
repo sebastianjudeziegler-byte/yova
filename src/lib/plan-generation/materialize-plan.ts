@@ -5,7 +5,7 @@ import {
   type PlanGenerationRequest,
 } from "@/lib/plan-generation/schema";
 import { teachingFirstSessionCopy } from "@/lib/learning/learning-intent";
-import { deriveLearningTitle } from "@/lib/intake/interpret";
+import { resolveLearningTitle } from "@/lib/intake/interpret";
 
 export function materializePlanDraft(
   untrustedDraft: GeneratedPlanDraft,
@@ -13,11 +13,10 @@ export function materializePlanDraft(
 ): LearningPlan {
   const draft = GeneratedPlanDraftSchema.parse(untrustedDraft);
   const planId = makeUuid();
-  const genericTitle = /^(personalized learning plan|learning plan|study plan|new learning goal)$/i.test(draft.title.trim());
-  const title = genericTitle ? deriveLearningTitle(request.goal) : draft.title;
   const topic = /^(the goal and concepts described by the learner|learning topic|general topic)$/i.test(draft.topic.trim())
     ? request.goal.trim().slice(0, 300)
     : draft.topic;
+  const title = resolveLearningTitle(draft.title, request.goal || topic);
 
   return {
     id: planId,

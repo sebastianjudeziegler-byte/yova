@@ -39,6 +39,7 @@ export function deriveLearningTitle(description: string, itemType: IntakeItemTyp
   const text = normalize(description);
   const known = [
     { pattern: /lab report/i, title: "Lab Report" },
+    { pattern: /thermodynam/i, title: /essay|paper/i.test(text) ? "Thermodynamics Essay" : "Thermodynamics" },
     { pattern: /history essay/i, title: "History Essay" },
     { pattern: /world war (?:i|1)|wwi|first world war/i, title: itemType === "test" ? "World War I Test Prep" : "World War I" },
     { pattern: /startup.*fund|funding.*startup|term sheets?|dilution/i, title: "Startup Funding Foundations" },
@@ -64,6 +65,28 @@ export function deriveLearningTitle(description: string, itemType: IntakeItemTyp
   const base = words.length ? titleCase(words.join(" ")) : "New learning goal";
   if (itemType === "test" && !/test|exam|quiz/i.test(base)) return `${base} Test Prep`.slice(0, 100);
   return base.slice(0, 100);
+}
+
+const GENERIC_LEARNING_TITLE = /^(personalized learning plan|personalized study plan|learning plan|study plan|new learning goal|untitled(?: plan)?)$/i;
+
+/**
+ * Keeps learner-facing titles short and specific, including plans created before
+ * stricter title validation was added. The original topic remains the source of
+ * truth when the generated title is generic or reads like an unedited prompt.
+ */
+export function resolveLearningTitle(candidate: string, context: string) {
+  const title = normalize(candidate).replace(/[.,;:]+$/g, "");
+  const source = normalize(context);
+  const sentenceLike = title.length > 72
+    || /[.!?]\s+\S/.test(title)
+    || /\b(?:i|my|we|our)\s+(?:have|need|want|am|are|would|will)\b/i.test(title);
+  const repeatedFragment = /\b(.{8,35})\b[\s.,:;-]+\1\b/i.test(title);
+
+  if (!title || GENERIC_LEARNING_TITLE.test(title) || sentenceLike || repeatedFragment) {
+    return deriveLearningTitle(source || title);
+  }
+
+  return title.slice(0, 72);
 }
 
 function inferType(description: string): IntakeItemType {

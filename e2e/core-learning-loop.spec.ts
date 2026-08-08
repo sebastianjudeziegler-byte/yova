@@ -572,9 +572,15 @@ test("the product shell keeps every core destination and creation path usable", 
   await page.getByRole("button", { name: "You", exact: true }).click();
 
   await page.getByRole("button", { name: "Home", exact: true }).click();
-  await page.locator(".quick-actions button").filter({ hasText: "Add to YOVA" }).click();
+  await page.locator(".quick-actions button").filter({ hasText: "Create another plan" }).click();
+  await expect(page.getByRole("heading", { name: "What do you need to learn or prepare for?" })).toBeVisible();
+  await page.getByRole("button", { name: "Cancel" }).click();
+
+  await page.getByRole("button", { name: "Agenda", exact: true }).click();
+  await page.getByRole("button", { name: "Add to Agenda", exact: true }).click();
   await expect(page.getByRole("heading", { name: "What do you need to learn, prepare for, or complete?" })).toBeVisible();
   await page.getByRole("button", { name: "Cancel" }).click();
+  await page.getByRole("button", { name: "Home", exact: true }).click();
 
   await page.getByRole("button", { name: "Study something now", exact: true }).first().click();
   await expect(page.getByRole("heading", { name: "What do you want help with?" })).toBeVisible();
@@ -860,7 +866,8 @@ async function openMobileSessionGuide(page: Page) {
 }
 
 async function beginPlanFromAdd(page: Page, description: string) {
-  await page.getByRole("button", { name: "Add something to YOVA", exact: true }).click();
+  await page.getByRole("button", { name: "Agenda", exact: true }).click();
+  await page.getByRole("button", { name: "Add to Agenda", exact: true }).click();
   await page.getByPlaceholder("Example: I have a World War I test in two weeks. I am starting from the beginning and I have a study guide.").fill(description);
   await page.getByRole("button", { name: "Organize this" }).click();
   await expect(page.getByRole("heading", { name: "Here is what YOVA understood." })).toBeVisible();

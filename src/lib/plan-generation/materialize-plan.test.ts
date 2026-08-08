@@ -48,4 +48,16 @@ describe("materializePlanDraft", () => {
     });
     expect(plan.sessions[0].objective).toMatch(/first mental model/i);
   });
+
+  it("repairs generic generated titles before a plan reaches Learning", () => {
+    const plan = materializePlanDraft({
+      ...staleDraft,
+      title: "Personalized learning plan",
+    }, {
+      ...request,
+      goal: "I want to learn new vocabulary words so I can be better in conversation",
+    });
+
+    expect(plan.title).toBe("Conversation Vocabulary Builder");
+  });
 });

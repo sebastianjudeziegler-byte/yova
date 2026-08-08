@@ -19,6 +19,7 @@ import {
   readSessionPendingRepair,
 } from "@/lib/learning/session-resume";
 import { inferLegacySessionLearningMode } from "@/lib/learning/learning-intent";
+import { resolveLearningTitle } from "@/lib/intake/interpret";
 import { readSessionAdaptationNote } from "@/lib/personalization/adaptation-note";
 import {
   encodeAdditionalLearnerContext,
@@ -226,7 +227,7 @@ export async function loadAuthenticatedLearningState(): Promise<CloudLearningSta
     return [{
       id: planRow.id,
       learningItemId: item.id,
-      title: item.title,
+      title: resolveLearningTitle(item.title, item.topic),
       topic: item.topic,
       kind: item.kind,
       deadline: item.deadline,
