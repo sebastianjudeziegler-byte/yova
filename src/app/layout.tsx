@@ -5,6 +5,7 @@ import "@fontsource/sora/600.css";
 import "@fontsource/sora/700.css";
 import "katex/dist/katex.min.css";
 import "./globals.css";
+import "./polish.css";
 import type { Metadata, Viewport } from "next";
 import { getSiteUrl } from "@/lib/site-url";
 
