@@ -64,6 +64,13 @@ export function validateGeneratedPlanQuality(
     weekday: "long",
     timeZone: request.timeZone,
   });
+  const dateFormatter = new Intl.DateTimeFormat("en-CA", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    timeZone: request.timeZone,
+  });
+  const scheduledMinutesByDate = new Map<string, { weekday: string; minutes: number }>();
 
   for (const [index, session] of draft.sessions.entries()) {
     if (deadline !== null && new Date(session.scheduledFor).getTime() > deadline) {
@@ -81,6 +88,14 @@ export function validateGeneratedPlanQuality(
     } else if (session.estimatedMinutes > availableMinutes) {
       issues.push(`Session ${index + 1} needs ${session.estimatedMinutes} minutes, but the learner only made ${availableMinutes} minutes available.`);
     }
+    const scheduledDate = new Date(session.scheduledFor);
+    const dateKey = dateFormatter.format(scheduledDate);
+    const scheduledDay = scheduledMinutesByDate.get(dateKey) ?? {
+      weekday: weekdayFormatter.format(scheduledDate),
+      minutes: 0,
+    };
+    scheduledDay.minutes += session.estimatedMinutes;
+    scheduledMinutesByDate.set(dateKey, scheduledDay);
 
     const sessionBudget = contentBudgetForMinutes(session.estimatedMinutes);
     if (session.contentTargets.length > sessionBudget.maximumContentTargets) {
@@ -89,7 +104,7 @@ export function validateGeneratedPlanQuality(
     if (session.completionEvidence.length > sessionBudget.maximumCompletionChecks) {
       issues.push(`Session ${index + 1} is ${session.estimatedMinutes} minutes but requires ${session.completionEvidence.length} separate completion checks; its limit is ${sessionBudget.maximumCompletionChecks}.`);
     }
-    if (!session.completionEvidence.every((item) => ACTIVE_EVIDENCE_PATTERN.test(item))) {
+    if (!session.completionEvidence.every(isActiveCompletionEvidence)) {
       issues.push(`Session ${index + 1} must define completion through something the learner produces or attempts, not time spent or passive exposure.`);
     }
 
@@ -112,6 +127,15 @@ export function validateGeneratedPlanQuality(
       issues.push(`Session ${index + 1} must name an approved YOVA learning method instead of a generic activity label.`);
     } else if (!getCoreLearningMethod(methodId).taskTypes.includes(routing.taskType)) {
       issues.push(`Session ${index + 1} uses ${getCoreLearningMethod(methodId).name}, which does not fit its ${routing.taskType.replaceAll("_", " ")} task.`);
+    }
+  }
+
+  if (request.intent === "plan") {
+    for (const [date, scheduled] of scheduledMinutesByDate) {
+      const availableMinutes = totalMinutesForWeekday(scheduled.weekday, request.availability);
+      if (availableMinutes !== null && scheduled.minutes > availableMinutes) {
+        issues.push(`${date} contains ${scheduled.minutes} planned minutes, but the learner only made ${availableMinutes} total minutes available that day.`);
+      }
     }
   }
 
@@ -151,14 +175,28 @@ export function validateGeneratedPlanQuality(
   return issues.length > 0 ? issues.slice(0, 8).join(" ") : null;
 }
 
+export function isActiveCompletionEvidence(value: string) {
+  return ACTIVE_EVIDENCE_PATTERN.test(value);
+}
+
 function maximumMinutesForWeekday(
   weekday: string,
   availability: PlanGenerationRequest["availability"],
 ) {
   const matches = availability
-    .filter((slot) => slot.day.toLowerCase() === weekday.toLowerCase())
+    .filter((slot) => slot.day.toLowerCase() === weekday.toLowerCase() || slot.day.toLowerCase() === "every day")
     .map((slot) => slot.minutes);
   return matches.length > 0 ? Math.max(...matches) : null;
+}
+
+function totalMinutesForWeekday(
+  weekday: string,
+  availability: PlanGenerationRequest["availability"],
+) {
+  const matches = availability
+    .filter((slot) => slot.day.toLowerCase() === weekday.toLowerCase() || slot.day.toLowerCase() === "every day")
+    .map((slot) => slot.minutes);
+  return matches.length > 0 ? matches.reduce((total, minutes) => total + minutes, 0) : null;
 }
 
 function normalize(value: string) {

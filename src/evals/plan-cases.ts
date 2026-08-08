@@ -13,6 +13,9 @@ export function buildPlanEvaluationCases(now = new Date()): PlanEvaluationCase[]
   const deadline = new Date(now);
   deadline.setUTCDate(deadline.getUTCDate() + 7);
   deadline.setUTCHours(23, 0, 0, 0);
+  const twoWeekDeadline = new Date(now);
+  twoWeekDeadline.setUTCDate(twoWeekDeadline.getUTCDate() + 14);
+  twoWeekDeadline.setUTCHours(23, 0, 0, 0);
 
   return [
     evaluationCase({
@@ -49,6 +52,101 @@ export function buildPlanEvaluationCases(now = new Date()): PlanEvaluationCase[]
       diagnosticAnswer: "I know the power rule but do not know when to use the product or quotient rule.",
       diagnosticEvaluation: "incorrect",
       profileSummary: "The learner prefers examples first, wants medium guidance, and is more consistent with 30-minute sessions than long study blocks.",
+    }),
+    evaluationCase({
+      id: "product_rule_narrow_15",
+      label: "One product-rule skill in short sessions",
+      taskFamily: "problem_solving",
+      goal: "Learn the product rule from scratch and use it independently.",
+      learningIntent: "learn",
+      deadline: null,
+      materialMode: "none",
+      materials: [],
+      studyMode: "inside",
+      diagnosticAnswer: "I know the power rule, but I have not learned the product rule.",
+      diagnosticEvaluation: "incorrect",
+      profileSummary: "The learner wants one complete example before trying a similar problem, prefers one visible step at a time, and often studies in 15-minute windows.",
+      availability: [
+        { day: "Monday", window: "Evening", minutes: 15 },
+        { day: "Wednesday", window: "Evening", minutes: 15 },
+        { day: "Saturday", window: "Morning", minutes: 15 },
+      ],
+    }),
+    evaluationCase({
+      id: "world_war_one_guide_15",
+      label: "World War I unit guide in short sessions",
+      taskFamily: "conceptual",
+      goal: "Prepare for my World War I unit test from the beginning using my teacher's study guide.",
+      learningIntent: "learn",
+      deadline: twoWeekDeadline.toISOString(),
+      materialMode: "upload",
+      materials: [{
+        id: "9f758b2d-4768-47af-bd84-f48ce42fa6a2",
+        name: "World War I unit study guide.pdf",
+        mimeType: "application/pdf",
+        sizeBytes: 2_400,
+        textContent: [
+          "# Long-term causes",
+          "Militarism, alliances, imperial competition, and nationalism increased tension among European powers.",
+          "# The alliance systems",
+          "The Triple Alliance and Triple Entente connected a local crisis to wider commitments.",
+          "# The July Crisis",
+          "Austria-Hungary's ultimatum to Serbia and the sequence of mobilizations widened the conflict.",
+          "# The Western Front",
+          "The Schlieffen Plan failed to produce a quick victory, and trench warfare developed.",
+          "# The Eastern Front",
+          "Fighting remained more mobile, while Russia faced severe military and political strain.",
+          "# United States entry",
+          "Unrestricted submarine warfare and the Zimmermann Telegram helped shift public and political support.",
+          "# The armistice",
+          "Military exhaustion and political crisis contributed to the end of fighting in November 1918.",
+          "# Consequences of the war",
+          "The peace settlement redrew borders and created political and economic tensions.",
+        ].join("\n"),
+        processingStatus: "ready",
+      }],
+      studyMode: "inside",
+      diagnosticAnswer: "I am starting from the beginning and cannot yet explain the causes or sequence of the war.",
+      diagnosticEvaluation: "incorrect",
+      profileSummary: "The learner wants the big picture before details, prefers a small hint before an answer, forgets material after a few days, and realistically completes 15-minute sessions.",
+      availability: [
+        { day: "Monday", window: "Evening", minutes: 15 },
+        { day: "Wednesday", window: "Evening", minutes: 15 },
+        { day: "Saturday", window: "Morning", minutes: 15 },
+      ],
+    }),
+    evaluationCase({
+      id: "calculus_broad_pathway_30",
+      label: "Full beginner calculus pathway",
+      taskFamily: "problem_solving",
+      goal: "Learn all of calculus from the beginning, including limits, derivatives, and integrals.",
+      learningIntent: "learn",
+      deadline: null,
+      materialMode: "none",
+      materials: [],
+      studyMode: "inside",
+      diagnosticAnswer: "I am starting from the beginning and only remember basic algebra and functions.",
+      diagnosticEvaluation: "incorrect",
+      profileSummary: "The learner wants the overall map before details, benefits from one worked example before guided practice, and prefers 30-minute sessions with moderate structure.",
+      availability: [
+        { day: "Monday", window: "Evening", minutes: 30 },
+        { day: "Wednesday", window: "Evening", minutes: 30 },
+        { day: "Saturday", window: "Morning", minutes: 30 },
+      ],
+    }),
+    evaluationCase({
+      id: "startup_funding_general_25",
+      label: "General-learning startup funding pathway",
+      taskFamily: "general",
+      goal: "Learn startup funding stages, investors, instruments, dilution, valuation, and term sheets from the beginning.",
+      learningIntent: "learn",
+      deadline: null,
+      materialMode: "none",
+      materials: [],
+      studyMode: "inside",
+      diagnosticAnswer: "I know startups raise money, but I do not understand how the stages or deal terms connect.",
+      diagnosticEvaluation: "incorrect",
+      profileSummary: "The learner prefers practical examples, wants the big picture before details, and completes focused 25-minute sessions more consistently than long blocks.",
     }),
     evaluationCase({
       id: "history_writing_outside",
@@ -108,6 +206,7 @@ function evaluationCase(input: {
   diagnosticAnswer: string;
   diagnosticEvaluation: "correct" | "incorrect" | "self_report";
   profileSummary: string;
+  availability?: PlanGenerationRequest["availability"];
 }): PlanEvaluationCase {
   return {
     id: input.id,
@@ -127,7 +226,7 @@ function evaluationCase(input: {
         answer: input.diagnosticAnswer,
         evaluation: input.diagnosticEvaluation,
       }],
-      availability: [
+      availability: input.availability ?? [
         { day: "Monday", window: "Evening", minutes: 25 },
         { day: "Wednesday", window: "Evening", minutes: 30 },
         { day: "Saturday", window: "Morning", minutes: 40 },

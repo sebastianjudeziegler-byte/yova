@@ -21,7 +21,14 @@ export function buildPlanPreferenceContract(profileSummary: string): PlanPrefere
   const schedule = recommendStudySchedule(profileSummary);
   const presentation = includes(normalized, "concrete example before the rule", "a concrete example first", "examples before")
     ? part("Example first", "Open teaching sessions with one concrete case before naming the general rule.", "You asked for examples before rules.")
-    : includes(normalized, "big picture before the details", "big picture first")
+    : includes(
+        normalized,
+        "big picture before the details",
+        "big picture before details",
+        "big picture first",
+        "overall map before details",
+        "overall model before details",
+      )
       ? part("Big picture first", "Show the overall relationship before introducing details and terminology.", "You asked to see the overall model before the details.")
       : includes(normalized, "clear sequence of small steps", "step-by-step instructions", "small steps")
         ? part("Step by step", "Break new procedures into a short visible sequence, then fade the steps.", "You asked for a clear sequence when material is new.")
@@ -30,7 +37,7 @@ export function buildPlanPreferenceContract(profileSummary: string): PlanPrefere
           : includes(normalized, "comparing similar ideas")
             ? part("Contrast first", "Show the target beside its most plausible confusing alternative and name the difference.", "You said comparing similar ideas can help.")
             : part("Task-led explanation", "Present each idea in the clearest sequence for the actual task.", "YOVA will use the task as the primary presentation signal until more evidence is available.");
-  const support = includes(normalized, "small hint first")
+  const support = includes(normalized, "small hint first", "small hint before", "hint before the answer", "hint before an answer")
     ? part("Hint before answer", "After a miss, reveal one bounded cue before the complete correction.", "You asked for a small hint before the answer.")
     : includes(normalized, "different example")
       ? part("Another example", "After a miss, use a different concrete case before the retry.", "You asked for a new example when stuck.")
@@ -43,7 +50,14 @@ export function buildPlanPreferenceContract(profileSummary: string): PlanPrefere
             : part("Evidence-led support", "Use the smallest amount of help that repairs the demonstrated gap.", "YOVA will adjust support from the learner's actual attempts.");
   const retention = includes(normalized, "recognize it but cannot recall")
     ? part("Recall without cues", "Schedule closed-note retrieval before answer review.", "You said recognition can be stronger than recall.")
-    : includes(normalized, "forget it after a few days", "forgets it after a few days", "fade after a few days")
+    : includes(
+        normalized,
+        "forget it after a few days",
+        "forgets it after a few days",
+        "forgets material after a few days",
+        "forget material after a few days",
+        "fade after a few days",
+      )
       ? part("Return after a delay", "Add a short delayed retrieval after initial learning instead of repeating the same material immediately.", "You said information can fade after a few days.")
       : includes(normalized, "confuse similar ideas")
         ? part("Distinguish close ideas", "Include comparison checks that require choosing which concept applies.", "You said similar ideas can become confused.")
@@ -52,7 +66,7 @@ export function buildPlanPreferenceContract(profileSummary: string): PlanPrefere
           : includes(normalized, "with help but not independently")
             ? part("Fade support", "Start with enough guidance to succeed, then remove it before completion.", "You said supported work does not always transfer to independent work.")
             : part("Task-led retention", "Use the retrieval or application check that best matches the task.", "YOVA will select retention work from the content and later performance.");
-  const workspace = includes(normalized, "show one step at a time")
+  const workspace = includes(normalized, "show one step at a time", "one visible step at a time", "one step at a time")
     ? part("One step at a time", "Keep one current action prominent while leaving the path available on demand.", "You asked for one step to be prominent at a time.")
     : includes(normalized, "keep the full path visible")
       ? part("Full path visible", "Keep the plan path visible while one current action remains primary.", "You asked to see the whole path while working.")

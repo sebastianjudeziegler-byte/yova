@@ -80,6 +80,13 @@ describe("generated plan quality gate", () => {
     expect(validateGeneratedPlanQuality(draft, makeRequest())).toMatch(/only made 20 minutes available/i);
   });
 
+  it("rejects multiple sessions that exceed the day's total available time", () => {
+    const draft = makeDraft();
+    draft.sessions[1].scheduledFor = draft.sessions[0].scheduledFor;
+
+    expect(validateGeneratedPlanQuality(draft, makeRequest())).toMatch(/45 planned minutes.*25 total minutes available/i);
+  });
+
   it("rejects a method that does not fit the actual learning task", () => {
     const draft = makeDraft();
     draft.sessions[0].method = "Scaffolded coding";

@@ -74,6 +74,8 @@ const RELIABLE_METHODS: ReadonlySet<`${"learn" | "study"}:${CoreMethodId}`> = ne
   "study:retrieval_practice",
 ]);
 
+export const RELIABLE_SESSION_PROVIDER_TIMEOUT_MS = 28_000;
+
 /**
  * The compact generator deliberately supports only session shapes it can
  * execute faithfully with one model, one check, and one explanation. More
@@ -189,7 +191,10 @@ export async function generateReliableSessionWithOpenAI(
         store: false,
       }, {
         maxRetries: 0,
-        timeout: 14_000,
+        // A valid structured lesson can take longer than a plain chat reply.
+        // Keep this below the route budget while avoiding false failures on
+        // coherent lessons that are still being generated.
+        timeout: RELIABLE_SESSION_PROVIDER_TIMEOUT_MS,
       });
     } catch (error) {
       if (attempt === 0 && error instanceof Error && error.name === "ZodError") {

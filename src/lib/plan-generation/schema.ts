@@ -59,13 +59,19 @@ export const GeneratedSessionDraftSchema = z.object({
   title: z.string().trim().min(3).max(90),
   objective: z.string().trim().min(10).max(280),
   method: z.string().trim().min(3).max(80),
-  methodReason: z.string().trim().min(10).max(280),
+  methodReason: z.string().trim().min(10).max(280).describe(
+    "Plain-language reason grounded in the task or current knowledge. It may mention a reported preference as tentative context, but must never claim a fixed learning style, brain type, diagnosis, or that the learner learns best in one way.",
+  ),
   scheduledFor: z.string().datetime({ offset: true }),
   estimatedMinutes: z.number().int().min(5).max(180),
   amountLabel: z.string().trim().min(3).max(100),
-  learningMode: z.enum(["learn", "study"]),
+  learningMode: z.enum(["learn", "study"]).describe(
+    "Use learn when the session's first job is building a new mental model or procedure. Use study when its first job is retrieving, applying, practicing, assessing, or repairing knowledge already encountered. Every multi-session learn-first plan must later include at least one study session.",
+  ),
   contentTargets: z.array(z.string().trim().min(5).max(180)).min(1).max(6),
-  completionEvidence: z.array(z.string().trim().min(8).max(220)).min(1).max(4),
+  completionEvidence: z.array(z.string().trim().min(8).max(220).describe(
+    "Observable evidence produced by the learner. Start with an active verb such as Explain, Solve, Apply, Classify, Compare, Construct, Draft, Recall, or Demonstrate. Never define completion as reading, reviewing, watching, exposure, or time spent.",
+  )).min(1).max(4),
 });
 
 export const GeneratedPlanDraftSchema = z.object({
@@ -73,7 +79,9 @@ export const GeneratedPlanDraftSchema = z.object({
   topic: z.string().trim().min(3).max(180),
   kind: z.enum(["test", "topic", "course", "book", "skill"]),
   deadline: z.string().datetime({ offset: true }).nullable(),
-  rationale: z.string().trim().min(20).max(900),
+  rationale: z.string().trim().min(20).max(900).describe(
+    "Explain the plan sequence using the goal, starting knowledge, time, and tentative delivery preferences. Never claim a fixed learning style, brain type, diagnosis, or that the learner learns best in one way.",
+  ),
   sessions: z.array(GeneratedSessionDraftSchema).min(1).max(14),
 });
 

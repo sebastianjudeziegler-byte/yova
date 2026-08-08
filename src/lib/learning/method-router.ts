@@ -253,7 +253,7 @@ const TASK_SIGNAL_RULES: Record<LearningTaskType, WeightedTaskSignal[]> = {
     { pattern: /\b(javascript|typescript|python|java|swift|kotlin|rust|react|sql|html|css|c\+\+)\b/i, weight: 8, evidence: "programming language" },
     { pattern: /\b(write|build|implement|debug|refactor|trace|run|test)\b.{0,45}\b(code|program|script|function|class|component|algorithm)\b/i, weight: 8, evidence: "code creation or debugging" },
     { pattern: /\b(coding|programming|code tracing|software development)\b/i, weight: 7, evidence: "programming task" },
-    { pattern: /\b(loop|variable|data structure|api endpoint|unit test|compiler)\b/i, weight: 4, evidence: "programming construct" },
+    { pattern: /\b(loop|variable|data structure|api endpoint|compiler)\b/i, weight: 4, evidence: "programming construct" },
   ],
   mixed_assessment: [
     { pattern: /\b(practice test|mock exam|mixed assessment|cumulative (?:test|exam|review)|final review|exam readiness)\b/i, weight: 10, evidence: "mixed assessment" },

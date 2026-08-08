@@ -123,7 +123,7 @@ describe("reliable OpenAI session generation", () => {
     const result = await generateReliableSessionWithOpenAI(context());
 
     expect(parseResponse).toHaveBeenCalledTimes(1);
-    expect(parseResponse.mock.calls[0]?.[1]).toEqual({ maxRetries: 0, timeout: 14_000 });
+    expect(parseResponse.mock.calls[0]?.[1]).toEqual({ maxRetries: 0, timeout: 28_000 });
     expect(result.draft.activities[0]?.teaching?.explanation).toContain("circadian clock");
     expect(result.draft.activities.find((activity) => activity.type === "free_response")?.correctAnswer)
       .toContain("pineal gland");

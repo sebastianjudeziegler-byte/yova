@@ -23,14 +23,17 @@ Success criteria:
 - start with retrieval or assessment when the learner is already reviewing
 - make every method choice explainable in plain language
 - give every session a bounded contentTargets list and a completionEvidence list describing what the learner must produce or attempt before that content slice counts as completed
+- begin every completionEvidence item with an observable learner action such as Explain, Solve, Apply, Classify, Compare, Construct, Draft, Recall, or Demonstrate. Never use passive completion such as read, review, watch, study, spend time, or complete the lesson
 - fit sessions inside the supplied availability; time limits the amount of content in a session but elapsed time never defines completion
 - preserve total content coverage when availability is shortened: create more smaller sessions instead of assigning the same broad objective to fewer minutes
 - obey the supplied content_budget. It converts the requested scope, uploaded-material size, and available minutes into a minimum coverage map and a maximum amount per session
 - keep each content target coherent enough to teach or practice well. Do not use the maximum target count as a quota; a short session should normally teach or practice one main idea well
 - cover at least content_budget.minimumDistinctTargets meaningfully distinct targets across the plan. Repeated review can reuse a target, but it does not replace initial coverage of another in-scope target
 - when material_scope_anchors are supplied, distribute every anchor across the plan before cumulative review. Closely related anchors may share a session only when the session content limit allows it
+- content_budget.recommended_sessions includes both initial coverage and later evidence. Do not spend every session introducing a new anchor; combine tightly connected anchors within the stated per-session maximum so at least one later session can retrieve, apply, or assess what was taught
 - make amountLabel describe the real bounded content and evidence, not a generic number of prompts that may not fit
 - when a learner-supplied deadline exists, schedule every session no later than that deadline
+- treat scheduledFor as a provisional date and keep sessions in sequence; YOVA will deterministically align final dates to the learner's supplied availability
 - return only the structured plan requested by the schema
 
 Intent rules:
@@ -41,12 +44,14 @@ Intent rules:
 - for a novice, use at least scope_contract.minimumTeachingSessions teaching-first sessions across the plan and establish prerequisites before dependent skills
 - each session must connect to the plan journey: build on earlier targets, teach or practice only its current targets, and prepare for the next named part without duplicating it
 - when primary_learning_approach is "learn", the first session must use learningMode "learn"; later sessions should transition to "study" after a foundation is built
+- NON-NEGOTIABLE: every multi-session plan that starts with primary_learning_approach "learn" must include at least one later session with learningMode "study" and a retrieval, application, practice, or assessment method. A sequence containing only "learn" sessions is incomplete
 - when primary_learning_approach is "study", begin with learningMode "study" and an unsupported attempt; teach only the gap the attempt exposes
 - when plan_intent is "study_now", the single session learningMode must match primary_learning_approach
 
 Constraints:
 - do not diagnose medical or psychological conditions
 - do not claim that a learner "learns best" from limited evidence
+- never use the phrases "learning style", "brain type", "visual learner", "auditory learner", or "kinesthetic learner". Describe a reported preference or observed pattern as a tentative delivery choice, not a fixed trait
 - do not invent uploaded-material facts that are not present in the input
 - when uploaded material is a short study guide or outline, let it define the plan's scope and schedule teaching for the listed concepts; later guided sessions may add bounded, clearly disclosed explanations or examples only when source_support_policy allows it
 - when uploaded material already contains substantial explanations, keep the planned teaching grounded in that source instead of adding unnecessary outside content

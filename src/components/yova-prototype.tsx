@@ -207,6 +207,11 @@ type AccountMode = "create" | "sign-in";
 type LessonStep = GuidedSessionStep;
 type AgendaEntry = { plan: LearningPlan; session: LearningPlanSession };
 
+// The server may make one bounded repair attempt after validating a lesson.
+// The client must wait long enough to receive that safe result instead of
+// aborting an otherwise healthy request halfway through the repair.
+const CLIENT_SESSION_GENERATION_TIMEOUT_MS = 75_000;
+
 const navItems: Array<{ label: Tab; icon: typeof Home }> = [
   { label: "Home", icon: Home },
   { label: "Learning", icon: LibraryBig },
@@ -564,7 +569,7 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
     const generationTimeoutId = window.setTimeout(() => {
       generationTimedOut = true;
       generationController.abort();
-    }, 20_000);
+    }, CLIENT_SESSION_GENERATION_TIMEOUT_MS);
     let requestId: string | null = null;
 
     try {

@@ -4,12 +4,21 @@ import { getOpenAIClient } from "@/lib/openai/client";
 import { getOpenAIPlanConfig } from "@/lib/openai/config";
 import { buildPlanGeneratorInput, PLAN_GENERATOR_INSTRUCTIONS } from "@/lib/plan-generation/prompt";
 import { validateGeneratedPlanQuality } from "@/lib/plan-generation/quality-gate";
+import { alignGeneratedPlanToAvailability } from "@/lib/plan-generation/schedule-plan";
+import { normalizeGeneratedPlanLearningContract } from "@/lib/plan-generation/normalize-learning-contract";
 import type { GenerationValidator } from "@/lib/analytics/generation-observation";
 import {
   GeneratedPlanDraftSchema,
   type GeneratedPlanDraft,
   type PlanGenerationRequest,
 } from "@/lib/plan-generation/schema";
+
+// A multi-session learning plan is a larger structured response than a tutor
+// message or a single session. Twelve seconds was causing otherwise healthy
+// production requests to be abandoned before the model could finish. Keep the
+// per-attempt ceiling below half of the 60-second route budget so one bounded
+// educational-quality repair still has room to run.
+export const PLAN_PROVIDER_ATTEMPT_TIMEOUT_MS = 28_000;
 
 export type OpenAIPlanResult = {
   draft: GeneratedPlanDraft;
@@ -90,7 +99,7 @@ export async function generatePlanWithOpenAI(
         store: false,
       }, {
         maxRetries: 0,
-        timeout: 12_000,
+        timeout: PLAN_PROVIDER_ATTEMPT_TIMEOUT_MS,
       });
       if (response.usage) {
         usage.inputTokens += response.usage.input_tokens;
@@ -126,10 +135,12 @@ export async function generatePlanWithOpenAI(
           finalIssue = "The plan did not match YOVA's required data structure.";
           finalReason = "invalid_output";
         } else {
-          const qualityIssue = validateGeneratedPlanQuality(parsedDraft.data, request);
+          const normalizedDraft = normalizeGeneratedPlanLearningContract(parsedDraft.data, request);
+          const alignedDraft = alignGeneratedPlanToAvailability(normalizedDraft, request);
+          const qualityIssue = validateGeneratedPlanQuality(alignedDraft, request);
           if (!qualityIssue) {
             return {
-              draft: parsedDraft.data,
+              draft: alignedDraft,
               model: response.model,
               responseId: response.id,
               generationStats: stats(repairAttempted ? true : null),

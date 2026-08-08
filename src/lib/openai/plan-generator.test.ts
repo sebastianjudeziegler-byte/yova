@@ -32,13 +32,16 @@ const request = PlanGenerationRequestSchema.parse({
   profileSummary: "The learner wants concise corrections and one focused task at a time.",
 });
 
-function makeDraft(completionEvidence: string) {
+function makeDraft(
+  completionEvidence: string,
+  rationale = "Begin without notes so the session exposes the exact relationship that needs repair.",
+) {
   return GeneratedPlanDraftSchema.parse({
     title: "Cellular respiration review",
     topic: "How the stages of cellular respiration produce ATP",
     kind: "topic",
     deadline: null,
-    rationale: "Begin without notes so the session exposes the exact relationship that needs repair.",
+    rationale,
     sessions: [{
       title: "Retrieve the respiration sequence",
       objective: "Reconstruct the major stages and explain how they contribute to ATP production.",
@@ -80,12 +83,18 @@ describe("OpenAI plan generation quality repair", () => {
 
     expect(result.responseId).toBe("response-valid");
     expect(parseResponse).toHaveBeenCalledTimes(1);
-    expect(parseResponse.mock.calls[0]?.[1]).toEqual({ maxRetries: 0, timeout: 12_000 });
+    expect(parseResponse.mock.calls[0]?.[1]).toEqual({
+      maxRetries: 0,
+      timeout: 28_000,
+    });
   });
 
   it("gives OpenAI one specific repair attempt after an educational-quality failure", async () => {
     parseResponse
-      .mockResolvedValueOnce(providerResponse("response-passive", makeDraft("Spend 15 minutes reading the explanation")))
+      .mockResolvedValueOnce(providerResponse("response-fixed-claim", makeDraft(
+        "Recall the complete sequence without notes",
+        "You are a visual learner, so this is how your brain learns best.",
+      )))
       .mockResolvedValueOnce(providerResponse(
         "response-repaired",
         makeDraft("Recall the complete sequence and explain one energy relationship without notes"),
@@ -96,13 +105,19 @@ describe("OpenAI plan generation quality repair", () => {
 
     expect(result.responseId).toBe("response-repaired");
     expect(parseResponse).toHaveBeenCalledTimes(2);
-    expect(parseResponse.mock.calls[1]?.[0]?.instructions).toMatch(/repair attempt[\s\S]*produces or attempts/i);
+    expect(parseResponse.mock.calls[1]?.[0]?.instructions).toMatch(/repair attempt[\s\S]*unsupported fixed learning-style/i);
   });
 
   it("stops safely when the repaired plan still fails", async () => {
     parseResponse
-      .mockResolvedValueOnce(providerResponse("response-passive-1", makeDraft("Spend 15 minutes reading the explanation")))
-      .mockResolvedValueOnce(providerResponse("response-passive-2", makeDraft("Spend 15 minutes reviewing the summary")));
+      .mockResolvedValueOnce(providerResponse("response-fixed-claim-1", makeDraft(
+        "Recall the complete sequence without notes",
+        "You are a visual learner, so this is how your brain learns best.",
+      )))
+      .mockResolvedValueOnce(providerResponse("response-fixed-claim-2", makeDraft(
+        "Recall the complete sequence without notes",
+        "Your learning style proves that diagrams are the only useful format.",
+      )));
     const { generatePlanWithOpenAI } = await import("@/lib/openai/plan-generator");
 
     await expect(generatePlanWithOpenAI(request)).rejects.toMatchObject({

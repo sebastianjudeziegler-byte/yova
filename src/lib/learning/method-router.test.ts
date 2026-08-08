@@ -66,6 +66,8 @@ describe("learning-science method router", () => {
     ["Calculate limiting reagent amounts in chemistry problems", "problem_solving"],
     ["Write a Python function that filters an array", "programming"],
     ["Debug a JavaScript function and test the corrected code", "programming"],
+    ["Write a unit test for a TypeScript function", "programming"],
+    ["Prepare for a World War I unit test by explaining the July Crisis and alliance systems", "conceptual_learning"],
     ["Read this history article and prepare for a reading quiz", "reading_to_quiz"],
     ["Summarize the assigned textbook chapter before the quiz", "reading_to_quiz"],
     ["Use imagery and passage details to support a close-reading interpretation", "reading_to_quiz"],

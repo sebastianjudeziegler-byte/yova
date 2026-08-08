@@ -21,4 +21,15 @@ describe("plan preference contract", () => {
     expect(contract.recommendedWindow).toBe("Evening");
     expect(contract.recommendedMinutes).toBe(25);
   });
+
+  it("understands natural summaries instead of requiring questionnaire wording", () => {
+    const contract = buildPlanPreferenceContract(
+      "The learner wants the big picture before details, prefers a small hint before an answer, forgets material after a few days, and wants one visible step at a time.",
+    );
+
+    expect(contract.presentation.label).toBe("Big picture first");
+    expect(contract.support.label).toBe("Hint before answer");
+    expect(contract.retention.label).toBe("Return after a delay");
+    expect(contract.workspace.label).toBe("One step at a time");
+  });
 });
