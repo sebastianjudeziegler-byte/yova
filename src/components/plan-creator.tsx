@@ -7,9 +7,13 @@ import {
   ArrowRight,
   CalendarDays,
   Check,
+  Clock3,
   FileText,
   Layers3,
+  Moon,
+  SlidersHorizontal,
   Sparkles,
+  SunMedium,
   Trash2,
   Upload,
 } from "lucide-react";
@@ -31,6 +35,15 @@ import {
 import { generatePreviewPlan } from "@/lib/plan-generation/preview-generator";
 import { LEARNING_INTENT_COPY, resolveLearningIntent } from "@/lib/learning/learning-intent";
 import { assessGoalContext } from "@/lib/learning/goal-context";
+import {
+  deadlineDateFromGoal,
+  frequencyIndexes,
+  frequencyLabel,
+  recommendStudySchedule,
+  type StudyFrequency,
+  type StudySessionLength,
+  type StudyWindow,
+} from "@/lib/personalization/study-schedule";
 
 type PlanStep = "goal" | "source" | "schedule" | "diagnostic" | "confirm" | "loading" | "error" | "result";
 type SourceChoice = "materials" | "yova" | "outside";
@@ -50,6 +63,7 @@ type DiagnosticQuestion = {
 };
 
 export function PlanCreator({ onExit, onFinish, profileSummary, browserPreviewMode = false }: { onExit: () => void; onFinish: (plan: LearningPlan) => void; profileSummary: string; browserPreviewMode?: boolean }) {
+  const scheduleRecommendation = recommendStudySchedule(profileSummary);
   const [step, setStep] = useState<PlanStep>("goal");
   const [goal, setGoal] = useState("");
   const [sourceChoice, setSourceChoice] = useState<SourceChoice | null>(null);
@@ -59,7 +73,17 @@ export function PlanCreator({ onExit, onFinish, profileSummary, browserPreviewMo
   const [processingMaterials, setProcessingMaterials] = useState(false);
   const [removingMaterialId, setRemovingMaterialId] = useState<string | null>(null);
   const [deadlineDate, setDeadlineDate] = useState("");
-  const [availabilityChoices, setAvailabilityChoices] = useState<AvailabilityChoice[]>(() => defaultAvailability(profileSummary));
+  const [studyFrequency, setStudyFrequency] = useState<StudyFrequency>(scheduleRecommendation.frequency);
+  const [preferredWindows, setPreferredWindows] = useState<StudyWindow[]>([scheduleRecommendation.window]);
+  const [sessionLength, setSessionLength] = useState<StudySessionLength>(scheduleRecommendation.minutes);
+  const [customScheduleOpen, setCustomScheduleOpen] = useState(false);
+  const [availabilityChoices, setAvailabilityChoices] = useState<AvailabilityChoice[]>(() => configureAvailability(
+    defaultAvailability(profileSummary),
+    scheduleRecommendation.frequency,
+    [scheduleRecommendation.window],
+    scheduleRecommendation.minutes,
+    scheduleRecommendation.window,
+  ));
   const [diagnosticIndex, setDiagnosticIndex] = useState(0);
   const [diagnosticAnswers, setDiagnosticAnswers] = useState<string[]>([]);
   const [generatedPlan, setGeneratedPlan] = useState<PlanGenerationResponse | null>(null);
@@ -70,6 +94,10 @@ export function PlanCreator({ onExit, onFinish, profileSummary, browserPreviewMo
   const availability = availabilityChoices
     .filter((choice) => choice.enabled)
     .map(({ day, window, minutes }) => ({ day, window, minutes }));
+  const availabilityWindows = availability.reduce<Record<string, number>>((summary, slot) => {
+    summary[slot.window] = (summary[slot.window] ?? 0) + 1;
+    return summary;
+  }, {});
   const diagnosticQuestions = questionsForGoal(goal);
   const diagnosticResponses = buildDiagnosticResponses(diagnosticQuestions, diagnosticAnswers);
   const learningApproach = resolveLearningIntent({ goal, diagnosticResponses });
@@ -216,6 +244,45 @@ export function PlanCreator({ onExit, onFinish, profileSummary, browserPreviewMo
     setStep(target);
   };
 
+  const applyQuickSchedule = (
+    frequency = studyFrequency,
+    windows = preferredWindows,
+    minutes = sessionLength,
+  ) => {
+    setAvailabilityChoices((current) => configureAvailability(
+      current,
+      frequency,
+      windows,
+      minutes,
+      scheduleRecommendation.window,
+    ));
+  };
+
+  const chooseFrequency = (frequency: StudyFrequency) => {
+    setStudyFrequency(frequency);
+    setCustomScheduleOpen(false);
+    applyQuickSchedule(frequency, preferredWindows, sessionLength);
+  };
+
+  const togglePreferredWindow = (window: StudyWindow) => {
+    const nextWindows = window === "Anytime"
+      ? ["Anytime" as const]
+      : preferredWindows.includes(window)
+        ? preferredWindows.length === 1
+          ? preferredWindows
+          : preferredWindows.filter((item) => item !== window)
+        : [...preferredWindows.filter((item) => item !== "Anytime"), window];
+    setPreferredWindows(nextWindows);
+    setCustomScheduleOpen(false);
+    applyQuickSchedule(studyFrequency, nextWindows, sessionLength);
+  };
+
+  const chooseSessionLength = (minutes: StudySessionLength) => {
+    setSessionLength(minutes);
+    setCustomScheduleOpen(false);
+    applyQuickSchedule(studyFrequency, preferredWindows, minutes);
+  };
+
   const activateGeneratedPlan = async () => {
     if (!generatedPlan || !generatedFrom || activating) return;
     setActivationError(null);
@@ -305,12 +372,35 @@ export function PlanCreator({ onExit, onFinish, profileSummary, browserPreviewMo
         </PlanPanel>
       )}
 
-      {step === "schedule" && (
-        <PlanPanel eyebrow="DEADLINE AND AVAILABILITY" title="When can you realistically study?" description="Broad windows are enough. YOVA does not need control of the student’s calendar.">
-          <label className="deadline-card"><CalendarDays /><div><span>Target date · optional</span><strong>{deadlineDate ? formatDateOnly(deadlineDate) : "No fixed deadline"}</strong></div><input type="date" min={todayDateInput()} value={deadlineDate} onChange={(event) => setDeadlineDate(event.target.value)} /></label>
-          <div className="availability-list editable">{availabilityChoices.map((choice, index) => <div className={choice.enabled ? "enabled" : ""} key={`${choice.day}-${choice.dateLabel}`}><button className="availability-toggle" type="button" aria-label={`${choice.enabled ? "Remove" : "Add"} ${choice.day}`} aria-pressed={choice.enabled} onClick={() => setAvailabilityChoices((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, enabled: !item.enabled } : item))}>{choice.enabled && <Check size={14} />}</button><div><strong>{choice.day}</strong><small>{choice.dateLabel}</small></div><select aria-label={`${choice.day} time window`} value={choice.window} disabled={!choice.enabled} onChange={(event) => setAvailabilityChoices((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, window: event.target.value as AvailabilityChoice["window"] } : item))}><option>Morning</option><option>Afternoon</option><option>Evening</option></select><select aria-label={`${choice.day} available minutes`} value={choice.minutes} disabled={!choice.enabled} onChange={(event) => setAvailabilityChoices((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, minutes: Number(event.target.value) } : item))}><option value={15}>15 min</option><option value={25}>25 min</option><option value={30}>30 min</option><option value={45}>45 min</option><option value={60}>60 min</option></select></div>)}</div>
-          <p className="plain-note">Select at least one realistic window. YOVA uses these limits when deciding how much work belongs in each session.</p>
+      {step === "schedule" && !customScheduleOpen && (
+        <PlanPanel wide eyebrow="YOUR STUDY RHYTHM" title="When would you prefer to study this material?" description="Choose a realistic pattern. YOVA will build the learning sequence around it and adapt the schedule as your results change.">
+          <div className="schedule-builder-layout">
+            <div className="schedule-quick-builder">
+              <fieldset className="schedule-question"><legend><span>1</span> How often can you study?</legend><div className="schedule-choice-grid frequency">{(["every_day", "most_days", "three_four", "one_two"] as StudyFrequency[]).map((frequency) => <button type="button" key={frequency} className={studyFrequency === frequency && !customScheduleOpen ? "selected" : ""} onClick={() => chooseFrequency(frequency)}><CalendarDays size={18} /><strong>{frequencyLabel(frequency)}</strong>{scheduleRecommendation.frequency === frequency && <small>Recommended</small>}</button>)}<button type="button" className={customScheduleOpen ? "selected" : ""} onClick={() => setCustomScheduleOpen(true)}><SlidersHorizontal size={18} /><strong>Custom</strong><small>Choose each day</small></button></div></fieldset>
+              <fieldset className="schedule-question"><legend><span>2</span> When do you prefer to study?</legend><div className="schedule-choice-grid windows">{(["Morning", "Afternoon", "Evening", "Anytime"] as StudyWindow[]).map((window) => <button type="button" key={window} className={preferredWindows.includes(window) && !customScheduleOpen ? "selected" : ""} onClick={() => togglePreferredWindow(window)}>{window === "Morning" ? <SunMedium size={18} /> : window === "Evening" ? <Moon size={18} /> : <Clock3 size={18} />}<strong>{window}</strong>{scheduleRecommendation.window === window && <small>Recommended</small>}</button>)}</div></fieldset>
+              <fieldset className="schedule-question"><legend><span>3</span> What is a realistic session length?</legend><div className="schedule-choice-grid lengths">{([15, 25, 45, 60] as StudySessionLength[]).map((minutes) => <button type="button" key={minutes} className={sessionLength === minutes && !customScheduleOpen ? "selected" : ""} onClick={() => chooseSessionLength(minutes)}><strong>{minutes} min</strong>{scheduleRecommendation.minutes === minutes && <small>Recommended</small>}</button>)}</div></fieldset>
+            </div>
+            <aside className="schedule-preview-card">
+              <label className="schedule-deadline"><CalendarDays /><span><small>Target date</small><strong>{deadlineDate ? formatDateOnly(deadlineDate) : "No fixed deadline"}</strong></span><input aria-label="Target date" type="date" min={todayDateInput()} value={deadlineDate} onChange={(event) => setDeadlineDate(event.target.value)} /></label>
+              <div className="schedule-preview-summary"><Sparkles /><div><span>YOVA preview</span><strong>{availability.length} study {availability.length === 1 ? "window" : "windows"} available</strong><p>{scheduleRecommendation.reason}</p></div></div>
+              <div className="schedule-preview-windows">{Object.entries(availabilityWindows).map(([window, count]) => <div key={window}>{window === "Morning" ? <SunMedium size={17} /> : window === "Evening" ? <Moon size={17} /> : <Clock3 size={17} />}<strong>{window}</strong><span>{durationLabel(availability.filter((slot) => slot.window === window).map((slot) => slot.minutes))}</span><small>{count} {count === 1 ? "session" : "sessions"}</small></div>)}</div>
+              <small className="schedule-preview-note">These are availability limits, not mandatory appointments. YOVA will only schedule the amount of learning the plan actually needs.</small>
+            </aside>
+          </div>
           <PlanActions onBack={back} onNext={() => setStep("diagnostic")} nextDisabled={availability.length === 0} />
+        </PlanPanel>
+      )}
+
+      {step === "schedule" && customScheduleOpen && (
+        <PlanPanel wide eyebrow="CUSTOM TIMETABLE" title="Build your study week" description="Choose the exact days, time of day, and maximum session length that work for you.">
+          <section className="schedule-customizer standalone">
+            <header>
+              <div><span className="step-label">YOUR AVAILABILITY</span><h2>{availability.length} study {availability.length === 1 ? "window" : "windows"} selected</h2><p>YOVA treats these as limits, not mandatory appointments. The plan will use only the time the material actually needs.</p></div>
+              <label className="custom-deadline"><span>Target date</span><input aria-label="Custom target date" type="date" min={todayDateInput()} value={deadlineDate} onChange={(event) => setDeadlineDate(event.target.value)} /></label>
+            </header>
+            <div className="availability-list editable">{availabilityChoices.map((choice, index) => <div className={choice.enabled ? "enabled" : ""} key={`${choice.day}-${choice.dateLabel}`}><button className="availability-toggle" type="button" aria-label={`${choice.enabled ? "Remove" : "Add"} ${choice.day}`} aria-pressed={choice.enabled} onClick={() => setAvailabilityChoices((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, enabled: !item.enabled } : item))}>{choice.enabled && <Check size={14} />}</button><div><strong>{choice.day}</strong><small>{choice.dateLabel}</small></div><select aria-label={`${choice.day} time window`} value={choice.window} disabled={!choice.enabled} onChange={(event) => setAvailabilityChoices((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, window: event.target.value as AvailabilityChoice["window"] } : item))}><option>Morning</option><option>Afternoon</option><option>Evening</option></select><select aria-label={`${choice.day} available minutes`} value={choice.minutes} disabled={!choice.enabled} onChange={(event) => setAvailabilityChoices((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, minutes: Number(event.target.value) } : item))}><option value={15}>15 min</option><option value={25}>25 min</option><option value={30}>30 min</option><option value={45}>45 min</option><option value={60}>60 min</option></select></div>)}</div>
+          </section>
+          <PlanActions onBack={() => setCustomScheduleOpen(false)} backLabel="Quick choices" onNext={() => setStep("diagnostic")} nextLabel="Use this timetable" nextDisabled={availability.length === 0} />
         </PlanPanel>
       )}
 
@@ -371,8 +461,8 @@ export function PlanCreator({ onExit, onFinish, profileSummary, browserPreviewMo
   );
 }
 
-function PlanPanel({ eyebrow, title, description, children }: { eyebrow: string; title: string; description: string; children: React.ReactNode }) {
-  return <section className="plan-panel"><span className="step-label">{eyebrow}</span><h1>{title}</h1><p className="plan-description">{description}</p>{children}</section>;
+function PlanPanel({ eyebrow, title, description, children, wide = false }: { eyebrow: string; title: string; description: string; children: React.ReactNode; wide?: boolean }) {
+  return <section className={`plan-panel ${wide ? "wide" : ""}`}><span className="step-label">{eyebrow}</span><h1>{title}</h1><p className="plan-description">{description}</p>{children}</section>;
 }
 
 function PlanActions({ onBack, onNext, backLabel = "Back", nextLabel = "Continue", nextDisabled = false }: { onBack: () => void; onNext: () => void; backLabel?: string; nextLabel?: string; nextDisabled?: boolean }) {
@@ -392,41 +482,43 @@ function formatSessionDate(value: string) {
 }
 
 function defaultAvailability(profileSummary: string): AvailabilityChoice[] {
-  const preferredWindow: AvailabilityChoice["window"] = /morning/i.test(profileSummary)
-    ? "Morning"
-    : /evening|late night/i.test(profileSummary)
-      ? "Evening"
-      : "Afternoon";
-  const sessionRange = profileSummary.match(/(10|20|30|45)\s*(?:to|-)\s*(15|30|45|60) minutes/i);
-  const preferredMinutes = sessionRange ? Number(sessionRange[2]) : 30;
+  const recommendation = recommendStudySchedule(profileSummary);
+  const preferredWindow: AvailabilityChoice["window"] = recommendation.window === "Anytime" ? "Afternoon" : recommendation.window;
 
-  return Array.from({ length: 5 }, (_, index) => {
+  return Array.from({ length: 7 }, (_, index) => {
     const date = new Date();
     date.setDate(date.getDate() + index);
     return {
       day: new Intl.DateTimeFormat("en-US", { weekday: "long" }).format(date),
       dateLabel: new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(date),
       window: preferredWindow,
-      minutes: preferredMinutes,
-      enabled: index < 4,
+      minutes: recommendation.minutes,
+      enabled: frequencyIndexes(recommendation.frequency).includes(index),
     };
   });
 }
 
-function todayDateInput() {
-  const date = new Date();
-  const offset = date.getTimezoneOffset();
-  return new Date(date.getTime() - offset * 60_000).toISOString().slice(0, 10);
+function configureAvailability(
+  choices: AvailabilityChoice[],
+  frequency: StudyFrequency,
+  windows: StudyWindow[],
+  minutes: StudySessionLength,
+  recommendedWindow: StudyWindow,
+) {
+  const enabledIndexes = frequencyIndexes(frequency);
+  const concreteWindows = windows.includes("Anytime")
+    ? [recommendedWindow === "Anytime" ? "Afternoon" : recommendedWindow]
+    : windows.filter((window): window is AvailabilityChoice["window"] => window !== "Anytime");
+  return choices.map((choice, index) => ({
+    ...choice,
+    enabled: enabledIndexes.includes(index),
+    window: concreteWindows[index % concreteWindows.length] ?? "Afternoon",
+    minutes,
+  }));
 }
 
-function deadlineDateFromGoal(goal: string) {
+function todayDateInput() {
   const date = new Date();
-  if (/tomorrow/i.test(goal)) date.setDate(date.getDate() + 1);
-  else if (/next friday|\bfriday\b/i.test(goal)) {
-    const daysUntilFriday = (5 - date.getDay() + 7) % 7 || 7;
-    date.setDate(date.getDate() + daysUntilFriday);
-  } else return "";
-
   const offset = date.getTimezoneOffset();
   return new Date(date.getTime() - offset * 60_000).toISOString().slice(0, 10);
 }
@@ -437,6 +529,13 @@ function deadlineAtEndOfDay(value: string) {
 
 function formatDateOnly(value: string) {
   return new Intl.DateTimeFormat("en-US", { weekday: "long", month: "short", day: "numeric" }).format(new Date(`${value}T12:00:00`));
+}
+
+function durationLabel(minutes: number[]) {
+  const unique = [...new Set(minutes)].sort((a, b) => a - b);
+  if (!unique.length) return "";
+  if (unique.length === 1) return `${unique[0]} min`;
+  return `${unique[0]}–${unique.at(-1)} min`;
 }
 
 function questionsForGoal(goal: string): DiagnosticQuestion[] {
