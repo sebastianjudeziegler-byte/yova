@@ -7,6 +7,7 @@ import type {
   GeneratedPlanDraft,
   PlanGenerationRequest,
 } from "@/lib/plan-generation/schema";
+import { buildPlanContentBudget, contentBudgetForMinutes } from "@/lib/plan-generation/content-budget";
 import { inferPlanScopeContract } from "@/lib/plan-generation/scope-contract";
 
 const ACTIVE_EVIDENCE_PATTERN = /\b(answer|apply|attempt|build|calculate|choose|classify|compare|complete|construct|create|debug|demonstrate|distinguish|draft|evaluate|explain|formulate|identify|implement|label|map|outline|perform|produce|recall|retrieve|revise|select|solve|summarize|test|trace|write)\b/i;
@@ -19,6 +20,7 @@ export function validateGeneratedPlanQuality(
 ): string | null {
   const issues: string[] = [];
   const scope = inferPlanScopeContract(request);
+  const contentBudget = buildPlanContentBudget(request, scope);
 
   if (request.intent === "study_now" && draft.sessions.length !== 1) {
     issues.push("A study-now request must produce exactly one focused session.");
@@ -26,6 +28,9 @@ export function validateGeneratedPlanQuality(
 
   if (request.intent === "plan" && draft.sessions.length < scope.minimumSessions) {
     issues.push(`${scope.label} needs at least ${scope.minimumSessions} sessions so the requested scope is not superficially compressed.`);
+  }
+  if (request.intent === "plan" && draft.sessions.length < contentBudget.minimumSessions) {
+    issues.push(`The supplied material and session length need at least ${contentBudget.minimumSessions} sessions so the content is not compressed.`);
   }
   if (request.intent === "plan" && draft.sessions.length > scope.maximumSessions) {
     issues.push(`${scope.label} should use no more than ${scope.maximumSessions} sessions in YOVA Lite.`);
@@ -77,11 +82,12 @@ export function validateGeneratedPlanQuality(
       issues.push(`Session ${index + 1} needs ${session.estimatedMinutes} minutes, but the learner only made ${availableMinutes} minutes available.`);
     }
 
-    if (session.estimatedMinutes <= 15 && session.contentTargets.length > 2) {
-      issues.push(`Session ${index + 1} is only ${session.estimatedMinutes} minutes but contains more than two content targets.`);
+    const sessionBudget = contentBudgetForMinutes(session.estimatedMinutes);
+    if (session.contentTargets.length > sessionBudget.maximumContentTargets) {
+      issues.push(`Session ${index + 1} is ${session.estimatedMinutes} minutes but contains ${session.contentTargets.length} content targets; its limit is ${sessionBudget.maximumContentTargets}.`);
     }
-    if (session.estimatedMinutes <= 15 && session.completionEvidence.length > 2) {
-      issues.push(`Session ${index + 1} is only ${session.estimatedMinutes} minutes but requires too many separate completion checks.`);
+    if (session.completionEvidence.length > sessionBudget.maximumCompletionChecks) {
+      issues.push(`Session ${index + 1} is ${session.estimatedMinutes} minutes but requires ${session.completionEvidence.length} separate completion checks; its limit is ${sessionBudget.maximumCompletionChecks}.`);
     }
     if (!session.completionEvidence.every((item) => ACTIVE_EVIDENCE_PATTERN.test(item))) {
       issues.push(`Session ${index + 1} must define completion through something the learner produces or attempts, not time spent or passive exposure.`);
@@ -106,6 +112,18 @@ export function validateGeneratedPlanQuality(
       issues.push(`Session ${index + 1} must name an approved YOVA learning method instead of a generic activity label.`);
     } else if (!getCoreLearningMethod(methodId).taskTypes.includes(routing.taskType)) {
       issues.push(`Session ${index + 1} uses ${getCoreLearningMethod(methodId).name}, which does not fit its ${routing.taskType.replaceAll("_", " ")} task.`);
+    }
+  }
+
+  if (request.intent === "plan") {
+    const distinctTargets = new Set(
+      draft.sessions
+        .flatMap((session) => session.contentTargets)
+        .map(normalize)
+        .filter(Boolean),
+    ).size;
+    if (distinctTargets < contentBudget.minimumDistinctTargets) {
+      issues.push(`The plan maps only ${distinctTargets} distinct content targets, but this scope needs at least ${contentBudget.minimumDistinctTargets}.`);
     }
   }
 

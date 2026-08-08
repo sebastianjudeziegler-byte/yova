@@ -94,6 +94,18 @@ describe("generated plan quality gate", () => {
     expect(validateGeneratedPlanQuality(draft, makeRequest())).toMatch(/produces or attempts/i);
   });
 
+  it("rejects more content targets than a short session can teach coherently", () => {
+    const draft = makeDraft();
+    draft.sessions[0].contentTargets = [
+      "Glycolysis",
+      "The Krebs cycle",
+      "Electron transport",
+      "Fermentation",
+    ];
+
+    expect(validateGeneratedPlanQuality(draft, makeRequest())).toMatch(/contains 4 content targets; its limit is 3/i);
+  });
+
   it("rejects teaching plans that never transition into practice", () => {
     const draft = makeDraft();
     draft.sessions[1].learningMode = "learn";

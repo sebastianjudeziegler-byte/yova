@@ -84,6 +84,10 @@ export function canGenerateReliableSession(originalContext: SessionGenerationCon
   const context = applyCurrentSessionAdjustment(originalContext);
   if (context.learningGoal.studyMode !== "inside_yova") return false;
   if (context.session.estimatedMinutes > 30) return false;
+  // The compact path teaches and checks one coherent subject idea. A session
+  // with several planned targets needs the full generator so every target is
+  // either evidenced now or explicitly deferred rather than silently dropped.
+  if ((context.session.contentTargets?.length ?? 0) > 1) return false;
   if (
     context.recentResults.length > 0
     || context.recentInterruptions.length > 0
@@ -319,6 +323,7 @@ function buildReliableDraft({
   const minutes = allocateMinutes(context.session.estimatedMinutes);
   const learningMode = context.session.learningMode;
   const phases = activityPhases(routing.suggestedPrimaryMethodId, learningMode);
+  const coverageTarget = context.session.contentTargets?.[0] ?? lesson.essentialIdea;
   const correctChoice = lesson.check.choices[lesson.check.correctChoiceIndex]!;
   const teaching = {
     keyIdea: lesson.keyIdea,
@@ -328,7 +333,7 @@ function buildReliableDraft({
   };
   const check = {
     methodPhase: phases.check,
-    concept: lesson.concept,
+    concept: coverageTarget,
     estimatedMinutes: minutes[1],
     requiredForCompletion: true,
     label: learningMode === "learn" ? "Check" : "Recall",
@@ -342,7 +347,7 @@ function buildReliableDraft({
   };
   const explanation = {
     methodPhase: phases.explain,
-    concept: lesson.concept,
+    concept: coverageTarget,
     estimatedMinutes: minutes[2],
     requiredForCompletion: true,
     label: learningMode === "learn" ? "Explain" : "Apply",
@@ -395,13 +400,13 @@ function buildReliableDraft({
     rationale: `${method.name} fits this ${routing.taskType.replaceAll("_", " ")} task. YOVA is using the learner's current context to adjust the presentation and amount of support without changing the learning target.`,
     coverage: {
       focus: lesson.focus,
-      essentialIdeas: [lesson.essentialIdea],
+      essentialIdeas: [coverageTarget],
       completionEvidence: [
         `Choose the accurate relationship for ${lesson.concept} and explain it in your own words.`,
       ],
       evidenceMap: [{
-        essentialIdea: lesson.essentialIdea,
-        activityConcept: lesson.concept,
+        essentialIdea: coverageTarget,
+        activityConcept: coverageTarget,
       }],
       // The compact generator receives the whole bounded objective. It should
       // not guess that a differently worded target was deferred.

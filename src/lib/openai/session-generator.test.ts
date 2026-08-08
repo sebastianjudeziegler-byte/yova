@@ -104,6 +104,59 @@ describe("substantive teaching validation", () => {
   });
 });
 
+describe("session content-volume validation", () => {
+  it("requires every planned target to be covered or explicitly deferred", async () => {
+    const { validateSessionCoverageFidelity } = await import("@/lib/openai/session-generator");
+    const draft = learningDraft("model");
+    const issue = validateSessionCoverageFidelity(draft, {
+      title: "Learn funding tradeoffs",
+      objective: "Connect funding to ownership and repayment rights.",
+      method: "Self-explanation",
+      methodReason: "Build the model before an independent check.",
+      estimatedMinutes: 15,
+      learningMode: "learn",
+      contentTargets: [
+        "Funding exchanges resources now for financial rights later",
+        "Dilution changes founder ownership",
+      ],
+      completionEvidence: ["Explain both relationships without the model visible"],
+    });
+
+    expect(issue).toMatch(/lost planned content.*Dilution changes founder ownership/i);
+    draft.coverage.deferredContent = ["Dilution changes founder ownership"];
+    expect(validateSessionCoverageFidelity(draft, {
+      title: "Learn funding tradeoffs",
+      objective: "Connect funding to ownership and repayment rights.",
+      method: "Self-explanation",
+      methodReason: "Build the model before an independent check.",
+      estimatedMinutes: 15,
+      learningMode: "learn",
+      contentTargets: [
+        "Funding exchanges resources now for financial rights later",
+        "Dilution changes founder ownership",
+      ],
+      completionEvidence: ["Explain both relationships without the model visible"],
+    })).toBeNull();
+  });
+
+  it("limits active ideas according to the session duration", async () => {
+    const { validateSessionCoverageFidelity } = await import("@/lib/openai/session-generator");
+    const draft = learningDraft("model");
+    draft.coverage.essentialIdeas = ["Idea one", "Idea two", "Idea three"];
+
+    expect(validateSessionCoverageFidelity(draft, {
+      title: "A short lesson",
+      objective: "Learn a bounded cluster.",
+      method: "Self-explanation",
+      methodReason: "Build a model before the check.",
+      estimatedMinutes: 15,
+      learningMode: "learn",
+      contentTargets: [],
+      completionEvidence: ["Explain the cluster"],
+    })).toMatch(/at most 2 content targets/i);
+  });
+});
+
 describe("scheduled retrieval generation", () => {
   it("uses the narrow three-question contract instead of the full lesson schema", async () => {
     parseResponse.mockReset();

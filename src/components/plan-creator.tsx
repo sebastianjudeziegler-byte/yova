@@ -34,6 +34,7 @@ import {
 } from "@/lib/plan-generation/schema";
 import { generatePreviewPlan } from "@/lib/plan-generation/preview-generator";
 import { inferPlanScopeContract } from "@/lib/plan-generation/scope-contract";
+import { buildPlanContentBudget } from "@/lib/plan-generation/content-budget";
 import { LEARNING_INTENT_COPY, resolveLearningIntent } from "@/lib/learning/learning-intent";
 import type { AddIntakeSeed } from "@/lib/intake/schema";
 import { assessGoalContext } from "@/lib/learning/goal-context";
@@ -46,6 +47,7 @@ import {
   type StudySessionLength,
   type StudyWindow,
 } from "@/lib/personalization/study-schedule";
+import { buildPlanPreferenceContract } from "@/lib/personalization/plan-preference-contract";
 
 type PlanStep = "goal" | "source" | "schedule" | "diagnostic" | "confirm" | "loading" | "error" | "result";
 type SourceChoice = "materials" | "yova" | "outside";
@@ -113,7 +115,14 @@ export function PlanCreator({ onExit, onFinish, profileSummary, browserPreviewMo
     sourceChoice === "materials" && materials.length > 0,
   );
   const generatedScope = generatedFrom ? inferPlanScopeContract(generatedFrom) : null;
+  const generatedContentBudget = generatedFrom && generatedScope
+    ? buildPlanContentBudget(generatedFrom, generatedScope)
+    : null;
+  const preferenceContract = buildPlanPreferenceContract(profileSummary);
   const generatedPhases = generatedPlan ? groupPlanSessions(generatedPlan.plan.sessions) : [];
+  const mappedContentTargetCount = generatedPlan
+    ? new Set(generatedPlan.plan.sessions.flatMap((session) => session.contentTargets ?? []).map((target) => target.toLocaleLowerCase().trim())).size
+    : 0;
 
   const stepNumber = ({ goal: 1, source: 2, schedule: 3, diagnostic: 4, confirm: 5, loading: 5, error: 5, result: 5 } as Record<PlanStep, number>)[step];
 
@@ -424,7 +433,7 @@ export function PlanCreator({ onExit, onFinish, profileSummary, browserPreviewMo
 
       {step === "confirm" && (
         <PlanPanel eyebrow="FINAL CHECK" title="Everything YOVA will use" description="Review the inputs and change anything before your plan is generated.">
-          <div className="confirmation-list"><SummaryFact label="Goal" value={goal} /><SummaryFact label="Target date" value={deadlineDate ? formatDateOnly(deadlineDate) : "No fixed deadline"} /><SummaryFact label="Starting evidence" value={`${summarizeDiagnosticResponses(diagnosticResponses)}${startingContext.trim() ? `. Your note: ${startingContext.trim()}` : ""}`} /><SummaryFact label="How YOVA will start" value={`${LEARNING_INTENT_COPY[learningApproach.intent].name}: ${learningApproach.reason}`} /><SummaryFact label="Availability" value={`${availability.length} selected ${availability.length === 1 ? "window" : "windows"}: ${availability.map((slot) => `${slot.day} ${slot.window.toLowerCase()} (${slot.minutes} min)`).join(", ")}`} /><SummaryFact label="Learning mode" value={sourceChoice === "outside" ? "YOVA-guided plan using another trusted source" : sourceChoice === "materials" ? "Guided inside YOVA from your uploaded materials" : "Guided inside YOVA with YOVA-created teaching and practice"} /><SummaryFact label="Sources" value={sourceChoice === "materials" ? `${materials.length} ${materials.length === 1 ? "uploaded material" : "uploaded materials"}: ${materials.map((material) => material.name).join(", ")}` : sourceChoice === "outside" ? "The source you choose outside YOVA" : "YOVA-generated content from the goal"} /><SummaryFact label="Saved learning profile" value="Session length, structure, explanation style, focus support, and study timing from onboarding" /></div>
+          <div className="confirmation-list"><SummaryFact label="Goal" value={goal} /><SummaryFact label="Target date" value={deadlineDate ? formatDateOnly(deadlineDate) : "No fixed deadline"} /><SummaryFact label="Starting evidence" value={`${summarizeDiagnosticResponses(diagnosticResponses)}${startingContext.trim() ? `. Your note: ${startingContext.trim()}` : ""}`} /><SummaryFact label="How YOVA will start" value={`${LEARNING_INTENT_COPY[learningApproach.intent].name}: ${learningApproach.reason}`} /><SummaryFact label="Availability" value={`${availability.length} selected ${availability.length === 1 ? "window" : "windows"}: ${availability.map((slot) => `${slot.day} ${slot.window.toLowerCase()} (${slot.minutes} min)`).join(", ")}`} /><SummaryFact label="Learning mode" value={sourceChoice === "outside" ? "YOVA-guided plan using another trusted source" : sourceChoice === "materials" ? "Guided inside YOVA from your uploaded materials" : "Guided inside YOVA with YOVA-created teaching and practice"} /><SummaryFact label="Sources" value={sourceChoice === "materials" ? `${materials.length} ${materials.length === 1 ? "uploaded material" : "uploaded materials"}: ${materials.map((material) => material.name).join(", ")}` : sourceChoice === "outside" ? "The source you choose outside YOVA" : "YOVA-generated content from the goal"} /><SummaryFact label="Saved learning preferences" value={`${preferenceContract.presentation.label}; ${preferenceContract.support.label}; ${preferenceContract.retention.label}; ${preferenceContract.workspace.label}`} /></div>
           <PlanActions onBack={back} onNext={() => void generatePlan()} nextLabel="Generate my plan" />
         </PlanPanel>
       )}
@@ -447,8 +456,14 @@ export function PlanCreator({ onExit, onFinish, profileSummary, browserPreviewMo
         <section className="generated-plan">
           <div className="generated-heading"><div><span className="eyebrow"><Sparkles size={15} /> Plan ready</span><h1>{generatedPlan.plan.title}</h1><p>{generatedPlan.plan.sessions.length} sessions organized into a coherent path. Nothing is active until you confirm it below.</p></div>{generatedScope && <span className="generated-scope-label">{generatedScope.label}</span>}</div>
           <div className="why-plan"><Sparkles /><div><strong>Why this plan</strong><p>{generatedPlan.plan.rationale}</p></div></div>
+          {generatedContentBudget && <section className="generated-plan-contract" aria-label="How YOVA mapped this plan">
+            <div><span>CONTENT MAP</span><strong>{mappedContentTargetCount} distinct {mappedContentTargetCount === 1 ? "target" : "targets"}</strong><p>{generatedContentBudget.materialAnchors.length > 0 ? `${generatedContentBudget.materialAnchors.length} sections were detected in your material.` : `${generatedContentBudget.estimatedInstructionalUnits} instructional units were estimated from your goal.`}</p></div>
+            <div><span>SESSION LOAD</span><strong>Usually {generatedContentBudget.typicalSession.preferredContentTargets} {generatedContentBudget.typicalSession.preferredContentTargets === 1 ? "target" : "targets"} at a time</strong><p>Each target needs an explanation, attempt, or application before it counts as covered.</p></div>
+            <div><span>YOUR DELIVERY</span><strong>{preferenceContract.presentation.label}</strong><p>{preferenceContract.support.label} after a miss. {preferenceContract.retention.label} for later review.</p></div>
+            <div><span>YOUR SCHEDULE</span><strong>{availability.length} preferred study {availability.length === 1 ? "window" : "windows"}</strong><p>{availability.map((slot) => `${slot.day} ${slot.window.toLowerCase()}, ${slot.minutes} min`).join("; ")}</p></div>
+          </section>}
           {generatedPlan.generation.notice && <div className="generation-notice"><span>Alpha note</span><p>{generatedPlan.generation.notice}</p></div>}
-          <div className="generated-roadmap" aria-label="Learning roadmap">{generatedPhases.map((phase) => <section className="generated-phase" key={`${phase.key}-${phase.number}`}><header><div><span>{phase.number}</span><div><small>PLAN PHASE</small><h2>{phase.label}</h2></div></div><p>{phase.description}</p></header><div className="generated-timeline">{phase.sessions.map((session) => <article key={session.id}><span>{session.sequence}</span><div><small>{session.learningMode === "learn" ? "TEACHING FIRST" : "PRACTICE FIRST"} · {formatSessionDate(session.scheduledFor)}</small><h3>{session.title}</h3><p>{session.method}</p></div><strong>{session.amountLabel}</strong></article>)}</div></section>)}</div>
+          <div className="generated-roadmap" aria-label="Learning roadmap">{generatedPhases.map((phase) => <section className="generated-phase" key={`${phase.key}-${phase.number}`}><header><div><span>{phase.number}</span><div><small>PLAN PHASE</small><h2>{phase.label}</h2></div></div><p>{phase.description}</p></header><div className="generated-timeline">{phase.sessions.map((session) => <article key={session.id}><span>{session.sequence}</span><div><small>{session.learningMode === "learn" ? "TEACHING FIRST" : "PRACTICE FIRST"} · {formatSessionDate(session.scheduledFor)}</small><h3>{session.title}</h3><p>{session.method}</p><p className="generated-session-focus">Focus: {(session.contentTargets ?? []).join("; ")}</p></div><strong>{session.amountLabel}</strong></article>)}</div></section>)}</div>
           <section className="plan-alignment-check" aria-labelledby="plan-alignment-title">
             <div className="plan-alignment-heading"><span className="step-label">BEFORE YOVA SAVES THIS</span><h2 id="plan-alignment-title">Does this plan match what you need?</h2><p>Check the content, starting approach, source, and pace. If one part is wrong, change that input and YOVA will rebuild the draft.</p></div>
             <div className="plan-alignment-facts">

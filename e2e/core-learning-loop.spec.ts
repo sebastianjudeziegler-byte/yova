@@ -758,6 +758,13 @@ test("a multi-session plan carries one clear source decision from Add to Learnin
   await expect(page.getByText("Plan ready")).toBeVisible();
   await expect(page.getByRole("heading", { name: "Does this plan match what you need?" })).toBeVisible();
   await expect(page.getByText("Nothing is active until you confirm it below.")).toBeVisible();
+  const planContract = page.getByRole("region", { name: "How YOVA mapped this plan" });
+  await expect(planContract).toBeVisible();
+  await expect(planContract).toContainText("CONTENT MAP");
+  await expect(planContract).toContainText("SESSION LOAD");
+  await expect(planContract).toContainText("YOUR DELIVERY");
+  await expect(planContract).toContainText("YOUR SCHEDULE");
+  await expect(page.locator(".generated-session-focus").first()).toContainText("Focus:");
   await page.getByRole("button", { name: "Change schedule" }).click();
   await expect(page.getByRole("heading", { name: "When would you prefer to study this material?" })).toBeVisible();
   await page.getByRole("button", { name: "Continue" }).click();

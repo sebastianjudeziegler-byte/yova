@@ -68,6 +68,71 @@ describe("preview plan time windows", () => {
     expect(fifteenMinutePlan.sessions.every((session) => session.completionEvidence?.length)).toBe(true);
   });
 
+  it("maps uploaded sections across sessions instead of compressing the whole guide", () => {
+    const materialText = [
+      "# Long-term causes",
+      "# Alliance systems",
+      "# The July Crisis",
+      "# Mobilization",
+      "# The Western Front",
+      "# The Eastern Front",
+      "# United States entry",
+      "# The armistice",
+      "# Consequences of the war",
+    ].join("\n");
+    const base = requestWithMinutes(15);
+    const shortWindowPlan = generatePreviewPlan({
+      ...base,
+      goal: "Prepare for my World War I unit test from the beginning.",
+      materialMode: "upload",
+      materials: [{
+        id: "10000000-1000-4000-8000-100000000003",
+        name: "World War I study guide.pdf",
+        mimeType: "application/pdf",
+        sizeBytes: 1_000,
+        textContent: materialText,
+        processingStatus: "ready",
+      }],
+    });
+    const longerWindowPlan = generatePreviewPlan({
+      ...base,
+      goal: "Prepare for my World War I unit test from the beginning.",
+      availability: [{ day: "Every day", window: "Evening", minutes: 45 }],
+      materialMode: "upload",
+      materials: [{
+        id: "10000000-1000-4000-8000-100000000003",
+        name: "World War I study guide.pdf",
+        mimeType: "application/pdf",
+        sizeBytes: 1_000,
+        textContent: materialText,
+        processingStatus: "ready",
+      }],
+    });
+
+    const mappedTargets = shortWindowPlan.sessions.flatMap((session) => session.contentTargets ?? []);
+    expect(shortWindowPlan.sessions.length).toBeGreaterThan(longerWindowPlan.sessions.length);
+    expect(shortWindowPlan.sessions.every((session) => (session.contentTargets?.length ?? 0) <= 2)).toBe(true);
+    expect(mappedTargets).toEqual(expect.arrayContaining([
+      "Long-term causes",
+      "The July Crisis",
+      "Consequences of the war",
+    ]));
+    expect(shortWindowPlan.sessions.at(-1)?.learningMode).toBe("study");
+  });
+
+  it("carries saved delivery preferences into the plan rationale and session reasons", () => {
+    const base = requestWithMinutes(25);
+    const plan = generatePreviewPlan({
+      ...base,
+      profileSummary: "The learner prefers the big picture before the details, a small hint first after a miss, and forgets it after a few days.",
+    });
+
+    expect(plan.rationale).toContain("big picture first");
+    expect(plan.rationale).toContain("hint before answer");
+    expect(plan.sessions[0].methodReason).toContain("overall model before the details");
+    expect(plan.sessions.at(-1)?.methodReason).toContain("fade after a few days");
+  });
+
   it("preserves an unrecognized goal as the topic instead of replacing it with a generic placeholder", () => {
     const request = requestWithMinutes(25);
     const plan = generatePreviewPlan({

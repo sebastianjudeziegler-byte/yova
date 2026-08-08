@@ -67,6 +67,7 @@ import { validateSessionContentSpecificity } from "@/lib/session-generation/cont
 import { polishGeneratedSessionTypography } from "@/lib/session-generation/typography";
 import { validateVisibleAdaptation } from "@/lib/personalization/visible-adaptation";
 import type { GenerationValidator } from "@/lib/analytics/generation-observation";
+import { contentBudgetForMinutes } from "@/lib/plan-generation/content-budget";
 
 export type SessionGenerationContext = {
   learningGoal: {
@@ -197,6 +198,7 @@ Requirements:
 - Build coverage.evidenceMap after choosing the activities. Repeat every essentialIdeas entry exactly once and point it to the exact concept name of a required multiple-choice or free-response activity that tests that idea. A session may not claim an essential idea is covered if it only appears in teaching or an optional activity.
 - Session time is a capacity constraint, never the definition of completion. A session is complete only after every requiredForCompletion activity is attempted. Do not treat exposure, elapsed time, reading, or button-clicking as evidence of completion.
 - Preserve the planned contentTargets and completionEvidence when supplied. If they cannot fit honestly, teach a smaller coherent subset now and put the remainder in coverage.deferredContent. Never compress a broad 45-minute objective into a superficial 15-minute pass.
+- Treat sessionContentBudget as a hard content-volume contract. Every planned target must appear unchanged in either coverage.essentialIdeas or coverage.deferredContent, so the next session can recover anything that did not fit.
 - The method briefing must explain the learning method itself. Keep productivity or tendency-based delivery changes in methodBriefing.personalization.
 - When quickReviewContract is present, it replaces the normal full-session activity mix. Follow it exactly: three short multiple-choice questions, no typed response, no confidence request, and no teaching before the first answer. This is a calm scheduled return, not another full lesson.
 - Every question must be independently answerable from its own title, body, and choices. Restate every function, value, scenario, definition, or relationship needed to answer. Never require the learner to remember the wording or missing data from an earlier answer, example, screen, or session. A delayed review tests the concept after time has passed, not memory for an incomplete prompt.
@@ -224,7 +226,7 @@ Requirements:
 - For a study session, make the first topic activity an unsupported retrieval or application attempt. Show explanations only after the attempt, target the exposed gap, and include a later retry or transfer question.
 - Use the catalog's how and completion fields as the scientific source, but rewrite them concisely for this exact session rather than copying every line mechanically.
 - Create 3 to 8 short activities that fit the estimated duration. Give every activity a realistic estimatedMinutes value. Required activity minutes must fit inside the session estimate; all activity minutes may exceed it by at most 2 minutes.
-- For sessions of 15 minutes or less, use no more than 4 activities and focus on one coherent concept cluster. That cluster may contain up to 3 tightly related essential ideas, such as three roles in one model. For 16 to 30 minutes, use no more than 5 activities. Longer sessions may use up to 8 only when the content requires it.
+- Follow sessionContentBudget for the exact idea and check limits. For sessions of 15 minutes or less, use no more than 4 activities and no more than 2 tightly related essential ideas. For 16 to 30 minutes, use no more than 5 activities. Longer sessions may use up to 8 only when the content requires it.
 - Mark the teaching, core attempt, and evidence-producing checks requiredForCompletion. Optional reflection or extension may be false. At least one question must be required.
 - Use concise instructions and one obvious action at a time.
 - Include at least one meaningful multiple-choice knowledge check with 3 to 5 plausible choices.
@@ -378,6 +380,7 @@ export async function generateSessionWithOpenAI(
       input: `Build the next guided session from this YOVA context:\n${JSON.stringify({
         ...context,
         scaffoldSignals: undefined,
+        sessionContentBudget: contentBudgetForMinutes(context.session.estimatedMinutes),
         learningScienceRouting,
         recommendedMethodFidelityContract,
         methodFidelityContracts,
@@ -784,6 +787,7 @@ function validateGeneratedSession(
     : validateStandardGuidedSessionActivityMix(draft);
 
   return validateSessionTimeBudget(draft, context.session.estimatedMinutes)
+    ?? validateSessionCoverageFidelity(draft, context.session)
     ?? validateLearningScienceRoutingSelection(draft.methodBriefing, learningScienceRouting)
     ?? validateSessionAdjustmentFidelity(draft, context.sessionAdjustment)
     ?? activityFormatIssue
@@ -826,6 +830,34 @@ function validateGeneratedSession(
     signals: scaffoldProgression,
     activities: draft.activities,
   }));
+}
+
+export function validateSessionCoverageFidelity(
+  draft: GeneratedSessionDraft,
+  session: SessionGenerationContext["session"],
+) {
+  const budget = contentBudgetForMinutes(session.estimatedMinutes);
+  if (draft.coverage.essentialIdeas.length > budget.maximumContentTargets) {
+    return `This ${session.estimatedMinutes}-minute session may actively cover at most ${budget.maximumContentTargets} content targets. Move the remaining targets to deferredContent.`;
+  }
+  if (draft.coverage.completionEvidence.length > budget.maximumCompletionChecks) {
+    return `This ${session.estimatedMinutes}-minute session may require at most ${budget.maximumCompletionChecks} completion checks.`;
+  }
+
+  const plannedTargets = session.contentTargets ?? [];
+  if (plannedTargets.length === 0) return null;
+  const mappedTargets = new Set(
+    [...draft.coverage.essentialIdeas, ...draft.coverage.deferredContent].map(normalizeCoverageTarget),
+  );
+  const missingTargets = plannedTargets.filter((target) => !mappedTargets.has(normalizeCoverageTarget(target)));
+  if (missingTargets.length > 0) {
+    return `The generated session lost planned content: ${missingTargets.join(", ")}. Copy each planned target unchanged into essentialIdeas or deferredContent.`;
+  }
+  return null;
+}
+
+function normalizeCoverageTarget(value: string) {
+  return value.toLocaleLowerCase().replace(/\s+/g, " ").trim();
 }
 
 function validateStandardGuidedSessionActivityMix(draft: GeneratedSessionDraft) {
@@ -880,9 +912,5 @@ function validateSessionTimeBudget(draft: GeneratedSessionDraft, estimatedMinute
   if (draft.activities.length > maximumActivities) {
     return `A ${estimatedMinutes}-minute session may contain at most ${maximumActivities} focused activities.`;
   }
-  if (estimatedMinutes <= 15 && draft.coverage.essentialIdeas.length > 3) {
-    return "A 15-minute session must focus on one coherent concept cluster with no more than three tightly related essential ideas and defer the rest.";
-  }
-
   return null;
 }

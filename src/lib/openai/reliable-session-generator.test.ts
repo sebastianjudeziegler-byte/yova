@@ -147,8 +147,16 @@ describe("reliable OpenAI session generation", () => {
   it("uses the compact path only when its activity shape can execute the routed method", async () => {
     const { canGenerateReliableSession } = await import("@/lib/openai/reliable-session-generator");
 
-    expect(canGenerateReliableSession(context("learn"))).toBe(true);
-    expect(canGenerateReliableSession(context("study"))).toBe(true);
+    const boundedLearnContext = context("learn");
+    boundedLearnContext.session.contentTargets = ["How darkness influences melatonin timing"];
+    expect(canGenerateReliableSession(boundedLearnContext)).toBe(true);
+
+    const boundedStudyContext = context("study");
+    boundedStudyContext.session.contentTargets = ["Recall the biological-night relationship"];
+    expect(canGenerateReliableSession(boundedStudyContext)).toBe(true);
+
+    const multiTargetContext = context("learn");
+    expect(canGenerateReliableSession(multiTargetContext)).toBe(false);
 
     const readingContext = context("learn");
     readingContext.learningGoal = {

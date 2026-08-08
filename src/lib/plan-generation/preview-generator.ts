@@ -1,4 +1,8 @@
 import type { LearningPlan } from "@/lib/domain";
+import {
+  buildPlanContentBudget,
+  type PlanContentBudget,
+} from "@/lib/plan-generation/content-budget";
 import { materializePlanDraft } from "@/lib/plan-generation/materialize-plan";
 import {
   GeneratedPlanDraftSchema,
@@ -10,6 +14,10 @@ import {
   type PlanScopeContract,
 } from "@/lib/plan-generation/scope-contract";
 import { deriveLearningTitle } from "@/lib/intake/interpret";
+import {
+  buildPlanPreferenceContract,
+  type PlanPreferenceContract,
+} from "@/lib/personalization/plan-preference-contract";
 
 type PreviewBlueprint = {
   phaseIndex: number;
@@ -169,17 +177,19 @@ export function generatePreviewPlan(request: PlanGenerationRequest): LearningPla
     topic: derivePreviewTopic(request.goal, derivedTitle),
   };
   const deadline = request.deadline ? new Date(request.deadline) : inferDeadline(request.goal);
-  const targetMinutes = request.availability[0]?.minutes ?? 25;
   const scope = inferPlanScopeContract(request);
+  const contentBudget = buildPlanContentBudget(request, scope);
+  const preferenceContract = buildPlanPreferenceContract(request.profileSummary);
+  const targetMinutes = contentBudget.typicalSession.minutes;
   const sessionBlueprints: PreviewBlueprint[] = request.intent === "study_now"
     ? [previewBlueprint(subject, request, 0, 0, 1, targetMinutes)]
-    : buildScopedBlueprints(subject, request, scope, targetMinutes);
+    : buildScopedBlueprints(subject, request, scope, contentBudget, targetMinutes);
   const draft = GeneratedPlanDraftSchema.parse({
     title: subject.title,
     topic: subject.topic,
     kind: scope.band === "broad_course" ? "course" : subject.kind,
     deadline: request.intent === "study_now" ? null : deadline?.toISOString() ?? null,
-    rationale: `${buildRationale(request)} ${scope.explanation}`,
+    rationale: `${buildRationale(request, preferenceContract)} ${scope.explanation}`,
     sessions: sessionBlueprints.map((blueprint, index) => {
       const availability = request.availability[index % request.availability.length];
       const minutes = Math.min(availability.minutes, blueprint.minutes);
@@ -194,13 +204,13 @@ export function generatePreviewPlan(request: PlanGenerationRequest): LearningPla
             : request.learningIntent === "learn"
               ? LEARNING_METHODS[blueprint.phaseIndex]
               : METHODS[blueprint.phaseIndex],
-        methodReason: request.studyMode === "outside"
+        methodReason: `${request.studyMode === "outside"
           ? outsideMethodReason(request.goal)
           : request.intent === "study_now" && request.learningIntent === "learn"
             ? "The learner has not built this foundation yet, so YOVA should explain the overall model, walk through one concrete example, and then reduce support for a short understanding check."
             : request.learningIntent === "learn"
               ? learningReasonFor(blueprint.phaseIndex)
-              : reasonFor(blueprint.phaseIndex, request),
+              : reasonFor(blueprint.phaseIndex, request)} ${preferenceReasonFor(blueprint.learningMode ?? sessionLearningMode(request, blueprint.phaseIndex), blueprint.phaseIndex, preferenceContract)}`,
         scheduledFor: scheduledDate(index, sessionBlueprints.length, availability.window, deadline).toISOString(),
         estimatedMinutes: minutes,
         amountLabel: `${blueprint.contentTargets.length} focused ${blueprint.contentTargets.length === 1 ? "target" : "targets"} + evidence check · about ${minutes} min`,
@@ -218,12 +228,16 @@ function buildScopedBlueprints(
   subject: PreviewSubject,
   request: PlanGenerationRequest,
   scope: PlanScopeContract,
+  contentBudget: PlanContentBudget,
   targetMinutes: number,
 ): PreviewBlueprint[] {
+  if (request.materialMode === "upload" && contentBudget.materialAnchors.length >= 2) {
+    return materialScopedBlueprints(subject, request, scope, contentBudget, targetMinutes);
+  }
   if (scope.band === "broad_course") {
     return /calculus/i.test(request.goal)
       ? broadCalculusBlueprints(targetMinutes)
-      : broadCourseBlueprints(subject, scope.recommendedSessions, targetMinutes);
+      : broadCourseBlueprints(subject, contentBudget.recommendedSessions, targetMinutes);
   }
 
   if (scope.band === "focused_skill") {
@@ -237,6 +251,65 @@ function buildScopedBlueprints(
         previewBlueprint(subject, request, phaseIndex, partIndex, partCount, Math.min(targetMinutes, baseMinutes))
       ));
     }).slice(0, scope.maximumSessions);
+}
+
+function materialScopedBlueprints(
+  subject: PreviewSubject,
+  request: PlanGenerationRequest,
+  scope: PlanScopeContract,
+  contentBudget: PlanContentBudget,
+  minutes: number,
+) {
+  const reservedReviewSessions = request.learningIntent === "learn" ? 1 : 0;
+  const maximumCoverageSessions = Math.max(
+    1,
+    Math.min(scope.maximumSessions, contentBudget.recommendedSessions) - reservedReviewSessions,
+  );
+  const targetCount = Math.min(
+    contentBudget.typicalSession.maximumContentTargets,
+    Math.max(
+      contentBudget.typicalSession.preferredContentTargets,
+      Math.ceil(contentBudget.materialAnchors.length / maximumCoverageSessions),
+    ),
+  );
+  const groups = chunk(contentBudget.materialAnchors, targetCount);
+  const teachingCount = Math.max(scope.minimumTeachingSessions, request.learningIntent === "learn" ? groups.length : 0);
+  const coverage = groups.map<PreviewBlueprint>((targets, index) => {
+    const learningMode = request.learningIntent === "learn" && index < teachingCount ? "learn" as const : "study" as const;
+    const firstTarget = targets[0] ?? subject.topic;
+    const topicLabel = targets.length === 1 ? firstTarget : `${firstTarget} and ${targets.length - 1} connected ${targets.length === 2 ? "idea" : "ideas"}`;
+    return {
+      phaseIndex: learningMode === "learn" ? Math.min(index, 2) : 3,
+      minutes: Math.max(10, Math.min(minutes, 60)),
+      title: learningMode === "learn" ? `Learn ${topicLabel}` : `Retrieve ${topicLabel}`,
+      objective: learningMode === "learn"
+        ? `Build a clear model of ${targets.join(", ")} from the uploaded scope, use one concrete example, and then explain the relationship with less support.`
+        : `Retrieve and apply ${targets.join(", ")} without the source visible, then repair only the exact gap the attempt reveals.`,
+      contentTargets: targets,
+      completionEvidence: learningMode === "learn"
+        ? ["Explain each listed target in your own words after the model is hidden"]
+        : ["Attempt each listed target without notes and correct any exposed gap"],
+      learningMode,
+    };
+  });
+  const reviewCount = Math.max(0, contentBudget.recommendedSessions - coverage.length);
+  const reviews = Array.from({ length: reviewCount }, (_, index): PreviewBlueprint => ({
+    phaseIndex: index === reviewCount - 1 ? 4 : 3,
+    minutes: Math.max(10, Math.min(minutes, 60)),
+    title: index === reviewCount - 1 ? "Verify the uploaded scope after a delay" : `Connect the material across sections ${index + 1}`,
+    objective: index === reviewCount - 1
+      ? `Retrieve the highest-priority ideas from ${subject.topic} after a delay and identify only what still needs another pass.`
+      : `Connect ideas from different parts of ${subject.topic}, choose which relationship applies, and explain the choice.`,
+    contentTargets: index === reviewCount - 1
+      ? [`Delayed retrieval across ${subject.topic}`]
+      : [`Connections across the uploaded scope for ${subject.topic} ${index + 1}`],
+    completionEvidence: index === reviewCount - 1
+      ? ["Complete one cumulative closed-source check"]
+      : ["Complete one mixed application and justify the selected relationship"],
+    learningMode: "study",
+  }));
+
+  return [...coverage, ...reviews].slice(0, scope.maximumSessions);
 }
 
 function focusedSkillBlueprints(
@@ -358,6 +431,14 @@ function shortTopic(topic: string) {
   return topic.length > 52 ? `${topic.slice(0, 49).trim()}...` : topic;
 }
 
+function chunk<T>(values: T[], size: number) {
+  const groups: T[][] = [];
+  for (let index = 0; index < values.length; index += Math.max(1, size)) {
+    groups.push(values.slice(index, index + Math.max(1, size)));
+  }
+  return groups;
+}
+
 function derivePreviewTopic(goal: string, title: string) {
   const titlePattern = new RegExp(`^${escapeRegExp(title)}[.:]?\\s*`, "i");
   const cleaned = goal
@@ -475,7 +556,7 @@ function completionEvidenceFor(index: number, targets: string[]) {
   return [evidence, targets.length > 1 ? "Produce evidence for each listed content target" : "Produce evidence for the listed content target"];
 }
 
-function buildRationale(request: PlanGenerationRequest) {
+function buildRationale(request: PlanGenerationRequest, preferences: PlanPreferenceContract) {
   const sourcePhrase = request.materialMode === "upload"
     ? `${request.materials.length} learner-supplied ${request.materials.length === 1 ? "source" : "sources"}`
     : "a YOVA-created content sequence";
@@ -487,13 +568,23 @@ function buildRationale(request: PlanGenerationRequest) {
     const approach = request.learningIntent === "learn"
       ? "teaches a compact foundation before guided and independent attempts"
       : "starts with an attempt from memory, then repairs only the exposed gaps";
-    return `This focused session ${approach}. It uses ${sourcePhrase} and ${executionPhrase}, fits the time available now, and keeps every step explicit.`;
+    return `This focused session ${approach}. It uses ${sourcePhrase} and ${executionPhrase}, fits the time available now, and begins with ${preferences.presentation.label.toLowerCase()}.`;
   }
 
   const approach = request.learningIntent === "learn"
     ? "The plan builds an initial mental model, fades guidance, and then transitions into retrieval and application."
     : "The plan starts with retrieval to reveal exact gaps, then uses targeted explanation, retry, and later review.";
-  return `${approach} It uses ${sourcePhrase} and ${executionPhrase}, while keeping activity blocks short and explicit to match the learner profile.`;
+  return `${approach} It uses ${sourcePhrase} and ${executionPhrase}. Delivery begins with ${preferences.presentation.label.toLowerCase()}, uses ${preferences.support.label.toLowerCase()} after a miss, and plans ${preferences.retention.label.toLowerCase()} for later evidence.`;
+}
+
+function preferenceReasonFor(
+  learningMode: "learn" | "study",
+  phaseIndex: number,
+  preferences: PlanPreferenceContract,
+) {
+  if (learningMode === "learn") return preferences.presentation.reason;
+  if (phaseIndex >= 4) return preferences.retention.reason;
+  return preferences.support.reason;
 }
 
 function studyNowTitle(subject: PreviewSubject) {
