@@ -769,11 +769,50 @@ test("material setup clearly supports files, articles, and YouTube transcripts",
   );
   await page.getByRole("button", { name: /Choose how YOVA should help/ }).click();
   await page.getByRole("button", { name: /Use my materials/ }).click();
+  const dropzone = page.getByLabel("Upload learning materials. Choose files or drag and drop them here.");
+  await expect(dropzone).toContainText("Choose files or drag them here");
+  await expect(dropzone).toContainText("PDF, TXT, or Markdown");
   await expect(page.getByRole("button", { name: /Add an article or YouTube video/ })).toBeVisible();
   await page.getByRole("button", { name: /Add an article or YouTube video/ }).click();
   await expect(page.getByRole("region", { name: "Add material from a link" })).toContainText("Public article");
   await expect(page.getByRole("region", { name: "Add material from a link" })).toContainText("YouTube transcript");
   await expect(page.getByText(/does not bypass paywalls or sign-ins/i)).toBeVisible();
+});
+
+test("material drop zone accepts drag gestures and explains rejected files", async ({ page }) => {
+  await createPreviewAccount(page);
+  await completeOnboarding(page);
+
+  await page.getByRole("button", { name: "Study something now", exact: true }).first().click();
+  await page.getByPlaceholder("Example: Help me understand the product rule and practice using it.").fill(
+    "Help me prepare for a World War I history test.",
+  );
+  await page.getByRole("button", { name: /Choose how YOVA should help/ }).click();
+  await page.getByRole("button", { name: /Use my materials/ }).click();
+
+  const dropzone = page.getByLabel("Upload learning materials. Choose files or drag and drop them here.");
+  const transfer = await page.evaluateHandle(() => {
+    const dataTransfer = new DataTransfer();
+    dataTransfer.items.add(new File(["history notes"], "history-notes.docx", {
+      type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    }));
+    return dataTransfer;
+  });
+
+  await dropzone.dispatchEvent("dragenter", { dataTransfer: transfer });
+  await expect(dropzone).toHaveClass(/drag-active/);
+  await expect(dropzone).toContainText("Drop files to add them");
+  await dropzone.dispatchEvent("drop", { dataTransfer: transfer });
+  await expect(dropzone).not.toHaveClass(/drag-active/);
+  await expect(page.getByText("history-notes.docx is not supported. Use PDF, TXT, or Markdown.")).toBeVisible();
+  await transfer.dispose();
+
+  await page.getByLabel("Choose learning materials").setInputFiles({
+    name: "teacher-guide.pptx",
+    mimeType: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    buffer: Buffer.from("not a supported upload"),
+  });
+  await expect(page.getByText("teacher-guide.pptx is not supported. Use PDF, TXT, or Markdown.")).toBeVisible();
 });
 
 async function openMobileSessionGuide(page: Page) {

@@ -8,14 +8,9 @@ export const MATERIAL_LIMITS = {
   maxBytesPerFile: 10 * 1024 * 1024,
 } as const;
 
-export async function uploadMaterialFiles(files: File[], existing: LearningMaterial[]) {
-  if (existing.length + files.length > MATERIAL_LIMITS.maxFiles) {
-    return { accepted: [] as LearningMaterial[], errors: [`Use up to ${MATERIAL_LIMITS.maxFiles} files for one plan.`], notices: [] as string[] };
-  }
-
-  const accepted: LearningMaterial[] = [];
+export function validateMaterialFiles(files: File[], existing: LearningMaterial[]) {
+  const accepted: File[] = [];
   const errors: string[] = [];
-  const notices: string[] = [];
 
   for (const file of files) {
     if (!/\.(pdf|txt|md)$/i.test(file.name)) {
@@ -23,14 +18,31 @@ export async function uploadMaterialFiles(files: File[], existing: LearningMater
       continue;
     }
     if (file.size > MATERIAL_LIMITS.maxBytesPerFile) {
-      errors.push(`${file.name} is larger than the 10 MB alpha limit.`);
+      errors.push(`${file.name} is larger than the 10 MB limit.`);
       continue;
     }
-    if ([...existing, ...accepted].some((material) => material.name === file.name && material.sizeBytes === file.size)) {
+    if ([...existing, ...accepted.map((item) => ({ name: item.name, sizeBytes: item.size }))]
+      .some((material) => material.name === file.name && material.sizeBytes === file.size)) {
       errors.push(`${file.name} is already attached.`);
       continue;
     }
+    if (existing.length + accepted.length >= MATERIAL_LIMITS.maxFiles) {
+      errors.push(`${file.name} was not added. Use up to ${MATERIAL_LIMITS.maxFiles} files for one plan.`);
+      continue;
+    }
+    accepted.push(file);
+  }
 
+  return { accepted, errors };
+}
+
+export async function uploadMaterialFiles(files: File[], existing: LearningMaterial[]) {
+  const accepted: LearningMaterial[] = [];
+  const validation = validateMaterialFiles(files, existing);
+  const errors = [...validation.errors];
+  const notices: string[] = [];
+
+  for (const file of validation.accepted) {
     try {
       const stageResponse = await fetch("/api/materials", {
         method: "POST",
