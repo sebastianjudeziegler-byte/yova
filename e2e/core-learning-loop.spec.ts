@@ -336,7 +336,14 @@ test("an opaque class label is stopped until the learner names the actual calcul
   expect(workpadWidth.scroll).toBeLessThanOrEqual(workpadWidth.client + 1);
 });
 
-test("a failed unknown-topic lesson stops instead of showing generic learning-method filler", async ({ page }) => {
+test("a total lesson-service outage never asks the learner to redefine an already clear topic", async ({ page }) => {
+  await page.route("**/api/sessions/generate", async (route) => {
+    await route.fulfill({
+      status: 502,
+      contentType: "application/json",
+      body: JSON.stringify({ error: "Temporary guided-session generation failure." }),
+    });
+  });
   await createPreviewAccount(page);
   await completeOnboarding(page);
 
@@ -350,19 +357,12 @@ test("a failed unknown-topic lesson stops instead of showing generic learning-me
   await page.getByRole("button", { name: /Build and start session/ }).click();
   await confirmSessionSetup(page);
 
-  await expect(page.getByRole("heading", { name: "This lesson needs another pass." })).toBeVisible();
-  await expect(page.getByText(/Your progress is unchanged/i)).toBeVisible();
+  await expect(page.getByRole("heading", { name: "YOVA already knows what this lesson should cover." })).toBeVisible();
+  await expect(page.getByText(/You do not need to explain the lesson again/i)).toBeVisible();
   await expect(page.getByText("See the structure before trying it alone", { exact: true })).not.toBeVisible();
   await expect(page.getByRole("heading", { name: "What should happen after an initial explanation?" })).not.toBeVisible();
-  await page.getByRole("button", { name: "Add context and retry" }).click();
-  await expect(page.getByRole("heading", { name: "Here is how YOVA plans to start." })).toBeVisible();
-  await expect(page.getByText(/Build a clear first mental model of Help me understand eigenvalues and eigenvectors from scratch/)).toBeVisible();
-  await page.getByRole("button", { name: "Continue" }).click();
-  await page.getByRole("button", { name: "Continue" }).click();
-  const recoveryContext = page.getByLabel("Anything YOVA should account for?");
-  await expect(recoveryContext).toBeVisible();
-  await recoveryContext.fill("Focus on what eigenvectors represent geometrically before calculating them.");
-  await expect(page.getByRole("button", { name: "Prepare this session" })).toBeEnabled();
+  await expect(page.getByRole("button", { name: "Add context and retry" })).not.toBeVisible();
+  await expect(page.getByRole("button", { name: "Prepare this lesson again" })).toBeVisible();
 });
 
 test("a temporary AI failure loads a subject-specific startup funding lesson", async ({ page }) => {
@@ -391,7 +391,7 @@ test("a temporary AI failure loads a subject-specific startup funding lesson", a
   await page.getByRole("button", { name: /Core idea/ }).click();
   await expect(page.getByText(/bootstrapping uses founder money or company revenue/i)).toBeVisible();
   await expect(page.getByText(/safe built-in session was loaded instead/i)).toBeVisible();
-  await expect(page.getByRole("heading", { name: "This lesson needs another pass." })).not.toBeVisible();
+  await expect(page.getByRole("heading", { name: "YOVA already knows what this lesson should cover." })).not.toBeVisible();
 });
 
 test("home lets the learner browse prioritized recommendations without opening every plan", async ({ page }) => {
@@ -717,6 +717,38 @@ test("the session tutor stays anchored to the exact learning activity", async ({
   expect(sessionContext.answerState).toBe("not_attempted");
   expect(sessionContext.selectedChoice).toBeNull();
   expect(String(sessionContext.teachingSummary)).toContain("budget");
+});
+
+test("a planning request outage still produces a reviewable plan from YOVA's saved inputs", async ({ page }) => {
+  await page.route("**/api/plans/generate", async (route) => {
+    await route.fulfill({
+      status: 502,
+      contentType: "application/json",
+      body: JSON.stringify({ error: "Temporary planning service failure." }),
+    });
+  });
+  await createPreviewAccount(page);
+  await completeOnboarding(page);
+
+  await page.getByRole("button", { name: /Create a plan For a test/ }).click();
+  await page.getByPlaceholder("Example: I have a biology test next Friday on photosynthesis and cellular respiration.").fill(
+    "I have a biology test next Friday on cellular respiration.",
+  );
+  await page.getByRole("button", { name: "Continue" }).click();
+  await page.getByRole("button", { name: /Create it for me/ }).click();
+  await page.getByRole("button", { name: "Continue" }).click();
+  await page.getByRole("button", { name: "Continue" }).click();
+  await page.getByRole("button", { name: "Produce ATP" }).click();
+  await page.getByRole("button", { name: "Next question" }).click();
+  await page.getByRole("button", { name: "Cytoplasm" }).click();
+  await page.getByRole("button", { name: "Next question" }).click();
+  await page.getByRole("button", { name: "Somewhat confident" }).click();
+  await page.getByRole("button", { name: "Review information" }).click();
+  await page.getByRole("button", { name: "Generate my plan" }).click();
+
+  await expect(page.getByText("Plan ready")).toBeVisible();
+  await expect(page.getByText(/reliable planning engine because the live planning request was interrupted/i)).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Your information is safe." })).not.toBeVisible();
 });
 
 test("a multi-session plan uses one clear source decision from setup to Learning", async ({ page }) => {

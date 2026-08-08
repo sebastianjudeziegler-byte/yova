@@ -11,7 +11,12 @@ import {
 import { buildScaffoldProgressionSignals } from "@/lib/learning/scaffold-progression";
 import { inferScheduledRetrievalConcept, inferScheduledRetrievalType } from "@/lib/learning/scheduled-retrieval";
 import { isOpenAISessionConfigured } from "@/lib/openai/config";
-import { generateSessionWithOpenAI, type SessionGenerationStats } from "@/lib/openai/session-generator";
+import { generateReliableSessionWithOpenAI } from "@/lib/openai/reliable-session-generator";
+import {
+  generateSessionWithOpenAI,
+  type SessionGenerationContext,
+  type SessionGenerationStats,
+} from "@/lib/openai/session-generator";
 import { expandedLearnerContextFromStored } from "@/lib/personalization/learner-profile";
 import {
   CachedGeneratedSessionSchema,
@@ -145,13 +150,14 @@ export async function POST(request: Request) {
     if (itemError || attemptsResult.error || materialsError || interruptionsResult.error) throw itemError ?? attemptsResult.error ?? materialsError ?? interruptionsResult.error;
     if (!learningItem) return NextResponse.json({ error: "That learning goal was not found." }, { status: 404 });
 
-    const materialExcerpts = buildMaterialExcerpts(materialRows ?? []);
-    if (learningItem.source_mode === "user_materials" && materialExcerpts.length === 0) {
-      return NextResponse.json({
-        error: "YOVA could not read enough source text to build this session safely. Reopen the learning goal and add a readable PDF, TXT, or Markdown file.",
-        requestId,
-      }, { status: 409, headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId } });
-    }
+    const materialExcerpts = buildMaterialExcerpts(materialRows ?? [])
+      .filter((excerpt) => excerpt.text.trim().length >= 12);
+    // A failed or image-only upload must not strand an otherwise clear goal.
+    // The saved topic, objective, and content targets remain enough for YOVA to
+    // prepare an AI-generated lesson. Readable uploads still anchor the facts.
+    const effectiveSourceMode = learningItem.source_mode === "user_materials" && materialExcerpts.length === 0
+      ? "yova_generated"
+      : learningItem.source_mode;
 
     const recentAttempts = attemptsResult.data ?? [];
     const methodIdBySession = new Map(
@@ -198,13 +204,13 @@ export async function POST(request: Request) {
       conceptEvidence: readConceptEvidenceProperty(attempt.result_data),
     }));
     const expandedProfile = expandedLearnerContextFromStored(learnerProfile?.additional_context ?? null);
-    const generated = await generateSessionWithOpenAI({
+    const generationContext: SessionGenerationContext = {
       learningGoal: {
         title: learningItem.title,
         topic: learningItem.topic,
         kind: learningItem.kind,
         deadline: learningItem.deadline,
-        sourceMode: learningItem.source_mode,
+        sourceMode: effectiveSourceMode,
         studyMode: learningItem.study_mode,
         learningIntent: readLearningIntent(plan.generation_inputs),
       },
@@ -262,7 +268,10 @@ export async function POST(request: Request) {
       })),
       conceptSignals: summarizeConceptEvidence(completionEvidence).slice(0, 20),
       scaffoldSignals: buildScaffoldProgressionSignals(completionEvidence).slice(0, 20),
-    });
+    };
+    const generated = inferScheduledRetrievalType(generationContext.session)
+      ? await generateSessionWithOpenAI(generationContext)
+      : await generateReliableSessionWithOpenAI(generationContext);
 
     const cachedSession = CachedGeneratedSessionSchema.parse({
       schemaVersion: 13,
@@ -317,12 +326,6 @@ async function generateBrowserPreviewSession(
       { status: 422, headers: responseHeaders(requestId) },
     );
   }
-  if (input.previewContext.learningGoal.sourceMode === "user_materials") {
-    return NextResponse.json(
-      { error: "Secure uploaded-material sessions require a connected cloud account." },
-      { status: 503, headers: responseHeaders(requestId) },
-    );
-  }
   if (!isOpenAISessionConfigured()) {
     return NextResponse.json(
       { error: "Live guided-session generation is not connected yet." },
@@ -345,11 +348,23 @@ async function generateBrowserPreviewSession(
   }
 
   try {
-    const generated = await generateSessionWithOpenAI({
-      ...input.previewContext,
+    const previewContext = input.previewContext.learningGoal.sourceMode === "user_materials"
+      ? {
+        ...input.previewContext,
+        learningGoal: {
+          ...input.previewContext.learningGoal,
+          sourceMode: "yova_generated" as const,
+        },
+      }
+      : input.previewContext;
+    const generationContext: SessionGenerationContext = {
+      ...previewContext,
       materials: [],
       sessionAdjustment: input.sessionAdjustment ?? null,
-    });
+    };
+    const generated = inferScheduledRetrievalType(generationContext.session)
+      ? await generateSessionWithOpenAI(generationContext)
+      : await generateReliableSessionWithOpenAI(generationContext);
     const session = CachedGeneratedSessionSchema.parse({
       schemaVersion: 13,
       ...generated.draft,

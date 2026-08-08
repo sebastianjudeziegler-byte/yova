@@ -28,6 +28,7 @@ import {
   type PlanGenerationRequest,
   type PlanGenerationResponse,
 } from "@/lib/plan-generation/schema";
+import { generatePreviewPlan } from "@/lib/plan-generation/preview-generator";
 import { LEARNING_INTENT_COPY, resolveLearningIntent } from "@/lib/learning/learning-intent";
 import { assessGoalContext } from "@/lib/learning/goal-context";
 
@@ -100,9 +101,10 @@ export function PlanCreator({ onExit, onFinish, profileSummary }: { onExit: () =
     setActivationError(null);
     setStep("loading");
     let requestId: string | null = null;
+    let planRequest: PlanGenerationRequest | null = null;
 
     try {
-      const planRequest = PlanGenerationRequestSchema.parse({
+      planRequest = PlanGenerationRequestSchema.parse({
         intent: "plan",
         learningIntent: learningApproach.intent,
         goal,
@@ -143,6 +145,24 @@ export function PlanCreator({ onExit, onFinish, profileSummary }: { onExit: () =
         errorCode: "plan_generation_failed",
         requestId,
       });
+      if (planRequest) {
+        const reliablePlan = generatePreviewPlan(planRequest);
+        const reliableResponse = PlanGenerationResponseSchema.parse({
+          plan: reliablePlan,
+          generation: {
+            mode: "system",
+            model: null,
+            notice: "YOVA used its reliable planning engine because the live planning request was interrupted. Review this draft before saving it. The guided lessons will still use the exact topic and your learning profile.",
+            requestId: requestId ?? crypto.randomUUID(),
+            durationMs: 0,
+            persistence: "draft",
+          },
+        });
+        setGeneratedPlan(reliableResponse);
+        setGeneratedFrom(planRequest);
+        setStep("result");
+        return;
+      }
       setGenerationError(error instanceof Error ? error.message : "YOVA could not build this plan yet.");
       setStep("error");
     }
