@@ -17,7 +17,6 @@ import {
   teachingFirstSessionCopy,
 } from "@/lib/learning/learning-intent";
 import { buildScaffoldProgressionSignals } from "@/lib/learning/scaffold-progression";
-import { inferScheduledRetrievalConcept, inferScheduledRetrievalType } from "@/lib/learning/scheduled-retrieval";
 import { expandedLearnerContextFromAnswers } from "@/lib/personalization/learner-profile";
 import type { PreviewSessionGenerationContext } from "@/lib/session-generation/schema";
 
@@ -91,8 +90,8 @@ export function buildPreviewSessionContext({
       learningMode: effectiveLearningMode,
       contentTargets: session.contentTargets ?? [],
       completionEvidence: session.completionEvidence ?? [],
-      reviewConcept: inferScheduledRetrievalConcept(session),
-      reviewType: inferScheduledRetrievalType(session),
+      reviewConcept: session.reviewConcept?.trim() || null,
+      reviewType: session.reviewType ?? null,
     },
     learnerProfile: {
       commonBlocker: onboardingAnswers[0] || null,

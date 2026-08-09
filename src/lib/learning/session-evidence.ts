@@ -38,10 +38,9 @@ export function summarizeCompletionConcepts(
   for (const item of evidence) {
     const key = item.concept.trim().toLocaleLowerCase();
     if (!key) continue;
-    const current = concepts.get(key);
     concepts.set(key, {
-      label: current?.label ?? item.concept.trim(),
-      needsReview: current?.needsReview === true || item.outcome === "needs_review",
+      label: concepts.get(key)?.label ?? item.concept.trim(),
+      needsReview: item.outcome === "needs_review",
     });
   }
 
@@ -56,33 +55,47 @@ export function summarizeSessionEvidence(
   steps: GuidedSessionStep[],
   outcomes: Record<number, boolean>,
   confidence: Record<number, ConfidenceLevel>,
+  attempts: Record<number, boolean[]> = {},
 ): SessionEvidenceSummary {
   const conceptEvidence: ConceptEvidence[] = [];
   const confidenceEvidence: ConfidenceEvidence[] = [];
-  const observedGaps: string[] = [];
   let correctAnswers = 0;
   let totalAnswers = 0;
   let completedImmediateRepairs = 0;
 
   steps.forEach((step, index) => {
     const outcome = outcomes[index];
-    if (outcome === undefined || !isKnowledgeCheck(step)) return;
+    const recordedAttempts = attempts[index]?.slice(0, 2) ?? [];
+    const attemptOutcomes = recordedAttempts.length > 0
+      ? recordedAttempts
+      : outcome === undefined ? [] : [outcome];
+    if (attemptOutcomes.length === 0 || !isKnowledgeCheck(step)) return;
+    const finalOutcome = attemptOutcomes.at(-1)!;
 
     if (step.evidenceRole === "immediate_repair") {
       completedImmediateRepairs += 1;
+      if (step.concept) {
+        conceptEvidence.push({
+          concept: step.concept,
+          outcome: finalOutcome ? "secure" : "needs_review",
+          activityType: step.type,
+          methodPhase: step.methodPhase,
+        });
+      }
       return;
     }
 
     totalAnswers += 1;
-    if (outcome) correctAnswers += 1;
-    else observedGaps.push(step.concept ?? step.title);
-
+    if (finalOutcome) correctAnswers += 1;
     if (!step.concept) return;
-    conceptEvidence.push({
-      concept: step.concept,
-      outcome: outcome ? "secure" : "needs_review",
-      activityType: step.type,
-      methodPhase: step.methodPhase,
+    attemptOutcomes.forEach((attemptOutcome, attemptIndex) => {
+      conceptEvidence.push({
+        concept: step.concept!,
+        outcome: attemptOutcome ? "secure" : "needs_review",
+        activityType: step.type,
+        methodPhase: step.methodPhase,
+        ...(attemptOutcomes.length > 1 ? { attempt: (attemptIndex + 1) as 1 | 2 } : {}),
+      });
     });
 
     const confidenceLevel = confidence[index];
@@ -90,7 +103,7 @@ export function summarizeSessionEvidence(
       confidenceEvidence.push({
         concept: step.concept,
         confidence: confidenceLevel,
-        correct: outcome,
+        correct: attemptOutcomes[0]!,
         activityType: step.type,
       });
     }
@@ -101,7 +114,7 @@ export function summarizeSessionEvidence(
     totalAnswers,
     conceptEvidence,
     confidenceEvidence,
-    observedGap: observedGaps.join("; ") || "No major gap detected in the required check",
+    observedGap: latestNeedsReviewConcepts(conceptEvidence).join("; ") || "No major gap detected in the required check",
     completedImmediateRepairs,
   };
 }
@@ -111,22 +124,28 @@ export function mergeSessionEvidenceSummaries(
 ): SessionEvidenceSummary {
   const present = summaries.filter((summary): summary is SessionEvidenceSummary => Boolean(summary));
   const conceptEvidence = present.flatMap((summary) => summary.conceptEvidence);
-  const needsReview = new Map<string, string>();
-
-  for (const item of conceptEvidence) {
-    if (item.outcome !== "needs_review") continue;
-    const concept = item.concept.trim();
-    if (concept) needsReview.set(concept.toLocaleLowerCase(), concept);
-  }
-
   return {
     correctAnswers: present.reduce((sum, summary) => sum + summary.correctAnswers, 0),
     totalAnswers: present.reduce((sum, summary) => sum + summary.totalAnswers, 0),
     conceptEvidence,
     confidenceEvidence: present.flatMap((summary) => summary.confidenceEvidence),
-    observedGap: [...needsReview.values()].join("; ") || "No major gap detected in the required check",
+    observedGap: latestNeedsReviewConcepts(conceptEvidence).join("; ") || "No major gap detected in the required check",
     completedImmediateRepairs: present.reduce((sum, summary) => sum + summary.completedImmediateRepairs, 0),
   };
+}
+
+function latestNeedsReviewConcepts(evidence: ConceptEvidence[]) {
+  const latest = new Map<string, { label: string; needsReview: boolean }>();
+  for (const item of evidence) {
+    const concept = item.concept.trim();
+    if (!concept) continue;
+    const key = concept.toLocaleLowerCase();
+    latest.set(key, {
+      label: latest.get(key)?.label ?? concept,
+      needsReview: item.outcome === "needs_review",
+    });
+  }
+  return [...latest.values()].filter((item) => item.needsReview).map((item) => item.label);
 }
 
 export function buildImmediateRepairSteps(
@@ -156,12 +175,12 @@ export function buildImmediateRepairSteps(
       concept: step.concept,
       label: "REPAIR CHECK",
       title: `Repair ${step.concept}`,
-      body: "Review the correction, then explain the relationship once in your own words. YOVA will check it again later to see whether it remains available.",
+      body: "The previous check exposed this exact gap. Review the bounded correction, then explain the relationship once in your own words.",
       question: null,
       correctAnswer: step.correctAnswer,
       feedback: step.feedback
-        ? `${step.feedback} Immediate success helps repair the idea, but it does not count as long-term mastery until a later retrieval check.`
-        : "Compare the meaning, not the exact wording. Immediate success helps repair the idea, but YOVA will verify it again later.",
+        ? `${step.feedback} Compare the meaning rather than copying the wording.`
+        : "Compare the meaning, not the exact wording. This required recheck records whether the repaired concept now holds.",
       evidenceRole: "immediate_repair",
     }];
   });
@@ -203,7 +222,7 @@ export function buildImmediateRepairAfterMiss(
       ...repair,
       estimatedMinutes: Math.min(6, Math.max(2, repairSupport.steps.length + 2)),
       title: repairSupport.title,
-      body: `${repairSupport.retryPrompt} YOVA will check it now and verify it again later.`,
+      body: `The previous check exposed this exact gap. ${repairSupport.retryPrompt}`,
       repairSupport,
     };
   }
@@ -212,8 +231,39 @@ export function buildImmediateRepairAfterMiss(
 
   return {
     ...repair,
-    body: `Focus on these missing ideas: ${focusedIdeas.join("; ")}. Review the correction, then explain the relationship once in your own words. YOVA will verify it again later.`,
+    body: `The previous check exposed this exact gap. Focus on: ${focusedIdeas.join("; ")}. Review the correction, then explain the relationship once in your own words.`,
   };
+}
+
+export function hasCompletedImmediateRepair(
+  conceptEvidence: ConceptEvidence[],
+  concept: string,
+) {
+  const target = normalizeConcept(concept);
+  if (!target) return false;
+  return conceptEvidence.some((item) => (
+    item.methodPhase === "repair"
+    && conceptsMatch(normalizeConcept(item.concept), target)
+  ));
+}
+
+export function unrepairedObservedGaps(
+  observedGap: string,
+  conceptEvidence: ConceptEvidence[],
+) {
+  return observedGap
+    .split(";")
+    .map((gap) => gap.trim())
+    .filter((gap) => gap && !/^no major gap/i.test(gap))
+    .filter((gap) => !hasCompletedImmediateRepair(conceptEvidence, gap));
+}
+
+function normalizeConcept(value: string) {
+  return value.trim().toLocaleLowerCase();
+}
+
+function conceptsMatch(left: string, right: string) {
+  return Boolean(left && right && (left === right || left.includes(right) || right.includes(left)));
 }
 
 function isKnowledgeCheck(step: GuidedSessionStep): step is GuidedSessionStep & {

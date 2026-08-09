@@ -16,7 +16,6 @@ import {
   methodIdFromText,
 } from "@/lib/learning/method-router";
 import { buildScaffoldProgressionSignals } from "@/lib/learning/scaffold-progression";
-import { inferScheduledRetrievalConcept, inferScheduledRetrievalType } from "@/lib/learning/scheduled-retrieval";
 import { isOpenAISessionConfigured } from "@/lib/openai/config";
 import {
   generateProductionSessionWithOpenAI,
@@ -298,15 +297,8 @@ export async function POST(request: Request) {
         learningMode: effectiveLearningMode,
         contentTargets: readStringArrayProperty(planSession.step_data, "contentTargets"),
         completionEvidence: readStringArrayProperty(planSession.step_data, "completionEvidence"),
-        reviewConcept: inferScheduledRetrievalConcept({
-          title: planSession.title,
-          reviewConcept: readTextProperty(planSession.step_data, "reviewConcept") || undefined,
-        }),
-        reviewType: inferScheduledRetrievalType({
-          title: planSession.title,
-          method: planSession.method,
-          reviewType: readReviewType(planSession.step_data),
-        }),
+        reviewConcept: readTextProperty(planSession.step_data, "reviewConcept") || null,
+        reviewType: readReviewType(planSession.step_data),
       },
       learnerProfile: learnerProfile ? {
         commonBlocker: learnerProfile.common_blocker,

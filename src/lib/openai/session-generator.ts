@@ -32,7 +32,7 @@ import {
 import { learningModeContract } from "@/lib/learning/learning-intent";
 import {
   adaptDeliveryPolicyForScheduledRetrieval,
-  inferScheduledRetrievalType,
+  isScheduledRetrievalSession,
   scheduledRetrievalContract,
   validateScheduledRetrievalSession,
 } from "@/lib/learning/scheduled-retrieval";
@@ -730,7 +730,7 @@ function applyCurrentSessionAdjustment(context: SessionGenerationContext): Sessi
   const adjustment = context.sessionAdjustment;
   if (!adjustment) return context;
 
-  const scheduledRetrieval = inferScheduledRetrievalType(context.session);
+  const scheduledRetrieval = isScheduledRetrievalSession(context.session);
   const nextLearningMode = scheduledRetrieval
     ? "study"
     : adjustment.familiarity === "need_teaching"
@@ -768,7 +768,7 @@ function parseGeneratedSessionDraft(
 ) {
   const parsed = GeneratedSessionDraftOutputSchema.safeParse(value);
   if (!parsed.success) return parsed;
-  const scheduledConcept = inferScheduledRetrievalType(context.session)
+  const scheduledConcept = isScheduledRetrievalSession(context.session)
     ? context.session.reviewConcept?.trim() || null
     : null;
   const resolvedMethodId = routing.allowedMethodIds.length === 1
@@ -995,7 +995,7 @@ function validateGeneratedSession(
   scaffoldProgression: ScaffoldProgressionSignal[],
   sessionDeliveryPolicy: SessionDeliveryPolicy,
 ) {
-  const scheduledRetrieval = Boolean(inferScheduledRetrievalType(context.session));
+  const scheduledRetrieval = isScheduledRetrievalSession(context.session);
   const activityFormatIssue = scheduledRetrieval
     ? validateScheduledRetrievalSession(draft, context.session)
     : validateStandardGuidedSessionActivityMix(draft);

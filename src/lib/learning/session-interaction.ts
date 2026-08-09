@@ -13,17 +13,21 @@ export function shouldRequestConfidence({
   isImmediateRepair,
   methodPhase,
   priorConfidenceCaptured = false,
+  taughtEarlierInSession = false,
 }: {
   isQuestion: boolean;
   isImmediateRepair: boolean;
   methodPhase?: MethodPhase;
   priorConfidenceCaptured?: boolean;
+  taughtEarlierInSession?: boolean;
 }) {
+  const preservesCalibrationGate = methodPhase === "retrieve" || methodPhase === "independent_practice";
   return Boolean(
     isQuestion
       && !isImmediateRepair
       && !priorConfidenceCaptured
       && methodPhase
-      && CALIBRATION_PHASES.has(methodPhase),
+      && CALIBRATION_PHASES.has(methodPhase)
+      && (preservesCalibrationGate || !taughtEarlierInSession),
   );
 }

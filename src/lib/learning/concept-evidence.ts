@@ -7,6 +7,7 @@ export const ConceptEvidenceSchema = z.object({
   outcome: z.enum(["secure", "needs_review"]),
   activityType: z.enum(["multiple_choice", "free_response"]),
   methodPhase: z.enum(METHOD_PHASES).optional(),
+  attempt: z.union([z.literal(1), z.literal(2)]).optional(),
 });
 
 export const ConceptEvidenceListSchema = z.array(ConceptEvidenceSchema).max(24);

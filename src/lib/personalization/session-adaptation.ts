@@ -4,6 +4,7 @@ import type {
   SessionCompletion,
 } from "@/lib/domain";
 import { summarizeConfidenceCalibration } from "@/lib/learning/confidence-calibration";
+import { unrepairedObservedGaps } from "@/lib/learning/session-evidence";
 
 export function buildNextSessionAdaptation(
   nextSession: LearningPlanSession | null,
@@ -15,15 +16,18 @@ export function buildNextSessionAdaptation(
   const accuracy = hasKnowledgeCheck
     ? completion.correctAnswers / completion.totalAnswers
     : null;
-  const gap = conciseGap(completion.observedGap);
+  const unrepairedGaps = unrepairedObservedGaps(completion.observedGap, completion.conceptEvidence);
+  const gap = conciseGap(unrepairedGaps[0] ?? completion.observedGap);
   const needsRepair = accuracy !== null && accuracy < 0.8;
+  const allObservedGapsRepaired = completion.observedGap.split(";").some((item) => !/^\s*no major gap/i.test(item) && item.trim())
+    && unrepairedGaps.length === 0;
   const calibration = summarizeConfidenceCalibration(completion.confidenceEvidence);
   const adjustedMinutes = nextSession.estimatedMinutes;
   const difficultyAdjustment = completion.feedback === "too_difficult"
     ? " The planned target and time stay intact, but YOVA will make the first step smaller and restore support before asking for independent work."
     : "";
 
-  if (calibration.pattern === "possible_misconception" || calibration.pattern === "mixed") {
+  if (!allObservedGapsRepaired && (calibration.pattern === "possible_misconception" || calibration.pattern === "mixed")) {
     const explanation = `YOVA found a high-confidence miss involving ${gap}. The next session will begin with a bounded misconception repair before continuing its original target. The later targets stay in place.${difficultyAdjustment}`;
     return {
       planSessionId: nextSession.id,
@@ -53,7 +57,7 @@ export function buildNextSessionAdaptation(
     };
   }
 
-  if (needsRepair) {
+  if (needsRepair && !allObservedGapsRepaired) {
     const needsMoreSupport = accuracy < 0.5 || completion.feedback === "too_difficult";
     const method = needsMoreSupport
       ? "Guided repair, then retrieval"

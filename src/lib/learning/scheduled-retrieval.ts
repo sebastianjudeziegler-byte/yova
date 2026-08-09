@@ -5,22 +5,13 @@ import type { GeneratedSessionDraft } from "@/lib/session-generation/schema";
 export type ScheduledRetrievalType = NonNullable<LearningPlanSession["reviewType"]>;
 
 type ReviewIdentity = {
-  title?: string | null;
-  method?: string | null;
   reviewType?: ScheduledRetrievalType | null;
-};
-
-type ReviewConceptIdentity = {
-  title?: string | null;
-  reviewConcept?: string | null;
 };
 
 type ReviewSessionDescriptor = Pick<
   LearningPlanSession,
   "learningMode" | "estimatedMinutes"
 > & {
-  title?: string | null;
-  method?: string | null;
   reviewConcept?: string | null;
   reviewType?: ScheduledRetrievalType | null;
 };
@@ -28,40 +19,17 @@ type ReviewSessionDescriptor = Pick<
 export function isScheduledRetrievalSession(
   session: ReviewIdentity | null | undefined,
 ) {
-  return Boolean(inferScheduledRetrievalType(session));
-}
-
-export function inferScheduledRetrievalType(
-  session: ReviewIdentity | null | undefined,
-): ScheduledRetrievalType | null {
-  if (!session) return null;
-  if (session.reviewType) return session.reviewType;
-
-  const label = `${session.title ?? ""} ${session.method ?? ""}`;
-  if (/repair and verify|misconception repair and delayed transfer/i.test(label)) return "repair_and_retrieve";
-  if (/verify .+ after a delay|spaced retrieval and error repair/i.test(label)) return "verify";
-  return null;
-}
-
-export function inferScheduledRetrievalConcept(
-  session: ReviewConceptIdentity,
-) {
-  if (session.reviewConcept?.trim()) return session.reviewConcept.trim();
-  return (session.title ?? "")
-    .replace(/^repair and verify\s+/i, "")
-    .replace(/^verify\s+/i, "")
-    .replace(/\s+after a delay$/i, "")
-    .trim() || null;
+  return Boolean(session?.reviewType);
 }
 
 export function scheduledRetrievalContract(session: ReviewSessionDescriptor) {
-  const reviewType = inferScheduledRetrievalType(session);
+  const reviewType = session.reviewType ?? null;
   if (!reviewType) return null;
 
   return {
     format: "low_stress_multiple_choice" as const,
     reviewType,
-    concept: inferScheduledRetrievalConcept(session),
+    concept: session.reviewConcept?.trim() || null,
     maximumQuestions: 3,
     learnerPromise: "One short multiple-choice check at a time. Every question includes the context you need. No typed response and no confidence rating.",
     evidenceBoundary: "This is a lightweight return signal, not proof of permanent mastery.",
@@ -111,7 +79,7 @@ export function validateScheduledRetrievalSession(
   draft: GeneratedSessionDraft,
   session: ReviewSessionDescriptor,
 ): string | null {
-  if (!inferScheduledRetrievalType(session)) return null;
+  if (!session.reviewType) return null;
   if (draft.methodBriefing.learningMode !== "study") {
     return "A scheduled retrieval must stay practice-first instead of becoming another teaching session.";
   }
@@ -145,7 +113,7 @@ export function validateScheduledRetrievalSession(
     return `The ${invalidPhase.methodPhase} phase does not belong in a low-stress scheduled retrieval.`;
   }
 
-  const reviewConcept = inferScheduledRetrievalConcept(session);
+  const reviewConcept = session.reviewConcept?.trim() || null;
   const targetConcept = reviewConcept?.toLocaleLowerCase();
   if (targetConcept && !draft.activities.some((activity) => activity.concept?.trim().toLocaleLowerCase() === targetConcept)) {
     return `The scheduled concept ${reviewConcept} must appear exactly in at least one review question.`;

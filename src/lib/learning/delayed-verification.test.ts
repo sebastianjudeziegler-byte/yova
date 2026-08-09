@@ -98,4 +98,29 @@ describe("buildDelayedVerificationSession", () => {
       observedGap: "No major gap detected in the required check",
     }))).toBeNull();
   });
+
+  it("does not schedule the same gap again after an in-session repair was completed", () => {
+    expect(buildDelayedVerificationSession(completedSession, completion({
+      conceptEvidence: [{
+        concept: "Cellular respiration sequence",
+        outcome: "secure",
+        activityType: "free_response",
+        methodPhase: "repair",
+      }],
+    }))).toBeNull();
+  });
+
+  it("schedules only a later unrepaired gap when earlier gaps were repaired in-session", () => {
+    const result = buildDelayedVerificationSession(completedSession, completion({
+      observedGap: "Cellular respiration sequence; ATP production",
+      conceptEvidence: [{
+        concept: "Cellular respiration sequence",
+        outcome: "secure",
+        activityType: "free_response",
+        methodPhase: "repair",
+      }],
+    }));
+
+    expect(result?.reviewConcept).toBe("ATP production");
+  });
 });

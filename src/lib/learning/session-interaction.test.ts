@@ -12,6 +12,30 @@ describe("session interaction", () => {
     expect(shouldRequestConfidence({ isQuestion: true, isImmediateRepair: true, methodPhase: "explain" })).toBe(false);
   });
 
+  it("does not gate a post-teaching check for the same concept", () => {
+    expect(shouldRequestConfidence({
+      isQuestion: true,
+      isImmediateRepair: false,
+      methodPhase: "transfer",
+      taughtEarlierInSession: true,
+    })).toBe(false);
+  });
+
+  it("keeps confidence on retrieval and independent practice even after teaching", () => {
+    expect(shouldRequestConfidence({
+      isQuestion: true,
+      isImmediateRepair: false,
+      methodPhase: "retrieve",
+      taughtEarlierInSession: true,
+    })).toBe(true);
+    expect(shouldRequestConfidence({
+      isQuestion: true,
+      isImmediateRepair: false,
+      methodPhase: "independent_practice",
+      taughtEarlierInSession: true,
+    })).toBe(true);
+  });
+
   it("does not ask on non-question activities", () => {
     expect(shouldRequestConfidence({ isQuestion: false, isImmediateRepair: false, methodPhase: "retrieve" })).toBe(false);
   });

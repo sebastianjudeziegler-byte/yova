@@ -1,8 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   adaptDeliveryPolicyForScheduledRetrieval,
-  inferScheduledRetrievalConcept,
-  inferScheduledRetrievalType,
+  isScheduledRetrievalSession,
   scheduledRetrievalContract,
   validateScheduledRetrievalSession,
 } from "@/lib/learning/scheduled-retrieval";
@@ -96,14 +95,19 @@ describe("scheduled retrieval contract", () => {
     expect(result.learnerFacingReasons[0]).toMatch(/short multiple-choice check/i);
   });
 
-  it("upgrades delayed checks created before explicit review metadata existed", () => {
+  it("does not treat a title or method as scheduled review metadata", () => {
     const legacySession = {
       title: "Repair and verify Electron transport chain",
       method: "Misconception repair and delayed transfer",
+      reviewType: undefined,
     };
 
-    expect(inferScheduledRetrievalType(legacySession)).toBe("repair_and_retrieve");
-    expect(inferScheduledRetrievalConcept(legacySession)).toBe("Electron transport chain");
+    expect(isScheduledRetrievalSession(legacySession)).toBe(false);
+    expect(scheduledRetrievalContract({
+      ...legacySession,
+      learningMode: "study",
+      estimatedMinutes: 5,
+    })).toBeNull();
   });
 });
 

@@ -1343,6 +1343,10 @@ h1, h2, h3, p { margin-top: 0; }
 .workpad-final input:disabled { color: var(--text); background: #f8f9fc; opacity: 1; }
 .recall-submit-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 9px; }
 .recall-submit-actions > small { flex-basis: 100%; color: var(--muted); font-size: 10px; line-height: 1.5; }
+.recall-retry { display: grid; gap: 14px; }
+.recall-retry-actions { padding: 15px 16px; display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 10px; border: 1px solid #d9d2ff; border-radius: 12px; background: #f8f6ff; }
+.recall-retry-actions strong { display: block; color: var(--text); font-size: 15px; }
+.recall-retry-actions p { margin: 4px 0 0; color: var(--text-soft); font-size: 13px; line-height: 1.45; }
 .unknown-answer { color: #58657b !important; }
 .unknown-answer:hover { color: var(--blue) !important; border-color: #cbd8fb !important; background: #f5f8ff !important; }
 .recall-review { padding: 18px; border: 1px solid #d9d2ff; border-radius: 12px; background: #f8f6ff; }
@@ -2362,6 +2366,8 @@ h1, h2, h3, p { margin-top: 0; }
   .recall-submit-actions { align-items: stretch; flex-direction: column; flex-wrap: nowrap; }
   .recall-submit-actions .button { width: 100%; }
   .recall-submit-actions > small { flex-basis: auto; }
+  .recall-retry-actions { grid-template-columns: 1fr; }
+  .recall-retry-actions .button { width: 100%; }
   .quantitative-workpad > header { padding: 14px; }
   .workpad-steps { padding: 14px; }
   .workpad-steps label { grid-template-columns: 24px minmax(0,1fr); gap: 8px; }

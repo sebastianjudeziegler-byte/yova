@@ -47,6 +47,17 @@ describe("confidence calibration", () => {
     expect(twoChecks.pattern).toBe("well_calibrated");
   });
 
+  it("treats checks without a confidence gate as absent evidence, not a pattern", () => {
+    const result = summarizeConfidenceCalibration([]);
+
+    expect(result).toMatchObject({
+      pattern: "insufficient",
+      checkedAnswers: 0,
+      highConfidenceMisses: 0,
+      lowConfidenceSuccesses: 0,
+    });
+  });
+
   it("rejects malformed stored evidence", () => {
     expect(readConfidenceEvidenceProperty({ confidenceEvidence: [{ confidence: "certain" }] })).toEqual([]);
   });

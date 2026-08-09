@@ -134,6 +134,7 @@ export type ConceptEvidence = {
   outcome: "secure" | "needs_review";
   activityType: "multiple_choice" | "free_response";
   methodPhase?: import("@/lib/learning/method-fidelity").MethodPhase;
+  attempt?: 1 | 2;
 };
 
 export type ConfidenceLevel = "guessing" | "somewhat_sure" | "very_sure";

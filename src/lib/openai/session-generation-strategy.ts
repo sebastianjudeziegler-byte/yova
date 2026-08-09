@@ -1,5 +1,5 @@
 import "server-only";
-import { inferScheduledRetrievalType } from "@/lib/learning/scheduled-retrieval";
+import { isScheduledRetrievalSession } from "@/lib/learning/scheduled-retrieval";
 import {
   canGenerateReliableSession,
   generateReliableSessionWithOpenAI,
@@ -15,7 +15,7 @@ import {
  * whose complete learning sequence fits its deterministic activity shape.
  */
 export function sessionGenerationStrategy(context: SessionGenerationContext) {
-  if (inferScheduledRetrievalType(context.session)) return "full" as const;
+  if (isScheduledRetrievalSession(context.session)) return "full" as const;
   return canGenerateReliableSession(context) ? "reliable" as const : "full" as const;
 }
 

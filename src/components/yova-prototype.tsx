@@ -242,6 +242,7 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
   const [sessionStep, setSessionStep] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
   const [sessionOutcomes, setSessionOutcomes] = useState<Record<number, boolean>>({});
+  const [sessionAttempts, setSessionAttempts] = useState<Record<number, boolean[]>>({});
   const [sessionConfidence, setSessionConfidence] = useState<Record<number, ConfidenceLevel>>({});
   const [resumedSessionEvidence, setResumedSessionEvidence] = useState<SessionEvidenceSnapshot | null>(null);
   const [answerRevealed, setAnswerRevealed] = useState(false);
@@ -280,7 +281,7 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
   const activeLessonSteps = generatedLessonSteps ?? lessonStepsFor(activePlan);
   const sessionEvidence = mergeSessionEvidenceSummaries(
     resumedSessionEvidence,
-    summarizeSessionEvidence(activeLessonSteps, sessionOutcomes, sessionConfidence),
+    summarizeSessionEvidence(activeLessonSteps, sessionOutcomes, sessionConfidence, sessionAttempts),
   );
   const capturedSessionSeconds = Math.max(1, sessionElapsedSeconds);
   const capturedSessionMinutes = Math.max(1, Math.ceil(capturedSessionSeconds / 60));
@@ -546,6 +547,7 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
     setSessionStep(0);
     setSelectedAnswer(null);
     setSessionOutcomes({});
+    setSessionAttempts({});
     setSessionConfidence({});
     setResumedSessionEvidence(resumePoint?.evidence ?? null);
     setAnswerRevealed(false);
@@ -914,7 +916,7 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
     const completedLessonSteps = activeLessonSteps.slice(0, sessionStep);
     const interruptionEvidence = mergeSessionEvidenceSummaries(
       resumedSessionEvidence,
-      summarizeSessionEvidence(completedLessonSteps, sessionOutcomes, sessionConfidence),
+      summarizeSessionEvidence(completedLessonSteps, sessionOutcomes, sessionConfidence, sessionAttempts),
     );
     const resumeStep = completedLessonSteps.filter((step) => step.evidenceRole !== "immediate_repair").length;
     const currentStep = activeLessonSteps[sessionStep];
@@ -1010,6 +1012,7 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
     setSessionStep(0);
     setSelectedAnswer(null);
     setSessionOutcomes({});
+    setSessionAttempts({});
     setSessionConfidence({});
     setResumedSessionEvidence(null);
     setAnswerRevealed(false);
@@ -1509,6 +1512,7 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
         step={sessionStep}
         selectedAnswer={selectedAnswer}
         outcome={sessionOutcomes[sessionStep]}
+        attemptCount={sessionAttempts[sessionStep]?.length ?? 0}
         confidence={sessionConfidence[sessionStep]}
         priorConfidenceCaptured={Object.keys(sessionConfidence).some((key) => Number(key) < sessionStep)}
         answerRevealed={answerRevealed}
@@ -1526,8 +1530,23 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
         onSelect={(answer) => {
           setSelectedAnswer(answer);
         }}
-        onEvaluate={(correct) => {
+        onEvaluate={(correct, recordAttempt = true) => {
           setSessionOutcomes((current) => ({ ...current, [sessionStep]: correct }));
+          if (recordAttempt) {
+            setSessionAttempts((current) => ({
+              ...current,
+              [sessionStep]: [...(current[sessionStep] ?? []), correct].slice(0, 2),
+            }));
+          }
+        }}
+        onRetry={() => {
+          setSelectedAnswer(null);
+          setAnswerRevealed(false);
+          setSessionOutcomes((current) => {
+            const next = { ...current };
+            delete next[sessionStep];
+            return next;
+          });
         }}
         onConfidence={(confidence) => {
           setSessionConfidence((current) => ({ ...current, [sessionStep]: confidence }));
@@ -3198,7 +3217,7 @@ function SessionGenerationError({ plan, issue, onExit, onRetry }: { plan: Learni
   return <main className="centered-shell"><BrandMark /><section className="plan-error-state session-error-state" role="alert"><span><AlertCircle /></span><span className="step-label">LESSON SERVICE INTERRUPTED</span><h1>YOVA already knows what this lesson should cover.</h1><p>{issue ?? "The lesson service did not respond this time."}</p><p>Your goal, planned objective, learning profile, and progress are still intact. You do not need to explain the lesson again.</p><div className="session-error-recovery"><button className="button primary" onClick={onRetry}>Prepare this lesson again <ArrowRight size={17} /></button><button className="button ghost" onClick={onExit}><ArrowLeft size={17} /> Return to {plan?.title ?? "the goal"}</button></div></section></main>;
 }
 
-function GuidedSession({ plan, steps, step, selectedAnswer, outcome, confidence, priorConfidenceCaptured, answerRevealed, elapsedSeconds, capacityMinutes, rationale, coverage, methodBriefing, deliveryPolicy, supportPlan, sourceGrounding, issue, analyticsEnabled, browserPreviewMode, onSelect, onEvaluate, onConfidence, onReveal, onExit, onRedirectPlan, onNext }: { plan: LearningPlan | null; steps: LessonStep[]; step: number; selectedAnswer: string | null; outcome: boolean | undefined; confidence: ConfidenceLevel | undefined; priorConfidenceCaptured: boolean; answerRevealed: boolean; elapsedSeconds: number; capacityMinutes: number | null; rationale: string | null; coverage: SessionCoverage | null; methodBriefing: SessionMethodBriefing | null; deliveryPolicy: SessionDeliveryPolicy | null; supportPlan: SessionSupportPlan | null; sourceGrounding: SessionSourceGrounding | null; issue: string | null; analyticsEnabled: boolean; browserPreviewMode: boolean; onSelect: (answer: string) => void; onEvaluate: (correct: boolean) => void; onConfidence: (confidence: ConfidenceLevel) => void; onReveal: () => void; onExit: () => void; onRedirectPlan: (direction: string) => Promise<void>; onNext: (evaluation: AnswerEvaluationResponse | null) => void | Promise<void> }) {
+function GuidedSession({ plan, steps, step, selectedAnswer, outcome, attemptCount, confidence, priorConfidenceCaptured, answerRevealed, elapsedSeconds, capacityMinutes, rationale, coverage, methodBriefing, deliveryPolicy, supportPlan, sourceGrounding, issue, analyticsEnabled, browserPreviewMode, onSelect, onEvaluate, onRetry, onConfidence, onReveal, onExit, onRedirectPlan, onNext }: { plan: LearningPlan | null; steps: LessonStep[]; step: number; selectedAnswer: string | null; outcome: boolean | undefined; attemptCount: number; confidence: ConfidenceLevel | undefined; priorConfidenceCaptured: boolean; answerRevealed: boolean; elapsedSeconds: number; capacityMinutes: number | null; rationale: string | null; coverage: SessionCoverage | null; methodBriefing: SessionMethodBriefing | null; deliveryPolicy: SessionDeliveryPolicy | null; supportPlan: SessionSupportPlan | null; sourceGrounding: SessionSourceGrounding | null; issue: string | null; analyticsEnabled: boolean; browserPreviewMode: boolean; onSelect: (answer: string) => void; onEvaluate: (correct: boolean, recordAttempt?: boolean) => void; onRetry: () => void; onConfidence: (confidence: ConfidenceLevel) => void; onReveal: () => void; onExit: () => void; onRedirectPlan: (direction: string) => Promise<void>; onNext: (evaluation: AnswerEvaluationResponse | null) => void | Promise<void> }) {
   const [confirmingExit, setConfirmingExit] = useState(false);
   const [changingDirection, setChangingDirection] = useState(false);
   const [directionRequest, setDirectionRequest] = useState("");
@@ -3219,11 +3238,21 @@ function GuidedSession({ plan, steps, step, selectedAnswer, outcome, confidence,
     .find((candidate) => candidate.teaching)?.teaching ?? null;
   const isQuestion = content.type === "multiple_choice" || content.type === "free_response";
   const isImmediateRepair = content.evidenceRole === "immediate_repair";
+  const normalizedConcept = content.concept?.trim().toLocaleLowerCase() ?? null;
+  const taughtEarlierInSession = Boolean(content.teaching || (normalizedConcept && steps.slice(0, step).some((candidate) => {
+    const priorConcept = candidate.concept?.trim().toLocaleLowerCase();
+    return Boolean(candidate.teaching && priorConcept && (
+      priorConcept === normalizedConcept
+      || priorConcept.includes(normalizedConcept)
+      || normalizedConcept.includes(priorConcept)
+    ));
+  })));
   const requiresConfidence = !quickScheduledReview && shouldRequestConfidence({
     isQuestion,
     isImmediateRepair,
     methodPhase: content.methodPhase,
     priorConfidenceCaptured,
+    taughtEarlierInSession,
   });
   const isCorrect = outcome === true;
   const correctAnswer = content.correctAnswer?.trim() ?? "";
@@ -3236,7 +3265,8 @@ function GuidedSession({ plan, steps, step, selectedAnswer, outcome, confidence,
   const teachingPanels = content.teaching ? teachingPanelsFor(content.teaching, deliveryPolicy?.presentation.mode) : [];
   const teachingComplete = teachingPanels.length === 0 || teachingPage >= teachingPanels.length - 1;
   const nextTeachingPanel = teachingPanels[teachingPage + 1] ?? null;
-  const canContinue = (!isQuestion || outcome !== undefined) && teachingComplete;
+  const freeResponseReady = content.type !== "free_response" || answerRevealed;
+  const canContinue = (!isQuestion || outcome !== undefined) && teachingComplete && freeResponseReady;
   const phase = content.methodPhase ? getMethodPhasePresentation(content.methodPhase) : null;
   const phasePosition = methodPhasePosition(steps.map((item) => item.methodPhase), step);
   const requiredSteps = steps.filter((item) => item.requiredForCompletion !== false);
@@ -3254,6 +3284,11 @@ function GuidedSession({ plan, steps, step, selectedAnswer, outcome, confidence,
       referenceAnswer: content.correctAnswer ?? "",
     })
     : "explanation";
+  const awaitingRetryChoice = content.type === "free_response"
+    && answerEvaluation?.verdict === "needs_review"
+    && outcome === false
+    && attemptCount === 1
+    && !answerRevealed;
 
   const checkFreeResponse = async () => {
     if (!selectedAnswer?.trim() || answerEvaluationPending) return;
@@ -3294,15 +3329,33 @@ function GuidedSession({ plan, steps, step, selectedAnswer, outcome, confidence,
       const parsed = AnswerEvaluationResponseSchema.safeParse(body);
       if (!parsed.success) throw new Error("YOVA received an unsafe answer-checking response.");
       setAnswerEvaluation(parsed.data);
-      if (parsed.data.verdict !== "uncertain") onEvaluate(parsed.data.verdict === "secure");
+      if (parsed.data.verdict === "secure") {
+        onEvaluate(true);
+        onReveal();
+      } else if (parsed.data.verdict === "needs_review") {
+        onEvaluate(false);
+        if (attemptCount >= 1) onReveal();
+      } else {
+        onReveal();
+      }
     } catch (error) {
       setAnswerEvaluationIssue(error instanceof Error
         ? error.message
         : "YOVA could not check this explanation right now.");
-    } finally {
       onReveal();
+    } finally {
       setAnswerEvaluationPending(false);
     }
+  };
+
+  const beginFreeResponseRetry = () => {
+    setAnswerEvaluation(null);
+    setAnswerEvaluationIssue(null);
+    onRetry();
+  };
+
+  const skipRetryAndReveal = () => {
+    onReveal();
   };
 
   const revealUnknownAnswer = () => {
@@ -3372,7 +3425,7 @@ function GuidedSession({ plan, steps, step, selectedAnswer, outcome, confidence,
         {freeResponseMode === "quantitative_workpad"
           ? <QuantitativeWorkpad
             value={selectedAnswer ?? ""}
-            disabled={answerRevealed || answerEvaluationPending || (requiresConfidence && !confidence)}
+            disabled={outcome !== undefined || answerRevealed || answerEvaluationPending || (requiresConfidence && !confidence)}
             onChange={onSelect}
           />
           : <label htmlFor={`recall-${step}`}>
@@ -3381,12 +3434,12 @@ function GuidedSession({ plan, steps, step, selectedAnswer, outcome, confidence,
               id={`recall-${step}`}
               rows={6}
               value={selectedAnswer ?? ""}
-              disabled={answerRevealed || answerEvaluationPending || (requiresConfidence && !confidence)}
+              disabled={outcome !== undefined || answerRevealed || answerEvaluationPending || (requiresConfidence && !confidence)}
               placeholder={isImmediateRepair ? "Explain the corrected idea without copying the wording..." : requiresConfidence && !confidence ? "Choose your confidence first..." : phase?.instruction ?? "Write what you can remember before checking..."}
               onChange={(event) => onSelect(event.target.value)}
             />
           </label>}
-        {!answerRevealed ? <div className="recall-submit-actions">
+        {!answerRevealed && !awaitingRetryChoice ? <div className="recall-submit-actions">
           <button className="button secondary" disabled={!selectedAnswer?.trim() || answerEvaluationPending || (requiresConfidence && !confidence)} onClick={() => void checkFreeResponse()}>
             {answerEvaluationPending
               ? <><span className="button-spinner dark" /> Checking your work...</>
@@ -3394,23 +3447,20 @@ function GuidedSession({ plan, steps, step, selectedAnswer, outcome, confidence,
           </button>
           <button className="button ghost unknown-answer" disabled={answerEvaluationPending} onClick={revealUnknownAnswer}><AlertCircle size={16} /> I don&apos;t know yet</button>
           <small>YOVA will show the model and record a gap without treating it as failure.</small>
+        </div> : awaitingRetryChoice ? <div className="recall-retry">
+          <AnswerEvaluationCard evaluation={answerEvaluation} />
+          <div className="recall-retry-actions"><div><strong>Try the same question once more?</strong><p>The model answer stays hidden until your retry is checked.</p></div><button className="button primary" onClick={beginFreeResponseRetry}>Try again</button><button className="button ghost" onClick={skipRetryAndReveal}>Show me the answer</button></div>
         </div> : <div className="recall-review">
-          {answerEvaluation && <section className={`answer-evaluation ${answerEvaluation.verdict}`}>
-            <span className="step-label">YOVA&apos;S FORMATIVE CHECK</span>
-            <strong>{answerEvaluation.verdict === "secure" ? "The key idea is present." : answerEvaluation.verdict === "needs_review" ? "One or more key ideas need repair." : "YOVA could not judge this confidently."}</strong>
-            <LearningContent content={answerEvaluation.feedback} />
-            {answerEvaluation.matchedIdeas.length > 0 && <div><span>What your answer showed</span><ul>{answerEvaluation.matchedIdeas.map((idea) => <li key={idea}><LearningContent content={idea} inline /></li>)}</ul></div>}
-            {answerEvaluation.missingIdeas.length > 0 && <div><span>What to check</span><ul>{answerEvaluation.missingIdeas.map((idea) => <li key={idea}><LearningContent content={idea} inline /></li>)}</ul></div>}
-          </section>}
+          {answerEvaluation && <AnswerEvaluationCard evaluation={answerEvaluation} />}
           {answerEvaluationIssue && <div className="answer-evaluation-fallback"><AlertCircle size={17} /><p>{answerEvaluationIssue} Compare your work with the model answer below.</p></div>}
           <section className="model-answer-card">
             <span className="step-label">MODEL ANSWER</span>
             <LearningContent content={content.correctAnswer ?? ""} className="reference-answer" />
             {content.feedback && <details><summary>What this answer needs to show</summary><LearningContent content={content.feedback} className="reference-rubric" /></details>}
           </section>
-          <div className="recall-actions"><span>{answerEvaluation ? "Confirm or correct YOVA’s check" : "How did your answer compare?"}</span><button className={outcome === true ? "selected" : ""} onClick={() => onEvaluate(true)}><Check size={17} /> I got the key idea</button><button className={outcome === false ? "selected needs-work" : ""} onClick={() => onEvaluate(false)}><AlertCircle size={17} /> Needs another pass</button></div>
+          <div className="recall-actions"><span>{answerEvaluation ? "Confirm or correct YOVA’s check" : "How did your answer compare?"}</span><button className={outcome === true ? "selected" : ""} onClick={() => onEvaluate(true, false)}><Check size={17} /> I got the key idea</button><button className={outcome === false ? "selected needs-work" : ""} onClick={() => onEvaluate(false, false)}><AlertCircle size={17} /> Needs another pass</button></div>
           {confidence && outcome !== undefined && <p className="confidence-result"><Sparkles size={15} /> {confidenceResultMessage(confidence, outcome)}</p>}
-          <small className="privacy-note">{isImmediateRepair ? "This immediate explain-back is not saved as proof of mastery. The original miss remains scheduled for later verification." : answerEvaluation ? "Your answer was sent for a one-time AI check and is not saved. YOVA keeps only the concept result, confidence, and support level." : "Your typed answer is not saved. YOVA keeps only the concept result, confidence, and support level."}</small>
+          <small className="privacy-note">{isImmediateRepair ? "This required recheck records whether the repaired concept now holds. A later review is added only if the pattern continues across sessions." : answerEvaluation ? "Your answer was sent for a one-time AI check and is not saved. YOVA keeps only the concept result, confidence, and support level." : "Your typed answer is not saved. YOVA keeps only the concept result, confidence, and support level."}</small>
         </div>}
       </div>}
         <footer className="session-action-bar">{step === steps.length - 1 && teachingComplete && <p className="completion-rule"><Check size={14} /> Completion is based on the required learning work, not on running out the clock.</p>}<button className="button primary large" onClick={() => void advanceSession()} disabled={advancing || (!canContinue && !nextTeachingPanel)}>{advancing ? <><span className="button-spinner" /> Adapting your next step...</> : <>{nextTeachingPanel ? `Next: ${teachingPanelLabel(nextTeachingPanel)}` : outcome === false && !isImmediateRepair ? "Repair this idea" : step === steps.length - 1 ? "Finish this content" : "Continue"} <ArrowRight size={18} /></>}</button></footer>
@@ -3428,6 +3478,16 @@ function GuidedSession({ plan, steps, step, selectedAnswer, outcome, confidence,
     {changingDirection && <div className="plan-direction-backdrop"><section className="plan-direction-dialog" role="dialog" aria-modal="true" aria-labelledby="plan-direction-title"><header><span className="plan-direction-icon"><Settings2 size={21} /></span><div><span className="step-label">CHANGE THE COURSE DIRECTION</span><h2 id="plan-direction-title">Tell YOVA what is off track.</h2><p>Completed work and learning evidence will stay. YOVA will rebuild only the unfinished sessions after you approve this change.</p></div></header><label><span>What should be different?</span><textarea autoFocus rows={5} maxLength={500} value={directionRequest} disabled={directionPending} placeholder="Example: I do not want math exercises. Keep the remaining course conceptual and focus on founder decisions, investors, and real startup examples." onChange={(event) => setDirectionRequest(event.target.value)} /><small>{directionRequest.length}/500</small></label><div className="plan-direction-examples"><button type="button" onClick={() => setDirectionRequest("Keep this conceptual. Do not include math or calculation exercises.")}>No calculations</button><button type="button" onClick={() => setDirectionRequest("Teach the foundations first and use concrete examples before practice.")}>Teach the basics first</button><button type="button" onClick={() => setDirectionRequest("Focus more on real examples and practical decisions.")}>More real examples</button></div>{directionIssue && <div className="chat-error"><AlertCircle size={16} /><span>{directionIssue}</span></div>}<footer><button className="button ghost" disabled={directionPending} onClick={() => { setChangingDirection(false); setDirectionIssue(null); }}>Keep this plan</button><button className="button primary large" disabled={directionPending || directionRequest.trim().length < 5} onClick={() => void redirectPlan()}>{directionPending ? <><span className="button-spinner" /> Rebuilding plan</> : <>Approve and rebuild <ArrowRight size={18} /></>}</button></footer></section></div>}
     {confirmingExit && <div className="session-exit-backdrop"><section className="session-exit-dialog" role="dialog" aria-modal="true" aria-labelledby="session-exit-title"><div className="session-exit-icon"><Clock3 size={21} /></div><span className="step-label">LEAVE THIS SESSION?</span><h2 id="session-exit-title">Your plan will stay open.</h2><p>YOVA will remember how long you studied and exactly which content steps you reached. Unfinished answers will not be treated as knowledge evidence.</p><div className="session-exit-summary"><span>{formatElapsedDuration(elapsedSeconds)} studied</span><span>{completedRequiredSteps} of {requiredSteps.length} required steps finished</span></div><div className="session-exit-actions"><button className="button ghost" onClick={() => setConfirmingExit(false)}>Keep studying</button><button className="button primary" onClick={onExit}>Save progress and leave</button></div></section></div>}
   </main>;
+}
+
+function AnswerEvaluationCard({ evaluation }: { evaluation: AnswerEvaluationResponse }) {
+  return <section className={`answer-evaluation ${evaluation.verdict}`}>
+    <span className="step-label">YOVA&apos;S FORMATIVE CHECK</span>
+    <strong>{evaluation.verdict === "secure" ? "The key idea is present." : evaluation.verdict === "needs_review" ? "One or more key ideas need repair." : "YOVA could not judge this confidently."}</strong>
+    <LearningContent content={evaluation.feedback} />
+    {evaluation.matchedIdeas.length > 0 && <div><span>What your answer established</span><ul>{evaluation.matchedIdeas.map((idea) => <li key={idea}><LearningContent content={idea} inline /></li>)}</ul></div>}
+    {evaluation.missingIdeas.length > 0 && <div><span>What is still missing</span><ul>{evaluation.missingIdeas.map((idea) => <li key={idea}><LearningContent content={idea} inline /></li>)}</ul></div>}
+  </section>;
 }
 
 function RuntimeRepairSupportCard({ support }: { support: RuntimeRepairSupport }) {

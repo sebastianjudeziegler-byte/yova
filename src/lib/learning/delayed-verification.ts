@@ -4,6 +4,7 @@ import {
   type SessionCompletion,
 } from "@/lib/domain";
 import { summarizeConfidenceCalibration } from "@/lib/learning/confidence-calibration";
+import { unrepairedObservedGaps } from "@/lib/learning/session-evidence";
 import { createSessionAdaptationNote } from "@/lib/personalization/adaptation-note";
 
 export function buildDelayedVerificationSession(
@@ -12,7 +13,9 @@ export function buildDelayedVerificationSession(
 ): LearningPlanSession | null {
   if (completion.totalAnswers === 0 || completion.correctAnswers >= completion.totalAnswers) return null;
 
-  const gap = conciseGap(completion.observedGap);
+  const unrepairedGaps = unrepairedObservedGaps(completion.observedGap, completion.conceptEvidence);
+  if (unrepairedGaps.length === 0) return null;
+  const gap = conciseGap(unrepairedGaps[0]!);
   const calibration = summarizeConfidenceCalibration(completion.confidenceEvidence);
   const needsMisconceptionRepair = calibration.pattern === "possible_misconception" || calibration.pattern === "mixed";
   const scheduledFor = new Date(completion.completedAt);

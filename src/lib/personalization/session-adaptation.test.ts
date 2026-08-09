@@ -189,4 +189,43 @@ describe("buildNextSessionAdaptation", () => {
 
     expect(result).toBeNull();
   });
+
+  it("does not duplicate a gap already repaired inside the completed session", () => {
+    const result = buildNextSessionAdaptation(
+      nextSession,
+      makeCompletion({
+        correctAnswers: 1,
+        totalAnswers: 2,
+        observedGap: "electron transport chain",
+        conceptEvidence: [{
+          concept: "electron transport chain",
+          outcome: "secure",
+          activityType: "free_response",
+          methodPhase: "repair",
+        }],
+      }),
+    );
+
+    expect(result).toBeNull();
+  });
+
+  it("falls back to the next unrepaired gap after the in-session repair cap", () => {
+    const result = buildNextSessionAdaptation(
+      nextSession,
+      makeCompletion({
+        correctAnswers: 1,
+        totalAnswers: 3,
+        observedGap: "electron transport chain; ATP production",
+        conceptEvidence: [{
+          concept: "electron transport chain",
+          outcome: "secure",
+          activityType: "free_response",
+          methodPhase: "repair",
+        }],
+      }),
+    );
+
+    expect(result?.explanation).toContain("ATP production");
+    expect(result?.explanation).not.toContain("for electron transport chain");
+  });
 });

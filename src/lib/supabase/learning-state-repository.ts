@@ -381,6 +381,8 @@ export async function completeAuthenticatedPlanSession(
         amountLabel: followUpSession.amountLabel,
         learningMode: followUpSession.learningMode,
         explanation: followUpSession.adaptationNote?.explanation ?? followUpSession.methodReason,
+        reviewConcept: followUpSession.reviewConcept,
+        reviewType: followUpSession.reviewType,
       } : null,
     },
   });

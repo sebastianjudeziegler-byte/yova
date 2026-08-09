@@ -87,6 +87,8 @@ begin
     or length(btrim(coalesce(follow_up ->> 'methodReason', ''))) not between 1 and 900
     or length(btrim(coalesce(follow_up ->> 'amountLabel', ''))) not between 1 and 180
     or coalesce(follow_up ->> 'learningMode', '') not in ('learn', 'study')
+    or length(btrim(coalesce(follow_up ->> 'reviewConcept', ''))) not between 2 and 120
+    or coalesce(follow_up ->> 'reviewType', '') not in ('repair_and_retrieve', 'verify', 'maintenance_transfer')
     or nullif(follow_up ->> 'estimatedMinutes', '')::integer not between 5 and 180
     or nullif(follow_up ->> 'scheduledFor', '')::timestamptz is null
   ) then
@@ -187,7 +189,9 @@ begin
         'amountLabel', follow_up ->> 'amountLabel',
         'learningMode', follow_up ->> 'learningMode',
         'adaptationExplanation', coalesce(nullif(follow_up ->> 'explanation', ''), follow_up ->> 'methodReason'),
-        'adaptedAt', payload ->> 'completedAt'
+        'adaptedAt', payload ->> 'completedAt',
+        'reviewConcept', follow_up ->> 'reviewConcept',
+        'reviewType', follow_up ->> 'reviewType'
       )
     )
     on conflict (plan_id, sequence) do nothing;

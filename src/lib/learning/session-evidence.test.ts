@@ -34,7 +34,7 @@ const steps: GuidedSessionStep[] = [
 ];
 
 describe("buildImmediateRepairSteps", () => {
-  it("turns a miss into an explain-back repair without claiming mastery", () => {
+  it("turns a miss into one bounded, required explain-back repair", () => {
     const repairs = buildImmediateRepairSteps(steps, { 0: false, 1: true });
 
     expect(repairs).toHaveLength(1);
@@ -43,7 +43,7 @@ describe("buildImmediateRepairSteps", () => {
       concept: "Product rule",
       evidenceRole: "immediate_repair",
     });
-    expect(repairs[0].body).toContain("check it again later");
+    expect(repairs[0].body).toContain("previous check exposed this exact gap");
   });
 
   it("caps repair work so one difficult session does not become overwhelming", () => {
@@ -86,7 +86,7 @@ describe("buildImmediateRepairAfterMiss", () => {
     );
 
     expect(repair?.body).toContain("both factors contribute");
-    expect(repair?.body).toContain("verify it again later");
+    expect(repair?.body).toContain("previous check exposed this exact gap");
     expect(repair?.body.length).toBeLessThanOrEqual(320);
   });
 
@@ -122,7 +122,7 @@ describe("buildImmediateRepairAfterMiss", () => {
 });
 
 describe("summarizeSessionEvidence", () => {
-  it("does not turn an immediate retry into durable evidence", () => {
+  it("records an immediate repair as concept evidence in the repair phase", () => {
     const repair = buildImmediateRepairSteps(steps, { 0: false, 1: true })[0];
     const summary = summarizeSessionEvidence(
       [...steps, repair],
@@ -133,15 +133,39 @@ describe("summarizeSessionEvidence", () => {
     expect(summary).toMatchObject({
       correctAnswers: 1,
       totalAnswers: 2,
-      observedGap: "Product rule",
+      observedGap: "No major gap detected in the required check",
       completedImmediateRepairs: 1,
     });
-    expect(summary.conceptEvidence).toHaveLength(2);
+    expect(summary.conceptEvidence).toHaveLength(3);
     expect(summary.conceptEvidence[0]).toMatchObject({
       concept: "Product rule",
       outcome: "needs_review",
       methodPhase: "retrieve",
     });
+    expect(summary.conceptEvidence[2]).toMatchObject({
+      concept: "Product rule",
+      outcome: "secure",
+      methodPhase: "repair",
+    });
+  });
+
+  it("records both free-response attempts and lets the second outcome drive the gap", () => {
+    const summary = summarizeSessionEvidence(
+      steps,
+      { 1: false },
+      {},
+      { 1: [false, false] },
+    );
+
+    expect(summary).toMatchObject({
+      correctAnswers: 0,
+      totalAnswers: 1,
+      observedGap: "Chain rule",
+    });
+    expect(summary.conceptEvidence).toEqual([
+      expect.objectContaining({ concept: "Chain rule", outcome: "needs_review", attempt: 1 }),
+      expect.objectContaining({ concept: "Chain rule", outcome: "needs_review", attempt: 2 }),
+    ]);
   });
 
   it("counts only checks completed after a resumed session", () => {
