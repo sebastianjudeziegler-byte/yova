@@ -14,6 +14,12 @@ export type PostSessionDecision = {
   changes: string[];
   adaptation: NextSessionAdaptation | null;
   followUpSession: LearningPlanSession | null;
+  reviewPlan: {
+    title: string;
+    scheduledFor: string;
+    estimatedMinutes: number;
+    explanation: string;
+  } | null;
 };
 
 export function approvedPostSessionChanges(
@@ -31,25 +37,27 @@ export function buildPostSessionDecision(
   completion: SessionCompletion,
 ): PostSessionDecision {
   const adaptation = buildNextSessionAdaptation(nextSession, completion);
+  const delayedReview = buildDelayedVerificationSession(completedSession, completion);
   if (adaptation) {
     return {
       kind: "adapt_next_session",
-      title: "Adjust the next session",
+      title: "Adjust how the next session begins",
       nextTitle: adaptation.title,
-      explanation: adaptation.explanation,
+      explanation: `${adaptation.explanation} YOVA will not replace the next target or silently remove later content.`,
       changes: [
-        `Use ${adaptation.method.toLocaleLowerCase()}.`,
-        `Keep the learning target, but change how support begins and fades.`,
-        `Build the session around about ${adaptation.estimatedMinutes} minutes of focused work.`,
+        `Keep the next target: ${adaptation.objective}`,
+        `Use ${adaptation.method.toLocaleLowerCase()} while preserving the planned ${adaptation.estimatedMinutes}-minute content window.`,
+        delayedReview
+          ? `Keep ${reviewConcept(delayedReview)} in the retrieval queue for a separate delayed check.`
+          : "Keep every later session target in its original place.",
       ],
       adaptation,
       followUpSession: null,
+      reviewPlan: delayedReview ? toReviewPlan(delayedReview) : null,
     };
   }
 
-  const followUpSession = nextSession
-    ? null
-    : buildDelayedVerificationSession(completedSession, completion);
+  const followUpSession = nextSession ? null : delayedReview;
   if (followUpSession) {
     return {
       kind: "add_delayed_verification",
@@ -63,6 +71,7 @@ export function buildPostSessionDecision(
       ],
       adaptation: null,
       followUpSession,
+      reviewPlan: toReviewPlan(followUpSession),
     };
   }
 
@@ -76,5 +85,19 @@ export function buildPostSessionDecision(
     changes: [],
     adaptation: null,
     followUpSession: null,
+    reviewPlan: null,
   };
+}
+
+function toReviewPlan(session: LearningPlanSession) {
+  return {
+    title: session.title,
+    scheduledFor: session.scheduledFor,
+    estimatedMinutes: session.estimatedMinutes,
+    explanation: session.adaptationNote?.explanation ?? session.methodReason,
+  };
+}
+
+function reviewConcept(session: LearningPlanSession) {
+  return session.reviewConcept?.trim() || "the missed concept";
 }

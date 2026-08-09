@@ -58,7 +58,11 @@ describe("buildPostSessionDecision", () => {
     }));
 
     expect(decision.kind).toBe("adapt_next_session");
-    expect(decision.adaptation?.objective).toContain("electron transport chain");
+    expect(decision.adaptation?.title).toBe(nextSession.title);
+    expect(decision.adaptation?.objective).toBe(nextSession.objective);
+    expect(decision.explanation).toContain("not replace the next target");
+    expect(decision.reviewPlan?.title).toContain("electron transport chain");
+    expect(decision.reviewPlan?.scheduledFor).toBe("2026-08-07T16:25:00.000Z");
     expect(decision.changes).toHaveLength(3);
   });
 
@@ -72,6 +76,7 @@ describe("buildPostSessionDecision", () => {
     expect(decision.kind).toBe("add_delayed_verification");
     expect(decision.followUpSession?.scheduledFor).toBe("2026-08-07T16:25:00.000Z");
     expect(decision.followUpSession?.estimatedMinutes).toBe(10);
+    expect(decision.reviewPlan?.estimatedMinutes).toBe(10);
   });
 
   it("recommends no change after strong evidence at an appropriate challenge level", () => {
@@ -80,6 +85,7 @@ describe("buildPostSessionDecision", () => {
     expect(decision.kind).toBe("keep_current_plan");
     expect(decision.adaptation).toBeNull();
     expect(decision.followUpSession).toBeNull();
+    expect(decision.reviewPlan).toBeNull();
   });
 
   it("does not apply a recommendation when the learner keeps the current plan", () => {

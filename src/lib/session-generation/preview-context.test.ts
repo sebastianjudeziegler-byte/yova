@@ -148,6 +148,54 @@ describe("buildPreviewSessionContext", () => {
     });
   });
 
+  it("carries a completed gap into later session generation without losing future targets", () => {
+    const completedSession = {
+      ...plan.sessions[0],
+      status: "complete" as const,
+      contentTargets: ["Carbon movement through photosynthesis"],
+    };
+    const nextSession = {
+      ...plan.sessions[0],
+      id: "00000000-0000-4000-8000-000000000015",
+      sequence: 2,
+      title: "Connect light reactions to carbon fixation",
+      objective: "Explain how ATP and NADPH support carbon fixation.",
+      contentTargets: ["ATP and NADPH support carbon fixation"],
+      completionEvidence: ["Explain the relationship in a new example"],
+      status: "ready" as const,
+    };
+    const laterSession = {
+      ...plan.sessions[0],
+      id: "00000000-0000-4000-8000-000000000016",
+      sequence: 3,
+      title: "Transfer the full photosynthesis model",
+      objective: "Predict how changing light affects the full process.",
+      contentTargets: ["Transfer the full model to a new condition"],
+      status: "upcoming" as const,
+    };
+    const result = buildPreviewSessionContext({
+      plan: { ...plan, sessions: [completedSession, nextSession, laterSession] },
+      session: nextSession,
+      onboardingAnswers: [],
+      completions: [completion],
+      interruptions: [],
+    });
+
+    expect(result.session).toMatchObject({
+      title: nextSession.title,
+      objective: nextSession.objective,
+      contentTargets: nextSession.contentTargets,
+      completionEvidence: nextSession.completionEvidence,
+    });
+    expect(result.recentResults[0].observedGap).toBe("Calvin cycle");
+    expect(result.conceptSignals[0]).toMatchObject({ concept: "Calvin cycle", status: "needs_review" });
+    expect(result.scaffoldSignals[0]).toMatchObject({ concept: "Calvin cycle", status: "restore_support" });
+    expect(result.journey.nextSessions[0]).toMatchObject({
+      title: laterSession.title,
+      contentTargets: laterSession.contentTargets,
+    });
+  });
+
   it("does not leak evidence from a different learning plan", () => {
     const result = buildPreviewSessionContext({
       plan,

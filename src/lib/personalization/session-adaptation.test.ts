@@ -54,13 +54,14 @@ describe("buildNextSessionAdaptation", () => {
 
     expect(result).toMatchObject({
       planSessionId: nextSession.id,
-      method: "Guided repair, then retrieval",
-      estimatedMinutes: 20,
+      title: nextSession.title,
+      objective: nextSession.objective,
+      method: "Guided repair, then retrieval, then mixed practice",
+      estimatedMinutes: 25,
       learningMode: "learn",
     });
-    expect(result?.objective).toContain("electron transport chain");
-    expect(result?.explanation).toContain("felt too difficult");
-    expect(result?.explanation).toContain("shortened from 25 to 20 minutes");
+    expect(result?.explanation).toContain("electron transport chain");
+    expect(result?.explanation).toContain("planned target and time stay intact");
   });
 
   it("uses targeted retrieval for a smaller knowledge gap", () => {
@@ -69,10 +70,11 @@ describe("buildNextSessionAdaptation", () => {
       makeCompletion({ correctAnswers: 3, totalAnswers: 4 }),
     );
 
-    expect(result?.method).toBe("Targeted retrieval and error review");
+    expect(result?.method).toBe("Targeted retrieval and error review, then mixed practice");
     expect(result?.learningMode).toBe("study");
-    expect(result?.title).toBe("Repair gaps, then apply cellular respiration");
-    expect(result?.amountLabel).toBe("Targeted repair + planned work · about 25 min");
+    expect(result?.title).toBe(nextSession.title);
+    expect(result?.objective).toBe(nextSession.objective);
+    expect(result?.amountLabel).toBe("Short repair + planned target · about 25 min");
   });
 
   it("repairs a high-confidence miss even when overall accuracy is otherwise strong", () => {
@@ -90,9 +92,10 @@ describe("buildNextSessionAdaptation", () => {
       }),
     );
 
-    expect(result?.method).toBe("Misconception repair and transfer practice");
+    expect(result?.method).toBe("Misconception repair, then mixed practice");
     expect(result?.learningMode).toBe("learn");
     expect(result?.explanation).toContain("high-confidence miss");
+    expect(result?.objective).toBe(nextSession.objective);
   });
 
   it("confirms correct but uncertain knowledge without reteaching it", () => {
@@ -125,7 +128,7 @@ describe("buildNextSessionAdaptation", () => {
       }),
     );
 
-    expect(result?.objective).toContain("the missed details");
+    expect(result?.explanation).toContain("the missed details");
     expect(result?.explanation).not.toContain("No major gap");
   });
 
@@ -141,8 +144,9 @@ describe("buildNextSessionAdaptation", () => {
 
     expect(result?.method).toBe("Guided example, then mixed practice");
     expect(result?.learningMode).toBe("learn");
-    expect(result?.estimatedMinutes).toBe(20);
-    expect(result?.objective).toContain("Begin with one guided example");
+    expect(result?.estimatedMinutes).toBe(25);
+    expect(result?.objective).toBe(nextSession.objective);
+    expect(result?.explanation).toContain("planned target and time stay intact");
   });
 
   it("raises the challenge after strong performance that felt too easy", () => {
