@@ -5,6 +5,7 @@ import {
   type ExtractedMaterial,
 } from "@/lib/materials/extract";
 import { assessMaterialQuality } from "@/lib/materials/quality";
+import { materialStoragePath, sanitizeMaterialDisplayName } from "@/lib/materials/filename";
 import { storePrivateMaterial } from "@/lib/materials/storage-upload";
 import {
   MaterialDeleteRequestSchema,
@@ -51,8 +52,8 @@ export async function POST(request: Request) {
   }
 
   const materialId = crypto.randomUUID();
-  const safeName = sanitizeFilename(parsed.data.name);
-  const storagePath = `${user.id}/${materialId}/${safeName}`;
+  const safeName = sanitizeMaterialDisplayName(parsed.data.name);
+  const storagePath = materialStoragePath(user.id, materialId, mimeType);
   const { error: insertError } = await supabase.from("material_uploads").insert({
     id: materialId,
     user_id: user.id,
@@ -284,16 +285,6 @@ function resolveMimeType(name: string, suppliedMimeType: string): SupportedMimeT
   if (extension === "txt" && (genericType || suppliedMimeType === "text/plain")) return "text/plain";
   if ((extension === "md" || extension === "markdown") && (genericType || suppliedMimeType === "text/plain" || suppliedMimeType === "text/markdown")) return "text/markdown";
   return null;
-}
-
-function sanitizeFilename(value: string) {
-  const cleaned = value
-    .normalize("NFKC")
-    .replace(/[\u0000-\u001f\u007f/\\]/g, "-")
-    .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, 180);
-  return cleaned || "learning-material";
 }
 
 async function readJson(request: Request): Promise<unknown> {
