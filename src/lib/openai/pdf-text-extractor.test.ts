@@ -32,7 +32,7 @@ describe("scanned PDF extraction", () => {
           ]),
         })],
       }),
-      { maxRetries: 0, timeout: 30_000 },
+      { maxRetries: 0, timeout: 45_000 },
     );
   });
 

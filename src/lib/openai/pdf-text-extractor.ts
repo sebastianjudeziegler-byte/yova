@@ -39,7 +39,7 @@ export async function extractScannedPdfTextWithOpenAI(bytes: Uint8Array, filenam
     store: false,
   }, {
     maxRetries: 0,
-    timeout: 30_000,
+    timeout: 45_000,
   });
 
   const text = response.output_text

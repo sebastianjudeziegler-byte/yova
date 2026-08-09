@@ -1,9 +1,6 @@
 import { NextResponse } from "next/server";
-import {
-  extractMaterialText,
-  MaterialExtractionError,
-  type ExtractedMaterial,
-} from "@/lib/materials/extract";
+import { MaterialExtractionError } from "@/lib/materials/extract";
+import { extractMaterialWithRecovery } from "@/lib/materials/extract-with-recovery";
 import { assessMaterialQuality } from "@/lib/materials/quality";
 import { materialStoragePath, sanitizeMaterialDisplayName } from "@/lib/materials/filename";
 import { storePrivateMaterial } from "@/lib/materials/storage-upload";
@@ -15,7 +12,6 @@ import {
   MaterialUploadResponseSchema,
 } from "@/lib/materials/schema";
 import { checkMaterialUploadRateLimit, requestRateLimitKey } from "@/lib/server/rate-limit";
-import { extractScannedPdfTextWithOpenAI } from "@/lib/openai/pdf-text-extractor";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
@@ -172,27 +168,11 @@ export async function PATCH(request: Request) {
     const bytes = new Uint8Array(await storedFile.arrayBuffer());
     if (bytes.byteLength !== Number(upload.byte_size)) throw new MaterialExtractionError("The uploaded file size did not match the selected file.");
 
-    let extracted: ExtractedMaterial;
-    let aiAssistedExtraction = false;
-    try {
-      extracted = await extractMaterialText(bytes, upload.mime_type as SupportedMimeType);
-    } catch (error) {
-      const imageOnlyPdf = upload.mime_type === "application/pdf"
-        && error instanceof MaterialExtractionError
-        && error.message.includes("selectable text");
-      if (!imageOnlyPdf) throw error;
-
-      const recovered = await extractScannedPdfTextWithOpenAI(bytes, upload.filename).catch(() => null);
-      if (!recovered) {
-        throw new MaterialExtractionError("YOVA could not read text from this scanned PDF. Try a text-based PDF, paste the study-guide topics into your goal, or choose Create it for me.");
-      }
-      const recoveredQuality = assessMaterialQuality(recovered.text, recovered.truncated);
-      if (recoveredQuality.status === "unusable") {
-        throw new MaterialExtractionError(recoveredQuality.notice ?? "YOVA could not find enough readable learning content in this scanned PDF.");
-      }
-      extracted = recovered;
-      aiAssistedExtraction = true;
-    }
+    const { extracted, aiAssistedExtraction } = await extractMaterialWithRecovery(
+      bytes,
+      upload.mime_type as SupportedMimeType,
+      upload.filename,
+    );
     const metadata = { pageCount: extracted.pages, textTruncated: extracted.truncated, aiAssistedExtraction };
     const { error: updateError } = await supabase
       .from("material_uploads")
@@ -204,7 +184,11 @@ export async function PATCH(request: Request) {
       headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId },
     });
   } catch (error) {
-    console.error("YOVA material processing failed", { requestId, reason: error instanceof Error ? error.name : "unknown" });
+    console.error("YOVA material processing failed", {
+      requestId,
+      reason: error instanceof Error ? error.name : "unknown",
+      message: error instanceof Error ? error.message.slice(0, 240) : "unknown",
+    });
     await Promise.all([
       supabase.storage.from("learning-materials").remove([upload.storage_path]),
       supabase.from("material_uploads").delete().eq("id", upload.id),
@@ -272,7 +256,7 @@ function materialResponse(
       truncated,
       quality: responseQuality,
       notice: aiAssistedExtraction
-        ? "YOVA read this scanned PDF with AI because it did not contain selectable text. Review the generated plan against the original document before relying on it."
+        ? "YOVA used AI to read this PDF after the private text reader could not finish. Review the generated plan against the original document before relying on it."
         : quality.notice,
     },
   });
