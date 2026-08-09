@@ -58,6 +58,7 @@ export function buildPreviewSessionContext({
       subtopics: session.contentTargets ?? [],
       prerequisiteTopicIds: [],
       status: "not_started" as const,
+      initialEvidence: null,
       sourceReferences: [],
       origin: "ai_generated" as const,
       deferred: null,

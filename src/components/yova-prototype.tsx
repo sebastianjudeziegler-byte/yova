@@ -115,6 +115,8 @@ import {
 } from "@/lib/learning/session-evidence";
 import { shouldRequestConfidence } from "@/lib/learning/session-interaction";
 import { isScheduledRetrievalSession } from "@/lib/learning/scheduled-retrieval";
+import { buildSessionMapDelta } from "@/lib/knowledge-map/session-delta";
+import { PlanKnowledgeMapSchema, type PlanKnowledgeMap } from "@/lib/knowledge-map/schema";
 import { restoreInterruptedLesson, resumableSessionProgress } from "@/lib/learning/session-resume";
 import { selectFreeResponseMode } from "@/lib/learning/response-mode";
 import { clearPreviewSnapshot, loadPreviewSnapshot, savePreviewSnapshot } from "@/lib/persistence/preview-store";
@@ -142,6 +144,7 @@ import {
 import { reportProductError } from "@/lib/monitoring/client";
 import { onboardingQuestions } from "@/lib/sample-data";
 import { PlanAdjustmentResponseSchema, type PlanAdjustmentRequest } from "@/lib/learning/adjustment-schema";
+import { PlanDiagnosticQuestionSchema, type PlanDiagnosticQuestion } from "@/lib/plan-generation/schema";
 import { buildContentBasedReplacementSessions } from "@/lib/learning/content-based-plan-adjustment";
 import { applyPlanDirectionFallback } from "@/lib/learning/plan-direction";
 import { PlanArchiveResponseSchema } from "@/lib/learning/status-schema";
@@ -1173,6 +1176,10 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
     }));
   };
 
+  const updatePlanKnowledgeMap = (planId: string, knowledgeMap: PlanKnowledgeMap) => {
+    setPlans((current) => current.map((plan) => plan.id === planId ? { ...plan, knowledgeMap } : plan));
+  };
+
   const attachMaterials = async (planId: string, materialIds: string[]) => {
     const response = await fetch("/api/materials/attach", {
       method: "POST",
@@ -1601,7 +1608,7 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
     const nextSession = currentSession
       ? activePlan?.sessions.find((session) => session.sequence === currentSession.sequence + 1) ?? null
       : null;
-    return <SessionComplete currentSession={currentSession} completedAt={sessionCompletedAt ?? new Date().toISOString()} requiredContentCount={activeLessonSteps.filter((step) => step.requiredForCompletion !== false).length} repairCount={sessionEvidence.completedImmediateRepairs} elapsedSeconds={capturedSessionSeconds} actualMinutes={capturedSessionMinutes} correctAnswers={sessionEvidence.correctAnswers} totalAnswers={sessionEvidence.totalAnswers} observedGap={sessionEvidence.observedGap} conceptEvidence={sessionEvidence.conceptEvidence} confidenceEvidence={sessionEvidence.confidenceEvidence} nextSession={nextSession} onFinish={(feedback, applyRecommendedChange) => { completeActiveSession(sessionEvidence.correctAnswers, sessionEvidence.totalAnswers, feedback, capturedSessionMinutes, applyRecommendedChange); setStage("app"); setActiveTab("Home"); }} />;
+    return <SessionComplete currentSession={currentSession} knowledgeMap={activePlan?.knowledgeMap} completedAt={sessionCompletedAt ?? new Date().toISOString()} requiredContentCount={activeLessonSteps.filter((step) => step.requiredForCompletion !== false).length} repairCount={sessionEvidence.completedImmediateRepairs} elapsedSeconds={capturedSessionSeconds} actualMinutes={capturedSessionMinutes} correctAnswers={sessionEvidence.correctAnswers} totalAnswers={sessionEvidence.totalAnswers} observedGap={sessionEvidence.observedGap} conceptEvidence={sessionEvidence.conceptEvidence} confidenceEvidence={sessionEvidence.confidenceEvidence} nextSession={nextSession} onFinish={(feedback, applyRecommendedChange) => { completeActiveSession(sessionEvidence.correctAnswers, sessionEvidence.totalAnswers, feedback, capturedSessionMinutes, applyRecommendedChange); setStage("app"); setActiveTab("Home"); }} />;
   }
 
   return <>
@@ -1623,7 +1630,7 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
       });
     }}>
       {activeTab === "Home" && <HomeScreen account={account} answers={answers} plans={activePlans} plan={recommendedPlan} sessionCompletions={sessionCompletions} sessionInterruptions={sessionInterruptions} tutorQuestion={tutorQuestion} onTutorQuestion={setTutorQuestion} onOpenTutor={openAskYova} onOpenYou={() => setActiveTab("You")} onStart={(planId) => requestSessionStart(planId)} onOpenPlan={(planId) => { setSelectedPlanId(planId); setLearningDetailPlanId(planId); setActiveTab("Learning"); }} onCreatePlan={beginPlanCreation} onStudyNow={() => { setCreatorSeed(null); setCreatorMilestoneId(null); setStage("study-now"); }} />}
-      {activeTab === "Learning" && <LearningScreen plans={plans} detailPlanId={learningDetailPlanId} sessionCompletions={sessionCompletions} sessionInterruptions={sessionInterruptions} onOpenPlan={(planId) => { setSelectedPlanId(planId); setLearningDetailPlanId(planId); }} onClosePlan={() => setLearningDetailPlanId(null)} onStart={requestSessionStart} onCreatePlan={beginPlanCreation} onArchiveStateChange={changePlanArchiveState} onAdjustPlan={adjustPlan} onAttachMaterials={attachMaterials} />}
+      {activeTab === "Learning" && <LearningScreen plans={plans} detailPlanId={learningDetailPlanId} sessionCompletions={sessionCompletions} sessionInterruptions={sessionInterruptions} onOpenPlan={(planId) => { setSelectedPlanId(planId); setLearningDetailPlanId(planId); }} onClosePlan={() => setLearningDetailPlanId(null)} onStart={requestSessionStart} onCreatePlan={beginPlanCreation} onArchiveStateChange={changePlanArchiveState} onAdjustPlan={adjustPlan} onKnowledgeMapUpdate={updatePlanKnowledgeMap} onAttachMaterials={attachMaterials} />}
       {activeTab === "Agenda" && <AgendaScreen plans={plans.filter((plan) => plan.status !== "archived")} milestones={deadlineMilestones} sessionCompletions={sessionCompletions} sessionInterruptions={sessionInterruptions} previewMode={account?.identityMode === "preview"} onAdd={beginAgendaAdd} onStart={requestSessionStart} onActivateReview={activateConceptReview} onReschedule={rescheduleSession} onAdjustDuration={adjustSessionDuration} onUpdateMilestone={updateDeadlineMilestone} onDeleteMilestone={deleteDeadlineMilestone} onConvertMilestone={(milestone, outcome) => { setCreatorSeed({ title: milestone.title, objective: milestone.description || `Complete ${milestone.title}`, itemType: "assignment", dueAt: milestone.dueAt, scope: milestone.description || milestone.title, progress: "", materialsSummary: "No materials attached yet.", missingFields: milestone.description ? [] : ["scope"], description: milestone.description || milestone.title, materials: [] }); setCreatorMilestoneId(milestone.id); setStage(outcome === "session" ? "study-now" : "plan-creator"); }} />}
       {activeTab === "Ask YOVA" && <AskScreen key={tutorEntryKey} plans={plans} question={tutorQuestion} onQuestion={setTutorQuestion} onApplyAction={applyTutorAction} analyticsEnabled={analyticsEnabled} />}
       {activeTab === "You" && <YouScreen account={account} answers={answers} plans={plans} sessionCompletions={sessionCompletions} sessionInterruptions={sessionInterruptions} onAnswersChange={setAnswers} onStart={() => requestSessionStart(recommendedPlan?.id)} onOpenLearning={() => { if (recommendedPlan) { setSelectedPlanId(recommendedPlan.id); setLearningDetailPlanId(recommendedPlan.id); } setActiveTab("Learning"); }} onReset={resetYovaData} />}
@@ -2021,7 +2028,7 @@ function AskBar({ value, onChange, onSubmit, pending = false }: { value: string;
   return <form className="ask-bar" onSubmit={(event) => { event.preventDefault(); if (value.trim() && !pending) onSubmit(); }}><Sparkles size={20} /><input aria-label="Ask YOVA" placeholder="Ask YOVA anything or describe what you need…" value={value} disabled={pending} onChange={(event) => onChange(event.target.value)} /><button aria-label="Send" type="submit" disabled={!value.trim() || pending}>{pending ? <span className="button-spinner" /> : <Send size={18} />}</button></form>;
 }
 
-function LearningScreen({ plans, detailPlanId, sessionCompletions, sessionInterruptions, onOpenPlan, onClosePlan, onStart, onCreatePlan, onArchiveStateChange, onAdjustPlan, onAttachMaterials }: { plans: LearningPlan[]; detailPlanId: string | null; sessionCompletions: SessionCompletion[]; sessionInterruptions: SessionInterruption[]; onOpenPlan: (planId: string) => void; onClosePlan: () => void; onStart: (planId: string) => void; onCreatePlan: () => void; onArchiveStateChange: (planId: string, action: "archive" | "restore") => Promise<LearningPlan["status"]>; onAdjustPlan: (input: PlanAdjustmentRequest) => Promise<void>; onAttachMaterials: (planId: string, materialIds: string[]) => Promise<void> }) {
+function LearningScreen({ plans, detailPlanId, sessionCompletions, sessionInterruptions, onOpenPlan, onClosePlan, onStart, onCreatePlan, onArchiveStateChange, onAdjustPlan, onKnowledgeMapUpdate, onAttachMaterials }: { plans: LearningPlan[]; detailPlanId: string | null; sessionCompletions: SessionCompletion[]; sessionInterruptions: SessionInterruption[]; onOpenPlan: (planId: string) => void; onClosePlan: () => void; onStart: (planId: string) => void; onCreatePlan: () => void; onArchiveStateChange: (planId: string, action: "archive" | "restore") => Promise<LearningPlan["status"]>; onAdjustPlan: (input: PlanAdjustmentRequest) => Promise<void>; onKnowledgeMapUpdate: (planId: string, knowledgeMap: PlanKnowledgeMap) => void; onAttachMaterials: (planId: string, materialIds: string[]) => Promise<void> }) {
   const [view, setView] = useState<"active" | "recent" | "archive">("active");
   const [changingPlanId, setChangingPlanId] = useState<string | null>(null);
   const [statusError, setStatusError] = useState<string | null>(null);
@@ -2065,7 +2072,7 @@ function LearningScreen({ plans, detailPlanId, sessionCompletions, sessionInterr
       <button className={view === "archive" ? "active" : ""} onClick={() => changeView("archive")}>Archive <span>{plans.filter((item) => item.status === "archived").length}</span></button>
     </div>
     {statusError && <div className="chat-error"><AlertCircle size={16} /><span>{statusError}</span></div>}
-    {plan ? <LearningPlanDetail plan={plan} view={view} completions={sessionCompletions.filter((completion) => completion.planId === plan.id)} interruptions={sessionInterruptions.filter((interruption) => interruption.planId === plan.id)} changingStatus={changingPlanId === plan.id} onBack={onClosePlan} onStart={() => onStart(plan.id)} onArchiveStateChange={(action) => void changeArchiveState(plan.id, action)} onAdjustPlan={onAdjustPlan} onAttachMaterials={onAttachMaterials} /> : visiblePlans.length ? <LearningOverview plans={visiblePlans} allPlans={plans} view={view} interruptions={sessionInterruptions} onOpenPlan={onOpenPlan} onStart={onStart} /> : <section className="learning-empty"><span className="learning-empty-icon"><LibraryBig size={22} /></span><h2>{viewLabels[view].empty}</h2><p>{viewLabels[view].description}</p>{view === "active" && <button className="button primary" onClick={onCreatePlan}>Build your first plan <ArrowRight size={17} /></button>}</section>}
+    {plan ? <LearningPlanDetail plan={plan} view={view} completions={sessionCompletions.filter((completion) => completion.planId === plan.id)} interruptions={sessionInterruptions.filter((interruption) => interruption.planId === plan.id)} changingStatus={changingPlanId === plan.id} onBack={onClosePlan} onStart={() => onStart(plan.id)} onArchiveStateChange={(action) => void changeArchiveState(plan.id, action)} onAdjustPlan={onAdjustPlan} onKnowledgeMapUpdate={onKnowledgeMapUpdate} onAttachMaterials={onAttachMaterials} /> : visiblePlans.length ? <LearningOverview plans={visiblePlans} allPlans={plans} view={view} interruptions={sessionInterruptions} onOpenPlan={onOpenPlan} onStart={onStart} /> : <section className="learning-empty"><span className="learning-empty-icon"><LibraryBig size={22} /></span><h2>{viewLabels[view].empty}</h2><p>{viewLabels[view].description}</p>{view === "active" && <button className="button primary" onClick={onCreatePlan}>Build your first plan <ArrowRight size={17} /></button>}</section>}
   </div>;
 }
 
@@ -2093,7 +2100,7 @@ function LearningOverview({ plans, allPlans, view, interruptions, onOpenPlan, on
   </>;
 }
 
-function LearningPlanDetail({ plan, view, completions, interruptions, changingStatus, onBack, onStart, onArchiveStateChange, onAdjustPlan, onAttachMaterials }: { plan: LearningPlan; view: "active" | "recent" | "archive"; completions: SessionCompletion[]; interruptions: SessionInterruption[]; changingStatus: boolean; onBack: () => void; onStart: () => void; onArchiveStateChange: (action: "archive" | "restore") => void; onAdjustPlan: (input: PlanAdjustmentRequest) => Promise<void>; onAttachMaterials: (planId: string, materialIds: string[]) => Promise<void> }) {
+function LearningPlanDetail({ plan, view, completions, interruptions, changingStatus, onBack, onStart, onArchiveStateChange, onAdjustPlan, onKnowledgeMapUpdate, onAttachMaterials }: { plan: LearningPlan; view: "active" | "recent" | "archive"; completions: SessionCompletion[]; interruptions: SessionInterruption[]; changingStatus: boolean; onBack: () => void; onStart: () => void; onArchiveStateChange: (action: "archive" | "restore") => void; onAdjustPlan: (input: PlanAdjustmentRequest) => Promise<void>; onKnowledgeMapUpdate: (planId: string, knowledgeMap: PlanKnowledgeMap) => void; onAttachMaterials: (planId: string, materialIds: string[]) => Promise<void> }) {
   const [showAdjustments, setShowAdjustments] = useState(false);
   const [extendingMap, setExtendingMap] = useState(false);
   const [mapError, setMapError] = useState<string | null>(null);
@@ -2127,7 +2134,7 @@ function LearningPlanDetail({ plan, view, completions, interruptions, changingSt
     <section className="learning-hero"><div><span className="subject-label">{plan.kind.toUpperCase()} · {formatPlanDeadline(plan.deadline)}</span><h2>{plan.title}</h2><p>{plan.topic}</p><span className="learning-approach-badge">{plan.learningIntent === "learn" ? <BookOpen size={14} /> : <Target size={14} />}{plan.learningIntent === "learn" ? "Building understanding, then practice" : "Practice, diagnose, and repair"}</span><div className="progress-line"><div style={{ width: `${(completeCount / plan.sessions.length) * 100}%` }} /></div><small>{resumePoint ? `${resumePoint.completedSteps} of ${resumePoint.totalSteps} sections saved in the current session` : `${completeCount} of ${plan.sessions.length} sessions complete`}</small></div><div className="learning-hero-actions">{view === "active" && readySession && <button className="button primary" onClick={onStart}>{resumePoint ? "Continue session" : "Start next session"}</button>}{view === "active" && <button className="button hero-secondary" onClick={() => setShowAdjustments((value) => !value)}><Settings2 size={16} /> {showAdjustments ? "Close" : "Adjust"}</button>}<button className="button hero-secondary" disabled={changingStatus} onClick={() => onArchiveStateChange(view === "archive" ? "restore" : "archive")}>{changingStatus ? <span className="button-spinner" /> : view === "archive" ? <><RotateCcw size={16} /> Restore</> : <><Archive size={16} /> Archive</>}</button></div></section>
     {view === "active" && showAdjustments && <PlanAdjustmentPanel plan={plan} onCancel={() => setShowAdjustments(false)} onSave={async (input) => { await onAdjustPlan(input); setShowAdjustments(false); }} />}
     {view === "recent" && <section className="learning-history-summary"><div><span>Completed</span><strong>{formatCompletionDate(completions.at(-1)?.completedAt ?? plan.createdAt)}</strong></div><div><span>Knowledge-check accuracy</span><strong>{accuracy}</strong></div><div><span>Last session felt</span><strong>{formatFeedback(completions.at(-1)?.feedback)}</strong></div></section>}
-    <PlanKnowledgeMapPanel plan={plan} completions={completions} canExtend={view === "active"} extending={extendingMap} error={mapError} onExtend={() => void extendDeferredTopics()} />
+    <PlanKnowledgeMapPanel plan={plan} completions={completions} canExtend={view === "active"} extending={extendingMap} error={mapError} onExtend={() => void extendDeferredTopics()} onAdjustPlan={onAdjustPlan} onKnowledgeMapUpdate={onKnowledgeMapUpdate} />
     <section className="section-block plan-timeline"><div className="section-title"><div><h3>{view === "recent" ? "What you completed" : "Your plan"}</h3><p>The sequence YOVA will guide you through, one session at a time.</p></div><span>{plan.sessions.length} sessions</span></div><div className="timeline">{plan.sessions.map((session) => <div className={`timeline-row ${session.status}`} key={session.id}><span className="timeline-node">{session.status === "complete" ? <Check size={15} /> : null}</span><div><strong>{session.title}</strong><small><b>{session.learningMode === "learn" ? "Teaching first" : "Practice first"}</b> · {session.method} · {formatSessionTime(session.scheduledFor)}</small></div><span>{session.estimatedMinutes} min</span></div>)}</div></section>
     <PlanAdaptations plan={plan} />
     <PlanSources plan={plan} editable={view === "active"} onAttach={onAttachMaterials} />
@@ -2136,7 +2143,16 @@ function LearningPlanDetail({ plan, view, completions, interruptions, changingSt
   </>;
 }
 
-function PlanKnowledgeMapPanel({ plan, completions, canExtend, extending, error, onExtend }: { plan: LearningPlan; completions: SessionCompletion[]; canExtend: boolean; extending: boolean; error: string | null; onExtend: () => void }) {
+function PlanKnowledgeMapPanel({ plan, completions, canExtend, extending, error, onExtend, onAdjustPlan, onKnowledgeMapUpdate }: { plan: LearningPlan; completions: SessionCompletion[]; canExtend: boolean; extending: boolean; error: string | null; onExtend: () => void; onAdjustPlan: (input: PlanAdjustmentRequest) => Promise<void>; onKnowledgeMapUpdate: (planId: string, knowledgeMap: PlanKnowledgeMap) => void }) {
+  const [placementOpen, setPlacementOpen] = useState(false);
+  const [placementLoading, setPlacementLoading] = useState(false);
+  const [placementQuestions, setPlacementQuestions] = useState<PlanDiagnosticQuestion[]>([]);
+  const [placementAnswers, setPlacementAnswers] = useState<string[]>([]);
+  const [placementIndex, setPlacementIndex] = useState(0);
+  const [placementError, setPlacementError] = useState<string | null>(null);
+  const [placementLatencyMs, setPlacementLatencyMs] = useState<number | null>(null);
+  const [placementProposal, setPlacementProposal] = useState<{ title: string; explanation: string; direction: string } | null>(null);
+  const [applyingProposal, setApplyingProposal] = useState(false);
   if (!plan.knowledgeMap?.topics.length) return null;
   const topicById = new Map(plan.knowledgeMap.topics.map((topic) => [topic.id, topic]));
   const topics = plan.knowledgeMap.topics.map((topic) => ({
@@ -2147,7 +2163,81 @@ function PlanKnowledgeMapPanel({ plan, completions, canExtend, extending, error,
   const active = topics.filter((topic) => !topic.deferred);
   const secureCount = active.filter((topic) => topic.displayStatus === "secure").length;
 
-  return <section className="section-block plan-knowledge-map"><div className="section-title"><div><span className="step-label">KNOWLEDGE MAP</span><h3>What this plan is building</h3><p>Topics are ordered by prerequisite. Sessions below are how each topic moves from introduced to secure.</p></div><span>{secureCount} of {active.length} secure</span></div><ol className="knowledge-topic-list">{active.map((topic, index) => {
+  const beginPlacementCheck = async () => {
+    setPlacementOpen(true);
+    setPlacementLoading(true);
+    setPlacementError(null);
+    setPlacementQuestions([]);
+    setPlacementAnswers([]);
+    setPlacementIndex(0);
+    try {
+      const response = await fetch(`/api/plans/${plan.id}/diagnostic`, { cache: "no-store" });
+      const body: unknown = await response.json();
+      if (!response.ok) throw new Error(readApiError(body) ?? "YOVA could not prepare the placement check.");
+      const questions = PlanDiagnosticQuestionSchema.array().min(1).max(8).safeParse(readApiProperty(body, "questions"));
+      if (!questions.success) throw new Error("The placement check came back in an unsafe format.");
+      const durationMs = readApiProperty(body, "durationMs");
+      setPlacementLatencyMs(typeof durationMs === "number" && Number.isFinite(durationMs) ? durationMs : null);
+      setPlacementQuestions(questions.data);
+    } catch (placementFailure) {
+      setPlacementError(placementFailure instanceof Error ? placementFailure.message : "YOVA could not prepare the placement check.");
+    } finally {
+      setPlacementLoading(false);
+    }
+  };
+
+  const savePlacementCheck = async () => {
+    if (placementQuestions.some((_, index) => !placementAnswers[index])) return;
+    setPlacementLoading(true);
+    setPlacementError(null);
+    try {
+      const response = await fetch(`/api/plans/${plan.id}/diagnostic`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ questions: placementQuestions, answers: placementAnswers }),
+      });
+      const body: unknown = await response.json();
+      if (!response.ok) throw new Error(readApiError(body) ?? "YOVA could not save the placement evidence.");
+      const parsedMap = PlanKnowledgeMapSchema.safeParse(readApiProperty(body, "knowledgeMap"));
+      if (!parsedMap.success) throw new Error("The updated knowledge map came back in an unsafe format.");
+      onKnowledgeMapUpdate(plan.id, parsedMap.data);
+      const adjustment = readApiProperty(body, "adjustment");
+      if (adjustment && typeof adjustment === "object" && !Array.isArray(adjustment)) {
+        const candidate = adjustment as Record<string, unknown>;
+        if (typeof candidate.title === "string" && typeof candidate.explanation === "string" && typeof candidate.direction === "string") {
+          setPlacementProposal({ title: candidate.title, explanation: candidate.explanation, direction: candidate.direction });
+        }
+      }
+      setPlacementOpen(false);
+    } catch (placementFailure) {
+      setPlacementError(placementFailure instanceof Error ? placementFailure.message : "YOVA could not save the placement evidence.");
+    } finally {
+      setPlacementLoading(false);
+    }
+  };
+
+  const approvePlacementProposal = async () => {
+    if (!placementProposal) return;
+    setApplyingProposal(true);
+    setPlacementError(null);
+    try {
+      const readySession = plan.sessions.find((session) => session.status === "ready" || session.status === "upcoming");
+      await onAdjustPlan({
+        planId: plan.id,
+        deadline: plan.deadline,
+        studyMode: plan.studyMode,
+        futureSessionMinutes: readySession?.estimatedMinutes ?? 25,
+        direction: placementProposal.direction,
+      });
+      setPlacementProposal(null);
+    } catch (proposalFailure) {
+      setPlacementError(proposalFailure instanceof Error ? proposalFailure.message : "YOVA could not adjust the remaining plan.");
+    } finally {
+      setApplyingProposal(false);
+    }
+  };
+
+  return <section className="section-block plan-knowledge-map"><div className="section-title"><div><span className="step-label">KNOWLEDGE MAP</span><h3>What this plan is building</h3><p>Topics are ordered by prerequisite. Sessions below are how each topic moves from introduced to secure.</p></div><span>{secureCount} of {active.length} secure</span></div>{canExtend && plan.knowledgeMap.placementCheck.status !== "completed" && !placementOpen && <div className="placement-check-invitation"><div><span>OPTIONAL PLACEMENT CHECK</span><strong>Make the remaining plan more precise</strong><p>Answer a few map-based questions so YOVA can replace lessons on demonstrated topics with shorter verification checks. Skipping never marks a topic as known.</p></div><button className="button secondary" onClick={() => void beginPlacementCheck()}>Take the placement check <ArrowRight size={16} /></button></div>}{placementOpen && <section className="placement-check-panel"><header><div><span className="step-label">OPTIONAL PLACEMENT CHECK</span><h4>{placementLoading && placementQuestions.length === 0 ? "Preparing questions from your map" : placementQuestions[placementIndex]?.prompt ?? "Placement check"}</h4><p>No confidence rating. Choose “I don’t know yet” whenever that is the honest answer.</p></div><button aria-label="Close placement check" onClick={() => setPlacementOpen(false)}><X size={17} /></button></header>{placementLoading && placementQuestions.length === 0 ? <div className="placement-loading"><span className="button-spinner dark" /> Mapping prerequisite and central topics…</div> : placementQuestions[placementIndex] && <><div className="placement-options">{placementQuestions[placementIndex].options.map((option) => <button className={placementAnswers[placementIndex] === option ? "selected" : ""} key={option} onClick={() => setPlacementAnswers((current) => { const next = [...current]; next[placementIndex] = option; return next; })}>{option}{placementAnswers[placementIndex] === option && <Check size={16} />}</button>)}</div><footer><span>{placementIndex + 1} of {placementQuestions.length}{placementLatencyMs !== null ? ` · generated in ${(placementLatencyMs / 1_000).toFixed(1)}s` : ""}</span><div>{placementIndex > 0 && <button className="button ghost" onClick={() => setPlacementIndex((value) => value - 1)}><ArrowLeft size={16} /> Back</button>}<button className="button primary" disabled={!placementAnswers[placementIndex] || placementLoading} onClick={() => placementIndex === placementQuestions.length - 1 ? void savePlacementCheck() : setPlacementIndex((value) => value + 1)}>{placementIndex === placementQuestions.length - 1 ? "Update my map" : "Next question"} <ArrowRight size={16} /></button></div></footer></>}{placementError && <div className="chat-error"><AlertCircle size={16} /><span>{placementError}</span></div>}</section>}{placementProposal && <section className="placement-adjustment-proposal"><Sparkles size={19} /><div><span>PLAN ADJUSTMENT AVAILABLE</span><strong>{placementProposal.title}</strong><p>{placementProposal.explanation}</p></div><div><button className="button ghost" disabled={applyingProposal} onClick={() => setPlacementProposal(null)}>Keep current plan</button><button className="button primary" disabled={applyingProposal} onClick={() => void approvePlacementProposal()}>{applyingProposal ? <span className="button-spinner" /> : <>Review less, verify sooner <ArrowRight size={16} /></>}</button></div></section>}<ol className="knowledge-topic-list">{active.map((topic, index) => {
     const prerequisites = topic.prerequisiteTopicIds.map((id) => topicById.get(id)?.title).filter(Boolean);
     return <li key={topic.id}><span className={`knowledge-topic-index ${topic.displayStatus}`}>{topic.displayStatus === "secure" ? <Check size={15} /> : index + 1}</span><div><div className="knowledge-topic-heading"><strong>{topic.title}</strong><span className={`knowledge-topic-status ${topic.displayStatus}`}>{topicStatusLabel(topic.displayStatus)}</span></div><p>{topic.description}</p>{prerequisites.length > 0 && <small>Builds on {prerequisites.join(", ")}</small>}<small>{topic.origin === "material" ? `${topic.sourceReferences.length} source ${topic.sourceReferences.length === 1 ? "location" : "locations"} mapped` : "Structured by YOVA for this goal"}</small></div></li>;
   })}</ol>{deferred.length > 0 && <div className="deferred-topic-block"><div><span>OUTSIDE THE CURRENT TIME BUDGET</span><strong>This plan currently skips {deferred.length} {deferred.length === 1 ? "topic" : "topics"}.</strong><p>{deferred.map((topic) => `${topic.title}: ${topic.deferred?.reason}`).join(" ")}</p></div>{canExtend && <button className="button secondary" disabled={extending} onClick={onExtend}>{extending ? <span className="button-spinner" /> : <><Plus size={16} /> Extend plan to include them</>}</button>}</div>}{error && <div className="chat-error"><AlertCircle size={16} /><span>{error}</span></div>}</section>;
@@ -3848,7 +3938,7 @@ function sessionTutorQuickActions(activityType: LessonStep["type"], answerState:
   ];
 }
 
-function SessionComplete({ currentSession, completedAt, requiredContentCount, repairCount, elapsedSeconds, actualMinutes, correctAnswers, totalAnswers, observedGap, conceptEvidence, confidenceEvidence, nextSession, onFinish }: { currentSession: LearningPlanSession | null; completedAt: string; requiredContentCount: number; repairCount: number; elapsedSeconds: number; actualMinutes: number; correctAnswers: number; totalAnswers: number; observedGap: string; conceptEvidence: SessionCompletion["conceptEvidence"]; confidenceEvidence: ConfidenceEvidence[]; nextSession: LearningPlanSession | null; onFinish: (feedback: SessionCompletion["feedback"], applyRecommendedChange: boolean) => void }) {
+function SessionComplete({ currentSession, knowledgeMap, completedAt, requiredContentCount, repairCount, elapsedSeconds, actualMinutes, correctAnswers, totalAnswers, observedGap, conceptEvidence, confidenceEvidence, nextSession, onFinish }: { currentSession: LearningPlanSession | null; knowledgeMap?: PlanKnowledgeMap; completedAt: string; requiredContentCount: number; repairCount: number; elapsedSeconds: number; actualMinutes: number; correctAnswers: number; totalAnswers: number; observedGap: string; conceptEvidence: SessionCompletion["conceptEvidence"]; confidenceEvidence: ConfidenceEvidence[]; nextSession: LearningPlanSession | null; onFinish: (feedback: SessionCompletion["feedback"], applyRecommendedChange: boolean) => void }) {
   const [feedback, setFeedback] = useState<SessionCompletion["feedback"]>("about_right");
   const hasGap = totalAnswers > 0 && correctAnswers < totalAnswers;
   const conceptSummary = summarizeCompletionConcepts(conceptEvidence);
@@ -3874,10 +3964,12 @@ function SessionComplete({ currentSession, completedAt, requiredContentCount, re
   const keepLabel = decision?.kind === "add_delayed_verification"
     ? "Finish without adding review"
     : "Keep current plan";
+  const mapDelta = buildSessionMapDelta(knowledgeMap, currentSession, conceptEvidence);
 
   return <main className="centered-shell completion">
     <BrandMark />
     <section className="completion-card">
+      {mapDelta.length > 0 && <section className="completion-map-delta"><header><Sparkles size={17} /><div><span>KNOWLEDGE MAP UPDATED</span><strong>What moved in this session</strong></div></header><ul>{mapDelta.map((change) => <li key={change.topicId}><strong>{change.title}</strong><span>{topicStatusLabel(change.from)} <ArrowRight size={14} /> {topicStatusLabel(change.to)}</span></li>)}</ul></section>}
       <header className="completion-heading">
         <div className={`completion-icon ${hasGap ? "needs-review" : ""}`}>{hasGap ? <RotateCcw size={27} /> : <Check size={28} />}</div>
         <div><span className="step-label">SESSION COMPLETE</span><h1>{hasGap ? "The work is done. One part needs another check." : "Today’s checks held up."}</h1><p>You completed every required step. YOVA uses the work you produced, not the clock, to decide what should happen next.</p></div>

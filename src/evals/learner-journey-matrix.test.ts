@@ -61,10 +61,12 @@ function mappedRequest(id: MatrixCaseId) {
         subtopics: [],
         prerequisiteTopicIds: index === 0 ? [] : [`20000000-2000-4000-8000-${String(index).padStart(12, "0")}`],
         status: "not_started" as const,
+        initialEvidence: null,
         sourceReferences: [],
         origin: "ai_generated" as const,
         deferred: null,
       })),
+      placementCheck: { status: "skipped" as const, completedAt: null, demonstratedTopicIds: [], gapTopicIds: [] },
     },
   };
 }

@@ -30,6 +30,8 @@ Success criteria:
 - treat knowledge_map as the authoritative plan spine. Every session must return valid topicIds from that map
 - assign every topic to at least one session or return it in deferredTopics with a plain, specific reason. Never silently drop a topic
 - respect prerequisiteTopicIds when sequencing first teaching and first evidence
+- treat placement-check evidence as starting evidence only, never as mastery. Topics whose initialEvidence outcome is "gap" must receive teaching-first coverage. Topics whose initialEvidence outcome is "demonstrated" must receive a short verification check instead of a full introductory lesson
+- do not infer knowledge from a skipped placement check or from self-report. If placementCheck.status is skipped, every map status remains exactly as supplied
 - content_budget.recommended_sessions includes both initial coverage and later evidence. Do not spend every session introducing a new anchor; combine tightly connected anchors within the stated per-session maximum so at least one later session can retrieve, apply, or assess what was taught
 - make amountLabel describe the real bounded content and evidence, not a generic number of prompts that may not fit
 - when a learner-supplied deadline exists, schedule every session no later than that deadline
@@ -127,6 +129,12 @@ export function buildPlanGeneratorInput(request: PlanGenerationRequest) {
       : "YOVA-generated learning content",
     materials,
     knowledge_map: request.knowledgeMap,
+    placement_contract: request.knowledgeMap ? {
+      status: request.knowledgeMap.placementCheck.status,
+      demonstrated_topics: request.knowledgeMap.topics.filter((topic) => topic.initialEvidence?.outcome === "demonstrated").map((topic) => ({ id: topic.id, title: topic.title })),
+      confirmed_gaps: request.knowledgeMap.topics.filter((topic) => topic.initialEvidence?.outcome === "gap").map((topic) => ({ id: topic.id, title: topic.title })),
+      integrity_rule: "Self-report changes emphasis only. Only demonstrated placement answers create initial evidence, and normal session evidence supersedes it.",
+    } : null,
     execution_location: request.studyMode === "outside"
       ? "Primarily outside YOVA, with precise directions and return checks"
       : "Primarily inside YOVA with guided steps",

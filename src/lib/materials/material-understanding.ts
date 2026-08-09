@@ -243,6 +243,7 @@ function mergeMappedTopics(
             subtopics: [],
             prerequisiteTopicIds: [],
             status: "not_started",
+            initialEvidence: null,
             sourceReferences: [],
             origin: "material",
             deferred: null,

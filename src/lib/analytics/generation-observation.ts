@@ -20,10 +20,14 @@ export const GenerationValidatorSchema = z.enum([
   "knowledge_map_structure",
   "knowledge_map_material_coverage",
   "knowledge_map_provider_request",
+  "diagnostic_response_status",
+  "diagnostic_structure",
+  "diagnostic_topic_coverage",
+  "diagnostic_provider_request",
 ]);
 
 export const GenerationObservationSchema = z.object({
-  generationType: z.enum(["plan", "session", "material_mapping", "knowledge_map"]),
+  generationType: z.enum(["plan", "session", "material_mapping", "knowledge_map", "diagnostic"]),
   environment: z.enum(["production", "preview", "development"]),
   finalOutcome: z.enum(["success", "fallback", "failure", "cache"]),
   firstAttemptPassed: z.boolean().nullable(),
@@ -42,6 +46,7 @@ export const GenerationObservationSchema = z.object({
     chunkCount: z.number().int().min(0).max(100).optional(),
     topicCount: z.number().int().min(0).max(100).optional(),
     scopeBand: z.enum(["focused_skill", "unit_or_exam", "broad_course"]).optional(),
+    questionCount: z.number().int().min(0).max(12).optional(),
   }).strict().optional(),
 }).strict();
 

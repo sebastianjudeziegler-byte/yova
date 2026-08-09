@@ -668,6 +668,7 @@ function evaluationCase(value: EvaluationCaseInput): SessionEvaluationCase {
         subtopics: value.context.session.contentTargets ?? [],
         prerequisiteTopicIds: [],
         status: "not_started",
+        initialEvidence: null,
         sourceReferences: [],
         origin: "ai_generated",
         deferred: null,

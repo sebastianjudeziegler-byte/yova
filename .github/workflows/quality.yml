@@ -13,6 +13,11 @@ jobs:
   verify:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    env:
+      # Date-oriented learner flows are defined in YOVA's launch timezone.
+      # GitHub runners default to UTC, which made otherwise-correct deadline
+      # tests fail only in CI.
+      TZ: America/Los_Angeles
 
     steps:
       - name: Check out YOVA

@@ -121,6 +121,7 @@ export async function generatePlanKnowledgeMap(request: PlanGenerationRequest): 
           .filter((candidate) => candidate >= 0 && candidate < index)
           .map((candidate) => ids[candidate]),
         status: "not_started",
+        initialEvidence: null,
         sourceReferences: sourceTopics.flatMap((source) => source?.sourceReferences ?? []),
         origin: sourceTopics.length ? "material" : "ai_generated",
         deferred: null,

@@ -42,10 +42,12 @@ function request(goal: string, judgment: {
         subtopics: [],
         prerequisiteTopicIds: [],
         status: "not_started",
+        initialEvidence: null,
         sourceReferences: [],
         origin: "ai_generated",
         deferred: null,
       }],
+      placementCheck: { status: "skipped", completedAt: null, demonstratedTopicIds: [], gapTopicIds: [] },
     },
   });
 }

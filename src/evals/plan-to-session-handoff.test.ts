@@ -26,7 +26,8 @@ const request: PlanGenerationRequest = {
   knowledgeMap: {
     version: 1,
     scopeJudgment: { band: "unit_or_exam", label: "Test unit", minimumSessions: 2, recommendedSessions: 2, maximumSessions: 4, minimumTeachingSessions: 1, explanation: "This test requires a connected causal foundation and a delayed evidence check." },
-    topics: [{ id: "11111111-1111-4111-8111-111111111111", title: "Outbreak of World War I", description: "How the assassination, alliances, mobilization, and declarations widened the conflict.", subtopics: [], prerequisiteTopicIds: [], status: "not_started", sourceReferences: [], origin: "ai_generated", deferred: null }],
+    topics: [{ id: "11111111-1111-4111-8111-111111111111", title: "Outbreak of World War I", description: "How the assassination, alliances, mobilization, and declarations widened the conflict.", subtopics: [], prerequisiteTopicIds: [], status: "not_started", initialEvidence: null, sourceReferences: [], origin: "ai_generated", deferred: null }],
+    placementCheck: { status: "skipped", completedAt: null, demonstratedTopicIds: [], gapTopicIds: [] },
   },
 };
 

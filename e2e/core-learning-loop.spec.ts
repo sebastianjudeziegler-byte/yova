@@ -674,12 +674,7 @@ test("a planning request outage still produces a reviewable plan from YOVA's sav
 
   await beginPlanFromAdd(page, "I have a biology test next Friday on cellular respiration.");
   await page.getByRole("button", { name: "Continue" }).click();
-  await page.getByRole("button", { name: "Produce ATP" }).click();
-  await page.getByRole("button", { name: "Next question" }).click();
-  await page.getByRole("button", { name: "Cytoplasm" }).click();
-  await page.getByRole("button", { name: "Next question" }).click();
-  await page.getByRole("button", { name: "Somewhat confident" }).click();
-  await page.getByRole("button", { name: "Review information" }).click();
+  await page.getByRole("button", { name: "Skip for now" }).click();
   await page.getByRole("button", { name: "Generate my plan" }).click();
 
   await expect(page.getByText("Plan ready")).toBeVisible();
@@ -699,13 +694,7 @@ test("a multi-session plan carries one clear source decision from Add to Learnin
     await enabledMinuteSelectors.nth(index).selectOption("45");
   }
   await page.getByRole("button", { name: "Continue" }).click();
-
-  await page.getByRole("button", { name: "Produce ATP" }).click();
-  await page.getByRole("button", { name: "Next question" }).click();
-  await page.getByRole("button", { name: "Cytoplasm" }).click();
-  await page.getByRole("button", { name: "Next question" }).click();
-  await page.getByRole("button", { name: "Somewhat confident" }).click();
-  await page.getByRole("button", { name: "Review information" }).click();
+  await page.getByRole("button", { name: "Skip for now" }).click();
 
   await expect(page.getByRole("heading", { name: "Everything YOVA will use" })).toBeVisible();
   await expect(page.getByText("Guided inside YOVA with YOVA-created teaching and practice")).toBeVisible();
@@ -724,7 +713,7 @@ test("a multi-session plan carries one clear source decision from Add to Learnin
   await page.getByRole("button", { name: "Change schedule" }).click();
   await expect(page.getByRole("heading", { name: "When would you prefer to study this material?" })).toBeVisible();
   await page.getByRole("button", { name: "Continue" }).click();
-  await page.getByRole("button", { name: "Review information" }).click();
+  await page.getByRole("button", { name: "Skip for now" }).click();
   await page.getByRole("button", { name: "Generate my plan" }).click();
   await expect(page.getByText("Plan ready")).toBeVisible();
   await page.getByRole("button", { name: "Use this plan" }).click();

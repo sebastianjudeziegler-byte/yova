@@ -19,7 +19,8 @@ const request: PlanGenerationRequest = {
   knowledgeMap: {
     version: 1,
     scopeJudgment: { band: "focused_skill", label: "Focused history foundation", minimumSessions: 1, recommendedSessions: 1, maximumSessions: 2, minimumTeachingSessions: 1, explanation: "The first plan builds one prerequisite causal relationship before later expansion." },
-    topics: [{ id: "11111111-1111-4111-8111-111111111111", title: "World War I escalation", description: "How alliances and mobilization widened the conflict after the July Crisis.", subtopics: [], prerequisiteTopicIds: [], status: "not_started", sourceReferences: [], origin: "ai_generated", deferred: null }],
+    topics: [{ id: "11111111-1111-4111-8111-111111111111", title: "World War I escalation", description: "How alliances and mobilization widened the conflict after the July Crisis.", subtopics: [], prerequisiteTopicIds: [], status: "not_started", initialEvidence: null, sourceReferences: [], origin: "ai_generated", deferred: null }],
+    placementCheck: { status: "skipped", completedAt: null, demonstratedTopicIds: [], gapTopicIds: [] },
   },
 };
 

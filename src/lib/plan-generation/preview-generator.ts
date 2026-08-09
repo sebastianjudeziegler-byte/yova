@@ -248,16 +248,22 @@ function buildKnowledgeMappedBlueprints(
     ? 1
     : Math.min(scope.maximumSessions, Math.max(scope.minimumSessions, contentBudget.recommendedSessions));
   const maximumTargets = contentBudget.typicalSession.maximumContentTargets;
+  const demonstrated = topics.filter((topic) => topic.initialEvidence?.outcome === "demonstrated");
+  const gapsAndUnknown = topics.filter((topic) => topic.initialEvidence?.outcome !== "demonstrated");
+  const reservedPlacementVerification = demonstrated.length > 0 ? 1 : 0;
   const reservedReviewSessions = request.intent === "plan" && request.learningIntent === "learn" && sessionCount > 1 ? 1 : 0;
   const coverageSlots = Math.max(1, sessionCount - reservedReviewSessions);
-  const scheduledTopics = topics.slice(0, coverageSlots * maximumTargets);
+  const scheduledTopics = [...gapsAndUnknown, ...demonstrated].slice(0, coverageSlots * maximumTargets);
+  const teachingTopics = scheduledTopics.filter((topic) => topic.initialEvidence?.outcome !== "demonstrated");
+  const verificationTopics = scheduledTopics.filter((topic) => topic.initialEvidence?.outcome === "demonstrated");
   const coverageSessionCount = Math.min(
-    coverageSlots,
-    Math.max(1, Math.ceil(scheduledTopics.length / contentBudget.typicalSession.preferredContentTargets)),
+    Math.max(1, coverageSlots - reservedPlacementVerification),
+    Math.max(1, Math.ceil(teachingTopics.length / contentBudget.typicalSession.preferredContentTargets)),
   );
-  const topicGroups = distributeInOrder(scheduledTopics, coverageSessionCount);
+  const topicGroups = distributeInOrder(teachingTopics, coverageSessionCount);
   const coverage = topicGroups.map<PreviewBlueprint>((group, index) => {
-    const mode = request.learningIntent === "learn" ? "learn" as const : "study" as const;
+    const hasConfirmedGap = group.some((topic) => topic.initialEvidence?.outcome === "gap");
+    const mode = hasConfirmedGap || request.learningIntent === "learn" ? "learn" as const : "study" as const;
     const label = topicGroupLabel(group.map((topic) => topic.title));
     return {
       phaseIndex: mode === "learn" ? Math.min(index, 2) : Math.min(index, 3),
@@ -276,7 +282,17 @@ function buildKnowledgeMappedBlueprints(
       learningMode: mode,
     };
   });
-  const reviewCount = Math.max(0, sessionCount - coverage.length);
+  const placementVerification = verificationTopics.length > 0 ? [{
+    phaseIndex: 3,
+    minutes: Math.max(5, Math.min(minutes, 15)),
+    title: boundedTitle(`Quickly verify ${topicGroupLabel(verificationTopics.map((topic) => topic.title))}`),
+    objective: boundedObjective(`Confirm ${verificationTopics.map((topic) => topic.title).join(", ")} with a short closed-source check before treating the placement result as durable evidence.`),
+    topicIds: verificationTopics.slice(0, maximumTargets).map((topic) => topic.id),
+    contentTargets: verificationTopics.slice(0, maximumTargets).map((topic) => topic.title),
+    completionEvidence: ["Answer one short verification question for each demonstrated topic without notes"],
+    learningMode: "study" as const,
+  }] : [];
+  const reviewCount = Math.max(0, sessionCount - coverage.length - placementVerification.length);
   const reviewGroups = distributeInOrder(scheduledTopics, Math.max(1, reviewCount));
   const reviews = Array.from({ length: reviewCount }, (_, index): PreviewBlueprint => {
     const group = (reviewGroups[index] ?? reviewGroups.at(-1) ?? scheduledTopics.slice(0, 1))
@@ -299,7 +315,7 @@ function buildKnowledgeMappedBlueprints(
       learningMode: "study",
     };
   });
-  return [...coverage, ...reviews];
+  return [...coverage, ...placementVerification, ...reviews];
 }
 
 function boundedObjective(value: string) {

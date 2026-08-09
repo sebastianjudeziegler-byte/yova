@@ -27,10 +27,12 @@ describe("evaluatePlanDraft", () => {
         subtopics: [],
         prerequisiteTopicIds: [],
         status: "not_started" as const,
+        initialEvidence: null,
         sourceReferences: [],
         origin: "ai_generated" as const,
         deferred: null,
       }],
+      placementCheck: { status: "skipped" as const, completedAt: null, demonstratedTopicIds: [], gapTopicIds: [] },
     },
   };
 

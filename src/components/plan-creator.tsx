@@ -25,13 +25,16 @@ import { makeId, type LearningMaterial, type LearningPlan } from "@/lib/domain";
 import { deleteUploadedMaterial, uploadMaterialFiles } from "@/lib/materials/intake";
 import { reportProductError } from "@/lib/monitoring/client";
 import {
+  PlanDiagnosticPreparationResponseSchema,
   PlanActivationResponseSchema,
   PlanGenerationRequestSchema,
   PlanGenerationResponseSchema,
   type DiagnosticResponse,
+  type PlanDiagnosticQuestion,
   type PlanGenerationRequest,
   type PlanGenerationResponse,
 } from "@/lib/plan-generation/schema";
+import { PlanKnowledgeMapSchema, type PlanKnowledgeMap } from "@/lib/knowledge-map/schema";
 import { generatePreviewPlan } from "@/lib/plan-generation/preview-generator";
 import { inferPlanScopeContract } from "@/lib/plan-generation/scope-contract";
 import { buildPlanContentBudget } from "@/lib/plan-generation/content-budget";
@@ -49,7 +52,7 @@ import {
 } from "@/lib/personalization/study-schedule";
 import { buildPlanPreferenceContract } from "@/lib/personalization/plan-preference-contract";
 
-type PlanStep = "goal" | "source" | "schedule" | "diagnostic" | "confirm" | "loading" | "error" | "result";
+type PlanStep = "goal" | "source" | "schedule" | "diagnostic-loading" | "diagnostic" | "confirm" | "loading" | "error" | "result";
 type SourceChoice = "materials" | "yova" | "outside";
 
 type AvailabilityChoice = {
@@ -58,12 +61,6 @@ type AvailabilityChoice = {
   window: "Morning" | "Afternoon" | "Evening";
   minutes: number;
   enabled: boolean;
-};
-
-type DiagnosticQuestion = {
-  prompt: string;
-  options: string[];
-  correctAnswer?: string;
 };
 
 export function PlanCreator({ onExit, onFinish, profileSummary, browserPreviewMode = false, seed = null }: { onExit: () => void; onFinish: (plan: LearningPlan) => void; profileSummary: string; browserPreviewMode?: boolean; seed?: AddIntakeSeed | null }) {
@@ -90,6 +87,11 @@ export function PlanCreator({ onExit, onFinish, profileSummary, browserPreviewMo
   ));
   const [diagnosticIndex, setDiagnosticIndex] = useState(0);
   const [diagnosticAnswers, setDiagnosticAnswers] = useState<string[]>([]);
+  const [diagnosticQuestions, setDiagnosticQuestions] = useState<PlanDiagnosticQuestion[]>([]);
+  const [diagnosticResponses, setDiagnosticResponses] = useState<DiagnosticResponse[]>([]);
+  const [diagnosticMap, setDiagnosticMap] = useState<PlanKnowledgeMap | null>(null);
+  const [diagnosticError, setDiagnosticError] = useState<string | null>(null);
+  const [diagnosticLatencyMs, setDiagnosticLatencyMs] = useState<number | null>(null);
   const [startingContext, setStartingContext] = useState(seed?.progress ?? "");
   const [generatedPlan, setGeneratedPlan] = useState<PlanGenerationResponse | null>(null);
   const [generatedFrom, setGeneratedFrom] = useState<PlanGenerationRequest | null>(null);
@@ -103,11 +105,9 @@ export function PlanCreator({ onExit, onFinish, profileSummary, browserPreviewMo
     summary[slot.window] = (summary[slot.window] ?? 0) + 1;
     return summary;
   }, {});
-  const diagnosticQuestions = questionsForGoal(goal);
-  const diagnosticResponses = buildDiagnosticResponses(diagnosticQuestions, diagnosticAnswers);
   const learningApproach = resolveLearningIntent({
     goal,
-    startingPoint: `${startingContext} ${diagnosticAnswers[0] ?? ""}`,
+    startingPoint: startingContext,
     diagnosticResponses,
   });
   const goalContext = assessGoalContext(
@@ -124,13 +124,14 @@ export function PlanCreator({ onExit, onFinish, profileSummary, browserPreviewMo
   const preferenceContract = buildPlanPreferenceContract(profileSummary);
   const generatedPhases = generatedPlan ? groupPlanSessions(generatedPlan.plan.sessions) : [];
 
-  const stepNumber = ({ goal: 1, source: 2, schedule: 3, diagnostic: 4, confirm: 5, loading: 5, error: 5, result: 5 } as Record<PlanStep, number>)[step];
+  const stepNumber = ({ goal: 1, source: 2, schedule: 3, "diagnostic-loading": 4, diagnostic: 4, confirm: 5, loading: 5, error: 5, result: 5 } as Record<PlanStep, number>)[step];
 
   const back = () => {
     const previous: Record<PlanStep, PlanStep> = {
       goal: "goal",
       source: "goal",
       schedule: "source",
+      "diagnostic-loading": "schedule",
       diagnostic: "schedule",
       confirm: "diagnostic",
       loading: "confirm",
@@ -138,6 +139,71 @@ export function PlanCreator({ onExit, onFinish, profileSummary, browserPreviewMo
       result: "confirm",
     };
     setStep(previous[step]);
+  };
+
+  const buildGenerationRequest = (overrides: Partial<PlanGenerationRequest> = {}) => {
+    if (!sourceChoice) throw new Error("Choose how YOVA should build this plan.");
+    return PlanGenerationRequestSchema.parse({
+      intent: "plan",
+      learningIntent: learningApproach.intent,
+      goal,
+      startingContext,
+      materialMode: sourceChoice === "materials" ? "upload" : "none",
+      materials: sourceChoice === "materials" ? materials : [],
+      studyMode: seed?.itemType === "assignment" || sourceChoice === "outside" ? "outside" : "inside",
+      deadline: deadlineDate ? deadlineAtEndOfDay(deadlineDate) : null,
+      timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
+      diagnosticResponses,
+      availability,
+      profileSummary,
+      ...(diagnosticMap ? { knowledgeMap: diagnosticMap } : {}),
+      ...overrides,
+    });
+  };
+
+  const prepareDiagnostic = async () => {
+    setDiagnosticError(null);
+    setStep("diagnostic-loading");
+    try {
+      const planRequest = buildGenerationRequest({ diagnosticResponses: [], knowledgeMap: undefined });
+      const response = await fetch("/api/plans/generate?mode=diagnostic", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(browserPreviewMode ? { "X-Yova-Development-Preview": "plan-creator" } : {}),
+        },
+        body: JSON.stringify(planRequest),
+      });
+      const body: unknown = await response.json();
+      if (!response.ok) throw new Error(readApiError(body) ?? "YOVA could not prepare the placement check.");
+      const parsed = PlanDiagnosticPreparationResponseSchema.safeParse(body);
+      if (!parsed.success) throw new Error("The placement check came back in an unsafe format.");
+      setDiagnosticQuestions(parsed.data.questions);
+      setDiagnosticMap(parsed.data.knowledgeMap);
+      setDiagnosticLatencyMs(parsed.data.generation.durationMs);
+      setDiagnosticIndex(0);
+      setDiagnosticAnswers([]);
+      setDiagnosticResponses([]);
+    } catch (error) {
+      setDiagnosticQuestions([]);
+      setDiagnosticMap(null);
+      setDiagnosticError(error instanceof Error ? error.message : "YOVA could not prepare the placement check.");
+    } finally {
+      setStep("diagnostic");
+    }
+  };
+
+  const finishDiagnostic = (skipped: boolean) => {
+    if (skipped || !diagnosticMap) {
+      setDiagnosticResponses([]);
+      if (diagnosticMap) setDiagnosticMap(markDiagnosticSkipped(diagnosticMap));
+      setStep("confirm");
+      return;
+    }
+    const result = scoreDiagnostic(diagnosticMap, diagnosticQuestions, diagnosticAnswers);
+    setDiagnosticResponses(result.responses);
+    setDiagnosticMap(result.map);
+    setStep("confirm");
   };
 
   const generatePlan = async () => {
@@ -150,20 +216,7 @@ export function PlanCreator({ onExit, onFinish, profileSummary, browserPreviewMo
     let planRequest: PlanGenerationRequest | null = null;
 
     try {
-      planRequest = PlanGenerationRequestSchema.parse({
-        intent: "plan",
-        learningIntent: learningApproach.intent,
-        goal,
-        startingContext,
-        materialMode: sourceChoice === "materials" ? "upload" : "none",
-        materials: sourceChoice === "materials" ? materials : [],
-        studyMode: seed?.itemType === "assignment" || sourceChoice === "outside" ? "outside" : "inside",
-        deadline: deadlineDate ? deadlineAtEndOfDay(deadlineDate) : null,
-        timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
-        diagnosticResponses,
-        availability,
-        profileSummary,
-      });
+      planRequest = buildGenerationRequest();
       const response = await fetch("/api/plans/generate", {
         method: "POST",
         headers: {
@@ -406,7 +459,7 @@ export function PlanCreator({ onExit, onFinish, profileSummary, browserPreviewMo
               <small className="schedule-preview-note">These are availability limits, not mandatory appointments. YOVA will only schedule the amount of learning the plan actually needs.</small>
             </aside>
           </div>
-          <PlanActions onBack={back} onNext={() => setStep(seed?.itemType === "assignment" ? "confirm" : "diagnostic")} nextDisabled={availability.length === 0} />
+          <PlanActions onBack={back} onNext={() => void prepareDiagnostic()} nextLabel="Continue to placement check" nextDisabled={availability.length === 0} />
         </PlanPanel>
       )}
 
@@ -419,21 +472,25 @@ export function PlanCreator({ onExit, onFinish, profileSummary, browserPreviewMo
             </header>
             <div className="availability-list editable">{availabilityChoices.map((choice, index) => <div className={choice.enabled ? "enabled" : ""} key={`${choice.day}-${choice.dateLabel}`}><button className="availability-toggle" type="button" aria-label={`${choice.enabled ? "Remove" : "Add"} ${choice.day}`} aria-pressed={choice.enabled} onClick={() => setAvailabilityChoices((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, enabled: !item.enabled } : item))}>{choice.enabled && <Check size={14} />}</button><div><strong>{choice.day}</strong><small>{choice.dateLabel}</small></div><select aria-label={`${choice.day} time window`} value={choice.window} disabled={!choice.enabled} onChange={(event) => setAvailabilityChoices((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, window: event.target.value as AvailabilityChoice["window"] } : item))}><option>Morning</option><option>Afternoon</option><option>Evening</option></select><select aria-label={`${choice.day} available minutes`} value={choice.minutes} disabled={!choice.enabled} onChange={(event) => setAvailabilityChoices((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, minutes: Number(event.target.value) } : item))}><option value={15}>15 min</option><option value={25}>25 min</option><option value={30}>30 min</option><option value={45}>45 min</option><option value={60}>60 min</option></select></div>)}</div>
           </section>
-          <PlanActions onBack={() => setCustomScheduleOpen(false)} backLabel="Quick choices" onNext={() => setStep(seed?.itemType === "assignment" ? "confirm" : "diagnostic")} nextLabel="Use this timetable" nextDisabled={availability.length === 0} />
+          <PlanActions onBack={() => setCustomScheduleOpen(false)} backLabel="Quick choices" onNext={() => void prepareDiagnostic()} nextLabel="Continue to placement check" nextDisabled={availability.length === 0} />
         </PlanPanel>
       )}
 
+      {step === "diagnostic-loading" && <section className="plan-loading"><span className="loading-orbit"><Sparkles /></span><h1>Preparing a short placement check…</h1><p>YOVA is sampling prerequisite and central topics from your knowledge map.</p><div><span className="done"><Check /> Mapping the goal</span><span className="active"><span /> Writing self-contained questions</span></div></section>}
+
       {step === "diagnostic" && (
-        <PlanPanel eyebrow={`STARTING-POINT CHECK · ${diagnosticIndex + 1} OF ${diagnosticQuestions.length}`} title={diagnosticQuestions[diagnosticIndex].prompt} description="The check is intentionally easy. Its purpose is to avoid repeating what you already know.">
-          <div className="diagnostic-options">{diagnosticQuestions[diagnosticIndex].options.map((option) => <button className={diagnosticAnswers[diagnosticIndex] === option ? "selected" : ""} key={option} onClick={() => { const next = [...diagnosticAnswers]; next[diagnosticIndex] = option; setDiagnosticAnswers(next); }}>{option}{diagnosticAnswers[diagnosticIndex] === option && <Check />}</button>)}</div>
-          {diagnosticIndex === 0 && <label className="starting-context-field"><span>Tell YOVA anything the choices missed</span><textarea rows={4} maxLength={800} value={startingContext} placeholder="Optional: what you already understand, where you feel lost, or what this plan must focus on." onChange={(event) => setStartingContext(event.target.value)} /><small>This changes what YOVA teaches first, how much support it gives, and how the plan is divided. {startingContext.length}/800</small></label>}
-          <PlanActions onBack={diagnosticIndex === 0 ? back : () => setDiagnosticIndex((value) => value - 1)} onNext={() => { if (diagnosticIndex === diagnosticQuestions.length - 1) setStep("confirm"); else setDiagnosticIndex((value) => value + 1); }} nextLabel={diagnosticIndex === diagnosticQuestions.length - 1 ? "Review information" : "Next question"} nextDisabled={!diagnosticAnswers[diagnosticIndex]} />
+        <PlanPanel eyebrow={diagnosticQuestions.length ? `OPTIONAL PLACEMENT CHECK · ${diagnosticIndex + 1} OF ${diagnosticQuestions.length}` : "OPTIONAL PLACEMENT CHECK"} title={diagnosticQuestions[diagnosticIndex]?.prompt ?? "Continue without a placement check"} description={diagnosticQuestions.length ? "Recommended: answering lets YOVA replace lessons on demonstrated topics with shorter verification checks, making the plan more focused." : "The placement check is unavailable right now. Skipping does not mark any topic as known, and you can take it later from the plan."}>
+          {diagnosticError && <div className="chat-error"><AlertCircle size={16} /><span>{diagnosticError}</span></div>}
+          {diagnosticQuestions[diagnosticIndex] && <div className="diagnostic-options">{diagnosticQuestions[diagnosticIndex].options.map((option) => <button className={diagnosticAnswers[diagnosticIndex] === option ? "selected" : ""} key={option} onClick={() => { const next = [...diagnosticAnswers]; next[diagnosticIndex] = option; setDiagnosticAnswers(next); }}>{option}{diagnosticAnswers[diagnosticIndex] === option && <Check />}</button>)}</div>}
+          {diagnosticIndex === 0 && <label className="starting-context-field"><span>Anything YOVA should account for?</span><textarea rows={4} maxLength={800} value={startingContext} placeholder="Optional: what you already understand, where you feel lost, or what this plan must focus on." onChange={(event) => setStartingContext(event.target.value)} /><small>Your note can change emphasis, but it never counts as proof that a topic is known. {startingContext.length}/800</small></label>}
+          {diagnosticLatencyMs !== null && <small className="diagnostic-generation-note">Built from {diagnosticMap?.topics.length ?? 0} mapped topics in {(diagnosticLatencyMs / 1_000).toFixed(1)} seconds.</small>}
+          <footer className="plan-actions"><button className="button ghost" onClick={diagnosticIndex === 0 ? back : () => setDiagnosticIndex((value) => value - 1)}><ArrowLeft size={17} /> Back</button><div className="diagnostic-actions"><button className="button ghost" onClick={() => finishDiagnostic(true)}>Skip for now</button>{diagnosticQuestions.length > 0 && <button className="button primary" onClick={() => { if (diagnosticIndex === diagnosticQuestions.length - 1) finishDiagnostic(false); else setDiagnosticIndex((value) => value + 1); }} disabled={!diagnosticAnswers[diagnosticIndex]}>{diagnosticIndex === diagnosticQuestions.length - 1 ? "Use my answers" : "Next question"} <ArrowRight size={17} /></button>}</div></footer>
         </PlanPanel>
       )}
 
       {step === "confirm" && (
         <PlanPanel eyebrow="FINAL CHECK" title="Everything YOVA will use" description="Review the inputs and change anything before your plan is generated.">
-          <div className="confirmation-list"><SummaryFact label="Goal" value={goal} /><SummaryFact label="Target date" value={deadlineDate ? formatDateOnly(deadlineDate) : "No fixed deadline"} /><SummaryFact label="Starting evidence" value={`${summarizeDiagnosticResponses(diagnosticResponses)}${startingContext.trim() ? `. Your note: ${startingContext.trim()}` : ""}`} /><SummaryFact label="How YOVA will start" value={`${LEARNING_INTENT_COPY[learningApproach.intent].name}: ${learningApproach.reason}`} /><SummaryFact label="Availability" value={`${availability.length} selected ${availability.length === 1 ? "window" : "windows"}: ${availability.map((slot) => `${slot.day} ${slot.window.toLowerCase()} (${slot.minutes} min)`).join(", ")}`} /><SummaryFact label="Learning mode" value={sourceChoice === "outside" ? "YOVA-guided plan using another trusted source" : sourceChoice === "materials" ? "Guided inside YOVA from your uploaded materials" : "Guided inside YOVA with YOVA-created teaching and practice"} /><SummaryFact label="Sources" value={sourceChoice === "materials" ? `${materials.length} ${materials.length === 1 ? "uploaded material" : "uploaded materials"}: ${materials.map((material) => material.name).join(", ")}` : sourceChoice === "outside" ? "The source you choose outside YOVA" : "YOVA-generated content from the goal"} /><SummaryFact label="Saved learning preferences" value={`${preferenceContract.presentation.label}; ${preferenceContract.support.label}; ${preferenceContract.retention.label}; ${preferenceContract.workspace.label}`} /></div>
+          <div className="confirmation-list"><SummaryFact label="Goal" value={goal} /><SummaryFact label="Target date" value={deadlineDate ? formatDateOnly(deadlineDate) : "No fixed deadline"} /><SummaryFact label="Placement evidence" value={`${summarizeDiagnosticResponses(diagnosticResponses)}${startingContext.trim() ? `. Your note guides emphasis but is not evidence: ${startingContext.trim()}` : ""}`} /><SummaryFact label="How YOVA will start" value={`${LEARNING_INTENT_COPY[learningApproach.intent].name}: ${learningApproach.reason}`} /><SummaryFact label="Availability" value={`${availability.length} selected ${availability.length === 1 ? "window" : "windows"}: ${availability.map((slot) => `${slot.day} ${slot.window.toLowerCase()} (${slot.minutes} min)`).join(", ")}`} /><SummaryFact label="Learning mode" value={sourceChoice === "outside" ? "YOVA-guided plan using another trusted source" : sourceChoice === "materials" ? "Guided inside YOVA from your uploaded materials" : "Guided inside YOVA with YOVA-created teaching and practice"} /><SummaryFact label="Sources" value={sourceChoice === "materials" ? `${materials.length} ${materials.length === 1 ? "uploaded material" : "uploaded materials"}: ${materials.map((material) => material.name).join(", ")}` : sourceChoice === "outside" ? "The source you choose outside YOVA" : "YOVA-generated content from the goal"} /><SummaryFact label="Saved learning preferences" value={`${preferenceContract.presentation.label}; ${preferenceContract.support.label}; ${preferenceContract.retention.label}; ${preferenceContract.workspace.label}`} /></div>
           <PlanActions onBack={back} onNext={() => void generatePlan()} nextLabel="Generate my plan" />
         </PlanPanel>
       )}
@@ -619,56 +676,51 @@ function durationLabel(minutes: number[]) {
   return `${unique[0]}–${unique.at(-1)} min`;
 }
 
-function questionsForGoal(goal: string): DiagnosticQuestion[] {
-  if (/biology|photosynthesis|cellular respiration/i.test(goal)) {
-    return [
-      { prompt: "What is the main purpose of cellular respiration?", options: ["Produce ATP", "Store genetic information", "Build cell membranes", "Transport water"], correctAnswer: "Produce ATP" },
-      { prompt: "Where does glycolysis occur?", options: ["Cytoplasm", "Mitochondrial matrix", "Nucleus", "Cell membrane"], correctAnswer: "Cytoplasm" },
-      { prompt: "How confident are you that you could explain both processes without notes?", options: ["Not confident", "Somewhat confident", "Very confident"] },
-    ];
-  }
-  if (/calculus|derivative|product rule|quotient rule/i.test(goal)) {
-    return [
-      { prompt: "What does a derivative describe?", options: ["A rate of change", "Only the area under a curve", "A fixed intercept", "I do not know yet"], correctAnswer: "A rate of change" },
-      { prompt: "Which practice feels least stable right now?", options: ["Power rule", "Product and quotient rules", "Chain rule", "Applications"] },
-      { prompt: "How confident are you solving a derivative without an example beside you?", options: ["Not confident", "Somewhat confident", "Very confident"] },
-    ];
-  }
-  if (/finance|investing|budget|credit|interest/i.test(goal)) {
-    return [
-      { prompt: "Which idea is most familiar already?", options: ["Budgeting", "Credit", "Interest", "Investing", "None yet"] },
-      { prompt: "What kind of result matters most?", options: ["Make better real decisions", "Understand the vocabulary", "Prepare for an assessment", "Build long-term knowledge"] },
-      { prompt: "How confident are you explaining the topic without notes?", options: ["Not confident", "Somewhat confident", "Very confident"] },
-    ];
-  }
-  return [
-    { prompt: "Where are you starting?", options: ["Completely new", "Know a few basics", "Understand the basics", "Mostly reviewing"] },
-    { prompt: "What should this plan help you do?", options: ["Understand it", "Remember it", "Apply it", "Prepare for an assessment"] },
-    { prompt: "How confident are you working without guidance?", options: ["Not confident", "Somewhat confident", "Very confident"] },
-  ];
-}
-
-function buildDiagnosticResponses(questions: DiagnosticQuestion[], answers: string[]): DiagnosticResponse[] {
-  return questions.flatMap((question, index) => {
-    const answer = answers[index]?.trim();
-    if (!answer) return [];
-    return [{
-      question: question.prompt,
-      answer,
-      evaluation: question.correctAnswer
-        ? answer === question.correctAnswer ? "correct" : "incorrect"
-        : "self_report",
-    }];
+function markDiagnosticSkipped(map: PlanKnowledgeMap): PlanKnowledgeMap {
+  return PlanKnowledgeMapSchema.parse({
+    ...map,
+    placementCheck: {
+      status: "skipped",
+      completedAt: null,
+      demonstratedTopicIds: [],
+      gapTopicIds: [],
+    },
   });
 }
 
+function scoreDiagnostic(map: PlanKnowledgeMap, questions: PlanDiagnosticQuestion[], answers: string[]) {
+  const observedAt = new Date().toISOString();
+  const responses: DiagnosticResponse[] = questions.map((question, index) => ({
+    questionId: question.id,
+    topicId: question.topicId,
+    question: question.prompt,
+    answer: answers[index] ?? "I don't know yet",
+    evaluation: answers[index] === question.correctAnswer ? "correct" : "incorrect",
+  }));
+  const demonstratedTopicIds = [...new Set(responses.filter((response) => response.evaluation === "correct").map((response) => response.topicId))];
+  const gapTopicIds = [...new Set(responses.filter((response) => response.evaluation === "incorrect").map((response) => response.topicId))];
+  const scoredMap = PlanKnowledgeMapSchema.parse({
+    ...map,
+    placementCheck: { status: "completed", completedAt: observedAt, demonstratedTopicIds, gapTopicIds },
+    topics: map.topics.map((topic) => {
+      if (demonstratedTopicIds.includes(topic.id)) return { ...topic, status: "evidenced", initialEvidence: { source: "placement_check", outcome: "demonstrated", observedAt } };
+      if (gapTopicIds.includes(topic.id)) return { ...topic, status: "not_started", initialEvidence: { source: "placement_check", outcome: "gap", observedAt } };
+      return topic;
+    }),
+  });
+  return { map: scoredMap, responses };
+}
+
 function summarizeDiagnosticResponses(responses: DiagnosticResponse[]) {
-  if (responses.length === 0) return "No knowledge quiz needed for this type of work";
-  const checked = responses.filter((response) => response.evaluation !== "self_report");
-  const correct = checked.filter((response) => response.evaluation === "correct").length;
-  const reported = responses.filter((response) => response.evaluation === "self_report").map((response) => response.answer);
-  const knowledgeSummary = checked.length ? `${correct} of ${checked.length} knowledge checks correct` : "Self-reported starting point";
-  return reported.length ? `${knowledgeSummary} · ${reported.join(" · ")}` : knowledgeSummary;
+  if (responses.length === 0) return "Skipped. No topic was marked as known";
+  const correct = responses.filter((response) => response.evaluation === "correct").length;
+  return `${correct} of ${responses.length} mapped-topic checks demonstrated`;
+}
+
+function readApiError(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const error = (value as Record<string, unknown>).error;
+  return typeof error === "string" ? error : null;
 }
 
 function seedGoal(seed: AddIntakeSeed) {

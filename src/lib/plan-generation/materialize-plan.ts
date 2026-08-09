@@ -25,6 +25,16 @@ export function materializePlanDraft(
       deferred: deferredById.has(mappedTopic.id) ? { reason: deferredById.get(mappedTopic.id)! } : null,
     })),
   } : undefined;
+  const demonstratedTopics = request.knowledgeMap?.topics.filter((mappedTopic) => mappedTopic.initialEvidence?.outcome === "demonstrated") ?? [];
+  const gapTopics = request.knowledgeMap?.topics.filter((mappedTopic) => mappedTopic.initialEvidence?.outcome === "gap") ?? [];
+  const placementSummary = [
+    demonstratedTopics.length > 0
+      ? `You showed you already know ${demonstratedTopics.map((mappedTopic) => mappedTopic.title).join(", ")}, so ${demonstratedTopics.length === 1 ? "it is" : "they are"} scheduled as a quick check, not a lesson.`
+      : "",
+    gapTopics.length > 0
+      ? `${gapTopics.map((mappedTopic) => mappedTopic.title).join(", ")} ${gapTopics.length === 1 ? "is" : "are"} taught first because the placement check confirmed a gap.`
+      : "",
+  ].filter(Boolean).join(" ");
 
   return {
     id: planId,
@@ -38,7 +48,7 @@ export function materializePlanDraft(
     studyMode: request.studyMode === "outside" ? "outside_yova" : "inside_yova",
     learningIntent: request.learningIntent,
     creationIntent: request.intent,
-    rationale: draft.rationale,
+    rationale: `${placementSummary}${placementSummary ? " " : ""}${draft.rationale}`.slice(0, 1_600),
     createdAt: new Date().toISOString(),
     knowledgeMap,
     materials: request.materials.map((material) => ({
@@ -50,7 +60,8 @@ export function materializePlanDraft(
         ? Math.min(session.estimatedMinutes, request.availability[0]?.minutes ?? session.estimatedMinutes)
         : session.estimatedMinutes;
 
-      const learningMode = index === 0 ? request.learningIntent : session.learningMode;
+      const placementCompleted = request.knowledgeMap?.placementCheck.status === "completed";
+      const learningMode = index === 0 && !placementCompleted ? request.learningIntent : session.learningMode;
       const repairedTeachingStart = learningMode === "learn" && session.learningMode !== "learn"
         ? teachingFirstSessionCopy(topic)
         : null;

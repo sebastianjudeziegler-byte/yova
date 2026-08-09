@@ -9,6 +9,7 @@ import {
   type PlanKnowledgeMap,
 } from "@/lib/knowledge-map/schema";
 import { generatePlanKnowledgeMap, KnowledgeMapGenerationError } from "@/lib/knowledge-map/generate-plan-map";
+import { generateMapDiagnostic, MapDiagnosticGenerationError } from "@/lib/diagnostics/map-diagnostic";
 import { mapAndPersistMaterial } from "@/lib/materials/material-understanding";
 import { resolveLearningIntent } from "@/lib/learning/learning-intent";
 import { generatePlanWithOpenAI, OpenAIPlanGenerationError } from "@/lib/openai/plan-generator";
@@ -17,6 +18,7 @@ import { generatePreviewPlan } from "@/lib/plan-generation/preview-generator";
 import { inferPlanScopeContract } from "@/lib/plan-generation/scope-contract";
 import {
   PlanGenerationRequestSchema,
+  PlanDiagnosticPreparationResponseSchema,
   PlanGenerationResponseSchema,
 } from "@/lib/plan-generation/schema";
 import { checkPlanGenerationRateLimit, requestRateLimitKey } from "@/lib/server/rate-limit";
@@ -34,6 +36,7 @@ export async function POST(request: Request) {
   const requestId = crypto.randomUUID();
   const startedAt = Date.now();
   const developmentPreview = isDevelopmentPreviewRequest(request);
+  const diagnosticOnly = new URL(request.url).searchParams.get("mode") === "diagnostic";
   const supabase = isSupabaseConfigured() ? await createSupabaseServerClient() : null;
   const { data: { user }, error: userError } = supabase
     ? await supabase.auth.getUser()
@@ -139,10 +142,13 @@ export async function POST(request: Request) {
   }
 
   try {
-    const mapped = !isOpenAIPlanConfigured() && (developmentPreview || process.env.NODE_ENV === "development")
-      ? buildDevelopmentPreviewKnowledgeMap(planRequest)
-      : await generatePlanKnowledgeMap(planRequest);
-    planRequest = { ...planRequest, knowledgeMap: mapped.map };
+    const mapped = planRequest.knowledgeMap
+      ? null
+      : !isOpenAIPlanConfigured() && (developmentPreview || process.env.NODE_ENV === "development")
+        ? buildDevelopmentPreviewKnowledgeMap(planRequest)
+        : await generatePlanKnowledgeMap(planRequest);
+    if (mapped) planRequest = { ...planRequest, knowledgeMap: mapped.map };
+    if (mapped) {
     await recordGenerationObservation(supabase, user?.id, {
       generationType: "knowledge_map",
       environment: generationEnvironment(),
@@ -160,6 +166,7 @@ export async function POST(request: Request) {
       model: mapped.stats.model,
       diagnostics: { topicCount: mapped.map.topics.length, scopeBand: mapped.map.scopeJudgment.band },
     });
+    }
   } catch (error) {
     const validator = error instanceof KnowledgeMapGenerationError
       ? error.failedValidator
@@ -184,6 +191,52 @@ export async function POST(request: Request) {
       { error: "YOVA could not map this learning goal yet. Try again in a moment.", code: "knowledge_map_failed" },
       { status: 503, headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId } },
     );
+  }
+
+  if (diagnosticOnly && planRequest.knowledgeMap) {
+    const diagnosticStartedAt = Date.now();
+    try {
+      const generated = await generateMapDiagnostic(planRequest.knowledgeMap, planRequest.goal);
+      await recordGenerationObservation(supabase, user?.id, {
+        generationType: "diagnostic",
+        environment: generationEnvironment(),
+        finalOutcome: "success",
+        firstAttemptPassed: generated.stats.firstAttemptPassed,
+        failedValidator: generated.stats.failedValidator,
+        repairAttempted: false,
+        repairSucceeded: null,
+        elapsedMs: generated.stats.elapsedMs,
+        attempts: generated.stats.attempts,
+        inputTokens: generated.stats.inputTokens,
+        cachedInputTokens: generated.stats.cachedInputTokens,
+        cacheWriteTokens: generated.stats.cacheWriteTokens,
+        outputTokens: generated.stats.outputTokens,
+        model: generated.stats.model,
+        diagnostics: { questionCount: generated.questions.length, topicCount: planRequest.knowledgeMap.topics.length },
+      });
+      return NextResponse.json(PlanDiagnosticPreparationResponseSchema.parse({
+        knowledgeMap: planRequest.knowledgeMap,
+        questions: generated.questions,
+        generation: {
+          requestId,
+          durationMs: Date.now() - diagnosticStartedAt,
+          mode: generated.stats.model ? "openai" : "preview",
+        },
+      }), { headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId } });
+    } catch (error) {
+      const failedValidator = error instanceof MapDiagnosticGenerationError
+        ? error.failedValidator
+        : "diagnostic_provider_request" as const;
+      await recordGenerationObservation(supabase, user?.id, {
+        ...emptyPlanObservation(Date.now() - diagnosticStartedAt),
+        generationType: "diagnostic",
+        environment: generationEnvironment(),
+        finalOutcome: "failure",
+        firstAttemptPassed: false,
+        failedValidator,
+      });
+      return NextResponse.json({ error: "YOVA could not prepare the placement check yet. You can skip it and continue." }, { status: 503, headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId } });
+    }
   }
 
   // A one-off session does not need an AI-generated multi-day plan. The
@@ -361,6 +414,7 @@ function buildDevelopmentPreviewKnowledgeMap(
       subtopics: [],
       prerequisiteTopicIds: index > 0 ? [ids[index - 1]] : [],
       status: "not_started",
+      initialEvidence: null,
       sourceReferences: [],
       origin: "ai_generated",
       deferred: null,

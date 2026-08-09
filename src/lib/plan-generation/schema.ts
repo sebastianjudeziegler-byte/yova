@@ -17,9 +17,29 @@ export const StoredMaterialSchema = MaterialInputSchema.extend({
 });
 
 export const DiagnosticResponseSchema = z.object({
+  questionId: z.string().uuid().optional(),
+  topicId: z.string().uuid().optional(),
   question: z.string().trim().min(3).max(240),
   answer: z.string().trim().min(1).max(160),
   evaluation: z.enum(["correct", "incorrect", "self_report"]),
+});
+
+export const PlanDiagnosticQuestionSchema = z.object({
+  id: z.string().uuid(),
+  topicId: z.string().uuid(),
+  prompt: z.string().trim().min(12).max(500),
+  options: z.array(z.string().trim().min(1).max(180)).min(3).max(4),
+  correctAnswer: z.string().trim().min(1).max(180),
+});
+
+export const PlanDiagnosticPreparationResponseSchema = z.object({
+  knowledgeMap: PlanKnowledgeMapSchema,
+  questions: z.array(PlanDiagnosticQuestionSchema).min(1).max(8),
+  generation: z.object({
+    requestId: z.string().uuid(),
+    durationMs: z.number().int().nonnegative(),
+    mode: z.enum(["preview", "openai", "system"]),
+  }),
 });
 
 export const PlanGenerationRequestSchema = z.object({
@@ -190,6 +210,8 @@ export const PlanActivationResponseSchema = z.object({
 
 export type PlanGenerationRequest = z.infer<typeof PlanGenerationRequestSchema>;
 export type DiagnosticResponse = z.infer<typeof DiagnosticResponseSchema>;
+export type PlanDiagnosticQuestion = z.infer<typeof PlanDiagnosticQuestionSchema>;
+export type PlanDiagnosticPreparationResponse = z.infer<typeof PlanDiagnosticPreparationResponseSchema>;
 export type GeneratedPlanDraft = z.infer<typeof GeneratedPlanDraftSchema>;
 export type PlanGenerationResponse = z.infer<typeof PlanGenerationResponseSchema>;
 export type PlanActivationRequest = z.infer<typeof PlanActivationRequestSchema>;

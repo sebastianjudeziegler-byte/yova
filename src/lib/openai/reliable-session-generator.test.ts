@@ -86,6 +86,7 @@ function context(learningMode: "learn" | "study" = "learn"): SessionGenerationCo
       subtopics: [],
       prerequisiteTopicIds: [],
       status: "not_started",
+      initialEvidence: null,
       sourceReferences: [],
       origin: "ai_generated",
       deferred: null,

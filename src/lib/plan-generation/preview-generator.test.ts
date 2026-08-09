@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { PlanKnowledgeMap } from "@/lib/knowledge-map/schema";
 import { generatePreviewPlan } from "@/lib/plan-generation/preview-generator";
 import { PlanGenerationRequestSchema } from "@/lib/plan-generation/schema";
 
@@ -6,7 +7,7 @@ function knowledgeMap(
   titles: string[],
   band: "focused_skill" | "unit_or_exam" | "broad_course",
   recommendedSessions: number,
-) {
+): PlanKnowledgeMap {
   const minimumSessions = band === "broad_course" ? 10 : band === "focused_skill" ? 2 : 4;
   const maximumSessions = band === "broad_course" ? 14 : band === "focused_skill" ? 6 : 12;
   return {
@@ -27,10 +28,12 @@ function knowledgeMap(
       subtopics: [],
       prerequisiteTopicIds: index === 0 ? [] : [`10000000-1000-4000-8000-${String(index).padStart(12, "0")}`],
       status: "not_started" as const,
+      initialEvidence: null,
       sourceReferences: [],
       origin: "ai_generated" as const,
       deferred: null,
     })),
+    placementCheck: { status: "skipped" as const, completedAt: null, demonstratedTopicIds: [], gapTopicIds: [] },
   };
 }
 
@@ -272,6 +275,44 @@ describe("preview plan time windows", () => {
     expect(plan.sessions[0].method).toBe("Guided explanation and self-explanation");
     expect(plan.sessions[0].objective).toMatch(/first mental model/i);
     expect(plan.sessions[0].completionEvidence?.[0]).toMatch(/after the model is hidden/i);
+  });
+
+  it("teaches placement gaps and schedules demonstrated topics as short verification", () => {
+    const base = requestWithMinutes(25);
+    const mapped = knowledgeMap([
+      "Purpose and location of glycolysis",
+      "Citric acid cycle inputs and outputs",
+      "Electron transport and ATP production",
+      "How the three stages connect",
+    ], "unit_or_exam", 6);
+    const observedAt = "2026-08-09T18:00:00.000Z";
+    mapped.placementCheck = {
+      status: "completed",
+      completedAt: observedAt,
+      demonstratedTopicIds: [mapped.topics[0].id],
+      gapTopicIds: [mapped.topics[1].id],
+    };
+    mapped.topics[0] = {
+      ...mapped.topics[0],
+      status: "evidenced",
+      initialEvidence: { source: "placement_check", outcome: "demonstrated", observedAt },
+    };
+    mapped.topics[1] = {
+      ...mapped.topics[1],
+      status: "not_started",
+      initialEvidence: { source: "placement_check", outcome: "gap", observedAt },
+    };
+
+    const plan = generatePreviewPlan({ ...base, knowledgeMap: mapped });
+    const gapSession = plan.sessions.find((session) => session.topicIds?.includes(mapped.topics[1].id));
+    const demonstratedSession = plan.sessions.find((session) => session.topicIds?.includes(mapped.topics[0].id));
+
+    expect(gapSession?.learningMode).toBe("learn");
+    expect(demonstratedSession?.learningMode).toBe("study");
+    expect(demonstratedSession?.estimatedMinutes).toBeLessThanOrEqual(15);
+    expect(plan.rationale).toContain("You showed you already know Purpose and location of glycolysis");
+    expect(plan.rationale).toContain("quick check, not a lesson");
+    expect(plan.rationale).toContain("taught first because the placement check confirmed a gap");
   });
 
   it("routes a familiar one-off topic into retrieval before repair", () => {

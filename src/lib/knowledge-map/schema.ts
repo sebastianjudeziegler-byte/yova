@@ -5,6 +5,24 @@ export const MaterialSectionRoleSchema = z.enum(["content_source", "scope_outlin
 export const KnowledgeTopicStatusSchema = z.enum(["not_started", "taught", "evidenced", "secure"]);
 export const PlanScopeBandSchema = z.enum(["focused_skill", "unit_or_exam", "broad_course"]);
 
+export const InitialTopicEvidenceSchema = z.object({
+  source: z.literal("placement_check"),
+  outcome: z.enum(["demonstrated", "gap"]),
+  observedAt: z.string().datetime({ offset: true }),
+}).nullable().default(null);
+
+export const PlacementCheckStateSchema = z.object({
+  status: z.enum(["available", "skipped", "completed"]).default("available"),
+  completedAt: z.string().datetime({ offset: true }).nullable().default(null),
+  demonstratedTopicIds: z.array(z.string().uuid()).max(40).default([]),
+  gapTopicIds: z.array(z.string().uuid()).max(40).default([]),
+}).default({
+  status: "available",
+  completedAt: null,
+  demonstratedTopicIds: [],
+  gapTopicIds: [],
+});
+
 export const MaterialChunkReferenceSchema = z.object({
   materialId: z.string().uuid(),
   chunkId: z.string().uuid(),
@@ -22,6 +40,7 @@ export const KnowledgeMapTopicSchema = z.object({
   subtopics: z.array(z.string().trim().min(2).max(140)).max(12).default([]),
   prerequisiteTopicIds: z.array(z.string().uuid()).max(12).default([]),
   status: KnowledgeTopicStatusSchema.default("not_started"),
+  initialEvidence: InitialTopicEvidenceSchema,
   sourceReferences: z.array(MaterialChunkReferenceSchema).max(40).default([]),
   origin: z.enum(["material", "ai_generated"]),
   deferred: z.object({ reason: z.string().trim().min(8).max(300) }).nullable().default(null),
@@ -44,6 +63,7 @@ export const PlanKnowledgeMapSchema = z.object({
   version: z.literal(1),
   scopeJudgment: ScopeJudgmentSchema,
   topics: z.array(KnowledgeMapTopicSchema).min(1).max(40),
+  placementCheck: PlacementCheckStateSchema,
 });
 
 export const MaterialUnderstandingSchema = z.object({

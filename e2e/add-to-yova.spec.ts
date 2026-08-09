@@ -53,6 +53,7 @@ test("a multi-session assignment skips an irrelevant knowledge quiz", async ({ p
 
   await expect(page.getByRole("heading", { name: "When would you prefer to study this material?" })).toBeVisible();
   await page.getByRole("button", { name: "Continue" }).click();
+  await page.getByRole("button", { name: "Skip for now" }).click();
   await expect(page.getByRole("heading", { name: "Everything YOVA will use" })).toBeVisible();
   await expect(page.getByText(/STARTING-POINT CHECK/)).toHaveCount(0);
   await expect(page.getByText("YOVA-guided plan using another trusted source")).toBeVisible();

@@ -42,17 +42,26 @@ export function validateGeneratedPlanQuality(
   }
 
   const teachingSessions = draft.sessions.filter((session) => session.learningMode === "learn").length;
-  if (request.intent === "plan" && teachingSessions < scope.minimumTeachingSessions) {
+  const placementCompleted = request.knowledgeMap?.placementCheck.status === "completed";
+  const placementRequiresTeaching = request.knowledgeMap?.topics.some(
+    (topic) => topic.initialEvidence?.outcome !== "demonstrated",
+  ) ?? true;
+  if (
+    request.intent === "plan"
+    && teachingSessions < scope.minimumTeachingSessions
+    && (!placementCompleted || placementRequiresTeaching)
+  ) {
     issues.push(`${scope.label} needs at least ${scope.minimumTeachingSessions} teaching-first sessions before or between unsupported practice.`);
   }
 
-  if (draft.sessions[0]?.learningMode !== request.learningIntent) {
+  if (!placementCompleted && draft.sessions[0]?.learningMode !== request.learningIntent) {
     issues.push(`The first session must use the requested ${request.learningIntent} starting approach.`);
   }
 
   if (
     request.intent === "plan"
     && request.learningIntent === "learn"
+    && (!placementCompleted || placementRequiresTeaching)
     && draft.sessions.length > 1
     && !draft.sessions.slice(1).some((session) => session.learningMode === "study")
   ) {
@@ -159,6 +168,23 @@ export function validateGeneratedPlanQuality(
     const unaccounted = [...knownTopicIds].filter((id) => !coveredTopicIds.has(id) && !deferredTopicIds.has(id));
     if (unaccounted.length) {
       issues.push(`${unaccounted.length} knowledge-map ${unaccounted.length === 1 ? "topic is" : "topics are"} neither scheduled nor explicitly deferred.`);
+    }
+    if (request.knowledgeMap.placementCheck.status === "skipped" && request.knowledgeMap.topics.some((topic) => topic.initialEvidence !== null)) {
+      issues.push("A skipped placement check must not create initial topic evidence.");
+    }
+    const gapTopicIds = request.knowledgeMap.topics.filter((topic) => topic.initialEvidence?.outcome === "gap").map((topic) => topic.id);
+    const demonstratedTopicIds = request.knowledgeMap.topics.filter((topic) => topic.initialEvidence?.outcome === "demonstrated").map((topic) => topic.id);
+    for (const topicId of gapTopicIds) {
+      if (!draft.sessions.some((session) => session.learningMode === "learn" && session.topicIds.includes(topicId))) {
+        issues.push("Every confirmed placement gap must receive teaching-first coverage.");
+        break;
+      }
+    }
+    for (const topicId of demonstratedTopicIds) {
+      if (!draft.sessions.some((session) => session.learningMode === "study" && session.topicIds.includes(topicId))) {
+        issues.push("Every topic demonstrated in placement must receive a short verification instead of an introductory lesson.");
+        break;
+      }
     }
   }
 
