@@ -26,5 +26,5 @@ describe.skipIf(!liveEvaluationEnabled)("live OpenAI plan quality", () => {
 
     expect(result.requiredFailures).toEqual([]);
     expect(result.score).toBeGreaterThanOrEqual(80);
-  }, 90_000);
+  }, 115_000);
 });

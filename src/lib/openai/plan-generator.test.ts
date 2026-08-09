@@ -85,7 +85,7 @@ describe("OpenAI plan generation quality repair", () => {
     expect(parseResponse).toHaveBeenCalledTimes(1);
     expect(parseResponse.mock.calls[0]?.[1]).toEqual({
       maxRetries: 0,
-      timeout: 28_000,
+      timeout: 40_000,
     });
   });
 
@@ -106,6 +106,10 @@ describe("OpenAI plan generation quality repair", () => {
     expect(result.responseId).toBe("response-repaired");
     expect(parseResponse).toHaveBeenCalledTimes(2);
     expect(parseResponse.mock.calls[1]?.[0]?.instructions).toMatch(/repair attempt[\s\S]*unsupported fixed learning-style/i);
+    expect(parseResponse.mock.calls[1]?.[1]).toEqual({
+      maxRetries: 0,
+      timeout: 55_000,
+    });
   });
 
   it("stops safely when the repaired plan still fails", async () => {

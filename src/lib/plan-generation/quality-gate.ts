@@ -1,6 +1,7 @@
 import { getCoreLearningMethod } from "@/lib/learning/method-catalog";
 import {
   buildLearningScienceRoutingBrief,
+  classifyLearningTask,
   methodIdFromText,
 } from "@/lib/learning/method-router";
 import type {
@@ -21,6 +22,10 @@ export function validateGeneratedPlanQuality(
   const issues: string[] = [];
   const scope = inferPlanScopeContract(request);
   const contentBudget = buildPlanContentBudget(request, scope);
+  const originalTask = classifyLearningTask(request.goal);
+  const taskTypeOverride = originalTask.confidence === "clear"
+    ? originalTask.taskType
+    : null;
 
   if (request.intent === "study_now" && draft.sessions.length !== 1) {
     issues.push("A study-now request must produce exactly one focused session.");
@@ -111,8 +116,8 @@ export function validateGeneratedPlanQuality(
     const routing = buildLearningScienceRoutingBrief({
       learningIntent: request.learningIntent,
       sessionLearningMode: session.learningMode,
-      goalTitle: draft.title,
-      goalTopic: draft.topic,
+      goalTitle: `${request.goal}. ${draft.title}`,
+      goalTopic: `${request.startingContext ?? ""}. ${draft.topic}`,
       goalKind: draft.kind,
       sessionTitle: session.title,
       sessionObjective: session.objective,
@@ -121,6 +126,7 @@ export function validateGeneratedPlanQuality(
       learnerProfile: null,
       recentResults: [],
       interruptionCount: 0,
+      taskTypeOverride,
     });
     const methodId = methodIdFromText(session.method);
     if (!methodId) {

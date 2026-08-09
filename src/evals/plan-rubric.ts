@@ -1,5 +1,14 @@
 import type { GeneratedPlanDraft, PlanGenerationRequest } from "@/lib/plan-generation/schema";
 import type { PlanTaskFamily } from "@/evals/plan-cases";
+import { getCoreLearningMethod } from "@/lib/learning/method-catalog";
+import {
+  buildLearningScienceRoutingBrief,
+  classifyLearningTask,
+  methodFitsSessionMode,
+  methodIdFromText,
+} from "@/lib/learning/method-router";
+import { buildPlanContentBudget } from "@/lib/plan-generation/content-budget";
+import { inferPlanScopeContract } from "@/lib/plan-generation/scope-contract";
 
 export type PlanQualityCheck = {
   id: string;
@@ -16,14 +25,6 @@ export type PlanQualityResult = {
   passed: boolean;
   checks: PlanQualityCheck[];
   requiredFailures: string[];
-};
-
-const METHOD_PATTERNS: Record<PlanTaskFamily, RegExp> = {
-  conceptual: /explain|concept|compare|model|retriev|recall|question|apply|practice/i,
-  problem_solving: /worked example|example|fade|problem|practice|solve|mixed/i,
-  writing: /outline|thesis|evidence|draft|write|revision|revise|feedback/i,
-  coding: /example|scaffold|trace|debug|implement|code|practice|program/i,
-  general: /explain|example|retriev|recall|scenario|apply|practice|review/i,
 };
 
 export function evaluatePlanDraft(
@@ -50,8 +51,6 @@ export function evaluatePlanDraft(
     ? draft.sessions.some((session) => new Date(session.scheduledFor).getTime() > new Date(request.deadline as string).getTime())
     : false;
   const uniqueObjectives = new Set(draft.sessions.map((session) => normalize(session.objective))).size;
-  const alignmentPattern = METHOD_PATTERNS[taskFamily];
-  const alignedSessions = draft.sessions.filter((session) => alignmentPattern.test(`${session.title} ${session.objective} ${session.method}`)).length;
   const progression = progressionSignals(draft);
   const sourceLanguageIsSafe = request.materialMode !== "upload"
     || !/your (notes|materials|sources?) (show|prove|confirm|suggest) (that )?you (struggle|prefer|learn|focus|procrastinate)/i.test(combined);
@@ -59,14 +58,72 @@ export function evaluatePlanDraft(
     ? draft.sessions[0]?.learningMode === "learn"
       && (request.intent === "study_now" || draft.sessions.some((session) => session.learningMode === "study"))
     : draft.sessions[0]?.learningMode === "study";
+  const scope = inferPlanScopeContract(request);
+  const contentBudget = buildPlanContentBudget(request, scope);
+  const expectedMinimumSessions = request.intent === "study_now"
+    ? 1
+    : Math.max(scope.minimumSessions, contentBudget.minimumSessions);
+  const expectedMaximumSessions = request.intent === "study_now" ? 1 : scope.maximumSessions;
+  const distinctTargets = new Set(
+    draft.sessions.flatMap((session) => session.contentTargets).map(normalize).filter(Boolean),
+  ).size;
+  const originalTask = classifyLearningTask(request.goal);
+  const taskTypeOverride = originalTask.confidence === "clear"
+    ? originalTask.taskType
+    : null;
+  const scientificallyAlignedMethods = draft.sessions.filter((session) => {
+    const routing = buildLearningScienceRoutingBrief({
+      learningIntent: request.learningIntent,
+      sessionLearningMode: session.learningMode,
+      goalTitle: `${request.goal}. ${draft.title}`,
+      goalTopic: `${request.startingContext ?? ""}. ${draft.topic}`,
+      goalKind: draft.kind,
+      sessionTitle: session.title,
+      sessionObjective: session.objective,
+      plannedMethod: session.method,
+      plannedMethodReason: session.methodReason,
+      learnerProfile: null,
+      recentResults: [],
+      interruptionCount: 0,
+      taskTypeOverride,
+    });
+    const methodId = methodIdFromText(session.method);
+    return Boolean(
+      methodId
+      && getCoreLearningMethod(methodId).taskTypes.includes(routing.taskType)
+      && methodFitsSessionMode(methodId, routing.taskType, session.learningMode),
+    );
+  }).length;
 
   const checks: PlanQualityCheck[] = [
-    check("session_count", "Useful number of sessions", draft.sessions.length >= 2 && draft.sessions.length <= 14, 10, true, `${draft.sessions.length} sessions generated`),
+    check(
+      "session_count",
+      "Plan size fits the requested scope",
+      draft.sessions.length >= expectedMinimumSessions && draft.sessions.length <= expectedMaximumSessions,
+      10,
+      true,
+      `${draft.sessions.length} sessions for ${scope.label.toLowerCase()}; expected ${expectedMinimumSessions}-${expectedMaximumSessions}`,
+    ),
     check("time_fit", "Sessions fit supplied availability", sessionsFitAvailability, 15, true, scheduledWindows.map(({ session, weekday, matchingWindow }) => `${weekday}: ${session.estimatedMinutes}/${matchingWindow?.minutes ?? 0} min`).join("; ")),
     check("deadline_fit", "No work is scheduled after the deadline", !hasDeadlineViolation, 15, true, request.deadline ? `Deadline: ${request.deadline}` : "No fixed deadline"),
-    check("method_alignment", "Methods fit the task", alignedSessions >= Math.ceil(draft.sessions.length * 0.6), 20, true, `${alignedSessions} of ${draft.sessions.length} sessions use ${taskFamily.replace("_", " ")} methods`),
+    check(
+      "method_alignment",
+      "Methods fit each session's actual task",
+      scientificallyAlignedMethods === draft.sessions.length,
+      20,
+      true,
+      `${scientificallyAlignedMethods} of ${draft.sessions.length} sessions pass YOVA's task-to-method router (${taskFamily.replace("_", " ")} evaluation case)`,
+    ),
     check("learning_progression", "Plan progresses toward retrieval or application", progression.early && progression.later, 15, true, progression.detail),
     check("learning_approach", "Plan separates teaching from practice", approachProgression, 0, true, `Requested ${request.learningIntent}; session sequence: ${draft.sessions.map((session) => session.learningMode).join(" → ")}`),
+    check(
+      "coverage_map",
+      "Plan maps enough distinct content",
+      request.intent === "study_now" || distinctTargets >= contentBudget.minimumDistinctTargets,
+      0,
+      true,
+      `${distinctTargets} distinct targets; minimum ${contentBudget.minimumDistinctTargets}`,
+    ),
     check("explainability", "Every method has a meaningful reason", draft.sessions.every((session) => session.methodReason.trim().length >= 20), 10, false, "Method reasons are visible to the learner"),
     check("distinct_objectives", "Sessions are not repetitive", uniqueObjectives === draft.sessions.length, 5, false, `${uniqueObjectives} distinct objectives across ${draft.sessions.length} sessions`),
     check("no_personality_overclaim", "No fixed brain or learning-style claims", !/learns? best|learning style|brain type|because (you have|of your) adhd|visual learner|auditory learner|kinesthetic learner/i.test(combined), 5, true, "Checked all learner-facing plan text"),

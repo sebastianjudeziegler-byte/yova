@@ -15,10 +15,11 @@ import {
 
 // A multi-session learning plan is a larger structured response than a tutor
 // message or a single session. Twelve seconds was causing otherwise healthy
-// production requests to be abandoned before the model could finish. Keep the
-// per-attempt ceiling below half of the 60-second route budget so one bounded
-// educational-quality repair still has room to run.
-export const PLAN_PROVIDER_ATTEMPT_TIMEOUT_MS = 28_000;
+// production requests to be abandoned before the model could finish. Keep
+// separate initial and repair ceilings within the route's total budget so one
+// bounded educational-quality repair still has room to run.
+export const PLAN_PROVIDER_ATTEMPT_TIMEOUT_MS = 40_000;
+export const PLAN_PROVIDER_REPAIR_TIMEOUT_MS = 55_000;
 
 export type OpenAIPlanResult = {
   draft: GeneratedPlanDraft;
@@ -64,6 +65,7 @@ export async function generatePlanWithOpenAI(
   };
   let failedValidator: GenerationValidator | null = null;
   let repairAttempted = false;
+  let lastValidationIssue: string | null = null;
   const config = getOpenAIPlanConfig();
   const stats = (repairSucceeded: boolean | null): PlanGenerationStats => ({
     elapsedMs: Date.now() - startedAt,
@@ -99,7 +101,9 @@ export async function generatePlanWithOpenAI(
         store: false,
       }, {
         maxRetries: 0,
-        timeout: PLAN_PROVIDER_ATTEMPT_TIMEOUT_MS,
+        timeout: repairReason
+          ? PLAN_PROVIDER_REPAIR_TIMEOUT_MS
+          : PLAN_PROVIDER_ATTEMPT_TIMEOUT_MS,
       });
       if (response.usage) {
         usage.inputTokens += response.usage.input_tokens;
@@ -133,6 +137,7 @@ export async function generatePlanWithOpenAI(
         if (!parsedDraft.success) {
           failedValidator ??= "plan_structure";
           finalIssue = "The plan did not match YOVA's required data structure.";
+          lastValidationIssue = finalIssue;
           finalReason = "invalid_output";
         } else {
           const normalizedDraft = normalizeGeneratedPlanLearningContract(parsedDraft.data, request);
@@ -148,6 +153,7 @@ export async function generatePlanWithOpenAI(
           }
           failedValidator ??= "plan_quality_gate";
           finalIssue = qualityIssue;
+          lastValidationIssue = finalIssue;
           finalReason = "invalid_output";
         }
       }
@@ -166,6 +172,13 @@ export async function generatePlanWithOpenAI(
   } catch (error) {
     if (error instanceof OpenAIPlanGenerationError) throw error;
     failedValidator ??= "plan_provider_request";
-    throw new OpenAIPlanGenerationError("The OpenAI request failed.", "provider_error", stats(repairAttempted ? false : null));
+    const priorIssue = repairAttempted && lastValidationIssue
+      ? ` The first draft was rejected because: ${lastValidationIssue}`
+      : "";
+    throw new OpenAIPlanGenerationError(
+      `The OpenAI request failed.${priorIssue}`,
+      "provider_error",
+      stats(repairAttempted ? false : null),
+    );
   }
 }

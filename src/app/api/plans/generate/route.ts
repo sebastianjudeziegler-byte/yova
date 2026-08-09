@@ -18,7 +18,9 @@ import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
+// Broad learning pathways can require one complete structured generation plus
+// one bounded educational-quality repair. Keep enough server time for both.
+export const maxDuration = 120;
 
 export async function POST(request: Request) {
   const requestId = crypto.randomUUID();

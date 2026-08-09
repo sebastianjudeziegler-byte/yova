@@ -55,6 +55,7 @@ describe("learning-science method router", () => {
     expect(inferLearningTaskType("Draft a comparative essay thesis from a rubric")).toBe("writing_argumentation");
     expect(inferLearningTaskType("Trace a JavaScript array function")).toBe("programming");
     expect(methodIdFromText("Closed-note retrieval with spaced review")).toBe("spaced_retrieval");
+    expect(methodIdFromText("Retrieval-based outlining")).toBe("retrieval_based_outlining");
   });
 
   it.each([

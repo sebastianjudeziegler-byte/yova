@@ -14,9 +14,9 @@ describe("evaluatePlanDraft", () => {
       deadline: evaluationCase.request.deadline,
       rationale: "Worked examples establish the decision process before support fades into mixed independent practice.",
       sessions: [
-        session(1, "Study worked examples", "Trace complete product-rule examples and explain each decision.", "Worked examples", "Examples come first because the learner cannot yet choose the rule independently."),
-        session(2, "Solve with fading support", "Complete similar problems with fewer prompts.", "Faded problem practice", "Support fades after one complete model so the learner performs more of each step."),
-        session(3, "Mixed independent practice", "Solve mixed product-rule and quotient-rule problems.", "Mixed practice", "Mixed problems check whether the learner can select the correct rule without a label."),
+        session(1, "Study worked examples", "Trace complete product-rule examples and explain each decision.", "Worked example fading", "Examples come first because the learner cannot yet choose the rule independently."),
+        session(2, "Solve with fading support", "Complete similar problems with fewer prompts.", "Worked example fading", "Support fades after one complete model so the learner performs more of each step."),
+        session(3, "Mixed independent practice", "Solve mixed product-rule and quotient-rule problems.", "Interleaved practice", "Mixed problems check whether the learner can select the correct rule without a label."),
       ],
     });
 
@@ -42,7 +42,7 @@ describe("evaluatePlanDraft", () => {
 
     const result = evaluatePlanDraft(draft, evaluationCase.request, evaluationCase.taskFamily);
     expect(result.passed).toBe(false);
-    expect(result.requiredFailures).toContain("Methods fit the task");
+    expect(result.requiredFailures).toContain("Methods fit each session's actual task");
     expect(result.requiredFailures).toContain("No fixed brain or learning-style claims");
   });
 });

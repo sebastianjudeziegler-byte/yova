@@ -44,6 +44,11 @@ export type MethodRoutingInput = {
     totalAnswers: number | null;
   }>;
   interruptionCount: number;
+  /**
+   * A clear task classification from an authoritative upstream goal. This is
+   * used by plan validation so vague generated titles cannot change the task.
+   */
+  taskTypeOverride?: LearningTaskType | null;
 };
 
 export type LearningScienceRoutingBrief = {
@@ -138,13 +143,19 @@ export function methodFitsSessionMode(
 }
 
 export function buildLearningScienceRoutingBrief(input: MethodRoutingInput): LearningScienceRoutingBrief {
-  const taskClassification = classifyLearningTaskParts([
-    { text: input.goalTitle, importance: 1 },
-    { text: input.goalTopic, importance: 1.25 },
-    { text: input.goalKind, importance: 0.5 },
-    { text: input.sessionTitle, importance: 1.75 },
-    { text: input.sessionObjective, importance: 2.25 },
-  ]);
+  const taskClassification = input.taskTypeOverride
+    ? {
+      taskType: input.taskTypeOverride,
+      confidence: "clear" as const,
+      evidence: ["the learner's original goal"],
+    }
+    : classifyLearningTaskParts([
+      { text: input.goalTitle, importance: 1 },
+      { text: input.goalTopic, importance: 1.25 },
+      { text: input.goalKind, importance: 0.5 },
+      { text: input.sessionTitle, importance: 1.75 },
+      { text: input.sessionObjective, importance: 2.25 },
+    ]);
   const taskType = taskClassification.taskType;
   const combined = [
     input.goalTitle,
@@ -337,7 +348,7 @@ export function methodIdFromText(text: string): CoreMethodId | null {
   const normalized = text.toLowerCase();
   if (/practice test|assessment|error repair|error review|mistake review/.test(normalized)) return "practice_test_error_repair";
   if (/scaffolded coding|code tracing|parsons|coding/.test(normalized)) return "scaffolded_coding";
-  if (/outline|drafting|argument/.test(normalized)) return "retrieval_based_outlining";
+  if (/outlin(?:e|ing)|drafting|argument/.test(normalized)) return "retrieval_based_outlining";
   if (/read[- ]recall|read[- ]recite|question-led reading/.test(normalized)) return "read_recall_review";
   if (/worked|faded example|example fading/.test(normalized)) return "worked_example_fading";
   if (/interleav|mixed practice/.test(normalized)) return "interleaved_practice";

@@ -1,6 +1,7 @@
 import { getCoreLearningMethod } from "@/lib/learning/method-catalog";
 import {
   buildLearningScienceRoutingBrief,
+  classifyLearningTask,
   methodFitsSessionMode,
   methodIdFromText,
 } from "@/lib/learning/method-router";
@@ -18,15 +19,24 @@ export function normalizeGeneratedPlanLearningContract(
   draft: GeneratedPlanDraft,
   request: PlanGenerationRequest,
 ): GeneratedPlanDraft {
+  const normalizedDraft = normalizeTentativePreferenceLanguage(draft);
+  const originalTask = classifyLearningTask(request.goal);
+  const taskTypeOverride = originalTask.confidence === "clear"
+    ? originalTask.taskType
+    : null;
+
   return {
-    ...draft,
-    sessions: draft.sessions.map((session) => {
+    ...normalizedDraft,
+    sessions: normalizedDraft.sessions.map((session) => {
       const routing = buildLearningScienceRoutingBrief({
         learningIntent: request.learningIntent,
         sessionLearningMode: session.learningMode,
-        goalTitle: draft.title,
-        goalTopic: draft.topic,
-        goalKind: draft.kind,
+        // The learner's original goal is authoritative. Generated titles are
+        // presentation text and must not silently change an essay into a
+        // generic conceptual task or a course into a single skill.
+        goalTitle: `${request.goal}. ${normalizedDraft.title}`,
+        goalTopic: `${request.startingContext ?? ""}. ${normalizedDraft.topic}`,
+        goalKind: normalizedDraft.kind,
         sessionTitle: session.title,
         sessionObjective: session.objective,
         plannedMethod: session.method,
@@ -34,6 +44,7 @@ export function normalizeGeneratedPlanLearningContract(
         learnerProfile: null,
         recentResults: [],
         interruptionCount: 0,
+        taskTypeOverride,
       });
       const proposedMethodId = methodIdFromText(session.method);
       const proposedMethodFits = proposedMethodId
@@ -58,6 +69,31 @@ export function normalizeGeneratedPlanLearningContract(
           : session.completionEvidence,
       };
     }),
+  };
+}
+
+/**
+ * Preferences can change delivery, but a generated sentence must not turn one
+ * answer into a fixed claim about how somebody learns. These narrow rewrites
+ * preserve the useful preference while medical or categorical claims still
+ * fail the quality gate.
+ */
+function normalizeTentativePreferenceLanguage(
+  draft: GeneratedPlanDraft,
+): GeneratedPlanDraft {
+  const rewrite = (value: string) => value
+    .replace(/\byou learn best by\b/gi, "you currently prefer")
+    .replace(/\byou learn best with\b/gi, "you currently prefer")
+    .replace(/\bthe learner learns best by\b/gi, "the learner currently prefers")
+    .replace(/\bthe learner learns best with\b/gi, "the learner currently prefers");
+
+  return {
+    ...draft,
+    rationale: rewrite(draft.rationale),
+    sessions: draft.sessions.map((session) => ({
+      ...session,
+      methodReason: rewrite(session.methodReason),
+    })),
   };
 }
 

@@ -47,4 +47,48 @@ describe("generated plan learning contract", () => {
     expect(normalized.sessions[0].methodReason).toMatch(/problem solving/i);
     expect(normalized.sessions[0].completionEvidence[0]).toMatch(/^Solve /);
   });
+
+  it("keeps a reported preference without turning it into a fixed learning claim", () => {
+    const personalizedDraft = GeneratedPlanDraftSchema.parse({
+      ...draft,
+      rationale: "You learn best with one complete example before practice.",
+      sessions: draft.sessions.map((session) => ({
+        ...session,
+        method: "Worked example fading",
+        methodReason: "You learn best with one example before an independent attempt.",
+      })),
+    });
+
+    const normalized = normalizeGeneratedPlanLearningContract(personalizedDraft, request);
+
+    expect(normalized.rationale).toBe("you currently prefer one complete example before practice.");
+    expect(normalized.sessions[0].methodReason).not.toMatch(/learns? best|learning style/i);
+    expect(normalized.sessions[0].methodReason).toMatch(/currently prefer/i);
+  });
+
+  it("uses the learner's original writing goal when a generated title becomes vague", () => {
+    const writingRequest = PlanGenerationRequestSchema.parse({
+      ...request,
+      goal: "Plan and draft a comparative history essay using evidence from my notes.",
+      studyMode: "outside",
+    });
+    const vagueDraft = GeneratedPlanDraftSchema.parse({
+      ...draft,
+      title: "History project",
+      topic: "Organizing the work",
+      sessions: draft.sessions.map((session) => ({
+        ...session,
+        title: "Build the first section",
+        objective: "Organize the first section clearly.",
+        method: "Retrieval practice",
+        methodReason: "Recall the structure before beginning.",
+        completionEvidence: ["Draft one bounded section and match each claim to evidence"],
+      })),
+    });
+
+    const normalized = normalizeGeneratedPlanLearningContract(vagueDraft, writingRequest);
+
+    expect(normalized.sessions[0].method).toBe("Retrieval-based outlining");
+    expect(normalized.sessions[0].methodReason).toMatch(/writing argumentation/i);
+  });
 });
