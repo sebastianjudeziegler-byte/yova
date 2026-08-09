@@ -2,7 +2,10 @@ import type { SessionGenerationContext } from "@/lib/openai/session-generator";
 import type { GeneratedSessionDraft } from "@/lib/session-generation/schema";
 import type { SessionTaskFamily } from "@/evals/session-cases";
 import { buildLearningScienceRoutingBrief } from "@/lib/learning/method-router";
-import { validateMethodFidelity } from "@/lib/learning/method-fidelity";
+import {
+  methodFidelityContractForPrompt,
+  validateMethodFidelity,
+} from "@/lib/learning/method-fidelity";
 import { isScheduledRetrievalSession } from "@/lib/learning/scheduled-retrieval";
 import { validateSessionCompletionContract } from "@/lib/session-generation/completion-contract";
 import { validateSessionQuestionContext } from "@/lib/session-generation/question-context";
@@ -114,7 +117,7 @@ export function evaluateSessionDraft(
   const noOverclaim = !/learns? best|learning style|brain type|visual learner|auditory learner|kinesthetic learner|because (you have|of your) adhd|diagnos(?:is|ed|e)\b/i.test(combined);
   const visiblePersonalization = draft.methodBriefing.personalization.length >= 1
     && draft.methodBriefing.personalization.every((reason) => reason.trim().length >= 20)
-    && draft.methodBriefing.personalization.every((reason) => /you|your|session|support|example|step|practice|review|question/i.test(reason));
+    && draft.methodBriefing.personalization.every((reason) => /you|your|session|support|example|step|practice|review|question|check|retrieval|scheduled return|attempt|miss|misconception|model|result|performance|pacing/i.test(reason));
   const routing = buildLearningScienceRoutingBrief({
     learningIntent: context.learningGoal.learningIntent,
     sessionLearningMode: context.session.learningMode,
@@ -138,9 +141,11 @@ export function evaluateSessionDraft(
     && draft.methodBriefing.what.length >= 15
     && draft.methodBriefing.why.length >= 20
     && draft.methodBriefing.completion.length >= 15;
-  const firstActivityMatchesApproach = draft.methodBriefing.learningMode === "learn"
-    ? draft.activities[0]?.type === "instruction"
-    : draft.activities[0]?.type === "multiple_choice" || draft.activities[0]?.type === "free_response";
+  const expectedOpeningPhase = methodFidelityContractForPrompt(
+    draft.methodBriefing.methodId,
+    draft.methodBriefing.learningMode,
+  ).orderedPhases[0];
+  const firstActivityMatchesApproach = draft.activities[0]?.methodPhase === expectedOpeningPhase;
   const methodFidelityIssue = scheduledRetrieval
     ? null
     : validateMethodFidelity({
@@ -200,7 +205,7 @@ export function evaluateSessionDraft(
     check("outside_guidance", "Outside-app work receives concrete directions", outsideGuidance, 5, true, context.learningGoal.studyMode === "outside_yova" ? "Outside-work instruction inspected" : "Inside-YOVA session"),
     check("method_instruction", "Method briefing explains what, why, how, and done", methodInstructionComplete, 0, true, `${draft.methodBriefing.methodId} for ${draft.methodBriefing.taskType}`),
     check("method_fidelity", "Activities actually execute the named learning method", methodFidelityIssue === null, 0, true, methodFidelityIssue ?? `Required ${draft.methodBriefing.methodId} phases appear in order`),
-    check("learning_approach", "Teaching and practice start differently", firstActivityMatchesApproach, 0, true, `${draft.methodBriefing.learningMode} session starts with ${draft.activities[0]?.type ?? "nothing"}`),
+    check("learning_approach", "The session starts with the method's correct first action", firstActivityMatchesApproach, 0, true, `${draft.methodBriefing.methodId} starts with ${draft.activities[0]?.methodPhase ?? "nothing"}`),
     check("honest_time_budget", "Required content fits the stated time window", timeBudgetHonest, 0, true, `${requiredMinutes} required and ${totalMinutes} total minutes inside a ${context.session.estimatedMinutes}-minute window`),
     check("content_completion", "Every target idea has required learning evidence", completionIsEvidenceBased, 0, true, completionContractIssue ?? `${draft.coverage.essentialIdeas.length} essential ideas mapped to ${requiredQuestionCount} required checks`),
     check("question_context", "Every question includes the context needed to answer", questionContextIssue === null, 0, true, questionContextIssue ?? `${questions.length} self-contained questions inspected`),

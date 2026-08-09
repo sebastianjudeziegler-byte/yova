@@ -1,7 +1,10 @@
 import { z } from "zod";
 import { CORE_METHOD_IDS, LEARNING_TASK_TYPES } from "@/lib/learning/method-catalog";
 import { CALIBRATION_PATTERNS } from "@/lib/learning/confidence-calibration";
-import { METHOD_PHASES } from "@/lib/learning/method-fidelity";
+import {
+  METHOD_PHASES,
+  methodFidelityContractForPrompt,
+} from "@/lib/learning/method-fidelity";
 import { SessionDeliveryPolicySchema } from "@/lib/personalization/session-delivery-policy";
 
 export const SessionGenerationRequestSchema = z.object({
@@ -153,50 +156,76 @@ export const TeachingBlockSchema = z.object({
   }).nullable(),
 });
 
-export const GeneratedSessionActivitySchema = z.object({
+const GeneratedSessionActivityBaseShape = {
   methodPhase: z.enum(METHOD_PHASES),
-  concept: z.string().trim().min(2).max(120).nullable(),
   estimatedMinutes: z.number().int().min(1).max(20),
   requiredForCompletion: z.boolean(),
   label: z.string().trim().min(2).max(50),
   title: z.string().trim().min(3).max(140),
   body: z.string().trim().min(10).max(320),
   teaching: TeachingBlockSchema.nullable(),
-  type: z.enum(["instruction", "multiple_choice", "free_response", "reflection"]),
-  choices: z.array(z.string().trim().min(1).max(220)).max(5),
-  correctAnswer: z.string().trim().min(1).max(600).nullable(),
-  feedback: z.string().trim().min(20).max(500).nullable(),
+};
+
+const NonQuestionActivitySchema = z.object({
+  ...GeneratedSessionActivityBaseShape,
+  type: z.enum(["instruction", "reflection"]),
+  concept: z.null(),
+  choices: z.array(z.string()).max(0),
+  correctAnswer: z.null(),
+  feedback: z.null(),
+});
+
+const MultipleChoiceActivitySchema = z.object({
+  ...GeneratedSessionActivityBaseShape,
+  type: z.literal("multiple_choice"),
+  concept: z.string().trim().min(2).max(120),
+  choices: z.array(z.string().trim().min(1).max(220)).min(3).max(5),
+  correctAnswer: z.string().trim().min(1).max(220),
+  feedback: z.string().trim().min(20).max(500),
 }).superRefine((activity, context) => {
-  if (activity.type === "multiple_choice") {
-    if (!activity.concept) {
-      context.addIssue({ code: "custom", path: ["concept"], message: "Knowledge checks need a named concept." });
-    }
-    if (activity.choices.length < 3) {
-      context.addIssue({ code: "custom", path: ["choices"], message: "Multiple-choice activities need at least three choices." });
-    }
-    if (!activity.correctAnswer || !activity.choices.includes(activity.correctAnswer)) {
+    if (!activity.choices.includes(activity.correctAnswer)) {
       context.addIssue({ code: "custom", path: ["correctAnswer"], message: "The correct answer must exactly match one choice." });
     }
-    if (!activity.feedback) {
-      context.addIssue({ code: "custom", path: ["feedback"], message: "Knowledge checks need explanatory feedback." });
-    }
-  } else if (activity.type === "free_response") {
-    if (!activity.concept) {
-      context.addIssue({ code: "custom", path: ["concept"], message: "Free-response activities need a named concept." });
-    }
-    if (activity.choices.length) {
-      context.addIssue({ code: "custom", path: ["choices"], message: "Free-response activities cannot contain choices." });
-    }
-    if (!activity.correctAnswer || !activity.feedback) {
-      context.addIssue({ code: "custom", path: ["correctAnswer"], message: "Free-response activities need a reference answer and feedback." });
-    }
-  } else if (activity.choices.length || activity.correctAnswer || activity.concept) {
-    context.addIssue({ code: "custom", path: ["choices"], message: "Non-question activities cannot contain question data." });
-  }
+});
+
+const FreeResponseActivitySchema = z.object({
+  ...GeneratedSessionActivityBaseShape,
+  type: z.literal("free_response"),
+  concept: z.string().trim().min(2).max(120),
+  choices: z.array(z.string()).max(0),
+  correctAnswer: z.string().trim().min(1).max(600),
+  feedback: z.string().trim().min(20).max(500),
+});
+
+const StrictGeneratedSessionActivitySchema = z.discriminatedUnion("type", [
+  NonQuestionActivitySchema,
+  MultipleChoiceActivitySchema,
+  FreeResponseActivitySchema,
+]).superRefine((activity, context) => {
   if (activity.methodPhase === "model" && !activity.teaching) {
     context.addIssue({ code: "custom", path: ["teaching"], message: "Model activities need a structured teaching block." });
   }
 });
+
+export type GeneratedSessionActivity = {
+  methodPhase: (typeof METHOD_PHASES)[number];
+  concept: string | null;
+  estimatedMinutes: number;
+  requiredForCompletion: boolean;
+  label: string;
+  title: string;
+  body: string;
+  teaching: z.infer<typeof TeachingBlockSchema> | null;
+  type: "instruction" | "multiple_choice" | "free_response" | "reflection";
+  choices: string[];
+  correctAnswer: string | null;
+  feedback: string | null;
+};
+
+// Keep the public TypeScript shape ergonomic for rendering and test fixtures,
+// while the runtime schema remains a strict discriminated union for OpenAI's
+// structured output contract.
+export const GeneratedSessionActivitySchema = StrictGeneratedSessionActivitySchema as unknown as z.ZodType<GeneratedSessionActivity>;
 
 export const SessionSourceGroundingSchema = z.object({
   mode: z.enum(["materials_only", "materials_plus_ai"]),
@@ -228,25 +257,32 @@ export const SessionSupportPlanSchema = z.object({
   concept: z.string().trim().min(2).max(120).nullable(),
 });
 
-export const GeneratedSessionDraftSchema = z.object({
+export const GeneratedSessionDraftOutputSchema = z.object({
   rationale: z.string().trim().min(20).max(700),
   coverage: SessionCoverageSchema,
   methodBriefing: SessionMethodBriefingSchema,
   sourceGrounding: SessionSourceGroundingSchema.nullable(),
   activities: z.array(GeneratedSessionActivitySchema).min(3).max(8),
-}).superRefine((session, context) => {
+});
+
+export const GeneratedSessionDraftSchema = GeneratedSessionDraftOutputSchema.superRefine((session, context) => {
   if (!session.activities.some((activity) => activity.type === "multiple_choice")) {
     context.addIssue({ code: "custom", path: ["activities"], message: "A guided session needs at least one knowledge check." });
   }
   const firstActivity = session.activities[0];
-  if (session.methodBriefing.learningMode === "learn" && firstActivity?.type !== "instruction") {
-    context.addIssue({ code: "custom", path: ["activities", 0], message: "Teaching-first sessions must begin with a concise explanation or model." });
+  const expectedOpeningPhase = methodFidelityContractForPrompt(
+    session.methodBriefing.methodId,
+    session.methodBriefing.learningMode,
+  ).orderedPhases[0];
+  if (firstActivity?.methodPhase !== expectedOpeningPhase) {
+    context.addIssue({
+      code: "custom",
+      path: ["activities", 0],
+      message: `${session.methodBriefing.methodId} sessions must begin with the ${expectedOpeningPhase} phase.`,
+    });
   }
   if (session.methodBriefing.learningMode === "learn" && !firstActivity?.teaching) {
     context.addIssue({ code: "custom", path: ["activities", 0, "teaching"], message: "Teaching-first sessions must begin with a structured subject lesson, not a paragraph in the instruction field." });
-  }
-  if (session.methodBriefing.learningMode === "study" && firstActivity?.type !== "multiple_choice" && firstActivity?.type !== "free_response") {
-    context.addIssue({ code: "custom", path: ["activities", 0], message: "Practice-first sessions must begin with an unsupported attempt." });
   }
   if (!session.activities.some((activity) => activity.requiredForCompletion && (activity.type === "multiple_choice" || activity.type === "free_response"))) {
     context.addIssue({ code: "custom", path: ["activities"], message: "Completion must require at least one knowledge-producing attempt." });

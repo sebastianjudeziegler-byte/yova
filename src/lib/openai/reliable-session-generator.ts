@@ -27,7 +27,9 @@ import { validateSessionTimeBudget } from "@/lib/session-generation/time-budget"
 
 const ReliableLessonContentSchema = z.object({
   concept: z.string().trim().min(2).max(100),
-  focus: z.string().trim().min(10).max(180),
+  // This becomes the learner-facing title of the opening activity, whose
+  // runtime contract is intentionally capped at 140 characters.
+  focus: z.string().trim().min(10).max(140),
   essentialIdea: z.string().trim().min(10).max(180),
   keyIdea: z.string().trim().min(10).max(220),
   explanation: z.string().trim().min(80).max(650),
@@ -62,6 +64,7 @@ YOVA already knows the goal and planned session. Do not ask the learner to defin
 Requirements:
 - Teach the actual subject, not the study method.
 - State the key relationship, mechanism, sequence, or procedure in clear connected prose.
+- Keep focus under 130 characters. It is a short learner-facing activity title.
 - Keep essentialIdea under 160 characters and finish it as a complete sentence.
 - Keep explanation under 550 characters and modelAnswer under 450 characters. Finish both as complete sentences.
 - Include one concrete example with visible steps and one plausible misconception with a direct correction.
@@ -76,6 +79,7 @@ const RELIABLE_METHODS: ReadonlySet<`${"learn" | "study"}:${CoreMethodId}`> = ne
   "learn:self_explanation",
   "learn:worked_example_fading",
   "study:retrieval_practice",
+  "study:worked_example_fading",
 ]);
 
 export const RELIABLE_SESSION_PROVIDER_TIMEOUT_MS = 28_000;
@@ -94,12 +98,6 @@ export function canGenerateReliableSession(originalContext: SessionGenerationCon
   // with several planned targets needs the full generator so every target is
   // either evidenced now or explicitly deferred rather than silently dropped.
   if ((context.session.contentTargets?.length ?? 0) > 1) return false;
-  if (
-    context.recentResults.length > 0
-    || context.recentInterruptions.length > 0
-    || context.conceptSignals.length > 0
-    || (context.scaffoldSignals?.length ?? 0) > 0
-  ) return false;
   const routing = buildLearningScienceRoutingBrief({
     learningIntent: context.learningGoal.learningIntent,
     sessionLearningMode: context.session.learningMode,
@@ -114,6 +112,14 @@ export function canGenerateReliableSession(originalContext: SessionGenerationCon
     recentResults: context.recentResults,
     interruptionCount: context.recentInterruptions.length,
   });
+  const hasAdaptiveEvidence = context.recentResults.length > 0
+    || context.recentInterruptions.length > 0
+    || context.conceptSignals.length > 0
+    || (context.scaffoldSignals?.length ?? 0) > 0;
+  const isBoundedWorkedRepair = routing.sessionLearningMode === "study"
+    && routing.suggestedPrimaryMethodId === "worked_example_fading"
+    && context.recentInterruptions.length === 0;
+  if (hasAdaptiveEvidence && !isBoundedWorkedRepair) return false;
 
   return RELIABLE_METHODS.has(`${routing.sessionLearningMode}:${routing.suggestedPrimaryMethodId}`);
 }
@@ -349,6 +355,11 @@ function buildReliableDraft({
   const learningMode = context.session.learningMode;
   const phases = activityPhases(routing.suggestedPrimaryMethodId, learningMode);
   const coverageTarget = context.session.contentTargets?.[0] ?? lesson.essentialIdea;
+  const reviewConcepts = context.conceptSignals
+    .filter((signal) => signal.status === "needs_review")
+    .map((signal) => signal.concept.trim())
+    .filter(Boolean);
+  const activityConcept = reviewConcepts.length === 1 ? reviewConcepts[0]! : lesson.concept;
   const correctChoice = lesson.check.choices[lesson.check.correctChoiceIndex]!;
   const teaching = {
     keyIdea: lesson.keyIdea,
@@ -358,7 +369,7 @@ function buildReliableDraft({
   };
   const check = {
     methodPhase: phases.check,
-    concept: coverageTarget,
+    concept: activityConcept,
     estimatedMinutes: minutes[1],
     requiredForCompletion: true,
     label: learningMode === "learn" ? "Check" : "Recall",
@@ -372,7 +383,7 @@ function buildReliableDraft({
   };
   const explanation = {
     methodPhase: phases.explain,
-    concept: coverageTarget,
+    concept: activityConcept,
     estimatedMinutes: minutes[2],
     requiredForCompletion: true,
     label: learningMode === "learn" ? "Explain" : "Apply",
@@ -400,7 +411,8 @@ function buildReliableDraft({
     correctAnswer: null,
     feedback: null,
   };
-  const activities: GeneratedSessionDraft["activities"] = learningMode === "learn"
+  const modelFirst = learningMode === "learn" || routing.suggestedPrimaryMethodId === "worked_example_fading";
+  const activities: GeneratedSessionDraft["activities"] = modelFirst
     ? [model, check, explanation]
     : [check, model, explanation];
   if (deliveryPolicy.retention.mode === "delayed_retrieval") {
@@ -431,7 +443,7 @@ function buildReliableDraft({
       ],
       evidenceMap: [{
         essentialIdea: coverageTarget,
-        activityConcept: coverageTarget,
+        activityConcept,
       }],
       // The compact generator receives the whole bounded objective. It should
       // not guess that a differently worded target was deferred.
@@ -467,6 +479,9 @@ function activityPhases(
   learningMode: "learn" | "study",
 ) {
   if (learningMode === "study") {
+    if (methodId === "worked_example_fading") {
+      return { model: "model" as const, check: "guided_practice" as const, explain: "independent_practice" as const };
+    }
     return { model: "repair" as const, check: "retrieve" as const, explain: "independent_practice" as const };
   }
   if (methodId === "worked_example_fading") {

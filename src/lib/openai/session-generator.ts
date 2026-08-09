@@ -7,6 +7,7 @@ import type { MaterialExcerpt } from "@/lib/materials/context";
 import { buildMaterialSupportPolicy, validateSessionSourceGrounding } from "@/lib/materials/grounding";
 import type { ConceptSignal } from "@/lib/learning/concept-evidence";
 import {
+  alignDueReviewConcept,
   buildConceptReviewSchedule,
   validateConceptReviewSchedule,
   type ConceptReviewDirective,
@@ -54,6 +55,7 @@ import {
 import type { CalibrationPattern } from "@/lib/learning/confidence-calibration";
 import {
   GeneratedSessionDraftSchema,
+  GeneratedSessionDraftOutputSchema,
   type SessionAdjustment,
   type GeneratedSessionDraft,
 } from "@/lib/session-generation/schema";
@@ -199,6 +201,7 @@ Requirements:
 - Fill methodBriefing with the task type, catalog method, what the learner will do, why it fits this task and current knowledge, exact execution steps, and a concrete completion condition.
 - Build coverage before activities. coverage.focus is the bounded content slice for this session; essentialIdeas are what will actually be taught or practiced now; completionEvidence describes what the learner must produce before this slice counts as completed; deferredContent explicitly names in-scope content that does not fit and must remain for a future session.
 - Build coverage.evidenceMap after choosing the activities. Repeat every essentialIdeas entry exactly once and point it to the exact concept name of a required multiple-choice or free-response activity that tests that idea. A session may not claim an essential idea is covered if it only appears in teaching or an optional activity.
+- For comparison or category lessons, keep the scope honest. Every essential idea must be explicitly explained in teaching and explicitly demonstrated by the visible prompt, choices or reference answer, and feedback of its mapped question. If one discrimination question checks several ideas, its visible text must state the defining operation or relationship for every one. A concept label alone is not evidence. Use separate questions or defer an idea when one screen cannot test the distinctions clearly.
 - Session time is a capacity constraint, never the definition of completion. A session is complete only after every requiredForCompletion activity is attempted. Do not treat exposure, elapsed time, reading, or button-clicking as evidence of completion.
 - Preserve the planned contentTargets and completionEvidence when supplied. If they cannot fit honestly, teach a smaller coherent subset now and put the remainder in coverage.deferredContent. Never compress a broad 45-minute objective into a superficial 15-minute pass.
 - Treat sessionContentBudget as a hard content-volume contract. Every planned target must appear unchanged in either coverage.essentialIdeas or coverage.deferredContent, so the next session can recover anything that did not fit.
@@ -369,7 +372,7 @@ export async function generateSessionWithOpenAI(
       required: true,
       instructionTemplate: "Open your [source or workspace] and complete [one concrete action] there. Return to YOVA for [one specific check].",
       sourceExamples: ["textbook", "class notes", "notebook", "document", "course materials"],
-      constraint: "All three directions must appear together in the body of an instruction activity.",
+      constraint: "All three directions must appear together in the body of an instruction activity. Make this opening action take no more than five minutes.",
     }
     : null;
 
@@ -378,7 +381,7 @@ export async function generateSessionWithOpenAI(
     const response = await getOpenAIClient().responses.parse({
       model: config.model,
       instructions: repairReason
-        ? `${SESSION_GENERATOR_INSTRUCTIONS}\n\nREPAIR ATTEMPT: The previous response failed YOVA's validation: ${repairReason} Re-check the learningMode activity-order rule, learner delivery policy, question integrity, allowed method, and source-grounding policy before responding.`
+        ? `${SESSION_GENERATOR_INSTRUCTIONS}\n\nREPAIR ATTEMPT: The previous response failed YOVA's validation: ${repairReason} Fix every listed failure together, then re-check every evidence-map entry, the learningMode activity-order rule, learner delivery policy, question integrity, allowed method, and source-grounding policy before responding. Do not repair one mapping by relabeling or breaking another.`
         : SESSION_GENERATOR_INSTRUCTIONS,
       input: `Build the next guided session from this YOVA context:\n${JSON.stringify({
         ...context,
@@ -397,7 +400,7 @@ export async function generateSessionWithOpenAI(
       })}`,
       reasoning: { effort: "none" },
       text: {
-        format: zodTextFormat(GeneratedSessionDraftSchema, "yova_guided_session"),
+        format: zodTextFormat(GeneratedSessionDraftOutputSchema, "yova_guided_session"),
         verbosity: "low",
       },
       max_output_tokens: 4_000,
@@ -431,7 +434,7 @@ export async function generateSessionWithOpenAI(
     response = await requestDraft(repairDetail);
   }
 
-  let parsed = parseGeneratedSessionDraft(response.output_parsed, learningScienceRouting, context.session, sessionDeliveryPolicy);
+  let parsed = parseGeneratedSessionDraft(response.output_parsed, learningScienceRouting, context, sessionDeliveryPolicy);
   let semanticIssue = parsed.success
     ? validateGeneratedSession(parsed.data, context, learningScienceRouting, observedMethodOutcomes, conceptReviewSchedule, scaffoldProgression, sessionDeliveryPolicy)
     : null;
@@ -446,14 +449,29 @@ export async function generateSessionWithOpenAI(
       ? `The model response ended with status ${response.status}.`
       : semanticIssue ?? "The structured session shape was invalid or incomplete.";
     response = await requestDraft(repairDetail);
-    parsed = parseGeneratedSessionDraft(response.output_parsed, learningScienceRouting, context.session, sessionDeliveryPolicy);
+    parsed = parseGeneratedSessionDraft(response.output_parsed, learningScienceRouting, context, sessionDeliveryPolicy);
+    semanticIssue = parsed.success
+      ? validateGeneratedSession(parsed.data, context, learningScienceRouting, observedMethodOutcomes, conceptReviewSchedule, scaffoldProgression, sessionDeliveryPolicy)
+      : null;
+  }
+  if (response.status !== "completed" || !parsed.success || semanticIssue) {
+    const followupRepairDetail = response.status !== "completed"
+      ? `The repaired response ended with status ${response.status}.`
+      : semanticIssue ?? "The repaired session still had an invalid or incomplete structure.";
+    repairDetail = repairDetail
+      ? `${repairDetail.slice(0, 900)} Follow-up repair failure: ${followupRepairDetail.slice(0, 700)}`
+      : followupRepairDetail;
+    response = await requestDraft(
+      `The prior repair fixed some issues but introduced or retained this failure: ${followupRepairDetail} Preserve the valid subject content and satisfy the complete supplied method-fidelity contract, including every required phase in order. Rebuild the full activity sequence and evidence map together.`,
+    );
+    parsed = parseGeneratedSessionDraft(response.output_parsed, learningScienceRouting, context, sessionDeliveryPolicy);
     semanticIssue = parsed.success
       ? validateGeneratedSession(parsed.data, context, learningScienceRouting, observedMethodOutcomes, conceptReviewSchedule, scaffoldProgression, sessionDeliveryPolicy)
       : null;
   }
   if (response.status !== "completed" || !parsed.success || semanticIssue) {
     throw new SessionGenerationFailure(
-      `OpenAI did not return a complete, safe guided session after one repair attempt.${semanticIssue ? ` ${semanticIssue}` : ""}`,
+      `OpenAI did not return a complete, safe guided session after the bounded repair attempts.${semanticIssue ? ` ${semanticIssue}` : ""}`,
       {
         elapsedMs: Date.now() - generationStartedAt,
         attempts: usage.attempts,
@@ -745,14 +763,27 @@ function applyCurrentSessionAdjustment(context: SessionGenerationContext): Sessi
 function parseGeneratedSessionDraft(
   value: unknown,
   routing: LearningScienceRoutingBrief,
-  session: SessionGenerationContext["session"],
+  context: SessionGenerationContext,
   deliveryPolicy: SessionDeliveryPolicy,
 ) {
-  const parsed = GeneratedSessionDraftSchema.safeParse(value);
+  const parsed = GeneratedSessionDraftOutputSchema.safeParse(value);
   if (!parsed.success) return parsed;
-  const scheduledConcept = inferScheduledRetrievalType(session)
-    ? session.reviewConcept?.trim() || null
+  const scheduledConcept = inferScheduledRetrievalType(context.session)
+    ? context.session.reviewConcept?.trim() || null
     : null;
+  const resolvedMethodId = routing.allowedMethodIds.length === 1
+    ? routing.allowedMethodIds[0]!
+    : parsed.data.methodBriefing.methodId;
+  const orderedActivities = normalizeGeneratedActivityOrder(
+    parsed.data.activities,
+    routing.sessionLearningMode,
+    resolvedMethodId,
+    deliveryPolicy,
+  );
+  const reviewAlignedActivities = alignDueReviewConcept(
+    orderedActivities,
+    buildConceptReviewSchedule(context.conceptSignals),
+  );
   const deterministicMetadata = {
     ...parsed.data,
     methodBriefing: {
@@ -760,19 +791,56 @@ function parseGeneratedSessionDraft(
       learningMode: routing.sessionLearningMode,
       taskType: routing.taskType,
       personalization: deliveryPolicy.learnerFacingReasons.slice(0, 3),
-      ...(routing.allowedMethodIds.length === 1
-        ? { methodId: routing.allowedMethodIds[0]! }
-        : {}),
+      methodId: resolvedMethodId,
     },
-    activities: parsed.data.activities.map((activity) => (
+    activities: reviewAlignedActivities.map((activity) => (
       scheduledConcept && (activity.type === "multiple_choice" || activity.type === "free_response")
         ? { ...activity, concept: scheduledConcept }
-        : activity
+        : context.learningGoal.studyMode === "outside_yova" && activity.type === "instruction"
+          ? {
+            ...activity,
+            estimatedMinutes: Math.min(activity.estimatedMinutes, 5),
+            body: outsideAppInstructionBody(routing.taskType),
+          }
+          : activity
     )),
   };
   return GeneratedSessionDraftSchema.safeParse(
     reconcileSessionCompletionMap(polishGeneratedSessionTypography(deterministicMetadata)),
   );
+}
+
+function normalizeGeneratedActivityOrder(
+  activities: GeneratedSessionDraft["activities"],
+  learningMode: "learn" | "study",
+  methodId: CoreMethodId,
+  deliveryPolicy: SessionDeliveryPolicy,
+) {
+  const openingPhase = methodFidelityContractForPrompt(methodId, learningMode).orderedPhases[0];
+  const expectedIndex = activities.findIndex((activity) => activity.methodPhase === openingPhase);
+  const ordered = expectedIndex <= 0
+    ? activities
+    : [activities[expectedIndex]!, ...activities.slice(0, expectedIndex), ...activities.slice(expectedIndex + 1)];
+  const maximumFirstActionMinutes = Math.max(5, deliveryPolicy.pacing.firstActionMinutes + 2);
+  return ordered.map((activity, index) => index === 0 && activity.estimatedMinutes > maximumFirstActionMinutes
+    ? { ...activity, estimatedMinutes: maximumFirstActionMinutes }
+    : activity);
+}
+
+function outsideAppInstructionBody(taskType: LearningScienceRoutingBrief["taskType"]) {
+  if (taskType === "writing_argumentation") {
+    return "Open your textbook, class notes, and working document. Draft the requested outline with evidence there, then return to YOVA for a short evidence check.";
+  }
+  if (taskType === "problem_solving") {
+    return "Open your textbook or notebook. Solve the requested problem there, then return to YOVA for a short answer check.";
+  }
+  if (taskType === "programming") {
+    return "Open your code editor and source materials. Write and run the requested code there, then return to YOVA for a short reasoning check.";
+  }
+  if (taskType === "reading_to_quiz") {
+    return "Open your assigned text or notes. Read and annotate the requested section there, then return to YOVA for a short evidence check.";
+  }
+  return "Open your trusted source or class notes. Complete the requested learning action there, then return to YOVA for a short evidence check.";
 }
 
 function validateGeneratedSession(

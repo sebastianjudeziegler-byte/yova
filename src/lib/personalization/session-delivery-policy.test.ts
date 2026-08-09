@@ -171,4 +171,69 @@ describe("session delivery policy", () => {
 
     expect(issue).toBeNull();
   });
+
+  it("allows a five-minute opening when a small first action is only a starting hypothesis", () => {
+    const policy = buildSessionDeliveryPolicy({
+      learnerProfile: {
+        commonBlocker: "Vague writing tasks feel overwhelming",
+        startingPattern: "Starts after the task is narrowed",
+      },
+      recentResults: noResults,
+      recentInterruptions: noInterruptions,
+      learningMode: "learn",
+      estimatedMinutes: 30,
+    });
+    const issue = validateSessionDeliveryPolicy({
+      policy,
+      learningMode: "learn",
+      activities: [
+        {
+          methodPhase: "model",
+          type: "instruction",
+          estimatedMinutes: 5,
+          teaching: {
+            example: { steps: ["Open the source", "Choose evidence", "Draft the first claim"] },
+            commonMistake: null,
+          },
+        },
+        { methodPhase: "guided_practice", type: "multiple_choice", estimatedMinutes: 4, teaching: null },
+        { methodPhase: "independent_practice", type: "free_response", estimatedMinutes: 5, teaching: null },
+      ],
+    });
+
+    expect(policy.pacing.firstActionMinutes).toBe(2);
+    expect(issue).toBeNull();
+  });
+
+  it("still rejects a long opening block when the learner needs an easy start", () => {
+    const policy = buildSessionDeliveryPolicy({
+      learnerProfile: {
+        commonBlocker: "Vague writing tasks feel overwhelming",
+        startingPattern: "Starts after the task is narrowed",
+      },
+      recentResults: noResults,
+      recentInterruptions: noInterruptions,
+      learningMode: "learn",
+      estimatedMinutes: 30,
+    });
+    const issue = validateSessionDeliveryPolicy({
+      policy,
+      learningMode: "learn",
+      activities: [
+        {
+          methodPhase: "model",
+          type: "instruction",
+          estimatedMinutes: 6,
+          teaching: {
+            example: { steps: ["Open the source", "Choose evidence", "Draft the first claim"] },
+            commonMistake: null,
+          },
+        },
+        { methodPhase: "guided_practice", type: "multiple_choice", estimatedMinutes: 4, teaching: null },
+        { methodPhase: "independent_practice", type: "free_response", estimatedMinutes: 5, teaching: null },
+      ],
+    });
+
+    expect(issue).toContain("no more than 5 minutes");
+  });
 });

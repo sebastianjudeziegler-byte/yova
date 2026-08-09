@@ -82,23 +82,24 @@ export function validateSessionContentSpecificity({
       .filter((activity) => activity.teaching)
       .map(activitySubjectText)
       .join(" ");
-    const uncoveredIdea = draft.coverage.essentialIdeas.find((idea) => {
+    const uncoveredIdeas = draft.coverage.essentialIdeas.filter((idea) => {
       const ideaTokens = meaningfulTokens(idea);
       return ideaTokens.length > 0
-        && countTokenMatches(teachingText, ideaTokens) < minimumIdeaMatches(ideaTokens.length);
+        && countTokenMatches(teachingText, ideaTokens) < minimumTeachingMatches(ideaTokens.length);
     });
-    if (uncoveredIdea) {
-      return `The essential idea "${uncoveredIdea}" is checked later but is not actually taught in the lesson model.`;
+    if (uncoveredIdeas.length > 0) {
+      const list = uncoveredIdeas.map((idea) => `"${idea}"`).join("; ");
+      return `These essential ideas are checked later but are not actually taught in the lesson model: ${list}. Teach every listed relationship explicitly, or move it to deferredContent and remove its evidence-map entry.`;
     }
   }
 
-  for (const mapping of draft.coverage.evidenceMap) {
+  const mismatchedEvidence = draft.coverage.evidenceMap.flatMap((mapping) => {
     const mappedActivities = draft.activities.filter((activity) => (
       activity.requiredForCompletion
       && (activity.type === "multiple_choice" || activity.type === "free_response")
       && conceptsOverlap(activity.concept ?? "", mapping.activityConcept)
     ));
-    if (mappedActivities.length === 0) continue;
+    if (mappedActivities.length === 0) return [];
 
     // Do not count the concept label itself. The learner only demonstrates an
     // idea when the visible question, answer, and feedback actually address it.
@@ -106,10 +107,14 @@ export function validateSessionContentSpecificity({
     const ideaTokens = meaningfulTokens(mapping.essentialIdea);
     if (
       ideaTokens.length > 0
-      && countTokenMatches(evidenceText, ideaTokens) < minimumIdeaMatches(ideaTokens.length)
+      && countTokenMatches(evidenceText, ideaTokens) < minimumEvidenceMatches(ideaTokens.length)
     ) {
-      return `The required check labeled "${mapping.activityConcept}" does not actually test the essential idea "${mapping.essentialIdea}."`;
+      return [`"${mapping.activityConcept}" does not test "${mapping.essentialIdea}"`];
     }
+    return [];
+  });
+  if (mismatchedEvidence.length > 0) {
+    return `The evidence map is inaccurate: ${mismatchedEvidence.join("; ")}. Rebuild every evidence-map entry and its required question together so each prompt, answer, and feedback directly tests the one essential idea it claims.`;
   }
 
   return null;
@@ -152,10 +157,20 @@ function countTokenMatches(value: string, tokens: string[]) {
   return tokens.filter((token) => containsToken(value, token)).length;
 }
 
-function minimumIdeaMatches(tokenCount: number) {
+function minimumTeachingMatches(tokenCount: number) {
   if (tokenCount <= 2) return 1;
   if (tokenCount <= 5) return 2;
   return 4;
+}
+
+function minimumEvidenceMatches(tokenCount: number) {
+  if (tokenCount <= 2) return 1;
+  if (tokenCount <= 5) return 2;
+  // Longer learning claims often include connective wording that should not
+  // force a valid discrimination question to repeat the entire sentence.
+  // Three subject-token matches still rejects mere concept name-dropping while
+  // accepting a prompt that states the defining operation in fresh language.
+  return 3;
 }
 
 function conceptsOverlap(left: string, right: string) {

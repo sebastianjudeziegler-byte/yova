@@ -141,8 +141,9 @@ export function validateSessionDeliveryPolicy({
   if (activities.length > policy.pacing.maximumActivities) {
     return `The learner delivery policy allows at most ${policy.pacing.maximumActivities} focused activities in this session.`;
   }
-  if ((activities[0]?.estimatedMinutes ?? 0) > policy.pacing.firstActionMinutes + 2) {
-    return `The first action must stay close to the ${policy.pacing.firstActionMinutes}-minute starting target.`;
+  const maximumFirstActionMinutes = Math.max(5, policy.pacing.firstActionMinutes + 2);
+  if ((activities[0]?.estimatedMinutes ?? 0) > maximumFirstActionMinutes) {
+    return `The first action should take no more than ${maximumFirstActionMinutes} minutes so the learner can begin without a long setup block.`;
   }
 
   const firstTeaching = activities.find((activity) => Boolean(activity.teaching))?.teaching ?? null;
@@ -173,7 +174,7 @@ export function validateSessionDeliveryPolicy({
 function presentationPolicy(value: string | null | undefined, learningMode: SessionLearningMode) {
   const normalized = normalize(value);
   const studyPrefix = learningMode === "study"
-    ? "Keep the unsupported check first. When support is needed, "
+    ? "Follow the selected method's opening phase. When support is needed, "
     : "";
   if (normalized.includes("concrete example")) return policyPart("example_first", "Example first", `${studyPrefix}begin the explanation with one concrete case before naming the general rule.`, "You asked for concrete examples before rules, so YOVA will make the first explanation example-led.");
   if (normalized.includes("big picture")) return policyPart("overview_first", "Big picture first", `${studyPrefix}show the overall relationship before introducing details or terminology.`, "You asked for the big picture first, so YOVA will establish the overall model before the details.");

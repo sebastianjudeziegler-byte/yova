@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  alignDueReviewConcept,
   buildConceptReviewSchedule,
   validateConceptReviewSchedule,
 } from "@/lib/learning/concept-review-scheduler";
@@ -121,5 +122,62 @@ describe("validateConceptReviewSchedule", () => {
       schedule: verificationSchedule,
       activities: [{ type: "multiple_choice", concept: "Glycolysis" }],
     })).toContain("ATP");
+  });
+});
+
+describe("alignDueReviewConcept", () => {
+  const schedule = buildConceptReviewSchedule(
+    [signal({ concept: "Quotient rule" })],
+    new Date("2026-08-08T18:00:00.000Z"),
+  );
+
+  it("preserves the stable due concept when one check clearly uses it", () => {
+    const activities = alignDueReviewConcept([
+      {
+        type: "free_response",
+        concept: "Quotient formula",
+        requiredForCompletion: true,
+        title: "Apply the quotient rule",
+        body: "Differentiate the quotient and keep the denominator squared.",
+      },
+      {
+        type: "multiple_choice",
+        concept: "Product rule",
+        requiredForCompletion: true,
+        title: "Choose the product rule setup",
+        body: "Which setup is correct?",
+      },
+    ], schedule);
+
+    expect(activities[0]?.concept).toBe("Quotient rule");
+    expect(activities[1]?.concept).toBe("Product rule");
+  });
+
+  it("does not relabel ambiguous or unrelated checks", () => {
+    const ambiguous = alignDueReviewConcept([
+      {
+        type: "multiple_choice",
+        concept: "Formula choice one",
+        requiredForCompletion: true,
+        title: "Choose a quotient rule formula",
+      },
+      {
+        type: "free_response",
+        concept: "Formula choice two",
+        requiredForCompletion: true,
+        title: "Explain the quotient rule formula",
+      },
+    ], schedule);
+    const unrelated = alignDueReviewConcept([
+      {
+        type: "free_response",
+        concept: "Chain rule",
+        requiredForCompletion: true,
+        title: "Apply the chain rule",
+      },
+    ], schedule);
+
+    expect(ambiguous.map((activity) => activity.concept)).toEqual(["Formula choice one", "Formula choice two"]);
+    expect(unrelated[0]?.concept).toBe("Chain rule");
   });
 });

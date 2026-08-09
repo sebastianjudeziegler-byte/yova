@@ -224,6 +224,98 @@ describe("reliable OpenAI session generation", () => {
     expect(canGenerateReliableSession(readingContext)).toBe(false);
   });
 
+  it("turns one observed calculus gap into a model-first repair session", async () => {
+    const repairLesson = {
+      concept: "Quotient rule",
+      focus: "Set up the quotient rule correctly for derivatives of fractions",
+      essentialIdea: "The quotient rule differentiates the numerator and denominator in a specific crossed order over the denominator squared.",
+      keyIdea: "For $f/g$, use $(f'g-fg')/g^2$, preserving the crossed order and squaring the original denominator.",
+      explanation: "The quotient rule measures how a ratio changes when both its numerator and denominator can change. Differentiate the numerator while keeping the denominator, subtract the numerator times the derivative of the denominator, then divide by the original denominator squared.",
+      example: {
+        setup: "Differentiate $h(x)=x^2/(x+1)$ using the quotient rule.",
+        steps: [
+          "Let $f=x^2$, $g=x+1$, $f'=2x$, and $g'=1$.",
+          "Substitute into $(f'g-fg')/g^2$ to get $[2x(x+1)-x^2]/(x+1)^2$.",
+          "Simplify the numerator to get $(x^2+2x)/(x+1)^2$.",
+        ],
+        takeaway: "Keep the crossed numerator order and square the unchanged denominator.",
+      },
+      commonMistake: {
+        mistake: "Differentiate the numerator and denominator separately and divide the results.",
+        correction: "Use the full quotient-rule numerator and divide by the original denominator squared.",
+      },
+      check: {
+        title: "Choose the quotient-rule setup",
+        prompt: "Which expression correctly begins the derivative of $h(x)=x^2/(x+1)$?",
+        choices: [
+          "$2x/1$",
+          "$[2x(x+1)-x^2]/(x+1)^2$",
+          "$[x^2-2x(x+1)]/(x+1)$",
+          "$[2x+x^2]/(x+1)^2$",
+        ],
+        correctChoiceIndex: 1,
+        feedback: "The correct setup follows $(f'g-fg')/g^2$ and keeps the original denominator squared.",
+      },
+      explainBack: {
+        title: "Explain the quotient-rule setup",
+        prompt: "Explain the order of the two numerator terms and what belongs in the denominator.",
+        modelAnswer: "Multiply the derivative of the numerator by the original denominator, subtract the original numerator times the derivative of the denominator, and divide by the original denominator squared.",
+        feedback: "A correct explanation preserves the crossed order, subtraction, and squared original denominator.",
+      },
+    };
+    parseResponse.mockResolvedValueOnce(providerResponse(repairLesson));
+    const { generateReliableSessionWithOpenAI } = await import("@/lib/openai/reliable-session-generator");
+    const repairContext = context("study");
+    repairContext.learningGoal = {
+      ...repairContext.learningGoal,
+      title: "Derivative rules",
+      topic: "Product rule and quotient rule",
+      kind: "skill",
+    };
+    repairContext.session = {
+      ...repairContext.session,
+      title: "Repair the quotient rule",
+      objective: "Use a worked example to repair the quotient-rule setup, then solve a similar derivative independently.",
+      method: "Worked example fading, then retrieval",
+      methodReason: "The previous check showed repeated setup errors on the quotient rule.",
+      estimatedMinutes: 25,
+      contentTargets: [],
+    };
+    repairContext.recentResults = [{
+      methodId: "worked_example_fading",
+      taskType: "problem_solving",
+      knowledgeStage: "novice",
+      correctAnswers: 1,
+      totalAnswers: 4,
+      feedback: "too_difficult",
+      observedGap: "Quotient rule setup and denominator squaring",
+      plannedMinutes: 25,
+      actualMinutes: 25,
+      calibrationPattern: "possible_misconception",
+    }];
+    repairContext.conceptSignals = [{
+      concept: "Quotient rule",
+      attempts: 2,
+      secureAttempts: 0,
+      needsReviewAttempts: 2,
+      lastOutcome: "needs_review",
+      lastObservedAt: "2026-08-05T18:00:00.000Z",
+      status: "needs_review",
+    }];
+
+    const result = await generateReliableSessionWithOpenAI(repairContext);
+
+    expect(result.draft.methodBriefing.methodId).toBe("worked_example_fading");
+    expect(result.draft.activities.map((activity) => activity.methodPhase)).toEqual([
+      "model",
+      "guided_practice",
+      "independent_practice",
+      "schedule_return",
+    ]);
+    expect(result.draft.activities[1]?.concept).toBe("Quotient rule");
+    expect(result.draft.activities[0]?.teaching?.example?.steps).toHaveLength(3);
+  });
+
   it("reserves the full adaptive engine for longer, external, or evidence-rich sessions", async () => {
     const { canGenerateReliableSession } = await import("@/lib/openai/reliable-session-generator");
 
@@ -249,5 +341,44 @@ describe("reliable OpenAI session generation", () => {
       calibrationPattern: "possible_misconception",
     }];
     expect(canGenerateReliableSession(evidenceRichSession)).toBe(false);
+
+    const boundedWorkedRepair = context("study");
+    boundedWorkedRepair.learningGoal = {
+      ...boundedWorkedRepair.learningGoal,
+      title: "Derivative rules",
+      topic: "Product rule and quotient rule",
+      kind: "skill",
+    };
+    boundedWorkedRepair.session = {
+      ...boundedWorkedRepair.session,
+      title: "Repair the quotient rule",
+      objective: "Use a worked example to repair the quotient-rule setup, then solve a similar derivative independently.",
+      method: "Worked example fading, then retrieval",
+      methodReason: "The previous check showed repeated setup errors on the quotient rule.",
+      estimatedMinutes: 25,
+      contentTargets: [],
+    };
+    boundedWorkedRepair.recentResults = [{
+      methodId: "worked_example_fading",
+      taskType: "problem_solving",
+      knowledgeStage: "novice",
+      correctAnswers: 1,
+      totalAnswers: 4,
+      feedback: "too_difficult",
+      observedGap: "Quotient rule setup and denominator squaring",
+      plannedMinutes: 25,
+      actualMinutes: 25,
+      calibrationPattern: "possible_misconception",
+    }];
+    boundedWorkedRepair.conceptSignals = [{
+      concept: "Quotient rule",
+      attempts: 2,
+      secureAttempts: 0,
+      needsReviewAttempts: 2,
+      lastOutcome: "needs_review",
+      lastObservedAt: "2026-08-05T18:00:00.000Z",
+      status: "needs_review",
+    }];
+    expect(canGenerateReliableSession(boundedWorkedRepair)).toBe(true);
   });
 });

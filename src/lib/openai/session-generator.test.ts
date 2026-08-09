@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 import { buildSessionEvaluationCases } from "@/evals/session-cases";
-import { GeneratedSessionDraftSchema } from "@/lib/session-generation/schema";
+import {
+  GeneratedSessionDraftOutputSchema,
+  type GeneratedSessionDraft,
+} from "@/lib/session-generation/schema";
 
 const parseResponse = vi.hoisted(() => vi.fn());
 
@@ -13,7 +16,7 @@ vi.mock("@/lib/openai/config", () => ({
 }));
 
 function learningDraft(firstPhase: "orient" | "model") {
-  return GeneratedSessionDraftSchema.parse({
+  return GeneratedSessionDraftOutputSchema.parse({
     methodBriefing: {
       learningMode: "learn",
       taskType: "conceptual_learning",
@@ -89,7 +92,7 @@ function learningDraft(firstPhase: "orient" | "model") {
       },
     ],
     sourceGrounding: null,
-  });
+  }) as GeneratedSessionDraft;
 }
 
 describe("substantive teaching validation", () => {
