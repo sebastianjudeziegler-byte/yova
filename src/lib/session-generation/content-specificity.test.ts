@@ -274,6 +274,53 @@ describe("session content specificity", () => {
     })).toBeNull();
   });
 
+  it("accepts a symbolic math target when the formula and its meaning are actually taught", () => {
+    const productRuleDraft = {
+      ...baseDraft,
+      coverage: {
+        ...baseDraft.coverage,
+        focus: "Recognize and interpret the product rule formula.",
+        essentialIdeas: ["Recognize and interpret (fg)' = f'g + fg'"],
+        evidenceMap: [{
+          essentialIdea: "Recognize and interpret (fg)' = f'g + fg'",
+          activityConcept: "Product rule for derivatives",
+        }],
+      },
+      activities: baseDraft.activities.map((activity, index) => index === 0 ? {
+        ...activity,
+        title: "See why differentiating a product needs two terms",
+        body: "Study the product rule formula and connect each term to the factor being differentiated.",
+        teaching: activity.teaching ? {
+          ...activity.teaching,
+          keyIdea: "For two differentiable functions, (fg)' = f'g + fg'.",
+          explanation: "Differentiate the first factor while keeping the second, then keep the first factor while differentiating the second. Add those two contributions.",
+        } : null,
+      } : index === 1 ? {
+        ...activity,
+        concept: "Product rule for derivatives",
+        title: "Choose the correct product rule",
+        body: "Which expression correctly differentiates f(x)g(x)?",
+        choices: ["f'(x)g(x) + f(x)g'(x)", "f'(x)g'(x)", "f'(x) + g'(x)"],
+        correctAnswer: "f'(x)g(x) + f(x)g'(x)",
+        feedback: "The product rule adds the contribution from differentiating each factor in turn.",
+      } : {
+        ...activity,
+        requiredForCompletion: false,
+        concept: "Product rule for derivatives",
+        title: "Explain the two product-rule terms",
+        body: "Explain why differentiating f(x)g(x) produces one term for each factor.",
+        correctAnswer: "The derivative adds f'(x)g(x), where the first factor changes, and f(x)g'(x), where the second factor changes.",
+        feedback: "Each term differentiates one factor while holding the other factor in place.",
+      }),
+    };
+
+    expect(validateSessionContentSpecificity({
+      draft: productRuleDraft,
+      goalTopic: "Product rule for derivatives",
+      sessionObjective: "Recognize and interpret the product rule formula",
+    })).toBeNull();
+  });
+
   it("rejects generic method instructions presented as if they were subject teaching", () => {
     const draft = {
       ...baseDraft,

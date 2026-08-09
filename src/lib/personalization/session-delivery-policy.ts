@@ -138,7 +138,11 @@ export function validateSessionDeliveryPolicy({
     };
   }>;
 }) {
-  if (activities.length > policy.pacing.maximumActivities) {
+  // A scheduled return is a one-line promise that YOVA will bring the idea
+  // back later. It is not another learning task or context switch, so it
+  // should not consume the learner's focused-activity allowance.
+  const focusedActivities = activities.filter((activity) => activity.methodPhase !== "schedule_return");
+  if (focusedActivities.length > policy.pacing.maximumActivities) {
     return `The learner delivery policy allows at most ${policy.pacing.maximumActivities} focused activities in this session.`;
   }
   const maximumFirstActionMinutes = Math.max(5, policy.pacing.firstActionMinutes + 2);

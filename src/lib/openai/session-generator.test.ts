@@ -108,6 +108,16 @@ describe("substantive teaching validation", () => {
 });
 
 describe("session content-volume validation", () => {
+  it("preserves the plan's bounded completion contract instead of adding lesson requirements", async () => {
+    const { boundedSessionCompletionEvidence } = await import("@/lib/openai/session-generator");
+
+    expect(boundedSessionCompletionEvidence({
+      planned: ["Draft one claim and connect one source"],
+      generated: ["Draft a claim", "Match a source", "Explain the counterargument"],
+      estimatedMinutes: 12,
+    })).toEqual(["Draft one claim and connect one source"]);
+  });
+
   it("requires every planned target to be covered or explicitly deferred", async () => {
     const { validateSessionCoverageFidelity } = await import("@/lib/openai/session-generator");
     const draft = learningDraft("model");
@@ -142,6 +152,36 @@ describe("session content-volume validation", () => {
     })).toBeNull();
   });
 
+  it("restores the plan's exact target wording when the lesson paraphrases it", async () => {
+    const { alignSessionCoverageWithPlan } = await import("@/lib/openai/session-generator");
+    const draft = learningDraft("model");
+    draft.coverage.essentialIdeas = [
+      "Functions, limits, derivatives, and integrals form a connected calculus model",
+    ];
+    draft.coverage.evidenceMap = [{
+      essentialIdea: "Functions, limits, derivatives, and integrals form a connected calculus model",
+      activityConcept: "Funding tradeoff",
+    }];
+    draft.coverage.deferredContent = [
+      "Read function notation, domain, evaluation, and graphs",
+    ];
+
+    const aligned = alignSessionCoverageWithPlan(draft.coverage, [
+      "Relationship among functions, limits, derivatives, and integrals",
+      "Function notation, evaluation, domain, and graphs",
+    ]);
+
+    expect(aligned.essentialIdeas).toEqual([
+      "Relationship among functions, limits, derivatives, and integrals",
+    ]);
+    expect(aligned.evidenceMap[0]?.essentialIdea).toBe(
+      "Relationship among functions, limits, derivatives, and integrals",
+    );
+    expect(aligned.deferredContent).toEqual([
+      "Function notation, evaluation, domain, and graphs",
+    ]);
+  });
+
   it("limits active ideas according to the session duration", async () => {
     const { validateSessionCoverageFidelity } = await import("@/lib/openai/session-generator");
     const draft = learningDraft("model");
@@ -169,6 +209,66 @@ describe("session content-volume validation", () => {
     draft.activities[0]!.teaching!.explanation = oversizedExplanation;
 
     expect(validateSessionTimeBudget(draft, 15)).toMatch(/too much for a 15-minute guided session/i);
+  });
+
+  it("does not charge a future-return reminder against today's reading budget", async () => {
+    const {
+      ensureDelayedRetrievalReturn,
+      validateSessionTimeBudget,
+    } = await import("@/lib/openai/session-generator");
+    const draft = learningDraft("model");
+    const policy = {
+      schemaVersion: 1 as const,
+      evidenceStatus: "starting_hypothesis" as const,
+      presentation: { mode: "task_aligned" as const, label: "Task led", instruction: "Present the content around the task at hand." },
+      repair: { mode: "task_aligned" as const, label: "Repair", instruction: "Repair only the gap shown by the learner." },
+      retention: { mode: "delayed_retrieval" as const, label: "Delayed retrieval", instruction: "Return to the idea after a useful delay." },
+      workspace: { mode: "one_step" as const, label: "One step", instruction: "Keep one current action visually prominent." },
+      pacing: { firstActionMinutes: 3, maximumActivities: 3, reason: "Use a short sequence that fits the learner's available time." },
+      learnerFacingReasons: ["You report forgetting after a delay, so YOVA will bring this idea back later."],
+      signalsUsed: ["I forget after a few days"],
+    };
+    const withReturn = {
+      ...draft,
+      activities: ensureDelayedRetrievalReturn(draft.activities, policy, "Funding tradeoffs"),
+    };
+    const bloatedReturn = withReturn.activities.at(-1)!;
+    bloatedReturn.body = Array.from({ length: 430 }, (_, index) => `reminder${index}`).join(" ");
+
+    expect(validateSessionTimeBudget(withReturn, 15)).toBeNull();
+  });
+});
+
+describe("personalized retention normalization", () => {
+  it("adds a lightweight delayed return without turning it into required work", async () => {
+    const {
+      ensureDelayedRetrievalReturn,
+      validateSessionTimeBudget,
+    } = await import("@/lib/openai/session-generator");
+    const draft = learningDraft("model");
+    const activities = ensureDelayedRetrievalReturn(
+      draft.activities,
+      {
+        schemaVersion: 1,
+        evidenceStatus: "starting_hypothesis",
+        presentation: { mode: "task_aligned", label: "Task led", instruction: "Present the content around the task at hand." },
+        repair: { mode: "task_aligned", label: "Repair", instruction: "Repair only the gap shown by the learner." },
+        retention: { mode: "delayed_retrieval", label: "Delayed retrieval", instruction: "Return to the idea after a useful delay." },
+        workspace: { mode: "one_step", label: "One step", instruction: "Keep one current action visually prominent." },
+        pacing: { firstActionMinutes: 3, maximumActivities: 3, reason: "Use a short sequence that fits the learner's available time." },
+        learnerFacingReasons: ["You report forgetting after a delay, so YOVA will bring this idea back later."],
+        signalsUsed: ["I forget after a few days"],
+      },
+      "Funding tradeoffs",
+    );
+    const normalized = { ...draft, activities };
+
+    expect(activities.at(-1)).toMatchObject({
+      methodPhase: "schedule_return",
+      requiredForCompletion: false,
+      type: "reflection",
+    });
+    expect(validateSessionTimeBudget(normalized, 15)).toBeNull();
   });
 });
 

@@ -139,6 +139,30 @@ describe("session delivery policy", () => {
     expect(issue).toContain("delayed retrieval return");
   });
 
+  it("does not count the future-return marker as another focused activity", () => {
+    const policy = buildSessionDeliveryPolicy({
+      learnerProfile: { memoryChallenge: "I forget it after a few days" },
+      recentResults: noResults,
+      recentInterruptions: noInterruptions,
+      learningMode: "learn",
+      estimatedMinutes: 15,
+    });
+    const issue = validateSessionDeliveryPolicy({
+      policy,
+      learningMode: "learn",
+      activities: [
+        { methodPhase: "model", type: "instruction", estimatedMinutes: 4, teaching: { example: null, commonMistake: null } },
+        { methodPhase: "guided_practice", type: "multiple_choice", estimatedMinutes: 3, teaching: null },
+        { methodPhase: "independent_practice", type: "free_response", estimatedMinutes: 3, teaching: null },
+        { methodPhase: "reflect", type: "reflection", estimatedMinutes: 1, teaching: null },
+        { methodPhase: "schedule_return", type: "reflection", estimatedMinutes: 1, teaching: null },
+      ],
+    });
+
+    expect(policy.pacing.maximumActivities).toBe(4);
+    expect(issue).toBeNull();
+  });
+
   it("accepts an example-led transfer session that executes the policy", () => {
     const policy = buildSessionDeliveryPolicy({
       learnerProfile: {

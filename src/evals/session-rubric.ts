@@ -83,12 +83,20 @@ export function evaluateSessionDraft(
   const questions = draft.activities.filter((activity) => (
     activity.type === "multiple_choice" || activity.type === "free_response"
   ));
+  // A scheduled-return marker is a lightweight future reminder, not another
+  // focused learning activity the learner must complete in this session.
+  const focusedActivities = draft.activities.filter((activity) => activity.methodPhase !== "schedule_return");
   const scheduledRetrieval = isScheduledRetrievalSession(context.session);
   const questionIndices = draft.activities
     .map((activity, index) => ({ activity, index }))
     .filter(({ activity }) => activity.type === "multiple_choice" || activity.type === "free_response")
     .map(({ index }) => index);
-  const maximumActivities = Math.min(8, Math.max(3, Math.ceil(context.session.estimatedMinutes / 4)));
+  // Keep this in lockstep with the product's real time-budget validator.
+  const maximumActivities = context.session.estimatedMinutes <= 15
+    ? 4
+    : context.session.estimatedMinutes <= 30
+      ? 5
+      : 8;
   const questionIntegrity = questions.every((activity) => {
     if (!activity.concept || !activity.correctAnswer || !activity.feedback || activity.feedback.length < 20) return false;
     if (activity.type === "free_response") return activity.correctAnswer.length >= 15 && activity.choices.length === 0;
@@ -195,7 +203,7 @@ export function evaluateSessionDraft(
   );
 
   const checks: SessionQualityCheck[] = [
-    check("activity_pacing", "Activity count fits the session", draft.activities.length >= 3 && draft.activities.length <= maximumActivities, 10, true, `${draft.activities.length}/${maximumActivities} maximum activities for ${context.session.estimatedMinutes} minutes`),
+    check("activity_pacing", "Activity count fits the session", focusedActivities.length >= 3 && focusedActivities.length <= maximumActivities, 10, true, `${focusedActivities.length}/${maximumActivities} maximum focused activities for ${context.session.estimatedMinutes} minutes`),
     check("active_practice", "Session requires active learner effort", questions.length >= 2, 15, true, `${questions.length} retrieval or knowledge-check activities`),
     check("answer_integrity", "Questions include usable answers and feedback", questionIntegrity, 15, true, `${questions.length} question activities inspected`),
     check("task_alignment", "Activities fit the learning task", scheduledRetrieval || alignedActivities >= Math.ceil(draft.activities.length * 0.5), 15, true, scheduledRetrieval ? "Scheduled reviews use the bounded retrieval format" : `${alignedActivities} of ${draft.activities.length} activities align with ${taskFamily.replace("_", " ")}`),

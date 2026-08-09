@@ -125,6 +125,9 @@ describe("reliable OpenAI session generation", () => {
     expect(parseResponse).toHaveBeenCalledTimes(1);
     expect(parseResponse.mock.calls[0]?.[1]).toEqual({ maxRetries: 0, timeout: 28_000 });
     expect(result.draft.activities[0]?.teaching?.explanation).toContain("circadian clock");
+    const expectedTarget = context().session.contentTargets?.[0];
+    expect(expectedTarget).toBeDefined();
+    expect(result.draft.activities[0]?.teaching?.keyIdea).toBe(expectedTarget);
     expect(result.draft.activities.find((activity) => activity.type === "free_response")?.correctAnswer)
       .toContain("pineal gland");
     expect(result.draft.methodBriefing.personalization).toContain(

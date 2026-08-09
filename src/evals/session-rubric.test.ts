@@ -198,6 +198,54 @@ describe("session quality rubric", () => {
     expect(result.requiredFailures).toContain("Learner materials remain the factual anchor");
     expect(result.requiredFailures).toContain("No fixed brain, diagnosis, or learning-style claim");
   });
+
+  it("does not count a future retrieval reminder as focused session work", () => {
+    const sessionWithReturn = GeneratedSessionDraftSchema.parse({
+      ...strongSession,
+      activities: [
+        ...strongSession.activities,
+        {
+          methodPhase: "reflect",
+          estimatedMinutes: 1,
+          requiredForCompletion: false,
+          type: "reflection",
+          concept: null,
+          label: "Notice",
+          title: "Name the remaining gap",
+          body: "Identify the one part of the relationship that still feels least clear.",
+          teaching: null,
+          choices: [],
+          correctAnswer: null,
+          feedback: null,
+        },
+        {
+          methodPhase: "schedule_return",
+          estimatedMinutes: 1,
+          requiredForCompletion: false,
+          type: "reflection",
+          concept: null,
+          label: "Return",
+          title: "Check this again later",
+          body: "YOVA will bring this relationship back in a short future retrieval check.",
+          teaching: null,
+          choices: [],
+          correctAnswer: null,
+          feedback: null,
+        },
+      ],
+    });
+
+    const result = evaluateSessionDraft(
+      sessionWithReturn,
+      { ...biologyCase.context, session: { ...biologyCase.context.session, estimatedMinutes: 12 } },
+      biologyCase.taskFamily,
+      biologyCase.expectedSourceTerms,
+    );
+
+    const pacing = result.checks.find((item) => item.id === "activity_pacing");
+    expect(pacing?.passed).toBe(true);
+    expect(pacing?.detail).toContain("4/4 maximum focused activities");
+  });
 });
 
 describe("session quality language safeguards", () => {

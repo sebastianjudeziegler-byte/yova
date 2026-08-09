@@ -26,6 +26,7 @@ const IGNORED_TOKENS = new Set([
   "current", "different", "explain", "first", "from", "goal", "help", "idea", "learn", "learning",
   "lesson", "material", "practice", "prepare", "review", "session", "study", "test", "that", "their",
   "these", "this", "through", "topic", "understand", "using", "what", "when", "where", "which", "with",
+  "identify", "interpret", "recognize",
   "your",
 ]);
 

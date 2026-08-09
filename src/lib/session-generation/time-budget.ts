@@ -23,10 +23,17 @@ export function validateSessionTimeBudget(
   }
 
   const maximumActivities = estimatedMinutes <= 15 ? 4 : estimatedMinutes <= 30 ? 5 : 8;
-  if (draft.activities.length > maximumActivities) {
+  // schedule_return is a lightweight future-review marker, not a focused
+  // activity the learner must complete during this session.
+  const focusedActivityCount = draft.activities.filter((activity) => activity.methodPhase !== "schedule_return").length;
+  if (focusedActivityCount > maximumActivities) {
     return `A ${estimatedMinutes}-minute session may contain at most ${maximumActivities} focused activities.`;
   }
-  const learnerFacingWords = draft.activities.reduce((total, activity) => (
+  const learnerFacingWords = draft.activities
+    // The return marker is a short scheduling promise shown after the lesson,
+    // not part of the content the learner must process in today's window.
+    .filter((activity) => activity.methodPhase !== "schedule_return")
+    .reduce((total, activity) => (
     total + countWords([
       activity.title,
       activity.body,
@@ -41,7 +48,7 @@ export function validateSessionTimeBudget(
       activity.correctAnswer,
       activity.feedback,
     ].filter(Boolean).join(" "))
-  ), 0);
+    ), 0);
   if (learnerFacingWords > contentBudget.maximumLearnerFacingWords) {
     return `The session contains ${learnerFacingWords} learner-facing words, which is too much for a ${estimatedMinutes}-minute guided session. Keep this slice under ${contentBudget.maximumLearnerFacingWords} words and defer the rest.`;
   }

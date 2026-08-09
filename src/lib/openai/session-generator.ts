@@ -784,8 +784,25 @@ function parseGeneratedSessionDraft(
     orderedActivities,
     buildConceptReviewSchedule(context.conceptSignals),
   );
+  const policyAlignedActivities = ensureDelayedRetrievalReturn(
+    reviewAlignedActivities,
+    deliveryPolicy,
+    context.session.title,
+  );
+  const completionEvidence = boundedSessionCompletionEvidence({
+    planned: context.session.completionEvidence ?? [],
+    generated: parsed.data.coverage.completionEvidence,
+    estimatedMinutes: context.session.estimatedMinutes,
+  });
   const deterministicMetadata = {
     ...parsed.data,
+    coverage: alignSessionCoverageWithPlan({
+      ...parsed.data.coverage,
+      // The plan already decided what counts as completion. The lesson model
+      // may phrase the checks, but it may not silently add extra requirements
+      // that no longer fit the learner's time window.
+      completionEvidence,
+    }, context.session.contentTargets ?? []),
     methodBriefing: {
       ...parsed.data.methodBriefing,
       learningMode: routing.sessionLearningMode,
@@ -793,7 +810,7 @@ function parseGeneratedSessionDraft(
       personalization: deliveryPolicy.learnerFacingReasons.slice(0, 3),
       methodId: resolvedMethodId,
     },
-    activities: reviewAlignedActivities.map((activity) => (
+    activities: policyAlignedActivities.map((activity) => (
       scheduledConcept && (activity.type === "multiple_choice" || activity.type === "free_response")
         ? { ...activity, concept: scheduledConcept }
         : context.learningGoal.studyMode === "outside_yova" && activity.type === "instruction"
@@ -808,6 +825,132 @@ function parseGeneratedSessionDraft(
   return GeneratedSessionDraftSchema.safeParse(
     reconcileSessionCompletionMap(polishGeneratedSessionTypography(deterministicMetadata)),
   );
+}
+
+/**
+ * OpenAI may accurately paraphrase a plan target even though the plan-to-
+ * lesson contract needs the original wording. Reconcile only a strong lexical
+ * match and explicitly defer a truly omitted target. This prevents a valid
+ * lesson from disappearing because "functions, limits, derivatives" became
+ * "the relationship between derivatives, limits, and functions" while still
+ * refusing to pretend unrelated content was covered.
+ */
+export function alignSessionCoverageWithPlan(
+  coverage: GeneratedSessionDraft["coverage"],
+  plannedTargets: string[],
+): GeneratedSessionDraft["coverage"] {
+  if (plannedTargets.length === 0) return coverage;
+
+  const availableTargets = [...plannedTargets];
+  const replacements = new Map<string, string>();
+  const essentialIdeas = coverage.essentialIdeas.map((idea) => {
+    const match = takeCoverageMatch(idea, availableTargets);
+    if (!match) return idea;
+    replacements.set(normalizeCoverageTarget(idea), match);
+    return match;
+  });
+  const deferredContent = coverage.deferredContent.map((idea) => {
+    const match = takeCoverageMatch(idea, availableTargets);
+    return match ?? idea;
+  });
+  const deferredWithMissing = uniqueCoverageTargets([
+    ...availableTargets,
+    ...deferredContent,
+  ]).slice(0, 4);
+
+  return {
+    ...coverage,
+    essentialIdeas,
+    evidenceMap: coverage.evidenceMap.map((mapping) => ({
+      ...mapping,
+      essentialIdea: replacements.get(normalizeCoverageTarget(mapping.essentialIdea))
+        ?? mapping.essentialIdea,
+    })),
+    deferredContent: deferredWithMissing,
+  };
+}
+
+function takeCoverageMatch(value: string, candidates: string[]) {
+  const normalized = normalizeCoverageTarget(value);
+  const exactIndex = candidates.findIndex((candidate) => normalizeCoverageTarget(candidate) === normalized);
+  if (exactIndex >= 0) return candidates.splice(exactIndex, 1)[0] ?? null;
+
+  const valueTokens = coverageTokens(value);
+  let bestIndex = -1;
+  let bestScore = 0;
+  candidates.forEach((candidate, index) => {
+    const candidateTokens = coverageTokens(candidate);
+    const overlap = candidateTokens.filter((token) => valueTokens.includes(token)).length;
+    const denominator = Math.max(1, Math.min(valueTokens.length, candidateTokens.length));
+    const score = overlap / denominator;
+    if (overlap >= Math.min(2, denominator) && score > bestScore) {
+      bestIndex = index;
+      bestScore = score;
+    }
+  });
+  return bestIndex >= 0 ? candidates.splice(bestIndex, 1)[0] ?? null : null;
+}
+
+function coverageTokens(value: string) {
+  const ignored = new Set(["about", "among", "and", "between", "concept", "idea", "relationship", "the", "their", "with"]);
+  return uniqueCoverageTargets(normalizeCoverageTarget(value)
+    .replace(/[^a-z0-9]+/g, " ")
+    .split(" ")
+    .filter((token) => token.length > 3 && !ignored.has(token)));
+}
+
+function uniqueCoverageTargets(values: string[]) {
+  const seen = new Set<string>();
+  return values.filter((value) => {
+    const key = normalizeCoverageTarget(value);
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+export function ensureDelayedRetrievalReturn(
+  activities: GeneratedSessionDraft["activities"],
+  deliveryPolicy: SessionDeliveryPolicy,
+  sessionTitle: string,
+) {
+  if (
+    deliveryPolicy.retention.mode !== "delayed_retrieval"
+    || activities.some((activity) => activity.methodPhase === "schedule_return")
+  ) {
+    return activities;
+  }
+
+  return [
+    ...activities,
+    {
+      methodPhase: "schedule_return" as const,
+      concept: null,
+      estimatedMinutes: 1,
+      requiredForCompletion: false,
+      label: "Return",
+      title: `Return to ${sessionTitle}`.slice(0, 140),
+      body: "YOVA will bring this idea back after a delay for a short retrieval check. Answer before reopening the lesson.",
+      teaching: null,
+      type: "reflection" as const,
+      choices: [],
+      correctAnswer: null,
+      feedback: null,
+    },
+  ];
+}
+
+export function boundedSessionCompletionEvidence({
+  planned,
+  generated,
+  estimatedMinutes,
+}: {
+  planned: string[];
+  generated: string[];
+  estimatedMinutes: number;
+}) {
+  const source = planned.length > 0 ? planned : generated;
+  return source.slice(0, contentBudgetForMinutes(estimatedMinutes).maximumCompletionChecks);
 }
 
 function normalizeGeneratedActivityOrder(

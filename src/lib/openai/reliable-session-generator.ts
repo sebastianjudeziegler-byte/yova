@@ -63,6 +63,7 @@ YOVA already knows the goal and planned session. Do not ask the learner to defin
 
 Requirements:
 - Teach the actual subject, not the study method.
+- When session.contentTargets contains an exact target, explicitly state and explain that target in the teaching model. Do not merely test it later.
 - State the key relationship, mechanism, sequence, or procedure in clear connected prose.
 - Keep focus under 130 characters. It is a short learner-facing activity title.
 - Keep essentialIdea under 160 characters and finish it as a complete sentence.
@@ -362,7 +363,10 @@ function buildReliableDraft({
   const activityConcept = reviewConcepts.length === 1 ? reviewConcepts[0]! : lesson.concept;
   const correctChoice = lesson.check.choices[lesson.check.correctChoiceIndex]!;
   const teaching = {
-    keyIdea: lesson.keyIdea,
+    // The plan's bounded target is the teaching contract. Keeping it visible
+    // in the model prevents a lesson from testing a formula or relationship
+    // that the learner never actually saw.
+    keyIdea: learningMode === "learn" ? coverageTarget : lesson.keyIdea,
     explanation: lesson.explanation,
     example: lesson.example,
     commonMistake: lesson.commonMistake,
