@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import { generationEnvironment } from "@/lib/analytics/generation-observation";
 import { recordGenerationObservation } from "@/lib/analytics/generation-observation-server";
-import { buildMaterialExcerpts } from "@/lib/materials/context";
+import { PlanKnowledgeMapSchema } from "@/lib/knowledge-map/schema";
+import {
+  buildTopicMaterialExcerpts,
+  type TopicMaterialChunkRow,
+} from "@/lib/materials/context";
 import { readConceptEvidenceProperty, summarizeConceptEvidence } from "@/lib/learning/concept-evidence";
 import { readConfidenceEvidenceProperty, summarizeConfidenceCalibration } from "@/lib/learning/confidence-calibration";
 import {
@@ -102,7 +106,7 @@ export async function POST(request: Request) {
     const [{ data: plan, error: planError }, { data: learnerProfile, error: learnerError }, { data: planSessionRows, error: planSessionsError }] = await Promise.all([
       supabase
         .from("plans")
-        .select("learning_item_id,rationale,generation_inputs")
+        .select("learning_item_id,rationale,generation_inputs,knowledge_map")
         .eq("id", parsed.data.planId)
         .maybeSingle(),
       supabase
@@ -136,7 +140,7 @@ export async function POST(request: Request) {
         : Promise.resolve({ data: [], error: null }),
       supabase
         .from("materials")
-        .select("filename,extracted_text")
+        .select("id,filename")
         .eq("learning_item_id", plan.learning_item_id)
         .eq("processing_status", "ready")
         .order("created_at", { ascending: true })
@@ -155,14 +159,55 @@ export async function POST(request: Request) {
     if (itemError || attemptsResult.error || materialsError || interruptionsResult.error) throw itemError ?? attemptsResult.error ?? materialsError ?? interruptionsResult.error;
     if (!learningItem) return NextResponse.json({ error: "That learning goal was not found." }, { status: 404 });
 
-    const materialExcerpts = buildMaterialExcerpts(materialRows ?? [])
-      .filter((excerpt) => excerpt.text.trim().length >= 12);
-    // A failed or image-only upload must not strand an otherwise clear goal.
-    // The saved topic, objective, and content targets remain enough for YOVA to
-    // prepare an AI-generated lesson. Readable uploads still anchor the facts.
-    const effectiveSourceMode = learningItem.source_mode === "user_materials" && materialExcerpts.length === 0
-      ? "yova_generated"
-      : learningItem.source_mode;
+    const parsedKnowledgeMap = PlanKnowledgeMapSchema.safeParse(plan.knowledge_map);
+    if (!parsedKnowledgeMap.success) {
+      return NextResponse.json(
+        { error: "This plan needs its topic map rebuilt before YOVA can prepare the session." },
+        { status: 409 },
+      );
+    }
+    const plannedTopicIds = readStringArrayProperty(planSession.step_data, "topicIds");
+    const selectedTopics = parsedKnowledgeMap.data.topics.filter((topic) => plannedTopicIds.includes(topic.id));
+    if (selectedTopics.length === 0) {
+      return NextResponse.json(
+        { error: "This session is not linked to a topic in the plan yet." },
+        { status: 409 },
+      );
+    }
+    const orderedChunkIds = Array.from(new Set(
+      selectedTopics.flatMap((topic) => topic.sourceReferences.map((reference) => reference.chunkId)),
+    ));
+    const chunkResult = orderedChunkIds.length > 0
+      ? await supabase
+        .from("material_chunks")
+        .select("id,material_id,chunk_index,location_label,section_role,chunk_text")
+        .in("id", orderedChunkIds)
+      : { data: [], error: null };
+    if (chunkResult.error) throw chunkResult.error;
+    const returnedChunkIds = new Set((chunkResult.data ?? []).map((chunk) => chunk.id));
+    const missingChunkIds = orderedChunkIds.filter((chunkId) => !returnedChunkIds.has(chunkId));
+    if (missingChunkIds.length > 0) {
+      return NextResponse.json(
+        { error: "YOVA could not retrieve all of the mapped source sections for this topic. Reprocess the material before starting this session." },
+        { status: 409 },
+      );
+    }
+    const materialExcerpts = buildTopicMaterialExcerpts({
+      chunkRows: (chunkResult.data ?? []) as TopicMaterialChunkRow[],
+      materialNames: new Map((materialRows ?? []).map((material) => [material.id, material.filename])),
+      orderedChunkIds,
+    }).filter((excerpt) => excerpt.text.trim().length >= 12);
+    if (orderedChunkIds.length > 0 && materialExcerpts.length !== orderedChunkIds.length) {
+      return NextResponse.json(
+        { error: "A mapped source section is empty. Reprocess the material before starting this session." },
+        { status: 409 },
+      );
+    }
+    // A topic with mapped chunks must use those exact chunks. AI-origin topics
+    // have no source references and are intentionally taught from model knowledge.
+    const effectiveSourceMode = orderedChunkIds.length > 0
+      ? "user_materials"
+      : "yova_generated";
 
     const recentAttempts = attemptsResult.data ?? [];
     const methodIdBySession = new Map(
@@ -288,6 +333,7 @@ export async function POST(request: Request) {
           })),
       },
       materials: materialExcerpts,
+      knowledgeTopics: selectedTopics,
       session: {
         title: planSession.title,
         objective: repairedTeachingStart?.objective ?? planSession.objective,
@@ -295,6 +341,7 @@ export async function POST(request: Request) {
         methodReason: repairedTeachingStart?.methodReason ?? planSession.method_rationale,
         estimatedMinutes: planSession.estimated_minutes,
         learningMode: effectiveLearningMode,
+        topicIds: selectedTopics.map((topic) => topic.id),
         contentTargets: readStringArrayProperty(planSession.step_data, "contentTargets"),
         completionEvidence: readStringArrayProperty(planSession.step_data, "completionEvidence"),
         reviewConcept: readTextProperty(planSession.step_data, "reviewConcept") || null,
@@ -337,7 +384,7 @@ export async function POST(request: Request) {
     const generated = await generateProductionSessionWithOpenAI(generationContext);
 
     const cachedSession = CachedGeneratedSessionSchema.parse({
-      schemaVersion: 14,
+      schemaVersion: 15,
       ...generated.draft,
       routingContext: generated.routingContext,
       supportPlan: generated.supportPlan,
@@ -440,7 +487,7 @@ async function generateBrowserPreviewSession(
     };
     const generated = await generateProductionSessionWithOpenAI(generationContext);
     const session = CachedGeneratedSessionSchema.parse({
-      schemaVersion: 14,
+      schemaVersion: 15,
       ...generated.draft,
       routingContext: generated.routingContext,
       supportPlan: generated.supportPlan,

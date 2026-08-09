@@ -7,6 +7,7 @@ import type {
 import type { RuntimeRepairSupport } from "@/lib/session-repair/schema";
 
 export type GuidedSessionStep = {
+  topicId?: string | null;
   methodPhase?: import("@/lib/learning/method-fidelity").MethodPhase;
   estimatedMinutes?: number;
   requiredForCompletion?: boolean;
@@ -76,6 +77,7 @@ export function summarizeSessionEvidence(
       completedImmediateRepairs += 1;
       if (step.concept) {
         conceptEvidence.push({
+          ...(step.topicId ? { topicId: step.topicId } : {}),
           concept: step.concept,
           outcome: finalOutcome ? "secure" : "needs_review",
           activityType: step.type,
@@ -90,6 +92,7 @@ export function summarizeSessionEvidence(
     if (!step.concept) return;
     attemptOutcomes.forEach((attemptOutcome, attemptIndex) => {
       conceptEvidence.push({
+        ...(step.topicId ? { topicId: step.topicId } : {}),
         concept: step.concept!,
         outcome: attemptOutcome ? "secure" : "needs_review",
         activityType: step.type,

@@ -61,7 +61,13 @@ begin
     update public.plan_sessions
     set step_data = coalesce(step_data, '{}'::jsonb) || jsonb_build_object(
       'reviewType', follow_up ->> 'reviewType',
-      'reviewConcept', follow_up ->> 'reviewConcept'
+      'reviewConcept', follow_up ->> 'reviewConcept',
+      'topicIds', case
+        when jsonb_typeof(follow_up -> 'topicIds') = 'array'
+          and jsonb_array_length(follow_up -> 'topicIds') > 0
+          then follow_up -> 'topicIds'
+        else coalesce(step_data -> 'topicIds', '[]'::jsonb)
+      end
     )
     where id = (follow_up ->> 'id')::uuid
       and user_id = new.user_id;

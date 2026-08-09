@@ -111,6 +111,7 @@ begin
       'learningMode', 'study',
       'adaptationExplanation', coalesce(nullif(review_session ->> 'explanation', ''), review_session ->> 'methodReason'),
       'adaptedAt', requested_time,
+      'topicIds', coalesce(review_session -> 'topicIds', '[]'::jsonb),
       'reviewConcept', review_concept,
       'reviewType', review_type
     )

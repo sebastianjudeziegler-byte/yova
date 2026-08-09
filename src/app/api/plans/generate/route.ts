@@ -3,10 +3,18 @@ import { generationEnvironment } from "@/lib/analytics/generation-observation";
 import { recordGenerationObservation } from "@/lib/analytics/generation-observation-server";
 import { isOpenAIPlanConfigured } from "@/lib/openai/config";
 import { assessGoalContext } from "@/lib/learning/goal-context";
+import {
+  MaterialUnderstandingSchema,
+  PlanKnowledgeMapSchema,
+  type PlanKnowledgeMap,
+} from "@/lib/knowledge-map/schema";
+import { generatePlanKnowledgeMap, KnowledgeMapGenerationError } from "@/lib/knowledge-map/generate-plan-map";
+import { mapAndPersistMaterial } from "@/lib/materials/material-understanding";
 import { resolveLearningIntent } from "@/lib/learning/learning-intent";
 import { generatePlanWithOpenAI, OpenAIPlanGenerationError } from "@/lib/openai/plan-generator";
 import { materializePlanDraft } from "@/lib/plan-generation/materialize-plan";
 import { generatePreviewPlan } from "@/lib/plan-generation/preview-generator";
+import { inferPlanScopeContract } from "@/lib/plan-generation/scope-contract";
 import {
   PlanGenerationRequestSchema,
   PlanGenerationResponseSchema,
@@ -89,7 +97,7 @@ export async function POST(request: Request) {
     const requestedIds = planRequest.materials.map((material) => material.id);
     const { data: uploadedMaterials, error: materialError } = await supabase
       .from("material_uploads")
-      .select("id,filename,mime_type,byte_size,processing_status,extracted_text")
+      .select("id,filename,mime_type,byte_size,processing_status,extracted_text,metadata")
       .in("id", requestedIds);
 
     if (materialError) {
@@ -97,9 +105,18 @@ export async function POST(request: Request) {
     }
 
     const materialById = new Map((uploadedMaterials ?? []).map((material) => [material.id, material]));
-    const hydratedMaterials = planRequest.materials.map((requested) => {
+    const hydratedMaterials = await Promise.all(planRequest.materials.map(async (requested) => {
       const stored = materialById.get(requested.id);
       if (!stored || stored.processing_status !== "ready" || !stored.extracted_text) return null;
+      const existingUnderstanding = readMaterialUnderstanding(stored.metadata);
+      const understanding = existingUnderstanding ?? await mapAndPersistMaterial({
+        supabase,
+        userId: user.id,
+        materialId: stored.id,
+        filename: stored.filename,
+        text: stored.extracted_text,
+      }).catch(() => null);
+      if (!understanding) return null;
       return {
         id: stored.id,
         name: stored.filename,
@@ -107,17 +124,66 @@ export async function POST(request: Request) {
         sizeBytes: stored.byte_size,
         textContent: stored.extracted_text,
         processingStatus: "ready" as const,
+        understanding,
       };
-    });
+    }));
 
     if (hydratedMaterials.some((material) => material === null)) {
-      return NextResponse.json({ error: "One or more materials are missing, expired, or not ready." }, { status: 422 });
+      return NextResponse.json({ error: "YOVA is still mapping one of your materials. Try again in a moment." }, { status: 409 });
     }
 
     planRequest = {
       ...planRequest,
       materials: hydratedMaterials.filter((material) => material !== null),
     };
+  }
+
+  try {
+    const mapped = !isOpenAIPlanConfigured() && (developmentPreview || process.env.NODE_ENV === "development")
+      ? buildDevelopmentPreviewKnowledgeMap(planRequest)
+      : await generatePlanKnowledgeMap(planRequest);
+    planRequest = { ...planRequest, knowledgeMap: mapped.map };
+    await recordGenerationObservation(supabase, user?.id, {
+      generationType: "knowledge_map",
+      environment: generationEnvironment(),
+      finalOutcome: "success",
+      firstAttemptPassed: mapped.stats.firstAttemptPassed,
+      failedValidator: mapped.stats.failedValidator,
+      repairAttempted: false,
+      repairSucceeded: null,
+      elapsedMs: mapped.stats.elapsedMs,
+      attempts: mapped.stats.attempts,
+      inputTokens: mapped.stats.inputTokens,
+      cachedInputTokens: mapped.stats.cachedInputTokens,
+      cacheWriteTokens: mapped.stats.cacheWriteTokens,
+      outputTokens: mapped.stats.outputTokens,
+      model: mapped.stats.model,
+      diagnostics: { topicCount: mapped.map.topics.length, scopeBand: mapped.map.scopeJudgment.band },
+    });
+  } catch (error) {
+    const validator = error instanceof KnowledgeMapGenerationError
+      ? error.failedValidator
+      : "knowledge_map_provider_request" as const;
+    await recordGenerationObservation(supabase, user?.id, {
+      generationType: "knowledge_map",
+      environment: generationEnvironment(),
+      finalOutcome: "failure",
+      firstAttemptPassed: false,
+      failedValidator: validator,
+      repairAttempted: false,
+      repairSucceeded: null,
+      elapsedMs: Date.now() - startedAt,
+      attempts: 1,
+      inputTokens: 0,
+      cachedInputTokens: 0,
+      cacheWriteTokens: 0,
+      outputTokens: 0,
+      model: null,
+    });
+    return NextResponse.json(
+      { error: "YOVA could not map this learning goal yet. Try again in a moment.", code: "knowledge_map_failed" },
+      { status: 503, headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId } },
+    );
   }
 
   // A one-off session does not need an AI-generated multi-day plan. The
@@ -219,6 +285,7 @@ export async function POST(request: Request) {
         cacheWriteTokens: generated.generationStats.cacheWriteTokens,
         outputTokens: generated.generationStats.outputTokens,
         model: generated.model,
+        diagnostics: { scopeBand: planRequest.knowledgeMap?.scopeJudgment.band },
       });
 
       return NextResponse.json(response, {
@@ -265,6 +332,54 @@ export async function POST(request: Request) {
   return NextResponse.json(response, {
     headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId },
   });
+}
+
+function readMaterialUnderstanding(metadata: unknown) {
+  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) return null;
+  const parsed = MaterialUnderstandingSchema.safeParse((metadata as Record<string, unknown>).materialUnderstanding);
+  return parsed.success ? parsed.data : null;
+}
+
+function buildDevelopmentPreviewKnowledgeMap(
+  request: Parameters<typeof generatePreviewPlan>[0],
+): Awaited<ReturnType<typeof generatePlanKnowledgeMap>> {
+  const preview = generatePreviewPlan(request);
+  const titles = Array.from(new Set(
+    preview.sessions.flatMap((session) => session.contentTargets ?? [])
+      .map((title) => title.trim().slice(0, 140))
+      .filter((title) => title.length >= 2),
+  )).slice(0, 40);
+  const topicTitles = titles.length ? titles : [preview.topic.trim().slice(0, 140)];
+  const ids = topicTitles.map(() => crypto.randomUUID());
+  const map: PlanKnowledgeMap = PlanKnowledgeMapSchema.parse({
+    version: 1,
+    scopeJudgment: inferPlanScopeContract(request),
+    topics: topicTitles.map((title, index) => ({
+      id: ids[index],
+      title,
+      description: `The knowledge and performance needed for ${title}.`.slice(0, 400),
+      subtopics: [],
+      prerequisiteTopicIds: index > 0 ? [ids[index - 1]] : [],
+      status: "not_started",
+      sourceReferences: [],
+      origin: "ai_generated",
+      deferred: null,
+    })),
+  });
+  return {
+    map,
+    stats: {
+      elapsedMs: 0,
+      attempts: 1,
+      inputTokens: 0,
+      cachedInputTokens: 0,
+      cacheWriteTokens: 0,
+      outputTokens: 0,
+      firstAttemptPassed: true,
+      failedValidator: null,
+      model: null,
+    },
+  };
 }
 
 async function reliableDraftResponse(

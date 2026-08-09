@@ -2,6 +2,38 @@ import { describe, expect, it } from "vitest";
 import { generatePreviewPlan } from "@/lib/plan-generation/preview-generator";
 import { PlanGenerationRequestSchema } from "@/lib/plan-generation/schema";
 
+function knowledgeMap(
+  titles: string[],
+  band: "focused_skill" | "unit_or_exam" | "broad_course",
+  recommendedSessions: number,
+) {
+  const minimumSessions = band === "broad_course" ? 10 : band === "focused_skill" ? 2 : 4;
+  const maximumSessions = band === "broad_course" ? 14 : band === "focused_skill" ? 6 : 12;
+  return {
+    version: 1 as const,
+    scopeJudgment: {
+      band,
+      label: band === "focused_skill" ? "Focused skill" : band === "broad_course" ? "Broad course" : "Unit or exam",
+      minimumSessions,
+      recommendedSessions,
+      maximumSessions,
+      minimumTeachingSessions: band === "broad_course" ? 4 : band === "focused_skill" ? 1 : 2,
+      explanation: "The model scoped these topics to the learner's stated goal and ordered them by prerequisite structure.",
+    },
+    topics: titles.map((title, index) => ({
+      id: `10000000-1000-4000-8000-${String(index + 1).padStart(12, "0")}`,
+      title,
+      description: `Learn and produce evidence for ${title}.`,
+      subtopics: [],
+      prerequisiteTopicIds: index === 0 ? [] : [`10000000-1000-4000-8000-${String(index).padStart(12, "0")}`],
+      status: "not_started" as const,
+      sourceReferences: [],
+      origin: "ai_generated" as const,
+      deferred: null,
+    })),
+  };
+}
+
 function requestWithMinutes(minutes: number) {
   return PlanGenerationRequestSchema.parse({
     intent: "plan",
@@ -19,6 +51,12 @@ function requestWithMinutes(minutes: number) {
     }],
     availability: [{ day: "Every day", window: "Evening", minutes }],
     profileSummary: "The learner prefers explicit structure, direct explanations, and bounded steps.",
+    knowledgeMap: knowledgeMap([
+      "Purpose and location of glycolysis",
+      "Citric acid cycle inputs and outputs",
+      "Electron transport and ATP production",
+      "How the three stages connect",
+    ], "unit_or_exam", 6),
   });
 }
 
@@ -29,11 +67,28 @@ describe("preview plan time windows", () => {
       ...base,
       goal: "Learn the product rule from scratch and use it independently.",
       deadline: null,
+      knowledgeMap: knowledgeMap([
+        "Products of functions",
+        "The product rule procedure",
+        "Independent product rule selection",
+      ], "focused_skill", 4),
     });
     const fullCalculus = generatePreviewPlan({
       ...base,
       goal: "Learn all of calculus from the beginning.",
       deadline: null,
+      knowledgeMap: knowledgeMap([
+        "Functions and graphical behavior",
+        "Limits as approaching behavior",
+        "Continuity and limit laws",
+        "Derivative from first principles",
+        "Core derivative rules",
+        "Applications of derivatives",
+        "Accumulation and area",
+        "Definite integrals",
+        "Fundamental theorem of calculus",
+        "Cumulative calculus transfer",
+      ], "broad_course", 12),
     });
 
     expect(productRule.kind).toBe("skill");
@@ -44,12 +99,13 @@ describe("preview plan time windows", () => {
     expect(fullCalculus.kind).toBe("course");
     expect(fullCalculus.sessions).toHaveLength(12);
     expect(fullCalculus.sessions.length).toBeGreaterThan(productRule.sessions.length);
-    expect(fullCalculus.sessions.map((session) => session.title)).toEqual(expect.arrayContaining([
-      "Understand limits as approaching behavior",
-      "Build the derivative from first principles",
-      "Build the accumulation and integral model",
-      "Complete a cumulative calculus transfer",
+    expect(fullCalculus.sessions.flatMap((session) => session.contentTargets ?? [])).toEqual(expect.arrayContaining([
+      "Limits as approaching behavior",
+      "Derivative from first principles",
+      "Accumulation and area",
+      "Cumulative calculus transfer",
     ]));
+    expect(fullCalculus.sessions.every((session) => (session.topicIds?.length ?? 0) > 0)).toBe(true);
     expect(fullCalculus.sessions.filter((session) => session.learningMode === "learn").length).toBeGreaterThanOrEqual(4);
     expect(fullCalculus.sessions.map((session) => new Date(session.scheduledFor).getTime())).toEqual(
       [...fullCalculus.sessions]
@@ -58,11 +114,11 @@ describe("preview plan time windows", () => {
     );
   });
 
-  it("creates more bounded sessions when the same content must fit shorter windows", () => {
+  it("keeps every session inside the selected time and content budget", () => {
     const fortyFiveMinutePlan = generatePreviewPlan(requestWithMinutes(45));
     const fifteenMinutePlan = generatePreviewPlan(requestWithMinutes(15));
 
-    expect(fifteenMinutePlan.sessions.length).toBeGreaterThan(fortyFiveMinutePlan.sessions.length);
+    expect(fifteenMinutePlan.sessions.length).toBeGreaterThanOrEqual(fortyFiveMinutePlan.sessions.length);
     expect(fifteenMinutePlan.sessions.every((session) => session.estimatedMinutes <= 15)).toBe(true);
     expect(fifteenMinutePlan.sessions.every((session) => session.contentTargets?.length)).toBe(true);
     expect(fifteenMinutePlan.sessions.every((session) => session.completionEvidence?.length)).toBe(true);
@@ -93,6 +149,17 @@ describe("preview plan time windows", () => {
         textContent: materialText,
         processingStatus: "ready",
       }],
+      knowledgeMap: knowledgeMap([
+        "Long-term causes",
+        "Alliance systems",
+        "The July Crisis",
+        "Mobilization",
+        "The Western Front",
+        "The Eastern Front",
+        "United States entry",
+        "The armistice",
+        "Consequences of the war",
+      ], "unit_or_exam", 8),
     });
     const longerWindowPlan = generatePreviewPlan({
       ...base,
@@ -107,6 +174,17 @@ describe("preview plan time windows", () => {
         textContent: materialText,
         processingStatus: "ready",
       }],
+      knowledgeMap: knowledgeMap([
+        "Long-term causes",
+        "Alliance systems",
+        "The July Crisis",
+        "Mobilization",
+        "The Western Front",
+        "The Eastern Front",
+        "United States entry",
+        "The armistice",
+        "Consequences of the war",
+      ], "unit_or_exam", 8),
     });
 
     const mappedTargets = shortWindowPlan.sessions.flatMap((session) => session.contentTargets ?? []);
@@ -139,6 +217,11 @@ describe("preview plan time windows", () => {
       ...request,
       goal: "Draft a comparative history thesis using my textbook evidence",
       studyMode: "outside",
+      knowledgeMap: knowledgeMap([
+        "Comparative thesis criteria",
+        "Selecting evidence from two historical contexts",
+        "Connecting evidence to a defensible comparison",
+      ], "focused_skill", 4),
     });
 
     expect(plan.topic).toBe("Draft a comparative history thesis using my textbook evidence");
@@ -155,24 +238,31 @@ describe("preview plan time windows", () => {
       intent: "study_now",
       goal: "Teach me startup funding stages, instruments, dilution, investors, and term sheets from the beginning.",
       deadline: null,
+      knowledgeMap: knowledgeMap([
+        "Funding stages and investor types",
+        "Funding instruments and their tradeoffs",
+        "Ownership dilution",
+        "Core term sheet provisions",
+      ], "focused_skill", 4),
     });
 
     expect(plan.title).toBe("Startup Funding Foundations");
     expect(plan.sessions).toHaveLength(1);
     expect(plan.sessions[0]).toMatchObject({
-      title: "Build the startup funding map",
+      title: expect.stringMatching(/^Learn /),
       method: "Self-explanation with worked example fading",
       learningMode: "learn",
       estimatedMinutes: 25,
     });
     expect(plan.sessions[0].objective).toMatch(/first mental model/i);
     expect(plan.sessions[0].contentTargets).toEqual([
-      "How funding stages and investor types connect",
-      "How common funding instruments change ownership or repayment",
-      "How dilution and term-sheet terms affect founders and investors",
+      "Funding stages and investor types",
+      "Funding instruments and their tradeoffs",
+      "Ownership dilution",
     ]);
+    expect(plan.knowledgeMap?.topics.find((topic) => topic.title === "Core term sheet provisions")?.deferred).not.toBeNull();
     expect(plan.sessions[0].completionEvidence).toEqual(expect.arrayContaining([
-      expect.stringMatching(/explain the central relationships/i),
+      expect.stringMatching(/each mapped topic after the model is hidden/i),
     ]));
   });
 
@@ -210,7 +300,12 @@ describe("preview plan time windows", () => {
     ["general learning", "Understand how moral hazard changes incentives in insurance markets", "inside", "Guided explanation and self-explanation"],
   ] as const)("keeps the %s journey specific and method-led", (_label, goal, studyMode, expectedMethod) => {
     const request = requestWithMinutes(25);
-    const plan = generatePreviewPlan({ ...request, goal, studyMode });
+    const plan = generatePreviewPlan({
+      ...request,
+      goal,
+      studyMode,
+      knowledgeMap: knowledgeMap([goal], "focused_skill", 4),
+    });
     expect(plan.sessions.length).toBeGreaterThan(0);
     expect(plan.sessions[0].method).toBe(expectedMethod);
     expect(plan.sessions[0].objective).not.toMatch(/first concept listed|relevant concept|current objective/i);

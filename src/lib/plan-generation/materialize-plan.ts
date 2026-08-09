@@ -17,6 +17,14 @@ export function materializePlanDraft(
     ? request.goal.trim().slice(0, 300)
     : draft.topic;
   const title = resolveLearningTitle(draft.title, request.goal || topic);
+  const deferredById = new Map(draft.deferredTopics.map((entry) => [entry.topicId, entry.reason]));
+  const knowledgeMap = request.knowledgeMap ? {
+    ...request.knowledgeMap,
+    topics: request.knowledgeMap.topics.map((mappedTopic) => ({
+      ...mappedTopic,
+      deferred: deferredById.has(mappedTopic.id) ? { reason: deferredById.get(mappedTopic.id)! } : null,
+    })),
+  } : undefined;
 
   return {
     id: planId,
@@ -32,6 +40,7 @@ export function materializePlanDraft(
     creationIntent: request.intent,
     rationale: draft.rationale,
     createdAt: new Date().toISOString(),
+    knowledgeMap,
     materials: request.materials.map((material) => ({
       ...material,
       textContent: null,
@@ -55,6 +64,7 @@ export function materializePlanDraft(
         estimatedMinutes,
         amountLabel: request.intent === "study_now" ? `Focused session · about ${estimatedMinutes} min` : session.amountLabel,
         learningMode,
+        topicIds: session.topicIds,
         contentTargets: session.contentTargets,
         completionEvidence: session.completionEvidence,
         status: index === 0 ? "ready" as const : "upcoming" as const,

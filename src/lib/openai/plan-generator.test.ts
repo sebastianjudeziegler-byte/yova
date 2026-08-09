@@ -4,6 +4,8 @@ import {
   PlanGenerationRequestSchema,
 } from "@/lib/plan-generation/schema";
 
+const TOPIC_ID = "11111111-1111-4111-8111-111111111111";
+
 const parseResponse = vi.hoisted(() => vi.fn());
 
 vi.mock("server-only", () => ({}));
@@ -42,6 +44,7 @@ function makeDraft(
     kind: "topic",
     deadline: null,
     rationale,
+    deferredTopics: [],
     sessions: [{
       title: "Retrieve the respiration sequence",
       objective: "Reconstruct the major stages and explain how they contribute to ATP production.",
@@ -51,6 +54,7 @@ function makeDraft(
       estimatedMinutes: 15,
       amountLabel: "One sequence reconstruction and one explanation check",
       learningMode: "study",
+      topicIds: [TOPIC_ID],
       contentTargets: ["The sequence and contribution of each major stage"],
       completionEvidence: [completionEvidence],
     }],

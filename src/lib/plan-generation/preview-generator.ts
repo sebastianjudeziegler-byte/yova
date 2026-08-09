@@ -24,6 +24,7 @@ type PreviewBlueprint = {
   minutes: number;
   title: string;
   objective: string;
+  topicIds?: string[];
   contentTargets: string[];
   completionEvidence: string[];
   learningMode?: "learn" | "study";
@@ -181,15 +182,25 @@ export function generatePreviewPlan(request: PlanGenerationRequest): LearningPla
   const contentBudget = buildPlanContentBudget(request, scope);
   const preferenceContract = buildPlanPreferenceContract(request.profileSummary);
   const targetMinutes = contentBudget.typicalSession.minutes;
-  const sessionBlueprints: PreviewBlueprint[] = request.intent === "study_now"
-    ? [previewBlueprint(subject, request, 0, 0, 1, targetMinutes)]
-    : buildScopedBlueprints(subject, request, scope, contentBudget, targetMinutes);
+  const sessionBlueprints: PreviewBlueprint[] = request.knowledgeMap
+    ? buildKnowledgeMappedBlueprints(request, scope, contentBudget, targetMinutes)
+    : request.intent === "study_now"
+      ? [previewBlueprint(subject, request, 0, 0, 1, targetMinutes)]
+      : buildScopedBlueprints(subject, request, scope, contentBudget, targetMinutes);
+  const scheduledTopicIds = new Set(sessionBlueprints.flatMap((blueprint) => blueprint.topicIds ?? []));
+  const deferredTopics = request.knowledgeMap?.topics
+    .filter((topic) => !scheduledTopicIds.has(topic.id))
+    .map((topic) => ({
+      topicId: topic.id,
+      reason: "This topic falls outside the sessions that fit the current time budget. Extend the plan to include it.",
+    })) ?? [];
   const draft = GeneratedPlanDraftSchema.parse({
-    title: subject.title,
-    topic: subject.topic,
+    title: request.knowledgeMap ? derivedTitle : subject.title,
+    topic: request.knowledgeMap ? derivePreviewTopic(request.goal, derivedTitle) : subject.topic,
     kind: scope.band === "broad_course" ? "course" : subject.kind,
     deadline: request.intent === "study_now" ? null : deadline?.toISOString() ?? null,
     rationale: `${buildRationale(request, preferenceContract)} ${scope.explanation}`,
+    deferredTopics,
     sessions: sessionBlueprints.map((blueprint, index) => {
       const availability = request.availability[index % request.availability.length];
       const minutes = Math.min(availability.minutes, blueprint.minutes);
@@ -215,6 +226,7 @@ export function generatePreviewPlan(request: PlanGenerationRequest): LearningPla
         estimatedMinutes: minutes,
         amountLabel: `${blueprint.contentTargets.length} focused ${blueprint.contentTargets.length === 1 ? "target" : "targets"} + evidence check · about ${minutes} min`,
         learningMode: blueprint.learningMode ?? sessionLearningMode(request, blueprint.phaseIndex),
+        topicIds: blueprint.topicIds ?? topicIdsForPreviewSession(request, index, sessionBlueprints.length),
         contentTargets: blueprint.contentTargets,
         completionEvidence: blueprint.completionEvidence,
       };
@@ -224,6 +236,107 @@ export function generatePreviewPlan(request: PlanGenerationRequest): LearningPla
   return materializePlanDraft(draft, request);
 }
 
+function buildKnowledgeMappedBlueprints(
+  request: PlanGenerationRequest,
+  scope: PlanScopeContract,
+  contentBudget: PlanContentBudget,
+  minutes: number,
+): PreviewBlueprint[] {
+  const topics = request.knowledgeMap?.topics ?? [];
+  if (!topics.length) return [];
+  const sessionCount = request.intent === "study_now"
+    ? 1
+    : Math.min(scope.maximumSessions, Math.max(scope.minimumSessions, contentBudget.recommendedSessions));
+  const maximumTargets = contentBudget.typicalSession.maximumContentTargets;
+  const reservedReviewSessions = request.intent === "plan" && request.learningIntent === "learn" && sessionCount > 1 ? 1 : 0;
+  const coverageSlots = Math.max(1, sessionCount - reservedReviewSessions);
+  const scheduledTopics = topics.slice(0, coverageSlots * maximumTargets);
+  const coverageSessionCount = Math.min(
+    coverageSlots,
+    Math.max(1, Math.ceil(scheduledTopics.length / contentBudget.typicalSession.preferredContentTargets)),
+  );
+  const topicGroups = distributeInOrder(scheduledTopics, coverageSessionCount);
+  const coverage = topicGroups.map<PreviewBlueprint>((group, index) => {
+    const mode = request.learningIntent === "learn" ? "learn" as const : "study" as const;
+    const label = topicGroupLabel(group.map((topic) => topic.title));
+    return {
+      phaseIndex: mode === "learn" ? Math.min(index, 2) : Math.min(index, 3),
+      minutes: Math.max(10, Math.min(minutes, 60)),
+      title: boundedTitle(mode === "learn" ? `Learn ${label}` : `Retrieve and apply ${label}`),
+      objective: boundedObjective(request.studyMode === "outside"
+        ? `Use your chosen source to make progress toward ${shortTopic(request.goal)} by learning ${group.map((topic) => topic.title).join(", ")}, close the source, then return to YOVA with an explanation or application.`
+        : mode === "learn"
+          ? `Build an accurate first mental model of ${group.map((topic) => topic.title).join(", ")}, connect it to its prerequisites, then explain or apply it with less support.`
+          : `Retrieve and apply ${group.map((topic) => topic.title).join(", ")} without notes, then repair only the gap the attempt reveals.`),
+      topicIds: group.map((topic) => topic.id),
+      contentTargets: group.map((topic) => topic.title),
+      completionEvidence: mode === "learn"
+        ? ["Explain or apply each mapped topic after the model is hidden"]
+        : ["Attempt each target without notes and correct any exposed gap"],
+      learningMode: mode,
+    };
+  });
+  const reviewCount = Math.max(0, sessionCount - coverage.length);
+  const reviewGroups = distributeInOrder(scheduledTopics, Math.max(1, reviewCount));
+  const reviews = Array.from({ length: reviewCount }, (_, index): PreviewBlueprint => {
+    const group = (reviewGroups[index] ?? reviewGroups.at(-1) ?? scheduledTopics.slice(0, 1))
+      .slice(0, maximumTargets);
+    const finalReview = index === reviewCount - 1;
+    return {
+      phaseIndex: finalReview ? 4 : 3,
+      minutes: Math.max(10, Math.min(minutes, 60)),
+      title: boundedTitle(finalReview
+        ? `Verify ${topicGroupLabel(group.map((topic) => topic.title))} after a delay`
+        : `Connect and apply ${topicGroupLabel(group.map((topic) => topic.title))}`),
+      objective: boundedObjective(finalReview
+        ? `Retrieve ${group.map((topic) => topic.title).join(", ")} after time has passed and identify only what still needs another pass.`
+        : `Use ${group.map((topic) => topic.title).join(", ")} together in a new situation and justify the relationship or method selected.`),
+      topicIds: group.map((topic) => topic.id),
+      contentTargets: group.map((topic) => topic.title),
+      completionEvidence: finalReview
+        ? ["Complete one delayed closed-source check for each mapped topic"]
+        : ["Complete one mixed application and justify the selected relationship"],
+      learningMode: "study",
+    };
+  });
+  return [...coverage, ...reviews];
+}
+
+function boundedObjective(value: string) {
+  if (value.length <= 280) return value;
+  const shortened = value.slice(0, 277);
+  const boundary = shortened.lastIndexOf(" ");
+  return `${shortened.slice(0, Math.max(0, boundary))}...`;
+}
+
+function boundedTitle(value: string) {
+  if (value.length <= 90) return value;
+  const shortened = value.slice(0, 87);
+  const boundary = shortened.lastIndexOf(" ");
+  return `${shortened.slice(0, Math.max(0, boundary))}...`;
+}
+
+function distributeInOrder<T>(values: T[], groupCount: number): T[][] {
+  if (!values.length || groupCount <= 0) return [];
+  const groups: T[][] = [];
+  let cursor = 0;
+  for (let index = 0; index < Math.min(groupCount, values.length); index += 1) {
+    const remainingValues = values.length - cursor;
+    const remainingGroups = Math.min(groupCount, values.length) - index;
+    const size = Math.ceil(remainingValues / remainingGroups);
+    groups.push(values.slice(cursor, cursor + size));
+    cursor += size;
+  }
+  return groups;
+}
+
+function topicGroupLabel(titles: string[]) {
+  const [first = "the next topic"] = titles;
+  const conciseFirst = shortTopic(first);
+  if (titles.length === 1) return conciseFirst;
+  return `${conciseFirst} and ${titles.length - 1} connected ${titles.length === 2 ? "topic" : "topics"}`;
+}
+
 function buildScopedBlueprints(
   subject: PreviewSubject,
   request: PlanGenerationRequest,
@@ -231,7 +344,7 @@ function buildScopedBlueprints(
   contentBudget: PlanContentBudget,
   targetMinutes: number,
 ): PreviewBlueprint[] {
-  if (request.materialMode === "upload" && contentBudget.materialAnchors.length >= 2) {
+  if (request.materialMode === "upload" && contentBudget.mappedTopicTitles.length >= 2) {
     return materialScopedBlueprints(subject, request, scope, contentBudget, targetMinutes);
   }
   if (scope.band === "broad_course") {
@@ -269,10 +382,10 @@ function materialScopedBlueprints(
     contentBudget.typicalSession.maximumContentTargets,
     Math.max(
       contentBudget.typicalSession.preferredContentTargets,
-      Math.ceil(contentBudget.materialAnchors.length / maximumCoverageSessions),
+      Math.ceil(contentBudget.mappedTopicTitles.length / maximumCoverageSessions),
     ),
   );
-  const groups = chunk(contentBudget.materialAnchors, targetCount);
+  const groups = chunk(contentBudget.mappedTopicTitles, targetCount);
   const teachingCount = Math.max(scope.minimumTeachingSessions, request.learningIntent === "learn" ? groups.length : 0);
   const coverage = groups.map<PreviewBlueprint>((targets, index) => {
     const learningMode = request.learningIntent === "learn" && index < teachingCount ? "learn" as const : "study" as const;
@@ -689,4 +802,12 @@ function scheduledDate(index: number, totalSessions: number, window: string, dea
   const hour = /morning/i.test(window) ? 8 : /evening/i.test(window) ? 18 : 15;
   date.setHours(hour, 30, 0, 0);
   return date;
+}
+
+function topicIdsForPreviewSession(request: PlanGenerationRequest, index: number, totalSessions: number) {
+  const topics = request.knowledgeMap?.topics ?? [];
+  if (!topics.length) return [crypto.randomUUID()];
+  const sessionsPerTopic = Math.max(1, Math.floor(totalSessions / topics.length));
+  const topicIndex = Math.min(topics.length - 1, Math.floor(index / sessionsPerTopic));
+  return [topics[topicIndex].id];
 }

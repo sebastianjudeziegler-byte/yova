@@ -79,6 +79,7 @@ export function buildConceptReviewSession(
     estimatedMinutes,
     amountLabel: `${directive.timingLabel} · about ${estimatedMinutes} min`,
     learningMode: "study",
+    topicIds: directive.topicId ? [directive.topicId] : [],
     status: "ready",
     adaptationNote: createSessionAdaptationNote(explanation, now.toISOString()),
     reviewConcept: directive.concept,

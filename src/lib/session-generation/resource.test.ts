@@ -3,7 +3,8 @@ import { readSessionResourceFromStepData, toSessionResource } from "@/lib/sessio
 import { GeneratedSessionDraftSchema, type SessionGenerationResponse } from "@/lib/session-generation/schema";
 
 const generatedSession: SessionGenerationResponse["session"] = {
-  schemaVersion: 14,
+  topicIds: ["11111111-1111-4111-8111-111111111111"],
+  schemaVersion: 15,
   model: "gpt-test",
   generatedAt: "2026-08-05T18:00:00.000Z",
   routingContext: {
@@ -73,6 +74,7 @@ const generatedSession: SessionGenerationResponse["session"] = {
   },
   activities: [
     {
+      topicId: null,
       methodPhase: "model",
       estimatedMinutes: 4,
       requiredForCompletion: true,
@@ -92,6 +94,7 @@ const generatedSession: SessionGenerationResponse["session"] = {
       feedback: null,
     },
     {
+      topicId: "11111111-1111-4111-8111-111111111111",
       methodPhase: "retrieve",
       estimatedMinutes: 3,
       requiredForCompletion: true,
@@ -106,6 +109,7 @@ const generatedSession: SessionGenerationResponse["session"] = {
       feedback: "Retrieval practice asks the learner to produce an answer before checking the source.",
     },
     {
+      topicId: "11111111-1111-4111-8111-111111111111",
       methodPhase: "repair",
       estimatedMinutes: 5,
       requiredForCompletion: true,

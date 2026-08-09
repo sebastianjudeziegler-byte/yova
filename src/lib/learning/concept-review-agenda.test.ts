@@ -51,6 +51,7 @@ function completion(): SessionCompletion {
     feedback: "about_right",
     observedGap: "Electron transport chain",
     conceptEvidence: [{
+      topicId: "11111111-1111-4111-8111-111111111111",
       concept: "Electron transport chain",
       outcome: "needs_review",
       activityType: "free_response",
@@ -85,6 +86,7 @@ describe("concept review agenda", () => {
       status: "ready",
       reviewConcept: "Electron transport chain",
       reviewType: "repair_and_retrieve",
+      topicIds: ["11111111-1111-4111-8111-111111111111"],
     });
     expect(session.methodReason).toContain("reopened this goal");
   });

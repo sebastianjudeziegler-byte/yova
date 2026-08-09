@@ -44,6 +44,7 @@ export function buildContentBasedReplacementSessions(
     const segmentCount = Math.max(1, Math.ceil(remainingContentMinutes / targetMinutes));
     const targets = unique(ordered.flatMap((row) => readStrings(row.step_data, "contentTargets")));
     const evidence = unique(ordered.flatMap((row) => readStrings(row.step_data, "completionEvidence")));
+    const topicIds = unique(ordered.flatMap((row) => readStrings(row.step_data, "topicIds")));
     const learningMode = readLearningMode(first.step_data);
     const baseTitle = stripPartLabel(first.title);
     const evenMinutes = Math.floor(remainingContentMinutes / segmentCount);
@@ -68,6 +69,7 @@ export function buildContentBasedReplacementSessions(
         estimatedMinutes: segmentMinutes,
         amountLabel: `${contentTargets.length} focused ${contentTargets.length === 1 ? "target" : "targets"} + evidence check · about ${segmentMinutes} min`,
         learningMode,
+        topicIds,
         contentTargets,
         completionEvidence,
         status: replacements.length === 0 ? "ready" : "upcoming",

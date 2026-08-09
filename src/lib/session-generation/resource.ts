@@ -11,6 +11,7 @@ export function toSessionResource(
   origin: SessionResource["origin"] = "generated",
 ): SessionResource {
   return {
+    topicIds: session.topicIds,
     rationale: session.rationale,
     coverage: session.coverage,
     methodBriefing: session.methodBriefing,
@@ -19,6 +20,7 @@ export function toSessionResource(
     supportPlan: session.supportPlan,
     sourceGrounding: session.sourceGrounding ?? undefined,
     activities: session.activities.map((activity) => ({
+      topicId: activity.topicId,
       methodPhase: activity.methodPhase,
       estimatedMinutes: activity.estimatedMinutes,
       requiredForCompletion: activity.requiredForCompletion,

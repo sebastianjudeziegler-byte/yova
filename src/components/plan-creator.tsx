@@ -114,15 +114,15 @@ export function PlanCreator({ onExit, onFinish, profileSummary, browserPreviewMo
     goal,
     sourceChoice === "materials" && materials.length > 0,
   );
-  const generatedScope = generatedFrom ? inferPlanScopeContract(generatedFrom) : null;
-  const generatedContentBudget = generatedFrom && generatedScope
-    ? buildPlanContentBudget(generatedFrom, generatedScope)
+  const mappedGeneratedFrom = generatedFrom && generatedPlan?.plan.knowledgeMap
+    ? { ...generatedFrom, knowledgeMap: generatedPlan.plan.knowledgeMap }
+    : generatedFrom;
+  const generatedScope = mappedGeneratedFrom ? inferPlanScopeContract(mappedGeneratedFrom) : null;
+  const generatedContentBudget = mappedGeneratedFrom && generatedScope
+    ? buildPlanContentBudget(mappedGeneratedFrom, generatedScope)
     : null;
   const preferenceContract = buildPlanPreferenceContract(profileSummary);
   const generatedPhases = generatedPlan ? groupPlanSessions(generatedPlan.plan.sessions) : [];
-  const mappedContentTargetCount = generatedPlan
-    ? new Set(generatedPlan.plan.sessions.flatMap((session) => session.contentTargets ?? []).map((target) => target.toLocaleLowerCase().trim())).size
-    : 0;
 
   const stepNumber = ({ goal: 1, source: 2, schedule: 3, diagnostic: 4, confirm: 5, loading: 5, error: 5, result: 5 } as Record<PlanStep, number>)[step];
 
@@ -457,7 +457,7 @@ export function PlanCreator({ onExit, onFinish, profileSummary, browserPreviewMo
           <div className="generated-heading"><div><span className="eyebrow"><Sparkles size={15} /> Plan ready</span><h1>{generatedPlan.plan.title}</h1><p>{generatedPlan.plan.sessions.length} sessions organized into a coherent path. Nothing is active until you confirm it below.</p></div>{generatedScope && <span className="generated-scope-label">{generatedScope.label}</span>}</div>
           <div className="why-plan"><Sparkles /><div><strong>Why this plan</strong><p>{generatedPlan.plan.rationale}</p></div></div>
           {generatedContentBudget && <section className="generated-plan-contract" aria-label="How YOVA mapped this plan">
-            <div><span>CONTENT MAP</span><strong>{mappedContentTargetCount} distinct {mappedContentTargetCount === 1 ? "target" : "targets"}</strong><p>{generatedContentBudget.materialAnchors.length > 0 ? `${generatedContentBudget.materialAnchors.length} sections were detected in your material.` : `${generatedContentBudget.estimatedInstructionalUnits} instructional units were estimated from your goal.`}</p></div>
+            <div><span>KNOWLEDGE MAP</span><strong>{generatedContentBudget.requiredTopicCount} mapped {generatedContentBudget.requiredTopicCount === 1 ? "topic" : "topics"}</strong><p>Each topic is scheduled or shown explicitly as deferred.</p></div>
             <div><span>SESSION LOAD</span><strong>Usually {generatedContentBudget.typicalSession.preferredContentTargets} {generatedContentBudget.typicalSession.preferredContentTargets === 1 ? "target" : "targets"} at a time</strong><p>Each target needs an explanation, attempt, or application before it counts as covered.</p></div>
             <div><span>YOUR DELIVERY</span><strong>{preferenceContract.presentation.label}</strong><p>{preferenceContract.support.label} after a miss. {preferenceContract.retention.label} for later review.</p></div>
             <div><span>YOUR SCHEDULE</span><strong>{availability.length} preferred study {availability.length === 1 ? "window" : "windows"}</strong><p>{availability.map((slot) => `${slot.day} ${slot.window.toLowerCase()}, ${slot.minutes} min`).join("; ")}</p></div>

@@ -1,4 +1,7 @@
 import type { SessionGenerationContext } from "@/lib/openai/session-generator";
+import type { KnowledgeMapTopic } from "@/lib/knowledge-map/schema";
+
+const EVALUATION_TOPIC_ID = "11111111-1111-4111-8111-111111111111";
 
 export type SessionTaskFamily = "conceptual" | "problem_solving" | "reading" | "writing" | "coding" | "language" | "general";
 
@@ -639,6 +642,37 @@ export function buildSessionEvaluationCases(): SessionEvaluationCase[] {
   ];
 }
 
-function evaluationCase(value: SessionEvaluationCase): SessionEvaluationCase {
-  return value;
+type EvaluationCaseInput = Omit<SessionEvaluationCase, "context"> & {
+  context: Omit<SessionGenerationContext, "session" | "knowledgeTopics"> & {
+    session: Omit<SessionGenerationContext["session"], "topicIds"> & { topicIds?: string[] };
+    knowledgeTopics?: KnowledgeMapTopic[];
+  };
+};
+
+function evaluationCase(value: EvaluationCaseInput): SessionEvaluationCase {
+  const topicIds = value.context.session.topicIds?.length
+    ? value.context.session.topicIds
+    : [EVALUATION_TOPIC_ID];
+  return {
+    ...value,
+    context: {
+      ...value.context,
+      materials: value.context.materials.map((material) => ({
+        ...material,
+        role: material.role ?? "content_source",
+      })),
+      knowledgeTopics: value.context.knowledgeTopics ?? [{
+        id: topicIds[0]!,
+        title: value.context.session.title,
+        description: value.context.session.objective,
+        subtopics: value.context.session.contentTargets ?? [],
+        prerequisiteTopicIds: [],
+        status: "not_started",
+        sourceReferences: [],
+        origin: "ai_generated",
+        deferred: null,
+      }],
+      session: { ...value.context.session, topicIds },
+    },
+  };
 }

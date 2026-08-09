@@ -16,6 +16,11 @@ const request: PlanGenerationRequest = {
   ],
   availability: [{ day: "Friday", window: "Evening", minutes: 25 }],
   profileSummary: "The learner wants a clear big-picture explanation before independent work.",
+  knowledgeMap: {
+    version: 1,
+    scopeJudgment: { band: "focused_skill", label: "Focused history foundation", minimumSessions: 1, recommendedSessions: 1, maximumSessions: 2, minimumTeachingSessions: 1, explanation: "The first plan builds one prerequisite causal relationship before later expansion." },
+    topics: [{ id: "11111111-1111-4111-8111-111111111111", title: "World War I escalation", description: "How alliances and mobilization widened the conflict after the July Crisis.", subtopics: [], prerequisiteTopicIds: [], status: "not_started", sourceReferences: [], origin: "ai_generated", deferred: null }],
+  },
 };
 
 const staleDraft: GeneratedPlanDraft = {
@@ -24,6 +29,7 @@ const staleDraft: GeneratedPlanDraft = {
   kind: "test",
   deadline: null,
   rationale: "Prepare for the assessment with a sequence of focused learning sessions.",
+  deferredTopics: [],
   sessions: [{
     title: "Recall the July Crisis",
     objective: "Recall the causes of World War I without looking at an explanation.",
@@ -33,6 +39,7 @@ const staleDraft: GeneratedPlanDraft = {
     estimatedMinutes: 25,
     amountLabel: "One target and one check",
     learningMode: "study",
+    topicIds: ["11111111-1111-4111-8111-111111111111"],
     contentTargets: ["How alliances and mobilization widened the war"],
     completionEvidence: ["Answer one question about the July Crisis"],
   }],

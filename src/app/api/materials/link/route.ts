@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { fetchArticleSource, fetchYouTubeTitle, ExternalSourceError } from "@/lib/materials/external-fetch";
 import {
   ExternalMaterialReadyResponseSchema,
@@ -7,11 +7,13 @@ import {
 } from "@/lib/materials/external-source-schema";
 import { buildExternalMaterialFilename, parseYouTubeSource } from "@/lib/materials/external-source";
 import { assessMaterialQuality } from "@/lib/materials/quality";
+import { MAX_EXTRACTED_CHARACTERS } from "@/lib/materials/extract";
+import { mapAndPersistMaterial } from "@/lib/materials/material-understanding";
 import { checkMaterialUploadRateLimit, requestRateLimitKey } from "@/lib/server/rate-limit";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
-export const maxDuration = 30;
+export const maxDuration = 120;
 
 export async function POST(request: Request) {
   const requestId = crypto.randomUUID();
@@ -53,8 +55,8 @@ export async function POST(request: Request) {
           instructions: "Open the video on YouTube, choose Show transcript, copy the transcript, and paste it here. YOVA will use the video title and transcript together.",
         }), { headers: { "Cache-Control": "no-store" } });
       }
-      text = parsed.data.transcript.trim().slice(0, 50_000);
-      truncated = parsed.data.transcript.trim().length > 50_000;
+      text = parsed.data.transcript.trim().slice(0, MAX_EXTRACTED_CHARACTERS);
+      truncated = parsed.data.transcript.trim().length > MAX_EXTRACTED_CHARACTERS;
     } else {
       if (parsed.data.transcript) throw new ExternalSourceError("The transcript field can only be used with a YouTube link.");
       kind = "article";
@@ -82,6 +84,7 @@ export async function POST(request: Request) {
       sourceUrl: canonicalUrl,
       textTruncated: truncated,
       importedAt: new Date().toISOString(),
+      mappingStatus: "processing",
     };
     const { error: storageError } = await supabase.storage
       .from("learning-materials")
@@ -103,6 +106,21 @@ export async function POST(request: Request) {
       await supabase.storage.from("learning-materials").remove([storagePath]);
       throw new Error("External material record failed");
     }
+
+    after(async () => {
+      await mapAndPersistMaterial({
+        supabase,
+        userId: user.id,
+        materialId,
+        filename,
+        text,
+      }).catch((mappingError) => {
+        console.error("YOVA external material mapping failed", {
+          requestId,
+          reason: mappingError instanceof Error ? mappingError.name : "unknown",
+        });
+      });
+    });
 
     return NextResponse.json(ExternalMaterialReadyResponseSchema.parse({
       status: "ready",

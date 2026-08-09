@@ -23,6 +23,11 @@ const request: PlanGenerationRequest = {
   }],
   availability: [{ day: "Monday", window: "Evening", minutes: 15 }],
   profileSummary: "The learner wants the big picture first, one visible step at a time, and a small hint before the answer.",
+  knowledgeMap: {
+    version: 1,
+    scopeJudgment: { band: "unit_or_exam", label: "Test unit", minimumSessions: 2, recommendedSessions: 2, maximumSessions: 4, minimumTeachingSessions: 1, explanation: "This test requires a connected causal foundation and a delayed evidence check." },
+    topics: [{ id: "11111111-1111-4111-8111-111111111111", title: "Outbreak of World War I", description: "How the assassination, alliances, mobilization, and declarations widened the conflict.", subtopics: [], prerequisiteTopicIds: [], status: "not_started", sourceReferences: [], origin: "ai_generated", deferred: null }],
+  },
 };
 
 const draft: GeneratedPlanDraft = {
@@ -31,6 +36,7 @@ const draft: GeneratedPlanDraft = {
   kind: "test",
   deadline: request.deadline,
   rationale: "Build a causal model first, then retrieve and apply the important ideas across later sessions.",
+  deferredTopics: [],
   sessions: [{
     title: "Build the outbreak chain",
     objective: "Explain how one assassination triggered alliances, mobilization, and declarations of war.",
@@ -40,6 +46,7 @@ const draft: GeneratedPlanDraft = {
     estimatedMinutes: 15,
     amountLabel: "One causal model and one explain-back, about 15 minutes",
     learningMode: "learn",
+    topicIds: ["11111111-1111-4111-8111-111111111111"],
     contentTargets: ["The causal chain from assassination to wider European war"],
     completionEvidence: ["Explain the outbreak chain in order without reopening the model"],
   }, {
@@ -51,6 +58,7 @@ const draft: GeneratedPlanDraft = {
     estimatedMinutes: 15,
     amountLabel: "A short delayed retrieval, about 15 minutes",
     learningMode: "study",
+    topicIds: ["11111111-1111-4111-8111-111111111111"],
     contentTargets: ["The causal chain from assassination to wider European war"],
     completionEvidence: ["Recall and apply the outbreak chain without notes"],
   }],

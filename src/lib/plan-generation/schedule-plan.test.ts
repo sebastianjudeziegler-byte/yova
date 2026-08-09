@@ -5,6 +5,8 @@ import {
   PlanGenerationRequestSchema,
 } from "@/lib/plan-generation/schema";
 
+const TOPIC_ID = "11111111-1111-4111-8111-111111111111";
+
 const request = PlanGenerationRequestSchema.parse({
   intent: "plan",
   learningIntent: "learn",
@@ -29,6 +31,7 @@ const draft = GeneratedPlanDraftSchema.parse({
   kind: "test",
   deadline: request.deadline,
   rationale: "Build the overall map, teach each major relationship, and then retrieve and apply it.",
+  deferredTopics: [],
   sessions: Array.from({ length: 5 }, (_, index) => ({
     title: `Session ${index + 1}`,
     objective: `Build and explain the bounded World War I relationship for session ${index + 1}.`,
@@ -38,6 +41,7 @@ const draft = GeneratedPlanDraftSchema.parse({
     estimatedMinutes: 15,
     amountLabel: "One focused target and one evidence check",
     learningMode: index < 3 ? "learn" : "study",
+    topicIds: [TOPIC_ID],
     contentTargets: [`World War I target ${index + 1}`],
     completionEvidence: [`Explain World War I target ${index + 1} without copying the model`],
   })),

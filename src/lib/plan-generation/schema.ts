@@ -1,13 +1,15 @@
 import { z } from "zod";
 import { resolveLearningIntent } from "@/lib/learning/learning-intent";
+import { MaterialUnderstandingSchema, PlanKnowledgeMapSchema } from "@/lib/knowledge-map/schema";
 
 export const MaterialInputSchema = z.object({
   id: z.string().uuid(),
   name: z.string().trim().min(1).max(180),
   mimeType: z.string().trim().min(1).max(100),
   sizeBytes: z.number().int().min(1).max(10 * 1024 * 1024),
-  textContent: z.string().max(50_000).nullable(),
+  textContent: z.string().max(288_000).nullable(),
   processingStatus: z.literal("ready"),
+  understanding: MaterialUnderstandingSchema.nullable().optional(),
 });
 
 export const StoredMaterialSchema = MaterialInputSchema.extend({
@@ -46,6 +48,7 @@ export const PlanGenerationRequestSchema = z.object({
     minutes: z.number().int().min(5).max(180),
   })).min(1).max(14),
   profileSummary: z.string().trim().min(10).max(1_600),
+  knowledgeMap: PlanKnowledgeMapSchema.optional(),
 }).superRefine((value, context) => {
   if (value.materialMode === "upload" && value.materials.length === 0) {
     context.addIssue({ code: "custom", path: ["materials"], message: "Add at least one material or choose no materials." });
@@ -68,6 +71,7 @@ export const GeneratedSessionDraftSchema = z.object({
   learningMode: z.enum(["learn", "study"]).describe(
     "Use learn when the session's first job is building a new mental model or procedure. Use study when its first job is retrieving, applying, practicing, assessing, or repairing knowledge already encountered. Every multi-session learn-first plan must later include at least one study session.",
   ),
+  topicIds: z.array(z.string().uuid()).min(1).max(6),
   contentTargets: z.array(z.string().trim().min(5).max(180)).min(1).max(6),
   completionEvidence: z.array(z.string().trim().min(8).max(220).describe(
     "Observable evidence produced by the learner. Start with an active verb such as Explain, Solve, Apply, Classify, Compare, Construct, Draft, Recall, or Demonstrate. Never define completion as reading, reviewing, watching, exposure, or time spent.",
@@ -82,6 +86,10 @@ export const GeneratedPlanDraftSchema = z.object({
   rationale: z.string().trim().min(20).max(900).describe(
     "Explain the plan sequence using the goal, starting knowledge, time, and tentative delivery preferences. Never claim a fixed learning style, brain type, diagnosis, or that the learner learns best in one way.",
   ),
+  deferredTopics: z.array(z.object({
+    topicId: z.string().uuid(),
+    reason: z.string().trim().min(8).max(300),
+  })).max(40),
   sessions: z.array(GeneratedSessionDraftSchema).min(1).max(14),
 });
 
@@ -99,6 +107,7 @@ export const LearningPlanSchema = z.object({
   creationIntent: z.enum(["plan", "study_now"]).default("plan"),
   rationale: z.string().min(1),
   createdAt: z.string().datetime({ offset: true }),
+  knowledgeMap: PlanKnowledgeMapSchema.optional(),
   materials: z.array(StoredMaterialSchema).max(5),
   sessions: z.array(z.object({
     id: z.string().min(1),
@@ -111,6 +120,7 @@ export const LearningPlanSchema = z.object({
     estimatedMinutes: z.number().int().min(5).max(180),
     amountLabel: z.string().min(1),
     learningMode: z.enum(["learn", "study"]),
+    topicIds: z.array(z.string().uuid()).default([]),
     contentTargets: z.array(z.string().min(1)).default([]),
     completionEvidence: z.array(z.string().min(1)).default([]),
     status: z.enum(["ready", "upcoming", "complete", "skipped"]),

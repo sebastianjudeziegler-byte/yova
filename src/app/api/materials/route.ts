@@ -1,9 +1,10 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { MaterialExtractionError } from "@/lib/materials/extract";
 import { extractMaterialWithRecovery } from "@/lib/materials/extract-with-recovery";
 import { assessMaterialQuality } from "@/lib/materials/quality";
 import { materialStoragePath, sanitizeMaterialDisplayName } from "@/lib/materials/filename";
 import { storePrivateMaterial } from "@/lib/materials/storage-upload";
+import { mapAndPersistMaterial } from "@/lib/materials/material-understanding";
 import {
   MaterialDeleteRequestSchema,
   MaterialProcessRequestSchema,
@@ -15,7 +16,7 @@ import { checkMaterialUploadRateLimit, requestRateLimitKey } from "@/lib/server/
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
+export const maxDuration = 120;
 
 type SupportedMimeType = "application/pdf" | "text/plain" | "text/markdown";
 
@@ -141,7 +142,7 @@ export async function PATCH(request: Request) {
 
   const { data: upload, error: uploadError } = await supabase
     .from("material_uploads")
-    .select("id,filename,storage_path,mime_type,byte_size,processing_status")
+    .select("id,filename,storage_path,mime_type,byte_size,processing_status,metadata")
     .eq("id", parsed.data.materialId)
     .maybeSingle();
   if (uploadError) return NextResponse.json({ error: "YOVA could not load this material." }, { status: 500 });
@@ -173,12 +174,39 @@ export async function PATCH(request: Request) {
       upload.mime_type as SupportedMimeType,
       upload.filename,
     );
-    const metadata = { pageCount: extracted.pages, textTruncated: extracted.truncated, aiAssistedExtraction };
+    const priorMetadata = upload.metadata && typeof upload.metadata === "object" && !Array.isArray(upload.metadata)
+      ? upload.metadata as Record<string, unknown>
+      : {};
+    const metadata = {
+      ...priorMetadata,
+      pageCount: extracted.pages,
+      textTruncated: extracted.truncated,
+      aiAssistedExtraction,
+      mappingStatus: "processing",
+    };
     const { error: updateError } = await supabase
       .from("material_uploads")
       .update({ processing_status: "ready", extracted_text: extracted.text, metadata })
       .eq("id", upload.id);
     if (updateError) throw new Error("Material update failed");
+
+    // File reading is the blocking promise the learner is waiting for. Topic
+    // mapping continues after the response and is also recoverable from plan
+    // generation if the learner moves faster than this background pass.
+    after(async () => {
+      await mapAndPersistMaterial({
+        supabase,
+        userId: user.id,
+        materialId: upload.id,
+        filename: upload.filename,
+        text: extracted.text,
+      }).catch((mappingError) => {
+        console.error("YOVA material mapping failed", {
+          requestId,
+          reason: mappingError instanceof Error ? mappingError.name : "unknown",
+        });
+      });
+    });
 
     return NextResponse.json(materialResponse(upload, extracted.text, metadata), {
       headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId },

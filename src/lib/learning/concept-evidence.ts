@@ -3,6 +3,7 @@ import type { ConceptEvidence, SessionCompletion } from "@/lib/domain";
 import { METHOD_PHASES } from "@/lib/learning/method-fidelity";
 
 export const ConceptEvidenceSchema = z.object({
+  topicId: z.string().uuid().optional(),
   concept: z.string().trim().min(2).max(120),
   outcome: z.enum(["secure", "needs_review"]),
   activityType: z.enum(["multiple_choice", "free_response"]),
@@ -13,6 +14,7 @@ export const ConceptEvidenceSchema = z.object({
 export const ConceptEvidenceListSchema = z.array(ConceptEvidenceSchema).max(24);
 
 export type ConceptSignal = {
+  topicId?: string;
   concept: string;
   attempts: number;
   secureAttempts: number;
@@ -38,9 +40,10 @@ export function summarizeConceptEvidence(
     for (const evidence of completion.conceptEvidence ?? []) {
       const concept = evidence.concept.trim().replace(/\s+/g, " ");
       if (!concept) continue;
-      const key = concept.toLocaleLowerCase();
+      const key = evidence.topicId ?? concept.toLocaleLowerCase();
       const current = signals.get(key);
       signals.set(key, {
+        ...(evidence.topicId ? { topicId: evidence.topicId } : current?.topicId ? { topicId: current.topicId } : {}),
         concept,
         attempts: (current?.attempts ?? 0) + 1,
         secureAttempts: (current?.secureAttempts ?? 0) + (evidence.outcome === "secure" ? 1 : 0),

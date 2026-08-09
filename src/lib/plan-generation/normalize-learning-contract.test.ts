@@ -5,6 +5,8 @@ import {
   PlanGenerationRequestSchema,
 } from "@/lib/plan-generation/schema";
 
+const TOPIC_ID = "11111111-1111-4111-8111-111111111111";
+
 const request = PlanGenerationRequestSchema.parse({
   intent: "plan",
   learningIntent: "learn",
@@ -25,6 +27,7 @@ const draft = GeneratedPlanDraftSchema.parse({
   kind: "course",
   deadline: null,
   rationale: "Build the prerequisites and then move toward independent mathematical use.",
+  deferredTopics: [],
   sessions: [{
     title: "Build the derivative model",
     objective: "Understand the derivative as an instantaneous rate and calculate one derivative.",
@@ -34,6 +37,7 @@ const draft = GeneratedPlanDraftSchema.parse({
     estimatedMinutes: 30,
     amountLabel: "One derivative model and one example",
     learningMode: "learn",
+    topicIds: [TOPIC_ID],
     contentTargets: ["The derivative as an instantaneous rate"],
     completionEvidence: ["Review the worked example and spend time checking the steps"],
   }],

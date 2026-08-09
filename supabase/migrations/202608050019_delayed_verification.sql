@@ -190,6 +190,7 @@ begin
         'learningMode', follow_up ->> 'learningMode',
         'adaptationExplanation', coalesce(nullif(follow_up ->> 'explanation', ''), follow_up ->> 'methodReason'),
         'adaptedAt', payload ->> 'completedAt',
+        'topicIds', coalesce(follow_up -> 'topicIds', '[]'::jsonb),
         'reviewConcept', follow_up ->> 'reviewConcept',
         'reviewType', follow_up ->> 'reviewType'
       )

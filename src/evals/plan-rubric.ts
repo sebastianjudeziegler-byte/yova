@@ -64,9 +64,11 @@ export function evaluatePlanDraft(
     ? 1
     : Math.max(scope.minimumSessions, contentBudget.minimumSessions);
   const expectedMaximumSessions = request.intent === "study_now" ? 1 : scope.maximumSessions;
-  const distinctTargets = new Set(
-    draft.sessions.flatMap((session) => session.contentTargets).map(normalize).filter(Boolean),
-  ).size;
+  const knownTopicIds = new Set(request.knowledgeMap?.topics.map((topic) => topic.id) ?? []);
+  const scheduledTopicIds = new Set(draft.sessions.flatMap((session) => session.topicIds));
+  const deferredTopicIds = new Set(draft.deferredTopics.map((topic) => topic.topicId));
+  const accountedTopics = [...knownTopicIds].filter((topicId) => scheduledTopicIds.has(topicId) || deferredTopicIds.has(topicId)).length;
+  const hasOnlyKnownTopics = [...scheduledTopicIds, ...deferredTopicIds].every((topicId) => knownTopicIds.has(topicId));
   const originalTask = classifyLearningTask(request.goal);
   const taskTypeOverride = originalTask.confidence === "clear"
     ? originalTask.taskType
@@ -118,11 +120,11 @@ export function evaluatePlanDraft(
     check("learning_approach", "Plan separates teaching from practice", approachProgression, 0, true, `Requested ${request.learningIntent}; session sequence: ${draft.sessions.map((session) => session.learningMode).join(" → ")}`),
     check(
       "coverage_map",
-      "Plan maps enough distinct content",
-      request.intent === "study_now" || distinctTargets >= contentBudget.minimumDistinctTargets,
+      "Every mapped topic is scheduled or explicitly deferred",
+      knownTopicIds.size > 0 && accountedTopics === knownTopicIds.size && hasOnlyKnownTopics,
       0,
       true,
-      `${distinctTargets} distinct targets; minimum ${contentBudget.minimumDistinctTargets}`,
+      `${accountedTopics} of ${knownTopicIds.size} topics accounted for; ${scheduledTopicIds.size} scheduled and ${deferredTopicIds.size} deferred`,
     ),
     check("explainability", "Every method has a meaningful reason", draft.sessions.every((session) => session.methodReason.trim().length >= 20), 10, false, "Method reasons are visible to the learner"),
     check("distinct_objectives", "Sessions are not repetitive", uniqueObjectives === draft.sessions.length, 5, false, `${uniqueObjectives} distinct objectives across ${draft.sessions.length} sessions`),

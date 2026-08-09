@@ -26,25 +26,21 @@ describe("plan content budget", () => {
     expect(contentBudgetForMinutes(45)).toMatchObject({ preferredContentTargets: 3, maximumContentTargets: 4 });
   });
 
-  it("uses outline headings to size uploaded material", () => {
-    const material = [
-      "# Long-term causes",
-      "- Nationalism and imperial competition",
-      "- Alliance systems",
-      "# The July Crisis",
-      "- Mobilization decisions",
-      "# Major fronts",
-      "- Trench warfare",
-      "# United States entry",
-      "# Armistice and consequences",
-    ].join("\n");
+  it("uses the authoritative topic map to size uploaded material", () => {
+    const topics = Array.from({ length: 8 }, (_, index) => ({
+      id: `10000000-1000-4000-8000-${String(index + 1).padStart(12, "0")}`,
+      title: `World War I topic ${index + 1}`,
+      description: `Required World War I knowledge ${index + 1}`,
+      subtopics: [], prerequisiteTopicIds: [], status: "not_started", sourceReferences: [], origin: "material", deferred: null,
+    }));
     const budget = buildPlanContentBudget(request({
       materialMode: "upload",
-      materials: [{ id: "10000000-1000-4000-8000-100000000001", name: "WWI guide.pdf", mimeType: "application/pdf", sizeBytes: 1000, textContent: material, processingStatus: "ready" }],
+      materials: [{ id: "10000000-1000-4000-8000-100000000001", name: "WWI guide.pdf", mimeType: "application/pdf", sizeBytes: 1000, textContent: "guide", processingStatus: "ready" }],
+      knowledgeMap: { version: 1, scopeJudgment: { band: "unit_or_exam", label: "Unit", minimumSessions: 5, recommendedSessions: 7, maximumSessions: 10, minimumTeachingSessions: 2, explanation: "A mapped unit with connected required topics." }, topics },
       availability: [{ day: "Monday", window: "Evening", minutes: 15 }],
     }));
 
-    expect(budget.materialAnchors).toEqual(expect.arrayContaining(["Long-term causes", "The July Crisis", "Armistice and consequences"]));
+    expect(budget.mappedTopicTitles).toHaveLength(8);
     expect(budget.estimatedInstructionalUnits).toBeGreaterThanOrEqual(8);
     expect(budget.minimumSessions).toBeGreaterThanOrEqual(8);
   });

@@ -8,6 +8,7 @@ export type OpenAIPlanConfig = {
 export type OpenAITutorConfig = OpenAIPlanConfig;
 export type OpenAISessionConfig = OpenAIPlanConfig;
 export type OpenAIAnswerEvaluationConfig = OpenAIPlanConfig;
+export type OpenAIKnowledgeMapConfig = OpenAIPlanConfig;
 
 export function getOpenAIPlanConfig(): OpenAIPlanConfig | null {
   const apiKey = process.env.OPENAI_API_KEY?.trim();
@@ -65,4 +66,13 @@ export function getOpenAIAnswerEvaluationConfig(): OpenAIAnswerEvaluationConfig 
 
 export function isOpenAIAnswerEvaluationConfigured() {
   return getOpenAIAnswerEvaluationConfig() !== null;
+}
+
+export function getOpenAIKnowledgeMapConfig(): OpenAIKnowledgeMapConfig | null {
+  const planConfig = getOpenAIPlanConfig();
+  if (!planConfig) return null;
+  return {
+    apiKey: planConfig.apiKey,
+    model: process.env.OPENAI_KNOWLEDGE_MAP_MODEL?.trim() || "gpt-5.4-mini",
+  };
 }

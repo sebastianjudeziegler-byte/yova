@@ -8,20 +8,12 @@ export type MaterialSupportPolicy = {
 };
 
 export function buildMaterialSupportPolicy(materials: MaterialExcerpt[]): MaterialSupportPolicy {
-  const combined = materials.map((material) => material.text).join("\n");
-  const words = combined.match(/[\p{L}\p{N}][\p{L}\p{N}'’_-]*/gu) ?? [];
-  const lines = combined.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
-  const outlineLines = lines.filter((line) => (
-    /^([-*•]|\d+[.)])\s+/.test(line)
-    || (/^[^.!?]{2,80}:?$/.test(line) && line.split(/\s+/).length <= 10)
-  ));
-  const outlineRatio = lines.length > 0 ? outlineLines.length / lines.length : 0;
-
-  if (words.length < 300 || outlineRatio >= 0.45) {
+  const hasScopeOutline = materials.some((material) => material.role === "scope_outline");
+  if (hasScopeOutline) {
     return {
       supplementationAllowed: true,
-      supplementationRequiredForTeaching: words.length < 120 || outlineRatio >= 0.7,
-      reason: "The uploaded material is short or outline-heavy. It should define the session scope, while YOVA may add only the explanation or example needed to teach those listed ideas.",
+      supplementationRequiredForTeaching: true,
+      reason: "The mapped source chunks define what belongs in the lesson but do not contain all of its instruction. YOVA must teach the mapped topic fully and disclose that distinction.",
     };
   }
 
@@ -36,12 +28,10 @@ export function validateSessionSourceGrounding({
   sourceMode,
   materials,
   grounding,
-  learningMode,
 }: {
   sourceMode: string;
   materials: MaterialExcerpt[];
   grounding: SessionSourceGrounding | null;
-  learningMode?: "learn" | "study";
 }): string | null {
   if (sourceMode !== "user_materials") {
     return grounding === null ? null : "YOVA-generated sessions must not claim uploaded-source grounding.";
@@ -49,30 +39,46 @@ export function validateSessionSourceGrounding({
   if (materials.length === 0) return "A material-grounded session needs readable source text.";
   if (!grounding) return "A material-grounded session must report which source evidence it used.";
 
-  const materialByName = new Map(materials.map((material) => [material.name, material]));
-  if (grounding.sourceNames.some((name) => !materialByName.has(name))) {
+  const materialNames = new Set(materials.map((material) => material.name));
+  const materialByChunkId = new Map(materials.flatMap((material) => (
+    material.chunkId ? [[material.chunkId, material] as const] : []
+  )));
+  if (grounding.sourceNames.some((name) => !materialNames.has(name))) {
     return "The session cited a filename that was not supplied by the learner.";
   }
   if (grounding.anchors.some((anchor) => {
-    const material = materialByName.get(anchor.sourceName);
+    const material = materialByChunkId.get(anchor.chunkId);
     return !grounding.sourceNames.includes(anchor.sourceName)
       || !material
+      || material.name !== anchor.sourceName
+      || material.locationLabel !== anchor.locationLabel
       || !normalize(material.text).includes(normalize(anchor.excerpt));
   })) {
-    return "The session included a source anchor that could not be verified in the uploaded text.";
+    return "The session included a source anchor that could not be verified in the mapped material chunk.";
   }
 
   const policy = buildMaterialSupportPolicy(materials);
-  if (learningMode === "learn" && policy.supplementationRequiredForTeaching && grounding.mode !== "materials_plus_ai") {
-    return "The uploaded source only outlines the topic, so a learn session must disclose bounded AI teaching support instead of pretending the outline contains a full explanation.";
+  if (policy.supplementationRequiredForTeaching && grounding.mode !== "materials_plus_ai") {
+    return "A scope outline defines what to teach, so YOVA must disclose that it supplied the instructional substance.";
   }
   if (grounding.mode === "materials_plus_ai" && !policy.supplementationAllowed) {
     return "The source already contains substantial explanations, so outside supplementation was not justified.";
   }
-  if (grounding.mode === "materials_plus_ai" && grounding.supplements.some((supplement) => (
-    !sharesInScopeTerm(supplement.topic, materials)
-  ))) {
-    return "A proposed AI supplement was not clearly tied to a topic in the uploaded material.";
+  if (policy.supplementationRequiredForTeaching) {
+    const summary = normalize(grounding.summary);
+    if (!summary.includes("defines the scope") || !summary.includes("provides the instruction")) {
+      return "A scope-outline session must plainly say that the guide defines the scope while YOVA provides the instruction.";
+    }
+    const scopeText = normalize(materials.map((material) => material.text).join(" "));
+    const unrelatedSupplement = grounding.supplements.find((supplement) => {
+      const meaningfulWords = normalize(supplement.topic)
+        .split(" ")
+        .filter((word) => word.length >= 4);
+      return meaningfulWords.length > 0 && !meaningfulWords.some((word) => scopeText.includes(word));
+    });
+    if (unrelatedSupplement) {
+      return `The AI-supplied teaching topic "${unrelatedSupplement.topic}" is not clearly tied to the uploaded outline's scope.`;
+    }
   }
 
   return null;
@@ -80,16 +86,4 @@ export function validateSessionSourceGrounding({
 
 function normalize(value: string) {
   return value.normalize("NFKC").toLowerCase().replace(/\s+/g, " ").trim();
-}
-
-function sharesInScopeTerm(topic: string, materials: MaterialExcerpt[]) {
-  const materialRoots = new Set(wordRoots(materials.map((material) => material.text).join(" ")));
-  return wordRoots(topic).some((root) => materialRoots.has(root));
-}
-
-function wordRoots(value: string) {
-  const ignored = new Set(["about", "after", "before", "between", "explain", "extra", "overview", "relationship", "their", "these", "those", "using", "where", "which"]);
-  return (normalize(value).match(/[\p{L}\p{N}]+/gu) ?? [])
-    .filter((word) => word.length >= 4 && !ignored.has(word))
-    .map((word) => word.slice(0, 6));
 }

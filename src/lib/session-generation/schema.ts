@@ -6,6 +6,7 @@ import {
   methodFidelityContractForPrompt,
 } from "@/lib/learning/method-fidelity";
 import { SessionDeliveryPolicySchema } from "@/lib/personalization/session-delivery-policy";
+import { KnowledgeMapTopicSchema } from "@/lib/knowledge-map/schema";
 
 export const SessionGenerationRequestSchema = z.object({
   planId: z.string().uuid(),
@@ -27,6 +28,7 @@ export const SessionGenerationRequestSchema = z.object({
       learningIntent: z.enum(["learn", "study"]),
     }),
     planRationale: z.string().trim().min(10).max(1_200),
+    knowledgeTopics: z.array(KnowledgeMapTopicSchema).min(1).max(6),
     journey: z.object({
       currentSequence: z.number().int().positive(),
       totalSessions: z.number().int().positive().max(14),
@@ -51,6 +53,7 @@ export const SessionGenerationRequestSchema = z.object({
       methodReason: z.string().trim().min(5).max(800),
       estimatedMinutes: z.number().int().min(5).max(180),
       learningMode: z.enum(["learn", "study"]),
+      topicIds: z.array(z.string().uuid()).min(1).max(6).default([]),
       contentTargets: z.array(z.string().trim().min(5).max(180)).max(6).default([]),
       completionEvidence: z.array(z.string().trim().min(8).max(220)).max(4).default([]),
       reviewConcept: z.string().trim().min(2).max(120).nullable().optional(),
@@ -157,6 +160,7 @@ export const TeachingBlockSchema = z.object({
 });
 
 const GeneratedSessionActivityBaseShape = {
+  topicId: z.string().uuid().nullable(),
   methodPhase: z.enum(METHOD_PHASES),
   estimatedMinutes: z.number().int().min(1).max(20),
   requiredForCompletion: z.boolean(),
@@ -169,6 +173,7 @@ const GeneratedSessionActivityBaseShape = {
 const NonQuestionActivitySchema = z.object({
   ...GeneratedSessionActivityBaseShape,
   type: z.enum(["instruction", "reflection"]),
+  topicId: z.null(),
   concept: z.null(),
   choices: z.array(z.string()).max(0),
   correctAnswer: z.null(),
@@ -178,6 +183,7 @@ const NonQuestionActivitySchema = z.object({
 const MultipleChoiceActivitySchema = z.object({
   ...GeneratedSessionActivityBaseShape,
   type: z.literal("multiple_choice"),
+  topicId: z.string().uuid(),
   concept: z.string().trim().min(2).max(120),
   choices: z.array(z.string().trim().min(1).max(220)).min(3).max(5),
   correctAnswer: z.string().trim().min(1).max(220),
@@ -191,6 +197,7 @@ const MultipleChoiceActivitySchema = z.object({
 const FreeResponseActivitySchema = z.object({
   ...GeneratedSessionActivityBaseShape,
   type: z.literal("free_response"),
+  topicId: z.string().uuid(),
   concept: z.string().trim().min(2).max(120),
   choices: z.array(z.string()).max(0),
   correctAnswer: z.string().trim().min(1).max(600),
@@ -208,6 +215,7 @@ const StrictGeneratedSessionActivitySchema = z.discriminatedUnion("type", [
 });
 
 export type GeneratedSessionActivity = {
+  topicId: string | null;
   methodPhase: (typeof METHOD_PHASES)[number];
   concept: string | null;
   estimatedMinutes: number;
@@ -232,7 +240,9 @@ export const SessionSourceGroundingSchema = z.object({
   summary: z.string().trim().min(20).max(420),
   sourceNames: z.array(z.string().trim().min(1).max(180)).min(1).max(5),
   anchors: z.array(z.object({
+    chunkId: z.string().uuid(),
     sourceName: z.string().trim().min(1).max(180),
+    locationLabel: z.string().trim().min(2).max(120),
     excerpt: z.string().trim().min(12).max(240),
     usedFor: z.string().trim().min(10).max(240),
   })).min(1).max(4),
@@ -258,6 +268,7 @@ export const SessionSupportPlanSchema = z.object({
 });
 
 export const GeneratedSessionDraftOutputSchema = z.object({
+  topicIds: z.array(z.string().uuid()).min(1).max(6),
   rationale: z.string().trim().min(20).max(700),
   coverage: SessionCoverageSchema,
   methodBriefing: SessionMethodBriefingSchema,
@@ -290,7 +301,7 @@ export const GeneratedSessionDraftSchema = GeneratedSessionDraftOutputSchema.sup
 });
 
 export const CachedGeneratedSessionSchema = GeneratedSessionDraftSchema.extend({
-  schemaVersion: z.literal(14),
+  schemaVersion: z.literal(15),
   model: z.string().min(1),
   generatedAt: z.string().datetime({ offset: true }),
   routingContext: z.object({

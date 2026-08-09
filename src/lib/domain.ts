@@ -37,6 +37,7 @@ export type LearningMaterial = {
   sizeBytes: number;
   textContent: string | null;
   processingStatus: "ready" | "staged";
+  understanding?: import("@/lib/knowledge-map/schema").MaterialUnderstanding | null;
 };
 
 export type PreviewAccount = {
@@ -48,6 +49,7 @@ export type PreviewAccount = {
 };
 
 export type SessionResourceActivity = {
+  topicId?: string | null;
   methodPhase?: import("@/lib/learning/method-fidelity").MethodPhase;
   estimatedMinutes?: number;
   requiredForCompletion?: boolean;
@@ -66,11 +68,12 @@ export type SessionSourceGrounding = {
   mode: "materials_only" | "materials_plus_ai";
   summary: string;
   sourceNames: string[];
-  anchors: Array<{ sourceName: string; excerpt: string; usedFor: string }>;
+  anchors: Array<{ chunkId: string; sourceName: string; locationLabel: string; excerpt: string; usedFor: string }>;
   supplements: Array<{ topic: string; reason: string }>;
 };
 
 export type SessionResource = {
+  topicIds?: string[];
   rationale: string;
   coverage?: import("@/lib/session-generation/schema").SessionCoverage;
   methodBriefing?: SessionMethodBriefing;
@@ -102,6 +105,7 @@ export type LearningPlanSession = {
   estimatedMinutes: number;
   amountLabel: string;
   learningMode: SessionLearningMode;
+  topicIds?: string[];
   contentTargets?: string[];
   completionEvidence?: string[];
   status: SessionStatus;
@@ -125,11 +129,13 @@ export type LearningPlan = {
   creationIntent?: "plan" | "study_now";
   rationale: string;
   createdAt: string;
+  knowledgeMap?: import("@/lib/knowledge-map/schema").PlanKnowledgeMap;
   materials?: LearningMaterial[];
   sessions: LearningPlanSession[];
 };
 
 export type ConceptEvidence = {
+  topicId?: string;
   concept: string;
   outcome: "secure" | "needs_review";
   activityType: "multiple_choice" | "free_response";

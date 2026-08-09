@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { SessionGenerationContext } from "@/lib/openai/session-generator";
 
 const parseResponse = vi.hoisted(() => vi.fn());
+const TEST_TOPIC_ID = "11111111-1111-4111-8111-111111111111";
 
 vi.mock("server-only", () => ({}));
 vi.mock("@/lib/openai/client", () => ({
@@ -78,6 +79,17 @@ function context(learningMode: "learn" | "study" = "learn"): SessionGenerationCo
     },
     planRationale: "Build a causal model before checking whether the learner can explain it.",
     materials: [],
+    knowledgeTopics: [{
+      id: TEST_TOPIC_ID,
+      title: "Melatonin as a darkness signal",
+      description: "How darkness, circadian timing, the pineal gland, and melatonin relate.",
+      subtopics: [],
+      prerequisiteTopicIds: [],
+      status: "not_started",
+      sourceReferences: [],
+      origin: "ai_generated",
+      deferred: null,
+    }],
     session: {
       title: "Build a basic model of melatonin",
       objective: "Explain how darkness leads to melatonin release and how melatonin signals biological night.",
@@ -85,6 +97,7 @@ function context(learningMode: "learn" | "study" = "learn"): SessionGenerationCo
       methodReason: "The task requires a connected causal explanation.",
       estimatedMinutes: 15,
       learningMode,
+      topicIds: [TEST_TOPIC_ID],
       contentTargets: ["Darkness and circadian timing", "Pineal melatonin release"],
       completionEvidence: ["Explain the complete causal relationship in your own words"],
       reviewConcept: null,

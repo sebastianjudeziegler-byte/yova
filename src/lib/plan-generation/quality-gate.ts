@@ -145,15 +145,20 @@ export function validateGeneratedPlanQuality(
     }
   }
 
-  if (request.intent === "plan") {
-    const distinctTargets = new Set(
-      draft.sessions
-        .flatMap((session) => session.contentTargets)
-        .map(normalize)
-        .filter(Boolean),
-    ).size;
-    if (distinctTargets < contentBudget.minimumDistinctTargets) {
-      issues.push(`The plan maps only ${distinctTargets} distinct content targets, but this scope needs at least ${contentBudget.minimumDistinctTargets}.`);
+  if (request.knowledgeMap) {
+    const knownTopicIds = new Set(request.knowledgeMap.topics.map((topic) => topic.id));
+    if (draft.sessions.some((session) => (session.topicIds ?? []).length === 0)) {
+      issues.push("Every session must reference at least one knowledge-map topic id.");
+    }
+    const coveredTopicIds = new Set(draft.sessions.flatMap((session) => session.topicIds ?? []));
+    const deferredTopicIds = new Set((draft.deferredTopics ?? []).map((topic) => topic.topicId));
+    const unknown = [...coveredTopicIds, ...deferredTopicIds].filter((id) => !knownTopicIds.has(id));
+    if (unknown.length) issues.push("The plan references topic ids that are not in the knowledge map.");
+    const duplicated = [...deferredTopicIds].filter((id) => coveredTopicIds.has(id));
+    if (duplicated.length) issues.push("A topic cannot be both scheduled and deferred.");
+    const unaccounted = [...knownTopicIds].filter((id) => !coveredTopicIds.has(id) && !deferredTopicIds.has(id));
+    if (unaccounted.length) {
+      issues.push(`${unaccounted.length} knowledge-map ${unaccounted.length === 1 ? "topic is" : "topics are"} neither scheduled nor explicitly deferred.`);
     }
   }
 

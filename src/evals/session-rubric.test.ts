@@ -4,8 +4,11 @@ import { evaluateSessionDraft } from "@/evals/session-rubric";
 import { GeneratedSessionDraftSchema } from "@/lib/session-generation/schema";
 
 const biologyCase = buildSessionEvaluationCases()[0];
+const TOPIC_ID = "11111111-1111-4111-8111-111111111111";
+const CHUNK_ID = "22222222-2222-4222-8222-222222222222";
 
 const strongSession = GeneratedSessionDraftSchema.parse({
+  topicIds: [TOPIC_ID],
   rationale: "A short source-grounded explanation comes first, followed by two different retrieval attempts that expose gaps before review.",
   coverage: {
     focus: "Connect cellular respiration and photosynthesis, then retrieve the relationship.",
@@ -22,6 +25,8 @@ const strongSession = GeneratedSessionDraftSchema.parse({
     summary: "The learner's notes define the biology scope, while YOVA supplies only a concise connecting explanation.",
     sourceNames: ["biology-notes.txt"],
     anchors: [{
+      chunkId: CHUNK_ID,
+      locationLabel: "Characters 1–72",
       sourceName: "biology-notes.txt",
       excerpt: "Cellular respiration converts glucose and oxygen into ATP.",
       usedFor: "This source statement anchors the session's explanation of cellular respiration.",
@@ -44,6 +49,7 @@ const strongSession = GeneratedSessionDraftSchema.parse({
   },
   activities: [
     {
+      topicId: null,
       methodPhase: "model",
       estimatedMinutes: 4,
       requiredForCompletion: true,
@@ -70,6 +76,7 @@ const strongSession = GeneratedSessionDraftSchema.parse({
       feedback: null,
     },
     {
+      topicId: TOPIC_ID,
       methodPhase: "retrieve",
       estimatedMinutes: 3,
       requiredForCompletion: true,
@@ -84,6 +91,7 @@ const strongSession = GeneratedSessionDraftSchema.parse({
       feedback: "Glycolysis occurs in the cytoplasm before later respiration stages continue in the mitochondria.",
     },
     {
+      topicId: TOPIC_ID,
       methodPhase: "explain",
       estimatedMinutes: 5,
       requiredForCompletion: true,
@@ -116,6 +124,7 @@ describe("session quality rubric", () => {
 
   it("rejects generic, unsupported personalization and weak task alignment", () => {
     const weakSession = GeneratedSessionDraftSchema.parse({
+      topicIds: [TOPIC_ID],
       rationale: "Because you are a visual learner, this session uses a generic diagram and then asks two unrelated questions.",
       coverage: {
         focus: "Look at a generic diagram and answer unrelated questions.",
@@ -138,6 +147,7 @@ describe("session quality rubric", () => {
       },
       activities: [
         {
+          topicId: null,
           methodPhase: "model",
           estimatedMinutes: 4,
           requiredForCompletion: true,
@@ -157,6 +167,7 @@ describe("session quality rubric", () => {
           feedback: null,
         },
         {
+          topicId: TOPIC_ID,
           methodPhase: "retrieve",
           estimatedMinutes: 3,
           requiredForCompletion: true,
@@ -171,6 +182,7 @@ describe("session quality rubric", () => {
           feedback: "The instruction above told the learner to look at a generic diagram for several minutes.",
         },
         {
+          topicId: TOPIC_ID,
           methodPhase: "explain",
           estimatedMinutes: 5,
           requiredForCompletion: true,
@@ -205,6 +217,7 @@ describe("session quality rubric", () => {
       activities: [
         ...strongSession.activities,
         {
+          topicId: null,
           methodPhase: "reflect",
           estimatedMinutes: 1,
           requiredForCompletion: false,
@@ -219,6 +232,7 @@ describe("session quality rubric", () => {
           feedback: null,
         },
         {
+          topicId: null,
           methodPhase: "schedule_return",
           estimatedMinutes: 1,
           requiredForCompletion: false,

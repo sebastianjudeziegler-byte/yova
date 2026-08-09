@@ -2,7 +2,10 @@ import { describe, expect, it } from "vitest";
 import { validateSessionContentSpecificity } from "@/lib/session-generation/content-specificity";
 import { GeneratedSessionDraftSchema } from "@/lib/session-generation/schema";
 
+const TOPIC_ID = "11111111-1111-4111-8111-111111111111";
+
 const baseDraft = GeneratedSessionDraftSchema.parse({
+  topicIds: [TOPIC_ID],
   rationale: "The learner needs a connected model of startup funding before comparing realistic financing decisions.",
   coverage: {
     focus: "Connect startup funding stages with dilution and investor decisions.",
@@ -28,6 +31,7 @@ const baseDraft = GeneratedSessionDraftSchema.parse({
   sourceGrounding: null,
   activities: [
     {
+      topicId: null,
       methodPhase: "model",
       concept: null,
       estimatedMinutes: 4,
@@ -51,6 +55,7 @@ const baseDraft = GeneratedSessionDraftSchema.parse({
       feedback: null,
     },
     {
+      topicId: TOPIC_ID,
       methodPhase: "retrieve",
       concept: "Funding stages",
       estimatedMinutes: 3,
@@ -65,6 +70,7 @@ const baseDraft = GeneratedSessionDraftSchema.parse({
       feedback: "Seed funding commonly follows early traction and supports product development and repeatable growth.",
     },
     {
+      topicId: TOPIC_ID,
       methodPhase: "explain",
       concept: "Dilution",
       estimatedMinutes: 4,

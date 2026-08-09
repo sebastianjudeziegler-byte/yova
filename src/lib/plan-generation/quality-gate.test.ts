@@ -7,6 +7,8 @@ import {
   type PlanGenerationRequest,
 } from "@/lib/plan-generation/schema";
 
+const TOPIC_ID = "11111111-1111-4111-8111-111111111111";
+
 function makeRequest(overrides: Partial<PlanGenerationRequest> = {}) {
   return PlanGenerationRequestSchema.parse({
     intent: "plan",
@@ -38,6 +40,7 @@ function makeDraft(overrides: Partial<GeneratedPlanDraft> = {}) {
     kind: "topic",
     deadline: "2026-08-14T23:00:00.000Z",
     rationale: "Build the causal model first, then remove the explanation and check whether the learner can reconstruct it.",
+    deferredTopics: [],
     sessions: [
       {
         title: "Build the respiration model",
@@ -48,6 +51,7 @@ function makeDraft(overrides: Partial<GeneratedPlanDraft> = {}) {
         estimatedMinutes: 25,
         amountLabel: "One connected model and one explanation check",
         learningMode: "learn",
+        topicIds: [TOPIC_ID],
         contentTargets: ["The relationship between the three stages", "How ATP production changes across the stages"],
         completionEvidence: ["Explain the relationship between all three stages in your own words"],
       },
@@ -60,6 +64,7 @@ function makeDraft(overrides: Partial<GeneratedPlanDraft> = {}) {
         estimatedMinutes: 20,
         amountLabel: "One retrieval and one application",
         learningMode: "study",
+        topicIds: [TOPIC_ID],
         contentTargets: ["The complete respiration sequence", "Effects of limited oxygen"],
         completionEvidence: ["Recall the sequence without notes", "Apply the model to one unfamiliar scenario"],
       },

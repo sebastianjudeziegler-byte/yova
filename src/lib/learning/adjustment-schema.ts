@@ -11,6 +11,7 @@ export const PlanAdjustmentRequestSchema = z.object({
   studyMode: z.enum(["inside_yova", "outside_yova"]),
   futureSessionMinutes: z.number().int().min(10).max(90),
   direction: z.string().trim().min(5).max(500).nullable().optional(),
+  includeDeferred: z.boolean().optional().default(false),
 });
 
 export const PlanAdjustmentResponseSchema = z.object({
@@ -29,6 +30,7 @@ export const PlanAdjustmentResponseSchema = z.object({
     estimatedMinutes: z.number().int().min(5).max(90),
     amountLabel: z.string().trim().min(1).max(120),
     learningMode: z.enum(["learn", "study"]),
+    topicIds: z.array(z.string().uuid()).min(1).max(12),
     contentTargets: z.array(z.string().trim().min(1)).max(6),
     completionEvidence: z.array(z.string().trim().min(1)).max(4),
     status: z.enum(["ready", "upcoming"]),
@@ -37,4 +39,4 @@ export const PlanAdjustmentResponseSchema = z.object({
 });
 
 export type PlanAdjustmentResponse = z.infer<typeof PlanAdjustmentResponseSchema>;
-export type PlanAdjustmentRequest = z.infer<typeof PlanAdjustmentRequestSchema>;
+export type PlanAdjustmentRequest = z.input<typeof PlanAdjustmentRequestSchema>;

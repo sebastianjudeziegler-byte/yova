@@ -2,8 +2,10 @@ import "server-only";
 
 import { assessMaterialQuality } from "@/lib/materials/quality";
 
-const MAX_EXTRACTED_CHARACTERS = 50_000;
-const MAX_PDF_PAGES = 150;
+// Enough for roughly a small textbook. The mapping pass chunks this complete
+// bounded text instead of repeatedly reading only its opening pages.
+export const MAX_EXTRACTED_CHARACTERS = 288_000;
+const MAX_PDF_PAGES = 300;
 
 export type ExtractedMaterial = {
   text: string;

@@ -16,6 +16,7 @@ const session = {
 };
 
 const draft: GeneratedSessionDraft = {
+  topicIds: ["11111111-1111-4111-8111-111111111111"],
   rationale: "A short delayed return checks whether the idea can be retrieved without turning review into another full lesson.",
   coverage: {
     focus: "Retrieve the core role of the electron transport chain after a delay.",
@@ -117,6 +118,7 @@ function reviewQuestion(
   correctAnswer: string,
 ): GeneratedSessionDraft["activities"][number] {
   return {
+    topicId: "11111111-1111-4111-8111-111111111111",
     methodPhase,
     concept: "Electron transport chain",
     estimatedMinutes: methodPhase === "retrieve" ? 1 : 2,

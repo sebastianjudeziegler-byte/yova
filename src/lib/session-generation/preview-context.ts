@@ -48,6 +48,20 @@ export function buildPreviewSessionContext({
   const repairedTeachingStart = effectiveLearningMode === "learn" && session.learningMode !== "learn"
     ? teachingFirstSessionCopy(plan.topic)
     : null;
+  const mappedTopics = plan.knowledgeMap?.topics.filter((topic) => session.topicIds?.includes(topic.id)) ?? [];
+  const sessionTopics = mappedTopics.length > 0
+    ? mappedTopics
+    : [{
+      id: session.id,
+      title: session.title,
+      description: session.objective,
+      subtopics: session.contentTargets ?? [],
+      prerequisiteTopicIds: [],
+      status: "not_started" as const,
+      sourceReferences: [],
+      origin: "ai_generated" as const,
+      deferred: null,
+    }];
 
   return {
     learningGoal: {
@@ -60,6 +74,7 @@ export function buildPreviewSessionContext({
       learningIntent: plan.learningIntent,
     },
     planRationale: plan.rationale,
+    knowledgeTopics: sessionTopics,
     journey: {
       currentSequence: session.sequence,
       totalSessions: plan.sessions.length,
@@ -88,6 +103,7 @@ export function buildPreviewSessionContext({
       methodReason: repairedTeachingStart?.methodReason ?? session.methodReason,
       estimatedMinutes: session.estimatedMinutes,
       learningMode: effectiveLearningMode,
+      topicIds: sessionTopics.map((topic) => topic.id),
       contentTargets: session.contentTargets ?? [],
       completionEvidence: session.completionEvidence ?? [],
       reviewConcept: session.reviewConcept?.trim() || null,

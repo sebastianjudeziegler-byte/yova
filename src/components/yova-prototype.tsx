@@ -622,6 +622,7 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
       }, analyticsEnabled);
 
       const nextLessonSteps = parsed.data.session.activities.map((activity) => ({
+        topicId: activity.topicId,
         methodPhase: activity.methodPhase,
         estimatedMinutes: activity.estimatedMinutes,
         requiredForCompletion: activity.requiredForCompletion,
@@ -1075,7 +1076,7 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
       if (!plan) throw new Error("YOVA could not find that plan.");
       const settledSessions = plan.sessions.filter((session) => session.status === "complete" || session.status === "skipped");
       const unfinishedSessions = plan.sessions.filter((session) => session.status === "ready" || session.status === "upcoming");
-      const adjustableSessions = unfinishedSessions.map((session) => ({
+      let adjustableSessions = unfinishedSessions.map((session) => ({
           id: session.id,
           sequence: session.sequence,
           title: session.title,
@@ -1087,10 +1088,37 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
           status: session.status as "ready" | "upcoming",
           step_data: {
             learningMode: session.learningMode,
+            topicIds: session.topicIds ?? [],
             contentTargets: session.contentTargets ?? [],
             completionEvidence: session.completionEvidence ?? [],
           },
         }));
+      if (input.includeDeferred && plan.knowledgeMap) {
+        const alreadyIncluded = new Set(adjustableSessions.flatMap((session) => session.step_data.topicIds));
+        const deferred = plan.knowledgeMap.topics.filter((topic) => topic.deferred && !alreadyIncluded.has(topic.id));
+        const fallbackScheduleTime = new Date(plan.sessions.at(-1)?.scheduledFor ?? plan.createdAt).getTime();
+        const latestTime = adjustableSessions.reduce(
+          (latest, session) => Math.max(latest, new Date(session.scheduled_for).getTime()),
+          fallbackScheduleTime,
+        );
+        adjustableSessions = [...adjustableSessions, ...deferred.map((topic, index) => ({
+          id: makeUuid(),
+          sequence: plan.sessions.length + index + 1,
+          title: `Learn ${topic.title}`,
+          objective: `Build an accurate model of ${topic.title}, then produce one independent check tied to this topic.`,
+          method: "Guided explanation and self-explanation",
+          method_rationale: "This topic was outside the original time budget, so YOVA will teach it before asking for independent evidence.",
+          scheduled_for: new Date(latestTime + (index + 1) * 24 * 60 * 60 * 1000).toISOString(),
+          estimated_minutes: input.futureSessionMinutes,
+          status: "upcoming" as const,
+          step_data: {
+            learningMode: "learn" as const,
+            topicIds: [topic.id],
+            contentTargets: [topic.title, ...topic.subtopics.slice(0, 3)],
+            completionEvidence: [`Explain ${topic.title} accurately and complete one independent check`],
+          },
+        }))].slice(0, 14);
+      }
       const redirectedSessions = input.direction
         ? applyPlanDirectionFallback(adjustableSessions, input.direction, plan.topic)
         : adjustableSessions;
@@ -1100,10 +1128,15 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
         Math.max(0, ...settledSessions.map((session) => session.sequence)) + 1,
       );
       if (!replacements.length) throw new Error("This plan has no unfinished content to adjust.");
+      const includedTopicIds = new Set(replacements.flatMap((session) => session.topicIds ?? []));
       setPlans((current) => current.map((candidate) => candidate.id === input.planId ? {
         ...candidate,
         deadline: input.deadline,
         studyMode: input.studyMode,
+        knowledgeMap: input.includeDeferred && candidate.knowledgeMap ? {
+          ...candidate.knowledgeMap,
+          topics: candidate.knowledgeMap.topics.map((topic) => includedTopicIds.has(topic.id) ? { ...topic, deferred: null } : topic),
+        } : candidate.knowledgeMap,
         sessions: [...settledSessions, ...replacements].sort((left, right) => left.sequence - right.sequence),
       } : candidate));
       return;
@@ -1123,6 +1156,7 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
     }
     const parsed = PlanAdjustmentResponseSchema.safeParse(body);
     if (!parsed.success) throw new Error("The adjusted plan came back in an unsafe format.");
+    const includedTopicIds = new Set(parsed.data.sessions.flatMap((session) => session.topicIds));
     setPlans((current) => current.map((plan) => {
       if (plan.id !== parsed.data.planId) return plan;
       const settledSessions = plan.sessions.filter((session) => session.status === "complete" || session.status === "skipped");
@@ -1130,6 +1164,10 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
         ...plan,
         deadline: parsed.data.deadline,
         studyMode: parsed.data.studyMode,
+        knowledgeMap: input.includeDeferred && plan.knowledgeMap ? {
+          ...plan.knowledgeMap,
+          topics: plan.knowledgeMap.topics.map((topic) => includedTopicIds.has(topic.id) ? { ...topic, deferred: null } : topic),
+        } : plan.knowledgeMap,
         sessions: [...settledSessions, ...parsed.data.sessions].sort((left, right) => left.sequence - right.sequence),
       };
     }));
@@ -2057,6 +2095,8 @@ function LearningOverview({ plans, allPlans, view, interruptions, onOpenPlan, on
 
 function LearningPlanDetail({ plan, view, completions, interruptions, changingStatus, onBack, onStart, onArchiveStateChange, onAdjustPlan, onAttachMaterials }: { plan: LearningPlan; view: "active" | "recent" | "archive"; completions: SessionCompletion[]; interruptions: SessionInterruption[]; changingStatus: boolean; onBack: () => void; onStart: () => void; onArchiveStateChange: (action: "archive" | "restore") => void; onAdjustPlan: (input: PlanAdjustmentRequest) => Promise<void>; onAttachMaterials: (planId: string, materialIds: string[]) => Promise<void> }) {
   const [showAdjustments, setShowAdjustments] = useState(false);
+  const [extendingMap, setExtendingMap] = useState(false);
+  const [mapError, setMapError] = useState<string | null>(null);
   const completeCount = plan.sessions.filter((session) => session.status === "complete").length;
   const readySession = plan.sessions.find((session) => session.status === "ready");
   const resumePoint = readySession ? resumableSessionProgress(readySession.id, interruptions) : null;
@@ -2064,18 +2104,70 @@ function LearningPlanDetail({ plan, view, completions, interruptions, changingSt
   const totalChecks = completions.reduce((sum, completion) => sum + completion.totalAnswers, 0);
   const accuracy = totalChecks ? `${Math.round((totalCorrect / totalChecks) * 100)}%` : "No data";
   const conceptSignals = summarizeConceptEvidence(completions);
+  const extendDeferredTopics = async () => {
+    setExtendingMap(true);
+    setMapError(null);
+    try {
+      await onAdjustPlan({
+        planId: plan.id,
+        deadline: plan.deadline,
+        studyMode: plan.studyMode,
+        futureSessionMinutes: readySession?.estimatedMinutes ?? 25,
+        includeDeferred: true,
+      });
+    } catch (error) {
+      setMapError(error instanceof Error ? error.message : "YOVA could not extend this plan.");
+    } finally {
+      setExtendingMap(false);
+    }
+  };
 
   return <>
     <button className="learning-back" onClick={onBack}><ArrowLeft size={16} /> All {view === "recent" ? "recent learning" : view === "archive" ? "archived learning" : "active learning"}</button>
     <section className="learning-hero"><div><span className="subject-label">{plan.kind.toUpperCase()} · {formatPlanDeadline(plan.deadline)}</span><h2>{plan.title}</h2><p>{plan.topic}</p><span className="learning-approach-badge">{plan.learningIntent === "learn" ? <BookOpen size={14} /> : <Target size={14} />}{plan.learningIntent === "learn" ? "Building understanding, then practice" : "Practice, diagnose, and repair"}</span><div className="progress-line"><div style={{ width: `${(completeCount / plan.sessions.length) * 100}%` }} /></div><small>{resumePoint ? `${resumePoint.completedSteps} of ${resumePoint.totalSteps} sections saved in the current session` : `${completeCount} of ${plan.sessions.length} sessions complete`}</small></div><div className="learning-hero-actions">{view === "active" && readySession && <button className="button primary" onClick={onStart}>{resumePoint ? "Continue session" : "Start next session"}</button>}{view === "active" && <button className="button hero-secondary" onClick={() => setShowAdjustments((value) => !value)}><Settings2 size={16} /> {showAdjustments ? "Close" : "Adjust"}</button>}<button className="button hero-secondary" disabled={changingStatus} onClick={() => onArchiveStateChange(view === "archive" ? "restore" : "archive")}>{changingStatus ? <span className="button-spinner" /> : view === "archive" ? <><RotateCcw size={16} /> Restore</> : <><Archive size={16} /> Archive</>}</button></div></section>
     {view === "active" && showAdjustments && <PlanAdjustmentPanel plan={plan} onCancel={() => setShowAdjustments(false)} onSave={async (input) => { await onAdjustPlan(input); setShowAdjustments(false); }} />}
     {view === "recent" && <section className="learning-history-summary"><div><span>Completed</span><strong>{formatCompletionDate(completions.at(-1)?.completedAt ?? plan.createdAt)}</strong></div><div><span>Knowledge-check accuracy</span><strong>{accuracy}</strong></div><div><span>Last session felt</span><strong>{formatFeedback(completions.at(-1)?.feedback)}</strong></div></section>}
+    <PlanKnowledgeMapPanel plan={plan} completions={completions} canExtend={view === "active"} extending={extendingMap} error={mapError} onExtend={() => void extendDeferredTopics()} />
     <section className="section-block plan-timeline"><div className="section-title"><div><h3>{view === "recent" ? "What you completed" : "Your plan"}</h3><p>The sequence YOVA will guide you through, one session at a time.</p></div><span>{plan.sessions.length} sessions</span></div><div className="timeline">{plan.sessions.map((session) => <div className={`timeline-row ${session.status}`} key={session.id}><span className="timeline-node">{session.status === "complete" ? <Check size={15} /> : null}</span><div><strong>{session.title}</strong><small><b>{session.learningMode === "learn" ? "Teaching first" : "Practice first"}</b> · {session.method} · {formatSessionTime(session.scheduledFor)}</small></div><span>{session.estimatedMinutes} min</span></div>)}</div></section>
     <PlanAdaptations plan={plan} />
     <PlanSources plan={plan} editable={view === "active"} onAttach={onAttachMaterials} />
     <PlanResources plan={plan} />
     <ConceptSignalsPanel signals={conceptSignals} />
   </>;
+}
+
+function PlanKnowledgeMapPanel({ plan, completions, canExtend, extending, error, onExtend }: { plan: LearningPlan; completions: SessionCompletion[]; canExtend: boolean; extending: boolean; error: string | null; onExtend: () => void }) {
+  if (!plan.knowledgeMap?.topics.length) return null;
+  const topicById = new Map(plan.knowledgeMap.topics.map((topic) => [topic.id, topic]));
+  const topics = plan.knowledgeMap.topics.map((topic) => ({
+    ...topic,
+    displayStatus: displayedTopicStatus(topic.id, topic.status, plan, completions),
+  }));
+  const deferred = topics.filter((topic) => topic.deferred);
+  const active = topics.filter((topic) => !topic.deferred);
+  const secureCount = active.filter((topic) => topic.displayStatus === "secure").length;
+
+  return <section className="section-block plan-knowledge-map"><div className="section-title"><div><span className="step-label">KNOWLEDGE MAP</span><h3>What this plan is building</h3><p>Topics are ordered by prerequisite. Sessions below are how each topic moves from introduced to secure.</p></div><span>{secureCount} of {active.length} secure</span></div><ol className="knowledge-topic-list">{active.map((topic, index) => {
+    const prerequisites = topic.prerequisiteTopicIds.map((id) => topicById.get(id)?.title).filter(Boolean);
+    return <li key={topic.id}><span className={`knowledge-topic-index ${topic.displayStatus}`}>{topic.displayStatus === "secure" ? <Check size={15} /> : index + 1}</span><div><div className="knowledge-topic-heading"><strong>{topic.title}</strong><span className={`knowledge-topic-status ${topic.displayStatus}`}>{topicStatusLabel(topic.displayStatus)}</span></div><p>{topic.description}</p>{prerequisites.length > 0 && <small>Builds on {prerequisites.join(", ")}</small>}<small>{topic.origin === "material" ? `${topic.sourceReferences.length} source ${topic.sourceReferences.length === 1 ? "location" : "locations"} mapped` : "Structured by YOVA for this goal"}</small></div></li>;
+  })}</ol>{deferred.length > 0 && <div className="deferred-topic-block"><div><span>OUTSIDE THE CURRENT TIME BUDGET</span><strong>This plan currently skips {deferred.length} {deferred.length === 1 ? "topic" : "topics"}.</strong><p>{deferred.map((topic) => `${topic.title}: ${topic.deferred?.reason}`).join(" ")}</p></div>{canExtend && <button className="button secondary" disabled={extending} onClick={onExtend}>{extending ? <span className="button-spinner" /> : <><Plus size={16} /> Extend plan to include them</>}</button>}</div>}{error && <div className="chat-error"><AlertCircle size={16} /><span>{error}</span></div>}</section>;
+}
+
+function displayedTopicStatus(topicId: string, storedStatus: "not_started" | "taught" | "evidenced" | "secure", plan: LearningPlan, completions: SessionCompletion[]) {
+  const evidence = completions.flatMap((completion) => completion.conceptEvidence).filter((item) => item.topicId === topicId);
+  const secureAttempts = evidence.filter((item) => item.outcome === "secure").length;
+  if (storedStatus === "secure" || secureAttempts >= 2) return "secure" as const;
+  if (storedStatus === "evidenced" || evidence.length > 0) return "evidenced" as const;
+  const topicWasTaught = plan.sessions.some((session) => session.status === "complete" && session.topicIds?.includes(topicId));
+  if (storedStatus === "taught" || topicWasTaught) return "taught" as const;
+  return "not_started" as const;
+}
+
+function topicStatusLabel(status: "not_started" | "taught" | "evidenced" | "secure") {
+  if (status === "not_started") return "Not started";
+  if (status === "taught") return "Taught";
+  if (status === "evidenced") return "Evidence recorded";
+  return "Secure";
 }
 
 function PlanAdaptations({ plan }: { plan: LearningPlan }) {

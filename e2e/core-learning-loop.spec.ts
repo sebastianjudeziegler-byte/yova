@@ -716,7 +716,7 @@ test("a multi-session plan carries one clear source decision from Add to Learnin
   await expect(page.getByText("Nothing is active until you confirm it below.")).toBeVisible();
   const planContract = page.getByRole("region", { name: "How YOVA mapped this plan" });
   await expect(planContract).toBeVisible();
-  await expect(planContract).toContainText("CONTENT MAP");
+  await expect(planContract).toContainText("KNOWLEDGE MAP");
   await expect(planContract).toContainText("SESSION LOAD");
   await expect(planContract).toContainText("YOUR DELIVERY");
   await expect(planContract).toContainText("YOUR SCHEDULE");
@@ -747,7 +747,7 @@ test("a multi-session plan carries one clear source decision from Add to Learnin
   await page.getByRole("button", { name: "Ask YOVA", exact: true }).click();
   const tutorContext = page.getByRole("combobox", { name: "Ask YOVA context" });
   await expect(tutorContext).toHaveValue("general");
-  await tutorContext.selectOption({ label: "AP Biology Unit 3" });
+  await tutorContext.selectOption({ label: "Photosynthesis and Cellular Respiration" });
   await expect(page.getByText("Using learning context")).toBeVisible();
   await expect(page.getByText("YOVA can use this goal's materials, next session, and learner evidence.")).toBeVisible();
   await page.getByRole("button", { name: "Learning", exact: true }).click();

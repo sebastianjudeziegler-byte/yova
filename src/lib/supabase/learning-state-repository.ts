@@ -20,6 +20,10 @@ import {
 } from "@/lib/learning/session-resume";
 import { inferLegacySessionLearningMode } from "@/lib/learning/learning-intent";
 import { resolveLearningTitle } from "@/lib/intake/interpret";
+import {
+  MaterialUnderstandingSchema,
+  PlanKnowledgeMapSchema,
+} from "@/lib/knowledge-map/schema";
 import { readSessionAdaptationNote } from "@/lib/personalization/adaptation-note";
 import {
   encodeAdditionalLearnerContext,
@@ -65,6 +69,7 @@ type PlanRow = {
   status: PlanStatus;
   rationale: string;
   generation_inputs: unknown;
+  knowledge_map: unknown;
   created_at: string;
 };
 
@@ -101,6 +106,7 @@ type MaterialRow = {
   mime_type: string;
   byte_size: number;
   processing_status: string;
+  metadata: unknown;
 };
 
 type LearningEventRow = {
@@ -130,10 +136,10 @@ export async function loadAuthenticatedLearningState(): Promise<CloudLearningSta
     supabase.from("profiles").select("display_name,onboarding_completed_at").maybeSingle(),
     supabase.from("learner_profiles").select("common_blocker,guidance_preference,preferred_session_min,preferred_session_max,explanation_preference,focus_frequency,starting_pattern,energy_window,primary_improvement_goal,additional_context").maybeSingle(),
     supabase.from("learning_items").select("id,title,kind,topic,deadline,source_mode,study_mode,created_at").order("created_at", { ascending: true }),
-    supabase.from("plans").select("id,learning_item_id,status,rationale,generation_inputs,created_at").order("created_at", { ascending: true }),
+    supabase.from("plans").select("id,learning_item_id,status,rationale,generation_inputs,knowledge_map,created_at").order("created_at", { ascending: true }),
     supabase.from("plan_sessions").select("id,plan_id,sequence,title,objective,method,method_rationale,scheduled_for,estimated_minutes,status,step_data").order("sequence", { ascending: true }),
     supabase.from("session_attempts").select("id,plan_session_id,started_at,completed_at,actual_minutes,correct_answers,total_answers,user_feedback,result_data").not("completed_at", "is", null).order("completed_at", { ascending: true }),
-    supabase.from("materials").select("id,learning_item_id,filename,mime_type,byte_size,processing_status").eq("processing_status", "ready").order("created_at", { ascending: true }),
+    supabase.from("materials").select("id,learning_item_id,filename,mime_type,byte_size,processing_status,metadata").eq("processing_status", "ready").order("created_at", { ascending: true }),
     supabase.from("learning_events").select("plan_session_id,occurred_at,event_data").eq("event_type", "session_interrupted").order("occurred_at", { ascending: true }),
     supabase.from("deadline_milestones").select("id,title,description,due_at,status,linked_learning_item_id,created_at").order("due_at", { ascending: true }),
   ]);
@@ -184,6 +190,7 @@ export async function loadAuthenticatedLearningState(): Promise<CloudLearningSta
       sizeBytes: row.byte_size,
       textContent: null,
       processingStatus: "ready",
+      understanding: readMaterialUnderstanding(row.metadata),
     });
     materialsByItemId.set(row.learning_item_id, current);
   }
@@ -202,6 +209,7 @@ export async function loadAuthenticatedLearningState(): Promise<CloudLearningSta
       estimatedMinutes: row.estimated_minutes,
       amountLabel,
       learningMode: readLearningMode(row.step_data) ?? inferLegacySessionLearningMode(row.method, row.objective),
+      topicIds: readStringArrayProperty(row.step_data, "topicIds"),
       contentTargets: readStringArrayProperty(row.step_data, "contentTargets"),
       completionEvidence: readStringArrayProperty(row.step_data, "completionEvidence"),
       status: row.status,
@@ -238,6 +246,7 @@ export async function loadAuthenticatedLearningState(): Promise<CloudLearningSta
       creationIntent: readCreationIntent(planRow.generation_inputs),
       rationale: planRow.rationale,
       createdAt: planRow.created_at || item.created_at,
+      knowledgeMap: readPlanKnowledgeMap(planRow.knowledge_map),
       materials: materialsByItemId.get(item.id) ?? [],
       sessions,
     }];
@@ -381,6 +390,7 @@ export async function completeAuthenticatedPlanSession(
         amountLabel: followUpSession.amountLabel,
         learningMode: followUpSession.learningMode,
         explanation: followUpSession.adaptationNote?.explanation ?? followUpSession.methodReason,
+        topicIds: followUpSession.topicIds ?? [],
         reviewConcept: followUpSession.reviewConcept,
         reviewType: followUpSession.reviewType,
       } : null,
@@ -418,6 +428,7 @@ export async function activateAuthenticatedConceptReviewSession(
         amountLabel: session.amountLabel,
         learningMode: session.learningMode,
         explanation: session.adaptationNote?.explanation ?? session.methodReason,
+        topicIds: session.topicIds ?? [],
         reviewConcept: session.reviewConcept,
         reviewType: session.reviewType,
       },
@@ -511,4 +522,15 @@ function readStringArrayProperty(value: unknown, key: string) {
   const property = (value as Record<string, unknown>)[key];
   if (!Array.isArray(property)) return [];
   return property.filter((item): item is string => typeof item === "string" && item.trim().length > 0).slice(0, 6);
+}
+
+function readPlanKnowledgeMap(value: unknown) {
+  const parsed = PlanKnowledgeMapSchema.safeParse(value);
+  return parsed.success ? parsed.data : undefined;
+}
+
+function readMaterialUnderstanding(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const parsed = MaterialUnderstandingSchema.safeParse((value as Record<string, unknown>).understanding);
+  return parsed.success ? parsed.data : null;
 }

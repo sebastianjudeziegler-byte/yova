@@ -6,6 +6,7 @@ import {
 } from "@/lib/session-generation/schema";
 
 const parseResponse = vi.hoisted(() => vi.fn());
+const TEST_TOPIC_ID = "11111111-1111-4111-8111-111111111111";
 
 vi.mock("server-only", () => ({}));
 vi.mock("@/lib/openai/client", () => ({
@@ -17,6 +18,7 @@ vi.mock("@/lib/openai/config", () => ({
 
 function learningDraft(firstPhase: "orient" | "model") {
   return GeneratedSessionDraftOutputSchema.parse({
+    topicIds: [TEST_TOPIC_ID],
     methodBriefing: {
       learningMode: "learn",
       taskType: "conceptual_learning",
@@ -41,6 +43,7 @@ function learningDraft(firstPhase: "orient" | "model") {
     rationale: "Teach one connected model, then reduce support for a short explanation and application.",
     activities: [
       {
+        topicId: null,
         methodPhase: firstPhase,
         concept: null,
         estimatedMinutes: 4,
@@ -63,6 +66,7 @@ function learningDraft(firstPhase: "orient" | "model") {
         feedback: null,
       },
       {
+        topicId: TEST_TOPIC_ID,
         methodPhase: "independent_practice",
         concept: "Funding tradeoff",
         estimatedMinutes: 4,
@@ -77,6 +81,7 @@ function learningDraft(firstPhase: "orient" | "model") {
         feedback: "A strong answer names both the immediate capital and the financial right given in return.",
       },
       {
+        topicId: TEST_TOPIC_ID,
         methodPhase: "transfer",
         concept: "Funding tradeoff application",
         estimatedMinutes: 3,
@@ -128,6 +133,7 @@ describe("session content-volume validation", () => {
       methodReason: "Build the model before an independent check.",
       estimatedMinutes: 15,
       learningMode: "learn",
+      topicIds: [TEST_TOPIC_ID],
       contentTargets: [
         "Funding exchanges resources now for financial rights later",
         "Dilution changes founder ownership",
@@ -144,6 +150,7 @@ describe("session content-volume validation", () => {
       methodReason: "Build the model before an independent check.",
       estimatedMinutes: 15,
       learningMode: "learn",
+      topicIds: [TEST_TOPIC_ID],
       contentTargets: [
         "Funding exchanges resources now for financial rights later",
         "Dilution changes founder ownership",
@@ -194,6 +201,7 @@ describe("session content-volume validation", () => {
       methodReason: "Build a model before the check.",
       estimatedMinutes: 15,
       learningMode: "learn",
+      topicIds: [TEST_TOPIC_ID],
       contentTargets: [],
       completionEvidence: ["Explain the cluster"],
     })).toMatch(/at most 2 content targets/i);

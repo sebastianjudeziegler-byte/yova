@@ -1,10 +1,50 @@
 import "server-only";
 
 export type MaterialExcerpt = {
+  materialId?: string;
+  chunkId?: string;
+  chunkIndex?: number;
   name: string;
   text: string;
   truncated: boolean;
+  locationLabel?: string;
+  role?: "content_source" | "scope_outline";
 };
+
+export type TopicMaterialChunkRow = {
+  id: string;
+  material_id: string;
+  chunk_index: number;
+  location_label: string;
+  section_role: "content_source" | "scope_outline";
+  chunk_text: string;
+};
+
+export function buildTopicMaterialExcerpts({
+  chunkRows,
+  materialNames,
+  orderedChunkIds,
+}: {
+  chunkRows: TopicMaterialChunkRow[];
+  materialNames: Map<string, string>;
+  orderedChunkIds: string[];
+}): MaterialExcerpt[] {
+  const byId = new Map(chunkRows.map((chunk) => [chunk.id, chunk]));
+  return orderedChunkIds.flatMap((chunkId) => {
+    const chunk = byId.get(chunkId);
+    if (!chunk?.chunk_text.trim()) return [];
+    return [{
+      materialId: chunk.material_id,
+      chunkId: chunk.id,
+      chunkIndex: chunk.chunk_index,
+      name: materialNames.get(chunk.material_id) ?? "Uploaded material",
+      text: chunk.chunk_text.trim(),
+      truncated: false,
+      locationLabel: chunk.location_label,
+      role: chunk.section_role,
+    } satisfies MaterialExcerpt];
+  });
+}
 
 export function buildMaterialExcerpts(
   rows: Array<{ filename: string; extracted_text: string | null }>,
