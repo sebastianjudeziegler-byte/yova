@@ -11,6 +11,7 @@ export type SessionContentBudget = {
   preferredContentTargets: number;
   maximumContentTargets: number;
   maximumCompletionChecks: number;
+  maximumLearnerFacingWords: number;
   guidance: string;
 };
 
@@ -36,7 +37,8 @@ export function contentBudgetForMinutes(minutes: number): SessionContentBudget {
       preferredContentTargets: 1,
       maximumContentTargets: 2,
       maximumCompletionChecks: 2,
-      guidance: "Keep the session to one main idea when possible, with no more than two tightly connected targets and two evidence checks.",
+      maximumLearnerFacingWords: 450,
+      guidance: "Keep the session to one main idea when possible, with no more than two tightly connected targets, two evidence checks, and 450 learner-facing words.",
     };
   }
   if (minutes <= 30) {
@@ -45,7 +47,8 @@ export function contentBudgetForMinutes(minutes: number): SessionContentBudget {
       preferredContentTargets: 2,
       maximumContentTargets: 3,
       maximumCompletionChecks: 3,
-      guidance: "Use one coherent concept cluster, normally two targets, followed by no more than three evidence checks.",
+      maximumLearnerFacingWords: 850,
+      guidance: "Use one coherent concept cluster, normally two targets, followed by no more than three evidence checks and no more than 850 learner-facing words.",
     };
   }
   if (minutes <= 45) {
@@ -54,7 +57,8 @@ export function contentBudgetForMinutes(minutes: number): SessionContentBudget {
       preferredContentTargets: 3,
       maximumContentTargets: 4,
       maximumCompletionChecks: 4,
-      guidance: "Use up to three substantial targets when they form one coherent lesson, with active evidence for each target.",
+      maximumLearnerFacingWords: 1_200,
+      guidance: "Use up to three substantial targets when they form one coherent lesson, with active evidence for each target and no more than 1,200 learner-facing words.",
     };
   }
   return {
@@ -62,7 +66,8 @@ export function contentBudgetForMinutes(minutes: number): SessionContentBudget {
     preferredContentTargets: 4,
     maximumContentTargets: 5,
     maximumCompletionChecks: 4,
-    guidance: "Use at most four substantial targets in the normal case. Preserve a coherent lesson rather than filling the full window with extra information.",
+    maximumLearnerFacingWords: 1_600,
+    guidance: "Use at most four substantial targets in the normal case and no more than 1,600 learner-facing words. Preserve a coherent lesson rather than filling the full window with extra information.",
   };
 }
 

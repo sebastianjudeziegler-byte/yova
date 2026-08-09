@@ -155,6 +155,18 @@ describe("session content-volume validation", () => {
       completionEvidence: ["Explain the cluster"],
     })).toMatch(/at most 2 content targets/i);
   });
+
+  it("rejects a wall of content that cannot fit a short guided session", async () => {
+    const { validateSessionTimeBudget } = await import("@/lib/openai/session-generator");
+    const draft = learningDraft("model");
+    const oversizedExplanation = Array.from(
+      { length: 520 },
+      (_, index) => `detail${index + 1}`,
+    ).join(" ");
+    draft.activities[0]!.teaching!.explanation = oversizedExplanation;
+
+    expect(validateSessionTimeBudget(draft, 15)).toMatch(/too much for a 15-minute guided session/i);
+  });
 });
 
 describe("scheduled retrieval generation", () => {

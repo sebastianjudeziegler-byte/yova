@@ -64,10 +64,13 @@ import {
 import { validateSessionAdjustmentFidelity } from "@/lib/session-generation/adjustment-fidelity";
 import { validateSessionQuestionContext } from "@/lib/session-generation/question-context";
 import { validateSessionContentSpecificity } from "@/lib/session-generation/content-specificity";
+import { validateSessionTimeBudget } from "@/lib/session-generation/time-budget";
 import { polishGeneratedSessionTypography } from "@/lib/session-generation/typography";
 import { validateVisibleAdaptation } from "@/lib/personalization/visible-adaptation";
 import type { GenerationValidator } from "@/lib/analytics/generation-observation";
 import { contentBudgetForMinutes } from "@/lib/plan-generation/content-budget";
+
+export { validateSessionTimeBudget } from "@/lib/session-generation/time-budget";
 
 export type SessionGenerationContext = {
   learningGoal: {
@@ -893,24 +896,4 @@ export function validateSubstantiveTeaching(draft: GeneratedSessionDraft) {
   return substantiveModel
     ? null
     : "A learn session must include a model-phase teaching activity with a real subject explanation and either a worked example or a corrected misconception before independent checks.";
-}
-
-function validateSessionTimeBudget(draft: GeneratedSessionDraft, estimatedMinutes: number) {
-  const totalMinutes = draft.activities.reduce((total, activity) => total + activity.estimatedMinutes, 0);
-  const requiredMinutes = draft.activities
-    .filter((activity) => activity.requiredForCompletion)
-    .reduce((total, activity) => total + activity.estimatedMinutes, 0);
-
-  if (requiredMinutes > estimatedMinutes) {
-    return `Required content needs ${requiredMinutes} minutes, but the session allows ${estimatedMinutes}. Reduce the current content slice and defer the remainder.`;
-  }
-  if (totalMinutes > estimatedMinutes + 2) {
-    return `The activity sequence needs ${totalMinutes} minutes, which does not fit the ${estimatedMinutes}-minute session.`;
-  }
-
-  const maximumActivities = estimatedMinutes <= 15 ? 4 : estimatedMinutes <= 30 ? 5 : 8;
-  if (draft.activities.length > maximumActivities) {
-    return `A ${estimatedMinutes}-minute session may contain at most ${maximumActivities} focused activities.`;
-  }
-  return null;
 }

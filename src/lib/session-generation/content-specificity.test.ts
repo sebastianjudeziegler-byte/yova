@@ -132,6 +132,53 @@ describe("session content specificity", () => {
     })).toContain("is checked later but is not actually taught");
   });
 
+  it("rejects a correctly labeled check whose actual question tests something else", () => {
+    const draft = {
+      ...baseDraft,
+      activities: baseDraft.activities.map((activity) => activity.concept === "Dilution" ? {
+        ...activity,
+        title: "Name a funding source",
+        body: "Explain one reason a founder might bootstrap a company before seeking investors.",
+        correctAnswer: "Bootstrapping lets a founder begin with personal funds or early revenue before raising outside capital.",
+        feedback: "The answer should connect bootstrapping with personal funds or early business revenue.",
+      } : activity),
+    };
+
+    expect(validateSessionContentSpecificity({
+      draft,
+      goalTopic: "Startup funding stages, investors, and dilution",
+      sessionObjective: "Explain the funding sequence and ownership tradeoffs",
+    })).toContain("does not actually test the essential idea");
+  });
+
+  it("rejects a model that name-drops an idea without teaching its relationship", () => {
+    const draft = {
+      ...baseDraft,
+      coverage: {
+        ...baseDraft.coverage,
+        essentialIdeas: ["Alliance commitments and mobilization widened a local crisis into a European war"],
+        evidenceMap: [{
+          essentialIdea: "Alliance commitments and mobilization widened a local crisis into a European war",
+          activityConcept: "Funding stages",
+        }],
+      },
+      activities: baseDraft.activities.map((activity, index) => index === 0 ? {
+        ...activity,
+        teaching: activity.teaching ? {
+          ...activity.teaching,
+          keyIdea: "Alliance commitments were important in World War I.",
+          explanation: "European alliances existed before the conflict, and countries knew which other powers were connected. The model stops at that background fact and gives the learner no mechanism linking later events together.",
+        } : null,
+      } : activity),
+    };
+
+    expect(validateSessionContentSpecificity({
+      draft,
+      goalTopic: "Startup funding stages, investors, and dilution",
+      sessionObjective: "Explain the funding sequence and ownership tradeoffs",
+    })).toContain("is checked later but is not actually taught");
+  });
+
   it("rejects generic method instructions presented as if they were subject teaching", () => {
     const draft = {
       ...baseDraft,

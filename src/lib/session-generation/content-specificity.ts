@@ -84,10 +84,31 @@ export function validateSessionContentSpecificity({
       .join(" ");
     const uncoveredIdea = draft.coverage.essentialIdeas.find((idea) => {
       const ideaTokens = meaningfulTokens(idea);
-      return ideaTokens.length > 0 && !ideaTokens.some((token) => containsToken(teachingText, token));
+      return ideaTokens.length > 0
+        && countTokenMatches(teachingText, ideaTokens) < minimumIdeaMatches(ideaTokens.length);
     });
     if (uncoveredIdea) {
       return `The essential idea "${uncoveredIdea}" is checked later but is not actually taught in the lesson model.`;
+    }
+  }
+
+  for (const mapping of draft.coverage.evidenceMap) {
+    const mappedActivities = draft.activities.filter((activity) => (
+      activity.requiredForCompletion
+      && (activity.type === "multiple_choice" || activity.type === "free_response")
+      && conceptsOverlap(activity.concept ?? "", mapping.activityConcept)
+    ));
+    if (mappedActivities.length === 0) continue;
+
+    // Do not count the concept label itself. The learner only demonstrates an
+    // idea when the visible question, answer, and feedback actually address it.
+    const evidenceText = mappedActivities.map(questionSubjectText).join(" ");
+    const ideaTokens = meaningfulTokens(mapping.essentialIdea);
+    if (
+      ideaTokens.length > 0
+      && countTokenMatches(evidenceText, ideaTokens) < minimumIdeaMatches(ideaTokens.length)
+    ) {
+      return `The required check labeled "${mapping.activityConcept}" does not actually test the essential idea "${mapping.essentialIdea}."`;
     }
   }
 
@@ -117,6 +138,34 @@ function activitySubjectText(activity: GeneratedSessionDraft["activities"][numbe
   ].filter(Boolean).join(" ");
 }
 
+function questionSubjectText(activity: GeneratedSessionDraft["activities"][number]) {
+  return [
+    activity.title,
+    activity.body,
+    activity.correctAnswer,
+    activity.feedback,
+    ...activity.choices,
+  ].filter(Boolean).join(" ");
+}
+
+function countTokenMatches(value: string, tokens: string[]) {
+  return tokens.filter((token) => containsToken(value, token)).length;
+}
+
+function minimumIdeaMatches(tokenCount: number) {
+  if (tokenCount <= 2) return 1;
+  if (tokenCount <= 5) return 2;
+  return 4;
+}
+
+function conceptsOverlap(left: string, right: string) {
+  const leftNormalized = normalize(left);
+  const rightNormalized = normalize(right);
+  return leftNormalized === rightNormalized
+    || leftNormalized.includes(rightNormalized)
+    || rightNormalized.includes(leftNormalized);
+}
+
 function meaningfulTokens(value: string) {
   return unique(value.toLocaleLowerCase()
     .replace(/[^a-z0-9]+/g, " ")
@@ -128,9 +177,17 @@ function meaningfulTokens(value: string) {
 function containsToken(value: string, token: string) {
   const normalized = value.toLocaleLowerCase().replace(/[^a-z0-9]+/g, " ");
   return normalized.split(" ").some((candidate) => (
-    candidate === token
-    || (candidate.length > 4 && candidate.endsWith("s") ? candidate.slice(0, -1) : candidate) === token
+    tokensRelated(candidate, token)
   ));
+}
+
+function tokensRelated(candidate: string, token: string) {
+  const singularCandidate = candidate.length > 4 && candidate.endsWith("s") ? candidate.slice(0, -1) : candidate;
+  if (singularCandidate === token) return true;
+  if (singularCandidate.length < 5 || token.length < 5) return false;
+  const sharedPrefix = Math.min(singularCandidate.length, token.length, 6);
+  return sharedPrefix >= 5
+    && singularCandidate.slice(0, sharedPrefix) === token.slice(0, sharedPrefix);
 }
 
 function unique(values: string[]) {

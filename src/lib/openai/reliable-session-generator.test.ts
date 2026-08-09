@@ -144,6 +144,54 @@ describe("reliable OpenAI session generation", () => {
     expect(result.draft.activities[1]?.teaching?.keyIdea).toContain("biological night");
   });
 
+  it("repairs a coherent-looking lesson when its actual content misses the target", async () => {
+    const unrelatedLesson = {
+      ...lesson,
+      concept: "Plant photosynthesis",
+      focus: "How chlorophyll captures light energy in a plant leaf",
+      essentialIdea: "Chlorophyll helps plants capture light energy for photosynthesis.",
+      keyIdea: "Photosynthesis stores captured light energy in glucose.",
+      explanation: "Chlorophyll in plant cells absorbs light energy. Photosynthesis uses that energy to combine carbon dioxide and water into glucose, storing part of the captured energy in chemical bonds while releasing oxygen.",
+      example: {
+        setup: "A green leaf receives sunlight during the day.",
+        steps: [
+          "Chlorophyll absorbs some of the incoming light.",
+          "The plant uses that energy to build glucose.",
+        ],
+        takeaway: "The leaf converts light energy into stored chemical energy.",
+      },
+      commonMistake: {
+        mistake: "Plants obtain all of their stored energy directly from soil.",
+        correction: "Plants capture light energy and store it in glucose through photosynthesis.",
+      },
+      check: {
+        title: "What does chlorophyll help capture?",
+        prompt: "In photosynthesis, what form of energy does chlorophyll help a plant capture?",
+        choices: ["Light energy", "Sound energy", "Motion energy", "Nuclear energy"],
+        correctChoiceIndex: 0,
+        feedback: "Chlorophyll absorbs light that supplies energy for photosynthesis.",
+      },
+      explainBack: {
+        title: "Explain the energy change",
+        prompt: "Explain how a plant changes light energy into stored chemical energy.",
+        modelAnswer: "Chlorophyll absorbs light, and photosynthesis uses that energy to build glucose that stores chemical energy.",
+        feedback: "The explanation should connect absorbed light with glucose production.",
+      },
+    };
+    parseResponse
+      .mockResolvedValueOnce(providerResponse(unrelatedLesson))
+      .mockResolvedValueOnce(providerResponse(lesson));
+    const { generateReliableSessionWithOpenAI } = await import("@/lib/openai/reliable-session-generator");
+
+    const result = await generateReliableSessionWithOpenAI(context());
+
+    expect(parseResponse).toHaveBeenCalledTimes(2);
+    expect(parseResponse.mock.calls[1]?.[0]?.instructions).toContain("failed validation");
+    expect(result.generationStats.firstAttemptPassed).toBe(false);
+    expect(result.generationStats.repairSucceeded).toBe(true);
+    expect(result.draft.activities[0]?.teaching?.explanation).toContain("circadian clock");
+  });
+
   it("uses the compact path only when its activity shape can execute the routed method", async () => {
     const { canGenerateReliableSession } = await import("@/lib/openai/reliable-session-generator");
 

@@ -20,6 +20,10 @@ import {
   type GeneratedSessionDraft,
 } from "@/lib/session-generation/schema";
 import { polishGeneratedSessionTypography } from "@/lib/session-generation/typography";
+import { validateSessionCompletionContract } from "@/lib/session-generation/completion-contract";
+import { validateSessionContentSpecificity } from "@/lib/session-generation/content-specificity";
+import { validateSessionQuestionContext } from "@/lib/session-generation/question-context";
+import { validateSessionTimeBudget } from "@/lib/session-generation/time-budget";
 
 const ReliableLessonContentSchema = z.object({
   concept: z.string().trim().min(2).max(100),
@@ -159,6 +163,7 @@ export async function generateReliableSessionWithOpenAI(
   };
   let response: Awaited<ReturnType<ReturnType<typeof getOpenAIClient>["responses"]["parse"]>> | null = null;
   let lesson: z.infer<typeof ReliableLessonContentSchema> | null = null;
+  let draft: GeneratedSessionDraft | null = null;
   let failedValidator: SessionGenerationStats["failedValidator"] = null;
   let repairDetail: string | null = null;
 
@@ -235,11 +240,40 @@ export async function generateReliableSessionWithOpenAI(
       repairDetail = "The lesson did not match YOVA's required teaching structure.";
       continue;
     }
+    const candidate = buildReliableDraft({
+      context,
+      lesson: parsedLesson.data,
+      routing,
+      deliveryPolicy,
+    });
+    const semanticIssue = validateSessionTimeBudget(candidate, context.session.estimatedMinutes)
+      ?? validateSessionQuestionContext(candidate)
+      ?? validateSessionCompletionContract({
+        essentialIdeas: candidate.coverage.essentialIdeas,
+        evidenceMap: candidate.coverage.evidenceMap,
+        activities: candidate.activities,
+      })
+      ?? validateSessionContentSpecificity({
+        draft: candidate,
+        goalTopic: context.learningGoal.topic,
+        sessionObjective: context.session.objective,
+      })
+      ?? validateMethodFidelity({
+        methodId: candidate.methodBriefing.methodId,
+        learningMode: candidate.methodBriefing.learningMode,
+        activities: candidate.activities,
+      });
+    if (semanticIssue) {
+      failedValidator ??= "session_semantic_validation";
+      repairDetail = semanticIssue;
+      continue;
+    }
     lesson = parsedLesson.data;
+    draft = candidate;
     break;
   }
 
-  if (!response || !lesson) {
+  if (!response || !lesson || !draft) {
     throw new SessionGenerationFailure("OpenAI did not return a complete subject lesson after one repair attempt.", {
       elapsedMs: Date.now() - startedAt,
       attempts: usage.attempts,
@@ -247,7 +281,11 @@ export async function generateReliableSessionWithOpenAI(
       failedValidator: failedValidator ?? "reliable_lesson_structure",
       repairAttempted: usage.attempts > 1,
       repairSucceeded: usage.attempts > 1 ? false : null,
-      repairReason: failedValidator === "reliable_lesson_response_status" ? "incomplete_response" : "structured_output",
+      repairReason: failedValidator === "reliable_lesson_response_status"
+        ? "incomplete_response"
+        : failedValidator === "session_semantic_validation"
+          ? "semantic_validation"
+          : "structured_output",
       repairDetail,
       inputTokens: usage.inputTokens,
       cachedInputTokens: usage.cachedInputTokens,
@@ -256,28 +294,6 @@ export async function generateReliableSessionWithOpenAI(
     });
   }
 
-  const draft = buildReliableDraft({ context, lesson, routing, deliveryPolicy });
-  const methodIssue = validateMethodFidelity({
-    methodId: draft.methodBriefing.methodId,
-    learningMode: draft.methodBriefing.learningMode,
-    activities: draft.activities,
-  });
-  if (methodIssue) {
-    throw new SessionGenerationFailure("The compact session shape did not honor its selected learning method.", {
-      elapsedMs: Date.now() - startedAt,
-      attempts: usage.attempts,
-      firstAttemptPassed: false,
-      failedValidator: "session_semantic_validation",
-      repairAttempted: false,
-      repairSucceeded: null,
-      repairReason: "semantic_validation",
-      repairDetail: methodIssue,
-      inputTokens: usage.inputTokens,
-      cachedInputTokens: usage.cachedInputTokens,
-      cacheWriteTokens: usage.cacheWriteTokens,
-      outputTokens: usage.outputTokens,
-    });
-  }
   const generationStats: SessionGenerationStats = {
     elapsedMs: Date.now() - startedAt,
     attempts: usage.attempts,
@@ -286,7 +302,11 @@ export async function generateReliableSessionWithOpenAI(
     repairAttempted: usage.attempts > 1,
     repairSucceeded: usage.attempts > 1 ? true : null,
     repairReason: usage.attempts > 1
-      ? failedValidator === "reliable_lesson_response_status" ? "incomplete_response" : "structured_output"
+      ? failedValidator === "reliable_lesson_response_status"
+        ? "incomplete_response"
+        : failedValidator === "session_semantic_validation"
+          ? "semantic_validation"
+          : "structured_output"
       : "none",
     repairDetail: usage.attempts > 1 ? repairDetail : null,
     inputTokens: usage.inputTokens,
