@@ -1495,6 +1495,7 @@ h1, h2, h3, p { margin-top: 0; }
 .completion-review-return strong { color: #322b21; font-size: 14px; line-height: 1.4; }
 .completion-review-return small { color: #796a55; font-size: 12px; }
 .completion-approval-note { margin: 0; padding: 11px 20px; display: block; color: #5f4f31; border-top: 1px solid #eee1c6; background: #fffaf0; font-size: 11px; line-height: 1.5; }
+.completion-approval-note strong { color: #3f321e; font-weight: 800; }
 .completion-decision-actions { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1.35fr); gap: 10px; }
 .completion-decision-actions .button { width: 100%; }
 

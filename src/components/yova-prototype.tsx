@@ -94,6 +94,7 @@ import {
 } from "@/lib/learning/method-phase-presentation";
 import { buildFallbackMethodBriefing } from "@/lib/learning/fallback-method-briefing";
 import { rankPlansForHome } from "@/lib/learning/home-recommendations";
+import { completePlanSession } from "@/lib/learning/complete-plan-session";
 import { buildFallbackRuntimeRepair } from "@/lib/session-repair/fallback";
 import {
   RuntimeRepairRequestSchema,
@@ -118,7 +119,6 @@ import { restoreInterruptedLesson, resumableSessionProgress } from "@/lib/learni
 import { selectFreeResponseMode } from "@/lib/learning/response-mode";
 import { clearPreviewSnapshot, loadPreviewSnapshot, savePreviewSnapshot } from "@/lib/persistence/preview-store";
 import { buildPlanProfileSummary } from "@/lib/personalization/profile-summary";
-import { createSessionAdaptationNote } from "@/lib/personalization/adaptation-note";
 import {
   approvedPostSessionChanges,
   buildPostSessionDecision,
@@ -864,41 +864,17 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
       },
     }, analyticsEnabled);
 
-    setPlans((currentPlans) => currentPlans.map((plan) => {
-      if (plan.id !== activePlan.id) return plan;
-      const nextSequence = currentSession.sequence + 1;
-      const updatedSessions = plan.sessions.map((session) => {
-        if (session.id === currentSession.id) return { ...session, status: "complete" as const };
-        if (session.sequence === nextSequence && session.status === "upcoming") {
-          return adaptation?.planSessionId === session.id
-            ? {
-              ...session,
-              title: adaptation.title,
-              objective: adaptation.objective,
-              method: adaptation.method,
-              methodReason: adaptation.methodReason,
-              estimatedMinutes: adaptation.estimatedMinutes,
-              amountLabel: adaptation.amountLabel,
-              learningMode: adaptation.learningMode,
-              resource: undefined,
-              adaptationNote: createSessionAdaptationNote(adaptation.explanation, completion.completedAt),
-              status: "ready" as const,
-            }
-            : { ...session, status: "ready" as const };
-        }
-        return session;
-      });
-      const sessionsWithVerification = delayedVerification
-        ? [...updatedSessions, delayedVerification]
-        : updatedSessions;
-      return {
-        ...plan,
-        status: sessionsWithVerification.some((session) => session.status === "ready" || session.status === "upcoming")
-          ? plan.status
-          : "completed",
-        sessions: sessionsWithVerification,
-      };
-    }));
+    setPlans((currentPlans) => currentPlans.map((plan) => (
+      plan.id === activePlan.id
+        ? completePlanSession({
+          plan,
+          completedSessionId: currentSession.id,
+          completedAt: completion.completedAt,
+          adaptation,
+          followUpSession: delayedVerification,
+        })
+        : plan
+    )));
 
     setSessionCompletions((current) => [...current, completion]);
 
@@ -3758,7 +3734,7 @@ function SessionComplete({ currentSession, completedAt, requiredContentCount, re
       {(conceptSummary.showingStrength.length > 0 || conceptSummary.needsAnotherCheck.length > 0) && <section className="completion-evidence"><div><span><Check size={15} /> Showing strength today</span>{conceptSummary.showingStrength.length > 0 ? <ul>{conceptSummary.showingStrength.map((concept) => <li key={concept}>{concept}</li>)}</ul> : <p>No concept has enough successful evidence yet.</p>}</div><div className={conceptSummary.needsAnotherCheck.length > 0 ? "needs-review" : ""}><span><RotateCcw size={15} /> Needs another check</span>{conceptSummary.needsAnotherCheck.length > 0 ? <ul>{conceptSummary.needsAnotherCheck.map((concept) => <li key={concept}>{concept}</li>)}</ul> : <p>No gap appeared in today’s required checks.</p>}</div></section>}
       {repairCount > 0 && <div className="completion-repair-note"><RotateCcw size={17} /><p>You repaired {repairCount === 1 ? "one idea" : `${repairCount} ideas`} during the session. YOVA still treats the original miss as evidence that deserves another check.</p></div>}
       <section className="completion-feedback"><div><strong>How did the challenge feel?</strong><p>Your answer can change YOVA’s recommendation below.</p></div><div className="feeling-row"><button className={feedback === "too_easy" ? "selected" : ""} onClick={() => setFeedback("too_easy")}>Too easy</button><button className={feedback === "about_right" ? "selected" : ""} onClick={() => setFeedback("about_right")}>About right</button><button className={feedback === "too_difficult" ? "selected" : ""} onClick={() => setFeedback("too_difficult")}>Too difficult</button></div></section>
-      {decision && <section className={`completion-decision ${hasRecommendedChange ? "recommended" : "unchanged"}`}><header><div className="completion-next-icon">{hasRecommendedChange ? <Sparkles size={20} /> : <Check size={20} />}</div><div><span>{hasRecommendedChange ? "YOVA RECOMMENDS" : "NO CHANGE NEEDED"}</span><h2>{decision.title}</h2><p>{decision.explanation}</p></div></header>{decision.changes.length > 0 && <ol>{decision.changes.map((change) => <li key={change}>{change}</li>)}</ol>}<div className="completion-decision-next"><span>Next</span><strong>{decision.nextTitle}</strong>{nextSession && <small>{formatAgendaTime(nextSession.scheduledFor)} · {nextSession.estimatedMinutes} minutes</small>}</div>{decision.reviewPlan && decision.kind === "adapt_next_session" && <div className="completion-review-return"><RotateCcw size={16} /><div><span>Saved to the review queue</span><strong>{decision.reviewPlan.title}</strong><small>Return after {formatAgendaTime(decision.reviewPlan.scheduledFor)} · YOVA will bring it into a later session</small></div></div>}{hasRecommendedChange && <small className="completion-approval-note">Only the next session delivery changes after approval. Later learning targets stay in place.</small>}</section>}
+      {decision && <section className={`completion-decision ${hasRecommendedChange ? "recommended" : "unchanged"}`}><header><div className="completion-next-icon">{hasRecommendedChange ? <Sparkles size={20} /> : <Check size={20} />}</div><div><span>{hasRecommendedChange ? "YOVA RECOMMENDS" : "NO CHANGE NEEDED"}</span><h2>{decision.title}</h2><p>{decision.explanation}</p></div></header>{decision.changes.length > 0 && <ol>{decision.changes.map((change) => <li key={change}>{change}</li>)}</ol>}<div className="completion-decision-next"><span>Next</span><strong>{decision.nextTitle}</strong>{nextSession && <small>{formatAgendaTime(nextSession.scheduledFor)} · {nextSession.estimatedMinutes} minutes</small>}</div>{decision.reviewPlan && decision.kind === "adapt_next_session" && <div className="completion-review-return"><RotateCcw size={16} /><div><span>Saved to the review queue</span><strong>{decision.reviewPlan.title}</strong><small>Return after {formatAgendaTime(decision.reviewPlan.scheduledFor)} · YOVA will bring it into a later session</small></div></div>}{hasRecommendedChange && <small className="completion-approval-note"><strong>Nothing changes until you approve it.</strong> {decision.kind === "add_delayed_verification" ? "YOVA will add only this delayed check; completed work and other learning targets stay in place." : "YOVA will change only how the next session begins; later learning targets stay in place."}</small>}</section>}
       {hasRecommendedChange ? <div className="completion-decision-actions"><button className="button ghost large" onClick={() => onFinish(feedback, false)}>{keepLabel}</button><button className="button primary large" onClick={() => onFinish(feedback, true)}>Update my plan <ArrowRight size={18} /></button></div> : <button className="button primary large full" onClick={() => onFinish(feedback, false)}>Finish and continue <ArrowRight size={18} /></button>}
     </section>
   </main>;
