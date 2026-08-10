@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  groundSessionEvidenceMap,
   reconcileSessionCompletionMap,
   validateSessionCompletionContract,
 } from "@/lib/session-generation/completion-contract";
@@ -85,6 +86,42 @@ describe("session completion contract", () => {
     });
 
     expect(reconciled.coverage.evidenceMap[0].activityConcept).toBe("Mara's hesitation");
+  });
+
+  it("replaces a generic study-guide label with the concrete WWI answer being checked", () => {
+    const grounded = groundSessionEvidenceMap({
+      coverage: {
+        essentialIdeas: ["The overall relationship among the listed unit sections"],
+        evidenceMap: [{
+          essentialIdea: "The overall relationship among the listed unit sections",
+          activityConcept: "Map the Study Guide",
+        }],
+        deferredContent: [],
+      },
+      activities: [{
+        type: "multiple_choice" as const,
+        concept: "Alliance commitments and mobilization",
+        requiredForCompletion: true,
+        title: "Why did a local crisis widen?",
+        body: "Which factor helped turn the assassination of Franz Ferdinand into a wider European war?",
+        choices: ["Alliance commitments and mobilization", "A peace treaty", "The invention of tanks"],
+        correctAnswer: "Alliance commitments and mobilization",
+      }],
+    });
+
+    expect(grounded.coverage.essentialIdeas).toEqual(["Alliance commitments and mobilization"]);
+    expect(grounded.coverage.evidenceMap).toEqual([{
+      essentialIdea: "Alliance commitments and mobilization",
+      activityConcept: "Alliance commitments and mobilization",
+    }]);
+    expect(grounded.coverage.deferredContent).toContain(
+      "The overall relationship among the listed unit sections",
+    );
+    expect(validateSessionCompletionContract({
+      essentialIdeas: grounded.coverage.essentialIdeas,
+      evidenceMap: grounded.coverage.evidenceMap,
+      activities: grounded.activities,
+    })).toBeNull();
   });
 
   it("rejects an essential idea that is only stated but never checked", () => {

@@ -40,6 +40,36 @@ describe("material support policy", () => {
 });
 
 describe("session source grounding", () => {
+  it("accepts an exact legacy excerpt when older material has no persisted chunk metadata", () => {
+    const legacyMaterial = [{
+      role: "scope_outline" as const,
+      name: "World War I guide.pdf",
+      text: "Militarism and alliances increased European tensions before the July Crisis.",
+      truncated: false,
+    }];
+
+    expect(validateSessionSourceGrounding({
+      sourceMode: "user_materials",
+      materials: legacyMaterial,
+      grounding: {
+        mode: "materials_plus_ai",
+        summary: "The study guide defines the scope while YOVA provides the instruction for the listed causes.",
+        sourceNames: ["World War I guide.pdf"],
+        anchors: [{
+          chunkId: "00000000-0000-4000-8000-123456789abc",
+          sourceName: "World War I guide.pdf",
+          locationLabel: "Uploaded material",
+          excerpt: "Militarism and alliances increased European tensions",
+          usedFor: "This exact excerpt defines the causes that belong in the lesson.",
+        }],
+        supplements: [{
+          topic: "Militarism and alliances",
+          reason: "The guide names these causes but needs full instruction about how they increased tensions.",
+        }],
+      },
+    })).toBeNull();
+  });
+
   it("accepts a verified source anchor and a disclosed supplement for an outline", () => {
     expect(validateSessionSourceGrounding({
       sourceMode: "user_materials",

@@ -79,7 +79,10 @@ describe.skipIf(!liveEvaluationEnabled)("live plan-to-session journeys", () => {
     if (evaluationCase.request.learningIntent === "learn") {
       expect(firstSession!.learningMode).toBe("learn");
       expect(generatedSession.draft.activities.some((activity) => (
-        activity.type === "instruction" && Boolean(activity.teaching)
+        activity.type === "instruction" && (
+          Boolean(activity.teaching)
+          || ("lessonBrief" in activity && Boolean(activity.lessonBrief))
+        )
       ))).toBe(true);
     }
   }, 210_000);

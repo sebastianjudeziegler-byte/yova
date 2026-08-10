@@ -47,11 +47,16 @@ export function validateSessionSourceGrounding({
     return "The session cited a filename that was not supplied by the learner.";
   }
   if (grounding.anchors.some((anchor) => {
-    const material = materialByChunkId.get(anchor.chunkId);
+    const material = materialByChunkId.get(anchor.chunkId) ?? materials.find((candidate) => (
+      !candidate.chunkId
+      && candidate.name === anchor.sourceName
+      && (candidate.locationLabel ?? "Uploaded material") === anchor.locationLabel
+      && normalize(candidate.text).includes(normalize(anchor.excerpt))
+    ));
     return !grounding.sourceNames.includes(anchor.sourceName)
       || !material
       || material.name !== anchor.sourceName
-      || material.locationLabel !== anchor.locationLabel
+      || (material.locationLabel ?? "Uploaded material") !== anchor.locationLabel
       || !normalize(material.text).includes(normalize(anchor.excerpt));
   })) {
     return "The session included a source anchor that could not be verified in the mapped material chunk.";

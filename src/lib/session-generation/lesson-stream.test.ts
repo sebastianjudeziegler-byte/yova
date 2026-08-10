@@ -8,7 +8,7 @@ import {
 describe("lesson stream protocol", () => {
   it("parses frames even when JSON is split across network chunks", async () => {
     const events: LessonStreamEvent[] = [
-      { type: "lesson.meta", requestId: crypto.randomUUID(), model: "gpt-5.6" },
+      { type: "lesson.meta", requestId: crypto.randomUUID(), model: "gpt-5.6-sol" },
       { type: "lesson.delta", delta: "A causal " },
       { type: "lesson.delta", delta: "explanation." },
       {
@@ -19,7 +19,7 @@ describe("lesson stream protocol", () => {
         cachedInputTokens: 80,
         outputTokens: 52,
         wordCount: 8,
-        model: "gpt-5.6",
+        model: "gpt-5.6-sol",
       },
     ];
     const bytes = events.map(encodeLessonStreamEvent);
@@ -55,7 +55,7 @@ describe("lesson stream protocol", () => {
             cachedInputTokens: 0,
             outputTokens: 10,
             wordCount: 7,
-            model: "gpt-5.6",
+            model: "gpt-5.6-sol",
             lessonText: "private learner content",
           })}\n\n`,
         ));

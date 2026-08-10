@@ -22,6 +22,15 @@ type CompletionMappedDraft = {
   activities: SessionCompletionContract["activities"];
 };
 
+type EvidenceGroundedDraft = {
+  coverage: {
+    essentialIdeas: string[];
+    evidenceMap: Array<{ essentialIdea: string; activityConcept: string }>;
+    deferredContent: string[];
+  };
+  activities: SessionCompletionContract["activities"];
+};
+
 /**
  * The model sometimes names the same checked idea at two levels of detail,
  * such as "term sheets" in the map and "investment terms" on the question.
@@ -44,6 +53,93 @@ export function reconcileSessionCompletionMap<T extends CompletionMappedDraft>(d
         ...mapping,
         activityConcept: canonicalActivityConcept(mapping, requiredConcepts, requiredActivities),
       })),
+    },
+  };
+}
+
+/**
+ * A streamed skeleton occasionally returns a broad planning label such as
+ * "the relationship among the listed sections" even though its required
+ * question checks a concrete subject relationship. The strict validator is
+ * right to reject that mismatch, but asking the model to rename the same pair
+ * again is unreliable. Rebuild only the inaccurate entries from the actual
+ * required question and preserve the displaced planning label as deferred
+ * content. The downstream lesson call then teaches the concrete statement
+ * that the learner will actually be asked to demonstrate.
+ */
+export function groundSessionEvidenceMap<T extends EvidenceGroundedDraft>(draft: T): T {
+  const requiredActivities = draft.activities.filter((activity) => (
+    activity.requiredForCompletion
+    && (activity.type === "multiple_choice" || activity.type === "free_response")
+    && activity.concept
+    && activity.correctAnswer
+  ));
+  if (requiredActivities.length === 0) return draft;
+
+  const mappedByIdea = new Map(
+    draft.coverage.evidenceMap.map((mapping) => [normalize(mapping.essentialIdea), mapping]),
+  );
+  const claimedConcepts = new Set<string>();
+  const nextIdeas: string[] = [];
+  const nextMap: Array<{ essentialIdea: string; activityConcept: string }> = [];
+  const displacedIdeas: string[] = [];
+
+  for (const idea of draft.coverage.essentialIdeas) {
+    const proposed = mappedByIdea.get(normalize(idea));
+    const directMatches = requiredActivities.filter((activity) => (
+      proposed
+      && normalize(activity.concept ?? "") === normalize(proposed.activityConcept)
+      && ideaIsVisibleInQuestion(idea, activity)
+    ));
+    const semanticMatches = requiredActivities.filter((activity) => ideaIsVisibleInQuestion(idea, activity));
+    const activity = directMatches.length === 1
+      ? directMatches[0]
+      : semanticMatches.length === 1
+        ? semanticMatches[0]
+        : null;
+
+    if (activity && !claimedConcepts.has(normalize(activity.concept ?? ""))) {
+      nextIdeas.push(idea);
+      nextMap.push({ essentialIdea: idea, activityConcept: activity.concept! });
+      claimedConcepts.add(normalize(activity.concept ?? ""));
+      continue;
+    }
+
+    const replacementActivity = requiredActivities.find((candidate) => (
+      !claimedConcepts.has(normalize(candidate.concept ?? ""))
+    ));
+    if (!replacementActivity) {
+      displacedIdeas.push(idea);
+      continue;
+    }
+
+    const groundedIdea = groundedIdeaFromQuestion(replacementActivity);
+    nextIdeas.push(groundedIdea);
+    nextMap.push({ essentialIdea: groundedIdea, activityConcept: replacementActivity.concept! });
+    claimedConcepts.add(normalize(replacementActivity.concept ?? ""));
+    displacedIdeas.push(idea);
+  }
+
+  // A valid generated session always has at least one required check. This
+  // fallback also keeps older malformed drafts recoverable without weakening
+  // the semantic validator that runs immediately afterward.
+  if (nextIdeas.length === 0) {
+    const activity = requiredActivities[0]!;
+    const groundedIdea = groundedIdeaFromQuestion(activity);
+    nextIdeas.push(groundedIdea);
+    nextMap.push({ essentialIdea: groundedIdea, activityConcept: activity.concept! });
+  }
+
+  return {
+    ...draft,
+    coverage: {
+      ...draft.coverage,
+      essentialIdeas: unique(nextIdeas).slice(0, 4),
+      evidenceMap: uniqueMappings(nextMap).slice(0, 4),
+      deferredContent: unique([
+        ...displacedIdeas,
+        ...draft.coverage.deferredContent,
+      ]).slice(0, 4),
     },
   };
 }
@@ -142,6 +238,44 @@ function meaningfulTokens(value: string) {
   return unique(normalize(value).split(" ")
     .map((token) => token.length > 3 && token.endsWith("s") ? token.slice(0, -1) : token)
     .filter((token) => token.length > 2 && !ignored.has(token)));
+}
+
+function ideaIsVisibleInQuestion(
+  idea: string,
+  activity: SessionCompletionContract["activities"][number],
+) {
+  const ideaTokens = meaningfulTokens(idea);
+  if (ideaTokens.length === 0) return false;
+  const questionTokens = meaningfulTokens([
+    activity.title,
+    activity.body,
+    activity.correctAnswer,
+    ...(activity.choices ?? []),
+  ].filter(Boolean).join(" "));
+  const matches = ideaTokens.filter((token) => questionTokens.includes(token)).length;
+  const threshold = ideaTokens.length <= 2 ? 1 : ideaTokens.length <= 5 ? 2 : 3;
+  return matches >= threshold;
+}
+
+function groundedIdeaFromQuestion(
+  activity: SessionCompletionContract["activities"][number],
+) {
+  const answer = activity.correctAnswer?.trim() ?? "";
+  const concept = activity.concept?.trim() ?? "Key relationship";
+  const candidate = answer.length >= 5
+    ? answer
+    : `${concept}: ${answer}`;
+  return candidate.slice(0, 180).trim();
+}
+
+function uniqueMappings(values: Array<{ essentialIdea: string; activityConcept: string }>) {
+  const seen = new Set<string>();
+  return values.filter((value) => {
+    const key = normalize(value.essentialIdea);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 function unique(values: string[]) {

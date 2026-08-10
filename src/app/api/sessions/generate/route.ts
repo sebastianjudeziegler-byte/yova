@@ -50,6 +50,7 @@ import {
 import { checkSessionGenerationRateLimit, requestRateLimitKey } from "@/lib/server/rate-limit";
 import { claimAIRequest } from "@/lib/server/ai-usage";
 import { isDevelopmentPreviewRequest } from "@/lib/server/development-preview";
+import { privacySafeErrorDiagnostic } from "@/lib/server/error-diagnostic";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -433,10 +434,7 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error("YOVA guided-session generation failed", {
       requestId,
-      reason: error instanceof Error ? error.name : "unknown",
-      ...(process.env.NODE_ENV === "development" && error instanceof Error
-        ? { detail: error.message }
-        : {}),
+      ...privacySafeErrorDiagnostic(error),
     });
     const stats = error instanceof SessionGenerationFailure
       ? error.generationStats
@@ -518,10 +516,7 @@ async function generateBrowserPreviewSession(
   } catch (error) {
     console.error("YOVA browser guided-session generation failed", {
       requestId,
-      reason: error instanceof Error ? error.name : "unknown",
-      ...(process.env.NODE_ENV === "development" && error instanceof Error
-        ? { detail: error.message }
-        : {}),
+      ...privacySafeErrorDiagnostic(error),
     });
     return NextResponse.json(
       { error: "YOVA could not prepare this guided session right now. Try again in a moment.", requestId },

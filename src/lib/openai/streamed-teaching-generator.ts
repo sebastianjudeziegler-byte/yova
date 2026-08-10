@@ -1,5 +1,6 @@
 import "server-only";
 
+import { createHash } from "node:crypto";
 import { zodTextFormat } from "openai/helpers/zod";
 import { getOpenAIClient } from "@/lib/openai/client";
 import { getOpenAISessionConfig } from "@/lib/openai/config";
@@ -43,7 +44,10 @@ import {
   type StreamedGeneratedSessionDraft,
 } from "@/lib/session-generation/schema";
 import { enrichStreamedLessonBriefs } from "@/lib/session-generation/lesson-brief";
-import { reconcileSessionCompletionMap } from "@/lib/session-generation/completion-contract";
+import {
+  groundSessionEvidenceMap,
+  reconcileSessionCompletionMap,
+} from "@/lib/session-generation/completion-contract";
 import { normalizeStreamedActivityPhaseTypes } from "@/lib/session-generation/streamed-skeleton";
 
 const STREAMED_TEACHING_SKELETON_INSTRUCTIONS = `You design the complete skeleton for one YOVA learn-mode session. Another bounded model call will deliver each teaching explanation when the learner reaches it. You must plan the whole sequence now, including coverage, phases, knowledge checks, reference answers, feedback, and reflection, but you must not write the lesson prose now.
@@ -287,8 +291,13 @@ function finalizeStreamedSkeleton({
     normalizeStreamedActivityPhaseTypes(draft.activities),
     buildConceptReviewSchedule(context.conceptSignals),
   );
+  const budgetAligned = compactStreamedActivities({
+    activities: reviewAligned,
+    estimatedMinutes: context.session.estimatedMinutes,
+    requiredPhases: methodFidelityContractForPrompt(resolvedMethodId, "learn").requiredPhases,
+  });
   const withReturn = ensureDelayedRetrievalReturn(
-    reviewAligned,
+    budgetAligned,
     deliveryPolicy,
     context.session.title,
   ).map((activity) => (
@@ -297,7 +306,7 @@ function finalizeStreamedSkeleton({
       : { ...activity, teaching: null as null, lessonBrief: null }
   ));
   const sourceGrounding = authoritativeSourceGrounding(context);
-  const reconciled = reconcileSessionCompletionMap({
+  const reconciled = groundSessionEvidenceMap(reconcileSessionCompletionMap({
     ...draft,
     topicIds: context.session.topicIds,
     coverage: alignSessionCoverageWithPlan({
@@ -313,7 +322,7 @@ function finalizeStreamedSkeleton({
     },
     sourceGrounding,
     activities: withReturn,
-  });
+  }));
   return enrichStreamedLessonBriefs(StreamedGeneratedSessionDraftSchema.parse(reconciled), {
     sessionTopicIds: context.session.topicIds,
     materials: context.materials,
@@ -324,22 +333,65 @@ function finalizeStreamedSkeleton({
   });
 }
 
-function authoritativeSourceGrounding(context: SessionGenerationContext): SessionSourceGrounding | null {
+export function compactStreamedActivities({
+  activities,
+  estimatedMinutes,
+  requiredPhases,
+}: {
+  activities: StreamedGeneratedSessionDraft["activities"];
+  estimatedMinutes: number;
+  requiredPhases: string[];
+}) {
+  const maximumFocusedActivities = estimatedMinutes <= 15 ? 4 : estimatedMinutes <= 30 ? 5 : 8;
+  const focused = activities.filter((activity) => activity.methodPhase !== "schedule_return");
+  if (focused.length <= maximumFocusedActivities) return activities;
+
+  const retained = new Set<number>([0]);
+  for (const phase of requiredPhases) {
+    const index = focused.findIndex((activity) => activity.methodPhase === phase);
+    if (index >= 0) retained.add(index);
+  }
+  const firstMultipleChoice = focused.findIndex((activity) => activity.type === "multiple_choice");
+  const firstFreeResponse = focused.findIndex((activity) => activity.type === "free_response");
+  if (firstMultipleChoice >= 0) retained.add(firstMultipleChoice);
+  if (firstFreeResponse >= 0) retained.add(firstFreeResponse);
+
+  // If the essential learning sequence itself cannot fit, preserve it and let
+  // the existing validator reject the draft instead of silently deleting a
+  // required method phase. Normally the retained set is three or four items.
+  if (retained.size > maximumFocusedActivities) return activities;
+
+  for (let index = 0; index < focused.length && retained.size < maximumFocusedActivities; index += 1) {
+    if (focused[index]?.requiredForCompletion) retained.add(index);
+  }
+  for (let index = 0; index < focused.length && retained.size < maximumFocusedActivities; index += 1) {
+    retained.add(index);
+  }
+
+  const retainedFocused = focused.filter((_, index) => retained.has(index));
+  const returns = activities.filter((activity) => activity.methodPhase === "schedule_return");
+  return [...retainedFocused, ...returns];
+}
+
+export function authoritativeSourceGrounding(context: SessionGenerationContext): SessionSourceGrounding | null {
   if (context.learningGoal.sourceMode !== "user_materials" || context.materials.length === 0) return null;
   const scopeDefined = context.materials.some((material) => material.role === "scope_outline");
   const sourceNames = [...new Set(context.materials.map((material) => material.name))].slice(0, 5);
   const anchors = context.materials.flatMap((material) => {
-    if (!material.chunkId || !material.locationLabel) return [];
+    const chunkId = material.chunkId ?? legacyMaterialChunkId(material.name, material.text);
+    const locationLabel = material.locationLabel ?? "Uploaded material";
     return [{
-      chunkId: material.chunkId,
+      chunkId,
       sourceName: material.name,
-      locationLabel: material.locationLabel,
+      locationLabel,
       excerpt: material.text.slice(0, 220).trim(),
       usedFor: material.role === "scope_outline"
         ? "This mapped section defines which ideas belong in the lesson."
         : "This mapped section supplies the instructional substance for the lesson.",
     }];
   }).filter((anchor) => anchor.excerpt.length >= 12).slice(0, 4);
+  // A selected material with no readable text is not safe to cite.
+  if (anchors.length === 0) return null;
   const supplements = scopeDefined
     ? context.knowledgeTopics.slice(0, 3).map((topic) => ({
       topic: topic.title,
@@ -355,6 +407,14 @@ function authoritativeSourceGrounding(context: SessionGenerationContext): Sessio
     anchors,
     supplements,
   };
+}
+
+export function legacyMaterialChunkId(sourceName: string, text: string) {
+  const suffix = createHash("sha256")
+    .update(`${sourceName}\u0000${text}`)
+    .digest("hex")
+    .slice(0, 12);
+  return `00000000-0000-4000-8000-${suffix}`;
 }
 
 function generationStats({

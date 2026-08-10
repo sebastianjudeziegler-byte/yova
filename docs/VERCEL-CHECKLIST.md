@@ -12,6 +12,8 @@ NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
 AUTH_EMAIL_CODE_VERIFICATION
 OPENAI_API_KEY
 OPENAI_PLAN_MODEL
+OPENAI_SESSION_MODEL
+OPENAI_LESSON_MODEL
 SITE_URL
 ```
 
@@ -19,7 +21,15 @@ SITE_URL
 
 Keep `AUTH_EMAIL_CODE_VERIFICATION` set to `false` until custom SMTP is active and the Supabase Magic link or OTP template displays `{{ .Token }}`. Then set it to `true` and redeploy.
 
-`OPENAI_SESSION_MODEL` and `OPENAI_TUTOR_MODEL` are optional. When blank, YOVA uses `OPENAI_PLAN_MODEL` for all three jobs.
+Use these model values unless a tested deployment intentionally overrides them:
+
+```text
+OPENAI_PLAN_MODEL=gpt-5.6-sol
+OPENAI_SESSION_MODEL=gpt-5.4-mini
+OPENAI_LESSON_MODEL=gpt-5.6-sol
+```
+
+`OPENAI_TUTOR_MODEL` is optional and uses `OPENAI_PLAN_MODEL` when blank. Guided-session skeletons use `gpt-5.4-mini` when `OPENAI_SESSION_MODEL` is blank. Full streamed lessons use `OPENAI_PLAN_MODEL` when `OPENAI_LESSON_MODEL` is blank.
 
 After adding or changing variables, redeploy the latest Git commit. A deployment that happened before the variables were added does not automatically gain them.
 

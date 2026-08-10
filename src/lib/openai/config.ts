@@ -17,7 +17,7 @@ export function getOpenAIPlanConfig(): OpenAIPlanConfig | null {
 
   return {
     apiKey,
-    model: process.env.OPENAI_PLAN_MODEL?.trim() || "gpt-5.6",
+    model: process.env.OPENAI_PLAN_MODEL?.trim() || "gpt-5.6-sol",
   };
 }
 
