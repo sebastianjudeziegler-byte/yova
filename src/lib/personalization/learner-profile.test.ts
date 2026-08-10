@@ -9,6 +9,7 @@ import {
 describe("expanded learner profile", () => {
   it("round-trips deeper answers through the existing additional-context field", () => {
     const answers = Array.from({ length: 16 }, () => "");
+    answers[8] = "Less text and more visual structure";
     answers[9] = "I need to understand why a formula works.";
     answers[10] = "A concrete example before the rule";
     answers[11] = "I understand it but cannot apply it";
@@ -21,8 +22,19 @@ describe("expanded learner profile", () => {
     const restored = mergeStoredAdditionalContext([], stored);
 
     expect(restored[9]).toBe(answers[9]);
+    expect(restored[8]).toBe(answers[8]);
     expect(restored.slice(10, 16)).toEqual(answers.slice(10, 16));
     expect(deepProfileAnswerCount(restored)).toBe(5);
+  });
+
+  it("drops legacy diagnosis labels instead of turning them into model context", () => {
+    const answers = Array.from({ length: 16 }, () => "");
+    answers[8] = "ADHD";
+
+    const restored = mergeStoredAdditionalContext([], encodeAdditionalLearnerContext(answers));
+
+    expect(restored[8]).toBe("");
+    expect(expandedLearnerContextFromStored(encodeAdditionalLearnerContext(answers)).functionalSupportNeed).toBeNull();
   });
 
   it("keeps older plain-text profile context backward compatible", () => {

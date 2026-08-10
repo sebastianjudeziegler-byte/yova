@@ -69,6 +69,7 @@ export const PlanGenerationRequestSchema = z.object({
   })).min(1).max(14),
   profileSummary: z.string().trim().min(10).max(1_600),
   knowledgeMap: PlanKnowledgeMapSchema.optional(),
+  mapCorrection: z.string().trim().max(800).optional(),
 }).superRefine((value, context) => {
   if (value.materialMode === "upload" && value.materials.length === 0) {
     context.addIssue({ code: "custom", path: ["materials"], message: "Add at least one material or choose no materials." });

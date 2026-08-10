@@ -9,7 +9,7 @@ const onboardingAnswers = [
   "I intend to begin but often delay",
   "Afternoon",
   "A combination",
-  "None",
+  "No extra support right now",
   "Nothing else for now",
 ] as const;
 

@@ -5,6 +5,16 @@ export type Question = {
   multi?: boolean;
 };
 
+export const FUNCTIONAL_SUPPORT_OPTIONS = [
+  "Shorter sections with fewer steps at once",
+  "Less text and more visual structure",
+  "Extra time to read and respond",
+  "Instructions repeated in simpler language",
+  "Frequent check-ins and clear stopping points",
+  "No extra support right now",
+  "It depends on the task",
+] as const;
+
 export const onboardingQuestions: Question[] = [
   {
     prompt: "What most often makes studying difficult?",
@@ -39,8 +49,8 @@ export const onboardingQuestions: Question[] = [
     options: ["Help me begin", "Tell me exactly what to do", "Help me remember more", "Help me learn difficult material", "Prepare efficiently for tests", "Help me stay consistent", "A combination"],
   },
   {
-    prompt: "Is there a diagnosed condition that affects how you study?",
-    options: ["ADHD", "Dyslexia", "Autism", "Anxiety affecting schoolwork", "Another condition", "None", "Prefer not to say"],
+    prompt: "Would any of these make YOVA easier for you to use?",
+    options: [...FUNCTIONAL_SUPPORT_OPTIONS],
     optional: true,
   },
   {

@@ -32,6 +32,8 @@ Return topics in prerequisite order. Scope the map to the learner's stated outco
 
 When materials exist, sourceMaterialTopicIds must reference the supplied material-topic ids whenever a topic comes from them. A scope outline defines what belongs in the map but does not provide instructional substance. You may add ai-generated prerequisite topics only when needed to make the requested learning path coherent. Never invent completed knowledge or omit requested material topics silently.
 
+The learner may provide a mapCorrection after reviewing a draft map. Treat it as an explicit request about scope or emphasis. Add genuinely missing topics, remove topics outside the stated goal, or change emphasis when requested. A claim that the learner already knows a topic may reduce its planned teaching and lead to a short verification, but it must never create evidence or advance a topic status by itself.
+
 Session ranges must fit within 1-14. For study_now, all session values must be 1. Use plain language and no em dashes.`;
 
 export type KnowledgeMapGenerationStats = {
@@ -81,6 +83,7 @@ export async function generatePlanKnowledgeMap(request: PlanGenerationRequest): 
         deadline: request.deadline,
         diagnosticResponses: request.diagnosticResponses,
         availability: request.availability,
+        mapCorrection: request.mapCorrection ?? null,
         materials: materialTopics,
       }),
       reasoning: { effort: "low" },

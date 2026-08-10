@@ -9,7 +9,7 @@ const onboardingAnswers = [
   "I intend to begin but often delay",
   "Afternoon",
   "A combination",
-  "None",
+  "No extra support right now",
   "Nothing else for now",
 ] as const;
 
@@ -143,14 +143,16 @@ test("a new topic is taught before YOVA asks for independent performance", async
   await expect(page.getByLabel("Method phase 1 of 4")).toContainText("See a complete model");
   await expect(page.getByText(/A budget directs limited income/).first()).toBeVisible();
   await expect(page.getByText("Part 1 of 2", { exact: true })).toBeVisible();
-  await expect(page.getByText("INTERACTIVE MODEL", { exact: true })).not.toBeVisible();
+  const interactiveVisualLabel = page.getByText(/^INTERACTIVE (?:MODEL|PROCESS|TIMELINE|COMPARISON|CONCEPT MAP)$/);
+  const interactiveVisual = page.getByLabel(/^Interactive (?:model|process|timeline|comparison|concept map):/i);
+  await expect(interactiveVisualLabel).not.toBeVisible();
   await expect(page.getByRole("group", { name: /One quick confidence check/ })).not.toBeVisible();
   await page.getByRole("button", { name: "Next: Explore the model" }).click();
-  await expect(page.getByText("INTERACTIVE MODEL", { exact: true })).toBeVisible();
-  await expect(page.getByLabel(/Interactive model:/)).toBeVisible();
+  await expect(interactiveVisualLabel).toBeVisible();
+  await expect(interactiveVisual).toBeVisible();
   await expect(page.getByRole("tablist", { name: "Model parts" }).getByRole("tab")).toHaveCount(3);
   await page.getByRole("button", { name: "Next part" }).click();
-  await expect(page.getByLabel(/Interactive model:/)).toContainText("2 of 3");
+  await expect(interactiveVisual).toContainText("2 of 3");
   await page.getByRole("button", { name: "Continue" }).click();
 
   await expect(page.getByRole("heading", { name: "Trace one financial choice" })).toBeVisible();

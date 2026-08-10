@@ -2,6 +2,7 @@ import { onboardingQuestions } from "@/lib/sample-data";
 import {
   DEEP_PROFILE_QUESTIONS,
   expandedLearnerContextFromAnswers,
+  functionalSupportNeedFromAnswer,
 } from "@/lib/personalization/learner-profile";
 
 const MODEL_SAFE_QUESTION_INDEXES = [0, 1, 2, 3, 4, 5, 6, 7, 9] as const;
@@ -12,6 +13,10 @@ export function buildPlanProfileSummary(answers: string[]) {
     if (!answer) return [];
     return [`${onboardingQuestions[index].prompt} ${answer}`];
   });
+  const functionalSupportNeed = functionalSupportNeedFromAnswer(answers[8]);
+  if (functionalSupportNeed) {
+    facts.push(`${onboardingQuestions[8].prompt} ${functionalSupportNeed}`);
+  }
   for (const question of DEEP_PROFILE_QUESTIONS) {
     const answer = answers[question.answerIndex]?.trim();
     if (answer) facts.push(`${question.prompt} ${answer}`);

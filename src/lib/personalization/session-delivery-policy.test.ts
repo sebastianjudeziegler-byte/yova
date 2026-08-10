@@ -82,6 +82,23 @@ describe("session delivery policy", () => {
     expect(policy.learnerFacingReasons.join(" ")).toContain("getting started");
   });
 
+  it("turns a practical support need into concrete presentation and workspace changes", () => {
+    const policy = buildSessionDeliveryPolicy({
+      learnerProfile: {
+        functionalSupportNeed: "Less text and more visual structure",
+      },
+      recentResults: noResults,
+      recentInterruptions: noInterruptions,
+      learningMode: "learn",
+      estimatedMinutes: 25,
+    });
+
+    expect(policy.presentation.mode).toBe("overview_first");
+    expect(policy.workspace.mode).toBe("one_step");
+    expect(policy.evidenceStatus).toBe("starting_hypothesis");
+    expect(policy.signalsUsed).toContain("Less text and more visual structure");
+  });
+
   it("turns a concise explanation request into a visible delivery decision", () => {
     const policy = buildSessionDeliveryPolicy({
       learnerProfile: {

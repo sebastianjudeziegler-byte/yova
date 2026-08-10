@@ -472,8 +472,8 @@ function learnerProfileToAnswers(profile: LearnerProfileRow | null) {
   answers[5] = profile.starting_pattern ?? "";
   answers[6] = profile.energy_window ?? "";
   answers[7] = profile.primary_improvement_goal ?? "";
-  // Index 8 is intentionally excluded. It is the optional health-related answer,
-  // which YOVA does not need to retain for this first cloud personalization loop.
+  // Functional support context is restored from additional_context. Older
+  // diagnosis-style answers were never stored there and are not migrated.
   return mergeStoredAdditionalContext(answers, profile.additional_context);
 }
 

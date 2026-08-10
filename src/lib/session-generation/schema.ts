@@ -66,6 +66,7 @@ export const SessionGenerationRequestSchema = z.object({
       focusFrequency: z.string().trim().max(240).nullable(),
       startingPattern: z.string().trim().max(240).nullable(),
       primaryImprovementGoal: z.string().trim().max(240).nullable(),
+      functionalSupportNeed: z.string().trim().max(240).nullable().optional(),
       processingPreference: z.string().trim().max(240).nullable().optional(),
       memoryChallenge: z.string().trim().max(240).nullable().optional(),
       supportPreference: z.string().trim().max(240).nullable().optional(),

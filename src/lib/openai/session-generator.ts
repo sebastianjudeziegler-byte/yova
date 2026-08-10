@@ -125,6 +125,7 @@ export type SessionGenerationContext = {
     focusFrequency: string | null;
     startingPattern: string | null;
     primaryImprovementGoal: string | null;
+    functionalSupportNeed?: string | null;
     processingPreference?: string | null;
     memoryChallenge?: string | null;
     supportPreference?: string | null;

@@ -78,12 +78,17 @@ describe("plan knowledge-map generation", () => {
     }));
     const { generatePlanKnowledgeMap } = await import("@/lib/knowledge-map/generate-plan-map");
 
-    const result = await generatePlanKnowledgeMap(baseRequest);
+    const correctedRequest = PlanGenerationRequestSchema.parse({
+      ...baseRequest,
+      mapCorrection: "Include the chain rule prerequisite, but keep integration outside this plan.",
+    });
+    const result = await generatePlanKnowledgeMap(correctedRequest);
 
     expect(result.map.scopeJudgment.band).toBe("focused_skill");
     expect(result.map.topics).toHaveLength(3);
     expect(result.map.topics[1]?.prerequisiteTopicIds).toEqual([result.map.topics[0]?.id]);
     expect(result.map.topics.every((topic) => topic.origin === "ai_generated")).toBe(true);
+    expect(parseResponse.mock.calls[0]?.[0]?.input).toContain("Include the chain rule prerequisite");
   });
 
   it("rejects a map that silently drops an uploaded material topic", async () => {

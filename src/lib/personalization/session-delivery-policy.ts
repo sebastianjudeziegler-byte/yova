@@ -45,6 +45,7 @@ type LearnerProfile = {
   commonBlocker?: string | null;
   guidancePreference?: string | null;
   startingPattern?: string | null;
+  functionalSupportNeed?: string | null;
 };
 
 type RecentResult = {
@@ -73,11 +74,15 @@ export function buildSessionDeliveryPolicy({
   learningMode: SessionLearningMode;
   estimatedMinutes: number;
 }): SessionDeliveryPolicy {
-  const presentationPreference = learnerProfile?.processingPreference ?? learnerProfile?.explanationPreference;
+  const presentationPreference = learnerProfile?.processingPreference
+    ?? functionalPresentationPreference(learnerProfile?.functionalSupportNeed)
+    ?? learnerProfile?.explanationPreference;
   const presentation = presentationPolicy(presentationPreference, learningMode);
   const repair = repairPolicy(learnerProfile?.supportPreference);
   const retention = retentionPolicy(learnerProfile?.memoryChallenge);
-  const workspace = workspacePolicy(learnerProfile?.workspacePreference);
+  const workspace = workspacePolicy(
+    learnerProfile?.workspacePreference ?? functionalWorkspacePreference(learnerProfile?.functionalSupportNeed),
+  );
   const observedPacing = observedPacingPolicy(recentResults, recentInterruptions, estimatedMinutes, learnerProfile);
   const selfReportSignals = [
     presentationPreference,
@@ -86,6 +91,7 @@ export function buildSessionDeliveryPolicy({
     learnerProfile?.workspacePreference,
     learnerProfile?.commonBlocker,
     learnerProfile?.startingPattern,
+    learnerProfile?.functionalSupportNeed,
   ].filter((value): value is string => Boolean(value?.trim()));
   const observedSignals = observedPacing.signals;
   const evidenceStatus = observedSignals.length && selfReportSignals.length
@@ -254,6 +260,14 @@ function observedPacingPolicy(results: RecentResult[], interruptions: Interrupti
     learnerReason: "A recent confident miss suggests a misconception may be present, so YOVA will compare the tempting answer with the corrected model.",
     signals: ["Recent confidence and performance mismatch"],
   };
+  const functionalSupport = normalize(learnerProfile?.functionalSupportNeed);
+  if (functionalSupport.includes("shorter sections") || functionalSupport.includes("frequent check-ins")) return {
+    firstActionMinutes: 2,
+    maximumActivities: Math.max(3, standardMaximum - 1),
+    reason: "The learner requested shorter bounded sections, so the same learning target is divided across fewer visible transitions.",
+    learnerReason: "You asked for shorter bounded sections, so YOVA is reducing visible transitions without lowering the learning target.",
+    signals: [],
+  };
   const startingContext = normalize([learnerProfile?.commonBlocker, learnerProfile?.startingPattern].filter(Boolean).join(" "));
   if (/struggle to start|hard to start|procrast|often delay|overwhelm/.test(startingContext)) return {
     firstActionMinutes: 2,
@@ -269,6 +283,21 @@ function observedPacingPolicy(results: RecentResult[], interruptions: Interrupti
     learnerReason: null,
     signals: [],
   };
+}
+
+function functionalPresentationPreference(value: string | null | undefined) {
+  const normalized = normalize(value);
+  if (normalized.includes("simpler language")) return "A clear sequence of small steps";
+  if (normalized.includes("visual structure")) return "The big picture before the details";
+  return null;
+}
+
+function functionalWorkspacePreference(value: string | null | undefined) {
+  const normalized = normalize(value);
+  if (normalized.includes("shorter sections") || normalized.includes("visual structure") || normalized.includes("frequent check-ins")) {
+    return "Show one step at a time";
+  }
+  return null;
 }
 
 function policyPart<Mode extends string>(mode: Mode, label: string, instruction: string, reason: string | null) {

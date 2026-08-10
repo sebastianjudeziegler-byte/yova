@@ -98,6 +98,9 @@ export function PlanCreator({ onExit, onFinish, profileSummary, browserPreviewMo
   const [generationError, setGenerationError] = useState<string | null>(null);
   const [activationError, setActivationError] = useState<string | null>(null);
   const [activating, setActivating] = useState(false);
+  const [mapCorrection, setMapCorrection] = useState("");
+  const [mapUpdating, setMapUpdating] = useState(false);
+  const [mapCorrectionError, setMapCorrectionError] = useState<string | null>(null);
   const availability = availabilityChoices
     .filter((choice) => choice.enabled)
     .map(({ day, window, minutes }) => ({ day, window, minutes }));
@@ -316,6 +319,39 @@ export function PlanCreator({ onExit, onFinish, profileSummary, browserPreviewMo
     setStep(target);
   };
 
+  const updateTopicMapAndPlan = async () => {
+    const correction = mapCorrection.trim();
+    if (!correction || mapUpdating) return;
+    setMapUpdating(true);
+    setMapCorrectionError(null);
+    try {
+      const planRequest = buildGenerationRequest({
+        knowledgeMap: undefined,
+        mapCorrection: correction,
+      });
+      const response = await fetch("/api/plans/generate", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(browserPreviewMode ? { "X-Yova-Development-Preview": "plan-creator" } : {}),
+        },
+        body: JSON.stringify(planRequest),
+      });
+      const body: unknown = await response.json();
+      if (!response.ok) throw new Error(readApiError(body) ?? "YOVA could not update this topic map yet.");
+      const parsed = PlanGenerationResponseSchema.safeParse(body);
+      if (!parsed.success || !parsed.data.plan.knowledgeMap) throw new Error("The updated map came back in an unsafe format.");
+      setGeneratedPlan(parsed.data);
+      setGeneratedFrom({ ...planRequest, knowledgeMap: parsed.data.plan.knowledgeMap });
+      setDiagnosticMap(parsed.data.plan.knowledgeMap);
+      setMapCorrection("");
+    } catch (error) {
+      setMapCorrectionError(error instanceof Error ? error.message : "YOVA could not update this topic map yet.");
+    } finally {
+      setMapUpdating(false);
+    }
+  };
+
   const applyQuickSchedule = (
     frequency = studyFrequency,
     windows = preferredWindows,
@@ -356,7 +392,7 @@ export function PlanCreator({ onExit, onFinish, profileSummary, browserPreviewMo
   };
 
   const activateGeneratedPlan = async () => {
-    if (!generatedPlan || !generatedFrom || activating) return;
+    if (!generatedPlan || !mappedGeneratedFrom || activating) return;
     setActivationError(null);
     setActivating(true);
     let requestId: string | null = null;
@@ -368,7 +404,7 @@ export function PlanCreator({ onExit, onFinish, profileSummary, browserPreviewMo
           "Content-Type": "application/json",
           ...(browserPreviewMode ? { "X-Yova-Development-Preview": "plan-creator" } : {}),
         },
-        body: JSON.stringify({ plan: generatedPlan.plan, generationRequest: generatedFrom }),
+        body: JSON.stringify({ plan: generatedPlan.plan, generationRequest: mappedGeneratedFrom }),
       });
       requestId = response.headers.get("X-Yova-Request-Id");
       const body: unknown = await response.json();
@@ -518,6 +554,26 @@ export function PlanCreator({ onExit, onFinish, profileSummary, browserPreviewMo
             <div><span>SESSION LOAD</span><strong>Usually {generatedContentBudget.typicalSession.preferredContentTargets} {generatedContentBudget.typicalSession.preferredContentTargets === 1 ? "target" : "targets"} at a time</strong><p>Each target needs an explanation, attempt, or application before it counts as covered.</p></div>
             <div><span>YOUR DELIVERY</span><strong>{preferenceContract.presentation.label}</strong><p>{preferenceContract.support.label} after a miss. {preferenceContract.retention.label} for later review.</p></div>
             <div><span>YOUR SCHEDULE</span><strong>{availability.length} preferred study {availability.length === 1 ? "window" : "windows"}</strong><p>{availability.map((slot) => `${slot.day} ${slot.window.toLowerCase()}, ${slot.minutes} min`).join("; ")}</p></div>
+          </section>}
+          {generatedPlan.plan.knowledgeMap && <section className="generated-topic-map" aria-labelledby="generated-topic-map-title">
+            <header>
+              <div><span className="step-label">TOPIC MAP</span><h2 id="generated-topic-map-title">Check what YOVA plans to cover</h2><p>This is the learning contract behind the schedule. Every included topic must be taught or checked, and anything skipped is shown plainly.</p></div>
+              <strong>{generatedPlan.plan.knowledgeMap.topics.filter((topic) => !topic.deferred).length} included</strong>
+            </header>
+            <ol>{generatedPlan.plan.knowledgeMap.topics.map((topic, index) => {
+              const sessionCount = generatedPlan.plan.sessions.filter((session) => session.topicIds?.includes(topic.id)).length;
+              const state = topic.deferred ? "Deferred" : topic.initialEvidence?.outcome === "demonstrated" ? "Quick verification" : "Teach and check";
+              return <li className={topic.deferred ? "deferred" : ""} key={topic.id}><span>{index + 1}</span><div><strong>{topic.title}</strong><p>{topic.description}</p>{topic.subtopics.length > 0 && <small>{topic.subtopics.slice(0, 4).join(" · ")}</small>}</div><em>{state}{!topic.deferred ? ` · ${sessionCount} ${sessionCount === 1 ? "session" : "sessions"}` : ""}</em></li>;
+            })}</ol>
+            <div className="topic-map-correction">
+              <div><strong>Something is off?</strong><p>Tell YOVA what is missing, outside your goal, or needs a different emphasis. Saying you know something changes the plan only after a quick verification. It never creates evidence by itself.</p></div>
+              <div className="topic-map-prompts" aria-label="Common topic map changes">
+                {["A topic is missing: ", "I already know this and want a quick verification: ", "This is outside my goal: ", "Change the emphasis toward: "].map((prompt) => <button type="button" key={prompt} onClick={() => setMapCorrection(prompt)}>{prompt.replace(/:\s*$/, "")}</button>)}
+              </div>
+              <textarea rows={3} maxLength={800} value={mapCorrection} placeholder="Example: Include the causes of World War I, but leave detailed military technology outside this plan." onChange={(event) => setMapCorrection(event.target.value)} />
+              {mapCorrectionError && <p className="plan-activation-error"><AlertCircle size={16} /> {mapCorrectionError}</p>}
+              <button type="button" className="button secondary" disabled={!mapCorrection.trim() || mapUpdating} onClick={() => void updateTopicMapAndPlan()}>{mapUpdating ? <><span className="button-spinner" /> Updating map…</> : <>Update map and plan <ArrowRight size={17} /></>}</button>
+            </div>
           </section>}
           {generatedPlan.generation.notice && <div className="generation-notice"><span>Alpha note</span><p>{generatedPlan.generation.notice}</p></div>}
           <div className="generated-roadmap" aria-label="Learning roadmap">{generatedPhases.map((phase) => <section className="generated-phase" key={`${phase.key}-${phase.number}`}><header><div><span>{phase.number}</span><div><small>PLAN PHASE</small><h2>{phase.label}</h2></div></div><p>{phase.description}</p></header><div className="generated-timeline">{phase.sessions.map((session) => <article key={session.id}><span>{session.sequence}</span><div><small>{session.learningMode === "learn" ? "TEACHING FIRST" : "PRACTICE FIRST"} · {formatSessionDate(session.scheduledFor)}</small><h3>{session.title}</h3><p>{session.method}</p><p className="generated-session-focus">Focus: {(session.contentTargets ?? []).join("; ")}</p></div><strong>{session.amountLabel}</strong></article>)}</div></section>)}</div>

@@ -1,3 +1,5 @@
+import { FUNCTIONAL_SUPPORT_OPTIONS } from "@/lib/sample-data";
+
 export const DEEP_PROFILE_QUESTIONS = [
   {
     answerIndex: 10,
@@ -57,6 +59,7 @@ export const OBSERVATION_CORRECTION_INDEX = 15;
 export const LEARNER_ANSWER_COUNT = 16;
 
 export type ExpandedLearnerContext = {
+  functionalSupportNeed: string | null;
   processingPreference: string | null;
   memoryChallenge: string | null;
   supportPreference: string | null;
@@ -66,7 +69,8 @@ export type ExpandedLearnerContext = {
 };
 
 type StoredAdditionalContext = {
-  schemaVersion: 1;
+  schemaVersion: 2;
+  functionalSupportNeed: string;
   initialContext: string;
   processingPreference: string;
   memoryChallenge: string;
@@ -78,6 +82,7 @@ type StoredAdditionalContext = {
 
 export function expandedLearnerContextFromAnswers(answers: string[]): ExpandedLearnerContext {
   return {
+    functionalSupportNeed: functionalSupportNeedFromAnswer(answers[8]),
     processingPreference: boundedAnswer(answers[10], 240),
     memoryChallenge: boundedAnswer(answers[11], 240),
     supportPreference: boundedAnswer(answers[12], 240),
@@ -90,7 +95,8 @@ export function expandedLearnerContextFromAnswers(answers: string[]): ExpandedLe
 export function encodeAdditionalLearnerContext(answers: string[]) {
   const expanded = expandedLearnerContextFromAnswers(answers);
   const stored: StoredAdditionalContext = {
-    schemaVersion: 1,
+    schemaVersion: 2,
+    functionalSupportNeed: expanded.functionalSupportNeed ?? "",
     initialContext: boundedAnswer(answers[9], 300) ?? "",
     processingPreference: expanded.processingPreference ?? "",
     memoryChallenge: expanded.memoryChallenge ?? "",
@@ -120,6 +126,7 @@ export function mergeStoredAdditionalContext(answers: string[], value: string | 
   }
 
   const stored = parsed as Record<string, unknown>;
+  merged[8] = functionalSupportNeedFromAnswer(readStoredText(stored, "functionalSupportNeed", 240)) ?? "";
   merged[9] = readStoredText(stored, "initialContext", 300);
   merged[10] = readStoredText(stored, "processingPreference", 240);
   merged[11] = readStoredText(stored, "memoryChallenge", 240);
@@ -128,6 +135,13 @@ export function mergeStoredAdditionalContext(answers: string[], value: string | 
   merged[FREEFORM_LEARNING_CONTEXT_INDEX] = readStoredText(stored, "freeformContext", 800);
   merged[OBSERVATION_CORRECTION_INDEX] = readStoredText(stored, "observationCorrection", 500);
   return merged;
+}
+
+export function functionalSupportNeedFromAnswer(value: string | undefined) {
+  const normalized = boundedAnswer(value, 240);
+  return normalized && FUNCTIONAL_SUPPORT_OPTIONS.includes(normalized as (typeof FUNCTIONAL_SUPPORT_OPTIONS)[number])
+    ? normalized
+    : null;
 }
 
 export function expandedLearnerContextFromStored(value: string | null) {
