@@ -185,9 +185,17 @@ export async function POST(request: Request) {
   try {
     const planId = parsed.data.planId ?? null;
     const { learningItemId, context } = await loadTutorContext(supabase, planId);
+    if (parsed.data.persistenceMode === "ephemeral" && parsed.data.sessionContext?.planSessionId) {
+      context.protectedUpcomingChecks = await loadProtectedUpcomingChecks(
+        supabase,
+        planId,
+        parsed.data.sessionContext.planSessionId,
+        parsed.data.sessionContext.activityIndex ?? 0,
+      );
+    }
     const threadId = parsed.data.threadId ?? crypto.randomUUID();
 
-    if (parsed.data.threadId) {
+    if (parsed.data.persistenceMode === "thread" && parsed.data.threadId) {
       const { data: existingThread, error: threadError } = await supabase
         .from("tutor_threads")
         .select("learning_item_id")
@@ -221,30 +229,36 @@ export async function POST(request: Request) {
       );
     }
 
-    const proposedAction = buildTutorProposedAction(parsed.data, planId, context);
+    const proposedAction = parsed.data.persistenceMode === "ephemeral"
+      ? null
+      : buildTutorProposedAction(parsed.data, planId, context);
     const generated = await generateTutorAnswer(parsed.data, context, proposedAction);
     const userMessageId = crypto.randomUUID();
     const assistantMessageId = crypto.randomUUID();
     const userCreatedAt = new Date().toISOString();
     const assistantCreatedAt = new Date(Date.now() + 1).toISOString();
-    let persistence: "browser" | "supabase" = "supabase";
+    let persistence: "browser" | "supabase" | "ephemeral" = parsed.data.persistenceMode === "ephemeral"
+      ? "ephemeral"
+      : "supabase";
 
-    const { error: persistenceError } = await supabase.rpc("save_tutor_exchange", {
-      payload: {
-        threadId,
-        learningItemId,
-        title: parsed.data.question,
-        userMessageId,
-        userMessage: parsed.data.question,
-        assistantMessageId,
-        assistantMessage: generated.answer,
-        model: generated.model,
-        responseId: generated.responseId,
-      },
-    });
-    if (persistenceError) {
-      persistence = "browser";
-      console.error("YOVA tutor persistence failed", { requestId });
+    if (parsed.data.persistenceMode === "thread") {
+      const { error: persistenceError } = await supabase.rpc("save_tutor_exchange", {
+        payload: {
+          threadId,
+          learningItemId,
+          title: parsed.data.question,
+          userMessageId,
+          userMessage: parsed.data.question,
+          assistantMessageId,
+          assistantMessage: generated.answer,
+          model: generated.model,
+          responseId: generated.responseId,
+        },
+      });
+      if (persistenceError) {
+        persistence = "browser";
+        console.error("YOVA tutor persistence failed", { requestId });
+      }
     }
 
     return NextResponse.json(TutorResponseSchema.parse({
@@ -282,6 +296,53 @@ export async function POST(request: Request) {
     console.error("YOVA tutor request failed", { requestId, reason: error instanceof Error ? error.name : "unknown" });
     return NextResponse.json({ error: message, requestId }, { status });
   }
+}
+
+async function loadProtectedUpcomingChecks(
+  supabase: SupabaseClient,
+  planId: string | null,
+  planSessionId: string,
+  currentActivityIndex: number,
+) {
+  if (!planId) return [];
+  const { data: session, error } = await supabase
+    .from("plan_sessions")
+    .select("step_data")
+    .eq("id", planSessionId)
+    .eq("plan_id", planId)
+    .maybeSingle();
+  if (error || !session) return [];
+
+  const stepData = isRecord(session.step_data) ? session.step_data : {};
+  const generatedSession = isRecord(stepData.generatedSession) ? stepData.generatedSession : {};
+  const activities = Array.isArray(generatedSession.activities) ? generatedSession.activities : [];
+  return activities
+    .slice(currentActivityIndex + 1)
+    .filter((activity): activity is Record<string, unknown> => isRecord(activity))
+    .filter((activity) => activity.type === "multiple_choice" || activity.type === "free_response")
+    .slice(0, 6)
+    .map((activity) => ({
+      title: readBoundedString(activity.title, 180) ?? "Upcoming check",
+      prompt: readBoundedString(activity.body, 500)
+        ?? readBoundedString(activity.question, 500)
+        ?? readBoundedString(activity.instruction, 500)
+        ?? "Upcoming knowledge check",
+      choices: Array.isArray(activity.choices)
+        ? activity.choices
+          .filter((choice): choice is string => typeof choice === "string")
+          .map((choice) => choice.slice(0, 220))
+          .slice(0, 5)
+        : [],
+      correctAnswer: readBoundedString(activity.correctAnswer, 800),
+    }));
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function readBoundedString(value: unknown, max: number) {
+  return typeof value === "string" && value.trim() ? value.trim().slice(0, max) : null;
 }
 
 async function loadTutorContext(supabase: SupabaseClient, planId: string | null): Promise<TutorContextResult> {

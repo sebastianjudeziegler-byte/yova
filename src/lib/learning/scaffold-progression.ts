@@ -22,6 +22,7 @@ export type ScaffoldProgressionStatus =
   | "independent_transfer";
 
 export type ScaffoldProgressionSignal = {
+  topicId?: string;
   concept: string;
   checks: number;
   supportedChecks: number;
@@ -43,6 +44,7 @@ export type SessionSupportPlan = {
 };
 
 type ProgressionActivity = {
+  topicId?: string | null;
   methodPhase: MethodPhase;
   type: "instruction" | "multiple_choice" | "free_response" | "reflection";
   concept: string | null;
@@ -52,6 +54,7 @@ export function buildScaffoldProgressionSignals(
   completions: Array<Pick<SessionCompletion, "completedAt" | "conceptEvidence">>,
 ): ScaffoldProgressionSignal[] {
   const grouped = new Map<string, {
+    topicId?: string;
     concept: string;
     checks: number;
     supportedChecks: number;
@@ -67,8 +70,9 @@ export function buildScaffoldProgressionSignals(
       if (!item.methodPhase || !isScaffoldEvidencePhase(item.methodPhase)) continue;
       const concept = item.concept.trim().replace(/\s+/g, " ");
       if (!concept) continue;
-      const key = concept.toLocaleLowerCase();
+      const key = item.topicId ?? concept.toLocaleLowerCase();
       const current = grouped.get(key) ?? {
+        ...(item.topicId ? { topicId: item.topicId } : {}),
         concept,
         checks: 0,
         supportedChecks: 0,
@@ -80,6 +84,7 @@ export function buildScaffoldProgressionSignals(
       };
       const supported = SUPPORTED_PHASES.has(item.methodPhase);
       current.concept = concept;
+      if (item.topicId) current.topicId = item.topicId;
       current.checks += 1;
       current.supportedChecks += supported ? 1 : 0;
       current.secureSupportedChecks += supported && item.outcome === "secure" ? 1 : 0;
@@ -101,6 +106,7 @@ export function buildScaffoldProgressionSignals(
             ? "fade_support"
             : "collect_evidence";
       return {
+        ...(result.topicId ? { topicId: result.topicId } : {}),
         concept: result.concept,
         checks: result.checks,
         supportedChecks: result.supportedChecks,
@@ -133,13 +139,13 @@ export function validateScaffoldProgression({
 }) {
   const relevant = signals.find((signal) => activities.some((activity) => (
     isKnowledgeCheck(activity)
-    && sameConcept(activity.concept, signal.concept)
+    && sameTopicOrConcept(activity, signal)
   )));
   if (!relevant || relevant.status === "collect_evidence") return null;
 
   const conceptChecks = activities.filter((activity) => (
     isKnowledgeCheck(activity)
-    && sameConcept(activity.concept, relevant.concept)
+    && sameTopicOrConcept(activity, relevant)
   ));
   const firstConceptCheck = conceptChecks[0];
 
@@ -151,7 +157,7 @@ export function validateScaffoldProgression({
     const independentAfterSupport = activities.some((activity, index) => (
       index > supportIndex
       && isKnowledgeCheck(activity)
-      && sameConcept(activity.concept, relevant.concept)
+      && sameTopicOrConcept(activity, relevant)
       && INDEPENDENT_PHASES.has(activity.methodPhase)
     ));
     if (supportIndex < 0 || !independentAfterSupport) {
@@ -189,7 +195,7 @@ export function buildSessionSupportPlan({
 }): SessionSupportPlan {
   const relevant = signals.find((signal) => activities.some((activity) => (
     isKnowledgeCheck(activity)
-    && sameConcept(activity.concept, signal.concept)
+    && sameTopicOrConcept(activity, signal)
   )));
 
   if (!relevant) {
@@ -277,4 +283,9 @@ function isScaffoldEvidencePhase(phase: MethodPhase) {
 
 function sameConcept(left: string | null, right: string) {
   return left?.trim().toLocaleLowerCase() === right.trim().toLocaleLowerCase();
+}
+
+function sameTopicOrConcept(activity: ProgressionActivity, signal: ScaffoldProgressionSignal) {
+  if (activity.topicId && signal.topicId) return activity.topicId === signal.topicId;
+  return sameConcept(activity.concept, signal.concept);
 }

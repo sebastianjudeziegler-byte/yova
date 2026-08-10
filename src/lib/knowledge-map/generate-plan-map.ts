@@ -2,6 +2,8 @@ import "server-only";
 import { z } from "zod";
 import { zodTextFormat } from "openai/helpers/zod";
 import type { GenerationValidator } from "@/lib/analytics/generation-observation";
+import { recognizeCurriculum, type CurriculumRecognition } from "@/lib/curriculum/registry";
+import type { CurriculumId } from "@/lib/curriculum/schema";
 import {
   MaterialUnderstandingSchema,
   PlanKnowledgeMapSchema,
@@ -18,10 +20,18 @@ const KnowledgeMapOutputSchema = z.object({
   topics: z.array(z.object({
     title: z.string().trim().min(2).max(140),
     description: z.string().trim().min(8).max(400),
-    subtopics: z.array(z.string().trim().min(2).max(140)).max(12),
+    subtopics: z.array(z.string().trim().min(2).max(500)).max(12),
     prerequisiteTopicIndexes: z.array(z.number().int().nonnegative()).max(12),
     sourceMaterialTopicIds: z.array(z.string().uuid()).max(20),
   })).min(1).max(40),
+});
+
+const CurriculumMapOutputSchema = z.object({
+  scopeJudgment: ScopeJudgmentSchema,
+  materialAlignments: z.array(z.object({
+    sourceMaterialTopicId: z.string().uuid(),
+    curriculumTopicCodes: z.array(z.string().trim().min(2).max(24)).min(1).max(10),
+  })).max(200),
 });
 
 const KNOWLEDGE_MAP_INSTRUCTIONS = `Build YOVA's authoritative knowledge map before creating a schedule.
@@ -46,6 +56,10 @@ export type KnowledgeMapGenerationStats = {
   firstAttemptPassed: boolean;
   failedValidator: GenerationValidator | null;
   model: string | null;
+  curriculumRecognized: boolean;
+  curriculumId: CurriculumId | null;
+  curriculumMatchSource: "goal" | "material" | "both" | null;
+  curriculumMatchConfidence: "exact" | "alias" | null;
 };
 
 export async function generatePlanKnowledgeMap(request: PlanGenerationRequest): Promise<{
@@ -69,9 +83,28 @@ export async function generatePlanKnowledgeMap(request: PlanGenerationRequest): 
       }))
       : [];
   });
+  const recognizedCurriculum = recognizeCurriculum({
+    goal: request.goal,
+    materials: request.materials.map((material) => {
+      const understanding = MaterialUnderstandingSchema.safeParse(material.understanding);
+      return {
+        name: material.name,
+        topicTitles: understanding.success ? understanding.data.topics.map((topic) => topic.title) : [],
+      };
+    }),
+  });
   if (!config) throw new KnowledgeMapGenerationError("knowledge_map_provider_request");
 
   try {
+    if (recognizedCurriculum) {
+      return await generateRecognizedCurriculumMap({
+        request,
+        materialTopics,
+        recognition: recognizedCurriculum,
+        model: config.model,
+        startedAt,
+      });
+    }
     const response = await getOpenAIClient().responses.parse({
       model: config.model,
       instructions: KNOWLEDGE_MAP_INSTRUCTIONS,
@@ -143,12 +176,167 @@ export async function generatePlanKnowledgeMap(request: PlanGenerationRequest): 
         firstAttemptPassed: true,
         failedValidator: null,
         model: config.model,
+        curriculumRecognized: false,
+        curriculumId: null,
+        curriculumMatchSource: null,
+        curriculumMatchConfidence: null,
       },
     };
   } catch (error) {
     if (error instanceof KnowledgeMapGenerationError) throw error;
     throw new KnowledgeMapGenerationError("knowledge_map_provider_request");
   }
+}
+
+async function generateRecognizedCurriculumMap({
+  request,
+  materialTopics,
+  recognition,
+  model,
+  startedAt,
+}: {
+  request: PlanGenerationRequest;
+  materialTopics: Array<{
+    materialTopicId: string;
+    materialId: string;
+    materialName: string;
+    materialRole: "content_source" | "scope_outline" | "mixed";
+    title: string;
+    description: string;
+    subtopics: string[];
+    prerequisiteTopicIds: string[];
+  }>;
+  recognition: CurriculumRecognition;
+  model: string;
+  startedAt: number;
+}): Promise<{ map: PlanKnowledgeMap; stats: KnowledgeMapGenerationStats }> {
+  const definition = recognition.definition;
+  const response = await getOpenAIClient().responses.parse({
+    model,
+    instructions: `${KNOWLEDGE_MAP_INSTRUCTIONS}
+
+This request matches a versioned official curriculum supplied in the input. The official topic spine is authoritative. Do not rename, reorder, merge, delete, or invent official curriculum topics or objectives. Your only curriculum jobs are to judge the requested scope and align each supplied material-topic id to one or more allowed official topic codes.
+
+Return exactly one materialAlignments row for every supplied material topic. Use only official topic codes from officialCurriculum. A material topic may align to more than one official topic when its actual scope crosses those boundaries. Do not align from filename alone when the mapped title and description are more specific. For study_now, all session values in scopeJudgment must be 1. Use plain language and no em dashes.`,
+    input: JSON.stringify({
+      intent: request.intent,
+      goal: request.goal,
+      startingContext: request.startingContext ?? null,
+      learningIntent: request.learningIntent,
+      deadline: request.deadline,
+      diagnosticResponses: request.diagnosticResponses,
+      availability: request.availability,
+      mapCorrection: request.mapCorrection ?? null,
+      officialCurriculum: {
+        id: definition.id,
+        courseTitle: definition.courseTitle,
+        version: definition.version,
+        unitCode: definition.unitCode,
+        unitTitle: definition.unitTitle,
+        topics: definition.topics.map((topic) => ({
+          code: topic.code,
+          title: topic.title,
+          objectives: topic.objectives,
+        })),
+      },
+      materialTopics,
+    }),
+    reasoning: { effort: "low" },
+    text: { format: zodTextFormat(CurriculumMapOutputSchema, "yova_curriculum_map_alignment"), verbosity: "low" },
+    max_output_tokens: 3_000,
+    store: false,
+  }, { maxRetries: 0, timeout: 35_000 });
+  const usage = response.usage;
+  if (response.status !== "completed") throw new KnowledgeMapGenerationError("knowledge_map_response_status");
+  const parsed = CurriculumMapOutputSchema.safeParse(response.output_parsed);
+  if (!parsed.success) throw new KnowledgeMapGenerationError("knowledge_map_structure");
+
+  const expectedMaterialIds = new Set(materialTopics.map((topic) => topic.materialTopicId));
+  const returnedMaterialIds = parsed.data.materialAlignments.map((alignment) => alignment.sourceMaterialTopicId);
+  const returnedMaterialIdSet = new Set(returnedMaterialIds);
+  const allowedTopicCodes = new Set(definition.topics.map((topic) => topic.code));
+  if (
+    returnedMaterialIds.length !== returnedMaterialIdSet.size
+    || returnedMaterialIds.some((id) => !expectedMaterialIds.has(id))
+    || [...expectedMaterialIds].some((id) => !returnedMaterialIdSet.has(id))
+    || parsed.data.materialAlignments.some((alignment) => (
+      new Set(alignment.curriculumTopicCodes).size !== alignment.curriculumTopicCodes.length
+      || alignment.curriculumTopicCodes.some((code) => !allowedTopicCodes.has(code))
+    ))
+  ) {
+    throw new KnowledgeMapGenerationError("knowledge_map_curriculum_alignment");
+  }
+
+  const sourceById = new Map(request.materials.flatMap((material) => {
+    const understanding = MaterialUnderstandingSchema.safeParse(material.understanding);
+    return understanding.success ? understanding.data.topics.map((topic) => [topic.id, topic] as const) : [];
+  }));
+  const sourceIdsByTopicCode = new Map<string, string[]>();
+  for (const alignment of parsed.data.materialAlignments) {
+    for (const topicCode of alignment.curriculumTopicCodes) {
+      sourceIdsByTopicCode.set(topicCode, [
+        ...(sourceIdsByTopicCode.get(topicCode) ?? []),
+        alignment.sourceMaterialTopicId,
+      ]);
+    }
+  }
+
+  const idsByCode = new Map(definition.topics.map((topic) => [topic.code, crypto.randomUUID()] as const));
+  const topics: KnowledgeMapTopic[] = definition.topics.map((topic) => {
+    const topicObjectives = topic.objectives.filter((objective) => objective.scope === "topic");
+    const sourceTopics = (sourceIdsByTopicCode.get(topic.code) ?? [])
+      .map((id) => sourceById.get(id))
+      .filter((source): source is NonNullable<typeof source> => Boolean(source));
+    return {
+      id: idsByCode.get(topic.code)!,
+      title: `${topic.code} ${topic.title}`,
+      description: topicObjectives.length > 0
+        ? topicObjectives.map((objective) => objective.text).join(" ").slice(0, 400)
+        : `Official curriculum node within ${definition.unitTitle}.`,
+      subtopics: topic.objectives.map((objective) => (
+        objective.scope === "course"
+          ? `Course objective ${objective.code}: ${objective.text}`
+          : `${objective.code}: ${objective.text}`
+      )),
+      prerequisiteTopicIds: topic.prerequisiteTopicCodes
+        .map((code) => idsByCode.get(code))
+        .filter((id): id is string => Boolean(id)),
+      status: "not_started",
+      initialEvidence: null,
+      sourceReferences: sourceTopics.flatMap((source) => source.sourceReferences),
+      origin: sourceTopics.length > 0 ? "material" : "ai_generated",
+      deferred: null,
+      curriculumReference: {
+        curriculumId: definition.id,
+        topicCode: topic.code,
+        objectiveCodes: topic.objectives.map((objective) => objective.code),
+      },
+    };
+  });
+  const map = PlanKnowledgeMapSchema.parse({
+    version: 1,
+    scopeJudgment: parsed.data.scopeJudgment,
+    topics,
+    curriculum: recognition.planCurriculum,
+  });
+  return {
+    map,
+    stats: {
+      elapsedMs: Date.now() - startedAt,
+      attempts: 1,
+      inputTokens: usage?.input_tokens ?? 0,
+      cachedInputTokens: usage?.input_tokens_details.cached_tokens ?? 0,
+      cacheWriteTokens: usage?.input_tokens_details.cache_write_tokens ?? 0,
+      outputTokens: usage?.output_tokens ?? 0,
+      firstAttemptPassed: true,
+      failedValidator: null,
+      model,
+      curriculumRecognized: true,
+      curriculumId: definition.id,
+      curriculumMatchSource: recognition.planCurriculum.matchSource,
+      curriculumMatchConfidence: recognition.planCurriculum.matchConfidence,
+    },
+  };
 }
 
 export class KnowledgeMapGenerationError extends Error {

@@ -6,6 +6,7 @@ import {
 } from "@/lib/plan-generation/schema";
 import { teachingFirstSessionCopy } from "@/lib/learning/learning-intent";
 import { resolveLearningTitle } from "@/lib/intake/interpret";
+import { STREAMED_SESSION_ARCHITECTURE } from "@/lib/session-generation/architecture";
 
 export function materializePlanDraft(
   untrustedDraft: GeneratedPlanDraft,
@@ -48,6 +49,7 @@ export function materializePlanDraft(
     studyMode: request.studyMode === "outside" ? "outside_yova" : "inside_yova",
     learningIntent: request.learningIntent,
     creationIntent: request.intent,
+    sessionArchitectureVersion: STREAMED_SESSION_ARCHITECTURE,
     rationale: `${placementSummary}${placementSummary ? " " : ""}${draft.rationale}`.slice(0, 1_600),
     createdAt: new Date().toISOString(),
     knowledgeMap,

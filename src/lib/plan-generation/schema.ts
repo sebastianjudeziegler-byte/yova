@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { resolveLearningIntent } from "@/lib/learning/learning-intent";
 import { MaterialUnderstandingSchema, PlanKnowledgeMapSchema } from "@/lib/knowledge-map/schema";
+import { SESSION_ARCHITECTURE_VERSIONS } from "@/lib/session-generation/architecture";
 
 export const MaterialInputSchema = z.object({
   id: z.string().uuid(),
@@ -126,6 +127,7 @@ export const LearningPlanSchema = z.object({
   studyMode: z.enum(["inside_yova", "outside_yova"]),
   learningIntent: z.enum(["learn", "study"]),
   creationIntent: z.enum(["plan", "study_now"]).default("plan"),
+  sessionArchitectureVersion: z.enum(SESSION_ARCHITECTURE_VERSIONS).default("filled_teaching_v1"),
   rationale: z.string().min(1),
   createdAt: z.string().datetime({ offset: true }),
   knowledgeMap: PlanKnowledgeMapSchema.optional(),

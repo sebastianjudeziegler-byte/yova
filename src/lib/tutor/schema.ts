@@ -17,8 +17,11 @@ export const TutorRequestSchema = z.object({
   question: z.string().trim().min(2).max(2_000),
   planId: z.string().uuid().nullable().optional(),
   threadId: z.string().uuid().nullable().optional(),
+  persistenceMode: z.enum(["thread", "ephemeral"]).default("thread"),
   history: z.array(TutorHistoryMessageSchema).max(12).default([]),
   sessionContext: z.object({
+    planSessionId: z.string().uuid().nullable().optional(),
+    activityIndex: z.number().int().min(0).max(40).nullable().optional(),
     activityTitle: z.string().trim().min(1).max(180),
     activityType: z.enum(["instruction", "multiple_choice", "free_response", "reflection"]),
     activityInstruction: z.string().trim().min(1).max(500),
@@ -69,7 +72,7 @@ export const TutorResponseSchema = z.object({
   threadId: z.string().uuid(),
   messages: z.array(TutorMessageSchema).length(2),
   model: z.string(),
-  persistence: z.enum(["browser", "supabase"]),
+  persistence: z.enum(["browser", "supabase", "ephemeral"]),
   proposedAction: TutorProposedActionSchema.nullable().default(null),
 });
 

@@ -1,4 +1,9 @@
 import { z } from "zod";
+import {
+  CurriculumIdSchema,
+  CurriculumMatchConfidenceSchema,
+  CurriculumMatchSourceSchema,
+} from "@/lib/curriculum/schema";
 
 export const GenerationValidatorSchema = z.enum([
   "plan_response_status",
@@ -19,15 +24,20 @@ export const GenerationValidatorSchema = z.enum([
   "knowledge_map_response_status",
   "knowledge_map_structure",
   "knowledge_map_material_coverage",
+  "knowledge_map_curriculum_alignment",
   "knowledge_map_provider_request",
   "diagnostic_response_status",
   "diagnostic_structure",
   "diagnostic_topic_coverage",
   "diagnostic_provider_request",
+  "lesson_response_status",
+  "lesson_stream",
+  "lesson_provider_request",
 ]);
 
 export const GenerationObservationSchema = z.object({
-  generationType: z.enum(["plan", "session", "material_mapping", "knowledge_map", "diagnostic"]),
+  generationType: z.enum(["plan", "session", "material_mapping", "knowledge_map", "diagnostic", "lesson"]),
+  observationKind: z.enum(["generation", "usage"]).optional(),
   environment: z.enum(["production", "preview", "development"]),
   finalOutcome: z.enum(["success", "fallback", "failure", "cache"]),
   firstAttemptPassed: z.boolean().nullable(),
@@ -47,6 +57,15 @@ export const GenerationObservationSchema = z.object({
     topicCount: z.number().int().min(0).max(100).optional(),
     scopeBand: z.enum(["focused_skill", "unit_or_exam", "broad_course"]).optional(),
     questionCount: z.number().int().min(0).max(12).optional(),
+    curriculumRecognized: z.boolean().optional(),
+    curriculumId: CurriculumIdSchema.optional(),
+    curriculumMatchSource: CurriculumMatchSourceSchema.optional(),
+    curriculumMatchConfidence: CurriculumMatchConfidenceSchema.optional(),
+    latencyToFirstTokenMs: z.number().int().min(0).max(300_000).nullable().optional(),
+    wordCount: z.number().int().min(0).max(20_000).optional(),
+    streamCompleted: z.boolean().optional(),
+    lessonAction: z.enum(["skip_to_practice"]).optional(),
+    lessonRequestId: z.string().uuid().optional(),
   }).strict().optional(),
 }).strict();
 

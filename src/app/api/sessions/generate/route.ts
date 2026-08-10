@@ -7,7 +7,11 @@ import {
   type TopicMaterialChunkRow,
 } from "@/lib/materials/context";
 import { readConceptEvidenceProperty, summarizeConceptEvidence } from "@/lib/learning/concept-evidence";
-import { readConfidenceEvidenceProperty, summarizeConfidenceCalibration } from "@/lib/learning/confidence-calibration";
+import {
+  buildTopicCalibrationSignals,
+  readConfidenceEvidenceProperty,
+  summarizeConfidenceCalibration,
+} from "@/lib/learning/confidence-calibration";
 import {
   inferLegacySessionLearningMode,
   inferSessionFamiliarityFromText,
@@ -32,10 +36,17 @@ import {
 import { expandedLearnerContextFromStored } from "@/lib/personalization/learner-profile";
 import {
   CachedGeneratedSessionSchema,
+  CachedGeneratedSessionV15Schema,
+  CachedGeneratedSessionV16Schema,
   SessionGenerationRequestSchema,
   SessionGenerationResponseSchema,
   type SessionGenerationRequest,
 } from "@/lib/session-generation/schema";
+import {
+  readSessionArchitectureVersion,
+  STREAMED_SESSION_ARCHITECTURE,
+  type SessionArchitectureVersion,
+} from "@/lib/session-generation/architecture";
 import { checkSessionGenerationRateLimit, requestRateLimitKey } from "@/lib/server/rate-limit";
 import { claimAIRequest } from "@/lib/server/ai-usage";
 import { isDevelopmentPreviewRequest } from "@/lib/server/development-preview";
@@ -228,6 +239,7 @@ export async function POST(request: Request) {
       ]),
     );
     const planLearningIntent = readLearningIntent(plan.generation_inputs);
+    const sessionArchitectureVersion = readSessionArchitectureVersion(plan.generation_inputs);
     const savedLearningMode = readSessionLearningMode(
       planSession.step_data,
       planSession.method,
@@ -242,7 +254,13 @@ export async function POST(request: Request) {
     const repairedTeachingStart = effectiveLearningMode === "learn" && savedLearningMode !== "learn"
       ? teachingFirstSessionCopy(learningItem.topic)
       : null;
-    const cached = readCachedSession(planSession.step_data);
+    const expectedCacheVersion = expectedSessionCacheVersion({
+      sessionArchitectureVersion,
+      learningMode: effectiveLearningMode,
+      studyMode: learningItem.study_mode,
+      reviewType: readReviewType(planSession.step_data),
+    });
+    const cached = readCachedSession(planSession.step_data, expectedCacheVersion);
     if (
       cached
       && !sessionAdjustment
@@ -299,8 +317,12 @@ export async function POST(request: Request) {
       completedAt: attempt.completed_at ?? new Date(0).toISOString(),
       conceptEvidence: readConceptEvidenceProperty(attempt.result_data),
     }));
+    const confidenceEvidence = recentAttempts.flatMap((attempt) => (
+      readConfidenceEvidenceProperty(attempt.result_data)
+    ));
     const expandedProfile = expandedLearnerContextFromStored(learnerProfile?.additional_context ?? null);
     const generationContext: SessionGenerationContext = {
+      sessionArchitectureVersion,
       learningGoal: {
         title: learningItem.title,
         topic: learningItem.topic,
@@ -380,18 +402,11 @@ export async function POST(request: Request) {
       })),
       conceptSignals: summarizeConceptEvidence(completionEvidence).slice(0, 20),
       scaffoldSignals: buildScaffoldProgressionSignals(completionEvidence).slice(0, 20),
+      topicCalibrationSignals: buildTopicCalibrationSignals(confidenceEvidence).slice(0, 20),
     };
     const generated = await generateProductionSessionWithOpenAI(generationContext);
 
-    const cachedSession = CachedGeneratedSessionSchema.parse({
-      schemaVersion: 15,
-      ...generated.draft,
-      routingContext: generated.routingContext,
-      supportPlan: generated.supportPlan,
-      deliveryPolicy: generated.deliveryPolicy,
-      model: generated.model,
-      generatedAt: new Date().toISOString(),
-    });
+    const cachedSession = cacheGeneratedSession(generated, expectedCacheVersion);
     const { error: cacheError } = await supabase.rpc("cache_generated_session", {
       payload: {
         planSessionId: planSession.id,
@@ -486,15 +501,13 @@ async function generateBrowserPreviewSession(
       sessionAdjustment: input.sessionAdjustment ?? null,
     };
     const generated = await generateProductionSessionWithOpenAI(generationContext);
-    const session = CachedGeneratedSessionSchema.parse({
-      schemaVersion: 15,
-      ...generated.draft,
-      routingContext: generated.routingContext,
-      supportPlan: generated.supportPlan,
-      deliveryPolicy: generated.deliveryPolicy,
-      model: generated.model,
-      generatedAt: new Date().toISOString(),
+    const expectedCacheVersion = expectedSessionCacheVersion({
+      sessionArchitectureVersion: previewContext.sessionArchitectureVersion,
+      learningMode: generationContext.session.learningMode,
+      studyMode: generationContext.learningGoal.studyMode,
+      reviewType: generationContext.session.reviewType ?? null,
     });
+    const session = cacheGeneratedSession(generated, expectedCacheVersion);
     logSuccessfulGeneration(requestId, generated.model, generated.generationStats, "browser");
 
     return NextResponse.json(SessionGenerationResponseSchema.parse({
@@ -607,11 +620,59 @@ function logSuccessfulGeneration(
   });
 }
 
-function readCachedSession(stepData: unknown) {
+function readCachedSession(stepData: unknown, expectedSchemaVersion?: 15 | 16) {
   if (!stepData || typeof stepData !== "object" || Array.isArray(stepData)) return null;
   const candidate = (stepData as Record<string, unknown>).generatedSession;
   const parsed = CachedGeneratedSessionSchema.safeParse(candidate);
-  return parsed.success ? parsed.data : null;
+  if (!parsed.success) return null;
+  return expectedSchemaVersion && parsed.data.schemaVersion !== expectedSchemaVersion ? null : parsed.data;
+}
+
+function expectedSessionCacheVersion({
+  sessionArchitectureVersion,
+  learningMode,
+  studyMode,
+  reviewType,
+}: {
+  sessionArchitectureVersion: SessionArchitectureVersion;
+  learningMode: "learn" | "study";
+  studyMode: string;
+  reviewType: "repair_and_retrieve" | "verify" | "maintenance_transfer" | null;
+}): 15 | 16 {
+  return sessionArchitectureVersion === STREAMED_SESSION_ARCHITECTURE
+    && learningMode === "learn"
+    && studyMode === "inside_yova"
+    && !reviewType
+    ? 16
+    : 15;
+}
+
+function cacheGeneratedSession(
+  generated: Awaited<ReturnType<typeof generateProductionSessionWithOpenAI>>,
+  expectedSchemaVersion: 15 | 16,
+) {
+  const shared = {
+    ...generated.draft,
+    routingContext: generated.routingContext,
+    supportPlan: generated.supportPlan,
+    deliveryPolicy: generated.deliveryPolicy,
+    model: generated.model,
+    generatedAt: new Date().toISOString(),
+  };
+  if (expectedSchemaVersion === 16) {
+    if (!generated.deliveryInstructions) {
+      throw new Error("The streamed teaching skeleton did not include delivery instructions.");
+    }
+    return CachedGeneratedSessionV16Schema.parse({
+      schemaVersion: 16,
+      ...shared,
+      deliveryInstructions: generated.deliveryInstructions,
+    });
+  }
+  return CachedGeneratedSessionV15Schema.parse({
+    schemaVersion: 15,
+    ...shared,
+  });
 }
 
 function readMethodId(stepData: unknown, method: string) {

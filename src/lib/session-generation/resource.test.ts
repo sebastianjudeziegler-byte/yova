@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { readSessionResourceFromStepData, toSessionResource } from "@/lib/session-generation/resource";
-import { GeneratedSessionDraftSchema, type SessionGenerationResponse } from "@/lib/session-generation/schema";
+import {
+  CachedGeneratedSessionV16Schema,
+  GeneratedSessionDraftSchema,
+  type SessionGenerationResponse,
+} from "@/lib/session-generation/schema";
 
 const generatedSession: SessionGenerationResponse["session"] = {
   topicIds: ["11111111-1111-4111-8111-111111111111"],
@@ -96,6 +100,8 @@ const generatedSession: SessionGenerationResponse["session"] = {
     {
       topicId: "11111111-1111-4111-8111-111111111111",
       methodPhase: "retrieve",
+      practiceIntent: "misconception_discrimination",
+      misconceptionSummary: "Confuses recalling an answer with rereading familiar wording.",
       estimatedMinutes: 3,
       requiredForCompletion: true,
       type: "multiple_choice",
@@ -126,6 +132,52 @@ const generatedSession: SessionGenerationResponse["session"] = {
   ],
 };
 
+const streamedSession = CachedGeneratedSessionV16Schema.parse({
+  ...generatedSession,
+  schemaVersion: 16,
+  deliveryInstructions: {
+    schemaVersion: 1,
+    explanationDensity: "balanced",
+    tone: "encouraging",
+    analogyUse: "only_when_helpful",
+    workedExamples: "lead_with_example",
+    structure: "task_aligned",
+    pacing: {
+      firstActionMinutes: 4,
+      maximumActivities: 5,
+      instruction: "Keep the first step bounded while preserving all required lesson ideas.",
+    },
+    learnerContext: ["Use current evidence as a presentation guide, not as a fixed learning style."],
+    contentRequirements: {
+      coverAllEssentialIdeas: true,
+      includeConcreteWorkedExample: true,
+      includeCommonMixup: true,
+      preservePrerequisiteOrder: true,
+    },
+  },
+  activities: generatedSession.activities.map((activity, index) => ({
+    ...activity,
+    ...(index === 0 ? {
+      topicId: "11111111-1111-4111-8111-111111111111",
+      teaching: null,
+      lessonBrief: {
+        version: 1,
+        topicIds: ["11111111-1111-4111-8111-111111111111"],
+        essentialIdeas: ["Retrieval happens before answer review"],
+        sourceChunks: [],
+        knowledgeSource: "model_knowledge" as const,
+        evidenceContext: { confirmedGaps: [], secureKnowledge: [], priorMisconceptions: [] },
+        contentRequirements: {
+          teachEveryEssentialIdea: true as const,
+          includeConcreteExample: true,
+          includeCommonMixup: true as const,
+          preservePrerequisiteOrder: true as const,
+        },
+      },
+    } : { lessonBrief: null }),
+  })),
+});
+
 describe("session resources", () => {
   it("turns a generated session into reusable plan content", () => {
     const resource = toSessionResource(generatedSession);
@@ -139,10 +191,25 @@ describe("session resources", () => {
     });
     expect(resource.activities).toHaveLength(3);
     expect(resource.activities[1].correctAnswer).toBe("Recall before reviewing");
+    expect(resource.activities[1]).toMatchObject({
+      practiceIntent: "misconception_discrimination",
+      misconceptionSummary: "Confuses recalling an answer with rereading familiar wording.",
+    });
   });
 
   it("reads valid cached content from database step data", () => {
     expect(readSessionResourceFromStepData({ generatedSession })?.activities[2].type).toBe("free_response");
+  });
+
+  it("preserves the v16 lesson brief and delivery instructions for streamed teaching", () => {
+    const resource = toSessionResource(streamedSession);
+
+    expect(resource.deliveryInstructions?.explanationDensity).toBe("balanced");
+    expect(resource.activities[0]?.topicId).toBe("11111111-1111-4111-8111-111111111111");
+    expect(resource.activities[0]?.lessonBrief?.essentialIdeas).toEqual([
+      "Retrieval happens before answer review",
+    ]);
+    expect(readSessionResourceFromStepData({ generatedSession: streamedSession })?.activities[0]?.teaching).toBeNull();
   });
 
   it("ignores missing or unsafe cached content", () => {

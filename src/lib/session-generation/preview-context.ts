@@ -5,7 +5,10 @@ import type {
   SessionInterruption,
 } from "@/lib/domain";
 import { summarizeConceptEvidence } from "@/lib/learning/concept-evidence";
-import { summarizeConfidenceCalibration } from "@/lib/learning/confidence-calibration";
+import {
+  buildTopicCalibrationSignals,
+  summarizeConfidenceCalibration,
+} from "@/lib/learning/confidence-calibration";
 import {
   inferKnowledgeStage,
   inferLearningTaskType,
@@ -19,6 +22,7 @@ import {
 import { buildScaffoldProgressionSignals } from "@/lib/learning/scaffold-progression";
 import { expandedLearnerContextFromAnswers } from "@/lib/personalization/learner-profile";
 import type { PreviewSessionGenerationContext } from "@/lib/session-generation/schema";
+import { readSessionArchitectureVersion } from "@/lib/session-generation/architecture";
 
 export function buildPreviewSessionContext({
   plan,
@@ -62,9 +66,11 @@ export function buildPreviewSessionContext({
       sourceReferences: [],
       origin: "ai_generated" as const,
       deferred: null,
+      curriculumReference: null,
     }];
 
   return {
+    sessionArchitectureVersion: readSessionArchitectureVersion(plan),
     learningGoal: {
       title: plan.title,
       topic: plan.topic,
@@ -147,6 +153,9 @@ export function buildPreviewSessionContext({
     })),
     conceptSignals: summarizeConceptEvidence(recentCompletions).slice(0, 20),
     scaffoldSignals: buildScaffoldProgressionSignals(recentCompletions).slice(0, 20),
+    topicCalibrationSignals: buildTopicCalibrationSignals(
+      recentCompletions.flatMap((completion) => completion.confidenceEvidence),
+    ).slice(0, 20),
   };
 }
 

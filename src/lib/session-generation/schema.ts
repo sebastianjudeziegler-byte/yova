@@ -5,8 +5,13 @@ import {
   METHOD_PHASES,
   methodFidelityContractForPrompt,
 } from "@/lib/learning/method-fidelity";
-import { SessionDeliveryPolicySchema } from "@/lib/personalization/session-delivery-policy";
+import {
+  LessonDeliveryInstructionsSchema,
+  SessionDeliveryPolicySchema,
+} from "@/lib/personalization/session-delivery-policy";
 import { KnowledgeMapTopicSchema } from "@/lib/knowledge-map/schema";
+import { SESSION_ARCHITECTURE_VERSIONS } from "@/lib/session-generation/architecture";
+import { PRACTICE_INTENTS } from "@/lib/learning/practice-variation";
 
 export const SessionGenerationRequestSchema = z.object({
   planId: z.string().uuid(),
@@ -18,6 +23,7 @@ export const SessionGenerationRequestSchema = z.object({
     note: z.string().trim().max(500),
   }).optional(),
   previewContext: z.object({
+    sessionArchitectureVersion: z.enum(SESSION_ARCHITECTURE_VERSIONS).default("filled_teaching_v1"),
     learningGoal: z.object({
       title: z.string().trim().min(2).max(160),
       topic: z.string().trim().min(2).max(500),
@@ -94,6 +100,7 @@ export const SessionGenerationRequestSchema = z.object({
       totalSteps: z.number().int().min(1).max(20).nullable(),
     })).max(4),
     conceptSignals: z.array(z.object({
+      topicId: z.string().uuid().optional(),
       concept: z.string().trim().min(2).max(120),
       attempts: z.number().int().min(1).max(100),
       secureAttempts: z.number().int().min(0).max(100),
@@ -101,8 +108,10 @@ export const SessionGenerationRequestSchema = z.object({
       lastOutcome: z.enum(["secure", "needs_review"]),
       lastObservedAt: z.string().datetime({ offset: true }),
       status: z.enum(["early_signal", "needs_review", "showing_strength"]),
+      misconceptionSummary: z.string().trim().min(8).max(300).optional(),
     })).max(20),
     scaffoldSignals: z.array(z.object({
+      topicId: z.string().uuid().optional(),
       concept: z.string().trim().min(2).max(120),
       checks: z.number().int().min(1).max(100),
       supportedChecks: z.number().int().min(0).max(100),
@@ -114,6 +123,16 @@ export const SessionGenerationRequestSchema = z.object({
       evidence: z.string().trim().min(10).max(500),
       guidance: z.string().trim().min(10).max(500),
     })).max(20),
+    topicCalibrationSignals: z.array(z.object({
+      topicId: z.string().uuid().optional(),
+      concept: z.string().trim().min(2).max(120),
+      pattern: z.enum(CALIBRATION_PATTERNS),
+      checkedAnswers: z.number().int().min(0).max(100),
+      highConfidenceMisses: z.number().int().min(0).max(100),
+      lowConfidenceSuccesses: z.number().int().min(0).max(100),
+      misconceptionSummary: z.string().trim().min(8).max(300).optional(),
+      feedback: z.string().trim().min(10).max(500),
+    })).max(20).default([]),
   }).optional(),
 });
 
@@ -160,6 +179,53 @@ export const TeachingBlockSchema = z.object({
   }).nullable(),
 });
 
+export const LessonBriefSchema = z.object({
+  version: z.literal(1),
+  topicIds: z.array(z.string().uuid()).min(1).max(6),
+  essentialIdeas: z.array(z.string().trim().min(5).max(180)).min(1).max(4),
+  sourceChunks: z.array(z.object({
+    chunkId: z.string().uuid(),
+    // OpenAI strict structured outputs require every object property to be
+    // present. `null` represents a source chunk whose persisted material id is
+    // unavailable; the server replaces model-supplied source metadata before
+    // the learner ever sees it.
+    materialId: z.string().uuid().nullable(),
+    sourceName: z.string().trim().min(1).max(180),
+    locationLabel: z.string().trim().min(2).max(120),
+    role: z.enum(["content_source", "scope_outline"]),
+    text: z.string().trim().min(12).max(6_000),
+  })).max(6),
+  knowledgeSource: z.enum([
+    "model_knowledge",
+    "material_content",
+    "scope_defined_model_instruction",
+    "mixed_material_and_model",
+  ]),
+  evidenceContext: z.object({
+    confirmedGaps: z.array(z.object({
+      topicId: z.string().uuid(),
+      concept: z.string().trim().min(2).max(140),
+      evidence: z.string().trim().min(8).max(300),
+    })).max(4),
+    secureKnowledge: z.array(z.object({
+      topicId: z.string().uuid(),
+      concept: z.string().trim().min(2).max(140),
+      acknowledgement: z.string().trim().min(8).max(220),
+    })).max(4),
+    priorMisconceptions: z.array(z.object({
+      topicId: z.string().uuid(),
+      concept: z.string().trim().min(2).max(140),
+      misconception: z.string().trim().min(8).max(300),
+    })).max(3),
+  }),
+  contentRequirements: z.object({
+    teachEveryEssentialIdea: z.literal(true),
+    includeConcreteExample: z.boolean(),
+    includeCommonMixup: z.literal(true),
+    preservePrerequisiteOrder: z.literal(true),
+  }),
+});
+
 const GeneratedSessionActivityBaseShape = {
   topicId: z.string().uuid().nullable(),
   methodPhase: z.enum(METHOD_PHASES),
@@ -169,6 +235,8 @@ const GeneratedSessionActivityBaseShape = {
   title: z.string().trim().min(3).max(140),
   body: z.string().trim().min(10).max(320),
   teaching: TeachingBlockSchema.nullable(),
+  practiceIntent: z.enum(PRACTICE_INTENTS).nullable().default(null),
+  misconceptionSummary: z.string().trim().min(8).max(300).nullable().default(null),
 };
 
 const NonQuestionActivitySchema = z.object({
@@ -179,6 +247,8 @@ const NonQuestionActivitySchema = z.object({
   choices: z.array(z.string()).max(0),
   correctAnswer: z.null(),
   feedback: z.null(),
+  practiceIntent: z.null().default(null),
+  misconceptionSummary: z.null().default(null),
 });
 
 const MultipleChoiceActivitySchema = z.object({
@@ -229,6 +299,8 @@ export type GeneratedSessionActivity = {
   choices: string[];
   correctAnswer: string | null;
   feedback: string | null;
+  practiceIntent?: (typeof PRACTICE_INTENTS)[number] | null;
+  misconceptionSummary?: string | null;
 };
 
 // Keep the public TypeScript shape ergonomic for rendering and test fixtures,
@@ -301,7 +373,125 @@ export const GeneratedSessionDraftSchema = GeneratedSessionDraftOutputSchema.sup
   }
 });
 
-export const CachedGeneratedSessionSchema = GeneratedSessionDraftSchema.extend({
+const StreamedGeneratedSessionActivityBaseShape = {
+  topicId: z.string().uuid().nullable(),
+  methodPhase: z.enum(METHOD_PHASES),
+  estimatedMinutes: z.number().int().min(1).max(20),
+  requiredForCompletion: z.boolean(),
+  label: z.string().trim().min(2).max(50),
+  title: z.string().trim().min(3).max(140),
+  body: z.string().trim().min(10).max(320),
+  teaching: z.null(),
+  lessonBrief: LessonBriefSchema.nullable(),
+  practiceIntent: z.enum(PRACTICE_INTENTS).nullable().default(null),
+  misconceptionSummary: z.string().trim().min(8).max(300).nullable().default(null),
+};
+
+const StreamedInstructionActivitySchema = z.object({
+  ...StreamedGeneratedSessionActivityBaseShape,
+  type: z.literal("instruction"),
+  topicId: z.string().uuid(),
+  concept: z.null(),
+  choices: z.array(z.string()).max(0),
+  correctAnswer: z.null(),
+  feedback: z.null(),
+  practiceIntent: z.null().default(null),
+  misconceptionSummary: z.null().default(null),
+});
+
+const StreamedReflectionActivitySchema = z.object({
+  ...StreamedGeneratedSessionActivityBaseShape,
+  type: z.literal("reflection"),
+  topicId: z.null(),
+  concept: z.null(),
+  choices: z.array(z.string()).max(0),
+  correctAnswer: z.null(),
+  feedback: z.null(),
+  practiceIntent: z.null().default(null),
+  misconceptionSummary: z.null().default(null),
+});
+
+const StreamedMultipleChoiceActivitySchema = z.object({
+  ...StreamedGeneratedSessionActivityBaseShape,
+  type: z.literal("multiple_choice"),
+  topicId: z.string().uuid(),
+  concept: z.string().trim().min(2).max(120),
+  choices: z.array(z.string().trim().min(1).max(220)).min(3).max(5),
+  correctAnswer: z.string().trim().min(1).max(220),
+  feedback: z.string().trim().min(20).max(500),
+}).superRefine((activity, context) => {
+  if (!activity.choices.includes(activity.correctAnswer)) {
+    context.addIssue({ code: "custom", path: ["correctAnswer"], message: "The correct answer must exactly match one choice." });
+  }
+});
+
+const StreamedFreeResponseActivitySchema = z.object({
+  ...StreamedGeneratedSessionActivityBaseShape,
+  type: z.literal("free_response"),
+  topicId: z.string().uuid(),
+  concept: z.string().trim().min(2).max(120),
+  choices: z.array(z.string()).max(0),
+  correctAnswer: z.string().trim().min(1).max(600),
+  feedback: z.string().trim().min(20).max(500),
+});
+
+const StrictStreamedGeneratedSessionActivitySchema = z.discriminatedUnion("type", [
+  StreamedInstructionActivitySchema,
+  StreamedReflectionActivitySchema,
+  StreamedMultipleChoiceActivitySchema,
+  StreamedFreeResponseActivitySchema,
+]).superRefine((activity, context) => {
+  if ((activity.methodPhase === "model" || activity.methodPhase === "orient") && activity.type === "instruction" && !activity.lessonBrief) {
+    context.addIssue({ code: "custom", path: ["lessonBrief"], message: "Teaching activities need a lesson brief." });
+  }
+  if (activity.type !== "instruction" && activity.lessonBrief) {
+    context.addIssue({ code: "custom", path: ["lessonBrief"], message: "Only instruction activities may carry a lesson brief." });
+  }
+});
+
+export type StreamedGeneratedSessionActivity = Omit<GeneratedSessionActivity, "teaching"> & {
+  teaching: null;
+  lessonBrief: z.infer<typeof LessonBriefSchema> | null;
+};
+
+// Keep old cached fixtures and rendering code ergonomic while the strict
+// runtime schema fills newly introduced evidence-routing fields with null.
+export const StreamedGeneratedSessionActivitySchema = StrictStreamedGeneratedSessionActivitySchema as unknown as z.ZodType<StreamedGeneratedSessionActivity>;
+
+export const StreamedGeneratedSessionDraftOutputSchema = z.object({
+  topicIds: z.array(z.string().uuid()).min(1).max(6),
+  rationale: z.string().trim().min(20).max(700),
+  coverage: SessionCoverageSchema,
+  methodBriefing: SessionMethodBriefingSchema,
+  sourceGrounding: SessionSourceGroundingSchema.nullable(),
+  activities: z.array(StreamedGeneratedSessionActivitySchema).min(3).max(8),
+});
+
+export const StreamedGeneratedSessionDraftSchema = StreamedGeneratedSessionDraftOutputSchema.superRefine((session, context) => {
+  if (!session.activities.some((activity) => activity.type === "multiple_choice")) {
+    context.addIssue({ code: "custom", path: ["activities"], message: "A guided session needs at least one knowledge check." });
+  }
+  const firstActivity = session.activities[0];
+  const expectedOpeningPhase = methodFidelityContractForPrompt(
+    session.methodBriefing.methodId,
+    session.methodBriefing.learningMode,
+  ).orderedPhases[0];
+  if (firstActivity?.methodPhase !== expectedOpeningPhase) {
+    context.addIssue({
+      code: "custom",
+      path: ["activities", 0],
+      message: `${session.methodBriefing.methodId} sessions must begin with the ${expectedOpeningPhase} phase.`,
+    });
+  }
+  if (session.methodBriefing.learningMode === "learn" && !firstActivity?.lessonBrief) {
+    context.addIssue({ code: "custom", path: ["activities", 0, "lessonBrief"], message: "Teaching-first streamed sessions must begin with a lesson brief." });
+  }
+  if (!session.activities.some((activity) => activity.requiredForCompletion && (activity.type === "multiple_choice" || activity.type === "free_response"))) {
+    context.addIssue({ code: "custom", path: ["activities"], message: "Completion must require at least one knowledge-producing attempt." });
+  }
+});
+
+export const CachedGeneratedSessionV15Schema = GeneratedSessionDraftSchema.extend({
   schemaVersion: z.literal(15),
   model: z.string().min(1),
   generatedAt: z.string().datetime({ offset: true }),
@@ -313,6 +503,24 @@ export const CachedGeneratedSessionSchema = GeneratedSessionDraftSchema.extend({
   deliveryPolicy: SessionDeliveryPolicySchema,
 });
 
+export const CachedGeneratedSessionV16Schema = StreamedGeneratedSessionDraftSchema.extend({
+  schemaVersion: z.literal(16),
+  model: z.string().min(1),
+  generatedAt: z.string().datetime({ offset: true }),
+  routingContext: z.object({
+    taskType: z.enum(LEARNING_TASK_TYPES),
+    knowledgeStage: z.enum(["novice", "developing", "retrieval_ready"]),
+  }).optional(),
+  supportPlan: SessionSupportPlanSchema.optional(),
+  deliveryPolicy: SessionDeliveryPolicySchema,
+  deliveryInstructions: LessonDeliveryInstructionsSchema,
+});
+
+export const CachedGeneratedSessionSchema = z.discriminatedUnion("schemaVersion", [
+  CachedGeneratedSessionV15Schema,
+  CachedGeneratedSessionV16Schema,
+]);
+
 export const SessionGenerationResponseSchema = z.object({
   planSessionId: z.string().uuid(),
   session: CachedGeneratedSessionSchema,
@@ -322,9 +530,12 @@ export const SessionGenerationResponseSchema = z.object({
   }),
 });
 
-export type GeneratedSessionDraft = z.infer<typeof GeneratedSessionDraftSchema>;
+export type FilledGeneratedSessionDraft = z.infer<typeof GeneratedSessionDraftSchema>;
+export type StreamedGeneratedSessionDraft = z.infer<typeof StreamedGeneratedSessionDraftSchema>;
+export type GeneratedSessionDraft = FilledGeneratedSessionDraft | StreamedGeneratedSessionDraft;
 export type SessionMethodBriefing = z.infer<typeof SessionMethodBriefingSchema>;
 export type SessionCoverage = z.infer<typeof SessionCoverageSchema>;
 export type TeachingBlock = z.infer<typeof TeachingBlockSchema>;
+export type LessonBrief = z.infer<typeof LessonBriefSchema>;
 export type SessionSourceGrounding = z.infer<typeof SessionSourceGroundingSchema>;
 export type SessionGenerationResponse = z.infer<typeof SessionGenerationResponseSchema>;

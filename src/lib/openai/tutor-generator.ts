@@ -29,6 +29,12 @@ export type TutorLearningContext = {
     freeformContext?: string | null;
     observationCorrection?: string | null;
   } | null;
+  protectedUpcomingChecks?: Array<{
+    title: string;
+    prompt: string;
+    choices: string[];
+    correctAnswer: string | null;
+  }>;
 };
 
 export type TutorGenerationResult = {
@@ -36,6 +42,10 @@ export type TutorGenerationResult = {
   model: string;
   responseId: string;
 };
+
+type ProtectedUpcomingCheck = NonNullable<TutorLearningContext["protectedUpcomingChecks"]>[number];
+
+const PROTECTED_CHECK_REFUSAL = "I can help with the underlying idea, but I will not reveal the answer to an upcoming check. Make your attempt first, then I can explain the reasoning and repair any gap.";
 
 const TUTOR_INSTRUCTIONS = `You are YOVA, a calm, direct learning coach.
 
@@ -49,11 +59,12 @@ When teaching:
 - Explain why a method fits when the user asks what to do next.
 - Do not claim that you changed a plan unless the application confirms the change.
 - If a proposed action is supplied, explain it in one or two sentences and tell the user to review and approve the change shown in YOVA. Do not claim it has already happened.
-- If the question is unrelated to learning, answer briefly and guide the user back to their goal when helpful.
+- If the question is tangential or unrelated, answer it normally like a capable general tutor. Reconnect it to the current lesson only when that adds real value.
 
 When activeActivity is supplied, the user is inside a guided session:
 - Stay anchored to that exact activity, its concept, instruction, method phase, and answer state. Do not replace it with a generic lesson about the broader topic.
 - Treat the reference answer and feedback as private coaching context, not text that must be revealed.
+- protectedUpcomingChecks lists later assessment prompts in this session. Never solve them, identify a correct choice, eliminate their choices, or provide wording that functions as their answer. If the learner asks for one, say that YOVA will help after they attempt it and continue helping with the underlying idea without resolving that prompt.
 - For helpIntent "give_hint" before an attempt, give one useful hint without stating the reference answer or eliminating every wrong choice.
 - For helpIntent "explain_differently", use a genuinely different representation, analogy, sequence, or level of detail instead of paraphrasing the same sentence.
 - For helpIntent "show_example", use a new analogous example. Do not solve the learner's current knowledge check for them.
@@ -103,14 +114,60 @@ export async function generateTutorAnswer(
     store: false,
   });
 
-  const answer = response.output_text.trim();
-  if (response.status !== "completed" || !answer) {
+  const generatedAnswer = response.output_text.trim();
+  if (response.status !== "completed" || !generatedAnswer) {
     throw new Error("The tutor did not finish its response.");
   }
+
+  const answer = guardProtectedUpcomingCheckAnswer(
+    generatedAnswer,
+    context.protectedUpcomingChecks ?? [],
+  );
 
   return {
     answer,
     model: response.model,
     responseId: response.id,
   };
+}
+
+/**
+ * Prompting is the first protection for future checks, but it is not the only
+ * one. This deterministic boundary prevents an otherwise useful tutor reply
+ * from returning a protected reference answer verbatim. The replacement is
+ * intentionally content-free so the guard cannot leak through its own copy.
+ */
+export function guardProtectedUpcomingCheckAnswer(
+  answer: string,
+  checks: ProtectedUpcomingCheck[],
+) {
+  if (!checks.length) return answer;
+  const normalizedAnswer = normalizeProtectedText(answer);
+
+  const leaked = checks.some((check) => {
+    const normalizedCorrectAnswer = normalizeProtectedText(check.correctAnswer ?? "");
+    if (!normalizedCorrectAnswer) return false;
+    if (normalizedAnswer.includes(normalizedCorrectAnswer)) return true;
+
+    // Longer free-response references can be leaked without reproducing the
+    // whole answer. A distinctive six-word run is enough to fail closed.
+    const tokens = normalizedCorrectAnswer.split(" ").filter(Boolean);
+    if (tokens.length < 9) return false;
+    for (let index = 0; index <= tokens.length - 6; index += 1) {
+      const phrase = tokens.slice(index, index + 6).join(" ");
+      if (normalizedAnswer.includes(phrase)) return true;
+    }
+    return false;
+  });
+
+  return leaked ? PROTECTED_CHECK_REFUSAL : answer;
+}
+
+function normalizeProtectedText(value: string) {
+  return value
+    .normalize("NFKC")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim()
+    .replace(/\s+/g, " ");
 }

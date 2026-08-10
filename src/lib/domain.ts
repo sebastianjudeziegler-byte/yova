@@ -5,6 +5,7 @@ export type SourceMode = "user_materials" | "yova_generated";
 export type StudyMode = "inside_yova" | "outside_yova";
 export type LearningIntent = "learn" | "study";
 export type SessionLearningMode = "learn" | "study";
+export type SessionArchitectureVersion = import("@/lib/session-generation/architecture").SessionArchitectureVersion;
 
 export type DeadlineMilestone = {
   id: string;
@@ -59,9 +60,13 @@ export type SessionResourceActivity = {
   title: string;
   body: string;
   teaching?: import("@/lib/session-generation/schema").TeachingBlock | null;
+  lessonBrief?: import("@/lib/session-generation/schema").LessonBrief | null;
   choices: string[];
   correctAnswer: string | null;
   feedback: string | null;
+  practiceIntent?: import("@/lib/learning/practice-variation").PracticeIntent | null;
+  /** A bounded model-derived misconception description, never the learner's answer text. */
+  misconceptionSummary?: string | null;
 };
 
 export type SessionSourceGrounding = {
@@ -82,6 +87,7 @@ export type SessionResource = {
     knowledgeStage: import("@/lib/learning/method-router").KnowledgeStage;
   };
   deliveryPolicy?: import("@/lib/personalization/session-delivery-policy").SessionDeliveryPolicy;
+  deliveryInstructions?: import("@/lib/personalization/session-delivery-policy").LessonDeliveryInstructions;
   supportPlan?: import("@/lib/learning/scaffold-progression").SessionSupportPlan;
   sourceGrounding?: SessionSourceGrounding;
   activities: SessionResourceActivity[];
@@ -127,6 +133,8 @@ export type LearningPlan = {
   studyMode: StudyMode;
   learningIntent: LearningIntent;
   creationIntent?: "plan" | "study_now";
+  /** Missing on plans created before streamed teaching and therefore treated as legacy. */
+  sessionArchitectureVersion?: SessionArchitectureVersion;
   rationale: string;
   createdAt: string;
   knowledgeMap?: import("@/lib/knowledge-map/schema").PlanKnowledgeMap;
@@ -141,15 +149,20 @@ export type ConceptEvidence = {
   activityType: "multiple_choice" | "free_response";
   methodPhase?: import("@/lib/learning/method-fidelity").MethodPhase;
   attempt?: 1 | 2;
+  /** A bounded model-derived description of a demonstrated wrong relationship, never a learner quote. */
+  misconceptionSummary?: string;
 };
 
 export type ConfidenceLevel = "guessing" | "somewhat_sure" | "very_sure";
 
 export type ConfidenceEvidence = {
+  topicId?: string;
   concept: string;
   confidence: ConfidenceLevel;
   correct: boolean;
   activityType: "multiple_choice" | "free_response";
+  /** A bounded model-derived description of the checked misconception, never a learner quote. */
+  misconceptionSummary?: string;
 };
 
 export type SessionCompletion = {

@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildLessonDeliveryInstructions,
   buildSessionDeliveryPolicy,
+  buildStatedPreferenceLessonDelivery,
   validateSessionDeliveryPolicy,
 } from "@/lib/personalization/session-delivery-policy";
 
@@ -10,6 +12,64 @@ const noResults: DeliveryInput["recentResults"] = [];
 const noInterruptions: DeliveryInput["recentInterruptions"] = [];
 
 describe("session delivery policy", () => {
+  it("keeps streamed lesson delivery bounded to explicit learner preferences", () => {
+    const learnerProfile = {
+      processingPreference: "A concrete example before the rule",
+      explanationPreference: "Keep explanations concise",
+    };
+    const outcomeDrivenPolicy = buildSessionDeliveryPolicy({
+      learnerProfile,
+      recentResults: noResults,
+      recentInterruptions: [
+        { plannedMinutes: 30, actualMinutes: 8, completedSteps: 1, totalSteps: 5 },
+        { plannedMinutes: 30, actualMinutes: 10, completedSteps: 2, totalSteps: 5 },
+      ],
+      learningMode: "learn",
+      estimatedMinutes: 30,
+    });
+    const streamed = buildStatedPreferenceLessonDelivery({
+      learnerProfile,
+      estimatedMinutes: 30,
+      taskType: "conceptual_learning",
+    });
+
+    expect(outcomeDrivenPolicy.evidenceStatus).toBe("blended");
+    expect(outcomeDrivenPolicy.learnerFacingReasons.join(" ")).toContain("pacing adjustment");
+    expect(streamed.policy.evidenceStatus).toBe("starting_hypothesis");
+    expect(streamed.policy.signalsUsed).toEqual(["A concrete example before the rule"]);
+    expect(streamed.instructions.explanationDensity).toBe("concise");
+    expect(streamed.policy.learnerFacingReasons.join(" ")).not.toContain("pacing adjustment");
+    expect(streamed.instructions.learnerContext.join(" ")).not.toContain("pacing adjustment");
+  });
+
+  it("turns preferences into bounded delivery instructions without declaring a learning style", () => {
+    const learnerProfile = {
+      explanationPreference: "Keep explanations concise",
+      processingPreference: "A concrete example before the rule",
+      guidancePreference: "Show one step at a time",
+    };
+    const policy = buildSessionDeliveryPolicy({
+      learnerProfile,
+      recentResults: noResults,
+      recentInterruptions: noInterruptions,
+      learningMode: "learn",
+      estimatedMinutes: 25,
+    });
+    const instructions = buildLessonDeliveryInstructions({
+      policy,
+      learnerProfile,
+      taskType: "conceptual_learning",
+    });
+
+    expect(instructions.explanationDensity).toBe("concise");
+    expect(instructions.contentRequirements).toMatchObject({
+      coverAllEssentialIdeas: true,
+      includeCommonMixup: true,
+      preservePrerequisiteOrder: true,
+    });
+    expect(instructions.learnerContext.join(" ")).not.toMatch(/brain type|learns best/i);
+  });
+
   it("turns different learner profiles into different delivery for the same conceptual lesson", () => {
     const exampleLed = buildSessionDeliveryPolicy({
       learnerProfile: {

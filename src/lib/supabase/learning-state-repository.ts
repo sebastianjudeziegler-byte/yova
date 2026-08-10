@@ -31,6 +31,7 @@ import {
   mergeStoredAdditionalContext,
 } from "@/lib/personalization/learner-profile";
 import { readSessionResourceFromStepData } from "@/lib/session-generation/resource";
+import { readSessionArchitectureVersion } from "@/lib/session-generation/architecture";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 
@@ -244,6 +245,7 @@ export async function loadAuthenticatedLearningState(): Promise<CloudLearningSta
       studyMode: item.study_mode,
       learningIntent: readLearningIntent(planRow.generation_inputs),
       creationIntent: readCreationIntent(planRow.generation_inputs),
+      sessionArchitectureVersion: readSessionArchitectureVersion(planRow.generation_inputs),
       rationale: planRow.rationale,
       createdAt: planRow.created_at || item.created_at,
       knowledgeMap: readPlanKnowledgeMap(planRow.knowledge_map),

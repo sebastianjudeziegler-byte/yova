@@ -9,6 +9,7 @@ export const ConceptEvidenceSchema = z.object({
   activityType: z.enum(["multiple_choice", "free_response"]),
   methodPhase: z.enum(METHOD_PHASES).optional(),
   attempt: z.union([z.literal(1), z.literal(2)]).optional(),
+  misconceptionSummary: z.string().trim().min(8).max(300).optional(),
 });
 
 export const ConceptEvidenceListSchema = z.array(ConceptEvidenceSchema).max(24);
@@ -22,6 +23,7 @@ export type ConceptSignal = {
   lastOutcome: ConceptEvidence["outcome"];
   lastObservedAt: string;
   status: "early_signal" | "needs_review" | "showing_strength";
+  misconceptionSummary?: string;
 };
 
 export function readConceptEvidenceProperty(resultData: unknown): ConceptEvidence[] {
@@ -50,6 +52,11 @@ export function summarizeConceptEvidence(
         needsReviewAttempts: (current?.needsReviewAttempts ?? 0) + (evidence.outcome === "needs_review" ? 1 : 0),
         lastOutcome: evidence.outcome,
         lastObservedAt: completion.completedAt,
+        ...(evidence.outcome === "needs_review" && evidence.misconceptionSummary
+          ? { misconceptionSummary: evidence.misconceptionSummary }
+          : current?.misconceptionSummary
+            ? { misconceptionSummary: current.misconceptionSummary }
+            : {}),
       });
     }
   }

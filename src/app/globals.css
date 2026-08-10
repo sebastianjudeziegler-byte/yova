@@ -1440,6 +1440,53 @@ h1, h2, h3, p { margin-top: 0; }
 .session-tutor-thinking { padding: 7px 3px; display: flex; align-items: center; gap: 8px; color: #66738a; font-size: 11px; }
 .session-tutor-error { margin-top: 9px; padding: 9px 11px; display: flex; align-items: flex-start; gap: 7px; color: #b42318; border-radius: 8px; background: #fff1f0; font-size: 12px; }
 .session-tutor-privacy { padding: 7px 4px 1px; display: block; color: #8a95a8; font-size: 9px; line-height: 1.4; }
+
+/* Streamed teaching keeps the lesson itself visually primary. */
+.streamed-lesson-card { margin: 0 0 22px; border: 1px solid #d8e0ee; border-radius: 18px; background: #fff; box-shadow: 0 12px 34px rgba(25,42,79,.055); overflow: hidden; }
+.streamed-lesson-reader { position: relative; padding: clamp(24px,3.2vw,42px); }
+.streamed-lesson-reader.compact { padding: 8px 2px 18px; }
+.streamed-lesson-copy { max-width: 850px; color: #283854; font-size: 18px; line-height: 1.78; }
+.streamed-lesson-copy h1,
+.streamed-lesson-copy h2,
+.streamed-lesson-copy h3 { color: var(--navy); letter-spacing: -.025em; }
+.streamed-lesson-copy h1 { margin: 0 0 20px; font-size: clamp(29px,3vw,39px); line-height: 1.16; }
+.streamed-lesson-copy h2 { margin: 34px 0 12px; font-size: clamp(23px,2.2vw,29px); line-height: 1.22; }
+.streamed-lesson-copy h3 { margin: 25px 0 10px; font-size: 20px; line-height: 1.3; }
+.streamed-lesson-copy p { margin: 0 0 17px; }
+.streamed-lesson-copy ul,
+.streamed-lesson-copy ol { margin: 0 0 20px; padding-left: 25px; }
+.streamed-lesson-copy li { margin: 8px 0; }
+.streamed-lesson-copy blockquote { margin: 22px 0; padding: 16px 19px; color: #334b77; border-left: 3px solid var(--blue); border-radius: 0 10px 10px 0; background: #f5f8ff; }
+.streamed-lesson-cursor { width: 2px; height: 1.15em; display: inline-block; vertical-align: text-bottom; background: var(--blue); animation: lesson-cursor-blink .85s steps(1,end) infinite; }
+@keyframes lesson-cursor-blink { 50% { opacity: 0; } }
+.streamed-lesson-opening,
+.streamed-lesson-error { min-height: 150px; padding: 28px 30px; display: flex; align-items: center; gap: 14px; color: #5f6f89; }
+.streamed-lesson-opening strong,
+.streamed-lesson-error strong { display: block; color: var(--navy); font-size: 17px; }
+.streamed-lesson-opening p,
+.streamed-lesson-error p { margin: 5px 0 0; font-size: 14px; line-height: 1.55; }
+.streamed-lesson-error { min-height: 0; color: #b42318; background: #fff8f7; }
+.streamed-lesson-error > div { min-width: 0; flex: 1; }
+.lesson-ask { padding: 0 clamp(24px,3.2vw,42px) 30px; }
+.lesson-ask-launcher { min-height: 46px; padding: 0 15px; display: inline-flex; align-items: center; gap: 8px; color: #344f86; border: 1px solid #cad7f4; border-radius: 11px; background: #f5f8ff; font: 700 14px/1 Inter,sans-serif; cursor: pointer; }
+.lesson-ask > section { padding: 18px; border: 1px solid #d7e0f2; border-radius: 14px; background: #f8faff; }
+.lesson-ask > section > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.lesson-ask > section > header > div { display: flex; align-items: flex-start; gap: 9px; color: var(--blue); }
+.lesson-ask > section > header span { display: grid; gap: 3px; }
+.lesson-ask > section > header strong { color: var(--navy); font-size: 15px; }
+.lesson-ask > section > header small { color: #77849a; font-size: 12px; font-weight: 500; }
+.lesson-ask > section > header > button { width: 32px; height: 32px; display: grid; place-items: center; border: 0; border-radius: 8px; background: #edf1f8; cursor: pointer; }
+.lesson-ask-messages { max-height: 360px; margin: 16px 0; display: grid; gap: 11px; overflow-y: auto; }
+.lesson-ask-assistant,
+.lesson-ask-user { padding: 13px 15px; border: 1px solid #e0e6f1; border-radius: 11px; background: white; }
+.lesson-ask-user { width: min(88%,680px); margin-left: auto; background: #edf3ff; }
+.lesson-ask-assistant > span,
+.lesson-ask-user > span { color: var(--blue); font-size: 10px; font-weight: 800; letter-spacing: .06em; }
+.lesson-ask-user p { margin: 5px 0 0; line-height: 1.55; }
+.lesson-ask-assistant .tutor-rich-text { margin-top: 7px; font-size: 15px; line-height: 1.65; }
+.lesson-ask form { margin-top: 15px; display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: end; gap: 10px; }
+.lesson-ask textarea { width: 100%; min-height: 76px; padding: 13px 14px; color: var(--text); border: 1px solid #ccd6e8; border-radius: 10px; background: white; font: 400 15px/1.5 Inter,sans-serif; resize: vertical; }
+.lesson-ask form + small { margin-top: 9px; display: block; color: #7c899e; font-size: 11px; }
 .session-model-review-backdrop { position: fixed; z-index: 35; inset: 0; padding: 24px; display: grid; place-items: center; overflow-y: auto; background: rgba(11,16,32,.62); backdrop-filter: blur(6px); }
 .session-model-review-dialog { width: min(100%,900px); max-height: calc(100vh - 48px); display: grid; grid-template-rows: auto minmax(0,1fr) auto; overflow: hidden; color: var(--text); border: 1px solid rgba(255,255,255,.72); border-radius: 20px; background: white; box-shadow: 0 30px 90px rgba(11,16,32,.28); }
 .session-model-review-dialog > header { padding: 22px 24px; display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; border-bottom: 1px solid var(--border); }
@@ -2716,6 +2763,14 @@ h1, h2, h3, p { margin-top: 0; }
 .session-guide small, .method-briefing small, .session-step-meta, .session-overview p { font-size: 13px; }
 
 @media (max-width: 720px) {
+  .streamed-lesson-reader { padding: 22px 18px; }
+  .streamed-lesson-copy { font-size: 16px; line-height: 1.7; }
+  .streamed-lesson-copy h1 { font-size: 28px; }
+  .streamed-lesson-copy h2 { font-size: 23px; }
+  .lesson-ask { padding: 0 18px 22px; }
+  .lesson-ask form { grid-template-columns: 1fr; }
+  .lesson-ask form .button { width: 100%; justify-content: center; }
+  .streamed-lesson-error { align-items: flex-start; flex-wrap: wrap; }
   .add-shell { padding: 16px 13px 40px; }
   .add-panel { margin-top: 24px; padding: 26px 18px; border-radius: 18px; }
   .add-panel > h1 { font-size: 34px; }

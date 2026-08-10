@@ -19,8 +19,9 @@ const request: PlanGenerationRequest = {
   knowledgeMap: {
     version: 1,
     scopeJudgment: { band: "focused_skill", label: "Focused history foundation", minimumSessions: 1, recommendedSessions: 1, maximumSessions: 2, minimumTeachingSessions: 1, explanation: "The first plan builds one prerequisite causal relationship before later expansion." },
-    topics: [{ id: "11111111-1111-4111-8111-111111111111", title: "World War I escalation", description: "How alliances and mobilization widened the conflict after the July Crisis.", subtopics: [], prerequisiteTopicIds: [], status: "not_started", initialEvidence: null, sourceReferences: [], origin: "ai_generated", deferred: null }],
+    topics: [{ id: "11111111-1111-4111-8111-111111111111", title: "World War I escalation", description: "How alliances and mobilization widened the conflict after the July Crisis.", subtopics: [], prerequisiteTopicIds: [], status: "not_started", initialEvidence: null, sourceReferences: [], origin: "ai_generated", deferred: null, curriculumReference: null }],
     placementCheck: { status: "skipped", completedAt: null, demonstratedTopicIds: [], gapTopicIds: [] },
+    curriculum: null,
   },
 };
 
@@ -55,6 +56,7 @@ describe("materializePlanDraft", () => {
       method: "Guided explanation and self-explanation",
     });
     expect(plan.sessions[0].objective).toMatch(/first mental model/i);
+    expect(plan.sessionArchitectureVersion).toBe("streamed_teaching_v1");
   });
 
   it("repairs generic generated titles before a plan reaches Learning", () => {

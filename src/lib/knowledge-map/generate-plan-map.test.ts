@@ -156,4 +156,120 @@ describe("plan knowledge-map generation", () => {
       failedValidator: "knowledge_map_material_coverage",
     });
   });
+
+  it("uses the versioned official AP Biology Unit 2 spine instead of model labels", async () => {
+    parseResponse.mockResolvedValue(response({
+      scopeJudgment: {
+        band: "unit_or_exam",
+        label: "AP Biology Unit 2",
+        minimumSessions: 6,
+        recommendedSessions: 10,
+        maximumSessions: 14,
+        minimumTeachingSessions: 6,
+        explanation: "The learner is starting a full official unit, so the plan needs prerequisite-ordered teaching and later evidence.",
+      },
+      materialAlignments: [],
+    }));
+    const { generatePlanKnowledgeMap } = await import("@/lib/knowledge-map/generate-plan-map");
+    const request = PlanGenerationRequestSchema.parse({
+      ...baseRequest,
+      goal: "Prepare for my AP Biology Unit 2 exam on cells from the beginning.",
+    });
+
+    const result = await generatePlanKnowledgeMap(request);
+
+    expect(result.map.curriculum).toMatchObject({
+      id: "college_board_ap_biology_2025_unit_2",
+      version: "Course and Exam Description, effective Fall 2025",
+      matchSource: "goal",
+    });
+    expect(result.map.topics.map((topic) => topic.title)).toEqual([
+      "2.1 Cell Structure and Function",
+      "2.2 Cell Size",
+      "2.3 Plasma Membrane",
+      "2.4 Membrane Permeability",
+      "2.5 Membrane Transport",
+      "2.6 Facilitated Diffusion",
+      "2.7 Tonicity and Osmoregulation",
+      "2.8 Mechanisms of Transport",
+      "2.9 Cell Compartmentalization",
+      "2.10 Origins of Cell Compartmentalization",
+    ]);
+    expect(result.map.topics[2]?.curriculumReference).toEqual({
+      curriculumId: "college_board_ap_biology_2025_unit_2",
+      topicCode: "2.3",
+      objectiveCodes: ["2.3.A", "2.3.B"],
+    });
+    expect(result.map.topics[2]?.subtopics[0]).toContain("2.3.A: Describe the roles");
+    expect(result.stats).toMatchObject({
+      curriculumRecognized: true,
+      curriculumId: "college_board_ap_biology_2025_unit_2",
+    });
+  });
+
+  it("aligns uploaded material topics onto official topic ids without allowing invented codes", async () => {
+    const materialTopicId = "77777777-7777-4777-8777-777777777777";
+    parseResponse.mockResolvedValue(response({
+      scopeJudgment: {
+        band: "unit_or_exam",
+        label: "AP Biology Unit 2",
+        minimumSessions: 5,
+        recommendedSessions: 9,
+        maximumSessions: 14,
+        minimumTeachingSessions: 5,
+        explanation: "The study guide defines the official unit scope while YOVA supplies any missing instruction.",
+      },
+      materialAlignments: [{
+        sourceMaterialTopicId: materialTopicId,
+        curriculumTopicCodes: ["2.5", "2.7"],
+      }],
+    }));
+    const request = PlanGenerationRequestSchema.parse({
+      ...baseRequest,
+      goal: "Prepare for my AP Biology Unit 2 exam on cells.",
+      materialMode: "upload",
+      materials: [{
+        id: "88888888-8888-4888-8888-888888888888",
+        name: "AP Biology Unit 2 study guide.pdf",
+        mimeType: "application/pdf",
+        sizeBytes: 1_000,
+        textContent: "Membrane transport, concentration gradients, and osmosis",
+        processingStatus: "ready",
+        understanding: {
+          version: 1,
+          role: "scope_outline",
+          roleReason: "The study guide lists the required membrane topics without teaching them in depth.",
+          mixedSections: [],
+          chunkCount: 1,
+          mappedAt: "2026-08-09T18:00:00.000Z",
+          topics: [{
+            id: materialTopicId,
+            title: "Membrane transport and osmosis",
+            description: "The guide requires transport mechanisms and osmoregulation.",
+            subtopics: ["Diffusion", "Osmosis"],
+            prerequisiteTopicIds: [],
+            status: "not_started",
+            sourceReferences: [{
+              materialId: "88888888-8888-4888-8888-888888888888",
+              chunkId: "99999999-9999-4999-8999-999999999999",
+              chunkIndex: 0,
+              startCharacter: 0,
+              endCharacter: 58,
+              locationLabel: "Characters 1-58",
+              sectionRole: "scope_outline",
+            }],
+            origin: "material",
+            deferred: null,
+          }],
+        },
+      }],
+    });
+    const { generatePlanKnowledgeMap } = await import("@/lib/knowledge-map/generate-plan-map");
+
+    const result = await generatePlanKnowledgeMap(request);
+
+    expect(result.map.topics.find((topic) => topic.curriculumReference?.topicCode === "2.5")?.sourceReferences).toHaveLength(1);
+    expect(result.map.topics.find((topic) => topic.curriculumReference?.topicCode === "2.7")?.sourceReferences).toHaveLength(1);
+    expect(result.map.topics.find((topic) => topic.curriculumReference?.topicCode === "2.6")?.origin).toBe("ai_generated");
+  });
 });

@@ -140,6 +140,7 @@ import {
 import { buildSessionDecisionSignals } from "@/lib/personalization/session-decision";
 import {
   buildSessionDeliveryPolicy,
+  type LessonDeliveryInstructions,
   type SessionDeliveryPolicy,
 } from "@/lib/personalization/session-delivery-policy";
 import { reportProductError } from "@/lib/monitoring/client";
@@ -160,8 +161,16 @@ import {
 } from "@/lib/supabase/learning-state-repository";
 import {
   SessionGenerationResponseSchema,
+  type LessonBrief,
   type SessionAdjustment,
 } from "@/lib/session-generation/schema";
+import { consumeLessonEventStream } from "@/lib/session-generation/lesson-stream";
+import {
+  applyLessonStreamEvent,
+  createLessonRuntimeState,
+  type LessonRuntimeState,
+} from "@/lib/session-generation/lesson-runtime";
+import { allowsLegacySessionFallback } from "@/lib/session-generation/architecture";
 import { buildPreviewSessionContext } from "@/lib/session-generation/preview-context";
 import { toSessionResource } from "@/lib/session-generation/resource";
 import { polishActivityLabel } from "@/lib/session-generation/typography";
@@ -208,7 +217,7 @@ import {
 type Stage = "landing" | "account" | "onboarding-intro" | "onboarding" | "profile" | "paywall" | "app" | "add" | "plan-creator" | "study-now" | "session-setup" | "session-loading" | "session-error" | "session" | "complete";
 type Tab = "Home" | "Learning" | "Agenda" | "Ask YOVA" | "You";
 type AccountMode = "create" | "sign-in";
-type LessonStep = GuidedSessionStep;
+type LessonStep = GuidedSessionStep & { lessonBrief?: LessonBrief | null };
 type AgendaEntry = { plan: LearningPlan; session: LearningPlanSession };
 
 // The server may make one bounded repair attempt after validating a lesson.
@@ -251,6 +260,9 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
   const [resumedSessionEvidence, setResumedSessionEvidence] = useState<SessionEvidenceSnapshot | null>(null);
   const [answerRevealed, setAnswerRevealed] = useState(false);
   const [generatedLessonSteps, setGeneratedLessonSteps] = useState<LessonStep[] | null>(null);
+  const [generatedPlanSessionId, setGeneratedPlanSessionId] = useState<string | null>(null);
+  const [sessionLessonDeliveryInstructions, setSessionLessonDeliveryInstructions] = useState<LessonDeliveryInstructions | null>(null);
+  const [streamedLessons, setStreamedLessons] = useState<Record<string, LessonRuntimeState>>({});
   const [sessionRationale, setSessionRationale] = useState<string | null>(null);
   const [sessionMethodBriefing, setSessionMethodBriefing] = useState<SessionMethodBriefing | null>(null);
   const [sessionDeliveryPolicy, setSessionDeliveryPolicy] = useState<SessionDeliveryPolicy | null>(null);
@@ -273,6 +285,8 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
   const [earlySchedulePending, setEarlySchedulePending] = useState(false);
   const [earlyScheduleIssue, setEarlyScheduleIssue] = useState<string | null>(null);
   const sessionGenerationAbortRef = useRef<AbortController | null>(null);
+  const lessonStreamsStartedRef = useRef(new Set<string>());
+  const lessonStreamControllersRef = useRef(new Map<string, AbortController>());
   const analyticsEnabled = account?.identityMode === "supabase";
 
   const activePlans = plans.filter((plan) => plan.status === "active");
@@ -527,6 +541,124 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
     setStage("session");
   };
 
+  const openStreamedLesson = async ({
+    key,
+    planId,
+    planSessionId,
+    activityIndex,
+    activity,
+    retry = false,
+  }: {
+    key: string;
+    planId: string;
+    planSessionId: string;
+    activityIndex: number;
+    activity: LessonStep;
+    retry?: boolean;
+  }) => {
+    if (!activity.lessonBrief || !sessionLessonDeliveryInstructions) return;
+    if (!retry && lessonStreamsStartedRef.current.has(key)) return;
+
+    lessonStreamControllersRef.current.get(key)?.abort();
+    const controller = new AbortController();
+    lessonStreamControllersRef.current.set(key, controller);
+    lessonStreamsStartedRef.current.add(key);
+    setStreamedLessons((current) => ({
+      ...current,
+      [key]: { ...createLessonRuntimeState(), status: "streaming" },
+    }));
+
+    try {
+      const response = await fetch("/api/sessions/lesson", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(browserPreviewMode || account?.identityMode === "preview"
+            ? { "X-Yova-Development-Preview": "guided-session" }
+            : {}),
+        },
+        body: JSON.stringify({
+          action: "generate",
+          planId,
+          planSessionId,
+          activityIndex,
+          ...(browserPreviewMode || account?.identityMode === "preview"
+            ? {
+              previewLesson: {
+                activity: {
+                  topicId: activity.topicId,
+                  methodPhase: activity.methodPhase,
+                  estimatedMinutes: activity.estimatedMinutes,
+                  requiredForCompletion: activity.requiredForCompletion ?? false,
+                  type: "instruction",
+                  concept: null,
+                  label: activity.label,
+                  title: activity.title,
+                  body: activity.body,
+                  teaching: null,
+                  lessonBrief: activity.lessonBrief,
+                  practiceIntent: null,
+                  misconceptionSummary: null,
+                  choices: [],
+                  correctAnswer: null,
+                  feedback: null,
+                },
+                deliveryInstructions: sessionLessonDeliveryInstructions,
+              },
+            }
+            : {}),
+        }),
+        signal: controller.signal,
+      });
+      if (!response.ok || !response.body) {
+        const body: unknown = await response.json().catch(() => null);
+        const message = typeof body === "object" && body && "error" in body && typeof body.error === "string"
+          ? body.error
+          : "YOVA could not open this lesson.";
+        throw new Error(message);
+      }
+
+      await consumeLessonEventStream(response.body, (event) => {
+        setStreamedLessons((current) => ({
+          ...current,
+          [key]: applyLessonStreamEvent(current[key] ?? createLessonRuntimeState(), event),
+        }));
+      });
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") return;
+      setStreamedLessons((current) => ({
+        ...current,
+        [key]: {
+          ...(current[key] ?? createLessonRuntimeState()),
+          status: "error",
+          error: error instanceof Error ? error.message : "YOVA could not finish this lesson.",
+        },
+      }));
+    } finally {
+      if (lessonStreamControllersRef.current.get(key) === controller) {
+        lessonStreamControllersRef.current.delete(key);
+      }
+    }
+  };
+
+  const recordLessonSkip = ({ planId, planSessionId, activityIndex, lessonRequestId }: {
+    planId: string;
+    planSessionId: string;
+    activityIndex: number;
+    lessonRequestId?: string;
+  }) => {
+    void fetch("/api/sessions/lesson", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(browserPreviewMode || account?.identityMode === "preview"
+          ? { "X-Yova-Development-Preview": "guided-session" }
+          : {}),
+      },
+      body: JSON.stringify({ action: "skip_to_practice", planId, planSessionId, activityIndex, lessonRequestId }),
+    }).catch(() => undefined);
+  };
+
   const startSession = async (
     planId?: string,
     planOverride?: LearningPlan,
@@ -556,6 +688,12 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
     setResumedSessionEvidence(resumePoint?.evidence ?? null);
     setAnswerRevealed(false);
     setGeneratedLessonSteps(null);
+    setGeneratedPlanSessionId(null);
+    setSessionLessonDeliveryInstructions(null);
+    lessonStreamControllersRef.current.forEach((controller) => controller.abort());
+    lessonStreamControllersRef.current.clear();
+    lessonStreamsStartedRef.current.clear();
+    setStreamedLessons({});
     setSessionRationale(null);
     setSessionMethodBriefing(null);
     setSessionDeliveryPolicy(null);
@@ -636,9 +774,12 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
         title: activity.title,
         body: activity.body,
         teaching: activity.teaching,
+        lessonBrief: "lessonBrief" in activity ? activity.lessonBrief : null,
         question: activity.type === "multiple_choice" ? activity.choices : null,
         correctAnswer: activity.correctAnswer,
         feedback: activity.feedback,
+        practiceIntent: activity.practiceIntent,
+        misconceptionSummary: activity.misconceptionSummary ?? undefined,
       }));
       const supportPlan = parsed.data.session.supportPlan ?? buildSessionSupportPlan({
         signals: buildScaffoldProgressionSignals(
@@ -656,6 +797,10 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
       }));
       const restoredLesson = restoreInterruptedLesson(nextLessonSteps, resumePoint);
       setGeneratedLessonSteps(restoredLesson.steps);
+      setGeneratedPlanSessionId(parsed.data.planSessionId);
+      setSessionLessonDeliveryInstructions(parsed.data.session.schemaVersion === 16
+        ? parsed.data.session.deliveryInstructions
+        : null);
       setSessionStep(restoredLesson.step);
       setSessionRationale(parsed.data.session.rationale);
       setSessionCoverage(parsed.data.session.coverage);
@@ -679,7 +824,8 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
         : error instanceof Error
           ? error.message
           : "YOVA could not generate this session.";
-      const fallbackSteps = !isScheduledRetrievalSession(requestedSession)
+      const fallbackSteps = allowsLegacySessionFallback(requestedPlan)
+        && !isScheduledRetrievalSession(requestedSession)
         ? subjectSpecificLessonStepsFor(requestedPlan)
         : null;
       if (!fallbackSteps) {
@@ -1573,6 +1719,10 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
         issue={sessionGenerationIssue}
         analyticsEnabled={analyticsEnabled}
         browserPreviewMode={browserPreviewMode || account?.identityMode === "preview"}
+        planSessionId={generatedPlanSessionId ?? activePlan?.sessions.find((session) => session.status === "ready")?.id ?? null}
+        streamedLessons={streamedLessons}
+        onOpenStreamedLesson={openStreamedLesson}
+        onSkipStreamedLesson={recordLessonSkip}
         onSelect={(answer) => {
           setSelectedAnswer(answer);
         }}
@@ -3400,7 +3550,49 @@ function SessionGenerationError({ plan, issue, onExit, onRetry }: { plan: Learni
   return <main className="centered-shell"><BrandMark /><section className="plan-error-state session-error-state" role="alert"><span><AlertCircle /></span><span className="step-label">LESSON SERVICE INTERRUPTED</span><h1>YOVA already knows what this lesson should cover.</h1><p>{issue ?? "The lesson service did not respond this time."}</p><p>Your goal, planned objective, learning profile, and progress are still intact. You do not need to explain the lesson again.</p><div className="session-error-recovery"><button className="button primary" onClick={onRetry}>Prepare this lesson again <ArrowRight size={17} /></button><button className="button ghost" onClick={onExit}><ArrowLeft size={17} /> Return to {plan?.title ?? "the goal"}</button></div></section></main>;
 }
 
-function GuidedSession({ plan, steps, step, selectedAnswer, outcome, attemptCount, confidence, priorConfidenceCaptured, answerRevealed, elapsedSeconds, capacityMinutes, rationale, coverage, methodBriefing, deliveryPolicy, supportPlan, sourceGrounding, issue, analyticsEnabled, browserPreviewMode, onSelect, onEvaluate, onRetry, onConfidence, onReveal, onExit, onRedirectPlan, onNext }: { plan: LearningPlan | null; steps: LessonStep[]; step: number; selectedAnswer: string | null; outcome: boolean | undefined; attemptCount: number; confidence: ConfidenceLevel | undefined; priorConfidenceCaptured: boolean; answerRevealed: boolean; elapsedSeconds: number; capacityMinutes: number | null; rationale: string | null; coverage: SessionCoverage | null; methodBriefing: SessionMethodBriefing | null; deliveryPolicy: SessionDeliveryPolicy | null; supportPlan: SessionSupportPlan | null; sourceGrounding: SessionSourceGrounding | null; issue: string | null; analyticsEnabled: boolean; browserPreviewMode: boolean; onSelect: (answer: string) => void; onEvaluate: (correct: boolean, recordAttempt?: boolean) => void; onRetry: () => void; onConfidence: (confidence: ConfidenceLevel) => void; onReveal: () => void; onExit: () => void; onRedirectPlan: (direction: string) => Promise<void>; onNext: (evaluation: AnswerEvaluationResponse | null) => void | Promise<void> }) {
+type GuidedSessionProps = {
+  plan: LearningPlan | null;
+  planSessionId: string | null;
+  steps: LessonStep[];
+  step: number;
+  selectedAnswer: string | null;
+  outcome: boolean | undefined;
+  attemptCount: number;
+  confidence: ConfidenceLevel | undefined;
+  priorConfidenceCaptured: boolean;
+  answerRevealed: boolean;
+  elapsedSeconds: number;
+  capacityMinutes: number | null;
+  rationale: string | null;
+  coverage: SessionCoverage | null;
+  methodBriefing: SessionMethodBriefing | null;
+  deliveryPolicy: SessionDeliveryPolicy | null;
+  supportPlan: SessionSupportPlan | null;
+  sourceGrounding: SessionSourceGrounding | null;
+  issue: string | null;
+  analyticsEnabled: boolean;
+  browserPreviewMode: boolean;
+  streamedLessons: Record<string, LessonRuntimeState>;
+  onOpenStreamedLesson: (request: {
+    key: string;
+    planId: string;
+    planSessionId: string;
+    activityIndex: number;
+    activity: LessonStep;
+    retry?: boolean;
+  }) => Promise<void>;
+  onSkipStreamedLesson: (request: { planId: string; planSessionId: string; activityIndex: number; lessonRequestId?: string }) => void;
+  onSelect: (answer: string) => void;
+  onEvaluate: (correct: boolean, recordAttempt?: boolean) => void;
+  onRetry: () => void;
+  onConfidence: (confidence: ConfidenceLevel) => void;
+  onReveal: () => void;
+  onExit: () => void;
+  onRedirectPlan: (direction: string) => Promise<void>;
+  onNext: (evaluation: AnswerEvaluationResponse | null) => void | Promise<void>;
+};
+
+function GuidedSession({ plan, planSessionId, steps, step, selectedAnswer, outcome, attemptCount, confidence, priorConfidenceCaptured, answerRevealed, elapsedSeconds, capacityMinutes, rationale, coverage, methodBriefing, deliveryPolicy, supportPlan, sourceGrounding, issue, analyticsEnabled, browserPreviewMode, streamedLessons, onOpenStreamedLesson, onSkipStreamedLesson, onSelect, onEvaluate, onRetry, onConfidence, onReveal, onExit, onRedirectPlan, onNext }: GuidedSessionProps) {
   const [confirmingExit, setConfirmingExit] = useState(false);
   const [changingDirection, setChangingDirection] = useState(false);
   const [directionRequest, setDirectionRequest] = useState("");
@@ -3419,16 +3611,36 @@ function GuidedSession({ plan, steps, step, selectedAnswer, outcome, attemptCoun
   const reviewableTeaching = [...steps.slice(0, step)]
     .reverse()
     .find((candidate) => candidate.teaching)?.teaching ?? null;
+  const reviewableStreamedLessonIndex = steps.slice(0, step).findLastIndex((candidate) => (
+    Boolean(candidate.lessonBrief)
+    && Boolean(candidate.topicId)
+    && candidate.topicId === content.topicId
+  ));
+  const reviewableStreamedLesson = reviewableStreamedLessonIndex >= 0
+    ? steps[reviewableStreamedLessonIndex]
+    : null;
+  const reviewableStreamedLessonKey = reviewableStreamedLesson && planSessionId
+    ? `${planSessionId}:${reviewableStreamedLessonIndex}`
+    : null;
+  const reviewableStreamedLessonState = reviewableStreamedLessonKey
+    ? streamedLessons[reviewableStreamedLessonKey] ?? createLessonRuntimeState()
+    : null;
+  const isStreamedInstruction = content.type === "instruction" && Boolean(content.lessonBrief);
+  const streamedLessonKey = isStreamedInstruction && planSessionId ? `${planSessionId}:${step}` : null;
+  const streamedLessonState = streamedLessonKey
+    ? streamedLessons[streamedLessonKey] ?? createLessonRuntimeState()
+    : null;
   const isQuestion = content.type === "multiple_choice" || content.type === "free_response";
   const isImmediateRepair = content.evidenceRole === "immediate_repair";
   const normalizedConcept = content.concept?.trim().toLocaleLowerCase() ?? null;
-  const taughtEarlierInSession = Boolean(content.teaching || (normalizedConcept && steps.slice(0, step).some((candidate) => {
+  const taughtEarlierInSession = Boolean(content.teaching || content.lessonBrief || (normalizedConcept && steps.slice(0, step).some((candidate) => {
     const priorConcept = candidate.concept?.trim().toLocaleLowerCase();
-    return Boolean(candidate.teaching && priorConcept && (
-      priorConcept === normalizedConcept
-      || priorConcept.includes(normalizedConcept)
-      || normalizedConcept.includes(priorConcept)
-    ));
+    const sameMappedTopic = Boolean(candidate.lessonBrief && candidate.topicId && candidate.topicId === content.topicId);
+    return sameMappedTopic || Boolean(candidate.teaching && priorConcept && (
+        priorConcept === normalizedConcept
+        || priorConcept.includes(normalizedConcept)
+        || normalizedConcept.includes(priorConcept)
+      ));
   })));
   const requiresConfidence = !quickScheduledReview && shouldRequestConfidence({
     isQuestion,
@@ -3446,7 +3658,7 @@ function GuidedSession({ plan, steps, step, selectedAnswer, outcome, attemptCoun
       ? `The correct answer is “${punctuatedCorrectAnswer}” ${content.feedback ?? "YOVA will bring this idea back for another attempt."}`
       : content.feedback;
   const teachingPanels = content.teaching ? teachingPanelsFor(content.teaching, deliveryPolicy?.presentation.mode) : [];
-  const teachingComplete = teachingPanels.length === 0 || teachingPage >= teachingPanels.length - 1;
+  const teachingComplete = isStreamedInstruction || teachingPanels.length === 0 || teachingPage >= teachingPanels.length - 1;
   const nextTeachingPanel = teachingPanels[teachingPage + 1] ?? null;
   const freeResponseReady = content.type !== "free_response" || answerRevealed;
   const canContinue = (!isQuestion || outcome !== undefined) && teachingComplete && freeResponseReady;
@@ -3472,6 +3684,17 @@ function GuidedSession({ plan, steps, step, selectedAnswer, outcome, attemptCoun
     && outcome === false
     && attemptCount === 1
     && !answerRevealed;
+
+  useEffect(() => {
+    if (!streamedLessonKey || !plan || !planSessionId || !content.lessonBrief) return;
+    void onOpenStreamedLesson({
+      key: streamedLessonKey,
+      planId: plan.id,
+      planSessionId,
+      activityIndex: step,
+      activity: content,
+    });
+  }, [content, onOpenStreamedLesson, plan, planSessionId, step, streamedLessonKey]);
 
   const checkFreeResponse = async () => {
     if (!selectedAnswer?.trim() || answerEvaluationPending) return;
@@ -3553,8 +3776,19 @@ function GuidedSession({ plan, steps, step, selectedAnswer, outcome, attemptCoun
     if (advancing) return;
     setAdvancing(true);
     try {
-      if (nextTeachingPanel) setTeachingProgress({ step, page: teachingPage + 1 });
-      else await onNext(answerEvaluation);
+      if (nextTeachingPanel) {
+        setTeachingProgress({ step, page: teachingPage + 1 });
+      } else {
+        if (isStreamedInstruction && streamedLessonState?.status !== "complete" && plan && planSessionId) {
+          onSkipStreamedLesson({
+            planId: plan.id,
+            planSessionId,
+            activityIndex: step,
+            lessonRequestId: streamedLessonState?.requestId ?? undefined,
+          });
+        }
+        await onNext(answerEvaluation);
+      }
     } finally {
       setAdvancing(false);
     }
@@ -3590,7 +3824,23 @@ function GuidedSession({ plan, steps, step, selectedAnswer, outcome, attemptCoun
         {isImmediateRepair && <div className="immediate-repair-note"><RotateCcw size={17} /><div><strong>Repair now, verify later</strong><p>Correct the idea now. YOVA will still check it again later because an immediate retry is not proof that it will stick.</p></div></div>}
         {isImmediateRepair && content.repairSupport && <RuntimeRepairSupportCard support={content.repairSupport} />}
         <header className="session-activity-header"><div className="session-step-meta"><div><span>STEP {step + 1} OF {steps.length}</span><strong>{activityLabel}</strong></div>{content.estimatedMinutes && <span><Clock3 size={13} /> About {content.estimatedMinutes} min</span>}</div><h1><LearningContent content={content.title} inline /></h1>{content.body && <LearningContent content={content.body} className="session-activity-instruction" />}</header>
-        {reviewableTeaching && isQuestion && <div className="session-model-reference"><BookOpen size={18} /><div><span>PREVIOUS MODEL AVAILABLE</span><strong><LearningContent content={reviewableTeaching.keyIdea} inline /></strong><small>Open it without losing this question or your place.</small></div><button className="button secondary" type="button" onClick={() => setReviewingModel(true)}>Review the model</button></div>}
+        {(reviewableTeaching || reviewableStreamedLesson) && isQuestion && <div className="session-model-reference"><BookOpen size={18} /><div><span>PREVIOUS LESSON AVAILABLE</span><strong><LearningContent content={reviewableStreamedLesson?.title ?? reviewableTeaching?.keyIdea ?? "Review the lesson"} inline /></strong><small>Open it without losing this question or your place.</small></div><button className="button secondary" type="button" onClick={() => setReviewingModel(true)}>Review the lesson</button></div>}
+        {isStreamedInstruction && streamedLessonState && streamedLessonKey && plan && planSessionId && <StreamedLessonCard
+          state={streamedLessonState}
+          plan={plan}
+          planSessionId={planSessionId}
+          activityIndex={step}
+          activity={content}
+          analyticsEnabled={analyticsEnabled}
+          onRetry={() => void onOpenStreamedLesson({
+            key: streamedLessonKey,
+            planId: plan.id,
+            planSessionId,
+            activityIndex: step,
+            activity: content,
+            retry: true,
+          })}
+        />}
         {content.teaching && <TeachingLessonCard teaching={content.teaching} panel={teachingPanels[teachingPage] ?? "idea"} panelIndex={teachingPage} panelCount={teachingPanels.length} panelLabels={teachingPanels} />}
         {requiresConfidence && <ConfidenceCheck value={confidence} locked={outcome !== undefined || answerRevealed} onChange={onConfidence} />}
         {content.type === "multiple_choice" && content.question && <div className="answer-grid">{content.question.map((answer) => {
@@ -3646,21 +3896,153 @@ function GuidedSession({ plan, steps, step, selectedAnswer, outcome, attemptCoun
           <small className="privacy-note">{isImmediateRepair ? "This required recheck records whether the repaired concept now holds. A later review is added only if the pattern continues across sessions." : answerEvaluation ? "Your answer was sent for a one-time AI check and is not saved. YOVA keeps only the concept result, confidence, and support level." : "Your typed answer is not saved. YOVA keeps only the concept result, confidence, and support level."}</small>
         </div>}
       </div>}
-        <footer className="session-action-bar">{step === steps.length - 1 && teachingComplete && <p className="completion-rule"><Check size={14} /> Completion is based on the required learning work, not on running out the clock.</p>}<button className="button primary large" onClick={() => void advanceSession()} disabled={advancing || (!canContinue && !nextTeachingPanel)}>{advancing ? <><span className="button-spinner" /> Adapting your next step...</> : <>{nextTeachingPanel ? `Next: ${teachingPanelLabel(nextTeachingPanel)}` : outcome === false && !isImmediateRepair ? "Repair this idea" : step === steps.length - 1 ? "Finish this content" : "Continue"} <ArrowRight size={18} /></>}</button></footer>
+        <footer className="session-action-bar">{step === steps.length - 1 && teachingComplete && <p className="completion-rule"><Check size={14} /> Completion is based on the required learning work, not on running out the clock.</p>}<button className="button primary large" onClick={() => void advanceSession()} disabled={advancing || (!canContinue && !nextTeachingPanel)}>{advancing ? <><span className="button-spinner" /> Adapting your next step...</> : <>{isStreamedInstruction ? "Start practice" : nextTeachingPanel ? `Next: ${teachingPanelLabel(nextTeachingPanel)}` : outcome === false && !isImmediateRepair ? "Repair this idea" : step === steps.length - 1 ? "Finish this content" : "Continue"} <ArrowRight size={18} /></>}</button></footer>
       </section>
     </section>
-    <SessionTutor
+    {!isStreamedInstruction && <SessionTutor
       plan={plan}
       activity={content}
       outcome={outcome}
       answerRevealed={answerRevealed}
       selectedAnswer={selectedAnswer}
       analyticsEnabled={analyticsEnabled}
-    />
-    {reviewingModel && reviewableTeaching && <div className="session-model-review-backdrop"><section className="session-model-review-dialog" role="dialog" aria-modal="true" aria-labelledby="session-model-review-title"><header><div><span className="step-label">REFERENCE MODEL</span><h2 id="session-model-review-title">Review the model, then return to the same question.</h2><p>Your answer and session progress stay exactly where they are.</p></div><button className="button ghost" type="button" onClick={() => setReviewingModel(false)}><X size={17} /> Return to question</button></header><div className="session-model-review-content"><TeachingLessonCard teaching={reviewableTeaching} /></div><footer><button className="button primary" type="button" onClick={() => setReviewingModel(false)}><ArrowLeft size={17} /> Back to the question</button></footer></section></div>}
+    />}
+    {reviewingModel && (reviewableTeaching || (reviewableStreamedLesson && reviewableStreamedLessonState)) && <div className="session-model-review-backdrop"><section className="session-model-review-dialog" role="dialog" aria-modal="true" aria-labelledby="session-model-review-title"><header><div><span className="step-label">PREVIOUS LESSON</span><h2 id="session-model-review-title">Review the lesson, then return to the same question.</h2><p>Your answer and session progress stay exactly where they are.</p></div><button className="button ghost" type="button" onClick={() => setReviewingModel(false)}><X size={17} /> Return to question</button></header><div className="session-model-review-content">{reviewableStreamedLesson && reviewableStreamedLessonState ? <StreamedLessonReader state={reviewableStreamedLessonState} compact /> : reviewableTeaching ? <TeachingLessonCard teaching={reviewableTeaching} /> : null}</div><footer><button className="button primary" type="button" onClick={() => setReviewingModel(false)}><ArrowLeft size={17} /> Back to the question</button></footer></section></div>}
     {changingDirection && <div className="plan-direction-backdrop"><section className="plan-direction-dialog" role="dialog" aria-modal="true" aria-labelledby="plan-direction-title"><header><span className="plan-direction-icon"><Settings2 size={21} /></span><div><span className="step-label">CHANGE THE COURSE DIRECTION</span><h2 id="plan-direction-title">Tell YOVA what is off track.</h2><p>Completed work and learning evidence will stay. YOVA will rebuild only the unfinished sessions after you approve this change.</p></div></header><label><span>What should be different?</span><textarea autoFocus rows={5} maxLength={500} value={directionRequest} disabled={directionPending} placeholder="Example: I do not want math exercises. Keep the remaining course conceptual and focus on founder decisions, investors, and real startup examples." onChange={(event) => setDirectionRequest(event.target.value)} /><small>{directionRequest.length}/500</small></label><div className="plan-direction-examples"><button type="button" onClick={() => setDirectionRequest("Keep this conceptual. Do not include math or calculation exercises.")}>No calculations</button><button type="button" onClick={() => setDirectionRequest("Teach the foundations first and use concrete examples before practice.")}>Teach the basics first</button><button type="button" onClick={() => setDirectionRequest("Focus more on real examples and practical decisions.")}>More real examples</button></div>{directionIssue && <div className="chat-error"><AlertCircle size={16} /><span>{directionIssue}</span></div>}<footer><button className="button ghost" disabled={directionPending} onClick={() => { setChangingDirection(false); setDirectionIssue(null); }}>Keep this plan</button><button className="button primary large" disabled={directionPending || directionRequest.trim().length < 5} onClick={() => void redirectPlan()}>{directionPending ? <><span className="button-spinner" /> Rebuilding plan</> : <>Approve and rebuild <ArrowRight size={18} /></>}</button></footer></section></div>}
     {confirmingExit && <div className="session-exit-backdrop"><section className="session-exit-dialog" role="dialog" aria-modal="true" aria-labelledby="session-exit-title"><div className="session-exit-icon"><Clock3 size={21} /></div><span className="step-label">LEAVE THIS SESSION?</span><h2 id="session-exit-title">Your plan will stay open.</h2><p>YOVA will remember how long you studied and exactly which content steps you reached. Unfinished answers will not be treated as knowledge evidence.</p><div className="session-exit-summary"><span>{formatElapsedDuration(elapsedSeconds)} studied</span><span>{completedRequiredSteps} of {requiredSteps.length} required steps finished</span></div><div className="session-exit-actions"><button className="button ghost" onClick={() => setConfirmingExit(false)}>Keep studying</button><button className="button primary" onClick={onExit}>Save progress and leave</button></div></section></div>}
   </main>;
+}
+
+function StreamedLessonCard({ state, plan, planSessionId, activityIndex, activity, analyticsEnabled, onRetry }: {
+  state: LessonRuntimeState;
+  plan: LearningPlan;
+  planSessionId: string;
+  activityIndex: number;
+  activity: LessonStep;
+  analyticsEnabled: boolean;
+  onRetry: () => void;
+}) {
+  return <section className="streamed-lesson-card" aria-label="Live YOVA lesson">
+    <StreamedLessonReader state={state} onRetry={onRetry} />
+    {(state.content.trim() || state.status === "complete") && <LessonAskAboutThis
+      plan={plan}
+      planSessionId={planSessionId}
+      activityIndex={activityIndex}
+      activity={activity}
+      lessonContent={state.content}
+      analyticsEnabled={analyticsEnabled}
+    />}
+  </section>;
+}
+
+function StreamedLessonReader({ state, compact = false, onRetry }: {
+  state: LessonRuntimeState;
+  compact?: boolean;
+  onRetry?: () => void;
+}) {
+  if (state.status === "error") {
+    return <div className="streamed-lesson-error" role="alert">
+      <AlertCircle size={19} />
+      <div><strong>This lesson stopped before it finished.</strong><p>{state.error ?? "Your session progress is safe."}</p></div>
+      {onRetry && <button className="button secondary" type="button" onClick={onRetry}><RotateCcw size={16} /> Try lesson again</button>}
+    </div>;
+  }
+
+  if (!state.content) {
+    return <div className="streamed-lesson-opening" role="status" aria-live="polite">
+      <span className="button-spinner dark" />
+      <div><strong>Opening your lesson</strong><p>The first part will appear here as soon as it is ready.</p></div>
+    </div>;
+  }
+
+  return <article className={`streamed-lesson-reader ${compact ? "compact" : ""}`} aria-busy={state.status === "streaming"}>
+    <LearningContent content={state.content} className="streamed-lesson-copy" />
+    {state.status === "streaming" && <span className="streamed-lesson-cursor" aria-label="Lesson is still being written" />}
+  </article>;
+}
+
+function LessonAskAboutThis({ plan, planSessionId, activityIndex, activity, lessonContent, analyticsEnabled }: {
+  plan: LearningPlan;
+  planSessionId: string;
+  activityIndex: number;
+  activity: LessonStep;
+  lessonContent: string;
+  analyticsEnabled: boolean;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const [question, setQuestion] = useState("");
+  const [messages, setMessages] = useState<TutorMessage[]>([]);
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const ask = async () => {
+    const nextQuestion = question.trim();
+    if (!nextQuestion || pending) return;
+    setPending(true);
+    setError(null);
+    trackProductEvent({
+      eventName: "tutor_message_sent",
+      context: { linkedToPlan: true, surface: "guided_session" },
+    }, analyticsEnabled);
+
+    try {
+      const response = await fetch("/api/tutor", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          question: nextQuestion,
+          planId: plan.id,
+          threadId: null,
+          persistenceMode: "ephemeral",
+          history: messages.slice(-8).map(({ role, content }) => ({ role, content })),
+          sessionContext: {
+            planSessionId,
+            activityIndex,
+            activityTitle: activity.title,
+            activityType: "instruction",
+            activityInstruction: activity.body,
+            concept: null,
+            methodPhase: activity.methodPhase ?? null,
+            teachingSummary: lessonContent.slice(-1_200),
+            choices: [],
+            referenceAnswer: null,
+            feedback: null,
+            answerState: "not_attempted",
+            selectedChoice: null,
+            helpIntent: "open_question",
+          },
+        }),
+      });
+      const body: unknown = await response.json().catch(() => null);
+      if (!response.ok) {
+        const message = typeof body === "object" && body && "error" in body && typeof body.error === "string"
+          ? body.error
+          : "YOVA could not answer this question.";
+        throw new Error(message);
+      }
+      const parsed = TutorResponseSchema.safeParse(body);
+      if (!parsed.success || parsed.data.persistence !== "ephemeral") {
+        throw new Error("The lesson answer came back in an unsafe format.");
+      }
+      setMessages((current) => [...current, ...parsed.data.messages]);
+      setQuestion("");
+    } catch (requestError) {
+      reportProductError({ surface: "tutor", errorCode: "lesson_tutor_request_failed" });
+      setError(requestError instanceof Error ? requestError.message : "YOVA could not answer this question.");
+    } finally {
+      setPending(false);
+    }
+  };
+
+  return <aside className={`lesson-ask ${expanded ? "expanded" : ""}`}>
+    {!expanded ? <button className="lesson-ask-launcher" type="button" onClick={() => setExpanded(true)}><MessageCircleMore size={17} /> Ask about this</button> : <section>
+      <header><div><Sparkles size={16} /><span><strong>Ask about this lesson</strong><small>This conversation disappears when the session ends.</small></span></div><button aria-label="Close lesson questions" onClick={() => setExpanded(false)}><X size={17} /></button></header>
+      {messages.length > 0 && <div className="lesson-ask-messages" aria-live="polite">{messages.map((message) => message.role === "assistant" ? <div className="lesson-ask-assistant" key={message.id}><span>YOVA</span><TutorMessageContent content={message.content} /></div> : <div className="lesson-ask-user" key={message.id}><span>You</span><p>{message.content}</p></div>)}</div>}
+      {error && <div className="session-tutor-error"><AlertCircle size={15} /> {error}</div>}
+      <form onSubmit={(event) => { event.preventDefault(); void ask(); }}><textarea rows={2} value={question} disabled={pending} placeholder="Ask for another explanation, example, connection, or clarification..." onChange={(event) => setQuestion(event.target.value)} /><button className="button primary" type="submit" disabled={pending || question.trim().length < 2}>{pending ? <span className="button-spinner" /> : <Send size={17} />} Send</button></form>
+      <small>Ask anything. YOVA will not reveal answers from practice you have not reached yet.</small>
+    </section>}
+  </aside>;
 }
 
 function AnswerEvaluationCard({ evaluation }: { evaluation: AnswerEvaluationResponse }) {

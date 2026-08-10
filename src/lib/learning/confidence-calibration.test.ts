@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildTopicCalibrationSignals,
   confidenceResultMessage,
   readConfidenceEvidenceProperty,
   summarizeConfidenceCalibration,
@@ -56,6 +57,25 @@ describe("confidence calibration", () => {
       highConfidenceMisses: 0,
       lowConfidenceSuccesses: 0,
     });
+  });
+
+  it("keeps topic-specific misconception context without storing a learner quote", () => {
+    const topicId = "11111111-1111-4111-8111-111111111111";
+    const signals = buildTopicCalibrationSignals([{
+      topicId,
+      concept: "Membrane transport direction",
+      confidence: "very_sure",
+      correct: false,
+      activityType: "multiple_choice",
+      misconceptionSummary: "Treats active transport as movement down a concentration gradient.",
+    }]);
+
+    expect(signals).toEqual([expect.objectContaining({
+      topicId,
+      pattern: "possible_misconception",
+      misconceptionSummary: "Treats active transport as movement down a concentration gradient.",
+    })]);
+    expect(signals[0]?.feedback).toContain("active transport");
   });
 
   it("rejects malformed stored evidence", () => {

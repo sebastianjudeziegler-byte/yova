@@ -3,11 +3,12 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
 
-export type AIUsageAction = "plan_generation" | "session_generation" | "answer_evaluation" | "tutor_message" | "teaching_visual";
+export type AIUsageAction = "plan_generation" | "session_generation" | "lesson_generation" | "answer_evaluation" | "tutor_message" | "teaching_visual";
 
 const LIMITS: Record<AIUsageAction, { minute: number; day: number }> = {
   plan_generation: { minute: 5, day: 20 },
   session_generation: { minute: 8, day: 40 },
+  lesson_generation: { minute: 12, day: 80 },
   answer_evaluation: { minute: 20, day: 120 },
   tutor_message: { minute: 15, day: 80 },
   teaching_visual: { minute: 2, day: 12 },

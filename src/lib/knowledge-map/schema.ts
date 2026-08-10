@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { CurriculumReferenceSchema, PlanCurriculumSchema } from "@/lib/curriculum/schema";
 
 export const MaterialRoleSchema = z.enum(["content_source", "scope_outline", "mixed"]);
 export const MaterialSectionRoleSchema = z.enum(["content_source", "scope_outline"]);
@@ -37,13 +38,15 @@ export const KnowledgeMapTopicSchema = z.object({
   id: z.string().uuid(),
   title: z.string().trim().min(2).max(140),
   description: z.string().trim().min(8).max(400),
-  subtopics: z.array(z.string().trim().min(2).max(140)).max(12).default([]),
+  subtopics: z.array(z.string().trim().min(2).max(500)).max(12).default([]),
   prerequisiteTopicIds: z.array(z.string().uuid()).max(12).default([]),
   status: KnowledgeTopicStatusSchema.default("not_started"),
   initialEvidence: InitialTopicEvidenceSchema,
   sourceReferences: z.array(MaterialChunkReferenceSchema).max(40).default([]),
   origin: z.enum(["material", "ai_generated"]),
   deferred: z.object({ reason: z.string().trim().min(8).max(300) }).nullable().default(null),
+  // Optional keeps plans/material maps written before curriculum support readable.
+  curriculumReference: CurriculumReferenceSchema.nullable().optional(),
 });
 
 export const ScopeJudgmentSchema = z.object({
@@ -64,6 +67,8 @@ export const PlanKnowledgeMapSchema = z.object({
   scopeJudgment: ScopeJudgmentSchema,
   topics: z.array(KnowledgeMapTopicSchema).min(1).max(40),
   placementCheck: PlacementCheckStateSchema,
+  // Recognition is deliberately absent for unsupported or ambiguous curricula.
+  curriculum: PlanCurriculumSchema.nullable().optional(),
 });
 
 export const MaterialUnderstandingSchema = z.object({

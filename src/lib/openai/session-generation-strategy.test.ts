@@ -19,4 +19,17 @@ describe("production session generation strategy", () => {
     expect(strategyFor("javascript_scaffold_fading")).toBe("full");
     expect(strategyFor("literature_close_reading")).toBe("reliable");
   });
+
+  it("streams only ordinary inside-YOVA learn sessions from explicitly versioned plans", async () => {
+    const { sessionGenerationStrategy } = await import("@/lib/openai/session-generation-strategy");
+    const cases = new Map(buildSessionEvaluationCases().map((entry) => [entry.id, entry.context]));
+    const learn = cases.get("biology_initial_teaching")!;
+    const review = cases.get("calculus_delayed_retrieval_self_contained")!;
+    const outside = cases.get("history_writing_outside")!;
+
+    expect(sessionGenerationStrategy({ ...learn, sessionArchitectureVersion: "streamed_teaching_v1" })).toBe("streamed");
+    expect(sessionGenerationStrategy({ ...review, sessionArchitectureVersion: "streamed_teaching_v1" })).toBe("full");
+    expect(sessionGenerationStrategy({ ...outside, sessionArchitectureVersion: "streamed_teaching_v1" })).toBe("full");
+    expect(sessionGenerationStrategy(learn)).not.toBe("streamed");
+  });
 });

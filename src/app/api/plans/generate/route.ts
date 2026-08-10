@@ -164,7 +164,14 @@ export async function POST(request: Request) {
       cacheWriteTokens: mapped.stats.cacheWriteTokens,
       outputTokens: mapped.stats.outputTokens,
       model: mapped.stats.model,
-      diagnostics: { topicCount: mapped.map.topics.length, scopeBand: mapped.map.scopeJudgment.band },
+      diagnostics: {
+        topicCount: mapped.map.topics.length,
+        scopeBand: mapped.map.scopeJudgment.band,
+        curriculumRecognized: mapped.stats.curriculumRecognized,
+        ...(mapped.stats.curriculumId ? { curriculumId: mapped.stats.curriculumId } : {}),
+        ...(mapped.stats.curriculumMatchSource ? { curriculumMatchSource: mapped.stats.curriculumMatchSource } : {}),
+        ...(mapped.stats.curriculumMatchConfidence ? { curriculumMatchConfidence: mapped.stats.curriculumMatchConfidence } : {}),
+      },
     });
     }
   } catch (error) {
@@ -432,6 +439,10 @@ function buildDevelopmentPreviewKnowledgeMap(
       firstAttemptPassed: true,
       failedValidator: null,
       model: null,
+      curriculumRecognized: false,
+      curriculumId: null,
+      curriculumMatchSource: null,
+      curriculumMatchConfidence: null,
     },
   };
 }

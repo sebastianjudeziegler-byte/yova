@@ -36,6 +36,29 @@ export const SessionDeliveryPolicySchema = z.object({
 
 export type SessionDeliveryPolicy = z.infer<typeof SessionDeliveryPolicySchema>;
 
+export const LessonDeliveryInstructionsSchema = z.object({
+  schemaVersion: z.literal(1),
+  explanationDensity: z.enum(["concise", "balanced", "detailed"]),
+  tone: z.enum(["direct", "calm", "encouraging"]),
+  analogyUse: z.enum(["only_when_helpful", "prefer_concrete", "avoid_unless_requested"]),
+  workedExamples: z.enum(["task_required", "lead_with_example", "step_by_step"]),
+  structure: z.enum(["task_aligned", "overview_first", "one_step_at_a_time", "full_path"]),
+  pacing: z.object({
+    firstActionMinutes: z.number().int().min(1).max(8),
+    maximumActivities: z.number().int().min(3).max(8),
+    instruction: z.string().trim().min(15).max(300),
+  }),
+  learnerContext: z.array(z.string().trim().min(10).max(300)).min(1).max(4),
+  contentRequirements: z.object({
+    coverAllEssentialIdeas: z.literal(true),
+    includeConcreteWorkedExample: z.boolean(),
+    includeCommonMixup: z.literal(true),
+    preservePrerequisiteOrder: z.literal(true),
+  }),
+});
+
+export type LessonDeliveryInstructions = z.infer<typeof LessonDeliveryInstructionsSchema>;
+
 type LearnerProfile = {
   processingPreference?: string | null;
   explanationPreference?: string | null;
@@ -60,6 +83,39 @@ type Interruption = {
   completedSteps: number | null;
   totalSteps: number | null;
 };
+
+/**
+ * Streamed lessons intentionally use only the learner's explicit profile and
+ * stated preferences for presentation. Completed-session outcomes continue to
+ * shape practice selection elsewhere, but they do not change lesson prose,
+ * tone, structure, or pacing in this architecture version.
+ */
+export function buildStatedPreferenceLessonDelivery({
+  learnerProfile,
+  estimatedMinutes,
+  taskType,
+}: {
+  learnerProfile: LearnerProfile | null;
+  estimatedMinutes: number;
+  taskType: "memorization" | "conceptual_learning" | "problem_solving" | "reading_to_quiz" | "writing_argumentation" | "programming" | "mixed_assessment";
+}) {
+  const policy = buildSessionDeliveryPolicy({
+    learnerProfile,
+    recentResults: [],
+    recentInterruptions: [],
+    learningMode: "learn",
+    estimatedMinutes,
+  });
+
+  return {
+    policy,
+    instructions: buildLessonDeliveryInstructions({
+      policy,
+      learnerProfile,
+      taskType,
+    }),
+  };
+}
 
 export function buildSessionDeliveryPolicy({
   learnerProfile,
@@ -127,6 +183,81 @@ export function buildSessionDeliveryPolicy({
   });
 }
 
+/**
+ * Turns the existing evidence-bounded delivery policy into instructions for
+ * one streamed lesson. These fields describe presentation, not a learner
+ * identity, and may never reduce the lesson brief's required content.
+ */
+export function buildLessonDeliveryInstructions({
+  policy,
+  learnerProfile,
+  taskType,
+}: {
+  policy: SessionDeliveryPolicy;
+  learnerProfile: LearnerProfile | null;
+  taskType: "memorization" | "conceptual_learning" | "problem_solving" | "reading_to_quiz" | "writing_argumentation" | "programming" | "mixed_assessment";
+}): LessonDeliveryInstructions {
+  const explanationPreference = normalize(learnerProfile?.explanationPreference);
+  const processingPreference = normalize(learnerProfile?.processingPreference);
+  const guidancePreference = normalize(learnerProfile?.guidancePreference);
+  const explanationDensity = explanationPreference.includes("concise") || explanationPreference.includes("short")
+    ? "concise"
+    : explanationPreference.includes("deep") || explanationPreference.includes("detail")
+      ? "detailed"
+      : "balanced";
+  const tone = normalize(learnerProfile?.supportPreference).includes("direct")
+    ? "direct"
+    : normalize(learnerProfile?.commonBlocker).match(/overwhelm|anxious|stress/)
+      ? "calm"
+      : "encouraging";
+  const analogyUse = processingPreference.includes("concrete example")
+    ? "prefer_concrete"
+    : explanationPreference.includes("no analog")
+      ? "avoid_unless_requested"
+      : "only_when_helpful";
+  const workedExamples = taskType === "problem_solving" || taskType === "programming"
+    ? "task_required"
+    : policy.presentation.mode === "example_first"
+      ? "lead_with_example"
+      : policy.presentation.mode === "step_by_step"
+        ? "step_by_step"
+        : "lead_with_example";
+  const structure = policy.presentation.mode === "overview_first"
+    ? "overview_first"
+    : policy.workspace.mode === "one_step"
+      ? "one_step_at_a_time"
+      : policy.workspace.mode === "full_path"
+        ? "full_path"
+        : "task_aligned";
+  const learnerContext = unique([
+    ...policy.learnerFacingReasons,
+    guidancePreference
+      ? `The learner asked for ${learnerProfile?.guidancePreference?.trim()}. Apply that request to presentation while preserving every required idea and check.`
+      : "Use the task and current evidence as the presentation baseline. Do not infer a fixed learning style or brain type.",
+  ]).slice(0, 4);
+
+  return LessonDeliveryInstructionsSchema.parse({
+    schemaVersion: 1,
+    explanationDensity,
+    tone,
+    analogyUse,
+    workedExamples,
+    structure,
+    pacing: {
+      firstActionMinutes: policy.pacing.firstActionMinutes,
+      maximumActivities: policy.pacing.maximumActivities,
+      instruction: policy.pacing.reason,
+    },
+    learnerContext,
+    contentRequirements: {
+      coverAllEssentialIdeas: true,
+      includeConcreteWorkedExample: taskType === "problem_solving" || taskType === "programming" || policy.presentation.mode === "example_first",
+      includeCommonMixup: true,
+      preservePrerequisiteOrder: true,
+    },
+  });
+}
+
 export function validateSessionDeliveryPolicy({
   policy,
   learningMode,
@@ -142,6 +273,12 @@ export function validateSessionDeliveryPolicy({
       example: null | { steps: string[] };
       commonMistake: null | { mistake: string; correction: string };
     };
+    lessonBrief?: null | {
+      contentRequirements: {
+        includeConcreteExample: boolean;
+        includeCommonMixup: true;
+      };
+    };
   }>;
 }) {
   // A scheduled return is a one-line promise that YOVA will bring the idea
@@ -156,17 +293,19 @@ export function validateSessionDeliveryPolicy({
     return `The first action should take no more than ${maximumFirstActionMinutes} minutes so the learner can begin without a long setup block.`;
   }
 
-  const firstTeaching = activities.find((activity) => Boolean(activity.teaching))?.teaching ?? null;
-  if (learningMode === "learn" && policy.presentation.mode === "example_first" && !firstTeaching?.example) {
+  const firstTeachingActivity = activities.find((activity) => Boolean(activity.teaching || activity.lessonBrief));
+  const firstTeaching = firstTeachingActivity?.teaching ?? null;
+  const firstBrief = firstTeachingActivity?.lessonBrief ?? null;
+  if (learningMode === "learn" && policy.presentation.mode === "example_first" && !firstTeaching?.example && !firstBrief?.contentRequirements.includeConcreteExample) {
     return "This learner asked for examples first, so the opening teaching block needs a concrete worked example.";
   }
-  if (learningMode === "learn" && policy.presentation.mode === "step_by_step" && (firstTeaching?.example?.steps.length ?? 0) < 3) {
+  if (learningMode === "learn" && policy.presentation.mode === "step_by_step" && !firstBrief && (firstTeaching?.example?.steps.length ?? 0) < 3) {
     return "This learner asked for a clear sequence, so the opening model needs at least three visible steps.";
   }
-  if (learningMode === "learn" && policy.presentation.mode === "compare_first" && !firstTeaching?.commonMistake) {
+  if (learningMode === "learn" && policy.presentation.mode === "compare_first" && !firstTeaching?.commonMistake && !firstBrief?.contentRequirements.includeCommonMixup) {
     return "This learner asked to compare similar ideas, so the opening teaching block needs a plausible contrast or corrected mix-up.";
   }
-  if (policy.repair.mode === "alternate_example" && learningMode === "learn" && !firstTeaching?.example) {
+  if (policy.repair.mode === "alternate_example" && learningMode === "learn" && !firstTeaching?.example && !firstBrief?.contentRequirements.includeConcreteExample) {
     return "The selected repair approach needs a concrete alternate example available before independent practice.";
   }
   if (policy.retention.mode === "delayed_retrieval" && !activities.some((activity) => activity.methodPhase === "schedule_return")) {

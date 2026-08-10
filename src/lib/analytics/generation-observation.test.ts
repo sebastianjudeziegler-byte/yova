@@ -29,5 +29,54 @@ describe("GenerationObservationSchema", () => {
       learnerPrompt: "My private study goal",
     }).success).toBe(false);
   });
-});
 
+  it("accepts privacy-safe streamed lesson measurements", () => {
+    expect(GenerationObservationSchema.safeParse({
+      ...safeEvent,
+      generationType: "lesson",
+      failedValidator: null,
+      diagnostics: {
+        latencyToFirstTokenMs: 340,
+        wordCount: 612,
+        streamCompleted: true,
+      },
+    }).success).toBe(true);
+  });
+
+  it("represents lesson skip usage without learner content", () => {
+    expect(GenerationObservationSchema.safeParse({
+      ...safeEvent,
+      generationType: "lesson",
+      observationKind: "usage",
+      finalOutcome: "cache",
+      firstAttemptPassed: null,
+      failedValidator: null,
+      repairAttempted: false,
+      repairSucceeded: null,
+      elapsedMs: 0,
+      attempts: 0,
+      inputTokens: 0,
+      cachedInputTokens: 0,
+      outputTokens: 0,
+      diagnostics: {
+        lessonAction: "skip_to_practice",
+        lessonRequestId: "e7643187-7584-43d3-b4a2-14ea5a2c0d6f",
+      },
+    }).success).toBe(true);
+  });
+
+  it("accepts bounded curriculum recognition without learner text", () => {
+    expect(GenerationObservationSchema.safeParse({
+      ...safeEvent,
+      generationType: "knowledge_map",
+      diagnostics: {
+        topicCount: 10,
+        scopeBand: "unit_or_exam",
+        curriculumRecognized: true,
+        curriculumId: "college_board_ap_biology_2025_unit_2",
+        curriculumMatchSource: "both",
+        curriculumMatchConfidence: "exact",
+      },
+    }).success).toBe(true);
+  });
+});

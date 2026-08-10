@@ -80,7 +80,7 @@ export function validateSessionContentSpecificity({
 
   if (draft.methodBriefing.learningMode === "learn") {
     const teachingText = draft.activities
-      .filter((activity) => activity.teaching)
+      .filter((activity) => activity.teaching || ("lessonBrief" in activity && activity.lessonBrief))
       .map(activitySubjectText)
       .join(" ");
     const uncoveredIdeas = draft.coverage.essentialIdeas.filter((idea) => {
@@ -138,6 +138,9 @@ function activitySubjectText(activity: GeneratedSessionDraft["activities"][numbe
     activity.teaching?.example?.takeaway,
     activity.teaching?.commonMistake?.mistake,
     activity.teaching?.commonMistake?.correction,
+    ...("lessonBrief" in activity && activity.lessonBrief
+      ? activity.lessonBrief.essentialIdeas
+      : []),
     activity.correctAnswer,
     activity.feedback,
     ...activity.choices,

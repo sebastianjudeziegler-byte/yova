@@ -31,6 +31,24 @@ describe("tutor session context", () => {
     expect(parsed.sessionContext?.selectedChoice).toBeNull();
   });
 
+  it("supports an ephemeral lesson conversation without changing thread chat", () => {
+    const parsed = TutorRequestSchema.parse({
+      question: "How is this related to entropy?",
+      planId: "10000000-0000-4000-8000-000000000001",
+      persistenceMode: "ephemeral",
+      history: [],
+      sessionContext: {
+        ...sessionContext,
+        planSessionId: "30000000-0000-4000-8000-000000000001",
+        activityIndex: 0,
+        activityType: "instruction",
+      },
+    });
+
+    expect(parsed.persistenceMode).toBe("ephemeral");
+    expect(parsed.sessionContext?.activityIndex).toBe(0);
+  });
+
   it("does not accept an unbounded or ambiguous session-help payload", () => {
     const result = TutorRequestSchema.safeParse({
       question: "Help me",

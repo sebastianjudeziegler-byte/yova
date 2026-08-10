@@ -17,11 +17,14 @@ export type GuidedSessionStep = {
   title: string;
   body: string;
   teaching?: import("@/lib/session-generation/schema").TeachingBlock | null;
+  lessonBrief?: import("@/lib/session-generation/schema").LessonBrief | null;
   question: string[] | null;
   correctAnswer: string | null;
   feedback: string | null;
   evidenceRole?: "assessment" | "immediate_repair";
   repairSupport?: RuntimeRepairSupport;
+  practiceIntent?: import("@/lib/learning/practice-variation").PracticeIntent | null;
+  misconceptionSummary?: string;
 };
 
 export type SessionEvidenceSummary = SessionEvidenceSnapshot;
@@ -82,6 +85,7 @@ export function summarizeSessionEvidence(
           outcome: finalOutcome ? "secure" : "needs_review",
           activityType: step.type,
           methodPhase: step.methodPhase,
+          ...(step.misconceptionSummary ? { misconceptionSummary: step.misconceptionSummary } : {}),
         });
       }
       return;
@@ -98,16 +102,23 @@ export function summarizeSessionEvidence(
         activityType: step.type,
         methodPhase: step.methodPhase,
         ...(attemptOutcomes.length > 1 ? { attempt: (attemptIndex + 1) as 1 | 2 } : {}),
+        ...(!attemptOutcome && step.misconceptionSummary
+          ? { misconceptionSummary: step.misconceptionSummary }
+          : {}),
       });
     });
 
     const confidenceLevel = confidence[index];
     if (confidenceLevel) {
       confidenceEvidence.push({
+        ...(step.topicId ? { topicId: step.topicId } : {}),
         concept: step.concept,
         confidence: confidenceLevel,
         correct: attemptOutcomes[0]!,
         activityType: step.type,
+        ...(!attemptOutcomes[0] && step.misconceptionSummary
+          ? { misconceptionSummary: step.misconceptionSummary }
+          : {}),
       });
     }
   });

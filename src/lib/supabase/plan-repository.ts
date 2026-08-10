@@ -25,6 +25,7 @@ export async function persistPlanForAuthenticatedUser(
   const generationInputs = {
     intent: request.intent,
     learningIntent: request.learningIntent,
+    sessionArchitectureVersion: plan.sessionArchitectureVersion ?? "filled_teaching_v1",
     goal: request.goal,
     startingContext: request.startingContext ?? "",
     materialMode: request.materialMode,

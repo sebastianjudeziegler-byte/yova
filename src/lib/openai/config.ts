@@ -9,6 +9,7 @@ export type OpenAITutorConfig = OpenAIPlanConfig;
 export type OpenAISessionConfig = OpenAIPlanConfig;
 export type OpenAIAnswerEvaluationConfig = OpenAIPlanConfig;
 export type OpenAIKnowledgeMapConfig = OpenAIPlanConfig;
+export type OpenAILessonConfig = OpenAIPlanConfig;
 
 export function getOpenAIPlanConfig(): OpenAIPlanConfig | null {
   const apiKey = process.env.OPENAI_API_KEY?.trim();
@@ -75,4 +76,20 @@ export function getOpenAIKnowledgeMapConfig(): OpenAIKnowledgeMapConfig | null {
     apiKey: planConfig.apiKey,
     model: process.env.OPENAI_KNOWLEDGE_MAP_MODEL?.trim() || "gpt-5.4-mini",
   };
+}
+
+export function getOpenAILessonConfig(): OpenAILessonConfig | null {
+  const planConfig = getOpenAIPlanConfig();
+  if (!planConfig) return null;
+
+  return {
+    apiKey: planConfig.apiKey,
+    // Full teaching prose uses the stronger planning model. The bounded
+    // session skeleton continues to use the faster session model.
+    model: process.env.OPENAI_LESSON_MODEL?.trim() || planConfig.model,
+  };
+}
+
+export function isOpenAILessonConfigured() {
+  return getOpenAILessonConfig() !== null;
 }
