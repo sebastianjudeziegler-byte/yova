@@ -150,6 +150,32 @@ describe("reliable OpenAI session generation", () => {
     expect(result.draft.activities.at(-1)?.methodPhase).toBe("schedule_return");
   });
 
+  it("normalizes readable legacy material excerpts that lack chunk metadata", async () => {
+    parseResponse.mockResolvedValueOnce(providerResponse(lesson));
+    const { generateReliableSessionWithOpenAI } = await import("@/lib/openai/reliable-session-generator");
+    const legacyMaterialContext = context();
+    legacyMaterialContext.learningGoal.sourceMode = "user_materials";
+    legacyMaterialContext.session.contentTargets = [
+      "Darkness increases melatonin as a signal of biological night.",
+    ];
+    legacyMaterialContext.materials = [{
+      name: "Melatonin study guide.pdf",
+      text: "Study guide scope: darkness, circadian timing, pineal melatonin release, and biological night.",
+      truncated: false,
+      role: "scope_outline",
+    }];
+
+    const result = await generateReliableSessionWithOpenAI(legacyMaterialContext);
+
+    expect(result.draft.sourceGrounding?.mode).toBe("materials_plus_ai");
+    expect(result.draft.sourceGrounding?.anchors[0]).toMatchObject({
+      sourceName: "Melatonin study guide.pdf",
+      locationLabel: "Uploaded material",
+    });
+    expect(result.draft.sourceGrounding?.anchors[0]?.chunkId)
+      .toMatch(/^00000000-0000-4000-8000-[0-9a-f]{12}$/);
+  });
+
   it("starts a study session with retrieval before showing the corrective model", async () => {
     parseResponse.mockResolvedValueOnce(providerResponse(lesson));
     const { generateReliableSessionWithOpenAI } = await import("@/lib/openai/reliable-session-generator");

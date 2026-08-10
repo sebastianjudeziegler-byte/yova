@@ -48,6 +48,10 @@ export function enrichStreamedLessonBriefs(
     ...draft,
     activities: draft.activities.map((activity, index) => {
       if (activity.type !== "instruction" || !activity.lessonBrief) return activity;
+      const validProposedIdeas = activity.lessonBrief.essentialIdeas.flatMap((idea) => {
+        const coverageIdea = coverageIdeaByKey.get(normalize(idea));
+        return coverageIdea ? [coverageIdea] : [];
+      });
       return {
         ...activity,
         lessonBrief: buildAuthoritativeLessonBrief({
@@ -55,11 +59,14 @@ export function enrichStreamedLessonBriefs(
             ? {
               ...activity.lessonBrief,
               essentialIdeas: unique([
-                ...activity.lessonBrief.essentialIdeas,
+                ...validProposedIdeas,
                 ...unassignedCoverageIdeas,
               ]).slice(0, 4),
             }
-            : activity.lessonBrief,
+            : {
+              ...activity.lessonBrief,
+              essentialIdeas: validProposedIdeas,
+            },
           coverageIdeas: draft.coverage.essentialIdeas,
           context,
         }),

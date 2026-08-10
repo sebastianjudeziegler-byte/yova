@@ -1,4 +1,5 @@
 import "server-only";
+import { createHash } from "node:crypto";
 import { z } from "zod";
 import { zodTextFormat } from "openai/helpers/zod";
 import { getCoreLearningMethod } from "@/lib/learning/method-catalog";
@@ -522,9 +523,12 @@ function buildSourceGrounding(context: SessionGenerationContext, concept: string
       : "The guide defines the scope. YOVA provides the instruction.",
     sourceNames: sources.map((source) => source.name),
     anchors: sources.slice(0, 2).map((source) => ({
-      chunkId: source.chunkId!,
+      // Plans created before material chunk mapping can still carry a
+      // readable excerpt without persisted chunk metadata. Normalize those
+      // legacy excerpts before validating the generated session.
+      chunkId: source.chunkId ?? legacyMaterialChunkId(source.name, source.text),
       sourceName: source.name,
-      locationLabel: source.locationLabel!,
+      locationLabel: source.locationLabel ?? "Uploaded material",
       excerpt: source.text.slice(0, 220),
       usedFor: `Keeping the lesson focused on ${concept} within the learner's uploaded material.`,
     })),
@@ -533,6 +537,14 @@ function buildSourceGrounding(context: SessionGenerationContext, concept: string
       reason: "The AI supplied the minimum explanation and example needed to turn the uploaded scope into a usable lesson.",
     }] : [],
   };
+}
+
+function legacyMaterialChunkId(sourceName: string, text: string) {
+  const suffix = createHash("sha256")
+    .update(`${sourceName}\u0000${text}`)
+    .digest("hex")
+    .slice(0, 12);
+  return `00000000-0000-4000-8000-${suffix}`;
 }
 
 function applyCurrentSessionAdjustment(context: SessionGenerationContext): SessionGenerationContext {

@@ -57,4 +57,37 @@ describe("streamed skeleton normalization", () => {
 
     expect(result).toMatchObject({ type: "multiple_choice", methodPhase: "transfer" });
   });
+
+  it("turns a future-review-shaped question into a non-required return marker", () => {
+    const [result] = normalizeStreamedActivityPhaseTypes([activity({
+      topicId,
+      methodPhase: "schedule_return",
+      estimatedMinutes: 2,
+      requiredForCompletion: true,
+      label: "Check",
+      title: "Explain the escalation",
+      body: "How did alliance commitments and mobilization widen the July Crisis?",
+      teaching: null,
+      lessonBrief: null,
+      practiceIntent: "independent_transfer",
+      misconceptionSummary: null,
+      type: "free_response",
+      concept: "World War I cause map",
+      choices: [],
+      correctAnswer: "Alliance commitments and mobilization turned a regional dispute into a wider war.",
+      feedback: "Connect the regional crisis to alliance obligations and military timetables.",
+    })]);
+
+    expect(result).toMatchObject({
+      type: "reflection",
+      topicId: null,
+      methodPhase: "schedule_return",
+      concept: null,
+      requiredForCompletion: false,
+      title: "Check this idea again later",
+      choices: [],
+      correctAnswer: null,
+      feedback: null,
+    });
+  });
 });

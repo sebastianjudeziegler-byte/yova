@@ -7,6 +7,9 @@ export type PrivacySafeErrorDiagnostic = {
   issueCount?: number;
   issueCodes?: string[];
   thrownType?: string;
+  failedValidator?: string;
+  attempts?: number;
+  repairReason?: string;
 };
 
 /**
@@ -31,15 +34,37 @@ export function privacySafeErrorDiagnostic(error: unknown): PrivacySafeErrorDiag
   }
 
   if (error instanceof Error) {
+    const generation = readGenerationDiagnostic(error);
     return {
       reason: "Error",
       name: safeIdentifier(error.name) ?? "Error",
+      ...generation,
     };
   }
 
   return {
     reason: "UnknownThrowable",
     thrownType: error === null ? "null" : typeof error,
+  };
+}
+
+function readGenerationDiagnostic(error: Error) {
+  const candidate = error as Error & { generationStats?: unknown };
+  if (!candidate.generationStats || typeof candidate.generationStats !== "object") return {};
+  const stats = candidate.generationStats as Record<string, unknown>;
+  const attempts = typeof stats.attempts === "number" && Number.isInteger(stats.attempts)
+    ? Math.max(0, Math.min(stats.attempts, 10))
+    : undefined;
+  const failedValidator = typeof stats.failedValidator === "string"
+    ? safeIdentifier(stats.failedValidator)
+    : undefined;
+  const repairReason = typeof stats.repairReason === "string"
+    ? safeIdentifier(stats.repairReason)
+    : undefined;
+  return {
+    ...(failedValidator ? { failedValidator } : {}),
+    ...(attempts === undefined ? {} : { attempts }),
+    ...(repairReason ? { repairReason } : {}),
   };
 }
 

@@ -2,6 +2,7 @@ import type { SessionGenerationContext } from "@/lib/openai/session-generator";
 import type { KnowledgeMapTopic } from "@/lib/knowledge-map/schema";
 
 const EVALUATION_TOPIC_ID = "11111111-1111-4111-8111-111111111111";
+const WWI_MAPPED_TOPIC_ID = "8ec325f4-0000-4000-8000-000000000001";
 
 export type SessionTaskFamily = "conceptual" | "problem_solving" | "reading" | "writing" | "coding" | "language" | "general";
 
@@ -150,6 +151,92 @@ export function buildSessionEvaluationCases(): SessionEvaluationCase[] {
         recentResults: [],
         recentInterruptions: [],
         conceptSignals: [],
+      },
+    }),
+    evaluationCase({
+      id: "world_war_one_mapped_45_min",
+      label: "Mapped 45-minute World War I baseline lesson",
+      taskFamily: "conceptual",
+      expectedSourceTerms: [],
+      context: {
+        sessionArchitectureVersion: "streamed_teaching_v1",
+        learningGoal: {
+          title: "World War I Test Preparation",
+          topic: "World War I causes, escalation, major fronts, and consequences",
+          kind: "test",
+          deadline: "2026-08-22T23:00:00.000Z",
+          sourceMode: "yova_generated",
+          studyMode: "inside_yova",
+          learningIntent: "study",
+        },
+        planRationale: "The learner is starting from zero and asked for the big picture first. Establish a coherent World War I cause map before later sessions examine fronts, turning points, and consequences.",
+        journey: {
+          currentSequence: 1,
+          totalSessions: 5,
+          previousSessions: [],
+          nextSessions: [{
+            sequence: 2,
+            title: "Connect alliances and mobilization",
+            objective: "Explain how alliance commitments and military timetables widened the July Crisis.",
+            contentTargets: ["Alliance commitments", "Mobilization timetables"],
+          }],
+        },
+        materials: [],
+        knowledgeTopics: [{
+          id: WWI_MAPPED_TOPIC_ID,
+          title: "World War I cause map",
+          description: "The prewar tensions, outbreak sequence, and basic chronology from 1914 to 1918.",
+          subtopics: [
+            "Prewar European alliances and tensions",
+            "Sequence from the Sarajevo assassination to declarations of war",
+            "Basic chronology from 1914 to 1918",
+          ],
+          prerequisiteTopicIds: [],
+          status: "not_started",
+          initialEvidence: null,
+          sourceReferences: [],
+          origin: "ai_generated",
+          deferred: null,
+        }],
+        session: {
+          title: "Baseline Check and WWI Map",
+          objective: "Understand the main prewar tensions and build a simple start-to-finish WWI timeline using a concrete example first.",
+          method: "Self-explanation",
+          methodReason: "The learner is starting from zero and asked for the big picture first, so establish a connected causal model before asking for independent explanation.",
+          estimatedMinutes: 45,
+          learningMode: "learn",
+          topicIds: [WWI_MAPPED_TOPIC_ID],
+          contentTargets: [
+            "Prewar European alliances and tensions",
+            "Sequence from the Sarajevo assassination to declarations of war",
+            "Basic chronology from 1914 to 1918",
+          ],
+          completionEvidence: [
+            "Describe the main alliance blocs and at least three prewar tensions using the example provided",
+            "Place Sarajevo, the July Crisis, the start of the war, U.S. entry, and the armistice in order",
+            "Label each uncertain idea as a cause, event, or consequence",
+          ],
+          reviewConcept: null,
+          reviewType: null,
+        },
+        learnerProfile: {
+          commonBlocker: "Large amounts of new information feel overwhelming",
+          guidancePreference: "Show one visible step at a time",
+          explanationPreference: "Give the big picture before the details and one concrete example first",
+          focusFrequency: "Can complete a 45-minute guided session",
+          startingPattern: "Starts more consistently when the first action is small and specific",
+          primaryImprovementGoal: "Understand the story first, then remember the details",
+          processingPreference: "Big picture before details",
+          memoryChallenge: "I forget some ideas after a few days",
+          supportPreference: "Give a small hint before showing the answer",
+          workspacePreference: "One step at a time",
+          freeformContext: "I know almost nothing about World War I yet.",
+          observationCorrection: null,
+        },
+        recentResults: [],
+        recentInterruptions: [],
+        conceptSignals: [],
+        scaffoldSignals: [],
       },
     }),
     evaluationCase({

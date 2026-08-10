@@ -2,6 +2,7 @@ import "server-only";
 import type { LearningPlan } from "@/lib/domain";
 import { isSamePersistedPlan } from "@/lib/plan-generation/persisted-plan";
 import type { PlanGenerationRequest } from "@/lib/plan-generation/schema";
+import { resolveSessionArchitectureVersion } from "@/lib/session-generation/architecture";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -25,7 +26,7 @@ export async function persistPlanForAuthenticatedUser(
   const generationInputs = {
     intent: request.intent,
     learningIntent: request.learningIntent,
-    sessionArchitectureVersion: plan.sessionArchitectureVersion ?? "filled_teaching_v1",
+    sessionArchitectureVersion: resolveSessionArchitectureVersion(plan, plan.knowledgeMap),
     goal: request.goal,
     startingContext: request.startingContext ?? "",
     materialMode: request.materialMode,

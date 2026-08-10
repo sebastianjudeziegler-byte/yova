@@ -1,3 +1,5 @@
+import { PlanKnowledgeMapSchema } from "@/lib/knowledge-map/schema";
+
 export const SESSION_ARCHITECTURE_VERSIONS = [
   "filled_teaching_v1",
   "streamed_teaching_v1",
@@ -15,6 +17,23 @@ export function readSessionArchitectureVersion(value: unknown): SessionArchitect
     : LEGACY_SESSION_ARCHITECTURE;
 }
 
+/**
+ * Plans created during the knowledge-map rollout can have the complete modern
+ * topic map without the architecture stamp that newer plans persist. Treat
+ * only that missing-stamp case as streamed teaching. A stored architecture
+ * value, including an invalid value, remains authoritative so compatibility
+ * recovery never silently changes an explicitly versioned plan.
+ */
+export function resolveSessionArchitectureVersion(
+  value: unknown,
+  knowledgeMap: unknown,
+): SessionArchitectureVersion {
+  if (hasStoredArchitectureVersion(value)) return readSessionArchitectureVersion(value);
+  return PlanKnowledgeMapSchema.safeParse(knowledgeMap).success
+    ? STREAMED_SESSION_ARCHITECTURE
+    : LEGACY_SESSION_ARCHITECTURE;
+}
+
 export function usesStreamedTeaching(value: unknown) {
   return readSessionArchitectureVersion(value) === STREAMED_SESSION_ARCHITECTURE;
 }
@@ -27,4 +46,12 @@ export function usesStreamedTeaching(value: unknown) {
  */
 export function allowsLegacySessionFallback(value: unknown) {
   return !usesStreamedTeaching(value);
+}
+
+function hasStoredArchitectureVersion(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  if (!Object.prototype.hasOwnProperty.call(value, "sessionArchitectureVersion")) return false;
+  // Plain TypeScript objects can carry an optional key whose runtime value is
+  // undefined. That is still an unstamped plan, not an explicit legacy choice.
+  return (value as Record<string, unknown>).sessionArchitectureVersion !== undefined;
 }

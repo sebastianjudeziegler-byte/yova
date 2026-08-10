@@ -22,7 +22,7 @@ import {
 import { buildScaffoldProgressionSignals } from "@/lib/learning/scaffold-progression";
 import { expandedLearnerContextFromAnswers } from "@/lib/personalization/learner-profile";
 import type { PreviewSessionGenerationContext } from "@/lib/session-generation/schema";
-import { readSessionArchitectureVersion } from "@/lib/session-generation/architecture";
+import { resolveSessionArchitectureVersion } from "@/lib/session-generation/architecture";
 
 export function buildPreviewSessionContext({
   plan,
@@ -70,7 +70,7 @@ export function buildPreviewSessionContext({
     }];
 
   return {
-    sessionArchitectureVersion: readSessionArchitectureVersion(plan),
+    sessionArchitectureVersion: resolveSessionArchitectureVersion(plan, plan.knowledgeMap),
     learningGoal: {
       title: plan.title,
       topic: plan.topic,

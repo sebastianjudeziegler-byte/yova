@@ -43,7 +43,7 @@ import {
   type SessionGenerationRequest,
 } from "@/lib/session-generation/schema";
 import {
-  readSessionArchitectureVersion,
+  resolveSessionArchitectureVersion,
   STREAMED_SESSION_ARCHITECTURE,
   type SessionArchitectureVersion,
 } from "@/lib/session-generation/architecture";
@@ -240,7 +240,10 @@ export async function POST(request: Request) {
       ]),
     );
     const planLearningIntent = readLearningIntent(plan.generation_inputs);
-    const sessionArchitectureVersion = readSessionArchitectureVersion(plan.generation_inputs);
+    const sessionArchitectureVersion = resolveSessionArchitectureVersion(
+      plan.generation_inputs,
+      parsedKnowledgeMap.data,
+    );
     const savedLearningMode = readSessionLearningMode(
       planSession.step_data,
       planSession.method,

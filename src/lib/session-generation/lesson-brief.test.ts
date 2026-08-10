@@ -161,6 +161,16 @@ describe("authoritative streamed lesson briefs", () => {
   it("assigns every coverage idea to a teaching brief before checks can assess it", () => {
     const draft = streamedDraft();
     draft.coverage.essentialIdeas.push("Mobilization schedules made escalation difficult to pause");
+    const teachingActivity = draft.activities[0];
+    if (!teachingActivity || teachingActivity.type !== "instruction" || !teachingActivity.lessonBrief) {
+      throw new Error("The fixture needs a teaching brief.");
+    }
+    teachingActivity.lessonBrief.essentialIdeas = [
+      "A broad model label",
+      "A second unsupported label",
+      "A third unsupported label",
+      "A fourth unsupported label",
+    ];
     const result = enrichStreamedLessonBriefs(draft, {
       sessionTopicIds: [topicId],
       materials: [],

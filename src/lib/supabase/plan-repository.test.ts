@@ -74,6 +74,60 @@ describe("plan persistence retries", () => {
     expect(client.from).toHaveBeenCalledWith("plans");
   });
 
+  it("persists the streamed architecture for an older mapped plan without a saved stamp", async () => {
+    const mappedPlan = {
+      ...plan,
+      sessionArchitectureVersion: undefined,
+      knowledgeMap: {
+        version: 1,
+        scopeJudgment: {
+          band: "focused_skill",
+          label: "Focused skill",
+          minimumSessions: 1,
+          recommendedSessions: 2,
+          maximumSessions: 3,
+          minimumTeachingSessions: 1,
+          explanation: "A focused prerequisite sequence that can be taught and checked in a few sessions.",
+        },
+        topics: [{
+          id: "00000000-0000-4000-8000-000000000021",
+          title: "Carbon movement",
+          description: "Trace how carbon enters and moves through the photosynthesis process.",
+          subtopics: [],
+          prerequisiteTopicIds: [],
+          status: "not_started",
+          initialEvidence: null,
+          sourceReferences: [],
+          origin: "ai_generated",
+          deferred: null,
+          curriculumReference: null,
+        }],
+        placementCheck: {
+          status: "available",
+          completedAt: null,
+          demonstratedTopicIds: [],
+          gapTopicIds: [],
+        },
+        curriculum: null,
+      },
+    } as LearningPlan;
+    const client = clientWithExistingPlan({
+      id: mappedPlan.id,
+      learning_item_id: mappedPlan.learningItemId,
+      status: mappedPlan.status,
+    });
+    mocks.createSupabaseServerClient.mockResolvedValue(client);
+
+    await expect(persistPlanForAuthenticatedUser(mappedPlan, generationRequest)).resolves.toBe("supabase");
+    expect(client.rpc).toHaveBeenCalledWith("save_generated_plan", expect.objectContaining({
+      payload: expect.objectContaining({
+        generationInputs: expect.objectContaining({
+          sessionArchitectureVersion: "streamed_teaching_v1",
+        }),
+      }),
+    }));
+  });
+
   it("still fails when the existing row does not match the requested plan", async () => {
     mocks.createSupabaseServerClient.mockResolvedValue(clientWithExistingPlan({
       id: plan.id,

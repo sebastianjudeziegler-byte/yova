@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { buildSessionEvaluationCases } from "@/evals/session-cases";
 import { evaluateSessionDraft } from "@/evals/session-rubric";
-import { GeneratedSessionDraftSchema } from "@/lib/session-generation/schema";
+import {
+  GeneratedSessionDraftSchema,
+  StreamedGeneratedSessionDraftSchema,
+} from "@/lib/session-generation/schema";
 
 const biologyCase = buildSessionEvaluationCases()[0];
 const TOPIC_ID = "11111111-1111-4111-8111-111111111111";
@@ -120,6 +123,45 @@ describe("session quality rubric", () => {
     expect(result.score).toBe(100);
     expect(result.requiredFailures).toEqual([]);
     expect(result.passed).toBe(true);
+  });
+
+  it("accepts a streamed lesson brief as substantive planned teaching", () => {
+    const streamedSession = StreamedGeneratedSessionDraftSchema.parse({
+      ...strongSession,
+      activities: strongSession.activities.map((activity, index) => ({
+        ...activity,
+        topicId: activity.topicId ?? TOPIC_ID,
+        teaching: null,
+        lessonBrief: index === 0
+          ? {
+            version: 1,
+            topicIds: [TOPIC_ID],
+            essentialIdeas: strongSession.coverage.essentialIdeas,
+            sourceChunks: [],
+            knowledgeSource: "model_knowledge",
+            evidenceContext: { confirmedGaps: [], secureKnowledge: [], priorMisconceptions: [] },
+            contentRequirements: {
+              teachEveryEssentialIdea: true,
+              includeConcreteExample: true,
+              includeCommonMixup: true,
+              preservePrerequisiteOrder: true,
+            },
+          }
+          : null,
+      })),
+    });
+
+    const result = evaluateSessionDraft(
+      streamedSession,
+      biologyCase.context,
+      biologyCase.taskFamily,
+      biologyCase.expectedSourceTerms,
+    );
+
+    expect(result.checks.find((item) => item.id === "substantive_teaching")).toMatchObject({
+      passed: true,
+      detail: "1 modeled or streamed teaching activities inspected",
+    });
   });
 
   it("rejects generic, unsupported personalization and weak task alignment", () => {

@@ -6,7 +6,7 @@ import {
   readSessionEvidenceSnapshot,
   readSessionPendingRepair,
 } from "@/lib/learning/session-resume";
-import { readSessionArchitectureVersion } from "@/lib/session-generation/architecture";
+import { resolveSessionArchitectureVersion } from "@/lib/session-generation/architecture";
 
 const STORAGE_KEY = "yova.preview.v1";
 
@@ -48,7 +48,7 @@ function normalizePreviewPlan(plan: LearningPlan): LearningPlan {
     ...plan,
     title: resolveLearningTitle(plan.title, plan.topic),
     learningIntent,
-    sessionArchitectureVersion: readSessionArchitectureVersion(plan),
+    sessionArchitectureVersion: resolveSessionArchitectureVersion(plan, plan.knowledgeMap),
     sessions: plan.sessions.map((session) => ({
       ...session,
       learningMode: session.learningMode === "learn" || session.learningMode === "study"
@@ -79,7 +79,10 @@ function readSessionInterruptions(snapshot: YovaPreviewSnapshot | Record<string,
 
 export function savePreviewSnapshot(snapshot: YovaPreviewSnapshot) {
   if (typeof window === "undefined") return;
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot));
+  window.localStorage.setItem(STORAGE_KEY, JSON.stringify({
+    ...snapshot,
+    plans: snapshot.plans.map(normalizePreviewPlan),
+  }));
 }
 
 export function clearPreviewSnapshot() {

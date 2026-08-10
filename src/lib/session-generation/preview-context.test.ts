@@ -68,7 +68,61 @@ const interruption: SessionInterruption = {
   totalSteps: 5,
 };
 
+const mappedTopicId = "00000000-0000-4000-8000-000000000021";
+const knowledgeMap: NonNullable<LearningPlan["knowledgeMap"]> = {
+  version: 1,
+  scopeJudgment: {
+    band: "focused_skill",
+    label: "Focused skill",
+    minimumSessions: 1,
+    recommendedSessions: 2,
+    maximumSessions: 3,
+    minimumTeachingSessions: 1,
+    explanation: "A focused prerequisite sequence that can be taught and checked in a few sessions.",
+  },
+  topics: [{
+    id: mappedTopicId,
+    title: "Carbon movement",
+    description: "Trace how carbon enters and moves through the photosynthesis process.",
+    subtopics: [],
+    prerequisiteTopicIds: [],
+    status: "not_started",
+    initialEvidence: null,
+    sourceReferences: [],
+    origin: "ai_generated",
+    deferred: null,
+    curriculumReference: null,
+  }],
+  placementCheck: {
+    status: "available",
+    completedAt: null,
+    demonstratedTopicIds: [],
+    gapTopicIds: [],
+  },
+  curriculum: null,
+};
+
 describe("buildPreviewSessionContext", () => {
+  it("uses streamed teaching for an older mapped preview plan without a saved architecture stamp", () => {
+    const mappedSession = { ...plan.sessions[0], topicIds: [mappedTopicId] };
+    const result = buildPreviewSessionContext({
+      plan: {
+        ...plan,
+        sessionArchitectureVersion: undefined,
+        knowledgeMap,
+        sessions: [mappedSession],
+      },
+      session: mappedSession,
+      onboardingAnswers: [],
+      completions: [],
+      interruptions: [],
+    });
+
+    expect(result.sessionArchitectureVersion).toBe("streamed_teaching_v1");
+    expect(result.knowledgeTopics).toHaveLength(1);
+    expect(result.knowledgeTopics[0].id).toBe(mappedTopicId);
+  });
+
   it("tells the generator exactly where the session sits in the learning journey", () => {
     const secondSession = {
       ...plan.sessions[0],

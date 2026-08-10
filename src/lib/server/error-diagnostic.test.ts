@@ -39,6 +39,30 @@ describe("privacySafeErrorDiagnostic", () => {
     expect(JSON.stringify(diagnostic)).not.toContain("learner content");
   });
 
+  it("surfaces safe generation failure metadata without exposing repair detail", () => {
+    const error = new Error("private learner content");
+    Object.assign(error, {
+      name: "SessionGenerationFailure",
+      generationStats: {
+        attempts: 3,
+        failedValidator: "session_semantic_validation",
+        repairReason: "semantic_validation",
+        repairDetail: "The learner wrote a private answer here.",
+      },
+    });
+
+    const diagnostic = privacySafeErrorDiagnostic(error);
+
+    expect(diagnostic).toEqual({
+      reason: "Error",
+      name: "SessionGenerationFailure",
+      attempts: 3,
+      failedValidator: "session_semantic_validation",
+      repairReason: "semantic_validation",
+    });
+    expect(JSON.stringify(diagnostic)).not.toContain("private answer");
+  });
+
   it("classifies arbitrary thrown values without serializing them", () => {
     const diagnostic = privacySafeErrorDiagnostic("private thrown value");
 

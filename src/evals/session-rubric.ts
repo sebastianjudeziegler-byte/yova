@@ -1,5 +1,8 @@
 import type { SessionGenerationContext } from "@/lib/openai/session-generator";
-import type { GeneratedSessionDraft } from "@/lib/session-generation/schema";
+import type {
+  GeneratedSessionDraft,
+  LessonBrief,
+} from "@/lib/session-generation/schema";
 import type { SessionTaskFamily } from "@/evals/session-cases";
 import { buildLearningScienceRoutingBrief } from "@/lib/learning/method-router";
 import {
@@ -177,13 +180,27 @@ export function evaluateSessionDraft(
   const completionIsEvidenceBased = draft.coverage.completionEvidence.length > 0
     && requiredQuestionCount > 0
     && completionContractIssue === null;
-  const teachingActivities = draft.activities.filter((activity) => activity.type === "instruction" && activity.teaching);
+  const teachingActivities = draft.activities.filter((activity) => (
+    activity.type === "instruction"
+    && Boolean(activity.teaching || ("lessonBrief" in activity && activity.lessonBrief))
+  ));
   const teachingIsSubstantive = draft.methodBriefing.learningMode !== "learn"
-    || teachingActivities.some((activity) => (
-      Boolean(activity.teaching)
-      && (activity.teaching?.explanation.length ?? 0) >= 80
-      && Boolean(activity.teaching?.example || activity.teaching?.commonMistake)
-    ));
+    || teachingActivities.some((activity) => {
+      if (activity.teaching
+        && activity.teaching.explanation.length >= 80
+        && Boolean(activity.teaching.example || activity.teaching.commonMistake)) {
+        return true;
+      }
+      const lessonBrief = "lessonBrief" in activity
+        ? (activity as { lessonBrief?: LessonBrief | null }).lessonBrief
+        : null;
+      return Boolean(
+        lessonBrief
+        && lessonBrief.essentialIdeas.length > 0
+        && lessonBrief.contentRequirements.teachEveryEssentialIdea
+        && lessonBrief.contentRequirements.includeCommonMixup,
+      );
+    });
   const questionContextIssue = validateSessionQuestionContext(draft);
   const contentSpecificityIssue = validateSessionContentSpecificity({
     draft,
@@ -218,7 +235,7 @@ export function evaluateSessionDraft(
     check("content_completion", "Every target idea has required learning evidence", completionIsEvidenceBased, 0, true, completionContractIssue ?? `${draft.coverage.essentialIdeas.length} essential ideas mapped to ${requiredQuestionCount} required checks`),
     check("question_context", "Every question includes the context needed to answer", questionContextIssue === null, 0, true, questionContextIssue ?? `${questions.length} self-contained questions inspected`),
     check("content_specificity", "The lesson names and teaches the actual subject content", contentSpecificityIssue === null, 0, true, contentSpecificityIssue ?? "Topic language and teaching coverage inspected"),
-    check("substantive_teaching", "Learning sessions teach before they test", teachingIsSubstantive, 0, true, `${teachingActivities.length} modeled teaching activities inspected`),
+    check("substantive_teaching", "Learning sessions teach before they test", teachingIsSubstantive, 0, true, `${teachingActivities.length} modeled or streamed teaching activities inspected`),
     check("visible_personalization", "The learner can see a concrete evidence-linked delivery adjustment", visiblePersonalization && visibleAdaptationIssue === null, 0, true, visibleAdaptationIssue ?? `${draft.methodBriefing.personalization.length} learner-facing adjustment explanations inspected`),
     check("explainability", "The session explains why it is structured this way", draft.rationale.trim().length >= 40, 5, false, `${draft.rationale.trim().length} rationale characters`),
     check("no_personality_overclaim", "No fixed brain, diagnosis, or learning-style claim", noOverclaim, 5, true, "Checked learner-facing session text"),
