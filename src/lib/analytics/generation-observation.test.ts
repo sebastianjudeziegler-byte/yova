@@ -68,6 +68,36 @@ describe("GenerationObservationSchema", () => {
     }).success).toBe(false);
   });
 
+  it("accepts an over-budget lesson recovery without learner content", () => {
+    expect(GenerationObservationSchema.safeParse({
+      ...safeEvent,
+      generationType: "lesson",
+      finalOutcome: "fallback",
+      firstAttemptPassed: false,
+      failedValidator: "lesson_stream",
+      diagnostics: {
+        wordCount: 180,
+        streamCompleted: true,
+        lessonFailureKind: "content_exceeded_time_budget",
+      },
+    }).success).toBe(true);
+  });
+
+  it("accepts a thin-lesson recovery without storing learner content", () => {
+    expect(GenerationObservationSchema.safeParse({
+      ...safeEvent,
+      generationType: "lesson",
+      finalOutcome: "fallback",
+      firstAttemptPassed: false,
+      failedValidator: "lesson_stream",
+      diagnostics: {
+        wordCount: 74,
+        streamCompleted: true,
+        lessonFailureKind: "content_below_substance_threshold",
+      },
+    }).success).toBe(true);
+  });
+
   it("represents lesson skip usage without learner content", () => {
     expect(GenerationObservationSchema.safeParse({
       ...safeEvent,

@@ -9,7 +9,7 @@ const liveEvaluationEnabled = process.env.YOVA_RUN_LIVE_WWI_LESSON_EVALS === "1"
 
 describe.skipIf(!liveEvaluationEnabled)("live streamed World War I lesson", () => {
   test("delivers substantive teaching from the first generated lesson brief", async () => {
-    const [{ generateProductionSessionWithOpenAI }, { streamGeneratedLesson }] = await Promise.all([
+    const [{ generateProductionSessionWithOpenAI }, { lessonWordBudgetForMinutes, streamGeneratedLesson }] = await Promise.all([
       import("@/lib/openai/session-generation-strategy"),
       import("@/lib/openai/streamed-lesson-generator"),
     ]);
@@ -34,6 +34,7 @@ describe.skipIf(!liveEvaluationEnabled)("live streamed World War I lesson", () =
 
     const lessonInput: StreamedLessonInput = {
       lessonTitle: instruction.title,
+      plannedMinutes: instruction.estimatedMinutes,
       topicTitles: evaluationCase.context.knowledgeTopics?.map((topic) => topic.title) ?? [instruction.title],
       essentialIdeas: instruction.lessonBrief.essentialIdeas,
       knowledgeSource: instruction.lessonBrief.knowledgeSource === "material_content"
@@ -87,8 +88,9 @@ describe.skipIf(!liveEvaluationEnabled)("live streamed World War I lesson", () =
       outputTokens: lessonResult.outputTokens,
     });
 
-    expect(lessonMarkdown.length).toBeGreaterThan(1_500);
-    expect(lessonResult.wordCount).toBeGreaterThan(250);
+    const lessonBudget = lessonWordBudgetForMinutes(instruction.estimatedMinutes);
+    expect(lessonResult.wordCount).toBeGreaterThanOrEqual(120);
+    expect(lessonResult.wordCount).toBeLessThanOrEqual(lessonBudget.maximumWords);
     expect(lessonMarkdown).toMatch(/alliance/i);
     expect(lessonMarkdown).toMatch(/Sarajevo|Franz Ferdinand/i);
     expect(lessonMarkdown).toMatch(/1914/);

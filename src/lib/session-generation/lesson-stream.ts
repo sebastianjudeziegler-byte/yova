@@ -11,6 +11,11 @@ const LessonStreamDeltaEventSchema = z.object({
   delta: z.string().min(1),
 }).strict();
 
+const LessonStreamReplaceEventSchema = z.object({
+  type: z.literal("lesson.replace"),
+  content: z.string().trim().min(1).max(12_000),
+}).strict();
+
 const LessonStreamCompleteEventSchema = z.object({
   type: z.literal("lesson.complete"),
   elapsedMs: z.number().int().min(0).max(300_000),
@@ -31,6 +36,7 @@ const LessonStreamErrorEventSchema = z.object({
 export const LessonStreamEventSchema = z.discriminatedUnion("type", [
   LessonStreamMetaEventSchema,
   LessonStreamDeltaEventSchema,
+  LessonStreamReplaceEventSchema,
   LessonStreamCompleteEventSchema,
   LessonStreamErrorEventSchema,
 ]);
@@ -56,6 +62,17 @@ export async function consumeLessonEventStream(
   const reader = stream.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
+  let terminalEventReceived = false;
+
+  const receive = (event: LessonStreamEvent) => {
+    if (terminalEventReceived) {
+      throw new LessonStreamProtocolError("The lesson stream sent data after its terminal event.");
+    }
+    onEvent(event);
+    if (event.type === "lesson.complete" || event.type === "lesson.error") {
+      terminalEventReceived = true;
+    }
+  };
 
   try {
     while (true) {
@@ -63,16 +80,31 @@ export async function consumeLessonEventStream(
       buffer += decoder.decode(value, { stream: !done });
 
       const frames = buffer.split(/\r?\n\r?\n/);
-      buffer = done ? "" : frames.pop() ?? "";
-      for (const frame of frames) emitFrame(frame, onEvent);
+      if (done) {
+        // SSE responses do not have to end with a blank line. At EOF every
+        // split entry is a complete frame, including the final entry.
+        buffer = "";
+      } else {
+        buffer = frames.pop() ?? "";
+      }
+      for (const frame of frames) emitFrame(frame, receive);
 
       if (done) {
-        if (buffer.trim()) emitFrame(buffer, onEvent);
+        if (!terminalEventReceived) {
+          throw new LessonStreamProtocolError("The lesson stream ended before a completion event.");
+        }
         return;
       }
     }
   } finally {
     reader.releaseLock();
+  }
+}
+
+export class LessonStreamProtocolError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "LessonStreamProtocolError";
   }
 }
 

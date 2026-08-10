@@ -49,6 +49,13 @@ export function applyLessonStreamEvent(
         status: "streaming",
         content: state.content + event.delta,
       };
+    case "lesson.replace":
+      return {
+        ...state,
+        status: "streaming",
+        content: event.content,
+        error: null,
+      };
     case "lesson.complete":
       return {
         ...state,

@@ -159,7 +159,30 @@ describe("session content-volume validation", () => {
     })).toBeNull();
   });
 
-  it("restores the plan's exact target wording when the lesson paraphrases it", async () => {
+  it("does not count a broad financing survey as coverage of one narrow target", async () => {
+    const { validateSessionCoverageFidelity } = await import("@/lib/openai/session-generator");
+    const draft = learningDraft("model");
+    draft.coverage.essentialIdeas = [
+      "Dilution changes founder ownership while valuation caps, liquidation preferences, board control, debt conversion, investor exits, and later fundraising terms shape the entire startup financing lifecycle",
+    ];
+    draft.coverage.deferredContent = [];
+
+    const issue = validateSessionCoverageFidelity(draft, {
+      title: "Understand dilution",
+      objective: "Explain how issuing shares changes founder ownership.",
+      method: "Self-explanation",
+      methodReason: "Build one ownership model before a check.",
+      estimatedMinutes: 15,
+      learningMode: "learn",
+      topicIds: [TEST_TOPIC_ID],
+      contentTargets: ["Dilution changes founder ownership"],
+      completionEvidence: ["Explain the ownership change without the model visible"],
+    });
+
+    expect(issue).toMatch(/lost planned content.*Dilution changes founder ownership/i);
+  });
+
+  it("uses plan targets as scope labels without replacing teachable explanatory claims", async () => {
     const { alignSessionCoverageWithPlan } = await import("@/lib/openai/session-generator");
     const draft = learningDraft("model");
     draft.coverage.essentialIdeas = [
@@ -179,13 +202,13 @@ describe("session content-volume validation", () => {
     ]);
 
     expect(aligned.essentialIdeas).toEqual([
-      "Relationship among functions, limits, derivatives, and integrals",
+      "Functions, limits, derivatives, and integrals form a connected calculus model",
     ]);
     expect(aligned.evidenceMap[0]?.essentialIdea).toBe(
-      "Relationship among functions, limits, derivatives, and integrals",
+      "Functions, limits, derivatives, and integrals form a connected calculus model",
     );
     expect(aligned.deferredContent).toEqual([
-      "Function notation, evaluation, domain, and graphs",
+      "Read function notation, domain, evaluation, and graphs",
     ]);
   });
 

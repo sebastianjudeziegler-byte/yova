@@ -66,6 +66,7 @@ import {
   type SessionAdjustment,
   type GeneratedSessionDraft,
   type LessonBrief,
+  type StreamedGeneratedSessionDraft,
 } from "@/lib/session-generation/schema";
 import {
   reconcileSessionCompletionMap,
@@ -82,6 +83,7 @@ import { contentBudgetForMinutes } from "@/lib/plan-generation/content-budget";
 import type { KnowledgeMapTopic } from "@/lib/knowledge-map/schema";
 import type { SessionArchitectureVersion } from "@/lib/session-generation/architecture";
 import type { LessonDeliveryInstructions } from "@/lib/personalization/session-delivery-policy";
+import { validateStreamedLessonScope } from "@/lib/session-generation/lesson-brief";
 
 export { validateSessionTimeBudget } from "@/lib/session-generation/time-budget";
 
@@ -223,7 +225,7 @@ Requirements:
 - For comparison or category lessons, keep the scope honest. Every essential idea must be explicitly explained in teaching and explicitly demonstrated by the visible prompt, choices or reference answer, and feedback of its mapped question. If one discrimination question checks several ideas, its visible text must state the defining operation or relationship for every one. A concept label alone is not evidence. Use separate questions or defer an idea when one screen cannot test the distinctions clearly.
 - Session time is a capacity constraint, never the definition of completion. A session is complete only after every requiredForCompletion activity is attempted. Do not treat exposure, elapsed time, reading, or button-clicking as evidence of completion.
 - Preserve the planned contentTargets and completionEvidence when supplied. If they cannot fit honestly, teach a smaller coherent subset now and put the remainder in coverage.deferredContent. Never compress a broad 45-minute objective into a superficial 15-minute pass.
-- Treat sessionContentBudget as a hard content-volume contract. Every planned target must appear unchanged in either coverage.essentialIdeas or coverage.deferredContent, so the next session can recover anything that did not fit.
+- Treat sessionContentBudget as a hard content-volume contract. Represent every active planned target with a concrete explanatory claim in coverage.essentialIdeas. Preserve the exact target label in coverage.deferredContent only when it does not fit, so the next session can recover it.
 - The method briefing must explain the learning method itself. Keep productivity or tendency-based delivery changes in methodBriefing.personalization.
 - When quickReviewContract is present, it replaces the normal full-session activity mix. Follow it exactly: three short multiple-choice questions, no typed response, no confidence request, and no teaching before the first answer. This is a calm scheduled return, not another full lesson.
 - Every question must be independently answerable from its own title, body, and choices. Restate every function, value, scenario, definition, or relationship needed to answer. Never require the learner to remember the wording or missing data from an earlier answer, example, screen, or session. A delayed review tests the concept after time has passed, not memory for an incomplete prompt.
@@ -879,16 +881,16 @@ export function alignSessionCoverageWithPlan(
   if (plannedTargets.length === 0) return coverage;
 
   const availableTargets = [...plannedTargets];
-  const replacements = new Map<string, string>();
   const essentialIdeas = coverage.essentialIdeas.map((idea) => {
-    const match = takeCoverageMatch(idea, availableTargets);
-    if (!match) return idea;
-    replacements.set(normalizeCoverageTarget(idea), match);
-    return match;
+    takeCoverageMatch(idea, availableTargets);
+    // Plan targets are scope labels. Keep the model's concrete explanatory
+    // claim as the teachable idea instead of replacing it with a chapter-like
+    // label such as "Prewar alliances and tensions."
+    return idea;
   });
   const deferredContent = coverage.deferredContent.map((idea) => {
-    const match = takeCoverageMatch(idea, availableTargets);
-    return match ?? idea;
+    takeCoverageMatch(idea, availableTargets);
+    return idea;
   });
   const deferredWithMissing = uniqueCoverageTargets([
     ...availableTargets,
@@ -898,11 +900,7 @@ export function alignSessionCoverageWithPlan(
   return {
     ...coverage,
     essentialIdeas,
-    evidenceMap: coverage.evidenceMap.map((mapping) => ({
-      ...mapping,
-      essentialIdea: replacements.get(normalizeCoverageTarget(mapping.essentialIdea))
-        ?? mapping.essentialIdea,
-    })),
+    evidenceMap: coverage.evidenceMap,
     deferredContent: deferredWithMissing,
   };
 }
@@ -920,7 +918,7 @@ function takeCoverageMatch(value: string, candidates: string[]) {
     const overlap = candidateTokens.filter((token) => valueTokens.includes(token)).length;
     const denominator = Math.max(1, Math.min(valueTokens.length, candidateTokens.length));
     const score = overlap / denominator;
-    if (overlap >= Math.min(2, denominator) && score > bestScore) {
+    if (coverageTargetsMatch(value, candidate) && score > bestScore) {
       bestIndex = index;
       bestScore = score;
     }
@@ -1044,9 +1042,18 @@ export function validateGeneratedSession(
   const activityFormatIssue = scheduledRetrieval
     ? validateScheduledRetrievalSession(draft, context.session)
     : validateStandardGuidedSessionActivityMix(draft);
+  const streamedLessonScopeIssue = context.sessionArchitectureVersion === "streamed_teaching_v1"
+    ? validateStreamedLessonScope(draft as StreamedGeneratedSessionDraft, {
+      sessionTopicIds: context.session.topicIds,
+      sessionObjective: context.session.objective,
+      sessionContentTargets: context.session.contentTargets ?? [],
+      sessionEstimatedMinutes: context.session.estimatedMinutes,
+    })
+    : null;
 
   return validateSessionTimeBudget(draft, context.session.estimatedMinutes)
     ?? validateSessionCoverageFidelity(draft, context.session)
+    ?? streamedLessonScopeIssue
     ?? validateLearningScienceRoutingSelection(draft.methodBriefing, learningScienceRouting)
     ?? validateSessionAdjustmentFidelity(draft, context.sessionAdjustment)
     ?? activityFormatIssue
@@ -1108,14 +1115,35 @@ export function validateSessionCoverageFidelity(
 
   const plannedTargets = session.contentTargets ?? [];
   if (plannedTargets.length === 0) return null;
-  const mappedTargets = new Set(
-    [...draft.coverage.essentialIdeas, ...draft.coverage.deferredContent].map(normalizeCoverageTarget),
-  );
-  const missingTargets = plannedTargets.filter((target) => !mappedTargets.has(normalizeCoverageTarget(target)));
+  const generatedCoverage = [...draft.coverage.essentialIdeas, ...draft.coverage.deferredContent];
+  const missingTargets = plannedTargets.filter((target) => (
+    !generatedCoverage.some((idea) => coverageTargetsMatch(idea, target))
+  ));
   if (missingTargets.length > 0) {
-    return `The generated session lost planned content: ${missingTargets.join(", ")}. Copy each planned target unchanged into essentialIdeas or deferredContent.`;
+    return `The generated session lost planned content: ${missingTargets.join(", ")}. Represent each target with a concrete explanatory claim in essentialIdeas or preserve the target in deferredContent.`;
   }
   return null;
+}
+
+export function coverageTargetsMatch(left: string, right: string) {
+  const normalizedLeft = normalizeCoverageTarget(left);
+  const normalizedRight = normalizeCoverageTarget(right);
+  if (normalizedLeft === normalizedRight) return true;
+
+  const leftTokens = coverageTokens(left);
+  const rightTokens = coverageTokens(right);
+  if (leftTokens.length > maximumScopedClaimTokens(rightTokens.length)) return false;
+  if (normalizedLeft.includes(normalizedRight)) return true;
+  const overlap = rightTokens.filter((token) => leftTokens.includes(token)).length;
+  const requiredOverlap = Math.min(2, Math.min(leftTokens.length, rightTokens.length));
+  const hasDistinctiveSharedToken = rightTokens.some((token) => (
+    token.length >= 7 && leftTokens.includes(token)
+  ));
+  return requiredOverlap > 0 && (overlap >= requiredOverlap || hasDistinctiveSharedToken);
+}
+
+function maximumScopedClaimTokens(targetTokenCount: number) {
+  return Math.max(targetTokenCount + 5, Math.ceil(targetTokenCount * 1.75));
 }
 
 function normalizeCoverageTarget(value: string) {

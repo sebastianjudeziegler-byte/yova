@@ -3,12 +3,14 @@ import { generationEnvironment } from "@/lib/analytics/generation-observation";
 import { recordGenerationObservation } from "@/lib/analytics/generation-observation-server";
 import { getOpenAILessonConfig, isOpenAILessonConfigured } from "@/lib/openai/config";
 import {
+  buildBoundedFallbackLesson,
   StreamedLessonGenerationError,
   streamGeneratedLesson,
   type StreamedLessonFailureKind,
   type StreamedLessonInput,
 } from "@/lib/openai/streamed-lesson-generator";
 import { LessonDeliveryInstructionsSchema } from "@/lib/personalization/session-delivery-policy";
+import { lessonIdeaCapacityForMinutes } from "@/lib/session-generation/lesson-brief";
 import { encodeLessonStreamEvent } from "@/lib/session-generation/lesson-stream";
 import {
   CachedGeneratedSessionV16Schema,
@@ -24,9 +26,10 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 export const runtime = "nodejs";
 export const maxDuration = 120;
 
-// Leave enough time to record a privacy-safe failure and close the stream
-// before the deployment platform reaches the route's hard execution limit.
-const LESSON_RUNTIME_DEADLINE_MS = 105_000;
+// Do not make a learner wait for the platform's hard execution limit. If the
+// provider stalls, replace the partial stream with the bounded lesson fallback
+// while the session is still usable.
+const LESSON_RUNTIME_DEADLINE_MS = 45_000;
 
 const LessonGenerateRequestSchema = z.object({
   action: z.literal("generate").default("generate"),
@@ -167,10 +170,14 @@ export async function POST(request: Request) {
         request.signal,
         AbortSignal.timeout(LESSON_RUNTIME_DEADLINE_MS),
       ]);
+      let streamedLessonText = "";
       try {
         const result = await streamGeneratedLesson(
           lessonInput,
-          (delta) => controller.enqueue(encodeLessonStreamEvent({ type: "lesson.delta", delta })),
+          (delta) => {
+            streamedLessonText += delta;
+            controller.enqueue(encodeLessonStreamEvent({ type: "lesson.delta", delta }));
+          },
           runtimeSignal,
         );
         controller.enqueue(encodeLessonStreamEvent({
@@ -183,7 +190,8 @@ export async function POST(request: Request) {
           wordCount: result.wordCount,
           model: result.model,
         }));
-        await recordGenerationObservation(supabase, user?.id, {
+        controller.close();
+        void recordGenerationObservation(supabase, user?.id, {
           generationType: "lesson",
           environment: generationEnvironment(),
           finalOutcome: "success",
@@ -204,8 +212,7 @@ export async function POST(request: Request) {
             wordCount: result.wordCount,
             streamCompleted: true,
           },
-        });
-        controller.close();
+        }).catch(() => undefined);
       } catch (error) {
         const failure = error instanceof StreamedLessonGenerationError ? error.stats : null;
         const failureKind = failure?.failureKind ?? "provider_request_error";
@@ -218,7 +225,55 @@ export async function POST(request: Request) {
           wordCount: failure?.wordCount ?? 0,
           model: failure?.model ?? model,
         });
-        await recordGenerationObservation(supabase, user?.id, {
+        if (failureKind !== "request_aborted") {
+          const fallbackLesson = buildBoundedFallbackLesson(lessonInput, streamedLessonText);
+          const fallbackWordCount = countWords(fallbackLesson);
+          try {
+            controller.enqueue(encodeLessonStreamEvent({
+              type: "lesson.replace",
+              content: fallbackLesson,
+            }));
+            controller.enqueue(encodeLessonStreamEvent({
+              type: "lesson.complete",
+              elapsedMs,
+              latencyToFirstTokenMs: failure?.latencyToFirstTokenMs ?? null,
+              inputTokens: failure?.inputTokens ?? 0,
+              cachedInputTokens: failure?.cachedInputTokens ?? 0,
+              outputTokens: failure?.outputTokens ?? 0,
+              wordCount: fallbackWordCount,
+              model: failure?.model ?? model,
+            }));
+            controller.close();
+          } catch {
+            // The learner may have left while the bounded fallback was being prepared.
+          }
+          void recordGenerationObservation(supabase, user?.id, {
+            generationType: "lesson",
+            environment: generationEnvironment(),
+            finalOutcome: "fallback",
+            firstAttemptPassed: false,
+            failedValidator: validatorForLessonFailure(failureKind),
+            repairAttempted: true,
+            repairSucceeded: true,
+            elapsedMs,
+            attempts: 1,
+            inputTokens: failure?.inputTokens ?? 0,
+            cachedInputTokens: failure?.cachedInputTokens ?? 0,
+            cacheWriteTokens: 0,
+            outputTokens: failure?.outputTokens ?? 0,
+            model: failure?.model ?? model,
+            diagnostics: {
+              lessonRequestId: requestId,
+              latencyToFirstTokenMs: failure?.latencyToFirstTokenMs ?? null,
+              wordCount: fallbackWordCount,
+              streamCompleted: true,
+              lessonFailureKind: failureKind,
+            },
+          }).catch(() => undefined);
+          return;
+        }
+
+        void recordGenerationObservation(supabase, user?.id, {
           generationType: "lesson",
           environment: generationEnvironment(),
           finalOutcome: "failure",
@@ -240,7 +295,7 @@ export async function POST(request: Request) {
             streamCompleted: false,
             lessonFailureKind: failureKind,
           },
-        });
+        }).catch(() => undefined);
         try {
           controller.enqueue(encodeLessonStreamEvent({
             type: "lesson.error",
@@ -328,8 +383,15 @@ function lessonInputFromSource(source: LessonRuntimeSource): StreamedLessonInput
   const brief: LessonBrief = source.activity.lessonBrief!;
   return {
     lessonTitle: source.activity.title,
+    plannedMinutes: source.activity.estimatedMinutes,
     topicTitles: [source.activity.title],
-    essentialIdeas: brief.essentialIdeas,
+    // Older cached sessions may predate lesson-brief allocation and contain a
+    // whole plan's targets in one short teaching activity. Defensively cap the
+    // retry input so existing learners get the fixed behavior immediately.
+    essentialIdeas: brief.essentialIdeas.slice(
+      0,
+      lessonIdeaCapacityForMinutes(source.activity.estimatedMinutes),
+    ),
     knowledgeSource: brief.knowledgeSource === "material_content"
       ? "materials"
       : brief.knowledgeSource === "mixed_material_and_model"
@@ -364,4 +426,8 @@ function lessonInputFromSource(source: LessonRuntimeSource): StreamedLessonInput
     },
     deliveryInstructions: source.deliveryInstructions,
   };
+}
+
+function countWords(value: string) {
+  return value.trim() ? value.trim().split(/\s+/).length : 0;
 }

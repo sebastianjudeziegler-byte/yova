@@ -9,7 +9,7 @@ import {
   type StreamedGeneratedSessionDraft,
 } from "@/lib/session-generation/schema";
 
-type LessonBriefContext = {
+export type LessonBriefContext = {
   sessionTopicIds: string[];
   materials: MaterialExcerpt[];
   knowledgeTopics: KnowledgeMapTopic[];
@@ -30,44 +30,93 @@ export function enrichStreamedLessonBriefs(
   const coverageIdeaByKey = new Map(
     draft.coverage.essentialIdeas.map((idea) => [normalize(idea), idea]),
   );
-  const proposedIdeaKeys = new Set(draft.activities.flatMap((activity) => (
-    activity.type === "instruction" && activity.lessonBrief
-      ? activity.lessonBrief.essentialIdeas
-        .map(normalize)
-        .filter((idea) => coverageIdeaByKey.has(idea))
-      : []
-  )));
-  const unassignedCoverageIdeas = draft.coverage.essentialIdeas.filter((idea) => (
-    !proposedIdeaKeys.has(normalize(idea))
+  const assignedIdeaKeys = new Set<string>();
+  const ideasByActivity = new Map<number, string[]>();
+
+  // Preserve valid model assignments first, but never let a short teaching
+  // block inherit the full session outline. Runtime delivery is generated one
+  // activity at a time, so the activity's minutes are its real content budget.
+  draft.activities.forEach((activity, index) => {
+    if (activity.type !== "instruction" || !activity.lessonBrief) return;
+    const capacity = lessonIdeaCapacityForMinutes(activity.estimatedMinutes);
+    const proposedIdeas = unique(activity.lessonBrief.essentialIdeas.flatMap((idea) => {
+      const key = normalize(idea);
+      const coverageIdea = coverageIdeaByKey.get(key);
+      return coverageIdea && !assignedIdeaKeys.has(key) ? [coverageIdea] : [];
+    })).slice(0, capacity);
+    proposedIdeas.forEach((idea) => assignedIdeaKeys.add(normalize(idea)));
+    ideasByActivity.set(index, proposedIdeas);
+  });
+
+  // Distribute uncovered active ideas across teaching blocks with remaining
+  // time. Never cram all of them into the first explanation.
+  for (const coverageIdea of draft.coverage.essentialIdeas) {
+    const key = normalize(coverageIdea);
+    if (assignedIdeaKeys.has(key)) continue;
+    const availableIndex = draft.activities.findIndex((activity, index) => (
+      activity.type === "instruction"
+      && Boolean(activity.lessonBrief)
+      && (ideasByActivity.get(index)?.length ?? 0) < lessonIdeaCapacityForMinutes(activity.estimatedMinutes)
+    ));
+    if (availableIndex < 0) continue;
+    ideasByActivity.set(availableIndex, [
+      ...(ideasByActivity.get(availableIndex) ?? []),
+      coverageIdea,
+    ]);
+    assignedIdeaKeys.add(key);
+  }
+
+  // Pacing is finalized before lesson briefs are enriched. That finalization
+  // may shorten the opening teaching block (for example from eight minutes to
+  // five) after the model assigned two ideas to it. Reconcile coverage to the
+  // teaching time that actually remains: keep only ideas with a real teaching
+  // allocation active and explicitly defer the overflow. This is intentionally
+  // not a validator relaxation. A raw draft that claims an untaught active idea
+  // still fails validateStreamedLessonScope; the authoritative finalizer simply
+  // makes its bounded scope honest before runtime delivery begins.
+  const unassignedIdeas = draft.coverage.essentialIdeas.filter((idea) => (
+    !assignedIdeaKeys.has(normalize(idea))
   ));
-  const firstTeachingIndex = draft.activities.findIndex((activity) => (
-    activity.type === "instruction" && Boolean(activity.lessonBrief)
+  const allDeferredContent = unique([
+    ...unassignedIdeas,
+    ...draft.coverage.deferredContent,
+  ]);
+  // The stored schema has four explicit deferred slots. If every displaced
+  // idea cannot be named honestly, retain it as active so the strict validator
+  // requests a repaired skeleton instead of silently dropping prior scope.
+  const canDeferEveryUnassignedIdea = allDeferredContent.length <= 4;
+  const activeIdeas = draft.coverage.essentialIdeas.filter((idea) => (
+    assignedIdeaKeys.has(normalize(idea)) || !canDeferEveryUnassignedIdea
   ));
+  const activeIdeaKeys = new Set(activeIdeas.map(normalize));
+  const evidenceMap = draft.coverage.evidenceMap.filter((mapping) => (
+    activeIdeaKeys.has(normalize(mapping.essentialIdea))
+  ));
+  const deferredContent = canDeferEveryUnassignedIdea
+    ? allDeferredContent
+    : draft.coverage.deferredContent;
 
   return {
     ...draft,
+    coverage: {
+      ...draft.coverage,
+      essentialIdeas: activeIdeas,
+      evidenceMap,
+      deferredContent,
+    },
     activities: draft.activities.map((activity, index) => {
       if (activity.type !== "instruction" || !activity.lessonBrief) return activity;
-      const validProposedIdeas = activity.lessonBrief.essentialIdeas.flatMap((idea) => {
-        const coverageIdea = coverageIdeaByKey.get(normalize(idea));
-        return coverageIdea ? [coverageIdea] : [];
-      });
+      const allocatedIdeas = ideasByActivity.get(index) ?? [];
       return {
         ...activity,
         lessonBrief: buildAuthoritativeLessonBrief({
-          proposed: index === firstTeachingIndex && unassignedCoverageIdeas.length > 0
-            ? {
-              ...activity.lessonBrief,
-              essentialIdeas: unique([
-                ...validProposedIdeas,
-                ...unassignedCoverageIdeas,
-              ]).slice(0, 4),
-            }
-            : {
-              ...activity.lessonBrief,
-              essentialIdeas: validProposedIdeas,
-            },
-          coverageIdeas: draft.coverage.essentialIdeas,
+          proposed: {
+            ...activity.lessonBrief,
+            essentialIdeas: allocatedIdeas.length > 0
+              ? allocatedIdeas
+              : [activeIdeas[0]!],
+          },
+          coverageIdeas: activeIdeas,
           context,
         }),
       };
@@ -93,7 +142,8 @@ function buildAuthoritativeLessonBrief({
     const exact = allowedIdeas.get(normalize(idea));
     return exact ? [exact] : [];
   });
-  const essentialIdeas = unique(proposedIdeas.length ? proposedIdeas : coverageIdeas).slice(0, 4);
+  const essentialIdeas = unique(proposedIdeas.length ? proposedIdeas : [coverageIdeas[0]!])
+    .slice(0, 4);
   const sourceChunks = context.materials.flatMap((material) => {
     if (!material.chunkId || !material.locationLabel || !material.role) return [];
     return [{
@@ -169,6 +219,138 @@ function buildAuthoritativeLessonBrief({
       preservePrerequisiteOrder: true,
     },
   });
+}
+
+/**
+ * A lesson brief is the content contract for one streamed teaching block.
+ * These limits deliberately leave time for examples, checks, and learner
+ * thinking instead of converting every available minute into exposition.
+ */
+export function lessonIdeaCapacityForMinutes(minutes: number) {
+  if (minutes <= 5) return 1;
+  if (minutes <= 10) return 2;
+  return 3;
+}
+
+/**
+ * Enforces the boundary between the whole plan and today's one lesson. Topic
+ * ids are authoritative, and active teaching ideas must stay semantically
+ * aligned with the targets assigned to this session. Future-session targets
+ * may only be deferred.
+ */
+export function validateStreamedLessonScope(
+  draft: StreamedGeneratedSessionDraft,
+  context: {
+    sessionTopicIds: string[];
+    sessionObjective: string;
+    sessionContentTargets: string[];
+    sessionEstimatedMinutes: number;
+  },
+) {
+  const expectedTopicIds = unique(context.sessionTopicIds).sort();
+  const returnedTopicIds = unique(draft.topicIds).sort();
+  if (expectedTopicIds.join(":") !== returnedTopicIds.join(":")) {
+    return `This lesson must use exactly its assigned topic ids. Expected ${expectedTopicIds.join(", ")}; received ${returnedTopicIds.join(", ")}.`;
+  }
+
+  const allowedTopicIds = new Set(expectedTopicIds);
+  const outOfScopeActivity = draft.activities.find((activity) => (
+    activity.topicId !== null && !allowedTopicIds.has(activity.topicId)
+  ));
+  if (outOfScopeActivity) {
+    return `The activity “${outOfScopeActivity.title}” uses a topic outside this session's assigned knowledge-map topics.`;
+  }
+
+  const activeIdeaKeys = new Set(draft.coverage.essentialIdeas.map(normalize));
+  const incompleteIdea = draft.coverage.essentialIdeas.find((idea) => !isCompleteLessonClaim(idea));
+  if (incompleteIdea) {
+    return `The active idea “${incompleteIdea}” is only a topic label. Rewrite it as a concise explanatory claim that states what the learner should understand.`;
+  }
+
+  if (context.sessionContentTargets.length > 0) {
+    const unplannedIdea = draft.coverage.essentialIdeas.find((idea) => (
+      !context.sessionContentTargets.some((target) => lessonIdeaMatchesTarget(idea, target))
+    ));
+    if (unplannedIdea) {
+      return `The active idea “${unplannedIdea}” is outside this session's assigned target: ${context.sessionObjective}. Keep the explanatory claim bounded to the supplied session content targets and move other material to deferredContent.`;
+    }
+  }
+
+  const taughtIdeaKeys = new Set<string>();
+  for (const activity of draft.activities) {
+    if (activity.type !== "instruction" || !activity.lessonBrief) continue;
+    const outOfScopeBriefTopic = activity.lessonBrief.topicIds.find((topicId) => !allowedTopicIds.has(topicId));
+    if (outOfScopeBriefTopic) {
+      return `The teaching block “${activity.title}” references a topic outside this session's assigned knowledge-map topics.`;
+    }
+    const capacity = lessonIdeaCapacityForMinutes(activity.estimatedMinutes);
+    if (activity.lessonBrief.essentialIdeas.length > capacity) {
+      return `The ${activity.estimatedMinutes}-minute teaching block “${activity.title}” may teach at most ${capacity} ${capacity === 1 ? "essential idea" : "essential ideas"}. Split the instruction or defer the remaining content.`;
+    }
+    for (const idea of activity.lessonBrief.essentialIdeas) {
+      const key = normalize(idea);
+      if (!activeIdeaKeys.has(key)) {
+        return `The teaching block “${activity.title}” includes “${idea},” which is not one of this session's active ideas.`;
+      }
+      taughtIdeaKeys.add(key);
+    }
+  }
+
+  const untaughtIdea = draft.coverage.essentialIdeas.find((idea) => !taughtIdeaKeys.has(normalize(idea)));
+  if (untaughtIdea) {
+    return `The active idea “${untaughtIdea}” has no teaching time in this session. Add a bounded teaching block or move it to deferredContent.`;
+  }
+
+  const totalRequiredMinutes = draft.activities
+    .filter((activity) => activity.requiredForCompletion)
+    .reduce((sum, activity) => sum + activity.estimatedMinutes, 0);
+  if (totalRequiredMinutes > context.sessionEstimatedMinutes) {
+    return `The required lesson sequence needs ${totalRequiredMinutes} minutes but this session allows ${context.sessionEstimatedMinutes}.`;
+  }
+
+  return null;
+}
+
+export function isCompleteLessonClaim(value: string) {
+  const words = value.match(/[\p{L}\p{N}][\p{L}\p{N}'’_-]*/gu) ?? [];
+  if (words.length < 5) return false;
+  // Longer subject statements are accepted without a brittle subject-specific
+  // verb dictionary. The shorter path catches concise claims such as
+  // "Inflation erodes purchasing power as prices rise." This intentionally
+  // favors reliable generation over attempting English part-of-speech parsing.
+  if (words.length >= 7) return true;
+  return /\b(?:is|are|was|were|can|could|causes?|caused|connects?|connected|depends?|depended|differentiates?|enables?|enabled|equals?|erodes?|exchanges?|explains?|explained|grows?|grew|helps?|helped|increases?|increased|leads?|led|makes?|made|means?|meant|produces?|produced|provides?|provided|pulls?|pulled|requires?|required|results?|resulted|shapes?|shaped|supports?|supported|transforms?|transformed|triggers?|triggered|turns?|turned|uses?|used|widens?|widened|because|through|when|while)\b/i.test(value);
+}
+
+function lessonIdeaMatchesTarget(idea: string, target: string) {
+  const ideaKey = normalize(idea);
+  const targetKey = normalize(target);
+  if (ideaKey === targetKey) return true;
+
+  const ideaTokens = meaningfulScopeTokens(idea);
+  const targetTokens = meaningfulScopeTokens(target);
+  if (ideaTokens.length > maximumScopedClaimTokens(targetTokens.length)) return false;
+  if (ideaKey.includes(targetKey)) return true;
+  const overlap = targetTokens.filter((token) => ideaTokens.includes(token)).length;
+  const requiredOverlap = Math.min(2, Math.min(ideaTokens.length, targetTokens.length));
+  const hasDistinctiveSharedToken = targetTokens.some((token) => (
+    token.length >= 7 && ideaTokens.includes(token)
+  ));
+  return requiredOverlap > 0 && (overlap >= requiredOverlap || hasDistinctiveSharedToken);
+}
+
+function maximumScopedClaimTokens(targetTokenCount: number) {
+  return Math.max(targetTokenCount + 5, Math.ceil(targetTokenCount * 1.75));
+}
+
+function meaningfulScopeTokens(value: string) {
+  const ignored = new Set([
+    "about", "and", "build", "concept", "explain", "idea", "learn", "lesson",
+    "model", "overview", "relationship", "study", "the", "their", "this", "understand", "with",
+  ]);
+  return unique(normalize(value).split(" ")
+    .map((token) => token.length > 4 && token.endsWith("s") ? token.slice(0, -1) : token)
+    .filter((token) => token.length > 2 && !ignored.has(token)));
 }
 
 function knowledgeSource(sourceChunks: LessonBrief["sourceChunks"]): LessonBrief["knowledgeSource"] {

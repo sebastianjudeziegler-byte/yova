@@ -1,5 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
-import { enrichStreamedLessonBriefs } from "@/lib/session-generation/lesson-brief";
+import {
+  enrichStreamedLessonBriefs,
+  isCompleteLessonClaim,
+  lessonIdeaCapacityForMinutes,
+  validateStreamedLessonScope,
+} from "@/lib/session-generation/lesson-brief";
 import { StreamedGeneratedSessionDraftSchema } from "@/lib/session-generation/schema";
 
 vi.mock("server-only", () => ({}));
@@ -158,18 +163,24 @@ describe("authoritative streamed lesson briefs", () => {
     expect(brief?.evidenceContext.priorMisconceptions[0]?.misconception).toContain("mobilization decisions");
   });
 
-  it("assigns every coverage idea to a teaching brief before checks can assess it", () => {
+  it("defers WWI ideas that no longer fit after the opening explanation is shortened", () => {
     const draft = streamedDraft();
-    draft.coverage.essentialIdeas.push("Mobilization schedules made escalation difficult to pause");
+    const overflowIdea = "The Sarajevo assassination triggered the July Crisis, which led to declarations of war";
+    draft.coverage.essentialIdeas.push(overflowIdea);
+    draft.coverage.evidenceMap.push({
+      essentialIdea: overflowIdea,
+      activityConcept: "Alliance escalation",
+    });
     const teachingActivity = draft.activities[0];
     if (!teachingActivity || teachingActivity.type !== "instruction" || !teachingActivity.lessonBrief) {
       throw new Error("The fixture needs a teaching brief.");
     }
+    // The model originally budgeted two ideas for this block. Final pacing
+    // reduced it to five minutes, where one idea is the honest capacity.
+    teachingActivity.estimatedMinutes = 5;
     teachingActivity.lessonBrief.essentialIdeas = [
-      "A broad model label",
-      "A second unsupported label",
-      "A third unsupported label",
-      "A fourth unsupported label",
+      "Alliance obligations connected a local crisis to wider mobilization",
+      overflowIdea,
     ];
     const result = enrichStreamedLessonBriefs(draft, {
       sessionTopicIds: [topicId],
@@ -202,6 +213,166 @@ describe("authoritative streamed lesson briefs", () => {
       },
     });
 
-    expect(result.activities[0]?.lessonBrief?.essentialIdeas).toEqual(draft.coverage.essentialIdeas);
+    expect(result.activities[0]?.lessonBrief?.essentialIdeas).toEqual([
+      "Alliance obligations connected a local crisis to wider mobilization",
+    ]);
+    expect(result.coverage.essentialIdeas).toEqual([
+      "Alliance obligations connected a local crisis to wider mobilization",
+    ]);
+    expect(result.coverage.evidenceMap).toEqual([{
+      essentialIdea: "Alliance obligations connected a local crisis to wider mobilization",
+      activityConcept: "Alliance escalation",
+    }]);
+    expect(result.coverage.deferredContent).toContain(overflowIdea);
+    expect(validateStreamedLessonScope(result, {
+      sessionTopicIds: [topicId],
+      sessionObjective: "Explain how alliance obligations widened the July Crisis.",
+      sessionContentTargets: draft.coverage.essentialIdeas,
+      sessionEstimatedMinutes: 15,
+    })).toBeNull();
+  });
+
+  it("still rejects a raw skeleton that claims an active idea without teaching time", () => {
+    const draft = streamedDraft();
+    const untaughtIdea = "The Sarajevo assassination triggered the July Crisis, which led to declarations of war";
+    draft.coverage.essentialIdeas.push(untaughtIdea);
+    draft.coverage.evidenceMap.push({
+      essentialIdea: untaughtIdea,
+      activityConcept: "Alliance escalation",
+    });
+
+    expect(validateStreamedLessonScope(draft, {
+      sessionTopicIds: [topicId],
+      sessionObjective: "Explain how alliance obligations widened the July Crisis.",
+      sessionContentTargets: draft.coverage.essentialIdeas,
+      sessionEstimatedMinutes: 15,
+    })).toContain(`The active idea “${untaughtIdea}” has no teaching time`);
+  });
+
+  it("distributes assigned ideas across bounded teaching blocks instead of expanding the first block", () => {
+    const draft = streamedDraft();
+    const secondIdea = "Mobilization schedules made escalation difficult to pause";
+    draft.coverage.essentialIdeas.push(secondIdea);
+    draft.activities.splice(1, 0, {
+      ...draft.activities[0]!,
+      title: "Connect mobilization to escalation",
+      estimatedMinutes: 4,
+      lessonBrief: {
+        ...draft.activities[0]!.lessonBrief!,
+        essentialIdeas: [secondIdea],
+      },
+    });
+
+    const result = enrichStreamedLessonBriefs(draft, {
+      sessionTopicIds: [topicId],
+      materials: [],
+      knowledgeTopics: [],
+      conceptSignals: [],
+      taskType: "conceptual_learning",
+      deliveryInstructions: {
+        schemaVersion: 1,
+        explanationDensity: "balanced",
+        tone: "encouraging",
+        analogyUse: "only_when_helpful",
+        workedExamples: "lead_with_example",
+        structure: "overview_first",
+        pacing: { firstActionMinutes: 3, maximumActivities: 5, instruction: "Use short teaching blocks." },
+        learnerContext: [],
+        contentRequirements: { coverAllEssentialIdeas: true, includeConcreteWorkedExample: true, includeCommonMixup: true, preservePrerequisiteOrder: true },
+      },
+    });
+
+    expect(result.activities[0]?.lessonBrief?.essentialIdeas).toEqual([
+      "Alliance obligations connected a local crisis to wider mobilization",
+    ]);
+    expect(result.activities[1]?.lessonBrief?.essentialIdeas).toEqual([secondIdea]);
+  });
+
+  it("scales the number of teachable ideas with the teaching block's minutes", () => {
+    expect(lessonIdeaCapacityForMinutes(4)).toBe(1);
+    expect(lessonIdeaCapacityForMinutes(5)).toBe(1);
+    expect(lessonIdeaCapacityForMinutes(8)).toBe(2);
+    expect(lessonIdeaCapacityForMinutes(10)).toBe(2);
+    expect(lessonIdeaCapacityForMinutes(15)).toBe(3);
+  });
+
+  it("allows a later twelve-minute lesson slice to teach more than a four-minute opener", () => {
+    const ideas = [
+      "Alliance obligations connected a local crisis to wider mobilization",
+      "Mobilization schedules made escalation difficult to pause",
+      "Declarations of war turned the July Crisis into a continental conflict",
+    ];
+    const draft = streamedDraft();
+    draft.coverage.essentialIdeas = ideas;
+    draft.activities[0]!.estimatedMinutes = 12;
+    draft.activities[0]!.lessonBrief!.essentialIdeas = ideas;
+
+    const context = {
+      sessionTopicIds: [topicId],
+      sessionObjective: "Connect the main escalation mechanisms in the July Crisis.",
+      sessionContentTargets: ideas,
+      sessionEstimatedMinutes: 20,
+    };
+    expect(validateStreamedLessonScope(draft, context)).toBeNull();
+
+    draft.activities[0]!.estimatedMinutes = 4;
+    expect(validateStreamedLessonScope(draft, {
+      ...context,
+      sessionEstimatedMinutes: 15,
+    })).toContain("may teach at most 1 essential idea");
+  });
+
+  it.each([
+    "The product rule differentiates a product using both changing factors",
+    "Cells exchange oxygen and carbon dioxide across thin respiratory membranes",
+    "Alliance obligations connected a local crisis to wider mobilization",
+    "Inflation erodes purchasing power when prices rise",
+  ])("accepts a bounded explanatory claim across subjects: %s", (claim) => {
+    expect(isCompleteLessonClaim(claim)).toBe(true);
+  });
+
+  it("rejects a bare chapter-style label as lesson content", () => {
+    expect(isCompleteLessonClaim("Prewar European alliances and tensions")).toBe(false);
+  });
+
+  it("rejects a broad whole-plan idea when the session was assigned a narrower target", () => {
+    const draft = streamedDraft();
+    draft.coverage.essentialIdeas = ["A complete survey of World War I from 1914 through 1918"];
+    draft.activities[0]!.lessonBrief!.essentialIdeas = [...draft.coverage.essentialIdeas];
+
+    expect(validateStreamedLessonScope(draft, {
+      sessionTopicIds: [topicId],
+      sessionObjective: "Explain how alliance obligations widened the July Crisis.",
+      sessionContentTargets: ["Alliance obligations connected a local crisis to wider mobilization"],
+      sessionEstimatedMinutes: 15,
+    })).toContain("is outside this session's assigned target");
+  });
+
+  it("rejects a broad WWI survey even when it repeats words from the assigned opening target", () => {
+    const draft = streamedDraft();
+    draft.coverage.essentialIdeas = [
+      "Alliance commitments and mobilization shaped the opening crisis, while trench warfare, United States entry, and the Treaty of Versailles explain how World War I developed and ended",
+    ];
+    draft.activities[0]!.lessonBrief!.essentialIdeas = [...draft.coverage.essentialIdeas];
+
+    expect(validateStreamedLessonScope(draft, {
+      sessionTopicIds: [topicId],
+      sessionObjective: "Explain how alliance obligations widened the July Crisis.",
+      sessionContentTargets: [
+        "Alliance obligations connected a local crisis to wider mobilization and declarations of war",
+      ],
+      sessionEstimatedMinutes: 15,
+    })).toContain("is outside this session's assigned target");
+  });
+
+  it("accepts an explanatory claim scoped by a broader plan target label", () => {
+    const draft = streamedDraft();
+
+    expect(validateStreamedLessonScope(draft, {
+      sessionTopicIds: [topicId],
+      sessionObjective: "Explain how prewar tensions widened the July Crisis.",
+      sessionContentTargets: ["Prewar European alliances and tensions"],
+      sessionEstimatedMinutes: 15,
+    })).toBeNull();
   });
 });

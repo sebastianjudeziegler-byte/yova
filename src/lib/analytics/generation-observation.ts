@@ -71,6 +71,8 @@ export const GenerationObservationSchema = z.object({
       "provider_request_error",
       "stream_ended_without_completion",
       "stream_ended_without_content",
+      "content_below_substance_threshold",
+      "content_exceeded_time_budget",
       "request_aborted",
       "runtime_timeout",
     ]).optional(),
