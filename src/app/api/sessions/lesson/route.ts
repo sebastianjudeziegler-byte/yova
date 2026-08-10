@@ -5,6 +5,7 @@ import { getOpenAILessonConfig, isOpenAILessonConfigured } from "@/lib/openai/co
 import {
   StreamedLessonGenerationError,
   streamGeneratedLesson,
+  type StreamedLessonFailureKind,
   type StreamedLessonInput,
 } from "@/lib/openai/streamed-lesson-generator";
 import { LessonDeliveryInstructionsSchema } from "@/lib/personalization/session-delivery-policy";
@@ -22,6 +23,10 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
+
+// Leave enough time to record a privacy-safe failure and close the stream
+// before the deployment platform reaches the route's hard execution limit.
+const LESSON_RUNTIME_DEADLINE_MS = 105_000;
 
 const LessonGenerateRequestSchema = z.object({
   action: z.literal("generate").default("generate"),
@@ -158,11 +163,15 @@ export async function POST(request: Request) {
     async start(controller) {
       controller.enqueue(encodeLessonStreamEvent({ type: "lesson.meta", requestId, model }));
       const startedAt = Date.now();
+      const runtimeSignal = AbortSignal.any([
+        request.signal,
+        AbortSignal.timeout(LESSON_RUNTIME_DEADLINE_MS),
+      ]);
       try {
         const result = await streamGeneratedLesson(
           lessonInput,
           (delta) => controller.enqueue(encodeLessonStreamEvent({ type: "lesson.delta", delta })),
-          request.signal,
+          runtimeSignal,
         );
         controller.enqueue(encodeLessonStreamEvent({
           type: "lesson.complete",
@@ -199,13 +208,22 @@ export async function POST(request: Request) {
         controller.close();
       } catch (error) {
         const failure = error instanceof StreamedLessonGenerationError ? error.stats : null;
+        const failureKind = failure?.failureKind ?? "provider_request_error";
         const elapsedMs = failure?.elapsedMs ?? Date.now() - startedAt;
+        console.error("YOVA streamed lesson generation failed", {
+          requestId,
+          failureKind,
+          elapsedMs,
+          latencyToFirstTokenMs: failure?.latencyToFirstTokenMs ?? null,
+          wordCount: failure?.wordCount ?? 0,
+          model: failure?.model ?? model,
+        });
         await recordGenerationObservation(supabase, user?.id, {
           generationType: "lesson",
           environment: generationEnvironment(),
           finalOutcome: "failure",
           firstAttemptPassed: false,
-          failedValidator: "lesson_stream",
+          failedValidator: validatorForLessonFailure(failureKind),
           repairAttempted: false,
           repairSucceeded: null,
           elapsedMs,
@@ -220,6 +238,7 @@ export async function POST(request: Request) {
             latencyToFirstTokenMs: failure?.latencyToFirstTokenMs ?? null,
             wordCount: failure?.wordCount ?? 0,
             streamCompleted: false,
+            lessonFailureKind: failureKind,
           },
         });
         try {
@@ -245,6 +264,22 @@ export async function POST(request: Request) {
       "X-Yova-Request-Id": requestId,
     },
   });
+}
+
+function validatorForLessonFailure(
+  failureKind: StreamedLessonFailureKind,
+): "lesson_response_status" | "lesson_stream" | "lesson_provider_request" {
+  if (failureKind === "provider_failed" || failureKind === "provider_incomplete") {
+    return "lesson_response_status";
+  }
+  if (
+    failureKind === "provider_request_error"
+    || failureKind === "request_aborted"
+    || failureKind === "runtime_timeout"
+  ) {
+    return "lesson_provider_request";
+  }
+  return "lesson_stream";
 }
 
 type LessonRuntimeSource = {

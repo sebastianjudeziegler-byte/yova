@@ -150,4 +150,100 @@ describe("streamed-session activity compaction", () => {
     expect(compacted.some((activity) => activity.type === "free_response")).toBe(true);
     expect(compacted.some((activity) => activity.methodPhase === "schedule_return")).toBe(true);
   });
+
+  it("bounds the first activity to the learner delivery policy instead of regenerating the skeleton", async () => {
+    const { alignFirstActionPacing } = await import("@/lib/openai/streamed-teaching-generator");
+    const topicId = "10000000-0000-4000-8000-000000000001";
+    const activities = [{
+      topicId,
+      methodPhase: "model" as const,
+      estimatedMinutes: 9,
+      requiredForCompletion: true,
+      label: "Learn",
+      title: "Build the World War I cause map",
+      body: "Study the connected cause map before explaining it.",
+      teaching: null,
+      lessonBrief: null,
+      practiceIntent: null,
+      misconceptionSummary: null,
+      type: "instruction" as const,
+      concept: null,
+      choices: [],
+      correctAnswer: null,
+      feedback: null,
+    }];
+
+    expect(alignFirstActionPacing({ activities, maximumMinutes: 5 })[0]?.estimatedMinutes).toBe(5);
+  });
+});
+
+describe("streamed free-response reference-answer repair", () => {
+  it("replaces a grading rubric with the mapped World War I subject answer", async () => {
+    const { repairRubricLikeFreeResponseAnswers } = await import("@/lib/openai/streamed-teaching-generator");
+    const activities = [{
+      topicId: TOPIC_ID,
+      methodPhase: "explain" as const,
+      estimatedMinutes: 4,
+      requiredForCompletion: true,
+      label: "Explain",
+      title: "Explain the outbreak in your own words",
+      body: "Explain how a local crisis widened into a European war.",
+      teaching: null,
+      lessonBrief: null,
+      practiceIntent: "supported_recheck" as const,
+      misconceptionSummary: null,
+      type: "free_response" as const,
+      concept: "World War I outbreak chain",
+      choices: [],
+      correctAnswer: "A strong response should mention the assassination, alliances, mobilization, and declarations of war.",
+      feedback: "Connect the Sarajevo assassination to alliance commitments and mobilization.",
+    }];
+
+    const repaired = repairRubricLikeFreeResponseAnswers({
+      activities,
+      evidenceMap: [{
+        activityConcept: "World War I outbreak chain",
+        essentialIdea: "The assassination of Franz Ferdinand triggered alliance commitments and mobilization, widening the conflict",
+      }],
+    });
+
+    expect(repaired.repairedCount).toBe(1);
+    expect(repaired.activities[0]?.correctAnswer).toBe(
+      "The assassination of Franz Ferdinand triggered alliance commitments and mobilization, widening the conflict.",
+    );
+  });
+
+  it("turns a mapped subject phrase into a concrete answer without relaxing validation", async () => {
+    const { repairRubricLikeFreeResponseAnswers } = await import("@/lib/openai/streamed-teaching-generator");
+    const activities = [{
+      topicId: TOPIC_ID,
+      methodPhase: "explain" as const,
+      estimatedMinutes: 4,
+      requiredForCompletion: true,
+      label: "Explain",
+      title: "Explain the outbreak in your own words",
+      body: "Explain how a local crisis widened into a European war.",
+      teaching: null,
+      lessonBrief: null,
+      practiceIntent: "supported_recheck" as const,
+      misconceptionSummary: null,
+      type: "free_response" as const,
+      concept: "World War I outbreak chain",
+      choices: [],
+      correctAnswer: "The learner should name the relevant events in order.",
+      feedback: "Connect the Sarajevo assassination to alliance commitments and mobilization.",
+    }];
+
+    const repaired = repairRubricLikeFreeResponseAnswers({
+      activities,
+      evidenceMap: [{
+        activityConcept: "World War I outbreak chain",
+        essentialIdea: "Sequence from the Sarajevo assassination through alliance commitments to declarations of war",
+      }],
+    });
+
+    expect(repaired.activities[0]?.correctAnswer).toBe(
+      "For World War I outbreak chain, the key idea is sequence from the Sarajevo assassination through alliance commitments to declarations of war.",
+    );
+  });
 });

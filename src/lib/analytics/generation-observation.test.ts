@@ -43,6 +43,31 @@ describe("GenerationObservationSchema", () => {
     }).success).toBe(true);
   });
 
+  it("accepts a bounded lesson failure kind but rejects free-form failure detail", () => {
+    expect(GenerationObservationSchema.safeParse({
+      ...safeEvent,
+      generationType: "lesson",
+      finalOutcome: "failure",
+      firstAttemptPassed: false,
+      failedValidator: "lesson_provider_request",
+      diagnostics: {
+        streamCompleted: false,
+        lessonFailureKind: "runtime_timeout",
+      },
+    }).success).toBe(true);
+    expect(GenerationObservationSchema.safeParse({
+      ...safeEvent,
+      generationType: "lesson",
+      finalOutcome: "failure",
+      firstAttemptPassed: false,
+      failedValidator: "lesson_provider_request",
+      diagnostics: {
+        streamCompleted: false,
+        lessonFailureKind: "the provider rejected the learner's private WWI topic",
+      },
+    }).success).toBe(false);
+  });
+
   it("represents lesson skip usage without learner content", () => {
     expect(GenerationObservationSchema.safeParse({
       ...safeEvent,

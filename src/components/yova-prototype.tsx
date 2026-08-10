@@ -816,7 +816,9 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
       if (error instanceof DOMException && error.name === "AbortError" && !generationTimedOut) return;
       reportProductError({
         surface: "session_generation",
-        errorCode: "guided_session_generation_failed",
+        errorCode: generationTimedOut
+          ? "guided_session_generation_timeout"
+          : "guided_session_generation_failed",
         requestId,
       });
       const message = generationTimedOut

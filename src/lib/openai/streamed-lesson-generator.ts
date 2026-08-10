@@ -40,7 +40,18 @@ export type StreamedLessonResult = {
   wordCount: number;
 };
 
+export type StreamedLessonFailureKind =
+  | "provider_failed"
+  | "provider_incomplete"
+  | "provider_error_event"
+  | "provider_request_error"
+  | "stream_ended_without_completion"
+  | "stream_ended_without_content"
+  | "request_aborted"
+  | "runtime_timeout";
+
 export type StreamedLessonFailureStats = {
+  failureKind: StreamedLessonFailureKind;
   model: string;
   responseId: string | null;
   inputTokens: number;
@@ -140,19 +151,29 @@ export async function streamGeneratedLesson(
         completeResponse = event.response;
         continue;
       }
-      if (event.type === "response.failed" || event.type === "response.incomplete") {
+      if (event.type === "response.failed") {
         terminalResponse = event.response;
-        throw failureError("The lesson stream did not complete.");
+        throw failureError("The lesson stream did not complete.", "provider_failed");
+      }
+      if (event.type === "response.incomplete") {
+        terminalResponse = event.response;
+        throw failureError("The lesson stream did not complete.", "provider_incomplete");
       }
       if (event.type === "error") {
-        throw failureError("The lesson stream did not complete.");
+        throw failureError("The lesson stream did not complete.", "provider_error_event");
       }
     }
 
     const elapsedMs = Date.now() - startedAt;
-    if (!completeResponse || completeResponse.status !== "completed" || !fullText.trim()) {
+    if (!completeResponse) {
+      throw failureError("The lesson stream ended before completion.", "stream_ended_without_completion");
+    }
+    if (completeResponse.status !== "completed") {
       terminalResponse = completeResponse;
-      throw failureError("The lesson stream did not produce a complete lesson.");
+      throw failureError("The lesson stream did not complete.", "provider_incomplete");
+    }
+    if (!fullText.trim()) {
+      throw failureError("The lesson stream did not produce lesson content.", "stream_ended_without_content");
     }
 
     return {
@@ -167,12 +188,17 @@ export async function streamGeneratedLesson(
     };
   } catch (error) {
     if (error instanceof StreamedLessonGenerationError) throw error;
-    throw failureError("The lesson stream could not be completed.");
+    const abortedFailureKind = failureKindForAbortedSignal(signal);
+    throw failureError(
+      "The lesson stream could not be completed.",
+      abortedFailureKind ?? "provider_request_error",
+    );
   }
 
-  function failureError(message: string) {
+  function failureError(message: string, failureKind: StreamedLessonFailureKind) {
     const response = terminalResponse ?? completeResponse;
     return new StreamedLessonGenerationError(message, {
+      failureKind,
       model: response?.model ?? configuredModel,
       responseId: response?.id ?? null,
       inputTokens: response?.usage?.input_tokens ?? 0,
@@ -183,6 +209,14 @@ export async function streamGeneratedLesson(
       wordCount: wordCount(fullText),
     });
   }
+}
+
+function failureKindForAbortedSignal(signal?: AbortSignal): StreamedLessonFailureKind | null {
+  if (!signal?.aborted) return null;
+  const reason = signal.reason;
+  return reason instanceof DOMException && reason.name === "TimeoutError"
+    ? "runtime_timeout"
+    : "request_aborted";
 }
 
 function wordCount(value: string) {

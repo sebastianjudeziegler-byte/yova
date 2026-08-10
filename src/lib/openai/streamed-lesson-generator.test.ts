@@ -106,6 +106,7 @@ describe("streamed lesson prompt", () => {
 
     expect(error).toBeInstanceOf(StreamedLessonGenerationError);
     expect(error.stats).toEqual({
+      failureKind: "provider_incomplete",
       model: "provider-lesson-model",
       responseId: "resp_incomplete",
       inputTokens: 120,
@@ -130,6 +131,7 @@ describe("streamed lesson prompt", () => {
 
     expect(error).toBeInstanceOf(StreamedLessonGenerationError);
     expect(error.stats).toEqual({
+      failureKind: "provider_request_error",
       model: "configured-lesson-model",
       responseId: null,
       inputTokens: 0,
@@ -140,11 +142,45 @@ describe("streamed lesson prompt", () => {
       wordCount: 3,
     });
   });
+
+  it("distinguishes a provider error event from an incomplete response", async () => {
+    openAIMocks.create.mockResolvedValue(streamEvents([{ type: "error" }]));
+
+    const error = await captureStreamFailure();
+
+    expect(error.stats.failureKind).toBe("provider_error_event");
+  });
+
+  it("distinguishes an empty completed stream from a connection failure", async () => {
+    openAIMocks.create.mockResolvedValue(streamEvents([{
+      type: "response.completed",
+      response: {
+        id: "resp_empty",
+        model: "provider-lesson-model",
+        status: "completed",
+        usage: { input_tokens: 50, output_tokens: 0 },
+      },
+    }]));
+
+    const error = await captureStreamFailure();
+
+    expect(error.stats.failureKind).toBe("stream_ended_without_content");
+  });
+
+  it("records an internal runtime deadline separately from a learner disconnect", async () => {
+    const controller = new AbortController();
+    controller.abort(new DOMException("Runtime deadline reached", "TimeoutError"));
+    openAIMocks.create.mockRejectedValue(new DOMException("Runtime deadline reached", "AbortError"));
+
+    const error = await captureStreamFailure(controller.signal);
+
+    expect(error.stats.failureKind).toBe("runtime_timeout");
+  });
 });
 
-async function captureStreamFailure() {
+async function captureStreamFailure(signal?: AbortSignal) {
   try {
-    await streamGeneratedLesson(lessonInput, () => undefined);
+    await streamGeneratedLesson(lessonInput, () => undefined, signal);
   } catch (error) {
     if (error instanceof StreamedLessonGenerationError) return error;
     throw error;

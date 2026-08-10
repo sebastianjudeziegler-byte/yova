@@ -48,6 +48,7 @@ import {
   groundSessionEvidenceMap,
   reconcileSessionCompletionMap,
 } from "@/lib/session-generation/completion-contract";
+import { isRubricLikeReferenceAnswer } from "@/lib/session-generation/content-specificity";
 import { normalizeStreamedActivityPhaseTypes } from "@/lib/session-generation/streamed-skeleton";
 
 const STREAMED_TEACHING_SKELETON_INSTRUCTIONS = `You design the complete skeleton for one YOVA learn-mode session. Another bounded model call will deliver each teaching explanation when the learner reaches it. You must plan the whole sequence now, including coverage, phases, knowledge checks, reference answers, feedback, and reflection, but you must not write the lesson prose now.
@@ -200,8 +201,19 @@ export async function generateStreamedTeachingSkeletonWithOpenAI(
       continue;
     }
 
+    const referenceAnswerRepair = repairRubricLikeFreeResponseAnswers({
+      activities: parsed.data.activities,
+      evidenceMap: parsed.data.coverage.evidenceMap,
+    });
+    if (referenceAnswerRepair.repairedCount > 0) {
+      const detail = `YOVA replaced ${referenceAnswerRepair.repairedCount} rubric-like free-response reference ${referenceAnswerRepair.repairedCount === 1 ? "answer" : "answers"} with the mapped subject answer before validation.`;
+      repairDetail = repairDetail ? `${repairDetail} ${detail}` : detail;
+    }
     const deterministicDraft = finalizeStreamedSkeleton({
-      draft: parsed.data,
+      draft: {
+        ...parsed.data,
+        activities: referenceAnswerRepair.activities,
+      },
       context,
       routing: learningScienceRouting,
       deliveryPolicy,
@@ -228,7 +240,7 @@ export async function generateStreamedTeachingSkeletonWithOpenAI(
       continue;
     }
 
-    firstAttemptPassed = attempt === 0;
+    firstAttemptPassed = attempt === 0 && referenceAnswerRepair.repairedCount === 0;
     return {
       draft: validated.data,
       model: response.model,
@@ -288,7 +300,10 @@ function finalizeStreamedSkeleton({
     estimatedMinutes: context.session.estimatedMinutes,
   });
   const reviewAligned = alignDueReviewConcept(
-    normalizeStreamedActivityPhaseTypes(draft.activities),
+    alignFirstActionPacing({
+      activities: normalizeStreamedActivityPhaseTypes(draft.activities),
+      maximumMinutes: Math.max(5, deliveryPolicy.pacing.firstActionMinutes + 2),
+    }),
     buildConceptReviewSchedule(context.conceptSignals),
   );
   const budgetAligned = compactStreamedActivities({
@@ -333,6 +348,19 @@ function finalizeStreamedSkeleton({
   });
 }
 
+export function alignFirstActionPacing({
+  activities,
+  maximumMinutes,
+}: {
+  activities: StreamedGeneratedSessionDraft["activities"];
+  maximumMinutes: number;
+}) {
+  if (!activities[0] || activities[0].estimatedMinutes <= maximumMinutes) return activities;
+  return activities.map((activity, index) => (
+    index === 0 ? { ...activity, estimatedMinutes: maximumMinutes } : activity
+  ));
+}
+
 export function compactStreamedActivities({
   activities,
   estimatedMinutes,
@@ -371,6 +399,77 @@ export function compactStreamedActivities({
   const retainedFocused = focused.filter((_, index) => retained.has(index));
   const returns = activities.filter((activity) => activity.methodPhase === "schedule_return");
   return [...retainedFocused, ...returns];
+}
+
+/**
+ * Structured generation can occasionally return a grading rubric where the
+ * learner needs an actual model answer. The coverage map already contains the
+ * bounded subject claim that the question is meant to evidence, so repair the
+ * answer from that claim before any grounding or semantic validation runs.
+ * This preserves the strict validator and avoids spending a second full
+ * skeleton call asking the model to restate content it already supplied.
+ */
+export function repairRubricLikeFreeResponseAnswers({
+  activities,
+  evidenceMap,
+}: {
+  activities: StreamedGeneratedSessionDraft["activities"];
+  evidenceMap: StreamedGeneratedSessionDraft["coverage"]["evidenceMap"];
+}) {
+  let repairedCount = 0;
+  const repairedActivities = activities.map((activity) => {
+    if (
+      activity.type !== "free_response"
+      || !isRubricLikeReferenceAnswer(activity.correctAnswer ?? "")
+    ) {
+      return activity;
+    }
+
+    const mappedIdea = mappedEssentialIdea(activity.concept ?? "", evidenceMap);
+    if (!mappedIdea || isRubricLikeReferenceAnswer(mappedIdea)) return activity;
+
+    repairedCount += 1;
+    return {
+      ...activity,
+      correctAnswer: subjectAnswerFromMappedIdea(activity.concept ?? "", mappedIdea),
+    };
+  });
+
+  return { activities: repairedActivities, repairedCount };
+}
+
+function mappedEssentialIdea(
+  concept: string,
+  evidenceMap: StreamedGeneratedSessionDraft["coverage"]["evidenceMap"],
+) {
+  const normalizedConcept = normalizedSubjectLabel(concept);
+  const exact = evidenceMap.find(
+    (mapping) => normalizedSubjectLabel(mapping.activityConcept) === normalizedConcept,
+  );
+  if (exact) return exact.essentialIdea.trim();
+
+  const containing = evidenceMap.filter((mapping) => {
+    const candidate = normalizedSubjectLabel(mapping.activityConcept);
+    return candidate.includes(normalizedConcept) || normalizedConcept.includes(candidate);
+  });
+  return containing.length === 1 ? containing[0]!.essentialIdea.trim() : null;
+}
+
+function subjectAnswerFromMappedIdea(concept: string, essentialIdea: string) {
+  const idea = essentialIdea.trim().replace(/[.!?]+$/, "");
+  if (looksLikeCompleteSubjectClaim(idea)) return `${idea}.`;
+
+  const subject = concept.trim() || "this concept";
+  const loweredIdea = idea.charAt(0).toLocaleLowerCase() + idea.slice(1);
+  return `For ${subject}, the key idea is ${loweredIdea}.`;
+}
+
+function looksLikeCompleteSubjectClaim(value: string) {
+  return /\b(?:is|are|was|were|has|have|causes?|caused|leads?|led|triggers?|triggered|creates?|created|changes?|changed|increases?|increased|decreases?|decreased|widens?|widened|begins?|began|ends?|ended|results?|resulted|requires?|required|depends?|depended|means?|meant|shows?|showed)\b/i.test(value);
+}
+
+function normalizedSubjectLabel(value: string) {
+  return value.toLocaleLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 }
 
 export function authoritativeSourceGrounding(context: SessionGenerationContext): SessionSourceGrounding | null {
@@ -430,7 +529,7 @@ function generationStats({
   repairDetail: string | null;
   succeeded: boolean;
 }): SessionGenerationStats {
-  const repaired = usage.attempts > 1;
+  const repaired = usage.attempts > 1 || Boolean(repairDetail);
   return {
     elapsedMs: Date.now() - startedAt,
     attempts: usage.attempts,
