@@ -32,7 +32,7 @@ import {
   boundedSessionCompletionEvidence,
   ensureDelayedRetrievalReturn,
   SessionGenerationFailure,
-  validateGeneratedSession,
+  validateGeneratedSessionWithCode,
   type OpenAISessionResult,
   type SessionGenerationContext,
   type SessionGenerationStats,
@@ -135,6 +135,7 @@ export async function generateStreamedTeachingSkeletonWithOpenAI(
   let repairDetail: string | null = null;
   let firstAttemptPassed = false;
   let lastFailureReason = "The session skeleton was invalid.";
+  let lastFailedValidator: SessionGenerationStats["failedValidator"] = "session_structure";
 
   for (let attempt = 0; attempt < 2; attempt += 1) {
     usage.attempts += 1;
@@ -225,7 +226,7 @@ export async function generateStreamedTeachingSkeletonWithOpenAI(
       lastFailureReason = repairDetail;
       continue;
     }
-    const semanticIssue = validateGeneratedSession(
+    const semanticIssue = validateGeneratedSessionWithCode(
       validated.data,
       context,
       learningScienceRouting,
@@ -235,8 +236,9 @@ export async function generateStreamedTeachingSkeletonWithOpenAI(
       deliveryPolicy,
     );
     if (semanticIssue) {
-      repairDetail = semanticIssue;
-      lastFailureReason = semanticIssue;
+      repairDetail = semanticIssue.detail;
+      lastFailureReason = semanticIssue.detail;
+      lastFailedValidator = semanticIssue.failedValidator;
       continue;
     }
 
@@ -261,6 +263,7 @@ export async function generateStreamedTeachingSkeletonWithOpenAI(
         usage,
         firstAttemptPassed,
         repairDetail,
+        failedValidator: lastFailedValidator,
         succeeded: true,
       }),
     };
@@ -273,6 +276,7 @@ export async function generateStreamedTeachingSkeletonWithOpenAI(
       usage,
       firstAttemptPassed: false,
       repairDetail,
+      failedValidator: lastFailedValidator,
       succeeded: false,
     }),
   );
@@ -521,12 +525,14 @@ function generationStats({
   usage,
   firstAttemptPassed,
   repairDetail,
+  failedValidator,
   succeeded,
 }: {
   startedAt: number;
   usage: { attempts: number; inputTokens: number; cachedInputTokens: number; cacheWriteTokens: number; outputTokens: number };
   firstAttemptPassed: boolean;
   repairDetail: string | null;
+  failedValidator: SessionGenerationStats["failedValidator"];
   succeeded: boolean;
 }): SessionGenerationStats {
   const repaired = usage.attempts > 1 || Boolean(repairDetail);
@@ -534,7 +540,7 @@ function generationStats({
     elapsedMs: Date.now() - startedAt,
     attempts: usage.attempts,
     firstAttemptPassed,
-    failedValidator: repaired ? "session_semantic_validation" : succeeded ? null : "session_structure",
+    failedValidator: repaired ? failedValidator : succeeded ? null : "session_structure",
     repairAttempted: repaired,
     repairSucceeded: repaired ? succeeded : null,
     repairReason: repaired ? "semantic_validation" : "none",

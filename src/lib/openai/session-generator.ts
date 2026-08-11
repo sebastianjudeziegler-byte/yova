@@ -1031,6 +1031,26 @@ export function validateGeneratedSession(
   scaffoldProgression: ScaffoldProgressionSignal[],
   sessionDeliveryPolicy: SessionDeliveryPolicy,
 ) {
+  return validateGeneratedSessionWithCode(
+    draft,
+    context,
+    learningScienceRouting,
+    observedMethodOutcomes,
+    conceptReviewSchedule,
+    scaffoldProgression,
+    sessionDeliveryPolicy,
+  )?.detail ?? null;
+}
+
+export function validateGeneratedSessionWithCode(
+  draft: GeneratedSessionDraft,
+  context: SessionGenerationContext,
+  learningScienceRouting: LearningScienceRoutingBrief,
+  observedMethodOutcomes: MethodOutcomeSignal[],
+  conceptReviewSchedule: ConceptReviewDirective[],
+  scaffoldProgression: ScaffoldProgressionSignal[],
+  sessionDeliveryPolicy: SessionDeliveryPolicy,
+): { failedValidator: GenerationValidator; detail: string } | null {
   const scheduledRetrieval = isScheduledRetrievalSession(context.session);
   const practiceVariation = buildPracticeVariationContract({
     topics: context.knowledgeTopics,
@@ -1051,54 +1071,64 @@ export function validateGeneratedSession(
     })
     : null;
 
-  return validateSessionTimeBudget(draft, context.session.estimatedMinutes)
-    ?? validateSessionCoverageFidelity(draft, context.session)
-    ?? streamedLessonScopeIssue
-    ?? validateLearningScienceRoutingSelection(draft.methodBriefing, learningScienceRouting)
-    ?? validateSessionAdjustmentFidelity(draft, context.sessionAdjustment)
-    ?? activityFormatIssue
-    ?? validateSessionQuestionContext(draft)
-    ?? validateSessionContentSpecificity({
+  const checks: Array<[GenerationValidator, string | null]> = [
+    ["session_time_budget", validateSessionTimeBudget(draft, context.session.estimatedMinutes)],
+    ["session_coverage_fidelity", validateSessionCoverageFidelity(draft, context.session)],
+    ["streamed_lesson_scope", streamedLessonScopeIssue],
+    ["learning_science_routing", validateLearningScienceRoutingSelection(draft.methodBriefing, learningScienceRouting)],
+    ["session_adjustment_fidelity", validateSessionAdjustmentFidelity(draft, context.sessionAdjustment)],
+    ["session_activity_mix", activityFormatIssue],
+    ["session_question_context", validateSessionQuestionContext(draft)],
+    ["session_content_specificity", validateSessionContentSpecificity({
       draft,
       goalTopic: context.learningGoal.topic,
       sessionObjective: context.session.objective,
-    })
-    ?? (scheduledRetrieval ? null : validateSessionDeliveryPolicy({
+    })],
+    ["session_delivery_policy", scheduledRetrieval ? null : validateSessionDeliveryPolicy({
       policy: sessionDeliveryPolicy,
       learningMode: draft.methodBriefing.learningMode,
       activities: draft.activities,
-    }))
-    ?? validateSessionCompletionContract({
+    })],
+    ["session_completion_contract", validateSessionCompletionContract({
       essentialIdeas: draft.coverage.essentialIdeas,
       evidenceMap: draft.coverage.evidenceMap,
       activities: draft.activities,
-    })
-    ?? validateSubstantiveTeaching(draft)
-    ?? validateVisibleAdaptation(draft.methodBriefing.personalization, sessionDeliveryPolicy)
-    ?? validateOutsideAppGuidance(draft, context.learningGoal.studyMode)
-    ?? validateSessionSourceGrounding({
+    })],
+    ["session_substantive_teaching", validateSubstantiveTeaching(draft)],
+    ["session_visible_adaptation", validateVisibleAdaptation(draft.methodBriefing.personalization, sessionDeliveryPolicy)],
+    ["session_outside_app_guidance", validateOutsideAppGuidance(draft, context.learningGoal.studyMode)],
+    ["session_source_grounding", validateSessionSourceGrounding({
       sourceMode: context.learningGoal.sourceMode,
       materials: context.materials,
       grounding: draft.sourceGrounding,
-    }) ?? (scheduledRetrieval ? null : validateMethodFidelity({
-    methodId: draft.methodBriefing.methodId,
-    learningMode: draft.methodBriefing.learningMode,
-    activities: draft.activities,
-  })) ?? validateMethodOutcomeAdaptation({
-    methodId: draft.methodBriefing.methodId,
-    personalization: draft.methodBriefing.personalization,
-    signals: observedMethodOutcomes,
-  }) ?? validateConceptReviewSchedule({
-    schedule: conceptReviewSchedule,
-    activities: draft.activities,
-  }) ?? validatePracticeVariation({
-    contract: practiceVariation,
-    activities: draft.activities,
-    isScheduledReview: scheduledRetrieval,
-  }) ?? (scheduledRetrieval ? null : validateScaffoldProgression({
-    signals: scaffoldProgression,
-    activities: draft.activities,
-  }));
+    })],
+    ["session_method_fidelity", scheduledRetrieval ? null : validateMethodFidelity({
+      methodId: draft.methodBriefing.methodId,
+      learningMode: draft.methodBriefing.learningMode,
+      activities: draft.activities,
+    })],
+    ["session_method_outcome_adaptation", validateMethodOutcomeAdaptation({
+      methodId: draft.methodBriefing.methodId,
+      personalization: draft.methodBriefing.personalization,
+      signals: observedMethodOutcomes,
+    })],
+    ["session_concept_review_schedule", validateConceptReviewSchedule({
+      schedule: conceptReviewSchedule,
+      activities: draft.activities,
+    })],
+    ["session_practice_variation", validatePracticeVariation({
+      contract: practiceVariation,
+      activities: draft.activities,
+      isScheduledReview: scheduledRetrieval,
+    })],
+    ["session_scaffold_progression", scheduledRetrieval ? null : validateScaffoldProgression({
+      signals: scaffoldProgression,
+      activities: draft.activities,
+    })],
+  ];
+
+  const failure = checks.find(([, detail]) => detail !== null);
+  return failure ? { failedValidator: failure[0], detail: failure[1]! } : null;
 }
 
 export function validateSessionCoverageFidelity(
