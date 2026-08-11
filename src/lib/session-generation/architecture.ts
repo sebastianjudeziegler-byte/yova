@@ -39,10 +39,10 @@ export function usesStreamedTeaching(value: unknown) {
 }
 
 /**
- * The subject-specific browser lessons predate streamed teaching and do not
- * carry topic ids or lesson briefs. They are safe only for legacy plans. A
- * streamed plan must preserve its exact topic and surface a retryable error
- * instead of silently substituting unrelated demo content.
+ * Unscoped subject-specific browser lessons predate streamed teaching and are
+ * safe only for legacy plans. Modern emergency recovery must instead use the
+ * exact-session allowlist, full-coverage gate, and conservative topic-evidence
+ * binding in built-in-fallback.ts.
  */
 export function allowsLegacySessionFallback(value: unknown) {
   return !usesStreamedTeaching(value);

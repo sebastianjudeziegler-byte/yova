@@ -22,6 +22,7 @@ import {
 import { buildScaffoldProgressionSignals } from "@/lib/learning/scaffold-progression";
 import { expandedLearnerContextFromAnswers } from "@/lib/personalization/learner-profile";
 import type { PreviewSessionGenerationContext } from "@/lib/session-generation/schema";
+import type { SessionAdjustment } from "@/lib/session-generation/schema";
 import { resolveSessionArchitectureVersion } from "@/lib/session-generation/architecture";
 
 export function buildPreviewSessionContext({
@@ -30,12 +31,14 @@ export function buildPreviewSessionContext({
   onboardingAnswers,
   completions,
   interruptions,
+  sessionAdjustment = null,
 }: {
   plan: LearningPlan;
   session: LearningPlanSession;
   onboardingAnswers: string[];
   completions: SessionCompletion[];
   interruptions: SessionInterruption[];
+  sessionAdjustment?: SessionAdjustment | null;
 }): PreviewSessionGenerationContext {
   const recentCompletions = completions
     .filter((completion) => completion.planId === plan.id)
@@ -48,6 +51,7 @@ export function buildPreviewSessionContext({
     planLearningIntent: plan.learningIntent,
     plannedMode: session.learningMode,
     completedSessionCount: recentCompletions.length,
+    familiarity: sessionAdjustment?.familiarity ?? null,
   });
   const repairedTeachingStart = effectiveLearningMode === "learn" && session.learningMode !== "learn"
     ? teachingFirstSessionCopy(plan.topic)

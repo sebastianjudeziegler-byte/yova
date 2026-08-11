@@ -170,7 +170,13 @@ import {
   createLessonRuntimeState,
   type LessonRuntimeState,
 } from "@/lib/session-generation/lesson-runtime";
-import { allowsLegacySessionFallback } from "@/lib/session-generation/architecture";
+import {
+  builtInFallbackSupportsAdjustment,
+  builtInLessonCoversTarget,
+  builtInLessonFitsTime,
+  builtInSessionFallbackKind,
+  builtInTopicEvidenceId,
+} from "@/lib/session-generation/built-in-fallback";
 import { buildPreviewSessionContext } from "@/lib/session-generation/preview-context";
 import { toSessionResource } from "@/lib/session-generation/resource";
 import { polishActivityLabel } from "@/lib/session-generation/typography";
@@ -223,7 +229,7 @@ type AgendaEntry = { plan: LearningPlan; session: LearningPlanSession };
 // The server may make one bounded repair attempt after validating a lesson.
 // The client must wait long enough to receive that safe result instead of
 // aborting an otherwise healthy request halfway through the repair.
-const CLIENT_SESSION_GENERATION_TIMEOUT_MS = 75_000;
+const CLIENT_SESSION_GENERATION_TIMEOUT_MS = 110_000;
 
 const navItems: Array<{ label: Tab; icon: typeof Home }> = [
   { label: "Home", icon: Home },
@@ -709,18 +715,20 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
     sessionGenerationAbortRef.current?.abort();
     const generationController = new AbortController();
     sessionGenerationAbortRef.current = generationController;
+    const clientRequestId = crypto.randomUUID();
     let generationTimedOut = false;
     const generationTimeoutId = window.setTimeout(() => {
       generationTimedOut = true;
       generationController.abort();
     }, CLIENT_SESSION_GENERATION_TIMEOUT_MS);
-    let requestId: string | null = null;
+    let requestId: string | null = clientRequestId;
 
     try {
       const response = await fetch("/api/sessions/generate", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "X-Yova-Request-Id": clientRequestId,
           ...(browserPreviewMode ? { "X-Yova-Development-Preview": "guided-session" } : {}),
         },
         body: JSON.stringify({
@@ -734,12 +742,13 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
               onboardingAnswers: answers,
               completions: sessionCompletions,
               interruptions: sessionInterruptions,
+              sessionAdjustment: adjustment ?? null,
             }),
           } : {}),
         }),
         signal: generationController.signal,
       });
-      requestId = response.headers.get("X-Yova-Request-Id");
+      requestId = response.headers.get("X-Yova-Request-Id") ?? requestId;
       const generationLatencyMs = readBoundedIntegerHeader(response, "X-Yova-Generation-Ms", 180_000);
       const generationAttempts = readBoundedIntegerHeader(response, "X-Yova-Generation-Attempts", 3);
       const promptCacheHit = response.headers.get("X-Yova-Prompt-Cache-Hit") === "true";
@@ -826,12 +835,55 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
         : error instanceof Error
           ? error.message
           : "YOVA could not generate this session.";
-      const fallbackSteps = allowsLegacySessionFallback(requestedPlan)
+      const fallbackContext = buildPreviewSessionContext({
+        plan: requestedPlan,
+        session: requestedSession,
+        onboardingAnswers: answers,
+        completions: sessionCompletions,
+        interruptions: sessionInterruptions,
+        sessionAdjustment: adjustment ?? null,
+      });
+      const fallbackSession: LearningPlanSession = {
+        ...requestedSession,
+        title: fallbackContext.session.title,
+        objective: fallbackContext.session.objective,
+        method: fallbackContext.session.method,
+        methodReason: fallbackContext.session.methodReason,
+        estimatedMinutes: adjustment?.availableMinutes ?? fallbackContext.session.estimatedMinutes,
+        learningMode: fallbackContext.session.learningMode,
+        topicIds: fallbackContext.session.topicIds,
+        contentTargets: fallbackContext.session.contentTargets,
+        completionEvidence: fallbackContext.session.completionEvidence,
+      };
+      const fallbackTemplate = (
+        builtInFallbackSupportsAdjustment(adjustment)
         && !isScheduledRetrievalSession(requestedSession)
-        ? subjectSpecificLessonStepsFor(requestedPlan)
+      )
+        ? subjectSpecificLessonStepsFor(requestedPlan, fallbackSession)
+        : null;
+      const fallbackSteps = fallbackTemplate
+        ? bindBuiltInLessonToSession(
+          fallbackTemplate,
+          fallbackSession,
+          requestedPlan.studyMode,
+        )
         : null;
       if (!fallbackSteps) {
-        setSessionGenerationIssue(message);
+        setSessionGenerationIssue(`${message}${requestId ? ` Reference: ${requestId}.` : ""}`);
+        setStage("session-error");
+        return;
+      }
+      if (!builtInLessonFitsTime(fallbackSteps, fallbackSession.estimatedMinutes)) {
+        setSessionGenerationIssue(`${message}${requestId ? ` Reference: ${requestId}.` : ""}`);
+        setStage("session-error");
+        return;
+      }
+      const fallbackCoverage = fallbackCoverageFor(fallbackSession, fallbackSteps);
+      if (
+        requestedPlan.studyMode === "inside_yova"
+        && fallbackCoverage.deferredContent.length > 0
+      ) {
+        setSessionGenerationIssue(`${message}${requestId ? ` Reference: ${requestId}.` : ""}`);
         setStage("session-error");
         return;
       }
@@ -844,26 +896,18 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
           type: step.type,
           concept: step.concept,
         })),
-        learningMode: requestedSession.learningMode,
-      });
-      const fallbackCoverage = fallbackCoverageFor(requestedSession, fallbackSteps);
-      const fallbackContext = buildPreviewSessionContext({
-        plan: requestedPlan,
-        session: requestedSession,
-        onboardingAnswers: answers,
-        completions: sessionCompletions,
-        interruptions: sessionInterruptions,
+        learningMode: fallbackSession.learningMode,
       });
       const fallbackDeliveryPolicy = buildSessionDeliveryPolicy({
         learnerProfile: fallbackContext.learnerProfile,
         recentResults: fallbackContext.recentResults,
         recentInterruptions: fallbackContext.recentInterruptions,
-        learningMode: requestedSession.learningMode,
-        estimatedMinutes: adjustment?.availableMinutes ?? requestedSession.estimatedMinutes,
+        learningMode: fallbackSession.learningMode,
+        estimatedMinutes: adjustment?.availableMinutes ?? fallbackSession.estimatedMinutes,
       });
-      const fallbackMethodBriefing = buildFallbackMethodBriefing(requestedPlan, requestedSession, fallbackDeliveryPolicy);
+      const fallbackMethodBriefing = buildFallbackMethodBriefing(requestedPlan, fallbackSession, fallbackDeliveryPolicy);
       const fallbackResource = {
-        ...reusableResourceFromLessonSteps(fallbackSteps, requestedSession.methodReason),
+        ...reusableResourceFromLessonSteps(fallbackSteps, fallbackSession.methodReason),
         coverage: fallbackCoverage,
         methodBriefing: fallbackMethodBriefing,
         deliveryPolicy: fallbackDeliveryPolicy,
@@ -878,13 +922,13 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
       const restoredLesson = restoreInterruptedLesson(fallbackSteps, resumePoint);
       setGeneratedLessonSteps(restoredLesson.steps);
       setSessionStep(restoredLesson.step);
-      setSessionRationale(requestedSession.methodReason);
+      setSessionRationale(fallbackSession.methodReason);
       setSessionCoverage(fallbackCoverage);
       setSessionMethodBriefing(fallbackMethodBriefing);
       setSessionDeliveryPolicy(fallbackDeliveryPolicy);
       setSessionSupportPlan(fallbackSupportPlan);
       setSessionSourceGrounding(null);
-      setSessionGenerationIssue(`${message} A safe built-in session was loaded instead.`);
+      setSessionGenerationIssue(`${message} A safe built-in session was loaded instead.${requestId ? ` Reference: ${requestId}.` : ""}`);
       beginTimedSession(requestedPlan, Boolean(resumePoint));
     } finally {
       window.clearTimeout(generationTimeoutId);
@@ -3135,6 +3179,7 @@ function reusableResourceFromLessonSteps(steps: LessonStep[], rationale: string)
     generatedAt: new Date().toISOString(),
     origin: "built_in",
     activities: steps.map((step) => ({
+      topicId: step.topicId,
       methodPhase: step.methodPhase,
       estimatedMinutes: step.estimatedMinutes,
       requiredForCompletion: step.requiredForCompletion,
@@ -3152,25 +3197,44 @@ function reusableResourceFromLessonSteps(steps: LessonStep[], rationale: string)
 }
 
 function fallbackCoverageFor(session: LearningPlanSession, steps: LessonStep[]): SessionCoverage {
-  const ideas = session.contentTargets?.length
-    ? session.contentTargets.slice(0, session.estimatedMinutes <= 15 ? 2 : 4)
-    : [session.objective];
-  const checkConcepts = [...new Set(steps
-    .filter((step) => step.type === "multiple_choice" || step.type === "free_response")
-    .map((step) => step.concept)
-    .filter((concept): concept is string => Boolean(concept)))];
+  const evidence = steps.flatMap((step) => (
+    (step.type === "multiple_choice" || step.type === "free_response")
+      && step.concept
+      && step.correctAnswer
+      ? [{
+        essentialIdea: boundedFallbackIdea(step.correctAnswer),
+        activityConcept: step.concept,
+      }]
+      : []
+  )).slice(0, 4);
+  const resolvedEvidence = evidence.length > 0
+    ? evidence
+    : [{
+      essentialIdea: boundedFallbackIdea(session.objective),
+      activityConcept: session.objective,
+    }];
   return {
     focus: session.objective,
-    essentialIdeas: ideas,
-    completionEvidence: session.completionEvidence?.length
-      ? session.completionEvidence.slice(0, 3)
-      : ["Complete the independent check and identify any idea that still needs review."],
-    evidenceMap: ideas.map((idea, index) => ({
-      essentialIdea: idea,
-      activityConcept: checkConcepts[index] ?? checkConcepts[0] ?? session.objective,
-    })),
-    deferredContent: [],
+    essentialIdeas: resolvedEvidence.map((item) => item.essentialIdea),
+    completionEvidence: resolvedEvidence.slice(0, 3)
+      .map((item) => `Demonstrate ${item.activityConcept}`),
+    evidenceMap: resolvedEvidence,
+    deferredContent: (session.contentTargets ?? [])
+      .filter((target) => !fallbackLessonCoversTarget(steps, target))
+      .slice(0, 4),
   };
+}
+
+function fallbackLessonCoversTarget(steps: LessonStep[], target: string) {
+  return builtInLessonCoversTarget(steps, target);
+}
+
+function boundedFallbackIdea(value: string) {
+  const normalized = value.trim();
+  if (normalized.length <= 180) return normalized;
+  const slice = normalized.slice(0, 180);
+  const lastSpace = slice.lastIndexOf(" ");
+  return slice.slice(0, lastSpace > 120 ? lastSpace : 180).trimEnd();
 }
 
 function lessonStepsFor(plan: LearningPlan | null): LessonStep[] {
@@ -3186,12 +3250,47 @@ function lessonStepsFor(plan: LearningPlan | null): LessonStep[] {
   }];
 }
 
-function subjectSpecificLessonStepsFor(plan: LearningPlan | null): LessonStep[] | null {
+function bindBuiltInLessonToSession(
+  steps: LessonStep[],
+  session: LearningPlanSession,
+  studyMode: LearningPlan["studyMode"],
+): LessonStep[] {
+  // Only bind evidence when the session has one unambiguous topic. For a
+  // multi-topic fallback, leaving the ID unset is safer than crediting every
+  // answer to whichever topic happens to appear first.
+  const coversEntireScope = Boolean(session.contentTargets?.length)
+    && (session.contentTargets ?? []).every((target) => fallbackLessonCoversTarget(steps, target));
+  const primaryTopicId = builtInTopicEvidenceId({
+    studyMode,
+    topicIds: session.topicIds ?? [],
+    coversEntireScope,
+  });
+  return steps.map((step) => ({
+    ...step,
+    topicId: step.topicId
+      ?? (step.type === "multiple_choice" || step.type === "free_response" ? primaryTopicId : null),
+  }));
+}
+
+function subjectSpecificLessonStepsFor(
+  plan: LearningPlan | null,
+  requestedSession?: LearningPlanSession,
+): LessonStep[] | null {
   if (!plan) return null;
 
-  const current = plan.sessions.find((session) => session.status === "ready") ?? plan.sessions.find((session) => session.status === "upcoming");
+  const current = requestedSession
+    ?? plan.sessions.find((session) => session.status === "ready")
+    ?? plan.sessions.find((session) => session.status === "upcoming");
+  if (!current) return null;
+  const fallbackKind = builtInSessionFallbackKind({
+    planTopic: plan.topic,
+    studyMode: plan.studyMode,
+    sessionTitle: current.title,
+    sessionObjective: current.objective,
+    contentTargets: current.contentTargets ?? [],
+  });
 
-  if (plan.studyMode === "outside_yova") {
+  if (fallbackKind === "outside_source") {
     return [
       lessonInstruction("Set up", "Prepare your outside study block", `Open the material you use for ${plan.topic}. Keep only that source and a place to work visible.`, "orient"),
       lessonInstruction("Your task", current?.title ?? "Complete the planned work", `${current?.objective ?? "Work through the next planned objective."} Use ${current?.method.toLowerCase() ?? "the selected method"} for about ${current?.estimatedMinutes ?? 20} minutes.`, "independent_practice"),
@@ -3201,11 +3300,11 @@ function subjectSpecificLessonStepsFor(plan: LearningPlan | null): LessonStep[] 
     ];
   }
 
-  if (current?.learningMode === "learn") {
-    return teachingFirstLessonStepsFor(plan);
+  if (current.learningMode === "learn") {
+    return teachingFirstLessonStepsFor(fallbackKind);
   }
 
-  if (/biology|photosynthesis|cellular respiration/i.test(plan.topic)) {
+  if (fallbackKind === "cellular_respiration_sequence") {
     return [
       lessonInstruction("Set up", "Closed-note retrieval", "Try to produce each answer before looking. Review only what you miss, then retry the missed item later.", "orient"),
       lessonQuestion("Question 1 of 2", "Which stage of cellular respiration happens first?", "Answer from memory. Familiarity is not the same as being able to retrieve it.", ["Glycolysis", "Krebs cycle", "Electron transport chain", "Fermentation"], "Glycolysis", "Glycolysis is the first stage and begins breaking glucose down before the Krebs cycle and electron transport chain.", "Cellular respiration sequence", "retrieve"),
@@ -3215,16 +3314,16 @@ function subjectSpecificLessonStepsFor(plan: LearningPlan | null): LessonStep[] 
     ];
   }
 
-  if (/world war (?:i|1)|wwi|first world war/i.test(plan.topic)) {
+  if (fallbackKind === "wwi_outbreak") {
     return [
-      lessonQuestion("Recall", "What turned the Sarajevo assassination into a European war?", "Choose the explanation that connects the immediate trigger to the wider political system.", ["Alliance commitments, mobilization plans, and decisions during the July Crisis widened the conflict", "The assassination automatically forced every European country to declare war", "European alliances had already legally required a world war for decades", "The conflict spread only because the United States entered immediately"], "Alliance commitments, mobilization plans, and decisions during the July Crisis widened the conflict", "The assassination was the trigger. Ultimatums, alliance commitments, military mobilizations, and government decisions during the July Crisis expanded a regional dispute into a wider war.", "World War I escalation", "retrieve"),
-      lessonQuestion("Distinguish", "Which statement best separates a long-term cause from the immediate trigger?", "Identify the background tension and the event that activated the crisis.", ["Militarism and alliance rivalry were long-term causes; the assassination of Archduke Franz Ferdinand was the immediate trigger", "The assassination was a long-term cause; trench warfare was the immediate trigger", "The Treaty of Versailles was a long-term cause; nationalism was the trigger", "United States entry was a long-term cause; imperialism was the trigger"], "Militarism and alliance rivalry were long-term causes; the assassination of Archduke Franz Ferdinand was the immediate trigger", "Militarism, alliance rivalry, imperial competition, and nationalism raised tension over time. The June 1914 assassination triggered the July Crisis that led to war.", "Long-term causes and immediate trigger", "discriminate"),
-      lessonFreeResponse("Explain", "Explain how a regional crisis became a wider war", "Connect the assassination, Austria-Hungary's response to Serbia, mobilization, and the alliance system in a short cause-and-effect explanation.", "After Archduke Franz Ferdinand was assassinated, Austria-Hungary issued an ultimatum to Serbia and then declared war. Russian mobilization in support of Serbia, German support for Austria-Hungary, and declarations of war involving France and Belgium widened the regional crisis into a European war.", "A complete explanation connects the trigger to government decisions, mobilization, and alliances rather than treating the assassination as the only cause.", "July Crisis escalation", "transfer"),
+      lessonQuestion("Recall", "What turned the Sarajevo assassination into a European war?", "Trace the sequence from the immediate trigger to the wider political system.", ["Alliance commitments, mobilization plans, and decisions during the July Crisis widened the conflict", "The assassination automatically forced every European country to declare war", "European alliances had already legally required a world war for decades", "The conflict spread only because the United States entered immediately"], "Alliance commitments, mobilization plans, and decisions during the July Crisis widened the conflict", "The Sarajevo assassination was the trigger. Ultimatums, alliance commitments, military mobilizations, and declarations of war during the July Crisis expanded a regional dispute into a wider war.", "World War I escalation", "retrieve"),
+      lessonQuestion("Distinguish", "Which statement best separates a long-term cause from the immediate trigger?", "Identify the background tension and the event that activated the crisis.", ["Militarism and alliance rivalry were long-term causes; the assassination of Archduke Franz Ferdinand was the immediate trigger", "The assassination was a long-term cause; trench warfare was the immediate trigger", "The Treaty of Versailles was a long-term cause; nationalism was the trigger", "United States entry was a long-term cause; imperialism was the trigger"], "Militarism and alliance rivalry were long-term causes; the assassination of Archduke Franz Ferdinand was the immediate trigger", "Prewar European alliances and tensions included militarism, alliance rivalry, imperial competition, and nationalism. The June 1914 assassination triggered the July Crisis that led to war.", "Long-term causes and immediate trigger", "discriminate"),
+      lessonFreeResponse("Explain", "Explain how a regional crisis became a wider war", "Connect the assassination, Austria-Hungary's response to Serbia, mobilization, and the alliance system, then give the basic chronology from 1914 to 1918.", "After Archduke Franz Ferdinand was assassinated, Austria-Hungary issued an ultimatum to Serbia and then declared war. Russian mobilization, German support for Austria-Hungary, and declarations of war involving France and Belgium widened the crisis. A basic chronology runs from the 1914 outbreak and stalemate, through the United States entry and Russian Revolution in 1917, to the armistice in 1918.", "A complete explanation connects the trigger to government decisions, mobilization, and alliances, then anchors the chronology in 1914, 1917, and 1918.", "July Crisis escalation and chronology", "transfer"),
       lessonInstruction("Repair", "Keep causes, trigger, and escalation separate", "Long-term tensions made Europe vulnerable to war. The assassination triggered the July Crisis. Ultimatums, mobilizations, alliance commitments, and declarations of war expanded the conflict.", "repair"),
     ];
   }
 
-  if (/product rule/i.test(plan.topic)) {
+  if (fallbackKind === "product_rule") {
     return [
       lessonInstruction("Set up", "Recall the product-rule structure", "Try each step before looking back at the rule. The goal is to choose and apply both terms, not only recognize the formula.", "orient"),
       lessonQuestion("Structure check", "Which expression correctly applies the product rule?", "Differentiate each factor once while the other factor stays in place.", ["$f'g + fg'$", "$f'g'$", "$fg'$", "$f'g$"], "$f'g + fg'$", "The product rule adds two terms: first $f'g$, then $fg'$.", "Product rule structure", "retrieve"),
@@ -3234,16 +3333,16 @@ function subjectSpecificLessonStepsFor(plan: LearningPlan | null): LessonStep[] 
     ];
   }
 
-  if (/startup.*fund|funding.*startup|bootstrapp|pre-seed|term sheet|founder dilution/i.test(plan.topic)) {
+  if (fallbackKind === "startup_funding") {
     return [
       lessonQuestion("Recall", "Which choice best describes bootstrapping?", "Choose the funding path that relies on the founders or the company instead of a new outside investor.", ["Using founder savings or business revenue", "Selling shares in a priced equity round", "Borrowing from a lender", "Signing a term sheet with a venture fund"], "Using founder savings or business revenue", "Bootstrapping uses founder resources or operating revenue, so the company can delay taking outside capital and giving up ownership or repayment rights.", "Bootstrapping and outside capital", "retrieve"),
       lessonQuestion("Distinguish", "What is the central tradeoff in an equity round?", "A startup receives capital from an investor in exchange for shares. Identify the founder-side tradeoff.", ["The company must repay principal every month", "The founders own a smaller percentage after new shares are issued", "The investor cannot receive governance rights", "The company keeps the same ownership percentages forever"], "The founders own a smaller percentage after new shares are issued", "Equity financing can fund growth, but issuing new shares reduces the percentage owned by existing holders. That reduction is dilution.", "Equity dilution", "discriminate"),
       lessonFreeResponse("Apply", "Choose a sensible next funding step", "A founder has a prototype, early user interest, and needs capital to test demand before a full seed round. Explain one plausible funding path and its tradeoff.", "One plausible path is a pre-seed SAFE or convertible instrument. It can provide capital before a priced equity round, but it creates a future claim that can convert into equity and dilute existing owners.", "A strong response names a stage-appropriate instrument, explains what the startup receives now, and identifies a future ownership or repayment consequence.", "Funding stage and instrument choice", "transfer"),
-      lessonInstruction("Repair", "Keep stages, instruments, and tradeoffs separate", "A funding stage describes when and why capital is raised. An instrument describes the legal or financial claim the provider receives. Dilution describes how issuing or converting equity changes ownership percentages.", "repair"),
+      lessonInstruction("Repair", "Keep stages, instruments, and tradeoffs separate", "A funding stage describes when and why capital is raised. An instrument describes the legal or financial claim the provider receives. Dilution describes how issuing or converting equity changes founder ownership percentages. Term sheet terms summarize proposed economics and control rights for founders and investors.", "repair"),
     ];
   }
 
-  if (/finance|investing|budget|credit|interest/i.test(plan.topic)) {
+  if (fallbackKind === "budget_and_compound_growth") {
     return [
       lessonInstruction("Set up", "Build the decision framework", "Start with the practical purpose of each concept. The goal is to make a sound decision, not merely recognize vocabulary.", "orient"),
       lessonQuestion("Question 1 of 2", "What is the main purpose of a budget?", "Choose the answer that describes an active decision tool.", ["Direct money toward priorities and constraints", "Predict every future expense perfectly", "Eliminate all optional spending", "Track only large purchases"], "Direct money toward priorities and constraints", "A budget is a decision tool for directing limited money toward priorities and known constraints.", "Purpose of a budget", "retrieve"),
@@ -3256,21 +3355,26 @@ function subjectSpecificLessonStepsFor(plan: LearningPlan | null): LessonStep[] 
   return null;
 }
 
-function teachingFirstLessonStepsFor(plan: LearningPlan): LessonStep[] | null {
-  if (/world war (?:i|1)|wwi|first world war/i.test(plan.topic)) {
+function teachingFirstLessonStepsFor(
+  fallbackKind: ReturnType<typeof builtInSessionFallbackKind>,
+): LessonStep[] | null {
+  if (fallbackKind === "wwi_outbreak") {
     return [
       lessonTeachingInstruction(
         "Learn",
         "Build the World War I cause map",
-        "World War I began when long-term European tensions interacted with a specific political crisis in 1914.",
-        "Militarism increased armies and made rapid mobilization central to national plans. Alliance systems linked the security decisions of several countries. Imperial rivalry and nationalism created recurring tension. The assassination of Archduke Franz Ferdinand did not mechanically cause the entire war by itself. It triggered the July Crisis, when leaders chose ultimatums, mobilization, and declarations of war that widened the conflict.",
+        "World War I began when prewar European alliances and tensions interacted with a specific political crisis in 1914; its basic chronology then runs to the 1918 armistice.",
+        "Militarism increased armies and made rapid mobilization central to national plans. Alliance systems linked the security decisions of several countries. Imperial rivalry and nationalism created recurring tension. The assassination of Archduke Franz Ferdinand did not mechanically cause the entire war by itself. It triggered the July Crisis, when leaders chose ultimatums, mobilization, and declarations of war that widened the conflict. The basic chronology continues from the 1914 outbreak and Western Front stalemate, through the United States entry and Russian Revolution in 1917, to the armistice in 1918.",
         {
-          setup: "Trace the crisis from Sarajevo to a wider European war.",
+          setup: "Trace the sequence from the Sarajevo assassination and declarations of war to the basic chronology from 1914 to 1918.",
           steps: [
             "On June 28, 1914, a Bosnian Serb nationalist assassinated Archduke Franz Ferdinand of Austria-Hungary in Sarajevo.",
             "Austria-Hungary, supported by Germany, issued a severe ultimatum to Serbia and declared war after Serbia did not accept every demand.",
             "Russia mobilized in support of Serbia. Germany declared war on Russia and France and invaded Belgium as part of its military plan.",
             "Britain entered after Germany invaded neutral Belgium, turning the regional crisis into a wider European war.",
+            "The war settled into costly stalemate on the Western Front while fighting continued on several fronts.",
+            "In 1917, the United States entered the war and revolution led Russia to leave it.",
+            "In 1918, failed German offensives and Allied counterattacks preceded the November armistice.",
           ],
           takeaway: "The assassination was the trigger. The war widened because existing tensions shaped the choices governments made during the July Crisis.",
         },
@@ -3280,12 +3384,12 @@ function teachingFirstLessonStepsFor(plan: LearningPlan): LessonStep[] | null {
         },
       ),
       lessonQuestion("Try", "Which explanation best describes the outbreak of World War I?", "Use the cause map, then choose the option that separates background causes from the immediate crisis.", ["Long-term tensions made Europe unstable, and decisions during the July Crisis widened the assassination crisis into war", "The assassination instantly and automatically forced every country to fight", "The Treaty of Versailles caused the war before it was signed", "The United States began the European alliance system in 1914"], "Long-term tensions made Europe unstable, and decisions during the July Crisis widened the assassination crisis into war", "Long-term pressures created risk, while the assassination and subsequent government decisions provided the immediate path into war.", "World War I causes and trigger", "guided_practice"),
-      lessonFreeResponse("Explain", "Rebuild the escalation in your own words", "Without reopening the model, explain how the assassination led from an Austria-Hungary and Serbia crisis to a wider European war.", "Austria-Hungary responded to the assassination with an ultimatum and a declaration of war against Serbia. Russian mobilization, German backing of Austria-Hungary, declarations of war against Russia and France, and the invasion of Belgium activated wider commitments and brought more powers into the conflict.", "The explanation should connect at least three steps in the escalation and show that government decisions and alliances widened the original crisis.", "July Crisis escalation", "independent_practice"),
+      lessonFreeResponse("Explain", "Rebuild the escalation in your own words", "Without reopening the model, explain how the assassination led from an Austria-Hungary and Serbia crisis to a wider European war, then anchor the basic chronology in 1914, 1917, and 1918.", "Austria-Hungary responded to the assassination with an ultimatum and a declaration of war against Serbia. Russian mobilization, German backing of Austria-Hungary, declarations of war against Russia and France, and the invasion of Belgium activated wider commitments. The basic chronology moves from the 1914 outbreak and stalemate, through United States entry and the Russian Revolution in 1917, to the armistice in 1918.", "The explanation should connect the escalation and correctly anchor the chronology in 1914, 1917, and 1918.", "July Crisis escalation and chronology", "independent_practice"),
       lessonInstruction("Return", "Retrieve the map after a delay", "Later, rebuild three layers from memory: long-term tensions, the assassination as trigger, and the July Crisis decisions that widened the war.", "schedule_return"),
     ];
   }
 
-  if (/biology|photosynthesis|cellular respiration/i.test(plan.topic)) {
+  if (fallbackKind === "cellular_respiration_sequence") {
     return [
       lessonInstruction("Learn", "Build the cellular-respiration map", "Cellular respiration transfers energy from glucose into ATP across linked stages. Glycolysis begins in the cytoplasm. The Krebs cycle and electron transport chain follow in the mitochondrion.", "model"),
       lessonInstruction("Worked example", "Trace one glucose molecule", "Start with glycolysis splitting glucose into pyruvate. A bridging step converts pyruvate to acetyl-CoA, which enters the Krebs cycle. The cycle supplies high-energy carriers to the electron transport chain, where their energy supports most ATP production.", "model"),
@@ -3295,7 +3399,7 @@ function teachingFirstLessonStepsFor(plan: LearningPlan): LessonStep[] | null {
     ];
   }
 
-  if (/product rule/i.test(plan.topic)) {
+  if (fallbackKind === "product_rule") {
     return [
       lessonInstruction("Learn", "See the product rule before using it", "When two functions are multiplied, differentiate one while leaving the other unchanged. Then switch their roles and add the results: $\\frac{d}{dx}[f(x)g(x)] = f'(x)g(x) + f(x)g'(x)$.", "model"),
       lessonInstruction("Worked example", "Differentiate $x^2\\sin(x)$", "Differentiate $x^2$ and keep $\\sin(x)$: $2x\\sin(x)$. Then keep $x^2$ and differentiate $\\sin(x)$: $x^2\\cos(x)$. Add them: $2x\\sin(x) + x^2\\cos(x)$.", "model"),
@@ -3305,13 +3409,13 @@ function teachingFirstLessonStepsFor(plan: LearningPlan): LessonStep[] | null {
     ];
   }
 
-  if (/startup.*fund|funding.*startup|bootstrapp|pre-seed|term sheet|founder dilution/i.test(plan.topic)) {
+  if (fallbackKind === "startup_funding") {
     return [
       lessonTeachingInstruction(
         "Learn",
         "Build the startup funding map",
         "A funding decision connects the company stage, the amount and purpose of capital, the instrument, and what the capital provider receives in return.",
-        "Bootstrapping uses founder money or company revenue and preserves ownership, but it limits available resources. Outside funding can accelerate hiring, product work, or distribution. Equity gives investors ownership now. Debt creates repayment rights. SAFEs and convertible notes can create a future equity claim. When new equity is issued or converts, existing owners can hold a smaller percentage, which is dilution.",
+        "Bootstrapping uses founder money or company revenue and preserves ownership, but it limits available resources. Outside funding can accelerate hiring, product work, or distribution. Equity gives investors ownership now. Debt creates repayment rights. SAFEs and convertible notes can create a future equity claim. When new equity is issued or converts, existing owners can hold a smaller percentage, which is dilution. A term sheet summarizes proposed terms that can affect founders and investors before final documents are signed.",
         {
           setup: "Follow one founder from an idea to an early company.",
           steps: [
@@ -3333,7 +3437,7 @@ function teachingFirstLessonStepsFor(plan: LearningPlan): LessonStep[] | null {
     ];
   }
 
-  if (/finance|investing|budget|credit|interest/i.test(plan.topic)) {
+  if (fallbackKind === "budget_and_compound_growth") {
     return [
       lessonInstruction("Learn", "Use money concepts as decision tools", "A budget directs limited income toward priorities and constraints. Compound growth describes gains becoming part of the base that can produce future gains. Both concepts help compare choices over time.", "model"),
       lessonInstruction("Worked example", "Trace one financial choice", "If $100 earns 10%, it becomes $110. A second 10% gain is calculated from $110, not the original $100, producing $121. The earlier $10 gain joined the base and produced an additional gain.", "model"),

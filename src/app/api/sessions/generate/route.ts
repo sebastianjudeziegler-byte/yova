@@ -58,7 +58,7 @@ export const runtime = "nodejs";
 export const maxDuration = 120;
 
 export async function POST(request: Request) {
-  const requestId = crypto.randomUUID();
+  const requestId = generationRequestId(request);
   const startedAt = Date.now();
   const developmentPreview = isDevelopmentPreviewRequest(request);
   const supabase = isSupabaseConfigured() ? await createSupabaseServerClient() : null;
@@ -452,6 +452,13 @@ export async function POST(request: Request) {
       { status: 502, headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId } },
     );
   }
+}
+
+function generationRequestId(request: Request) {
+  const candidate = request.headers.get("X-Yova-Request-Id")?.trim() ?? "";
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(candidate)
+    ? candidate
+    : crypto.randomUUID();
 }
 
 async function generateBrowserPreviewSession(
