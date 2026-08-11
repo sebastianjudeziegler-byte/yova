@@ -617,6 +617,69 @@ describe("runtime session-window scoping", () => {
     expect(scoped.activities.filter((activity) => activity.type === "free_response")).toHaveLength(1);
     expect(scoped.activities.some((activity) => activity.type === "multiple_choice")).toBe(false);
     expect(() => StreamedGeneratedSessionDraftSchema.parse(scoped)).not.toThrow();
+
+    const secondTarget = "Sequence from the Sarajevo assassination to declarations of war";
+    const secondIdea = "The Sarajevo assassination triggered a crisis that escalated into declarations of war.";
+    const secondConcept = "Sarajevo escalation sequence";
+    const multiBlockDraft = StreamedGeneratedSessionDraftOutputSchema.parse({
+      ...outputParsed,
+      coverage: {
+        ...outputParsed.coverage,
+        essentialIdeas: [idea, secondIdea],
+        completionEvidence: [
+          ...outputParsed.coverage.completionEvidence,
+          "Explain how the assassination escalated into declarations of war",
+        ],
+        evidenceMap: [
+          ...outputParsed.coverage.evidenceMap,
+          { essentialIdea: secondIdea, activityConcept: secondConcept },
+        ],
+      },
+      activities: [
+        {
+          ...outputParsed.activities[0],
+          estimatedMinutes: 4,
+          title: "Build the prewar pressure model",
+          body: "Connect alliance pressure to the risk that a local crisis would spread.",
+        },
+        {
+          ...outputParsed.activities[0],
+          estimatedMinutes: 4,
+          title: "Trace the Sarajevo escalation",
+          body: "Follow the crisis from the assassination to the declarations of war.",
+          lessonBrief: { ...lessonBrief, essentialIdeas: [secondIdea] },
+        },
+        {
+          ...outputParsed.activities[1],
+          estimatedMinutes: 2,
+        },
+        {
+          ...outputParsed.activities[1],
+          estimatedMinutes: 2,
+          concept: secondConcept,
+          title: "Explain the Sarajevo escalation",
+          body: "Explain how the assassination escalated into declarations of war.",
+          correctAnswer: secondIdea,
+          feedback: "Connect the assassination, escalation, and declarations in order.",
+        },
+        outputParsed.activities[2],
+      ],
+    });
+    const scopedMultiBlock = scopeStreamedSkeletonToCurrentWindow({
+      draft: multiBlockDraft,
+      plannedTargets: [target, secondTarget, "Basic chronology from 1914 to 1918"],
+      estimatedMinutes: 15,
+      learnerDirection: null,
+    });
+    const teachingSurfaces = scopedMultiBlock.activities
+      .filter((activity) => activity.type === "instruction")
+      .map((activity) => `${activity.title} ${activity.body}`);
+
+    expect(teachingSurfaces).toEqual([
+      `Learn ${idea} Focus on this relationship: ${idea}`,
+      `Learn ${secondIdea} Focus on this relationship: ${secondIdea}`,
+    ]);
+    expect(new Set(teachingSurfaces).size).toBe(teachingSurfaces.length);
   });
 
   it("keeps a truly questionless intermediate skeleton invalid after scoping", async () => {

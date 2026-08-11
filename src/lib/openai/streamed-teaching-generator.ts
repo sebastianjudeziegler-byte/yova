@@ -942,10 +942,21 @@ function bindActivitiesToCurrentScope({
       const assignedIdeas = activity.lessonBrief.essentialIdeas.filter((idea) => (
         activeIdeaKeys.has(normalizedSubjectLabel(idea))
       ));
+      const blockFocus = (assignedIdeas.length > 0 ? assignedIdeas : activeIdeas)
+        .map(completeSubjectClaim)
+        .join(" ");
       return {
         ...activity,
-        title: boundedText(`Learn ${boundedTarget || "today's active ideas"}`, 140),
-        body: "Study this bounded explanation before completing the checks that follow.",
+        // Keep each wrapper tied to the idea allocated to that block. Reusing
+        // the whole session target here made distinct lessons render as exact
+        // duplicate screens.
+        title: boundedText(
+          `Learn ${assignedIdeas[0] || activeIdeas[0] || boundedTarget || "today's active idea"}`,
+          140,
+        ),
+        body: blockFocus
+          ? boundedText(`Focus on this relationship: ${blockFocus}`, 320)
+          : "Study this bounded explanation before completing the checks that follow.",
         lessonBrief: {
           ...activity.lessonBrief,
           essentialIdeas: assignedIdeas.length > 0 ? assignedIdeas : activeIdeas,
