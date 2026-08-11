@@ -59,14 +59,12 @@ export function reconcileSessionCompletionMap<T extends CompletionMappedDraft>(d
 }
 
 /**
- * A streamed skeleton occasionally returns a broad planning label such as
- * "the relationship among the listed sections" even though its required
- * question checks a concrete subject relationship. The strict validator is
- * right to reject that mismatch, but asking the model to rename the same pair
- * again is unreliable. Rebuild only the inaccurate entries from the actual
- * required question and preserve the displaced planning label as deferred
- * content. The downstream lesson call then teaches the concrete statement
- * that the learner will actually be asked to demonstrate.
+ * Reconcile completion evidence without changing what the session teaches.
+ * Question feedback can legitimately be broader than the time-scoped lesson
+ * (for example, a chronology check can mention later events that were
+ * explicitly deferred). It must therefore never replace an active essential
+ * idea after teaching time has already been allocated. Keep the active idea
+ * authoritative and only repair the activity concept it points to.
  */
 export function groundSessionEvidenceMap<T extends EvidenceGroundedDraft>(draft: T): T {
   const requiredActivities = draft.activities.filter((activity) => (
@@ -106,30 +104,17 @@ export function groundSessionEvidenceMap<T extends EvidenceGroundedDraft>(draft:
       continue;
     }
 
-    const replacementActivity = requiredActivities.find((candidate) => (
-      !claimedConcepts.has(normalize(candidate.concept ?? ""))
-    ));
-    if (!replacementActivity) {
-      displacedIdeas.push(idea);
-      continue;
-    }
-
-    const groundedIdea = groundedIdeaFromQuestion(replacementActivity);
-    nextIdeas.push(groundedIdea);
-    nextMap.push({ essentialIdea: groundedIdea, activityConcept: replacementActivity.concept! });
-    claimedConcepts.add(normalize(replacementActivity.concept ?? ""));
+    // Never attach an idea to the next unused question merely to complete the
+    // map. That makes the evidence record claim a question tested something it
+    // did not. A partial draft can defer the unmatched idea; a fully unmatched
+    // draft remains invalid so the normal repair attempt can regenerate it.
     displacedIdeas.push(idea);
   }
 
-  // A valid generated session always has at least one required check. This
-  // fallback also keeps older malformed drafts recoverable without weakening
-  // the semantic validator that runs immediately afterward.
-  if (nextIdeas.length === 0) {
-    const activity = requiredActivities[0]!;
-    const groundedIdea = groundedIdeaFromQuestion(activity);
-    nextIdeas.push(groundedIdea);
-    nextMap.push({ essentialIdea: groundedIdea, activityConcept: activity.concept! });
-  }
+  // Do not invent a new active teaching claim from an answer or feedback when
+  // an older malformed draft contains no essential ideas. The existing
+  // validators should reject that draft rather than silently widening scope.
+  if (nextIdeas.length === 0) return draft;
 
   return {
     ...draft,
@@ -156,15 +141,14 @@ export function validateSessionCompletionContract(
   const essentialIdeas = new Map(
     contract.essentialIdeas.map((idea) => [normalize(idea), idea.trim()]),
   );
-  const requiredConcepts = new Set(
-    contract.activities
-      .filter((activity) => (
-        activity.requiredForCompletion
-        && (activity.type === "multiple_choice" || activity.type === "free_response")
-        && activity.concept
-      ))
-      .map((activity) => normalize(activity.concept ?? "")),
-  );
+  const requiredActivities = contract.activities.filter((activity) => (
+    activity.requiredForCompletion
+    && (activity.type === "multiple_choice" || activity.type === "free_response")
+    && activity.concept
+  ));
+  const requiredConcepts = new Set(requiredActivities.map((activity) => (
+    normalize(activity.concept ?? "")
+  )));
   const mappedIdeas = new Set<string>();
 
   for (const mapping of contract.evidenceMap) {
@@ -180,6 +164,12 @@ export function validateSessionCompletionContract(
     if (!matchesRequiredConcept(mapping.activityConcept, requiredConcepts)) {
       return `The essential idea “${essentialIdeas.get(ideaKey)}” points to “${mapping.activityConcept},” but no required knowledge check uses that concept.`;
     }
+    const mappedActivities = requiredActivities.filter((activity) => (
+      conceptLabelsMatch(mapping.activityConcept, activity.concept ?? "")
+    ));
+    if (!mappedActivities.some((activity) => ideaIsVisibleInQuestion(mapping.essentialIdea, activity))) {
+      return `The required knowledge check mapped to “${essentialIdeas.get(ideaKey)}” does not visibly assess that essential idea.`;
+    }
   }
 
   const missingIdea = [...essentialIdeas.entries()].find(([key]) => !mappedIdeas.has(key));
@@ -188,6 +178,14 @@ export function validateSessionCompletionContract(
   }
 
   return null;
+}
+
+function conceptLabelsMatch(left: string, right: string) {
+  const normalizedLeft = normalize(left);
+  const normalizedRight = normalize(right);
+  return normalizedLeft === normalizedRight
+    || normalizedLeft.includes(normalizedRight)
+    || normalizedRight.includes(normalizedLeft);
 }
 
 function matchesRequiredConcept(value: string, requiredConcepts: Set<string>) {
@@ -256,30 +254,6 @@ function ideaIsVisibleInQuestion(
   const matches = ideaTokens.filter((token) => questionTokens.includes(token)).length;
   const threshold = ideaTokens.length <= 2 ? 1 : ideaTokens.length <= 5 ? 2 : 3;
   return matches >= threshold;
-}
-
-function groundedIdeaFromQuestion(
-  activity: SessionCompletionContract["activities"][number],
-) {
-  const answer = activity.correctAnswer?.trim() ?? "";
-  const feedback = activity.feedback?.trim() ?? "";
-  const concept = activity.concept?.trim() ?? "Key relationship";
-  // A multiple-choice answer is often a short noun phrase such as
-  // "Alliance commitments and mobilization." That is a valid choice, but it
-  // is not instructional substance. Prefer the already generated explanatory
-  // feedback so deterministic grounding cannot turn a complete lesson claim
-  // back into a chapter-style label before scope validation runs.
-  const candidate = looksLikeExplanatoryClaim(answer)
-    ? answer
-    : looksLikeExplanatoryClaim(feedback)
-      ? feedback
-      : `For ${concept}, the correct mechanism is ${answer || "the relationship named in the question"}.`;
-  return candidate.slice(0, 180).trim();
-}
-
-function looksLikeExplanatoryClaim(value: string) {
-  const words = value.match(/[\p{L}\p{N}][\p{L}\p{N}'’_-]*/gu) ?? [];
-  return words.length >= 5 && /\b(?:is|are|was|were|can|could|causes?|caused|connects?|connected|depends?|differentiates?|enables?|equals?|explains?|helps?|increases?|leads?|makes?|means?|produces?|provides?|requires?|results?|shapes?|supports?|transforms?|triggers?|turns?|uses?|widens?|because|through|when|while)\b/i.test(value);
 }
 
 function uniqueMappings(values: Array<{ essentialIdea: string; activityConcept: string }>) {

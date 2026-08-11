@@ -2,6 +2,7 @@ import { describe, expect, test, vi } from "vitest";
 import { buildSessionEvaluationCases } from "@/evals/session-cases";
 import { StreamedGeneratedSessionDraftSchema } from "@/lib/session-generation/schema";
 import { isRubricLikeReferenceAnswer } from "@/lib/session-generation/content-specificity";
+import { coverageTargetsMatch } from "@/lib/openai/session-generator";
 
 vi.mock("server-only", () => ({}));
 
@@ -15,20 +16,41 @@ describe.skipIf(!liveEvaluationEnabled)("live streamed World War I session skele
     );
     if (!evaluationCase) throw new Error("The exact World War I session case is missing.");
 
+    const context = {
+      ...evaluationCase.context,
+      session: {
+        ...evaluationCase.context.session,
+        estimatedMinutes: 15,
+      },
+      sessionAdjustment: {
+        familiarity: "need_teaching" as const,
+        availableMinutes: 15,
+        knownTargets: [],
+        note: "Teach the July Crisis cause chain first. Keep this session within 15 minutes and leave later-war topics for later sessions.",
+      },
+    };
+
+    const requestedRunCount = Number.parseInt(process.env.YOVA_LIVE_WWI_RUN_COUNT ?? "3", 10);
+    const runCount = Number.isFinite(requestedRunCount)
+      ? Math.min(3, Math.max(1, requestedRunCount))
+      : 3;
     const runs = [];
-    for (let run = 1; run <= 3; run += 1) {
+    for (let run = 1; run <= runCount; run += 1) {
       const startedAt = Date.now();
-      const result = await generateProductionSessionWithOpenAI(evaluationCase.context);
+      const result = await generateProductionSessionWithOpenAI(context);
       const draft = StreamedGeneratedSessionDraftSchema.parse(result.draft);
       const freeResponses = draft.activities.filter((activity) => activity.type === "free_response");
-
-      expect(draft.activities[0]?.type).toBe("instruction");
-      expect(freeResponses.length).toBeGreaterThan(0);
-      for (const activity of freeResponses) {
-        expect(isRubricLikeReferenceAnswer(activity.correctAnswer ?? "")).toBe(false);
-      }
-
-      runs.push({
+      const requiredFreeResponses = freeResponses.filter((activity) => activity.requiredForCompletion);
+      const plannedTargets = context.session.contentTargets ?? [];
+      const generatedCoverage = [
+        ...draft.coverage.essentialIdeas,
+        ...draft.coverage.deferredContent,
+      ];
+      const requiredMinutes = draft.activities
+        .filter((activity) => activity.requiredForCompletion)
+        .reduce((total, activity) => total + activity.estimatedMinutes, 0);
+      const activeActivityText = JSON.stringify(draft.activities);
+      const runStats = {
         run,
         elapsedMs: Date.now() - startedAt,
         attempts: result.generationStats.attempts,
@@ -36,7 +58,32 @@ describe.skipIf(!liveEvaluationEnabled)("live streamed World War I session skele
         repairAttempted: result.generationStats.repairAttempted,
         repairSucceeded: result.generationStats.repairSucceeded,
         failedValidator: result.generationStats.failedValidator,
-      });
+        repairDetail: result.generationStats.repairDetail,
+        requiredMinutes,
+        activeIdeas: draft.coverage.essentialIdeas,
+        deferredContent: draft.coverage.deferredContent,
+      };
+      console.info("WWI streamed skeleton run", runStats);
+
+      expect(draft.activities[0]?.type).toBe("instruction");
+      expect(freeResponses.length).toBeGreaterThan(0);
+      expect(requiredFreeResponses.length).toBeGreaterThan(0);
+      expect(requiredMinutes).toBeLessThanOrEqual(15);
+      expect(draft.coverage.deferredContent).toContain("Basic chronology from 1914 to 1918");
+      expect(activeActivityText).not.toMatch(/U\.S\. entry|United States entered|armistice|full 1914.{0,8}1918 chronology/i);
+      expect(JSON.stringify(draft.coverage.completionEvidence)).not.toMatch(
+        /U\.S\. entry|United States entered|armistice|full 1914.{0,8}1918 chronology/i,
+      );
+      for (const target of plannedTargets) {
+        expect(generatedCoverage.some((item) => (
+          coverageTargetsMatch(item, target) || coverageTargetsMatch(target, item)
+        ))).toBe(true);
+      }
+      for (const activity of freeResponses) {
+        expect(isRubricLikeReferenceAnswer(activity.correctAnswer ?? "")).toBe(false);
+      }
+
+      runs.push(runStats);
     }
 
     console.info("WWI streamed skeleton reliability", runs);

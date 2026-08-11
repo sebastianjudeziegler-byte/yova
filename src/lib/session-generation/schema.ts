@@ -350,9 +350,6 @@ export const GeneratedSessionDraftOutputSchema = z.object({
 });
 
 export const GeneratedSessionDraftSchema = GeneratedSessionDraftOutputSchema.superRefine((session, context) => {
-  if (!session.activities.some((activity) => activity.type === "multiple_choice")) {
-    context.addIssue({ code: "custom", path: ["activities"], message: "A guided session needs at least one knowledge check." });
-  }
   const firstActivity = session.activities[0];
   const expectedOpeningPhase = methodFidelityContractForPrompt(
     session.methodBriefing.methodId,
@@ -435,12 +432,19 @@ const StreamedFreeResponseActivitySchema = z.object({
   feedback: z.string().trim().min(20).max(500),
 });
 
-const StrictStreamedGeneratedSessionActivitySchema = z.discriminatedUnion("type", [
+// The provider-facing schema accepts a misplaced lesson brief long enough for
+// YOVA to normalize it at the output boundary. OpenAI's structured-output
+// parser validates this schema before our deterministic repair code runs, so
+// putting the cross-field placement rule here would turn an otherwise usable
+// skeleton into a raw SDK ZodError.
+const StreamedGeneratedSessionActivityOutputSchema = z.discriminatedUnion("type", [
   StreamedInstructionActivitySchema,
   StreamedReflectionActivitySchema,
   StreamedMultipleChoiceActivitySchema,
   StreamedFreeResponseActivitySchema,
-]).superRefine((activity, context) => {
+]);
+
+const StrictStreamedGeneratedSessionActivitySchema = StreamedGeneratedSessionActivityOutputSchema.superRefine((activity, context) => {
   if ((activity.methodPhase === "model" || activity.methodPhase === "orient") && activity.type === "instruction" && !activity.lessonBrief) {
     context.addIssue({ code: "custom", path: ["lessonBrief"], message: "Teaching activities need a lesson brief." });
   }
@@ -464,13 +468,33 @@ export const StreamedGeneratedSessionDraftOutputSchema = z.object({
   coverage: SessionCoverageSchema,
   methodBriefing: SessionMethodBriefingSchema,
   sourceGrounding: SessionSourceGroundingSchema.nullable(),
-  activities: z.array(StreamedGeneratedSessionActivitySchema).min(3).max(8),
+  activities: z.array(StreamedGeneratedSessionActivityOutputSchema).min(3).max(8),
 });
 
-export const StreamedGeneratedSessionDraftSchema = StreamedGeneratedSessionDraftOutputSchema.superRefine((session, context) => {
-  if (!session.activities.some((activity) => activity.type === "multiple_choice")) {
-    context.addIssue({ code: "custom", path: ["activities"], message: "A guided session needs at least one knowledge check." });
-  }
+export type StreamedGeneratedSessionDraftOutput = z.infer<typeof StreamedGeneratedSessionDraftOutputSchema>;
+
+/**
+ * Removes lesson briefs from activity types that can never present teaching.
+ * The final schema still enforces the invariant after this deterministic
+ * normalization, while a provider placement mistake no longer crashes the
+ * SDK parser before YOVA can repair it.
+ */
+export function normalizeStreamedLessonBriefPlacement(
+  draft: StreamedGeneratedSessionDraftOutput,
+): StreamedGeneratedSessionDraftOutput {
+  return {
+    ...draft,
+    activities: draft.activities.map((activity) => (
+      activity.type === "instruction" || activity.lessonBrief === null
+        ? activity
+        : { ...activity, lessonBrief: null }
+    )),
+  };
+}
+
+export const StreamedGeneratedSessionDraftSchema = StreamedGeneratedSessionDraftOutputSchema.extend({
+  activities: z.array(StreamedGeneratedSessionActivitySchema).min(3).max(8),
+}).superRefine((session, context) => {
   const firstActivity = session.activities[0];
   const expectedOpeningPhase = methodFidelityContractForPrompt(
     session.methodBriefing.methodId,

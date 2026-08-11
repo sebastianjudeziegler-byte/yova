@@ -7,8 +7,23 @@ import {
 
 const activities = [
   { type: "instruction" as const, concept: null, requiredForCompletion: true },
-  { type: "multiple_choice" as const, concept: "ATP role", requiredForCompletion: true },
-  { type: "free_response" as const, concept: "Stage connections", requiredForCompletion: true },
+  {
+    type: "multiple_choice" as const,
+    concept: "ATP role",
+    requiredForCompletion: true,
+    title: "Identify ATP's role",
+    body: "Which statement explains how ATP stores usable energy?",
+    choices: ["ATP stores usable energy", "ATP destroys all energy", "ATP is only structural"],
+    correctAnswer: "ATP stores usable energy",
+  },
+  {
+    type: "free_response" as const,
+    concept: "Stage connections",
+    requiredForCompletion: true,
+    title: "Explain how the stages connect",
+    body: "Explain how the stages pass products forward to the next stage.",
+    correctAnswer: "Each stage passes products forward for the next stage to use.",
+  },
 ];
 
 describe("session completion contract", () => {
@@ -34,6 +49,10 @@ describe("session completion contract", () => {
         type: "multiple_choice",
         concept: "Equity dilution",
         requiredForCompletion: true,
+        title: "Identify equity dilution",
+        body: "What can happen to founder ownership when a company raises equity funding?",
+        choices: ["Equity funding can dilute founder ownership", "Founder ownership always increases"],
+        correctAnswer: "Equity funding can dilute founder ownership",
       }],
     })).toBeNull();
   });
@@ -88,38 +107,79 @@ describe("session completion contract", () => {
     expect(reconciled.coverage.evidenceMap[0].activityConcept).toBe("Mara's hesitation");
   });
 
-  it("uses explanatory feedback instead of reducing a WWI lesson idea to a multiple-choice label", () => {
+  it("does not attach a prewar-tensions idea to broad later-war chronology feedback", () => {
+    const activeIdea = "Before 1914, Europe had rival alliance blocs and tensions that made a local crisis more dangerous.";
+    const deferredChronology = "Later-war chronology, including U.S. entry in 1917 and the 1918 armistice.";
+    const broadFeedback = "Correct: the assassination comes first, then the July Crisis, then the war opens in 1914, with U.S. entry in 1917 and the armistice in 1918. If you missed it, separate trigger, escalation, and later-war chronology.";
     const grounded = groundSessionEvidenceMap({
       coverage: {
-        essentialIdeas: ["The overall relationship among the listed unit sections"],
+        essentialIdeas: [activeIdea],
         evidenceMap: [{
-          essentialIdea: "The overall relationship among the listed unit sections",
-          activityConcept: "Map the Study Guide",
+          essentialIdea: activeIdea,
+          activityConcept: "Prewar tensions",
         }],
-        deferredContent: [],
+        deferredContent: [deferredChronology],
       },
       activities: [{
         type: "multiple_choice" as const,
-        concept: "Alliance commitments and mobilization",
+        concept: "World War I chronology",
         requiredForCompletion: true,
-        title: "Why did a local crisis widen?",
-        body: "Which factor helped turn the assassination of Franz Ferdinand into a wider European war?",
-        choices: ["Alliance commitments and mobilization", "A peace treaty", "The invention of tanks"],
-        correctAnswer: "Alliance commitments and mobilization",
-        feedback: "Alliance commitments linked states together, while mobilization made the July Crisis harder to contain.",
+        title: "Put the cause chain in order",
+        body: "Which sequence best orders the trigger, escalation, U.S. entry, and armistice?",
+        choices: [
+          "Assassination, July Crisis, war opens, U.S. entry, armistice",
+          "U.S. entry, assassination, July Crisis, armistice",
+          "Armistice, assassination, U.S. entry, July Crisis",
+        ],
+        correctAnswer: "Assassination, July Crisis, war opens, U.S. entry, armistice",
+        feedback: broadFeedback,
       }],
     });
 
-    expect(grounded.coverage.essentialIdeas).toEqual([
-      "Alliance commitments linked states together, while mobilization made the July Crisis harder to contain.",
-    ]);
+    expect(grounded.coverage.essentialIdeas).toEqual([activeIdea]);
     expect(grounded.coverage.evidenceMap).toEqual([{
-      essentialIdea: "Alliance commitments linked states together, while mobilization made the July Crisis harder to contain.",
-      activityConcept: "Alliance commitments and mobilization",
+      essentialIdea: activeIdea,
+      activityConcept: "Prewar tensions",
     }]);
-    expect(grounded.coverage.deferredContent).toContain(
-      "The overall relationship among the listed unit sections",
-    );
+    expect(grounded.coverage.deferredContent).toContain(deferredChronology);
+    expect(grounded.coverage.essentialIdeas).not.toContain(broadFeedback);
+    expect(grounded.activities[0].feedback).toBe(broadFeedback);
+    expect(validateSessionCompletionContract({
+      essentialIdeas: grounded.coverage.essentialIdeas,
+      evidenceMap: grounded.coverage.evidenceMap,
+      activities: grounded.activities,
+    })).toContain("no required knowledge check uses that concept");
+  });
+
+  it("defers an unmatched idea while preserving a semantically grounded active idea", () => {
+    const julyCrisisIdea = "Alliance commitments and mobilization turned the July Crisis into declarations of war.";
+    const laterChronologyIdea = "U.S. entry in 1917 preceded the armistice in 1918.";
+    const grounded = groundSessionEvidenceMap({
+      coverage: {
+        essentialIdeas: [julyCrisisIdea, laterChronologyIdea],
+        evidenceMap: [
+          { essentialIdea: julyCrisisIdea, activityConcept: "Cause chain" },
+          { essentialIdea: laterChronologyIdea, activityConcept: "Later chronology" },
+        ],
+        deferredContent: [],
+      },
+      activities: [{
+        type: "free_response" as const,
+        concept: "July Crisis escalation",
+        requiredForCompletion: true,
+        title: "Explain the July Crisis escalation",
+        body: "Explain how alliance commitments and mobilization widened the crisis into declarations of war.",
+        correctAnswer: "Alliance commitments connected powers, while mobilization escalated the July Crisis into declarations of war.",
+        feedback: "Connect alliance commitments and mobilization directly to escalation.",
+      }],
+    });
+
+    expect(grounded.coverage.essentialIdeas).toEqual([julyCrisisIdea]);
+    expect(grounded.coverage.evidenceMap).toEqual([{
+      essentialIdea: julyCrisisIdea,
+      activityConcept: "July Crisis escalation",
+    }]);
+    expect(grounded.coverage.deferredContent).toContain(laterChronologyIdea);
     expect(validateSessionCompletionContract({
       essentialIdeas: grounded.coverage.essentialIdeas,
       evidenceMap: grounded.coverage.evidenceMap,
@@ -135,6 +195,28 @@ describe("session completion contract", () => {
       ],
       activities,
     })).toContain("has no required knowledge check");
+  });
+
+  it("rejects an exact concept mapping when the required question tests unrelated chronology", () => {
+    const activeIdea = "Alliance commitments and mobilization turned the July Crisis into declarations of war.";
+
+    expect(validateSessionCompletionContract({
+      essentialIdeas: [activeIdea],
+      evidenceMap: [{
+        essentialIdea: activeIdea,
+        activityConcept: "July Crisis escalation",
+      }],
+      activities: [{
+        type: "multiple_choice",
+        concept: "July Crisis escalation",
+        requiredForCompletion: true,
+        title: "Identify the end of World War I",
+        body: "Which event ended the fighting in 1918?",
+        choices: ["The armistice", "U.S. entry", "The Battle of the Somme"],
+        correctAnswer: "The armistice",
+        feedback: "The armistice ended the fighting in 1918.",
+      }],
+    })).toContain("does not visibly assess that essential idea");
   });
 
   it("rejects a map pointing to an optional or nonexistent check", () => {

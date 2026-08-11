@@ -334,14 +334,35 @@ function lessonIdeaMatchesTarget(idea: string, target: string) {
 
   const ideaTokens = meaningfulScopeTokens(idea);
   const targetTokens = meaningfulScopeTokens(target);
-  if (ideaTokens.length > maximumScopedClaimTokens(targetTokens.length)) return false;
   if (ideaKey.includes(targetKey)) return true;
-  const overlap = targetTokens.filter((token) => ideaTokens.includes(token)).length;
+  const overlap = targetTokens.filter((targetToken) => (
+    ideaTokens.some((ideaToken) => scopeTokensMatch(ideaToken, targetToken))
+  )).length;
+  // Short plan targets are often labels, while a valid lesson idea is a full
+  // explanatory sentence. Permit that bounded expansion when the sentence
+  // preserves most of the label's subject terms. Keep the length ceiling so a
+  // claim cannot name the assigned target and then survey later-session topics.
+  const boundedShortTargetRestatement = targetTokens.length <= 5
+    && overlap >= Math.ceil(targetTokens.length * 0.75)
+    && ideaTokens.length <= targetTokens.length + 10;
+  if (
+    ideaTokens.length > maximumScopedClaimTokens(targetTokens.length)
+    && !boundedShortTargetRestatement
+  ) return false;
   const requiredOverlap = Math.min(2, Math.min(ideaTokens.length, targetTokens.length));
-  const hasDistinctiveSharedToken = targetTokens.some((token) => (
-    token.length >= 7 && ideaTokens.includes(token)
+  const hasDistinctiveSharedToken = targetTokens.some((targetToken) => (
+    targetToken.length >= 7
+    && ideaTokens.some((ideaToken) => scopeTokensMatch(ideaToken, targetToken))
   ));
   return requiredOverlap > 0 && (overlap >= requiredOverlap || hasDistinctiveSharedToken);
+}
+
+function scopeTokensMatch(left: string, right: string) {
+  if (left === right) return true;
+  // Handles closely related forms such as Europe/European without a broad
+  // synonym table that could weaken the out-of-scope guard.
+  return Math.min(left.length, right.length) >= 5
+    && (left.startsWith(right) || right.startsWith(left));
 }
 
 function maximumScopedClaimTokens(targetTokenCount: number) {

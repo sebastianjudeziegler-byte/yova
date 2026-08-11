@@ -112,6 +112,22 @@ describe("substantive teaching validation", () => {
   });
 });
 
+describe("guided-session active-recall validation", () => {
+  it("does not let an optional free response satisfy the completion contract", async () => {
+    const { validateStandardGuidedSessionActivityMix } = await import("@/lib/openai/session-generator");
+    const draft = learningDraft("model");
+    const freeResponse = draft.activities.find((activity) => activity.type === "free_response");
+    expect(freeResponse).toBeDefined();
+    freeResponse!.requiredForCompletion = false;
+
+    expect(validateStandardGuidedSessionActivityMix(draft)).toMatch(
+      /completion-required typed active-recall attempt/i,
+    );
+    freeResponse!.requiredForCompletion = true;
+    expect(validateStandardGuidedSessionActivityMix(draft)).toBeNull();
+  });
+});
+
 describe("session content-volume validation", () => {
   it("preserves the plan's bounded completion contract instead of adding lesson requirements", async () => {
     const { boundedSessionCompletionEvidence } = await import("@/lib/openai/session-generator");

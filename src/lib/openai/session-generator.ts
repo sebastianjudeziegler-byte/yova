@@ -1181,10 +1181,12 @@ function normalizeCoverageTarget(value: string) {
   return value.toLocaleLowerCase().replace(/\s+/g, " ").trim();
 }
 
-function validateStandardGuidedSessionActivityMix(draft: GeneratedSessionDraft) {
-  return draft.activities.some((activity) => activity.type === "free_response")
+export function validateStandardGuidedSessionActivityMix(draft: GeneratedSessionDraft) {
+  return draft.activities.some((activity) => (
+    activity.type === "free_response" && activity.requiredForCompletion
+  ))
     ? null
-    : "A full guided session needs at least one typed active-recall attempt. Only scheduled retrieval checks may be multiple-choice only.";
+    : "A full guided session needs at least one completion-required typed active-recall attempt. Only scheduled retrieval checks may be multiple-choice only.";
 }
 
 function validateOutsideAppGuidance(draft: GeneratedSessionDraft, studyMode: string) {

@@ -62,7 +62,7 @@ describe("ProductEventRequestSchema", () => {
       context: {
         mode: "openai",
         latencyMs: 24_500,
-        attempts: 1,
+        attempts: 3,
         promptCacheHit: true,
       },
     }).success).toBe(true);

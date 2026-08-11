@@ -42,7 +42,7 @@ export const ProductEventRequestSchema = z.discriminatedUnion("eventName", [
     context: z.object({
       mode: z.enum(["openai", "cache"]),
       latencyMs: z.number().int().min(0).max(180_000),
-      attempts: z.number().int().min(0).max(2),
+      attempts: z.number().int().min(0).max(3),
       promptCacheHit: z.boolean(),
     }).strict(),
   }).strict(),

@@ -741,7 +741,7 @@ export function YovaPrototype({ emailCodeVerificationEnabled = false }: { emailC
       });
       requestId = response.headers.get("X-Yova-Request-Id");
       const generationLatencyMs = readBoundedIntegerHeader(response, "X-Yova-Generation-Ms", 180_000);
-      const generationAttempts = readBoundedIntegerHeader(response, "X-Yova-Generation-Attempts", 2);
+      const generationAttempts = readBoundedIntegerHeader(response, "X-Yova-Generation-Attempts", 3);
       const promptCacheHit = response.headers.get("X-Yova-Prompt-Cache-Hit") === "true";
       const body: unknown = await response.json().catch(() => null);
       if (!response.ok) {

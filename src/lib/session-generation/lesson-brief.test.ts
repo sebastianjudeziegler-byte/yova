@@ -375,4 +375,32 @@ describe("authoritative streamed lesson briefs", () => {
       sessionEstimatedMinutes: 15,
     })).toBeNull();
   });
+
+  it("accepts the production prewar explanation for its concise plan target", () => {
+    const draft = streamedDraft();
+    const idea = "Before 1914, Europe had rival alliance blocs and tensions that made a local crisis more dangerous.";
+    draft.coverage.essentialIdeas = [idea];
+    draft.activities[0]!.lessonBrief!.essentialIdeas = [idea];
+
+    expect(validateStreamedLessonScope(draft, {
+      sessionTopicIds: [topicId],
+      sessionObjective: "Understand the main prewar tensions and build a simple start-to-finish WWI timeline using a concrete example first.",
+      sessionContentTargets: ["Prewar European alliances and tensions"],
+      sessionEstimatedMinutes: 15,
+    })).toBeNull();
+  });
+
+  it("still rejects later-war survey content for the same concise prewar target", () => {
+    const draft = streamedDraft();
+    const idea = "Before 1914, Europe had rival alliance blocs and tensions, then trench warfare, United States entry, and the Treaty of Versailles explain how the war developed and ended.";
+    draft.coverage.essentialIdeas = [idea];
+    draft.activities[0]!.lessonBrief!.essentialIdeas = [idea];
+
+    expect(validateStreamedLessonScope(draft, {
+      sessionTopicIds: [topicId],
+      sessionObjective: "Understand the main prewar tensions and build a simple start-to-finish WWI timeline using a concrete example first.",
+      sessionContentTargets: ["Prewar European alliances and tensions"],
+      sessionEstimatedMinutes: 15,
+    })).toContain("is outside this session's assigned target");
+  });
 });
