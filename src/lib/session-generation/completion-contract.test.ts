@@ -88,7 +88,7 @@ describe("session completion contract", () => {
     expect(reconciled.coverage.evidenceMap[0].activityConcept).toBe("Mara's hesitation");
   });
 
-  it("replaces a generic study-guide label with the concrete WWI answer being checked", () => {
+  it("uses explanatory feedback instead of reducing a WWI lesson idea to a multiple-choice label", () => {
     const grounded = groundSessionEvidenceMap({
       coverage: {
         essentialIdeas: ["The overall relationship among the listed unit sections"],
@@ -106,12 +106,15 @@ describe("session completion contract", () => {
         body: "Which factor helped turn the assassination of Franz Ferdinand into a wider European war?",
         choices: ["Alliance commitments and mobilization", "A peace treaty", "The invention of tanks"],
         correctAnswer: "Alliance commitments and mobilization",
+        feedback: "Alliance commitments linked states together, while mobilization made the July Crisis harder to contain.",
       }],
     });
 
-    expect(grounded.coverage.essentialIdeas).toEqual(["Alliance commitments and mobilization"]);
+    expect(grounded.coverage.essentialIdeas).toEqual([
+      "Alliance commitments linked states together, while mobilization made the July Crisis harder to contain.",
+    ]);
     expect(grounded.coverage.evidenceMap).toEqual([{
-      essentialIdea: "Alliance commitments and mobilization",
+      essentialIdea: "Alliance commitments linked states together, while mobilization made the July Crisis harder to contain.",
       activityConcept: "Alliance commitments and mobilization",
     }]);
     expect(grounded.coverage.deferredContent).toContain(

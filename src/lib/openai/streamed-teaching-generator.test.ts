@@ -177,6 +177,217 @@ describe("streamed-session activity compaction", () => {
   });
 });
 
+describe("runtime session-window scoping", () => {
+  it("keeps a shortened World War I lesson inside 15 minutes without losing later plan targets", async () => {
+    const {
+      coverageTargetsMatch,
+      validateSessionCoverageFidelity,
+    } = await import("@/lib/openai/session-generator");
+    const {
+      scopeStreamedSkeletonToCurrentWindow,
+    } = await import("@/lib/openai/streamed-teaching-generator");
+    const {
+      enrichStreamedLessonBriefs,
+      validateStreamedLessonScope,
+    } = await import("@/lib/session-generation/lesson-brief");
+    const {
+      StreamedGeneratedSessionDraftSchema,
+    } = await import("@/lib/session-generation/schema");
+    const {
+      buildStatedPreferenceLessonDelivery,
+    } = await import("@/lib/personalization/session-delivery-policy");
+    const {
+      buildSessionEvaluationCases,
+    } = await import("@/evals/session-cases");
+
+    const learnerDirection = "Teach the July Crisis cause chain first. Keep this session within 15 minutes and leave later-war topics for later sessions.";
+    const evaluationCase = buildSessionEvaluationCases().find((candidate) => (
+      candidate.id === "world_war_one_mapped_45_min"
+    ));
+    expect(evaluationCase).toBeDefined();
+    const originalContext = evaluationCase!.context;
+    const adjustedContext: SessionGenerationContext = {
+      ...originalContext,
+      session: {
+        ...originalContext.session,
+        estimatedMinutes: 15,
+      },
+      sessionAdjustment: {
+        familiarity: "need_teaching",
+        availableMinutes: 15,
+        knownTargets: [],
+        note: learnerDirection,
+      },
+    };
+    const topicId = adjustedContext.session.topicIds[0]!;
+    const plannedTargets = adjustedContext.session.contentTargets ?? [];
+    expect(plannedTargets).toEqual([
+      "Prewar European alliances and tensions",
+      "Sequence from the Sarajevo assassination to declarations of war",
+      "Basic chronology from 1914 to 1918",
+    ]);
+    const ideas = [
+      "Prewar alliance tensions made the July Crisis easier to widen across Europe",
+      "The Sarajevo assassination triggered alliance commitments, mobilization, and declarations of war",
+      "World War I moved through a basic chronology from 1914 to the 1918 armistice",
+    ];
+    const concepts = ["Prewar alliance tensions", "July Crisis sequence", "1914 to 1918 chronology"];
+    const lessonBrief = {
+      version: 1 as const,
+      topicIds: [topicId],
+      essentialIdeas: ideas,
+      sourceChunks: [],
+      knowledgeSource: "model_knowledge" as const,
+      evidenceContext: { confirmedGaps: [], secureKnowledge: [], priorMisconceptions: [] },
+      contentRequirements: {
+        teachEveryEssentialIdea: true as const,
+        includeConcreteExample: true,
+        includeCommonMixup: true as const,
+        preservePrerequisiteOrder: true as const,
+      },
+    };
+    const activityBase = {
+      topicId,
+      estimatedMinutes: 2,
+      requiredForCompletion: true,
+      teaching: null,
+      lessonBrief: null,
+      practiceIntent: null,
+      misconceptionSummary: null,
+    };
+    const draft = StreamedGeneratedSessionDraftSchema.parse({
+      topicIds: [topicId],
+      rationale: "Teach the July Crisis causal chain now and preserve later-war chronology for the remaining plan.",
+      coverage: {
+        focus: "Build the opening World War I cause chain before moving into later-war chronology.",
+        essentialIdeas: ideas,
+        completionEvidence: [
+          "Identify how prewar alliances increased escalation risk",
+          "Explain the sequence from Sarajevo through declarations of war",
+          "Place the major war years in chronological order",
+        ],
+        evidenceMap: ideas.map((essentialIdea, index) => ({
+          essentialIdea,
+          activityConcept: concepts[index]!,
+        })),
+        deferredContent: [],
+      },
+      methodBriefing: {
+        learningMode: "learn",
+        taskType: "conceptual_learning",
+        methodId: "self_explanation",
+        name: "Self-explanation",
+        what: "Study a bounded causal model and then explain why each event led to the next.",
+        why: "Reconstructing the causal chain checks understanding while keeping later-war content in later sessions.",
+        how: ["Study the short model once.", "Explain the causal chain without reopening it."],
+        completion: "Identify the escalation mechanism and explain the July Crisis sequence without notes.",
+        personalization: ["The learner requested the July Crisis first, so later-war chronology remains deferred."],
+      },
+      sourceGrounding: null,
+      activities: [
+        {
+          ...activityBase,
+          methodPhase: "model",
+          estimatedMinutes: 8,
+          type: "instruction",
+          concept: null,
+          label: "Learn",
+          title: "Build the July Crisis cause chain",
+          body: "Study the bounded opening-war model before answering the two checks that follow.",
+          lessonBrief,
+          choices: [],
+          correctAnswer: null,
+          feedback: null,
+        },
+        {
+          ...activityBase,
+          methodPhase: "guided_practice",
+          type: "multiple_choice",
+          concept: concepts[0],
+          label: "Check",
+          title: "Identify the prewar pressure",
+          body: "Which condition made a local diplomatic crisis more likely to involve several powers?",
+          choices: ["Alliance commitments", "A completed peace treaty", "The 1918 armistice"],
+          correctAnswer: "Alliance commitments",
+          feedback: "Alliance commitments connected several powers before the assassination triggered the immediate crisis.",
+        },
+        {
+          ...activityBase,
+          methodPhase: "explain",
+          estimatedMinutes: 3,
+          type: "free_response",
+          concept: concepts[1],
+          label: "Explain",
+          title: "Explain the July Crisis sequence",
+          body: "Explain how the Sarajevo assassination led through alliance commitments and mobilization to declarations of war.",
+          choices: [],
+          correctAnswer: "The assassination triggered an ultimatum and alliance commitments, while mobilization escalated the crisis into declarations of war.",
+          feedback: "A complete explanation connects the assassination, alliance commitments, mobilization, and declarations of war in order.",
+        },
+        {
+          ...activityBase,
+          methodPhase: "explain",
+          type: "multiple_choice",
+          concept: concepts[2],
+          label: "Later",
+          title: "Check the later-war chronology",
+          body: "Which event marked the end of fighting in 1918?",
+          choices: ["The armistice", "The Sarajevo assassination", "The July ultimatum"],
+          correctAnswer: "The armistice",
+          feedback: "The November 1918 armistice ended the fighting and belongs in a later-war session.",
+        },
+      ],
+    });
+
+    const scoped = scopeStreamedSkeletonToCurrentWindow({
+      draft,
+      plannedTargets,
+      estimatedMinutes: 15,
+      learnerDirection,
+    });
+    const delivery = buildStatedPreferenceLessonDelivery({
+      learnerProfile: null,
+      estimatedMinutes: 15,
+      taskType: "conceptual_learning",
+    });
+    const finalized = enrichStreamedLessonBriefs(scoped, {
+      sessionTopicIds: [topicId],
+      materials: [],
+      knowledgeTopics: adjustedContext.knowledgeTopics,
+      conceptSignals: [],
+      taskType: "conceptual_learning",
+      deliveryInstructions: delivery.instructions,
+    });
+    const session = {
+      ...adjustedContext.session,
+      completionEvidence: adjustedContext.session.completionEvidence,
+    };
+
+    expect(finalized.coverage.essentialIdeas).toHaveLength(2);
+    expect(finalized.coverage.essentialIdeas.join(" ")).toMatch(/Sarajevo|July Crisis/i);
+    expect(finalized.activities.filter((activity) => (
+      activity.requiredForCompletion
+      && (activity.type === "multiple_choice" || activity.type === "free_response")
+    )).length).toBeLessThanOrEqual(2);
+    for (const target of plannedTargets) {
+      expect([
+        ...finalized.coverage.essentialIdeas,
+        ...finalized.coverage.deferredContent,
+      ].some((item) => coverageTargetsMatch(item, target))).toBe(true);
+    }
+    expect(finalized.coverage.deferredContent).toContain("Basic chronology from 1914 to 1918");
+    expect(JSON.stringify(finalized.activities)).not.toMatch(/later-war chronology|1914 to 1918 chronology|end of fighting in 1918/i);
+    expect(validateSessionCoverageFidelity(finalized, session)).toBeNull();
+    expect(validateStreamedLessonScope(finalized, {
+      sessionTopicIds: [topicId],
+      sessionObjective: session.objective,
+      sessionContentTargets: plannedTargets,
+      sessionEstimatedMinutes: 15,
+      learnerDirection,
+    })).toBeNull();
+  });
+});
+
 describe("streamed free-response reference-answer repair", () => {
   it("replaces a grading rubric with the mapped World War I subject answer", async () => {
     const { repairRubricLikeFreeResponseAnswers } = await import("@/lib/openai/streamed-teaching-generator");

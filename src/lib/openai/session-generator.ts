@@ -1068,6 +1068,7 @@ export function validateGeneratedSessionWithCode(
       sessionObjective: context.session.objective,
       sessionContentTargets: context.session.contentTargets ?? [],
       sessionEstimatedMinutes: context.session.estimatedMinutes,
+      learnerDirection: context.sessionAdjustment?.note ?? null,
     })
     : null;
 

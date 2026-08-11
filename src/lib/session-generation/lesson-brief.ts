@@ -245,6 +245,7 @@ export function validateStreamedLessonScope(
     sessionObjective: string;
     sessionContentTargets: string[];
     sessionEstimatedMinutes: number;
+    learnerDirection?: string | null;
   },
 ) {
   const expectedTopicIds = unique(context.sessionTopicIds).sort();
@@ -267,9 +268,13 @@ export function validateStreamedLessonScope(
     return `The active idea “${incompleteIdea}” is only a topic label. Rewrite it as a concise explanatory claim that states what the learner should understand.`;
   }
 
-  if (context.sessionContentTargets.length > 0) {
+  const allowedScopeTargets = [
+    ...context.sessionContentTargets,
+    ...(context.learnerDirection?.trim() ? [context.learnerDirection] : []),
+  ];
+  if (allowedScopeTargets.length > 0) {
     const unplannedIdea = draft.coverage.essentialIdeas.find((idea) => (
-      !context.sessionContentTargets.some((target) => lessonIdeaMatchesTarget(idea, target))
+      !allowedScopeTargets.some((target) => lessonIdeaMatchesTarget(idea, target))
     ));
     if (unplannedIdea) {
       return `The active idea “${unplannedIdea}” is outside this session's assigned target: ${context.sessionObjective}. Keep the explanatory claim bounded to the supplied session content targets and move other material to deferredContent.`;

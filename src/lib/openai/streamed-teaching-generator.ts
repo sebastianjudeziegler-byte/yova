@@ -30,6 +30,7 @@ import {
   applyCurrentSessionAdjustment,
   alignSessionCoverageWithPlan,
   boundedSessionCompletionEvidence,
+  coverageTargetsMatch,
   ensureDelayedRetrievalReturn,
   SessionGenerationFailure,
   validateGeneratedSessionWithCode,
@@ -299,7 +300,13 @@ function finalizeStreamedSkeleton({
     ? routing.allowedMethodIds[0]!
     : draft.methodBriefing.methodId;
   const completionEvidence = boundedSessionCompletionEvidence({
-    planned: context.session.completionEvidence ?? [],
+    // A learner can shorten a previously planned 45-minute session to 15
+    // minutes. In that case the original multi-target completion list is no
+    // longer authoritative for today's smaller slice; use the model's checks
+    // for this window and keep the unselected plan targets explicitly deferred.
+    planned: context.sessionAdjustment?.availableMinutes
+      ? []
+      : context.session.completionEvidence ?? [],
     generated: draft.coverage.completionEvidence,
     estimatedMinutes: context.session.estimatedMinutes,
   });
@@ -342,13 +349,139 @@ function finalizeStreamedSkeleton({
     sourceGrounding,
     activities: withReturn,
   }));
-  return enrichStreamedLessonBriefs(StreamedGeneratedSessionDraftSchema.parse(reconciled), {
+  const timeScoped = scopeStreamedSkeletonToCurrentWindow({
+    draft: StreamedGeneratedSessionDraftSchema.parse(reconciled),
+    plannedTargets: context.session.contentTargets ?? [],
+    estimatedMinutes: context.session.estimatedMinutes,
+    learnerDirection: context.sessionAdjustment?.note ?? null,
+  });
+  return enrichStreamedLessonBriefs(StreamedGeneratedSessionDraftSchema.parse(timeScoped), {
     sessionTopicIds: context.session.topicIds,
     materials: context.materials,
     knowledgeTopics: context.knowledgeTopics,
     conceptSignals: context.conceptSignals,
     taskType: routing.taskType,
     deliveryInstructions,
+  });
+}
+
+/**
+ * A plan session may be shortened at runtime without rewriting the plan. Keep
+ * only explanatory ideas that fit today's deterministic content budget and
+ * that belong to either the planned target list or the learner's explicit
+ * direction. Every planned target not active now remains visible in
+ * deferredContent so it can be recovered by a later session.
+ */
+export function scopeStreamedSkeletonToCurrentWindow({
+  draft,
+  plannedTargets,
+  estimatedMinutes,
+  learnerDirection,
+}: {
+  draft: StreamedGeneratedSessionDraft;
+  plannedTargets: string[];
+  estimatedMinutes: number;
+  learnerDirection: string | null;
+}): StreamedGeneratedSessionDraft {
+  const maximumActiveIdeas = contentBudgetForMinutes(estimatedMinutes).maximumContentTargets;
+  const maximumRequiredChecks = contentBudgetForMinutes(estimatedMinutes).maximumCompletionChecks;
+  const remainingTargets = [...plannedTargets];
+  const activeAssignments: Array<{ idea: string; target: string | null }> = [];
+
+  for (const idea of draft.coverage.essentialIdeas) {
+    const targetIndex = remainingTargets.findIndex((target) => coverageTargetsMatch(idea, target));
+    const followsLearnerDirection = Boolean(
+      learnerDirection?.trim() && coverageTargetsMatch(idea, learnerDirection),
+    );
+    if (plannedTargets.length > 0 && targetIndex < 0 && !followsLearnerDirection) continue;
+    if (activeAssignments.length >= maximumActiveIdeas) continue;
+
+    const target = targetIndex >= 0 ? remainingTargets.splice(targetIndex, 1)[0] ?? null : null;
+    activeAssignments.push({ idea, target });
+  }
+
+  // An entirely unrelated draft should still fail the strict validator and
+  // request repair. Never manufacture an in-scope lesson from an out-of-scope
+  // response merely to make generation pass.
+  if (activeAssignments.length === 0) return draft;
+
+  const initiallyActiveIdeaKeys = new Set(activeAssignments.map(({ idea }) => normalizedSubjectLabel(idea)));
+  const initiallyActiveMap = draft.coverage.evidenceMap.filter((mapping) => (
+    initiallyActiveIdeaKeys.has(normalizedSubjectLabel(mapping.essentialIdea))
+  ));
+  const activeConceptKeys = new Set(initiallyActiveMap.map((mapping) => normalizedSubjectLabel(mapping.activityConcept)));
+  const requiredChecks = draft.activities.filter((activity) => (
+    activity.requiredForCompletion
+    && (activity.type === "multiple_choice" || activity.type === "free_response")
+    && activity.concept
+    && activeConceptKeys.has(normalizedSubjectLabel(activity.concept))
+  ));
+  const retainedChecks = retainBoundedQuestionMix(requiredChecks, maximumRequiredChecks);
+  const retainedCheckSet = new Set(retainedChecks);
+  const retainedConceptKeys = new Set(retainedChecks.map((activity) => normalizedSubjectLabel(activity.concept ?? "")));
+  const activeEvidenceMap = initiallyActiveMap.filter((mapping) => (
+    retainedConceptKeys.has(normalizedSubjectLabel(mapping.activityConcept))
+  ));
+  const evidencedIdeaKeys = new Set(activeEvidenceMap.map((mapping) => normalizedSubjectLabel(mapping.essentialIdea)));
+  const evidencedAssignments = activeAssignments.filter(({ idea }) => evidencedIdeaKeys.has(normalizedSubjectLabel(idea)));
+
+  if (evidencedAssignments.length === 0) return draft;
+
+  // If a time-fit question mix removed an idea, its exact plan label returns
+  // to the deferred list. The learner can therefore see precisely what today's
+  // shorter session did not attempt.
+  remainingTargets.unshift(...activeAssignments.flatMap(({ idea, target }) => (
+    target && !evidencedIdeaKeys.has(normalizedSubjectLabel(idea)) ? [target] : []
+  )));
+  const activeIdeas = evidencedAssignments.map(({ idea }) => idea);
+  const deferredContent = uniqueSubjectLabels([
+    ...remainingTargets,
+    ...draft.coverage.deferredContent.filter((item) => (
+      plannedTargets.some((target) => coverageTargetsMatch(item, target))
+    )),
+  ]).slice(0, 4);
+
+  return {
+    ...draft,
+    coverage: {
+      ...draft.coverage,
+      essentialIdeas: activeIdeas,
+      completionEvidence: draft.coverage.completionEvidence.slice(0, maximumRequiredChecks),
+      evidenceMap: activeEvidenceMap,
+      deferredContent,
+    },
+    activities: draft.activities.filter((activity) => (
+      !activity.requiredForCompletion
+      || (activity.type !== "multiple_choice" && activity.type !== "free_response")
+      || retainedCheckSet.has(activity)
+    )),
+  };
+}
+
+function retainBoundedQuestionMix(
+  questions: StreamedGeneratedSessionDraft["activities"],
+  maximumRequiredChecks: number,
+) {
+  if (questions.length <= maximumRequiredChecks) return questions;
+  const retained = new Set<StreamedGeneratedSessionDraft["activities"][number]>();
+  const multipleChoice = questions.find((activity) => activity.type === "multiple_choice");
+  const freeResponse = questions.find((activity) => activity.type === "free_response");
+  if (multipleChoice) retained.add(multipleChoice);
+  if (freeResponse && retained.size < maximumRequiredChecks) retained.add(freeResponse);
+  for (const question of questions) {
+    if (retained.size >= maximumRequiredChecks) break;
+    retained.add(question);
+  }
+  return questions.filter((question) => retained.has(question));
+}
+
+function uniqueSubjectLabels(values: string[]) {
+  const seen = new Set<string>();
+  return values.filter((value) => {
+    const key = normalizedSubjectLabel(value);
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
   });
 }
 

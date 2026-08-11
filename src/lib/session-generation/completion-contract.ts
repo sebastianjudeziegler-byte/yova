@@ -12,6 +12,7 @@ export type SessionCompletionContract = {
     body?: string;
     correctAnswer?: string | null;
     choices?: string[];
+    feedback?: string | null;
   }>;
 };
 
@@ -261,11 +262,24 @@ function groundedIdeaFromQuestion(
   activity: SessionCompletionContract["activities"][number],
 ) {
   const answer = activity.correctAnswer?.trim() ?? "";
+  const feedback = activity.feedback?.trim() ?? "";
   const concept = activity.concept?.trim() ?? "Key relationship";
-  const candidate = answer.length >= 5
+  // A multiple-choice answer is often a short noun phrase such as
+  // "Alliance commitments and mobilization." That is a valid choice, but it
+  // is not instructional substance. Prefer the already generated explanatory
+  // feedback so deterministic grounding cannot turn a complete lesson claim
+  // back into a chapter-style label before scope validation runs.
+  const candidate = looksLikeExplanatoryClaim(answer)
     ? answer
-    : `${concept}: ${answer}`;
+    : looksLikeExplanatoryClaim(feedback)
+      ? feedback
+      : `For ${concept}, the correct mechanism is ${answer || "the relationship named in the question"}.`;
   return candidate.slice(0, 180).trim();
+}
+
+function looksLikeExplanatoryClaim(value: string) {
+  const words = value.match(/[\p{L}\p{N}][\p{L}\p{N}'’_-]*/gu) ?? [];
+  return words.length >= 5 && /\b(?:is|are|was|were|can|could|causes?|caused|connects?|connected|depends?|differentiates?|enables?|equals?|explains?|helps?|increases?|leads?|makes?|means?|produces?|provides?|requires?|results?|shapes?|supports?|transforms?|triggers?|turns?|uses?|widens?|because|through|when|while)\b/i.test(value);
 }
 
 function uniqueMappings(values: Array<{ essentialIdea: string; activityConcept: string }>) {
