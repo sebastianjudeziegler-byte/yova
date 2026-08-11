@@ -105,6 +105,93 @@ test("a confident misconception is repaired now without a duplicate follow-up", 
   await expect(page.getByRole("heading", { name: /Good (morning|afternoon|evening), Learner\./ })).toBeVisible();
 });
 
+test("a generation fallback honors a request to teach a planned study session first", async ({ page }) => {
+  await page.route("**/api/sessions/generate", async (route) => {
+    await route.fulfill({
+      status: 502,
+      contentType: "application/json",
+      body: JSON.stringify({ error: "Temporary guided-session generation failure." }),
+    });
+  });
+  await createPreviewAccount(page);
+  await completeOnboarding(page);
+
+  await page.getByRole("button", { name: "Study something now", exact: true }).first().click();
+  await page.getByPlaceholder("Example: Help me understand the product rule and practice using it.").fill(
+    "Help me review the product rule and test what I remember.",
+  );
+  await page.getByRole("button", { name: "I know it and want to test my recall" }).click();
+  await page.getByRole("button", { name: /Choose how YOVA should help/ }).click();
+  await page.getByRole("button", { name: /Create it for me/ }).click();
+  await page.getByRole("button", { name: /Build and start session/ }).click();
+  await expect(page.getByRole("heading", { name: "Here is how YOVA plans to start." })).toBeVisible();
+  await page.getByRole("button", { name: "Continue" }).click();
+  await page.getByRole("button", { name: "I need this taught first" }).click();
+  await page.getByRole("button", { name: "Continue" }).click();
+  await expect(page.getByText(/switch this session to teaching first/i)).toBeVisible();
+  await page.getByRole("button", { name: "Prepare this session" }).click();
+
+  await expect(page.getByRole("heading", { name: "See the product rule before using it" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Recall the product-rule structure" })).not.toBeVisible();
+  await expect(page.getByText(/safe built-in session was loaded instead/i)).toBeVisible();
+});
+
+test("a built-in fallback never exceeds a shortened session window", async ({ page }) => {
+  await page.route("**/api/sessions/generate", async (route) => {
+    await route.fulfill({
+      status: 502,
+      contentType: "application/json",
+      body: JSON.stringify({ error: "Temporary guided-session generation failure." }),
+    });
+  });
+  await createPreviewAccount(page);
+  await completeOnboarding(page);
+
+  await page.getByRole("button", { name: "Study something now", exact: true }).first().click();
+  await page.getByPlaceholder("Example: Help me understand the product rule and practice using it.").fill(
+    "Help me understand the product rule and practice using it.",
+  );
+  await page.getByRole("button", { name: "I haven't learned this yet" }).click();
+  await page.getByRole("button", { name: /Choose how YOVA should help/ }).click();
+  await page.getByRole("button", { name: /Create it for me/ }).click();
+  await page.getByRole("button", { name: /Build and start session/ }).click();
+  await page.getByRole("button", { name: "Continue" }).click();
+  await page.getByRole("button", { name: "Continue" }).click();
+  await page.getByLabel("Time available right now").selectOption("10");
+  await page.getByRole("button", { name: "Prepare this session" }).click();
+
+  await expect(page.getByRole("heading", { name: "YOVA already knows what this lesson should cover." })).toBeVisible();
+  await expect(page.getByText(/safe built-in session was loaded instead/i)).not.toBeVisible();
+});
+
+test("a built-in fallback never ignores a learner's custom session requirement", async ({ page }) => {
+  await page.route("**/api/sessions/generate", async (route) => {
+    await route.fulfill({
+      status: 502,
+      contentType: "application/json",
+      body: JSON.stringify({ error: "Temporary guided-session generation failure." }),
+    });
+  });
+  await createPreviewAccount(page);
+  await completeOnboarding(page);
+
+  await page.getByRole("button", { name: "Study something now", exact: true }).first().click();
+  await page.getByPlaceholder("Example: Help me understand the product rule and practice using it.").fill(
+    "Help me understand the product rule and practice using it.",
+  );
+  await page.getByRole("button", { name: "I haven't learned this yet" }).click();
+  await page.getByRole("button", { name: /Choose how YOVA should help/ }).click();
+  await page.getByRole("button", { name: /Create it for me/ }).click();
+  await page.getByRole("button", { name: /Build and start session/ }).click();
+  await page.getByRole("button", { name: "Continue" }).click();
+  await page.getByRole("button", { name: "Continue" }).click();
+  await page.getByLabel("Anything YOVA should account for?").fill("This session must also cover the quotient rule.");
+  await page.getByRole("button", { name: "Prepare this session" }).click();
+
+  await expect(page.getByRole("heading", { name: "YOVA already knows what this lesson should cover." })).toBeVisible();
+  await expect(page.getByText(/safe built-in session was loaded instead/i)).not.toBeVisible();
+});
+
 test("a new topic is taught before YOVA asks for independent performance", async ({ page }) => {
   await page.route("**/api/sessions/generate", async (route) => {
     await route.fulfill({
@@ -162,9 +249,9 @@ test("a new topic is taught before YOVA asks for independent performance", async
   await page.getByRole("button", { name: "Continue" }).click();
 
   await expect(page.getByRole("heading", { name: "What makes the second year compound growth?" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Review the model" })).toBeVisible();
-  await page.getByRole("button", { name: "Review the model" }).click();
-  await expect(page.getByRole("dialog", { name: /Review the model, then return to the same question/i })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Review the lesson" })).toBeVisible();
+  await page.getByRole("button", { name: "Review the lesson" }).click();
+  await expect(page.getByRole("dialog", { name: /Review the lesson, then return to the same question/i })).toBeVisible();
   await expect(page.getByText("Your answer and session progress stay exactly where they are.")).toBeVisible();
   await page.getByRole("button", { name: "Back to the question" }).click();
   await expect(page.getByRole("heading", { name: "What makes the second year compound growth?" })).toBeVisible();

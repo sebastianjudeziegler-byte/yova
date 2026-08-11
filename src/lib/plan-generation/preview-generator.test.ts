@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { PlanKnowledgeMap } from "@/lib/knowledge-map/schema";
 import { generatePreviewPlan } from "@/lib/plan-generation/preview-generator";
 import { PlanGenerationRequestSchema } from "@/lib/plan-generation/schema";
+import { builtInSessionFallbackKind } from "@/lib/session-generation/built-in-fallback";
 
 function knowledgeMap(
   titles: string[],
@@ -64,6 +65,88 @@ function requestWithMinutes(minutes: number) {
 }
 
 describe("preview plan time windows", () => {
+  it("keeps a respiration-only one-off target narrower than the mixed biology subject", () => {
+    const base = requestWithMinutes(25);
+    const plan = generatePreviewPlan({
+      ...base,
+      intent: "study_now",
+      learningIntent: "study",
+      goal: "Help me review cellular respiration and test what I remember.",
+      deadline: null,
+      knowledgeMap: undefined,
+    });
+
+    expect(plan.sessions[0].contentTargets).toEqual(["Cellular respiration sequence"]);
+    const session = plan.sessions[0];
+    expect(builtInSessionFallbackKind({
+      planTopic: plan.topic,
+      studyMode: plan.studyMode,
+      sessionTitle: session.title,
+      sessionObjective: session.objective,
+      contentTargets: session.contentTargets ?? [],
+    })).toBe("cellular_respiration_sequence");
+  });
+
+  it("keeps the personal-finance emergency lesson targets bounded to its curated scope", () => {
+    const base = requestWithMinutes(25);
+    const plan = generatePreviewPlan({
+      ...base,
+      intent: "study_now",
+      goal: "Help me understand compound growth and personal finance basics.",
+      deadline: null,
+      knowledgeMap: undefined,
+    });
+
+    expect(plan.sessions[0].contentTargets).toEqual(["Budgeting decisions", "Compound growth"]);
+  });
+
+  it("does not replace a credit-only goal with the budgeting and compounding scope", () => {
+    const base = requestWithMinutes(25);
+    const plan = generatePreviewPlan({
+      ...base,
+      intent: "study_now",
+      goal: "Help me understand credit scores and credit-card debt.",
+      deadline: null,
+      knowledgeMap: undefined,
+    });
+
+    expect(plan.sessions[0].contentTargets).toEqual(["Budgeting, credit, interest, and investing basics"]);
+  });
+
+  it("keeps a causes-only WWI one-off inside the outbreak lesson's scope", () => {
+    const base = requestWithMinutes(25);
+    const plan = generatePreviewPlan({
+      ...base,
+      intent: "study_now",
+      goal: "Teach me the causes of World War I and how the conflict spread across Europe.",
+      deadline: null,
+      knowledgeMap: undefined,
+    });
+
+    expect(plan.sessions[0].contentTargets).toEqual([
+      "Long-term causes and the July Crisis",
+      "How alliances and mobilization widened the war",
+    ]);
+  });
+
+  it("keeps a mapped startup one-off objective within the persisted limit", () => {
+    const base = requestWithMinutes(25);
+    const plan = generatePreviewPlan({
+      ...base,
+      intent: "study_now",
+      goal: "Teach me startup funding stages, instruments, investors, dilution, and term sheets from the beginning.",
+      deadline: null,
+      knowledgeMap: undefined,
+    });
+
+    expect(plan.sessions[0].objective.length).toBeLessThanOrEqual(280);
+    expect(plan.sessions[0].contentTargets).toEqual([
+      "How funding stages and investor types connect",
+      "How common funding instruments change ownership or repayment",
+      "How dilution and term-sheet terms affect founders and investors",
+    ]);
+  });
+
   it("maps one calculus skill to a short progression and all of calculus to a course pathway", () => {
     const base = requestWithMinutes(25);
     const productRule = generatePreviewPlan({

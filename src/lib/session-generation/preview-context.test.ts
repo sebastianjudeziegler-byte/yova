@@ -103,6 +103,30 @@ const knowledgeMap: NonNullable<LearningPlan["knowledgeMap"]> = {
 };
 
 describe("buildPreviewSessionContext", () => {
+  it("honors a current request to teach a planned study session first", () => {
+    const studySession = {
+      ...plan.sessions[0],
+      learningMode: "study" as const,
+      method: "Closed-note retrieval",
+    };
+    const result = buildPreviewSessionContext({
+      plan: { ...plan, learningIntent: "study", sessions: [studySession] },
+      session: studySession,
+      onboardingAnswers: [],
+      completions: [],
+      interruptions: [],
+      sessionAdjustment: {
+        familiarity: "need_teaching",
+        availableMinutes: null,
+        knownTargets: [],
+        note: "Teach this first.",
+      },
+    });
+
+    expect(result.session.learningMode).toBe("learn");
+    expect(result.session.method).toBe("Guided explanation and self-explanation");
+  });
+
   it("uses streamed teaching for an older mapped preview plan without a saved architecture stamp", () => {
     const mappedSession = { ...plan.sessions[0], topicIds: [mappedTopicId] };
     const result = buildPreviewSessionContext({

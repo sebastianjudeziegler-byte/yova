@@ -601,15 +601,16 @@ function previewBlueprint(subject: PreviewSubject, request: PlanGenerationReques
   }
 
   if (request.intent === "study_now") {
-    const contentTargets = subject.focusedTargets ?? [subject.topic];
+    const contentTargets = studyNowContentTargets(subject, request.goal);
+    const focusedTopic = contentTargets.join(", ");
     const learningFirst = request.learningIntent === "learn";
     return {
       phaseIndex: 0,
       minutes,
       title: studyNowTitle(subject),
-      objective: learningFirst
-        ? `Build a clear first mental model of ${subject.topic}, work through one concrete example, and then explain the central relationships without the model visible.`
-        : `Retrieve and apply the main ideas in ${subject.topic} without notes, then repair only the gaps the attempt reveals.`,
+      objective: boundedObjective(learningFirst
+        ? `Build a clear first mental model of ${focusedTopic}, work through one concrete example, and then explain the central relationships without the model visible.`
+        : `Retrieve and apply ${focusedTopic} without notes, then repair only the gaps the attempt reveals.`),
       contentTargets,
       completionEvidence: learningFirst
         ? [
@@ -642,6 +643,26 @@ function previewBlueprint(subject: PreviewSubject, request: PlanGenerationReques
       ? learningCompletionEvidenceFor(phaseIndex, contentTargets)
       : completionEvidenceFor(phaseIndex, contentTargets),
   };
+}
+
+function studyNowContentTargets(subject: PreviewSubject, goal: string) {
+  if (/world war i causes, escalation/i.test(subject.topic)) {
+    const requestsOutbreak = /cause|outbreak|spread|escalat|july crisis|assassination/i.test(goal);
+    const requestsLaterWar = /turning point|consequence|armistice|treaty|trench|front|battle/i.test(goal);
+    if (requestsOutbreak && !requestsLaterWar) return (subject.focusedTargets ?? []).slice(0, 2);
+  }
+  if (/photosynthesis and cellular respiration/i.test(subject.topic)) {
+    const requestsRespiration = /cellular respiration|glycolysis|krebs|electron transport/i.test(goal);
+    const requestsPhotosynthesis = /photosynthesis|chloroplast|light[- ]dependent|calvin cycle/i.test(goal);
+    if (requestsRespiration && !requestsPhotosynthesis) return ["Cellular respiration sequence"];
+    if (requestsPhotosynthesis && !requestsRespiration) return ["Photosynthesis energy capture and carbon fixation"];
+  }
+  if (/budgeting, credit, interest, and investing/i.test(subject.topic)) {
+    const requestsBudget = /budget|personal finance/i.test(goal);
+    const requestsCompoundGrowth = /compound (?:growth|interest)/i.test(goal);
+    if (requestsBudget && requestsCompoundGrowth) return ["Budgeting decisions", "Compound growth"];
+  }
+  return subject.focusedTargets ?? [subject.topic];
 }
 
 function outsideMethodFor(goal: string) {
