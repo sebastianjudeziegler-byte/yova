@@ -188,6 +188,31 @@ describe("built-in fallback evidence attribution", () => {
 });
 
 describe("built-in fallback target coverage", () => {
+  it("counts the substantive worked example for the exact mapped WWI scope", () => {
+    const activities = [{
+      teaching: {
+        keyIdea: "World War I began when prewar European alliances and tensions interacted with a specific political crisis in 1914; its basic chronology then runs to the 1918 armistice.",
+        explanation: "The assassination of Archduke Franz Ferdinand triggered the July Crisis, when leaders chose ultimatums, mobilization, and declarations of war that widened the conflict.",
+        example: {
+          setup: "Trace the sequence from the Sarajevo assassination and declarations of war to the basic chronology from 1914 to 1918.",
+          steps: [
+            "On June 28, 1914, a Bosnian Serb nationalist assassinated Archduke Franz Ferdinand in Sarajevo.",
+            "Austria-Hungary issued an ultimatum to Serbia and declared war after Serbia did not accept every demand.",
+          ],
+          takeaway: "The assassination was the trigger, while government decisions during the July Crisis widened the war.",
+        },
+        commonMistake: {
+          mistake: "The assassination alone made a world war inevitable.",
+          correction: "Political choices, alliance commitments, and mobilization plans transformed the crisis into a wider war.",
+        },
+      },
+    }];
+
+    for (const target of base.contentTargets) {
+      expect(builtInLessonCoversTarget(activities, target), target).toBe(true);
+    }
+  });
+
   it("does not count an incorrect distractor as lesson coverage", () => {
     const activities = [{
       title: "Which explanation best describes the outbreak of World War I?",
@@ -199,6 +224,22 @@ describe("built-in fallback target coverage", () => {
         "The July Crisis widened the assassination crisis into war",
         "The Treaty of Versailles caused the war before it was signed",
       ],
+    }];
+
+    expect(builtInLessonCoversTarget(activities, "July Crisis")).toBe(true);
+    expect(builtInLessonCoversTarget(activities, "Treaty of Versailles")).toBe(false);
+  });
+
+  it("does not count misconception text as lesson coverage", () => {
+    const activities = [{
+      teaching: {
+        keyIdea: "Separate a mistaken claim from its correction.",
+        explanation: "Only the correction supplies reliable lesson content.",
+        commonMistake: {
+          mistake: "The Treaty of Versailles caused World War I before it was signed.",
+          correction: "The July Crisis widened the assassination crisis into war.",
+        },
+      },
     }];
 
     expect(builtInLessonCoversTarget(activities, "July Crisis")).toBe(true);
