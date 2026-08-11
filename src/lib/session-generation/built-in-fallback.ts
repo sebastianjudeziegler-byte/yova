@@ -21,6 +21,16 @@ type BuiltInFallbackCoverageActivity = {
   teaching?: {
     keyIdea?: string | null;
     explanation?: string | null;
+    example?: {
+      setup?: string | null;
+      steps?: string[] | null;
+      takeaway?: string | null;
+    } | null;
+    commonMistake?: {
+      /** Misconception text is accepted in the shape so coverage can explicitly ignore it. */
+      mistake?: string | null;
+      correction?: string | null;
+    } | null;
   } | null;
   correctAnswer?: string | null;
   feedback?: string | null;
@@ -59,6 +69,10 @@ export function builtInLessonCoversTarget(
     activity.concept,
     activity.teaching?.keyIdea,
     activity.teaching?.explanation,
+    activity.teaching?.example?.setup,
+    ...(activity.teaching?.example?.steps ?? []),
+    activity.teaching?.example?.takeaway,
+    activity.teaching?.commonMistake?.correction,
     activity.correctAnswer,
     activity.feedback,
   ].filter(Boolean).join(" ")).join(" ");
