@@ -521,8 +521,16 @@ describe("runtime session-window scoping", () => {
   });
 
   it("keeps a Bioenergetics claim mapped to its concise ATP target", async () => {
-    const { scopeStreamedSkeletonToCurrentWindow } = await import("@/lib/openai/streamed-teaching-generator");
-    const { StreamedGeneratedSessionDraftSchema } = await import("@/lib/session-generation/schema");
+    const {
+      scopeStreamedSkeletonToCurrentWindow,
+      StreamedSkeletonProviderOutputSchema,
+    } = await import("@/lib/openai/streamed-teaching-generator");
+    const {
+      StreamedGeneratedSessionDraftOutputSchema,
+      StreamedGeneratedSessionDraftSchema,
+    } = await import("@/lib/session-generation/schema");
+    const { streamedTeachingPacingContract } = await import("@/lib/session-generation/streamed-pacing");
+    const { lessonIdeaMatchesTarget } = await import("@/lib/session-generation/lesson-brief");
     const target = "Energy coupling and ATP";
     const ideas = [
       "Cells couple ATP hydrolysis to energy-requiring reactions.",
@@ -655,9 +663,101 @@ describe("runtime session-window scoping", () => {
       plannedTargets: [target],
       estimatedMinutes: 25,
       learnerDirection: null,
+      targetAssignments: ideas.map((essentialIdea) => ({
+        essentialIdea,
+        targetId: "target_1" as const,
+      })),
     });
     expect(scoped.coverage.essentialIdeas).toEqual(ideas);
     expect(scoped.coverage.deferredContent).toEqual([]);
+
+    const providerOutput = StreamedSkeletonProviderOutputSchema.parse({
+      ...draft,
+      targetAssignments: ideas.map((essentialIdea) => ({ essentialIdea, targetId: "target_1" })),
+    });
+    const cacheableDraft = StreamedGeneratedSessionDraftOutputSchema.parse(providerOutput);
+    expect(providerOutput.targetAssignments).toHaveLength(2);
+    expect("targetAssignments" in cacheableDraft).toBe(false);
+
+    const deferredNeighbor = "Energy coupling and ATP during long-term exercise";
+    const longActiveIdea = "Cells use ATP hydrolysis to transfer energy into reactions that require cellular work.";
+    expect(lessonIdeaMatchesTarget(longActiveIdea, target)).toBe(false);
+    const sharedParentDraft = StreamedGeneratedSessionDraftSchema.parse({
+      ...draft,
+      coverage: {
+        ...draft.coverage,
+        essentialIdeas: [longActiveIdea],
+        completionEvidence: [draft.coverage.completionEvidence[0]!],
+        evidenceMap: [{
+          essentialIdea: longActiveIdea,
+          activityConcept: concepts[0]!,
+        }],
+        deferredContent: [deferredNeighbor],
+      },
+      activities: [
+        {
+          ...draft.activities[0]!,
+          estimatedMinutes: 5,
+          lessonBrief: {
+            ...draft.activities[0]!.lessonBrief!,
+            essentialIdeas: [longActiveIdea],
+          },
+        },
+        {
+          ...draft.activities[1]!,
+          correctAnswer: longActiveIdea,
+        },
+        draft.activities[3]!,
+      ],
+    });
+    const shortened = scopeStreamedSkeletonToCurrentWindow({
+      draft: sharedParentDraft,
+      plannedTargets: [target, deferredNeighbor],
+      estimatedMinutes: 15,
+      learnerDirection: null,
+      pacingContract: streamedTeachingPacingContract({
+        availableMinutes: 15,
+        activeIdeaCount: 2,
+        maximumActiveIdeas: 1,
+      }),
+      targetAssignments: [{ essentialIdea: longActiveIdea, targetId: "target_1" }],
+    });
+    expect(shortened.coverage.essentialIdeas).toEqual([longActiveIdea]);
+    expect(shortened.coverage.deferredContent).toContain(deferredNeighbor);
+
+    const contaminatedIdea = "ATP and energy coupling during long-term exercise changes how cells supply usable energy.";
+    expect(() => scopeStreamedSkeletonToCurrentWindow({
+      draft: StreamedGeneratedSessionDraftSchema.parse({
+        ...sharedParentDraft,
+        coverage: {
+          ...sharedParentDraft.coverage,
+          essentialIdeas: [contaminatedIdea],
+          evidenceMap: [{
+            essentialIdea: contaminatedIdea,
+            activityConcept: concepts[0]!,
+          }],
+        },
+        activities: sharedParentDraft.activities.map((activity) => (
+          activity.type === "instruction" && activity.lessonBrief
+            ? {
+                ...activity,
+                lessonBrief: { ...activity.lessonBrief, essentialIdeas: [contaminatedIdea] },
+              }
+            : activity.type === "free_response"
+              ? { ...activity, correctAnswer: contaminatedIdea }
+              : activity
+        )),
+      }),
+      plannedTargets: [target, deferredNeighbor],
+      estimatedMinutes: 15,
+      learnerDirection: null,
+      pacingContract: streamedTeachingPacingContract({
+        availableMinutes: 15,
+        activeIdeaCount: 2,
+        maximumActiveIdeas: 1,
+      }),
+      targetAssignments: [{ essentialIdea: contaminatedIdea, targetId: "target_1" }],
+    })).toThrow(/deferred(?:-session substance| content remained)/i);
   });
 
   it("defines the 15-minute World War I window before generation", async () => {
@@ -678,6 +778,137 @@ describe("runtime session-window scoping", () => {
       activeTargets: plannedTargets.slice(0, 2),
       deferredTargets: plannedTargets.slice(2),
     });
+  });
+
+  it("uses stable target ids for a legitimate WWI paraphrase that strict prose matching cannot identify", async () => {
+    const {
+      validateStreamedTargetAssignments,
+    } = await import("@/lib/openai/streamed-teaching-generator");
+    const {
+      lessonIdeaMatchesTarget,
+    } = await import("@/lib/session-generation/lesson-brief");
+    const targets = [
+      "Prewar European alliances and tensions",
+      "Sequence from the Sarajevo assassination to declarations of war",
+      "Basic chronology from 1914 to 1918",
+    ];
+    const ideas = [
+      "Before 1914, European alliances divided powers into rival armed blocs whose commitments increased the danger that a regional dispute would spread among major states.",
+      "The Sarajevo assassination triggered a sequence that turned a local crisis into declarations of war.",
+      "Basic chronology from 1914 to 1918 runs from the outbreak through U.S. entry to the armistice.",
+    ];
+    expect(lessonIdeaMatchesTarget(ideas[0]!, targets[0]!)).toBe(false);
+
+    const resolved = validateStreamedTargetAssignments({
+      essentialIdeas: ideas,
+      targetAssignments: ideas.map((essentialIdea, index) => ({
+        essentialIdea,
+        targetId: `target_${index + 1}` as "target_1" | "target_2" | "target_3",
+      })),
+      currentSessionScope: { activeTargets: targets, deferredTargets: [] },
+    });
+
+    expect(resolved.map((assignment) => assignment.target)).toEqual(targets);
+  });
+
+  it("rejects missing, inactive, and unrelated stable target assignments", async () => {
+    const {
+      validateStreamedTargetAssignments,
+    } = await import("@/lib/openai/streamed-teaching-generator");
+    const targets = [
+      "Prewar European alliances and tensions",
+      "Sequence from the Sarajevo assassination to declarations of war",
+      "Basic chronology from 1914 to 1918",
+    ];
+    const ideas = [
+      "European alliances divided major powers into rival blocs before 1914.",
+      "Rival European alliances made a local diplomatic crisis harder to contain.",
+      "Basic chronology from 1914 to 1918 runs from the outbreak through the armistice.",
+    ];
+    const scope = { activeTargets: targets, deferredTargets: [] };
+
+    expect(() => validateStreamedTargetAssignments({
+      essentialIdeas: ideas,
+      targetAssignments: ideas.slice(0, 2).map((essentialIdea) => ({
+        essentialIdea,
+        targetId: "target_1",
+      })),
+      currentSessionScope: scope,
+    })).toThrow(/exactly one stable target assignment/i);
+
+    expect(() => validateStreamedTargetAssignments({
+      essentialIdeas: [ideas[0]!],
+      targetAssignments: [{ essentialIdea: ideas[0]!, targetId: "target_4" }],
+      currentSessionScope: {
+        activeTargets: [targets[0]!],
+        deferredTargets: targets.slice(1),
+      },
+    })).toThrow(/target id target_4 is not active/i);
+
+    const unrelatedIdea = "European photosynthesis research captures light energy and stores it in chemical bonds.";
+    expect(() => validateStreamedTargetAssignments({
+      essentialIdeas: [unrelatedIdea],
+      targetAssignments: [{ essentialIdea: unrelatedIdea, targetId: "target_1" }],
+      currentSessionScope: {
+        activeTargets: [targets[0]!],
+        deferredTargets: targets.slice(1),
+      },
+    })).toThrow(/does not preserve that target's subject terms/i);
+
+    const boundedPhotosynthesisIdea = "Photosynthesis converts light energy into chemical energy stored in glucose.";
+    expect(validateStreamedTargetAssignments({
+      essentialIdeas: [boundedPhotosynthesisIdea],
+      targetAssignments: [{ essentialIdea: boundedPhotosynthesisIdea, targetId: "target_1" }],
+      currentSessionScope: { activeTargets: ["Photosynthesis"], deferredTargets: [] },
+    })).toHaveLength(1);
+
+    const broadPhotosynthesisSurvey = "Photosynthesis and cellular respiration exchange gases while ecosystems recycle matter and energy.";
+    expect(() => validateStreamedTargetAssignments({
+      essentialIdeas: [broadPhotosynthesisSurvey],
+      targetAssignments: [{ essentialIdea: broadPhotosynthesisSurvey, targetId: "target_1" }],
+      currentSessionScope: { activeTargets: ["Photosynthesis"], deferredTargets: [] },
+    })).toThrow(/does not preserve that target's subject terms/i);
+
+    const lightTarget = "Light reactions of photosynthesis";
+    const lightParaphrase = "In photosynthesis, light-absorbing pigments transfer excited electrons through carriers to make ATP and NADPH.";
+    expect(validateStreamedTargetAssignments({
+      essentialIdeas: [lightParaphrase],
+      targetAssignments: [{ essentialIdea: lightParaphrase, targetId: "target_1" }],
+      currentSessionScope: {
+        activeTargets: [lightTarget],
+        deferredTargets: ["Calvin cycle in photosynthesis"],
+      },
+    })).toHaveLength(1);
+
+    const calvinLeak = "Photosynthesis light enables the Calvin cycle.";
+    expect(() => validateStreamedTargetAssignments({
+      essentialIdeas: [calvinLeak],
+      targetAssignments: [{ essentialIdea: calvinLeak, targetId: "target_1" }],
+      currentSessionScope: {
+        activeTargets: [lightTarget],
+        deferredTargets: ["Calvin cycle in photosynthesis"],
+      },
+    })).toThrow(/deferred-session substance/i);
+
+    const singleDistinctiveCalvinLeak = "Light reactions supply energy to the Calvin process.";
+    expect(() => validateStreamedTargetAssignments({
+      essentialIdeas: [singleDistinctiveCalvinLeak],
+      targetAssignments: [{ essentialIdea: singleDistinctiveCalvinLeak, targetId: "target_1" }],
+      currentSessionScope: {
+        activeTargets: [lightTarget],
+        deferredTargets: ["Calvin cycle in photosynthesis"],
+      },
+    })).toThrow(/deferred-session substance/i);
+
+    const timeBoundaryLeak = "European alliances before and after the war shaped military commitments.";
+    expect(() => validateStreamedTargetAssignments({
+      essentialIdeas: [timeBoundaryLeak],
+      targetAssignments: [{ essentialIdea: timeBoundaryLeak, targetId: "target_1" }],
+      currentSessionScope: {
+        activeTargets: ["European alliances before the war"],
+        deferredTargets: ["European alliances after the war"],
+      },
+    })).toThrow(/deferred-session substance/i);
   });
 
   it("accepts an output-valid typed knowledge check before strict final parsing", async () => {

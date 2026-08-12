@@ -250,6 +250,43 @@ describe("session content-volume validation", () => {
     )).toBe(false);
   });
 
+  it("accepts a server-validated target id as authoritative coverage without weakening prose matching", async () => {
+    const {
+      validateSessionCoverageFidelity,
+    } = await import("@/lib/openai/session-generator");
+    const {
+      lessonIdeaMatchesTarget,
+    } = await import("@/lib/session-generation/lesson-brief");
+    const draft = learningDraft("model");
+    const target = "Prewar European alliances and tensions";
+    const idea = "Before 1914, European alliances divided powers into rival armed blocs whose commitments increased the danger that a regional dispute would spread among major states.";
+    draft.coverage.essentialIdeas = [idea];
+    draft.coverage.deferredContent = [];
+    const session = {
+      title: "Baseline Check and WWI Map",
+      objective: "Understand the main prewar tensions and build a simple World War I timeline.",
+      method: "Self-explanation",
+      methodReason: "Build the model before an independent check.",
+      estimatedMinutes: 45,
+      learningMode: "learn" as const,
+      topicIds: [TEST_TOPIC_ID],
+      contentTargets: [target],
+      completionEvidence: ["Explain the prewar pressure without notes"],
+    };
+    expect(lessonIdeaMatchesTarget(idea, target)).toBe(false);
+    expect(validateSessionCoverageFidelity(
+      draft,
+      session,
+      lessonIdeaMatchesTarget,
+    )).toMatch(/lost planned content/i);
+    expect(validateSessionCoverageFidelity(
+      draft,
+      session,
+      lessonIdeaMatchesTarget,
+      [target],
+    )).toBeNull();
+  });
+
   it("limits active ideas according to the session duration", async () => {
     const { validateSessionCoverageFidelity } = await import("@/lib/openai/session-generator");
     const draft = learningDraft("model");
