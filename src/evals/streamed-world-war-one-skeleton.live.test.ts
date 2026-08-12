@@ -7,6 +7,53 @@ import { coverageTargetsMatch } from "@/lib/openai/session-generator";
 vi.mock("server-only", () => ({}));
 
 const liveEvaluationEnabled = process.env.YOVA_RUN_LIVE_WWI_SKELETON_EVALS === "1";
+const exactBaselineEvaluationEnabled = process.env.YOVA_RUN_LIVE_WWI_BASELINE_EVALS === "1";
+
+describe.skipIf(!exactBaselineEvaluationEnabled)("live exact World War I baseline skeleton", () => {
+  test("creates the production 45-minute streamed teaching session", async () => {
+    const { generateProductionSessionWithOpenAI } = await import("@/lib/openai/session-generation-strategy");
+    const evaluationCase = buildSessionEvaluationCases().find(
+      (candidate) => candidate.id === "world_war_one_mapped_45_min",
+    );
+    if (!evaluationCase) throw new Error("The exact World War I session case is missing.");
+
+    try {
+      const result = await generateProductionSessionWithOpenAI(evaluationCase.context);
+      const draft = StreamedGeneratedSessionDraftSchema.parse(result.draft);
+      console.info("Exact WWI baseline skeleton", {
+        generationStats: result.generationStats,
+        coverage: draft.coverage,
+        activities: draft.activities.map((activity) => ({
+          type: activity.type,
+          phase: activity.methodPhase,
+          concept: activity.concept,
+          minutes: activity.estimatedMinutes,
+          ideas: activity.lessonBrief?.essentialIdeas ?? [],
+        })),
+      });
+      const focusedActivities = draft.activities.filter((activity) => activity.methodPhase !== "schedule_return");
+      expect(focusedActivities.filter((activity) => (
+        activity.type === "instruction" && activity.lessonBrief
+      ))).toHaveLength(3);
+      expect(focusedActivities.filter((activity) => (
+        activity.requiredForCompletion
+        && (activity.type === "multiple_choice" || activity.type === "free_response")
+      ))).toHaveLength(3);
+      expect(focusedActivities.reduce((total, activity) => total + activity.estimatedMinutes, 0))
+        .toBe(45);
+      expect(draft.coverage.essentialIdeas).toHaveLength(3);
+      expect(draft.coverage.deferredContent).toEqual([]);
+    } catch (error) {
+      console.info("Exact WWI baseline generation failure", {
+        message: error instanceof Error ? error.message : String(error),
+        generationStats: error && typeof error === "object" && "generationStats" in error
+          ? error.generationStats
+          : null,
+      });
+      throw error;
+    }
+  }, 180_000);
+});
 
 describe.skipIf(!liveEvaluationEnabled)("live streamed World War I session skeleton", () => {
   test("reliably creates a valid subject-specific session outline", async () => {

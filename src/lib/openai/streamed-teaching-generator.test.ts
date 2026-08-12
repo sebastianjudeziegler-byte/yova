@@ -557,7 +557,10 @@ describe("runtime session-window scoping", () => {
           essentialIdea: idea,
           activityConcept: concepts[index]!,
         })),
-        deferredContent: [],
+        // Coverage alignment can conservatively preserve a concise target
+        // label when the explanatory claim is longer. Current-window scoping
+        // must remove that label once the target has a taught, checked claim.
+        deferredContent: [target],
       },
       methodBriefing: {
         learningMode: "learn",

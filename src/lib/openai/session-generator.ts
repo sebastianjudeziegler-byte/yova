@@ -84,7 +84,10 @@ import { contentBudgetForMinutes } from "@/lib/plan-generation/content-budget";
 import type { KnowledgeMapTopic } from "@/lib/knowledge-map/schema";
 import type { SessionArchitectureVersion } from "@/lib/session-generation/architecture";
 import type { LessonDeliveryInstructions } from "@/lib/personalization/session-delivery-policy";
-import { validateStreamedLessonScope } from "@/lib/session-generation/lesson-brief";
+import {
+  lessonIdeaMatchesTarget,
+  validateStreamedLessonScope,
+} from "@/lib/session-generation/lesson-brief";
 
 export { validateSessionTimeBudget } from "@/lib/session-generation/time-budget";
 
@@ -1082,7 +1085,13 @@ export function validateGeneratedSessionWithCode(
 
   const checks: Array<[GenerationValidator, string | null]> = [
     ["session_time_budget", validateSessionTimeBudget(draft, context.session.estimatedMinutes)],
-    ["session_coverage_fidelity", validateSessionCoverageFidelity(draft, context.session)],
+    ["session_coverage_fidelity", validateSessionCoverageFidelity(
+      draft,
+      context.session,
+      context.sessionArchitectureVersion === "streamed_teaching_v1"
+        ? lessonIdeaMatchesTarget
+        : coverageTargetsMatch,
+    )],
     ["streamed_lesson_scope", streamedLessonScopeIssue ?? streamedTeachingPacingIssue],
     ["learning_science_routing", validateLearningScienceRoutingSelection(draft.methodBriefing, learningScienceRouting)],
     ["session_adjustment_fidelity", validateSessionAdjustmentFidelity(draft, context.sessionAdjustment)],
@@ -1143,6 +1152,7 @@ export function validateGeneratedSessionWithCode(
 export function validateSessionCoverageFidelity(
   draft: GeneratedSessionDraft,
   session: SessionGenerationContext["session"],
+  targetMatches: (idea: string, target: string) => boolean = coverageTargetsMatch,
 ) {
   const budget = contentBudgetForMinutes(session.estimatedMinutes);
   if (draft.coverage.essentialIdeas.length > budget.maximumContentTargets) {
@@ -1156,7 +1166,7 @@ export function validateSessionCoverageFidelity(
   if (plannedTargets.length === 0) return null;
   const generatedCoverage = [...draft.coverage.essentialIdeas, ...draft.coverage.deferredContent];
   const missingTargets = plannedTargets.filter((target) => (
-    !generatedCoverage.some((idea) => coverageTargetsMatch(idea, target))
+    !generatedCoverage.some((idea) => targetMatches(idea, target))
   ));
   if (missingTargets.length > 0) {
     return `The generated session lost planned content: ${missingTargets.join(", ")}. Represent each target with a concrete explanatory claim in essentialIdeas or preserve the target in deferredContent.`;
