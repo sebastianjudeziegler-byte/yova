@@ -9,18 +9,18 @@ describe("production session generation strategy", () => {
     const cases = new Map(buildSessionEvaluationCases().map((entry) => [entry.id, entry.context]));
     const strategyFor = (id: string) => sessionGenerationStrategy(cases.get(id)!);
 
-    expect(strategyFor("startup_funding_foundations")).toBe("reliable");
-    expect(strategyFor("biology_initial_teaching")).toBe("reliable");
-    expect(strategyFor("calculus_initial_teaching_15_min")).toBe("reliable");
+    expect(strategyFor("startup_funding_foundations")).toBe("streamed");
+    expect(strategyFor("biology_initial_teaching")).toBe("streamed");
+    expect(strategyFor("calculus_initial_teaching_15_min")).toBe("streamed");
     expect(strategyFor("short_vocabulary_review")).toBe("reliable");
 
     expect(strategyFor("calculus_delayed_retrieval_self_contained")).toBe("full");
     expect(strategyFor("history_writing_outside")).toBe("full");
-    expect(strategyFor("javascript_scaffold_fading")).toBe("full");
-    expect(strategyFor("literature_close_reading")).toBe("reliable");
+    expect(strategyFor("javascript_scaffold_fading")).toBe("streamed");
+    expect(strategyFor("literature_close_reading")).toBe("streamed");
   });
 
-  it("streams only ordinary inside-YOVA learn sessions from explicitly versioned plans", async () => {
+  it("streams every ordinary inside-YOVA teaching-first session, including older plans", async () => {
     const { sessionGenerationStrategy } = await import("@/lib/openai/session-generation-strategy");
     const cases = new Map(buildSessionEvaluationCases().map((entry) => [entry.id, entry.context]));
     const learn = cases.get("biology_initial_teaching")!;
@@ -30,6 +30,6 @@ describe("production session generation strategy", () => {
     expect(sessionGenerationStrategy({ ...learn, sessionArchitectureVersion: "streamed_teaching_v1" })).toBe("streamed");
     expect(sessionGenerationStrategy({ ...review, sessionArchitectureVersion: "streamed_teaching_v1" })).toBe("full");
     expect(sessionGenerationStrategy({ ...outside, sessionArchitectureVersion: "streamed_teaching_v1" })).toBe("full");
-    expect(sessionGenerationStrategy(learn)).not.toBe("streamed");
+    expect(sessionGenerationStrategy(learn)).toBe("streamed");
   });
 });

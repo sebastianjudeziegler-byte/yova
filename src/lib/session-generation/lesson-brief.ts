@@ -297,6 +297,9 @@ export function validateStreamedLessonScope(
       if (!activeIdeaKeys.has(key)) {
         return `The teaching block “${activity.title}” includes “${idea},” which is not one of this session's active ideas.`;
       }
+      if (taughtIdeaKeys.has(key)) {
+        return `The active idea “${idea}” appears in more than one teaching block. Give each streamed lesson a distinct content assignment instead of repeating material to fill time.`;
+      }
       taughtIdeaKeys.add(key);
     }
   }

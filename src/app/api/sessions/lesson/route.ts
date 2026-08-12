@@ -14,6 +14,7 @@ import { lessonIdeaCapacityForMinutes } from "@/lib/session-generation/lesson-br
 import { encodeLessonStreamEvent } from "@/lib/session-generation/lesson-stream";
 import {
   CachedGeneratedSessionV16Schema,
+  CachedGeneratedSessionV17Schema,
   StreamedGeneratedSessionActivitySchema,
   type LessonBrief,
 } from "@/lib/session-generation/schema";
@@ -106,17 +107,6 @@ export async function POST(request: Request) {
     return new Response(null, { status: 204, headers: { "Cache-Control": "no-store" } });
   }
 
-  if (!isOpenAILessonConfigured()) {
-    return Response.json({ error: "Live lesson generation is not connected yet." }, { status: 503 });
-  }
-  const rateLimit = checkLessonGenerationRateLimit(`${user?.id ?? "preview"}:${requestRateLimitKey(request)}`);
-  if (!rateLimit.allowed) {
-    return Response.json(
-      { error: "Too many lessons were opened at once. Wait a moment and try again." },
-      { status: 429, headers: { "Retry-After": String(rateLimit.retryAfterSeconds) } },
-    );
-  }
-
   let lesson: LessonRuntimeSource | null = null;
   if (developmentPreview) {
     lesson = parsed.data.previewLesson
@@ -136,32 +126,55 @@ export async function POST(request: Request) {
   if (!lesson?.activity.lessonBrief) {
     return Response.json({ error: "This teaching step does not have a streamed lesson." }, { status: 409 });
   }
+  const model = getOpenAILessonConfig()?.model ?? "lesson-model";
+  const lessonInput = lessonInputFromSource(lesson);
+  if (!isOpenAILessonConfigured()) {
+    return boundedLessonFallbackResponse({
+      lessonInput,
+      requestId,
+      model,
+      supabase,
+      userId: user?.id,
+      failureKind: "provider_request_error",
+    });
+  }
+  const rateLimit = checkLessonGenerationRateLimit(`${user?.id ?? "preview"}:${requestRateLimitKey(request)}`);
+  if (!rateLimit.allowed) {
+    return boundedLessonFallbackResponse({
+      lessonInput,
+      requestId,
+      model,
+      supabase,
+      userId: user?.id,
+      failureKind: "provider_request_error",
+    });
+  }
 
   if (!developmentPreview && supabase) {
     try {
       const durableLimit = await claimAIRequest(supabase, "lesson_generation");
       if (!durableLimit.allowed) {
-        return Response.json(
-          { error: "This account has reached its lesson allowance. Try again after the limit resets." },
-          {
-            status: 429,
-            headers: {
-              "Retry-After": String(durableLimit.retryAfterSeconds),
-              "Cache-Control": "no-store",
-            },
-          },
-        );
+        return boundedLessonFallbackResponse({
+          lessonInput,
+          requestId,
+          model,
+          supabase,
+          userId: user?.id,
+          failureKind: "provider_request_error",
+        });
       }
     } catch {
-      return Response.json(
-        { error: "YOVA paused before using OpenAI because it could not verify the account's AI budget." },
-        { status: 503 },
-      );
+      return boundedLessonFallbackResponse({
+        lessonInput,
+        requestId,
+        model,
+        supabase,
+        userId: user?.id,
+        failureKind: "provider_request_error",
+      });
     }
   }
 
-  const model = getOpenAILessonConfig()?.model ?? "lesson-model";
-  const lessonInput = lessonInputFromSource(lesson);
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
       controller.enqueue(encodeLessonStreamEvent({ type: "lesson.meta", requestId, model }));
@@ -321,6 +334,72 @@ export async function POST(request: Request) {
   });
 }
 
+function boundedLessonFallbackResponse({
+  lessonInput,
+  requestId,
+  model,
+  supabase,
+  userId,
+  failureKind,
+}: {
+  lessonInput: StreamedLessonInput;
+  requestId: string;
+  model: string;
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>> | null;
+  userId: string | undefined;
+  failureKind: StreamedLessonFailureKind;
+}) {
+  const content = buildBoundedFallbackLesson(lessonInput);
+  const wordCount = countWords(content);
+  const stream = new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(encodeLessonStreamEvent({ type: "lesson.meta", requestId, model }));
+      controller.enqueue(encodeLessonStreamEvent({ type: "lesson.replace", content }));
+      controller.enqueue(encodeLessonStreamEvent({
+        type: "lesson.complete",
+        elapsedMs: 0,
+        latencyToFirstTokenMs: null,
+        inputTokens: 0,
+        cachedInputTokens: 0,
+        outputTokens: 0,
+        wordCount,
+        model,
+      }));
+      controller.close();
+    },
+  });
+  void recordGenerationObservation(supabase, userId, {
+    generationType: "lesson",
+    environment: generationEnvironment(),
+    finalOutcome: "fallback",
+    firstAttemptPassed: false,
+    failedValidator: validatorForLessonFailure(failureKind),
+    repairAttempted: true,
+    repairSucceeded: true,
+    elapsedMs: 0,
+    attempts: 0,
+    inputTokens: 0,
+    cachedInputTokens: 0,
+    cacheWriteTokens: 0,
+    outputTokens: 0,
+    model,
+    diagnostics: {
+      lessonRequestId: requestId,
+      latencyToFirstTokenMs: null,
+      wordCount,
+      streamCompleted: true,
+      lessonFailureKind: failureKind,
+    },
+  }).catch(() => undefined);
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "text/event-stream; charset=utf-8",
+      "Cache-Control": "no-store, no-transform",
+      "X-Yova-Request-Id": requestId,
+    },
+  });
+}
+
 function validatorForLessonFailure(
   failureKind: StreamedLessonFailureKind,
 ): "lesson_response_status" | "lesson_stream" | "lesson_provider_request" {
@@ -356,9 +435,10 @@ async function loadLessonRuntimeSource(
     .maybeSingle();
   if (error || !row) return null;
   if (!row.step_data || typeof row.step_data !== "object" || Array.isArray(row.step_data)) return null;
-  const parsed = CachedGeneratedSessionV16Schema.safeParse(
-    (row.step_data as Record<string, unknown>).generatedSession,
-  );
+  const parsed = z.union([
+    CachedGeneratedSessionV16Schema,
+    CachedGeneratedSessionV17Schema,
+  ]).safeParse((row.step_data as Record<string, unknown>).generatedSession);
   if (!parsed.success) return null;
   const activity = parsed.data.activities[activityIndex];
   if (!activity || activity.type !== "instruction" || !activity.lessonBrief) return null;

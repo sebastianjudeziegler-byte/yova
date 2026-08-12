@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
 
 const mocks = vi.hoisted(() => ({
+  lessonConfigured: true,
   recordObservation: vi.fn(),
   streamGeneratedLesson: vi.fn(),
 }));
@@ -12,7 +13,7 @@ vi.mock("@/lib/analytics/generation-observation-server", () => ({
 }));
 vi.mock("@/lib/openai/config", () => ({
   getOpenAILessonConfig: () => ({ model: "configured-lesson-model" }),
-  isOpenAILessonConfigured: () => true,
+  isOpenAILessonConfigured: () => mocks.lessonConfigured,
 }));
 vi.mock("@/lib/openai/streamed-lesson-generator", async (importOriginal) => ({
   ...await importOriginal<typeof import("@/lib/openai/streamed-lesson-generator")>(),
@@ -40,6 +41,7 @@ import {
 
 describe("streamed lesson route recovery", () => {
   beforeEach(() => {
+    mocks.lessonConfigured = true;
     mocks.recordObservation.mockReset().mockResolvedValue(undefined);
     mocks.streamGeneratedLesson.mockReset();
   });
@@ -154,6 +156,27 @@ describe("streamed lesson route recovery", () => {
       expect.any(Function),
       expect.any(AbortSignal),
     );
+  });
+
+  it("completes with the validated brief when live lesson generation is unavailable", async () => {
+    mocks.lessonConfigured = false;
+
+    const response = await POST(lessonRequest());
+    expect(response.status).toBe(200);
+    expect(response.body).not.toBeNull();
+
+    const events: LessonStreamEvent[] = [];
+    await consumeLessonEventStream(response.body!, (event) => events.push(event));
+    const runtime = events.reduce(applyLessonStreamEvent, createLessonRuntimeState());
+
+    expect(events.map((event) => event.type)).toEqual([
+      "lesson.meta",
+      "lesson.replace",
+      "lesson.complete",
+    ]);
+    expect(runtime.status).toBe("complete");
+    expect(runtime.content).toContain("Alliance obligations connected");
+    expect(mocks.streamGeneratedLesson).not.toHaveBeenCalled();
   });
 });
 

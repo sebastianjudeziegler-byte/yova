@@ -39,6 +39,30 @@ export function usesStreamedTeaching(value: unknown) {
 }
 
 /**
+ * Teaching-first is a runtime delivery choice, not a compatibility boundary.
+ * Older saved plans can keep their stored schema stamp while ordinary
+ * inside-YOVA learn sessions use the current streamed reader and cache shape.
+ * Reviews and outside-YOVA work retain their original architecture because
+ * they do not begin with an in-app subject lesson.
+ */
+export function sessionArchitectureForGeneration({
+  storedVersion,
+  learningMode,
+  studyMode,
+  reviewType,
+}: {
+  storedVersion?: SessionArchitectureVersion;
+  learningMode: "learn" | "study";
+  studyMode: string;
+  reviewType: "repair_and_retrieve" | "verify" | "maintenance_transfer" | null;
+}): SessionArchitectureVersion {
+  if (learningMode === "learn" && studyMode === "inside_yova" && !reviewType) {
+    return STREAMED_SESSION_ARCHITECTURE;
+  }
+  return storedVersion ?? LEGACY_SESSION_ARCHITECTURE;
+}
+
+/**
  * Unscoped subject-specific browser lessons predate streamed teaching and are
  * safe only for legacy plans. Modern emergency recovery must instead use the
  * exact-session allowlist, full-coverage gate, and conservative topic-evidence

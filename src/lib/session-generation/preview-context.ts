@@ -23,7 +23,10 @@ import { buildScaffoldProgressionSignals } from "@/lib/learning/scaffold-progres
 import { expandedLearnerContextFromAnswers } from "@/lib/personalization/learner-profile";
 import type { PreviewSessionGenerationContext } from "@/lib/session-generation/schema";
 import type { SessionAdjustment } from "@/lib/session-generation/schema";
-import { resolveSessionArchitectureVersion } from "@/lib/session-generation/architecture";
+import {
+  resolveSessionArchitectureVersion,
+  sessionArchitectureForGeneration,
+} from "@/lib/session-generation/architecture";
 
 export function buildPreviewSessionContext({
   plan,
@@ -74,7 +77,12 @@ export function buildPreviewSessionContext({
     }];
 
   return {
-    sessionArchitectureVersion: resolveSessionArchitectureVersion(plan, plan.knowledgeMap),
+    sessionArchitectureVersion: sessionArchitectureForGeneration({
+      storedVersion: resolveSessionArchitectureVersion(plan, plan.knowledgeMap),
+      learningMode: effectiveLearningMode,
+      studyMode: plan.studyMode,
+      reviewType: session.reviewType ?? null,
+    }),
     learningGoal: {
       title: plan.title,
       topic: plan.topic,

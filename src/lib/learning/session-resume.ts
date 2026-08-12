@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type {
+  SessionAdjustmentSnapshot,
   SessionEvidenceSnapshot,
   SessionInterruption,
   SessionPendingRepair,
@@ -27,6 +28,13 @@ export const SessionPendingRepairSchema = z.object({
   repairSupport: RuntimeRepairSupportSchema.optional(),
 });
 
+export const SessionAdjustmentSnapshotSchema: z.ZodType<SessionAdjustmentSnapshot> = z.object({
+  familiarity: z.enum(["as_planned", "already_know", "need_teaching", "challenge_me"]),
+  availableMinutes: z.number().int().min(10).max(90).nullable(),
+  knownTargets: z.array(z.string().trim().min(2).max(180)).max(4),
+  note: z.string().trim().max(500),
+}).strict();
+
 export function resumableSessionProgress(
   planSessionId: string,
   interruptions: SessionInterruption[],
@@ -50,17 +58,48 @@ export function readSessionPendingRepair(value: unknown): SessionPendingRepair |
   return parsed.success ? parsed.data : undefined;
 }
 
+export function readSessionAdjustmentSnapshot(value: unknown): SessionAdjustmentSnapshot | undefined {
+  const parsed = SessionAdjustmentSnapshotSchema.safeParse(value);
+  return parsed.success ? parsed.data : undefined;
+}
+
+export function resumedSessionAdjustment({
+  interruption,
+  plannedSessionMinutes,
+  inMemoryAdjustment,
+}: {
+  interruption: SessionInterruption;
+  plannedSessionMinutes: number;
+  inMemoryAdjustment?: SessionAdjustmentSnapshot | null;
+}): SessionAdjustmentSnapshot | null {
+  if (interruption.sessionAdjustment) return interruption.sessionAdjustment;
+  if (inMemoryAdjustment !== undefined) return inMemoryAdjustment;
+  if (
+    interruption.plannedMinutes !== plannedSessionMinutes
+    && interruption.plannedMinutes >= 10
+    && interruption.plannedMinutes <= 90
+  ) {
+    return {
+      familiarity: "as_planned",
+      availableMinutes: interruption.plannedMinutes,
+      knownTargets: [],
+      note: "",
+    };
+  }
+  return null;
+}
+
 export function restoreInterruptedLesson(
   steps: GuidedSessionStep[],
   interruption: SessionInterruption | null,
 ) {
   if (!interruption) return { steps, step: 0 };
 
+  const pendingRepair = interruption.pendingRepair;
   const resumeStep = Math.min(
     interruption.resumeStep ?? interruption.completedSteps,
-    Math.max(0, steps.length - 1),
+    pendingRepair ? steps.length : Math.max(0, steps.length - 1),
   );
-  const pendingRepair = interruption.pendingRepair;
   if (!pendingRepair) return { steps, step: resumeStep };
 
   const repairStep: GuidedSessionStep = {

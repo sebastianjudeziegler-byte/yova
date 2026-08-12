@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import type { SessionInterruption } from "@/lib/domain";
 import type { GuidedSessionStep } from "@/lib/learning/session-evidence";
 import {
+  readSessionAdjustmentSnapshot,
+  resumedSessionAdjustment,
   restoreInterruptedLesson,
   resumableSessionProgress,
 } from "@/lib/learning/session-resume";
@@ -34,6 +36,62 @@ describe("resumableSessionProgress", () => {
 
     expect(result?.id).toBe("second");
     expect(result?.completedSteps).toBe(3);
+  });
+
+  it("restores the exact setup used to generate an interrupted lesson", () => {
+    const stopped = {
+      ...interruption("adjusted", 2, "2026-08-06T18:15:00.000Z"),
+      plannedMinutes: 20,
+      sessionAdjustment: {
+        familiarity: "need_teaching" as const,
+        availableMinutes: 20,
+        knownTargets: ["ATP coupling"],
+        note: "Please connect this to cellular respiration.",
+      },
+    };
+
+    expect(resumedSessionAdjustment({
+      interruption: stopped,
+      plannedSessionMinutes: 25,
+      inMemoryAdjustment: null,
+    })).toEqual(stopped.sessionAdjustment);
+  });
+
+  it("preserves the selected time for older interruptions without a setup snapshot", () => {
+    const stopped = {
+      ...interruption("legacy-adjusted", 2, "2026-08-06T18:15:00.000Z"),
+      plannedMinutes: 20,
+    };
+
+    expect(resumedSessionAdjustment({
+      interruption: stopped,
+      plannedSessionMinutes: 25,
+    })).toEqual({
+      familiarity: "as_planned",
+      availableMinutes: 20,
+      knownTargets: [],
+      note: "",
+    });
+  });
+
+  it("validates and normalizes a persisted setup snapshot", () => {
+    expect(readSessionAdjustmentSnapshot({
+      familiarity: "challenge_me",
+      availableMinutes: 45,
+      knownTargets: ["  ATP coupling  "],
+      note: "  Use a harder transfer question.  ",
+    })).toEqual({
+      familiarity: "challenge_me",
+      availableMinutes: 45,
+      knownTargets: ["ATP coupling"],
+      note: "Use a harder transfer question.",
+    });
+    expect(readSessionAdjustmentSnapshot({
+      familiarity: "challenge_me",
+      availableMinutes: 9,
+      knownTargets: [],
+      note: "",
+    })).toBeUndefined();
   });
 
   it("ignores another session and interruptions without a usable resume point", () => {
@@ -117,5 +175,54 @@ describe("resumableSessionProgress", () => {
       },
     });
     expect(restored.steps[2].title).toBe("Use the rule");
+  });
+
+  it("appends an unfinished repair after the final completed original activity", () => {
+    const baseSteps: GuidedSessionStep[] = [
+      {
+        methodPhase: "model",
+        type: "instruction",
+        concept: null,
+        label: "Learn",
+        title: "Build the rule",
+        body: "Read the explanation before answering.",
+        question: null,
+        correctAnswer: null,
+        feedback: null,
+      },
+      {
+        methodPhase: "retrieve",
+        type: "multiple_choice",
+        concept: "Product rule",
+        label: "Check",
+        title: "Choose the derivative",
+        body: "Answer before checking.",
+        question: ["f'g + fg'", "f'g'"],
+        correctAnswer: "f'g + fg'",
+        feedback: "Differentiate each factor once.",
+      },
+    ];
+    const stopped = {
+      ...interruption("final-repair-pending", 2, "2026-08-06T18:15:00.000Z"),
+      resumeStep: baseSteps.length,
+      totalSteps: baseSteps.length + 1,
+      pendingRepair: {
+        concept: "Product rule",
+        title: "Explain Product rule again in your own words",
+        body: "State the corrected rule without looking back.",
+        correctAnswer: "f'g + fg'",
+        feedback: "Differentiate each factor once.",
+      },
+    };
+
+    const restored = restoreInterruptedLesson(baseSteps, stopped);
+
+    expect(restored.step).toBe(baseSteps.length);
+    expect(restored.steps).toHaveLength(baseSteps.length + 1);
+    expect(restored.steps[1]?.title).toBe("Choose the derivative");
+    expect(restored.steps[2]).toMatchObject({
+      evidenceRole: "immediate_repair",
+      concept: "Product rule",
+    });
   });
 });

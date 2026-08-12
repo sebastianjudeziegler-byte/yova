@@ -5,6 +5,7 @@ import {
   STREAMED_SESSION_ARCHITECTURE,
   readSessionArchitectureVersion,
   resolveSessionArchitectureVersion,
+  sessionArchitectureForGeneration,
   usesStreamedTeaching,
 } from "@/lib/session-generation/architecture";
 
@@ -91,5 +92,26 @@ describe("session architecture versioning", () => {
   it("never substitutes a legacy built-in lesson for a streamed plan", () => {
     expect(allowsLegacySessionFallback({ sessionArchitectureVersion: STREAMED_SESSION_ARCHITECTURE })).toBe(false);
     expect(allowsLegacySessionFallback({ sessionArchitectureVersion: LEGACY_SESSION_ARCHITECTURE })).toBe(true);
+  });
+
+  it("streams teaching-first sessions even when an older saved plan is stamped legacy", () => {
+    expect(sessionArchitectureForGeneration({
+      storedVersion: LEGACY_SESSION_ARCHITECTURE,
+      learningMode: "learn",
+      studyMode: "inside_yova",
+      reviewType: null,
+    })).toBe(STREAMED_SESSION_ARCHITECTURE);
+    expect(sessionArchitectureForGeneration({
+      storedVersion: LEGACY_SESSION_ARCHITECTURE,
+      learningMode: "study",
+      studyMode: "inside_yova",
+      reviewType: null,
+    })).toBe(LEGACY_SESSION_ARCHITECTURE);
+    expect(sessionArchitectureForGeneration({
+      storedVersion: LEGACY_SESSION_ARCHITECTURE,
+      learningMode: "learn",
+      studyMode: "outside_yova",
+      reviewType: null,
+    })).toBe(LEGACY_SESSION_ARCHITECTURE);
   });
 });

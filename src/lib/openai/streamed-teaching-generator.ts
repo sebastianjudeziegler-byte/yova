@@ -12,6 +12,7 @@ import {
 import {
   learningScienceCatalogForPrompt,
   getCoreLearningMethod,
+  type CoreMethodId,
 } from "@/lib/learning/method-catalog";
 import {
   methodFidelityContractForPrompt,
@@ -53,6 +54,11 @@ import {
 } from "@/lib/session-generation/completion-contract";
 import { isRubricLikeReferenceAnswer } from "@/lib/session-generation/content-specificity";
 import { normalizeStreamedActivityPhaseTypes } from "@/lib/session-generation/streamed-skeleton";
+import {
+  allocateStreamedTeachingMinutes,
+  interleaveStreamedTeachingCycles,
+  streamedTeachingPacingContract,
+} from "@/lib/session-generation/streamed-pacing";
 
 const STREAMED_TEACHING_SKELETON_INSTRUCTIONS = `You design the complete skeleton for one YOVA learn-mode session. Another bounded model call will deliver each teaching explanation when the learner reaches it. You must plan the whole sequence now, including coverage, phases, knowledge checks, reference answers, feedback, and reflection, but you must not write the lesson prose now.
 
@@ -64,7 +70,8 @@ Hard requirements:
 - For every activity set teaching to null. Never put an explanation, worked example, study guide, or lesson prose in body. Body gives only the learner's immediate action or orientation in at most two short sentences.
 - For a teaching instruction, lessonBrief.version is 1. Set lessonBrief.topicIds to the relevant supplied topic ids. Set lessonBrief.essentialIdeas to the exact coverage ideas that the later teaching delivery must explain. Set sourceChunks to [], knowledgeSource to model_knowledge, and every evidenceContext array to []; YOVA replaces those fields with authoritative source and learner evidence after generation. Set all fixed content requirement fields to true, except includeConcreteExample may reflect the task.
 - For questions and non-teaching reflection, set lessonBrief to null.
-- Build coverage first. Every planned content target appears unchanged in either essentialIdeas or deferredContent. Every essential idea appears exactly once in evidenceMap and maps to a required question's exact concept.
+- Build coverage first. Follow streamedTeachingPacing.minimumActiveIdeas exactly: write that many distinct concise explanatory claims in essentialIdeas, preserve each claim's parent target's distinctive scope terms, and represent every active target at least once. A longer single-target lesson must split the target into different bounded subclaims, never repeat one claim. Copy only later targets unchanged into deferredContent. Keep claims grouped in authoritative target order. Every essential idea appears exactly once in evidenceMap and maps to a required question's exact concept.
+- Build visible learning cycles, not one long lecture followed by a quiz. Follow the supplied streamedTeachingPacing contract: each teaching block is immediately followed by its required question before the next teaching block begins. A longer multi-idea session therefore repeats teach, answer, teach, answer.
 - Deferred content is completely absent from the active learner experience. Do not use a deferred target, event, term, date, or example in an activity title, body, concept, answer, feedback, multiple-choice distractor, reflection, completion-evidence label, or scheduled-return prompt. A distractor is still active session content. When later content would be needed to write plausible choices, use a free response instead.
 - Session completion depends on attempts at every required activity, never elapsed time or reading.
 - Include at least one required free-response question so the learner produces the idea from memory. A multiple-choice question is optional and should appear only when recognition or discrimination meaningfully serves this session. Questions must be self-contained and answerable without an earlier screen.
@@ -118,6 +125,36 @@ export function streamedSkeletonRepairAttemptCopy(attempts: number) {
   return `${repairAttempts} repair ${repairAttempts === 1 ? "attempt" : "attempts"}`;
 }
 
+/**
+ * Streamed teaching needs a method whose teaching can be divided into visible
+ * lesson -> answer cycles without deleting a required source, evidence-match,
+ * or code-trace phase. Keep the task-specific choice deterministic while the
+ * richer phase contracts remain available to study and review sessions.
+ */
+export function streamedTeachingCycleRouting(
+  routing: LearningScienceRoutingBrief,
+): LearningScienceRoutingBrief {
+  const preferred: CoreMethodId = routing.taskType === "memorization"
+    ? "retrieval_practice"
+    : routing.taskType === "problem_solving" || routing.taskType === "programming"
+      ? "worked_example_fading"
+      : "self_explanation";
+  const safeOrder: CoreMethodId[] = [
+    preferred,
+    "self_explanation",
+    "worked_example_fading",
+    "retrieval_practice",
+  ];
+  const methodId = safeOrder.find((candidate) => routing.allowedMethodIds.includes(candidate))
+    ?? routing.allowedMethodIds[0]!;
+  return {
+    ...routing,
+    suggestedPrimaryMethodId: methodId,
+    allowedMethodIds: [methodId],
+    methods: learningScienceCatalogForPrompt([methodId]),
+  };
+}
+
 export async function generateStreamedTeachingSkeletonWithOpenAI(
   originalContext: SessionGenerationContext,
 ): Promise<OpenAISessionResult> {
@@ -130,7 +167,7 @@ export async function generateStreamedTeachingSkeletonWithOpenAI(
   const generationStartedAt = Date.now();
   const usage = { attempts: 0, inputTokens: 0, cachedInputTokens: 0, cacheWriteTokens: 0, outputTokens: 0 };
 
-  const learningScienceRouting: LearningScienceRoutingBrief = buildLearningScienceRoutingBrief({
+  const learningScienceRouting = streamedTeachingCycleRouting(buildLearningScienceRoutingBrief({
     learningIntent: context.learningGoal.learningIntent,
     sessionLearningMode: "learn",
     goalTitle: context.learningGoal.title,
@@ -145,7 +182,7 @@ export async function generateStreamedTeachingSkeletonWithOpenAI(
     // version. Outcome evidence remains available below for practice selection.
     recentResults: [],
     interruptionCount: 0,
-  });
+  }));
   const recommendedMethodFidelityContract = methodFidelityContractForPrompt(
     learningScienceRouting.suggestedPrimaryMethodId,
     "learn",
@@ -174,12 +211,22 @@ export async function generateStreamedTeachingSkeletonWithOpenAI(
   const sourceGroundingPolicy = context.learningGoal.sourceMode === "user_materials"
     ? buildMaterialSupportPolicy(context.materials)
     : null;
+  const pacingContract = streamedTeachingPacingContract({
+    availableMinutes: context.session.estimatedMinutes,
+    activeIdeaCount: Math.max(1, context.session.contentTargets?.length ?? 0),
+    maximumFocusedActivities: deliveryPolicy.pacing.maximumActivities,
+    maximumActiveIdeas: Math.min(
+      contentBudgetForMinutes(context.session.estimatedMinutes).maximumContentTargets,
+      contentBudgetForMinutes(context.session.estimatedMinutes).maximumCompletionChecks,
+    ),
+  });
   const currentSessionScope = buildStreamedCurrentSessionScope({
     plannedTargets: context.session.contentTargets ?? [],
     estimatedMinutes: context.session.estimatedMinutes,
     learnerDirection: context.sessionAdjustment?.note ?? null,
+    maximumActiveTargets: pacingContract.minimumActiveIdeas,
   });
-  const currentSessionScopeContract = currentSessionScopeForPrompt(currentSessionScope);
+  const currentSessionScopeContract = currentSessionScopeForPrompt(currentSessionScope, pacingContract);
   let repairDetail: string | null = null;
   let firstAttemptPassed = false;
   let lastFailureReason = "The session skeleton was invalid.";
@@ -205,8 +252,8 @@ export async function generateStreamedTeachingSkeletonWithOpenAI(
     try {
       const repairInstruction: string = repairDetail
         ? attempt === 2
-          ? `SECOND SCOPE REPAIR: ${repairDetail} Rebuild only the coverage, phase sequence, and evidence map needed to satisfy the exact authoritative active and deferred target lists above. Do not widen today's lesson.`
-          : `REPAIR ATTEMPT: ${repairDetail} Rebuild the coverage, phase sequence, and evidence map together inside the authoritative current-session scope above.`
+          ? `SECOND SCOPE REPAIR: ${repairDetail} Rebuild only the coverage, interleaved teaching/check sequence, and evidence map needed to satisfy the exact authoritative active and deferred target lists above. Preserve active target order, create exactly ${pacingContract.minimumActiveIdeas} distinct explanatory claims across them, and do not widen today's lesson.`
+          : `REPAIR ATTEMPT: ${repairDetail} Rebuild the coverage, interleaved teaching/check sequence, and evidence map together inside the authoritative current-session scope above. Preserve active target order and create exactly ${pacingContract.minimumActiveIdeas} distinct explanatory claims across the active targets.`
         : "";
       response = await getOpenAIClient().responses.parse({
         model: config.model,
@@ -230,6 +277,7 @@ export async function generateStreamedTeachingSkeletonWithOpenAI(
           scaffoldProgression,
           practiceVariation,
           currentSessionScope,
+          streamedTeachingPacing: pacingContract,
           sessionDeliveryPolicy: deliveryPolicy,
           lessonDeliveryInstructions: deliveryInstructions,
           sourceGroundingPolicy,
@@ -251,7 +299,23 @@ export async function generateStreamedTeachingSkeletonWithOpenAI(
         previousFailedValidator = lastFailedValidator;
         continue;
       }
-      throw error;
+      const providerErrorName = error instanceof Error ? error.name : "UnknownProviderError";
+      repairDetail = `The lesson-structure request failed before YOVA received a usable response (${providerErrorName}).`;
+      lastFailureReason = repairDetail;
+      lastFailedValidator = "session_provider_request";
+      previousFailedValidator = lastFailedValidator;
+      if (attempt === 0 && isRetryableStreamedProviderError(error)) continue;
+      throw new SessionGenerationFailure(
+        "OpenAI could not prepare the streamed teaching structure.",
+        generationStats({
+          startedAt: generationStartedAt,
+          usage,
+          firstAttemptPassed: false,
+          repairDetail,
+          failedValidator: lastFailedValidator,
+          succeeded: false,
+        }),
+      );
     }
 
     if (response.usage) {
@@ -296,6 +360,7 @@ export async function generateStreamedTeachingSkeletonWithOpenAI(
         routing: learningScienceRouting,
         deliveryPolicy,
         deliveryInstructions,
+        pacingContract,
       });
     } catch (error) {
       if (error instanceof CurrentSessionScopeError) {
@@ -380,18 +445,30 @@ export async function generateStreamedTeachingSkeletonWithOpenAI(
   );
 }
 
+function isRetryableStreamedProviderError(error: unknown) {
+  if (!(error instanceof Error)) return false;
+  return new Set([
+    "APIConnectionError",
+    "APIConnectionTimeoutError",
+    "InternalServerError",
+    "RateLimitError",
+  ]).has(error.name);
+}
+
 function finalizeStreamedSkeleton({
   draft,
   context,
   routing,
   deliveryPolicy,
   deliveryInstructions,
+  pacingContract,
 }: {
   draft: StreamedGeneratedSessionDraft;
   context: SessionGenerationContext;
   routing: LearningScienceRoutingBrief;
   deliveryPolicy: SessionDeliveryPolicy;
   deliveryInstructions: LessonDeliveryInstructions;
+  pacingContract: ReturnType<typeof streamedTeachingPacingContract>;
 }): StreamedGeneratedSessionDraft {
   const resolvedMethodId = routing.allowedMethodIds.length === 1
     ? routing.allowedMethodIds[0]!
@@ -456,8 +533,21 @@ function finalizeStreamedSkeleton({
     plannedTargets: context.session.contentTargets ?? [],
     estimatedMinutes: context.session.estimatedMinutes,
     learnerDirection: context.sessionAdjustment?.note ?? null,
+    pacingContract,
   });
-  return enrichStreamedLessonBriefs(StreamedGeneratedSessionDraftSchema.parse(timeScoped), {
+  const interleaved = interleaveStreamedTeachingCycles({
+    draft: StreamedGeneratedSessionDraftSchema.parse(timeScoped),
+    availableMinutes: context.session.estimatedMinutes,
+    maximumFocusedActivities: pacingContract.maximumFocusedActivities,
+  });
+  const timeAllocated = {
+    ...interleaved,
+    activities: allocateStreamedTeachingMinutes({
+      activities: interleaved.activities,
+      availableMinutes: context.session.estimatedMinutes,
+    }),
+  };
+  return enrichStreamedLessonBriefs(StreamedGeneratedSessionDraftSchema.parse(timeAllocated), {
     sessionTopicIds: context.session.topicIds,
     materials: context.materials,
     knowledgeTopics: context.knowledgeTopics,
@@ -483,16 +573,20 @@ export function buildStreamedCurrentSessionScope({
   plannedTargets,
   estimatedMinutes,
   learnerDirection,
+  maximumActiveTargets,
 }: {
   plannedTargets: string[];
   estimatedMinutes: number;
   learnerDirection: string | null;
+  maximumActiveTargets?: number;
 }): StreamedCurrentSessionScope {
   if (plannedTargets.length === 0) return { activeTargets: [], deferredTargets: [] };
 
   const capacity = Math.min(
     plannedTargets.length,
     contentBudgetForMinutes(estimatedMinutes).maximumContentTargets,
+    4,
+    maximumActiveTargets ?? 4,
   );
   const directedIndexes = learnerDirection?.trim()
     ? plannedTargets.flatMap((target, index) => (
@@ -522,11 +616,14 @@ class CurrentSessionScopeError extends Error {
   }
 }
 
-function currentSessionScopeForPrompt(scope: StreamedCurrentSessionScope) {
+function currentSessionScopeForPrompt(
+  scope: StreamedCurrentSessionScope,
+  pacingContract: ReturnType<typeof streamedTeachingPacingContract>,
+) {
   if (scope.activeTargets.length === 0) {
-    return "AUTHORITATIVE CURRENT-SESSION SCOPE: No plan target labels were supplied. Stay within the bounded session objective and time budget.";
+    return `AUTHORITATIVE CURRENT-SESSION SCOPE: No plan target labels were supplied. Stay within the bounded session objective and time budget, and write exactly ${pacingContract.minimumActiveIdeas} distinct explanatory claims for the bounded objective.`;
   }
-  return `AUTHORITATIVE CURRENT-SESSION SCOPE: Teach and check only these active target labels in their listed order: ${quotedTargets(scope.activeTargets)}. Rewrite each active label as a concise explanatory claim in essentialIdeas. Preserve these exact later target labels only in deferredContent and do not teach, check, survey, or mention their substance anywhere in the active learner experience: ${quotedTargets(scope.deferredTargets)}. This prohibition includes activity titles and bodies, concepts, answers, feedback, multiple-choice distractors, reflections, completion-evidence labels, and scheduled-return prompts. If clean recognition choices cannot be written without later content, use a free response.`;
+  return `AUTHORITATIVE CURRENT-SESSION SCOPE: Teach and check only these active target labels in their listed order: ${quotedTargets(scope.activeTargets)}. Write exactly ${pacingContract.minimumActiveIdeas} distinct concise explanatory claims across them in essentialIdeas, represent every active target at least once, preserve each claim's parent target terms, and group claims in target order. Preserve these exact later target labels only in deferredContent and do not teach, check, survey, or mention their substance anywhere in the active learner experience: ${quotedTargets(scope.deferredTargets)}. This prohibition includes activity titles and bodies, concepts, answers, feedback, multiple-choice distractors, reflections, completion-evidence labels, and scheduled-return prompts. If clean recognition choices cannot be written without later content, use a free response.`;
 }
 
 function currentSessionScopeForRepair(scope: StreamedCurrentSessionScope) {
@@ -551,18 +648,33 @@ export function scopeStreamedSkeletonToCurrentWindow({
   plannedTargets,
   estimatedMinutes,
   learnerDirection,
+  pacingContract: suppliedPacingContract,
 }: {
   draft: StreamedGeneratedSessionDraft;
   plannedTargets: string[];
   estimatedMinutes: number;
   learnerDirection: string | null;
+  pacingContract?: ReturnType<typeof streamedTeachingPacingContract>;
 }): StreamedGeneratedSessionDraft {
-  const maximumActiveIdeas = contentBudgetForMinutes(estimatedMinutes).maximumContentTargets;
-  const maximumRequiredChecks = contentBudgetForMinutes(estimatedMinutes).maximumCompletionChecks;
+  const pacingContract = suppliedPacingContract ?? streamedTeachingPacingContract({
+    availableMinutes: estimatedMinutes,
+    activeIdeaCount: Math.max(1, plannedTargets.length),
+  });
+  const maximumActiveIdeas = Math.min(
+    pacingContract.minimumActiveIdeas,
+    contentBudgetForMinutes(estimatedMinutes).maximumContentTargets,
+    contentBudgetForMinutes(estimatedMinutes).maximumCompletionChecks,
+    4,
+  );
+  const maximumRequiredChecks = Math.min(
+    contentBudgetForMinutes(estimatedMinutes).maximumCompletionChecks,
+    maximumActiveIdeas,
+  );
   const currentSessionScope = buildStreamedCurrentSessionScope({
     plannedTargets,
     estimatedMinutes,
     learnerDirection,
+    maximumActiveTargets: maximumActiveIdeas,
   });
   const remainingTargets = [...currentSessionScope.deferredTargets];
   const activeAssignments: Array<{ idea: string; target: string | null }> = [];
@@ -615,17 +727,27 @@ export function scopeStreamedSkeletonToCurrentWindow({
     return left.originalIndex - right.originalIndex;
   });
 
-  const assignedTargetIndexes = new Set<number>();
-  for (const candidate of candidates) {
-    if (activeAssignments.length >= maximumActiveIdeas) break;
-    if (candidate.targetIndex >= 0 && assignedTargetIndexes.has(candidate.targetIndex)) continue;
-    if (candidate.targetIndex >= 0) assignedTargetIndexes.add(candidate.targetIndex);
+  const assignedCandidates = new Set<(typeof candidates)[number]>();
+  const assignCandidate = (candidate: (typeof candidates)[number]) => {
+    assignedCandidates.add(candidate);
     activeAssignments.push({
       idea: candidate.idea,
       target: candidate.targetIndex >= 0
         ? currentSessionScope.activeTargets[candidate.targetIndex] ?? null
         : null,
     });
+  };
+  // First preserve at least one explanatory claim for every active target.
+  for (const [targetIndex] of currentSessionScope.activeTargets.entries()) {
+    const candidate = candidates.find((item) => item.targetIndex === targetIndex);
+    if (candidate) assignCandidate(candidate);
+  }
+  // Then use the remaining time-scaled slots for distinct subclaims. This is
+  // what lets one broad 25/45/60-minute target become 2/3/4 real cycles.
+  for (const candidate of candidates) {
+    if (activeAssignments.length >= maximumActiveIdeas) break;
+    if (assignedCandidates.has(candidate)) continue;
+    assignCandidate(candidate);
   }
 
   // Never fall back to an out-of-window provider draft. Failing here gives the
@@ -656,18 +778,17 @@ export function scopeStreamedSkeletonToCurrentWindow({
   const evidencedIdeaKeys = new Set(activeEvidenceMap.map((mapping) => normalizedSubjectLabel(mapping.essentialIdea)));
   const evidencedAssignments = activeAssignments.filter(({ idea }) => evidencedIdeaKeys.has(normalizedSubjectLabel(idea)));
 
-  if (evidencedAssignments.length === 0) {
+  if (evidencedAssignments.length !== activeAssignments.length) {
     throw new CurrentSessionScopeError(
-      `${currentSessionScopeForRepair(currentSessionScope)} The provider did not map any required knowledge check to an active essential idea.`,
+      evidencedAssignments.length === 0
+        ? `${currentSessionScopeForRepair(currentSessionScope)} The provider did not map any required knowledge check to an active essential idea.`
+        : `${currentSessionScopeForRepair(currentSessionScope)} Every distinct active explanatory claim needs its own mapped required knowledge check.`,
     );
   }
 
   // If a time-fit question mix removed an idea, its exact plan label returns
   // to the deferred list. The learner can therefore see precisely what today's
   // shorter session did not attempt.
-  remainingTargets.unshift(...activeAssignments.flatMap(({ idea, target }) => (
-    target && !evidencedIdeaKeys.has(normalizedSubjectLabel(idea)) ? [target] : []
-  )));
   const activeIdeas = evidencedAssignments.map(({ idea }) => idea);
   const deferredFingerprint = buildDeferredScopeFingerprint({
     draft,
@@ -1146,7 +1267,7 @@ function subjectTokens(value: string) {
   const ignored = new Set([
     "about", "active", "after", "again", "also", "and", "answer", "basic", "before",
     "check", "choose", "complete", "connect", "content", "correct", "current", "demonstrate",
-    "explain", "feedback", "from", "identify", "into", "later", "learn", "lesson", "memory",
+    "explain", "explanation", "feedback", "from", "identify", "into", "later", "learn", "lesson", "memory",
     "model", "notes", "plan", "question", "recall", "relationship", "required", "response",
     "session", "study", "that", "the", "this", "through", "today", "topic", "with", "without",
   ]);
@@ -1432,12 +1553,12 @@ function generationStats({
   failedValidator: SessionGenerationStats["failedValidator"];
   succeeded: boolean;
 }): SessionGenerationStats {
-  const repaired = usage.attempts > 1 || Boolean(repairDetail);
+  const repaired = usage.attempts > 1 || (succeeded && Boolean(repairDetail));
   return {
     elapsedMs: Date.now() - startedAt,
     attempts: usage.attempts,
     firstAttemptPassed,
-    failedValidator: repaired ? failedValidator : succeeded ? null : "session_structure",
+    failedValidator: repaired || !succeeded ? failedValidator : null,
     repairAttempted: repaired,
     repairSucceeded: repaired ? succeeded : null,
     repairReason: repaired ? "semantic_validation" : "none",

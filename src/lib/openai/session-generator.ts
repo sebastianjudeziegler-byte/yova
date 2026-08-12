@@ -76,6 +76,7 @@ import { validateSessionAdjustmentFidelity } from "@/lib/session-generation/adju
 import { validateSessionQuestionContext } from "@/lib/session-generation/question-context";
 import { validateSessionContentSpecificity } from "@/lib/session-generation/content-specificity";
 import { validateSessionTimeBudget } from "@/lib/session-generation/time-budget";
+import { validateStreamedTeachingPacing } from "@/lib/session-generation/streamed-pacing";
 import { polishGeneratedSessionTypography } from "@/lib/session-generation/typography";
 import { validateVisibleAdaptation } from "@/lib/personalization/visible-adaptation";
 import type { GenerationValidator } from "@/lib/analytics/generation-observation";
@@ -181,7 +182,7 @@ export type OpenAISessionResult = {
   };
   supportPlan: SessionSupportPlan;
   deliveryPolicy: SessionDeliveryPolicy;
-  /** Present only for streamed learn-mode skeletons (schema v16). */
+  /** Present only for streamed learn-mode skeletons. */
   deliveryInstructions?: LessonDeliveryInstructions;
   generationStats: SessionGenerationStats;
 };
@@ -1071,11 +1072,18 @@ export function validateGeneratedSessionWithCode(
       learnerDirection: context.sessionAdjustment?.note ?? null,
     })
     : null;
+  const streamedTeachingPacingIssue = context.sessionArchitectureVersion === "streamed_teaching_v1"
+    ? validateStreamedTeachingPacing({
+      draft: draft as StreamedGeneratedSessionDraft,
+      availableMinutes: context.session.estimatedMinutes,
+      maximumFocusedActivities: sessionDeliveryPolicy.pacing.maximumActivities,
+    })
+    : null;
 
   const checks: Array<[GenerationValidator, string | null]> = [
     ["session_time_budget", validateSessionTimeBudget(draft, context.session.estimatedMinutes)],
     ["session_coverage_fidelity", validateSessionCoverageFidelity(draft, context.session)],
-    ["streamed_lesson_scope", streamedLessonScopeIssue],
+    ["streamed_lesson_scope", streamedLessonScopeIssue ?? streamedTeachingPacingIssue],
     ["learning_science_routing", validateLearningScienceRoutingSelection(draft.methodBriefing, learningScienceRouting)],
     ["session_adjustment_fidelity", validateSessionAdjustmentFidelity(draft, context.sessionAdjustment)],
     ["session_activity_mix", activityFormatIssue],
@@ -1165,12 +1173,29 @@ export function coverageTargetsMatch(left: string, right: string) {
   const rightTokens = coverageTokens(right);
   if (leftTokens.length > maximumScopedClaimTokens(rightTokens.length)) return false;
   if (normalizedLeft.includes(normalizedRight)) return true;
-  const overlap = rightTokens.filter((token) => leftTokens.includes(token)).length;
+  const overlap = rightTokens.filter((token) => (
+    leftTokens.some((leftToken) => coverageTokenMatches(leftToken, token))
+  )).length;
   const requiredOverlap = Math.min(2, Math.min(leftTokens.length, rightTokens.length));
   const hasDistinctiveSharedToken = rightTokens.some((token) => (
     token.length >= 7 && leftTokens.includes(token)
   ));
   return requiredOverlap > 0 && (overlap >= requiredOverlap || hasDistinctiveSharedToken);
+}
+
+function coverageTokenMatches(left: string, right: string) {
+  if (left === right) return true;
+  // Preserve safe, local morphology such as coupling/couple or
+  // Europe/European without introducing a broad synonym table.
+  if (Math.min(left.length, right.length) >= 5 && (left.startsWith(right) || right.startsWith(left))) {
+    return true;
+  }
+  const stem = (value: string) => value
+    .replace(/(?:ing|ed|es|s)$/u, "")
+    .replace(/e$/u, "");
+  const leftStem = stem(left);
+  const rightStem = stem(right);
+  return Math.min(leftStem.length, rightStem.length) >= 5 && leftStem === rightStem;
 }
 
 function maximumScopedClaimTokens(targetTokenCount: number) {

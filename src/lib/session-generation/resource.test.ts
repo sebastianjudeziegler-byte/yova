@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { readSessionResourceFromStepData, toSessionResource } from "@/lib/session-generation/resource";
 import {
   CachedGeneratedSessionV16Schema,
+  CachedGeneratedSessionV17Schema,
   GeneratedSessionDraftSchema,
   type SessionGenerationResponse,
 } from "@/lib/session-generation/schema";
@@ -177,6 +178,14 @@ const streamedSession = CachedGeneratedSessionV16Schema.parse({
     } : { lessonBrief: null }),
   })),
 });
+const pacedStreamedSession = CachedGeneratedSessionV17Schema.parse({
+  ...streamedSession,
+  schemaVersion: 17,
+  cacheContext: {
+    effectiveMinutes: 25,
+    adjustmentFingerprint: "a".repeat(64),
+  },
+});
 
 describe("session resources", () => {
   it("turns a generated session into reusable plan content", () => {
@@ -210,6 +219,14 @@ describe("session resources", () => {
       "Retrieval happens before answer review",
     ]);
     expect(readSessionResourceFromStepData({ generatedSession: streamedSession })?.activities[0]?.teaching).toBeNull();
+  });
+
+  it("reads the paced v17 streamed cache while retaining v16 resume compatibility", () => {
+    expect(toSessionResource(pacedStreamedSession).deliveryInstructions?.explanationDensity).toBe("balanced");
+    expect(readSessionResourceFromStepData({ generatedSession: pacedStreamedSession })?.activities[0]?.lessonBrief)
+      .toBeDefined();
+    expect(readSessionResourceFromStepData({ generatedSession: streamedSession })?.activities[0]?.lessonBrief)
+      .toBeDefined();
   });
 
   it("ignores missing or unsafe cached content", () => {

@@ -3,6 +3,7 @@ import { ConfidenceEvidenceListSchema } from "@/lib/learning/confidence-calibrat
 import { inferLegacySessionLearningMode } from "@/lib/learning/learning-intent";
 import { resolveLearningTitle } from "@/lib/intake/interpret";
 import {
+  readSessionAdjustmentSnapshot,
   readSessionEvidenceSnapshot,
   readSessionPendingRepair,
 } from "@/lib/learning/session-resume";
@@ -64,15 +65,19 @@ function readSessionInterruptions(snapshot: YovaPreviewSnapshot | Record<string,
 
   return value.flatMap<SessionInterruption>((entry) => {
     if (!entry || typeof entry !== "object" || Array.isArray(entry)) return [];
-    const interruption = entry as SessionInterruption;
-    const evidence = readSessionEvidenceSnapshot((entry as Record<string, unknown>).evidence);
-    const pendingRepair = readSessionPendingRepair((entry as Record<string, unknown>).pendingRepair);
-    const resumeStep = (entry as Record<string, unknown>).resumeStep;
+    const raw = entry as Record<string, unknown>;
+    const interruption = { ...raw };
+    delete interruption.sessionAdjustment;
+    const evidence = readSessionEvidenceSnapshot(raw.evidence);
+    const pendingRepair = readSessionPendingRepair(raw.pendingRepair);
+    const sessionAdjustment = readSessionAdjustmentSnapshot(raw.sessionAdjustment);
+    const resumeStep = raw.resumeStep;
     return [{
-      ...interruption,
+      ...interruption as SessionInterruption,
       ...(typeof resumeStep === "number" && Number.isInteger(resumeStep) ? { resumeStep } : {}),
       ...(evidence ? { evidence } : {}),
       ...(pendingRepair ? { pendingRepair } : {}),
+      ...(sessionAdjustment ? { sessionAdjustment } : {}),
     }];
   });
 }
