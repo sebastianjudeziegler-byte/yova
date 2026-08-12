@@ -330,14 +330,13 @@ export function isCompleteLessonClaim(value: string) {
   return /\b(?:is|are|was|were|can|could|causes?|caused|connects?|connected|depends?|depended|differentiates?|enables?|enabled|equals?|erodes?|exchanges?|explains?|explained|grows?|grew|helps?|helped|increases?|increased|leads?|led|makes?|made|means?|meant|produces?|produced|provides?|provided|pulls?|pulled|requires?|required|results?|resulted|shapes?|shaped|supports?|supported|transforms?|transformed|triggers?|triggered|turns?|turned|uses?|used|widens?|widened|because|through|when|while)\b/i.test(value);
 }
 
-function lessonIdeaMatchesTarget(idea: string, target: string) {
+export function lessonIdeaMatchesTarget(idea: string, target: string) {
   const ideaKey = normalize(idea);
   const targetKey = normalize(target);
   if (ideaKey === targetKey) return true;
 
   const ideaTokens = meaningfulScopeTokens(idea);
   const targetTokens = meaningfulScopeTokens(target);
-  if (ideaKey.includes(targetKey)) return true;
   const overlap = targetTokens.filter((targetToken) => (
     ideaTokens.some((ideaToken) => scopeTokensMatch(ideaToken, targetToken))
   )).length;
@@ -345,13 +344,19 @@ function lessonIdeaMatchesTarget(idea: string, target: string) {
   // explanatory sentence. Permit that bounded expansion when the sentence
   // preserves most of the label's subject terms. Keep the length ceiling so a
   // claim cannot name the assigned target and then survey later-session topics.
-  const boundedShortTargetRestatement = targetTokens.length <= 5
+  const boundedShortTargetRestatement = targetTokens.length >= 3
+    && targetTokens.length <= 5
     && overlap >= Math.ceil(targetTokens.length * 0.75)
     && ideaTokens.length <= targetTokens.length + 10;
+  const conciseTargetRestatement = targetTokens.length <= 2
+    && overlap === targetTokens.length
+    && ideaTokens.length <= targetTokens.length + 8;
   if (
     ideaTokens.length > maximumScopedClaimTokens(targetTokens.length)
     && !boundedShortTargetRestatement
+    && !conciseTargetRestatement
   ) return false;
+  if (ideaKey.includes(targetKey)) return true;
   const requiredOverlap = Math.min(2, Math.min(ideaTokens.length, targetTokens.length));
   const hasDistinctiveSharedToken = targetTokens.some((targetToken) => (
     targetToken.length >= 7
@@ -374,8 +379,8 @@ function maximumScopedClaimTokens(targetTokenCount: number) {
 
 function meaningfulScopeTokens(value: string) {
   const ignored = new Set([
-    "about", "and", "build", "concept", "explain", "idea", "learn", "lesson",
-    "model", "overview", "relationship", "study", "the", "their", "this", "understand", "with",
+    "about", "and", "build", "concept", "explain", "from", "idea", "into", "learn", "lesson",
+    "model", "overview", "relationship", "study", "that", "the", "their", "this", "understand", "with",
   ]);
   return unique(normalize(value).split(" ")
     .map((token) => token.length > 4 && token.endsWith("s") ? token.slice(0, -1) : token)

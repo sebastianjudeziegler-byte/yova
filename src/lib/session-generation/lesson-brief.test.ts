@@ -390,6 +390,68 @@ describe("authoritative streamed lesson briefs", () => {
     })).toBeNull();
   });
 
+  it("accepts the production Sarajevo escalation claim for its sequence target", () => {
+    const draft = streamedDraft();
+    const idea = "The Sarajevo assassination started a diplomatic and military escalation that widened the crisis into war declarations.";
+    draft.coverage.essentialIdeas = [idea];
+    draft.activities[0]!.lessonBrief!.essentialIdeas = [idea];
+
+    expect(validateStreamedLessonScope(draft, {
+      sessionTopicIds: [topicId],
+      sessionObjective: "Understand the main prewar tensions and build a simple start-to-finish WWI timeline using a concrete example first.",
+      sessionContentTargets: ["Sequence from the Sarajevo assassination to declarations of war"],
+      sessionEstimatedMinutes: 15,
+    })).toBeNull();
+  });
+
+  it("accepts normal explanatory claims for concise two-word targets", () => {
+    const draft = streamedDraft();
+    const idea = "The chain rule differentiates a composite function by multiplying the outer and inner derivatives.";
+    draft.coverage.essentialIdeas = [idea];
+    draft.activities[0]!.lessonBrief!.essentialIdeas = [idea];
+
+    expect(validateStreamedLessonScope(draft, {
+      sessionTopicIds: [topicId],
+      sessionObjective: "Explain the chain rule.",
+      sessionContentTargets: ["Chain rule"],
+      sessionEstimatedMinutes: 15,
+    })).toBeNull();
+
+    const allianceIdea = "Alliance commitments can pull neighboring powers into a local crisis and widen the war.";
+    draft.coverage.essentialIdeas = [allianceIdea];
+    draft.activities[0]!.lessonBrief!.essentialIdeas = [allianceIdea];
+    expect(validateStreamedLessonScope(draft, {
+      sessionTopicIds: [topicId],
+      sessionObjective: "Explain alliance commitments.",
+      sessionContentTargets: ["Alliance commitments"],
+      sessionEstimatedMinutes: 15,
+    })).toBeNull();
+  });
+
+  it("still rejects a short target padded with neighboring subject matter", () => {
+    const draft = streamedDraft();
+    const idea = "Photosynthesis and cellular respiration exchange gases while ecosystems recycle matter and energy.";
+    draft.coverage.essentialIdeas = [idea];
+    draft.activities[0]!.lessonBrief!.essentialIdeas = [idea];
+
+    expect(validateStreamedLessonScope(draft, {
+      sessionTopicIds: [topicId],
+      sessionObjective: "Explain photosynthesis.",
+      sessionContentTargets: ["Photosynthesis"],
+      sessionEstimatedMinutes: 15,
+    })).toContain("is outside this session's assigned target");
+
+    const dilutionIdea = "Dilution changes founder ownership while liquidation preferences, debt conversion, board control, and investor exits shape financing.";
+    draft.coverage.essentialIdeas = [dilutionIdea];
+    draft.activities[0]!.lessonBrief!.essentialIdeas = [dilutionIdea];
+    expect(validateStreamedLessonScope(draft, {
+      sessionTopicIds: [topicId],
+      sessionObjective: "Explain founder dilution.",
+      sessionContentTargets: ["Dilution changes founder ownership"],
+      sessionEstimatedMinutes: 15,
+    })).toContain("is outside this session's assigned target");
+  });
+
   it("still rejects later-war survey content for the same concise prewar target", () => {
     const draft = streamedDraft();
     const idea = "Before 1914, Europe had rival alliance blocs and tensions, then trench warfare, United States entry, and the Treaty of Versailles explain how the war developed and ended.";

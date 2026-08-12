@@ -790,6 +790,9 @@ export function scopeStreamedSkeletonToCurrentWindow({
   // to the deferred list. The learner can therefore see precisely what today's
   // shorter session did not attempt.
   const activeIdeas = evidencedAssignments.map(({ idea }) => idea);
+  const evidencedTargetKeys = new Set(evidencedAssignments.flatMap(({ target }) => (
+    target ? [normalizedSubjectLabel(target)] : []
+  )));
   const deferredFingerprint = buildDeferredScopeFingerprint({
     draft,
     activeIdeas,
@@ -808,7 +811,8 @@ export function scopeStreamedSkeletonToCurrentWindow({
   const deferredContent = uniqueSubjectLabels([
     ...remainingTargets,
     ...draft.coverage.deferredContent.filter((item) => (
-      plannedTargets.some((target) => coverageTargetsMatch(item, target))
+      !evidencedTargetKeys.has(normalizedSubjectLabel(item))
+      && plannedTargets.some((target) => coverageTargetsMatch(item, target))
     )),
   ]).slice(0, 4);
   const scopedActivities = draft.activities.filter((activity) => (

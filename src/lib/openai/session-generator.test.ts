@@ -237,6 +237,19 @@ describe("session content-volume validation", () => {
     ]);
   });
 
+  it("keeps concise target matching strict for broad neighboring content", async () => {
+    const { coverageTargetsMatch } = await import("@/lib/openai/session-generator");
+
+    expect(coverageTargetsMatch(
+      "Photosynthesis and cellular respiration exchange gases and connect energy transformation",
+      "Photosynthesis",
+    )).toBe(false);
+    expect(coverageTargetsMatch(
+      "Dilution changes founder ownership while liquidation preferences and debt conversion shape financing",
+      "Dilution changes founder ownership",
+    )).toBe(false);
+  });
+
   it("limits active ideas according to the session duration", async () => {
     const { validateSessionCoverageFidelity } = await import("@/lib/openai/session-generator");
     const draft = learningDraft("model");
