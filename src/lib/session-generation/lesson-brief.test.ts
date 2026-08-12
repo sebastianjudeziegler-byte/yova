@@ -390,6 +390,29 @@ describe("authoritative streamed lesson briefs", () => {
     })).toBeNull();
   });
 
+  it("uses a validated authoritative target assignment instead of re-inferring a long WWI paraphrase", () => {
+    const draft = streamedDraft();
+    const target = "Prewar European alliances and tensions";
+    const idea = "Before 1914, European alliances divided powers into rival armed blocs whose commitments increased the danger that a regional dispute would spread among major states.";
+    draft.coverage.essentialIdeas = [idea];
+    draft.activities[0]!.lessonBrief!.essentialIdeas = [idea];
+
+    expect(validateStreamedLessonScope(draft, {
+      sessionTopicIds: [topicId],
+      sessionObjective: "Understand the main prewar tensions and build a simple World War I timeline.",
+      sessionContentTargets: [target],
+      sessionEstimatedMinutes: 15,
+    })).toContain("is outside this session's assigned target");
+
+    expect(validateStreamedLessonScope(draft, {
+      sessionTopicIds: [topicId],
+      sessionObjective: "Understand the main prewar tensions and build a simple World War I timeline.",
+      sessionContentTargets: [target],
+      sessionEstimatedMinutes: 15,
+      authoritativeTargetAssignments: [{ essentialIdea: idea, target }],
+    })).toBeNull();
+  });
+
   it("accepts the production Sarajevo escalation claim for its sequence target", () => {
     const draft = streamedDraft();
     const idea = "The Sarajevo assassination started a diplomatic and military escalation that widened the crisis into war declarations.";

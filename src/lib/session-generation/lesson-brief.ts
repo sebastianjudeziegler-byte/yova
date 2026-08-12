@@ -18,6 +18,11 @@ export type LessonBriefContext = {
   deliveryInstructions: LessonDeliveryInstructions;
 };
 
+export type AuthoritativeLessonTargetAssignment = {
+  essentialIdea: string;
+  target: string;
+};
+
 /**
  * Replaces model-supplied evidence and source metadata with server-known data.
  * The model chooses the lesson slice. It cannot invent learner history or cite
@@ -246,6 +251,7 @@ export function validateStreamedLessonScope(
     sessionContentTargets: string[];
     sessionEstimatedMinutes: number;
     learnerDirection?: string | null;
+    authoritativeTargetAssignments?: AuthoritativeLessonTargetAssignment[];
   },
 ) {
   const expectedTopicIds = unique(context.sessionTopicIds).sort();
@@ -272,9 +278,17 @@ export function validateStreamedLessonScope(
     ...context.sessionContentTargets,
     ...(context.learnerDirection?.trim() ? [context.learnerDirection] : []),
   ];
+  const authoritativeTargetByIdea = new Map(
+    (context.authoritativeTargetAssignments ?? []).map((assignment) => [
+      normalize(assignment.essentialIdea),
+      normalize(assignment.target),
+    ]),
+  );
+  const allowedScopeTargetKeys = new Set(allowedScopeTargets.map(normalize));
   if (allowedScopeTargets.length > 0) {
     const unplannedIdea = draft.coverage.essentialIdeas.find((idea) => (
-      !allowedScopeTargets.some((target) => lessonIdeaMatchesTarget(idea, target))
+      !allowedScopeTargetKeys.has(authoritativeTargetByIdea.get(normalize(idea)) ?? "")
+      && !allowedScopeTargets.some((target) => lessonIdeaMatchesTarget(idea, target))
     ));
     if (unplannedIdea) {
       return `The active idea “${unplannedIdea}” is outside this session's assigned target: ${context.sessionObjective}. Keep the explanatory claim bounded to the supplied session content targets and move other material to deferredContent.`;
@@ -363,6 +377,29 @@ export function lessonIdeaMatchesTarget(idea: string, target: string) {
     && ideaTokens.some((ideaToken) => scopeTokensMatch(ideaToken, targetToken))
   ));
   return requiredOverlap > 0 && (overlap >= requiredOverlap || hasDistinctiveSharedToken);
+}
+
+/**
+ * A provider's stable target id decides which authoritative plan target a
+ * claim represents. This narrower lexical check is only a safety boundary: it
+ * rejects an unrelated claim that was mislabeled with a target id, without
+ * trying to infer coverage from prose length or paraphrase style.
+ */
+export function lessonIdeaSharesTargetSubject(
+  idea: string,
+  target: string,
+) {
+  const ideaTokens = meaningfulScopeTokens(idea);
+  const targetTokens = meaningfulScopeTokens(target);
+  if (ideaTokens.length === 0 || targetTokens.length === 0) return false;
+  // Very short targets need the existing bounded-restatement guard as well as
+  // an id. Otherwise a one-word label such as "Photosynthesis" could be used
+  // to authorize a broad neighboring-topic survey.
+  if (targetTokens.length <= 2) return lessonIdeaMatchesTarget(idea, target);
+  const overlap = targetTokens.filter((targetToken) => (
+    ideaTokens.some((ideaToken) => scopeTokensMatch(ideaToken, targetToken))
+  )).length;
+  return overlap >= 2;
 }
 
 function scopeTokensMatch(left: string, right: string) {

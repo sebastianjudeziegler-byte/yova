@@ -2,6 +2,7 @@ import "server-only";
 
 import { createHash } from "node:crypto";
 import { zodTextFormat } from "openai/helpers/zod";
+import { z } from "zod";
 import { getOpenAIClient } from "@/lib/openai/client";
 import { getOpenAISessionConfig } from "@/lib/openai/config";
 import { buildMaterialSupportPolicy } from "@/lib/materials/grounding";
@@ -47,7 +48,11 @@ import {
   type SessionSourceGrounding,
   type StreamedGeneratedSessionDraft,
 } from "@/lib/session-generation/schema";
-import { enrichStreamedLessonBriefs } from "@/lib/session-generation/lesson-brief";
+import {
+  enrichStreamedLessonBriefs,
+  lessonIdeaSharesTargetSubject,
+  type AuthoritativeLessonTargetAssignment,
+} from "@/lib/session-generation/lesson-brief";
 import {
   groundSessionEvidenceMap,
   reconcileSessionCompletionMap,
@@ -60,6 +65,35 @@ import {
   streamedTeachingPacingContract,
 } from "@/lib/session-generation/streamed-pacing";
 
+const STREAMED_TARGET_IDS = [
+  "target_1",
+  "target_2",
+  "target_3",
+  "target_4",
+  "bounded_objective",
+] as const;
+
+const StreamedTargetAssignmentSchema = z.object({
+  essentialIdea: z.string().trim().min(5).max(180),
+  targetId: z.enum(STREAMED_TARGET_IDS),
+});
+
+/**
+ * Target ids are provider-facing generation metadata. They are parsed and
+ * validated before finalization, then deliberately removed before the public
+ * session schema is parsed or cached.
+ */
+export const StreamedSkeletonProviderOutputSchema = StreamedGeneratedSessionDraftOutputSchema.extend({
+  targetAssignments: z.array(StreamedTargetAssignmentSchema).min(1).max(4),
+});
+
+export type StreamedTargetAssignment = z.infer<typeof StreamedTargetAssignmentSchema>;
+type StreamedTargetId = StreamedTargetAssignment["targetId"];
+type ResolvedStreamedTargetAssignment = StreamedTargetAssignment & {
+  target: string | null;
+  targetIndex: number;
+};
+
 const STREAMED_TEACHING_SKELETON_INSTRUCTIONS = `You design the complete skeleton for one YOVA learn-mode session. Another bounded model call will deliver each teaching explanation when the learner reaches it. You must plan the whole sequence now, including coverage, phases, knowledge checks, reference answers, feedback, and reflection, but you must not write the lesson prose now.
 
 Hard requirements:
@@ -71,6 +105,7 @@ Hard requirements:
 - For a teaching instruction, lessonBrief.version is 1. Set lessonBrief.topicIds to the relevant supplied topic ids. Set lessonBrief.essentialIdeas to the exact coverage ideas that the later teaching delivery must explain. Set sourceChunks to [], knowledgeSource to model_knowledge, and every evidenceContext array to []; YOVA replaces those fields with authoritative source and learner evidence after generation. Set all fixed content requirement fields to true, except includeConcreteExample may reflect the task.
 - For questions and non-teaching reflection, set lessonBrief to null.
 - Build coverage first. Follow streamedTeachingPacing.minimumActiveIdeas exactly: write that many distinct concise explanatory claims in essentialIdeas, preserve each claim's parent target's distinctive scope terms, and represent every active target at least once. A longer single-target lesson must split the target into different bounded subclaims, never repeat one claim. Copy only later targets unchanged into deferredContent. Keep claims grouped in authoritative target order. Every essential idea appears exactly once in evidenceMap and maps to a required question's exact concept.
+- For every essentialIdeas entry, add exactly one top-level targetAssignments entry that copies the explanatory claim exactly into essentialIdea and identifies its authoritative target id. Use only the target ids supplied in AUTHORITATIVE CURRENT-SESSION SCOPE. Keep targetAssignments in the same target order as essentialIdeas. Never assign an idea to a later or merely related target.
 - Build visible learning cycles, not one long lecture followed by a quiz. Follow the supplied streamedTeachingPacing contract: each teaching block is immediately followed by its required question before the next teaching block begins. A longer multi-idea session therefore repeats teach, answer, teach, answer.
 - Deferred content is completely absent from the active learner experience. Do not use a deferred target, event, term, date, or example in an activity title, body, concept, answer, feedback, multiple-choice distractor, reflection, completion-evidence label, or scheduled-return prompt. A distractor is still active session content. When later content would be needed to write plausible choices, use a free response instead.
 - Session completion depends on attempts at every required activity, never elapsed time or reading.
@@ -252,8 +287,8 @@ export async function generateStreamedTeachingSkeletonWithOpenAI(
     try {
       const repairInstruction: string = repairDetail
         ? attempt === 2
-          ? `SECOND SCOPE REPAIR: ${repairDetail} Rebuild only the coverage, interleaved teaching/check sequence, and evidence map needed to satisfy the exact authoritative active and deferred target lists above. Preserve active target order, create exactly ${pacingContract.minimumActiveIdeas} distinct explanatory claims across them, and do not widen today's lesson.`
-          : `REPAIR ATTEMPT: ${repairDetail} Rebuild the coverage, interleaved teaching/check sequence, and evidence map together inside the authoritative current-session scope above. Preserve active target order and create exactly ${pacingContract.minimumActiveIdeas} distinct explanatory claims across the active targets.`
+          ? `SECOND SCOPE REPAIR: ${repairDetail} Rebuild only the coverage, targetAssignments, interleaved teaching/check sequence, and evidence map needed to satisfy the exact authoritative active and deferred target lists above. Copy every essential idea exactly once into targetAssignments, use every active target id, preserve active target order, create exactly ${pacingContract.minimumActiveIdeas} distinct explanatory claims across them, and do not widen today's lesson.`
+          : `REPAIR ATTEMPT: ${repairDetail} Rebuild the coverage, targetAssignments, interleaved teaching/check sequence, and evidence map together inside the authoritative current-session scope above. Copy every essential idea exactly once into targetAssignments, use every active target id, preserve active target order, and create exactly ${pacingContract.minimumActiveIdeas} distinct explanatory claims across the active targets.`
         : "";
       response = await getOpenAIClient().responses.parse({
         model: config.model,
@@ -284,7 +319,7 @@ export async function generateStreamedTeachingSkeletonWithOpenAI(
         })}`,
         reasoning: { effort: "none" },
         text: {
-          format: zodTextFormat(StreamedGeneratedSessionDraftOutputSchema, "yova_streamed_teaching_skeleton"),
+          format: zodTextFormat(StreamedSkeletonProviderOutputSchema, "yova_streamed_teaching_skeleton"),
           verbosity: "low",
         },
         max_output_tokens: 2_800,
@@ -324,7 +359,7 @@ export async function generateStreamedTeachingSkeletonWithOpenAI(
       usage.cacheWriteTokens += response.usage.input_tokens_details.cache_write_tokens;
       usage.outputTokens += response.usage.output_tokens;
     }
-    const parsed = StreamedGeneratedSessionDraftOutputSchema.safeParse(response.output_parsed);
+    const parsed = StreamedSkeletonProviderOutputSchema.safeParse(response.output_parsed);
     if (response.status !== "completed" || !parsed.success) {
       const structuralMessage = parsed.success
         ? "unknown schema failure"
@@ -340,7 +375,11 @@ export async function generateStreamedTeachingSkeletonWithOpenAI(
       continue;
     }
 
-    const normalizedOutput = normalizeStreamedLessonBriefPlacement(parsed.data);
+    const {
+      targetAssignments,
+      ...providerDraft
+    } = parsed.data;
+    const normalizedOutput = normalizeStreamedLessonBriefPlacement(providerDraft);
     const referenceAnswerRepair = repairRubricLikeFreeResponseAnswers({
       activities: normalizedOutput.activities,
       evidenceMap: normalizedOutput.coverage.evidenceMap,
@@ -350,18 +389,22 @@ export async function generateStreamedTeachingSkeletonWithOpenAI(
       repairDetail = repairDetail ? `${repairDetail} ${detail}` : detail;
     }
     let deterministicDraft: StreamedGeneratedSessionDraft;
+    let authoritativeTargetAssignments: AuthoritativeLessonTargetAssignment[] = [];
     try {
-      deterministicDraft = finalizeStreamedSkeleton({
+      const finalized = finalizeStreamedSkeleton({
         draft: {
           ...normalizedOutput,
           activities: referenceAnswerRepair.activities,
         },
+        targetAssignments,
         context,
         routing: learningScienceRouting,
         deliveryPolicy,
         deliveryInstructions,
         pacingContract,
       });
+      deterministicDraft = finalized.draft;
+      authoritativeTargetAssignments = finalized.authoritativeTargetAssignments;
     } catch (error) {
       if (error instanceof CurrentSessionScopeError) {
         repairDetail = error.message;
@@ -396,6 +439,7 @@ export async function generateStreamedTeachingSkeletonWithOpenAI(
       conceptReviewSchedule,
       scaffoldProgression,
       deliveryPolicy,
+      authoritativeTargetAssignments,
     );
     if (semanticIssue) {
       repairDetail = semanticIssue.detail;
@@ -457,6 +501,7 @@ function isRetryableStreamedProviderError(error: unknown) {
 
 function finalizeStreamedSkeleton({
   draft,
+  targetAssignments,
   context,
   routing,
   deliveryPolicy,
@@ -464,15 +509,33 @@ function finalizeStreamedSkeleton({
   pacingContract,
 }: {
   draft: StreamedGeneratedSessionDraft;
+  targetAssignments: StreamedTargetAssignment[];
   context: SessionGenerationContext;
   routing: LearningScienceRoutingBrief;
   deliveryPolicy: SessionDeliveryPolicy;
   deliveryInstructions: LessonDeliveryInstructions;
   pacingContract: ReturnType<typeof streamedTeachingPacingContract>;
-}): StreamedGeneratedSessionDraft {
+}): {
+  draft: StreamedGeneratedSessionDraft;
+  authoritativeTargetAssignments: AuthoritativeLessonTargetAssignment[];
+} {
   const resolvedMethodId = routing.allowedMethodIds.length === 1
     ? routing.allowedMethodIds[0]!
     : draft.methodBriefing.methodId;
+  const currentSessionScope = buildStreamedCurrentSessionScope({
+    plannedTargets: context.session.contentTargets ?? [],
+    estimatedMinutes: context.session.estimatedMinutes,
+    learnerDirection: context.sessionAdjustment?.note ?? null,
+    maximumActiveTargets: pacingContract.minimumActiveIdeas,
+  });
+  // Validate the provider's complete mapping before any deterministic repair
+  // can prune a claim. Later boundaries keep only mappings whose exact ideas
+  // survived, and revalidate that every active target is still represented.
+  validateStreamedTargetAssignments({
+    essentialIdeas: draft.coverage.essentialIdeas,
+    targetAssignments,
+    currentSessionScope,
+  });
   const completionEvidence = boundedSessionCompletionEvidence({
     // A learner can shorten a previously planned 45-minute session to 15
     // minutes. In that case the original multi-target completion list is no
@@ -523,6 +586,10 @@ function finalizeStreamedSkeleton({
     sourceGrounding,
     activities: withReturn,
   }));
+  const reconciledTargetAssignments = retainTargetAssignmentsForIdeas(
+    targetAssignments,
+    reconciled.coverage.essentialIdeas,
+  );
   const timeScoped = scopeStreamedSkeletonToCurrentWindow({
     // Reconciliation and time scoping are the deterministic repair boundary.
     // The provider-facing output schema intentionally permits a partial
@@ -534,7 +601,12 @@ function finalizeStreamedSkeleton({
     estimatedMinutes: context.session.estimatedMinutes,
     learnerDirection: context.sessionAdjustment?.note ?? null,
     pacingContract,
+    targetAssignments: reconciledTargetAssignments,
   });
+  const scopedTargetAssignments = retainTargetAssignmentsForIdeas(
+    reconciledTargetAssignments,
+    timeScoped.coverage.essentialIdeas,
+  );
   const interleaved = interleaveStreamedTeachingCycles({
     draft: StreamedGeneratedSessionDraftSchema.parse(timeScoped),
     availableMinutes: context.session.estimatedMinutes,
@@ -547,7 +619,7 @@ function finalizeStreamedSkeleton({
       availableMinutes: context.session.estimatedMinutes,
     }),
   };
-  return enrichStreamedLessonBriefs(StreamedGeneratedSessionDraftSchema.parse(timeAllocated), {
+  const enriched = enrichStreamedLessonBriefs(StreamedGeneratedSessionDraftSchema.parse(timeAllocated), {
     sessionTopicIds: context.session.topicIds,
     materials: context.materials,
     knowledgeTopics: context.knowledgeTopics,
@@ -555,6 +627,33 @@ function finalizeStreamedSkeleton({
     taskType: routing.taskType,
     deliveryInstructions,
   });
+  const enrichedIdeaKeys = new Set(
+    enriched.coverage.essentialIdeas.map((idea) => idea.trim()),
+  );
+  if (
+    enrichedIdeaKeys.size !== scopedTargetAssignments.length
+    || scopedTargetAssignments.some((assignment) => (
+      !enrichedIdeaKeys.has(assignment.essentialIdea.trim())
+    ))
+  ) {
+    throw new CurrentSessionScopeError(
+      `${currentSessionScopeForRepair(currentSessionScope)} Every retained explanatory claim needs enough teaching-block capacity.`,
+    );
+  }
+  const resolvedAssignments = validateStreamedTargetAssignments({
+    essentialIdeas: enriched.coverage.essentialIdeas,
+    targetAssignments: scopedTargetAssignments,
+    currentSessionScope,
+  });
+
+  return {
+    draft: enriched,
+    authoritativeTargetAssignments: resolvedAssignments.flatMap((assignment) => (
+      assignment.target
+        ? [{ essentialIdea: assignment.essentialIdea, target: assignment.target }]
+        : []
+    )),
+  };
 }
 
 export type StreamedCurrentSessionScope = {
@@ -616,18 +715,185 @@ class CurrentSessionScopeError extends Error {
   }
 }
 
+function targetCatalogForScope(scope: StreamedCurrentSessionScope) {
+  if (scope.activeTargets.length === 0) {
+    return [{ targetId: "bounded_objective" as const, target: null, targetIndex: 0 }];
+  }
+  return scope.activeTargets.map((target, targetIndex) => ({
+    targetId: `target_${targetIndex + 1}` as StreamedTargetId,
+    target,
+    targetIndex,
+  }));
+}
+
+/**
+ * Resolves provider-authored claims against server-issued target ids. Coverage
+ * identity comes from the id, while lexical checks remain defense in depth for
+ * unrelated or deferred content. This metadata never enters the cached draft.
+ */
+export function validateStreamedTargetAssignments({
+  essentialIdeas,
+  targetAssignments,
+  currentSessionScope,
+}: {
+  essentialIdeas: string[];
+  targetAssignments: StreamedTargetAssignment[];
+  currentSessionScope: StreamedCurrentSessionScope;
+}): ResolvedStreamedTargetAssignment[] {
+  const ideas = essentialIdeas.map((idea) => idea.trim());
+  if (targetAssignments.length !== ideas.length) {
+    throw new CurrentSessionScopeError(
+      `${currentSessionScopeForRepair(currentSessionScope)} Every active explanatory claim needs exactly one stable target assignment.`,
+    );
+  }
+
+  const catalog = targetCatalogForScope(currentSessionScope);
+  const catalogById = new Map(catalog.map((entry) => [entry.targetId, entry]));
+  const expectedIdeas = new Set(ideas);
+  const assignmentByIdea = new Map<string, StreamedTargetAssignment>();
+  for (const assignment of targetAssignments) {
+    const idea = assignment.essentialIdea.trim();
+    if (!expectedIdeas.has(idea)) {
+      throw new CurrentSessionScopeError(
+        `${currentSessionScopeForRepair(currentSessionScope)} A target assignment did not copy an active explanatory claim exactly.`,
+      );
+    }
+    if (assignmentByIdea.has(idea)) {
+      throw new CurrentSessionScopeError(
+        `${currentSessionScopeForRepair(currentSessionScope)} An active explanatory claim has more than one target assignment.`,
+      );
+    }
+    if (!catalogById.has(assignment.targetId)) {
+      throw new CurrentSessionScopeError(
+        `${currentSessionScopeForRepair(currentSessionScope)} The target id ${assignment.targetId} is not active in this session.`,
+      );
+    }
+    assignmentByIdea.set(idea, assignment);
+  }
+
+  let previousTargetIndex = -1;
+  const resolved = ideas.map((idea) => {
+    const assignment = assignmentByIdea.get(idea);
+    if (!assignment) {
+      throw new CurrentSessionScopeError(
+        `${currentSessionScopeForRepair(currentSessionScope)} Every active explanatory claim needs exactly one stable target assignment.`,
+      );
+    }
+    const targetEntry = catalogById.get(assignment.targetId)!;
+    if (targetEntry.targetIndex < previousTargetIndex) {
+      throw new CurrentSessionScopeError(
+        `${currentSessionScopeForRepair(currentSessionScope)} Keep explanatory claims grouped in authoritative target order.`,
+      );
+    }
+    previousTargetIndex = targetEntry.targetIndex;
+
+    if (targetEntry.target) {
+      if (!lessonIdeaSharesTargetSubject(idea, targetEntry.target)) {
+        throw new CurrentSessionScopeError(
+          `${currentSessionScopeForRepair(currentSessionScope)} The claim assigned to ${assignment.targetId} does not preserve that target's subject terms.`,
+        );
+      }
+      if (lessonIdeaContainsDeferredExclusiveTerms({
+        idea,
+        assignedTarget: targetEntry.target,
+        deferredTargets: currentSessionScope.deferredTargets,
+      })) {
+        throw new CurrentSessionScopeError(
+          `${currentSessionScopeForRepair(currentSessionScope)} A target-assigned claim also contains deferred-session substance.`,
+        );
+      }
+    }
+
+    return { ...assignment, ...targetEntry };
+  });
+
+  const representedTargetIds = new Set(resolved.map((assignment) => assignment.targetId));
+  const missingTarget = catalog.find((entry) => !representedTargetIds.has(entry.targetId));
+  if (missingTarget) {
+    throw new CurrentSessionScopeError(
+      `${currentSessionScopeForRepair(currentSessionScope)} The provider omitted ${missingTarget.targetId}; every active target must have a taught, checked claim.`,
+    );
+  }
+  return resolved;
+}
+
+function retainTargetAssignmentsForIdeas(
+  targetAssignments: StreamedTargetAssignment[],
+  essentialIdeas: string[],
+) {
+  const retainedIdeas = new Set(essentialIdeas.map((idea) => idea.trim()));
+  return targetAssignments.filter((assignment) => (
+    retainedIdeas.has(assignment.essentialIdea.trim())
+  ));
+}
+
+function lessonIdeaContainsDeferredExclusiveTerms({
+  idea,
+  assignedTarget,
+  deferredTargets,
+}: {
+  idea: string;
+  assignedTarget: string;
+  deferredTargets: string[];
+}) {
+  const ideaTokens = targetDiscriminatorTokens(idea);
+  const assignedTokens = targetDiscriminatorTokens(assignedTarget);
+  return deferredTargets.some((deferredTarget) => {
+    const exclusiveTokens = targetDiscriminatorTokens(deferredTarget).filter((deferredToken) => (
+      !assignedTokens.some((assignedToken) => (
+        subjectTokensMatch(deferredToken, assignedToken)
+      ))
+    ));
+    if (exclusiveTokens.length === 0) return false;
+    const overlap = exclusiveTokens.filter((deferredToken) => (
+      ideaTokens.some((ideaToken) => subjectTokensMatch(ideaToken, deferredToken))
+    ));
+    return overlap.length >= 2
+      || overlap.some(isDistinctiveTargetDiscriminator);
+  });
+}
+
+function targetDiscriminatorTokens(value: string) {
+  const ignored = new Set([
+    "about", "and", "basic", "build", "concept", "during", "explain", "from", "idea",
+    "into", "learn", "lesson", "model", "overview", "relationship", "study", "that", "the",
+    "their", "this", "through", "understand", "using", "while", "with",
+  ]);
+  return [...new Set(normalizedSubjectLabel(value).split(" ").filter((token) => (
+    (/^\d+$/.test(token) || /^(?:i|ii|iii|iv|v|vi|vii|viii|ix|x)$/.test(token) || token.length > 2)
+    && !ignored.has(token)
+  )))];
+}
+
+function isDistinctiveTargetDiscriminator(token: string) {
+  return token === "before"
+    || token === "after"
+    || /^\d+$/.test(token)
+    || /^(?:i|ii|iii|iv|v|vi|vii|viii|ix|x)$/.test(token)
+    || token.length >= 6;
+}
+
+function subjectTokensMatch(left: string, right: string) {
+  if (left === right) return true;
+  return Math.min(left.length, right.length) >= 5
+    && (left.startsWith(right) || right.startsWith(left));
+}
+
 function currentSessionScopeForPrompt(
   scope: StreamedCurrentSessionScope,
   pacingContract: ReturnType<typeof streamedTeachingPacingContract>,
 ) {
   if (scope.activeTargets.length === 0) {
-    return `AUTHORITATIVE CURRENT-SESSION SCOPE: No plan target labels were supplied. Stay within the bounded session objective and time budget, and write exactly ${pacingContract.minimumActiveIdeas} distinct explanatory claims for the bounded objective.`;
+    return `AUTHORITATIVE CURRENT-SESSION SCOPE: No plan target labels were supplied. Stay within the bounded session objective and time budget, write exactly ${pacingContract.minimumActiveIdeas} distinct explanatory claims for the bounded objective, and assign every claim to target id bounded_objective.`;
   }
-  return `AUTHORITATIVE CURRENT-SESSION SCOPE: Teach and check only these active target labels in their listed order: ${quotedTargets(scope.activeTargets)}. Write exactly ${pacingContract.minimumActiveIdeas} distinct concise explanatory claims across them in essentialIdeas, represent every active target at least once, preserve each claim's parent target terms, and group claims in target order. Preserve these exact later target labels only in deferredContent and do not teach, check, survey, or mention their substance anywhere in the active learner experience: ${quotedTargets(scope.deferredTargets)}. This prohibition includes activity titles and bodies, concepts, answers, feedback, multiple-choice distractors, reflections, completion-evidence labels, and scheduled-return prompts. If clean recognition choices cannot be written without later content, use a free response.`;
+  const targetCatalog = targetCatalogForScope(scope)
+    .map((entry) => `${entry.targetId} = “${entry.target}”`)
+    .join("; ");
+  return `AUTHORITATIVE CURRENT-SESSION SCOPE: Teach and check only these active target ids and labels in their listed order: ${targetCatalog}. Write exactly ${pacingContract.minimumActiveIdeas} distinct concise explanatory claims across them in essentialIdeas, represent every active target id at least once in targetAssignments, preserve each claim's parent target terms, and group claims in target order. Preserve these exact later target labels only in deferredContent and do not teach, check, survey, or mention their substance anywhere in the active learner experience: ${quotedTargets(scope.deferredTargets)}. This prohibition includes activity titles and bodies, concepts, answers, feedback, multiple-choice distractors, reflections, completion-evidence labels, and scheduled-return prompts. If clean recognition choices cannot be written without later content, use a free response.`;
 }
 
 function currentSessionScopeForRepair(scope: StreamedCurrentSessionScope) {
-  return `The skeleton selected content outside today's authoritative current-session scope. Active targets that must be taught and checked now: ${quotedTargets(scope.activeTargets)}. Later targets that must remain exact entries in deferredContent: ${quotedTargets(scope.deferredTargets)}. Rebuild essentialIdeas, lessonBriefs, evidenceMap, and required questions around the active targets only. Remove deferred substance from every activity title, body, concept, answer, feedback, choice, reflection, completion-evidence label, and return prompt. Distractors count as active content, so use a free response when recognition choices would introduce later material.`;
+  return `The skeleton selected content outside today's authoritative current-session scope. Active targets that must be taught and checked now: ${quotedTargets(scope.activeTargets)}. Later targets that must remain exact entries in deferredContent: ${quotedTargets(scope.deferredTargets)}. Rebuild essentialIdeas, targetAssignments, lessonBriefs, evidenceMap, and required questions around the active targets only. Remove deferred substance from every activity title, body, concept, answer, feedback, choice, reflection, completion-evidence label, and return prompt. Distractors count as active content, so use a free response when recognition choices would introduce later material.`;
 }
 
 function quotedTargets(targets: string[]) {
@@ -649,12 +915,14 @@ export function scopeStreamedSkeletonToCurrentWindow({
   estimatedMinutes,
   learnerDirection,
   pacingContract: suppliedPacingContract,
+  targetAssignments,
 }: {
   draft: StreamedGeneratedSessionDraft;
   plannedTargets: string[];
   estimatedMinutes: number;
   learnerDirection: string | null;
   pacingContract?: ReturnType<typeof streamedTeachingPacingContract>;
+  targetAssignments?: StreamedTargetAssignment[];
 }): StreamedGeneratedSessionDraft {
   const pacingContract = suppliedPacingContract ?? streamedTeachingPacingContract({
     availableMinutes: estimatedMinutes,
@@ -676,18 +944,43 @@ export function scopeStreamedSkeletonToCurrentWindow({
     learnerDirection,
     maximumActiveTargets: maximumActiveIdeas,
   });
+  const resolvedTargetAssignments = targetAssignments
+    ? validateStreamedTargetAssignments({
+        essentialIdeas: draft.coverage.essentialIdeas,
+        targetAssignments,
+        currentSessionScope,
+      })
+    : null;
+  const targetAssignmentByIdea = new Map(
+    (resolvedTargetAssignments ?? []).map((assignment) => [
+      normalizedSubjectLabel(assignment.essentialIdea),
+      assignment,
+    ]),
+  );
   const remainingTargets = [...currentSessionScope.deferredTargets];
-  const activeAssignments: Array<{ idea: string; target: string | null }> = [];
+  const activeAssignments: Array<{ idea: string; target: string | null; targetIndex: number }> = [];
   const candidates = draft.coverage.essentialIdeas.map((idea, originalIndex) => {
-    const targetIndex = currentSessionScope.activeTargets.findIndex((target) => (
-      scopeLabelsMatch(idea, target)
-    ));
+    const stableAssignment = targetAssignmentByIdea.get(normalizedSubjectLabel(idea));
+    const targetIndex = stableAssignment
+      ? stableAssignment.targetIndex
+      : currentSessionScope.activeTargets.findIndex((target) => (
+          scopeLabelsMatch(idea, target)
+        ));
     const followsLearnerDirection = Boolean(
       learnerDirection?.trim() && scopeLabelsMatch(idea, learnerDirection),
     );
-    const matchesDeferredTarget = currentSessionScope.deferredTargets.some((target) => (
+    const overlapsDeferredTarget = currentSessionScope.deferredTargets.some((target) => (
       scopeLabelsMatch(idea, target)
     ));
+    // Stable target attribution already passed the stricter assigned-target
+    // and deferred-leak checks above. Do not discard a valid active claim just
+    // because it shares a broad parent term with a later target (for example,
+    // two neighboring photosynthesis subtopics).
+    // A validated stable assignment owns target identity. Let the later
+    // deferred-content fingerprint decide whether the learner-facing claim
+    // leaks distinctive future material; the broad lexical matcher cannot
+    // distinguish two targets that intentionally share a parent term.
+    const matchesDeferredTarget = overlapsDeferredTarget && !stableAssignment;
     return { idea, originalIndex, targetIndex, followsLearnerDirection, matchesDeferredTarget };
   }).filter(({ targetIndex, followsLearnerDirection }) => (
     plannedTargets.length === 0 || targetIndex >= 0 || followsLearnerDirection
@@ -732,6 +1025,7 @@ export function scopeStreamedSkeletonToCurrentWindow({
     assignedCandidates.add(candidate);
     activeAssignments.push({
       idea: candidate.idea,
+      targetIndex: candidate.targetIndex,
       target: candidate.targetIndex >= 0
         ? currentSessionScope.activeTargets[candidate.targetIndex] ?? null
         : null,
@@ -741,6 +1035,18 @@ export function scopeStreamedSkeletonToCurrentWindow({
   for (const [targetIndex] of currentSessionScope.activeTargets.entries()) {
     const candidate = candidates.find((item) => item.targetIndex === targetIndex);
     if (candidate) assignCandidate(candidate);
+  }
+  if (
+    resolvedTargetAssignments
+    && currentSessionScope.activeTargets.some((_, targetIndex) => (
+      !activeAssignments.some((assignment) => (
+        assignment.targetIndex === targetIndex
+      ))
+    ))
+  ) {
+    throw new CurrentSessionScopeError(
+      `${currentSessionScopeForRepair(currentSessionScope)} Every active target id needs a retained explanatory claim.`,
+    );
   }
   // Then use the remaining time-scaled slots for distinct subclaims. This is
   // what lets one broad 25/45/60-minute target become 2/3/4 real cycles.

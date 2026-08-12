@@ -85,6 +85,7 @@ import type { KnowledgeMapTopic } from "@/lib/knowledge-map/schema";
 import type { SessionArchitectureVersion } from "@/lib/session-generation/architecture";
 import type { LessonDeliveryInstructions } from "@/lib/personalization/session-delivery-policy";
 import {
+  type AuthoritativeLessonTargetAssignment,
   lessonIdeaMatchesTarget,
   validateStreamedLessonScope,
 } from "@/lib/session-generation/lesson-brief";
@@ -1054,6 +1055,7 @@ export function validateGeneratedSessionWithCode(
   conceptReviewSchedule: ConceptReviewDirective[],
   scaffoldProgression: ScaffoldProgressionSignal[],
   sessionDeliveryPolicy: SessionDeliveryPolicy,
+  authoritativeTargetAssignments: AuthoritativeLessonTargetAssignment[] = [],
 ): { failedValidator: GenerationValidator; detail: string } | null {
   const scheduledRetrieval = isScheduledRetrievalSession(context.session);
   const practiceVariation = buildPracticeVariationContract({
@@ -1073,6 +1075,7 @@ export function validateGeneratedSessionWithCode(
       sessionContentTargets: context.session.contentTargets ?? [],
       sessionEstimatedMinutes: context.session.estimatedMinutes,
       learnerDirection: context.sessionAdjustment?.note ?? null,
+      authoritativeTargetAssignments,
     })
     : null;
   const streamedTeachingPacingIssue = context.sessionArchitectureVersion === "streamed_teaching_v1"
@@ -1091,6 +1094,7 @@ export function validateGeneratedSessionWithCode(
       context.sessionArchitectureVersion === "streamed_teaching_v1"
         ? lessonIdeaMatchesTarget
         : coverageTargetsMatch,
+      authoritativeTargetAssignments.map((assignment) => assignment.target),
     )],
     ["streamed_lesson_scope", streamedLessonScopeIssue ?? streamedTeachingPacingIssue],
     ["learning_science_routing", validateLearningScienceRoutingSelection(draft.methodBriefing, learningScienceRouting)],
@@ -1153,6 +1157,7 @@ export function validateSessionCoverageFidelity(
   draft: GeneratedSessionDraft,
   session: SessionGenerationContext["session"],
   targetMatches: (idea: string, target: string) => boolean = coverageTargetsMatch,
+  authoritativeCoveredTargets: string[] = [],
 ) {
   const budget = contentBudgetForMinutes(session.estimatedMinutes);
   if (draft.coverage.essentialIdeas.length > budget.maximumContentTargets) {
@@ -1164,9 +1169,13 @@ export function validateSessionCoverageFidelity(
 
   const plannedTargets = session.contentTargets ?? [];
   if (plannedTargets.length === 0) return null;
+  const authoritativeCoveredTargetKeys = new Set(
+    authoritativeCoveredTargets.map(normalizeCoverageTarget),
+  );
   const generatedCoverage = [...draft.coverage.essentialIdeas, ...draft.coverage.deferredContent];
   const missingTargets = plannedTargets.filter((target) => (
-    !generatedCoverage.some((idea) => targetMatches(idea, target))
+    !authoritativeCoveredTargetKeys.has(normalizeCoverageTarget(target))
+    && !generatedCoverage.some((idea) => targetMatches(idea, target))
   ));
   if (missingTargets.length > 0) {
     return `The generated session lost planned content: ${missingTargets.join(", ")}. Represent each target with a concrete explanatory claim in essentialIdeas or preserve the target in deferredContent.`;
