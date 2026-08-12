@@ -468,7 +468,10 @@ export const StreamedGeneratedSessionDraftOutputSchema = z.object({
   coverage: SessionCoverageSchema,
   methodBriefing: SessionMethodBriefingSchema,
   sourceGrounding: SessionSourceGroundingSchema.nullable(),
-  activities: z.array(StreamedGeneratedSessionActivityOutputSchema).min(3).max(8),
+  // Eight focused activities support four teach/check cycles. A ninth slot is
+  // reserved only for the optional delayed-return marker, which is not part of
+  // today's time budget.
+  activities: z.array(StreamedGeneratedSessionActivityOutputSchema).min(3).max(9),
 });
 
 export type StreamedGeneratedSessionDraftOutput = z.infer<typeof StreamedGeneratedSessionDraftOutputSchema>;
@@ -493,8 +496,16 @@ export function normalizeStreamedLessonBriefPlacement(
 }
 
 export const StreamedGeneratedSessionDraftSchema = StreamedGeneratedSessionDraftOutputSchema.extend({
-  activities: z.array(StreamedGeneratedSessionActivitySchema).min(3).max(8),
+  activities: z.array(StreamedGeneratedSessionActivitySchema).min(3).max(9),
 }).superRefine((session, context) => {
+  const focusedActivityCount = session.activities.filter((activity) => activity.methodPhase !== "schedule_return").length;
+  if (focusedActivityCount > 8) {
+    context.addIssue({ code: "custom", path: ["activities"], message: "Streamed sessions may contain at most eight focused activities." });
+  }
+  const returnCount = session.activities.filter((activity) => activity.methodPhase === "schedule_return").length;
+  if (returnCount > 1) {
+    context.addIssue({ code: "custom", path: ["activities"], message: "Streamed sessions may contain at most one delayed-return marker." });
+  }
   const firstActivity = session.activities[0];
   const expectedOpeningPhase = methodFidelityContractForPrompt(
     session.methodBriefing.methodId,
@@ -525,6 +536,10 @@ export const CachedGeneratedSessionV15Schema = GeneratedSessionDraftSchema.exten
   }).optional(),
   supportPlan: SessionSupportPlanSchema.optional(),
   deliveryPolicy: SessionDeliveryPolicySchema,
+  cacheContext: z.object({
+    effectiveMinutes: z.number().int().min(5).max(180),
+    adjustmentFingerprint: z.string().regex(/^[a-f0-9]{64}$/),
+  }).optional(),
 });
 
 export const CachedGeneratedSessionV16Schema = StreamedGeneratedSessionDraftSchema.extend({
@@ -540,9 +555,30 @@ export const CachedGeneratedSessionV16Schema = StreamedGeneratedSessionDraftSche
   deliveryInstructions: LessonDeliveryInstructionsSchema,
 });
 
+// V17 invalidates older streamed skeletons whose provider-authored activity
+// estimates could substantially underfill the learner's selected time and
+// whose teaching blocks were not guaranteed to alternate with their checks.
+export const CachedGeneratedSessionV17Schema = StreamedGeneratedSessionDraftSchema.extend({
+  schemaVersion: z.literal(17),
+  model: z.string().min(1),
+  generatedAt: z.string().datetime({ offset: true }),
+  routingContext: z.object({
+    taskType: z.enum(LEARNING_TASK_TYPES),
+    knowledgeStage: z.enum(["novice", "developing", "retrieval_ready"]),
+  }).optional(),
+  supportPlan: SessionSupportPlanSchema.optional(),
+  deliveryPolicy: SessionDeliveryPolicySchema,
+  deliveryInstructions: LessonDeliveryInstructionsSchema,
+  cacheContext: z.object({
+    effectiveMinutes: z.number().int().min(5).max(180),
+    adjustmentFingerprint: z.string().regex(/^[a-f0-9]{64}$/),
+  }),
+});
+
 export const CachedGeneratedSessionSchema = z.discriminatedUnion("schemaVersion", [
   CachedGeneratedSessionV15Schema,
   CachedGeneratedSessionV16Schema,
+  CachedGeneratedSessionV17Schema,
 ]);
 
 export const SessionGenerationResponseSchema = z.object({

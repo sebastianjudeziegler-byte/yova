@@ -129,6 +129,15 @@ describe("guided-session active-recall validation", () => {
 });
 
 describe("session content-volume validation", () => {
+  it("maps explanatory Bioenergetics claims back to concise plan labels", async () => {
+    const { coverageTargetsMatch } = await import("@/lib/openai/session-generator");
+
+    expect(coverageTargetsMatch(
+      "Cells couple ATP hydrolysis to energy-requiring reactions.",
+      "Energy coupling and ATP",
+    )).toBe(true);
+  });
+
   it("preserves the plan's bounded completion contract instead of adding lesson requirements", async () => {
     const { boundedSessionCompletionEvidence } = await import("@/lib/openai/session-generator");
 

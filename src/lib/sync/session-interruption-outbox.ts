@@ -3,6 +3,7 @@
 import { z } from "zod";
 import type { SessionInterruption } from "@/lib/domain";
 import {
+  SessionAdjustmentSnapshotSchema,
   SessionEvidenceSnapshotSchema,
   SessionPendingRepairSchema,
 } from "@/lib/learning/session-resume";
@@ -23,6 +24,7 @@ const SessionInterruptionSchema = z.object({
   resumeStep: z.number().int().min(0).max(24).optional(),
   evidence: SessionEvidenceSnapshotSchema.optional(),
   pendingRepair: SessionPendingRepairSchema.optional(),
+  sessionAdjustment: SessionAdjustmentSnapshotSchema.optional(),
 });
 
 const PendingSessionInterruptionSchema = z.object({

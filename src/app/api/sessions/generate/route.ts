@@ -37,18 +37,24 @@ import { expandedLearnerContextFromStored } from "@/lib/personalization/learner-
 import {
   CachedGeneratedSessionSchema,
   CachedGeneratedSessionV15Schema,
-  CachedGeneratedSessionV16Schema,
+  CachedGeneratedSessionV17Schema,
   SessionGenerationRequestSchema,
   SessionGenerationResponseSchema,
   type SessionGenerationRequest,
 } from "@/lib/session-generation/schema";
 import {
   resolveSessionArchitectureVersion,
+  sessionArchitectureForGeneration,
   STREAMED_SESSION_ARCHITECTURE,
   type SessionArchitectureVersion,
 } from "@/lib/session-generation/architecture";
 import { checkSessionGenerationRateLimit, requestRateLimitKey } from "@/lib/server/rate-limit";
 import { claimAIRequest } from "@/lib/server/ai-usage";
+import {
+  buildSessionCacheContext,
+  sessionCacheContextMatches,
+  type SessionCacheContext,
+} from "@/lib/server/session-cache-context";
 import { isDevelopmentPreviewRequest } from "@/lib/server/development-preview";
 import { privacySafeErrorDiagnostic } from "@/lib/server/error-diagnostic";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
@@ -240,7 +246,7 @@ export async function POST(request: Request) {
       ]),
     );
     const planLearningIntent = readLearningIntent(plan.generation_inputs);
-    const sessionArchitectureVersion = resolveSessionArchitectureVersion(
+    const storedSessionArchitectureVersion = resolveSessionArchitectureVersion(
       plan.generation_inputs,
       parsedKnowledgeMap.data,
     );
@@ -258,16 +264,31 @@ export async function POST(request: Request) {
     const repairedTeachingStart = effectiveLearningMode === "learn" && savedLearningMode !== "learn"
       ? teachingFirstSessionCopy(learningItem.topic)
       : null;
+    const sessionArchitectureVersion = sessionArchitectureForGeneration({
+      storedVersion: storedSessionArchitectureVersion,
+      learningMode: effectiveLearningMode,
+      studyMode: learningItem.study_mode,
+      reviewType: readReviewType(planSession.step_data),
+    });
     const expectedCacheVersion = expectedSessionCacheVersion({
       sessionArchitectureVersion,
       learningMode: effectiveLearningMode,
       studyMode: learningItem.study_mode,
       reviewType: readReviewType(planSession.step_data),
     });
+    const requestedCacheContext = buildSessionCacheContext({
+      plannedMinutes: planSession.estimated_minutes,
+      adjustment: sessionAdjustment,
+    });
     const cached = readCachedSession(planSession.step_data, expectedCacheVersion);
     if (
       cached
-      && !sessionAdjustment
+      && (cached.schemaVersion === 17
+        ? sessionCacheContextMatches(cached.cacheContext, requestedCacheContext)
+        : cached.schemaVersion === 15 && !sessionAdjustment && (
+          !cached.cacheContext
+          || sessionCacheContextMatches(cached.cacheContext, requestedCacheContext)
+        ))
       && cached.methodBriefing.learningMode === effectiveLearningMode
     ) {
       await recordGenerationObservation(supabase, user.id, {
@@ -410,16 +431,32 @@ export async function POST(request: Request) {
     };
     const generated = await generateProductionSessionWithOpenAI(generationContext);
 
-    const cachedSession = cacheGeneratedSession(generated, expectedCacheVersion);
-    const { error: cacheError } = await supabase.rpc("cache_generated_session", {
+    const cachedSession = cacheGeneratedSession(generated, expectedCacheVersion, requestedCacheContext);
+    let { error: cacheError } = await supabase.rpc("cache_generated_session", {
       payload: {
         planSessionId: planSession.id,
         generatedSession: cachedSession,
       },
     });
+    if (cacheError && expectedCacheVersion === 17) {
+      ({ error: cacheError } = await supabase.rpc("cache_generated_session", {
+        payload: {
+          planSessionId: planSession.id,
+          generatedSession: cachedSession,
+        },
+      }));
+    }
 
     if (cacheError) console.error("YOVA generated-session cache failed", { requestId });
-    logSuccessfulGeneration(requestId, generated.model, generated.generationStats, "supabase");
+    if (cacheError && expectedCacheVersion === 17) {
+      throw new Error("YOVA could not safely store the streamed lesson before opening it.");
+    }
+    logSuccessfulGeneration(
+      requestId,
+      generated.model,
+      generated.generationStats,
+      cacheError ? "browser" : "supabase",
+    );
     await recordGenerationObservation(supabase, user.id, observationFromSessionStats(
       generated.generationStats,
       generated.model,
@@ -503,19 +540,33 @@ async function generateBrowserPreviewSession(
         },
       }
       : input.previewContext;
+    const runtimeSessionArchitectureVersion = sessionArchitectureForGeneration({
+      storedVersion: previewContext.sessionArchitectureVersion,
+      learningMode: previewContext.session.learningMode,
+      studyMode: previewContext.learningGoal.studyMode,
+      reviewType: previewContext.session.reviewType ?? null,
+    });
     const generationContext: SessionGenerationContext = {
       ...previewContext,
+      sessionArchitectureVersion: runtimeSessionArchitectureVersion,
       materials: [],
       sessionAdjustment: input.sessionAdjustment ?? null,
     };
     const generated = await generateProductionSessionWithOpenAI(generationContext);
     const expectedCacheVersion = expectedSessionCacheVersion({
-      sessionArchitectureVersion: previewContext.sessionArchitectureVersion,
+      sessionArchitectureVersion: runtimeSessionArchitectureVersion,
       learningMode: generationContext.session.learningMode,
       studyMode: generationContext.learningGoal.studyMode,
       reviewType: generationContext.session.reviewType ?? null,
     });
-    const session = cacheGeneratedSession(generated, expectedCacheVersion);
+    const session = cacheGeneratedSession(
+      generated,
+      expectedCacheVersion,
+      buildSessionCacheContext({
+        plannedMinutes: previewContext.session.estimatedMinutes,
+        adjustment: input.sessionAdjustment,
+      }),
+    );
     logSuccessfulGeneration(requestId, generated.model, generated.generationStats, "browser");
 
     return NextResponse.json(SessionGenerationResponseSchema.parse({
@@ -625,7 +676,7 @@ function logSuccessfulGeneration(
   });
 }
 
-function readCachedSession(stepData: unknown, expectedSchemaVersion?: 15 | 16) {
+function readCachedSession(stepData: unknown, expectedSchemaVersion?: 15 | 17) {
   if (!stepData || typeof stepData !== "object" || Array.isArray(stepData)) return null;
   const candidate = (stepData as Record<string, unknown>).generatedSession;
   const parsed = CachedGeneratedSessionSchema.safeParse(candidate);
@@ -643,18 +694,19 @@ function expectedSessionCacheVersion({
   learningMode: "learn" | "study";
   studyMode: string;
   reviewType: "repair_and_retrieve" | "verify" | "maintenance_transfer" | null;
-}): 15 | 16 {
+}): 15 | 17 {
   return sessionArchitectureVersion === STREAMED_SESSION_ARCHITECTURE
     && learningMode === "learn"
     && studyMode === "inside_yova"
     && !reviewType
-    ? 16
+    ? 17
     : 15;
 }
 
 function cacheGeneratedSession(
   generated: Awaited<ReturnType<typeof generateProductionSessionWithOpenAI>>,
-  expectedSchemaVersion: 15 | 16,
+  expectedSchemaVersion: 15 | 17,
+  cacheContext: SessionCacheContext,
 ) {
   const shared = {
     ...generated.draft,
@@ -664,19 +716,21 @@ function cacheGeneratedSession(
     model: generated.model,
     generatedAt: new Date().toISOString(),
   };
-  if (expectedSchemaVersion === 16) {
+  if (expectedSchemaVersion === 17) {
     if (!generated.deliveryInstructions) {
       throw new Error("The streamed teaching skeleton did not include delivery instructions.");
     }
-    return CachedGeneratedSessionV16Schema.parse({
-      schemaVersion: 16,
+    return CachedGeneratedSessionV17Schema.parse({
+      schemaVersion: 17,
       ...shared,
       deliveryInstructions: generated.deliveryInstructions,
+      cacheContext,
     });
   }
   return CachedGeneratedSessionV15Schema.parse({
     schemaVersion: 15,
     ...shared,
+    cacheContext,
   });
 }
 

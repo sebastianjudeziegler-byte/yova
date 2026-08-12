@@ -199,6 +199,13 @@ export type SessionPendingRepair = {
   repairSupport?: import("@/lib/session-repair/schema").RuntimeRepairSupport;
 };
 
+export type SessionAdjustmentSnapshot = {
+  familiarity: "as_planned" | "already_know" | "need_teaching" | "challenge_me";
+  availableMinutes: number | null;
+  knownTargets: string[];
+  note: string;
+};
+
 export type SessionInterruption = {
   id: string;
   planId: string;
@@ -212,6 +219,7 @@ export type SessionInterruption = {
   resumeStep?: number;
   evidence?: SessionEvidenceSnapshot;
   pendingRepair?: SessionPendingRepair;
+  sessionAdjustment?: SessionAdjustmentSnapshot;
 };
 
 export type NextSessionAdaptation = {

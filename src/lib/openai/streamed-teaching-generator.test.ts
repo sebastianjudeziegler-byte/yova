@@ -74,6 +74,21 @@ function contextWithMaterials(
 }
 
 describe("bounded streamed-skeleton repair policy", () => {
+  it("reports a raw provider rejection as a structured generation failure", async () => {
+    const { generateStreamedTeachingSkeletonWithOpenAI } = await import("@/lib/openai/streamed-teaching-generator");
+    parseResponse.mockReset();
+    parseResponse.mockRejectedValueOnce(new Error("provider unavailable"));
+
+    await expect(generateStreamedTeachingSkeletonWithOpenAI(contextWithMaterials([]))).rejects.toMatchObject({
+      name: "SessionGenerationFailure",
+      generationStats: {
+        attempts: 1,
+        failedValidator: "session_provider_request",
+        repairAttempted: false,
+      },
+    });
+  });
+
   it("allows the third call to be the successful scope-only repair", async () => {
     const {
       streamedSkeletonRepairAttemptCopy,
@@ -477,6 +492,171 @@ describe("streamed-session activity compaction", () => {
 });
 
 describe("runtime session-window scoping", () => {
+  it("uses cycle-compatible teaching methods for conceptual and programming lessons", async () => {
+    const { streamedTeachingCycleRouting } = await import("@/lib/openai/streamed-teaching-generator");
+    const { learningModeContract } = await import("@/lib/learning/learning-intent");
+    const baseRouting = {
+      learningIntent: "learn" as const,
+      sessionLearningMode: "learn" as const,
+      knowledgeStage: "novice" as const,
+      methods: [],
+      deliveryModifiers: [],
+      decisionBasis: [],
+      guardrails: [],
+      executionContract: learningModeContract("learn"),
+    };
+
+    expect(streamedTeachingCycleRouting({
+      ...baseRouting,
+      taskType: "conceptual_learning",
+      suggestedPrimaryMethodId: "read_recall_review",
+      allowedMethodIds: ["read_recall_review", "self_explanation", "retrieval_practice"],
+    }).allowedMethodIds).toEqual(["self_explanation"]);
+    expect(streamedTeachingCycleRouting({
+      ...baseRouting,
+      taskType: "programming",
+      suggestedPrimaryMethodId: "scaffolded_coding",
+      allowedMethodIds: ["scaffolded_coding", "worked_example_fading"],
+    }).allowedMethodIds).toEqual(["worked_example_fading"]);
+  });
+
+  it("keeps a Bioenergetics claim mapped to its concise ATP target", async () => {
+    const { scopeStreamedSkeletonToCurrentWindow } = await import("@/lib/openai/streamed-teaching-generator");
+    const { StreamedGeneratedSessionDraftSchema } = await import("@/lib/session-generation/schema");
+    const target = "Energy coupling and ATP";
+    const ideas = [
+      "Cells couple ATP hydrolysis to energy-requiring reactions.",
+      "ATP energy coupling through phosphorylation transfers energy to cellular reactants.",
+    ];
+    const concepts = ["ATP energy coupling", "ATP phosphorylation"];
+    const lessonBrief = {
+      version: 1 as const,
+      topicIds: [TOPIC_ID],
+      essentialIdeas: ideas,
+      sourceChunks: [],
+      knowledgeSource: "model_knowledge" as const,
+      evidenceContext: { confirmedGaps: [], secureKnowledge: [], priorMisconceptions: [] },
+      contentRequirements: {
+        teachEveryEssentialIdea: true as const,
+        includeConcreteExample: true,
+        includeCommonMixup: true as const,
+        preservePrerequisiteOrder: true as const,
+      },
+    };
+    const draft = StreamedGeneratedSessionDraftSchema.parse({
+      topicIds: [TOPIC_ID],
+      rationale: "Teach how ATP couples energy-releasing reactions to cellular work before checking recall.",
+      coverage: {
+        focus: "Connect ATP hydrolysis to energy-requiring cellular reactions.",
+        essentialIdeas: ideas,
+        completionEvidence: [
+          "Explain ATP energy coupling without reopening the model",
+          "Explain how phosphorylation transfers usable energy",
+        ],
+        evidenceMap: ideas.map((idea, index) => ({
+          essentialIdea: idea,
+          activityConcept: concepts[index]!,
+        })),
+        deferredContent: [],
+      },
+      methodBriefing: {
+        learningMode: "learn",
+        taskType: "conceptual_learning",
+        methodId: "self_explanation",
+        name: "Self-explanation",
+        what: "Study one connected energy model and explain the relationship from memory.",
+        why: "Producing the ATP relationship reveals whether the mechanism is understood.",
+        how: ["Read the model once.", "Explain the relationship without reopening it."],
+        completion: "Explain how ATP hydrolysis supports energy-requiring cellular work.",
+        personalization: ["The session begins with a concrete mechanism before the question."],
+      },
+      sourceGrounding: null,
+      activities: [
+        {
+          topicId: TOPIC_ID,
+          methodPhase: "model",
+          estimatedMinutes: 9,
+          requiredForCompletion: true,
+          label: "Learn",
+          title: "Build the ATP coupling model",
+          body: "Read the focused mechanism before explaining it from memory.",
+          teaching: null,
+          lessonBrief,
+          practiceIntent: null,
+          misconceptionSummary: null,
+          type: "instruction",
+          concept: null,
+          choices: [],
+          correctAnswer: null,
+          feedback: null,
+        },
+        {
+          topicId: TOPIC_ID,
+          methodPhase: "explain",
+          estimatedMinutes: 7,
+          requiredForCompletion: true,
+          label: "Explain",
+          title: "Explain ATP energy coupling",
+          body: "Explain how ATP hydrolysis can support an energy-requiring cellular reaction.",
+          teaching: null,
+          lessonBrief: null,
+          practiceIntent: "supported_recheck",
+          misconceptionSummary: null,
+          type: "free_response",
+          concept: concepts[0],
+          choices: [],
+          correctAnswer: ideas[0],
+          feedback: "Connect energy released by ATP hydrolysis to the energy-requiring cellular work.",
+        },
+        {
+          topicId: TOPIC_ID,
+          methodPhase: "transfer",
+          estimatedMinutes: 7,
+          requiredForCompletion: true,
+          label: "Apply",
+          title: "Explain ATP phosphorylation",
+          body: "Explain how ATP can transfer usable energy by phosphorylating a cellular reactant.",
+          teaching: null,
+          lessonBrief: null,
+          practiceIntent: "independent_transfer",
+          misconceptionSummary: null,
+          type: "free_response",
+          concept: concepts[1],
+          choices: [],
+          correctAnswer: ideas[1],
+          feedback: "Connect phosphate transfer to the reactant's changed energy and reactivity.",
+        },
+        {
+          topicId: null,
+          methodPhase: "schedule_return",
+          estimatedMinutes: 1,
+          requiredForCompletion: false,
+          label: "Return",
+          title: "Check ATP coupling later",
+          body: "YOVA will bring this relationship back after a delay.",
+          teaching: null,
+          lessonBrief: null,
+          practiceIntent: null,
+          misconceptionSummary: null,
+          type: "reflection",
+          concept: null,
+          choices: [],
+          correctAnswer: null,
+          feedback: null,
+        },
+      ],
+    });
+
+    const scoped = scopeStreamedSkeletonToCurrentWindow({
+      draft,
+      plannedTargets: [target],
+      estimatedMinutes: 25,
+      learnerDirection: null,
+    });
+    expect(scoped.coverage.essentialIdeas).toEqual(ideas);
+    expect(scoped.coverage.deferredContent).toEqual([]);
+  });
+
   it("defines the 15-minute World War I window before generation", async () => {
     const {
       buildStreamedCurrentSessionScope,

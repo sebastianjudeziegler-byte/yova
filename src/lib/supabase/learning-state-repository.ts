@@ -15,6 +15,7 @@ import type {
 import { readConceptEvidenceProperty } from "@/lib/learning/concept-evidence";
 import { readConfidenceEvidenceProperty } from "@/lib/learning/confidence-calibration";
 import {
+  readSessionAdjustmentSnapshot,
   readSessionEvidenceSnapshot,
   readSessionPendingRepair,
 } from "@/lib/learning/session-resume";
@@ -288,6 +289,7 @@ export async function loadAuthenticatedLearningState(): Promise<CloudLearningSta
     const resumeStep = readNumberProperty(event.event_data, "resumeStep");
     const evidence = readSessionEvidenceSnapshot(readProperty(event.event_data, "evidence"));
     const pendingRepair = readSessionPendingRepair(readProperty(event.event_data, "pendingRepair"));
+    const sessionAdjustment = readSessionAdjustmentSnapshot(readProperty(event.event_data, "sessionAdjustment"));
     if (!planId || !attemptId || !startedAt || plannedMinutes === null || actualMinutes === null || completedSteps === null || totalSteps === null) return [];
 
     return [{
@@ -303,6 +305,7 @@ export async function loadAuthenticatedLearningState(): Promise<CloudLearningSta
       ...(resumeStep === null ? {} : { resumeStep }),
       ...(evidence ? { evidence } : {}),
       ...(pendingRepair ? { pendingRepair } : {}),
+      ...(sessionAdjustment ? { sessionAdjustment } : {}),
     }];
   });
 
@@ -457,6 +460,7 @@ export async function recordAuthenticatedSessionInterruption(interruption: Sessi
       resumeStep: interruption.resumeStep,
       evidence: interruption.evidence,
       pendingRepair: interruption.pendingRepair,
+      sessionAdjustment: interruption.sessionAdjustment,
     },
   });
 

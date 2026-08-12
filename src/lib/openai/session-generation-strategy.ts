@@ -9,7 +9,7 @@ import {
   type SessionGenerationContext,
 } from "@/lib/openai/session-generator";
 import { generateStreamedTeachingSkeletonWithOpenAI } from "@/lib/openai/streamed-teaching-generator";
-import { usesStreamedTeaching } from "@/lib/session-generation/architecture";
+import { sessionArchitectureForGeneration, usesStreamedTeaching } from "@/lib/session-generation/architecture";
 
 /**
  * Keeps production and live quality evaluations on the same generation path.
@@ -17,8 +17,14 @@ import { usesStreamedTeaching } from "@/lib/session-generation/architecture";
  * whose complete learning sequence fits its deterministic activity shape.
  */
 export function sessionGenerationStrategy(context: SessionGenerationContext) {
+  const runtimeArchitecture = sessionArchitectureForGeneration({
+    storedVersion: context.sessionArchitectureVersion,
+    learningMode: context.session.learningMode,
+    studyMode: context.learningGoal.studyMode,
+    reviewType: context.session.reviewType ?? null,
+  });
   if (
-    usesStreamedTeaching({ sessionArchitectureVersion: context.sessionArchitectureVersion })
+    usesStreamedTeaching({ sessionArchitectureVersion: runtimeArchitecture })
     && context.session.learningMode === "learn"
     && context.learningGoal.studyMode === "inside_yova"
     && !context.session.reviewType
@@ -28,7 +34,16 @@ export function sessionGenerationStrategy(context: SessionGenerationContext) {
 }
 
 export function generateProductionSessionWithOpenAI(context: SessionGenerationContext) {
-  const strategy = sessionGenerationStrategy(context);
-  if (strategy === "streamed") return generateStreamedTeachingSkeletonWithOpenAI(context);
-  return strategy === "reliable" ? generateReliableSessionWithOpenAI(context) : generateSessionWithOpenAI(context);
+  const generationContext = {
+    ...context,
+    sessionArchitectureVersion: sessionArchitectureForGeneration({
+      storedVersion: context.sessionArchitectureVersion,
+      learningMode: context.session.learningMode,
+      studyMode: context.learningGoal.studyMode,
+      reviewType: context.session.reviewType ?? null,
+    }),
+  };
+  const strategy = sessionGenerationStrategy(generationContext);
+  if (strategy === "streamed") return generateStreamedTeachingSkeletonWithOpenAI(generationContext);
+  return strategy === "reliable" ? generateReliableSessionWithOpenAI(generationContext) : generateSessionWithOpenAI(generationContext);
 }

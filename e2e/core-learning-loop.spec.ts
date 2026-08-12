@@ -165,7 +165,9 @@ test("a built-in fallback never exceeds a shortened session window", async ({ pa
 });
 
 test("a built-in fallback never ignores a learner's custom session requirement", async ({ page }) => {
+  const generationBodies: Array<Record<string, unknown>> = [];
   await page.route("**/api/sessions/generate", async (route) => {
+    generationBodies.push(route.request().postDataJSON() as Record<string, unknown>);
     await route.fulfill({
       status: 502,
       contentType: "application/json",
@@ -185,11 +187,22 @@ test("a built-in fallback never ignores a learner's custom session requirement",
   await page.getByRole("button", { name: /Build and start session/ }).click();
   await page.getByRole("button", { name: "Continue" }).click();
   await page.getByRole("button", { name: "Continue" }).click();
+  await page.getByLabel("Time available right now").selectOption("20");
   await page.getByLabel("Anything YOVA should account for?").fill("This session must also cover the quotient rule.");
   await page.getByRole("button", { name: "Prepare this session" }).click();
 
   await expect(page.getByRole("heading", { name: "YOVA already knows what this lesson should cover." })).toBeVisible();
   await expect(page.getByText(/safe built-in session was loaded instead/i)).not.toBeVisible();
+
+  await page.getByRole("button", { name: "Prepare this lesson again" }).click();
+  await expect.poll(() => generationBodies.length).toBe(2);
+  expect(generationBodies[1]?.sessionAdjustment).toEqual(generationBodies[0]?.sessionAdjustment);
+  expect(generationBodies[1]?.sessionAdjustment).toMatchObject({
+    familiarity: "as_planned",
+    availableMinutes: 20,
+    note: "This session must also cover the quotient rule.",
+  });
+  await expect(page.getByRole("heading", { name: "YOVA already knows what this lesson should cover." })).toBeVisible();
 });
 
 test("a new topic is taught before YOVA asks for independent performance", async ({ page }) => {
@@ -580,6 +593,61 @@ test("a learner can stop twice without losing progress or earlier evidence", asy
 
   await expect(page.getByText("2 of 2", { exact: true })).toBeVisible();
   await expect(page.getByText("Evidence checks", { exact: true })).toBeVisible();
+});
+
+test("a resumed streamed question can reopen its prior lesson by persisted activity index", async ({ page }) => {
+  const lessonActivityIndexes: number[] = [];
+  await page.route("**/api/sessions/generate", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(streamedResumeSessionResponse()),
+    });
+  });
+  await page.route("**/api/sessions/lesson", async (route) => {
+    const body = route.request().postDataJSON() as { activityIndex?: number };
+    if (typeof body.activityIndex === "number") lessonActivityIndexes.push(body.activityIndex);
+    await route.fulfill({
+      status: 200,
+      contentType: "text/event-stream",
+      body: [
+        'data: {"type":"lesson.meta","requestId":"30000000-0000-4000-8000-000000000001","model":"test-model"}',
+        "",
+        'data: {"type":"lesson.delta","delta":"# Restored streamed explanation\\n\\nRetrieval shows what you can produce before reviewing the answer."}',
+        "",
+        'data: {"type":"lesson.complete","elapsedMs":20,"latencyToFirstTokenMs":5,"inputTokens":20,"cachedInputTokens":0,"outputTokens":18,"wordCount":13,"model":"test-model"}',
+        "",
+        "",
+      ].join("\n"),
+    });
+  });
+
+  await createPreviewAccount(page);
+  await completeOnboarding(page);
+  await page.getByRole("button", { name: "Study something now", exact: true }).first().click();
+  await page.getByPlaceholder("Example: Help me understand the product rule and practice using it.").fill(
+    "Help me understand retrieval practice and test the idea.",
+  );
+  await page.getByRole("button", { name: "I haven't learned this yet" }).click();
+  await page.getByRole("button", { name: /Choose how YOVA should help/ }).click();
+  await page.getByRole("button", { name: /Create it for me/ }).click();
+  await page.getByRole("button", { name: /Build and start session/ }).click();
+  await confirmSessionSetup(page);
+
+  await expect(page.getByText("Restored streamed explanation")).toBeVisible();
+  await page.getByRole("button", { name: "Answer the question" }).click();
+  await expect(page.getByRole("heading", { name: "Choose the retrieval sequence" })).toBeVisible();
+  await leaveSession(page, "1 of 3 required steps finished");
+
+  await page.getByRole("button", { name: "Continue session" }).click();
+  await expect(page.getByRole("heading", { name: "Choose the retrieval sequence" })).toBeVisible();
+  expect(lessonActivityIndexes).toEqual([0]);
+  await page.getByRole("button", { name: "Review the lesson" }).click();
+
+  await expect.poll(() => lessonActivityIndexes.length).toBe(2);
+  expect(lessonActivityIndexes).toEqual([0, 0]);
+  await expect(page.getByRole("dialog", { name: /Review the lesson, then return to the same question/i }))
+    .toContainText("Restored streamed explanation");
 });
 
 test("the product shell keeps every core destination and creation path usable", async ({ page }) => {
@@ -991,4 +1059,179 @@ async function exitSessionWithoutProgress(page: Page) {
   await page.getByRole("button", { name: "Exit" }).dispatchEvent("click");
   await expect(page.getByRole("dialog", { name: "Your plan will stay open." })).toBeVisible();
   await page.getByRole("button", { name: "Save progress and leave" }).dispatchEvent("click");
+}
+
+function streamedResumeSessionResponse() {
+  const topicId = "30000000-0000-4000-8000-000000000010";
+  return {
+    planSessionId: "30000000-0000-4000-8000-000000000011",
+    session: {
+      topicIds: [topicId],
+      schemaVersion: 17,
+      model: "test-model",
+      generatedAt: "2026-08-11T18:00:00.000Z",
+      cacheContext: {
+        effectiveMinutes: 25,
+        adjustmentFingerprint: "a".repeat(64),
+      },
+      routingContext: {
+        taskType: "conceptual_learning",
+        knowledgeStage: "novice",
+      },
+      rationale: "Teach one bounded retrieval model before checking whether the learner can identify and explain it.",
+      coverage: {
+        focus: "Understand why retrieval happens before answer review.",
+        essentialIdeas: ["Retrieval happens before answer review"],
+        completionEvidence: ["Identify and explain why an answer is attempted before review"],
+        evidenceMap: [{
+          essentialIdea: "Retrieval happens before answer review",
+          activityConcept: "Retrieval practice",
+        }],
+        deferredContent: [],
+      },
+      methodBriefing: {
+        learningMode: "learn",
+        taskType: "conceptual_learning",
+        methodId: "retrieval_practice",
+        name: "Retrieval practice",
+        what: "Produce an answer from memory before looking at the explanation.",
+        why: "This makes current knowledge visible before the learner reviews and repairs the answer.",
+        how: [
+          "Read the bounded model before the first check.",
+          "Attempt the answer from memory, then repair the exposed gap.",
+        ],
+        completion: "The learner identifies the sequence and explains why retrieval comes first.",
+        personalization: ["The learner asked for a clear example before the independent explanation."],
+      },
+      sourceGrounding: null,
+      deliveryPolicy: {
+        schemaVersion: 1,
+        evidenceStatus: "starting_hypothesis",
+        presentation: {
+          mode: "example_first",
+          label: "Example first",
+          instruction: "Begin with one concrete case before naming the general rule.",
+        },
+        repair: {
+          mode: "hint_first",
+          label: "Hint first",
+          instruction: "After a miss, reveal one bounded cue before the complete correction.",
+        },
+        retention: {
+          mode: "retrieval",
+          label: "Recall without cues",
+          instruction: "Require retrieval without visible notes before answer review.",
+        },
+        workspace: {
+          mode: "one_step",
+          label: "One step at a time",
+          instruction: "Keep only the current action prominent while preserving the path preview.",
+        },
+        pacing: {
+          firstActionMinutes: 4,
+          maximumActivities: 5,
+          reason: "Use a bounded first explanation and preserve the required checks.",
+        },
+        learnerFacingReasons: ["The learner asked for a concrete example before the rule."],
+        signalsUsed: ["A concrete example before the rule"],
+      },
+      deliveryInstructions: {
+        schemaVersion: 1,
+        explanationDensity: "balanced",
+        tone: "encouraging",
+        analogyUse: "only_when_helpful",
+        workedExamples: "lead_with_example",
+        structure: "task_aligned",
+        pacing: {
+          firstActionMinutes: 4,
+          maximumActivities: 5,
+          instruction: "Keep the first step bounded while preserving every essential idea.",
+        },
+        learnerContext: ["Use current evidence as a guide rather than a fixed learning style."],
+        contentRequirements: {
+          coverAllEssentialIdeas: true,
+          includeConcreteWorkedExample: true,
+          includeCommonMixup: true,
+          preservePrerequisiteOrder: true,
+        },
+      },
+      activities: [
+        {
+          topicId,
+          methodPhase: "model",
+          estimatedMinutes: 4,
+          requiredForCompletion: true,
+          type: "instruction",
+          concept: null,
+          label: "Learn",
+          title: "Build the retrieval model",
+          body: "Read the streamed explanation before answering the first question.",
+          teaching: null,
+          lessonBrief: {
+            version: 1,
+            topicIds: [topicId],
+            essentialIdeas: ["Retrieval happens before answer review"],
+            sourceChunks: [],
+            knowledgeSource: "model_knowledge",
+            evidenceContext: {
+              confirmedGaps: [],
+              secureKnowledge: [],
+              priorMisconceptions: [],
+            },
+            contentRequirements: {
+              teachEveryEssentialIdea: true,
+              includeConcreteExample: true,
+              includeCommonMixup: true,
+              preservePrerequisiteOrder: true,
+            },
+          },
+          practiceIntent: null,
+          misconceptionSummary: null,
+          choices: [],
+          correctAnswer: null,
+          feedback: null,
+        },
+        {
+          topicId,
+          methodPhase: "retrieve",
+          estimatedMinutes: 3,
+          requiredForCompletion: true,
+          type: "multiple_choice",
+          concept: "Retrieval practice",
+          label: "Check",
+          title: "Choose the retrieval sequence",
+          body: "Which sequence makes unsupported knowledge visible before review?",
+          teaching: null,
+          lessonBrief: null,
+          practiceIntent: "misconception_discrimination",
+          misconceptionSummary: "Confuses retrieval with rereading already visible wording.",
+          choices: ["Attempt, then review", "Review, then copy", "Only reread"],
+          correctAnswer: "Attempt, then review",
+          feedback: "Retrieval requires producing an answer before looking at the explanation.",
+        },
+        {
+          topicId,
+          methodPhase: "repair",
+          estimatedMinutes: 3,
+          requiredForCompletion: true,
+          type: "free_response",
+          concept: "Retrieval practice",
+          label: "Explain",
+          title: "Explain why retrieval comes first",
+          body: "Explain why attempting an answer before review reveals a useful learning gap.",
+          teaching: null,
+          lessonBrief: null,
+          practiceIntent: null,
+          misconceptionSummary: null,
+          choices: [],
+          correctAnswer: "Trying first reveals which knowledge is available without visible support.",
+          feedback: "A strong answer connects the unsupported attempt to finding what needs repair.",
+        },
+      ],
+    },
+    generation: {
+      mode: "openai",
+      persistence: "browser",
+    },
+  };
 }
