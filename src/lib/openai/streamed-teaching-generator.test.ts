@@ -380,6 +380,175 @@ describe("authoritative streamed-session source grounding", () => {
 });
 
 describe("streamed-session activity compaction", () => {
+  it("keeps the final interleaved first action inside the delivery-policy cap", async () => {
+    const {
+      allocateStreamedTeachingMinutes,
+      interleaveStreamedTeachingCycles,
+      validateStreamedTeachingPacing,
+    } = await import("@/lib/session-generation/streamed-pacing");
+    const {
+      StreamedGeneratedSessionDraftSchema,
+    } = await import("@/lib/session-generation/schema");
+    const {
+      buildStatedPreferenceLessonDelivery,
+      validateSessionDeliveryPolicy,
+    } = await import("@/lib/personalization/session-delivery-policy");
+    const {
+      melatoninStreamedEvaluationContext,
+    } = await import("@/evals/melatonin-session-case");
+    const context = melatoninStreamedEvaluationContext();
+    const firstIdea = "Darkness changes the circadian signal that controls biological timing.";
+    const secondIdea = "The pineal gland releases melatonin as a signal of biological night.";
+    const lessonBrief = {
+      version: 1 as const,
+      topicIds: [TOPIC_ID],
+      essentialIdeas: [firstIdea, secondIdea],
+      sourceChunks: [],
+      knowledgeSource: "model_knowledge" as const,
+      evidenceContext: { confirmedGaps: [], secureKnowledge: [], priorMisconceptions: [] },
+      contentRequirements: {
+        teachEveryEssentialIdea: true as const,
+        includeConcreteExample: true,
+        includeCommonMixup: true as const,
+        preservePrerequisiteOrder: true as const,
+      },
+    };
+    const question = (concept: string, idea: string) => ({
+      topicId: TOPIC_ID,
+      methodPhase: "explain" as const,
+      estimatedMinutes: 3,
+      requiredForCompletion: true,
+      label: "Explain",
+      title: `Explain ${concept}`,
+      body: `Explain ${concept} without reopening the lesson.`,
+      teaching: null,
+      lessonBrief: null,
+      practiceIntent: "supported_recheck" as const,
+      misconceptionSummary: null,
+      type: "free_response" as const,
+      concept,
+      choices: [],
+      correctAnswer: idea,
+      feedback: `Compare your explanation with this relationship: ${idea}`,
+    });
+    const delivery = buildStatedPreferenceLessonDelivery({
+      learnerProfile: context.learnerProfile,
+      estimatedMinutes: 15,
+      taskType: "conceptual_learning",
+    });
+    const draft = StreamedGeneratedSessionDraftSchema.parse({
+      topicIds: [TOPIC_ID],
+      rationale: "Teach the two connected melatonin relationships before requiring explanation from memory.",
+      coverage: {
+        focus: "Connect darkness, circadian timing, pineal release, and melatonin.",
+        essentialIdeas: [firstIdea, secondIdea],
+        completionEvidence: ["Explain both connected relationships without notes"],
+        evidenceMap: [
+          { essentialIdea: firstIdea, activityConcept: "Darkness and circadian timing" },
+          { essentialIdea: secondIdea, activityConcept: "Pineal melatonin release" },
+        ],
+        deferredContent: [],
+      },
+      methodBriefing: {
+        learningMode: "learn",
+        taskType: "conceptual_learning",
+        methodId: "self_explanation",
+        name: "Self-explanation",
+        what: "Study the causal model, then explain each relationship from memory.",
+        why: "Explaining each link reveals whether the causal model is understood.",
+        how: ["Study one relationship.", "Explain it before continuing."],
+        completion: "Explain both relationships without reopening the lesson.",
+        personalization: delivery.policy.learnerFacingReasons.slice(0, 3),
+      },
+      sourceGrounding: null,
+      activities: [{
+        topicId: TOPIC_ID,
+        methodPhase: "model",
+        estimatedMinutes: 5,
+        requiredForCompletion: true,
+        label: "Learn",
+        title: "Build the melatonin model",
+        body: "Study the connected model before explaining each relationship.",
+        teaching: null,
+        lessonBrief,
+        practiceIntent: null,
+        misconceptionSummary: null,
+        type: "instruction",
+        concept: null,
+        choices: [],
+        correctAnswer: null,
+        feedback: null,
+      }, question("Darkness and circadian timing", firstIdea), question("Pineal melatonin release", secondIdea), {
+        topicId: null,
+        methodPhase: "reflect",
+        estimatedMinutes: 1,
+        requiredForCompletion: false,
+        label: "Reflect",
+        title: "Name the central relationship",
+        body: "Name the relationship that now feels most important in the model.",
+        teaching: null,
+        lessonBrief: null,
+        practiceIntent: null,
+        misconceptionSummary: null,
+        type: "reflection",
+        concept: null,
+        choices: [],
+        correctAnswer: null,
+        feedback: null,
+      }, {
+        topicId: null,
+        methodPhase: "schedule_return",
+        estimatedMinutes: 1,
+        requiredForCompletion: false,
+        label: "Return",
+        title: "Check the model again later",
+        body: "YOVA will bring this model back after a delay for unsupported retrieval.",
+        teaching: null,
+        lessonBrief: null,
+        practiceIntent: null,
+        misconceptionSummary: null,
+        type: "reflection",
+        concept: null,
+        choices: [],
+        correctAnswer: null,
+        feedback: null,
+      }],
+    });
+
+    const maximumFirstActionMinutes = Math.max(5, delivery.policy.pacing.firstActionMinutes + 2);
+    expect(delivery.policy.pacing.firstActionMinutes).toBe(2);
+    expect(maximumFirstActionMinutes).toBe(5);
+    const interleaved = interleaveStreamedTeachingCycles({
+      draft,
+      availableMinutes: 15,
+      maximumFocusedActivities: delivery.policy.pacing.maximumActivities,
+      maximumFirstActionMinutes,
+    });
+    const finalized = {
+      ...interleaved,
+      activities: allocateStreamedTeachingMinutes({
+        activities: interleaved.activities,
+        availableMinutes: 15,
+        maximumFirstActionMinutes,
+      }),
+    };
+
+    expect(finalized.activities.map((activity) => activity.methodPhase)).toEqual([
+      "model", "explain", "model", "explain", "schedule_return",
+    ]);
+    expect(finalized.activities[0]?.estimatedMinutes).toBeLessThanOrEqual(5);
+    expect(validateStreamedTeachingPacing({
+      draft: finalized,
+      availableMinutes: 15,
+      maximumFocusedActivities: delivery.policy.pacing.maximumActivities,
+    })).toBeNull();
+    expect(validateSessionDeliveryPolicy({
+      policy: delivery.policy,
+      learningMode: "learn",
+      activities: finalized.activities,
+    })).toBeNull();
+  });
+
   it("keeps produced recall when only one guided check can fit", async () => {
     const { retainBoundedQuestionMix } = await import("@/lib/openai/streamed-teaching-generator");
     const topicId = "10000000-0000-4000-8000-000000000001";

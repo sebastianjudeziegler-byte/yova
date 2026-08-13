@@ -611,12 +611,14 @@ function finalizeStreamedSkeleton({
     draft: StreamedGeneratedSessionDraftSchema.parse(timeScoped),
     availableMinutes: context.session.estimatedMinutes,
     maximumFocusedActivities: pacingContract.maximumFocusedActivities,
+    maximumFirstActionMinutes: Math.max(5, deliveryPolicy.pacing.firstActionMinutes + 2),
   });
   const timeAllocated = {
     ...interleaved,
     activities: allocateStreamedTeachingMinutes({
       activities: interleaved.activities,
       availableMinutes: context.session.estimatedMinutes,
+      maximumFirstActionMinutes: Math.max(5, deliveryPolicy.pacing.firstActionMinutes + 2),
     }),
   };
   const enriched = enrichStreamedLessonBriefs(StreamedGeneratedSessionDraftSchema.parse(timeAllocated), {

@@ -170,6 +170,41 @@ describe("streamed teaching pacing", () => {
 
     expect(validateStreamedTeachingPacing({ draft, availableMinutes: 25 })).toBeNull();
   });
+
+  it("splits a two-idea 15-minute lesson so interleaving cannot create an oversized first action", () => {
+    const firstIdea = "Darkness changes the circadian signal that controls biological timing.";
+    const secondIdea = "The pineal gland releases melatonin as a signal of biological night.";
+    const draft = sessionDraft([
+      instruction("Teach melatonin release", secondIdea),
+      instruction("Teach darkness and timing", firstIdea),
+      question("Darkness and circadian timing", "explain"),
+      question("Pineal melatonin release", "explain"),
+    ], [firstIdea, secondIdea]);
+    draft.coverage.evidenceMap = [
+      { essentialIdea: firstIdea, activityConcept: "Darkness and circadian timing" },
+      { essentialIdea: secondIdea, activityConcept: "Pineal melatonin release" },
+    ];
+
+    const interleaved = interleaveStreamedTeachingCycles({
+      draft,
+      availableMinutes: 15,
+      maximumFocusedActivities: 4,
+      maximumFirstActionMinutes: 5,
+    });
+    interleaved.activities = allocateStreamedTeachingMinutes({
+      activities: interleaved.activities,
+      availableMinutes: 15,
+      maximumFirstActionMinutes: 5,
+    });
+
+    expect(interleaved.activities.map((activity) => activity.type)).toEqual([
+      "instruction", "free_response", "instruction", "free_response",
+    ]);
+    expect(interleaved.activities[0]?.lessonBrief?.essentialIdeas).toEqual([firstIdea]);
+    expect(interleaved.activities[0]?.estimatedMinutes).toBeLessThanOrEqual(5);
+    expect(interleaved.activities.reduce((sum, activity) => sum + activity.estimatedMinutes, 0)).toBe(15);
+    expect(validateStreamedTeachingPacing({ draft: interleaved, availableMinutes: 15 })).toBeNull();
+  });
 });
 
 function instruction(title: string, idea: string): StreamedGeneratedSessionActivity {

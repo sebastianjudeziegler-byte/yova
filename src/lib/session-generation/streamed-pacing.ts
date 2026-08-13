@@ -3,7 +3,11 @@ import type {
   StreamedGeneratedSessionDraft,
 } from "@/lib/session-generation/schema";
 import { StreamedGeneratedSessionDraftSchema } from "@/lib/session-generation/schema";
-import { validateMethodFidelity } from "@/lib/learning/method-fidelity";
+import {
+  methodFidelityContractForPrompt,
+  validateMethodFidelity,
+} from "@/lib/learning/method-fidelity";
+import { lessonIdeaCapacityForMinutes } from "@/lib/session-generation/lesson-brief";
 
 type PacingActivity = StreamedGeneratedSessionActivity;
 
@@ -78,9 +82,11 @@ export function streamedTeachingPacingContract({
 export function allocateStreamedTeachingMinutes({
   activities,
   availableMinutes,
+  maximumFirstActionMinutes,
 }: {
   activities: PacingActivity[];
   availableMinutes: number;
+  maximumFirstActionMinutes?: number;
 }): PacingActivity[] {
   const focusedIndexes = activities.flatMap((activity, index) => (
     activity.methodPhase === "schedule_return" ? [] : [index]
@@ -93,6 +99,7 @@ export function allocateStreamedTeachingMinutes({
     maximumMinutes({
       activity: activities[index]!,
       isFirstFocusedActivity: focusedIndex === 0,
+      maximumFirstActionMinutes,
     }),
   ));
   const target = availableMinutes;
@@ -135,10 +142,12 @@ export function interleaveStreamedTeachingCycles({
   draft,
   availableMinutes,
   maximumFocusedActivities,
+  maximumFirstActionMinutes,
 }: {
   draft: StreamedGeneratedSessionDraft;
   availableMinutes: number;
   maximumFocusedActivities?: number;
+  maximumFirstActionMinutes?: number;
 }): StreamedGeneratedSessionDraft {
   if (draft.coverage.evidenceMap.length < 2) return draft;
 
@@ -154,7 +163,19 @@ export function interleaveStreamedTeachingCycles({
     activeIdeaCount: draft.coverage.evidenceMap.length,
     maximumFocusedActivities,
   });
-  const groups = evidenceGroups(draft.coverage.evidenceMap, contract.minimumTeachingBlocks);
+  // A delivery-policy cap applies to whichever teaching block becomes first
+  // after interleaving, not merely to the provider's original first activity.
+  // When that opening block cannot honestly hold every active idea, split the
+  // lesson into another teach -> answer cycle before allocating minutes.
+  const openingIdeaCapacity = maximumFirstActionMinutes === undefined
+    ? draft.coverage.evidenceMap.length
+    : lessonIdeaCapacityForMinutes(maximumFirstActionMinutes);
+  const requiredTeachingBlocks = draft.coverage.evidenceMap.length > openingIdeaCapacity
+    ? Math.max(2, contract.minimumTeachingBlocks)
+    : contract.minimumTeachingBlocks;
+  const availableTeachingSlots = contract.maximumFocusedActivities - draft.coverage.evidenceMap.length;
+  if (requiredTeachingBlocks > availableTeachingSlots) return draft;
+  const groups = evidenceGroups(draft.coverage.evidenceMap, requiredTeachingBlocks);
   for (const [position, mappings] of groups.entries()) {
     const questions = mappings.map((mapping) => focused.find((activity) => (
       !usedQuestions.has(activity)
@@ -200,11 +221,34 @@ export function interleaveStreamedTeachingCycles({
     !usedQuestions.has(activity)
     && !(activity.type === "instruction" && activity.lessonBrief)
   ));
-  if (cycles.length + extras.length > contract.maximumFocusedActivities) return draft;
+  const availableExtraSlots = contract.maximumFocusedActivities - cycles.length;
+  if (availableExtraSlots < 0) return draft;
+  const requiredPhases = methodFidelityContractForPrompt(
+    draft.methodBriefing.methodId,
+    "learn",
+  ).requiredPhases;
+  const selectedExtras = new Set<PacingActivity>();
+  for (const phase of requiredPhases) {
+    if (cycles.some((activity) => activity.methodPhase === phase)) continue;
+    const requiredExtra = extras.find((activity) => (
+      activity.methodPhase === phase && !selectedExtras.has(activity)
+    ));
+    if (requiredExtra) selectedExtras.add(requiredExtra);
+  }
+  if (selectedExtras.size > availableExtraSlots) return draft;
+  for (const extra of extras) {
+    if (selectedExtras.size >= availableExtraSlots) break;
+    if (extra.requiredForCompletion) selectedExtras.add(extra);
+  }
+  for (const extra of extras) {
+    if (selectedExtras.size >= availableExtraSlots) break;
+    selectedExtras.add(extra);
+  }
+  const boundedExtras = extras.filter((activity) => selectedExtras.has(activity));
 
   const candidate = {
     ...draft,
-    activities: [...cycles, ...extras, ...returns],
+    activities: [...cycles, ...boundedExtras, ...returns],
   };
   if (!StreamedGeneratedSessionDraftSchema.safeParse(candidate).success) return draft;
   if (validateMethodFidelity({
@@ -315,12 +359,17 @@ function minimumMinutes(activity: PacingActivity) {
 function maximumMinutes({
   activity,
   isFirstFocusedActivity,
+  maximumFirstActionMinutes,
 }: {
   activity: PacingActivity;
   isFirstFocusedActivity: boolean;
+  maximumFirstActionMinutes?: number;
 }) {
   if (activity.type === "instruction" && isFirstFocusedActivity) {
-    return Math.max(3, activity.estimatedMinutes);
+    const providerCap = Math.max(3, activity.estimatedMinutes);
+    return maximumFirstActionMinutes === undefined
+      ? providerCap
+      : Math.min(providerCap, maximumFirstActionMinutes);
   }
   if (activity.type === "instruction") return 20;
   if (activity.type === "free_response") return 12;
