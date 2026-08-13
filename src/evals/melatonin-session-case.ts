@@ -1,0 +1,71 @@
+import type { SessionGenerationContext } from "@/lib/openai/session-generator";
+
+const MELATONIN_TOPIC_ID = "11111111-1111-4111-8111-111111111111";
+
+export function melatoninStreamedEvaluationContext(): SessionGenerationContext {
+  return {
+    sessionArchitectureVersion: "streamed_teaching_v1",
+    learningGoal: {
+      title: "Melatonin: The Body's Darkness Signal",
+      topic: "The basic science of melatonin and its role in sleep timing",
+      kind: "topic",
+      deadline: null,
+      sourceMode: "yova_generated",
+      studyMode: "inside_yova",
+      learningIntent: "learn",
+    },
+    planRationale: "Build a causal model of melatonin before checking whether the learner can explain it.",
+    journey: {
+      currentSequence: 1,
+      totalSessions: 1,
+      previousSessions: [],
+      nextSessions: [],
+    },
+    materials: [],
+    knowledgeTopics: [{
+      id: MELATONIN_TOPIC_ID,
+      title: "Build a basic model of melatonin",
+      description: "Explain where melatonin comes from, how light controls it, and why it affects sleep timing rather than simply switching sleep on.",
+      subtopics: ["Darkness and circadian timing", "Pineal melatonin release"],
+      prerequisiteTopicIds: [],
+      status: "not_started",
+      initialEvidence: null,
+      sourceReferences: [],
+      origin: "ai_generated",
+      deferred: null,
+    }],
+    session: {
+      title: "Build a basic model of melatonin",
+      objective: "Explain where melatonin comes from, how light controls it, and why it affects sleep timing rather than simply switching sleep on.",
+      method: "Self-explanation",
+      methodReason: "Build the big picture first, then require the learner to explain the causal relationship.",
+      estimatedMinutes: 15,
+      learningMode: "learn",
+      topicIds: [MELATONIN_TOPIC_ID],
+      contentTargets: ["Darkness and circadian timing", "Pineal melatonin release"],
+      completionEvidence: ["Explain how light, circadian timing, the pineal gland, and melatonin connect"],
+      reviewConcept: null,
+      reviewType: null,
+    },
+    learnerProfile: {
+      commonBlocker: "I struggle to start",
+      guidancePreference: null,
+      explanationPreference: null,
+      focusFrequency: null,
+      startingPattern: null,
+      primaryImprovementGoal: null,
+      processingPreference: "Big picture before details",
+      memoryChallenge: "I forget after a few days",
+      supportPreference: "Smaller steps",
+      workspacePreference: null,
+      freeformContext: null,
+      observationCorrection: null,
+    },
+    recentResults: [],
+    recentInterruptions: [],
+    conceptSignals: [],
+    scaffoldSignals: [],
+    topicCalibrationSignals: [],
+    sessionAdjustment: null,
+  };
+}
