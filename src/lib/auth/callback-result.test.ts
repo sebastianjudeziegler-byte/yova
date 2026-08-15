@@ -11,6 +11,10 @@ describe("authentication callback feedback", () => {
     expect(describeAuthCallbackResult("failed")).toContain("same browser");
   });
 
+  it("explains when a signed-in account was not invited", () => {
+    expect(describeAuthCallbackResult("invite-required")).toContain("does not have private-alpha access");
+  });
+
   it("ignores unrelated query values", () => {
     expect(describeAuthCallbackResult(null)).toBeNull();
     expect(describeAuthCallbackResult("anything-else")).toBeNull();

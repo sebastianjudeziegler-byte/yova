@@ -41,6 +41,10 @@ export function checkErrorReportRateLimit(key: string) {
   return checkRateLimit(`error:${key}`, 10);
 }
 
+export function checkFounderInviteRateLimit(key: string) {
+  return checkRateLimit(`founder-invite:${key}`, 5);
+}
+
 function checkRateLimit(key: string, maxRequests: number) {
   const now = Date.now();
   const existing = records.get(key);

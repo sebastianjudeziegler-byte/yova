@@ -9,6 +9,7 @@ export default function HomePage() {
   const productionNeedsConfiguration = process.env.NODE_ENV === "production"
     && (!isSupabaseConfigured() || !isOpenAIPlanConfigured());
   const emailCodeVerificationEnabled = process.env.AUTH_EMAIL_CODE_VERIFICATION === "true";
+  const inviteOnly = process.env.AUTH_INVITE_ONLY === "true";
 
   if (productionNeedsConfiguration) {
     return (
@@ -24,5 +25,8 @@ export default function HomePage() {
     );
   }
 
-  return <YovaPrototype emailCodeVerificationEnabled={emailCodeVerificationEnabled} />;
+  return <YovaPrototype
+    emailCodeVerificationEnabled={emailCodeVerificationEnabled}
+    inviteOnly={inviteOnly}
+  />;
 }
