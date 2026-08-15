@@ -23,6 +23,7 @@ function isHttpUrl(value, requireHttps = false) {
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY?.trim();
+const supabaseSecretKey = process.env.SUPABASE_SECRET_KEY?.trim();
 const openAIKey = process.env.OPENAI_API_KEY?.trim();
 const siteUrl = process.env.SITE_URL?.trim();
 const vercelUrl = process.env.VERCEL_PROJECT_PRODUCTION_URL?.trim()
@@ -51,8 +52,34 @@ addCheck(
     ? "remove NEXT_PUBLIC_OPENAI_API_KEY immediately"
     : "the OpenAI key stays server-only",
 );
+addCheck(
+  "No public Supabase secret",
+  !process.env.NEXT_PUBLIC_SUPABASE_SECRET_KEY && !process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY,
+  process.env.NEXT_PUBLIC_SUPABASE_SECRET_KEY || process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY
+    ? "remove the public Supabase secret immediately"
+    : "the Supabase invitation secret stays server-only",
+);
 
 if (production) {
+  addCheck(
+    "Founder invitation secret",
+    Boolean(supabaseSecretKey && supabaseSecretKey.length >= 20),
+    supabaseSecretKey ? "configured without exposing its value" : "missing SUPABASE_SECRET_KEY",
+  );
+  addCheck(
+    "Invite-only account entry",
+    process.env.AUTH_INVITE_ONLY === "true",
+    process.env.AUTH_INVITE_ONLY === "true"
+      ? "new testers enter through founder invitations"
+      : "set AUTH_INVITE_ONLY=true after disabling Supabase public signup",
+  );
+  addCheck(
+    "Email code entry",
+    process.env.AUTH_EMAIL_CODE_VERIFICATION === "true",
+    process.env.AUTH_EMAIL_CODE_VERIFICATION === "true"
+      ? "six-digit sign-in codes are enabled"
+      : "set AUTH_EMAIL_CODE_VERIFICATION=true after adding {{ .Token }} to the email template",
+  );
   addCheck(
     "Public site origin",
     isHttpUrl(publicOrigin, true) && !publicOrigin.includes("localhost"),

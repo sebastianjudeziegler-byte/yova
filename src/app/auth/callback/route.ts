@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { safeAuthCallbackUrl } from "@/lib/auth/callback-url";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 
@@ -6,9 +7,7 @@ export async function GET(request: NextRequest) {
   const requestUrl = new URL(request.url);
   const code = requestUrl.searchParams.get("code");
   const requestedNext = requestUrl.searchParams.get("next") ?? "/";
-  const safeNext = requestedNext.startsWith("/") && !requestedNext.startsWith("//")
-    ? requestedNext
-    : "/";
+  const destination = safeAuthCallbackUrl(requestUrl.origin, requestedNext);
 
   if (!code || !isSupabaseConfigured()) {
     const errorUrl = new URL("/", requestUrl.origin);
@@ -30,5 +29,5 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(errorUrl);
   }
 
-  return NextResponse.redirect(new URL(safeNext, requestUrl.origin));
+  return NextResponse.redirect(destination);
 }

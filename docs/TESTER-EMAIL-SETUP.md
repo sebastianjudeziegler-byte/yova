@@ -1,6 +1,6 @@
-# Outside tester email setup
+# Invite-only tester email setup
 
-YOVA already supports entering a six-digit email code. The remaining work is operational: give Supabase a production email provider, put the code in the hosted email template, enable the UI flag in Vercel, and redeploy.
+YOVA supports founder-sent invitations, passwordless sign-in links, and six-digit sign-in codes. Complete every section below before sharing the private alpha. The database and UI alone do not make access invite-only; Supabase must also stop public account creation.
 
 ## Recommended provider: Resend
 
@@ -62,32 +62,76 @@ Port 465 uses implicit TLS. Port 587 with STARTTLS is also supported.
   <h1 style="font-size:28px;margin:0 0 12px">Sign in to YOVA</h1>
   <p style="font-size:16px;line-height:1.6;color:#667085">Enter this temporary code in YOVA:</p>
   <div style="font-size:34px;font-weight:700;letter-spacing:8px;margin:24px 0;color:#346BFF">{{ .Token }}</div>
-  <p style="font-size:14px;line-height:1.6;color:#667085">Or use the secure sign-in link below in the browser where you requested it.</p>
-  <p><a href="{{ .ConfirmationURL }}" style="display:inline-block;background:#0B1020;color:#FFFFFF;text-decoration:none;padding:13px 18px;border-radius:10px;font-weight:700">Open YOVA</a></p>
+  <p style="font-size:14px;line-height:1.6;color:#667085">Or use the secure sign-in button below.</p>
+  <p><a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&amp;type=email" style="display:inline-block;background:#0B1020;color:#FFFFFF;text-decoration:none;padding:13px 18px;border-radius:10px;font-weight:700">Open YOVA</a></p>
   <p style="font-size:13px;line-height:1.5;color:#98A2B3">If you did not request this email, you can ignore it.</p>
 </div>
 ```
 
 5. Save the template.
 
-`{{ .Token }}` is the Supabase-provided six-digit one-time password. `{{ .ConfirmationURL }}` preserves the secure-link alternative.
+`{{ .Token }}` is the Supabase-provided six-digit one-time password. The secure-link alternative must keep `{{ .TokenHash }}` and `type=email` exactly as written. The generic email type safely handles both a returning tester's magic-link token and an unconfirmed tester's confirmation token. YOVA first shows a confirmation button and consumes the one-time token only after the tester presses it, so an automatic email preview cannot use the link first. This also lets a founder-approved tester who already had a Supabase Auth account sign in without depending on a PKCE verifier in the founder's browser.
 
-## Part 4: enable the YOVA code box in production
+## Part 4: configure the founder invitation email
+
+1. In Supabase, open **Authentication → Email Templates → Invite user**.
+2. Set the subject to:
+
+```text
+You're invited to test YOVA
+```
+
+3. Replace the message body with the template below. Keep `{{ .TokenHash }}` exactly as written.
+
+```html
+<div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;padding:32px;color:#0B1020">
+  <h1 style="font-size:28px;margin:0 0 12px">You're invited to YOVA.</h1>
+  <p style="font-size:16px;line-height:1.6;color:#667085">Sebastian invited you to try YOVA's private alpha. YOVA builds a study plan, guides each session, and adjusts based on your goals and results.</p>
+  <p style="font-size:16px;line-height:1.6;color:#667085">YOVA is still being tested, so you may run into unfinished features. Your feedback will help shape it.</p>
+  <p><a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&amp;type=invite" style="display:inline-block;background:#0B1020;color:#FFFFFF;text-decoration:none;padding:13px 18px;border-radius:10px;font-weight:700">Open YOVA</a></p>
+  <p style="font-size:13px;line-height:1.5;color:#98A2B3">This invitation is for {{ .Email }}. YOVA's private alpha is for testers age 13 or older. Testers under 18 should have a parent or guardian's permission. If you were not expecting this invitation, you can ignore it.</p>
+</div>
+```
+
+4. Save the template.
+
+The invite opens a YOVA confirmation screen first. The tester must press the confirmation button before the one-time token is used, so an email scanner cannot accidentally accept the invitation for them.
+
+## Part 5: apply the tester-access database migration
+
+Apply `supabase/migrations/202608140002_tester_invites.sql` to the linked production Supabase project before enabling invite-only mode. From a clean checkout, dry-run the migration first and confirm that `202608140002` is the only pending migration for this release.
+
+Do not use `--include-all` from a working copy that contains other unfinished migrations.
+
+After applying it, confirm the remote migration list includes `202608140002`. The founder tester page depends on the private invitation ledger and access-check functions created by this migration.
+
+## Part 6: make Supabase invite-only
+
+1. In Supabase, open **Authentication → Providers → Email**.
+2. Turn off **Allow new users to sign up**.
+3. Keep email sign-in enabled.
+4. Review **Authentication → Users** once. Remove or ban any account that should not have alpha access.
+
+YOVA also checks its invitation ledger after sign-in, but the dashboard setting is still required. Hiding YOVA's create-account button is not enough because Supabase's public Auth API can otherwise create users directly.
+
+## Part 7: enable tester access in Vercel
 
 1. In Vercel, open the YOVA project.
 2. Open **Settings → Environment Variables**.
-3. Add or edit:
+3. Add the server-only Supabase secret as `SUPABASE_SECRET_KEY`. Use the current `sb_secret_...` key from the Supabase project API settings. Never prefix it with `NEXT_PUBLIC_`.
+4. Add or edit:
 
 ```text
 AUTH_EMAIL_CODE_VERIFICATION=true
+AUTH_INVITE_ONLY=true
 ```
 
-4. Apply it to Production, Preview, and Development.
-5. Redeploy the latest production deployment.
+5. Apply these values to Production. Only add the secret to Preview if Preview uses a separate Supabase project and separate tester list.
+6. Redeploy the latest production deployment.
 
-Do not set this flag to true before the Supabase template includes `{{ .Token }}`. Otherwise YOVA will show a code box while emails contain only a link.
+Do not set either auth flag to true until its matching email template and database migration are ready. Otherwise YOVA can advertise an access path that is not usable yet.
 
-## Part 5: founder reliability access
+## Part 8: founder access
 
 After applying migration `202608070002_generation_reliability_dashboard.sql`, open Supabase **Authentication → Users**, copy the UUID for the founder account, then run this in **SQL Editor**:
 
@@ -103,14 +147,21 @@ The private aggregate dashboard is then available at:
 https://yova-roan.vercel.app/founder/reliability
 ```
 
+The tester invitation console is available to the same founder account at:
+
+```text
+https://yova-roan.vercel.app/founder/testers
+```
+
 ## Verification checklist
 
-Run this only after all four parts above are complete:
+Run this only after every part above is complete:
 
-1. Use a private window in Chrome and request a code with a new outside-test email.
-2. Open the email in a different browser, copy the six-digit code, and enter it in the original Chrome private window.
-3. Confirm YOVA opens onboarding and keeps the authenticated session after a refresh.
-4. Sign out.
-5. Repeat in Safari, requesting and entering the code entirely there.
-6. Confirm Resend shows both delivered messages and Supabase Auth logs show successful OTP verification.
-
+1. Open `/founder/testers` with the founder account and invite a new outside-test email.
+2. Confirm Resend shows the delivered invitation and the founder console shows **Invite sent**.
+3. Open the invitation in a private browser, press the explicit confirmation button, and confirm YOVA opens onboarding. If the link has expired, use **Send again** from the founder page.
+4. Refresh and confirm the authenticated session remains active. The founder console should show **Joined**.
+5. Sign out. Use **Sign in** with the same email and enter the six-digit code from the newest email. Also test the email button and confirm it shows YOVA's confirmation screen before signing in.
+6. Confirm the returning account restores its existing cloud data instead of restarting onboarding.
+7. Try an email that was never invited and confirm Supabase does not create an Auth user.
+8. Repeat the invitation and returning-sign-in journey on a phone-sized browser.

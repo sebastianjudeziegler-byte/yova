@@ -116,6 +116,10 @@ try {
     materials: "private-supabase",
     persistence: "supabase",
     authentication: "supabase-email",
+    testerAccess: "invite-only",
+    testerInvitations: "founder-managed",
+    emailVerification: "code-and-link",
+    publicSignup: "disabled",
   };
 
   for (const [capability, expected] of Object.entries(expectedModes)) {

@@ -10,6 +10,8 @@ In the YOVA Vercel project, open **Settings → Environment Variables**. Product
 NEXT_PUBLIC_SUPABASE_URL
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
 AUTH_EMAIL_CODE_VERIFICATION
+AUTH_INVITE_ONLY
+SUPABASE_SECRET_KEY
 OPENAI_API_KEY
 OPENAI_PLAN_MODEL
 OPENAI_SESSION_MODEL
@@ -20,6 +22,8 @@ SITE_URL
 `SITE_URL` should be the final public `https://` address with no path. The OpenAI key must never be named `NEXT_PUBLIC_OPENAI_API_KEY`; that prefix would expose it to browsers.
 
 Keep `AUTH_EMAIL_CODE_VERIFICATION` set to `false` until custom SMTP is active and the Supabase Magic link or OTP template displays `{{ .Token }}`. Then set it to `true` and redeploy.
+
+Keep `AUTH_INVITE_ONLY` set to `false` until migration `202608140002_tester_invites.sql` is applied, the founder invitation route is deployed, `SUPABASE_SECRET_KEY` is configured server-side, the Invite user template points to `/auth/confirm`, and Supabase **Allow new users to sign up** is disabled. Then enable it and redeploy. Keep the production secret out of Preview unless Preview uses a separate Supabase project.
 
 Use these model values unless a tested deployment intentionally overrides them:
 
@@ -41,7 +45,9 @@ In Supabase, open **Authentication → URL Configuration**.
 
 - Set **Site URL** to the final public YOVA address.
 - Add `https://YOUR-YOVA-DOMAIN/auth/callback` to **Redirect URLs**.
+- Add `https://YOUR-YOVA-DOMAIN/auth/confirm` to **Redirect URLs**.
 - Keep `http://localhost:3000/auth/callback` for local development.
+- Keep `http://localhost:3000/auth/confirm` for local invitation testing.
 
 This tells Supabase which websites are allowed to receive a completed sign-in. A Vercel deployment can load perfectly while email sign-in still fails if this list is incomplete.
 
@@ -55,7 +61,7 @@ The provider supplies:
 - SMTP username and password
 - sender name and sender address
 
-These values belong in Supabase, not in the YOVA repository. Once configured, test creating a new account, requesting another link, opening the newest email, and signing out and back in.
+These values belong in Supabase, not in the YOVA repository. Configure both the Invite user and Magic Link templates to use YOVA's `/auth/confirm` token-hash URLs from `docs/TESTER-EMAIL-SETUP.md`. Once configured, test inviting a new tester, resending the invitation, opening the newest email, pressing the confirmation button, and signing out and back in.
 
 ## 4. Run the safe production smoke test
 

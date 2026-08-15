@@ -42,7 +42,7 @@ export default async function FounderReliabilityPage() {
       <header>
         <BrandMark />
         <div><span>FOUNDER VIEW</span><h1>Generation reliability</h1><p>Production plan and session generations from the last {summary.windowDays} days. No learner content is stored here.</p></div>
-        <a href="/founder/reliability">Refresh</a>
+        <Link href="/founder/testers">Testers</Link>
       </header>
       <section className="founder-metric-grid" aria-label="Generation reliability summary">
         <Metric label="First attempt passed" value={`${summary.firstPassRate}%`} detail="Passed every validator without repair" primary />
