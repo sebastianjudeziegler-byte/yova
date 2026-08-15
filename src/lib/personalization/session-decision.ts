@@ -6,7 +6,11 @@ import type {
 } from "@/lib/domain";
 import { summarizeConceptEvidence } from "@/lib/learning/concept-evidence";
 import { summarizeConfidenceCalibration } from "@/lib/learning/confidence-calibration";
-import { expandedLearnerContextFromAnswers } from "@/lib/personalization/learner-profile";
+import {
+  expandedLearnerContextFromAnswers,
+  statedOnboardingAnswerForRuntime,
+} from "@/lib/personalization/learner-profile";
+import { readPersonalizationStateFromAnswers } from "@/lib/personalization/personalization-state";
 
 export type SessionDecisionSignal = {
   kind: "task" | "learner" | "evidence" | "source";
@@ -56,11 +60,12 @@ function taskSignal(session: LearningPlanSession): SessionDecisionSignal {
 }
 
 function profileSignal(answers: string[], learningMode: LearningPlanSession["learningMode"]): SessionDecisionSignal | null {
+  if (!readPersonalizationStateFromAnswers(answers).controls.selfReport) return null;
   const expanded = expandedLearnerContextFromAnswers(answers);
   const selected = learningMode === "learn"
     ? expanded.processingPreference
     : expanded.memoryChallenge;
-  const title = selected ?? answers[0]?.trim() ?? null;
+  const title = selected ?? statedOnboardingAnswerForRuntime(answers, 0);
   if (!title) return null;
 
   const detail = learningMode === "learn" && expanded.processingPreference
@@ -130,7 +135,12 @@ function evidenceSignal(
   }
 
   const correction = expandedLearnerContextFromAnswers(answers).observationCorrection;
-  const recentInterruptions = interruptions.slice(-4);
+  const personalizationState = readPersonalizationStateFromAnswers(answers);
+  const recentInterruptions = interruptions
+    .filter((interruption) => (
+      !personalizationState.excludedEvidenceRefs.includes(interruption.id)
+    ))
+    .slice(-4);
   if (recentInterruptions.length >= 2 && !correction) {
     return {
       kind: "evidence",
@@ -148,7 +158,7 @@ function evidenceSignal(
     detail: completions.length
       ? "The existing results do not justify a stronger change. YOVA will preserve the task-first route and learn from the next check."
       : "The learner profile shapes the starting delivery, but answers and independent performance will matter more after this session.",
-    strength: completions.length ? "observed" : "starting_context",
+    strength: "starting_context",
   };
 }
 

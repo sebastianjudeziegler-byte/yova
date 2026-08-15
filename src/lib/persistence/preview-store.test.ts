@@ -1,6 +1,14 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { SessionInterruption, YovaPreviewSnapshot } from "@/lib/domain";
 import { loadPreviewSnapshot, savePreviewSnapshot } from "@/lib/persistence/preview-store";
+import { LEARNER_ANSWER_COUNT } from "@/lib/personalization/learner-profile";
+import {
+  defaultPersonalizationState,
+  PERSONALIZATION_STATE_ANSWER_INDEX,
+  readPersonalizationStateFromAnswers,
+  serializePersonalizationState,
+  writePersonalizationStateToAnswers,
+} from "@/lib/personalization/personalization-state";
 
 const STORAGE_KEY = "yova.preview.v1";
 
@@ -24,12 +32,15 @@ function interruption(): SessionInterruption {
   };
 }
 
-function snapshot(sessionInterruption: SessionInterruption): YovaPreviewSnapshot {
+function snapshot(
+  sessionInterruption: SessionInterruption,
+  onboardingAnswers: string[] = [],
+): YovaPreviewSnapshot {
   return {
     version: 1,
     account: null,
     signedIn: false,
-    onboardingAnswers: [],
+    onboardingAnswers,
     onboardingCompleted: true,
     alphaEntered: true,
     plans: [],
@@ -79,5 +90,54 @@ describe("preview interruption persistence", () => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(malformed));
 
     expect(loadPreviewSnapshot()?.sessionInterruptions[0]).not.toHaveProperty("sessionAdjustment");
+  });
+});
+
+describe("preview profile persistence", () => {
+  it("round-trips the reserved personalization-state answer", () => {
+    installMemoryStorage();
+    const state = defaultPersonalizationState();
+    const answers = writePersonalizationStateToAnswers([], {
+      ...state,
+      controls: { ...state.controls, selfReport: false },
+      workspace: { ...state.workspace, layout: "one_step" },
+    });
+
+    savePreviewSnapshot(snapshot(interruption(), answers));
+
+    const restored = loadPreviewSnapshot()?.onboardingAnswers ?? [];
+    expect(restored).toHaveLength(LEARNER_ANSWER_COUNT);
+    expect(restored[PERSONALIZATION_STATE_ANSWER_INDEX]).toBe(
+      answers[PERSONALIZATION_STATE_ANSWER_INDEX],
+    );
+    expect(readPersonalizationStateFromAnswers(restored)).toMatchObject({
+      controls: { selfReport: false },
+      workspace: { layout: "one_step" },
+    });
+  });
+
+  it("loads legacy answer arrays with an empty reserved state slot", () => {
+    const localStorage = installMemoryStorage();
+    const legacy = snapshot(interruption(), Array.from({ length: 16 }, () => ""));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(legacy));
+
+    const restored = loadPreviewSnapshot()?.onboardingAnswers ?? [];
+
+    expect(restored).toHaveLength(LEARNER_ANSWER_COUNT);
+    expect(restored[PERSONALIZATION_STATE_ANSWER_INDEX]).toBe("");
+  });
+
+  it("replaces malformed browser state with safe defaults", () => {
+    const localStorage = installMemoryStorage();
+    const answers = Array.from({ length: LEARNER_ANSWER_COUNT }, () => "");
+    answers[PERSONALIZATION_STATE_ANSWER_INDEX] = "malformed state payload";
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot(interruption(), answers)));
+
+    const restored = loadPreviewSnapshot()?.onboardingAnswers ?? [];
+
+    expect(restored[PERSONALIZATION_STATE_ANSWER_INDEX]).toBe(
+      serializePersonalizationState(defaultPersonalizationState()),
+    );
+    expect(readPersonalizationStateFromAnswers(restored)).toEqual(defaultPersonalizationState());
   });
 });

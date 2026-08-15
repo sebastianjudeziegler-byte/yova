@@ -335,11 +335,67 @@ function readCreationIntent(value: unknown): LearningPlan["creationIntent"] {
   return candidate === "study_now" ? "study_now" : "plan";
 }
 
-export async function saveAuthenticatedLearnerProfile(input: {
+type LearnerProfileSaveInput = {
   displayName: string;
   onboardingAnswers: string[];
-}) {
-  if (!isSupabaseConfigured()) return;
+};
+
+type QueuedLearnerProfileWrite = {
+  input: LearnerProfileSaveInput;
+  waiters: Array<{
+    resolve: () => void;
+    reject: (reason: unknown) => void;
+  }>;
+};
+
+let pendingLearnerProfileWrite: QueuedLearnerProfileWrite | null = null;
+let learnerProfileWriteRunning = false;
+
+/**
+ * Profile edits can arrive close together (for example, a receipt followed by
+ * a preference change). Keep one cloud write in flight and coalesce anything
+ * waiting behind it so an older request can never finish after a newer one.
+ */
+export function saveAuthenticatedLearnerProfile(input: LearnerProfileSaveInput) {
+  if (!isSupabaseConfigured()) return Promise.resolve();
+  const queuedInput = {
+    displayName: input.displayName,
+    onboardingAnswers: [...input.onboardingAnswers],
+  };
+
+  return new Promise<void>((resolve, reject) => {
+    if (pendingLearnerProfileWrite) {
+      pendingLearnerProfileWrite.input = queuedInput;
+      pendingLearnerProfileWrite.waiters.push({ resolve, reject });
+    } else {
+      pendingLearnerProfileWrite = {
+        input: queuedInput,
+        waiters: [{ resolve, reject }],
+      };
+    }
+
+    if (!learnerProfileWriteRunning) {
+      learnerProfileWriteRunning = true;
+      void drainLearnerProfileWrites();
+    }
+  });
+}
+
+async function drainLearnerProfileWrites() {
+  while (pendingLearnerProfileWrite) {
+    const write = pendingLearnerProfileWrite;
+    pendingLearnerProfileWrite = null;
+    try {
+      await persistAuthenticatedLearnerProfile(write.input);
+      write.waiters.forEach((waiter) => waiter.resolve());
+    } catch (error) {
+      write.waiters.forEach((waiter) => waiter.reject(error));
+    }
+  }
+  learnerProfileWriteRunning = false;
+}
+
+async function persistAuthenticatedLearnerProfile(input: LearnerProfileSaveInput) {
   const [preferredSessionMin, preferredSessionMax] = parseSessionRange(input.onboardingAnswers[2]);
   const supabase = createSupabaseBrowserClient();
   const { error } = await supabase.rpc("save_learner_profile", {

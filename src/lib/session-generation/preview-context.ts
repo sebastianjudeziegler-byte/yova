@@ -20,7 +20,12 @@ import {
   teachingFirstSessionCopy,
 } from "@/lib/learning/learning-intent";
 import { buildScaffoldProgressionSignals } from "@/lib/learning/scaffold-progression";
-import { expandedLearnerContextFromAnswers } from "@/lib/personalization/learner-profile";
+import {
+  expandedLearnerContextFromAnswers,
+  personalizationSignalAllowsRuntimeInference,
+  statedOnboardingAnswerForRuntime,
+} from "@/lib/personalization/learner-profile";
+import { readPersonalizationStateFromAnswers } from "@/lib/personalization/personalization-state";
 import type { PreviewSessionGenerationContext } from "@/lib/session-generation/schema";
 import type { SessionAdjustment } from "@/lib/session-generation/schema";
 import {
@@ -50,6 +55,18 @@ export function buildPreviewSessionContext({
     .filter((interruption) => interruption.planId === plan.id)
     .sort((left, right) => right.interruptedAt.localeCompare(left.interruptedAt));
   const expandedProfile = expandedLearnerContextFromAnswers(onboardingAnswers);
+  const personalizationState = readPersonalizationStateFromAnswers(onboardingAnswers);
+  const statedAnswer = (index: number) => (
+    statedOnboardingAnswerForRuntime(onboardingAnswers, index, personalizationState)
+  );
+  const useObservedPacing = personalizationState.controls.behavior
+    && personalizationSignalAllowsRuntimeInference(personalizationState, "starting_friction")
+    && personalizationSignalAllowsRuntimeInference(personalizationState, "cognitive_stamina");
+  const useObservedCalibration = personalizationState.controls.behavior
+    && personalizationSignalAllowsRuntimeInference(personalizationState, "calibration_risk");
+  const personalizationInterruptions = recentInterruptions.filter((interruption) => (
+    !personalizationState.excludedEvidenceRefs.includes(interruption.id)
+  ));
   const effectiveLearningMode = resolveEffectiveSessionLearningMode({
     planLearningIntent: plan.learningIntent,
     plannedMode: session.learningMode,
@@ -129,12 +146,12 @@ export function buildPreviewSessionContext({
       reviewType: session.reviewType ?? null,
     },
     learnerProfile: {
-      commonBlocker: onboardingAnswers[0] || null,
-      guidancePreference: onboardingAnswers[1] || null,
-      explanationPreference: onboardingAnswers[3] || null,
-      focusFrequency: onboardingAnswers[4] || null,
-      startingPattern: onboardingAnswers[5] || null,
-      primaryImprovementGoal: onboardingAnswers[7] || null,
+      commonBlocker: statedAnswer(0),
+      guidancePreference: statedAnswer(1),
+      explanationPreference: statedAnswer(3),
+      focusFrequency: statedAnswer(4),
+      startingPattern: statedAnswer(5),
+      primaryImprovementGoal: statedAnswer(7),
       ...expandedProfile,
     },
     recentResults: recentCompletions.slice(0, 8).map((completion) => {
@@ -151,12 +168,14 @@ export function buildPreviewSessionContext({
         totalAnswers: completion.totalAnswers,
         feedback: completion.feedback,
         observedGap: completion.observedGap || null,
-        plannedMinutes: completion.plannedMinutes,
-        actualMinutes: completion.actualMinutes,
-        calibrationPattern: summarizeConfidenceCalibration(completion.confidenceEvidence).pattern,
+        plannedMinutes: useObservedPacing ? completion.plannedMinutes : null,
+        actualMinutes: useObservedPacing ? completion.actualMinutes : null,
+        calibrationPattern: useObservedCalibration
+          ? summarizeConfidenceCalibration(completion.confidenceEvidence).pattern
+          : "insufficient",
       };
     }),
-    recentInterruptions: recentInterruptions.slice(0, 4).map((interruption) => ({
+    recentInterruptions: (useObservedPacing ? personalizationInterruptions : []).slice(0, 4).map((interruption) => ({
       occurredAt: interruption.interruptedAt,
       plannedMinutes: interruption.plannedMinutes,
       actualMinutes: interruption.actualMinutes,

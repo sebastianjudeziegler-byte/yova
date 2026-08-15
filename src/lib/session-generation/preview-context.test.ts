@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { LearningPlan, SessionCompletion, SessionInterruption } from "@/lib/domain";
+import {
+  defaultPersonalizationState,
+  setPersonalizationEvidenceRefExcluded,
+  writePersonalizationStateToAnswers,
+} from "@/lib/personalization/personalization-state";
 import { buildPreviewSessionContext } from "@/lib/session-generation/preview-context";
 
 const plan: LearningPlan = {
@@ -224,6 +229,145 @@ describe("buildPreviewSessionContext", () => {
       concept: "Calvin cycle",
       status: "restore_support",
     });
+  });
+
+  it("does not send stated onboarding preferences when self-report personalization is off", () => {
+    const answers = writePersonalizationStateToAnswers([
+      "I struggle to start",
+      "Tell me exactly what to do",
+      "20 to 30 minutes",
+      "A concrete example first",
+      "Often",
+      "I intend to begin but often delay",
+      "Afternoon",
+      "Help me begin",
+      "Less text and more visual structure",
+      "I need examples before I feel ready",
+      "A concrete example before the rule",
+    ], {
+      ...defaultPersonalizationState(),
+      controls: {
+        ...defaultPersonalizationState().controls,
+        selfReport: false,
+      },
+    });
+    answers[15] = "The interruption happened because class ended.";
+
+    const result = buildPreviewSessionContext({
+      plan,
+      session: plan.sessions[0],
+      onboardingAnswers: answers,
+      completions: [],
+      interruptions: [],
+    });
+
+    expect(result.learnerProfile).toMatchObject({
+      commonBlocker: null,
+      guidancePreference: null,
+      explanationPreference: null,
+      focusFrequency: null,
+      startingPattern: null,
+      primaryImprovementGoal: null,
+      functionalSupportNeed: null,
+      processingPreference: null,
+      freeformContext: null,
+      observationCorrection: "The interruption happened because class ended.",
+    });
+  });
+
+  it("keeps correctness evidence but removes behavior-based pacing when that control is off", () => {
+    const defaults = defaultPersonalizationState();
+    const answers = writePersonalizationStateToAnswers([], {
+      ...defaults,
+      controls: { ...defaults.controls, behavior: false },
+    });
+
+    const result = buildPreviewSessionContext({
+      plan,
+      session: plan.sessions[0],
+      onboardingAnswers: answers,
+      completions: [completion],
+      interruptions: [interruption],
+    });
+
+    expect(result.recentResults[0]).toMatchObject({
+      correctAnswers: completion.correctAnswers,
+      totalAnswers: completion.totalAnswers,
+      plannedMinutes: null,
+      actualMinutes: null,
+      calibrationPattern: "insufficient",
+    });
+    expect(result.recentInterruptions).toEqual([]);
+    expect(result.conceptSignals[0]).toMatchObject({ concept: "Calvin cycle" });
+  });
+
+  it("does not send an app-problem interruption as pacing evidence", () => {
+    const state = setPersonalizationEvidenceRefExcluded(
+      defaultPersonalizationState(),
+      interruption.id,
+      true,
+    );
+    const result = buildPreviewSessionContext({
+      plan,
+      session: plan.sessions[0],
+      onboardingAnswers: writePersonalizationStateToAnswers([], state),
+      completions: [],
+      interruptions: [interruption],
+    });
+
+    expect(result.recentInterruptions).toEqual([]);
+  });
+
+  it("removes calibration delivery signals when that inference is paused or stopped", () => {
+    const defaults = defaultPersonalizationState();
+    const pausedAnswers = writePersonalizationStateToAnswers([], {
+      ...defaults,
+      pausedSignalIds: ["signal:calibration_risk"],
+    });
+    const stoppedAnswers = writePersonalizationStateToAnswers([], {
+      ...defaults,
+      corrections: [{
+        signalId: "signal:calibration_risk",
+        correctedValue: null,
+        note: "Do not use confidence as a personalization signal.",
+        doNotInfer: true,
+        updatedAt: "2026-08-14T19:00:00.000Z",
+      }],
+    });
+
+    for (const onboardingAnswers of [pausedAnswers, stoppedAnswers]) {
+      const result = buildPreviewSessionContext({
+        plan,
+        session: plan.sessions[0],
+        onboardingAnswers,
+        completions: [completion],
+        interruptions: [],
+      });
+      expect(result.recentResults[0]?.calibrationPattern).toBe("insufficient");
+    }
+  });
+
+  it("keeps calibration evidence active when a correction is context-only", () => {
+    const defaults = defaultPersonalizationState();
+    const answers = writePersonalizationStateToAnswers([], {
+      ...defaults,
+      corrections: [{
+        signalId: "signal:calibration_risk",
+        correctedValue: null,
+        note: "That check happened at the end of a long class.",
+        doNotInfer: false,
+        updatedAt: "2026-08-14T19:00:00.000Z",
+      }],
+    });
+    const result = buildPreviewSessionContext({
+      plan,
+      session: plan.sessions[0],
+      onboardingAnswers: answers,
+      completions: [completion],
+      interruptions: [],
+    });
+
+    expect(result.recentResults[0]?.calibrationPattern).toBe("possible_misconception");
   });
 
   it("carries a completed gap into later session generation without losing future targets", () => {
