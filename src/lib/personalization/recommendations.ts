@@ -8,6 +8,7 @@ import {
   deepProfileAnswerCount,
   expandedLearnerContextFromAnswers,
 } from "@/lib/personalization/learner-profile";
+import { resolveLearnerPersonalization } from "@/lib/personalization/personalization-evidence";
 import { buildMethodSignals } from "@/lib/personalization/method-signals";
 
 export type PersonalizationRecommendation = {
@@ -34,8 +35,22 @@ export function buildPersonalizationRecommendations({
   const recommendations: PersonalizationRecommendation[] = [];
   const deepAnswers = deepProfileAnswerCount(answers);
   const expanded = expandedLearnerContextFromAnswers(answers);
+  const personalization = resolveLearnerPersonalization({
+    answers,
+    plans,
+    completions,
+    interruptions,
+  });
+  const behaviorEnabled = personalization.state.controls.behavior;
+  const legacyMethodEvidenceAllowed = behaviorEnabled
+    && personalization.state.pausedSignalIds.length === 0
+    && personalization.state.corrections.length === 0;
 
-  if (deepAnswers < 3) {
+  if (
+    personalization.state.controls.selfReport
+    && personalization.state.controls.optionalQuestions
+    && deepAnswers < 3
+  ) {
     recommendations.push({
       id: "add-learning-context",
       title: "Give YOVA more context about how learning tends to break down for you",
@@ -59,8 +74,21 @@ export function buildPersonalizationRecommendations({
     });
   }
 
-  const recentInterruptions = interruptions.slice(-4);
-  if (recentInterruptions.length >= 2 && !expanded.observationCorrection) {
+  const behaviorInterruptions = interruptions.filter((interruption) => (
+    !personalization.state.excludedEvidenceRefs.includes(interruption.id)
+  ));
+  const recentInterruptions = behaviorInterruptions.slice(-4);
+  const smallerOpeningApproved = personalization.decisions.some((decision) => (
+    decision.artifact === "session_opening"
+    && decision.setting === "first_action"
+    && decision.value === "small_active_start"
+  ));
+  if (
+    behaviorEnabled
+    && recentInterruptions.length >= 2
+    && !expanded.observationCorrection
+    && smallerOpeningApproved
+  ) {
     recommendations.push({
       id: "reduce-switching",
       title: "Use a smaller first action and fewer switches",
@@ -75,7 +103,16 @@ export function buildPersonalizationRecommendations({
   const calibration = summarizeConfidenceCalibration(
     completions.flatMap((completion) => completion.confidenceEvidence),
   );
-  if (calibration.pattern === "possible_misconception" || calibration.pattern === "mixed") {
+  const calibrationSignal = personalization.signals.find((signal) => (
+    signal.key === "calibration_risk"
+    && !signal.paused
+    && signal.evidenceLabel !== "Mixed evidence"
+  ));
+  if (
+    behaviorEnabled
+    && /overconfidence/i.test(calibrationSignal?.value ?? "")
+    && (calibration.pattern === "possible_misconception" || calibration.pattern === "mixed")
+  ) {
     recommendations.push({
       id: "repair-confident-miss",
       title: "Repair the confident miss with a contrasting application",
@@ -85,7 +122,11 @@ export function buildPersonalizationRecommendations({
       actionLabel: null,
       priority: 95,
     });
-  } else if (calibration.pattern === "underestimated_knowledge") {
+  } else if (
+    behaviorEnabled
+    && /underconfidence/i.test(calibrationSignal?.value ?? "")
+    && calibration.pattern === "underestimated_knowledge"
+  ) {
     recommendations.push({
       id: "confirm-underestimated-knowledge",
       title: "Confirm what you can already do before reteaching it",
@@ -97,7 +138,9 @@ export function buildPersonalizationRecommendations({
     });
   }
 
-  const methodSignals = buildMethodSignals(plans, completions, interruptions);
+  const methodSignals = legacyMethodEvidenceAllowed
+    ? buildMethodSignals(plans, completions, behaviorInterruptions)
+    : [];
   const methodNeedingSupport = methodSignals.find((signal) => signal.status === "needs_support");
   const promisingMethod = methodSignals.find((signal) => signal.status === "promising");
   if (methodNeedingSupport) {
@@ -122,7 +165,11 @@ export function buildPersonalizationRecommendations({
     });
   }
 
-  if (completions.length === 0 && plans.some((plan) => plan.status === "active")) {
+  if (
+    behaviorEnabled
+    && completions.length === 0
+    && plans.some((plan) => plan.status === "active")
+  ) {
     recommendations.push({
       id: "collect-first-evidence",
       title: "Complete one guided session so YOVA can compare your profile with real work",
@@ -134,7 +181,7 @@ export function buildPersonalizationRecommendations({
     });
   }
 
-  if (expanded.observationCorrection) {
+  if (personalization.state.controls.selfReport && expanded.observationCorrection) {
     recommendations.push({
       id: "learner-correction-active",
       title: "Your correction is part of YOVA's decision context",

@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { LearningPlan, SessionCompletion, SessionInterruption } from "@/lib/domain";
 import { buildSessionDecisionSignals } from "@/lib/personalization/session-decision";
+import {
+  defaultPersonalizationState,
+  setPersonalizationEvidenceRefExcluded,
+  writePersonalizationStateToAnswers,
+} from "@/lib/personalization/personalization-state";
 
 const plan: LearningPlan = {
   id: "00000000-0000-4000-8000-000000000001",
@@ -88,6 +93,28 @@ describe("session decision preview", () => {
     expect(signals.find((signal) => signal.kind === "evidence")?.title).toContain("confident miss");
   });
 
+  it("omits the learner-preference card when self-report personalization is off", () => {
+    const defaults = defaultPersonalizationState();
+    const answers = writePersonalizationStateToAnswers([
+      "I struggle to start",
+      "Tell me exactly what to do",
+    ], {
+      ...defaults,
+      controls: { ...defaults.controls, selfReport: false },
+    });
+    answers[10] = "A concrete example before the rule";
+
+    const signals = buildSessionDecisionSignals({
+      plan,
+      session: plan.sessions[0],
+      answers,
+      completions: [],
+      interruptions: [],
+    });
+
+    expect(signals.some((signal) => signal.kind === "learner")).toBe(false);
+  });
+
   it("does not infer a session-length tendency when the learner supplied a correction", () => {
     const answers: string[] = [];
     answers[15] = "Those sessions ended because class finished.";
@@ -111,5 +138,37 @@ describe("session decision preview", () => {
     });
 
     expect(signals.find((signal) => signal.kind === "evidence")?.title).toBe("No completed-session evidence yet");
+  });
+
+  it("does not present an app-problem interruption as a learner tendency", () => {
+    const interruption: SessionInterruption = {
+      id: "00000000-0000-4000-8000-000000000015",
+      planId: plan.id,
+      planSessionId: plan.sessions[0].id,
+      startedAt: "2026-08-06T18:00:00.000Z",
+      interruptedAt: "2026-08-06T18:10:00.000Z",
+      plannedMinutes: 25,
+      actualMinutes: 10,
+      completedSteps: 1,
+      totalSteps: 4,
+    };
+    const state = setPersonalizationEvidenceRefExcluded(
+      defaultPersonalizationState(),
+      interruption.id,
+      true,
+    );
+    const signals = buildSessionDecisionSignals({
+      plan,
+      session: plan.sessions[0],
+      answers: writePersonalizationStateToAnswers([], state),
+      completions: [],
+      interruptions: [
+        interruption,
+        { ...interruption, id: "00000000-0000-4000-8000-000000000016" },
+      ],
+    });
+
+    expect(signals.find((signal) => signal.kind === "evidence")?.title)
+      .toBe("No completed-session evidence yet");
   });
 });

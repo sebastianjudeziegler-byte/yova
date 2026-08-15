@@ -110,7 +110,7 @@ export function buildMethodSignals(
     if (!source) continue;
     const { plan, session } = source;
     const family = methodFamily(session);
-    const comparison = comparisonContext(plan, session);
+    const comparison = personalizationComparisonContext(plan, session);
     const key = `${family}:${comparison.taskType}:${comparison.knowledgeStage}`;
     const current = grouped.get(key) ?? {
       family,
@@ -136,7 +136,7 @@ export function buildMethodSignals(
     if (!source) continue;
     const { plan, session } = source;
     const family = methodFamily(session);
-    const comparison = comparisonContext(plan, session);
+    const comparison = personalizationComparisonContext(plan, session);
     const current = grouped.get(`${family}:${comparison.taskType}:${comparison.knowledgeStage}`);
     if (current) current.interruptions += 1;
   }
@@ -164,7 +164,10 @@ export function buildMethodSignals(
     .sort((left, right) => right.sessions - left.sessions || left.label.localeCompare(right.label));
 }
 
-function comparisonContext(plan: LearningPlan, session: LearningPlanSession) {
+export function personalizationComparisonContext(
+  plan: LearningPlan,
+  session: LearningPlanSession,
+) {
   const comparisonText = [plan.title, plan.topic, session.title, session.objective, session.method].join(" ");
   return {
     taskType: session.resource?.routingContext?.taskType

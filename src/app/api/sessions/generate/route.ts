@@ -33,7 +33,13 @@ import {
   type SessionGenerationContext,
   type SessionGenerationStats,
 } from "@/lib/openai/session-generator";
-import { expandedLearnerContextFromStored } from "@/lib/personalization/learner-profile";
+import {
+  expandedLearnerContextFromAnswers,
+  mergeStoredAdditionalContext,
+  personalizationSignalAllowsRuntimeInference,
+  statedOnboardingAnswerForRuntime,
+} from "@/lib/personalization/learner-profile";
+import { readPersonalizationStateFromAnswers } from "@/lib/personalization/personalization-state";
 import {
   CachedGeneratedSessionSchema,
   CachedGeneratedSessionV15Schema,
@@ -345,7 +351,32 @@ export async function POST(request: Request) {
     const confidenceEvidence = recentAttempts.flatMap((attempt) => (
       readConfidenceEvidenceProperty(attempt.result_data)
     ));
-    const expandedProfile = expandedLearnerContextFromStored(learnerProfile?.additional_context ?? null);
+    const storedLearnerAnswers = mergeStoredAdditionalContext([
+      learnerProfile?.common_blocker ?? "",
+      learnerProfile?.guidance_preference ?? "",
+      "",
+      learnerProfile?.explanation_preference ?? "",
+      learnerProfile?.focus_frequency ?? "",
+      learnerProfile?.starting_pattern ?? "",
+      "",
+      learnerProfile?.primary_improvement_goal ?? "",
+    ], learnerProfile?.additional_context ?? null);
+    const personalizationState = readPersonalizationStateFromAnswers(storedLearnerAnswers);
+    const statedAnswer = (index: number) => (
+      statedOnboardingAnswerForRuntime(storedLearnerAnswers, index, personalizationState)
+    );
+    const useObservedPacing = personalizationState.controls.behavior
+      && personalizationSignalAllowsRuntimeInference(personalizationState, "starting_friction")
+      && personalizationSignalAllowsRuntimeInference(personalizationState, "cognitive_stamina");
+    const useObservedCalibration = personalizationState.controls.behavior
+      && personalizationSignalAllowsRuntimeInference(personalizationState, "calibration_risk");
+    const personalizationInterruptionRows = useObservedPacing
+      ? (interruptionsResult.data ?? []).filter((event) => {
+        const attemptId = readTextProperty(event.event_data, "attemptId");
+        return !attemptId || !personalizationState.excludedEvidenceRefs.includes(attemptId);
+      })
+      : [];
+    const expandedProfile = expandedLearnerContextFromAnswers(storedLearnerAnswers);
     const generationContext: SessionGenerationContext = {
       sessionArchitectureVersion,
       learningGoal: {
@@ -395,12 +426,12 @@ export async function POST(request: Request) {
         reviewType: readReviewType(planSession.step_data),
       },
       learnerProfile: learnerProfile ? {
-        commonBlocker: learnerProfile.common_blocker,
-        guidancePreference: learnerProfile.guidance_preference,
-        explanationPreference: learnerProfile.explanation_preference,
-        focusFrequency: learnerProfile.focus_frequency,
-        startingPattern: learnerProfile.starting_pattern,
-        primaryImprovementGoal: learnerProfile.primary_improvement_goal,
+        commonBlocker: statedAnswer(0),
+        guidancePreference: statedAnswer(1),
+        explanationPreference: statedAnswer(3),
+        focusFrequency: statedAnswer(4),
+        startingPattern: statedAnswer(5),
+        primaryImprovementGoal: statedAnswer(7),
         ...expandedProfile,
       } : null,
       sessionAdjustment: sessionAdjustment ?? null,
@@ -412,13 +443,17 @@ export async function POST(request: Request) {
         totalAnswers: attempt.total_answers,
         feedback: readSessionFeedback(attempt.user_feedback),
         observedGap: readTextProperty(attempt.result_data, "observedGap") || null,
-        plannedMinutes: readNumberProperty(attempt.result_data, "plannedMinutes"),
-        actualMinutes: attempt.actual_minutes,
-        calibrationPattern: summarizeConfidenceCalibration(
-          readConfidenceEvidenceProperty(attempt.result_data),
-        ).pattern,
+        plannedMinutes: useObservedPacing
+          ? readNumberProperty(attempt.result_data, "plannedMinutes")
+          : null,
+        actualMinutes: useObservedPacing ? attempt.actual_minutes : null,
+        calibrationPattern: useObservedCalibration
+          ? summarizeConfidenceCalibration(
+            readConfidenceEvidenceProperty(attempt.result_data),
+          ).pattern
+          : "insufficient",
       })),
-      recentInterruptions: (interruptionsResult.data ?? []).slice(0, 4).map((event) => ({
+      recentInterruptions: personalizationInterruptionRows.slice(0, 4).map((event) => ({
         occurredAt: event.occurred_at,
         plannedMinutes: readNumberProperty(event.event_data, "plannedMinutes"),
         actualMinutes: readNumberProperty(event.event_data, "actualMinutes"),

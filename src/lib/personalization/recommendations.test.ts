@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { LearningPlan, SessionCompletion, SessionInterruption } from "@/lib/domain";
 import { buildPersonalizationRecommendations } from "@/lib/personalization/recommendations";
+import {
+  defaultPersonalizationState,
+  writePersonalizationStateToAnswers,
+} from "@/lib/personalization/personalization-state";
 
 const plan: LearningPlan = {
   id: "00000000-0000-4000-8000-000000000001",
@@ -131,5 +135,91 @@ describe("personalization recommendations", () => {
     expect(result.find((item) => item.id.startsWith("restore-support"))).toMatchObject({
       action: "start_session",
     });
+  });
+
+  it("does not bypass personalization controls with legacy Home recommendations", () => {
+    const defaults = defaultPersonalizationState();
+    const answers = writePersonalizationStateToAnswers([], {
+      ...defaults,
+      controls: {
+        ...defaults.controls,
+        selfReport: false,
+        behavior: false,
+        optionalQuestions: false,
+      },
+    });
+    answers[15] = "That interruption was caused by class ending.";
+    const interruption: SessionInterruption = {
+      id: "00000000-0000-4000-8000-000000000031",
+      planId: plan.id,
+      planSessionId: "00000000-0000-4000-8000-000000000032",
+      startedAt: "2026-08-06T12:00:00.000Z",
+      interruptedAt: "2026-08-06T12:05:00.000Z",
+      plannedMinutes: 20,
+      actualMinutes: 5,
+      completedSteps: 1,
+      totalSteps: 5,
+    };
+
+    const result = buildPersonalizationRecommendations({
+      answers,
+      plans: [plan],
+      completions: [],
+      interruptions: [
+        interruption,
+        { ...interruption, id: "00000000-0000-4000-8000-000000000033" },
+      ],
+    });
+
+    expect(result.map((item) => item.id)).toEqual(["add-goal-context"]);
+  });
+
+  it("does not prompt for deeper profile answers when optional questions are off", () => {
+    const defaults = defaultPersonalizationState();
+    const answers = writePersonalizationStateToAnswers([], {
+      ...defaults,
+      controls: { ...defaults.controls, optionalQuestions: false },
+    });
+
+    const result = buildPersonalizationRecommendations({
+      answers,
+      plans: [plan],
+      completions: [],
+      interruptions: [],
+    });
+
+    expect(result.map((item) => item.id)).not.toContain("add-learning-context");
+    expect(result.map((item) => item.id)).toContain("collect-first-evidence");
+  });
+
+  it("suppresses a legacy interruption recommendation when the signal is paused", () => {
+    const defaults = defaultPersonalizationState();
+    const answers = writePersonalizationStateToAnswers([], {
+      ...defaults,
+      pausedSignalIds: ["signal:starting_friction"],
+    });
+    const interruption: SessionInterruption = {
+      id: "00000000-0000-4000-8000-000000000041",
+      planId: plan.id,
+      planSessionId: "00000000-0000-4000-8000-000000000042",
+      startedAt: "2026-08-06T12:00:00.000Z",
+      interruptedAt: "2026-08-06T12:05:00.000Z",
+      plannedMinutes: 20,
+      actualMinutes: 5,
+      completedSteps: 1,
+      totalSteps: 5,
+    };
+
+    const result = buildPersonalizationRecommendations({
+      answers,
+      plans: [plan],
+      completions: [],
+      interruptions: [
+        interruption,
+        { ...interruption, id: "00000000-0000-4000-8000-000000000043" },
+      ],
+    });
+
+    expect(result.map((item) => item.id)).not.toContain("reduce-switching");
   });
 });

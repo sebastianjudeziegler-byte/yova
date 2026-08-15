@@ -1,4 +1,8 @@
-const OVERDUE_GRACE_MINUTES = 30;
+import type { SessionInterruption } from "@/lib/domain";
+
+// A session is not a learner-pattern signal simply because its start time
+// passed. Give the learner a real window before offering recovery choices.
+const OVERDUE_GRACE_MINUTES = 240;
 
 export function isSessionOverdue(
   scheduledFor: string,
@@ -26,4 +30,18 @@ export function tomorrowAtSessionTime(scheduledFor: string, now = new Date()) {
     next.setHours(17, 0, 0, 0);
   }
   return next.toISOString();
+}
+
+export function latestRecoveryInterruptionEvidenceRef(
+  interruptions: readonly SessionInterruption[],
+  planSessionId: string,
+) {
+  return interruptions
+    .filter((interruption) => interruption.planSessionId === planSessionId)
+    .reduce<SessionInterruption | null>((latest, interruption) => {
+      if (!latest) return interruption;
+      return Date.parse(interruption.interruptedAt) > Date.parse(latest.interruptedAt)
+        ? interruption
+        : latest;
+    }, null)?.id ?? null;
 }

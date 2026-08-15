@@ -7,6 +7,12 @@ import {
   readSessionEvidenceSnapshot,
   readSessionPendingRepair,
 } from "@/lib/learning/session-resume";
+import { LEARNER_ANSWER_COUNT } from "@/lib/personalization/learner-profile";
+import {
+  PERSONALIZATION_STATE_ANSWER_INDEX,
+  readPersonalizationStateValue,
+  serializePersonalizationState,
+} from "@/lib/personalization/personalization-state";
 import { resolveSessionArchitectureVersion } from "@/lib/session-generation/architecture";
 
 const STORAGE_KEY = "yova.preview.v1";
@@ -21,6 +27,7 @@ export function loadPreviewSnapshot(): YovaPreviewSnapshot | null {
     if (!isPreviewSnapshot(parsed)) return null;
     return {
       ...parsed,
+      onboardingAnswers: normalizePreviewAnswers(parsed.onboardingAnswers),
       plans: parsed.plans.map(normalizePreviewPlan),
       deadlineMilestones: Array.isArray(parsed.deadlineMilestones) ? parsed.deadlineMilestones : [],
       sessionCompletions: parsed.sessionCompletions.map(normalizePreviewCompletion),
@@ -86,6 +93,7 @@ export function savePreviewSnapshot(snapshot: YovaPreviewSnapshot) {
   if (typeof window === "undefined") return;
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify({
     ...snapshot,
+    onboardingAnswers: normalizePreviewAnswers(snapshot.onboardingAnswers),
     plans: snapshot.plans.map(normalizePreviewPlan),
   }));
 }
@@ -105,4 +113,16 @@ function isPreviewSnapshot(value: unknown): value is YovaPreviewSnapshot {
     && typeof candidate.signedIn === "boolean"
     && typeof candidate.onboardingCompleted === "boolean"
     && typeof candidate.alphaEntered === "boolean";
+}
+
+function normalizePreviewAnswers(answers: readonly unknown[]) {
+  const normalized = Array.from(
+    { length: Math.max(LEARNER_ANSWER_COUNT, answers.length) },
+    (_, index) => typeof answers[index] === "string" ? answers[index] : "",
+  );
+  const rawState = normalized[PERSONALIZATION_STATE_ANSWER_INDEX];
+  normalized[PERSONALIZATION_STATE_ANSWER_INDEX] = rawState?.trim()
+    ? serializePersonalizationState(readPersonalizationStateValue(rawState))
+    : "";
+  return normalized;
 }

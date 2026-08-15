@@ -2,26 +2,33 @@ import { onboardingQuestions } from "@/lib/sample-data";
 import {
   DEEP_PROFILE_QUESTIONS,
   expandedLearnerContextFromAnswers,
-  functionalSupportNeedFromAnswer,
+  statedOnboardingAnswerForRuntime,
 } from "@/lib/personalization/learner-profile";
+import { readPersonalizationStateFromAnswers } from "@/lib/personalization/personalization-state";
 
 const MODEL_SAFE_QUESTION_INDEXES = [0, 1, 2, 3, 4, 5, 6, 7, 9] as const;
 
 export function buildPlanProfileSummary(answers: string[]) {
-  const facts = MODEL_SAFE_QUESTION_INDEXES.flatMap((index) => {
-    const answer = answers[index]?.trim();
+  const state = readPersonalizationStateFromAnswers(answers);
+  const expanded = expandedLearnerContextFromAnswers(answers);
+  const facts = state.controls.selfReport ? MODEL_SAFE_QUESTION_INDEXES.flatMap((index) => {
+    const answer = statedOnboardingAnswerForRuntime(answers, index, state);
     if (!answer) return [];
     return [`${onboardingQuestions[index].prompt} ${answer}`];
-  });
-  const functionalSupportNeed = functionalSupportNeedFromAnswer(answers[8]);
-  if (functionalSupportNeed) {
-    facts.push(`${onboardingQuestions[8].prompt} ${functionalSupportNeed}`);
+  }) : [];
+  if (expanded.functionalSupportNeed) {
+    facts.push(`${onboardingQuestions[8].prompt} ${expanded.functionalSupportNeed}`);
   }
-  for (const question of DEEP_PROFILE_QUESTIONS) {
-    const answer = answers[question.answerIndex]?.trim();
+  const deepAnswers = [
+    expanded.processingPreference,
+    expanded.memoryChallenge,
+    expanded.supportPreference,
+    expanded.workspacePreference,
+  ];
+  for (const [index, question] of DEEP_PROFILE_QUESTIONS.entries()) {
+    const answer = deepAnswers[index];
     if (answer) facts.push(`${question.prompt} ${answer}`);
   }
-  const expanded = expandedLearnerContextFromAnswers(answers);
   if (expanded.freeformContext) facts.push(`Learner-provided context: ${expanded.freeformContext}`);
   if (expanded.observationCorrection) facts.push(`Learner correction to YOVA's observations: ${expanded.observationCorrection}`);
 
