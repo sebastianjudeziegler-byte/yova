@@ -36,9 +36,13 @@ export async function POST(request: NextRequest) {
   if (!type || !INVITE_TOKEN_HASH.test(tokenHash)) return authRedirect("invalid-link");
 
   const supabase = await createSupabaseServerClient();
+  // Supabase's current token-hash guidance verifies password-account
+  // confirmations with the generic `email` type. Keep YOVA's `signup`
+  // discriminator for page copy and the post-confirmation destination.
+  const verificationType = type === "signup" ? "email" : type;
   const { data, error } = await supabase.auth.verifyOtp({
     token_hash: tokenHash,
-    type,
+    type: verificationType,
   });
 
   if (error || !data.user?.email) {
@@ -74,7 +78,7 @@ export async function POST(request: NextRequest) {
     : type === "invite" && process.env.AUTH_PASSWORD_ACCOUNTS === "true"
       ? "/auth/set-password?source=invite"
       : "/";
-  const response = NextResponse.redirect(new URL(destination, getSiteUrl().origin));
+  const response = NextResponse.redirect(new URL(destination, getSiteUrl().origin), { status: 303 });
   response.headers.set("Cache-Control", "no-store");
   return response;
 }
@@ -157,7 +161,10 @@ function confirmationHeaders() {
     "Cache-Control": "no-store",
     "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'",
     "Content-Type": "text/html; charset=utf-8",
-    "Referrer-Policy": "no-referrer",
+    // Browsers derive the form POST Origin header from this policy. `no-referrer`
+    // serializes it as `null`, which correctly fails our exact-origin CSRF gate.
+    // `strict-origin` sends only the origin and never leaks the one-time token.
+    "Referrer-Policy": "strict-origin",
     "X-Content-Type-Options": "nosniff",
     "X-Frame-Options": "DENY",
     "X-Robots-Tag": "noindex, nofollow, noarchive",
@@ -230,7 +237,7 @@ function confirmationPage({ tokenHash, type }: { tokenHash: string; type: Confir
 function authRedirect(result: "invalid-link" | "failed") {
   const destination = new URL("/", getSiteUrl().origin);
   destination.searchParams.set("auth", result);
-  const response = NextResponse.redirect(destination);
+  const response = NextResponse.redirect(destination, { status: 303 });
   response.headers.set("Cache-Control", "no-store");
   return response;
 }

@@ -58,7 +58,7 @@ describe("tester invitation confirmation route", () => {
     const wrongType = await GET(getRequest("a".repeat(64), "oauth"));
     const malformed = await GET(getRequest("contains.dot.and spaces", "invite"));
 
-    expect(wrongType.status).toBe(307);
+    expect(wrongType.status).toBe(303);
     expect(wrongType.headers.get("location")).toBe("https://yova.example/?auth=invalid-link");
     expect(malformed.headers.get("location")).toBe("https://yova.example/?auth=invalid-link");
     expect(mocks.verifyOtp).not.toHaveBeenCalled();
@@ -71,7 +71,7 @@ describe("tester invitation confirmation route", () => {
 
     expect(response.status).toBe(200);
     expect(response.headers.get("cache-control")).toBe("no-store");
-    expect(response.headers.get("referrer-policy")).toBe("no-referrer");
+    expect(response.headers.get("referrer-policy")).toBe("strict-origin");
     expect(response.headers.get("content-security-policy")).toContain("form-action 'self'");
     expect(html).toContain('<form method="post" action="/auth/confirm">');
     expect(html).toContain(`name="token_hash" value="${tokenHash}"`);
@@ -96,7 +96,7 @@ describe("tester invitation confirmation route", () => {
         "email",
         "tester@example.com",
       );
-      expect(response.status).toBe(307);
+      expect(response.status).toBe(303);
       expect(response.headers.get("location")).toBe("https://yova.example/");
       expect(response.headers.get("cache-control")).toBe("no-store");
     },
@@ -106,7 +106,7 @@ describe("tester invitation confirmation route", () => {
     const tokenHash = "e".repeat(64);
     const response = await POST(postRequest(tokenHash, "signup"));
 
-    expect(mocks.verifyOtp).toHaveBeenCalledWith({ token_hash: tokenHash, type: "signup" });
+    expect(mocks.verifyOtp).toHaveBeenCalledWith({ token_hash: tokenHash, type: "email" });
     expect(mocks.ledgerUpdate).not.toHaveBeenCalled();
     expect(response.headers.get("location")).toBe("https://yova.example/");
   });
@@ -143,6 +143,17 @@ describe("tester invitation confirmation route", () => {
 
     expect(crossOrigin.headers.get("location")).toBe("https://yova.example/?auth=invalid-link");
     expect(nonForm.headers.get("location")).toBe("https://yova.example/?auth=invalid-link");
+    expect(mocks.verifyOtp).not.toHaveBeenCalled();
+  });
+
+  it("rejects a browser POST with an opaque origin before consuming the token", async () => {
+    const response = await POST(postRequest("c".repeat(64), "signup", undefined, {
+      Origin: "null",
+      "Sec-Fetch-Site": "same-origin",
+    }));
+
+    expect(response.status).toBe(303);
+    expect(response.headers.get("location")).toBe("https://yova.example/?auth=invalid-link");
     expect(mocks.verifyOtp).not.toHaveBeenCalled();
   });
 
