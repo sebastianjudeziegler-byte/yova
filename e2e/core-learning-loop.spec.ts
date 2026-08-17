@@ -650,6 +650,159 @@ test("a resumed streamed question can reopen its prior lesson by persisted activ
     .toContainText("Restored streamed explanation");
 });
 
+test("a refresh recovers semantic progress without saving draft answers or inventing an interruption", async ({ page }) => {
+  test.setTimeout(90_000);
+  let generationRequests = 0;
+
+  await page.route("**/api/sessions/generate", async (route) => {
+    generationRequests += 1;
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(streamedResumeSessionResponse()),
+    });
+  });
+  await page.route("**/api/sessions/lesson", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "text/event-stream",
+      body: [
+        'data: {"type":"lesson.meta","requestId":"30000000-0000-4000-8000-000000000021","model":"test-model"}',
+        "",
+        'data: {"type":"lesson.delta","delta":"# Refresh-safe explanation\\n\\nRetrieval shows what you can produce before reviewing the answer."}',
+        "",
+        'data: {"type":"lesson.complete","elapsedMs":20,"latencyToFirstTokenMs":5,"inputTokens":20,"cachedInputTokens":0,"outputTokens":18,"wordCount":13,"model":"test-model"}',
+        "",
+        "",
+      ].join("\n"),
+    });
+  });
+  await page.route("**/api/sessions/evaluate", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        verdict: "secure",
+        feedback: "Your explanation connects the unsupported attempt to finding the knowledge that still needs repair.",
+        matchedIdeas: ["The attempt happens before review."],
+        missingIdeas: [],
+        mode: "preview",
+      }),
+    });
+  });
+
+  await createPreviewAccount(page);
+  await completeOnboarding(page);
+  await page.getByRole("button", { name: "Study something now", exact: true }).first().click();
+  await page.getByPlaceholder("Example: Help me understand the product rule and practice using it.").fill(
+    "Help me understand retrieval practice and test the idea.",
+  );
+  await page.getByRole("button", { name: "I haven't learned this yet" }).click();
+  await page.getByRole("button", { name: /Choose how YOVA should help/ }).click();
+  await page.getByRole("button", { name: /Create it for me/ }).click();
+  await page.getByRole("button", { name: /Build and start session/ }).click();
+  await confirmSessionSetup(page);
+
+  await expect(page.getByText("Refresh-safe explanation")).toBeVisible();
+  await page.getByRole("button", { name: "Answer the question" }).click();
+  await expect(page.getByRole("heading", { name: "Choose the retrieval sequence" })).toBeVisible();
+  await expect.poll(() => readRecoveryState(page)).toMatchObject({
+    checkpointStatus: "working",
+    completedSteps: 1,
+    sessionInterruptions: 0,
+    hasSessionResource: true,
+  });
+
+  await page.reload();
+  await expect(page.getByText("Continue where you left off")).toBeVisible();
+  await expect(page.getByText("1 section saved", { exact: true })).toBeVisible();
+  expect(generationRequests).toBe(1);
+  await expect.poll(() => readRecoveryState(page)).toMatchObject({ sessionInterruptions: 0 });
+  await page.getByRole("button", { name: "Continue session" }).click();
+  await expect(page.getByRole("heading", { name: "Choose the retrieval sequence" })).toBeVisible();
+  await expect(page.getByText(/completed sections are saved; an unfinished answer was not stored/i)).toBeVisible();
+  expect(generationRequests).toBe(1);
+
+  const confidenceCheck = page.getByRole("group", { name: /One quick confidence check/ });
+  if (await confidenceCheck.isVisible()) {
+    await page.getByRole("button", { name: "Somewhat sure" }).click();
+  }
+  await page.getByRole("button", { name: "Attempt, then review" }).click();
+  await expect(page.getByText("Correct.", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Continue" }).click();
+  await expect(page.getByRole("heading", { name: "Explain why retrieval comes first" })).toBeVisible();
+
+  const freeResponseConfidence = page.getByRole("group", { name: /One quick confidence check/ });
+  if (await freeResponseConfidence.isVisible()) {
+    await page.getByRole("button", { name: "Somewhat sure" }).click();
+  }
+  const draftMarker = "PRIVATE-DRAFT-7c2d9e should never be persisted";
+  const freeResponse = page.locator(".recall-response textarea");
+  await freeResponse.fill(draftMarker);
+  await expect.poll(async () => {
+    const state = await readRecoveryState(page);
+    return state.completedSteps;
+  }).toBe(2);
+  const localStorageBeforeReload = await page.evaluate(() => JSON.stringify(
+    Object.fromEntries(Array.from({ length: window.localStorage.length }, (_, index) => {
+      const key = window.localStorage.key(index) ?? "";
+      return [key, window.localStorage.getItem(key)];
+    })),
+  ));
+  expect(localStorageBeforeReload).not.toContain(draftMarker);
+
+  await page.reload();
+  await expect(page.getByText("Continue where you left off")).toBeVisible();
+  await page.getByRole("button", { name: "Continue session" }).click();
+  await expect(page.getByRole("heading", { name: "Explain why retrieval comes first" })).toBeVisible();
+  await expect(page.locator(".recall-response textarea")).toHaveValue("");
+  expect(generationRequests).toBe(1);
+  await expect.poll(() => readRecoveryState(page)).toMatchObject({ sessionInterruptions: 0 });
+
+  const restoredConfidence = page.getByRole("group", { name: /One quick confidence check/ });
+  if (await restoredConfidence.isVisible()) {
+    await page.getByRole("button", { name: "Somewhat sure" }).click();
+  }
+  await page.locator(".recall-response textarea").fill(
+    "Trying first reveals which knowledge is available without visible support and what still needs repair.",
+  );
+  await page.getByRole("button", { name: "Check my answer" }).click();
+  await expect(page.getByText("YOVA'S FORMATIVE CHECK")).toBeVisible();
+  await page.getByRole("button", { name: "I got the key idea" }).click();
+  await page.getByRole("button", { name: "Finish this content" }).click();
+  await expect(page.getByRole("heading", { name: "Complete this learning item" })).toBeVisible();
+  await expect.poll(() => readRecoveryState(page)).toMatchObject({
+    checkpointStatus: "awaiting_finish",
+    completedSteps: 3,
+    sessionCompletions: 0,
+    sessionInterruptions: 0,
+  });
+
+  await page.reload();
+  await expect(page.getByText("Continue where you left off")).toBeVisible();
+  await expect(page.getByText("Ready to finish", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Review and finish" }).click();
+  await expect(page.getByRole("heading", { name: "Complete this learning item" })).toBeVisible();
+  await expect(page.getByText(/completed session was recovered/i)).toBeVisible();
+  expect(generationRequests).toBe(1);
+  await page.getByRole("button", { name: "Finish and continue" }).click();
+  await expect(page.getByRole("heading", { name: /Good (morning|afternoon|evening), Learner\./ })).toBeVisible();
+  await expect.poll(() => readRecoveryState(page)).toMatchObject({
+    checkpointStatus: null,
+    sessionCompletions: 1,
+    sessionInterruptions: 0,
+  });
+
+  await page.reload();
+  await expect(page.getByText("Continue where you left off")).not.toBeVisible();
+  await expect.poll(() => readRecoveryState(page)).toMatchObject({
+    checkpointStatus: null,
+    sessionCompletions: 1,
+    sessionInterruptions: 0,
+  });
+  expect(generationRequests).toBe(1);
+});
+
 test("the product shell keeps every core destination and creation path usable", async ({ page }) => {
   await createPreviewAccount(page);
   await completeOnboarding(page);
@@ -1013,6 +1166,46 @@ async function createPreviewAccount(page: Page) {
   await page.getByLabel("Email address").fill("learning-loop@example.com");
   await page.getByRole("button", { name: "Continue" }).click();
   await expect(page.getByRole("heading", { name: "Make YOVA fit how you actually study." })).toBeVisible();
+}
+
+async function readRecoveryState(page: Page) {
+  return page.evaluate(() => {
+    let checkpoints: Array<{ status?: string; completedSteps?: number }> = [];
+    let snapshot: {
+      plans?: Array<{ sessions?: Array<{ resource?: unknown }> }>;
+      sessionCompletions?: unknown[];
+      sessionInterruptions?: unknown[];
+    } = {};
+
+    try {
+      const rawCheckpoints = window.localStorage.getItem("yova.active-session-checkpoints.v1");
+      const parsedCheckpoints: unknown = rawCheckpoints ? JSON.parse(rawCheckpoints) : [];
+      checkpoints = Array.isArray(parsedCheckpoints)
+        ? parsedCheckpoints as Array<{ status?: string; completedSteps?: number }>
+        : [];
+    } catch {
+      checkpoints = [];
+    }
+
+    try {
+      const rawSnapshot = window.localStorage.getItem("yova.preview.v1");
+      const parsedSnapshot: unknown = rawSnapshot ? JSON.parse(rawSnapshot) : {};
+      snapshot = parsedSnapshot && typeof parsedSnapshot === "object"
+        ? parsedSnapshot as typeof snapshot
+        : {};
+    } catch {
+      snapshot = {};
+    }
+
+    const checkpoint = checkpoints.at(-1);
+    return {
+      checkpointStatus: checkpoint?.status ?? null,
+      completedSteps: checkpoint?.completedSteps ?? null,
+      sessionCompletions: snapshot.sessionCompletions?.length ?? 0,
+      sessionInterruptions: snapshot.sessionInterruptions?.length ?? 0,
+      hasSessionResource: Boolean(snapshot.plans?.[0]?.sessions?.[0]?.resource),
+    };
+  });
 }
 
 async function completeOnboarding(page: Page) {
