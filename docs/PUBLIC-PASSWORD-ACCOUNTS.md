@@ -51,7 +51,9 @@ Keep link tracking off in Resend. Do not replace these links with `{{ .Confirmat
 3. Copy the public site key into Vercel as `NEXT_PUBLIC_TURNSTILE_SITE_KEY`.
 4. Set `AUTH_CAPTCHA_ENABLED=true` in Vercel and redeploy the CAPTCHA-capable YOVA code. Supabase safely ignores the extra token while its own CAPTCHA switch is still off.
 5. After that deployment is ready, open Supabase **Authentication → Bot and Abuse Protection**, choose Turnstile, and enter the secret key.
-6. Confirm `/api/system/status` reports `captchaProtection: "turnstile"` before opening signup.
+6. Confirm `/api/system/status` reports `captchaClient: "turnstile"`. This proves YOVA is configured to present and submit Turnstile tokens; it does not prove Supabase enforces them.
+7. Confirm the Supabase dashboard still shows Turnstile enabled. Then make a dedicated test-account authentication request without a CAPTCHA token and verify Supabase rejects it specifically for missing or invalid CAPTCHA.
+8. Complete the normal YOVA authentication flow with a valid Turnstile token. Do not open public signup until both the rejection and success paths pass.
 
 At this stage, invited testers will see the same small security check before YOVA sends an email code. This keeps their existing passwordless sign-in working while Supabase CAPTCHA is enabled.
 

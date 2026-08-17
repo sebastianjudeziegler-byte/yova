@@ -41,7 +41,7 @@ describe("system status tester-access readiness", () => {
       publishableKey: "sb_publishable_test",
     };
     mocks.settingsFetch.mockReset().mockResolvedValue(new Response(
-      JSON.stringify({ disable_signup: true, captcha_enabled: false }),
+      JSON.stringify({ disable_signup: true }),
       { status: 200, headers: { "Content-Type": "application/json" } },
     ));
     vi.stubGlobal("fetch", mocks.settingsFetch);
@@ -61,7 +61,7 @@ describe("system status tester-access readiness", () => {
       testerInvitations: "founder-managed",
       emailVerification: "code-and-link",
       passwordAccounts: "disabled",
-      captchaProtection: "disabled",
+      captchaClient: "disabled",
       publicSignup: "disabled",
     });
     expect(status).not.toHaveProperty("supabasePublishableKey");
@@ -74,7 +74,7 @@ describe("system status tester-access readiness", () => {
   it("fails the public readiness signal when the migration or signup lock is missing", async () => {
     mocks.invitationTableError = { code: "42P01" };
     mocks.settingsFetch.mockResolvedValue(new Response(
-      JSON.stringify({ disable_signup: false, captcha_enabled: false }),
+      JSON.stringify({ disable_signup: false }),
       { status: 200, headers: { "Content-Type": "application/json" } },
     ));
 
@@ -85,13 +85,13 @@ describe("system status tester-access readiness", () => {
     expect(status.publicSignup).toBe("enabled");
   });
 
-  it("reports public password accounts ready only when the app and Supabase CAPTCHA agree", async () => {
+  it("reports public password accounts ready when the Turnstile client is configured", async () => {
     vi.stubEnv("AUTH_INVITE_ONLY", "false");
     vi.stubEnv("AUTH_PASSWORD_ACCOUNTS", "true");
     vi.stubEnv("AUTH_CAPTCHA_ENABLED", "true");
     vi.stubEnv("NEXT_PUBLIC_TURNSTILE_SITE_KEY", "turnstile-public-key");
     mocks.settingsFetch.mockResolvedValue(new Response(
-      JSON.stringify({ disable_signup: false, captcha_enabled: true }),
+      JSON.stringify({ disable_signup: false }),
       { status: 200, headers: { "Content-Type": "application/json" } },
     ));
 
@@ -102,21 +102,36 @@ describe("system status tester-access readiness", () => {
       authentication: "supabase-password-and-email",
       testerAccess: "open",
       passwordAccounts: "enabled",
-      captchaProtection: "turnstile",
+      captchaClient: "turnstile",
       publicSignup: "enabled",
     });
+    expect(status).not.toHaveProperty("captchaProtection");
   });
 
-  it("reports a partial CAPTCHA rollout as misconfigured", async () => {
+  it("keeps client readiness separate when Supabase signup settings cannot be checked", async () => {
+    vi.stubEnv("AUTH_CAPTCHA_ENABLED", "true");
+    vi.stubEnv("NEXT_PUBLIC_TURNSTILE_SITE_KEY", "turnstile-public-key");
+    mocks.settingsFetch.mockResolvedValue(new Response(null, { status: 503 }));
+
+    const status = await (await GET()).json();
+    expect(status.captchaClient).toBe("turnstile");
+    expect(status.publicSignup).toBe("unknown");
+  });
+
+  it("reports a requested CAPTCHA with no site key as misconfigured", async () => {
     vi.stubEnv("AUTH_PASSWORD_ACCOUNTS", "true");
     vi.stubEnv("AUTH_CAPTCHA_ENABLED", "true");
     vi.stubEnv("NEXT_PUBLIC_TURNSTILE_SITE_KEY", "");
-    mocks.settingsFetch.mockResolvedValue(new Response(
-      JSON.stringify({ disable_signup: true, captcha_enabled: true }),
-      { status: 200, headers: { "Content-Type": "application/json" } },
-    ));
 
     const status = await (await GET()).json();
-    expect(status.captchaProtection).toBe("misconfigured");
+    expect(status.captchaClient).toBe("misconfigured");
+  });
+
+  it("reports an unused site key as misconfigured", async () => {
+    vi.stubEnv("AUTH_CAPTCHA_ENABLED", "false");
+    vi.stubEnv("NEXT_PUBLIC_TURNSTILE_SITE_KEY", "turnstile-public-key");
+
+    const status = await (await GET()).json();
+    expect(status.captchaClient).toBe("misconfigured");
   });
 });
