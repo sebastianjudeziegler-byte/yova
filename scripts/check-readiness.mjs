@@ -29,6 +29,10 @@ const siteUrl = process.env.SITE_URL?.trim();
 const vercelUrl = process.env.VERCEL_PROJECT_PRODUCTION_URL?.trim()
   || process.env.VERCEL_URL?.trim();
 const publicOrigin = siteUrl || (vercelUrl ? `https://${vercelUrl}` : "");
+const passwordAccounts = process.env.AUTH_PASSWORD_ACCOUNTS === "true";
+const inviteOnly = process.env.AUTH_INVITE_ONLY === "true";
+const captchaEnabled = process.env.AUTH_CAPTCHA_ENABLED === "true";
+const turnstileSiteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY?.trim();
 
 addCheck(
   "Supabase project URL",
@@ -66,13 +70,39 @@ if (production) {
     Boolean(supabaseSecretKey && supabaseSecretKey.length >= 20),
     supabaseSecretKey ? "configured without exposing its value" : "missing SUPABASE_SECRET_KEY",
   );
-  addCheck(
-    "Invite-only account entry",
-    process.env.AUTH_INVITE_ONLY === "true",
-    process.env.AUTH_INVITE_ONLY === "true"
-      ? "new testers enter through founder invitations"
-      : "set AUTH_INVITE_ONLY=true after disabling Supabase public signup",
-  );
+  if (passwordAccounts) {
+    addCheck(
+      "Public password account mode",
+      !inviteOnly,
+      !inviteOnly
+        ? "public password account entry is selected"
+        : "AUTH_INVITE_ONLY must be false when launching public password signup",
+    );
+    addCheck(
+      "Authentication CAPTCHA",
+      captchaEnabled && Boolean(turnstileSiteKey),
+      captchaEnabled && turnstileSiteKey
+        ? "Turnstile is required by the public account forms"
+        : "set AUTH_CAPTCHA_ENABLED=true and NEXT_PUBLIC_TURNSTILE_SITE_KEY before public signup",
+    );
+  } else {
+    addCheck(
+      "Invite-only account entry",
+      inviteOnly,
+      inviteOnly
+        ? "new testers enter through founder invitations"
+        : "enable either AUTH_INVITE_ONLY or AUTH_PASSWORD_ACCOUNTS",
+    );
+    if (captchaEnabled) {
+      addCheck(
+        "Invite sign-in CAPTCHA",
+        Boolean(turnstileSiteKey),
+        turnstileSiteKey
+          ? "Turnstile protects passwordless tester sign-in"
+          : "set NEXT_PUBLIC_TURNSTILE_SITE_KEY or disable AUTH_CAPTCHA_ENABLED",
+      );
+    }
+  }
   addCheck(
     "Email code entry",
     process.env.AUTH_EMAIL_CODE_VERIFICATION === "true",

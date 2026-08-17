@@ -1,10 +1,10 @@
 export function describeAuthCallbackResult(result: string | null) {
   if (result === "invalid-link") {
-    return "That sign-in link is incomplete or expired. Request a fresh link and open the newest email.";
+    return "That account link is incomplete or expired. Request a fresh email and open the newest message from YOVA.";
   }
 
   if (result === "failed") {
-    return "YOVA could not complete that sign-in. Open the newest email link in the same browser where you requested it, or request a fresh link.";
+    return "YOVA could not complete that account request. If you used a sign-in link, open the newest email in the same browser. Otherwise, request a fresh verification or reset link.";
   }
 
   if (result === "invite-required") {

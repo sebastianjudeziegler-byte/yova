@@ -10,6 +10,10 @@ export default function HomePage() {
     && (!isSupabaseConfigured() || !isOpenAIPlanConfigured());
   const emailCodeVerificationEnabled = process.env.AUTH_EMAIL_CODE_VERIFICATION === "true";
   const inviteOnly = process.env.AUTH_INVITE_ONLY === "true";
+  const passwordAccountsEnabled = process.env.AUTH_PASSWORD_ACCOUNTS === "true";
+  const turnstileSiteKey = process.env.AUTH_CAPTCHA_ENABLED === "true"
+    ? process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY?.trim() || null
+    : null;
 
   if (productionNeedsConfiguration) {
     return (
@@ -28,5 +32,7 @@ export default function HomePage() {
   return <YovaPrototype
     emailCodeVerificationEnabled={emailCodeVerificationEnabled}
     inviteOnly={inviteOnly}
+    passwordAccountsEnabled={passwordAccountsEnabled}
+    turnstileSiteKey={turnstileSiteKey}
   />;
 }

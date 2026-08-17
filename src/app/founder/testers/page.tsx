@@ -15,6 +15,7 @@ type TesterInviteRow = {
 };
 
 export default async function FounderTestersPage() {
+  const passwordAccountsEnabled = process.env.AUTH_PASSWORD_ACCOUNTS === "true";
   const supabase = await createSupabaseServerClient();
   const { data: { user }, error: userError } = await supabase.auth.getUser();
 
@@ -51,11 +52,11 @@ export default async function FounderTestersPage() {
         <div>
           <span>FOUNDER VIEW</span>
           <h1>Tester access</h1>
-          <p>Invite one person by email, then see who has joined the private alpha. Only this founder view can access the invitation list.</p>
+          <p>Invite one person by email, then see who has joined the testing cohort. Only this founder view can access the invitation list.</p>
         </div>
         <Link href="/founder/reliability">Reliability</Link>
       </header>
-      <FounderTesterAccess initialTesters={testers} />
+      <FounderTesterAccess initialTesters={testers} passwordAccountsEnabled={passwordAccountsEnabled} />
     </main>
   );
 }

@@ -80,7 +80,7 @@ try {
 
   for (const [path, identity] of [
     ["/privacy", /Privacy Notice/i],
-    ["/terms", /Private Alpha Terms/i],
+    ["/terms", /Alpha Terms/i],
     ["/support", /YOVA Support/i],
   ]) {
     const trustResponse = await request(`${origin}${path}`);
@@ -115,17 +115,45 @@ try {
     tutor: "openai",
     materials: "private-supabase",
     persistence: "supabase",
-    authentication: "supabase-email",
-    testerAccess: "invite-only",
-    testerInvitations: "founder-managed",
     emailVerification: "code-and-link",
-    publicSignup: "disabled",
   };
 
   for (const [capability, expected] of Object.entries(expectedModes)) {
     const actual = status?.[capability];
     if (actual === expected) pass(`${capability} is using ${expected}`);
     else fail(`${capability} expected ${expected}, received ${actual || "nothing"}`);
+  }
+
+  if (status?.passwordAccounts === "enabled") {
+    for (const [capability, expected] of Object.entries({
+      authentication: "supabase-password-and-email",
+      testerAccess: "open",
+      testerInvitations: "founder-managed",
+      captchaProtection: "turnstile",
+      publicSignup: "enabled",
+    })) {
+      const actual = status?.[capability];
+      if (actual === expected) pass(`${capability} is using ${expected}`);
+      else fail(`${capability} expected ${expected}, received ${actual || "nothing"}`);
+    }
+  } else if (status?.passwordAccounts === "disabled") {
+    for (const [capability, expected] of Object.entries({
+      authentication: "supabase-email",
+      testerAccess: "invite-only",
+      testerInvitations: "founder-managed",
+      publicSignup: "disabled",
+    })) {
+      const actual = status?.[capability];
+      if (actual === expected) pass(`${capability} is using ${expected}`);
+      else fail(`${capability} expected ${expected}, received ${actual || "nothing"}`);
+    }
+    if (["disabled", "turnstile"].includes(status?.captchaProtection)) {
+      pass(`Invite sign-in CAPTCHA is ${status.captchaProtection}`);
+    } else {
+      fail(`Invite sign-in CAPTCHA is misconfigured (${status?.captchaProtection || "nothing"})`);
+    }
+  } else {
+    fail(`passwordAccounts expected enabled or disabled, received ${status?.passwordAccounts || "nothing"}`);
   }
 
   const cacheControl = statusResponse.headers.get("cache-control") || "";
