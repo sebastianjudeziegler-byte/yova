@@ -114,7 +114,6 @@ export async function POST(request: Request) {
       const existingUnderstanding = readMaterialUnderstanding(stored.metadata);
       const understanding = existingUnderstanding ?? await mapAndPersistMaterial({
         supabase,
-        userId: user.id,
         materialId: stored.id,
         filename: stored.filename,
         text: stored.extracted_text,

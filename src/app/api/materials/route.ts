@@ -196,7 +196,6 @@ export async function PATCH(request: Request) {
     after(async () => {
       await mapAndPersistMaterial({
         supabase,
-        userId: user.id,
         materialId: upload.id,
         filename: upload.filename,
         text: extracted.text,
