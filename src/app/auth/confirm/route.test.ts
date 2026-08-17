@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
 vi.mock("server-only", () => ({}));
@@ -50,8 +50,12 @@ describe("tester invitation confirmation route", () => {
     vi.spyOn(console, "error").mockImplementation(() => undefined);
   });
 
-  it("accepts only a bounded invite or magic-link token hash", async () => {
-    const wrongType = await GET(getRequest("a".repeat(64), "signup"));
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("accepts only a bounded supported token hash", async () => {
+    const wrongType = await GET(getRequest("a".repeat(64), "oauth"));
     const malformed = await GET(getRequest("contains.dot.and spaces", "invite"));
 
     expect(wrongType.status).toBe(307);
@@ -77,7 +81,7 @@ describe("tester invitation confirmation route", () => {
   });
 
   it.each(["invite", "email"] as const)(
-    "verifies %s only on an explicit same-origin POST and redirects to fixed YOVA root",
+    "verifies tester %s only on an explicit same-origin POST and redirects to fixed YOVA root",
     async (type) => {
       const tokenHash = "b".repeat(64);
       const response = await POST(postRequest(tokenHash, type, "https://attacker.example"));
@@ -97,6 +101,32 @@ describe("tester invitation confirmation route", () => {
       expect(response.headers.get("cache-control")).toBe("no-store");
     },
   );
+
+  it("confirms a public signup without writing to the tester ledger", async () => {
+    const tokenHash = "e".repeat(64);
+    const response = await POST(postRequest(tokenHash, "signup"));
+
+    expect(mocks.verifyOtp).toHaveBeenCalledWith({ token_hash: tokenHash, type: "signup" });
+    expect(mocks.ledgerUpdate).not.toHaveBeenCalled();
+    expect(response.headers.get("location")).toBe("https://yova.example/");
+  });
+
+  it("establishes a recovery session before opening the password form", async () => {
+    const tokenHash = "f".repeat(64);
+    const response = await POST(postRequest(tokenHash, "recovery"));
+
+    expect(mocks.verifyOtp).toHaveBeenCalledWith({ token_hash: tokenHash, type: "recovery" });
+    expect(mocks.ledgerUpdate).not.toHaveBeenCalled();
+    expect(response.headers.get("location")).toBe("https://yova.example/auth/set-password?source=recovery");
+  });
+
+  it("offers password creation after an invite only when password accounts are enabled", async () => {
+    vi.stubEnv("AUTH_PASSWORD_ACCOUNTS", "true");
+
+    const response = await POST(postRequest("g".repeat(64), "invite"));
+
+    expect(response.headers.get("location")).toBe("https://yova.example/auth/set-password?source=invite");
+  });
 
   it("rejects a cross-origin or non-form POST before consuming the token", async () => {
     const tokenHash = "c".repeat(64);
@@ -138,7 +168,7 @@ function getRequest(tokenHash: string, type: string, origin = "https://yova.exam
 
 function postRequest(
   tokenHash: string,
-  type: "invite" | "email",
+  type: "invite" | "email" | "signup" | "recovery",
   untrustedQueryOrigin?: string,
   headers: Record<string, string> = {},
 ) {

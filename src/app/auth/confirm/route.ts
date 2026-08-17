@@ -6,7 +6,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 const CONFIRMATION_MAX_BYTES = 2_048;
 const INVITE_TOKEN_HASH = /^[A-Za-z0-9_-]{20,1024}$/;
-type ConfirmationType = "invite" | "email";
+type ConfirmationType = "invite" | "email" | "signup" | "recovery";
 
 /**
  * Email security scanners commonly open links before the recipient does. GET is
@@ -51,7 +51,8 @@ export async function POST(request: NextRequest) {
 
   // The database trigger is authoritative for new invitees. This update also
   // handles already-confirmed Auth users accepting a later tester invitation.
-  if (isSupabaseAdminConfigured()) {
+  // Public signup and password recovery must never create tester-ledger state.
+  if ((type === "invite" || type === "email") && isSupabaseAdminConfigured()) {
     const admin = createSupabaseAdminClient();
     const { error: ledgerError } = await admin
       .from("tester_invites")
@@ -68,7 +69,12 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  const response = NextResponse.redirect(new URL("/", getSiteUrl().origin));
+  const destination = type === "recovery"
+    ? "/auth/set-password?source=recovery"
+    : type === "invite" && process.env.AUTH_PASSWORD_ACCOUNTS === "true"
+      ? "/auth/set-password?source=invite"
+      : "/";
+  const response = NextResponse.redirect(new URL(destination, getSiteUrl().origin));
   response.headers.set("Cache-Control", "no-store");
   return response;
 }
@@ -80,7 +86,9 @@ function confirmationFromUrl(url: URL) {
 }
 
 function parseConfirmationType(value: string | null): ConfirmationType | null {
-  return value === "invite" || value === "email" ? value : null;
+  return value === "invite" || value === "email" || value === "signup" || value === "recovery"
+    ? value
+    : null;
 }
 
 function isSameOriginFormPost(request: NextRequest) {
@@ -158,12 +166,44 @@ function confirmationHeaders() {
 
 function confirmationPage({ tokenHash, type }: { tokenHash: string; type: ConfirmationType }) {
   const invitation = type === "invite";
+  const recovery = type === "recovery";
+  const signup = type === "signup";
+  const eyebrow = invitation
+    ? "YOVA INVITATION"
+    : recovery
+      ? "PASSWORD RESET"
+      : signup
+        ? "CONFIRM YOUR ACCOUNT"
+        : "SECURE SIGN-IN";
+  const title = invitation
+    ? "Your YOVA invitation is ready."
+    : recovery
+      ? "Your password reset is ready."
+      : signup
+        ? "Confirm your YOVA account."
+        : "Continue to your YOVA.";
+  const copy = invitation
+    ? "Press the button below to accept your invitation and open YOVA."
+    : recovery
+      ? "Press the button below to verify this request and choose a new password."
+      : signup
+        ? "Press the button below to confirm your email and finish creating your YOVA account."
+        : "Press the button below to finish signing in. Your learning profile and progress will stay connected.";
+  const button = invitation
+    ? process.env.AUTH_PASSWORD_ACCOUNTS === "true"
+      ? "Accept invitation and create a password"
+      : "Accept invitation and open YOVA"
+    : recovery
+      ? "Continue to choose a new password"
+      : signup
+        ? "Confirm account and open YOVA"
+        : "Sign in to YOVA";
   return `<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>${invitation ? "Accept your YOVA invitation" : "Sign in to YOVA"}</title>
+  <title>${invitation ? "Accept your YOVA invitation" : recovery ? "Reset your YOVA password" : signup ? "Confirm your YOVA account" : "Sign in to YOVA"}</title>
   <style>
     *{box-sizing:border-box}body{margin:0;background:#f4f6fb;color:#0b1020;font-family:Inter,Arial,sans-serif}.shell{min-height:100vh;display:grid;place-items:center;padding:24px}.card{width:min(100%,520px);background:#fff;border:1px solid #e0e5ef;border-radius:20px;padding:40px;box-shadow:0 18px 50px rgba(11,16,32,.09);text-align:center}.brand{display:inline-flex;align-items:center;gap:10px;font-weight:800;letter-spacing:.16em}.mark{display:grid;place-items:center;width:38px;height:38px;border-radius:10px;background:#0b1020;color:#fff}.eyebrow{margin:32px 0 12px;color:#346bff;font-size:12px;font-weight:800;letter-spacing:.12em}.card h1{margin:0;font-size:clamp(30px,7vw,42px);line-height:1.12}.copy{margin:18px auto 28px;max-width:390px;color:#667085;font-size:16px;line-height:1.65}.button{width:100%;min-height:52px;border:0;border-radius:12px;background:#346bff;color:#fff;font-size:16px;font-weight:750;cursor:pointer}.note{margin:18px 0 0;color:#98a2b3;font-size:13px;line-height:1.5}@media(max-width:520px){.shell{padding:0}.card{min-height:100vh;border:0;border-radius:0;padding:36px 24px;display:flex;flex-direction:column;justify-content:center}}
   </style>
@@ -172,13 +212,13 @@ function confirmationPage({ tokenHash, type }: { tokenHash: string; type: Confir
   <main class="shell">
     <section class="card" aria-labelledby="confirmation-title">
       <div class="brand"><span class="mark" aria-hidden="true">Y</span><span>YOVA</span></div>
-      <p class="eyebrow">${invitation ? "PRIVATE ALPHA INVITATION" : "SECURE SIGN-IN"}</p>
-      <h1 id="confirmation-title">${invitation ? "Your YOVA invitation is ready." : "Continue to your YOVA."}</h1>
-      <p class="copy">${invitation ? "Press the button below to accept your invitation and open YOVA." : "Press the button below to finish signing in. Your learning profile and progress will stay connected."}</p>
+      <p class="eyebrow">${eyebrow}</p>
+      <h1 id="confirmation-title">${title}</h1>
+      <p class="copy">${copy}</p>
       <form method="post" action="/auth/confirm">
         <input type="hidden" name="token_hash" value="${tokenHash}">
         <input type="hidden" name="type" value="${type}">
-        <button class="button" type="submit">${invitation ? "Accept invitation and open YOVA" : "Sign in to YOVA"}</button>
+        <button class="button" type="submit">${button}</button>
       </form>
       <p class="note">This button protects your one-time link from being used by an automatic email preview.</p>
     </section>

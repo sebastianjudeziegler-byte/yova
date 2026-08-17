@@ -13,6 +13,7 @@ export type FounderTester = {
 
 type FounderTesterAccessProps = {
   initialTesters: FounderTester[];
+  passwordAccountsEnabled?: boolean;
 };
 
 type InviteResponse = {
@@ -27,7 +28,7 @@ type Notice = { tone: "success" | "info" | "error"; message: string } | null;
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-export function FounderTesterAccess({ initialTesters }: FounderTesterAccessProps) {
+export function FounderTesterAccess({ initialTesters, passwordAccountsEnabled = false }: FounderTesterAccessProps) {
   const [testers, setTesters] = useState(initialTesters);
   const [email, setEmail] = useState("");
   const [displayName, setDisplayName] = useState("");
@@ -135,7 +136,9 @@ export function FounderTesterAccess({ initialTesters }: FounderTesterAccessProps
           <span className="founder-tester-card-icon" aria-hidden="true"><Mail size={20} /></span>
           <div>
             <h2 id="founder-invite-title">Invite a tester</h2>
-            <p>YOVA will email them one secure access link. They will not need a password.</p>
+            <p>{passwordAccountsEnabled
+              ? "YOVA will email one secure link. They will accept it, create a password, and open YOVA."
+              : "YOVA will email them one secure access link. They will not need a password."}</p>
           </div>
         </div>
 
@@ -194,13 +197,13 @@ export function FounderTesterAccess({ initialTesters }: FounderTesterAccessProps
           </div>
         )}
 
-        <p className="founder-tester-invite-note">Only invite people who agreed to test YOVA. Their use is covered by the Private Alpha Terms and Privacy Notice.</p>
+        <p className="founder-tester-invite-note">Only invite people who agreed to test YOVA. Their use is covered by the Alpha Terms and Privacy Notice.</p>
       </section>
 
       <section className="founder-tester-list-card" aria-labelledby="founder-testers-title" aria-busy={busy}>
         <header>
           <div>
-            <span>PRIVATE ALPHA</span>
+            <span>{passwordAccountsEnabled ? "TESTING COHORT" : "PRIVATE ALPHA"}</span>
             <h2 id="founder-testers-title">Invited testers</h2>
           </div>
           <p aria-label={`${joinedCount} joined and ${pendingCount} awaiting invitation acceptance`}>

@@ -8,7 +8,7 @@ export function TrustPage({
   title,
   summary,
   children,
-  updated = "August 5, 2026",
+  updated = "August 16, 2026",
 }: {
   eyebrow: string;
   title: string;
@@ -27,7 +27,7 @@ export function TrustPage({
           <span className="step-label">{eyebrow}</span>
           <h1>{title}</h1>
           <p>{summary}</p>
-          <small>Private-alpha version · Updated {updated}</small>
+          <small>Alpha version · Updated {updated}</small>
         </header>
         <div className="trust-content">{children}</div>
       </article>

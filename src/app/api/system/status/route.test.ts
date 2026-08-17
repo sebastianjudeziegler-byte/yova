@@ -41,12 +41,15 @@ describe("system status tester-access readiness", () => {
       publishableKey: "sb_publishable_test",
     };
     mocks.settingsFetch.mockReset().mockResolvedValue(new Response(
-      JSON.stringify({ disable_signup: true }),
+      JSON.stringify({ disable_signup: true, captcha_enabled: false }),
       { status: 200, headers: { "Content-Type": "application/json" } },
     ));
     vi.stubGlobal("fetch", mocks.settingsFetch);
     vi.stubEnv("AUTH_INVITE_ONLY", "true");
     vi.stubEnv("AUTH_EMAIL_CODE_VERIFICATION", "true");
+    vi.stubEnv("AUTH_PASSWORD_ACCOUNTS", "false");
+    vi.stubEnv("AUTH_CAPTCHA_ENABLED", "false");
+    vi.stubEnv("NEXT_PUBLIC_TURNSTILE_SITE_KEY", "");
   });
 
   it("reports invite readiness only when storage and the Supabase signup policy are ready", async () => {
@@ -57,6 +60,8 @@ describe("system status tester-access readiness", () => {
       testerAccess: "invite-only",
       testerInvitations: "founder-managed",
       emailVerification: "code-and-link",
+      passwordAccounts: "disabled",
+      captchaProtection: "disabled",
       publicSignup: "disabled",
     });
     expect(status).not.toHaveProperty("supabasePublishableKey");
@@ -69,7 +74,7 @@ describe("system status tester-access readiness", () => {
   it("fails the public readiness signal when the migration or signup lock is missing", async () => {
     mocks.invitationTableError = { code: "42P01" };
     mocks.settingsFetch.mockResolvedValue(new Response(
-      JSON.stringify({ disable_signup: false }),
+      JSON.stringify({ disable_signup: false, captcha_enabled: false }),
       { status: 200, headers: { "Content-Type": "application/json" } },
     ));
 
@@ -78,5 +83,40 @@ describe("system status tester-access readiness", () => {
 
     expect(status.testerInvitations).toBe("unavailable");
     expect(status.publicSignup).toBe("enabled");
+  });
+
+  it("reports public password accounts ready only when the app and Supabase CAPTCHA agree", async () => {
+    vi.stubEnv("AUTH_INVITE_ONLY", "false");
+    vi.stubEnv("AUTH_PASSWORD_ACCOUNTS", "true");
+    vi.stubEnv("AUTH_CAPTCHA_ENABLED", "true");
+    vi.stubEnv("NEXT_PUBLIC_TURNSTILE_SITE_KEY", "turnstile-public-key");
+    mocks.settingsFetch.mockResolvedValue(new Response(
+      JSON.stringify({ disable_signup: false, captcha_enabled: true }),
+      { status: 200, headers: { "Content-Type": "application/json" } },
+    ));
+
+    const response = await GET();
+    const status = await response.json();
+
+    expect(status).toMatchObject({
+      authentication: "supabase-password-and-email",
+      testerAccess: "open",
+      passwordAccounts: "enabled",
+      captchaProtection: "turnstile",
+      publicSignup: "enabled",
+    });
+  });
+
+  it("reports a partial CAPTCHA rollout as misconfigured", async () => {
+    vi.stubEnv("AUTH_PASSWORD_ACCOUNTS", "true");
+    vi.stubEnv("AUTH_CAPTCHA_ENABLED", "true");
+    vi.stubEnv("NEXT_PUBLIC_TURNSTILE_SITE_KEY", "");
+    mocks.settingsFetch.mockResolvedValue(new Response(
+      JSON.stringify({ disable_signup: true, captcha_enabled: true }),
+      { status: 200, headers: { "Content-Type": "application/json" } },
+    ));
+
+    const status = await (await GET()).json();
+    expect(status.captchaProtection).toBe("misconfigured");
   });
 });

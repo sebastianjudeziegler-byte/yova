@@ -11,6 +11,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
+    "test:e2e:auth": "YOVA_E2E_PASSWORD_AUTH=1 playwright test e2e/public-auth.spec.ts",
     "test:e2e:headed": "playwright test --headed",
     "eval:plans": "node scripts/run-plan-evaluations.mjs",
     "eval:sessions": "node scripts/run-session-evaluations.mjs",

@@ -7,10 +7,13 @@ export const dynamic = "force-dynamic";
 
 export async function GET() {
   const supabaseConfig = getSupabasePublicConfig();
-  const [testerInvitations, publicSignup] = await Promise.all([
+  const [testerInvitations, authSettings] = await Promise.all([
     testerInvitationStatus(),
-    publicSignupStatus(supabaseConfig),
+    publicAuthSettingsStatus(supabaseConfig),
   ]);
+  const passwordAccountsEnabled = process.env.AUTH_PASSWORD_ACCOUNTS === "true";
+  const captchaRequested = process.env.AUTH_CAPTCHA_ENABLED === "true";
+  const turnstileSiteKeyConfigured = Boolean(process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY?.trim());
 
   return NextResponse.json({
     planGeneration: isOpenAIPlanConfigured() ? "openai" : "preview",
@@ -18,11 +21,19 @@ export async function GET() {
     tutor: isOpenAITutorConfigured() ? "openai" : "unavailable",
     materials: isSupabaseConfigured() ? "private-supabase" : "unavailable",
     persistence: isSupabaseConfigured() ? "supabase" : "browser",
-    authentication: isSupabaseConfigured() ? "supabase-email" : "browser-preview",
+    authentication: isSupabaseConfigured()
+      ? passwordAccountsEnabled ? "supabase-password-and-email" : "supabase-email"
+      : "browser-preview",
     testerAccess: process.env.AUTH_INVITE_ONLY === "true" ? "invite-only" : "open",
     testerInvitations,
     emailVerification: process.env.AUTH_EMAIL_CODE_VERIFICATION === "true" ? "code-and-link" : "link-only",
-    publicSignup,
+    passwordAccounts: passwordAccountsEnabled ? "enabled" : "disabled",
+    captchaProtection: captchaRequested && turnstileSiteKeyConfigured && authSettings.captcha === "enabled"
+      ? "turnstile"
+      : captchaRequested || turnstileSiteKeyConfigured || authSettings.captcha === "enabled"
+        ? "misconfigured"
+        : "disabled",
+    publicSignup: authSettings.signup,
   }, {
     headers: { "Cache-Control": "no-store" },
   });
@@ -41,8 +52,8 @@ async function testerInvitationStatus() {
   }
 }
 
-async function publicSignupStatus(config: ReturnType<typeof getSupabasePublicConfig>) {
-  if (!config) return "unknown";
+async function publicAuthSettingsStatus(config: ReturnType<typeof getSupabasePublicConfig>) {
+  if (!config) return { signup: "unknown", captcha: "unknown" } as const;
 
   try {
     const response = await fetch(`${config.url.replace(/\/$/, "")}/auth/v1/settings`, {
@@ -50,11 +61,17 @@ async function publicSignupStatus(config: ReturnType<typeof getSupabasePublicCon
       cache: "no-store",
       signal: AbortSignal.timeout(5_000),
     });
-    if (!response.ok) return "unknown";
+    if (!response.ok) return { signup: "unknown", captcha: "unknown" } as const;
     const settings: unknown = await response.json();
-    if (!settings || typeof settings !== "object" || !("disable_signup" in settings)) return "unknown";
-    return settings.disable_signup === true ? "disabled" : "enabled";
+    if (!settings || typeof settings !== "object") return { signup: "unknown", captcha: "unknown" } as const;
+    const signup = "disable_signup" in settings
+      ? settings.disable_signup === true ? "disabled" : "enabled"
+      : "unknown";
+    const captcha = "captcha_enabled" in settings
+      ? settings.captcha_enabled === true ? "enabled" : "disabled"
+      : "unknown";
+    return { signup, captcha } as const;
   } catch {
-    return "unknown";
+    return { signup: "unknown", captcha: "unknown" } as const;
   }
 }

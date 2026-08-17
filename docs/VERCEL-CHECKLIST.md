@@ -11,6 +11,9 @@ NEXT_PUBLIC_SUPABASE_URL
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
 AUTH_EMAIL_CODE_VERIFICATION
 AUTH_INVITE_ONLY
+AUTH_PASSWORD_ACCOUNTS
+AUTH_CAPTCHA_ENABLED
+NEXT_PUBLIC_TURNSTILE_SITE_KEY
 SUPABASE_SECRET_KEY
 OPENAI_API_KEY
 OPENAI_PLAN_MODEL
@@ -24,6 +27,8 @@ SITE_URL
 Keep `AUTH_EMAIL_CODE_VERIFICATION` set to `false` until custom SMTP is active and the Supabase Magic link or OTP template displays `{{ .Token }}`. Then set it to `true` and redeploy.
 
 Keep `AUTH_INVITE_ONLY` set to `false` until migration `202608140002_tester_invites.sql` is applied, the founder invitation route is deployed, `SUPABASE_SECRET_KEY` is configured server-side, the Invite user template points to `/auth/confirm`, and Supabase **Allow new users to sign up** is disabled. Then enable it and redeploy. Keep the production secret out of Preview unless Preview uses a separate Supabase project.
+
+For public password accounts, follow `docs/PUBLIC-PASSWORD-ACCOUNTS.md`. Keep `AUTH_PASSWORD_ACCOUNTS=false` until the signup and recovery templates, password policy, Turnstile, and real email journey are ready. Public mode uses `AUTH_PASSWORD_ACCOUNTS=true`, `AUTH_INVITE_ONLY=false`, `AUTH_CAPTCHA_ENABLED=true`, and a configured `NEXT_PUBLIC_TURNSTILE_SITE_KEY`. Supabase **Allow new users to sign up** is the final launch switch.
 
 Use these model values unless a tested deployment intentionally overrides them:
 
