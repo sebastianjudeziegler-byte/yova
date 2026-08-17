@@ -2,8 +2,10 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { zodTextFormat } from "openai/helpers/zod";
-import { generationEnvironment } from "@/lib/analytics/generation-observation";
-import { recordGenerationObservation } from "@/lib/analytics/generation-observation-server";
+import {
+  GenerationObservationSchema,
+  generationEnvironment,
+} from "@/lib/analytics/generation-observation";
 import {
   MaterialUnderstandingSchema,
   type KnowledgeMapTopic,
@@ -11,6 +13,7 @@ import {
   type MaterialUnderstanding,
 } from "@/lib/knowledge-map/schema";
 import { chunkMaterialText, type MaterialTextChunk } from "@/lib/materials/chunk";
+import { persistMaterialMappingResult } from "@/lib/materials/material-mapping-persistence";
 import { getOpenAIClient } from "@/lib/openai/client";
 import { getOpenAIKnowledgeMapConfig } from "@/lib/openai/config";
 
@@ -135,7 +138,6 @@ export async function mapMaterialText(input: {
 
 export async function mapAndPersistMaterial(input: {
   supabase: SupabaseClient;
-  userId: string;
   materialId: string;
   filename: string;
   text: string;
@@ -145,74 +147,114 @@ export async function mapAndPersistMaterial(input: {
   const startedAt = Date.now();
   try {
     const mapped = await mapMaterialText(input);
-    const { data: current } = await input.supabase.from(table).select("metadata").eq("id", input.materialId).maybeSingle();
-    const prior = current?.metadata && typeof current.metadata === "object" && !Array.isArray(current.metadata)
-      ? current.metadata as Record<string, unknown>
-      : {};
-    const { error: chunkError } = await input.supabase.from("material_chunks").upsert(
-      mapped.chunks.map((chunk) => ({
+    const persisted = await persistMaterialMappingResult({
+      supabase: input.supabase,
+      table,
+      materialId: input.materialId,
+      metadataPatch: { mappingStatus: "ready", materialUnderstanding: mapped.understanding },
+      chunks: mapped.chunks.map((chunk) => ({
         id: chunk.id,
-        user_id: input.userId,
-        material_id: input.materialId,
-        chunk_index: chunk.index,
-        char_start: chunk.startCharacter,
-        char_end: chunk.endCharacter,
-        location_label: chunk.locationLabel,
-        section_role: chunk.sectionRole,
-        chunk_text: chunk.text,
+        chunkIndex: chunk.index,
+        charStart: chunk.startCharacter,
+        charEnd: chunk.endCharacter,
+        locationLabel: chunk.locationLabel,
+        sectionRole: chunk.sectionRole,
+        chunkText: chunk.text,
       })),
-      { onConflict: "material_id,chunk_index" },
-    );
-    if (chunkError) throw chunkError;
-    const { error: metadataError } = await input.supabase.from(table).update({
-      metadata: { ...prior, mappingStatus: "ready", materialUnderstanding: mapped.understanding },
-    }).eq("id", input.materialId);
-    if (metadataError) throw metadataError;
-    await recordGenerationObservation(input.supabase, input.userId, {
-      generationType: "material_mapping",
-      environment: generationEnvironment(),
-      finalOutcome: "success",
-      firstAttemptPassed: true,
-      failedValidator: null,
-      repairAttempted: false,
-      repairSucceeded: null,
-      elapsedMs: mapped.stats.elapsedMs,
-      attempts: mapped.stats.attempts,
-      inputTokens: mapped.stats.inputTokens,
-      cachedInputTokens: mapped.stats.cachedInputTokens,
-      cacheWriteTokens: mapped.stats.cacheWriteTokens,
-      outputTokens: mapped.stats.outputTokens,
-      model: mapped.stats.model,
-      diagnostics: { materialRole: mapped.understanding.role, chunkCount: mapped.chunks.length, topicCount: mapped.understanding.topics.length },
+      observation: materialMappingObservation({
+        finalOutcome: "success",
+        firstAttemptPassed: true,
+        failedValidator: null,
+        elapsedMs: mapped.stats.elapsedMs,
+        attempts: mapped.stats.attempts,
+        inputTokens: mapped.stats.inputTokens,
+        cachedInputTokens: mapped.stats.cachedInputTokens,
+        cacheWriteTokens: mapped.stats.cacheWriteTokens,
+        outputTokens: mapped.stats.outputTokens,
+        model: mapped.stats.model,
+        diagnostics: {
+          materialRole: mapped.understanding.role,
+          chunkCount: mapped.chunks.length,
+          topicCount: mapped.understanding.topics.length,
+        },
+      }),
     });
+    if (!persisted) throw new MaterialMappingSourceMissingError();
     return mapped.understanding;
   } catch (error) {
-    const { data: current } = await input.supabase.from(table).select("metadata").eq("id", input.materialId).maybeSingle();
-    const prior = current?.metadata && typeof current.metadata === "object" && !Array.isArray(current.metadata)
-      ? current.metadata as Record<string, unknown>
-      : {};
-    await input.supabase.from(table).update({ metadata: { ...prior, mappingStatus: "failed" } }).eq("id", input.materialId);
-    await recordGenerationObservation(input.supabase, input.userId, {
-      generationType: "material_mapping",
-      environment: generationEnvironment(),
-      finalOutcome: "failure",
-      firstAttemptPassed: false,
-      failedValidator: error instanceof MaterialMappingError
-        ? error.failedValidator
-        : error instanceof z.ZodError
-          ? "material_mapping_structure"
-          : "material_mapping_provider_request",
-      repairAttempted: false,
-      repairSucceeded: null,
-      elapsedMs: Date.now() - startedAt,
-      attempts: 1,
-      inputTokens: 0,
-      cachedInputTokens: 0,
-      cacheWriteTokens: 0,
-      outputTokens: 0,
-      model: getOpenAIKnowledgeMapConfig()?.model ?? null,
-    });
+    if (error instanceof MaterialMappingSourceMissingError) throw error;
+    await persistMaterialMappingResult({
+      supabase: input.supabase,
+      table,
+      materialId: input.materialId,
+      metadataPatch: { mappingStatus: "failed" },
+      chunks: [],
+      observation: materialMappingObservation({
+        finalOutcome: "failure",
+        firstAttemptPassed: false,
+        failedValidator: error instanceof MaterialMappingError
+          ? error.failedValidator
+          : error instanceof z.ZodError
+            ? "material_mapping_structure"
+            : "material_mapping_provider_request",
+        elapsedMs: Date.now() - startedAt,
+        attempts: 1,
+        inputTokens: 0,
+        cachedInputTokens: 0,
+        cacheWriteTokens: 0,
+        outputTokens: 0,
+        model: getOpenAIKnowledgeMapConfig()?.model ?? null,
+      }),
+    }).catch(() => false);
     throw error;
+  }
+}
+
+function materialMappingObservation(input: {
+  finalOutcome: "success" | "failure";
+  firstAttemptPassed: boolean;
+  failedValidator: import("@/lib/analytics/generation-observation").GenerationValidator | null;
+  elapsedMs: number;
+  attempts: number;
+  inputTokens: number;
+  cachedInputTokens: number;
+  cacheWriteTokens: number;
+  outputTokens: number;
+  model: string | null;
+  diagnostics?: {
+    materialRole: MaterialUnderstanding["role"];
+    chunkCount: number;
+    topicCount: number;
+  };
+}) {
+  return GenerationObservationSchema.parse({
+    generationType: "material_mapping",
+    environment: generationEnvironment(),
+    finalOutcome: input.finalOutcome,
+    firstAttemptPassed: input.firstAttemptPassed,
+    failedValidator: input.failedValidator,
+    repairAttempted: false,
+    repairSucceeded: null,
+    elapsedMs: Math.max(0, Math.min(300_000, Math.round(input.elapsedMs))),
+    attempts: Math.max(0, Math.min(16, Math.round(input.attempts))),
+    inputTokens: Math.max(0, Math.round(input.inputTokens)),
+    cachedInputTokens: Math.max(0, Math.round(input.cachedInputTokens)),
+    cacheWriteTokens: Math.max(0, Math.round(input.cacheWriteTokens)),
+    outputTokens: Math.max(0, Math.round(input.outputTokens)),
+    model: input.model?.slice(0, 80) ?? null,
+    ...(input.diagnostics ? {
+      diagnostics: {
+        materialRole: input.diagnostics.materialRole,
+        chunkCount: Math.min(100, input.diagnostics.chunkCount),
+        topicCount: Math.min(100, input.diagnostics.topicCount),
+      },
+    } : {}),
+  });
+}
+
+class MaterialMappingSourceMissingError extends Error {
+  constructor() {
+    super("The material was removed before mapping finished.");
   }
 }
 

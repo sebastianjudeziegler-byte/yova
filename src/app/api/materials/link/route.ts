@@ -110,7 +110,6 @@ export async function POST(request: Request) {
     after(async () => {
       await mapAndPersistMaterial({
         supabase,
-        userId: user.id,
         materialId,
         filename,
         text,
