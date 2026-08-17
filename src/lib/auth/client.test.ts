@@ -8,6 +8,8 @@ const mocks = vi.hoisted(() => ({
   resetPasswordForEmail: vi.fn(),
   resend: vi.fn(),
   updateUser: vi.fn(),
+  getSession: vi.fn(),
+  getUser: vi.fn(),
 }));
 
 vi.mock("@/lib/supabase/config", () => ({
@@ -22,12 +24,16 @@ vi.mock("@/lib/supabase/client", () => ({
       resetPasswordForEmail: mocks.resetPasswordForEmail,
       resend: mocks.resend,
       updateUser: mocks.updateUser,
+      getSession: mocks.getSession,
+      getUser: mocks.getUser,
     },
   }),
 }));
 
 import {
+  AuthConnectionError,
   createPasswordAccount,
+  getAuthenticatedAccount,
   requestEmailAuthentication,
   requestPasswordResetEmail,
   resendPasswordAccountVerification,
@@ -52,6 +58,8 @@ describe("browser password authentication", () => {
       mocks.resetPasswordForEmail,
       mocks.resend,
       mocks.updateUser,
+      mocks.getSession,
+      mocks.getUser,
     ]) mock.mockReset();
     vi.stubGlobal("window", { location: { origin: "https://yova.example" } });
   });
@@ -117,6 +125,32 @@ describe("browser password authentication", () => {
       "learner@example.com",
       "wrong-password",
     )).rejects.toThrow("Email or password is incorrect.");
+  });
+
+  it("returns null only when the browser genuinely has no session", async () => {
+    mocks.getSession.mockResolvedValue({ data: { session: null }, error: null });
+
+    await expect(getAuthenticatedAccount()).resolves.toBeNull();
+    expect(mocks.getUser).not.toHaveBeenCalled();
+  });
+
+  it("keeps a session lookup error distinct from a signed-out browser", async () => {
+    mocks.getSession.mockResolvedValueOnce({
+      data: { session: null },
+      error: { code: "connection_error", message: "provider unavailable" },
+    });
+
+    await expect(getAuthenticatedAccount()).rejects.toBeInstanceOf(AuthConnectionError);
+  });
+
+  it("keeps a user lookup error distinct from a signed-out browser", async () => {
+    mocks.getSession.mockResolvedValueOnce({ data: { session: { access_token: "token" } }, error: null });
+    mocks.getUser.mockResolvedValueOnce({
+      data: { user: null },
+      error: { code: "connection_error", message: "provider unavailable" },
+    });
+
+    await expect(getAuthenticatedAccount()).rejects.toBeInstanceOf(AuthConnectionError);
   });
 
   it("keeps password-reset success non-enumerating and sends the scanner-safe destination", async () => {

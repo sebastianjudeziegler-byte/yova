@@ -69,6 +69,7 @@ import { TutorMessageContent } from "@/components/tutor-message-content";
 import { trackProductEvent } from "@/lib/analytics/client";
 import { describeAuthCallbackResult } from "@/lib/auth/callback-result";
 import { AuthConnectionError, getAuthenticatedAccount, getAuthMode, signOutAuthenticatedAccount } from "@/lib/auth/client";
+import { protectsPreviewSnapshot, transitionCloudRecovery, type CloudRecoveryStatus } from "@/lib/auth/cloud-recovery";
 import {
   makeUuid,
   type ConfidenceEvidence,
@@ -358,6 +359,7 @@ export function YovaPrototype({
   const [earlySessionPlanId, setEarlySessionPlanId] = useState<string | null>(null);
   const [earlySchedulePending, setEarlySchedulePending] = useState(false);
   const [earlyScheduleIssue, setEarlyScheduleIssue] = useState<string | null>(null);
+  const cloudRecoveryStatusRef = useRef<CloudRecoveryStatus>("idle");
   const sessionGenerationAbortRef = useRef<AbortController | null>(null);
   const sessionGenerationAttemptRef = useRef<{
     planSessionId: string;
@@ -474,9 +476,20 @@ export function YovaPrototype({
           cloudAccount = await getAuthenticatedAccount();
         } catch (error) {
           if (cancelled) return;
-          setAuthStartupIssue(error instanceof AuthConnectionError
+          const message = error instanceof AuthConnectionError
             ? error.message
-            : "YOVA could not check your account securely. Try again in a moment.");
+            : "YOVA could not check your account securely. Try again in a moment.";
+          cloudRecoveryStatusRef.current = transitionCloudRecovery(
+            cloudRecoveryStatusRef.current,
+            "auth-check-failed",
+          );
+          if (protectsPreviewSnapshot(cloudRecoveryStatusRef.current)) {
+            setCloudSyncIssue(message);
+            setStage("cloud-error");
+            setReady(true);
+            return;
+          }
+          setAuthStartupIssue(message);
           setStage("landing");
           setReady(true);
           return;
@@ -493,6 +506,10 @@ export function YovaPrototype({
           const interruptionRetryResult = await flushQueuedSessionInterruptions(cloudAccount.id);
           const cloudState = await loadAuthenticatedLearningStateWithRetry();
           if (cancelled) return;
+          cloudRecoveryStatusRef.current = transitionCloudRecovery(
+            cloudRecoveryStatusRef.current,
+            "cloud-restored",
+          );
 
           const restoredAccount = cloudState.displayName
             ? { ...cloudAccount, displayName: cloudState.displayName }
@@ -530,6 +547,10 @@ export function YovaPrototype({
             && saved
             && saved.onboardingCompleted;
           if (hasTrustedLocalState) {
+            cloudRecoveryStatusRef.current = transitionCloudRecovery(
+              cloudRecoveryStatusRef.current,
+              "trusted-local-restored",
+            );
             setAnswers(saved.onboardingAnswers);
             setOnboardingCompleted(saved.onboardingCompleted);
             setAlphaEntered(saved.alphaEntered);
@@ -541,6 +562,10 @@ export function YovaPrototype({
             if (saved.alphaEntered || saved.plans.some((plan) => plan.status === "active")) setStage("app");
             else setStage("paywall");
           } else {
+            cloudRecoveryStatusRef.current = transitionCloudRecovery(
+              cloudRecoveryStatusRef.current,
+              "cloud-read-failed",
+            );
             setAnswers([]);
             setOnboardingCompleted(false);
             setAlphaEntered(false);
@@ -557,6 +582,16 @@ export function YovaPrototype({
         else if (saved.onboardingCompleted) setStage("paywall");
         else setStage("onboarding-intro");
       } else if (authMode === "supabase") {
+        cloudRecoveryStatusRef.current = transitionCloudRecovery(
+          cloudRecoveryStatusRef.current,
+          "auth-account-missing",
+        );
+        if (protectsPreviewSnapshot(cloudRecoveryStatusRef.current)) {
+          setCloudSyncIssue("YOVA could not confirm your account while reopening your saved profile. Try again.");
+          setStage("cloud-error");
+          setReady(true);
+          return;
+        }
         clearPreviewSnapshot();
         setAccount(null);
         setSignedIn(false);
@@ -580,7 +615,7 @@ export function YovaPrototype({
   }, [authCheckAttempt]);
 
   useEffect(() => {
-    if (!ready || stage === "cloud-error" || !account || !signedIn) return;
+    if (!ready || protectsPreviewSnapshot(cloudRecoveryStatusRef.current) || stage === "cloud-error" || !account || !signedIn) return;
     savePreviewSnapshot({
       version: 1,
       account,
@@ -1675,6 +1710,28 @@ export function YovaPrototype({
     if (issue) throw new Error(issue);
   };
 
+  const signOut = () => {
+    void signOutAuthenticatedAccount().finally(() => {
+      cloudRecoveryStatusRef.current = transitionCloudRecovery(
+        cloudRecoveryStatusRef.current,
+        "explicit-sign-out",
+      );
+      clearPreviewSnapshot();
+      setAccount(null);
+      setSignedIn(false);
+      setAnswers([]);
+      setOnboardingCompleted(false);
+      setAlphaEntered(false);
+      setPlans([]);
+      setDeadlineMilestones([]);
+      setSelectedPlanId(null);
+      setSessionCompletions([]);
+      setSessionInterruptions([]);
+      setActiveTab("Home");
+      setStage("landing");
+    });
+  };
+
   const advanceActiveSession = async (evaluation: AnswerEvaluationResponse | null) => {
     const currentSession = activePlan?.sessions.find((session) => session.status === "ready") ?? null;
     const currentActivity = activeLessonSteps[sessionStep];
@@ -1776,7 +1833,7 @@ export function YovaPrototype({
   if (!ready) return <LoadingAccount />;
 
   if (stage === "landing") return <Landing inviteOnly={inviteOnly} authIssue={authStartupIssue} onRetryAuth={() => { setReady(false); setAuthCheckAttempt((attempt) => attempt + 1); }} onCreate={() => { setAccountMode(inviteOnly ? "sign-in" : "create"); setStage("account"); }} onSignIn={() => { setAccountMode("sign-in"); setStage("account"); }} />;
-  if (stage === "cloud-error") return <CloudAccountLoadError issue={cloudSyncIssue} onRetry={() => { setReady(false); setAuthCheckAttempt((attempt) => attempt + 1); }} />;
+  if (stage === "cloud-error") return <CloudAccountLoadError issue={cloudSyncIssue} onRetry={() => { setReady(false); setAuthCheckAttempt((attempt) => attempt + 1); }} onSignOut={signOut} />;
   if (stage === "account") {
     return <AccountEntry key={accountMode} mode={accountMode} existingAccount={account} emailCodeVerificationEnabled={emailCodeVerificationEnabled} inviteOnly={inviteOnly} passwordAccountsEnabled={passwordAccountsEnabled} turnstileSiteKey={turnstileSiteKey} browserPreviewMode={browserPreviewMode} onBack={() => setStage("landing")} onModeChange={setAccountMode} onContinue={(nextAccount) => {
       if (accountMode === "create") {
@@ -1965,23 +2022,7 @@ export function YovaPrototype({
   }
 
   return <>
-    <AppShell activeTab={activeTab} onTab={openTab} account={account} cloudSyncIssue={cloudSyncIssue} onRetryCloudSync={retryCloudSync} onAdd={beginAgendaAdd} workspaceClassName={personalizationWorkspaceClassName} onSignOut={() => {
-      void signOutAuthenticatedAccount().finally(() => {
-        clearPreviewSnapshot();
-        setAccount(null);
-        setSignedIn(false);
-        setAnswers([]);
-        setOnboardingCompleted(false);
-        setAlphaEntered(false);
-        setPlans([]);
-        setDeadlineMilestones([]);
-        setSelectedPlanId(null);
-        setSessionCompletions([]);
-        setSessionInterruptions([]);
-        setActiveTab("Home");
-        setStage("landing");
-      });
-    }}>
+    <AppShell activeTab={activeTab} onTab={openTab} account={account} cloudSyncIssue={cloudSyncIssue} onRetryCloudSync={retryCloudSync} onAdd={beginAgendaAdd} workspaceClassName={personalizationWorkspaceClassName} onSignOut={signOut}>
       {activeTab === "Home" && <HomeScreen account={account} answers={answers} plans={activePlans} plan={recommendedPlan} sessionCompletions={sessionCompletions} sessionInterruptions={sessionInterruptions} tutorQuestion={tutorQuestion} onTutorQuestion={setTutorQuestion} onOpenTutor={openAskYova} onOpenYou={() => setActiveTab("You")} onStart={(planId) => requestSessionStart(planId)} onOpenPlan={(planId) => { setSelectedPlanId(planId); setLearningDetailPlanId(planId); setActiveTab("Learning"); }} onCreatePlan={beginPlanCreation} onStudyNow={() => { setCreatorSeed(null); setCreatorMilestoneId(null); setStage("study-now"); }} />}
       {activeTab === "Learning" && <LearningScreen plans={plans} detailPlanId={learningDetailPlanId} sessionCompletions={sessionCompletions} sessionInterruptions={sessionInterruptions} onOpenPlan={(planId) => { setSelectedPlanId(planId); setLearningDetailPlanId(planId); }} onClosePlan={() => setLearningDetailPlanId(null)} onStart={requestSessionStart} onCreatePlan={beginPlanCreation} onArchiveStateChange={changePlanArchiveState} onAdjustPlan={adjustPlan} onKnowledgeMapUpdate={updatePlanKnowledgeMap} onAttachMaterials={attachMaterials} />}
       {activeTab === "Agenda" && <AgendaScreen plans={plans.filter((plan) => plan.status !== "archived")} milestones={deadlineMilestones} sessionCompletions={sessionCompletions} sessionInterruptions={sessionInterruptions} previewMode={account?.identityMode === "preview"} onAdd={beginAgendaAdd} onStart={requestSessionStart} onActivateReview={activateConceptReview} onReschedule={rescheduleSession} onAdjustDuration={adjustSessionDuration} onClassifyRecoveryInterruption={setRecoveryEvidenceClassification} onUpdateMilestone={updateDeadlineMilestone} onDeleteMilestone={deleteDeadlineMilestone} onConvertMilestone={(milestone, outcome) => { setCreatorSeed({ title: milestone.title, objective: milestone.description || `Complete ${milestone.title}`, itemType: "assignment", dueAt: milestone.dueAt, scope: milestone.description || milestone.title, progress: "", materialsSummary: "No materials attached yet.", missingFields: milestone.description ? [] : ["scope"], description: milestone.description || milestone.title, materials: [] }); setCreatorMilestoneId(milestone.id); setStage(outcome === "session" ? "study-now" : "plan-creator"); }} />}
@@ -2018,8 +2059,8 @@ function LoadingAccount() {
   return <main className="centered-shell"><BrandMark /><p className="muted">Opening your YOVA…</p></main>;
 }
 
-function CloudAccountLoadError({ issue, onRetry }: { issue: string | null; onRetry: () => void }) {
-  return <main className="centered-shell"><BrandMark /><section className="setup-card" role="alert"><div className="mail-check" aria-hidden="true"><AlertCircle size={24} /></div><span className="step-label">ACCOUNT CONNECTION INTERRUPTED</span><h1>YOVA could not safely reopen your profile.</h1><p>{issue ?? "Your cloud learning profile is temporarily unavailable."} Your account and saved learning data have not been changed.</p><button className="button primary large full" onClick={onRetry}>Try opening YOVA again <RotateCcw size={18} /></button></section></main>;
+function CloudAccountLoadError({ issue, onRetry, onSignOut }: { issue: string | null; onRetry: () => void; onSignOut: () => void }) {
+  return <main className="centered-shell"><BrandMark /><section className="setup-card" role="alert"><div className="mail-check" aria-hidden="true"><AlertCircle size={24} /></div><span className="step-label">ACCOUNT CONNECTION INTERRUPTED</span><h1>YOVA could not safely reopen your profile.</h1><p>{issue ?? "Your cloud learning profile is temporarily unavailable."} Your account and saved learning data have not been changed.</p><button className="button primary large full" onClick={onRetry}>Try opening YOVA again <RotateCcw size={18} /></button><button className="button ghost full" onClick={onSignOut}>Sign out</button></section></main>;
 }
 
 function Landing({ inviteOnly, authIssue, onRetryAuth, onCreate, onSignIn }: { inviteOnly: boolean; authIssue: string | null; onRetryAuth: () => void; onCreate: () => void; onSignIn: () => void }) {
