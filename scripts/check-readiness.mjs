@@ -82,7 +82,7 @@ if (production) {
       "Authentication CAPTCHA",
       captchaEnabled && Boolean(turnstileSiteKey),
       captchaEnabled && turnstileSiteKey
-        ? "Turnstile is required by the public account forms"
+        ? "the Turnstile client is required by the public account forms; verify provider enforcement separately"
         : "set AUTH_CAPTCHA_ENABLED=true and NEXT_PUBLIC_TURNSTILE_SITE_KEY before public signup",
     );
   } else {
@@ -98,7 +98,7 @@ if (production) {
         "Invite sign-in CAPTCHA",
         Boolean(turnstileSiteKey),
         turnstileSiteKey
-          ? "Turnstile protects passwordless tester sign-in"
+          ? "the Turnstile client is enabled for passwordless tester sign-in; verify provider enforcement separately"
           : "set NEXT_PUBLIC_TURNSTILE_SITE_KEY or disable AUTH_CAPTCHA_ENABLED",
       );
     }

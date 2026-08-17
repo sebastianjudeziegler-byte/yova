@@ -14,6 +14,9 @@ export async function GET() {
   const passwordAccountsEnabled = process.env.AUTH_PASSWORD_ACCOUNTS === "true";
   const captchaRequested = process.env.AUTH_CAPTCHA_ENABLED === "true";
   const turnstileSiteKeyConfigured = Boolean(process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY?.trim());
+  const captchaClient = captchaRequested === turnstileSiteKeyConfigured
+    ? captchaRequested ? "turnstile" : "disabled"
+    : "misconfigured";
 
   return NextResponse.json({
     planGeneration: isOpenAIPlanConfigured() ? "openai" : "preview",
@@ -28,11 +31,7 @@ export async function GET() {
     testerInvitations,
     emailVerification: process.env.AUTH_EMAIL_CODE_VERIFICATION === "true" ? "code-and-link" : "link-only",
     passwordAccounts: passwordAccountsEnabled ? "enabled" : "disabled",
-    captchaProtection: captchaRequested && turnstileSiteKeyConfigured && authSettings.captcha === "enabled"
-      ? "turnstile"
-      : captchaRequested || turnstileSiteKeyConfigured || authSettings.captcha === "enabled"
-        ? "misconfigured"
-        : "disabled",
+    captchaClient,
     publicSignup: authSettings.signup,
   }, {
     headers: { "Cache-Control": "no-store" },
@@ -53,7 +52,7 @@ async function testerInvitationStatus() {
 }
 
 async function publicAuthSettingsStatus(config: ReturnType<typeof getSupabasePublicConfig>) {
-  if (!config) return { signup: "unknown", captcha: "unknown" } as const;
+  if (!config) return { signup: "unknown" } as const;
 
   try {
     const response = await fetch(`${config.url.replace(/\/$/, "")}/auth/v1/settings`, {
@@ -61,17 +60,14 @@ async function publicAuthSettingsStatus(config: ReturnType<typeof getSupabasePub
       cache: "no-store",
       signal: AbortSignal.timeout(5_000),
     });
-    if (!response.ok) return { signup: "unknown", captcha: "unknown" } as const;
+    if (!response.ok) return { signup: "unknown" } as const;
     const settings: unknown = await response.json();
-    if (!settings || typeof settings !== "object") return { signup: "unknown", captcha: "unknown" } as const;
+    if (!settings || typeof settings !== "object") return { signup: "unknown" } as const;
     const signup = "disable_signup" in settings
       ? settings.disable_signup === true ? "disabled" : "enabled"
       : "unknown";
-    const captcha = "captcha_enabled" in settings
-      ? settings.captcha_enabled === true ? "enabled" : "disabled"
-      : "unknown";
-    return { signup, captcha } as const;
+    return { signup } as const;
   } catch {
-    return { signup: "unknown", captcha: "unknown" } as const;
+    return { signup: "unknown" } as const;
   }
 }

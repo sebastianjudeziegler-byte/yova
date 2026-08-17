@@ -14,6 +14,9 @@ describe("public password email setup documentation", () => {
   it("requires CAPTCHA and a rollback path before public signup", () => {
     expect(setup).toContain("AUTH_CAPTCHA_ENABLED=true");
     expect(setup).toContain("NEXT_PUBLIC_TURNSTILE_SITE_KEY");
+    expect(setup).toContain('captchaClient: "turnstile"');
+    expect(setup).toContain("does not prove Supabase enforces them");
+    expect(setup).toContain("without a CAPTCHA token");
     expect(setup).toContain("Allow new users to sign up");
     expect(setup).toContain("## Rollback");
   });

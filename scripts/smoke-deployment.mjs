@@ -129,7 +129,7 @@ try {
       authentication: "supabase-password-and-email",
       testerAccess: "open",
       testerInvitations: "founder-managed",
-      captchaProtection: "turnstile",
+      captchaClient: "turnstile",
       publicSignup: "enabled",
     })) {
       const actual = status?.[capability];
@@ -147,10 +147,10 @@ try {
       if (actual === expected) pass(`${capability} is using ${expected}`);
       else fail(`${capability} expected ${expected}, received ${actual || "nothing"}`);
     }
-    if (["disabled", "turnstile"].includes(status?.captchaProtection)) {
-      pass(`Invite sign-in CAPTCHA is ${status.captchaProtection}`);
+    if (["disabled", "turnstile"].includes(status?.captchaClient)) {
+      pass(`Invite sign-in CAPTCHA client is ${status.captchaClient}`);
     } else {
-      fail(`Invite sign-in CAPTCHA is misconfigured (${status?.captchaProtection || "nothing"})`);
+      fail(`Invite sign-in CAPTCHA client is misconfigured (${status?.captchaClient || "nothing"})`);
     }
   } else {
     fail(`passwordAccounts expected enabled or disabled, received ${status?.passwordAccounts || "nothing"}`);
