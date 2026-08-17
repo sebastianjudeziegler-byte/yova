@@ -18,7 +18,7 @@ export default function HomePage() {
   if (productionNeedsConfiguration) {
     return (
       <SystemStateScreen
-        eyebrow="Private alpha setup"
+        eyebrow="YOVA setup"
         title="YOVA is finishing its connection."
         description="This environment is not ready to create durable accounts or personalized sessions yet. No learning work is being saved here. Please try again after setup is complete."
         documentTitle="YOVA · Setup in progress"

@@ -144,7 +144,6 @@ async function openPreviewApp(page: Page) {
     await page.getByRole("button", { name: index === onboardingAnswers.length - 1 ? "Build my setup" : "Continue" }).click();
   }
 
-  await page.getByRole("button", { name: "Continue" }).click();
-  await page.getByRole("button", { name: "Continue to private alpha" }).click();
+  await page.getByRole("button", { name: "Open YOVA" }).click();
   await expect(page.getByRole("heading", { name: /Good (morning|afternoon|evening), Learner\./ })).toBeVisible();
 }

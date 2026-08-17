@@ -1025,8 +1025,7 @@ async function completeOnboarding(page: Page) {
   }
 
   await expect(page.getByRole("heading", { name: "YOVA will begin like this." })).toBeVisible();
-  await page.getByRole("button", { name: "Continue" }).click();
-  await page.getByRole("button", { name: "Continue to private alpha" }).click();
+  await page.getByRole("button", { name: "Open YOVA" }).click();
 }
 
 async function leaveSession(page: Page, progressText: string) {
