@@ -225,11 +225,14 @@ export async function getAuthenticatedAccount(): Promise<PreviewAccount | null> 
 
   const supabase = createSupabaseBrowserClient();
   const { data: sessionData, error: sessionError } = await withAuthTimeout(supabase.auth.getSession());
-  if (sessionError || !sessionData.session) return null;
+  if (sessionError) throw new AuthConnectionError();
+  if (!sessionData.session) return null;
 
   const { data, error } = await withAuthTimeout(supabase.auth.getUser());
-  if (error) return null;
-  return previewAccountFromUser(data.user);
+  if (error) throw new AuthConnectionError();
+  const account = previewAccountFromUser(data.user);
+  if (!account) throw new AuthConnectionError();
+  return account;
 }
 
 export async function verifyEmailAuthenticationCode(email: string, code: string): Promise<PreviewAccount> {
