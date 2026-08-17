@@ -15,6 +15,11 @@ import type {
 import { readConceptEvidenceProperty } from "@/lib/learning/concept-evidence";
 import { readConfidenceEvidenceProperty } from "@/lib/learning/confidence-calibration";
 import {
+  compareActiveSessionCheckpointProgress,
+  readActiveSessionCheckpoint,
+  type ActiveSessionCheckpointV1,
+} from "@/lib/learning/active-session-checkpoint";
+import {
   readSessionAdjustmentSnapshot,
   readSessionEvidenceSnapshot,
   readSessionPendingRepair,
@@ -125,6 +130,7 @@ export type CloudLearningState = {
   deadlineMilestones: DeadlineMilestone[];
   sessionCompletions: SessionCompletion[];
   sessionInterruptions: SessionInterruption[];
+  activeSessionCheckpoints: ActiveSessionCheckpointV1[];
 };
 
 const AUTHENTICATED_STATE_RETRY_DELAYS_MS = [150, 400] as const;
@@ -213,6 +219,8 @@ export async function loadAuthenticatedLearningState(): Promise<CloudLearningSta
   const planIdBySessionId = new Map<string, string>();
   const plannedMinutesBySessionId = new Map<string, number>();
   const materialsByItemId = new Map<string, LearningPlan["materials"]>();
+  const activeSessionCheckpoints: ActiveSessionCheckpointV1[] = [];
+  const checkpointReadAt = Date.now();
 
   for (const row of materialRows) {
     const current = materialsByItemId.get(row.learning_item_id) ?? [];
@@ -257,6 +265,20 @@ export async function loadAuthenticatedLearningState(): Promise<CloudLearningSta
     sessionsByPlanId.set(row.plan_id, current);
     planIdBySessionId.set(row.id, row.plan_id);
     plannedMinutesBySessionId.set(row.id, row.estimated_minutes);
+
+    const activeSessionCheckpoint = readActiveSessionCheckpoint(
+      readProperty(row.step_data, "activeSessionCheckpoint"),
+      checkpointReadAt,
+    );
+    if (
+      activeSessionCheckpoint
+      && activeSessionCheckpoint.resourceGeneratedAt
+      && activeSessionCheckpoint.accountId === authData.user.id
+      && activeSessionCheckpoint.planId === row.plan_id
+      && activeSessionCheckpoint.planSessionId === row.id
+    ) {
+      activeSessionCheckpoints.push(activeSessionCheckpoint);
+    }
   }
 
   const plans = planRows.flatMap<LearningPlan>((planRow) => {
@@ -348,6 +370,7 @@ export async function loadAuthenticatedLearningState(): Promise<CloudLearningSta
     deadlineMilestones,
     sessionCompletions,
     sessionInterruptions,
+    activeSessionCheckpoints,
   };
 }
 
@@ -368,6 +391,208 @@ function readLearningIntent(value: unknown) {
 function readCreationIntent(value: unknown): LearningPlan["creationIntent"] {
   const candidate = readTextProperty(value, "intent");
   return candidate === "study_now" ? "study_now" : "plan";
+}
+
+export class ActiveSessionCheckpointConflictError extends Error {
+  constructor() {
+    super("YOVA found a different saved version of this lesson in your account.");
+    this.name = "ActiveSessionCheckpointConflictError";
+  }
+}
+
+export class ActiveSessionCheckpointTerminalError extends Error {
+  constructor() {
+    super("This lesson is already complete and its recovery marker was removed.");
+    this.name = "ActiveSessionCheckpointTerminalError";
+  }
+}
+
+type ActiveSessionCheckpointWriteWaiter = {
+  resolve: (checkpoint: ActiveSessionCheckpointV1) => void;
+  reject: (reason: unknown) => void;
+};
+
+type CloudSyncActiveSessionCheckpoint = ActiveSessionCheckpointV1 & {
+  resourceGeneratedAt: string;
+};
+
+type ActiveSessionCheckpointWriteQueue = {
+  latestRequested: CloudSyncActiveSessionCheckpoint;
+  pending: CloudSyncActiveSessionCheckpoint | null;
+  waiters: ActiveSessionCheckpointWriteWaiter[];
+  running: boolean;
+};
+
+const activeSessionCheckpointWriteQueues = new Map<string, ActiveSessionCheckpointWriteQueue>();
+
+/**
+ * Keeps at most one save in flight for each lesson. Writes queued behind it are
+ * collapsed to the checkpoint with the most progress so an older browser event
+ * cannot roll back a newer completed step. Every caller waits for the queue to
+ * drain and receives the final authoritative server checkpoint.
+ */
+export function saveAuthenticatedActiveSessionCheckpoint(
+  value: ActiveSessionCheckpointV1,
+) {
+  const checkpoint = readActiveSessionCheckpoint(value);
+  if (!checkpoint || !checkpoint.resourceGeneratedAt) {
+    return Promise.reject(new Error("YOVA refused to sync an invalid session recovery marker."));
+  }
+  if (!isSupabaseConfigured()) return Promise.resolve(checkpoint);
+  const cloudCheckpoint: CloudSyncActiveSessionCheckpoint = {
+    ...checkpoint,
+    resourceGeneratedAt: checkpoint.resourceGeneratedAt,
+  };
+
+  return new Promise<ActiveSessionCheckpointV1>((resolve, reject) => {
+    const queue = activeSessionCheckpointWriteQueues.get(cloudCheckpoint.planSessionId);
+    if (queue) {
+      if (preferQueuedActiveSessionCheckpoint(cloudCheckpoint, queue.latestRequested)) {
+        queue.latestRequested = cloudCheckpoint;
+        queue.pending = cloudCheckpoint;
+      }
+      queue.waiters.push({ resolve, reject });
+    } else {
+      activeSessionCheckpointWriteQueues.set(cloudCheckpoint.planSessionId, {
+        latestRequested: cloudCheckpoint,
+        pending: cloudCheckpoint,
+        waiters: [{ resolve, reject }],
+        running: false,
+      });
+    }
+
+    const activeQueue = activeSessionCheckpointWriteQueues.get(cloudCheckpoint.planSessionId);
+    if (activeQueue && !activeQueue.running) {
+      activeQueue.running = true;
+      void drainActiveSessionCheckpointWrites(cloudCheckpoint.planSessionId);
+    }
+  });
+}
+
+async function drainActiveSessionCheckpointWrites(planSessionId: string) {
+  const queue = activeSessionCheckpointWriteQueues.get(planSessionId);
+  if (!queue) return;
+  let authoritative: ActiveSessionCheckpointV1 | null = null;
+  let finalIssue: unknown = null;
+
+  while (queue.pending) {
+    const checkpoint = queue.pending;
+    queue.pending = null;
+    try {
+      authoritative = await persistAuthenticatedActiveSessionCheckpoint(checkpoint);
+      finalIssue = null;
+    } catch (error) {
+      finalIssue = error;
+    }
+  }
+
+  activeSessionCheckpointWriteQueues.delete(planSessionId);
+  if (finalIssue || !authoritative) {
+    const issue = finalIssue ?? new Error("YOVA could not confirm this lesson's cloud recovery point.");
+    queue.waiters.forEach((waiter) => waiter.reject(issue));
+  } else {
+    queue.waiters.forEach((waiter) => waiter.resolve(authoritative));
+  }
+}
+
+async function persistAuthenticatedActiveSessionCheckpoint(
+  checkpoint: CloudSyncActiveSessionCheckpoint,
+) {
+  const supabase = createSupabaseBrowserClient();
+  const { data, error } = await supabase.rpc("save_active_session_checkpoint", {
+    payload: activeSessionCheckpointCloudPayload(checkpoint),
+  });
+
+  if (error) {
+    if (isActiveSessionCheckpointTerminalIssue(error)) {
+      throw new ActiveSessionCheckpointTerminalError();
+    }
+    if (isActiveSessionCheckpointConflictIssue(error)) {
+      throw new ActiveSessionCheckpointConflictError();
+    }
+    throw new Error("YOVA kept this lesson on this device but could not sync its recovery point.");
+  }
+
+  const authoritative = readActiveSessionCheckpoint(data);
+  if (!authoritative) {
+    throw new Error("YOVA received an invalid cloud recovery point for this lesson.");
+  }
+  if (
+    authoritative.accountId !== checkpoint.accountId
+    || authoritative.planId !== checkpoint.planId
+    || authoritative.planSessionId !== checkpoint.planSessionId
+    || authoritative.runId !== checkpoint.runId
+    || authoritative.resourceFingerprint !== checkpoint.resourceFingerprint
+    || authoritative.resourceGeneratedAt !== checkpoint.resourceGeneratedAt
+  ) {
+    throw new ActiveSessionCheckpointConflictError();
+  }
+  return authoritative;
+}
+
+export async function deleteAuthenticatedActiveSessionCheckpoint(
+  planSessionId: string,
+  runId?: string,
+) {
+  if (!isSupabaseConfigured()) return;
+  const supabase = createSupabaseBrowserClient();
+  const { error } = await supabase.rpc("delete_active_session_checkpoint", {
+    requested_plan_session_id: planSessionId,
+    requested_run_id: runId ?? null,
+  });
+  if (error) {
+    throw new Error("YOVA could not remove this lesson recovery point from the cloud.");
+  }
+}
+
+function preferQueuedActiveSessionCheckpoint(
+  candidate: CloudSyncActiveSessionCheckpoint,
+  current: CloudSyncActiveSessionCheckpoint,
+) {
+  if (
+    candidate.runId === current.runId
+    && candidate.resourceFingerprint === current.resourceFingerprint
+    && candidate.resourceGeneratedAt === current.resourceGeneratedAt
+  ) {
+    return compareActiveSessionCheckpointProgress(candidate, current) > 0;
+  }
+  return Date.parse(candidate.savedAt) > Date.parse(current.savedAt);
+}
+
+function activeSessionCheckpointCloudPayload(checkpoint: CloudSyncActiveSessionCheckpoint) {
+  return {
+    version: checkpoint.version,
+    runId: checkpoint.runId,
+    planSessionId: checkpoint.planSessionId,
+    status: checkpoint.status,
+    startedAt: checkpoint.startedAt,
+    savedAt: checkpoint.savedAt,
+    activeSeconds: checkpoint.activeSeconds,
+    plannedMinutes: checkpoint.plannedMinutes,
+    completedSteps: checkpoint.completedSteps,
+    totalSteps: checkpoint.totalSteps,
+    resumeStep: checkpoint.resumeStep,
+    resourceFingerprint: checkpoint.resourceFingerprint,
+    resourceGeneratedAt: checkpoint.resourceGeneratedAt,
+    ...(checkpoint.evidence ? { evidence: checkpoint.evidence } : {}),
+    ...(checkpoint.pendingRepair ? { pendingRepair: checkpoint.pendingRepair } : {}),
+    ...(checkpoint.status === "awaiting_finish" ? {
+      completedAt: checkpoint.completedAt,
+      completionFeedback: checkpoint.completionFeedback,
+    } : {}),
+  };
+}
+
+function isActiveSessionCheckpointConflictIssue(error: unknown) {
+  const code = readTextProperty(error, "code");
+  const message = readTextProperty(error, "message").toLowerCase();
+  return code === "40001" || message.includes("active_session_checkpoint_conflict");
+}
+
+function isActiveSessionCheckpointTerminalIssue(error: unknown) {
+  const code = readTextProperty(error, "code");
+  const message = readTextProperty(error, "message").toLowerCase();
+  return code === "55000" || message.includes("active_session_checkpoint_terminal");
 }
 
 type LearnerProfileSaveInput = {

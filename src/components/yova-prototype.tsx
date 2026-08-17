@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import {
@@ -133,15 +133,20 @@ import { buildSessionMapDelta } from "@/lib/knowledge-map/session-delta";
 import { PlanKnowledgeMapSchema, type PlanKnowledgeMap } from "@/lib/knowledge-map/schema";
 import {
   chooseLatestSessionResumePoint,
+  checkpointMatchesSessionResource,
   clearActiveSessionCheckpoints,
+  compareActiveSessionCheckpointProgress,
   fingerprintSessionResource,
   loadActiveSessionCheckpoints,
+  mergeActiveSessionCheckpoints,
   removeActiveSessionCheckpoint,
+  replaceActiveSessionCheckpointsForAccount,
   restoreCheckpointSessionResources,
   saveActiveSessionCheckpoint,
   type ActiveSessionCheckpointResumePoint,
   type ActiveSessionCheckpointV1,
 } from "@/lib/learning/active-session-checkpoint";
+import { cloudCheckpointResponseIsCurrent } from "@/lib/learning/active-session-cloud-sync";
 import {
   createActiveSessionClock,
   pauseActiveSessionClock,
@@ -221,10 +226,14 @@ import { PlanArchiveResponseSchema } from "@/lib/learning/status-schema";
 import { MaterialAttachmentResponseSchema } from "@/lib/materials/attachment-schema";
 import { deleteUploadedMaterial, uploadMaterialFiles } from "@/lib/materials/intake";
 import {
+  ActiveSessionCheckpointConflictError,
+  ActiveSessionCheckpointTerminalError,
   activateAuthenticatedConceptReviewSession,
   completeAuthenticatedPlanSession,
+  deleteAuthenticatedActiveSessionCheckpoint,
   loadAuthenticatedLearningStateWithRetry,
   recordAuthenticatedSessionInterruption,
+  saveAuthenticatedActiveSessionCheckpoint,
   saveAuthenticatedLearnerProfile,
 } from "@/lib/supabase/learning-state-repository";
 import {
@@ -274,16 +283,20 @@ import {
 } from "@/lib/scheduling/advance";
 import {
   clearQueuedSessionCompletions,
-  flushQueuedSessionCompletions,
+  pendingSessionCompletionPlanSessionIds,
   queueSessionCompletion,
   removeQueuedSessionCompletion,
 } from "@/lib/sync/session-completion-outbox";
 import {
   clearQueuedSessionInterruptions,
-  flushQueuedSessionInterruptions,
+  pendingSessionInterruptionRunIds,
   queueSessionInterruption,
   removeQueuedSessionInterruption,
 } from "@/lib/sync/session-interruption-outbox";
+import {
+  flushQueuedSessionTerminals,
+  syncSessionCompletionAfterTerminals,
+} from "@/lib/sync/session-terminal-outbox";
 import {
   TutorHistoryResponseSchema,
   TutorResponseSchema,
@@ -351,6 +364,7 @@ export function YovaPrototype({
   const [sessionCompletions, setSessionCompletions] = useState<SessionCompletion[]>([]);
   const [sessionInterruptions, setSessionInterruptions] = useState<SessionInterruption[]>([]);
   const [activeSessionCheckpoints, setActiveSessionCheckpoints] = useState<ActiveSessionCheckpointV1[]>([]);
+  const [cloudCheckpointRunIds, setCloudCheckpointRunIds] = useState<Set<string>>(() => new Set());
   const [sessionStep, setSessionStep] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
   const [sessionOutcomes, setSessionOutcomes] = useState<Record<number, boolean>>({});
@@ -395,6 +409,13 @@ export function YovaPrototype({
   const activeSessionClockRef = useRef<ActiveSessionClockState | null>(null);
   const activeSessionRunIdRef = useRef<string | null>(null);
   const activeSessionResourceFingerprintRef = useRef<string | null>(null);
+  const activeSessionResourceGeneratedAtRef = useRef<string | null>(null);
+  const cloudCheckpointResourceIdentitiesRef = useRef(new Map<string, {
+    fingerprint: string;
+    generatedAt: string;
+  }>());
+  const checkpointSyncEpochRef = useRef(0);
+  const discardedCheckpointRunIdsRef = useRef(new Set<string>());
   const writeActiveSessionCheckpointRef = useRef<(
     statusOverride?: ActiveSessionCheckpointV1["status"],
     completedAtOverride?: string,
@@ -413,7 +434,7 @@ export function YovaPrototype({
     return Boolean(
       session?.status === "ready"
       && session.resource
-      && fingerprintSessionResource(session.resource) === checkpoint.resourceFingerprint,
+      && checkpointMatchesSessionResource(checkpoint, session.resource),
     );
   });
   const recommendedPlan = rankPlansForHome(activePlans)[0] ?? null;
@@ -487,12 +508,107 @@ export function YovaPrototype({
     setStage("add");
   };
 
+  const removeCheckpointFromDevice = useCallback((checkpoint: ActiveSessionCheckpointV1) => {
+    discardedCheckpointRunIdsRef.current.add(checkpoint.runId);
+    removeActiveSessionCheckpoint(
+      checkpoint.accountId,
+      checkpoint.planSessionId,
+      checkpoint.runId,
+    );
+    setActiveSessionCheckpoints((current) => current.filter((candidate) => !(
+      candidate.accountId === checkpoint.accountId
+      && candidate.planSessionId === checkpoint.planSessionId
+      && candidate.runId === checkpoint.runId
+    )));
+    setCloudCheckpointRunIds((current) => {
+      const next = new Set(current);
+      next.delete(checkpoint.runId);
+      return next;
+    });
+  }, []);
+
+  const rememberAuthoritativeCloudCheckpoint = useCallback((checkpoint: ActiveSessionCheckpointV1) => {
+    if (discardedCheckpointRunIdsRef.current.has(checkpoint.runId)) return;
+    const current = loadActiveSessionCheckpoints(checkpoint.accountId)
+      .find((candidate) => candidate.planSessionId === checkpoint.planSessionId);
+    if (
+      current
+      && (
+        current.runId !== checkpoint.runId
+        || current.resourceFingerprint !== checkpoint.resourceFingerprint
+        || current.resourceGeneratedAt !== checkpoint.resourceGeneratedAt
+        || compareActiveSessionCheckpointProgress(current, checkpoint) > 0
+      )
+    ) return;
+
+    if (!saveActiveSessionCheckpoint(checkpoint)) return;
+    setActiveSessionCheckpoints(loadActiveSessionCheckpoints(checkpoint.accountId));
+    setCloudCheckpointRunIds((currentRunIds) => new Set(currentRunIds).add(checkpoint.runId));
+    if (activeSessionRunIdRef.current === checkpoint.runId) {
+      setSessionRecoveryIssue(null);
+    }
+  }, []);
+
+  const syncCheckpointToAccount = useCallback(async (checkpoint: ActiveSessionCheckpointV1) => {
+    if (
+      cloudCheckpointResourceIdentitiesRef.current.get(checkpoint.planSessionId)?.fingerprint
+        !== checkpoint.resourceFingerprint
+      || cloudCheckpointResourceIdentitiesRef.current.get(checkpoint.planSessionId)?.generatedAt
+        !== checkpoint.resourceGeneratedAt
+    ) {
+      return null;
+    }
+    const syncEpoch = checkpointSyncEpochRef.current;
+
+    try {
+      const authoritative = await saveAuthenticatedActiveSessionCheckpoint(checkpoint);
+      if (!cloudCheckpointResponseIsCurrent({
+        requestedEpoch: syncEpoch,
+        currentEpoch: checkpointSyncEpochRef.current,
+        runId: checkpoint.runId,
+        discardedRunIds: discardedCheckpointRunIdsRef.current,
+      })) return null;
+      rememberAuthoritativeCloudCheckpoint(authoritative);
+      return null;
+    } catch (error: unknown) {
+      if (!cloudCheckpointResponseIsCurrent({
+        requestedEpoch: syncEpoch,
+        currentEpoch: checkpointSyncEpochRef.current,
+        runId: checkpoint.runId,
+        discardedRunIds: discardedCheckpointRunIdsRef.current,
+      })) return null;
+      if (
+        error instanceof ActiveSessionCheckpointConflictError
+        || error instanceof ActiveSessionCheckpointTerminalError
+      ) {
+        removeCheckpointFromDevice(checkpoint);
+        const activeRunChangedElsewhere = activeSessionRunIdRef.current === checkpoint.runId;
+        const message = error instanceof ActiveSessionCheckpointConflictError
+          ? "This lesson changed or is open from another device. Reopen YOVA to continue from the account version."
+          : "This lesson was already finished or saved on another device. Reopen YOVA to see the current result.";
+        setCloudSyncIssue(message);
+        if (activeRunChangedElsewhere) {
+          window.location.replace("/");
+        }
+        return message;
+      }
+
+      const message = "Session recovery is saved on this device and will sync when your account reconnects.";
+      if (activeSessionRunIdRef.current === checkpoint.runId) {
+        setSessionRecoveryIssue("Recovery is saved on this device and will sync when your account reconnects.");
+      }
+      return message;
+    }
+  }, [rememberAuthoritativeCloudCheckpoint, removeCheckpointFromDevice]);
+
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: "auto" });
   }, [stage, activeTab]);
 
   useEffect(() => {
     let cancelled = false;
+    checkpointSyncEpochRef.current += 1;
+    discardedCheckpointRunIdsRef.current.clear();
 
     async function openYova() {
       const callbackIssue = consumeAuthCallbackIssue();
@@ -503,6 +619,8 @@ export function YovaPrototype({
       setBrowserPreviewMode(localPreviewMode);
       const authMode = localPreviewMode ? "preview" : getAuthMode();
       if (saved && authMode === "preview") {
+        cloudCheckpointResourceIdentitiesRef.current.clear();
+        setCloudCheckpointRunIds(new Set());
         setAccount(saved.account);
         setSignedIn(saved.signedIn);
         setAnswers(saved.onboardingAnswers);
@@ -547,8 +665,7 @@ export function YovaPrototype({
         const localAccountMatches = saved?.account?.id === cloudAccount.id;
 
         try {
-          const retryResult = await flushQueuedSessionCompletions(cloudAccount.id);
-          const interruptionRetryResult = await flushQueuedSessionInterruptions(cloudAccount.id);
+          const terminalRetryResult = await flushQueuedSessionTerminals(cloudAccount.id);
           const cloudState = await loadAuthenticatedLearningStateWithRetry();
           if (cancelled) return;
           cloudRecoveryStatusRef.current = transitionCloudRecovery(
@@ -559,12 +676,44 @@ export function YovaPrototype({
           const restoredAccount = cloudState.displayName
             ? { ...cloudAccount, displayName: cloudState.displayName }
             : cloudAccount;
-          const loadedCheckpoints = loadActiveSessionCheckpoints(cloudAccount.id);
+          const completedSessionTombstones = new Set(
+            pendingSessionCompletionPlanSessionIds(cloudAccount.id),
+          );
+          const interruptedRunTombstones = new Set(
+            pendingSessionInterruptionRunIds(cloudAccount.id),
+          );
+          const hasPendingTerminal = (checkpoint: ActiveSessionCheckpointV1) => (
+            completedSessionTombstones.has(checkpoint.planSessionId)
+            || interruptedRunTombstones.has(checkpoint.runId)
+          );
+          const localCheckpoints = loadActiveSessionCheckpoints(cloudAccount.id)
+            .filter((checkpoint) => !hasPendingTerminal(checkpoint));
+          const cloudCheckpoints = cloudState.activeSessionCheckpoints
+            .filter((checkpoint) => !hasPendingTerminal(checkpoint));
+          const mergedCheckpoints = mergeActiveSessionCheckpoints(localCheckpoints, cloudCheckpoints);
+          mergedCheckpoints.conflictingLocalRuns.forEach((checkpoint) => {
+            discardedCheckpointRunIdsRef.current.add(checkpoint.runId);
+          });
+          const localRecoveryStored = replaceActiveSessionCheckpointsForAccount(
+            cloudAccount.id,
+            mergedCheckpoints.checkpoints,
+          );
+          cloudCheckpointResourceIdentitiesRef.current = new Map(
+            cloudState.plans.flatMap((plan) => plan.sessions
+              .filter((session) => session.status === "ready" && session.resource)
+              .map((session) => [
+                session.id,
+                {
+                  fingerprint: fingerprintSessionResource(session.resource!),
+                  generatedAt: session.resource!.generatedAt,
+                },
+              ] as const)),
+          );
           const cloudPlans = localAccountMatches && saved?.signedIn
             ? restoreCheckpointSessionResources(
                 cloudState.plans,
                 saved.plans,
-                loadedCheckpoints,
+                mergedCheckpoints.checkpoints,
               )
             : cloudState.plans;
           const cloudOnboardingCompleted = cloudState.onboardingCompleted;
@@ -577,11 +726,25 @@ export function YovaPrototype({
           setSelectedPlanId(cloudPlans.filter((plan) => plan.status === "active").at(-1)?.id ?? null);
           setSessionCompletions(cloudState.sessionCompletions);
           setSessionInterruptions(cloudState.sessionInterruptions);
-          setActiveSessionCheckpoints(loadedCheckpoints);
-          const pendingEvents = retryResult.remaining + interruptionRetryResult.remaining;
-          setCloudSyncIssue(pendingEvents > 0
+          setActiveSessionCheckpoints(mergedCheckpoints.checkpoints);
+          setCloudCheckpointRunIds(new Set(mergedCheckpoints.cloudRunIds));
+          const pendingEvents = terminalRetryResult.remaining;
+          const startupSyncIssue = pendingEvents > 0
             ? `${pendingEvents} session ${pendingEvents === 1 ? "event is" : "events are"} waiting to sync.`
-            : null);
+            : mergedCheckpoints.conflictingLocalRuns.length > 0
+              ? "YOVA found a different saved version of this lesson in your account and kept the account version."
+              : !localRecoveryStored && mergedCheckpoints.cloudRunIds.size > 0
+                ? "Your account recovery point loaded, but this browser could not keep an offline copy."
+                : null;
+          setCloudSyncIssue(startupSyncIssue);
+
+          if (pendingEvents === 0) {
+            mergedCheckpoints.checkpointsToUpload.forEach((checkpoint) => {
+              void syncCheckpointToAccount(checkpoint).then((issue) => {
+                if (!cancelled && issue) setCloudSyncIssue(issue);
+              });
+            });
+          }
 
           setStage(restoredAccountStage({
             onboardingCompleted: cloudOnboardingCompleted,
@@ -597,6 +760,8 @@ export function YovaPrototype({
             && saved
             && saved.onboardingCompleted;
           if (hasTrustedLocalState) {
+            cloudCheckpointResourceIdentitiesRef.current.clear();
+            setCloudCheckpointRunIds(new Set());
             cloudRecoveryStatusRef.current = transitionCloudRecovery(
               cloudRecoveryStatusRef.current,
               "trusted-local-restored",
@@ -615,6 +780,8 @@ export function YovaPrototype({
               legacyAlphaEntered: saved.alphaEntered,
             }));
           } else {
+            cloudCheckpointResourceIdentitiesRef.current.clear();
+            setCloudCheckpointRunIds(new Set());
             cloudRecoveryStatusRef.current = transitionCloudRecovery(
               cloudRecoveryStatusRef.current,
               "cloud-read-failed",
@@ -631,12 +798,16 @@ export function YovaPrototype({
           }
         }
       } else if (saved?.signedIn && saved.account && authMode === "preview") {
+        cloudCheckpointResourceIdentitiesRef.current.clear();
+        setCloudCheckpointRunIds(new Set());
         setStage(restoredAccountStage({
           onboardingCompleted: saved.onboardingCompleted,
           hasActivePlan: saved.plans.some((plan) => plan.status === "active"),
           legacyAlphaEntered: saved.alphaEntered,
         }));
       } else if (authMode === "supabase") {
+        cloudCheckpointResourceIdentitiesRef.current.clear();
+        setCloudCheckpointRunIds(new Set());
         cloudRecoveryStatusRef.current = transitionCloudRecovery(
           cloudRecoveryStatusRef.current,
           "auth-account-missing",
@@ -667,7 +838,7 @@ export function YovaPrototype({
 
     void openYova();
     return () => { cancelled = true; };
-  }, [authCheckAttempt]);
+  }, [authCheckAttempt, syncCheckpointToAccount]);
 
   useEffect(() => {
     if (!ready || protectsPreviewSnapshot(cloudRecoveryStatusRef.current) || stage === "cloud-error" || !account || !signedIn) return;
@@ -717,11 +888,23 @@ export function YovaPrototype({
       return !protectedCloudCompletion && (!session
         || session.status !== "ready"
         || !session.resource
-        || fingerprintSessionResource(session.resource) !== checkpoint.resourceFingerprint);
+        || !checkpointMatchesSessionResource(checkpoint, session.resource));
     });
     if (invalidCheckpoints.length === 0) return;
     invalidCheckpoints.forEach((checkpoint) => {
+      discardedCheckpointRunIdsRef.current.add(checkpoint.runId);
       removeActiveSessionCheckpoint(checkpoint.accountId, checkpoint.planSessionId, checkpoint.runId);
+      const sessionStillExists = plans.some((plan) => plan.sessions.some((session) => (
+        session.id === checkpoint.planSessionId
+      )));
+      if (
+        account.identityMode === "supabase"
+        && sessionStillExists
+        && cloudCheckpointResourceIdentitiesRef.current.has(checkpoint.planSessionId)
+      ) {
+        void deleteAuthenticatedActiveSessionCheckpoint(checkpoint.planSessionId, checkpoint.runId)
+          .catch(() => setCloudSyncIssue("YOVA could not remove an outdated lesson recovery point from your account."));
+      }
     });
     const invalidRunIds = new Set(invalidCheckpoints.map((checkpoint) => checkpoint.runId));
     setActiveSessionCheckpoints((current) => current.filter((checkpoint) => !invalidRunIds.has(checkpoint.runId)));
@@ -731,12 +914,21 @@ export function YovaPrototype({
     if (account?.identityMode !== "supabase") return;
 
     const retryQueuedWork = () => {
-      void syncPendingCloudWork(account, answers, onboardingCompleted).then(setCloudSyncIssue);
+      void syncPendingCloudWork(account, answers, onboardingCompleted).then(async (terminalOrProfileIssue) => {
+        if (terminalOrProfileIssue) {
+          setCloudSyncIssue(terminalOrProfileIssue);
+          return;
+        }
+        const checkpointIssues = await Promise.all(
+          activeSessionCheckpoints.map(syncCheckpointToAccount),
+        );
+        setCloudSyncIssue(checkpointIssues.find((issue) => issue !== null) ?? null);
+      });
     };
 
     window.addEventListener("online", retryQueuedWork);
     return () => window.removeEventListener("online", retryQueuedWork);
-  }, [account, answers, onboardingCompleted]);
+  }, [account, answers, onboardingCompleted, activeSessionCheckpoints, syncCheckpointToAccount]);
 
   useEffect(() => {
     if (!ready || !onboardingCompleted || account?.identityMode !== "supabase") return;
@@ -746,7 +938,13 @@ export function YovaPrototype({
       displayName: account.displayName,
       onboardingAnswers: answers,
     }).then(() => {
-      if (!cancelled) setCloudSyncIssue(null);
+      if (!cancelled) {
+        setCloudSyncIssue((current) => (
+          current === "YOVA could not save your learning profile to the cloud."
+            ? null
+            : current
+        ));
+      }
     }).catch((error: unknown) => {
       if (!cancelled) {
         reportProductError({ surface: "cloud_sync", errorCode: "learner_profile_sync_failed" });
@@ -797,10 +995,15 @@ export function YovaPrototype({
     setSessionCompletedAt(awaitingFinish ? checkpoint?.completedAt ?? new Date(now).toISOString() : null);
     setSessionCompletionFeedback(checkpoint?.completionFeedback ?? "about_right");
     setSessionElapsedSeconds(activeSeconds);
+    const recoveredFromAccount = Boolean(checkpoint && cloudCheckpointRunIds.has(checkpoint.runId));
     setSessionRecoveryNotice(checkpoint
       ? awaitingFinish
-        ? "Your completed session was recovered. Review the result, then choose what happens next."
-        : "Your session was recovered. Completed sections are saved; an unfinished answer was not stored."
+        ? recoveredFromAccount
+          ? "Your completed session was recovered from your YOVA account. Review the result, then choose what happens next."
+          : "Your completed session was recovered. Review the result, then choose what happens next."
+        : recoveredFromAccount
+          ? "Recovered from your YOVA account. Completed sections are saved; an unfinished answer was not stored."
+          : "Your session was recovered. Completed sections are saved; an unfinished answer was not stored."
       : null);
     setSessionRecoveryIssue(null);
     setStage(awaitingFinish ? "complete" : "session");
@@ -821,15 +1024,18 @@ export function YovaPrototype({
     if (!currentSession) return false;
     const resourceFingerprint = activeSessionResourceFingerprintRef.current
       ?? (currentSession.resource ? fingerprintSessionResource(currentSession.resource) : null);
-    if (!resourceFingerprint) return false;
+    const resourceGeneratedAt = activeSessionResourceGeneratedAtRef.current
+      ?? currentSession.resource?.generatedAt
+      ?? null;
+    if (!resourceFingerprint || !resourceGeneratedAt) return false;
 
     const savedAtMs = Date.now();
     const activeSeconds = readActiveSessionSeconds(activeSessionClockRef.current, savedAtMs);
     const awaitingFinish = statusOverride === "awaiting_finish" || stage === "complete";
-    const completedStepCount = awaitingFinish
+    const completedActivityCount = awaitingFinish
       ? activeLessonSteps.length
       : Math.min(sessionStep, activeLessonSteps.length);
-    const completedLessonSteps = activeLessonSteps.slice(0, completedStepCount);
+    const completedLessonSteps = activeLessonSteps.slice(0, completedActivityCount);
     const evidence = awaitingFinish
       ? sessionEvidence
       : mergeSessionEvidenceSummaries(
@@ -845,9 +1051,9 @@ export function YovaPrototype({
         correctAnswer: currentStep.correctAnswer,
       }
       : undefined;
-    const sessionAdjustment = sessionGenerationAttemptRef.current?.planSessionId === currentSession.id
-      ? sessionGenerationAttemptRef.current.adjustment
-      : null;
+    const sourceStepCount = activeLessonSteps.filter((step) => step.evidenceRole !== "immediate_repair").length;
+    const completedSourceStepCount = completedLessonSteps.filter((step) => step.evidenceRole !== "immediate_repair").length;
+    const checkpointTotalSteps = sourceStepCount + (pendingRepair ? 1 : 0);
     const savedAt = new Date(savedAtMs).toISOString();
     const effectiveCompletedAt = completedAtOverride ?? sessionCompletedAt;
     const completedAtMs = effectiveCompletedAt ? Date.parse(effectiveCompletedAt) : savedAtMs;
@@ -864,14 +1070,14 @@ export function YovaPrototype({
         savedAt,
         activeSeconds,
         plannedMinutes: sessionCapacityMinutes ?? currentSession.estimatedMinutes,
-        completedSteps: activeLessonSteps.length,
-        totalSteps: activeLessonSteps.length,
-        resumeStep: activeLessonSteps.filter((step) => step.evidenceRole !== "immediate_repair").length,
+        completedSteps: sourceStepCount,
+        totalSteps: sourceStepCount,
+        resumeStep: sourceStepCount,
         evidence,
         resourceFingerprint,
+        resourceGeneratedAt,
         completedAt: new Date(boundedCompletedAtMs).toISOString(),
         completionFeedback: sessionCompletionFeedback,
-        ...(sessionAdjustment ? { sessionAdjustment } : {}),
       }
       : {
         version: 1,
@@ -884,13 +1090,13 @@ export function YovaPrototype({
         savedAt,
         activeSeconds,
         plannedMinutes: sessionCapacityMinutes ?? currentSession.estimatedMinutes,
-        completedSteps: completedStepCount,
-        totalSteps: activeLessonSteps.length,
-        resumeStep: completedLessonSteps.filter((step) => step.evidenceRole !== "immediate_repair").length,
+        completedSteps: completedSourceStepCount,
+        totalSteps: checkpointTotalSteps,
+        resumeStep: completedSourceStepCount,
         evidence,
         resourceFingerprint,
+        resourceGeneratedAt,
         ...(pendingRepair ? { pendingRepair } : {}),
-        ...(sessionAdjustment ? { sessionAdjustment } : {}),
       };
 
     const saved = saveActiveSessionCheckpoint(checkpoint);
@@ -903,6 +1109,11 @@ export function YovaPrototype({
         checkpoint,
       ]);
       setSessionRecoveryIssue(null);
+      if (account.identityMode === "supabase") {
+        void syncCheckpointToAccount(checkpoint).then((issue) => {
+          if (issue) setCloudSyncIssue(issue);
+        });
+      }
     } else {
       setSessionRecoveryIssue("YOVA can’t save recovery progress in this browser right now. Keep this page open until you finish or use Exit.");
     }
@@ -1115,6 +1326,9 @@ export function YovaPrototype({
     };
     activeSessionRunIdRef.current = checkpointResume?.runId ?? makeUuid();
     activeSessionResourceFingerprintRef.current = checkpointResume?.resourceFingerprint ?? null;
+    activeSessionResourceGeneratedAtRef.current = checkpointResume?.resourceGeneratedAt
+      ?? requestedSession.resource?.generatedAt
+      ?? null;
 
     setSelectedPlanId(requestedPlan.id);
     setPendingSessionPlan(null);
@@ -1155,6 +1369,10 @@ export function YovaPrototype({
       checkpointResume
       && requestedSession.resource
       && fingerprintSessionResource(requestedSession.resource) === checkpointResume.resourceFingerprint
+      && (
+        checkpointResume.resourceGeneratedAt === undefined
+        || requestedSession.resource.generatedAt === checkpointResume.resourceGeneratedAt
+      )
     ) {
       const restoredSteps = lessonStepsFromSessionResource(requestedSession.resource);
       const restoredLesson = checkpointResume.checkpointStatus === "awaiting_finish"
@@ -1288,10 +1506,19 @@ export function YovaPrototype({
       setSessionDeliveryPolicy(parsed.data.session.deliveryPolicy);
       setSessionSupportPlan(supportPlan);
       setSessionSourceGrounding(parsed.data.session.sourceGrounding);
-      if (parsed.data.generation.persistence === "browser" && account?.identityMode === "supabase") {
-        setSessionGenerationIssue("This session is ready, but YOVA could not cache it in your cloud account.");
+      if (account?.identityMode === "supabase") {
+        if (parsed.data.generation.persistence === "supabase") {
+          cloudCheckpointResourceIdentitiesRef.current.set(requestedSession.id, {
+            fingerprint: fingerprintSessionResource(reusableResource),
+            generatedAt: reusableResource.generatedAt,
+          });
+        } else {
+          cloudCheckpointResourceIdentitiesRef.current.delete(requestedSession.id);
+          setSessionGenerationIssue("This session is ready, but YOVA could not cache it in your cloud account.");
+        }
       }
       activeSessionResourceFingerprintRef.current = fingerprintSessionResource(reusableResource);
+      activeSessionResourceGeneratedAtRef.current = reusableResource.generatedAt;
       beginTimedSession(requestedPlan, Boolean(resumePoint), checkpointResume);
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError" && !generationTimedOut) return;
@@ -1401,7 +1628,9 @@ export function YovaPrototype({
       setSessionSupportPlan(fallbackSupportPlan);
       setSessionSourceGrounding(null);
       setSessionGenerationIssue(`${message} A safe built-in session was loaded instead.${requestId ? ` Reference: ${requestId}.` : ""}`);
+      cloudCheckpointResourceIdentitiesRef.current.delete(requestedSession.id);
       activeSessionResourceFingerprintRef.current = fingerprintSessionResource(fallbackResource);
+      activeSessionResourceGeneratedAtRef.current = fallbackResource.generatedAt;
       beginTimedSession(requestedPlan, Boolean(resumePoint), checkpointResume);
     } finally {
       window.clearTimeout(generationTimeoutId);
@@ -1510,8 +1739,9 @@ export function YovaPrototype({
     const completedAtMs = Date.parse(completedAt);
     const activeSeconds = Math.max(1, sessionElapsedSeconds);
     const checkpointRunId = activeSessionRunIdRef.current;
+    if (checkpointRunId) discardedCheckpointRunIdsRef.current.add(checkpointRunId);
     const completion: SessionCompletion = {
-      id: makeUuid(),
+      id: checkpointRunId ?? makeUuid(),
       planId: activePlan.id,
       planSessionId: currentSession.id,
       startedAt: new Date((Number.isFinite(completedAtMs) ? completedAtMs : Date.now()) - activeSeconds * 1_000).toISOString(),
@@ -1600,9 +1830,27 @@ export function YovaPrototype({
           && checkpoint.planSessionId === currentSession.id
           && checkpoint.runId === checkpointRunId
         )));
+        setCloudCheckpointRunIds((current) => {
+          const next = new Set(current);
+          next.delete(checkpointRunId);
+          return next;
+        });
       }
-      void completeAuthenticatedPlanSession(completion, adaptation, delayedVerification)
-        .then(() => {
+      void syncSessionCompletionAfterTerminals({
+        userId: account.id,
+        planSessionId: currentSession.id,
+        completionQueued: queued,
+        completeImmediately: () => completeAuthenticatedPlanSession(
+          completion,
+          adaptation,
+          delayedVerification,
+        ),
+      })
+        .then(({ synced }) => {
+          if (!synced) {
+            setCloudSyncIssue("This completed session is saved on this device and will sync after an earlier session exit.");
+            return;
+          }
           removeQueuedSessionCompletion(completion.id);
           if (checkpointRunId) {
             protectedTerminalCheckpointRunIdsRef.current.delete(checkpointRunId);
@@ -1612,6 +1860,11 @@ export function YovaPrototype({
               && checkpoint.planSessionId === currentSession.id
               && checkpoint.runId === checkpointRunId
             )));
+            setCloudCheckpointRunIds((current) => {
+              const next = new Set(current);
+              next.delete(checkpointRunId);
+              return next;
+            });
           }
           setCloudSyncIssue(null);
         })
@@ -1621,8 +1874,10 @@ export function YovaPrototype({
         });
     }
     activeSessionClockRef.current = null;
+    cloudCheckpointResourceIdentitiesRef.current.delete(currentSession.id);
     activeSessionRunIdRef.current = null;
     activeSessionResourceFingerprintRef.current = null;
+    activeSessionResourceGeneratedAtRef.current = null;
   };
 
   const interruptActiveSession = () => {
@@ -1667,8 +1922,9 @@ export function YovaPrototype({
       ? sessionGenerationAttemptRef.current.adjustment
       : null;
     const checkpointRunId = activeSessionRunIdRef.current;
+    if (checkpointRunId) discardedCheckpointRunIdsRef.current.add(checkpointRunId);
     const interruption: SessionInterruption = {
-      id: makeUuid(),
+      id: checkpointRunId ?? makeUuid(),
       planId: activePlan.id,
       planSessionId: currentSession.id,
       startedAt: new Date(interruptedAt.getTime() - activeSeconds * 1_000).toISOString(),
@@ -1715,6 +1971,11 @@ export function YovaPrototype({
           && checkpoint.planSessionId === currentSession.id
           && checkpoint.runId === checkpointRunId
         )));
+        setCloudCheckpointRunIds((current) => {
+          const next = new Set(current);
+          next.delete(checkpointRunId);
+          return next;
+        });
       }
       void recordAuthenticatedSessionInterruption(interruption)
         .then(() => {
@@ -1726,6 +1987,11 @@ export function YovaPrototype({
               && checkpoint.planSessionId === currentSession.id
               && checkpoint.runId === checkpointRunId
             )));
+            setCloudCheckpointRunIds((current) => {
+              const next = new Set(current);
+              next.delete(checkpointRunId);
+              return next;
+            });
           }
           setCloudSyncIssue(null);
         })
@@ -1736,6 +2002,7 @@ export function YovaPrototype({
     }
     activeSessionRunIdRef.current = null;
     activeSessionResourceFingerprintRef.current = null;
+    activeSessionResourceGeneratedAtRef.current = null;
   };
 
   const resetYovaData = async () => {
@@ -1756,6 +2023,8 @@ export function YovaPrototype({
       clearQueuedSessionInterruptions(account.id);
     }
     if (account) clearActiveSessionCheckpoints(account.id);
+    checkpointSyncEpochRef.current += 1;
+    discardedCheckpointRunIdsRef.current.clear();
     clearPreviewSnapshot();
     setOnboardingCompleted(false);
     setQuestionIndex(0);
@@ -1766,6 +2035,8 @@ export function YovaPrototype({
     setSessionCompletions([]);
     setSessionInterruptions([]);
     setActiveSessionCheckpoints([]);
+    setCloudCheckpointRunIds(new Set());
+    cloudCheckpointResourceIdentitiesRef.current.clear();
     setSessionStep(0);
     setSelectedAnswer(null);
     setSessionOutcomes({});
@@ -1783,6 +2054,7 @@ export function YovaPrototype({
     activeSessionClockRef.current = null;
     activeSessionRunIdRef.current = null;
     activeSessionResourceFingerprintRef.current = null;
+    activeSessionResourceGeneratedAtRef.current = null;
     protectedTerminalCheckpointRunIdsRef.current.clear();
     setSessionRecoveryNotice(null);
     setSessionRecoveryIssue(null);
@@ -2088,13 +2360,23 @@ export function YovaPrototype({
   const retryCloudSync = async () => {
     if (account?.identityMode !== "supabase") return;
 
-    const issue = await syncPendingCloudWork(account, answers, onboardingCompleted);
-    setCloudSyncIssue(issue);
-    if (issue) throw new Error(issue);
+    const terminalOrProfileIssue = await syncPendingCloudWork(account, answers, onboardingCompleted);
+    if (terminalOrProfileIssue) {
+      setCloudSyncIssue(terminalOrProfileIssue);
+      throw new Error(terminalOrProfileIssue);
+    }
+    const checkpointIssues = await Promise.all(
+      activeSessionCheckpoints.map(syncCheckpointToAccount),
+    );
+    const checkpointIssue = checkpointIssues.find((issue) => issue !== null) ?? null;
+    setCloudSyncIssue(checkpointIssue);
+    if (checkpointIssue) throw new Error(checkpointIssue);
   };
 
   const signOut = () => {
     const signingOutAccountId = account?.id ?? null;
+    checkpointSyncEpochRef.current += 1;
+    discardedCheckpointRunIdsRef.current.clear();
     void signOutAuthenticatedAccount().finally(() => {
       cloudRecoveryStatusRef.current = transitionCloudRecovery(
         cloudRecoveryStatusRef.current,
@@ -2112,9 +2394,12 @@ export function YovaPrototype({
       setSessionCompletions([]);
       setSessionInterruptions([]);
       setActiveSessionCheckpoints([]);
+      setCloudCheckpointRunIds(new Set());
+      cloudCheckpointResourceIdentitiesRef.current.clear();
       activeSessionClockRef.current = null;
       activeSessionRunIdRef.current = null;
       activeSessionResourceFingerprintRef.current = null;
+      activeSessionResourceGeneratedAtRef.current = null;
       protectedTerminalCheckpointRunIdsRef.current.clear();
       setSessionRecoveryNotice(null);
       setSessionRecoveryIssue(null);
@@ -2240,10 +2525,12 @@ export function YovaPrototype({
         setSessionCompletions([]);
         setSessionInterruptions([]);
         setActiveSessionCheckpoints([]);
+        setCloudCheckpointRunIds(new Set());
         setQuestionIndex(0);
       }
       setAccount(nextAccount);
       setActiveSessionCheckpoints(loadActiveSessionCheckpoints(nextAccount.id));
+      setCloudCheckpointRunIds(new Set());
       setSignedIn(true);
       if (accountMode === "sign-in" && onboardingCompleted) setStage("app");
       else setStage("onboarding-intro");
@@ -2430,6 +2717,15 @@ export function YovaPrototype({
 }
 
 async function syncPendingCloudWork(account: PreviewAccount, answers: string[], onboardingCompleted: boolean) {
+  // Terminal work always wins over a recovery marker. Flush it first so a
+  // reconnect cannot upload progress for a session that was already finished
+  // or explicitly exited while offline.
+  const terminalResult = await flushQueuedSessionTerminals(account.id);
+  const pendingEvents = terminalResult.remaining;
+  if (pendingEvents > 0) {
+    return `${pendingEvents} session ${pendingEvents === 1 ? "event is" : "events are"} still waiting to sync.`;
+  }
+
   let profileIssue: string | null = null;
   if (onboardingCompleted) {
     try {
@@ -2440,13 +2736,6 @@ async function syncPendingCloudWork(account: PreviewAccount, answers: string[], 
     } catch (error) {
       profileIssue = error instanceof Error ? error.message : "YOVA could not sync your learning profile.";
     }
-  }
-
-  const result = await flushQueuedSessionCompletions(account.id);
-  const interruptionResult = await flushQueuedSessionInterruptions(account.id);
-  const pendingEvents = result.remaining + interruptionResult.remaining;
-  if (pendingEvents > 0) {
-    return `${pendingEvents} session ${pendingEvents === 1 ? "event is" : "events are"} still waiting to sync.`;
   }
   return profileIssue;
 }

@@ -785,6 +785,8 @@ test("a refresh recovers semantic progress without saving draft answers or inven
   await expect(page.getByRole("heading", { name: "Complete this learning item" })).toBeVisible();
   await expect(page.getByText(/completed session was recovered/i)).toBeVisible();
   expect(generationRequests).toBe(1);
+  const finishingRunId = (await readRecoveryState(page)).lastCheckpointRunId;
+  expect(finishingRunId).not.toBeNull();
   await page.getByRole("button", { name: "Finish and continue" }).click();
   await expect(page.getByRole("heading", { name: /Good (morning|afternoon|evening), Learner\./ })).toBeVisible();
   await expect.poll(() => readRecoveryState(page)).toMatchObject({
@@ -792,6 +794,8 @@ test("a refresh recovers semantic progress without saving draft answers or inven
     sessionCompletions: 1,
     sessionInterruptions: 0,
   });
+  const finishedRecoveryState = await readRecoveryState(page);
+  expect(finishedRecoveryState.completionId).toBe(finishingRunId);
 
   await page.reload();
   await expect(page.getByText("Continue where you left off")).not.toBeVisible();
@@ -1170,10 +1174,10 @@ async function createPreviewAccount(page: Page) {
 
 async function readRecoveryState(page: Page) {
   return page.evaluate(() => {
-    let checkpoints: Array<{ status?: string; completedSteps?: number }> = [];
+    let checkpoints: Array<{ runId?: string; status?: string; completedSteps?: number }> = [];
     let snapshot: {
       plans?: Array<{ sessions?: Array<{ resource?: unknown }> }>;
-      sessionCompletions?: unknown[];
+      sessionCompletions?: Array<{ id?: string }>;
       sessionInterruptions?: unknown[];
     } = {};
 
@@ -1181,7 +1185,7 @@ async function readRecoveryState(page: Page) {
       const rawCheckpoints = window.localStorage.getItem("yova.active-session-checkpoints.v1");
       const parsedCheckpoints: unknown = rawCheckpoints ? JSON.parse(rawCheckpoints) : [];
       checkpoints = Array.isArray(parsedCheckpoints)
-        ? parsedCheckpoints as Array<{ status?: string; completedSteps?: number }>
+        ? parsedCheckpoints as Array<{ runId?: string; status?: string; completedSteps?: number }>
         : [];
     } catch {
       checkpoints = [];
@@ -1201,7 +1205,9 @@ async function readRecoveryState(page: Page) {
     return {
       checkpointStatus: checkpoint?.status ?? null,
       completedSteps: checkpoint?.completedSteps ?? null,
+      lastCheckpointRunId: checkpoint?.runId ?? null,
       sessionCompletions: snapshot.sessionCompletions?.length ?? 0,
+      completionId: snapshot.sessionCompletions?.at(-1)?.id ?? null,
       sessionInterruptions: snapshot.sessionInterruptions?.length ?? 0,
       hasSessionResource: Boolean(snapshot.plans?.[0]?.sessions?.[0]?.resource),
     };

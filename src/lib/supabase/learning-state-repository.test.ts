@@ -1,5 +1,10 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { SessionInterruption } from "@/lib/domain";
+import {
+  loadActiveSessionCheckpoints,
+  saveActiveSessionCheckpoint,
+  type ActiveSessionCheckpointV1,
+} from "@/lib/learning/active-session-checkpoint";
 import {
   defaultPersonalizationState,
   PERSONALIZATION_STATE_ANSWER_INDEX,
@@ -21,18 +26,31 @@ vi.mock("@/lib/supabase/client", () => ({
 }));
 
 import {
+  ActiveSessionCheckpointConflictError,
+  ActiveSessionCheckpointTerminalError,
+  deleteAuthenticatedActiveSessionCheckpoint,
   loadAuthenticatedLearningState,
   loadAuthenticatedLearningStateWithRetry,
   recordAuthenticatedSessionInterruption,
+  saveAuthenticatedActiveSessionCheckpoint,
   saveAuthenticatedLearnerProfile,
   type CloudLearningState,
 } from "@/lib/supabase/learning-state-repository";
 
+const NOW = "2026-08-17T18:00:00.000Z";
+
 beforeEach(() => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date(NOW));
   vi.clearAllMocks();
   from.mockReset();
   getUser.mockReset().mockResolvedValue({ data: { user: { id: "user-1" } }, error: null });
-  rpc.mockReset().mockResolvedValue({ error: null });
+  rpc.mockReset().mockResolvedValue({ data: null, error: null });
+});
+
+afterEach(() => {
+  vi.useRealTimers();
+  vi.unstubAllGlobals();
 });
 
 describe("authenticated learning-state startup", () => {
@@ -77,6 +95,49 @@ describe("authenticated learning-state startup", () => {
     await expect(loadAuthenticatedLearningState())
       .rejects.toThrow("could not load your cloud learning profile");
   });
+
+  it("loads only fresh, valid, account-owned checkpoints from session step data", async () => {
+    const valid = checkpoint();
+    const rawAnswer = {
+      ...checkpoint({
+        planSessionId: "00000000-0000-4000-8000-000000000013",
+        runId: "00000000-0000-4000-8000-000000000014",
+      }),
+      evidence: {
+        ...checkpoint().evidence,
+        learnerAnswer: "Private draft answer",
+      },
+    };
+    const wrongAccount = checkpoint({
+      accountId: "user-2",
+      planSessionId: "00000000-0000-4000-8000-000000000015",
+      runId: "00000000-0000-4000-8000-000000000016",
+    });
+    const expired = checkpoint({
+      planSessionId: "00000000-0000-4000-8000-000000000017",
+      runId: "00000000-0000-4000-8000-000000000018",
+      savedAt: "2026-08-01T18:00:00.000Z",
+    });
+    const legacyWithoutLessonIdentity = checkpoint({
+      planSessionId: "00000000-0000-4000-8000-000000000019",
+      runId: "00000000-0000-4000-8000-000000000020",
+    });
+    delete (legacyWithoutLessonIdentity as Partial<ActiveSessionCheckpointV1>).resourceGeneratedAt;
+    mockCloudQueries({
+      profile: { display_name: "Learner", onboarding_completed_at: NOW },
+      sessions: [
+        sessionRow(valid),
+        sessionRow(rawAnswer as ActiveSessionCheckpointV1),
+        sessionRow(wrongAccount),
+        sessionRow(expired),
+        sessionRow(legacyWithoutLessonIdentity),
+      ],
+    });
+
+    const state = await loadAuthenticatedLearningState();
+
+    expect(state?.activeSessionCheckpoints).toEqual([valid]);
+  });
 });
 
 describe("recordAuthenticatedSessionInterruption", () => {
@@ -106,6 +167,172 @@ describe("recordAuthenticatedSessionInterruption", () => {
         attemptId: interruption.id,
         sessionAdjustment: interruption.sessionAdjustment,
       }),
+    });
+  });
+});
+
+describe("authenticated active-session checkpoint sync", () => {
+  it("sends no client identity or plan identity and returns the server checkpoint", async () => {
+    const local = checkpoint({
+      savedAt: "2026-08-17T17:59:00.000Z",
+      sessionAdjustment: {
+        familiarity: "need_teaching",
+        availableMinutes: 20,
+        knownTargets: ["Private known target"],
+        note: "Private learner note",
+      },
+    });
+    const authoritative = checkpoint({ savedAt: NOW });
+    rpc.mockResolvedValueOnce({ data: authoritative, error: null });
+
+    await expect(saveAuthenticatedActiveSessionCheckpoint(local)).resolves.toEqual(authoritative);
+
+    const payload = rpc.mock.calls[0]?.[1]?.payload as Record<string, unknown>;
+    expect(rpc.mock.calls[0]?.[0]).toBe("save_active_session_checkpoint");
+    expect(payload).toMatchObject({
+      runId: local.runId,
+      planSessionId: local.planSessionId,
+      completedSteps: local.completedSteps,
+      resourceFingerprint: local.resourceFingerprint,
+      resourceGeneratedAt: local.resourceGeneratedAt,
+    });
+    expect(payload).not.toHaveProperty("accountId");
+    expect(payload).not.toHaveProperty("planId");
+    expect(payload).not.toHaveProperty("sessionAdjustment");
+    expect(JSON.stringify(payload)).not.toContain("Private known target");
+    expect(JSON.stringify(payload)).not.toContain("Private learner note");
+  });
+
+  it("rejects a checkpoint without exact generated lesson identity before calling the cloud", async () => {
+    const legacyLocal = checkpoint();
+    delete (legacyLocal as Partial<ActiveSessionCheckpointV1>).resourceGeneratedAt;
+
+    await expect(saveAuthenticatedActiveSessionCheckpoint(legacyLocal))
+      .rejects.toThrow("refused to sync");
+
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it("rejects a server response for a different generated lesson", async () => {
+    const local = checkpoint();
+    rpc.mockResolvedValueOnce({
+      data: {
+        ...local,
+        resourceGeneratedAt: "2026-08-17T17:41:00.000Z",
+      },
+      error: null,
+    });
+
+    await expect(saveAuthenticatedActiveSessionCheckpoint(local))
+      .rejects.toBeInstanceOf(ActiveSessionCheckpointConflictError);
+  });
+
+  it("coalesces queued writes per lesson to the checkpoint with the most progress", async () => {
+    const first = checkpoint({ completedSteps: 0, resumeStep: 0, activeSeconds: 10 });
+    const ahead = checkpoint({
+      savedAt: "2026-08-17T17:58:00.000Z",
+      completedSteps: 3,
+      resumeStep: 3,
+      activeSeconds: 300,
+    });
+    const lateOlderWrite = checkpoint({
+      savedAt: "2026-08-17T17:59:00.000Z",
+      completedSteps: 1,
+      resumeStep: 1,
+      activeSeconds: 100,
+    });
+    let releaseFirst!: (value: { data: ActiveSessionCheckpointV1; error: null }) => void;
+    rpc.mockImplementationOnce(() => new Promise((resolve) => {
+      releaseFirst = resolve;
+    }));
+    rpc.mockImplementation((_name: string, parameters: { payload: Record<string, unknown> }) => (
+      Promise.resolve({
+        data: {
+          accountId: first.accountId,
+          planId: first.planId,
+          ...parameters.payload,
+          savedAt: NOW,
+        },
+        error: null,
+      })
+    ));
+
+    const firstSave = saveAuthenticatedActiveSessionCheckpoint(first);
+    await Promise.resolve();
+    const aheadSave = saveAuthenticatedActiveSessionCheckpoint(ahead);
+    const olderSave = saveAuthenticatedActiveSessionCheckpoint(lateOlderWrite);
+
+    expect(rpc).toHaveBeenCalledTimes(1);
+    releaseFirst({ data: { ...first, savedAt: NOW }, error: null });
+    const results = await Promise.all([firstSave, aheadSave, olderSave]);
+
+    expect(rpc).toHaveBeenCalledTimes(2);
+    expect(rpc.mock.calls[1]?.[1]?.payload).toMatchObject({
+      completedSteps: ahead.completedSteps,
+      resumeStep: ahead.resumeStep,
+      activeSeconds: ahead.activeSeconds,
+    });
+    expect(results.every((result) => result.completedSteps === ahead.completedSteps)).toBe(true);
+  });
+
+  it("allows separate lessons to sync concurrently", async () => {
+    const first = checkpoint();
+    const second = checkpoint({
+      planSessionId: "00000000-0000-4000-8000-000000000020",
+      runId: "00000000-0000-4000-8000-000000000021",
+    });
+    const releases: Array<(value: { data: ActiveSessionCheckpointV1; error: null }) => void> = [];
+    rpc.mockImplementation(() => new Promise((resolve) => releases.push(resolve)));
+
+    const firstSave = saveAuthenticatedActiveSessionCheckpoint(first);
+    const secondSave = saveAuthenticatedActiveSessionCheckpoint(second);
+
+    expect(rpc).toHaveBeenCalledTimes(2);
+    releases[0]?.({ data: first, error: null });
+    releases[1]?.({ data: second, error: null });
+    await Promise.all([firstSave, secondSave]);
+  });
+
+  it("maps cloud ownership and terminal signals to distinct errors", async () => {
+    rpc.mockResolvedValueOnce({
+      data: null,
+      error: { code: "40001", message: "active_session_checkpoint_conflict" },
+    });
+    await expect(saveAuthenticatedActiveSessionCheckpoint(checkpoint()))
+      .rejects.toBeInstanceOf(ActiveSessionCheckpointConflictError);
+
+    rpc.mockResolvedValueOnce({
+      data: null,
+      error: { code: "55000", message: "active_session_checkpoint_terminal" },
+    });
+    await expect(saveAuthenticatedActiveSessionCheckpoint(checkpoint()))
+      .rejects.toBeInstanceOf(ActiveSessionCheckpointTerminalError);
+  });
+
+  it("leaves the browser checkpoint intact when a retryable cloud write fails", async () => {
+    installMemoryStorage();
+    const local = checkpoint();
+    expect(saveActiveSessionCheckpoint(local)).toBe(true);
+    rpc.mockResolvedValueOnce({
+      data: null,
+      error: { code: "08006", message: "network unavailable" },
+    });
+
+    await expect(saveAuthenticatedActiveSessionCheckpoint(local))
+      .rejects.toThrow("kept this lesson on this device");
+
+    expect(loadActiveSessionCheckpoints(local.accountId)).toEqual([local]);
+  });
+
+  it("deletes by server-owned session identity without accepting account or plan ids", async () => {
+    rpc.mockResolvedValueOnce({ data: true, error: null });
+    const local = checkpoint();
+
+    await deleteAuthenticatedActiveSessionCheckpoint(local.planSessionId, local.runId);
+
+    expect(rpc).toHaveBeenCalledWith("delete_active_session_checkpoint", {
+      requested_plan_session_id: local.planSessionId,
+      requested_run_id: local.runId,
     });
   });
 });
@@ -173,14 +400,86 @@ function cloudState(overrides: Partial<CloudLearningState> = {}): CloudLearningS
     deadlineMilestones: [],
     sessionCompletions: [],
     sessionInterruptions: [],
+    activeSessionCheckpoints: [],
     ...overrides,
   };
 }
 
-function mockCloudQueries({ profile }: { profile: { display_name: string; onboarding_completed_at: string | null } | null }) {
+function checkpoint(
+  overrides: Partial<ActiveSessionCheckpointV1> = {},
+): ActiveSessionCheckpointV1 {
+  return {
+    version: 1,
+    accountId: "user-1",
+    runId: "00000000-0000-4000-8000-000000000001",
+    planId: "00000000-0000-4000-8000-000000000002",
+    planSessionId: "00000000-0000-4000-8000-000000000003",
+    status: "working",
+    startedAt: "2026-08-17T17:50:00.000Z",
+    savedAt: NOW,
+    activeSeconds: 420,
+    plannedMinutes: 25,
+    completedSteps: 1,
+    totalSteps: 5,
+    resumeStep: 1,
+    resourceFingerprint: "sr1:0123456789abcdef",
+    resourceGeneratedAt: "2026-08-17T17:40:00.000Z",
+    evidence: {
+      correctAnswers: 1,
+      totalAnswers: 1,
+      conceptEvidence: [],
+      confidenceEvidence: [],
+      observedGap: "No gap observed yet.",
+      completedImmediateRepairs: 0,
+    },
+    ...overrides,
+  } as ActiveSessionCheckpointV1;
+}
+
+function sessionRow(activeSessionCheckpoint: ActiveSessionCheckpointV1) {
+  return {
+    id: activeSessionCheckpoint.planSessionId,
+    plan_id: activeSessionCheckpoint.planId,
+    sequence: 1,
+    title: "ATP coupling",
+    objective: "Explain ATP coupling.",
+    method: "Self-explanation",
+    method_rationale: "Make the causal chain explicit.",
+    scheduled_for: NOW,
+    estimated_minutes: 25,
+    status: "ready",
+    step_data: { activeSessionCheckpoint },
+  };
+}
+
+function installMemoryStorage() {
+  const values = new Map<string, string>();
+  vi.stubGlobal("window", {
+    localStorage: {
+      getItem: (key: string) => values.get(key) ?? null,
+      setItem: (key: string, value: string) => values.set(key, value),
+      removeItem: (key: string) => values.delete(key),
+    },
+  });
+  return values;
+}
+
+function mockCloudQueries({
+  profile,
+  sessions = [],
+}: {
+  profile: { display_name: string; onboarding_completed_at: string | null } | null;
+  sessions?: ReturnType<typeof sessionRow>[];
+}) {
   from.mockImplementation((table: string) => {
     const result = {
-      data: table === "profiles" ? profile : table === "learner_profiles" ? null : [],
+      data: table === "profiles"
+        ? profile
+        : table === "learner_profiles"
+          ? null
+          : table === "plan_sessions"
+            ? sessions
+            : [],
       error: null,
     };
     const builder: Record<string, ReturnType<typeof vi.fn>> = {};
