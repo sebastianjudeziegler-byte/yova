@@ -90,6 +90,17 @@ export function pendingSessionCompletionCount(userId: string) {
   return loadAllPendingCompletions().filter((entry) => entry.userId === userId).length;
 }
 
+/**
+ * A queued completion is a durable local terminal marker. Startup uses these
+ * session ids to suppress an older cloud recovery point until the completion
+ * reaches the server.
+ */
+export function pendingSessionCompletionPlanSessionIds(userId: string) {
+  return loadAllPendingCompletions()
+    .filter((entry) => entry.userId === userId)
+    .map((entry) => entry.completion.planSessionId);
+}
+
 export async function flushQueuedSessionCompletions(userId: string) {
   const queued = loadAllPendingCompletions().filter((entry) => entry.userId === userId);
   let synced = 0;

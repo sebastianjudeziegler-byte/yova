@@ -47,6 +47,7 @@ const CheckpointBaseShape = {
   totalSteps: z.number().int().min(1).max(24),
   resumeStep: z.number().int().min(0).max(24),
   resourceFingerprint: ResourceFingerprintSchema,
+  resourceGeneratedAt: z.string().datetime({ offset: true }).optional(),
   sessionAdjustment: SessionAdjustmentSnapshotSchema.optional(),
 };
 
@@ -123,6 +124,13 @@ export const ActiveSessionCheckpointV1Schema = z.discriminatedUnion("status", [
 
 export type ActiveSessionCheckpointV1 = z.infer<typeof ActiveSessionCheckpointV1Schema>;
 
+export type ActiveSessionCheckpointMergeResult = {
+  checkpoints: ActiveSessionCheckpointV1[];
+  cloudRunIds: Set<string>;
+  checkpointsToUpload: ActiveSessionCheckpointV1[];
+  conflictingLocalRuns: ActiveSessionCheckpointV1[];
+};
+
 export type ActiveSessionCheckpointResumePoint = SessionInterruption & {
   source: "active_session_checkpoint";
   checkpointStatus: ActiveSessionCheckpointV1["status"];
@@ -130,9 +138,117 @@ export type ActiveSessionCheckpointResumePoint = SessionInterruption & {
   activeSeconds: number;
   savedAt: string;
   resourceFingerprint: string;
+  resourceGeneratedAt?: string;
   completedAt?: string;
   completionFeedback?: "too_easy" | "about_right" | "too_difficult";
 };
+
+/**
+ * Cloud checkpoint data is untrusted JSON. In addition to the bounded schema,
+ * reject any raw learner-answer or generated-tutor fields even when they are
+ * nested somewhere Zod would otherwise strip. This keeps an accidental future
+ * server payload from turning a recovery marker into a transcript store.
+ */
+export function readActiveSessionCheckpoint(
+  value: unknown,
+  now = Date.now(),
+): ActiveSessionCheckpointV1 | null {
+  if (hasForbiddenCheckpointContent(value)) return null;
+  try {
+    const parsed = ActiveSessionCheckpointV1Schema.safeParse(value);
+    return parsed.success && isCheckpointFresh(parsed.data, now) ? parsed.data : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Returns a positive number when `left` contains more recoverable progress.
+ * Wall-clock time is deliberately the final tie-breaker so a late, stale write
+ * cannot roll back a completed step or the awaiting-finish screen.
+ */
+export function compareActiveSessionCheckpointProgress(
+  left: ActiveSessionCheckpointV1,
+  right: ActiveSessionCheckpointV1,
+) {
+  const statusDifference = checkpointStatusRank(left.status) - checkpointStatusRank(right.status);
+  if (statusDifference !== 0) return statusDifference;
+  if (left.completedSteps !== right.completedSteps) {
+    return left.completedSteps - right.completedSteps;
+  }
+  if (left.resumeStep !== right.resumeStep) return left.resumeStep - right.resumeStep;
+  if (left.activeSeconds !== right.activeSeconds) return left.activeSeconds - right.activeSeconds;
+  return compareIsoTimestamps(left.savedAt, right.savedAt);
+}
+
+/**
+ * Reconciles browser recovery with the account's cloud recovery marker.
+ * A different cloud run (or lesson fingerprint) wins outright: another device
+ * may own that lesson and uploading the browser copy would overwrite it. For
+ * the same run and lesson, the checkpoint with the most actual progress wins.
+ */
+export function mergeActiveSessionCheckpoints(
+  localValues: readonly ActiveSessionCheckpointV1[],
+  cloudValues: readonly ActiveSessionCheckpointV1[],
+  now = Date.now(),
+): ActiveSessionCheckpointMergeResult {
+  const localBySession = checkpointsBySession(localValues, now);
+  const cloudBySession = checkpointsBySession(cloudValues, now);
+  const cloudRunIds = new Set<string>();
+  const checkpointsToUpload: ActiveSessionCheckpointV1[] = [];
+  const conflictingLocalRuns: ActiveSessionCheckpointV1[] = [];
+  const checkpoints: ActiveSessionCheckpointV1[] = [];
+  const sessionIds = new Set([...localBySession.keys(), ...cloudBySession.keys()]);
+
+  for (const planSessionId of sessionIds) {
+    const local = localBySession.get(planSessionId);
+    const cloud = cloudBySession.get(planSessionId);
+    if (!local && !cloud) continue;
+    if (!local && cloud) {
+      checkpoints.push(cloud);
+      cloudRunIds.add(cloud.runId);
+      continue;
+    }
+    if (local && !cloud) {
+      checkpoints.push(local);
+      checkpointsToUpload.push(local);
+      continue;
+    }
+    if (!local || !cloud) continue;
+
+    if (
+      local.accountId !== cloud.accountId
+      || local.planId !== cloud.planId
+      || local.runId !== cloud.runId
+      || local.resourceFingerprint !== cloud.resourceFingerprint
+      || local.resourceGeneratedAt !== cloud.resourceGeneratedAt
+    ) {
+      checkpoints.push(cloud);
+      cloudRunIds.add(cloud.runId);
+      conflictingLocalRuns.push(local);
+      continue;
+    }
+
+    if (compareActiveSessionCheckpointProgress(local, cloud) > 0) {
+      checkpoints.push(local);
+      checkpointsToUpload.push(local);
+    } else {
+      checkpoints.push(cloud);
+      cloudRunIds.add(cloud.runId);
+    }
+  }
+
+  checkpoints.sort((left, right) => compareIsoTimestamps(right.savedAt, left.savedAt));
+  checkpointsToUpload.sort((left, right) => compareIsoTimestamps(left.savedAt, right.savedAt));
+  conflictingLocalRuns.sort((left, right) => compareIsoTimestamps(right.savedAt, left.savedAt));
+
+  return {
+    checkpoints,
+    cloudRunIds,
+    checkpointsToUpload,
+    conflictingLocalRuns,
+  };
+}
 
 export function saveActiveSessionCheckpoint(checkpoint: ActiveSessionCheckpointV1) {
   const parsed = ActiveSessionCheckpointV1Schema.safeParse(checkpoint);
@@ -213,11 +329,59 @@ export function clearActiveSessionCheckpoints(accountId: string) {
   );
 }
 
+/**
+ * Replaces one account's recovery markers in a single localStorage write while
+ * preserving every other account. Startup reconciliation uses this instead of
+ * ordinary saves because a cloud-authoritative different run must be able to
+ * replace a browser checkpoint even when the browser timestamp is newer.
+ */
+export function replaceActiveSessionCheckpointsForAccount(
+  accountId: string,
+  checkpoints: readonly ActiveSessionCheckpointV1[],
+) {
+  const parsedAccountId = SafeIdentifierSchema.safeParse(accountId);
+  if (!parsedAccountId.success) return false;
+  const now = Date.now();
+  const parsedCheckpoints: ActiveSessionCheckpointV1[] = [];
+  for (const value of checkpoints) {
+    const parsed = readActiveSessionCheckpoint(value, now);
+    if (!parsed || parsed.accountId !== parsedAccountId.data) return false;
+    parsedCheckpoints.push(parsed);
+  }
+
+  const storage = browserStorage();
+  if (!storage) return false;
+  const stored = readStoredCheckpoints(storage, now);
+  if (!stored.ok) return false;
+
+  return writeStoredCheckpoints(
+    storage,
+    normalizeStoredCheckpoints([
+      ...stored.checkpoints.filter((checkpoint) => checkpoint.accountId !== parsedAccountId.data),
+      ...parsedCheckpoints,
+    ], now),
+  );
+}
+
 export function fingerprintSessionResource(resource: SessionResource) {
   const serialized = stableSerialize(Object.fromEntries(
     Object.entries(resource).filter(([key]) => key !== "generatedAt"),
   ));
   return `sr1:${hash32(serialized, 0x811c9dc5)}${hash32(serialized, 0x9e3779b9)}`;
+}
+
+export function checkpointMatchesSessionResource(
+  checkpoint: Pick<
+    ActiveSessionCheckpointV1,
+    "resourceFingerprint" | "resourceGeneratedAt"
+  >,
+  resource: SessionResource,
+) {
+  return fingerprintSessionResource(resource) === checkpoint.resourceFingerprint
+    && (
+      checkpoint.resourceGeneratedAt === undefined
+      || checkpoint.resourceGeneratedAt === resource.generatedAt
+    );
 }
 
 export function checkpointToSessionResumePoint(
@@ -252,6 +416,9 @@ export function checkpointToSessionResumePoint(
     activeSeconds: checkpoint.activeSeconds,
     savedAt: checkpoint.savedAt,
     resourceFingerprint: checkpoint.resourceFingerprint,
+    ...(checkpoint.resourceGeneratedAt ? {
+      resourceGeneratedAt: checkpoint.resourceGeneratedAt,
+    } : {}),
     ...(checkpoint.status === "awaiting_finish" ? {
       completedAt: checkpoint.completedAt,
       completionFeedback: checkpoint.completionFeedback,
@@ -305,10 +472,10 @@ export function restoreCheckpointSessionResources(
         !checkpoint
         || checkpoint.planId !== cloudPlan.id
         || !localSession?.resource
-        || fingerprintSessionResource(localSession.resource) !== checkpoint.resourceFingerprint
+        || !checkpointMatchesSessionResource(checkpoint, localSession.resource)
       ) return cloudSession;
       if (cloudSession.resource) {
-        if (fingerprintSessionResource(cloudSession.resource) === checkpoint.resourceFingerprint) {
+        if (checkpointMatchesSessionResource(checkpoint, cloudSession.resource)) {
           return cloudSession;
         }
         const cloudGeneratedAt = Date.parse(cloudSession.resource.generatedAt);
@@ -390,7 +557,7 @@ function normalizeStoredCheckpoints(
     if (!isCheckpointFresh(checkpoint, now)) continue;
     const key = `${checkpoint.accountId}\u0000${checkpoint.planSessionId}`;
     const current = latestByAccountAndSession.get(key);
-    if (!current || compareIsoTimestamps(checkpoint.savedAt, current.savedAt) >= 0) {
+    if (!current || preferCheckpointWithinSource(checkpoint, current)) {
       latestByAccountAndSession.set(key, checkpoint);
     }
   }
@@ -414,6 +581,86 @@ function isCheckpointFresh(checkpoint: ActiveSessionCheckpointV1, now: number) {
   const savedAt = Date.parse(checkpoint.savedAt);
   return savedAt <= now + MAX_FUTURE_CLOCK_SKEW_MS
     && savedAt >= now - ACTIVE_SESSION_CHECKPOINT_TTL_MS;
+}
+
+function checkpointStatusRank(status: ActiveSessionCheckpointV1["status"]) {
+  return status === "awaiting_finish" ? 1 : 0;
+}
+
+function checkpointsBySession(
+  values: readonly ActiveSessionCheckpointV1[],
+  now: number,
+) {
+  const checkpoints = new Map<string, ActiveSessionCheckpointV1>();
+  for (const value of values) {
+    const checkpoint = readActiveSessionCheckpoint(value, now);
+    if (!checkpoint) continue;
+    const current = checkpoints.get(checkpoint.planSessionId);
+    if (!current || preferCheckpointWithinSource(checkpoint, current)) {
+      checkpoints.set(checkpoint.planSessionId, checkpoint);
+    }
+  }
+  return checkpoints;
+}
+
+function preferCheckpointWithinSource(
+  candidate: ActiveSessionCheckpointV1,
+  current: ActiveSessionCheckpointV1,
+) {
+  if (
+    candidate.runId === current.runId
+    && candidate.resourceFingerprint === current.resourceFingerprint
+    && candidate.resourceGeneratedAt === current.resourceGeneratedAt
+  ) {
+    return compareActiveSessionCheckpointProgress(candidate, current) > 0;
+  }
+  return compareIsoTimestamps(candidate.savedAt, current.savedAt) > 0;
+}
+
+const FORBIDDEN_CHECKPOINT_KEYS = new Set([
+  "answer",
+  "answerdraft",
+  "answertext",
+  "currentanswer",
+  "draftanswer",
+  "evaluation",
+  "evaluationprose",
+  "freeresponse",
+  "freeresponseanswer",
+  "generatedrepair",
+  "generatedrepairprose",
+  "learneranswer",
+  "rawanswer",
+  "response",
+  "responsetext",
+  "selectedanswer",
+  "streamedtext",
+  "tutormessage",
+  "tutorresponse",
+  "tutortext",
+  "useranswer",
+  "userresponse",
+]);
+
+function hasForbiddenCheckpointContent(value: unknown) {
+  if (!value || typeof value !== "object") return false;
+  const pending = [value];
+  const visited = new WeakSet<object>();
+  while (pending.length > 0) {
+    const current = pending.pop();
+    if (!current || typeof current !== "object" || visited.has(current)) continue;
+    visited.add(current);
+    if (Array.isArray(current)) {
+      pending.push(...current);
+      continue;
+    }
+    for (const [key, entry] of Object.entries(current)) {
+      const normalizedKey = key.toLowerCase().replace(/[^a-z0-9]/g, "");
+      if (FORBIDDEN_CHECKPOINT_KEYS.has(normalizedKey)) return true;
+      if (entry && typeof entry === "object") pending.push(entry);
+    }
+  }
+  return false;
 }
 
 function compareIsoTimestamps(left: string, right: string) {

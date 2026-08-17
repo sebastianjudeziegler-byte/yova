@@ -11,6 +11,7 @@ vi.mock("@/lib/supabase/learning-state-repository", () => ({
 
 import {
   flushQueuedSessionInterruptions,
+  pendingSessionInterruptionRunIds,
   queueSessionInterruption,
 } from "@/lib/sync/session-interruption-outbox";
 
@@ -57,6 +58,9 @@ describe("session interruption outbox", () => {
     };
 
     expect(queueSessionInterruption(pending)).toBe(true);
+    expect(pendingSessionInterruptionRunIds(pending.userId)).toEqual([
+      pending.interruption.id,
+    ]);
     await expect(flushQueuedSessionInterruptions(pending.userId)).resolves.toEqual({
       synced: 1,
       remaining: 0,

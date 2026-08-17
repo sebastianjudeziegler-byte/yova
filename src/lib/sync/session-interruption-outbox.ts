@@ -55,6 +55,16 @@ export function clearQueuedSessionInterruptions(userId: string) {
   savePendingInterruptions(loadAllPendingInterruptions().filter((entry) => entry.userId !== userId));
 }
 
+/**
+ * A queued explicit Exit is a durable local terminal marker. It must win over
+ * an older cloud checkpoint so reconnecting cannot reopen already-exited work.
+ */
+export function pendingSessionInterruptionRunIds(userId: string) {
+  return loadAllPendingInterruptions()
+    .filter((entry) => entry.userId === userId)
+    .map((entry) => entry.interruption.id);
+}
+
 export async function flushQueuedSessionInterruptions(userId: string) {
   const queued = loadAllPendingInterruptions().filter((entry) => entry.userId === userId);
   let synced = 0;

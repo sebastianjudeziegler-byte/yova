@@ -3,12 +3,17 @@ import type { SessionInterruption, SessionResource } from "@/lib/domain";
 import {
   ACTIVE_SESSION_CHECKPOINT_TTL_MS,
   checkpointToSessionResumePoint,
+  checkpointMatchesSessionResource,
   chooseLatestSessionResumePoint,
   clearActiveSessionCheckpoints,
+  compareActiveSessionCheckpointProgress,
   fingerprintSessionResource,
   latestActiveSessionCheckpointFor,
   loadActiveSessionCheckpoints,
+  mergeActiveSessionCheckpoints,
+  readActiveSessionCheckpoint,
   removeActiveSessionCheckpoint,
+  replaceActiveSessionCheckpointsForAccount,
   restoreCheckpointSessionResources,
   saveActiveSessionCheckpoint,
   type ActiveSessionCheckpointV1,
@@ -124,6 +129,15 @@ afterEach(() => {
 });
 
 describe("active session checkpoint storage", () => {
+  it("keeps an already-deployed local checkpoint without generated lesson identity readable", () => {
+    installMemoryStorage();
+    const legacyLocal = checkpoint();
+
+    expect(legacyLocal.resourceGeneratedAt).toBeUndefined();
+    expect(saveActiveSessionCheckpoint(legacyLocal)).toBe(true);
+    expect(loadActiveSessionCheckpoints(legacyLocal.accountId)).toEqual([legacyLocal]);
+  });
+
   it("keeps only the latest checkpoint per account and plan session", () => {
     installMemoryStorage();
     const earlier = checkpoint({ savedAt: "2026-08-17T17:55:00.000Z", completedSteps: 0, resumeStep: 0 });
@@ -153,13 +167,33 @@ describe("active session checkpoint storage", () => {
 
   it("does not let an older late write replace newer progress", () => {
     installMemoryStorage();
-    const newer = checkpoint({ savedAt: "2026-08-17T17:59:00.000Z", completedSteps: 3, resumeStep: 3 });
-    const older = checkpoint({ savedAt: "2026-08-17T17:55:00.000Z", completedSteps: 1, resumeStep: 1 });
+    const newer = checkpoint({ savedAt: "2026-08-17T17:55:00.000Z", completedSteps: 3, resumeStep: 3 });
+    const older = checkpoint({ savedAt: "2026-08-17T17:59:00.000Z", completedSteps: 1, resumeStep: 1 });
 
     expect(saveActiveSessionCheckpoint(newer)).toBe(true);
     expect(saveActiveSessionCheckpoint(older)).toBe(true);
 
     expect(loadActiveSessionCheckpoints(newer.accountId)).toEqual([newer]);
+  });
+
+  it("treats a different generatedAt as a different local lesson source", () => {
+    installMemoryStorage();
+    const olderGeneration = checkpoint({
+      resourceGeneratedAt: "2026-08-17T17:40:00.000Z",
+      savedAt: "2026-08-17T17:55:00.000Z",
+      completedSteps: 3,
+      resumeStep: 3,
+    });
+    const regeneratedLesson = checkpoint({
+      resourceGeneratedAt: "2026-08-17T17:45:00.000Z",
+      savedAt: "2026-08-17T17:59:00.000Z",
+      completedSteps: 1,
+      resumeStep: 1,
+    });
+
+    expect(saveActiveSessionCheckpoint(olderGeneration)).toBe(true);
+    expect(saveActiveSessionCheckpoint(regeneratedLesson)).toBe(true);
+    expect(loadActiveSessionCheckpoints(olderGeneration.accountId)).toEqual([regeneratedLesson]);
   });
 
   it("orders offset timestamps by the instant they represent", () => {
@@ -241,6 +275,50 @@ describe("active session checkpoint storage", () => {
     expect(clearActiveSessionCheckpoints("preview_user_alpha")).toBe(true);
     expect(values.has("yova.active-session-checkpoints.v1")).toBe(false);
     expect(saveActiveSessionCheckpoint(checkpoint())).toBe(true);
+  });
+
+  it("atomically replaces one account after cloud reconciliation and preserves other accounts", () => {
+    installMemoryStorage();
+    const newerBrowserRun = checkpoint({
+      runId: "00000000-0000-4000-8000-000000000071",
+      savedAt: "2026-08-17T17:59:00.000Z",
+      completedSteps: 4,
+      resumeStep: 4,
+    });
+    const cloudRun = checkpoint({
+      runId: "00000000-0000-4000-8000-000000000072",
+      savedAt: "2026-08-17T17:55:00.000Z",
+      completedSteps: 1,
+      resumeStep: 1,
+    });
+    const otherAccount = checkpoint({
+      accountId: "preview_user_beta",
+      runId: "00000000-0000-4000-8000-000000000073",
+    });
+    saveActiveSessionCheckpoint(newerBrowserRun);
+    saveActiveSessionCheckpoint(otherAccount);
+
+    expect(replaceActiveSessionCheckpointsForAccount(
+      newerBrowserRun.accountId,
+      [cloudRun],
+    )).toBe(true);
+
+    expect(loadActiveSessionCheckpoints(newerBrowserRun.accountId)).toEqual([cloudRun]);
+    expect(loadActiveSessionCheckpoints(otherAccount.accountId)).toEqual([otherAccount]);
+  });
+
+  it("refuses an invalid or cross-account atomic replacement without changing storage", () => {
+    installMemoryStorage();
+    const original = checkpoint();
+    saveActiveSessionCheckpoint(original);
+    const crossAccount = checkpoint({ accountId: "preview_user_beta" });
+
+    expect(replaceActiveSessionCheckpointsForAccount(original.accountId, [crossAccount])).toBe(false);
+    expect(replaceActiveSessionCheckpointsForAccount(original.accountId, [{
+      ...original,
+      selectedAnswer: "Private answer",
+    } as unknown as ActiveSessionCheckpointV1])).toBe(false);
+    expect(loadActiveSessionCheckpoints(original.accountId)).toEqual([original]);
   });
 
   it("persists only source-derived repair identity, never generated repair or evaluation prose", () => {
@@ -341,6 +419,135 @@ describe("active session checkpoint storage", () => {
   });
 });
 
+describe("cloud active session checkpoint reconciliation", () => {
+  it("rejects expired, malformed, and nested raw-answer cloud data", () => {
+    expect(readActiveSessionCheckpoint(checkpoint())).toEqual(checkpoint());
+    expect(readActiveSessionCheckpoint({
+      ...checkpoint(),
+      evidence: {
+        ...evidence(),
+        learnerAnswer: "A private free-response draft",
+      },
+    })).toBeNull();
+    expect(readActiveSessionCheckpoint({
+      ...checkpoint(),
+      completedSteps: 6,
+    })).toBeNull();
+    expect(readActiveSessionCheckpoint(checkpoint({
+      savedAt: new Date(Date.parse(NOW) - ACTIVE_SESSION_CHECKPOINT_TTL_MS - 1).toISOString(),
+    }))).toBeNull();
+  });
+
+  it("orders progress before wall-clock recency", () => {
+    const base = checkpoint({
+      savedAt: "2026-08-17T17:59:00.000Z",
+      completedSteps: 1,
+      resumeStep: 1,
+      activeSeconds: 500,
+    });
+    const moreActiveTime = checkpoint({ ...base, activeSeconds: 501 });
+    const laterResume = checkpoint({ ...base, activeSeconds: 1, resumeStep: 2, completedSteps: 2 });
+    const finished = awaitingFinishCheckpoint({
+      savedAt: "2026-08-17T17:58:00.000Z",
+      activeSeconds: 1,
+    });
+
+    expect(compareActiveSessionCheckpointProgress(moreActiveTime, base)).toBeGreaterThan(0);
+    expect(compareActiveSessionCheckpointProgress(laterResume, moreActiveTime)).toBeGreaterThan(0);
+    expect(compareActiveSessionCheckpointProgress(finished, laterResume)).toBeGreaterThan(0);
+  });
+
+  it("uploads a same-run browser checkpoint only when it is ahead", () => {
+    const cloud = checkpoint({
+      savedAt: "2026-08-17T17:59:00.000Z",
+      completedSteps: 1,
+      resumeStep: 1,
+    });
+    const local = checkpoint({
+      savedAt: "2026-08-17T17:58:00.000Z",
+      completedSteps: 2,
+      resumeStep: 2,
+    });
+
+    const merged = mergeActiveSessionCheckpoints([local], [cloud]);
+
+    expect(merged.checkpoints).toEqual([local]);
+    expect(merged.checkpointsToUpload).toEqual([local]);
+    expect(merged.cloudRunIds.size).toBe(0);
+    expect(merged.conflictingLocalRuns).toEqual([]);
+  });
+
+  it("uses same-run cloud progress when it is equal or ahead", () => {
+    const local = checkpoint({
+      savedAt: "2026-08-17T17:58:00.000Z",
+      completedSteps: 1,
+      resumeStep: 1,
+    });
+    const cloud = checkpoint({
+      savedAt: "2026-08-17T17:59:00.000Z",
+      completedSteps: 2,
+      resumeStep: 2,
+    });
+
+    const merged = mergeActiveSessionCheckpoints([local], [cloud]);
+
+    expect(merged.checkpoints).toEqual([cloud]);
+    expect(merged.cloudRunIds.has(cloud.runId)).toBe(true);
+    expect(merged.checkpointsToUpload).toEqual([]);
+    expect(merged.conflictingLocalRuns).toEqual([]);
+  });
+
+  it("keeps cloud authoritative across a different run or lesson fingerprint", () => {
+    const cloud = checkpoint({
+      runId: "00000000-0000-4000-8000-000000000090",
+      completedSteps: 0,
+      resumeStep: 0,
+      activeSeconds: 10,
+    });
+    const differentRun = awaitingFinishCheckpoint();
+    const runConflict = mergeActiveSessionCheckpoints([differentRun], [cloud]);
+
+    expect(runConflict.checkpoints).toEqual([cloud]);
+    expect(runConflict.cloudRunIds.has(cloud.runId)).toBe(true);
+    expect(runConflict.checkpointsToUpload).toEqual([]);
+    expect(runConflict.conflictingLocalRuns).toEqual([differentRun]);
+
+    const differentLesson = checkpoint({ resourceFingerprint: "sr1:fedcba9876543210" });
+    const lessonConflict = mergeActiveSessionCheckpoints([differentLesson], [checkpoint()]);
+    expect(lessonConflict.checkpoints).toEqual([checkpoint()]);
+    expect(lessonConflict.conflictingLocalRuns).toEqual([differentLesson]);
+  });
+
+  it("treats a regenerated lesson as a conflict even when its content hash is unchanged", () => {
+    const local = checkpoint({ resourceGeneratedAt: "2026-08-17T17:40:00.000Z" });
+    const cloud = checkpoint({ resourceGeneratedAt: "2026-08-17T17:45:00.000Z" });
+
+    const merged = mergeActiveSessionCheckpoints([local], [cloud]);
+
+    expect(merged.checkpoints).toEqual([cloud]);
+    expect(merged.cloudRunIds.has(cloud.runId)).toBe(true);
+    expect(merged.checkpointsToUpload).toEqual([]);
+    expect(merged.conflictingLocalRuns).toEqual([local]);
+  });
+
+  it("uploads local-only sessions and keeps cloud-only sessions", () => {
+    const local = checkpoint({
+      planSessionId: "00000000-0000-4000-8000-000000000011",
+      runId: "00000000-0000-4000-8000-000000000012",
+    });
+    const cloud = checkpoint({
+      planSessionId: "00000000-0000-4000-8000-000000000021",
+      runId: "00000000-0000-4000-8000-000000000022",
+    });
+
+    const merged = mergeActiveSessionCheckpoints([local], [cloud]);
+
+    expect(merged.checkpoints).toEqual([local, cloud]);
+    expect(merged.checkpointsToUpload).toEqual([local]);
+    expect(merged.cloudRunIds.has(cloud.runId)).toBe(true);
+  });
+});
+
 describe("browser-only session resource recovery", () => {
   function planWithResource(sessionResource?: SessionResource) {
     return {
@@ -411,6 +618,24 @@ describe("browser-only session resource recovery", () => {
     )[0]?.sessions[0]?.resource).toBeUndefined();
   });
 
+  it("does not restore a same-content resource from a different generation", () => {
+    const original = resource();
+    const regenerated = {
+      ...original,
+      generatedAt: "2026-08-17T17:59:00.000Z",
+    };
+    const exactProof = checkpoint({
+      resourceFingerprint: fingerprintSessionResource(original),
+      resourceGeneratedAt: original.generatedAt,
+    });
+
+    expect(restoreCheckpointSessionResources(
+      [planWithResource()],
+      [planWithResource(regenerated)],
+      [exactProof],
+    )[0]?.sessions[0]?.resource).toBeUndefined();
+  });
+
   it("restores the checkpoint-proven browser lesson over an older cloud cache", () => {
     const cloudResource = {
       ...resource("Older cloud-cached lesson."),
@@ -448,6 +673,26 @@ describe("active session resource identity", () => {
     })).toBe(fingerprintSessionResource(original));
     expect(fingerprintSessionResource(resource("A different explanation.")))
       .not.toBe(fingerprintSessionResource(original));
+  });
+
+  it("uses generatedAt to reject a stale regeneration with the same content", () => {
+    const original = resource();
+    const regenerated = {
+      ...original,
+      generatedAt: "2026-08-17T17:59:00.000Z",
+    };
+    const exactCheckpoint = checkpoint({
+      resourceFingerprint: fingerprintSessionResource(original),
+      resourceGeneratedAt: original.generatedAt,
+    });
+    const legacyCheckpoint = checkpoint({
+      resourceFingerprint: fingerprintSessionResource(original),
+    });
+
+    expect(fingerprintSessionResource(regenerated)).toBe(fingerprintSessionResource(original));
+    expect(checkpointMatchesSessionResource(exactCheckpoint, original)).toBe(true);
+    expect(checkpointMatchesSessionResource(exactCheckpoint, regenerated)).toBe(false);
+    expect(checkpointMatchesSessionResource(legacyCheckpoint, regenerated)).toBe(true);
   });
 });
 
