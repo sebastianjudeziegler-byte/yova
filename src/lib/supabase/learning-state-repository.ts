@@ -127,6 +127,33 @@ export type CloudLearningState = {
   sessionInterruptions: SessionInterruption[];
 };
 
+const AUTHENTICATED_STATE_RETRY_DELAYS_MS = [150, 400] as const;
+
+export async function loadAuthenticatedLearningStateWithRetry(
+  read: () => Promise<CloudLearningState | null> = loadAuthenticatedLearningState,
+  retryDelaysMs: readonly number[] = AUTHENTICATED_STATE_RETRY_DELAYS_MS,
+  wait: (milliseconds: number) => Promise<void> = delay,
+): Promise<CloudLearningState> {
+  let lastIssue: unknown = null;
+
+  for (let attempt = 0; attempt <= retryDelaysMs.length; attempt += 1) {
+    try {
+      const state = await read();
+      if (state) return state;
+      lastIssue = new Error("The authenticated cloud state was temporarily unavailable.");
+    } catch (error) {
+      lastIssue = error;
+    }
+
+    const retryDelay = retryDelaysMs[attempt];
+    if (retryDelay !== undefined) await wait(retryDelay);
+  }
+
+  throw lastIssue instanceof Error
+    ? lastIssue
+    : new Error("YOVA could not load your cloud learning data.");
+}
+
 export async function loadAuthenticatedLearningState(): Promise<CloudLearningState | null> {
   if (!isSupabaseConfigured()) return null;
 
@@ -157,6 +184,10 @@ export async function loadAuthenticatedLearningState(): Promise<CloudLearningSta
   if (error) throw new Error("YOVA could not load your cloud learning data.");
 
   const profile = profileResult.data as ProfileRow | null;
+  // Account creation inserts this row from the auth.users trigger. An
+  // authenticated read without it is therefore indeterminate (for example,
+  // while a recovery session is settling), not evidence of a new learner.
+  if (!profile) throw new Error("YOVA could not load your cloud learning profile.");
   const learnerProfile = learnerProfileResult.data as LearnerProfileRow | null;
   const itemRows = (itemsResult.data ?? []) as LearningItemRow[];
   const planRows = (plansResult.data ?? []) as PlanRow[];
@@ -310,14 +341,18 @@ export async function loadAuthenticatedLearningState(): Promise<CloudLearningSta
   });
 
   return {
-    displayName: profile?.display_name?.trim() ?? "",
-    onboardingCompleted: Boolean(profile?.onboarding_completed_at),
+    displayName: profile.display_name?.trim() ?? "",
+    onboardingCompleted: Boolean(profile.onboarding_completed_at),
     onboardingAnswers: learnerProfileToAnswers(learnerProfile),
     plans,
     deadlineMilestones,
     sessionCompletions,
     sessionInterruptions,
   };
+}
+
+function delay(milliseconds: number) {
+  return new Promise<void>((resolve) => window.setTimeout(resolve, milliseconds));
 }
 
 function readLearningMode(value: unknown) {

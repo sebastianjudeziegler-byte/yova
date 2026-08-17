@@ -204,7 +204,7 @@ import { deleteUploadedMaterial, uploadMaterialFiles } from "@/lib/materials/int
 import {
   activateAuthenticatedConceptReviewSession,
   completeAuthenticatedPlanSession,
-  loadAuthenticatedLearningState,
+  loadAuthenticatedLearningStateWithRetry,
   recordAuthenticatedSessionInterruption,
   saveAuthenticatedLearnerProfile,
 } from "@/lib/supabase/learning-state-repository";
@@ -275,7 +275,7 @@ import {
   type TutorThreadSummary,
 } from "@/lib/tutor/schema";
 
-type Stage = "landing" | "account" | "onboarding-intro" | "onboarding" | "profile" | "paywall" | "app" | "add" | "plan-creator" | "study-now" | "session-setup" | "session-loading" | "session-error" | "session" | "complete";
+type Stage = "landing" | "account" | "cloud-error" | "onboarding-intro" | "onboarding" | "profile" | "paywall" | "app" | "add" | "plan-creator" | "study-now" | "session-setup" | "session-loading" | "session-error" | "session" | "complete";
 type Tab = "Home" | "Learning" | "Agenda" | "Ask YOVA" | "You";
 type LessonStep = GuidedSessionStep & {
   lessonBrief?: LessonBrief | null;
@@ -491,26 +491,26 @@ export function YovaPrototype({
         try {
           const retryResult = await flushQueuedSessionCompletions(cloudAccount.id);
           const interruptionRetryResult = await flushQueuedSessionInterruptions(cloudAccount.id);
-          const cloudState = await loadAuthenticatedLearningState();
+          const cloudState = await loadAuthenticatedLearningStateWithRetry();
           if (cancelled) return;
 
-          const restoredAccount = cloudState?.displayName
+          const restoredAccount = cloudState.displayName
             ? { ...cloudAccount, displayName: cloudState.displayName }
             : cloudAccount;
-          const cloudPlans = cloudState?.plans ?? [];
-          const cloudOnboardingCompleted = cloudState?.onboardingCompleted ?? false;
+          const cloudPlans = cloudState.plans;
+          const cloudOnboardingCompleted = cloudState.onboardingCompleted;
           const restoredAlphaEntered = localAccountMatches ? Boolean(saved?.alphaEntered) : false;
 
           setAccount(restoredAccount);
           setSignedIn(true);
-          setAnswers(cloudState?.onboardingAnswers ?? []);
+          setAnswers(cloudState.onboardingAnswers);
           setOnboardingCompleted(cloudOnboardingCompleted);
           setAlphaEntered(restoredAlphaEntered);
           setPlans(cloudPlans);
-          setDeadlineMilestones(cloudState?.deadlineMilestones ?? []);
+          setDeadlineMilestones(cloudState.deadlineMilestones);
           setSelectedPlanId(cloudPlans.filter((plan) => plan.status === "active").at(-1)?.id ?? null);
-          setSessionCompletions(cloudState?.sessionCompletions ?? []);
-          setSessionInterruptions(cloudState?.sessionInterruptions ?? []);
+          setSessionCompletions(cloudState.sessionCompletions);
+          setSessionInterruptions(cloudState.sessionInterruptions);
           const pendingEvents = retryResult.remaining + interruptionRetryResult.remaining;
           setCloudSyncIssue(pendingEvents > 0
             ? `${pendingEvents} session ${pendingEvents === 1 ? "event is" : "events are"} waiting to sync.`
@@ -526,7 +526,10 @@ export function YovaPrototype({
           setSignedIn(true);
           setCloudSyncIssue(error instanceof Error ? error.message : "YOVA could not load your cloud data.");
 
-          if (localAccountMatches && saved) {
+          const hasTrustedLocalState = localAccountMatches
+            && saved
+            && saved.onboardingCompleted;
+          if (hasTrustedLocalState) {
             setAnswers(saved.onboardingAnswers);
             setOnboardingCompleted(saved.onboardingCompleted);
             setAlphaEntered(saved.alphaEntered);
@@ -535,9 +538,8 @@ export function YovaPrototype({
             setSelectedPlanId(saved.plans.filter((plan) => plan.status === "active").at(-1)?.id ?? null);
             setSessionCompletions(saved.sessionCompletions);
             setSessionInterruptions(saved.sessionInterruptions);
-            if (saved.alphaEntered) setStage("app");
-            else if (saved.onboardingCompleted) setStage("paywall");
-            else setStage("onboarding-intro");
+            if (saved.alphaEntered || saved.plans.some((plan) => plan.status === "active")) setStage("app");
+            else setStage("paywall");
           } else {
             setAnswers([]);
             setOnboardingCompleted(false);
@@ -547,7 +549,7 @@ export function YovaPrototype({
             setSelectedPlanId(null);
             setSessionCompletions([]);
             setSessionInterruptions([]);
-            setStage("onboarding-intro");
+            setStage("cloud-error");
           }
         }
       } else if (saved?.signedIn && saved.account && authMode === "preview") {
@@ -578,7 +580,7 @@ export function YovaPrototype({
   }, [authCheckAttempt]);
 
   useEffect(() => {
-    if (!ready || !account || !signedIn) return;
+    if (!ready || stage === "cloud-error" || !account || !signedIn) return;
     savePreviewSnapshot({
       version: 1,
       account,
@@ -592,7 +594,7 @@ export function YovaPrototype({
       sessionInterruptions,
       updatedAt: new Date().toISOString(),
     });
-  }, [ready, account, signedIn, answers, onboardingCompleted, alphaEntered, plans, deadlineMilestones, sessionCompletions, sessionInterruptions]);
+  }, [ready, stage, account, signedIn, answers, onboardingCompleted, alphaEntered, plans, deadlineMilestones, sessionCompletions, sessionInterruptions]);
 
   useEffect(() => {
     if (account?.identityMode !== "supabase") return;
@@ -1774,6 +1776,7 @@ export function YovaPrototype({
   if (!ready) return <LoadingAccount />;
 
   if (stage === "landing") return <Landing inviteOnly={inviteOnly} authIssue={authStartupIssue} onRetryAuth={() => { setReady(false); setAuthCheckAttempt((attempt) => attempt + 1); }} onCreate={() => { setAccountMode(inviteOnly ? "sign-in" : "create"); setStage("account"); }} onSignIn={() => { setAccountMode("sign-in"); setStage("account"); }} />;
+  if (stage === "cloud-error") return <CloudAccountLoadError issue={cloudSyncIssue} onRetry={() => { setReady(false); setAuthCheckAttempt((attempt) => attempt + 1); }} />;
   if (stage === "account") {
     return <AccountEntry key={accountMode} mode={accountMode} existingAccount={account} emailCodeVerificationEnabled={emailCodeVerificationEnabled} inviteOnly={inviteOnly} passwordAccountsEnabled={passwordAccountsEnabled} turnstileSiteKey={turnstileSiteKey} browserPreviewMode={browserPreviewMode} onBack={() => setStage("landing")} onModeChange={setAccountMode} onContinue={(nextAccount) => {
       if (accountMode === "create") {
@@ -2013,6 +2016,10 @@ async function syncPendingCloudWork(account: PreviewAccount, answers: string[], 
 
 function LoadingAccount() {
   return <main className="centered-shell"><BrandMark /><p className="muted">Opening your YOVA…</p></main>;
+}
+
+function CloudAccountLoadError({ issue, onRetry }: { issue: string | null; onRetry: () => void }) {
+  return <main className="centered-shell"><BrandMark /><section className="setup-card" role="alert"><div className="mail-check" aria-hidden="true"><AlertCircle size={24} /></div><span className="step-label">ACCOUNT CONNECTION INTERRUPTED</span><h1>YOVA could not safely reopen your profile.</h1><p>{issue ?? "Your cloud learning profile is temporarily unavailable."} Your account and saved learning data have not been changed.</p><button className="button primary large full" onClick={onRetry}>Try opening YOVA again <RotateCcw size={18} /></button></section></main>;
 }
 
 function Landing({ inviteOnly, authIssue, onRetryAuth, onCreate, onSignIn }: { inviteOnly: boolean; authIssue: string | null; onRetryAuth: () => void; onCreate: () => void; onSignIn: () => void }) {
