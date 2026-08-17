@@ -70,6 +70,7 @@ import { trackProductEvent } from "@/lib/analytics/client";
 import { describeAuthCallbackResult } from "@/lib/auth/callback-result";
 import { AuthConnectionError, getAuthenticatedAccount, getAuthMode, signOutAuthenticatedAccount } from "@/lib/auth/client";
 import { protectsPreviewSnapshot, transitionCloudRecovery, type CloudRecoveryStatus } from "@/lib/auth/cloud-recovery";
+import { restoredAccountStage } from "@/lib/auth/startup-stage";
 import {
   makeUuid,
   type ConfidenceEvidence,
@@ -276,7 +277,7 @@ import {
   type TutorThreadSummary,
 } from "@/lib/tutor/schema";
 
-type Stage = "landing" | "account" | "cloud-error" | "onboarding-intro" | "onboarding" | "profile" | "paywall" | "app" | "add" | "plan-creator" | "study-now" | "session-setup" | "session-loading" | "session-error" | "session" | "complete";
+type Stage = "landing" | "account" | "cloud-error" | "onboarding-intro" | "onboarding" | "profile" | "app" | "add" | "plan-creator" | "study-now" | "session-setup" | "session-loading" | "session-error" | "session" | "complete";
 type Tab = "Home" | "Learning" | "Agenda" | "Ask YOVA" | "You";
 type LessonStep = GuidedSessionStep & {
   lessonBrief?: LessonBrief | null;
@@ -316,7 +317,6 @@ export function YovaPrototype({
   const [account, setAccount] = useState<PreviewAccount | null>(null);
   const [signedIn, setSignedIn] = useState(false);
   const [onboardingCompleted, setOnboardingCompleted] = useState(false);
-  const [alphaEntered, setAlphaEntered] = useState(false);
   const [questionIndex, setQuestionIndex] = useState(0);
   const [answers, setAnswers] = useState<string[]>([]);
   const [plans, setPlans] = useState<LearningPlan[]>([]);
@@ -462,7 +462,6 @@ export function YovaPrototype({
         setSignedIn(saved.signedIn);
         setAnswers(saved.onboardingAnswers);
         setOnboardingCompleted(saved.onboardingCompleted);
-        setAlphaEntered(saved.alphaEntered);
         setPlans(saved.plans);
         setDeadlineMilestones(saved.deadlineMilestones ?? []);
         setSelectedPlanId(saved.plans.filter((plan) => plan.status === "active").at(-1)?.id ?? null);
@@ -516,13 +515,10 @@ export function YovaPrototype({
             : cloudAccount;
           const cloudPlans = cloudState.plans;
           const cloudOnboardingCompleted = cloudState.onboardingCompleted;
-          const restoredAlphaEntered = localAccountMatches ? Boolean(saved?.alphaEntered) : false;
-
           setAccount(restoredAccount);
           setSignedIn(true);
           setAnswers(cloudState.onboardingAnswers);
           setOnboardingCompleted(cloudOnboardingCompleted);
-          setAlphaEntered(restoredAlphaEntered);
           setPlans(cloudPlans);
           setDeadlineMilestones(cloudState.deadlineMilestones);
           setSelectedPlanId(cloudPlans.filter((plan) => plan.status === "active").at(-1)?.id ?? null);
@@ -533,10 +529,10 @@ export function YovaPrototype({
             ? `${pendingEvents} session ${pendingEvents === 1 ? "event is" : "events are"} waiting to sync.`
             : null);
 
-          if (cloudPlans.some((plan) => plan.status === "active")) setStage("app");
-          else if (cloudOnboardingCompleted && restoredAlphaEntered) setStage("app");
-          else if (cloudOnboardingCompleted) setStage("paywall");
-          else setStage("onboarding-intro");
+          setStage(restoredAccountStage({
+            onboardingCompleted: cloudOnboardingCompleted,
+            hasActivePlan: cloudPlans.some((plan) => plan.status === "active"),
+          }));
         } catch (error) {
           reportProductError({ surface: "cloud_sync", errorCode: "cloud_state_load_failed" });
           setAccount(cloudAccount);
@@ -553,14 +549,16 @@ export function YovaPrototype({
             );
             setAnswers(saved.onboardingAnswers);
             setOnboardingCompleted(saved.onboardingCompleted);
-            setAlphaEntered(saved.alphaEntered);
             setPlans(saved.plans);
             setDeadlineMilestones(saved.deadlineMilestones ?? []);
             setSelectedPlanId(saved.plans.filter((plan) => plan.status === "active").at(-1)?.id ?? null);
             setSessionCompletions(saved.sessionCompletions);
             setSessionInterruptions(saved.sessionInterruptions);
-            if (saved.alphaEntered || saved.plans.some((plan) => plan.status === "active")) setStage("app");
-            else setStage("paywall");
+            setStage(restoredAccountStage({
+              onboardingCompleted: saved.onboardingCompleted,
+              hasActivePlan: saved.plans.some((plan) => plan.status === "active"),
+              legacyAlphaEntered: saved.alphaEntered,
+            }));
           } else {
             cloudRecoveryStatusRef.current = transitionCloudRecovery(
               cloudRecoveryStatusRef.current,
@@ -568,7 +566,6 @@ export function YovaPrototype({
             );
             setAnswers([]);
             setOnboardingCompleted(false);
-            setAlphaEntered(false);
             setPlans([]);
             setDeadlineMilestones([]);
             setSelectedPlanId(null);
@@ -578,9 +575,11 @@ export function YovaPrototype({
           }
         }
       } else if (saved?.signedIn && saved.account && authMode === "preview") {
-        if (saved.alphaEntered) setStage("app");
-        else if (saved.onboardingCompleted) setStage("paywall");
-        else setStage("onboarding-intro");
+        setStage(restoredAccountStage({
+          onboardingCompleted: saved.onboardingCompleted,
+          hasActivePlan: saved.plans.some((plan) => plan.status === "active"),
+          legacyAlphaEntered: saved.alphaEntered,
+        }));
       } else if (authMode === "supabase") {
         cloudRecoveryStatusRef.current = transitionCloudRecovery(
           cloudRecoveryStatusRef.current,
@@ -597,7 +596,6 @@ export function YovaPrototype({
         setSignedIn(false);
         setAnswers([]);
         setOnboardingCompleted(false);
-        setAlphaEntered(false);
         setPlans([]);
         setDeadlineMilestones([]);
         setSelectedPlanId(null);
@@ -622,14 +620,16 @@ export function YovaPrototype({
       signedIn,
       onboardingAnswers: answers,
       onboardingCompleted,
-      alphaEntered,
+      // Retain the legacy field so snapshots written before the public launch
+      // remain readable. Startup now uses durable onboarding and plan state.
+      alphaEntered: onboardingCompleted,
       plans,
       deadlineMilestones,
       sessionCompletions,
       sessionInterruptions,
       updatedAt: new Date().toISOString(),
     });
-  }, [ready, stage, account, signedIn, answers, onboardingCompleted, alphaEntered, plans, deadlineMilestones, sessionCompletions, sessionInterruptions]);
+  }, [ready, stage, account, signedIn, answers, onboardingCompleted, plans, deadlineMilestones, sessionCompletions, sessionInterruptions]);
 
   useEffect(() => {
     if (account?.identityMode !== "supabase") return;
@@ -1381,7 +1381,6 @@ export function YovaPrototype({
     }
     clearPreviewSnapshot();
     setOnboardingCompleted(false);
-    setAlphaEntered(false);
     setQuestionIndex(0);
     setAnswers([]);
     setPlans([]);
@@ -1721,7 +1720,6 @@ export function YovaPrototype({
       setSignedIn(false);
       setAnswers([]);
       setOnboardingCompleted(false);
-      setAlphaEntered(false);
       setPlans([]);
       setDeadlineMilestones([]);
       setSelectedPlanId(null);
@@ -1840,7 +1838,6 @@ export function YovaPrototype({
         clearPreviewSnapshot();
         setAnswers([]);
         setOnboardingCompleted(false);
-        setAlphaEntered(false);
         setPlans([]);
         setDeadlineMilestones([]);
         setSessionCompletions([]);
@@ -1849,7 +1846,7 @@ export function YovaPrototype({
       }
       setAccount(nextAccount);
       setSignedIn(true);
-      if (accountMode === "sign-in" && onboardingCompleted) setStage(alphaEntered ? "app" : "paywall");
+      if (accountMode === "sign-in" && onboardingCompleted) setStage("app");
       else setStage("onboarding-intro");
     }} />;
   }
@@ -1882,10 +1879,8 @@ export function YovaPrototype({
       />
     );
   }
-  if (stage === "profile") return <ProfileSummary answers={answers} onContinue={() => setStage("paywall")} />;
-  if (stage === "paywall") return <PaywallPreview onContinue={() => {
+  if (stage === "profile") return <ProfileSummary answers={answers} onContinue={() => {
     trackProductEvent({ eventName: "alpha_entered", context: {} }, analyticsEnabled);
-    setAlphaEntered(true);
     setStage("app");
   }} />;
   if (stage === "add") return <AddToYova
@@ -2096,7 +2091,7 @@ function Landing({ inviteOnly, authIssue, onRetryAuth, onCreate, onSignIn }: { i
         <div className="how-steps"><article><span>1</span><h3>Tell YOVA the goal</h3><p>Prepare for a test, understand a topic, or build a longer learning plan.</p></article><article><span>2</span><h3>Add materials, or do not</h3><p>Use notes, slides, PDFs, AI-created lessons, or outside resources you already trust.</p></article><article><span>3</span><h3>Follow one clear next step</h3><p>YOVA chooses and explains the method, guides the work, then updates what comes next.</p></article></div>
         <button className="button primary large" onClick={onCreate}>{inviteOnly ? "Use my invitation" : "Build my YOVA"} <ArrowRight size={18} /></button>
       </section>
-      <footer className="entry-trust-links"><span>YOVA private alpha</span><nav aria-label="Trust and support"><Link href="/privacy">Privacy</Link><Link href="/terms">Terms</Link><Link href="/support">Support</Link></nav></footer>
+      <footer className="entry-trust-links"><span>{inviteOnly ? "YOVA private alpha" : "YOVA public alpha"}</span><nav aria-label="Trust and support"><Link href="/privacy">Privacy</Link><Link href="/terms">Terms</Link><Link href="/support">Support</Link></nav></footer>
     </main>
   );
 }
@@ -2121,14 +2116,10 @@ function OnboardingQuestion({ index, answer, onAnswer, onNext, onBack }: { index
 }
 
 function ProfileSummary({ answers, onContinue }: { answers: string[]; onContinue: () => void }) {
-  return <main className="centered-shell"><BrandMark /><section className="setup-card wide"><span className="eyebrow"><Sparkles size={15} /> Your starting setup</span><h1>YOVA will begin like this.</h1><p>This is a transparent starting point based on your answers. It can change as you update your preferences and complete sessions.</p><div className="profile-grid"><ProfileItem title="Guidance" value={answers[1] || "Not answered yet"} note="Controls how much YOVA decides for you" /><ProfileItem title="Session size" value={answers[2] || "Not answered yet"} note="Used as a starting estimate" /><ProfileItem title="Explanations" value={answers[3] || "Not answered yet"} note="Shapes how difficult material is introduced" /><ProfileItem title="Focus pattern" value={answers[4] || "Not answered yet"} note="Helps YOVA keep sessions manageable" /></div><button className="button primary large full" onClick={onContinue}>Continue <ArrowRight size={18} /></button></section></main>;
+  return <main className="centered-shell"><BrandMark /><section className="setup-card wide"><span className="eyebrow"><Sparkles size={15} /> Your starting setup</span><h1>YOVA will begin like this.</h1><p>This is a transparent starting point based on your answers. It can change as you update your preferences and complete sessions.</p><div className="profile-grid"><ProfileItem title="Guidance" value={answers[1] || "Not answered yet"} note="Controls how much YOVA decides for you" /><ProfileItem title="Session size" value={answers[2] || "Not answered yet"} note="Used as a starting estimate" /><ProfileItem title="Explanations" value={answers[3] || "Not answered yet"} note="Shapes how difficult material is introduced" /><ProfileItem title="Focus pattern" value={answers[4] || "Not answered yet"} note="Helps YOVA keep sessions manageable" /></div><button className="button primary large full" onClick={onContinue}>Open YOVA <ArrowRight size={18} /></button></section></main>;
 }
 
 function ProfileItem({ title, value, note }: { title: string; value: string; note: string }) { return <div className="profile-item"><span>{title}</span><strong>{value}</strong><small>{note}</small></div>; }
-
-function PaywallPreview({ onContinue }: { onContinue: () => void }) {
-  return <main className="centered-shell dark"><BrandMark /><section className="setup-card paywall"><span className="step-label">YOVA</span><h1>A study system built around you.</h1><p>Plans, method selection, guided sessions, progress memory, and adjustments based on what happens next.</p><ul className="check-list"><li><Check /> Determine what you already know</li><li><Check /> Choose methods that fit the task and your tendencies</li><li><Check /> Tell you exactly how to perform each method</li><li><Check /> Adjust the next session using your results</li></ul><button className="button primary large full" onClick={onContinue}>Continue to private alpha</button><small>Payments will be connected after the core experience is validated.</small></section></main>;
-}
 
 function EarlySessionDialog({ plan, session, pending, issue, onCancel, onStart }: { plan: LearningPlan; session: LearningPlanSession; pending: boolean; issue: string | null; onCancel: () => void; onStart: (shiftRemainingPlan: boolean) => void }) {
   const unfinishedCount = plan.sessions.filter((item) => item.status === "ready" || item.status === "upcoming").length;
@@ -2741,7 +2732,7 @@ function PlanSources({ plan, editable, onAttach }: { plan: LearningPlan; editabl
     }
   };
 
-  return <section className="section-block plan-sources"><div className="section-title"><h3>Learning source</h3><div className="source-heading-actions"><span>{plan.sourceMode === "user_materials" ? `${materials.length} uploaded` : "Created by YOVA"}</span>{editable && !atLimit && <label className={`button source-upload ${adding ? "disabled" : ""}`}><Upload size={15} /> {adding ? "Processing…" : "Add files"}<input aria-label="Add source materials" type="file" multiple accept=".pdf,.txt,.md,text/plain,text/markdown,application/pdf" disabled={adding} onChange={(event) => { void addFiles(event.target.files); event.target.value = ""; }} /></label>}</div></div>{materials.length ? <div className="source-material-list">{materials.map((material) => <div key={material.id}><FileText size={18} /><span><strong>{material.name}</strong><small>{formatFileSize(material.sizeBytes)} · Private source for this goal</small></span><span className="data-badge">Ready</span></div>)}</div> : plan.sourceMode === "user_materials" ? <div className="source-empty"><AlertCircle size={17} /><p>This goal expects uploaded sources, but their metadata could not be loaded. Guided sessions will stop rather than silently inventing source content.</p></div> : <div className="source-created"><Sparkles size={18} /><div><strong>YOVA-generated learning content</strong><p>Explanations, questions, and practice are created from the goal. You can add private sources later.</p></div></div>}{editable && !atLimit && <MaterialLinkImporter existingCount={materials.length} disabled={adding} onImported={(material, materialNotice) => { void addLinkedSource(material, materialNotice); }} />}{atLimit && editable && <p className="source-limit">This goal has reached the five-material limit for the private alpha.</p>}{notice && <p className="material-notice"><AlertCircle size={15} /> {notice}</p>}{error && <div className="chat-error"><AlertCircle size={16} /><span>{error}</span></div>}</section>;
+  return <section className="section-block plan-sources"><div className="section-title"><h3>Learning source</h3><div className="source-heading-actions"><span>{plan.sourceMode === "user_materials" ? `${materials.length} uploaded` : "Created by YOVA"}</span>{editable && !atLimit && <label className={`button source-upload ${adding ? "disabled" : ""}`}><Upload size={15} /> {adding ? "Processing…" : "Add files"}<input aria-label="Add source materials" type="file" multiple accept=".pdf,.txt,.md,text/plain,text/markdown,application/pdf" disabled={adding} onChange={(event) => { void addFiles(event.target.files); event.target.value = ""; }} /></label>}</div></div>{materials.length ? <div className="source-material-list">{materials.map((material) => <div key={material.id}><FileText size={18} /><span><strong>{material.name}</strong><small>{formatFileSize(material.sizeBytes)} · Private source for this goal</small></span><span className="data-badge">Ready</span></div>)}</div> : plan.sourceMode === "user_materials" ? <div className="source-empty"><AlertCircle size={17} /><p>This goal expects uploaded sources, but their metadata could not be loaded. Guided sessions will stop rather than silently inventing source content.</p></div> : <div className="source-created"><Sparkles size={18} /><div><strong>YOVA-generated learning content</strong><p>Explanations, questions, and practice are created from the goal. You can add private sources later.</p></div></div>}{editable && !atLimit && <MaterialLinkImporter existingCount={materials.length} disabled={adding} onImported={(material, materialNotice) => { void addLinkedSource(material, materialNotice); }} />}{atLimit && editable && <p className="source-limit">This goal has reached the five-material limit.</p>}{notice && <p className="material-notice"><AlertCircle size={15} /> {notice}</p>}{error && <div className="chat-error"><AlertCircle size={16} /><span>{error}</span></div>}</section>;
 }
 
 function PlanAdjustmentPanel({ plan, onCancel, onSave }: { plan: LearningPlan; onCancel: () => void; onSave: (input: PlanAdjustmentRequest) => Promise<void> }) {

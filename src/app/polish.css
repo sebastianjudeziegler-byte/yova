@@ -171,7 +171,7 @@ input:focus-visible, textarea:focus-visible, select:focus-visible { outline: non
 .sidebar-bottom span { font-size: 11px; }
 .account-dot { border-radius: 11px; background: linear-gradient(145deg, var(--brand-navy), var(--brand-slate)); }
 
-/* Entry, auth, onboarding, profile summary, paywall */
+/* Entry, auth, onboarding, and profile summary */
 .entry-shell, .account-shell, .centered-shell, .session-setup-shell, .plan-shell, .add-shell {
   background:
     radial-gradient(circle at 78% 10%, rgba(122, 92, 255, .10), transparent 28rem),

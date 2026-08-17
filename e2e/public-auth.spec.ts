@@ -6,6 +6,13 @@ test.beforeEach(async ({ page }) => {
   await installTurnstileStub(page);
 });
 
+test("presents public signup without a private-alpha gate", async ({ page }) => {
+  await page.goto("/");
+
+  await expect(page.getByText("YOVA public alpha", { exact: true })).toBeVisible();
+  await expect(page.getByText(/private alpha/i)).toHaveCount(0);
+});
+
 test("creates a public password account with consent and a security token", async ({ page }) => {
   let signupBody: Record<string, unknown> | null = null;
   await page.route("**/supabase-test/auth/v1/signup**", async (route) => {
