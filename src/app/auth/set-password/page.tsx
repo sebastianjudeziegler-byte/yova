@@ -16,8 +16,12 @@ export default async function SetPasswordPage({
 
   const supabase = await createSupabaseServerClient();
   const { data: { user }, error } = await supabase.auth.getUser();
-  if (error || !user?.email) redirect("/?auth=invalid-link");
+  if (error || !user?.email || !user.email_confirmed_at) {
+    redirect("/?auth=invalid-link");
+  }
 
   const { source } = await searchParams;
-  return <SetPasswordForm source={source === "invite" || source === "recovery" ? source : "account"} />;
+  const resolvedSource = source === "invite" || source === "recovery" ? source : "account";
+
+  return <SetPasswordForm source={resolvedSource} />;
 }

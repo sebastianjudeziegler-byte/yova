@@ -1,0 +1,310 @@
+.card {
+  grid-column: 1 / -1;
+  grid-row: 5;
+  min-width: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+.header {
+  padding: 22px 24px 18px;
+  border-bottom: 1px solid var(--line-subtle);
+}
+
+.header span {
+  color: var(--brand-blue);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .09em;
+}
+
+.header h3 {
+  margin: 7px 0 4px;
+  color: var(--brand-navy);
+  font-size: 18px;
+}
+
+.header p {
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.details {
+  margin: 0;
+}
+
+.row {
+  min-width: 0;
+  padding: 17px 24px;
+  display: grid;
+  grid-template-columns: minmax(110px, .25fr) minmax(0, 1fr);
+  gap: 22px;
+  align-items: start;
+}
+
+.row + .row {
+  border-top: 1px solid var(--line-subtle);
+}
+
+.row dt {
+  padding-top: 3px;
+  color: #687388;
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.row dd {
+  min-width: 0;
+  margin: 0;
+}
+
+.row dd > strong,
+.valueAction > strong {
+  color: var(--brand-navy);
+  font-size: 13px;
+}
+
+.email {
+  overflow-wrap: anywhere;
+}
+
+.status {
+  width: fit-content;
+  margin-top: 7px;
+  padding: 5px 8px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  border-radius: 8px;
+  font-size: 10px;
+  font-weight: 750;
+}
+
+.verified {
+  color: #166534;
+  background: #ecfdf3;
+}
+
+.unverified {
+  color: #9a3412;
+  background: #fff7ed;
+}
+
+.neutral {
+  color: #536079;
+  background: #f2f4f7;
+}
+
+.valueAction {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.valueAction button {
+  min-height: 36px;
+  padding: 0 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--brand-blue);
+  border: 1px solid #cfdaff;
+  border-radius: 8px;
+  background: white;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.valueAction button:disabled {
+  opacity: .55;
+}
+
+.nameForm {
+  max-width: 520px;
+  display: grid;
+  gap: 7px;
+}
+
+.nameForm label {
+  color: #35415b;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.nameForm input {
+  width: 100%;
+  min-height: 46px;
+  padding: 0 12px;
+  color: var(--brand-navy);
+  border: 1px solid var(--line-default);
+  border-radius: 9px;
+  background: white;
+  font: inherit;
+}
+
+.nameForm input:focus {
+  outline: 3px solid rgba(52, 107, 255, .16);
+  border-color: var(--brand-blue);
+}
+
+.nameForm input[aria-invalid="true"] {
+  border-color: #d92d20;
+}
+
+.nameForm small {
+  color: var(--ink-muted);
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.error,
+.success {
+  margin: 2px 0 0;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.error {
+  color: #b42318;
+}
+
+.success {
+  color: #166534;
+}
+
+.formActions {
+  margin-top: 5px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.passwordRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.passwordRow > div {
+  min-width: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  color: var(--ink-muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.passwordRow svg {
+  flex: 0 0 auto;
+  color: #61708a;
+}
+
+.securityLink {
+  min-height: 40px;
+  padding: 0 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--brand-blue);
+  border: 1px solid #cfdaff;
+  border-radius: 9px;
+  background: white;
+  font-size: 11px;
+  font-weight: 750;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.securityLink:hover {
+  border-color: #9fb5f7;
+  background: #f7f9ff;
+}
+
+.footer {
+  padding: 17px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 22px;
+  border-top: 1px solid var(--line-subtle);
+  background: #fafbfe;
+}
+
+.footer > div {
+  display: grid;
+  gap: 3px;
+}
+
+.footer strong {
+  color: var(--brand-navy);
+  font-size: 12px;
+}
+
+.footer span {
+  color: var(--ink-muted);
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.footer > button {
+  min-height: 42px;
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+@media (max-width: 840px) {
+  .card {
+    grid-row: auto;
+  }
+
+  .row {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .row dt {
+    padding-top: 0;
+  }
+
+  .valueAction,
+  .passwordRow,
+  .footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .valueAction button,
+  .securityLink,
+  .footer > button {
+    width: 100%;
+    min-height: 44px;
+  }
+}
+
+@media (max-width: 500px) {
+  .header,
+  .row,
+  .footer {
+    padding-inline: 18px;
+  }
+
+  .nameForm input {
+    font-size: 16px;
+  }
+
+  .formActions {
+    align-items: stretch;
+    flex-direction: column-reverse;
+  }
+
+  .formActions button {
+    width: 100%;
+    min-height: 44px;
+  }
+}

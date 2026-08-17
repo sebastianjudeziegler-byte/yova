@@ -262,8 +262,26 @@ export async function verifyEmailAuthenticationCode(email: string, code: string)
 export async function signOutAuthenticatedAccount() {
   if (!isSupabaseConfigured()) return;
   const supabase = createSupabaseBrowserClient();
-  const { error } = await supabase.auth.signOut();
-  if (error) throw new Error(error.message);
+
+  try {
+    const { error } = await withAuthTimeout(supabase.auth.signOut({ scope: "local" }));
+    if (!error) return;
+  } catch {
+    // Check the browser session below. Some provider failures still remove it.
+  }
+
+  // auth-js removes its browser session after some remote logout failures.
+  // If that already happened, the requested current-device sign-out succeeded
+  // locally and the app should close the authenticated UI. Otherwise leave the
+  // screen and all recovery state intact so the learner can retry safely.
+  try {
+    const { data, error } = await withAuthTimeout(supabase.auth.getSession());
+    if (!error && !data.session) return;
+  } catch {
+    // The account state is unconfirmed, so preserving the current UI is safer.
+  }
+
+  throw new Error("YOVA could not confirm sign-out on this device. Check your connection and try again.");
 }
 
 async function withAuthTimeout<T>(request: PromiseLike<T>): Promise<T> {
@@ -285,6 +303,7 @@ function previewAccountFromUser(user: {
   id: string;
   email?: string;
   created_at: string;
+  email_confirmed_at?: string;
   user_metadata?: Record<string, unknown>;
 } | null): PreviewAccount | null {
   if (!user?.email) return null;
@@ -299,6 +318,7 @@ function previewAccountFromUser(user: {
     displayName: displayName || user.email.split("@")[0],
     createdAt: user.created_at,
     identityMode: "supabase",
+    emailVerified: Boolean(user.email_confirmed_at),
   };
 }
 

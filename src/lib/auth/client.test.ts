@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   resetPasswordForEmail: vi.fn(),
   resend: vi.fn(),
   updateUser: vi.fn(),
+  signOut: vi.fn(),
   getSession: vi.fn(),
   getUser: vi.fn(),
 }));
@@ -24,6 +25,7 @@ vi.mock("@/lib/supabase/client", () => ({
       resetPasswordForEmail: mocks.resetPasswordForEmail,
       resend: mocks.resend,
       updateUser: mocks.updateUser,
+      signOut: mocks.signOut,
       getSession: mocks.getSession,
       getUser: mocks.getUser,
     },
@@ -38,6 +40,7 @@ import {
   requestPasswordResetEmail,
   resendPasswordAccountVerification,
   signInWithPasswordAuthentication,
+  signOutAuthenticatedAccount,
   updateAuthenticatedPassword,
 } from "@/lib/auth/client";
 
@@ -45,6 +48,7 @@ const user = {
   id: "user-1",
   email: "learner@example.com",
   created_at: "2026-08-16T12:00:00.000Z",
+  email_confirmed_at: "2026-08-16T12:01:00.000Z",
   user_metadata: { display_name: "Ada" },
 };
 
@@ -58,6 +62,7 @@ describe("browser password authentication", () => {
       mocks.resetPasswordForEmail,
       mocks.resend,
       mocks.updateUser,
+      mocks.signOut,
       mocks.getSession,
       mocks.getUser,
     ]) mock.mockReset();
@@ -110,7 +115,7 @@ describe("browser password authentication", () => {
       "Learner@Example.com",
       "a-safe-long-password",
       "captcha-signin",
-    )).resolves.toMatchObject({ id: "user-1", displayName: "Ada" });
+    )).resolves.toMatchObject({ id: "user-1", displayName: "Ada", emailVerified: true });
     expect(mocks.signInWithPassword).toHaveBeenCalledWith({
       email: "learner@example.com",
       password: "a-safe-long-password",
@@ -134,6 +139,22 @@ describe("browser password authentication", () => {
     expect(mocks.getUser).not.toHaveBeenCalled();
   });
 
+  it("maps provider email confirmation without guessing from a local session", async () => {
+    mocks.getSession.mockResolvedValue({
+      data: { session: { access_token: "token" } },
+      error: null,
+    });
+    mocks.getUser.mockResolvedValue({
+      data: { user: { ...user, email_confirmed_at: undefined } },
+      error: null,
+    });
+
+    await expect(getAuthenticatedAccount()).resolves.toMatchObject({
+      id: "user-1",
+      emailVerified: false,
+    });
+  });
+
   it("keeps a session lookup error distinct from a signed-out browser", async () => {
     mocks.getSession.mockResolvedValueOnce({
       data: { session: null },
@@ -151,6 +172,40 @@ describe("browser password authentication", () => {
     });
 
     await expect(getAuthenticatedAccount()).rejects.toBeInstanceOf(AuthConnectionError);
+  });
+
+  it("signs out only the current device and waits for provider confirmation", async () => {
+    mocks.signOut.mockResolvedValue({ error: null });
+
+    await expect(signOutAuthenticatedAccount()).resolves.toBeUndefined();
+
+    expect(mocks.signOut).toHaveBeenCalledWith({ scope: "local" });
+    expect(mocks.getSession).not.toHaveBeenCalled();
+  });
+
+  it("keeps an unconfirmed account open without exposing provider errors", async () => {
+    mocks.signOut.mockResolvedValue({
+      error: { code: "provider_unavailable", message: "provider-specific detail" },
+    });
+    mocks.getSession.mockResolvedValue({
+      data: { session: { access_token: "still-local" } },
+      error: null,
+    });
+
+    await expect(signOutAuthenticatedAccount())
+      .rejects.toThrow("YOVA could not confirm sign-out on this device. Check your connection and try again.");
+    expect(mocks.signOut).toHaveBeenCalledOnce();
+    expect(mocks.getSession).toHaveBeenCalledOnce();
+  });
+
+  it("accepts a local sign-out completed despite a remote logout error", async () => {
+    mocks.signOut.mockResolvedValue({
+      error: { code: "provider_unavailable", message: "remote logout failed" },
+    });
+    mocks.getSession.mockResolvedValue({ data: { session: null }, error: null });
+
+    await expect(signOutAuthenticatedAccount()).resolves.toBeUndefined();
+    expect(mocks.getSession).toHaveBeenCalledOnce();
   });
 
   it("keeps password-reset success non-enumerating and sends the scanner-safe destination", async () => {
