@@ -46,6 +46,7 @@ import {
 } from "lucide-react";
 import { BrandMark } from "@/components/brand-mark";
 import { AccountEntry, type AccountMode } from "@/components/auth/account-entry";
+import { AccountSecurityCard } from "@/components/auth/account-security-card";
 import { AddToYova } from "@/components/add-to-yova";
 import { LearningContent } from "@/components/learning-content";
 import { MaterialLinkImporter } from "@/components/material-link-importer";
@@ -70,6 +71,12 @@ import { trackProductEvent } from "@/lib/analytics/client";
 import { describeAuthCallbackResult } from "@/lib/auth/callback-result";
 import { AuthConnectionError, getAuthenticatedAccount, getAuthMode, signOutAuthenticatedAccount } from "@/lib/auth/client";
 import { protectsPreviewSnapshot, transitionCloudRecovery, type CloudRecoveryStatus } from "@/lib/auth/cloud-recovery";
+import { normalizeDisplayName, validateDisplayName } from "@/lib/auth/password";
+import {
+  clearConfirmedSignOutStorage,
+  resolveSignOutCleanupAccountId,
+  SIGN_OUT_STORAGE_WARNING,
+} from "@/lib/auth/sign-out-cleanup";
 import { restoredAccountStage } from "@/lib/auth/startup-stage";
 import {
   makeUuid,
@@ -229,6 +236,7 @@ import {
   ActiveSessionCheckpointConflictError,
   ActiveSessionCheckpointTerminalError,
   activateAuthenticatedConceptReviewSession,
+  cancelAuthenticatedLearnerProfileWrites,
   completeAuthenticatedPlanSession,
   deleteAuthenticatedActiveSessionCheckpoint,
   loadAuthenticatedLearningStateWithRetry,
@@ -391,6 +399,9 @@ export function YovaPrototype({
   const [sessionRecoveryNotice, setSessionRecoveryNotice] = useState<string | null>(null);
   const [sessionRecoveryIssue, setSessionRecoveryIssue] = useState<string | null>(null);
   const [cloudSyncIssue, setCloudSyncIssue] = useState<string | null>(null);
+  const [signingOut, setSigningOut] = useState(false);
+  const [signOutIssue, setSignOutIssue] = useState<string | null>(null);
+  const [signedOutStorageIssue, setSignedOutStorageIssue] = useState<string | null>(null);
   const [authStartupIssue, setAuthStartupIssue] = useState<string | null>(null);
   const [authCheckAttempt, setAuthCheckAttempt] = useState(0);
   const [browserPreviewMode, setBrowserPreviewMode] = useState(false);
@@ -401,6 +412,8 @@ export function YovaPrototype({
   const [earlySchedulePending, setEarlySchedulePending] = useState(false);
   const [earlyScheduleIssue, setEarlyScheduleIssue] = useState<string | null>(null);
   const cloudRecoveryStatusRef = useRef<CloudRecoveryStatus>("idle");
+  const signOutPendingRef = useRef(false);
+  const retainedSignOutAccountIdRef = useRef<string | null>(null);
   const sessionGenerationAbortRef = useRef<AbortController | null>(null);
   const sessionGenerationAttemptRef = useRef<{
     planSessionId: string;
@@ -606,6 +619,10 @@ export function YovaPrototype({
   }, [stage, activeTab]);
 
   useEffect(() => {
+    if (account) retainedSignOutAccountIdRef.current = account.id;
+  }, [account]);
+
+  useEffect(() => {
     let cancelled = false;
     checkpointSyncEpochRef.current += 1;
     discardedCheckpointRunIdsRef.current.clear();
@@ -614,6 +631,9 @@ export function YovaPrototype({
       const callbackIssue = consumeAuthCallbackIssue();
       if (callbackIssue) setAuthStartupIssue(callbackIssue);
       const saved = loadPreviewSnapshot();
+      if (saved?.signedIn && saved.account) {
+        retainedSignOutAccountIdRef.current = saved.account.id;
+      }
       const localPreviewMode = process.env.NODE_ENV === "development"
         && new URLSearchParams(window.location.search).get("qa") === "preview";
       setBrowserPreviewMode(localPreviewMode);
@@ -661,6 +681,7 @@ export function YovaPrototype({
       if (cancelled) return;
 
       if (cloudAccount) {
+        retainedSignOutAccountIdRef.current = cloudAccount.id;
         setAuthStartupIssue(null);
         const localAccountMatches = saved?.account?.id === cloudAccount.id;
 
@@ -819,6 +840,7 @@ export function YovaPrototype({
           return;
         }
         clearPreviewSnapshot();
+        retainedSignOutAccountIdRef.current = null;
         setAccount(null);
         setSignedIn(false);
         setAnswers([]);
@@ -935,6 +957,7 @@ export function YovaPrototype({
     let cancelled = false;
 
     void saveAuthenticatedLearnerProfile({
+      accountId: account.id,
       displayName: account.displayName,
       onboardingAnswers: answers,
     }).then(() => {
@@ -2373,17 +2396,76 @@ export function YovaPrototype({
     if (checkpointIssue) throw new Error(checkpointIssue);
   };
 
-  const signOut = () => {
-    const signingOutAccountId = account?.id ?? null;
+  const saveAccountDisplayName = async (value: string) => {
+    const currentAccount = account;
+    if (!currentAccount) throw new Error("YOVA could not find the account to update.");
+
+    const issue = validateDisplayName(value);
+    if (issue) throw new Error(issue);
+    const displayName = normalizeDisplayName(value);
+    const previousDisplayName = currentAccount.displayName;
+
+    // Update first so any learner-profile autosave queued during this request
+    // carries the new name instead of racing it with a stale value.
+    setAccount((current) => current?.id === currentAccount.id
+      ? { ...current, displayName }
+      : current);
+
+    if (currentAccount.identityMode !== "supabase") return;
+
+    try {
+      // Use the same serialized queue as every other learner-profile write so
+      // an older in-flight autosave cannot overwrite the new account name.
+      await saveAuthenticatedLearnerProfile({
+        accountId: currentAccount.id,
+        displayName,
+        onboardingAnswers: answers,
+      });
+    } catch (error) {
+      setAccount((current) => current?.id === currentAccount.id
+        && current.displayName === displayName
+        ? { ...current, displayName: previousDisplayName }
+        : current);
+      throw error;
+    }
+  };
+
+  const signOut = async () => {
+    if (signOutPendingRef.current) return;
+    signOutPendingRef.current = true;
+    const signingOutAccountId = resolveSignOutCleanupAccountId(
+      account?.id ?? null,
+      retainedSignOutAccountIdRef.current,
+    );
+    setSigningOut(true);
+    setSignOutIssue(null);
+    setSignedOutStorageIssue(null);
+
+    try {
+      await signOutAuthenticatedAccount();
+    } catch (error) {
+      setSignOutIssue(error instanceof Error
+        ? error.message
+        : "YOVA could not confirm sign-out on this device. Check your connection and try again.");
+      signOutPendingRef.current = false;
+      setSigningOut(false);
+      return;
+    }
+
+    // Invalidate late checkpoint responses only after the device session is
+    // confirmed gone. An unconfirmed attempt preserves the live sync epoch.
     checkpointSyncEpochRef.current += 1;
-    discardedCheckpointRunIdsRef.current.clear();
-    void signOutAuthenticatedAccount().finally(() => {
+
+    try {
+      const { fullyCleared } = clearConfirmedSignOutStorage(signingOutAccountId);
+      if (signingOutAccountId) {
+        cancelAuthenticatedLearnerProfileWrites(signingOutAccountId);
+      }
+      discardedCheckpointRunIdsRef.current.clear();
       cloudRecoveryStatusRef.current = transitionCloudRecovery(
         cloudRecoveryStatusRef.current,
         "explicit-sign-out",
       );
-      if (signingOutAccountId) clearActiveSessionCheckpoints(signingOutAccountId);
-      clearPreviewSnapshot();
       setAccount(null);
       setSignedIn(false);
       setAnswers([]);
@@ -2403,9 +2485,15 @@ export function YovaPrototype({
       protectedTerminalCheckpointRunIdsRef.current.clear();
       setSessionRecoveryNotice(null);
       setSessionRecoveryIssue(null);
+      setCloudSyncIssue(null);
+      setSignedOutStorageIssue(fullyCleared ? null : SIGN_OUT_STORAGE_WARNING);
+      retainedSignOutAccountIdRef.current = null;
       setActiveTab("Home");
       setStage("landing");
-    });
+    } finally {
+      signOutPendingRef.current = false;
+      setSigningOut(false);
+    }
   };
 
   const advanceActiveSession = async (evaluation: AnswerEvaluationResponse | null) => {
@@ -2511,8 +2599,8 @@ export function YovaPrototype({
 
   if (!ready) return <LoadingAccount />;
 
-  if (stage === "landing") return <Landing inviteOnly={inviteOnly} authIssue={authStartupIssue} onRetryAuth={() => { setReady(false); setAuthCheckAttempt((attempt) => attempt + 1); }} onCreate={() => { setAccountMode(inviteOnly ? "sign-in" : "create"); setStage("account"); }} onSignIn={() => { setAccountMode("sign-in"); setStage("account"); }} />;
-  if (stage === "cloud-error") return <CloudAccountLoadError issue={cloudSyncIssue} onRetry={() => { setReady(false); setAuthCheckAttempt((attempt) => attempt + 1); }} onSignOut={signOut} />;
+  if (stage === "landing") return <Landing inviteOnly={inviteOnly} authIssue={authStartupIssue} signedOutStorageIssue={signedOutStorageIssue} onRetryAuth={() => { setReady(false); setAuthCheckAttempt((attempt) => attempt + 1); }} onCreate={() => { setAccountMode(inviteOnly ? "sign-in" : "create"); setStage("account"); }} onSignIn={() => { setAccountMode("sign-in"); setStage("account"); }} />;
+  if (stage === "cloud-error") return <CloudAccountLoadError issue={cloudSyncIssue} signOutIssue={signOutIssue} signingOut={signingOut} onRetry={() => { setReady(false); setAuthCheckAttempt((attempt) => attempt + 1); }} onSignOut={signOut} />;
   if (stage === "account") {
     return <AccountEntry key={accountMode} mode={accountMode} existingAccount={account} emailCodeVerificationEnabled={emailCodeVerificationEnabled} inviteOnly={inviteOnly} passwordAccountsEnabled={passwordAccountsEnabled} turnstileSiteKey={turnstileSiteKey} browserPreviewMode={browserPreviewMode} onBack={() => setStage("landing")} onModeChange={setAccountMode} onContinue={(nextAccount) => {
       if (accountMode === "create") {
@@ -2705,12 +2793,12 @@ export function YovaPrototype({
   }
 
   return <>
-    <AppShell activeTab={activeTab} onTab={openTab} account={account} cloudSyncIssue={cloudSyncIssue} onRetryCloudSync={retryCloudSync} onAdd={beginAgendaAdd} workspaceClassName={personalizationWorkspaceClassName} onSignOut={signOut}>
+    <AppShell activeTab={activeTab} onTab={openTab} account={account} cloudSyncIssue={cloudSyncIssue} signOutIssue={signOutIssue} signingOut={signingOut} onRetryCloudSync={retryCloudSync} onAdd={beginAgendaAdd} workspaceClassName={personalizationWorkspaceClassName} onSignOut={signOut}>
       {activeTab === "Home" && <HomeScreen account={account} answers={answers} plans={activePlans} plan={recommendedPlan} sessionCompletions={sessionCompletions} sessionInterruptions={sessionInterruptions} activeSessionCheckpoints={recoverableSessionCheckpoints} tutorQuestion={tutorQuestion} onTutorQuestion={setTutorQuestion} onOpenTutor={openAskYova} onOpenYou={() => setActiveTab("You")} onStart={(planId) => requestSessionStart(planId)} onOpenPlan={(planId) => { setSelectedPlanId(planId); setLearningDetailPlanId(planId); setActiveTab("Learning"); }} onCreatePlan={beginPlanCreation} onStudyNow={() => { setCreatorSeed(null); setCreatorMilestoneId(null); setStage("study-now"); }} />}
       {activeTab === "Learning" && <LearningScreen plans={plans} detailPlanId={learningDetailPlanId} sessionCompletions={sessionCompletions} sessionInterruptions={sessionInterruptions} activeSessionCheckpoints={recoverableSessionCheckpoints} onOpenPlan={(planId) => { setSelectedPlanId(planId); setLearningDetailPlanId(planId); }} onClosePlan={() => setLearningDetailPlanId(null)} onStart={requestSessionStart} onCreatePlan={beginPlanCreation} onArchiveStateChange={changePlanArchiveState} onAdjustPlan={adjustPlan} onKnowledgeMapUpdate={updatePlanKnowledgeMap} onAttachMaterials={attachMaterials} />}
       {activeTab === "Agenda" && <AgendaScreen plans={plans.filter((plan) => plan.status !== "archived")} milestones={deadlineMilestones} sessionCompletions={sessionCompletions} sessionInterruptions={sessionInterruptions} activeSessionCheckpoints={recoverableSessionCheckpoints} previewMode={account?.identityMode === "preview"} onAdd={beginAgendaAdd} onStart={requestSessionStart} onActivateReview={activateConceptReview} onReschedule={rescheduleSession} onAdjustDuration={adjustSessionDuration} onClassifyRecoveryInterruption={setRecoveryEvidenceClassification} onUpdateMilestone={updateDeadlineMilestone} onDeleteMilestone={deleteDeadlineMilestone} onConvertMilestone={(milestone, outcome) => { setCreatorSeed({ title: milestone.title, objective: milestone.description || `Complete ${milestone.title}`, itemType: "assignment", dueAt: milestone.dueAt, scope: milestone.description || milestone.title, progress: "", materialsSummary: "No materials attached yet.", missingFields: milestone.description ? [] : ["scope"], description: milestone.description || milestone.title, materials: [] }); setCreatorMilestoneId(milestone.id); setStage(outcome === "session" ? "study-now" : "plan-creator"); }} />}
       {activeTab === "Ask YOVA" && <AskScreen key={tutorEntryKey} plans={plans} question={tutorQuestion} onQuestion={setTutorQuestion} onApplyAction={applyTutorAction} analyticsEnabled={analyticsEnabled} />}
-      {activeTab === "You" && <YouScreen account={account} answers={answers} plans={plans} sessionCompletions={sessionCompletions} sessionInterruptions={sessionInterruptions} onAnswersChange={setAnswers} onReset={resetYovaData} />}
+      {activeTab === "You" && <YouScreen account={account} answers={answers} plans={plans} sessionCompletions={sessionCompletions} sessionInterruptions={sessionInterruptions} passwordAccountsEnabled={passwordAccountsEnabled} signingOut={signingOut} onAnswersChange={setAnswers} onDisplayNameChange={saveAccountDisplayName} onSignOut={signOut} onReset={resetYovaData} />}
     </AppShell>
     {earlySessionPlan && earlySession && <EarlySessionDialog plan={earlySessionPlan} session={earlySession} pending={earlySchedulePending} issue={earlyScheduleIssue} onCancel={() => { setEarlySessionPlanId(null); setEarlyScheduleIssue(null); }} onStart={(shiftRemainingPlan) => void startEarlySession(shiftRemainingPlan)} />}
   </>;
@@ -2730,6 +2818,7 @@ async function syncPendingCloudWork(account: PreviewAccount, answers: string[], 
   if (onboardingCompleted) {
     try {
       await saveAuthenticatedLearnerProfile({
+        accountId: account.id,
         displayName: account.displayName,
         onboardingAnswers: answers,
       });
@@ -2744,15 +2833,16 @@ function LoadingAccount() {
   return <main className="centered-shell"><BrandMark /><p className="muted">Opening your YOVA…</p></main>;
 }
 
-function CloudAccountLoadError({ issue, onRetry, onSignOut }: { issue: string | null; onRetry: () => void; onSignOut: () => void }) {
-  return <main className="centered-shell"><BrandMark /><section className="setup-card" role="alert"><div className="mail-check" aria-hidden="true"><AlertCircle size={24} /></div><span className="step-label">ACCOUNT CONNECTION INTERRUPTED</span><h1>YOVA could not safely reopen your profile.</h1><p>{issue ?? "Your cloud learning profile is temporarily unavailable."} Your account and saved learning data have not been changed.</p><button className="button primary large full" onClick={onRetry}>Try opening YOVA again <RotateCcw size={18} /></button><button className="button ghost full" onClick={onSignOut}>Sign out</button></section></main>;
+function CloudAccountLoadError({ issue, signOutIssue, signingOut, onRetry, onSignOut }: { issue: string | null; signOutIssue: string | null; signingOut: boolean; onRetry: () => void; onSignOut: () => Promise<void> }) {
+  return <main className="centered-shell"><BrandMark /><section className="setup-card" role="alert"><div className="mail-check" aria-hidden="true"><AlertCircle size={24} /></div><span className="step-label">ACCOUNT CONNECTION INTERRUPTED</span><h1>YOVA could not safely reopen your profile.</h1><p>{issue ?? "Your cloud learning profile is temporarily unavailable."} Your account and saved learning data have not been changed.</p>{signOutIssue && <p className="form-error">{signOutIssue} This screen and its recovery state were left intact.</p>}<button className="button primary large full" disabled={signingOut} onClick={onRetry}>Try opening YOVA again <RotateCcw size={18} /></button><button className="button ghost full" disabled={signingOut} onClick={() => void onSignOut()}>{signingOut ? "Signing out…" : "Sign out on this device"}</button></section></main>;
 }
 
-function Landing({ inviteOnly, authIssue, onRetryAuth, onCreate, onSignIn }: { inviteOnly: boolean; authIssue: string | null; onRetryAuth: () => void; onCreate: () => void; onSignIn: () => void }) {
+function Landing({ inviteOnly, authIssue, signedOutStorageIssue, onRetryAuth, onCreate, onSignIn }: { inviteOnly: boolean; authIssue: string | null; signedOutStorageIssue: string | null; onRetryAuth: () => void; onCreate: () => void; onSignIn: () => void }) {
   return (
     <main className="entry-shell">
       <header className="entry-nav"><BrandMark /><button className="button ghost" onClick={onSignIn}>Sign in</button></header>
       {authIssue && <section className="auth-startup-warning" role="alert"><AlertCircle size={19} /><div><strong>Account connection interrupted</strong><span>{authIssue}</span></div><button className="button secondary" onClick={onRetryAuth}>Try again</button></section>}
+      {signedOutStorageIssue && <section className="auth-startup-warning" role="alert"><AlertCircle size={19} aria-hidden="true" /><div><strong>Signed out with a browser cleanup warning</strong><span>{signedOutStorageIssue}</span></div></section>}
       <section className="hero-card">
         <div className="hero-copy">
           <span className="eyebrow"><Sparkles size={15} /> A study plan built around you</span>
@@ -2816,7 +2906,7 @@ function EarlySessionDialog({ plan, session, pending, issue, onCancel, onStart }
   return <div className="early-session-backdrop"><section className="early-session-dialog" role="dialog" aria-modal="true" aria-labelledby="early-session-title"><span className="early-session-icon"><CalendarDays size={22} /></span><span className="step-label">YOU ARE AHEAD OF SCHEDULE</span><h2 id="early-session-title">Start {session.title} now?</h2><p>This session is planned for {formatAgendaTime(session.scheduledFor)}. You can move forward now without skipping any unfinished content.</p><div className="early-schedule-choice"><Sparkles size={18} /><div><strong>Recommended: pull the agenda forward</strong><p>YOVA will move this session to now and shift the remaining {Math.max(0, unfinishedCount - 1)} {unfinishedCount - 1 === 1 ? "session" : "sessions"} by the same amount. The learning order and spacing stay intact.</p></div></div>{issue && <div className="chat-error"><AlertCircle size={16} /><span>{issue}</span></div>}<div className="early-session-actions"><button className="button ghost" disabled={pending} onClick={onCancel}>Cancel</button><button className="button secondary" disabled={pending} onClick={() => onStart(false)}>Start now, keep dates</button><button className="button primary" disabled={pending} onClick={() => onStart(true)}>{pending ? <span className="button-spinner" /> : <CalendarDays size={16} />} Start and adjust agenda</button></div></section></div>;
 }
 
-function AppShell({ activeTab, onTab, account, cloudSyncIssue, onRetryCloudSync, onAdd, onSignOut, workspaceClassName, children }: { activeTab: Tab; onTab: (tab: Tab) => void; account: PreviewAccount | null; cloudSyncIssue: string | null; onRetryCloudSync: () => Promise<void>; onAdd: () => void; onSignOut: () => void; workspaceClassName: string; children: React.ReactNode }) {
+function AppShell({ activeTab, onTab, account, cloudSyncIssue, signOutIssue, signingOut, onRetryCloudSync, onAdd, onSignOut, workspaceClassName, children }: { activeTab: Tab; onTab: (tab: Tab) => void; account: PreviewAccount | null; cloudSyncIssue: string | null; signOutIssue: string | null; signingOut: boolean; onRetryCloudSync: () => Promise<void>; onAdd: () => void; onSignOut: () => Promise<void>; workspaceClassName: string; children: React.ReactNode }) {
   const initial = account?.displayName.trim().charAt(0).toUpperCase() || "Y";
   const [retrying, setRetrying] = useState(false);
   const retry = async () => {
@@ -2830,7 +2920,7 @@ function AppShell({ activeTab, onTab, account, cloudSyncIssue, onRetryCloudSync,
       setRetrying(false);
     }
   };
-  return <div className={`app-shell ${workspaceClassName}`}><a className="skip-link" href="#main-content">Skip to main content</a><aside className="sidebar"><BrandMark /><button className="sidebar-create" aria-label="Add to YOVA" onClick={onAdd}><Plus size={18} /><span>Add</span></button><nav aria-label="Main navigation">{navItems.map(({ label, icon: Icon }) => <button key={label} className={activeTab === label ? "active" : ""} onClick={() => onTab(label)}><Icon size={19} /><span>{label}</span></button>)}</nav><nav className="sidebar-trust-links" aria-label="Trust and support"><Link href="/support">Support</Link><Link href="/privacy">Privacy</Link><Link href="/terms">Terms</Link></nav><div className="sidebar-bottom"><div className="account-dot">{initial}</div><div><strong>{account?.displayName || "YOVA user"}</strong><span>{account?.identityMode === "supabase" ? "Cloud account" : "Private alpha"}</span></div><button aria-label="Sign out" title="Sign out" onClick={onSignOut}><LogOut size={17} /></button></div></aside><main className="app-content" id="main-content" tabIndex={-1}>{cloudSyncIssue && <div className="cloud-sync-warning"><strong>Cloud sync needs attention.</strong><span>{cloudSyncIssue} Your latest work is still saved in this browser.</span><button disabled={retrying} onClick={() => void retry()}>{retrying ? "Retrying…" : "Retry now"}</button></div>}{children}</main></div>;
+  return <div className={`app-shell ${workspaceClassName}`}><a className="skip-link" href="#main-content">Skip to main content</a><aside className="sidebar"><BrandMark /><button className="sidebar-create" aria-label="Add to YOVA" onClick={onAdd}><Plus size={18} /><span>Add</span></button><nav aria-label="Main navigation">{navItems.map(({ label, icon: Icon }) => <button key={label} className={activeTab === label ? "active" : ""} onClick={() => onTab(label)}><Icon size={19} /><span>{label}</span></button>)}</nav><nav className="sidebar-trust-links" aria-label="Trust and support"><Link href="/support">Support</Link><Link href="/privacy">Privacy</Link><Link href="/terms">Terms</Link></nav><div className="sidebar-bottom"><div className="account-dot">{initial}</div><div><strong>{account?.displayName || "YOVA user"}</strong><span>{account?.identityMode === "supabase" ? "Cloud account" : "Private alpha"}</span></div><button aria-label={signingOut ? "Signing out" : "Sign out on this device"} title="Sign out on this device" disabled={signingOut} onClick={() => void onSignOut()}><LogOut size={17} /></button></div></aside><main className="app-content" id="main-content" tabIndex={-1}>{signOutIssue && <div className="account-action-warning" role="alert"><AlertCircle size={18} aria-hidden="true" /><div><strong>Sign-out was not confirmed.</strong><span>{signOutIssue} This screen and its saved recovery state were left intact.</span></div></div>}{cloudSyncIssue && <div className="cloud-sync-warning"><strong>Cloud sync needs attention.</strong><span>{cloudSyncIssue} Your latest work is still saved in this browser.</span><button disabled={retrying} onClick={() => void retry()}>{retrying ? "Retrying…" : "Retry now"}</button></div>}{children}</main></div>;
 }
 
 function workspaceClassName(settings: PersonalizationWorkspaceSettings) {
@@ -3963,7 +4053,7 @@ function MethodEvidencePanel({ signals }: { signals: MethodSignal[] }) {
   return <section className="section-block method-evidence-card"><div className="section-title"><div><h3>Method evidence</h3><p>YOVA compares similar tasks at similar knowledge stages, not learning-style labels.</p></div><span className="data-badge">{signals.length} observed</span></div>{signals.length === 0 ? <div className="method-evidence-empty"><Target size={18} /><p>Complete sessions with knowledge checks to begin comparing how different methods are working.</p></div> : <div className="method-signal-grid">{signals.slice(0, 4).map((signal) => <article className={`method-signal ${signal.status}`} key={`${signal.family}-${signal.taskType}-${signal.knowledgeStage}`}><div><strong>{signal.label}</strong><span>{statusLabel[signal.status]}</span></div><small className="method-comparison-scope">Compared within {signal.comparisonLabel}</small><p>{signal.summary}</p><small>{signal.sessions} completed {signal.sessions === 1 ? "session" : "sessions"}{signal.averageAccuracy === null ? " · checks still building" : ` · ${signal.averageAccuracy}% check accuracy`}{signal.interruptions > 0 ? ` · ${signal.interruptions} ${signal.interruptions === 1 ? "interruption" : "interruptions"}` : ""}</small></article>)}</div>}<footer>YOVA waits for repeated comparable evidence before changing how it delivers a method.</footer></section>;
 }
 
-function YouScreen({ account, answers, plans, sessionCompletions, sessionInterruptions, onAnswersChange, onReset }: { account: PreviewAccount | null; answers: string[]; plans: LearningPlan[]; sessionCompletions: SessionCompletion[]; sessionInterruptions: SessionInterruption[]; onAnswersChange: (answers: string[]) => void; onReset: () => Promise<void> }) {
+function YouScreen({ account, answers, plans, sessionCompletions, sessionInterruptions, passwordAccountsEnabled, signingOut, onAnswersChange, onDisplayNameChange, onSignOut, onReset }: { account: PreviewAccount | null; answers: string[]; plans: LearningPlan[]; sessionCompletions: SessionCompletion[]; sessionInterruptions: SessionInterruption[]; passwordAccountsEnabled: boolean; signingOut: boolean; onAnswersChange: (answers: string[]) => void; onDisplayNameChange: (displayName: string) => Promise<void>; onSignOut: () => Promise<void>; onReset: () => Promise<void> }) {
   const [confirmReset, setConfirmReset] = useState(false);
   const [resetting, setResetting] = useState(false);
   const [resetError, setResetError] = useState<string | null>(null);
@@ -4107,7 +4197,7 @@ function YouScreen({ account, answers, plans, sessionCompletions, sessionInterru
     )));
   };
 
-  return <div className="page"><PageHeader eyebrow="YOU" title="Your learning, in one place" description="Tell YOVA what tends to help, inspect what it has cautiously noticed, and correct it when context is missing." /><section className="personalization-principle"><Sparkles size={20} /><div><strong>Your profile is a starting hypothesis, not a brain type.</strong><p>The task chooses the learning method. Your context changes how the method begins, how support fades, and what YOVA checks before moving on.</p></div><span>Optional and editable</span></section><PersonalizationCenter answers={answers} onAnswersChange={onAnswersChange} signals={centerSignals} tendencies={centerTendencies} suggestions={centerSuggestions} decisions={centerDecisions} receipt={centerReceipt} weeklyReview={centerWeeklyReview} energySuggestion={centerEnergySuggestion} history={centerHistory} optionalQuestionPrompt={optionalQuestionPrompt} onSuggestionAction={handlePersonalizationSuggestion} onReceiptAction={acknowledgePersonalizationReceipt} onWeeklyReview={acknowledgeWeeklyReview} onUndoHistory={undoPersonalizationHistory} /><div className="you-grid"><section className={`section-block preference-card ${editing ? "editing" : ""}`}><div className="section-title"><div><h3>Your learning context</h3><p>More specific context gives YOVA better starting decisions.</p></div>{editing ? <span className="data-badge">Editing</span> : <button onClick={startEditing}>Add or change context</button>}</div>{editing ? <div className="preference-editor"><div className="profile-editor-group"><strong>Core preferences</strong>{editablePreferenceIndexes.map((index) => { const question = onboardingQuestions[index]; return <label key={question.prompt}><span>{question.prompt}</span><select value={draftAnswers[index] ?? ""} onChange={(event) => updateDraftAnswer(index, event.target.value)}><option value="">Not answered</option>{question.options.map((option) => <option key={option} value={option}>{option}</option>)}</select></label>; })}</div><div className="profile-editor-group deep-profile-editor"><strong>How information tends to work for you</strong><p>These answers adjust delivery. YOVA still checks them against task-specific results.</p>{DEEP_PROFILE_QUESTIONS.map((question) => <label key={question.answerIndex}><span>{question.prompt}</span><small>{question.description}</small><select value={draftAnswers[question.answerIndex] ?? ""} onChange={(event) => updateDraftAnswer(question.answerIndex, event.target.value)}><option value="">Not answered</option>{question.options.map((option) => <option key={option} value={option}>{option}</option>)}</select></label>)}</div><div className="profile-editor-group"><strong>Tell YOVA what a form cannot capture</strong><label><span>Anything else about how you learn, study, or get stuck?</span><textarea rows={4} maxLength={800} value={draftAnswers[FREEFORM_LEARNING_CONTEXT_INDEX] ?? ""} placeholder="Example: I understand a process when I can see one real example, but I tend to copy procedures without knowing when to use them." onChange={(event) => updateDraftAnswer(FREEFORM_LEARNING_CONTEXT_INDEX, event.target.value)} /><small>{draftAnswers[FREEFORM_LEARNING_CONTEXT_INDEX]?.length ?? 0}/800</small></label></div><div className="preference-actions"><button className="button ghost" onClick={cancelEditing}>Cancel</button><button className="button primary" onClick={savePreferences}><Check size={16} /> Save learning context</button></div><small>For signed-in accounts, saved context is also synced to YOVA’s database.</small></div> : <><ProfileItem title="Account" value={account?.email || "Not connected"} note="Your signed-in identity" /><ProfileItem title="Main blocker" value={answers[0] || "Not answered yet"} note="Shapes how YOVA helps you begin" /><ProfileItem title="Guidance" value={answers[1] || "Not answered yet"} note="Controls how much YOVA decides for you" /><ProfileItem title="Practical support" value={answers[8] || "Not answered yet"} note="Adjusts pace, text density, and check-ins without labeling you" /><ProfileItem title="New information" value={answers[10] || answers[3] || "Not answered yet"} note="Changes how teaching begins" /><ProfileItem title="Likely breakdown" value={answers[11] || "Not answered yet"} note="Changes what YOVA verifies before moving on" /><ProfileItem title="Support after a miss" value={answers[12] || "Not answered yet"} note="Changes the first repair step" />{answers[14] && <div className="profile-freeform-summary"><span>In your own words</span><p>{answers[14]}</p></div>}<button className="button secondary full" onClick={startEditing}>Deepen your profile</button></>}</section><MethodEvidencePanel signals={methodSignals} /><section className="section-block alpha-data-card"><div><h3>{isCloudAccount ? "Cloud learning data" : "Private-alpha data"}</h3><p>{isCloudAccount ? "Remove your learning profile, plans, tutor conversations, results, and private uploaded materials. Your login identity will remain available." : "Reset the account, onboarding answers, plans, and session results stored in this browser."}</p></div>{confirmReset ? <div className="reset-confirm"><strong>This cannot be undone.</strong><span>{isCloudAccount ? "YOVA will permanently remove your cloud learning data and uploaded files." : "Only this browser’s private-alpha data will be removed."}</span>{resetError && <span className="reset-error">{resetError}</span>}<div><button className="button ghost" disabled={resetting} onClick={() => { setConfirmReset(false); setResetError(null); }}>Cancel</button><button className="button danger" disabled={resetting} onClick={() => void confirmDataReset()}>{resetting ? <span className="button-spinner" /> : <Trash2 size={16} />} {resetting ? "Resetting…" : isCloudAccount ? "Reset learning data" : "Reset private-alpha data"}</button></div></div> : <button className="button ghost danger-outline" onClick={() => setConfirmReset(true)}><Trash2 size={16} /> {isCloudAccount ? "Reset learning data" : "Reset private-alpha data"}</button>}</section></div></div>;
+  return <div className="page"><PageHeader eyebrow="YOU" title="Your learning, in one place" description="Tell YOVA what tends to help, inspect what it has cautiously noticed, and correct it when context is missing." /><section className="personalization-principle"><Sparkles size={20} /><div><strong>Your profile is a starting hypothesis, not a brain type.</strong><p>The task chooses the learning method. Your context changes how the method begins, how support fades, and what YOVA checks before moving on.</p></div><span>Optional and editable</span></section><PersonalizationCenter answers={answers} onAnswersChange={onAnswersChange} signals={centerSignals} tendencies={centerTendencies} suggestions={centerSuggestions} decisions={centerDecisions} receipt={centerReceipt} weeklyReview={centerWeeklyReview} energySuggestion={centerEnergySuggestion} history={centerHistory} optionalQuestionPrompt={optionalQuestionPrompt} onSuggestionAction={handlePersonalizationSuggestion} onReceiptAction={acknowledgePersonalizationReceipt} onWeeklyReview={acknowledgeWeeklyReview} onUndoHistory={undoPersonalizationHistory} /><div className="you-grid"><section className={`section-block preference-card ${editing ? "editing" : ""}`}><div className="section-title"><div><h3>Your learning context</h3><p>More specific context gives YOVA better starting decisions.</p></div>{editing ? <span className="data-badge">Editing</span> : <button onClick={startEditing}>Add or change context</button>}</div>{editing ? <div className="preference-editor"><div className="profile-editor-group"><strong>Core preferences</strong>{editablePreferenceIndexes.map((index) => { const question = onboardingQuestions[index]; return <label key={question.prompt}><span>{question.prompt}</span><select value={draftAnswers[index] ?? ""} onChange={(event) => updateDraftAnswer(index, event.target.value)}><option value="">Not answered</option>{question.options.map((option) => <option key={option} value={option}>{option}</option>)}</select></label>; })}</div><div className="profile-editor-group deep-profile-editor"><strong>How information tends to work for you</strong><p>These answers adjust delivery. YOVA still checks them against task-specific results.</p>{DEEP_PROFILE_QUESTIONS.map((question) => <label key={question.answerIndex}><span>{question.prompt}</span><small>{question.description}</small><select value={draftAnswers[question.answerIndex] ?? ""} onChange={(event) => updateDraftAnswer(question.answerIndex, event.target.value)}><option value="">Not answered</option>{question.options.map((option) => <option key={option} value={option}>{option}</option>)}</select></label>)}</div><div className="profile-editor-group"><strong>Tell YOVA what a form cannot capture</strong><label><span>Anything else about how you learn, study, or get stuck?</span><textarea rows={4} maxLength={800} value={draftAnswers[FREEFORM_LEARNING_CONTEXT_INDEX] ?? ""} placeholder="Example: I understand a process when I can see one real example, but I tend to copy procedures without knowing when to use them." onChange={(event) => updateDraftAnswer(FREEFORM_LEARNING_CONTEXT_INDEX, event.target.value)} /><small>{draftAnswers[FREEFORM_LEARNING_CONTEXT_INDEX]?.length ?? 0}/800</small></label></div><div className="preference-actions"><button className="button ghost" onClick={cancelEditing}>Cancel</button><button className="button primary" onClick={savePreferences}><Check size={16} /> Save learning context</button></div><small>For signed-in accounts, saved context is also synced to YOVA’s database.</small></div> : <><ProfileItem title="Main blocker" value={answers[0] || "Not answered yet"} note="Shapes how YOVA helps you begin" /><ProfileItem title="Guidance" value={answers[1] || "Not answered yet"} note="Controls how much YOVA decides for you" /><ProfileItem title="Practical support" value={answers[8] || "Not answered yet"} note="Adjusts pace, text density, and check-ins without labeling you" /><ProfileItem title="New information" value={answers[10] || answers[3] || "Not answered yet"} note="Changes how teaching begins" /><ProfileItem title="Likely breakdown" value={answers[11] || "Not answered yet"} note="Changes what YOVA verifies before moving on" /><ProfileItem title="Support after a miss" value={answers[12] || "Not answered yet"} note="Changes the first repair step" />{answers[14] && <div className="profile-freeform-summary"><span>In your own words</span><p>{answers[14]}</p></div>}<button className="button secondary full" onClick={startEditing}>Deepen your profile</button></>}</section><MethodEvidencePanel signals={methodSignals} />{account && <AccountSecurityCard account={account} passwordAccountsEnabled={passwordAccountsEnabled} signingOut={signingOut} onDisplayNameChange={onDisplayNameChange} onSignOut={onSignOut} />}<section className="section-block alpha-data-card"><div><h3>{isCloudAccount ? "Cloud learning data" : "Private-alpha data"}</h3><p>{isCloudAccount ? "Remove your learning profile, plans, tutor conversations, results, and private uploaded materials. Your login identity will remain available." : "Reset the account, onboarding answers, plans, and session results stored in this browser."}</p></div>{confirmReset ? <div className="reset-confirm"><strong>This cannot be undone.</strong><span>{isCloudAccount ? "YOVA will permanently remove your cloud learning data and uploaded files." : "Only this browser’s private-alpha data will be removed."}</span>{resetError && <span className="reset-error">{resetError}</span>}<div><button className="button ghost" disabled={resetting} onClick={() => { setConfirmReset(false); setResetError(null); }}>Cancel</button><button className="button danger" disabled={resetting} onClick={() => void confirmDataReset()}>{resetting ? <span className="button-spinner" /> : <Trash2 size={16} />} {resetting ? "Resetting…" : isCloudAccount ? "Reset learning data" : "Reset private-alpha data"}</button></div></div> : <button className="button ghost danger-outline" onClick={() => setConfirmReset(true)}><Trash2 size={16} /> {isCloudAccount ? "Reset learning data" : "Reset private-alpha data"}</button>}</section></div></div>;
 }
 
 const PERSONALIZATION_TENDENCY_KEYS = new Set<PersonalizationTendency["id"]>([

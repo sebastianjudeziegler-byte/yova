@@ -596,20 +596,26 @@ function isActiveSessionCheckpointTerminalIssue(error: unknown) {
 }
 
 type LearnerProfileSaveInput = {
+  accountId: string;
   displayName: string;
   onboardingAnswers: string[];
 };
 
 type QueuedLearnerProfileWrite = {
   input: LearnerProfileSaveInput;
+  cancelled: boolean;
   waiters: Array<{
     resolve: () => void;
     reject: (reason: unknown) => void;
   }>;
 };
 
-let pendingLearnerProfileWrite: QueuedLearnerProfileWrite | null = null;
+const pendingLearnerProfileWrites = new Map<string, QueuedLearnerProfileWrite>();
+let activeLearnerProfileWrite: QueuedLearnerProfileWrite | null = null;
 let learnerProfileWriteRunning = false;
+
+const PROFILE_ACCOUNT_CHANGED_MESSAGE =
+  "YOVA stopped saving this learning profile because the signed-in account changed.";
 
 /**
  * Profile edits can arrive close together (for example, a receipt followed by
@@ -619,19 +625,22 @@ let learnerProfileWriteRunning = false;
 export function saveAuthenticatedLearnerProfile(input: LearnerProfileSaveInput) {
   if (!isSupabaseConfigured()) return Promise.resolve();
   const queuedInput = {
+    accountId: input.accountId,
     displayName: input.displayName,
     onboardingAnswers: [...input.onboardingAnswers],
   };
 
   return new Promise<void>((resolve, reject) => {
-    if (pendingLearnerProfileWrite) {
-      pendingLearnerProfileWrite.input = queuedInput;
-      pendingLearnerProfileWrite.waiters.push({ resolve, reject });
+    const pendingWrite = pendingLearnerProfileWrites.get(input.accountId);
+    if (pendingWrite) {
+      pendingWrite.input = queuedInput;
+      pendingWrite.waiters.push({ resolve, reject });
     } else {
-      pendingLearnerProfileWrite = {
+      pendingLearnerProfileWrites.set(input.accountId, {
         input: queuedInput,
+        cancelled: false,
         waiters: [{ resolve, reject }],
-      };
+      });
     }
 
     if (!learnerProfileWriteRunning) {
@@ -641,25 +650,61 @@ export function saveAuthenticatedLearnerProfile(input: LearnerProfileSaveInput) 
   });
 }
 
+/**
+ * A confirmed sign-out invalidates only that account's queued profile work.
+ * Writes for a later account stay separate and wait for the active request to
+ * settle before the provider identity is checked again.
+ */
+export function cancelAuthenticatedLearnerProfileWrites(accountId: string) {
+  const issue = new Error(PROFILE_ACCOUNT_CHANGED_MESSAGE);
+  const pendingWrite = pendingLearnerProfileWrites.get(accountId);
+  if (pendingWrite) {
+    pendingLearnerProfileWrites.delete(accountId);
+    pendingWrite.cancelled = true;
+    pendingWrite.waiters.forEach((waiter) => waiter.reject(issue));
+  }
+  if (activeLearnerProfileWrite?.input.accountId === accountId) {
+    activeLearnerProfileWrite.cancelled = true;
+  }
+}
+
 async function drainLearnerProfileWrites() {
-  while (pendingLearnerProfileWrite) {
-    const write = pendingLearnerProfileWrite;
-    pendingLearnerProfileWrite = null;
+  while (pendingLearnerProfileWrites.size > 0) {
+    const next = pendingLearnerProfileWrites.entries().next().value as
+      | [string, QueuedLearnerProfileWrite]
+      | undefined;
+    if (!next) break;
+    const [accountId, write] = next;
+    pendingLearnerProfileWrites.delete(accountId);
+    activeLearnerProfileWrite = write;
     try {
-      await persistAuthenticatedLearnerProfile(write.input);
+      if (write.cancelled) throw new Error(PROFILE_ACCOUNT_CHANGED_MESSAGE);
+      await persistAuthenticatedLearnerProfile(write.input, () => write.cancelled);
+      if (write.cancelled) throw new Error(PROFILE_ACCOUNT_CHANGED_MESSAGE);
       write.waiters.forEach((waiter) => waiter.resolve());
     } catch (error) {
       write.waiters.forEach((waiter) => waiter.reject(error));
+    } finally {
+      activeLearnerProfileWrite = null;
     }
   }
   learnerProfileWriteRunning = false;
 }
 
-async function persistAuthenticatedLearnerProfile(input: LearnerProfileSaveInput) {
+async function persistAuthenticatedLearnerProfile(
+  input: LearnerProfileSaveInput,
+  isCancelled: () => boolean,
+) {
   const [preferredSessionMin, preferredSessionMax] = parseSessionRange(input.onboardingAnswers[2]);
   const supabase = createSupabaseBrowserClient();
+  const { data: { user }, error: identityError } = await supabase.auth.getUser();
+  if (isCancelled() || identityError || user?.id !== input.accountId) {
+    throw new Error(PROFILE_ACCOUNT_CHANGED_MESSAGE);
+  }
+
   const { error } = await supabase.rpc("save_learner_profile", {
     payload: {
+      expectedAccountId: input.accountId,
       displayName: input.displayName.trim(),
       onboardingCompletedAt: new Date().toISOString(),
       commonBlocker: input.onboardingAnswers[0] ?? "",

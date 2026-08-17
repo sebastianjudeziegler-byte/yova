@@ -52,7 +52,7 @@ export function removeQueuedSessionInterruption(interruptionId: string) {
 }
 
 export function clearQueuedSessionInterruptions(userId: string) {
-  savePendingInterruptions(loadAllPendingInterruptions().filter((entry) => entry.userId !== userId));
+  return savePendingInterruptions(loadAllPendingInterruptions().filter((entry) => entry.userId !== userId));
 }
 
 /**

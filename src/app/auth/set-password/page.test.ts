@@ -24,18 +24,36 @@ describe("authenticated password-setting page", () => {
     vi.stubEnv("AUTH_PASSWORD_ACCOUNTS", "true");
     mocks.configured = true;
     mocks.getUser.mockReset().mockResolvedValue({
-      data: { user: { id: "user-1", email: "learner@example.com" } },
+      data: { user: { id: "user-1", email: "learner@example.com", email_confirmed_at: "2026-08-17T12:00:00.000Z" } },
       error: null,
     });
     mocks.redirect.mockClear();
   });
 
   it("renders only after a cookie-backed user is verified", async () => {
-    const result = await SetPasswordPage({ searchParams: Promise.resolve({ source: "recovery" }) });
+    const result = await SetPasswordPage({ searchParams: Promise.resolve({ source: "account" }) });
 
-    expect(result.props.source).toBe("recovery");
+    expect(result.props.source).toBe("account");
     expect(mocks.getUser).toHaveBeenCalledOnce();
     expect(mocks.redirect).not.toHaveBeenCalled();
+  });
+
+  it.each(["account", "invite", "recovery"] as const)(
+    "rejects a user-controlled %s source until the provider confirms the email",
+    async (source) => {
+      mocks.getUser.mockResolvedValue({
+        data: { user: { id: "user-1", email: "learner@example.com", email_confirmed_at: null } },
+        error: null,
+      });
+
+      await expect(SetPasswordPage({ searchParams: Promise.resolve({ source }) }))
+        .rejects.toThrow("REDIRECT:/?auth=invalid-link");
+    },
+  );
+
+  it.each(["invite", "recovery"] as const)("keeps a provider-confirmed %s flow available", async (source) => {
+    const result = await SetPasswordPage({ searchParams: Promise.resolve({ source }) });
+    expect(result.props.source).toBe(source);
   });
 
   it("rejects a missing recovery session", async () => {

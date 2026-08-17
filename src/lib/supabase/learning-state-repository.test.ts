@@ -28,6 +28,7 @@ vi.mock("@/lib/supabase/client", () => ({
 import {
   ActiveSessionCheckpointConflictError,
   ActiveSessionCheckpointTerminalError,
+  cancelAuthenticatedLearnerProfileWrites,
   deleteAuthenticatedActiveSessionCheckpoint,
   loadAuthenticatedLearningState,
   loadAuthenticatedLearningStateWithRetry,
@@ -346,6 +347,7 @@ describe("saveAuthenticatedLearnerProfile", () => {
     });
 
     await saveAuthenticatedLearnerProfile({
+      accountId: "user-1",
       displayName: "Learner",
       onboardingAnswers: answers,
     });
@@ -365,15 +367,18 @@ describe("saveAuthenticatedLearnerProfile", () => {
     }));
 
     const first = saveAuthenticatedLearnerProfile({
+      accountId: "user-1",
       displayName: "First",
       onboardingAnswers: ["first blocker"],
     });
     await Promise.resolve();
     const second = saveAuthenticatedLearnerProfile({
+      accountId: "user-1",
       displayName: "Second",
       onboardingAnswers: ["second blocker"],
     });
     const newest = saveAuthenticatedLearnerProfile({
+      accountId: "user-1",
       displayName: "Newest",
       onboardingAnswers: ["newest blocker"],
     });
@@ -388,6 +393,78 @@ describe("saveAuthenticatedLearnerProfile", () => {
       displayName: "Newest",
       commonBlocker: "newest blocker",
     });
+  });
+
+  it("rejects a stale account-scoped write before calling the profile RPC", async () => {
+    getUser.mockResolvedValue({
+      data: { user: { id: "account-b" } },
+      error: null,
+    });
+
+    await expect(saveAuthenticatedLearnerProfile({
+      accountId: "account-a",
+      displayName: "Stale A",
+      onboardingAnswers: ["A blocker"],
+    })).rejects.toThrow("signed-in account changed");
+
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it("cancels account A without letting its queued profile write run under account B", async () => {
+    let releaseAccountA!: (value: { data: null; error: null }) => void;
+    let currentUserId = "account-a";
+    getUser.mockImplementation(async () => ({
+      data: { user: { id: currentUserId } },
+      error: null,
+    }));
+    rpc.mockImplementationOnce(() => new Promise<{ data: null; error: null }>((resolve) => {
+      releaseAccountA = resolve;
+    }));
+
+    const activeAccountA = saveAuthenticatedLearnerProfile({
+      accountId: "account-a",
+      displayName: "Account A",
+      onboardingAnswers: ["A active"],
+    });
+    const activeAccountAResult = activeAccountA.catch((error: unknown) => error);
+    await vi.waitFor(() => expect(rpc).toHaveBeenCalledTimes(1));
+
+    const queuedAccountA = saveAuthenticatedLearnerProfile({
+      accountId: "account-a",
+      displayName: "Stale A",
+      onboardingAnswers: ["A queued"],
+    });
+    const queuedAccountAResult = queuedAccountA.catch((error: unknown) => error);
+    cancelAuthenticatedLearnerProfileWrites("account-a");
+
+    currentUserId = "account-b";
+    const accountB = saveAuthenticatedLearnerProfile({
+      accountId: "account-b",
+      displayName: "Account B",
+      onboardingAnswers: ["B blocker"],
+    });
+    releaseAccountA({ data: null, error: null });
+
+    await expect(activeAccountAResult).resolves.toMatchObject({
+      message: expect.stringContaining("signed-in account changed"),
+    });
+    await expect(queuedAccountAResult).resolves.toMatchObject({
+      message: expect.stringContaining("signed-in account changed"),
+    });
+    await expect(accountB).resolves.toBeUndefined();
+
+    expect(rpc).toHaveBeenCalledTimes(2);
+    expect(rpc.mock.calls.map(([name]) => name)).toEqual([
+      "save_learner_profile",
+      "save_learner_profile",
+    ]);
+    expect(rpc.mock.calls[0]?.[1]).toMatchObject({
+      payload: { expectedAccountId: "account-a", displayName: "Account A" },
+    });
+    expect(rpc.mock.calls[1]?.[1]).toMatchObject({
+      payload: { expectedAccountId: "account-b", displayName: "Account B" },
+    });
+    expect(JSON.stringify(rpc.mock.calls)).not.toContain("Stale A");
   });
 });
 

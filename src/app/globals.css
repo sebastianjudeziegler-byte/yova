@@ -247,6 +247,7 @@ h1, h2, h3, p { margin-top: 0; }
 .sidebar-bottom { padding: 12px 8px 0; display: grid; grid-template-columns: 34px minmax(0,1fr) 30px; gap: 9px; align-items: center; }
 .sidebar-bottom > button { width: 30px; height: 30px; padding: 0; display: grid; place-items: center; color: #8a94a5; border: 0; border-radius: 8px; background: transparent; }
 .sidebar-bottom > button:hover { color: var(--navy); background: #f0f2f6; }
+.sidebar-bottom > button:disabled { opacity: .5; cursor: wait; }
 .sidebar-bottom strong, .sidebar-bottom span { display: block; font-size: 13px; }
 .sidebar-bottom span { color: #929bab; font-size: 10px; margin-top: 3px; }
 .account-dot { width: 34px; height: 34px; display: grid; place-items: center; color: white; background: var(--navy); border-radius: 10px; font-weight: 700; }
@@ -268,6 +269,23 @@ h1, h2, h3, p { margin-top: 0; }
 .cloud-sync-warning span { flex: 1; }
 .cloud-sync-warning button { flex: 0 0 auto; padding: 2px 0; color: #6d3f00; border: 0; border-bottom: 1px solid currentColor; background: transparent; font: inherit; font-weight: 700; }
 .cloud-sync-warning button:disabled { opacity: .55; }
+.account-action-warning {
+  margin: 18px 24px 0;
+  padding: 12px 15px;
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  color: #8a3b16;
+  border: 1px solid #f4c7a1;
+  border-radius: 11px;
+  background: #fff7ed;
+  font-size: 12px;
+  line-height: 1.45;
+}
+.account-action-warning > svg { flex: 0 0 auto; margin-top: 1px; }
+.account-action-warning > div { display: grid; gap: 2px; }
+.account-action-warning strong { color: #6e2f13; }
+.account-action-warning span { color: #8a3b16; }
 .page { width: min(100%, 1080px); margin: 0 auto; padding: 48px 44px 80px; }
 .page-header { margin-bottom: 32px; }
 .page-header h1 { margin: 10px 0 8px; font-size: 38px; }
@@ -858,7 +876,7 @@ h1, h2, h3, p { margin-top: 0; }
 .observed-pattern-card { grid-row: 2; }
 .recommendation-center { grid-row: 3; }
 .method-evidence-card { grid-row: 4; }
-.alpha-data-card { grid-row: 5; }
+.alpha-data-card { grid-row: 6; }
 .preference-card::before,
 .observed-pattern-card::before,
 .recommendation-center::before { display: block; margin-bottom: 8px; color: var(--blue); font-size: 9px; font-weight: 850; letter-spacing: .09em; }
@@ -2262,6 +2280,9 @@ h1, h2, h3, p { margin-top: 0; }
   .home-page { width: 100%; }
   .rec-body { padding: 28px; }
   .you-grid { grid-template-columns: 1fr; }
+  .preference-card,
+  .method-evidence-card,
+  .alpha-data-card { grid-row: auto; }
   .method-signal-grid { grid-template-columns: 1fr; }
   .preference-card.editing { grid-row: auto; }
   .personalization-principle { grid-template-columns: auto 1fr; }

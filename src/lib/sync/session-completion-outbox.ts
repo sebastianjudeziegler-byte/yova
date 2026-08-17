@@ -83,7 +83,7 @@ export function removeQueuedSessionCompletion(completionId: string) {
 }
 
 export function clearQueuedSessionCompletions(userId: string) {
-  savePendingCompletions(loadAllPendingCompletions().filter((entry) => entry.userId !== userId));
+  return savePendingCompletions(loadAllPendingCompletions().filter((entry) => entry.userId !== userId));
 }
 
 export function pendingSessionCompletionCount(userId: string) {

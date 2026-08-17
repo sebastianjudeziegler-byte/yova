@@ -47,6 +47,8 @@ export type PreviewAccount = {
   displayName: string;
   createdAt: string;
   identityMode?: "preview" | "supabase";
+  /** Auth-provider evidence for the current email; omitted by browser previews and legacy snapshots. */
+  emailVerified?: boolean;
 };
 
 export type SessionResourceActivity = {
