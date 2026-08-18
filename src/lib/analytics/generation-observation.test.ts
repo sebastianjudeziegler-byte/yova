@@ -23,6 +23,17 @@ describe("GenerationObservationSchema", () => {
     expect(GenerationObservationSchema.safeParse(safeEvent).success).toBe(true);
   });
 
+  it("accepts only the bounded safe-study recovery marker", () => {
+    expect(GenerationObservationSchema.safeParse({
+      ...safeEvent,
+      diagnostics: { recoveryMode: "safe_study" },
+    }).success).toBe(true);
+    expect(GenerationObservationSchema.safeParse({
+      ...safeEvent,
+      diagnostics: { recoveryMode: "private learner explanation" },
+    }).success).toBe(false);
+  });
+
   it("rejects learner content even if a caller tries to add it", () => {
     expect(GenerationObservationSchema.safeParse({
       ...safeEvent,

@@ -214,6 +214,46 @@ function completedProviderResponse(id: string, output_parsed: unknown) {
   };
 }
 
+function compactBioRecoveryContent() {
+  return {
+    targetClaims: [
+      "Cells transfer energy by coupling energy-releasing reactions to energy-requiring cellular work.",
+      "ATP hydrolysis can make a coupled cellular process favorable without creating new energy.",
+    ],
+    topicChecks: [{
+      title: "Explain cellular energy transfer",
+      prompt: "Without notes, explain how cells transfer usable energy into energy-requiring work.",
+      choices: [
+        "Cells couple energy-releasing reactions to energy-requiring work",
+        "Cells create new energy whenever work is required",
+        "Cells use only heat released by spontaneous reactions",
+        "Cells permanently store all usable energy in glucose",
+      ],
+      correctChoiceIndex: 0,
+      referenceAnswer: "Cells couple energy released by favorable reactions to specific energy-requiring cellular work.",
+      feedback: "A complete explanation connects a favorable reaction to the cellular process it drives.",
+    }, {
+      title: "Check ATP coupling",
+      prompt: "Which statement correctly explains how ATP hydrolysis can drive an energy-requiring reaction?",
+      choices: [
+        "The reactions are coupled so the combined free-energy change is favorable",
+        "ATP hydrolysis raises activation energy until the reaction proceeds",
+        "ATP stores heat that directly becomes cellular work",
+        "ATP hydrolysis creates energy that did not previously exist",
+      ],
+      correctChoiceIndex: 0,
+      referenceAnswer: "Coupling ATP hydrolysis to an energy-requiring reaction can make the combined free-energy change favorable.",
+      feedback: "Coupling transfers usable free energy; it does not create energy or raise activation energy.",
+    }],
+    repair: {
+      keyIdea: "Cells transfer usable energy by coupling reactions, often through ATP hydrolysis.",
+      explanation: "A favorable reaction such as ATP hydrolysis can be chemically coupled to energy-requiring cellular work so the combined process is favorable.",
+      commonMistake: "ATP hydrolysis creates new energy for the cell.",
+      correction: "ATP transfers usable free energy through a coupled reaction; it does not create energy.",
+    },
+  };
+}
+
 async function expectCompleteValidatorPass(
   draft: GeneratedSessionDraft,
   context: SessionGenerationContext,
@@ -682,8 +722,67 @@ describe("multi-target study recovery", () => {
       attempts: 3,
       failedValidator: "session_time_budget",
       repairSucceeded: true,
+      recoveryMode: "safe_study",
+    });
+    const recoveryInput = parseResponse.mock.calls[2]?.[0]?.input as string;
+    expect(recoveryInput).not.toContain('"personalization"');
+    expect(recoveryInput).not.toContain('"recentInterruptions"');
+    expect(recoveryInput).not.toContain('"recentResults"');
+    await expectCompleteValidatorPass(result.draft, context!);
+  });
+
+  it("recovers after repeated structured output failures with the same complete validator", async () => {
+    parseResponse.mockReset();
+    const context = buildSessionEvaluationCases()
+      .find((candidate) => candidate.id === "bioenergetics_multi_target_study")?.context;
+    expect(context).toBeDefined();
+    const schemaFailure = Object.assign(new Error("invalid guided-session schema"), { name: "ZodError" });
+    parseResponse
+      .mockRejectedValueOnce(schemaFailure)
+      .mockResolvedValueOnce(completedProviderResponse("invalid-structured-repair", {}))
+      .mockResolvedValueOnce(completedProviderResponse("valid-safe-recovery", compactBioRecoveryContent()));
+
+    const { generateSessionWithOpenAI } = await import("@/lib/openai/session-generator");
+    const result = await generateSessionWithOpenAI(context!);
+    expect(result.generationStats).toMatchObject({
+      attempts: 3,
+      failedValidator: "session_structure",
+      repairSucceeded: true,
+      repairReason: "structured_output",
+      recoveryMode: "safe_study",
     });
     await expectCompleteValidatorPass(result.draft, context!);
+
+    expect(parseResponse).toHaveBeenCalledTimes(3);
+    expect(parseResponse.mock.calls.map((call) => call[0]?.text?.format?.name)).toEqual([
+      "yova_guided_session",
+      "yova_guided_session",
+      "yova_safe_study_recovery",
+    ]);
+  });
+
+  it("fails closed after a malformed narrow recovery without making a fourth provider call", async () => {
+    parseResponse.mockReset();
+    const context = buildSessionEvaluationCases()
+      .find((candidate) => candidate.id === "bioenergetics_multi_target_study")?.context;
+    expect(context).toBeDefined();
+    const invalidFullDraft = oversizedStudyDraft();
+    parseResponse
+      .mockResolvedValueOnce(completedProviderResponse("invalid-initial", invalidFullDraft))
+      .mockResolvedValueOnce(completedProviderResponse("invalid-repair", invalidFullDraft))
+      .mockResolvedValueOnce(completedProviderResponse("malformed-safe-recovery", {}));
+
+    const { generateSessionWithOpenAI } = await import("@/lib/openai/session-generator");
+    await expect(generateSessionWithOpenAI(context!)).rejects.toMatchObject({
+      name: "SessionGenerationFailure",
+      generationStats: {
+        attempts: 3,
+        failedValidator: "session_time_budget",
+        repairSucceeded: false,
+        recoveryMode: "safe_study",
+      },
+    });
+    expect(parseResponse).toHaveBeenCalledTimes(3);
   });
 
   it("recovers three authoritative Bioenergetics topics without collapsing their checks", async () => {
@@ -803,6 +902,7 @@ describe("multi-target study recovery", () => {
       attempts: 3,
       failedValidator: "session_time_budget",
       repairSucceeded: true,
+      recoveryMode: "safe_study",
     });
     await expectCompleteValidatorPass(result.draft, context);
   });

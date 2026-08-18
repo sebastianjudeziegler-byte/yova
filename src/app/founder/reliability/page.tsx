@@ -10,6 +10,8 @@ const ReliabilitySummarySchema = z.object({
   totalGenerations: z.number(),
   planGenerations: z.number(),
   sessionGenerations: z.number(),
+  safeStudyRecoveryAttempts: z.number(),
+  safeStudyRecoverySuccesses: z.number(),
   firstPassRate: z.coerce.number(),
   postRepairSuccessRate: z.coerce.number(),
   p50LatencyMs: z.coerce.number(),
@@ -54,7 +56,7 @@ export default async function FounderReliabilityPage() {
         <article>
           <span>PRODUCTION VOLUME</span>
           <h2>{summary.totalGenerations} generations</h2>
-          <div><p><strong>{summary.planGenerations}</strong> plans</p><p><strong>{summary.sessionGenerations}</strong> sessions</p></div>
+          <div><p><strong>{summary.planGenerations}</strong> plans</p><p><strong>{summary.sessionGenerations}</strong> sessions</p><p><strong>{summary.safeStudyRecoverySuccesses}/{summary.safeStudyRecoveryAttempts}</strong> safe study recoveries passed</p></div>
         </article>
         <article>
           <span>TOP FAILING VALIDATORS</span>
