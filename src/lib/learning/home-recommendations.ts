@@ -1,10 +1,11 @@
 import type { LearningPlan } from "@/lib/domain";
+import { filterOperationalPlans } from "@/lib/learning/plan-visibility";
 
 const URGENT_WINDOW_MS = 3 * 24 * 60 * 60 * 1_000;
 
 export function rankPlansForHome(plans: LearningPlan[], now = new Date()) {
   const nowMs = now.getTime();
-  return plans
+  return filterOperationalPlans(plans)
     .flatMap((plan) => {
       const session = plan.sessions.find((item) => item.status === "ready");
       return session ? [{ plan, session }] : [];

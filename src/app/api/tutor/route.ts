@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { buildMaterialExcerpts } from "@/lib/materials/context";
+import {
+  availableLearningItemIds,
+  filterTutorThreads,
+  isAvailablePlanStatus,
+} from "@/lib/learning/plan-visibility";
 import { expandedLearnerContextFromStored } from "@/lib/personalization/learner-profile";
 import { generateTutorAnswer, type TutorLearningContext } from "@/lib/openai/tutor-generator";
 import { isOpenAITutorConfigured } from "@/lib/openai/config";
@@ -56,24 +61,26 @@ export async function GET(request: Request) {
           .map((thread) => thread.learning_item_id)
           .filter((value): value is string => typeof value === "string"),
       ));
-      const contextTitles = new Map<string, string>();
-      if (learningItemIds.length > 0) {
-        const { data: itemRows, error: itemError } = await supabase
-          .from("learning_items")
-          .select("id,title")
-          .in("id", learningItemIds);
-        if (itemError) throw itemError;
-        for (const item of itemRows ?? []) contextTitles.set(item.id, item.title);
-      }
-
-      return NextResponse.json(TutorThreadListResponseSchema.parse({
-        threads: (threadRows ?? []).map((thread) => ({
+      const contextTitles = await loadAvailableLearningItemTitles(supabase, learningItemIds);
+      const visibleThreads = filterTutorThreads(
+        (threadRows ?? []).map((thread) => ({
           id: thread.id,
           title: thread.title,
           learningItemId: thread.learning_item_id,
-          contextTitle: thread.learning_item_id ? contextTitles.get(thread.learning_item_id) ?? "Learning goal" : null,
           createdAt: thread.created_at,
           updatedAt: thread.updated_at,
+        })),
+        new Set(contextTitles.keys()),
+      );
+
+      return NextResponse.json(TutorThreadListResponseSchema.parse({
+        threads: visibleThreads.map((thread) => ({
+          id: thread.id,
+          title: thread.title,
+          learningItemId: thread.learningItemId,
+          contextTitle: thread.learningItemId ? contextTitles.get(thread.learningItemId) ?? "Learning goal" : null,
+          createdAt: thread.createdAt,
+          updatedAt: thread.updatedAt,
         })),
       }), { headers: { "Cache-Control": "no-store" } });
     } catch {
@@ -95,11 +102,17 @@ export async function GET(request: Request) {
     if (threadId) {
       const { data: thread, error: threadError } = await supabase
         .from("tutor_threads")
-        .select("id")
+        .select("id,learning_item_id")
         .eq("id", threadId)
         .maybeSingle();
       if (threadError) throw threadError;
       if (!thread) return NextResponse.json({ error: "That tutor conversation could not be found." }, { status: 404 });
+      if (thread.learning_item_id) {
+        const availableTitles = await loadAvailableLearningItemTitles(supabase, [thread.learning_item_id]);
+        if (!availableTitles.has(thread.learning_item_id)) {
+          return NextResponse.json({ error: "That tutor conversation could not be found." }, { status: 404 });
+        }
+      }
     } else {
       const { learningItemId } = await loadTutorContext(supabase, planId);
       let threadQuery = supabase
@@ -138,8 +151,11 @@ export async function GET(request: Request) {
         createdAt: message.created_at,
       })),
     }), { headers: { "Cache-Control": "no-store" } });
-  } catch {
-    return NextResponse.json({ error: "YOVA could not load this tutor conversation." }, { status: 500 });
+  } catch (error) {
+    const message = error instanceof TutorPlanNotFoundError
+      ? error.message
+      : "YOVA could not load this tutor conversation.";
+    return NextResponse.json({ error: message }, { status: error instanceof TutorPlanNotFoundError ? 404 : 500 });
   }
 }
 
@@ -376,18 +392,26 @@ async function loadTutorContext(supabase: SupabaseClient, planId: string | null)
 
   const { data: plan, error: planError } = await supabase
     .from("plans")
-    .select("learning_item_id,rationale")
+    .select("learning_item_id,rationale,status")
     .eq("id", planId)
     .maybeSingle();
   if (planError) throw planError;
   if (!plan) throw new TutorPlanNotFoundError("That learning plan could not be found.");
+  if (!isAvailablePlanStatus(plan.status)) {
+    throw new TutorPlanNotFoundError("That learning plan is no longer available to Ask YOVA.");
+  }
 
-  const [{ data: item, error: itemError }, { data: sessionRows, error: sessionError }, { data: materialRows, error: materialsError }] = await Promise.all([
-    supabase
-      .from("learning_items")
-      .select("title,topic")
-      .eq("id", plan.learning_item_id)
-      .maybeSingle(),
+  const { data: item, error: itemError } = await supabase
+    .from("learning_items")
+    .select("title,topic,status")
+    .eq("id", plan.learning_item_id)
+    .maybeSingle();
+  if (itemError) throw itemError;
+  if (!item || !isAvailablePlanStatus(item.status)) {
+    throw new TutorPlanNotFoundError("That learning goal is no longer available to Ask YOVA.");
+  }
+
+  const [{ data: sessionRows, error: sessionError }, { data: materialRows, error: materialsError }] = await Promise.all([
     supabase
       .from("plan_sessions")
       .select("id,title,objective,method,method_rationale,estimated_minutes")
@@ -403,8 +427,7 @@ async function loadTutorContext(supabase: SupabaseClient, planId: string | null)
       .order("created_at", { ascending: true })
       .limit(5),
   ]);
-  if (itemError || sessionError || materialsError) throw itemError ?? sessionError ?? materialsError;
-  if (!item) throw new TutorPlanNotFoundError("That learning goal could not be found.");
+  if (sessionError || materialsError) throw sessionError ?? materialsError;
 
   const currentSessionRow = sessionRows?.[0] ?? null;
   return {
@@ -425,6 +448,44 @@ async function loadTutorContext(supabase: SupabaseClient, planId: string | null)
       learnerProfile: profile,
     },
   };
+}
+
+async function loadAvailableLearningItemTitles(
+  supabase: SupabaseClient,
+  learningItemIds: string[],
+) {
+  if (learningItemIds.length === 0) return new Map<string, string>();
+
+  const [{ data: itemRows, error: itemError }, { data: planRows, error: planError }] = await Promise.all([
+    supabase
+      .from("learning_items")
+      .select("id,title,status")
+      .in("id", learningItemIds),
+    supabase
+      .from("plans")
+      .select("learning_item_id,status")
+      .in("learning_item_id", learningItemIds),
+  ]);
+  if (itemError || planError) throw itemError ?? planError;
+
+  const availableItemIds = availableLearningItemIds(
+    (planRows ?? []).flatMap((plan) => (
+      typeof plan.learning_item_id === "string"
+        ? [{ learningItemId: plan.learning_item_id, status: plan.status }]
+        : []
+    )),
+  );
+
+  return new Map(
+    (itemRows ?? []).flatMap((item) => (
+      typeof item.id === "string"
+      && typeof item.title === "string"
+      && isAvailablePlanStatus(item.status)
+      && availableItemIds.has(item.id)
+        ? [[item.id, item.title] as const]
+        : []
+    )),
+  );
 }
 
 function buildTutorProposedAction(

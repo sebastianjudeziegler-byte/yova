@@ -59,6 +59,11 @@ import {
 import { checkSessionGenerationRateLimit, requestRateLimitKey } from "@/lib/server/rate-limit";
 import { claimAIRequest } from "@/lib/server/ai-usage";
 import {
+  classifyOperationalPlanSession,
+  sessionOperationFailure,
+  verifyOperationalPlanSession,
+} from "@/lib/server/session-operation-guard";
+import {
   buildSessionCacheContext,
   sessionCacheContextMatches,
   type SessionCacheContext,
@@ -132,7 +137,7 @@ export async function POST(request: Request) {
     const [{ data: plan, error: planError }, { data: learnerProfile, error: learnerError }, { data: planSessionRows, error: planSessionsError }] = await Promise.all([
       supabase
         .from("plans")
-        .select("learning_item_id,rationale,generation_inputs,knowledge_map")
+        .select("learning_item_id,status,rationale,generation_inputs,knowledge_map")
         .eq("id", parsed.data.planId)
         .maybeSingle(),
       supabase
@@ -148,6 +153,16 @@ export async function POST(request: Request) {
 
     if (planError || learnerError || planSessionsError) throw planError ?? learnerError ?? planSessionsError;
     if (!plan) return NextResponse.json({ error: "That learning plan was not found." }, { status: 404 });
+    const operationAccess = classifyOperationalPlanSession({
+      requestedPlanId: parsed.data.planId,
+      sessionPlanId: planSession.plan_id,
+      planStatus: plan.status,
+      sessionStatus: planSession.status,
+    });
+    if (!operationAccess.allowed) {
+      const failure = sessionOperationFailure(operationAccess);
+      return NextResponse.json({ error: failure.error }, { status: failure.status });
+    }
 
     const [
       { data: learningItem, error: itemError },
@@ -571,6 +586,23 @@ export async function POST(request: Request) {
           generatedSession: cachedSession,
         },
       }));
+    }
+
+    if (cacheError) {
+      const currentAccess = await verifyOperationalPlanSession(supabase, {
+        planId: parsed.data.planId,
+        planSessionId: planSession.id,
+      });
+      if (!currentAccess.allowed) {
+        const failure = sessionOperationFailure(currentAccess);
+        return NextResponse.json(
+          { error: failure.error, requestId },
+          {
+            status: failure.status,
+            headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId },
+          },
+        );
+      }
     }
 
     if (cacheError) console.error("YOVA generated-session cache failed", { requestId });

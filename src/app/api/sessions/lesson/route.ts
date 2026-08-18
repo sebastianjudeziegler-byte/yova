@@ -21,6 +21,10 @@ import {
 import { claimAIRequest } from "@/lib/server/ai-usage";
 import { isDevelopmentPreviewRequest } from "@/lib/server/development-preview";
 import { checkLessonGenerationRateLimit, requestRateLimitKey } from "@/lib/server/rate-limit";
+import {
+  sessionOperationFailure,
+  verifyOperationalPlanSession,
+} from "@/lib/server/session-operation-guard";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -78,10 +82,16 @@ export async function POST(request: Request) {
     return Response.json({ error: "YOVA could not identify this lesson." }, { status: 422 });
   }
 
+  if (!developmentPreview && supabase) {
+    const operationAccess = await verifyOperationalPlanSession(supabase, parsed.data);
+    if (!operationAccess.allowed) {
+      const failure = sessionOperationFailure(operationAccess);
+      return Response.json({ error: failure.error }, { status: failure.status });
+    }
+  }
+
   if (parsed.data.action === "skip_to_practice") {
     if (!developmentPreview && supabase && user) {
-      const owned = await ownsPlanSession(supabase, parsed.data.planId, parsed.data.planSessionId);
-      if (!owned) return Response.json({ error: "That lesson was not found." }, { status: 404 });
       await recordGenerationObservation(supabase, user.id, {
         generationType: "lesson",
         observationKind: "usage",
@@ -443,20 +453,6 @@ async function loadLessonRuntimeSource(
   const activity = parsed.data.activities[activityIndex];
   if (!activity || activity.type !== "instruction" || !activity.lessonBrief) return null;
   return { activity, deliveryInstructions: parsed.data.deliveryInstructions };
-}
-
-async function ownsPlanSession(
-  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
-  planId: string,
-  planSessionId: string,
-) {
-  const { data, error } = await supabase
-    .from("plan_sessions")
-    .select("id")
-    .eq("id", planSessionId)
-    .eq("plan_id", planId)
-    .maybeSingle();
-  return !error && Boolean(data);
 }
 
 function lessonInputFromSource(source: LessonRuntimeSource): StreamedLessonInput {

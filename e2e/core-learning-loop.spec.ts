@@ -105,7 +105,7 @@ test("a confident misconception is repaired now without a duplicate follow-up", 
   await expect(page.getByRole("heading", { name: /Good (morning|afternoon|evening), Learner\./ })).toBeVisible();
 });
 
-test("a generation fallback honors a request to teach a planned study session first", async ({ page }) => {
+test("a built-in fallback fails closed for a teaching-first adjustment", async ({ page }) => {
   await page.route("**/api/sessions/generate", async (route) => {
     await route.fulfill({
       status: 502,
@@ -131,9 +131,37 @@ test("a generation fallback honors a request to teach a planned study session fi
   await expect(page.getByText(/switch this session to teaching first/i)).toBeVisible();
   await page.getByRole("button", { name: "Prepare this session" }).click();
 
-  await expect(page.getByRole("heading", { name: "See the product rule before using it" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Recall the product-rule structure" })).not.toBeVisible();
-  await expect(page.getByText(/safe built-in session was loaded instead/i)).toBeVisible();
+  await expect(page.getByRole("heading", { name: "YOVA already knows what this lesson should cover." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "See the product rule before using it" })).not.toBeVisible();
+  await expect(page.getByText(/safe built-in session was loaded instead/i)).not.toBeVisible();
+});
+
+test("an inactive-plan generation response cannot open a stale built-in lesson", async ({ page }) => {
+  await page.route("**/api/sessions/generate", async (route) => {
+    await route.fulfill({
+      status: 409,
+      contentType: "application/json",
+      body: JSON.stringify({ error: "That learning plan is no longer active." }),
+    });
+  });
+  await createPreviewAccount(page);
+  await completeOnboarding(page);
+
+  await page.getByRole("button", { name: "Study something now", exact: true }).first().click();
+  await page.getByPlaceholder("Example: Help me understand the product rule and practice using it.").fill(
+    "Help me understand the product rule and practice using it.",
+  );
+  await page.getByRole("button", { name: "I haven't learned this yet" }).click();
+  await page.getByRole("button", { name: /Choose how YOVA should help/ }).click();
+  await page.getByRole("button", { name: /Create it for me/ }).click();
+  await page.getByRole("button", { name: /Build and start session/ }).click();
+  await page.getByRole("button", { name: "Continue" }).click();
+  await page.getByRole("button", { name: "Continue" }).click();
+  await page.getByRole("button", { name: "Prepare this session" }).click();
+
+  await expect(page.getByRole("heading", { name: "YOVA already knows what this lesson should cover." })).toBeVisible();
+  await expect(page.getByText("That learning plan is no longer active.")).toBeVisible();
+  await expect(page.getByText(/safe built-in session was loaded instead/i)).not.toBeVisible();
 });
 
 test("a built-in fallback never exceeds a shortened session window", async ({ page }) => {
@@ -1064,10 +1092,118 @@ test("a multi-session plan carries one clear source decision from Add to Learnin
   const adjustmentTools = page.locator("details.agenda-adjustment-tools");
   if (!(await adjustmentTools.getAttribute("open"))) await adjustmentTools.locator("summary").click();
   await expect(page.getByText("What YOVA is allowed to change")).toBeVisible();
+  const capacityButtons = page.locator(".agenda-capacity-options button");
+  await expect(capacityButtons).toHaveCount(5);
+  await expect(page.locator(".agenda-capacity-options .duration-value")).toHaveCount(5);
+  await expect(page.locator(".agenda-capacity-options .duration-unit")).toHaveCount(5);
+  const capacityTypography = await page.locator(".agenda-capacity-planner").evaluate((planner) => {
+    const buttons = [...planner.querySelectorAll<HTMLButtonElement>(".agenda-capacity-options button")];
+    const values = [...planner.querySelectorAll<HTMLElement>(".duration-value")];
+    const units = [...planner.querySelectorAll<HTMLElement>(".duration-unit")];
+    const heading = planner.querySelector<HTMLElement>("h2");
+    return {
+      buttonHeights: buttons.map((button) => button.getBoundingClientRect().height),
+      valueFamilies: values.map((value) => getComputedStyle(value).fontFamily),
+      valueLineHeights: values.map((value) => Number.parseFloat(getComputedStyle(value).lineHeight)),
+      valueTracking: values.map((value) => {
+        const tracking = Number.parseFloat(getComputedStyle(value).letterSpacing);
+        return Number.isFinite(tracking) ? tracking : 0;
+      }),
+      unitSizes: units.map((unit) => Number.parseFloat(getComputedStyle(unit).fontSize)),
+      headingTracking: heading ? Math.abs(Number.parseFloat(getComputedStyle(heading).letterSpacing)) : Number.POSITIVE_INFINITY,
+    };
+  });
+  expect(capacityTypography.buttonHeights.every((height) => height >= 44)).toBe(true);
+  expect(capacityTypography.valueFamilies.every((family) => family.includes("Inter"))).toBe(true);
+  expect(capacityTypography.valueLineHeights.every((height) => height >= 17 && height <= 19)).toBe(true);
+  expect(capacityTypography.valueTracking.every((tracking) => Math.abs(tracking) < 0.01)).toBe(true);
+  expect(capacityTypography.unitSizes.every((size) => size >= 12)).toBe(true);
+  expect(capacityTypography.headingTracking).toBeLessThanOrEqual(0.5);
+  await expectNoHorizontalOverflow(page, ".agenda-capacity-planner");
   await page.getByRole("button", { name: "I have 15 minutes today" }).click();
   await expect(page.locator(".agenda-capacity-result")).not.toHaveClass(/blocked/);
   await expect(page.locator(".agenda-capacity-result")).toContainText(/Today already fits|No change needed/);
   await expect(page.getByText(/planned sessions/).first()).toBeVisible();
+});
+
+test("archived, draft, and deleted-plan projections stay out of current-work surfaces", async ({ page }) => {
+  await createPreviewAccount(page);
+  await completeOnboarding(page);
+
+  await page.evaluate(() => {
+    const stored = window.localStorage.getItem("yova.preview.v1");
+    if (!stored) throw new Error("Expected a preview snapshot after onboarding.");
+    const snapshot = JSON.parse(stored) as Record<string, unknown>;
+    const now = new Date();
+    const scheduledFor = new Date(now.getTime() + 60 * 60 * 1_000).toISOString();
+    const dueAt = new Date(now.getTime() + 2 * 60 * 60 * 1_000).toISOString();
+    const createdAt = new Date(now.getTime() - 60 * 60 * 1_000).toISOString();
+    const session = (id: string, title: string) => ({
+      id,
+      sequence: 1,
+      title,
+      objective: `Finish ${title}`,
+      method: "Guided learning",
+      methodReason: "Visibility regression fixture",
+      scheduledFor,
+      estimatedMinutes: 25,
+      amountLabel: "One focused section",
+      learningMode: "learn",
+      status: "ready",
+    });
+    const plan = (id: string, learningItemId: string, title: string, status: "draft" | "active" | "archived") => ({
+      id,
+      learningItemId,
+      title,
+      topic: title,
+      kind: "topic",
+      deadline: dueAt,
+      status,
+      sourceMode: "yova_generated",
+      studyMode: "inside_yova",
+      learningIntent: "learn",
+      rationale: "Visibility regression fixture",
+      createdAt,
+      sessions: [session(`${id}-session`, `${title} session`)],
+    });
+
+    snapshot.plans = [
+      plan("active-plan", "active-item", "Visible active biology plan", "active"),
+      plan("archived-plan", "archived-item", "Hidden archived calculus plan", "archived"),
+      plan("draft-plan", "draft-item", "Hidden draft chemistry plan", "draft"),
+    ];
+    snapshot.deadlineMilestones = [
+      { id: "active-deadline", title: "Visible biology deadline", description: "Active linked work", dueAt, status: "open", linkedLearningItemId: "active-item", createdAt },
+      { id: "archived-deadline", title: "Hidden archived deadline", description: "Archived linked work", dueAt, status: "open", linkedLearningItemId: "archived-item", createdAt },
+      { id: "draft-deadline", title: "Hidden draft deadline", description: "Draft linked work", dueAt, status: "open", linkedLearningItemId: "draft-item", createdAt },
+      { id: "deleted-deadline", title: "Hidden deleted-plan deadline", description: "Orphaned linked work", dueAt, status: "open", linkedLearningItemId: "deleted-item", createdAt },
+    ];
+    snapshot.updatedAt = new Date().toISOString();
+    window.localStorage.setItem("yova.preview.v1", JSON.stringify(snapshot));
+  });
+  await page.reload();
+
+  await expect(page.getByText("Visible active biology plan").first()).toBeVisible();
+  await expect(page.getByText("Hidden archived calculus plan")).toHaveCount(0);
+  await expect(page.getByText("Hidden draft chemistry plan")).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Agenda", exact: true }).click();
+  await expect(page.getByText("Visible active biology plan").first()).toBeVisible();
+  await expect(page.getByText("Visible biology deadline").first()).toBeVisible();
+  await expect(page.getByText("Hidden archived calculus plan")).toHaveCount(0);
+  await expect(page.getByText("Hidden archived deadline")).toHaveCount(0);
+  await expect(page.getByText("Hidden draft deadline")).toHaveCount(0);
+  await expect(page.getByText("Hidden deleted-plan deadline")).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Ask YOVA", exact: true }).click();
+  const contextOptions = page.getByRole("combobox", { name: "Ask YOVA context" }).locator("option");
+  await expect(contextOptions.filter({ hasText: "Visible active biology plan" })).toHaveCount(1);
+  await expect(contextOptions.filter({ hasText: "Hidden archived calculus plan" })).toHaveCount(0);
+  await expect(contextOptions.filter({ hasText: "Hidden draft chemistry plan" })).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Learning", exact: true }).click();
+  await page.getByRole("button", { name: /Archive/ }).click();
+  await expect(page.getByText("Hidden archived calculus plan").first()).toBeVisible();
 });
 
 test("material setup clearly supports files, articles, and YouTube transcripts", async ({ page }) => {
