@@ -99,6 +99,11 @@ export const StudyProfileReportTokenSchema = z.string()
   .max(128)
   .regex(/^[A-Za-z0-9_-]+$/, "Invalid report token");
 
+// PostgreSQL timestamptz values are returned by PostgREST with an explicit
+// offset (for example, `+00:00`), while newly created in-memory values use `Z`.
+// Both are valid ISO datetimes and must survive a persisted report reload.
+const StudyProfileTimestampSchema = z.string().datetime({ offset: true });
+
 export const StudyProfileWaitlistUpdateSchema = z.object({
   reportToken: StudyProfileReportTokenSchema,
   waitlist: z.literal(true),
@@ -182,7 +187,7 @@ export const StudyProfileStoredResponseSchema = z.object({
   rawAnswers: StudyProfileAnswersSchema,
   snapshot: StudyProfileSnapshotSchema,
   metadata: StudyProfileMetadataSchema,
-  createdAt: z.string().datetime(),
+  createdAt: StudyProfileTimestampSchema,
 }).strict().superRefine((value, context) => {
   if (value.responseId && value.responseId !== value.id) {
     context.addIssue({
@@ -208,7 +213,7 @@ export const StudyProfilePublicStoredResponseSchema = z.object({
     energyWindow: StudyProfileEnergyWindowSchema,
     schoolLevel: StudyProfileSchoolLevelSchema,
   }).strict(),
-  createdAt: z.string().datetime(),
+  createdAt: StudyProfileTimestampSchema,
 }).strict().superRefine((value, context) => {
   if (value.responseId !== value.id) {
     context.addIssue({

@@ -117,7 +117,7 @@ describe("Study Profile validation and report assembly", () => {
     expect(underReport.playbook.nextSession.checkingRule).toMatch(/record correct/i);
   });
 
-  it("rebuilds the same report from a validated stored response without an email", () => {
+  it("rebuilds the same report from a PostgreSQL timestamp without exposing private data", () => {
     const answers = answerEveryQuestion("b");
     const snapshot = scoreStudyProfile(answers);
     const stored = StudyProfileStoredResponseSchema.parse({
@@ -131,7 +131,7 @@ describe("Study Profile validation and report assembly", () => {
         schoolLevel: "high_school",
         hardestPart: null,
       },
-      createdAt: "2026-08-11T12:00:00.000Z",
+      createdAt: "2026-08-11T12:00:00.123456+00:00",
     });
 
     expect("email" in stored).toBe(false);

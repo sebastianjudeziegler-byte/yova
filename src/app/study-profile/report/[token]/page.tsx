@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
+import { ZodError } from "zod";
 import { BrandMark } from "@/components/brand-mark";
 import { StudyProfileReportView } from "@/components/study-profile/study-profile-report-view";
 import {
@@ -85,9 +86,22 @@ async function loadStudyProfileReport(token: string) {
     if (!(error instanceof StudyProfilePersistenceUnavailableError)) {
       console.error(
         "Study Profile report page failed.",
-        error instanceof Error ? error.name : "UnknownError",
+        safeStudyProfileErrorDetails(error),
       );
     }
     return { status: "unavailable" as const };
   }
+}
+
+function safeStudyProfileErrorDetails(error: unknown) {
+  if (error instanceof ZodError) {
+    return {
+      name: error.name,
+      issues: error.issues.map((issue) => ({
+        code: issue.code,
+        path: issue.path.join("."),
+      })),
+    };
+  }
+  return { name: error instanceof Error ? error.name : "UnknownError" };
 }
