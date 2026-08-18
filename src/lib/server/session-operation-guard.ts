@@ -18,6 +18,14 @@ export type SessionOperationAccess =
 export const READY_SESSION_STATUSES = ["ready"] as const;
 export const SCHEDULABLE_SESSION_STATUSES = ["ready", "upcoming"] as const;
 
+export function sessionCacheFailureMustFailClosed(
+  error: { code?: string | null } | null | undefined,
+) {
+  return error?.code === "40001"
+    || error?.code === "55000"
+    || error?.code === "23503";
+}
+
 export async function verifyOperationalPlanSession(
   supabase: SupabaseServerClient,
   {

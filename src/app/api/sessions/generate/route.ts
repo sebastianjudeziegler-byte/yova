@@ -60,6 +60,7 @@ import { checkSessionGenerationRateLimit, requestRateLimitKey } from "@/lib/serv
 import { claimAIRequest } from "@/lib/server/ai-usage";
 import {
   classifyOperationalPlanSession,
+  sessionCacheFailureMustFailClosed,
   sessionOperationFailure,
   verifyOperationalPlanSession,
 } from "@/lib/server/session-operation-guard";
@@ -586,6 +587,19 @@ export async function POST(request: Request) {
           generatedSession: cachedSession,
         },
       }));
+    }
+
+    if (sessionCacheFailureMustFailClosed(cacheError)) {
+      return NextResponse.json(
+        {
+          error: "This learning session changed while YOVA was preparing it. Refresh and try again.",
+          requestId,
+        },
+        {
+          status: 409,
+          headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId },
+        },
+      );
     }
 
     if (cacheError) {

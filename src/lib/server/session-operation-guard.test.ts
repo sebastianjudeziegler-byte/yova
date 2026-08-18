@@ -5,6 +5,7 @@ vi.mock("server-only", () => ({}));
 import {
   classifyOperationalPlanSession,
   SCHEDULABLE_SESSION_STATUSES,
+  sessionCacheFailureMustFailClosed,
   sessionOperationFailure,
   verifyOperationalPlanSession,
 } from "@/lib/server/session-operation-guard";
@@ -90,6 +91,14 @@ describe("session operation guard", () => {
       planId: "plan-1",
       planSessionId: "session-1",
     })).resolves.toEqual({ allowed: false, reason: "verification_failed" });
+  });
+
+  it("never falls back to a browser lesson after parent-state cache conflicts", () => {
+    for (const code of ["40001", "55000", "23503"]) {
+      expect(sessionCacheFailureMustFailClosed({ code })).toBe(true);
+    }
+    expect(sessionCacheFailureMustFailClosed({ code: "P0001" })).toBe(false);
+    expect(sessionCacheFailureMustFailClosed(null)).toBe(false);
   });
 });
 
