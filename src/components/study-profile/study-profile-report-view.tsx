@@ -247,7 +247,7 @@ export function StudyProfileReportView({
             </div>
             <div className={styles.methodGrid}>
               {report.playbook.methods.map((method, index) => (
-                <article className={styles.methodCard} key={method.id}>
+                <article className={styles.methodCard} data-testid="study-method-card" key={method.id}>
                   <div className={styles.methodCardHeader}>
                     <span>{String(index + 1).padStart(2, "0")}</span>
                     <div>
