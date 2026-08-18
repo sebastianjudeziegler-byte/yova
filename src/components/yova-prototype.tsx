@@ -65,6 +65,7 @@ import {
   type PersonalizationWeeklyReview as PersonalizationCenterWeeklyReview,
 } from "@/components/personalization/personalization-center";
 import { PlanCreator } from "@/components/plan-creator";
+import { PlanDeletionControl } from "@/components/plan-deletion-dialog";
 import { QuantitativeWorkpad } from "@/components/quantitative-workpad";
 import { StudyNowCreator } from "@/components/study-now-creator";
 import { TutorMessageContent } from "@/components/tutor-message-content";
@@ -155,6 +156,7 @@ import {
   loadActiveSessionCheckpoints,
   mergeActiveSessionCheckpoints,
   removeActiveSessionCheckpoint,
+  removeActiveSessionCheckpointsForPlan,
   replaceActiveSessionCheckpointsForAccount,
   restoreCheckpointSessionResources,
   saveActiveSessionCheckpoint,
@@ -244,6 +246,7 @@ import { PlanDiagnosticQuestionSchema, type PlanDiagnosticQuestion } from "@/lib
 import { buildContentBasedReplacementSessions } from "@/lib/learning/content-based-plan-adjustment";
 import { applyPlanDirectionFallback } from "@/lib/learning/plan-direction";
 import { PlanArchiveResponseSchema } from "@/lib/learning/status-schema";
+import { deleteArchivedPlan } from "@/lib/learning/plan-deletion";
 import { MaterialAttachmentResponseSchema } from "@/lib/materials/attachment-schema";
 import { deleteUploadedMaterial, uploadMaterialFiles } from "@/lib/materials/intake";
 import {
@@ -308,12 +311,14 @@ import {
   pendingSessionCompletionPlanSessionIds,
   queueSessionCompletion,
   removeQueuedSessionCompletion,
+  removeQueuedSessionCompletionsForPlan,
 } from "@/lib/sync/session-completion-outbox";
 import {
   clearQueuedSessionInterruptions,
   pendingSessionInterruptionRunIds,
   queueSessionInterruption,
   removeQueuedSessionInterruption,
+  removeQueuedSessionInterruptionsForPlan,
 } from "@/lib/sync/session-interruption-outbox";
 import {
   flushQueuedSessionTerminals,
@@ -2140,6 +2145,20 @@ export function YovaPrototype({
   };
 
   const changePlanArchiveState = async (planId: string, action: "archive" | "restore") => {
+    if (account?.identityMode === "preview" || browserPreviewMode) {
+      const requestedPlan = plansRef.current.find((plan) => plan.id === planId);
+      if (!requestedPlan) throw new Error("YOVA could not find that learning goal.");
+      const status: LearningPlan["status"] = action === "archive"
+        ? "archived"
+        : requestedPlan.sessions.some((session) => session.status === "ready" || session.status === "upcoming")
+          ? "active"
+          : "completed";
+      plansRef.current = plansRef.current.map((plan) => plan.id === planId ? { ...plan, status } : plan);
+      setPlans((current) => current.map((plan) => plan.id === planId ? { ...plan, status } : plan));
+      if (status !== "active" && selectedPlanId === planId) setSelectedPlanId(null);
+      return status;
+    }
+
     const response = await fetch("/api/plans/status", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -2162,6 +2181,46 @@ export function YovaPrototype({
       setSelectedPlanId(null);
     }
     return parsed.data.status;
+  };
+
+  const deletePlanPermanently = async (planId: string) => {
+    const requestedPlan = plansRef.current.find((plan) => plan.id === planId);
+    if (!requestedPlan || requestedPlan.status !== "archived") {
+      throw new Error("Only an archived learning goal can be permanently deleted.");
+    }
+    if (account?.identityMode !== "preview" && !browserPreviewMode) {
+      await deleteArchivedPlan(planId);
+    }
+
+    const removedCheckpoints = activeSessionCheckpoints.filter((checkpoint) => checkpoint.planId === planId);
+    checkpointSyncEpochRef.current += 1;
+    removedCheckpoints.forEach((checkpoint) => discardedCheckpointRunIdsRef.current.add(checkpoint.runId));
+    requestedPlan.sessions.forEach((session) => cloudCheckpointResourceIdentitiesRef.current.delete(session.id));
+
+    let offlineCleanupSucceeded = true;
+    if (account) {
+      const cleanupResults = [
+        removeActiveSessionCheckpointsForPlan(account.id, planId),
+        removeQueuedSessionCompletionsForPlan(account.id, planId),
+        removeQueuedSessionInterruptionsForPlan(account.id, planId),
+      ];
+      offlineCleanupSucceeded = cleanupResults.every(Boolean);
+    }
+
+    plansRef.current = plansRef.current.filter((plan) => plan.id !== planId);
+    setPlans((current) => current.filter((plan) => plan.id !== planId));
+    setDeadlineMilestones((current) => current.filter((milestone) => milestone.linkedLearningItemId !== requestedPlan.learningItemId));
+    setSessionCompletions((current) => current.filter((completion) => completion.planId !== planId));
+    setSessionInterruptions((current) => current.filter((interruption) => interruption.planId !== planId));
+    setActiveSessionCheckpoints((current) => current.filter((checkpoint) => checkpoint.planId !== planId));
+    setCloudCheckpointRunIds((current) => new Set([...current].filter((runId) => (
+      !removedCheckpoints.some((checkpoint) => checkpoint.runId === runId)
+    ))));
+    if (selectedPlanId === planId) setSelectedPlanId(null);
+    setLearningDetailPlanId(null);
+    if (!offlineCleanupSucceeded) {
+      setCloudSyncIssue("The archived goal was deleted, but this browser could not clear every offline sync marker.");
+    }
   };
 
   const adjustPlan = async (input: PlanAdjustmentRequest) => {
@@ -2834,7 +2893,7 @@ export function YovaPrototype({
   return <>
     <AppShell activeTab={activeTab} onTab={openTab} account={account} cloudSyncIssue={cloudSyncIssue} signOutIssue={signOutIssue} signingOut={signingOut} onRetryCloudSync={retryCloudSync} onAdd={beginAgendaAdd} workspaceClassName={personalizationWorkspaceClassName} onSignOut={signOut}>
       {activeTab === "Home" && <HomeScreen account={account} answers={answers} plans={activePlans} plan={recommendedPlan} sessionCompletions={sessionCompletions} sessionInterruptions={sessionInterruptions} activeSessionCheckpoints={recoverableSessionCheckpoints} tutorQuestion={tutorQuestion} onTutorQuestion={setTutorQuestion} onOpenTutor={openAskYova} onOpenYou={() => setActiveTab("You")} onStart={(planId) => requestSessionStart(planId)} onOpenPlan={(planId) => { setSelectedPlanId(planId); setLearningDetailPlanId(planId); setActiveTab("Learning"); }} onCreatePlan={beginPlanCreation} onStudyNow={() => { setCreatorSeed(null); setCreatorMilestoneId(null); setStage("study-now"); }} />}
-      {activeTab === "Learning" && <LearningScreen plans={plans} detailPlanId={learningDetailPlanId} sessionCompletions={sessionCompletions} sessionInterruptions={sessionInterruptions} activeSessionCheckpoints={recoverableSessionCheckpoints} onOpenPlan={(planId) => { setSelectedPlanId(planId); setLearningDetailPlanId(planId); }} onClosePlan={() => setLearningDetailPlanId(null)} onStart={requestSessionStart} onCreatePlan={beginPlanCreation} onArchiveStateChange={changePlanArchiveState} onAdjustPlan={adjustPlan} onKnowledgeMapUpdate={updatePlanKnowledgeMap} onAttachMaterials={attachMaterials} />}
+      {activeTab === "Learning" && <LearningScreen plans={plans} detailPlanId={learningDetailPlanId} sessionCompletions={sessionCompletions} sessionInterruptions={sessionInterruptions} activeSessionCheckpoints={recoverableSessionCheckpoints} onOpenPlan={(planId) => { setSelectedPlanId(planId); setLearningDetailPlanId(planId); }} onClosePlan={() => setLearningDetailPlanId(null)} onStart={requestSessionStart} onCreatePlan={beginPlanCreation} onArchiveStateChange={changePlanArchiveState} onDeletePlan={deletePlanPermanently} onAdjustPlan={adjustPlan} onKnowledgeMapUpdate={updatePlanKnowledgeMap} onAttachMaterials={attachMaterials} />}
       {activeTab === "Agenda" && <AgendaScreen plans={availablePlans} milestones={agendaMilestones} sessionCompletions={sessionCompletions} sessionInterruptions={sessionInterruptions} activeSessionCheckpoints={recoverableSessionCheckpoints} previewMode={account?.identityMode === "preview"} onAdd={beginAgendaAdd} onStart={requestSessionStart} onActivateReview={activateConceptReview} onReschedule={rescheduleSession} onAdjustDuration={adjustSessionDuration} onClassifyRecoveryInterruption={setRecoveryEvidenceClassification} onUpdateMilestone={updateDeadlineMilestone} onDeleteMilestone={deleteDeadlineMilestone} onConvertMilestone={(milestone, outcome) => { setCreatorSeed({ title: milestone.title, objective: milestone.description || `Complete ${milestone.title}`, itemType: "assignment", dueAt: milestone.dueAt, scope: milestone.description || milestone.title, progress: "", materialsSummary: "No materials attached yet.", missingFields: milestone.description ? [] : ["scope"], description: milestone.description || milestone.title, materials: [] }); setCreatorMilestoneId(milestone.id); setStage(outcome === "session" ? "study-now" : "plan-creator"); }} />}
       {activeTab === "Ask YOVA" && <AskScreen key={tutorEntryKey} plans={availablePlans} question={tutorQuestion} onQuestion={setTutorQuestion} onApplyAction={applyTutorAction} analyticsEnabled={analyticsEnabled} />}
       {activeTab === "You" && <YouScreen account={account} answers={answers} plans={plans} sessionCompletions={sessionCompletions} sessionInterruptions={sessionInterruptions} passwordAccountsEnabled={passwordAccountsEnabled} turnstileSiteKey={turnstileSiteKey} signingOut={signingOut} onAnswersChange={setAnswers} onDisplayNameChange={saveAccountDisplayName} onSignOut={signOut} onReset={resetYovaData} />}
@@ -3253,7 +3312,7 @@ function AskBar({ value, onChange, onSubmit, pending = false }: { value: string;
   return <form className="ask-bar" onSubmit={(event) => { event.preventDefault(); if (value.trim() && !pending) onSubmit(); }}><Sparkles size={20} /><input aria-label="Ask YOVA" placeholder="Ask YOVA anything or describe what you need…" value={value} disabled={pending} onChange={(event) => onChange(event.target.value)} /><button aria-label="Send" type="submit" disabled={!value.trim() || pending}>{pending ? <span className="button-spinner" /> : <Send size={18} />}</button></form>;
 }
 
-function LearningScreen({ plans, detailPlanId, sessionCompletions, sessionInterruptions, activeSessionCheckpoints, onOpenPlan, onClosePlan, onStart, onCreatePlan, onArchiveStateChange, onAdjustPlan, onKnowledgeMapUpdate, onAttachMaterials }: { plans: LearningPlan[]; detailPlanId: string | null; sessionCompletions: SessionCompletion[]; sessionInterruptions: SessionInterruption[]; activeSessionCheckpoints: ActiveSessionCheckpointV1[]; onOpenPlan: (planId: string) => void; onClosePlan: () => void; onStart: (planId: string) => void; onCreatePlan: () => void; onArchiveStateChange: (planId: string, action: "archive" | "restore") => Promise<LearningPlan["status"]>; onAdjustPlan: (input: PlanAdjustmentRequest) => Promise<void>; onKnowledgeMapUpdate: (planId: string, knowledgeMap: PlanKnowledgeMap) => void; onAttachMaterials: (planId: string, materialIds: string[]) => Promise<void> }) {
+function LearningScreen({ plans, detailPlanId, sessionCompletions, sessionInterruptions, activeSessionCheckpoints, onOpenPlan, onClosePlan, onStart, onCreatePlan, onArchiveStateChange, onDeletePlan, onAdjustPlan, onKnowledgeMapUpdate, onAttachMaterials }: { plans: LearningPlan[]; detailPlanId: string | null; sessionCompletions: SessionCompletion[]; sessionInterruptions: SessionInterruption[]; activeSessionCheckpoints: ActiveSessionCheckpointV1[]; onOpenPlan: (planId: string) => void; onClosePlan: () => void; onStart: (planId: string) => void; onCreatePlan: () => void; onArchiveStateChange: (planId: string, action: "archive" | "restore") => Promise<LearningPlan["status"]>; onDeletePlan: (planId: string) => Promise<void>; onAdjustPlan: (input: PlanAdjustmentRequest) => Promise<void>; onKnowledgeMapUpdate: (planId: string, knowledgeMap: PlanKnowledgeMap) => void; onAttachMaterials: (planId: string, materialIds: string[]) => Promise<void> }) {
   const [view, setView] = useState<"active" | "recent" | "archive">("active");
   const [changingPlanId, setChangingPlanId] = useState<string | null>(null);
   const [statusError, setStatusError] = useState<string | null>(null);
@@ -3261,7 +3320,7 @@ function LearningScreen({ plans, detailPlanId, sessionCompletions, sessionInterr
     if (view === "active") return plan.status === "active" && plan.creationIntent !== "study_now";
     if (view === "recent") return plan.status === "completed" || (plan.creationIntent === "study_now" && plan.status !== "archived");
     return plan.status === "archived";
-  });
+  }).sort((left, right) => view === "archive" ? right.createdAt.localeCompare(left.createdAt) : 0);
   const plan = visiblePlans.find((item) => item.id === detailPlanId) ?? null;
   const viewLabels = {
     active: { empty: "No active learning yet.", description: "Start one focused session or create a plan for a larger goal." },
@@ -3297,7 +3356,7 @@ function LearningScreen({ plans, detailPlanId, sessionCompletions, sessionInterr
       <button className={view === "archive" ? "active" : ""} onClick={() => changeView("archive")}>Archive <span>{plans.filter((item) => item.status === "archived").length}</span></button>
     </div>
     {statusError && <div className="chat-error"><AlertCircle size={16} /><span>{statusError}</span></div>}
-    {plan ? <LearningPlanDetail plan={plan} view={view} completions={sessionCompletions.filter((completion) => completion.planId === plan.id)} interruptions={sessionInterruptions.filter((interruption) => interruption.planId === plan.id)} activeSessionCheckpoints={activeSessionCheckpoints.filter((checkpoint) => checkpoint.planId === plan.id)} changingStatus={changingPlanId === plan.id} onBack={onClosePlan} onStart={() => onStart(plan.id)} onArchiveStateChange={(action) => void changeArchiveState(plan.id, action)} onAdjustPlan={onAdjustPlan} onKnowledgeMapUpdate={onKnowledgeMapUpdate} onAttachMaterials={onAttachMaterials} /> : visiblePlans.length ? <LearningOverview plans={visiblePlans} allPlans={plans} view={view} interruptions={sessionInterruptions} activeSessionCheckpoints={activeSessionCheckpoints} onOpenPlan={onOpenPlan} onStart={onStart} /> : <section className="learning-empty"><span className="learning-empty-icon"><LibraryBig size={22} /></span><h2>{viewLabels[view].empty}</h2><p>{viewLabels[view].description}</p>{view === "active" && <button className="button primary" onClick={onCreatePlan}>Build your first plan <ArrowRight size={17} /></button>}</section>}
+    {plan ? <LearningPlanDetail plan={plan} view={view} completions={sessionCompletions.filter((completion) => completion.planId === plan.id)} interruptions={sessionInterruptions.filter((interruption) => interruption.planId === plan.id)} activeSessionCheckpoints={activeSessionCheckpoints.filter((checkpoint) => checkpoint.planId === plan.id)} changingStatus={changingPlanId === plan.id} onBack={onClosePlan} onStart={() => onStart(plan.id)} onArchiveStateChange={(action) => void changeArchiveState(plan.id, action)} onDeletePlan={() => onDeletePlan(plan.id)} onAdjustPlan={onAdjustPlan} onKnowledgeMapUpdate={onKnowledgeMapUpdate} onAttachMaterials={onAttachMaterials} /> : visiblePlans.length ? <LearningOverview plans={visiblePlans} allPlans={plans} view={view} interruptions={sessionInterruptions} activeSessionCheckpoints={activeSessionCheckpoints} onOpenPlan={onOpenPlan} onStart={onStart} /> : <section className="learning-empty"><span className="learning-empty-icon"><LibraryBig size={22} /></span><h2>{viewLabels[view].empty}</h2><p>{viewLabels[view].description}</p>{view === "active" && <button className="button primary" onClick={onCreatePlan}>Build your first plan <ArrowRight size={17} /></button>}</section>}
   </div>;
 }
 
@@ -3323,14 +3382,14 @@ function LearningOverview({ plans, allPlans, view, interruptions, activeSessionC
         <div className="learning-card-top"><SubjectIcon plan={plan} /><span className="learning-card-kind">{plan.kind}</span><span className={`learning-card-status ${plan.status}`}>{plan.status === "active" ? formatPlanDeadline(plan.deadline) : plan.status}</span></div>
         <div className="learning-card-copy"><h2>{plan.title}</h2><p>{plan.topic}</p></div>
         <div className="learning-card-progress"><div><span style={{ width: `${progress}%` }} /></div><small>{done} of {plan.sessions.length} sessions complete</small></div>
-        <div className="learning-card-next"><span>{view === "active" ? "NEXT SESSION" : "PLAN SUMMARY"}</span><strong>{readySession ? readySession.title : plan.status === "completed" ? "Goal completed" : "Saved learning goal"}</strong><small>{readySession ? `${resumeLabel ?? formatSessionTime(readySession.scheduledFor)} · ${readySession.estimatedMinutes} min` : `${plan.sessions.length} planned sessions`}</small></div>
+        <div className="learning-card-next"><span>{view === "active" ? "NEXT SESSION" : view === "archive" ? "ARCHIVED HISTORY" : "PLAN SUMMARY"}</span><strong>{view === "archive" ? "Saved in your archive" : readySession ? readySession.title : plan.status === "completed" ? "Goal completed" : "Saved learning goal"}</strong><small>{view === "archive" ? `${done} of ${plan.sessions.length} sessions completed` : readySession ? `${resumeLabel ?? formatSessionTime(readySession.scheduledFor)} · ${readySession.estimatedMinutes} min` : `${plan.sessions.length} planned sessions`}</small></div>
         <footer><button className="button secondary" onClick={() => onOpenPlan(plan.id)}>Open goal <ChevronRight size={16} /></button>{view === "active" && readySession && <button className="button primary" onClick={() => onStart(plan.id)}>{resumePoint ? "Continue" : "Start next"}</button>}</footer>
       </article>;
     })}</section>
   </>;
 }
 
-function LearningPlanDetail({ plan, view, completions, interruptions, activeSessionCheckpoints, changingStatus, onBack, onStart, onArchiveStateChange, onAdjustPlan, onKnowledgeMapUpdate, onAttachMaterials }: { plan: LearningPlan; view: "active" | "recent" | "archive"; completions: SessionCompletion[]; interruptions: SessionInterruption[]; activeSessionCheckpoints: ActiveSessionCheckpointV1[]; changingStatus: boolean; onBack: () => void; onStart: () => void; onArchiveStateChange: (action: "archive" | "restore") => void; onAdjustPlan: (input: PlanAdjustmentRequest) => Promise<void>; onKnowledgeMapUpdate: (planId: string, knowledgeMap: PlanKnowledgeMap) => void; onAttachMaterials: (planId: string, materialIds: string[]) => Promise<void> }) {
+function LearningPlanDetail({ plan, view, completions, interruptions, activeSessionCheckpoints, changingStatus, onBack, onStart, onArchiveStateChange, onDeletePlan, onAdjustPlan, onKnowledgeMapUpdate, onAttachMaterials }: { plan: LearningPlan; view: "active" | "recent" | "archive"; completions: SessionCompletion[]; interruptions: SessionInterruption[]; activeSessionCheckpoints: ActiveSessionCheckpointV1[]; changingStatus: boolean; onBack: () => void; onStart: () => void; onArchiveStateChange: (action: "archive" | "restore") => void; onDeletePlan: () => Promise<void>; onAdjustPlan: (input: PlanAdjustmentRequest) => Promise<void>; onKnowledgeMapUpdate: (planId: string, knowledgeMap: PlanKnowledgeMap) => void; onAttachMaterials: (planId: string, materialIds: string[]) => Promise<void> }) {
   const [showAdjustments, setShowAdjustments] = useState(false);
   const [extendingMap, setExtendingMap] = useState(false);
   const [mapError, setMapError] = useState<string | null>(null);
@@ -3361,9 +3420,10 @@ function LearningPlanDetail({ plan, view, completions, interruptions, activeSess
 
   return <>
     <button className="learning-back" onClick={onBack}><ArrowLeft size={16} /> All {view === "recent" ? "recent learning" : view === "archive" ? "archived learning" : "active learning"}</button>
-    <section className="learning-hero"><div><span className="subject-label">{plan.kind.toUpperCase()} · {formatPlanDeadline(plan.deadline)}</span><h2>{plan.title}</h2><p>{plan.topic}</p><span className="learning-approach-badge">{plan.learningIntent === "learn" ? <BookOpen size={14} /> : <Target size={14} />}{plan.learningIntent === "learn" ? "Building understanding, then practice" : "Practice, diagnose, and repair"}</span><div className="progress-line"><div style={{ width: `${(completeCount / plan.sessions.length) * 100}%` }} /></div><small>{resumePoint ? `${resumePoint.completedSteps} of ${resumePoint.totalSteps} sections saved in the current session` : `${completeCount} of ${plan.sessions.length} sessions complete`}</small></div><div className="learning-hero-actions">{view === "active" && readySession && <button className="button primary" onClick={onStart}>{resumePoint ? "Continue session" : "Start next session"}</button>}{view === "active" && <button className="button hero-secondary" onClick={() => setShowAdjustments((value) => !value)}><Settings2 size={16} /> {showAdjustments ? "Close" : "Adjust"}</button>}<button className="button hero-secondary" disabled={changingStatus} onClick={() => onArchiveStateChange(view === "archive" ? "restore" : "archive")}>{changingStatus ? <span className="button-spinner" /> : view === "archive" ? <><RotateCcw size={16} /> Restore</> : <><Archive size={16} /> Archive</>}</button></div></section>
+    <section className="learning-hero"><div><span className="subject-label">{plan.kind.toUpperCase()} · {formatPlanDeadline(plan.deadline)}</span><h2>{plan.title}</h2><p>{plan.topic}</p><span className="learning-approach-badge">{plan.learningIntent === "learn" ? <BookOpen size={14} /> : <Target size={14} />}{plan.learningIntent === "learn" ? "Building understanding, then practice" : "Practice, diagnose, and repair"}</span><div className="progress-line"><div style={{ width: `${(completeCount / plan.sessions.length) * 100}%` }} /></div><small>{resumePoint ? `${resumePoint.completedSteps} of ${resumePoint.totalSteps} sections saved in the current session` : `${completeCount} of ${plan.sessions.length} sessions complete`}</small></div><div className="learning-hero-actions">{view === "active" && readySession && <button className="button primary" onClick={onStart}>{resumePoint ? "Continue session" : "Start next session"}</button>}{view === "active" && <button className="button hero-secondary" onClick={() => setShowAdjustments((value) => !value)}><Settings2 size={16} /> {showAdjustments ? "Close" : "Adjust"}</button>}<button className="button hero-secondary" disabled={changingStatus} onClick={() => onArchiveStateChange(view === "archive" ? "restore" : "archive")}>{changingStatus ? <span className="button-spinner" /> : view === "archive" ? <><RotateCcw size={16} /> Restore</> : <><Archive size={16} /> Archive</>}</button>{view === "archive" && <PlanDeletionControl planTitle={plan.title} onDelete={onDeletePlan} />}</div></section>
     {view === "active" && showAdjustments && <PlanAdjustmentPanel plan={plan} onCancel={() => setShowAdjustments(false)} onSave={async (input) => { await onAdjustPlan(input); setShowAdjustments(false); }} />}
     {view === "recent" && <section className="learning-history-summary"><div><span>Completed</span><strong>{formatCompletionDate(completions.at(-1)?.completedAt ?? plan.createdAt)}</strong></div><div><span>Knowledge-check accuracy</span><strong>{accuracy}</strong></div><div><span>Last session felt</span><strong>{formatFeedback(completions.at(-1)?.feedback)}</strong></div></section>}
+    {view === "archive" && <section className="learning-history-summary" aria-label="Archived goal history"><div><span>Started</span><strong>{formatCompletionDate(plan.createdAt)}</strong></div><div><span>Progress kept</span><strong>{completeCount} of {plan.sessions.length} sessions</strong></div><div><span>Attached materials</span><strong>{plan.materials?.length ?? 0}</strong></div></section>}
     <PlanKnowledgeMapPanel plan={plan} completions={completions} canExtend={view === "active"} extending={extendingMap} error={mapError} onExtend={() => void extendDeferredTopics()} onAdjustPlan={onAdjustPlan} onKnowledgeMapUpdate={onKnowledgeMapUpdate} />
     <section className="section-block plan-timeline"><div className="section-title"><div><h3>{view === "recent" ? "What you completed" : "Your plan"}</h3><p>The sequence YOVA will guide you through, one session at a time.</p></div><span>{plan.sessions.length} sessions</span></div><div className="timeline">{plan.sessions.map((session) => <div className={`timeline-row ${session.status}`} key={session.id}><span className="timeline-node">{session.status === "complete" ? <Check size={15} /> : null}</span><div><strong>{session.title}</strong><small><b>{session.learningMode === "learn" ? "Teaching first" : "Practice first"}</b> · {session.method} · {formatSessionTime(session.scheduledFor)}</small></div><span>{session.estimatedMinutes} min</span></div>)}</div></section>
     <PlanAdaptations plan={plan} />

@@ -86,6 +86,12 @@ export function clearQueuedSessionCompletions(userId: string) {
   return savePendingCompletions(loadAllPendingCompletions().filter((entry) => entry.userId !== userId));
 }
 
+export function removeQueuedSessionCompletionsForPlan(userId: string, planId: string) {
+  return savePendingCompletions(loadAllPendingCompletions().filter((entry) => !(
+    entry.userId === userId && entry.completion.planId === planId
+  )));
+}
+
 export function pendingSessionCompletionCount(userId: string) {
   return loadAllPendingCompletions().filter((entry) => entry.userId === userId).length;
 }

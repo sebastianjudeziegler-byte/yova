@@ -13,6 +13,7 @@ import {
   flushQueuedSessionCompletions,
   pendingSessionCompletionPlanSessionIds,
   queueSessionCompletion,
+  removeQueuedSessionCompletionsForPlan,
 } from "@/lib/sync/session-completion-outbox";
 
 function installMemoryStorage() {
@@ -70,5 +71,39 @@ describe("session completion outbox", () => {
       null,
       null,
     );
+  });
+
+  it("removes only one account's entries for a permanently deleted plan", () => {
+    installMemoryStorage();
+    const base: PendingSessionCompletion = {
+      userId: "00000000-0000-4000-8000-000000000001",
+      queuedAt: "2026-08-17T20:08:00.000Z",
+      completion: {
+        id: "00000000-0000-4000-8000-000000000002",
+        planId: "00000000-0000-4000-8000-000000000003",
+        planSessionId: "00000000-0000-4000-8000-000000000004",
+        startedAt: "2026-08-17T20:00:00.000Z",
+        completedAt: "2026-08-17T20:08:00.000Z",
+        plannedMinutes: 20,
+        actualMinutes: 8,
+        correctAnswers: 2,
+        totalAnswers: 3,
+        feedback: "about_right",
+        observedGap: "One concept needs another retrieval.",
+        conceptEvidence: [],
+        confidenceEvidence: [],
+      },
+      adaptation: null,
+      followUpSession: null,
+    };
+    const sibling = {
+      ...base,
+      completion: { ...base.completion, id: "00000000-0000-4000-8000-000000000012", planId: "00000000-0000-4000-8000-000000000013" },
+    };
+    queueSessionCompletion(base);
+    queueSessionCompletion(sibling);
+
+    expect(removeQueuedSessionCompletionsForPlan(base.userId, base.completion.planId)).toBe(true);
+    expect(pendingSessionCompletionPlanSessionIds(base.userId)).toEqual([sibling.completion.planSessionId]);
   });
 });

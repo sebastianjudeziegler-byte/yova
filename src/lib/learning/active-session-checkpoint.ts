@@ -365,6 +365,25 @@ export function clearActiveSessionCheckpoints(accountId: string) {
   );
 }
 
+export function removeActiveSessionCheckpointsForPlan(accountId: string, planId: string) {
+  const parsedAccountId = SafeIdentifierSchema.safeParse(accountId);
+  const parsedPlanId = SafeIdentifierSchema.safeParse(planId);
+  if (!parsedAccountId.success || !parsedPlanId.success) return false;
+
+  const storage = browserStorage();
+  if (!storage) return false;
+  const stored = readStoredCheckpoints(storage, Date.now());
+  if (!stored.ok) return false;
+
+  return writeStoredCheckpoints(
+    storage,
+    stored.checkpoints.filter((checkpoint) => !(
+      checkpoint.accountId === parsedAccountId.data
+      && checkpoint.planId === parsedPlanId.data
+    )),
+  );
+}
+
 /**
  * Replaces one account's recovery markers in a single localStorage write while
  * preserving every other account. Startup reconciliation uses this instead of

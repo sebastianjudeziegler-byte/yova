@@ -1205,6 +1205,24 @@ test("archived, draft, and deleted-plan projections stay out of current-work sur
   await page.getByRole("button", { name: "Learning", exact: true }).click();
   await page.getByRole("button", { name: /Archive/ }).click();
   await expect(page.getByText("Hidden archived calculus plan").first()).toBeVisible();
+
+  await page.getByRole("button", { name: "Open goal" }).click();
+  await expect(page.getByRole("heading", { name: "Hidden archived calculus plan" })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Archived goal history" })).toContainText("0 of 1 sessions");
+  await page.getByRole("button", { name: "Restore" }).click();
+  await expect(page.getByRole("button", { name: /Active/ })).toHaveClass(/active/);
+  await expect(page.getByText("Hidden archived calculus plan").first()).toBeVisible();
+
+  await page.locator(".learning-goal-card").filter({ hasText: "Hidden archived calculus plan" }).getByRole("button", { name: "Open goal" }).click();
+  await page.getByRole("button", { name: "Archive", exact: true }).click();
+  await expect(page.locator(".tabs").getByRole("button", { name: /Archive/ })).toHaveClass(/active/);
+  await page.getByRole("button", { name: "Open goal" }).click();
+  await page.getByRole("button", { name: "Delete permanently" }).click();
+  const deletionDialog = page.getByRole("dialog", { name: "Delete this archived goal?" });
+  await expect(deletionDialog).toContainText("sessions, results, tutor conversation, linked deadlines, and attached materials");
+  await deletionDialog.getByLabel("Type DELETE to confirm").fill("DELETE");
+  await deletionDialog.getByRole("button", { name: "Permanently delete goal" }).click();
+  await expect(page.getByText("Hidden archived calculus plan")).toHaveCount(0);
 });
 
 test("material setup clearly supports files, articles, and YouTube transcripts", async ({ page }) => {
