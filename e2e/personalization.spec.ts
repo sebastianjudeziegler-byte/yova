@@ -29,7 +29,7 @@ test("personalization questions create visible, reversible workspace changes", a
   await page.getByRole("button", { name: "Next question" }).click();
   await page.getByRole("radiogroup", { name: "Answers for question 2" }).getByRole("radio").last().click();
   await page.getByRole("button", { name: "Done for now" }).click();
-  await expect(page.getByText("High", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("2 of 12 optional questions answered", { exact: true })).toBeVisible();
 
   await page.getByText("Study workspace", { exact: true }).click();
   const sessionPath = page.getByRole("group", { name: "Session path" });
