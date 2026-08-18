@@ -302,6 +302,56 @@ describe("session quality rubric", () => {
     expect(pacing?.passed).toBe(true);
     expect(pacing?.detail).toContain("4/4 maximum focused activities");
   });
+
+  it("accepts two focused retrieval checks plus a delayed return for a study session", () => {
+    const studySession = GeneratedSessionDraftSchema.parse({
+      ...strongSession,
+      methodBriefing: {
+        ...strongSession.methodBriefing,
+        learningMode: "study",
+        methodId: "spaced_retrieval",
+      },
+      activities: [
+        { ...strongSession.activities[2], methodPhase: "retrieve" },
+        strongSession.activities[1],
+        {
+          topicId: null,
+          methodPhase: "schedule_return",
+          estimatedMinutes: 1,
+          requiredForCompletion: false,
+          type: "reflection",
+          concept: null,
+          label: "Return",
+          title: "Retrieve this again later",
+          body: "Return tomorrow and explain the same relationship again without looking at the model.",
+          teaching: null,
+          choices: [],
+          correctAnswer: null,
+          feedback: null,
+        },
+      ],
+    });
+
+    const result = evaluateSessionDraft(
+      studySession,
+      {
+        ...biologyCase.context,
+        learningGoal: { ...biologyCase.context.learningGoal, learningIntent: "study" },
+        session: { ...biologyCase.context.session, learningMode: "study" },
+      },
+      biologyCase.taskFamily,
+      biologyCase.expectedSourceTerms,
+    );
+
+    expect(result.checks.find((item) => item.id === "learning_progression")).toMatchObject({
+      label: "Session progresses through active study",
+      passed: true,
+    });
+    expect(result.checks.find((item) => item.id === "activity_pacing")).toMatchObject({
+      passed: true,
+      detail: "2/5 maximum focused activities for 25 minutes",
+    });
+  });
 });
 
 describe("session quality language safeguards", () => {

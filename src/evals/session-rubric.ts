@@ -107,11 +107,20 @@ export function evaluateSessionDraft(
       && activity.choices.includes(activity.correctAnswer);
   });
   const alignedActivities = activityText.filter((text) => TASK_PATTERNS[taskFamily].test(text)).length;
+  const hasQuestionProgression = questionIndices.length >= 2
+    && questionIndices.at(-1)! > questionIndices[0];
   const progression = scheduledRetrieval
     ? draft.activities.length === 3 && draft.activities.every((activity) => activity.type === "multiple_choice")
-    : questionIndices.length >= 2
-      && questionIndices.at(-1)! > questionIndices[0]
-      && draft.activities.slice(0, questionIndices.at(-1)).some((activity) => activity.type === "instruction");
+    : draft.methodBriefing.learningMode === "learn"
+      ? hasQuestionProgression
+        && draft.activities.slice(0, questionIndices.at(-1)).some((activity) => activity.type === "instruction")
+      : hasQuestionProgression;
+  const progressionLabel = draft.methodBriefing.learningMode === "learn"
+    ? "Session moves from support into practice"
+    : "Session progresses through active study";
+  const progressionDetail = draft.methodBriefing.learningMode === "learn"
+    ? "Checked teaching and question order"
+    : "Checked ordered retrieval or knowledge-check activities";
   const matchedSourceTerms = expectedSourceTerms.filter((term) => combined.toLowerCase().includes(term.toLowerCase()));
   const sourceGrounded = !context.materials.length
     || (expectedSourceTerms.length > 0 && matchedSourceTerms.length >= Math.min(2, expectedSourceTerms.length));
@@ -220,11 +229,11 @@ export function evaluateSessionDraft(
   );
 
   const checks: SessionQualityCheck[] = [
-    check("activity_pacing", "Activity count fits the session", focusedActivities.length >= 3 && focusedActivities.length <= maximumActivities, 10, true, `${focusedActivities.length}/${maximumActivities} maximum focused activities for ${context.session.estimatedMinutes} minutes`),
+    check("activity_pacing", "Activity count fits the session", focusedActivities.length >= 2 && focusedActivities.length <= maximumActivities, 10, true, `${focusedActivities.length}/${maximumActivities} maximum focused activities for ${context.session.estimatedMinutes} minutes`),
     check("active_practice", "Session requires active learner effort", questions.length >= 2, 15, true, `${questions.length} retrieval or knowledge-check activities`),
     check("answer_integrity", "Questions include usable answers and feedback", questionIntegrity, 15, true, `${questions.length} question activities inspected`),
     check("task_alignment", "Activities fit the learning task", scheduledRetrieval || alignedActivities >= Math.ceil(draft.activities.length * 0.5), 15, true, scheduledRetrieval ? "Scheduled reviews use the bounded retrieval format" : `${alignedActivities} of ${draft.activities.length} activities align with ${taskFamily.replace("_", " ")}`),
-    check("learning_progression", "Session moves from support into practice", progression, 10, true, "Checked instruction and question order"),
+    check("learning_progression", progressionLabel, progression, 10, true, progressionDetail),
     check("source_grounding", "Learner materials remain the factual anchor", sourceGrounded, 10, true, context.materials.length ? `${matchedSourceTerms.length}/${expectedSourceTerms.length} expected source concepts used` : "No uploaded source"),
     check("weak_concept_priority", "Known review concepts are addressed", priorityConceptsUsed, 10, true, reviewConcepts.length ? `Review concepts: ${reviewConcepts.join(", ")}` : "No prior review signal"),
     check("outside_guidance", "Outside-app work receives concrete directions", outsideGuidance, 5, true, context.learningGoal.studyMode === "outside_yova" ? "Outside-work instruction inspected" : "Inside-YOVA session"),
