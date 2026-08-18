@@ -72,6 +72,8 @@ Copy `.env.example` to `.env.local` and configure:
 
 - `NEXT_PUBLIC_SUPABASE_URL`: public Supabase project URL
 - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`: browser-safe Supabase key
+- `SUPABASE_SECRET_KEY`: server-only Supabase secret for invitations and private export storage operations
+- `CRON_SECRET`: server-only random value of at least 32 characters for the scheduled export cleanup route
 - `AUTH_EMAIL_CODE_VERIFICATION`: enables the 6-digit email-code form after custom SMTP and the matching Supabase email template are configured
 - `OPENAI_API_KEY`: server-only OpenAI credential
 - `OPENAI_PLAN_MODEL`: primary structured-generation model

@@ -279,6 +279,42 @@ export function loadActiveSessionCheckpoints(accountId: string) {
     .sort((left, right) => compareIsoTimestamps(right.savedAt, left.savedAt));
 }
 
+/** Fail-closed reader used by the portable current-device export. */
+export function readActiveSessionCheckpointsForExport(accountId: string):
+  | { ok: true; value: ActiveSessionCheckpointV1[] }
+  | { ok: false } {
+  const parsedAccountId = SafeIdentifierSchema.safeParse(accountId);
+  if (!parsedAccountId.success) return { ok: false };
+  const storage = browserStorage();
+  if (!storage) return { ok: false };
+
+  try {
+    const stored = storage.getItem(STORAGE_KEY);
+    if (!stored) return { ok: true, value: [] };
+    if (stored.length > MAX_STORAGE_CHARACTERS) return { ok: false };
+    const parsed: unknown = JSON.parse(stored);
+    if (!Array.isArray(parsed) || parsed.length > MAX_STORED_CHECKPOINTS * 2) {
+      return { ok: false };
+    }
+    const validated = parsed.map((entry) => {
+      if (hasForbiddenCheckpointContent(entry)) return null;
+      const result = ActiveSessionCheckpointV1Schema.safeParse(entry);
+      return result.success ? result.data : null;
+    });
+    if (validated.some((checkpoint) => checkpoint === null)) return { ok: false };
+    return {
+      ok: true,
+      value: normalizeStoredCheckpoints(
+        validated.filter((checkpoint): checkpoint is ActiveSessionCheckpointV1 => checkpoint !== null),
+        Date.now(),
+      ).filter((checkpoint) => checkpoint.accountId === parsedAccountId.data)
+        .sort((left, right) => compareIsoTimestamps(right.savedAt, left.savedAt)),
+    };
+  } catch {
+    return { ok: false };
+  }
+}
+
 export function latestActiveSessionCheckpointFor(
   planSessionId: string,
   checkpoints: readonly ActiveSessionCheckpointV1[],

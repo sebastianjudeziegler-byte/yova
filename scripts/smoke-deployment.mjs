@@ -116,6 +116,7 @@ try {
     materials: "private-supabase",
     persistence: "supabase",
     emailVerification: "code-and-link",
+    accountDataExport: "enabled",
   };
 
   for (const [capability, expected] of Object.entries(expectedModes)) {
@@ -159,6 +160,15 @@ try {
   const cacheControl = statusResponse.headers.get("cache-control") || "";
   if (cacheControl.includes("no-store")) pass("Capability status is not publicly cached");
   else fail("Capability status should use Cache-Control: no-store");
+
+  const exportCleanupProbe = await request(`${origin}/api/internal/account-export-cleanup`, {
+    redirect: "manual",
+  });
+  if (exportCleanupProbe.status === 401) {
+    pass("Account-export cleanup is configured and remains privately authenticated");
+  } else {
+    fail(`Account-export cleanup expected private 401 readiness, received ${exportCleanupProbe.status}`);
+  }
 
   const callbackResponse = await request(`${origin}/auth/callback`, { redirect: "manual" });
   const callbackLocation = callbackResponse.headers.get("location");

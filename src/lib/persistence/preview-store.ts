@@ -18,23 +18,31 @@ import { resolveSessionArchitectureVersion } from "@/lib/session-generation/arch
 const STORAGE_KEY = "yova.preview.v1";
 
 export function loadPreviewSnapshot(): YovaPreviewSnapshot | null {
-  if (typeof window === "undefined") return null;
+  const result = readPreviewSnapshotForExport();
+  return result.ok ? result.value : null;
+}
+
+/** Fail-closed reader used when promising a portable current-device copy. */
+export function readPreviewSnapshotForExport():
+  | { ok: true; value: YovaPreviewSnapshot | null }
+  | { ok: false } {
+  if (typeof window === "undefined") return { ok: false };
 
   try {
     const stored = window.localStorage.getItem(STORAGE_KEY);
-    if (!stored) return null;
+    if (!stored) return { ok: true, value: null };
     const parsed: unknown = JSON.parse(stored);
-    if (!isPreviewSnapshot(parsed)) return null;
-    return {
+    if (!isPreviewSnapshot(parsed)) return { ok: false };
+    return { ok: true, value: {
       ...parsed,
       onboardingAnswers: normalizePreviewAnswers(parsed.onboardingAnswers),
       plans: parsed.plans.map(normalizePreviewPlan),
       deadlineMilestones: Array.isArray(parsed.deadlineMilestones) ? parsed.deadlineMilestones : [],
       sessionCompletions: parsed.sessionCompletions.map(normalizePreviewCompletion),
       sessionInterruptions: readSessionInterruptions(parsed),
-    };
+    } };
   } catch {
-    return null;
+    return { ok: false };
   }
 }
 

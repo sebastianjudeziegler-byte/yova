@@ -226,6 +226,333 @@
   background: #f7f9ff;
 }
 
+.dataRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.dataDescription {
+  min-width: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.dataDescription > div {
+  min-width: 0;
+}
+
+.dataDescription strong {
+  display: block;
+  color: var(--brand-navy);
+  font-size: 12px;
+}
+
+.dataDescription p {
+  max-width: 590px;
+  margin: 4px 0 0;
+  color: var(--ink-muted);
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.dataDescription small {
+  margin-top: 7px;
+  display: block;
+  color: #7b869b;
+  font-size: 9px;
+  font-weight: 650;
+  line-height: 1.45;
+}
+
+.dataIcon {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  color: var(--brand-blue);
+  border-radius: 10px;
+  background: #edf2ff;
+}
+
+.dataButton,
+.downloadLink {
+  min-height: 44px;
+  padding: 0 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  color: white;
+  border: 1px solid var(--brand-blue);
+  border-radius: 10px;
+  background: var(--brand-blue);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 750;
+  line-height: 1.2;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.dataButton:hover,
+.downloadLink:hover {
+  border-color: #2458d9;
+  background: #2458d9;
+}
+
+.dataButton:focus-visible,
+.downloadLink:focus-visible {
+  outline: 3px solid rgba(52, 107, 255, .22);
+  outline-offset: 2px;
+}
+
+.dataButton:disabled {
+  opacity: .55;
+  cursor: not-allowed;
+}
+
+.exportDialog {
+  width: min(calc(100% - 32px), 620px);
+  max-width: none;
+  max-height: min(780px, calc(100dvh - 32px));
+  margin: auto;
+  padding: 0;
+  overflow: hidden;
+  color: var(--brand-navy);
+  border: 1px solid rgba(196, 207, 232, .92);
+  border-radius: 20px;
+  background: white;
+  box-shadow: 0 30px 90px rgba(11, 22, 48, .28);
+}
+
+.exportDialog::backdrop {
+  background: rgba(9, 18, 38, .62);
+  backdrop-filter: blur(5px);
+}
+
+.dialogContent {
+  max-height: min(780px, calc(100dvh - 32px));
+  padding: 27px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.dialogHeader {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  align-items: start;
+  gap: 13px;
+}
+
+.dialogHeader > div {
+  min-width: 0;
+}
+
+.dialogHeader > div > span {
+  color: var(--brand-blue);
+  font-size: 9px;
+  font-weight: 850;
+  letter-spacing: .09em;
+}
+
+.dialogHeader h2 {
+  margin: 6px 0 0;
+  color: var(--brand-navy);
+  font: 750 23px/1.25 var(--font-sora), sans-serif;
+  letter-spacing: -.03em;
+}
+
+.dialogIcon {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  color: var(--brand-blue);
+  border-radius: 13px;
+  background: #edf2ff;
+}
+
+.dialogIconSuccess {
+  color: #166534;
+  background: #ecfdf3;
+}
+
+.dialogIconDanger {
+  color: #b42318;
+  background: #fff1f0;
+}
+
+.dialogBody {
+  margin-top: 20px;
+  color: #5f6c83;
+  font-size: 13px;
+  line-height: 1.62;
+}
+
+.dialogBody > p {
+  margin: 0;
+}
+
+.dialogBody > p + p {
+  margin-top: 12px;
+}
+
+.dialogBody strong {
+  color: var(--brand-navy);
+  overflow-wrap: anywhere;
+}
+
+.dialogBody > a {
+  width: fit-content;
+  margin-top: 14px;
+  display: inline-flex;
+  color: var(--brand-blue);
+  font-size: 12px;
+  font-weight: 750;
+  text-underline-offset: 3px;
+}
+
+.privateWarning {
+  margin-bottom: 15px;
+  padding: 12px 13px;
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  color: #7a4310;
+  border: 1px solid #f2d2a5;
+  border-radius: 11px;
+  background: #fff8eb;
+}
+
+.privateWarning svg {
+  flex: 0 0 auto;
+  margin-top: 1px;
+}
+
+.privateWarning p {
+  margin: 0;
+}
+
+.dialogActions {
+  margin-top: 24px;
+  padding-top: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 9px;
+  border-top: 1px solid var(--line-subtle);
+}
+
+.dialogActions > button,
+.dialogActions > a {
+  min-height: 44px;
+}
+
+.dialogActions > button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+}
+
+.codeField {
+  margin-top: 18px;
+  display: grid;
+  gap: 7px;
+}
+
+.codeField > span {
+  color: #35415b;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.codeField input {
+  width: 100%;
+  min-height: 54px;
+  padding: 0 14px;
+  color: var(--brand-navy);
+  border: 1px solid var(--line-default);
+  border-radius: 10px;
+  outline: 0;
+  background: white;
+  font: 750 20px/1 var(--font-inter), sans-serif;
+  letter-spacing: .24em;
+}
+
+.codeField input:focus {
+  border-color: var(--brand-blue);
+  box-shadow: 0 0 0 3px rgba(52, 107, 255, .14);
+}
+
+.codeField input[aria-invalid="true"] {
+  border-color: #d92d20;
+}
+
+.codeField small {
+  color: #7b869b;
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.dialogError {
+  margin: 13px 0 0 !important;
+  color: #b42318;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.pendingStatus {
+  min-height: 46px;
+  padding: 12px 13px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #465571;
+  border-radius: 11px;
+  background: #f5f7fc;
+}
+
+.pendingStatus > span {
+  flex: 0 0 auto;
+}
+
+.fileSummary {
+  margin-top: 17px;
+  padding: 12px 13px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: #33405b;
+  border: 1px solid #dce4f3;
+  border-radius: 10px;
+  background: #f7f9fd;
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.fileSummary svg {
+  flex: 0 0 auto;
+  color: var(--brand-blue);
+}
+
+.fileSummary span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.readyWarning {
+  margin-top: 13px !important;
+  color: #7a4310;
+  font-size: 11px;
+}
+
 .footer {
   padding: 17px 24px;
   display: flex;
@@ -274,6 +601,7 @@
 
   .valueAction,
   .passwordRow,
+  .dataRow,
   .footer {
     align-items: stretch;
     flex-direction: column;
@@ -281,6 +609,7 @@
 
   .valueAction button,
   .securityLink,
+  .dataButton,
   .footer > button {
     width: 100%;
     min-height: 44px;
@@ -306,5 +635,46 @@
   .formActions button {
     width: 100%;
     min-height: 44px;
+  }
+
+  .exportDialog {
+    width: calc(100% - 16px);
+    max-height: calc(100dvh - 16px);
+    border-radius: 16px;
+  }
+
+  .dialogContent {
+    max-height: calc(100dvh - 16px);
+    padding: 22px 18px;
+  }
+
+  .dialogHeader {
+    grid-template-columns: 38px minmax(0, 1fr);
+    gap: 11px;
+  }
+
+  .dialogIcon {
+    width: 38px;
+    height: 38px;
+    border-radius: 11px;
+  }
+
+  .dialogHeader h2 {
+    font-size: 20px;
+  }
+
+  .dialogActions {
+    align-items: stretch;
+    flex-direction: column-reverse;
+    flex-wrap: nowrap;
+  }
+
+  .dialogActions > button,
+  .dialogActions > a {
+    width: 100%;
+  }
+
+  .codeField input {
+    font-size: 20px;
   }
 }
