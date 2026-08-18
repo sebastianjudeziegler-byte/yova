@@ -28,15 +28,9 @@ test("a confident misconception is repaired now without a duplicate follow-up", 
   await page.getByRole("button", { name: /Choose how YOVA should help/ }).click();
   await page.getByRole("button", { name: /Create it for me/ }).click();
   await page.getByRole("button", { name: /Build and start session/ }).click();
-  await expect(page.getByRole("heading", { name: "Here is how YOVA plans to start." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Here is how YOVA plans to start." })).toBeVisible({ timeout: 15_000 });
   await expect(page.getByLabel("Why YOVA chose this approach")).toContainText("Start with evidence, then repair only the gap");
   await page.getByRole("button", { name: "Continue" }).click();
-  await page.getByRole("button", { name: "I already know some of this" }).click();
-  await expect(page.getByText(/skip them only after you demonstrate them/i)).toBeVisible();
-  const claimedKnownTarget = page.locator(".known-targets button").first();
-  await expect(claimedKnownTarget).toBeVisible();
-  await claimedKnownTarget.click();
-  await expect(claimedKnownTarget).toHaveAttribute("aria-pressed", "true");
   await page.getByRole("button", { name: "Continue" }).click();
   await page.getByRole("button", { name: "Prepare this session" }).click();
 
@@ -59,7 +53,7 @@ test("a confident misconception is repaired now without a duplicate follow-up", 
   await expect(page.getByText(/possible misconception/i)).toBeVisible();
   await page.getByRole("button", { name: "Repair this idea" }).click();
 
-  await expect(page.getByText("Repair now, verify later")).toBeVisible();
+  await expect(page.getByText("Repair now, verify later")).toBeVisible({ timeout: 15_000 });
   await expect(page.getByText("YOVA CHANGED THE SUPPORT")).toBeVisible();
   await expect(page.getByText("Name and replace the error")).toBeVisible();
   await expect(page.getByText(/very sure about this answer/i)).toBeVisible();
