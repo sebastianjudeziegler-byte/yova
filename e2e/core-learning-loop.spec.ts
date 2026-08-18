@@ -396,6 +396,15 @@ test("an opaque class label is stopped until the learner names the actual calcul
 
   await expect(page.getByRole("heading", { name: "See the product rule before using it" })).toBeVisible();
   await expect(page.getByText(/teaching first/i).filter({ visible: true }).first()).toBeVisible();
+  const renderedFormula = page.locator(".teaching-core .katex").first();
+  await expect(renderedFormula).toBeVisible();
+  await expect(renderedFormula.locator("annotation[encoding='application/x-tex']")).toContainText("frac");
+  const formulaLayout = await renderedFormula.evaluate((element) => ({
+    fontSize: Number.parseFloat(getComputedStyle(element).fontSize),
+    fitsItsLine: element.getBoundingClientRect().width <= (element.parentElement?.getBoundingClientRect().width ?? 0) + 1,
+  }));
+  expect(formulaLayout.fontSize).toBeGreaterThanOrEqual(15);
+  expect(formulaLayout.fitsItsLine).toBe(true);
   const workspaceWidth = await page.locator(".session-workspace").evaluate((element) => ({
     client: element.clientWidth,
     scroll: element.scrollWidth,

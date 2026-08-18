@@ -34,4 +34,41 @@ describe("LearningContent", () => {
     expect(html).toContain("katex");
     expect(html).not.toContain("**");
   });
+
+  it("repairs compact ASCII notation in generated worked examples", () => {
+    const html = renderToStaticMarkup(createElement(LearningContent, {
+      content: "Find an antiderivative of 3x^2 - 4 and use F(1)=2. Write F(x)=x^3-4x+C.",
+    }));
+
+    expect(html.match(/class="katex"/g)).toHaveLength(3);
+    expect(html).toContain("3x");
+    expect(html).toContain("msup");
+    expect(html).toContain("F(1)=2");
+  });
+
+  it("keeps prose numbers, dates, code, and existing math unchanged", () => {
+    const html = renderToStaticMarkup(createElement(LearningContent, {
+      content: "On 2026-08-18, keep `x^2` literal, study pages 3-5 in Q1-Q2 for 15 min, compare A/B, and render $y^2$ once.",
+    }));
+
+    expect(html.match(/class="katex"/g)).toHaveLength(1);
+    expect(html).toContain("2026-08-18");
+    expect(html).toContain("<code>x^2</code>");
+    expect(html).toContain("pages 3-5");
+    expect(html).toContain("Q1-Q2");
+    expect(html).toContain("A/B");
+    expect(html).toContain("15 min");
+  });
+
+  it("supports common ASCII operators without changing their meaning", () => {
+    const html = renderToStaticMarkup(createElement(LearningContent, {
+      content: "If x <= 4, set y = x + 2, then 2*x -> y and x_1 != 0.",
+    }));
+
+    expect(html.match(/class="katex"/g)).toHaveLength(4);
+    expect(html).toContain("\\le");
+    expect(html).toContain("\\cdot");
+    expect(html).toContain("\\to");
+    expect(html).toContain("\\ne");
+  });
 });
