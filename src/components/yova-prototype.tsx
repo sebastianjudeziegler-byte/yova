@@ -2467,7 +2467,7 @@ export function YovaPrototype({
     }
   };
 
-  const signOut = async () => {
+  const signOut = async ({ accountAlreadyDeleted = false }: { accountAlreadyDeleted?: boolean } = {}) => {
     if (signOutPendingRef.current) return;
     signOutPendingRef.current = true;
     const signingOutAccountId = resolveSignOutCleanupAccountId(
@@ -2481,12 +2481,14 @@ export function YovaPrototype({
     try {
       await signOutAuthenticatedAccount();
     } catch (error) {
-      setSignOutIssue(error instanceof Error
-        ? error.message
-        : "YOVA could not confirm sign-out on this device. Check your connection and try again.");
-      signOutPendingRef.current = false;
-      setSigningOut(false);
-      return;
+      if (!accountAlreadyDeleted) {
+        setSignOutIssue(error instanceof Error
+          ? error.message
+          : "YOVA could not confirm sign-out on this device. Check your connection and try again.");
+        signOutPendingRef.current = false;
+        setSigningOut(false);
+        return;
+      }
     }
 
     // Invalidate late checkpoint responses only after the device session is
@@ -4093,7 +4095,7 @@ function MethodEvidencePanel({ signals }: { signals: MethodSignal[] }) {
   return <section className="section-block method-evidence-card"><div className="section-title"><div><h3>Method evidence</h3><p>YOVA compares similar tasks at similar knowledge stages, not learning-style labels.</p></div><span className="data-badge">{signals.length} observed</span></div>{signals.length === 0 ? <div className="method-evidence-empty"><Target size={18} /><p>Complete sessions with knowledge checks to begin comparing how different methods are working.</p></div> : <div className="method-signal-grid">{signals.slice(0, 4).map((signal) => <article className={`method-signal ${signal.status}`} key={`${signal.family}-${signal.taskType}-${signal.knowledgeStage}`}><div><strong>{signal.label}</strong><span>{statusLabel[signal.status]}</span></div><small className="method-comparison-scope">Compared within {signal.comparisonLabel}</small><p>{signal.summary}</p><small>{signal.sessions} completed {signal.sessions === 1 ? "session" : "sessions"}{signal.averageAccuracy === null ? " · checks still building" : ` · ${signal.averageAccuracy}% check accuracy`}{signal.interruptions > 0 ? ` · ${signal.interruptions} ${signal.interruptions === 1 ? "interruption" : "interruptions"}` : ""}</small></article>)}</div>}<footer>YOVA waits for repeated comparable evidence before changing how it delivers a method.</footer></section>;
 }
 
-function YouScreen({ account, answers, plans, sessionCompletions, sessionInterruptions, passwordAccountsEnabled, turnstileSiteKey, signingOut, onAnswersChange, onDisplayNameChange, onSignOut, onReset }: { account: PreviewAccount | null; answers: string[]; plans: LearningPlan[]; sessionCompletions: SessionCompletion[]; sessionInterruptions: SessionInterruption[]; passwordAccountsEnabled: boolean; turnstileSiteKey: string | null; signingOut: boolean; onAnswersChange: (answers: string[]) => void; onDisplayNameChange: (displayName: string) => Promise<void>; onSignOut: () => Promise<void>; onReset: () => Promise<void> }) {
+function YouScreen({ account, answers, plans, sessionCompletions, sessionInterruptions, passwordAccountsEnabled, turnstileSiteKey, signingOut, onAnswersChange, onDisplayNameChange, onSignOut, onReset }: { account: PreviewAccount | null; answers: string[]; plans: LearningPlan[]; sessionCompletions: SessionCompletion[]; sessionInterruptions: SessionInterruption[]; passwordAccountsEnabled: boolean; turnstileSiteKey: string | null; signingOut: boolean; onAnswersChange: (answers: string[]) => void; onDisplayNameChange: (displayName: string) => Promise<void>; onSignOut: (options?: { accountAlreadyDeleted?: boolean }) => Promise<void>; onReset: () => Promise<void> }) {
   const [confirmReset, setConfirmReset] = useState(false);
   const [resetting, setResetting] = useState(false);
   const [resetError, setResetError] = useState<string | null>(null);

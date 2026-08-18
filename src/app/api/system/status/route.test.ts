@@ -65,6 +65,7 @@ describe("system status tester-access readiness", () => {
       captchaClient: "disabled",
       publicSignup: "disabled",
       accountDataExport: "enabled",
+      accountDeletion: "enabled",
     });
     expect(status).not.toHaveProperty("supabasePublishableKey");
     expect(mocks.settingsFetch).toHaveBeenCalledWith(
@@ -140,9 +141,11 @@ describe("system status tester-access readiness", () => {
   it("reports account-data export unavailable without both cleanup credentials", async () => {
     vi.stubEnv("CRON_SECRET", "short");
     expect((await (await GET()).json()).accountDataExport).toBe("unavailable");
+    expect((await (await GET()).json()).accountDeletion).toBe("unavailable");
 
     vi.stubEnv("CRON_SECRET", "cron-secret-that-is-at-least-thirty-two-characters");
     mocks.adminConfigured = false;
     expect((await (await GET()).json()).accountDataExport).toBe("unavailable");
+    expect((await (await GET()).json()).accountDeletion).toBe("unavailable");
   });
 });

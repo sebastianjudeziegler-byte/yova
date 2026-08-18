@@ -4,12 +4,17 @@ vi.mock("server-only", () => ({}));
 
 const mocks = vi.hoisted(() => ({
   cleanup: vi.fn(),
+  deletionCleanup: vi.fn(),
   adminConfigured: vi.fn(),
   createAdmin: vi.fn(),
 }));
 
 vi.mock("@/lib/account-export/cleanup", () => ({
   cleanupExpiredAccountExports: mocks.cleanup,
+}));
+
+vi.mock("@/lib/account-deletion/cleanup", () => ({
+  cleanupDeletedAccountStorage: mocks.deletionCleanup,
 }));
 
 vi.mock("@/lib/supabase/admin", () => ({
@@ -33,6 +38,12 @@ describe("account-export cleanup cron route", () => {
       removedJobs: 2,
       retryJobs: 0,
     });
+    mocks.deletionCleanup.mockReset().mockResolvedValue({
+      ok: true,
+      claimedJobs: 1,
+      removedJobs: 1,
+      retryJobs: 0,
+    });
   });
 
   afterEach(() => {
@@ -51,6 +62,7 @@ describe("account-export cleanup cron route", () => {
     expect(noAdmin.status).toBe(503);
     expect(mocks.createAdmin).not.toHaveBeenCalled();
     expect(mocks.cleanup).not.toHaveBeenCalled();
+    expect(mocks.deletionCleanup).not.toHaveBeenCalled();
   });
 
   it("rejects a CRON_SECRET with surrounding whitespace instead of comparing a trimmed value", async () => {
@@ -60,6 +72,7 @@ describe("account-export cleanup cron route", () => {
 
     expect(response.status).toBe(503);
     expect(mocks.cleanup).not.toHaveBeenCalled();
+    expect(mocks.deletionCleanup).not.toHaveBeenCalled();
   });
 
   it("rejects missing, wrong-length, and wrong-value Bearer credentials", async () => {
@@ -79,9 +92,28 @@ describe("account-export cleanup cron route", () => {
       claimedJobs: 3,
       removedJobs: 2,
       retryJobs: 0,
+      deletionClaimedJobs: 1,
+      deletionRemovedJobs: 1,
+      deletionRetryJobs: 0,
     });
     expect(response.headers.get("Cache-Control")).toContain("no-store");
     expect(mocks.cleanup).toHaveBeenCalledWith({ role: "service" });
+    expect(mocks.deletionCleanup).toHaveBeenCalledWith({ role: "service" });
+  });
+
+  it("retries when deleted-account Storage cleanup cannot finish", async () => {
+    mocks.deletionCleanup.mockResolvedValue({
+      ok: false,
+      claimedJobs: 1,
+      removedJobs: 0,
+      retryJobs: 1,
+      privatePath: "must-not-leak",
+    });
+
+    const response = await GET(request(SECRET));
+
+    expect(response.status).toBe(503);
+    expect(await response.text()).not.toContain("must-not-leak");
   });
 
   it("does not disclose job contents when a cleanup run needs retry", async () => {

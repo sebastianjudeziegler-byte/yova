@@ -21,6 +21,7 @@ import {
   Pencil,
   ShieldCheck,
 } from "lucide-react";
+import { AccountDeletionControl } from "@/components/auth/account-deletion-dialog";
 import { TurnstileChallenge } from "@/components/auth/turnstile-challenge";
 import {
   AccountDataExportError,
@@ -73,7 +74,7 @@ export function AccountSecurityCard({
   turnstileSiteKey?: string | null;
   onPrepareDataExport?: (signal: AbortSignal) => Promise<AccountDataExportReady>;
   onDisplayNameChange: (displayName: string) => Promise<void>;
-  onSignOut: () => Promise<void>;
+  onSignOut: (options?: { accountAlreadyDeleted?: boolean }) => Promise<void>;
 }) {
   const [editingName, setEditingName] = useState(false);
   const [draftName, setDraftName] = useState(account.displayName);
@@ -488,6 +489,15 @@ export function AccountSecurityCard({
           </div>
         )}
       </dl>
+
+      {cloudAccount && account.emailVerified === true && (
+        <AccountDeletionControl
+          account={account}
+          disabled={accountBusy}
+          turnstileSiteKey={siteKey}
+          onAccountDeleted={() => onSignOut({ accountAlreadyDeleted: true })}
+        />
+      )}
 
       <footer className={styles.footer}>
         <div>

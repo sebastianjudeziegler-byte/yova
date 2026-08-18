@@ -80,7 +80,7 @@ try {
 
   for (const [path, identity] of [
     ["/privacy", /Privacy Notice/i],
-    ["/terms", /Alpha Terms/i],
+    ["/terms", /YOVA TERMS/i],
     ["/support", /YOVA Support/i],
   ]) {
     const trustResponse = await request(`${origin}${path}`);
@@ -117,6 +117,7 @@ try {
     persistence: "supabase",
     emailVerification: "code-and-link",
     accountDataExport: "enabled",
+    accountDeletion: "enabled",
   };
 
   for (const [capability, expected] of Object.entries(expectedModes)) {
