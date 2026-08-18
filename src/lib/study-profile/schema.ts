@@ -102,7 +102,6 @@ export const StudyProfileReportTokenSchema = z.string()
 export const StudyProfileWaitlistUpdateSchema = z.object({
   reportToken: StudyProfileReportTokenSchema,
   waitlist: z.literal(true),
-  betaInterest: z.boolean().optional(),
 }).strict();
 
 const DimensionScoreSchema = z.object({

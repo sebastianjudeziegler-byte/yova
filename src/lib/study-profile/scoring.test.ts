@@ -82,6 +82,17 @@ describe("Study Profile scoring", () => {
     expect(scoreStudyProfile(underconfidenceAnswers).calibrationDirection).toBe("underconfidence_risk");
   });
 
+  it("uses plain-language labels for confidence results", () => {
+    const overAnswers = answerEveryQuestion("a");
+    overAnswers.q8 = "c";
+    const underAnswers = { ...overAnswers, q8: "d" as const };
+
+    expect(scoreStudyProfile(overAnswers).scores.calibration_risk.userFacingLabel)
+      .toBe("Test yourself sooner");
+    expect(scoreStudyProfile(underAnswers).scores.calibration_risk.userFacingLabel)
+      .toBe("Trust correct results more");
+  });
+
   it("selects high signals ahead of lower signals", () => {
     const answers = answerEveryQuestion("a");
     answers.q5 = "d";

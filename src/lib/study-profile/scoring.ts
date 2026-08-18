@@ -182,10 +182,10 @@ function resolveUserFacingLabel(
   }
 
   const calibrationLabels: Record<StudyProfileCalibrationDirection, string> = {
-    relatively_calibrated: "Relatively calibrated",
-    mixed: "Mixed",
-    overconfidence_risk: "Overconfidence risk",
-    underconfidence_risk: "Underconfidence risk",
+    relatively_calibrated: "Confidence usually matches",
+    mixed: "Confidence is mixed",
+    overconfidence_risk: "Test yourself sooner",
+    underconfidence_risk: "Trust correct results more",
   };
   return calibrationLabels[calibrationDirection];
 }

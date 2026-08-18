@@ -30,7 +30,7 @@ describe("personalization evidence", () => {
     const result = resolve(answers);
 
     expect(signal(result, "starting_friction")).toMatchObject({
-      value: "High",
+      value: "Hard to begin",
       evidenceLabel: "You told YOVA",
       source: "self_report",
     });
@@ -114,7 +114,7 @@ describe("personalization evidence", () => {
     };
     const correctedResult = resolve(answersWithState(corrected));
     expect(signal(correctedResult, "starting_friction")).toMatchObject({
-      value: "High",
+      value: "Hard to begin",
       evidenceLabel: "Mixed evidence",
       source: "correction",
     });

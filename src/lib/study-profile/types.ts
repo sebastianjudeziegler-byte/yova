@@ -1,4 +1,5 @@
 export const STUDY_PROFILE_MODEL_VERSION = "profile_model_v1" as const;
+export const STUDY_PROFILE_REPORT_CONTENT_VERSION = "study_profile_report_v2" as const;
 
 export const STUDY_PROFILE_DIMENSIONS = [
   "starting_friction",
@@ -176,8 +177,39 @@ export type StudyProfileDimensionReport = {
   detail: string;
 };
 
+export type StudyProfileMethodRecommendation = {
+  id: string;
+  name: string;
+  useWhen: string;
+  whyItFits: string;
+  steps: readonly string[];
+  example: string;
+  caution: string;
+  basedOn: readonly StudyProfileDimension[];
+};
+
+export type StudyProfileSessionPlan = {
+  title: string;
+  workMinutes: number;
+  breakMinutes: number;
+  rounds: number;
+  bestTime: string;
+  setupSteps: readonly string[];
+  focusRule: string;
+  checkingRule: string;
+  stopRule: string;
+};
+
+export type StudyProfilePlaybook = {
+  heading: string;
+  intro: string;
+  nextSession: StudyProfileSessionPlan;
+  methods: readonly StudyProfileMethodRecommendation[];
+};
+
 export type StudyProfileReport = {
   modelVersion: typeof STUDY_PROFILE_MODEL_VERSION;
+  contentVersion: typeof STUDY_PROFILE_REPORT_CONTENT_VERSION;
   isBalanced: boolean;
   profileNarrative: {
     heading: string;
@@ -185,6 +217,7 @@ export type StudyProfileReport = {
   };
   sectionHeadings: {
     overview: string;
+    methods: string;
     primaryPattern: string;
     secondaryPattern: string;
     interactions: string;
@@ -193,6 +226,7 @@ export type StudyProfileReport = {
     productPreview: string;
   };
   overview: readonly StudyProfileDimensionReport[];
+  playbook: StudyProfilePlaybook;
   primaryPattern: StudyProfileDimensionReport;
   secondaryPattern: StudyProfileDimensionReport;
   interactions: readonly StudyProfileInteraction[];
@@ -215,10 +249,5 @@ export type StudyProfileReport = {
     heading: string;
     body: string;
     researchAreas: readonly string[];
-  };
-  earlyAccess: {
-    heading: string;
-    buttonLabel: string;
-    betaPrompt: string;
   };
 };

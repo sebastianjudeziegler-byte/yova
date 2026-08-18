@@ -370,7 +370,7 @@
 .patternSection h2,
 .protocolIntro h2,
 .firstImpression h2,
-.earlyAccessSection h2 {
+.waitlistSection h2 {
   margin: 11px 0 12px;
   color: #0b1020;
   font-family: "Sora", sans-serif;
@@ -1343,6 +1343,220 @@
 
 .recommendationCard li + li { margin-top: 4px; }
 
+.sessionPlan {
+  margin-top: 30px;
+  padding: 23px;
+  color: #fff;
+  border-radius: 20px;
+  background: #0b1020;
+  box-shadow: 0 22px 54px rgba(11, 16, 32, 0.14);
+}
+
+.sessionPlanHeader {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr);
+  gap: 13px;
+  align-items: center;
+}
+
+.sessionPlanHeader h3 {
+  margin: 5px 0 0;
+  color: #fff;
+  font-family: "Sora", sans-serif;
+  font-size: clamp(21px, 5vw, 31px);
+  line-height: 1.2;
+  letter-spacing: -0.04em;
+}
+
+.sessionPlan .recommendationIcon {
+  color: #fff;
+  background: #346bff;
+}
+
+.sessionPlan .recommendationLabel { color: #a9bbf4; }
+
+.sessionStats {
+  margin-top: 22px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.sessionStats span {
+  padding: 12px 8px;
+  color: #b7c0d3;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.055);
+  font-size: 9px;
+  line-height: 1.4;
+  text-align: center;
+}
+
+.sessionStats strong {
+  display: block;
+  color: #fff;
+  font-family: "Sora", sans-serif;
+  font-size: 20px;
+}
+
+.sessionPlanGrid {
+  margin-top: 24px;
+  display: grid;
+  gap: 22px;
+}
+
+.sessionPlanGrid h4 {
+  margin: 0 0 12px;
+  color: #fff;
+  font-family: "Sora", sans-serif;
+  font-size: 14px;
+}
+
+.sessionPlanGrid ol {
+  margin: 0;
+  padding-left: 19px;
+  color: #d4dbea;
+  font-size: 11px;
+  line-height: 1.65;
+}
+
+.sessionPlanGrid li + li { margin-top: 7px; }
+
+.sessionRules {
+  display: grid;
+  gap: 8px;
+}
+
+.sessionRules p {
+  margin: 0;
+  padding: 12px;
+  color: #c4ccdc;
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.06);
+  font-size: 10px;
+  line-height: 1.55;
+}
+
+.sessionRules strong {
+  margin-bottom: 4px;
+  display: block;
+  color: #91adff;
+  font-size: 9px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.methodIntro {
+  margin-top: 38px;
+}
+
+.methodIntro h3 {
+  margin: 0;
+  font-family: "Sora", sans-serif;
+  font-size: clamp(22px, 5vw, 31px);
+  letter-spacing: -0.04em;
+}
+
+.methodIntro p {
+  max-width: 680px;
+  margin: 8px 0 0;
+  color: #687388;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.methodGrid {
+  margin-top: 20px;
+  display: grid;
+  gap: 12px;
+}
+
+.methodCard {
+  padding: 21px;
+  border: 1px solid #dfe4ed;
+  border-radius: 17px;
+  background: #fff;
+  box-shadow: 0 12px 30px rgba(28, 42, 78, 0.05);
+}
+
+.methodCardHeader {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr);
+  gap: 11px;
+  align-items: center;
+}
+
+.methodCardHeader > span {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  color: #2d5fe8;
+  border-radius: 10px;
+  background: #eef3ff;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.methodCardHeader small {
+  color: #71809a;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.methodCard h3 {
+  margin: 3px 0 0;
+  color: #0b1020;
+  font-family: "Sora", sans-serif;
+  font-size: 17px;
+  line-height: 1.25;
+}
+
+.methodCard > p {
+  margin: 15px 0 0;
+  color: #5f6c81;
+  font-size: 10px;
+  line-height: 1.62;
+}
+
+.methodCard > p strong {
+  margin-bottom: 3px;
+  display: block;
+  color: #27334a;
+  font-size: 9px;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.methodCard p.methodFit {
+  padding: 12px;
+  color: #27334a;
+  border-radius: 11px;
+  background: #f3f6ff;
+}
+
+.methodCard ol {
+  margin: 15px 0 0;
+  padding-left: 20px;
+  color: #263047;
+  font-size: 10px;
+  line-height: 1.62;
+}
+
+.methodCard li + li { margin-top: 5px; }
+
+.methodCard p.methodExample {
+  padding-top: 13px;
+  color: #31466e;
+  border-top: 1px solid #e7ebf2;
+  font-weight: 650;
+}
+
+.methodCard p.methodCaution { color: #747c8b; }
+
 .warningGrid {
   margin-top: 26px;
   display: grid;
@@ -1550,7 +1764,7 @@
   text-transform: uppercase;
 }
 
-.earlyAccessSection {
+.waitlistSection {
   margin-top: 75px;
   padding: 27px 22px;
   display: grid;
@@ -1561,7 +1775,7 @@
   box-shadow: 0 18px 50px rgba(52, 107, 255, 0.08);
 }
 
-.earlyAccessIcon {
+.waitlistIcon {
   width: 49px;
   height: 49px;
   display: grid;
@@ -1572,19 +1786,19 @@
   box-shadow: 0 12px 28px rgba(52, 107, 255, 0.22);
 }
 
-.earlyAccessSection h2 {
+.waitlistSection h2 {
   margin-top: 9px;
   font-size: clamp(26px, 6vw, 38px);
 }
 
-.earlyAccessCopy p {
+.waitlistCopy p {
   margin: 0;
   color: #677287;
   font-size: 12px;
   line-height: 1.6;
 }
 
-.earlyAccessSection > .primaryButton { width: 100%; }
+.waitlistSection > .primaryButton { width: 100%; }
 
 .interestSuccess {
   padding: 13px;
@@ -1601,54 +1815,9 @@
 .interestSuccess svg { flex: 0 0 auto; }
 .interestSuccess strong { display: block; }
 
-.betaPrompt {
-  padding-top: 17px;
-  border-top: 1px solid #e7eaf0;
-}
-
-.betaPrompt:focus-visible,
-.betaSaved:focus-visible {
+.interestSuccess:focus-visible {
   outline: 3px solid rgba(52, 107, 255, 0.45);
   outline-offset: 4px;
-}
-
-.betaPrompt p {
-  margin: 0 0 11px;
-  color: #263047;
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.betaPrompt > div {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.betaPrompt button {
-  min-height: 42px;
-  padding: 0 13px;
-  color: #30405f;
-  border: 1px solid #d9e0ec;
-  border-radius: 9px;
-  background: #fff;
-  font-size: 10px;
-  font-weight: 700;
-}
-
-.betaPrompt button:first-child {
-  color: #fff;
-  border-color: #346bff;
-  background: #346bff;
-}
-
-.betaSaved {
-  margin: 0;
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  color: #216845;
-  font-size: 11px;
 }
 
 .methodology {
@@ -1753,11 +1922,13 @@
   .patternNumber { font-size: 31px; }
   .interactionSection { grid-template-columns: 50px minmax(0, 1fr); padding: 30px; }
   .recommendationCard { padding: 22px; grid-template-columns: 44px minmax(0, 1fr); gap: 16px; }
+  .sessionPlan { padding: 30px; }
+  .sessionPlanGrid { grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr); gap: 28px; }
+  .methodGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .warningGrid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .protocolSection { padding: 37px; }
   .productAdaptationGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .earlyAccessSection { padding: 34px; }
-  .betaPrompt > div { flex-direction: row; }
+  .waitlistSection { padding: 34px; }
 }
 
 @media (min-width: 900px) {
@@ -1817,6 +1988,7 @@
   .interactionSection { margin-top: 76px; padding: 38px; }
   .recommendationList { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .recommendationCard { min-height: 205px; }
+  .methodGrid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .protocolSection {
     margin-top: 96px;
     padding: 47px;
@@ -1831,18 +2003,16 @@
   .firstImpression { margin-top: 100px; padding: 95px 0; }
   .firstImpressionInner { grid-template-columns: minmax(0, 1fr) minmax(340px, 0.78fr); gap: 75px; align-items: center; }
   .observationPanel { padding: 23px; }
-  .earlyAccessSection {
+  .waitlistSection {
     margin-top: 95px;
     padding: 42px;
     grid-template-columns: 55px minmax(0, 1fr) auto;
     align-items: center;
     gap: 22px;
   }
-  .earlyAccessSection > .primaryButton { width: auto; }
+  .waitlistSection > .primaryButton { width: auto; }
   .interestSuccess { max-width: 270px; }
-  .betaPrompt,
-  .betaSaved,
-  .earlyAccessSection > .formError { grid-column: 2 / -1; }
+  .waitlistSection > .formError { grid-column: 2 / -1; }
   .methodology { margin-bottom: 90px; }
 }
 
@@ -1867,7 +2037,6 @@
   .assessmentHeaderActions > button { padding-inline: 5px; }
   .reportHero { width: calc(100% - 12px); padding-inline: 18px; }
   .reportHeroCopy h1 { font-size: 34px; }
-  .contextPills span:last-child { display: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {

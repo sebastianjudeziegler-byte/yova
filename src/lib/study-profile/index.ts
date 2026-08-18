@@ -11,7 +11,7 @@ export {
   STUDY_PROFILE_CALIBRATION_PRODUCT_ADAPTATIONS,
   STUDY_PROFILE_CALIBRATION_RECOMMENDATIONS,
   STUDY_PROFILE_DIMENSION_CONTENT,
-  STUDY_PROFILE_EARLY_ACCESS_CONTENT,
+  STUDY_PROFILE_WAITLIST_CONTENT,
   STUDY_PROFILE_FIRST_IMPRESSION_CONTENT,
   STUDY_PROFILE_METHODOLOGY,
   STUDY_PROFILE_PRODUCT_ADAPTATIONS,
@@ -30,6 +30,11 @@ export {
   buildStudyProfileReport,
   buildStudyProfileReportFromStoredResponse,
 } from "@/lib/study-profile/report";
+export {
+  buildStudyProfilePlaybook,
+  buildStudyProfileSessionPlan,
+  selectStudyProfileMethods,
+} from "@/lib/study-profile/playbook";
 export {
   StudyProfileAnswerIdSchema,
   StudyProfileAnswersSchema,

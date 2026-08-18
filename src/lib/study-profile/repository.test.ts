@@ -5,7 +5,6 @@ vi.mock("server-only", () => ({}));
 import { buildStudyProfileReport, scoreStudyProfile } from "@/lib/study-profile";
 import {
   MemoryStudyProfileRepository,
-  StudyProfileInterestStateError,
   generateStudyProfileReportToken,
   hashStudyProfileReportToken,
 } from "@/lib/study-profile/repository";
@@ -52,12 +51,10 @@ describe("Study Profile repository", () => {
     expect(await repository.getReportByToken("unknown_token_that_is_long_enough_12345")).toBeNull();
   });
 
-  it("joins the waitlist idempotently and gates beta interest", async () => {
+  it("joins the waitlist idempotently without replacing the first consent record", async () => {
     const saved = await repository.saveResponse(input("student@example.com", false));
     const token = saved.storedResponse.reportToken;
 
-    await expect(repository.setBetaInterest(token, true))
-      .rejects.toBeInstanceOf(StudyProfileInterestStateError);
     await expect(repository.joinWaitlist(token)).resolves.toEqual({
       waitlistJoined: true,
       betaInterest: null,
@@ -66,10 +63,9 @@ describe("Study Profile repository", () => {
       waitlistJoined: true,
       betaInterest: null,
     });
-    await expect(repository.setBetaInterest(token, true)).resolves.toEqual({
-      waitlistJoined: true,
-      betaInterest: true,
-    });
+    const lead = [...repository.inspect().leadsByEmail.values()][0];
+    expect(lead.waitlistJoinedAt).toBe("2026-08-11T12:00:00.000Z");
+    expect(lead.waitlistConsentCopyVersion).toBe("study-profile-waitlist-v2");
   });
 
   it("generates opaque 256-bit tokens and stores stable SHA-256 hashes", () => {

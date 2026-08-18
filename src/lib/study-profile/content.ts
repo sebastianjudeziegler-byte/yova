@@ -29,19 +29,19 @@ export const STUDY_PROFILE_DIMENSION_CONTENT: Record<
     name: STUDY_PROFILE_DIMENSION_NAMES.starting_friction,
     levels: {
       low: {
-        label: "Low",
-        summary: "Your answers suggest that intention usually becomes action without much extra support.",
-        detail: "You may be able to begin from a broad objective and work out the path as you go. A study system should preserve that momentum instead of adding rituals or checkpoints you do not need.",
+        label: "Usually easy to begin",
+        summary: "You usually turn a study plan into action without much extra help.",
+        detail: "You can often start with a broad goal and work out the path as you go. Keep setup short so planning does not slow down a start that already works.",
       },
       moderate: {
-        label: "Moderate",
-        summary: "You can usually begin, but discomfort or a vague first step may slow the transition into real work.",
-        detail: "A clear opening move and a modest first commitment may be enough. The goal is to reduce the negotiation before starting without over-structuring the rest of the session.",
+        label: "Some trouble beginning",
+        summary: "You can usually begin, but a difficult task or unclear first step may slow you down.",
+        detail: "Choose the first action before the session and make it small enough to start without a long debate. You probably do not need every later step planned in detail.",
       },
       high: {
-        label: "High",
-        summary: "Your answers suggest that turning a plan into the first real action is a meaningful point of friction right now.",
-        detail: "Pressure may sometimes do the work that a good starting system should do. Small, concrete opening actions can lower the cost of beginning and let momentum develop before a larger commitment is required.",
+        label: "Hard to begin",
+        summary: "Getting from a plan to the first real action looks like one of your biggest obstacles right now.",
+        detail: "Pressure may be doing the job that a better starting routine could do. Use a tiny, specific first action and a short timer so you can begin before the task feels fully comfortable.",
       },
     },
   },
@@ -50,18 +50,18 @@ export const STUDY_PROFILE_DIMENSION_CONTENT: Record<
     levels: {
       low: {
         label: "Flexible",
-        summary: "You appear comfortable choosing a path from a broad objective.",
-        detail: "Heavy sequencing may feel restrictive or create needless setup. Your system can give you autonomy, then add a checkpoint only when progress or performance shows that more guidance would help.",
+        summary: "You are comfortable choosing your own path from a broad goal.",
+        detail: "A detailed checklist may create more work than it saves. Start with one outcome, then add a checkpoint only if you stop making progress.",
       },
       moderate: {
         label: "Balanced",
-        summary: "A clear direction helps, while every individual step does not need to be prescribed.",
-        detail: "You may benefit from knowing the goal, the first move, and one or two checkpoints. Between those points, enough flexibility should remain to respond to what you discover.",
+        summary: "A clear direction helps, but you do not need every step chosen for you.",
+        detail: "Decide the goal, the first move, and one or two checkpoints. Leave the middle flexible enough to respond to what you learn.",
       },
       high: {
-        label: "High-structure",
-        summary: "Ambiguity and too many choices appear likely to consume energy before useful studying begins.",
-        detail: "A short ordered sequence can move planning out of the session itself. The best structure is visible and specific, while still being short enough that the plan does not become another task to manage.",
+        label: "Clear steps help most",
+        summary: "Too many choices can use up energy before the useful work begins.",
+        detail: "Write a short sequence before you start and keep the current step visible. The plan should be specific, but short enough that maintaining it does not become another assignment.",
       },
     },
   },
@@ -70,18 +70,18 @@ export const STUDY_PROFILE_DIMENSION_CONTENT: Record<
     levels: {
       low: {
         label: "Steady",
-        summary: "Your attention appears relatively steady once you are engaged with the work.",
-        detail: "You may not need frequent novelty or interruptions to continue. Longer coherent blocks can work, especially when they remain active and have a clear purpose.",
+        summary: "Your focus tends to stay steady once you are working.",
+        detail: "You may not need frequent changes to keep going. Longer uninterrupted blocks can work when the task stays active and the goal is clear.",
       },
       moderate: {
-        label: "Variable",
-        summary: "Your engagement may fade gradually, with visible progress helping you stay connected to the work.",
-        detail: "A session can keep one objective while changing the kind of activity at sensible checkpoints. The aim is purposeful variation, not switching whenever attention dips.",
+        label: "Focus changes sometimes",
+        summary: "Your focus may fade over time, and seeing progress can help you stay with the work.",
+        detail: "Keep one topic while changing the activity at planned checkpoints. For example, move from recall to explanation or practice questions instead of switching topics at random.",
       },
       high: {
-        label: "Highly variable",
-        summary: "Your answers suggest that drift, boredom, or switching can appear quickly during longer or repetitive work.",
-        detail: "Short active rounds, clear feedback, and planned changes of activity may protect engagement. Each change should still advance the same objective so variation does not become fragmentation.",
+        label: "Focus changes often",
+        summary: "Drifting, boredom, or switching can show up quickly during long or repetitive work.",
+        detail: "Use short timed blocks, quick feedback, and planned changes in activity. Keep the same topic so variety helps you learn instead of scattering your attention.",
       },
     },
   },
@@ -89,19 +89,19 @@ export const STUDY_PROFILE_DIMENSION_CONTENT: Record<
     name: STUDY_PROFILE_DIMENSION_NAMES.calibration_risk,
     levels: {
       low: {
-        label: "Relatively calibrated",
-        summary: "Your current confidence appears to correspond reasonably well with what you can retrieve or apply.",
-        detail: "That is still a self-reported signal, not a measurement of accuracy. Occasional closed-note checks can preserve the connection between familiarity, confidence, and demonstrated performance.",
+        label: "Confidence usually matches",
+        summary: "Your confidence usually seems to match what you can recall or apply.",
+        detail: "This comes from your own answers, so keep an occasional closed-note check in your routine. It will help you confirm that confidence still matches the result.",
       },
       moderate: {
-        label: "Mixed",
-        summary: "Your sense of knowing may be useful but does not appear fully dependable across situations.",
-        detail: "Brief predictions followed by closed-note retrieval can show when confidence is informative and when familiarity is doing too much of the work.",
+        label: "Confidence is mixed",
+        summary: "Your feeling of knowing is useful sometimes, but it may not be dependable in every situation.",
+        detail: "Predict how you will do, answer without notes, and compare the prediction with the result. This shows when confidence is useful and when familiar material needs another check.",
       },
       high: {
-        label: "Needs more checking",
-        summary: "Your answers suggest a meaningful gap may sometimes exist between the feeling of knowing and demonstrated performance.",
-        detail: "This does not establish your actual metacognitive accuracy. It does make earlier, objective checks especially useful so review decisions follow evidence rather than familiarity alone.",
+        label: "Check knowledge more often",
+        summary: "The feeling of knowing may not always match what you can produce without help.",
+        detail: "Use a short closed-note check earlier in the session. Let the result choose what you review instead of relying on familiarity alone.",
       },
     },
   },
@@ -109,19 +109,19 @@ export const STUDY_PROFILE_DIMENSION_CONTENT: Record<
     name: STUDY_PROFILE_DIMENSION_NAMES.mistake_sensitivity,
     levels: {
       low: {
-        label: "Low",
-        summary: "You seem relatively willing to make an attempt before knowing that it is correct.",
-        detail: "That willingness can make feedback arrive sooner. Your system should protect it while still creating a moment to inspect errors carefully rather than moving past them too quickly.",
+        label: "Mistakes feel manageable",
+        summary: "You are usually willing to try before you know the answer is correct.",
+        detail: "That helps you get feedback sooner. Keep making early attempts, then slow down long enough to understand important errors before moving on.",
       },
       moderate: {
-        label: "Moderate",
-        summary: "You generally balance making progress with wanting an answer or piece of work to be right.",
-        detail: "When uncertainty rises, a time limit for the first attempt can keep checking or polishing from expanding. Feedback can then improve a real attempt instead of delaying one.",
+        label: "Some concern about mistakes",
+        summary: "You usually balance making progress with wanting the work to be right.",
+        detail: "When you feel unsure, put a time limit on the first attempt. Feedback can improve a real answer instead of being delayed by more checking or polishing.",
       },
       high: {
-        label: "High",
-        summary: "Uncertainty, visible mistakes, or an imperfect first pass may change how readily you act.",
-        detail: "Low-stakes attempts and explicit permission to revise can separate learning from evaluation. The purpose of an early answer is to produce information, not to prove that you already know it.",
+        label: "Mistakes can slow you down",
+        summary: "Uncertainty or the risk of a wrong answer can make it harder to act.",
+        detail: "Use private, low-stakes attempts and plan to revise after checking. The first answer only needs to show you what to improve. It does not need to prove that you already know everything.",
       },
     },
   },
@@ -129,19 +129,19 @@ export const STUDY_PROFILE_DIMENSION_CONTENT: Record<
     name: STUDY_PROFILE_DIMENSION_NAMES.cognitive_stamina,
     levels: {
       low: {
-        label: "Stable",
-        summary: "Your usable focus appears fairly stable across a demanding study block.",
-        detail: "You may be able to use longer coherent sessions when the work warrants them. Breaks should still follow performance and fatigue rather than a need to endure for its own sake.",
+        label: "Longer blocks can work",
+        summary: "Your focus seems fairly steady during demanding work.",
+        detail: "Longer uninterrupted sessions may work for you when the task needs them. Take a break when accuracy or pace drops, not just because a timer says so.",
       },
       moderate: {
-        label: "Moderate decline",
-        summary: "Your performance may soften after a while, even when you can continue working.",
-        detail: "Planned checkpoints can catch the point where added minutes stop producing the same quality. A brief reset or activity change may restore useful effort.",
+        label: "Energy fades over time",
+        summary: "Your work may get less accurate or focused after a while, even if you can keep going.",
+        detail: "Use a planned checkpoint to catch the point where more minutes stop helping. A short break or a change in activity may restore the quality of your work.",
       },
       high: {
-        label: "Fast decline",
-        summary: "Long demanding sessions appear likely to lose accuracy or focus relatively quickly.",
-        detail: "Shorter rounds and stronger timing choices may outperform attempts to force endurance. Ending or resetting before quality collapses protects both learning and confidence.",
+        label: "Short blocks work best",
+        summary: "Long, demanding sessions can lose accuracy or focus fairly quickly for you.",
+        detail: "Use shorter blocks and put hard work in your best time window. Reset before the quality drops instead of trying to force a long session.",
       },
     },
   },
@@ -154,14 +154,14 @@ export const STUDY_PROFILE_CALIBRATION_DIRECTION_CONTENT: Record<
   relatively_calibrated: STUDY_PROFILE_DIMENSION_CONTENT.calibration_risk.levels.low,
   mixed: STUDY_PROFILE_DIMENSION_CONTENT.calibration_risk.levels.moderate,
   overconfidence_risk: {
-    label: "Overconfidence risk",
-    summary: "Familiar material may sometimes feel more available than it proves to be without notes.",
-    detail: "Your answers suggest that earlier closed-note retrieval could reveal gaps before they become surprises. This is an initial self-report signal, not a validated measure of your calibration.",
+    label: "Test yourself sooner",
+    summary: "Familiar material may sometimes feel learned before you can produce it without notes.",
+    detail: "Test yourself earlier so gaps show up before a quiz or exam. This result comes from your answers and is not a fixed judgment about you.",
   },
   underconfidence_risk: {
-    label: "Underconfidence risk",
-    summary: "Your confidence may sometimes run below what your later performance supports.",
-    detail: "Recording successful retrieval can give confidence better evidence to update from. This is an initial self-report signal, not a validated measure of your calibration.",
+    label: "Trust correct results more",
+    summary: "You may sometimes feel less prepared than your later result shows.",
+    detail: "Record correct closed-note answers as well as mistakes. Your confidence needs evidence of what is working, not only a list of gaps.",
   },
 };
 
@@ -169,7 +169,7 @@ type RecommendationLevels = Record<StudyProfileClassification, StudyProfileRecom
 
 export const STUDY_PROFILE_RECOMMENDATIONS: Record<StudyProfileDimension, RecommendationLevels> = {
   starting_friction: recommendationLevels("starting", "Starting", {
-    low: ["Begin from a clear objective without adding a long setup ritual.", "Use your willingness to start on the most diagnostic task first."],
+    low: ["Begin with a clear goal and keep setup short.", "Start with the question or task that will show you the most."],
     moderate: ["Name the exact first action before the session.", "Use a 10-minute first commitment when the task feels uncomfortable."],
     high: ["Shrink the first required action until it is difficult to postpone.", "Start with active work immediately and let continuation be optional after the first block."],
   }, "Reduce the distance between deciding and doing."),
@@ -179,15 +179,15 @@ export const STUDY_PROFILE_RECOMMENDATIONS: Record<StudyProfileDimension, Recomm
     high: ["Write a short ordered sequence before starting.", "Keep only the current and next step visible."],
   }, "Match the amount of guidance to the amount of choice that helps."),
   attention_variability: recommendationLevels("focus", "Focus", {
-    low: ["Protect a coherent block around one objective.", "Prefer depth over novelty when attention is holding."],
-    moderate: ["Make progress visible at short checkpoints.", "Change activity deliberately while keeping the same objective."],
+    low: ["Protect an uninterrupted block around one goal.", "Stay with the topic while your attention is holding."],
+    moderate: ["Make progress visible at short checkpoints.", "Change the activity on purpose while keeping the same goal."],
     high: ["Use short active rounds with fast feedback.", "Plan variation in advance so it does not become random switching."],
   }, "Make engagement visible and purposeful."),
   calibration_risk: recommendationLevels("checking_what_you_know", "Checking what you know", {
-    low: ["Keep occasional closed-note checks in the routine.", "Use the result—not the feeling of fluency—to decide whether to move on."],
+    low: ["Keep occasional closed-note checks in the routine.", "Use your score, not how familiar the material feels, to decide whether to move on."],
     moderate: ["Predict how you will do, then test without notes.", "Compare confidence with the result before choosing more review."],
-    high: ["Retrieve or apply before rereading again.", "Commit to an answer and score it against objective feedback."],
-  }, "Use performance evidence to guide review."),
+    high: ["Retrieve or apply before rereading again.", "Commit to an answer and check it against a reliable answer or rubric."],
+  }, "Use your results to decide what to review."),
   mistake_sensitivity: recommendationLevels("handling_mistakes", "Handling mistakes", {
     low: ["Keep attempting early, then pause to diagnose why an error happened.", "Turn each important miss into one targeted correction."],
     moderate: ["Time-box the first attempt before checking.", "Separate rough work from the final version."],
@@ -209,14 +209,14 @@ export const STUDY_PROFILE_CALIBRATION_RECOMMENDATIONS: Record<
   overconfidence_risk: {
     category: "checking_what_you_know",
     heading: "Checking what you know",
-    summary: "Expose gaps before familiarity turns into a study decision.",
+    summary: "Find gaps before familiar material convinces you to move on.",
     actions: ["Predict, then retrieve without notes.", "Review only after you have produced an answer you can check."],
     researchTags: ["metacognition", "retrieval-practice"],
   },
   underconfidence_risk: {
     category: "checking_what_you_know",
     heading: "Checking what you know",
-    summary: "Use demonstrated performance to recalibrate confidence upward when it earns it.",
+    summary: "Let correct answers raise your confidence when you have earned it.",
     actions: ["Record successful closed-note answers.", "Compare your prediction with the result instead of trusting doubt alone."],
     researchTags: ["metacognition", "self-efficacy"],
   },
@@ -229,20 +229,20 @@ type WarningRule = StudyProfileWarning & {
 
 export const STUDY_PROFILE_WARNING_RULES: readonly WarningRule[] = [
   warning("vague_goals", "Vague study goals", "An instruction like “work on biology” leaves too many decisions inside the session.", 100, (p) => high(p, "structure_need")),
-  warning("giant_first_commitments", "Giant first commitments", "Requiring a full session before you have begun can make the starting threshold unnecessarily expensive.", 95, (p) => high(p, "starting_friction")),
+  warning("giant_first_commitments", "Giant first commitments", "Planning around a full session before you start can make beginning feel harder than it needs to.", 95, (p) => high(p, "starting_friction")),
   warning("checking_before_attempting", "Checking before attempting", "Hints and notes can remove the uncertainty that would have shown you what you actually know.", 90, (p) => high(p, "mistake_sensitivity")),
-  warning("passive_rereading", "Passive rereading", "Familiarity can rise while closed-note access remains weak.", 85, (p) => p.calibrationDirection === "overconfidence_risk" || high(p, "calibration_risk")),
+  warning("passive_rereading", "Passive rereading", "Material can feel familiar even when you cannot explain or use it without notes.", 85, (p) => p.calibrationDirection === "overconfidence_risk" || high(p, "calibration_risk")),
   warning("confidence_as_score", "Treating doubt as a score", "Feeling uncertain is not the same as performing poorly; use a real attempt as evidence.", 84, (p) => p.calibrationDirection === "underconfidence_risk"),
   warning("random_switching", "Random task switching", "Unplanned changes may feel refreshing while repeatedly resetting the work.", 80, (p) => high(p, "attention_variability")),
   warning("long_passive_sessions", "Long passive sessions", "More time in the same format may add fatigue faster than useful learning.", 75, (p) => high(p, "cognitive_stamina")),
-  warning("weak_energy_window", "Demanding work in a weaker window", "If timing changes your usable attention, scheduling the hardest task by convenience alone can be costly.", 70, (p, m) => p.classifications.cognitive_stamina !== "low" && m?.energyWindow != null && m.energyWindow !== "varies"),
-  warning("forced_structure", "Too much forced structure", "A detailed prescribed path can add overhead when you already choose and begin reliably.", 65, (p) => low(p, "structure_need")),
-  warning("unnecessary_setup", "Unnecessary motivational setup", "When starting is already reliable, elaborate warmups can delay the diagnostic work that matters.", 60, (p) => low(p, "starting_friction")),
+  warning("weak_energy_window", "Hard work at the wrong time", "If your focus changes by time of day, putting the hardest task wherever it happens to fit may make the work less accurate.", 70, (p, m) => p.classifications.cognitive_stamina !== "low" && m?.energyWindow != null && m.energyWindow !== "varies"),
+  warning("forced_structure", "Too much structure", "A detailed step-by-step plan can waste time when you already choose tasks and begin reliably.", 65, (p) => low(p, "structure_need")),
+  warning("unnecessary_setup", "Too much warmup", "When starting is already easy, a long warmup can delay the practice that tells you what you know.", 60, (p) => low(p, "starting_friction")),
   warning("invisible_progress", "Progress you cannot see", "A long block without checkpoints may make engagement harder to maintain.", 50, (p) => p.classifications.attention_variability === "moderate"),
   warning("endless_polishing", "Polishing before feedback", "Improving an untested first pass can consume time without revealing whether the core answer works.", 45, (p) => p.classifications.mistake_sensitivity === "moderate"),
   warning("fixed_session_length", "A fixed session length at any cost", "Continuing after the quality of your work has dropped can make time studied a misleading target.", 40, (p) => p.classifications.cognitive_stamina === "moderate"),
-  warning("review_without_retrieval", "Review without a check", "Even when confidence feels dependable, occasional closed-note evidence keeps it anchored.", 10, () => true),
-  warning("complex_study_system", "A system that takes too much upkeep", "Planning should reduce study friction, not become a second assignment.", 9, () => true),
+  warning("review_without_retrieval", "Review without a check", "Even when confidence feels reliable, occasionally answer without notes so you can confirm what you know.", 10, () => true),
+  warning("complex_study_system", "A system that takes too much upkeep", "Planning should make studying easier, not become a second assignment.", 9, () => true),
 ];
 
 export function selectStudyProfileWarnings(
@@ -271,24 +271,24 @@ export const STUDY_PROFILE_PRODUCT_ADAPTATIONS: Record<
     high: ["A smaller first action", "YOVA could lower the required opening commitment and expand only after momentum appears."],
   }),
   structure_need: adaptations("structure", {
-    low: ["More autonomy", "YOVA could offer a broad objective with fewer forced steps."],
+    low: ["More choice", "YOVA could offer a broad goal with fewer forced steps."],
     moderate: ["Selective structure", "YOVA could set the first move and checkpoints without prescribing every choice."],
-    high: ["Fewer decisions", "YOVA could pre-sequence short steps and reveal the next one at the right time."],
+    high: ["Fewer decisions", "YOVA could choose a short sequence in advance and reveal one step at a time."],
   }),
   attention_variability: adaptations("attention", {
-    low: ["Longer coherent work", "YOVA could preserve depth without inserting changes you do not need."],
-    moderate: ["Visible progress", "YOVA could add purposeful checkpoints and occasional changes in activity."],
-    high: ["Controlled variation", "YOVA could alternate active formats in short rounds while holding the objective steady."],
+    low: ["Longer uninterrupted work", "YOVA could preserve depth without inserting changes you do not need."],
+    moderate: ["Visible progress", "YOVA could add clear checkpoints and occasional changes in activity."],
+    high: ["Planned changes", "YOVA could switch between active methods in short rounds while keeping the same goal."],
   }),
   calibration_risk: adaptations("calibration", {
     low: ["Lightweight verification", "YOVA could use occasional retrieval checks to keep confidence anchored."],
     moderate: ["Confidence comparison", "YOVA could ask for a prediction, test it, and compare the two over time."],
-    high: ["Earlier retrieval", "YOVA could test closed-note access before allowing familiarity to guide more review."],
+    high: ["Earlier recall", "YOVA could ask you to answer without notes before familiarity guides more review."],
   }),
   mistake_sensitivity: adaptations("mistakes", {
-    low: ["More diagnostic challenge", "YOVA could let you attempt early, then slow down around the errors that matter."],
+    low: ["Earlier practice questions", "YOVA could let you attempt early, then slow down around the errors that matter."],
     moderate: ["Timed first attempts", "YOVA could prevent polishing or checking from expanding before feedback."],
-    high: ["Lower-stakes feedback", "YOVA could make early attempts private, revisable, and explicitly diagnostic."],
+    high: ["Lower-stakes feedback", "YOVA could make early attempts private, revisable, and useful for learning."],
   }),
   cognitive_stamina: adaptations("stamina", {
     low: ["Continuity when useful", "YOVA could use longer blocks when your performance remains steady."],
@@ -324,55 +324,58 @@ export const STUDY_PROFILE_CALIBRATION_PRODUCT_ADAPTATIONS: Record<
 };
 
 export const STUDY_PROFILE_PROTOCOLS_BY_INTERACTION = {
-  friction_structure: ["Choose one topic.", "Write the exact first question or task.", "Set a required first block of 10 minutes.", "Pre-decide the next two steps; do not choose them during the block.", "Continue only if momentum is there."],
+  friction_structure: ["Choose one topic.", "Write the exact first question or task.", "Set a required first block of 10 minutes.", "Choose the next two steps before the timer starts.", "Continue only if momentum is there."],
   friction_mistakes: ["Choose one low-stakes practice item.", "Give yourself two minutes to make an imperfect attempt without notes.", "Commit to the answer.", "Check it, name one correction, and try once more."],
   friction_attention: ["Remove the setup before the session begins.", "Start with one active question for eight minutes.", "Mark each completed item visibly.", "Take a short reset, then choose whether to run another round."],
-  structure_attention: ["Choose one objective.", "Plan three short activities that all serve it.", "Put them in order before starting.", "Switch only at the planned checkpoint."],
+  structure_attention: ["Choose one goal.", "Plan three short activities that all serve it.", "Put them in order before starting.", "Switch only at the planned checkpoint."],
   mistakes_overconfidence: ["Predict whether you can answer three questions without notes.", "Commit to all three answers.", "Check them immediately.", "Review only the gaps the results revealed."],
   mistakes_underconfidence: ["Predict your result on three low-stakes questions.", "Answer without notes.", "Record each successful retrieval as well as each miss.", "Update the next prediction from that evidence."],
-  overconfidence_low_friction: ["Skip the warmup and choose the most diagnostic question.", "Answer it closed-note.", "Use the result to choose what needs review.", "Retest the gap before moving on."],
-  stamina_attention: ["Choose one demanding objective.", "Run a 12-minute active round.", "Take a three-minute reset away from the material.", "Run one different active format, then stop if quality drops."],
+  overconfidence_low_friction: ["Skip the warmup and choose the question that will show you the most.", "Answer it without notes.", "Use the result to choose what needs review.", "Retest the gap before moving on."],
+  stamina_attention: ["Choose one demanding task.", "Run a 12-minute active round.", "Take a three-minute reset away from the material.", "Use one different method, then stop if quality drops."],
   structure_stamina: ["Break the session into two or three visible chunks.", "Show only the current chunk.", "Pause briefly at each checkpoint.", "Shorten the remaining plan if accuracy or pace has fallen."],
-  autonomy_low_friction_structure: ["Set one meaningful outcome for the session.", "Choose the most useful route yourself.", "Check progress once halfway through.", "Add structure only if the objective is not moving."],
+  autonomy_low_friction_structure: ["Set one meaningful outcome for the session.", "Choose the most useful route yourself.", "Check progress once halfway through.", "Add steps only if the work is not moving."],
 } as const;
 
 export const STUDY_PROFILE_FALLBACK_PROTOCOLS: Record<StudyProfileDimension, readonly string[]> = {
   starting_friction: ["Choose one topic.", "Define a first action that takes no more than 10 minutes.", "Start immediately and decide about continuing after the block."],
   structure_need: ["Choose one outcome.", "Write the first three actions in order.", "Keep the current step visible and revise the sequence only at a checkpoint."],
-  attention_variability: ["Choose one objective.", "Use a short active round with visible progress.", "Change the activity—not the objective—at the checkpoint."],
+  attention_variability: ["Choose one goal.", "Use a short timed practice block with visible progress.", "At each checkpoint, switch the activity while keeping the same goal."],
   calibration_risk: ["Predict how you will perform.", "Answer closed-note.", "Compare confidence with the result and review only the gaps."],
   mistake_sensitivity: ["Choose one low-stakes item.", "Make a time-boxed first attempt.", "Use feedback to revise rather than waiting to feel certain."],
-  cognitive_stamina: ["Place one demanding task in your stronger window.", "Work in a bounded active round.", "Reset or stop when quality—not just motivation—drops."],
+  cognitive_stamina: ["Place one demanding task in your stronger window.", "Work in a short timed practice block.", "Stop or take a break when the quality of your work drops, even if you still feel motivated."],
 };
 
 export const STUDY_PROFILE_FIRST_IMPRESSION_CONTENT = {
-  heading: "This is only YOVA’s first impression",
-  body: "This profile is based on what you told us. YOVA is being built to go further by learning from how you actually study.",
-  examplesLabel: "Examples of what YOVA could eventually learn—not claims about you:",
+  heading: "Your results can get more accurate over time",
+  body: "This report starts with your answers. Once you use YOVA, your completed sessions can show which times, block lengths, and methods actually help you most.",
+  examplesLabel: "Things YOVA can compare over time:",
   examples: [
     "You complete 20-minute sessions more consistently than 40-minute sessions.",
     "You miss evening sessions more often than afternoon sessions.",
     "Your confidence in biology is often higher than your closed-note retrieval performance.",
     "You start more reliably when the first required task is small and concrete.",
   ],
-  closing: "The quiz can learn from what you tell us. YOVA will learn from what you actually do.",
+  closing: "The goal is simple: keep what works and change what does not.",
 } as const;
 
 export const STUDY_PROFILE_METHODOLOGY = {
-  heading: "About this initial profile",
-  body: "YOVA Study Profile uses self-reported study behaviors to create an initial set of recommendations informed by research on learning, self-regulation, metacognition, attention, avoidance, and study behavior. Its routing thresholds are product rules, not psychometrically validated cutoffs. It is not a medical, neurological, or psychological diagnosis.",
+  heading: "About your Study Profile",
+  body: "Your report uses fixed scoring rules and your own answers to choose practical suggestions informed by learning research. It is not a medical, neurological, psychological, or learning-disability diagnosis.",
   researchAreas: [
-    "learning and retrieval practice",
-    "self-regulation and study behavior",
-    "metacognition and confidence calibration",
-    "attention, avoidance, and task engagement",
+    "remembering and retrieval practice",
+    "planning and study habits",
+    "confidence and self-checking",
+    "attention and getting started",
   ],
 } as const;
 
-export const STUDY_PROFILE_EARLY_ACCESS_CONTENT = {
-  heading: "Want YOVA to build around your profile automatically?",
-  buttonLabel: "Get early access to YOVA",
-  betaPrompt: "I’d also be interested in testing YOVA before launch.",
+export const STUDY_PROFILE_WAITLIST_CONTENT = {
+  eyebrow: "YOVA waitlist",
+  heading: "Join the YOVA waitlist",
+  body: "Get an email when YOVA is ready to try. Unsubscribe at any time.",
+  helper: "We’ll use the email connected to this report.",
+  buttonLabel: "Join the waitlist",
+  success: "You’re on the waitlist. We’ll email you when YOVA is ready.",
 } as const;
 
 function recommendationLevels(

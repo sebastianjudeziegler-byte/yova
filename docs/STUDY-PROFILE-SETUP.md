@@ -31,11 +31,11 @@ Use a dedicated sending subdomain such as `updates.yovaapp.com` for Study Profil
 5. After Resend verifies the subdomain, use an address such as `reports@updates.yovaapp.com` for `STUDY_PROFILE_FROM_EMAIL`.
 6. Use an existing monitored Google Workspace mailbox as `STUDY_PROFILE_REPLY_TO` if replies should be accepted.
 
-The report email is transactional. The separate launch-updates checkbox is unchecked by default and stored with a consent copy version. Do not send a marketing campaign until an unsubscribe/suppression workflow is in place.
+The report email is transactional. Joining the waitlist is a separate action on the report. Do not send waitlist email until an unsubscribe and suppression workflow is in place.
 
 ## Pre-broad-launch decisions
 
-The immediate no-login funnel does not verify ownership of the submitted email address. The current checkbox, waitlist, and beta-interest records are therefore self-asserted signals, not double-opt-in proof. Before using these records for broad marketing or recruitment, choose and implement an email-only verification or double-opt-in flow that is not returned to the submitting browser. Keep the report itself immediately visible even if that verification email fails.
+The immediate no-login funnel does not verify ownership of the submitted email address. A waitlist signup is therefore a self-asserted signal, not double-opt-in proof. Before using these records for broad marketing, choose and implement an email-only verification or double-opt-in flow that is not returned to the submitting browser. Keep the report itself immediately visible even if that verification email fails.
 
 Treat durable bot and abuse protection as a second release decision before sending high-volume traffic. The application rejects cross-origin/non-JSON browser writes, bounds streamed request bodies, and applies an in-process rate limit, but the in-process limiter is scoped to one server instance. Configure Vercel Firewall rate limits or an equivalent distributed limiter, add a per-address delivery cooldown, and consider a low-friction challenge such as Turnstile if abuse appears.
 
@@ -61,10 +61,10 @@ Local:
 
 1. Run `pnpm dev` and open `http://localhost:3000/study-profile`.
 2. Start the assessment, answer several questions, refresh, and confirm progress returns.
-3. Use Back, change an answer, finish all 12 questions, and complete the three context screens.
-4. Submit an email with the optional launch checkbox both unchecked and checked on separate retakes.
+3. Use Back, change an answer, finish all 12 questions, and complete the two context screens.
+4. Submit an email and confirm it is used only to deliver the private report.
 5. Confirm the full report appears even without Resend, and refresh the private `/study-profile/report/<token>` URL.
-6. Join early access, choose both beta responses on separate runs, and confirm success feedback.
+6. Join the waitlist and confirm the success message remains after a refresh.
 7. Open an altered token and confirm the generic unavailable-link page.
 8. Repeat at 320, 375, and 390 CSS pixels wide and with a desktop viewport.
 
@@ -74,5 +74,5 @@ Deployed:
 2. Submit a fresh profile at `https://www.yovaapp.com/study-profile`.
 3. Confirm one lead and one response were created, the report email was delivered, and its link opens the same stored report in a private browser window.
 4. Retake with the same email and confirm one lead now owns two response rows and both old and new links work.
-5. Confirm the early-access and beta choices update the existing lead without asking for email again.
+5. Confirm the waitlist choice updates the existing lead without asking for email again.
 6. Confirm event rows contain only supported names and bounded context.

@@ -8,7 +8,7 @@ import { STUDY_PROFILE_MODEL_VERSION } from "@/lib/study-profile/types";
 const visitorId = "3f4edc20-e169-4f7f-b2c3-2a1a683b74e9";
 
 describe("StudyProfileAnalyticsEventSchema", () => {
-  it("accepts only the bounded context for each of the eight funnel events", () => {
+  it("accepts only the bounded context for each of the seven funnel events", () => {
     const base = { visitorId, modelVersion: STUDY_PROFILE_MODEL_VERSION };
     const events = [
       { ...base, eventName: "study_profile_page_viewed", context: {} },
@@ -22,11 +22,6 @@ describe("StudyProfileAnalyticsEventSchema", () => {
       { ...base, eventName: "study_profile_email_submitted", context: {} },
       { ...base, eventName: "study_profile_report_viewed", context: {} },
       { ...base, eventName: "study_profile_waitlist_joined", context: {} },
-      {
-        ...base,
-        eventName: "study_profile_beta_interest",
-        context: { betaInterested: false },
-      },
     ];
 
     for (const event of events) {
@@ -60,6 +55,12 @@ describe("StudyProfileAnalyticsEventSchema", () => {
         modelVersion: STUDY_PROFILE_MODEL_VERSION,
         eventName: "study_profile_question_answered",
         context: { questionNumber: 13 },
+      },
+      {
+        visitorId,
+        modelVersion: STUDY_PROFILE_MODEL_VERSION,
+        eventName: "study_profile_beta_interest",
+        context: { betaInterested: true },
       },
     ];
 

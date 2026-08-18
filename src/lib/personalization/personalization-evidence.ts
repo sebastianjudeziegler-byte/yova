@@ -740,7 +740,7 @@ function buildPersonalizationDecisions(
       decisions.push(decision(signal, "session_opening", "first_action", "small_active_start", "A smaller active start", "Begin with one concrete action that takes about two minutes, then expand without lowering the learning target."));
     }
     if (signal.key === "structure_need" && (code === "high" || code === "moderate")) {
-      decisions.push(decision(signal, "workspace", "path_visibility", code === "high" ? "one_step" : "current_and_next", "A clearer path", "Pre-sequence the work and keep the current action obvious."));
+      decisions.push(decision(signal, "workspace", "path_visibility", code === "high" ? "one_step" : "current_and_next", "A clearer path", "Choose the steps in advance and keep the current action obvious."));
     }
     if (signal.key === "attention_variability" && (code === "high" || code === "moderate")) {
       decisions.push(decision(signal, "method_delivery", "activity_cadence", "short_active_rounds", "Controlled activity changes", "Use short active rounds and change the activity only at planned checkpoints while keeping the same objective."));
@@ -958,21 +958,32 @@ function correctedSignalCode(
       moderate: "moderate",
       high: "high",
       "higher starting friction": "high",
+      "usually easy to begin": "low",
+      "some trouble beginning": "moderate",
+      "hard to begin": "high",
     },
     structure_need: {
       flexible: "low",
       balanced: "moderate",
       "high-structure": "high",
+      "clear steps help most": "high",
     },
     attention_variability: {
       steady: "low",
       variable: "moderate",
       "highly variable": "high",
+      "focus changes sometimes": "moderate",
+      "focus changes often": "high",
     },
     calibration_risk: {
       "relatively calibrated": "relatively_calibrated",
       mixed: "mixed",
       "needs more checking": "overconfidence_risk",
+      "confidence usually matches": "relatively_calibrated",
+      "confidence is mixed": "mixed",
+      "check knowledge more often": "overconfidence_risk",
+      "test yourself sooner": "overconfidence_risk",
+      "trust correct results more": "underconfidence_risk",
       "overconfidence risk": "overconfidence_risk",
       "underconfidence risk": "underconfidence_risk",
     },
@@ -981,11 +992,17 @@ function correctedSignalCode(
       moderate: "moderate",
       high: "high",
       "higher mistake sensitivity": "high",
+      "mistakes feel manageable": "low",
+      "some concern about mistakes": "moderate",
+      "mistakes can slow you down": "high",
     },
     cognitive_stamina: {
       stable: "low",
       "moderate decline": "moderate",
       "fast decline": "high",
+      "longer blocks can work": "low",
+      "energy fades over time": "moderate",
+      "short blocks work best": "high",
     },
   };
   return supportedStudyProfileValues[key as StudyProfileDimension]?.[normalized] ?? null;
@@ -1052,10 +1069,10 @@ function partialCalibrationDirection(state: PersonalizationState): StudyProfileC
 }
 
 function calibrationLabel(value: string) {
-  if (value === "overconfidence_risk") return "Overconfidence risk";
-  if (value === "underconfidence_risk") return "Underconfidence risk";
-  if (value === "relatively_calibrated") return "Relatively calibrated";
-  return "Mixed";
+  if (value === "overconfidence_risk") return "Test yourself sooner";
+  if (value === "underconfidence_risk") return "Trust correct results more";
+  if (value === "relatively_calibrated") return "Confidence usually matches";
+  return "Confidence is mixed";
 }
 
 function candidatesAgree(left: Candidate, right: Candidate) {

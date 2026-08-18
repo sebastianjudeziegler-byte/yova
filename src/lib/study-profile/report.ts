@@ -3,7 +3,6 @@ import {
   STUDY_PROFILE_CALIBRATION_DIRECTION_CONTENT,
   STUDY_PROFILE_CALIBRATION_RECOMMENDATIONS,
   STUDY_PROFILE_DIMENSION_CONTENT,
-  STUDY_PROFILE_EARLY_ACCESS_CONTENT,
   STUDY_PROFILE_FALLBACK_PROTOCOLS,
   STUDY_PROFILE_FIRST_IMPRESSION_CONTENT,
   STUDY_PROFILE_METHODOLOGY,
@@ -14,14 +13,18 @@ import {
 } from "@/lib/study-profile/content";
 import { STUDY_PROFILE_REPORT_SECTION_HEADINGS } from "@/lib/study-profile/config";
 import { selectStudyProfileInteractions } from "@/lib/study-profile/interactions";
+import { buildStudyProfilePlaybook } from "@/lib/study-profile/playbook";
 import {
+  StudyProfileAnswersSchema,
   StudyProfileMetadataSchema,
   StudyProfileSnapshotSchema,
   StudyProfileStoredResponseSchema,
   type StudyProfileStoredResponse,
 } from "@/lib/study-profile/schema";
 import {
+  STUDY_PROFILE_REPORT_CONTENT_VERSION,
   STUDY_PROFILE_DIMENSIONS,
+  type StudyProfileAnswers,
   type StudyProfileDimension,
   type StudyProfileDimensionReport,
   type StudyProfileMetadata,
@@ -33,9 +36,11 @@ import {
 export function buildStudyProfileReport(
   profileInput: StudyProfileSnapshot,
   metadataInput?: Partial<StudyProfileMetadata>,
+  answersInput?: StudyProfileAnswers,
 ): StudyProfileReport {
   const profile = StudyProfileSnapshotSchema.parse(profileInput);
   const metadata = parsePartialMetadata(metadataInput);
+  const answers = answersInput ? StudyProfileAnswersSchema.parse(answersInput) : undefined;
   const overview = STUDY_PROFILE_DIMENSIONS.map((dimension) => dimensionReport(profile, dimension));
   const byDimension = new Map(overview.map((section) => [section.dimension, section]));
   const interactions = selectStudyProfileInteractions(profile);
@@ -47,18 +52,12 @@ export function buildStudyProfileReport(
 
   return {
     modelVersion: profile.modelVersion,
+    contentVersion: STUDY_PROFILE_REPORT_CONTENT_VERSION,
     isBalanced: profile.isBalanced,
-    profileNarrative: profile.isBalanced
-      ? {
-          heading: "A relatively balanced initial profile",
-          body: `Your answers do not point to one extreme pattern across the board. Your clearest current signal is ${primaryLabel(profile)}.`,
-        }
-      : {
-          heading: `Your clearest pattern: ${primaryLabel(profile)}`,
-          body: "This is the strongest current signal in your answers, not a fixed trait or a diagnosis.",
-        },
+    profileNarrative: buildProfileNarrative(profile),
     sectionHeadings: STUDY_PROFILE_REPORT_SECTION_HEADINGS,
     overview,
+    playbook: buildStudyProfilePlaybook(profile, metadata, answers),
     primaryPattern: requireDimensionReport(byDimension, profile.primaryPattern.dimension),
     secondaryPattern: requireDimensionReport(byDimension, profile.secondaryPattern.dimension),
     interactions,
@@ -74,20 +73,64 @@ export function buildStudyProfileReport(
       : STUDY_PROFILE_PRODUCT_ADAPTATIONS[dimension][profile.classifications[dimension]]),
     firstImpression: STUDY_PROFILE_FIRST_IMPRESSION_CONTENT,
     methodology: STUDY_PROFILE_METHODOLOGY,
-    earlyAccess: STUDY_PROFILE_EARLY_ACCESS_CONTENT,
   };
-}
-
-function primaryLabel(profile: StudyProfileSnapshot) {
-  const content = STUDY_PROFILE_DIMENSION_CONTENT[profile.primaryPattern.dimension];
-  return `${content.name} — ${profile.primaryPattern.userFacingLabel}`;
 }
 
 export function buildStudyProfileReportFromStoredResponse(
   storedInput: StudyProfileStoredResponse,
 ) {
   const stored = StudyProfileStoredResponseSchema.parse(storedInput);
-  return buildStudyProfileReport(stored.snapshot, stored.metadata);
+  return buildStudyProfileReport(stored.snapshot, stored.metadata, stored.rawAnswers);
+}
+
+function buildProfileNarrative(profile: StudyProfileSnapshot) {
+  if (profile.isBalanced) {
+    return {
+      heading: "Your study habits are fairly balanced",
+      body: "No single issue dominates your answers. The plan below focuses on the two areas most likely to make studying easier and more effective right now.",
+    };
+  }
+
+  if (profile.primaryPattern.dimension === "starting_friction") {
+    return {
+      heading: "Make it easier to start",
+      body: "Your answers suggest that beginning the work costs more energy than it should. A smaller first step and a short opening timer can help you get into real work sooner.",
+    };
+  }
+  if (profile.primaryPattern.dimension === "structure_need") {
+    return {
+      heading: "Give yourself a clear next step",
+      body: "You are more likely to make progress when the order of the work is already decided. A short visible plan can keep choices from using up the session.",
+    };
+  }
+  if (profile.primaryPattern.dimension === "attention_variability") {
+    return {
+      heading: "Use shorter, more active study blocks",
+      body: "Your focus is easier to keep when progress is visible and the activity changes on purpose. Keep one topic, then switch the way you work with it at planned points.",
+    };
+  }
+  if (profile.primaryPattern.dimension === "calibration_risk") {
+    const underconfident = profile.calibrationDirection === "underconfidence_risk";
+    return underconfident
+      ? {
+          heading: "Let your results challenge your doubt",
+          body: "Your confidence may sometimes be lower than your performance. Keep a visible record of correct closed-note answers so your next study decision uses the full result.",
+        }
+      : {
+          heading: "Test yourself before you reread",
+          body: "Material can feel familiar before it is easy to recall. A short closed-note check will show what is ready and what still needs work.",
+        };
+  }
+  if (profile.primaryPattern.dimension === "mistake_sensitivity") {
+    return {
+      heading: "Make the first attempt easier to risk",
+      body: "Checking, preparing, or polishing can delay the answer that would show you what to improve. Use private, low-stakes attempts and revise after you have something real to check.",
+    };
+  }
+  return {
+    heading: "Protect the quality of your study time",
+    body: "Long sessions may keep going after the useful work has faded. Shorter blocks, well-timed breaks, and harder work during your best focus window can make the same time more productive.",
+  };
 }
 
 function dimensionReport(

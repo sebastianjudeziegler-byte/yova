@@ -17,7 +17,7 @@ export const STUDY_PROFILE_QUESTIONS = [
     id: "q2",
     number: 2,
     dimension: "starting_friction",
-    prompt: "When a school task looks difficult or uncomfortable, what is your first instinct?",
+    prompt: "When schoolwork looks difficult or uncomfortable, what do you usually do first?",
     options: [
       { id: "a", label: "Start somewhere and figure it out as I go.", score: 0 },
       { id: "b", label: "Get a little more information before trying.", score: 1 },
@@ -129,7 +129,7 @@ export const STUDY_PROFILE_QUESTIONS = [
     options: [
       { id: "a", label: "It stays fairly consistent.", score: 0 },
       { id: "b", label: "I fade somewhat after a while.", score: 1 },
-      { id: "c", label: "I noticeably lose accuracy or focus after roughly 20–30 minutes.", score: 2 },
+      { id: "c", label: "I noticeably lose accuracy or focus after roughly 20 to 30 minutes.", score: 2 },
       { id: "d", label: "Long sessions break down quickly unless I reset or take breaks.", score: 3 },
     ],
   },

@@ -17,7 +17,7 @@ describe("Study Profile API schemas", () => {
       metadata: {
         energyWindow: "morning",
         schoolLevel: "college",
-        hardestPart: "  Starting <script>work</script>  ",
+        hardestPart: null,
       },
       marketingConsent: false,
       attribution: {
@@ -30,7 +30,7 @@ describe("Study Profile API schemas", () => {
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.data.email).toBe("student@example.com");
-      expect(result.data.metadata.hardestPart).not.toContain("<");
+      expect(result.data.metadata.hardestPart).toBeNull();
     }
   });
 
@@ -42,6 +42,30 @@ describe("Study Profile API schemas", () => {
       metadata: { energyWindow: "morning", schoolLevel: "college" },
       marketingConsent: false,
       scores: { starting_friction: 0 },
+    }).success).toBe(false);
+  });
+
+  it("does not accept a separate launch-marketing consent flag", () => {
+    expect(StudyProfileResponseRequestSchema.safeParse({
+      email: "student@example.com",
+      visitorId: "4d621251-2df6-4fa3-985e-df63b6d27f5f",
+      answers,
+      metadata: { energyWindow: "morning", schoolLevel: "college" },
+      marketingConsent: true,
+    }).success).toBe(false);
+  });
+
+  it("does not accept the retired optional free-text field", () => {
+    expect(StudyProfileResponseRequestSchema.safeParse({
+      email: "student@example.com",
+      visitorId: "4d621251-2df6-4fa3-985e-df63b6d27f5f",
+      answers,
+      metadata: {
+        energyWindow: "morning",
+        schoolLevel: "college",
+        hardestPart: "I keep putting off the first step.",
+      },
+      marketingConsent: false,
     }).success).toBe(false);
   });
 
@@ -68,9 +92,13 @@ describe("Study Profile API schemas", () => {
     }
   });
 
-  it("requires at least one interest update", () => {
+  it("accepts only a waitlist signup", () => {
     expect(StudyProfileInterestRequestSchema.safeParse({}).success).toBe(false);
     expect(StudyProfileInterestRequestSchema.safeParse({ waitlist: true }).success).toBe(true);
-    expect(StudyProfileInterestRequestSchema.safeParse({ betaInterest: false }).success).toBe(true);
+    expect(StudyProfileInterestRequestSchema.safeParse({ betaInterest: false }).success).toBe(false);
+    expect(StudyProfileInterestRequestSchema.safeParse({
+      waitlist: true,
+      betaInterest: true,
+    }).success).toBe(false);
   });
 });
