@@ -367,7 +367,7 @@ function personalizationDecisionHasVisibleArtifact(
   if (!signal || signal.paused || signal.source === "observation") return false;
   if (decision.setting === "path_visibility") return decision.value === "one_step";
   if (decision.setting === "knowledge_check") {
-    return /overconfidence|more checking|confident/i.test(signal.value);
+    return /overconfidence|more checking|test yourself sooner|confident/i.test(signal.value);
   }
   return [
     "first_action",
@@ -672,24 +672,24 @@ function buildPersonalizationDecisions(
   for (const signal of signals) {
     if (!signalCanCreateDecision(signal)) continue;
     const normalized = signal.value.toLowerCase();
-    if (signal.key === "starting_friction" && /high|ended early/.test(normalized)) {
+    if (signal.key === "starting_friction" && /high|hard to begin|ended early/.test(normalized)) {
       decisions.push(decision(signal, "session_opening", "first_action", "small_active_start", "A smaller active start", "Begin with one concrete action that takes about two minutes, then expand without lowering the learning target."));
     }
-    if (signal.key === "structure_need" && /high|balanced/.test(normalized)) {
-      decisions.push(decision(signal, "workspace", "path_visibility", /high/.test(normalized) ? "one_step" : "current_and_next", "A clearer path", "Pre-sequence the work and keep the current action obvious."));
+    if (signal.key === "structure_need" && /high|clear steps|balanced/.test(normalized)) {
+      decisions.push(decision(signal, "workspace", "path_visibility", /high|clear steps/.test(normalized) ? "one_step" : "current_and_next", "A clearer path", "Choose the steps in advance and keep the current action obvious."));
     }
-    if (signal.key === "attention_variability" && /high|variable/.test(normalized)) {
+    if (signal.key === "attention_variability" && /high|variable|focus changes/.test(normalized)) {
       decisions.push(decision(signal, "method_delivery", "activity_cadence", "short_active_rounds", "Controlled activity changes", "Use short active rounds and change the activity only at planned checkpoints while keeping the same objective."));
     }
-    if (signal.key === "calibration_risk" && /overconfidence|more checking|confident/.test(normalized)) {
+    if (signal.key === "calibration_risk" && /overconfidence|more checking|check knowledge|test yourself sooner|confident/.test(normalized)) {
       decisions.push(decision(signal, "method_delivery", "knowledge_check", "closed_note_first", "Check before more review", "Ask for a closed-note answer before showing more explanation or notes.", ["retrieval_practice", "practice_test_error_repair"]));
-    } else if (signal.key === "calibration_risk" && /underconfidence|uncertain/.test(normalized)) {
+    } else if (signal.key === "calibration_risk" && /underconfidence|trust correct results|uncertain/.test(normalized)) {
       decisions.push(decision(signal, "method_delivery", "confidence_check", "show_success_evidence", "Keep successful recall visible", "Compare confidence with correct independent answers so doubt can update from evidence."));
     }
-    if (signal.key === "mistake_sensitivity" && /high/.test(normalized)) {
+    if (signal.key === "mistake_sensitivity" && /high|mistakes can slow/.test(normalized)) {
       decisions.push(decision(signal, "support", "attempt_safety", "private_revisable_attempt", "A low-stakes first attempt", "Make the first answer private and revisable, then use feedback as information rather than a verdict."));
     }
-    if (signal.key === "cognitive_stamina" && /fast decline|high/.test(normalized)) {
+    if (signal.key === "cognitive_stamina" && /fast decline|high|short blocks work best/.test(normalized)) {
       decisions.push(decision(signal, "method_delivery", "block_length", "shorter_rounds", "Shorter demanding rounds", "Use a bounded active round and offer a reset before quality drops."));
     }
     if (signal.key === "processing_entry") {
@@ -826,7 +826,7 @@ function methodPreferenceOrder(signals: readonly LearnerPersonalizationSignal[])
   if (/confuse similar/.test(memory)) return ["interleaved_practice", "self_explanation"];
   if (/cannot apply/.test(memory)) return ["worked_example_fading", "self_explanation", "practice_test_error_repair"];
   if (/with help|independent/.test(memory)) return ["worked_example_fading", "scaffolded_coding", "self_explanation"];
-  if (/overconfidence|more checking|confident/.test(calibration)) return ["practice_test_error_repair", "retrieval_practice"];
+  if (/overconfidence|more checking|test yourself sooner|confident/.test(calibration)) return ["practice_test_error_repair", "retrieval_practice"];
   return [];
 }
 
@@ -876,18 +876,23 @@ function isSupportedCorrectedSignalValue(
   if (key === "workspace_preference") return workspaceSetting(normalized) !== null;
 
   const supportedStudyProfileValues: Partial<Record<StudyProfileDimension, readonly string[]>> = {
-    starting_friction: ["low", "moderate", "high", "higher starting friction"],
-    structure_need: ["flexible", "balanced", "high-structure"],
-    attention_variability: ["steady", "variable", "highly variable"],
+    starting_friction: ["low", "moderate", "high", "higher starting friction", "usually easy to begin", "some trouble beginning", "hard to begin"],
+    structure_need: ["flexible", "balanced", "high-structure", "clear steps help most"],
+    attention_variability: ["steady", "variable", "highly variable", "focus changes sometimes", "focus changes often"],
     calibration_risk: [
       "relatively calibrated",
       "mixed",
       "needs more checking",
+      "confidence usually matches",
+      "confidence is mixed",
+      "check knowledge more often",
+      "test yourself sooner",
+      "trust correct results more",
       "overconfidence risk",
       "underconfidence risk",
     ],
-    mistake_sensitivity: ["low", "moderate", "high", "higher mistake sensitivity"],
-    cognitive_stamina: ["stable", "moderate decline", "fast decline"],
+    mistake_sensitivity: ["low", "moderate", "high", "higher mistake sensitivity", "mistakes feel manageable", "some concern about mistakes", "mistakes can slow you down"],
+    cognitive_stamina: ["stable", "moderate decline", "fast decline", "longer blocks can work", "energy fades over time", "short blocks work best"],
   };
   return supportedStudyProfileValues[key as StudyProfileDimension]?.includes(normalized) === true;
 }
@@ -940,10 +945,10 @@ function partialCalibrationDirection(state: PersonalizationState): StudyProfileC
 }
 
 function calibrationLabel(value: string) {
-  if (value === "overconfidence_risk") return "Overconfidence risk";
-  if (value === "underconfidence_risk") return "Underconfidence risk";
-  if (value === "relatively_calibrated") return "Relatively calibrated";
-  return "Mixed";
+  if (value === "overconfidence_risk") return "Test yourself sooner";
+  if (value === "underconfidence_risk") return "Trust correct results more";
+  if (value === "relatively_calibrated") return "Confidence usually matches";
+  return "Confidence is mixed";
 }
 
 function candidatesAgree(left: Candidate, right: Candidate) {

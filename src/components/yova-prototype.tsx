@@ -4299,7 +4299,7 @@ function personalizationDecisionIsApplied(
   if (signal.source === "observation") return false;
   if (decision.setting === "path_visibility") return decision.value === "one_step";
   if (decision.setting === "knowledge_check") {
-    return /overconfidence|more checking|confident/i.test(signal.value);
+    return /overconfidence|more checking|test yourself sooner|confident/i.test(signal.value);
   }
   return [
     "first_action",

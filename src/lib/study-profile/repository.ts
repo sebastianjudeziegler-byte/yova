@@ -15,7 +15,7 @@ import {
 } from "@/lib/study-profile";
 
 export const STUDY_PROFILE_CONSENT_COPY_VERSION = "study-profile-updates-v1";
-export const STUDY_PROFILE_WAITLIST_CONSENT_COPY_VERSION = "study-profile-waitlist-v1";
+export const STUDY_PROFILE_WAITLIST_CONSENT_COPY_VERSION = "study-profile-waitlist-v2";
 
 export type StudyProfileEmailDeliveryStatus = "pending" | "sent" | "failed" | "skipped";
 
@@ -80,7 +80,7 @@ export class StudyProfilePersistenceUnavailableError extends Error {
 
 export class StudyProfileInterestStateError extends Error {
   constructor() {
-    super("Join the YOVA early-access waitlist before setting beta interest.");
+    super("Join the YOVA waitlist before updating interest preferences.");
     this.name = "StudyProfileInterestStateError";
   }
 }
@@ -90,6 +90,8 @@ type MemoryLead = {
   email: string;
   marketingConsent: boolean;
   waitlistJoined: boolean;
+  waitlistJoinedAt: string | null;
+  waitlistConsentCopyVersion: string | null;
   betaInterest: boolean | null;
 };
 
@@ -142,6 +144,8 @@ export class MemoryStudyProfileRepository implements StudyProfileRepository {
         email,
         marketingConsent: input.marketingConsent,
         waitlistJoined: false,
+        waitlistJoinedAt: null,
+        waitlistConsentCopyVersion: null,
         betaInterest: null,
       };
       this.state.leadsByEmail.set(email, lead);
@@ -190,7 +194,11 @@ export class MemoryStudyProfileRepository implements StudyProfileRepository {
   async joinWaitlist(reportToken: string) {
     const resolved = this.resolveLead(reportToken);
     if (!resolved) return null;
-    resolved.lead.waitlistJoined = true;
+    if (!resolved.lead.waitlistJoined) {
+      resolved.lead.waitlistJoined = true;
+      resolved.lead.waitlistJoinedAt = this.clock.now().toISOString();
+      resolved.lead.waitlistConsentCopyVersion = STUDY_PROFILE_WAITLIST_CONSENT_COPY_VERSION;
+    }
     return {
       waitlistJoined: true,
       betaInterest: resolved.lead.betaInterest,
@@ -276,7 +284,7 @@ class SupabaseStudyProfileRepository implements StudyProfileRepository {
     const supabase = createSupabaseAdminClient();
     const { data: row, error } = await supabase
       .from("study_profile_responses")
-      .select("id, lead_id, profile_model_version, raw_answers, profile_snapshot, report_state, energy_window, school_level, optional_free_response, created_at")
+      .select("id, lead_id, profile_model_version, raw_answers, profile_snapshot, energy_window, school_level, optional_free_response, created_at")
       .eq("report_token_hash", hashStudyProfileReportToken(reportToken))
       .maybeSingle();
     if (error) throw new Error("YOVA could not load this Study Profile report.", { cause: error });
@@ -303,12 +311,9 @@ class SupabaseStudyProfileRepository implements StudyProfileRepository {
       },
       createdAt: row.created_at,
     });
-    const persistedReport = isStudyProfileReport(row.report_state)
-      ? row.report_state
-      : buildStudyProfileReportFromStoredResponse(storedResponse);
     return {
       storedResponse,
-      report: persistedReport,
+      report: buildStudyProfileReportFromStoredResponse(storedResponse),
       waitlistJoined: lead.waitlist_status === "joined",
       betaInterest: typeof lead.beta_interest === "boolean" ? lead.beta_interest : null,
     };
@@ -317,8 +322,23 @@ class SupabaseStudyProfileRepository implements StudyProfileRepository {
   async joinWaitlist(reportToken: string) {
     const resolved = await this.findLeadByToken(reportToken);
     if (!resolved) return null;
+    const supabase = createSupabaseAdminClient();
+    const { data: current, error: currentError } = await supabase
+      .from("study_profile_leads")
+      .select("waitlist_status, beta_interest")
+      .eq("id", resolved.leadId)
+      .maybeSingle();
+    if (currentError) throw new Error("YOVA could not update waitlist signup.", { cause: currentError });
+    if (!current) return null;
+    if (current.waitlist_status === "joined") {
+      return {
+        waitlistJoined: true,
+        betaInterest: typeof current.beta_interest === "boolean" ? current.beta_interest : null,
+      };
+    }
+
     const now = new Date().toISOString();
-    const { data, error } = await createSupabaseAdminClient()
+    const { data, error } = await supabase
       .from("study_profile_leads")
       .update({
         waitlist_status: "joined",
@@ -326,9 +346,23 @@ class SupabaseStudyProfileRepository implements StudyProfileRepository {
         waitlist_consent_copy_version: STUDY_PROFILE_WAITLIST_CONSENT_COPY_VERSION,
       })
       .eq("id", resolved.leadId)
+      .eq("waitlist_status", "not_joined")
       .select("waitlist_status, beta_interest")
-      .single();
-    if (error) throw new Error("YOVA could not update early-access interest.", { cause: error });
+      .maybeSingle();
+    if (error) throw new Error("YOVA could not update waitlist signup.", { cause: error });
+    if (!data) {
+      const { data: joined, error: joinedError } = await supabase
+        .from("study_profile_leads")
+        .select("waitlist_status, beta_interest")
+        .eq("id", resolved.leadId)
+        .maybeSingle();
+      if (joinedError) throw new Error("YOVA could not update waitlist signup.", { cause: joinedError });
+      if (!joined) return null;
+      return {
+        waitlistJoined: joined.waitlist_status === "joined",
+        betaInterest: typeof joined.beta_interest === "boolean" ? joined.beta_interest : null,
+      };
+    }
     return {
       waitlistJoined: data.waitlist_status === "joined",
       betaInterest: typeof data.beta_interest === "boolean" ? data.beta_interest : null,
@@ -464,7 +498,7 @@ function publicMemoryResponse(
 ): SavedStudyProfileResponse {
   return {
     storedResponse: { ...response.storedResponse, reportToken },
-    report: response.report,
+    report: buildStudyProfileReportFromStoredResponse(response.storedResponse),
     waitlistJoined: lead.waitlistJoined,
     betaInterest: lead.betaInterest,
   };
@@ -491,10 +525,4 @@ function readRpcId(value: unknown, field: string) {
     throw new Error("YOVA received an invalid Study Profile persistence response.");
   }
   return id;
-}
-
-function isStudyProfileReport(value: unknown): value is StudyProfileReport {
-  return Boolean(value && typeof value === "object"
-    && (value as { modelVersion?: unknown }).modelVersion === STUDY_PROFILE_MODEL_VERSION
-    && Array.isArray((value as { overview?: unknown }).overview));
 }

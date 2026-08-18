@@ -7,7 +7,6 @@ import {
   validateStudyProfileJsonPostRequest,
 } from "@/lib/study-profile/request-security";
 import {
-  StudyProfileInterestStateError,
   StudyProfilePersistenceUnavailableError,
   getStudyProfileRepository,
 } from "@/lib/study-profile/repository";
@@ -32,7 +31,7 @@ export async function POST(
 
   const rateLimit = checkStudyProfileInterestRateLimit(requestRateLimitKey(request));
   if (!rateLimit.allowed) {
-    return NextResponse.json({ error: "Too many early-access updates were received at once." }, {
+    return NextResponse.json({ error: "Too many waitlist requests were received at once. Wait a moment and try again." }, {
       status: 429,
       headers: {
         "Cache-Control": "no-store",
@@ -48,8 +47,8 @@ export async function POST(
   const body = await readStudyProfileBoundedJson(request, STUDY_PROFILE_INTEREST_MAX_BYTES);
   if (!body.ok) {
     const error = body.reason === "too_large"
-      ? "That early-access update was too large."
-      : "That early-access update was not valid JSON.";
+      ? "That waitlist request was too large."
+      : "That waitlist request was not valid JSON.";
     return NextResponse.json({ error }, {
       status: body.reason === "too_large" ? 413 : 400,
       headers: { "Cache-Control": "no-store" },
@@ -57,7 +56,7 @@ export async function POST(
   }
   const parsed = StudyProfileInterestRequestSchema.safeParse(body.value);
   if (!parsed.success) {
-    return NextResponse.json({ error: "Choose an early-access or beta-testing response." }, {
+    return NextResponse.json({ error: "Choose whether to join the waitlist." }, {
       status: 422,
       headers: { "Cache-Control": "no-store" },
     });
@@ -68,45 +67,31 @@ export async function POST(
     const report = await repository.getReportByToken(token.data);
     if (!report) return notFoundResponse();
 
-    let state = {
-      waitlistJoined: report.waitlistJoined,
-      betaInterest: report.betaInterest,
-    };
-    if (parsed.data.waitlist) {
-      state = await repository.joinWaitlist(token.data) ?? state;
+    const state = await repository.joinWaitlist(token.data);
+    if (!state) return notFoundResponse();
+    if (!state.waitlistJoined) {
+      throw new Error("Study Profile waitlist update did not return a joined state.");
+    }
+    if (!report.waitlistJoined) {
       void repository.recordEvent({
         responseId: report.storedResponse.id,
         eventName: "study_profile_waitlist_joined",
         eventData: {},
       }).catch(() => {});
     }
-    if (typeof parsed.data.betaInterest === "boolean") {
-      state = await repository.setBetaInterest(token.data, parsed.data.betaInterest) ?? state;
-      void repository.recordEvent({
-        responseId: report.storedResponse.id,
-        eventName: "study_profile_beta_interest",
-        eventData: { betaInterested: parsed.data.betaInterest },
-      }).catch(() => {});
-    }
 
-    return NextResponse.json(state, {
+    return NextResponse.json({ waitlistJoined: true }, {
       headers: { "Cache-Control": "no-store" },
     });
   } catch (error) {
-    if (error instanceof StudyProfileInterestStateError) {
-      return NextResponse.json({ error: error.message }, {
-        status: 409,
-        headers: { "Cache-Control": "no-store" },
-      });
-    }
     if (error instanceof StudyProfilePersistenceUnavailableError) {
-      return NextResponse.json({ error: "Early-access updates are temporarily unavailable." }, {
+      return NextResponse.json({ error: "Waitlist signup is temporarily unavailable." }, {
         status: 503,
         headers: { "Cache-Control": "no-store" },
       });
     }
     console.error("Study Profile interest update failed.", safeErrorName(error));
-    return NextResponse.json({ error: "YOVA could not save that early-access choice. Try again." }, {
+    return NextResponse.json({ error: "YOVA could not add you to the waitlist. Try again." }, {
       status: 500,
       headers: { "Cache-Control": "no-store" },
     });

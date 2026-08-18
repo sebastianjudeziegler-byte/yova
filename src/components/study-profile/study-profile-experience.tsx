@@ -51,7 +51,7 @@ import { STUDY_PROFILE_SUPPORT_MAILTO } from "@/lib/public-contact";
 import { StudyProfileReportView } from "./study-profile-report-view";
 import styles from "./study-profile.module.css";
 
-type AssessmentView = "landing" | "question" | "energy" | "school" | "hardest" | "teaser" | "report";
+type AssessmentView = "landing" | "question" | "energy" | "school" | "teaser" | "report";
 
 type Draft = {
   version: typeof STUDY_PROFILE_MODEL_VERSION;
@@ -70,32 +70,31 @@ type SubmissionResult = {
   emailSent?: boolean;
   emailDeliveryQueued?: boolean;
   waitlistJoined?: boolean;
-  betaInterest?: boolean | null;
 };
 
 const DRAFT_STORAGE_KEY = "yova.study-profile.draft.v1";
 
 const ENERGY_OPTIONS: readonly { value: StudyProfileEnergyWindow; label: string; detail: string }[] = [
   { value: "morning", label: "Morning", detail: "Before noon" },
-  { value: "afternoon", label: "Afternoon", detail: "Roughly noon–5pm" },
-  { value: "evening", label: "Evening", detail: "Roughly 5–10pm" },
+  { value: "afternoon", label: "Afternoon", detail: "Roughly noon to 5 PM" },
+  { value: "evening", label: "Evening", detail: "Roughly 5 to 10 PM" },
   { value: "late_night", label: "Late night", detail: "After 10pm" },
   { value: "varies", label: "It varies", detail: "No consistent window" },
 ] as const;
 
 const SCHOOL_OPTIONS: readonly { value: StudyProfileSchoolLevel; label: string; detail: string }[] = [
-  { value: "high_school", label: "High school", detail: "Grades 9–12 or equivalent" },
+  { value: "high_school", label: "High school", detail: "Grades 9 to 12 or equivalent" },
   { value: "college", label: "College", detail: "Undergraduate or graduate" },
   { value: "other", label: "Other", detail: "Another learning path" },
 ] as const;
 
 const PREVIEW_DIMENSIONS = [
-  ["Starting friction", "High", 3],
-  ["Structure need", "High-structure", 3],
-  ["Attention variability", "Variable", 2],
-  ["Confidence calibration", "Mixed", 2],
-  ["Mistake sensitivity", "Moderate", 2],
-  ["Cognitive stamina", "Stable", 1],
+  ["Getting started", "Hard to begin", 3],
+  ["Planning and structure", "Clear steps help", 3],
+  ["Staying focused", "Changes sometimes", 2],
+  ["Checking what you know", "Mixed", 2],
+  ["Handling mistakes", "Some concern", 2],
+  ["Mental energy", "Longer blocks can work", 1],
 ] as const;
 
 export function StudyProfileExperience() {
@@ -104,7 +103,6 @@ export function StudyProfileExperience() {
   const [answers, setAnswers] = useState<Partial<StudyProfileAnswers>>({});
   const [metadata, setMetadata] = useState<Partial<StudyProfileMetadata>>({});
   const [email, setEmail] = useState("");
-  const [marketingConsent, setMarketingConsent] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submissionError, setSubmissionError] = useState<string | null>(null);
   const [submissionResult, setSubmissionResult] = useState<SubmissionResult | null>(null);
@@ -190,7 +188,7 @@ export function StudyProfileExperience() {
 
   const teaserReport = useMemo(() => {
     if (!completedAnswers) return null;
-    return buildStudyProfileReport(scoreStudyProfile(completedAnswers), metadata);
+    return buildStudyProfileReport(scoreStudyProfile(completedAnswers), metadata, completedAnswers);
   }, [completedAnswers, metadata]);
 
   function startQuiz() {
@@ -221,11 +219,7 @@ export function StudyProfileExperience() {
 
   function selectSchool(value: StudyProfileSchoolLevel) {
     setMetadata((current) => ({ ...current, schoolLevel: value }));
-    setView("hardest");
-  }
-
-  function completeAssessment() {
-    if (!completedAnswers || !metadata.energyWindow || !metadata.schoolLevel) return;
+    if (!completedAnswers || !metadata.energyWindow) return;
     setView("teaser");
     if (!completionTrackedRef.current) {
       completionTrackedRef.current = true;
@@ -244,10 +238,8 @@ export function StudyProfileExperience() {
       setView("question");
     } else if (view === "school") {
       setView("energy");
-    } else if (view === "hardest") {
-      setView("school");
     } else if (view === "teaser") {
-      setView("hardest");
+      setView("school");
     }
   }
 
@@ -259,7 +251,6 @@ export function StudyProfileExperience() {
     setMetadata({});
     setCurrentQuestion(0);
     setEmail("");
-    setMarketingConsent(false);
     setSubmissionError(null);
     setSubmissionResult(null);
     completionTrackedRef.current = false;
@@ -291,9 +282,9 @@ export function StudyProfileExperience() {
           metadata: {
             energyWindow: metadata.energyWindow,
             schoolLevel: metadata.schoolLevel,
-            hardestPart: metadata.hardestPart?.trim() || null,
+            hardestPart: null,
           },
-          marketingConsent,
+          marketingConsent: false,
           attribution: attributionRef.current,
         }),
       });
@@ -341,7 +332,6 @@ export function StudyProfileExperience() {
         reportToken={submissionResult.reportToken}
         emailDelivery={resolveEmailDelivery(submissionResult)}
         initialWaitlistJoined={submissionResult.waitlistJoined}
-        initialBetaInterest={submissionResult.betaInterest}
         autoFocusHeading
       />
     );
@@ -402,9 +392,9 @@ export function StudyProfileExperience() {
           {view === "energy" && (
             <MetadataScreen
               headingRef={headingRef}
-              eyebrow="Profile context · 1 of 3"
+              eyebrow="Profile context · 1 of 2"
               title="When are you usually strongest for demanding schoolwork?"
-              supporting="Choose the window when difficult thinking tends to feel most usable."
+              supporting="Choose the time when you can focus best on hard work."
             >
               <div className={styles.metadataOptions}>
                 {ENERGY_OPTIONS.map((option) => (
@@ -427,9 +417,9 @@ export function StudyProfileExperience() {
           {view === "school" && (
             <MetadataScreen
               headingRef={headingRef}
-              eyebrow="Profile context · 2 of 3"
+              eyebrow="Profile context · 2 of 2"
               title="What best describes you?"
-              supporting="This gives us context for the report. It does not change your core scores."
+              supporting="This lets us use examples that fit your setting. It does not change your quiz results."
             >
               <div className={styles.metadataOptions}>
                 {SCHOOL_OPTIONS.map((option) => (
@@ -449,54 +439,27 @@ export function StudyProfileExperience() {
             </MetadataScreen>
           )}
 
-          {view === "hardest" && (
-            <MetadataScreen
-              headingRef={headingRef}
-              eyebrow="Profile context · 3 of 3 · Optional"
-              title="What is the hardest part of studying for you right now?"
-              supporting="A sentence is plenty. You can also skip this without changing your profile."
-            >
-              <label className={styles.textareaField}>
-                <span className={styles.srOnly}>Hardest part of studying</span>
-                <textarea
-                  maxLength={600}
-                  rows={5}
-                  value={metadata.hardestPart ?? ""}
-                  onChange={(event) => setMetadata((current) => ({
-                    ...current,
-                    hardestPart: event.target.value,
-                  }))}
-                  placeholder="For example: I know what I should do, but I keep putting off the first step."
-                />
-                <small>{metadata.hardestPart?.length ?? 0}/600</small>
-              </label>
-              <button type="button" className={styles.primaryButton} onClick={completeAssessment}>
-                See my initial result <ArrowRight size={17} aria-hidden="true" />
-              </button>
-            </MetadataScreen>
-          )}
-
           {view === "teaser" && teaserReport && (
             <section className={styles.teaserScreen}>
               <div className={styles.readyMark} aria-hidden="true"><Check size={26} /></div>
               <span className={styles.sectionEyebrow}>Assessment complete</span>
               <h1 ref={headingRef} tabIndex={-1}>Your YOVA Study Profile is ready.</h1>
               <p className={styles.teaserIntro}>
-                Your answers produced a real profile. Here is the clearest signal before you unlock the full report.
+                Here is your top result. Enter your email to see the full report and methods to try.
               </p>
 
               <div className={styles.teaserPattern}>
                 <div>
-                  <span>Your clearest pattern</span>
+                  <span>Your top result</span>
                   <h2>{teaserReport.primaryPattern.name}</h2>
                 </div>
                 <strong>{teaserReport.primaryPattern.label}</strong>
               </div>
 
               <div className={styles.unlockList} aria-label="Full report includes">
-                <span><CheckCircle2 size={17} aria-hidden="true" /> How your six tendencies connect</span>
-                <span><CheckCircle2 size={17} aria-hidden="true" /> A personalized study protocol</span>
-                <span><CheckCircle2 size={17} aria-hidden="true" /> How YOVA would adapt around you</span>
+                <span><CheckCircle2 size={17} aria-hidden="true" /> What is helping and getting in your way</span>
+                <span><CheckCircle2 size={17} aria-hidden="true" /> Study methods matched to your answers</span>
+                <span><CheckCircle2 size={17} aria-hidden="true" /> A routine for your next study session</span>
               </div>
 
               <form className={styles.emailGate} onSubmit={submitEmail} aria-busy={isSubmitting}>
@@ -521,21 +484,10 @@ export function StudyProfileExperience() {
                   We’ll use this to save and send your report. No account or password required.
                 </p>
 
-                <label className={styles.consentCheckbox}>
-                  <input
-                    type="checkbox"
-                    checked={marketingConsent}
-                    onChange={(event) => setMarketingConsent(event.target.checked)}
-                  />
-                  <span>
-                    Also email me occasional YOVA launch and early-access updates. Optional; unsubscribe any time.
-                  </span>
-                </label>
-
                 {submissionError && <p className={styles.formError} role="alert">{submissionError}</p>}
 
                 <button type="submit" className={styles.primaryButton} disabled={isSubmitting || !email.trim()}>
-                  {isSubmitting ? "Building your report…" : "Get my full report"}
+                  {isSubmitting ? "Building your report..." : "Get my full report"}
                   {!isSubmitting && <ArrowRight size={17} aria-hidden="true" />}
                 </button>
                 <span className={styles.srOnly} role="status" aria-live="polite">
@@ -572,21 +524,21 @@ function StudyProfileLanding({ onStart }: { onStart: () => void }) {
         <section className={styles.landingHero}>
           <div className={styles.heroCopy}>
             <span className={styles.heroEyebrow}><BarChart3 size={15} aria-hidden="true" /> YOVA Study Profile</span>
-            <h1>Why doesn’t studying work the same way for everyone?</h1>
+            <h1>Find study methods that fit how you actually work.</h1>
             <p>
-              Take YOVA’s 3-minute Study Profile to uncover the tendencies shaping how you start,
-              focus, and follow through—then see how your study system should adapt to you.
+              Answer 12 questions and get clear ways to start sooner, stay focused, remember more,
+              and use your study time better.
             </p>
             <div className={styles.heroActions}>
               <button type="button" className={styles.primaryButton} onClick={onStart}>
-                Find my study profile <ArrowRight size={18} aria-hidden="true" />
+                Get my recommendations <ArrowRight size={18} aria-hidden="true" />
               </button>
               <span><Clock3 size={16} aria-hidden="true" /> 12 questions · about 3 minutes</span>
             </div>
             <div className={styles.heroTrust}>
-              <span><Check size={14} aria-hidden="true" /> Personalized web report</span>
+              <span><Check size={14} aria-hidden="true" /> Practical study recommendations</span>
               <span><Check size={14} aria-hidden="true" /> No account required</span>
-              <span><ShieldCheck size={14} aria-hidden="true" /> Research-informed, non-clinical</span>
+              <span><ShieldCheck size={14} aria-hidden="true" /> Based on learning research</span>
             </div>
           </div>
 
@@ -596,15 +548,15 @@ function StudyProfileLanding({ onStart }: { onStart: () => void }) {
               <span>Illustrative preview</span>
             </div>
             <div className={styles.previewHeader}>
-              <span>Your initial YOVA Study Profile</span>
-              <h2>A study system built around the learner.</h2>
-              <p>Six signals shape the first set of adaptations.</p>
+              <span>Your YOVA Study Profile</span>
+              <h2>A study plan you can use today.</h2>
+              <p>See what to change and why.</p>
             </div>
             <div className={styles.previewPrimary}>
               <div><Target size={18} aria-hidden="true" /></div>
-              <span>Primary pattern</span>
-              <strong>Starting Friction · High</strong>
-              <p>Make the first action smaller, more concrete, and easier to begin.</p>
+              <span>Main opportunity</span>
+              <strong>Getting Started: Hard to begin</strong>
+              <p>Use a five minute start and choose the first action before the session.</p>
             </div>
             <div className={styles.previewDimensions}>
               {PREVIEW_DIMENSIONS.map(([name, label, range]) => (
@@ -621,50 +573,49 @@ function StudyProfileLanding({ onStart }: { onStart: () => void }) {
             </div>
             <div className={styles.previewFooter}>
               <Zap size={17} aria-hidden="true" />
-              <span><strong>Try this today</strong> Start with one pre-decided 10-minute block.</span>
+              <span><strong>Try this today</strong> Start with one planned 10 minute block.</span>
             </div>
           </div>
         </section>
 
         <section className={styles.personFirstSection} aria-labelledby="person-first-heading">
           <div className={styles.personFirstIntro}>
-            <span className={styles.sectionEyebrow}>The person changes the plan</span>
-            <h2 id="person-first-heading">The same exam shouldn’t create the same study experience.</h2>
+            <span className={styles.sectionEyebrow}>Your habits should shape your plan</span>
+            <h2 id="person-first-heading">The right study plan depends on how you work.</h2>
             <p>
-              YOVA starts with the learner: their starting patterns, need for structure, attention,
-              response to mistakes, confidence, and usable energy.
+              YOVA looks at how you begin, plan, focus, check your knowledge, handle mistakes,
+              and use your mental energy.
             </p>
           </div>
           <div className={styles.proofGrid}>
             <article>
               <span><Focus size={20} aria-hidden="true" /></span>
-              <h3>See your current patterns</h3>
-              <p>A useful, cautious read of six study-behavior signals—not a fixed personality type.</p>
+              <h3>See what is helping or slowing you down</h3>
+              <p>Your results describe current study habits. This is not a personality test.</p>
             </article>
             <article>
               <span><SlidersHorizontal size={20} aria-hidden="true" /></span>
-              <h3>Get specific adaptations</h3>
-              <p>See what to change about starting, structure, focus, retrieval, mistakes, and timing.</p>
+              <h3>Get methods you can try today</h3>
+              <p>Follow exact steps for active recall, spaced practice, planning, focus, mistakes, and timing.</p>
             </article>
             <article>
               <span><Eye size={20} aria-hidden="true" /></span>
-              <h3>Preview the YOVA difference</h3>
-              <p>The quiz learns from what you tell us. YOVA is being built to learn from what you do.</p>
+              <h3>Start with a real session plan</h3>
+              <p>See a suggested block length, break, start routine, checking rule, and stopping point.</p>
             </article>
           </div>
           <button type="button" className={styles.secondaryCta} onClick={onStart}>
-            Find my study profile <ArrowRight size={17} aria-hidden="true" />
+            Get my recommendations <ArrowRight size={17} aria-hidden="true" />
           </button>
         </section>
 
         <section className={styles.researchStrip} aria-label="Study Profile methodology summary">
           <SearchCheck size={23} aria-hidden="true" />
           <div>
-            <strong>Built with scientific restraint.</strong>
+            <strong>Based on learning research.</strong>
             <p>
-              Recommendations are informed by learning, self-regulation, metacognition, attention,
-              avoidance, and study-behavior research. This is an initial profile—not a medical,
-              neurological, or psychological diagnosis.
+              Recommendations draw on research about learning, practice, attention, planning, and
+              study habits. This is not a medical, neurological, or psychological diagnosis.
             </p>
           </div>
         </section>
@@ -672,7 +623,7 @@ function StudyProfileLanding({ onStart }: { onStart: () => void }) {
 
       <footer className={styles.publicFooter}>
         <BrandMark compact />
-        <p>© {new Date().getFullYear()} YOVA · Your study system should adapt to you.</p>
+        <p>© {new Date().getFullYear()} YOVA. Your study system should adapt to you.</p>
         <nav aria-label="Legal">
           <Link href="/privacy">Privacy</Link>
           <Link href="/terms">Terms</Link>
@@ -699,7 +650,7 @@ function QuestionScreen({
     <section className={styles.questionScreen} aria-labelledby="current-question">
       <span className={styles.questionKicker}>Question {question.number} of {STUDY_PROFILE_QUESTIONS.length}</span>
       <h1 id="current-question" ref={headingRef} tabIndex={-1}>{question.prompt}</h1>
-      <p className={styles.questionHint}>Choose the answer that is most often true—not the one that feels ideal.</p>
+      <p className={styles.questionHint}>Choose what is usually true for you, even if it is not ideal.</p>
       <div className={styles.answerList} role="radiogroup" aria-label={`Answers for question ${question.number}`}>
         {question.options.map((option, optionIndex) => (
           <button
@@ -718,7 +669,7 @@ function QuestionScreen({
           </button>
         ))}
       </div>
-      <p className={styles.keyboardHint}>Keyboard: press 1–4, A–D, or use arrow keys to choose</p>
+      <p className={styles.keyboardHint}>Keyboard: press 1 to 4, A to D, or use arrow keys to choose</p>
     </section>
   );
 }
@@ -749,11 +700,10 @@ function MetadataScreen({
 function resolveAssessmentStep(view: AssessmentView, currentQuestion: number) {
   if (view === "question") {
     const question = Math.min(currentQuestion + 1, STUDY_PROFILE_QUESTIONS.length);
-    return { label: `Question ${question} of ${STUDY_PROFILE_QUESTIONS.length}`, percent: Math.round((question / 15) * 100) };
+    return { label: `Question ${question} of ${STUDY_PROFILE_QUESTIONS.length}`, percent: Math.round((question / 14) * 100) };
   }
-  if (view === "energy") return { label: "Profile context · 1 of 3", percent: 87 };
-  if (view === "school") return { label: "Profile context · 2 of 3", percent: 93 };
-  if (view === "hardest") return { label: "Profile context · 3 of 3", percent: 97 };
+  if (view === "energy") return { label: "Profile context · 1 of 2", percent: 93 };
+  if (view === "school") return { label: "Profile context · 2 of 2", percent: 97 };
   return { label: "Assessment complete", percent: 100 };
 }
 
@@ -766,7 +716,7 @@ function toCompletedAnswers(answers: Partial<StudyProfileAnswers>): StudyProfile
 }
 
 function isDraftView(value: unknown): value is Draft["view"] {
-  return value === "question" || value === "energy" || value === "school" || value === "hardest" || value === "teaser";
+  return value === "question" || value === "energy" || value === "school" || value === "teaser";
 }
 
 function isAnswerDraft(value: unknown): value is Partial<StudyProfileAnswers> {
@@ -796,8 +746,11 @@ function readStudyProfileDraft(): Partial<Draft> | null {
   try {
     const saved = window.localStorage.getItem(DRAFT_STORAGE_KEY);
     if (!saved) return null;
-    const draft = JSON.parse(saved) as Partial<Draft>;
-    if (draft.version === STUDY_PROFILE_MODEL_VERSION && isDraftView(draft.view)) return draft;
+    const raw = JSON.parse(saved) as Record<string, unknown>;
+    const view = raw.view === "hardest" ? "teaser" : raw.view;
+    if (raw.version === STUDY_PROFILE_MODEL_VERSION && isDraftView(view)) {
+      return { ...raw, view } as Partial<Draft>;
+    }
     clearStudyProfileDraft();
   } catch {
     clearStudyProfileDraft();

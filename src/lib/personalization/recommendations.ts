@@ -110,7 +110,7 @@ export function buildPersonalizationRecommendations({
   ));
   if (
     behaviorEnabled
-    && /overconfidence/i.test(calibrationSignal?.value ?? "")
+    && /overconfidence|test yourself sooner/i.test(calibrationSignal?.value ?? "")
     && (calibration.pattern === "possible_misconception" || calibration.pattern === "mixed")
   ) {
     recommendations.push({
@@ -124,7 +124,7 @@ export function buildPersonalizationRecommendations({
     });
   } else if (
     behaviorEnabled
-    && /underconfidence/i.test(calibrationSignal?.value ?? "")
+    && /underconfidence|trust correct results/i.test(calibrationSignal?.value ?? "")
     && calibration.pattern === "underestimated_knowledge"
   ) {
     recommendations.push({

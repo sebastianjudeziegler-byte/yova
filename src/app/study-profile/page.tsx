@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import { StudyProfileExperience } from "@/components/study-profile/study-profile-experience";
 
-const title = "YOVA Study Profile · Discover How Your Study System Should Adapt";
-const description = "Take YOVA’s free 3-minute Study Profile and get an initial personalized report on how you start, focus, and follow through.";
+const title = "YOVA Study Profile | Get practical study recommendations";
+const description = "Answer 12 questions and get study methods matched to how you work.";
 
 export const metadata: Metadata = {
   title,
@@ -21,7 +21,7 @@ export const metadata: Metadata = {
       url: "/yova-study-profile-social.png",
       width: 1731,
       height: 909,
-      alt: "YOVA Study Profile — Your study system should adapt to you.",
+      alt: "YOVA Study Profile: practical study recommendations based on your answers.",
     }],
   },
   twitter: {

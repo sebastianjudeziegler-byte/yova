@@ -62,7 +62,7 @@ export async function POST(request: Request) {
     // Scores and report modules are always recomputed from validated answers on
     // the server. The API deliberately accepts no client-computed profile data.
     const snapshot = scoreStudyProfile(parsed.data.answers);
-    const report = buildStudyProfileReport(snapshot, parsed.data.metadata);
+    const report = buildStudyProfileReport(snapshot, parsed.data.metadata, parsed.data.answers);
     const repository = getStudyProfileRepository();
     const saved = await repository.saveResponse({
       email: parsed.data.email,
@@ -108,7 +108,6 @@ export async function POST(request: Request) {
       storedResponse: toStudyProfilePublicStoredResponse(saved.storedResponse),
       report: saved.report,
       waitlistJoined: saved.waitlistJoined,
-      betaInterest: saved.betaInterest,
       emailDelivery,
     }, {
       status: 201,

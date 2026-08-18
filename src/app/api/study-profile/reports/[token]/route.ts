@@ -47,8 +47,9 @@ export async function GET(
     });
 
     return NextResponse.json({
-      ...saved,
       storedResponse: toStudyProfilePublicStoredResponse(saved.storedResponse),
+      report: saved.report,
+      waitlistJoined: saved.waitlistJoined,
     }, {
       headers: { "Cache-Control": "no-store" },
     });

@@ -13,7 +13,6 @@ export const STUDY_PROFILE_EVENT_NAMES = [
   "study_profile_email_submitted",
   "study_profile_report_viewed",
   "study_profile_waitlist_joined",
-  "study_profile_beta_interest",
 ] as const;
 
 export const StudyProfileEventNameSchema = z.enum(STUDY_PROFILE_EVENT_NAMES);
@@ -108,13 +107,6 @@ export const StudyProfileAnalyticsEventSchema = z.discriminatedUnion("eventName"
     eventName: z.literal("study_profile_waitlist_joined"),
     context: EmptyContextSchema,
   }).strict(),
-  z.object({
-    ...BaseEventShape,
-    eventName: z.literal("study_profile_beta_interest"),
-    context: z.object({
-      betaInterested: z.boolean(),
-    }).strict(),
-  }).strict(),
 ]);
 
 // Name the request schema explicitly for route handlers while retaining the
@@ -136,5 +128,4 @@ export type StudyProfileEventProperties = {
   study_profile_email_submitted: Record<string, never>;
   study_profile_report_viewed: Record<string, never>;
   study_profile_waitlist_joined: Record<string, never>;
-  study_profile_beta_interest: { betaInterested: boolean };
 };

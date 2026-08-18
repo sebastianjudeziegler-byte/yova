@@ -64,12 +64,12 @@ export function buildStudyProfileReportEmail(
   return {
     subject: EMAIL_SUBJECT,
     text: [
-      "Your initial YOVA Study Profile is ready.",
+      "Your YOVA Study Profile is ready.",
       "",
-      "Your strongest current pattern:",
-      `${patternName} — ${patternLabel}`,
+      "Your top result:",
+      `${patternName}: ${patternLabel}`,
       "",
-      "We built your report around the patterns in your answers.",
+      "Your report includes study methods and a session plan based on your answers.",
       "",
       `View My Study Profile: ${reportUrl}`,
       "",
@@ -78,7 +78,7 @@ export function buildStudyProfileReportEmail(
     html: `<!doctype html>
 <html lang="en">
   <body style="margin:0;background:#f8fafc;color:#172033;font-family:Inter,Arial,sans-serif;">
-    <div style="display:none;max-height:0;overflow:hidden;opacity:0;">Your initial YOVA Study Profile is ready.</div>
+    <div style="display:none;max-height:0;overflow:hidden;opacity:0;">Your YOVA Study Profile is ready.</div>
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc;padding:32px 16px;">
       <tr>
         <td align="center">
@@ -87,10 +87,10 @@ export function buildStudyProfileReportEmail(
               <td style="padding:32px;">
                 <div style="font-family:Sora,Inter,Arial,sans-serif;font-size:20px;font-weight:800;letter-spacing:-0.03em;color:#5b4bff;">YOVA</div>
                 <h1 style="margin:28px 0 12px;font-family:Sora,Inter,Arial,sans-serif;font-size:26px;line-height:1.25;letter-spacing:-0.03em;color:#172033;">Your Study Profile is ready.</h1>
-                <p style="margin:0 0 24px;font-size:16px;line-height:1.65;color:#5f6b7a;">We built your initial report around the patterns in your answers.</p>
+                <p style="margin:0 0 24px;font-size:16px;line-height:1.65;color:#5f6b7a;">Your report includes study methods and a session plan based on your answers.</p>
                 <div style="margin:0 0 28px;padding:18px 20px;background:#f3f1ff;border-radius:14px;">
-                  <div style="margin-bottom:6px;font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#6957d9;">Your strongest current pattern</div>
-                  <div style="font-size:18px;line-height:1.45;font-weight:750;color:#172033;">${safePatternName} — ${safePatternLabel}</div>
+                  <div style="margin-bottom:6px;font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#6957d9;">Your top result</div>
+                  <div style="font-size:18px;line-height:1.45;font-weight:750;color:#172033;">${safePatternName}: ${safePatternLabel}</div>
                 </div>
                 <a href="${safeReportUrl}" style="display:inline-block;padding:14px 20px;background:#5b4bff;border-radius:12px;color:#ffffff;text-decoration:none;font-size:15px;font-weight:750;">View My Study Profile</a>
                 <p style="margin:24px 0 0;font-size:13px;line-height:1.6;color:#7a8494;">Keep this link private. It opens your report without asking you to sign in.</p>

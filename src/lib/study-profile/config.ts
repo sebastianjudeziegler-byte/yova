@@ -29,53 +29,54 @@ export const STUDY_PROFILE_SALIENCE_ORDER: readonly StudyProfileDimension[] = [
 ];
 
 export const STUDY_PROFILE_DIMENSION_NAMES: Record<StudyProfileDimension, string> = {
-  starting_friction: "Starting Friction",
-  structure_need: "Structure Need",
-  attention_variability: "Attention Variability",
-  calibration_risk: "Confidence Calibration",
-  mistake_sensitivity: "Mistake Sensitivity",
-  cognitive_stamina: "Cognitive Stamina",
+  starting_friction: "Getting Started",
+  structure_need: "Planning and Structure",
+  attention_variability: "Staying Focused",
+  calibration_risk: "Checking What You Know",
+  mistake_sensitivity: "Handling Mistakes",
+  cognitive_stamina: "Mental Energy",
 };
 
 export const STUDY_PROFILE_REPORT_SECTION_HEADINGS = {
-  overview: "Your initial YOVA Study Profile",
-  primaryPattern: "Your strongest pattern",
-  secondaryPattern: "Your second strongest pattern",
-  interactions: "How your patterns interact",
-  adaptations: "How your study system should adapt",
-  warnings: "What may work against you",
-  productPreview: "What YOVA would do differently for you",
+  overview: "What your answers show",
+  methods: "Study methods to try",
+  primaryPattern: "Your main opportunity",
+  secondaryPattern: "Another area to work on",
+  interactions: "How these habits affect each other",
+  adaptations: "Set up your study sessions this way",
+  warnings: "Common traps to avoid",
+  productPreview: "How YOVA can help",
 } as const;
 
 export const STUDY_PROFILE_USER_FACING_LABELS = {
   starting_friction: {
-    low: "Low",
-    moderate: "Moderate",
-    high: "High",
+    low: "Usually easy to begin",
+    moderate: "Some trouble beginning",
+    high: "Hard to begin",
   },
   structure_need: {
     low: "Flexible",
     moderate: "Balanced",
-    high: "High-structure",
+    high: "Clear steps help most",
   },
   attention_variability: {
     low: "Steady",
-    moderate: "Variable",
-    high: "Highly variable",
+    moderate: "Focus changes sometimes",
+    high: "Focus changes often",
   },
   calibration_risk: {
-    low: "Relatively calibrated",
-    moderate: "Mixed",
-    high: "Needs more checking",
+    low: "Confidence usually matches",
+    moderate: "Confidence is mixed",
+    high: "Check knowledge more often",
   },
   mistake_sensitivity: {
-    low: "Low",
-    moderate: "Moderate",
-    high: "High",
+    low: "Mistakes feel manageable",
+    moderate: "Some concern about mistakes",
+    high: "Mistakes can slow you down",
   },
   cognitive_stamina: {
-    low: "Stable",
-    moderate: "Moderate decline",
-    high: "Fast decline",
+    low: "Longer blocks can work",
+    moderate: "Energy fades over time",
+    high: "Short blocks work best",
   },
 } as const;

@@ -30,7 +30,7 @@ describe("Study Profile interaction routing", () => {
 
     expect(interactions.map(({ id }) => id)).toContain("autonomy_low_friction_structure");
     expect(interactions.find(({ id }) => id === "autonomy_low_friction_structure")?.actions)
-      .toContain("Use broad objectives instead of micromanaged steps.");
+      .toContain("Use broad goals instead of a detailed checklist.");
   });
 
   it("orders simultaneous interactions by deterministic priority", () => {

@@ -17,7 +17,7 @@ export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Your Study Profile · YOVA",
-  description: "Your private initial YOVA Study Profile report.",
+  description: "Your private YOVA Study Profile report and practical study recommendations.",
   alternates: { canonical: "/study-profile" },
   robots: { index: false, follow: false, noarchive: true, nosnippet: true },
   referrer: "no-referrer",
@@ -71,7 +71,6 @@ export default async function StudyProfileReportPage({
       report={loaded.saved.report}
       reportToken={token.data}
       initialWaitlistJoined={loaded.saved.waitlistJoined}
-      initialBetaInterest={loaded.saved.betaInterest}
     />
   );
 }

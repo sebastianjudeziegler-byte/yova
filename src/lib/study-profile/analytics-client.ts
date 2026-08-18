@@ -136,7 +136,7 @@ export function captureStudyProfileAttribution(): StudyProfileAnalyticsAttributi
 }
 
 type PropertyArguments<Name extends StudyProfileEventName> =
-  Name extends "study_profile_question_answered" | "study_profile_beta_interest"
+  Name extends "study_profile_question_answered"
     ? [properties: StudyProfileEventProperties[Name]]
     : [properties?: StudyProfileEventProperties[Name]];
 

@@ -404,18 +404,23 @@ function isSupportedRuntimeCorrection(key: string, value: string) {
 
   const normalized = value.toLowerCase();
   const supportedStudyProfileValues: Partial<Record<StudyProfileDimension, readonly string[]>> = {
-    starting_friction: ["low", "moderate", "high", "higher starting friction"],
-    structure_need: ["flexible", "balanced", "high-structure"],
-    attention_variability: ["steady", "variable", "highly variable"],
+    starting_friction: ["low", "moderate", "high", "higher starting friction", "usually easy to begin", "some trouble beginning", "hard to begin"],
+    structure_need: ["flexible", "balanced", "high-structure", "clear steps help most"],
+    attention_variability: ["steady", "variable", "highly variable", "focus changes sometimes", "focus changes often"],
     calibration_risk: [
       "relatively calibrated",
       "mixed",
       "needs more checking",
+      "confidence usually matches",
+      "confidence is mixed",
+      "check knowledge more often",
+      "test yourself sooner",
+      "trust correct results more",
       "overconfidence risk",
       "underconfidence risk",
     ],
-    mistake_sensitivity: ["low", "moderate", "high", "higher mistake sensitivity"],
-    cognitive_stamina: ["stable", "moderate decline", "fast decline"],
+    mistake_sensitivity: ["low", "moderate", "high", "higher mistake sensitivity", "mistakes feel manageable", "some concern about mistakes", "mistakes can slow you down"],
+    cognitive_stamina: ["stable", "moderate decline", "fast decline", "longer blocks can work", "energy fades over time", "short blocks work best"],
   };
   return supportedStudyProfileValues[key as StudyProfileDimension]?.includes(normalized) === true;
 }
