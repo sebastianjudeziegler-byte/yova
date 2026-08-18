@@ -45,6 +45,22 @@ export function checkFounderInviteRateLimit(key: string) {
   return checkRateLimit(`founder-invite:${key}`, 5);
 }
 
+export function checkStudyProfileSubmissionRateLimit(key: string) {
+  return checkRateLimit(`study-profile-submit:${key}`, 8);
+}
+
+export function checkStudyProfileReportRateLimit(key: string) {
+  return checkRateLimit(`study-profile-report:${key}`, 60);
+}
+
+export function checkStudyProfileInterestRateLimit(key: string) {
+  return checkRateLimit(`study-profile-interest:${key}`, 20);
+}
+
+export function checkStudyProfileEventRateLimit(key: string) {
+  return checkRateLimit(`study-profile-event:${key}`, 120);
+}
+
 function checkRateLimit(key: string, maxRequests: number) {
   const now = Date.now();
   const existing = records.get(key);

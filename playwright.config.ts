@@ -40,6 +40,8 @@ export default defineConfig({
       NEXT_PUBLIC_SUPABASE_URL: passwordAuthMode ? `${baseURL}/supabase-test` : "",
       NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: passwordAuthMode ? "sb_publishable_e2e_password_auth" : "",
       OPENAI_API_KEY: "",
+      RESEND_API_KEY: "",
+      STUDY_PROFILE_FROM_EMAIL: "",
       AUTH_EMAIL_CODE_VERIFICATION: passwordAuthMode ? "true" : "false",
       AUTH_INVITE_ONLY: "false",
       AUTH_PASSWORD_ACCOUNTS: passwordAuthMode ? "true" : "false",

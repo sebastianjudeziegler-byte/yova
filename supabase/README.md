@@ -13,8 +13,9 @@ The database currently stores:
 - privacy-safe product funnel events
 - privacy-safe technical error reports with no study content or stack traces
 - private support requests linked to the signed-in tester
+- public Study Profile leads, versioned responses, private report state, and privacy-bounded funnel events
 
-Row Level Security checks the signed-in user on every user-owned table. The browser receives only the project URL and publishable key; an administrator key is not used by the application.
+Row Level Security checks the signed-in user on every user-owned table. The public Study Profile tables expose no browser policies; validated server routes access them with the server-only Supabase secret key. The browser receives only the project URL and publishable key.
 
 Useful checks:
 
