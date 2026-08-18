@@ -47,6 +47,7 @@ import {
   type StudyProfileReport,
   type StudyProfileSchoolLevel,
 } from "@/lib/study-profile";
+import { STUDY_PROFILE_SUPPORT_MAILTO } from "@/lib/public-contact";
 import { StudyProfileReportView } from "./study-profile-report-view";
 import styles from "./study-profile.module.css";
 
@@ -675,7 +676,7 @@ function StudyProfileLanding({ onStart }: { onStart: () => void }) {
         <nav aria-label="Legal">
           <Link href="/privacy">Privacy</Link>
           <Link href="/terms">Terms</Link>
-          <Link href="/support">Support</Link>
+          <a href={STUDY_PROFILE_SUPPORT_MAILTO}>Email support</a>
         </nav>
       </footer>
     </div>

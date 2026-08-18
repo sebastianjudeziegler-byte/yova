@@ -1,6 +1,8 @@
 import { expect, test, type Page } from "@playwright/test";
 
 const DRAFT_STORAGE_KEY = "yova.study-profile.draft.v1";
+const STUDY_PROFILE_SUPPORT_MAILTO = "mailto:hello@yovaapp.com?subject=YOVA%20Study%20Profile%20support";
+const PRIVACY_REQUEST_MAILTO = "mailto:hello@yovaapp.com?subject=YOVA%20privacy%20or%20deletion%20request";
 
 test.describe("YOVA Study Profile", () => {
   test("creates a private report that survives refresh and records early-access interest", async ({ page }) => {
@@ -131,6 +133,17 @@ test.describe("YOVA Study Profile", () => {
     await expect(page.getByRole("heading", { name: "That report link isn't available." })).toBeVisible();
     await expect(page.getByRole("link", { name: "Take the Study Profile" })).toBeVisible();
     await expect(page.locator("body")).not.toContainText(unknownToken);
+  });
+
+  test("routes public Study Profile support and privacy requests to hello@yovaapp.com", async ({ page }) => {
+    await page.goto("/study-profile");
+    await expect(page.getByRole("link", { name: "Email support" }))
+      .toHaveAttribute("href", STUDY_PROFILE_SUPPORT_MAILTO);
+
+    await page.goto("/privacy");
+    const privacyContact = page.getByRole("link", { name: "hello@yovaapp.com" });
+    await expect(privacyContact).toHaveAttribute("href", PRIVACY_REQUEST_MAILTO);
+    await expect(page.getByText("YOVA privacy or deletion request", { exact: false })).toBeVisible();
   });
 
   test("keeps the landing and one-question assessment layouts within narrow viewports", async ({ browser }, testInfo) => {
