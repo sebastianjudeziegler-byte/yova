@@ -18,6 +18,10 @@ test("makes account personalization visible, editable, persistent, and mobile-sa
 
   await expect(page.getByRole("heading", { name: "Your YOVA account" })).toBeVisible();
   await expect(page.getByText("Browser preview", { exact: true })).toBeVisible();
+  await expect(page.getByText("Browser preview data", { exact: true })).toBeVisible();
+  await expect(page.getByText(/does not create a cloud account archive/i)).toBeVisible();
+  await expect(page.getByRole("button", { name: "Download my YOVA data" })).toHaveCount(0);
+  await expect(page.locator('a[download^="yova-data-"]')).toHaveCount(0);
   await expect(page.getByRole("link", { name: "Set or change password" })).toHaveCount(0);
 
   await page.getByRole("button", { name: "Edit first name" }).click();
@@ -39,6 +43,16 @@ test("makes account personalization visible, editable, persistent, and mobile-sa
     scrollWidth: element.scrollWidth,
   }));
   expect(overflow.scrollWidth).toBeLessThanOrEqual(overflow.clientWidth + 1);
+});
+
+test("explains the self-service export scope and the downloaded-copy boundary", async ({ page }) => {
+  await page.goto("/privacy");
+
+  await expect(page.getByRole("heading", { name: "4. Your controls" })).toBeVisible();
+  await expect(page.getByText(/Download my YOVA data.*portable JSON copy/)).toBeVisible();
+  await expect(page.getByText(/sanitized service-usage counters/)).toBeVisible();
+  await expect(page.getByText(/not the original uploaded files/)).toBeVisible();
+  await expect(page.getByText(/resetting or deleting data in YOVA cannot remove that downloaded copy/)).toBeVisible();
 });
 
 test("clears signed-in UI after confirmed sign-out even when preview storage removal throws", async ({ page }) => {

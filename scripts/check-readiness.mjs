@@ -24,6 +24,7 @@ function isHttpUrl(value, requireHttps = false) {
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY?.trim();
 const supabaseSecretKey = process.env.SUPABASE_SECRET_KEY?.trim();
+const cronSecret = process.env.CRON_SECRET ?? "";
 const openAIKey = process.env.OPENAI_API_KEY?.trim();
 const siteUrl = process.env.SITE_URL?.trim();
 const vercelUrl = process.env.VERCEL_PROJECT_PRODUCTION_URL?.trim()
@@ -69,6 +70,13 @@ if (production) {
     "Founder invitation secret",
     Boolean(supabaseSecretKey && supabaseSecretKey.length >= 20),
     supabaseSecretKey ? "configured without exposing its value" : "missing SUPABASE_SECRET_KEY",
+  );
+  addCheck(
+    "Account-export cleanup secret",
+    cronSecret.length >= 32 && cronSecret === cronSecret.trim(),
+    cronSecret.length >= 32 && cronSecret === cronSecret.trim()
+      ? "configured without exposing its value"
+      : "missing, short, or surrounded by whitespace in CRON_SECRET",
   );
   if (passwordAccounts) {
     addCheck(

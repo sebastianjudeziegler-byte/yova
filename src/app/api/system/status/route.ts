@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { isAccountExportCleanupConfigured } from "@/lib/account-export/config";
 import { isOpenAIPlanConfigured, isOpenAISessionConfigured, isOpenAITutorConfigured } from "@/lib/openai/config";
 import { createSupabaseAdminClient, isSupabaseAdminConfigured } from "@/lib/supabase/admin";
 import { getSupabasePublicConfig, isSupabaseConfigured } from "@/lib/supabase/config";
@@ -33,6 +34,7 @@ export async function GET() {
     passwordAccounts: passwordAccountsEnabled ? "enabled" : "disabled",
     captchaClient,
     publicSignup: authSettings.signup,
+    accountDataExport: isAccountExportCleanupConfigured() ? "enabled" : "unavailable",
   }, {
     headers: { "Cache-Control": "no-store" },
   });

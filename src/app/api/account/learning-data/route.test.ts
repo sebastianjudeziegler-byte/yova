@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
 
 const USER_ID = "11111111-1111-4111-8111-111111111111";
+const EXPORT_ID = "22222222-2222-4222-8222-222222222222";
 
 const mocks = vi.hoisted(() => ({
   createClient: vi.fn(),
@@ -13,10 +14,19 @@ const mocks = vi.hoisted(() => ({
   storageFrom: vi.fn(),
   remove: vi.fn(),
   rpc: vi.fn(),
+  isAdminConfigured: vi.fn(),
+  createAdmin: vi.fn(),
+  adminStorageFrom: vi.fn(),
+  adminRemove: vi.fn(),
 }));
 
 vi.mock("@/lib/supabase/server", () => ({
   createSupabaseServerClient: mocks.createClient,
+}));
+
+vi.mock("@/lib/supabase/admin", () => ({
+  isSupabaseAdminConfigured: mocks.isAdminConfigured,
+  createSupabaseAdminClient: mocks.createAdmin,
 }));
 
 import { DELETE } from "@/app/api/account/learning-data/route";
@@ -34,7 +44,13 @@ describe("learning-data reset route", () => {
     }));
     mocks.remove.mockReset().mockResolvedValue({ data: [], error: null });
     mocks.storageFrom.mockReset().mockReturnValue({ remove: mocks.remove });
-    mocks.rpc.mockReset().mockResolvedValue({ data: null, error: null });
+    mocks.rpc.mockReset().mockResolvedValue({ data: { accountExportPaths: [] }, error: null });
+    mocks.isAdminConfigured.mockReset().mockReturnValue(true);
+    mocks.adminRemove.mockReset().mockResolvedValue({ data: [], error: null });
+    mocks.adminStorageFrom.mockReset().mockReturnValue({ remove: mocks.adminRemove });
+    mocks.createAdmin.mockReset().mockReturnValue({
+      storage: { from: mocks.adminStorageFrom },
+    });
     mocks.createClient.mockReset().mockResolvedValue({
       auth: { getUser: mocks.getUser },
       from: mocks.from,
@@ -127,12 +143,84 @@ describe("learning-data reset route", () => {
   });
 
   it("does not call storage when the account has no uploaded files", async () => {
+    mocks.isAdminConfigured.mockReturnValue(false);
+
     const response = await DELETE(resetRequest());
 
     expect(response.status).toBe(204);
     expect(await response.text()).toBe("");
     expect(mocks.storageFrom).not.toHaveBeenCalled();
     expect(mocks.remove).not.toHaveBeenCalled();
+    expect(mocks.createAdmin).not.toHaveBeenCalled();
+    expect(mocks.rpc).toHaveBeenCalledWith("reset_yova_learning_data");
+  });
+
+  it("removes every exact account-export path returned by the atomic reset", async () => {
+    const paths = [
+      `${USER_ID}/${EXPORT_ID}/device-state.json`,
+      `${USER_ID}/${EXPORT_ID}/yova-data.json`,
+    ];
+    mocks.rpc.mockResolvedValue({ data: { accountExportPaths: paths }, error: null });
+
+    const response = await DELETE(resetRequest());
+
+    expect(response.status).toBe(204);
+    expect(mocks.adminStorageFrom).toHaveBeenCalledWith("account-exports");
+    expect(mocks.adminRemove).toHaveBeenCalledWith(paths);
+  });
+
+  it("commits local clearing after reset while ignoring a foreign or non-derived export path", async () => {
+    mocks.rpc.mockResolvedValue({
+      data: { accountExportPaths: [`33333333-3333-4333-8333-333333333333/${EXPORT_ID}/yova-data.json`] },
+      error: null,
+    });
+
+    const response = await DELETE(resetRequest());
+
+    expect(response.status).toBe(204);
+    expect(mocks.createAdmin).not.toHaveBeenCalled();
+    expect(mocks.adminRemove).not.toHaveBeenCalled();
+  });
+
+  it("returns success so local data clears while cancelled export rows wait for configured cleanup", async () => {
+    mocks.rpc.mockResolvedValue({
+      data: { accountExportPaths: [`${USER_ID}/${EXPORT_ID}/yova-data.json`] },
+      error: null,
+    });
+    mocks.isAdminConfigured.mockReturnValue(false);
+
+    const response = await DELETE(resetRequest());
+
+    expect(response.status).toBe(204);
+    expect(mocks.createAdmin).not.toHaveBeenCalled();
+  });
+
+  it("returns success after commit when export Storage needs the leased cleanup retry", async () => {
+    mocks.rpc.mockResolvedValue({
+      data: { accountExportPaths: [`${USER_ID}/${EXPORT_ID}/yova-data.json`] },
+      error: null,
+    });
+    mocks.adminRemove.mockResolvedValue({ data: null, error: { message: "storage unavailable" } });
+
+    const response = await DELETE(resetRequest());
+
+    expect(response.status).toBe(204);
+    expect(mocks.adminRemove).toHaveBeenCalledOnce();
+    expect(mocks.rpc).toHaveBeenCalledWith("reset_yova_learning_data");
+  });
+
+  it("still clears local data when post-commit admin initialization throws", async () => {
+    mocks.rpc.mockResolvedValue({
+      data: { accountExportPaths: [`${USER_ID}/${EXPORT_ID}/yova-data.json`] },
+      error: null,
+    });
+    mocks.createAdmin.mockImplementation(() => {
+      throw new Error("secret unavailable");
+    });
+
+    const response = await DELETE(resetRequest());
+
+    expect(response.status).toBe(204);
     expect(mocks.rpc).toHaveBeenCalledWith("reset_yova_learning_data");
   });
 

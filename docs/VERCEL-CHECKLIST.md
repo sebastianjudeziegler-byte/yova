@@ -15,6 +15,7 @@ AUTH_PASSWORD_ACCOUNTS
 AUTH_CAPTCHA_ENABLED
 NEXT_PUBLIC_TURNSTILE_SITE_KEY
 SUPABASE_SECRET_KEY
+CRON_SECRET
 OPENAI_API_KEY
 OPENAI_PLAN_MODEL
 OPENAI_SESSION_MODEL
@@ -23,6 +24,8 @@ SITE_URL
 ```
 
 `SITE_URL` should be the final public `https://` address with no path. The OpenAI key must never be named `NEXT_PUBLIC_OPENAI_API_KEY`; that prefix would expose it to browsers.
+
+`CRON_SECRET` must be a Production-only random value of at least 32 characters. Vercel uses it as the Bearer credential for the private account-export cleanup route. Do not enable account-data downloads in an environment where this secret, `SUPABASE_SECRET_KEY`, or scheduled functions are unavailable.
 
 Keep `AUTH_EMAIL_CODE_VERIFICATION` set to `false` until custom SMTP is active and the Supabase Magic link or OTP template displays `{{ .Token }}`. Then set it to `true` and redeploy.
 
@@ -43,6 +46,12 @@ OPENAI_LESSON_MODEL=gpt-5.6-sol
 After adding or changing variables, redeploy the latest Git commit. A deployment that happened before the variables were added does not automatically gain them.
 
 YOVA deliberately fails closed in production when Supabase or OpenAI is missing. Localhost can still use preview mode, but a public deployment shows a setup screen instead of pretending that browser-only data is a durable account.
+
+### Account-data export release order
+
+Apply `supabase/migrations/202608170003_account_data_export.sql` to Production before deploying code that exposes **Download my YOVA data**. The migration creates the private bucket, account-bound export RPCs, durable quotas, Reset integration, and leased cleanup functions the route requires. Stale code fails safely after this migration; new code deployed before it cannot prepare a download.
+
+Then set the Production `CRON_SECRET` and confirm the Vercel plan runs the `*/15 * * * *` cron in `vercel.json`. Deploy the application only after both are ready. During release verification, create one test export, confirm its signed link expires after five minutes, and confirm the private artifact is cleanup-eligible after 40 minutes. The 15-minute schedule bounds normal Storage deletion to about 55 minutes; cleanup receipts remain longer only to enforce the daily quota and contain no exported study content.
 
 ## 2. Configure Supabase redirect URLs
 

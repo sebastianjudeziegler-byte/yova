@@ -90,6 +90,32 @@ export function pendingSessionCompletionCount(userId: string) {
   return loadAllPendingCompletions().filter((entry) => entry.userId === userId).length;
 }
 
+/** Returns only validated entries for the requested account. */
+export function loadQueuedSessionCompletions(userId: string) {
+  return loadAllPendingCompletions().filter((entry) => entry.userId === userId);
+}
+
+/** Fail-closed reader used by the portable current-device export. */
+export function readQueuedSessionCompletionsForExport(userId: string):
+  | { ok: true; value: PendingSessionCompletion[] }
+  | { ok: false } {
+  if (typeof window === "undefined") return { ok: false };
+  try {
+    const stored = window.localStorage.getItem(STORAGE_KEY);
+    if (!stored) return { ok: true, value: [] };
+    const parsed: unknown = JSON.parse(stored);
+    if (!Array.isArray(parsed) || parsed.length > 25) return { ok: false };
+    const validated = parsed.map((entry) => PendingSessionCompletionSchema.safeParse(entry));
+    if (validated.some((entry) => !entry.success)) return { ok: false };
+    return {
+      ok: true,
+      value: validated.flatMap((entry) => entry.success && entry.data.userId === userId ? [entry.data] : []),
+    };
+  } catch {
+    return { ok: false };
+  }
+}
+
 /**
  * A queued completion is a durable local terminal marker. Startup uses these
  * session ids to suppress an older cloud recovery point until the completion

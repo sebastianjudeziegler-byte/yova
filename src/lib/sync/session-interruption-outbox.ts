@@ -55,6 +55,32 @@ export function clearQueuedSessionInterruptions(userId: string) {
   return savePendingInterruptions(loadAllPendingInterruptions().filter((entry) => entry.userId !== userId));
 }
 
+/** Returns only validated entries for the requested account. */
+export function loadQueuedSessionInterruptions(userId: string) {
+  return loadAllPendingInterruptions().filter((entry) => entry.userId === userId);
+}
+
+/** Fail-closed reader used by the portable current-device export. */
+export function readQueuedSessionInterruptionsForExport(userId: string):
+  | { ok: true; value: PendingSessionInterruption[] }
+  | { ok: false } {
+  if (typeof window === "undefined") return { ok: false };
+  try {
+    const stored = window.localStorage.getItem(STORAGE_KEY);
+    if (!stored) return { ok: true, value: [] };
+    const parsed: unknown = JSON.parse(stored);
+    if (!Array.isArray(parsed) || parsed.length > 25) return { ok: false };
+    const validated = parsed.map((entry) => PendingSessionInterruptionSchema.safeParse(entry));
+    if (validated.some((entry) => !entry.success)) return { ok: false };
+    return {
+      ok: true,
+      value: validated.flatMap((entry) => entry.success && entry.data.userId === userId ? [entry.data] : []),
+    };
+  } catch {
+    return { ok: false };
+  }
+}
+
 /**
  * A queued explicit Exit is a durable local terminal marker. It must win over
  * an older cloud checkpoint so reconnecting cannot reopen already-exited work.

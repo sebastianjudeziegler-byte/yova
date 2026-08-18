@@ -50,6 +50,7 @@ describe("system status tester-access readiness", () => {
     vi.stubEnv("AUTH_PASSWORD_ACCOUNTS", "false");
     vi.stubEnv("AUTH_CAPTCHA_ENABLED", "false");
     vi.stubEnv("NEXT_PUBLIC_TURNSTILE_SITE_KEY", "");
+    vi.stubEnv("CRON_SECRET", "cron-secret-that-is-at-least-thirty-two-characters");
   });
 
   it("reports invite readiness only when storage and the Supabase signup policy are ready", async () => {
@@ -63,6 +64,7 @@ describe("system status tester-access readiness", () => {
       passwordAccounts: "disabled",
       captchaClient: "disabled",
       publicSignup: "disabled",
+      accountDataExport: "enabled",
     });
     expect(status).not.toHaveProperty("supabasePublishableKey");
     expect(mocks.settingsFetch).toHaveBeenCalledWith(
@@ -133,5 +135,14 @@ describe("system status tester-access readiness", () => {
 
     const status = await (await GET()).json();
     expect(status.captchaClient).toBe("misconfigured");
+  });
+
+  it("reports account-data export unavailable without both cleanup credentials", async () => {
+    vi.stubEnv("CRON_SECRET", "short");
+    expect((await (await GET()).json()).accountDataExport).toBe("unavailable");
+
+    vi.stubEnv("CRON_SECRET", "cron-secret-that-is-at-least-thirty-two-characters");
+    mocks.adminConfigured = false;
+    expect((await (await GET()).json()).accountDataExport).toBe("unavailable");
   });
 });
