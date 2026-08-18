@@ -97,6 +97,7 @@ export const GenerationObservationSchema = z.object({
     ]).optional(),
     lessonAction: z.enum(["skip_to_practice"]).optional(),
     lessonRequestId: z.string().uuid().optional(),
+    recoveryMode: z.enum(["safe_study"]).optional(),
   }).strict().optional(),
 }).strict();
 

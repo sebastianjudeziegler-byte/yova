@@ -47,6 +47,7 @@ describe("privacySafeErrorDiagnostic", () => {
         attempts: 3,
         failedValidator: "session_semantic_validation",
         repairReason: "semantic_validation",
+        recoveryMode: "safe_study",
         repairDetail: "The learner wrote a private answer here.",
       },
     });
@@ -59,6 +60,7 @@ describe("privacySafeErrorDiagnostic", () => {
       attempts: 3,
       failedValidator: "session_semantic_validation",
       repairReason: "semantic_validation",
+      recoveryMode: "safe_study",
     });
     expect(JSON.stringify(diagnostic)).not.toContain("private answer");
   });

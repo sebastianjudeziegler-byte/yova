@@ -766,6 +766,7 @@ function responseHeaders(requestId: string, stats?: SessionGenerationStats) {
       "X-Yova-Generation-Ms": String(stats.elapsedMs),
       "X-Yova-Generation-Attempts": String(stats.attempts),
       "X-Yova-Prompt-Cache-Hit": String(stats.cachedInputTokens > 0),
+      ...(stats.recoveryMode ? { "X-Yova-Generation-Recovery": stats.recoveryMode.replaceAll("_", "-") } : {}),
     } : {}),
   };
 }
@@ -823,6 +824,7 @@ function observationFromSessionStats(
     cacheWriteTokens: stats.cacheWriteTokens,
     outputTokens: stats.outputTokens,
     model,
+    ...(stats.recoveryMode ? { diagnostics: { recoveryMode: stats.recoveryMode } } : {}),
   };
 }
 
@@ -840,6 +842,7 @@ function logSuccessfulGeneration(
     attempts: stats.attempts,
     repairAttempted: stats.repairAttempted,
     repairReason: stats.repairReason,
+    recoveryMode: stats.recoveryMode ?? "none",
     ...(process.env.NODE_ENV === "development" ? { repairDetail: stats.repairDetail } : {}),
     inputTokens: stats.inputTokens,
     cachedInputTokens: stats.cachedInputTokens,

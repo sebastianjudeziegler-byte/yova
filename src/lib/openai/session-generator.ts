@@ -210,6 +210,7 @@ export type SessionGenerationStats = {
   cachedInputTokens: number;
   cacheWriteTokens: number;
   outputTokens: number;
+  recoveryMode?: "safe_study";
 };
 
 export class SessionGenerationFailure extends Error {
@@ -513,6 +514,7 @@ export async function generateSessionWithOpenAI(
   let repairReason: SessionGenerationStats["repairReason"] = "none";
   let repairDetail: string | null = null;
   let firstSemanticValidator: GenerationValidator | null = null;
+  let safeStudyRecoveryAttempted = false;
   try {
     response = await requestDraft(null);
   } catch (error) {
@@ -553,18 +555,17 @@ export async function generateSessionWithOpenAI(
       ? `${repairDetail.slice(0, 900)} Follow-up repair failure: ${followupRepairDetail.slice(0, 700)}`
       : followupRepairDetail;
 
-    const safeStudyRecovery = repairReason === "semantic_validation" && semanticIssue
-      ? await generateSafeStudyRecoveryAttempt({
-        context,
-        routing: learningScienceRouting,
-        deliveryPolicy: sessionDeliveryPolicy,
-        observedMethodOutcomes,
-        conceptReviewSchedule,
-        scaffoldProgression,
-        practiceVariation,
-        model: config.model,
-      })
-      : null;
+    const safeStudyRecovery = await generateSafeStudyRecoveryAttempt({
+      context,
+      routing: learningScienceRouting,
+      deliveryPolicy: sessionDeliveryPolicy,
+      observedMethodOutcomes,
+      conceptReviewSchedule,
+      scaffoldProgression,
+      practiceVariation,
+      model: config.model,
+    });
+    safeStudyRecoveryAttempted = safeStudyRecovery !== null;
     if (safeStudyRecovery) {
       usage.attempts += safeStudyRecovery.usage.attempts;
       usage.inputTokens += safeStudyRecovery.usage.inputTokens;
@@ -590,15 +591,19 @@ export async function generateSessionWithOpenAI(
             elapsedMs: Date.now() - generationStartedAt,
             attempts: usage.attempts,
             firstAttemptPassed: false,
-            failedValidator: firstSemanticValidator ?? semanticIssue?.failedValidator ?? "session_semantic_validation",
+            failedValidator: failedValidatorForRepair(
+              repairReason,
+              firstSemanticValidator ?? semanticIssue?.failedValidator,
+            ),
             repairAttempted: true,
             repairSucceeded: true,
-            repairReason: "semantic_validation",
+            repairReason,
             repairDetail: `${repairDetail.slice(0, 1_200)} Safe study recovery passed the complete validator.`,
             inputTokens: usage.inputTokens,
             cachedInputTokens: usage.cachedInputTokens,
             cacheWriteTokens: usage.cacheWriteTokens,
             outputTokens: usage.outputTokens,
+            recoveryMode: "safe_study",
           },
         };
       }
@@ -638,6 +643,7 @@ export async function generateSessionWithOpenAI(
         cachedInputTokens: usage.cachedInputTokens,
         cacheWriteTokens: usage.cacheWriteTokens,
         outputTokens: usage.outputTokens,
+        ...(safeStudyRecoveryAttempted ? { recoveryMode: "safe_study" as const } : {}),
       },
     );
   }
@@ -685,6 +691,15 @@ export async function generateSessionWithOpenAI(
       outputTokens: usage.outputTokens,
     },
   };
+}
+
+function failedValidatorForRepair(
+  repairReason: SessionGenerationStats["repairReason"],
+  semanticValidator: GenerationValidator | null | undefined,
+): GenerationValidator {
+  if (repairReason === "incomplete_response") return "session_response_status";
+  if (repairReason === "structured_output") return "session_structure";
+  return semanticValidator ?? "session_semantic_validation";
 }
 
 type SafeStudyRecoveryGroup = {
