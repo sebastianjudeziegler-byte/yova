@@ -36,6 +36,10 @@ import {
   LEARNER_ANSWER_COUNT,
   mergeStoredAdditionalContext,
 } from "@/lib/personalization/learner-profile";
+import {
+  onboardingAnswerId,
+  onboardingAnswerLabel,
+} from "@/lib/sample-data";
 import { readSessionResourceFromStepData } from "@/lib/session-generation/resource";
 import { resolveSessionArchitectureVersion } from "@/lib/session-generation/architecture";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -707,15 +711,15 @@ async function persistAuthenticatedLearnerProfile(
       expectedAccountId: input.accountId,
       displayName: input.displayName.trim(),
       onboardingCompletedAt: new Date().toISOString(),
-      commonBlocker: input.onboardingAnswers[0] ?? "",
-      guidancePreference: input.onboardingAnswers[1] ?? "",
+      commonBlocker: onboardingAnswerId(0, input.onboardingAnswers[0]) ?? input.onboardingAnswers[0] ?? "",
+      guidancePreference: onboardingAnswerId(1, input.onboardingAnswers[1]) ?? input.onboardingAnswers[1] ?? "",
       preferredSessionMin,
       preferredSessionMax,
-      explanationPreference: input.onboardingAnswers[3] ?? "",
-      focusFrequency: input.onboardingAnswers[4] ?? "",
-      startingPattern: input.onboardingAnswers[5] ?? "",
-      energyWindow: input.onboardingAnswers[6] ?? "",
-      primaryImprovementGoal: input.onboardingAnswers[7] ?? "",
+      explanationPreference: onboardingAnswerId(3, input.onboardingAnswers[3]) ?? input.onboardingAnswers[3] ?? "",
+      focusFrequency: onboardingAnswerId(4, input.onboardingAnswers[4]) ?? input.onboardingAnswers[4] ?? "",
+      startingPattern: onboardingAnswerId(5, input.onboardingAnswers[5]) ?? input.onboardingAnswers[5] ?? "",
+      energyWindow: onboardingAnswerId(6, input.onboardingAnswers[6]) ?? input.onboardingAnswers[6] ?? "",
+      primaryImprovementGoal: onboardingAnswerId(7, input.onboardingAnswers[7]) ?? input.onboardingAnswers[7] ?? "",
       additionalContext: encodeAdditionalLearnerContext(input.onboardingAnswers),
     },
   });
@@ -832,22 +836,26 @@ function learnerProfileToAnswers(profile: LearnerProfileRow | null) {
   const answers = Array.from({ length: LEARNER_ANSWER_COUNT }, () => "");
   if (!profile) return answers;
 
-  answers[0] = profile.common_blocker ?? "";
-  answers[1] = profile.guidance_preference ?? "";
-  answers[2] = formatSessionRange(profile.preferred_session_min, profile.preferred_session_max);
-  answers[3] = profile.explanation_preference ?? "";
-  answers[4] = profile.focus_frequency ?? "";
-  answers[5] = profile.starting_pattern ?? "";
-  answers[6] = profile.energy_window ?? "";
-  answers[7] = profile.primary_improvement_goal ?? "";
+  answers[0] = onboardingAnswerId(0, profile.common_blocker) ?? profile.common_blocker ?? "";
+  answers[1] = onboardingAnswerId(1, profile.guidance_preference) ?? profile.guidance_preference ?? "";
+  answers[2] = onboardingAnswerId(
+    2,
+    formatSessionRange(profile.preferred_session_min, profile.preferred_session_max),
+  ) ?? "";
+  answers[3] = onboardingAnswerId(3, profile.explanation_preference) ?? profile.explanation_preference ?? "";
+  answers[4] = onboardingAnswerId(4, profile.focus_frequency) ?? profile.focus_frequency ?? "";
+  answers[5] = onboardingAnswerId(5, profile.starting_pattern) ?? profile.starting_pattern ?? "";
+  answers[6] = onboardingAnswerId(6, profile.energy_window) ?? profile.energy_window ?? "";
+  answers[7] = onboardingAnswerId(7, profile.primary_improvement_goal) ?? profile.primary_improvement_goal ?? "";
   // Functional support context is restored from additional_context. Older
   // diagnosis-style answers were never stored there and are not migrated.
   return mergeStoredAdditionalContext(answers, profile.additional_context);
 }
 
 function parseSessionRange(answer?: string): [number | null, number | null] {
-  if (!answer) return [null, null];
-  const values = answer.match(/\d+/g)?.map(Number) ?? [];
+  const label = onboardingAnswerLabel(2, answer);
+  if (!label) return [null, null];
+  const values = label.match(/\d+/g)?.map(Number) ?? [];
   if (values.length < 2) return [null, null];
   return [values[0], values[1]];
 }

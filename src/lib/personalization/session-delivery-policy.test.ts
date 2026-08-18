@@ -1,17 +1,121 @@
 import { describe, expect, it } from "vitest";
+import type { PersonalizationDecision } from "@/lib/personalization/personalization-evidence";
+import {
+  PERSONALIZATION_DECISION_CHANNELS,
+  type PersonalizationDecisionSetting,
+} from "@/lib/personalization/personalization-decision";
 import {
   buildLessonDeliveryInstructions,
   buildSessionDeliveryPolicy,
   buildStatedPreferenceLessonDelivery,
+  SessionDeliveryPolicySchema,
   validateSessionDeliveryPolicy,
 } from "@/lib/personalization/session-delivery-policy";
 
 type DeliveryInput = Parameters<typeof buildSessionDeliveryPolicy>[0];
+type DeliveryPolicyDecisionSetting = {
+  [Setting in PersonalizationDecisionSetting]:
+    (typeof PERSONALIZATION_DECISION_CHANNELS)[Setting]["channel"] extends "delivery_policy"
+      ? Setting
+      : never;
+}[PersonalizationDecisionSetting];
 
 const noResults: DeliveryInput["recentResults"] = [];
 const noInterruptions: DeliveryInput["recentInterruptions"] = [];
 
 describe("session delivery policy", () => {
+  it("applies every delivery-policy decision to its declared field", () => {
+    const examples = {
+      first_action: "small_active_start",
+      path_visibility: "current_and_next",
+      activity_cadence: "short_active_rounds",
+      knowledge_check: "closed_note_first",
+      confidence_check: "show_success_evidence",
+      attempt_safety: "private_revisable_attempt",
+      block_length: "shorter_rounds",
+      presentation: "overview_first",
+      retention: "transfer",
+      first_repair: "hint_first",
+      layout: "one_step",
+    } as const satisfies Record<DeliveryPolicyDecisionSetting, string>;
+    const baseline = buildSessionDeliveryPolicy({
+      learnerProfile: null,
+      recentResults: noResults,
+      recentInterruptions: noInterruptions,
+      learningMode: "learn",
+      estimatedMinutes: 30,
+    });
+
+    for (const [setting, value] of Object.entries(examples) as Array<
+      [keyof typeof examples, (typeof examples)[keyof typeof examples]]
+    >) {
+      const route = PERSONALIZATION_DECISION_CHANNELS[setting];
+      expect(route.channel).toBe("delivery_policy");
+      if (route.channel !== "delivery_policy") continue;
+      const personalized = buildSessionDeliveryPolicy({
+        learnerProfile: null,
+        recentResults: noResults,
+        recentInterruptions: noInterruptions,
+        learningMode: "learn",
+        estimatedMinutes: 30,
+        personalizationDecisions: [personalizationDecision(setting, value)],
+      });
+
+      expect(
+        personalized[route.deliveryPolicyField],
+        `${setting} must change ${route.deliveryPolicyField}`,
+      ).not.toEqual(baseline[route.deliveryPolicyField]);
+    }
+  });
+
+  it("does not send visual decisions through the lesson delivery policy", () => {
+    const baseline = buildSessionDeliveryPolicy({
+      learnerProfile: null,
+      recentResults: noResults,
+      recentInterruptions: noInterruptions,
+      learningMode: "learn",
+      estimatedMinutes: 30,
+    });
+    const withVisualDecisions = buildSessionDeliveryPolicy({
+      learnerProfile: null,
+      recentResults: noResults,
+      recentInterruptions: noInterruptions,
+      learningMode: "learn",
+      estimatedMinutes: 30,
+      personalizationDecisions: [
+        personalizationDecision("text_density", "reduced"),
+        personalizationDecision("motion", "reduced"),
+        personalizationDecision("visual_structure", "more"),
+        personalizationDecision("check_ins", "more"),
+      ],
+    });
+
+    expect(withVisualDecisions).toEqual(baseline);
+  });
+
+  it("fills the new teaching channels when reading a legacy policy", () => {
+    const policy = buildSessionDeliveryPolicy({
+      learnerProfile: null,
+      recentResults: noResults,
+      recentInterruptions: noInterruptions,
+      learningMode: "learn",
+      estimatedMinutes: 30,
+    });
+    const legacyPolicy = Object.fromEntries(
+      Object.entries(policy).filter(([key]) => ![
+        "activityCadence",
+        "attemptSafety",
+        "knowledgeCheck",
+      ].includes(key)),
+    );
+
+    expect(SessionDeliveryPolicySchema.parse(legacyPolicy)).toMatchObject({
+      activityCadence: { mode: "task_aligned" },
+      attemptSafety: { mode: "task_aligned" },
+      knowledgeCheck: { mode: "task_aligned" },
+    });
+  });
+
   it("keeps streamed lesson delivery bounded to explicit learner preferences", () => {
     const learnerProfile = {
       processingPreference: "A concrete example before the rule",
@@ -338,3 +442,21 @@ describe("session delivery policy", () => {
     expect(issue).toContain("no more than 5 minutes");
   });
 });
+
+function personalizationDecision(
+  setting: PersonalizationDecisionSetting,
+  value: string,
+): PersonalizationDecision {
+  return {
+    id: `decision:test:${setting}`,
+    artifact: "method_delivery",
+    setting,
+    value,
+    title: `Use ${value.replaceAll("_", " ")}`,
+    explanation: `Apply ${value.replaceAll("_", " ")} to this session while preserving the learning target.`,
+    signalIds: [`signal:test:${setting}`],
+    evidenceLabel: "You told YOVA",
+    methodCandidates: [],
+    experimental: false,
+  };
+}

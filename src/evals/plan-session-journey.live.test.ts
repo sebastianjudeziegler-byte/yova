@@ -92,7 +92,7 @@ function onboardingAnswersFor(profileSummary: string): string[] {
   const answers = Array.from({ length: 16 }, () => "");
   answers[0] = "Large or unclear tasks are hard to start";
   answers[1] = "Give me clear structure";
-  answers[3] = "One concrete example first";
+  answers[3] = "concrete_example";
   answers[4] = "I use short focused sessions";
   answers[5] = "I start more consistently with a small first action";
   answers[7] = "Understand first, then retain it";

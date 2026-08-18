@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  DEEP_PROFILE_QUESTIONS,
+  deepProfileAnswerId,
   deepProfileAnswerCount,
   encodeAdditionalLearnerContext,
   expandedLearnerContextFromAnswers,
@@ -21,9 +23,73 @@ import {
   STUDY_PROFILE_QUESTION_IDS,
   type StudyProfileAnswers,
 } from "@/lib/study-profile/types";
+import {
+  onboardingAnswerId,
+  onboardingAnswerLabel,
+  onboardingQuestions,
+} from "@/lib/sample-data";
 
 describe("expanded learner profile", () => {
-  it("round-trips deeper answers through the existing additional-context field", () => {
+  it("uses stable onboarding option IDs as the source of truth", () => {
+    onboardingQuestions.forEach((question, questionIndex) => {
+      expect(new Set(question.options.map((option) => option.id)).size)
+        .toBe(question.options.length);
+      question.options.forEach((option) => {
+        expect(onboardingAnswerId(questionIndex, option.id)).toBe(option.id);
+        expect(onboardingAnswerLabel(questionIndex, option.id)).toBe(option.label);
+        expect(onboardingAnswerId(questionIndex, option.label)).toBe(option.id);
+      });
+    });
+
+    expect(onboardingAnswerId(3, "I feel confident with one concrete example first"))
+      .toBeNull();
+  });
+
+  it("keeps legacy labels at storage boundaries while exposing stable option IDs", () => {
+    expect(DEEP_PROFILE_QUESTIONS.map((question) => (
+      question.options.map((option) => option.label)
+    ))).toEqual([
+      [
+        "A concrete example before the rule",
+        "The big picture before the details",
+        "A clear sequence of small steps",
+        "Trying it before seeing an explanation",
+        "Comparing similar ideas side by side",
+        "It depends on the task",
+      ],
+      [
+        "I recognize it but cannot recall it",
+        "I forget it after a few days",
+        "I confuse similar ideas",
+        "I understand it but cannot apply it",
+        "I can do it with help but not independently",
+        "It depends on the topic",
+      ],
+      [
+        "Give me a small hint first",
+        "Show me a different example",
+        "Explain the mistake directly",
+        "Break it into smaller steps",
+        "Let me try again without help",
+        "It depends on the task",
+      ],
+      [
+        "Show one step at a time",
+        "Keep the full path visible",
+        "Give me choices and let me decide",
+        "Use the least guidance that works",
+        "It depends on the session",
+      ],
+    ]);
+    expect(deepProfileAnswerId(10, "A concrete example before the rule"))
+      .toBe("concrete_example");
+    expect(deepProfileAnswerId(11, "I recognize it but cannot recall it"))
+      .toBe("recognition_without_recall");
+    expect(deepProfileAnswerId(11, "I confidently cannot recall it"))
+      .toBeNull();
+  });
+
+  it("migrates legacy deeper-answer labels to stable IDs in additional context", () => {
     const answers = Array.from({ length: LEARNER_ANSWER_COUNT }, () => "");
     answers[8] = "Less text and more visual structure";
     answers[9] = "I need to understand why a formula works.";
@@ -38,8 +104,14 @@ describe("expanded learner profile", () => {
     const restored = mergeStoredAdditionalContext([], stored);
 
     expect(restored[9]).toBe(answers[9]);
-    expect(restored[8]).toBe(answers[8]);
-    expect(restored.slice(10, 16)).toEqual(answers.slice(10, 16));
+    expect(restored[8]).toBe("reduced_text_visual_structure");
+    expect(restored.slice(10, 14)).toEqual([
+      "concrete_example",
+      "application_gap",
+      "hint_first",
+      "one_step",
+    ]);
+    expect(restored.slice(14, 16)).toEqual(answers.slice(14, 16));
     expect(deepProfileAnswerCount(restored)).toBe(5);
   });
 
@@ -76,7 +148,7 @@ describe("expanded learner profile", () => {
     const restored = mergeStoredAdditionalContext([], stored);
 
     expect(restored).toHaveLength(LEARNER_ANSWER_COUNT);
-    expect(restored[10]).toBe("The big picture before the details");
+    expect(restored[10]).toBe("big_picture");
     expect(restored[PERSONALIZATION_STATE_ANSWER_INDEX]).toBe("");
   });
 

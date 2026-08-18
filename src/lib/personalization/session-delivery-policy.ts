@@ -1,6 +1,27 @@
 import { z } from "zod";
 import type { SessionLearningMode } from "@/lib/domain";
 import type { CalibrationPattern } from "@/lib/learning/confidence-calibration";
+import type { PersonalizationDecision } from "@/lib/personalization/personalization-evidence";
+import {
+  PERSONALIZATION_DECISION_CHANNELS,
+  isPersonalizationDecisionSetting,
+} from "@/lib/personalization/personalization-decision";
+
+const DEFAULT_ACTIVITY_CADENCE = {
+  mode: "task_aligned" as const,
+  label: "Task-aligned cadence",
+  instruction: "Change activities only when the selected teaching method and current objective call for it.",
+};
+const DEFAULT_ATTEMPT_SAFETY = {
+  mode: "task_aligned" as const,
+  label: "Task-aligned attempts",
+  instruction: "Use the attempt and feedback format best supported by the current task and selected method.",
+};
+const DEFAULT_KNOWLEDGE_CHECK = {
+  mode: "task_aligned" as const,
+  label: "Task-aligned knowledge check",
+  instruction: "Use the knowledge check required by the selected method and current learning objective.",
+};
 
 export const SessionDeliveryPolicySchema = z.object({
   schemaVersion: z.literal(1),
@@ -21,7 +42,7 @@ export const SessionDeliveryPolicySchema = z.object({
     instruction: z.string().trim().min(15).max(300),
   }),
   workspace: z.object({
-    mode: z.enum(["task_aligned", "one_step", "full_path", "learner_choice", "minimal_guidance"]),
+    mode: z.enum(["task_aligned", "one_step", "current_and_next", "full_path", "learner_choice", "minimal_guidance"]),
     label: z.string().trim().min(3).max(80),
     instruction: z.string().trim().min(15).max(300),
   }),
@@ -30,6 +51,21 @@ export const SessionDeliveryPolicySchema = z.object({
     maximumActivities: z.number().int().min(3).max(8),
     reason: z.string().trim().min(15).max(300),
   }),
+  activityCadence: z.object({
+    mode: z.enum(["task_aligned", "short_active_rounds"]),
+    label: z.string().trim().min(3).max(80),
+    instruction: z.string().trim().min(15).max(300),
+  }).default(DEFAULT_ACTIVITY_CADENCE),
+  attemptSafety: z.object({
+    mode: z.enum(["task_aligned", "private_revisable_attempt"]),
+    label: z.string().trim().min(3).max(80),
+    instruction: z.string().trim().min(15).max(300),
+  }).default(DEFAULT_ATTEMPT_SAFETY),
+  knowledgeCheck: z.object({
+    mode: z.enum(["task_aligned", "closed_note_first", "show_success_evidence"]),
+    label: z.string().trim().min(3).max(80),
+    instruction: z.string().trim().min(15).max(300),
+  }).default(DEFAULT_KNOWLEDGE_CHECK),
   learnerFacingReasons: z.array(z.string().trim().min(15).max(300)).min(1).max(4),
   signalsUsed: z.array(z.string().trim().min(3).max(120)).max(6),
 });
@@ -85,19 +121,21 @@ type Interruption = {
 };
 
 /**
- * Streamed lessons intentionally use only the learner's explicit profile and
- * stated preferences for presentation. Completed-session outcomes continue to
- * shape practice selection elsewhere, but they do not change lesson prose,
- * tone, structure, or pacing in this architecture version.
+ * Streamed lessons receive the learner's explicit profile plus the bounded
+ * personalization decisions already approved by the generation privacy gate.
+ * Raw outcomes are intentionally absent here; callers must resolve decisions
+ * only from the evidence the learner has allowed YOVA to use.
  */
 export function buildStatedPreferenceLessonDelivery({
   learnerProfile,
   estimatedMinutes,
   taskType,
+  personalizationDecisions = [],
 }: {
   learnerProfile: LearnerProfile | null;
   estimatedMinutes: number;
   taskType: "memorization" | "conceptual_learning" | "problem_solving" | "reading_to_quiz" | "writing_argumentation" | "programming" | "mixed_assessment";
+  personalizationDecisions?: readonly PersonalizationDecision[];
 }) {
   const policy = buildSessionDeliveryPolicy({
     learnerProfile,
@@ -105,6 +143,7 @@ export function buildStatedPreferenceLessonDelivery({
     recentInterruptions: [],
     learningMode: "learn",
     estimatedMinutes,
+    personalizationDecisions,
   });
 
   return {
@@ -123,12 +162,14 @@ export function buildSessionDeliveryPolicy({
   recentInterruptions,
   learningMode,
   estimatedMinutes,
+  personalizationDecisions = [],
 }: {
   learnerProfile: LearnerProfile | null;
   recentResults: RecentResult[];
   recentInterruptions: Interruption[];
   learningMode: SessionLearningMode;
   estimatedMinutes: number;
+  personalizationDecisions?: readonly PersonalizationDecision[];
 }): SessionDeliveryPolicy {
   const presentationPreference = learnerProfile?.processingPreference
     ?? functionalPresentationPreference(learnerProfile?.functionalSupportNeed)
@@ -164,7 +205,7 @@ export function buildSessionDeliveryPolicy({
     observedPacing.learnerReason,
   ].filter((value): value is string => Boolean(value))).slice(0, 4);
 
-  return SessionDeliveryPolicySchema.parse({
+  const baselinePolicy = SessionDeliveryPolicySchema.parse({
     schemaVersion: 1,
     evidenceStatus,
     presentation: withoutReason(presentation),
@@ -176,11 +217,238 @@ export function buildSessionDeliveryPolicy({
       maximumActivities: observedPacing.maximumActivities,
       reason: observedPacing.reason,
     },
+    activityCadence: DEFAULT_ACTIVITY_CADENCE,
+    attemptSafety: DEFAULT_ATTEMPT_SAFETY,
+    knowledgeCheck: DEFAULT_KNOWLEDGE_CHECK,
     learnerFacingReasons: learnerFacingReasons.length
       ? learnerFacingReasons
       : ["YOVA is using the current task and session objective as the starting point until your completed work provides more evidence."],
     signalsUsed: unique([...selfReportSignals, ...observedSignals]).slice(0, 6),
   });
+
+  return applyPersonalizationDecisions(baselinePolicy, personalizationDecisions);
+}
+
+function applyPersonalizationDecisions(
+  baselinePolicy: SessionDeliveryPolicy,
+  decisions: readonly PersonalizationDecision[],
+): SessionDeliveryPolicy {
+  let policy = baselinePolicy;
+  const appliedReasons: string[] = [];
+
+  for (const decision of decisions) {
+    if (!isPersonalizationDecisionSetting(decision.setting)) continue;
+    const route = PERSONALIZATION_DECISION_CHANNELS[decision.setting];
+    if (route.channel !== "delivery_policy") continue;
+
+    const label = decisionLabel(decision);
+    const instruction = decisionInstruction(decision);
+    switch (route.deliveryPolicyField) {
+      case "presentation":
+        if (isPresentationMode(decision.value)) {
+          policy = {
+            ...policy,
+            presentation: { mode: decision.value, label, instruction },
+          };
+          appliedReasons.push(instruction);
+        }
+        break;
+      case "repair":
+        if (isRepairMode(decision.value)) {
+          policy = {
+            ...policy,
+            repair: { mode: decision.value, label, instruction },
+          };
+          appliedReasons.push(instruction);
+        }
+        break;
+      case "retention":
+        if (isRetentionMode(decision.value)) {
+          policy = {
+            ...policy,
+            retention: { mode: decision.value, label, instruction },
+          };
+          appliedReasons.push(instruction);
+        }
+        break;
+      case "workspace":
+        if (isWorkspaceMode(decision.value)) {
+          policy = {
+            ...policy,
+            workspace: { mode: decision.value, label, instruction },
+          };
+          appliedReasons.push(instruction);
+        }
+        break;
+      case "pacing":
+        if (decision.setting === "first_action" && decision.value === "small_active_start") {
+          policy = {
+            ...policy,
+            pacing: {
+              ...policy.pacing,
+              firstActionMinutes: Math.min(2, policy.pacing.firstActionMinutes),
+              reason: combinePolicyInstructions(policy.pacing.reason, instruction),
+            },
+          };
+          appliedReasons.push(instruction);
+        }
+        if (decision.setting === "block_length" && decision.value === "shorter_rounds") {
+          policy = {
+            ...policy,
+            pacing: {
+              ...policy.pacing,
+              maximumActivities: Math.min(4, policy.pacing.maximumActivities),
+              reason: combinePolicyInstructions(policy.pacing.reason, instruction),
+            },
+          };
+          appliedReasons.push(instruction);
+        }
+        break;
+      case "activityCadence":
+        if (decision.value === "short_active_rounds") {
+          policy = {
+            ...policy,
+            activityCadence: {
+              mode: "short_active_rounds",
+              label,
+              instruction,
+            },
+          };
+          appliedReasons.push(instruction);
+        }
+        break;
+      case "attemptSafety":
+        if (decision.value === "private_revisable_attempt") {
+          policy = {
+            ...policy,
+            attemptSafety: {
+              mode: "private_revisable_attempt",
+              label,
+              instruction,
+            },
+          };
+          appliedReasons.push(instruction);
+        }
+        break;
+      case "knowledgeCheck":
+        if (decision.value === "closed_note_first" || decision.value === "show_success_evidence") {
+          policy = {
+            ...policy,
+            knowledgeCheck: {
+              mode: decision.value,
+              label,
+              instruction,
+            },
+          };
+          appliedReasons.push(instruction);
+        }
+        break;
+    }
+  }
+
+  const deliveryDecisions = decisions.filter((decision) => (
+    isPersonalizationDecisionSetting(decision.setting)
+      && PERSONALIZATION_DECISION_CHANNELS[decision.setting].channel === "delivery_policy"
+  ));
+  return SessionDeliveryPolicySchema.parse({
+    ...policy,
+    evidenceStatus: deliveryDecisionEvidenceStatus(
+      policy.evidenceStatus,
+      deliveryDecisions,
+    ),
+    learnerFacingReasons: unique([
+      ...appliedReasons,
+      ...policy.learnerFacingReasons,
+    ]).slice(0, 4),
+  });
+}
+
+function deliveryDecisionEvidenceStatus(
+  baseline: SessionDeliveryPolicy["evidenceStatus"],
+  decisions: readonly PersonalizationDecision[],
+): SessionDeliveryPolicy["evidenceStatus"] {
+  if (decisions.some((decision) => decision.evidenceLabel === "Self-report and behavior agree")) {
+    return "blended";
+  }
+  const hasSelfReport = baseline === "starting_hypothesis" || baseline === "blended"
+    || decisions.some((decision) => decision.evidenceLabel === "You told YOVA");
+  const hasObserved = baseline === "observed_pattern" || baseline === "blended"
+    || decisions.some((decision) => (
+      decision.evidenceLabel === "Repeated pattern"
+      || decision.evidenceLabel === "Tested and promising"
+    ));
+  if (hasSelfReport && hasObserved) return "blended";
+  if (hasObserved) return "observed_pattern";
+  if (hasSelfReport) return "starting_hypothesis";
+  return baseline;
+}
+
+function decisionLabel(decision: PersonalizationDecision) {
+  const label = decision.title.trim().slice(0, 80);
+  return label.length >= 3 ? label : "Personalized delivery";
+}
+
+function decisionInstruction(decision: PersonalizationDecision) {
+  const instruction = decision.explanation.trim().slice(0, 300);
+  return instruction.length >= 15
+    ? instruction
+    : "Apply this personalization decision while preserving the current learning target.";
+}
+
+function combinePolicyInstructions(current: string, next: string) {
+  return unique([current, next]).join(" ").slice(0, 300);
+}
+
+function isPresentationMode(
+  value: string,
+): value is SessionDeliveryPolicy["presentation"]["mode"] {
+  return [
+    "task_aligned",
+    "example_first",
+    "overview_first",
+    "step_by_step",
+    "prediction_then_model",
+    "compare_first",
+  ].includes(value);
+}
+
+function isRepairMode(
+  value: string,
+): value is SessionDeliveryPolicy["repair"]["mode"] {
+  return [
+    "task_aligned",
+    "hint_first",
+    "alternate_example",
+    "direct_correction",
+    "smaller_steps",
+    "retry_independently",
+  ].includes(value);
+}
+
+function isRetentionMode(
+  value: string,
+): value is SessionDeliveryPolicy["retention"]["mode"] {
+  return [
+    "task_aligned",
+    "retrieval",
+    "delayed_retrieval",
+    "discrimination",
+    "transfer",
+    "fade_support",
+  ].includes(value);
+}
+
+function isWorkspaceMode(
+  value: string,
+): value is SessionDeliveryPolicy["workspace"]["mode"] {
+  return [
+    "task_aligned",
+    "one_step",
+    "current_and_next",
+    "full_path",
+    "learner_choice",
+    "minimal_guidance",
+  ].includes(value);
 }
 
 /**

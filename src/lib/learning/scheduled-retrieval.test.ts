@@ -58,6 +58,9 @@ const deliveryPolicy: SessionDeliveryPolicy = {
   retention: { mode: "delayed_retrieval", label: "Delayed retrieval", instruction: "Schedule another unsupported retrieval after a delay." },
   workspace: { mode: "full_path", label: "Full path", instruction: "Keep the full session path visible while the learner works." },
   pacing: { firstActionMinutes: 3, maximumActivities: 5, reason: "Use the standard pacing until YOVA has more evidence." },
+  activityCadence: { mode: "task_aligned", label: "Task-aligned cadence", instruction: "Change activities only when the selected method and current objective call for it." },
+  attemptSafety: { mode: "task_aligned", label: "Task-aligned attempts", instruction: "Use the attempt and feedback format best supported by the current task." },
+  knowledgeCheck: { mode: "task_aligned", label: "Task-aligned check", instruction: "Use the knowledge check required by the selected method and current objective." },
   learnerFacingReasons: ["You asked for examples first, so YOVA normally begins new teaching with a concrete case."],
   signalsUsed: ["A concrete example first"],
 };

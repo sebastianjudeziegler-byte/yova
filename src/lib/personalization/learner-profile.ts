@@ -1,4 +1,7 @@
-import { FUNCTIONAL_SUPPORT_OPTIONS } from "@/lib/sample-data";
+import {
+  onboardingAnswerId,
+  onboardingAnswerLabel,
+} from "@/lib/sample-data";
 import {
   completedStudyProfileSnapshot,
   PERSONALIZATION_STATE_ANSWER_INDEX,
@@ -24,12 +27,12 @@ export const DEEP_PROFILE_QUESTIONS = [
     prompt: "When information is new, what usually helps it click?",
     description: "YOVA uses this to choose how an explanation begins, then checks whether the approach actually helps.",
     options: [
-      "A concrete example before the rule",
-      "The big picture before the details",
-      "A clear sequence of small steps",
-      "Trying it before seeing an explanation",
-      "Comparing similar ideas side by side",
-      "It depends on the task",
+      { id: "concrete_example", label: "A concrete example before the rule" },
+      { id: "big_picture", label: "The big picture before the details" },
+      { id: "small_steps", label: "A clear sequence of small steps" },
+      { id: "try_first", label: "Trying it before seeing an explanation" },
+      { id: "compare_similar", label: "Comparing similar ideas side by side" },
+      { id: "depends", label: "It depends on the task" },
     ],
   },
   {
@@ -37,12 +40,12 @@ export const DEEP_PROFILE_QUESTIONS = [
     prompt: "What most often goes wrong after you study something?",
     description: "This changes what YOVA checks for, not the evidence-backed method selected for the task.",
     options: [
-      "I recognize it but cannot recall it",
-      "I forget it after a few days",
-      "I confuse similar ideas",
-      "I understand it but cannot apply it",
-      "I can do it with help but not independently",
-      "It depends on the topic",
+      { id: "recognition_without_recall", label: "I recognize it but cannot recall it" },
+      { id: "delayed_forgetting", label: "I forget it after a few days" },
+      { id: "similar_idea_confusion", label: "I confuse similar ideas" },
+      { id: "application_gap", label: "I understand it but cannot apply it" },
+      { id: "support_dependence", label: "I can do it with help but not independently" },
+      { id: "depends", label: "It depends on the topic" },
     ],
   },
   {
@@ -50,12 +53,12 @@ export const DEEP_PROFILE_QUESTIONS = [
     prompt: "When you struggle, how should YOVA help first?",
     description: "YOVA can change the amount and kind of support without lowering the learning target.",
     options: [
-      "Give me a small hint first",
-      "Show me a different example",
-      "Explain the mistake directly",
-      "Break it into smaller steps",
-      "Let me try again without help",
-      "It depends on the task",
+      { id: "hint_first", label: "Give me a small hint first" },
+      { id: "alternate_example", label: "Show me a different example" },
+      { id: "direct_correction", label: "Explain the mistake directly" },
+      { id: "smaller_steps", label: "Break it into smaller steps" },
+      { id: "retry_independently", label: "Let me try again without help" },
+      { id: "depends", label: "It depends on the task" },
     ],
   },
   {
@@ -63,11 +66,11 @@ export const DEEP_PROFILE_QUESTIONS = [
     prompt: "How should a session organize the work on screen?",
     description: "This affects navigation and visible structure, not what counts as learning.",
     options: [
-      "Show one step at a time",
-      "Keep the full path visible",
-      "Give me choices and let me decide",
-      "Use the least guidance that works",
-      "It depends on the session",
+      { id: "one_step", label: "Show one step at a time" },
+      { id: "full_path", label: "Keep the full path visible" },
+      { id: "learner_choice", label: "Give me choices and let me decide" },
+      { id: "minimal_guidance", label: "Use the least guidance that works" },
+      { id: "depends", label: "It depends on the session" },
     ],
   },
 ] as const;
@@ -75,6 +78,42 @@ export const DEEP_PROFILE_QUESTIONS = [
 export const FREEFORM_LEARNING_CONTEXT_INDEX = 14;
 export const OBSERVATION_CORRECTION_INDEX = 15;
 export const LEARNER_ANSWER_COUNT = PERSONALIZATION_STATE_ANSWER_INDEX + 1;
+
+export type DeepProfileAnswerId =
+  (typeof DEEP_PROFILE_QUESTIONS)[number]["options"][number]["id"];
+
+const LEGACY_DEEP_PROFILE_LABEL_IDS: Readonly<Record<number, Readonly<Record<string, DeepProfileAnswerId>>>> = {
+  10: { "A concrete example before the rule": "concrete_example", "The big picture before the details": "big_picture", "A clear sequence of small steps": "small_steps", "Trying it before seeing an explanation": "try_first", "Comparing similar ideas side by side": "compare_similar", "It depends on the task": "depends" },
+  11: { "I recognize it but cannot recall it": "recognition_without_recall", "I forget it after a few days": "delayed_forgetting", "I confuse similar ideas": "similar_idea_confusion", "I understand it but cannot apply it": "application_gap", "I can do it with help but not independently": "support_dependence", "It depends on the topic": "depends" },
+  12: { "Give me a small hint first": "hint_first", "Show me a different example": "alternate_example", "Explain the mistake directly": "direct_correction", "Break it into smaller steps": "smaller_steps", "Let me try again without help": "retry_independently", "It depends on the task": "depends" },
+  13: { "Show one step at a time": "one_step", "Keep the full path visible": "full_path", "Give me choices and let me decide": "learner_choice", "Use the least guidance that works": "minimal_guidance", "It depends on the session": "depends" },
+};
+
+/**
+ * Profiles saved before stable option IDs store the learner-facing label.
+ * Keep that read boundary backward compatible while all behavioral routing
+ * uses the option ID returned here.
+ */
+export function deepProfileAnswerId(
+  answerIndex: number,
+  value: string | null | undefined,
+): DeepProfileAnswerId | null {
+  const normalized = value?.trim() ?? "";
+  if (!normalized) return null;
+  const question = DEEP_PROFILE_QUESTIONS.find((item) => item.answerIndex === answerIndex);
+  if (!question) return null;
+  const directId = question.options.find((option) => option.id === normalized)?.id;
+  return directId ?? LEGACY_DEEP_PROFILE_LABEL_IDS[answerIndex]?.[normalized] ?? null;
+}
+
+export function deepProfileAnswerLabel(
+  answerIndex: number,
+  value: string | null | undefined,
+) {
+  const answerId = deepProfileAnswerId(answerIndex, value);
+  return DEEP_PROFILE_QUESTIONS.find((item) => item.answerIndex === answerIndex)
+    ?.options.find((option) => option.id === answerId)?.label ?? null;
+}
 
 const ONBOARDING_SIGNAL_KEYS: Partial<Record<number, readonly string[]>> = {
   0: ["starting_friction", "structure_need", "mistake_sensitivity"],
@@ -155,12 +194,12 @@ export function encodeAdditionalLearnerContext(answers: string[]) {
     // Keep explicit answers distinct from state-derived runtime defaults. If
     // the learner later disables self-report personalization, an inference
     // must not survive as though they had selected it directly.
-    functionalSupportNeed: functionalSupportNeedFromAnswer(answers[8]) ?? "",
+    functionalSupportNeed: onboardingAnswerId(8, answers[8]) ?? "",
     initialContext: boundedAnswer(answers[9], 300) ?? "",
-    processingPreference: boundedAnswer(answers[10], 240) ?? "",
-    memoryChallenge: boundedAnswer(answers[11], 240) ?? "",
-    supportPreference: boundedAnswer(answers[12], 240) ?? "",
-    workspacePreference: boundedAnswer(answers[13], 240) ?? "",
+    processingPreference: deepProfileAnswerId(10, answers[10]) ?? "",
+    memoryChallenge: deepProfileAnswerId(11, answers[11]) ?? "",
+    supportPreference: deepProfileAnswerId(12, answers[12]) ?? "",
+    workspacePreference: deepProfileAnswerId(13, answers[13]) ?? "",
     freeformContext: boundedAnswer(answers[FREEFORM_LEARNING_CONTEXT_INDEX], 800) ?? "",
     observationCorrection: boundedAnswer(answers[OBSERVATION_CORRECTION_INDEX], 500) ?? "",
     personalizationState: normalizedPersonalizationStateValue(
@@ -254,12 +293,12 @@ export function mergeStoredAdditionalContext(answers: string[], value: string | 
   }
 
   const stored = parsed as Record<string, unknown>;
-  merged[8] = functionalSupportNeedFromAnswer(readStoredText(stored, "functionalSupportNeed", 240)) ?? "";
+  merged[8] = onboardingAnswerId(8, readStoredText(stored, "functionalSupportNeed", 240)) ?? "";
   merged[9] = readStoredText(stored, "initialContext", 300);
-  merged[10] = readStoredText(stored, "processingPreference", 240);
-  merged[11] = readStoredText(stored, "memoryChallenge", 240);
-  merged[12] = readStoredText(stored, "supportPreference", 240);
-  merged[13] = readStoredText(stored, "workspacePreference", 240);
+  merged[10] = deepProfileAnswerId(10, readStoredText(stored, "processingPreference", 240)) ?? "";
+  merged[11] = deepProfileAnswerId(11, readStoredText(stored, "memoryChallenge", 240)) ?? "";
+  merged[12] = deepProfileAnswerId(12, readStoredText(stored, "supportPreference", 240)) ?? "";
+  merged[13] = deepProfileAnswerId(13, readStoredText(stored, "workspacePreference", 240)) ?? "";
   merged[FREEFORM_LEARNING_CONTEXT_INDEX] = readStoredText(stored, "freeformContext", 800);
   merged[OBSERVATION_CORRECTION_INDEX] = readStoredText(stored, "observationCorrection", 500);
   merged[PERSONALIZATION_STATE_ANSWER_INDEX] = normalizedPersonalizationStateValue(
@@ -269,10 +308,7 @@ export function mergeStoredAdditionalContext(answers: string[], value: string | 
 }
 
 export function functionalSupportNeedFromAnswer(value: string | undefined) {
-  const normalized = boundedAnswer(value, 240);
-  return normalized && FUNCTIONAL_SUPPORT_OPTIONS.includes(normalized as (typeof FUNCTIONAL_SUPPORT_OPTIONS)[number])
-    ? normalized
-    : null;
+  return onboardingAnswerLabel(8, boundedAnswer(value, 240));
 }
 
 export function expandedLearnerContextFromStored(value: string | null) {
@@ -288,6 +324,9 @@ export function statedOnboardingAnswerForRuntime(
   if (answerIndex === 6 && !state.controls.timing) return null;
   const signalKeys = ONBOARDING_SIGNAL_KEYS[answerIndex] ?? [];
   if (signalKeys.some((key) => !signalAllowsInference(state, key))) return null;
+  if (answerIndex < 10) {
+    return onboardingAnswerLabel(answerIndex, boundedAnswer(answers[answerIndex], 300));
+  }
   return boundedAnswer(answers[answerIndex], 300);
 }
 
@@ -354,7 +393,7 @@ function controlledDirectPreference(
   const signalId = `signal:${signalKey}`;
   if (state.pausedSignalIds.includes(signalId)) return null;
   const correction = state.corrections.find((item) => item.signalId === signalId);
-  if (!correction) return boundedAnswer(answer, 240);
+  if (!correction) return deepProfileAnswerLabel(answerIndex, answer);
   if (correction.doNotInfer) return null;
 
   const correctedValue = boundedAnswer(correction.correctedValue ?? undefined, 240);
@@ -362,8 +401,8 @@ function controlledDirectPreference(
   // preference. Keep the learner's explicit answer unless they either stop
   // this inference or provide a concrete supported replacement.
   return correctedValue && isSupportedDeepProfileAnswer(answerIndex, correctedValue)
-    ? correctedValue
-    : boundedAnswer(answer, 240);
+    ? deepProfileAnswerLabel(answerIndex, correctedValue)
+    : deepProfileAnswerLabel(answerIndex, answer);
 }
 
 function directSignalBlocksPreference(
@@ -378,8 +417,8 @@ function directSignalBlocksPreference(
 }
 
 function isSupportedDeepProfileAnswer(answerIndex: number, value: string) {
-  const question = DEEP_PROFILE_QUESTIONS.find((item) => item.answerIndex === answerIndex);
-  return question?.options.some((option) => option === value && !/it depends/i.test(option)) === true;
+  const answerId = deepProfileAnswerId(answerIndex, value);
+  return answerId !== null && answerId !== "depends";
 }
 
 function signalAllowsInference(state: PersonalizationState, key: string) {

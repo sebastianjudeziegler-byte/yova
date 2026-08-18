@@ -155,6 +155,7 @@ describe("personalization evidence", () => {
 
     expect(signal(result, "starting_friction")).toMatchObject({
       value: "Moderate",
+      code: "moderate",
       evidenceLabel: "You told YOVA",
       source: "correction",
     });
@@ -164,8 +165,8 @@ describe("personalization evidence", () => {
 
   it("maps direct preferences to delivery while allowing only task-valid method ties", () => {
     const answers: string[] = [];
-    answers[10] = "Start with a concrete example.";
-    answers[11] = "I understand it now but forget it after a few days.";
+    answers[10] = "A concrete example before the rule";
+    answers[11] = "I forget it after a few days";
     const result = resolve(answers);
 
     expect(result.decisions).toEqual(expect.arrayContaining([
@@ -180,6 +181,122 @@ describe("personalization evidence", () => {
       ["self_explanation", "worked_example_fading"],
       result,
     )).toBeNull();
+  });
+
+  it.each([
+    ["recognition_without_recall", ["retrieval_practice", "spaced_retrieval"], "retrieval_practice"],
+    ["delayed_forgetting", ["spaced_retrieval", "retrieval_practice"], "spaced_retrieval"],
+    ["similar_idea_confusion", ["interleaved_practice", "self_explanation"], "interleaved_practice"],
+    ["application_gap", ["worked_example_fading", "self_explanation"], "worked_example_fading"],
+    ["support_dependence", ["worked_example_fading", "scaffolded_coding"], "worked_example_fading"],
+  ] as const)(
+    "uses memory answer ID %s to break only a task-valid method tie",
+    (answerId, validMethods, expectedMethod) => {
+      const answers: string[] = [];
+      answers[11] = answerId;
+
+      expect(selectPersonalizedMethodTie(
+        [...validMethods],
+        resolve(answers),
+      )).toMatchObject({ value: expectedMethod, artifact: "method_tie" });
+    },
+  );
+
+  it.each([
+    [10, "A concrete example before the rule", "processing_entry", "concrete_example", "presentation", "example_first"],
+    [10, "The big picture before the details", "processing_entry", "big_picture", "presentation", "overview_first"],
+    [10, "A clear sequence of small steps", "processing_entry", "small_steps", "presentation", "step_by_step"],
+    [10, "Trying it before seeing an explanation", "processing_entry", "try_first", "presentation", "prediction_then_model"],
+    [10, "Comparing similar ideas side by side", "processing_entry", "compare_similar", "presentation", "compare_first"],
+    [11, "I recognize it but cannot recall it", "memory_breakdown", "recognition_without_recall", "retention", "retrieval"],
+    [11, "I forget it after a few days", "memory_breakdown", "delayed_forgetting", "retention", "delayed_retrieval"],
+    [11, "I confuse similar ideas", "memory_breakdown", "similar_idea_confusion", "retention", "discrimination"],
+    [11, "I understand it but cannot apply it", "memory_breakdown", "application_gap", "retention", "transfer"],
+    [11, "I can do it with help but not independently", "memory_breakdown", "support_dependence", "retention", "fade_support"],
+    [12, "Give me a small hint first", "repair_preference", "hint_first", "first_repair", "hint_first"],
+    [12, "Show me a different example", "repair_preference", "alternate_example", "first_repair", "alternate_example"],
+    [12, "Explain the mistake directly", "repair_preference", "direct_correction", "first_repair", "direct_correction"],
+    [12, "Break it into smaller steps", "repair_preference", "smaller_steps", "first_repair", "smaller_steps"],
+    [12, "Let me try again without help", "repair_preference", "retry_independently", "first_repair", "retry_independently"],
+    [13, "Show one step at a time", "workspace_preference", "one_step", "layout", "one_step"],
+    [13, "Keep the full path visible", "workspace_preference", "full_path", "layout", "full_path"],
+    [13, "Give me choices and let me decide", "workspace_preference", "learner_choice", "layout", "learner_choice"],
+    [13, "Use the least guidance that works", "workspace_preference", "minimal_guidance", "layout", "minimal_guidance"],
+  ])(
+    "routes option ID and legacy label %s:%s through the same stable answer ID",
+    (answerIndex, answer, signalKey, code, setting, value) => {
+      const answers: string[] = [];
+      answers[answerIndex as number] = answer as string;
+      const result = resolve(answers);
+
+      expect(signal(result, signalKey as string)).toMatchObject({
+        value: answer,
+        code,
+      });
+      expect(result.decisions).toContainEqual(expect.objectContaining({ setting, value }));
+
+      const idAnswers: string[] = [];
+      idAnswers[answerIndex as number] = code as string;
+      const idResult = resolve(idAnswers);
+      expect(signal(idResult, signalKey as string)).toMatchObject({
+        value: answer,
+        code,
+      });
+      expect(idResult.decisions).toContainEqual(expect.objectContaining({ setting, value }));
+    },
+  );
+
+  it("fails closed for unknown prose even when it contains old routing keywords", () => {
+    const answers: string[] = [];
+    answers[0] = "I feel overwhelmed and struggle to start in this course.";
+    answers[1] = "Please tell me exactly what to do when the task is hard.";
+    answers[4] = "Very often when the material is unfamiliar.";
+    answers[5] = "I delay when deadlines feel close.";
+    answers[10] = "A concrete example and the big picture can both help.";
+    answers[11] = "I feel confident but cannot recall things after a few days.";
+    answers[12] = "A direct small hint or smaller steps would work.";
+    answers[13] = "Show one step beside the full path.";
+
+    const result = resolve(answers);
+
+    expect(result.signals).toEqual([]);
+    expect(result.decisions).toEqual([]);
+    expect(selectPersonalizedMethodTie(
+      ["retrieval_practice", "spaced_retrieval"],
+      result,
+    )).toBeNull();
+  });
+
+  it("updates the semantic code when a supported correction changes an answer", () => {
+    const answers: string[] = [];
+    answers[10] = "A concrete example before the rule";
+    const defaults = defaultPersonalizationState();
+    const corrected = writePersonalizationStateToAnswers(answers, {
+      ...defaults,
+      corrections: [{
+        signalId: "signal:processing_entry",
+        correctedValue: "The big picture before the details",
+        note: null,
+        doNotInfer: false,
+        updatedAt: "2026-08-14T18:00:00.000Z",
+      }],
+    });
+
+    const result = resolve(corrected);
+
+    expect(signal(result, "processing_entry")).toMatchObject({
+      value: "The big picture before the details",
+      code: "big_picture",
+      source: "correction",
+    });
+    expect(result.decisions).toContainEqual(expect.objectContaining({
+      setting: "presentation",
+      value: "overview_first",
+    }));
+    expect(result.decisions).not.toContainEqual(expect.objectContaining({
+      setting: "presentation",
+      value: "example_first",
+    }));
   });
 
   it("requires two comparable sessions in each of two windows before suggesting timing", () => {
@@ -197,6 +314,7 @@ describe("personalization evidence", () => {
     ]);
     expect(signal(compared, "energy_window")).toMatchObject({
       value: "Morning is currently stronger",
+      code: "morning",
       evidenceLabel: "Repeated pattern",
       evidenceCount: 4,
     });
@@ -242,6 +360,35 @@ describe("personalization evidence", () => {
       experimental: true,
     }));
   });
+
+  it.each([
+    ["workspace", "one_step", "full_path", "layout"],
+    ["support", "hint_first", "direct_correction", "first_repair"],
+    ["energy_window", "morning", "evening", "recommended_window"],
+    ["method_tie", "retrieval_practice", "self_explanation", "method_id"],
+  ] as const)(
+    "normalizes the %s experiment alias to the canonical decision setting",
+    (variable, variantA, variantB, expectedSetting) => {
+      const defaults = defaultPersonalizationState();
+      const enabled = { ...defaults, controls: { ...defaults.controls, experiments: true } };
+      const started = startPersonalizationExperiment(enabled, {
+        id: `${variable}-test`,
+        variable,
+        variantA,
+        variantB,
+        startedAt: "2026-08-14T18:00:00.000Z",
+        taskType: "conceptual_learning",
+        knowledgeStage: "novice",
+      });
+
+      expect(resolve(answersWithState(started)).decisions).toContainEqual(
+        expect.objectContaining({
+          id: `decision:experiment:${variable}-test:a`,
+          setting: expectedSetting,
+        }),
+      );
+    },
+  );
 
   it("surfaces completed personal tests with the exact cautious evidence labels", () => {
     let state = defaultPersonalizationState();
