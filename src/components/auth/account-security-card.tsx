@@ -592,7 +592,7 @@ export function AccountDataExportDialog({
                 <AlertTriangle size={18} aria-hidden="true" />
                 <p>This file may include private goals, tutor messages, study results, and text extracted from your uploads. Save it only on a device you trust.</p>
               </div>
-              <p>It includes file names, extracted text, and sanitized service-usage counters, not the original uploaded files. It does not include your password, sign-in tokens, provider logs, or private security records.</p>
+              <p>It includes file names, extracted text, and sanitized service-usage counters, not the original uploaded files. It does not include a separate public Study Profile report or waitlist record, your password, sign-in tokens, provider logs, or private security records.</p>
               <p>Work still waiting to sync from another device may not appear. Downloading does not delete or change anything in YOVA.</p>
               <Link href="/support">For a broader privacy request, contact YOVA Support.</Link>
             </div>

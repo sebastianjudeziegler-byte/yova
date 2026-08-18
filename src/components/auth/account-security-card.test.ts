@@ -95,6 +95,7 @@ describe("AccountSecurityCard", () => {
     expect(html).toContain("Save it only on a device you trust.");
     expect(html).toContain("sanitized service-usage counters");
     expect(html).toContain("not the original uploaded files");
+    expect(html).toContain("separate public Study Profile report or waitlist record");
     expect(html).toContain("Downloading does not delete or change anything in YOVA.");
     expect(html).toContain('data-export-initial-focus="true"');
     expect(html).toContain("Cancel");

@@ -36,6 +36,11 @@ const TABLE_INVENTORY = {
   internalExcluded: [
     "account_data_exports",
   ],
+  separatePublicStudyProfile: [
+    "study_profile_events",
+    "study_profile_leads",
+    "study_profile_responses",
+  ],
 } as const;
 
 const STORAGE_INVENTORY = {
@@ -44,7 +49,7 @@ const STORAGE_INVENTORY = {
 } as const;
 
 describe("account-data export inventory drift", () => {
-  it("classifies every public table, including the internal twentieth table", () => {
+  it("classifies every public table, including internal and separate public-profile records", () => {
     const createdTables = new Set(
       [...migrations.matchAll(/create table(?: if not exists)? public[.]([a-z_]+)/gi)]
         .map((match) => match[1]),
@@ -52,8 +57,13 @@ describe("account-data export inventory drift", () => {
     const classifiedTables = Object.values(TABLE_INVENTORY).flat();
 
     expect([...createdTables].sort()).toEqual([...classifiedTables].sort());
-    expect(createdTables.size).toBe(20);
+    expect(createdTables.size).toBe(23);
     expect(TABLE_INVENTORY.internalExcluded).toContain("account_data_exports");
+    expect(TABLE_INVENTORY.separatePublicStudyProfile).toEqual([
+      "study_profile_events",
+      "study_profile_leads",
+      "study_profile_responses",
+    ]);
   });
 
   it("classifies every private Storage bucket", () => {
