@@ -74,6 +74,12 @@ test.describe("YOVA Study Profile", () => {
     await expectNoTypographicDashes(page);
 
     const privateReportPath = privateReportUrl.pathname;
+    await seedStaleStudyProfileDraft(page);
+    await page.getByRole("link", { name: "Retake" }).click();
+    await expectFreshRetake(page);
+
+    await page.goto(privateReportPath);
+    await expect(page.locator("#report-title")).toBeVisible();
     await page.reload();
     await expect(page).toHaveURL(privateReportPath);
     await expect(page.locator("#report-title")).toBeVisible();
@@ -94,6 +100,10 @@ test.describe("YOVA Study Profile", () => {
       await page.setViewportSize({ width, height: 844 });
       await expectNoHorizontalOverflow(page);
     }
+
+    await seedStaleStudyProfileDraft(page);
+    await page.getByRole("link", { name: "Retake" }).click();
+    await expectFreshRetake(page);
   });
 
   test("shows the API message when an open report has been removed", async ({ page }) => {
@@ -215,6 +225,44 @@ async function expectOnlyQuestion(page: Page, questionNumber: number) {
   await expect(currentGroup).toBeVisible();
   await expect(currentGroup.getByRole("radio")).toHaveCount(4);
   await expect(page.getByRole("radiogroup", { name: /^Answers for question \d+$/ })).toHaveCount(1);
+}
+
+async function seedStaleStudyProfileDraft(page: Page) {
+  await page.evaluate((key) => {
+    window.localStorage.setItem(key, JSON.stringify({
+      version: "profile_model_v1",
+      view: "question",
+      currentQuestion: 5,
+      answers: { q1: "a", q2: "b" },
+      metadata: { energyWindow: "morning", schoolLevel: "college" },
+    }));
+  }, DRAFT_STORAGE_KEY);
+}
+
+async function expectFreshRetake(page: Page) {
+  await expect.poll(() => new URL(page.url()).pathname).toBe("/study-profile");
+  await expectOnlyQuestion(page, 1);
+  await expect(
+    page
+      .getByRole("radiogroup", { name: "Answers for question 1" })
+      .locator('[aria-checked="true"]'),
+  ).toHaveCount(0);
+  await expect.poll(() => page.evaluate((key) => {
+    const saved = window.localStorage.getItem(key);
+    if (!saved) return null;
+    const draft = JSON.parse(saved) as Record<string, unknown>;
+    return {
+      view: draft.view,
+      currentQuestion: draft.currentQuestion,
+      answers: draft.answers,
+      metadata: draft.metadata,
+    };
+  }, DRAFT_STORAGE_KEY)).toEqual({
+    view: "question",
+    currentQuestion: 0,
+    answers: {},
+    metadata: {},
+  });
 }
 
 async function expectReportSections(page: Page) {

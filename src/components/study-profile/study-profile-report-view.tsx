@@ -147,9 +147,9 @@ export function StudyProfileReportView({
         </Link>
         <div className={styles.reportHeaderMeta}>
           <span><LockKeyhole size={14} aria-hidden="true" /> Private report</span>
-          <Link href="/study-profile" className={styles.headerLink}>
+          <a href="/study-profile?retake=1" className={styles.headerLink}>
             Retake <RefreshCw size={14} aria-hidden="true" />
-          </Link>
+          </a>
         </div>
       </header>
 

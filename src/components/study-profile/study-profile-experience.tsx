@@ -115,10 +115,22 @@ export function StudyProfileExperience() {
   useEffect(() => {
     const nextAttribution = captureStudyProfileAttribution();
     attributionRef.current = nextAttribution;
-    const restoredDraft = readStudyProfileDraft();
+    const retakeRequested = hasRetakeRequest();
+    const restoredDraft = retakeRequested ? null : readStudyProfileDraft();
 
     const hydrationFrame = window.requestAnimationFrame(() => {
-      if (restoredDraft && isDraftView(restoredDraft.view)) {
+      if (retakeRequested) {
+        consumeRetakeRequest();
+        setAnswers({});
+        setMetadata({});
+        setCurrentQuestion(0);
+        setEmail("");
+        setSubmissionError(null);
+        setSubmissionResult(null);
+        completionTrackedRef.current = false;
+        setView("question");
+        void trackStudyProfileEvent("study_profile_started");
+      } else if (restoredDraft && isDraftView(restoredDraft.view)) {
         setAnswers(isAnswerDraft(restoredDraft.answers) ? restoredDraft.answers : {});
         setMetadata(isMetadataDraft(restoredDraft.metadata) ? restoredDraft.metadata : {});
         setCurrentQuestion(clampQuestionIndex(restoredDraft.currentQuestion));
@@ -772,6 +784,21 @@ function clearStudyProfileDraft() {
   } catch {
     // Storage is best-effort; clearing a draft must never interrupt the flow.
   }
+}
+
+function consumeRetakeRequest() {
+  const url = new URL(window.location.href);
+  clearStudyProfileDraft();
+  url.searchParams.delete("retake");
+  window.history.replaceState(
+    {},
+    "",
+    `${url.pathname}${url.search}${url.hash}`,
+  );
+}
+
+function hasRetakeRequest() {
+  return new URL(window.location.href).searchParams.get("retake") === "1";
 }
 
 function preferredScrollBehavior(): ScrollBehavior {
