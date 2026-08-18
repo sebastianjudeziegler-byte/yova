@@ -203,7 +203,7 @@ export function StudyNowCreator({
           )}
           <div className="study-now-field">
             <strong>How much time do you have?</strong>
-            <div className="study-now-options compact">{timeChoices.map((choice) => <button className={minutes === choice ? "selected" : ""} key={choice} onClick={() => setMinutes(choice)}>{choice} min{minutes === choice && <Check size={16} />}</button>)}</div>
+            <div className="study-now-options compact">{timeChoices.map((choice) => <button aria-label={`${choice} minutes`} aria-pressed={minutes === choice} className={minutes === choice ? "selected" : ""} key={choice} onClick={() => setMinutes(choice)}><span className="duration-value" aria-hidden="true"><span>{choice}</span><span className="duration-unit">min</span></span>{minutes === choice && <Check aria-hidden="true" size={16} />}</button>)}</div>
           </div>
           <div className="study-now-field">
             <strong>Which sounds most like you right now?</strong>
