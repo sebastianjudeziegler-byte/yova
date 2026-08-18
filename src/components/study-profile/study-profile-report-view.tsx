@@ -32,6 +32,7 @@ import {
   type StudyProfileRecommendationCategory,
   type StudyProfileReport,
 } from "@/lib/study-profile";
+import { STUDY_PROFILE_SUPPORT_MAILTO } from "@/lib/public-contact";
 import styles from "./study-profile.module.css";
 
 type ReportViewProps = {
@@ -473,7 +474,7 @@ export function StudyProfileReportView({
         <nav aria-label="Legal">
           <Link href="/privacy">Privacy</Link>
           <Link href="/terms">Terms</Link>
-          <Link href="/support">Support</Link>
+          <a href={STUDY_PROFILE_SUPPORT_MAILTO}>Email support</a>
         </nav>
       </footer>
     </div>
