@@ -224,6 +224,7 @@ async function expectReportSections(page: Page) {
   await expect(page.getByText("Why it fits your answers", { exact: true })).toHaveCount(3);
   await expect(page.getByText("When to use it", { exact: true })).toHaveCount(3);
   await expect(page.getByText("Keep in mind", { exact: true })).toHaveCount(3);
+  await expectReadableMethodCards(page);
   await expect(page.getByRole("heading", { name: "What your answers show" })).toBeVisible();
   await expect(page.locator("#primary-heading")).toBeVisible();
   await expect(page.locator("#secondary-heading")).toBeVisible();
@@ -231,6 +232,43 @@ async function expectReportSections(page: Page) {
   await expect(page.locator("#first-impression-heading")).toBeVisible();
   await expect(page.getByRole("heading", { name: "Join the YOVA waitlist" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "About your Study Profile" })).toBeVisible();
+}
+
+async function expectReadableMethodCards(page: Page) {
+  const cards = page.getByTestId("study-method-card");
+  await expect(cards).toHaveCount(3);
+
+  const typography = await cards.evaluateAll((methodCards) => methodCards.map((card) => {
+    const paragraph = card.querySelector("p");
+    const step = card.querySelector("li");
+    const label = card.querySelector("strong");
+    const cardType = card.querySelector("small");
+    if (!paragraph || !step || !label || !cardType) {
+      throw new Error("Study method card typography target is missing");
+    }
+
+    const paragraphStyle = window.getComputedStyle(paragraph);
+    const stepStyle = window.getComputedStyle(step);
+    const labelStyle = window.getComputedStyle(label);
+    const cardTypeStyle = window.getComputedStyle(cardType);
+    const paragraphSize = Number.parseFloat(paragraphStyle.fontSize);
+
+    return {
+      paragraphSize,
+      paragraphLineHeight: Number.parseFloat(paragraphStyle.lineHeight) / paragraphSize,
+      stepSize: Number.parseFloat(stepStyle.fontSize),
+      labelSize: Number.parseFloat(labelStyle.fontSize),
+      cardTypeSize: Number.parseFloat(cardTypeStyle.fontSize),
+    };
+  }));
+
+  for (const card of typography) {
+    expect(card.paragraphSize).toBeGreaterThanOrEqual(14);
+    expect(card.paragraphLineHeight).toBeGreaterThanOrEqual(1.5);
+    expect(card.stepSize).toBeGreaterThanOrEqual(14);
+    expect(card.labelSize).toBeGreaterThanOrEqual(11);
+    expect(card.cardTypeSize).toBeGreaterThanOrEqual(11);
+  }
 }
 
 async function expectNoTypographicDashes(page: Page) {
