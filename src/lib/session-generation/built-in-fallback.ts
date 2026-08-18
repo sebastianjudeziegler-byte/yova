@@ -14,6 +14,20 @@ export type BuiltInSessionFallbackScope = {
   contentTargets: string[];
 };
 
+type BuiltInFallbackAdjustment = {
+  familiarity?: "as_planned" | "already_know" | "need_teaching" | "challenge_me";
+  availableMinutes?: number | null;
+  knownTargets?: readonly string[];
+  note?: string | null;
+};
+
+type BuiltInFallbackEligibility = {
+  planStatus: unknown;
+  sourceMode: unknown;
+  responseStatus: number | null;
+  adjustment: BuiltInFallbackAdjustment | null | undefined;
+};
+
 type BuiltInFallbackCoverageActivity = {
   title?: string | null;
   body?: string | null;
@@ -44,9 +58,34 @@ type BuiltInFallbackTimedActivity = {
 };
 
 export function builtInFallbackSupportsAdjustment(
-  adjustment: { note?: string | null } | null | undefined,
+  adjustment: BuiltInFallbackAdjustment | null | undefined,
 ) {
-  return !adjustment?.note?.trim();
+  if (!adjustment) return true;
+  if (adjustment.note?.trim()) return false;
+  if ((adjustment.knownTargets?.length ?? 0) > 0) return false;
+
+  // Older callers used this helper only to inspect a note. Keep that narrow
+  // shape compatible, while a complete SessionAdjustment must retain the
+  // planned ordering. Curated lessons cannot safely promise a diagnostic,
+  // teaching-first rewrite, or harder transfer task on behalf of the model.
+  return adjustment.familiarity === undefined || adjustment.familiarity === "as_planned";
+}
+
+/**
+ * A built-in lesson is an outage fallback, never an authorization, lifecycle,
+ * or source-grounding fallback. Client errors fail closed because a 404/409 can
+ * mean the plan was deleted or archived while generation was in flight.
+ */
+export function canUseBuiltInSessionFallback({
+  planStatus,
+  sourceMode,
+  responseStatus,
+  adjustment,
+}: BuiltInFallbackEligibility) {
+  if (planStatus !== "active") return false;
+  if (sourceMode !== "yova_generated") return false;
+  if (responseStatus !== null && ![502, 503, 504].includes(responseStatus)) return false;
+  return builtInFallbackSupportsAdjustment(adjustment);
 }
 
 export function builtInTopicEvidenceId(input: {

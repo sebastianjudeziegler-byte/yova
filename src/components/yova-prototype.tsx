@@ -115,6 +115,13 @@ import {
 } from "@/lib/learning/method-phase-presentation";
 import { buildFallbackMethodBriefing } from "@/lib/learning/fallback-method-briefing";
 import { rankPlansForHome } from "@/lib/learning/home-recommendations";
+import {
+  availableLearningItemIds,
+  filterAgendaMilestones,
+  filterAvailablePlans,
+  filterOperationalPlans,
+  filterTutorThreads,
+} from "@/lib/learning/plan-visibility";
 import { completePlanSession } from "@/lib/learning/complete-plan-session";
 import { buildFallbackRuntimeRepair } from "@/lib/session-repair/fallback";
 import {
@@ -263,11 +270,11 @@ import {
   type LessonRuntimeState,
 } from "@/lib/session-generation/lesson-runtime";
 import {
-  builtInFallbackSupportsAdjustment,
   builtInLessonCoversTarget,
   builtInLessonFitsTime,
   builtInSessionFallbackKind,
   builtInTopicEvidenceId,
+  canUseBuiltInSessionFallback,
 } from "@/lib/session-generation/built-in-fallback";
 import { buildPreviewSessionContext } from "@/lib/session-generation/preview-context";
 import { toSessionResource } from "@/lib/session-generation/resource";
@@ -443,9 +450,12 @@ export function YovaPrototype({
   const lastLifecycleCheckpointAtRef = useRef(0);
   const lessonStreamsStartedRef = useRef(new Set<string>());
   const lessonStreamControllersRef = useRef(new Map<string, AbortController>());
+  const plansRef = useRef(plans);
   const analyticsEnabled = account?.identityMode === "supabase";
 
-  const activePlans = plans.filter((plan) => plan.status === "active");
+  const activePlans = filterOperationalPlans(plans);
+  const availablePlans = filterAvailablePlans(plans);
+  const agendaMilestones = filterAgendaMilestones(deadlineMilestones, plans);
   const activePlan = activePlans.find((plan) => plan.id === selectedPlanId) ?? activePlans[activePlans.length - 1] ?? null;
   const recoverableSessionCheckpoints = activeSessionCheckpoints.filter((checkpoint) => {
     const plan = activePlans.find((candidate) => candidate.id === checkpoint.planId);
@@ -627,6 +637,10 @@ export function YovaPrototype({
   useEffect(() => {
     if (account) retainedSignOutAccountIdRef.current = account.id;
   }, [account]);
+
+  useEffect(() => {
+    plansRef.current = plans;
+  }, [plans]);
 
   useEffect(() => {
     let cancelled = false;
@@ -910,10 +924,12 @@ export function YovaPrototype({
       const plan = plans.find((candidate) => candidate.id === checkpoint.planId);
       const session = plan?.sessions.find((candidate) => candidate.id === checkpoint.planSessionId);
       const protectedCloudCompletion = account.identityMode === "supabase"
+        && (plan?.status === "active" || plan?.status === "completed")
         && checkpoint.status === "awaiting_finish"
         && session?.status === "complete"
         && protectedTerminalCheckpointRunIdsRef.current.has(checkpoint.runId);
-      return !protectedCloudCompletion && (!session
+      return !protectedCloudCompletion && (plan?.status !== "active"
+        || !session
         || session.status !== "ready"
         || !session.resource
         || !checkpointMatchesSessionResource(checkpoint, session.resource));
@@ -1323,6 +1339,7 @@ export function YovaPrototype({
   ) => {
     const requestedPlan = planOverride ?? activePlans.find((plan) => plan.id === planId) ?? activePlan;
     if (!requestedPlan) return;
+    const requestedPlanWasStoredAtStart = plansRef.current.some((plan) => plan.id === requestedPlan.id);
 
     const requestedSession = requestedPlan.sessions.find((session) => session.status === "ready");
     if (!requestedSession) return;
@@ -1439,6 +1456,7 @@ export function YovaPrototype({
       generationController.abort();
     }, CLIENT_SESSION_GENERATION_TIMEOUT_MS);
     let requestId: string | null = clientRequestId;
+    let generationFailureStatus: number | null = null;
 
     try {
       const response = await fetch("/api/sessions/generate", {
@@ -1471,6 +1489,7 @@ export function YovaPrototype({
       const promptCacheHit = response.headers.get("X-Yova-Prompt-Cache-Hit") === "true";
       const body: unknown = await response.json().catch(() => null);
       if (!response.ok) {
+        generationFailureStatus = response.status;
         const message = typeof body === "object" && body && "error" in body && typeof body.error === "string"
           ? body.error
           : "YOVA could not generate this guided session.";
@@ -1583,8 +1602,16 @@ export function YovaPrototype({
         contentTargets: fallbackContext.session.contentTargets,
         completionEvidence: fallbackContext.session.completionEvidence,
       };
+      const currentRequestedPlan = plansRef.current.find((plan) => plan.id === requestedPlan.id);
+      const currentPlanStatus = currentRequestedPlan?.status
+        ?? (requestedPlanWasStoredAtStart ? undefined : requestedPlan.status);
       const fallbackTemplate = (
-        builtInFallbackSupportsAdjustment(effectiveAdjustment)
+        canUseBuiltInSessionFallback({
+          planStatus: currentPlanStatus,
+          sourceMode: currentRequestedPlan?.sourceMode ?? requestedPlan.sourceMode,
+          responseStatus: generationFailureStatus,
+          adjustment: effectiveAdjustment,
+        })
         && !isScheduledRetrievalSession(requestedSession)
       )
         ? subjectSpecificLessonStepsFor(requestedPlan, fallbackSession)
@@ -2126,6 +2153,9 @@ export function YovaPrototype({
     }
     const parsed = PlanArchiveResponseSchema.safeParse(body);
     if (!parsed.success) throw new Error("The learning goal came back in an unsafe format.");
+    plansRef.current = plansRef.current.map((plan) => (
+      plan.id === parsed.data.planId ? { ...plan, status: parsed.data.status } : plan
+    ));
     setPlans((current) => current.map((plan) => plan.id === parsed.data.planId ? { ...plan, status: parsed.data.status } : plan));
     if (parsed.data.status !== "active" && selectedPlanId === parsed.data.planId) {
       setSelectedPlanId(null);
@@ -2802,8 +2832,8 @@ export function YovaPrototype({
     <AppShell activeTab={activeTab} onTab={openTab} account={account} cloudSyncIssue={cloudSyncIssue} signOutIssue={signOutIssue} signingOut={signingOut} onRetryCloudSync={retryCloudSync} onAdd={beginAgendaAdd} workspaceClassName={personalizationWorkspaceClassName} onSignOut={signOut}>
       {activeTab === "Home" && <HomeScreen account={account} answers={answers} plans={activePlans} plan={recommendedPlan} sessionCompletions={sessionCompletions} sessionInterruptions={sessionInterruptions} activeSessionCheckpoints={recoverableSessionCheckpoints} tutorQuestion={tutorQuestion} onTutorQuestion={setTutorQuestion} onOpenTutor={openAskYova} onOpenYou={() => setActiveTab("You")} onStart={(planId) => requestSessionStart(planId)} onOpenPlan={(planId) => { setSelectedPlanId(planId); setLearningDetailPlanId(planId); setActiveTab("Learning"); }} onCreatePlan={beginPlanCreation} onStudyNow={() => { setCreatorSeed(null); setCreatorMilestoneId(null); setStage("study-now"); }} />}
       {activeTab === "Learning" && <LearningScreen plans={plans} detailPlanId={learningDetailPlanId} sessionCompletions={sessionCompletions} sessionInterruptions={sessionInterruptions} activeSessionCheckpoints={recoverableSessionCheckpoints} onOpenPlan={(planId) => { setSelectedPlanId(planId); setLearningDetailPlanId(planId); }} onClosePlan={() => setLearningDetailPlanId(null)} onStart={requestSessionStart} onCreatePlan={beginPlanCreation} onArchiveStateChange={changePlanArchiveState} onAdjustPlan={adjustPlan} onKnowledgeMapUpdate={updatePlanKnowledgeMap} onAttachMaterials={attachMaterials} />}
-      {activeTab === "Agenda" && <AgendaScreen plans={plans.filter((plan) => plan.status !== "archived")} milestones={deadlineMilestones} sessionCompletions={sessionCompletions} sessionInterruptions={sessionInterruptions} activeSessionCheckpoints={recoverableSessionCheckpoints} previewMode={account?.identityMode === "preview"} onAdd={beginAgendaAdd} onStart={requestSessionStart} onActivateReview={activateConceptReview} onReschedule={rescheduleSession} onAdjustDuration={adjustSessionDuration} onClassifyRecoveryInterruption={setRecoveryEvidenceClassification} onUpdateMilestone={updateDeadlineMilestone} onDeleteMilestone={deleteDeadlineMilestone} onConvertMilestone={(milestone, outcome) => { setCreatorSeed({ title: milestone.title, objective: milestone.description || `Complete ${milestone.title}`, itemType: "assignment", dueAt: milestone.dueAt, scope: milestone.description || milestone.title, progress: "", materialsSummary: "No materials attached yet.", missingFields: milestone.description ? [] : ["scope"], description: milestone.description || milestone.title, materials: [] }); setCreatorMilestoneId(milestone.id); setStage(outcome === "session" ? "study-now" : "plan-creator"); }} />}
-      {activeTab === "Ask YOVA" && <AskScreen key={tutorEntryKey} plans={plans} question={tutorQuestion} onQuestion={setTutorQuestion} onApplyAction={applyTutorAction} analyticsEnabled={analyticsEnabled} />}
+      {activeTab === "Agenda" && <AgendaScreen plans={availablePlans} milestones={agendaMilestones} sessionCompletions={sessionCompletions} sessionInterruptions={sessionInterruptions} activeSessionCheckpoints={recoverableSessionCheckpoints} previewMode={account?.identityMode === "preview"} onAdd={beginAgendaAdd} onStart={requestSessionStart} onActivateReview={activateConceptReview} onReschedule={rescheduleSession} onAdjustDuration={adjustSessionDuration} onClassifyRecoveryInterruption={setRecoveryEvidenceClassification} onUpdateMilestone={updateDeadlineMilestone} onDeleteMilestone={deleteDeadlineMilestone} onConvertMilestone={(milestone, outcome) => { setCreatorSeed({ title: milestone.title, objective: milestone.description || `Complete ${milestone.title}`, itemType: "assignment", dueAt: milestone.dueAt, scope: milestone.description || milestone.title, progress: "", materialsSummary: "No materials attached yet.", missingFields: milestone.description ? [] : ["scope"], description: milestone.description || milestone.title, materials: [] }); setCreatorMilestoneId(milestone.id); setStage(outcome === "session" ? "study-now" : "plan-creator"); }} />}
+      {activeTab === "Ask YOVA" && <AskScreen key={tutorEntryKey} plans={availablePlans} question={tutorQuestion} onQuestion={setTutorQuestion} onApplyAction={applyTutorAction} analyticsEnabled={analyticsEnabled} />}
       {activeTab === "You" && <YouScreen account={account} answers={answers} plans={plans} sessionCompletions={sessionCompletions} sessionInterruptions={sessionInterruptions} passwordAccountsEnabled={passwordAccountsEnabled} signingOut={signingOut} onAnswersChange={setAnswers} onDisplayNameChange={saveAccountDisplayName} onSignOut={signOut} onReset={resetYovaData} />}
     </AppShell>
     {earlySessionPlan && earlySession && <EarlySessionDialog plan={earlySessionPlan} session={earlySession} pending={earlySchedulePending} issue={earlyScheduleIssue} onCancel={() => { setEarlySessionPlanId(null); setEarlyScheduleIssue(null); }} onStart={(shiftRemainingPlan) => void startEarlySession(shiftRemainingPlan)} />}
@@ -3593,8 +3623,9 @@ function AgendaScreen({ plans, milestones, sessionCompletions, sessionInterrupti
   const [editingMilestone, setEditingMilestone] = useState<DeadlineMilestone | null>(null);
   const [milestoneAction, setMilestoneAction] = useState<string | null>(null);
   const [milestoneError, setMilestoneError] = useState<string | null>(null);
-  const conceptReviews = buildConceptReviewAgenda(plans, sessionCompletions);
-  const availableSessions = plans
+  const operationalPlans = filterOperationalPlans(plans);
+  const conceptReviews = buildConceptReviewAgenda(filterAvailablePlans(plans), sessionCompletions);
+  const availableSessions = operationalPlans
     .flatMap((plan) => plan.sessions.filter((session) => session.status !== "complete" && session.status !== "skipped").map((session) => ({ plan, session })))
     .sort((a, b) => new Date(a.session.scheduledFor).getTime() - new Date(b.session.scheduledFor).getTime());
   const overdueEntry = availableSessions.find(({ session }) => (
@@ -3615,7 +3646,7 @@ function AgendaScreen({ plans, milestones, sessionCompletions, sessionInterrupti
   const movingEntry = moving
     ? availableSessions.find(({ plan, session }) => plan.id === moving.planId && session.id === moving.sessionId) ?? null
     : null;
-  const agendaSummary = summarizeAgenda(availableSessions, plans);
+  const agendaSummary = summarizeAgenda(availableSessions, operationalPlans);
   const dayGroups = buildAgendaDayGroups(availableSessions);
   const [selectedDateKey, setSelectedDateKey] = useState(() => localDateKey(new Date()));
   const groupByDate = new Map(dayGroups.map((group) => [group.dateKey, group]));
@@ -3815,7 +3846,7 @@ function AgendaScreen({ plans, milestones, sessionCompletions, sessionInterrupti
     <section className="agenda-planning-basis"><Settings2 size={18} /><div><strong>What YOVA is allowed to change</strong><p>YOVA can move or split unfinished sessions. It will preserve the learning order, deadlines, and incomplete content, and it will ask before applying a change.</p></div></section>
     <section className="agenda-capacity-planner" aria-label="Plan around today's available time">
       <div className="agenda-capacity-heading"><span className="agenda-capacity-icon"><Clock3 size={20} /></span><div><span className="step-label">TODAY’S REALITY</span><h2>How much time do you actually have today?</h2><p>YOVA will protect urgent work, preserve the learning sequence, and carry unfinished content forward. Time changes the shape of the plan, not what you still need to learn.</p></div></div>
-      <div className="agenda-capacity-options" role="group" aria-label="Available learning time today">{[15, 30, 45, 60, 90].map((minutes) => <button key={minutes} type="button" aria-pressed={todayCapacity === minutes} aria-label={`I have ${minutes} minutes today`} onClick={() => { setTodayCapacity(minutes); setCapacityError(null); }}>{minutes}<small>min</small></button>)}</div>
+      <div className="agenda-capacity-options" role="group" aria-label="Available learning time today">{[15, 30, 45, 60, 90].map((minutes) => <button key={minutes} type="button" aria-pressed={todayCapacity === minutes} aria-label={`I have ${minutes} minutes today`} onClick={() => { setTodayCapacity(minutes); setCapacityError(null); }}><span className="duration-value" aria-hidden="true"><span>{minutes}</span><span className="duration-unit">min</span></span></button>)}</div>
       {capacityPlan && <div className={`agenda-capacity-result ${capacityPlan.status}`} aria-live="polite">
         <div>
           <span>{capacityPlan.status === "fits" ? "Today already fits" : capacityPlan.status === "empty" ? "No change needed" : capacityPlan.status === "blocked" ? "Your choice is needed" : "Suggested adjustment"}</span>
@@ -3879,7 +3910,8 @@ function AskScreen({ plans, question, onQuestion, onApplyAction, analyticsEnable
   const [proposedAction, setProposedAction] = useState<TutorProposedAction | null>(null);
   const [actionStatus, setActionStatus] = useState<"idle" | "applying" | "applied">("idle");
   const plan = contextPlanId ? plans.find((item) => item.id === contextPlanId) ?? null : null;
-  const selectablePlans = plans.filter((item) => item.status !== "archived");
+  const selectablePlans = filterAvailablePlans(plans);
+  const visibleThreads = filterTutorThreads(threads, availableLearningItemIds(selectablePlans));
 
   useEffect(() => {
     const controller = new AbortController();
@@ -3948,7 +3980,7 @@ function AskScreen({ plans, question, onQuestion, onApplyAction, analyticsEnable
       const parsed = TutorHistoryResponseSchema.safeParse(body);
       if (!parsed.success) throw new Error("The saved tutor conversation was not in a safe format.");
       const linkedPlan = thread.learningItemId
-        ? plans.find((item) => item.learningItemId === thread.learningItemId) ?? null
+        ? selectablePlans.find((item) => item.learningItemId === thread.learningItemId) ?? null
         : null;
       setContextPlanId(linkedPlan?.id ?? null);
       setThreadId(parsed.data.threadId);
@@ -4034,7 +4066,7 @@ function AskScreen({ plans, question, onQuestion, onApplyAction, analyticsEnable
     ? ["Explain the current topic simply", "Quiz me on my weakest area", "Change what this plan focuses on", "I only have 15 minutes today"]
     : ["Help me understand a difficult topic", "Quiz me on something I am learning", "Which study method should I use?", "Help me start a 20-minute study session"];
 
-  return <div className="page ask-page"><PageHeader eyebrow="ASK YOVA" title="Get help in context" description="Start general, or connect a learning goal when YOVA needs its materials and progress." /><div className="ask-toolbar"><label className="tutor-context-select"><span>Context</span><div><BookOpen size={16} /><select aria-label="Ask YOVA context" value={contextPlanId ?? "general"} disabled={sending || threadLoading} onChange={(event) => resetConversation(event.target.value === "general" ? null : event.target.value)}><option value="general">General</option>{selectablePlans.map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}</select></div></label><div className="ask-toolbar-actions"><button className="button secondary" disabled={sending || threadLoading} onClick={() => resetConversation()}><MessageSquarePlus size={16} /> New chat</button><button className="button secondary" aria-expanded={historyOpen} onClick={() => setHistoryOpen(true)}><History size={16} /> History{threads.length > 0 ? <span>{threads.length}</span> : null}</button></div></div><section className="ask-context-banner">{plan ? <><SubjectIcon plan={plan} compact /><div><span>Using learning context</span><strong>{plan.title}</strong><small>YOVA can use this goal&apos;s materials, next session, and learner evidence.</small></div></> : <><span className="general-context-icon"><Sparkles size={18} /></span><div><span>General conversation</span><strong>No learning goal attached</strong><small>Choose a goal above only when its specific context would help.</small></div></>}</section><div className="chat-space">{threadLoading ? <div className="chat-loading"><span className="button-spinner dark" /> Opening conversation…</div> : <div className="chat-thread">{messages.length === 0 && <div className="yova-message welcome"><BrandMark compact /><div><strong>YOVA</strong><p>{plan ? `What would you like help with in ${plan.title}? I can use its learning context without changing the plan unless you approve it.` : "What would you like help with? This is a fresh general conversation. You can attach a learning goal at any time."}</p></div></div>}{messages.map((message) => message.role === "assistant" ? <div className="yova-message" key={message.id}><BrandMark compact /><div><strong>YOVA</strong><TutorMessageContent content={message.content} /></div></div> : <div className="user-message" key={message.id}><strong>You</strong><p>{message.content}</p></div>)}{outgoingQuestion && <div className="user-message pending" aria-live="polite"><strong>You</strong><p>{outgoingQuestion}</p></div>}</div>}{proposedAction && <section className={`tutor-action-card ${actionStatus === "applied" ? "applied" : ""}`} aria-live="polite"><div className="tutor-action-icon">{actionStatus === "applied" ? <Check size={18} /> : proposedAction.type === "redirect_plan" ? <Settings2 size={18} /> : <Clock3 size={18} />}</div><div><span className="step-label">{actionStatus === "applied" ? "CHANGE APPLIED" : "PROPOSED CHANGE"}</span><h3>{proposedAction.title}</h3><p>{actionStatus === "applied" ? proposedAction.type === "redirect_plan" ? "Completed work stayed intact. YOVA rebuilt the unfinished sessions around the direction you approved." : `Your unfinished content is now divided into ${proposedAction.minutes}-minute windows. YOVA may add sessions so none of the required content disappears.` : proposedAction.explanation}</p></div><button className="button primary" disabled={actionStatus !== "idle"} onClick={() => void approveAction()}>{actionStatus === "applying" ? <><span className="button-spinner" /> Applying</> : actionStatus === "applied" ? <><Check size={16} /> Applied</> : "Approve change"}</button></section>}{messages.length === 0 && !outgoingQuestion && !threadLoading && <div className="prompt-grid">{suggestedPrompts.map((prompt) => <button key={prompt} disabled={sending} onClick={() => void sendQuestion(prompt)}>{prompt}</button>)}</div>}{error && <div className="chat-error"><AlertCircle size={16} /><span>{error}</span></div>}</div><div className="ask-composer"><AskBar value={question} onChange={onQuestion} onSubmit={() => void sendQuestion()} pending={sending || threadLoading} /><small>{plan ? `YOVA will answer using ${plan.title}. Plan changes always require your approval.` : "General mode does not use a specific plan or its materials."}</small></div>{historyOpen && <><button className="tutor-history-backdrop" aria-label="Close conversation history" onClick={() => setHistoryOpen(false)} /><aside className="tutor-history-panel" role="dialog" aria-modal="true" aria-labelledby="tutor-history-title"><header><div><span className="step-label">ASK YOVA</span><h2 id="tutor-history-title">Previous chats</h2></div><button aria-label="Close conversation history" onClick={() => setHistoryOpen(false)}><X size={19} /></button></header>{historyLoading || threadLoading ? <div className="chat-loading"><span className="button-spinner dark" /> Loading chats…</div> : historyError ? <div className="chat-error"><AlertCircle size={16} /><span>{historyError}</span></div> : threads.length === 0 ? <div className="tutor-history-empty"><History size={21} /><strong>No saved chats yet</strong><p>Your finished Ask YOVA conversations will appear here.</p></div> : <div className="tutor-history-list">{threads.map((thread) => <button key={thread.id} className={thread.id === threadId ? "selected" : ""} onClick={() => void openSavedThread(thread)}><span>{thread.contextTitle ?? "General"}</span><strong>{thread.title}</strong><small>{formatTutorThreadDate(thread.updatedAt)}</small></button>)}</div>}</aside></>}</div>;
+  return <div className="page ask-page"><PageHeader eyebrow="ASK YOVA" title="Get help in context" description="Start general, or connect a learning goal when YOVA needs its materials and progress." /><div className="ask-toolbar"><label className="tutor-context-select"><span>Context</span><div><BookOpen size={16} /><select aria-label="Ask YOVA context" value={contextPlanId ?? "general"} disabled={sending || threadLoading} onChange={(event) => resetConversation(event.target.value === "general" ? null : event.target.value)}><option value="general">General</option>{selectablePlans.map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}</select></div></label><div className="ask-toolbar-actions"><button className="button secondary" disabled={sending || threadLoading} onClick={() => resetConversation()}><MessageSquarePlus size={16} /> New chat</button><button className="button secondary" aria-expanded={historyOpen} onClick={() => setHistoryOpen(true)}><History size={16} /> History{visibleThreads.length > 0 ? <span>{visibleThreads.length}</span> : null}</button></div></div><section className="ask-context-banner">{plan ? <><SubjectIcon plan={plan} compact /><div><span>Using learning context</span><strong>{plan.title}</strong><small>YOVA can use this goal&apos;s materials, next session, and learner evidence.</small></div></> : <><span className="general-context-icon"><Sparkles size={18} /></span><div><span>General conversation</span><strong>No learning goal attached</strong><small>Choose a goal above only when its specific context would help.</small></div></>}</section><div className="chat-space">{threadLoading ? <div className="chat-loading"><span className="button-spinner dark" /> Opening conversation…</div> : <div className="chat-thread">{messages.length === 0 && <div className="yova-message welcome"><BrandMark compact /><div><strong>YOVA</strong><p>{plan ? `What would you like help with in ${plan.title}? I can use its learning context without changing the plan unless you approve it.` : "What would you like help with? This is a fresh general conversation. You can attach a learning goal at any time."}</p></div></div>}{messages.map((message) => message.role === "assistant" ? <div className="yova-message" key={message.id}><BrandMark compact /><div><strong>YOVA</strong><TutorMessageContent content={message.content} /></div></div> : <div className="user-message" key={message.id}><strong>You</strong><p>{message.content}</p></div>)}{outgoingQuestion && <div className="user-message pending" aria-live="polite"><strong>You</strong><p>{outgoingQuestion}</p></div>}</div>}{proposedAction && <section className={`tutor-action-card ${actionStatus === "applied" ? "applied" : ""}`} aria-live="polite"><div className="tutor-action-icon">{actionStatus === "applied" ? <Check size={18} /> : proposedAction.type === "redirect_plan" ? <Settings2 size={18} /> : <Clock3 size={18} />}</div><div><span className="step-label">{actionStatus === "applied" ? "CHANGE APPLIED" : "PROPOSED CHANGE"}</span><h3>{proposedAction.title}</h3><p>{actionStatus === "applied" ? proposedAction.type === "redirect_plan" ? "Completed work stayed intact. YOVA rebuilt the unfinished sessions around the direction you approved." : `Your unfinished content is now divided into ${proposedAction.minutes}-minute windows. YOVA may add sessions so none of the required content disappears.` : proposedAction.explanation}</p></div><button className="button primary" disabled={actionStatus !== "idle"} onClick={() => void approveAction()}>{actionStatus === "applying" ? <><span className="button-spinner" /> Applying</> : actionStatus === "applied" ? <><Check size={16} /> Applied</> : "Approve change"}</button></section>}{messages.length === 0 && !outgoingQuestion && !threadLoading && <div className="prompt-grid">{suggestedPrompts.map((prompt) => <button key={prompt} disabled={sending} onClick={() => void sendQuestion(prompt)}>{prompt}</button>)}</div>}{error && <div className="chat-error"><AlertCircle size={16} /><span>{error}</span></div>}</div><div className="ask-composer"><AskBar value={question} onChange={onQuestion} onSubmit={() => void sendQuestion()} pending={sending || threadLoading} /><small>{plan ? `YOVA will answer using ${plan.title}. Plan changes always require your approval.` : "General mode does not use a specific plan or its materials."}</small></div>{historyOpen && <><button className="tutor-history-backdrop" aria-label="Close conversation history" onClick={() => setHistoryOpen(false)} /><aside className="tutor-history-panel" role="dialog" aria-modal="true" aria-labelledby="tutor-history-title"><header><div><span className="step-label">ASK YOVA</span><h2 id="tutor-history-title">Previous chats</h2></div><button aria-label="Close conversation history" onClick={() => setHistoryOpen(false)}><X size={19} /></button></header>{historyLoading || threadLoading ? <div className="chat-loading"><span className="button-spinner dark" /> Loading chats…</div> : historyError ? <div className="chat-error"><AlertCircle size={16} /><span>{historyError}</span></div> : visibleThreads.length === 0 ? <div className="tutor-history-empty"><History size={21} /><strong>No saved chats yet</strong><p>Your finished Ask YOVA conversations will appear here.</p></div> : <div className="tutor-history-list">{visibleThreads.map((thread) => <button key={thread.id} className={thread.id === threadId ? "selected" : ""} onClick={() => void openSavedThread(thread)}><span>{thread.contextTitle ?? "General"}</span><strong>{thread.title}</strong><small>{formatTutorThreadDate(thread.updatedAt)}</small></button>)}</div>}</aside></>}</div>;
 }
 
 function formatTutorThreadDate(value: string) {

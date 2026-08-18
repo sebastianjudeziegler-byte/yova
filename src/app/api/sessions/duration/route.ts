@@ -3,6 +3,11 @@ import {
   SessionDurationAdjustmentRequestSchema,
   SessionDurationAdjustmentResponseSchema,
 } from "@/lib/scheduling/session-adjustment-schema";
+import {
+  SCHEDULABLE_SESSION_STATUSES,
+  sessionOperationFailure,
+  verifyOperationalPlanSession,
+} from "@/lib/server/session-operation-guard";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
@@ -27,6 +32,15 @@ export async function PATCH(request: Request) {
       error: "Choose a session length between 5 and 90 minutes.",
       fields: parsed.error.flatten().fieldErrors,
     }, { status: 422 });
+  }
+
+  const operationAccess = await verifyOperationalPlanSession(supabase, {
+    ...parsed.data,
+    allowedSessionStatuses: SCHEDULABLE_SESSION_STATUSES,
+  });
+  if (!operationAccess.allowed) {
+    const failure = sessionOperationFailure(operationAccess);
+    return NextResponse.json({ error: failure.error }, { status: failure.status });
   }
 
   const { data, error } = await supabase.rpc("adjust_plan_session_duration", {

@@ -4,6 +4,10 @@ import { isOpenAIAnswerEvaluationConfigured } from "@/lib/openai/config";
 import { claimAIRequest } from "@/lib/server/ai-usage";
 import { isDevelopmentPreviewRequest } from "@/lib/server/development-preview";
 import { checkAnswerEvaluationRateLimit, requestRateLimitKey } from "@/lib/server/rate-limit";
+import {
+  sessionOperationFailure,
+  verifyOperationalPlanSession,
+} from "@/lib/server/session-operation-guard";
 import { evaluatePreviewAnswer } from "@/lib/session-evaluation/preview";
 import {
   AnswerEvaluationRequestSchema,
@@ -58,14 +62,10 @@ export async function POST(request: Request) {
     return response({ error: "Sign in to check this response." }, requestId, 401);
   }
 
-  const { data: planSession, error: sessionError } = await supabase
-    .from("plan_sessions")
-    .select("id,plan_id")
-    .eq("id", parsed.data.planSessionId)
-    .maybeSingle();
-  if (sessionError) return response({ error: "YOVA could not verify this learning session." }, requestId, 500);
-  if (!planSession || planSession.plan_id !== parsed.data.planId) {
-    return response({ error: "That learning session was not found." }, requestId, 404);
+  const operationAccess = await verifyOperationalPlanSession(supabase, parsed.data);
+  if (!operationAccess.allowed) {
+    const failure = sessionOperationFailure(operationAccess);
+    return response({ error: failure.error }, requestId, failure.status);
   }
 
   if (!isOpenAIAnswerEvaluationConfigured()) {

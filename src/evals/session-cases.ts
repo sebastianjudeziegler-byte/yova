@@ -3,6 +3,7 @@ import type { KnowledgeMapTopic } from "@/lib/knowledge-map/schema";
 
 const EVALUATION_TOPIC_ID = "11111111-1111-4111-8111-111111111111";
 const WWI_MAPPED_TOPIC_ID = "8ec325f4-0000-4000-8000-000000000001";
+const BIOENERGETICS_TOPIC_ID = "8ec325f4-0000-4000-8000-000000000002";
 
 export type SessionTaskFamily = "conceptual" | "problem_solving" | "reading" | "writing" | "coding" | "language" | "general";
 
@@ -57,6 +58,93 @@ export function buildSessionEvaluationCases(): SessionEvaluationCase[] {
         recentResults: [],
         recentInterruptions: [],
         conceptSignals: [],
+      },
+    }),
+    evaluationCase({
+      id: "bioenergetics_multi_target_study",
+      label: "Bioenergetics multi-target retrieval recovery",
+      taskFamily: "conceptual",
+      expectedSourceTerms: [],
+      context: {
+        sessionArchitectureVersion: "streamed_teaching_v1",
+        learningGoal: {
+          title: "Bioenergetics unit plan",
+          topic: "Cellular energy transfer, ATP hydrolysis, and energy coupling",
+          kind: "course",
+          deadline: null,
+          sourceMode: "yova_generated",
+          studyMode: "inside_yova",
+          learningIntent: "study",
+        },
+        planRationale: "Begin with unsupported retrieval across the two connected energy targets, then repair only the relationships the learner cannot yet explain.",
+        materials: [],
+        knowledgeTopics: [{
+          id: BIOENERGETICS_TOPIC_ID,
+          title: "Cellular energy and ATP coupling",
+          description: "How cells transfer energy and couple ATP hydrolysis to energy-requiring reactions.",
+          subtopics: ["Cellular energy transfer", "ATP hydrolysis", "Energy coupling"],
+          prerequisiteTopicIds: [],
+          status: "not_started",
+          initialEvidence: null,
+          sourceReferences: [],
+          origin: "ai_generated",
+          deferred: null,
+        }],
+        session: {
+          title: "Check cellular energy and ATP",
+          objective: "Identify what you can currently explain about cellular energy and ATP without support.",
+          method: "Retrieval practice",
+          methodReason: "An unsupported explanation makes current understanding visible before targeted repair.",
+          estimatedMinutes: 25,
+          learningMode: "study",
+          topicIds: [BIOENERGETICS_TOPIC_ID],
+          contentTargets: [
+            "How cells use and transfer energy",
+            "ATP hydrolysis and energy coupling",
+          ],
+          completionEvidence: [
+            "Explain how cells transfer energy without notes",
+            "Explain how ATP hydrolysis can drive energy-requiring work",
+            "Identify one relationship that needs repair",
+          ],
+          reviewConcept: null,
+          reviewType: null,
+        },
+        learnerProfile: {
+          commonBlocker: null,
+          guidancePreference: null,
+          explanationPreference: "Start with the big picture before details",
+          focusFrequency: null,
+          startingPattern: null,
+          primaryImprovementGoal: null,
+          memoryChallenge: "I forget after a few days",
+          supportPreference: "Break a stuck point into smaller steps",
+          workspacePreference: "Show one step at a time",
+        },
+        sessionAdjustment: null,
+        recentResults: [],
+        recentInterruptions: [],
+        conceptSignals: [],
+        scaffoldSignals: [],
+        topicCalibrationSignals: [],
+        personalization: {
+          decisions: [],
+          methodTie: {
+            state: {
+              controls: { experiments: false },
+              activeExperiment: null,
+              experimentHistory: [],
+            },
+            signals: [{
+              id: "profile:memory_breakdown",
+              key: "memory_breakdown",
+              title: "Delayed forgetting",
+              code: "delayed_forgetting",
+              evidenceLabel: "You told YOVA",
+              paused: false,
+            }],
+          },
+        },
       },
     }),
     evaluationCase({

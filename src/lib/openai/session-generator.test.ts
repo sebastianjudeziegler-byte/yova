@@ -8,6 +8,11 @@ import type { SessionGenerationContext } from "@/lib/openai/session-generator";
 
 const parseResponse = vi.hoisted(() => vi.fn());
 const TEST_TOPIC_ID = "11111111-1111-4111-8111-111111111111";
+const BIO_TOPIC_IDS = [
+  "22222222-2222-4222-8222-222222222221",
+  "22222222-2222-4222-8222-222222222222",
+  "22222222-2222-4222-8222-222222222223",
+] as const;
 
 vi.mock("server-only", () => ({}));
 vi.mock("@/lib/openai/client", () => ({
@@ -99,6 +104,165 @@ function learningDraft(firstPhase: "orient" | "model") {
     ],
     sourceGrounding: null,
   }) as GeneratedSessionDraft;
+}
+
+function oversizedStudyDraft() {
+  return GeneratedSessionDraftOutputSchema.parse({
+    topicIds: [TEST_TOPIC_ID],
+    methodBriefing: {
+      learningMode: "study",
+      taskType: "conceptual_learning",
+      methodId: "spaced_retrieval",
+      name: "Spaced retrieval",
+      what: "Retrieve the target now, inspect the exposed gap, and return after a delay.",
+      why: "Unsupported retrieval makes current understanding visible before a bounded correction and delayed return.",
+      how: ["Answer without notes.", "Repair the exposed relationship.", "Return after a delay."],
+      completion: "Complete the unsupported checks and schedule the delayed retrieval return.",
+      personalization: ["The session begins with a bounded unsupported attempt before showing corrective subject content."],
+    },
+    coverage: {
+      focus: "A deliberately oversized but structurally valid study response.",
+      essentialIdeas: ["A complete subject relationship that the required retrieval question assesses"],
+      completionEvidence: ["Complete the unsupported explanation"],
+      evidenceMap: [{
+        essentialIdea: "A complete subject relationship that the required retrieval question assesses",
+        activityConcept: "Subject relationship",
+      }],
+      deferredContent: [],
+    },
+    rationale: "This fixture is structurally valid but deliberately exceeds the time budget so semantic repair is required.",
+    activities: [{
+      topicId: TEST_TOPIC_ID,
+      methodPhase: "retrieve",
+      concept: "Subject relationship",
+      estimatedMinutes: 20,
+      requiredForCompletion: true,
+      label: "Retrieve",
+      title: "Explain the relationship",
+      body: "Without notes, explain the complete subject relationship and why it holds.",
+      teaching: null,
+      type: "free_response",
+      choices: [],
+      correctAnswer: "The complete subject relationship connects the relevant cause to its subject-specific effect.",
+      feedback: "A complete response names both sides of the relationship and explains the causal connection between them.",
+    }, {
+      topicId: TEST_TOPIC_ID,
+      methodPhase: "retrieve",
+      concept: "Subject distinction",
+      estimatedMinutes: 20,
+      requiredForCompletion: true,
+      label: "Check",
+      title: "Distinguish the relationship",
+      body: "Which option correctly states the complete subject relationship described in this session?",
+      teaching: null,
+      type: "multiple_choice",
+      choices: ["The correct subject relationship", "A reversed relationship", "An unrelated relationship", "No relationship exists"],
+      correctAnswer: "The correct subject relationship",
+      feedback: "The correct choice preserves the causal direction and the subject-specific relationship required by the objective.",
+    }, {
+      topicId: null,
+      methodPhase: "repair",
+      concept: null,
+      estimatedMinutes: 20,
+      requiredForCompletion: true,
+      label: "Repair",
+      title: "Repair the relationship",
+      body: "Compare the attempt with the corrected relationship and replace only the exposed gap.",
+      teaching: {
+        keyIdea: "The subject relationship has a specific causal direction.",
+        explanation: "The corrected model identifies the relevant cause, the resulting effect, and the mechanism that connects them within the bounded subject relationship.",
+        example: null,
+        commonMistake: {
+          mistake: "Reversing the cause and effect in the relationship.",
+          correction: "Keep the cause first and connect it explicitly to the resulting subject effect.",
+        },
+      },
+      type: "instruction",
+      choices: [],
+      correctAnswer: null,
+      feedback: null,
+    }, {
+      topicId: null,
+      methodPhase: "schedule_return",
+      concept: null,
+      estimatedMinutes: 1,
+      requiredForCompletion: false,
+      label: "Return",
+      title: "Return after a delay",
+      body: "YOVA will bring this relationship back after a delay for another unsupported retrieval.",
+      teaching: null,
+      type: "reflection",
+      choices: [],
+      correctAnswer: null,
+      feedback: null,
+    }],
+    sourceGrounding: null,
+  });
+}
+
+function completedProviderResponse(id: string, output_parsed: unknown) {
+  return {
+    id,
+    model: "gpt-yova-test",
+    status: "completed",
+    output_parsed,
+    usage: {
+      input_tokens: 600,
+      input_tokens_details: { cached_tokens: 0, cache_write_tokens: 0 },
+      output_tokens: 300,
+    },
+  };
+}
+
+async function expectCompleteValidatorPass(
+  draft: GeneratedSessionDraft,
+  context: SessionGenerationContext,
+) {
+  const { buildLearningScienceRoutingBrief } = await import("@/lib/learning/method-router");
+  const {
+    applyPersonalizedMethodTieToRouting,
+    personalizationDecisions,
+  } = await import("@/lib/personalization/personalization-generation");
+  const { buildSessionDeliveryPolicy } = await import("@/lib/personalization/session-delivery-policy");
+  const { validateGeneratedSessionWithCode } = await import("@/lib/openai/session-generator");
+  const routing = applyPersonalizedMethodTieToRouting(buildLearningScienceRoutingBrief({
+    learningIntent: context.learningGoal.learningIntent,
+    sessionLearningMode: context.session.learningMode,
+    goalTitle: context.learningGoal.title,
+    goalTopic: context.learningGoal.topic,
+    goalKind: context.learningGoal.kind,
+    sessionTitle: context.session.title,
+    sessionObjective: context.session.objective,
+    plannedMethod: context.session.method,
+    plannedMethodReason: context.session.methodReason,
+    learnerProfile: context.learnerProfile,
+    recentResults: context.recentResults,
+    interruptionCount: context.recentInterruptions.length,
+  }), context.personalization);
+  const deliveryPolicy = buildSessionDeliveryPolicy({
+    learnerProfile: context.learnerProfile,
+    recentResults: context.recentResults,
+    recentInterruptions: context.recentInterruptions,
+    learningMode: context.session.learningMode,
+    estimatedMinutes: context.session.estimatedMinutes,
+    personalizationDecisions: personalizationDecisions(context.personalization, routing),
+  });
+  const authoritativeTargets = draft.coverage.essentialIdeas.map((essentialIdea, index) => ({
+    essentialIdea,
+    target: context.session.contentTargets![index]!,
+  }));
+
+  expect(routing.suggestedPrimaryMethodId).toBe("spaced_retrieval");
+  expect(validateGeneratedSessionWithCode(
+    draft,
+    context,
+    routing,
+    [],
+    [],
+    [],
+    deliveryPolicy,
+    authoritativeTargets,
+  )).toBeNull();
 }
 
 describe("substantive teaching validation", () => {
@@ -442,6 +606,232 @@ describe("full guided-session personalization prompt", () => {
     });
     expect(prompt).not.toHaveProperty("personalization");
     expect(providerInput).not.toContain("PRIVATE-CSS-ONLY");
+  });
+});
+
+describe("multi-target study recovery", () => {
+  it("recovers the one-topic two-target Bioenergetics session with typed recall and meaningful choice", async () => {
+    parseResponse.mockReset();
+    const context = buildSessionEvaluationCases()
+      .find((candidate) => candidate.id === "bioenergetics_multi_target_study")?.context;
+    expect(context).toBeDefined();
+    const invalidFullDraft = oversizedStudyDraft();
+    const recoveryContent = {
+      targetClaims: [
+        "Cells transfer energy from energy-releasing reactions into energy-requiring cellular work through coupled chemical processes.",
+        "ATP hydrolysis releases free energy that cells couple to energy-requiring reactions and cellular work.",
+      ],
+      topicChecks: [{
+        title: "Explain cellular energy transfer",
+        prompt: "Without notes, explain how cells use and transfer energy from energy-releasing reactions into cellular work.",
+        choices: [
+          "Cells couple energy-releasing reactions to energy-requiring work",
+          "Cells create energy from matter whenever work is required",
+          "Cells use only heat released by spontaneous reactions",
+          "Cells store all usable energy permanently in glucose",
+        ],
+        correctChoiceIndex: 0,
+        referenceAnswer: "Cells transfer energy by coupling energy released by favorable reactions to energy-requiring cellular work through chemical intermediates.",
+        feedback: "A complete explanation connects an energy-releasing reaction to a specific energy-requiring process rather than saying cells create energy.",
+      }, {
+        title: "Check ATP energy coupling",
+        prompt: "Which statement correctly explains how ATP hydrolysis and energy coupling can drive an energy-requiring cellular reaction?",
+        choices: [
+          "ATP hydrolysis is coupled to the reaction so the combined process releases free energy",
+          "ATP hydrolysis raises the activation energy until the reaction becomes favorable",
+          "ATP stores heat that directly changes an endergonic reaction into combustion",
+          "ATP hydrolysis creates new energy that the cell did not previously contain",
+        ],
+        correctChoiceIndex: 0,
+        referenceAnswer: "Cells couple ATP hydrolysis to an energy-requiring reaction so the free-energy change of the combined process is favorable.",
+        feedback: "Coupling links the favorable free-energy change of ATP hydrolysis to the energy-requiring reaction; it does not create energy.",
+      }],
+      repair: {
+        keyIdea: "Cells transfer energy by coupling reactions, often through ATP hydrolysis.",
+        explanation: "Energy-releasing reactions can drive energy-requiring cellular work when the processes are chemically coupled. ATP hydrolysis is one common coupling mechanism because its favorable free-energy change can make the combined process favorable.",
+        commonMistake: "ATP hydrolysis creates new energy for the cell.",
+        correction: "ATP transfers usable free energy through a coupled reaction; it does not create energy.",
+      },
+    };
+    parseResponse
+      .mockResolvedValueOnce(completedProviderResponse("invalid-initial", invalidFullDraft))
+      .mockResolvedValueOnce(completedProviderResponse("invalid-repair", invalidFullDraft))
+      .mockResolvedValueOnce(completedProviderResponse("safe-recovery", recoveryContent));
+
+    const { generateSessionWithOpenAI } = await import("@/lib/openai/session-generator");
+    const result = await generateSessionWithOpenAI(context!);
+
+    expect(parseResponse).toHaveBeenCalledTimes(3);
+    expect(parseResponse.mock.calls[2]?.[0]?.text?.format?.name).toBe("yova_safe_study_recovery");
+    expect(result.draft.methodBriefing.methodId).toBe("spaced_retrieval");
+    expect(result.draft.activities.some((activity) => (
+      activity.requiredForCompletion && activity.type === "free_response"
+    ))).toBe(true);
+    const multipleChoice = result.draft.activities.find((activity) => activity.type === "multiple_choice");
+    expect(multipleChoice).toMatchObject({
+      topicId: context!.session.topicIds[0],
+      requiredForCompletion: true,
+      choices: recoveryContent.topicChecks[1]!.choices,
+      correctAnswer: recoveryContent.topicChecks[1]!.choices[0],
+    });
+    expect(result.draft.activities.at(-1)).toMatchObject({
+      methodPhase: "schedule_return",
+      requiredForCompletion: false,
+    });
+    expect(result.generationStats).toMatchObject({
+      attempts: 3,
+      failedValidator: "session_time_budget",
+      repairSucceeded: true,
+    });
+    await expectCompleteValidatorPass(result.draft, context!);
+  });
+
+  it("recovers three authoritative Bioenergetics topics without collapsing their checks", async () => {
+    parseResponse.mockReset();
+    const base = buildSessionEvaluationCases()
+      .find((candidate) => candidate.id === "bioenergetics_multi_target_study")?.context;
+    expect(base).toBeDefined();
+    const targets = [
+      "ATP coupling in endergonic and exergonic reactions",
+      "Enzyme effects on activation energy and reaction rate",
+      "Oxidation, reduction, NADH, and FADH2",
+    ];
+    const context: SessionGenerationContext = {
+      ...base!,
+      learningGoal: {
+        ...base!.learningGoal,
+        title: "Bioenergetics Test Preparation",
+        topic: "ATP coupling, enzymes, and redox carriers",
+      },
+      knowledgeTopics: [{
+        id: BIO_TOPIC_IDS[0],
+        title: "ATP coupling",
+        description: "How ATP hydrolysis couples endergonic and exergonic reactions.",
+        subtopics: ["Endergonic reactions", "Exergonic reactions", "ATP hydrolysis"],
+        prerequisiteTopicIds: [], status: "not_started", initialEvidence: null, sourceReferences: [], origin: "ai_generated", deferred: null,
+      }, {
+        id: BIO_TOPIC_IDS[1],
+        title: "Enzymes and activation energy",
+        description: "How enzymes change activation energy and reaction rate.",
+        subtopics: ["Activation energy", "Reaction rate"],
+        prerequisiteTopicIds: [], status: "not_started", initialEvidence: null, sourceReferences: [], origin: "ai_generated", deferred: null,
+      }, {
+        id: BIO_TOPIC_IDS[2],
+        title: "Redox electron carriers",
+        description: "Oxidation, reduction, NADH, and FADH2 in energy transfer.",
+        subtopics: ["Oxidation", "Reduction", "NADH", "FADH2"],
+        prerequisiteTopicIds: [], status: "not_started", initialEvidence: null, sourceReferences: [], origin: "ai_generated", deferred: null,
+      }],
+      session: {
+        ...base!.session,
+        title: "Verify Bioenergetics prerequisites",
+        objective: "Verify the demonstrated prerequisites and identify any specific repair needed before cellular respiration.",
+        topicIds: [...BIO_TOPIC_IDS],
+        contentTargets: targets,
+        completionEvidence: [
+          "Explain ATP coupling without support",
+          "Explain how enzymes change activation energy and rate",
+          "Distinguish oxidation and reduction using NADH or FADH2",
+        ],
+      },
+      recentInterruptions: [{
+        occurredAt: "2026-08-15T10:00:00.000Z",
+        plannedMinutes: 25,
+        actualMinutes: 6,
+        completedSteps: 1,
+        totalSteps: 4,
+      }, {
+        occurredAt: "2026-08-16T10:00:00.000Z",
+        plannedMinutes: 25,
+        actualMinutes: 7,
+        completedSteps: 1,
+        totalSteps: 4,
+      }],
+    };
+    const recoveryContent = {
+      targetClaims: [
+        "ATP hydrolysis is exergonic and can be coupled to an endergonic reaction so the combined free-energy change is favorable.",
+        "Enzymes lower activation energy and increase reaction rate without changing the reaction's overall free-energy change.",
+        "Oxidation loses electrons, reduction gains electrons, and NADH and FADH2 carry high-energy electrons between reactions.",
+      ],
+      topicChecks: [{
+        title: "Explain ATP coupling",
+        prompt: "Without notes, explain how exergonic ATP hydrolysis can be coupled to drive an endergonic cellular reaction.",
+        choices: ["Coupling makes the combined free-energy change favorable", "Coupling makes ATP hydrolysis endergonic", "Coupling removes all activation energy", "Coupling creates energy"],
+        correctChoiceIndex: 0,
+        referenceAnswer: "The exergonic free-energy change of ATP hydrolysis can outweigh the endergonic change when the reactions are coupled, making the combined process favorable.",
+        feedback: "The key relationship is the favorable combined free-energy change, not the creation of energy or removal of activation energy.",
+      }, {
+        title: "Check enzyme effects",
+        prompt: "Which statement correctly relates an enzyme to activation energy and the rate of a biochemical reaction?",
+        choices: ["It lowers activation energy and increases reaction rate", "It raises activation energy and increases reaction rate", "It changes the reaction's overall free-energy change", "It is consumed to supply reaction energy"],
+        correctChoiceIndex: 0,
+        referenceAnswer: "An enzyme lowers the activation-energy barrier and therefore increases reaction rate without changing the overall free-energy change.",
+        feedback: "Enzymes change the kinetic barrier and rate; they do not supply energy or change the reaction's thermodynamic free-energy difference.",
+      }, {
+        title: "Check redox carriers",
+        prompt: "Which statement correctly connects oxidation, reduction, NADH, and FADH2 during cellular energy transfer?",
+        choices: ["Oxidation loses electrons while reduced NADH and FADH2 carry electrons", "Oxidation gains electrons while NADH destroys electrons", "Reduction always releases oxygen while FADH2 stores heat", "NADH and FADH2 are enzymes that lower activation energy"],
+        correctChoiceIndex: 0,
+        referenceAnswer: "Oxidation is electron loss and reduction is electron gain; NADH and FADH2 are reduced carriers that transport high-energy electrons.",
+        feedback: "Redox tracks electron transfer: oxidation loses electrons, reduction gains them, and NADH or FADH2 can carry the reduced electrons.",
+      }],
+      repair: {
+        keyIdea: "Bioenergetics links favorable coupling, kinetic enzyme effects, and electron transfer.",
+        explanation: "ATP coupling concerns the combined free-energy change, enzymes lower activation-energy barriers to change rates, and redox reactions transfer electrons through carriers such as NADH and FADH2. These are connected but distinct relationships.",
+        commonMistake: "Enzymes or electron carriers create the energy that reactions need.",
+        correction: "Enzymes change kinetic barriers, carriers transfer electrons, and coupling links favorable and unfavorable free-energy changes.",
+      },
+    };
+    const invalidFullDraft = oversizedStudyDraft();
+    parseResponse
+      .mockResolvedValueOnce(completedProviderResponse("invalid-initial-old", invalidFullDraft))
+      .mockResolvedValueOnce(completedProviderResponse("invalid-repair-old", invalidFullDraft))
+      .mockResolvedValueOnce(completedProviderResponse("safe-recovery-old", recoveryContent));
+
+    const { generateSessionWithOpenAI } = await import("@/lib/openai/session-generator");
+    const result = await generateSessionWithOpenAI(context);
+
+    expect(parseResponse).toHaveBeenCalledTimes(3);
+    expect(parseResponse.mock.calls[2]?.[0]?.text?.format?.name).toBe("yova_safe_study_recovery");
+    expect(result.draft.activities.filter((activity) => (
+      activity.type === "free_response" || activity.type === "multiple_choice"
+    )).map((activity) => activity.topicId)).toEqual([...BIO_TOPIC_IDS]);
+    expect(result.draft.activities.filter((activity) => activity.methodPhase !== "schedule_return")).toHaveLength(4);
+    expect(result.deliveryPolicy.pacing.maximumActivities).toBe(4);
+    expect(result.generationStats).toMatchObject({
+      attempts: 3,
+      failedValidator: "session_time_budget",
+      repairSucceeded: true,
+    });
+    await expectCompleteValidatorPass(result.draft, context);
+  });
+
+  it("does not substitute the bounded recovery for a requested challenge session", async () => {
+    parseResponse.mockReset();
+    const base = buildSessionEvaluationCases()
+      .find((candidate) => candidate.id === "bioenergetics_multi_target_study")?.context;
+    expect(base).toBeDefined();
+    const invalidFullDraft = oversizedStudyDraft();
+    parseResponse.mockResolvedValue(completedProviderResponse("invalid-challenge", invalidFullDraft));
+
+    const { generateSessionWithOpenAI } = await import("@/lib/openai/session-generator");
+    await expect(generateSessionWithOpenAI({
+      ...base!,
+      sessionAdjustment: {
+        familiarity: "challenge_me",
+        availableMinutes: 25,
+        knownTargets: [],
+        note: "",
+      },
+    })).rejects.toMatchObject({ name: "SessionGenerationFailure" });
+
+    expect(parseResponse).toHaveBeenCalledTimes(3);
+    expect(parseResponse.mock.calls.map((call) => call[0]?.text?.format?.name)).toEqual([
+      "yova_guided_session",
+      "yova_guided_session",
+      "yova_guided_session",
+    ]);
   });
 });
 

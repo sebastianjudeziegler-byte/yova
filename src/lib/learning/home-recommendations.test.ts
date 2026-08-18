@@ -25,6 +25,20 @@ describe("home recommendation ranking", () => {
 
     expect(rankPlansForHome([complete], now)).toEqual([]);
   });
+
+  it("omits non-operational plans even when stale ready sessions remain", () => {
+    const archived = plan("archived", "2026-08-06T18:00:00-07:00", null);
+    archived.status = "archived";
+    const draft = plan("draft", "2026-08-06T19:00:00-07:00", null);
+    draft.status = "draft";
+    const completed = plan("completed", "2026-08-06T20:00:00-07:00", null);
+    completed.status = "completed";
+    const active = plan("active", "2026-08-07T18:00:00-07:00", null);
+
+    expect(rankPlansForHome([archived, draft, completed, active], now).map((item) => item.id)).toEqual([
+      "active",
+    ]);
+  });
 });
 
 function plan(id: string, scheduledFor: string, deadline: string | null): LearningPlan {

@@ -91,7 +91,7 @@ input:focus-visible, textarea:focus-visible, select:focus-visible { outline: non
   color: var(--brand-blue);
   font-size: 11px;
   font-weight: 800;
-  letter-spacing: .105em;
+  letter-spacing: var(--tracking-label);
   line-height: 1.2;
 }
 
@@ -129,7 +129,7 @@ input:focus-visible, textarea:focus-visible, select:focus-visible { outline: non
 .page.home-page { width: min(100%, 1240px); }
 .page.agenda-page { width: min(100%, var(--content-wide)); }
 .page-header { max-width: 760px; margin-bottom: 28px; }
-.page-header h1 { margin: 8px 0 8px; color: var(--brand-navy); font-size: clamp(32px, 4vw, 44px); line-height: 1.08; letter-spacing: -.045em; }
+.page-header h1 { margin: 8px 0 8px; color: var(--brand-navy); font-size: clamp(32px, 4vw, 44px); line-height: 1.08; letter-spacing: var(--tracking-display); }
 .page-header p { max-width: 680px; margin: 0; color: var(--ink-muted); font-size: 15px; line-height: 1.65; }
 
 .section-block {
@@ -179,7 +179,7 @@ input:focus-visible, textarea:focus-visible, select:focus-visible { outline: non
     var(--brand-canvas);
 }
 .hero-card { border-radius: 30px; background: linear-gradient(137deg, #0b1020, #121d3b 73%); box-shadow: var(--shadow-dark); }
-.hero-card h1 { letter-spacing: -.055em; }
+.hero-card h1 { letter-spacing: var(--tracking-display); }
 .hero-copy > p { color: #c7d0e2; font-size: 18px; }
 .account-card, .setup-card, .session-setup-card, .plan-panel, .add-panel {
   border-color: rgba(217, 222, 232, .92);

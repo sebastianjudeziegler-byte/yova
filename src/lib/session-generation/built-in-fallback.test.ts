@@ -5,6 +5,7 @@ import {
   builtInLessonFitsTime,
   builtInSessionFallbackKind,
   builtInTopicEvidenceId,
+  canUseBuiltInSessionFallback,
 } from "@/lib/session-generation/built-in-fallback";
 
 const base = {
@@ -264,5 +265,93 @@ describe("built-in fallback adjustment fidelity", () => {
     expect(builtInFallbackSupportsAdjustment(null)).toBe(true);
     expect(builtInFallbackSupportsAdjustment({ note: "   " })).toBe(true);
     expect(builtInFallbackSupportsAdjustment({ note: "Must cover the quotient rule too." })).toBe(false);
+  });
+
+  it("allows only the planned structured starting point", () => {
+    expect(builtInFallbackSupportsAdjustment({
+      familiarity: "as_planned",
+      knownTargets: [],
+      note: "",
+    })).toBe(true);
+    expect(builtInFallbackSupportsAdjustment({
+      familiarity: "already_know",
+      knownTargets: [],
+      note: "",
+    })).toBe(false);
+    expect(builtInFallbackSupportsAdjustment({
+      familiarity: "already_know",
+      knownTargets: ["Product rule structure"],
+      note: "",
+    })).toBe(false);
+    expect(builtInFallbackSupportsAdjustment({
+      familiarity: "need_teaching",
+      knownTargets: [],
+      note: "",
+    })).toBe(false);
+    expect(builtInFallbackSupportsAdjustment({
+      familiarity: "challenge_me",
+      knownTargets: [],
+      note: "",
+    })).toBe(false);
+  });
+});
+
+describe("built-in fallback request eligibility", () => {
+  const eligible = {
+    planStatus: "active",
+    sourceMode: "yova_generated",
+    responseStatus: 502,
+    adjustment: null,
+  };
+
+  it("allows a curated lesson after a transient generation failure", () => {
+    expect(canUseBuiltInSessionFallback(eligible)).toBe(true);
+    expect(canUseBuiltInSessionFallback({ ...eligible, responseStatus: 503 })).toBe(true);
+    expect(canUseBuiltInSessionFallback({ ...eligible, responseStatus: 504 })).toBe(true);
+    expect(canUseBuiltInSessionFallback({
+      ...eligible,
+      responseStatus: null,
+      adjustment: {
+        familiarity: "as_planned",
+        availableMinutes: 20,
+        knownTargets: [],
+        note: "",
+      },
+    })).toBe(true);
+  });
+
+  it("fails closed for material-grounded plans", () => {
+    expect(canUseBuiltInSessionFallback({
+      ...eligible,
+      sourceMode: "user_materials",
+    })).toBe(false);
+  });
+
+  it.each([400, 401, 403, 404, 409, 422])(
+    "fails closed after a %i client response",
+    (responseStatus) => {
+      expect(canUseBuiltInSessionFallback({
+        ...eligible,
+        responseStatus,
+      })).toBe(false);
+    },
+  );
+
+  it("fails closed when the server could not verify the plan state", () => {
+    expect(canUseBuiltInSessionFallback({
+      ...eligible,
+      responseStatus: 500,
+    })).toBe(false);
+  });
+
+  it("fails closed when the current client plan is archived, deleted, or otherwise unavailable", () => {
+    expect(canUseBuiltInSessionFallback({
+      ...eligible,
+      planStatus: "archived",
+    })).toBe(false);
+    expect(canUseBuiltInSessionFallback({
+      ...eligible,
+      planStatus: undefined,
+    })).toBe(false);
   });
 });

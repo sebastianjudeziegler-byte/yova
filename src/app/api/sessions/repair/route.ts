@@ -4,6 +4,10 @@ import { generateRuntimeRepairWithOpenAI } from "@/lib/openai/runtime-repair-gen
 import { claimAIRequest } from "@/lib/server/ai-usage";
 import { isDevelopmentPreviewRequest } from "@/lib/server/development-preview";
 import { checkAnswerEvaluationRateLimit, requestRateLimitKey } from "@/lib/server/rate-limit";
+import {
+  sessionOperationFailure,
+  verifyOperationalPlanSession,
+} from "@/lib/server/session-operation-guard";
 import { buildFallbackRuntimeRepair } from "@/lib/session-repair/fallback";
 import {
   RuntimeRepairRequestSchema,
@@ -53,14 +57,10 @@ export async function POST(request: Request) {
   const { data: { user }, error: userError } = await supabase.auth.getUser();
   if (userError || !user) return response({ error: "Sign in to adapt this session." }, requestId, 401);
 
-  const { data: planSession, error: sessionError } = await supabase
-    .from("plan_sessions")
-    .select("id,plan_id")
-    .eq("id", parsed.data.planSessionId)
-    .maybeSingle();
-  if (sessionError) return response({ error: "YOVA could not verify this learning session." }, requestId, 500);
-  if (!planSession || planSession.plan_id !== parsed.data.planId) {
-    return response({ error: "That learning session was not found." }, requestId, 404);
+  const operationAccess = await verifyOperationalPlanSession(supabase, parsed.data);
+  if (!operationAccess.allowed) {
+    const failure = sessionOperationFailure(operationAccess);
+    return response({ error: failure.error }, requestId, failure.status);
   }
 
   if (!isOpenAIAnswerEvaluationConfigured()) {
