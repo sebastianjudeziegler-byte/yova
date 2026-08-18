@@ -14,6 +14,13 @@ const onboardingAnswers = [
 ] as const;
 
 test("a confident misconception is repaired now without a duplicate follow-up", async ({ page }) => {
+  await page.route("**/api/sessions/generate", async (route) => {
+    await route.fulfill({
+      status: 503,
+      contentType: "application/json",
+      body: JSON.stringify({ error: "Temporary guided-session generation failure." }),
+    });
+  });
   await createPreviewAccount(page);
   await completeOnboarding(page);
 
