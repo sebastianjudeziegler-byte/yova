@@ -13,6 +13,7 @@ import {
   flushQueuedSessionInterruptions,
   pendingSessionInterruptionRunIds,
   queueSessionInterruption,
+  removeQueuedSessionInterruptionsForPlan,
 } from "@/lib/sync/session-interruption-outbox";
 
 function installMemoryStorage() {
@@ -66,5 +67,37 @@ describe("session interruption outbox", () => {
       remaining: 0,
     });
     expect(recordAuthenticatedSessionInterruption).toHaveBeenCalledWith(pending.interruption);
+  });
+
+  it("removes only one account's entries for a permanently deleted plan", () => {
+    installMemoryStorage();
+    const base: PendingSessionInterruption = {
+      userId: "00000000-0000-4000-8000-000000000001",
+      queuedAt: "2026-08-11T20:08:00.000Z",
+      interruption: {
+        id: "00000000-0000-4000-8000-000000000002",
+        planId: "00000000-0000-4000-8000-000000000003",
+        planSessionId: "00000000-0000-4000-8000-000000000004",
+        startedAt: "2026-08-11T20:00:00.000Z",
+        interruptedAt: "2026-08-11T20:08:00.000Z",
+        plannedMinutes: 20,
+        actualMinutes: 8,
+        completedSteps: 2,
+        totalSteps: 5,
+      },
+    };
+    const sibling: PendingSessionInterruption = {
+      ...base,
+      interruption: {
+        ...base.interruption,
+        id: "00000000-0000-4000-8000-000000000012",
+        planId: "00000000-0000-4000-8000-000000000013",
+      },
+    };
+    queueSessionInterruption(base);
+    queueSessionInterruption(sibling);
+
+    expect(removeQueuedSessionInterruptionsForPlan(base.userId, base.interruption.planId)).toBe(true);
+    expect(pendingSessionInterruptionRunIds(base.userId)).toEqual([sibling.interruption.id]);
   });
 });

@@ -55,6 +55,12 @@ export function clearQueuedSessionInterruptions(userId: string) {
   return savePendingInterruptions(loadAllPendingInterruptions().filter((entry) => entry.userId !== userId));
 }
 
+export function removeQueuedSessionInterruptionsForPlan(userId: string, planId: string) {
+  return savePendingInterruptions(loadAllPendingInterruptions().filter((entry) => !(
+    entry.userId === userId && entry.interruption.planId === planId
+  )));
+}
+
 /** Returns only validated entries for the requested account. */
 export function loadQueuedSessionInterruptions(userId: string) {
   return loadAllPendingInterruptions().filter((entry) => entry.userId === userId);

@@ -13,6 +13,7 @@ import {
   mergeActiveSessionCheckpoints,
   readActiveSessionCheckpoint,
   removeActiveSessionCheckpoint,
+  removeActiveSessionCheckpointsForPlan,
   replaceActiveSessionCheckpointsForAccount,
   restoreCheckpointSessionResources,
   saveActiveSessionCheckpoint,
@@ -251,6 +252,27 @@ describe("active session checkpoint storage", () => {
     expect(clearActiveSessionCheckpoints(own.accountId)).toBe(true);
     expect(loadActiveSessionCheckpoints(own.accountId)).toEqual([]);
     expect(loadActiveSessionCheckpoints(otherAccount.accountId)).toHaveLength(1);
+  });
+
+  it("removes every checkpoint for one deleted plan without touching sibling plans or accounts", () => {
+    installMemoryStorage();
+    const own = checkpoint();
+    const siblingPlan = checkpoint({
+      planId: "00000000-0000-4000-8000-000000000081",
+      planSessionId: "00000000-0000-4000-8000-000000000082",
+      runId: "00000000-0000-4000-8000-000000000083",
+    });
+    const otherAccount = checkpoint({
+      accountId: "preview_user_beta",
+      runId: "00000000-0000-4000-8000-000000000084",
+    });
+    saveActiveSessionCheckpoint(own);
+    saveActiveSessionCheckpoint(siblingPlan);
+    saveActiveSessionCheckpoint(otherAccount);
+
+    expect(removeActiveSessionCheckpointsForPlan(own.accountId, own.planId)).toBe(true);
+    expect(loadActiveSessionCheckpoints(own.accountId)).toEqual([siblingPlan]);
+    expect(loadActiveSessionCheckpoints(otherAccount.accountId)).toEqual([otherAccount]);
   });
 
   it("returns failure without overwriting data when browser storage is unavailable", () => {
