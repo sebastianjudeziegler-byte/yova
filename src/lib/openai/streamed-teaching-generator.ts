@@ -28,6 +28,11 @@ import {
   type LessonDeliveryInstructions,
   type SessionDeliveryPolicy,
 } from "@/lib/personalization/session-delivery-policy";
+import {
+  applyPersonalizedMethodTieToRouting,
+  personalizationDecisions,
+  type GenerationPersonalizationContext,
+} from "@/lib/personalization/personalization-generation";
 import { contentBudgetForMinutes } from "@/lib/plan-generation/content-budget";
 import {
   applyCurrentSessionAdjustment,
@@ -168,6 +173,7 @@ export function streamedSkeletonRepairAttemptCopy(attempts: number) {
  */
 export function streamedTeachingCycleRouting(
   routing: LearningScienceRoutingBrief,
+  personalization?: GenerationPersonalizationContext,
 ): LearningScienceRoutingBrief {
   const preferred: CoreMethodId = routing.taskType === "memorization"
     ? "retrieval_practice"
@@ -180,10 +186,21 @@ export function streamedTeachingCycleRouting(
     "worked_example_fading",
     "retrieval_practice",
   ];
-  const methodId = safeOrder.find((candidate) => routing.allowedMethodIds.includes(candidate))
-    ?? routing.allowedMethodIds[0]!;
-  return {
+  const cycleCompatibleMethodIds = [...new Set(safeOrder)].filter((candidate) => (
+    routing.allowedMethodIds.includes(candidate)
+  ));
+  const cycleCandidates = cycleCompatibleMethodIds.length
+    ? cycleCompatibleMethodIds
+    : [routing.allowedMethodIds[0]!];
+  const personalizedRouting = applyPersonalizedMethodTieToRouting({
     ...routing,
+    suggestedPrimaryMethodId: cycleCandidates[0],
+    allowedMethodIds: cycleCandidates,
+    methods: learningScienceCatalogForPrompt(cycleCandidates),
+  }, personalization);
+  const methodId = personalizedRouting.suggestedPrimaryMethodId;
+  return {
+    ...personalizedRouting,
     suggestedPrimaryMethodId: methodId,
     allowedMethodIds: [methodId],
     methods: learningScienceCatalogForPrompt([methodId]),
@@ -217,7 +234,7 @@ export async function generateStreamedTeachingSkeletonWithOpenAI(
     // version. Outcome evidence remains available below for practice selection.
     recentResults: [],
     interruptionCount: 0,
-  }));
+  }), context.personalization);
   const recommendedMethodFidelityContract = methodFidelityContractForPrompt(
     learningScienceRouting.suggestedPrimaryMethodId,
     "learn",
@@ -242,6 +259,10 @@ export async function generateStreamedTeachingSkeletonWithOpenAI(
     learnerProfile: context.learnerProfile,
     estimatedMinutes: context.session.estimatedMinutes,
     taskType: learningScienceRouting.taskType,
+    personalizationDecisions: personalizationDecisions(
+      context.personalization,
+      learningScienceRouting,
+    ),
   });
   const sourceGroundingPolicy = context.learningGoal.sourceMode === "user_materials"
     ? buildMaterialSupportPolicy(context.materials)
@@ -295,6 +316,7 @@ export async function generateStreamedTeachingSkeletonWithOpenAI(
         instructions: `${STREAMED_TEACHING_SKELETON_INSTRUCTIONS}\n\n${currentSessionScopeContract}${repairInstruction ? `\n\n${repairInstruction}` : ""}`,
         input: `Build the streamed teaching skeleton from this YOVA context:\n${JSON.stringify({
           ...context,
+          personalization: undefined,
           scaffoldSignals: undefined,
           // Raw outcomes can shape the bounded practice contract below, but
           // must not become implicit instructions for lesson presentation.

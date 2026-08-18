@@ -79,7 +79,42 @@ describe("bounded streamed-skeleton repair policy", () => {
     parseResponse.mockReset();
     parseResponse.mockRejectedValueOnce(new Error("provider unavailable"));
 
-    await expect(generateStreamedTeachingSkeletonWithOpenAI(contextWithMaterials([]))).rejects.toMatchObject({
+    const context = contextWithMaterials([]);
+    context.personalization = {
+      decisions: [{
+        id: "decision:method_delivery:knowledge_check:closed_note_first",
+        artifact: "method_delivery",
+        setting: "knowledge_check",
+        value: "closed_note_first",
+        title: "Check before more review",
+        explanation: "Ask for a closed-note answer before showing more explanation.",
+        signalIds: ["signal:calibration_risk"],
+        evidenceLabel: "You told YOVA",
+        methodCandidates: [],
+        experimental: false,
+      }, {
+        id: "decision:workspace:visual_structure:more",
+        artifact: "workspace",
+        setting: "visual_structure",
+        value: "PRIVATE-CSS-ONLY",
+        title: "More visual structure",
+        explanation: "Use stronger interface grouping.",
+        signalIds: ["signal:workspace_settings"],
+        evidenceLabel: "You told YOVA",
+        methodCandidates: [],
+        experimental: false,
+      }],
+      methodTie: {
+        state: {
+          controls: { experiments: false },
+          activeExperiment: null,
+          experimentHistory: [],
+        },
+        signals: [],
+      },
+    };
+
+    await expect(generateStreamedTeachingSkeletonWithOpenAI(context)).rejects.toMatchObject({
       name: "SessionGenerationFailure",
       generationStats: {
         attempts: 1,
@@ -87,6 +122,16 @@ describe("bounded streamed-skeleton repair policy", () => {
         repairAttempted: false,
       },
     });
+
+    const providerInput = parseResponse.mock.calls[0]?.[0]?.input as string;
+    const prompt = JSON.parse(providerInput.slice(providerInput.indexOf("\n") + 1)) as Record<string, unknown>;
+    expect(prompt).toMatchObject({
+      sessionDeliveryPolicy: {
+        knowledgeCheck: { mode: "closed_note_first" },
+      },
+    });
+    expect(prompt).not.toHaveProperty("personalization");
+    expect(providerInput).not.toContain("PRIVATE-CSS-ONLY");
   });
 
   it("allows the third call to be the successful scope-only repair", async () => {
@@ -687,6 +732,44 @@ describe("runtime session-window scoping", () => {
       suggestedPrimaryMethodId: "scaffolded_coding",
       allowedMethodIds: ["scaffolded_coding", "worked_example_fading"],
     }).allowedMethodIds).toEqual(["worked_example_fading"]);
+  });
+
+  it("breaks a tie only after limiting the router list to streamed-cycle methods", async () => {
+    const { streamedTeachingCycleRouting } = await import("@/lib/openai/streamed-teaching-generator");
+    const { learningModeContract } = await import("@/lib/learning/learning-intent");
+    const result = streamedTeachingCycleRouting({
+      learningIntent: "learn",
+      sessionLearningMode: "learn",
+      taskType: "conceptual_learning",
+      knowledgeStage: "novice",
+      suggestedPrimaryMethodId: "read_recall_review",
+      allowedMethodIds: ["read_recall_review", "self_explanation", "retrieval_practice"],
+      methods: [],
+      deliveryModifiers: [],
+      decisionBasis: [],
+      guardrails: [],
+      executionContract: learningModeContract("learn"),
+    }, {
+      decisions: [],
+      methodTie: {
+        state: {
+          controls: { experiments: false },
+          activeExperiment: null,
+          experimentHistory: [],
+        },
+        signals: [{
+          id: "signal:memory_breakdown",
+          key: "memory_breakdown",
+          title: "Rewordable display copy",
+          code: "recognition_without_recall",
+          evidenceLabel: "You told YOVA",
+          paused: false,
+        }],
+      },
+    });
+
+    expect(result.allowedMethodIds).toEqual(["retrieval_practice"]);
+    expect(result.decisionBasis.at(-1)).toMatch(/personalization tie-break/i);
   });
 
   it("keeps a Bioenergetics claim mapped to its concise ATP target", async () => {

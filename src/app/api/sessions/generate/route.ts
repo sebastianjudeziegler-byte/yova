@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import type { SessionCompletion, SessionInterruption } from "@/lib/domain";
 import { generationEnvironment } from "@/lib/analytics/generation-observation";
 import { recordGenerationObservation } from "@/lib/analytics/generation-observation-server";
 import { PlanKnowledgeMapSchema } from "@/lib/knowledge-map/schema";
@@ -40,6 +41,7 @@ import {
   statedOnboardingAnswerForRuntime,
 } from "@/lib/personalization/learner-profile";
 import { readPersonalizationStateFromAnswers } from "@/lib/personalization/personalization-state";
+import { resolvePersonalizationForGeneration } from "@/lib/personalization/personalization-generation";
 import {
   CachedGeneratedSessionSchema,
   CachedGeneratedSessionV15Schema,
@@ -147,7 +149,14 @@ export async function POST(request: Request) {
     if (planError || learnerError || planSessionsError) throw planError ?? learnerError ?? planSessionsError;
     if (!plan) return NextResponse.json({ error: "That learning plan was not found." }, { status: 404 });
 
-    const [{ data: learningItem, error: itemError }, attemptsResult, { data: materialRows, error: materialsError }, interruptionsResult] = await Promise.all([
+    const [
+      { data: learningItem, error: itemError },
+      attemptsResult,
+      { data: materialRows, error: materialsError },
+      interruptionsResult,
+      personalizationAttemptsResult,
+      personalizationInterruptionsResult,
+    ] = await Promise.all([
       supabase
         .from("learning_items")
         .select("title,topic,kind,deadline,source_mode,study_mode")
@@ -178,9 +187,33 @@ export async function POST(request: Request) {
           .order("occurred_at", { ascending: false })
           .limit(6)
         : Promise.resolve({ data: [], error: null }),
+      supabase
+        .from("session_attempts")
+        .select("id,plan_session_id,started_at,completed_at,actual_minutes,correct_answers,total_answers,user_feedback,result_data")
+        .not("completed_at", "is", null)
+        .order("completed_at", { ascending: true }),
+      supabase
+        .from("learning_events")
+        .select("plan_session_id,occurred_at,event_data")
+        .eq("event_type", "session_interrupted")
+        .order("occurred_at", { ascending: true }),
     ]);
 
-    if (itemError || attemptsResult.error || materialsError || interruptionsResult.error) throw itemError ?? attemptsResult.error ?? materialsError ?? interruptionsResult.error;
+    if (
+      itemError
+      || attemptsResult.error
+      || materialsError
+      || interruptionsResult.error
+      || personalizationAttemptsResult.error
+      || personalizationInterruptionsResult.error
+    ) {
+      throw itemError
+        ?? attemptsResult.error
+        ?? materialsError
+        ?? interruptionsResult.error
+        ?? personalizationAttemptsResult.error
+        ?? personalizationInterruptionsResult.error;
+    }
     if (!learningItem) return NextResponse.json({ error: "That learning goal was not found." }, { status: 404 });
 
     const parsedKnowledgeMap = PlanKnowledgeMapSchema.safeParse(plan.knowledge_map);
@@ -377,6 +410,63 @@ export async function POST(request: Request) {
       })
       : [];
     const expandedProfile = expandedLearnerContextFromAnswers(storedLearnerAnswers);
+    const personalizationCompletions = (personalizationAttemptsResult.data ?? [])
+      .flatMap<SessionCompletion>((attempt) => {
+        if (!attempt.id || !attempt.plan_session_id || !attempt.started_at || !attempt.completed_at) {
+          return [];
+        }
+        const actualMinutes = attempt.actual_minutes ?? 1;
+        return [{
+          id: attempt.id,
+          planId: "account-wide-personalization",
+          planSessionId: attempt.plan_session_id,
+          startedAt: attempt.started_at,
+          completedAt: attempt.completed_at,
+          plannedMinutes: readNumberProperty(attempt.result_data, "plannedMinutes") ?? actualMinutes,
+          actualMinutes,
+          correctAnswers: attempt.correct_answers ?? 0,
+          totalAnswers: attempt.total_answers ?? 0,
+          feedback: readSessionFeedback(attempt.user_feedback) ?? "about_right",
+          observedGap: readTextProperty(attempt.result_data, "observedGap"),
+          conceptEvidence: readConceptEvidenceProperty(attempt.result_data),
+          confidenceEvidence: readConfidenceEvidenceProperty(attempt.result_data),
+        }];
+      });
+    const personalizationInterruptions = (personalizationInterruptionsResult.data ?? [])
+      .flatMap<SessionInterruption>((event) => {
+        const attemptId = readTextProperty(event.event_data, "attemptId");
+        const startedAt = readTextProperty(event.event_data, "startedAt");
+        const plannedMinutes = readNumberProperty(event.event_data, "plannedMinutes");
+        const actualMinutes = readNumberProperty(event.event_data, "actualMinutes");
+        const completedSteps = readNumberProperty(event.event_data, "completedSteps");
+        const totalSteps = readNumberProperty(event.event_data, "totalSteps");
+        if (
+          !event.plan_session_id
+          || !attemptId
+          || !startedAt
+          || plannedMinutes === null
+          || actualMinutes === null
+          || completedSteps === null
+          || totalSteps === null
+        ) return [];
+        return [{
+          id: attemptId,
+          planId: "account-wide-personalization",
+          planSessionId: event.plan_session_id,
+          startedAt,
+          interruptedAt: event.occurred_at,
+          plannedMinutes,
+          actualMinutes,
+          completedSteps,
+          totalSteps,
+        }];
+      });
+    const generationPersonalization = resolvePersonalizationForGeneration({
+      answers: storedLearnerAnswers,
+      completions: personalizationCompletions,
+      interruptions: personalizationInterruptions,
+      plans: [],
+    });
     const generationContext: SessionGenerationContext = {
       sessionArchitectureVersion,
       learningGoal: {
@@ -463,6 +553,7 @@ export async function POST(request: Request) {
       conceptSignals: summarizeConceptEvidence(completionEvidence).slice(0, 20),
       scaffoldSignals: buildScaffoldProgressionSignals(completionEvidence).slice(0, 20),
       topicCalibrationSignals: buildTopicCalibrationSignals(confidenceEvidence).slice(0, 20),
+      personalization: generationPersonalization,
     };
     const generated = await generateProductionSessionWithOpenAI(generationContext);
 

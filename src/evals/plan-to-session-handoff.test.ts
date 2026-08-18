@@ -71,7 +71,7 @@ describe("plan to session handoff", () => {
     const answers = Array.from({ length: 16 }, () => "");
     answers[0] = "Large amounts of new information feel overwhelming";
     answers[1] = "Give me clear structure";
-    answers[3] = "One concrete example first";
+    answers[3] = "concrete_example";
     answers[4] = "I use short sessions";
     answers[5] = "I start more consistently with a small first action";
     answers[7] = "Understand first, then retain it";
@@ -102,7 +102,7 @@ describe("plan to session handoff", () => {
       completionEvidence: draft.sessions[0]!.completionEvidence,
     });
     expect(context.learnerProfile).toMatchObject({
-      explanationPreference: "One concrete example first",
+      explanationPreference: "A concrete example first",
       processingPreference: "The big picture before the details",
       memoryChallenge: "I forget it after a few days",
       supportPreference: "Give me a small hint first",

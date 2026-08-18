@@ -26,6 +26,7 @@ import {
   statedOnboardingAnswerForRuntime,
 } from "@/lib/personalization/learner-profile";
 import { readPersonalizationStateFromAnswers } from "@/lib/personalization/personalization-state";
+import { resolvePersonalizationForGeneration } from "@/lib/personalization/personalization-generation";
 import type { PreviewSessionGenerationContext } from "@/lib/session-generation/schema";
 import type { SessionAdjustment } from "@/lib/session-generation/schema";
 import {
@@ -56,6 +57,12 @@ export function buildPreviewSessionContext({
     .sort((left, right) => right.interruptedAt.localeCompare(left.interruptedAt));
   const expandedProfile = expandedLearnerContextFromAnswers(onboardingAnswers);
   const personalizationState = readPersonalizationStateFromAnswers(onboardingAnswers);
+  const personalization = resolvePersonalizationForGeneration({
+    answers: onboardingAnswers,
+    completions,
+    interruptions,
+    plans: [],
+  });
   const statedAnswer = (index: number) => (
     statedOnboardingAnswerForRuntime(onboardingAnswers, index, personalizationState)
   );
@@ -187,6 +194,7 @@ export function buildPreviewSessionContext({
     topicCalibrationSignals: buildTopicCalibrationSignals(
       recentCompletions.flatMap((completion) => completion.confidenceEvidence),
     ).slice(0, 20),
+    personalization,
   };
 }
 

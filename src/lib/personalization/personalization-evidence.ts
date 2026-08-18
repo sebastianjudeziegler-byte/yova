@@ -8,6 +8,12 @@ import {
   type CoreMethodId,
 } from "@/lib/learning/method-catalog";
 import { methodIdFromText } from "@/lib/learning/method-router";
+import { onboardingAnswerId } from "@/lib/sample-data";
+import {
+  deepProfileAnswerId,
+  deepProfileAnswerLabel,
+} from "@/lib/personalization/learner-profile";
+import type { PersonalizationDecisionSetting } from "@/lib/personalization/personalization-decision";
 import {
   STUDY_PROFILE_DIMENSION_NAMES,
   STUDY_PROFILE_USER_FACING_LABELS,
@@ -21,6 +27,8 @@ import type {
 } from "@/lib/study-profile/types";
 import {
   type PersonalizationReceiptHistoryItem,
+  type ActivePersonalizationExperiment,
+  type PersonalizationExperimentHistoryItem,
   type PersonalizationState,
   readPersonalizationStateFromAnswers,
 } from "@/lib/personalization/personalization-state";
@@ -53,6 +61,7 @@ export type LearnerPersonalizationSignal = {
   key: PersonalizationSignalKey;
   title: string;
   value: string;
+  code: string;
   explanation: string;
   evidenceLabel: PersonalizationEvidenceLabel;
   evidenceCount: number;
@@ -73,7 +82,7 @@ export type PersonalizationArtifact =
 export type PersonalizationDecision = {
   id: string;
   artifact: PersonalizationArtifact;
-  setting: string;
+  setting: PersonalizationDecisionSetting;
   value: string;
   title: string;
   explanation: string;
@@ -102,6 +111,24 @@ export type PersonalizationResolution = {
   signals: LearnerPersonalizationSignal[];
   decisions: PersonalizationDecision[];
   weeklyReview: PersonalizationWeeklyReview;
+};
+
+export type PersonalizedMethodTieResolution = {
+  state: {
+    controls: { experiments: boolean };
+    activeExperiment: Pick<
+      ActivePersonalizationExperiment,
+      "id" | "variable" | "variantA" | "variantB" | "nextVariant" | "taskType" | "knowledgeStage"
+    > | null;
+    experimentHistory: readonly Pick<
+      PersonalizationExperimentHistoryItem,
+      "id" | "variable" | "variantA" | "variantB" | "result" | "taskType" | "knowledgeStage"
+    >[];
+  };
+  signals: readonly Pick<
+    LearnerPersonalizationSignal,
+    "id" | "key" | "title" | "code" | "evidenceLabel" | "paused"
+  >[];
 };
 
 export type OptionalPersonalizationQuestion = {
@@ -171,7 +198,8 @@ export function resolveLearnerPersonalization({
  */
 export function selectPersonalizedMethodTie(
   validMethodIds: readonly CoreMethodId[],
-  resolution: Pick<PersonalizationResolution, "state" | "signals">,
+  resolution: PersonalizedMethodTieResolution,
+  comparison?: { taskType: string; knowledgeStage: string },
 ): PersonalizationDecision | null {
   const valid = [...new Set(validMethodIds)];
   if (valid.length < 2) return null;
@@ -184,6 +212,7 @@ export function selectPersonalizedMethodTie(
     && isCoreMethodId(experiment.variantB)
     && valid.includes(experiment.variantA)
     && valid.includes(experiment.variantB)
+    && experimentMatchesComparison(experiment, comparison)
   ) {
     const methodId = experiment.nextVariant === "a" ? experiment.variantA : experiment.variantB;
     return methodTieDecision(
@@ -195,9 +224,16 @@ export function selectPersonalizedMethodTie(
     );
   }
 
-  const tested = [...resolution.state.experimentHistory].reverse().find((item) => (
-    item.variable === "method_tie" && (item.result === "promising_a" || item.result === "promising_b")
-  ));
+  const tested = resolution.state.controls.experiments
+    ? [...resolution.state.experimentHistory].reverse().find((item) => (
+      item.variable === "method_tie"
+      && (item.result === "promising_a" || item.result === "promising_b")
+      && experimentMatchesComparison(item, comparison)
+      && resolution.signals.some((signal) => (
+        signal.id === `experiment:${item.id}` && signalCanCreateDecision(signal)
+      ))
+    ))
+    : undefined;
   if (tested) {
     const winner = tested.result === "promising_a" ? tested.variantA : tested.variantB;
     if (isCoreMethodId(winner) && valid.includes(winner)) {
@@ -222,6 +258,17 @@ export function selectPersonalizedMethodTie(
     signal.id,
     signal.evidenceLabel,
     false,
+  );
+}
+
+function experimentMatchesComparison(
+  experiment: { taskType: string | null; knowledgeStage: string | null },
+  comparison: { taskType: string; knowledgeStage: string } | undefined,
+) {
+  return Boolean(
+    comparison
+    && experiment.taskType === comparison.taskType
+    && experiment.knowledgeStage === comparison.knowledgeStage,
   );
 }
 
@@ -366,9 +413,7 @@ function personalizationDecisionHasVisibleArtifact(
   const signal = signals.find((candidate) => decision.signalIds.includes(candidate.id));
   if (!signal || signal.paused || signal.source === "observation") return false;
   if (decision.setting === "path_visibility") return decision.value === "one_step";
-  if (decision.setting === "knowledge_check") {
-    return /overconfidence|more checking|test yourself sooner|confident/i.test(signal.value);
-  }
+  if (decision.setting === "knowledge_check") return decision.value === "closed_note_first";
   return [
     "first_action",
     "block_length",
@@ -389,10 +434,10 @@ function buildSelfReportCandidates(
 ) {
   const candidates = studyProfileCandidates(state);
   addLegacyDimensionCandidates(candidates, answers);
-  addDirectCandidate(candidates, "processing_entry", "How teaching begins", answers[10], "processing");
-  addDirectCandidate(candidates, "memory_breakdown", "What YOVA checks for", answers[11], "memory");
-  addDirectCandidate(candidates, "repair_preference", "First help after a miss", answers[12], "repair");
-  addDirectCandidate(candidates, "workspace_preference", "Preferred session view", answers[13], "workspace");
+  addDirectCandidate(candidates, "processing_entry", "How teaching begins", answers[10], 10);
+  addDirectCandidate(candidates, "memory_breakdown", "What YOVA checks for", answers[11], 11);
+  addDirectCandidate(candidates, "repair_preference", "First help after a miss", answers[12], 12);
+  addDirectCandidate(candidates, "workspace_preference", "Preferred session view", answers[13], 13);
 
   const workspaceParts = [
     state.workspace.layout !== "automatic" ? state.workspace.layout.replaceAll("_", " ") : null,
@@ -455,22 +500,37 @@ function addLegacyDimensionCandidates(
   candidates: Map<PersonalizationSignalKey, Candidate>,
   answers: readonly string[],
 ) {
-  const blocker = answers[0]?.trim() ?? "";
-  const starting = answers[5]?.trim() ?? "";
-  if (!candidates.has("starting_friction") && /struggle to start|delay|deadline|avoid planning|overwhelm/i.test(`${blocker} ${starting}`)) {
+  const blocker = onboardingAnswerId(0, answers[0]);
+  const starting = onboardingAnswerId(5, answers[5]);
+  const startingFrictionIsHigh = blocker === "struggle_to_start"
+    || blocker === "unclear_first_step"
+    || blocker === "overwhelmed"
+    || starting === "often_delay"
+    || starting === "deadline_pressure"
+    || starting === "planning_avoidance";
+  if (!candidates.has("starting_friction") && startingFrictionIsHigh) {
     candidates.set("starting_friction", selfCandidate("starting_friction", "Starting Friction", "Higher starting friction", "high", ["onboarding blocker", "starting pattern"]));
   }
-  const guidance = answers[1]?.trim() ?? "";
-  if (!candidates.has("structure_need") && /exactly|clear structure|do not know what to do first/i.test(`${blocker} ${guidance}`)) {
-    const high = /exactly|do not know what to do first/i.test(`${blocker} ${guidance}`);
+  const guidance = onboardingAnswerId(1, answers[1]);
+  if (
+    !candidates.has("structure_need")
+    && (
+      blocker === "unclear_first_step"
+      || guidance === "exact_guidance"
+      || guidance === "structured_flexibility"
+    )
+  ) {
+    const high = blocker === "unclear_first_step" || guidance === "exact_guidance";
     candidates.set("structure_need", selfCandidate("structure_need", "Structure Need", high ? "High-structure" : "Balanced", high ? "high" : "moderate", ["onboarding guidance"]));
   }
-  const focus = answers[4]?.trim() ?? "";
+  const focus = onboardingAnswerId(4, answers[4]);
   if (!candidates.has("attention_variability") && focus) {
-    const code = /very often|often/i.test(focus) ? "high" : /sometimes/i.test(focus) ? "moderate" : "low";
+    const code = focus === "often" || focus === "very_often"
+      ? "high"
+      : focus === "sometimes" ? "moderate" : "low";
     candidates.set("attention_variability", selfCandidate("attention_variability", "Attention Variability", code === "high" ? "Highly variable" : code === "moderate" ? "Variable" : "Steady", code, ["onboarding focus answer"]));
   }
-  if (!candidates.has("mistake_sensitivity") && /perfect/i.test(blocker)) {
+  if (!candidates.has("mistake_sensitivity") && blocker === "perfectionism") {
     candidates.set("mistake_sensitivity", selfCandidate("mistake_sensitivity", "Mistake Sensitivity", "Higher mistake sensitivity", "high", ["onboarding blocker"]));
   }
 }
@@ -604,6 +664,7 @@ function mergeCandidates(
       key,
       title: selected.title,
       value: self && observed && !agrees ? `${self.value}; observed results differ` : selected.value,
+      code: selected.code,
       explanation: self && observed
         ? agrees
           ? `${self.explanation} ${observed.explanation}`
@@ -631,6 +692,7 @@ function experimentSignals(state: PersonalizationState): LearnerPersonalizationS
       key: "experiment_result" as const,
       title: "Personal test",
       value: winner ? `${winner} is promising` : "The tested options were mixed",
+      code: winner ?? "mixed",
       explanation: experiment.summary,
       evidenceLabel: winner ? "Tested and promising" as const : "Mixed evidence" as const,
       evidenceCount: experiment.sessionsA + experiment.sessionsB,
@@ -650,12 +712,14 @@ function applySignalControl(
   if (paused) return { ...signal, paused: true, evidenceLabel: "Paused by you" };
   if (!correction) return signal;
   const correctedValue = correction.correctedValue?.trim() ?? "";
-  const supportedCorrection = correctedValue
-    ? isSupportedCorrectedSignalValue(signal.key, correctedValue)
-    : false;
+  const correctedCode = correctedValue
+    ? correctedSignalCode(signal.key, correctedValue)
+    : null;
+  const supportedCorrection = correctedCode !== null;
   return {
     ...signal,
     value: supportedCorrection ? correctedValue : signal.value,
+    code: correctedCode ?? signal.code,
     explanation: correction.note
       ? `You added this context: ${correction.note}${supportedCorrection ? "" : " YOVA will keep this signal unapplied until there is a concrete replacement or new evidence."}`
       : signal.explanation,
@@ -671,45 +735,45 @@ function buildPersonalizationDecisions(
   const decisions: PersonalizationDecision[] = [];
   for (const signal of signals) {
     if (!signalCanCreateDecision(signal)) continue;
-    const normalized = signal.value.toLowerCase();
-    if (signal.key === "starting_friction" && /high|hard to begin|ended early/.test(normalized)) {
+    const code = signal.code;
+    if (signal.key === "starting_friction" && code === "high") {
       decisions.push(decision(signal, "session_opening", "first_action", "small_active_start", "A smaller active start", "Begin with one concrete action that takes about two minutes, then expand without lowering the learning target."));
     }
-    if (signal.key === "structure_need" && /high|clear steps|balanced/.test(normalized)) {
-      decisions.push(decision(signal, "workspace", "path_visibility", /high|clear steps/.test(normalized) ? "one_step" : "current_and_next", "A clearer path", "Choose the steps in advance and keep the current action obvious."));
+    if (signal.key === "structure_need" && (code === "high" || code === "moderate")) {
+      decisions.push(decision(signal, "workspace", "path_visibility", code === "high" ? "one_step" : "current_and_next", "A clearer path", "Choose the steps in advance and keep the current action obvious."));
     }
-    if (signal.key === "attention_variability" && /high|variable|focus changes/.test(normalized)) {
+    if (signal.key === "attention_variability" && (code === "high" || code === "moderate")) {
       decisions.push(decision(signal, "method_delivery", "activity_cadence", "short_active_rounds", "Controlled activity changes", "Use short active rounds and change the activity only at planned checkpoints while keeping the same objective."));
     }
-    if (signal.key === "calibration_risk" && /overconfidence|more checking|check knowledge|test yourself sooner|confident/.test(normalized)) {
+    if (signal.key === "calibration_risk" && code === "overconfidence_risk") {
       decisions.push(decision(signal, "method_delivery", "knowledge_check", "closed_note_first", "Check before more review", "Ask for a closed-note answer before showing more explanation or notes.", ["retrieval_practice", "practice_test_error_repair"]));
-    } else if (signal.key === "calibration_risk" && /underconfidence|trust correct results|uncertain/.test(normalized)) {
+    } else if (signal.key === "calibration_risk" && code === "underconfidence_risk") {
       decisions.push(decision(signal, "method_delivery", "confidence_check", "show_success_evidence", "Keep successful recall visible", "Compare confidence with correct independent answers so doubt can update from evidence."));
     }
-    if (signal.key === "mistake_sensitivity" && /high|mistakes can slow/.test(normalized)) {
+    if (signal.key === "mistake_sensitivity" && code === "high") {
       decisions.push(decision(signal, "support", "attempt_safety", "private_revisable_attempt", "A low-stakes first attempt", "Make the first answer private and revisable, then use feedback as information rather than a verdict."));
     }
-    if (signal.key === "cognitive_stamina" && /fast decline|high|short blocks work best/.test(normalized)) {
+    if (signal.key === "cognitive_stamina" && code === "high") {
       decisions.push(decision(signal, "method_delivery", "block_length", "shorter_rounds", "Shorter demanding rounds", "Use a bounded active round and offer a reset before quality drops."));
     }
     if (signal.key === "processing_entry") {
-      const presentation = presentationSetting(normalized);
+      const presentation = presentationSetting(code);
       if (presentation) decisions.push(decision(signal, "method_delivery", "presentation", presentation.value, presentation.title, presentation.explanation));
     }
     if (signal.key === "memory_breakdown") {
-      const retention = retentionSetting(normalized);
+      const retention = retentionSetting(code);
       if (retention) decisions.push(decision(signal, "method_delivery", "retention", retention.value, retention.title, retention.explanation, retention.methods));
     }
     if (signal.key === "repair_preference") {
-      const repair = repairSetting(normalized);
+      const repair = repairSetting(code);
       if (repair) decisions.push(decision(signal, "support", "first_repair", repair.value, repair.title, repair.explanation));
     }
     if (signal.key === "workspace_preference") {
-      const workspace = workspaceSetting(normalized);
+      const workspace = workspaceSetting(code);
       if (workspace) decisions.push(decision(signal, "workspace", "layout", workspace.value, workspace.title, workspace.explanation));
     }
-    if (signal.key === "energy_window" && !/similar/.test(normalized)) {
-      decisions.push(decision(signal, "schedule", "recommended_window", signal.value.split(" is ")[0].toLowerCase(), "A stronger observed study window", "Recommend this window for demanding work, but do not move anything without approval."));
+    if (signal.key === "energy_window" && code !== "mixed") {
+      decisions.push(decision(signal, "schedule", "recommended_window", code, "A stronger observed study window", "Recommend this window for demanding work, but do not move anything without approval."));
     }
   }
 
@@ -761,7 +825,7 @@ function buildPersonalizationDecisions(
     decisions.push({
       id: `decision:experiment:${experiment.id}:${experiment.nextVariant}`,
       artifact,
-      setting: experiment.variable,
+      setting: canonicalExperimentSetting(experiment.variable),
       value,
       title: `Personal test: ${value}`,
       explanation: `YOVA is using ${value} for the next comparable session, then it will alternate and compare results cautiously.`,
@@ -777,7 +841,7 @@ function buildPersonalizationDecisions(
 function decision(
   signal: LearnerPersonalizationSignal,
   artifact: PersonalizationArtifact,
-  setting: string,
+  setting: PersonalizationDecisionSetting,
   value: string,
   title: string,
   explanation: string,
@@ -818,86 +882,135 @@ function methodTieDecision(
   };
 }
 
-function methodPreferenceOrder(signals: readonly LearnerPersonalizationSignal[]): CoreMethodId[] {
-  const memory = signals.find((signal) => signal.key === "memory_breakdown" && !signal.paused)?.value.toLowerCase() ?? "";
-  const calibration = signals.find((signal) => signal.key === "calibration_risk" && !signal.paused)?.value.toLowerCase() ?? "";
-  if (/cannot recall|without cues|recognize/.test(memory)) return ["retrieval_practice", "spaced_retrieval"];
-  if (/few days|forget/.test(memory)) return ["spaced_retrieval", "retrieval_practice"];
-  if (/confuse similar/.test(memory)) return ["interleaved_practice", "self_explanation"];
-  if (/cannot apply/.test(memory)) return ["worked_example_fading", "self_explanation", "practice_test_error_repair"];
-  if (/with help|independent/.test(memory)) return ["worked_example_fading", "scaffolded_coding", "self_explanation"];
-  if (/overconfidence|more checking|test yourself sooner|confident/.test(calibration)) return ["practice_test_error_repair", "retrieval_practice"];
+function methodPreferenceOrder(
+  signals: readonly Pick<LearnerPersonalizationSignal, "key" | "code" | "paused">[],
+): CoreMethodId[] {
+  const memory = signals.find((signal) => (
+    signal.key === "memory_breakdown" && !signal.paused
+  ))?.code;
+  const calibration = signals.find((signal) => (
+    signal.key === "calibration_risk" && !signal.paused
+  ))?.code;
+  if (memory === "recognition_without_recall") return ["retrieval_practice", "spaced_retrieval"];
+  if (memory === "delayed_forgetting") return ["spaced_retrieval", "retrieval_practice"];
+  if (memory === "similar_idea_confusion") return ["interleaved_practice", "self_explanation"];
+  if (memory === "application_gap") return ["worked_example_fading", "self_explanation", "practice_test_error_repair"];
+  if (memory === "support_dependence") return ["worked_example_fading", "scaffolded_coding", "self_explanation"];
+  if (calibration === "overconfidence_risk") return ["practice_test_error_repair", "retrieval_practice"];
   return [];
 }
 
-function presentationSetting(value: string) {
-  if (/concrete example/.test(value)) return { value: "example_first", title: "Example first", explanation: "Begin with one concrete case before naming the general rule." };
-  if (/big picture/.test(value)) return { value: "overview_first", title: "Big picture first", explanation: "Show the overall relationship before the details." };
-  if (/small steps|clear sequence/.test(value)) return { value: "step_by_step", title: "Step by step", explanation: "Show a short sequence, then fade the steps after an accurate attempt." };
-  if (/trying it/.test(value)) return { value: "prediction_then_model", title: "Try, then model", explanation: "Use a brief low-stakes prediction before the full model when the task allows it." };
-  if (/comparing similar/.test(value)) return { value: "compare_first", title: "Contrast first", explanation: "Place the target beside a plausible similar idea and name the difference." };
+function presentationSetting(answerId: string) {
+  if (answerId === "concrete_example") return { value: "example_first", title: "Example first", explanation: "Begin with one concrete case before naming the general rule." };
+  if (answerId === "big_picture") return { value: "overview_first", title: "Big picture first", explanation: "Show the overall relationship before the details." };
+  if (answerId === "small_steps") return { value: "step_by_step", title: "Step by step", explanation: "Show a short sequence, then fade the steps after an accurate attempt." };
+  if (answerId === "try_first") return { value: "prediction_then_model", title: "Try, then model", explanation: "Use a brief low-stakes prediction before the full model when the task allows it." };
+  if (answerId === "compare_similar") return { value: "compare_first", title: "Contrast first", explanation: "Place the target beside a plausible similar idea and name the difference." };
   return null;
 }
 
-function retentionSetting(value: string): { value: string; title: string; explanation: string; methods: CoreMethodId[] } | null {
-  if (/cannot recall|recognize/.test(value)) return { value: "retrieval", title: "Recall without cues", explanation: "Require an answer from memory before showing the source.", methods: ["retrieval_practice"] };
-  if (/few days|forget/.test(value)) return { value: "delayed_retrieval", title: "Return after a delay", explanation: "Schedule another unsupported retrieval after a delay.", methods: ["spaced_retrieval"] };
-  if (/confuse similar/.test(value)) return { value: "discrimination", title: "Distinguish close ideas", explanation: "Add comparison checks that require choosing which concept applies.", methods: ["interleaved_practice"] };
-  if (/cannot apply/.test(value)) return { value: "transfer", title: "Apply in a new case", explanation: "Follow initial understanding with a different application.", methods: ["worked_example_fading", "self_explanation"] };
-  if (/with help|independent/.test(value)) return { value: "fade_support", title: "Fade support", explanation: "Begin with enough guidance, then require an independent attempt.", methods: ["worked_example_fading", "scaffolded_coding"] };
+function retentionSetting(answerId: string): { value: string; title: string; explanation: string; methods: CoreMethodId[] } | null {
+  if (answerId === "recognition_without_recall") return { value: "retrieval", title: "Recall without cues", explanation: "Require an answer from memory before showing the source.", methods: ["retrieval_practice"] };
+  if (answerId === "delayed_forgetting") return { value: "delayed_retrieval", title: "Return after a delay", explanation: "Schedule another unsupported retrieval after a delay.", methods: ["spaced_retrieval"] };
+  if (answerId === "similar_idea_confusion") return { value: "discrimination", title: "Distinguish close ideas", explanation: "Add comparison checks that require choosing which concept applies.", methods: ["interleaved_practice"] };
+  if (answerId === "application_gap") return { value: "transfer", title: "Apply in a new case", explanation: "Follow initial understanding with a different application.", methods: ["worked_example_fading", "self_explanation"] };
+  if (answerId === "support_dependence") return { value: "fade_support", title: "Fade support", explanation: "Begin with enough guidance, then require an independent attempt.", methods: ["worked_example_fading", "scaffolded_coding"] };
   return null;
 }
 
-function repairSetting(value: string) {
-  if (/small hint/.test(value)) return { value: "hint_first", title: "Hint first", explanation: "Reveal one bounded cue before the complete correction." };
-  if (/different example/.test(value)) return { value: "alternate_example", title: "Another example", explanation: "Show a different case, then ask for a fresh attempt." };
-  if (/direct/.test(value)) return { value: "direct_correction", title: "Direct correction", explanation: "Name the exact incorrect relationship before the retry." };
-  if (/smaller steps/.test(value)) return { value: "smaller_steps", title: "Smaller steps", explanation: "Restore one intermediate step at a time, then return to independence." };
-  if (/without help/.test(value)) return { value: "retry_independently", title: "Independent retry", explanation: "Preserve another unsupported attempt before adding help." };
+function repairSetting(answerId: string) {
+  if (answerId === "hint_first") return { value: "hint_first", title: "Hint first", explanation: "Reveal one bounded cue before the complete correction." };
+  if (answerId === "alternate_example") return { value: "alternate_example", title: "Another example", explanation: "Show a different case, then ask for a fresh attempt." };
+  if (answerId === "direct_correction") return { value: "direct_correction", title: "Direct correction", explanation: "Name the exact incorrect relationship before the retry." };
+  if (answerId === "smaller_steps") return { value: "smaller_steps", title: "Smaller steps", explanation: "Restore one intermediate step at a time, then return to independence." };
+  if (answerId === "retry_independently") return { value: "retry_independently", title: "Independent retry", explanation: "Preserve another unsupported attempt before adding help." };
   return null;
 }
 
-function workspaceSetting(value: string) {
-  if (/one step/.test(value)) return { value: "one_step", title: "One step at a time", explanation: "Keep the current action prominent and make the full path optional." };
-  if (/full path/.test(value)) return { value: "full_path", title: "Full path visible", explanation: "Keep the whole session path visible while one action remains primary." };
-  if (/choices/.test(value)) return { value: "learner_choice", title: "Bounded choices", explanation: "Offer a small choice only when each route preserves the learning target." };
-  if (/least guidance/.test(value)) return { value: "minimal_guidance", title: "Minimal guidance", explanation: "Hide optional guidance until an attempt shows it is needed." };
+function workspaceSetting(answerId: string) {
+  if (answerId === "one_step") return { value: "one_step", title: "One step at a time", explanation: "Keep the current action prominent and make the full path optional." };
+  if (answerId === "full_path") return { value: "full_path", title: "Full path visible", explanation: "Keep the whole session path visible while one action remains primary." };
+  if (answerId === "learner_choice") return { value: "learner_choice", title: "Bounded choices", explanation: "Offer a small choice only when each route preserves the learning target." };
+  if (answerId === "minimal_guidance") return { value: "minimal_guidance", title: "Minimal guidance", explanation: "Hide optional guidance until an attempt shows it is needed." };
   return null;
 }
 
-function isSupportedCorrectedSignalValue(
+function correctedSignalCode(
   key: PersonalizationSignalKey,
   value: string,
-) {
-  const normalized = value.toLowerCase();
-  if (key === "processing_entry") return presentationSetting(normalized) !== null;
-  if (key === "memory_breakdown") return retentionSetting(normalized) !== null;
-  if (key === "repair_preference") return repairSetting(normalized) !== null;
-  if (key === "workspace_preference") return workspaceSetting(normalized) !== null;
-
-  const supportedStudyProfileValues: Partial<Record<StudyProfileDimension, readonly string[]>> = {
-    starting_friction: ["low", "moderate", "high", "higher starting friction", "usually easy to begin", "some trouble beginning", "hard to begin"],
-    structure_need: ["flexible", "balanced", "high-structure", "clear steps help most"],
-    attention_variability: ["steady", "variable", "highly variable", "focus changes sometimes", "focus changes often"],
-    calibration_risk: [
-      "relatively calibrated",
-      "mixed",
-      "needs more checking",
-      "confidence usually matches",
-      "confidence is mixed",
-      "check knowledge more often",
-      "test yourself sooner",
-      "trust correct results more",
-      "overconfidence risk",
-      "underconfidence risk",
-    ],
-    mistake_sensitivity: ["low", "moderate", "high", "higher mistake sensitivity", "mistakes feel manageable", "some concern about mistakes", "mistakes can slow you down"],
-    cognitive_stamina: ["stable", "moderate decline", "fast decline", "longer blocks can work", "energy fades over time", "short blocks work best"],
+): string | null {
+  const directAnswerIndex: Partial<Record<PersonalizationSignalKey, number>> = {
+    processing_entry: 10,
+    memory_breakdown: 11,
+    repair_preference: 12,
+    workspace_preference: 13,
   };
-  return supportedStudyProfileValues[key as StudyProfileDimension]?.includes(normalized) === true;
+  const answerIndex = directAnswerIndex[key];
+  if (answerIndex !== undefined) {
+    const answerId = deepProfileAnswerId(answerIndex, value);
+    return answerId === "depends" ? null : answerId;
+  }
+
+  const normalized = value.trim().toLowerCase();
+  const supportedStudyProfileValues: Partial<Record<StudyProfileDimension, Readonly<Record<string, string>>>> = {
+    starting_friction: {
+      low: "low",
+      moderate: "moderate",
+      high: "high",
+      "higher starting friction": "high",
+      "usually easy to begin": "low",
+      "some trouble beginning": "moderate",
+      "hard to begin": "high",
+    },
+    structure_need: {
+      flexible: "low",
+      balanced: "moderate",
+      "high-structure": "high",
+      "clear steps help most": "high",
+    },
+    attention_variability: {
+      steady: "low",
+      variable: "moderate",
+      "highly variable": "high",
+      "focus changes sometimes": "moderate",
+      "focus changes often": "high",
+    },
+    calibration_risk: {
+      "relatively calibrated": "relatively_calibrated",
+      mixed: "mixed",
+      "needs more checking": "overconfidence_risk",
+      "confidence usually matches": "relatively_calibrated",
+      "confidence is mixed": "mixed",
+      "check knowledge more often": "overconfidence_risk",
+      "test yourself sooner": "overconfidence_risk",
+      "trust correct results more": "underconfidence_risk",
+      "overconfidence risk": "overconfidence_risk",
+      "underconfidence risk": "underconfidence_risk",
+    },
+    mistake_sensitivity: {
+      low: "low",
+      moderate: "moderate",
+      high: "high",
+      "higher mistake sensitivity": "high",
+      "mistakes feel manageable": "low",
+      "some concern about mistakes": "moderate",
+      "mistakes can slow you down": "high",
+    },
+    cognitive_stamina: {
+      stable: "low",
+      "moderate decline": "moderate",
+      "fast decline": "high",
+      "longer blocks can work": "low",
+      "energy fades over time": "moderate",
+      "short blocks work best": "high",
+    },
+  };
+  return supportedStudyProfileValues[key as StudyProfileDimension]?.[normalized] ?? null;
 }
 
-function signalCanCreateDecision(signal: LearnerPersonalizationSignal) {
+function signalCanCreateDecision(
+  signal: Pick<LearnerPersonalizationSignal, "paused" | "evidenceLabel">,
+) {
   return !signal.paused
     && signal.evidenceLabel !== "Seen once"
     && signal.evidenceLabel !== "Mixed evidence"
@@ -909,19 +1022,30 @@ function addDirectCandidate(
   key: PersonalizationSignalKey,
   title: string,
   value: string | undefined,
-  code: string,
+  answerIndex: number,
 ) {
   const bounded = value?.trim().slice(0, 240);
-  if (!bounded || /it depends/i.test(bounded)) return;
+  const code = deepProfileAnswerId(answerIndex, bounded);
+  if (!bounded || !code || code === "depends") return;
   candidates.set(key, {
     key,
     title,
-    value: bounded,
+    value: deepProfileAnswerLabel(answerIndex, code) ?? bounded,
     code,
     explanation: "This is a direct preference you can change at any time.",
     count: 1,
     refs: [`profile answer ${key}`],
   });
+}
+
+function canonicalExperimentSetting(
+  variable: ActivePersonalizationExperiment["variable"],
+): PersonalizationDecisionSetting {
+  if (variable === "workspace") return "layout";
+  if (variable === "support") return "first_repair";
+  if (variable === "energy_window") return "recommended_window";
+  if (variable === "method_tie") return "method_id";
+  return variable;
 }
 
 function selfCandidate(

@@ -67,6 +67,21 @@ const generatedSession: SessionGenerationResponse["session"] = {
       maximumActivities: 5,
       reason: "There is not enough repeated behavior evidence to change the normal session size.",
     },
+    activityCadence: {
+      mode: "task_aligned",
+      label: "Task-aligned cadence",
+      instruction: "Change activities only when the selected method and current objective call for it.",
+    },
+    attemptSafety: {
+      mode: "task_aligned",
+      label: "Task-aligned attempts",
+      instruction: "Use the attempt and feedback format best supported by the current task.",
+    },
+    knowledgeCheck: {
+      mode: "task_aligned",
+      label: "Task-aligned check",
+      instruction: "Use the knowledge check required by the selected method and current objective.",
+    },
     learnerFacingReasons: ["You asked for concrete examples before rules, so YOVA will make the first explanation example-led."],
     signalsUsed: ["A concrete example before the rule"],
   },
