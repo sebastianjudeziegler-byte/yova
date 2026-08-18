@@ -585,6 +585,38 @@
   white-space: nowrap;
 }
 
+.deleteAccountRow {
+  padding: 17px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 22px;
+  border-top: 1px solid var(--line-subtle);
+  background: #fffafa;
+}
+
+.deleteAccountRow > div {
+  display: grid;
+  gap: 3px;
+}
+
+.deleteAccountRow strong {
+  color: #7f1d1d;
+  font-size: 12px;
+}
+
+.deleteAccountRow span {
+  color: var(--ink-muted);
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.deleteAccountRow > button {
+  min-height: 42px;
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
 @media (max-width: 840px) {
   .card {
     grid-row: auto;
@@ -602,6 +634,7 @@
   .valueAction,
   .passwordRow,
   .dataRow,
+  .deleteAccountRow,
   .footer {
     align-items: stretch;
     flex-direction: column;
@@ -610,6 +643,7 @@
   .valueAction button,
   .securityLink,
   .dataButton,
+  .deleteAccountRow > button,
   .footer > button {
     width: 100%;
     min-height: 44px;
@@ -619,6 +653,7 @@
 @media (max-width: 500px) {
   .header,
   .row,
+  .deleteAccountRow,
   .footer {
     padding-inline: 18px;
   }

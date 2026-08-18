@@ -1,5 +1,6 @@
 import { timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
+import { cleanupDeletedAccountStorage } from "@/lib/account-deletion/cleanup";
 import { cleanupExpiredAccountExports } from "@/lib/account-export/cleanup";
 import { isAccountExportCleanupConfigured } from "@/lib/account-export/config";
 import {
@@ -18,12 +19,21 @@ export async function GET(request: Request) {
     return json({ error: "Cleanup authorization is required." }, 401);
   }
 
-  const result = await cleanupExpiredAccountExports(createSupabaseAdminClient());
-  if (!result.ok) return json({ error: "Account-export cleanup could not finish." }, 503);
+  const admin = createSupabaseAdminClient();
+  const [result, deletionResult] = await Promise.all([
+    cleanupExpiredAccountExports(admin),
+    cleanupDeletedAccountStorage(admin),
+  ]);
+  if (!result.ok || !deletionResult.ok) {
+    return json({ error: "Private account-data cleanup could not finish." }, 503);
+  }
   return json({
     claimedJobs: result.claimedJobs,
     removedJobs: result.removedJobs,
     retryJobs: result.retryJobs,
+    deletionClaimedJobs: deletionResult.claimedJobs,
+    deletionRemovedJobs: deletionResult.removedJobs,
+    deletionRetryJobs: deletionResult.retryJobs,
   }, 200);
 }
 

@@ -35,6 +35,8 @@ describe("AccountSecurityCard", () => {
     expect(html).toContain('href="/auth/set-password?source=account"');
     expect(html).toContain("Set or change password");
     expect(html).toContain("Download my YOVA data");
+    expect(html).toContain("Delete YOVA account");
+    expect(html).toContain("Permanently remove this login identity");
     expect(html).toContain("may contain private study information");
     expect(html).toContain("Sign out on this device");
   });
@@ -53,6 +55,7 @@ describe("AccountSecurityCard", () => {
     expect(html).toContain("does not create a cloud account archive");
     expect(html).toContain("stored only in this browser");
     expect(html).not.toContain("Download my YOVA data");
+    expect(html).not.toContain("Delete YOVA account");
     expect(html).toContain("Password settings are available with a cloud account.");
     expect(html).not.toContain('/auth/set-password?source=account');
   });
@@ -70,6 +73,7 @@ describe("AccountSecurityCard", () => {
     expect(html).toContain("Verify your email before setting or changing a password.");
     expect(html).toContain("Verify your email before downloading private account and learning data.");
     expect(html).not.toContain("Download my YOVA data");
+    expect(html).not.toContain("Delete YOVA account");
     expect(html).not.toContain('/auth/set-password?source=account');
   });
 

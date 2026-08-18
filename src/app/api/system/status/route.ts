@@ -35,6 +35,7 @@ export async function GET() {
     captchaClient,
     publicSignup: authSettings.signup,
     accountDataExport: isAccountExportCleanupConfigured() ? "enabled" : "unavailable",
+    accountDeletion: isAccountExportCleanupConfigured() ? "enabled" : "unavailable",
   }, {
     headers: { "Cache-Control": "no-store" },
   });
