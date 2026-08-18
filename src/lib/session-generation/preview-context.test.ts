@@ -286,8 +286,8 @@ describe("buildPreviewSessionContext", () => {
       plan,
       session: plan.sessions[0],
       onboardingAnswers: answers,
-      completions: [completion],
-      interruptions: [interruption],
+      completions: [completion, { ...completion, id: "00000000-0000-4000-8000-000000000014" }],
+      interruptions: [interruption, { ...interruption, id: "00000000-0000-4000-8000-000000000015" }],
     });
 
     expect(result.recentResults[0]).toMatchObject({
@@ -299,6 +299,32 @@ describe("buildPreviewSessionContext", () => {
     });
     expect(result.recentInterruptions).toEqual([]);
     expect(result.conceptSignals[0]).toMatchObject({ concept: "Calvin cycle" });
+    expect(result.personalization?.decisions).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ setting: "knowledge_check" }),
+      expect.objectContaining({ setting: "first_action" }),
+    ]));
+    expect(result.personalization?.methodTie.signals).toEqual([]);
+  });
+
+  it("projects allowed repeated behavior into generation decisions", () => {
+    const result = buildPreviewSessionContext({
+      plan,
+      session: plan.sessions[0],
+      onboardingAnswers: writePersonalizationStateToAnswers([], defaultPersonalizationState()),
+      completions: [
+        completion,
+        { ...completion, id: "00000000-0000-4000-8000-000000000024" },
+      ],
+      interruptions: [
+        interruption,
+        { ...interruption, id: "00000000-0000-4000-8000-000000000025" },
+      ],
+    });
+
+    expect(result.personalization?.decisions).toEqual(expect.arrayContaining([
+      expect.objectContaining({ setting: "knowledge_check", value: "closed_note_first" }),
+      expect.objectContaining({ setting: "first_action", value: "small_active_start" }),
+    ]));
   });
 
   it("does not send an app-problem interruption as pacing evidence", () => {

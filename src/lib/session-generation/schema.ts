@@ -9,6 +9,7 @@ import {
   LessonDeliveryInstructionsSchema,
   SessionDeliveryPolicySchema,
 } from "@/lib/personalization/session-delivery-policy";
+import { GenerationPersonalizationContextSchema } from "@/lib/personalization/personalization-generation";
 import { KnowledgeMapTopicSchema } from "@/lib/knowledge-map/schema";
 import { SESSION_ARCHITECTURE_VERSIONS } from "@/lib/session-generation/architecture";
 import { PRACTICE_INTENTS } from "@/lib/learning/practice-variation";
@@ -133,6 +134,7 @@ export const SessionGenerationRequestSchema = z.object({
       misconceptionSummary: z.string().trim().min(8).max(300).optional(),
       feedback: z.string().trim().min(10).max(500),
     })).max(20).default([]),
+    personalization: GenerationPersonalizationContextSchema.optional(),
   }).optional(),
 });
 

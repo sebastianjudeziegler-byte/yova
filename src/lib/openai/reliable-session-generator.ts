@@ -18,6 +18,10 @@ import {
 } from "@/lib/openai/session-generator";
 import { buildSessionDeliveryPolicy } from "@/lib/personalization/session-delivery-policy";
 import {
+  applyPersonalizedMethodTieToRouting,
+  personalizationDecisions,
+} from "@/lib/personalization/personalization-generation";
+import {
   GeneratedSessionDraftSchema,
   type GeneratedSessionDraft,
 } from "@/lib/session-generation/schema";
@@ -71,6 +75,7 @@ Requirements:
 - Keep essentialIdea under 160 characters and finish it as a complete sentence.
 - Keep explanation under 550 characters and modelAnswer under 450 characters. Finish both as complete sentences.
 - Include one concrete example with visible steps and one plausible misconception with a direct correction.
+- Follow learnerDelivery as the explicit personalization contract. Apply its presentation, repair, retention, workspace, pacing, activityCadence, attemptSafety, and knowledgeCheck instructions without changing the task-selected method or required subject content.
 - The multiple-choice prompt must be independently answerable. Use four plausible choices and identify the correct choice by its zero-based index.
 - The explain-back modelAnswer must directly answer the prompt with the actual subject facts. Never write a grading rubric such as "a strong response should" or "the learner should mention."
 - If a content_source excerpt is supplied, teach from its actual explanation and do not add unsupported factual claims. The source-grounding anchor will quote the mapped chunk verbatim.
@@ -102,7 +107,7 @@ export function canGenerateReliableSession(originalContext: SessionGenerationCon
   // with several planned targets needs the full generator so every target is
   // either evidenced now or explicitly deferred rather than silently dropped.
   if ((context.session.contentTargets?.length ?? 0) > 1) return false;
-  const routing = buildLearningScienceRoutingBrief({
+  const routing = applyPersonalizedMethodTieToRouting(buildLearningScienceRoutingBrief({
     learningIntent: context.learningGoal.learningIntent,
     sessionLearningMode: context.session.learningMode,
     goalTitle: context.learningGoal.title,
@@ -115,7 +120,7 @@ export function canGenerateReliableSession(originalContext: SessionGenerationCon
     learnerProfile: context.learnerProfile,
     recentResults: context.recentResults,
     interruptionCount: context.recentInterruptions.length,
-  });
+  }), context.personalization);
   const hasAdaptiveEvidence = context.recentResults.length > 0
     || context.recentInterruptions.length > 0
     || context.conceptSignals.length > 0
@@ -142,7 +147,7 @@ export async function generateReliableSessionWithOpenAI(
   if (!config) throw new Error("OpenAI is not configured on the YOVA server.");
 
   const startedAt = Date.now();
-  const routing = buildLearningScienceRoutingBrief({
+  const routing = applyPersonalizedMethodTieToRouting(buildLearningScienceRoutingBrief({
     learningIntent: context.learningGoal.learningIntent,
     sessionLearningMode: context.session.learningMode,
     goalTitle: context.learningGoal.title,
@@ -155,13 +160,14 @@ export async function generateReliableSessionWithOpenAI(
     learnerProfile: context.learnerProfile,
     recentResults: context.recentResults,
     interruptionCount: context.recentInterruptions.length,
-  });
+  }), context.personalization);
   const deliveryPolicy = buildSessionDeliveryPolicy({
     learnerProfile: context.learnerProfile,
     recentResults: context.recentResults,
     recentInterruptions: context.recentInterruptions,
     learningMode: context.session.learningMode,
     estimatedMinutes: context.session.estimatedMinutes,
+    personalizationDecisions: personalizationDecisions(context.personalization, routing),
   });
 
   const usage = {
@@ -189,11 +195,7 @@ export async function generateReliableSessionWithOpenAI(
           goal: context.learningGoal,
           journey: context.journey,
           session: context.session,
-          learnerDelivery: {
-            presentation: deliveryPolicy.presentation,
-            repair: deliveryPolicy.repair,
-            pacing: deliveryPolicy.pacing,
-          },
+          learnerDelivery: deliveryPolicy,
           materials: context.materials,
         })}`,
         reasoning: { effort: "none" },

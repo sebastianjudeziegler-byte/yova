@@ -150,6 +150,68 @@ describe("reliable OpenAI session generation", () => {
     expect(result.draft.activities.at(-1)?.methodPhase).toBe("schedule_return");
   });
 
+  it("sends teaching decisions through the delivery policy but keeps CSS decisions out", async () => {
+    parseResponse.mockResolvedValueOnce(providerResponse(lesson));
+    const { generateReliableSessionWithOpenAI } = await import("@/lib/openai/reliable-session-generator");
+    const personalizedContext = context();
+    personalizedContext.personalization = {
+      decisions: [
+        {
+          id: "decision:method_delivery:activity_cadence:short_active_rounds",
+          artifact: "method_delivery",
+          setting: "activity_cadence",
+          value: "short_active_rounds",
+          title: "Controlled activity changes",
+          explanation: "Use short active rounds and change activities only at planned checkpoints.",
+          signalIds: ["signal:attention_variability"],
+          evidenceLabel: "You told YOVA",
+          methodCandidates: [],
+          experimental: false,
+        },
+        {
+          id: "decision:support:attempt_safety:private_revisable_attempt",
+          artifact: "support",
+          setting: "attempt_safety",
+          value: "private_revisable_attempt",
+          title: "A low-stakes first attempt",
+          explanation: "Make the first answer private and revisable before using feedback as information.",
+          signalIds: ["signal:mistake_sensitivity"],
+          evidenceLabel: "You told YOVA",
+          methodCandidates: [],
+          experimental: false,
+        },
+        {
+          id: "decision:workspace:text_density:reduced",
+          artifact: "workspace",
+          setting: "text_density",
+          value: "reduced",
+          title: "Less text on screen",
+          explanation: "Keep the interface concise and reveal extra interface detail on request.",
+          signalIds: ["signal:workspace_settings"],
+          evidenceLabel: "You told YOVA",
+          methodCandidates: [],
+          experimental: false,
+        },
+      ],
+      methodTie: {
+        state: {
+          controls: { experiments: false },
+          activeExperiment: null,
+          experimentHistory: [],
+        },
+        signals: [],
+      },
+    };
+
+    await generateReliableSessionWithOpenAI(personalizedContext);
+
+    const prompt = String(parseResponse.mock.calls[0]?.[0]?.input);
+    expect(prompt).toContain('"activityCadence":{"mode":"short_active_rounds"');
+    expect(prompt).toContain('"attemptSafety":{"mode":"private_revisable_attempt"');
+    expect(prompt).not.toContain("text_density");
+    expect(prompt).not.toContain("Less text on screen");
+  });
+
   it("normalizes readable legacy material excerpts that lack chunk metadata", async () => {
     parseResponse.mockResolvedValueOnce(providerResponse(lesson));
     const { generateReliableSessionWithOpenAI } = await import("@/lib/openai/reliable-session-generator");
@@ -241,6 +303,31 @@ describe("reliable OpenAI session generation", () => {
     const boundedLearnContext = context("learn");
     boundedLearnContext.session.contentTargets = ["How darkness influences melatonin timing"];
     expect(canGenerateReliableSession(boundedLearnContext)).toBe(true);
+
+    const personalizedToUnsupportedCompactMethod = context("learn");
+    personalizedToUnsupportedCompactMethod.session.contentTargets = [
+      "How darkness influences melatonin timing",
+    ];
+    personalizedToUnsupportedCompactMethod.personalization = {
+      decisions: [],
+      methodTie: {
+        state: {
+          controls: { experiments: true },
+          activeExperiment: {
+            id: "method-tie-test",
+            variable: "method_tie",
+            variantA: "self_explanation",
+            variantB: "read_recall_review",
+            taskType: "conceptual_learning",
+            knowledgeStage: "novice",
+            nextVariant: "b",
+          },
+          experimentHistory: [],
+        },
+        signals: [],
+      },
+    };
+    expect(canGenerateReliableSession(personalizedToUnsupportedCompactMethod)).toBe(false);
 
     const boundedStudyContext = context("study");
     boundedStudyContext.session.contentTargets = ["Recall the biological-night relationship"];

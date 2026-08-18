@@ -4,6 +4,7 @@ import {
   GeneratedSessionDraftOutputSchema,
   type GeneratedSessionDraft,
 } from "@/lib/session-generation/schema";
+import type { SessionGenerationContext } from "@/lib/openai/session-generator";
 
 const parseResponse = vi.hoisted(() => vi.fn());
 const TEST_TOPIC_ID = "11111111-1111-4111-8111-111111111111";
@@ -331,6 +332,9 @@ describe("session content-volume validation", () => {
       retention: { mode: "delayed_retrieval" as const, label: "Delayed retrieval", instruction: "Return to the idea after a useful delay." },
       workspace: { mode: "one_step" as const, label: "One step", instruction: "Keep one current action visually prominent." },
       pacing: { firstActionMinutes: 3, maximumActivities: 3, reason: "Use a short sequence that fits the learner's available time." },
+      activityCadence: { mode: "task_aligned" as const, label: "Task-aligned cadence", instruction: "Change activities only when the selected method and current objective call for it." },
+      attemptSafety: { mode: "task_aligned" as const, label: "Task-aligned attempts", instruction: "Use the attempt and feedback format best supported by the current task." },
+      knowledgeCheck: { mode: "task_aligned" as const, label: "Task-aligned check", instruction: "Use the knowledge check required by the selected method and current objective." },
       learnerFacingReasons: ["You report forgetting after a delay, so YOVA will bring this idea back later."],
       signalsUsed: ["I forget after a few days"],
     };
@@ -362,6 +366,9 @@ describe("personalized retention normalization", () => {
         retention: { mode: "delayed_retrieval", label: "Delayed retrieval", instruction: "Return to the idea after a useful delay." },
         workspace: { mode: "one_step", label: "One step", instruction: "Keep one current action visually prominent." },
         pacing: { firstActionMinutes: 3, maximumActivities: 3, reason: "Use a short sequence that fits the learner's available time." },
+        activityCadence: { mode: "task_aligned", label: "Task-aligned cadence", instruction: "Change activities only when the selected method and current objective call for it." },
+        attemptSafety: { mode: "task_aligned", label: "Task-aligned attempts", instruction: "Use the attempt and feedback format best supported by the current task." },
+        knowledgeCheck: { mode: "task_aligned", label: "Task-aligned check", instruction: "Use the knowledge check required by the selected method and current objective." },
         learnerFacingReasons: ["You report forgetting after a delay, so YOVA will bring this idea back later."],
         signalsUsed: ["I forget after a few days"],
       },
@@ -375,6 +382,66 @@ describe("personalized retention normalization", () => {
       type: "reflection",
     });
     expect(validateSessionTimeBudget(normalized, 15)).toBeNull();
+  });
+});
+
+describe("full guided-session personalization prompt", () => {
+  it("sends teaching decisions to the model without CSS-only or raw personalization data", async () => {
+    parseResponse.mockReset();
+    parseResponse.mockRejectedValueOnce(new Error("provider unavailable"));
+    const context = buildSessionEvaluationCases()
+      .find((candidate) => candidate.id === "biology_initial_teaching")?.context;
+    expect(context).toBeDefined();
+    const personalizedContext = {
+      ...context!,
+      personalization: {
+        decisions: [{
+          id: "decision:method_delivery:activity_cadence:short_active_rounds",
+          artifact: "method_delivery" as const,
+          setting: "activity_cadence" as const,
+          value: "short_active_rounds",
+          title: "Controlled activity changes",
+          explanation: "Use short active rounds while preserving one objective.",
+          signalIds: ["signal:attention_variability"],
+          evidenceLabel: "You told YOVA" as const,
+          methodCandidates: [],
+          experimental: false,
+        }, {
+          id: "decision:workspace:motion:reduced",
+          artifact: "workspace" as const,
+          setting: "motion" as const,
+          value: "PRIVATE-CSS-ONLY",
+          title: "Reduced motion",
+          explanation: "Keep interface motion reduced.",
+          signalIds: ["signal:workspace_settings"],
+          evidenceLabel: "You told YOVA" as const,
+          methodCandidates: [],
+          experimental: false,
+        }],
+        methodTie: {
+          state: {
+            controls: { experiments: false },
+            activeExperiment: null,
+            experimentHistory: [],
+          },
+          signals: [],
+        },
+      },
+    } satisfies SessionGenerationContext;
+
+    const { generateSessionWithOpenAI } = await import("@/lib/openai/session-generator");
+    await expect(generateSessionWithOpenAI(personalizedContext))
+      .rejects.toThrow("provider unavailable");
+
+    const providerInput = parseResponse.mock.calls[0]?.[0]?.input as string;
+    const prompt = JSON.parse(providerInput.slice(providerInput.indexOf("\n") + 1)) as Record<string, unknown>;
+    expect(prompt).toMatchObject({
+      sessionDeliveryPolicy: {
+        activityCadence: { mode: "short_active_rounds" },
+      },
+    });
+    expect(prompt).not.toHaveProperty("personalization");
+    expect(providerInput).not.toContain("PRIVATE-CSS-ONLY");
   });
 });
 
@@ -419,12 +486,57 @@ describe("scheduled retrieval generation", () => {
     const context = buildSessionEvaluationCases()
       .find((candidate) => candidate.id === "calculus_delayed_retrieval_self_contained")?.context;
     expect(context).toBeDefined();
+    const personalizedContext = {
+      ...context!,
+      personalization: {
+        decisions: [{
+          id: "decision:support:attempt_safety:private_revisable_attempt",
+          artifact: "support" as const,
+          setting: "attempt_safety" as const,
+          value: "private_revisable_attempt",
+          title: "A low-stakes first attempt",
+          explanation: "Make the first answer private and revisable, then use feedback as information rather than a verdict.",
+          signalIds: ["signal:mistake_sensitivity"],
+          evidenceLabel: "You told YOVA" as const,
+          methodCandidates: [],
+          experimental: false,
+        }, {
+          id: "decision:workspace:text_density:reduced",
+          artifact: "workspace" as const,
+          setting: "text_density" as const,
+          value: "PRIVATE-CSS-ONLY",
+          title: "Less text on screen",
+          explanation: "Keep instructions concise and reveal extra detail only when the learner requests it.",
+          signalIds: ["signal:workspace_settings"],
+          evidenceLabel: "You told YOVA" as const,
+          methodCandidates: [],
+          experimental: false,
+        }],
+        methodTie: {
+          state: {
+            controls: { experiments: false },
+            activeExperiment: null,
+            experimentHistory: [],
+          },
+          signals: [],
+        },
+      },
+    } satisfies SessionGenerationContext;
 
     const { generateSessionWithOpenAI } = await import("@/lib/openai/session-generator");
-    const result = await generateSessionWithOpenAI(context!);
+    const result = await generateSessionWithOpenAI(personalizedContext);
 
     expect(parseResponse).toHaveBeenCalledTimes(1);
     expect(parseResponse.mock.calls[0]?.[0]?.text?.format?.name).toBe("yova_scheduled_retrieval");
+    const providerInput = parseResponse.mock.calls[0]?.[0]?.input as string;
+    expect(JSON.parse(providerInput)).toMatchObject({
+      sessionDeliveryPolicy: {
+        activityCadence: { mode: "task_aligned" },
+        attemptSafety: { mode: "private_revisable_attempt" },
+        knowledgeCheck: { mode: "task_aligned" },
+      },
+    });
+    expect(providerInput).not.toContain("PRIVATE-CSS-ONLY");
     expect(result.draft.activities).toHaveLength(3);
     expect(result.draft.activities.every((activity) => activity.type === "multiple_choice")).toBe(true);
     expect(result.draft.activities.every((activity) => activity.concept === "Nearby interval estimate at x = 2")).toBe(true);
