@@ -245,11 +245,64 @@ function compactBioRecoveryContent() {
       referenceAnswer: "Coupling ATP hydrolysis to an energy-requiring reaction can make the combined free-energy change favorable.",
       feedback: "Coupling transfers usable free energy; it does not create energy or raise activation energy.",
     }],
-    repair: {
+    independentExtension: null,
+    subjectModel: {
       keyIdea: "Cells transfer usable energy by coupling reactions, often through ATP hydrolysis.",
       explanation: "A favorable reaction such as ATP hydrolysis can be chemically coupled to energy-requiring cellular work so the combined process is favorable.",
       commonMistake: "ATP hydrolysis creates new energy for the cell.",
       correction: "ATP transfers usable free energy through a coupled reaction; it does not create energy.",
+    },
+    modelExample: null,
+  };
+}
+
+function calculusFoundationsRecoveryContent() {
+  return {
+    targetClaims: [
+      "The notation f'(a) and dy/dx represent tangent slope and instantaneous rate of change at a specified input.",
+      "For differentiable expressions, the derivative of a constant is 0, the derivative of x^n is n x^(n-1), constants can be pulled out, and derivatives distribute over sums and diffs.",
+    ],
+    topicChecks: [{
+      title: "Interpret derivative notation",
+      prompt: "For a differentiable function f, explain what f'(a) means geometrically and as a rate of change at x = a.",
+      choices: [
+        "It is the tangent slope and instantaneous rate at x = a",
+        "It is the function value f(a)",
+        "It is the average rate from x = 0 to x = a",
+        "It is the area under f from x = 0 to x = a",
+      ],
+      correctChoiceIndex: 0,
+      referenceAnswer: "The value f'(a) is the slope of the tangent line to y = f(x) at x = a and the instantaneous rate of change there.",
+      feedback: "Derivative notation at an input names both the tangent-line slope and the instantaneous rate of change at that input.",
+    }, {
+      title: "Apply the basic rules",
+      prompt: "What is g'(x) for the differentiable function g(x) = 4x^3 - 5x + 7?",
+      choices: ["g'(x) = 12x^2 - 5", "g'(x) = 4x^2 - 5", "g'(x) = 12x^3 - 5x", "g'(x) = 12x^2 + 7"],
+      correctChoiceIndex: 0,
+      referenceAnswer: "The derivative is g'(x) = 12x^2 - 5 because the constant 7 becomes zero and each remaining term differentiates separately.",
+      feedback: "The power rule gives 12x^2, the derivative of -5x is -5, and the constant term differentiates to zero.",
+    }],
+    independentExtension: {
+      title: "Differentiate a fresh function",
+      prompt: "Without reopening the model, differentiate h(x) = -2x^4 + 3x^2 - 9 and state which basic derivative rules you used.",
+      choices: ["h'(x) = -8x^3 + 6x", "h'(x) = -2x^3 + 3x", "h'(x) = -8x^4 + 6x^2", "h'(x) = -8x^3 + 6x - 9"],
+      correctChoiceIndex: 0,
+      referenceAnswer: "The derivative is h'(x) = -8x^3 + 6x. Apply the power and constant-multiple rules term by term, and differentiate -9 to zero.",
+      feedback: "The correct derivative applies the power and constant-multiple rules to both variable terms and sends the constant to zero.",
+    },
+    subjectModel: {
+      keyIdea: "Derivative notation names a rate, while basic rules calculate that rate term by term.",
+      explanation: "At x = a, f'(a) is the tangent-line slope and instantaneous rate of change. To calculate derivatives of basic polynomial expressions, differentiate each term separately: constants become zero, powers use nx^(n-1), and constant factors remain attached.",
+      commonMistake: "Keeping a standalone constant or forgetting to multiply by the original exponent.",
+      correction: "Differentiate every term separately, drop standalone constants, and multiply each power by its exponent before lowering that exponent by one.",
+    },
+    modelExample: {
+      setup: "Differentiate p(x) = 3x^4 - 2x + 6 with the basic derivative rules.",
+      steps: [
+        "Use the power and constant-multiple rules: the derivative of 3x^4 is 12x^3.",
+        "Differentiate -2x to -2 and the constant 6 to zero, then combine the terms.",
+      ],
+      takeaway: "The result is p'(x) = 12x^3 - 2 because each term is differentiated independently.",
     },
   };
 }
@@ -257,6 +310,7 @@ function compactBioRecoveryContent() {
 async function expectCompleteValidatorPass(
   draft: GeneratedSessionDraft,
   context: SessionGenerationContext,
+  expectedSuggestedMethod: "spaced_retrieval" | "worked_example_fading" = "spaced_retrieval",
 ) {
   const { buildLearningScienceRoutingBrief } = await import("@/lib/learning/method-router");
   const {
@@ -292,7 +346,8 @@ async function expectCompleteValidatorPass(
     target: context.session.contentTargets![index]!,
   }));
 
-  expect(routing.suggestedPrimaryMethodId).toBe("spaced_retrieval");
+  expect(routing.suggestedPrimaryMethodId).toBe(expectedSuggestedMethod);
+  expect(routing.allowedMethodIds).toContain(draft.methodBriefing.methodId);
   expect(validateGeneratedSessionWithCode(
     draft,
     context,
@@ -686,12 +741,14 @@ describe("multi-target study recovery", () => {
         referenceAnswer: "Cells couple ATP hydrolysis to an energy-requiring reaction so the free-energy change of the combined process is favorable.",
         feedback: "Coupling links the favorable free-energy change of ATP hydrolysis to the energy-requiring reaction; it does not create energy.",
       }],
-      repair: {
+      independentExtension: null,
+      subjectModel: {
         keyIdea: "Cells transfer energy by coupling reactions, often through ATP hydrolysis.",
         explanation: "Energy-releasing reactions can drive energy-requiring cellular work when the processes are chemically coupled. ATP hydrolysis is one common coupling mechanism because its favorable free-energy change can make the combined process favorable.",
         commonMistake: "ATP hydrolysis creates new energy for the cell.",
         correction: "ATP transfers usable free energy through a coupled reaction; it does not create energy.",
       },
+      modelExample: null,
     };
     parseResponse
       .mockResolvedValueOnce(completedProviderResponse("invalid-initial", invalidFullDraft))
@@ -759,6 +816,97 @@ describe("multi-target study recovery", () => {
       "yova_guided_session",
       "yova_safe_study_recovery",
     ]);
+  });
+
+  it("recovers the production derivative-foundations session without changing the router-selected method", async () => {
+    parseResponse.mockReset();
+    const context = buildSessionEvaluationCases()
+      .find((candidate) => candidate.id === "calculus_demonstrated_foundations_study_25")?.context;
+    expect(context).toBeDefined();
+    const recoveryContent = calculusFoundationsRecoveryContent();
+    parseResponse
+      .mockResolvedValueOnce(completedProviderResponse("invalid-calculus-initial", {}))
+      .mockResolvedValueOnce(completedProviderResponse("invalid-calculus-repair", {}))
+      .mockResolvedValueOnce(completedProviderResponse("safe-calculus-recovery", recoveryContent));
+
+    const { generateSessionWithOpenAI } = await import("@/lib/openai/session-generator");
+    const result = await generateSessionWithOpenAI(context!);
+
+    expect(parseResponse).toHaveBeenCalledTimes(3);
+    expect(parseResponse.mock.calls.map((call) => call[0]?.text?.format?.name)).toEqual([
+      "yova_guided_session",
+      "yova_guided_session",
+      "yova_safe_study_recovery",
+    ]);
+    expect(result.draft.methodBriefing.methodId).toBe("worked_example_fading");
+    expect(result.draft.activities.map((activity) => activity.methodPhase)).toEqual([
+      "model",
+      "guided_practice",
+      "independent_practice",
+      "independent_practice",
+    ]);
+    expect(result.draft.coverage.essentialIdeas).toEqual(recoveryContent.targetClaims);
+    expect(result.draft.coverage.completionEvidence).toEqual(context!.session.completionEvidence);
+    expect(result.draft.activities.filter((activity) => (
+      activity.topicId === context!.session.topicIds[1]
+      && activity.methodPhase === "independent_practice"
+    ))).toHaveLength(2);
+    expect(result.draft.activities[1]?.body).toMatch(/Cue: use the model/);
+    expect(result.draft.activities[1]?.body).toContain(`Target: ${context!.session.contentTargets![0]}`);
+    expect(result.draft.activities[2]?.body).toContain(`Target: ${context!.session.contentTargets![1]}`);
+    expect(result.draft.activities[2]?.body).toContain("What is g'(x)");
+    expect(result.draft.activities.at(-1)?.body).toMatch(/model closed/i);
+    expect(result.generationStats).toMatchObject({
+      attempts: 3,
+      failedValidator: "session_structure",
+      repairSucceeded: true,
+      repairReason: "structured_output",
+      recoveryMode: "safe_study",
+      validationIssueCode: "session_full_structure",
+    });
+
+    const recoveryInput = parseResponse.mock.calls[2]?.[0]?.input as string;
+    expect(JSON.parse(recoveryInput.slice(recoveryInput.indexOf("\n") + 1))).toMatchObject({
+      recoveryMethodId: "worked_example_fading",
+      session: {
+        title: "Verify derivative foundations",
+        targets: context!.session.contentTargets,
+        completionEvidence: context!.session.completionEvidence,
+      },
+    });
+    expect(recoveryInput).not.toContain('"personalization"');
+    expect(recoveryInput).not.toContain('"recentInterruptions"');
+    expect(recoveryInput).not.toContain('"recentResults"');
+    await expectCompleteValidatorPass(result.draft, context!, "worked_example_fading");
+  });
+
+  it("fails closed when the worked-example recovery omits its model and fresh independent extension", async () => {
+    parseResponse.mockReset();
+    const context = buildSessionEvaluationCases()
+      .find((candidate) => candidate.id === "calculus_demonstrated_foundations_study_25")?.context;
+    expect(context).toBeDefined();
+    const malformedRecovery = {
+      ...calculusFoundationsRecoveryContent(),
+      independentExtension: null,
+      modelExample: null,
+    };
+    parseResponse
+      .mockResolvedValueOnce(completedProviderResponse("invalid-calculus-initial", {}))
+      .mockResolvedValueOnce(completedProviderResponse("invalid-calculus-repair", {}))
+      .mockResolvedValueOnce(completedProviderResponse("incomplete-calculus-recovery", malformedRecovery));
+
+    const { generateSessionWithOpenAI } = await import("@/lib/openai/session-generator");
+    await expect(generateSessionWithOpenAI(context!)).rejects.toMatchObject({
+      name: "SessionGenerationFailure",
+      generationStats: {
+        attempts: 3,
+        failedValidator: "session_structure",
+        repairSucceeded: false,
+        recoveryMode: "safe_study",
+        validationIssueCode: "session_recovery_structure",
+      },
+    });
+    expect(parseResponse).toHaveBeenCalledTimes(3);
   });
 
   it("fails closed after a malformed narrow recovery without making a fourth provider call", async () => {
@@ -875,12 +1023,14 @@ describe("multi-target study recovery", () => {
         referenceAnswer: "Oxidation is electron loss and reduction is electron gain; NADH and FADH2 are reduced carriers that transport high-energy electrons.",
         feedback: "Redox tracks electron transfer: oxidation loses electrons, reduction gains them, and NADH or FADH2 can carry the reduced electrons.",
       }],
-      repair: {
+      independentExtension: null,
+      subjectModel: {
         keyIdea: "Bioenergetics links favorable coupling, kinetic enzyme effects, and electron transfer.",
         explanation: "ATP coupling concerns the combined free-energy change, enzymes lower activation-energy barriers to change rates, and redox reactions transfer electrons through carriers such as NADH and FADH2. These are connected but distinct relationships.",
         commonMistake: "Enzymes or electron carriers create the energy that reactions need.",
         correction: "Enzymes change kinetic barriers, carriers transfer electrons, and coupling links favorable and unfavorable free-energy changes.",
       },
+      modelExample: null,
     };
     const invalidFullDraft = oversizedStudyDraft();
     parseResponse

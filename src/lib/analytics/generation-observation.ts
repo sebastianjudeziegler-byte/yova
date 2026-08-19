@@ -30,6 +30,9 @@ export const PLAN_QUALITY_ISSUE_CODES = [
 export type PlanQualityIssueCode = typeof PLAN_QUALITY_ISSUE_CODES[number];
 
 export const SESSION_VALIDATION_ISSUE_CODES = [
+  "session_full_structure",
+  "session_recovery_structure",
+  "session_recovery_validation",
   "streamed_target_assignment_count",
   "streamed_target_assignment_copy",
   "streamed_target_assignment_duplicate",
