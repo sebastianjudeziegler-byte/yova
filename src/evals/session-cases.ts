@@ -6,6 +6,8 @@ const WWI_MAPPED_TOPIC_ID = "8ec325f4-0000-4000-8000-000000000001";
 const BIOENERGETICS_TOPIC_ID = "8ec325f4-0000-4000-8000-000000000002";
 const CALCULUS_PRODUCT_TOPIC_ID = "8ec325f4-0000-4000-8000-000000000003";
 const CALCULUS_CHAIN_TOPIC_ID = "8ec325f4-0000-4000-8000-000000000004";
+const CALCULUS_DERIVATIVE_MEANING_TOPIC_ID = "8ec325f4-0000-4000-8000-000000000005";
+const CALCULUS_BASIC_RULES_TOPIC_ID = "8ec325f4-0000-4000-8000-000000000006";
 
 export type SessionTaskFamily = "conceptual" | "problem_solving" | "reading" | "writing" | "coding" | "language" | "general";
 
@@ -267,6 +269,99 @@ export function buildSessionEvaluationCases(): SessionEvaluationCase[] {
           workspacePreference: "Show one step at a time",
         },
         sessionAdjustment: null,
+        recentResults: [],
+        recentInterruptions: [],
+        conceptSignals: [],
+        scaffoldSignals: [],
+        topicCalibrationSignals: [],
+      },
+    }),
+    evaluationCase({
+      id: "calculus_demonstrated_foundations_study_25",
+      label: "Production-shaped derivative-foundations verification",
+      taskFamily: "problem_solving",
+      expectedSourceTerms: [],
+      context: {
+        sessionArchitectureVersion: "streamed_teaching_v1",
+        learningGoal: {
+          title: "Calculus Unit Test Preparation",
+          topic: "Derivative basics, product rule, chain rule, implicit differentiation, and mixed method choice",
+          kind: "test",
+          deadline: null,
+          sourceMode: "yova_generated",
+          studyMode: "inside_yova",
+          learningIntent: "study",
+        },
+        planRationale: "Verify the demonstrated derivative foundations before teaching the combined derivative techniques that depend on them.",
+        materials: [],
+        knowledgeTopics: [{
+          id: CALCULUS_DERIVATIVE_MEANING_TOPIC_ID,
+          title: "Derivative meaning and notation",
+          description: "Understand derivative as slope of a tangent line and instantaneous rate of change. Read and write derivative notation correctly.",
+          subtopics: [],
+          prerequisiteTopicIds: [],
+          status: "evidenced",
+          initialEvidence: {
+            source: "placement_check",
+            outcome: "demonstrated",
+            observedAt: "2026-08-18T23:30:00.000Z",
+          },
+          sourceReferences: [],
+          origin: "ai_generated",
+          deferred: null,
+        }, {
+          id: CALCULUS_BASIC_RULES_TOPIC_ID,
+          title: "Basic derivative rules",
+          description: "Differentiate simple functions using the power rule and linearity before combining rules.",
+          subtopics: [],
+          prerequisiteTopicIds: [CALCULUS_DERIVATIVE_MEANING_TOPIC_ID],
+          status: "evidenced",
+          initialEvidence: {
+            source: "placement_check",
+            outcome: "demonstrated",
+            observedAt: "2026-08-18T23:30:00.000Z",
+          },
+          sourceReferences: [],
+          origin: "ai_generated",
+          deferred: null,
+        }],
+        session: {
+          title: "Verify derivative foundations",
+          objective: "Independently verify derivative meaning, notation, and basic rules before learning combined techniques.",
+          method: "Worked example fading",
+          methodReason: "Examples reduce unnecessary load while a novice builds a usable procedure; fading then checks whether the procedure can be performed independently. YOVA selected it because this session is problem solving work.",
+          estimatedMinutes: 25,
+          learningMode: "study",
+          topicIds: [
+            CALCULUS_DERIVATIVE_MEANING_TOPIC_ID,
+            CALCULUS_BASIC_RULES_TOPIC_ID,
+          ],
+          contentTargets: [
+            "Interpret derivative notation as tangent slope and instantaneous rate",
+            "Apply constant, power, constant-multiple, and sum or difference rules",
+          ],
+          completionEvidence: [
+            "Explain the meaning of f'(a) and dy/dx without notes",
+            "Solve two basic derivative problems without support",
+            "Classify and correct any error before proceeding",
+          ],
+          reviewConcept: null,
+          reviewType: null,
+        },
+        learnerProfile: {
+          commonBlocker: null,
+          guidancePreference: null,
+          explanationPreference: null,
+          focusFrequency: null,
+          startingPattern: null,
+          primaryImprovementGoal: null,
+        },
+        sessionAdjustment: {
+          familiarity: "as_planned",
+          availableMinutes: 25,
+          knownTargets: [],
+          note: "",
+        },
         recentResults: [],
         recentInterruptions: [],
         conceptSignals: [],

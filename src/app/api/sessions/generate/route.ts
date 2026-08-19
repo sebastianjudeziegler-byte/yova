@@ -25,7 +25,7 @@ import {
   methodIdFromText,
 } from "@/lib/learning/method-router";
 import { buildScaffoldProgressionSignals } from "@/lib/learning/scaffold-progression";
-import { isOpenAISessionConfigured } from "@/lib/openai/config";
+import { getOpenAISessionConfig, isOpenAISessionConfigured } from "@/lib/openai/config";
 import {
   generateProductionSessionWithOpenAI,
 } from "@/lib/openai/session-generation-strategy";
@@ -644,8 +644,10 @@ export async function POST(request: Request) {
       },
     }), { headers: responseHeaders(requestId, generated.generationStats) });
   } catch (error) {
+    const attemptedModel = getOpenAISessionConfig()?.model ?? null;
     console.error("YOVA guided-session generation failed", {
       requestId,
+      model: attemptedModel,
       ...privacySafeErrorDiagnostic(error),
     });
     const stats = error instanceof SessionGenerationFailure
@@ -655,7 +657,7 @@ export async function POST(request: Request) {
         elapsedMs: Date.now() - startedAt,
         failedValidator: "session_provider_request" as const,
       };
-    await recordGenerationObservation(supabase, user.id, observationFromSessionStats(stats, null, "failure"));
+    await recordGenerationObservation(supabase, user.id, observationFromSessionStats(stats, attemptedModel, "failure"));
     return NextResponse.json(
       { error: "YOVA could not prepare this guided session right now. Try again in a moment.", requestId },
       { status: 502, headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId } },
