@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { SessionInterruption, YovaPreviewSnapshot } from "@/lib/domain";
+import type { SessionCompletion, SessionInterruption, YovaPreviewSnapshot } from "@/lib/domain";
 import { loadPreviewSnapshot, savePreviewSnapshot } from "@/lib/persistence/preview-store";
 import { LEARNER_ANSWER_COUNT } from "@/lib/personalization/learner-profile";
 import {
@@ -50,6 +50,25 @@ function snapshot(
   };
 }
 
+function completion(overrides: Partial<SessionCompletion> = {}): SessionCompletion {
+  return {
+    id: "00000000-0000-4000-8000-000000000011",
+    planId: "00000000-0000-4000-8000-000000000012",
+    planSessionId: "00000000-0000-4000-8000-000000000013",
+    startedAt: "2026-08-11T20:00:00.000Z",
+    completedAt: "2026-08-11T20:08:00.000Z",
+    plannedMinutes: 20,
+    actualMinutes: 8,
+    correctAnswers: 0,
+    totalAnswers: 0,
+    feedback: "about_right",
+    observedGap: "No topic evidence recorded.",
+    conceptEvidence: [],
+    confidenceEvidence: [],
+    ...overrides,
+  };
+}
+
 function installMemoryStorage() {
   const values = new Map<string, string>();
   const localStorage = {
@@ -90,6 +109,27 @@ describe("preview interruption persistence", () => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(malformed));
 
     expect(loadPreviewSnapshot()?.sessionInterruptions[0]).not.toHaveProperty("sessionAdjustment");
+  });
+});
+
+describe("preview completion provenance", () => {
+  it("defaults a legacy completion to guided", () => {
+    const localStorage = installMemoryStorage();
+    const legacy = snapshot(interruption());
+    legacy.sessionCompletions = [completion()];
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(legacy));
+
+    expect(loadPreviewSnapshot()?.sessionCompletions[0]?.completionMode).toBe("guided");
+  });
+
+  it("round-trips unguided practice provenance", () => {
+    installMemoryStorage();
+    const stored = snapshot(interruption());
+    stored.sessionCompletions = [completion({ completionMode: "unguided_practice" })];
+
+    savePreviewSnapshot(stored);
+
+    expect(loadPreviewSnapshot()?.sessionCompletions[0]?.completionMode).toBe("unguided_practice");
   });
 });
 

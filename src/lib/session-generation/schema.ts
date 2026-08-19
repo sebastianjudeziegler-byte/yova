@@ -13,6 +13,7 @@ import { GenerationPersonalizationContextSchema } from "@/lib/personalization/pe
 import { KnowledgeMapTopicSchema } from "@/lib/knowledge-map/schema";
 import { SESSION_ARCHITECTURE_VERSIONS } from "@/lib/session-generation/architecture";
 import { PRACTICE_INTENTS } from "@/lib/learning/practice-variation";
+import { MAX_RUNTIME_PLAN_SESSIONS } from "@/lib/plan-generation/schema";
 
 export const SessionGenerationRequestSchema = z.object({
   planId: z.string().uuid(),
@@ -38,20 +39,20 @@ export const SessionGenerationRequestSchema = z.object({
     knowledgeTopics: z.array(KnowledgeMapTopicSchema).min(1).max(6),
     journey: z.object({
       currentSequence: z.number().int().positive(),
-      totalSessions: z.number().int().positive().max(14),
+      totalSessions: z.number().int().positive().max(MAX_RUNTIME_PLAN_SESSIONS),
       previousSessions: z.array(z.object({
         sequence: z.number().int().positive(),
         title: z.string().trim().min(2).max(160),
         objective: z.string().trim().min(5).max(800),
         status: z.enum(["ready", "upcoming", "complete", "skipped"]),
         contentTargets: z.array(z.string().trim().min(5).max(180)).max(6),
-      })).max(13),
+      })).max(MAX_RUNTIME_PLAN_SESSIONS - 1),
       nextSessions: z.array(z.object({
         sequence: z.number().int().positive(),
         title: z.string().trim().min(2).max(160),
         objective: z.string().trim().min(5).max(800),
         contentTargets: z.array(z.string().trim().min(5).max(180)).max(6),
-      })).max(13),
+      })).max(MAX_RUNTIME_PLAN_SESSIONS - 1),
     }),
     session: z.object({
       title: z.string().trim().min(2).max(160),
@@ -241,9 +242,29 @@ const GeneratedSessionActivityBaseShape = {
   misconceptionSummary: z.string().trim().min(8).max(300).nullable().default(null),
 };
 
-const NonQuestionActivitySchema = z.object({
+const NonModelMethodPhaseSchema = z.enum([
+  "orient",
+  "read_source",
+  "retrieve",
+  "explain",
+  "guided_practice",
+  "independent_practice",
+  "discriminate",
+  "repair",
+  "evidence_match",
+  "code_trace",
+  "transfer",
+  "schedule_return",
+  "reflect",
+], { error: "Only instruction activities may use the model phase." });
+
+const NoTeachingBlockSchema = z.null({
+  error: "Only instruction activities may carry a teaching block.",
+});
+
+const InstructionActivitySchema = z.object({
   ...GeneratedSessionActivityBaseShape,
-  type: z.enum(["instruction", "reflection"]),
+  type: z.literal("instruction"),
   topicId: z.null(),
   concept: z.null(),
   choices: z.array(z.string()).max(0),
@@ -253,14 +274,30 @@ const NonQuestionActivitySchema = z.object({
   misconceptionSummary: z.null().default(null),
 });
 
+const ReflectionActivitySchema = z.object({
+  ...GeneratedSessionActivityBaseShape,
+  type: z.literal("reflection"),
+  methodPhase: NonModelMethodPhaseSchema,
+  topicId: z.null(),
+  concept: z.null(),
+  choices: z.array(z.string()).max(0),
+  correctAnswer: z.null(),
+  feedback: z.null(),
+  teaching: NoTeachingBlockSchema,
+  practiceIntent: z.null().default(null),
+  misconceptionSummary: z.null().default(null),
+});
+
 const MultipleChoiceActivitySchema = z.object({
   ...GeneratedSessionActivityBaseShape,
   type: z.literal("multiple_choice"),
+  methodPhase: NonModelMethodPhaseSchema,
   topicId: z.string().uuid(),
   concept: z.string().trim().min(2).max(120),
   choices: z.array(z.string().trim().min(1).max(220)).min(3).max(5),
   correctAnswer: z.string().trim().min(1).max(220),
   feedback: z.string().trim().min(20).max(500),
+  teaching: NoTeachingBlockSchema,
 }).superRefine((activity, context) => {
     if (!activity.choices.includes(activity.correctAnswer)) {
       context.addIssue({ code: "custom", path: ["correctAnswer"], message: "The correct answer must exactly match one choice." });
@@ -270,15 +307,18 @@ const MultipleChoiceActivitySchema = z.object({
 const FreeResponseActivitySchema = z.object({
   ...GeneratedSessionActivityBaseShape,
   type: z.literal("free_response"),
+  methodPhase: NonModelMethodPhaseSchema,
   topicId: z.string().uuid(),
   concept: z.string().trim().min(2).max(120),
   choices: z.array(z.string()).max(0),
   correctAnswer: z.string().trim().min(1).max(600),
   feedback: z.string().trim().min(20).max(500),
+  teaching: NoTeachingBlockSchema,
 });
 
 const StrictGeneratedSessionActivitySchema = z.discriminatedUnion("type", [
-  NonQuestionActivitySchema,
+  InstructionActivitySchema,
+  ReflectionActivitySchema,
   MultipleChoiceActivitySchema,
   FreeResponseActivitySchema,
 ]).superRefine((activity, context) => {

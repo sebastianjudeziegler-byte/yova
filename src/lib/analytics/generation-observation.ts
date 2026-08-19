@@ -137,6 +137,7 @@ export const GenerationObservationSchema = z.object({
       "content_exceeded_time_budget",
       "request_aborted",
       "runtime_timeout",
+      "allowance_exhausted",
     ]).optional(),
     lessonAction: z.enum(["skip_to_practice"]).optional(),
     lessonRequestId: z.string().uuid().optional(),

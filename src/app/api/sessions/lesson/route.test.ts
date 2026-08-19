@@ -4,6 +4,11 @@ vi.mock("server-only", () => ({}));
 
 const mocks = vi.hoisted(() => ({
   lessonConfigured: true,
+  developmentPreview: true,
+  supabaseConfigured: false,
+  cachedSession: null as unknown,
+  supabase: null as unknown,
+  claimAIRequest: vi.fn(),
   recordObservation: vi.fn(),
   streamGeneratedLesson: vi.fn(),
 }));
@@ -19,14 +24,35 @@ vi.mock("@/lib/openai/streamed-lesson-generator", async (importOriginal) => ({
   ...await importOriginal<typeof import("@/lib/openai/streamed-lesson-generator")>(),
   streamGeneratedLesson: mocks.streamGeneratedLesson,
 }));
+vi.mock("@/lib/session-generation/schema", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/session-generation/schema")>();
+  const { z } = await import("zod");
+  const cachedSessionSchema = z.unknown().transform(() => mocks.cachedSession);
+  return {
+    ...actual,
+    CachedGeneratedSessionV16Schema: cachedSessionSchema,
+    CachedGeneratedSessionV17Schema: cachedSessionSchema,
+  };
+});
+vi.mock("@/lib/server/ai-usage", () => ({
+  claimAIRequest: mocks.claimAIRequest,
+}));
 vi.mock("@/lib/server/development-preview", () => ({
-  isDevelopmentPreviewRequest: () => true,
+  isDevelopmentPreviewRequest: () => mocks.developmentPreview,
 }));
 vi.mock("@/lib/server/rate-limit", () => ({
   checkLessonGenerationRateLimit: () => ({ allowed: true }),
   requestRateLimitKey: () => "route-test",
 }));
-vi.mock("@/lib/supabase/config", () => ({ isSupabaseConfigured: () => false }));
+vi.mock("@/lib/server/session-operation-guard", () => ({
+  verifyOperationalPlanSession: () => ({ allowed: true }),
+}));
+vi.mock("@/lib/supabase/config", () => ({
+  isSupabaseConfigured: () => mocks.supabaseConfigured,
+}));
+vi.mock("@/lib/supabase/server", () => ({
+  createSupabaseServerClient: () => mocks.supabase,
+}));
 
 import { POST } from "@/app/api/sessions/lesson/route";
 import { StreamedLessonGenerationError } from "@/lib/openai/streamed-lesson-generator";
@@ -42,6 +68,11 @@ import {
 describe("streamed lesson route recovery", () => {
   beforeEach(() => {
     mocks.lessonConfigured = true;
+    mocks.developmentPreview = true;
+    mocks.supabaseConfigured = false;
+    mocks.cachedSession = null;
+    mocks.supabase = null;
+    mocks.claimAIRequest.mockReset();
     mocks.recordObservation.mockReset().mockResolvedValue(undefined);
     mocks.streamGeneratedLesson.mockReset();
   });
@@ -178,10 +209,68 @@ describe("streamed lesson route recovery", () => {
     expect(runtime.content).toContain("Alliance obligations connected");
     expect(mocks.streamGeneratedLesson).not.toHaveBeenCalled();
   });
+
+  it("serves the bounded lesson fallback with the durable allowance reset interval", async () => {
+    const query = {
+      select: vi.fn(),
+      eq: vi.fn(),
+      maybeSingle: vi.fn(),
+    };
+    query.select.mockReturnValue(query);
+    query.eq.mockReturnValue(query);
+    query.maybeSingle.mockResolvedValue({
+      data: { step_data: { generatedSession: { cached: true } } },
+      error: null,
+    });
+    mocks.developmentPreview = false;
+    mocks.supabaseConfigured = true;
+    mocks.cachedSession = { activities: [lessonActivity()] };
+    mocks.supabase = {
+      auth: {
+        getUser: vi.fn().mockResolvedValue({
+          data: { user: { id: "44444444-4444-4444-8444-444444444444" } },
+          error: null,
+        }),
+      },
+      from: vi.fn(() => query),
+    };
+    mocks.claimAIRequest.mockResolvedValue({
+      allowed: false,
+      retryAfterSeconds: 7_200,
+      remainingToday: 0,
+    });
+
+    const response = await POST(lessonRequest());
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Retry-After")).toBe("7200");
+    expect(response.headers.get("X-Yova-Fallback-Reason")).toBe(
+      "guided_session_allowance_exhausted",
+    );
+    expect(response.body).not.toBeNull();
+    const events: LessonStreamEvent[] = [];
+    await consumeLessonEventStream(response.body!, (event) => events.push(event));
+    expect(events.map((event) => event.type)).toEqual([
+      "lesson.meta",
+      "lesson.replace",
+      "lesson.complete",
+    ]);
+    expect(mocks.streamGeneratedLesson).not.toHaveBeenCalled();
+    expect(mocks.recordObservation).toHaveBeenCalledWith(
+      expect.anything(),
+      "44444444-4444-4444-8444-444444444444",
+      expect.objectContaining({
+        finalOutcome: "fallback",
+        failedValidator: null,
+        diagnostics: expect.objectContaining({
+          lessonFailureKind: "allowance_exhausted",
+        }),
+      }),
+    );
+  });
 });
 
 function lessonRequest() {
-  const topicId = "11111111-1111-4111-8111-111111111111";
   return new Request("http://localhost/api/sessions/lesson", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -191,40 +280,7 @@ function lessonRequest() {
       planSessionId: "33333333-3333-4333-8333-333333333333",
       activityIndex: 0,
       previewLesson: {
-        activity: {
-          topicId,
-          methodPhase: "model",
-          estimatedMinutes: 4,
-          requiredForCompletion: true,
-          type: "instruction",
-          concept: null,
-          label: "Learn",
-          title: "Build the World War I cause map",
-          body: "Study the bounded causal model before using it in the next guided activity.",
-          teaching: null,
-          lessonBrief: {
-            version: 1,
-            topicIds: [topicId],
-            essentialIdeas: [
-              "Alliance obligations connected a local crisis to wider mobilization and declarations of war.",
-              "Mobilization timetables narrowed the time leaders had to negotiate before military plans took over.",
-            ],
-            sourceChunks: [],
-            knowledgeSource: "model_knowledge",
-            evidenceContext: { confirmedGaps: [], secureKnowledge: [], priorMisconceptions: [] },
-            contentRequirements: {
-              teachEveryEssentialIdea: true,
-              includeConcreteExample: true,
-              includeCommonMixup: true,
-              preservePrerequisiteOrder: true,
-            },
-          },
-          practiceIntent: null,
-          misconceptionSummary: null,
-          choices: [],
-          correctAnswer: null,
-          feedback: null,
-        },
+        activity: lessonActivity(),
         deliveryInstructions: {
           schemaVersion: 1,
           explanationDensity: "balanced",
@@ -248,4 +304,42 @@ function lessonRequest() {
       },
     }),
   });
+}
+
+function lessonActivity() {
+  const topicId = "11111111-1111-4111-8111-111111111111";
+  return {
+    topicId,
+    methodPhase: "model" as const,
+    estimatedMinutes: 4,
+    requiredForCompletion: true,
+    type: "instruction" as const,
+    concept: null,
+    label: "Learn",
+    title: "Build the World War I cause map",
+    body: "Study the bounded causal model before using it in the next guided activity.",
+    teaching: null,
+    lessonBrief: {
+      version: 1 as const,
+      topicIds: [topicId],
+      essentialIdeas: [
+        "Alliance obligations connected a local crisis to wider mobilization and declarations of war.",
+        "Mobilization timetables narrowed the time leaders had to negotiate before military plans took over.",
+      ],
+      sourceChunks: [],
+      knowledgeSource: "model_knowledge" as const,
+      evidenceContext: { confirmedGaps: [], secureKnowledge: [], priorMisconceptions: [] },
+      contentRequirements: {
+        teachEveryEssentialIdea: true as const,
+        includeConcreteExample: true,
+        includeCommonMixup: true as const,
+        preservePrerequisiteOrder: true as const,
+      },
+    },
+    practiceIntent: null,
+    misconceptionSummary: null,
+    choices: [],
+    correctAnswer: null,
+    feedback: null,
+  };
 }

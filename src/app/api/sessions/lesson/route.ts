@@ -12,6 +12,7 @@ import {
 import { LessonDeliveryInstructionsSchema } from "@/lib/personalization/session-delivery-policy";
 import { lessonIdeaCapacityForMinutes } from "@/lib/session-generation/lesson-brief";
 import { encodeLessonStreamEvent } from "@/lib/session-generation/lesson-stream";
+import { guidedSessionAllowanceExhaustedHeaders } from "@/lib/session-generation/failure-message";
 import {
   CachedGeneratedSessionV16Schema,
   CachedGeneratedSessionV17Schema,
@@ -171,6 +172,7 @@ export async function POST(request: Request) {
           supabase,
           userId: user?.id,
           failureKind: "provider_request_error",
+          allowanceRetryAfterSeconds: durableLimit.retryAfterSeconds,
         });
       }
     } catch {
@@ -351,6 +353,7 @@ function boundedLessonFallbackResponse({
   supabase,
   userId,
   failureKind,
+  allowanceRetryAfterSeconds,
 }: {
   lessonInput: StreamedLessonInput;
   requestId: string;
@@ -358,9 +361,13 @@ function boundedLessonFallbackResponse({
   supabase: Awaited<ReturnType<typeof createSupabaseServerClient>> | null;
   userId: string | undefined;
   failureKind: StreamedLessonFailureKind;
+  allowanceRetryAfterSeconds?: number;
 }) {
   const content = buildBoundedFallbackLesson(lessonInput);
   const wordCount = countWords(content);
+  const fallbackReason = allowanceRetryAfterSeconds === undefined
+    ? failureKind
+    : "allowance_exhausted" as const;
   const stream = new ReadableStream<Uint8Array>({
     start(controller) {
       controller.enqueue(encodeLessonStreamEvent({ type: "lesson.meta", requestId, model }));
@@ -383,7 +390,9 @@ function boundedLessonFallbackResponse({
     environment: generationEnvironment(),
     finalOutcome: "fallback",
     firstAttemptPassed: false,
-    failedValidator: validatorForLessonFailure(failureKind),
+    failedValidator: fallbackReason === "allowance_exhausted"
+      ? null
+      : validatorForLessonFailure(failureKind),
     repairAttempted: true,
     repairSucceeded: true,
     elapsedMs: 0,
@@ -398,7 +407,7 @@ function boundedLessonFallbackResponse({
       latencyToFirstTokenMs: null,
       wordCount,
       streamCompleted: true,
-      lessonFailureKind: failureKind,
+      lessonFailureKind: fallbackReason,
     },
   }).catch(() => undefined);
   return new Response(stream, {
@@ -406,6 +415,9 @@ function boundedLessonFallbackResponse({
       "Content-Type": "text/event-stream; charset=utf-8",
       "Cache-Control": "no-store, no-transform",
       "X-Yova-Request-Id": requestId,
+      ...(allowanceRetryAfterSeconds === undefined ? {} : {
+        ...guidedSessionAllowanceExhaustedHeaders(allowanceRetryAfterSeconds),
+      }),
     },
   });
 }

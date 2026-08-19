@@ -58,6 +58,47 @@ describe("DeviceExportAddendumSchema", () => {
 
     expect(parsed.success).toBe(false);
   });
+
+  it("preserves completion provenance and defaults legacy records to guided", () => {
+    const completion = {
+      id: "33333333-3333-4333-8333-333333333333",
+      planId: "44444444-4444-4444-8444-444444444444",
+      planSessionId: "55555555-5555-4555-8555-555555555555",
+      startedAt: "2026-08-17T00:00:00.000Z",
+      completedAt: "2026-08-17T00:10:00.000Z",
+      plannedMinutes: 10,
+      actualMinutes: 10,
+      correctAnswers: 0,
+      totalAnswers: 0,
+      feedback: "about_right",
+      observedGap: "No topic evidence recorded.",
+      conceptEvidence: [],
+      confidenceEvidence: [],
+    };
+    const parsed = DeviceExportAddendumSchema.parse({
+      ...baseAddendum(),
+      pendingSessionCompletions: [{
+        userId: ACCOUNT_ID,
+        completion,
+        adaptation: null,
+        followUpSession: null,
+        queuedAt: "2026-08-17T00:10:00.000Z",
+      }, {
+        userId: ACCOUNT_ID,
+        completion: {
+          ...completion,
+          id: "66666666-6666-4666-8666-666666666666",
+          completionMode: "unguided_practice",
+        },
+        adaptation: null,
+        followUpSession: null,
+        queuedAt: "2026-08-17T00:10:00.000Z",
+      }],
+    });
+
+    expect(parsed.pendingSessionCompletions.map((entry) => entry.completion.completionMode))
+      .toEqual(["guided", "unguided_practice"]);
+  });
 });
 
 function baseAddendum() {

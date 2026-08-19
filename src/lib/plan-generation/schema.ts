@@ -3,6 +3,11 @@ import { resolveLearningIntent } from "@/lib/learning/learning-intent";
 import { MaterialUnderstandingSchema, PlanKnowledgeMapSchema } from "@/lib/knowledge-map/schema";
 import { SESSION_ARCHITECTURE_VERSIONS } from "@/lib/session-generation/architecture";
 
+export const MAX_GENERATED_PLAN_SESSIONS = 14;
+// Generated curriculum stays capped above. Runtime-only verification sessions
+// may add at most one evidence check for each generated session.
+export const MAX_RUNTIME_PLAN_SESSIONS = MAX_GENERATED_PLAN_SESSIONS * 2;
+
 export const MaterialInputSchema = z.object({
   id: z.string().uuid(),
   name: z.string().trim().min(1).max(180),
@@ -120,7 +125,7 @@ export const GeneratedPlanDraftSchema = z.object({
     topicId: z.string().uuid(),
     reason: z.string().trim().min(8).max(300),
   })).max(40),
-  sessions: z.array(GeneratedSessionDraftSchema).min(1).max(14),
+  sessions: z.array(GeneratedSessionDraftSchema).min(1).max(MAX_GENERATED_PLAN_SESSIONS),
 });
 
 export const LearningPlanSchema = z.object({
@@ -154,12 +159,20 @@ export const LearningPlanSchema = z.object({
     topicIds: z.array(z.string().uuid()).default([]),
     contentTargets: z.array(z.string().min(1)).default([]),
     completionEvidence: z.array(z.string().min(1)).default([]),
+    originSessionId: z.string().min(1).optional(),
+    originalContentMinutes: z.number().int().positive().max(180).optional(),
+    segmentIndex: z.number().int().positive().max(180).optional(),
+    segmentCount: z.number().int().positive().max(180).optional(),
     status: z.enum(["ready", "upcoming", "complete", "skipped"]),
-  })).min(1).max(14),
+  })).min(1).max(MAX_RUNTIME_PLAN_SESSIONS),
+});
+
+const GeneratedLearningPlanSchema = LearningPlanSchema.extend({
+  sessions: LearningPlanSchema.shape.sessions.max(MAX_GENERATED_PLAN_SESSIONS),
 });
 
 export const PlanGenerationResponseSchema = z.object({
-  plan: LearningPlanSchema,
+  plan: GeneratedLearningPlanSchema,
   generation: z.object({
     mode: z.enum(["preview", "openai", "system"]),
     model: z.string().nullable(),
@@ -171,9 +184,16 @@ export const PlanGenerationResponseSchema = z.object({
 });
 
 export const PlanActivationRequestSchema = z.object({
-  plan: LearningPlanSchema.extend({ status: z.literal("draft") }),
+  plan: GeneratedLearningPlanSchema.extend({ status: z.literal("draft") }),
   generationRequest: PlanGenerationRequestSchema,
 }).superRefine(({ plan, generationRequest }, context) => {
+  if (plan.sessions.length > MAX_GENERATED_PLAN_SESSIONS) {
+    context.addIssue({
+      code: "custom",
+      path: ["plan", "sessions"],
+      message: `A generated plan may contain at most ${MAX_GENERATED_PLAN_SESSIONS} sessions.`,
+    });
+  }
   const expectedSourceMode = generationRequest.materialMode === "upload"
     ? "user_materials"
     : "yova_generated";
@@ -212,7 +232,7 @@ export const PlanActivationRequestSchema = z.object({
 });
 
 export const PlanActivationResponseSchema = z.object({
-  plan: LearningPlanSchema.extend({ status: z.literal("active") }),
+  plan: GeneratedLearningPlanSchema.extend({ status: z.literal("active") }),
   activation: z.object({
     persistence: z.enum(["browser", "supabase"]),
     requestId: z.string().min(1),

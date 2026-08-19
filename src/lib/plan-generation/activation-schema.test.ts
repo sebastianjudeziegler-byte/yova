@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { generatePreviewPlan } from "@/lib/plan-generation/preview-generator";
 import {
+  LearningPlanSchema,
+  MAX_GENERATED_PLAN_SESSIONS,
+  MAX_RUNTIME_PLAN_SESSIONS,
   PlanActivationRequestSchema,
+  PlanGenerationResponseSchema,
   PlanGenerationRequestSchema,
 } from "@/lib/plan-generation/schema";
 
@@ -80,6 +84,39 @@ describe("plan activation contract", () => {
     expect(PlanActivationRequestSchema.safeParse({
       ...draft,
       plan: { ...draft.plan, sourceMode: "user_materials", learningIntent: "study" },
+    }).success).toBe(false);
+  });
+
+  it("keeps generation at 14 sessions while allowing bounded runtime verification rows", () => {
+    const draft = matchingDraft();
+    const template = draft.plan.sessions[0]!;
+    const sessions = Array.from({ length: MAX_RUNTIME_PLAN_SESSIONS }, (_, index) => ({
+      ...template,
+      id: `runtime-session-${index + 1}`,
+      sequence: index + 1,
+    }));
+    const runtimePlan = { ...draft.plan, sessions };
+
+    expect(MAX_GENERATED_PLAN_SESSIONS).toBe(14);
+    expect(LearningPlanSchema.safeParse(runtimePlan).success).toBe(true);
+    expect(LearningPlanSchema.safeParse({
+      ...runtimePlan,
+      sessions: [...sessions, { ...template, id: "runtime-session-29", sequence: 29 }],
+    }).success).toBe(false);
+    expect(PlanActivationRequestSchema.safeParse({
+      ...draft,
+      plan: { ...draft.plan, sessions: sessions.slice(0, MAX_GENERATED_PLAN_SESSIONS + 1) },
+    }).success).toBe(false);
+    expect(PlanGenerationResponseSchema.safeParse({
+      plan: { ...draft.plan, sessions: sessions.slice(0, MAX_GENERATED_PLAN_SESSIONS + 1) },
+      generation: {
+        mode: "preview",
+        model: null,
+        notice: null,
+        requestId: "request-id",
+        durationMs: 1,
+        persistence: "draft",
+      },
     }).success).toBe(false);
   });
 });

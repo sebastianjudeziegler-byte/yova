@@ -67,6 +67,8 @@ import {
 import { PlanCreator } from "@/components/plan-creator";
 import { PlanDeletionControl } from "@/components/plan-deletion-dialog";
 import { QuantitativeWorkpad } from "@/components/quantitative-workpad";
+import { StudyMethodBriefing } from "@/components/study-method-briefing";
+import { StudyMethodPractice } from "@/components/study-method-practice";
 import { StudyNowCreator } from "@/components/study-now-creator";
 import { TutorMessageContent } from "@/components/tutor-message-content";
 import { trackProductEvent } from "@/lib/analytics/client";
@@ -90,6 +92,7 @@ import {
   type LearningPlanSession,
   type PreviewAccount,
   type SessionCompletion,
+  type SessionCompletionMode,
   type SessionCoverage,
   type SessionEvidenceSnapshot,
   type SessionInterruption,
@@ -100,6 +103,11 @@ import {
 } from "@/lib/domain";
 import type { AddIntakeSeed } from "@/lib/intake/schema";
 import { DeadlineMilestoneSchema } from "@/lib/milestones/schema";
+import {
+  formatCharacterLimit,
+  getCharacterLimitState,
+  LEARNER_TEXT_CHARACTER_LIMIT,
+} from "@/lib/character-limit";
 import { summarizeConceptEvidence, type ConceptSignal } from "@/lib/learning/concept-evidence";
 import { inferSessionFamiliarityFromText } from "@/lib/learning/learning-intent";
 import {
@@ -115,7 +123,11 @@ import {
   getMethodPhasePresentation,
   methodPhasePosition,
 } from "@/lib/learning/method-phase-presentation";
-import { buildFallbackMethodBriefing } from "@/lib/learning/fallback-method-briefing";
+import {
+  buildFallbackMethodBriefing,
+  buildGenericInsideFallbackMethodBriefing,
+  GENERIC_INSIDE_FALLBACK_METHOD_NAME,
+} from "@/lib/learning/fallback-method-briefing";
 import { rankPlansForHome } from "@/lib/learning/home-recommendations";
 import {
   availableLearningItemIds,
@@ -125,6 +137,12 @@ import {
   filterTutorThreads,
 } from "@/lib/learning/plan-visibility";
 import { completePlanSession } from "@/lib/learning/complete-plan-session";
+import { asUnguidedPracticeCompletion } from "@/lib/learning/session-completion-provenance";
+import {
+  buildUnguidedVerificationSession,
+  canLoadBuiltInFallbackWithCompletion,
+  canScheduleUnguidedVerification,
+} from "@/lib/learning/unguided-verification";
 import { buildFallbackRuntimeRepair } from "@/lib/session-repair/fallback";
 import {
   RuntimeRepairRequestSchema,
@@ -146,6 +164,7 @@ import {
 import { shouldRequestConfidence } from "@/lib/learning/session-interaction";
 import { isScheduledRetrievalSession } from "@/lib/learning/scheduled-retrieval";
 import { buildSessionMapDelta } from "@/lib/knowledge-map/session-delta";
+import { displayedTopicStatus } from "@/lib/knowledge-map/displayed-topic-status";
 import { PlanKnowledgeMapSchema, type PlanKnowledgeMap } from "@/lib/knowledge-map/schema";
 import {
   chooseLatestSessionResumePoint,
@@ -243,7 +262,11 @@ import {
 } from "@/lib/sample-data";
 import { PlanAdjustmentResponseSchema, type PlanAdjustmentRequest } from "@/lib/learning/adjustment-schema";
 import { PlanDiagnosticQuestionSchema, type PlanDiagnosticQuestion } from "@/lib/plan-generation/schema";
-import { buildContentBasedReplacementSessions } from "@/lib/learning/content-based-plan-adjustment";
+import {
+  buildContentBasedReplacementSessions,
+  learningPlanSessionToAdjustableRow,
+  MAX_ADJUSTED_PLAN_SESSIONS,
+} from "@/lib/learning/content-based-plan-adjustment";
 import { applyPlanDirectionFallback } from "@/lib/learning/plan-direction";
 import { PlanArchiveResponseSchema } from "@/lib/learning/status-schema";
 import { deleteArchivedPlan } from "@/lib/learning/plan-deletion";
@@ -274,12 +297,28 @@ import {
   type LessonRuntimeState,
 } from "@/lib/session-generation/lesson-runtime";
 import {
+  buildGenericInsideYovaFallbackLesson,
+  buildOutsideYovaFallbackLesson,
   builtInLessonCoversTarget,
   builtInLessonFitsTime,
   builtInSessionFallbackKind,
   builtInTopicEvidenceId,
   canUseBuiltInSessionFallback,
+  genericInsideFallbackCoversTarget,
+  type GenericInsideYovaFallbackLesson,
 } from "@/lib/session-generation/built-in-fallback";
+import {
+  sessionFallbackErrorCode,
+  type BuiltInFallbackOutcome,
+} from "@/lib/session-generation/fallback-observation";
+import { GUIDED_SESSION_ALLOWANCE_EXHAUSTED_CODE } from "@/lib/session-generation/failure-message";
+import {
+  buildGuidedSessionFailureState,
+  classifyGuidedSessionGenerationFailure,
+  retryAfterResetAt as failureRetryAfterResetAt,
+  type GuidedSessionFailureState,
+  type GuidedSessionGenerationCause,
+} from "@/lib/session-generation/failure-state";
 import { buildPreviewSessionContext } from "@/lib/session-generation/preview-context";
 import { toSessionResource } from "@/lib/session-generation/resource";
 import { polishActivityLabel } from "@/lib/session-generation/typography";
@@ -301,6 +340,7 @@ import {
   recoverySessionMinutes,
   tomorrowAtSessionTime,
 } from "@/lib/scheduling/recovery";
+import { canOfferAgendaSessionSplit } from "@/lib/scheduling/split-safety";
 import {
   applyAdvancedSchedule,
   buildAdvancedSchedule,
@@ -334,7 +374,7 @@ import {
   type TutorThreadSummary,
 } from "@/lib/tutor/schema";
 
-type Stage = "landing" | "account" | "cloud-error" | "onboarding-intro" | "onboarding" | "profile" | "app" | "add" | "plan-creator" | "study-now" | "session-setup" | "session-loading" | "session-error" | "session" | "complete";
+type Stage = "landing" | "account" | "cloud-error" | "onboarding-intro" | "onboarding" | "profile" | "app" | "add" | "plan-creator" | "study-now" | "session-setup" | "session-loading" | "session-error" | "session-quota" | "session-method" | "session" | "complete";
 type Tab = "Home" | "Learning" | "Agenda" | "Ask YOVA" | "You";
 type LessonStep = GuidedSessionStep & {
   lessonBrief?: LessonBrief | null;
@@ -410,8 +450,11 @@ export function YovaPrototype({
   const [sessionSupportPlan, setSessionSupportPlan] = useState<SessionSupportPlan | null>(null);
   const [sessionSourceGrounding, setSessionSourceGrounding] = useState<SessionSourceGrounding | null>(null);
   const [sessionGenerationIssue, setSessionGenerationIssue] = useState<string | null>(null);
+  const [sessionFailureState, setSessionFailureState] = useState<GuidedSessionFailureState | null>(null);
+  const [sessionRecoverySession, setSessionRecoverySession] = useState<LearningPlanSession | null>(null);
   const [sessionStartedAt, setSessionStartedAt] = useState<number | null>(null);
   const [sessionCompletedAt, setSessionCompletedAt] = useState<string | null>(null);
+  const [sessionCompletionMode, setSessionCompletionMode] = useState<SessionCompletionMode>("guided");
   const [sessionCompletionFeedback, setSessionCompletionFeedback] = useState<SessionCompletion["feedback"]>("about_right");
   const [sessionElapsedSeconds, setSessionElapsedSeconds] = useState(0);
   const [sessionCapacityMinutes, setSessionCapacityMinutes] = useState<number | null>(null);
@@ -451,6 +494,7 @@ export function YovaPrototype({
   const writeActiveSessionCheckpointRef = useRef<(
     statusOverride?: ActiveSessionCheckpointV1["status"],
     completedAtOverride?: string,
+    completionModeOverride?: SessionCompletionMode,
   ) => boolean>(() => false);
   const protectedTerminalCheckpointRunIdsRef = useRef(new Set<string>());
   const lastLifecycleCheckpointAtRef = useRef(0);
@@ -485,7 +529,7 @@ export function YovaPrototype({
   const capturedSessionSeconds = Math.max(1, sessionElapsedSeconds);
   const capturedSessionMinutes = Math.max(1, Math.ceil(capturedSessionSeconds / 60));
   const personalizationState = readPersonalizationStateFromAnswers(answers);
-  const workspaceExperimentSession = stage === "session"
+  const workspaceExperimentSession = stage === "session" || stage === "session-method"
     ? activePlan?.sessions.find((session) => session.status === "ready") ?? null
     : null;
   const workspaceExperimentComparison = activePlan && workspaceExperimentSession
@@ -1007,7 +1051,11 @@ export function YovaPrototype({
   }, [ready, onboardingCompleted, account, answers]);
 
   useEffect(() => {
-    if (stage !== "session" || sessionStartedAt === null || !activeSessionClockRef.current) return;
+    if (
+      (stage !== "session" && stage !== "session-method")
+      || sessionStartedAt === null
+      || !activeSessionClockRef.current
+    ) return;
 
     const updateElapsedTime = () => {
       const clock = activeSessionClockRef.current;
@@ -1023,6 +1071,7 @@ export function YovaPrototype({
     plan: LearningPlan,
     resumed: boolean,
     checkpoint?: ActiveSessionCheckpointResumePoint | null,
+    nextStage: "session" | "session-method" = "session",
   ) => {
     trackProductEvent({
       eventName: "session_started",
@@ -1057,12 +1106,21 @@ export function YovaPrototype({
           : "Your session was recovered. Completed sections are saved; an unfinished answer was not stored."
       : null);
     setSessionRecoveryIssue(null);
-    setStage(awaitingFinish ? "complete" : "session");
+    setStage(awaitingFinish ? "complete" : nextStage);
   };
 
-  writeActiveSessionCheckpointRef.current = (statusOverride, completedAtOverride) => {
+  writeActiveSessionCheckpointRef.current = (
+    statusOverride,
+    completedAtOverride,
+    completionModeOverride,
+  ) => {
     if (
-      (stage !== "session" && stage !== "complete" && statusOverride !== "awaiting_finish")
+      (
+        stage !== "session"
+        && stage !== "session-method"
+        && stage !== "complete"
+        && statusOverride !== "awaiting_finish"
+      )
       || !account
       || !activePlan
       || sessionStartedAt === null
@@ -1109,6 +1167,7 @@ export function YovaPrototype({
     const effectiveCompletedAt = completedAtOverride ?? sessionCompletedAt;
     const completedAtMs = effectiveCompletedAt ? Date.parse(effectiveCompletedAt) : savedAtMs;
     const boundedCompletedAtMs = Number.isFinite(completedAtMs) ? completedAtMs : savedAtMs;
+    const checkpointCompletionMode = completionModeOverride ?? sessionCompletionMode;
     const checkpoint: ActiveSessionCheckpointV1 = awaitingFinish
       ? {
         version: 1,
@@ -1127,6 +1186,7 @@ export function YovaPrototype({
         evidence,
         resourceFingerprint,
         resourceGeneratedAt,
+        completionMode: checkpointCompletionMode,
         completedAt: new Date(boundedCompletedAtMs).toISOString(),
         completionFeedback: sessionCompletionFeedback,
       }
@@ -1147,6 +1207,7 @@ export function YovaPrototype({
         evidence,
         resourceFingerprint,
         resourceGeneratedAt,
+        completionMode: checkpointCompletionMode,
         ...(pendingRepair ? { pendingRepair } : {}),
       };
 
@@ -1172,21 +1233,25 @@ export function YovaPrototype({
   };
 
   useEffect(() => {
-    if (stage !== "session" && stage !== "complete") return;
+    if (stage !== "session" && stage !== "session-method" && stage !== "complete") return;
     void writeActiveSessionCheckpointRef.current();
   }, [stage, sessionStep, sessionOutcomes, sessionAttempts, sessionConfidence, resumedSessionEvidence, generatedLessonSteps, sessionCompletedAt, sessionCompletionFeedback]);
 
   useEffect(() => {
-    if ((stage !== "session" && stage !== "complete") || sessionElapsedSeconds === 0 || sessionElapsedSeconds % 20 !== 0) return;
+    if (
+      (stage !== "session" && stage !== "session-method" && stage !== "complete")
+      || sessionElapsedSeconds === 0
+      || sessionElapsedSeconds % 20 !== 0
+    ) return;
     void writeActiveSessionCheckpointRef.current();
   }, [stage, sessionElapsedSeconds]);
 
   useEffect(() => {
-    if (stage !== "session" && stage !== "complete") return;
+    if (stage !== "session" && stage !== "session-method" && stage !== "complete") return;
 
     const checkpointLifecycle = () => {
       const now = Date.now();
-      if (stage === "session" && activeSessionClockRef.current) {
+      if ((stage === "session" || stage === "session-method") && activeSessionClockRef.current) {
         activeSessionClockRef.current = pauseActiveSessionClock(activeSessionClockRef.current, now);
         setSessionElapsedSeconds(readActiveSessionSeconds(activeSessionClockRef.current, now));
       }
@@ -1200,12 +1265,16 @@ export function YovaPrototype({
         checkpointLifecycle();
         return;
       }
-      if (stage === "session" && activeSessionClockRef.current) {
+      if ((stage === "session" || stage === "session-method") && activeSessionClockRef.current) {
         activeSessionClockRef.current = resumeActiveSessionClock(activeSessionClockRef.current, Date.now());
       }
     };
     const onPageShow = () => {
-      if (stage === "session" && document.visibilityState !== "hidden" && activeSessionClockRef.current) {
+      if (
+        (stage === "session" || stage === "session-method")
+        && document.visibilityState !== "hidden"
+        && activeSessionClockRef.current
+      ) {
         activeSessionClockRef.current = resumeActiveSessionClock(activeSessionClockRef.current, Date.now());
       }
     };
@@ -1289,6 +1358,13 @@ export function YovaPrototype({
         }),
         signal: controller.signal,
       });
+      const allowanceResetAt = guidedSessionAllowanceResetAtFromHeaders(response.headers);
+      if (allowanceResetAt !== undefined) {
+        setSessionRecoveryNotice(guidedSessionAllowanceFallbackNotice(
+          allowanceResetAt,
+          "A safe built-in explanation was loaded instead",
+        ));
+      }
       if (!response.ok || !response.body) {
         const body: unknown = await response.json().catch(() => null);
         const message = typeof body === "object" && body && "error" in body && typeof body.error === "string"
@@ -1382,6 +1458,19 @@ export function YovaPrototype({
       ?? requestedSession.resource?.generatedAt
       ?? null;
 
+    const restoredFallbackKind = requestedSession.resource?.origin !== "built_in"
+      ? null
+      : requestedSession.resource.methodBriefing?.name === GENERIC_INSIDE_FALLBACK_METHOD_NAME
+        ? "generic_inside" as const
+        : requestedPlan.studyMode === "outside_yova"
+          ? "outside_source" as const
+          : "subject_specific" as const;
+    const restoredFallbackCanComplete = canLoadBuiltInFallbackWithCompletion({
+      fallbackKind: restoredFallbackKind,
+      session: requestedSession,
+      planSessionCount: requestedPlan.sessions.length,
+    });
+
     setSelectedPlanId(requestedPlan.id);
     setPendingSessionPlan(null);
     setSessionStep(0);
@@ -1405,10 +1494,13 @@ export function YovaPrototype({
     setSessionSupportPlan(null);
     setSessionSourceGrounding(null);
     setSessionGenerationIssue(null);
+    setSessionFailureState(null);
+    setSessionRecoverySession(null);
     setSessionRecoveryNotice(null);
     setSessionRecoveryIssue(null);
     setSessionStartedAt(null);
     setSessionCompletedAt(null);
+    setSessionCompletionMode("guided");
     setSessionCompletionFeedback("about_right");
     setSessionElapsedSeconds(0);
     setSessionCapacityMinutes(effectiveAdjustment?.availableMinutes ?? requestedSession.estimatedMinutes);
@@ -1425,6 +1517,7 @@ export function YovaPrototype({
         checkpointResume.resourceGeneratedAt === undefined
         || requestedSession.resource.generatedAt === checkpointResume.resourceGeneratedAt
       )
+      && restoredFallbackCanComplete
     ) {
       const restoredSteps = lessonStepsFromSessionResource(requestedSession.resource);
       const restoredLesson = checkpointResume.checkpointStatus === "awaiting_finish"
@@ -1447,6 +1540,13 @@ export function YovaPrototype({
       setSessionRationale(requestedSession.resource.rationale);
       setSessionCoverage(requestedSession.resource.coverage ?? null);
       setSessionMethodBriefing(requestedSession.resource.methodBriefing ?? null);
+      setSessionCompletionMode(
+        checkpointResume?.completionMode
+          ?? (requestedSession.resource.methodBriefing?.name === GENERIC_INSIDE_FALLBACK_METHOD_NAME
+            || (requestedPlan.studyMode === "outside_yova" && requestedSession.resource.origin === "built_in")
+            ? "unguided_practice"
+            : "guided"),
+      );
       setSessionDeliveryPolicy(requestedSession.resource.deliveryPolicy ?? null);
       setSessionSupportPlan(supportPlan);
       setSessionSourceGrounding(requestedSession.resource.sourceGrounding ?? null);
@@ -1463,6 +1563,9 @@ export function YovaPrototype({
     }, CLIENT_SESSION_GENERATION_TIMEOUT_MS);
     let requestId: string | null = clientRequestId;
     let generationFailureStatus: number | null = null;
+    let generationFailureKind: typeof GUIDED_SESSION_ALLOWANCE_EXHAUSTED_CODE | null = null;
+    let generationAllowanceResetAt: string | null = null;
+    let generationFailureCause: GuidedSessionGenerationCause | null = null;
 
     try {
       const response = await fetch("/api/sessions/generate", {
@@ -1496,6 +1599,11 @@ export function YovaPrototype({
       const body: unknown = await response.json().catch(() => null);
       if (!response.ok) {
         generationFailureStatus = response.status;
+        generationFailureCause = classifyGuidedSessionGenerationFailure({ response, body });
+        generationFailureKind = generationFailureCause.kind === "allowance_exhausted"
+          ? GUIDED_SESSION_ALLOWANCE_EXHAUSTED_CODE
+          : null;
+        generationAllowanceResetAt = generationFailureCause.resetAt;
         const message = typeof body === "object" && body && "error" in body && typeof body.error === "string"
           ? body.error
           : "YOVA could not generate this guided session.";
@@ -1503,7 +1611,17 @@ export function YovaPrototype({
       }
 
       const parsed = SessionGenerationResponseSchema.safeParse(body);
-      if (!parsed.success) throw new Error("The generated session came back in an unsafe format.");
+      if (!parsed.success) {
+        generationFailureCause = classifyGuidedSessionGenerationFailure({
+          response: { status: 502, headers: response.headers },
+          body: {
+            error: "The generated session came back in an unsafe format.",
+            retryable: false,
+          },
+        });
+        generationFailureStatus = 502;
+        throw new Error("The generated session came back in an unsafe format.");
+      }
       trackProductEvent({
         eventName: "session_generated",
         context: {
@@ -1576,18 +1694,17 @@ export function YovaPrototype({
       beginTimedSession(requestedPlan, Boolean(resumePoint), checkpointResume);
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError" && !generationTimedOut) return;
-      reportProductError({
-        surface: "session_generation",
-        errorCode: generationTimedOut
-          ? "guided_session_generation_timeout"
-          : "guided_session_generation_failed",
-        requestId,
-      });
       const message = generationTimedOut
         ? "Live lesson generation took too long."
         : error instanceof Error
           ? error.message
           : "YOVA could not generate this session.";
+      const resolvedFailureCause = generationFailureCause
+        ?? classifyGuidedSessionGenerationFailure({
+          response: null,
+          body: { error: message },
+          timedOut: generationTimedOut,
+        });
       const fallbackContext = buildPreviewSessionContext({
         plan: requestedPlan,
         session: requestedSession,
@@ -1596,31 +1713,83 @@ export function YovaPrototype({
         interruptions: sessionInterruptions,
         sessionAdjustment: effectiveAdjustment,
       });
+      const fallbackAvailableMinutes = effectiveAdjustment?.availableMinutes
+        ?? fallbackContext.session.estimatedMinutes;
       const fallbackSession: LearningPlanSession = {
         ...requestedSession,
         title: fallbackContext.session.title,
         objective: fallbackContext.session.objective,
         method: fallbackContext.session.method,
         methodReason: fallbackContext.session.methodReason,
-        estimatedMinutes: effectiveAdjustment?.availableMinutes ?? fallbackContext.session.estimatedMinutes,
+        estimatedMinutes: fallbackAvailableMinutes,
         learningMode: fallbackContext.session.learningMode,
         topicIds: fallbackContext.session.topicIds,
         contentTargets: fallbackContext.session.contentTargets,
         completionEvidence: fallbackContext.session.completionEvidence,
       };
+      const fallbackDeliveryPolicy = buildSessionDeliveryPolicy({
+        learnerProfile: fallbackContext.learnerProfile,
+        recentResults: fallbackContext.recentResults,
+        recentInterruptions: fallbackContext.recentInterruptions,
+        learningMode: fallbackSession.learningMode,
+        estimatedMinutes: fallbackAvailableMinutes,
+      });
+      const openMethodRecovery = (
+        fallbackOutcome: Exclude<BuiltInFallbackOutcome, "loaded">,
+      ) => {
+        setSessionFailureState(buildGuidedSessionFailureState({
+          cause: resolvedFailureCause,
+          fallbackOutcome,
+        }));
+        setSessionRecoverySession(fallbackSession);
+        setSessionMethodBriefing(buildFallbackMethodBriefing(
+          requestedPlan,
+          fallbackSession,
+          fallbackDeliveryPolicy,
+        ));
+        setSessionDeliveryPolicy(fallbackDeliveryPolicy);
+        setSessionGenerationIssue(requestId ? `Reference: ${requestId}.` : null);
+        setStage(resolvedFailureCause.kind === "allowance_exhausted" ? "session-quota" : "session-error");
+      };
       const currentRequestedPlan = plansRef.current.find((plan) => plan.id === requestedPlan.id);
       const currentPlanStatus = currentRequestedPlan?.status
         ?? (requestedPlanWasStoredAtStart ? undefined : requestedPlan.status);
+      const outsideFallback = requestedPlan.studyMode === "outside_yova"
+        ? buildOutsideYovaFallbackLesson({
+          topic: requestedPlan.topic,
+          objective: fallbackSession.objective,
+          method: fallbackSession.method,
+          methodReason: fallbackSession.methodReason,
+          learningMode: fallbackSession.learningMode,
+          availableMinutes: fallbackAvailableMinutes,
+        })
+        : null;
+      const insideFallbackSelection = requestedPlan.studyMode === "inside_yova"
+        ? insideBuiltInLessonSelectionFor(requestedPlan, fallbackSession)
+        : null;
+      const fallbackSelection = requestedPlan.studyMode === "outside_yova"
+        ? outsideFallback
+          ? { kind: "outside_source" as const, steps: outsideFallback.activities }
+          : null
+        : insideFallbackSelection;
+      const fallbackCanComplete = canLoadBuiltInFallbackWithCompletion({
+        fallbackKind: fallbackSelection?.kind ?? null,
+        session: fallbackSession,
+        planSessionCount: currentRequestedPlan?.sessions.length ?? requestedPlan.sessions.length,
+      });
       const fallbackTemplate = (
         canUseBuiltInSessionFallback({
           planStatus: currentPlanStatus,
           sourceMode: currentRequestedPlan?.sourceMode ?? requestedPlan.sourceMode,
           responseStatus: generationFailureStatus,
+          failureKind: generationFailureKind,
           adjustment: effectiveAdjustment,
+          outsideFallback,
         })
         && !isScheduledRetrievalSession(requestedSession)
+        && fallbackCanComplete
       )
-        ? subjectSpecificLessonStepsFor(requestedPlan, fallbackSession)
+        ? fallbackSelection?.steps ?? null
         : null;
       const fallbackSteps = fallbackTemplate
         ? bindBuiltInLessonToSession(
@@ -1630,22 +1799,61 @@ export function YovaPrototype({
         )
         : null;
       if (!fallbackSteps) {
-        setSessionGenerationIssue(`${message}${requestId ? ` Reference: ${requestId}.` : ""}`);
-        setStage("session-error");
+        if (!generationFailureKind) {
+          reportProductError({
+            surface: "session_generation",
+            errorCode: sessionFallbackErrorCode({
+              generationTimedOut,
+              fallbackAvailable: false,
+              fitsAvailableTime: false,
+              coverageAccepted: false,
+            }),
+            requestId,
+          });
+        }
+        openMethodRecovery("unavailable");
         return;
       }
-      if (!builtInLessonFitsTime(fallbackSteps, fallbackSession.estimatedMinutes)) {
-        setSessionGenerationIssue(`${message}${requestId ? ` Reference: ${requestId}.` : ""}`);
-        setStage("session-error");
+      if (!builtInLessonFitsTime(fallbackSteps, fallbackAvailableMinutes)) {
+        if (!generationFailureKind) {
+          reportProductError({
+            surface: "session_generation",
+            errorCode: sessionFallbackErrorCode({
+              generationTimedOut,
+              fallbackAvailable: true,
+              fitsAvailableTime: false,
+              coverageAccepted: false,
+            }),
+            requestId,
+          });
+        }
+        openMethodRecovery("time_fit_rejected");
         return;
       }
-      const fallbackCoverage = fallbackCoverageFor(fallbackSession, fallbackSteps);
+      const fallbackCoverage = fallbackCoverageFor(
+        fallbackSession,
+        fallbackSteps,
+        fallbackSelection?.kind === "generic_inside"
+          ? fallbackSelection.fallback
+          : null,
+      );
       if (
         requestedPlan.studyMode === "inside_yova"
         && fallbackCoverage.deferredContent.length > 0
       ) {
-        setSessionGenerationIssue(`${message}${requestId ? ` Reference: ${requestId}.` : ""}`);
-        setStage("session-error");
+        if (!generationFailureKind) {
+          reportProductError({
+            surface: "session_generation",
+            errorCode: sessionFallbackErrorCode({
+              generationTimedOut,
+              fallbackAvailable: true,
+              fitsAvailableTime: true,
+              coverageAccepted: false,
+            }),
+            requestId,
+          });
+        }
+        openMethodRecovery("coverage_rejected");
         return;
       }
       const fallbackSupportPlan = buildSessionSupportPlan({
@@ -1659,14 +1867,9 @@ export function YovaPrototype({
         })),
         learningMode: fallbackSession.learningMode,
       });
-      const fallbackDeliveryPolicy = buildSessionDeliveryPolicy({
-        learnerProfile: fallbackContext.learnerProfile,
-        recentResults: fallbackContext.recentResults,
-        recentInterruptions: fallbackContext.recentInterruptions,
-        learningMode: fallbackSession.learningMode,
-        estimatedMinutes: effectiveAdjustment?.availableMinutes ?? fallbackSession.estimatedMinutes,
-      });
-      const fallbackMethodBriefing = buildFallbackMethodBriefing(requestedPlan, fallbackSession, fallbackDeliveryPolicy);
+      const fallbackMethodBriefing = fallbackSelection?.kind === "generic_inside"
+        ? buildGenericInsideFallbackMethodBriefing(requestedPlan, fallbackSession, fallbackDeliveryPolicy)
+        : buildFallbackMethodBriefing(requestedPlan, fallbackSession, fallbackDeliveryPolicy);
       const fallbackResource = {
         ...reusableResourceFromLessonSteps(fallbackSteps, fallbackSession.methodReason),
         coverage: fallbackCoverage,
@@ -1674,6 +1877,18 @@ export function YovaPrototype({
         deliveryPolicy: fallbackDeliveryPolicy,
         supportPlan: fallbackSupportPlan,
       };
+      if (!generationFailureKind) {
+        reportProductError({
+          surface: "session_generation",
+          errorCode: sessionFallbackErrorCode({
+            generationTimedOut,
+            fallbackAvailable: true,
+            fitsAvailableTime: true,
+            coverageAccepted: true,
+          }),
+          requestId,
+        });
+      }
       setPlans((current) => current.map((plan) => plan.id !== requestedPlan.id ? plan : {
         ...plan,
         sessions: plan.sessions.map((session) => session.id === requestedSession.id
@@ -1686,14 +1901,27 @@ export function YovaPrototype({
       setSessionRationale(fallbackSession.methodReason);
       setSessionCoverage(fallbackCoverage);
       setSessionMethodBriefing(fallbackMethodBriefing);
+      setSessionCompletionMode(
+        fallbackSelection?.kind === "generic_inside" || fallbackSelection?.kind === "outside_source"
+          ? "unguided_practice"
+          : "guided",
+      );
       setSessionDeliveryPolicy(fallbackDeliveryPolicy);
       setSessionSupportPlan(fallbackSupportPlan);
       setSessionSourceGrounding(null);
-      setSessionGenerationIssue(`${message} A safe built-in session was loaded instead.${requestId ? ` Reference: ${requestId}.` : ""}`);
+      if (!generationFailureKind) {
+        setSessionGenerationIssue(`${message} A safe built-in session was loaded instead.${requestId ? ` Reference: ${requestId}.` : ""}`);
+      }
       cloudCheckpointResourceIdentitiesRef.current.delete(requestedSession.id);
       activeSessionResourceFingerprintRef.current = fingerprintSessionResource(fallbackResource);
       activeSessionResourceGeneratedAtRef.current = fallbackResource.generatedAt;
       beginTimedSession(requestedPlan, Boolean(resumePoint), checkpointResume);
+      if (generationFailureKind) {
+        // beginTimedSession restores any checkpoint notice (or clears it for a
+        // fresh run), so apply the quota recovery notice afterwards.
+        setSessionGenerationIssue(null);
+        setSessionRecoveryNotice(`${guidedSessionAllowanceFallbackNotice(generationAllowanceResetAt, "A safe built-in session was loaded instead")}${requestId ? ` Reference: ${requestId}.` : ""}`);
+      }
     } finally {
       window.clearTimeout(generationTimeoutId);
       if (sessionGenerationAbortRef.current === generationController) {
@@ -1793,16 +2021,31 @@ export function YovaPrototype({
   };
 
   const completeActiveSession = (correctAnswers: number, totalAnswers: number, feedback: SessionCompletion["feedback"], actualMinutes: number, applyRecommendedChange: boolean) => {
-    if (!activePlan) return;
+    if (!activePlan) return false;
     const currentSession = activePlan.sessions.find((session) => session.status === "ready");
-    if (!currentSession) return;
+    if (!currentSession) return false;
 
     const completedAt = sessionCompletedAt ?? new Date().toISOString();
     const completedAtMs = Date.parse(completedAt);
     const activeSeconds = Math.max(1, sessionElapsedSeconds);
     const checkpointRunId = activeSessionRunIdRef.current;
     if (checkpointRunId) discardedCheckpointRunIdsRef.current.add(checkpointRunId);
-    const completion: SessionCompletion = {
+    const recordedEvidence = sessionCompletionMode === "unguided_practice"
+      ? {
+        correctAnswers: 0,
+        totalAnswers: 0,
+        observedGap: "Unguided practice completed; no topic evidence was recorded.",
+        conceptEvidence: [],
+        confidenceEvidence: [],
+      }
+      : {
+        correctAnswers,
+        totalAnswers,
+        observedGap: sessionEvidence.observedGap,
+        conceptEvidence: sessionEvidence.conceptEvidence,
+        confidenceEvidence: sessionEvidence.confidenceEvidence,
+      };
+    const completionDraft: SessionCompletion = {
       id: checkpointRunId ?? makeUuid(),
       planId: activePlan.id,
       planSessionId: currentSession.id,
@@ -1810,18 +2053,40 @@ export function YovaPrototype({
       completedAt,
       plannedMinutes: sessionCapacityMinutes ?? currentSession.estimatedMinutes,
       actualMinutes,
-      correctAnswers,
-      totalAnswers,
+      correctAnswers: recordedEvidence.correctAnswers,
+      totalAnswers: recordedEvidence.totalAnswers,
       feedback,
-      observedGap: sessionEvidence.observedGap,
-      conceptEvidence: sessionEvidence.conceptEvidence,
-      confidenceEvidence: sessionEvidence.confidenceEvidence,
+      observedGap: recordedEvidence.observedGap,
+      completionMode: sessionCompletionMode,
+      conceptEvidence: recordedEvidence.conceptEvidence,
+      confidenceEvidence: recordedEvidence.confidenceEvidence,
     };
+    const completion = sessionCompletionMode === "unguided_practice"
+      ? asUnguidedPracticeCompletion(completionDraft)
+      : completionDraft;
+    const unguidedVerification = sessionCompletionMode === "unguided_practice"
+      ? buildUnguidedVerificationSession({
+        completedSession: currentSession,
+        completedAt: completion.completedAt,
+        verificationId: completion.id,
+        planSessionCount: activePlan.sessions.length,
+      })
+      : null;
+    // A required verification cannot itself be completed as self-reported
+    // practice, and a bounded plan must never advance without room to verify.
+    if (sessionCompletionMode === "unguided_practice" && !unguidedVerification) {
+      setSessionRecoveryIssue("YOVA kept this session open because it could not preserve the required guided verification. Return to the goal and use a guided session instead.");
+      return false;
+    }
     const nextSession = activePlan.sessions.find((session) => session.sequence === currentSession.sequence + 1) ?? null;
-    const decision = buildPostSessionDecision(currentSession, nextSession, completion);
-    const approvedChanges = approvedPostSessionChanges(decision, applyRecommendedChange);
+    const decision = sessionCompletionMode === "guided"
+      ? buildPostSessionDecision(currentSession, nextSession, completion)
+      : null;
+    const approvedChanges = decision
+      ? approvedPostSessionChanges(decision, applyRecommendedChange)
+      : { adaptation: null, followUpSession: null };
     const adaptation = approvedChanges.adaptation;
-    const delayedVerification = approvedChanges.followUpSession;
+    const delayedVerification = unguidedVerification ?? approvedChanges.followUpSession;
 
     trackProductEvent({
       eventName: "session_completed",
@@ -1853,6 +2118,7 @@ export function YovaPrototype({
     setAnswers((currentAnswers) => updatePersonalizationStateInAnswers(
       currentAnswers,
       (currentState) => {
+        if (sessionCompletionMode === "unguided_practice") return currentState;
         if (!currentState.controls.experiments || !currentState.activeExperiment) {
           return currentState;
         }
@@ -1940,6 +2206,7 @@ export function YovaPrototype({
     activeSessionRunIdRef.current = null;
     activeSessionResourceFingerprintRef.current = null;
     activeSessionResourceGeneratedAtRef.current = null;
+    return true;
   };
 
   const interruptActiveSession = () => {
@@ -2229,29 +2496,13 @@ export function YovaPrototype({
       if (!plan) throw new Error("YOVA could not find that plan.");
       const settledSessions = plan.sessions.filter((session) => session.status === "complete" || session.status === "skipped");
       const unfinishedSessions = plan.sessions.filter((session) => session.status === "ready" || session.status === "upcoming");
-      let adjustableSessions = unfinishedSessions.map((session) => ({
-          id: session.id,
-          sequence: session.sequence,
-          title: session.title,
-          objective: session.objective,
-          method: session.method,
-          method_rationale: session.methodReason,
-          scheduled_for: session.scheduledFor,
-          estimated_minutes: session.estimatedMinutes,
-          status: session.status as "ready" | "upcoming",
-          step_data: {
-            learningMode: session.learningMode,
-            topicIds: session.topicIds ?? [],
-            contentTargets: session.contentTargets ?? [],
-            completionEvidence: session.completionEvidence ?? [],
-          },
-        }));
+      let adjustableSessions = unfinishedSessions.map(learningPlanSessionToAdjustableRow);
       if (input.includeDeferred && plan.knowledgeMap) {
-        const alreadyIncluded = new Set(adjustableSessions.flatMap((session) => session.step_data.topicIds));
+        const alreadyIncluded = new Set(unfinishedSessions.flatMap((session) => session.topicIds ?? []));
         const deferred = plan.knowledgeMap.topics.filter((topic) => topic.deferred && !alreadyIncluded.has(topic.id));
         const fallbackScheduleTime = new Date(plan.sessions.at(-1)?.scheduledFor ?? plan.createdAt).getTime();
-        const latestTime = adjustableSessions.reduce(
-          (latest, session) => Math.max(latest, new Date(session.scheduled_for).getTime()),
+        const latestTime = unfinishedSessions.reduce(
+          (latest, session) => Math.max(latest, new Date(session.scheduledFor).getTime()),
           fallbackScheduleTime,
         );
         adjustableSessions = [...adjustableSessions, ...deferred.map((topic, index) => ({
@@ -2270,7 +2521,7 @@ export function YovaPrototype({
             contentTargets: [topic.title, ...topic.subtopics.slice(0, 3)],
             completionEvidence: [`Explain ${topic.title} accurately and complete one independent check`],
           },
-        }))].slice(0, 14);
+        }))];
       }
       const redirectedSessions = input.direction
         ? applyPlanDirectionFallback(adjustableSessions, input.direction, plan.topic)
@@ -2279,6 +2530,7 @@ export function YovaPrototype({
         redirectedSessions,
         input.futureSessionMinutes,
         Math.max(0, ...settledSessions.map((session) => session.sequence)) + 1,
+        MAX_ADJUSTED_PLAN_SESSIONS - settledSessions.length,
       );
       if (!replacements.length) throw new Error("This plan has no unfinished content to adjust.");
       const includedTopicIds = new Set(replacements.flatMap((session) => session.topicIds ?? []));
@@ -2358,6 +2610,14 @@ export function YovaPrototype({
   const adjustSessionDuration = async (planSessionId: string, estimatedMinutes: number) => {
     const plan = plans.find((candidate) => candidate.sessions.some((session) => session.id === planSessionId));
     if (!plan) throw new Error("YOVA could not find the plan behind that session.");
+    const session = plan.sessions.find((candidate) => candidate.id === planSessionId);
+    if (!session || !canOfferAgendaSessionSplit({
+      plan,
+      session,
+      targetMinutes: estimatedMinutes,
+    })) {
+      throw new Error("YOVA cannot safely split this session into that time window. Move it or review the session setup instead.");
+    }
 
     await adjustPlan({
       planId: plan.id,
@@ -2460,8 +2720,10 @@ export function YovaPrototype({
     setCreatorSeed(null);
     setCreatorMilestoneId(null);
     if (milestoneId) {
-      void updateDeadlineMilestone(milestoneId, { linkedLearningItemId: plan.learningItemId }).catch(() => {
-        setCloudSyncIssue("The learning plan was saved, but its deadline still needs to be linked.");
+      void updateDeadlineMilestone(milestoneId, { linkedLearningItemId: plan.learningItemId }).catch((error) => {
+        setCloudSyncIssue(error instanceof Error
+          ? error.message
+          : "The learning plan was saved, but its deadline still needs to be linked.");
       });
       return;
     }
@@ -2471,8 +2733,10 @@ export function YovaPrototype({
       description: seed.objective,
       dueAt: seed.dueAt,
       linkedLearningItemId: plan.learningItemId,
-    }).catch(() => {
-      setCloudSyncIssue("The learning plan was saved, but its deadline still needs to be added to Agenda.");
+    }).catch((error) => {
+      setCloudSyncIssue(error instanceof Error
+        ? error.message
+        : "The learning plan was saved, but its deadline still needs to be added to Agenda.");
     });
   };
 
@@ -2592,6 +2856,31 @@ export function YovaPrototype({
       signOutPendingRef.current = false;
       setSigningOut(false);
     }
+  };
+
+  const beginRecoveryMethodPractice = () => {
+    if (!activePlan || !sessionRecoverySession || !sessionMethodBriefing) return;
+    if (!canScheduleUnguidedVerification(sessionRecoverySession, activePlan.sessions.length)) return;
+    setSessionCompletionMode("unguided_practice");
+    setSessionGenerationIssue(null);
+    beginTimedSession(activePlan, false, null, "session-method");
+  };
+
+  const finishUnguidedMethodPractice = () => {
+    const completedAt = Date.now();
+    const completedAtIso = new Date(completedAt).toISOString();
+    setSessionCompletionMode("unguided_practice");
+    if (activeSessionClockRef.current) {
+      activeSessionClockRef.current = pauseActiveSessionClock(activeSessionClockRef.current, completedAt);
+      setSessionElapsedSeconds(readActiveSessionSeconds(activeSessionClockRef.current, completedAt));
+    }
+    void writeActiveSessionCheckpointRef.current(
+      "awaiting_finish",
+      completedAtIso,
+      "unguided_practice",
+    );
+    setSessionCompletedAt(completedAtIso);
+    setStage("complete");
   };
 
   const advanceActiveSession = async (evaluation: AnswerEvaluationResponse | null) => {
@@ -2808,10 +3097,31 @@ export function YovaPrototype({
     sessionGenerationAbortRef.current = null;
     setStage("app");
   }} />;
-  if (stage === "session-error") return <SessionGenerationError
+  if (stage === "session-quota" || stage === "session-error") return <SessionGenerationRecovery
     plan={activePlan}
+    session={sessionRecoverySession ?? activePlan?.sessions.find((session) => session.status === "ready") ?? null}
+    briefing={sessionMethodBriefing}
+    coverage={sessionCoverage}
+    failureState={sessionFailureState}
     issue={sessionGenerationIssue}
+    canStartMethod={Boolean(
+      sessionRecoverySession
+      && sessionMethodBriefing
+      && !(activePlan?.studyMode === "inside_yova" && sessionRecoverySession.learningMode === "learn")
+      && activePlan
+      && canScheduleUnguidedVerification(sessionRecoverySession, activePlan.sessions.length)
+    )}
     onExit={() => setStage("app")}
+    onOpenGoal={() => {
+      if (activePlan) {
+        setSelectedPlanId(activePlan.id);
+        setLearningDetailPlanId(activePlan.id);
+      }
+      setPendingSessionPlan(null);
+      setActiveTab("Learning");
+      setStage("app");
+    }}
+    onStartMethod={beginRecoveryMethodPractice}
     onRetry={() => void startSession(
       activePlan?.id,
       activePlan ?? undefined,
@@ -2819,6 +3129,20 @@ export function YovaPrototype({
         ? sessionGenerationAttemptRef.current?.adjustment ?? null
         : null,
     )}
+    onReviewSetup={() => {
+      if (!activePlan) return;
+      setPendingSessionPlan(activePlan);
+      setStage("session-setup");
+    }}
+  />;
+  if (stage === "session-method") return <StandaloneStudyMethodSession
+    plan={activePlan}
+    session={sessionRecoverySession ?? activePlan?.sessions.find((session) => session.status === "ready") ?? null}
+    briefing={sessionMethodBriefing}
+    coverage={sessionCoverage}
+    elapsedSeconds={sessionElapsedSeconds}
+    onComplete={finishUnguidedMethodPractice}
+    onExit={interruptActiveSession}
   />;
   if (stage === "session") {
     return (
@@ -2845,6 +3169,7 @@ export function YovaPrototype({
         issue={sessionGenerationIssue}
         recoveryNotice={sessionRecoveryNotice}
         recoveryIssue={sessionRecoveryIssue}
+        onCompleteMethodPractice={finishUnguidedMethodPractice}
         analyticsEnabled={analyticsEnabled}
         browserPreviewMode={browserPreviewMode || account?.identityMode === "preview"}
         planSessionId={generatedPlanSessionId ?? activePlan?.sessions.find((session) => session.status === "ready")?.id ?? null}
@@ -2887,7 +3212,7 @@ export function YovaPrototype({
     const nextSession = currentSession
       ? activePlan?.sessions.find((session) => session.sequence === currentSession.sequence + 1) ?? null
       : null;
-    return <SessionComplete currentSession={currentSession} knowledgeMap={activePlan?.knowledgeMap} completedAt={sessionCompletedAt ?? new Date().toISOString()} requiredContentCount={activeLessonSteps.filter((step) => step.requiredForCompletion !== false).length} repairCount={sessionEvidence.completedImmediateRepairs} elapsedSeconds={capturedSessionSeconds} actualMinutes={capturedSessionMinutes} correctAnswers={sessionEvidence.correctAnswers} totalAnswers={sessionEvidence.totalAnswers} observedGap={sessionEvidence.observedGap} conceptEvidence={sessionEvidence.conceptEvidence} confidenceEvidence={sessionEvidence.confidenceEvidence} nextSession={nextSession} feedback={sessionCompletionFeedback} onFeedback={setSessionCompletionFeedback} recoveryNotice={sessionRecoveryNotice} recoveryIssue={sessionRecoveryIssue} onFinish={(feedback, applyRecommendedChange) => { completeActiveSession(sessionEvidence.correctAnswers, sessionEvidence.totalAnswers, feedback, capturedSessionMinutes, applyRecommendedChange); setStage("app"); setActiveTab("Home"); }} />;
+    return <SessionComplete currentSession={currentSession} knowledgeMap={activePlan?.knowledgeMap} completionMode={sessionCompletionMode} completedAt={sessionCompletedAt ?? new Date().toISOString()} requiredContentCount={activeLessonSteps.filter((step) => step.requiredForCompletion !== false).length} repairCount={sessionEvidence.completedImmediateRepairs} elapsedSeconds={capturedSessionSeconds} actualMinutes={capturedSessionMinutes} correctAnswers={sessionEvidence.correctAnswers} totalAnswers={sessionEvidence.totalAnswers} observedGap={sessionEvidence.observedGap} conceptEvidence={sessionEvidence.conceptEvidence} confidenceEvidence={sessionEvidence.confidenceEvidence} nextSession={nextSession} feedback={sessionCompletionFeedback} onFeedback={setSessionCompletionFeedback} recoveryNotice={sessionRecoveryNotice} recoveryIssue={sessionRecoveryIssue} onFinish={(feedback, applyRecommendedChange) => { if (!completeActiveSession(sessionEvidence.correctAnswers, sessionEvidence.totalAnswers, feedback, capturedSessionMinutes, applyRecommendedChange)) return; setStage("app"); setActiveTab("Home"); }} />;
   }
 
   return <>
@@ -2988,10 +3313,11 @@ function OnboardingIntro({ onStart }: { onStart: () => void }) {
   return <main className="centered-shell"><BrandMark /><section className="setup-card"><span className="step-label">SET UP YOUR YOVA</span><h1>Make YOVA fit how you actually study.</h1><p>Ten short questions help YOVA build realistic plans, choose useful methods, and guide you at the right level. About two minutes.</p><div className="info-strip"><Sparkles size={20} /><span>This creates starting preferences, not a brain type. YOVA will update carefully based on what you actually do.</span></div><button className="button primary large full" onClick={onStart}>Personalize YOVA <ArrowRight size={18} /></button></section></main>;
 }
 
-function OnboardingQuestion({ index, answer, onAnswer, onNext, onBack }: { index: number; answer?: string; onAnswer: (answer: string) => void; onNext: () => void; onBack: () => void }) {
+export function OnboardingQuestion({ index, answer, onAnswer, onNext, onBack }: { index: number; answer?: string; onAnswer: (answer: string) => void; onNext: () => void; onBack: () => void }) {
   const question = onboardingQuestions[index];
   const selectedId = onboardingAnswerId(index, answer);
-  return <main className="onboarding-shell"><header><BrandMark /><span>{index + 1} of {onboardingQuestions.length}</span></header><div className="progress-track"><div style={{ width: `${((index + 1) / onboardingQuestions.length) * 100}%` }} /></div><section className="question-wrap"><span className="step-label">YOUR STARTING PROFILE</span><h2>{question.prompt}</h2>{question.optional && <p className="muted">Optional: you can skip this or change it later.</p>}<div className="option-list">{question.options.map((option) => <button key={option.id} className={`option ${selectedId === option.id ? "selected" : ""}`} onClick={() => onAnswer(option.id)}><span>{option.label}</span>{selectedId === option.id && <Check size={18} />}</button>)}</div><footer className="question-footer"><button className="button ghost" onClick={onBack} disabled={index === 0}><ArrowLeft size={17} /> Back</button><button className="button primary" onClick={onNext} disabled={!answer && !question.optional}>{index === onboardingQuestions.length - 1 ? "Build my setup" : "Continue"} <ArrowRight size={17} /></button></footer></section></main>;
+  const questionId = `onboarding-question-${index}`;
+  return <main className="onboarding-shell"><header><BrandMark /><span>{index + 1} of {onboardingQuestions.length}</span></header><div className="progress-track"><div style={{ width: `${((index + 1) / onboardingQuestions.length) * 100}%` }} /></div><section className="question-wrap"><span className="step-label">YOUR STARTING PROFILE</span><h2 id={questionId}>{question.prompt}</h2>{question.optional && <p className="muted">Optional: you can skip this or change it later.</p>}<div className="option-list" role="group" aria-labelledby={questionId}>{question.options.map((option) => <button type="button" aria-pressed={selectedId === option.id} key={option.id} className={`option ${selectedId === option.id ? "selected" : ""}`} onClick={() => onAnswer(option.id)}><span>{option.label}</span>{selectedId === option.id && <Check aria-hidden="true" size={18} />}</button>)}</div><footer className="question-footer"><button type="button" className="button ghost" onClick={onBack} disabled={index === 0}><ArrowLeft size={17} /> Back</button><button type="button" className="button primary" onClick={onNext} disabled={!answer && !question.optional}>{index === onboardingQuestions.length - 1 ? "Build my setup" : "Continue"} <ArrowRight size={17} /></button></footer></section></main>;
 }
 
 function ProfileSummary({ answers, onContinue }: { answers: string[]; onContinue: () => void }) {
@@ -3533,16 +3859,6 @@ function PlanKnowledgeMapPanel({ plan, completions, canExtend, extending, error,
   })}</ol>{deferred.length > 0 && <div className="deferred-topic-block"><div><span>OUTSIDE THE CURRENT TIME BUDGET</span><strong>This plan currently skips {deferred.length} {deferred.length === 1 ? "topic" : "topics"}.</strong><p>{deferred.map((topic) => `${topic.title}: ${topic.deferred?.reason}`).join(" ")}</p></div>{canExtend && <button className="button secondary" disabled={extending} onClick={onExtend}>{extending ? <span className="button-spinner" /> : <><Plus size={16} /> Extend plan to include them</>}</button>}</div>}{error && <div className="chat-error"><AlertCircle size={16} /><span>{error}</span></div>}</section>;
 }
 
-function displayedTopicStatus(topicId: string, storedStatus: "not_started" | "taught" | "evidenced" | "secure", plan: LearningPlan, completions: SessionCompletion[]) {
-  const evidence = completions.flatMap((completion) => completion.conceptEvidence).filter((item) => item.topicId === topicId);
-  const secureAttempts = evidence.filter((item) => item.outcome === "secure").length;
-  if (storedStatus === "secure" || secureAttempts >= 2) return "secure" as const;
-  if (storedStatus === "evidenced" || evidence.length > 0) return "evidenced" as const;
-  const topicWasTaught = plan.sessions.some((session) => session.status === "complete" && session.topicIds?.includes(topicId));
-  if (storedStatus === "taught" || topicWasTaught) return "taught" as const;
-  return "not_started" as const;
-}
-
 function topicStatusLabel(status: "not_started" | "taught" | "evidenced" | "secure") {
   if (status === "not_started") return "Not started";
   if (status === "taught") return "Taught";
@@ -3646,8 +3962,10 @@ function PlanAdjustmentPanel({ plan, onCancel, onSave }: { plan: LearningPlan; o
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const unfinishedCount = plan.sessions.filter((session) => session.status === "ready" || session.status === "upcoming").length;
+  const directionLimit = getCharacterLimitState(direction);
 
   const save = async () => {
+    if (saving || directionLimit.isOverLimit) return;
     setSaving(true);
     setError(null);
     try {
@@ -3664,7 +3982,7 @@ function PlanAdjustmentPanel({ plan, onCancel, onSave }: { plan: LearningPlan; o
     }
   };
 
-  return <section className="plan-adjustment-panel"><div className="plan-adjustment-heading"><div><span className="step-label">ADJUST UNFINISHED WORK</span><h3>Change the plan without losing progress</h3><p>Tell YOVA when the course is on the wrong track, or change its timing and study location. Completed sessions stay exactly as they are.</p></div></div><label className="plan-direction-field"><span>What should be different?</span><textarea rows={4} maxLength={500} value={direction} disabled={saving} placeholder="Example: Keep this conceptual. I do not want calculation exercises. Focus on founder decisions, investor incentives, and real examples." onChange={(event) => setDirection(event.target.value)} /><small>Optional. YOVA will rebuild only unfinished sessions. The next session setup will show the revised target and method. {direction.length}/500</small><div><button type="button" onClick={() => setDirection("Keep this conceptual. Do not include math or calculation exercises.")}>No calculations</button><button type="button" onClick={() => setDirection("Teach the foundations first, then use concrete examples before practice.")}>Teach it first</button><button type="button" onClick={() => setDirection("Use more real examples and case scenarios before independent work.")}>More examples</button></div></label><div className="plan-adjustment-grid"><label><span>Target date</span><input type="date" min={localDateInput(new Date().toISOString())} value={deadlineDate} disabled={saving} onChange={(event) => setDeadlineDate(event.target.value)} /><small>Optional. Agenda times are changed separately.</small></label><label><span>Future session window</span><select value={minutes} disabled={saving} onChange={(event) => setMinutes(Number(event.target.value))}><option value={15}>15 minutes</option><option value={25}>25 minutes</option><option value={30}>30 minutes</option><option value={45}>45 minutes</option><option value={60}>60 minutes</option></select><small>Time controls the size of each content slice, not whether it counts as complete.</small></label></div><div className="adjustment-content-rule"><Target size={18} /><div><strong>Progress stays intact</strong><p>The current {unfinishedCount} unfinished {unfinishedCount === 1 ? "session" : "sessions"} can be rewritten or divided differently. Finished sessions and recorded learning evidence are never erased.</p></div></div><div className="adjustment-mode"><span>Where should future sessions happen?</span><div><button className={studyMode === "inside_yova" ? "selected" : ""} disabled={saving} onClick={() => setStudyMode("inside_yova")}><BookOpen size={17} /><strong>Inside YOVA</strong><small>Teaching, questions, and feedback in the app</small></button><button className={studyMode === "outside_yova" ? "selected" : ""} disabled={saving} onClick={() => setStudyMode("outside_yova")}><LibraryBig size={17} /><strong>Outside YOVA</strong><small>Exact instructions for another source or workspace</small></button></div></div>{error && <div className="chat-error"><AlertCircle size={16} /><span>{error}</span></div>}<footer><button className="button ghost" disabled={saving} onClick={onCancel}>Cancel</button><button className="button primary" disabled={saving || unfinishedCount === 0} onClick={() => void save()}>{saving ? <span className="button-spinner" /> : <><Check size={16} /> Approve and rebuild plan</>}</button></footer></section>;
+  return <section className="plan-adjustment-panel"><div className="plan-adjustment-heading"><div><span className="step-label">ADJUST UNFINISHED WORK</span><h3>Change the plan without losing progress</h3><p>Tell YOVA when the course is on the wrong track, or change its timing and study location. Completed sessions stay exactly as they are.</p></div></div><label className={`plan-direction-field ${directionLimit.isOverLimit ? "field-over-limit" : ""}`}><span>What should be different?</span><textarea rows={4} maxLength={LEARNER_TEXT_CHARACTER_LIMIT} value={direction} disabled={saving} aria-invalid={directionLimit.isOverLimit || undefined} aria-describedby="plan-adjustment-direction-limit" placeholder="Example: Keep this conceptual. I do not want calculation exercises. Focus on founder decisions, investor incentives, and real examples." onChange={(event) => setDirection(event.target.value)} /><small id="plan-adjustment-direction-limit" className={`character-limit-feedback ${directionLimit.isOverLimit ? "over-limit" : ""}`} role={directionLimit.isOverLimit ? "alert" : undefined}>Optional. YOVA will rebuild only unfinished sessions. The next session setup will show the revised target and method. {formatCharacterLimit(directionLimit)}</small><div><button type="button" onClick={() => setDirection("Keep this conceptual. Do not include math or calculation exercises.")}>No calculations</button><button type="button" onClick={() => setDirection("Teach the foundations first, then use concrete examples before practice.")}>Teach it first</button><button type="button" onClick={() => setDirection("Use more real examples and case scenarios before independent work.")}>More examples</button></div></label><div className="plan-adjustment-grid"><label><span>Target date</span><input type="date" min={localDateInput(new Date().toISOString())} value={deadlineDate} disabled={saving} onChange={(event) => setDeadlineDate(event.target.value)} /><small>Optional. Agenda times are changed separately.</small></label><label><span>Future session window</span><select value={minutes} disabled={saving} onChange={(event) => setMinutes(Number(event.target.value))}><option value={15}>15 minutes</option><option value={25}>25 minutes</option><option value={30}>30 minutes</option><option value={45}>45 minutes</option><option value={60}>60 minutes</option></select><small>Time controls the size of each content slice, not whether it counts as complete.</small></label></div><div className="adjustment-content-rule"><Target size={18} /><div><strong>Progress stays intact</strong><p>The current {unfinishedCount} unfinished {unfinishedCount === 1 ? "session" : "sessions"} can be rewritten or divided differently. Finished sessions and recorded learning evidence are never erased.</p></div></div><div className="adjustment-mode"><span>Where should future sessions happen?</span><div><button className={studyMode === "inside_yova" ? "selected" : ""} disabled={saving} onClick={() => setStudyMode("inside_yova")}><BookOpen size={17} /><strong>Inside YOVA</strong><small>Teaching, questions, and feedback in the app</small></button><button className={studyMode === "outside_yova" ? "selected" : ""} disabled={saving} onClick={() => setStudyMode("outside_yova")}><LibraryBig size={17} /><strong>Outside YOVA</strong><small>Exact instructions for another source or workspace</small></button></div></div>{error && <div className="chat-error"><AlertCircle size={16} /><span>{error}</span></div>}<footer><button className="button ghost" disabled={saving} onClick={onCancel}>Cancel</button><button className="button primary" disabled={saving || unfinishedCount === 0 || directionLimit.isOverLimit} onClick={() => void save()}>{saving ? <span className="button-spinner" /> : <><Check size={16} /> Approve and rebuild plan</>}</button></footer></section>;
 }
 
 function AgendaScreen({ plans, milestones, sessionCompletions, sessionInterruptions, activeSessionCheckpoints, previewMode, onAdd, onStart, onActivateReview, onReschedule, onAdjustDuration, onClassifyRecoveryInterruption, onUpdateMilestone, onDeleteMilestone, onConvertMilestone }: { plans: LearningPlan[]; milestones: DeadlineMilestone[]; sessionCompletions: SessionCompletion[]; sessionInterruptions: SessionInterruption[]; activeSessionCheckpoints: ActiveSessionCheckpointV1[]; previewMode: boolean; onAdd: () => void; onStart: (planId?: string) => void; onActivateReview: (item: ConceptReviewAgendaItem) => Promise<void>; onReschedule: (planId: string, planSessionId: string, scheduledFor: string) => void; onAdjustDuration: (planSessionId: string, estimatedMinutes: number) => Promise<void>; onClassifyRecoveryInterruption: (planSessionId: string, excludeFromHabitEvidence: boolean) => void; onUpdateMilestone: (id: string, changes: Partial<Pick<DeadlineMilestone, "title" | "description" | "dueAt" | "status" | "linkedLearningItemId">>) => Promise<void>; onDeleteMilestone: (id: string) => Promise<void>; onConvertMilestone: (milestone: DeadlineMilestone, outcome: "session" | "plan") => void }) {
@@ -3674,6 +3992,7 @@ function AgendaScreen({ plans, milestones, sessionCompletions, sessionInterrupti
   const [error, setError] = useState<string | null>(null);
   const [recoveryAction, setRecoveryAction] = useState<"shorten" | "move" | null>(null);
   const [recoveryError, setRecoveryError] = useState<string | null>(null);
+  const [completedRecoverySplit, setCompletedRecoverySplit] = useState<{ sessionId: string; minutes: number } | null>(null);
   const [recoveryReason, setRecoveryReason] = useState<string | null>(null);
   const [dismissedRecoverySessionId, setDismissedRecoverySessionId] = useState<string | null>(null);
   const [reviewAction, setReviewAction] = useState<string | null>(null);
@@ -3748,6 +4067,17 @@ function AgendaScreen({ plans, milestones, sessionCompletions, sessionInterrupti
   );
   const showBalanceSuggestion = balanceSuggestion
     && (todayCapacity === null || balanceSuggestion.fromDateKey !== localDateKey(new Date()));
+  const completedSplitForOverdue = overdueEntry
+    && completedRecoverySplit?.sessionId === overdueEntry.session.id
+      ? completedRecoverySplit
+      : null;
+  const recoverySplitAvailable = overdueEntry && recoveryMinutes !== null
+    ? canOfferAgendaSessionSplit({
+      plan: overdueEntry.plan,
+      session: overdueEntry.session,
+      targetMinutes: recoveryMinutes,
+    })
+    : false;
 
   const openMove = (planId: string, sessionId: string, scheduledFor: string) => {
     setMoving({ planId, sessionId });
@@ -3791,15 +4121,18 @@ function AgendaScreen({ plans, milestones, sessionCompletions, sessionInterrupti
     }
   };
 
-  const shortenAndStart = async () => {
-    if (!overdueEntry || recoveryMinutes === null || recoveryAction) return;
+  const splitRecoverySession = async () => {
+    if (!overdueEntry || recoveryMinutes === null || recoveryAction || !recoverySplitAvailable) return;
     setRecoveryAction("shorten");
     setRecoveryError(null);
     try {
       await onAdjustDuration(overdueEntry.session.id, recoveryMinutes);
-      onStart(overdueEntry.plan.id);
+      // Let the adjusted plan render before the learner starts Part 1. Starting
+      // from this event handler would read the pre-split plan from its render.
+      setCompletedRecoverySplit({ sessionId: overdueEntry.session.id, minutes: recoveryMinutes });
     } catch (requestError) {
       setRecoveryError(requestError instanceof Error ? requestError.message : "YOVA could not shorten that session.");
+    } finally {
       setRecoveryAction(null);
     }
   };
@@ -3914,7 +4247,7 @@ function AgendaScreen({ plans, milestones, sessionCompletions, sessionInterrupti
         <div>
           <span>{capacityPlan.status === "fits" ? "Today already fits" : capacityPlan.status === "empty" ? "No change needed" : capacityPlan.status === "blocked" ? "Your choice is needed" : "Suggested adjustment"}</span>
           {capacityPlan.status === "move" && capacityPlan.entry && capacityPlan.toDateKey && <><strong>Move {capacityPlan.entry.session.title} to {agendaDateLabel(capacityPlan.toDateKey)}</strong><p>Today drops from {capacityPlan.todayMinutes} to {capacityPlan.projectedMinutes} minutes. {capacityPlan.reason}</p></>}
-          {capacityPlan.status === "split" && capacityPlan.entry && capacityPlan.splitMinutes !== null && <><strong>Split {capacityPlan.entry.plan.title} into {capacityPlan.splitMinutes}-minute content blocks</strong><p>Today drops from {capacityPlan.todayMinutes} to {capacityPlan.projectedMinutes} minutes. No content is marked complete or deleted. {capacityPlan.reason}</p></>}
+          {capacityPlan.status === "split" && capacityPlan.entry && capacityPlan.splitMinutes !== null && <><strong>Split {capacityPlan.entry.plan.title} into {capacityPlan.splitMinutes}-minute content blocks</strong><p>Today drops from {capacityPlan.todayMinutes} to {capacityPlan.projectedMinutes} minutes. No content is marked complete or deleted. Each part includes its own setup and evidence check. {capacityPlan.reason}</p></>}
           {(capacityPlan.status === "fits" || capacityPlan.status === "empty" || capacityPlan.status === "blocked") && <><strong>{capacityPlan.status === "fits" ? `${capacityPlan.todayMinutes} minutes of content fits your ${capacityPlan.capacityMinutes}-minute window` : capacityPlan.status === "empty" ? "Your day is open for learning" : "YOVA will not make an unsafe automatic change"}</strong><p>{capacityPlan.reason}</p></>}
         </div>
         {capacityPlan.status === "move" && <button className="button primary" disabled={Boolean(capacityAction)} onClick={() => void applyCapacityMove()}>{capacityAction === "move" ? <><span className="button-spinner" /> Moving</> : "Approve move"}</button>}
@@ -3925,7 +4258,7 @@ function AgendaScreen({ plans, milestones, sessionCompletions, sessionInterrupti
       </div>
     </details>
     {showBalanceSuggestion && <section className="agenda-balance-card" aria-live="polite"><span className="agenda-balance-icon"><CalendarDays size={20} /></span><div><span className="step-label">SUGGESTED SCHEDULE CHANGE</span><h2>Make {agendaDateLabel(balanceSuggestion.fromDateKey)} more realistic</h2><p>Move <strong>{balanceSuggestion.entry.session.title}</strong> to {agendaDateLabel(balanceSuggestion.toDateKey)}. The original day drops from {balanceSuggestion.beforeMinutes} to {balanceSuggestion.afterMinutes} minutes, and the new day becomes {balanceSuggestion.targetMinutes} minutes.</p><small>{balanceSuggestion.reason}</small></div><button className="button primary" disabled={balanceAction} onClick={() => void applyBalanceSuggestion()}>{balanceAction ? <><span className="button-spinner" /> Rebalancing</> : "Approve move"}</button>{balanceError && <div className="chat-error"><AlertCircle size={16} /><span>{balanceError}</span></div>}</section>}
-    {overdueEntry && <section className="agenda-recovery" aria-live="polite"><div className="agenda-recovery-copy"><span className="step-label">A SESSION IS STILL WAITING</span><h2>Choose a useful next move without losing the plan.</h2><p><strong>{overdueEntry.session.title}</strong> for {overdueEntry.plan.title} was planned for {formatAgendaTime(overdueEntry.session.scheduledFor)}. YOVA will preserve the unfinished content whichever option you choose.</p></div><div className="agenda-recovery-reasons"><strong>What got in the way? <span>Optional</span></strong><div>{["Ran out of time", "Interrupted", "Lost focus", "Too difficult", "Instructions unclear", "Low energy", "App problem"].map((reason) => <button type="button" key={reason} aria-pressed={recoveryReason === reason} className={recoveryReason === reason ? "selected" : ""} onClick={() => selectRecoveryReason(reason)}>{reason}</button>)}</div>{recoveryReason === "App problem" && <small>YOVA will not use an app problem as evidence about your study habits.</small>}{recoveryReason && recoveryReason !== "App problem" && <small>This answer helps YOVA recommend the recovery choice. It does not create a permanent label.</small>}</div><div className="agenda-recovery-actions"><button className="button primary" disabled={Boolean(recoveryAction)} onClick={() => onStart(overdueEntry.plan.id)}>{recoveryReason === "Too difficult" || recoveryReason === "Instructions unclear" ? "Open setup and choose more support" : "Start it now"}</button>{recoveryMinutes !== null && recoveryMinutes < overdueEntry.session.estimatedMinutes && <button className="button secondary" disabled={Boolean(recoveryAction)} onClick={() => void shortenAndStart()}>{recoveryAction === "shorten" ? <span className="button-spinner dark" /> : null} {recoveryReason === "Ran out of time" || recoveryReason === "Low energy" ? "Recommended: " : ""}Split into {recoveryMinutes}-min sessions</button>}<button className="button ghost" disabled={Boolean(recoveryAction)} onClick={() => void moveOverdueToTomorrow()}>{recoveryAction === "move" ? <span className="button-spinner dark" /> : null} Move to tomorrow</button><button className="button ghost" disabled={Boolean(recoveryAction)} onClick={() => setDismissedRecoverySessionId(overdueEntry.session.id)}>Keep the original plan</button></div>{recoveryError && <div className="chat-error"><AlertCircle size={16} /><span>{recoveryError}</span></div>}</section>}
+    {overdueEntry && <section className="agenda-recovery" aria-live="polite"><div className="agenda-recovery-copy"><span className="step-label">A SESSION IS STILL WAITING</span><h2>Choose a useful next move without losing the plan.</h2><p><strong>{overdueEntry.session.title}</strong> for {overdueEntry.plan.title} was planned for {formatAgendaTime(overdueEntry.session.scheduledFor)}. YOVA will preserve the unfinished content whichever option you choose.</p></div>{completedSplitForOverdue && <p className="agenda-recovery-result" role="status"><Check size={16} /> Split applied. Part 1 and each remaining part now have a {completedSplitForOverdue.minutes}-minute window. Start Part 1 when you are ready.</p>}<div className="agenda-recovery-reasons"><strong>What got in the way? <span>Optional</span></strong><div>{["Ran out of time", "Interrupted", "Lost focus", "Too difficult", "Instructions unclear", "Low energy", "App problem"].map((reason) => <button type="button" key={reason} aria-pressed={recoveryReason === reason} className={recoveryReason === reason ? "selected" : ""} onClick={() => selectRecoveryReason(reason)}>{reason}</button>)}</div>{recoveryReason === "App problem" && <small>YOVA will not use an app problem as evidence about your study habits.</small>}{recoveryReason && recoveryReason !== "App problem" && <small>This answer helps YOVA recommend the recovery choice. It does not create a permanent label.</small>}</div><div className="agenda-recovery-actions"><button className="button primary" disabled={Boolean(recoveryAction)} onClick={() => onStart(overdueEntry.plan.id)}>{completedSplitForOverdue ? `Start Part 1 (${completedSplitForOverdue.minutes} min)` : recoveryReason === "Too difficult" || recoveryReason === "Instructions unclear" ? "Open setup and choose more support" : "Start it now"}</button>{recoverySplitAvailable && <button className="button secondary" disabled={Boolean(recoveryAction)} onClick={() => void splitRecoverySession()}>{recoveryAction === "shorten" ? <span className="button-spinner dark" /> : null} {recoveryReason === "Ran out of time" || recoveryReason === "Low energy" ? "Recommended: " : ""}Split into {recoveryMinutes}-min sessions</button>}<button className="button ghost" disabled={Boolean(recoveryAction)} onClick={() => void moveOverdueToTomorrow()}>{recoveryAction === "move" ? <span className="button-spinner dark" /> : null} Move to tomorrow</button><button className="button ghost" disabled={Boolean(recoveryAction)} onClick={() => setDismissedRecoverySessionId(overdueEntry.session.id)}>Keep the original plan</button></div>{recoveryError && <div className="chat-error"><AlertCircle size={16} /><span>{recoveryError}</span></div>}</section>}
     <div className="agenda-main-grid">
       <section className="agenda-day-detail">
         <header><div><span>{agendaDayEyebrow(selectedDay.date)}</span><h2>{agendaFullDate(selectedDay.date)}</h2></div><div><strong>{selectedDay.totalMinutes} min planned</strong><small>{selectedDay.entries.length} {selectedDay.entries.length === 1 ? "session" : "sessions"}</small></div></header>
@@ -4556,7 +4889,11 @@ function lessonStepsFromSessionResource(resource: SessionResource): LessonStep[]
   }));
 }
 
-function fallbackCoverageFor(session: LearningPlanSession, steps: LessonStep[]): SessionCoverage {
+function fallbackCoverageFor(
+  session: LearningPlanSession,
+  steps: LessonStep[],
+  genericFallback: GenericInsideYovaFallbackLesson | null = null,
+): SessionCoverage {
   const evidence = steps.flatMap((step) => (
     (step.type === "multiple_choice" || step.type === "free_response")
       && step.concept
@@ -4580,7 +4917,9 @@ function fallbackCoverageFor(session: LearningPlanSession, steps: LessonStep[]):
       .map((item) => `Demonstrate ${item.activityConcept}`),
     evidenceMap: resolvedEvidence,
     deferredContent: (session.contentTargets ?? [])
-      .filter((target) => !fallbackLessonCoversTarget(steps, target))
+      .filter((target) => genericFallback
+        ? !genericInsideFallbackCoversTarget(genericFallback, target)
+        : !fallbackLessonCoversTarget(steps, target))
       .slice(0, 4),
   };
 }
@@ -4598,7 +4937,13 @@ function boundedFallbackIdea(value: string) {
 }
 
 function lessonStepsFor(plan: LearningPlan | null): LessonStep[] {
-  return subjectSpecificLessonStepsFor(plan) ?? [{
+  const current = plan?.sessions.find((session) => session.status === "ready")
+    ?? plan?.sessions.find((session) => session.status === "upcoming");
+  const builtInSteps = plan?.studyMode === "inside_yova" && current
+    ? insideBuiltInLessonSelectionFor(plan, current)?.steps ?? null
+    : subjectSpecificLessonStepsFor(plan);
+
+  return builtInSteps ?? [{
     type: "instruction",
     concept: null,
     label: "Content needed",
@@ -4632,6 +4977,42 @@ function bindBuiltInLessonToSession(
   }));
 }
 
+function insideBuiltInLessonSelectionFor(
+  plan: LearningPlan,
+  session: LearningPlanSession,
+): {
+  kind: "subject_specific";
+  steps: LessonStep[];
+} | {
+  kind: "generic_inside";
+  steps: LessonStep[];
+  fallback: GenericInsideYovaFallbackLesson;
+} | null {
+  const subjectSpecificSteps = subjectSpecificLessonStepsFor(plan, session);
+  const subjectSpecificCoversScope = (session.contentTargets ?? []).every((target) => (
+    fallbackLessonCoversTarget(subjectSpecificSteps ?? [], target)
+  ));
+
+  if (
+    subjectSpecificSteps
+    && builtInLessonFitsTime(subjectSpecificSteps, session.estimatedMinutes)
+    && subjectSpecificCoversScope
+  ) {
+    return { kind: "subject_specific", steps: subjectSpecificSteps };
+  }
+
+  const genericFallback = buildGenericInsideYovaFallbackLesson({
+    objective: session.objective,
+    contentTargets: session.contentTargets ?? [],
+    completionEvidence: session.completionEvidence ?? [],
+    learningMode: session.learningMode,
+    availableMinutes: session.estimatedMinutes,
+  });
+  return genericFallback
+    ? { kind: "generic_inside", steps: genericFallback.activities, fallback: genericFallback }
+    : null;
+}
+
 function subjectSpecificLessonStepsFor(
   plan: LearningPlan | null,
   requestedSession?: LearningPlanSession,
@@ -4651,13 +5032,14 @@ function subjectSpecificLessonStepsFor(
   });
 
   if (fallbackKind === "outside_source") {
-    return [
-      lessonInstruction("Set up", "Prepare your outside study block", `Open the material you use for ${plan.topic}. Keep only that source and a place to work visible.`, "orient"),
-      lessonInstruction("Your task", current?.title ?? "Complete the planned work", `${current?.objective ?? "Work through the next planned objective."} Use ${current?.method.toLowerCase() ?? "the selected method"} for about ${current?.estimatedMinutes ?? 20} minutes.`, "independent_practice"),
-      lessonQuestion("Method check", "What should happen before you check the source?", "The method works only if you make a real attempt before looking for the answer.", ["Attempt the task from memory", "Reread everything first", "Copy the source wording", "Switch topics"], "Attempt the task from memory", "Active retrieval requires a genuine attempt before looking at the source.", "Retrieval before review", "retrieve"),
-      lessonInstruction("Record", "Write what you can now produce without the source", "In your own notes, write the central idea or complete the target problem without reopening the source. Then compare it directly with your trusted material and mark the first specific gap.", "retrieve"),
-      lessonInstruction("Return to YOVA", "Name the exact gap", "Record one concrete idea, step, date, relationship, or example that needs another pass. YOVA will use that signal when the session result is saved.", "reflect"),
-    ];
+    return buildOutsideYovaFallbackLesson({
+      topic: plan.topic,
+      objective: current.objective,
+      method: current.method,
+      methodReason: current.methodReason,
+      learningMode: current.learningMode,
+      availableMinutes: current.estimatedMinutes,
+    })?.activities ?? null;
   }
 
   if (current.learningMode === "learn") {
@@ -4874,6 +5256,7 @@ function SessionSetup({ plan, answers, completions, interruptions, onExit, onSta
   const [availableMinutes, setAvailableMinutes] = useState<number | null>(null);
   const [selectedKnownTargets, setSelectedKnownTargets] = useState<string[]>([]);
   const [note, setNote] = useState("");
+  const noteLimit = getCharacterLimitState(note);
   const options: Array<{
     value: SessionAdjustment["familiarity"];
     title: string;
@@ -4928,6 +5311,7 @@ function SessionSetup({ plan, answers, completions, interruptions, onExit, onSta
   };
 
   const start = () => {
+    if (noteLimit.isOverLimit) return;
     const trimmedNote = note.trim();
     const inferredFamiliarity = familiarity === "as_planned"
       ? inferSessionFamiliarityFromText(trimmedNote) ?? familiarity
@@ -4986,7 +5370,7 @@ function SessionSetup({ plan, answers, completions, interruptions, onExit, onSta
       {setupPage === 2 && <>
         <div className="session-setup-copy"><span className="step-label">TODAY&apos;S CONTEXT</span><h1>Set the pace for today.</h1><p>Only add what changed or what YOVA could not know from the plan.</p></div>
         <fieldset className="session-support-dial"><legend>Support for this session</legend><p>This choice applies only today. It will not change your usual profile.</p><div>{SESSION_SUPPORT_OPTIONS.map((option) => <button type="button" key={option.value} aria-pressed={supportLevel === option.value} className={supportLevel === option.value ? "selected" : ""} onClick={() => setSupportLevel(option.value)}><span>{supportLevel === option.value ? <Check size={15} /> : <Settings2 size={15} />}</span><strong>{option.title}</strong><small>{option.description}</small></button>)}</div><small className="session-support-expiry">For today · {sessionSupportExplanation(supportLevel)}</small></fieldset>
-        <div className="session-context-row"><label><span>Time available right now</span><select value={availableMinutes ?? ""} onChange={(event) => setAvailableMinutes(event.target.value ? Number(event.target.value) : null)}><option value="">Keep the planned {session.estimatedMinutes} minutes</option>{[10, 15, 20, 25, 30, 45, 60].filter((minutes) => minutes !== session.estimatedMinutes).map((minutes) => <option key={minutes} value={minutes}>{minutes} minutes</option>)}</select><small>Shorter time changes today&apos;s content slice, not what counts as learned.</small></label><label><span>Anything YOVA should account for?</span><textarea rows={4} maxLength={500} value={note} placeholder="Optional: what you already know, what was confusing, or what this session must cover." onChange={(event) => setNote(event.target.value)} /><small>{note.length}/500</small></label></div>
+        <div className="session-context-row"><label><span>Time available right now</span><select value={availableMinutes ?? ""} onChange={(event) => setAvailableMinutes(event.target.value ? Number(event.target.value) : null)}><option value="">Keep the planned {session.estimatedMinutes} minutes</option>{[10, 15, 20, 25, 30, 45, 60].filter((minutes) => minutes !== session.estimatedMinutes).map((minutes) => <option key={minutes} value={minutes}>{minutes} minutes</option>)}</select><small>Shorter time changes today&apos;s content slice, not what counts as learned.</small></label><label className={noteLimit.isOverLimit ? "field-over-limit" : undefined}><span>Anything YOVA should account for?</span><textarea rows={4} maxLength={LEARNER_TEXT_CHARACTER_LIMIT} value={note} aria-invalid={noteLimit.isOverLimit || undefined} aria-describedby="session-context-note-limit" placeholder="Optional: what you already know, what was confusing, or what this session must cover." onChange={(event) => setNote(event.target.value)} /><small id="session-context-note-limit" className={`character-limit-feedback ${noteLimit.isOverLimit ? "over-limit" : ""}`} role={noteLimit.isOverLimit ? "alert" : undefined}>{formatCharacterLimit(noteLimit)}</small></label></div>
         <div className="session-setup-proof"><Sparkles size={19} /><div><strong>How YOVA will begin</strong><p>{adjustmentExplanation}</p></div></div>
       </>}
 
@@ -4994,7 +5378,7 @@ function SessionSetup({ plan, answers, completions, interruptions, onExit, onSta
         <button className="button ghost" onClick={setupPage === 0 ? onExit : () => setSetupPage((current) => Math.max(0, current - 1))}>{setupPage === 0 ? "Not now" : <><ArrowLeft size={17} /> Back</>}</button>
         {setupPage < 2
           ? <button className="button primary large" onClick={() => setSetupPage((current) => Math.min(2, current + 1))}>Continue <ArrowRight size={18} /></button>
-          : <button className="button primary large" onClick={start}>Prepare this session <ArrowRight size={18} /></button>}
+          : <button className="button primary large" disabled={noteLimit.isOverLimit} onClick={start}>Prepare this session <ArrowRight size={18} /></button>}
       </footer>
     </section>
   </main>;
@@ -5020,8 +5404,110 @@ function SessionLoading({ plan, onExit }: { plan: LearningPlan | null; onExit: (
   return <main className="centered-shell session-loading"><BrandMark /><section><div className="session-loading-orbit" aria-hidden="true"><span className="button-spinner dark" /><Target size={22} /></div><span className="step-label">PREPARING YOUR SESSION</span><h1>Preparing the next part of <em>{plan?.topic ?? "your goal"}</em>.</h1><p>YOVA is choosing a focused objective, the right amount of support, and a clear way to show what you understood.</p><div className="session-building-list" aria-label="What YOVA is preparing"><article><Target size={18} /><div><strong>Focused content</strong><span>Only the ideas that fit this session</span></div></article><article><Settings2 size={18} /><div><strong>Delivery</strong><span>The task selects the method; your context adjusts the support</span></div></article><article><BookOpen size={18} /><div><strong>Teaching and practice</strong><span>Explanation first when the topic is new</span></div></article><article><Check size={18} /><div><strong>Completion evidence</strong><span>Finished work, not elapsed time</span></div></article></div><div className="session-building-status" role="status" aria-live="polite"><Clock3 size={17} /><div><strong>{status}</strong><span>{formatElapsedDuration(elapsedSeconds)} elapsed</span></div></div><button className="button ghost" onClick={onExit}>Cancel</button></section></main>;
 }
 
-function SessionGenerationError({ plan, issue, onExit, onRetry }: { plan: LearningPlan | null; issue: string | null; onExit: () => void; onRetry: () => void }) {
-  return <main className="centered-shell"><BrandMark /><section className="plan-error-state session-error-state" role="alert"><span><AlertCircle /></span><span className="step-label">LESSON SERVICE INTERRUPTED</span><h1>YOVA already knows what this lesson should cover.</h1><p>{issue ?? "The lesson service did not respond this time."}</p><p>Your goal, planned objective, learning profile, and progress are still intact. You do not need to explain the lesson again.</p><div className="session-error-recovery"><button className="button primary" onClick={onRetry}>Prepare this lesson again <ArrowRight size={17} /></button><button className="button ghost" onClick={onExit}><ArrowLeft size={17} /> Return to {plan?.title ?? "the goal"}</button></div></section></main>;
+export function SessionGenerationRecovery({ plan, session, briefing, coverage, failureState, issue, canStartMethod, onExit, onOpenGoal, onStartMethod, onRetry, onReviewSetup }: {
+  plan: LearningPlan | null;
+  session: LearningPlanSession | null;
+  briefing: SessionMethodBriefing | null;
+  coverage: SessionCoverage | null;
+  failureState: GuidedSessionFailureState | null;
+  issue: string | null;
+  canStartMethod: boolean;
+  onExit: () => void;
+  onOpenGoal: () => void;
+  onStartMethod: () => void;
+  onRetry: () => void;
+  onReviewSetup: () => void;
+}) {
+  const fallbackState = failureState ?? buildGuidedSessionFailureState({
+    cause: classifyGuidedSessionGenerationFailure({
+      response: null,
+      body: { error: "YOVA could not prepare this guided lesson." },
+    }),
+    fallbackOutcome: "unavailable",
+  });
+  const resetLabel = formatGuidedSessionAllowanceReset(fallbackState.resetAt);
+  const quotaClass = fallbackState.kind === "allowance_exhausted" ? "session-quota-state" : "";
+  const teachingUnavailable = plan?.studyMode === "inside_yova" && session?.learningMode === "learn";
+  const visibleActions = fallbackState.actions.filter((action) => (
+    action.id !== "start_method_work" || canStartMethod
+  ));
+  const hasPrimaryAction = visibleActions.some((action) => action.emphasis === "primary");
+  const actionHandler = (actionId: (typeof visibleActions)[number]["id"]) => {
+    if (actionId === "start_method_work") return onStartMethod;
+    if (actionId === "retry_generation") return onRetry;
+    if (actionId === "review_session_setup") return onReviewSetup;
+    if (actionId === "open_goal") return onOpenGoal;
+    return onExit;
+  };
+
+  return <main className="centered-shell session-recovery-shell">
+    <BrandMark />
+    <section className={`plan-error-state session-recovery-state ${quotaClass}`} role={fallbackState.kind === "allowance_exhausted" ? "status" : "alert"}>
+      <span className="session-recovery-icon">{fallbackState.kind === "allowance_exhausted" ? <Clock3 /> : <AlertCircle />}</span>
+      <span className="step-label">{fallbackState.eyebrow}</span>
+      <h1>{fallbackState.heading}</h1>
+      <p>{fallbackState.detail}</p>
+      {resetLabel && <p className="session-reset-time">You can request another generated lesson after <time dateTime={fallbackState.resetAt ?? undefined}>{resetLabel}</time>.</p>}
+      {issue && <small className="session-error-reference">{issue}</small>}
+
+      {briefing && session && <StudyMethodBriefing
+        briefing={briefing}
+        session={session}
+        coverage={coverage}
+      />}
+
+      {teachingUnavailable && <section className="session-teaching-unavailable">
+        <BookOpen size={18} />
+        <div><strong>This teaching-first session still needs an initial subject explanation.</strong><p>A subject-independent workpad cannot create that missing model inside YOVA. Review the setup, open the goal, or use an outside source rather than starting with unsupported recall.</p></div>
+      </section>}
+
+      <div className="session-error-recovery">
+        {visibleActions.map((action, index) => {
+          const emphasis = action.emphasis === "primary" || (!hasPrimaryAction && index === 0)
+            ? "primary"
+            : action.emphasis === "secondary"
+              ? "secondary"
+              : "ghost";
+          const icon = action.id === "start_method_work"
+            ? <FileText size={17} />
+            : action.id === "review_session_setup"
+              ? <Settings2 size={17} />
+              : action.id === "return_home"
+                ? <ArrowLeft size={17} />
+                : null;
+          return <button className={`button ${emphasis}`} key={action.id} onClick={actionHandler(action.id)}>{icon}{action.label}{action.id === "retry_generation" || action.id === "open_goal" ? <ArrowRight size={17} /> : null}</button>;
+        })}
+      </div>
+    </section>
+  </main>;
+}
+
+function StandaloneStudyMethodSession({ plan, session, briefing, coverage, elapsedSeconds, onComplete, onExit }: {
+  plan: LearningPlan | null;
+  session: LearningPlanSession | null;
+  briefing: SessionMethodBriefing | null;
+  coverage: SessionCoverage | null;
+  elapsedSeconds: number;
+  onComplete: () => void;
+  onExit: () => void;
+}) {
+  if (!plan || !session || !briefing) {
+    return <main className="centered-shell"><BrandMark /><section className="plan-error-state"><span><AlertCircle /></span><h1>The study-method guide is unavailable.</h1><p>Your goal is still safe. Return to YOVA and review the session setup.</p><button className="button primary" onClick={onExit}>Return to YOVA</button></section></main>;
+  }
+
+  return <main className="method-session-shell">
+    <header><BrandMark compact /><div><span>{plan.title}</span><strong>{session.title}</strong></div><span>{formatElapsedDuration(elapsedSeconds)} elapsed</span><button className="button ghost" onClick={onExit}>Exit</button></header>
+    <section className="method-session-content">
+      <StudyMethodPractice
+        briefing={briefing}
+        session={session}
+        coverage={coverage}
+        sourceFirstRequired={plan.studyMode === "outside_yova" && session.learningMode === "learn"}
+        allowUnguidedCompletion={canScheduleUnguidedVerification(session, plan.sessions.length)}
+        onComplete={onComplete}
+      />
+    </section>
+  </main>;
 }
 
 type GuidedSessionProps = {
@@ -5047,6 +5533,7 @@ type GuidedSessionProps = {
   issue: string | null;
   recoveryNotice: string | null;
   recoveryIssue: string | null;
+  onCompleteMethodPractice: () => void;
   analyticsEnabled: boolean;
   browserPreviewMode: boolean;
   streamedLessons: Record<string, LessonRuntimeState>;
@@ -5069,12 +5556,13 @@ type GuidedSessionProps = {
   onNext: (evaluation: AnswerEvaluationResponse | null) => void | Promise<void>;
 };
 
-function GuidedSession({ plan, planSessionId, steps, step, selectedAnswer, outcome, attemptCount, confidence, priorConfidenceCaptured, answerRevealed, elapsedSeconds, capacityMinutes, rationale, coverage, methodBriefing, deliveryPolicy, supportPlan, sourceGrounding, workspaceClassName, issue, recoveryNotice, recoveryIssue, analyticsEnabled, browserPreviewMode, streamedLessons, onOpenStreamedLesson, onSkipStreamedLesson, onSelect, onEvaluate, onRetry, onConfidence, onReveal, onExit, onRedirectPlan, onNext }: GuidedSessionProps) {
+function GuidedSession({ plan, planSessionId, steps, step, selectedAnswer, outcome, attemptCount, confidence, priorConfidenceCaptured, answerRevealed, elapsedSeconds, capacityMinutes, rationale, coverage, methodBriefing, deliveryPolicy, supportPlan, sourceGrounding, workspaceClassName, issue, recoveryNotice, recoveryIssue, onCompleteMethodPractice, analyticsEnabled, browserPreviewMode, streamedLessons, onOpenStreamedLesson, onSkipStreamedLesson, onSelect, onEvaluate, onRetry, onConfidence, onReveal, onExit, onRedirectPlan, onNext }: GuidedSessionProps) {
   const [confirmingExit, setConfirmingExit] = useState(false);
   const [changingDirection, setChangingDirection] = useState(false);
   const [directionRequest, setDirectionRequest] = useState("");
   const [directionPending, setDirectionPending] = useState(false);
   const [directionIssue, setDirectionIssue] = useState<string | null>(null);
+  const directionRequestLimit = getCharacterLimitState(directionRequest);
   const [answerEvaluation, setAnswerEvaluation] = useState<AnswerEvaluationResponse | null>(null);
   const [answerEvaluationIssue, setAnswerEvaluationIssue] = useState<string | null>(null);
   const [answerEvaluationPending, setAnswerEvaluationPending] = useState(false);
@@ -5084,6 +5572,15 @@ function GuidedSession({ plan, planSessionId, steps, step, selectedAnswer, outco
   const content = steps[step];
   const teachingPage = teachingProgress.step === step ? teachingProgress.page : 0;
   const currentSession = plan?.sessions.find((session) => session.status === "ready") ?? null;
+  const outsideMethodSession = plan?.studyMode === "outside_yova" && currentSession
+    ? {
+      ...currentSession,
+      learningMode: methodBriefing?.learningMode ?? currentSession.learningMode,
+    }
+    : null;
+  const outsideMethodBriefing = plan && outsideMethodSession
+    ? buildFallbackMethodBriefing(plan, outsideMethodSession, deliveryPolicy ?? undefined)
+    : null;
   const quickScheduledReview = isScheduledRetrievalSession(currentSession);
   const reviewableTeaching = [...steps.slice(0, step)]
     .reverse()
@@ -5151,9 +5648,12 @@ function GuidedSession({ plan, planSessionId, steps, step, selectedAnswer, outco
   const completedRequiredSteps = steps.slice(0, step).filter((item) => item.requiredForCompletion !== false).length;
   const requiredProgress = requiredSteps.length ? Math.round((completedRequiredSteps / requiredSteps.length) * 100) : 0;
   const activityLabel = polishActivityLabel(content.label) || "Activity";
-  const visibleAdaptation = deliveryPolicy?.learnerFacingReasons[0]
-    ?? methodBriefing?.personalization[0]
-    ?? null;
+  const usesGenericInsideFallback = methodBriefing?.name === GENERIC_INSIDE_FALLBACK_METHOD_NAME;
+  const visibleAdaptation = usesGenericInsideFallback
+    ? methodBriefing?.personalization[0] ?? null
+    : deliveryPolicy?.learnerFacingReasons[0]
+      ?? methodBriefing?.personalization[0]
+      ?? null;
   const freeResponseMode = content.type === "free_response"
     ? selectFreeResponseMode({
       taskType: methodBriefing?.taskType,
@@ -5301,7 +5801,7 @@ function GuidedSession({ plan, planSessionId, steps, step, selectedAnswer, outco
 
   const redirectPlan = async () => {
     const nextDirection = directionRequest.trim();
-    if (nextDirection.length < 5 || directionPending) return;
+    if (nextDirection.length < 5 || directionPending || directionRequestLimit.isOverLimit) return;
     setDirectionPending(true);
     setDirectionIssue(null);
     try {
@@ -5325,7 +5825,15 @@ function GuidedSession({ plan, planSessionId, steps, step, selectedAnswer, outco
         {recoveryNotice && <div className="session-issue"><Check size={17} /><span>{recoveryNotice}</span></div>}
         {recoveryIssue && <div className="session-issue"><AlertCircle size={17} /><span>{recoveryIssue}</span></div>}
         {issue && step === 0 && <div className="session-issue"><AlertCircle size={17} /><span>{issue}</span></div>}
-        {step === 0 && visibleAdaptation && <section className="session-adaptation-summary" aria-label="How YOVA adapted this session"><Settings2 size={17} /><div><strong>The method comes from the task. This delivery change comes from your context.</strong><p>{visibleAdaptation}</p></div></section>}
+        {step === 0 && visibleAdaptation && <section className="session-adaptation-summary" aria-label="How YOVA adapted this session"><Settings2 size={17} /><div><strong>{usesGenericInsideFallback ? "This safe built-in workflow uses the target already saved in your plan." : "The method comes from the task. This delivery change comes from your context."}</strong><p>{visibleAdaptation}</p></div></section>}
+        {step === 0 && outsideMethodSession && outsideMethodBriefing && <StudyMethodPractice
+          briefing={outsideMethodBriefing}
+          session={outsideMethodSession}
+          coverage={coverage}
+          sourceFirstRequired={outsideMethodSession.learningMode === "learn"}
+          allowUnguidedCompletion={canScheduleUnguidedVerification(outsideMethodSession, plan?.sessions.length ?? 0)}
+          onComplete={onCompleteMethodPractice}
+        />}
         {phase && phasePosition && <MethodPhaseCoach phase={phase} current={phasePosition.current} total={phasePosition.total} />}
         {quickScheduledReview && <div className="quick-review-promise"><Target size={17} /><div><strong>Why this is appearing now</strong><p>YOVA is checking whether {currentSession?.reviewConcept ?? "this idea"} is still available after time has passed. Each question includes all the context you need. Nothing is graded.</p></div></div>}
         {isImmediateRepair && <div className="immediate-repair-note"><RotateCcw size={17} /><div><strong>Repair now, verify later</strong><p>Correct the idea now. YOVA will still check it again later because an immediate retry is not proof that it will stick.</p></div></div>}
@@ -5393,8 +5901,12 @@ function GuidedSession({ plan, planSessionId, steps, step, selectedAnswer, outco
         </div> : <div className="recall-review">
           {answerEvaluation && <AnswerEvaluationCard evaluation={answerEvaluation} />}
           {answerEvaluationIssue && <div className="answer-evaluation-fallback"><AlertCircle size={17} /><p>{answerEvaluationIssue} Compare your work with the model answer below.</p></div>}
+          {selectedAnswer?.trim() && <section className="learner-attempt-card">
+            <span className="step-label">YOUR ATTEMPT</span>
+            <LearningContent content={selectedAnswer} className="reference-answer" />
+          </section>}
           <section className="model-answer-card">
-            <span className="step-label">MODEL ANSWER</span>
+            <span className="step-label">{content.concept ? "MODEL ANSWER" : "COMPARISON CHECK"}</span>
             <LearningContent content={content.correctAnswer ?? ""} className="reference-answer" />
             {content.feedback && <details><summary>What this answer needs to show</summary><LearningContent content={content.feedback} className="reference-rubric" /></details>}
           </section>
@@ -5414,8 +5926,8 @@ function GuidedSession({ plan, planSessionId, steps, step, selectedAnswer, outco
       selectedAnswer={selectedAnswer}
       analyticsEnabled={analyticsEnabled}
     />}
-    {reviewingModel && (reviewableTeaching || (reviewableStreamedLesson && reviewableStreamedLessonState)) && <div className="session-model-review-backdrop"><section className="session-model-review-dialog" role="dialog" aria-modal="true" aria-labelledby="session-model-review-title"><header><div><span className="step-label">PREVIOUS LESSON</span><h2 id="session-model-review-title">Review the lesson, then return to the same question.</h2><p>Your answer and session progress stay exactly where they are.</p></div><button className="button ghost" type="button" onClick={() => setReviewingModel(false)}><X size={17} /> Return to question</button></header><div className="session-model-review-content">{reviewableStreamedLesson && reviewableStreamedLessonState ? <StreamedLessonReader state={reviewableStreamedLessonState} compact /> : reviewableTeaching ? <TeachingLessonCard teaching={reviewableTeaching} /> : null}</div><footer><button className="button primary" type="button" onClick={() => setReviewingModel(false)}><ArrowLeft size={17} /> Back to the question</button></footer></section></div>}
-    {changingDirection && <div className="plan-direction-backdrop"><section className="plan-direction-dialog" role="dialog" aria-modal="true" aria-labelledby="plan-direction-title"><header><span className="plan-direction-icon"><Settings2 size={21} /></span><div><span className="step-label">CHANGE THE COURSE DIRECTION</span><h2 id="plan-direction-title">Tell YOVA what is off track.</h2><p>Completed work and learning evidence will stay. YOVA will rebuild only the unfinished sessions after you approve this change.</p></div></header><label><span>What should be different?</span><textarea autoFocus rows={5} maxLength={500} value={directionRequest} disabled={directionPending} placeholder="Example: I do not want math exercises. Keep the remaining course conceptual and focus on founder decisions, investors, and real startup examples." onChange={(event) => setDirectionRequest(event.target.value)} /><small>{directionRequest.length}/500</small></label><div className="plan-direction-examples"><button type="button" onClick={() => setDirectionRequest("Keep this conceptual. Do not include math or calculation exercises.")}>No calculations</button><button type="button" onClick={() => setDirectionRequest("Teach the foundations first and use concrete examples before practice.")}>Teach the basics first</button><button type="button" onClick={() => setDirectionRequest("Focus more on real examples and practical decisions.")}>More real examples</button></div>{directionIssue && <div className="chat-error"><AlertCircle size={16} /><span>{directionIssue}</span></div>}<footer><button className="button ghost" disabled={directionPending} onClick={() => { setChangingDirection(false); setDirectionIssue(null); }}>Keep this plan</button><button className="button primary large" disabled={directionPending || directionRequest.trim().length < 5} onClick={() => void redirectPlan()}>{directionPending ? <><span className="button-spinner" /> Rebuilding plan</> : <>Approve and rebuild <ArrowRight size={18} /></>}</button></footer></section></div>}
+    {reviewingModel && (reviewableTeaching || (reviewableStreamedLesson && reviewableStreamedLessonState)) && <div className="session-model-review-backdrop"><section className="session-model-review-dialog" role="dialog" aria-modal="true" aria-labelledby="session-model-review-title"><header><div><span className="step-label">PREVIOUS LESSON</span><h2 id="session-model-review-title">Review the lesson, then return to the same question.</h2><p>Your answer and session progress stay exactly where they are.</p></div><button className="button ghost" type="button" onClick={() => setReviewingModel(false)}><X size={17} /> Back to the question</button></header><div className="session-model-review-content">{reviewableStreamedLesson && reviewableStreamedLessonState ? <StreamedLessonReader state={reviewableStreamedLessonState} compact /> : reviewableTeaching ? <TeachingLessonCard teaching={reviewableTeaching} /> : null}</div><footer><button className="button primary" type="button" onClick={() => setReviewingModel(false)}><ArrowLeft size={17} /> Back to the question</button></footer></section></div>}
+    {changingDirection && <div className="plan-direction-backdrop"><section className="plan-direction-dialog" role="dialog" aria-modal="true" aria-labelledby="plan-direction-title"><header><span className="plan-direction-icon"><Settings2 size={21} /></span><div><span className="step-label">CHANGE THE COURSE DIRECTION</span><h2 id="plan-direction-title">Tell YOVA what is off track.</h2><p>Completed work and learning evidence will stay. YOVA will rebuild only the unfinished sessions after you approve this change.</p></div></header><label className={directionRequestLimit.isOverLimit ? "field-over-limit" : undefined}><span>What should be different?</span><textarea autoFocus rows={5} maxLength={LEARNER_TEXT_CHARACTER_LIMIT} value={directionRequest} disabled={directionPending} aria-invalid={directionRequestLimit.isOverLimit || undefined} aria-describedby="course-direction-limit" placeholder="Example: I do not want math exercises. Keep the remaining course conceptual and focus on founder decisions, investors, and real startup examples." onChange={(event) => setDirectionRequest(event.target.value)} /><small id="course-direction-limit" className={`character-limit-feedback ${directionRequestLimit.isOverLimit ? "over-limit" : ""}`} role={directionRequestLimit.isOverLimit ? "alert" : undefined}>{formatCharacterLimit(directionRequestLimit)}</small></label><div className="plan-direction-examples"><button type="button" onClick={() => setDirectionRequest("Keep this conceptual. Do not include math or calculation exercises.")}>No calculations</button><button type="button" onClick={() => setDirectionRequest("Teach the foundations first and use concrete examples before practice.")}>Teach the basics first</button><button type="button" onClick={() => setDirectionRequest("Focus more on real examples and practical decisions.")}>More real examples</button></div>{directionIssue && <div className="chat-error"><AlertCircle size={16} /><span>{directionIssue}</span></div>}<footer><button className="button ghost" disabled={directionPending} onClick={() => { setChangingDirection(false); setDirectionIssue(null); }}>Keep this plan</button><button className="button primary large" disabled={directionPending || directionRequest.trim().length < 5 || directionRequestLimit.isOverLimit} onClick={() => void redirectPlan()}>{directionPending ? <><span className="button-spinner" /> Rebuilding plan</> : <>Approve and rebuild <ArrowRight size={18} /></>}</button></footer></section></div>}
     {confirmingExit && <div className="session-exit-backdrop"><section className="session-exit-dialog" role="dialog" aria-modal="true" aria-labelledby="session-exit-title"><div className="session-exit-icon"><Clock3 size={21} /></div><span className="step-label">LEAVE THIS SESSION?</span><h2 id="session-exit-title">Your plan will stay open.</h2><p>YOVA will remember how long you studied and exactly which content steps you reached. Unfinished answers will not be treated as knowledge evidence.</p><div className="session-exit-summary"><span>{formatElapsedDuration(elapsedSeconds)} studied</span><span>{completedRequiredSteps} of {requiredSteps.length} required steps finished</span></div><div className="session-exit-actions"><button className="button ghost" onClick={() => setConfirmingExit(false)}>Keep studying</button><button className="button primary" onClick={onExit}>Save progress and leave</button></div></section></div>}
   </main>;
 }
@@ -5879,7 +6391,55 @@ function sessionTutorQuickActions(activityType: LessonStep["type"], answerState:
   ];
 }
 
-function SessionComplete({ currentSession, knowledgeMap, completedAt, requiredContentCount, repairCount, elapsedSeconds, actualMinutes, correctAnswers, totalAnswers, observedGap, conceptEvidence, confidenceEvidence, nextSession, feedback, onFeedback, recoveryNotice, recoveryIssue, onFinish }: { currentSession: LearningPlanSession | null; knowledgeMap?: PlanKnowledgeMap; completedAt: string; requiredContentCount: number; repairCount: number; elapsedSeconds: number; actualMinutes: number; correctAnswers: number; totalAnswers: number; observedGap: string; conceptEvidence: SessionCompletion["conceptEvidence"]; confidenceEvidence: ConfidenceEvidence[]; nextSession: LearningPlanSession | null; feedback: SessionCompletion["feedback"]; onFeedback: (feedback: SessionCompletion["feedback"]) => void; recoveryNotice: string | null; recoveryIssue: string | null; onFinish: (feedback: SessionCompletion["feedback"], applyRecommendedChange: boolean) => void }) {
+function SessionComplete({ currentSession, knowledgeMap, completionMode, completedAt, requiredContentCount, repairCount, elapsedSeconds, actualMinutes, correctAnswers, totalAnswers, observedGap, conceptEvidence, confidenceEvidence, nextSession, feedback, onFeedback, recoveryNotice, recoveryIssue, onFinish }: {
+  currentSession: LearningPlanSession | null;
+  knowledgeMap?: PlanKnowledgeMap;
+  completionMode: SessionCompletionMode;
+  completedAt: string;
+  requiredContentCount: number;
+  repairCount: number;
+  elapsedSeconds: number;
+  actualMinutes: number;
+  correctAnswers: number;
+  totalAnswers: number;
+  observedGap: string;
+  conceptEvidence: SessionCompletion["conceptEvidence"];
+  confidenceEvidence: ConfidenceEvidence[];
+  nextSession: LearningPlanSession | null;
+  feedback: SessionCompletion["feedback"];
+  onFeedback: (feedback: SessionCompletion["feedback"]) => void;
+  recoveryNotice: string | null;
+  recoveryIssue: string | null;
+  onFinish: (feedback: SessionCompletion["feedback"], applyRecommendedChange: boolean) => void;
+}) {
+  if (completionMode === "unguided_practice") {
+    return <main className="centered-shell completion">
+      <BrandMark />
+      <section className="completion-card unguided-practice-complete">
+        {recoveryNotice && <div className="session-issue"><Check size={17} /><span>{recoveryNotice}</span></div>}
+        {recoveryIssue && <div className="session-issue"><AlertCircle size={17} /><span>{recoveryIssue}</span></div>}
+        <header className="completion-heading">
+          <div className="completion-icon"><Check size={28} /></div>
+          <div>
+            <span className="step-label">UNGRADED PRACTICE COMPLETE</span>
+            <h1>The session moves forward. Your knowledge map does not.</h1>
+            <p>You worked through the study method and checked your own attempt. That completes this plan session, but self-review is practice—not proof that a topic is taught, evidenced, or secure.</p>
+          </div>
+        </header>
+        <div className="result-grid">
+          <div><span>Plan progress</span><strong>Session done</strong><small>The next session can open</small></div>
+          <div><span>Topic evidence</span><strong>None added</strong><small>YOVA will verify these topics later</small></div>
+          <div><span>Time used</span><strong>{formatElapsedDuration(elapsedSeconds)}</strong><small>Recorded, not graded</small></div>
+        </div>
+        <section className="unguided-practice-boundary">
+          <Target size={18} />
+          <div><strong>Your saved target stays open.</strong><p>{currentSession?.completionEvidence?.[0] ?? "A later guided check will decide whether these topics move on the knowledge map."}</p></div>
+        </section>
+        <button className="button primary large full" onClick={() => onFinish(feedback, false)}>Finish and continue <ArrowRight size={18} /></button>
+      </section>
+    </main>;
+  }
+
   const hasGap = totalAnswers > 0 && correctAnswers < totalAnswers;
   const conceptSummary = summarizeCompletionConcepts(conceptEvidence);
   const completionPreview: SessionCompletion = {
@@ -5894,6 +6454,7 @@ function SessionComplete({ currentSession, knowledgeMap, completedAt, requiredCo
     totalAnswers,
     feedback,
     observedGap,
+    completionMode,
     conceptEvidence,
     confidenceEvidence,
   };
@@ -5904,7 +6465,7 @@ function SessionComplete({ currentSession, knowledgeMap, completedAt, requiredCo
   const keepLabel = decision?.kind === "add_delayed_verification"
     ? "Finish without adding review"
     : "Keep current plan";
-  const mapDelta = buildSessionMapDelta(knowledgeMap, currentSession, conceptEvidence);
+  const mapDelta = buildSessionMapDelta(knowledgeMap, currentSession, conceptEvidence, completionMode);
 
   return <main className="centered-shell completion">
     <BrandMark />
@@ -5939,6 +6500,59 @@ function readBoundedIntegerHeader(response: Response, name: string, maximum: num
   const parsed = Number(response.headers.get(name));
   if (!Number.isInteger(parsed) || parsed < 0 || parsed > maximum) return 0;
   return parsed;
+}
+
+export function retryAfterResetAt(retryAfter: string | null, now = Date.now()) {
+  return failureRetryAfterResetAt(retryAfter, now);
+}
+
+export function guidedSessionAllowanceFailureFromResponse(
+  response: Pick<Response, "status" | "headers">,
+  body: unknown,
+  now = Date.now(),
+) {
+  if (response.status !== 429) return null;
+  const code = readApiProperty(body, "code");
+  const error = readApiError(body);
+  const isDurableAllowance = code === GUIDED_SESSION_ALLOWANCE_EXHAUSTED_CODE
+    || response.headers.get("X-Yova-Fallback-Reason") === GUIDED_SESSION_ALLOWANCE_EXHAUSTED_CODE
+    || error?.toLocaleLowerCase().includes("guided-session allowance") === true;
+  if (!isDurableAllowance) return null;
+  return {
+    kind: GUIDED_SESSION_ALLOWANCE_EXHAUSTED_CODE,
+    resetAt: retryAfterResetAt(response.headers.get("Retry-After"), now),
+  } as const;
+}
+
+export function guidedSessionAllowanceResetAtFromHeaders(
+  headers: Pick<Headers, "get">,
+  now = Date.now(),
+): string | null | undefined {
+  if (headers.get("X-Yova-Fallback-Reason") !== GUIDED_SESSION_ALLOWANCE_EXHAUSTED_CODE) {
+    return undefined;
+  }
+  return retryAfterResetAt(headers.get("Retry-After"), now);
+}
+
+export function formatGuidedSessionAllowanceReset(resetAt: string | null) {
+  if (!resetAt) return null;
+  const resetDate = new Date(resetAt);
+  if (Number.isNaN(resetDate.getTime())) return null;
+  return new Intl.DateTimeFormat("en-US", {
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(resetDate);
+}
+
+export function guidedSessionAllowanceFallbackNotice(resetAt: string | null, fallbackAction: string) {
+  const resetLabel = formatGuidedSessionAllowanceReset(resetAt);
+  return resetLabel
+    ? `Your guided-session allowance is used up until ${resetLabel}. ${fallbackAction}.`
+    : `Your guided-session allowance is used up. ${fallbackAction}. The server did not provide a readable reset time.`;
 }
 
 function readApiProperty(value: unknown, key: string) {

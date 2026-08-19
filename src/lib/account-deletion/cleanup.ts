@@ -2,6 +2,7 @@ import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { ACCOUNT_EXPORT_BUCKET } from "@/lib/account-export/schema";
+import { retrySupabaseRpc } from "@/lib/supabase/retry-rpc";
 
 const LEARNING_MATERIALS_BUCKET = "learning-materials";
 
@@ -25,9 +26,12 @@ export async function cleanupDeletedAccountStorage(
   { limit = 100 }: { limit?: number } = {},
 ): Promise<AccountDeletionCleanupResult> {
   const requestedLimit = Math.max(1, Math.min(Math.trunc(limit), 500));
-  const { data, error } = await admin.rpc("claim_account_deletion_cleanup_jobs", {
-    requested_limit: requestedLimit,
-  });
+  const { data, error } = await retrySupabaseRpc(
+    "claim_account_deletion_cleanup_jobs",
+    () => admin.rpc("claim_account_deletion_cleanup_jobs", {
+      requested_limit: requestedLimit,
+    }),
+  );
   if (error || !Array.isArray(data)) return failedResult();
 
   let removedJobs = 0;

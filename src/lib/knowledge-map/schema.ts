@@ -6,6 +6,114 @@ export const MaterialSectionRoleSchema = z.enum(["content_source", "scope_outlin
 export const KnowledgeTopicStatusSchema = z.enum(["not_started", "taught", "evidenced", "secure"]);
 export const PlanScopeBandSchema = z.enum(["focused_skill", "unit_or_exam", "broad_course"]);
 
+const DANGLING_SCOPE_LABEL_WORDS = [
+  "a",
+  "aboard",
+  "about",
+  "above",
+  "across",
+  "after",
+  "against",
+  "along",
+  "although",
+  "amid",
+  "among",
+  "an",
+  "and",
+  "around",
+  "as",
+  "at",
+  "because",
+  "before",
+  "behind",
+  "below",
+  "beneath",
+  "beside",
+  "besides",
+  "between",
+  "beyond",
+  "but",
+  "by",
+  "concerning",
+  "considering",
+  "despite",
+  "down",
+  "during",
+  "except",
+  "excluding",
+  "following",
+  "for",
+  "from",
+  "given",
+  "if",
+  "in",
+  "including",
+  "inside",
+  "into",
+  "like",
+  "near",
+  "nor",
+  "notwithstanding",
+  "of",
+  "off",
+  "on",
+  "once",
+  "onto",
+  "opposite",
+  "or",
+  "out",
+  "outside",
+  "over",
+  "past",
+  "per",
+  "provided",
+  "regarding",
+  "round",
+  "save",
+  "since",
+  "so",
+  "that",
+  "the",
+  "though",
+  "through",
+  "throughout",
+  "till",
+  "to",
+  "toward",
+  "towards",
+  "under",
+  "underneath",
+  "unless",
+  "unlike",
+  "until",
+  "up",
+  "upon",
+  "versus",
+  "via",
+  "when",
+  "whenever",
+  "where",
+  "whereas",
+  "wherever",
+  "whether",
+  "while",
+  "with",
+  "within",
+  "without",
+  "worth",
+  "yet",
+] as const;
+
+const caseInsensitivePattern = (word: string) => Array.from(word, (letter) => (
+  `[${letter.toLocaleLowerCase()}${letter.toLocaleUpperCase()}]`
+)).join("");
+
+// JSON Schema has no separate regex-flags field, so spell out case-insensitive
+// letters to keep the provider-facing `pattern` and Zod's runtime check equal.
+const COMPLETE_SCOPE_LABEL_PATTERN = new RegExp(
+  `^(?![\\s\\S]*\\b(?:${DANGLING_SCOPE_LABEL_WORDS.map(caseInsensitivePattern).join("|")})[\\s.!?,:;'\"’”)}\\]]*$)[\\s\\S]+$`,
+);
+
 export const InitialTopicEvidenceSchema = z.object({
   source: z.literal("placement_check"),
   outcome: z.enum(["demonstrated", "gap"]),
@@ -49,7 +157,7 @@ export const KnowledgeMapTopicSchema = z.object({
   curriculumReference: CurriculumReferenceSchema.nullable().optional(),
 });
 
-export const ScopeJudgmentSchema = z.object({
+const ScopeJudgmentFields = {
   band: PlanScopeBandSchema,
   label: z.string().trim().min(3).max(80),
   minimumSessions: z.number().int().min(1).max(14),
@@ -57,8 +165,30 @@ export const ScopeJudgmentSchema = z.object({
   maximumSessions: z.number().int().min(1).max(14),
   minimumTeachingSessions: z.number().int().min(0).max(14),
   explanation: z.string().trim().min(20).max(500),
-}).refine((value) => value.minimumSessions <= value.recommendedSessions
-  && value.recommendedSessions <= value.maximumSessions, {
+};
+
+const orderedSessionBounds = (value: {
+  minimumSessions: number;
+  recommendedSessions: number;
+  maximumSessions: number;
+}) => value.minimumSessions <= value.recommendedSessions
+  && value.recommendedSessions <= value.maximumSessions;
+
+export const ScopeJudgmentSchema = z.object(ScopeJudgmentFields).refine(orderedSessionBounds, {
+  message: "Session bounds must be ordered from minimum to maximum.",
+});
+
+// Existing persisted maps remain readable through ScopeJudgmentSchema. New
+// provider output must satisfy this stricter boundary before it can be stored.
+export const GeneratedScopeLabelSchema = ScopeJudgmentFields.label.regex(
+  COMPLETE_SCOPE_LABEL_PATTERN,
+  "Scope label must be a complete phrase, not end with a conjunction, preposition, or article.",
+);
+
+export const GeneratedScopeJudgmentSchema = z.object({
+  ...ScopeJudgmentFields,
+  label: GeneratedScopeLabelSchema,
+}).refine(orderedSessionBounds, {
   message: "Session bounds must be ordered from minimum to maximum.",
 });
 

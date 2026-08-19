@@ -1,5 +1,6 @@
 import type { LearningPlan, SessionCompletion, SessionInterruption, YovaPreviewSnapshot } from "@/lib/domain";
 import { ConfidenceEvidenceListSchema } from "@/lib/learning/confidence-calibration";
+import { normalizeSessionCompletionProvenance } from "@/lib/learning/session-completion-provenance";
 import { inferLegacySessionLearningMode } from "@/lib/learning/learning-intent";
 import { resolveLearningTitle } from "@/lib/intake/interpret";
 import {
@@ -50,10 +51,10 @@ function normalizePreviewCompletion(completion: SessionCompletion): SessionCompl
   const parsed = ConfidenceEvidenceListSchema.safeParse(
     (completion as SessionCompletion & { confidenceEvidence?: unknown }).confidenceEvidence,
   );
-  return {
+  return normalizeSessionCompletionProvenance({
     ...completion,
     confidenceEvidence: parsed.success ? parsed.data : [],
-  };
+  });
 }
 
 function normalizePreviewPlan(plan: LearningPlan): LearningPlan {

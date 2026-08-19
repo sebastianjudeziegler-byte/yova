@@ -152,6 +152,66 @@ describe("completePlanSession", () => {
     expect(repeatedResult.sessions).toHaveLength(2);
   });
 
+  it("inserts a required verification immediately and preserves every later target", () => {
+    const next = session(2, "upcoming");
+    const later = session(3, "upcoming");
+    const verification = session(2, "ready", {
+      id: "verification-session",
+      title: "Verify target 1",
+      reviewConcept: "Concept 1",
+      reviewType: "verify",
+      topicIds: ["9a87ade4-678a-4a60-934f-35dc05d08158"],
+    });
+
+    const result = completePlanSession({
+      plan: plan([session(1, "ready"), next, later]),
+      completedSessionId: "session-1",
+      completedAt: "2026-08-09T18:25:00.000Z",
+      followUpSession: verification,
+    });
+
+    expect(result.sessions.map(({ id, sequence, status }) => ({ id, sequence, status }))).toEqual([
+      { id: "session-1", sequence: 1, status: "complete" },
+      { id: "verification-session", sequence: 2, status: "ready" },
+      { id: "session-2", sequence: 3, status: "upcoming" },
+      { id: "session-3", sequence: 4, status: "upcoming" },
+    ]);
+    expect(result.sessions[2]).toMatchObject({
+      id: next.id,
+      title: next.title,
+      objective: next.objective,
+      contentTargets: next.contentTargets,
+    });
+    expect(result.sessions[3]).toMatchObject({
+      id: later.id,
+      title: later.title,
+      objective: later.objective,
+      contentTargets: later.contentTargets,
+    });
+  });
+
+  it("does not shift later sessions again when completion is replayed", () => {
+    const verification = session(2, "ready", {
+      id: "verification-session",
+      reviewConcept: "Concept 1",
+      reviewType: "verify",
+    });
+    const first = completePlanSession({
+      plan: plan([session(1, "ready"), session(2, "upcoming")]),
+      completedSessionId: "session-1",
+      completedAt: "2026-08-09T18:25:00.000Z",
+      followUpSession: verification,
+    });
+    const repeated = completePlanSession({
+      plan: first,
+      completedSessionId: "session-1",
+      completedAt: "2026-08-09T18:25:00.000Z",
+      followUpSession: { ...verification },
+    });
+
+    expect(repeated.sessions).toEqual(first.sessions);
+  });
+
   it("completes a plan only when no planned or verification work remains", () => {
     const result = completePlanSession({
       plan: plan([session(1, "ready")]),

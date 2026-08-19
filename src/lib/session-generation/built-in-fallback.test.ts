@@ -1,12 +1,26 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import type { GeneratedSessionDraft } from "@/lib/session-generation/schema";
 import {
+  buildGenericInsideYovaFallbackLesson,
+  buildOutsideYovaFallbackLesson,
   builtInFallbackSupportsAdjustment,
   builtInLessonCoversTarget,
   builtInLessonFitsTime,
   builtInSessionFallbackKind,
   builtInTopicEvidenceId,
   canUseBuiltInSessionFallback,
+  genericInsideFallbackCoversTarget,
+  type OutsideYovaFallbackLesson,
 } from "@/lib/session-generation/built-in-fallback";
+import { validateSessionTimeBudget } from "@/lib/session-generation/time-budget";
+
+vi.mock("server-only", () => ({}));
+vi.mock("@/lib/openai/client", () => ({
+  getOpenAIClient: () => ({ responses: { parse: vi.fn() } }),
+}));
+vi.mock("@/lib/openai/config", () => ({
+  getOpenAISessionConfig: () => ({ apiKey: "test", model: "gpt-yova-test" }),
+}));
 
 const base = {
   studyMode: "inside_yova" as const,
@@ -18,6 +32,31 @@ const base = {
     "Basic chronology from 1914 to 1918",
   ],
 };
+
+function outsideValidationDraft(
+  lesson: Pick<OutsideYovaFallbackLesson, "learningMode" | "activities">,
+) {
+  return {
+    methodBriefing: { learningMode: lesson.learningMode },
+    activities: lesson.activities.map((activity) => ({
+      topicId: activity.topicId ?? null,
+      methodPhase: activity.methodPhase ?? "orient",
+      estimatedMinutes: activity.estimatedMinutes ?? 1,
+      requiredForCompletion: activity.requiredForCompletion !== false,
+      type: activity.type,
+      concept: activity.concept,
+      label: activity.label,
+      title: activity.title,
+      body: activity.body,
+      teaching: activity.teaching ?? null,
+      choices: activity.question ?? [],
+      correctAnswer: activity.correctAnswer,
+      feedback: activity.feedback,
+      practiceIntent: null,
+      misconceptionSummary: null,
+    })),
+  } as unknown as GeneratedSessionDraft;
+}
 
 describe("built-in session fallback eligibility", () => {
   it("allows the curated WWI outbreak lesson for the matching current session", () => {
@@ -248,6 +287,208 @@ describe("built-in fallback target coverage", () => {
   });
 });
 
+describe("outside-YOVA fallback lesson", () => {
+  const input = {
+    topic: "how the Krebs cycle produces NADH and FADH2",
+    objective: "Explain how the Krebs cycle transfers energy to NADH and FADH2.",
+    method: "Active retrieval with a source check",
+    methodReason: "it lets you build the pathway once, check the exact gap, and explain the energy transfer",
+    learningMode: "learn" as const,
+  };
+
+  it.each([
+    { availableMinutes: 10, externalWorkMinutes: 5 },
+    { availableMinutes: 15, externalWorkMinutes: 10 },
+  ])("builds a complete learn workflow in $availableMinutes minutes", async ({
+    availableMinutes,
+    externalWorkMinutes,
+  }) => {
+    const lesson = buildOutsideYovaFallbackLesson({ ...input, availableMinutes });
+    expect(lesson).not.toBeNull();
+    if (!lesson) return;
+
+    expect(lesson.activities).toHaveLength(3);
+    expect(lesson.externalWorkMinutes).toBe(externalWorkMinutes);
+    expect(lesson.activities.reduce(
+      (total, activity) => total + (activity.estimatedMinutes ?? 0),
+      0,
+    )).toBe(availableMinutes);
+    expect(builtInLessonFitsTime(lesson.activities, availableMinutes)).toBe(true);
+
+    const outsideWork = lesson.activities.find((activity) => activity.methodPhase === "read_source");
+    expect(outsideWork).toMatchObject({
+      type: "instruction",
+      estimatedMinutes: externalWorkMinutes,
+    });
+    expect(outsideWork?.body).toMatch(/open your textbook, class notes, or other trusted source/i);
+    expect(outsideWork?.body).toMatch(/read .*then write/i);
+    expect(outsideWork?.body).toContain(`Work there for ${externalWorkMinutes} minutes`);
+    expect(outsideWork?.body).toMatch(/bring your notes back to YOVA/i);
+
+    const draft = outsideValidationDraft(lesson);
+    const {
+      validateOutsideAppGuidance,
+      validateStandardGuidedSessionActivityMix,
+      validateSubstantiveTeaching,
+    } = await import("@/lib/openai/session-generator");
+    expect(validateOutsideAppGuidance(draft, "outside_yova")).toBeNull();
+    expect(validateSubstantiveTeaching(draft)).toBeNull();
+    expect(validateStandardGuidedSessionActivityMix(draft)).toBeNull();
+    expect(validateSessionTimeBudget(draft, availableMinutes)).toBeNull();
+  });
+
+  it("supports the shortest study workflow without inventing a teaching block", async () => {
+    const lesson = buildOutsideYovaFallbackLesson({
+      ...input,
+      learningMode: "study",
+      availableMinutes: 10,
+    });
+    expect(lesson).not.toBeNull();
+    if (!lesson) return;
+
+    expect(lesson.activities).toHaveLength(3);
+    expect(lesson.externalWorkMinutes).toBe(6);
+    expect(lesson.activities.reduce(
+      (total, activity) => total + (activity.estimatedMinutes ?? 0),
+      0,
+    )).toBe(10);
+    expect(lesson.activities.every((activity) => !activity.teaching)).toBe(true);
+
+    const { validateOutsideAppGuidance } = await import("@/lib/openai/session-generator");
+    expect(validateOutsideAppGuidance(outsideValidationDraft(lesson), "outside_yova")).toBeNull();
+  });
+
+  it("fails closed below the shortest valid session duration", () => {
+    expect(buildOutsideYovaFallbackLesson({ ...input, availableMinutes: 9 })).toBeNull();
+    expect(buildOutsideYovaFallbackLesson({ ...input, availableMinutes: 10.5 })).toBeNull();
+  });
+});
+
+describe("generic inside-YOVA fallback lesson", () => {
+  const input = {
+    objective: "Explain how competing constraints shape a city transportation policy.",
+    contentTargets: [
+      "Tradeoffs between travel time, access, and public space",
+      "How one policy choice affects different groups",
+    ],
+    completionEvidence: [
+      "Explain one tradeoff in your own words",
+      "Apply the tradeoff to a concrete policy choice",
+    ],
+    learningMode: "study" as const,
+  };
+
+  it.each([10, 15, 30, 90])("builds a required topic-agnostic workflow in %i minutes", async (availableMinutes) => {
+    const lesson = buildGenericInsideYovaFallbackLesson({ ...input, availableMinutes });
+    expect(lesson).not.toBeNull();
+    if (!lesson) return;
+
+    expect(lesson.kind).toBe("generic_inside");
+    expect(lesson.activities).toHaveLength(3);
+    expect(lesson.activities.every((activity) => activity.requiredForCompletion)).toBe(true);
+    expect(lesson.activities.reduce(
+      (total, activity) => total + (activity.estimatedMinutes ?? 0),
+      0,
+    )).toBe(availableMinutes);
+    expect(builtInLessonFitsTime(lesson.activities, availableMinutes)).toBe(true);
+
+    const framing = lesson.activities[0];
+    expect(framing.body).toContain(input.objective);
+    for (const target of input.contentTargets) {
+      expect(framing.body).toContain(target);
+      expect(builtInLessonCoversTarget(lesson.activities, target)).toBe(true);
+    }
+    for (const evidence of input.completionEvidence) expect(framing.body).toContain(evidence);
+
+    expect(lesson.activities[1]).toMatchObject({
+      type: "free_response",
+      methodPhase: "retrieve",
+      requiredForCompletion: true,
+    });
+    expect(lesson.activities[1]?.body).toMatch(/without notes, hints, or outside help/i);
+    expect(lesson.activities[1]?.correctAnswer).toMatch(/keep your own answer visible and compare/i);
+    expect(lesson.activities[2]).toMatchObject({
+      type: "free_response",
+      methodPhase: "transfer",
+      requiredForCompletion: true,
+    });
+    expect(lesson.activities[2]?.body).toMatch(/explanation|apply/i);
+
+    const draft = outsideValidationDraft({ learningMode: "study", activities: lesson.activities });
+    const { validateStandardGuidedSessionActivityMix } = await import("@/lib/openai/session-generator");
+    expect(validateStandardGuidedSessionActivityMix(draft)).toBeNull();
+    expect(validateSessionTimeBudget(draft, availableMinutes)).toBeNull();
+  });
+
+  it("uses the objective as the target and a neutral evidence check when optional arrays are empty", () => {
+    const lesson = buildGenericInsideYovaFallbackLesson({
+      objective: "Trace the logic of an unfamiliar proof.",
+      contentTargets: [],
+      completionEvidence: [],
+      learningMode: "study",
+      availableMinutes: 10,
+    });
+
+    expect(lesson?.activities[0]?.body).toContain("Trace the logic of an unfamiliar proof.");
+    expect(lesson?.activities[2]?.correctAnswer).toMatch(/explain the main idea accurately or apply it/i);
+  });
+
+  it("covers exact saved targets even when the curated subject-token heuristic cannot", () => {
+    const contentTargets = ["Explain this relationship", "DNA and RNA"];
+    const lesson = buildGenericInsideYovaFallbackLesson({
+      objective: "Compare two saved targets without inventing a subject answer.",
+      contentTargets,
+      completionEvidence: ["Explain or apply one target"],
+      learningMode: "study",
+      availableMinutes: 10,
+    });
+    expect(lesson).not.toBeNull();
+    if (!lesson) return;
+
+    for (const target of contentTargets) {
+      expect(builtInLessonCoversTarget(lesson.activities, target)).toBe(false);
+      expect(genericInsideFallbackCoversTarget(lesson, target)).toBe(true);
+    }
+    expect(genericInsideFallbackCoversTarget(lesson, "ATP and ADP")).toBe(false);
+  });
+
+  it("does not claim exact generic coverage when the saved target is absent from the emitted frame", () => {
+    const lesson = buildGenericInsideYovaFallbackLesson({
+      objective: "Explain this relationship.",
+      contentTargets: ["Explain this relationship"],
+      completionEvidence: ["Give a complete explanation"],
+      learningMode: "study",
+      availableMinutes: 10,
+    });
+    expect(lesson).not.toBeNull();
+    if (!lesson) return;
+
+    const withoutTargetFrame = {
+      ...lesson,
+      activities: lesson.activities.map((activity) => (
+        activity.label === "SESSION TARGET" ? { ...activity, body: "Target unavailable." } : activity
+      )),
+    };
+    expect(genericInsideFallbackCoversTarget(
+      withoutTargetFrame,
+      "Explain this relationship",
+    )).toBe(false);
+  });
+
+  it("fails closed below the supported duration floor", () => {
+    expect(buildGenericInsideYovaFallbackLesson({ ...input, availableMinutes: 9 })).toBeNull();
+    expect(buildGenericInsideYovaFallbackLesson({ ...input, availableMinutes: 10.5 })).toBeNull();
+  });
+
+  it("fails closed for teaching-first sessions that need a subject model", () => {
+    expect(buildGenericInsideYovaFallbackLesson({
+      ...input,
+      learningMode: "learn",
+      availableMinutes: 15,
+    })).toBeNull();
+  });
+});
+
 describe("built-in fallback time bounds", () => {
   it("fails closed when the required curated lesson does not fit today's time", () => {
     const activities = [
@@ -294,6 +535,78 @@ describe("built-in fallback adjustment fidelity", () => {
       note: "",
     })).toBe(false);
   });
+
+  it("allows need-teaching only with the matching learn fallback", () => {
+    const learnFallback = buildOutsideYovaFallbackLesson({
+      topic: "how the Krebs cycle produces NADH and FADH2",
+      objective: "Explain how the cycle transfers energy to NADH and FADH2.",
+      method: "Active retrieval with a source check",
+      learningMode: "learn",
+      availableMinutes: 10,
+    });
+    const studyFallback = buildOutsideYovaFallbackLesson({
+      topic: "World War I causes",
+      objective: "Review the sequence from the assassination to declarations of war.",
+      method: "Active retrieval with a source check",
+      learningMode: "study",
+      availableMinutes: 10,
+    });
+    const adjustment = {
+      familiarity: "need_teaching" as const,
+      availableMinutes: 10,
+      knownTargets: [],
+      note: "",
+    };
+
+    expect(builtInFallbackSupportsAdjustment(adjustment, {
+      outsideFallback: learnFallback,
+    })).toBe(true);
+    expect(builtInFallbackSupportsAdjustment(adjustment, {
+      outsideFallback: studyFallback,
+    })).toBe(false);
+    expect(builtInFallbackSupportsAdjustment(adjustment, {
+      outsideFallback: null,
+    })).toBe(false);
+    expect(builtInFallbackSupportsAdjustment({ ...adjustment, availableMinutes: 15 }, {
+      outsideFallback: learnFallback,
+    })).toBe(false);
+  });
+
+  it("still rejects material starting-point changes even when a learn fallback exists", () => {
+    const outsideFallback = buildOutsideYovaFallbackLesson({
+      topic: "DNA replication",
+      objective: "Explain the direction and purpose of DNA replication.",
+      method: "Read, recall, review",
+      learningMode: "learn",
+      availableMinutes: 10,
+    });
+    const context = { outsideFallback };
+
+    expect(builtInFallbackSupportsAdjustment({
+      familiarity: "need_teaching",
+      availableMinutes: 10,
+      knownTargets: ["DNA polymerase"],
+      note: "",
+    }, context)).toBe(false);
+    expect(builtInFallbackSupportsAdjustment({
+      familiarity: "need_teaching",
+      availableMinutes: 10,
+      knownTargets: [],
+      note: "Use my worksheet instead.",
+    }, context)).toBe(false);
+    expect(builtInFallbackSupportsAdjustment({
+      familiarity: "already_know",
+      availableMinutes: 10,
+      knownTargets: [],
+      note: "",
+    }, context)).toBe(false);
+    expect(builtInFallbackSupportsAdjustment({
+      familiarity: "challenge_me",
+      availableMinutes: 10,
+      knownTargets: [],
+      note: "",
+    }, context)).toBe(false);
+  });
 });
 
 describe("built-in fallback request eligibility", () => {
@@ -318,6 +631,56 @@ describe("built-in fallback request eligibility", () => {
         note: "",
       },
     })).toBe(true);
+  });
+
+  it("allows the offline fallback only for a classified durable allowance 429", () => {
+    expect(canUseBuiltInSessionFallback({
+      ...eligible,
+      responseStatus: 429,
+      failureKind: "guided_session_allowance_exhausted",
+    })).toBe(true);
+    expect(canUseBuiltInSessionFallback({
+      ...eligible,
+      responseStatus: 429,
+    })).toBe(false);
+    expect(canUseBuiltInSessionFallback({
+      ...eligible,
+      responseStatus: 429,
+      failureKind: null,
+    })).toBe(false);
+    expect(canUseBuiltInSessionFallback({
+      ...eligible,
+      responseStatus: 503,
+      failureKind: "guided_session_allowance_exhausted",
+    })).toBe(false);
+    expect(canUseBuiltInSessionFallback({
+      ...eligible,
+      sourceMode: "user_materials",
+      responseStatus: 429,
+      failureKind: "guided_session_allowance_exhausted",
+    })).toBe(false);
+  });
+
+  it("allows a need-teaching request only when the matching fallback is supplied", () => {
+    const outsideFallback = buildOutsideYovaFallbackLesson({
+      topic: "how the Krebs cycle produces NADH and FADH2",
+      objective: "Explain how the cycle transfers energy to NADH and FADH2.",
+      method: "Active retrieval with a source check",
+      learningMode: "learn",
+      availableMinutes: 10,
+    });
+    const request = {
+      ...eligible,
+      adjustment: {
+        familiarity: "need_teaching" as const,
+        availableMinutes: 10,
+        knownTargets: [],
+        note: "",
+      },
+    };
+
+    expect(canUseBuiltInSessionFallback({ ...request, outsideFallback })).toBe(true);
+    expect(canUseBuiltInSessionFallback({ ...request, outsideFallback: null })).toBe(false);
   });
 
   it("fails closed for material-grounded plans", () => {

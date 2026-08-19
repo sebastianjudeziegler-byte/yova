@@ -113,6 +113,20 @@ describe("GenerationObservationSchema", () => {
     }).success).toBe(false);
   });
 
+  it("records an allowance fallback separately from a provider failure", () => {
+    expect(GenerationObservationSchema.safeParse({
+      ...safeEvent,
+      generationType: "lesson",
+      finalOutcome: "fallback",
+      firstAttemptPassed: false,
+      failedValidator: null,
+      diagnostics: {
+        streamCompleted: true,
+        lessonFailureKind: "allowance_exhausted",
+      },
+    }).success).toBe(true);
+  });
+
   it("accepts an over-budget lesson recovery without learner content", () => {
     expect(GenerationObservationSchema.safeParse({
       ...safeEvent,

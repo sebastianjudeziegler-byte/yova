@@ -42,8 +42,9 @@ export function usesStreamedTeaching(value: unknown) {
  * Teaching-first is a runtime delivery choice, not a compatibility boundary.
  * Older saved plans can keep their stored schema stamp while ordinary
  * inside-YOVA learn sessions use the current streamed reader and cache shape.
- * Reviews and outside-YOVA work retain their original architecture because
- * they do not begin with an in-app subject lesson.
+ * Reviews retain their original architecture. Outside-YOVA teaching-first
+ * work also stays filled because its concise subject model and external-method
+ * handoff are generated and validated as one bounded session.
  */
 export function sessionArchitectureForGeneration({
   storedVersion,

@@ -51,6 +51,11 @@ import {
   type SessionGenerationRequest,
 } from "@/lib/session-generation/schema";
 import {
+  guidedSessionAllowanceExhaustedHeaders,
+  guidedSessionAllowanceExhaustedResponse,
+  guidedSessionFailureResponse,
+} from "@/lib/session-generation/failure-message";
+import {
   resolveSessionArchitectureVersion,
   sessionArchitectureForGeneration,
   STREAMED_SESSION_ARCHITECTURE,
@@ -382,12 +387,12 @@ export async function POST(request: Request) {
     }
     if (!durableLimit.allowed) {
       return NextResponse.json(
-        { error: "This account has reached its guided-session allowance. Try again after the limit resets." },
+        guidedSessionAllowanceExhaustedResponse(durableLimit.retryAfterSeconds),
         {
           status: 429,
           headers: {
             "Cache-Control": "no-store",
-            "Retry-After": String(durableLimit.retryAfterSeconds),
+            ...guidedSessionAllowanceExhaustedHeaders(durableLimit.retryAfterSeconds),
             "X-Yova-Request-Id": requestId,
           },
         },
@@ -659,7 +664,12 @@ export async function POST(request: Request) {
       };
     await recordGenerationObservation(supabase, user.id, observationFromSessionStats(stats, attemptedModel, "failure"));
     return NextResponse.json(
-      { error: "YOVA could not prepare this guided session right now. Try again in a moment.", requestId },
+      {
+        ...guidedSessionFailureResponse(
+          error instanceof SessionGenerationFailure ? error.generationStats : null,
+        ),
+        requestId,
+      },
       { status: 502, headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId } },
     );
   }
@@ -754,7 +764,12 @@ async function generateBrowserPreviewSession(
       ...privacySafeErrorDiagnostic(error),
     });
     return NextResponse.json(
-      { error: "YOVA could not prepare this guided session right now. Try again in a moment.", requestId },
+      {
+        ...guidedSessionFailureResponse(
+          error instanceof SessionGenerationFailure ? error.generationStats : null,
+        ),
+        requestId,
+      },
       { status: 502, headers: responseHeaders(requestId) },
     );
   }

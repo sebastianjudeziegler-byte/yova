@@ -51,7 +51,7 @@ export function StudyNowCreator({
   seed?: AddIntakeSeed | null;
 }) {
   const [step, setStep] = useState<StudyNowStep>(seed ? "source" : "setup");
-  const [goal, setGoal] = useState(seed ? `${seed.title}. ${seed.objective} Scope: ${seed.scope}` : "");
+  const [goal, setGoal] = useState(seed ? buildStudyNowRequestSummary(seed) : "");
   const [minutes, setMinutes] = useState<(typeof timeChoices)[number]>(() => seedMinutes(seed));
   const [startingPoint, setStartingPoint] = useState<(typeof startingPoints)[number]>(seedStartingPoint(seed));
   const [sourceChoice, setSourceChoice] = useState<SourceChoice | null>(seed ? seedSourceChoice(seed) : null);
@@ -273,4 +273,19 @@ function seedSourceChoice(seed: AddIntakeSeed): SourceChoice {
 function seedMinutes(seed: AddIntakeSeed | null): (typeof timeChoices)[number] {
   if (!seed?.requestedMinutes) return 25;
   return timeChoices.reduce((closest, candidate) => Math.abs(candidate - seed.requestedMinutes!) < Math.abs(closest - seed.requestedMinutes!) ? candidate : closest, timeChoices[0]);
+}
+
+export function buildStudyNowRequestSummary(
+  seed: Pick<AddIntakeSeed, "title" | "objective" | "scope">,
+) {
+  return [
+    completeSentence(seed.title),
+    completeSentence(seed.objective),
+    completeSentence(`Scope: ${seed.scope}`),
+  ].join(" ");
+}
+
+function completeSentence(value: string) {
+  const trimmed = value.trim();
+  return /[.!?]$/u.test(trimmed) ? trimmed : `${trimmed}.`;
 }

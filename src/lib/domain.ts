@@ -1,6 +1,7 @@
 export type LearningItemStatus = "active" | "paused" | "completed" | "archived";
 export type PlanStatus = "draft" | "active" | "completed" | "archived";
 export type SessionStatus = "ready" | "upcoming" | "complete" | "skipped";
+export type SessionCompletionMode = "guided" | "unguided_practice";
 export type SourceMode = "user_materials" | "yova_generated";
 export type StudyMode = "inside_yova" | "outside_yova";
 export type LearningIntent = "learn" | "study";
@@ -116,6 +117,12 @@ export type LearningPlanSession = {
   topicIds?: string[];
   contentTargets?: string[];
   completionEvidence?: string[];
+  /** Stable provenance for content-preserving session splits. */
+  originSessionId?: string;
+  /** Content minutes before per-part setup and evidence-check overhead. */
+  originalContentMinutes?: number;
+  segmentIndex?: number;
+  segmentCount?: number;
   status: SessionStatus;
   resource?: SessionResource;
   adaptationNote?: SessionAdaptationNote;
@@ -179,6 +186,11 @@ export type SessionCompletion = {
   totalAnswers: number;
   feedback: "too_easy" | "about_right" | "too_difficult";
   observedGap: string;
+  /**
+   * Whether this completion included YOVA-observed knowledge evidence.
+   * Missing legacy values are treated as guided completions.
+   */
+  completionMode?: SessionCompletionMode;
   conceptEvidence: ConceptEvidence[];
   confidenceEvidence: ConfidenceEvidence[];
 };

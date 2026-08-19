@@ -76,12 +76,65 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "YOVA could not prepare a secure upload.", requestId }, { status: 500, headers: { "X-Yova-Request-Id": requestId } });
   }
 
-  return NextResponse.json(MaterialStageResponseSchema.parse({
-    materialId,
-    storagePath,
-    token: signedUpload.token,
-    mimeType,
-  }), { headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId } });
+  try {
+    const stagedMaterial = MaterialStageResponseSchema.parse({
+      materialId,
+      storagePath,
+      token: signedUpload.token,
+      mimeType,
+    });
+    return NextResponse.json(stagedMaterial, {
+      headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId },
+    });
+  } catch (error) {
+    const invalidResponseReason = error instanceof Error ? error.name : "unknown";
+    let cleanupFailed = false;
+    let cleanupCode = "unknown";
+    try {
+      const { error: cleanupError } = await supabase
+        .from("material_uploads")
+        .delete()
+        .eq("id", materialId);
+      cleanupFailed = Boolean(cleanupError);
+      cleanupCode = cleanupError?.code ?? "unknown";
+    } catch {
+      cleanupFailed = true;
+      cleanupCode = "cleanup_exception";
+    }
+    if (!cleanupFailed) {
+      console.error("YOVA material staging response was invalid; staging row removed", {
+        requestId,
+        materialId,
+        reason: invalidResponseReason,
+      });
+      return NextResponse.json({
+        error: "YOVA could not prepare the secure upload. The pending upload was removed, so it is safe to try adding the file again.",
+        code: "material_stage_response_invalid_rolled_back",
+        retryable: true,
+        requestId,
+      }, {
+        status: 500,
+        headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId },
+      });
+    }
+
+    console.error("YOVA material staging committed but its response was invalid", {
+      requestId,
+      materialId,
+      reason: invalidResponseReason,
+      cleanupCode,
+    });
+    return NextResponse.json({
+      error: `YOVA created the pending material upload, but could not return its secure upload instructions. Do not add the file again. Contact YOVA Support with reference ${requestId}.`,
+      code: "material_stage_committed_response_invalid",
+      committed: true,
+      materialId,
+      requestId,
+    }, {
+      status: 500,
+      headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId },
+    });
+  }
 }
 
 // Browser-to-storage signed uploads can be blocked by privacy extensions or

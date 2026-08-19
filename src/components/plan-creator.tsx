@@ -586,7 +586,7 @@ export function PlanCreator({ onExit, onFinish, profileSummary, browserPreviewMo
               <div><span>CONTENT</span><strong>{generatedPlan.plan.topic}</strong></div>
               <div><span>STARTING APPROACH</span><strong>{generatedPlan.plan.learningIntent === "learn" ? "Teach first, then remove support" : "Practice first, then repair gaps"}</strong></div>
               <div><span>LEARNING SOURCE</span><strong>{sourceChoice === "materials" ? `${materials.length} uploaded ${materials.length === 1 ? "source" : "sources"}` : sourceChoice === "outside" ? "Your trusted source outside YOVA" : "Teaching and practice created by YOVA"}</strong></div>
-              <div><span>PACE</span><strong>{generatedPlan.plan.sessions.length} sessions · {Math.min(...generatedPlan.plan.sessions.map((session) => session.estimatedMinutes))} to {Math.max(...generatedPlan.plan.sessions.map((session) => session.estimatedMinutes))} minutes each</strong></div>
+              <div><span>PACE</span><strong>{generatedPlan.plan.sessions.length} sessions · {durationLabel(generatedPlan.plan.sessions.map((session) => session.estimatedMinutes), "per-session")}</strong></div>
             </div>
             <div className="plan-revision-actions" aria-label="Change this plan before saving">
               <button className="button ghost" onClick={() => reviseGeneratedPlan("goal")}>Change content</button>
@@ -728,9 +728,14 @@ function formatDateOnly(value: string) {
   return new Intl.DateTimeFormat("en-US", { weekday: "long", month: "short", day: "numeric" }).format(new Date(`${value}T12:00:00`));
 }
 
-function durationLabel(minutes: number[]) {
+export function durationLabel(minutes: number[], variant: "compact" | "per-session" = "compact") {
   const unique = [...new Set(minutes)].sort((a, b) => a - b);
   if (!unique.length) return "";
+  if (variant === "per-session") {
+    const unit = unique.at(-1) === 1 ? "minute" : "minutes";
+    if (unique.length === 1) return `${unique[0]} ${unit} each`;
+    return `${unique[0]} to ${unique.at(-1)} ${unit} each`;
+  }
   if (unique.length === 1) return `${unique[0]} min`;
   return `${unique[0]}–${unique.at(-1)} min`;
 }

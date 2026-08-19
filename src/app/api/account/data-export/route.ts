@@ -62,6 +62,9 @@ export async function POST(request: Request) {
     return jsonError("The browser data belongs to a different account. Nothing was changed.", 403, "failed");
   }
 
+  // Construct every dependency needed to compensate a failed preparation
+  // before the RPC commits its receipt.
+  const admin = createSupabaseAdminClient();
   const exportId = crypto.randomUUID();
   const { data, error } = await supabase.rpc("begin_account_data_export", {
     requested_export_id: exportId,
@@ -91,19 +94,32 @@ export async function POST(request: Request) {
         "failed",
       );
     }
-    return failed("YOVA could not securely start your account copy. Nothing was changed. Try again.");
+    const receiptClosed = await failExport(supabase, admin, auth.context.user.id, exportId);
+    return receiptClosed
+      ? failed(
+        "YOVA could not confirm the account-copy request, but its incomplete receipt was closed; try again.",
+      )
+      : unreconciledExport();
   }
 
   const parsed = BeginAccountExportRpcSchema.safeParse(data);
   if (!parsed.success || parsed.data.exportId !== exportId) {
-    return failed("YOVA could not verify the new account copy. Nothing was changed. Try again.");
+    const receiptClosed = await failExport(supabase, admin, auth.context.user.id, exportId);
+    return receiptClosed
+      ? failed(
+        "YOVA started the account-copy request but could not verify its receipt. The incomplete request was closed; try again.",
+      )
+      : unreconciledExport();
   }
 
-  const admin = createSupabaseAdminClient();
   const expectedTempPath = accountExportTempPath(auth.context.user.id, exportId);
   if (parsed.data.tempStoragePath !== expectedTempPath) {
-    await failExport(supabase, admin, auth.context.user.id, exportId);
-    return failed("YOVA could not verify the private storage location. Nothing was changed.");
+    const receiptClosed = await failExport(supabase, admin, auth.context.user.id, exportId);
+    return receiptClosed
+      ? failed(
+        "YOVA could not verify the private storage location. The incomplete account-copy request was closed.",
+      )
+      : unreconciledExport();
   }
 
   const { error: tempUploadError } = await admin.storage
@@ -114,8 +130,12 @@ export async function POST(request: Request) {
       upsert: false,
     });
   if (tempUploadError) {
-    await failExport(supabase, admin, auth.context.user.id, exportId);
-    return failed("YOVA could not prepare private temporary storage. Nothing was changed. Try again.");
+    const receiptClosed = await failExport(supabase, admin, auth.context.user.id, exportId);
+    return receiptClosed
+      ? failed(
+        "YOVA could not prepare private temporary storage. The incomplete account-copy request was closed; try again.",
+      )
+      : unreconciledExport();
   }
 
   return NextResponse.json({
@@ -165,25 +185,33 @@ export async function PUT(request: Request) {
       user: auth.context.user,
       exportId,
     });
+    // Validate the client receipt before marking the database job ready. If a
+    // future response contract drifts, the still-finalizing job can be closed
+    // and its artifact removed instead of being committed and then reported as
+    // a failure.
+    const readyResponse = AccountExportReadySchema.parse({
+      downloadUrl: ready.downloadUrl,
+      filename: ready.filename,
+      expiresAt: ready.expiresAt,
+    });
     const { data: completed, error: completeError } = await supabase.rpc("complete_account_data_export", {
       requested_export_id: exportId,
       requested_size_bytes: ready.sizeBytes,
       requested_filename: ready.filename,
     });
     if (completeError || completed !== true) {
-      await failExport(supabase, admin, auth.context.user.id, exportId);
-      return failed("YOVA could not safely finish the account copy. Nothing was changed. Start again.");
+      const receiptClosed = await failExport(supabase, admin, auth.context.user.id, exportId);
+      return receiptClosed
+        ? failed("YOVA could not safely finish the account copy. The incomplete request was closed; start again.")
+        : unreconciledExport();
     }
 
-    return NextResponse.json(AccountExportReadySchema.parse({
-      downloadUrl: ready.downloadUrl,
-      filename: ready.filename,
-      expiresAt: ready.expiresAt,
-    }), {
+    return NextResponse.json(readyResponse, {
       headers: privateHeaders(),
     });
   } catch (error) {
-    await failExport(supabase, admin, auth.context.user.id, exportId);
+    const receiptClosed = await failExport(supabase, admin, auth.context.user.id, exportId);
+    if (!receiptClosed) return unreconciledExport();
     if (error instanceof AccountExportServerError) {
       return jsonError(error.message, error.code === "too_large" ? 413 : 500, error.code);
     }
@@ -234,11 +262,30 @@ async function failExport(
   userId: string,
   exportId: string,
 ) {
-  await supabase.rpc("fail_account_data_export", { requested_export_id: exportId });
-  await admin.storage.from(ACCOUNT_EXPORT_BUCKET).remove([
-    accountExportTempPath(userId, exportId),
-    accountExportFinalPath(userId, exportId),
-  ]);
+  // Cleanup is compensating work. A transient failure in either system must
+  // not replace the route's truthful JSON error with an empty framework 500.
+  let receiptClosed = false;
+  try {
+    const { data, error } = await supabase.rpc("fail_account_data_export", {
+      requested_export_id: exportId,
+    });
+    receiptClosed = !error && data === true;
+  } catch {
+    // The bounded cleanup lease will expire an unfinished receipt.
+  }
+  // The database receipt is authoritative. In particular, a lost completion
+  // response can mean the row is already `ready`; never remove its artifact
+  // unless the authenticated compensation actually moved it to `failed`.
+  if (!receiptClosed) return false;
+  try {
+    await admin.storage.from(ACCOUNT_EXPORT_BUCKET).remove([
+      accountExportTempPath(userId, exportId),
+      accountExportFinalPath(userId, exportId),
+    ]);
+  } catch {
+    // The service-role cleanup job removes orphaned export objects.
+  }
+  return receiptClosed;
 }
 
 function validateMutationRequest(request: Request, maximumBytes: number) {
@@ -312,6 +359,12 @@ function unavailable() {
 
 function failed(message: string) {
   return jsonError(message, 500, "failed");
+}
+
+function unreconciledExport() {
+  return failed(
+    "YOVA could not confirm whether the account-copy request started or close a possible receipt. Do not start another copy yet. Wait for this request to expire, then try again.",
+  );
 }
 
 function jsonError(

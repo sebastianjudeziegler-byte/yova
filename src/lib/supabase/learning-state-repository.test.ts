@@ -29,6 +29,7 @@ import {
   ActiveSessionCheckpointConflictError,
   ActiveSessionCheckpointTerminalError,
   cancelAuthenticatedLearnerProfileWrites,
+  completeAuthenticatedPlanSession,
   deleteAuthenticatedActiveSessionCheckpoint,
   loadAuthenticatedLearningState,
   loadAuthenticatedLearningStateWithRetry,
@@ -172,6 +173,105 @@ describe("recordAuthenticatedSessionInterruption", () => {
   });
 });
 
+describe("completeAuthenticatedPlanSession", () => {
+  it("uses the evidence-free transactional RPC for unguided practice", async () => {
+    const verification = {
+      id: "00000000-0000-4000-8000-000000000031",
+      sequence: 2,
+      title: "Verify thermohaline circulation",
+      objective: "Complete an independent guided check for every original target.",
+      method: "Independent retrieval verification",
+      methodReason: "This work counted as practice, not proof.",
+      scheduledFor: "2026-08-18T20:08:00.000Z",
+      estimatedMinutes: 10,
+      amountLabel: "Required guided verification · about 10 min",
+      learningMode: "study" as const,
+      topicIds: ["00000000-0000-4000-8000-000000000035"],
+      contentTargets: ["Density changes from temperature and salinity"],
+      completionEvidence: ["Explain how temperature and salinity affect density."],
+      status: "ready" as const,
+      reviewConcept: "Thermohaline circulation",
+      reviewType: "verify" as const,
+    };
+    await completeAuthenticatedPlanSession({
+      id: "00000000-0000-4000-8000-000000000031",
+      planId: "00000000-0000-4000-8000-000000000032",
+      planSessionId: "00000000-0000-4000-8000-000000000033",
+      startedAt: "2026-08-17T20:00:00.000Z",
+      completedAt: "2026-08-17T20:08:00.000Z",
+      plannedMinutes: 20,
+      actualMinutes: 8,
+      correctAnswers: 0,
+      totalAnswers: 0,
+      feedback: "about_right",
+      observedGap: "Unguided practice completed; no topic evidence was recorded.",
+      completionMode: "unguided_practice",
+      conceptEvidence: [],
+      confidenceEvidence: [],
+    }, null, verification);
+
+    expect(rpc).toHaveBeenCalledWith("complete_unguided_plan_session", {
+      payload: expect.objectContaining({
+        completionMode: "unguided_practice",
+        correctAnswers: 0,
+        totalAnswers: 0,
+        conceptEvidence: [],
+        confidenceEvidence: [],
+        followUpSession: expect.objectContaining({
+          id: verification.id,
+          topicIds: verification.topicIds,
+          contentTargets: verification.contentTargets,
+          completionEvidence: verification.completionEvidence,
+          reviewType: "verify",
+        }),
+      }),
+    });
+  });
+
+  it("refuses to sync unguided completion without its guided verification", async () => {
+    await expect(completeAuthenticatedPlanSession({
+      id: "00000000-0000-4000-8000-000000000036",
+      planId: "00000000-0000-4000-8000-000000000032",
+      planSessionId: "00000000-0000-4000-8000-000000000033",
+      startedAt: "2026-08-17T20:00:00.000Z",
+      completedAt: "2026-08-17T20:08:00.000Z",
+      plannedMinutes: 20,
+      actualMinutes: 8,
+      correctAnswers: 0,
+      totalAnswers: 0,
+      feedback: "about_right",
+      observedGap: "Unguided practice completed; no topic evidence was recorded.",
+      completionMode: "unguided_practice",
+      conceptEvidence: [],
+      confidenceEvidence: [],
+    })).rejects.toThrow("required guided verification");
+
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it("keeps legacy guided completions on the existing RPC", async () => {
+    await completeAuthenticatedPlanSession({
+      id: "00000000-0000-4000-8000-000000000041",
+      planId: "00000000-0000-4000-8000-000000000042",
+      planSessionId: "00000000-0000-4000-8000-000000000043",
+      startedAt: "2026-08-17T20:00:00.000Z",
+      completedAt: "2026-08-17T20:08:00.000Z",
+      plannedMinutes: 20,
+      actualMinutes: 8,
+      correctAnswers: 1,
+      totalAnswers: 1,
+      feedback: "about_right",
+      observedGap: "No major gap detected.",
+      conceptEvidence: [],
+      confidenceEvidence: [],
+    });
+
+    expect(rpc).toHaveBeenCalledWith("complete_plan_session", {
+      payload: expect.objectContaining({ completionMode: "guided" }),
+    });
+  });
+});
+
 describe("authenticated active-session checkpoint sync", () => {
   it("sends no client identity or plan identity and returns the server checkpoint", async () => {
     const local = checkpoint({
@@ -189,7 +289,7 @@ describe("authenticated active-session checkpoint sync", () => {
     await expect(saveAuthenticatedActiveSessionCheckpoint(local)).resolves.toEqual(authoritative);
 
     const payload = rpc.mock.calls[0]?.[1]?.payload as Record<string, unknown>;
-    expect(rpc.mock.calls[0]?.[0]).toBe("save_active_session_checkpoint");
+    expect(rpc.mock.calls[0]?.[0]).toBe("save_active_session_checkpoint_with_completion_mode");
     expect(payload).toMatchObject({
       runId: local.runId,
       planSessionId: local.planSessionId,
@@ -202,6 +302,25 @@ describe("authenticated active-session checkpoint sync", () => {
     expect(payload).not.toHaveProperty("sessionAdjustment");
     expect(JSON.stringify(payload)).not.toContain("Private known target");
     expect(JSON.stringify(payload)).not.toContain("Private learner note");
+  });
+
+  it("preserves unguided completion provenance in the cloud checkpoint payload", async () => {
+    const local = checkpoint({
+      status: "awaiting_finish",
+      completedSteps: 5,
+      resumeStep: 5,
+      completedAt: "2026-08-17T17:59:30.000Z",
+      completionFeedback: "about_right",
+      completionMode: "unguided_practice",
+    });
+    rpc.mockResolvedValueOnce({ data: local, error: null });
+
+    await expect(saveAuthenticatedActiveSessionCheckpoint(local)).resolves.toEqual(local);
+
+    expect(rpc).toHaveBeenCalledWith(
+      "save_active_session_checkpoint_with_completion_mode",
+      { payload: expect.objectContaining({ completionMode: "unguided_practice" }) },
+    );
   });
 
   it("rejects a checkpoint without exact generated lesson identity before calling the cloud", async () => {

@@ -5,6 +5,8 @@ import {
 } from "@/lib/learning/adjustment-schema";
 import {
   buildContentBasedReplacementSessions,
+  MAX_ADJUSTED_PLAN_SESSIONS,
+  PlanAdjustmentPartLimitError,
   type AdjustableSessionRow,
 } from "@/lib/learning/content-based-plan-adjustment";
 import {
@@ -116,14 +118,23 @@ export async function PATCH(request: Request) {
         completionEvidence: [`Explain ${topic.title} accurately and complete one independent check`],
       },
     }));
-    redirectedUnfinished = [...redirectedUnfinished, ...appended].slice(0, 14);
+    redirectedUnfinished = [...redirectedUnfinished, ...appended];
   }
 
-  const replacementSessions = buildContentBasedReplacementSessions(
-    redirectedUnfinished,
-    parsed.data.futureSessionMinutes,
-    Math.max(0, ...settledSequences) + 1,
-  );
+  let replacementSessions: ReturnType<typeof buildContentBasedReplacementSessions>;
+  try {
+    replacementSessions = buildContentBasedReplacementSessions(
+      redirectedUnfinished,
+      parsed.data.futureSessionMinutes,
+      Math.max(0, ...settledSequences) + 1,
+      MAX_ADJUSTED_PLAN_SESSIONS - settledSequences.length,
+    );
+  } catch (error) {
+    if (error instanceof PlanAdjustmentPartLimitError) {
+      return NextResponse.json({ error: error.message }, { status: 422 });
+    }
+    throw error;
+  }
   if (!replacementSessions.length) {
     return NextResponse.json({ error: "This plan has no unfinished content to adjust." }, { status: 409 });
   }

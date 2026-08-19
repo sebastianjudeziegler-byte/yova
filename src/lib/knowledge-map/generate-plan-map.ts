@@ -5,6 +5,7 @@ import type { GenerationValidator } from "@/lib/analytics/generation-observation
 import { recognizeCurriculum, type CurriculumRecognition } from "@/lib/curriculum/registry";
 import type { CurriculumId } from "@/lib/curriculum/schema";
 import {
+  GeneratedScopeLabelSchema,
   MaterialUnderstandingSchema,
   PlanKnowledgeMapSchema,
   ScopeJudgmentSchema,
@@ -34,6 +35,15 @@ const CurriculumMapOutputSchema = z.object({
   })).max(200),
 });
 
+const ScopeLabelRepairOutputSchema = z.object({
+  label: GeneratedScopeLabelSchema,
+});
+
+const KNOWLEDGE_MAP_PROVIDER_TIMEOUT_MS = 35_000;
+// Regenerate only the short label so retry cost stays small against the route's
+// shared 120-second budget instead of requesting the full knowledge map again.
+const SCOPE_LABEL_REPAIR_TIMEOUT_MS = 10_000;
+
 const KNOWLEDGE_MAP_INSTRUCTIONS = `Build YOVA's authoritative knowledge map before creating a schedule.
 
 Judge the scope from the learner's actual goal, starting context, diagnostic responses, deadline, and material maps. Do not use a subject-name heuristic. A narrow skill, a connected unit or exam, and a broad pathway require different session ranges.
@@ -43,6 +53,8 @@ Return topics in prerequisite order. Scope the map to the learner's stated outco
 When materials exist, sourceMaterialTopicIds must reference the supplied material-topic ids whenever a topic comes from them. A scope outline defines what belongs in the map but does not provide instructional substance. You may add ai-generated prerequisite topics only when needed to make the requested learning path coherent. Never invent completed knowledge or omit requested material topics silently.
 
 The learner may provide a mapCorrection after reviewing a draft map. Treat it as an explicit request about scope or emphasis. Add genuinely missing topics, remove topics outside the stated goal, or change emphasis when requested. A claim that the learner already knows a topic may reduce its planned teaching and lead to a short verification, but it must never create evidence or advance a topic status by itself.
+
+Write scopeJudgment.label as a short, natural standalone phrase that names the learning scope. Aim for 3-8 words. Summarize the goal instead of copying, compressing, or mechanically truncating the learner's wording. The label must read as complete and must not end with a conjunction, preposition, or article such as "and", "the", "of", "to", or "on".
 
 Session ranges must fit within 1-14. For study_now, all session values must be 1. Use plain language and no em dashes.`;
 
@@ -61,6 +73,135 @@ export type KnowledgeMapGenerationStats = {
   curriculumMatchSource: "goal" | "material" | "both" | null;
   curriculumMatchConfidence: "exact" | "alias" | null;
 };
+
+type KnowledgeMapProviderMetrics = {
+  attempts: number;
+  inputTokens: number;
+  cachedInputTokens: number;
+  cacheWriteTokens: number;
+  outputTokens: number;
+  firstAttemptPassed: boolean;
+  failedValidator: GenerationValidator | null;
+};
+
+type KnowledgeMapProviderOutput = {
+  scopeJudgment: z.infer<typeof ScopeJudgmentSchema>;
+};
+
+async function requestKnowledgeMapOutput<TOutput extends KnowledgeMapProviderOutput>({
+  model,
+  instructions,
+  input,
+  labelContext,
+  schema,
+  formatName,
+  maxOutputTokens,
+}: {
+  model: string;
+  instructions: string;
+  input: string;
+  labelContext: unknown;
+  schema: z.ZodType<TOutput>;
+  formatName: string;
+  maxOutputTokens: number;
+}): Promise<{ data: TOutput; metrics: KnowledgeMapProviderMetrics }> {
+  const client = getOpenAIClient();
+  const usage = {
+    attempts: 0,
+    inputTokens: 0,
+    cachedInputTokens: 0,
+    cacheWriteTokens: 0,
+    outputTokens: 0,
+  };
+  let failedValidator: GenerationValidator | null = null;
+  const metrics = (): KnowledgeMapProviderMetrics => ({
+    ...usage,
+    firstAttemptPassed: usage.attempts === 1 && failedValidator === null,
+    failedValidator,
+  });
+
+  try {
+    usage.attempts = 1;
+    const response = await client.responses.parse({
+      model,
+      instructions,
+      input,
+      reasoning: { effort: "low" },
+      text: { format: zodTextFormat(schema, formatName), verbosity: "low" },
+      max_output_tokens: maxOutputTokens,
+      store: false,
+    }, { maxRetries: 0, timeout: KNOWLEDGE_MAP_PROVIDER_TIMEOUT_MS });
+    if (response.usage) {
+      usage.inputTokens += response.usage.input_tokens;
+      usage.cachedInputTokens += response.usage.input_tokens_details.cached_tokens;
+      usage.cacheWriteTokens += response.usage.input_tokens_details.cache_write_tokens;
+      usage.outputTokens += response.usage.output_tokens;
+    }
+    if (response.status !== "completed") {
+      throw new KnowledgeMapGenerationError("knowledge_map_response_status");
+    }
+    const parsed = schema.safeParse(response.output_parsed);
+    if (!parsed.success) {
+      throw new KnowledgeMapGenerationError("knowledge_map_structure");
+    }
+
+    const acceptedLabel = GeneratedScopeLabelSchema.safeParse(parsed.data.scopeJudgment.label);
+    if (acceptedLabel.success) {
+      return {
+        data: parsed.data,
+        metrics: metrics(),
+      };
+    }
+
+    failedValidator = "knowledge_map_structure";
+    usage.attempts = 2;
+    const repairResponse = await client.responses.parse({
+      model,
+      instructions: "REPAIR ATTEMPT: Write one short, natural, standalone scope label. Aim for 3-8 words. Summarize the goal instead of copying or truncating it. The label must not end with a conjunction, preposition, or article such as and, the, of, to, or on.",
+      input: JSON.stringify({
+        context: labelContext,
+        rejectedLabel: parsed.data.scopeJudgment.label,
+      }),
+      reasoning: { effort: "low" },
+      text: {
+        format: zodTextFormat(ScopeLabelRepairOutputSchema, "yova_scope_label_repair"),
+        verbosity: "low",
+      },
+      max_output_tokens: 200,
+      store: false,
+    }, { maxRetries: 0, timeout: SCOPE_LABEL_REPAIR_TIMEOUT_MS });
+    if (repairResponse.usage) {
+      usage.inputTokens += repairResponse.usage.input_tokens;
+      usage.cachedInputTokens += repairResponse.usage.input_tokens_details.cached_tokens;
+      usage.cacheWriteTokens += repairResponse.usage.input_tokens_details.cache_write_tokens;
+      usage.outputTokens += repairResponse.usage.output_tokens;
+    }
+    if (repairResponse.status !== "completed") {
+      throw new KnowledgeMapGenerationError("knowledge_map_response_status");
+    }
+    const repaired = ScopeLabelRepairOutputSchema.safeParse(repairResponse.output_parsed);
+    if (!repaired.success) {
+      throw new KnowledgeMapGenerationError("knowledge_map_structure");
+    }
+
+    return {
+      data: {
+        ...parsed.data,
+        scopeJudgment: {
+          ...parsed.data.scopeJudgment,
+          label: repaired.data.label,
+        },
+      },
+      metrics: metrics(),
+    };
+  } catch (error) {
+    if (error instanceof KnowledgeMapGenerationError) throw error;
+    if (error instanceof Error && error.name === "ZodError") {
+      throw new KnowledgeMapGenerationError("knowledge_map_structure");
+    }
+    throw error;
+  }
+}
 
 export async function generatePlanKnowledgeMap(request: PlanGenerationRequest): Promise<{
   map: PlanKnowledgeMap;
@@ -105,7 +246,7 @@ export async function generatePlanKnowledgeMap(request: PlanGenerationRequest): 
         startedAt,
       });
     }
-    const response = await getOpenAIClient().responses.parse({
+    const generated = await requestKnowledgeMapOutput({
       model: config.model,
       instructions: KNOWLEDGE_MAP_INSTRUCTIONS,
       input: JSON.stringify({
@@ -119,24 +260,25 @@ export async function generatePlanKnowledgeMap(request: PlanGenerationRequest): 
         mapCorrection: request.mapCorrection ?? null,
         materials: materialTopics,
       }),
-      reasoning: { effort: "low" },
-      text: { format: zodTextFormat(KnowledgeMapOutputSchema, "yova_knowledge_map"), verbosity: "low" },
-      max_output_tokens: 5_000,
-      store: false,
-    }, { maxRetries: 0, timeout: 35_000 });
-    const usage = response.usage;
-    if (response.status !== "completed") throw new KnowledgeMapGenerationError("knowledge_map_response_status");
-    const parsed = KnowledgeMapOutputSchema.safeParse(response.output_parsed);
-    if (!parsed.success) throw new KnowledgeMapGenerationError("knowledge_map_structure");
+      labelContext: {
+        goal: request.goal,
+        startingContext: request.startingContext ?? null,
+        learningIntent: request.learningIntent,
+      },
+      schema: KnowledgeMapOutputSchema,
+      formatName: "yova_knowledge_map",
+      maxOutputTokens: 5_000,
+    });
+    const parsed = generated.data;
     const suppliedMaterialTopicIds = new Set(materialTopics.map((topic) => topic.materialTopicId));
-    const returnedMaterialTopicIds = new Set(parsed.data.topics.flatMap((topic) => topic.sourceMaterialTopicIds));
+    const returnedMaterialTopicIds = new Set(parsed.topics.flatMap((topic) => topic.sourceMaterialTopicIds));
     if (
       [...returnedMaterialTopicIds].some((id) => !suppliedMaterialTopicIds.has(id))
       || [...suppliedMaterialTopicIds].some((id) => !returnedMaterialTopicIds.has(id))
     ) {
       throw new KnowledgeMapGenerationError("knowledge_map_material_coverage");
     }
-    if (parsed.data.topics.some((topic, index) => (
+    if (parsed.topics.some((topic, index) => (
       topic.prerequisiteTopicIndexes.some((candidate) => candidate >= index)
     ))) {
       throw new KnowledgeMapGenerationError("knowledge_map_structure");
@@ -145,8 +287,8 @@ export async function generatePlanKnowledgeMap(request: PlanGenerationRequest): 
       const understanding = MaterialUnderstandingSchema.safeParse(material.understanding);
       return understanding.success ? understanding.data.topics.map((topic) => [topic.id, topic] as const) : [];
     }));
-    const ids = parsed.data.topics.map(() => crypto.randomUUID());
-    const topics: KnowledgeMapTopic[] = parsed.data.topics.map((topic, index) => {
+    const ids = parsed.topics.map(() => crypto.randomUUID());
+    const topics: KnowledgeMapTopic[] = parsed.topics.map((topic, index) => {
       const sourceTopics = topic.sourceMaterialTopicIds.map((id) => sourceById.get(id)).filter(Boolean);
       return {
         id: ids[index],
@@ -163,18 +305,18 @@ export async function generatePlanKnowledgeMap(request: PlanGenerationRequest): 
         deferred: null,
       };
     });
-    const map = PlanKnowledgeMapSchema.parse({ version: 1, scopeJudgment: parsed.data.scopeJudgment, topics });
+    const map = PlanKnowledgeMapSchema.parse({ version: 1, scopeJudgment: parsed.scopeJudgment, topics });
     return {
       map,
       stats: {
         elapsedMs: Date.now() - startedAt,
-        attempts: 1,
-        inputTokens: usage?.input_tokens ?? 0,
-        cachedInputTokens: usage?.input_tokens_details.cached_tokens ?? 0,
-        cacheWriteTokens: usage?.input_tokens_details.cache_write_tokens ?? 0,
-        outputTokens: usage?.output_tokens ?? 0,
-        firstAttemptPassed: true,
-        failedValidator: null,
+        attempts: generated.metrics.attempts,
+        inputTokens: generated.metrics.inputTokens,
+        cachedInputTokens: generated.metrics.cachedInputTokens,
+        cacheWriteTokens: generated.metrics.cacheWriteTokens,
+        outputTokens: generated.metrics.outputTokens,
+        firstAttemptPassed: generated.metrics.firstAttemptPassed,
+        failedValidator: generated.metrics.failedValidator,
         model: config.model,
         curriculumRecognized: false,
         curriculumId: null,
@@ -211,7 +353,7 @@ async function generateRecognizedCurriculumMap({
   startedAt: number;
 }): Promise<{ map: PlanKnowledgeMap; stats: KnowledgeMapGenerationStats }> {
   const definition = recognition.definition;
-  const response = await getOpenAIClient().responses.parse({
+  const generated = await requestKnowledgeMapOutput({
     model,
     instructions: `${KNOWLEDGE_MAP_INSTRUCTIONS}
 
@@ -241,25 +383,26 @@ Return exactly one materialAlignments row for every supplied material topic. Use
       },
       materialTopics,
     }),
-    reasoning: { effort: "low" },
-    text: { format: zodTextFormat(CurriculumMapOutputSchema, "yova_curriculum_map_alignment"), verbosity: "low" },
-    max_output_tokens: 3_000,
-    store: false,
-  }, { maxRetries: 0, timeout: 35_000 });
-  const usage = response.usage;
-  if (response.status !== "completed") throw new KnowledgeMapGenerationError("knowledge_map_response_status");
-  const parsed = CurriculumMapOutputSchema.safeParse(response.output_parsed);
-  if (!parsed.success) throw new KnowledgeMapGenerationError("knowledge_map_structure");
+    labelContext: {
+      goal: request.goal,
+      courseTitle: definition.courseTitle,
+      unitTitle: definition.unitTitle,
+    },
+    schema: CurriculumMapOutputSchema,
+    formatName: "yova_curriculum_map_alignment",
+    maxOutputTokens: 3_000,
+  });
+  const parsed = generated.data;
 
   const expectedMaterialIds = new Set(materialTopics.map((topic) => topic.materialTopicId));
-  const returnedMaterialIds = parsed.data.materialAlignments.map((alignment) => alignment.sourceMaterialTopicId);
+  const returnedMaterialIds = parsed.materialAlignments.map((alignment) => alignment.sourceMaterialTopicId);
   const returnedMaterialIdSet = new Set(returnedMaterialIds);
   const allowedTopicCodes = new Set(definition.topics.map((topic) => topic.code));
   if (
     returnedMaterialIds.length !== returnedMaterialIdSet.size
     || returnedMaterialIds.some((id) => !expectedMaterialIds.has(id))
     || [...expectedMaterialIds].some((id) => !returnedMaterialIdSet.has(id))
-    || parsed.data.materialAlignments.some((alignment) => (
+    || parsed.materialAlignments.some((alignment) => (
       new Set(alignment.curriculumTopicCodes).size !== alignment.curriculumTopicCodes.length
       || alignment.curriculumTopicCodes.some((code) => !allowedTopicCodes.has(code))
     ))
@@ -272,7 +415,7 @@ Return exactly one materialAlignments row for every supplied material topic. Use
     return understanding.success ? understanding.data.topics.map((topic) => [topic.id, topic] as const) : [];
   }));
   const sourceIdsByTopicCode = new Map<string, string[]>();
-  for (const alignment of parsed.data.materialAlignments) {
+  for (const alignment of parsed.materialAlignments) {
     for (const topicCode of alignment.curriculumTopicCodes) {
       sourceIdsByTopicCode.set(topicCode, [
         ...(sourceIdsByTopicCode.get(topicCode) ?? []),
@@ -315,7 +458,7 @@ Return exactly one materialAlignments row for every supplied material topic. Use
   });
   const map = PlanKnowledgeMapSchema.parse({
     version: 1,
-    scopeJudgment: parsed.data.scopeJudgment,
+    scopeJudgment: parsed.scopeJudgment,
     topics,
     curriculum: recognition.planCurriculum,
   });
@@ -323,13 +466,13 @@ Return exactly one materialAlignments row for every supplied material topic. Use
     map,
     stats: {
       elapsedMs: Date.now() - startedAt,
-      attempts: 1,
-      inputTokens: usage?.input_tokens ?? 0,
-      cachedInputTokens: usage?.input_tokens_details.cached_tokens ?? 0,
-      cacheWriteTokens: usage?.input_tokens_details.cache_write_tokens ?? 0,
-      outputTokens: usage?.output_tokens ?? 0,
-      firstAttemptPassed: true,
-      failedValidator: null,
+      attempts: generated.metrics.attempts,
+      inputTokens: generated.metrics.inputTokens,
+      cachedInputTokens: generated.metrics.cachedInputTokens,
+      cacheWriteTokens: generated.metrics.cacheWriteTokens,
+      outputTokens: generated.metrics.outputTokens,
+      firstAttemptPassed: generated.metrics.firstAttemptPassed,
+      failedValidator: generated.metrics.failedValidator,
       model,
       curriculumRecognized: true,
       curriculumId: definition.id,

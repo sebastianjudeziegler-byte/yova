@@ -1,0 +1,188 @@
+.practice {
+  width: 100%;
+  display: grid;
+  gap: 18px;
+}
+
+.workpad {
+  padding: 22px;
+  display: grid;
+  gap: 18px;
+  border: 1px solid var(--border, #e4e7ec);
+  border-radius: 16px;
+  background: var(--surface, #ffffff);
+}
+
+.workpad > header {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.workpad > header > span {
+  width: 36px;
+  height: 36px;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  color: var(--blue, #346bff);
+  border-radius: 10px;
+  background: var(--soft-blue, #eef3ff);
+}
+
+.workpad header p,
+.workpad header h2,
+.workpad header small,
+.boundary p,
+.checklist p {
+  margin: 0;
+}
+
+.workpad header p {
+  color: var(--blue, #346bff);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.workpad header h2 {
+  margin-top: 4px;
+  font-family: var(--font-sora), "Sora", sans-serif;
+  font-size: 18px;
+  line-height: 1.35;
+}
+
+.workpad header small,
+.sourceCheck small {
+  display: block;
+  margin-top: 5px;
+  color: var(--muted, #667085);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.sourceCheck,
+.checklist label {
+  min-height: 44px;
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  cursor: pointer;
+}
+
+.sourceCheck {
+  padding: 14px;
+  border: 1px solid #d9e2fb;
+  border-radius: 12px;
+  background: #f7f9ff;
+}
+
+.sourceCheck input,
+.checklist input {
+  width: 18px;
+  height: 18px;
+  margin: 2px 0 0;
+  flex: 0 0 auto;
+}
+
+.sourceCheck strong {
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.notes {
+  display: grid;
+  gap: 8px;
+}
+
+.notes > span,
+.checklist legend {
+  color: #344054;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.notes textarea {
+  width: 100%;
+  min-height: 160px;
+  padding: 14px;
+  resize: vertical;
+  color: var(--navy, #0b1020);
+  border: 1px solid var(--border, #e4e7ec);
+  border-radius: 12px;
+  background: #fbfcff;
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.notes textarea:focus-visible {
+  outline: 3px solid rgba(52, 107, 255, 0.18);
+  border-color: var(--blue, #346bff);
+}
+
+.checklist {
+  min-width: 0;
+  margin: 0;
+  padding: 16px;
+  border: 1px solid var(--border, #e4e7ec);
+  border-radius: 12px;
+}
+
+.checklist p {
+  margin-top: 7px;
+  color: var(--muted, #667085);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.checklist > div {
+  margin-top: 13px;
+  display: grid;
+  gap: 8px;
+}
+
+.checklist label {
+  padding: 10px;
+  border-radius: 9px;
+  background: #f8fafc;
+  color: #344054;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.boundary {
+  padding: 13px 14px;
+  display: flex;
+  gap: 9px;
+  align-items: flex-start;
+  color: #435170;
+  border-left: 3px solid var(--blue, #346bff);
+  border-radius: 0 9px 9px 0;
+  background: var(--soft-blue, #eef3ff);
+}
+
+.boundary svg {
+  flex: 0 0 auto;
+  margin-top: 1px;
+}
+
+.boundary p {
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.workpad > button {
+  justify-self: end;
+}
+
+@media (max-width: 640px) {
+  .workpad {
+    padding: 17px;
+  }
+
+  .workpad > button {
+    width: 100%;
+    justify-self: stretch;
+  }
+}

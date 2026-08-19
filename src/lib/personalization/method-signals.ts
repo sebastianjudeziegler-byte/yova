@@ -5,6 +5,7 @@ import type {
   SessionInterruption,
 } from "@/lib/domain";
 import type { LearningTaskType } from "@/lib/learning/method-catalog";
+import { completionCreatesTopicEvidence } from "@/lib/learning/session-completion-provenance";
 import {
   inferKnowledgeStage,
   inferLearningTaskType,
@@ -105,7 +106,7 @@ export function buildMethodSignals(
   }
 
   const grouped = new Map<string, Omit<MethodSignal, "label" | "status" | "summary" | "averageAccuracy" | "comparisonLabel">>();
-  for (const completion of completions) {
+  for (const completion of completions.filter(completionCreatesTopicEvidence)) {
     const source = sessionsById.get(completion.planSessionId);
     if (!source) continue;
     const { plan, session } = source;

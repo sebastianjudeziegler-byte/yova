@@ -256,28 +256,9 @@ export async function POST(request: Request) {
     let persistence: "browser" | "supabase" | "ephemeral" = parsed.data.persistenceMode === "ephemeral"
       ? "ephemeral"
       : "supabase";
-
-    if (parsed.data.persistenceMode === "thread") {
-      const { error: persistenceError } = await supabase.rpc("save_tutor_exchange", {
-        payload: {
-          threadId,
-          learningItemId,
-          title: parsed.data.question,
-          userMessageId,
-          userMessage: parsed.data.question,
-          assistantMessageId,
-          assistantMessage: generated.answer,
-          model: generated.model,
-          responseId: generated.responseId,
-        },
-      });
-      if (persistenceError) {
-        persistence = "browser";
-        console.error("YOVA tutor persistence failed", { requestId });
-      }
-    }
-
-    return NextResponse.json(TutorResponseSchema.parse({
+    // Validate the complete exchange before the persistence RPC commits it.
+    // Only the already-bounded persistence marker may change afterward.
+    let response = TutorResponseSchema.parse({
       threadId,
       messages: [
         {
@@ -298,7 +279,30 @@ export async function POST(request: Request) {
       model: generated.model,
       persistence,
       proposedAction,
-    }), {
+    });
+
+    if (parsed.data.persistenceMode === "thread") {
+      const { error: persistenceError } = await supabase.rpc("save_tutor_exchange", {
+        payload: {
+          threadId,
+          learningItemId,
+          title: parsed.data.question,
+          userMessageId,
+          userMessage: parsed.data.question,
+          assistantMessageId,
+          assistantMessage: generated.answer,
+          model: generated.model,
+          responseId: generated.responseId,
+        },
+      });
+      if (persistenceError) {
+        persistence = "browser";
+        console.error("YOVA tutor persistence failed", { requestId });
+        response = { ...response, persistence };
+      }
+    }
+
+    return NextResponse.json(response, {
       headers: {
         "Cache-Control": "no-store",
         "X-Yova-Request-Id": requestId,
@@ -514,7 +518,7 @@ function buildTutorProposedAction(
   if (!minuteMatch || !asksToChangeSession) return null;
 
   const minutes = Number(minuteMatch[1]);
-  if (!Number.isInteger(minutes) || minutes < 5 || minutes >= context.currentSession.estimatedMinutes) {
+  if (!Number.isInteger(minutes) || minutes < 10 || minutes >= context.currentSession.estimatedMinutes) {
     return null;
   }
 
@@ -525,7 +529,7 @@ function buildTutorProposedAction(
     planSessionId: context.currentSession.id,
     minutes,
     title: `Make “${context.currentSession.title}” ${minutes} minutes`,
-    explanation: "Only this unfinished session will change. YOVA will regenerate its activities to fit the shorter time when you start it.",
+    explanation: "YOVA will divide the plan's unfinished content into safe shorter windows. Completed work stays unchanged, and you will review the change before starting.",
   };
 }
 

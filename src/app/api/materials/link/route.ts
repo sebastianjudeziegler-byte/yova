@@ -86,6 +86,36 @@ export async function POST(request: Request) {
       importedAt: new Date().toISOString(),
       mappingStatus: "processing",
     };
+    // Validate and serialize the complete success payload before either
+    // Storage or Postgres is mutated. A redirect can change the canonical URL,
+    // so this boundary must cover the final URL rather than only the request.
+    const readyPayload = ExternalMaterialReadyResponseSchema.parse({
+      status: "ready",
+      source: { kind, title, url: canonicalUrl },
+      material: {
+        id: materialId,
+        name: filename,
+        mimeType: "text/plain",
+        sizeBytes: bytes.byteLength,
+        textContent: null,
+        processingStatus: "ready",
+      },
+      extraction: {
+        characters: text.length,
+        words: quality.wordCount,
+        pages: null,
+        truncated,
+        quality: quality.status,
+        notice: quality.notice,
+      },
+    });
+    const successResponse = new NextResponse(JSON.stringify(readyPayload), {
+      headers: {
+        "Cache-Control": "no-store",
+        "Content-Type": "application/json",
+        "X-Yova-Request-Id": requestId,
+      },
+    });
     const { error: storageError } = await supabase.storage
       .from("learning-materials")
       .upload(storagePath, bytes, { contentType: "text/plain", upsert: false });
@@ -107,40 +137,32 @@ export async function POST(request: Request) {
       throw new Error("External material record failed");
     }
 
-    after(async () => {
-      await mapAndPersistMaterial({
-        supabase,
-        materialId,
-        filename,
-        text,
-      }).catch((mappingError) => {
-        console.error("YOVA external material mapping failed", {
-          requestId,
-          reason: mappingError instanceof Error ? mappingError.name : "unknown",
+    try {
+      after(async () => {
+        await mapAndPersistMaterial({
+          supabase,
+          materialId,
+          filename,
+          text,
+        }).catch((mappingError) => {
+          console.error("YOVA external material mapping failed", {
+            requestId,
+            reason: mappingError instanceof Error ? mappingError.name : "unknown",
+          });
         });
       });
-    });
+    } catch (schedulingError) {
+      // Mapping is recoverable during plan generation. The material itself is
+      // already committed, so scheduling failure must not be reported as an
+      // import failure that encourages a duplicate retry.
+      console.error("YOVA external material mapping was not scheduled", {
+        requestId,
+        materialId,
+        reason: schedulingError instanceof Error ? schedulingError.name : "unknown",
+      });
+    }
 
-    return NextResponse.json(ExternalMaterialReadyResponseSchema.parse({
-      status: "ready",
-      source: { kind, title, url: canonicalUrl },
-      material: {
-        id: materialId,
-        name: filename,
-        mimeType: "text/plain",
-        sizeBytes: bytes.byteLength,
-        textContent: null,
-        processingStatus: "ready",
-      },
-      extraction: {
-        characters: text.length,
-        words: quality.wordCount,
-        pages: null,
-        truncated,
-        quality: quality.status,
-        notice: quality.notice,
-      },
-    }), { headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId } });
+    return successResponse;
   } catch (error) {
     console.error("YOVA external material import failed", { requestId, reason: error instanceof Error ? error.name : "unknown" });
     const expected = error instanceof ExternalSourceError;

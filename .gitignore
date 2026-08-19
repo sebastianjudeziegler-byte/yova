@@ -5,8 +5,10 @@ node_modules
 out
 supabase/.temp
 .env
-.env.local
+.env.*
 !.env.example
+.vercel/
+.claude/
 *.log
 *.swp
 *.tsbuildinfo

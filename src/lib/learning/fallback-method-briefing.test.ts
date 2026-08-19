@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { LearningPlan, LearningPlanSession } from "@/lib/domain";
-import { buildFallbackMethodBriefing } from "@/lib/learning/fallback-method-briefing";
+import {
+  buildFallbackMethodBriefing,
+  buildGenericInsideFallbackMethodBriefing,
+} from "@/lib/learning/fallback-method-briefing";
+import { buildSessionDeliveryPolicy } from "@/lib/personalization/session-delivery-policy";
 
 function makeSession(overrides: Partial<LearningPlanSession> = {}): LearningPlanSession {
   return {
@@ -53,6 +57,50 @@ describe("buildFallbackMethodBriefing", () => {
     expect(briefing.personalization.join(" ")).toContain("outside source remains the source of truth");
   });
 
+  it("keeps the learner's own-source boundary when delivery-policy reasons are present", () => {
+    const session = makeSession();
+    const deliveryPolicy = buildSessionDeliveryPolicy({
+      learnerProfile: {
+        processingPreference: "A concrete example before the rule",
+        memoryChallenge: "I forget it after a few days",
+        supportPreference: "Give me a hint before the answer",
+      },
+      recentResults: [],
+      recentInterruptions: [],
+      learningMode: session.learningMode,
+      estimatedMinutes: session.estimatedMinutes,
+    });
+
+    const briefing = buildFallbackMethodBriefing(makePlan(session), session, deliveryPolicy);
+
+    expect(briefing.personalization).toHaveLength(3);
+    expect(briefing.personalization[0]).toBe(
+      "Your outside source remains the source of truth; YOVA provides the sequence and evidence check.",
+    );
+    expect(briefing.personalization.slice(1)).toEqual(deliveryPolicy.learnerFacingReasons.slice(0, 2));
+  });
+
+  it("deduplicates personalization before applying the three-reason bound", () => {
+    const session = makeSession();
+    const deliveryPolicy = buildSessionDeliveryPolicy({
+      learnerProfile: { processingPreference: "A concrete example before the rule" },
+      recentResults: [],
+      recentInterruptions: [],
+      learningMode: session.learningMode,
+      estimatedMinutes: session.estimatedMinutes,
+    });
+    const repeatedReason = deliveryPolicy.learnerFacingReasons[0];
+
+    const briefing = buildFallbackMethodBriefing(makePlan(session), session, {
+      ...deliveryPolicy,
+      learnerFacingReasons: [repeatedReason, `  ${repeatedReason}  `],
+    });
+
+    expect(briefing.personalization).toHaveLength(3);
+    expect(briefing.personalization.filter((reason) => reason === repeatedReason)).toHaveLength(1);
+    expect(new Set(briefing.personalization.map((reason) => reason.toLocaleLowerCase())).size).toBe(3);
+  });
+
   it("replaces a mismatched free-text method with the task-appropriate default", () => {
     const session = makeSession({
       title: "Solve derivative problems",
@@ -92,6 +140,8 @@ describe("buildFallbackMethodBriefing", () => {
 
     expect(briefing.taskType).toBe("conceptual_learning");
     expect(briefing.methodId).toBe("self_explanation");
+    expect(briefing.why).not.toContain("stale method");
+    expect(briefing.why).toBe("Connecting steps, causes, and prior knowledge can expose shallow understanding and build a more useful mental model.");
   });
 
   it("replaces a review method when a conceptual session must teach first", () => {
@@ -115,5 +165,53 @@ describe("buildFallbackMethodBriefing", () => {
     expect(briefing.taskType).toBe("conceptual_learning");
     expect(briefing.methodId).toBe("self_explanation");
     expect(briefing.name).toBe("Self-explanation");
+  });
+
+  it("does not start a learn-mode mixed assessment with a practice test", () => {
+    const session = makeSession({
+      title: "Build the ideas before the mixed exam",
+      objective: "Learn the unfamiliar ideas that appear across the cumulative exam.",
+      method: "Practice test and error repair",
+      methodReason: "The original plan named an unsupported assessment.",
+      learningMode: "learn",
+    });
+    const plan = makePlan(session, {
+      title: "Cumulative exam",
+      topic: "Learn unfamiliar material for a cumulative exam",
+      kind: "test",
+      studyMode: "outside_yova",
+      learningIntent: "learn",
+    });
+
+    const briefing = buildFallbackMethodBriefing(plan, session);
+
+    expect(briefing.taskType).toBe("mixed_assessment");
+    expect(briefing.methodId).toBe("self_explanation");
+    expect(briefing.how[0]).toBe("Study one concise explanation or example.");
+    expect(briefing.why).not.toContain("unsupported assessment");
+  });
+
+  it("describes the generic inside fallback without claiming subject teaching", () => {
+    const session = makeSession({
+      title: "Trace how ocean currents move heat",
+      objective: "Explain how ocean currents redistribute heat around Earth.",
+      method: "Self-explanation",
+      methodReason: "Build an accurate subject model before explaining it.",
+      learningMode: "learn",
+      completionEvidence: ["Apply one current mechanism to a concrete change"],
+    });
+    const plan = makePlan(session, {
+      title: "Ocean currents",
+      topic: "How ocean currents redistribute heat",
+      studyMode: "inside_yova",
+    });
+
+    const briefing = buildGenericInsideFallbackMethodBriefing(plan, session);
+
+    expect(briefing.name).toBe("Objective check and application");
+    expect(briefing.why).toContain("does not invent a subject answer");
+    expect(briefing.what).toContain("saved target criteria");
+    expect(briefing.completion).toBe("Apply one current mechanism to a concrete change");
+    expect(briefing.personalization.join(" ")).not.toContain("provides the content sequence");
   });
 });

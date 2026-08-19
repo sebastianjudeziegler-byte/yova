@@ -91,6 +91,60 @@ describe("plan knowledge-map generation", () => {
     expect(parseResponse.mock.calls[0]?.[0]?.input).toContain("Include the chain rule prerequisite");
   });
 
+  it("regenerates a long-goal scope label that ends on a dangling word", async () => {
+    const outputForLabel = (label: string) => ({
+      scopeJudgment: {
+        band: "unit_or_exam",
+        label,
+        minimumSessions: 4,
+        recommendedSessions: 6,
+        maximumSessions: 8,
+        minimumTeachingSessions: 4,
+        explanation: "The learner needs several connected derivative rules and enough practice to prepare for a unit test.",
+      },
+      topics: [{
+        title: "Derivative rule selection",
+        description: "Select and apply the appropriate derivative rule for each expression.",
+        subtopics: ["Product rule", "Chain rule", "Implicit differentiation"],
+        prerequisiteTopicIndexes: [],
+        sourceMaterialTopicIds: [],
+      }],
+    });
+    parseResponse
+      .mockResolvedValueOnce(response(outputForLabel(
+        "Calc Unit 3 test on derivative basics, product rule, chain rule, and implicit on",
+      )))
+      .mockResolvedValueOnce(response({ label: "Derivative rules for Calc Unit 3" }));
+    const { generatePlanKnowledgeMap } = await import("@/lib/knowledge-map/generate-plan-map");
+    const longGoalRequest = PlanGenerationRequestSchema.parse({
+      ...baseRequest,
+      goal: "Calc Unit 3 test: derivative basics, product rule, chain rule, and implicit differentiation",
+    });
+
+    const result = await generatePlanKnowledgeMap(longGoalRequest);
+
+    expect(result.map.scopeJudgment.label).toBe("Derivative rules for Calc Unit 3");
+    expect(parseResponse).toHaveBeenCalledTimes(2);
+    expect(parseResponse.mock.calls.map((call) => call[1]?.timeout)).toEqual([35_000, 10_000]);
+    expect(parseResponse.mock.calls[0]?.[0]?.instructions).toContain("Aim for 3-8 words");
+    expect(parseResponse.mock.calls[1]?.[0]?.instructions).toContain("REPAIR ATTEMPT");
+    expect(parseResponse.mock.calls[1]?.[0]?.max_output_tokens).toBe(200);
+    expect(parseResponse.mock.calls[1]?.[0]?.input).toContain("implicit on");
+    expect(result.stats).toMatchObject({
+      attempts: 2,
+      firstAttemptPassed: false,
+      failedValidator: "knowledge_map_structure",
+    });
+
+    const providerSchema = parseResponse.mock.calls[1]?.[0]?.text?.format?.schema as {
+      properties?: { label?: { pattern?: string } };
+    };
+    const labelPattern = providerSchema.properties?.label?.pattern;
+    expect(labelPattern).toEqual(expect.any(String));
+    expect(new RegExp(labelPattern!).test("Derivative rules AND")).toBe(false);
+    expect(new RegExp(labelPattern!).test("Derivative rules for Calc Unit 3")).toBe(true);
+  });
+
   it("rejects a map that silently drops an uploaded material topic", async () => {
     const materialTopicId = "22222222-2222-4222-8222-222222222222";
     const materialRequest = PlanGenerationRequestSchema.parse({
