@@ -8,7 +8,7 @@ type SystemStateScreenProps = {
   eyebrow: string;
   title: string;
   description: string;
-  documentTitle: string;
+  documentTitle?: string;
   reload?: boolean;
   retry?: () => void;
   reference?: string;
@@ -65,7 +65,7 @@ export function SystemStateScreen({
 
   return (
     <main className={styles.shell}>
-      <title>{documentTitle}</title>
+      {documentTitle && <title>{documentTitle}</title>}
       <section className={styles.card} aria-labelledby="system-state-title">
         <YovaSystemMark />
         <StatusIcon isError={isError} />

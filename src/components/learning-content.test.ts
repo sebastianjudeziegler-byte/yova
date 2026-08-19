@@ -1,7 +1,15 @@
+import { readFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { LearningContent } from "@/components/learning-content";
+
+const require = createRequire(import.meta.url);
+const katexStylesheet = readFileSync(
+  require.resolve("katex/dist/katex.min.css"),
+  "utf8",
+);
 
 describe("LearningContent", () => {
   it("renders model-style math delimiters as accessible KaTeX", () => {
@@ -13,6 +21,22 @@ describe("LearningContent", () => {
     expect(html).toContain("math");
     expect(html).not.toContain("\\(");
     expect(html).not.toContain("\\[");
+  });
+
+  it("uses the overlap class supported by the imported KaTeX stylesheet", () => {
+    const html = renderToStaticMarkup(createElement(LearningContent, {
+      content: String.raw`$\frac{d}{dx}[f(x)g(x)] \ne f'(x)g'(x)$`,
+    }));
+    const emittedOverlapClass = html.match(
+      /class="rlap">[\s\S]*?class="strut"[^>]*><\/span><span class="([^"]+)">/,
+    )?.[1];
+    const styledOverlapClass = katexStylesheet.match(
+      /\.katex\s+\.rlap\s*>\s*\.([a-z-]+)\s*\{\s*position:\s*absolute/,
+    )?.[1];
+
+    expect(emittedOverlapClass).toBeTruthy();
+    expect(styledOverlapClass).toBeTruthy();
+    expect(emittedOverlapClass).toBe(styledOverlapClass);
   });
 
   it("keeps currency readable instead of treating two amounts as one equation", () => {

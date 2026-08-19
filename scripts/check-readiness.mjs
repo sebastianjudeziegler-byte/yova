@@ -120,10 +120,14 @@ if (production) {
   );
   addCheck(
     "Public site origin",
-    isHttpUrl(publicOrigin, true) && !publicOrigin.includes("localhost"),
-    publicOrigin
-      ? "configured with a public HTTPS origin"
-      : "set SITE_URL or deploy through Vercel",
+    Boolean(siteUrl) && isHttpUrl(publicOrigin, true) && !publicOrigin.includes("localhost"),
+    siteUrl
+      ? isHttpUrl(publicOrigin, true) && !publicOrigin.includes("localhost")
+        ? "SITE_URL is configured with a public HTTPS origin"
+        : "SITE_URL must be a public HTTPS origin and cannot use localhost"
+      : vercelUrl
+        ? "missing SITE_URL; a Vercel deploy URL is only a preview fallback, not the production canonical"
+        : "missing SITE_URL; production requires the customer-facing HTTPS origin",
   );
 } else {
   addCheck(
