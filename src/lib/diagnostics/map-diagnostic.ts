@@ -5,13 +5,18 @@ import type { GenerationValidator } from "@/lib/analytics/generation-observation
 import type { PlanKnowledgeMap } from "@/lib/knowledge-map/schema";
 import { getOpenAIClient } from "@/lib/openai/client";
 import { getOpenAIKnowledgeMapConfig } from "@/lib/openai/config";
-import { PlanDiagnosticQuestionSchema, type PlanDiagnosticQuestion } from "@/lib/plan-generation/schema";
+import {
+  DIAGNOSTIC_OPTION_MAX_LENGTH,
+  DIAGNOSTIC_QUESTION_MAX_LENGTH,
+  PlanDiagnosticQuestionSchema,
+  type PlanDiagnosticQuestion,
+} from "@/lib/plan-generation/schema";
 
 const DiagnosticOutputSchema = z.object({
   questions: z.array(z.object({
     topicAlias: z.string().trim().min(1).max(40),
-    prompt: z.string().trim().min(12).max(500),
-    options: z.array(z.string().trim().min(1).max(180)).length(4),
+    prompt: z.string().trim().min(12).max(DIAGNOSTIC_QUESTION_MAX_LENGTH),
+    options: z.array(z.string().trim().min(1).max(DIAGNOSTIC_OPTION_MAX_LENGTH)).length(4),
     correctChoiceIndex: z.number().int().min(0).max(2),
   })).max(8),
 });

@@ -24,6 +24,7 @@ import { MaterialLinkImporter } from "@/components/material-link-importer";
 import { PlanGenerationNotice } from "@/components/plan-generation-notice";
 import { makeId, type LearningMaterial, type LearningPlan } from "@/lib/domain";
 import { deleteUploadedMaterial, uploadMaterialFiles } from "@/lib/materials/intake";
+import { userFacingErrorMessage } from "@/lib/errors/user-facing-message";
 import { reportProductError } from "@/lib/monitoring/client";
 import {
   PlanDiagnosticPreparationResponseSchema,
@@ -192,7 +193,7 @@ export function PlanCreator({ onExit, onFinish, profileSummary, browserPreviewMo
     } catch (error) {
       setDiagnosticQuestions([]);
       setDiagnosticMap(null);
-      setDiagnosticError(error instanceof Error ? error.message : "YOVA could not prepare the placement check.");
+      setDiagnosticError(userFacingErrorMessage(error, "YOVA could not prepare the placement check."));
     } finally {
       setStep("diagnostic");
     }
@@ -271,7 +272,7 @@ export function PlanCreator({ onExit, onFinish, profileSummary, browserPreviewMo
         setStep("result");
         return;
       }
-      setGenerationError(error instanceof Error ? error.message : "YOVA could not build this plan yet.");
+      setGenerationError(userFacingErrorMessage(error, "YOVA could not build this plan yet."));
       setStep("error");
     }
   };
@@ -302,7 +303,7 @@ export function PlanCreator({ onExit, onFinish, profileSummary, browserPreviewMo
       await deleteUploadedMaterial(id);
       setMaterials((current) => current.filter((material) => material.id !== id));
     } catch (error) {
-      setMaterialError(error instanceof Error ? error.message : "YOVA could not remove this material.");
+      setMaterialError(userFacingErrorMessage(error, "YOVA could not remove this material."));
     } finally {
       setRemovingMaterialId(null);
     }
@@ -348,7 +349,7 @@ export function PlanCreator({ onExit, onFinish, profileSummary, browserPreviewMo
       setDiagnosticMap(parsed.data.plan.knowledgeMap);
       setMapCorrection("");
     } catch (error) {
-      setMapCorrectionError(error instanceof Error ? error.message : "YOVA could not update this topic map yet.");
+      setMapCorrectionError(userFacingErrorMessage(error, "YOVA could not update this topic map yet."));
     } finally {
       setMapUpdating(false);
     }
@@ -426,7 +427,7 @@ export function PlanCreator({ onExit, onFinish, profileSummary, browserPreviewMo
         errorCode: "plan_activation_failed",
         requestId,
       });
-      setActivationError(error instanceof Error ? error.message : "YOVA could not activate this plan yet.");
+      setActivationError(userFacingErrorMessage(error, "YOVA could not activate this plan yet."));
     } finally {
       setActivating(false);
     }
