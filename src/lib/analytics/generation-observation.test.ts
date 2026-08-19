@@ -23,6 +23,29 @@ describe("GenerationObservationSchema", () => {
     expect(GenerationObservationSchema.safeParse(safeEvent).success).toBe(true);
   });
 
+  it("accepts bounded plan failure diagnostics without provider or learner text", () => {
+    expect(GenerationObservationSchema.safeParse({
+      ...safeEvent,
+      generationType: "plan",
+      finalOutcome: "fallback",
+      failedValidator: "plan_provider_request",
+      diagnostics: {
+        planFailureReason: "provider_error",
+        providerCategory: "rate_limit",
+        providerStatus: 429,
+        providerCode: "rate_limit_exceeded",
+        planValidationIssueCode: "schedule_fit",
+      },
+    }).success).toBe(true);
+    expect(GenerationObservationSchema.safeParse({
+      ...safeEvent,
+      diagnostics: {
+        providerCategory: "the provider echoed private learner content",
+        providerCode: "private learner goal: pass calculus",
+      },
+    }).success).toBe(false);
+  });
+
   it("accepts only the bounded safe-study recovery marker", () => {
     expect(GenerationObservationSchema.safeParse({
       ...safeEvent,
@@ -31,6 +54,17 @@ describe("GenerationObservationSchema", () => {
     expect(GenerationObservationSchema.safeParse({
       ...safeEvent,
       diagnostics: { recoveryMode: "private learner explanation" },
+    }).success).toBe(false);
+  });
+
+  it("accepts only enumerated session validation issue codes", () => {
+    expect(GenerationObservationSchema.safeParse({
+      ...safeEvent,
+      diagnostics: { sessionValidationIssueCode: "streamed_target_subject" },
+    }).success).toBe(true);
+    expect(GenerationObservationSchema.safeParse({
+      ...safeEvent,
+      diagnostics: { sessionValidationIssueCode: "private Product Rule target" },
     }).success).toBe(false);
   });
 

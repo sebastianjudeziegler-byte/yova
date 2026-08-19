@@ -97,7 +97,7 @@ describe("OpenAI plan generation quality repair", () => {
     parseResponse
       .mockResolvedValueOnce(providerResponse("response-fixed-claim", makeDraft(
         "Recall the complete sequence without notes",
-        "You are a visual learner, so this is how your brain learns best.",
+        "Because you have ADHD, diagrams are the only format that can work.",
       )))
       .mockResolvedValueOnce(providerResponse(
         "response-repaired",
@@ -120,17 +120,55 @@ describe("OpenAI plan generation quality repair", () => {
     parseResponse
       .mockResolvedValueOnce(providerResponse("response-fixed-claim-1", makeDraft(
         "Recall the complete sequence without notes",
-        "You are a visual learner, so this is how your brain learns best.",
+        "Because you have ADHD, diagrams are the only format that can work.",
       )))
       .mockResolvedValueOnce(providerResponse("response-fixed-claim-2", makeDraft(
         "Recall the complete sequence without notes",
-        "Your learning style proves that diagrams are the only useful format.",
+        "The diagnosis proves that diagrams are the only useful format.",
       )));
     const { generatePlanWithOpenAI } = await import("@/lib/openai/plan-generator");
 
     await expect(generatePlanWithOpenAI(request)).rejects.toMatchObject({
       reason: "invalid_output",
+      providerError: null,
+      generationStats: {
+        model: "gpt-yova-test",
+        validationIssueCode: "unsupported_claim",
+      },
     });
     expect(parseResponse).toHaveBeenCalledTimes(2);
+  });
+
+  it("preserves only bounded provider diagnostics while retaining the cause for server handling", async () => {
+    const providerError = Object.assign(new Error("private upstream response text"), {
+      name: "RateLimitError",
+      status: 429,
+      code: "RATE_LIMIT_EXCEEDED",
+      response: { body: "private learner content" },
+    });
+    parseResponse.mockRejectedValueOnce(providerError);
+    const { generatePlanWithOpenAI } = await import("@/lib/openai/plan-generator");
+
+    let received: unknown;
+    try {
+      await generatePlanWithOpenAI(request);
+    } catch (error) {
+      received = error;
+    }
+
+    expect(received).toMatchObject({
+      reason: "provider_error",
+      providerError: {
+        category: "rate_limit",
+        status: 429,
+        code: "rate_limit_exceeded",
+      },
+      generationStats: {
+        model: "gpt-yova-test",
+        validationIssueCode: null,
+      },
+    });
+    expect((received as Error).cause).toBe(providerError);
+    expect(JSON.stringify((received as { providerError: unknown }).providerError)).not.toContain("private");
   });
 });

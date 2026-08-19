@@ -13,8 +13,10 @@ import { generateMapDiagnostic, MapDiagnosticGenerationError } from "@/lib/diagn
 import { mapAndPersistMaterial } from "@/lib/materials/material-understanding";
 import { resolveLearningIntent } from "@/lib/learning/learning-intent";
 import { generatePlanWithOpenAI, OpenAIPlanGenerationError } from "@/lib/openai/plan-generator";
+import { planFailureDiagnostics } from "@/lib/openai/plan-failure-observation";
 import { materializePlanDraft } from "@/lib/plan-generation/materialize-plan";
 import { generatePreviewPlan } from "@/lib/plan-generation/preview-generator";
+import { LIVE_AI_PLAN_FALLBACK_NOTICE } from "@/lib/plan-generation/fallback";
 import { inferPlanScopeContract } from "@/lib/plan-generation/scope-contract";
 import {
   PlanGenerationRequestSchema,
@@ -281,7 +283,7 @@ export async function POST(request: Request) {
         planRequest,
         requestId,
         startedAt,
-        "YOVA used its reliable planning engine because live AI planning was temporarily busy. Review the draft before saving it; the guided sessions will still teach and check the exact topic.",
+        "Live AI planning is temporarily busy, so YOVA created a basic fallback draft from your saved inputs. Retry live planning, or review this fallback carefully before saving it.",
         supabase,
         user?.id,
       );
@@ -296,7 +298,7 @@ export async function POST(request: Request) {
           planRequest,
           requestId,
           startedAt,
-          "YOVA used its reliable planning engine because live AI planning was temporarily unavailable. Review the draft before saving it; the guided sessions will still teach and check the exact topic.",
+          "Live AI planning is temporarily unavailable, so YOVA created a basic fallback draft from your saved inputs. Retry live planning, or review this fallback carefully before saving it.",
           supabase,
           user?.id,
         );
@@ -306,7 +308,7 @@ export async function POST(request: Request) {
           planRequest,
           requestId,
           startedAt,
-          "YOVA used its reliable planning engine because this account's live AI planning allowance is currently unavailable. Review the draft before saving it; the guided sessions will still teach and check the exact topic.",
+          "Live AI planning is unavailable for this account right now, so YOVA created a basic fallback draft from your saved inputs. Retry later, or review this fallback carefully before saving it.",
           supabase,
           user?.id,
         );
@@ -354,16 +356,28 @@ export async function POST(request: Request) {
         },
       });
     } catch (error) {
-      const reason = error instanceof OpenAIPlanGenerationError ? error.reason : "provider_error";
-      console.error("YOVA plan generation failed", { requestId, reason });
+      const failure = error instanceof OpenAIPlanGenerationError ? error : null;
+      console.error("YOVA plan generation failed", failure ? {
+        requestId,
+        reason: failure.reason,
+        model: failure.generationStats.model,
+        elapsedMs: failure.generationStats.elapsedMs,
+        attempts: failure.generationStats.attempts,
+        failedValidator: failure.generationStats.failedValidator,
+        ...planFailureDiagnostics(failure),
+      } : {
+        requestId,
+        reason: "provider_error",
+        providerCategory: "unknown",
+      });
       return reliableDraftResponse(
         planRequest,
         requestId,
         startedAt,
-        "YOVA used its reliable planning engine for this first draft. Review the plan before saving it; each guided session will still create teaching and practice for the exact topic.",
+        LIVE_AI_PLAN_FALLBACK_NOTICE,
         supabase,
         user?.id,
-        error instanceof OpenAIPlanGenerationError ? error.generationStats : undefined,
+        failure ?? undefined,
       );
     }
   }
@@ -453,7 +467,7 @@ async function reliableDraftResponse(
   notice: string,
   supabase: Parameters<typeof recordGenerationObservation>[0],
   userId: string | null | undefined,
-  failedStats?: OpenAIPlanGenerationError["generationStats"],
+  failure?: OpenAIPlanGenerationError,
 ) {
   const reliablePlan = generatePreviewPlan(planRequest);
   const response = PlanGenerationResponseSchema.parse({
@@ -468,6 +482,7 @@ async function reliableDraftResponse(
     },
   });
 
+  const failedStats = failure?.generationStats;
   await recordGenerationObservation(supabase, userId, failedStats ? {
     generationType: "plan",
     environment: generationEnvironment(),
@@ -482,7 +497,11 @@ async function reliableDraftResponse(
     cachedInputTokens: failedStats.cachedInputTokens,
     cacheWriteTokens: failedStats.cacheWriteTokens,
     outputTokens: failedStats.outputTokens,
-    model: null,
+    model: failedStats.model,
+    diagnostics: {
+      scopeBand: planRequest.knowledgeMap?.scopeJudgment.band,
+      ...planFailureDiagnostics(failure),
+    },
   } : {
     ...emptyPlanObservation(Date.now() - startedAt),
     generationType: "plan",

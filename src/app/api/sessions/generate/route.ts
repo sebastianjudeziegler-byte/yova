@@ -809,6 +809,12 @@ function observationFromSessionStats(
   model: string | null,
   finalOutcome: "success" | "failure",
 ) {
+  const diagnostics = {
+    ...(stats.recoveryMode ? { recoveryMode: stats.recoveryMode } : {}),
+    ...(stats.validationIssueCode
+      ? { sessionValidationIssueCode: stats.validationIssueCode }
+      : {}),
+  };
   return {
     generationType: "session" as const,
     environment: generationEnvironment(),
@@ -824,7 +830,7 @@ function observationFromSessionStats(
     cacheWriteTokens: stats.cacheWriteTokens,
     outputTokens: stats.outputTokens,
     model,
-    ...(stats.recoveryMode ? { diagnostics: { recoveryMode: stats.recoveryMode } } : {}),
+    ...(Object.keys(diagnostics).length > 0 ? { diagnostics } : {}),
   };
 }
 
@@ -843,6 +849,7 @@ function logSuccessfulGeneration(
     repairAttempted: stats.repairAttempted,
     repairReason: stats.repairReason,
     recoveryMode: stats.recoveryMode ?? "none",
+    validationIssueCode: stats.validationIssueCode ?? "none",
     ...(process.env.NODE_ENV === "development" ? { repairDetail: stats.repairDetail } : {}),
     inputTokens: stats.inputTokens,
     cachedInputTokens: stats.cachedInputTokens,

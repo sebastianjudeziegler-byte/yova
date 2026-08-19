@@ -85,7 +85,20 @@ function normalizeTentativePreferenceLanguage(
     .replace(/\byou learn best by\b/gi, "you currently prefer")
     .replace(/\byou learn best with\b/gi, "you currently prefer")
     .replace(/\bthe learner learns best by\b/gi, "the learner currently prefers")
-    .replace(/\bthe learner learns best with\b/gi, "the learner currently prefers");
+    .replace(/\bthe learner learns best with\b/gi, "the learner currently prefers")
+    .replace(/\blearns best\b/gi, "currently prefers learning")
+    .replace(/\blearn best\b/gi, "currently prefer learning")
+    // A provider can occasionally turn a tentative presentation preference
+    // into a fixed "learning style" label even though the prompt forbids it.
+    // These phrases carry no useful instructional information beyond the
+    // preference, so normalize them deterministically before the strict gate.
+    // Diagnosis claims remain untouched and therefore still fail closed.
+    .replace(/\b(?:the learner's|your) learning style\b/gi, "the current study preference")
+    .replace(/\blearning style\b/gi, "current study preference")
+    .replace(/\bvisual learner\b/gi, "learner who currently prefers visual examples")
+    .replace(/\bauditory learner\b/gi, "learner who currently prefers spoken explanations")
+    .replace(/\bkinesthetic learner\b/gi, "learner who currently prefers hands-on examples")
+    .replace(/\bbrain type\b/gi, "current study preference");
 
   return {
     ...draft,

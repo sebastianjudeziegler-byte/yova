@@ -288,6 +288,7 @@ export async function generateStreamedTeachingSkeletonWithOpenAI(
   let lastFailureReason = "The session skeleton was invalid.";
   let lastFailedValidator: SessionGenerationStats["failedValidator"] = "session_structure";
   let previousFailedValidator: SessionGenerationStats["failedValidator"] = null;
+  let lastValidationIssueCode: SessionGenerationStats["validationIssueCode"] = null;
 
   for (let attempt = 0; attempt < STREAMED_SKELETON_MAX_ATTEMPTS; attempt += 1) {
     const requestTimeoutMs = streamedSkeletonRequestTimeoutMs({
@@ -353,6 +354,7 @@ export async function generateStreamedTeachingSkeletonWithOpenAI(
         repairDetail = `The structured skeleton did not match the required schema: ${error.message.slice(0, 700)}`;
         lastFailureReason = repairDetail;
         lastFailedValidator = "session_structure";
+        lastValidationIssueCode = null;
         previousFailedValidator = lastFailedValidator;
         continue;
       }
@@ -360,6 +362,7 @@ export async function generateStreamedTeachingSkeletonWithOpenAI(
       repairDetail = `The lesson-structure request failed before YOVA received a usable response (${providerErrorName}).`;
       lastFailureReason = repairDetail;
       lastFailedValidator = "session_provider_request";
+      lastValidationIssueCode = null;
       previousFailedValidator = lastFailedValidator;
       if (attempt === 0 && isRetryableStreamedProviderError(error)) continue;
       throw new SessionGenerationFailure(
@@ -370,6 +373,7 @@ export async function generateStreamedTeachingSkeletonWithOpenAI(
           firstAttemptPassed: false,
           repairDetail,
           failedValidator: lastFailedValidator,
+          validationIssueCode: lastValidationIssueCode,
           succeeded: false,
         }),
       );
@@ -393,6 +397,7 @@ export async function generateStreamedTeachingSkeletonWithOpenAI(
       lastFailedValidator = response.status !== "completed"
         ? "session_response_status"
         : "session_structure";
+      lastValidationIssueCode = null;
       previousFailedValidator = lastFailedValidator;
       continue;
     }
@@ -432,6 +437,7 @@ export async function generateStreamedTeachingSkeletonWithOpenAI(
         repairDetail = error.message;
         lastFailureReason = repairDetail;
         lastFailedValidator = "streamed_lesson_scope";
+        lastValidationIssueCode = error.code;
         previousFailedValidator = lastFailedValidator;
         continue;
       }
@@ -442,6 +448,7 @@ export async function generateStreamedTeachingSkeletonWithOpenAI(
       repairDetail = `The skeleton could not be finalized because its knowledge-check structure was incomplete (multiple choice: ${rawMultipleChoice}, typed response: ${rawFreeResponse}). ${error.message.slice(0, 500)}`;
       lastFailureReason = repairDetail;
       lastFailedValidator = "session_structure";
+      lastValidationIssueCode = null;
       previousFailedValidator = lastFailedValidator;
       continue;
     }
@@ -450,6 +457,7 @@ export async function generateStreamedTeachingSkeletonWithOpenAI(
       repairDetail = `The skeleton failed structural validation: ${validated.error.issues[0]?.message ?? "unknown failure"}.`;
       lastFailureReason = repairDetail;
       lastFailedValidator = "session_structure";
+      lastValidationIssueCode = null;
       previousFailedValidator = lastFailedValidator;
       continue;
     }
@@ -467,6 +475,9 @@ export async function generateStreamedTeachingSkeletonWithOpenAI(
       repairDetail = semanticIssue.detail;
       lastFailureReason = semanticIssue.detail;
       lastFailedValidator = semanticIssue.failedValidator;
+      lastValidationIssueCode = semanticIssue.failedValidator === "streamed_lesson_scope"
+        ? "streamed_scope_other"
+        : null;
       previousFailedValidator = lastFailedValidator;
       continue;
     }
@@ -493,6 +504,7 @@ export async function generateStreamedTeachingSkeletonWithOpenAI(
         firstAttemptPassed,
         repairDetail,
         failedValidator: lastFailedValidator,
+        validationIssueCode: lastValidationIssueCode,
         succeeded: true,
       }),
     };
@@ -506,6 +518,7 @@ export async function generateStreamedTeachingSkeletonWithOpenAI(
       firstAttemptPassed: false,
       repairDetail,
       failedValidator: lastFailedValidator,
+      validationIssueCode: lastValidationIssueCode,
       succeeded: false,
     }),
   );
@@ -662,6 +675,7 @@ function finalizeStreamedSkeleton({
   ) {
     throw new CurrentSessionScopeError(
       `${currentSessionScopeForRepair(currentSessionScope)} Every retained explanatory claim needs enough teaching-block capacity.`,
+      "streamed_teaching_capacity",
     );
   }
   const resolvedAssignments = validateStreamedTargetAssignments({
@@ -733,7 +747,10 @@ export function buildStreamedCurrentSessionScope({
 }
 
 class CurrentSessionScopeError extends Error {
-  constructor(message: string) {
+  constructor(
+    message: string,
+    public readonly code: NonNullable<SessionGenerationStats["validationIssueCode"]>,
+  ) {
     super(message);
     this.name = "CurrentSessionScopeError";
   }
@@ -768,6 +785,7 @@ export function validateStreamedTargetAssignments({
   if (targetAssignments.length !== ideas.length) {
     throw new CurrentSessionScopeError(
       `${currentSessionScopeForRepair(currentSessionScope)} Every active explanatory claim needs exactly one stable target assignment.`,
+      "streamed_target_assignment_count",
     );
   }
 
@@ -780,16 +798,19 @@ export function validateStreamedTargetAssignments({
     if (!expectedIdeas.has(idea)) {
       throw new CurrentSessionScopeError(
         `${currentSessionScopeForRepair(currentSessionScope)} A target assignment did not copy an active explanatory claim exactly.`,
+        "streamed_target_assignment_copy",
       );
     }
     if (assignmentByIdea.has(idea)) {
       throw new CurrentSessionScopeError(
         `${currentSessionScopeForRepair(currentSessionScope)} An active explanatory claim has more than one target assignment.`,
+        "streamed_target_assignment_duplicate",
       );
     }
     if (!catalogById.has(assignment.targetId)) {
       throw new CurrentSessionScopeError(
         `${currentSessionScopeForRepair(currentSessionScope)} The target id ${assignment.targetId} is not active in this session.`,
+        "streamed_target_id_inactive",
       );
     }
     assignmentByIdea.set(idea, assignment);
@@ -801,12 +822,14 @@ export function validateStreamedTargetAssignments({
     if (!assignment) {
       throw new CurrentSessionScopeError(
         `${currentSessionScopeForRepair(currentSessionScope)} Every active explanatory claim needs exactly one stable target assignment.`,
+        "streamed_target_assignment_count",
       );
     }
     const targetEntry = catalogById.get(assignment.targetId)!;
     if (targetEntry.targetIndex < previousTargetIndex) {
       throw new CurrentSessionScopeError(
         `${currentSessionScopeForRepair(currentSessionScope)} Keep explanatory claims grouped in authoritative target order.`,
+        "streamed_target_order",
       );
     }
     previousTargetIndex = targetEntry.targetIndex;
@@ -815,6 +838,7 @@ export function validateStreamedTargetAssignments({
       if (!lessonIdeaSharesTargetSubject(idea, targetEntry.target)) {
         throw new CurrentSessionScopeError(
           `${currentSessionScopeForRepair(currentSessionScope)} The claim assigned to ${assignment.targetId} does not preserve that target's subject terms.`,
+          "streamed_target_subject",
         );
       }
       if (lessonIdeaContainsDeferredExclusiveTerms({
@@ -824,6 +848,7 @@ export function validateStreamedTargetAssignments({
       })) {
         throw new CurrentSessionScopeError(
           `${currentSessionScopeForRepair(currentSessionScope)} A target-assigned claim also contains deferred-session substance.`,
+          "streamed_deferred_content",
         );
       }
     }
@@ -836,6 +861,7 @@ export function validateStreamedTargetAssignments({
   if (missingTarget) {
     throw new CurrentSessionScopeError(
       `${currentSessionScopeForRepair(currentSessionScope)} The provider omitted ${missingTarget.targetId}; every active target must have a taught, checked claim.`,
+      "streamed_target_missing",
     );
   }
   return resolved;
@@ -1070,6 +1096,7 @@ export function scopeStreamedSkeletonToCurrentWindow({
   ) {
     throw new CurrentSessionScopeError(
       `${currentSessionScopeForRepair(currentSessionScope)} Every active target id needs a retained explanatory claim.`,
+      "streamed_target_missing",
     );
   }
   // Then use the remaining time-scaled slots for distinct subclaims. This is
@@ -1084,7 +1111,10 @@ export function scopeStreamedSkeletonToCurrentWindow({
   // repair attempt the exact active and deferred targets instead of allowing a
   // later survey to pass as today's shortened lesson.
   if (currentSessionScope.activeTargets.length > 0 && activeAssignments.length === 0) {
-    throw new CurrentSessionScopeError(currentSessionScopeForRepair(currentSessionScope));
+    throw new CurrentSessionScopeError(
+      currentSessionScopeForRepair(currentSessionScope),
+      "streamed_target_missing",
+    );
   }
   if (activeAssignments.length === 0) return draft;
 
@@ -1113,6 +1143,7 @@ export function scopeStreamedSkeletonToCurrentWindow({
       evidencedAssignments.length === 0
         ? `${currentSessionScopeForRepair(currentSessionScope)} The provider did not map any required knowledge check to an active essential idea.`
         : `${currentSessionScopeForRepair(currentSessionScope)} Every distinct active explanatory claim needs its own mapped required knowledge check.`,
+      "streamed_check_mapping",
     );
   }
 
@@ -1183,6 +1214,7 @@ export function scopeStreamedSkeletonToCurrentWindow({
   if (scopeLeak) {
     throw new CurrentSessionScopeError(
       `${currentSessionScopeForRepair(currentSessionScope)} Deferred content remained in ${scopeLeak}.`,
+      "streamed_deferred_content",
     );
   }
 
@@ -1878,6 +1910,7 @@ function generationStats({
   firstAttemptPassed,
   repairDetail,
   failedValidator,
+  validationIssueCode,
   succeeded,
 }: {
   startedAt: number;
@@ -1885,6 +1918,7 @@ function generationStats({
   firstAttemptPassed: boolean;
   repairDetail: string | null;
   failedValidator: SessionGenerationStats["failedValidator"];
+  validationIssueCode: SessionGenerationStats["validationIssueCode"];
   succeeded: boolean;
 }): SessionGenerationStats {
   const repaired = usage.attempts > 1 || (succeeded && Boolean(repairDetail));
@@ -1901,5 +1935,6 @@ function generationStats({
     cachedInputTokens: usage.cachedInputTokens,
     cacheWriteTokens: usage.cacheWriteTokens,
     outputTokens: usage.outputTokens,
+    validationIssueCode: repaired || !succeeded ? validationIssueCode : null,
   };
 }

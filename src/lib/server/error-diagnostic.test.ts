@@ -48,6 +48,7 @@ describe("privacySafeErrorDiagnostic", () => {
         failedValidator: "session_semantic_validation",
         repairReason: "semantic_validation",
         recoveryMode: "safe_study",
+        validationIssueCode: "streamed_target_subject",
         repairDetail: "The learner wrote a private answer here.",
       },
     });
@@ -61,8 +62,23 @@ describe("privacySafeErrorDiagnostic", () => {
       failedValidator: "session_semantic_validation",
       repairReason: "semantic_validation",
       recoveryMode: "safe_study",
+      validationIssueCode: "streamed_target_subject",
     });
     expect(JSON.stringify(diagnostic)).not.toContain("private answer");
+  });
+
+  it("drops a free-form validation issue instead of logging it", () => {
+    const error = new Error("private learner content");
+    Object.assign(error, {
+      generationStats: {
+        validationIssueCode: "The learner's private Product Rule target failed.",
+      },
+    });
+
+    const diagnostic = privacySafeErrorDiagnostic(error);
+
+    expect(diagnostic).toEqual({ reason: "Error", name: "Error" });
+    expect(JSON.stringify(diagnostic)).not.toContain("Product Rule");
   });
 
   it("classifies arbitrary thrown values without serializing them", () => {

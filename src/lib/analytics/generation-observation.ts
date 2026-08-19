@@ -4,6 +4,46 @@ import {
   CurriculumMatchConfidenceSchema,
   CurriculumMatchSourceSchema,
 } from "@/lib/curriculum/schema";
+import { PROVIDER_ERROR_CATEGORIES } from "@/lib/openai/provider-error";
+
+export const PLAN_FAILURE_REASONS = [
+  "refused",
+  "incomplete",
+  "invalid_output",
+  "provider_error",
+] as const;
+
+export const PLAN_QUALITY_ISSUE_CODES = [
+  "session_count",
+  "teaching_progression",
+  "objective_uniqueness",
+  "schedule_fit",
+  "session_content_budget",
+  "completion_evidence",
+  "method_routing",
+  "knowledge_map_coverage",
+  "placement_contract",
+  "unsupported_claim",
+  "interface_format",
+] as const;
+
+export type PlanQualityIssueCode = typeof PLAN_QUALITY_ISSUE_CODES[number];
+
+export const SESSION_VALIDATION_ISSUE_CODES = [
+  "streamed_target_assignment_count",
+  "streamed_target_assignment_copy",
+  "streamed_target_assignment_duplicate",
+  "streamed_target_id_inactive",
+  "streamed_target_order",
+  "streamed_target_subject",
+  "streamed_deferred_content",
+  "streamed_target_missing",
+  "streamed_teaching_capacity",
+  "streamed_check_mapping",
+  "streamed_scope_other",
+] as const;
+
+export type SessionValidationIssueCode = typeof SESSION_VALIDATION_ISSUE_CODES[number];
 
 export const GenerationValidatorSchema = z.enum([
   "plan_response_status",
@@ -98,6 +138,12 @@ export const GenerationObservationSchema = z.object({
     lessonAction: z.enum(["skip_to_practice"]).optional(),
     lessonRequestId: z.string().uuid().optional(),
     recoveryMode: z.enum(["safe_study"]).optional(),
+    planFailureReason: z.enum(PLAN_FAILURE_REASONS).optional(),
+    providerCategory: z.enum(PROVIDER_ERROR_CATEGORIES).optional(),
+    providerStatus: z.number().int().min(100).max(599).optional(),
+    providerCode: z.string().regex(/^[a-z0-9][a-z0-9_.-]{0,63}$/).optional(),
+    planValidationIssueCode: z.enum(PLAN_QUALITY_ISSUE_CODES).optional(),
+    sessionValidationIssueCode: z.enum(SESSION_VALIDATION_ISSUE_CODES).optional(),
   }).strict().optional(),
 }).strict();
 

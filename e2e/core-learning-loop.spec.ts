@@ -1030,7 +1030,10 @@ test("a planning request outage still produces a reviewable plan from YOVA's sav
   await page.getByRole("button", { name: "Generate my plan" }).click();
 
   await expect(page.getByText("Plan ready")).toBeVisible();
-  await expect(page.getByText(/reliable planning engine because the live planning request was interrupted/i)).toBeVisible();
+  const livePlanningIssue = page.locator(".generation-notice[role='alert']");
+  await expect(livePlanningIssue).toContainText("Live AI planning failed");
+  await expect(livePlanningIssue.getByRole("button", { name: "Retry live planning" })).toBeVisible();
+  await expect(livePlanningIssue).not.toContainText("reliable planning engine");
   await expect(page.getByRole("heading", { name: "Your information is safe." })).not.toBeVisible();
 });
 

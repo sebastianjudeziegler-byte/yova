@@ -1,5 +1,14 @@
 import { PlanGenerationRequestSchema, type PlanGenerationRequest } from "@/lib/plan-generation/schema";
 
+const CALCULUS_PLACEMENT_TOPIC_IDS = {
+  derivativeMeaning: "31000000-0000-4000-8000-000000000001",
+  basicRules: "31000000-0000-4000-8000-000000000002",
+  productRule: "31000000-0000-4000-8000-000000000003",
+  chainRule: "31000000-0000-4000-8000-000000000004",
+  implicitDifferentiation: "31000000-0000-4000-8000-000000000005",
+  mixedPractice: "31000000-0000-4000-8000-000000000006",
+} as const;
+
 export type PlanTaskFamily = "conceptual" | "problem_solving" | "writing" | "coding" | "general";
 
 export type PlanEvaluationCase = {
@@ -52,6 +61,28 @@ export function buildPlanEvaluationCases(now = new Date()): PlanEvaluationCase[]
       diagnosticAnswer: "I know the power rule but do not know when to use the product or quotient rule.",
       diagnosticEvaluation: "incorrect",
       profileSummary: "The learner prefers examples first, wants medium guidance, and is more consistent with 30-minute sessions than long study blocks.",
+    }),
+    evaluationCase({
+      id: "calculus_mixed_placement_25",
+      label: "Calculus unit with mixed placement evidence",
+      taskFamily: "problem_solving",
+      goal: "Prepare for a calculus unit test on derivative meaning, basic rules, product rule, chain rule, implicit differentiation, and mixed derivative problems.",
+      learningIntent: "study",
+      deadline: null,
+      materialMode: "none",
+      materials: [],
+      studyMode: "inside",
+      diagnosticAnswer: "I can use basic derivative rules, but I cannot yet apply the product rule, chain rule, or implicit differentiation accurately.",
+      diagnosticEvaluation: "incorrect",
+      profileSummary: "The learner wants worked examples for unfamiliar procedures, smaller repair steps after errors, and one visible step at a time.",
+      availability: [
+        { day: "Tuesday", window: "Evening", minutes: 25 },
+        { day: "Wednesday", window: "Evening", minutes: 25 },
+        { day: "Thursday", window: "Evening", minutes: 25 },
+        { day: "Saturday", window: "Evening", minutes: 25 },
+        { day: "Sunday", window: "Evening", minutes: 25 },
+      ],
+      knowledgeMap: calculusMixedPlacementKnowledgeMap(),
     }),
     evaluationCase({
       id: "product_rule_narrow_15",
@@ -207,6 +238,7 @@ function evaluationCase(input: {
   diagnosticEvaluation: "correct" | "incorrect" | "self_report";
   profileSummary: string;
   availability?: PlanGenerationRequest["availability"];
+  knowledgeMap?: PlanGenerationRequest["knowledgeMap"];
 }): PlanEvaluationCase {
   return {
     id: input.id,
@@ -232,6 +264,110 @@ function evaluationCase(input: {
         { day: "Saturday", window: "Morning", minutes: 40 },
       ],
       profileSummary: input.profileSummary,
+      knowledgeMap: input.knowledgeMap,
     }),
+  };
+}
+
+function calculusMixedPlacementKnowledgeMap(): NonNullable<PlanGenerationRequest["knowledgeMap"]> {
+  const observedAt = "2026-08-18T23:30:00.000Z";
+  const topic = ({
+    id,
+    title,
+    description,
+    outcome,
+    prerequisiteTopicIds = [],
+  }: {
+    id: string;
+    title: string;
+    description: string;
+    outcome: "demonstrated" | "gap";
+    prerequisiteTopicIds?: string[];
+  }) => ({
+    id,
+    title,
+    description,
+    subtopics: [],
+    prerequisiteTopicIds,
+    status: outcome === "demonstrated" ? "evidenced" as const : "not_started" as const,
+    initialEvidence: { source: "placement_check" as const, outcome, observedAt },
+    sourceReferences: [],
+    origin: "ai_generated" as const,
+    deferred: null,
+  });
+  const demonstratedTopicIds = [
+    CALCULUS_PLACEMENT_TOPIC_IDS.derivativeMeaning,
+    CALCULUS_PLACEMENT_TOPIC_IDS.basicRules,
+    CALCULUS_PLACEMENT_TOPIC_IDS.mixedPractice,
+  ];
+  const gapTopicIds = [
+    CALCULUS_PLACEMENT_TOPIC_IDS.productRule,
+    CALCULUS_PLACEMENT_TOPIC_IDS.chainRule,
+    CALCULUS_PLACEMENT_TOPIC_IDS.implicitDifferentiation,
+  ];
+  return {
+    version: 1,
+    scopeJudgment: {
+      band: "unit_or_exam",
+      label: "Unit or exam",
+      minimumSessions: 4,
+      recommendedSessions: 6,
+      maximumSessions: 9,
+      minimumTeachingSessions: 2,
+      explanation: "Three confirmed procedural gaps need teaching, followed by mixed retrieval and transfer across the derivative unit.",
+    },
+    topics: [
+      topic({
+        id: CALCULUS_PLACEMENT_TOPIC_IDS.derivativeMeaning,
+        title: "Derivative meaning and notation",
+        description: "Interpret derivative notation and connect a derivative to instantaneous rate of change.",
+        outcome: "demonstrated",
+      }),
+      topic({
+        id: CALCULUS_PLACEMENT_TOPIC_IDS.basicRules,
+        title: "Basic derivative rules",
+        description: "Apply power, constant, sum, and difference rules accurately.",
+        outcome: "demonstrated",
+        prerequisiteTopicIds: [CALCULUS_PLACEMENT_TOPIC_IDS.derivativeMeaning],
+      }),
+      topic({
+        id: CALCULUS_PLACEMENT_TOPIC_IDS.productRule,
+        title: "Product rule",
+        description: "Differentiate products of functions with the two-term product rule.",
+        outcome: "gap",
+        prerequisiteTopicIds: [CALCULUS_PLACEMENT_TOPIC_IDS.basicRules],
+      }),
+      topic({
+        id: CALCULUS_PLACEMENT_TOPIC_IDS.chainRule,
+        title: "Chain rule",
+        description: "Differentiate composite functions by linking outer and inner derivatives.",
+        outcome: "gap",
+        prerequisiteTopicIds: [CALCULUS_PLACEMENT_TOPIC_IDS.basicRules],
+      }),
+      topic({
+        id: CALCULUS_PLACEMENT_TOPIC_IDS.implicitDifferentiation,
+        title: "Implicit differentiation",
+        description: "Differentiate implicit equations and solve for the requested derivative.",
+        outcome: "gap",
+        prerequisiteTopicIds: [CALCULUS_PLACEMENT_TOPIC_IDS.chainRule],
+      }),
+      topic({
+        id: CALCULUS_PLACEMENT_TOPIC_IDS.mixedPractice,
+        title: "Mixed derivative test practice",
+        description: "Choose and apply the appropriate derivative rule across mixed problems.",
+        outcome: "demonstrated",
+        prerequisiteTopicIds: [
+          CALCULUS_PLACEMENT_TOPIC_IDS.productRule,
+          CALCULUS_PLACEMENT_TOPIC_IDS.chainRule,
+          CALCULUS_PLACEMENT_TOPIC_IDS.implicitDifferentiation,
+        ],
+      }),
+    ],
+    placementCheck: {
+      status: "completed",
+      completedAt: observedAt,
+      demonstratedTopicIds,
+      gapTopicIds,
+    },
   };
 }

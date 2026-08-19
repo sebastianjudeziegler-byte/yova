@@ -11,6 +11,7 @@ export type PrivacySafeErrorDiagnostic = {
   attempts?: number;
   repairReason?: string;
   recoveryMode?: string;
+  validationIssueCode?: string;
 };
 
 /**
@@ -63,11 +64,15 @@ function readGenerationDiagnostic(error: Error) {
     ? safeIdentifier(stats.repairReason)
     : undefined;
   const recoveryMode = stats.recoveryMode === "safe_study" ? stats.recoveryMode : undefined;
+  const validationIssueCode = typeof stats.validationIssueCode === "string"
+    ? safeIdentifier(stats.validationIssueCode)
+    : undefined;
   return {
     ...(failedValidator ? { failedValidator } : {}),
     ...(attempts === undefined ? {} : { attempts }),
     ...(repairReason ? { repairReason } : {}),
     ...(recoveryMode ? { recoveryMode } : {}),
+    ...(validationIssueCode ? { validationIssueCode } : {}),
   };
 }
 

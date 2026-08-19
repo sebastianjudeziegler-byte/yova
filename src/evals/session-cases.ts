@@ -4,6 +4,8 @@ import type { KnowledgeMapTopic } from "@/lib/knowledge-map/schema";
 const EVALUATION_TOPIC_ID = "11111111-1111-4111-8111-111111111111";
 const WWI_MAPPED_TOPIC_ID = "8ec325f4-0000-4000-8000-000000000001";
 const BIOENERGETICS_TOPIC_ID = "8ec325f4-0000-4000-8000-000000000002";
+const CALCULUS_PRODUCT_TOPIC_ID = "8ec325f4-0000-4000-8000-000000000003";
+const CALCULUS_CHAIN_TOPIC_ID = "8ec325f4-0000-4000-8000-000000000004";
 
 export type SessionTaskFamily = "conceptual" | "problem_solving" | "reading" | "writing" | "coding" | "language" | "general";
 
@@ -183,6 +185,93 @@ export function buildSessionEvaluationCases(): SessionEvaluationCase[] {
         recentResults: [],
         recentInterruptions: [],
         conceptSignals: [],
+      },
+    }),
+    evaluationCase({
+      id: "calculus_product_chain_streamed_25",
+      label: "Mapped product-rule and chain-rule first lesson",
+      taskFamily: "problem_solving",
+      expectedSourceTerms: [],
+      context: {
+        sessionArchitectureVersion: "streamed_teaching_v1",
+        learningGoal: {
+          title: "Calculus derivative unit",
+          topic: "Derivative basics, product rule, chain rule, and implicit differentiation",
+          kind: "test",
+          deadline: null,
+          sourceMode: "yova_generated",
+          studyMode: "inside_yova",
+          learningIntent: "study",
+        },
+        planRationale: "Teach the confirmed product-rule and chain-rule gaps before returning to mixed derivative practice.",
+        materials: [],
+        knowledgeTopics: [
+          {
+            id: CALCULUS_PRODUCT_TOPIC_ID,
+            title: "Product rule",
+            description: "Differentiate products of functions with the two-term product rule.",
+            subtopics: [],
+            prerequisiteTopicIds: [],
+            status: "not_started",
+            initialEvidence: {
+              source: "placement_check",
+              outcome: "gap",
+              observedAt: "2026-08-18T23:30:00.000Z",
+            },
+            sourceReferences: [],
+            origin: "ai_generated",
+            deferred: null,
+          },
+          {
+            id: CALCULUS_CHAIN_TOPIC_ID,
+            title: "Chain rule",
+            description: "Differentiate composite functions by linking outer and inner derivatives.",
+            subtopics: [],
+            prerequisiteTopicIds: [],
+            status: "not_started",
+            initialEvidence: {
+              source: "placement_check",
+              outcome: "gap",
+              observedAt: "2026-08-18T23:30:00.000Z",
+            },
+            sourceReferences: [],
+            origin: "ai_generated",
+            deferred: null,
+          },
+        ],
+        session: {
+          title: "Learn product rule and one connected topic",
+          objective: "Build an accurate first mental model of the product rule and chain rule, connect each to its prerequisites, then apply them with less support.",
+          method: "Closed-note retrieval",
+          methodReason: "A short model followed by guided practice makes each derivative procedure visible before support fades.",
+          estimatedMinutes: 25,
+          learningMode: "learn",
+          topicIds: [CALCULUS_PRODUCT_TOPIC_ID, CALCULUS_CHAIN_TOPIC_ID],
+          contentTargets: ["Product rule", "Chain rule"],
+          completionEvidence: [
+            "Explain when the product rule is required and apply it to one product",
+            "Explain how the chain rule follows a composite function and apply it once",
+          ],
+          reviewConcept: null,
+          reviewType: null,
+        },
+        learnerProfile: {
+          commonBlocker: null,
+          guidancePreference: null,
+          explanationPreference: "Start with the big picture before details",
+          focusFrequency: null,
+          startingPattern: null,
+          primaryImprovementGoal: null,
+          memoryChallenge: "I understand it initially but forget it after a few days",
+          supportPreference: "Break a stuck point into smaller steps",
+          workspacePreference: "Show one step at a time",
+        },
+        sessionAdjustment: null,
+        recentResults: [],
+        recentInterruptions: [],
+        conceptSignals: [],
+        scaffoldSignals: [],
+        topicCalibrationSignals: [],
       },
     }),
     evaluationCase({
