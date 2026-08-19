@@ -2143,9 +2143,12 @@ h1, h2, h3, p { margin-top: 0; }
 @keyframes planSpin { to { transform: rotate(360deg); } }
 .plan-result-shell { padding-bottom: 90px; background: var(--off-white); }
 .generated-plan { width: min(100%, 1040px); margin: 46px auto 0; }
-.generation-notice { margin: 16px 0 20px; padding: 13px 15px; display: flex; gap: 12px; align-items: baseline; border: 1px solid #dce4ff; border-radius: 11px; background: #f6f8ff; }
+.generation-notice { margin: 16px 0 20px; padding: 13px 15px; display: flex; gap: 12px; align-items: center; border: 1px solid #dce4ff; border-radius: 11px; background: #f6f8ff; }
 .generation-notice span { flex: 0 0 auto; color: var(--blue); font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
-.generation-notice p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.55; }
+.generation-notice p { flex: 1 1 auto; margin: 0; color: var(--muted); font-size: 12px; line-height: 1.55; }
+.generation-notice.failure { border-color: #f2c9c3; background: #fff8f6; }
+.generation-notice.failure span { color: #b33b2e; }
+.generation-notice .button { flex: 0 0 auto; min-height: 34px; padding: 7px 11px; font-size: 12px; }
 .generated-heading {
   padding: 40px;
   display: flex;
@@ -2617,6 +2620,8 @@ h1, h2, h3, p { margin-top: 0; }
   .generated-heading { padding: 27px 22px; }
   .generated-heading h1 { font-size: 34px; }
   .generated-scope-label { align-self: flex-start; }
+  .generation-notice { align-items: stretch; flex-direction: column; }
+  .generation-notice .button { width: 100%; }
   .generated-phase > header { align-items: flex-start; flex-direction: column; gap: 10px; }
   .generated-phase > header p { padding-left: 44px; }
   .generated-timeline article { grid-template-columns: 34px 1fr; align-items: start; }

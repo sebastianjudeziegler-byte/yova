@@ -3,10 +3,17 @@ import { zodTextFormat } from "openai/helpers/zod";
 import { getOpenAIClient } from "@/lib/openai/client";
 import { getOpenAIPlanConfig } from "@/lib/openai/config";
 import { buildPlanGeneratorInput, PLAN_GENERATOR_INSTRUCTIONS } from "@/lib/plan-generation/prompt";
-import { validateGeneratedPlanQuality } from "@/lib/plan-generation/quality-gate";
+import { inspectGeneratedPlanQuality } from "@/lib/plan-generation/quality-gate";
 import { alignGeneratedPlanToAvailability } from "@/lib/plan-generation/schedule-plan";
 import { normalizeGeneratedPlanLearningContract } from "@/lib/plan-generation/normalize-learning-contract";
-import type { GenerationValidator } from "@/lib/analytics/generation-observation";
+import type {
+  GenerationValidator,
+  PlanQualityIssueCode,
+} from "@/lib/analytics/generation-observation";
+import {
+  classifyProviderError,
+  type ProviderErrorMetadata,
+} from "@/lib/openai/provider-error";
 import {
   GeneratedPlanDraftSchema,
   type GeneratedPlanDraft,
@@ -39,6 +46,8 @@ export type PlanGenerationStats = {
   cachedInputTokens: number;
   cacheWriteTokens: number;
   outputTokens: number;
+  model: string | null;
+  validationIssueCode: PlanQualityIssueCode | null;
 };
 
 export class OpenAIPlanGenerationError extends Error {
@@ -46,8 +55,10 @@ export class OpenAIPlanGenerationError extends Error {
     message: string,
     public readonly reason: "refused" | "incomplete" | "invalid_output" | "provider_error",
     public readonly generationStats: PlanGenerationStats,
+    public readonly providerError: ProviderErrorMetadata | null = null,
+    cause?: unknown,
   ) {
-    super(message);
+    super(message, cause === undefined ? undefined : { cause });
     this.name = "OpenAIPlanGenerationError";
   }
 }
@@ -66,6 +77,7 @@ export async function generatePlanWithOpenAI(
   let failedValidator: GenerationValidator | null = null;
   let repairAttempted = false;
   let lastValidationIssue: string | null = null;
+  let validationIssueCode: PlanQualityIssueCode | null = null;
   const config = getOpenAIPlanConfig();
   const stats = (repairSucceeded: boolean | null): PlanGenerationStats => ({
     elapsedMs: Date.now() - startedAt,
@@ -78,6 +90,8 @@ export async function generatePlanWithOpenAI(
     cachedInputTokens: usage.cachedInputTokens,
     cacheWriteTokens: usage.cacheWriteTokens,
     outputTokens: usage.outputTokens,
+    model: config?.model ?? null,
+    validationIssueCode,
   });
   if (!config) throw new OpenAIPlanGenerationError("OpenAI is not configured.", "provider_error", stats(null));
 
@@ -142,7 +156,7 @@ export async function generatePlanWithOpenAI(
         } else {
           const normalizedDraft = normalizeGeneratedPlanLearningContract(parsedDraft.data, request);
           const alignedDraft = alignGeneratedPlanToAvailability(normalizedDraft, request);
-          const qualityIssue = validateGeneratedPlanQuality(alignedDraft, request);
+          const qualityIssue = inspectGeneratedPlanQuality(alignedDraft, request);
           if (!qualityIssue) {
             return {
               draft: alignedDraft,
@@ -152,8 +166,13 @@ export async function generatePlanWithOpenAI(
             };
           }
           failedValidator ??= "plan_quality_gate";
-          finalIssue = qualityIssue;
+          finalIssue = qualityIssue.detail;
           lastValidationIssue = finalIssue;
+          // Keep the last rejected draft's bounded code. The first attempt can
+          // fail one gate and the repair can fail a different one; operators
+          // need the terminal cause, while `repairAttempted` still records the
+          // earlier rejection.
+          validationIssueCode = qualityIssue.code;
           finalReason = "invalid_output";
         }
       }
@@ -179,6 +198,8 @@ export async function generatePlanWithOpenAI(
       `The OpenAI request failed.${priorIssue}`,
       "provider_error",
       stats(repairAttempted ? false : null),
+      classifyProviderError(error),
+      error,
     );
   }
 }

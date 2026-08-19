@@ -70,6 +70,25 @@ describe("generated plan learning contract", () => {
     expect(normalized.sessions[0].methodReason).toMatch(/currently prefer/i);
   });
 
+  it("normalizes a provider-invented learning-style label without weakening diagnosis checks", () => {
+    const personalizedDraft = GeneratedPlanDraftSchema.parse({
+      ...draft,
+      rationale: "The learner's learning style favors diagrams, and the learner learns best when one example comes first.",
+      sessions: draft.sessions.map((session) => ({
+        ...session,
+        method: "Worked example fading",
+        methodReason: "A visual learner benefits from seeing the relationship before explaining it.",
+        completionEvidence: ["Solve one representative derivative problem and explain each major step"],
+      })),
+    });
+
+    const normalized = normalizeGeneratedPlanLearningContract(personalizedDraft, request);
+
+    expect(normalized.rationale).toBe("the current study preference favors diagrams, and the learner currently prefers learning when one example comes first.");
+    expect(normalized.sessions[0].methodReason).toContain("learner who currently prefers visual examples");
+    expect(JSON.stringify(normalized)).not.toMatch(/learning style|visual learner/i);
+  });
+
   it("uses the learner's original writing goal when a generated title becomes vague", () => {
     const writingRequest = PlanGenerationRequestSchema.parse({
       ...request,

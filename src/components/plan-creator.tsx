@@ -21,6 +21,7 @@ import { BrandMark } from "@/components/brand-mark";
 import { GoalClarification } from "@/components/goal-clarification";
 import { MaterialFileDropzone } from "@/components/material-file-dropzone";
 import { MaterialLinkImporter } from "@/components/material-link-importer";
+import { PlanGenerationNotice } from "@/components/plan-generation-notice";
 import { makeId, type LearningMaterial, type LearningPlan } from "@/lib/domain";
 import { deleteUploadedMaterial, uploadMaterialFiles } from "@/lib/materials/intake";
 import { reportProductError } from "@/lib/monitoring/client";
@@ -36,6 +37,7 @@ import {
 } from "@/lib/plan-generation/schema";
 import { PlanKnowledgeMapSchema, type PlanKnowledgeMap } from "@/lib/knowledge-map/schema";
 import { generatePreviewPlan } from "@/lib/plan-generation/preview-generator";
+import { LIVE_AI_PLAN_FALLBACK_NOTICE } from "@/lib/plan-generation/fallback";
 import { inferPlanScopeContract } from "@/lib/plan-generation/scope-contract";
 import { buildPlanContentBudget } from "@/lib/plan-generation/content-budget";
 import { LEARNING_INTENT_COPY, resolveLearningIntent } from "@/lib/learning/learning-intent";
@@ -258,7 +260,7 @@ export function PlanCreator({ onExit, onFinish, profileSummary, browserPreviewMo
           generation: {
             mode: "system",
             model: null,
-            notice: "YOVA used its reliable planning engine because the live planning request was interrupted. Review this draft before saving it. The guided lessons will still use the exact topic and your learning profile.",
+            notice: LIVE_AI_PLAN_FALLBACK_NOTICE,
             requestId: requestId ?? makeId("plan_request"),
             durationMs: 0,
             persistence: "draft",
@@ -575,7 +577,7 @@ export function PlanCreator({ onExit, onFinish, profileSummary, browserPreviewMo
               <button type="button" className="button secondary" disabled={!mapCorrection.trim() || mapUpdating} onClick={() => void updateTopicMapAndPlan()}>{mapUpdating ? <><span className="button-spinner" /> Updating map…</> : <>Update map and plan <ArrowRight size={17} /></>}</button>
             </div>
           </section>}
-          {generatedPlan.generation.notice && <div className="generation-notice"><span>Alpha note</span><p>{generatedPlan.generation.notice}</p></div>}
+          <PlanGenerationNotice generation={generatedPlan.generation} onRetry={() => void generatePlan()} />
           <div className="generated-roadmap" aria-label="Learning roadmap">{generatedPhases.map((phase) => <section className="generated-phase" key={`${phase.key}-${phase.number}`}><header><div><span>{phase.number}</span><div><small>PLAN PHASE</small><h2>{phase.label}</h2></div></div><p>{phase.description}</p></header><div className="generated-timeline">{phase.sessions.map((session) => <article key={session.id}><span>{session.sequence}</span><div><small>{session.learningMode === "learn" ? "TEACHING FIRST" : "PRACTICE FIRST"} · {formatSessionDate(session.scheduledFor)}</small><h3>{session.title}</h3><p>{session.method}</p><p className="generated-session-focus">Focus: {(session.contentTargets ?? []).join("; ")}</p></div><strong>{session.amountLabel}</strong></article>)}</div></section>)}</div>
           <section className="plan-alignment-check" aria-labelledby="plan-alignment-title">
             <div className="plan-alignment-heading"><span className="step-label">BEFORE YOVA SAVES THIS</span><h2 id="plan-alignment-title">Does this plan match what you need?</h2><p>Check the content, starting approach, source, and pace. If one part is wrong, change that input and YOVA will rebuild the draft.</p></div>

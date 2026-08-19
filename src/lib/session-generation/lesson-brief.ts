@@ -392,10 +392,30 @@ export function lessonIdeaSharesTargetSubject(
   const ideaTokens = meaningfulScopeTokens(idea);
   const targetTokens = meaningfulScopeTokens(target);
   if (ideaTokens.length === 0 || targetTokens.length === 0) return false;
-  // Very short targets need the existing bounded-restatement guard as well as
-  // an id. Otherwise a one-word label such as "Photosynthesis" could be used
-  // to authorize a broad neighboring-topic survey.
-  if (targetTokens.length <= 2) return lessonIdeaMatchesTarget(idea, target);
+  // A one-word target still needs the existing bounded-restatement guard as
+  // well as an id. Otherwise a label such as "Photosynthesis" could authorize
+  // a broad neighboring-topic survey. Two-word curriculum labels are
+  // different: their second word is often a generic category ("rule",
+  // "method", "practice"). The stable server-issued target id already owns
+  // identity, so require the distinctive subject term and a bounded claim
+  // instead of requiring generic label copy. This lets a correct claim such as
+  // "Differentiate a product by..." satisfy "Product rule" without weakening
+  // the unrelated-content and deferred-target checks around this boundary.
+  if (targetTokens.length === 1) return lessonIdeaMatchesTarget(idea, target);
+  if (targetTokens.length === 2) {
+    const genericTargetTerms = new Set([
+      "approach", "concept", "example", "meaning", "method", "notation",
+      "practice", "process", "rule", "rules", "skill", "test",
+    ]);
+    const distinctiveTargetTokens = targetTokens.filter((token) => !genericTargetTerms.has(token));
+    const requiredTargetTokens = distinctiveTargetTokens.length > 0
+      ? distinctiveTargetTokens
+      : targetTokens;
+    const preservesSubject = requiredTargetTokens.some((targetToken) => (
+      ideaTokens.some((ideaToken) => scopeTokensMatch(ideaToken, targetToken))
+    ));
+    return preservesSubject && ideaTokens.length <= targetTokens.length + 12;
+  }
   const overlap = targetTokens.filter((targetToken) => (
     ideaTokens.some((ideaToken) => scopeTokensMatch(ideaToken, targetToken))
   )).length;

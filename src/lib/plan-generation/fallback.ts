@@ -1,0 +1,1 @@
+export const LIVE_AI_PLAN_FALLBACK_NOTICE = "Live AI planning failed, so YOVA created a basic fallback draft from your saved inputs. Retry live planning, or review this fallback carefully before saving it.";

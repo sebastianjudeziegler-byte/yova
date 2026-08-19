@@ -1114,6 +1114,20 @@ describe("runtime session-window scoping", () => {
       currentSessionScope: { activeTargets: ["Photosynthesis"], deferredTargets: [] },
     })).toHaveLength(1);
 
+    const productRuleParaphrase = "Differentiate a product by differentiating each factor once while holding the other factor unchanged.";
+    expect(validateStreamedTargetAssignments({
+      essentialIdeas: [productRuleParaphrase],
+      targetAssignments: [{ essentialIdea: productRuleParaphrase, targetId: "target_1" }],
+      currentSessionScope: { activeTargets: ["Product rule"], deferredTargets: [] },
+    })).toHaveLength(1);
+
+    const unrelatedProductRuleClaim = "Photosynthesis stores light energy in glucose for later cellular work.";
+    expect(() => validateStreamedTargetAssignments({
+      essentialIdeas: [unrelatedProductRuleClaim],
+      targetAssignments: [{ essentialIdea: unrelatedProductRuleClaim, targetId: "target_1" }],
+      currentSessionScope: { activeTargets: ["Product rule"], deferredTargets: [] },
+    })).toThrow(/does not preserve that target's subject terms/i);
+
     const broadPhotosynthesisSurvey = "Photosynthesis and cellular respiration exchange gases while ecosystems recycle matter and energy.";
     expect(() => validateStreamedTargetAssignments({
       essentialIdeas: [broadPhotosynthesisSurvey],

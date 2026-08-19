@@ -9,12 +9,14 @@ import { PlanDiagnosticQuestionSchema, type PlanDiagnosticQuestion } from "@/lib
 
 const DiagnosticOutputSchema = z.object({
   questions: z.array(z.object({
-    topicId: z.string().uuid(),
+    topicAlias: z.string().trim().min(1).max(40),
     prompt: z.string().trim().min(12).max(500),
     options: z.array(z.string().trim().min(1).max(180)).length(4),
     correctChoiceIndex: z.number().int().min(0).max(2),
-  })).min(4).max(8),
+  })).max(8),
 });
+
+type DiagnosticProviderQuestion = z.infer<typeof DiagnosticOutputSchema>["questions"][number];
 
 export type DiagnosticGenerationStats = {
   elapsedMs: number;
@@ -39,9 +41,9 @@ export class MapDiagnosticGenerationError extends Error {
   }
 }
 
-const INSTRUCTIONS = `Create a short YOVA placement check from the supplied knowledge map.
+const INSTRUCTIONS = `Create a short YOVA placement check from the supplied assigned topics.
 
-Return four to eight multiple-choice questions. Sample prerequisite topics first, then topics central to the learner's goal. Cover distinct topic ids before repeating one. Every question must be self-contained: include the facts, situation, definition, or data needed to reason about the answer without reopening a source. Do not ask what the learner prefers, how confident they feel, or what they think they know.
+Return exactly one multiple-choice question for every assigned topic. Copy each supplied topicAlias exactly once. Never invent, repeat, or omit a topicAlias. The server owns the topic assignment; use the title, description, subtopics, and prerequisites attached to that alias only. Every question must be self-contained: include the facts, situation, definition, or data needed to reason about the answer without reopening a source. Do not ask what the learner prefers, how confident they feel, or what they think they know.
 
 Each question must have exactly four options. The first three are plausible content answers. The fourth must be exactly "I don't know yet". correctChoiceIndex must point to one of the first three choices. Keep the questions diagnostic rather than tricky. Use clean interface text with no Markdown or em dashes. Return only the requested structure.`;
 
@@ -57,17 +59,30 @@ export async function generateMapDiagnostic(
 
   const client = getOpenAIClient();
   try {
+    const fallbackQuestions = buildPreviewMapDiagnostic(map);
+    const topicById = new Map(map.topics.map((topic) => [topic.id, topic]));
+    const assignments = fallbackQuestions.map((fallback, index) => {
+      const topic = topicById.get(fallback.topicId)!;
+      return {
+        alias: `topic_${index + 1}`,
+        topic,
+        fallback,
+      };
+    });
     const response = await client.responses.parse({
       model: config.model,
       instructions: INSTRUCTIONS,
       input: JSON.stringify({
         learnerGoal: goal,
-        topics: map.topics.map((topic) => ({
-          id: topic.id,
+        assignedTopics: assignments.map(({ alias, topic }) => ({
+          topicAlias: alias,
           title: topic.title,
           description: topic.description,
           subtopics: topic.subtopics,
-          prerequisiteTopicIds: topic.prerequisiteTopicIds,
+          prerequisiteTopics: topic.prerequisiteTopicIds.flatMap((prerequisiteId) => {
+            const prerequisite = topicById.get(prerequisiteId);
+            return prerequisite ? [prerequisite.title] : [];
+          }),
         })),
       }),
       reasoning: { effort: "low" },
@@ -83,29 +98,10 @@ export async function generateMapDiagnostic(
     if (!parsed.success) {
       throw new MapDiagnosticGenerationError("The placement check had an invalid structure.", "diagnostic_structure");
     }
-    const topicIds = new Set(map.topics.map((topic) => topic.id));
-    if (parsed.data.questions.some((question) => !topicIds.has(question.topicId))) {
-      throw new MapDiagnosticGenerationError("The placement check referenced a topic outside the map.", "diagnostic_topic_coverage");
-    }
-    if (parsed.data.questions.some((question) => question.options[3] !== "I don't know yet")) {
-      throw new MapDiagnosticGenerationError("The placement check did not preserve the no-guessing option.", "diagnostic_structure");
-    }
-    if (
-      map.topics.length >= parsed.data.questions.length
-      && new Set(parsed.data.questions.map((question) => question.topicId)).size !== parsed.data.questions.length
-    ) {
-      throw new MapDiagnosticGenerationError("The placement check repeated a topic before sampling the map.", "diagnostic_topic_coverage");
-    }
-    const questions = parsed.data.questions.map((question) => PlanDiagnosticQuestionSchema.parse({
-      id: crypto.randomUUID(),
-      topicId: question.topicId,
-      prompt: question.prompt,
-      options: question.options,
-      correctAnswer: question.options[question.correctChoiceIndex],
-    }));
+    const reconciled = reconcileDiagnosticQuestions(assignments, parsed.data.questions);
     const usage = response.usage;
     return {
-      questions,
+      questions: reconciled.questions,
       stats: {
         elapsedMs: Date.now() - startedAt,
         attempts: 1,
@@ -113,8 +109,8 @@ export async function generateMapDiagnostic(
         cachedInputTokens: usage?.input_tokens_details.cached_tokens ?? 0,
         cacheWriteTokens: usage?.input_tokens_details.cache_write_tokens ?? 0,
         outputTokens: usage?.output_tokens ?? 0,
-        firstAttemptPassed: true,
-        failedValidator: null,
+        firstAttemptPassed: reconciled.failedValidator === null,
+        failedValidator: reconciled.failedValidator,
         model: response.model,
       },
     };
@@ -122,6 +118,55 @@ export async function generateMapDiagnostic(
     if (error instanceof MapDiagnosticGenerationError) throw error;
     throw new MapDiagnosticGenerationError("The placement-check request failed.", "diagnostic_provider_request", error);
   }
+}
+
+function reconcileDiagnosticQuestions(
+  assignments: Array<{
+    alias: string;
+    topic: PlanKnowledgeMap["topics"][number];
+    fallback: PlanDiagnosticQuestion;
+  }>,
+  providerQuestions: DiagnosticProviderQuestion[],
+) {
+  const assignmentByAlias = new Map(assignments.map((assignment) => [assignment.alias, assignment]));
+  const providerByAlias = new Map<string, DiagnosticProviderQuestion>();
+  let failedValidator: GenerationValidator | null = null;
+
+  for (const question of providerQuestions) {
+    if (!assignmentByAlias.has(question.topicAlias) || providerByAlias.has(question.topicAlias)) {
+      failedValidator ??= "diagnostic_topic_coverage";
+      continue;
+    }
+    if (
+      question.options[3] !== "I don't know yet"
+      || new Set(question.options).size !== question.options.length
+    ) {
+      failedValidator ??= "diagnostic_structure";
+      continue;
+    }
+    providerByAlias.set(question.topicAlias, question);
+  }
+
+  if (providerQuestions.length !== assignments.length) {
+    failedValidator ??= "diagnostic_topic_coverage";
+  }
+
+  const questions = assignments.map((assignment) => {
+    const provider = providerByAlias.get(assignment.alias);
+    if (!provider) {
+      failedValidator ??= "diagnostic_topic_coverage";
+      return assignment.fallback;
+    }
+    return PlanDiagnosticQuestionSchema.parse({
+      id: crypto.randomUUID(),
+      topicId: assignment.topic.id,
+      prompt: provider.prompt,
+      options: provider.options,
+      correctAnswer: provider.options[provider.correctChoiceIndex],
+    });
+  });
+
+  return { questions, failedValidator };
 }
 
 export function buildPreviewMapDiagnostic(map: PlanKnowledgeMap): PlanDiagnosticQuestion[] {

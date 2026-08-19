@@ -79,7 +79,10 @@ import { validateSessionTimeBudget } from "@/lib/session-generation/time-budget"
 import { validateStreamedTeachingPacing } from "@/lib/session-generation/streamed-pacing";
 import { polishGeneratedSessionTypography } from "@/lib/session-generation/typography";
 import { validateVisibleAdaptation } from "@/lib/personalization/visible-adaptation";
-import type { GenerationValidator } from "@/lib/analytics/generation-observation";
+import type {
+  GenerationValidator,
+  SessionValidationIssueCode,
+} from "@/lib/analytics/generation-observation";
 import { contentBudgetForMinutes } from "@/lib/plan-generation/content-budget";
 import type { KnowledgeMapTopic } from "@/lib/knowledge-map/schema";
 import type { SessionArchitectureVersion } from "@/lib/session-generation/architecture";
@@ -211,6 +214,7 @@ export type SessionGenerationStats = {
   cacheWriteTokens: number;
   outputTokens: number;
   recoveryMode?: "safe_study";
+  validationIssueCode?: SessionValidationIssueCode | null;
 };
 
 export class SessionGenerationFailure extends Error {

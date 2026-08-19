@@ -8,6 +8,7 @@ import {
 } from "@/lib/plan-generation/schema";
 
 const TOPIC_ID = "11111111-1111-4111-8111-111111111111";
+const GAP_TOPIC_ID = "22222222-2222-4222-8222-222222222222";
 
 function makeRequest(overrides: Partial<PlanGenerationRequest> = {}) {
   return PlanGenerationRequestSchema.parse({
@@ -136,6 +137,65 @@ describe("generated plan quality gate", () => {
     draft.sessions[0].title = "Build the model — then test it with **active recall**";
 
     expect(validateGeneratedPlanQuality(draft, makeRequest())).toMatch(/clean interface text/i);
+  });
+
+  it("allows a demonstrated prerequisite to be checked inside a teaching-first session for a connected gap", () => {
+    const observedAt = "2026-08-09T18:00:00.000Z";
+    const request = makeRequest({
+      knowledgeMap: {
+        version: 1,
+        scopeJudgment: {
+          band: "focused_skill",
+          label: "Focused skill",
+          minimumSessions: 2,
+          recommendedSessions: 2,
+          maximumSessions: 4,
+          minimumTeachingSessions: 1,
+          explanation: "One prerequisite check and one connected gap fit a focused two-session sequence.",
+        },
+        topics: [
+          {
+            id: TOPIC_ID,
+            title: "Basic derivative rules",
+            description: "Use the power and constant rules as prerequisites for a product derivative.",
+            subtopics: [],
+            prerequisiteTopicIds: [],
+            status: "evidenced",
+            initialEvidence: { source: "placement_check", outcome: "demonstrated", observedAt },
+            sourceReferences: [],
+            origin: "ai_generated",
+            deferred: null,
+          },
+          {
+            id: GAP_TOPIC_ID,
+            title: "Product rule",
+            description: "Differentiate a product by applying the two-term product rule accurately.",
+            subtopics: [],
+            prerequisiteTopicIds: [TOPIC_ID],
+            status: "not_started",
+            initialEvidence: { source: "placement_check", outcome: "gap", observedAt },
+            sourceReferences: [],
+            origin: "ai_generated",
+            deferred: null,
+          },
+        ],
+        placementCheck: {
+          status: "completed",
+          completedAt: observedAt,
+          demonstratedTopicIds: [TOPIC_ID],
+          gapTopicIds: [GAP_TOPIC_ID],
+        },
+      },
+    });
+    const draft = makeDraft();
+    draft.sessions[0].topicIds = [TOPIC_ID, GAP_TOPIC_ID];
+    draft.sessions[0].contentTargets = [
+      "Brief prerequisite check of basic derivative rules",
+      "The two-term product rule for derivatives",
+    ];
+    draft.sessions[1].topicIds = [GAP_TOPIC_ID];
+
+    expect(validateGeneratedPlanQuality(draft, request)).toBeNull();
   });
 
   it("requires exactly one correctly sized session for study now", () => {
