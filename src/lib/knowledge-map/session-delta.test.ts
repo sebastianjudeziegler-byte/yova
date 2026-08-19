@@ -78,4 +78,19 @@ describe("post-session knowledge-map delta", () => {
   it("shows nothing when the session did not move a mapped topic", () => {
     expect(buildSessionMapDelta(map("evidenced"), session("study"), [])).toEqual([]);
   });
+
+  it("never presents self-reported unguided practice as a map update", () => {
+    const evidence: ConceptEvidence[] = [{
+      topicId,
+      concept: "Photosynthesis",
+      outcome: "secure",
+      activityType: "free_response",
+    }];
+    expect(buildSessionMapDelta(
+      map("not_started"),
+      session("learn"),
+      evidence,
+      "unguided_practice",
+    )).toEqual([]);
+  });
 });

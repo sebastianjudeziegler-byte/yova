@@ -1,4 +1,8 @@
-import type { ConceptEvidence, LearningPlanSession } from "@/lib/domain";
+import type {
+  ConceptEvidence,
+  LearningPlanSession,
+  SessionCompletionMode,
+} from "@/lib/domain";
 import type { PlanKnowledgeMap } from "@/lib/knowledge-map/schema";
 
 export type SessionMapDelta = {
@@ -12,7 +16,9 @@ export function buildSessionMapDelta(
   map: PlanKnowledgeMap | undefined,
   session: LearningPlanSession | null,
   evidence: ConceptEvidence[],
+  completionMode: SessionCompletionMode = "guided",
 ): SessionMapDelta[] {
+  if (completionMode === "unguided_practice") return [];
   if (!map || !session) return [];
   const sessionTopicIds = new Set(session.topicIds ?? []);
   return map.topics.flatMap((topic) => {

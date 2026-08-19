@@ -20,11 +20,54 @@ export type ReplacementPlanSession = Omit<LearningPlanSession, "resource" | "ada
   segmentCount: number;
 };
 
+export const MAX_ADJUSTED_PLAN_SESSIONS = 14;
+
+export class PlanAdjustmentPartLimitError extends Error {
+  constructor() {
+    super("This change would create more sessions than this plan can safely hold. Choose a longer session window.");
+    this.name = "PlanAdjustmentPartLimitError";
+  }
+}
+
+export function learningPlanSessionToAdjustableRow(
+  session: LearningPlanSession,
+): AdjustableSessionRow {
+  if (session.status !== "ready" && session.status !== "upcoming") {
+    throw new Error("Only unfinished sessions can be adjusted.");
+  }
+
+  return {
+    id: session.id,
+    sequence: session.sequence,
+    title: session.title,
+    objective: session.objective,
+    method: session.method,
+    method_rationale: session.methodReason,
+    scheduled_for: session.scheduledFor,
+    estimated_minutes: session.estimatedMinutes,
+    status: session.status,
+    step_data: {
+      learningMode: session.learningMode,
+      topicIds: session.topicIds ?? [],
+      contentTargets: session.contentTargets ?? [],
+      completionEvidence: session.completionEvidence ?? [],
+      ...(session.originSessionId ? { originSessionId: session.originSessionId } : {}),
+      ...(session.originalContentMinutes ? { originalContentMinutes: session.originalContentMinutes } : {}),
+      ...(session.segmentIndex ? { segmentIndex: session.segmentIndex } : {}),
+      ...(session.segmentCount ? { segmentCount: session.segmentCount } : {}),
+    },
+  };
+}
+
 export function buildContentBasedReplacementSessions(
   rows: AdjustableSessionRow[],
   targetMinutes: number,
   startingSequence: number,
+  maximumReplacementSessions = MAX_ADJUSTED_PLAN_SESSIONS,
 ) {
+  const replacementLimit = Number.isInteger(maximumReplacementSessions)
+    ? Math.max(0, Math.min(MAX_ADJUSTED_PLAN_SESSIONS, maximumReplacementSessions))
+    : 0;
   const groups = new Map<string, AdjustableSessionRow[]>();
   for (const row of [...rows].sort((left, right) => left.sequence - right.sequence)) {
     const originId = readText(row.step_data, "originSessionId") || row.id;
@@ -40,18 +83,29 @@ export function buildContentBasedReplacementSessions(
   for (const [originSessionId, group] of groups) {
     const ordered = [...group].sort((left, right) => left.sequence - right.sequence);
     const first = ordered[0];
-    const remainingContentMinutes = ordered.reduce((total, row) => total + row.estimated_minutes, 0);
+    const remainingContent = remainingContentFor(ordered);
+    const remainingContentMinutes = remainingContent.minutes;
     const segmentCount = Math.max(1, Math.ceil(remainingContentMinutes / targetMinutes));
+    if (
+      segmentCount > replacementLimit
+      || replacements.length + segmentCount > replacementLimit
+    ) {
+      throw new PlanAdjustmentPartLimitError();
+    }
     const targets = unique(ordered.flatMap((row) => readStrings(row.step_data, "contentTargets")));
     const evidence = unique(ordered.flatMap((row) => readStrings(row.step_data, "completionEvidence")));
     const topicIds = unique(ordered.flatMap((row) => readStrings(row.step_data, "topicIds")));
     const learningMode = readLearningMode(first.step_data);
     const baseTitle = stripPartLabel(first.title);
-    const evenMinutes = Math.floor(remainingContentMinutes / segmentCount);
-    const extraMinutes = remainingContentMinutes % segmentCount;
 
     for (let segmentIndex = 0; segmentIndex < segmentCount; segmentIndex += 1) {
-      const segmentMinutes = evenMinutes + (segmentIndex < extraMinutes ? 1 : 0);
+      // Once content is split, every part gets the full requested session
+      // window. Each part needs its own orientation and evidence check, so
+      // preserving the old total would create undersized remainders such as
+      // 8 and 7 minutes for a requested 10-minute split.
+      const segmentMinutes = segmentCount > 1 || remainingContent.wasPreviouslySplit
+        ? targetMinutes
+        : remainingContentMinutes;
       const contentTargets = distributeStrings(targets, segmentIndex, segmentCount, first.objective);
       const completionEvidence = distributeStrings(evidence, segmentIndex, segmentCount, "Produce an independent attempt for this content slice");
       const scheduledFor = sequencedSchedule(first.scheduled_for, segmentIndex, lastScheduledTime);
@@ -82,13 +136,59 @@ export function buildContentBasedReplacementSessions(
     }
   }
 
-  return replacements.slice(0, 14);
+  return replacements;
+}
+
+function remainingContentFor(rows: AdjustableSessionRow[]) {
+  const persistedParts = rows.map((row) => ({
+    originalContentMinutes: readPositiveInteger(row.step_data, "originalContentMinutes"),
+    segmentIndex: readPositiveInteger(row.step_data, "segmentIndex"),
+    segmentCount: readPositiveInteger(row.step_data, "segmentCount"),
+  }));
+  const first = persistedParts[0];
+  const originalContentMinutes = first?.originalContentMinutes ?? null;
+  const originalSegmentCount = first?.segmentCount ?? null;
+  const hasConsistentSplitMetadata = Boolean(
+    originalContentMinutes
+    && originalSegmentCount
+    && persistedParts.every((part) => (
+      part.originalContentMinutes === originalContentMinutes
+      && part.segmentCount === originalSegmentCount
+      && part.segmentIndex
+      && part.segmentIndex <= originalSegmentCount
+    ))
+    && new Set(persistedParts.map((part) => part.segmentIndex)).size === persistedParts.length,
+  );
+
+  if (!hasConsistentSplitMetadata || originalContentMinutes === null || originalSegmentCount === null) {
+    return {
+      minutes: rows.reduce((total, row) => total + row.estimated_minutes, 0),
+      wasPreviouslySplit: false,
+    };
+  }
+
+  const evenContentMinutes = Math.floor(originalContentMinutes / originalSegmentCount);
+  const extraContentMinutes = originalContentMinutes % originalSegmentCount;
+  return {
+    minutes: persistedParts.reduce((total, part) => (
+      total
+      + evenContentMinutes
+      + (part.segmentIndex !== null && part.segmentIndex <= extraContentMinutes ? 1 : 0)
+    ), 0),
+    wasPreviouslySplit: true,
+  };
 }
 
 function readText(value: unknown, key: string) {
   if (!value || typeof value !== "object" || Array.isArray(value)) return "";
   const item = (value as Record<string, unknown>)[key];
   return typeof item === "string" ? item : "";
+}
+
+function readPositiveInteger(value: unknown, key: string) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const item = (value as Record<string, unknown>)[key];
+  return typeof item === "number" && Number.isInteger(item) && item > 0 ? item : null;
 }
 
 function readStrings(value: unknown, key: string) {

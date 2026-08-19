@@ -1,4 +1,5 @@
 import type { LearningPlan, LearningPlanSession } from "@/lib/domain";
+import { canOfferAgendaSessionSplit } from "@/lib/scheduling/split-safety";
 
 export type ScheduledLearningEntry = { plan: LearningPlan; session: LearningPlanSession };
 
@@ -191,6 +192,11 @@ export function buildDailyCapacityPlan(
     const minutesWithoutEntry = todayMinutes - entry.session.estimatedMinutes;
     const splitMinutes = capacityMinutes - minutesWithoutEntry;
     if (splitMinutes < 10 || splitMinutes >= entry.session.estimatedMinutes) continue;
+    if (!canOfferAgendaSessionSplit({
+      plan: entry.plan,
+      session: entry.session,
+      targetMinutes: splitMinutes,
+    })) continue;
     return {
       status: "split",
       capacityMinutes,

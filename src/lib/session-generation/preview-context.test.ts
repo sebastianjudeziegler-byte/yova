@@ -1,11 +1,18 @@
 import { describe, expect, it } from "vitest";
-import type { LearningPlan, SessionCompletion, SessionInterruption } from "@/lib/domain";
+import type {
+  LearningPlan,
+  LearningPlanSession,
+  SessionCompletion,
+  SessionInterruption,
+} from "@/lib/domain";
+import { MAX_RUNTIME_PLAN_SESSIONS } from "@/lib/plan-generation/schema";
 import {
   defaultPersonalizationState,
   setPersonalizationEvidenceRefExcluded,
   writePersonalizationStateToAnswers,
 } from "@/lib/personalization/personalization-state";
 import { buildPreviewSessionContext } from "@/lib/session-generation/preview-context";
+import { SessionGenerationRequestSchema } from "@/lib/session-generation/schema";
 
 const plan: LearningPlan = {
   id: "00000000-0000-4000-8000-000000000001",
@@ -107,6 +114,21 @@ const knowledgeMap: NonNullable<LearningPlan["knowledgeMap"]> = {
   curriculum: null,
 };
 
+function makeRuntimeSessions(count: number): LearningPlanSession[] {
+  return Array.from({ length: count }, (_, index) => {
+    const sequence = index + 1;
+    return {
+      ...plan.sessions[0],
+      id: `00000000-0000-4000-8000-${String(sequence + 100).padStart(12, "0")}`,
+      sequence,
+      title: `Runtime learning session ${sequence}`,
+      objective: `Explain the relationship assigned to runtime learning session ${sequence}.`,
+      contentTargets: [`Relationship assigned to runtime learning session ${sequence}`],
+      status: sequence === 1 ? "ready" : "upcoming",
+    };
+  });
+}
+
 describe("buildPreviewSessionContext", () => {
   it("honors a current request to teach a planned study session first", () => {
     const studySession = {
@@ -185,6 +207,71 @@ describe("buildPreviewSessionContext", () => {
       sequence: 3,
       contentTargets: ["Transfer the complete model to a new condition"],
     });
+  });
+
+  it.each([
+    ["first", 0, 0, MAX_RUNTIME_PLAN_SESSIONS - 1],
+    [
+      "last",
+      MAX_RUNTIME_PLAN_SESSIONS - 1,
+      MAX_RUNTIME_PLAN_SESSIONS - 1,
+      0,
+    ],
+  ] as const)(
+    "accepts the %s session in a runtime-expanded journey beyond the generated-plan cap",
+    (_position, currentIndex, expectedPrevious, expectedNext) => {
+      const sessions = makeRuntimeSessions(MAX_RUNTIME_PLAN_SESSIONS);
+      const session = sessions[currentIndex];
+      const previewContext = buildPreviewSessionContext({
+        plan: { ...plan, sessions },
+        session,
+        onboardingAnswers: [],
+        completions: [],
+        interruptions: [],
+      });
+
+      const result = SessionGenerationRequestSchema.safeParse({
+        planId: plan.id,
+        planSessionId: session.id,
+        previewContext,
+      });
+
+      expect(result.success).toBe(true);
+      expect(previewContext.journey).toMatchObject({
+        currentSequence: session.sequence,
+        totalSessions: MAX_RUNTIME_PLAN_SESSIONS,
+      });
+      expect(previewContext.journey.previousSessions).toHaveLength(expectedPrevious);
+      expect(previewContext.journey.nextSessions).toHaveLength(expectedNext);
+    },
+  );
+
+  it("rejects an actual preview journey beyond the runtime plan cap", () => {
+    const sessions = makeRuntimeSessions(MAX_RUNTIME_PLAN_SESSIONS + 1);
+    const session = sessions[Math.floor(sessions.length / 2)];
+    const previewContext = buildPreviewSessionContext({
+      plan: { ...plan, sessions },
+      session,
+      onboardingAnswers: [],
+      completions: [],
+      interruptions: [],
+    });
+
+    const result = SessionGenerationRequestSchema.safeParse({
+      planId: plan.id,
+      planSessionId: session.id,
+      previewContext,
+    });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          path: ["previewContext", "journey", "totalSessions"],
+          code: "too_big",
+        }),
+      ]));
+    }
   });
 
   it("passes only useful personalization and learning evidence to the server", () => {

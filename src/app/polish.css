@@ -86,6 +86,7 @@ input::placeholder, textarea::placeholder { color: #98a2b3; opacity: 1; }
 
 :focus-visible { outline: 2px solid var(--brand-blue); outline-offset: 3px; }
 input:focus-visible, textarea:focus-visible, select:focus-visible { outline: none; border-color: var(--brand-blue) !important; box-shadow: var(--focus-ring) !important; }
+.field-over-limit textarea[aria-invalid="true"]:focus-visible { border-color: #b42318 !important; box-shadow: 0 0 0 4px rgba(180,35,24,.12) !important; }
 
 .step-label {
   color: var(--brand-blue);
@@ -221,11 +222,12 @@ input:focus-visible, textarea:focus-visible, select:focus-visible { outline: non
 .meta-row { color: #d2d9e8; font-size: 14px; }
 .rec-rationale { padding: 20px 40px 23px; }
 .rec-rationale p { font-size: 14px; }
+.rec-rationale summary { min-height: 44px; padding-block: 12px; }
 .home-command { margin-top: 26px; }
 .ask-bar { min-height: 58px; padding: 8px 9px 8px 17px; border-color: var(--line-default); border-radius: 15px; box-shadow: var(--shadow-xs); }
 .ask-bar:focus-within { border-color: #aebfff; box-shadow: var(--focus-ring); }
-.ask-bar input { min-height: 40px; font-size: 15px; }
-.ask-bar button, .session-ask button { width: 42px; height: 42px; border-radius: 11px; background: var(--brand-navy); }
+.ask-bar input { min-height: 44px; font-size: 15px; }
+.ask-bar button, .session-ask button { width: 44px; height: 44px; border-radius: 11px; background: var(--brand-navy); }
 .quick-actions { gap: 14px; }
 .quick-actions button { min-height: 94px; padding: 18px; border-color: var(--line-subtle); border-radius: 15px; box-shadow: var(--shadow-xs); }
 .quick-actions strong { color: var(--brand-navy); font-size: 15px; }
@@ -234,6 +236,10 @@ input:focus-visible, textarea:focus-visible, select:focus-visible { outline: non
 .home-personalization-recommendation strong { font-size: 14px; }
 .home-personalization-recommendation p { font-size: 13px; }
 .home-personalization-recommendation small { font-size: 11px; }
+.home-personalization-recommendation > button { min-height: 44px; }
+.home-personalization-proof button { min-width: 44px; min-height: 44px; padding-inline: 6px; display: inline-flex; align-items: center; justify-content: center; }
+.rec-carousel-controls button { width: 44px; height: 44px; }
+.home-page :is(button, input, summary) { min-width: 44px; min-height: 44px; }
 
 /* Universal Add intake */
 .add-shell { min-height: 100vh; padding: 26px var(--page-gutter) 70px; }
@@ -459,8 +465,8 @@ input:focus-visible, textarea:focus-visible, select:focus-visible { outline: non
 .answer-grid > button { min-height: 68px; padding: 17px 20px; border-color: var(--line-default); border-radius: 14px; font-size: 16px; line-height: 1.5; }
 .answer-grid > button:hover:not(:disabled) { border-color: #9db2f8; background: #f7f9ff; box-shadow: var(--shadow-xs); }
 .recall-response textarea { min-height: 180px; padding: 18px; border-radius: 14px; font-size: 16px; line-height: 1.6; }
-.model-answer-card, .answer-evaluation { border-radius: 16px; }
-.model-answer-card .reference-answer { font-size: 16px; line-height: 1.7; }
+.model-answer-card, .learner-attempt-card, .answer-evaluation { border-radius: 16px; }
+.model-answer-card .reference-answer, .learner-attempt-card .reference-answer { font-size: 16px; line-height: 1.7; }
 .session-action-bar { margin-top: 24px; padding-top: 22px; }
 .session-action-bar .button { min-width: 190px; min-height: 52px; }
 .session-tutor-launcher { min-height: 48px; padding-inline: 16px; border-radius: 14px; box-shadow: 0 14px 30px rgba(52, 107, 255, .2); }
@@ -488,10 +494,10 @@ input:focus-visible, textarea:focus-visible, select:focus-visible { outline: non
   .sidebar .brand-lockup { display: inline-flex !important; margin: 0; }
   .sidebar .brand-word { display: none; }
   .sidebar .brand-mark { width: 38px; height: 38px; }
-  .sidebar-create { width: auto; min-width: 90px; min-height: 40px; margin: 0; grid-column: 3; grid-row: 1; display: flex !important; }
+  .sidebar-create { width: auto; min-width: 90px; min-height: 44px; margin: 0; grid-column: 3; grid-row: 1; display: flex !important; }
   .sidebar-create span { display: inline !important; }
   .sidebar > nav[aria-label="Main navigation"] { grid-column: 1 / -1; grid-row: 2; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 5px; }
-  .sidebar > nav[aria-label="Main navigation"] button { min-height: 42px; padding: 8px 6px; justify-content: center; gap: 6px; font-size: 12px; }
+  .sidebar > nav[aria-label="Main navigation"] button { min-height: 44px; padding: 8px 6px; justify-content: center; gap: 6px; font-size: 12px; }
   .sidebar-trust-links, .sidebar-bottom { display: none !important; }
   .learning-card-grid, .quick-actions { grid-template-columns: 1fr; }
   .learning-summary { grid-template-columns: 1fr 1fr 1fr; }
@@ -520,7 +526,7 @@ input:focus-visible, textarea:focus-visible, select:focus-visible { outline: non
   .rec-rationale { padding: 18px 20px 21px; grid-template-columns: 1fr; }
   .meta-row { gap: 10px 15px; }
   .home-personalization-recommendation { grid-template-columns: 36px minmax(0, 1fr); }
-  .home-personalization-recommendation > button { grid-column: 1 / -1; min-height: 40px; }
+  .home-personalization-recommendation > button { grid-column: 1 / -1; min-height: 44px; }
   .learning-summary { grid-template-columns: 1fr; }
   .learning-summary div { min-height: 70px; border-left: 0; border-top: 1px solid var(--line-subtle); }
   .learning-summary div:first-child { border-top: 0; }
@@ -541,10 +547,10 @@ input:focus-visible, textarea:focus-visible, select:focus-visible { outline: non
   .add-panel { padding: 26px 20px; }
   .add-panel footer, .session-setup-card > footer { align-items: stretch; flex-direction: column-reverse; }
   .add-panel footer .button, .session-setup-card > footer .button { width: 100%; }
-  .session-setup-progress { padding: 16px; }
-  .session-setup-progress strong { display: none; }
-  .session-setup-progress > div { justify-content: center; }
-  .session-setup-progress > div:not(:last-child)::after { width: calc(100% - 52px); }
+  .session-setup-progress { padding: 16px 10px; }
+  .session-setup-progress strong { display: block; font-size: 11px; line-height: 1.25; }
+  .session-setup-progress > div { justify-content: flex-start; flex-direction: column; gap: 6px; text-align: center; }
+  .session-setup-progress > div:not(:last-child)::after { display: none; }
   .session-setup-copy, .session-current-assumption > div { padding-inline: 20px; }
   .session-readiness-options, .known-targets, .session-context-row, .session-setup-proof { margin-inline: 20px; }
   .session-content { width: min(calc(100% - 24px), 980px); margin-top: 18px; }

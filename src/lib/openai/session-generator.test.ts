@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { buildSessionEvaluationCases } from "@/evals/session-cases";
 import {
   GeneratedSessionDraftOutputSchema,
+  type FilledGeneratedSessionDraft,
   type GeneratedSessionDraft,
 } from "@/lib/session-generation/schema";
 import type { SessionGenerationContext } from "@/lib/openai/session-generator";
@@ -103,7 +104,7 @@ function learningDraft(firstPhase: "orient" | "model") {
       },
     ],
     sourceGrounding: null,
-  }) as GeneratedSessionDraft;
+  }) as FilledGeneratedSessionDraft;
 }
 
 function oversizedStudyDraft() {
@@ -370,6 +371,28 @@ describe("substantive teaching validation", () => {
     const { validateSubstantiveTeaching } = await import("@/lib/openai/session-generator");
     expect(validateSubstantiveTeaching(learningDraft("model"))).toBeNull();
   });
+
+  it("rejects a model phase attached to a question before normalization can discard its teaching", () => {
+    const draft = structuredClone(learningDraft("model"));
+    draft.activities[0]!.methodPhase = "orient";
+    draft.activities[1]!.methodPhase = "model";
+    draft.activities[1]!.teaching = structuredClone(draft.activities[0]!.teaching);
+
+    const parsed = GeneratedSessionDraftOutputSchema.safeParse(draft);
+
+    expect(parsed.success).toBe(false);
+    if (parsed.success) return;
+    expect(parsed.error.issues).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        path: ["activities", 1, "methodPhase"],
+        message: "Only instruction activities may use the model phase.",
+      }),
+      expect.objectContaining({
+        path: ["activities", 1, "teaching"],
+        message: "Only instruction activities may carry a teaching block.",
+      }),
+    ]));
+  });
 });
 
 describe("guided-session active-recall validation", () => {
@@ -385,6 +408,27 @@ describe("guided-session active-recall validation", () => {
     );
     freeResponse!.requiredForCompletion = true;
     expect(validateStandardGuidedSessionActivityMix(draft)).toBeNull();
+  });
+});
+
+describe("outside-app guidance validation", () => {
+  it.each([
+    "Open your textbook and complete the comparison there. Bring your answer back for a short check.",
+    "Open your class notes and write the two relationships there, then explain what you found.",
+  ])("accepts a natural return direction: %s", async (body) => {
+    const { validateOutsideAppGuidance } = await import("@/lib/openai/session-generator");
+    const draft = learningDraft("model");
+    draft.activities[0]!.body = body;
+
+    expect(validateOutsideAppGuidance(draft, "outside_yova")).toBeNull();
+  });
+
+  it("still rejects external work with no direction to bring the learner back", async () => {
+    const { validateOutsideAppGuidance } = await import("@/lib/openai/session-generator");
+    const draft = learningDraft("model");
+    draft.activities[0]!.body = "Open your textbook and complete the comparison in your notes.";
+
+    expect(validateOutsideAppGuidance(draft, "outside_yova")).toMatch(/when to return to YOVA/i);
   });
 });
 
@@ -641,6 +685,99 @@ describe("personalized retention normalization", () => {
       type: "reflection",
     });
     expect(validateSessionTimeBudget(normalized, 15)).toBeNull();
+  });
+});
+
+describe("outside-YOVA teaching-first generation", () => {
+  it("repairs an orient instruction plus model question into subject teaching, external action, and return", async () => {
+    parseResponse.mockReset();
+    const base = buildSessionEvaluationCases()
+      .find((candidate) => candidate.id === "startup_funding_foundations")?.context;
+    expect(base).toBeDefined();
+    const context: SessionGenerationContext = {
+      ...base!,
+      sessionArchitectureVersion: "filled_teaching_v1",
+      learningGoal: {
+        ...base!.learningGoal,
+        studyMode: "outside_yova",
+        sourceMode: "yova_generated",
+        learningIntent: "learn",
+      },
+    };
+    const repairedDraft = learningDraft("model");
+    repairedDraft.activities[1]!.methodPhase = "explain";
+    repairedDraft.activities.push({
+      topicId: null,
+      methodPhase: "repair",
+      concept: null,
+      estimatedMinutes: 1,
+      requiredForCompletion: false,
+      label: "Repair",
+      title: "Repair only the missing relationship",
+      body: "Compare your explanation with the source and correct only the relationship you missed.",
+      teaching: null,
+      type: "instruction",
+      choices: [],
+      correctAnswer: null,
+      feedback: null,
+      practiceIntent: null,
+      misconceptionSummary: null,
+    });
+    repairedDraft.activities.forEach((activity) => {
+      if (activity.type === "multiple_choice" || activity.type === "free_response") {
+        activity.practiceIntent = "baseline";
+      }
+    });
+    const invalidDraft = structuredClone(repairedDraft);
+    invalidDraft.activities[0]!.methodPhase = "orient";
+    invalidDraft.activities[1]!.methodPhase = "model";
+    invalidDraft.activities[1]!.teaching = structuredClone(invalidDraft.activities[0]!.teaching);
+    parseResponse
+      .mockResolvedValueOnce(completedProviderResponse("invalid-outside-learn", invalidDraft))
+      .mockResolvedValueOnce(completedProviderResponse("repaired-outside-learn", repairedDraft));
+
+    const {
+      generateSessionWithOpenAI,
+      validateOutsideAppGuidance,
+      validateSubstantiveTeaching,
+    } = await import("@/lib/openai/session-generator");
+    const result = await generateSessionWithOpenAI(context);
+
+    expect(parseResponse).toHaveBeenCalledTimes(2);
+    expect(result.generationStats).toMatchObject({
+      attempts: 2,
+      failedValidator: "session_structure",
+      repairReason: "structured_output",
+      repairSucceeded: true,
+      validationIssueCode: "session_full_structure",
+    });
+    expect(parseResponse.mock.calls[1]?.[0]?.instructions).toMatch(/activities\[1\]\.methodPhase: Only instruction activities may use the model phase/);
+    const providerInput = parseResponse.mock.calls[0]?.[0]?.input as string;
+    const prompt = JSON.parse(providerInput.slice(providerInput.indexOf("\n") + 1)) as {
+      outsideAppContract?: {
+        methodCoaching?: string;
+        learningSequence?: string;
+        instructionTemplate?: string;
+      };
+    };
+    expect(prompt.outsideAppContract).toMatchObject({
+      methodCoaching: expect.stringMatching(/compact method panel.*task-selected method/i),
+      learningSequence: expect.stringMatching(/subject primer.*study the YOVA model.*open the named source.*return to YOVA/i),
+      instructionTemplate: expect.stringMatching(/YOVA's subject explanation first.*open your.*Return to YOVA/i),
+    });
+    expect(result.draft.activities[0]).toMatchObject({
+      type: "instruction",
+      methodPhase: "model",
+    });
+    expect(result.draft.activities[0]?.teaching).not.toBeNull();
+    expect(result.draft.activities[0]?.body).toMatch(/^Study YOVA's subject model below first, then open your trusted source or class notes\./);
+    expect(result.draft.activities.find((activity) => activity.methodPhase === "repair")?.body).toBe(
+      "Compare your explanation with the source and correct only the relationship you missed.",
+    );
+    expect(result.draft.activities.some((activity) => activity.type === "multiple_choice")).toBe(true);
+    expect(result.draft.activities.some((activity) => activity.type === "free_response")).toBe(true);
+    expect(validateSubstantiveTeaching(result.draft)).toBeNull();
+    expect(validateOutsideAppGuidance(result.draft, "outside_yova")).toBeNull();
   });
 });
 
@@ -1180,5 +1317,190 @@ describe("scheduled retrieval generation", () => {
     expect(result.draft.activities).toHaveLength(3);
     expect(result.draft.activities.every((activity) => activity.type === "multiple_choice")).toBe(true);
     expect(result.draft.activities.every((activity) => activity.concept === "Nearby interval estimate at x = 2")).toBe(true);
+  });
+
+  it("keeps an outside material-backed verification in YOVA while preserving source grounding", async () => {
+    parseResponse.mockReset();
+    const materialChunkId = "33333333-3333-4333-8333-333333333333";
+    const materialName = "krebs-cycle-notes.txt";
+    const materialLocation = "Section 4: Electron carriers";
+    const materialExcerpt = "During the Krebs cycle, oxidation reactions transfer high-energy electrons to NAD+, producing NADH, and to FAD, producing FADH2.";
+    const reviewConcept = "Krebs cycle electron carriers";
+    const contentTarget = "The Krebs cycle transfers high-energy electrons to NADH and FADH2";
+    const completionEvidence = "Explain how Krebs cycle oxidation reactions produce NADH and FADH2.";
+    const groundedReview = GeneratedSessionDraftOutputSchema.parse({
+      topicIds: [TEST_TOPIC_ID],
+      rationale: "Use three source-grounded questions as the promised in-YOVA verification after the learner's outside-source practice.",
+      coverage: {
+        focus: "How Krebs cycle oxidation reactions produce reduced electron carriers.",
+        essentialIdeas: [contentTarget],
+        completionEvidence: [completionEvidence],
+        evidenceMap: [{
+          essentialIdea: contentTarget,
+          activityConcept: reviewConcept,
+        }],
+        deferredContent: [],
+      },
+      methodBriefing: {
+        learningMode: "study",
+        taskType: "conceptual_learning",
+        methodId: "retrieval_practice",
+        name: "Quick retrieval check",
+        what: "Answer three source-grounded questions before viewing each explanation.",
+        why: "A short unsupported return checks what remains available after the learner studied the source outside YOVA.",
+        how: [
+          "Choose each answer before viewing its feedback.",
+          "Use each explanation to identify only the relationship that needs repair.",
+        ],
+        completion: "Answer all three questions so YOVA can record evidence from the guided check.",
+        personalization: ["The learner already completed the outside-source method work, so this return stays short and focused."],
+      },
+      sourceGrounding: {
+        mode: "materials_only",
+        summary: "The verification questions use the learner's uploaded Krebs cycle notes only.",
+        sourceNames: [materialName],
+        anchors: [{
+          chunkId: materialChunkId,
+          sourceName: materialName,
+          locationLabel: materialLocation,
+          excerpt: "oxidation reactions transfer high-energy electrons to NAD+",
+          usedFor: "The relationship between Krebs cycle oxidation and NADH production.",
+        }],
+        supplements: [],
+      },
+      activities: [{
+        topicId: TEST_TOPIC_ID,
+        methodPhase: "retrieve",
+        concept: reviewConcept,
+        estimatedMinutes: 2,
+        requiredForCompletion: true,
+        label: "Recall",
+        title: "Identify the electron transfer",
+        body: "During the Krebs cycle, oxidation reactions remove high-energy electrons. Which molecule accepts those electrons to form NADH?",
+        teaching: null,
+        type: "multiple_choice",
+        choices: ["NAD+", "ATP", "Carbon dioxide", "Oxygen"],
+        correctAnswer: "NAD+",
+        feedback: "NAD+ accepts high-energy electrons during Krebs cycle oxidation and is reduced to NADH.",
+      }, {
+        topicId: TEST_TOPIC_ID,
+        methodPhase: "discriminate",
+        concept: reviewConcept,
+        estimatedMinutes: 3,
+        requiredForCompletion: true,
+        label: "Distinguish",
+        title: "Distinguish the two carriers",
+        body: "Which statement correctly distinguishes how the Krebs cycle produces the two reduced electron carriers?",
+        teaching: null,
+        type: "multiple_choice",
+        choices: [
+          "NAD+ becomes NADH and FAD becomes FADH2",
+          "NADH becomes NAD+ and FADH2 becomes FAD",
+          "ATP becomes NADH and carbon dioxide becomes FADH2",
+          "Oxygen becomes NADH and glucose becomes FADH2",
+        ],
+        correctAnswer: "NAD+ becomes NADH and FAD becomes FADH2",
+        feedback: "Both carriers accept electrons: NAD+ is reduced to NADH, while FAD is reduced to FADH2.",
+      }, {
+        topicId: TEST_TOPIC_ID,
+        methodPhase: "transfer",
+        concept: reviewConcept,
+        estimatedMinutes: 3,
+        requiredForCompletion: true,
+        label: "Apply",
+        title: "Predict a carrier change",
+        body: "If a Krebs cycle oxidation cannot transfer electrons to FAD, which product would decrease most directly?",
+        teaching: null,
+        type: "multiple_choice",
+        choices: ["FADH2", "NAD+", "Carbon dioxide", "ATP synthase"],
+        correctAnswer: "FADH2",
+        feedback: "FADH2 is produced when FAD accepts electrons, so blocking that transfer directly reduces FADH2 production.",
+      }],
+    });
+    parseResponse.mockResolvedValueOnce(completedProviderResponse(
+      "response-outside-material-verification",
+      groundedReview,
+    ));
+    const base = buildSessionEvaluationCases()
+      .find((candidate) => candidate.id === "calculus_delayed_retrieval_self_contained")?.context;
+    expect(base).toBeDefined();
+    const context: SessionGenerationContext = {
+      ...base!,
+      learningGoal: {
+        title: "Krebs cycle source practice",
+        topic: "How the Krebs cycle produces NADH and FADH2",
+        kind: "topic",
+        deadline: null,
+        sourceMode: "user_materials",
+        studyMode: "outside_yova",
+        learningIntent: "study",
+      },
+      planRationale: "Study the learner's source outside YOVA, then return for a short evidence-producing verification.",
+      materials: [{
+        chunkId: materialChunkId,
+        name: materialName,
+        text: materialExcerpt,
+        truncated: false,
+        locationLabel: materialLocation,
+        role: "content_source",
+      }],
+      knowledgeTopics: [{
+        ...base!.knowledgeTopics[0]!,
+        id: TEST_TOPIC_ID,
+        title: reviewConcept,
+        description: contentTarget,
+        subtopics: [contentTarget],
+        origin: "material",
+        sourceReferences: [{
+          materialId: "44444444-4444-4444-8444-444444444444",
+          chunkId: materialChunkId,
+          chunkIndex: 0,
+          startCharacter: 0,
+          endCharacter: materialExcerpt.length,
+          locationLabel: materialLocation,
+          sectionRole: "content_source",
+        }],
+      }],
+      session: {
+        title: `Verify ${reviewConcept}`,
+        objective: `Complete an independent guided retrieval check for every original target: ${contentTarget}. Record topic evidence only from those checked answers.`,
+        method: "Independent retrieval verification",
+        methodReason: "The outside-source method work counted as practice, not proof, so YOVA scheduled this guided return check.",
+        estimatedMinutes: 10,
+        learningMode: "study",
+        topicIds: [TEST_TOPIC_ID],
+        contentTargets: [contentTarget],
+        completionEvidence: [completionEvidence],
+        reviewConcept,
+        reviewType: "verify",
+      },
+      recentResults: [],
+      recentInterruptions: [],
+      conceptSignals: [],
+      scaffoldSignals: [],
+      topicCalibrationSignals: [],
+    };
+
+    const {
+      generateSessionWithOpenAI,
+      validateOutsideAppGuidance,
+    } = await import("@/lib/openai/session-generator");
+    const result = await generateSessionWithOpenAI(context);
+
+    expect(parseResponse).toHaveBeenCalledTimes(1);
+    expect(parseResponse.mock.calls[0]?.[0]?.text?.format?.name).toBe("yova_guided_session");
+    const providerInput = parseResponse.mock.calls[0]?.[0]?.input as string;
+    const prompt = JSON.parse(providerInput.slice(providerInput.indexOf("\n") + 1)) as {
+      outsideAppContract: unknown;
+      quickReviewContract: unknown;
+      sourceGroundingPolicy: unknown;
+    };
+    expect(prompt.outsideAppContract).toBeNull();
+    expect(prompt.quickReviewContract).toMatchObject({ reviewType: "verify" });
+    expect(prompt.sourceGroundingPolicy).toMatchObject({ supplementationAllowed: false });
+    expect(result.draft.activities).toHaveLength(3);
+    expect(result.draft.activities.every((activity) => activity.type === "multiple_choice")).toBe(true);
+    expect(result.draft.sourceGrounding?.sourceNames).toEqual([materialName]);
+    expect(validateOutsideAppGuidance(result.draft, "outside_yova")).toMatch(/must include an instruction/i);
   });
 });

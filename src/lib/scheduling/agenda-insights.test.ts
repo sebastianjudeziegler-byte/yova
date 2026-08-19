@@ -59,13 +59,47 @@ describe("agenda insights", () => {
   it("splits language-learning content when moving it would break the sequence", () => {
     const first = session("conversation", 6, 10, 45, 1);
     const next = session("retrieval", 7, 10, 20, 2);
-    const learningPlan = plan([first, next], 7, "spanish", "Spanish conversation basics");
+    const learningPlan = {
+      ...plan([first, next], 7, "spanish", "Spanish conversation basics"),
+      studyMode: "outside_yova" as const,
+    };
     const entries = learningPlan.sessions.map((item) => ({ plan: learningPlan, session: item }));
     const result = buildDailyCapacityPlan(entries, 20, now);
     expect(result.status).toBe("split");
     expect(result.entry?.session.id).toBe("conversation");
     expect(result.splitMinutes).toBe(20);
     expect(result.projectedMinutes).toBe(20);
+  });
+
+  it("proposes an inside-YOVA split when the generic fallback makes every part runnable", () => {
+    const first = session("conversation", 6, 10, 45, 1);
+    const next = session("retrieval", 7, 10, 20, 2);
+    const learningPlan = plan([first, next], 7, "spanish", "Spanish conversation basics");
+    const entries = learningPlan.sessions.map((item) => ({ plan: learningPlan, session: item }));
+    const result = buildDailyCapacityPlan(entries, 20, now);
+
+    expect(result.status).toBe("split");
+    expect(result.entry?.session.id).toBe("conversation");
+    expect(result.splitMinutes).toBe(20);
+    expect(result.projectedMinutes).toBe(20);
+  });
+
+  it("does not propose a split that would rebuild a collateral scheduled retrieval", () => {
+    const first = session("conversation", 6, 10, 45, 1);
+    const scheduledRetrieval = {
+      ...session("retrieval", 7, 10, 20, 2),
+      reviewConcept: "Conversation basics",
+      reviewType: "maintenance_transfer" as const,
+    };
+    const learningPlan = {
+      ...plan([first, scheduledRetrieval], 7, "spanish", "Spanish conversation basics"),
+      studyMode: "outside_yova" as const,
+    };
+    const entries = learningPlan.sessions.map((item) => ({ plan: learningPlan, session: item }));
+    const result = buildDailyCapacityPlan(entries, 20, now);
+
+    expect(result.status).toBe("blocked");
+    expect(result.splitMinutes).toBeNull();
   });
 
   it("does not claim one move fixes a day that would still exceed the learner's capacity", () => {

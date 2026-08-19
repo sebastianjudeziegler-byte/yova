@@ -231,7 +231,7 @@ Use the task and objective to select the learning activities. Personalize how th
 Requirements:
 - The supplied knowledgeTopics and session.topicIds are authoritative. Return exactly the current session.topicIds in topicIds. Every question activity must carry the one topicId it assesses. Non-question activities use topicId: null.
 - When journey is supplied, treat it as the map for this lesson. Build only the current session's bounded objective, assume only completed previous sessions supplied prior instruction, and leave named future targets for their later sessions.
-- Open with enough orientation that the learner understands how today's target connects to the overall goal. Do not repeat an earlier lesson merely because it is related, and do not jump ahead into a future module.
+- Open with enough orientation that the learner understands how today's target connects to the overall goal. When the required opening phase is model, fold that orientation into the opening model instruction instead of adding a separate orient activity before it. Do not repeat an earlier lesson merely because it is related, and do not jump ahead into a future module.
 - When currentSequence is 1 and the learner is a novice, establish the prerequisite model in plain language before questions. When the plan is broad, this session is one coherent foundation inside a longer pathway, not a compressed survey of the whole subject.
 - When a previous session is skipped or incomplete, do not silently assume its target is secure. Restore only the prerequisite needed for today's objective and defer the rest.
 - Use learningScienceRouting as YOVA's scientific guardrail. Select methodBriefing.methodId from allowedMethodIds, normally use suggestedPrimaryMethodId, and depart from it only when the supplied task evidence clearly supports another allowed method.
@@ -261,7 +261,7 @@ Requirements:
 - Normally use recommendedMethodFidelityContract. Copy all of its required phases into the activities exactly once and in the stated order before adding optional phases. If the task evidence justifies a different allowed method, follow that method's matching contract from methodFidelityContracts with the same precision.
 - Never misuse a methodPhase label to pass validation. A model activity must contain a complete example or explanation; guided_practice must remove some support; independent_practice must withhold the solution; repair must compare and correct; transfer must use a different prompt or application; schedule_return must name a delayed retrieval point.
 - For a learn session, teach or model the target before the first knowledge check, then fade support toward an independent attempt. The checks verify whether teaching worked; they are not the main content.
-- Every model-phase instruction must contain a teaching block. In every learn session, the first activity must also contain a teaching block even when its method phase is orient. The teaching block must explain the actual subject matter, not the study method: state the key idea and explain the mechanism or procedure in connected prose. For every learn session, include at least one concrete worked example or one plausible misconception with its correction. Do not leave both teaching.example and teaching.commonMistake empty.
+- Every model-phase activity must use type instruction and contain a teaching block. Never tag a multiple-choice or free-response question as model, and always set teaching to null on questions and reflections. In every learn session, the first activity must contain a teaching block. The teaching block must explain the actual subject matter, not the study method: state the key idea and explain the mechanism or procedure in connected prose. For every learn session, include at least one concrete worked example or one plausible misconception with its correction. Do not leave both teaching.example and teaching.commonMistake empty.
 - Keep activity fields type-safe. instruction and reflection must use choices: [], concept: null, correctAnswer: null, and feedback: null. free_response must use choices: [] and include a concept, reference answer, and feedback. multiple_choice must include a concept, 3 to 5 choices, an exactly matching correct answer, and feedback. Never leave question data on a non-question activity.
 - Keep body under two short sentences and use it only for the learner's immediate action or setup. Never place a lesson, bullet list, study guide, or example inside body. Put the substantive lesson in teaching so the interface can present the idea, walkthrough, and common mistake as separate visual sections.
 - For mathematics, statistics, physics, chemistry equations, and symbolic logic, format every symbolic expression with KaTeX-compatible LaTeX. Use $...$ for inline expressions and $$...$$ for a standalone equation. Keep explanatory prose outside the delimiters. Do not emit raw \\( ... \\) or \\[ ... \\] delimiters. Write currency as USD 100 when a dollar sign could be confused with a math delimiter.
@@ -284,7 +284,7 @@ Requirements:
 - Every question's feedback must be a useful explanatory sentence of at least 20 characters. Every free-response reference answer must contain enough substance to compare meaning, not a one-word answer.
 - Put choices in varied order. Do not always place the correct answer first.
 - If the user is studying inside YOVA, include the minimum explanation or example needed before retrieval or application.
-- If outsideAppContract is present, follow it exactly. Include at least one instruction whose body tells the learner which source or workspace to open, one concrete action to complete there, and when to return to YOVA. Keep all three directions together in that activity. Do not pretend YOVA can see outside work or fabricate claims from an unseen source.
+- If outsideAppContract is present, follow it exactly. Populate the existing compact method panel through methodBriefing: name the task-selected method, explain why it fits the objective, and put two or three concrete external execution steps in how. Learner context may justify only a traceable delivery adjustment or cautious method tie-break, never a fixed learning-style claim. For a learn session, YOVA must still provide substantive subject teaching in the opening model instruction; never defer that teaching to the external source. In that instruction body, tell the learner to study YOVA's model first, then name the source or workspace to open, one concrete method action to complete there, and when to return to YOVA. Keep the external source, action, and return directions together. Do not pretend YOVA can see outside work or fabricate claims from an unseen source.
 - When sourceMode is user_materials, the supplied chunks are the exact chunks mapped to session.topicIds. Never use another part of a document or an unrelated topic.
 - A content_source chunk contains instructional substance. Teach from it, keep factual claims faithful to it, and copy each sourceGrounding anchor excerpt exactly with its chunkId and locationLabel.
 - A scope_outline chunk defines what belongs in the lesson, never how little to teach. Generate complete, accurate instructional substance for the mapped topic from model knowledge. Never ask the learner to memorize or study the outline bullet itself. Use materials_plus_ai and say exactly: "The guide defines the scope. YOVA provides the instruction."
@@ -467,12 +467,22 @@ export async function generateSessionWithOpenAI(
     });
   }
 
-  const outsideAppContract = context.learningGoal.studyMode === "outside_yova"
+  // A scheduled retrieval is the in-YOVA return check promised by the
+  // originating outside session. Sending the learner back out to their source
+  // here would contradict the fixed three-question review contract. Material-
+  // grounded reviews still receive and validate their source anchors below.
+  const outsideAppContract = context.learningGoal.studyMode === "outside_yova" && !quickReviewContract
     ? {
       required: true,
-      instructionTemplate: "Open your [source or workspace] and complete [one concrete action] there. Return to YOVA for [one specific check].",
+      methodCoaching: "Populate YOVA's compact method panel: name the task-selected method, explain why it fits this objective, and give two or three concise execution steps for the external work. Learner context may justify only a traceable delivery adjustment or a cautious tie-break, never a fixed learning-style claim.",
+      learningSequence: context.session.learningMode === "learn"
+        ? "Use exactly this simple flow: open with one concise subject primer in a model instruction; in that same instruction body sequence study the YOVA model, open the named source and perform one concrete method action, then return to YOVA; follow with a multiple-choice check and a typed explanation."
+        : "Send the learner to their source for one bounded action, then return to YOVA for a specific check.",
+      instructionTemplate: context.session.learningMode === "learn"
+        ? "Study YOVA's subject explanation first, then open your [source or workspace] and complete [one concrete application] there. Return to YOVA for [one specific check]."
+        : "Open your [source or workspace] and complete [one concrete action] there. Return to YOVA for [one specific check].",
       sourceExamples: ["textbook", "class notes", "notebook", "document", "course materials"],
-      constraint: "All three directions must appear together in the body of an instruction activity. Make this opening action take no more than five minutes.",
+      constraint: "The source, external action, and return direction must appear together in the body of an instruction activity. For learn sessions, keep substantive subject teaching in that instruction's teaching block and make the body explicitly place the outside action after it. Make the external action take no more than five minutes.",
     }
     : null;
 
@@ -536,7 +546,7 @@ export async function generateSessionWithOpenAI(
     repairAttempted = true;
     repairReason = "structured_output";
     validationIssueCode = "session_full_structure";
-    repairDetail = `The structured session shape was invalid. Fix this exact schema issue: ${error.message.slice(0, 700)}`;
+    repairDetail = sessionStructureRepairDetail(error);
     response = await requestDraft(repairDetail);
   }
 
@@ -555,7 +565,9 @@ export async function generateSessionWithOpenAI(
         : "semantic_validation";
     repairDetail = response.status !== "completed"
       ? `The model response ended with status ${response.status}.`
-      : semanticIssue?.detail ?? "The structured session shape was invalid or incomplete.";
+      : !parsed.success
+        ? sessionStructureRepairDetail(parsed.error)
+        : semanticIssue?.detail ?? "The structured session shape was invalid or incomplete.";
     response = await requestDraft(repairDetail);
     parsed = parseGeneratedSessionDraft(response.output_parsed, learningScienceRouting, context, sessionDeliveryPolicy);
     if (!parsed.success) validationIssueCode = "session_full_structure";
@@ -567,7 +579,9 @@ export async function generateSessionWithOpenAI(
   if (response.status !== "completed" || !parsed.success || semanticIssue) {
     const followupRepairDetail = response.status !== "completed"
       ? `The repaired response ended with status ${response.status}.`
-      : semanticIssue?.detail ?? "The repaired session still had an invalid or incomplete structure.";
+      : !parsed.success
+        ? sessionStructureRepairDetail(parsed.error)
+        : semanticIssue?.detail ?? "The repaired session still had an invalid or incomplete structure.";
     repairDetail = repairDetail
       ? `${repairDetail.slice(0, 900)} Follow-up repair failure: ${followupRepairDetail.slice(0, 700)}`
       : followupRepairDetail;
@@ -1465,6 +1479,43 @@ export function applyCurrentSessionAdjustment(context: SessionGenerationContext)
   };
 }
 
+function sessionStructureRepairDetail(error: unknown) {
+  const issues = readZodIssues(error).slice(0, 3);
+  if (issues.length === 0) {
+    return "The structured session shape was invalid or incomplete. Rebuild the full session against the supplied schema.";
+  }
+  const detail = issues.map((issue) => {
+    const path = zodIssuePath(issue.path);
+    const message = issue.message.replace(/\s+/g, " ").trim().slice(0, 240);
+    return `${path}: ${message || "invalid value"}`;
+  }).join("; ");
+  return `The structured session shape was invalid. Fix these exact schema issues: ${detail}`.slice(0, 700);
+}
+
+function readZodIssues(error: unknown): Array<{ path: Array<string | number>; message: string }> {
+  if (!error || typeof error !== "object" || !("issues" in error)) return [];
+  const issues = (error as { issues?: unknown }).issues;
+  if (!Array.isArray(issues)) return [];
+  return issues.flatMap((issue) => {
+    if (!issue || typeof issue !== "object") return [];
+    const candidate = issue as { path?: unknown; message?: unknown };
+    if (!Array.isArray(candidate.path) || typeof candidate.message !== "string") return [];
+    const path = candidate.path.filter((segment): segment is string | number => (
+      typeof segment === "string" || typeof segment === "number"
+    ));
+    return [{ path, message: candidate.message }];
+  });
+}
+
+function zodIssuePath(path: Array<string | number>) {
+  if (path.length === 0) return "root";
+  return path.reduce((result, segment) => {
+    if (typeof segment === "number") return `${result}[${segment}]`;
+    const safeSegment = String(segment).replace(/[^A-Za-z0-9_-]/g, "_").slice(0, 80) || "field";
+    return result ? `${result}.${safeSegment}` : safeSegment;
+  }, "");
+}
+
 function parseGeneratedSessionDraft(
   value: unknown,
   routing: LearningScienceRoutingBrief,
@@ -1499,6 +1550,14 @@ function parseGeneratedSessionDraft(
     generated: parsed.data.coverage.completionEvidence,
     estimatedMinutes: context.session.estimatedMinutes,
   });
+  const outsideTeachingInstructionIndex = context.learningGoal.studyMode === "outside_yova"
+    && routing.sessionLearningMode === "learn"
+    ? policyAlignedActivities.findIndex((activity) => (
+      activity.type === "instruction"
+      && activity.methodPhase === "model"
+      && Boolean(activity.teaching)
+    ))
+    : -1;
   const deterministicMetadata = {
     ...parsed.data,
     coverage: alignSessionCoverageWithPlan({
@@ -1515,14 +1574,16 @@ function parseGeneratedSessionDraft(
       personalization: deliveryPolicy.learnerFacingReasons.slice(0, 3),
       methodId: resolvedMethodId,
     },
-    activities: policyAlignedActivities.map((activity) => (
+    activities: policyAlignedActivities.map((activity, index) => (
       scheduledConcept && (activity.type === "multiple_choice" || activity.type === "free_response")
         ? { ...activity, concept: scheduledConcept }
-        : context.learningGoal.studyMode === "outside_yova" && activity.type === "instruction"
+        : context.learningGoal.studyMode === "outside_yova"
+          && activity.type === "instruction"
+          && (routing.sessionLearningMode === "study" || index === outsideTeachingInstructionIndex)
           ? {
             ...activity,
             estimatedMinutes: Math.min(activity.estimatedMinutes, 5),
-            body: outsideAppInstructionBody(routing.taskType),
+            body: outsideAppInstructionBody(routing.taskType, routing.sessionLearningMode),
           }
           : activity
     )),
@@ -1672,20 +1733,26 @@ function normalizeGeneratedActivityOrder(
     : activity);
 }
 
-function outsideAppInstructionBody(taskType: LearningScienceRoutingBrief["taskType"]) {
+function outsideAppInstructionBody(
+  taskType: LearningScienceRoutingBrief["taskType"],
+  learningMode: "learn" | "study",
+) {
+  const openAction = learningMode === "learn"
+    ? "Study YOVA's subject model below first, then open"
+    : "Open";
   if (taskType === "writing_argumentation") {
-    return "Open your textbook, class notes, and working document. Draft the requested outline with evidence there, then return to YOVA for a short evidence check.";
+    return `${openAction} your textbook, class notes, and working document. Draft the requested outline with evidence there, then return to YOVA for a short evidence check.`;
   }
   if (taskType === "problem_solving") {
-    return "Open your textbook or notebook. Solve the requested problem there, then return to YOVA for a short answer check.";
+    return `${openAction} your textbook or notebook. Solve the requested problem there, then return to YOVA for a short answer check.`;
   }
   if (taskType === "programming") {
-    return "Open your code editor and source materials. Write and run the requested code there, then return to YOVA for a short reasoning check.";
+    return `${openAction} your code editor and source materials. Write and run the requested code there, then return to YOVA for a short reasoning check.`;
   }
   if (taskType === "reading_to_quiz") {
-    return "Open your assigned text or notes. Read and annotate the requested section there, then return to YOVA for a short evidence check.";
+    return `${openAction} your assigned text or notes. Read and annotate the requested section there, then return to YOVA for a short evidence check.`;
   }
-  return "Open your trusted source or class notes. Complete the requested learning action there, then return to YOVA for a short evidence check.";
+  return `${openAction} your trusted source or class notes. Complete the requested learning action there, then return to YOVA for a short evidence check.`;
 }
 
 export function validateGeneratedSession(
@@ -1783,7 +1850,9 @@ export function validateGeneratedSessionWithCode(
     })],
     ["session_substantive_teaching", validateSubstantiveTeaching(draft)],
     ["session_visible_adaptation", validateVisibleAdaptation(draft.methodBriefing.personalization, sessionDeliveryPolicy)],
-    ["session_outside_app_guidance", validateOutsideAppGuidance(draft, context.learningGoal.studyMode)],
+    ["session_outside_app_guidance", scheduledRetrieval
+      ? null
+      : validateOutsideAppGuidance(draft, context.learningGoal.studyMode)],
     ["session_source_grounding", validateSessionSourceGrounding({
       sourceMode: context.learningGoal.sourceMode,
       materials: context.materials,
@@ -1898,13 +1967,13 @@ export function validateStandardGuidedSessionActivityMix(draft: GeneratedSession
     : "A full guided session needs at least one completion-required typed active-recall attempt. Only scheduled retrieval checks may be multiple-choice only.";
 }
 
-function validateOutsideAppGuidance(draft: GeneratedSessionDraft, studyMode: string) {
+export function validateOutsideAppGuidance(draft: GeneratedSessionDraft, studyMode: string) {
   if (studyMode !== "outside_yova") return null;
   const concreteDirection = draft.activities.some((activity) => {
     if (activity.type !== "instruction") return false;
     const namesSource = /open (the|your)|your (textbook|class notes|notes|source|materials?)|in your (document|notebook)|on paper/i.test(activity.body);
     const namesAction = /draft|write|read|review|solve|complete|outline|highlight|compare|label|trace|practice|select|record/i.test(activity.body);
-    const namesReturn = /return (to yova|here)|come back (to yova|here)/i.test(activity.body);
+    const namesReturn = /return (to yova|here)|come back (to yova|here)|bring (?:your )?(?:answer|work|notes|response|findings?) back(?: to yova| here)?|(?:then )?(?:explain|share|report) (?:what you found|your (?:answer|work|response|findings?))(?: (?:in|to) yova| here)?/i.test(activity.body);
     return namesSource && namesAction && namesReturn;
   });
   return concreteDirection

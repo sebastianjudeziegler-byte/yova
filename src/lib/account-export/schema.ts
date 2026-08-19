@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { ConceptEvidenceListSchema } from "@/lib/learning/concept-evidence";
 import { ConfidenceEvidenceListSchema } from "@/lib/learning/confidence-calibration";
+import { normalizeSessionCompletionProvenance } from "@/lib/learning/session-completion-provenance";
 import {
   SessionAdjustmentSnapshotSchema,
   SessionEvidenceSnapshotSchema,
@@ -38,9 +39,10 @@ const SessionCompletionExportSchema = z.object({
   totalAnswers: z.number().int().min(0),
   feedback: z.enum(["too_easy", "about_right", "too_difficult"]),
   observedGap: z.string().min(1).max(2_000),
+  completionMode: z.enum(["guided", "unguided_practice"]).default("guided"),
   conceptEvidence: ConceptEvidenceListSchema.default([]),
   confidenceEvidence: ConfidenceEvidenceListSchema.default([]),
-});
+}).transform(normalizeSessionCompletionProvenance);
 
 const SessionInterruptionExportSchema = z.object({
   id: z.string().uuid(),
@@ -83,7 +85,12 @@ const PendingSessionCompletionExportSchema = z.object({
     estimatedMinutes: z.number().int().min(5).max(180),
     amountLabel: z.string().min(1).max(180),
     learningMode: z.enum(["learn", "study"]),
-    status: z.literal("ready"),
+    topicIds: z.array(z.string().uuid()).max(6).default([]),
+    contentTargets: z.array(z.string().min(1).max(180)).max(6).default([]),
+    completionEvidence: z.array(z.string().min(1).max(220)).max(4).default([]),
+    reviewConcept: z.string().min(2).max(120).optional(),
+    reviewType: z.enum(["repair_and_retrieve", "verify", "maintenance_transfer"]).optional(),
+    status: z.enum(["ready", "upcoming"]),
     adaptationNote: z.object({
       explanation: z.string().min(1).max(900),
       adaptedAt: z.string().datetime({ offset: true }),
@@ -114,6 +121,7 @@ const ActiveSessionCheckpointExportSchema = z.object({
   resumeStep: z.number().int().min(0).max(24),
   resourceFingerprint: z.string().regex(/^sr1:[0-9a-f]{16}$/),
   resourceGeneratedAt: z.string().datetime({ offset: true }).optional(),
+  completionMode: z.enum(["guided", "unguided_practice"]).optional(),
   evidence: SessionEvidenceSnapshotSchema.optional(),
   pendingRepair: z.object({
     concept: z.string().trim().min(2).max(120),

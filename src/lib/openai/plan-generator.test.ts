@@ -116,6 +116,35 @@ describe("OpenAI plan generation quality repair", () => {
     });
   });
 
+  it("caps a repair at the route's remaining provider deadline", async () => {
+    vi.useFakeTimers();
+    const startedAt = new Date("2026-08-18T20:00:00.000Z");
+    vi.setSystemTime(startedAt);
+    parseResponse
+      .mockImplementationOnce(async () => {
+        vi.setSystemTime(new Date(startedAt.getTime() + 40_000));
+        return providerResponse("response-fixed-claim", makeDraft(
+          "Recall the complete sequence without notes",
+          "Because you have ADHD, diagrams are the only format that can work.",
+        ));
+      })
+      .mockResolvedValueOnce(providerResponse(
+        "response-repaired",
+        makeDraft("Recall the complete sequence and explain one energy relationship without notes"),
+      ));
+    const { generatePlanWithOpenAI } = await import("@/lib/openai/plan-generator");
+
+    try {
+      await generatePlanWithOpenAI(request, {
+        deadlineAt: startedAt.getTime() + 70_000,
+      });
+
+      expect(parseResponse.mock.calls.map((call) => call[1]?.timeout)).toEqual([40_000, 30_000]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("stops safely when the repaired plan still fails", async () => {
     parseResponse
       .mockResolvedValueOnce(providerResponse("response-fixed-claim-1", makeDraft(

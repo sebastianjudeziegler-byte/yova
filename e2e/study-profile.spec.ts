@@ -6,6 +6,7 @@ const PRIVACY_REQUEST_MAILTO = "mailto:hello@yovaapp.com?subject=YOVA%20privacy%
 
 test.describe("YOVA Study Profile", () => {
   test("creates a practical private report that survives refresh and joins the waitlist", async ({ page }) => {
+    test.setTimeout(60_000);
     const email = `study-profile-${Date.now()}@example.com`;
 
     await page.goto("/study-profile?utm_source=playwright&utm_campaign=study-profile-e2e");

@@ -33,6 +33,7 @@ export const runtime = "nodejs";
 // Broad learning pathways can require one complete structured generation plus
 // one bounded educational-quality repair. Keep enough server time for both.
 export const maxDuration = 120;
+const PLAN_GENERATION_DEADLINE_BUFFER_MS = 10_000;
 
 export async function POST(request: Request) {
   const requestId = crypto.randomUUID();
@@ -156,8 +157,8 @@ export async function POST(request: Request) {
       finalOutcome: "success",
       firstAttemptPassed: mapped.stats.firstAttemptPassed,
       failedValidator: mapped.stats.failedValidator,
-      repairAttempted: false,
-      repairSucceeded: null,
+      repairAttempted: mapped.stats.attempts > 1,
+      repairSucceeded: mapped.stats.attempts > 1 ? true : null,
       elapsedMs: mapped.stats.elapsedMs,
       attempts: mapped.stats.attempts,
       inputTokens: mapped.stats.inputTokens,
@@ -316,7 +317,9 @@ export async function POST(request: Request) {
     }
 
     try {
-      const generated = await generatePlanWithOpenAI(planRequest);
+      const generated = await generatePlanWithOpenAI(planRequest, {
+        deadlineAt: startedAt + (maxDuration * 1_000) - PLAN_GENERATION_DEADLINE_BUFFER_MS,
+      });
       const plan = materializePlanDraft(generated.draft, planRequest);
 
       const response = PlanGenerationResponseSchema.parse({

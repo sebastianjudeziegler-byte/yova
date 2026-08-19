@@ -176,6 +176,34 @@ describe("buildMethodSignals", () => {
     expect(signal.interruptions).toBe(2);
   });
 
+  it("does not treat unguided practice as learning-method evidence", () => {
+    const plan = makePlan([
+      makeSession("session_one", "Active recall"),
+      makeSession("session_two", "Targeted retrieval"),
+    ]);
+    const [signal] = buildMethodSignals(
+      [plan],
+      [
+        makeCompletion("session_one"),
+        makeCompletion("session_two", {
+          completionMode: "unguided_practice",
+          correctAnswers: 0,
+          totalAnswers: 0,
+          feedback: "too_difficult",
+        }),
+      ],
+      [],
+    );
+
+    expect(signal).toMatchObject({
+      sessions: 1,
+      checkedAnswers: 5,
+      correctAnswers: 4,
+      difficultRatings: 0,
+      status: "early_signal",
+    });
+  });
+
   it("ignores results that cannot be joined to an existing plan session", () => {
     const signals = buildMethodSignals(
       [makePlan([])],

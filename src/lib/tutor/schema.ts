@@ -49,7 +49,7 @@ const ShortenSessionActionSchema = z.object({
   type: z.literal("shorten_current_session"),
   planId: z.string().uuid(),
   planSessionId: z.string().uuid(),
-  minutes: z.number().int().min(5).max(90),
+  minutes: z.number().int().min(10).max(90),
   title: z.string().trim().min(1).max(180),
   explanation: z.string().trim().min(1).max(500),
 });

@@ -63,6 +63,20 @@ describe("tutor session context", () => {
 });
 
 describe("tutor plan actions", () => {
+  it("does not approve a session window below the safe adjustment floor", () => {
+    const action = {
+      id: "20000000-0000-4000-8000-200000000001",
+      type: "shorten_current_session",
+      planId: "10000000-0000-4000-8000-100000000001",
+      planSessionId: "30000000-0000-4000-8000-300000000001",
+      title: "Make this session shorter",
+      explanation: "Rebuild the unfinished content in a smaller window.",
+    };
+
+    expect(TutorProposedActionSchema.safeParse({ ...action, minutes: 9 }).success).toBe(false);
+    expect(TutorProposedActionSchema.safeParse({ ...action, minutes: 10 }).success).toBe(true);
+  });
+
   it("accepts a learner-approved plan direction change", () => {
     const action = TutorProposedActionSchema.parse({
       id: "20000000-0000-4000-8000-000000000001",

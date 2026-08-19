@@ -13,6 +13,10 @@ import type {
   StudyMode,
 } from "@/lib/domain";
 import { readConceptEvidenceProperty } from "@/lib/learning/concept-evidence";
+import {
+  normalizeSessionCompletionMode,
+  normalizeSessionCompletionProvenance,
+} from "@/lib/learning/session-completion-provenance";
 import { readConfidenceEvidenceProperty } from "@/lib/learning/confidence-calibration";
 import {
   compareActiveSessionCheckpointProgress,
@@ -257,6 +261,10 @@ export async function loadAuthenticatedLearningState(): Promise<CloudLearningSta
       topicIds: readStringArrayProperty(row.step_data, "topicIds"),
       contentTargets: readStringArrayProperty(row.step_data, "contentTargets"),
       completionEvidence: readStringArrayProperty(row.step_data, "completionEvidence"),
+      originSessionId: readTextProperty(row.step_data, "originSessionId") || undefined,
+      originalContentMinutes: readPositiveIntegerProperty(row.step_data, "originalContentMinutes"),
+      segmentIndex: readPositiveIntegerProperty(row.step_data, "segmentIndex"),
+      segmentCount: readPositiveIntegerProperty(row.step_data, "segmentCount"),
       status: row.status,
       resource: readSessionResourceFromStepData(row.step_data),
       adaptationNote: readSessionAdaptationNote(row.step_data),
@@ -317,7 +325,7 @@ export async function loadAuthenticatedLearningState(): Promise<CloudLearningSta
     const planId = planIdBySessionId.get(attempt.plan_session_id);
     if (!planId || !attempt.completed_at) return [];
 
-    return [{
+    return [normalizeSessionCompletionProvenance({
       id: attempt.id,
       planId,
       planSessionId: attempt.plan_session_id,
@@ -329,9 +337,12 @@ export async function loadAuthenticatedLearningState(): Promise<CloudLearningSta
       totalAnswers: attempt.total_answers ?? 0,
       feedback: isSessionFeedback(attempt.user_feedback) ? attempt.user_feedback : "about_right",
       observedGap: readTextProperty(attempt.result_data, "observedGap") || "No observation recorded",
+      completionMode: normalizeSessionCompletionMode(
+        readTextProperty(attempt.result_data, "completionMode"),
+      ),
       conceptEvidence: readConceptEvidenceProperty(attempt.result_data),
       confidenceEvidence: readConfidenceEvidenceProperty(attempt.result_data),
-    }];
+    })];
   });
 
   const sessionInterruptions = interruptionRows.flatMap<SessionInterruption>((event) => {
@@ -503,7 +514,7 @@ async function persistAuthenticatedActiveSessionCheckpoint(
   checkpoint: CloudSyncActiveSessionCheckpoint,
 ) {
   const supabase = createSupabaseBrowserClient();
-  const { data, error } = await supabase.rpc("save_active_session_checkpoint", {
+  const { data, error } = await supabase.rpc("save_active_session_checkpoint_with_completion_mode", {
     payload: activeSessionCheckpointCloudPayload(checkpoint),
   });
 
@@ -578,6 +589,7 @@ function activeSessionCheckpointCloudPayload(checkpoint: CloudSyncActiveSessionC
     resumeStep: checkpoint.resumeStep,
     resourceFingerprint: checkpoint.resourceFingerprint,
     resourceGeneratedAt: checkpoint.resourceGeneratedAt,
+    ...(checkpoint.completionMode ? { completionMode: checkpoint.completionMode } : {}),
     ...(checkpoint.evidence ? { evidence: checkpoint.evidence } : {}),
     ...(checkpoint.pendingRepair ? { pendingRepair: checkpoint.pendingRepair } : {}),
     ...(checkpoint.status === "awaiting_finish" ? {
@@ -734,20 +746,34 @@ export async function completeAuthenticatedPlanSession(
 ) {
   if (!isSupabaseConfigured()) return;
   const supabase = createSupabaseBrowserClient();
-  const { error } = await supabase.rpc("complete_plan_session", {
+  const normalizedCompletion = normalizeSessionCompletionProvenance(completion);
+  const completionMode = normalizeSessionCompletionMode(normalizedCompletion.completionMode);
+  if (
+    completionMode === "unguided_practice"
+    && (!followUpSession
+      || followUpSession.reviewType !== "verify"
+      || followUpSession.learningMode !== "study")
+  ) {
+    throw new Error("YOVA cannot complete ungraded practice without preserving its required guided verification.");
+  }
+  const completionRpc = completionMode === "unguided_practice"
+    ? "complete_unguided_plan_session"
+    : "complete_plan_session";
+  const { error } = await supabase.rpc(completionRpc, {
     payload: {
-      attemptId: completion.id,
-      planSessionId: completion.planSessionId,
-      startedAt: completion.startedAt,
-      completedAt: completion.completedAt,
-      plannedMinutes: completion.plannedMinutes,
-      actualMinutes: completion.actualMinutes,
-      correctAnswers: completion.correctAnswers,
-      totalAnswers: completion.totalAnswers,
-      feedback: completion.feedback,
-      observedGap: completion.observedGap,
-      conceptEvidence: completion.conceptEvidence,
-      confidenceEvidence: completion.confidenceEvidence,
+      attemptId: normalizedCompletion.id,
+      planSessionId: normalizedCompletion.planSessionId,
+      startedAt: normalizedCompletion.startedAt,
+      completedAt: normalizedCompletion.completedAt,
+      plannedMinutes: normalizedCompletion.plannedMinutes,
+      actualMinutes: normalizedCompletion.actualMinutes,
+      correctAnswers: normalizedCompletion.correctAnswers,
+      totalAnswers: normalizedCompletion.totalAnswers,
+      feedback: normalizedCompletion.feedback,
+      observedGap: normalizedCompletion.observedGap,
+      completionMode,
+      conceptEvidence: normalizedCompletion.conceptEvidence,
+      confidenceEvidence: normalizedCompletion.confidenceEvidence,
       nextSessionAdjustment: adaptation ?? null,
       followUpSession: followUpSession ? {
         id: followUpSession.id,
@@ -762,6 +788,8 @@ export async function completeAuthenticatedPlanSession(
         learningMode: followUpSession.learningMode,
         explanation: followUpSession.adaptationNote?.explanation ?? followUpSession.methodReason,
         topicIds: followUpSession.topicIds ?? [],
+        contentTargets: followUpSession.contentTargets ?? [],
+        completionEvidence: followUpSession.completionEvidence ?? [],
         reviewConcept: followUpSession.reviewConcept,
         reviewType: followUpSession.reviewType,
       } : null,
@@ -891,6 +919,13 @@ function readNumberProperty(value: unknown, key: string) {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const property = (value as Record<string, unknown>)[key];
   return typeof property === "number" && Number.isFinite(property) ? property : null;
+}
+
+function readPositiveIntegerProperty(value: unknown, key: string) {
+  const property = readNumberProperty(value, key);
+  return property !== null && Number.isInteger(property) && property > 0
+    ? property
+    : undefined;
 }
 
 function readStringArrayProperty(value: unknown, key: string) {

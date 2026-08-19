@@ -72,6 +72,9 @@ describe("account data-export route", () => {
       if (name === "claim_account_data_export" || name === "complete_account_data_export") {
         return Promise.resolve({ data: true, error: null });
       }
+      if (name === "fail_account_data_export") {
+        return Promise.resolve({ data: true, error: null });
+      }
       return Promise.resolve({ data: null, error: null });
     });
     mocks.createServer.mockReset().mockResolvedValue({ rpc: mocks.rpc });
@@ -238,6 +241,47 @@ describe("account data-export route", () => {
     expect(mocks.upload).not.toHaveBeenCalled();
   });
 
+  it("closes a committed preparation receipt when the begin response cannot be verified", async () => {
+    mocks.rpc.mockResolvedValueOnce({
+      data: {
+        exportId: EXPORT_ID,
+        tempStoragePath: `${USER_ID}/${EXPORT_ID}/device-state.json`,
+        prepareExpiresAt: "2026-08-17T12:15:00.000Z",
+      },
+      error: null,
+    });
+
+    const response = await POST(startRequest());
+
+    expect(response.status).toBe(500);
+    await expect(response.json()).resolves.toMatchObject({
+      error: expect.stringContaining("incomplete request was closed"),
+    });
+    expect(mocks.rpc).toHaveBeenNthCalledWith(2, "fail_account_data_export", {
+      requested_export_id: EXPORT_ID,
+    });
+    expect(mocks.upload).not.toHaveBeenCalled();
+    expect(mocks.remove).toHaveBeenCalledWith([
+      `${USER_ID}/${EXPORT_ID}/device-state.json`,
+      `${USER_ID}/${EXPORT_ID}/yova-data.json`,
+    ]);
+  });
+
+  it("does not claim a committed preparation was closed when compensation fails", async () => {
+    mocks.rpc
+      .mockResolvedValueOnce({ data: { renamedExportId: EXPORT_ID }, error: null })
+      .mockResolvedValueOnce({ data: false, error: { message: "cleanup unavailable" } });
+
+    const response = await POST(startRequest());
+
+    expect(response.status).toBe(500);
+    await expect(response.json()).resolves.toMatchObject({
+      error: expect.stringMatching(/Do not start another copy yet/i),
+    });
+    expect(mocks.upload).not.toHaveBeenCalled();
+    expect(mocks.remove).not.toHaveBeenCalled();
+  });
+
   it("claims once, builds the artifact, and records completion before returning the link", async () => {
     const response = await PUT(mutationRequest("PUT", {
       exportId: EXPORT_ID,
@@ -255,6 +299,27 @@ describe("account data-export route", () => {
       requested_size_bytes: 1234,
       requested_filename: "yova-data-2026-08-17T12-00-00Z.json",
     });
+  });
+
+  it("validates the download receipt before committing the export as ready", async () => {
+    mocks.finalizeArtifact.mockResolvedValueOnce({
+      downloadUrl: "https://storage.example/download",
+      filename: "not-a-yova-export.json",
+      expiresAt: "2026-08-17T12:05:00.000Z",
+      sizeBytes: 1234,
+    });
+
+    const response = await PUT(mutationRequest("PUT", {
+      exportId: EXPORT_ID,
+      finalizeGrant: FINALIZE_GRANT,
+    }));
+
+    expect(response.status).toBe(500);
+    expect(mocks.rpc).not.toHaveBeenCalledWith("complete_account_data_export", expect.anything());
+    expect(mocks.rpc).toHaveBeenCalledWith("fail_account_data_export", {
+      requested_export_id: EXPORT_ID,
+    });
+    expect(mocks.remove).toHaveBeenCalled();
   });
 
   it("does not build when the session-bound one-time finalize grant is rejected", async () => {

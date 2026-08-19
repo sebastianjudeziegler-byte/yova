@@ -13,6 +13,130 @@ const onboardingAnswers = [
   "Nothing else for now",
 ] as const;
 
+test("durable allowance exhaustion loads an arbitrary inside session fallback and names the reset", async ({ page }) => {
+  await page.route("**/api/sessions/generate", async (route) => {
+    await route.fulfill({
+      status: 429,
+      contentType: "application/json",
+      headers: {
+        "Retry-After": "3600",
+        "X-Yova-Fallback-Reason": "guided_session_allowance_exhausted",
+        "X-Yova-Request-Id": "86948113-b4be-423a-b0bc-d86aaae1ba7b",
+      },
+      body: JSON.stringify({
+        error: "This account has used all of its guided-session allowance.",
+        code: "guided_session_allowance_exhausted",
+        retryable: false,
+        retryAfterSeconds: 3600,
+      }),
+    });
+  });
+  await createPreviewAccount(page);
+  await completeOnboarding(page);
+
+  await createOneOffLearningSession(
+    page,
+    "Review the photosynthetic electron transport chain for my test.",
+    "study",
+  );
+
+  const allowanceNotice = page.locator(".session-issue").filter({
+    hasText: "Your guided-session allowance is used up until",
+  });
+  await expect(allowanceNotice).toContainText("A safe built-in session was loaded instead");
+  await expect(allowanceNotice).toContainText("Reference: 86948113-b4be-423a-b0bc-d86aaae1ba7b");
+  await expect(page.getByRole("heading", { name: "Use the session target as your comparison frame" })).toBeVisible();
+  await expect(page.getByText("LESSON SERVICE INTERRUPTED", { exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Prepare this lesson again" })).toHaveCount(0);
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Make an unsupported attempt first" })).toBeVisible();
+});
+
+test("durable allowance exhaustion without a safe fallback has its own non-retryable state", async ({ page }) => {
+  await page.route("**/api/sessions/generate", async (route) => {
+    await route.fulfill({
+      status: 429,
+      contentType: "application/json",
+      headers: {
+        "Retry-After": "1800",
+        "X-Yova-Fallback-Reason": "guided_session_allowance_exhausted",
+      },
+      body: JSON.stringify({
+        error: "This account has used all of its guided-session allowance.",
+        code: "guided_session_allowance_exhausted",
+        retryable: false,
+        retryAfterSeconds: 1800,
+      }),
+    });
+  });
+  await createPreviewAccount(page);
+  await completeOnboarding(page);
+
+  await page.getByRole("button", { name: "Study something now", exact: true }).first().click();
+  await page.getByPlaceholder("Example: Help me understand the product rule and practice using it.").fill(
+    "Help me understand the photosynthetic electron transport chain from scratch.",
+  );
+  await page.getByRole("button", { name: "I haven't learned this yet" }).click();
+  await page.getByRole("button", { name: /Choose how YOVA should help/ }).click();
+  await page.getByRole("button", { name: /Create it for me/ }).click();
+  await page.getByRole("button", { name: /Build and start session/ }).click();
+  await page.getByRole("button", { name: "Continue" }).click();
+  await page.getByRole("button", { name: "Continue" }).click();
+  await page.getByLabel("Anything YOVA should account for?").fill(
+    "Use my instructor's private rubric for every comparison.",
+  );
+  await page.getByRole("button", { name: "Prepare this session" }).click();
+
+  const quotaState = page.locator(".session-quota-state");
+  await expect(quotaState).toContainText("GUIDED SESSION ALLOWANCE USED");
+  await expect(quotaState).toContainText("You can request another generated lesson after");
+  await expect(quotaState.locator("time")).toHaveAttribute("datetime", /\d{4}-\d{2}-\d{2}T/);
+  await expect(quotaState).toContainText("could not build an offline lesson for this session configuration");
+  await expect(page.getByText("LESSON SERVICE INTERRUPTED", { exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Prepare this lesson again" })).toHaveCount(0);
+  await expect(quotaState.getByRole("button", { name: /^Open / })).toBeVisible();
+});
+
+test("streamed lesson quota uses its built-in explanation and surfaces the reset", async ({ page }) => {
+  await page.route("**/api/sessions/generate", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(streamedResumeSessionResponse()),
+    });
+  });
+  await page.route("**/api/sessions/lesson", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "text/event-stream",
+      headers: {
+        "Retry-After": "900",
+        "X-Yova-Fallback-Reason": "guided_session_allowance_exhausted",
+      },
+      body: [
+        'data: {"type":"lesson.meta","requestId":"86948113-b4be-423a-b0bc-d86aaae1ba7b","model":"built-in"}',
+        "",
+        'data: {"type":"lesson.replace","content":"# Allowance-safe explanation\\n\\nThis bounded explanation came from the validated lesson brief without another AI call."}',
+        "",
+        'data: {"type":"lesson.complete","elapsedMs":0,"latencyToFirstTokenMs":null,"inputTokens":0,"cachedInputTokens":0,"outputTokens":0,"wordCount":15,"model":"built-in"}',
+        "",
+        "",
+      ].join("\n"),
+    });
+  });
+  await createPreviewAccount(page);
+  await completeOnboarding(page);
+
+  await createOneOffLearningSession(page, "Help me understand retrieval practice and test the idea.");
+
+  await expect(page.getByText("Allowance-safe explanation")).toBeVisible();
+  const allowanceNotice = page.locator(".session-issue").filter({
+    hasText: "Your guided-session allowance is used up until",
+  });
+  await expect(allowanceNotice).toContainText("A safe built-in explanation was loaded instead");
+  await expect(page.getByText("LESSON SERVICE INTERRUPTED", { exact: true })).toHaveCount(0);
+});
+
 test("a confident misconception is repaired now without a duplicate follow-up", async ({ page }) => {
   await page.route("**/api/sessions/generate", async (route) => {
     await route.fulfill({
@@ -132,7 +256,10 @@ test("a built-in fallback fails closed for a teaching-first adjustment", async (
   await expect(page.getByText(/switch this session to teaching first/i)).toBeVisible();
   await page.getByRole("button", { name: "Prepare this session" }).click();
 
-  await expect(page.getByRole("heading", { name: "YOVA already knows what this lesson should cover." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "YOVA could not reach the guided-lesson service." })).toBeVisible();
+  await expect(page.getByText(/could not build an offline lesson for this session configuration/i)).toBeVisible();
+  await expect(page.getByText(/still needs an initial subject explanation/i)).toBeVisible();
+  await expect(page.getByRole("button", { name: "Review session setup" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "See the product rule before using it" })).not.toBeVisible();
   await expect(page.getByText(/safe built-in session was loaded instead/i)).not.toBeVisible();
 });
@@ -160,12 +287,13 @@ test("an inactive-plan generation response cannot open a stale built-in lesson",
   await page.getByRole("button", { name: "Continue" }).click();
   await page.getByRole("button", { name: "Prepare this session" }).click();
 
-  await expect(page.getByRole("heading", { name: "YOVA already knows what this lesson should cover." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "YOVA could not prepare a guided lesson for this session setup." })).toBeVisible();
   await expect(page.getByText("That learning plan is no longer active.")).toBeVisible();
+  await expect(page.getByRole("button", { name: /guided lesson again/i })).toHaveCount(0);
   await expect(page.getByText(/safe built-in session was loaded instead/i)).not.toBeVisible();
 });
 
-test("a built-in fallback never exceeds a shortened session window", async ({ page }) => {
+test("a shortened inside session uses the generic floor when its curated lesson does not fit", async ({ page }) => {
   await page.route("**/api/sessions/generate", async (route) => {
     await route.fulfill({
       status: 502,
@@ -178,9 +306,9 @@ test("a built-in fallback never exceeds a shortened session window", async ({ pa
 
   await page.getByRole("button", { name: "Study something now", exact: true }).first().click();
   await page.getByPlaceholder("Example: Help me understand the product rule and practice using it.").fill(
-    "Help me understand the product rule and practice using it.",
+    "Review the product rule and test what I remember.",
   );
-  await page.getByRole("button", { name: "I haven't learned this yet" }).click();
+  await page.getByRole("button", { name: "I understand the basics but need practice" }).click();
   await page.getByRole("button", { name: /Choose how YOVA should help/ }).click();
   await page.getByRole("button", { name: /Create it for me/ }).click();
   await page.getByRole("button", { name: /Build and start session/ }).click();
@@ -189,8 +317,10 @@ test("a built-in fallback never exceeds a shortened session window", async ({ pa
   await page.getByLabel("Time available right now").selectOption("10");
   await page.getByRole("button", { name: "Prepare this session" }).click();
 
-  await expect(page.getByRole("heading", { name: "YOVA already knows what this lesson should cover." })).toBeVisible();
-  await expect(page.getByText(/safe built-in session was loaded instead/i)).not.toBeVisible();
+  await expect(page.getByText(/safe built-in session was loaded instead/i)).toBeVisible();
+  await expect(page.getByText("STEP 1 OF 3", { exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Use the session target as your comparison frame" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "YOVA already knows what this lesson should cover." })).not.toBeVisible();
 });
 
 test("a built-in fallback never ignores a learner's custom session requirement", async ({ page }) => {
@@ -220,10 +350,11 @@ test("a built-in fallback never ignores a learner's custom session requirement",
   await page.getByLabel("Anything YOVA should account for?").fill("This session must also cover the quotient rule.");
   await page.getByRole("button", { name: "Prepare this session" }).click();
 
-  await expect(page.getByRole("heading", { name: "YOVA already knows what this lesson should cover." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "YOVA could not reach the guided-lesson service." })).toBeVisible();
+  await expect(page.getByText(/could not build an offline lesson for this session configuration/i)).toBeVisible();
   await expect(page.getByText(/safe built-in session was loaded instead/i)).not.toBeVisible();
 
-  await page.getByRole("button", { name: "Prepare this lesson again" }).click();
+  await page.getByRole("button", { name: "Try preparing the guided lesson again" }).click();
   await expect.poll(() => generationBodies.length).toBe(2);
   expect(generationBodies[1]?.sessionAdjustment).toEqual(generationBodies[0]?.sessionAdjustment);
   expect(generationBodies[1]?.sessionAdjustment).toMatchObject({
@@ -231,7 +362,7 @@ test("a built-in fallback never ignores a learner's custom session requirement",
     availableMinutes: 20,
     note: "This session must also cover the quotient rule.",
   });
-  await expect(page.getByRole("heading", { name: "YOVA already knows what this lesson should cover." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "YOVA could not reach the guided-lesson service." })).toBeVisible();
 });
 
 test("a new topic is taught before YOVA asks for independent performance", async ({ page }) => {
@@ -295,7 +426,10 @@ test("a new topic is taught before YOVA asks for independent performance", async
   await page.getByRole("button", { name: "Review the lesson" }).click();
   await expect(page.getByRole("dialog", { name: /Review the lesson, then return to the same question/i })).toBeVisible();
   await expect(page.getByText("Your answer and session progress stay exactly where they are.")).toBeVisible();
-  await page.getByRole("button", { name: "Back to the question" }).click();
+  await page.getByRole("dialog", { name: /Review the lesson, then return to the same question/i })
+    .locator("footer")
+    .getByRole("button", { name: "Back to the question" })
+    .click();
   await expect(page.getByRole("heading", { name: "What makes the second year compound growth?" })).toBeVisible();
   await expect(page.getByRole("group", { name: /One quick confidence check/ })).not.toBeVisible();
   await page.getByRole("button", { name: "The earlier gain remains in the base" }).click();
@@ -412,12 +546,16 @@ test("an opaque class label is stopped until the learner names the actual calcul
   expect(workspaceWidth.scroll).toBeLessThanOrEqual(workspaceWidth.client + 1);
 });
 
-test("a total lesson-service outage never asks the learner to redefine an already clear topic", async ({ page }) => {
+test("a teaching-first inside outage does not start with unsupported recall", async ({ page }) => {
   await page.route("**/api/sessions/generate", async (route) => {
     await route.fulfill({
       status: 502,
       contentType: "application/json",
-      body: JSON.stringify({ error: "Temporary guided-session generation failure." }),
+      body: JSON.stringify({
+        error: "Live generation did not produce a guided session that passed YOVA's learning checks.",
+        code: "guided_session_quality_checks_failed",
+        retryable: false,
+      }),
     });
   });
   await createPreviewAccount(page);
@@ -433,12 +571,13 @@ test("a total lesson-service outage never asks the learner to redefine an alread
   await page.getByRole("button", { name: /Build and start session/ }).click();
   await confirmSessionSetup(page);
 
-  await expect(page.getByRole("heading", { name: "YOVA already knows what this lesson should cover." })).toBeVisible();
-  await expect(page.getByText(/You do not need to explain the lesson again/i)).toBeVisible();
-  await expect(page.getByText("See the structure before trying it alone", { exact: true })).not.toBeVisible();
-  await expect(page.getByRole("heading", { name: "What should happen after an initial explanation?" })).not.toBeVisible();
-  await expect(page.getByRole("button", { name: "Add context and retry" })).not.toBeVisible();
-  await expect(page.getByRole("button", { name: "Prepare this lesson again" })).toBeVisible();
+  await expect(page.getByText("LESSON QUALITY CHECK", { exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "The generated lesson did not pass YOVA's quality checks." })).toBeVisible();
+  await expect(page.getByText(/teaching-first session still needs an initial subject explanation/i)).toBeVisible();
+  await expect(page.getByLabel("Study-method workpad")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Use the study method" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Try preparing the guided lesson again" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Review session setup" })).toBeVisible();
 });
 
 test("a temporary AI failure loads a subject-specific startup funding lesson", async ({ page }) => {
@@ -509,9 +648,349 @@ test("outside study gives a concrete source-based session instead of pretending 
   await page.getByRole("button", { name: /Build and start session/ }).click();
   await confirmSessionSetup(page);
 
-  await expect(page.getByRole("heading", { name: "Prepare your outside study block" })).toBeVisible();
-  await expect(page.getByText(/Open the material you use for Draft a comparative history thesis using my textbook evidence\. Keep only that source and a place to work visible/i)).toBeVisible();
+  const methodWorkpad = page.getByLabel("Study-method workpad");
+  const methodBriefing = methodWorkpad.getByLabel("How to study this");
+  await expect(methodWorkpad).toBeVisible();
+  await expect(methodBriefing).toContainText("HOW TO STUDY THIS");
+  await expect(methodBriefing).toContainText("TODAY'S TARGET");
+  await expect(methodBriefing).toContainText("What this covers");
+  await expect(methodBriefing).toContainText("Finished means");
+  await expect(methodBriefing).toContainText("WHY THIS METHOD");
+  await expect(methodBriefing).toContainText("Use it like this");
+  await expect(methodBriefing).toContainText("Why this fits today");
+  await expect(methodBriefing).toContainText(/learner’s own materials/i);
+  await expect(methodWorkpad).toContainText("This completes practice, not a knowledge check.");
+  await expect(page.locator(".session-activity-header").getByRole("heading", { name: /How to use/i })).toBeVisible();
+  await expect(page.getByText(/move to your own source/i)).toBeVisible();
   await expect(page.locator("strong:visible").filter({ hasText: /^Retrieval-based outlining$/ })).toBeVisible();
+});
+
+test("an arbitrary outside method workpad completes as practice without changing topic evidence", async ({ page }) => {
+  await createPreviewAccount(page);
+  await completeOnboarding(page);
+
+  await page.getByRole("button", { name: "Study something now", exact: true }).first().click();
+  await page.getByPlaceholder("Example: Help me understand the product rule and practice using it.").fill(
+    "Review how thermohaline circulation moves heat using my oceanography textbook",
+  );
+  await page.getByRole("button", { name: "I understand the basics but need practice" }).click();
+  await page.getByRole("button", { name: /Choose how YOVA should help/ }).click();
+  await page.getByRole("button", { name: /Guide me outside YOVA/ }).click();
+  await page.getByRole("button", { name: /Build and start session/ }).click();
+  await confirmSessionSetup(page);
+
+  const workpad = page.getByLabel("Study-method workpad");
+  await expect(workpad).toBeVisible();
+  await expect(workpad.getByLabel("How to study this")).toContainText(/thermohaline circulation/i);
+  await expect(workpad).toContainText("This completes practice, not a knowledge check.");
+
+  await expect.poll(async () => Boolean(await readPreviewPracticeState(page))).toBe(true);
+  const before = await readPreviewPracticeState(page);
+  if (!before) throw new Error("Expected the outside session in the preview snapshot.");
+  expect(before.topicStatuses.length).toBeGreaterThan(0);
+  expect(before.sessionStatus).toBe("ready");
+
+  await workpad.getByLabel("Your workpad").fill(
+    "Warm, salty surface water moves heat toward higher latitudes, cools, becomes denser, sinks, and joins deep circulation.",
+  );
+  const topicChecks = workpad.getByRole("group", { name: "Check each covered topic" }).getByRole("checkbox");
+  const topicCount = await topicChecks.count();
+  expect(topicCount).toBeGreaterThan(0);
+  for (let index = 0; index < topicCount; index += 1) {
+    await topicChecks.nth(index).check();
+  }
+
+  const finishPractice = workpad.getByRole("button", { name: "Finish as ungraded practice" });
+  await expect(finishPractice).toBeEnabled();
+  await finishPractice.click();
+
+  await expect(page.getByText("UNGRADED PRACTICE COMPLETE", { exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "The session moves forward. Your knowledge map does not." })).toBeVisible();
+  await expect(page.getByText("KNOWLEDGE MAP UPDATED", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("Topic evidence", { exact: true })).toBeVisible();
+  await expect(page.getByText("None added", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Finish and continue" }).click();
+
+  await expect(page.getByRole("heading", { name: /Good (morning|afternoon|evening), Learner\./ })).toBeVisible();
+  await expect.poll(async () => {
+    const after = await readPreviewPracticeState(page, before.planId, before.sessionId);
+    return after?.completion?.completionMode ?? null;
+  }).toBe("unguided_practice");
+
+  const after = await readPreviewPracticeState(page, before.planId, before.sessionId);
+  if (!after?.completion) throw new Error("Expected the unguided completion in the preview snapshot.");
+  expect(after.sessionStatus).toBe("complete");
+  expect(after.topicStatuses).toEqual(before.topicStatuses);
+  expect(after.topicStatusesSerialized).toBe(before.topicStatusesSerialized);
+  expect(after.completion).toMatchObject({
+    completionMode: "unguided_practice",
+    correctAnswers: 0,
+    totalAnswers: 0,
+    observedGap: "Unguided practice completed; no topic evidence was recorded.",
+    conceptEvidence: [],
+    confidenceEvidence: [],
+  });
+  expect(after.verificationSession).toMatchObject({
+    id: after.completion.id,
+    sequence: before.sessionSequence + 1,
+    status: "ready",
+    learningMode: "study",
+    reviewType: "verify",
+    topicIds: before.sessionTopicIds,
+    contentTargets: before.sessionContentTargets,
+    completionEvidence: before.sessionCompletionEvidence,
+  });
+});
+
+test("a 10-minute outside teaching-first session loads its built-in method lesson", async ({ page }) => {
+  await page.route("**/api/sessions/generate", async (route) => {
+    await route.fulfill({
+      status: 502,
+      contentType: "application/json",
+      body: JSON.stringify({
+        error: "Live generation did not produce a guided session that passed YOVA's learning checks.",
+        retryable: false,
+      }),
+    });
+  });
+  await createPreviewAccount(page);
+  await completeOnboarding(page);
+
+  await page.getByRole("button", { name: "Study something now", exact: true }).first().click();
+  await page.getByPlaceholder("Example: Help me understand the product rule and practice using it.").fill(
+    "I want to understand how the Krebs cycle actually produces NADH and FADH2",
+  );
+  await page.getByRole("button", { name: "I haven't learned this yet" }).click();
+  await page.getByRole("button", { name: /Choose how YOVA should help/ }).click();
+  await page.getByRole("button", { name: /Guide me outside YOVA/ }).click();
+  await page.getByRole("button", { name: /Build and start session/ }).click();
+
+  await expect(page.getByRole("heading", { name: "Here is how YOVA plans to start." })).toBeVisible();
+  await page.getByRole("button", { name: "Continue" }).click();
+  await page.getByRole("button", { name: "I need this taught first" }).click();
+  await page.getByRole("button", { name: "Continue" }).click();
+  await page.getByLabel("Time available right now").selectOption("10");
+  await page.getByRole("button", { name: "Prepare this session" }).click();
+
+  await expect(page.getByText(/safe built-in session was loaded instead/i)).toBeVisible();
+  await expect(page.getByText("STEP 1 OF 3", { exact: true })).toBeVisible();
+  await expect(page.locator(".session-activity-header").getByRole("heading", { name: /How to use/i })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "YOVA already knows what this lesson should cover." })).not.toBeVisible();
+});
+
+test("an overdue outside teaching-first session splits into runnable 10-minute parts", async ({ page }) => {
+  await createPreviewAccount(page);
+  await completeOnboarding(page);
+
+  await page.getByRole("button", { name: "Study something now", exact: true }).first().click();
+  await page.getByPlaceholder("Example: Help me understand the product rule and practice using it.").fill(
+    "I want to understand how the Krebs cycle actually produces NADH and FADH2",
+  );
+  await page.getByRole("button", { name: "15 minutes", exact: true }).click();
+  await page.getByRole("button", { name: "I haven't learned this yet" }).click();
+  await page.getByRole("button", { name: /Choose how YOVA should help/ }).click();
+  await page.getByRole("button", { name: /Guide me outside YOVA/ }).click();
+  await page.getByRole("button", { name: /Build and start session/ }).click();
+
+  const setupSummary = page.locator(".session-current-assumption");
+  await expect(page.getByRole("heading", { name: "Here is how YOVA plans to start." })).toBeVisible();
+  await expect(setupSummary).toContainText("about 15 minutes");
+  await page.getByRole("button", { name: "Not now", exact: true }).click();
+
+  await expect.poll(() => page.evaluate(() => {
+    const stored = window.localStorage.getItem("yova.preview.v1");
+    if (!stored) return null;
+    const snapshot = JSON.parse(stored) as {
+      plans?: Array<{ sessions?: Array<{ estimatedMinutes?: number; status?: string }> }>;
+    };
+    const ready = snapshot.plans?.at(-1)?.sessions?.find((session) => session.status === "ready");
+    return ready?.estimatedMinutes ?? null;
+  })).toBe(15);
+
+  await page.evaluate(() => {
+    const stored = window.localStorage.getItem("yova.preview.v1");
+    if (!stored) throw new Error("Expected the Study Now plan in the preview snapshot.");
+    const snapshot = JSON.parse(stored) as {
+      plans?: Array<{ sessions?: Array<{ scheduledFor?: string; status?: string }> }>;
+      updatedAt?: string;
+    };
+    const ready = snapshot.plans?.at(-1)?.sessions?.find((session) => session.status === "ready");
+    if (!ready) throw new Error("Expected a ready session to make overdue.");
+    ready.scheduledFor = new Date(Date.now() - 6 * 60 * 60 * 1_000).toISOString();
+    snapshot.updatedAt = new Date().toISOString();
+    window.localStorage.setItem("yova.preview.v1", JSON.stringify(snapshot));
+  });
+  await page.reload();
+
+  await page.getByRole("button", { name: "Agenda", exact: true }).click();
+  await expect(page.getByText("A SESSION IS STILL WAITING", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Ran out of time", exact: true }).click();
+  const splitButton = page.getByRole("button", {
+    name: "Recommended: Split into 10-min sessions",
+    exact: true,
+  });
+  await expect(splitButton).toBeVisible();
+  await splitButton.click();
+
+  await expect(page.locator(".agenda-recovery-result")).toContainText(
+    "Split applied. Part 1 and each remaining part now have a 10-minute window.",
+  );
+  await expect(page.getByRole("heading", { name: "Here is how YOVA plans to start." })).not.toBeVisible();
+  await expect(page.getByRole("button", { name: "Start Part 1 (10 min)", exact: true })).toBeVisible();
+  await expect.poll(() => page.evaluate(() => {
+    const stored = window.localStorage.getItem("yova.preview.v1");
+    if (!stored) return [];
+    const snapshot = JSON.parse(stored) as {
+      plans?: Array<{
+        sessions?: Array<{
+          title?: string;
+          estimatedMinutes?: number;
+          status?: string;
+        }>;
+      }>;
+    };
+    return (snapshot.plans?.at(-1)?.sessions ?? []).map((session) => ({
+      title: session.title,
+      minutes: session.estimatedMinutes,
+      status: session.status,
+    }));
+  })).toEqual([
+    expect.objectContaining({ title: expect.stringContaining("Part 1 of 2"), minutes: 10, status: "ready" }),
+    expect.objectContaining({ title: expect.stringContaining("Part 2 of 2"), minutes: 10, status: "upcoming" }),
+  ]);
+
+  await page.getByRole("button", { name: "Start Part 1 (10 min)", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Here is how YOVA plans to start." })).toBeVisible();
+  await expect(setupSummary).toContainText("about 10 minutes");
+  await expect(setupSummary).not.toContainText("about 15 minutes");
+
+  await page.route("**/api/sessions/generate", async (route) => {
+    await route.fulfill({
+      status: 502,
+      contentType: "application/json",
+      body: JSON.stringify({
+        error: "Live generation did not produce a guided session that passed YOVA's learning checks.",
+        retryable: false,
+      }),
+    });
+  });
+  await page.getByRole("button", { name: "Continue" }).click();
+  await page.getByRole("button", { name: "Continue" }).click();
+  await page.getByRole("button", { name: "Prepare this session" }).click();
+
+  await expect(page.getByText(/safe built-in session was loaded instead/i)).toBeVisible();
+  await expect(page.getByText("STEP 1 OF 3", { exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "YOVA already knows what this lesson should cover." })).not.toBeVisible();
+});
+
+test("an overdue arbitrary inside session splits and loads the generic 10-minute fallback", async ({ page }) => {
+  await createPreviewAccount(page);
+  await completeOnboarding(page);
+
+  await page.getByRole("button", { name: "Study something now", exact: true }).first().click();
+  await page.getByPlaceholder("Example: Help me understand the product rule and practice using it.").fill(
+    "Review eigenvalues and eigenvectors for practice",
+  );
+  await page.getByRole("button", { name: "15 minutes", exact: true }).click();
+  await page.getByRole("button", { name: "I understand the basics but need practice" }).click();
+  await page.getByRole("button", { name: /Choose how YOVA should help/ }).click();
+  await page.getByRole("button", { name: /Create it for me/ }).click();
+  await page.getByRole("button", { name: /Build and start session/ }).click();
+
+  const setupSummary = page.locator(".session-current-assumption");
+  await expect(page.getByRole("heading", { name: "Here is how YOVA plans to start." })).toBeVisible();
+  await expect(setupSummary).toContainText("about 15 minutes");
+  await page.getByRole("button", { name: "Not now", exact: true }).click();
+
+  await page.evaluate(() => {
+    const stored = window.localStorage.getItem("yova.preview.v1");
+    if (!stored) throw new Error("Expected the inside-YOVA Study Now plan in the preview snapshot.");
+    const snapshot = JSON.parse(stored) as {
+      plans?: Array<{ sessions?: Array<{
+        scheduledFor?: string;
+        status?: string;
+        contentTargets?: string[];
+        completionEvidence?: string[];
+      }> }>;
+      updatedAt?: string;
+    };
+    const ready = snapshot.plans?.at(-1)?.sessions?.find((session) => session.status === "ready");
+    if (!ready) throw new Error("Expected a ready inside-YOVA session to make overdue.");
+    ready.scheduledFor = new Date(Date.now() - 6 * 60 * 60 * 1_000).toISOString();
+    // Acronym-only targets have no tokens in the curated-template heuristic.
+    // The generic fallback must use its exact saved-target contract instead.
+    ready.contentTargets = ["DNA and RNA"];
+    ready.completionEvidence = ["Explain the saved relationship in your own words"];
+    snapshot.updatedAt = new Date().toISOString();
+    window.localStorage.setItem("yova.preview.v1", JSON.stringify(snapshot));
+  });
+  await page.reload();
+
+  await page.getByRole("button", { name: "Agenda", exact: true }).click();
+  await expect(page.getByText("A SESSION IS STILL WAITING", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Ran out of time", exact: true }).click();
+  const splitButton = page.getByRole("button", {
+    name: "Recommended: Split into 10-min sessions",
+    exact: true,
+  });
+  await expect(splitButton).toBeVisible();
+  await splitButton.click();
+
+  await expect(page.locator(".agenda-recovery-result")).toContainText(
+    "Split applied. Part 1 and each remaining part now have a 10-minute window.",
+  );
+  await expect(page.getByRole("button", { name: "Start Part 1 (10 min)", exact: true })).toBeVisible();
+  await expect.poll(() => page.evaluate(() => {
+    const stored = window.localStorage.getItem("yova.preview.v1");
+    if (!stored) return [];
+    const snapshot = JSON.parse(stored) as {
+      plans?: Array<{ sessions?: Array<{ estimatedMinutes?: number; status?: string }> }>;
+    };
+    return (snapshot.plans?.at(-1)?.sessions ?? []).map((session) => ({
+      minutes: session.estimatedMinutes,
+      status: session.status,
+    }));
+  })).toEqual([
+    expect.objectContaining({ minutes: 10, status: "ready" }),
+    expect.objectContaining({ minutes: 10, status: "upcoming" }),
+  ]);
+
+  await page.getByRole("button", { name: "Start Part 1 (10 min)", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Here is how YOVA plans to start." })).toBeVisible();
+  await expect(setupSummary).toContainText("about 10 minutes");
+  await expect(setupSummary).not.toContainText("about 15 minutes");
+
+  await page.route("**/api/sessions/generate", async (route) => {
+    await route.fulfill({
+      status: 502,
+      contentType: "application/json",
+      body: JSON.stringify({
+        error: "Live generation did not produce a guided session that passed YOVA's learning checks.",
+        retryable: false,
+      }),
+    });
+  });
+  await page.getByRole("button", { name: "Continue" }).click();
+  await page.getByRole("button", { name: "Continue" }).click();
+  await page.getByRole("button", { name: "Prepare this session" }).click();
+
+  await expect(page.getByText(/safe built-in session was loaded instead/i)).toBeVisible();
+  await expect(page.getByText("STEP 1 OF 3", { exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Use the session target as your comparison frame" })).toBeVisible();
+  await expect(page.getByText("Objective check and application", { exact: true }).filter({ visible: true }).first()).toBeVisible();
+  await expect(page.getByLabel("How YOVA adapted this session")).toContainText(
+    "This safe built-in workflow uses the target already saved in your plan.",
+  );
+  await expect(page.getByRole("heading", { name: "YOVA already knows what this lesson should cover." })).not.toBeVisible();
+
+  await page.getByRole("button", { name: "Continue" }).click();
+  await page.getByRole("button", { name: "Somewhat sure" }).click();
+  const learnerAttempt = "An eigenvector keeps its direction under a linear transformation, while its eigenvalue describes the scaling factor.";
+  await page.getByLabel("Attempt from memory").fill(learnerAttempt);
+  await page.getByRole("button", { name: "Check my answer" }).click();
+
+  await expect(page.locator(".learner-attempt-card")).toContainText(learnerAttempt);
+  await expect(page.getByText("COMPARISON CHECK", { exact: true })).toBeVisible();
 });
 
 test("the backend rejects an opaque goal even when the browser guard is bypassed", async ({ request }) => {
@@ -1339,6 +1818,81 @@ async function createPreviewAccount(page: Page) {
   await expect(page.getByRole("heading", { name: "Make YOVA fit how you actually study." })).toBeVisible();
 }
 
+async function readPreviewPracticeState(
+  page: Page,
+  planId?: string,
+  sessionId?: string,
+) {
+  return page.evaluate(({ requestedPlanId, requestedSessionId }) => {
+    const stored = window.localStorage.getItem("yova.preview.v1");
+    if (!stored) return null;
+
+    const snapshot = JSON.parse(stored) as {
+      plans?: Array<{
+        id?: string;
+        sessions?: Array<{
+          id?: string;
+          sequence?: number;
+          status?: string;
+          learningMode?: string;
+          topicIds?: string[];
+          contentTargets?: string[];
+          completionEvidence?: string[];
+          reviewType?: string;
+        }>;
+        knowledgeMap?: { topics?: Array<{ id?: string; status?: string }> };
+      }>;
+      sessionCompletions?: Array<{
+        id?: string;
+        planId?: string;
+        planSessionId?: string;
+        completionMode?: string;
+        correctAnswers?: number;
+        totalAnswers?: number;
+        observedGap?: string;
+        conceptEvidence?: unknown[];
+        confidenceEvidence?: unknown[];
+      }>;
+    };
+    const plan = requestedPlanId
+      ? snapshot.plans?.find((candidate) => candidate.id === requestedPlanId)
+      : snapshot.plans?.at(-1);
+    const session = requestedSessionId
+      ? plan?.sessions?.find((candidate) => candidate.id === requestedSessionId)
+      : plan?.sessions?.find((candidate) => candidate.status === "ready") ?? plan?.sessions?.at(0);
+    if (!plan?.id || !session?.id) return null;
+    const completion = snapshot.sessionCompletions?.find((candidate) => (
+      candidate.planId === plan.id
+      && candidate.planSessionId === session.id
+    )) ?? null;
+    const verificationSession = plan.sessions?.find((candidate) => (
+      candidate.sequence === (session.sequence ?? 0) + 1
+      && candidate.reviewType === "verify"
+    )) ?? null;
+    const topicStatuses = (plan.knowledgeMap?.topics ?? []).map((topic) => ({
+      id: topic.id ?? null,
+      status: topic.status ?? null,
+    }));
+
+    return {
+      planId: plan.id,
+      sessionId: session.id,
+      sessionSequence: session.sequence ?? 0,
+      sessionStatus: session.status ?? null,
+      sessionTopicIds: session.topicIds ?? [],
+      sessionContentTargets: session.contentTargets ?? [],
+      sessionCompletionEvidence: session.completionEvidence ?? [],
+      topicStatuses,
+      topicStatusesSerialized: JSON.stringify(topicStatuses),
+      verificationSession,
+      completion,
+    };
+  }, {
+    requestedPlanId: planId,
+    requestedSessionId: sessionId,
+  });
+}
+
 async function readRecoveryState(page: Page) {
   return page.evaluate(() => {
     let checkpoints: Array<{ runId?: string; status?: string; completedSteps?: number }> = [];
@@ -1410,10 +1964,18 @@ async function confirmSessionSetup(page: Page) {
   await page.getByRole("button", { name: "Prepare this session" }).click();
 }
 
-async function createOneOffLearningSession(page: Page, request: string) {
+async function createOneOffLearningSession(
+  page: Page,
+  request: string,
+  learningMode: "learn" | "study" = "learn",
+) {
   await page.locator(".quick-actions button").filter({ hasText: "Study something now" }).click();
   await page.getByPlaceholder("Example: Help me understand the product rule and practice using it.").fill(request);
-  await page.getByRole("button", { name: "I haven't learned this yet" }).click();
+  await page.getByRole("button", {
+    name: learningMode === "learn"
+      ? "I haven't learned this yet"
+      : "I understand the basics but need practice",
+  }).click();
   await page.getByRole("button", { name: /Choose how YOVA should help/ }).click();
   await page.getByRole("button", { name: /Create it for me/ }).click();
   await page.getByRole("button", { name: /Build and start session/ }).click();

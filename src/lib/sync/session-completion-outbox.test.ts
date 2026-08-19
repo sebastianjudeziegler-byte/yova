@@ -67,7 +67,7 @@ describe("session completion outbox", () => {
       remaining: 0,
     });
     expect(completeAuthenticatedPlanSession).toHaveBeenCalledWith(
-      pending.completion,
+      { ...pending.completion, completionMode: "guided" },
       null,
       null,
     );
@@ -105,5 +105,63 @@ describe("session completion outbox", () => {
 
     expect(removeQueuedSessionCompletionsForPlan(base.userId, base.completion.planId)).toBe(true);
     expect(pendingSessionCompletionPlanSessionIds(base.userId)).toEqual([sibling.completion.planSessionId]);
+  });
+
+  it("preserves unguided practice provenance through a queued cloud sync", async () => {
+    installMemoryStorage();
+    completeAuthenticatedPlanSession.mockResolvedValue(undefined);
+    const pending: PendingSessionCompletion = {
+      userId: "00000000-0000-4000-8000-000000000021",
+      queuedAt: "2026-08-17T20:08:00.000Z",
+      completion: {
+        id: "00000000-0000-4000-8000-000000000022",
+        planId: "00000000-0000-4000-8000-000000000023",
+        planSessionId: "00000000-0000-4000-8000-000000000024",
+        startedAt: "2026-08-17T20:00:00.000Z",
+        completedAt: "2026-08-17T20:08:00.000Z",
+        plannedMinutes: 20,
+        actualMinutes: 8,
+        correctAnswers: 0,
+        totalAnswers: 0,
+        feedback: "about_right",
+        observedGap: "Unguided practice completed; no topic evidence was recorded.",
+        completionMode: "unguided_practice",
+        conceptEvidence: [],
+        confidenceEvidence: [],
+      },
+      adaptation: null,
+      followUpSession: {
+        id: "00000000-0000-4000-8000-000000000022",
+        sequence: 2,
+        title: "Verify thermohaline circulation",
+        objective: "Complete an independent guided check for every original target.",
+        method: "Independent retrieval verification",
+        methodReason: "This work counted as practice, not proof.",
+        scheduledFor: "2026-08-18T20:08:00.000Z",
+        estimatedMinutes: 10,
+        amountLabel: "Required guided verification · about 10 min",
+        learningMode: "study",
+        topicIds: ["00000000-0000-4000-8000-000000000026"],
+        contentTargets: ["Density changes from temperature and salinity"],
+        completionEvidence: ["Explain how temperature and salinity affect density."],
+        reviewConcept: "Thermohaline circulation",
+        reviewType: "verify",
+        status: "ready",
+      },
+    };
+
+    expect(queueSessionCompletion(pending)).toBe(true);
+    await flushQueuedSessionCompletions(pending.userId);
+
+    expect(completeAuthenticatedPlanSession).toHaveBeenCalledWith(
+      expect.objectContaining({ completionMode: "unguided_practice" }),
+      null,
+      expect.objectContaining({
+        reviewType: "verify",
+        topicIds: ["00000000-0000-4000-8000-000000000026"],
+        contentTargets: ["Density changes from temperature and salinity"],
+        completionEvidence: ["Explain how temperature and salinity affect density."],
+      }),
+    );
   });
 });

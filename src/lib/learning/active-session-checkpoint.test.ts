@@ -275,6 +275,18 @@ describe("active session checkpoint storage", () => {
     expect(loadActiveSessionCheckpoints(otherAccount.accountId)).toEqual([otherAccount]);
   });
 
+  it("round-trips unguided completion provenance through browser recovery storage", () => {
+    installMemoryStorage();
+    const finished = awaitingFinishCheckpoint({ completionMode: "unguided_practice" });
+
+    expect(saveActiveSessionCheckpoint(finished)).toBe(true);
+    expect(loadActiveSessionCheckpoints(finished.accountId)).toEqual([finished]);
+    expect(
+      checkpointToSessionResumePoint(loadActiveSessionCheckpoints(finished.accountId)[0]!)
+        .completionMode,
+    ).toBe("unguided_practice");
+  });
+
   it("returns failure without overwriting data when browser storage is unavailable", () => {
     vi.stubGlobal("window", {
       localStorage: {
@@ -744,7 +756,7 @@ describe("active session resume selection", () => {
       completedSteps: 0,
     });
 
-    const finished = awaitingFinishCheckpoint();
+    const finished = awaitingFinishCheckpoint({ completionMode: "unguided_practice" });
     const selectedFinished = chooseLatestSessionResumePoint(finished.planSessionId, [], [finished]);
     expect(selectedFinished).toMatchObject({
       source: "active_session_checkpoint",
@@ -752,7 +764,11 @@ describe("active session resume selection", () => {
       completedSteps: finished.totalSteps,
       completedAt: finished.completedAt,
       completionFeedback: "about_right",
+      completionMode: "unguided_practice",
     });
+
+    const legacyFinished = checkpointToSessionResumePoint(awaitingFinishCheckpoint());
+    expect(legacyFinished.completionMode).toBe("guided");
   });
 
   it("chooses the newest valid source while retaining legacy interruption filtering", () => {

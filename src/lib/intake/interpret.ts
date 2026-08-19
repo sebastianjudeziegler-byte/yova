@@ -5,6 +5,16 @@ const ASSIGNMENT_PATTERN = /\b(assignment|homework|paper|essay|project|presentat
 const COURSE_PATTERN = /\b(all of|entire|full)\s+(calculus|course|class)|\bcourse\b/i;
 const BOOK_PATTERN = /\b(book|novel|chapter|read)\b/i;
 const SKILL_PATTERN = /\b(skill|product rule|coding|programming|speaking|vocabulary|language)\b/i;
+const TITLE_CHARACTER_LIMIT = 100;
+const MIN_TITLE_BOUNDARY_WORDS = 3;
+const DANGLING_TITLE_WORDS = new Set([
+  "a", "about", "above", "across", "after", "against", "along", "although", "among", "an", "and", "around", "as", "at",
+  "because", "before", "behind", "below", "beneath", "beside", "between", "beyond", "but", "by", "concerning", "despite",
+  "down", "during", "except", "excluding", "for", "from", "if", "in", "including", "inside", "into", "like", "near", "nor",
+  "of", "off", "on", "onto", "or", "out", "outside", "over", "past", "regarding", "since", "so", "that", "the",
+  "though", "through", "throughout", "to", "toward", "under", "underneath", "unless", "until", "up", "upon", "versus", "via",
+  "when", "whenever", "where", "whereas", "wherever", "whether", "while", "with", "within", "without", "yet",
+]);
 
 export function interpretIntake(input: {
   description: string;
@@ -61,10 +71,14 @@ export function deriveLearningTitle(description: string, itemType: IntakeItemTyp
     .replace(/\bwith\s+(?:a|my)\s+(?:study guide|pdf|notes).*$/i, "")
     .replace(/[.,;:]+$/g, "")
     .trim();
-  const words = cleaned.split(/\s+/).filter(Boolean).slice(0, 9);
-  const base = words.length ? titleCase(words.join(" ")) : "New learning goal";
-  if (itemType === "test" && !/test|exam|quiz/i.test(base)) return `${base} Test Prep`.slice(0, 100);
-  return base.slice(0, 100);
+  const title = trimToTitlePhrase(cleaned);
+  const base = title ? titleCase(title) : "New learning goal";
+  if (itemType === "test" && !/test|exam|quiz/i.test(base)) {
+    const suffix = " Test Prep";
+    const shortenedTitle = trimToTitlePhrase(cleaned, TITLE_CHARACTER_LIMIT - suffix.length);
+    return `${shortenedTitle ? titleCase(shortenedTitle) : "New learning goal"}${suffix}`;
+  }
+  return base;
 }
 
 const GENERIC_LEARNING_TITLE = /^(personalized learning plan|personalized study plan|learning plan|study plan|new learning goal|untitled(?: plan)?)$/i;
@@ -187,9 +201,61 @@ function wordNumber(value: string) {
 
 function titleCase(value: string) {
   const small = new Set(["a", "an", "and", "at", "for", "in", "of", "on", "the", "to", "with"]);
-  return value.split(/\s+/).map((word, index) => index > 0 && small.has(word.toLocaleLowerCase())
-    ? word.toLocaleLowerCase()
-    : `${word.charAt(0).toLocaleUpperCase()}${word.slice(1).toLocaleLowerCase()}`).join(" ");
+  return value.split(/\s+/).map((word, index) => {
+    const parts = word.match(/^([^A-Za-z0-9]*)([A-Za-z][A-Za-z0-9]*)(['’]s)?([^A-Za-z0-9]*)$/);
+    if (!parts) return `${word.charAt(0).toLocaleUpperCase()}${word.slice(1).toLocaleLowerCase()}`;
+
+    const [, prefix, token, possessive = "", suffix] = parts;
+    const lower = token.toLocaleLowerCase();
+    const cased = /^[A-Z]{2,}\d*$/.test(token) || token === "pH"
+      ? token
+      : index > 0 && small.has(lower)
+        ? lower
+        : `${token.charAt(0).toLocaleUpperCase()}${token.slice(1).toLocaleLowerCase()}`;
+    return `${prefix}${cased}${possessive}${suffix}`;
+  }).join(" ");
+}
+
+function trimToTitlePhrase(value: string, characterLimit = TITLE_CHARACTER_LIMIT) {
+  const allWords = value.split(/\s+/).filter(Boolean);
+  let titleLength = 0;
+  let words: string[] = [];
+
+  for (const word of allWords) {
+    const nextLength = titleLength + (words.length ? 1 : 0) + word.length;
+    if (nextLength > characterLimit) break;
+    words.push(word);
+    titleLength = nextLength;
+  }
+
+  if (words.length < allWords.length) {
+    let phraseBoundary = -1;
+    for (let index = words.length - 1; index >= MIN_TITLE_BOUNDARY_WORDS - 1; index -= 1) {
+      if (/[.,;:!?]$/.test(words[index])) {
+        phraseBoundary = index + 1;
+        break;
+      }
+    }
+    if (phraseBoundary < 0) {
+      for (let index = words.length - 1; index >= MIN_TITLE_BOUNDARY_WORDS; index -= 1) {
+        if (DANGLING_TITLE_WORDS.has(titleWordKey(words[index]))) {
+          phraseBoundary = index;
+          break;
+        }
+      }
+    }
+    if (phraseBoundary >= 0) words = words.slice(0, phraseBoundary);
+  }
+
+  while (words.length && DANGLING_TITLE_WORDS.has(titleWordKey(words.at(-1) ?? ""))) {
+    words.pop();
+  }
+
+  return words.join(" ").replace(/[.,;:!?]+$/g, "").trim();
+}
+
+function titleWordKey(value: string) {
+  return value.replace(/^[^A-Za-z0-9]+|[^A-Za-z0-9]+$/g, "").toLocaleLowerCase();
 }
 
 function normalize(value: string) {

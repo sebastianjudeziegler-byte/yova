@@ -303,6 +303,17 @@ export function StudyProfileExperience() {
 
       const payload = (await response.json().catch(() => ({}))) as Record<string, unknown>;
       if (!response.ok) {
+        if (
+          (payload.code === "saved_response_unavailable" || payload.code === "save_outcome_unknown")
+          && typeof payload.reportUrl === "string"
+        ) {
+          const reportPath = new URL(payload.reportUrl, window.location.href);
+          window.history.replaceState(
+            {},
+            "",
+            `${reportPath.pathname}${reportPath.search}${reportPath.hash}`,
+          );
+        }
         const message = typeof payload.error === "string"
           ? payload.error
           : typeof payload.message === "string"

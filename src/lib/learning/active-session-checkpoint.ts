@@ -3,6 +3,7 @@
 import { z } from "zod";
 import type {
   LearningPlan,
+  SessionCompletionMode,
   SessionInterruption,
   SessionResource,
 } from "@/lib/domain";
@@ -48,6 +49,7 @@ const CheckpointBaseShape = {
   resumeStep: z.number().int().min(0).max(24),
   resourceFingerprint: ResourceFingerprintSchema,
   resourceGeneratedAt: z.string().datetime({ offset: true }).optional(),
+  completionMode: z.enum(["guided", "unguided_practice"]).optional(),
   sessionAdjustment: SessionAdjustmentSnapshotSchema.optional(),
 };
 
@@ -139,6 +141,7 @@ export type ActiveSessionCheckpointResumePoint = SessionInterruption & {
   savedAt: string;
   resourceFingerprint: string;
   resourceGeneratedAt?: string;
+  completionMode: SessionCompletionMode;
   completedAt?: string;
   completionFeedback?: "too_easy" | "about_right" | "too_difficult";
 };
@@ -474,6 +477,7 @@ export function checkpointToSessionResumePoint(
     ...(checkpoint.resourceGeneratedAt ? {
       resourceGeneratedAt: checkpoint.resourceGeneratedAt,
     } : {}),
+    completionMode: checkpoint.completionMode ?? "guided",
     ...(checkpoint.status === "awaiting_finish" ? {
       completedAt: checkpoint.completedAt,
       completionFeedback: checkpoint.completionFeedback,

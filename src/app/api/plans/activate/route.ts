@@ -47,17 +47,26 @@ export async function POST(request: Request) {
   }
 
   const activePlan = { ...parsed.data.plan, status: "active" as const };
+  // Both possible receipts are validated before the persistence RPC. A future
+  // response-contract change therefore cannot commit a plan and then fall into
+  // the catch branch that says nothing was activated.
+  const responseByPersistence = {
+    browser: PlanActivationResponseSchema.parse({
+      plan: activePlan,
+      activation: { persistence: "browser", requestId },
+    }),
+    supabase: PlanActivationResponseSchema.parse({
+      plan: activePlan,
+      activation: { persistence: "supabase", requestId },
+    }),
+  } as const;
 
   try {
     const persistence = developmentPreview
       ? "browser" as const
       : await persistPlanForAuthenticatedUser(activePlan, parsed.data.generationRequest);
-    const response = PlanActivationResponseSchema.parse({
-      plan: activePlan,
-      activation: { persistence, requestId },
-    });
 
-    return NextResponse.json(response, {
+    return NextResponse.json(responseByPersistence[persistence], {
       headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId },
     });
   } catch (error) {

@@ -4,6 +4,33 @@ import { useState } from "react";
 import { ArrowRight, FileText, HelpCircle } from "lucide-react";
 import { goalClarificationSuggestions } from "@/lib/learning/goal-context";
 
+function clarificationParts(detail: string) {
+  return detail
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean);
+}
+
+export function hasClarificationSuggestion(detail: string, suggestion: string) {
+  const normalizedSuggestion = suggestion.trim().toLocaleLowerCase();
+  return clarificationParts(detail).some(
+    (part) => part.toLocaleLowerCase() === normalizedSuggestion,
+  );
+}
+
+export function toggleClarificationSuggestion(detail: string, suggestion: string) {
+  const normalizedSuggestion = suggestion.trim().toLocaleLowerCase();
+  const parts = clarificationParts(detail);
+
+  if (parts.some((part) => part.toLocaleLowerCase() === normalizedSuggestion)) {
+    return parts
+      .filter((part) => part.toLocaleLowerCase() !== normalizedSuggestion)
+      .join(", ");
+  }
+
+  return [...parts, suggestion.trim()].join(", ");
+}
+
 export function GoalClarification({
   goal,
   onClarify,
@@ -26,10 +53,11 @@ export function GoalClarification({
         <div className="clarification-suggestions" aria-label="Possible topics">
           {suggestions.map((suggestion) => (
             <button
-              className={detail === suggestion ? "selected" : ""}
+              aria-pressed={hasClarificationSuggestion(detail, suggestion)}
+              className={hasClarificationSuggestion(detail, suggestion) ? "selected" : ""}
               key={suggestion}
               type="button"
-              onClick={() => setDetail(suggestion)}
+              onClick={() => setDetail((current) => toggleClarificationSuggestion(current, suggestion))}
             >
               {suggestion}
             </button>

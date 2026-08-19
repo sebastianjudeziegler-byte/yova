@@ -6,6 +6,7 @@ import {
   accountExportTempPath,
 } from "@/lib/account-export/server";
 import { ACCOUNT_EXPORT_BUCKET } from "@/lib/account-export/schema";
+import { retrySupabaseRpc } from "@/lib/supabase/retry-rpc";
 
 type ClaimedExportCleanup = {
   export_id: string;
@@ -32,9 +33,12 @@ export async function cleanupExpiredAccountExports(
   { limit = 250 }: { limit?: number } = {},
 ): Promise<AccountExportCleanupResult> {
   const requestedLimit = Math.max(1, Math.min(Math.trunc(limit), 1_000));
-  const { data, error } = await admin.rpc("claim_expired_account_data_exports", {
-    requested_limit: requestedLimit,
-  });
+  const { data, error } = await retrySupabaseRpc(
+    "claim_expired_account_data_exports",
+    () => admin.rpc("claim_expired_account_data_exports", {
+      requested_limit: requestedLimit,
+    }),
+  );
   if (error || !Array.isArray(data)) return failedResult();
 
   const claims = data as unknown[];

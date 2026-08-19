@@ -27,6 +27,8 @@ import {
 // bounded educational-quality repair still has room to run.
 export const PLAN_PROVIDER_ATTEMPT_TIMEOUT_MS = 40_000;
 export const PLAN_PROVIDER_REPAIR_TIMEOUT_MS = 55_000;
+const PLAN_PROVIDER_REPAIR_RESERVE_MS = 15_000;
+const PLAN_PROVIDER_MIN_TIMEOUT_MS = 1_000;
 
 export type OpenAIPlanResult = {
   draft: GeneratedPlanDraft;
@@ -65,6 +67,7 @@ export class OpenAIPlanGenerationError extends Error {
 
 export async function generatePlanWithOpenAI(
   request: PlanGenerationRequest,
+  options: { deadlineAt?: number } = {},
 ): Promise<OpenAIPlanResult> {
   const startedAt = Date.now();
   const usage = {
@@ -115,9 +118,13 @@ export async function generatePlanWithOpenAI(
         store: false,
       }, {
         maxRetries: 0,
-        timeout: repairReason
-          ? PLAN_PROVIDER_REPAIR_TIMEOUT_MS
-          : PLAN_PROVIDER_ATTEMPT_TIMEOUT_MS,
+        timeout: providerTimeoutWithinDeadline({
+          preferredTimeoutMs: repairReason
+            ? PLAN_PROVIDER_REPAIR_TIMEOUT_MS
+            : PLAN_PROVIDER_ATTEMPT_TIMEOUT_MS,
+          reserveMs: repairReason ? 0 : PLAN_PROVIDER_REPAIR_RESERVE_MS,
+          deadlineAt: options.deadlineAt,
+        }),
       });
       if (response.usage) {
         usage.inputTokens += response.usage.input_tokens;
@@ -202,4 +209,21 @@ export async function generatePlanWithOpenAI(
       error,
     );
   }
+}
+
+function providerTimeoutWithinDeadline({
+  preferredTimeoutMs,
+  reserveMs,
+  deadlineAt,
+}: {
+  preferredTimeoutMs: number;
+  reserveMs: number;
+  deadlineAt?: number;
+}) {
+  if (deadlineAt === undefined) return preferredTimeoutMs;
+  const availableMs = Math.floor(deadlineAt - Date.now() - reserveMs);
+  if (availableMs < PLAN_PROVIDER_MIN_TIMEOUT_MS) {
+    throw new Error("The plan-generation route deadline is too close for another provider attempt.");
+  }
+  return Math.min(preferredTimeoutMs, availableMs);
 }

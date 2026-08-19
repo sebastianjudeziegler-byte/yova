@@ -6,6 +6,9 @@ const mocks = vi.hoisted(() => ({
   createClient: vi.fn(),
   from: vi.fn(),
   getUser: vi.fn(),
+  rpc: vi.fn(),
+  generateTutorAnswer: vi.fn(),
+  claimAIRequest: vi.fn(),
 }));
 
 vi.mock("@/lib/supabase/config", () => ({ isSupabaseConfigured: () => true }));
@@ -13,14 +16,14 @@ vi.mock("@/lib/supabase/server", () => ({
   createSupabaseServerClient: mocks.createClient,
 }));
 vi.mock("@/lib/openai/config", () => ({ isOpenAITutorConfigured: () => true }));
-vi.mock("@/lib/openai/tutor-generator", () => ({ generateTutorAnswer: vi.fn() }));
+vi.mock("@/lib/openai/tutor-generator", () => ({ generateTutorAnswer: mocks.generateTutorAnswer }));
 vi.mock("@/lib/server/rate-limit", () => ({
   checkTutorRateLimit: () => ({ allowed: true, retryAfterSeconds: 0 }),
   requestRateLimitKey: () => "route-test",
 }));
-vi.mock("@/lib/server/ai-usage", () => ({ claimAIRequest: vi.fn() }));
+vi.mock("@/lib/server/ai-usage", () => ({ claimAIRequest: mocks.claimAIRequest }));
 
-import { GET } from "@/app/api/tutor/route";
+import { GET, POST } from "@/app/api/tutor/route";
 
 const GENERAL_THREAD_ID = "11111111-1111-4111-8111-111111111111";
 const ACTIVE_THREAD_ID = "22222222-2222-4222-8222-222222222222";
@@ -48,9 +51,17 @@ describe("tutor plan visibility", () => {
       error: null,
     });
     mocks.from.mockReset().mockImplementation(database.from);
+    mocks.rpc.mockReset().mockResolvedValue({ data: null, error: null });
+    mocks.generateTutorAnswer.mockReset().mockResolvedValue({
+      answer: "A useful answer.",
+      model: "gpt-test",
+      responseId: "response-1",
+    });
+    mocks.claimAIRequest.mockReset().mockResolvedValue({ allowed: true, retryAfterSeconds: 0 });
     mocks.createClient.mockReset().mockResolvedValue({
       auth: { getUser: mocks.getUser },
       from: mocks.from,
+      rpc: mocks.rpc,
     });
   });
 
@@ -95,6 +106,23 @@ describe("tutor plan visibility", () => {
 
     expect(response.status).toBe(404);
     expect(mocks.from).not.toHaveBeenCalledWith("tutor_messages");
+  });
+
+  it("validates a generated exchange before writing it to the tutor thread", async () => {
+    mocks.generateTutorAnswer.mockResolvedValueOnce({
+      answer: "x".repeat(12_001),
+      model: "gpt-test",
+      responseId: "response-1",
+    });
+
+    const response = await POST(new Request("https://yova.example/api/tutor", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ question: "Explain this topic", persistenceMode: "thread" }),
+    }));
+
+    expect(response.status).toBe(502);
+    expect(mocks.rpc).not.toHaveBeenCalledWith("save_tutor_exchange", expect.anything());
   });
 });
 

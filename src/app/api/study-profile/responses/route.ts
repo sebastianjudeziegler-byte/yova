@@ -16,7 +16,9 @@ import {
   validateStudyProfileJsonPostRequest,
 } from "@/lib/study-profile/request-security";
 import {
+  StudyProfileCommittedWriteError,
   StudyProfilePersistenceUnavailableError,
+  StudyProfileSaveOutcomeUnknownError,
   getStudyProfileRepository,
 } from "@/lib/study-profile/repository";
 import {
@@ -116,6 +118,36 @@ export async function POST(request: Request) {
   } catch (error) {
     if (error instanceof StudyProfilePersistenceUnavailableError) {
       return jsonError("Study Profile saving is temporarily unavailable. Try again shortly.", 503);
+    }
+    if (error instanceof StudyProfileCommittedWriteError) {
+      const reportUrl = new URL(
+        `/study-profile/report/${error.reportToken}`,
+        getSiteUrl(),
+      ).toString();
+      console.error("Study Profile save receipt recovery failed.", safeErrorName(error));
+      return NextResponse.json({
+        error: "Your Study Profile was saved, but YOVA could not open it right now. Do not submit it again. Reload this report in a moment.",
+        code: "saved_response_unavailable",
+        reportUrl,
+      }, {
+        status: 500,
+        headers: { "Cache-Control": "no-store" },
+      });
+    }
+    if (error instanceof StudyProfileSaveOutcomeUnknownError) {
+      const reportUrl = new URL(
+        `/study-profile/report/${error.reportToken}`,
+        getSiteUrl(),
+      ).toString();
+      console.error("Study Profile save outcome recovery failed.", safeErrorName(error));
+      return NextResponse.json({
+        error: "YOVA could not confirm whether your Study Profile was saved. Do not submit it again yet. Reload this private report in a moment.",
+        code: "save_outcome_unknown",
+        reportUrl,
+      }, {
+        status: 500,
+        headers: { "Cache-Control": "no-store" },
+      });
     }
     console.error("Study Profile submission failed.", safeErrorName(error));
     return jsonError("YOVA could not save your Study Profile. Your answers are still on this device; try again.", 500);

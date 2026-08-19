@@ -12,12 +12,13 @@ concurrency:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     env:
       # Date-oriented learner flows are defined in YOVA's launch timezone.
       # GitHub runners default to UTC, which made otherwise-correct deadline
       # tests fail only in CI.
       TZ: America/Los_Angeles
+      DO_NOT_TRACK: "1"
 
     steps:
       - name: Check out YOVA
@@ -31,11 +32,49 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
           cache: pnpm
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Audit production dependencies
+        run: pnpm audit --prod --audit-level high
+
+      - name: Validate production-readiness rules
+        run: pnpm readiness:production
+        # These are deliberately non-secret fixtures. This executes the same
+        # production contract in CI without copying live Vercel credentials
+        # into GitHub; deployment still verifies the real environment.
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://ci-readiness.supabase.co
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: sb_publishable_ci_readiness_only
+          SUPABASE_SECRET_KEY: sb_secret_ci_readiness_only
+          OPENAI_API_KEY: sk-ci-readiness-only-not-a-real-key
+          CRON_SECRET: ci-readiness-only-cron-secret-000000000000
+          SITE_URL: https://www.yovaapp.com
+          AUTH_PASSWORD_ACCOUNTS: "true"
+          AUTH_INVITE_ONLY: "false"
+          AUTH_CAPTCHA_ENABLED: "true"
+          NEXT_PUBLIC_TURNSTILE_SITE_KEY: 1x00000000000000000000AA
+          AUTH_EMAIL_CODE_VERIFICATION: "true"
+          NEXT_PUBLIC_OPENAI_API_KEY: ""
+          NEXT_PUBLIC_SUPABASE_SECRET_KEY: ""
+          NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY: ""
+
+      - name: Initialize isolated database configuration
+        run: pnpm exec supabase init
+
+      - name: Replay every database migration
+        run: pnpm exec supabase db start
+
+      - name: Lint the migrated database
+        run: pnpm exec supabase db lint --local --level warning --fail-on error
+
+      - name: Stop isolated database
+        if: always()
+        continue-on-error: true
+        run: pnpm exec supabase stop --no-backup
 
       - name: Install isolated browser
         run: pnpm exec playwright install --with-deps chromium
@@ -51,6 +90,9 @@ jobs:
 
       - name: Run core learner journey
         run: pnpm test:e2e
+
+      - name: Run public authentication journey
+        run: pnpm test:e2e:auth
 
       - name: Upload browser evidence on failure
         if: failure()

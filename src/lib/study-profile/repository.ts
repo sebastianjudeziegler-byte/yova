@@ -78,6 +78,26 @@ export class StudyProfilePersistenceUnavailableError extends Error {
   }
 }
 
+export class StudyProfileCommittedWriteError extends Error {
+  readonly reportToken: string;
+
+  constructor(reportToken: string, cause?: unknown) {
+    super("The Study Profile was saved, but its persistence receipt could not be recovered.", { cause });
+    this.name = "StudyProfileCommittedWriteError";
+    this.reportToken = reportToken;
+  }
+}
+
+export class StudyProfileSaveOutcomeUnknownError extends Error {
+  readonly reportToken: string;
+
+  constructor(reportToken: string, cause?: unknown) {
+    super("YOVA could not confirm whether the Study Profile save committed.", { cause });
+    this.name = "StudyProfileSaveOutcomeUnknownError";
+    this.reportToken = reportToken;
+  }
+}
+
 export class StudyProfileInterestStateError extends Error {
   constructor() {
     super("Join the YOVA waitlist before updating interest preferences.");
@@ -238,46 +258,67 @@ export class MemoryStudyProfileRepository implements StudyProfileRepository {
   }
 }
 
-class SupabaseStudyProfileRepository implements StudyProfileRepository {
+export class SupabaseStudyProfileRepository implements StudyProfileRepository {
   async saveResponse(input: PersistStudyProfileResponseInput) {
     const supabase = createSupabaseAdminClient();
     const reportToken = generateStudyProfileReportToken();
+    const reportTokenHash = hashStudyProfileReportToken(reportToken);
     const createdAt = new Date().toISOString();
     const attribution = persistenceAttribution(input.attribution);
-    const { data, error } = await supabase.rpc("save_study_profile_response", {
-      payload: {
-        email: normalizeStudyProfileEmail(input.email),
-        visitorId: input.visitorId,
-        reportTokenHash: hashStudyProfileReportToken(reportToken),
-        profileModelVersion: STUDY_PROFILE_MODEL_VERSION,
-        rawAnswers: input.answers,
-        profileSnapshot: input.snapshot,
-        metadata: input.metadata,
-        reportState: input.report,
-        marketingConsent: input.marketingConsent,
-        consentCopyVersion: STUDY_PROFILE_CONSENT_COPY_VERSION,
-        attribution,
-        emailDeliveryStatus: "pending",
-      },
-    });
-    if (error) throw new Error("YOVA could not save this Study Profile response.", { cause: error });
+    let data: unknown = null;
+    let rpcFailure: unknown = null;
+    try {
+      const result = await supabase.rpc("save_study_profile_response", {
+        payload: {
+          email: normalizeStudyProfileEmail(input.email),
+          visitorId: input.visitorId,
+          reportTokenHash,
+          profileModelVersion: STUDY_PROFILE_MODEL_VERSION,
+          rawAnswers: input.answers,
+          profileSnapshot: input.snapshot,
+          metadata: input.metadata,
+          reportState: input.report,
+          marketingConsent: input.marketingConsent,
+          consentCopyVersion: STUDY_PROFILE_CONSENT_COPY_VERSION,
+          attribution,
+          emailDeliveryStatus: "pending",
+        },
+      });
+      data = result.data;
+      rpcFailure = result.error;
+    } catch (error) {
+      rpcFailure = error;
+    }
 
-    const responseId = readRpcId(data, "responseId");
-    const storedResponse = StudyProfileStoredResponseSchema.parse({
-      id: responseId,
-      reportToken,
-      profileModelVersion: STUDY_PROFILE_MODEL_VERSION,
-      rawAnswers: input.answers,
-      snapshot: input.snapshot,
-      metadata: input.metadata,
-      createdAt,
-    });
-    return {
-      storedResponse,
-      report: input.report,
-      waitlistJoined: false,
-      betaInterest: null,
-    };
+    if (rpcFailure) {
+      const recovery = await recoverSavedStudyProfileResponse(
+        supabase,
+        input,
+        reportToken,
+        reportTokenHash,
+      );
+      if (recovery.status === "saved") return recovery.value;
+      if (recovery.status === "unknown") {
+        throw new StudyProfileSaveOutcomeUnknownError(reportToken, rpcFailure);
+      }
+      throw new Error("YOVA could not save this Study Profile response.", { cause: rpcFailure });
+    }
+
+    try {
+      return savedStudyProfileResponse(input, reportToken, readRpcId(data, "responseId"), createdAt);
+    } catch (receiptError) {
+      // The RPC has already committed at this point. Recover the canonical row
+      // by its unique private token hash so response-envelope drift cannot make
+      // the learner submit a duplicate profile.
+      const recovery = await recoverSavedStudyProfileResponse(
+        supabase,
+        input,
+        reportToken,
+        reportTokenHash,
+      );
+      if (recovery.status === "saved") return recovery.value;
+      throw new StudyProfileCommittedWriteError(reportToken, receiptError);
+    }
   }
 
   async getReportByToken(reportToken: string) {
@@ -525,4 +566,59 @@ function readRpcId(value: unknown, field: string) {
     throw new Error("YOVA received an invalid Study Profile persistence response.");
   }
   return id;
+}
+
+function savedStudyProfileResponse(
+  input: PersistStudyProfileResponseInput,
+  reportToken: string,
+  responseId: unknown,
+  createdAt: unknown,
+): SavedStudyProfileResponse {
+  const storedResponse = StudyProfileStoredResponseSchema.parse({
+    id: responseId,
+    reportToken,
+    profileModelVersion: STUDY_PROFILE_MODEL_VERSION,
+    rawAnswers: input.answers,
+    snapshot: input.snapshot,
+    metadata: input.metadata,
+    createdAt,
+  });
+  return {
+    storedResponse,
+    report: input.report,
+    waitlistJoined: false,
+    betaInterest: null,
+  };
+}
+
+async function recoverSavedStudyProfileResponse(
+  supabase: ReturnType<typeof createSupabaseAdminClient>,
+  input: PersistStudyProfileResponseInput,
+  reportToken: string,
+  reportTokenHash: string,
+): Promise<
+  | { status: "saved"; value: SavedStudyProfileResponse }
+  | { status: "not_found" }
+  | { status: "unknown" }
+> {
+  try {
+    const { data: persisted, error } = await supabase
+      .from("study_profile_responses")
+      .select("id,created_at")
+      .eq("report_token_hash", reportTokenHash)
+      .maybeSingle();
+    if (error) return { status: "unknown" };
+    if (!persisted) return { status: "not_found" };
+    return {
+      status: "saved",
+      value: savedStudyProfileResponse(
+        input,
+        reportToken,
+        persisted.id,
+        persisted.created_at,
+      ),
+    };
+  } catch {
+    return { status: "unknown" };
+  }
 }

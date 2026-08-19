@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import {
   CreateMilestoneRequestSchema,
-  DeadlineMilestoneSchema,
+  deadlineMilestoneFromRow,
   UpdateMilestoneRequestSchema,
 } from "@/lib/milestones/schema";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -21,7 +21,7 @@ export async function POST(request: Request) {
     linked_learning_item_id: parsed.data.linkedLearningItemId,
   }).select("id,title,description,due_at,status,linked_learning_item_id,created_at").single();
   if (error || !data) return NextResponse.json({ error: "YOVA could not save this deadline yet." }, { status: 500 });
-  return NextResponse.json({ milestone: DeadlineMilestoneSchema.parse(fromRow(data)) });
+  return committedMilestoneWriteResponse(data, "created");
 }
 
 export async function PATCH(request: Request) {
@@ -38,7 +38,7 @@ export async function PATCH(request: Request) {
   if (parsed.data.linkedLearningItemId !== undefined) updates.linked_learning_item_id = parsed.data.linkedLearningItemId;
   const { data, error } = await supabase.from("deadline_milestones").update(updates).eq("id", parsed.data.id).select("id,title,description,due_at,status,linked_learning_item_id,created_at").single();
   if (error || !data) return NextResponse.json({ error: "YOVA could not update this deadline." }, { status: 500 });
-  return NextResponse.json({ milestone: DeadlineMilestoneSchema.parse(fromRow(data)) });
+  return committedMilestoneWriteResponse(data, "updated");
 }
 
 export async function DELETE(request: Request) {
@@ -53,14 +53,29 @@ export async function DELETE(request: Request) {
   return new NextResponse(null, { status: 204 });
 }
 
-function fromRow(row: Record<string, unknown>) {
-  return {
-    id: row.id,
-    title: row.title,
-    description: row.description,
-    dueAt: row.due_at,
-    status: row.status,
-    linkedLearningItemId: row.linked_learning_item_id,
-    createdAt: row.created_at,
-  };
+function committedMilestoneWriteResponse(
+  row: unknown,
+  operation: "created" | "updated",
+) {
+  try {
+    const milestone = deadlineMilestoneFromRow(row);
+    return NextResponse.json({ milestone });
+  } catch (error) {
+    const milestoneId = row && typeof row === "object" && "id" in row && typeof row.id === "string"
+      ? row.id
+      : null;
+    console.error("YOVA milestone write committed but its response was invalid", {
+      operation,
+      milestoneId,
+      reason: error instanceof Error ? error.name : "unknown",
+    });
+    return NextResponse.json({
+      error: operation === "created"
+        ? "The deadline was saved, but YOVA could not display its confirmed details. Reload the Agenda instead of adding it again."
+        : "The deadline was updated, but YOVA could not display its confirmed details. Reload the Agenda instead of repeating the change.",
+      code: "milestone_write_committed_response_invalid",
+      committed: true,
+      milestoneId,
+    }, { status: 500 });
+  }
 }

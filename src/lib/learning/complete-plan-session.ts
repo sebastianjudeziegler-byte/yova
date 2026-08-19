@@ -27,8 +27,9 @@ export function completePlanSession({
   const completedSession = plan.sessions.find((session) => session.id === completedSessionId);
   if (!completedSession) return plan;
 
+  const sessionsWithFollowUp = insertFollowUpOnce(plan.sessions, followUpSession);
   const nextSequence = completedSession.sequence + 1;
-  const updatedSessions = plan.sessions.map((session) => {
+  const sessions = sessionsWithFollowUp.map((session) => {
     if (session.id === completedSession.id) {
       return { ...session, status: "complete" as const };
     }
@@ -53,8 +54,6 @@ export function completePlanSession({
       status: "ready" as const,
     };
   });
-
-  const sessions = appendFollowUpOnce(updatedSessions, followUpSession);
   const hasRemainingWork = sessions.some(isPendingSession);
 
   return {
@@ -64,15 +63,19 @@ export function completePlanSession({
   };
 }
 
-function appendFollowUpOnce(
+function insertFollowUpOnce(
   sessions: LearningPlanSession[],
   followUpSession: LearningPlanSession | null,
 ) {
   if (!followUpSession) return sessions;
-  const alreadyPresent = sessions.some((session) => (
-    session.id === followUpSession.id || session.sequence === followUpSession.sequence
-  ));
-  return alreadyPresent ? sessions : [...sessions, followUpSession];
+  if (sessions.some((session) => session.id === followUpSession.id)) return sessions;
+
+  return [
+    ...sessions.map((session) => session.sequence >= followUpSession.sequence
+      ? { ...session, sequence: session.sequence + 1 }
+      : session),
+    followUpSession,
+  ].sort((left, right) => left.sequence - right.sequence);
 }
 
 function isPendingSession(session: LearningPlanSession) {
