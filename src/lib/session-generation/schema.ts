@@ -6,6 +6,10 @@ import {
   methodFidelityContractForPrompt,
 } from "@/lib/learning/method-fidelity";
 import {
+  MethodRuntimeSchema,
+  type MethodRuntime,
+} from "@/lib/session-generation/method-runtime";
+import {
   LessonDeliveryInstructionsSchema,
   SessionDeliveryPolicySchema,
 } from "@/lib/personalization/session-delivery-policy";
@@ -240,6 +244,12 @@ const GeneratedSessionActivityBaseShape = {
   teaching: TeachingBlockSchema.nullable(),
   practiceIntent: z.enum(PRACTICE_INTENTS).nullable().default(null),
   misconceptionSummary: z.string().trim().min(8).max(300).nullable().default(null),
+  /**
+   * Method-specific interaction data. Null for activities generated before
+   * method runtimes existed, and for methods that still use the generic path,
+   * so saved sessions keep parsing and rendering unchanged.
+   */
+  methodRuntime: MethodRuntimeSchema.nullable().default(null),
 };
 
 const NonModelMethodPhaseSchema = z.enum([
@@ -343,6 +353,7 @@ export type GeneratedSessionActivity = {
   feedback: string | null;
   practiceIntent?: (typeof PRACTICE_INTENTS)[number] | null;
   misconceptionSummary?: string | null;
+  methodRuntime?: MethodRuntime | null;
 };
 
 // Keep the public TypeScript shape ergonomic for rendering and test fixtures,
