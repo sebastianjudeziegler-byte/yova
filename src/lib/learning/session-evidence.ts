@@ -25,6 +25,8 @@ export type GuidedSessionStep = {
   repairSupport?: RuntimeRepairSupport;
   practiceIntent?: import("@/lib/learning/practice-variation").PracticeIntent | null;
   misconceptionSummary?: string;
+  /** Method-specific interaction data; null keeps the generic step rendering. */
+  methodRuntime?: import("@/lib/session-generation/method-runtime").MethodRuntime | null;
 };
 
 export type SessionEvidenceSummary = SessionEvidenceSnapshot;
