@@ -73,7 +73,9 @@ export function deriveLearningTitle(description: string, itemType: IntakeItemTyp
     .trim();
   const title = trimToTitlePhrase(cleaned);
   const base = title ? titleCase(title) : "New learning goal";
-  if (itemType === "test" && !/test|exam|quiz/i.test(base)) {
+  // "prep" counts too, so a goal naming an SAT prep book does not become
+  // "... SAT Prep Book Test Prep".
+  if (itemType === "test" && !/test|exam|quiz|prep\b/i.test(base)) {
     const suffix = " Test Prep";
     const shortenedTitle = trimToTitlePhrase(cleaned, TITLE_CHARACTER_LIMIT - suffix.length);
     return `${shortenedTitle ? titleCase(shortenedTitle) : "New learning goal"}${suffix}`;

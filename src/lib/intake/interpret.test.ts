@@ -191,3 +191,8 @@ describe("goals that keyword matching used to mislabel", () => {
     expect(title).toMatch(/quotient/i);
   });
 });
+
+it("does not append Test Prep to a title that already says prep", () => {
+  expect(deriveLearningTitle("Learn new words in the vocabulary section of my SAT prep book"))
+    .not.toMatch(/prep.*prep/i);
+});
