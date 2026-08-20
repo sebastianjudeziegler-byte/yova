@@ -379,7 +379,7 @@ export async function generateSessionWithOpenAI(
     outputTokens: 0,
   };
 
-  const baseLearningScienceRouting = buildLearningScienceRoutingBrief({
+  const learningScienceRoutingInput = {
     learningIntent: context.learningGoal.learningIntent,
     sessionLearningMode: context.session.learningMode,
     goalTitle: context.learningGoal.title,
@@ -392,6 +392,21 @@ export async function generateSessionWithOpenAI(
     learnerProfile: context.learnerProfile,
     recentResults: context.recentResults,
     interruptionCount: context.recentInterruptions.length,
+  };
+  /**
+   * Observed method results are only comparable within the same task type and
+   * knowledge stage, and the router is what derives those. Classify once to
+   * establish the comparison scope, then route again with the matching history
+   * so repeated results can order methods that all fit the task.
+   */
+  const routingScope = buildLearningScienceRoutingBrief(learningScienceRoutingInput);
+  const routingMethodOutcomes = buildMethodOutcomeSignals(context.recentResults, {
+    taskType: routingScope.taskType,
+    knowledgeStage: routingScope.knowledgeStage,
+  });
+  const baseLearningScienceRouting = buildLearningScienceRoutingBrief({
+    ...learningScienceRoutingInput,
+    observedMethodSignals: routingMethodOutcomes,
   });
   const taskFirstLearningScienceRouting: LearningScienceRoutingBrief = quickReviewContract
     ? {
