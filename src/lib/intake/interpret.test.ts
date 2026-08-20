@@ -11,7 +11,7 @@ describe("universal Add intake", () => {
       now: NOW,
     });
     expect(result.itemType).toBe("test");
-    expect(result.title).toBe("World War I Test Prep");
+    expect(result.title).toMatch(/world war i/i);
     expect(result.progress).toBe("Starting from the beginning");
     expect(result.dueAt).toBe("2026-08-22T06:59:59.999Z");
     expect(result.materialsSummary).toContain("No materials attached");
@@ -35,7 +35,7 @@ describe("universal Add intake", () => {
       materialNames: [],
       now: NOW,
     });
-    expect(result.title).toBe("Startup Funding Foundations");
+    expect(result.title).toMatch(/startup funding/i);
     expect(result.dueAt).toBeNull();
     expect(result.progress).toBe("Starting from the beginning");
   });
@@ -67,10 +67,10 @@ describe("universal Add intake", () => {
       now: NOW,
     });
     expect(focused.itemType).toBe("skill");
-    expect(focused.title).toBe("Calculus: Product Rule");
+    expect(focused.title).toMatch(/product rule/i);
     expect(focused.requestedMinutes).toBeNull();
     expect(broad.itemType).toBe("course");
-    expect(broad.title).toBe("Calculus Learning Path");
+    expect(broad.title).toMatch(/calculus/i);
   });
 
   it("preserves a one-off time request and recognizes outside work", () => {
@@ -93,14 +93,20 @@ describe("universal Add intake", () => {
     expect(resolveLearningTitle(
       "Personalized learning plan",
       "I want to learn new vocabulary words so I can be better in conversation",
-    )).toBe("Conversation Vocabulary Builder");
+    ))
+      // The generic saved name must be replaced by something drawn from the
+      // real topic; the exact wording is not the contract.
+      .toMatch(/vocabulary/i);
   });
 
   it("turns sentence-like assignment names into a concise subject title", () => {
-    expect(resolveLearningTitle(
+    const concise = resolveLearningTitle(
       "Thermodynamics Essay. I Have an Essay That I Have",
       "I have an essay about thermodynamics due next week",
-    )).toBe("Thermodynamics Essay");
+    );
+    expect(concise).toMatch(/thermodynamics/i);
+    expect(concise).not.toMatch(/I Have an Essay That I Have/i);
+    expect(concise.length).toBeLessThanOrEqual(72);
   });
 
   it.each([
@@ -154,5 +160,34 @@ describe("universal Add intake", () => {
 
     expect(title).toMatch(/ Test Prep$/);
     expect(title.length).toBeLessThanOrEqual(100);
+  });
+});
+
+describe("goals that keyword matching used to mislabel", () => {
+  // Each of these produced a canned subject title that contradicted the goal.
+  const misfires: Array<[string, RegExp, RegExp]> = [
+    ["Finish my extra credit assignment about the Cold War arms race", /cold war/i, /personal finance/i],
+    ["I want to budget my study time better before finals week arrives", /study time|budget/i, /personal finance/i],
+    ["Plan how many credit hours to take next semester without burning out", /credit hours/i, /personal finance/i],
+    ["Learn about investing time in deliberate practice for music", /deliberate practice|music/i, /personal finance/i],
+    ["Understand the water cycle for my biology class test on Friday", /water cycle/i, /^biology (test prep|foundations)$/i],
+    ["Learn new words in the vocabulary section of my SAT prep book", /sat/i, /conversation vocabulary builder/i],
+  ];
+
+  it.each(misfires)("keeps %s about what the learner asked", (goal, expected, canned) => {
+    const title = deriveLearningTitle(goal);
+    expect(title).toMatch(expected);
+    expect(title).not.toMatch(canned);
+  });
+
+  it("never adds a subject the learner explicitly excluded", () => {
+    const title = deriveLearningTitle("Understand only cellular respiration, not photosynthesis, for my exam");
+    expect(title).toMatch(/cellular respiration/i);
+    expect(title).not.toBe("Photosynthesis and Cellular Respiration");
+  });
+
+  it("keeps both rules when the learner named two", () => {
+    const title = deriveLearningTitle("Learn the product rule and the quotient rule for derivatives");
+    expect(title).toMatch(/quotient/i);
   });
 });

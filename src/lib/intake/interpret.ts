@@ -50,21 +50,18 @@ export function interpretIntake(input: {
 
 export function deriveLearningTitle(description: string, itemType: IntakeItemType = inferType(description)) {
   const text = normalize(description);
-  const known = [
-    { pattern: /lab report/i, title: "Lab Report" },
-    { pattern: /thermodynam/i, title: /essay|paper/i.test(text) ? "Thermodynamics Essay" : "Thermodynamics" },
-    { pattern: /history essay/i, title: "History Essay" },
-    { pattern: /world war (?:i|1)|wwi|first world war/i, title: itemType === "test" ? "World War I Test Prep" : "World War I" },
-    { pattern: /startup.*fund|funding.*startup|term sheets?|dilution/i, title: "Startup Funding Foundations" },
-    { pattern: /product rule/i, title: "Calculus: Product Rule" },
-    { pattern: /calculus/i, title: "Calculus Learning Path" },
-    { pattern: /photosynthesis|cellular respiration/i, title: "Photosynthesis and Cellular Respiration" },
-    { pattern: /biology/i, title: itemType === "test" ? "Biology Test Prep" : "Biology Foundations" },
-    { pattern: /melatonin/i, title: "Melatonin and Sleep Timing" },
-    { pattern: /personal finance|investing|budget|credit/i, title: "Personal Finance Fundamentals" },
-    { pattern: /vocabulary|new words/i, title: "Conversation Vocabulary Builder" },
-  ].find((candidate) => candidate.pattern.test(text));
-  if (known) return known.title;
+  /**
+   * Titles are derived from what the learner actually wrote.
+   *
+   * A keyword table used to short-circuit this and return a canned subject
+   * title instead. It misfired constantly, because the keywords appear in
+   * ordinary sentences: "extra credit", "credit hours", "budget my study time"
+   * and "investing time in practice" all became "Personal Finance
+   * Fundamentals", a goal that said "not photosynthesis" was titled
+   * "Photosynthesis and Cellular Respiration", and any goal mentioning biology
+   * lost its actual subject. The generated content was always correct; only the
+   * title lied, on every screen that shows one.
+   */
 
   const cleaned = text
     .replace(/^i\s+(?:have|need|want|am|would like)\s+/i, "")

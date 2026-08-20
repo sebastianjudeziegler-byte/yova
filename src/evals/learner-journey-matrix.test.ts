@@ -138,7 +138,7 @@ describe("learner journey matrix", () => {
     const plan = generatePreviewPlan(mappedRequest("startup_funding_general_25"));
 
     expect(plan.kind).toBe("topic");
-    expect(plan.title).toBe("Startup Funding Foundations");
+    expect(plan.title).toMatch(/startup funding/i);
     expect(plan.sessions[0]?.learningMode).toBe("learn");
     expect(plan.sessions[0]?.objective).toMatch(/startup funding|funding stages|investor/i);
     expect(plan.sessions.every((session) => (

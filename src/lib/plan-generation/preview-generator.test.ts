@@ -355,7 +355,7 @@ describe("preview plan time windows", () => {
       ], "focused_skill", 4),
     });
 
-    expect(plan.title).toBe("Startup Funding Foundations");
+    expect(plan.title).toMatch(/startup funding/i);
     expect(plan.sessions).toHaveLength(1);
     expect(plan.sessions[0]).toMatchObject({
       title: expect.stringMatching(/^Learn /),
