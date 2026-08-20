@@ -6,6 +6,7 @@ import { getCoreLearningMethod } from "@/lib/learning/method-catalog";
 import type { CoreMethodId } from "@/lib/learning/method-catalog";
 import { validateMethodFidelity } from "@/lib/learning/method-fidelity";
 import { buildLearningScienceRoutingBrief } from "@/lib/learning/method-router";
+import { sessionRoutingInput } from "@/lib/learning/session-routing-input";
 import { buildSessionSupportPlan } from "@/lib/learning/scaffold-progression";
 import { getOpenAIClient } from "@/lib/openai/client";
 import { getOpenAISessionConfig } from "@/lib/openai/config";
@@ -107,20 +108,7 @@ export function canGenerateReliableSession(originalContext: SessionGenerationCon
   // with several planned targets needs the full generator so every target is
   // either evidenced now or explicitly deferred rather than silently dropped.
   if ((context.session.contentTargets?.length ?? 0) > 1) return false;
-  const routing = applyPersonalizedMethodTieToRouting(buildLearningScienceRoutingBrief({
-    learningIntent: context.learningGoal.learningIntent,
-    sessionLearningMode: context.session.learningMode,
-    goalTitle: context.learningGoal.title,
-    goalTopic: context.learningGoal.topic,
-    goalKind: context.learningGoal.kind,
-    sessionTitle: context.session.title,
-    sessionObjective: context.session.objective,
-    plannedMethod: context.session.method,
-    plannedMethodReason: context.session.methodReason,
-    learnerProfile: context.learnerProfile,
-    recentResults: context.recentResults,
-    interruptionCount: context.recentInterruptions.length,
-  }), context.personalization);
+  const routing = applyPersonalizedMethodTieToRouting(buildLearningScienceRoutingBrief(sessionRoutingInput(context)), context.personalization);
   const hasAdaptiveEvidence = context.recentResults.length > 0
     || context.recentInterruptions.length > 0
     || context.conceptSignals.length > 0
@@ -147,20 +135,7 @@ export async function generateReliableSessionWithOpenAI(
   if (!config) throw new Error("OpenAI is not configured on the YOVA server.");
 
   const startedAt = Date.now();
-  const routing = applyPersonalizedMethodTieToRouting(buildLearningScienceRoutingBrief({
-    learningIntent: context.learningGoal.learningIntent,
-    sessionLearningMode: context.session.learningMode,
-    goalTitle: context.learningGoal.title,
-    goalTopic: context.learningGoal.topic,
-    goalKind: context.learningGoal.kind,
-    sessionTitle: context.session.title,
-    sessionObjective: context.session.objective,
-    plannedMethod: context.session.method,
-    plannedMethodReason: context.session.methodReason,
-    learnerProfile: context.learnerProfile,
-    recentResults: context.recentResults,
-    interruptionCount: context.recentInterruptions.length,
-  }), context.personalization);
+  const routing = applyPersonalizedMethodTieToRouting(buildLearningScienceRoutingBrief(sessionRoutingInput(context)), context.personalization);
   const deliveryPolicy = buildSessionDeliveryPolicy({
     learnerProfile: context.learnerProfile,
     recentResults: context.recentResults,

@@ -1,3 +1,6 @@
+import { buildLearningScienceRoutingBrief } from "@/lib/learning/method-router";
+import { getCoreLearningMethod } from "@/lib/learning/method-catalog";
+import { learnerStatedTaskType } from "@/lib/learning/session-routing-input";
 import type { LearningPlan } from "@/lib/domain";
 import {
   buildPlanContentBudget,
@@ -211,14 +214,14 @@ export function generatePreviewPlan(request: PlanGenerationRequest): LearningPla
         method: request.studyMode === "outside"
           ? outsideMethodFor(request.goal)
           : request.intent === "study_now" && request.learningIntent === "learn"
-            ? "Self-explanation with worked example fading"
+            ? studyNowTeachingMethod(request).name
             : request.learningIntent === "learn"
               ? LEARNING_METHODS[blueprint.phaseIndex]
               : METHODS[blueprint.phaseIndex],
         methodReason: `${request.studyMode === "outside"
           ? outsideMethodReason(request.goal)
           : request.intent === "study_now" && request.learningIntent === "learn"
-            ? "The learner has not built this foundation yet, so YOVA should explain the overall model, walk through one concrete example, and then reduce support for a short understanding check."
+            ? studyNowTeachingMethod(request).why
             : request.learningIntent === "learn"
               ? learningReasonFor(blueprint.phaseIndex)
               : reasonFor(blueprint.phaseIndex, request)} ${preferenceReasonFor(blueprint.learningMode ?? sessionLearningMode(request, blueprint.phaseIndex), blueprint.phaseIndex, preferenceContract)}`,
@@ -847,4 +850,33 @@ function topicIdsForPreviewSession(request: PlanGenerationRequest, index: number
   const sessionsPerTopic = Math.max(1, Math.floor(totalSessions / topics.length));
   const topicIndex = Math.min(topics.length - 1, Math.floor(index / sessionsPerTopic));
   return [topics[topicIndex].id];
+}
+
+/**
+ * Picks the teaching method for a one-off inside-YOVA session from the task.
+ *
+ * This branch previously returned "Self-explanation with worked example fading"
+ * for every such session, so a goal that said "Memorize the three states of
+ * matter" was taught by self-explanation rather than retrieval practice. The
+ * plan's named method is authoritative downstream, so a wrong choice here was
+ * carried through session generation rather than corrected by it.
+ */
+function studyNowTeachingMethod(request: PlanGenerationRequest) {
+  const routing = buildLearningScienceRoutingBrief({
+    taskTypeOverride: learnerStatedTaskType(request.goal),
+    learningIntent: "learn",
+    sessionLearningMode: "learn",
+    goalTitle: request.goal,
+    goalTopic: request.goal,
+    goalKind: "topic",
+    sessionTitle: request.goal,
+    sessionObjective: request.goal,
+    plannedMethod: "",
+    plannedMethodReason: "",
+    learnerProfile: null,
+    recentResults: [],
+    interruptionCount: 0,
+  });
+
+  return getCoreLearningMethod(routing.suggestedPrimaryMethodId);
 }

@@ -6,6 +6,7 @@ import { z } from "zod";
 import { getOpenAIClient } from "@/lib/openai/client";
 import { getOpenAISessionConfig } from "@/lib/openai/config";
 import { buildMaterialSupportPolicy } from "@/lib/materials/grounding";
+import { sessionRoutingInput } from "@/lib/learning/session-routing-input";
 import {
   buildLearningScienceRoutingBrief,
   type LearningScienceRoutingBrief,
@@ -219,22 +220,13 @@ export async function generateStreamedTeachingSkeletonWithOpenAI(
   const generationStartedAt = Date.now();
   const usage = { attempts: 0, inputTokens: 0, cachedInputTokens: 0, cacheWriteTokens: 0, outputTokens: 0 };
 
-  const learningScienceRouting = streamedTeachingCycleRouting(buildLearningScienceRoutingBrief({
-    learningIntent: context.learningGoal.learningIntent,
+  const learningScienceRouting = streamedTeachingCycleRouting(buildLearningScienceRoutingBrief(sessionRoutingInput(context, {
     sessionLearningMode: "learn",
-    goalTitle: context.learningGoal.title,
-    goalTopic: context.learningGoal.topic,
-    goalKind: context.learningGoal.kind,
-    sessionTitle: context.session.title,
-    sessionObjective: context.session.objective,
-    plannedMethod: context.session.method,
-    plannedMethodReason: context.session.methodReason,
-    learnerProfile: context.learnerProfile,
     // Streamed lesson presentation is profile-driven in this architecture
     // version. Outcome evidence remains available below for practice selection.
     recentResults: [],
     interruptionCount: 0,
-  }), context.personalization);
+  })), context.personalization);
   const recommendedMethodFidelityContract = methodFidelityContractForPrompt(
     learningScienceRouting.suggestedPrimaryMethodId,
     "learn",
