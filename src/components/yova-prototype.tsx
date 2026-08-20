@@ -5862,7 +5862,7 @@ function GuidedSession({ plan, planSessionId, steps, step, selectedAnswer, outco
         {content.teaching && <TeachingLessonCard teaching={content.teaching} panel={teachingPanels[teachingPage] ?? "idea"} panelIndex={teachingPage} panelCount={teachingPanels.length} panelLabels={teachingPanels} />}
         {content.methodRuntime?.kind === "retrieval_round"
           && <RetrievalRoundRuntime runtime={content.methodRuntime} />}
-        {requiresConfidence && <ConfidenceCheck value={confidence} locked={outcome !== undefined || answerRevealed} onChange={onConfidence} />}
+        {!content.methodRuntime && requiresConfidence && <ConfidenceCheck value={confidence} locked={outcome !== undefined || answerRevealed} onChange={onConfidence} />}
         {!content.methodRuntime && content.type === "multiple_choice" && content.question && <div className="answer-grid">{content.question.map((answer) => {
           const answerState = outcome !== undefined && answer === content.correctAnswer
             ? "correct"
@@ -5873,8 +5873,8 @@ function GuidedSession({ plan, planSessionId, steps, step, selectedAnswer, outco
                 : "";
           return <button key={answer} className={answerState} disabled={selectedAnswer !== null || (requiresConfidence && !confidence)} onClick={() => { onSelect(answer); onEvaluate(answer === content.correctAnswer); }}><LearningContent content={answer} inline />{answerState === "correct" ? <Check size={18} /> : answerState === "incorrect" ? <X size={18} /> : null}</button>;
         })}</div>}
-      {content.type === "multiple_choice" && outcome !== undefined && <><div className={`feedback ${isCorrect ? "" : "incorrect"}`}>{isCorrect ? <Check size={20} /> : <AlertCircle size={20} />}<div><strong>{isCorrect ? "Correct." : "Useful miss. Repair it now."}</strong>{explanation && <LearningContent content={explanation} />}</div></div>{confidence && <p className="confidence-result"><Sparkles size={15} /> {confidenceResultMessage(confidence, isCorrect)}</p>}</>}
-      {content.type === "free_response" && <div className="recall-response">
+      {!content.methodRuntime && content.type === "multiple_choice" && outcome !== undefined && <><div className={`feedback ${isCorrect ? "" : "incorrect"}`}>{isCorrect ? <Check size={20} /> : <AlertCircle size={20} />}<div><strong>{isCorrect ? "Correct." : "Useful miss. Repair it now."}</strong>{explanation && <LearningContent content={explanation} />}</div></div>{confidence && <p className="confidence-result"><Sparkles size={15} /> {confidenceResultMessage(confidence, isCorrect)}</p>}</>}
+      {!content.methodRuntime && content.type === "free_response" && <div className="recall-response">
         {freeResponseMode === "quantitative_workpad"
           ? <QuantitativeWorkpad
             value={selectedAnswer ?? ""}

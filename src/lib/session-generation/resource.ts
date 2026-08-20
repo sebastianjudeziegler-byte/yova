@@ -3,6 +3,7 @@ import {
   CachedGeneratedSessionSchema,
   type SessionGenerationResponse,
 } from "@/lib/session-generation/schema";
+import { methodRuntimeKeepIndex } from "@/lib/session-generation/method-runtime";
 
 type CachedGeneratedSession = SessionGenerationResponse["session"];
 
@@ -10,6 +11,14 @@ export function toSessionResource(
   session: CachedGeneratedSession,
   origin: SessionResource["origin"] = "generated",
 ): SessionResource {
+  // Generation sometimes attaches the method runtime to every activity. The
+  // method carries the session's work once, so keep the first matching block
+  // rather than discarding an otherwise good session.
+  const runtimeKeepIndex = methodRuntimeKeepIndex(
+    session.methodBriefing.methodId,
+    session.activities.map((activity) => activity.methodRuntime),
+  );
+
   return {
     topicIds: session.topicIds,
     rationale: session.rationale,
@@ -20,7 +29,7 @@ export function toSessionResource(
     deliveryInstructions: "deliveryInstructions" in session ? session.deliveryInstructions : undefined,
     supportPlan: session.supportPlan,
     sourceGrounding: session.sourceGrounding ?? undefined,
-    activities: session.activities.map((activity) => ({
+    activities: session.activities.map((activity, index) => ({
       topicId: activity.topicId,
       methodPhase: activity.methodPhase,
       estimatedMinutes: activity.estimatedMinutes,
@@ -40,7 +49,7 @@ export function toSessionResource(
       // Without this the method runtime survives first render and disappears on
       // resume, so a resumed retrieval round would silently fall back to the
       // generic activity path.
-      methodRuntime: activity.methodRuntime ?? null,
+      methodRuntime: index === runtimeKeepIndex ? activity.methodRuntime ?? null : null,
     })),
     generatedAt: session.generatedAt,
     origin,

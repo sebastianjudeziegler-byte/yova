@@ -89,7 +89,10 @@ export function RetrievalRoundRuntime({ runtime, onComplete }: RetrievalRoundRun
         <h3>{runtime.sourceClosedReminder}</h3>
         <p className={styles.progress}>
           {answered} of {summary.total} answered
-          {activeState.attempts > 0 && <span className={styles.repeat}><RotateCcw size={13} /> second pass</span>}
+          {/* Revealing an answer counts an attempt, so the badge must wait for
+              the prompt to actually come back rather than firing mid-question. */}
+          {activeState.attempts > 0 && !activeState.revealed
+            && <span className={styles.repeat}><RotateCcw size={13} /> second pass</span>}
         </p>
       </header>
 

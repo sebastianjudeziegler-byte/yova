@@ -5,6 +5,7 @@ import {
   hasMethodRuntime,
   methodRuntimeKindFor,
   methodRuntimeMismatch,
+  methodRuntimeKeepIndex,
   validateAttachedMethodRuntimes,
   type MethodRuntime,
 } from "@/lib/session-generation/method-runtime";
@@ -137,13 +138,34 @@ describe("attached method runtimes", () => {
     expect(validateAttachedMethodRuntimes("retrieval_practice", [null, null])).toBeNull();
   });
 
-  it("rejects the same method being delivered twice in one session", () => {
+  it("does not reject a session merely for over-attaching the same runtime", () => {
+    // Over-attaching is a formatting slip. Rejecting it would drop the learner
+    // into a degraded fallback for a session that is otherwise correct.
     expect(validateAttachedMethodRuntimes("retrieval_practice", [retrievalRound, retrievalRound]))
-      .toContain("attached to 2 activities");
+      .toBeNull();
   });
 
   it("rejects a runtime belonging to a different method", () => {
     expect(validateAttachedMethodRuntimes("worked_example_fading", [retrievalRound]))
       .toContain("uses worked_example");
+  });
+});
+
+describe("choosing which activity carries the method", () => {
+  it("keeps the first activity whose runtime matches the routed method", () => {
+    expect(methodRuntimeKeepIndex("retrieval_practice", [null, retrievalRound, retrievalRound]))
+      .toBe(1);
+  });
+
+  it("keeps nothing when the method has no runtime", () => {
+    expect(methodRuntimeKeepIndex("self_explanation", [retrievalRound])).toBe(-1);
+  });
+
+  it("keeps nothing when no runtime matches the routed method", () => {
+    expect(methodRuntimeKeepIndex("worked_example_fading", [retrievalRound, null])).toBe(-1);
+  });
+
+  it("keeps nothing when the session generated no runtime at all", () => {
+    expect(methodRuntimeKeepIndex("retrieval_practice", [null, null])).toBe(-1);
   });
 });

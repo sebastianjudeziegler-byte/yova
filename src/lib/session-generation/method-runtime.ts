@@ -198,8 +198,24 @@ export function validateAttachedMethodRuntimes(
   runtimes: readonly (MethodRuntime | null)[],
 ): string | null {
   const attached = runtimes.filter((runtime): runtime is MethodRuntime => Boolean(runtime));
-  if (attached.length > 1) {
-    return `Method runtimes are attached to ${attached.length} activities; exactly one activity carries the method's work.`;
-  }
-  return methodRuntimeMismatch(methodId, attached[0] ?? null);
+  const mismatched = attached.map((runtime) => methodRuntimeMismatch(methodId, runtime)).find(Boolean);
+  return mismatched ?? null;
+}
+
+/**
+ * Which activity keeps its runtime, because a method carries the work once.
+ *
+ * Generation regularly attaches the block to every activity rather than the one
+ * that performs the work. That is a formatting slip, not a wrong method, and
+ * rejecting the draft over it costs the learner the whole session and drops
+ * them into a degraded fallback. Normalising keeps the correct interaction and
+ * leaves genuine method mismatches to validation.
+ */
+export function methodRuntimeKeepIndex(
+  methodId: CoreMethodId,
+  runtimes: readonly (MethodRuntime | null | undefined)[],
+): number {
+  const expected = methodRuntimeKindFor(methodId);
+  if (!expected) return -1;
+  return runtimes.findIndex((runtime) => runtime?.kind === expected);
 }
