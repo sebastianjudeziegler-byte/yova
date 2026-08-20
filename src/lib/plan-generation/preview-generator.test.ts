@@ -359,7 +359,7 @@ describe("preview plan time windows", () => {
     expect(plan.sessions).toHaveLength(1);
     expect(plan.sessions[0]).toMatchObject({
       title: expect.stringMatching(/^Learn /),
-      method: "Self-explanation",
+      method: "Self-explanation with worked example fading",
       learningMode: "learn",
       estimatedMinutes: 25,
     });
@@ -512,33 +512,24 @@ describe("choosing the method for a one-off teaching session", () => {
     });
   }
 
-  it("gives a memorization goal a retrieval method, not self-explanation", () => {
-    // This branch used to hardcode self-explanation for every one-off teaching
-    // session, and the plan's named method is authoritative downstream, so the
-    // wrong choice survived session generation instead of being corrected.
-    const plan = studyNow(
-      "Memorize the three states of matter and how they change between each other",
-      ["Three states of matter", "Phase changes"],
-    );
+  /**
+   * Routing this branch by task is correct and was briefly shipped. It is held
+   * back because self-explanation is the only learn-mode contract that
+   * generates reliably at two phases, while the task-appropriate alternatives
+   * need three or four inside a four-activity cap, and a failed inside learn
+   * session has no recovery path. See the note in preview-generator.
+   *
+   * These lock in the current behaviour deliberately. Change them together
+   * with that note, and only once a three-phase learn contract generates
+   * dependably.
+   */
+  it.each([
+    ["memorization", "Memorize the three states of matter and how they change between each other"],
+    ["procedural", "Practice solving two-step algebra equations step by step"],
+    ["reading", "Read chapter 7 of my biology textbook and be ready to be quizzed"],
+  ])("keeps a %s goal on the reliably generatable teaching contract", (_label, goal) => {
+    const plan = studyNow(goal, ["First idea", "Second idea"]);
 
-    expect(plan.sessions[0].method).toMatch(/retrieval/i);
-  });
-
-  it("still gives a conceptual goal an explanation-based method", () => {
-    const plan = studyNow(
-      "Understand why the greenhouse effect traps heat in the atmosphere",
-      ["Greenhouse gases", "Radiation balance"],
-    );
-
-    expect(plan.sessions[0].method).toMatch(/explanation|worked example|read/i);
-  });
-
-  it("gives a procedural goal a worked-example method", () => {
-    const plan = studyNow(
-      "Practice solving two-step algebra equations step by step",
-      ["Isolating the variable", "Checking the solution"],
-    );
-
-    expect(plan.sessions[0].method).toMatch(/worked example|scaffold/i);
+    expect(plan.sessions[0].method).toBe("Self-explanation with worked example fading");
   });
 });
