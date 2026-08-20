@@ -37,6 +37,10 @@ export function toSessionResource(
       feedback: activity.feedback,
       practiceIntent: activity.practiceIntent,
       misconceptionSummary: activity.misconceptionSummary,
+      // Without this the method runtime survives first render and disappears on
+      // resume, so a resumed retrieval round would silently fall back to the
+      // generic activity path.
+      methodRuntime: activity.methodRuntime ?? null,
     })),
     generatedAt: session.generatedAt,
     origin,
