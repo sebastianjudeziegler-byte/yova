@@ -77,7 +77,8 @@ describe("SessionGenerationRecovery", () => {
 
     expect(html).toContain("GUIDED LESSON TEMPORARILY UNAVAILABLE");
     expect(html).toContain("YOVA could not reach the guided-lesson service");
-    expect(html).toContain("could not build an offline lesson for this session configuration");
+    expect(html).toContain("subject-specific offline lesson is not available for this session configuration");
+    expect(html).not.toContain("topic-scoped study-method guide is available below");
     expect(html).toContain("Try preparing the guided lesson again");
     expect(html).toContain("Review session setup");
     expect(html).toContain("Open the goal");
@@ -125,6 +126,62 @@ describe("SessionGenerationRecovery", () => {
     expect(html).toContain("YOVA could not reach the guided-lesson service");
     expect(html).toContain("offline lesson needs more time than this session allows");
     expect(html).toContain("Review session setup");
+  });
+
+  it("distinguishes an unavailable subject lesson from the ungraded method guide it renders", () => {
+    const session: LearningPlanSession = {
+      id: "session-method-recovery",
+      sequence: 1,
+      title: "Practice ocean-current relationships",
+      objective: "Explain how temperature and salinity influence deep-ocean circulation.",
+      method: "Self-explanation",
+      methodReason: "Explaining the relationship makes the learner's current model visible.",
+      scheduledFor: "2026-08-19T18:00:00.000Z",
+      estimatedMinutes: 15,
+      amountLabel: "One explanation and source comparison",
+      learningMode: "study",
+      contentTargets: ["Temperature, salinity, and deep-ocean circulation"],
+      completionEvidence: ["Explain the relationship and compare it with the source"],
+      status: "ready",
+    };
+    const plan: LearningPlan = {
+      id: "plan-method-recovery",
+      learningItemId: "item-method-recovery",
+      title: "Thermohaline circulation",
+      topic: "Thermohaline circulation",
+      kind: "topic",
+      deadline: null,
+      status: "active",
+      sourceMode: "yova_generated",
+      studyMode: "outside_yova",
+      learningIntent: "study",
+      rationale: "Use the learner's source for the subject material.",
+      createdAt: "2026-08-19T17:00:00.000Z",
+      sessions: [session],
+    };
+    const failureState = buildGuidedSessionFailureState({
+      cause: classifyGuidedSessionGenerationFailure({
+        response: { status: 503, headers: new Headers() },
+        body: { error: "The guided-lesson provider is temporarily unavailable." },
+      }),
+      fallbackOutcome: "unavailable",
+    });
+    const html = renderToStaticMarkup(createElement(SessionGenerationRecovery, {
+      plan,
+      session,
+      briefing: buildFallbackMethodBriefing(plan, session),
+      coverage: null,
+      failureState,
+      issue: null,
+      canStartMethod: true,
+      ...handlers,
+    }));
+
+    expect(html).toContain("subject-specific offline lesson is not available");
+    expect(html).toContain("topic-scoped study-method guide is available below as ungraded practice");
+    expect(html).toContain("practice, not proof of topic mastery");
+    expect(html).toContain("Use the study method");
+    expect(html).not.toContain("could not build an offline lesson");
   });
 
   it("does not hand an inside-YOVA beginner an unsupported method workpad", () => {
@@ -179,6 +236,7 @@ describe("SessionGenerationRecovery", () => {
     expect(html).toContain("This teaching-first session still needs an initial subject explanation");
     expect(html).not.toContain("METHOD WORKPAD");
     expect(html).not.toContain("Use the study method");
+    expect(html).not.toContain("topic-scoped study-method guide is available below");
     expect(html).toContain("Review session setup");
   });
 });

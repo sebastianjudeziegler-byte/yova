@@ -70,4 +70,18 @@ describe("materializePlanDraft", () => {
 
     expect(plan.title).toBe("Conversation Vocabulary Builder");
   });
+
+  it("shortens a long generated title at a phrase boundary before it reaches Learning", () => {
+    const goal = "Analyze comparative political institutions across historical regions through evidence";
+    const plan = materializePlanDraft({
+      ...staleDraft,
+      title: "Analyze Comparative Political Institutions Across Historical Regions Through Evidence",
+    }, {
+      ...request,
+      goal,
+    });
+
+    expect(plan.title).toBe("Analyze Comparative Political Institutions…");
+    expect(plan.title.length).toBeLessThanOrEqual(72);
+  });
 });

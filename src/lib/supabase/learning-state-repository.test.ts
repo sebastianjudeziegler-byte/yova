@@ -140,6 +140,64 @@ describe("authenticated learning-state startup", () => {
 
     expect(state?.activeSessionCheckpoints).toEqual([valid]);
   });
+
+  it("repairs already-persisted dangling titles while loading signed-in learning state", async () => {
+    mockCloudQueries({
+      profile: { display_name: "Learner", onboarding_completed_at: NOW },
+      items: [
+        {
+          id: "item-krebs",
+          title: "Understand How the Krebs Cycle Actually Produces Nadh and",
+          kind: "topic",
+          topic: "I want to understand how the Krebs cycle actually produces NADH and FADH2 during the citric acid cycle",
+          deadline: null,
+          source_mode: "yova_generated",
+          study_mode: "inside_yova",
+          created_at: NOW,
+        },
+        {
+          id: "item-economics",
+          title: "Understand How Supply and Demand Curves Shift, Using My",
+          kind: "topic",
+          topic: "I want to understand how supply and demand curves shift, using my economics textbook",
+          deadline: null,
+          source_mode: "yova_generated",
+          study_mode: "inside_yova",
+          created_at: NOW,
+        },
+      ],
+      plans: [
+        {
+          id: "plan-krebs",
+          learning_item_id: "item-krebs",
+          status: "active",
+          rationale: "Build the causal model before checking retrieval.",
+          generation_inputs: { learningIntent: "learn", intent: "plan" },
+          knowledge_map: null,
+          created_at: NOW,
+        },
+        {
+          id: "plan-economics",
+          learning_item_id: "item-economics",
+          status: "active",
+          rationale: "Build the graph model before applying it.",
+          generation_inputs: { learningIntent: "learn", intent: "plan" },
+          knowledge_map: null,
+          created_at: NOW,
+        },
+      ],
+    });
+
+    const state = await loadAuthenticatedLearningState();
+    const titles = state?.plans.map((plan) => plan.title) ?? [];
+
+    expect(titles[0]).toContain("NADH and FADH2");
+    expect(titles[0]).not.toContain("Nadh");
+    expect(titles[1]).toBe("Understand How Supply and Demand Curves Shift…");
+    expect(titles).not.toEqual(expect.arrayContaining([
+      expect.stringMatching(/\b(?:and|my|using)\s*(?:…)?$/i),
+    ]));
+  });
 });
 
 describe("recordAuthenticatedSessionInterruption", () => {
@@ -663,9 +721,13 @@ function installMemoryStorage() {
 function mockCloudQueries({
   profile,
   sessions = [],
+  items = [],
+  plans = [],
 }: {
   profile: { display_name: string; onboarding_completed_at: string | null } | null;
   sessions?: ReturnType<typeof sessionRow>[];
+  items?: Array<Record<string, unknown>>;
+  plans?: Array<Record<string, unknown>>;
 }) {
   from.mockImplementation((table: string) => {
     const result = {
@@ -673,6 +735,10 @@ function mockCloudQueries({
         ? profile
         : table === "learner_profiles"
           ? null
+          : table === "learning_items"
+            ? items
+            : table === "plans"
+              ? plans
           : table === "plan_sessions"
             ? sessions
             : [],

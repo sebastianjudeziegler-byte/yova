@@ -269,7 +269,7 @@ export function buildGuidedSessionFailureState({
       detail: joinDetails(
         cause.apiMessage,
         fallbackDetail,
-        "Review the session setup or continue with the study-method guide.",
+        "Review the session setup or choose another route from this screen.",
       ),
       resetAt: null,
       retryable: false,
@@ -288,7 +288,6 @@ export function buildGuidedSessionFailureState({
       detail: joinDetails(
         cause.apiMessage,
         fallbackDetail,
-        "The study-method guide is still available without a generated lesson.",
       ),
       resetAt: null,
       retryable: cause.retryable,
@@ -308,7 +307,7 @@ export function buildGuidedSessionFailureState({
       heading: "YOVA could not reach the guided-lesson service.",
       detail: joinDetails(
         cause.apiMessage,
-        "This may be temporary. You can retry or continue with the study-method guide now.",
+        "This may be temporary. You can retry or choose another route from this screen.",
       ),
       resetAt: null,
       retryable: true,
@@ -335,13 +334,13 @@ export function buildGuidedSessionFailureState({
 
 function detailForFallbackOutcome(outcome: GuidedSessionFallbackFailure | null) {
   if (outcome === "time_fit_rejected") {
-    return "The offline lesson needs more time than this session allows.";
+    return "The subject-specific offline lesson needs more time than this session allows.";
   }
   if (outcome === "coverage_rejected") {
-    return "The offline lesson would leave part of the session target uncovered.";
+    return "The subject-specific offline lesson would leave part of the session target uncovered.";
   }
   if (outcome === "unavailable") {
-    return "YOVA could not build an offline lesson for this session configuration.";
+    return "A subject-specific offline lesson is not available for this session configuration.";
   }
   return null;
 }

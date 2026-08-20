@@ -313,8 +313,29 @@ describe("preview plan time windows", () => {
     expect(plan.topic).toBe("Draft a comparative history thesis using my textbook evidence");
     expect(plan.studyMode).toBe("outside_yova");
     expect(plan.sessions[0].method).toBe("Retrieval-based outlining");
-    expect(plan.sessions[0].objective).toContain("Draft a comparative history thesis");
+    expect(plan.sessions[0].objective).toContain("Comparative thesis criteria");
     expect(plan.sessions[0].objective).not.toContain("Recall the main ideas");
+  });
+
+  it("turns an outside-session goal into a grammatical instruction without splicing the raw prompt", () => {
+    const base = requestWithMinutes(15);
+    const rawGoal = "I want to understand how the Krebs cycle actually produces NADH and FADH2";
+    const plan = generatePreviewPlan({
+      ...base,
+      intent: "study_now",
+      goal: rawGoal,
+      deadline: null,
+      studyMode: "outside",
+      knowledgeMap: knowledgeMap([
+        "Redox carriers in cellular respiration",
+        "How NADH and FADH2 receive electrons",
+      ], "focused_skill", 2),
+    });
+
+    expect(plan.sessions).toHaveLength(1);
+    expect(plan.sessions[0].objective).toMatch(/^Open your chosen source and work through Redox carriers/i);
+    expect(plan.sessions[0].objective).not.toContain(rawGoal);
+    expect(plan.sessions[0].objective).not.toMatch(/toward\s+I\s+(?:want|need|have)\b/i);
   });
 
   it("routes a new startup-funding learner into teaching before practice", () => {

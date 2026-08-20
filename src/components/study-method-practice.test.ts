@@ -63,4 +63,22 @@ describe("StudyMethodPractice", () => {
     expect(html).toContain("This session is the required knowledge check");
     expect(html).not.toContain("Finish as ungraded practice");
   });
+
+  it("restores checked targets but never restores private workpad notes", () => {
+    const html = renderToStaticMarkup(createElement(StudyMethodPractice, {
+      briefing,
+      session,
+      sourceFirstRequired: true,
+      progress: {
+        checkedTopics: ["Second relationship"],
+        sourceReviewed: true,
+      },
+      onComplete: () => undefined,
+    }));
+
+    expect(html).toMatch(/type="checkbox" checked=""[^>]*\/?>[\s\S]*I studied an explanation/);
+    expect(html).toMatch(/type="checkbox" checked=""[^>]*\/?>[\s\S]*Second relationship/);
+    expect(html).toMatch(/<textarea[^>]*><\/textarea>/);
+    expect(html).not.toContain("PRIVATE WORKPAD NOTE");
+  });
 });

@@ -91,7 +91,9 @@ test("durable allowance exhaustion without a safe fallback has its own non-retry
   await expect(quotaState).toContainText("GUIDED SESSION ALLOWANCE USED");
   await expect(quotaState).toContainText("You can request another generated lesson after");
   await expect(quotaState.locator("time")).toHaveAttribute("datetime", /\d{4}-\d{2}-\d{2}T/);
-  await expect(quotaState).toContainText("could not build an offline lesson for this session configuration");
+  await expect(quotaState).toContainText("subject-specific offline lesson is not available for this session configuration");
+  await expect(quotaState).not.toContainText("topic-scoped study-method guide is available below");
+  await expect(quotaState).toContainText("This teaching-first session still needs an initial subject explanation");
   await expect(page.getByText("LESSON SERVICE INTERRUPTED", { exact: true })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Prepare this lesson again" })).toHaveCount(0);
   await expect(quotaState.getByRole("button", { name: /^Open / })).toBeVisible();
@@ -257,7 +259,7 @@ test("a built-in fallback fails closed for a teaching-first adjustment", async (
   await page.getByRole("button", { name: "Prepare this session" }).click();
 
   await expect(page.getByRole("heading", { name: "YOVA could not reach the guided-lesson service." })).toBeVisible();
-  await expect(page.getByText(/could not build an offline lesson for this session configuration/i)).toBeVisible();
+  await expect(page.getByText(/subject-specific offline lesson is not available for this session configuration/i)).toBeVisible();
   await expect(page.getByText(/still needs an initial subject explanation/i)).toBeVisible();
   await expect(page.getByRole("button", { name: "Review session setup" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "See the product rule before using it" })).not.toBeVisible();
@@ -351,7 +353,7 @@ test("a built-in fallback never ignores a learner's custom session requirement",
   await page.getByRole("button", { name: "Prepare this session" }).click();
 
   await expect(page.getByRole("heading", { name: "YOVA could not reach the guided-lesson service." })).toBeVisible();
-  await expect(page.getByText(/could not build an offline lesson for this session configuration/i)).toBeVisible();
+  await expect(page.getByText(/subject-specific offline lesson is not available for this session configuration/i)).toBeVisible();
   await expect(page.getByText(/safe built-in session was loaded instead/i)).not.toBeVisible();
 
   await page.getByRole("button", { name: "Try preparing the guided lesson again" }).click();
@@ -740,6 +742,136 @@ test("an arbitrary outside method workpad completes as practice without changing
     contentTargets: before.sessionContentTargets,
     completionEvidence: before.sessionCompletionEvidence,
   });
+});
+
+test("a fallback method workpad resumes its timer and checked targets after reload", async ({ page }) => {
+  await page.route("**/api/sessions/generate", async (route) => {
+    await route.fulfill({
+      status: 503,
+      contentType: "application/json",
+      body: JSON.stringify({ error: "Temporary guided-session generation failure." }),
+    });
+  });
+  await createPreviewAccount(page);
+  await completeOnboarding(page);
+
+  await page.getByRole("button", { name: "Study something now", exact: true }).first().click();
+  await page.getByPlaceholder("Example: Help me understand the product rule and practice using it.").fill(
+    "Review how thermohaline circulation moves heat using my oceanography textbook",
+  );
+  await page.getByRole("button", { name: "I understand the basics but need practice" }).click();
+  await page.getByRole("button", { name: /Choose how YOVA should help/ }).click();
+  await page.getByRole("button", { name: /Guide me outside YOVA/ }).click();
+  await page.getByRole("button", { name: /Build and start session/ }).click();
+  await expect(page.getByRole("heading", { name: "Here is how YOVA plans to start." })).toBeVisible();
+  await page.getByRole("button", { name: "Not now", exact: true }).click();
+
+  // Material-grounded sessions deliberately do not receive a generic built-in
+  // lesson. This drives the real standalone method-recovery path without
+  // weakening or mocking the fallback eligibility decision itself.
+  await expect.poll(() => page.evaluate(() => Boolean(
+    window.localStorage.getItem("yova.preview.v1"),
+  ))).toBe(true);
+  await page.evaluate(() => {
+    const raw = window.localStorage.getItem("yova.preview.v1");
+    if (!raw) throw new Error("Expected the Study Now preview snapshot.");
+    const snapshot = JSON.parse(raw) as {
+      plans?: Array<{
+        sourceMode?: string;
+        sessions?: Array<{ resource?: unknown }>;
+      }>;
+      updatedAt?: string;
+    };
+    const plan = snapshot.plans?.at(-1);
+    if (!plan) throw new Error("Expected a saved Study Now plan.");
+    plan.sourceMode = "user_materials";
+    const session = plan.sessions?.find((candidate) => !candidate.resource);
+    if (!session) throw new Error("Expected a ready Study Now session without a resource.");
+    // A generated resource can become unusable after session requirements
+    // change. The standalone method checkpoint must remain authoritative over
+    // that stale cache when the replacement generation also fails.
+    session.resource = {
+      rationale: "Stale generated lesson retained only to exercise recovery precedence.",
+      activities: [{
+        type: "instruction",
+        concept: "Ocean circulation",
+        label: "Review",
+        title: "Old generated lesson",
+        body: "This stale resource must not replace the active method workpad.",
+        choices: [],
+        correctAnswer: null,
+        feedback: null,
+      }],
+      generatedAt: "2026-08-18T12:00:00.000Z",
+      origin: "generated",
+    };
+    snapshot.updatedAt = new Date().toISOString();
+    window.localStorage.setItem("yova.preview.v1", JSON.stringify(snapshot));
+  });
+  await page.reload();
+
+  await page.locator(".recommendation-card").getByRole("button", { name: "Start session" }).click();
+  await expect(page.getByRole("heading", { name: "Here is how YOVA plans to start." })).toBeVisible();
+  await page.getByRole("button", { name: "Continue" }).click();
+  await expect(page.getByRole("heading", { name: "Has anything changed?" })).toBeVisible();
+  await page.getByRole("button", { name: "Continue" }).click();
+  await expect(page.getByRole("heading", { name: "Set the pace for today." })).toBeVisible();
+  await page.getByLabel("Anything YOVA should account for?").fill(
+    "Use the current textbook section, so the cached lesson needs replacement.",
+  );
+  await page.getByRole("button", { name: "Prepare this session" }).click();
+  await expect(page.getByRole("heading", { name: "YOVA could not reach the guided-lesson service." })).toBeVisible();
+  await page.getByRole("button", { name: "Use the study method" }).click();
+
+  const workpad = page.getByLabel("Study-method workpad");
+  await expect(workpad).toBeVisible();
+  const privateNote = "PRIVATE METHOD NOTE must not survive reload";
+  await workpad.getByLabel("Your workpad").fill(privateNote);
+  const topicChecks = workpad.getByRole("group", { name: "Check each covered topic" }).getByRole("checkbox");
+  await expect(topicChecks.first()).toBeVisible();
+  await topicChecks.first().check();
+  await page.waitForTimeout(1_100);
+  await expect(page.locator(".method-session-shell > header > span")).not.toHaveText("0:00 elapsed");
+
+  await expect.poll(() => page.evaluate(() => {
+    const raw = window.localStorage.getItem("yova.active-session-checkpoints.v1");
+    const checkpoints = raw ? JSON.parse(raw) as Array<{
+      activeSeconds?: number;
+      methodWork?: { checkedTopics?: string[] };
+      resourceGeneratedAt?: string;
+    }> : [];
+    const checkpoint = checkpoints.at(-1);
+    return {
+      activeSeconds: checkpoint?.activeSeconds ?? 0,
+      checkedTopics: checkpoint?.methodWork?.checkedTopics?.length ?? 0,
+      resourceGeneratedAt: checkpoint?.resourceGeneratedAt ?? null,
+      serialized: raw ?? "",
+    };
+  })).toMatchObject({
+    activeSeconds: expect.any(Number),
+    checkedTopics: 1,
+    resourceGeneratedAt: null,
+  });
+  // `expect.poll` does not expose the matched value, so read once after the
+  // checkpoint has reached the asserted state.
+  const serializedCheckpoint = await page.evaluate(() => {
+    const raw = window.localStorage.getItem("yova.active-session-checkpoints.v1") ?? "[]";
+    return raw;
+  });
+  expect(serializedCheckpoint).not.toContain(privateNote);
+
+  await page.reload();
+  await expect(page.getByText("Continue where you left off")).toBeVisible();
+  await page.getByRole("button", { name: "Continue session" }).click();
+
+  const resumedWorkpad = page.getByLabel("Study-method workpad");
+  await expect(resumedWorkpad).toBeVisible();
+  await expect(
+    resumedWorkpad.getByRole("group", { name: "Check each covered topic" }).getByRole("checkbox").first(),
+  ).toBeChecked();
+  await expect(resumedWorkpad.getByLabel("Your workpad")).toHaveValue("");
+  await expect(page.getByText(/Your session was recovered/)).toBeVisible();
+  await expect(page.locator(".method-session-shell > header > span")).not.toHaveText("0:00 elapsed");
 });
 
 test("a 10-minute outside teaching-first session loads its built-in method lesson", async ({ page }) => {
@@ -1321,6 +1453,362 @@ test("a refresh recovers semantic progress without saving draft answers or inven
     sessionCompletions: 1,
     sessionInterruptions: 0,
   });
+  expect(generationRequests).toBe(1);
+});
+
+test("learner text fields keep long pastes visible and block submission until trimmed", async ({ page }) => {
+  test.setTimeout(90_000);
+  const longPaste = "x".repeat(800);
+
+  await page.route("**/api/sessions/generate", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(streamedResumeSessionResponse()),
+    });
+  });
+  await page.route("**/api/sessions/lesson", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "text/event-stream",
+      body: [
+        'data: {"type":"lesson.meta","requestId":"30000000-0000-4000-8000-000000000031","model":"test-model"}',
+        "",
+        'data: {"type":"lesson.delta","delta":"# Retrieval practice\\n\\nAttempt the answer before reviewing the explanation."}',
+        "",
+        'data: {"type":"lesson.complete","elapsedMs":20,"latencyToFirstTokenMs":5,"inputTokens":20,"cachedInputTokens":0,"outputTokens":12,"wordCount":9,"model":"test-model"}',
+        "",
+        "",
+      ].join("\n"),
+    });
+  });
+
+  await createPreviewAccount(page);
+  await completeOnboarding(page);
+  await page.getByRole("button", { name: "Study something now", exact: true }).first().click();
+  await page.getByPlaceholder("Example: Help me understand the product rule and practice using it.").fill(
+    "Help me understand retrieval practice and test the idea.",
+  );
+  await page.getByRole("button", { name: "I haven't learned this yet" }).click();
+  await page.getByRole("button", { name: /Choose how YOVA should help/ }).click();
+  await page.getByRole("button", { name: /Create it for me/ }).click();
+  await page.getByRole("button", { name: /Build and start session/ }).click();
+  await page.getByRole("button", { name: "Continue" }).click();
+  await page.getByRole("button", { name: "Continue" }).click();
+
+  const sessionNote = page.getByLabel("Anything YOVA should account for?");
+  await sessionNote.fill(longPaste);
+  await expect(sessionNote).toHaveValue(longPaste);
+  await expect(sessionNote).toHaveAttribute("aria-invalid", "true");
+  await expect(page.locator("#session-context-note-limit")).toContainText(
+    "800/500 · 300 characters over the limit.",
+  );
+  await expect(page.getByRole("button", { name: "Prepare this session" })).toBeDisabled();
+
+  await sessionNote.fill("");
+  await page.getByRole("button", { name: "Prepare this session" }).click();
+  await expect(page.getByRole("button", { name: "Change direction" })).toBeVisible();
+  await page.getByRole("button", { name: "Change direction" }).click();
+
+  const courseDirection = page.getByRole("dialog", { name: "Tell YOVA what is off track." })
+    .getByLabel("What should be different?");
+  await courseDirection.fill(longPaste);
+  await expect(courseDirection).toHaveValue(longPaste);
+  await expect(courseDirection).toHaveAttribute("aria-invalid", "true");
+  await expect(page.locator("#course-direction-limit")).toContainText(
+    "800/500 · 300 characters over the limit.",
+  );
+  await expect(page.getByRole("button", { name: "Approve and rebuild" })).toBeDisabled();
+  await page.getByRole("button", { name: "Keep this plan" }).click();
+
+  await page.getByRole("button", { name: "Exit" }).click();
+  await page.getByRole("button", { name: "Save progress and leave" }).click();
+  await page.evaluate(() => {
+    const stored = window.localStorage.getItem("yova.preview.v1");
+    if (!stored) throw new Error("Expected a preview snapshot after leaving the session.");
+    const snapshot = JSON.parse(stored) as {
+      plans: unknown[];
+      updatedAt?: string;
+    };
+    const planId = "63000000-0000-4000-8000-000000000001";
+    const sessionId = "63000000-0000-4000-8000-000000000002";
+    const topicId = "63000000-0000-4000-8000-000000000003";
+    const scheduledFor = new Date(Date.now() + 60 * 60 * 1_000).toISOString();
+    snapshot.plans.push({
+      id: planId,
+      learningItemId: "63000000-0000-4000-8000-000000000004",
+      title: "Active plan adjustment fixture",
+      topic: "Retrieval practice",
+      kind: "topic",
+      deadline: null,
+      status: "active",
+      sourceMode: "yova_generated",
+      studyMode: "inside_yova",
+      learningIntent: "study",
+      creationIntent: "plan",
+      sessionArchitectureVersion: "filled_teaching_v1",
+      rationale: "Keep one active plan available for the adjustment control.",
+      createdAt: new Date().toISOString(),
+      materials: [],
+      sessions: [{
+        id: sessionId,
+        sequence: 1,
+        title: "Practice retrieval deliberately",
+        objective: "Explain how retrieval practice exposes a learning gap.",
+        method: "Retrieval practice",
+        methodReason: "An unsupported attempt makes the current model visible.",
+        scheduledFor,
+        estimatedMinutes: 25,
+        amountLabel: "25 minutes",
+        learningMode: "study",
+        topicIds: [topicId],
+        contentTargets: ["Retrieval practice and answer review"],
+        completionEvidence: ["Explain why the attempt comes before review"],
+        status: "ready",
+      }],
+    });
+    snapshot.updatedAt = new Date().toISOString();
+    window.localStorage.setItem("yova.preview.v1", JSON.stringify(snapshot));
+  });
+  await page.reload();
+  await page.getByRole("button", { name: "Learning", exact: true }).click();
+  await page.getByRole("button", { name: "Open goal" }).click();
+  await page.getByRole("button", { name: "Adjust", exact: true }).click();
+
+  const adjustmentPanel = page.locator(".plan-adjustment-panel");
+  const planDirection = adjustmentPanel.getByLabel("What should be different?");
+  await planDirection.fill(longPaste);
+  await expect(planDirection).toHaveValue(longPaste);
+  await expect(planDirection).toHaveAttribute("aria-invalid", "true");
+  await expect(adjustmentPanel.locator("#plan-adjustment-direction-limit")).toContainText(
+    "800/500 · 300 characters over the limit.",
+  );
+  await expect(adjustmentPanel.getByRole("button", { name: "Approve and rebuild plan" })).toBeDisabled();
+});
+
+test("Agenda summary cards remain inside their rail at a 375px viewport", async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 844 });
+  await createPreviewAccount(page);
+  await completeOnboarding(page);
+  await page.evaluate(() => {
+    const stored = window.localStorage.getItem("yova.preview.v1");
+    if (!stored) throw new Error("Expected a preview snapshot after onboarding.");
+    const snapshot = JSON.parse(stored) as {
+      plans: unknown[];
+      sessionCompletions: unknown[];
+      updatedAt?: string;
+    };
+    const completedAt = new Date(Date.now() - 3 * 24 * 60 * 60 * 1_000).toISOString();
+    const startedAt = new Date(Date.parse(completedAt) - 20 * 60 * 1_000).toISOString();
+    const planId = "61000000-0000-4000-8000-000000000001";
+    const sessionId = "61000000-0000-4000-8000-000000000002";
+    const topicId = "61000000-0000-4000-8000-000000000003";
+    snapshot.plans.push({
+      id: planId,
+      learningItemId: "61000000-0000-4000-8000-000000000004",
+      title: "Ocean circulation systems and climate interactions",
+      topic: "Physical oceanography",
+      kind: "topic",
+      deadline: null,
+      status: "completed",
+      sourceMode: "yova_generated",
+      studyMode: "inside_yova",
+      learningIntent: "study",
+      creationIntent: "plan",
+      sessionArchitectureVersion: "filled_teaching_v1",
+      rationale: "Use retrieval and application to check the model.",
+      createdAt: startedAt,
+      materials: [],
+      sessions: [{
+        id: sessionId,
+        sequence: 1,
+        title: "Retrieve the ocean-circulation model",
+        objective: "Explain the relationship without support.",
+        method: "Retrieval practice",
+        methodReason: "Independent recall makes the current model visible.",
+        scheduledFor: startedAt,
+        estimatedMinutes: 20,
+        amountLabel: "20 minutes",
+        learningMode: "study",
+        topicIds: [topicId],
+        contentTargets: ["Photosynthetic electron transport chain redox carrier relationships"],
+        completionEvidence: ["Explain the full relationship independently"],
+        status: "complete",
+      }],
+    });
+    snapshot.sessionCompletions.push({
+      id: "61000000-0000-4000-8000-000000000005",
+      planId,
+      planSessionId: sessionId,
+      startedAt,
+      completedAt,
+      plannedMinutes: 20,
+      actualMinutes: 20,
+      correctAnswers: 0,
+      totalAnswers: 1,
+      feedback: "about_right",
+      observedGap: "Photosynthetic electron transport chain redox carrier relationships",
+      completionMode: "guided",
+      conceptEvidence: [{
+        topicId,
+        concept: "Photosynthetic electron transport chain redox carrier relationships",
+        outcome: "needs_review",
+        activityType: "free_response",
+      }],
+      confidenceEvidence: [],
+    });
+    snapshot.updatedAt = new Date().toISOString();
+    window.localStorage.setItem("yova.preview.v1", JSON.stringify(snapshot));
+  });
+  await page.reload();
+  await page.getByRole("button", { name: "Agenda", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Your week at a glance" })).toBeVisible();
+
+  const geometry = await page.locator(".agenda-summary-rail").evaluate((rail) => {
+    const railRect = rail.getBoundingClientRect();
+    return {
+      clientWidth: rail.clientWidth,
+      scrollWidth: rail.scrollWidth,
+      children: Array.from(rail.children).map((child) => {
+        const rect = child.getBoundingClientRect();
+        return {
+          left: rect.left,
+          right: rect.right,
+          width: rect.width,
+          clientWidth: child.clientWidth,
+          scrollWidth: child.scrollWidth,
+          insideRail: rect.left >= railRect.left - 1 && rect.right <= railRect.right + 1,
+        };
+      }),
+    };
+  });
+
+  expect(geometry.children).toHaveLength(4);
+  expect(geometry.scrollWidth).toBeLessThanOrEqual(geometry.clientWidth + 1);
+  expect(
+    geometry.children.every((card) => card.insideRail && card.scrollWidth <= card.clientWidth + 1),
+    JSON.stringify(geometry),
+  ).toBe(true);
+});
+
+test("spent guided-session allowance is visible before Home or Agenda opens setup", async ({ page }) => {
+  const resetAt = "2026-08-20T00:00:00.000Z";
+  let allowanceExhausted = false;
+  await page.route("**/api/sessions/allowance", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      headers: allowanceExhausted ? { "Retry-After": "7200" } : {},
+      body: JSON.stringify(allowanceExhausted
+        ? {
+          status: "exhausted",
+          remainingToday: 0,
+          retryAfterSeconds: 7_200,
+          resetAt,
+        }
+        : {
+          status: "available",
+          remainingToday: 3,
+          retryAfterSeconds: 0,
+          resetAt: null,
+        }),
+    });
+  });
+
+  await createPreviewAccount(page);
+  await completeOnboarding(page);
+  await page.getByRole("button", { name: "Study something now", exact: true }).first().click();
+  await page.getByPlaceholder("Example: Help me understand the product rule and practice using it.").fill(
+    "Review how plate boundaries shape ocean basins.",
+  );
+  await page.getByRole("button", { name: "I understand the basics but need practice" }).click();
+  await page.getByRole("button", { name: /Choose how YOVA should help/ }).click();
+  await page.getByRole("button", { name: /Create it for me/ }).click();
+  await page.getByRole("button", { name: /Build and start session/ }).click();
+  await page.getByRole("button", { name: "Not now", exact: true }).click();
+
+  allowanceExhausted = true;
+  await page.reload();
+
+  const homeAllowance = page.locator(".guided-session-allowance-notice.home");
+  await expect(homeAllowance).toContainText("Daily guided-session allowance used");
+  await expect(homeAllowance.locator("time")).toHaveAttribute("datetime", resetAt);
+  await expect(homeAllowance).toContainText("continue a session that was already saved");
+  await expect(page.getByRole("button", { name: "Allowance used today" }).first()).toBeDisabled();
+  await expect(page.locator(".quick-actions button").filter({ hasText: "Study something now" })).toBeDisabled();
+  await expect(page.getByRole("heading", { name: "Here is how YOVA plans to start." })).not.toBeVisible();
+
+  await page.getByRole("button", { name: "Agenda", exact: true }).click();
+  const agendaAllowance = page.locator(".guided-session-allowance-notice.agenda");
+  await expect(agendaAllowance).toContainText("Daily guided-session allowance used");
+  await expect(agendaAllowance.locator("time")).toHaveAttribute("datetime", resetAt);
+  const blockedAgendaStarts = page.getByRole("button", { name: "Allowance used today" });
+  await expect(blockedAgendaStarts.first()).toBeDisabled();
+  await expect(page.getByRole("heading", { name: "Here is how YOVA plans to start." })).not.toBeVisible();
+});
+
+test("spent allowance still permits a saved session to continue", async ({ page }) => {
+  const resetAt = "2026-08-20T00:00:00.000Z";
+  let allowanceExhausted = false;
+  let generationRequests = 0;
+  await page.route("**/api/sessions/allowance", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      headers: allowanceExhausted ? { "Retry-After": "7200" } : {},
+      body: JSON.stringify(allowanceExhausted
+        ? {
+          status: "exhausted",
+          remainingToday: 0,
+          retryAfterSeconds: 7_200,
+          resetAt,
+        }
+        : {
+          status: "available",
+          remainingToday: 2,
+          retryAfterSeconds: 0,
+          resetAt: null,
+        }),
+    });
+  });
+  await page.route("**/api/sessions/generate", async (route) => {
+    generationRequests += 1;
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(streamedResumeSessionResponse()),
+    });
+  });
+
+  await createPreviewAccount(page);
+  await completeOnboarding(page);
+  await createOneOffLearningSession(
+    page,
+    "Practice explaining how thermohaline circulation moves water through the oceans.",
+    "study",
+  );
+  await expect(page.getByRole("button", { name: "Exit" })).toBeVisible();
+  await exitSessionWithoutProgress(page);
+
+  allowanceExhausted = true;
+  await page.reload();
+
+  await expect(page.locator(".guided-session-allowance-notice.home")).toContainText(
+    "Daily guided-session allowance used",
+  );
+  await expect(page.locator(".recommendation-card").getByRole("button", { name: "Start session" })).toBeEnabled();
+  await expect(page.locator(".quick-actions button").filter({ hasText: "Study something now" })).toBeDisabled();
+
+  await page.getByRole("button", { name: "Agenda", exact: true }).click();
+  await expect(page.locator(".guided-session-allowance-notice.agenda")).toContainText(
+    "Daily guided-session allowance used",
+  );
+  await expect(page.locator(".agenda-session-actions").getByRole("button", { name: "Start" })).toBeEnabled();
+
+  await page.getByRole("button", { name: "Home", exact: true }).click();
+  await page.locator(".recommendation-card").getByRole("button", { name: "Start session" }).click();
+  await confirmSessionSetup(page);
+  await expect(page.getByRole("button", { name: "Change direction" })).toBeVisible();
   expect(generationRequests).toBe(1);
 });
 

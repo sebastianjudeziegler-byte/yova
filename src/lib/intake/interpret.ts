@@ -6,14 +6,16 @@ const COURSE_PATTERN = /\b(all of|entire|full)\s+(calculus|course|class)|\bcours
 const BOOK_PATTERN = /\b(book|novel|chapter|read)\b/i;
 const SKILL_PATTERN = /\b(skill|product rule|coding|programming|speaking|vocabulary|language)\b/i;
 const TITLE_CHARACTER_LIMIT = 100;
+const RESOLVED_TITLE_CHARACTER_LIMIT = 72;
 const MIN_TITLE_BOUNDARY_WORDS = 3;
 const DANGLING_TITLE_WORDS = new Set([
   "a", "about", "above", "across", "after", "against", "along", "although", "among", "an", "and", "around", "as", "at",
   "because", "before", "behind", "below", "beneath", "beside", "between", "beyond", "but", "by", "concerning", "despite",
   "down", "during", "except", "excluding", "for", "from", "if", "in", "including", "inside", "into", "like", "near", "nor",
   "of", "off", "on", "onto", "or", "out", "outside", "over", "past", "regarding", "since", "so", "that", "the",
-  "though", "through", "throughout", "to", "toward", "under", "underneath", "unless", "until", "up", "upon", "versus", "via",
+  "her", "his", "its", "my", "our", "their", "though", "through", "throughout", "to", "toward", "under", "underneath", "unless", "until", "up", "upon", "using", "versus", "via",
   "when", "whenever", "where", "whereas", "wherever", "whether", "while", "with", "within", "without", "yet",
+  "your",
 ]);
 
 export function interpretIntake(input: {
@@ -95,12 +97,13 @@ export function resolveLearningTitle(candidate: string, context: string) {
     || /[.!?]\s+\S/.test(title)
     || /\b(?:i|my|we|our)\s+(?:have|need|want|am|are|would|will)\b/i.test(title);
   const repeatedFragment = /\b(.{8,35})\b[\s.,:;-]+\1\b/i.test(title);
+  const danglingEnding = endsWithDanglingTitleWord(title);
 
-  if (!title || GENERIC_LEARNING_TITLE.test(title) || sentenceLike || repeatedFragment) {
-    return deriveLearningTitle(source || title);
-  }
+  const resolved = !title || GENERIC_LEARNING_TITLE.test(title) || sentenceLike || repeatedFragment || danglingEnding
+    ? deriveLearningTitle(source || title)
+    : title;
 
-  return title.slice(0, 72);
+  return shortenResolvedTitle(resolved);
 }
 
 function inferType(description: string): IntakeItemType {
@@ -256,6 +259,21 @@ function trimToTitlePhrase(value: string, characterLimit = TITLE_CHARACTER_LIMIT
 
 function titleWordKey(value: string) {
   return value.replace(/^[^A-Za-z0-9]+|[^A-Za-z0-9]+$/g, "").toLocaleLowerCase();
+}
+
+function endsWithDanglingTitleWord(value: string) {
+  const lastWord = value.split(/\s+/).filter(Boolean).at(-1) ?? "";
+  return DANGLING_TITLE_WORDS.has(titleWordKey(lastWord));
+}
+
+function shortenResolvedTitle(value: string) {
+  if (value.length <= RESOLVED_TITLE_CHARACTER_LIMIT) return value;
+
+  const shortened = trimToTitlePhrase(value, RESOLVED_TITLE_CHARACTER_LIMIT - 1);
+  // Generated titles are phrase-like in normal operation. This last branch is
+  // only for a malformed single token longer than the entire display limit.
+  const bounded = shortened || value.slice(0, RESOLVED_TITLE_CHARACTER_LIMIT - 1).trimEnd();
+  return `${bounded}…`;
 }
 
 function normalize(value: string) {
