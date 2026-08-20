@@ -13,8 +13,30 @@ import { inferPlanScopeContract } from "@/lib/plan-generation/scope-contract";
 import type { PlanQualityIssueCode } from "@/lib/analytics/generation-observation";
 
 const ACTIVE_EVIDENCE_PATTERN = /\b(answer|apply|attempt|build|calculate|choose|classify|compare|complete|construct|create|debug|demonstrate|distinguish|draft|evaluate|explain|formulate|identify|implement|label|map|outline|perform|produce|recall|retrieve|revise|select|solve|summarize|test|trace|write)\b/i;
-const OVERCLAIM_PATTERN = /learns? best|learning style|brain type|visual learner|auditory learner|kinesthetic learner|because (?:you have|of your) adhd|diagnos(?:is|ed|e)\b/i;
+/**
+ * Catches a plan that describes the learner as a type.
+ *
+ * The diagnosis half separates the noun from the verb. "Diagnosis" naming a
+ * condition is never something a plan should assert about a learner, so the
+ * noun is flagged outright. "Diagnose" is ordinary teaching language — you
+ * diagnose an error, a misconception, or why units fail to cancel — so the verb
+ * is flagged only when the learner is its object. Matching the bare word
+ * rejected sound plans for telling a learner to diagnose their own mistake.
+ *
+ * Known limitation: a learner studying clinical diagnosis will trip the noun
+ * rule. That is the safer direction to fail, and it is visible in the gate
+ * rather than silent.
+ */
+const LEARNER_TYPE_PATTERN = /learns? best|learning style|brain type|visual learner|auditory learner|kinesthetic learner|because (?:you have|of your) adhd|\bdiagnos(?:is|es)\b|diagnos(?:e|ed|ing)\s+(?:you|them|the (?:learner|student))\b/i;
 const RAW_FORMATTING_PATTERN = /[\u2013\u2014]|\*\*|__|(^|\s)#{1,6}\s/m;
+
+/**
+ * True when learner-facing text describes the learner as a type rather than
+ * describing what the session does.
+ */
+export function describesLearnerAsAType(text: string) {
+  return LEARNER_TYPE_PATTERN.test(text);
+}
 
 export function validateGeneratedPlanQuality(
   draft: GeneratedPlanDraft,
@@ -217,7 +239,7 @@ export function inspectGeneratedPlanQuality(
       ...session.completionEvidence,
     ]),
   ].join(" ");
-  if (OVERCLAIM_PATTERN.test(learnerFacingText)) {
+  if (describesLearnerAsAType(learnerFacingText)) {
     addIssue("unsupported_claim", "The plan makes an unsupported fixed learning-style, brain-type, or diagnosis claim.");
   }
   if (RAW_FORMATTING_PATTERN.test(learnerFacingText)) {

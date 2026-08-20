@@ -5,7 +5,10 @@ import { getOpenAIPlanConfig } from "@/lib/openai/config";
 import { buildPlanGeneratorInput, PLAN_GENERATOR_INSTRUCTIONS } from "@/lib/plan-generation/prompt";
 import { inspectGeneratedPlanQuality } from "@/lib/plan-generation/quality-gate";
 import { alignGeneratedPlanToAvailability } from "@/lib/plan-generation/schedule-plan";
-import { normalizeGeneratedPlanLearningContract } from "@/lib/plan-generation/normalize-learning-contract";
+import {
+  accountForEveryKnowledgeMapTopic,
+  normalizeGeneratedPlanLearningContract,
+} from "@/lib/plan-generation/normalize-learning-contract";
 import type {
   GenerationValidator,
   PlanQualityIssueCode,
@@ -161,7 +164,8 @@ export async function generatePlanWithOpenAI(
           lastValidationIssue = finalIssue;
           finalReason = "invalid_output";
         } else {
-          const normalizedDraft = normalizeGeneratedPlanLearningContract(parsedDraft.data, request);
+          const contractDraft = normalizeGeneratedPlanLearningContract(parsedDraft.data, request);
+          const normalizedDraft = accountForEveryKnowledgeMapTopic(contractDraft, request);
           const alignedDraft = alignGeneratedPlanToAvailability(normalizedDraft, request);
           const qualityIssue = inspectGeneratedPlanQuality(alignedDraft, request);
           if (!qualityIssue) {
