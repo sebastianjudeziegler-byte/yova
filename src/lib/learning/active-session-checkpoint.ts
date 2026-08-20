@@ -3,10 +3,15 @@
 import { z } from "zod";
 import type {
   LearningPlan,
+  LearningPlanSession,
   SessionCompletionMode,
   SessionInterruption,
   SessionResource,
 } from "@/lib/domain";
+import {
+  MethodWorkProgressSchema,
+  type MethodWorkProgress,
+} from "@/lib/learning/method-work-progress";
 import {
   resumableSessionProgress,
   SessionAdjustmentSnapshotSchema,
@@ -50,6 +55,7 @@ const CheckpointBaseShape = {
   resourceFingerprint: ResourceFingerprintSchema,
   resourceGeneratedAt: z.string().datetime({ offset: true }).optional(),
   completionMode: z.enum(["guided", "unguided_practice"]).optional(),
+  methodWork: MethodWorkProgressSchema.optional(),
   sessionAdjustment: SessionAdjustmentSnapshotSchema.optional(),
 };
 
@@ -144,6 +150,7 @@ export type ActiveSessionCheckpointResumePoint = SessionInterruption & {
   completionMode: SessionCompletionMode;
   completedAt?: string;
   completionFeedback?: "too_easy" | "about_right" | "too_difficult";
+  methodWork?: MethodWorkProgress;
 };
 
 /**
@@ -180,6 +187,9 @@ export function compareActiveSessionCheckpointProgress(
     return left.completedSteps - right.completedSteps;
   }
   if (left.resumeStep !== right.resumeStep) return left.resumeStep - right.resumeStep;
+  const methodWorkDifference = methodWorkProgressRank(left.methodWork)
+    - methodWorkProgressRank(right.methodWork);
+  if (methodWorkDifference !== 0) return methodWorkDifference;
   if (left.activeSeconds !== right.activeSeconds) return left.activeSeconds - right.activeSeconds;
   return compareIsoTimestamps(left.savedAt, right.savedAt);
 }
@@ -422,10 +432,54 @@ export function replaceActiveSessionCheckpointsForAccount(
 }
 
 export function fingerprintSessionResource(resource: SessionResource) {
-  const serialized = stableSerialize(Object.fromEntries(
+  return fingerprintCheckpointIdentity(Object.fromEntries(
     Object.entries(resource).filter(([key]) => key !== "generatedAt"),
   ));
-  return `sr1:${hash32(serialized, 0x811c9dc5)}${hash32(serialized, 0x9e3779b9)}`;
+}
+
+export function fingerprintMethodWorkSession({
+  studyMode,
+  session,
+  topics,
+  sourceFirstRequired,
+}: {
+  studyMode: LearningPlan["studyMode"];
+  session: Pick<
+    LearningPlanSession,
+    | "objective"
+    | "method"
+    | "methodReason"
+    | "estimatedMinutes"
+    | "learningMode"
+    | "contentTargets"
+    | "completionEvidence"
+  >;
+  topics: readonly string[];
+  sourceFirstRequired: boolean;
+}) {
+  return fingerprintCheckpointIdentity({
+    kind: "method_work",
+    studyMode,
+    objective: session.objective,
+    method: session.method,
+    methodReason: session.methodReason,
+    estimatedMinutes: session.estimatedMinutes,
+    learningMode: session.learningMode,
+    contentTargets: session.contentTargets ?? [],
+    completionEvidence: session.completionEvidence ?? [],
+    topics,
+    sourceFirstRequired,
+  });
+}
+
+export function checkpointMatchesMethodWorkSession(
+  checkpoint: Pick<ActiveSessionCheckpointV1, "resourceFingerprint" | "methodWork">,
+  input: Parameters<typeof fingerprintMethodWorkSession>[0],
+) {
+  return Boolean(
+    checkpoint.methodWork
+    && checkpoint.resourceFingerprint === fingerprintMethodWorkSession(input),
+  );
 }
 
 export function checkpointMatchesSessionResource(
@@ -478,6 +532,7 @@ export function checkpointToSessionResumePoint(
       resourceGeneratedAt: checkpoint.resourceGeneratedAt,
     } : {}),
     completionMode: checkpoint.completionMode ?? "guided",
+    ...(checkpoint.methodWork ? { methodWork: checkpoint.methodWork } : {}),
     ...(checkpoint.status === "awaiting_finish" ? {
       completedAt: checkpoint.completedAt,
       completionFeedback: checkpoint.completionFeedback,
@@ -646,6 +701,10 @@ function checkpointStatusRank(status: ActiveSessionCheckpointV1["status"]) {
   return status === "awaiting_finish" ? 1 : 0;
 }
 
+function methodWorkProgressRank(progress: MethodWorkProgress | undefined) {
+  return progress ? progress.checkedTopics.length + (progress.sourceReviewed ? 1 : 0) : 0;
+}
+
 function checkpointsBySession(
   values: readonly ActiveSessionCheckpointV1[],
   now: number,
@@ -760,6 +819,11 @@ function stableSerialize(value: unknown): string {
     return `{${entries.map(([key, entry]) => `${JSON.stringify(key)}:${stableSerialize(entry)}`).join(",")}}`;
   }
   return JSON.stringify(value) ?? "null";
+}
+
+function fingerprintCheckpointIdentity(value: unknown) {
+  const serialized = stableSerialize(value);
+  return `sr1:${hash32(serialized, 0x811c9dc5)}${hash32(serialized, 0x9e3779b9)}`;
 }
 
 function hash32(value: string, seed: number) {

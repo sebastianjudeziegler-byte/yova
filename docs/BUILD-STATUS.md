@@ -1,6 +1,6 @@
 # YOVA build status and launch map
 
-Updated: August 6, 2026
+Updated: August 19, 2026
 
 ## Honest progress snapshot
 
@@ -53,7 +53,7 @@ A cross-browser six-digit email-code flow is implemented and tested behind a ser
 - Guided teaching, multiple choice, typed recall, and feedback
 - Typed explanations receive a bounded AI-assisted formative check against the activity's reference answer and rubric; the learner can correct YOVA's judgment, and the typed response is not saved in YOVA's database
 - Formative answer judgment is protected by a repeatable human-labeled benchmark spanning correct paraphrases, confident misconceptions, incomplete causal explanations, equivalent math notation, concise programming answers, and genuinely ambiguous prompts
-- Development preview mode has subject-specific biology, product-rule calculus, and finance sessions; production stops safely when live generation fails instead of substituting a generic learning-method exercise
+- Development preview mode has subject-specific biology, product-rule calculus, and finance sessions; when live generation fails, production uses a validated subject-specific fallback where one fits or, when pedagogically safe, offers a topic-scoped study-method briefing and workpad that is explicitly recorded as ungraded practice rather than mastery evidence
 - Class-local labels such as “Calc Unit 3” are no longer treated as teachable content by themselves: the learner must name the actual concept or upload material that defines the scope
 - When a class-local label is too vague, YOVA now asks one focused follow-up inside the creation flow and offers cautious subject-relevant examples without pretending to know the teacher’s curriculum
 - Outside-study preview sessions preserve the learner’s exact goal, choose a task-appropriate method such as retrieval-based outlining or worked-example fading, and state what evidence the learner should bring back
@@ -109,7 +109,7 @@ A cross-browser six-digit email-code flow is implemented and tested behind a ser
 - Completed concept evidence now records whether success or difficulty occurred during guided practice, independent retrieval, or transfer instead of treating every correct answer as equivalent
 - YOVA uses that phase-specific history to restore a model after difficulty, fade guidance after an initial secure check, or require a different independent transfer after repeated unsupported success
 - Every newly generated session shows a plain-language Support Progression card explaining how much help is available and which completed evidence justified that decision
-- Subject-specific development fallbacks use the same phase model; unknown topics and every production generation failure now stop safely rather than silently becoming unrelated generic content
+- Subject-specific development fallbacks use the same phase model; unknown topics never become invented subject teaching, and a safe recovery may instead expose the saved target through an ungraded method briefing and workpad without changing the learner's knowledge-map evidence
 - Future guided sessions now receive the actual method, result, and difficulty feedback from earlier sessions in the same plan instead of seeing scores without method context
 - YOVA waits for repeated comparable evidence before changing method delivery, then adds support after repeated difficulty or cautiously fades support after promising results
 - Every generated session now stores its deterministic task type and knowledge stage. Method-outcome adaptation only uses sessions from the same task family and stage, so beginner concept teaching cannot silently influence advanced problem solving or retrieval-ready work

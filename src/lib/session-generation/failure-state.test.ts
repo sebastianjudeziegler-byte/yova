@@ -129,7 +129,8 @@ describe("guided-session generation failure classification", () => {
     expect(state.eyebrow).toBe("SESSION SETUP NEEDS ATTENTION");
     expect(state.kind).toBe("request_rejected");
     expect(state.detail).toMatch(/topic map rebuilt/i);
-    expect(state.detail).toMatch(/could not build an offline lesson/i);
+    expect(state.detail).toMatch(/subject-specific offline lesson is not available/i);
+    expect(state.detail).not.toMatch(/study-method guide|ungraded practice/i);
     expect(actionIds(state)).not.toContain("retry_generation");
   });
 });
@@ -141,9 +142,9 @@ describe("guided-session fallback failure presentation", () => {
   });
 
   it.each([
-    ["unavailable", "shape", /could not build an offline lesson for this session configuration/i],
-    ["time_fit_rejected", "length", /offline lesson needs more time than this session allows/i],
-    ["coverage_rejected", "shape", /offline lesson would leave part of the session target uncovered/i],
+    ["unavailable", "shape", /subject-specific offline lesson is not available for this session configuration/i],
+    ["time_fit_rejected", "length", /subject-specific offline lesson needs more time than this session allows/i],
+    ["coverage_rejected", "shape", /subject-specific offline lesson would leave part of the session target uncovered/i],
   ] as const)("names a %s fallback rejection honestly", (fallbackOutcome, reason, fallbackDetail) => {
     const state = buildGuidedSessionFailureState({ cause: transientCause, fallbackOutcome });
 
@@ -153,6 +154,7 @@ describe("guided-session fallback failure presentation", () => {
     expect(state.heading).toMatch(/could not reach the guided-lesson service/i);
     expect(state.detail).toMatch(/provider is unavailable/i);
     expect(state.detail).toMatch(fallbackDetail);
+    expect(state.detail).not.toMatch(/topic-scoped study-method guide|ungraded practice/i);
     expect(state.detail).not.toMatch(/service interrupted|outage/i);
     expect(actionIds(state)).toContain("start_method_work");
   });

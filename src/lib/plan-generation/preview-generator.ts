@@ -270,7 +270,7 @@ function buildKnowledgeMappedBlueprints(
       minutes: Math.max(10, Math.min(minutes, 60)),
       title: boundedTitle(mode === "learn" ? `Learn ${label}` : `Retrieve and apply ${label}`),
       objective: boundedObjective(request.studyMode === "outside"
-        ? `Use your chosen source to make progress toward ${shortTopic(request.goal)} by learning ${group.map((topic) => topic.title).join(", ")}, close the source, then return to YOVA with an explanation or application.`
+        ? `Open your chosen source and work through ${label}. Close the source, then return to YOVA and show what you produced or understood.`
         : mode === "learn"
           ? `Build an accurate first mental model of ${group.map((topic) => topic.title).join(", ")}, connect it to its prerequisites, then explain or apply it with less support.`
           : `Retrieve and apply ${group.map((topic) => topic.title).join(", ")} without notes, then repair only the gap the attempt reveals.`),

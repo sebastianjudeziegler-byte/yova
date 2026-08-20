@@ -7,6 +7,11 @@ import type {
   LearningPlanSession,
   SessionMethodBriefing,
 } from "@/lib/domain";
+import {
+  boundedMethodWorkProgress,
+  emptyMethodWorkProgress,
+  type MethodWorkProgress,
+} from "@/lib/learning/method-work-progress";
 import type { SessionCoverage } from "@/lib/session-generation/schema";
 
 import styles from "./study-method-practice.module.css";
@@ -27,6 +32,8 @@ export type StudyMethodPracticeProps = {
   coverage?: PracticeCoverage | null;
   sourceFirstRequired?: boolean;
   allowUnguidedCompletion?: boolean;
+  progress?: MethodWorkProgress;
+  onProgressChange?: (progress: MethodWorkProgress) => void;
   onComplete: () => void;
 };
 
@@ -52,22 +59,35 @@ export function StudyMethodPractice({
   coverage = null,
   sourceFirstRequired = false,
   allowUnguidedCompletion = true,
+  progress,
+  onProgressChange,
   onComplete,
 }: StudyMethodPracticeProps) {
   const topicGroupId = useId();
   const [workpad, setWorkpad] = useState("");
-  const [checkedTopics, setCheckedTopics] = useState<string[]>([]);
-  const [sourceReviewed, setSourceReviewed] = useState(false);
+  const [localProgress, setLocalProgress] = useState<MethodWorkProgress>(emptyMethodWorkProgress);
   const topics = methodPracticeTopics(session, coverage);
+  const currentProgress = boundedMethodWorkProgress(progress ?? localProgress, topics);
+  const checkedTopics = currentProgress.checkedTopics;
+  const sourceReviewed = currentProgress.sourceReviewed;
   const allTopicsChecked = topics.every((topic) => checkedTopics.includes(topic));
   const canComplete = workpad.trim().length > 0
     && allTopicsChecked
     && (!sourceFirstRequired || sourceReviewed);
 
+  const updateProgress = (next: MethodWorkProgress) => {
+    const bounded = boundedMethodWorkProgress(next, topics);
+    if (progress === undefined) setLocalProgress(bounded);
+    onProgressChange?.(bounded);
+  };
+
   const toggleTopic = (topic: string) => {
-    setCheckedTopics((current) => current.includes(topic)
-      ? current.filter((item) => item !== topic)
-      : [...current, topic]);
+    updateProgress({
+      ...currentProgress,
+      checkedTopics: checkedTopics.includes(topic)
+        ? checkedTopics.filter((item) => item !== topic)
+        : [...checkedTopics, topic],
+    });
   };
 
   return <section className={styles.practice} aria-label="Study-method workpad">
@@ -92,7 +112,10 @@ export function StudyMethodPractice({
         <input
           type="checkbox"
           checked={sourceReviewed}
-          onChange={(event) => setSourceReviewed(event.target.checked)}
+          onChange={(event) => updateProgress({
+            ...currentProgress,
+            sourceReviewed: event.target.checked,
+          })}
         />
         <span>
           <strong>I studied an explanation or complete example in my own source first.</strong>

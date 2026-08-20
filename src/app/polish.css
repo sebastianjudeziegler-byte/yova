@@ -502,7 +502,7 @@ input:focus-visible, textarea:focus-visible, select:focus-visible { outline: non
   .learning-card-grid, .quick-actions { grid-template-columns: 1fr; }
   .learning-summary { grid-template-columns: 1fr 1fr 1fr; }
   .learning-hero { align-items: flex-start; flex-direction: column; }
-  .agenda-summary-rail { grid-template-columns: 1fr; }
+  .agenda-summary-rail { grid-template-columns: minmax(0, 1fr); }
   .agenda-summary-rail .agenda-rail-reviews { grid-column: auto; }
   .session-current-assumption, .session-context-row, .add-review-grid { grid-template-columns: 1fr; }
   .session-current-assumption > div + div { border-left: 0; border-top: 1px solid var(--line-subtle); }

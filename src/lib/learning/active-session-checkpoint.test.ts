@@ -3,10 +3,12 @@ import type { SessionInterruption, SessionResource } from "@/lib/domain";
 import {
   ACTIVE_SESSION_CHECKPOINT_TTL_MS,
   checkpointToSessionResumePoint,
+  checkpointMatchesMethodWorkSession,
   checkpointMatchesSessionResource,
   chooseLatestSessionResumePoint,
   clearActiveSessionCheckpoints,
   compareActiveSessionCheckpointProgress,
+  fingerprintMethodWorkSession,
   fingerprintSessionResource,
   latestActiveSessionCheckpointFor,
   loadActiveSessionCheckpoints,
@@ -287,6 +289,63 @@ describe("active session checkpoint storage", () => {
     ).toBe("unguided_practice");
   });
 
+  it("round-trips bounded method-work checks without accepting workpad notes", () => {
+    const { values } = installMemoryStorage();
+    const methodCheckpoint = checkpoint({
+      completionMode: "unguided_practice",
+      methodWork: {
+        checkedTopics: ["NADH production"],
+        sourceReviewed: true,
+      },
+    });
+
+    expect(saveActiveSessionCheckpoint(methodCheckpoint)).toBe(true);
+    expect(checkpointToSessionResumePoint(
+      loadActiveSessionCheckpoints(methodCheckpoint.accountId)[0]!,
+    ).methodWork).toEqual(methodCheckpoint.methodWork);
+    expect(JSON.stringify([...values.values()])).toContain("NADH production");
+
+    expect(saveActiveSessionCheckpoint({
+      ...methodCheckpoint,
+      methodWork: {
+        ...methodCheckpoint.methodWork,
+        notes: "PRIVATE WORKPAD NOTE",
+      },
+    } as unknown as ActiveSessionCheckpointV1)).toBe(false);
+    expect(JSON.stringify([...values.values()])).not.toContain("PRIVATE WORKPAD NOTE");
+  });
+
+  it("binds standalone method recovery to the current saved target", () => {
+    const input = {
+      studyMode: "outside_yova" as const,
+      session: {
+        objective: "Explain how the Krebs cycle produces reduced carriers.",
+        method: "Self-explanation",
+        methodReason: "Make the causal chain explicit.",
+        estimatedMinutes: 15,
+        learningMode: "learn" as const,
+        contentTargets: ["NADH production", "FADH2 production"],
+        completionEvidence: ["Explain where each carrier gains electrons"],
+      },
+      topics: ["NADH production", "FADH2 production"],
+      sourceFirstRequired: true,
+    };
+    const methodCheckpoint = checkpoint({
+      completionMode: "unguided_practice",
+      resourceFingerprint: fingerprintMethodWorkSession(input),
+      methodWork: {
+        checkedTopics: ["NADH production"],
+        sourceReviewed: true,
+      },
+    });
+
+    expect(checkpointMatchesMethodWorkSession(methodCheckpoint, input)).toBe(true);
+    expect(checkpointMatchesMethodWorkSession(methodCheckpoint, {
+      ...input,
+      topics: ["ATP synthesis"],
+    })).toBe(false);
+  });
+
   it("returns failure without overwriting data when browser storage is unavailable", () => {
     vi.stubGlobal("window", {
       localStorage: {
@@ -489,6 +548,24 @@ describe("cloud active session checkpoint reconciliation", () => {
     expect(compareActiveSessionCheckpointProgress(moreActiveTime, base)).toBeGreaterThan(0);
     expect(compareActiveSessionCheckpointProgress(laterResume, moreActiveTime)).toBeGreaterThan(0);
     expect(compareActiveSessionCheckpointProgress(finished, laterResume)).toBeGreaterThan(0);
+  });
+
+  it("keeps checked method targets ahead of a later cloud marker that lacks them", () => {
+    const local = checkpoint({
+      savedAt: "2026-08-17T17:58:00.000Z",
+      activeSeconds: 500,
+      methodWork: {
+        checkedTopics: ["NADH production"],
+        sourceReviewed: false,
+      },
+    });
+    const cloud = checkpoint({
+      savedAt: "2026-08-17T17:59:00.000Z",
+      activeSeconds: 500,
+    });
+
+    expect(compareActiveSessionCheckpointProgress(local, cloud)).toBeGreaterThan(0);
+    expect(mergeActiveSessionCheckpoints([local], [cloud]).checkpoints).toEqual([local]);
   });
 
   it("uploads a same-run browser checkpoint only when it is ahead", () => {
