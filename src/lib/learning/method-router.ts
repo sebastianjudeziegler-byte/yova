@@ -6,6 +6,11 @@ import {
 } from "@/lib/learning/method-catalog";
 import type { LearningIntent, SessionLearningMode } from "@/lib/domain";
 import { learningModeContract } from "@/lib/learning/learning-intent";
+import {
+  rankMethodsByLearnerFit,
+  type MethodFitRanking,
+} from "@/lib/learning/method-preference-fit";
+import type { MethodOutcomeSignal } from "@/lib/personalization/method-outcomes";
 
 export type KnowledgeStage = "novice" | "developing" | "retrieval_ready";
 
@@ -49,6 +54,12 @@ export type MethodRoutingInput = {
    * used by plan validation so vague generated titles cannot change the task.
    */
   taskTypeOverride?: LearningTaskType | null;
+  /**
+   * Outcome signals for methods this learner has already used on comparable
+   * work. Supplying them lets repeated results outrank self-report; omitting
+   * them simply falls back to task fit and declared preferences.
+   */
+  observedMethodSignals?: readonly MethodOutcomeSignal[];
 };
 
 export type LearningScienceRoutingBrief = {
@@ -58,6 +69,12 @@ export type LearningScienceRoutingBrief = {
   knowledgeStage: KnowledgeStage;
   suggestedPrimaryMethodId: CoreMethodId;
   allowedMethodIds: CoreMethodId[];
+  /**
+   * How declared answers and observed results ordered the eligible methods.
+   * Null when nothing was eligible. Retained so the learner-facing rationale
+   * and the developer inspector can both reconstruct the decision.
+   */
+  methodFit: MethodFitRanking | null;
   methods: ReturnType<typeof learningScienceCatalogForPrompt>;
   deliveryModifiers: string[];
   decisionBasis: string[];
@@ -174,25 +191,46 @@ export function buildLearningScienceRoutingBrief(input: MethodRoutingInput): Lea
   ));
   const allowedMethodIds = [...(modeCompatibleMethods.length ? modeCompatibleMethods : stageMethods)];
   const plannedMethodId = methodIdFromText(input.plannedMethod);
-
-  if (
+  const plannedMethodStillValid = Boolean(
     plannedMethodId
     && CORE_METHOD_CATALOG[plannedMethodId].taskTypes.includes(taskType)
-    && methodFitsSessionMode(plannedMethodId, taskType, input.sessionLearningMode)
-  ) {
+    && methodFitsSessionMode(plannedMethodId, taskType, input.sessionLearningMode),
+  );
+
+  if (plannedMethodId && plannedMethodStillValid) {
     const existingIndex = allowedMethodIds.indexOf(plannedMethodId);
     if (existingIndex >= 0) allowedMethodIds.splice(existingIndex, 1);
     allowedMethodIds.unshift(plannedMethodId);
   }
+
+  // Eligibility is already settled above. This only orders the survivors, so a
+  // learner signal can choose between methods that all fit the task and stage.
+  const methodFit = rankMethodsByLearnerFit({
+    eligibleMethodIds: allowedMethodIds,
+    declaredProfile: input.learnerProfile,
+    observedSignals: input.observedMethodSignals ?? [],
+  });
+  const fitOrderedMethodIds = methodFit ? [...methodFit.orderedMethodIds] : allowedMethodIds;
+  /**
+   * A plan that already committed to a task-valid method keeps it. Learner fit
+   * chooses the method while the plan is being generated, where the learner has
+   * not yet been told what to expect. Re-choosing here would contradict the
+   * method already shown on Home, Learning, Agenda, and the session setup.
+   */
+  const rankedMethodIds = plannedMethodId && plannedMethodStillValid
+    ? [plannedMethodId, ...fitOrderedMethodIds.filter((methodId) => methodId !== plannedMethodId)]
+    : fitOrderedMethodIds;
+  const methodFitDecidedPrimary = Boolean(methodFit && rankedMethodIds[0] === methodFit.selectedMethodId);
 
   return {
     learningIntent: input.learningIntent,
     sessionLearningMode: input.sessionLearningMode,
     taskType,
     knowledgeStage,
-    suggestedPrimaryMethodId: allowedMethodIds[0],
-    allowedMethodIds,
-    methods: learningScienceCatalogForPrompt(allowedMethodIds),
+    suggestedPrimaryMethodId: rankedMethodIds[0],
+    allowedMethodIds: rankedMethodIds,
+    methodFit,
+    methods: learningScienceCatalogForPrompt(rankedMethodIds),
     deliveryModifiers: inferDeliveryModifiers(input),
     decisionBasis: [
       taskClassification.evidence.length > 0
@@ -209,6 +247,9 @@ export function buildLearningScienceRoutingBrief(input: MethodRoutingInput): Lea
       plannedMethodId
         ? `The existing plan named ${CORE_METHOD_CATALOG[plannedMethodId].name}; keep it when it remains task-appropriate.`
         : "The plan used free-text method language; select the closest evidence-backed method from the catalog.",
+      ...(methodFitDecidedPrimary && methodFit?.learnerFacingReason
+        ? [`Learner fit: ${methodFit.learnerFacingReason}`]
+        : []),
     ],
     guardrails: [
       "Task type chooses the learning method; learner tendencies only modify delivery, pacing, structure, and representation.",

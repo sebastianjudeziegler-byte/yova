@@ -69,6 +69,7 @@ import { PlanDeletionControl } from "@/components/plan-deletion-dialog";
 import { QuantitativeWorkpad } from "@/components/quantitative-workpad";
 import { StudyMethodBriefing } from "@/components/study-method-briefing";
 import { StudyMethodPractice } from "@/components/study-method-practice";
+import { RetrievalRoundRuntime } from "@/components/retrieval-round-runtime";
 import { StudyNowCreator } from "@/components/study-now-creator";
 import { TutorMessageContent } from "@/components/tutor-message-content";
 import { trackProductEvent } from "@/lib/analytics/client";
@@ -1650,6 +1651,7 @@ export function YovaPrototype({
         feedback: activity.feedback,
         practiceIntent: activity.practiceIntent,
         misconceptionSummary: activity.misconceptionSummary ?? undefined,
+        methodRuntime: activity.methodRuntime ?? null,
       }));
       const supportPlan = parsed.data.session.supportPlan ?? buildSessionSupportPlan({
         signals: buildScaffoldProgressionSignals(
@@ -4886,6 +4888,7 @@ function lessonStepsFromSessionResource(resource: SessionResource): LessonStep[]
     feedback: activity.feedback,
     practiceIntent: activity.practiceIntent,
     misconceptionSummary: activity.misconceptionSummary ?? undefined,
+    methodRuntime: activity.methodRuntime ?? null,
   }));
 }
 
@@ -5857,8 +5860,10 @@ function GuidedSession({ plan, planSessionId, steps, step, selectedAnswer, outco
           })}
         />}
         {content.teaching && <TeachingLessonCard teaching={content.teaching} panel={teachingPanels[teachingPage] ?? "idea"} panelIndex={teachingPage} panelCount={teachingPanels.length} panelLabels={teachingPanels} />}
-        {requiresConfidence && <ConfidenceCheck value={confidence} locked={outcome !== undefined || answerRevealed} onChange={onConfidence} />}
-        {content.type === "multiple_choice" && content.question && <div className="answer-grid">{content.question.map((answer) => {
+        {content.methodRuntime?.kind === "retrieval_round"
+          && <RetrievalRoundRuntime runtime={content.methodRuntime} />}
+        {!content.methodRuntime && requiresConfidence && <ConfidenceCheck value={confidence} locked={outcome !== undefined || answerRevealed} onChange={onConfidence} />}
+        {!content.methodRuntime && content.type === "multiple_choice" && content.question && <div className="answer-grid">{content.question.map((answer) => {
           const answerState = outcome !== undefined && answer === content.correctAnswer
             ? "correct"
             : outcome !== undefined && selectedAnswer === answer
@@ -5868,8 +5873,8 @@ function GuidedSession({ plan, planSessionId, steps, step, selectedAnswer, outco
                 : "";
           return <button key={answer} className={answerState} disabled={selectedAnswer !== null || (requiresConfidence && !confidence)} onClick={() => { onSelect(answer); onEvaluate(answer === content.correctAnswer); }}><LearningContent content={answer} inline />{answerState === "correct" ? <Check size={18} /> : answerState === "incorrect" ? <X size={18} /> : null}</button>;
         })}</div>}
-      {content.type === "multiple_choice" && outcome !== undefined && <><div className={`feedback ${isCorrect ? "" : "incorrect"}`}>{isCorrect ? <Check size={20} /> : <AlertCircle size={20} />}<div><strong>{isCorrect ? "Correct." : "Useful miss. Repair it now."}</strong>{explanation && <LearningContent content={explanation} />}</div></div>{confidence && <p className="confidence-result"><Sparkles size={15} /> {confidenceResultMessage(confidence, isCorrect)}</p>}</>}
-      {content.type === "free_response" && <div className="recall-response">
+      {!content.methodRuntime && content.type === "multiple_choice" && outcome !== undefined && <><div className={`feedback ${isCorrect ? "" : "incorrect"}`}>{isCorrect ? <Check size={20} /> : <AlertCircle size={20} />}<div><strong>{isCorrect ? "Correct." : "Useful miss. Repair it now."}</strong>{explanation && <LearningContent content={explanation} />}</div></div>{confidence && <p className="confidence-result"><Sparkles size={15} /> {confidenceResultMessage(confidence, isCorrect)}</p>}</>}
+      {!content.methodRuntime && content.type === "free_response" && <div className="recall-response">
         {freeResponseMode === "quantitative_workpad"
           ? <QuantitativeWorkpad
             value={selectedAnswer ?? ""}

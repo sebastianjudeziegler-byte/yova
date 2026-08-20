@@ -71,6 +71,7 @@ export const GenerationValidatorSchema = z.enum([
   "session_outside_app_guidance",
   "session_source_grounding",
   "session_method_fidelity",
+  "session_method_runtime",
   "session_method_outcome_adaptation",
   "session_concept_review_schedule",
   "session_practice_variation",
