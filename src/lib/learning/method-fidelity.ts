@@ -88,8 +88,44 @@ export function methodFidelityContractsForPrompt(ids: CoreMethodId[], learningMo
   return ids.map((id) => methodFidelityContractForPrompt(id, learningMode));
 }
 
+/**
+ * What each phase's activity must actually do, and which activity types can do
+ * it.
+ *
+ * The contract handed to the model previously listed phase names alone, which
+ * left the model to infer what, say, a repair activity contains. It reliably
+ * did not: a memorization session failed four consecutive generations for a
+ * missing repair phase, each attempt having been told the phase was missing by
+ * name. Naming the requirement is what the name alone could not carry.
+ */
+const PHASE_REQUIREMENTS: Record<MethodPhase, string> = {
+  orient: "An instruction activity stating today's target and what finishing looks like. No teaching content.",
+  model: "An instruction activity carrying a teaching block that presents the accurate model: the key idea, how it works, and one concrete example or common mistake.",
+  read_source: "An instruction activity directing the learner to a bounded part of their own source, naming what to look for.",
+  retrieve: "A multiple-choice or free-response question the learner answers from memory, with the source closed and no hint shown first.",
+  explain: "A free-response activity asking the learner to state the relationship or reasoning in their own words, then compare it with the model.",
+  guided_practice: "A question activity that removes some of the support shown in the model while leaving the rest in place.",
+  independent_practice: "A question activity that withholds the solution entirely and asks for a complete attempt.",
+  discriminate: "A question activity presenting at least two similar cases and asking which applies and why.",
+  repair: "An activity that names the specific error or gap the previous attempt exposed, states the correct rule beside it, and asks for one corrected attempt. Feedback written inside an earlier question does not satisfy this; repair is its own activity.",
+  evidence_match: "A question activity checking a claim against the stated completion evidence.",
+  code_trace: "A question activity walking through what the code does, step by step, before changing it.",
+  transfer: "A question activity using a different prompt, example, or context from the one already practiced.",
+  schedule_return: "An instruction or reflection activity naming what returns later and roughly when.",
+  reflect: "A reflection activity asking what is now clear and what is still shaky.",
+};
+
 export function methodFidelityContractForPrompt(id: CoreMethodId, learningMode: SessionLearningMode) {
-  return { id, ...contractForMode(id, learningMode) };
+  const contract = contractForMode(id, learningMode);
+
+  return {
+    id,
+    ...contract,
+    phaseRequirements: contract.requiredPhases.map((phase) => ({
+      phase,
+      mustContain: PHASE_REQUIREMENTS[phase],
+    })),
+  };
 }
 
 export function validateMethodFidelity({
