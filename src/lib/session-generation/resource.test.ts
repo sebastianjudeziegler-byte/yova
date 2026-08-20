@@ -274,3 +274,32 @@ describe("session resources", () => {
     }
   });
 });
+
+describe("method runtimes surviving storage", () => {
+  const retrievalRound = {
+    kind: "retrieval_round" as const,
+    sourceClosedReminder: "Close your notes before answering anything below.",
+    prompts: [
+      { prompt: "What does NADH carry?", expectedAnswer: "High-energy electrons", hint: null },
+      { prompt: "Where does the Krebs cycle run?", expectedAnswer: "Mitochondrial matrix", hint: null },
+      { prompt: "What is FADH2 for?", expectedAnswer: "Carrying electrons to complex II", hint: null },
+    ],
+  };
+
+  it("keeps the method runtime when a stored session is read back", () => {
+    const withRuntime: SessionGenerationResponse["session"] = {
+      ...generatedSession,
+      activities: generatedSession.activities.map((activity, index) => (
+        index === 0 ? { ...activity, methodRuntime: retrievalRound } : activity
+      )),
+    };
+
+    // A dropped runtime here would render the method correctly once and then
+    // silently fall back to the generic activity path on resume.
+    expect(toSessionResource(withRuntime).activities[0].methodRuntime).toEqual(retrievalRound);
+  });
+
+  it("reports no runtime for sessions generated before method runtimes existed", () => {
+    expect(toSessionResource(generatedSession).activities[0].methodRuntime ?? null).toBeNull();
+  });
+});

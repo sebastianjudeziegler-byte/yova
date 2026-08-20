@@ -1,0 +1,238 @@
+.round {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 22px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--surface);
+}
+
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.eyebrow {
+  font-size: 0.68rem;
+  letter-spacing: 0.09em;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.header h3 {
+  margin: 0;
+  font-size: 1.02rem;
+  line-height: 1.4;
+}
+
+.progress {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+.repeat {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--accent-soft, rgba(99, 102, 241, 0.12));
+  color: var(--accent, #4f46e5);
+  font-weight: 600;
+}
+
+.prompt {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.promptText {
+  margin: 0;
+  font-size: 1.12rem;
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+.attemptLabel {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.attemptLabel textarea {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  font: inherit;
+  font-weight: 400;
+  color: var(--text);
+  background: var(--surface-raised, var(--surface));
+  resize: vertical;
+}
+
+.hintButton {
+  align-self: flex-start;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent, #4f46e5);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.hint {
+  margin: 0;
+  padding: 10px 14px;
+  border-left: 3px solid var(--accent, #4f46e5);
+  border-radius: 0 10px 10px 0;
+  background: var(--accent-soft, rgba(99, 102, 241, 0.08));
+  font-size: 0.9rem;
+}
+
+.actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-start;
+}
+
+.gate {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.comparison {
+  display: grid;
+  gap: 12px;
+}
+
+@media (min-width: 640px) {
+  .comparison {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.comparison > div {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--surface-raised, rgba(148, 163, 184, 0.08));
+}
+
+.comparisonLabel {
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.learnerText,
+.expectedText {
+  margin: 0;
+  font-size: 0.94rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.expectedText {
+  font-weight: 600;
+}
+
+.recall {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.recall legend {
+  padding: 0 0 8px;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.recallChoices {
+  display: grid;
+  gap: 8px;
+}
+
+@media (min-width: 560px) {
+  .recallChoices {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.recallChoices button {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  align-items: flex-start;
+  padding: 11px 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.recallChoices button:hover {
+  border-color: var(--accent, #4f46e5);
+}
+
+.recallChoices button small {
+  color: var(--muted);
+  font-size: 0.76rem;
+}
+
+.summary {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin: 0;
+}
+
+.summary div {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--surface-raised, rgba(148, 163, 184, 0.08));
+}
+
+.summary dt {
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.summary dd {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.note {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: var(--muted);
+}

@@ -70,6 +70,8 @@ export type SessionResourceActivity = {
   practiceIntent?: import("@/lib/learning/practice-variation").PracticeIntent | null;
   /** A bounded model-derived misconception description, never the learner's answer text. */
   misconceptionSummary?: string | null;
+  /** Method-specific interaction data; null keeps the generic activity rendering. */
+  methodRuntime?: import("@/lib/session-generation/method-runtime").MethodRuntime | null;
 };
 
 export type SessionSourceGrounding = {

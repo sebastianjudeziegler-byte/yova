@@ -17,6 +17,7 @@ function routing(
     knowledgeStage: "developing",
     suggestedPrimaryMethodId: allowedMethodIds[0]!,
     allowedMethodIds,
+    methodFit: null,
     methods: [],
     deliveryModifiers: [],
     decisionBasis: ["The task router supplied the valid methods."],

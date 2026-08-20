@@ -14,6 +14,10 @@ import {
 } from "@/lib/learning/concept-review-scheduler";
 import type { LearningIntent, SessionLearningMode } from "@/lib/domain";
 import {
+  methodRuntimePromptContract,
+  validateAttachedMethodRuntimes,
+} from "@/lib/session-generation/method-runtime";
+import {
   buildLearningScienceRoutingBrief,
   validateLearningScienceRoutingSelection,
   type KnowledgeStage,
@@ -259,6 +263,7 @@ Requirements:
 - Follow learningScienceRouting.executionContract as a hard activity-order rule.
 - Select the method first, then follow the matching methodFidelityContract as a hard sequence, not merely as wording. Tag every activity with the methodPhase that describes what the learner actually does in that activity.
 - Normally use recommendedMethodFidelityContract. Copy all of its required phases into the activities exactly once and in the stated order before adding optional phases. If the task evidence justifies a different allowed method, follow that method's matching contract from methodFidelityContracts with the same precision.
+- When methodRuntimeContract is present, populate methodRuntime on exactly one activity, following that contract's requirement and fields. Set methodRuntime to null on every other activity. When methodRuntimeContract is null, set methodRuntime to null everywhere.
 - Never misuse a methodPhase label to pass validation. A model activity must contain a complete example or explanation; guided_practice must remove some support; independent_practice must withhold the solution; repair must compare and correct; transfer must use a different prompt or application; schedule_return must name a delayed retrieval point.
 - For a learn session, teach or model the target before the first knowledge check, then fade support toward an independent attempt. The checks verify whether teaching worked; they are not the main content.
 - Every model-phase activity must use type instruction and contain a teaching block. Never tag a multiple-choice or free-response question as model, and always set teaching to null on questions and reflections. In every learn session, the first activity must contain a teaching block. The teaching block must explain the actual subject matter, not the study method: state the key idea and explain the mechanism or procedure in connected prose. For every learn session, include at least one concrete worked example or one plausible misconception with its correction. Do not leave both teaching.example and teaching.commonMistake empty.
@@ -379,7 +384,7 @@ export async function generateSessionWithOpenAI(
     outputTokens: 0,
   };
 
-  const baseLearningScienceRouting = buildLearningScienceRoutingBrief({
+  const learningScienceRoutingInput = {
     learningIntent: context.learningGoal.learningIntent,
     sessionLearningMode: context.session.learningMode,
     goalTitle: context.learningGoal.title,
@@ -392,6 +397,21 @@ export async function generateSessionWithOpenAI(
     learnerProfile: context.learnerProfile,
     recentResults: context.recentResults,
     interruptionCount: context.recentInterruptions.length,
+  };
+  /**
+   * Observed method results are only comparable within the same task type and
+   * knowledge stage, and the router is what derives those. Classify once to
+   * establish the comparison scope, then route again with the matching history
+   * so repeated results can order methods that all fit the task.
+   */
+  const routingScope = buildLearningScienceRoutingBrief(learningScienceRoutingInput);
+  const routingMethodOutcomes = buildMethodOutcomeSignals(context.recentResults, {
+    taskType: routingScope.taskType,
+    knowledgeStage: routingScope.knowledgeStage,
+  });
+  const baseLearningScienceRouting = buildLearningScienceRoutingBrief({
+    ...learningScienceRoutingInput,
+    observedMethodSignals: routingMethodOutcomes,
   });
   const taskFirstLearningScienceRouting: LearningScienceRoutingBrief = quickReviewContract
     ? {
@@ -428,6 +448,9 @@ export async function generateSessionWithOpenAI(
       learningScienceRouting.suggestedPrimaryMethodId,
       learningScienceRouting.sessionLearningMode,
     );
+  const methodRuntimeContract = quickReviewContract
+    ? methodRuntimePromptContract("retrieval_practice")
+    : methodRuntimePromptContract(learningScienceRouting.suggestedPrimaryMethodId);
   const observedMethodOutcomes = buildMethodOutcomeSignals(context.recentResults, {
     taskType: learningScienceRouting.taskType,
     knowledgeStage: learningScienceRouting.knowledgeStage,
@@ -501,6 +524,7 @@ export async function generateSessionWithOpenAI(
         learningScienceRouting,
         recommendedMethodFidelityContract,
         methodFidelityContracts,
+        methodRuntimeContract,
         observedMethodOutcomes,
         conceptReviewSchedule,
         scaffoldProgression,
@@ -1863,6 +1887,10 @@ export function validateGeneratedSessionWithCode(
       learningMode: draft.methodBriefing.learningMode,
       activities: draft.activities,
     })],
+    ["session_method_runtime", validateAttachedMethodRuntimes(
+      draft.methodBriefing.methodId,
+      draft.activities.map((activity) => activity.methodRuntime ?? null),
+    )],
     ["session_method_outcome_adaptation", validateMethodOutcomeAdaptation({
       methodId: draft.methodBriefing.methodId,
       personalization: draft.methodBriefing.personalization,
@@ -2004,3 +2032,4 @@ export function validateSubstantiveTeaching(draft: GeneratedSessionDraft) {
     ? null
     : "A learn session must include a model-phase teaching activity with a real subject explanation and either a worked example or a corrected misconception before independent checks.";
 }
+
