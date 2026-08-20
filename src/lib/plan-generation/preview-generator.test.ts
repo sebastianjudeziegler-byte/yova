@@ -359,7 +359,7 @@ describe("preview plan time windows", () => {
     expect(plan.sessions).toHaveLength(1);
     expect(plan.sessions[0]).toMatchObject({
       title: expect.stringMatching(/^Learn /),
-      method: "Self-explanation with worked example fading",
+      method: "Self-explanation",
       learningMode: "learn",
       estimatedMinutes: 25,
     });
@@ -498,5 +498,47 @@ describe("goals whose derived title runs long", () => {
   it("handles a goal far longer than any title limit", () => {
     const rambling = `${longGoal} ${longGoal} ${longGoal}`;
     expect(() => generatePreviewPlan(studyNowRequest(rambling))).not.toThrow();
+  });
+});
+
+describe("choosing the method for a one-off teaching session", () => {
+  function studyNow(goal: string, topics: string[]) {
+    return generatePreviewPlan({
+      ...requestWithMinutes(20),
+      intent: "study_now",
+      goal,
+      deadline: null,
+      knowledgeMap: knowledgeMap(topics, "focused_skill", 2),
+    });
+  }
+
+  it("gives a memorization goal a retrieval method, not self-explanation", () => {
+    // This branch used to hardcode self-explanation for every one-off teaching
+    // session, and the plan's named method is authoritative downstream, so the
+    // wrong choice survived session generation instead of being corrected.
+    const plan = studyNow(
+      "Memorize the three states of matter and how they change between each other",
+      ["Three states of matter", "Phase changes"],
+    );
+
+    expect(plan.sessions[0].method).toMatch(/retrieval/i);
+  });
+
+  it("still gives a conceptual goal an explanation-based method", () => {
+    const plan = studyNow(
+      "Understand why the greenhouse effect traps heat in the atmosphere",
+      ["Greenhouse gases", "Radiation balance"],
+    );
+
+    expect(plan.sessions[0].method).toMatch(/explanation|worked example|read/i);
+  });
+
+  it("gives a procedural goal a worked-example method", () => {
+    const plan = studyNow(
+      "Practice solving two-step algebra equations step by step",
+      ["Isolating the variable", "Checking the solution"],
+    );
+
+    expect(plan.sessions[0].method).toMatch(/worked example|scaffold/i);
   });
 });

@@ -17,9 +17,9 @@ import {
   methodRuntimePromptContract,
   validateAttachedMethodRuntimes,
 } from "@/lib/session-generation/method-runtime";
+import { sessionRoutingInput } from "@/lib/learning/session-routing-input";
 import {
   buildLearningScienceRoutingBrief,
-  classifyLearningTask,
   validateLearningScienceRoutingSelection,
   type KnowledgeStage,
   type LearningScienceRoutingBrief,
@@ -385,32 +385,7 @@ export async function generateSessionWithOpenAI(
     outputTokens: 0,
   };
 
-  /**
-   * The learner's own goal decides the task type whenever it is unambiguous.
-   *
-   * Task classification weights the generated session title and objective above
-   * the learner's words, so a model that writes "Learn the organelles" over a
-   * goal that says "Memorize the organelles" silently turns a memorisation task
-   * into a conceptual one and takes the method with it. The plan path already
-   * treats a clear learner goal as authoritative; session generation is where
-   * generated titles actually do change the task, so it needs the same rule.
-   */
-  const learnerStatedTask = classifyLearningTask(context.learningGoal.topic);
-  const learningScienceRoutingInput = {
-    taskTypeOverride: learnerStatedTask.confidence === "clear" ? learnerStatedTask.taskType : null,
-    learningIntent: context.learningGoal.learningIntent,
-    sessionLearningMode: context.session.learningMode,
-    goalTitle: context.learningGoal.title,
-    goalTopic: context.learningGoal.topic,
-    goalKind: context.learningGoal.kind,
-    sessionTitle: context.session.title,
-    sessionObjective: context.session.objective,
-    plannedMethod: context.session.method,
-    plannedMethodReason: context.session.methodReason,
-    learnerProfile: context.learnerProfile,
-    recentResults: context.recentResults,
-    interruptionCount: context.recentInterruptions.length,
-  };
+  const learningScienceRoutingInput = sessionRoutingInput(context);
   /**
    * Observed method results are only comparable within the same task type and
    * knowledge stage, and the router is what derives those. Classify once to
