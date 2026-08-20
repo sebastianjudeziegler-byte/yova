@@ -36,6 +36,7 @@ Success criteria:
 - make amountLabel describe the real bounded content and evidence, not a generic number of prompts that may not fit
 - when a learner-supplied deadline exists, schedule every session no later than that deadline
 - treat scheduledFor as a provisional date and keep sessions in sequence; YOVA will deterministically align final dates to the learner's supplied availability
+- never describe the learner as a type in any learner-facing text. Do not write that they "learn best" a certain way, name a learning style, brain type, or diagnosis, or attribute a choice to one. Say what the session does and what it responds to instead: "this starts with a worked example, which you said helps when something is new" rather than "you learn best from examples"
 - return only the structured plan requested by the schema
 
 Intent rules:

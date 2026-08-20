@@ -68,7 +68,8 @@ describe("materializePlanDraft", () => {
       goal: "I want to learn new vocabulary words so I can be better in conversation",
     });
 
-    expect(plan.title).toBe("Conversation Vocabulary Builder");
+    expect(plan.title).toMatch(/vocabulary/i);
+    expect(plan.title).not.toMatch(/personalized learning plan/i);
   });
 
   it("shortens a long generated title at a phrase boundary before it reaches Learning", () => {

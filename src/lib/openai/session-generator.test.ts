@@ -1504,3 +1504,52 @@ describe("scheduled retrieval generation", () => {
     expect(validateOutsideAppGuidance(result.draft, "outside_yova")).toMatch(/must include an instruction/i);
   });
 });
+
+describe("whose words decide the task type", () => {
+  async function routingSentToModel(context: SessionGenerationContext) {
+    parseResponse.mockReset();
+    parseResponse.mockRejectedValue(new Error("provider unavailable"));
+    const { generateSessionWithOpenAI } = await import("@/lib/openai/session-generator");
+    await expect(generateSessionWithOpenAI(context)).rejects.toThrow("provider unavailable");
+
+    const providerInput = parseResponse.mock.calls[0]?.[0]?.input as string;
+    const prompt = JSON.parse(providerInput.slice(providerInput.indexOf("\n") + 1)) as {
+      learningScienceRouting: { taskType: string; allowedMethodIds: string[] };
+    };
+    return prompt.learningScienceRouting;
+  }
+
+  function contextWithGoal(topic: string, sessionWording: string) {
+    const base = buildSessionEvaluationCases()
+      .find((candidate) => candidate.id === "biology_initial_teaching")?.context;
+    if (!base) throw new Error("Missing the biology fixture context.");
+
+    return {
+      ...base,
+      learningGoal: { ...base.learningGoal, topic },
+      session: { ...base.session, title: sessionWording, objective: sessionWording },
+    } satisfies SessionGenerationContext;
+  }
+
+  it("follows a clear learner goal even when the generated session says otherwise", async () => {
+    // The learner asked to memorise. The model wrote a session that reads as
+    // conceptual teaching. Classification weights the generated wording above
+    // the learner's, so without an override the task silently changes and the
+    // method changes with it.
+    const routing = await routingSentToModel(contextWithGoal(
+      "Memorize the parts of a plant cell and what each organelle does",
+      "Understand why the chloroplast structure explains how it captures light energy",
+    ));
+
+    expect(routing.taskType).toBe("memorization");
+  });
+
+  it("still classifies from the session when the learner's goal is ambiguous", async () => {
+    const routing = await routingSentToModel(contextWithGoal(
+      "Get better at this before the test",
+      "Work through solving systems of linear equations step by step",
+    ));
+
+    expect(routing.taskType).not.toBe("memorization");
+  });
+});
