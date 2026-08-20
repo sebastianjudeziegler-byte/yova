@@ -253,7 +253,12 @@ export async function POST(request: Request) {
   // immediately; the session generator still creates the subject teaching,
   // examples, and checks that follow.
   if (planRequest.intent === "study_now") {
-    const focusedPlan = generatePreviewPlan(planRequest);
+    let focusedPlan: ReturnType<typeof generatePreviewPlan>;
+    try {
+      focusedPlan = generatePreviewPlan(planRequest);
+    } catch (error) {
+      return deterministicPlanFailureResponse(error, requestId);
+    }
     const response = PlanGenerationResponseSchema.parse({
       plan: focusedPlan,
       generation: {
@@ -385,7 +390,12 @@ export async function POST(request: Request) {
     }
   }
 
-  const previewPlan = generatePreviewPlan(planRequest);
+  let previewPlan: ReturnType<typeof generatePreviewPlan>;
+  try {
+    previewPlan = generatePreviewPlan(planRequest);
+  } catch (error) {
+    return deterministicPlanFailureResponse(error, requestId);
+  }
   const response = PlanGenerationResponseSchema.parse({
     plan: previewPlan,
     generation: {
@@ -531,4 +541,22 @@ function emptyPlanObservation(elapsedMs: number) {
     outputTokens: 0,
     model: null,
   } as const;
+}
+
+/**
+ * The deterministic generator validates its own output, so any shape it cannot
+ * satisfy throws. Left uncaught the throw leaves the route with no body at all,
+ * which reaches the learner as "Unexpected end of JSON input" and tells them
+ * nothing about what to change.
+ */
+function deterministicPlanFailureResponse(error: unknown, requestId: string) {
+  console.error("YOVA plan generation failed", {
+    requestId,
+    reason: error instanceof Error ? error.message : String(error),
+  });
+
+  return NextResponse.json(
+    { error: "YOVA could not build a plan for this goal. Try describing it in a shorter sentence." },
+    { status: 500, headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId } },
+  );
 }

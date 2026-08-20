@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { LEARNING_TITLE_CHARACTER_LIMIT } from "@/lib/learning/title-limits";
 import { resolveLearningIntent } from "@/lib/learning/learning-intent";
 import { MaterialUnderstandingSchema, PlanKnowledgeMapSchema } from "@/lib/knowledge-map/schema";
 import { SESSION_ARCHITECTURE_VERSIONS } from "@/lib/session-generation/architecture";
@@ -94,7 +95,7 @@ export const PlanGenerationRequestSchema = z.object({
 });
 
 export const GeneratedSessionDraftSchema = z.object({
-  title: z.string().trim().min(3).max(90),
+  title: z.string().trim().min(3).max(LEARNING_TITLE_CHARACTER_LIMIT),
   objective: z.string().trim().min(10).max(280),
   method: z.string().trim().min(3).max(80),
   methodReason: z.string().trim().min(10).max(280).describe(
@@ -114,7 +115,7 @@ export const GeneratedSessionDraftSchema = z.object({
 });
 
 export const GeneratedPlanDraftSchema = z.object({
-  title: z.string().trim().min(3).max(90),
+  title: z.string().trim().min(3).max(LEARNING_TITLE_CHARACTER_LIMIT),
   topic: z.string().trim().min(3).max(180),
   kind: z.enum(["test", "topic", "course", "book", "skill"]),
   deadline: z.string().datetime({ offset: true }).nullable(),

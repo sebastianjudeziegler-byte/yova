@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { PlanKnowledgeMap } from "@/lib/knowledge-map/schema";
+import { deriveLearningTitle } from "@/lib/intake/interpret";
+import { LEARNING_TITLE_CHARACTER_LIMIT } from "@/lib/learning/title-limits";
 import { generatePreviewPlan } from "@/lib/plan-generation/preview-generator";
 import { PlanGenerationRequestSchema } from "@/lib/plan-generation/schema";
 import { builtInSessionFallbackKind } from "@/lib/session-generation/built-in-fallback";
@@ -455,5 +457,46 @@ describe("preview plan time windows", () => {
     expect(plan.sessions[0].method).toBe(expectedMethod);
     expect(plan.sessions[0].objective).not.toMatch(/first concept listed|relevant concept|current objective/i);
     expect(plan.sessions.every((item) => item.contentTargets?.length && item.completionEvidence?.length)).toBe(true);
+  });
+});
+
+describe("goals whose derived title runs long", () => {
+  // The exact goal that returned a 500 in the browser: the derived title landed
+  // between intake's old 100-character limit and the draft schema's 90.
+  const longGoal = "Quiz me from memory on the products of glycolysis, the Krebs cycle, and the electron transport chain.";
+
+  function studyNowRequest(goal: string) {
+    return PlanGenerationRequestSchema.parse({
+      intent: "study_now",
+      learningIntent: "study",
+      goal,
+      materialMode: "none",
+      materials: [],
+      studyMode: "inside",
+      deadline: null,
+      timeZone: "America/Los_Angeles",
+      diagnosticResponses: [],
+      availability: [{ day: "Every day", window: "Evening", minutes: 15 }],
+      profileSummary: "The learner wants to check what they can recall without notes.",
+    });
+  }
+
+  it("derives a title the draft schema will accept", () => {
+    expect(deriveLearningTitle(longGoal).length)
+      .toBeLessThanOrEqual(LEARNING_TITLE_CHARACTER_LIMIT);
+  });
+
+  it("builds a one-off session plan instead of throwing", () => {
+    expect(() => generatePreviewPlan(studyNowRequest(longGoal))).not.toThrow();
+  });
+
+  it("still produces a usable title rather than an empty one", () => {
+    const plan = generatePreviewPlan(studyNowRequest(longGoal));
+    expect(plan.title.trim().length).toBeGreaterThan(2);
+  });
+
+  it("handles a goal far longer than any title limit", () => {
+    const rambling = `${longGoal} ${longGoal} ${longGoal}`;
+    expect(() => generatePreviewPlan(studyNowRequest(rambling))).not.toThrow();
   });
 });

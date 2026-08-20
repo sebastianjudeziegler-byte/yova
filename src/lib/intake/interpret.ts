@@ -1,11 +1,12 @@
 import type { IntakeInterpretation, IntakeItemType } from "@/lib/intake/schema";
+import { LEARNING_TITLE_CHARACTER_LIMIT } from "@/lib/learning/title-limits";
 
 const TEST_PATTERN = /\b(test|exam|quiz|midterm|final|sat|act|ap exam)\b/i;
 const ASSIGNMENT_PATTERN = /\b(assignment|homework|paper|essay|project|presentation|worksheet|problem set|lab report|submit|turn in|due)\b|\bcomplete\s+\d+/i;
 const COURSE_PATTERN = /\b(all of|entire|full)\s+(calculus|course|class)|\bcourse\b/i;
 const BOOK_PATTERN = /\b(book|novel|chapter|read)\b/i;
 const SKILL_PATTERN = /\b(skill|product rule|coding|programming|speaking|vocabulary|language)\b/i;
-const TITLE_CHARACTER_LIMIT = 100;
+const TITLE_CHARACTER_LIMIT = LEARNING_TITLE_CHARACTER_LIMIT;
 const RESOLVED_TITLE_CHARACTER_LIMIT = 72;
 const MIN_TITLE_BOUNDARY_WORDS = 3;
 const DANGLING_TITLE_WORDS = new Set([
