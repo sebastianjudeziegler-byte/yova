@@ -21,7 +21,7 @@ export type ConceptReviewDirective = {
  * intentionally covers only its own mapped slice. A due concept from another
  * topic must not become a mandatory check in today's lesson. Topic ids keep
  * evidence inside the mapped topic, while the complete concept name must also
- * appear in today's objective, targets, or mapped topic outline. A concept
+ * appear in today's title, objective, or explicit content targets. A concept
  * that does not fit remains in the separate retrieval queue instead of making
  * an unrelated lesson impossible to generate.
  */

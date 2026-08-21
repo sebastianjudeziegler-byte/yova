@@ -61,11 +61,6 @@ export function withSessionConceptScope(
       context.session.title,
       context.session.objective,
       ...(context.session.contentTargets ?? []),
-      ...context.knowledgeTopics.flatMap((topic) => [
-        topic.title,
-        topic.description,
-        ...topic.subtopics,
-      ]),
     ],
   });
   return conceptSignals.length === context.conceptSignals.length

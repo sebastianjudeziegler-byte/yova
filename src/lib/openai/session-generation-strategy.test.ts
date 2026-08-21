@@ -54,6 +54,15 @@ describe("production session generation strategy", () => {
     ordinary.conceptSignals[0] = {
       ...ordinary.conceptSignals[0]!,
       topicId: ordinary.session.topicIds[0],
+    };
+    ordinary.knowledgeTopics[0] = {
+      ...ordinary.knowledgeTopics[0]!,
+      subtopics: [...ordinary.knowledgeTopics[0]!.subtopics, "Managerial accounting"],
+    };
+    expect(sessionGenerationStrategy(ordinary)).toBe("reliable");
+
+    ordinary.conceptSignals[0] = {
+      ...ordinary.conceptSignals[0]!,
       concept: ordinary.session.title,
     };
     expect(sessionGenerationStrategy(ordinary)).toBe("full");
