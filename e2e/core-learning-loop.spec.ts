@@ -2135,6 +2135,286 @@ test("a planning request outage still produces a reviewable plan from YOVA's sav
   await expect(page.getByRole("heading", { name: "Your information is safe." })).not.toBeVisible();
 });
 
+test("legacy split work reopens as an active plan with runnable ten-minute sessions", async ({ page }) => {
+  await createPreviewAccount(page);
+  await completeOnboarding(page);
+
+  await page.evaluate(() => {
+    const stored = window.localStorage.getItem("yova.preview.v1");
+    if (!stored) throw new Error("Expected a preview snapshot after onboarding.");
+    const snapshot = JSON.parse(stored) as Record<string, unknown> & { plans: unknown[] };
+    const topicId = "65000000-0000-4000-8000-000000000003";
+    snapshot.plans = [{
+      id: "65000000-0000-4000-8000-000000000001",
+      learningItemId: "65000000-0000-4000-8000-000000000002",
+      title: "Plate Tectonics and Mantle Convection",
+      topic: "How mantle convection contributes to plate motion",
+      kind: "topic",
+      deadline: null,
+      // Old split/start races could leave this lifecycle value behind even
+      // though both generated parts were still runnable.
+      status: "completed",
+      sourceMode: "yova_generated",
+      studyMode: "inside_yova",
+      learningIntent: "study",
+      creationIntent: "plan",
+      sessionArchitectureVersion: "filled_teaching_v1",
+      rationale: "Recover the unfinished explanation and application work without losing either part.",
+      createdAt: "2026-08-20T12:00:00.000Z",
+      materials: [],
+      sessions: [{
+        id: "65000000-0000-4000-8000-000000000011",
+        sequence: 1,
+        title: "Explain mantle convection · Part 1 of 2",
+        objective: "Explain how temperature and density differences drive mantle convection.",
+        method: "Self-explanation",
+        methodReason: "A causal explanation makes the plate-motion model visible.",
+        scheduledFor: "2030-06-01T15:00:00.000Z",
+        estimatedMinutes: 8,
+        amountLabel: "One focused target · about 8 min",
+        learningMode: "study",
+        topicIds: [topicId],
+        contentTargets: ["Temperature, density, and mantle circulation"],
+        completionEvidence: ["Explain the convection relationship in your own words"],
+        originSessionId: "65000000-0000-4000-8000-000000000010",
+        originalContentMinutes: 15,
+        segmentIndex: 1,
+        segmentCount: 2,
+        status: "ready",
+      }, {
+        id: "65000000-0000-4000-8000-000000000012",
+        sequence: 2,
+        title: "Explain mantle convection · Part 2 of 2",
+        objective: "Apply the convection model to divergent and convergent plate boundaries.",
+        method: "Scenario application",
+        methodReason: "A new boundary scenario checks whether the causal model transfers.",
+        scheduledFor: "2030-06-02T15:00:00.000Z",
+        estimatedMinutes: 7,
+        amountLabel: "One focused target · about 7 min",
+        learningMode: "study",
+        topicIds: [topicId],
+        contentTargets: ["Mantle convection and plate-boundary motion"],
+        completionEvidence: ["Apply the model to one unfamiliar plate-boundary scenario"],
+        originSessionId: "65000000-0000-4000-8000-000000000010",
+        originalContentMinutes: 15,
+        segmentIndex: 2,
+        segmentCount: 2,
+        status: "upcoming",
+      }],
+    }];
+    snapshot.updatedAt = new Date().toISOString();
+    window.localStorage.setItem("yova.preview.v1", JSON.stringify(snapshot));
+  });
+
+  await page.reload();
+  await page.getByRole("button", { name: "Learning", exact: true }).click();
+
+  const recoveredPlan = page.locator(".learning-goal-card").filter({
+    hasText: "Plate Tectonics and Mantle Convection",
+  });
+  await expect(recoveredPlan).toBeVisible();
+  await expect(recoveredPlan).toContainText("0 of 2 sessions complete");
+  await expect(recoveredPlan).toContainText("10 min");
+  await expect(recoveredPlan.getByRole("button", { name: "Start next" })).toBeVisible();
+  await expect(page.locator(".tabs").getByRole("button", { name: /Active/ })).toContainText("1");
+  await expect(page.locator(".tabs").getByRole("button", { name: /Recent/ })).toContainText("0");
+
+  await expect.poll(() => page.evaluate(() => {
+    const stored = window.localStorage.getItem("yova.preview.v1");
+    if (!stored) return null;
+    const snapshot = JSON.parse(stored) as {
+      plans?: Array<{
+        title?: string;
+        status?: string;
+        sessions?: Array<{ estimatedMinutes?: number; amountLabel?: string }>;
+      }>;
+    };
+    const plan = snapshot.plans?.find((candidate) => candidate.title === "Plate Tectonics and Mantle Convection");
+    return plan ? {
+      status: plan.status,
+      minutes: plan.sessions?.map((session) => session.estimatedMinutes),
+      labels: plan.sessions?.map((session) => session.amountLabel),
+    } : null;
+  })).toEqual({
+    status: "active",
+    minutes: [10, 10],
+    labels: [
+      "One focused target · about 10 min",
+      "One focused target · about 10 min",
+    ],
+  });
+
+  await recoveredPlan.getByRole("button", { name: "Start next" }).click();
+  const earlyStartDialog = page.getByRole("dialog", {
+    name: "Start Explain mantle convection · Part 1 of 2 now?",
+  });
+  if (await earlyStartDialog.isVisible()) {
+    await earlyStartDialog.getByRole("button", { name: "Start now, keep dates" }).click();
+  }
+  await expect(page.getByRole("heading", { name: "Here is how YOVA plans to start." })).toBeVisible();
+  await expect(page.locator(".session-current-assumption")).toContainText("about 10 minutes");
+  await expect(page.locator(".session-current-assumption")).not.toContainText("about 8 minutes");
+});
+
+test("adjusting ordinary future work preserves the exact scheduled review contract", async ({ page }) => {
+  await createPreviewAccount(page);
+  await completeOnboarding(page);
+
+  await page.evaluate(() => {
+    const stored = window.localStorage.getItem("yova.preview.v1");
+    if (!stored) throw new Error("Expected a preview snapshot after onboarding.");
+    const snapshot = JSON.parse(stored) as Record<string, unknown> & { plans: unknown[] };
+    const topicId = "66000000-0000-4000-8000-000000000003";
+    snapshot.plans = [{
+      id: "66000000-0000-4000-8000-000000000001",
+      learningItemId: "66000000-0000-4000-8000-000000000002",
+      title: "Plate Boundary Evidence Plan",
+      topic: "Use geological evidence to explain plate-boundary motion",
+      kind: "topic",
+      deadline: null,
+      status: "active",
+      sourceMode: "yova_generated",
+      studyMode: "inside_yova",
+      learningIntent: "study",
+      creationIntent: "plan",
+      sessionArchitectureVersion: "filled_teaching_v1",
+      rationale: "Keep the delayed evidence check exact while resizing later content practice.",
+      createdAt: "2026-08-20T12:00:00.000Z",
+      materials: [],
+      sessions: [{
+        id: "66000000-0000-4000-8000-000000000011",
+        sequence: 1,
+        title: "Verify the mantle-convection relationship",
+        objective: "Verify the relationship after a delay without reopening the earlier lesson.",
+        method: "Three-item closed-note review",
+        methodReason: "A delayed closed-note check tests whether the repaired relationship now holds.",
+        scheduledFor: "2030-06-03T15:00:00.000Z",
+        estimatedMinutes: 5,
+        amountLabel: "3 quick questions · about 5 min",
+        learningMode: "study",
+        topicIds: [topicId],
+        contentTargets: ["Mantle convection and plate motion"],
+        completionEvidence: ["Answer exactly 3 closed-note questions about the relationship"],
+        status: "ready",
+        reviewConcept: "Mantle convection and plate motion",
+        reviewType: "verify",
+      }, {
+        id: "66000000-0000-4000-8000-000000000012",
+        sequence: 2,
+        title: "Apply evidence at contrasting plate boundaries",
+        objective: "Compare geological evidence from two contrasting plate-boundary settings.",
+        method: "Case comparison",
+        methodReason: "Contrasting cases make the transferable evidence rules explicit.",
+        scheduledFor: "2030-06-04T15:00:00.000Z",
+        estimatedMinutes: 25,
+        amountLabel: "Two boundary cases + evidence check · about 25 min",
+        learningMode: "study",
+        topicIds: [topicId],
+        contentTargets: ["Evidence at convergent boundaries", "Evidence at divergent boundaries"],
+        completionEvidence: ["Compare the evidence and explain what each case supports"],
+        status: "upcoming",
+      }],
+    }];
+    snapshot.updatedAt = new Date().toISOString();
+    window.localStorage.setItem("yova.preview.v1", JSON.stringify(snapshot));
+  });
+
+  await page.reload();
+  await page.getByRole("button", { name: "Learning", exact: true }).click();
+  const planCard = page.locator(".learning-goal-card").filter({ hasText: "Plate Boundary Evidence Plan" });
+  await planCard.getByRole("button", { name: "Open goal" }).click();
+  await page.getByRole("button", { name: "Adjust", exact: true }).click();
+
+  const adjustmentPanel = page.locator(".plan-adjustment-panel");
+  const futureWindow = adjustmentPanel.getByRole("combobox", { name: "Future session window" });
+  // The first runnable row is a five-minute scheduled review. The adjustment
+  // control must take its default from ordinary content, not that review.
+  await expect(futureWindow).toHaveValue("25");
+  await expect(adjustmentPanel).toContainText(
+    "1 scheduled review keeps the original duration, concept, and return time.",
+  );
+  await futureWindow.selectOption("15");
+  await adjustmentPanel.getByRole("button", { name: "Approve and rebuild plan" }).click();
+
+  await expect(adjustmentPanel).toHaveCount(0);
+  await expect.poll(() => page.evaluate(() => {
+    const stored = window.localStorage.getItem("yova.preview.v1");
+    if (!stored) return null;
+    const snapshot = JSON.parse(stored) as {
+      plans?: Array<{
+        title?: string;
+        sessions?: Array<Record<string, unknown>>;
+      }>;
+    };
+    const sessions = snapshot.plans?.find((plan) => plan.title === "Plate Boundary Evidence Plan")?.sessions ?? [];
+    const review = sessions.find((session) => session.id === "66000000-0000-4000-8000-000000000011");
+    const ordinary = sessions.filter((session) => session.id !== "66000000-0000-4000-8000-000000000011");
+    return review ? {
+      review: {
+        id: review.id,
+        sequence: review.sequence,
+        title: review.title,
+        objective: review.objective,
+        method: review.method,
+        methodReason: review.methodReason,
+        scheduledFor: review.scheduledFor,
+        estimatedMinutes: review.estimatedMinutes,
+        amountLabel: review.amountLabel,
+        learningMode: review.learningMode,
+        topicIds: review.topicIds,
+        contentTargets: review.contentTargets,
+        completionEvidence: review.completionEvidence,
+        status: review.status,
+        reviewConcept: review.reviewConcept,
+        reviewType: review.reviewType,
+      },
+      ordinary: ordinary.map((session) => ({
+        sequence: session.sequence,
+        estimatedMinutes: session.estimatedMinutes,
+        status: session.status,
+        originSessionId: session.originSessionId,
+      })),
+    } : null;
+  })).toEqual({
+    review: {
+      id: "66000000-0000-4000-8000-000000000011",
+      sequence: 1,
+      title: "Verify the mantle-convection relationship",
+      objective: "Verify the relationship after a delay without reopening the earlier lesson.",
+      method: "Three-item closed-note review",
+      methodReason: "A delayed closed-note check tests whether the repaired relationship now holds.",
+      scheduledFor: "2030-06-03T15:00:00.000Z",
+      estimatedMinutes: 5,
+      amountLabel: "3 quick questions · about 5 min",
+      learningMode: "study",
+      topicIds: ["66000000-0000-4000-8000-000000000003"],
+      contentTargets: ["Mantle convection and plate motion"],
+      completionEvidence: ["Answer exactly 3 closed-note questions about the relationship"],
+      status: "ready",
+      reviewConcept: "Mantle convection and plate motion",
+      reviewType: "verify",
+    },
+    ordinary: [{
+      sequence: 2,
+      estimatedMinutes: 15,
+      status: "upcoming",
+      originSessionId: "66000000-0000-4000-8000-000000000012",
+    }, {
+      sequence: 3,
+      estimatedMinutes: 15,
+      status: "upcoming",
+      originSessionId: "66000000-0000-4000-8000-000000000012",
+    }],
+  });
+
+  const timeline = page.locator(".plan-timeline");
+  await expect(timeline).toContainText("Verify the mantle-convection relationship");
+  await expect(timeline.locator(".timeline-row").filter({ hasText: "Verify the mantle-convection relationship" }))
+    .toContainText("5 min");
+  await expect(timeline.locator(".timeline-row").filter({ hasText: "Apply evidence at contrasting plate boundaries" }))
+    .toHaveCount(2);
+});
+
 test("a multi-session plan carries one clear source decision from Add to Learning", async ({ page }) => {
   await createPreviewAccount(page);
   await completeOnboarding(page);

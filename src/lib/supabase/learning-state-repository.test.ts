@@ -11,6 +11,10 @@ import {
   PERSONALIZATION_STATE_ANSWER_INDEX,
   writePersonalizationStateToAnswers,
 } from "@/lib/personalization/personalization-state";
+import {
+  CloudAccountIdentityMismatchError,
+  CloudSyncTemporarilyUnavailableError,
+} from "@/lib/supabase/cloud-sync-error";
 
 const { from, getUser, rpc } = vi.hoisted(() => ({
   from: vi.fn(),
@@ -628,10 +632,26 @@ describe("authenticated active-session checkpoint sync", () => {
       error: { code: "08006", message: "network unavailable" },
     });
 
-    await expect(saveAuthenticatedActiveSessionCheckpoint(local))
-      .rejects.toThrow("kept this lesson on this device");
+    const issue = await saveAuthenticatedActiveSessionCheckpoint(local).catch((error: unknown) => error);
+
+    expect(issue).toBeInstanceOf(CloudSyncTemporarilyUnavailableError);
+    expect(issue).toMatchObject({
+      code: "temporarily_unavailable",
+      retryable: true,
+      message: expect.stringContaining("kept this lesson on this device"),
+    });
 
     expect(loadActiveSessionCheckpoints(local.accountId)).toEqual([local]);
+  });
+
+  it("uses the same retryable checkpoint contract when the cloud client throws", async () => {
+    const local = checkpoint();
+    rpc.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+
+    const issue = await saveAuthenticatedActiveSessionCheckpoint(local).catch((error: unknown) => error);
+
+    expect(issue).toBeInstanceOf(CloudSyncTemporarilyUnavailableError);
+    expect(issue).toMatchObject({ code: "temporarily_unavailable", retryable: true });
   });
 
   it("deletes by server-owned session identity without accepting account or plan ids", async () => {
@@ -648,6 +668,53 @@ describe("authenticated active-session checkpoint sync", () => {
 });
 
 describe("saveAuthenticatedLearnerProfile", () => {
+  it("classifies a transient identity-provider failure as retryable cloud sync, not an account change", async () => {
+    getUser.mockResolvedValueOnce({
+      data: { user: null },
+      error: { message: "provider request timed out" },
+    });
+
+    const issue = await saveAuthenticatedLearnerProfile({
+      accountId: "user-1",
+      displayName: "Learner",
+      onboardingAnswers: ["A blocker"],
+    }).catch((error: unknown) => error);
+
+    expect(issue).toBeInstanceOf(CloudSyncTemporarilyUnavailableError);
+    expect(issue).toMatchObject({ code: "temporarily_unavailable", retryable: true });
+    expect((issue as Error).message).toContain("changes remain saved on this device");
+    expect((issue as Error).message).not.toContain("account changed");
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it("keeps a thrown identity-provider failure in the same retryable error contract", async () => {
+    getUser.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+
+    const issue = await saveAuthenticatedLearnerProfile({
+      accountId: "user-1",
+      displayName: "Learner",
+      onboardingAnswers: ["A blocker"],
+    }).catch((error: unknown) => error);
+
+    expect(issue).toBeInstanceOf(CloudSyncTemporarilyUnavailableError);
+    expect(issue).toMatchObject({ code: "temporarily_unavailable", retryable: true });
+    expect((issue as Error).message).not.toContain("account changed");
+  });
+
+  it("classifies a profile RPC failure as retryable without changing account identity", async () => {
+    rpc.mockResolvedValueOnce({ data: null, error: { code: "08006", message: "network unavailable" } });
+
+    const issue = await saveAuthenticatedLearnerProfile({
+      accountId: "user-1",
+      displayName: "Learner",
+      onboardingAnswers: ["A blocker"],
+    }).catch((error: unknown) => error);
+
+    expect(issue).toBeInstanceOf(CloudSyncTemporarilyUnavailableError);
+    expect(issue).toMatchObject({ code: "temporarily_unavailable", retryable: true });
+    expect((issue as Error).message).not.toContain("account changed");
+  });
+
   it("stores the personalization state inside the existing additional-context field", async () => {
     const state = defaultPersonalizationState();
     const answers = writePersonalizationStateToAnswers([], {
@@ -710,11 +777,15 @@ describe("saveAuthenticatedLearnerProfile", () => {
       error: null,
     });
 
-    await expect(saveAuthenticatedLearnerProfile({
+    const issue = await saveAuthenticatedLearnerProfile({
       accountId: "account-a",
       displayName: "Stale A",
       onboardingAnswers: ["A blocker"],
-    })).rejects.toThrow("signed-in account changed");
+    }).catch((error: unknown) => error);
+
+    expect(issue).toBeInstanceOf(CloudAccountIdentityMismatchError);
+    expect(issue).toMatchObject({ code: "account_identity_mismatch", retryable: false });
+    expect((issue as Error).message).toContain("signed-in account changed");
 
     expect(rpc).not.toHaveBeenCalled();
   });

@@ -10,6 +10,8 @@ const mocks = vi.hoisted(() => ({
   supabase: null as unknown,
   claimAIRequest: vi.fn(),
   releaseAIRequestClaim: vi.fn(),
+  releaseAIRequestReservation: vi.fn(),
+  settleAIRequestClaim: vi.fn(),
   recordObservation: vi.fn(),
   streamGeneratedLesson: vi.fn(),
 }));
@@ -36,8 +38,10 @@ vi.mock("@/lib/session-generation/schema", async (importOriginal) => {
   };
 });
 vi.mock("@/lib/server/ai-usage", () => ({
-  claimAIRequest: mocks.claimAIRequest,
+  reserveAIRequest: mocks.claimAIRequest,
   releaseAIRequestClaim: mocks.releaseAIRequestClaim,
+  releaseAIRequestReservation: mocks.releaseAIRequestReservation,
+  settleAIRequestClaim: mocks.settleAIRequestClaim,
 }));
 vi.mock("@/lib/server/development-preview", () => ({
   isDevelopmentPreviewRequest: () => mocks.developmentPreview,
@@ -76,6 +80,8 @@ describe("streamed lesson route recovery", () => {
     mocks.supabase = null;
     mocks.claimAIRequest.mockReset();
     mocks.releaseAIRequestClaim.mockReset().mockResolvedValue(true);
+    mocks.releaseAIRequestReservation.mockReset().mockResolvedValue(false);
+    mocks.settleAIRequestClaim.mockReset().mockResolvedValue(true);
     mocks.recordObservation.mockReset().mockResolvedValue(undefined);
     mocks.streamGeneratedLesson.mockReset();
   });
@@ -213,6 +219,36 @@ describe("streamed lesson route recovery", () => {
     expect(mocks.streamGeneratedLesson).not.toHaveBeenCalled();
   });
 
+  it("acknowledges skip-to-practice even when telemetry throws synchronously", async () => {
+    mocks.developmentPreview = false;
+    mocks.supabaseConfigured = true;
+    mocks.supabase = {
+      auth: {
+        getUser: vi.fn().mockResolvedValue({
+          data: { user: { id: "44444444-4444-4444-8444-444444444444" } },
+          error: null,
+        }),
+      },
+    };
+    mocks.recordObservation.mockImplementationOnce(() => {
+      throw new Error("telemetry unavailable");
+    });
+    const request = lessonRequest();
+    const body = await request.json();
+    body.action = "skip_to_practice";
+    body.lessonRequestId = "55555555-5555-4555-8555-555555555555";
+    delete body.previewLesson;
+
+    const response = await POST(new Request(request.url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }));
+
+    expect(response.status).toBe(204);
+    expect(mocks.streamGeneratedLesson).not.toHaveBeenCalled();
+  });
+
   it("serves the bounded lesson fallback with the durable allowance reset interval", async () => {
     const query = {
       select: vi.fn(),
@@ -239,6 +275,9 @@ describe("streamed lesson route recovery", () => {
     };
     mocks.claimAIRequest.mockResolvedValue({
       allowed: false,
+      claimId: null,
+      operationKey: "22222222-2222-4222-8222-222222222222",
+      denialReason: "usage_limit",
       retryAfterSeconds: 7_200,
       remainingToday: 0,
     });
@@ -270,6 +309,52 @@ describe("streamed lesson route recovery", () => {
         }),
       }),
     );
+  });
+
+  it("does not start streamed generation for a live operation-key replay", async () => {
+    const query = {
+      select: vi.fn(),
+      eq: vi.fn(),
+      maybeSingle: vi.fn(),
+    };
+    query.select.mockReturnValue(query);
+    query.eq.mockReturnValue(query);
+    query.maybeSingle.mockResolvedValue({
+      data: { step_data: { generatedSession: { cached: true } } },
+      error: null,
+    });
+    mocks.developmentPreview = false;
+    mocks.supabaseConfigured = true;
+    mocks.cachedSession = { activities: [lessonActivity()] };
+    mocks.supabase = {
+      auth: {
+        getUser: vi.fn().mockResolvedValue({
+          data: { user: { id: "44444444-4444-4444-8444-444444444444" } },
+          error: null,
+        }),
+      },
+      from: vi.fn(() => query),
+    };
+    mocks.claimAIRequest.mockResolvedValue({
+      allowed: false,
+      claimId: null,
+      operationKey: "22222222-2222-4222-8222-222222222222",
+      denialReason: "operation_in_progress",
+      retryAfterSeconds: 35,
+      remainingToday: 9,
+    });
+
+    const response = await POST(lessonRequest());
+
+    expect(response.status).toBe(409);
+    expect(response.headers.get("Retry-After")).toBe("35");
+    await expect(response.json()).resolves.toMatchObject({
+      code: "ai_operation_in_progress",
+      retryable: true,
+    });
+    expect(mocks.streamGeneratedLesson).not.toHaveBeenCalled();
+    expect(mocks.releaseAIRequestClaim).not.toHaveBeenCalled();
+    expect(mocks.settleAIRequestClaim).not.toHaveBeenCalled();
   });
 
   it("returns the durable claim when provider generation falls back", async () => {
@@ -325,6 +410,110 @@ describe("streamed lesson route recovery", () => {
       mocks.supabase,
       "55555555-5555-4555-8555-555555555555",
     );
+    expect(mocks.settleAIRequestClaim).not.toHaveBeenCalled();
+  });
+
+  it("settles the exact durable claim only after a streamed lesson succeeds", async () => {
+    const query = {
+      select: vi.fn(),
+      eq: vi.fn(),
+      maybeSingle: vi.fn(),
+    };
+    query.select.mockReturnValue(query);
+    query.eq.mockReturnValue(query);
+    query.maybeSingle.mockResolvedValue({
+      data: { step_data: { generatedSession: { cached: true } } },
+      error: null,
+    });
+    mocks.developmentPreview = false;
+    mocks.supabaseConfigured = true;
+    mocks.cachedSession = { activities: [lessonActivity()] };
+    mocks.supabase = {
+      auth: {
+        getUser: vi.fn().mockResolvedValue({
+          data: { user: { id: "44444444-4444-4444-8444-444444444444" } },
+          error: null,
+        }),
+      },
+      from: vi.fn(() => query),
+    };
+    mocks.claimAIRequest.mockResolvedValue({
+      allowed: true,
+      claimId: "55555555-5555-4555-8555-555555555555",
+      retryAfterSeconds: 0,
+      remainingToday: 9,
+    });
+    mocks.streamGeneratedLesson.mockResolvedValue({
+      model: "configured-lesson-model",
+      responseId: "response-1",
+      inputTokens: 100,
+      cachedInputTokens: 0,
+      outputTokens: 70,
+      latencyToFirstTokenMs: 100,
+      elapsedMs: 800,
+      wordCount: 30,
+    });
+
+    const response = await POST(lessonRequest());
+    expect(response.body).not.toBeNull();
+    await consumeLessonEventStream(response.body!, () => undefined);
+
+    expect(mocks.settleAIRequestClaim).toHaveBeenCalledWith(
+      mocks.supabase,
+      "55555555-5555-4555-8555-555555555555",
+    );
+    expect(mocks.releaseAIRequestClaim).not.toHaveBeenCalled();
+  });
+
+  it("finishes a valid streamed lesson when settlement cannot be confirmed", async () => {
+    const query = {
+      select: vi.fn(),
+      eq: vi.fn(),
+      maybeSingle: vi.fn(),
+    };
+    query.select.mockReturnValue(query);
+    query.eq.mockReturnValue(query);
+    query.maybeSingle.mockResolvedValue({
+      data: { step_data: { generatedSession: { cached: true } } },
+      error: null,
+    });
+    mocks.developmentPreview = false;
+    mocks.supabaseConfigured = true;
+    mocks.cachedSession = { activities: [lessonActivity()] };
+    mocks.supabase = {
+      auth: {
+        getUser: vi.fn().mockResolvedValue({
+          data: { user: { id: "44444444-4444-4444-8444-444444444444" } },
+          error: null,
+        }),
+      },
+      from: vi.fn(() => query),
+    };
+    mocks.claimAIRequest.mockResolvedValue({
+      allowed: true,
+      claimId: "55555555-5555-4555-8555-555555555555",
+      retryAfterSeconds: 0,
+      remainingToday: 9,
+    });
+    mocks.settleAIRequestClaim.mockRejectedValueOnce(new Error("settlement receipt lost"));
+    mocks.streamGeneratedLesson.mockResolvedValue({
+      model: "configured-lesson-model",
+      responseId: "response-1",
+      inputTokens: 100,
+      cachedInputTokens: 0,
+      outputTokens: 70,
+      latencyToFirstTokenMs: 100,
+      elapsedMs: 800,
+      wordCount: 30,
+    });
+
+    const response = await POST(lessonRequest());
+    expect(response.body).not.toBeNull();
+    const events: LessonStreamEvent[] = [];
+    await consumeLessonEventStream(response.body!, (event) => events.push(event));
+
+    expect(events.at(-1)?.type).toBe("lesson.complete");
+    expect(mocks.releaseAIRequestClaim).not.toHaveBeenCalled();
   });
 });
 

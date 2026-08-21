@@ -2,6 +2,11 @@ import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
+export {
+  AI_USAGE_OPERATION_IN_PROGRESS_CODE,
+  aiUsageReservationConflict,
+  type AIUsageReservationConflict,
+} from "@/lib/ai-usage/reservation-conflict";
 import {
   aiUsageLimitFor,
   publicPasswordAccountsAreOpen,
@@ -30,6 +35,71 @@ const AIUsageClaimSchema = z.discriminatedUnion("allowed", [
   AllowedAIUsageClaimSchema,
   LimitedAIUsageClaimSchema,
 ]);
+
+const AllowedAIUsageReservationSchema = z.object({
+  allowed: z.literal(true),
+  claimId: z.string().uuid(),
+  operationKey: z.string().uuid(),
+  reservationState: z.literal("reserved"),
+  replayed: z.literal(false),
+  retryAfterSeconds: z.literal(0),
+  remainingToday: z.number().int().min(0),
+}).strict();
+
+const LimitedAIUsageReservationSchema = z.object({
+  allowed: z.literal(false),
+  claimId: z.null(),
+  operationKey: z.string().uuid(),
+  denialReason: z.enum([
+    "usage_limit",
+    "operation_in_progress",
+    "operation_already_consumed",
+    "operation_already_released",
+  ]),
+  retryAfterSeconds: z.number().int().min(0).max(86_400),
+  remainingToday: z.number().int().min(0),
+}).strict();
+
+const AIUsageReservationSchema = z.discriminatedUnion("allowed", [
+  AllowedAIUsageReservationSchema,
+  LimitedAIUsageReservationSchema,
+]);
+
+export type AIUsageReservation = z.infer<typeof AIUsageReservationSchema>;
+
+// Long enough for every currently metered route deadline, but bounded so a
+// platform termination or lost response cannot consume the daily balance
+// indefinitely. Provider calls still need their own shorter absolute timeout.
+export const AI_USAGE_RESERVATION_LEASE_SECONDS = 180;
+export const AI_USAGE_RPC_TIMEOUT_MS = 3_000;
+
+type AIUsageRPCResult = {
+  data: unknown;
+  error: unknown;
+};
+
+type AbortableAIUsageRPC = PromiseLike<AIUsageRPCResult> & {
+  abortSignal?: (signal: AbortSignal) => PromiseLike<AIUsageRPCResult>;
+};
+
+async function boundedAIUsageRPC(request: AbortableAIUsageRPC) {
+  const controller = new AbortController();
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
+  const timeout = new Promise<never>((_resolve, reject) => {
+    timeoutId = setTimeout(() => {
+      controller.abort();
+      reject(new AIUsageGateError());
+    }, AI_USAGE_RPC_TIMEOUT_MS);
+  });
+  try {
+    const abortableRequest = typeof request.abortSignal === "function"
+      ? request.abortSignal(controller.signal)
+      : request;
+    return await Promise.race([Promise.resolve(abortableRequest), timeout]);
+  } finally {
+    if (timeoutId !== null) clearTimeout(timeoutId);
+  }
+}
 
 const AvailableAIUsageStatusSchema = z.object({
   allowed: z.literal(true),
@@ -78,16 +148,75 @@ export class AIUsageGateError extends Error {
 
 export async function claimAIRequest(supabase: SupabaseClient, action: AIUsageAction) {
   const limit = aiUsageLimitFor(action, publicPasswordAccountsAreOpen());
-  const { data, error } = await supabase.rpc("claim_ai_request", {
+  const { data, error } = await boundedAIUsageRPC(supabase.rpc("claim_ai_request", {
     request_action: action,
     minute_limit: limit.minute,
     day_limit: limit.day,
-  });
+  }));
   if (error) throw new AIUsageGateError();
 
   const parsed = AIUsageClaimSchema.safeParse(data);
   if (!parsed.success) throw new AIUsageGateError();
   return parsed.data;
+}
+
+/**
+ * Reserves one durable request with a caller-owned idempotency key. Unlike the
+ * compatibility claim API, every allowed result from this strict path has an
+ * exact claim id that must be either settled or released.
+ */
+export async function reserveAIRequest(
+  supabase: SupabaseClient,
+  action: AIUsageAction,
+  operationKey: string,
+  recoveryKey: string,
+): Promise<AIUsageReservation> {
+  const parsedOperationKey = z.string().uuid().safeParse(operationKey);
+  const parsedRecoveryKey = z.string().uuid().safeParse(recoveryKey);
+  if (
+    !parsedOperationKey.success
+    || !parsedRecoveryKey.success
+    || parsedOperationKey.data === parsedRecoveryKey.data
+  ) throw new AIUsageGateError();
+
+  const limit = aiUsageLimitFor(action, publicPasswordAccountsAreOpen());
+  const { data, error } = await boundedAIUsageRPC(supabase.rpc("reserve_ai_request", {
+    request_action: action,
+    minute_limit: limit.minute,
+    day_limit: limit.day,
+    request_operation_key: parsedOperationKey.data,
+    request_recovery_key: parsedRecoveryKey.data,
+    lease_seconds: AI_USAGE_RESERVATION_LEASE_SECONDS,
+  }));
+  if (error) throw new AIUsageGateError();
+
+  const parsed = AIUsageReservationSchema.safeParse(data);
+  if (!parsed.success) throw new AIUsageGateError();
+  return parsed.data;
+}
+
+/** Marks one exact learner-usable reservation as consumed. */
+export async function settleAIRequestClaim(
+  supabase: SupabaseClient,
+  claimId: string,
+) {
+  const parsedClaimId = z.string().uuid().safeParse(claimId);
+  if (!parsedClaimId.success) throw new AIUsageGateError();
+
+  // Consumption is idempotent in the database. Retry one ambiguous transport
+  // or receipt failure so a committed transition whose response was lost can
+  // be confirmed without charging or settling a second claim.
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      const { data, error } = await boundedAIUsageRPC(supabase.rpc("consume_ai_request_claim", {
+        usage_claim_id: parsedClaimId.data,
+      }));
+      if (!error && typeof data === "boolean") return data;
+    } catch {
+      // Retry the same idempotent claim exactly once.
+    }
+  }
+  throw new AIUsageGateError();
 }
 
 /**
@@ -101,9 +230,36 @@ export async function releaseAIRequestClaim(
 ) {
   const parsedClaimId = z.string().uuid().safeParse(claimId);
   if (!parsedClaimId.success) throw new AIUsageGateError();
-  const { data, error } = await supabase.rpc("release_ai_request_claim", {
+  const { data, error } = await boundedAIUsageRPC(supabase.rpc("release_ai_request_claim", {
     usage_claim_id: parsedClaimId.data,
-  });
+  }));
+  if (error || typeof data !== "boolean") throw new AIUsageGateError();
+  return data;
+}
+
+/**
+ * Recovers the ambiguous reserve-RPC case: the database may have committed a
+ * reservation even though its response never reached the route. Releasing by
+ * the operation key is owner/action scoped and cannot refund another request.
+ */
+export async function releaseAIRequestReservation(
+  supabase: SupabaseClient,
+  action: AIUsageAction,
+  operationKey: string,
+  recoveryKey: string,
+) {
+  const parsedOperationKey = z.string().uuid().safeParse(operationKey);
+  const parsedRecoveryKey = z.string().uuid().safeParse(recoveryKey);
+  if (
+    !parsedOperationKey.success
+    || !parsedRecoveryKey.success
+    || parsedOperationKey.data === parsedRecoveryKey.data
+  ) throw new AIUsageGateError();
+  const { data, error } = await boundedAIUsageRPC(supabase.rpc("release_ai_request_reservation", {
+    request_action: action,
+    request_operation_key: parsedOperationKey.data,
+    request_recovery_key: parsedRecoveryKey.data,
+  }));
   if (error || typeof data !== "boolean") throw new AIUsageGateError();
   return data;
 }
@@ -118,11 +274,11 @@ export async function readAIUsageStatus(
   action: AIUsageAction,
 ): Promise<AIUsageStatus> {
   const limit = aiUsageLimitFor(action, publicPasswordAccountsAreOpen());
-  const { data, error } = await supabase.rpc("read_ai_usage_status", {
+  const { data, error } = await boundedAIUsageRPC(supabase.rpc("read_ai_usage_status", {
     request_action: action,
     minute_limit: limit.minute,
     day_limit: limit.day,
-  });
+  }));
   if (error) throw new AIUsageGateError();
 
   const parsed = AIUsageStatusSchema.safeParse(data);

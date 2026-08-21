@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { aiUsageReservationConflict } from "@/lib/ai-usage/reservation-conflict";
 import { buildMaterialExcerpts } from "@/lib/materials/context";
 import {
   availableLearningItemIds,
@@ -10,7 +11,12 @@ import { expandedLearnerContextFromStored } from "@/lib/personalization/learner-
 import { generateTutorAnswer, type TutorLearningContext } from "@/lib/openai/tutor-generator";
 import { isOpenAITutorConfigured } from "@/lib/openai/config";
 import { checkTutorRateLimit, requestRateLimitKey } from "@/lib/server/rate-limit";
-import { claimAIRequest } from "@/lib/server/ai-usage";
+import {
+  releaseAIRequestClaim,
+  releaseAIRequestReservation,
+  reserveAIRequest,
+  settleAIRequestClaim,
+} from "@/lib/server/ai-usage";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import {
@@ -175,6 +181,7 @@ export async function POST(request: Request) {
   }
 
   let body: unknown;
+  let aiUsageClaimId: string | null = null;
   try {
     body = await request.json();
   } catch {
@@ -222,16 +229,34 @@ export async function POST(request: Request) {
       }
     }
 
-    let durableLimit: Awaited<ReturnType<typeof claimAIRequest>>;
+    let durableLimit: Awaited<ReturnType<typeof reserveAIRequest>>;
+    const aiUsageRecoveryKey = crypto.randomUUID();
     try {
-      durableLimit = await claimAIRequest(supabase, "tutor_message");
+      durableLimit = await reserveAIRequest(supabase, "tutor_message", requestId, aiUsageRecoveryKey);
     } catch {
+      await recoverUnknownTutorReservation(supabase, requestId, aiUsageRecoveryKey);
       return NextResponse.json(
         { error: "Ask YOVA paused before using OpenAI because it could not verify the account’s AI budget." },
         { status: 503, headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId } },
       );
     }
     if (!durableLimit.allowed) {
+      const conflict = aiUsageReservationConflict(durableLimit);
+      if (conflict) {
+        return NextResponse.json(
+          { code: conflict.code, error: conflict.error, retryable: conflict.retryable },
+          {
+            status: 409,
+            headers: {
+              "Cache-Control": "no-store",
+              ...(conflict.retryAfterSeconds === null ? {} : {
+                "Retry-After": String(conflict.retryAfterSeconds),
+              }),
+              "X-Yova-Request-Id": requestId,
+            },
+          },
+        );
+      }
       return NextResponse.json(
         { error: "This account has reached its Ask YOVA allowance. Try again after the limit resets." },
         {
@@ -244,6 +269,7 @@ export async function POST(request: Request) {
         },
       );
     }
+    aiUsageClaimId = durableLimit.claimId;
 
     const proposedAction = parsed.data.persistenceMode === "ephemeral"
       ? null
@@ -302,6 +328,7 @@ export async function POST(request: Request) {
       }
     }
 
+    await settleSuccessfulTutorClaim(supabase, aiUsageClaimId, requestId);
     return NextResponse.json(response, {
       headers: {
         "Cache-Control": "no-store",
@@ -309,12 +336,52 @@ export async function POST(request: Request) {
       },
     });
   } catch (error) {
+    await releaseFailedTutorClaim(supabase, aiUsageClaimId, requestId);
     const message = error instanceof TutorPlanNotFoundError
       ? error.message
       : "Ask YOVA could not answer right now. Try again in a moment.";
     const status = error instanceof TutorPlanNotFoundError ? 404 : 502;
     console.error("YOVA tutor request failed", { requestId, reason: error instanceof Error ? error.name : "unknown" });
     return NextResponse.json({ error: message, requestId }, { status });
+  }
+}
+
+async function settleSuccessfulTutorClaim(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  claimId: string,
+  requestId: string,
+) {
+  try {
+    if (!await settleAIRequestClaim(supabase, claimId)) {
+      console.error("YOVA could not settle a successful tutor allowance claim", { requestId });
+    }
+  } catch {
+    console.error("YOVA could not settle a successful tutor allowance claim", { requestId });
+  }
+}
+
+async function releaseFailedTutorClaim(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  claimId: string | null,
+  requestId: string,
+) {
+  if (!claimId) return;
+  try {
+    await releaseAIRequestClaim(supabase, claimId);
+  } catch {
+    console.error("YOVA could not return a failed tutor allowance claim", { requestId });
+  }
+}
+
+async function recoverUnknownTutorReservation(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  operationKey: string,
+  recoveryKey: string,
+) {
+  try {
+    await releaseAIRequestReservation(supabase, "tutor_message", operationKey, recoveryKey);
+  } catch {
+    // Its short database lease remains the final recovery boundary.
   }
 }
 

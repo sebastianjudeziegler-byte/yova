@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { LearningPlan, LearningPlanSession } from "@/lib/domain";
+import {
+  buildContentBasedReplacementSessions,
+  learningPlanSessionToAdjustableRow,
+} from "@/lib/learning/content-based-plan-adjustment";
 import { canOfferAgendaSessionSplit } from "@/lib/scheduling/split-safety";
 
 const session: LearningPlanSession = {
@@ -147,7 +151,32 @@ describe("Agenda split safety", () => {
     })).toBe(false);
   });
 
-  it("rejects a split when rebuilding the whole plan would preserve a sub-10-minute session", () => {
+  it("rejects a split when the selected or collateral session has saved learner work", () => {
+    const saved = {
+      ...session,
+      resource: {} as NonNullable<LearningPlanSession["resource"]>,
+    };
+    expect(canOfferAgendaSessionSplit({
+      plan: { ...plan, sessions: [saved] },
+      session: saved,
+      targetMinutes: 10,
+    })).toBe(false);
+
+    const collateral = {
+      ...session,
+      id: "10000000-1000-4000-8000-100000000005",
+      sequence: 2,
+      status: "upcoming" as const,
+    };
+    expect(canOfferAgendaSessionSplit({
+      plan: { ...plan, sessions: [session, collateral] },
+      session,
+      targetMinutes: 10,
+      protectedSessionIds: new Set([collateral.id]),
+    })).toBe(false);
+  });
+
+  it("normalizes untouched legacy short parts to the ten-minute floor", () => {
     const shortCollateral: LearningPlanSession = {
       ...session,
       id: "10000000-1000-4000-8000-100000000003",
@@ -161,7 +190,21 @@ describe("Agenda split safety", () => {
       plan: planWithShortCollateral,
       session,
       targetMinutes: 10,
-    })).toBe(false);
+    })).toBe(true);
+
+    const projected = buildContentBasedReplacementSessions(
+      planWithShortCollateral.sessions.map(learningPlanSessionToAdjustableRow),
+      10,
+      1,
+    );
+    expect(projected).toHaveLength(3);
+    expect(projected.map((replacement) => replacement.estimatedMinutes)).toEqual([
+      10,
+      10,
+      10,
+    ]);
+    expect(projected.find((replacement) => replacement.id === shortCollateral.id))
+      .toMatchObject({ estimatedMinutes: 10 });
   });
 
   it("rejects a split when the aggregate projected parts exceed the plan limit", () => {

@@ -146,6 +146,8 @@ import {
   filterAvailablePlans,
   filterOperationalPlans,
   filterTutorThreads,
+  isOperationalPlan,
+  recoverRunnablePlanLifecycles,
 } from "@/lib/learning/plan-visibility";
 import { completePlanSession } from "@/lib/learning/complete-plan-session";
 import { asUnguidedPracticeCompletion } from "@/lib/learning/session-completion-provenance";
@@ -286,9 +288,10 @@ import {
 import { PlanAdjustmentResponseSchema, type PlanAdjustmentRequest } from "@/lib/learning/adjustment-schema";
 import { PlanDiagnosticQuestionSchema, type PlanDiagnosticQuestion } from "@/lib/plan-generation/schema";
 import {
-  buildContentBasedReplacementSessions,
+  buildProtectedPlanAdjustmentSessions,
   learningPlanSessionToAdjustableRow,
   MAX_ADJUSTED_PLAN_SESSIONS,
+  mergeAuthoritativeProtectedPlanAdjustmentSession,
 } from "@/lib/learning/content-based-plan-adjustment";
 import { applyPlanDirectionFallback } from "@/lib/learning/plan-direction";
 import { PlanArchiveResponseSchema } from "@/lib/learning/status-schema";
@@ -307,6 +310,11 @@ import {
   saveAuthenticatedActiveSessionCheckpoint,
   saveAuthenticatedLearnerProfile,
 } from "@/lib/supabase/learning-state-repository";
+import {
+  ACTIVE_SESSION_RECOVERY_CLOUD_SYNC_WARNING,
+  isTemporaryLearnerProfileSyncWarning,
+  SESSION_RECOVERY_CLOUD_SYNC_WARNING,
+} from "@/lib/supabase/cloud-sync-error";
 import {
   SessionGenerationResponseSchema,
   type LessonBrief,
@@ -350,6 +358,11 @@ import {
   AnswerEvaluationResponseSchema,
   type AnswerEvaluationResponse,
 } from "@/lib/session-evaluation/schema";
+import {
+  isSessionGenerationOperationInProgress,
+  reusableSessionGenerationOperation,
+  type PendingSessionGenerationOperation,
+} from "@/lib/session-generation/operation-key";
 import { RescheduleSessionResponseSchema } from "@/lib/scheduling/schema";
 import {
   buildAgendaBalanceSuggestion,
@@ -573,6 +586,7 @@ export function YovaPrototype({
   const signOutPendingRef = useRef(false);
   const retainedSignOutAccountIdRef = useRef<string | null>(null);
   const sessionGenerationAbortRef = useRef<AbortController | null>(null);
+  const pendingSessionGenerationOperationRef = useRef<PendingSessionGenerationOperation | null>(null);
   const sessionGenerationAttemptRef = useRef<{
     planSessionId: string;
     adjustment: SessionAdjustment | null;
@@ -796,9 +810,9 @@ export function YovaPrototype({
         return message;
       }
 
-      const message = "Session recovery is saved on this device and will sync when your account reconnects.";
+      const message = SESSION_RECOVERY_CLOUD_SYNC_WARNING;
       if (activeSessionRunIdRef.current === checkpoint.runId) {
-        setSessionRecoveryIssue("Recovery is saved on this device and will sync when your account reconnects.");
+        setSessionRecoveryIssue(ACTIVE_SESSION_RECOVERY_CLOUD_SYNC_WARNING);
       }
       return message;
     }
@@ -886,6 +900,16 @@ export function YovaPrototype({
       const callbackIssue = consumeAuthCallbackIssue();
       if (callbackIssue) setAuthStartupIssue(callbackIssue);
       const saved = loadPreviewSnapshot();
+      const savedCheckpoints = saved?.account
+        ? loadActiveSessionCheckpoints(saved.account.id)
+        : [];
+      const savedProtectedSessionIds = new Set([
+        ...(saved?.sessionInterruptions.map((interruption) => interruption.planSessionId) ?? []),
+        ...savedCheckpoints.map((checkpoint) => checkpoint.planSessionId),
+      ]);
+      const recoveredSavedPlans = saved
+        ? recoverRunnablePlanLifecycles(saved.plans, savedProtectedSessionIds)
+        : null;
       if (saved?.signedIn && saved.account) {
         retainedSignOutAccountIdRef.current = saved.account.id;
       }
@@ -900,12 +924,12 @@ export function YovaPrototype({
         setSignedIn(saved.signedIn);
         setAnswers(saved.onboardingAnswers);
         setOnboardingCompleted(saved.onboardingCompleted);
-        setPlans(saved.plans);
+        setPlans(recoveredSavedPlans ?? saved.plans);
         setDeadlineMilestones(saved.deadlineMilestones ?? []);
-        setSelectedPlanId(saved.plans.filter((plan) => plan.status === "active").at(-1)?.id ?? null);
+        setSelectedPlanId(filterOperationalPlans(recoveredSavedPlans ?? saved.plans).at(-1)?.id ?? null);
         setSessionCompletions(saved.sessionCompletions);
         setSessionInterruptions(saved.sessionInterruptions);
-        if (saved.account) setActiveSessionCheckpoints(loadActiveSessionCheckpoints(saved.account.id));
+        if (saved.account) setActiveSessionCheckpoints(savedCheckpoints);
       }
 
       let cloudAccount: PreviewAccount | null = null;
@@ -985,13 +1009,19 @@ export function YovaPrototype({
                 },
               ] as const)),
           );
-          const cloudPlans = localAccountMatches && saved?.signedIn
-            ? restoreCheckpointSessionResources(
+          const cloudPlans = recoverRunnablePlanLifecycles(
+            localAccountMatches && saved?.signedIn
+              ? restoreCheckpointSessionResources(
                 cloudState.plans,
-                saved.plans,
+                recoveredSavedPlans ?? saved.plans,
                 mergedCheckpoints.checkpoints,
               )
-            : cloudState.plans;
+              : cloudState.plans,
+            new Set([
+              ...cloudState.sessionInterruptions.map((interruption) => interruption.planSessionId),
+              ...mergedCheckpoints.checkpoints.map((checkpoint) => checkpoint.planSessionId),
+            ]),
+          );
           const cloudOnboardingCompleted = cloudState.onboardingCompleted;
           setAccount(restoredAccount);
           setSignedIn(true);
@@ -999,7 +1029,7 @@ export function YovaPrototype({
           setOnboardingCompleted(cloudOnboardingCompleted);
           setPlans(cloudPlans);
           setDeadlineMilestones(cloudState.deadlineMilestones);
-          setSelectedPlanId(cloudPlans.filter((plan) => plan.status === "active").at(-1)?.id ?? null);
+          setSelectedPlanId(filterOperationalPlans(cloudPlans).at(-1)?.id ?? null);
           setSessionCompletions(cloudState.sessionCompletions);
           setSessionInterruptions(cloudState.sessionInterruptions);
           setActiveSessionCheckpoints(mergedCheckpoints.checkpoints);
@@ -1024,7 +1054,7 @@ export function YovaPrototype({
 
           setStage(restoredAccountStage({
             onboardingCompleted: cloudOnboardingCompleted,
-            hasActivePlan: cloudPlans.some((plan) => plan.status === "active"),
+            hasActivePlan: cloudPlans.some(isOperationalPlan),
           }));
         } catch (error) {
           reportProductError({ surface: "cloud_sync", errorCode: "cloud_state_load_failed" });
@@ -1044,15 +1074,15 @@ export function YovaPrototype({
             );
             setAnswers(saved.onboardingAnswers);
             setOnboardingCompleted(saved.onboardingCompleted);
-            setPlans(saved.plans);
+            setPlans(recoveredSavedPlans ?? saved.plans);
             setDeadlineMilestones(saved.deadlineMilestones ?? []);
-            setSelectedPlanId(saved.plans.filter((plan) => plan.status === "active").at(-1)?.id ?? null);
+            setSelectedPlanId(filterOperationalPlans(recoveredSavedPlans ?? saved.plans).at(-1)?.id ?? null);
             setSessionCompletions(saved.sessionCompletions);
             setSessionInterruptions(saved.sessionInterruptions);
             setActiveSessionCheckpoints(loadActiveSessionCheckpoints(cloudAccount.id));
             setStage(restoredAccountStage({
               onboardingCompleted: saved.onboardingCompleted,
-              hasActivePlan: saved.plans.some((plan) => plan.status === "active"),
+              hasActivePlan: (recoveredSavedPlans ?? saved.plans).some(isOperationalPlan),
               legacyAlphaEntered: saved.alphaEntered,
             }));
           } else {
@@ -1078,7 +1108,7 @@ export function YovaPrototype({
         setCloudCheckpointRunIds(new Set());
         setStage(restoredAccountStage({
           onboardingCompleted: saved.onboardingCompleted,
-          hasActivePlan: saved.plans.some((plan) => plan.status === "active"),
+          hasActivePlan: (recoveredSavedPlans ?? saved.plans).some(isOperationalPlan),
           legacyAlphaEntered: saved.alphaEntered,
         }));
       } else if (authMode === "supabase") {
@@ -1236,7 +1266,7 @@ export function YovaPrototype({
     }).then(() => {
       if (!cancelled) {
         setCloudSyncIssue((current) => (
-          current === "YOVA could not save your learning profile to the cloud."
+          isTemporaryLearnerProfileSyncWarning(current)
             ? null
             : current
         ));
@@ -1868,7 +1898,18 @@ export function YovaPrototype({
       return;
     }
 
-    const clientRequestId = crypto.randomUUID();
+    const generationOperation = reusableSessionGenerationOperation(
+      pendingSessionGenerationOperationRef.current,
+      {
+        planId: requestedPlan.id,
+        planSessionId: requestedSession.id,
+        adjustment: effectiveAdjustment,
+      },
+      () => crypto.randomUUID(),
+    );
+    pendingSessionGenerationOperationRef.current = generationOperation;
+    const clientRequestId = generationOperation.requestId;
+    let generationOperationReachedTerminalResponse = false;
     let generationTimedOut = false;
     const generationTimeoutId = window.setTimeout(() => {
       generationTimedOut = true;
@@ -1910,6 +1951,7 @@ export function YovaPrototype({
       const generationAttempts = readBoundedIntegerHeader(response, "X-Yova-Generation-Attempts", 3);
       const promptCacheHit = response.headers.get("X-Yova-Prompt-Cache-Hit") === "true";
       const body: unknown = await response.json().catch(() => null);
+      generationOperationReachedTerminalResponse = !isSessionGenerationOperationInProgress(body);
       void refreshGuidedSessionAllowance();
       if (!response.ok) {
         generationFailureStatus = response.status;
@@ -2217,6 +2259,12 @@ export function YovaPrototype({
       }
     } finally {
       window.clearTimeout(generationTimeoutId);
+      if (
+        generationOperationReachedTerminalResponse
+        && pendingSessionGenerationOperationRef.current?.requestId === clientRequestId
+      ) {
+        pendingSessionGenerationOperationRef.current = null;
+      }
       if (sessionGenerationAbortRef.current === generationController) {
         sessionGenerationAbortRef.current = null;
       }
@@ -2808,12 +2856,29 @@ export function YovaPrototype({
   };
 
   const adjustPlan = async (input: PlanAdjustmentRequest) => {
+    const requestedPlan = plansRef.current.find((candidate) => candidate.id === input.planId);
+    if (!requestedPlan) throw new Error("YOVA could not find that plan.");
+    const protectedWorkSession = requestedPlan.sessions.find((session) => (
+      (session.status === "ready" || session.status === "upcoming")
+      && !isScheduledRetrievalSession(session)
+      && (
+        Boolean(session.resource)
+        || sessionInterruptions.some((interruption) => interruption.planSessionId === session.id)
+        || activeSessionCheckpoints.some((checkpoint) => checkpoint.planSessionId === session.id)
+      )
+    ));
+    if (protectedWorkSession) {
+      throw new Error("This plan has an unfinished session with saved work. Finish that session before rebuilding the remaining plan.");
+    }
+
     if (account?.identityMode === "preview") {
-      const plan = plans.find((candidate) => candidate.id === input.planId);
-      if (!plan) throw new Error("YOVA could not find that plan.");
+      const plan = requestedPlan;
       const settledSessions = plan.sessions.filter((session) => session.status === "complete" || session.status === "skipped");
       const unfinishedSessions = plan.sessions.filter((session) => session.status === "ready" || session.status === "upcoming");
-      let adjustableSessions = unfinishedSessions.map(learningPlanSessionToAdjustableRow);
+      const protectedReviews = unfinishedSessions.filter(isScheduledRetrievalSession);
+      let adjustableSessions = unfinishedSessions
+        .filter((session) => !isScheduledRetrievalSession(session))
+        .map(learningPlanSessionToAdjustableRow);
       if (input.includeDeferred && plan.knowledgeMap) {
         const alreadyIncluded = new Set(unfinishedSessions.flatMap((session) => session.topicIds ?? []));
         const deferred = plan.knowledgeMap.topics.filter((topic) => topic.deferred && !alreadyIncluded.has(topic.id));
@@ -2840,11 +2905,14 @@ export function YovaPrototype({
           },
         }))];
       }
-      const redirectedSessions = input.direction
+      const redirectedSessions = input.direction && adjustableSessions.length
         ? applyPlanDirectionFallback(adjustableSessions, input.direction, plan.topic)
         : adjustableSessions;
-      const replacements = buildContentBasedReplacementSessions(
-        redirectedSessions,
+      const replacements = buildProtectedPlanAdjustmentSessions(
+        [
+          ...redirectedSessions,
+          ...protectedReviews.map(learningPlanSessionToAdjustableRow),
+        ],
         input.futureSessionMinutes,
         Math.max(0, ...settledSessions.map((session) => session.sequence)) + 1,
         MAX_ADJUSTED_PLAN_SESSIONS - settledSessions.length,
@@ -2859,7 +2927,14 @@ export function YovaPrototype({
           ...candidate.knowledgeMap,
           topics: candidate.knowledgeMap.topics.map((topic) => includedTopicIds.has(topic.id) ? { ...topic, deferred: null } : topic),
         } : candidate.knowledgeMap,
-        sessions: [...settledSessions, ...replacements].sort((left, right) => left.sequence - right.sequence),
+        sessions: [
+          ...settledSessions,
+          ...replacements.map((replacement) => {
+            if (!("reviewType" in replacement) || !replacement.reviewType) return replacement;
+            const original = protectedReviews.find((session) => session.id === replacement.id);
+            return original ? { ...original, sequence: replacement.sequence } : replacement;
+          }),
+        ].sort((left, right) => left.sequence - right.sequence),
       } : candidate));
       return;
     }
@@ -2882,6 +2957,9 @@ export function YovaPrototype({
     setPlans((current) => current.map((plan) => {
       if (plan.id !== parsed.data.planId) return plan;
       const settledSessions = plan.sessions.filter((session) => session.status === "complete" || session.status === "skipped");
+      const protectedReviews = new Map(plan.sessions
+        .filter(isScheduledRetrievalSession)
+        .map((session) => [session.id, session]));
       return {
         ...plan,
         deadline: parsed.data.deadline,
@@ -2890,7 +2968,14 @@ export function YovaPrototype({
           ...plan.knowledgeMap,
           topics: plan.knowledgeMap.topics.map((topic) => includedTopicIds.has(topic.id) ? { ...topic, deferred: null } : topic),
         } : plan.knowledgeMap,
-        sessions: [...settledSessions, ...parsed.data.sessions].sort((left, right) => left.sequence - right.sequence),
+        sessions: [
+          ...settledSessions,
+          ...parsed.data.sessions.map((session) => {
+            if (!isScheduledRetrievalSession(session)) return session;
+            const original = protectedReviews.get(session.id);
+            return mergeAuthoritativeProtectedPlanAdjustmentSession(original, session);
+          }),
+        ].sort((left, right) => left.sequence - right.sequence),
       };
     }));
   };
@@ -2910,14 +2995,25 @@ export function YovaPrototype({
       const message = typeof body === "object" && body && "error" in body && typeof body.error === "string"
         ? body.error
         : "YOVA could not attach those materials.";
-      throw new Error(message);
+      const error = new Error(message) as Error & { attachmentCommitted?: boolean };
+      error.attachmentCommitted = Boolean(
+        typeof body === "object" && body && "committed" in body && body.committed === true,
+      );
+      throw error;
     }
     const parsed = MaterialAttachmentResponseSchema.safeParse(body);
-    if (!parsed.success) throw new Error("The attached materials came back in an unsafe format.");
+    if (!parsed.success) {
+      const error = new Error(
+        "The sources were attached, but YOVA could not refresh them safely. Do not add them again; reload this goal.",
+      ) as Error & { attachmentCommitted: true };
+      error.attachmentCommitted = true;
+      throw error;
+    }
     setPlans((current) => current.map((plan) => plan.id === parsed.data.planId ? {
       ...plan,
       sourceMode: parsed.data.sourceMode,
       materials: parsed.data.materials,
+      knowledgeMap: parsed.data.knowledgeMap,
       sessions: plan.sessions.map((session) => session.status === "ready" || session.status === "upcoming"
         ? { ...session, resource: undefined }
         : session),
@@ -2928,10 +3024,15 @@ export function YovaPrototype({
     const plan = plans.find((candidate) => candidate.sessions.some((session) => session.id === planSessionId));
     if (!plan) throw new Error("YOVA could not find the plan behind that session.");
     const session = plan.sessions.find((candidate) => candidate.id === planSessionId);
+    const protectedSessionIds = new Set([
+      ...sessionInterruptions.map((interruption) => interruption.planSessionId),
+      ...activeSessionCheckpoints.map((checkpoint) => checkpoint.planSessionId),
+    ]);
     if (!session || !canOfferAgendaSessionSplit({
       plan,
       session,
       targetMinutes: estimatedMinutes,
+      protectedSessionIds,
     })) {
       throw new Error("YOVA cannot safely split this session into that time window. Move it or review the session setup instead.");
     }
@@ -3999,8 +4100,8 @@ function LearningScreen({ plans, detailPlanId, sessionCompletions, sessionInterr
   const [changingPlanId, setChangingPlanId] = useState<string | null>(null);
   const [statusError, setStatusError] = useState<string | null>(null);
   const visiblePlans = plans.filter((plan) => {
-    if (view === "active") return plan.status === "active" && plan.creationIntent !== "study_now";
-    if (view === "recent") return plan.status === "completed" || (plan.creationIntent === "study_now" && plan.status !== "archived");
+    if (view === "active") return isOperationalPlan(plan) && plan.creationIntent !== "study_now";
+    if (view === "recent") return canPresentPlanAsCompleted(plan) || (plan.creationIntent === "study_now" && plan.status !== "archived");
     return plan.status === "archived";
   }).sort((left, right) => view === "archive" ? right.createdAt.localeCompare(left.createdAt) : 0);
   const plan = visiblePlans.find((item) => item.id === detailPlanId) ?? null;
@@ -4033,8 +4134,8 @@ function LearningScreen({ plans, detailPlanId, sessionCompletions, sessionInterr
   return <div className="page learning-page">
     <div className="learning-index-header"><PageHeader eyebrow="LEARNING" title="What you’re working toward" description="Every goal keeps its plan, materials, sessions, and progress in one place." /><button className="button primary" onClick={onCreatePlan}><Plus size={17} /> New plan</button></div>
     <div className="tabs">
-      <button className={view === "active" ? "active" : ""} onClick={() => changeView("active")}>Active <span>{plans.filter((item) => item.status === "active" && item.creationIntent !== "study_now").length}</span></button>
-      <button className={view === "recent" ? "active" : ""} onClick={() => changeView("recent")}>Recent <span>{plans.filter((item) => item.status === "completed" || (item.creationIntent === "study_now" && item.status !== "archived")).length}</span></button>
+      <button className={view === "active" ? "active" : ""} onClick={() => changeView("active")}>Active <span>{plans.filter((item) => isOperationalPlan(item) && item.creationIntent !== "study_now").length}</span></button>
+      <button className={view === "recent" ? "active" : ""} onClick={() => changeView("recent")}>Recent <span>{plans.filter((item) => canPresentPlanAsCompleted(item) || (item.creationIntent === "study_now" && item.status !== "archived")).length}</span></button>
       <button className={view === "archive" ? "active" : ""} onClick={() => changeView("archive")}>Archive <span>{plans.filter((item) => item.status === "archived").length}</span></button>
     </div>
     {statusError && <div className="chat-error"><AlertCircle size={16} /><span>{statusError}</span></div>}
@@ -4043,7 +4144,7 @@ function LearningScreen({ plans, detailPlanId, sessionCompletions, sessionInterr
 }
 
 function LearningOverview({ plans, allPlans, view, interruptions, activeSessionCheckpoints, onOpenPlan, onStart }: { plans: LearningPlan[]; allPlans: LearningPlan[]; view: "active" | "recent" | "archive"; interruptions: SessionInterruption[]; activeSessionCheckpoints: ActiveSessionCheckpointV1[]; onOpenPlan: (planId: string) => void; onStart: (planId: string) => void }) {
-  const activeLearningPlans = allPlans.filter((plan) => plan.status === "active" && plan.creationIntent !== "study_now");
+  const activeLearningPlans = allPlans.filter((plan) => isOperationalPlan(plan) && plan.creationIntent !== "study_now");
   const activeCount = activeLearningPlans.length;
   const sessionsAhead = activeLearningPlans.reduce((count, plan) => count + plan.sessions.filter((session) => session.status === "ready" || session.status === "upcoming").length, 0);
   const completedCount = allPlans.filter(canPresentPlanAsCompleted).length;
@@ -4053,7 +4154,8 @@ function LearningOverview({ plans, allPlans, view, interruptions, activeSessionC
     <section className="learning-card-grid">{plans.map((plan) => {
       const done = plan.sessions.filter((session) => session.status === "complete").length;
       const presentAsCompleted = canPresentPlanAsCompleted(plan);
-      const displayStatus = plan.status === "completed" && !presentAsCompleted ? "saved" : plan.status;
+      const operational = isOperationalPlan(plan);
+      const displayStatus = operational ? "active" : plan.status;
       const readySession = plan.sessions.find((session) => session.status === "ready");
       const resumePoint = readySession ? chooseLatestSessionResumePoint(readySession.id, interruptions.filter((interruption) => interruption.planId === plan.id), activeSessionCheckpoints.filter((checkpoint) => checkpoint.planId === plan.id)) : null;
       const resumeLabel = resumePoint
@@ -4063,7 +4165,7 @@ function LearningOverview({ plans, allPlans, view, interruptions, activeSessionC
         : null;
       const progress = plan.sessions.length ? Math.round((done / plan.sessions.length) * 100) : 0;
       return <article className="learning-goal-card" key={plan.id}>
-        <div className="learning-card-top"><SubjectIcon plan={plan} /><span className="learning-card-kind">{plan.kind}</span><span className={`learning-card-status ${displayStatus}`}>{plan.status === "active" ? formatPlanDeadline(plan.deadline) : displayStatus}</span></div>
+        <div className="learning-card-top"><SubjectIcon plan={plan} /><span className="learning-card-kind">{plan.kind}</span><span className={`learning-card-status ${displayStatus}`}>{operational ? formatPlanDeadline(plan.deadline) : displayStatus}</span></div>
         <div className="learning-card-copy"><h2>{plan.title}</h2><p>{plan.topic}</p></div>
         <div className="learning-card-progress"><div><span style={{ width: `${progress}%` }} /></div><small>{done} of {plan.sessions.length} sessions complete</small></div>
         <div className="learning-card-next"><span>{view === "active" ? "NEXT SESSION" : view === "archive" ? "ARCHIVED HISTORY" : "PLAN SUMMARY"}</span><strong>{view === "archive" ? "Saved in your archive" : readySession ? readySession.title : presentAsCompleted ? "Goal completed" : "Saved learning goal"}</strong><small>{view === "archive" ? `${done} of ${plan.sessions.length} sessions completed` : readySession ? `${resumeLabel ?? formatSessionTime(readySession.scheduledFor)} · ${readySession.estimatedMinutes} min` : `${plan.sessions.length} planned sessions`}</small></div>
@@ -4093,7 +4195,10 @@ function LearningPlanDetail({ plan, view, completions, interruptions, activeSess
         planId: plan.id,
         deadline: plan.deadline,
         studyMode: plan.studyMode,
-        futureSessionMinutes: readySession?.estimatedMinutes ?? 25,
+        futureSessionMinutes: plan.sessions.find((session) => (
+          (session.status === "ready" || session.status === "upcoming")
+          && !isScheduledRetrievalSession(session)
+        ))?.estimatedMinutes ?? 25,
         includeDeferred: true,
       });
     } catch (error) {
@@ -4119,6 +4224,7 @@ function LearningPlanDetail({ plan, view, completions, interruptions, activeSess
 }
 
 function PlanKnowledgeMapPanel({ plan, completions, canExtend, extending, error, onExtend, onAdjustPlan, onKnowledgeMapUpdate }: { plan: LearningPlan; completions: SessionCompletion[]; canExtend: boolean; extending: boolean; error: string | null; onExtend: () => void; onAdjustPlan: (input: PlanAdjustmentRequest) => Promise<void>; onKnowledgeMapUpdate: (planId: string, knowledgeMap: PlanKnowledgeMap) => void }) {
+  const placementOperationRef = useRef<string | null>(null);
   const [placementOpen, setPlacementOpen] = useState(false);
   const [placementLoading, setPlacementLoading] = useState(false);
   const [placementQuestions, setPlacementQuestions] = useState<PlanDiagnosticQuestion[]>([]);
@@ -4139,6 +4245,9 @@ function PlanKnowledgeMapPanel({ plan, completions, canExtend, extending, error,
   const secureCount = active.filter((topic) => topic.displayStatus === "secure").length;
 
   const beginPlacementCheck = async () => {
+    if (placementOperationRef.current) return;
+    const operationId = crypto.randomUUID();
+    placementOperationRef.current = operationId;
     setPlacementOpen(true);
     setPlacementLoading(true);
     setPlacementError(null);
@@ -4146,7 +4255,10 @@ function PlanKnowledgeMapPanel({ plan, completions, canExtend, extending, error,
     setPlacementAnswers([]);
     setPlacementIndex(0);
     try {
-      const response = await fetch(`/api/plans/${plan.id}/diagnostic`, { cache: "no-store" });
+      const response = await fetch(`/api/plans/${plan.id}/diagnostic`, {
+        cache: "no-store",
+        headers: { "X-Yova-Request-Id": operationId },
+      });
       const body: unknown = await response.json();
       if (!response.ok) throw new Error(readApiError(body) ?? "YOVA could not prepare the placement check.");
       const questions = PlanDiagnosticQuestionSchema.array().min(1).max(8).safeParse(readApiProperty(body, "questions"));
@@ -4157,6 +4269,9 @@ function PlanKnowledgeMapPanel({ plan, completions, canExtend, extending, error,
     } catch (placementFailure) {
       setPlacementError(placementFailure instanceof Error ? placementFailure.message : "YOVA could not prepare the placement check.");
     } finally {
+      if (placementOperationRef.current === operationId) {
+        placementOperationRef.current = null;
+      }
       setPlacementLoading(false);
     }
   };
@@ -4196,7 +4311,10 @@ function PlanKnowledgeMapPanel({ plan, completions, canExtend, extending, error,
     setApplyingProposal(true);
     setPlacementError(null);
     try {
-      const readySession = plan.sessions.find((session) => session.status === "ready" || session.status === "upcoming");
+      const readySession = plan.sessions.find((session) => (
+        (session.status === "ready" || session.status === "upcoming")
+        && !isScheduledRetrievalSession(session)
+      ));
       await onAdjustPlan({
         planId: plan.id,
         deadline: plan.deadline,
@@ -4286,7 +4404,9 @@ function PlanSources({ plan, editable, onAttach }: { plan: LearningPlan; editabl
       try {
         await onAttach(plan.id, accepted.map((material) => material.id));
       } catch (attachError) {
-        await Promise.allSettled(accepted.map((material) => deleteUploadedMaterial(material.id)));
+        if (!materialAttachmentWasCommitted(attachError)) {
+          await Promise.allSettled(accepted.map((material) => deleteUploadedMaterial(material.id)));
+        }
         setError(attachError instanceof Error ? attachError.message : "YOVA could not attach those materials.");
       }
     }
@@ -4302,7 +4422,9 @@ function PlanSources({ plan, editable, onAttach }: { plan: LearningPlan; editabl
       await onAttach(plan.id, [material.id]);
       setNotice(materialNotice);
     } catch (attachError) {
-      await deleteUploadedMaterial(material.id).catch(() => undefined);
+      if (!materialAttachmentWasCommitted(attachError)) {
+        await deleteUploadedMaterial(material.id).catch(() => undefined);
+      }
       setError(attachError instanceof Error ? attachError.message : "YOVA could not attach that source.");
     } finally {
       setAdding(false);
@@ -4312,15 +4434,33 @@ function PlanSources({ plan, editable, onAttach }: { plan: LearningPlan; editabl
   return <section className="section-block plan-sources"><div className="section-title"><h3>Learning source</h3><div className="source-heading-actions"><span>{plan.sourceMode === "user_materials" ? `${materials.length} uploaded` : "Created by YOVA"}</span>{editable && !atLimit && <label className={`button source-upload ${adding ? "disabled" : ""}`}><Upload size={15} /> {adding ? "Processing…" : "Add files"}<input aria-label="Add source materials" type="file" multiple accept=".pdf,.txt,.md,text/plain,text/markdown,application/pdf" disabled={adding} onChange={(event) => { void addFiles(event.target.files); event.target.value = ""; }} /></label>}</div></div>{materials.length ? <div className="source-material-list">{materials.map((material) => <div key={material.id}><FileText size={18} /><span><strong>{material.name}</strong><small>{formatFileSize(material.sizeBytes)} · Private source for this goal</small></span><span className="data-badge">Ready</span></div>)}</div> : plan.sourceMode === "user_materials" ? <div className="source-empty"><AlertCircle size={17} /><p>This goal expects uploaded sources, but their metadata could not be loaded. Guided sessions will stop rather than silently inventing source content.</p></div> : <div className="source-created"><Sparkles size={18} /><div><strong>YOVA-generated learning content</strong><p>Explanations, questions, and practice are created from the goal. You can add private sources later.</p></div></div>}{editable && !atLimit && <MaterialLinkImporter existingCount={materials.length} disabled={adding} onImported={(material, materialNotice) => { void addLinkedSource(material, materialNotice); }} />}{atLimit && editable && <p className="source-limit">This goal has reached the five-material limit.</p>}{notice && <p className="material-notice"><AlertCircle size={15} /> {notice}</p>}{error && <div className="chat-error"><AlertCircle size={16} /><span>{error}</span></div>}</section>;
 }
 
+function materialAttachmentWasCommitted(error: unknown) {
+  return error instanceof Error
+    && "attachmentCommitted" in error
+    && (error as Error & { attachmentCommitted?: boolean }).attachmentCommitted === true;
+}
+
 function PlanAdjustmentPanel({ plan, onCancel, onSave }: { plan: LearningPlan; onCancel: () => void; onSave: (input: PlanAdjustmentRequest) => Promise<void> }) {
-  const firstUnfinished = plan.sessions.find((session) => session.status === "ready" || session.status === "upcoming");
+  const firstUnfinished = plan.sessions.find((session) => (
+    (session.status === "ready" || session.status === "upcoming")
+    && !isScheduledRetrievalSession(session)
+  ));
+  const initialMinutes = firstUnfinished
+    ? Math.max(10, Math.min(90, Math.round(firstUnfinished.estimatedMinutes)))
+    : 25;
+  const minuteOptions = [...new Set([10, 15, 25, 30, 45, 60, initialMinutes])]
+    .sort((left, right) => left - right);
   const [deadlineDate, setDeadlineDate] = useState(plan.deadline ? localDateInput(plan.deadline) : "");
-  const [minutes, setMinutes] = useState(firstUnfinished?.estimatedMinutes ?? 25);
+  const [minutes, setMinutes] = useState(initialMinutes);
   const [studyMode, setStudyMode] = useState(plan.studyMode);
   const [direction, setDirection] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const unfinishedCount = plan.sessions.filter((session) => session.status === "ready" || session.status === "upcoming").length;
+  const protectedReviewCount = plan.sessions.filter((session) => (
+    (session.status === "ready" || session.status === "upcoming")
+    && isScheduledRetrievalSession(session)
+  )).length;
   const directionLimit = getCharacterLimitState(direction);
 
   const save = async () => {
@@ -4341,7 +4481,7 @@ function PlanAdjustmentPanel({ plan, onCancel, onSave }: { plan: LearningPlan; o
     }
   };
 
-  return <section className="plan-adjustment-panel"><div className="plan-adjustment-heading"><div><span className="step-label">ADJUST UNFINISHED WORK</span><h3>Change the plan without losing progress</h3><p>Tell YOVA when the course is on the wrong track, or change its timing and study location. Completed sessions stay exactly as they are.</p></div></div><label className={`plan-direction-field ${directionLimit.isOverLimit ? "field-over-limit" : ""}`}><span>What should be different?</span><textarea rows={4} value={direction} disabled={saving} aria-invalid={directionLimit.isOverLimit || undefined} aria-describedby="plan-adjustment-direction-limit" placeholder="Example: Keep this conceptual. I do not want calculation exercises. Focus on founder decisions, investor incentives, and real examples." onChange={(event) => setDirection(event.target.value)} /><small id="plan-adjustment-direction-limit" className={`character-limit-feedback ${directionLimit.isOverLimit ? "over-limit" : ""}`} role={directionLimit.isOverLimit ? "alert" : undefined}>Optional. YOVA will rebuild only unfinished sessions. The next session setup will show the revised target and method. {formatCharacterLimit(directionLimit)}</small><div><button type="button" onClick={() => setDirection("Keep this conceptual. Do not include math or calculation exercises.")}>No calculations</button><button type="button" onClick={() => setDirection("Teach the foundations first, then use concrete examples before practice.")}>Teach it first</button><button type="button" onClick={() => setDirection("Use more real examples and case scenarios before independent work.")}>More examples</button></div></label><div className="plan-adjustment-grid"><label><span>Target date</span><input type="date" min={localDateInput(new Date().toISOString())} value={deadlineDate} disabled={saving} onChange={(event) => setDeadlineDate(event.target.value)} /><small>Optional. Agenda times are changed separately.</small></label><label><span>Future session window</span><select value={minutes} disabled={saving} onChange={(event) => setMinutes(Number(event.target.value))}><option value={15}>15 minutes</option><option value={25}>25 minutes</option><option value={30}>30 minutes</option><option value={45}>45 minutes</option><option value={60}>60 minutes</option></select><small>Time controls the size of each content slice, not whether it counts as complete.</small></label></div><div className="adjustment-content-rule"><Target size={18} /><div><strong>Progress stays intact</strong><p>The current {unfinishedCount} unfinished {unfinishedCount === 1 ? "session" : "sessions"} can be rewritten or divided differently. Finished sessions and recorded learning evidence are never erased.</p></div></div><div className="adjustment-mode"><span>Where should future sessions happen?</span><div><button className={studyMode === "inside_yova" ? "selected" : ""} disabled={saving} onClick={() => setStudyMode("inside_yova")}><BookOpen size={17} /><strong>Inside YOVA</strong><small>Teaching, questions, and feedback in the app</small></button><button className={studyMode === "outside_yova" ? "selected" : ""} disabled={saving} onClick={() => setStudyMode("outside_yova")}><LibraryBig size={17} /><strong>Outside YOVA</strong><small>Exact instructions for another source or workspace</small></button></div></div>{error && <div className="chat-error"><AlertCircle size={16} /><span>{error}</span></div>}<footer><button className="button ghost" disabled={saving} onClick={onCancel}>Cancel</button><button className="button primary" disabled={saving || unfinishedCount === 0 || directionLimit.isOverLimit} onClick={() => void save()}>{saving ? <span className="button-spinner" /> : <><Check size={16} /> Approve and rebuild plan</>}</button></footer></section>;
+  return <section className="plan-adjustment-panel"><div className="plan-adjustment-heading"><div><span className="step-label">ADJUST UNFINISHED WORK</span><h3>Change the plan without losing progress</h3><p>Tell YOVA when the course is on the wrong track, or change its timing and study location. Completed sessions stay exactly as they are.</p></div></div><label className={`plan-direction-field ${directionLimit.isOverLimit ? "field-over-limit" : ""}`}><span>What should be different?</span><textarea rows={4} value={direction} disabled={saving} aria-invalid={directionLimit.isOverLimit || undefined} aria-describedby="plan-adjustment-direction-limit" placeholder="Example: Keep this conceptual. I do not want calculation exercises. Focus on founder decisions, investor incentives, and real examples." onChange={(event) => setDirection(event.target.value)} /><small id="plan-adjustment-direction-limit" className={`character-limit-feedback ${directionLimit.isOverLimit ? "over-limit" : ""}`} role={directionLimit.isOverLimit ? "alert" : undefined}>Optional. YOVA will rebuild only unfinished content sessions. Scheduled reviews keep their exact return contract. The next session setup will show the revised target and method. {formatCharacterLimit(directionLimit)}</small><div><button type="button" onClick={() => setDirection("Keep this conceptual. Do not include math or calculation exercises.")}>No calculations</button><button type="button" onClick={() => setDirection("Teach the foundations first, then use concrete examples before practice.")}>Teach it first</button><button type="button" onClick={() => setDirection("Use more real examples and case scenarios before independent work.")}>More examples</button></div></label><div className="plan-adjustment-grid"><label><span>Target date</span><input type="date" min={localDateInput(new Date().toISOString())} value={deadlineDate} disabled={saving} onChange={(event) => setDeadlineDate(event.target.value)} /><small>Optional. Agenda times are changed separately.</small></label><label><span>Future session window</span><select value={minutes} disabled={saving} onChange={(event) => setMinutes(Number(event.target.value))}>{minuteOptions.map((option) => <option value={option} key={option}>{option} minutes</option>)}</select><small>Time controls the size of each content slice, not whether it counts as complete.</small></label></div><div className="adjustment-content-rule"><Target size={18} /><div><strong>Progress stays intact</strong><p>The current {unfinishedCount} unfinished {unfinishedCount === 1 ? "session" : "sessions"} can be adjusted safely. Finished sessions and recorded learning evidence are never erased.{protectedReviewCount > 0 ? ` ${protectedReviewCount} scheduled ${protectedReviewCount === 1 ? "review keeps" : "reviews keep"} the original duration, concept, and return time.` : ""}</p></div></div><div className="adjustment-mode"><span>Where should future sessions happen?</span><div><button className={studyMode === "inside_yova" ? "selected" : ""} disabled={saving} onClick={() => setStudyMode("inside_yova")}><BookOpen size={17} /><strong>Inside YOVA</strong><small>Teaching, questions, and feedback in the app</small></button><button className={studyMode === "outside_yova" ? "selected" : ""} disabled={saving} onClick={() => setStudyMode("outside_yova")}><LibraryBig size={17} /><strong>Outside YOVA</strong><small>Exact instructions for another source or workspace</small></button></div></div>{error && <div className="chat-error"><AlertCircle size={16} /><span>{error}</span></div>}<footer><button className="button ghost" disabled={saving} onClick={onCancel}>Cancel</button><button className="button primary" disabled={saving || unfinishedCount === 0 || directionLimit.isOverLimit} onClick={() => void save()}>{saving ? <span className="button-spinner" /> : <><Check size={16} /> Approve and rebuild plan</>}</button></footer></section>;
 }
 
 function AgendaScreen({ plans, milestones, sessionCompletions, sessionInterruptions, activeSessionCheckpoints, allowance, allowanceChecking, previewMode, onAdd, onStart, onActivateReview, onReschedule, onAdjustDuration, onClassifyRecoveryInterruption, onUpdateMilestone, onDeleteMilestone, onConvertMilestone }: { plans: LearningPlan[]; milestones: DeadlineMilestone[]; sessionCompletions: SessionCompletion[]; sessionInterruptions: SessionInterruption[]; activeSessionCheckpoints: ActiveSessionCheckpointV1[]; allowance: GuidedSessionAllowanceDisplayState; allowanceChecking: boolean; previewMode: boolean; onAdd: () => void; onStart: (planId?: string) => void; onActivateReview: (item: ConceptReviewAgendaItem) => Promise<void>; onReschedule: (planId: string, planSessionId: string, scheduledFor: string) => void; onAdjustDuration: (planSessionId: string, estimatedMinutes: number) => Promise<void>; onClassifyRecoveryInterruption: (planSessionId: string, excludeFromHabitEvidence: boolean) => void; onUpdateMilestone: (id: string, changes: Partial<Pick<DeadlineMilestone, "title" | "description" | "dueAt" | "status" | "linkedLearningItemId">>) => Promise<void>; onDeleteMilestone: (id: string) => Promise<void>; onConvertMilestone: (milestone: DeadlineMilestone, outcome: "session" | "plan") => void }) {
@@ -4432,7 +4572,13 @@ function AgendaScreen({ plans, milestones, sessionCompletions, sessionInterrupti
     .filter((milestone) => milestone.status === "open" && localDateKey(new Date(milestone.dueAt)) >= localDateKey(new Date()))
     .sort((left, right) => new Date(left.dueAt).getTime() - new Date(right.dueAt).getTime())[0] ?? null;
   const balanceSuggestion = buildAgendaBalanceSuggestion(availableSessions);
-  const capacityPlan = todayCapacity === null ? null : buildDailyCapacityPlan(availableSessions, todayCapacity);
+  const protectedRewriteSessionIds = new Set([
+    ...sessionInterruptions.map((interruption) => interruption.planSessionId),
+    ...activeSessionCheckpoints.map((checkpoint) => checkpoint.planSessionId),
+  ]);
+  const capacityPlan = todayCapacity === null
+    ? null
+    : buildDailyCapacityPlan(availableSessions, todayCapacity, new Date(), protectedRewriteSessionIds);
   const [adjustmentsOpen, setAdjustmentsOpen] = useState(
     agendaSummary.todayMinutes > 75 || agendaSummary.todaySessions >= 3,
   );
@@ -4447,6 +4593,7 @@ function AgendaScreen({ plans, milestones, sessionCompletions, sessionInterrupti
       plan: overdueEntry.plan,
       session: overdueEntry.session,
       targetMinutes: recoveryMinutes,
+      protectedSessionIds: protectedRewriteSessionIds,
     })
     : false;
 

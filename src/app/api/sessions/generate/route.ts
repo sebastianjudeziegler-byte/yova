@@ -30,6 +30,8 @@ import {
   generateProductionSessionWithOpenAI,
 } from "@/lib/openai/session-generation-strategy";
 import {
+  SESSION_GENERATION_SERVER_BUDGET_MS,
+  SESSION_GENERATION_SETTLEMENT_RESERVE_MS,
   SessionGenerationFailure,
   type SessionGenerationContext,
   type SessionGenerationStats,
@@ -62,7 +64,13 @@ import {
   type SessionArchitectureVersion,
 } from "@/lib/session-generation/architecture";
 import { checkSessionGenerationRateLimit, requestRateLimitKey } from "@/lib/server/rate-limit";
-import { claimAIRequest, releaseAIRequestClaim } from "@/lib/server/ai-usage";
+import { aiUsageReservationConflict } from "@/lib/ai-usage/reservation-conflict";
+import {
+  releaseAIRequestClaim,
+  releaseAIRequestReservation,
+  reserveAIRequest,
+  settleAIRequestClaim,
+} from "@/lib/server/ai-usage";
 import {
   classifyOperationalPlanSession,
   sessionCacheFailureMustFailClosed,
@@ -123,12 +131,12 @@ export async function POST(request: Request) {
   };
 
   if (developmentPreview || !supabase || !user) {
-    return generateBrowserPreviewSession(request, normalizedInput, requestId);
+    return generateBrowserPreviewSession(request, normalizedInput, requestId, startedAt);
   }
 
   const { data: planSession, error: sessionError } = await supabase
     .from("plan_sessions")
-    .select("id,plan_id,sequence,status,title,objective,method,method_rationale,estimated_minutes,step_data")
+    .select("id,plan_id,sequence,status,title,objective,method,method_rationale,estimated_minutes,step_data,updated_at")
     .eq("id", parsed.data.planSessionId)
     .maybeSingle();
 
@@ -144,7 +152,7 @@ export async function POST(request: Request) {
     const [{ data: plan, error: planError }, { data: learnerProfile, error: learnerError }, { data: planSessionRows, error: planSessionsError }] = await Promise.all([
       supabase
         .from("plans")
-        .select("learning_item_id,status,rationale,generation_inputs,knowledge_map")
+        .select("learning_item_id,status,rationale,generation_inputs,knowledge_map,updated_at")
         .eq("id", parsed.data.planId)
         .maybeSingle(),
       supabase
@@ -181,7 +189,7 @@ export async function POST(request: Request) {
     ] = await Promise.all([
       supabase
         .from("learning_items")
-        .select("title,topic,kind,deadline,source_mode,study_mode")
+        .select("title,topic,kind,deadline,source_mode,study_mode,updated_at")
         .eq("id", plan.learning_item_id)
         .maybeSingle(),
       planSessionRows?.length
@@ -352,7 +360,7 @@ export async function POST(request: Request) {
         ))
       && cached.methodBriefing.learningMode === effectiveLearningMode
     ) {
-      await recordGenerationObservation(supabase, user.id, {
+      recordGenerationObservationBestEffort(supabase, user.id, {
         ...emptySessionObservation(Date.now() - startedAt),
         generationType: "session",
         environment: generationEnvironment(),
@@ -377,16 +385,38 @@ export async function POST(request: Request) {
       );
     }
 
-    let durableLimit: Awaited<ReturnType<typeof claimAIRequest>>;
+    let durableLimit: Awaited<ReturnType<typeof reserveAIRequest>>;
+    const aiUsageRecoveryKey = crypto.randomUUID();
     try {
-      durableLimit = await claimAIRequest(supabase, "session_generation");
+      durableLimit = await reserveAIRequest(supabase, "session_generation", requestId, aiUsageRecoveryKey);
     } catch {
+      await recoverUnknownGenerationReservation(supabase, requestId, aiUsageRecoveryKey);
       return NextResponse.json(
         { error: "YOVA paused before using OpenAI because it could not verify the account’s AI budget." },
         { status: 503, headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId } },
       );
     }
     if (!durableLimit.allowed) {
+      const conflict = aiUsageReservationConflict(durableLimit);
+      if (conflict) {
+        return NextResponse.json(
+          {
+            code: conflict.code,
+            error: conflict.error,
+            retryable: conflict.retryable,
+          },
+          {
+            status: 409,
+            headers: {
+              "Cache-Control": "no-store",
+              ...(conflict.retryAfterSeconds === null ? {} : {
+                "Retry-After": String(conflict.retryAfterSeconds),
+              }),
+              "X-Yova-Request-Id": requestId,
+            },
+          },
+        );
+      }
       return NextResponse.json(
         guidedSessionAllowanceExhaustedResponse(durableLimit.retryAfterSeconds),
         {
@@ -399,7 +429,7 @@ export async function POST(request: Request) {
         },
       );
     }
-    aiUsageClaimId = durableLimit.claimId ?? null;
+    aiUsageClaimId = durableLimit.claimId;
     const completionEvidence = recentAttempts.map((attempt) => ({
       completedAt: attempt.completed_at ?? new Date(0).toISOString(),
       conceptEvidence: readConceptEvidenceProperty(attempt.result_data),
@@ -578,21 +608,27 @@ export async function POST(request: Request) {
       topicCalibrationSignals: buildTopicCalibrationSignals(confidenceEvidence).slice(0, 20),
       personalization: generationPersonalization,
     };
-    const generated = await generateProductionSessionWithOpenAI(generationContext);
+    const generated = await generateProductionSessionWithOpenAI(
+      generationContext,
+      sessionGenerationRuntime(request, startedAt),
+    );
 
     const cachedSession = cacheGeneratedSession(generated, expectedCacheVersion, requestedCacheContext);
+    const cachePayload = {
+      planSessionId: planSession.id,
+      generatedSession: cachedSession,
+      expectedKnowledgeMap: parsedKnowledgeMap.data,
+      expectedSourceMode: learningItem.source_mode,
+      expectedPlanUpdatedAt: plan.updated_at,
+      expectedSessionUpdatedAt: planSession.updated_at,
+      expectedLearningItemUpdatedAt: learningItem.updated_at,
+    };
     let { error: cacheError } = await supabase.rpc("cache_generated_session", {
-      payload: {
-        planSessionId: planSession.id,
-        generatedSession: cachedSession,
-      },
+      payload: cachePayload,
     });
     if (cacheError && expectedCacheVersion === 17) {
       ({ error: cacheError } = await supabase.rpc("cache_generated_session", {
-        payload: {
-          planSessionId: planSession.id,
-          generatedSession: cachedSession,
-        },
+        payload: cachePayload,
       }));
     }
 
@@ -632,19 +668,7 @@ export async function POST(request: Request) {
     if (cacheError && expectedCacheVersion === 17) {
       throw new Error("YOVA could not safely store the streamed lesson before opening it.");
     }
-    logSuccessfulGeneration(
-      requestId,
-      generated.model,
-      generated.generationStats,
-      cacheError ? "browser" : "supabase",
-    );
-    await recordGenerationObservation(supabase, user.id, observationFromSessionStats(
-      generated.generationStats,
-      generated.model,
-      "success",
-    ));
-
-    return NextResponse.json(SessionGenerationResponseSchema.parse({
+    const learnerResponse = NextResponse.json(SessionGenerationResponseSchema.parse({
       planSessionId: planSession.id,
       session: cachedSession,
       generation: {
@@ -652,6 +676,21 @@ export async function POST(request: Request) {
         persistence: cacheError ? "browser" : "supabase",
       },
     }), { headers: responseHeaders(requestId, generated.generationStats) });
+    await settleSuccessfulGenerationClaim(supabase, aiUsageClaimId, requestId);
+
+    logSuccessfulGeneration(
+      requestId,
+      generated.model,
+      generated.generationStats,
+      cacheError ? "browser" : "supabase",
+    );
+    recordGenerationObservationBestEffort(supabase, user.id, observationFromSessionStats(
+      generated.generationStats,
+      generated.model,
+      "success",
+    ));
+
+    return learnerResponse;
   } catch (error) {
     await releaseFailedGenerationClaim(supabase, aiUsageClaimId, requestId);
     const attemptedModel = getOpenAISessionConfig()?.model ?? null;
@@ -667,7 +706,11 @@ export async function POST(request: Request) {
         elapsedMs: Date.now() - startedAt,
         failedValidator: "session_provider_request" as const,
       };
-    await recordGenerationObservation(supabase, user.id, observationFromSessionStats(stats, attemptedModel, "failure"));
+    recordGenerationObservationBestEffort(
+      supabase,
+      user.id,
+      observationFromSessionStats(stats, attemptedModel, "failure"),
+    );
     return NextResponse.json(
       {
         ...guidedSessionFailureResponse(
@@ -693,6 +736,35 @@ async function releaseFailedGenerationClaim(
   }
 }
 
+async function settleSuccessfulGenerationClaim(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  claimId: string | null,
+  requestId: string,
+) {
+  if (!claimId) return;
+  try {
+    if (!await settleAIRequestClaim(supabase, claimId)) {
+      console.error("YOVA could not settle a successful guided-session allowance claim", { requestId });
+    }
+  } catch {
+    // The learner already has a complete, validated response. Never turn an
+    // ambiguous settlement receipt into a retry that repeats provider work.
+    console.error("YOVA could not settle a successful guided-session allowance claim", { requestId });
+  }
+}
+
+async function recoverUnknownGenerationReservation(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  operationKey: string,
+  recoveryKey: string,
+) {
+  try {
+    await releaseAIRequestReservation(supabase, "session_generation", operationKey, recoveryKey);
+  } catch {
+    // Its short database lease remains the final recovery boundary.
+  }
+}
+
 function generationRequestId(request: Request) {
   const candidate = request.headers.get("X-Yova-Request-Id")?.trim() ?? "";
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(candidate)
@@ -700,10 +772,21 @@ function generationRequestId(request: Request) {
     : crypto.randomUUID();
 }
 
+function recordGenerationObservationBestEffort(
+  ...args: Parameters<typeof recordGenerationObservation>
+) {
+  try {
+    void Promise.resolve(recordGenerationObservation(...args)).catch(() => undefined);
+  } catch {
+    // Telemetry must never replace a learner-usable or structured route result.
+  }
+}
+
 async function generateBrowserPreviewSession(
   request: Request,
   input: SessionGenerationRequest,
   requestId: string,
+  startedAt: number,
 ) {
   if (!input.previewContext) {
     return NextResponse.json(
@@ -754,7 +837,10 @@ async function generateBrowserPreviewSession(
       materials: [],
       sessionAdjustment: input.sessionAdjustment ?? null,
     };
-    const generated = await generateProductionSessionWithOpenAI(generationContext);
+    const generated = await generateProductionSessionWithOpenAI(
+      generationContext,
+      sessionGenerationRuntime(request, startedAt),
+    );
     const expectedCacheVersion = expectedSessionCacheVersion({
       sessionArchitectureVersion: runtimeSessionArchitectureVersion,
       learningMode: generationContext.session.learningMode,
@@ -791,6 +877,14 @@ async function generateBrowserPreviewSession(
       { status: 502, headers: responseHeaders(requestId) },
     );
   }
+}
+
+function sessionGenerationRuntime(request: Request, startedAt: number) {
+  return {
+    deadlineAt: startedAt + SESSION_GENERATION_SERVER_BUDGET_MS,
+    settlementReserveMs: SESSION_GENERATION_SETTLEMENT_RESERVE_MS,
+    signal: request.signal,
+  };
 }
 
 function responseHeaders(requestId: string, stats?: SessionGenerationStats) {

@@ -112,6 +112,9 @@ export async function generateTutorAnswer(
     text: { verbosity: "low" },
     max_output_tokens: 800,
     store: false,
+  }, {
+    maxRetries: 0,
+    timeout: 40_000,
   });
 
   const generatedAnswer = response.output_text.trim();

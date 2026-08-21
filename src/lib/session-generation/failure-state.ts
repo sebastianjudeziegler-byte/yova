@@ -1,4 +1,5 @@
 import type { BuiltInFallbackOutcome } from "@/lib/session-generation/fallback-observation";
+import { AI_USAGE_OPERATION_IN_PROGRESS_CODE } from "@/lib/ai-usage/reservation-conflict";
 import {
   GUIDED_SESSION_ALLOWANCE_EXHAUSTED_CODE,
   TRANSIENT_GUIDED_SESSION_FAILURE_CODE,
@@ -176,7 +177,8 @@ export function classifyGuidedSessionGenerationFailure({
     };
   }
 
-  const explicitlyTransient = code === TRANSIENT_GUIDED_SESSION_FAILURE_CODE;
+  const explicitlyTransient = code === TRANSIENT_GUIDED_SESSION_FAILURE_CODE
+    || code === AI_USAGE_OPERATION_IN_PROGRESS_CODE;
   const transientStatus = responseStatus === null
     || responseStatus === 429
     || responseStatus === 500

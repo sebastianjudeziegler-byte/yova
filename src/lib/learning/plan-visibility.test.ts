@@ -10,6 +10,7 @@ import {
   isAvailablePlanStatus,
   isOperationalPlan,
   isOperationalPlanStatus,
+  recoverRunnablePlanLifecycle,
 } from "@/lib/learning/plan-visibility";
 
 describe("plan visibility", () => {
@@ -69,6 +70,106 @@ describe("plan visibility", () => {
       status: "active",
       sessions: [{ status: "complete" }],
     })).toBe(false);
+  });
+
+  it("repairs an unrelated completed plan with obsolete undersized content parts at the read boundary", () => {
+    const corrupted = {
+      ...plan("completed"),
+      id: "plate-tectonics",
+      title: "Plate tectonics",
+      sessions: [
+        obsoleteSplitSession("content-1", "ready", 8, 1, "Practice plate boundaries · about 8 min"),
+        obsoleteSplitSession("content-2", "upcoming", 7, 2, "Explain mantle convection"),
+        {
+          ...session("review", "upcoming", 5, "Verify continental drift · about 5 min"),
+          reviewConcept: "continental drift",
+          reviewType: "verify" as const,
+        },
+      ],
+    };
+
+    const recovered = recoverRunnablePlanLifecycle(corrupted);
+
+    expect(recovered.status).toBe("active");
+    expect(recovered.sessions.map((item) => ({
+      id: item.id,
+      minutes: item.estimatedMinutes,
+      amountLabel: item.amountLabel,
+    }))).toEqual([
+      {
+        id: "content-1",
+        minutes: 10,
+        amountLabel: "Practice plate boundaries · about 10 min",
+      },
+      {
+        id: "content-2",
+        minutes: 10,
+        amountLabel: "Explain mantle convection · about 10 min",
+      },
+      {
+        id: "review",
+        minutes: 5,
+        amountLabel: "Verify continental drift · about 5 min",
+      },
+    ]);
+    expect(recovered.sessions[2]).toMatchObject({
+      reviewConcept: "continental drift",
+      reviewType: "verify",
+    });
+  });
+
+  it("repairs safely fingerprinted obsolete parts in an already-active plan", () => {
+    const active = {
+      ...plan("active"),
+      sessions: [
+        obsoleteSplitSession("part-1", "ready", 8, 1, "Part 1 · about 8 min"),
+        obsoleteSplitSession("part-2", "upcoming", 7, 2, "Part 2 · about 7 min"),
+      ],
+    };
+
+    const recovered = recoverRunnablePlanLifecycle(active);
+
+    expect(recovered.status).toBe("active");
+    expect(recovered.sessions.map((item) => item.estimatedMinutes)).toEqual([10, 10]);
+  });
+
+  it("does not inflate an unrelated short session without obsolete split provenance", () => {
+    const active = {
+      ...plan("active"),
+      sessions: [session("short-work", "ready", 8, "A bounded short check")],
+    };
+
+    expect(recoverRunnablePlanLifecycle(active)).toBe(active);
+  });
+
+  it("does not rewrite a fingerprinted part with saved interruption progress", () => {
+    const interrupted = obsoleteSplitSession(
+      "interrupted-part",
+      "ready",
+      8,
+      1,
+      "Interrupted part · about 8 min",
+    );
+    const active = { ...plan("active"), sessions: [interrupted] };
+
+    expect(recoverRunnablePlanLifecycle(
+      active,
+      new Set([interrupted.id]),
+    )).toBe(active);
+  });
+
+  it("does not reopen genuine completed or archived plans", () => {
+    const genuinelyComplete = {
+      ...plan("completed"),
+      sessions: [session("done", "complete", 15, "Done")],
+    };
+    const archived = {
+      ...plan("archived"),
+      sessions: [session("orphan", "ready", 8, "Old")],
+    };
+
+    expect(recoverRunnablePlanLifecycle(genuinelyComplete)).toBe(genuinelyComplete);
+    expect(recoverRunnablePlanLifecycle(archived)).toBe(archived);
   });
 });
 
@@ -151,6 +252,43 @@ function plan(status: PlanStatus): LearningPlan {
     rationale: "Visibility fixture",
     createdAt: "2026-08-18T12:00:00.000Z",
     sessions: [],
+  };
+}
+
+function session(
+  id: string,
+  status: LearningPlan["sessions"][number]["status"],
+  estimatedMinutes: number,
+  amountLabel: string,
+): LearningPlan["sessions"][number] {
+  return {
+    id,
+    sequence: 1,
+    title: id,
+    objective: `Understand ${id}`,
+    method: "Self-explanation",
+    methodReason: "Build a coherent mental model.",
+    scheduledFor: "2026-08-19T12:00:00.000Z",
+    estimatedMinutes,
+    amountLabel,
+    learningMode: "learn",
+    status,
+  };
+}
+
+function obsoleteSplitSession(
+  id: string,
+  status: LearningPlan["sessions"][number]["status"],
+  estimatedMinutes: number,
+  segmentIndex: number,
+  amountLabel: string,
+): LearningPlan["sessions"][number] {
+  return {
+    ...session(id, status, estimatedMinutes, amountLabel),
+    originSessionId: "10000000-1000-4000-8000-100000000001",
+    originalContentMinutes: 15,
+    segmentIndex,
+    segmentCount: 2,
   };
 }
 

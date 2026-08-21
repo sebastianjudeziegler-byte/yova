@@ -68,6 +68,11 @@ async function requestAnswerEvaluation(
     max_output_tokens: 700,
     prompt_cache_key: "yova-answer-evaluation-v2",
     store: false,
+  }, {
+    // At most two language attempts can happen in this helper. Bound each one
+    // so both still finish before the 60-second route ceiling.
+    maxRetries: 0,
+    timeout: 20_000,
   });
 
   const parsed = AnswerEvaluationDraftSchema.safeParse(response.output_parsed);

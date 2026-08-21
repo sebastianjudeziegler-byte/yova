@@ -58,6 +58,9 @@ export async function generateRuntimeRepairWithOpenAI(
     max_output_tokens: 900,
     prompt_cache_key: "yova-runtime-repair-v1",
     store: false,
+  }, {
+    maxRetries: 0,
+    timeout: 30_000,
   });
 
   const parsed = RuntimeRepairDraftSchema.safeParse(response.output_parsed);

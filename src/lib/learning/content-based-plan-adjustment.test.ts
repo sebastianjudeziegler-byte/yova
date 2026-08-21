@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   buildContentBasedReplacementSessions,
+  buildProtectedPlanAdjustmentSessions,
   learningPlanSessionToAdjustableRow,
+  mergeAuthoritativeProtectedPlanAdjustmentSession,
   PlanAdjustmentPartLimitError,
+  sessionStepDataHasSavedWork,
 } from "@/lib/learning/content-based-plan-adjustment";
 import { recoverySessionMinutes } from "@/lib/scheduling/recovery";
 
@@ -110,12 +113,12 @@ describe("content-based plan adjustment", () => {
     });
   });
 
-  it("does not pad a session that already fits the requested window", () => {
+  it("raises a legacy undersized session to the runnable floor", () => {
     const sessions = buildContentBasedReplacementSessions([
       { ...originalSession, estimated_minutes: 8 },
     ], 10, 1);
 
-    expect(sessions.map((session) => session.estimatedMinutes)).toEqual([8]);
+    expect(sessions.map((session) => session.estimatedMinutes)).toEqual([10]);
   });
 
   it("fails before emitting a partial plan when one origin needs more than fourteen parts", () => {
@@ -177,5 +180,173 @@ describe("content-based plan adjustment", () => {
     const scheduledTimes = sessions.map((session) => new Date(session.scheduledFor).getTime());
     expect(scheduledTimes).toEqual([...scheduledTimes].sort((left, right) => left - right));
     expect(new Set(scheduledTimes).size).toBe(scheduledTimes.length);
+  });
+
+  it("preserves a scheduled verification verbatim while rebuilding ordinary content around it", () => {
+    const review = {
+      ...originalSession,
+      id: "10000000-1000-4000-8000-100000000099",
+      sequence: 2,
+      title: "Verify membrane transport",
+      objective: "Answer three self-contained questions about membrane transport.",
+      method: "Independent retrieval verification",
+      method_rationale: "This is a delayed return to the exact concept.",
+      scheduled_for: "2026-08-09T18:00:00.000Z",
+      estimated_minutes: 5,
+      status: "upcoming" as const,
+      step_data: {
+        amountLabel: "Verify in 2 days · about 5 min",
+        learningMode: "study",
+        topicIds: ["20000000-2000-4000-8000-200000000001"],
+        contentTargets: ["Membrane transport"],
+        completionEvidence: ["Answer three independent questions"],
+        reviewConcept: "Membrane transport",
+        reviewType: "verify",
+        generatedSession: { id: "review-resource-must-stay-in-storage" },
+      },
+    };
+    const laterContent = {
+      ...originalSession,
+      id: "10000000-1000-4000-8000-100000000100",
+      sequence: 3,
+      status: "upcoming" as const,
+      scheduled_for: "2026-08-10T18:00:00.000Z",
+      estimated_minutes: 20,
+    };
+
+    const sessions = buildProtectedPlanAdjustmentSessions(
+      [originalSession, review, laterContent],
+      15,
+      1,
+    );
+    const preserved = sessions.find((session) => session.id === review.id);
+    const later = sessions.filter((session) => (
+      "originSessionId" in session && session.originSessionId === laterContent.id
+    ));
+
+    expect(preserved).toMatchObject({
+      id: review.id,
+      title: review.title,
+      objective: review.objective,
+      method: review.method,
+      methodReason: review.method_rationale,
+      scheduledFor: review.scheduled_for,
+      estimatedMinutes: 5,
+      amountLabel: "Verify in 2 days · about 5 min",
+      reviewConcept: "Membrane transport",
+      reviewType: "verify",
+      protected: true,
+      status: "upcoming",
+    });
+    expect(later).toHaveLength(2);
+    expect(later.every((session) => session.status === "upcoming")).toBe(true);
+  });
+
+  it("counts protected reviews against the plan-wide replacement limit", () => {
+    const review = {
+      ...originalSession,
+      id: "10000000-1000-4000-8000-100000000099",
+      sequence: 2,
+      status: "upcoming" as const,
+      estimated_minutes: 5,
+      step_data: {
+        learningMode: "study",
+        reviewConcept: "Cellular respiration",
+        reviewType: "maintenance_transfer",
+      },
+    };
+
+    expect(() => buildProtectedPlanAdjustmentSessions(
+      [{ ...originalSession, estimated_minutes: 20 }, review],
+      10,
+      13,
+      2,
+    )).toThrow(PlanAdjustmentPartLimitError);
+  });
+
+  it("carries review metadata across the preview row boundary", () => {
+    const row = learningPlanSessionToAdjustableRow({
+      id: "10000000-1000-4000-8000-100000000099",
+      sequence: 1,
+      title: "Verify osmosis",
+      objective: "Use three independent checks.",
+      method: "Independent retrieval verification",
+      methodReason: "Return after a delay.",
+      scheduledFor: "2026-08-09T18:00:00.000Z",
+      estimatedMinutes: 5,
+      amountLabel: "Verify in 2 days · about 5 min",
+      learningMode: "study",
+      status: "ready",
+      reviewConcept: "Osmosis",
+      reviewType: "verify",
+    });
+
+    expect(row.step_data).toMatchObject({
+      reviewConcept: "Osmosis",
+      reviewType: "verify",
+    });
+  });
+
+  it("uses authoritative protected-review fields while preserving browser-only lesson state", () => {
+    const original = {
+      id: "10000000-1000-4000-8000-100000000099",
+      sequence: 2,
+      title: "Old review title",
+      objective: "Old objective",
+      method: "Old method",
+      methodReason: "Old reason",
+      scheduledFor: "2026-08-09T18:00:00.000Z",
+      estimatedMinutes: 5,
+      amountLabel: "Old return · about 5 min",
+      learningMode: "study" as const,
+      topicIds: ["20000000-2000-4000-8000-200000000001"],
+      contentTargets: ["Old review target"],
+      completionEvidence: ["Old evidence"],
+      status: "upcoming" as const,
+      reviewConcept: "Old concept",
+      reviewType: "verify" as const,
+      resource: {
+        rationale: "Prepared before the concurrent schedule change.",
+        activities: [],
+        generatedAt: "2026-08-08T18:00:00.000Z",
+        origin: "generated" as const,
+      },
+      adaptationNote: {
+        explanation: "Keep this learner-visible note.",
+        adaptedAt: "2026-08-08T19:00:00.000Z",
+      },
+    };
+    const authoritative = {
+      id: original.id,
+      sequence: 4,
+      title: "Authoritative review title",
+      objective: "Answer the authoritative verification questions.",
+      method: "Independent retrieval verification",
+      methodReason: "The committed review contract wins.",
+      scheduledFor: "2026-08-11T09:30:00+00:00",
+      estimatedMinutes: 7,
+      amountLabel: "Verify in 3 days · about 7 min",
+      learningMode: "study" as const,
+      topicIds: ["20000000-2000-4000-8000-200000000002"],
+      contentTargets: ["Authoritative review target"],
+      completionEvidence: ["Answer three authoritative questions"],
+      status: "ready" as const,
+      reviewConcept: "Authoritative concept",
+      reviewType: "maintenance_transfer" as const,
+    };
+
+    expect(mergeAuthoritativeProtectedPlanAdjustmentSession(original, authoritative))
+      .toEqual({
+        ...original,
+        ...authoritative,
+        resource: original.resource,
+        adaptationNote: original.adaptationNote,
+      });
+  });
+
+  it("recognizes generated lessons and checkpoints as saved work", () => {
+    expect(sessionStepDataHasSavedWork({ generatedSession: { activities: [] } })).toBe(true);
+    expect(sessionStepDataHasSavedWork({ activeSessionCheckpoint: { completedSteps: 1 } })).toBe(true);
+    expect(sessionStepDataHasSavedWork({ reviewType: "verify" })).toBe(false);
   });
 });

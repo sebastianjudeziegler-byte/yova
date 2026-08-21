@@ -1,7 +1,13 @@
 import { NextResponse } from "next/server";
 import { evaluateAnswerWithOpenAI } from "@/lib/openai/answer-evaluator";
 import { isOpenAIAnswerEvaluationConfigured } from "@/lib/openai/config";
-import { claimAIRequest } from "@/lib/server/ai-usage";
+import { aiUsageReservationConflict } from "@/lib/ai-usage/reservation-conflict";
+import {
+  releaseAIRequestClaim,
+  releaseAIRequestReservation,
+  reserveAIRequest,
+  settleAIRequestClaim,
+} from "@/lib/server/ai-usage";
 import { isDevelopmentPreviewRequest } from "@/lib/server/development-preview";
 import { checkAnswerEvaluationRateLimit, requestRateLimitKey } from "@/lib/server/rate-limit";
 import {
@@ -72,9 +78,32 @@ export async function POST(request: Request) {
     return response({ error: "Live answer feedback is not connected yet." }, requestId, 503);
   }
 
+  let aiUsageClaimId: string | null = null;
   try {
-    const durableLimit = await claimAIRequest(supabase, "answer_evaluation");
+    let durableLimit: Awaited<ReturnType<typeof reserveAIRequest>>;
+    const aiUsageRecoveryKey = crypto.randomUUID();
+    try {
+      durableLimit = await reserveAIRequest(supabase, "answer_evaluation", requestId, aiUsageRecoveryKey);
+    } catch {
+      await recoverUnknownEvaluationReservation(supabase, requestId, aiUsageRecoveryKey);
+      return response(
+        { error: "YOVA could not verify the answer-checking allowance right now." },
+        requestId,
+        503,
+      );
+    }
     if (!durableLimit.allowed) {
+      const conflict = aiUsageReservationConflict(durableLimit);
+      if (conflict) {
+        return response(
+          { code: conflict.code, error: conflict.error, retryable: conflict.retryable },
+          requestId,
+          409,
+          conflict.retryAfterSeconds === null
+            ? {}
+            : { "Retry-After": String(conflict.retryAfterSeconds) },
+        );
+      }
       return response(
         { error: "This account has reached its answer-checking allowance. Compare with the reference answer for now." },
         requestId,
@@ -82,18 +111,61 @@ export async function POST(request: Request) {
         { "Retry-After": String(durableLimit.retryAfterSeconds) },
       );
     }
+    aiUsageClaimId = durableLimit.claimId;
 
     const evaluation = await evaluateAnswerWithOpenAI(parsed.data);
-    return response(AnswerEvaluationResponseSchema.parse({
+    const learnerResponse = AnswerEvaluationResponseSchema.parse({
       ...evaluation,
       mode: "openai",
-    }), requestId);
+    });
+    await settleSuccessfulEvaluationClaim(supabase, aiUsageClaimId, requestId);
+    return response(learnerResponse, requestId);
   } catch (error) {
+    await releaseFailedEvaluationClaim(supabase, aiUsageClaimId, requestId);
     console.error("YOVA answer evaluation failed", {
       requestId,
       reason: error instanceof Error ? error.name : "unknown",
     });
     return response({ error: "YOVA could not check this explanation right now. Compare it with the reference answer instead." }, requestId, 502);
+  }
+}
+
+async function settleSuccessfulEvaluationClaim(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  claimId: string,
+  requestId: string,
+) {
+  try {
+    if (!await settleAIRequestClaim(supabase, claimId)) {
+      console.error("YOVA could not settle a successful answer-checking allowance claim", { requestId });
+    }
+  } catch {
+    console.error("YOVA could not settle a successful answer-checking allowance claim", { requestId });
+  }
+}
+
+async function releaseFailedEvaluationClaim(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  claimId: string | null,
+  requestId: string,
+) {
+  if (!claimId) return;
+  try {
+    await releaseAIRequestClaim(supabase, claimId);
+  } catch {
+    console.error("YOVA could not return a failed answer-checking allowance claim", { requestId });
+  }
+}
+
+async function recoverUnknownEvaluationReservation(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  operationKey: string,
+  recoveryKey: string,
+) {
+  try {
+    await releaseAIRequestReservation(supabase, "answer_evaluation", operationKey, recoveryKey);
+  } catch {
+    // Its short database lease remains the final recovery boundary.
   }
 }
 

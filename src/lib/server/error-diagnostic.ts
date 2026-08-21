@@ -63,7 +63,9 @@ function readGenerationDiagnostic(error: Error) {
   const repairReason = typeof stats.repairReason === "string"
     ? safeIdentifier(stats.repairReason)
     : undefined;
-  const recoveryMode = stats.recoveryMode === "safe_study" ? stats.recoveryMode : undefined;
+  const recoveryMode = stats.recoveryMode === "safe_study" || stats.recoveryMode === "safe_learn"
+    ? stats.recoveryMode
+    : undefined;
   const validationIssueCode = typeof stats.validationIssueCode === "string"
     ? safeIdentifier(stats.validationIssueCode)
     : undefined;

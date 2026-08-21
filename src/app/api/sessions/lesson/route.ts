@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { aiUsageReservationConflict } from "@/lib/ai-usage/reservation-conflict";
 import { generationEnvironment } from "@/lib/analytics/generation-observation";
 import { recordGenerationObservation } from "@/lib/analytics/generation-observation-server";
 import { getOpenAILessonConfig, isOpenAILessonConfigured } from "@/lib/openai/config";
@@ -19,7 +20,12 @@ import {
   StreamedGeneratedSessionActivitySchema,
   type LessonBrief,
 } from "@/lib/session-generation/schema";
-import { claimAIRequest, releaseAIRequestClaim } from "@/lib/server/ai-usage";
+import {
+  releaseAIRequestClaim,
+  releaseAIRequestReservation,
+  reserveAIRequest,
+  settleAIRequestClaim,
+} from "@/lib/server/ai-usage";
 import { isDevelopmentPreviewRequest } from "@/lib/server/development-preview";
 import { checkLessonGenerationRateLimit, requestRateLimitKey } from "@/lib/server/rate-limit";
 import {
@@ -93,7 +99,7 @@ export async function POST(request: Request) {
 
   if (parsed.data.action === "skip_to_practice") {
     if (!developmentPreview && supabase && user) {
-      await recordGenerationObservation(supabase, user.id, {
+      recordGenerationObservationBestEffort(supabase, user.id, {
         generationType: "lesson",
         observationKind: "usage",
         environment: generationEnvironment(),
@@ -163,9 +169,26 @@ export async function POST(request: Request) {
 
   let aiUsageClaimId: string | null = null;
   if (!developmentPreview && supabase) {
+    const aiUsageRecoveryKey = crypto.randomUUID();
     try {
-      const durableLimit = await claimAIRequest(supabase, "lesson_generation");
+      const durableLimit = await reserveAIRequest(supabase, "lesson_generation", requestId, aiUsageRecoveryKey);
       if (!durableLimit.allowed) {
+        const conflict = aiUsageReservationConflict(durableLimit);
+        if (conflict) {
+          return Response.json(
+            { code: conflict.code, error: conflict.error, retryable: conflict.retryable },
+            {
+              status: 409,
+              headers: {
+                "Cache-Control": "no-store",
+                ...(conflict.retryAfterSeconds === null ? {} : {
+                  "Retry-After": String(conflict.retryAfterSeconds),
+                }),
+                "X-Yova-Request-Id": requestId,
+              },
+            },
+          );
+        }
         return boundedLessonFallbackResponse({
           lessonInput,
           requestId,
@@ -176,8 +199,9 @@ export async function POST(request: Request) {
           allowanceRetryAfterSeconds: durableLimit.retryAfterSeconds,
         });
       }
-      aiUsageClaimId = durableLimit.claimId ?? null;
+      aiUsageClaimId = durableLimit.claimId;
     } catch {
+      await recoverUnknownLessonReservation(supabase, requestId, aiUsageRecoveryKey);
       return boundedLessonFallbackResponse({
         lessonInput,
         requestId,
@@ -207,6 +231,7 @@ export async function POST(request: Request) {
           },
           runtimeSignal,
         );
+        await settleSuccessfulLessonClaim(supabase, aiUsageClaimId, requestId);
         controller.enqueue(encodeLessonStreamEvent({
           type: "lesson.complete",
           elapsedMs: result.elapsedMs,
@@ -218,7 +243,7 @@ export async function POST(request: Request) {
           model: result.model,
         }));
         controller.close();
-        void recordGenerationObservation(supabase, user?.id, {
+        recordGenerationObservationBestEffort(supabase, user?.id, {
           generationType: "lesson",
           environment: generationEnvironment(),
           finalOutcome: "success",
@@ -239,7 +264,7 @@ export async function POST(request: Request) {
             wordCount: result.wordCount,
             streamCompleted: true,
           },
-        }).catch(() => undefined);
+        });
       } catch (error) {
         await releaseFailedLessonClaim(supabase, aiUsageClaimId, requestId);
         const failure = error instanceof StreamedLessonGenerationError ? error.stats : null;
@@ -275,7 +300,7 @@ export async function POST(request: Request) {
           } catch {
             // The learner may have left while the bounded fallback was being prepared.
           }
-          void recordGenerationObservation(supabase, user?.id, {
+          recordGenerationObservationBestEffort(supabase, user?.id, {
             generationType: "lesson",
             environment: generationEnvironment(),
             finalOutcome: "fallback",
@@ -297,11 +322,11 @@ export async function POST(request: Request) {
               streamCompleted: true,
               lessonFailureKind: failureKind,
             },
-          }).catch(() => undefined);
+          });
           return;
         }
 
-        void recordGenerationObservation(supabase, user?.id, {
+        recordGenerationObservationBestEffort(supabase, user?.id, {
           generationType: "lesson",
           environment: generationEnvironment(),
           finalOutcome: "failure",
@@ -323,7 +348,7 @@ export async function POST(request: Request) {
             streamCompleted: false,
             lessonFailureKind: failureKind,
           },
-        }).catch(() => undefined);
+        });
         try {
           controller.enqueue(encodeLessonStreamEvent({
             type: "lesson.error",
@@ -359,6 +384,33 @@ async function releaseFailedLessonClaim(
     await releaseAIRequestClaim(supabase, claimId);
   } catch {
     console.error("YOVA could not return a failed streamed-lesson allowance claim", { requestId });
+  }
+}
+
+async function settleSuccessfulLessonClaim(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>> | null,
+  claimId: string | null,
+  requestId: string,
+) {
+  if (!supabase || !claimId) return;
+  try {
+    if (!await settleAIRequestClaim(supabase, claimId)) {
+      console.error("YOVA could not settle a successful streamed-lesson allowance claim", { requestId });
+    }
+  } catch {
+    console.error("YOVA could not settle a successful streamed-lesson allowance claim", { requestId });
+  }
+}
+
+async function recoverUnknownLessonReservation(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  operationKey: string,
+  recoveryKey: string,
+) {
+  try {
+    await releaseAIRequestReservation(supabase, "lesson_generation", operationKey, recoveryKey);
+  } catch {
+    // Its short database lease remains the final recovery boundary.
   }
 }
 
@@ -401,7 +453,7 @@ function boundedLessonFallbackResponse({
       controller.close();
     },
   });
-  void recordGenerationObservation(supabase, userId, {
+  recordGenerationObservationBestEffort(supabase, userId, {
     generationType: "lesson",
     environment: generationEnvironment(),
     finalOutcome: "fallback",
@@ -425,7 +477,7 @@ function boundedLessonFallbackResponse({
       streamCompleted: true,
       lessonFailureKind: fallbackReason,
     },
-  }).catch(() => undefined);
+  });
   return new Response(stream, {
     headers: {
       "Content-Type": "text/event-stream; charset=utf-8",
@@ -452,6 +504,16 @@ function validatorForLessonFailure(
     return "lesson_provider_request";
   }
   return "lesson_stream";
+}
+
+function recordGenerationObservationBestEffort(
+  ...args: Parameters<typeof recordGenerationObservation>
+) {
+  try {
+    void Promise.resolve(recordGenerationObservation(...args)).catch(() => undefined);
+  } catch {
+    // Telemetry must never replace lesson delivery or skip acknowledgement.
+  }
 }
 
 type LessonRuntimeSource = {

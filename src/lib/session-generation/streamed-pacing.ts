@@ -207,7 +207,7 @@ export function interleaveStreamedTeachingCycles({
       methodPhase: position === 0 ? sourceTeaching.methodPhase : "model",
       topicId: topicIds[0] ?? sourceTeaching.topicId,
       label: "Learn",
-      title: boundedTitle(`Learn ${essentialIdeas.join(" and ")}`),
+      title: boundedGeneratedActivityTitle(`Learn ${essentialIdeas.join(" and ")}`),
       body: "Read this focused explanation, then answer the question that follows before continuing.",
       lessonBrief: {
         ...sourceLessonBrief,
@@ -388,9 +388,56 @@ function normalize(value: string) {
   return value.toLocaleLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 }
 
-function boundedTitle(value: string) {
-  if (value.length <= 140) return value;
-  const shortened = value.slice(0, 140);
-  const lastSpace = shortened.lastIndexOf(" ");
-  return shortened.slice(0, lastSpace > 90 ? lastSpace : 140).trimEnd();
+const GENERATED_ACTIVITY_TITLE_MAX_LENGTH = 140;
+const MINIMUM_USEFUL_TITLE_BOUNDARY = 48;
+const TRAILING_CONNECTOR = /(?:^|\s)(?:a|an|the|and|or|but|for|nor|so|yet|to|of|in|on|at|by|with|from|into|through|during|without|under|over|between|among|around|as|than|that|which|who|whose|when|where|while|because)$/i;
+
+/**
+ * The activity schema deliberately keeps a 140-character title ceiling. When
+ * YOVA synthesizes a heading from complete explanatory claims, shorten only
+ * the heading at a readable phrase boundary; the claims in lessonBrief remain
+ * complete and continue through the existing semantic validators unchanged.
+ */
+export function boundedGeneratedActivityTitle(value: string) {
+  const normalized = value.trim().replace(/\s+/g, " ");
+  if (normalized.length <= GENERATED_ACTIVITY_TITLE_MAX_LENGTH) return normalized;
+
+  // Reserve one character for an ellipsis so a shortened heading is visibly
+  // abbreviated rather than looking like a malformed complete sentence.
+  const prefix = normalized.slice(0, GENERATED_ACTIVITY_TITLE_MAX_LENGTH);
+  const phraseLimit = GENERATED_ACTIVITY_TITLE_MAX_LENGTH - 1;
+  const phrasePrefix = prefix.slice(0, phraseLimit);
+  const sentenceBoundary = lastBoundaryIndex(phrasePrefix, /[.!?;](?=\s|$)/g, true);
+  const clauseBoundary = lastBoundaryIndex(phrasePrefix, /[:,]|[—–](?=\s|$)/g, false);
+  const connectorBoundary = lastBoundaryIndex(
+    phrasePrefix,
+    /\s(?:and|but|while|whereas|because|so that|which|who|when)\s/gi,
+    false,
+  );
+  const boundary = [sentenceBoundary, clauseBoundary, connectorBoundary]
+    .find((candidate) => candidate >= MINIMUM_USEFUL_TITLE_BOUNDARY) ?? -1;
+  const lastWordBoundary = phrasePrefix.lastIndexOf(" ");
+
+  let shortened = boundary >= MINIMUM_USEFUL_TITLE_BOUNDARY
+    ? phrasePrefix.slice(0, boundary)
+    : lastWordBoundary >= MINIMUM_USEFUL_TITLE_BOUNDARY
+      ? phrasePrefix.slice(0, lastWordBoundary)
+      : phrasePrefix;
+  shortened = shortened.trimEnd().replace(/[\s,:;.!?—–-]+$/g, "");
+
+  // With prose that contains no punctuation or clause marker, the word
+  // boundary fallback must still avoid visibly dangling function words.
+  while (shortened.length > MINIMUM_USEFUL_TITLE_BOUNDARY && TRAILING_CONNECTOR.test(shortened)) {
+    shortened = shortened.slice(0, shortened.lastIndexOf(" ")).trimEnd();
+  }
+
+  return `${shortened}…`;
+}
+
+function lastBoundaryIndex(value: string, pattern: RegExp, includeMatch: boolean) {
+  let boundary = -1;
+  for (const match of value.matchAll(pattern)) {
+    boundary = match.index + (includeMatch ? match[0].length : 0);
+  }
+  return boundary;
 }

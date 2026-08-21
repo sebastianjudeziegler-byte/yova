@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useReducer, useState } from "react";
 import {
   AlertCircle,
   ArrowLeft,
@@ -54,20 +54,22 @@ import {
   type StudyWindow,
 } from "@/lib/personalization/study-schedule";
 import { buildPlanPreferenceContract } from "@/lib/personalization/plan-preference-contract";
+import {
+  deadlineAtEndOfDay,
+  futureDeadlineDateInputFromIso,
+} from "@/lib/intake/deadline";
+import {
+  configureAvailability,
+  planCreatorScheduleReducer,
+  type AvailabilityChoice,
+} from "@/lib/scheduling/plan-creator-schedule";
 
 type PlanStep = "goal" | "source" | "schedule" | "diagnostic-loading" | "diagnostic" | "confirm" | "loading" | "error" | "result";
 type SourceChoice = "materials" | "yova" | "outside";
 
-type AvailabilityChoice = {
-  day: string;
-  dateLabel: string;
-  window: "Morning" | "Afternoon" | "Evening";
-  minutes: number;
-  enabled: boolean;
-};
-
 export function PlanCreator({ onExit, onFinish, profileSummary, browserPreviewMode = false, seed = null }: { onExit: () => void; onFinish: (plan: LearningPlan) => void; profileSummary: string; browserPreviewMode?: boolean; seed?: AddIntakeSeed | null }) {
   const scheduleRecommendation = recommendStudySchedule(profileSummary);
+  const browserTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
   const [step, setStep] = useState<PlanStep>(seed ? "schedule" : "goal");
   const [goal, setGoal] = useState(seed ? seedGoal(seed) : "");
   const [sourceChoice, setSourceChoice] = useState<SourceChoice | null>(seed ? seedSourceChoice(seed) : null);
@@ -76,18 +78,31 @@ export function PlanCreator({ onExit, onFinish, profileSummary, browserPreviewMo
   const [materialNotice, setMaterialNotice] = useState<string | null>(null);
   const [processingMaterials, setProcessingMaterials] = useState(false);
   const [removingMaterialId, setRemovingMaterialId] = useState<string | null>(null);
-  const [deadlineDate, setDeadlineDate] = useState(seed?.dueAt ? localDateInputFromIso(seed.dueAt) : "");
-  const [studyFrequency, setStudyFrequency] = useState<StudyFrequency>(scheduleRecommendation.frequency);
-  const [preferredWindows, setPreferredWindows] = useState<StudyWindow[]>([scheduleRecommendation.window]);
-  const [sessionLength, setSessionLength] = useState<StudySessionLength>(scheduleRecommendation.minutes);
-  const [customScheduleOpen, setCustomScheduleOpen] = useState(false);
-  const [availabilityChoices, setAvailabilityChoices] = useState<AvailabilityChoice[]>(() => configureAvailability(
-    defaultAvailability(profileSummary),
-    scheduleRecommendation.frequency,
-    [scheduleRecommendation.window],
-    scheduleRecommendation.minutes,
-    scheduleRecommendation.window,
-  ));
+  const [scheduleState, dispatchSchedule] = useReducer(planCreatorScheduleReducer, null, () => ({
+    deadlineDate: seed?.dueAt
+      ? futureDeadlineDateInputFromIso(seed.dueAt, browserTimeZone)
+      : "",
+    studyFrequency: scheduleRecommendation.frequency,
+    preferredWindows: [scheduleRecommendation.window],
+    sessionLength: scheduleRecommendation.minutes,
+    customScheduleOpen: false,
+    availabilityChoices: configureAvailability(
+      defaultAvailability(profileSummary),
+      scheduleRecommendation.frequency,
+      [scheduleRecommendation.window],
+      scheduleRecommendation.minutes,
+      scheduleRecommendation.window,
+    ),
+    recommendedWindow: scheduleRecommendation.window,
+  }));
+  const {
+    deadlineDate,
+    studyFrequency,
+    preferredWindows,
+    sessionLength,
+    customScheduleOpen,
+    availabilityChoices,
+  } = scheduleState;
   const [diagnosticIndex, setDiagnosticIndex] = useState(0);
   const [diagnosticAnswers, setDiagnosticAnswers] = useState<string[]>([]);
   const [diagnosticQuestions, setDiagnosticQuestions] = useState<PlanDiagnosticQuestion[]>([]);
@@ -157,8 +172,8 @@ export function PlanCreator({ onExit, onFinish, profileSummary, browserPreviewMo
       materialMode: sourceChoice === "materials" ? "upload" : "none",
       materials: sourceChoice === "materials" ? materials : [],
       studyMode: seed?.itemType === "assignment" || sourceChoice === "outside" ? "outside" : "inside",
-      deadline: deadlineDate ? deadlineAtEndOfDay(deadlineDate) : null,
-      timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
+      deadline: deadlineDate ? deadlineAtEndOfDay(deadlineDate, browserTimeZone) : null,
+      timeZone: browserTimeZone,
       diagnosticResponses,
       availability,
       profileSummary,
@@ -355,43 +370,26 @@ export function PlanCreator({ onExit, onFinish, profileSummary, browserPreviewMo
     }
   };
 
-  const applyQuickSchedule = (
-    frequency = studyFrequency,
-    windows = preferredWindows,
-    minutes = sessionLength,
-  ) => {
-    setAvailabilityChoices((current) => configureAvailability(
-      current,
-      frequency,
-      windows,
-      minutes,
-      scheduleRecommendation.window,
-    ));
-  };
-
   const chooseFrequency = (frequency: StudyFrequency) => {
-    setStudyFrequency(frequency);
-    setCustomScheduleOpen(false);
-    applyQuickSchedule(frequency, preferredWindows, sessionLength);
+    dispatchSchedule({ type: "choose_frequency", frequency });
   };
 
   const togglePreferredWindow = (window: StudyWindow) => {
-    const nextWindows = window === "Anytime"
-      ? ["Anytime" as const]
-      : preferredWindows.includes(window)
-        ? preferredWindows.length === 1
-          ? preferredWindows
-          : preferredWindows.filter((item) => item !== window)
-        : [...preferredWindows.filter((item) => item !== "Anytime"), window];
-    setPreferredWindows(nextWindows);
-    setCustomScheduleOpen(false);
-    applyQuickSchedule(studyFrequency, nextWindows, sessionLength);
+    dispatchSchedule({ type: "toggle_window", window });
   };
 
   const chooseSessionLength = (minutes: StudySessionLength) => {
-    setSessionLength(minutes);
-    setCustomScheduleOpen(false);
-    applyQuickSchedule(studyFrequency, preferredWindows, minutes);
+    dispatchSchedule({ type: "choose_session_length", minutes });
+  };
+
+  const continueToSchedule = () => {
+    if (!deadlineDate) {
+      const inferredDeadline = deadlineDateFromGoal(goal, new Date(), browserTimeZone);
+      if (inferredDeadline) {
+        dispatchSchedule({ type: "set_deadline", deadlineDate: inferredDeadline });
+      }
+    }
+    setStep("schedule");
   };
 
   const activateGeneratedPlan = async () => {
@@ -479,7 +477,7 @@ export function PlanCreator({ onExit, onFinish, profileSummary, browserPreviewMo
               onUseMaterials={() => setSourceChoice("materials")}
             />
           )}
-          <PlanActions onBack={back} onNext={() => { if (!deadlineDate) setDeadlineDate(deadlineDateFromGoal(goal)); setStep("schedule"); }} nextDisabled={!sourceChoice || !goalContext.hasEnoughContext || processingMaterials || Boolean(removingMaterialId) || (sourceChoice === "materials" && materials.length === 0)} />
+          <PlanActions onBack={back} onNext={continueToSchedule} nextDisabled={!sourceChoice || !goalContext.hasEnoughContext || processingMaterials || Boolean(removingMaterialId) || (sourceChoice === "materials" && materials.length === 0)} />
         </PlanPanel>
       )}
 
@@ -487,12 +485,12 @@ export function PlanCreator({ onExit, onFinish, profileSummary, browserPreviewMo
         <PlanPanel wide eyebrow="YOUR STUDY RHYTHM" title="When would you prefer to study this material?" description="Choose a realistic pattern. YOVA will build the learning sequence around it and adapt the schedule as your results change.">
           <div className="schedule-builder-layout">
             <div className="schedule-quick-builder">
-              <fieldset className="schedule-question"><legend><span>1</span> How often can you study?</legend><div className="schedule-choice-grid frequency">{(["every_day", "most_days", "three_four", "one_two"] as StudyFrequency[]).map((frequency) => <button type="button" key={frequency} className={studyFrequency === frequency && !customScheduleOpen ? "selected" : ""} onClick={() => chooseFrequency(frequency)}><CalendarDays size={18} /><strong>{frequencyLabel(frequency)}</strong>{scheduleRecommendation.frequency === frequency && <small>Recommended</small>}</button>)}<button type="button" className={customScheduleOpen ? "selected" : ""} onClick={() => setCustomScheduleOpen(true)}><SlidersHorizontal size={18} /><strong>Custom</strong><small>Choose each day</small></button></div></fieldset>
+              <fieldset className="schedule-question"><legend><span>1</span> How often can you study?</legend><div className="schedule-choice-grid frequency">{(["every_day", "most_days", "three_four", "one_two"] as StudyFrequency[]).map((frequency) => <button type="button" key={frequency} className={studyFrequency === frequency && !customScheduleOpen ? "selected" : ""} onClick={() => chooseFrequency(frequency)}><CalendarDays size={18} /><strong>{frequencyLabel(frequency)}</strong>{scheduleRecommendation.frequency === frequency && <small>Recommended</small>}</button>)}<button type="button" className={customScheduleOpen ? "selected" : ""} onClick={() => dispatchSchedule({ type: "set_custom_open", open: true })}><SlidersHorizontal size={18} /><strong>Custom</strong><small>Choose each day</small></button></div></fieldset>
               <fieldset className="schedule-question"><legend><span>2</span> When do you prefer to study?</legend><div className="schedule-choice-grid windows">{(["Morning", "Afternoon", "Evening", "Anytime"] as StudyWindow[]).map((window) => <button type="button" key={window} className={preferredWindows.includes(window) && !customScheduleOpen ? "selected" : ""} onClick={() => togglePreferredWindow(window)}>{window === "Morning" ? <SunMedium size={18} /> : window === "Evening" ? <Moon size={18} /> : <Clock3 size={18} />}<strong>{window}</strong>{scheduleRecommendation.window === window && <small>Recommended</small>}</button>)}</div></fieldset>
               <fieldset className="schedule-question"><legend><span>3</span> What is a realistic session length?</legend><div className="schedule-choice-grid lengths">{([15, 25, 45, 60] as StudySessionLength[]).map((minutes) => <button type="button" key={minutes} aria-label={`${minutes} minutes${scheduleRecommendation.minutes === minutes ? ", recommended" : ""}`} aria-pressed={sessionLength === minutes && !customScheduleOpen} className={sessionLength === minutes && !customScheduleOpen ? "selected" : ""} onClick={() => chooseSessionLength(minutes)}><strong className="duration-value" aria-hidden="true"><span>{minutes}</span><span className="duration-unit">min</span></strong>{scheduleRecommendation.minutes === minutes && <small aria-hidden="true">Recommended</small>}</button>)}</div></fieldset>
             </div>
             <aside className="schedule-preview-card">
-              <label className="schedule-deadline"><CalendarDays /><span><small>Target date</small><strong>{deadlineDate ? formatDateOnly(deadlineDate) : "No fixed deadline"}</strong></span><input aria-label="Target date" type="date" min={todayDateInput()} value={deadlineDate} onChange={(event) => setDeadlineDate(event.target.value)} /></label>
+              <label className="schedule-deadline"><CalendarDays /><span><small>Target date</small><strong>{deadlineDate ? formatDateOnly(deadlineDate) : "No fixed deadline"}</strong></span><input aria-label="Target date" type="date" min={todayDateInput()} value={deadlineDate} onChange={(event) => dispatchSchedule({ type: "set_deadline", deadlineDate: event.target.value })} /></label>
               <div className="schedule-preview-summary"><Sparkles /><div><span>YOVA preview</span><strong>{availability.length} study {availability.length === 1 ? "window" : "windows"} available</strong><p>{scheduleRecommendation.reason}</p></div></div>
               <div className="schedule-preview-windows">{Object.entries(availabilityWindows).map(([window, count]) => <div key={window}>{window === "Morning" ? <SunMedium size={17} /> : window === "Evening" ? <Moon size={17} /> : <Clock3 size={17} />}<strong>{window}</strong><span>{durationLabel(availability.filter((slot) => slot.window === window).map((slot) => slot.minutes))}</span><small>{count} {count === 1 ? "session" : "sessions"}</small></div>)}</div>
               <small className="schedule-preview-note">These are availability limits, not mandatory appointments. YOVA will only schedule the amount of learning the plan actually needs.</small>
@@ -507,11 +505,11 @@ export function PlanCreator({ onExit, onFinish, profileSummary, browserPreviewMo
           <section className="schedule-customizer standalone">
             <header>
               <div><span className="step-label">YOUR AVAILABILITY</span><h2>{availability.length} study {availability.length === 1 ? "window" : "windows"} selected</h2><p>YOVA treats these as limits, not mandatory appointments. The plan will use only the time the material actually needs.</p></div>
-              <label className="custom-deadline"><span>Target date</span><input aria-label="Custom target date" type="date" min={todayDateInput()} value={deadlineDate} onChange={(event) => setDeadlineDate(event.target.value)} /></label>
+              <label className="custom-deadline"><span>Target date</span><input aria-label="Custom target date" type="date" min={todayDateInput()} value={deadlineDate} onChange={(event) => dispatchSchedule({ type: "set_deadline", deadlineDate: event.target.value })} /></label>
             </header>
-            <div className="availability-list editable">{availabilityChoices.map((choice, index) => <div className={choice.enabled ? "enabled" : ""} key={`${choice.day}-${choice.dateLabel}`}><button className="availability-toggle" type="button" aria-label={`${choice.enabled ? "Remove" : "Add"} ${choice.day}`} aria-pressed={choice.enabled} onClick={() => setAvailabilityChoices((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, enabled: !item.enabled } : item))}>{choice.enabled && <Check size={14} />}</button><div><strong>{choice.day}</strong><small>{choice.dateLabel}</small></div><select aria-label={`${choice.day} time window`} value={choice.window} disabled={!choice.enabled} onChange={(event) => setAvailabilityChoices((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, window: event.target.value as AvailabilityChoice["window"] } : item))}><option>Morning</option><option>Afternoon</option><option>Evening</option></select><select aria-label={`${choice.day} available minutes`} value={choice.minutes} disabled={!choice.enabled} onChange={(event) => setAvailabilityChoices((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, minutes: Number(event.target.value) } : item))}><option value={15}>15 min</option><option value={25}>25 min</option><option value={30}>30 min</option><option value={45}>45 min</option><option value={60}>60 min</option></select></div>)}</div>
+            <div className="availability-list editable">{availabilityChoices.map((choice, index) => <div className={choice.enabled ? "enabled" : ""} key={`${choice.day}-${choice.dateLabel}`}><button className="availability-toggle" type="button" aria-label={`${choice.enabled ? "Remove" : "Add"} ${choice.day}`} aria-pressed={choice.enabled} onClick={() => dispatchSchedule({ type: "toggle_day", index })}>{choice.enabled && <Check size={14} />}</button><div><strong>{choice.day}</strong><small>{choice.dateLabel}</small></div><select aria-label={`${choice.day} time window`} value={choice.window} disabled={!choice.enabled} onChange={(event) => dispatchSchedule({ type: "set_day_window", index, window: event.target.value as AvailabilityChoice["window"] })}><option>Morning</option><option>Afternoon</option><option>Evening</option></select><select aria-label={`${choice.day} available minutes`} value={choice.minutes} disabled={!choice.enabled} onChange={(event) => dispatchSchedule({ type: "set_day_minutes", index, minutes: Number(event.target.value) })}><option value={15}>15 min</option><option value={25}>25 min</option><option value={30}>30 min</option><option value={45}>45 min</option><option value={60}>60 min</option></select></div>)}</div>
           </section>
-          <PlanActions onBack={() => setCustomScheduleOpen(false)} backLabel="Quick choices" onNext={() => void prepareDiagnostic()} nextLabel="Continue to placement check" nextDisabled={availability.length === 0} />
+          <PlanActions onBack={() => dispatchSchedule({ type: "set_custom_open", open: false })} backLabel="Quick choices" onNext={() => void prepareDiagnostic()} nextLabel="Continue to placement check" nextDisabled={availability.length === 0} />
         </PlanPanel>
       )}
 
@@ -686,42 +684,10 @@ function defaultAvailability(profileSummary: string): AvailabilityChoice[] {
   });
 }
 
-function configureAvailability(
-  choices: AvailabilityChoice[],
-  frequency: StudyFrequency,
-  windows: StudyWindow[],
-  minutes: StudySessionLength,
-  recommendedWindow: StudyWindow,
-) {
-  const enabledIndexes = frequencyIndexes(frequency);
-  const concreteWindows = windows.includes("Anytime")
-    ? [recommendedWindow === "Anytime" ? "Afternoon" : recommendedWindow]
-    : windows.filter((window): window is AvailabilityChoice["window"] => window !== "Anytime");
-  return choices.map((choice, index) => ({
-    ...choice,
-    enabled: enabledIndexes.includes(index),
-    window: concreteWindows[index % concreteWindows.length] ?? "Afternoon",
-    minutes,
-  }));
-}
-
 function todayDateInput() {
   const date = new Date();
   const offset = date.getTimezoneOffset();
   return new Date(date.getTime() - offset * 60_000).toISOString().slice(0, 10);
-}
-
-function localDateInputFromIso(value: string) {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
-
-function deadlineAtEndOfDay(value: string) {
-  return new Date(`${value}T23:59:00`).toISOString();
 }
 
 function formatDateOnly(value: string) {

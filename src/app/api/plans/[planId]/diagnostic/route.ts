@@ -2,13 +2,29 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { generationEnvironment } from "@/lib/analytics/generation-observation";
 import { recordGenerationObservation } from "@/lib/analytics/generation-observation-server";
+import { aiUsageReservationConflict } from "@/lib/ai-usage/reservation-conflict";
 import { applyDiagnosticAnswers, generateMapDiagnostic, MapDiagnosticGenerationError } from "@/lib/diagnostics/map-diagnostic";
 import { PlanKnowledgeMapSchema } from "@/lib/knowledge-map/schema";
+import { getOpenAIKnowledgeMapConfig } from "@/lib/openai/config";
 import { PlanDiagnosticQuestionSchema } from "@/lib/plan-generation/schema";
+import { checkPlanGenerationRateLimit, requestRateLimitKey } from "@/lib/server/rate-limit";
+import {
+  releaseAIRequestClaim,
+  releaseAIRequestReservation,
+  reserveAIRequest,
+  settleAIRequestClaim,
+} from "@/lib/server/ai-usage";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
+const OBSERVATION_BUDGET_MS = 1_000;
+
+const DiagnosticPreparationResponseSchema = z.object({
+  questions: z.array(PlanDiagnosticQuestionSchema).min(1).max(8),
+  durationMs: z.number().int().min(0),
+  requestId: z.string().uuid(),
+}).strict();
 
 const SubmissionSchema = z.object({
   questions: z.array(PlanDiagnosticQuestionSchema).min(1).max(8),
@@ -17,19 +33,88 @@ const SubmissionSchema = z.object({
   message: "Every placement question needs one answer.",
 });
 
-export async function GET(_request: Request, context: { params: Promise<{ planId: string }> }) {
+export async function GET(request: Request, context: { params: Promise<{ planId: string }> }) {
   const startedAt = Date.now();
-  const requestId = crypto.randomUUID();
+  const requestId = diagnosticRequestId(request);
   const { planId } = await context.params;
   const supabase = await createSupabaseServerClient();
   const { data: { user }, error: userError } = await supabase.auth.getUser();
-  if (userError || !user) return NextResponse.json({ error: "Sign in before taking a placement check." }, { status: 401 });
+  if (userError || !user) {
+    return NextResponse.json(
+      { error: "Sign in before taking a placement check." },
+      { status: 401, headers: diagnosticHeaders(requestId) },
+    );
+  }
 
   const loaded = await loadPlanMap(supabase, user.id, planId);
-  if (!loaded) return NextResponse.json({ error: "YOVA could not load this plan's topic map." }, { status: 404 });
+  if (!loaded) {
+    return NextResponse.json(
+      { error: "YOVA could not load this plan's topic map." },
+      { status: 404, headers: diagnosticHeaders(requestId) },
+    );
+  }
+
+  let aiUsageClaimId: string | null = null;
+  if (getOpenAIKnowledgeMapConfig()) {
+    const rateLimit = checkPlanGenerationRateLimit(`${user.id}:${requestRateLimitKey(request)}`);
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        { error: "YOVA is preparing too many planning requests at once. Wait a moment, or close this optional check and continue." },
+        {
+          status: 429,
+          headers: diagnosticHeaders(requestId, rateLimit.retryAfterSeconds),
+        },
+      );
+    }
+
+    const recoveryKey = crypto.randomUUID();
+    let reservation: Awaited<ReturnType<typeof reserveAIRequest>>;
+    try {
+      reservation = await reserveAIRequest(
+        supabase,
+        "plan_generation",
+        requestId,
+        recoveryKey,
+      );
+    } catch {
+      await recoverUnknownDiagnosticReservation(supabase, requestId, recoveryKey);
+      return NextResponse.json(
+        { error: "YOVA could not verify the placement-check allowance. Close this optional check or try again in a moment." },
+        { status: 503, headers: diagnosticHeaders(requestId) },
+      );
+    }
+
+    if (!reservation.allowed) {
+      const conflict = aiUsageReservationConflict(reservation);
+      if (conflict) {
+        return NextResponse.json(
+          { code: conflict.code, error: conflict.error, retryable: conflict.retryable },
+          {
+            status: 409,
+            headers: diagnosticHeaders(requestId, conflict.retryAfterSeconds),
+          },
+        );
+      }
+      return NextResponse.json(
+        { error: "This account has reached its planning allowance. Close this optional check or return after the allowance resets." },
+        {
+          status: 429,
+          headers: diagnosticHeaders(requestId, reservation.retryAfterSeconds),
+        },
+      );
+    }
+    aiUsageClaimId = reservation.claimId;
+  }
+
   try {
     const generated = await generateMapDiagnostic(loaded.map, `${loaded.title}. ${loaded.topic}`);
-    await recordGenerationObservation(supabase, user.id, {
+    const response = DiagnosticPreparationResponseSchema.parse({
+      questions: generated.questions,
+      durationMs: Date.now() - startedAt,
+      requestId,
+    });
+    await settleSuccessfulDiagnosticClaim(supabase, aiUsageClaimId, requestId);
+    await recordDiagnosticObservationSafely(supabase, user.id, {
       generationType: "diagnostic",
       environment: generationEnvironment(),
       finalOutcome: "success",
@@ -46,10 +131,11 @@ export async function GET(_request: Request, context: { params: Promise<{ planId
       model: generated.stats.model,
       diagnostics: { questionCount: generated.questions.length, topicCount: loaded.map.topics.length },
     });
-    return NextResponse.json({ questions: generated.questions, durationMs: Date.now() - startedAt, requestId }, { headers: { "Cache-Control": "no-store" } });
+    return NextResponse.json(response, { headers: diagnosticHeaders(requestId) });
   } catch (error) {
+    await releaseFailedDiagnosticClaim(supabase, aiUsageClaimId, requestId);
     const failedValidator = error instanceof MapDiagnosticGenerationError ? error.failedValidator : "diagnostic_provider_request" as const;
-    await recordGenerationObservation(supabase, user.id, {
+    await recordDiagnosticObservationSafely(supabase, user.id, {
       generationType: "diagnostic",
       environment: generationEnvironment(),
       finalOutcome: "failure",
@@ -65,7 +151,10 @@ export async function GET(_request: Request, context: { params: Promise<{ planId
       outputTokens: 0,
       model: null,
     });
-    return NextResponse.json({ error: "YOVA could not prepare this placement check yet." }, { status: 503 });
+    return NextResponse.json(
+      { error: "YOVA could not prepare this placement check yet." },
+      { status: 503, headers: diagnosticHeaders(requestId) },
+    );
   }
 }
 
@@ -121,4 +210,90 @@ function readLearningMode(value: unknown) {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const mode = (value as Record<string, unknown>).learningMode;
   return mode === "learn" || mode === "study" ? mode : null;
+}
+
+async function settleSuccessfulDiagnosticClaim(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  claimId: string | null,
+  requestId: string,
+) {
+  if (!claimId) return;
+  try {
+    if (!await settleAIRequestClaim(supabase, claimId)) {
+      console.error("YOVA could not settle a successful placement-check allowance claim", { requestId });
+    }
+  } catch {
+    // A validated learner response must not become a retry that repeats the
+    // provider request because a settlement receipt was lost.
+    console.error("YOVA could not settle a successful placement-check allowance claim", { requestId });
+  }
+}
+
+async function releaseFailedDiagnosticClaim(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  claimId: string | null,
+  requestId: string,
+) {
+  if (!claimId) return;
+  try {
+    await releaseAIRequestClaim(supabase, claimId);
+  } catch {
+    // The database lease remains the final recovery boundary if the release
+    // receipt cannot be confirmed.
+    console.error("YOVA could not return a failed placement-check allowance claim", { requestId });
+  }
+}
+
+async function recoverUnknownDiagnosticReservation(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  operationKey: string,
+  recoveryKey: string,
+) {
+  try {
+    await releaseAIRequestReservation(
+      supabase,
+      "plan_generation",
+      operationKey,
+      recoveryKey,
+    );
+  } catch {
+    // The private recovery key cannot be replayed by the client. A bounded
+    // database lease reclaims the reservation if this recovery receipt fails.
+  }
+}
+
+async function recordDiagnosticObservationSafely(
+  ...args: Parameters<typeof recordGenerationObservation>
+) {
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
+  try {
+    await Promise.race([
+      recordGenerationObservation(...args),
+      new Promise<void>((resolve) => {
+        timeoutId = setTimeout(resolve, OBSERVATION_BUDGET_MS);
+      }),
+    ]);
+  } catch {
+    // Telemetry is best-effort and must never suppress a validated learner
+    // response or replace a real provider failure with an empty 500.
+  } finally {
+    if (timeoutId !== null) clearTimeout(timeoutId);
+  }
+}
+
+function diagnosticRequestId(request: Request) {
+  const candidate = request.headers.get("X-Yova-Request-Id")?.trim() ?? "";
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(candidate)
+    ? candidate
+    : crypto.randomUUID();
+}
+
+function diagnosticHeaders(requestId: string, retryAfterSeconds?: number | null) {
+  return {
+    "Cache-Control": "no-store",
+    "X-Yova-Request-Id": requestId,
+    ...(retryAfterSeconds === undefined || retryAfterSeconds === null
+      ? {}
+      : { "Retry-After": String(retryAfterSeconds) }),
+  };
 }

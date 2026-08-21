@@ -14,6 +14,7 @@ describe("universal Add intake", () => {
       description: "I have a World War I test in 2 weeks and I know nothing yet",
       materialNames: [],
       now: NOW,
+      timeZone: "America/Los_Angeles",
     });
     expect(result.itemType).toBe("test");
     expect(result.title).toMatch(/world war i/i);
@@ -50,11 +51,13 @@ describe("universal Add intake", () => {
       description: "I want to understand basic accounting before my internship in two weeks",
       materialNames: [],
       now: NOW,
+      timeZone: "America/Los_Angeles",
     });
     const calendarDate = interpretIntake({
       description: "My lab report is due August 19",
       materialNames: [],
       now: NOW,
+      timeZone: "America/Los_Angeles",
     });
     expect(relative.dueAt).toBe("2026-08-22T06:59:59.999Z");
     expect(calendarDate.dueAt).toBe("2026-08-20T06:59:59.999Z");

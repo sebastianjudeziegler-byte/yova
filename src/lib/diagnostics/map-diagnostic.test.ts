@@ -159,6 +159,10 @@ describe("knowledge-map diagnostics", () => {
       "topic_4",
     ]);
     expect(input.assignedTopics.some((topic) => "id" in topic || "topicId" in topic)).toBe(false);
+    expect(parseResponse).toHaveBeenCalledWith(
+      expect.any(Object),
+      { maxRetries: 0, timeout: 30_000 },
+    );
   });
 
   it("replaces unknown and duplicate provider aliases without crossing topic ownership", async () => {

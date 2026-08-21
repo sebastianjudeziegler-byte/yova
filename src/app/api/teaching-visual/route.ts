@@ -1,9 +1,15 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { aiUsageReservationConflict } from "@/lib/ai-usage/reservation-conflict";
 import { getOpenAIClient } from "@/lib/openai/client";
 import { getOpenAISessionConfig } from "@/lib/openai/config";
 import { checkSessionGenerationRateLimit, requestRateLimitKey } from "@/lib/server/rate-limit";
-import { claimAIRequest } from "@/lib/server/ai-usage";
+import {
+  releaseAIRequestClaim,
+  releaseAIRequestReservation,
+  reserveAIRequest,
+  settleAIRequestClaim,
+} from "@/lib/server/ai-usage";
 import { isDevelopmentPreviewRequest } from "@/lib/server/development-preview";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -18,6 +24,7 @@ const TeachingVisualRequestSchema = z.object({
 });
 
 export async function POST(request: Request) {
+  const requestId = crypto.randomUUID();
   const developmentPreview = isDevelopmentPreviewRequest(request);
   const supabase = isSupabaseConfigured() ? await createSupabaseServerClient() : null;
   const { data: { user }, error: userError } = supabase
@@ -36,9 +43,48 @@ export async function POST(request: Request) {
   if (!rateLimit.allowed) {
     return NextResponse.json({ error: "Wait a moment before creating another visual." }, { status: 429, headers: { "Retry-After": String(rateLimit.retryAfterSeconds) } });
   }
+  let aiUsageClaimId: string | null = null;
   if (supabase && user && !developmentPreview) {
-    const usage = await claimAIRequest(supabase, "teaching_visual");
-    if (!usage.allowed) return NextResponse.json({ error: "Your teaching visual limit has been reached for today." }, { status: 429, headers: { "Retry-After": String(usage.retryAfterSeconds) } });
+    let usage: Awaited<ReturnType<typeof reserveAIRequest>>;
+    const aiUsageRecoveryKey = crypto.randomUUID();
+    try {
+      usage = await reserveAIRequest(supabase, "teaching_visual", requestId, aiUsageRecoveryKey);
+    } catch {
+      await recoverUnknownVisualReservation(supabase, requestId, aiUsageRecoveryKey);
+      return NextResponse.json(
+        { error: "YOVA could not verify the teaching visual allowance right now." },
+        { status: 503, headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId } },
+      );
+    }
+    if (!usage.allowed) {
+      const conflict = aiUsageReservationConflict(usage);
+      if (conflict) {
+        return NextResponse.json(
+          { code: conflict.code, error: conflict.error, retryable: conflict.retryable },
+          {
+            status: 409,
+            headers: {
+              "Cache-Control": "no-store",
+              ...(conflict.retryAfterSeconds === null ? {} : {
+                "Retry-After": String(conflict.retryAfterSeconds),
+              }),
+              "X-Yova-Request-Id": requestId,
+            },
+          },
+        );
+      }
+      return NextResponse.json(
+        { error: "Your teaching visual limit has been reached for today." },
+        {
+          status: 429,
+          headers: {
+            "Retry-After": String(usage.retryAfterSeconds),
+            "X-Yova-Request-Id": requestId,
+          },
+        },
+      );
+    }
+    aiUsageClaimId = usage.claimId;
   }
 
   try {
@@ -51,8 +97,52 @@ export async function POST(request: Request) {
     }, { maxRetries: 0, timeout: 90_000 });
     const imageCall = response.output.find((item) => item.type === "image_generation_call");
     if (!imageCall || !imageCall.result) throw new Error("missing_image");
-    return NextResponse.json({ imageDataUrl: `data:image/webp;base64,${imageCall.result}` }, { headers: { "Cache-Control": "private, max-age=3600" } });
+    if (supabase && aiUsageClaimId) {
+      await settleSuccessfulVisualClaim(supabase, aiUsageClaimId, requestId);
+    }
+    return NextResponse.json({ imageDataUrl: `data:image/webp;base64,${imageCall.result}` }, { headers: { "Cache-Control": "private, max-age=3600", "X-Yova-Request-Id": requestId } });
   } catch {
-    return NextResponse.json({ error: "YOVA could not create this visual right now." }, { status: 503 });
+    if (supabase && aiUsageClaimId) {
+      await releaseFailedVisualClaim(supabase, aiUsageClaimId, requestId);
+    }
+    return NextResponse.json({ error: "YOVA could not create this visual right now." }, { status: 503, headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId } });
+  }
+}
+
+async function settleSuccessfulVisualClaim(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  claimId: string,
+  requestId: string,
+) {
+  try {
+    if (!await settleAIRequestClaim(supabase, claimId)) {
+      console.error("YOVA could not settle a successful teaching-visual allowance claim", { requestId });
+    }
+  } catch {
+    console.error("YOVA could not settle a successful teaching-visual allowance claim", { requestId });
+  }
+}
+
+async function releaseFailedVisualClaim(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  claimId: string,
+  requestId: string,
+) {
+  try {
+    await releaseAIRequestClaim(supabase, claimId);
+  } catch {
+    console.error("YOVA could not return a failed teaching-visual allowance claim", { requestId });
+  }
+}
+
+async function recoverUnknownVisualReservation(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  operationKey: string,
+  recoveryKey: string,
+) {
+  try {
+    await releaseAIRequestReservation(supabase, "teaching_visual", operationKey, recoveryKey);
+  } catch {
+    // Its short database lease remains the final recovery boundary.
   }
 }

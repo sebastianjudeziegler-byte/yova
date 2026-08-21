@@ -37,6 +37,8 @@ export const PlanAdjustmentResponseSchema = z.object({
     originalContentMinutes: z.number().int().positive().max(180).optional(),
     segmentIndex: z.number().int().positive().max(180).optional(),
     segmentCount: z.number().int().positive().max(180).optional(),
+    reviewConcept: z.string().trim().min(1).max(160).optional(),
+    reviewType: z.enum(["repair_and_retrieve", "verify", "maintenance_transfer"]).optional(),
     status: z.enum(["ready", "upcoming"]),
   })).max(14),
   persistence: z.literal("supabase"),

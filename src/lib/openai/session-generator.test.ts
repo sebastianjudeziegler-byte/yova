@@ -308,10 +308,187 @@ function calculusFoundationsRecoveryContent() {
   };
 }
 
+function economicsLearnRecoveryContent() {
+  return {
+    targetClaims: [
+      "An own-price change causes a movement along a demand curve, while a non-price determinant shifts the entire demand curve.",
+      "An own-price change causes a movement along a supply curve, while a non-price determinant shifts the entire supply curve.",
+      "Higher consumer income can shift demand for a normal good right, while higher input costs can shift supply left.",
+    ],
+    topicChecks: [{
+      title: "Explain a demand movement",
+      prompt: "Explain why a fall in the product's own price is a movement along demand rather than a shift of demand.",
+      choices: ["Own price changes quantity demanded along the existing curve", "Own price shifts the entire demand curve", "Income always changes when price changes", "Supply determines whether demand moves"],
+      correctChoiceIndex: 0,
+      referenceAnswer: "A change in the good's own price changes quantity demanded and therefore moves the chosen point along the existing demand curve.",
+      feedback: "The good's own price selects a different quantity on the existing demand relationship; a separate determinant would shift that relationship.",
+    }, {
+      title: "Distinguish a supply movement",
+      prompt: "A product's market price rises while production technology and costs stay fixed. What happens to its supply curve representation?",
+      choices: ["Quantity supplied rises along the existing curve", "The supply curve shifts right", "The supply curve shifts left", "Demand shifts because price rose"],
+      correctChoiceIndex: 0,
+      referenceAnswer: "The higher own price causes an increase in quantity supplied represented by movement along the existing supply curve.",
+      feedback: "Own price changes quantity supplied along the curve; technology or input-cost changes would shift the curve itself.",
+    }, {
+      title: "Predict two curve shifts",
+      prompt: "For a normal good, consumer income rises while a producer's input costs also rise. Which pair of shifts is expected?",
+      choices: ["Demand shifts right and supply shifts left", "Demand shifts left and supply shifts right", "Both curves shift right", "Neither curve shifts"],
+      correctChoiceIndex: 0,
+      referenceAnswer: "Higher income raises demand for a normal good, shifting demand right, while higher input costs reduce supply, shifting supply left.",
+      feedback: "Income is a demand determinant and input cost is a supply determinant, so they shift different curves in opposite directions here.",
+    }],
+    independentExtension: null,
+    subjectModel: {
+      keyIdea: "Own price moves the market point along a curve; other determinants shift the complete demand or supply relationship.",
+      explanation: "On a demand curve, a change in the good's own price changes quantity demanded along the same curve. On a supply curve, own price changes quantity supplied along the same curve. Income or preferences can shift demand, while technology or input costs can shift supply. For a normal good, higher income shifts demand right; higher input costs shift supply left.",
+      commonMistake: "Calling every price-and-quantity change a shift of the curve.",
+      correction: "First ask whether the good's own price changed. Own price creates movement along the curve; a different determinant shifts it.",
+    },
+    modelExample: null,
+  };
+}
+
+function geneRegulationLearnRecoveryContent() {
+  return {
+    targetClaims: [
+      "DNA methylation near a promoter can reduce transcription by limiting access or recruiting repressive chromatin proteins.",
+      "Histone acetylation often loosens chromatin and increases access of transcription machinery to DNA.",
+    ],
+    topicChecks: [{
+      title: "Explain promoter methylation",
+      prompt: "Explain how DNA methylation near a promoter can reduce transcription of the associated gene.",
+      choices: ["It can reduce factor access or recruit repressive proteins", "It copies the gene into extra chromosomes", "It removes every histone from the chromosome", "It translates the promoter into protein"],
+      correctChoiceIndex: 0,
+      referenceAnswer: "Promoter methylation can reduce transcription by making the promoter less accessible or by recruiting proteins that maintain repressive chromatin.",
+      feedback: "The relevant relationship is between promoter methylation, chromatin access, and transcription rather than DNA copy number or translation.",
+    }, {
+      title: "Predict histone acetylation",
+      prompt: "If histone acetylation increases around a gene, which change is most consistent with the source model?",
+      choices: ["Chromatin becomes more accessible and transcription can increase", "Chromatin always condenses and transcription stops", "The DNA sequence is permanently rewritten", "The gene is translated before it is transcribed"],
+      correctChoiceIndex: 0,
+      referenceAnswer: "Histone acetylation often loosens chromatin, increasing access for transcription machinery and making transcription more likely.",
+      feedback: "Acetylation changes chromatin accessibility; it does not rewrite the DNA sequence or reverse transcription and translation.",
+    }],
+    independentExtension: null,
+    subjectModel: {
+      keyIdea: "Chemical marks can regulate genes by changing how accessible DNA is to the transcription machinery.",
+      explanation: "DNA methylation near a promoter can reduce transcription by blocking access or recruiting repressive chromatin proteins. Histone acetylation usually weakens histone-DNA interactions, loosens chromatin, and increases access for transcription machinery. These marks regulate use of the sequence rather than changing the sequence itself.",
+      commonMistake: "Epigenetic marks change the nucleotide sequence of the gene.",
+      correction: "They usually change chromatin access and gene expression while leaving the underlying DNA sequence intact.",
+    },
+    modelExample: null,
+  };
+}
+
+function callStackLearnRecoveryContent() {
+  return {
+    targetClaims: [
+      "A recursive function pushes a new call frame for each unfinished call and resolves those frames in last-in, first-out order after reaching its base case.",
+    ],
+    topicChecks: [{
+      title: "Trace the guided call stack",
+      prompt: "For factorial(3), which call frame resolves first after factorial(1) reaches the base case?",
+      choices: ["factorial(2)", "factorial(3)", "factorial(1) again", "All frames resolve simultaneously"],
+      correctChoiceIndex: 0,
+      referenceAnswer: "After factorial(1) returns, factorial(2) is the next unfinished frame and resolves before factorial(3).",
+      feedback: "The call stack is last-in, first-out, so the most recently suspended frame resumes first after the base case returns.",
+    }],
+    independentExtension: {
+      title: "Trace a fresh recursive call",
+      prompt: "Trace sumTo(4), where sumTo(n) returns 0 at n = 0 and otherwise returns n + sumTo(n - 1). List the frames in the order they resolve and give the result.",
+      choices: ["0, 1, 2, 3, 4 and result 10", "4, 3, 2, 1, 0 and result 4", "All frames resolve together and result 0", "The function never reaches a base case"],
+      correctChoiceIndex: 0,
+      referenceAnswer: "After sumTo(0) returns 0, the frames resolve as sumTo(1), sumTo(2), sumTo(3), then sumTo(4), producing 1, 3, 6, and finally 10.",
+      feedback: "The base case starts the return chain, and each suspended frame adds its current n as the stack unwinds in last-in, first-out order.",
+    },
+    subjectModel: {
+      keyIdea: "Recursive calls pause in separate stack frames until a base case starts the return sequence.",
+      explanation: "Each recursive call creates a frame that stores its current argument and waits for the nested call. Reaching the base case stops new calls. The newest waiting frame resumes first, so the stack unwinds in last-in, first-out order until the original call returns its result.",
+      commonMistake: "Every recursive frame keeps changing the same shared argument at once.",
+      correction: "Each call frame has its own argument and paused execution point; frames resume one at a time as nested calls return.",
+    },
+    modelExample: {
+      setup: "Trace factorial(3), with factorial(1) as the base case.",
+      steps: [
+        "factorial(3) pauses after calling factorial(2), which pauses after calling factorial(1).",
+        "factorial(1) returns 1, so factorial(2) resumes and returns 2 times 1.",
+        "factorial(3) resumes last and returns 3 times 2, which is 6.",
+      ],
+      takeaway: "The most recently created unfinished frame resumes first when the base case returns.",
+    },
+  };
+}
+
+function economicsLearnContext(): SessionGenerationContext {
+  const base = buildSessionEvaluationCases()
+    .find((candidate) => candidate.id === "startup_funding_foundations")!.context;
+  const topicIds = [
+    "61111111-1111-4111-8111-111111111111",
+    "62222222-2222-4222-8222-222222222222",
+    "63333333-3333-4333-8333-333333333333",
+  ];
+  const targets = [
+    "Own-price movement along a demand curve",
+    "Own-price movement along a supply curve",
+    "Non-price determinants that shift demand or supply",
+  ];
+  return {
+    ...base,
+    sessionArchitectureVersion: "filled_teaching_v1",
+    learningGoal: {
+      ...base.learningGoal,
+      title: "Understand supply and demand curve changes",
+      topic: "Explain movements along demand and supply curves and shifts caused by non-price determinants",
+      sourceMode: "yova_generated",
+      studyMode: "outside_yova",
+      learningIntent: "learn",
+    },
+    materials: [],
+    knowledgeTopics: targets.map((target, index) => ({
+      id: topicIds[index]!,
+      title: target,
+      description: target,
+      subtopics: [],
+      prerequisiteTopicIds: index === 0 ? [] : [topicIds[index - 1]!],
+      status: "not_started" as const,
+      initialEvidence: null,
+      sourceReferences: [],
+      origin: "ai_generated" as const,
+      deferred: null,
+    })),
+    session: {
+      ...base.session,
+      title: "Explain curve movements and shifts",
+      objective: "Learn and explain own-price movements along demand and supply curves, then predict shifts from income and input costs.",
+      method: "Self-explanation",
+      methodReason: "Build an accurate causal model before independent explanation.",
+      estimatedMinutes: 25,
+      learningMode: "learn",
+      topicIds,
+      contentTargets: targets,
+      deferredContentTargets: [],
+      completionEvidence: [
+        "Explain an own-price movement along demand.",
+        "Explain an own-price movement along supply.",
+        "Predict one demand shift and one supply shift.",
+      ],
+      reviewConcept: null,
+      reviewType: null,
+    },
+    learnerProfile: null,
+    sessionAdjustment: null,
+    recentResults: [],
+    recentInterruptions: [],
+    conceptSignals: [],
+    scaffoldSignals: [],
+    topicCalibrationSignals: [],
+  };
+}
+
 async function expectCompleteValidatorPass(
   draft: GeneratedSessionDraft,
   context: SessionGenerationContext,
-  expectedSuggestedMethod: "spaced_retrieval" | "worked_example_fading" = "spaced_retrieval",
+  expectedSuggestedMethod: "self_explanation" | "spaced_retrieval" | "worked_example_fading" = "spaced_retrieval",
 ) {
   const { buildLearningScienceRoutingBrief } = await import("@/lib/learning/method-router");
   const {
@@ -854,6 +1031,54 @@ describe("personalized retention normalization", () => {
     });
     expect(validateSessionTimeBudget(normalized, 15)).toBeNull();
   });
+
+  it("replaces provider-authored return questions and duplicates with one canonical optional marker", async () => {
+    const {
+      ensureDelayedRetrievalReturn,
+      validateSessionTimeBudget,
+    } = await import("@/lib/openai/session-generator");
+    const draft = learningDraft("model");
+    const invalidReturnQuestion = {
+      ...draft.activities[1]!,
+      methodPhase: "schedule_return" as const,
+      requiredForCompletion: true,
+      title: "Answer this again later",
+    };
+    const invalidDuplicate = {
+      ...draft.activities[2]!,
+      methodPhase: "schedule_return" as const,
+      requiredForCompletion: true,
+      title: "A second return check",
+    };
+    const activities = ensureDelayedRetrievalReturn(
+      [...draft.activities, invalidReturnQuestion, invalidDuplicate],
+      {
+        schemaVersion: 1,
+        evidenceStatus: "starting_hypothesis",
+        presentation: { mode: "task_aligned", label: "Task led", instruction: "Present the content around the task at hand." },
+        repair: { mode: "task_aligned", label: "Repair", instruction: "Repair only the gap shown by the learner." },
+        retention: { mode: "delayed_retrieval", label: "Delayed retrieval", instruction: "Return to the idea after a useful delay." },
+        workspace: { mode: "one_step", label: "One step", instruction: "Keep one current action visually prominent." },
+        pacing: { firstActionMinutes: 3, maximumActivities: 3, reason: "Use a short sequence that fits the learner's available time." },
+        activityCadence: { mode: "task_aligned", label: "Task-aligned cadence", instruction: "Change activities only when the selected method and current objective call for it." },
+        attemptSafety: { mode: "task_aligned", label: "Task-aligned attempts", instruction: "Use the attempt and feedback format best supported by the current task." },
+        knowledgeCheck: { mode: "task_aligned", label: "Task-aligned check", instruction: "Use the knowledge check required by the selected method and current objective." },
+        learnerFacingReasons: ["You report forgetting after a delay, so YOVA will bring this idea back later."],
+        signalsUsed: ["I forget after a few days"],
+      },
+      "Funding tradeoffs",
+    );
+
+    expect(activities.filter((activity) => activity.methodPhase === "schedule_return")).toHaveLength(1);
+    expect(activities.at(-1)).toMatchObject({
+      methodPhase: "schedule_return",
+      requiredForCompletion: false,
+      type: "reflection",
+      topicId: null,
+      concept: null,
+    });
+    expect(validateSessionTimeBudget({ ...draft, activities }, 15)).toBeNull();
+  });
 });
 
 describe("outside-YOVA teaching-first generation", () => {
@@ -946,6 +1171,297 @@ describe("outside-YOVA teaching-first generation", () => {
     expect(result.draft.activities.some((activity) => activity.type === "free_response")).toBe(true);
     expect(validateSubstantiveTeaching(result.draft)).toBeNull();
     expect(validateOutsideAppGuidance(result.draft, "outside_yova")).toBeNull();
+  });
+});
+
+describe("bounded teaching-first recovery", () => {
+  it("recovers an unrelated outside economics lesson with one narrow subject-model call", async () => {
+    parseResponse.mockReset();
+    const context = economicsLearnContext();
+    parseResponse
+      .mockResolvedValueOnce(completedProviderResponse("invalid-economics-initial", {}))
+      .mockResolvedValueOnce(completedProviderResponse("invalid-economics-repair", {}))
+      .mockResolvedValueOnce(completedProviderResponse("safe-economics-learn", economicsLearnRecoveryContent()));
+
+    const {
+      generateSessionWithOpenAI,
+      validateOutsideAppGuidance,
+      validateSubstantiveTeaching,
+    } = await import("@/lib/openai/session-generator");
+    const result = await generateSessionWithOpenAI(context);
+
+    expect(parseResponse.mock.calls.map((call) => call[0]?.text?.format?.name)).toEqual([
+      "yova_guided_session",
+      "yova_guided_session",
+      "yova_safe_learn_recovery",
+    ]);
+    expect(result.generationStats).toMatchObject({
+      attempts: 3,
+      inputTokens: 1_800,
+      outputTokens: 900,
+      failedValidator: "session_structure",
+      repairSucceeded: true,
+      recoveryMode: "safe_learn",
+    });
+    expect(result.draft.activities[0]).toMatchObject({
+      methodPhase: "model",
+      type: "instruction",
+      requiredForCompletion: true,
+    });
+    expect(result.draft.activities[0]?.teaching?.explanation).toContain("own price");
+    expect(result.draft.coverage.evidenceMap.map((mapping) => mapping.activityConcept)).toEqual(
+      context.session.contentTargets,
+    );
+    expect(result.draft.activities.some((activity) => activity.type === "free_response" && activity.requiredForCompletion)).toBe(true);
+    expect(validateSubstantiveTeaching(result.draft)).toBeNull();
+    expect(validateOutsideAppGuidance(result.draft, "outside_yova")).toBeNull();
+    await expectCompleteValidatorPass(result.draft, context, "self_explanation");
+  });
+
+  it("keeps an arbitrary inside biology lesson grounded in mapped learner material", async () => {
+    parseResponse.mockReset();
+    const base = economicsLearnContext();
+    const topicIds = [
+      "71111111-1111-4111-8111-111111111111",
+      "72222222-2222-4222-8222-222222222222",
+    ];
+    const targets = [
+      "Promoter DNA methylation and reduced transcription",
+      "Histone acetylation and increased chromatin access",
+    ];
+    const materialText = "DNA methylation near a promoter can reduce transcription by limiting transcription-factor access or recruiting repressive chromatin proteins. Histone acetylation often loosens chromatin and increases access of transcription machinery to DNA. These marks regulate expression without changing the DNA sequence.";
+    const context: SessionGenerationContext = {
+      ...base,
+      learningGoal: {
+        ...base.learningGoal,
+        title: "Understand epigenetic gene regulation",
+        topic: "Explain how promoter methylation and histone acetylation change transcription",
+        sourceMode: "user_materials",
+        studyMode: "inside_yova",
+      },
+      materials: [{
+        materialId: "73333333-3333-4333-8333-333333333333",
+        chunkId: "74444444-4444-4444-8444-444444444444",
+        chunkIndex: 0,
+        name: "gene-regulation-notes.txt",
+        text: materialText,
+        truncated: false,
+        locationLabel: "Epigenetics notes",
+        role: "content_source",
+      }],
+      knowledgeTopics: targets.map((target, index) => ({
+        id: topicIds[index]!,
+        title: target,
+        description: target,
+        subtopics: [],
+        prerequisiteTopicIds: [],
+        status: "not_started" as const,
+        initialEvidence: null,
+        sourceReferences: [],
+        origin: "material" as const,
+        deferred: null,
+      })),
+      session: {
+        ...base.session,
+        title: "Explain two epigenetic controls",
+        objective: "Learn and explain how promoter DNA methylation and histone acetylation change transcription through chromatin access.",
+        estimatedMinutes: 10,
+        topicIds,
+        contentTargets: targets,
+        completionEvidence: targets.map((target) => `Explain ${target} without the model visible.`),
+      },
+    };
+    parseResponse
+      .mockResolvedValueOnce(completedProviderResponse("invalid-epigenetics-initial", {}))
+      .mockResolvedValueOnce(completedProviderResponse("invalid-epigenetics-repair", {}))
+      .mockResolvedValueOnce(completedProviderResponse("safe-epigenetics-learn", geneRegulationLearnRecoveryContent()));
+
+    const { generateSessionWithOpenAI } = await import("@/lib/openai/session-generator");
+    const result = await generateSessionWithOpenAI(context);
+
+    expect(parseResponse.mock.calls[2]?.[0]?.text?.format?.name).toBe("yova_safe_learn_recovery");
+    const recoveryInput = parseResponse.mock.calls[2]?.[0]?.input as string;
+    expect(recoveryInput).toContain(materialText);
+    expect(result.draft.sourceGrounding).toMatchObject({
+      mode: "materials_only",
+      sourceNames: ["gene-regulation-notes.txt"],
+    });
+    expect(result.draft.coverage.deferredContent).toEqual([]);
+    expect(result.generationStats.recoveryMode).toBe("safe_learn");
+    await expectCompleteValidatorPass(result.draft, context, "self_explanation");
+  });
+
+  it("recovers an arbitrary computing lesson with a complete model and fresh independent trace", async () => {
+    parseResponse.mockReset();
+    const base = buildSessionEvaluationCases()
+      .find((candidate) => candidate.id === "javascript_scaffold_fading")!.context;
+    const target = "Recursive call frames and last-in first-out stack unwinding";
+    const context: SessionGenerationContext = {
+      ...base,
+      sessionArchitectureVersion: "filled_teaching_v1",
+      learningGoal: {
+        ...base.learningGoal,
+        title: "Trace recursive TypeScript functions",
+        topic: "Trace recursive function calls through the call stack and base case",
+      },
+      session: {
+        ...base.session,
+        title: "Trace a recursive call stack",
+        objective: "Learn how recursive calls create stack frames and resolve in last-in, first-out order after the base case.",
+        method: "Worked example fading",
+        methodReason: "A complete call trace should precede a fresh unsupported trace.",
+        estimatedMinutes: 15,
+        topicIds: [TEST_TOPIC_ID],
+        contentTargets: [target],
+        deferredContentTargets: [],
+        completionEvidence: ["Trace a fresh recursive call stack and calculate its return value."],
+        reviewConcept: null,
+        reviewType: null,
+      },
+      knowledgeTopics: [{
+        ...base.knowledgeTopics[0]!,
+        id: TEST_TOPIC_ID,
+        title: target,
+        description: "How recursive call frames pause and unwind after a base case.",
+        subtopics: ["call frames", "base case", "stack unwinding"],
+      }],
+      learnerProfile: null,
+      sessionAdjustment: null,
+      recentResults: [],
+      recentInterruptions: [],
+      conceptSignals: [],
+      scaffoldSignals: [],
+      topicCalibrationSignals: [],
+    };
+    parseResponse
+      .mockResolvedValueOnce(completedProviderResponse("invalid-stack-initial", {}))
+      .mockResolvedValueOnce(completedProviderResponse("invalid-stack-repair", {}))
+      .mockResolvedValueOnce(completedProviderResponse("safe-stack-learn", callStackLearnRecoveryContent()));
+
+    const { generateSessionWithOpenAI } = await import("@/lib/openai/session-generator");
+    const result = await generateSessionWithOpenAI(context);
+
+    expect(result.draft.methodBriefing.methodId).toBe("worked_example_fading");
+    expect(result.draft.activities.map((activity) => activity.methodPhase)).toEqual([
+      "model",
+      "guided_practice",
+      "independent_practice",
+    ]);
+    expect(result.draft.activities[0]?.teaching?.example?.steps).toHaveLength(3);
+    expect(result.draft.activities[2]).toMatchObject({
+      type: "free_response",
+      requiredForCompletion: true,
+    });
+    expect(result.generationStats).toMatchObject({
+      attempts: 3,
+      inputTokens: 1_800,
+      outputTokens: 900,
+      recoveryMode: "safe_learn",
+    });
+    await expectCompleteValidatorPass(result.draft, context, "worked_example_fading");
+  });
+
+  it("fails closed after a provider-level teaching recovery failure so the route can refund the one claim", async () => {
+    parseResponse.mockReset();
+    const context = economicsLearnContext();
+    parseResponse
+      .mockResolvedValueOnce(completedProviderResponse("invalid-refund-initial", {}))
+      .mockResolvedValueOnce(completedProviderResponse("invalid-refund-repair", {}))
+      .mockRejectedValueOnce(new Error("provider unavailable"));
+
+    const { generateSessionWithOpenAI } = await import("@/lib/openai/session-generator");
+    await expect(generateSessionWithOpenAI(context)).rejects.toMatchObject({
+      name: "SessionGenerationFailure",
+      generationStats: {
+        attempts: 3,
+        inputTokens: 1_200,
+        outputTokens: 600,
+        repairSucceeded: false,
+        recoveryMode: "safe_learn",
+      },
+    });
+    expect(parseResponse).toHaveBeenCalledTimes(3);
+  });
+
+  it("does not begin a third provider call when the absolute route budget must be reserved for settlement", async () => {
+    parseResponse.mockReset();
+    const context = economicsLearnContext();
+    const startedAt = new Date("2026-08-21T12:00:00.000Z");
+    vi.useFakeTimers();
+    vi.setSystemTime(startedAt);
+    parseResponse
+      .mockImplementationOnce(async () => {
+        vi.setSystemTime(new Date(startedAt.getTime() + 35_000));
+        return completedProviderResponse("invalid-budget-initial", {});
+      })
+      .mockImplementationOnce(async () => {
+        vi.setSystemTime(new Date(startedAt.getTime() + 70_000));
+        return completedProviderResponse("invalid-budget-repair", {});
+      });
+
+    try {
+      const { generateSessionWithOpenAI } = await import("@/lib/openai/session-generator");
+      await expect(generateSessionWithOpenAI(context, {
+        deadlineAt: startedAt.getTime() + 90_000,
+        settlementReserveMs: 12_000,
+      })).rejects.toMatchObject({
+        name: "SessionGenerationFailure",
+        generationStats: {
+          attempts: 2,
+          failedValidator: "session_provider_request",
+          repairAttempted: true,
+          repairSucceeded: null,
+        },
+      });
+
+      expect(parseResponse).toHaveBeenCalledTimes(2);
+      expect(parseResponse.mock.calls.map((call) => call[1])).toEqual([
+        expect.objectContaining({ maxRetries: 0, timeout: 35_000, signal: expect.any(AbortSignal) }),
+        expect.objectContaining({ maxRetries: 0, timeout: 35_000, signal: expect.any(AbortSignal) }),
+      ]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("aborts a delayed provider call at the remaining server budget", async () => {
+    parseResponse.mockReset();
+    const context = economicsLearnContext();
+    const startedAt = new Date("2026-08-21T13:00:00.000Z");
+    vi.useFakeTimers();
+    vi.setSystemTime(startedAt);
+    parseResponse.mockImplementationOnce((_, options: { signal: AbortSignal }) => (
+      new Promise((_, reject) => {
+        options.signal.addEventListener("abort", () => reject(options.signal.reason), { once: true });
+      })
+    ));
+
+    try {
+      const { generateSessionWithOpenAI } = await import("@/lib/openai/session-generator");
+      const generation = generateSessionWithOpenAI(context, {
+        deadlineAt: startedAt.getTime() + 30_000,
+        settlementReserveMs: 12_000,
+      });
+      const rejection = expect(generation).rejects.toMatchObject({
+        name: "SessionGenerationFailure",
+        generationStats: {
+          attempts: 1,
+          failedValidator: "session_provider_request",
+          repairSucceeded: null,
+        },
+      });
+      await vi.advanceTimersByTimeAsync(18_000);
+
+      await rejection;
+      expect(parseResponse).toHaveBeenCalledTimes(1);
+      expect(parseResponse.mock.calls[0]?.[1]).toEqual(expect.objectContaining({
+        maxRetries: 0,
+        timeout: 18_000,
+        signal: expect.any(AbortSignal),
+      }));
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

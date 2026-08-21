@@ -38,4 +38,19 @@ describe("study schedule personalization", () => {
     expect(deadlineDateFromGoal("Review this in 3 days", new Date("2026-08-07T12:00:00")))
       .toBe("2026-08-10");
   });
+
+  it("does not prefill a historical date and lets a later real deadline win", () => {
+    const now = new Date("2026-08-21T12:00:00.000Z");
+
+    expect(deadlineDateFromGoal(
+      "Write a paper about September 11, 2001",
+      now,
+      "UTC",
+    )).toBe("");
+    expect(deadlineDateFromGoal(
+      "Write a paper about September 11, 2001 due in two weeks",
+      now,
+      "UTC",
+    )).toBe("2026-09-04");
+  });
 });

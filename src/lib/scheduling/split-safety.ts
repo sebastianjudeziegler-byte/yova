@@ -17,8 +17,9 @@ export function canOfferAgendaSessionSplit(input: {
   plan: LearningPlan;
   session: LearningPlanSession;
   targetMinutes: number;
+  protectedSessionIds?: ReadonlySet<string>;
 }) {
-  const { plan, session, targetMinutes } = input;
+  const { plan, session, targetMinutes, protectedSessionIds = new Set<string>() } = input;
   if (plan.status !== "active") return false;
   if (plan.sourceMode !== "yova_generated") return false;
   const selectedSession = plan.sessions.find((candidate) => candidate.id === session.id);
@@ -26,6 +27,7 @@ export function canOfferAgendaSessionSplit(input: {
   if (session.status !== "ready" && session.status !== "upcoming") return false;
   if (selectedSession.status !== "ready" && selectedSession.status !== "upcoming") return false;
   if (isScheduledRetrievalSession(session)) return false;
+  if (session.resource || protectedSessionIds.has(session.id)) return false;
   if (session.estimatedMinutes !== selectedSession.estimatedMinutes) return false;
   if (!Number.isInteger(targetMinutes) || targetMinutes < 10) return false;
   if (targetMinutes >= selectedSession.estimatedMinutes) return false;
@@ -35,6 +37,9 @@ export function canOfferAgendaSessionSplit(input: {
   ));
   if (!unfinishedSessions.length) return false;
   if (unfinishedSessions.some(isScheduledRetrievalSession)) return false;
+  if (unfinishedSessions.some((candidate) => (
+    Boolean(candidate.resource) || protectedSessionIds.has(candidate.id)
+  ))) return false;
 
   const settledSessions = plan.sessions.filter((candidate) => (
     candidate.status === "complete" || candidate.status === "skipped"
