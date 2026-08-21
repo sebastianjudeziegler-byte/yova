@@ -5,12 +5,28 @@ const migration = readFileSync(
   new URL("../../../supabase/migrations/202608210002_reconcile_active_plan_material_attachments.sql", import.meta.url),
   "utf8",
 );
+const lintFixMigration = readFileSync(
+  new URL("../../../supabase/migrations/202608210004_fix_material_attachment_uuid_array.sql", import.meta.url),
+  "utf8",
+);
 const generationRoute = readFileSync(
   new URL("../../app/api/sessions/generate/route.ts", import.meta.url),
   "utf8",
 );
 
 describe("active-plan material attachment migration", () => {
+  it("repairs the deployed UUID accumulator without weakening the RPC grants", () => {
+    expect(lintFixMigration).toContain("requested_ids uuid[] := array[]::uuid[];");
+    expect(lintFixMigration).toContain("pg_get_functiondef");
+    expect(lintFixMigration).toContain("raise exception 'The expected material-attachment UUID accumulator was not found.'");
+    expect(lintFixMigration).toContain(
+      "revoke all on function public.attach_materials_to_plan(jsonb) from public, anon;",
+    );
+    expect(lintFixMigration).toContain(
+      "grant execute on function public.attach_materials_to_plan(jsonb) to authenticated;",
+    );
+  });
+
   it("rejects missing, null, or malformed direct-RPC payload fields before mutation", () => {
     expect(migration).toContain("jsonb_typeof(payload) is distinct from 'object'");
     expect(migration).toContain("jsonb_typeof(payload -> 'planId') is distinct from 'string'");
