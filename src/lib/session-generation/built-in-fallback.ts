@@ -472,7 +472,7 @@ export function builtInSessionFallbackKind(
   }
 
   if (
-    /\b(?:startup|founder|pre seed|term sheet|bootstrapp|dilution)\b/.test(planTopic)
+    /\b(?:startup|founder|pre seed|term sheet|bootstrapp|dilution)\b/.test(`${planTopic} ${sessionScope}`)
     && startupScopeSignalCount(sessionScope) >= 2
   ) return "startup_funding";
 

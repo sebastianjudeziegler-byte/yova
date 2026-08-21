@@ -190,6 +190,20 @@ describe("built-in session fallback eligibility", () => {
     })).toBe("budget_and_compound_growth");
   });
 
+  it("uses an exact startup session scope when the learner-derived plan title is broader", () => {
+    expect(builtInSessionFallbackKind({
+      ...base,
+      planTopic: "Learn How Funding Stages and Investor Types Connect",
+      sessionTitle: "Build the startup funding map",
+      sessionObjective: "Build an accurate model of funding stages, instruments, ownership, dilution, and term sheets.",
+      contentTargets: [
+        "How funding stages and investor types connect",
+        "How common funding instruments change ownership or repayment",
+        "How dilution and term-sheet terms affect founders and investors",
+      ],
+    })).toBe("startup_funding");
+  });
+
   it("always permits the source-bound outside-YOVA workflow", () => {
     expect(builtInSessionFallbackKind({
       ...base,
