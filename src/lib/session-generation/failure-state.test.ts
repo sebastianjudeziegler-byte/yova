@@ -117,6 +117,23 @@ describe("guided-session generation failure classification", () => {
     expect(actionIds(state)).toContain("start_method_work");
   });
 
+  it("classifies a live operation-key conflict as retryable without treating it as quota", () => {
+    const cause = classifyGuidedSessionGenerationFailure({
+      response: response(409, { "Retry-After": "45" }),
+      body: {
+        code: "ai_operation_in_progress",
+        error: "This guided session is already being prepared.",
+        retryable: true,
+      },
+    });
+
+    expect(cause).toMatchObject({
+      kind: "transient_provider_or_network",
+      retryable: true,
+      resetAt: null,
+    });
+  });
+
   it("keeps setup and lifecycle rejections out of the provider-failure category", () => {
     const cause = classifyGuidedSessionGenerationFailure({
       response: response(409),

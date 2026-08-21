@@ -1,3 +1,5 @@
+import { inferDeadlineDate } from "@/lib/intake/deadline";
+
 export type StudyFrequency = "every_day" | "most_days" | "three_four" | "one_two";
 export type StudyWindow = "Morning" | "Afternoon" | "Evening" | "Anytime";
 export type StudySessionLength = 15 | 25 | 45 | 60;
@@ -41,39 +43,12 @@ export function frequencyIndexes(frequency: StudyFrequency) {
   return [0, 2, 4, 6];
 }
 
-export function deadlineDateFromGoal(goal: string, now = new Date()) {
-  const date = new Date(now);
-  const relativeMatch = goal.match(/\bin\s+(a|one|two|three|four|five|six|seven|\d+)\s+(day|days|week|weeks)\b/i);
-
-  if (/\btomorrow\b/i.test(goal)) {
-    date.setDate(date.getDate() + 1);
-  } else if (relativeMatch) {
-    const amount = numberFromWord(relativeMatch[1]);
-    const multiplier = /week/i.test(relativeMatch[2]) ? 7 : 1;
-    date.setDate(date.getDate() + amount * multiplier);
-  } else if (/next friday|\bfriday\b/i.test(goal)) {
-    const daysUntilFriday = (5 - date.getDay() + 7) % 7 || 7;
-    date.setDate(date.getDate() + daysUntilFriday);
-  } else {
-    return "";
-  }
-
-  const offset = date.getTimezoneOffset();
-  return new Date(date.getTime() - offset * 60_000).toISOString().slice(0, 10);
-}
-
-function numberFromWord(value: string) {
-  const words: Record<string, number> = {
-    a: 1,
-    one: 1,
-    two: 2,
-    three: 3,
-    four: 4,
-    five: 5,
-    six: 6,
-    seven: 7,
-  };
-  return words[value.toLowerCase()] ?? Number(value);
+export function deadlineDateFromGoal(
+  goal: string,
+  now = new Date(),
+  timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
+) {
+  return inferDeadlineDate(goal, { now, timeZone }) ?? "";
 }
 
 function preferredWindow(profileSummary: string): StudyWindow {

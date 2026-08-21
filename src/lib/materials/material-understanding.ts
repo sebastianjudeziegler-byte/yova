@@ -19,6 +19,9 @@ import { getOpenAIKnowledgeMapConfig } from "@/lib/openai/config";
 
 const CHUNKS_PER_BATCH = 4;
 const MAPPING_CONCURRENCY = 3;
+const PROVIDER_BATCH_TIMEOUT_MS = 30_000;
+const MINIMUM_BATCH_TIME_MS = 5_000;
+export const MATERIAL_MAPPING_ROUTE_BUDGET_MS = 90_000;
 
 const MaterialBatchMapSchema = z.object({
   roleReason: z.string().trim().min(10).max(400),
@@ -56,6 +59,7 @@ export async function mapMaterialText(input: {
   materialId: string;
   filename: string;
   text: string;
+  deadlineAt?: number;
 }): Promise<{ understanding: MaterialUnderstanding; chunks: Array<MaterialTextChunk & { sectionRole: MaterialSectionRole }>; stats: MaterialMappingStats }> {
   const startedAt = Date.now();
   const chunks = chunkMaterialText(input.materialId, input.text);
@@ -68,9 +72,12 @@ export async function mapMaterialText(input: {
     (_, index) => chunks.slice(index * CHUNKS_PER_BATCH, (index + 1) * CHUNKS_PER_BATCH),
   );
   const mappedBatches: z.infer<typeof MaterialBatchMapSchema>[] = [];
+  const deadlineAt = input.deadlineAt ?? startedAt + MATERIAL_MAPPING_ROUTE_BUDGET_MS;
 
   for (let start = 0; start < batches.length; start += MAPPING_CONCURRENCY) {
     const wave = await Promise.all(batches.slice(start, start + MAPPING_CONCURRENCY).map(async (batch) => {
+      const remainingMs = deadlineAt - Date.now();
+      if (remainingMs < MINIMUM_BATCH_TIME_MS) throw new MaterialMappingDeadlineError();
       usage.attempts += 1;
       const response = await getOpenAIClient().responses.parse({
         model: config.model,
@@ -87,7 +94,11 @@ export async function mapMaterialText(input: {
         text: { format: zodTextFormat(MaterialBatchMapSchema, "yova_material_map"), verbosity: "low" },
         max_output_tokens: 4_000,
         store: false,
-      }, { maxRetries: 0, timeout: 30_000 });
+      }, {
+        maxRetries: 0,
+        timeout: Math.min(PROVIDER_BATCH_TIMEOUT_MS, remainingMs),
+        signal: AbortSignal.timeout(Math.min(PROVIDER_BATCH_TIMEOUT_MS, remainingMs)),
+      });
       if (response.status !== "completed") throw new MaterialMappingError("material_mapping_response_status");
       const parsed = MaterialBatchMapSchema.safeParse(response.output_parsed);
       if (!parsed.success) throw new MaterialMappingError("material_mapping_structure");
@@ -142,6 +153,7 @@ export async function mapAndPersistMaterial(input: {
   filename: string;
   text: string;
   table?: "material_uploads" | "materials";
+  deadlineAt?: number;
 }) {
   const table = input.table ?? "material_uploads";
   const startedAt = Date.now();
@@ -261,6 +273,13 @@ class MaterialMappingSourceMissingError extends Error {
 class MaterialMappingError extends Error {
   constructor(public readonly failedValidator: import("@/lib/analytics/generation-observation").GenerationValidator) {
     super("YOVA could not map every material chunk.");
+  }
+}
+
+export class MaterialMappingDeadlineError extends Error {
+  constructor() {
+    super("Material mapping stopped before the request deadline so its partial state can be removed safely.");
+    this.name = "MaterialMappingDeadlineError";
   }
 }
 

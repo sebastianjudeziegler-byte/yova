@@ -6,13 +6,15 @@ export const ExternalMaterialRequestSchema = z.object({
   transcript: z.string().trim().min(80).max(50_000).optional(),
 });
 
+export const ExternalMaterialSourceSchema = z.object({
+  kind: z.enum(["article", "youtube"]),
+  title: z.string().trim().min(1).max(180),
+  url: z.string().url().max(2_000),
+});
+
 export const ExternalMaterialReadyResponseSchema = MaterialUploadResponseSchema.extend({
   status: z.literal("ready"),
-  source: z.object({
-    kind: z.enum(["article", "youtube"]),
-    title: z.string().trim().min(1).max(180),
-    url: z.string().url().max(2_000),
-  }),
+  source: ExternalMaterialSourceSchema,
 });
 
 export const ExternalMaterialTranscriptResponseSchema = z.object({

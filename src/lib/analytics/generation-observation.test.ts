@@ -46,10 +46,14 @@ describe("GenerationObservationSchema", () => {
     }).success).toBe(false);
   });
 
-  it("accepts only the bounded safe-study recovery marker", () => {
+  it("accepts only the bounded safe recovery markers", () => {
     expect(GenerationObservationSchema.safeParse({
       ...safeEvent,
       diagnostics: { recoveryMode: "safe_study" },
+    }).success).toBe(true);
+    expect(GenerationObservationSchema.safeParse({
+      ...safeEvent,
+      diagnostics: { recoveryMode: "safe_learn" },
     }).success).toBe(true);
     expect(GenerationObservationSchema.safeParse({
       ...safeEvent,

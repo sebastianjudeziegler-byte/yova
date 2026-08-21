@@ -91,4 +91,61 @@ describe("whole-document material understanding", () => {
       text: "A complete explanation. ".repeat(400),
     })).rejects.toMatchObject({ failedValidator: "material_mapping_chunk_coverage" });
   });
+
+  it("stops a slow multi-wave map with cleanup time left before the route deadline", async () => {
+    let now = 1_000;
+    const nowSpy = vi.spyOn(Date, "now").mockImplementation(() => now);
+    parseResponse.mockImplementation(async (request: { input: string }) => {
+      now += 24_000;
+      return successfulBatch(request);
+    });
+    const {
+      mapMaterialText,
+      MaterialMappingDeadlineError,
+    } = await import("@/lib/materials/material-understanding");
+    const longText = "A detailed instructional section explains a distinct relationship with examples. ".repeat(2_900);
+    const totalBatches = Math.ceil(chunkMaterialText(materialId, longText).length / 4);
+
+    try {
+      await expect(mapMaterialText({
+        materialId,
+        filename: "long-course-notes.pdf",
+        text: longText,
+        deadlineAt: 70_000,
+      })).rejects.toBeInstanceOf(MaterialMappingDeadlineError);
+      expect(totalBatches).toBeGreaterThan(3);
+      expect(parseResponse).toHaveBeenCalledTimes(3);
+      expect(parseResponse.mock.calls.every((call) => {
+        const options = call[1] as { timeout?: number } | undefined;
+        return typeof options?.timeout === "number" && options.timeout <= 30_000;
+      })).toBe(true);
+    } finally {
+      nowSpy.mockRestore();
+    }
+  });
 });
+
+function successfulBatch(request: { input: string }) {
+  const input = JSON.parse(request.input) as { chunks: Array<{ chunkIndex: number }> };
+  return {
+    status: "completed",
+    output_parsed: {
+      roleReason: "Every requested location was classified before the bounded mapper deadline.",
+      chunks: input.chunks.map((chunk) => ({
+        chunkIndex: chunk.chunkIndex,
+        sectionRole: "content_source",
+        topics: [{
+          title: `Mapped relationship ${chunk.chunkIndex + 1}`,
+          description: `Instructional substance from bounded location ${chunk.chunkIndex + 1}.`,
+          subtopics: [],
+          prerequisiteTitles: [],
+        }],
+      })),
+    },
+    usage: {
+      input_tokens: 100,
+      input_tokens_details: { cached_tokens: 0, cache_write_tokens: 0 },
+      output_tokens: 40,
+    },
+  };
+}

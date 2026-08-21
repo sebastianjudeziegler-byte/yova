@@ -142,7 +142,7 @@ export const GenerationObservationSchema = z.object({
     ]).optional(),
     lessonAction: z.enum(["skip_to_practice"]).optional(),
     lessonRequestId: z.string().uuid().optional(),
-    recoveryMode: z.enum(["safe_study"]).optional(),
+    recoveryMode: z.enum(["safe_study", "safe_learn"]).optional(),
     planFailureReason: z.enum(PLAN_FAILURE_REASONS).optional(),
     providerCategory: z.enum(PROVIDER_ERROR_CATEGORIES).optional(),
     providerStatus: z.number().int().min(100).max(599).optional(),

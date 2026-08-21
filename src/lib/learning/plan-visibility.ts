@@ -1,4 +1,4 @@
-import type { DeadlineMilestone } from "@/lib/domain";
+import type { DeadlineMilestone, LearningPlan } from "@/lib/domain";
 
 type PlanWithStatus = { status: unknown };
 type PlanWithLearningItem = { learningItemId: string; status: unknown };
@@ -44,6 +44,44 @@ export function filterOperationalPlans<T extends PlanWithSessions>(plans: readon
   return plans.filter(isOperationalPlan);
 }
 
+/**
+ * Old clients could mark a plan complete before a split finished and could
+ * persist 8/7-minute parts created by the obsolete halving algorithm, including
+ * inside plans that otherwise remained active. Recover only provenance-backed
+ * parts at the read boundary so the learner can resume while the database
+ * migration repairs the authoritative rows. Scheduled reviews and sessions
+ * with a resource, checkpoint, or interruption remain unchanged.
+ */
+export function recoverRunnablePlanLifecycle(
+  plan: LearningPlan,
+  protectedSessionIds: ReadonlySet<string> = new Set(),
+): LearningPlan {
+  if (!isOperationalPlan(plan)) return plan;
+  let recoveredPart = false;
+  const sessions = plan.sessions.map((session) => {
+    if (!isObsoleteUndersizedSplitPart(session, protectedSessionIds)) return session;
+    recoveredPart = true;
+    return {
+      ...session,
+      estimatedMinutes: 10,
+      amountLabel: normalizeRecoveredAmountLabel(session.amountLabel),
+    };
+  });
+  if (plan.status === "active" && !recoveredPart) return plan;
+  return {
+    ...plan,
+    status: "active",
+    sessions,
+  };
+}
+
+export function recoverRunnablePlanLifecycles(
+  plans: readonly LearningPlan[],
+  protectedSessionIds: ReadonlySet<string> = new Set(),
+) {
+  return plans.map((plan) => recoverRunnablePlanLifecycle(plan, protectedSessionIds));
+}
+
 export function filterAvailablePlans<T extends PlanWithStatus>(plans: readonly T[]): T[] {
   return plans.filter((plan) => isAvailablePlanStatus(plan.status));
 }
@@ -81,4 +119,31 @@ export function filterTutorThreads<T extends TutorThreadWithPlanLink>(
     thread.learningItemId === null
     || availableItemIds.has(thread.learningItemId)
   ));
+}
+
+function normalizeRecoveredAmountLabel(value: string) {
+  if (!value.trim()) return "One focused target + evidence check · about 10 min";
+  if (/about\s+\d+\s+min/i.test(value)) {
+    return value.replace(/about\s+\d+\s+min/gi, "about 10 min");
+  }
+  return `${value} · about 10 min`;
+}
+
+function isObsoleteUndersizedSplitPart(
+  session: LearningPlan["sessions"][number],
+  protectedSessionIds: ReadonlySet<string>,
+) {
+  return (session.status === "ready" || session.status === "upcoming")
+    && !session.reviewType
+    && !session.resource
+    && !protectedSessionIds.has(session.id)
+    && session.estimatedMinutes < 10
+    && Boolean(session.originSessionId?.trim())
+    && Number.isInteger(session.originalContentMinutes)
+    && (session.originalContentMinutes ?? 0) > 0
+    && Number.isInteger(session.segmentIndex)
+    && (session.segmentIndex ?? 0) > 0
+    && Number.isInteger(session.segmentCount)
+    && (session.segmentCount ?? 0) > 1
+    && (session.segmentIndex ?? 0) <= (session.segmentCount ?? 0);
 }

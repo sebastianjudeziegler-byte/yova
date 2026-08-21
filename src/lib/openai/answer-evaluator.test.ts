@@ -61,6 +61,10 @@ describe("evaluateAnswerWithOpenAI output language", () => {
     await expect(evaluateAnswerWithOpenAI(request)).resolves.toEqual(repairedEvaluation);
 
     expect(mocks.parse).toHaveBeenCalledTimes(2);
+    expect(mocks.parse.mock.calls.map((call) => call[1])).toEqual([
+      { maxRetries: 0, timeout: 20_000 },
+      { maxRetries: 0, timeout: 20_000 },
+    ]);
     const secondCall = mocks.parse.mock.calls[1]?.[0];
     expect(secondCall.input).toContain("Regenerate the evaluation");
     expect(secondCall.input).toContain(request.learnerAnswer);

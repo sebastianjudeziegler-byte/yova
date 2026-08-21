@@ -50,6 +50,12 @@ import { readSessionResourceFromStepData } from "@/lib/session-generation/resour
 import { resolveSessionArchitectureVersion } from "@/lib/session-generation/architecture";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
+import {
+  CloudAccountIdentityMismatchError,
+  CloudSyncTemporarilyUnavailableError,
+  LEARNER_PROFILE_IDENTITY_SYNC_WARNING,
+  LEARNER_PROFILE_SAVE_SYNC_WARNING,
+} from "@/lib/supabase/cloud-sync-error";
 
 type ProfileRow = {
   display_name: string;
@@ -521,9 +527,20 @@ async function persistAuthenticatedActiveSessionCheckpoint(
   checkpoint: CloudSyncActiveSessionCheckpoint,
 ) {
   const supabase = createSupabaseBrowserClient();
-  const { data, error } = await supabase.rpc("save_active_session_checkpoint_with_completion_mode", {
-    payload: activeSessionCheckpointCloudPayload(checkpoint),
-  });
+  let data: unknown = null;
+  let error: unknown = null;
+  try {
+    const result = await supabase.rpc("save_active_session_checkpoint_with_completion_mode", {
+      payload: activeSessionCheckpointCloudPayload(checkpoint),
+    });
+    data = result.data;
+    error = result.error;
+  } catch (cause) {
+    throw new CloudSyncTemporarilyUnavailableError(
+      "YOVA kept this lesson on this device but could not sync its recovery point.",
+      cause,
+    );
+  }
 
   if (error) {
     if (isActiveSessionCheckpointTerminalIssue(error)) {
@@ -532,7 +549,10 @@ async function persistAuthenticatedActiveSessionCheckpoint(
     if (isActiveSessionCheckpointConflictIssue(error)) {
       throw new ActiveSessionCheckpointConflictError();
     }
-    throw new Error("YOVA kept this lesson on this device but could not sync its recovery point.");
+    throw new CloudSyncTemporarilyUnavailableError(
+      "YOVA kept this lesson on this device but could not sync its recovery point.",
+      error,
+    );
   }
 
   const authoritative = readActiveSessionCheckpoint(data);
@@ -638,9 +658,6 @@ const pendingLearnerProfileWrites = new Map<string, QueuedLearnerProfileWrite>()
 let activeLearnerProfileWrite: QueuedLearnerProfileWrite | null = null;
 let learnerProfileWriteRunning = false;
 
-const PROFILE_ACCOUNT_CHANGED_MESSAGE =
-  "YOVA stopped saving this learning profile because the signed-in account changed.";
-
 /**
  * Profile edits can arrive close together (for example, a receipt followed by
  * a preference change). Keep one cloud write in flight and coalesce anything
@@ -680,7 +697,7 @@ export function saveAuthenticatedLearnerProfile(input: LearnerProfileSaveInput) 
  * settle before the provider identity is checked again.
  */
 export function cancelAuthenticatedLearnerProfileWrites(accountId: string) {
-  const issue = new Error(PROFILE_ACCOUNT_CHANGED_MESSAGE);
+  const issue = new CloudAccountIdentityMismatchError();
   const pendingWrite = pendingLearnerProfileWrites.get(accountId);
   if (pendingWrite) {
     pendingLearnerProfileWrites.delete(accountId);
@@ -702,9 +719,9 @@ async function drainLearnerProfileWrites() {
     pendingLearnerProfileWrites.delete(accountId);
     activeLearnerProfileWrite = write;
     try {
-      if (write.cancelled) throw new Error(PROFILE_ACCOUNT_CHANGED_MESSAGE);
+      if (write.cancelled) throw new CloudAccountIdentityMismatchError();
       await persistAuthenticatedLearnerProfile(write.input, () => write.cancelled);
-      if (write.cancelled) throw new Error(PROFILE_ACCOUNT_CHANGED_MESSAGE);
+      if (write.cancelled) throw new CloudAccountIdentityMismatchError();
       write.waiters.forEach((waiter) => waiter.resolve());
     } catch (error) {
       write.waiters.forEach((waiter) => waiter.reject(error));
@@ -721,30 +738,60 @@ async function persistAuthenticatedLearnerProfile(
 ) {
   const [preferredSessionMin, preferredSessionMax] = parseSessionRange(input.onboardingAnswers[2]);
   const supabase = createSupabaseBrowserClient();
-  const { data: { user }, error: identityError } = await supabase.auth.getUser();
-  if (isCancelled() || identityError || user?.id !== input.accountId) {
-    throw new Error(PROFILE_ACCOUNT_CHANGED_MESSAGE);
+  let user: { id: string } | null = null;
+  let identityError: unknown = null;
+  try {
+    const identity = await supabase.auth.getUser();
+    user = identity.data.user;
+    identityError = identity.error;
+  } catch (cause) {
+    throw new CloudSyncTemporarilyUnavailableError(
+      LEARNER_PROFILE_IDENTITY_SYNC_WARNING,
+      cause,
+    );
+  }
+  if (isCancelled()) throw new CloudAccountIdentityMismatchError();
+  if (identityError || !user) {
+    throw new CloudSyncTemporarilyUnavailableError(
+      LEARNER_PROFILE_IDENTITY_SYNC_WARNING,
+      identityError,
+    );
+  }
+  if (user.id !== input.accountId) throw new CloudAccountIdentityMismatchError();
+
+  let saveError: unknown = null;
+  try {
+    const result = await supabase.rpc("save_learner_profile", {
+      payload: {
+        expectedAccountId: input.accountId,
+        displayName: input.displayName.trim(),
+        onboardingCompletedAt: new Date().toISOString(),
+        commonBlocker: onboardingAnswerId(0, input.onboardingAnswers[0]) ?? input.onboardingAnswers[0] ?? "",
+        guidancePreference: onboardingAnswerId(1, input.onboardingAnswers[1]) ?? input.onboardingAnswers[1] ?? "",
+        preferredSessionMin,
+        preferredSessionMax,
+        explanationPreference: onboardingAnswerId(3, input.onboardingAnswers[3]) ?? input.onboardingAnswers[3] ?? "",
+        focusFrequency: onboardingAnswerId(4, input.onboardingAnswers[4]) ?? input.onboardingAnswers[4] ?? "",
+        startingPattern: onboardingAnswerId(5, input.onboardingAnswers[5]) ?? input.onboardingAnswers[5] ?? "",
+        energyWindow: onboardingAnswerId(6, input.onboardingAnswers[6]) ?? input.onboardingAnswers[6] ?? "",
+        primaryImprovementGoal: onboardingAnswerId(7, input.onboardingAnswers[7]) ?? input.onboardingAnswers[7] ?? "",
+        additionalContext: encodeAdditionalLearnerContext(input.onboardingAnswers),
+      },
+    });
+    saveError = result.error;
+  } catch (cause) {
+    throw new CloudSyncTemporarilyUnavailableError(
+      LEARNER_PROFILE_SAVE_SYNC_WARNING,
+      cause,
+    );
   }
 
-  const { error } = await supabase.rpc("save_learner_profile", {
-    payload: {
-      expectedAccountId: input.accountId,
-      displayName: input.displayName.trim(),
-      onboardingCompletedAt: new Date().toISOString(),
-      commonBlocker: onboardingAnswerId(0, input.onboardingAnswers[0]) ?? input.onboardingAnswers[0] ?? "",
-      guidancePreference: onboardingAnswerId(1, input.onboardingAnswers[1]) ?? input.onboardingAnswers[1] ?? "",
-      preferredSessionMin,
-      preferredSessionMax,
-      explanationPreference: onboardingAnswerId(3, input.onboardingAnswers[3]) ?? input.onboardingAnswers[3] ?? "",
-      focusFrequency: onboardingAnswerId(4, input.onboardingAnswers[4]) ?? input.onboardingAnswers[4] ?? "",
-      startingPattern: onboardingAnswerId(5, input.onboardingAnswers[5]) ?? input.onboardingAnswers[5] ?? "",
-      energyWindow: onboardingAnswerId(6, input.onboardingAnswers[6]) ?? input.onboardingAnswers[6] ?? "",
-      primaryImprovementGoal: onboardingAnswerId(7, input.onboardingAnswers[7]) ?? input.onboardingAnswers[7] ?? "",
-      additionalContext: encodeAdditionalLearnerContext(input.onboardingAnswers),
-    },
-  });
-
-  if (error) throw new Error("YOVA could not save your learning profile to the cloud.");
+  if (saveError) {
+    throw new CloudSyncTemporarilyUnavailableError(
+      LEARNER_PROFILE_SAVE_SYNC_WARNING,
+      saveError,
+    );
+  }
 }
 
 export async function completeAuthenticatedPlanSession(

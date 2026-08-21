@@ -36,10 +36,11 @@ vi.mock("@/lib/materials/storage-upload", () => ({
   storePrivateMaterial: vi.fn(),
 }));
 vi.mock("@/lib/materials/material-understanding", () => ({
+  MATERIAL_MAPPING_ROUTE_BUDGET_MS: 90_000,
   mapAndPersistMaterial: vi.fn(),
 }));
 
-import { POST } from "@/app/api/materials/route";
+import { DELETE, POST } from "@/app/api/materials/route";
 import { MaterialStageResponseSchema } from "@/lib/materials/schema";
 
 describe("material staging write response", () => {
@@ -142,6 +143,46 @@ describe("material staging write response", () => {
       }),
     );
     errorLog.mockRestore();
+  });
+});
+
+describe("material staging deletion", () => {
+  it("removes durable mapped chunks before deleting the staging row", async () => {
+    vi.clearAllMocks();
+    mocks.getUser.mockResolvedValue({ data: { user: { id: USER_ID } }, error: null });
+    const materialId = "22222222-2222-4222-8222-222222222222";
+    const chunkDelete = vi.fn();
+    const uploadDelete = vi.fn();
+    const chunkEq = vi.fn().mockResolvedValue({ error: null });
+    const uploadDeleteEq = vi.fn().mockResolvedValue({ error: null });
+    const uploadSelectEq = vi.fn(() => ({
+      maybeSingle: vi.fn().mockResolvedValue({
+        data: { storage_path: `${USER_ID}/${materialId}/notes.txt` },
+        error: null,
+      }),
+    }));
+    const uploadSelect = vi.fn(() => ({ eq: uploadSelectEq }));
+    chunkDelete.mockImplementation(() => ({ eq: chunkEq }));
+    uploadDelete.mockImplementation(() => ({ eq: uploadDeleteEq }));
+    const remove = vi.fn().mockResolvedValue({ error: null });
+    mocks.createClient.mockResolvedValue({
+      auth: { getUser: mocks.getUser },
+      from: vi.fn((table: string) => table === "material_chunks"
+        ? { delete: chunkDelete }
+        : { select: uploadSelect, delete: uploadDelete }),
+      storage: { from: vi.fn(() => ({ remove })) },
+    });
+
+    const response = await DELETE(new Request("https://yova.example/api/materials", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ materialId }),
+    }));
+
+    expect(response.status).toBe(204);
+    expect(chunkEq).toHaveBeenCalledWith("material_id", materialId);
+    expect(uploadDeleteEq).toHaveBeenCalledWith("id", materialId);
+    expect(chunkDelete.mock.invocationCallOrder[0]).toBeLessThan(uploadDelete.mock.invocationCallOrder[0]);
   });
 });
 

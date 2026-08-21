@@ -67,6 +67,28 @@ describe("privacySafeErrorDiagnostic", () => {
     expect(JSON.stringify(diagnostic)).not.toContain("private answer");
   });
 
+  it("surfaces the bounded teaching recovery marker without learner content", () => {
+    const error = new Error("private learner content");
+    Object.assign(error, {
+      name: "SessionGenerationFailure",
+      generationStats: {
+        attempts: 3,
+        failedValidator: "session_completion_contract",
+        repairReason: "semantic_validation",
+        recoveryMode: "safe_learn",
+      },
+    });
+
+    expect(privacySafeErrorDiagnostic(error)).toEqual({
+      reason: "Error",
+      name: "SessionGenerationFailure",
+      attempts: 3,
+      failedValidator: "session_completion_contract",
+      repairReason: "semantic_validation",
+      recoveryMode: "safe_learn",
+    });
+  });
+
   it("drops a free-form validation issue instead of logging it", () => {
     const error = new Error("private learner content");
     Object.assign(error, {

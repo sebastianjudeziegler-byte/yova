@@ -64,4 +64,20 @@ describe("YOVA prototype UI contracts", () => {
     expect(component).toContain('fallbackSelection?.kind === "generic_inside" || fallbackSelection?.kind === "outside_source"');
     expect(component).toContain('requestedPlan.studyMode === "outside_yova" && requestedSession.resource.origin === "built_in"');
   });
+
+  it("reuses one guided-session operation id after an ambiguous browser timeout", () => {
+    const component = readSource("src/components/yova-prototype.tsx");
+    const operation = component.indexOf("reusableSessionGenerationOperation(");
+    const header = component.indexOf('"X-Yova-Request-Id": clientRequestId', operation);
+    const terminal = component.indexOf(
+      "generationOperationReachedTerminalResponse = !isSessionGenerationOperationInProgress(body)",
+      header,
+    );
+    const clear = component.indexOf("pendingSessionGenerationOperationRef.current = null", terminal);
+
+    expect(operation).toBeGreaterThan(-1);
+    expect(header).toBeGreaterThan(operation);
+    expect(terminal).toBeGreaterThan(header);
+    expect(clear).toBeGreaterThan(terminal);
+  });
 });

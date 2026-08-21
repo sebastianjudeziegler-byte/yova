@@ -9,6 +9,9 @@ const mocks = vi.hoisted(() => ({
   rpc: vi.fn(),
   generateTutorAnswer: vi.fn(),
   claimAIRequest: vi.fn(),
+  releaseAIRequestClaim: vi.fn(),
+  releaseAIRequestReservation: vi.fn(),
+  settleAIRequestClaim: vi.fn(),
 }));
 
 vi.mock("@/lib/supabase/config", () => ({ isSupabaseConfigured: () => true }));
@@ -21,7 +24,12 @@ vi.mock("@/lib/server/rate-limit", () => ({
   checkTutorRateLimit: () => ({ allowed: true, retryAfterSeconds: 0 }),
   requestRateLimitKey: () => "route-test",
 }));
-vi.mock("@/lib/server/ai-usage", () => ({ claimAIRequest: mocks.claimAIRequest }));
+vi.mock("@/lib/server/ai-usage", () => ({
+  reserveAIRequest: mocks.claimAIRequest,
+  releaseAIRequestClaim: mocks.releaseAIRequestClaim,
+  releaseAIRequestReservation: mocks.releaseAIRequestReservation,
+  settleAIRequestClaim: mocks.settleAIRequestClaim,
+}));
 
 import { GET, POST } from "@/app/api/tutor/route";
 
@@ -57,7 +65,14 @@ describe("tutor plan visibility", () => {
       model: "gpt-test",
       responseId: "response-1",
     });
-    mocks.claimAIRequest.mockReset().mockResolvedValue({ allowed: true, retryAfterSeconds: 0 });
+    mocks.claimAIRequest.mockReset().mockResolvedValue({
+      allowed: true,
+      claimId: "12121212-1212-4212-8212-121212121212",
+      retryAfterSeconds: 0,
+    });
+    mocks.releaseAIRequestClaim.mockReset().mockResolvedValue(true);
+    mocks.releaseAIRequestReservation.mockReset().mockResolvedValue(false);
+    mocks.settleAIRequestClaim.mockReset().mockResolvedValue(true);
     mocks.createClient.mockReset().mockResolvedValue({
       auth: { getUser: mocks.getUser },
       from: mocks.from,
@@ -123,6 +138,66 @@ describe("tutor plan visibility", () => {
 
     expect(response.status).toBe(502);
     expect(mocks.rpc).not.toHaveBeenCalledWith("save_tutor_exchange", expect.anything());
+    expect(mocks.releaseAIRequestClaim).toHaveBeenCalledWith(
+      expect.anything(),
+      "12121212-1212-4212-8212-121212121212",
+    );
+    expect(mocks.settleAIRequestClaim).not.toHaveBeenCalled();
+  });
+
+  it("settles a validated learner-usable tutor response", async () => {
+    const response = await POST(new Request("https://yova.example/api/tutor", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ question: "Explain this topic", persistenceMode: "thread" }),
+    }));
+
+    expect(response.status).toBe(200);
+    expect(mocks.settleAIRequestClaim).toHaveBeenCalledWith(
+      expect.anything(),
+      "12121212-1212-4212-8212-121212121212",
+    );
+    expect(mocks.releaseAIRequestClaim).not.toHaveBeenCalled();
+  });
+
+  it("returns a valid tutor answer when settlement cannot be confirmed", async () => {
+    mocks.settleAIRequestClaim.mockRejectedValueOnce(new Error("settlement receipt lost"));
+
+    const response = await POST(new Request("https://yova.example/api/tutor", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ question: "Explain this topic", persistenceMode: "thread" }),
+    }));
+
+    expect(response.status).toBe(200);
+    expect(mocks.releaseAIRequestClaim).not.toHaveBeenCalled();
+  });
+
+  it("does not start tutor generation for a live operation-key replay", async () => {
+    mocks.claimAIRequest.mockResolvedValueOnce({
+      allowed: false,
+      claimId: null,
+      operationKey: "22222222-2222-4222-8222-222222222222",
+      denialReason: "operation_in_progress",
+      retryAfterSeconds: 33,
+      remainingToday: 7,
+    });
+
+    const response = await POST(new Request("https://yova.example/api/tutor", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ question: "Explain this topic", persistenceMode: "thread" }),
+    }));
+
+    expect(response.status).toBe(409);
+    expect(response.headers.get("Retry-After")).toBe("33");
+    await expect(response.json()).resolves.toMatchObject({
+      code: "ai_operation_in_progress",
+      retryable: true,
+    });
+    expect(mocks.generateTutorAnswer).not.toHaveBeenCalled();
+    expect(mocks.releaseAIRequestClaim).not.toHaveBeenCalled();
+    expect(mocks.settleAIRequestClaim).not.toHaveBeenCalled();
   });
 });
 

@@ -29,7 +29,7 @@ export async function PATCH(request: Request) {
   const parsed = SessionDurationAdjustmentRequestSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json({
-      error: "Choose a session length between 5 and 90 minutes.",
+      error: "Choose a session length between 10 and 90 minutes.",
       fields: parsed.error.flatten().fieldErrors,
     }, { status: 422 });
   }

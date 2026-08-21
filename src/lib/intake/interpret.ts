@@ -1,4 +1,5 @@
 import type { IntakeInterpretation, IntakeItemType } from "@/lib/intake/schema";
+import { inferDeadlineDueAt } from "@/lib/intake/deadline";
 import { LEARNING_TITLE_CHARACTER_LIMIT } from "@/lib/learning/title-limits";
 
 const TEST_PATTERN = /\b(test|exam|quiz|midterm|final|sat|act|ap exam)\b/i;
@@ -27,11 +28,10 @@ export function interpretIntake(input: {
 }): IntakeInterpretation {
   const description = normalize(input.description);
   const itemType = inferType(description);
-  const dueAt = inferDueAt(
-    description,
-    input.now ?? new Date(),
-    input.timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone ?? "UTC",
-  );
+  const dueAt = inferDeadlineDueAt(description, {
+    now: input.now,
+    timeZone: input.timeZone,
+  });
   const scope = inferScope(description);
   const progress = inferProgress(description);
 
@@ -178,143 +178,11 @@ function inferProgress(description: string) {
   return "";
 }
 
-function inferDueAt(description: string, now: Date, requestedTimeZone: string) {
-  const lower = description.toLocaleLowerCase();
-  const timeZone = validTimeZone(requestedTimeZone);
-  const today = calendarDateInTimeZone(now, timeZone);
-  if (/\btoday\b/.test(lower)) return calendarDateEnd(today, timeZone).toISOString();
-  if (/\btomorrow\b/.test(lower)) {
-    return calendarDateEnd(addCalendarDays(today, 1), timeZone).toISOString();
-  }
-
-  const relative = lower.match(/\b(?:in\s+)?(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|\d+)\s+(day|days|week|weeks)\b/);
-  if (relative) {
-    const amount = wordNumber(relative[1]);
-    const days = amount * (relative[2].startsWith("week") ? 7 : 1);
-    return calendarDateEnd(addCalendarDays(today, days), timeZone).toISOString();
-  }
-
-  const weekdayMatch = lower.match(/\b(?:(?:by|due|on|before)\s+(?:next\s+)?|next\s+)(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/);
-  if (weekdayMatch) {
-    const weekdays = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
-    const target = weekdays.indexOf(weekdayMatch[1]);
-    const current = new Date(Date.UTC(today.year, today.month - 1, today.day, 12)).getUTCDay();
-    let delta = (target - current + 7) % 7;
-    if (delta === 0) delta = 7;
-    return calendarDateEnd(addCalendarDays(today, delta), timeZone).toISOString();
-  }
-
-  const explicit = description.match(/\b(20\d{2})-(\d{1,2})-(\d{1,2})\b/);
-  if (explicit) {
-    const calendarDate = validCalendarDate(Number(explicit[1]), Number(explicit[2]), Number(explicit[3]));
-    if (calendarDate) return calendarDateEnd(calendarDate, timeZone).toISOString();
-  }
-
-  const monthDate = description.match(/\b(january|february|march|april|may|june|july|august|september|october|november|december)\s+(\d{1,2})(?:,\s*(20\d{2}))?\b/i);
-  if (monthDate) {
-    const month = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"].indexOf(monthDate[1].toLocaleLowerCase());
-    let year = monthDate[3] ? Number(monthDate[3]) : today.year;
-    let calendarDate = validCalendarDate(year, month + 1, Number(monthDate[2]));
-    if (!monthDate[3] && calendarDate && compareCalendarDates(calendarDate, today) < 0) {
-      year += 1;
-      calendarDate = validCalendarDate(year, month + 1, Number(monthDate[2]));
-    }
-    if (calendarDate) return calendarDateEnd(calendarDate, timeZone).toISOString();
-  }
-  return null;
-}
-
-type CalendarDate = { year: number; month: number; day: number };
-
-function validTimeZone(value: string) {
-  try {
-    new Intl.DateTimeFormat("en-US", { timeZone: value }).format();
-    return value;
-  } catch {
-    return "UTC";
-  }
-}
-
-function calendarDateInTimeZone(date: Date, timeZone: string): CalendarDate {
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone,
-    year: "numeric",
-    month: "numeric",
-    day: "numeric",
-  }).formatToParts(date);
-  const part = (type: "year" | "month" | "day") => Number(parts.find((entry) => entry.type === type)?.value);
-  return { year: part("year"), month: part("month"), day: part("day") };
-}
-
-function addCalendarDays(date: CalendarDate, days: number): CalendarDate {
-  const next = new Date(Date.UTC(date.year, date.month - 1, date.day + days, 12));
-  return { year: next.getUTCFullYear(), month: next.getUTCMonth() + 1, day: next.getUTCDate() };
-}
-
-function calendarDateEnd(date: CalendarDate, timeZone: string) {
-  const localAsUtc = Date.UTC(date.year, date.month - 1, date.day, 23, 59, 59, 999);
-  const observed = new Intl.DateTimeFormat("en-US", {
-    timeZone,
-    hourCycle: "h23",
-    year: "numeric",
-    month: "numeric",
-    day: "numeric",
-    hour: "numeric",
-    minute: "numeric",
-    second: "numeric",
-  }).formatToParts(new Date(localAsUtc));
-  const part = (type: "year" | "month" | "day" | "hour" | "minute" | "second") => (
-    Number(observed.find((entry) => entry.type === type)?.value)
-  );
-  const observedAsUtc = Date.UTC(
-    part("year"),
-    part("month") - 1,
-    part("day"),
-    part("hour"),
-    part("minute"),
-    part("second"),
-    999,
-  );
-  return new Date(localAsUtc - (observedAsUtc - localAsUtc));
-}
-
-function validCalendarDate(year: number, month: number, day: number): CalendarDate | null {
-  const candidate = new Date(Date.UTC(year, month - 1, day, 12));
-  if (
-    candidate.getUTCFullYear() !== year
-    || candidate.getUTCMonth() + 1 !== month
-    || candidate.getUTCDate() !== day
-  ) return null;
-  return { year, month, day };
-}
-
-function compareCalendarDates(left: CalendarDate, right: CalendarDate) {
-  return Date.UTC(left.year, left.month - 1, left.day) - Date.UTC(right.year, right.month - 1, right.day);
-}
-
 function inferRequestedMinutes(description: string) {
   const match = description.match(/\b(?:in|for|within)\s+(\d{1,3})\s*(?:minutes?|mins?)\b/i);
   if (!match) return null;
   const minutes = Number(match[1]);
   return minutes >= 5 && minutes <= 180 ? minutes : null;
-}
-
-function wordNumber(value: string) {
-  const numbers: Record<string, number> = {
-    one: 1,
-    two: 2,
-    three: 3,
-    four: 4,
-    five: 5,
-    six: 6,
-    seven: 7,
-    eight: 8,
-    nine: 9,
-    ten: 10,
-    eleven: 11,
-    twelve: 12,
-  };
-  return numbers[value] ?? Number(value);
 }
 
 function titleCase(value: string) {

@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
-import type { StreamedGeneratedSessionActivity, StreamedGeneratedSessionDraft } from "@/lib/session-generation/schema";
+import {
+  StreamedGeneratedSessionActivitySchema,
+  type StreamedGeneratedSessionActivity,
+  type StreamedGeneratedSessionDraft,
+} from "@/lib/session-generation/schema";
 import {
   allocateStreamedTeachingMinutes,
+  boundedGeneratedActivityTitle,
   interleaveStreamedTeachingCycles,
   streamedTeachingPacingContract,
   validateStreamedTeachingPacing,
@@ -10,6 +15,45 @@ import {
 const TOPIC_ID = "11111111-1111-4111-8111-111111111111";
 
 describe("streamed teaching pacing", () => {
+  it("bounds generated teaching headings at a complete phrase instead of a hard word cut", () => {
+    const firstClaim = "Light excites electrons in photosystem II, and water replaces those electrons while releasing oxygen and protons.";
+    const secondClaim = "Electron carriers use that energy to build the proton gradient that powers ATP synthase for the chloroplast.";
+    const draft = sessionDraft([
+      instruction("Teach photosystem II", firstClaim),
+      instruction("Teach the proton gradient", secondClaim),
+      question("Photosystem II electron replacement", "explain"),
+      question("Chloroplast proton gradient", "transfer"),
+    ], [firstClaim, secondClaim]);
+    const interleaved = interleaveStreamedTeachingCycles({ draft, availableMinutes: 15 });
+    const heading = interleaved.activities[0]?.title;
+
+    expect(heading).toBe("Learn Light excites electrons in photosystem II, and water replaces those electrons while releasing oxygen and protons…");
+    expect(heading?.length).toBeLessThanOrEqual(140);
+    expect(interleaved.activities[0]?.lessonBrief?.essentialIdeas).toEqual([firstClaim, secondClaim]);
+    expect(StreamedGeneratedSessionActivitySchema.safeParse({
+      ...instruction("Temporary title", firstClaim),
+      title: heading,
+    }).success).toBe(true);
+  });
+
+  it("makes an unavoidable word-boundary abbreviation explicit and removes dangling connectors", () => {
+    const unpunctuated = `Learn ${"complete mechanism detail ".repeat(6)}for the downstream stage of the pathway`;
+    const heading = boundedGeneratedActivityTitle(unpunctuated);
+
+    expect(heading).toMatch(/…$/);
+    expect(heading).not.toMatch(/\b(?:for|the|and|to|of|in)\s*…$/i);
+    expect(heading.length).toBeLessThanOrEqual(140);
+  });
+
+  it("leaves an unrelated short heading unchanged and keeps the schema's hard limit", () => {
+    expect(boundedGeneratedActivityTitle("Learn how the product rule works"))
+      .toBe("Learn how the product rule works");
+    expect(StreamedGeneratedSessionActivitySchema.safeParse({
+      ...instruction("Temporary title", "Energy coupling links exergonic and endergonic reactions."),
+      title: "x".repeat(141),
+    }).success).toBe(false);
+  });
+
   it("allocates a two-cycle lesson to the learner's exact 25-minute window", () => {
     const activities = [
       instruction("Teach energy coupling", "Energy coupling links exergonic and endergonic reactions."),

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { PlanKnowledgeMapSchema } from "@/lib/knowledge-map/schema";
 import { UploadedMaterialSchema } from "@/lib/materials/schema";
 
 export const MaterialAttachmentRequestSchema = z.object({
@@ -13,6 +14,7 @@ export const MaterialAttachmentResponseSchema = z.object({
   planId: z.string().uuid(),
   sourceMode: z.literal("user_materials"),
   materials: z.array(UploadedMaterialSchema).min(1).max(5),
+  knowledgeMap: PlanKnowledgeMapSchema,
   persistence: z.literal("supabase"),
 });
 

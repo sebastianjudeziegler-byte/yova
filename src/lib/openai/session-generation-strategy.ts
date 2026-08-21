@@ -8,6 +8,7 @@ import {
 import {
   generateSessionWithOpenAI,
   type SessionGenerationContext,
+  type SessionGenerationRuntime,
 } from "@/lib/openai/session-generator";
 import { generateStreamedTeachingSkeletonWithOpenAI } from "@/lib/openai/streamed-teaching-generator";
 import { sessionArchitectureForGeneration, usesStreamedTeaching } from "@/lib/session-generation/architecture";
@@ -35,7 +36,10 @@ export function sessionGenerationStrategy(context: SessionGenerationContext) {
   return canGenerateReliableSession(scopedContext) ? "reliable" as const : "full" as const;
 }
 
-export function generateProductionSessionWithOpenAI(context: SessionGenerationContext) {
+export function generateProductionSessionWithOpenAI(
+  context: SessionGenerationContext,
+  runtime: SessionGenerationRuntime = {},
+) {
   const scopedContext = withSessionConceptScope(context);
   const generationContext = {
     ...scopedContext,
@@ -48,7 +52,9 @@ export function generateProductionSessionWithOpenAI(context: SessionGenerationCo
   };
   const strategy = sessionGenerationStrategy(generationContext);
   if (strategy === "streamed") return generateStreamedTeachingSkeletonWithOpenAI(generationContext);
-  return strategy === "reliable" ? generateReliableSessionWithOpenAI(generationContext) : generateSessionWithOpenAI(generationContext);
+  return strategy === "reliable"
+    ? generateReliableSessionWithOpenAI(generationContext)
+    : generateSessionWithOpenAI(generationContext, runtime);
 }
 
 export function withSessionConceptScope(

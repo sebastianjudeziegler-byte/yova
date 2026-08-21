@@ -24,7 +24,13 @@ import {
   PlanGenerationResponseSchema,
 } from "@/lib/plan-generation/schema";
 import { checkPlanGenerationRateLimit, requestRateLimitKey } from "@/lib/server/rate-limit";
-import { claimAIRequest } from "@/lib/server/ai-usage";
+import {
+  aiUsageReservationConflict,
+  releaseAIRequestClaim,
+  releaseAIRequestReservation,
+  reserveAIRequest,
+  settleAIRequestClaim,
+} from "@/lib/server/ai-usage";
 import { isDevelopmentPreviewRequest } from "@/lib/server/development-preview";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -120,6 +126,7 @@ export async function POST(request: Request) {
         materialId: stored.id,
         filename: stored.filename,
         text: stored.extracted_text,
+        deadlineAt: startedAt + 45_000,
       }).catch(() => null);
       if (!understanding) return null;
       return {
@@ -143,6 +150,118 @@ export async function POST(request: Request) {
     };
   }
 
+  // One plan-generation reservation covers the complete learner-facing AI
+  // operation: topic mapping plus either the placement diagnostic or the plan
+  // itself. Reserving only immediately before generatePlanWithOpenAI left the
+  // earlier knowledge-map/diagnostic calls outside both durable and in-memory
+  // limits. Material-understanding repair above remains part of the separate
+  // upload/mapping lifecycle.
+  let aiUsageClaimId: string | null = null;
+  const aiUsageRecoveryKey = crypto.randomUUID();
+  const meteredPlanProviderWork = isOpenAIPlanConfigured()
+    && (
+      !planRequest.knowledgeMap
+      || diagnosticOnly
+      || planRequest.intent !== "study_now"
+    );
+  if (meteredPlanProviderWork) {
+    const rateLimit = checkPlanGenerationRateLimit(`${user?.id ?? "preview"}:${requestRateLimitKey(request)}`);
+    if (!rateLimit.allowed) {
+      if (diagnosticOnly) {
+        return NextResponse.json(
+          { error: "YOVA is preparing too many placement checks at once. Wait a moment, or skip this check and continue." },
+          {
+            status: 429,
+            headers: {
+              "Cache-Control": "no-store",
+              "Retry-After": String(rateLimit.retryAfterSeconds),
+              "X-Yova-Request-Id": requestId,
+            },
+          },
+        );
+      }
+      return reliableDraftResponse(
+        planRequest,
+        requestId,
+        startedAt,
+        "Live AI planning is temporarily busy, so YOVA created a basic fallback draft from your saved inputs. Retry live planning, or review this fallback carefully before saving it.",
+        supabase,
+        user?.id,
+      );
+    }
+
+    if (supabase && user) {
+      let durableLimit: Awaited<ReturnType<typeof reserveAIRequest>>;
+      try {
+        durableLimit = await reserveAIRequest(
+          supabase,
+          "plan_generation",
+          requestId,
+          aiUsageRecoveryKey,
+        );
+      } catch {
+        await recoverUnknownPlanReservation(supabase, requestId, aiUsageRecoveryKey);
+        if (diagnosticOnly) {
+          return NextResponse.json(
+            { error: "YOVA could not verify the placement-check allowance. Skip this check or try again in a moment." },
+            {
+              status: 503,
+              headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId },
+            },
+          );
+        }
+        return reliableDraftResponse(
+          planRequest,
+          requestId,
+          startedAt,
+          "Live AI planning is temporarily unavailable, so YOVA created a basic fallback draft from your saved inputs. Retry live planning, or review this fallback carefully before saving it.",
+          supabase,
+          user?.id,
+        );
+      }
+      if (!durableLimit.allowed) {
+        const conflict = aiUsageReservationConflict(durableLimit);
+        if (conflict) {
+          return NextResponse.json(
+            { code: conflict.code, error: conflict.error, retryable: conflict.retryable },
+            {
+              status: 409,
+              headers: {
+                "Cache-Control": "no-store",
+                ...(conflict.retryAfterSeconds === null ? {} : {
+                  "Retry-After": String(conflict.retryAfterSeconds),
+                }),
+                "X-Yova-Request-Id": requestId,
+              },
+            },
+          );
+        }
+        if (diagnosticOnly) {
+          return NextResponse.json(
+            { error: "This account has reached its planning allowance. Skip the placement check or return after the allowance resets." },
+            {
+              status: 429,
+              headers: {
+                "Cache-Control": "no-store",
+                "Retry-After": String(durableLimit.retryAfterSeconds),
+                "X-Yova-Request-Id": requestId,
+              },
+            },
+          );
+        }
+        return reliableDraftResponse(
+          planRequest,
+          requestId,
+          startedAt,
+          "Live AI planning is unavailable for this account right now, so YOVA created a basic fallback draft from your saved inputs. Retry later, or review this fallback carefully before saving it.",
+          supabase,
+          user?.id,
+        );
+      }
+      aiUsageClaimId = durableLimit.claimId;
+    }
+  }
+
   try {
     const mapped = planRequest.knowledgeMap
       ? null
@@ -151,36 +270,37 @@ export async function POST(request: Request) {
         : await generatePlanKnowledgeMap(planRequest);
     if (mapped) planRequest = { ...planRequest, knowledgeMap: mapped.map };
     if (mapped) {
-    await recordGenerationObservation(supabase, user?.id, {
-      generationType: "knowledge_map",
-      environment: generationEnvironment(),
-      finalOutcome: "success",
-      firstAttemptPassed: mapped.stats.firstAttemptPassed,
-      failedValidator: mapped.stats.failedValidator,
-      repairAttempted: mapped.stats.attempts > 1,
-      repairSucceeded: mapped.stats.attempts > 1 ? true : null,
-      elapsedMs: mapped.stats.elapsedMs,
-      attempts: mapped.stats.attempts,
-      inputTokens: mapped.stats.inputTokens,
-      cachedInputTokens: mapped.stats.cachedInputTokens,
-      cacheWriteTokens: mapped.stats.cacheWriteTokens,
-      outputTokens: mapped.stats.outputTokens,
-      model: mapped.stats.model,
-      diagnostics: {
-        topicCount: mapped.map.topics.length,
-        scopeBand: mapped.map.scopeJudgment.band,
-        curriculumRecognized: mapped.stats.curriculumRecognized,
-        ...(mapped.stats.curriculumId ? { curriculumId: mapped.stats.curriculumId } : {}),
-        ...(mapped.stats.curriculumMatchSource ? { curriculumMatchSource: mapped.stats.curriculumMatchSource } : {}),
-        ...(mapped.stats.curriculumMatchConfidence ? { curriculumMatchConfidence: mapped.stats.curriculumMatchConfidence } : {}),
-      },
-    });
+      await recordPlanGenerationObservationSafely(supabase, user?.id, {
+        generationType: "knowledge_map",
+        environment: generationEnvironment(),
+        finalOutcome: "success",
+        firstAttemptPassed: mapped.stats.firstAttemptPassed,
+        failedValidator: mapped.stats.failedValidator,
+        repairAttempted: mapped.stats.attempts > 1,
+        repairSucceeded: mapped.stats.attempts > 1 ? true : null,
+        elapsedMs: mapped.stats.elapsedMs,
+        attempts: mapped.stats.attempts,
+        inputTokens: mapped.stats.inputTokens,
+        cachedInputTokens: mapped.stats.cachedInputTokens,
+        cacheWriteTokens: mapped.stats.cacheWriteTokens,
+        outputTokens: mapped.stats.outputTokens,
+        model: mapped.stats.model,
+        diagnostics: {
+          topicCount: mapped.map.topics.length,
+          scopeBand: mapped.map.scopeJudgment.band,
+          curriculumRecognized: mapped.stats.curriculumRecognized,
+          ...(mapped.stats.curriculumId ? { curriculumId: mapped.stats.curriculumId } : {}),
+          ...(mapped.stats.curriculumMatchSource ? { curriculumMatchSource: mapped.stats.curriculumMatchSource } : {}),
+          ...(mapped.stats.curriculumMatchConfidence ? { curriculumMatchConfidence: mapped.stats.curriculumMatchConfidence } : {}),
+        },
+      });
     }
   } catch (error) {
+    await releaseFailedPlanClaim(supabase, aiUsageClaimId, requestId);
     const validator = error instanceof KnowledgeMapGenerationError
       ? error.failedValidator
       : "knowledge_map_provider_request" as const;
-    await recordGenerationObservation(supabase, user?.id, {
+    await recordPlanGenerationObservationSafely(supabase, user?.id, {
       generationType: "knowledge_map",
       environment: generationEnvironment(),
       finalOutcome: "failure",
@@ -206,7 +326,17 @@ export async function POST(request: Request) {
     const diagnosticStartedAt = Date.now();
     try {
       const generated = await generateMapDiagnostic(planRequest.knowledgeMap, planRequest.goal);
-      await recordGenerationObservation(supabase, user?.id, {
+      const diagnosticResponse = PlanDiagnosticPreparationResponseSchema.parse({
+        knowledgeMap: planRequest.knowledgeMap,
+        questions: generated.questions,
+        generation: {
+          requestId,
+          durationMs: Date.now() - diagnosticStartedAt,
+          mode: generated.stats.model ? "openai" : "preview",
+        },
+      });
+      await settleSuccessfulPlanClaim(supabase, aiUsageClaimId, requestId);
+      await recordPlanGenerationObservationSafely(supabase, user?.id, {
         generationType: "diagnostic",
         environment: generationEnvironment(),
         finalOutcome: "success",
@@ -223,20 +353,15 @@ export async function POST(request: Request) {
         model: generated.stats.model,
         diagnostics: { questionCount: generated.questions.length, topicCount: planRequest.knowledgeMap.topics.length },
       });
-      return NextResponse.json(PlanDiagnosticPreparationResponseSchema.parse({
-        knowledgeMap: planRequest.knowledgeMap,
-        questions: generated.questions,
-        generation: {
-          requestId,
-          durationMs: Date.now() - diagnosticStartedAt,
-          mode: generated.stats.model ? "openai" : "preview",
-        },
-      }), { headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId } });
+      return NextResponse.json(diagnosticResponse, {
+        headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId },
+      });
     } catch (error) {
+      await releaseFailedPlanClaim(supabase, aiUsageClaimId, requestId);
       const failedValidator = error instanceof MapDiagnosticGenerationError
         ? error.failedValidator
         : "diagnostic_provider_request" as const;
-      await recordGenerationObservation(supabase, user?.id, {
+      await recordPlanGenerationObservationSafely(supabase, user?.id, {
         ...emptyPlanObservation(Date.now() - diagnosticStartedAt),
         generationType: "diagnostic",
         environment: generationEnvironment(),
@@ -253,74 +378,37 @@ export async function POST(request: Request) {
   // immediately; the session generator still creates the subject teaching,
   // examples, and checks that follow.
   if (planRequest.intent === "study_now") {
-    let focusedPlan: ReturnType<typeof generatePreviewPlan>;
     try {
-      focusedPlan = generatePreviewPlan(planRequest);
+      const focusedPlan = generatePreviewPlan(planRequest);
+      const response = PlanGenerationResponseSchema.parse({
+        plan: focusedPlan,
+        generation: {
+          mode: "system",
+          model: null,
+          notice: null,
+          requestId,
+          durationMs: Date.now() - startedAt,
+          persistence: "draft",
+        },
+      });
+
+      await settleSuccessfulPlanClaim(supabase, aiUsageClaimId, requestId);
+      await recordPlanGenerationObservationSafely(supabase, user?.id, {
+        ...emptyPlanObservation(Date.now() - startedAt),
+        generationType: "plan",
+        environment: generationEnvironment(),
+        finalOutcome: "success",
+      });
+      return NextResponse.json(response, {
+        headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId },
+      });
     } catch (error) {
+      await releaseFailedPlanClaim(supabase, aiUsageClaimId, requestId);
       return deterministicPlanFailureResponse(error, requestId);
     }
-    const response = PlanGenerationResponseSchema.parse({
-      plan: focusedPlan,
-      generation: {
-        mode: "system",
-        model: null,
-        notice: null,
-        requestId,
-        durationMs: Date.now() - startedAt,
-        persistence: "draft",
-      },
-    });
-
-    await recordGenerationObservation(supabase, user?.id, {
-      ...emptyPlanObservation(Date.now() - startedAt),
-      generationType: "plan",
-      environment: generationEnvironment(),
-      finalOutcome: "success",
-    });
-    return NextResponse.json(response, {
-      headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId },
-    });
   }
 
   if (isOpenAIPlanConfigured()) {
-    const rateLimit = checkPlanGenerationRateLimit(`${user?.id ?? "preview"}:${requestRateLimitKey(request)}`);
-    if (!rateLimit.allowed) {
-      return reliableDraftResponse(
-        planRequest,
-        requestId,
-        startedAt,
-        "Live AI planning is temporarily busy, so YOVA created a basic fallback draft from your saved inputs. Retry live planning, or review this fallback carefully before saving it.",
-        supabase,
-        user?.id,
-      );
-    }
-
-    if (supabase && user) {
-      let durableLimit: Awaited<ReturnType<typeof claimAIRequest>>;
-      try {
-        durableLimit = await claimAIRequest(supabase, "plan_generation");
-      } catch {
-        return reliableDraftResponse(
-          planRequest,
-          requestId,
-          startedAt,
-          "Live AI planning is temporarily unavailable, so YOVA created a basic fallback draft from your saved inputs. Retry live planning, or review this fallback carefully before saving it.",
-          supabase,
-          user?.id,
-        );
-      }
-      if (!durableLimit.allowed) {
-        return reliableDraftResponse(
-          planRequest,
-          requestId,
-          startedAt,
-          "Live AI planning is unavailable for this account right now, so YOVA created a basic fallback draft from your saved inputs. Retry later, or review this fallback carefully before saving it.",
-          supabase,
-          user?.id,
-        );
-      }
-    }
-
     try {
       const generated = await generatePlanWithOpenAI(planRequest, {
         deadlineAt: startedAt + (maxDuration * 1_000) - PLAN_GENERATION_DEADLINE_BUFFER_MS,
@@ -339,7 +427,9 @@ export async function POST(request: Request) {
         },
       });
 
-      await recordGenerationObservation(supabase, user?.id, {
+      await settleSuccessfulPlanClaim(supabase, aiUsageClaimId, requestId);
+
+      await recordPlanGenerationObservationSafely(supabase, user?.id, {
         generationType: "plan",
         environment: generationEnvironment(),
         finalOutcome: "success",
@@ -364,6 +454,7 @@ export async function POST(request: Request) {
         },
       });
     } catch (error) {
+      await releaseFailedPlanClaim(supabase, aiUsageClaimId, requestId);
       const failure = error instanceof OpenAIPlanGenerationError ? error : null;
       console.error("YOVA plan generation failed", failure ? {
         requestId,
@@ -408,7 +499,7 @@ export async function POST(request: Request) {
     },
   });
 
-  await recordGenerationObservation(supabase, user?.id, {
+  await recordPlanGenerationObservationSafely(supabase, user?.id, {
     ...emptyPlanObservation(Date.now() - startedAt),
     generationType: "plan",
     environment: generationEnvironment(),
@@ -418,6 +509,56 @@ export async function POST(request: Request) {
   return NextResponse.json(response, {
     headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId },
   });
+}
+
+async function settleSuccessfulPlanClaim(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>> | null,
+  claimId: string | null,
+  requestId: string,
+) {
+  if (!supabase || !claimId) return;
+  try {
+    if (!await settleAIRequestClaim(supabase, claimId)) {
+      console.error("YOVA could not settle a successful plan-generation allowance claim", { requestId });
+    }
+  } catch {
+    console.error("YOVA could not settle a successful plan-generation allowance claim", { requestId });
+  }
+}
+
+async function recordPlanGenerationObservationSafely(
+  ...args: Parameters<typeof recordGenerationObservation>
+) {
+  try {
+    await recordGenerationObservation(...args);
+  } catch {
+    // Analytics is best-effort and must never suppress a validated learner response.
+  }
+}
+
+async function releaseFailedPlanClaim(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>> | null,
+  claimId: string | null,
+  requestId: string,
+) {
+  if (!supabase || !claimId) return;
+  try {
+    await releaseAIRequestClaim(supabase, claimId);
+  } catch {
+    console.error("YOVA could not return a failed plan-generation allowance claim", { requestId });
+  }
+}
+
+async function recoverUnknownPlanReservation(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  operationKey: string,
+  recoveryKey: string,
+) {
+  try {
+    await releaseAIRequestReservation(supabase, "plan_generation", operationKey, recoveryKey);
+  } catch {
+    // Its short database lease remains the final recovery boundary.
+  }
 }
 
 function readMaterialUnderstanding(metadata: unknown) {
@@ -496,7 +637,7 @@ async function reliableDraftResponse(
   });
 
   const failedStats = failure?.generationStats;
-  await recordGenerationObservation(supabase, userId, failedStats ? {
+  await recordPlanGenerationObservationSafely(supabase, userId, failedStats ? {
     generationType: "plan",
     environment: generationEnvironment(),
     finalOutcome: "fallback",

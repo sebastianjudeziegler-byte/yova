@@ -1,14 +1,18 @@
-import { after, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { fetchArticleSource, fetchYouTubeTitle, ExternalSourceError } from "@/lib/materials/external-fetch";
 import {
   ExternalMaterialReadyResponseSchema,
   ExternalMaterialRequestSchema,
+  ExternalMaterialSourceSchema,
   ExternalMaterialTranscriptResponseSchema,
 } from "@/lib/materials/external-source-schema";
 import { buildExternalMaterialFilename, parseYouTubeSource } from "@/lib/materials/external-source";
 import { assessMaterialQuality } from "@/lib/materials/quality";
 import { MAX_EXTRACTED_CHARACTERS } from "@/lib/materials/extract";
-import { mapAndPersistMaterial } from "@/lib/materials/material-understanding";
+import {
+  MATERIAL_MAPPING_ROUTE_BUDGET_MS,
+  mapAndPersistMaterial,
+} from "@/lib/materials/material-understanding";
 import { checkMaterialUploadRateLimit, requestRateLimitKey } from "@/lib/server/rate-limit";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -17,6 +21,7 @@ export const maxDuration = 120;
 
 export async function POST(request: Request) {
   const requestId = crypto.randomUUID();
+  const mappingDeadlineAt = Date.now() + MATERIAL_MAPPING_ROUTE_BUDGET_MS;
   const supabase = await createSupabaseServerClient();
   const { data: { user }, error: userError } = await supabase.auth.getUser();
   if (userError || !user) {
@@ -74,6 +79,12 @@ export async function POST(request: Request) {
         : "That transcript does not contain enough readable learning content yet.");
     }
 
+    // Redirects and fetched metadata are untrusted inputs too. Validate the
+    // canonical source before creating either the storage object or database
+    // row, while leaving construction of the Ready response until mapping has
+    // durably completed.
+    const source = ExternalMaterialSourceSchema.parse({ kind, title, url: canonicalUrl });
+
     const materialId = crypto.randomUUID();
     const filename = buildExternalMaterialFilename(kind, title);
     const storagePath = `${user.id}/${materialId}/${filename}`;
@@ -86,36 +97,6 @@ export async function POST(request: Request) {
       importedAt: new Date().toISOString(),
       mappingStatus: "processing",
     };
-    // Validate and serialize the complete success payload before either
-    // Storage or Postgres is mutated. A redirect can change the canonical URL,
-    // so this boundary must cover the final URL rather than only the request.
-    const readyPayload = ExternalMaterialReadyResponseSchema.parse({
-      status: "ready",
-      source: { kind, title, url: canonicalUrl },
-      material: {
-        id: materialId,
-        name: filename,
-        mimeType: "text/plain",
-        sizeBytes: bytes.byteLength,
-        textContent: null,
-        processingStatus: "ready",
-      },
-      extraction: {
-        characters: text.length,
-        words: quality.wordCount,
-        pages: null,
-        truncated,
-        quality: quality.status,
-        notice: quality.notice,
-      },
-    });
-    const successResponse = new NextResponse(JSON.stringify(readyPayload), {
-      headers: {
-        "Cache-Control": "no-store",
-        "Content-Type": "application/json",
-        "X-Yova-Request-Id": requestId,
-      },
-    });
     const { error: storageError } = await supabase.storage
       .from("learning-materials")
       .upload(storagePath, bytes, { contentType: "text/plain", upsert: false });
@@ -128,7 +109,7 @@ export async function POST(request: Request) {
       storage_path: storagePath,
       mime_type: "text/plain",
       byte_size: bytes.byteLength,
-      processing_status: "ready",
+      processing_status: "processing",
       extracted_text: text,
       metadata,
     });
@@ -138,31 +119,83 @@ export async function POST(request: Request) {
     }
 
     try {
-      after(async () => {
-        await mapAndPersistMaterial({
-          supabase,
-          materialId,
-          filename,
-          text,
-        }).catch((mappingError) => {
-          console.error("YOVA external material mapping failed", {
-            requestId,
-            reason: mappingError instanceof Error ? mappingError.name : "unknown",
-          });
-        });
+      // A linked source is not Ready until its understanding and exact source
+      // chunks are durable. This keeps plan attachment from racing a deferred
+      // mapper and makes the response's state truthful.
+      await mapAndPersistMaterial({
+        supabase,
+        materialId,
+        filename,
+        text,
+        deadlineAt: mappingDeadlineAt,
       });
-    } catch (schedulingError) {
-      // Mapping is recoverable during plan generation. The material itself is
-      // already committed, so scheduling failure must not be reported as an
-      // import failure that encourages a duplicate retry.
-      console.error("YOVA external material mapping was not scheduled", {
+
+      // Build a Ready response only after the mapping transaction has stored
+      // every chunk and atomically advanced processing_status to ready.
+      const readyPayload = ExternalMaterialReadyResponseSchema.parse({
+        status: "ready",
+          source,
+        material: {
+          id: materialId,
+          name: filename,
+          mimeType: "text/plain",
+          sizeBytes: bytes.byteLength,
+          textContent: null,
+          processingStatus: "ready",
+        },
+        extraction: {
+          characters: text.length,
+          words: quality.wordCount,
+          pages: null,
+          truncated,
+          quality: quality.status,
+          notice: quality.notice,
+        },
+      });
+      return new NextResponse(JSON.stringify(readyPayload), {
+        headers: {
+          "Cache-Control": "no-store",
+          "Content-Type": "application/json",
+          "X-Yova-Request-Id": requestId,
+        },
+      });
+    } catch (mappingError) {
+      console.error("YOVA external material mapping failed", {
         requestId,
         materialId,
-        reason: schedulingError instanceof Error ? schedulingError.name : "unknown",
+        reason: mappingError instanceof Error ? mappingError.name : "unknown",
+      });
+      const cleanup = await Promise.allSettled([
+        supabase.from("material_chunks").delete().eq("material_id", materialId),
+        supabase.from("material_uploads").delete().eq("id", materialId),
+        supabase.storage.from("learning-materials").remove([storagePath]),
+      ]);
+      const cleanupSucceeded = cleanup.every((result) => (
+        result.status === "fulfilled" && !result.value.error
+      ));
+      if (cleanupSucceeded) {
+        return NextResponse.json({
+          error: "YOVA could not map this source into reliable sections. The incomplete import was removed, so it is safe to try again.",
+          code: "external_material_mapping_failed_rolled_back",
+          retryable: true,
+          requestId,
+        }, {
+          status: 503,
+          headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId },
+        });
+      }
+      return NextResponse.json({
+        error: `YOVA saved part of this source but could not finish or remove it. Do not add it again. Contact YOVA Support with reference ${requestId}.`,
+        code: "external_material_mapping_incomplete_committed",
+        committed: true,
+        materialId,
+        requestId,
+      }, {
+        status: 500,
+        headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId },
       });
     }
 
-    return successResponse;
   } catch (error) {
     console.error("YOVA external material import failed", { requestId, reason: error instanceof Error ? error.name : "unknown" });
     const expected = error instanceof ExternalSourceError;

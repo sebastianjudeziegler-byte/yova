@@ -1,10 +1,14 @@
-import { after, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
+import { MaterialUnderstandingSchema } from "@/lib/knowledge-map/schema";
 import { MaterialExtractionError } from "@/lib/materials/extract";
 import { extractMaterialWithRecovery } from "@/lib/materials/extract-with-recovery";
 import { assessMaterialQuality } from "@/lib/materials/quality";
 import { materialStoragePath, sanitizeMaterialDisplayName } from "@/lib/materials/filename";
 import { storePrivateMaterial } from "@/lib/materials/storage-upload";
-import { mapAndPersistMaterial } from "@/lib/materials/material-understanding";
+import {
+  MATERIAL_MAPPING_ROUTE_BUDGET_MS,
+  mapAndPersistMaterial,
+} from "@/lib/materials/material-understanding";
 import {
   MaterialDeleteRequestSchema,
   MaterialProcessRequestSchema,
@@ -184,6 +188,7 @@ export async function PUT(request: Request) {
 // extracts bounded text, and marks it ready for plan generation.
 export async function PATCH(request: Request) {
   const requestId = crypto.randomUUID();
+  const mappingDeadlineAt = Date.now() + MATERIAL_MAPPING_ROUTE_BUDGET_MS;
   const supabase = await createSupabaseServerClient();
   const { data: { user }, error: userError } = await supabase.auth.getUser();
   if (userError || !user) {
@@ -210,7 +215,22 @@ export async function PATCH(request: Request) {
     if (readyError || !readyUpload?.extracted_text) {
       return NextResponse.json({ error: "YOVA could not reload this material." }, { status: 500 });
     }
-    return NextResponse.json(materialResponse(upload, readyUpload.extracted_text, readyUpload.metadata));
+    try {
+      if (!hasDurableMaterialMapping(readyUpload.metadata)) {
+        await mapAndPersistMaterial({
+          supabase,
+          materialId: upload.id,
+          filename: upload.filename,
+          text: readyUpload.extracted_text,
+          deadlineAt: mappingDeadlineAt,
+        });
+      }
+      return NextResponse.json(materialResponse(upload, readyUpload.extracted_text, readyUpload.metadata), {
+        headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId },
+      });
+    } catch (error) {
+      return materialProcessingFailureResponse({ supabase, upload, requestId, error });
+    }
   }
 
   try {
@@ -239,25 +259,20 @@ export async function PATCH(request: Request) {
     };
     const { error: updateError } = await supabase
       .from("material_uploads")
-      .update({ processing_status: "ready", extracted_text: extracted.text, metadata })
+      .update({ extracted_text: extracted.text, metadata })
       .eq("id", upload.id);
     if (updateError) throw new Error("Material update failed");
 
-    // File reading is the blocking promise the learner is waiting for. Topic
-    // mapping continues after the response and is also recoverable from plan
-    // generation if the learner moves faster than this background pass.
-    after(async () => {
-      await mapAndPersistMaterial({
-        supabase,
-        materialId: upload.id,
-        filename: upload.filename,
-        text: extracted.text,
-      }).catch((mappingError) => {
-        console.error("YOVA material mapping failed", {
-          requestId,
-          reason: mappingError instanceof Error ? mappingError.name : "unknown",
-        });
-      });
+    // "Ready" is a complete contract: the extracted text, understanding and
+    // source chunks all exist durably before the browser may attach the file.
+    // This removes the race where attachment moved the staging row while an
+    // after-response mapper was still trying to update it.
+    await mapAndPersistMaterial({
+      supabase,
+      materialId: upload.id,
+      filename: upload.filename,
+      text: extracted.text,
+      deadlineAt: mappingDeadlineAt,
     });
 
     return NextResponse.json(materialResponse(upload, extracted.text, metadata), {
@@ -269,15 +284,7 @@ export async function PATCH(request: Request) {
       reason: error instanceof Error ? error.name : "unknown",
       message: error instanceof Error ? error.message.slice(0, 240) : "unknown",
     });
-    await Promise.all([
-      supabase.storage.from("learning-materials").remove([upload.storage_path]),
-      supabase.from("material_uploads").delete().eq("id", upload.id),
-    ]);
-    const isExtractionError = error instanceof MaterialExtractionError;
-    return NextResponse.json(
-      { error: isExtractionError ? error.message : "YOVA could not process this file. Try again.", requestId },
-      { status: isExtractionError ? 422 : 500, headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId } },
-    );
+    return materialProcessingFailureResponse({ supabase, upload, requestId, error });
   }
 }
 
@@ -301,6 +308,18 @@ export async function DELETE(request: Request) {
 
   const { error: storageError } = await supabase.storage.from("learning-materials").remove([upload.storage_path]);
   if (storageError) return NextResponse.json({ error: "YOVA could not remove the stored file." }, { status: 500 });
+
+  // Chunks intentionally have no foreign key because the same material id
+  // moves from staging to the durable table during attachment. Remove them
+  // explicitly so cancelling a successfully mapped staged upload does not
+  // retain extracted learning content as an orphan.
+  const { error: chunkDeleteError } = await supabase
+    .from("material_chunks")
+    .delete()
+    .eq("material_id", parsed.data.materialId);
+  if (chunkDeleteError) {
+    return NextResponse.json({ error: "YOVA could not finish removing that file's mapped sections." }, { status: 500 });
+  }
 
   const { error: deleteError } = await supabase.from("material_uploads").delete().eq("id", parsed.data.materialId);
   if (deleteError) return NextResponse.json({ error: "YOVA could not finish removing that file." }, { status: 500 });
@@ -357,4 +376,58 @@ async function readJson(request: Request): Promise<unknown> {
   } catch {
     return null;
   }
+}
+
+function hasDurableMaterialMapping(metadata: unknown) {
+  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) return false;
+  const record = metadata as Record<string, unknown>;
+  return record.mappingStatus === "ready"
+    && MaterialUnderstandingSchema.safeParse(record.materialUnderstanding).success;
+}
+
+async function materialProcessingFailureResponse({
+  supabase,
+  upload,
+  requestId,
+  error,
+}: {
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>;
+  upload: { id: string; storage_path: string };
+  requestId: string;
+  error: unknown;
+}) {
+  const cleanup = await Promise.allSettled([
+    supabase.storage.from("learning-materials").remove([upload.storage_path]),
+    supabase.from("material_chunks").delete().eq("material_id", upload.id),
+    supabase.from("material_uploads").delete().eq("id", upload.id),
+  ]);
+  const cleanupSucceeded = cleanup.every((result) => (
+    result.status === "fulfilled" && !result.value.error
+  ));
+  const isExtractionError = error instanceof MaterialExtractionError;
+
+  if (!cleanupSucceeded) {
+    return NextResponse.json({
+      error: `YOVA saved part of this material but could not finish or remove it. Do not add it again. Contact YOVA Support with reference ${requestId}.`,
+      code: "material_processing_incomplete_committed",
+      committed: true,
+      materialId: upload.id,
+      requestId,
+    }, {
+      status: 500,
+      headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId },
+    });
+  }
+
+  return NextResponse.json({
+    error: isExtractionError
+      ? error.message
+      : "YOVA could not map this file into reliable source sections. The incomplete upload was removed, so it is safe to add the file again.",
+    code: isExtractionError ? "material_extraction_failed_rolled_back" : "material_mapping_failed_rolled_back",
+    retryable: true,
+    requestId,
+  }, {
+    status: isExtractionError ? 422 : 503,
+    headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId },
+  });
 }

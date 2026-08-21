@@ -132,6 +132,7 @@ export function buildDailyCapacityPlan(
   entries: ScheduledLearningEntry[],
   requestedCapacityMinutes: number,
   now = new Date(),
+  protectedSessionIds: ReadonlySet<string> = new Set<string>(),
 ): DailyCapacityPlan {
   const capacityMinutes = Math.max(10, Math.min(180, Math.round(requestedCapacityMinutes)));
   const todayKey = localDateKey(now);
@@ -196,6 +197,7 @@ export function buildDailyCapacityPlan(
       plan: entry.plan,
       session: entry.session,
       targetMinutes: splitMinutes,
+      protectedSessionIds,
     })) continue;
     return {
       status: "split",

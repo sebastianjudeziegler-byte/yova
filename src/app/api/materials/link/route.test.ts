@@ -5,13 +5,14 @@ vi.mock("server-only", () => ({}));
 const USER_ID = "11111111-1111-4111-8111-111111111111";
 
 const mocks = vi.hoisted(() => ({
-  after: vi.fn(),
   assessQuality: vi.fn(),
   checkRateLimit: vi.fn(),
   createClient: vi.fn(),
   fetchArticle: vi.fn(),
   fetchYouTubeTitle: vi.fn(),
   getUser: vi.fn(),
+  delete: vi.fn(),
+  eq: vi.fn(),
   insert: vi.fn(),
   mapMaterial: vi.fn(),
   remove: vi.fn(),
@@ -20,17 +21,16 @@ const mocks = vi.hoisted(() => ({
   upload: vi.fn(),
 }));
 
-vi.mock("next/server", async (importOriginal) => ({
-  ...await importOriginal<typeof import("next/server")>(),
-  after: mocks.after,
-}));
 vi.mock("@/lib/materials/external-fetch", () => ({
   ExternalSourceError: class ExternalSourceError extends Error {},
   fetchArticleSource: mocks.fetchArticle,
   fetchYouTubeTitle: mocks.fetchYouTubeTitle,
 }));
 vi.mock("@/lib/materials/quality", () => ({ assessMaterialQuality: mocks.assessQuality }));
-vi.mock("@/lib/materials/material-understanding", () => ({ mapAndPersistMaterial: mocks.mapMaterial }));
+vi.mock("@/lib/materials/material-understanding", () => ({
+  MATERIAL_MAPPING_ROUTE_BUDGET_MS: 90_000,
+  mapAndPersistMaterial: mocks.mapMaterial,
+}));
 vi.mock("@/lib/server/rate-limit", () => ({
   checkMaterialUploadRateLimit: mocks.checkRateLimit,
   requestRateLimitKey: () => "material-link-route-test",
@@ -54,9 +54,12 @@ describe("linked material write response", () => {
     mocks.assessQuality.mockReturnValue({ status: "ready", wordCount: 72, notice: null });
     mocks.upload.mockResolvedValue({ error: null });
     mocks.insert.mockResolvedValue({ error: null });
+    mocks.delete.mockReturnValue({ eq: mocks.eq });
+    mocks.eq.mockResolvedValue({ error: null });
     mocks.remove.mockResolvedValue({ error: null });
+    mocks.mapMaterial.mockResolvedValue(undefined);
     mocks.storageFrom.mockReturnValue({ upload: mocks.upload, remove: mocks.remove });
-    mocks.tableFrom.mockReturnValue({ insert: mocks.insert });
+    mocks.tableFrom.mockReturnValue({ insert: mocks.insert, delete: mocks.delete });
     mocks.createClient.mockResolvedValue({
       auth: { getUser: mocks.getUser },
       from: mocks.tableFrom,
@@ -74,6 +77,13 @@ describe("linked material write response", () => {
     expect(response.headers.get("x-yova-request-id")).toBeTruthy();
     expect(mocks.upload).toHaveBeenCalledOnce();
     expect(mocks.insert).toHaveBeenCalledOnce();
+    expect(mocks.insert).toHaveBeenCalledWith(expect.objectContaining({
+      processing_status: "processing",
+      metadata: expect.objectContaining({ mappingStatus: "processing" }),
+    }));
+    expect(mocks.mapMaterial).toHaveBeenCalledWith(expect.objectContaining({
+      deadlineAt: expect.any(Number),
+    }));
   });
 
   it("rejects an invalid final canonical URL before Storage or Postgres is mutated", async () => {
@@ -97,22 +107,25 @@ describe("linked material write response", () => {
     errorLog.mockRestore();
   });
 
-  it("does not misreport a committed import when background mapping cannot be scheduled", async () => {
-    mocks.after.mockImplementationOnce(() => {
-      throw new Error("request context unavailable");
-    });
+  it("rolls back a committed import before inviting a retry when mapping fails", async () => {
+    mocks.mapMaterial.mockRejectedValueOnce(new Error("provider unavailable"));
     const errorLog = vi.spyOn(console, "error").mockImplementation(() => undefined);
 
     const response = await POST(articleRequest());
     const body = await response.json();
 
-    expect(response.status).toBe(200);
-    expect(ExternalMaterialReadyResponseSchema.safeParse(body).success).toBe(true);
+    expect(response.status).toBe(503);
+    expect(body).toMatchObject({
+      code: "external_material_mapping_failed_rolled_back",
+      retryable: true,
+    });
     expect(mocks.upload).toHaveBeenCalledOnce();
     expect(mocks.insert).toHaveBeenCalledOnce();
+    expect(mocks.delete).toHaveBeenCalledTimes(2);
+    expect(mocks.remove).toHaveBeenCalledOnce();
     expect(errorLog).toHaveBeenCalledWith(
-      "YOVA external material mapping was not scheduled",
-      expect.objectContaining({ materialId: body.material.id }),
+      "YOVA external material mapping failed",
+      expect.objectContaining({ materialId: expect.any(String) }),
     );
     errorLog.mockRestore();
   });

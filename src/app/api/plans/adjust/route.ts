@@ -4,9 +4,12 @@ import {
   PlanAdjustmentResponseSchema,
 } from "@/lib/learning/adjustment-schema";
 import {
-  buildContentBasedReplacementSessions,
+  buildProtectedPlanAdjustmentSessions,
   MAX_ADJUSTED_PLAN_SESSIONS,
   PlanAdjustmentPartLimitError,
+  PlanAdjustmentProtectedSessionError,
+  scheduledRetrievalMetadataFromStepData,
+  sessionStepDataHasSavedWork,
   type AdjustableSessionRow,
 } from "@/lib/learning/content-based-plan-adjustment";
 import {
@@ -67,8 +70,45 @@ export async function PATCH(request: Request) {
     .filter((session) => session.status === "complete" || session.status === "skipped")
     .map((session) => session.sequence);
   const unfinished = sessionRows.filter((session) => session.status === "ready" || session.status === "upcoming") as AdjustableSessionRow[];
-  let redirectedUnfinished = unfinished;
-  if (parsed.data.direction) {
+  const protectedReviews = unfinished.filter((session) => (
+    scheduledRetrievalMetadataFromStepData(session.step_data)
+  ));
+  const adjustableUnfinished = unfinished.filter((session) => (
+    !scheduledRetrievalMetadataFromStepData(session.step_data)
+  ));
+  const adjustableSessionIds = adjustableUnfinished.map((session) => session.id);
+  const interruptedSessionIds = new Set<string>();
+  if (adjustableSessionIds.length) {
+    const { data: interruptionRows, error: interruptionError } = await supabase
+      .from("learning_events")
+      .select("plan_session_id")
+      .eq("user_id", user.id)
+      .eq("event_type", "session_interrupted")
+      .in("plan_session_id", adjustableSessionIds);
+    if (interruptionError) {
+      return NextResponse.json({
+        error: "YOVA could not verify whether an unfinished session has saved work. Nothing was changed.",
+        code: "plan_adjustment_rewrite_safety_unverified",
+      }, { status: 409 });
+    }
+    (interruptionRows ?? []).forEach((row) => {
+      if (typeof row.plan_session_id === "string") interruptedSessionIds.add(row.plan_session_id);
+    });
+  }
+  const savedWorkSession = adjustableUnfinished.find((session) => (
+    sessionStepDataHasSavedWork(session.step_data)
+    || interruptedSessionIds.has(session.id)
+  ));
+  if (savedWorkSession) {
+    return NextResponse.json({
+      error: "This plan has an unfinished session with saved work. Finish that session before rebuilding the remaining plan.",
+      code: "plan_adjustment_saved_work_protected",
+      planSessionId: savedWorkSession.id,
+    }, { status: 409 });
+  }
+
+  let redirectedUnfinished = adjustableUnfinished;
+  if (parsed.data.direction && adjustableUnfinished.length) {
     const { data: itemRow, error: itemError } = await supabase
       .from("learning_items")
       .select("title,topic")
@@ -84,13 +124,13 @@ export async function PATCH(request: Request) {
         title: itemRow.title,
         topic: itemRow.topic,
         direction: parsed.data.direction,
-        sessions: unfinished,
+        sessions: adjustableUnfinished,
       });
       redirectedUnfinished = planDirectionConflictsWithRequest(generated, parsed.data.direction)
-        ? applyPlanDirectionFallback(unfinished, parsed.data.direction, itemRow.topic)
+        ? applyPlanDirectionFallback(adjustableUnfinished, parsed.data.direction, itemRow.topic)
         : generated;
     } catch {
-      redirectedUnfinished = applyPlanDirectionFallback(unfinished, parsed.data.direction, itemRow.topic);
+      redirectedUnfinished = applyPlanDirectionFallback(adjustableUnfinished, parsed.data.direction, itemRow.topic);
     }
   }
 
@@ -121,10 +161,10 @@ export async function PATCH(request: Request) {
     redirectedUnfinished = [...redirectedUnfinished, ...appended];
   }
 
-  let replacementSessions: ReturnType<typeof buildContentBasedReplacementSessions>;
+  let replacementSessions: ReturnType<typeof buildProtectedPlanAdjustmentSessions>;
   try {
-    replacementSessions = buildContentBasedReplacementSessions(
-      redirectedUnfinished,
+    replacementSessions = buildProtectedPlanAdjustmentSessions(
+      [...redirectedUnfinished, ...protectedReviews],
       parsed.data.futureSessionMinutes,
       Math.max(0, ...settledSequences) + 1,
       MAX_ADJUSTED_PLAN_SESSIONS - settledSequences.length,
@@ -132,6 +172,9 @@ export async function PATCH(request: Request) {
   } catch (error) {
     if (error instanceof PlanAdjustmentPartLimitError) {
       return NextResponse.json({ error: error.message }, { status: 422 });
+    }
+    if (error instanceof PlanAdjustmentProtectedSessionError) {
+      return NextResponse.json({ error: error.message }, { status: 409 });
     }
     throw error;
   }
