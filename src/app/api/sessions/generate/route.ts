@@ -62,7 +62,7 @@ import {
   type SessionArchitectureVersion,
 } from "@/lib/session-generation/architecture";
 import { checkSessionGenerationRateLimit, requestRateLimitKey } from "@/lib/server/rate-limit";
-import { claimAIRequest } from "@/lib/server/ai-usage";
+import { claimAIRequest, releaseAIRequestClaim } from "@/lib/server/ai-usage";
 import {
   classifyOperationalPlanSession,
   sessionCacheFailureMustFailClosed,
@@ -139,6 +139,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "That guided session was not found." }, { status: 404 });
   }
 
+  let aiUsageClaimId: string | null = null;
   try {
     const [{ data: plan, error: planError }, { data: learnerProfile, error: learnerError }, { data: planSessionRows, error: planSessionsError }] = await Promise.all([
       supabase
@@ -398,6 +399,7 @@ export async function POST(request: Request) {
         },
       );
     }
+    aiUsageClaimId = durableLimit.claimId ?? null;
     const completionEvidence = recentAttempts.map((attempt) => ({
       completedAt: attempt.completed_at ?? new Date(0).toISOString(),
       conceptEvidence: readConceptEvidenceProperty(attempt.result_data),
@@ -595,6 +597,7 @@ export async function POST(request: Request) {
     }
 
     if (sessionCacheFailureMustFailClosed(cacheError)) {
+      await releaseFailedGenerationClaim(supabase, aiUsageClaimId, requestId);
       return NextResponse.json(
         {
           error: "This learning session changed while YOVA was preparing it. Refresh and try again.",
@@ -614,6 +617,7 @@ export async function POST(request: Request) {
       });
       if (!currentAccess.allowed) {
         const failure = sessionOperationFailure(currentAccess);
+        await releaseFailedGenerationClaim(supabase, aiUsageClaimId, requestId);
         return NextResponse.json(
           { error: failure.error, requestId },
           {
@@ -649,6 +653,7 @@ export async function POST(request: Request) {
       },
     }), { headers: responseHeaders(requestId, generated.generationStats) });
   } catch (error) {
+    await releaseFailedGenerationClaim(supabase, aiUsageClaimId, requestId);
     const attemptedModel = getOpenAISessionConfig()?.model ?? null;
     console.error("YOVA guided-session generation failed", {
       requestId,
@@ -672,6 +677,19 @@ export async function POST(request: Request) {
       },
       { status: 502, headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId } },
     );
+  }
+}
+
+async function releaseFailedGenerationClaim(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  claimId: string | null,
+  requestId: string,
+) {
+  if (!claimId) return;
+  try {
+    await releaseAIRequestClaim(supabase, claimId);
+  } catch {
+    console.error("YOVA could not return a failed guided-session allowance claim", { requestId });
   }
 }
 

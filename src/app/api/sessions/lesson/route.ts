@@ -19,7 +19,7 @@ import {
   StreamedGeneratedSessionActivitySchema,
   type LessonBrief,
 } from "@/lib/session-generation/schema";
-import { claimAIRequest } from "@/lib/server/ai-usage";
+import { claimAIRequest, releaseAIRequestClaim } from "@/lib/server/ai-usage";
 import { isDevelopmentPreviewRequest } from "@/lib/server/development-preview";
 import { checkLessonGenerationRateLimit, requestRateLimitKey } from "@/lib/server/rate-limit";
 import {
@@ -161,6 +161,7 @@ export async function POST(request: Request) {
     });
   }
 
+  let aiUsageClaimId: string | null = null;
   if (!developmentPreview && supabase) {
     try {
       const durableLimit = await claimAIRequest(supabase, "lesson_generation");
@@ -175,6 +176,7 @@ export async function POST(request: Request) {
           allowanceRetryAfterSeconds: durableLimit.retryAfterSeconds,
         });
       }
+      aiUsageClaimId = durableLimit.claimId ?? null;
     } catch {
       return boundedLessonFallbackResponse({
         lessonInput,
@@ -239,6 +241,7 @@ export async function POST(request: Request) {
           },
         }).catch(() => undefined);
       } catch (error) {
+        await releaseFailedLessonClaim(supabase, aiUsageClaimId, requestId);
         const failure = error instanceof StreamedLessonGenerationError ? error.stats : null;
         const failureKind = failure?.failureKind ?? "provider_request_error";
         const elapsedMs = failure?.elapsedMs ?? Date.now() - startedAt;
@@ -344,6 +347,19 @@ export async function POST(request: Request) {
       "X-Yova-Request-Id": requestId,
     },
   });
+}
+
+async function releaseFailedLessonClaim(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>> | null,
+  claimId: string | null,
+  requestId: string,
+) {
+  if (!supabase || !claimId) return;
+  try {
+    await releaseAIRequestClaim(supabase, claimId);
+  } catch {
+    console.error("YOVA could not return a failed streamed-lesson allowance claim", { requestId });
+  }
 }
 
 function boundedLessonFallbackResponse({

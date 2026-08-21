@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   alignDueReviewConcept,
   buildConceptReviewSchedule,
+  conceptSignalsForSession,
   validateConceptReviewSchedule,
 } from "@/lib/learning/concept-review-scheduler";
 import type { ConceptSignal } from "@/lib/learning/concept-evidence";
@@ -83,6 +84,47 @@ describe("buildConceptReviewSchedule", () => {
       "ATP",
       "Glycolysis",
     ]);
+  });
+});
+
+describe("conceptSignalsForSession", () => {
+  const currentTopicId = "11111111-1111-4111-8111-111111111111";
+  const otherTopicId = "22222222-2222-4222-8222-222222222222";
+
+  it("keeps mapped evidence inside the current topic boundary", () => {
+    const scoped = conceptSignalsForSession({
+      signals: [
+        signal({ topicId: currentTopicId, concept: "Electron transport chain" }),
+        signal({ topicId: otherTopicId, concept: "Managerial accounting" }),
+      ],
+      topicIds: [currentTopicId],
+      scopeText: ["Explain the electron transport chain stages and outputs."],
+    });
+
+    expect(scoped.map((entry) => entry.concept)).toEqual(["Electron transport chain"]);
+  });
+
+  it("leaves a same-topic concept outside today's slice in the separate review queue", () => {
+    const scoped = conceptSignalsForSession({
+      signals: [signal({ topicId: currentTopicId, concept: "Electron transport chain" })],
+      topicIds: [currentTopicId],
+      scopeText: ["Compare glycolysis inputs and outputs."],
+    });
+
+    expect(scoped).toEqual([]);
+  });
+
+  it("admits legacy unscoped evidence only when the complete concept is named today", () => {
+    const scoped = conceptSignalsForSession({
+      signals: [
+        signal({ concept: "Electron transport chain" }),
+        signal({ concept: "Managerial accounting" }),
+      ],
+      topicIds: [currentTopicId],
+      scopeText: ["Compare glycolysis with the electron transport chain."],
+    });
+
+    expect(scoped.map((entry) => entry.concept)).toEqual(["Electron transport chain"]);
   });
 });
 

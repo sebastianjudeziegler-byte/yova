@@ -10,11 +10,26 @@ import {
 
 export type { AIUsageAction } from "@/lib/server/ai-usage-policy";
 
-const AIUsageClaimSchema = z.object({
-  allowed: z.boolean(),
+const AllowedAIUsageClaimSchema = z.object({
+  allowed: z.literal(true),
+  // Optional only during the migration rollout. Once the refundable-claim
+  // migration is live, every allowed claim includes this private id.
+  claimId: z.string().uuid().optional(),
+  retryAfterSeconds: z.literal(0),
+  remainingToday: z.number().int().min(0),
+});
+
+const LimitedAIUsageClaimSchema = z.object({
+  allowed: z.literal(false),
+  claimId: z.null().optional(),
   retryAfterSeconds: z.number().int().min(0).max(86_400),
   remainingToday: z.number().int().min(0),
 });
+
+const AIUsageClaimSchema = z.discriminatedUnion("allowed", [
+  AllowedAIUsageClaimSchema,
+  LimitedAIUsageClaimSchema,
+]);
 
 const AvailableAIUsageStatusSchema = z.object({
   allowed: z.literal(true),
@@ -73,6 +88,24 @@ export async function claimAIRequest(supabase: SupabaseClient, action: AIUsageAc
   const parsed = AIUsageClaimSchema.safeParse(data);
   if (!parsed.success) throw new AIUsageGateError();
   return parsed.data;
+}
+
+/**
+ * Returns one exact pre-provider reservation when generation produced no
+ * learner-usable result. The database makes this operation owner-scoped and
+ * idempotent, so a duplicated catch path cannot refund another request.
+ */
+export async function releaseAIRequestClaim(
+  supabase: SupabaseClient,
+  claimId: string,
+) {
+  const parsedClaimId = z.string().uuid().safeParse(claimId);
+  if (!parsedClaimId.success) throw new AIUsageGateError();
+  const { data, error } = await supabase.rpc("release_ai_request_claim", {
+    usage_claim_id: parsedClaimId.data,
+  });
+  if (error || typeof data !== "boolean") throw new AIUsageGateError();
+  return data;
 }
 
 /**
