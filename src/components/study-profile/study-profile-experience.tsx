@@ -127,6 +127,8 @@ export function StudyProfileExperience() {
         setMetadata({});
         setCurrentQuestion(0);
         setEmail("");
+        setMarketingConsent(false);
+        setConsentJoinedWaitlist(false);
         setSubmissionError(null);
         setSubmissionResult(null);
         completionTrackedRef.current = false;
@@ -265,6 +267,8 @@ export function StudyProfileExperience() {
     setMetadata({});
     setCurrentQuestion(0);
     setEmail("");
+    setMarketingConsent(false);
+    setConsentJoinedWaitlist(false);
     setSubmissionError(null);
     setSubmissionResult(null);
     completionTrackedRef.current = false;

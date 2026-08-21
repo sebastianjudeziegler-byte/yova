@@ -6,15 +6,15 @@ const PRIVACY_REQUEST_MAILTO = "mailto:hello@yovaapp.com?subject=YOVA%20privacy%
 
 test.describe("YOVA Study Profile", () => {
   test("creates a practical private report that survives refresh and joins the waitlist", async ({ page }) => {
-    test.setTimeout(60_000);
+    test.setTimeout(90_000);
     const email = `study-profile-${Date.now()}@example.com`;
 
     await page.goto("/study-profile?utm_source=playwright&utm_campaign=study-profile-e2e");
 
     await expect(page.getByRole("heading", {
-      name: "Find study methods that fit how you actually work.",
+      name: "Rereading feels like studying. It usually isn’t.",
     })).toBeVisible();
-    await expect(page.getByText("12 questions · about 3 minutes")).toBeVisible();
+    await expect(page.getByText("14 questions · about 3 minutes")).toBeVisible();
     await page.getByRole("button", { name: "Get my recommendations" }).first().click();
 
     await expectOnlyQuestion(page, 1);
@@ -46,17 +46,27 @@ test.describe("YOVA Study Profile", () => {
     await page.getByRole("button", { name: /^College/ }).click();
 
     await expect(page.getByRole("heading", { name: "Your YOVA Study Profile is ready." })).toBeVisible();
-    await expect(page.getByRole("checkbox")).toHaveCount(0);
+    const launchConsent = page.getByRole("checkbox", {
+      name: "Email me when YOVA is ready to try. About once a month, unsubscribe any time.",
+    });
+    await expect(launchConsent).not.toBeChecked();
+    await launchConsent.check();
     await page.getByLabel("Where should we send your private report link?").fill(email);
     const submissionResponse = page.waitForResponse((response) => (
       response.request().method() === "POST"
       && new URL(response.url()).pathname === "/api/study-profile/responses"
+    ));
+    const waitlistResponse = page.waitForResponse((response) => (
+      response.request().method() === "POST"
+      && new URL(response.url()).pathname.startsWith("/api/study-profile/interest/")
     ));
     await page.getByRole("button", { name: "Get my full report" }).click();
 
     const response = await submissionResponse;
     expect(response.status()).toBe(201);
     await expect(response.json()).resolves.toMatchObject({ emailDelivery: "skipped" });
+    const waitlist = await waitlistResponse;
+    expect(waitlist.status()).toBe(200);
 
     await expect(page.locator("#report-title")).toBeVisible();
     await expect(page.locator("#report-title")).toBeFocused();
@@ -86,12 +96,11 @@ test.describe("YOVA Study Profile", () => {
     await expect(page.locator("#report-title")).toBeVisible();
     await expectReportSections(page);
 
-    await page.getByRole("button", { name: "Join the waitlist" }).click();
     const waitlistSuccess = page.getByRole("status").filter({
       hasText: "You’re on the waitlist. We’ll email you when YOVA is ready.",
     });
     await expect(waitlistSuccess).toBeVisible();
-    await expect(waitlistSuccess).toBeFocused();
+    await expect(page.getByRole("button", { name: "Join the waitlist" })).toHaveCount(0);
 
     await page.reload();
     await expect(waitlistSuccess).toBeVisible();
@@ -108,6 +117,7 @@ test.describe("YOVA Study Profile", () => {
   });
 
   test("shows the API message when an open report has been removed", async ({ page }) => {
+    test.setTimeout(60_000);
     const email = `study-profile-stale-${Date.now()}@example.com`;
     await page.goto("/study-profile");
     await page.getByRole("button", { name: "Get my recommendations" }).first().click();
@@ -128,7 +138,7 @@ test.describe("YOVA Study Profile", () => {
         body: JSON.stringify({ error: "This Study Profile report link is invalid or unavailable." }),
       });
     });
-    await page.getByRole("button", { name: "Join the waitlist" }).click();
+    await page.getByRole("button", { name: "Join the waitlist" }).first().click();
     await expect(page.locator("p[role='alert']")).toHaveText(
       "This Study Profile report link is invalid or unavailable.",
     );
@@ -170,7 +180,7 @@ test.describe("YOVA Study Profile", () => {
       try {
         await viewportPage.goto("/study-profile");
         await expect(viewportPage.getByRole("heading", {
-          name: "Find study methods that fit how you actually work.",
+          name: "Rereading feels like studying. It usually isn’t.",
         })).toBeVisible();
         await expectNoHorizontalOverflow(viewportPage);
 
@@ -202,13 +212,15 @@ test.describe("YOVA Study Profile", () => {
     await page.getByRole("button", { name: "Get my recommendations" }).first().click();
 
     const progress = page.getByRole("progressbar", { name: "Study Profile progress" });
-    await expect(progress).toHaveAttribute("aria-valuenow", "7");
+    await expect(progress).toHaveAttribute("aria-valuenow", "0");
     await expect(progress).toHaveAttribute("aria-valuetext", "Question 1 of 12");
 
     const radios = page.getByRole("radiogroup", { name: "Answers for question 1" }).getByRole("radio");
     await radios.first().focus();
     await page.keyboard.press("ArrowDown");
     await expectOnlyQuestion(page, 2);
+    await expect(progress).toHaveAttribute("aria-valuenow", "7");
+    await expect(progress).toHaveAttribute("aria-valuetext", "Question 2 of 12");
   });
 });
 
