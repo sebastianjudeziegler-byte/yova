@@ -99,6 +99,62 @@ describe("DeviceExportAddendumSchema", () => {
     expect(parsed.pendingSessionCompletions.map((entry) => entry.completion.completionMode))
       .toEqual(["guided", "unguided_practice"]);
   });
+
+  it("exports ratings-only activity recovery without accepting learner draft text", () => {
+    const activityProgress = {
+      kind: "retrieval_round" as const,
+      activityIndex: 0,
+      promptCount: 3,
+      ratings: ["partly" as const],
+    };
+    const addendum = {
+      ...baseAddendum(),
+      pendingSessionInterruptions: [{
+        userId: ACCOUNT_ID,
+        interruption: {
+          id: "33333333-3333-4333-8333-333333333333",
+          planId: "44444444-4444-4444-8444-444444444444",
+          planSessionId: "55555555-5555-4555-8555-555555555555",
+          startedAt: "2026-08-17T00:00:00.000Z",
+          interruptedAt: "2026-08-17T00:01:00.000Z",
+          plannedMinutes: 20,
+          actualMinutes: 1,
+          completedSteps: 0,
+          totalSteps: 4,
+          activityProgress,
+        },
+        queuedAt: "2026-08-17T00:01:00.000Z",
+      }],
+      activeSessionCheckpoints: [{
+        version: 1,
+        accountId: ACCOUNT_ID,
+        runId: "66666666-6666-4666-8666-666666666666",
+        planId: "44444444-4444-4444-8444-444444444444",
+        planSessionId: "55555555-5555-4555-8555-555555555555",
+        status: "working",
+        startedAt: "2026-08-17T00:00:00.000Z",
+        savedAt: "2026-08-17T00:01:00.000Z",
+        activeSeconds: 60,
+        plannedMinutes: 20,
+        completedSteps: 0,
+        totalSteps: 4,
+        resumeStep: 0,
+        resourceFingerprint: "sr1:0123456789abcdef",
+        activityProgress,
+      }],
+    };
+
+    const parsed = DeviceExportAddendumSchema.parse(addendum);
+    expect(parsed.pendingSessionInterruptions[0]?.interruption.activityProgress)
+      .toEqual(activityProgress);
+    expect(parsed.activeSessionCheckpoints[0]?.activityProgress).toEqual(activityProgress);
+
+    const unsafe = structuredClone(addendum);
+    (unsafe.activeSessionCheckpoints[0]!.activityProgress as typeof activityProgress & {
+      answerDraft?: string;
+    }).answerDraft = "PRIVATE RECALL DRAFT";
+    expect(DeviceExportAddendumSchema.safeParse(unsafe).success).toBe(false);
+  });
 });
 
 function baseAddendum() {

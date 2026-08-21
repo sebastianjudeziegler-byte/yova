@@ -315,6 +315,35 @@ describe("active session checkpoint storage", () => {
     expect(JSON.stringify([...values.values()])).not.toContain("PRIVATE WORKPAD NOTE");
   });
 
+  it("round-trips ratings-only retrieval progress without storing an answer draft", () => {
+    const { values } = installMemoryStorage();
+    const retrievalCheckpoint = checkpoint({
+      completedSteps: 0,
+      resumeStep: 0,
+      activityProgress: {
+        kind: "retrieval_round",
+        activityIndex: 0,
+        promptCount: 3,
+        ratings: ["partly"],
+      },
+    });
+
+    expect(saveActiveSessionCheckpoint(retrievalCheckpoint)).toBe(true);
+    expect(checkpointToSessionResumePoint(
+      loadActiveSessionCheckpoints(retrievalCheckpoint.accountId)[0]!,
+    ).activityProgress).toEqual(retrievalCheckpoint.activityProgress);
+    expect([...values.values()].join("")).toContain('"ratings":["partly"]');
+
+    expect(saveActiveSessionCheckpoint({
+      ...retrievalCheckpoint,
+      activityProgress: {
+        ...retrievalCheckpoint.activityProgress,
+        answerDraft: "PRIVATE RECALL DRAFT",
+      },
+    } as unknown as ActiveSessionCheckpointV1)).toBe(false);
+    expect([...values.values()].join("")).not.toContain("PRIVATE RECALL DRAFT");
+  });
+
   it("binds standalone method recovery to the current saved target", () => {
     const input = {
       studyMode: "outside_yova" as const,
@@ -562,6 +591,30 @@ describe("cloud active session checkpoint reconciliation", () => {
     const cloud = checkpoint({
       savedAt: "2026-08-17T17:59:00.000Z",
       activeSeconds: 500,
+    });
+
+    expect(compareActiveSessionCheckpointProgress(local, cloud)).toBeGreaterThan(0);
+    expect(mergeActiveSessionCheckpoints([local], [cloud]).checkpoints).toEqual([local]);
+  });
+
+  it("keeps a completed recall rating ahead of a later marker without it", () => {
+    const local = checkpoint({
+      savedAt: "2026-08-17T17:58:00.000Z",
+      activeSeconds: 500,
+      completedSteps: 0,
+      resumeStep: 0,
+      activityProgress: {
+        kind: "retrieval_round",
+        activityIndex: 0,
+        promptCount: 3,
+        ratings: ["got_it"],
+      },
+    });
+    const cloud = checkpoint({
+      savedAt: "2026-08-17T17:59:00.000Z",
+      activeSeconds: 500,
+      completedSteps: 0,
+      resumeStep: 0,
     });
 
     expect(compareActiveSessionCheckpointProgress(local, cloud)).toBeGreaterThan(0);

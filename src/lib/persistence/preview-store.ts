@@ -1,8 +1,9 @@
 import type { LearningPlan, SessionCompletion, SessionInterruption, YovaPreviewSnapshot } from "@/lib/domain";
 import { ConfidenceEvidenceListSchema } from "@/lib/learning/confidence-calibration";
 import { normalizeSessionCompletionProvenance } from "@/lib/learning/session-completion-provenance";
+import { readSessionActivityProgress } from "@/lib/learning/session-activity-progress";
 import { inferLegacySessionLearningMode } from "@/lib/learning/learning-intent";
-import { resolveLearningTitle } from "@/lib/intake/interpret";
+import { resolveLearningTitle, resolveLearningTopic } from "@/lib/intake/interpret";
 import {
   readSessionAdjustmentSnapshot,
   readSessionEvidenceSnapshot,
@@ -61,9 +62,11 @@ function normalizePreviewPlan(plan: LearningPlan): LearningPlan {
   const learningIntent = plan.learningIntent === "learn" || plan.learningIntent === "study"
     ? plan.learningIntent
     : "study";
+  const topic = resolveLearningTopic(plan.topic, plan.title);
   return {
     ...plan,
-    title: resolveLearningTitle(plan.title, plan.topic),
+    title: resolveLearningTitle(plan.title, topic),
+    topic,
     learningIntent,
     sessionArchitectureVersion: resolveSessionArchitectureVersion(plan, plan.knowledgeMap),
     sessions: plan.sessions.map((session) => ({
@@ -84,9 +87,11 @@ function readSessionInterruptions(snapshot: YovaPreviewSnapshot | Record<string,
     const raw = entry as Record<string, unknown>;
     const interruption = { ...raw };
     delete interruption.sessionAdjustment;
+    delete interruption.activityProgress;
     const evidence = readSessionEvidenceSnapshot(raw.evidence);
     const pendingRepair = readSessionPendingRepair(raw.pendingRepair);
     const sessionAdjustment = readSessionAdjustmentSnapshot(raw.sessionAdjustment);
+    const activityProgress = readSessionActivityProgress(raw.activityProgress);
     const resumeStep = raw.resumeStep;
     return [{
       ...interruption as SessionInterruption,
@@ -94,6 +99,7 @@ function readSessionInterruptions(snapshot: YovaPreviewSnapshot | Record<string,
       ...(evidence ? { evidence } : {}),
       ...(pendingRepair ? { pendingRepair } : {}),
       ...(sessionAdjustment ? { sessionAdjustment } : {}),
+      ...(activityProgress ? { activityProgress } : {}),
     }];
   });
 }

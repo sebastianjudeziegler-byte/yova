@@ -79,6 +79,23 @@ describe("buildPostSessionDecision", () => {
     expect(decision.reviewPlan?.estimatedMinutes).toBe(10);
   });
 
+  it("does not close the plan when the required in-session repair still missed", () => {
+    const decision = buildPostSessionDecision(currentSession, null, completion({
+      correctAnswers: 2,
+      totalAnswers: 3,
+      observedGap: "cellular respiration sequence",
+      conceptEvidence: [{
+        concept: "cellular respiration sequence",
+        outcome: "needs_review",
+        activityType: "free_response",
+        methodPhase: "repair",
+      }],
+    }));
+
+    expect(decision.kind).toBe("add_delayed_verification");
+    expect(decision.followUpSession?.reviewConcept).toBe("cellular respiration sequence");
+  });
+
   it("recommends no change after strong evidence at an appropriate challenge level", () => {
     const decision = buildPostSessionDecision(currentSession, nextSession, completion());
 

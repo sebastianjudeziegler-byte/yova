@@ -2,6 +2,7 @@
 
 import { z } from "zod";
 import type { SessionInterruption } from "@/lib/domain";
+import { SessionActivityProgressSchema } from "@/lib/learning/session-activity-progress";
 import {
   SessionAdjustmentSnapshotSchema,
   SessionEvidenceSnapshotSchema,
@@ -25,6 +26,7 @@ const SessionInterruptionSchema = z.object({
   evidence: SessionEvidenceSnapshotSchema.optional(),
   pendingRepair: SessionPendingRepairSchema.optional(),
   sessionAdjustment: SessionAdjustmentSnapshotSchema.optional(),
+  activityProgress: SessionActivityProgressSchema.optional(),
 });
 
 const PendingSessionInterruptionSchema = z.object({

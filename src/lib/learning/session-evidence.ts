@@ -259,6 +259,7 @@ export function hasCompletedImmediateRepair(
   if (!target) return false;
   return conceptEvidence.some((item) => (
     item.methodPhase === "repair"
+    && item.outcome === "secure"
     && conceptsMatch(normalizeConcept(item.concept), target)
   ));
 }

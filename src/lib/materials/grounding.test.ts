@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { buildMaterialSupportPolicy, validateSessionSourceGrounding } from "@/lib/materials/grounding";
+import {
+  bindSessionSourceGroundingToMaterials,
+  buildMaterialSupportPolicy,
+  validateSessionSourceGrounding,
+} from "@/lib/materials/grounding";
 
 const outlineMaterial = [{
   materialId: "11111111-1111-4111-8111-111111111111",
@@ -40,6 +44,38 @@ describe("material support policy", () => {
 });
 
 describe("session source grounding", () => {
+  it("binds model provenance fields to the exact mapped database chunk", () => {
+    const grounding = bindSessionSourceGroundingToMaterials({
+      materials: explanatoryMaterial,
+      focus: "Osmosis and water potential",
+      grounding: {
+        mode: "materials_only",
+        summary: "The lesson uses the learner's complete source notes for the bounded explanation and checks.",
+        sourceNames: ["complete-notes.txt"],
+        anchors: [{
+          chunkId: "44444444-4444-4444-8444-444444444444",
+          sourceName: "complete-notes.txt",
+          locationLabel: "Characters 1-7000",
+          excerpt: "Section zero explains how the mechanism changes its input.",
+          usedFor: "The provider attempted to transcribe the mapped source section.",
+        }],
+        supplements: [],
+      },
+    });
+
+    expect(grounding?.anchors[0]).toMatchObject({
+      chunkId: explanatoryMaterial[0]!.chunkId,
+      sourceName: explanatoryMaterial[0]!.name,
+      locationLabel: explanatoryMaterial[0]!.locationLabel,
+      excerpt: explanatoryMaterial[0]!.text.slice(0, 220).trim(),
+    });
+    expect(validateSessionSourceGrounding({
+      sourceMode: "user_materials",
+      materials: explanatoryMaterial,
+      grounding,
+    })).toBeNull();
+  });
+
   it("accepts an exact legacy excerpt when older material has no persisted chunk metadata", () => {
     const legacyMaterial = [{
       role: "scope_outline" as const,

@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { deriveLearningTitle, interpretIntake, resolveLearningTitle } from "@/lib/intake/interpret";
+import {
+  deriveLearningTitle,
+  interpretIntake,
+  resolveLearningTitle,
+  resolveLearningTopic,
+} from "@/lib/intake/interpret";
 
 const NOW = new Date("2026-08-07T12:00:00-07:00");
 
@@ -53,6 +58,17 @@ describe("universal Add intake", () => {
     });
     expect(relative.dueAt).toBe("2026-08-22T06:59:59.999Z");
     expect(calendarDate.dueAt).toBe("2026-08-20T06:59:59.999Z");
+  });
+
+  it("uses the learner's calendar day for relative deadlines late at night", () => {
+    const result = interpretIntake({
+      description: "I have a biology quiz on osmosis in one week",
+      materialNames: [],
+      now: new Date("2026-08-21T05:42:00.000Z"),
+      timeZone: "America/Los_Angeles",
+    });
+
+    expect(result.dueAt).toBe("2026-08-28T06:59:59.999Z");
   });
 
   it("keeps one focused skill distinct from a broad course", () => {
@@ -109,6 +125,18 @@ describe("universal Add intake", () => {
       // The generic saved name must be replaced by something drawn from the
       // real topic; the exact wording is not the contract.
       .toMatch(/vocabulary/i);
+  });
+
+  it("does not replace a clean long title with a malformed topic fragment", () => {
+    const title = "Biology Quiz on Osmosis and Tonicity Across Animal and Plant Cell Systems";
+    const fragment = ", and the Effects on Animal and Plant Cells Using the Attached Notes";
+
+    const resolved = resolveLearningTitle(title, fragment);
+
+    expect(resolved).toMatch(/^Biology Quiz on Osmosis and Tonicity/i);
+    expect(resolved).not.toMatch(/Effects on Animal/i);
+    expect(resolved.length).toBeLessThanOrEqual(72);
+    expect(resolveLearningTopic(fragment, title)).toBe(title);
   });
 
   it("turns sentence-like assignment names into a concise subject title", () => {

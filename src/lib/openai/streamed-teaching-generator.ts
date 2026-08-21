@@ -5,6 +5,7 @@ import { zodTextFormat } from "openai/helpers/zod";
 import { z } from "zod";
 import { getOpenAIClient } from "@/lib/openai/client";
 import { getOpenAISessionConfig } from "@/lib/openai/config";
+import { classifyProviderError } from "@/lib/openai/provider-error";
 import { buildMaterialSupportPolicy } from "@/lib/materials/grounding";
 import { sessionRoutingInput } from "@/lib/learning/session-routing-input";
 import {
@@ -99,6 +100,7 @@ type ResolvedStreamedTargetAssignment = StreamedTargetAssignment & {
   target: string | null;
   targetIndex: number;
 };
+type StreamedTargetSubjectReferences = Partial<Record<StreamedTargetId, string[]>>;
 
 const STREAMED_TEACHING_SKELETON_INSTRUCTIONS = `You design the complete skeleton for one YOVA learn-mode session. Another bounded model call will deliver each teaching explanation when the learner reaches it. You must plan the whole sequence now, including coverage, phases, knowledge checks, reference answers, feedback, and reflection, but you must not write the lesson prose now.
 
@@ -350,8 +352,8 @@ export async function generateStreamedTeachingSkeletonWithOpenAI(
         previousFailedValidator = lastFailedValidator;
         continue;
       }
-      const providerErrorName = error instanceof Error ? error.name : "UnknownProviderError";
-      repairDetail = `The lesson-structure request failed before YOVA received a usable response (${providerErrorName}).`;
+      const providerError = classifyProviderError(error);
+      repairDetail = `The lesson-structure request failed before YOVA received a usable response (${providerError.category}).`;
       lastFailureReason = repairDetail;
       lastFailedValidator = "session_provider_request";
       lastValidationIssueCode = null;
@@ -517,13 +519,12 @@ export async function generateStreamedTeachingSkeletonWithOpenAI(
 }
 
 function isRetryableStreamedProviderError(error: unknown) {
-  if (!(error instanceof Error)) return false;
   return new Set([
-    "APIConnectionError",
-    "APIConnectionTimeoutError",
-    "InternalServerError",
-    "RateLimitError",
-  ]).has(error.name);
+    "connection",
+    "provider_server_error",
+    "rate_limit",
+    "timeout",
+  ]).has(classifyProviderError(error).category);
 }
 
 function finalizeStreamedSkeleton({
@@ -555,6 +556,10 @@ function finalizeStreamedSkeleton({
     learnerDirection: context.sessionAdjustment?.note ?? null,
     maximumActiveTargets: pacingContract.minimumActiveIdeas,
   });
+  const targetSubjectReferences = buildStreamedTargetSubjectReferences({
+    context,
+    currentSessionScope,
+  });
   // Validate the provider's complete mapping before any deterministic repair
   // can prune a claim. Later boundaries keep only mappings whose exact ideas
   // survived, and revalidate that every active target is still represented.
@@ -562,6 +567,7 @@ function finalizeStreamedSkeleton({
     essentialIdeas: draft.coverage.essentialIdeas,
     targetAssignments,
     currentSessionScope,
+    targetSubjectReferences,
   });
   const completionEvidence = boundedSessionCompletionEvidence({
     // A learner can shorten a previously planned 45-minute session to 15
@@ -629,6 +635,7 @@ function finalizeStreamedSkeleton({
     learnerDirection: context.sessionAdjustment?.note ?? null,
     pacingContract,
     targetAssignments: reconciledTargetAssignments,
+    targetSubjectReferences,
   });
   const scopedTargetAssignments = retainTargetAssignmentsForIdeas(
     reconciledTargetAssignments,
@@ -674,6 +681,7 @@ function finalizeStreamedSkeleton({
     essentialIdeas: enriched.coverage.essentialIdeas,
     targetAssignments: scopedTargetAssignments,
     currentSessionScope,
+    targetSubjectReferences,
   });
 
   return {
@@ -760,6 +768,42 @@ function targetCatalogForScope(scope: StreamedCurrentSessionScope) {
 }
 
 /**
+ * A plan target is often a compact curriculum label while the provider writes
+ * a correct explanatory paraphrase from that topic's authoritative
+ * description. Preserve the stable target-id boundary, but let that exact
+ * matched topic description prove subject identity too. This is deliberately
+ * limited to an exact normalized title match; neighboring session topics must
+ * not lend their vocabulary to a mislabeled claim.
+ */
+export function buildStreamedTargetSubjectReferences({
+  context,
+  currentSessionScope,
+}: {
+  context: SessionGenerationContext;
+  currentSessionScope: StreamedCurrentSessionScope;
+}): StreamedTargetSubjectReferences {
+  const references: StreamedTargetSubjectReferences = {};
+  const sessionTopicIds = new Set(context.session.topicIds);
+  for (const entry of targetCatalogForScope(currentSessionScope)) {
+    if (!entry.target) continue;
+    const targetKey = normalizedSubjectLabel(entry.target);
+    if (!targetKey) continue;
+    const matchedTopics = context.knowledgeTopics.filter((topic) => (
+      sessionTopicIds.has(topic.id)
+      && normalizedSubjectLabel(topic.title) === targetKey
+    ));
+    // Duplicate normalized titles are ambiguous. Keep the narrower title-only
+    // guard rather than borrowing a potentially unrelated description.
+    if (matchedTopics.length !== 1) continue;
+    const matchedTopic = matchedTopics[0]!;
+    references[entry.targetId] = [matchedTopic.description]
+      .map((value) => value.trim())
+      .filter((value, index, values) => value.length > 0 && values.indexOf(value) === index);
+  }
+  return references;
+}
+
+/**
  * Resolves provider-authored claims against server-issued target ids. Coverage
  * identity comes from the id, while lexical checks remain defense in depth for
  * unrelated or deferred content. This metadata never enters the cached draft.
@@ -768,10 +812,12 @@ export function validateStreamedTargetAssignments({
   essentialIdeas,
   targetAssignments,
   currentSessionScope,
+  targetSubjectReferences,
 }: {
   essentialIdeas: string[];
   targetAssignments: StreamedTargetAssignment[];
   currentSessionScope: StreamedCurrentSessionScope;
+  targetSubjectReferences?: StreamedTargetSubjectReferences;
 }): ResolvedStreamedTargetAssignment[] {
   const ideas = essentialIdeas.map((idea) => idea.trim());
   if (targetAssignments.length !== ideas.length) {
@@ -827,7 +873,13 @@ export function validateStreamedTargetAssignments({
     previousTargetIndex = targetEntry.targetIndex;
 
     if (targetEntry.target) {
-      if (!lessonIdeaSharesTargetSubject(idea, targetEntry.target)) {
+      const authoritativeSubjectReferences = [
+        targetEntry.target,
+        ...(targetSubjectReferences?.[assignment.targetId] ?? []),
+      ];
+      if (!authoritativeSubjectReferences.some((reference) => (
+        lessonIdeaSharesTargetSubject(idea, reference)
+      ))) {
         throw new CurrentSessionScopeError(
           `${currentSessionScopeForRepair(currentSessionScope)} The claim assigned to ${assignment.targetId} does not preserve that target's subject terms.`,
           "streamed_target_subject",
@@ -958,6 +1010,7 @@ export function scopeStreamedSkeletonToCurrentWindow({
   learnerDirection,
   pacingContract: suppliedPacingContract,
   targetAssignments,
+  targetSubjectReferences,
 }: {
   draft: StreamedGeneratedSessionDraft;
   plannedTargets: string[];
@@ -965,6 +1018,7 @@ export function scopeStreamedSkeletonToCurrentWindow({
   learnerDirection: string | null;
   pacingContract?: ReturnType<typeof streamedTeachingPacingContract>;
   targetAssignments?: StreamedTargetAssignment[];
+  targetSubjectReferences?: StreamedTargetSubjectReferences;
 }): StreamedGeneratedSessionDraft {
   const pacingContract = suppliedPacingContract ?? streamedTeachingPacingContract({
     availableMinutes: estimatedMinutes,
@@ -991,6 +1045,7 @@ export function scopeStreamedSkeletonToCurrentWindow({
         essentialIdeas: draft.coverage.essentialIdeas,
         targetAssignments,
         currentSessionScope,
+        targetSubjectReferences,
       })
     : null;
   const targetAssignmentByIdea = new Map(
@@ -1922,7 +1977,7 @@ function generationStats({
     repairAttempted: repaired,
     repairSucceeded: repaired ? succeeded : null,
     repairReason: repaired ? "semantic_validation" : "none",
-    repairDetail: repaired ? repairDetail : null,
+    repairDetail: repaired || !succeeded ? repairDetail : null,
     inputTokens: usage.inputTokens,
     cachedInputTokens: usage.cachedInputTokens,
     cacheWriteTokens: usage.cacheWriteTokens,

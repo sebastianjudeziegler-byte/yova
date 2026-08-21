@@ -2,11 +2,13 @@ import { describe, expect, it } from "vitest";
 import type { DeadlineMilestone, LearningPlan, PlanStatus } from "@/lib/domain";
 import {
   availableLearningItemIds,
+  canPresentPlanAsCompleted,
   filterAgendaMilestones,
   filterAvailablePlans,
   filterOperationalPlans,
   filterTutorThreads,
   isAvailablePlanStatus,
+  isOperationalPlan,
   isOperationalPlanStatus,
 } from "@/lib/learning/plan-visibility";
 
@@ -18,6 +20,22 @@ describe("plan visibility", () => {
     expect(filterOperationalPlans(statuses.map(plan))).toMatchObject([
       { id: "active", status: "active" },
     ]);
+  });
+
+  it("reopens only a legacy completed plan that still has runnable work", () => {
+    const unfinishedLegacy = {
+      ...plan("completed"),
+      id: "legacy-unfinished",
+      sessions: [{ status: "ready" as const }, { status: "upcoming" as const }],
+    };
+
+    expect(isOperationalPlan(unfinishedLegacy)).toBe(true);
+    expect(filterOperationalPlans([
+      plan("active"),
+      plan("completed"),
+      unfinishedLegacy,
+      { ...plan("archived"), sessions: [{ status: "ready" as const }] },
+    ]).map((item) => item.id)).toEqual(["active", "legacy-unfinished"]);
   });
 
   it("keeps active and completed plans available for safe historical context", () => {
@@ -37,6 +55,21 @@ describe("plan visibility", () => {
     expect(isAvailablePlanStatus("paused")).toBe(false);
     expect(isAvailablePlanStatus(null)).toBe(false);
   });
+
+  it("does not present a legacy completed plan as complete while runnable sessions remain", () => {
+    expect(canPresentPlanAsCompleted({
+      status: "completed",
+      sessions: [{ status: "ready" }, { status: "upcoming" }],
+    })).toBe(false);
+    expect(canPresentPlanAsCompleted({
+      status: "completed",
+      sessions: [{ status: "complete" }, { status: "skipped" }],
+    })).toBe(true);
+    expect(canPresentPlanAsCompleted({
+      status: "active",
+      sessions: [{ status: "complete" }],
+    })).toBe(false);
+  });
 });
 
 describe("Agenda milestone visibility", () => {
@@ -55,6 +88,16 @@ describe("Agenda milestone visibility", () => {
       "standalone",
       "active-link",
     ]);
+  });
+
+  it("restores a linked deadline when a legacy completed plan still has runnable work", () => {
+    const unfinishedLegacy = {
+      ...plan("completed"),
+      sessions: [{ status: "ready" as const }],
+    };
+    expect(filterAgendaMilestones([
+      milestone("legacy-link", "item-completed"),
+    ], [unfinishedLegacy]).map((item) => item.id)).toEqual(["legacy-link"]);
   });
 
   it("fails closed for linked milestones when the plan was deleted or never loaded", () => {

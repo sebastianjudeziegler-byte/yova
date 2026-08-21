@@ -236,6 +236,8 @@ export type SessionInterruption = {
   evidence?: SessionEvidenceSnapshot;
   pendingRepair?: SessionPendingRepair;
   sessionAdjustment?: SessionAdjustmentSnapshot;
+  /** Ratings-only method progress; never contains an unfinished learner answer. */
+  activityProgress?: import("@/lib/learning/session-activity-progress").SessionActivityProgress;
 };
 
 export type NextSessionAdaptation = {

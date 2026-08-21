@@ -85,4 +85,34 @@ describe("materializePlanDraft", () => {
     expect(plan.title).toBe("Analyze Comparative Political Institutions…");
     expect(plan.title.length).toBeLessThanOrEqual(72);
   });
+
+  it("replaces a material-backed leading-fragment topic before persistence", () => {
+    const goal = "Biology Quiz on Osmosis. Be Able to Explain Water Movement, Tonicity";
+    const fragment = ", and the Effects on Animal and Plant Cells Using the Attached Notes";
+    const plan = materializePlanDraft({
+      ...staleDraft,
+      title: goal,
+      topic: fragment,
+    }, {
+      ...request,
+      goal,
+      materialMode: "upload",
+      materials: [{
+        id: "22222222-2222-4222-8222-222222222222",
+        name: "yova-walkthrough-osmosis-notes.txt",
+        mimeType: "text/plain",
+        sizeBytes: 1_024,
+        textContent: "Osmosis moves water across a selectively permeable membrane.",
+        processingStatus: "ready",
+      }],
+    });
+
+    expect(plan).toMatchObject({
+      title: goal,
+      topic: goal,
+      sourceMode: "user_materials",
+    });
+    expect(plan.topic).not.toMatch(/^[,;:.!?]/);
+    expect(plan.materials?.[0]?.textContent).toBeNull();
+  });
 });

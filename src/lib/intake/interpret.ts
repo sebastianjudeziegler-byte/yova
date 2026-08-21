@@ -23,10 +23,15 @@ export function interpretIntake(input: {
   description: string;
   materialNames: string[];
   now?: Date;
+  timeZone?: string;
 }): IntakeInterpretation {
   const description = normalize(input.description);
   const itemType = inferType(description);
-  const dueAt = inferDueAt(description, input.now ?? new Date());
+  const dueAt = inferDueAt(
+    description,
+    input.now ?? new Date(),
+    input.timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone ?? "UTC",
+  );
   const scope = inferScope(description);
   const progress = inferProgress(description);
 
@@ -90,6 +95,24 @@ export function deriveLearningTitle(description: string, itemType: IntakeItemTyp
 }
 
 const GENERIC_LEARNING_TITLE = /^(personalized learning plan|personalized study plan|learning plan|study plan|new learning goal|untitled(?: plan)?)$/i;
+const GENERIC_LEARNING_TOPIC = /^(the goal and concepts described by the learner|learning topic|general topic)$/i;
+const LEADING_TOPIC_FRAGMENT = /^(?:[,;:.!?)}\]»]|[-–—]\s)/;
+
+/**
+ * A generated topic is persisted as the learning item's long-form context. A
+ * leading delimiter means the model returned the tail of a sentence rather
+ * than a standalone topic (for example, ", and the effects on cells"). Keep
+ * that fragment from becoming the source of truth on the next cloud reload.
+ */
+export function resolveLearningTopic(candidate: string, fallback: string) {
+  const topic = normalize(candidate);
+  if (isStandaloneLearningTopic(topic)) return topic;
+
+  const fallbackTopic = normalize(fallback);
+  if (isStandaloneLearningTopic(fallbackTopic)) return fallbackTopic.slice(0, 300);
+
+  return "Learning goal";
+}
 
 /**
  * Keeps learner-facing titles short and specific, including plans created before
@@ -101,17 +124,31 @@ export function resolveLearningTitle(candidate: string, context: string) {
     .replace(/\b(.{8,60})[.!?]\s+i\s+(?:have|need|want)\s+(?:a|an|the)?\s*\1.*$/i, "$1")
     .replace(/[.,;:]+$/g, "");
   const source = normalize(context);
-  const sentenceLike = title.length > 72
-    || /[.!?]\s+\S/.test(title)
+  const sentenceLike = /[.!?]\s+\S/.test(title)
     || /\b(?:i|my|we|our)\s+(?:have|need|want|am|are|would|will)\b/i.test(title);
   const repeatedFragment = /\b(.{8,35})\b[\s.,:;-]+\1\b/i.test(title);
   const danglingEnding = endsWithDanglingTitleWord(title);
+  const needsDerivation = !title
+    || GENERIC_LEARNING_TITLE.test(title)
+    || sentenceLike
+    || repeatedFragment
+    || danglingEnding;
 
-  const resolved = !title || GENERIC_LEARNING_TITLE.test(title) || sentenceLike || repeatedFragment || danglingEnding
-    ? deriveLearningTitle(source || title)
+  const resolved = needsDerivation
+    ? isStandaloneLearningTopic(source)
+      ? deriveLearningTitle(source)
+      : title && !GENERIC_LEARNING_TITLE.test(title)
+        ? deriveLearningTitle(title)
+        : "New learning goal"
     : title;
 
   return shortenResolvedTitle(resolved);
+}
+
+function isStandaloneLearningTopic(value: string) {
+  return Boolean(value)
+    && !GENERIC_LEARNING_TOPIC.test(value)
+    && !LEADING_TOPIC_FRAGMENT.test(value);
 }
 
 function inferType(description: string): IntakeItemType {
@@ -141,48 +178,118 @@ function inferProgress(description: string) {
   return "";
 }
 
-function inferDueAt(description: string, now: Date) {
+function inferDueAt(description: string, now: Date, requestedTimeZone: string) {
   const lower = description.toLocaleLowerCase();
-  const due = new Date(now);
-  due.setHours(23, 59, 59, 999);
-  if (/\btoday\b/.test(lower)) return due.toISOString();
+  const timeZone = validTimeZone(requestedTimeZone);
+  const today = calendarDateInTimeZone(now, timeZone);
+  if (/\btoday\b/.test(lower)) return calendarDateEnd(today, timeZone).toISOString();
   if (/\btomorrow\b/.test(lower)) {
-    due.setDate(due.getDate() + 1);
-    return due.toISOString();
+    return calendarDateEnd(addCalendarDays(today, 1), timeZone).toISOString();
   }
 
   const relative = lower.match(/\b(?:in\s+)?(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|\d+)\s+(day|days|week|weeks)\b/);
   if (relative) {
     const amount = wordNumber(relative[1]);
-    due.setDate(due.getDate() + amount * (relative[2].startsWith("week") ? 7 : 1));
-    return due.toISOString();
+    const days = amount * (relative[2].startsWith("week") ? 7 : 1);
+    return calendarDateEnd(addCalendarDays(today, days), timeZone).toISOString();
   }
 
   const weekdayMatch = lower.match(/\b(?:(?:by|due|on|before)\s+(?:next\s+)?|next\s+)(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/);
   if (weekdayMatch) {
     const weekdays = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
     const target = weekdays.indexOf(weekdayMatch[1]);
-    let delta = (target - due.getDay() + 7) % 7;
+    const current = new Date(Date.UTC(today.year, today.month - 1, today.day, 12)).getUTCDay();
+    let delta = (target - current + 7) % 7;
     if (delta === 0) delta = 7;
-    due.setDate(due.getDate() + delta);
-    return due.toISOString();
+    return calendarDateEnd(addCalendarDays(today, delta), timeZone).toISOString();
   }
 
   const explicit = description.match(/\b(20\d{2})-(\d{1,2})-(\d{1,2})\b/);
   if (explicit) {
-    const parsed = new Date(Number(explicit[1]), Number(explicit[2]) - 1, Number(explicit[3]), 23, 59, 59, 999);
-    if (!Number.isNaN(parsed.getTime())) return parsed.toISOString();
+    const calendarDate = validCalendarDate(Number(explicit[1]), Number(explicit[2]), Number(explicit[3]));
+    if (calendarDate) return calendarDateEnd(calendarDate, timeZone).toISOString();
   }
 
   const monthDate = description.match(/\b(january|february|march|april|may|june|july|august|september|october|november|december)\s+(\d{1,2})(?:,\s*(20\d{2}))?\b/i);
   if (monthDate) {
     const month = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"].indexOf(monthDate[1].toLocaleLowerCase());
-    const year = monthDate[3] ? Number(monthDate[3]) : due.getFullYear();
-    const parsed = new Date(year, month, Number(monthDate[2]), 23, 59, 59, 999);
-    if (!monthDate[3] && parsed.getTime() < now.getTime()) parsed.setFullYear(parsed.getFullYear() + 1);
-    if (!Number.isNaN(parsed.getTime())) return parsed.toISOString();
+    let year = monthDate[3] ? Number(monthDate[3]) : today.year;
+    let calendarDate = validCalendarDate(year, month + 1, Number(monthDate[2]));
+    if (!monthDate[3] && calendarDate && compareCalendarDates(calendarDate, today) < 0) {
+      year += 1;
+      calendarDate = validCalendarDate(year, month + 1, Number(monthDate[2]));
+    }
+    if (calendarDate) return calendarDateEnd(calendarDate, timeZone).toISOString();
   }
   return null;
+}
+
+type CalendarDate = { year: number; month: number; day: number };
+
+function validTimeZone(value: string) {
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: value }).format();
+    return value;
+  } catch {
+    return "UTC";
+  }
+}
+
+function calendarDateInTimeZone(date: Date, timeZone: string): CalendarDate {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    year: "numeric",
+    month: "numeric",
+    day: "numeric",
+  }).formatToParts(date);
+  const part = (type: "year" | "month" | "day") => Number(parts.find((entry) => entry.type === type)?.value);
+  return { year: part("year"), month: part("month"), day: part("day") };
+}
+
+function addCalendarDays(date: CalendarDate, days: number): CalendarDate {
+  const next = new Date(Date.UTC(date.year, date.month - 1, date.day + days, 12));
+  return { year: next.getUTCFullYear(), month: next.getUTCMonth() + 1, day: next.getUTCDate() };
+}
+
+function calendarDateEnd(date: CalendarDate, timeZone: string) {
+  const localAsUtc = Date.UTC(date.year, date.month - 1, date.day, 23, 59, 59, 999);
+  const observed = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    hourCycle: "h23",
+    year: "numeric",
+    month: "numeric",
+    day: "numeric",
+    hour: "numeric",
+    minute: "numeric",
+    second: "numeric",
+  }).formatToParts(new Date(localAsUtc));
+  const part = (type: "year" | "month" | "day" | "hour" | "minute" | "second") => (
+    Number(observed.find((entry) => entry.type === type)?.value)
+  );
+  const observedAsUtc = Date.UTC(
+    part("year"),
+    part("month") - 1,
+    part("day"),
+    part("hour"),
+    part("minute"),
+    part("second"),
+    999,
+  );
+  return new Date(localAsUtc - (observedAsUtc - localAsUtc));
+}
+
+function validCalendarDate(year: number, month: number, day: number): CalendarDate | null {
+  const candidate = new Date(Date.UTC(year, month - 1, day, 12));
+  if (
+    candidate.getUTCFullYear() !== year
+    || candidate.getUTCMonth() + 1 !== month
+    || candidate.getUTCDate() !== day
+  ) return null;
+  return { year, month, day };
+}
+
+function compareCalendarDates(left: CalendarDate, right: CalendarDate) {
+  return Date.UTC(left.year, left.month - 1, left.day) - Date.UTC(right.year, right.month - 1, right.day);
 }
 
 function inferRequestedMinutes(description: string) {

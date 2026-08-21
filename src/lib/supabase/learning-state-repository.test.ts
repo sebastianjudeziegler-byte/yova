@@ -5,6 +5,7 @@ import {
   saveActiveSessionCheckpoint,
   type ActiveSessionCheckpointV1,
 } from "@/lib/learning/active-session-checkpoint";
+import { UpdateMilestoneRequestSchema } from "@/lib/milestones/schema";
 import {
   defaultPersonalizationState,
   PERSONALIZATION_STATE_ANSWER_INDEX,
@@ -198,6 +199,103 @@ describe("authenticated learning-state startup", () => {
       expect.stringMatching(/\b(?:and|my|using)\s*(?:…)?$/i),
     ]));
   });
+
+  it("repairs a material-backed leading-fragment topic on signed-in reload", async () => {
+    const title = "Biology Quiz on Osmosis. Be Able to Explain Water Movement, Tonicity";
+    const fragment = ", and the Effects on Animal and Plant Cells Using the Attached Notes";
+    mockCloudQueries({
+      profile: { display_name: "Learner", onboarding_completed_at: NOW },
+      items: [{
+        id: "item-osmosis",
+        title,
+        kind: "test",
+        topic: fragment,
+        deadline: null,
+        source_mode: "user_materials",
+        study_mode: "inside_yova",
+        created_at: NOW,
+      }],
+      plans: [{
+        id: "plan-osmosis",
+        learning_item_id: "item-osmosis",
+        status: "active",
+        rationale: "Use the uploaded notes for closed-note retrieval and application.",
+        generation_inputs: { learningIntent: "study", intent: "plan" },
+        knowledge_map: null,
+        created_at: NOW,
+      }],
+      materials: [{
+        id: "material-osmosis",
+        learning_item_id: "item-osmosis",
+        filename: "yova-walkthrough-osmosis-notes.txt",
+        mime_type: "text/plain",
+        byte_size: 1_024,
+        processing_status: "ready",
+        metadata: null,
+      }],
+    });
+
+    const plan = (await loadAuthenticatedLearningState())?.plans[0];
+
+    expect(plan).toMatchObject({
+      title,
+      topic: title,
+      sourceMode: "user_materials",
+    });
+    expect(plan?.materials).toHaveLength(1);
+    expect(plan?.title).not.toMatch(/Effects on Animal and Plant Cells Using/i);
+  });
+
+  it("normalizes PostgREST milestone timestamps before they can be edited", async () => {
+    mockCloudQueries({
+      profile: { display_name: "Learner", onboarding_completed_at: NOW },
+      milestones: [
+        {
+          id: "22222222-2222-4222-8222-222222222222",
+          title: "Cell biology exam",
+          description: "Review respiration and photosynthesis.",
+          due_at: "2026-09-03T23:59:00+00:00",
+          status: "open",
+          linked_learning_item_id: null,
+          created_at: "2026-08-19T20:42:11.987654-07:00",
+        },
+      ],
+    });
+
+    const state = await loadAuthenticatedLearningState();
+
+    expect(state?.deadlineMilestones).toEqual([
+      expect.objectContaining({
+        dueAt: "2026-09-03T23:59:00.000Z",
+        createdAt: "2026-08-20T03:42:11.987Z",
+      }),
+    ]);
+    expect(UpdateMilestoneRequestSchema.safeParse({
+      id: state?.deadlineMilestones[0]?.id,
+      dueAt: state?.deadlineMilestones[0]?.dueAt,
+    }).success).toBe(true);
+  });
+
+  it("keeps deadline reads fault-tolerant when one database row is malformed", async () => {
+    mockCloudQueries({
+      profile: { display_name: "Learner", onboarding_completed_at: NOW },
+      milestones: [
+        {
+          id: "22222222-2222-4222-8222-222222222222",
+          title: "Invalid deadline",
+          description: "This row should be ignored.",
+          due_at: "not-a-timestamp",
+          status: "open",
+          linked_learning_item_id: null,
+          created_at: "2026-08-19T18:02:44+00:00",
+        },
+      ],
+    });
+
+    await expect(loadAuthenticatedLearningState()).resolves.toMatchObject({
+      deadlineMilestones: [],
+    });
+  });
 });
 
 describe("recordAuthenticatedSessionInterruption", () => {
@@ -218,15 +316,40 @@ describe("recordAuthenticatedSessionInterruption", () => {
         knownTargets: ["ATP coupling"],
         note: "Connect this to cellular respiration.",
       },
+      activityProgress: {
+        kind: "retrieval_round",
+        activityIndex: 0,
+        promptCount: 3,
+        ratings: ["partly"],
+      },
     };
 
     await recordAuthenticatedSessionInterruption(interruption);
 
-    expect(rpc).toHaveBeenCalledWith("record_session_interruption", {
+    expect(rpc).toHaveBeenCalledWith("record_session_interruption_with_activity_progress", {
       payload: expect.objectContaining({
         attemptId: interruption.id,
         sessionAdjustment: interruption.sessionAdjustment,
+        activityProgress: interruption.activityProgress,
       }),
+    });
+  });
+
+  it("keeps the established interruption RPC for exits without activity progress", async () => {
+    await recordAuthenticatedSessionInterruption({
+      id: "00000000-0000-4000-8000-000000000001",
+      planId: "00000000-0000-4000-8000-000000000002",
+      planSessionId: "00000000-0000-4000-8000-000000000003",
+      startedAt: "2026-08-11T20:00:00.000Z",
+      interruptedAt: "2026-08-11T20:08:00.000Z",
+      plannedMinutes: 20,
+      actualMinutes: 8,
+      completedSteps: 2,
+      totalSteps: 5,
+    });
+
+    expect(rpc).toHaveBeenCalledWith("record_session_interruption", {
+      payload: expect.not.objectContaining({ activityProgress: expect.anything() }),
     });
   });
 });
@@ -334,6 +457,14 @@ describe("authenticated active-session checkpoint sync", () => {
   it("sends no client identity or plan identity and returns the server checkpoint", async () => {
     const local = checkpoint({
       savedAt: "2026-08-17T17:59:00.000Z",
+      completedSteps: 0,
+      resumeStep: 0,
+      activityProgress: {
+        kind: "retrieval_round",
+        activityIndex: 0,
+        promptCount: 3,
+        ratings: ["partly"],
+      },
       sessionAdjustment: {
         familiarity: "need_teaching",
         availableMinutes: 20,
@@ -354,6 +485,7 @@ describe("authenticated active-session checkpoint sync", () => {
       completedSteps: local.completedSteps,
       resourceFingerprint: local.resourceFingerprint,
       resourceGeneratedAt: local.resourceGeneratedAt,
+      activityProgress: local.activityProgress,
     });
     expect(payload).not.toHaveProperty("accountId");
     expect(payload).not.toHaveProperty("planId");
@@ -723,11 +855,15 @@ function mockCloudQueries({
   sessions = [],
   items = [],
   plans = [],
+  materials = [],
+  milestones = [],
 }: {
   profile: { display_name: string; onboarding_completed_at: string | null } | null;
   sessions?: ReturnType<typeof sessionRow>[];
   items?: Array<Record<string, unknown>>;
   plans?: Array<Record<string, unknown>>;
+  materials?: Array<Record<string, unknown>>;
+  milestones?: Array<Record<string, unknown>>;
 }) {
   from.mockImplementation((table: string) => {
     const result = {
@@ -739,9 +875,13 @@ function mockCloudQueries({
             ? items
             : table === "plans"
               ? plans
-          : table === "plan_sessions"
-            ? sessions
-            : [],
+              : table === "materials"
+                ? materials
+                : table === "plan_sessions"
+                  ? sessions
+                  : table === "deadline_milestones"
+                    ? milestones
+                    : [],
       error: null,
     };
     const builder: Record<string, ReturnType<typeof vi.fn>> = {};

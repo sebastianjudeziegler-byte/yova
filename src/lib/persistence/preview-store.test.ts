@@ -29,6 +29,12 @@ function interruption(): SessionInterruption {
       knownTargets: ["ATP coupling"],
       note: "Connect this to cellular respiration.",
     },
+    activityProgress: {
+      kind: "retrieval_round",
+      activityIndex: 0,
+      promptCount: 3,
+      ratings: ["partly"],
+    },
   };
 }
 
@@ -94,6 +100,25 @@ describe("preview interruption persistence", () => {
     expect(loadPreviewSnapshot()?.sessionInterruptions[0]?.sessionAdjustment).toEqual(
       original.sessionAdjustment,
     );
+    expect(loadPreviewSnapshot()?.sessionInterruptions[0]?.activityProgress).toEqual(
+      original.activityProgress,
+    );
+  });
+
+  it("drops malformed or text-bearing activity progress", () => {
+    const localStorage = installMemoryStorage();
+    const malformed = snapshot(interruption()) as unknown as Record<string, unknown>;
+    const storedInterruption = (malformed.sessionInterruptions as Array<Record<string, unknown>>)[0]!;
+    storedInterruption.activityProgress = {
+      kind: "retrieval_round",
+      activityIndex: 0,
+      promptCount: 3,
+      ratings: ["partly"],
+      answerDraft: "PRIVATE RECALL DRAFT",
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(malformed));
+
+    expect(loadPreviewSnapshot()?.sessionInterruptions[0]).not.toHaveProperty("activityProgress");
   });
 
   it("removes a malformed setup snapshot instead of trusting stored browser data", () => {

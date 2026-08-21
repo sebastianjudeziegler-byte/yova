@@ -25,6 +25,7 @@ export async function POST(request: Request) {
   const deterministic = IntakeInterpretationSchema.parse(interpretIntake({
     description: parsed.data.description,
     materialNames: parsed.data.materialNames,
+    timeZone: parsed.data.timeZone,
   }));
   const interpretation = developmentPreview
     ? deterministic

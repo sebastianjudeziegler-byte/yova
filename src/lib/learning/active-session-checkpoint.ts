@@ -13,6 +13,11 @@ import {
   type MethodWorkProgress,
 } from "@/lib/learning/method-work-progress";
 import {
+  SessionActivityProgressSchema,
+  sessionActivityProgressRank,
+  type SessionActivityProgress,
+} from "@/lib/learning/session-activity-progress";
+import {
   resumableSessionProgress,
   SessionAdjustmentSnapshotSchema,
   SessionEvidenceSnapshotSchema,
@@ -64,6 +69,7 @@ const WorkingCheckpointSchema = z.object({
   status: z.literal("working"),
   evidence: SessionEvidenceSnapshotSchema.optional(),
   pendingRepair: CheckpointPendingRepairSchema.optional(),
+  activityProgress: SessionActivityProgressSchema.optional(),
   completedAt: z.never().optional(),
 }).strict();
 
@@ -72,6 +78,7 @@ const AwaitingFinishCheckpointSchema = z.object({
   status: z.literal("awaiting_finish"),
   evidence: SessionEvidenceSnapshotSchema,
   pendingRepair: z.never().optional(),
+  activityProgress: z.never().optional(),
   completedAt: z.string().datetime({ offset: true }),
   completionFeedback: z.enum(["too_easy", "about_right", "too_difficult"]),
 }).strict();
@@ -151,6 +158,7 @@ export type ActiveSessionCheckpointResumePoint = SessionInterruption & {
   completedAt?: string;
   completionFeedback?: "too_easy" | "about_right" | "too_difficult";
   methodWork?: MethodWorkProgress;
+  activityProgress?: SessionActivityProgress;
 };
 
 /**
@@ -187,6 +195,9 @@ export function compareActiveSessionCheckpointProgress(
     return left.completedSteps - right.completedSteps;
   }
   if (left.resumeStep !== right.resumeStep) return left.resumeStep - right.resumeStep;
+  const activityProgressDifference = sessionActivityProgressRank(left.activityProgress)
+    - sessionActivityProgressRank(right.activityProgress);
+  if (activityProgressDifference !== 0) return activityProgressDifference;
   const methodWorkDifference = methodWorkProgressRank(left.methodWork)
     - methodWorkProgressRank(right.methodWork);
   if (methodWorkDifference !== 0) return methodWorkDifference;
@@ -533,6 +544,7 @@ export function checkpointToSessionResumePoint(
     } : {}),
     completionMode: checkpoint.completionMode ?? "guided",
     ...(checkpoint.methodWork ? { methodWork: checkpoint.methodWork } : {}),
+    ...(checkpoint.activityProgress ? { activityProgress: checkpoint.activityProgress } : {}),
     ...(checkpoint.status === "awaiting_finish" ? {
       completedAt: checkpoint.completedAt,
       completionFeedback: checkpoint.completionFeedback,

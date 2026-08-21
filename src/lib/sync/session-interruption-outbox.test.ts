@@ -55,6 +55,12 @@ describe("session interruption outbox", () => {
           knownTargets: ["ATP coupling"],
           note: "Connect this to cellular respiration.",
         },
+        activityProgress: {
+          kind: "retrieval_round",
+          activityIndex: 0,
+          promptCount: 3,
+          ratings: ["partly"],
+        },
       },
     };
 

@@ -24,6 +24,70 @@ export function buildMaterialSupportPolicy(materials: MaterialExcerpt[]): Materi
   };
 }
 
+/**
+ * Source ids, filenames, locations, and quotations come from YOVA's mapped
+ * database rows, not from model transcription. Preserve the provider's
+ * decision to include grounding, then bind its provenance fields to those
+ * authoritative rows so punctuation or Unicode drift cannot invalidate an
+ * otherwise source-faithful lesson after generation.
+ */
+export function bindSessionSourceGroundingToMaterials({
+  materials,
+  grounding,
+  focus,
+}: {
+  materials: MaterialExcerpt[];
+  grounding: SessionSourceGrounding | null;
+  focus: string;
+}): SessionSourceGrounding | null {
+  if (!grounding) return null;
+  return buildMappedSessionSourceGrounding({ materials, focus }) ?? grounding;
+}
+
+export function buildMappedSessionSourceGrounding({
+  materials,
+  focus,
+}: {
+  materials: MaterialExcerpt[];
+  focus: string;
+}): SessionSourceGrounding | null {
+  const mappedMaterials = materials.filter((material): material is MaterialExcerpt & { chunkId: string } => (
+    Boolean(material.chunkId) && material.text.trim().length >= 12
+  ));
+  // Legacy excerpts do not carry a persisted chunk identity. Their provider
+  // anchor remains subject to the existing exact-verification validator.
+  if (mappedMaterials.length === 0) return null;
+
+  const policy = buildMaterialSupportPolicy(materials);
+  const selected = mappedMaterials.slice(0, 4);
+  const sourceNames = [...new Set(materials.map((material) => material.name))].slice(0, 5);
+  const mode = policy.supplementationRequiredForTeaching
+    ? "materials_plus_ai" as const
+    : "materials_only" as const;
+  const boundedFocus = focus.trim().replace(/\s+/g, " ").slice(0, 160) || "the current session target";
+
+  return {
+    mode,
+    summary: mode === "materials_plus_ai"
+      ? "The guide defines the scope. YOVA provides the instruction."
+      : "This lesson stays within the explanations in the learner's mapped source sections.",
+    sourceNames,
+    anchors: selected.map((material) => ({
+      chunkId: material.chunkId,
+      sourceName: material.name,
+      locationLabel: material.locationLabel ?? "Uploaded material",
+      excerpt: material.text.trim().slice(0, 220).trim(),
+      usedFor: `Grounding ${boundedFocus} in the learner's mapped source section.`.slice(0, 240),
+    })),
+    supplements: mode === "materials_plus_ai"
+      ? [{
+        topic: scopeOutlineTopic(selected[0]!.text, boundedFocus),
+        reason: "The mapped outline names the scope, while YOVA supplies the minimum explanation needed for this lesson.",
+      }]
+      : [],
+  };
+}
+
 export function validateSessionSourceGrounding({
   sourceMode,
   materials,
@@ -91,4 +155,9 @@ export function validateSessionSourceGrounding({
 
 function normalize(value: string) {
   return value.normalize("NFKC").toLowerCase().replace(/\s+/g, " ").trim();
+}
+
+function scopeOutlineTopic(text: string, fallback: string) {
+  const firstLine = text.split(/\r?\n/u).map((line) => line.trim()).find((line) => line.length >= 2);
+  return (firstLine ?? fallback).slice(0, 140);
 }

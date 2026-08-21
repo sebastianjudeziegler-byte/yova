@@ -224,4 +224,14 @@ describe("summarizeCompletionConcepts", () => {
       needsAnotherCheck: [],
     });
   });
+
+  it("treats a successful in-session repair as the latest concept evidence", () => {
+    expect(summarizeCompletionConcepts([
+      { concept: "Product rule", outcome: "needs_review", activityType: "multiple_choice", methodPhase: "retrieve" },
+      { concept: "Product rule", outcome: "secure", activityType: "free_response", methodPhase: "repair" },
+    ])).toEqual({
+      showingStrength: ["Product rule"],
+      needsAnotherCheck: [],
+    });
+  });
 });

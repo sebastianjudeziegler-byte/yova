@@ -7,6 +7,7 @@ import type {
 } from "@/lib/domain";
 import { ConceptEvidenceListSchema } from "@/lib/learning/concept-evidence";
 import { ConfidenceEvidenceListSchema } from "@/lib/learning/confidence-calibration";
+import { readSessionActivityProgress } from "@/lib/learning/session-activity-progress";
 import type { GuidedSessionStep } from "@/lib/learning/session-evidence";
 import { RuntimeRepairSupportSchema } from "@/lib/session-repair/schema";
 
@@ -42,7 +43,13 @@ export function resumableSessionProgress(
   return interruptions
     .filter((interruption) => (
       interruption.planSessionId === planSessionId
-      && interruption.completedSteps >= 1
+      && (
+        interruption.completedSteps >= 1
+        || (
+          interruption.completedSteps === 0
+          && (readSessionActivityProgress(interruption.activityProgress)?.ratings.length ?? 0) > 0
+        )
+      )
       && interruption.completedSteps < interruption.totalSteps
     ))
     .sort((left, right) => right.interruptedAt.localeCompare(left.interruptedAt))[0] ?? null;
