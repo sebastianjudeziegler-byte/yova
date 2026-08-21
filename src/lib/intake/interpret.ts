@@ -66,9 +66,15 @@ export function deriveLearningTitle(description: string, itemType: IntakeItemTyp
   const cleaned = text
     .replace(/^i\s+(?:have|need|want|am|would like)\s+/i, "")
     .replace(/^to\s+/i, "")
+    .replace(/^(?:my|the|a|an)\s+/i, "")
+    .replace(/\bnext\s+(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/gi, "")
+    .replace(/\s+(?:is\s+)?(?:due|by|before|on)\s+(?:january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{1,2}(?:,\s*20\d{2})?.*$/i, "")
     .replace(/\b(?:by|before|due|on)\s+(?:tomorrow|today|next\s+\w+|in\s+\d+\s+(?:days?|weeks?)|\d{1,2}[/-]\d{1,2}(?:[/-]\d{2,4})?).*$/i, "")
+    .replace(/\s+due(?:\s+and\b.*)?$/i, "")
     .replace(/\b(?:in|for)\s+(?:two|three|four|\d+)\s+weeks?.*$/i, "")
+    .replace(/\b(?:in|for|within)\s+\d{1,3}\s*(?:minutes?|mins?|hours?|hrs?)\b.*$/i, "")
     .replace(/\bwith\s+(?:a|my)\s+(?:study guide|pdf|notes).*$/i, "")
+    .replace(/\s{2,}/g, " ")
     .replace(/[.,;:]+$/g, "")
     .trim();
   const title = trimToTitlePhrase(cleaned);
@@ -91,7 +97,9 @@ const GENERIC_LEARNING_TITLE = /^(personalized learning plan|personalized study 
  * truth when the generated title is generic or reads like an unedited prompt.
  */
 export function resolveLearningTitle(candidate: string, context: string) {
-  const title = normalize(candidate).replace(/[.,;:]+$/g, "");
+  const title = normalize(candidate)
+    .replace(/\b(.{8,60})[.!?]\s+i\s+(?:have|need|want)\s+(?:a|an|the)?\s*\1.*$/i, "$1")
+    .replace(/[.,;:]+$/g, "");
   const source = normalize(context);
   const sentenceLike = title.length > 72
     || /[.!?]\s+\S/.test(title)

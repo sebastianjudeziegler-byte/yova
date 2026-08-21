@@ -15,10 +15,10 @@ const onboardingAnswers = [
 
 test("a deadline can live in Agenda, be completed, and stay out of Learning", async ({ page }) => {
   await openPreviewApp(page);
-  await openAdd(page, "My lab report is due August 19, 2026");
+  await openAdd(page, "My lab report is due August 29, 2026");
 
   await expect(page.getByLabel("Title")).toHaveValue("Lab Report");
-  await expect(page.getByLabel("Due date, if there is one")).toHaveValue("2026-08-19");
+  await expect(page.getByLabel("Due date, if there is one")).toHaveValue("2026-08-29");
   await page.getByRole("button", { name: /Choose what YOVA should do/ }).click();
   await page.getByRole("button", { name: /Track the deadline/ }).click();
 
@@ -61,7 +61,7 @@ test("a multi-session assignment skips an irrelevant knowledge quiz", async ({ p
   await expect(page.getByText("Plan ready")).toBeVisible();
   await page.getByRole("button", { name: "Use this plan" }).click();
   await expect(page.getByRole("heading", { name: "Your plan" })).toBeVisible();
-  await expect(page.getByText("History Essay", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("1,500-word History Essay", { exact: true }).first()).toBeVisible();
 });
 
 test("general learning stays deadline-free until the user chooses otherwise", async ({ page }) => {
@@ -77,11 +77,11 @@ test("general learning stays deadline-free until the user chooses otherwise", as
 test("a timed product-rule request becomes a specific one-off session", async ({ page }) => {
   await openPreviewApp(page);
   await openAdd(page, "I need to understand the product rule in 20 minutes");
-  await expect(page.getByLabel("Title")).toHaveValue("Calculus: Product Rule");
+  await expect(page.getByLabel("Title")).toHaveValue("Understand the Product Rule");
   await page.getByRole("button", { name: /Choose what YOVA should do/ }).click();
   await expect(page.getByText("20 minutes requested")).toBeVisible();
   await page.getByRole("button", { name: /Create one session/ }).click();
-  await expect(page.getByText(/Calculus: Product Rule/).first()).toBeVisible();
+  await expect(page.getByText(/Understand the Product Rule/).first()).toBeVisible();
   await expect(page.getByRole("button", { name: /Create it for me/ })).toHaveClass(/selected/);
 });
 
@@ -99,7 +99,7 @@ test("an unfinished one-off session stays out of ongoing Learning goals", async 
 
   await expect(page.getByRole("button", { name: /Active 0/ })).toBeVisible();
   await expect(page.getByRole("button", { name: /Recent 1/ })).toBeVisible();
-  await expect(page.locator(".learning-page").getByText("Calculus: Product Rule", { exact: true })).toHaveCount(0);
+  await expect(page.locator(".learning-page").getByText("Understand the Product Rule", { exact: true })).toHaveCount(0);
 });
 
 test("one account never sees another account's deadline", async ({ browser }) => {
@@ -110,13 +110,13 @@ test("one account never sees another account's deadline", async ({ browser }) =>
   await firstPage.getByRole("button", { name: /Choose what YOVA should do/ }).click();
   await firstPage.getByRole("button", { name: /Track the deadline/ }).click();
   await firstPage.getByRole("button", { name: "Agenda", exact: true }).click();
-  await expect(firstPage.getByText("World War I Test Prep", { exact: true })).toBeVisible();
+  await expect(firstPage.getByText("Private World War I Test", { exact: true })).toBeVisible();
 
   const secondContext = await browser.newContext();
   const secondPage = await secondContext.newPage();
   await openPreviewApp(secondPage);
   await secondPage.getByRole("button", { name: "Agenda", exact: true }).click();
-  await expect(secondPage.getByText("World War I Test Prep", { exact: true })).toHaveCount(0);
+  await expect(secondPage.getByText("Private World War I Test", { exact: true })).toHaveCount(0);
 
   await firstContext.close();
   await secondContext.close();

@@ -85,8 +85,20 @@ describe("universal Add intake", () => {
       now: NOW,
     });
     expect(focused.requestedMinutes).toBe(20);
+    expect(focused.title).toBe("Understand the Product Rule");
     expect(assignment.itemType).toBe("assignment");
     expect(assignment.dueAt).not.toBeNull();
+  });
+
+  it("keeps scheduling details out of learner-derived titles", () => {
+    expect(deriveLearningTitle("My lab report is due August 19, 2026", "assignment"))
+      .toBe("Lab Report");
+    expect(deriveLearningTitle("I have a biology test next Friday on cellular respiration", "test"))
+      .toBe("Biology Test on Cellular Respiration");
+    expect(resolveLearningTitle(
+      "1,500-word History Essay Due and I Have Not Started",
+      "1,500-word History Essay Due and I Have Not Started",
+    )).toBe("1,500-word History Essay");
   });
 
   it("repairs generic saved plan names from their actual topic", () => {
@@ -107,6 +119,10 @@ describe("universal Add intake", () => {
     expect(concise).toMatch(/thermodynamics/i);
     expect(concise).not.toMatch(/I Have an Essay That I Have/i);
     expect(concise.length).toBeLessThanOrEqual(72);
+    expect(resolveLearningTitle(
+      "1,500-word History Essay. I Have a 1,500-word History Essay",
+      "due next Friday and I have not started yet",
+    )).toBe("1,500-word History Essay");
   });
 
   it.each([

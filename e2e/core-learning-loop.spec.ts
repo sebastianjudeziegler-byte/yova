@@ -2058,7 +2058,8 @@ test("a multi-session plan carries one clear source decision from Add to Learnin
   await page.getByRole("button", { name: "Ask YOVA", exact: true }).click();
   const tutorContext = page.getByRole("combobox", { name: "Ask YOVA context" });
   await expect(tutorContext).toHaveValue("general");
-  await tutorContext.selectOption({ label: "Photosynthesis and Cellular Respiration" });
+  await expect(tutorContext.locator("option").nth(1)).toContainText("Biology Test on Cellular Respiration");
+  await tutorContext.selectOption({ index: 1 });
   await expect(page.getByText("Using learning context")).toBeVisible();
   await expect(page.getByText("YOVA can use this goal's materials, next session, and learner evidence.")).toBeVisible();
   await page.getByRole("button", { name: "Learning", exact: true }).click();
