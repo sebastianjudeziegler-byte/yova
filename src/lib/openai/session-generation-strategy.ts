@@ -1,4 +1,5 @@
 import "server-only";
+import { conceptSignalsForSession } from "@/lib/learning/concept-review-scheduler";
 import { isScheduledRetrievalSession } from "@/lib/learning/scheduled-retrieval";
 import {
   canGenerateReliableSession,
@@ -17,33 +18,53 @@ import { sessionArchitectureForGeneration, usesStreamedTeaching } from "@/lib/se
  * whose complete learning sequence fits its deterministic activity shape.
  */
 export function sessionGenerationStrategy(context: SessionGenerationContext) {
+  const scopedContext = withSessionConceptScope(context);
   const runtimeArchitecture = sessionArchitectureForGeneration({
-    storedVersion: context.sessionArchitectureVersion,
-    learningMode: context.session.learningMode,
-    studyMode: context.learningGoal.studyMode,
-    reviewType: context.session.reviewType ?? null,
+    storedVersion: scopedContext.sessionArchitectureVersion,
+    learningMode: scopedContext.session.learningMode,
+    studyMode: scopedContext.learningGoal.studyMode,
+    reviewType: scopedContext.session.reviewType ?? null,
   });
   if (
     usesStreamedTeaching({ sessionArchitectureVersion: runtimeArchitecture })
-    && context.session.learningMode === "learn"
-    && context.learningGoal.studyMode === "inside_yova"
-    && !context.session.reviewType
+    && scopedContext.session.learningMode === "learn"
+    && scopedContext.learningGoal.studyMode === "inside_yova"
+    && !scopedContext.session.reviewType
   ) return "streamed" as const;
-  if (isScheduledRetrievalSession(context.session)) return "full" as const;
-  return canGenerateReliableSession(context) ? "reliable" as const : "full" as const;
+  if (isScheduledRetrievalSession(scopedContext.session)) return "full" as const;
+  return canGenerateReliableSession(scopedContext) ? "reliable" as const : "full" as const;
 }
 
 export function generateProductionSessionWithOpenAI(context: SessionGenerationContext) {
+  const scopedContext = withSessionConceptScope(context);
   const generationContext = {
-    ...context,
+    ...scopedContext,
     sessionArchitectureVersion: sessionArchitectureForGeneration({
-      storedVersion: context.sessionArchitectureVersion,
-      learningMode: context.session.learningMode,
-      studyMode: context.learningGoal.studyMode,
-      reviewType: context.session.reviewType ?? null,
+      storedVersion: scopedContext.sessionArchitectureVersion,
+      learningMode: scopedContext.session.learningMode,
+      studyMode: scopedContext.learningGoal.studyMode,
+      reviewType: scopedContext.session.reviewType ?? null,
     }),
   };
   const strategy = sessionGenerationStrategy(generationContext);
   if (strategy === "streamed") return generateStreamedTeachingSkeletonWithOpenAI(generationContext);
   return strategy === "reliable" ? generateReliableSessionWithOpenAI(generationContext) : generateSessionWithOpenAI(generationContext);
+}
+
+export function withSessionConceptScope(
+  context: SessionGenerationContext,
+): SessionGenerationContext {
+  const conceptSignals = conceptSignalsForSession({
+    signals: context.conceptSignals,
+    topicIds: context.session.topicIds,
+    scopeText: [
+      context.session.title,
+      context.session.objective,
+      ...(context.session.contentTargets ?? []),
+    ],
+  });
+  return conceptSignals.length === context.conceptSignals.length
+    && conceptSignals.every((signal, index) => signal === context.conceptSignals[index])
+    ? context
+    : { ...context, conceptSignals };
 }

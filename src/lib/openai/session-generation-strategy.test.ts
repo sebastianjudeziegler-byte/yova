@@ -33,4 +33,38 @@ describe("production session generation strategy", () => {
     expect(sessionGenerationStrategy({ ...outside, sessionArchitectureVersion: "streamed_teaching_v1" })).toBe("full");
     expect(sessionGenerationStrategy(learn)).toBe("streamed");
   });
+
+  it("does not let overdue evidence from another plan topic change today's generation path", async () => {
+    const { sessionGenerationStrategy } = await import("@/lib/openai/session-generation-strategy");
+    const cases = new Map(buildSessionEvaluationCases().map((entry) => [entry.id, entry.context]));
+    const ordinary = structuredClone(cases.get("short_vocabulary_review")!);
+    ordinary.conceptSignals = [{
+      topicId: "99999999-9999-4999-8999-999999999999",
+      concept: "Managerial accounting",
+      attempts: 1,
+      secureAttempts: 0,
+      needsReviewAttempts: 1,
+      lastOutcome: "needs_review",
+      lastObservedAt: "2026-08-18T18:00:00.000Z",
+      status: "needs_review",
+    }];
+
+    expect(sessionGenerationStrategy(ordinary)).toBe("reliable");
+
+    ordinary.conceptSignals[0] = {
+      ...ordinary.conceptSignals[0]!,
+      topicId: ordinary.session.topicIds[0],
+    };
+    ordinary.knowledgeTopics[0] = {
+      ...ordinary.knowledgeTopics[0]!,
+      subtopics: [...ordinary.knowledgeTopics[0]!.subtopics, "Managerial accounting"],
+    };
+    expect(sessionGenerationStrategy(ordinary)).toBe("reliable");
+
+    ordinary.conceptSignals[0] = {
+      ...ordinary.conceptSignals[0]!,
+      concept: ordinary.session.title,
+    };
+    expect(sessionGenerationStrategy(ordinary)).toBe("full");
+  });
 });

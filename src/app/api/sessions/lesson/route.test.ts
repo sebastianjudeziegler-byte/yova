@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   cachedSession: null as unknown,
   supabase: null as unknown,
   claimAIRequest: vi.fn(),
+  releaseAIRequestClaim: vi.fn(),
   recordObservation: vi.fn(),
   streamGeneratedLesson: vi.fn(),
 }));
@@ -36,6 +37,7 @@ vi.mock("@/lib/session-generation/schema", async (importOriginal) => {
 });
 vi.mock("@/lib/server/ai-usage", () => ({
   claimAIRequest: mocks.claimAIRequest,
+  releaseAIRequestClaim: mocks.releaseAIRequestClaim,
 }));
 vi.mock("@/lib/server/development-preview", () => ({
   isDevelopmentPreviewRequest: () => mocks.developmentPreview,
@@ -73,6 +75,7 @@ describe("streamed lesson route recovery", () => {
     mocks.cachedSession = null;
     mocks.supabase = null;
     mocks.claimAIRequest.mockReset();
+    mocks.releaseAIRequestClaim.mockReset().mockResolvedValue(true);
     mocks.recordObservation.mockReset().mockResolvedValue(undefined);
     mocks.streamGeneratedLesson.mockReset();
   });
@@ -266,6 +269,61 @@ describe("streamed lesson route recovery", () => {
           lessonFailureKind: "allowance_exhausted",
         }),
       }),
+    );
+  });
+
+  it("returns the durable claim when provider generation falls back", async () => {
+    const query = {
+      select: vi.fn(),
+      eq: vi.fn(),
+      maybeSingle: vi.fn(),
+    };
+    query.select.mockReturnValue(query);
+    query.eq.mockReturnValue(query);
+    query.maybeSingle.mockResolvedValue({
+      data: { step_data: { generatedSession: { cached: true } } },
+      error: null,
+    });
+    mocks.developmentPreview = false;
+    mocks.supabaseConfigured = true;
+    mocks.cachedSession = { activities: [lessonActivity()] };
+    mocks.supabase = {
+      auth: {
+        getUser: vi.fn().mockResolvedValue({
+          data: { user: { id: "44444444-4444-4444-8444-444444444444" } },
+          error: null,
+        }),
+      },
+      from: vi.fn(() => query),
+    };
+    mocks.claimAIRequest.mockResolvedValue({
+      allowed: true,
+      claimId: "55555555-5555-4555-8555-555555555555",
+      retryAfterSeconds: 0,
+      remainingToday: 9,
+    });
+    mocks.streamGeneratedLesson.mockRejectedValue(new StreamedLessonGenerationError(
+      "Provider failed",
+      {
+        failureKind: "provider_request_error",
+        model: "configured-lesson-model",
+        responseId: null,
+        inputTokens: 0,
+        cachedInputTokens: 0,
+        outputTokens: 0,
+        latencyToFirstTokenMs: null,
+        elapsedMs: 500,
+        wordCount: 0,
+      },
+    ));
+
+    const response = await POST(lessonRequest());
+    expect(response.body).not.toBeNull();
+    await consumeLessonEventStream(response.body!, () => undefined);
+
+    expect(mocks.releaseAIRequestClaim).toHaveBeenCalledWith(
+      mocks.supabase,
+      "55555555-5555-4555-8555-555555555555",
     );
   });
 });

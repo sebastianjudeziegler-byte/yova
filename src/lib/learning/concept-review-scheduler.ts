@@ -16,6 +16,39 @@ export type ConceptReviewDirective = {
   instruction: string;
 };
 
+/**
+ * A plan can contain evidence for several topics, while one generated session
+ * intentionally covers only its own mapped slice. A due concept from another
+ * topic must not become a mandatory check in today's lesson. Topic ids keep
+ * evidence inside the mapped topic, while the complete concept name must also
+ * appear in today's title, objective, or explicit content targets. A concept
+ * that does not fit remains in the separate retrieval queue instead of making
+ * an unrelated lesson impossible to generate.
+ */
+export function conceptSignalsForSession({
+  signals,
+  topicIds,
+  scopeText,
+}: {
+  signals: ConceptSignal[];
+  topicIds: string[];
+  scopeText: string[];
+}): ConceptSignal[] {
+  const allowedTopicIds = new Set(topicIds);
+  const normalizedScope = scopeText
+    .map(normalizeConcept)
+    .filter(Boolean)
+    .map((value) => ` ${value} `);
+
+  return signals.filter((signal) => {
+    if (signal.topicId && !allowedTopicIds.has(signal.topicId)) return false;
+    const concept = normalizeConcept(signal.concept);
+    if (!concept) return false;
+    if (normalizedScope.length === 0) return Boolean(signal.topicId);
+    return normalizedScope.some((value) => value.includes(` ${concept} `));
+  });
+}
+
 type ReviewCheckActivity = {
   type: string;
   concept: string | null;
@@ -179,7 +212,9 @@ function meaningfulConceptTokens(value: string) {
 
 function normalizeConcept(value: string) {
   return value
+    .normalize("NFKC")
     .toLocaleLowerCase()
-    .replace(/[^a-z0-9]+/g, " ")
-    .trim();
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .trim()
+    .replace(/\s+/g, " ");
 }
