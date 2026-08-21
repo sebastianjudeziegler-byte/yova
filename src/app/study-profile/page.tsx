@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { StudyProfileExperience } from "@/components/study-profile/study-profile-experience";
 
 const title = "YOVA Study Profile | Get practical study recommendations";
-const description = "Answer 12 questions and get study methods matched to how you work.";
+const description = "Rereading feels like studying. It usually is not. Answer 14 questions and get study methods matched to how you actually work.";
 
 export const metadata: Metadata = {
   title,

@@ -2071,3 +2071,63 @@
   .answerList > button,
   .metadataOptions > button { transition: none; }
 }
+
+/* The learner's own finding, shown before the email ask. It has to read as a
+   sentence about them, so it gets more weight than the surrounding note text. */
+.teaserFinding {
+  margin: 0 0 20px;
+  font-size: 1.02rem;
+  line-height: 1.55;
+  color: var(--sp-text, #0f172a);
+}
+
+.consentRow {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  margin: 0 0 14px;
+  font-size: 0.88rem;
+  line-height: 1.5;
+  color: var(--sp-muted, #475569);
+  cursor: pointer;
+}
+
+.consentRow input {
+  margin-top: 3px;
+  width: 16px;
+  height: 16px;
+  flex: none;
+  accent-color: var(--sp-accent, #4f46e5);
+  cursor: pointer;
+}
+
+/* Compact waitlist prompt shown directly under the report hero. The full
+   section remains at the end of the report for readers who scroll it all. */
+.waitlistBanner {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: center;
+  justify-content: space-between;
+  margin: 22px 0 0;
+  padding: 18px 22px;
+  border: 1px solid var(--sp-line, #e2e8f0);
+  border-radius: 16px;
+  background: var(--sp-surface, #fff);
+}
+
+.waitlistBanner > div {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 240px;
+  flex: 1;
+}
+
+.waitlistBanner strong { font-size: 1rem; }
+
+.waitlistBanner span {
+  color: var(--sp-muted, #475569);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}

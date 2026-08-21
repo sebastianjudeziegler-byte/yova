@@ -76,6 +76,9 @@ export function StudyProfileReportView({
     initialWaitlistJoined ? "joined" : "idle",
   );
   const [interestError, setInterestError] = useState<string | null>(null);
+  // Consent given at the email gate joins the waitlist after this view has
+  // already rendered, so joined status is derived rather than stored.
+  const hasJoinedWaitlist = interestState === "joined" || initialWaitlistJoined;
   const reportHeadingRef = useRef<HTMLHeadingElement>(null);
   const waitlistStatusRef = useRef<HTMLDivElement>(null);
   const shouldManageInterestFocusRef = useRef(false);
@@ -177,9 +180,10 @@ export function StudyProfileReportView({
               <span>{report.primaryPattern.name}</span>
               <strong>{report.primaryPattern.label}</strong>
             </div>
-            <p>
-              {report.profileNarrative.body} {report.primaryPattern.summary}
-            </p>
+            {/* The narrative already states the finding. Appending the
+                dimension summary repeated it almost word for word in the most
+                read paragraph of the report. */}
+            <p>{report.profileNarrative.body}</p>
             <div className={styles.contextPills} aria-label="Profile context">
               <span><Zap size={14} aria-hidden="true" /> Best focus time: {ENERGY_LABELS[storedResponse.metadata.energyWindow]}</span>
               <span><Layers3 size={14} aria-hidden="true" /> {LEVEL_LABELS[storedResponse.metadata.schoolLevel]}</span>
@@ -201,6 +205,24 @@ export function StudyProfileReportView({
             </div>
           </div>
         </section>
+
+        {!hasJoinedWaitlist && (
+          <section className={styles.waitlistBanner} aria-label="Join the YOVA waitlist">
+            <div>
+              <strong>{STUDY_PROFILE_WAITLIST_CONTENT.heading}</strong>
+              <span>{STUDY_PROFILE_WAITLIST_CONTENT.body}</span>
+            </div>
+            <button
+              type="button"
+              className={styles.primaryButton}
+              onClick={() => void joinWaitlist()}
+              disabled={interestState === "joining"}
+              aria-busy={interestState === "joining"}
+            >
+              {interestState === "joining" ? "Joining..." : STUDY_PROFILE_WAITLIST_CONTENT.buttonLabel}
+            </button>
+          </section>
+        )}
 
         <div className={styles.reportBody}>
           <section className={styles.reportSection} aria-labelledby="playbook-heading">
@@ -376,7 +398,7 @@ export function StudyProfileReportView({
               <p>{STUDY_PROFILE_WAITLIST_CONTENT.helper}</p>
             </div>
 
-            {interestState === "idle" || interestState === "joining" ? (
+            {!hasJoinedWaitlist ? (
               <button
                 type="button"
                 className={styles.primaryButton}
