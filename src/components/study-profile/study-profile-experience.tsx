@@ -78,7 +78,7 @@ const ENERGY_OPTIONS: readonly { value: StudyProfileEnergyWindow; label: string;
   { value: "morning", label: "Morning", detail: "Before noon" },
   { value: "afternoon", label: "Afternoon", detail: "Roughly noon to 5 PM" },
   { value: "evening", label: "Evening", detail: "Roughly 5 to 10 PM" },
-  { value: "late_night", label: "Late night", detail: "After 10pm" },
+  { value: "late_night", label: "Late night", detail: "After 10 PM" },
   { value: "varies", label: "It varies", detail: "No consistent window" },
 ] as const;
 
@@ -103,6 +103,8 @@ export function StudyProfileExperience() {
   const [answers, setAnswers] = useState<Partial<StudyProfileAnswers>>({});
   const [metadata, setMetadata] = useState<Partial<StudyProfileMetadata>>({});
   const [email, setEmail] = useState("");
+  const [marketingConsent, setMarketingConsent] = useState(false);
+  const [consentJoinedWaitlist, setConsentJoinedWaitlist] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submissionError, setSubmissionError] = useState<string | null>(null);
   const [submissionResult, setSubmissionResult] = useState<SubmissionResult | null>(null);
@@ -329,6 +331,19 @@ export function StudyProfileExperience() {
 
       setSubmissionResult(result);
       clearStudyProfileDraft();
+
+      if (marketingConsent) {
+        // Best effort. The report is already saved, and the waitlist card in
+        // the report is still available if this does not land, so a failure
+        // here must not block the learner from reading their result.
+        void fetch(`/api/study-profile/interest/${encodeURIComponent(result.reportToken)}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ waitlist: true }),
+        }).then((waitlistResponse) => {
+          if (waitlistResponse.ok) setConsentJoinedWaitlist(true);
+        }).catch(() => {});
+      }
       const reportPath = result.reportUrl
         ? new URL(result.reportUrl, window.location.href)
         : new URL(`/study-profile/report/${encodeURIComponent(result.reportToken)}`, window.location.href);
@@ -354,7 +369,7 @@ export function StudyProfileExperience() {
         report={submissionResult.report}
         reportToken={submissionResult.reportToken}
         emailDelivery={resolveEmailDelivery(submissionResult)}
-        initialWaitlistJoined={submissionResult.waitlistJoined}
+        initialWaitlistJoined={submissionResult.waitlistJoined || consentJoinedWaitlist}
         autoFocusHeading
       />
     );
@@ -479,10 +494,15 @@ export function StudyProfileExperience() {
                 <strong>{teaserReport.primaryPattern.label}</strong>
               </div>
 
+              {/* The real sentence from their own result, not a category name.
+                  A finding someone recognises in themselves is what earns the
+                  email; a label is not. */}
+              <p className={styles.teaserFinding}>{teaserReport.primaryPattern.summary}</p>
+
               <div className={styles.unlockList} aria-label="Full report includes">
-                <span><CheckCircle2 size={17} aria-hidden="true" /> What is helping and getting in your way</span>
-                <span><CheckCircle2 size={17} aria-hidden="true" /> Study methods matched to your answers</span>
-                <span><CheckCircle2 size={17} aria-hidden="true" /> A routine for your next study session</span>
+                <span><CheckCircle2 size={17} aria-hidden="true" /> Why this is happening, based on your answers</span>
+                <span><CheckCircle2 size={17} aria-hidden="true" /> Three study methods matched to your result</span>
+                <span><CheckCircle2 size={17} aria-hidden="true" /> A block length, break, and start routine for tonight</span>
               </div>
 
               <form className={styles.emailGate} onSubmit={submitEmail} aria-busy={isSubmitting}>
@@ -507,6 +527,15 @@ export function StudyProfileExperience() {
                   We’ll use this to save and send your report. No account or password required.
                 </p>
 
+                <label className={styles.consentRow}>
+                  <input
+                    type="checkbox"
+                    checked={marketingConsent}
+                    onChange={(event) => setMarketingConsent(event.target.checked)}
+                  />
+                  <span>Email me when YOVA is ready to try. About once a month, unsubscribe any time.</span>
+                </label>
+
                 {submissionError && <p className={styles.formError} role="alert">{submissionError}</p>}
 
                 <button type="submit" className={styles.primaryButton} disabled={isSubmitting || !email.trim()}>
@@ -525,14 +554,11 @@ export function StudyProfileExperience() {
         </div>
       </main>
 
-      <div className={styles.assessmentAside} aria-hidden="true">
-        <div><SlidersHorizontal size={18} /><span>Person-first</span></div>
-        <div><ShieldCheck size={18} /><span>Non-clinical</span></div>
-        <div><Clock3 size={18} /><span>About 3 min</span></div>
-      </div>
     </div>
   );
 }
+
+const TOTAL_ASSESSMENT_STEPS = STUDY_PROFILE_QUESTIONS.length + 2;
 
 function StudyProfileLanding({ onStart }: { onStart: () => void }) {
   return (
@@ -547,16 +573,17 @@ function StudyProfileLanding({ onStart }: { onStart: () => void }) {
         <section className={styles.landingHero}>
           <div className={styles.heroCopy}>
             <span className={styles.heroEyebrow}><BarChart3 size={15} aria-hidden="true" /> YOVA Study Profile</span>
-            <h1>Find study methods that fit how you actually work.</h1>
+            <h1>Rereading feels like studying. It usually isn’t.</h1>
             <p>
-              Answer 12 questions and get clear ways to start sooner, stay focused, remember more,
-              and use your study time better.
+              Answer 14 questions and find out what is actually working for you, then get study
+              methods that fit how you work: how you start, focus, check what you know, and use
+              your energy.
             </p>
             <div className={styles.heroActions}>
               <button type="button" className={styles.primaryButton} onClick={onStart}>
                 Get my recommendations <ArrowRight size={18} aria-hidden="true" />
               </button>
-              <span><Clock3 size={16} aria-hidden="true" /> 12 questions · about 3 minutes</span>
+              <span><Clock3 size={16} aria-hidden="true" /> 14 questions · about 3 minutes</span>
             </div>
             <div className={styles.heroTrust}>
               <span><Check size={14} aria-hidden="true" /> Practical study recommendations</span>
@@ -671,7 +698,6 @@ function QuestionScreen({
   const question = STUDY_PROFILE_QUESTIONS[index];
   return (
     <section className={styles.questionScreen} aria-labelledby="current-question">
-      <span className={styles.questionKicker}>Question {question.number} of {STUDY_PROFILE_QUESTIONS.length}</span>
       <h1 id="current-question" ref={headingRef} tabIndex={-1}>{question.prompt}</h1>
       <p className={styles.questionHint}>Choose what is usually true for you, even if it is not ideal.</p>
       <div className={styles.answerList} role="radiogroup" aria-label={`Answers for question ${question.number}`}>
@@ -723,10 +749,10 @@ function MetadataScreen({
 function resolveAssessmentStep(view: AssessmentView, currentQuestion: number) {
   if (view === "question") {
     const question = Math.min(currentQuestion + 1, STUDY_PROFILE_QUESTIONS.length);
-    return { label: `Question ${question} of ${STUDY_PROFILE_QUESTIONS.length}`, percent: Math.round((question / 14) * 100) };
+    return { label: `Question ${question} of ${STUDY_PROFILE_QUESTIONS.length}`, percent: Math.round(((question - 1) / TOTAL_ASSESSMENT_STEPS) * 100) };
   }
-  if (view === "energy") return { label: "Profile context · 1 of 2", percent: 93 };
-  if (view === "school") return { label: "Profile context · 2 of 2", percent: 97 };
+  if (view === "energy") return { label: "Profile context · 1 of 2", percent: Math.round((STUDY_PROFILE_QUESTIONS.length / TOTAL_ASSESSMENT_STEPS) * 100) };
+  if (view === "school") return { label: "Profile context · 2 of 2", percent: Math.round(((STUDY_PROFILE_QUESTIONS.length + 1) / TOTAL_ASSESSMENT_STEPS) * 100) };
   return { label: "Assessment complete", percent: 100 };
 }
 

@@ -49,7 +49,7 @@ describe("Study Profile validation and report assembly", () => {
       basedOn: ["starting_friction", "structure_need", "mistake_sensitivity"],
     });
     expect(report.playbook.methods[0].steps.length).toBeGreaterThanOrEqual(3);
-    expect(report.playbook.methods[0].example).toMatch(/lecture notes|problem set|past exam/i);
+    expect(report.playbook.methods[0].example).toMatch(/lecture|problem set|exam|module/i);
     expect(report.playbook.nextSession.bestTime).toMatch(/morning/i);
     expect(report.recommendations.map(({ category }) => category)).toEqual([
       "starting",
@@ -88,8 +88,8 @@ describe("Study Profile validation and report assembly", () => {
     expect(highReport.playbook.nextSession.setupSteps.join(" ")).toMatch(/three steps/i);
     expect(lowReport.playbook.methods.map(({ id }) => id))
       .not.toEqual(highReport.playbook.methods.map(({ id }) => id));
-    expect(lowReport.playbook.methods[0].example).toMatch(/class notes|homework|quiz/i);
-    expect(highReport.playbook.methods[0].example).toMatch(/lecture notes|problem set|past exam/i);
+    expect(lowReport.playbook.methods[0].example).toMatch(/class|chapter|teacher|homework|quiz/i);
+    expect(highReport.playbook.methods[0].example).toMatch(/lecture|problem set|exam|module/i);
   });
 
   it("uses different knowledge checks for overconfidence and underconfidence answers", () => {

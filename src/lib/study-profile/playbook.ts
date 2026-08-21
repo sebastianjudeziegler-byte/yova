@@ -221,20 +221,66 @@ function methodSteps(methodId: CoreMethodId, { profile, answers }: ProfileContex
   ];
 }
 
+/**
+ * Picks the material each method should be practised on.
+ *
+ * A single shared phrase was reused for every method, so a report showing three
+ * methods repeated the same clause three times and read as mail-merge, which
+ * undercuts the claim that the methods were matched to the learner.
+ */
+function methodSource(methodId: CoreMethodId, schoolLevel: StudyProfileSchoolLevel) {
+  const byLevel = {
+    high_school: {
+      solved: "a solved problem from class",
+      questions: "the questions at the end of the chapter",
+      reading: "one section of the assigned reading",
+      notes: "your class notes",
+      idea: "the idea your teacher spent longest on",
+    },
+    college: {
+      solved: "a worked example from lecture",
+      questions: "a past exam question set",
+      reading: "one section of the assigned chapter",
+      notes: "your lecture notes",
+      idea: "the concept the lecture built toward",
+    },
+    other: {
+      solved: "a completed example from the course",
+      questions: "the practice questions for this module",
+      reading: "one section of the course material",
+      notes: "your notes for this module",
+      idea: "the idea the module keeps returning to",
+    },
+  } as const;
+
+  const level = schoolLevel === "high_school" || schoolLevel === "college" ? schoolLevel : "other";
+  const source = byLevel[level];
+
+  switch (methodId) {
+    case "worked_example_fading":
+    case "scaffolded_coding":
+      return source.solved;
+    case "practice_test_error_repair":
+      return source.questions;
+    case "read_recall_review":
+      return source.reading;
+    case "self_explanation":
+      return source.idea;
+    default:
+      return source.notes;
+  }
+}
+
 function schoolExample(methodId: CoreMethodId, schoolLevel: StudyProfileSchoolLevel) {
-  const source = schoolLevel === "high_school"
-    ? "class notes, a homework set, or an upcoming quiz"
-    : schoolLevel === "college"
-      ? "lecture notes, a problem set, or a past exam question"
-      : "a course module, practice task, or assessment question";
+  const source = methodSource(methodId, schoolLevel);
 
   const examples: Partial<Record<CoreMethodId, string>> = {
-    retrieval_practice: `Example: turn ${source} into five questions, close the source, and answer all five before checking.`,
-    spaced_retrieval: `Example: choose five important items from ${source} and schedule the same closed-note check for tomorrow, three days later, and one week later.`,
-    self_explanation: `Example: choose one difficult idea from ${source}, explain how it works without looking, then compare your explanation with the source.`,
-    worked_example_fading: `Example: use one solved task from ${source}, hide selected steps on the second attempt, then solve a similar task without support.`,
-    read_recall_review: `Example: read one short section from ${source}, close it, and write the main idea plus two supporting points from memory.`,
-    practice_test_error_repair: `Example: answer five representative questions from ${source}, group the misses by cause, and redo one similar question for each cause.`,
+    retrieval_practice: `Example: turn ${source} into five questions, close them, and answer all five before checking.`,
+    spaced_retrieval: `Example: pick five important items from ${source} and repeat the same closed-note check tomorrow, in three days, and in a week.`,
+    self_explanation: `Example: take ${source}, explain how it works without looking, then compare your explanation with the source.`,
+    worked_example_fading: `Example: study ${source}, redo it with two steps hidden, then solve a similar problem with nothing in front of you.`,
+    read_recall_review: `Example: read ${source}, close it, and write the main idea plus two supporting points from memory.`,
+    practice_test_error_repair: `Example: answer five of ${source} without notes, group what you missed by cause, and redo one question per cause.`,
   };
   return examples[methodId] ?? `Example: apply this method to ${source} and record the result before choosing what to do next.`;
 }

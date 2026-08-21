@@ -113,7 +113,7 @@ export const STUDY_PROFILE_QUESTIONS = [
     id: "q10",
     number: 10,
     dimension: "mistake_sensitivity",
-    prompt: "Which sounds most like you?",
+    prompt: "You have finished a piece of work but it is not quite right yet. What usually happens?",
     options: [
       { id: "a", label: "I would rather make a rough attempt and improve it.", score: 0 },
       { id: "b", label: "I usually balance getting started with getting things right.", score: 1 },
