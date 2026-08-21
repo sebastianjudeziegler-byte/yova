@@ -17,7 +17,7 @@ begin
   into current_definition;
 
   if current_definition is null
-    or pg_catalog.position(original_declaration in current_definition) = 0 then
+    or pg_catalog.strpos(current_definition, original_declaration) = 0 then
     raise exception 'The expected material-attachment UUID accumulator was not found.';
   end if;
 
