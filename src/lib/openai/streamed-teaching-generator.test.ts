@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { APIConnectionTimeoutError } from "openai";
 import { z } from "zod";
 import type { SessionGenerationContext } from "@/lib/openai/session-generator";
 
@@ -120,6 +121,7 @@ describe("bounded streamed-skeleton repair policy", () => {
         attempts: 1,
         failedValidator: "session_provider_request",
         repairAttempted: false,
+        repairDetail: expect.stringContaining("unknown"),
       },
     });
 
@@ -132,6 +134,26 @@ describe("bounded streamed-skeleton repair policy", () => {
     });
     expect(prompt).not.toHaveProperty("personalization");
     expect(providerInput).not.toContain("PRIVATE-CSS-ONLY");
+  });
+
+  it("retries a real SDK timeout whose Error name is generic", async () => {
+    const { generateStreamedTeachingSkeletonWithOpenAI } = await import("@/lib/openai/streamed-teaching-generator");
+    parseResponse.mockReset();
+    parseResponse
+      .mockRejectedValueOnce(new APIConnectionTimeoutError())
+      .mockRejectedValueOnce(new Error("provider unavailable after retry"));
+
+    await expect(generateStreamedTeachingSkeletonWithOpenAI(contextWithMaterials([]))).rejects.toMatchObject({
+      name: "SessionGenerationFailure",
+      generationStats: {
+        attempts: 2,
+        failedValidator: "session_provider_request",
+        repairAttempted: true,
+        repairSucceeded: false,
+        repairDetail: expect.stringContaining("unknown"),
+      },
+    });
+    expect(parseResponse).toHaveBeenCalledTimes(2);
   });
 
   it("allows the third call to be the successful scope-only repair", async () => {
@@ -1065,6 +1087,39 @@ describe("runtime session-window scoping", () => {
     expect(resolved.map((assignment) => assignment.target)).toEqual(targets);
   });
 
+  it("builds a narrow description-backed subject reference for an exact session topic", async () => {
+    const {
+      buildStreamedTargetSubjectReferences,
+      validateStreamedTargetAssignments,
+    } = await import("@/lib/openai/streamed-teaching-generator");
+    const context = contextWithMaterials([]);
+    const target = "Light scattering in the atmosphere";
+    const idea = "Air molecules redirect incoming sunlight in many directions, with the shorter wavelengths redirected more strongly.";
+    context.knowledgeTopics = [{
+      ...context.knowledgeTopics[0]!,
+      title: target,
+      description: "How sunlight interacts with air molecules and gets redirected in different directions.",
+    }];
+    context.session.contentTargets = [target];
+    const currentSessionScope = { activeTargets: [target], deferredTargets: [] };
+    const targetSubjectReferences = buildStreamedTargetSubjectReferences({
+      context,
+      currentSessionScope,
+    });
+
+    expect(targetSubjectReferences).toEqual({
+      target_1: [
+        "How sunlight interacts with air molecules and gets redirected in different directions.",
+      ],
+    });
+    expect(validateStreamedTargetAssignments({
+      essentialIdeas: [idea],
+      targetAssignments: [{ essentialIdea: idea, targetId: "target_1" }],
+      currentSessionScope,
+      targetSubjectReferences,
+    })).toHaveLength(1);
+  });
+
   it("rejects missing, inactive, and unrelated stable target assignments", async () => {
     const {
       validateStreamedTargetAssignments,
@@ -1122,6 +1177,51 @@ describe("runtime session-window scoping", () => {
       targetAssignments: [{ essentialIdea: productRuleParaphrase, targetId: "target_1" }],
       currentSessionScope: { activeTargets: ["Product rule"], deferredTargets: [] },
     })).toHaveLength(1);
+
+    const scatteringParaphrase = "Air molecules redirect incoming sunlight in many directions, with the shorter wavelengths redirected more strongly.";
+    const scatteringTarget = "Light scattering in the atmosphere";
+    expect(() => validateStreamedTargetAssignments({
+      essentialIdeas: [scatteringParaphrase],
+      targetAssignments: [{ essentialIdea: scatteringParaphrase, targetId: "target_1" }],
+      currentSessionScope: { activeTargets: [scatteringTarget], deferredTargets: [] },
+    })).toThrow(/does not preserve that target's subject terms/i);
+    expect(validateStreamedTargetAssignments({
+      essentialIdeas: [scatteringParaphrase],
+      targetAssignments: [{ essentialIdea: scatteringParaphrase, targetId: "target_1" }],
+      currentSessionScope: { activeTargets: [scatteringTarget], deferredTargets: [] },
+      targetSubjectReferences: {
+        target_1: [
+          "How sunlight interacts with air molecules and gets redirected in different directions.",
+        ],
+      },
+    })).toHaveLength(1);
+
+    const unrelatedScatteringClaim = "Mitosis separates duplicated chromosomes into two daughter cells.";
+    expect(() => validateStreamedTargetAssignments({
+      essentialIdeas: [unrelatedScatteringClaim],
+      targetAssignments: [{ essentialIdea: unrelatedScatteringClaim, targetId: "target_1" }],
+      currentSessionScope: { activeTargets: [scatteringTarget], deferredTargets: [] },
+      targetSubjectReferences: {
+        target_1: [
+          "How sunlight interacts with air molecules and gets redirected in different directions.",
+        ],
+      },
+    })).toThrow(/does not preserve that target's subject terms/i);
+
+    const scatteringClaimWithDeferredLeak = "Air molecules redirect sunlight in many directions before the Calvin cycle stores carbon.";
+    expect(() => validateStreamedTargetAssignments({
+      essentialIdeas: [scatteringClaimWithDeferredLeak],
+      targetAssignments: [{ essentialIdea: scatteringClaimWithDeferredLeak, targetId: "target_1" }],
+      currentSessionScope: {
+        activeTargets: [scatteringTarget],
+        deferredTargets: ["Calvin cycle carbon fixation"],
+      },
+      targetSubjectReferences: {
+        target_1: [
+          "How sunlight interacts with air molecules and gets redirected in different directions.",
+        ],
+      },
+    })).toThrow(/deferred-session substance/i);
 
     const unrelatedProductRuleClaim = "Photosynthesis stores light energy in glucose for later cellular work.";
     expect(() => validateStreamedTargetAssignments({

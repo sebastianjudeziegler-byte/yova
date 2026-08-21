@@ -104,6 +104,24 @@ describe("resumableSessionProgress", () => {
     expect(result).toBeNull();
   });
 
+  it("resumes step zero only when a method activity has completed progress", () => {
+    const startedRecallRound = {
+      ...interruption("recall-started", 0, "2026-08-06T18:20:00.000Z"),
+      activityProgress: {
+        kind: "retrieval_round" as const,
+        activityIndex: 0,
+        promptCount: 3,
+        ratings: ["partly" as const],
+      },
+    };
+
+    expect(resumableSessionProgress("session-1", [startedRecallRound]))
+      .toEqual(startedRecallRound);
+    expect(resumableSessionProgress("session-1", [
+      interruption("legacy-not-started", 0, "2026-08-06T18:21:00.000Z"),
+    ])).toBeNull();
+  });
+
   it("restores an unfinished repair before the next original activity", () => {
     const baseSteps: GuidedSessionStep[] = [
       {

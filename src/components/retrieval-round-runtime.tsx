@@ -1,16 +1,19 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ArrowRight, Check, EyeOff, RotateCcw } from "lucide-react";
+import { Check, EyeOff, RotateCcw } from "lucide-react";
 import type { MethodRuntime } from "@/lib/session-generation/method-runtime";
+import {
+  appendRetrievalRoundRating,
+  restoreRetrievalRoundActivityProgress,
+  type SessionActivityProgress,
+} from "@/lib/learning/session-activity-progress";
 import {
   isRetrievalRoundComplete,
   recordRecall,
   revealActivePrompt,
-  startRetrievalRound,
   summarizeRetrievalRound,
   type RetrievalRecall,
-  type RetrievalRoundSummary,
 } from "@/lib/learning/retrieval-round-progress";
 
 import styles from "./retrieval-round-runtime.module.css";
@@ -19,7 +22,9 @@ type RetrievalRound = Extract<MethodRuntime, { kind: "retrieval_round" }>;
 
 export type RetrievalRoundRuntimeProps = {
   runtime: RetrievalRound;
-  onComplete?: (summary: RetrievalRoundSummary) => void;
+  activityIndex: number;
+  initialProgress?: SessionActivityProgress | null;
+  onProgressChange?: (progress: SessionActivityProgress) => void;
 };
 
 const RECALL_CHOICES: Array<{ value: RetrievalRecall; label: string; hint: string }> = [
@@ -36,10 +41,20 @@ const RECALL_CHOICES: Array<{ value: RetrievalRecall; label: string; hint: strin
  * retrieved returns later in the same round. A hint is available only after an
  * attempt, so it repairs a stalled retrieval instead of replacing one.
  */
-export function RetrievalRoundRuntime({ runtime, onComplete }: RetrievalRoundRuntimeProps) {
-  const [state, setState] = useState(() => startRetrievalRound(runtime.prompts.length));
+export function RetrievalRoundRuntime({
+  runtime,
+  activityIndex,
+  initialProgress,
+  onProgressChange,
+}: RetrievalRoundRuntimeProps) {
+  const [round, setRound] = useState(() => restoreRetrievalRoundActivityProgress({
+    progress: initialProgress,
+    activityIndex,
+    promptCount: runtime.prompts.length,
+  }));
   const [attempt, setAttempt] = useState("");
   const [hintShown, setHintShown] = useState(false);
+  const state = round.state;
 
   const complete = isRetrievalRoundComplete(state);
   const summary = useMemo(() => summarizeRetrievalRound(state), [state]);
@@ -65,11 +80,6 @@ export function RetrievalRoundRuntime({ runtime, onComplete }: RetrievalRoundRun
             ? "You retrieved every prompt in this round."
             : `${summary.unresolvedIndexes.length} ${summary.unresolvedIndexes.length === 1 ? "prompt" : "prompts"} did not come back reliably. YOVA will bring ${summary.unresolvedIndexes.length === 1 ? "it" : "them"} back in a later check rather than counting ${summary.unresolvedIndexes.length === 1 ? "it" : "them"} as learned.`}
         </p>
-        {onComplete && (
-          <button className="button primary" type="button" onClick={() => onComplete(summary)}>
-            Continue <ArrowRight size={16} />
-          </button>
-        )}
       </section>
     );
   }
@@ -77,7 +87,13 @@ export function RetrievalRoundRuntime({ runtime, onComplete }: RetrievalRoundRun
   if (!activePrompt || !activeState) return null;
 
   const goNext = (recall: RetrievalRecall) => {
-    setState((current) => recordRecall(current, recall));
+    const progress = appendRetrievalRoundRating(round.progress, recall);
+    if (!progress) return;
+    setRound({
+      progress,
+      state: recordRecall(state, recall),
+    });
+    onProgressChange?.(progress);
     setAttempt("");
     setHintShown(false);
   };
@@ -127,7 +143,10 @@ export function RetrievalRoundRuntime({ runtime, onComplete }: RetrievalRoundRun
                 className="button primary"
                 type="button"
                 disabled={attempt.trim().length === 0}
-                onClick={() => setState(revealActivePrompt)}
+                onClick={() => setRound((current) => ({
+                  ...current,
+                  state: revealActivePrompt(current.state),
+                }))}
               >
                 <EyeOff size={16} /> Check what I recalled
               </button>

@@ -23,17 +23,19 @@ import {
   readActiveSessionCheckpoint,
   type ActiveSessionCheckpointV1,
 } from "@/lib/learning/active-session-checkpoint";
+import { readSessionActivityProgress } from "@/lib/learning/session-activity-progress";
 import {
   readSessionAdjustmentSnapshot,
   readSessionEvidenceSnapshot,
   readSessionPendingRepair,
 } from "@/lib/learning/session-resume";
 import { inferLegacySessionLearningMode } from "@/lib/learning/learning-intent";
-import { resolveLearningTitle } from "@/lib/intake/interpret";
+import { resolveLearningTitle, resolveLearningTopic } from "@/lib/intake/interpret";
 import {
   MaterialUnderstandingSchema,
   PlanKnowledgeMapSchema,
 } from "@/lib/knowledge-map/schema";
+import { deadlineMilestoneFromRow } from "@/lib/milestones/schema";
 import { readSessionAdaptationNote } from "@/lib/personalization/adaptation-note";
 import {
   encodeAdditionalLearnerContext,
@@ -210,16 +212,18 @@ export async function loadAuthenticatedLearningState(): Promise<CloudLearningSta
   const materialRows = (materialsResult.data ?? []) as MaterialRow[];
   const interruptionRows = (interruptionsResult.data ?? []) as LearningEventRow[];
   const deadlineMilestones = milestonesResult.error ? [] : (milestonesResult.data ?? []).flatMap<DeadlineMilestone>((row) => {
-    if (!row.id || !row.title || !row.due_at || !row.created_at) return [];
-    return [{
-      id: row.id,
-      title: row.title,
-      description: row.description ?? "",
-      dueAt: row.due_at,
-      status: row.status === "completed" ? "completed" : "open",
-      linkedLearningItemId: row.linked_learning_item_id ?? null,
-      createdAt: row.created_at,
-    }];
+    try {
+      return [deadlineMilestoneFromRow({
+        ...row,
+        description: row.description ?? "",
+        status: row.status === "completed" ? "completed" : "open",
+        linked_learning_item_id: row.linked_learning_item_id ?? null,
+      })];
+    } catch {
+      // Deadline reads are intentionally non-blocking. Ignore a malformed row
+      // rather than preventing the learner's remaining cloud state from loading.
+      return [];
+    }
   });
 
   const itemsById = new Map(itemRows.map((item) => [item.id, item]));
@@ -299,12 +303,13 @@ export async function loadAuthenticatedLearningState(): Promise<CloudLearningSta
     const sessions = sessionsByPlanId.get(planRow.id) ?? [];
     sessions.sort((left, right) => left.sequence - right.sequence);
     const knowledgeMap = readPlanKnowledgeMap(planRow.knowledge_map);
+    const topic = resolveLearningTopic(item.topic, item.title);
 
     return [{
       id: planRow.id,
       learningItemId: item.id,
-      title: resolveLearningTitle(item.title, item.topic),
-      topic: item.topic,
+      title: resolveLearningTitle(item.title, topic),
+      topic,
       kind: item.kind,
       deadline: item.deadline,
       status: planRow.status,
@@ -358,6 +363,7 @@ export async function loadAuthenticatedLearningState(): Promise<CloudLearningSta
     const evidence = readSessionEvidenceSnapshot(readProperty(event.event_data, "evidence"));
     const pendingRepair = readSessionPendingRepair(readProperty(event.event_data, "pendingRepair"));
     const sessionAdjustment = readSessionAdjustmentSnapshot(readProperty(event.event_data, "sessionAdjustment"));
+    const activityProgress = readSessionActivityProgress(readProperty(event.event_data, "activityProgress"));
     if (!planId || !attemptId || !startedAt || plannedMinutes === null || actualMinutes === null || completedSteps === null || totalSteps === null) return [];
 
     return [{
@@ -374,6 +380,7 @@ export async function loadAuthenticatedLearningState(): Promise<CloudLearningSta
       ...(evidence ? { evidence } : {}),
       ...(pendingRepair ? { pendingRepair } : {}),
       ...(sessionAdjustment ? { sessionAdjustment } : {}),
+      ...(activityProgress ? { activityProgress } : {}),
     }];
   });
 
@@ -592,6 +599,7 @@ function activeSessionCheckpointCloudPayload(checkpoint: CloudSyncActiveSessionC
     ...(checkpoint.completionMode ? { completionMode: checkpoint.completionMode } : {}),
     ...(checkpoint.evidence ? { evidence: checkpoint.evidence } : {}),
     ...(checkpoint.pendingRepair ? { pendingRepair: checkpoint.pendingRepair } : {}),
+    ...(checkpoint.activityProgress ? { activityProgress: checkpoint.activityProgress } : {}),
     ...(checkpoint.status === "awaiting_finish" ? {
       completedAt: checkpoint.completedAt,
       completionFeedback: checkpoint.completionFeedback,
@@ -840,7 +848,10 @@ export async function activateAuthenticatedConceptReviewSession(
 export async function recordAuthenticatedSessionInterruption(interruption: SessionInterruption) {
   if (!isSupabaseConfigured()) return;
   const supabase = createSupabaseBrowserClient();
-  const { error } = await supabase.rpc("record_session_interruption", {
+  const rpcName = interruption.activityProgress
+    ? "record_session_interruption_with_activity_progress"
+    : "record_session_interruption";
+  const { error } = await supabase.rpc(rpcName, {
     payload: {
       attemptId: interruption.id,
       planSessionId: interruption.planSessionId,
@@ -854,6 +865,7 @@ export async function recordAuthenticatedSessionInterruption(interruption: Sessi
       evidence: interruption.evidence,
       pendingRepair: interruption.pendingRepair,
       sessionAdjustment: interruption.sessionAdjustment,
+      ...(interruption.activityProgress ? { activityProgress: interruption.activityProgress } : {}),
     },
   });
 

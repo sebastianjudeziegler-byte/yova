@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { SessionGenerationResponseSchema } from "../src/lib/session-generation/schema";
 
 const onboardingAnswers = [
   "I struggle to start",
@@ -218,11 +219,14 @@ test("a confident misconception is repaired now without a duplicate follow-up", 
   await page.getByRole("button", { name: "Continue" }).click();
   await page.getByRole("button", { name: "Finish this content" }).click();
 
-  await expect(page.getByRole("heading", { name: "The work is done. One part needs another check." })).toBeInViewport();
+  await expect(page.getByRole("heading", { name: "Today’s checks held up." })).toBeInViewport();
+  await expect(page.getByRole("heading", { name: "The work is done. One part needs another check." })).not.toBeVisible();
   await expect(page.getByText("2 of 3")).toBeVisible();
-  await expect(page.getByText("Evidence checks")).toBeVisible();
+  await expect(page.getByText("Initial evidence checks")).toBeVisible();
+  await expect(page.getByText("Correct before in-session repair")).toBeVisible();
   await expect(page.getByText("Recorded, not graded")).toBeVisible();
-  await expect(page.getByText(/You repaired one idea during the session/)).toBeVisible();
+  await expect(page.getByText("No gap remains after today’s required repairs.")).toBeVisible();
+  await expect(page.getByText(/the successful repair means no duplicate follow-up is needed/i)).toBeVisible();
   await expect(page.getByText("Cellular respiration sequence", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("NO CHANGE NEEDED")).toBeVisible();
   await expect(page.getByRole("heading", { name: "Complete this learning item" })).toBeVisible();
@@ -1456,6 +1460,133 @@ test("a refresh recovers semantic progress without saving draft answers or inven
   expect(generationRequests).toBe(1);
 });
 
+test("a saved first-step recall round resumes at the next prompt without persisting draft text", async ({ page }) => {
+  test.setTimeout(90_000);
+  let generationRequests = 0;
+
+  await page.route("**/api/sessions/generate", async (route) => {
+    generationRequests += 1;
+    const fixture = retrievalRoundResumeSessionResponse();
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(fixture),
+    });
+  });
+  await createPreviewAccount(page);
+  await completeOnboarding(page);
+  await page.getByRole("button", { name: "Study something now", exact: true }).first().click();
+  await page.getByPlaceholder("Example: Help me understand the product rule and practice using it.").fill(
+    "Practice recalling how osmosis moves water across a membrane.",
+  );
+  await page.getByRole("button", { name: "I understand the basics but need practice" }).click();
+  await page.getByRole("button", { name: /Choose how YOVA should help/ }).click();
+  await page.getByRole("button", { name: /Create it for me/ }).click();
+  await page.getByRole("button", { name: /Build and start session/ }).click();
+  await confirmSessionSetup(page);
+  await expect(page.getByText("Close your osmosis notes before answering.", { exact: true })).toBeVisible();
+  await expect(page.getByText("0 of 3 answered", { exact: true })).toBeVisible();
+  const continueButton = page.locator(".session-action-bar").getByRole("button", { name: "Continue" });
+  await expect(continueButton).toBeDisabled();
+  const draftMarker = "PRIVATE-OSMOSIS-DRAFT should not survive recovery";
+  await page.getByPlaceholder("Write what you can recall. An incomplete answer is still useful.").fill(draftMarker);
+  await page.getByRole("button", { name: "Check what I recalled" }).click();
+  await page.getByRole("button", { name: /Partly Some of it came back/ }).click();
+
+  await expect(page.getByText("1 of 3 answered", { exact: true })).toBeVisible();
+  await expect(page.getByText("What determines the net direction of water movement?", { exact: true })).toBeVisible();
+  await expect.poll(() => page.evaluate(() => (
+    window.localStorage.getItem("yova.active-session-checkpoints.v1") ?? ""
+  ))).toContain('"ratings":["partly"]');
+  expect(await page.evaluate(() => JSON.stringify(
+    Array.from({ length: window.localStorage.length }, (_, index) => {
+      const key = window.localStorage.key(index) ?? "";
+      return [key, window.localStorage.getItem(key)];
+    }),
+  ))).not.toContain(draftMarker);
+
+  await page.getByRole("button", { name: "Exit" }).click();
+  await page.getByRole("button", { name: "Save progress and leave" }).click();
+  await expect.poll(() => page.evaluate(() => {
+    const raw = window.localStorage.getItem("yova.preview.v1");
+    if (!raw) return null;
+    const snapshot = JSON.parse(raw) as {
+      sessionInterruptions?: Array<{
+        completedSteps?: number;
+        evidence?: { totalAnswers?: number };
+        activityProgress?: { ratings?: string[] };
+      }>;
+    };
+    return snapshot.sessionInterruptions?.at(-1) ?? null;
+  })).toMatchObject({
+    completedSteps: 0,
+    evidence: { totalAnswers: 0 },
+    activityProgress: { ratings: ["partly"] },
+  });
+
+  await page.reload();
+  await page.getByRole("button", { name: "Continue session" }).click();
+  await expect(page.getByText("1 of 3 answered", { exact: true })).toBeVisible();
+  await expect(page.getByText("What determines the net direction of water movement?", { exact: true })).toBeVisible();
+  await expect(page.getByPlaceholder("Write what you can recall. An incomplete answer is still useful."))
+    .toHaveValue("");
+  expect(generationRequests).toBe(1);
+
+  await page.getByPlaceholder("Write what you can recall. An incomplete answer is still useful.").fill(
+    "Water moves toward the side with lower water potential.",
+  );
+  await page.getByRole("button", { name: "Check what I recalled" }).click();
+  await page.getByRole("button", { name: /I had it Retrieved without help/ }).click();
+  await page.getByPlaceholder("Write what you can recall. An incomplete answer is still useful.").fill(
+    "The membrane lets water cross while restricting the dissolved solute.",
+  );
+  await page.getByRole("button", { name: "Check what I recalled" }).click();
+  await page.getByRole("button", { name: /I had it Retrieved without help/ }).click();
+
+  await expect(page.getByText("Why can water cross while the solute remains separated?", { exact: true })).toBeVisible();
+  await expect(page.getByText("second pass", { exact: true })).toBeVisible();
+  await expect(page.getByText(/3 of 3 answered/)).toBeVisible();
+  await page.getByPlaceholder("Write what you can recall. An incomplete answer is still useful.").fill(
+    "A selectively permeable membrane lets water cross while restricting the solute.",
+  );
+  await page.getByRole("button", { name: "Check what I recalled" }).click();
+  await page.getByRole("button", { name: /I had it Retrieved without help/ }).click();
+
+  await expect(page.getByText("RECALL ROUND COMPLETE", { exact: true })).toBeVisible();
+  await expect.poll(() => page.evaluate(() => {
+    const raw = window.localStorage.getItem("yova.active-session-checkpoints.v1");
+    if (!raw) return null;
+    const checkpoint = (JSON.parse(raw) as Array<{
+      completedSteps?: number;
+      evidence?: { totalAnswers?: number };
+      activityProgress?: { ratings?: string[] };
+    }>).at(-1);
+    return checkpoint ?? null;
+  })).toMatchObject({
+    completedSteps: 0,
+    evidence: { totalAnswers: 0 },
+    activityProgress: { ratings: ["partly", "got_it", "got_it", "got_it"] },
+  });
+
+  await expect(continueButton).toBeEnabled();
+  await continueButton.click();
+  await expect(page.getByRole("heading", { name: "Explain why retrieval comes first" })).toBeVisible();
+  await expect.poll(() => page.evaluate(() => {
+    const raw = window.localStorage.getItem("yova.active-session-checkpoints.v1");
+    if (!raw) return null;
+    const checkpoint = (JSON.parse(raw) as Array<{
+      completedSteps?: number;
+      evidence?: { totalAnswers?: number };
+      activityProgress?: unknown;
+    }>).at(-1);
+    return checkpoint ? {
+      completedSteps: checkpoint.completedSteps,
+      totalAnswers: checkpoint.evidence?.totalAnswers,
+      hasActivityProgress: "activityProgress" in checkpoint,
+    } : null;
+  })).toEqual({ completedSteps: 1, totalAnswers: 0, hasActivityProgress: false });
+});
+
 test("learner text fields keep long pastes visible and block submission until trimmed", async ({ page }) => {
   test.setTimeout(90_000);
   const longPaste = "x".repeat(800);
@@ -2116,7 +2247,10 @@ test("archived, draft, and deleted-plan projections stay out of current-work sur
     if (!stored) throw new Error("Expected a preview snapshot after onboarding.");
     const snapshot = JSON.parse(stored) as Record<string, unknown>;
     const now = new Date();
-    const scheduledFor = new Date(now.getTime() + 60 * 60 * 1_000).toISOString();
+    // Keep the fixture on the currently selected Agenda day even when the
+    // suite runs late at night. Adding an hour can cross midnight and hide the
+    // otherwise-valid active session on tomorrow's card.
+    const scheduledFor = now.toISOString();
     const dueAt = new Date(now.getTime() + 2 * 60 * 60 * 1_000).toISOString();
     const createdAt = new Date(now.getTime() - 60 * 60 * 1_000).toISOString();
     const session = (id: string, title: string) => ({
@@ -2650,4 +2784,65 @@ function streamedResumeSessionResponse() {
       persistence: "browser",
     },
   };
+}
+
+function retrievalRoundResumeSessionResponse() {
+  const response = streamedResumeSessionResponse();
+  const retrievalActivity = response.session.activities[1]!;
+  const repairActivity = response.session.activities[2]!;
+  const modelActivity = response.session.activities[0]!;
+  return SessionGenerationResponseSchema.parse({
+    ...response,
+    session: {
+      ...response.session,
+      schemaVersion: 15,
+      methodBriefing: {
+        ...response.session.methodBriefing,
+        learningMode: "study",
+      },
+      activities: [
+        {
+          ...retrievalActivity,
+          methodRuntime: {
+            kind: "retrieval_round",
+            sourceClosedReminder: "Close your osmosis notes before answering.",
+            prompts: [
+              {
+                prompt: "Why can water cross while the solute remains separated?",
+                expectedAnswer: "A selectively permeable membrane allows water through while restricting that solute.",
+                hint: "Focus on the membrane.",
+              },
+              {
+                prompt: "What determines the net direction of water movement?",
+                expectedAnswer: "Water moves from higher water potential toward lower water potential.",
+                hint: "Compare water potential on the two sides.",
+              },
+              {
+                prompt: "What happens at dynamic equilibrium?",
+                expectedAnswer: "Water still crosses both ways, but there is no net movement.",
+                hint: "Movement continues even when the net change is zero.",
+              },
+            ],
+          },
+        },
+        repairActivity,
+        {
+          ...modelActivity,
+          topicId: null,
+          methodPhase: "reflect",
+          requiredForCompletion: false,
+          type: "reflection",
+          concept: null,
+          label: "Reflect",
+          title: "Name what still needs another retrieval check",
+          body: "Identify one osmosis detail that should return in a later closed-note check.",
+          teaching: null,
+          lessonBrief: null,
+          choices: [],
+          correctAnswer: null,
+          feedback: null,
+        },
+      ],
+    },
+  });
 }

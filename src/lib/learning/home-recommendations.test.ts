@@ -26,7 +26,7 @@ describe("home recommendation ranking", () => {
     expect(rankPlansForHome([complete], now)).toEqual([]);
   });
 
-  it("omits non-operational plans even when stale ready sessions remain", () => {
+  it("omits archived and draft plans but recovers a legacy completed plan with runnable work", () => {
     const archived = plan("archived", "2026-08-06T18:00:00-07:00", null);
     archived.status = "archived";
     const draft = plan("draft", "2026-08-06T19:00:00-07:00", null);
@@ -36,6 +36,7 @@ describe("home recommendation ranking", () => {
     const active = plan("active", "2026-08-07T18:00:00-07:00", null);
 
     expect(rankPlansForHome([archived, draft, completed, active], now).map((item) => item.id)).toEqual([
+      "completed",
       "active",
     ]);
   });

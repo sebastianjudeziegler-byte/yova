@@ -2,6 +2,7 @@ import { z } from "zod";
 import { ConceptEvidenceListSchema } from "@/lib/learning/concept-evidence";
 import { ConfidenceEvidenceListSchema } from "@/lib/learning/confidence-calibration";
 import { normalizeSessionCompletionProvenance } from "@/lib/learning/session-completion-provenance";
+import { SessionActivityProgressSchema } from "@/lib/learning/session-activity-progress";
 import {
   SessionAdjustmentSnapshotSchema,
   SessionEvidenceSnapshotSchema,
@@ -58,6 +59,7 @@ const SessionInterruptionExportSchema = z.object({
   evidence: SessionEvidenceSnapshotSchema.optional(),
   pendingRepair: SessionPendingRepairSchema.optional(),
   sessionAdjustment: SessionAdjustmentSnapshotSchema.optional(),
+  activityProgress: SessionActivityProgressSchema.optional(),
 });
 
 const PendingSessionCompletionExportSchema = z.object({
@@ -130,6 +132,7 @@ const ActiveSessionCheckpointExportSchema = z.object({
   completedAt: z.string().datetime({ offset: true }).optional(),
   completionFeedback: z.enum(["too_easy", "about_right", "too_difficult"]).optional(),
   sessionAdjustment: SessionAdjustmentSnapshotSchema.optional(),
+  activityProgress: SessionActivityProgressSchema.optional(),
 }).strict();
 
 const PreviewSnapshotExportSchema = z.object({

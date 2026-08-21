@@ -110,6 +110,23 @@ describe("buildDelayedVerificationSession", () => {
     }))).toBeNull();
   });
 
+  it("keeps a failed in-session repair open for delayed verification", () => {
+    const result = buildDelayedVerificationSession(completedSession, completion({
+      conceptEvidence: [{
+        concept: "Cellular respiration sequence",
+        outcome: "needs_review",
+        activityType: "free_response",
+        methodPhase: "repair",
+      }],
+    }));
+
+    expect(result).toMatchObject({
+      reviewConcept: "Cellular respiration sequence",
+      reviewType: "verify",
+      status: "ready",
+    });
+  });
+
   it("schedules only a later unrepaired gap when earlier gaps were repaired in-session", () => {
     const result = buildDelayedVerificationSession(completedSession, completion({
       observedGap: "Cellular respiration sequence; ATP production",

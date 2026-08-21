@@ -541,6 +541,29 @@ describe("session content-volume validation", () => {
     ]);
   });
 
+  it("does not relabel an active current-window target as deferred", async () => {
+    const { alignSessionCoverageWithPlan } = await import("@/lib/openai/session-generator");
+    const draft = learningDraft("model");
+    draft.coverage.essentialIdeas = [
+      "Osmosis moves water across a selectively permeable membrane down the water-potential gradient.",
+      "Hypotonic, hypertonic, and isotonic solutions determine the direction of net water movement.",
+    ];
+    draft.coverage.deferredContent = [
+      "Tonicity and cell water movement",
+      "Effects of osmosis on animal and plant cells",
+    ];
+
+    const aligned = alignSessionCoverageWithPlan(
+      draft.coverage,
+      ["Osmosis and water potential", "Tonicity and cell water movement"],
+      ["Effects of osmosis on animal and plant cells"],
+    );
+
+    expect(aligned.deferredContent).toEqual([
+      "Effects of osmosis on animal and plant cells",
+    ]);
+  });
+
   it("keeps concise target matching strict for broad neighboring content", async () => {
     const { coverageTargetsMatch } = await import("@/lib/openai/session-generator");
 
@@ -607,6 +630,151 @@ describe("session content-volume validation", () => {
       contentTargets: [],
       completionEvidence: ["Explain the cluster"],
     })).toMatch(/at most 2 content targets/i);
+  });
+
+  it("keeps a time-deferred target out of active coverage", async () => {
+    const { validateSessionCoverageFidelity } = await import("@/lib/openai/session-generator");
+    const draft = learningDraft("model");
+    draft.coverage.essentialIdeas = [
+      "Water moves across a selectively permeable membrane down its water-potential gradient.",
+    ];
+    draft.coverage.deferredContent = ["Effects of osmosis on animal and plant cells"];
+    const session = {
+      title: "Retrieve osmosis",
+      objective: "Retrieve the bounded osmosis targets.",
+      method: "Closed-note retrieval",
+      methodReason: "Use an unsupported attempt before repair.",
+      estimatedMinutes: 15,
+      learningMode: "study" as const,
+      topicIds: [TEST_TOPIC_ID],
+      contentTargets: ["Osmosis and water potential"],
+      deferredContentTargets: ["Effects of osmosis on animal and plant cells"],
+      completionEvidence: ["Explain water movement without notes"],
+    };
+
+    expect(validateSessionCoverageFidelity(draft, session)).toBeNull();
+    draft.coverage.essentialIdeas.push(
+      "Animal cells may lyse while water entry creates turgor pressure in plant cells.",
+    );
+    expect(validateSessionCoverageFidelity(draft, session)).toMatch(/reserved for later/i);
+  });
+
+  it("scopes a shortened material-backed session and preserves the remaining target", async () => {
+    const { scopeFullSessionToCurrentWindow } = await import("@/lib/openai/session-generator");
+    const base = buildSessionEvaluationCases()
+      .find((candidate) => candidate.id === "bioenergetics_multi_target_study")?.context;
+    expect(base).toBeDefined();
+    const topicIds = [
+      "8ec325f4-0000-4000-8000-000000000021",
+      "8ec325f4-0000-4000-8000-000000000022",
+      "8ec325f4-0000-4000-8000-000000000023",
+    ];
+    const targets = [
+      "Osmosis and water potential",
+      "Tonicity and cell water movement",
+      "Effects of osmosis on animal and plant cells",
+    ];
+    const context: SessionGenerationContext = {
+      ...base!,
+      learningGoal: {
+        ...base!.learningGoal,
+        title: "Biology Quiz on Osmosis",
+        topic: "Osmosis, tonicity, and effects on animal and plant cells",
+        sourceMode: "user_materials",
+      },
+      knowledgeTopics: targets.map((target, index) => ({
+        ...base!.knowledgeTopics[0]!,
+        id: topicIds[index]!,
+        title: target,
+        description: `Source-grounded explanation of ${target.toLocaleLowerCase()}.`,
+        origin: "material" as const,
+      })),
+      session: {
+        ...base!.session,
+        title: "Retrieve and apply osmosis",
+        objective: "Retrieve and apply Osmosis and water potential, Tonicity and cell water movement, Effects of osmosis on animal and plant cells without notes, then repair only the gap the attempt reveals.",
+        estimatedMinutes: 25,
+        topicIds,
+        contentTargets: targets,
+        completionEvidence: targets.map((target) => `Explain ${target} without notes.`),
+      },
+      sessionAdjustment: {
+        familiarity: "as_planned",
+        availableMinutes: 15,
+        knownTargets: [],
+        note: "",
+      },
+    };
+
+    const scoped = scopeFullSessionToCurrentWindow(
+      (await import("@/lib/openai/session-generator")).applyCurrentSessionAdjustment(context),
+    );
+
+    expect(scoped.session.estimatedMinutes).toBe(15);
+    expect(scoped.session.contentTargets).toEqual(targets.slice(0, 2));
+    expect(scoped.session.deferredContentTargets).toEqual([targets[2]]);
+    expect(scoped.session.topicIds).toEqual(topicIds.slice(0, 2));
+    expect(scoped.knowledgeTopics.map((topic) => topic.id)).toEqual(topicIds.slice(0, 2));
+    expect(scoped.session.completionEvidence).toHaveLength(2);
+    expect(scoped.session.objective).not.toContain(targets[2]!);
+
+    const directed = scopeFullSessionToCurrentWindow(
+      (await import("@/lib/openai/session-generator")).applyCurrentSessionAdjustment({
+        ...context,
+        sessionAdjustment: {
+          ...context.sessionAdjustment!,
+          note: `Focus this attempt on ${targets[2]}.`,
+        },
+      }),
+    );
+    expect(directed.session.contentTargets).toEqual(targets.slice(1));
+    expect(directed.session.deferredContentTargets).toEqual([targets[0]]);
+    expect(directed.session.topicIds).toEqual(topicIds.slice(1));
+    expect(directed.session.completionEvidence).toEqual([
+      `Explain ${targets[1]} without notes.`,
+      `Explain ${targets[2]} without notes.`,
+    ]);
+
+    const nonPositionalEvidence = [
+      `Explain ${targets[0]} without notes.`,
+      `Compare ${targets[1]} with ${targets[2]}.`,
+    ];
+    const directedWithCombinedEvidence = scopeFullSessionToCurrentWindow(
+      (await import("@/lib/openai/session-generator")).applyCurrentSessionAdjustment({
+        ...context,
+        session: {
+          ...context.session,
+          completionEvidence: nonPositionalEvidence,
+        },
+        sessionAdjustment: {
+          ...context.sessionAdjustment!,
+          note: `Focus this attempt on ${targets[2]}.`,
+        },
+      }),
+    );
+    expect(directedWithCombinedEvidence.session.contentTargets).toEqual(targets.slice(1));
+    expect(directedWithCombinedEvidence.session.deferredContentTargets).toEqual([targets[0]]);
+    expect(directedWithCombinedEvidence.session.completionEvidence).toEqual([
+      nonPositionalEvidence[1],
+    ]);
+
+    const directedWithOnlyDeferredEvidence = scopeFullSessionToCurrentWindow(
+      (await import("@/lib/openai/session-generator")).applyCurrentSessionAdjustment({
+        ...context,
+        session: {
+          ...context.session,
+          completionEvidence: [nonPositionalEvidence[0]!],
+        },
+        sessionAdjustment: {
+          ...context.sessionAdjustment!,
+          note: `Focus this attempt on ${targets[2]}.`,
+        },
+      }),
+    );
+    expect(directedWithOnlyDeferredEvidence.session.completionEvidence).toEqual([
+      `Retrieve or apply ${targets[1]} without notes.`,
+      `Retrieve or apply ${targets[2]} without notes.`,
+    ]);
   });
 
   it("rejects a wall of content that cannot fit a short guided session", async () => {
@@ -842,6 +1010,104 @@ describe("full guided-session personalization prompt", () => {
 });
 
 describe("multi-target study recovery", () => {
+  it("uses the bounded source-grounded path directly for a shortened material session", async () => {
+    parseResponse.mockReset();
+    const base = buildSessionEvaluationCases()
+      .find((candidate) => candidate.id === "bioenergetics_multi_target_study")?.context;
+    expect(base).toBeDefined();
+    const materialText = "Cells couple energy-releasing reactions to energy-requiring work. ATP hydrolysis releases free energy that can drive a coupled cellular reaction.";
+    const context: SessionGenerationContext = {
+      ...base!,
+      learningGoal: { ...base!.learningGoal, sourceMode: "user_materials" },
+      materials: [{
+        materialId: "41111111-1111-4111-8111-111111111111",
+        chunkId: "42222222-2222-4222-8222-222222222222",
+        chunkIndex: 0,
+        name: "shortened-bioenergetics-notes.txt",
+        text: materialText,
+        truncated: false,
+        locationLabel: "Uploaded text",
+        role: "content_source",
+      }],
+      session: {
+        ...base!.session,
+        estimatedMinutes: 15,
+        deferredContentTargets: ["Membrane transport applications"],
+        completionEvidence: base!.session.completionEvidence?.slice(0, 2),
+      },
+    };
+    parseResponse.mockResolvedValueOnce(completedProviderResponse(
+      "direct-material-safe-study",
+      compactBioRecoveryContent(),
+    ));
+
+    const { generateSessionWithOpenAI } = await import("@/lib/openai/session-generator");
+    const result = await generateSessionWithOpenAI(context);
+
+    expect(parseResponse).toHaveBeenCalledTimes(1);
+    expect(parseResponse.mock.calls[0]?.[0]?.text?.format?.name).toBe("yova_safe_study_recovery");
+    expect(result.generationStats).toMatchObject({
+      attempts: 1,
+      firstAttemptPassed: true,
+      repairAttempted: false,
+      recoveryMode: "safe_study",
+    });
+    expect(result.draft.coverage.deferredContent).toEqual(["Membrane transport applications"]);
+    expect(result.draft.sourceGrounding?.sourceNames).toEqual(["shortened-bioenergetics-notes.txt"]);
+  });
+
+  it("keeps compact recovery source-grounded for mapped learner materials", async () => {
+    parseResponse.mockReset();
+    const base = buildSessionEvaluationCases()
+      .find((candidate) => candidate.id === "bioenergetics_multi_target_study")?.context;
+    expect(base).toBeDefined();
+    const materialText = "Cells couple energy-releasing reactions to energy-requiring work. ATP hydrolysis releases free energy that can drive a coupled cellular reaction.";
+    const context: SessionGenerationContext = {
+      ...base!,
+      learningGoal: {
+        ...base!.learningGoal,
+        sourceMode: "user_materials",
+      },
+      materials: [{
+        materialId: "31111111-1111-4111-8111-111111111111",
+        chunkId: "32222222-2222-4222-8222-222222222222",
+        chunkIndex: 0,
+        name: "bioenergetics-notes.txt",
+        text: materialText,
+        truncated: false,
+        locationLabel: "Uploaded text",
+        role: "content_source",
+      }],
+      knowledgeTopics: base!.knowledgeTopics.map((topic) => ({
+        ...topic,
+        origin: "material" as const,
+      })),
+    };
+    const invalidFullDraft = oversizedStudyDraft();
+    parseResponse
+      .mockResolvedValueOnce(completedProviderResponse("invalid-material-initial", invalidFullDraft))
+      .mockResolvedValueOnce(completedProviderResponse("invalid-material-repair", invalidFullDraft))
+      .mockResolvedValueOnce(completedProviderResponse("material-safe-recovery", compactBioRecoveryContent()));
+
+    const { generateSessionWithOpenAI } = await import("@/lib/openai/session-generator");
+    const result = await generateSessionWithOpenAI(context);
+
+    expect(parseResponse.mock.calls[2]?.[0]?.text?.format?.name).toBe("yova_safe_study_recovery");
+    expect(result.generationStats.recoveryMode).toBe("safe_study");
+    expect(result.draft.sourceGrounding).toMatchObject({
+      mode: "materials_only",
+      sourceNames: ["bioenergetics-notes.txt"],
+      anchors: [{
+        chunkId: "32222222-2222-4222-8222-222222222222",
+        excerpt: materialText,
+      }],
+    });
+    const recoveryInput = parseResponse.mock.calls[2]?.[0]?.input as string;
+    expect(recoveryInput).toContain('"sourceMode":"user_materials"');
+    expect(recoveryInput).toContain(materialText);
+    await expectCompleteValidatorPass(result.draft, context);
+  });
+
   it("recovers the one-topic two-target Bioenergetics session with typed recall and meaningful choice", async () => {
     parseResponse.mockReset();
     const context = buildSessionEvaluationCases()

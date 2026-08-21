@@ -5,7 +5,7 @@ import {
   type PlanGenerationRequest,
 } from "@/lib/plan-generation/schema";
 import { teachingFirstSessionCopy } from "@/lib/learning/learning-intent";
-import { resolveLearningTitle } from "@/lib/intake/interpret";
+import { resolveLearningTitle, resolveLearningTopic } from "@/lib/intake/interpret";
 import { STREAMED_SESSION_ARCHITECTURE } from "@/lib/session-generation/architecture";
 
 export function materializePlanDraft(
@@ -14,9 +14,7 @@ export function materializePlanDraft(
 ): LearningPlan {
   const draft = GeneratedPlanDraftSchema.parse(untrustedDraft);
   const planId = makeUuid();
-  const topic = /^(the goal and concepts described by the learner|learning topic|general topic)$/i.test(draft.topic.trim())
-    ? request.goal.trim().slice(0, 300)
-    : draft.topic;
+  const topic = resolveLearningTopic(draft.topic, request.goal);
   const title = resolveLearningTitle(draft.title, request.goal || topic);
   const deferredById = new Map(draft.deferredTopics.map((entry) => [entry.topicId, entry.reason]));
   const knowledgeMap = request.knowledgeMap ? {

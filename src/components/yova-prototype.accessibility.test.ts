@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
-import { OnboardingQuestion } from "@/components/yova-prototype";
+import { AppShell, OnboardingQuestion } from "@/components/yova-prototype";
 import { onboardingQuestions } from "@/lib/sample-data";
 
 vi.mock("@/components/brand-mark", () => ({ BrandMark: () => null }));
@@ -27,6 +27,29 @@ function pixelValues(selector: string, property: string) {
 }
 
 describe("learner-facing accessibility contracts", () => {
+  it("keeps every responsive sidebar destination named when its visible label is hidden", () => {
+    const html = renderToStaticMarkup(createElement(
+      AppShell,
+      {
+        activeTab: "Home",
+        onTab: vi.fn(),
+        account: null,
+        cloudSyncIssue: null,
+        signOutIssue: null,
+        signingOut: false,
+        onRetryCloudSync: vi.fn().mockResolvedValue(undefined),
+        onAdd: vi.fn(),
+        onSignOut: vi.fn().mockResolvedValue(undefined),
+        workspaceClassName: "",
+      },
+      createElement("p", null, "Home content"),
+    ));
+
+    for (const label of ["Home", "Learning", "Agenda", "Ask YOVA", "You"]) {
+      expect(html).toContain(`aria-label="${label}"`);
+    }
+  });
+
   it("groups onboarding choices and exposes the selected button state", () => {
     const question = onboardingQuestions[0];
     const selected = question.options[1];
