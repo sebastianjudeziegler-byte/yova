@@ -9,10 +9,12 @@ export function MaterialLinkImporter({
   existingCount,
   disabled = false,
   onImported,
+  onWorkingChange,
 }: {
   existingCount: number;
   disabled?: boolean;
   onImported: (material: LearningMaterial, notice: string | null) => void;
+  onWorkingChange?: (working: boolean) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [url, setUrl] = useState("");
@@ -25,6 +27,7 @@ export function MaterialLinkImporter({
   const submit = async () => {
     if (!url.trim() || working || disabled || atLimit) return;
     setWorking(true);
+    onWorkingChange?.(true);
     setError(null);
     try {
       const result = await importLinkedMaterial(url.trim(), videoTitle ? transcript : undefined);
@@ -41,6 +44,7 @@ export function MaterialLinkImporter({
       setError(requestError instanceof Error ? requestError.message : "YOVA could not import this link.");
     } finally {
       setWorking(false);
+      onWorkingChange?.(false);
     }
   };
 

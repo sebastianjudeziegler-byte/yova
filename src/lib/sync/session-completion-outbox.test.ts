@@ -70,6 +70,7 @@ describe("session completion outbox", () => {
       { ...pending.completion, completionMode: "guided" },
       null,
       null,
+      null,
     );
   });
 
@@ -161,6 +162,65 @@ describe("session completion outbox", () => {
         topicIds: ["00000000-0000-4000-8000-000000000026"],
         contentTargets: ["Density changes from temperature and salinity"],
         completionEvidence: ["Explain how temperature and salinity affect density."],
+      }),
+      null,
+    );
+  });
+
+  it("replays a deferred guided continuation from durable browser storage", async () => {
+    installMemoryStorage();
+    completeAuthenticatedPlanSession.mockResolvedValue(undefined);
+    const pending: PendingSessionCompletion = {
+      userId: "00000000-0000-4000-8000-000000000041",
+      queuedAt: "2026-08-21T17:10:00.000Z",
+      completion: {
+        id: "00000000-0000-4000-8000-000000000042",
+        planId: "00000000-0000-4000-8000-000000000043",
+        planSessionId: "00000000-0000-4000-8000-000000000044",
+        startedAt: "2026-08-21T17:00:00.000Z",
+        completedAt: "2026-08-21T17:10:00.000Z",
+        plannedMinutes: 10,
+        actualMinutes: 10,
+        correctAnswers: 1,
+        totalAnswers: 1,
+        feedback: "about_right",
+        observedGap: "No major gap detected.",
+        completionMode: "guided",
+        conceptEvidence: [],
+        confidenceEvidence: [],
+      },
+      adaptation: null,
+      followUpSession: null,
+      continuationSession: {
+        id: "00000000-0000-4000-8000-000000000045",
+        sequence: 2,
+        title: "Continue cellular respiration",
+        objective: "Learn and explain the remaining saved target: Electron transport chain mechanism.",
+        method: "Guided explanation and retrieval",
+        methodReason: "This continuation preserves the exact remaining plan target.",
+        scheduledFor: "2026-08-21T17:10:00.000Z",
+        estimatedMinutes: 10,
+        amountLabel: "1 saved target · about 10 min",
+        learningMode: "learn",
+        topicIds: ["00000000-0000-4000-8000-000000000046"],
+        contentTargets: ["Electron transport chain mechanism"],
+        completionEvidence: ["Explain the electron transport chain mechanism"],
+        status: "ready",
+      },
+    };
+
+    expect(queueSessionCompletion(pending)).toBe(true);
+    await flushQueuedSessionCompletions(pending.userId);
+
+    expect(completeAuthenticatedPlanSession).toHaveBeenCalledWith(
+      expect.objectContaining({ completionMode: "guided" }),
+      null,
+      null,
+      expect.objectContaining({
+        id: "00000000-0000-4000-8000-000000000045",
+        topicIds: ["00000000-0000-4000-8000-000000000046"],
+        contentTargets: ["Electron transport chain mechanism"],
+        completionEvidence: ["Explain the electron transport chain mechanism"],
       }),
     );
   });

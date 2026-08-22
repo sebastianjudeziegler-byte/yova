@@ -37,15 +37,18 @@ import {
 } from "@/lib/personalization/personalization-generation";
 import { contentBudgetForMinutes } from "@/lib/plan-generation/content-budget";
 import {
-  applyCurrentSessionAdjustment,
   alignSessionCoverageWithPlan,
   boundedSessionCompletionEvidence,
   coverageTargetsMatch,
   ensureDelayedRetrievalReturn,
+  prepareSessionProviderCall,
   SessionGenerationFailure,
+  prepareSessionGenerationContext,
+  resolveSessionGenerationBudget,
   validateGeneratedSessionWithCode,
   type OpenAISessionResult,
   type SessionGenerationContext,
+  type SessionGenerationRuntime,
   type SessionGenerationStats,
 } from "@/lib/openai/session-generator";
 import {
@@ -68,6 +71,7 @@ import { isRubricLikeReferenceAnswer } from "@/lib/session-generation/content-sp
 import { normalizeStreamedActivityPhaseTypes } from "@/lib/session-generation/streamed-skeleton";
 import {
   allocateStreamedTeachingMinutes,
+  compactStreamedLearnerTextToBudget,
   interleaveStreamedTeachingCycles,
   streamedTeachingPacingContract,
 } from "@/lib/session-generation/streamed-pacing";
@@ -212,14 +216,16 @@ export function streamedTeachingCycleRouting(
 
 export async function generateStreamedTeachingSkeletonWithOpenAI(
   originalContext: SessionGenerationContext,
+  runtime: SessionGenerationRuntime = {},
 ): Promise<OpenAISessionResult> {
-  const context = applyCurrentSessionAdjustment(originalContext);
+  const context = prepareSessionGenerationContext(originalContext);
   if (context.session.learningMode !== "learn" || context.learningGoal.studyMode !== "inside_yova" || context.session.reviewType) {
     throw new Error("Streamed teaching skeleton generation only supports ordinary inside-YOVA learn sessions.");
   }
   const config = getOpenAISessionConfig();
   if (!config) throw new Error("OpenAI is not configured on the YOVA server.");
   const generationStartedAt = Date.now();
+  const generationBudget = resolveSessionGenerationBudget(runtime, generationStartedAt);
   const usage = { attempts: 0, inputTokens: 0, cachedInputTokens: 0, cacheWriteTokens: 0, outputTokens: 0 };
 
   const learningScienceRouting = streamedTeachingCycleRouting(buildLearningScienceRoutingBrief(sessionRoutingInput(context, {
@@ -272,6 +278,7 @@ export async function generateStreamedTeachingSkeletonWithOpenAI(
   });
   const currentSessionScope = buildStreamedCurrentSessionScope({
     plannedTargets: context.session.contentTargets ?? [],
+    alreadyDeferredTargets: context.session.deferredContentTargets ?? [],
     estimatedMinutes: context.session.estimatedMinutes,
     learnerDirection: context.sessionAdjustment?.note ?? null,
     maximumActiveTargets: pacingContract.minimumActiveIdeas,
@@ -298,6 +305,19 @@ export async function generateStreamedTeachingSkeletonWithOpenAI(
       break;
     }
 
+    const providerCall = prepareSessionProviderCall({
+      budget: generationBudget,
+      preferredTimeoutMs: requestTimeoutMs,
+      generationStats: () => generationStats({
+        startedAt: generationStartedAt,
+        usage,
+        firstAttemptPassed: false,
+        repairDetail,
+        failedValidator: "session_provider_request",
+        validationIssueCode: lastValidationIssueCode,
+        succeeded: false,
+      }),
+    });
     usage.attempts += 1;
     let response;
     try {
@@ -342,7 +362,7 @@ export async function generateStreamedTeachingSkeletonWithOpenAI(
         max_output_tokens: 2_800,
         prompt_cache_key: "yova-streamed-teaching-skeleton-v1",
         store: false,
-      }, { maxRetries: 0, timeout: requestTimeoutMs });
+      }, providerCall.options);
     } catch (error) {
       if (error instanceof Error && error.name === "ZodError") {
         repairDetail = `The structured skeleton did not match the required schema: ${error.message.slice(0, 700)}`;
@@ -371,6 +391,8 @@ export async function generateStreamedTeachingSkeletonWithOpenAI(
           succeeded: false,
         }),
       );
+    } finally {
+      providerCall.finish();
     }
 
     if (response.usage) {
@@ -552,6 +574,7 @@ function finalizeStreamedSkeleton({
     : draft.methodBriefing.methodId;
   const currentSessionScope = buildStreamedCurrentSessionScope({
     plannedTargets: context.session.contentTargets ?? [],
+    alreadyDeferredTargets: context.session.deferredContentTargets ?? [],
     estimatedMinutes: context.session.estimatedMinutes,
     learnerDirection: context.sessionAdjustment?.note ?? null,
     maximumActiveTargets: pacingContract.minimumActiveIdeas,
@@ -631,6 +654,7 @@ function finalizeStreamedSkeleton({
     // after scoping and rejects a truly questionless lesson.
     draft: StreamedGeneratedSessionDraftOutputSchema.parse(reconciled),
     plannedTargets: context.session.contentTargets ?? [],
+    alreadyDeferredTargets: context.session.deferredContentTargets ?? [],
     estimatedMinutes: context.session.estimatedMinutes,
     learnerDirection: context.sessionAdjustment?.note ?? null,
     pacingContract,
@@ -663,8 +687,12 @@ function finalizeStreamedSkeleton({
     taskType: routing.taskType,
     deliveryInstructions,
   });
+  const learnerTextBounded = compactStreamedLearnerTextToBudget({
+    draft: enriched,
+    availableMinutes: context.session.estimatedMinutes,
+  });
   const enrichedIdeaKeys = new Set(
-    enriched.coverage.essentialIdeas.map((idea) => idea.trim()),
+    learnerTextBounded.coverage.essentialIdeas.map((idea) => idea.trim()),
   );
   if (
     enrichedIdeaKeys.size !== scopedTargetAssignments.length
@@ -685,7 +713,7 @@ function finalizeStreamedSkeleton({
   });
 
   return {
-    draft: enriched,
+    draft: learnerTextBounded,
     authoritativeTargetAssignments: resolvedAssignments.flatMap((assignment) => (
       assignment.target
         ? [{ essentialIdea: assignment.essentialIdea, target: assignment.target }]
@@ -708,16 +736,20 @@ export type StreamedCurrentSessionScope = {
  */
 export function buildStreamedCurrentSessionScope({
   plannedTargets,
+  alreadyDeferredTargets = [],
   estimatedMinutes,
   learnerDirection,
   maximumActiveTargets,
 }: {
   plannedTargets: string[];
+  alreadyDeferredTargets?: string[];
   estimatedMinutes: number;
   learnerDirection: string | null;
   maximumActiveTargets?: number;
 }): StreamedCurrentSessionScope {
-  if (plannedTargets.length === 0) return { activeTargets: [], deferredTargets: [] };
+  if (plannedTargets.length === 0) {
+    return { activeTargets: [], deferredTargets: uniqueTargetLabels(alreadyDeferredTargets) };
+  }
 
   const capacity = Math.min(
     plannedTargets.length,
@@ -740,9 +772,14 @@ export function buildStreamedCurrentSessionScope({
       .slice(0, capacity),
   );
 
+  const activeTargets = plannedTargets.filter((_, index) => activeIndexes.has(index));
+  const activeKeys = new Set(activeTargets.map(normalizedSubjectLabel));
   return {
-    activeTargets: plannedTargets.filter((_, index) => activeIndexes.has(index)),
-    deferredTargets: plannedTargets.filter((_, index) => !activeIndexes.has(index)),
+    activeTargets,
+    deferredTargets: uniqueTargetLabels([
+      ...plannedTargets.filter((_, index) => !activeIndexes.has(index)),
+      ...alreadyDeferredTargets,
+    ]).filter((target) => !activeKeys.has(normalizedSubjectLabel(target))),
   };
 }
 
@@ -1006,6 +1043,7 @@ function quotedTargets(targets: string[]) {
 export function scopeStreamedSkeletonToCurrentWindow({
   draft,
   plannedTargets,
+  alreadyDeferredTargets = [],
   estimatedMinutes,
   learnerDirection,
   pacingContract: suppliedPacingContract,
@@ -1014,6 +1052,7 @@ export function scopeStreamedSkeletonToCurrentWindow({
 }: {
   draft: StreamedGeneratedSessionDraft;
   plannedTargets: string[];
+  alreadyDeferredTargets?: string[];
   estimatedMinutes: number;
   learnerDirection: string | null;
   pacingContract?: ReturnType<typeof streamedTeachingPacingContract>;
@@ -1036,6 +1075,7 @@ export function scopeStreamedSkeletonToCurrentWindow({
   );
   const currentSessionScope = buildStreamedCurrentSessionScope({
     plannedTargets,
+    alreadyDeferredTargets,
     estimatedMinutes,
     learnerDirection,
     maximumActiveTargets: maximumActiveIdeas,
@@ -1279,6 +1319,16 @@ export function scopeStreamedSkeletonToCurrentWindow({
     methodBriefing: canonicalMetadata.methodBriefing,
     activities: normalizedActivities,
   };
+}
+
+function uniqueTargetLabels(values: string[]) {
+  const seen = new Set<string>();
+  return values.filter((value) => {
+    const key = normalizedSubjectLabel(value);
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 /**

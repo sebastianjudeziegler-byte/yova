@@ -142,6 +142,24 @@ describe("universal Add intake", () => {
     expect(resolveLearningTopic(fragment, title)).toBe(title);
   });
 
+  it.each([
+    ["in two weeks and I have not started yet", "I have a 1,500-word history essay due in two weeks and I have not started yet"],
+    ["in 14 days and I have not started yet", "I have a 1,500-word history essay due in 14 days and I have not started yet"],
+    ["in six weeks", "I have a 1,500-word history essay due in six weeks"],
+    ["Due in 14 days. Starting point: Not started", "1,500-word History Essay. I have a 1,500-word history essay due in 14 days and I have not started yet"],
+  ])("keeps the assignment subject when a generated topic is only operational metadata: %s", (candidate, goal) => {
+    expect(resolveLearningTopic(candidate, goal)).toBe("1,500-word History Essay");
+  });
+
+  it.each([
+    "Constitutional due process",
+    "Deadline scheduling algorithms",
+    "Starting point methods for nonlinear optimization",
+    "Target date funds",
+  ])("does not confuse subject vocabulary with operational metadata: %s", (topic) => {
+    expect(resolveLearningTopic(topic, "Unrelated fallback")).toBe(topic);
+  });
+
   it("turns sentence-like assignment names into a concise subject title", () => {
     const concise = resolveLearningTitle(
       "Thermodynamics Essay. I Have an Essay That I Have",

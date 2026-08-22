@@ -1,6 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { LearningMaterial } from "../domain";
-import { MATERIAL_LIMITS, validateMaterialFiles } from "./intake";
+import {
+  abandonUploadedMaterials,
+  deleteUploadedMaterial,
+  MATERIAL_LIMITS,
+  validateMaterialFiles,
+} from "./intake";
 
 function candidate(name: string, size = 1024) {
   return { name, size } as File;
@@ -57,5 +62,41 @@ describe("material intake validation", () => {
 
     expect(result.accepted.map((file) => file.name)).toEqual(["five.pdf"]);
     expect(result.errors).toEqual(["six.pdf was not added. Use up to 5 files for one plan."]);
+  });
+});
+
+describe("material abandonment", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("accepts a structured 202 only when logical cancellation committed", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      code: "material_cleanup_pending",
+      committed: true,
+    }), { status: 202, headers: { "Content-Type": "application/json" } })));
+
+    await expect(deleteUploadedMaterial("22222222-2222-4222-8222-222222222222"))
+      .resolves.toBe("cleanup_pending");
+  });
+
+  it("summarizes best-effort cleanup without treating ambiguity as success", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(null, { status: 204 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        code: "material_cleanup_outcome_unconfirmed",
+        committed: "unknown",
+        error: "Outcome unknown",
+      }), { status: 503, headers: { "Content-Type": "application/json" } }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(abandonUploadedMaterials([
+      existing("one.pdf"),
+      existing("two.pdf"),
+    ])).resolves.toEqual({
+      requested: 2,
+      removed: 1,
+      cleanupPending: 0,
+      unconfirmed: 1,
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 });

@@ -10,6 +10,7 @@ import {
   compareActiveSessionCheckpointProgress,
   fingerprintMethodWorkSession,
   fingerprintSessionResource,
+  handoffActiveSessionCheckpointAfterExit,
   latestActiveSessionCheckpointFor,
   loadActiveSessionCheckpoints,
   mergeActiveSessionCheckpoints,
@@ -17,6 +18,7 @@ import {
   removeActiveSessionCheckpoint,
   removeActiveSessionCheckpointsForPlan,
   replaceActiveSessionCheckpointsForAccount,
+  restoreExitProgressThroughCheckpoint,
   restoreCheckpointSessionResources,
   saveActiveSessionCheckpoint,
   type ActiveSessionCheckpointV1,
@@ -861,6 +863,108 @@ describe("active session resource identity", () => {
 });
 
 describe("active session resume selection", () => {
+  it("hands an explicit exit to a fresh run without changing lesson identity or saved progress", () => {
+    const terminalRun = checkpoint({
+      savedAt: "2026-08-17T17:59:00.000Z",
+      activeSeconds: 541,
+      completedSteps: 3,
+      resumeStep: 3,
+      resourceGeneratedAt: "2026-08-17T17:49:00.000Z",
+      activityProgress: {
+        kind: "retrieval_round",
+        activityIndex: 3,
+        promptCount: 3,
+        ratings: ["partly"],
+      },
+    });
+    const recoveryRunId = "00000000-0000-4000-8000-000000000099";
+    const handedOff = handoffActiveSessionCheckpointAfterExit(
+      terminalRun,
+      interruption({
+        id: terminalRun.runId,
+        startedAt: terminalRun.startedAt,
+        interruptedAt: terminalRun.savedAt,
+        plannedMinutes: terminalRun.plannedMinutes,
+        completedSteps: terminalRun.completedSteps,
+        resumeStep: terminalRun.resumeStep,
+        activityProgress: terminalRun.activityProgress,
+      }),
+      recoveryRunId,
+      "2026-08-17T17:59:00.001Z",
+    );
+
+    expect(handedOff).toMatchObject({
+      runId: recoveryRunId,
+      savedAt: "2026-08-17T17:59:00.001Z",
+      resourceFingerprint: terminalRun.resourceFingerprint,
+      resourceGeneratedAt: terminalRun.resourceGeneratedAt,
+      completedSteps: 3,
+      resumeStep: 3,
+      activeSeconds: 541,
+      activityProgress: terminalRun.activityProgress,
+    });
+    expect(handoffActiveSessionCheckpointAfterExit(
+      terminalRun,
+      interruption({
+        id: terminalRun.runId,
+        startedAt: terminalRun.startedAt,
+        interruptedAt: terminalRun.savedAt,
+        plannedMinutes: terminalRun.plannedMinutes,
+      }),
+      recoveryRunId,
+      terminalRun.savedAt,
+    )).toBeNull();
+  });
+
+  it("uses the fingerprinted handoff run with the richer progress from the matching exit", () => {
+    const terminalRun = checkpoint({
+      savedAt: "2026-08-17T17:59:00.000Z",
+      startedAt: "2026-08-17T17:50:00.000Z",
+      completedSteps: 2,
+      resumeStep: 2,
+      pendingRepair: {
+        concept: "ATP coupling",
+        correctAnswer: "ATP hydrolysis can drive an endergonic reaction when the reactions are coupled.",
+      },
+    });
+    const savedExit = interruption({
+      id: terminalRun.runId,
+      startedAt: terminalRun.startedAt,
+      interruptedAt: terminalRun.savedAt,
+      plannedMinutes: terminalRun.plannedMinutes,
+      completedSteps: 2,
+      resumeStep: 2,
+      pendingRepair: {
+        concept: "ATP coupling",
+        title: "Replace the mistaken ATP coupling relationship",
+        body: "Correct the coupling relationship, then explain it again without looking.",
+        correctAnswer: "ATP hydrolysis can drive an endergonic reaction when the reactions are coupled.",
+        feedback: "Compare both sides of the coupled reaction.",
+      },
+    });
+    const handedOff = handoffActiveSessionCheckpointAfterExit(
+      terminalRun,
+      savedExit,
+      "00000000-0000-4000-8000-000000000098",
+      "2026-08-17T17:59:00.001Z",
+    );
+    expect(handedOff).not.toBeNull();
+
+    const restored = restoreExitProgressThroughCheckpoint(
+      checkpointToSessionResumePoint(handedOff!),
+      [savedExit],
+    );
+    expect(restored).toMatchObject({
+      runId: "00000000-0000-4000-8000-000000000098",
+      resourceFingerprint: terminalRun.resourceFingerprint,
+      pendingRepair: savedExit.pendingRepair,
+      completedSteps: savedExit.completedSteps,
+      resumeStep: savedExit.resumeStep,
+    });
+    expect(restored.id).toBe(restored.runId);
+    expect(restored.id).not.toBe(savedExit.id);
+  });
+
   it("maps a checkpoint to a structurally compatible, privacy-safe resume point", () => {
     const original = checkpoint({ activeSeconds: 61, completedSteps: 0, resumeStep: 0 });
 

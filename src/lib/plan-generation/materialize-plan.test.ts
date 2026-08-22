@@ -115,4 +115,55 @@ describe("materializePlanDraft", () => {
     expect(plan.topic).not.toMatch(/^[,;:.!?]/);
     expect(plan.materials?.[0]?.textContent).toBeNull();
   });
+
+  it.each(["in two weeks and I have not started yet", "in 14 days and I have not started yet"])(
+    "keeps operational metadata out of plan, map, and session subject fields: %s",
+    (operationalTail) => {
+      const goal = `1,500-word History Essay. I have a 1,500-word history essay due ${operationalTail}`;
+      const mappedTopic = {
+        ...request.knowledgeMap!.topics[0]!,
+        title: operationalTail,
+        description: `The knowledge and performance needed for ${operationalTail}.`,
+      };
+      const plan = materializePlanDraft({
+        ...staleDraft,
+        title: "1,500-word History Essay Due",
+        topic: operationalTail,
+        kind: "topic",
+        sessions: [{
+          ...staleDraft.sessions[0]!,
+          title: `Learn ${operationalTail}`,
+          objective: `Build an accurate model of ${operationalTail}.`,
+          learningMode: "learn",
+          contentTargets: [operationalTail],
+          completionEvidence: [`Explain ${operationalTail}`],
+        }],
+      }, {
+        ...request,
+        goal,
+        studyMode: "outside",
+        knowledgeMap: {
+          ...request.knowledgeMap!,
+          topics: [mappedTopic],
+        },
+      });
+
+      expect(plan).toMatchObject({
+        title: "1,500-word History Essay Due",
+        topic: "1,500-word History Essay",
+        knowledgeMap: {
+          topics: [{
+            title: "1,500-word History Essay",
+            description: "The knowledge and performance needed for 1,500-word History Essay.",
+          }],
+        },
+        sessions: [{
+          title: "Learn 1,500-word History Essay",
+          objective: "Build an accurate model of 1,500-word History Essay.",
+          contentTargets: ["1,500-word History Essay"],
+          completionEvidence: ["Explain 1,500-word History Essay"],
+        }],
+      });
+    },
+  );
 });

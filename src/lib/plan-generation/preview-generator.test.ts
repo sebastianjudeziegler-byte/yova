@@ -48,7 +48,7 @@ function requestWithMinutes(minutes: number) {
     materialMode: "none",
     materials: [],
     studyMode: "inside",
-    deadline: "2026-08-14T23:59:00.000Z",
+    deadline: null,
     timeZone: "America/Los_Angeles",
     diagnosticResponses: [{
       question: "How well can you explain the process now?",
@@ -67,6 +67,35 @@ function requestWithMinutes(minutes: number) {
 }
 
 describe("preview plan time windows", () => {
+  it("uses the learner's calendar zone, chosen weekdays, and windows for the system fallback", () => {
+    const request = {
+      ...requestWithMinutes(15),
+      deadline: "2026-09-10T23:59:00.000-07:00",
+      availability: [
+        { day: "Monday", window: "Evening", minutes: 15 },
+        { day: "Wednesday", window: "Morning", minutes: 15 },
+      ],
+    };
+    const plan = generatePreviewPlan(
+      request,
+      new Date("2026-08-08T12:00:00.000-07:00"),
+    );
+    const formatter = new Intl.DateTimeFormat("en-US", {
+      weekday: "long",
+      hour: "numeric",
+      timeZone: request.timeZone,
+    });
+
+    const scheduledWindows = plan.sessions.map((session) => formatter.format(new Date(session.scheduledFor)));
+    expect(scheduledWindows).toEqual(expect.arrayContaining(["Monday 7 PM", "Wednesday 9 AM"]));
+    expect(scheduledWindows.every((window) => (
+      window === "Monday 7 PM" || window === "Wednesday 9 AM"
+    ))).toBe(true);
+    expect(plan.sessions.every((session) => (
+      new Date(session.scheduledFor).getTime() <= new Date(request.deadline).getTime()
+    ))).toBe(true);
+  });
+
   it("keeps a respiration-only one-off target narrower than the mixed biology subject", () => {
     const base = requestWithMinutes(25);
     const plan = generatePreviewPlan({
@@ -318,6 +347,23 @@ describe("preview plan time windows", () => {
     expect(plan.sessions[0].objective).toContain("Comparative thesis criteria");
     expect(plan.sessions[0].objective).not.toContain("Recall the main ideas");
   });
+
+  it.each(["two weeks", "14 days"])(
+    "keeps a relative deadline and unfinished-progress clause out of the preview subject: %s",
+    (relativeDeadline) => {
+      const request = requestWithMinutes(25);
+      const plan = generatePreviewPlan({
+        ...request,
+        goal: `1,500-word History Essay. I have a 1,500-word history essay due in ${relativeDeadline} and I have not started yet. Starting point: Not started`,
+        studyMode: "outside",
+        knowledgeMap: undefined,
+      });
+
+      expect(plan.topic).toBe("1,500-word History Essay");
+      expect(plan.sessions[0]?.contentTargets).toEqual(["1,500-word History Essay"]);
+      expect(plan.sessions.map((session) => session.title).join(" ")).not.toMatch(/in (?:two weeks|14 days)|not started/i);
+    },
+  );
 
   it("turns an outside-session goal into a grammatical instruction without splicing the raw prompt", () => {
     const base = requestWithMinutes(15);

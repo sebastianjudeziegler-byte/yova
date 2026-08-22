@@ -7,7 +7,10 @@ import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export class PlanPersistenceError extends Error {
-  constructor(message: string) {
+  constructor(
+    message: string,
+    readonly code: "persistence_failed" | "material_staging_expired" = "persistence_failed",
+  ) {
     super(message);
     this.name = "PlanPersistenceError";
   }
@@ -63,7 +66,19 @@ export async function persistPlanForAuthenticatedUser(
       .maybeSingle();
 
     if (!lookupError && isSamePersistedPlan(existingPlan, plan)) return "supabase";
+    if (readSupabaseErrorMessage(error).includes("material_staging_expired")) {
+      throw new PlanPersistenceError(
+        "A pending source expired before the plan could be saved.",
+        "material_staging_expired",
+      );
+    }
     throw new PlanPersistenceError("Supabase could not persist the generated plan.");
   }
   return "supabase";
+}
+
+function readSupabaseErrorMessage(error: unknown) {
+  if (!error || typeof error !== "object" || Array.isArray(error)) return "";
+  const message = (error as Record<string, unknown>).message;
+  return typeof message === "string" ? message : "";
 }

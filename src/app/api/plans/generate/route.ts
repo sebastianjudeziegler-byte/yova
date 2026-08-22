@@ -18,6 +18,7 @@ import { materializePlanDraft } from "@/lib/plan-generation/materialize-plan";
 import { generatePreviewPlan } from "@/lib/plan-generation/preview-generator";
 import { LIVE_AI_PLAN_FALLBACK_NOTICE } from "@/lib/plan-generation/fallback";
 import { inferPlanScopeContract } from "@/lib/plan-generation/scope-contract";
+import { PlanScheduleCapacityError } from "@/lib/plan-generation/schedule-plan";
 import {
   PlanGenerationRequestSchema,
   PlanDiagnosticPreparationResponseSchema,
@@ -109,14 +110,18 @@ export async function POST(request: Request) {
     const requestedIds = planRequest.materials.map((material) => material.id);
     const { data: uploadedMaterials, error: materialError } = await supabase
       .from("material_uploads")
-      .select("id,filename,mime_type,byte_size,processing_status,extracted_text,metadata")
-      .in("id", requestedIds);
+      .select("id,filename,mime_type,byte_size,processing_status,extracted_text,metadata,expires_at")
+      .in("id", requestedIds)
+      .gt("expires_at", new Date().toISOString());
 
     if (materialError) {
       return NextResponse.json({ error: "YOVA could not load your uploaded materials." }, { status: 500 });
     }
 
     const materialById = new Map((uploadedMaterials ?? []).map((material) => [material.id, material]));
+    if (requestedIds.some((id) => !materialById.has(id))) {
+      return expiredMaterialResponse(requestId);
+    }
     const hydratedMaterials = await Promise.all(planRequest.materials.map(async (requested) => {
       const stored = materialById.get(requested.id);
       if (!stored || stored.processing_status !== "ready" || !stored.extracted_text) return null;
@@ -141,6 +146,10 @@ export async function POST(request: Request) {
     }));
 
     if (hydratedMaterials.some((material) => material === null)) {
+      if ((uploadedMaterials ?? []).some((material) => (
+        typeof material.expires_at === "string"
+        && new Date(material.expires_at).getTime() <= Date.now()
+      ))) return expiredMaterialResponse(requestId);
       return NextResponse.json({ error: "YOVA is still mapping one of your materials. Try again in a moment." }, { status: 409 });
     }
 
@@ -297,6 +306,9 @@ export async function POST(request: Request) {
     }
   } catch (error) {
     await releaseFailedPlanClaim(supabase, aiUsageClaimId, requestId);
+    if (error instanceof PlanScheduleCapacityError) {
+      return deterministicPlanFailureResponse(error, requestId);
+    }
     const validator = error instanceof KnowledgeMapGenerationError
       ? error.failedValidator
       : "knowledge_map_provider_request" as const;
@@ -511,6 +523,16 @@ export async function POST(request: Request) {
   });
 }
 
+function expiredMaterialResponse(requestId: string) {
+  return NextResponse.json({
+    error: "A pending source expired or is no longer available. Add that source again before building the plan.",
+    code: "material_staging_expired",
+  }, {
+    status: 410,
+    headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId },
+  });
+}
+
 async function settleSuccessfulPlanClaim(
   supabase: Awaited<ReturnType<typeof createSupabaseServerClient>> | null,
   claimId: string | null,
@@ -623,7 +645,12 @@ async function reliableDraftResponse(
   userId: string | null | undefined,
   failure?: OpenAIPlanGenerationError,
 ) {
-  const reliablePlan = generatePreviewPlan(planRequest);
+  let reliablePlan: ReturnType<typeof generatePreviewPlan>;
+  try {
+    reliablePlan = generatePreviewPlan(planRequest);
+  } catch (error) {
+    return deterministicPlanFailureResponse(error, requestId);
+  }
   const response = PlanGenerationResponseSchema.parse({
     plan: reliablePlan,
     generation: {
@@ -691,6 +718,16 @@ function emptyPlanObservation(elapsedMs: number) {
  * nothing about what to change.
  */
 function deterministicPlanFailureResponse(error: unknown, requestId: string) {
+  if (error instanceof PlanScheduleCapacityError) {
+    return NextResponse.json(
+      {
+        error: "Your selected study windows do not have enough room for this plan before the deadline. Add another day, choose longer windows, or move the deadline.",
+        code: "schedule_capacity",
+      },
+      { status: 422, headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId } },
+    );
+  }
+
   console.error("YOVA plan generation failed", {
     requestId,
     reason: error instanceof Error ? error.message : String(error),

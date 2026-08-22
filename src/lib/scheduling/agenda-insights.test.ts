@@ -38,6 +38,22 @@ describe("agenda insights", () => {
     expect(suggestion?.afterMinutes).toBe(60);
   });
 
+  it("does not recommend a move that starts before the next session but overlaps it", () => {
+    const learningPlan = plan([
+      session("a", 6, 10, 30, 1),
+      session("b", 6, 14, 30, 2),
+      session("c", 6, 18, 25, 3),
+      session("next", 7, 18, 25, 4),
+    ]);
+    learningPlan.sessions[3] = {
+      ...learningPlan.sessions[3],
+      scheduledFor: new Date(2026, 7, 7, 18, 1).toISOString(),
+    };
+    const entries = learningPlan.sessions.map((item) => ({ plan: learningPlan, session: item }));
+
+    expect(buildAgendaBalanceSuggestion(entries, now)).toBeNull();
+  });
+
   it("keeps a history workload unchanged when it already fits today's capacity", () => {
     const learningPlan = plan([session("source-analysis", 6, 10, 25, 1)], 9, "history", "History source analysis");
     const result = buildDailyCapacityPlan(learningPlan.sessions.map((item) => ({ plan: learningPlan, session: item })), 30, now);
@@ -54,6 +70,17 @@ describe("agenda insights", () => {
     expect(result.entry?.plan.id).toBe("finance");
     expect(result.toDateKey).toBe("2026-08-07");
     expect(result.projectedMinutes).toBe(30);
+  });
+
+  it("does not move a full session whose start fits before the deadline but whose end does not", () => {
+    const first = session("first", 6, 10, 30, 1);
+    const late = session("late", 6, 23, 30, 2);
+    late.scheduledFor = new Date(2026, 7, 6, 23, 45).toISOString();
+    const learningPlan = plan([first, late], 7, "deadline", "Deadline-safe scheduling");
+    learningPlan.deadline = new Date(2026, 7, 7, 23, 59).toISOString();
+    const entries = learningPlan.sessions.map((item) => ({ plan: learningPlan, session: item }));
+
+    expect(buildDailyCapacityPlan(entries, 30, now).status).toBe("blocked");
   });
 
   it("splits language-learning content when moving it would break the sequence", () => {

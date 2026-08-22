@@ -15,6 +15,7 @@ import {
 import { getOpenAIClient } from "@/lib/openai/client";
 import { getOpenAIKnowledgeMapConfig } from "@/lib/openai/config";
 import type { PlanGenerationRequest } from "@/lib/plan-generation/schema";
+import { resolveKnowledgeMapSubjectBoundary } from "@/lib/knowledge-map/subject-boundary";
 
 const KnowledgeMapOutputSchema = z.object({
   scopeJudgment: ScopeJudgmentSchema,
@@ -305,7 +306,10 @@ export async function generatePlanKnowledgeMap(request: PlanGenerationRequest): 
         deferred: null,
       };
     });
-    const map = PlanKnowledgeMapSchema.parse({ version: 1, scopeJudgment: parsed.scopeJudgment, topics });
+    const map = resolveKnowledgeMapSubjectBoundary(
+      PlanKnowledgeMapSchema.parse({ version: 1, scopeJudgment: parsed.scopeJudgment, topics }),
+      request.goal,
+    );
     return {
       map,
       stats: {

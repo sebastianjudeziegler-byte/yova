@@ -17,7 +17,11 @@ import { GoalClarification } from "@/components/goal-clarification";
 import { MaterialFileDropzone } from "@/components/material-file-dropzone";
 import { MaterialLinkImporter } from "@/components/material-link-importer";
 import type { LearningMaterial, LearningPlan } from "@/lib/domain";
-import { deleteUploadedMaterial, uploadMaterialFiles } from "@/lib/materials/intake";
+import {
+  abandonUploadedMaterials,
+  deleteUploadedMaterial,
+  uploadMaterialFiles,
+} from "@/lib/materials/intake";
 import { reportProductError } from "@/lib/monitoring/client";
 import {
   PlanActivationResponseSchema,
@@ -59,7 +63,9 @@ export function StudyNowCreator({
   const [materialError, setMaterialError] = useState<string | null>(null);
   const [materialNotice, setMaterialNotice] = useState<string | null>(null);
   const [processingMaterials, setProcessingMaterials] = useState(false);
+  const [linkMaterialWorking, setLinkMaterialWorking] = useState(false);
   const [removingMaterialId, setRemovingMaterialId] = useState<string | null>(null);
+  const [abandoningMaterials, setAbandoningMaterials] = useState(false);
   const [generationError, setGenerationError] = useState<string | null>(null);
   const goalContext = assessGoalContext(
     goal,
@@ -92,6 +98,47 @@ export function StudyNowCreator({
       setMaterialError(error instanceof Error ? error.message : "YOVA could not remove this material.");
     } finally {
       setRemovingMaterialId(null);
+    }
+  };
+
+  const abandonMaterials = async () => {
+    const pendingMaterials = materials;
+    if (!pendingMaterials.length) return;
+    setMaterials([]);
+    const cleanup = await abandonUploadedMaterials(pendingMaterials);
+    if (cleanup.unconfirmed > 0) {
+      setMaterialNotice("YOVA could not confirm cleanup for every pending source. They cannot be used here and will expire automatically.");
+    } else if (cleanup.cleanupPending > 0) {
+      setMaterialNotice("The pending sources were cancelled. Private file cleanup will finish automatically.");
+    }
+  };
+
+  const exitCreator = async () => {
+    if (processingMaterials || linkMaterialWorking || abandoningMaterials || removingMaterialId) return;
+    setAbandoningMaterials(true);
+    try {
+      await abandonMaterials();
+    } finally {
+      setAbandoningMaterials(false);
+      onExit();
+    }
+  };
+
+  const chooseSource = async (choice: SourceChoice) => {
+    if (processingMaterials || linkMaterialWorking || abandoningMaterials || removingMaterialId) return;
+    if (choice === "materials") {
+      setSourceChoice(choice);
+      return;
+    }
+    setSourceChoice(choice);
+    setMaterialError(null);
+    setMaterialNotice(null);
+    if (!materials.length) return;
+    setAbandoningMaterials(true);
+    try {
+      await abandonMaterials();
+    } finally {
+      setAbandoningMaterials(false);
     }
   };
 
@@ -183,7 +230,7 @@ export function StudyNowCreator({
       <header className="plan-header">
         <BrandMark />
         {step !== "loading" && step !== "error" && <span>{step === "setup" ? "Step 1 of 2" : "Step 2 of 2"}</span>}
-        {step !== "loading" && <button className="button ghost" onClick={onExit}>Exit</button>}
+        {step !== "loading" && <button className="button ghost" disabled={processingMaterials || linkMaterialWorking || abandoningMaterials || Boolean(removingMaterialId)} onClick={() => void exitCreator()}>{abandoningMaterials ? "Removing sources…" : "Exit"}</button>}
       </header>
       {step !== "loading" && step !== "error" && <div className="plan-progress"><i style={{ width: step === "setup" ? "50%" : "100%" }} /></div>}
 
@@ -210,7 +257,7 @@ export function StudyNowCreator({
             <div className="study-now-options">{startingPoints.map((choice) => <button className={startingPoint === choice ? "selected" : ""} key={choice} onClick={() => setStartingPoint(choice)}>{choice}{startingPoint === choice && <Check size={16} />}</button>)}</div>
             <p className="approach-preview"><Sparkles size={15} /><span><strong>Starting approach: {LEARNING_INTENT_COPY[resolveLearningIntent({ goal, startingPoint }).intent].shortName}.</strong> {resolveLearningIntent({ goal, startingPoint }).reason}</span></p>
           </div>
-          <footer className="plan-actions"><button className="button ghost" onClick={onExit}><ArrowLeft size={17} /> Cancel</button><button className="button primary" disabled={goal.trim().length < 10} onClick={() => setStep("source")}>Choose how YOVA should help <ArrowRight size={17} /></button></footer>
+          <footer className="plan-actions"><button className="button ghost" onClick={() => void exitCreator()}><ArrowLeft size={17} /> Cancel</button><button className="button primary" disabled={goal.trim().length < 10} onClick={() => setStep("source")}>Choose how YOVA should help <ArrowRight size={17} /></button></footer>
         </section>
       )}
 
@@ -221,19 +268,19 @@ export function StudyNowCreator({
           <p className="plan-description">This decides where the content comes from and where most of the work happens.</p>
           <div className="plan-goal-echo"><span>YOUR REQUEST</span><p>{goal}</p><button className="button ghost" onClick={() => setStep("setup")}>Edit</button></div>
           <div className="mode-cards three-up">
-            <button className={sourceChoice === "materials" ? "selected" : ""} onClick={() => setSourceChoice("materials")}><Upload /><span><strong>Use my materials</strong><small>Study guides, PDF slides, notes, review sheets, or textbook excerpts.</small></span>{sourceChoice === "materials" && <Check />}</button>
-            <button className={sourceChoice === "yova" ? "selected" : ""} onClick={() => { setSourceChoice("yova"); setMaterialError(null); setMaterialNotice(null); }}><Sparkles /><span><strong>Create it for me</strong><small>YOVA creates the teaching and practice from the topic.</small></span>{sourceChoice === "yova" && <Check />}</button>
-            <button className={sourceChoice === "outside" ? "selected" : ""} onClick={() => { setSourceChoice("outside"); setMaterialError(null); setMaterialNotice(null); }}><Layers3 /><span><strong>Guide me outside YOVA</strong><small>Get a method and exact steps for using another source.</small></span>{sourceChoice === "outside" && <Check />}</button>
+            <button disabled={processingMaterials || linkMaterialWorking || abandoningMaterials || Boolean(removingMaterialId)} className={sourceChoice === "materials" ? "selected" : ""} onClick={() => void chooseSource("materials")}><Upload /><span><strong>Use my materials</strong><small>Study guides, PDF slides, notes, review sheets, or textbook excerpts.</small></span>{sourceChoice === "materials" && <Check />}</button>
+            <button disabled={processingMaterials || linkMaterialWorking || abandoningMaterials || Boolean(removingMaterialId)} className={sourceChoice === "yova" ? "selected" : ""} onClick={() => void chooseSource("yova")}><Sparkles /><span><strong>Create it for me</strong><small>YOVA creates the teaching and practice from the topic.</small></span>{sourceChoice === "yova" && <Check />}</button>
+            <button disabled={processingMaterials || linkMaterialWorking || abandoningMaterials || Boolean(removingMaterialId)} className={sourceChoice === "outside" ? "selected" : ""} onClick={() => void chooseSource("outside")}><Layers3 /><span><strong>Guide me outside YOVA</strong><small>Get a method and exact steps for using another source.</small></span>{sourceChoice === "outside" && <Check />}</button>
           </div>
           {sourceChoice === "materials" && <div className="material-uploader">
             <MaterialFileDropzone
               busy={processingMaterials}
-              disabled={Boolean(removingMaterialId) || materials.length >= 5}
+              disabled={linkMaterialWorking || Boolean(removingMaterialId) || materials.length >= 5}
               onFiles={addMaterials}
             />
             <p className="material-examples"><strong>Useful examples:</strong> teacher study guide · lecture slides exported as PDF · class notes · review sheet · readable textbook excerpt</p>
             <p className="material-supplement-note"><Sparkles size={14} /> If a source only names the topics, YOVA can add the minimum explanation needed and will show you exactly what it supplemented.</p>
-            <MaterialLinkImporter existingCount={materials.length} disabled={processingMaterials || Boolean(removingMaterialId)} onImported={(material, notice) => { setMaterials((current) => [...current, material]); setMaterialError(null); setMaterialNotice(notice); }} />
+            <MaterialLinkImporter existingCount={materials.length} disabled={processingMaterials || Boolean(removingMaterialId)} onWorkingChange={setLinkMaterialWorking} onImported={(material, notice) => { setMaterials((current) => [...current, material]); setMaterialError(null); setMaterialNotice(notice); }} />
             {materials.length > 0 && <div className="material-files">{materials.map((material) => <div key={material.id}><FileText /><span><strong>{material.name}</strong><small>Securely stored · ready for this session</small></span><button aria-label={`Remove ${material.name}`} disabled={removingMaterialId === material.id} onClick={() => void removeMaterial(material.id)}>{removingMaterialId === material.id ? <span className="button-spinner dark" /> : <Trash2 size={16} />}</button></div>)}</div>}
           </div>}
           {materialNotice && <p className="material-notice" role="status"><AlertCircle size={15} /> {materialNotice}</p>}
@@ -245,7 +292,7 @@ export function StudyNowCreator({
               onUseMaterials={() => setSourceChoice("materials")}
             />
           )}
-          <footer className="plan-actions"><button className="button ghost" onClick={() => setStep("setup")}><ArrowLeft size={17} /> Back</button><button className="button primary" disabled={!sourceChoice || !goalContext.hasEnoughContext || processingMaterials || Boolean(removingMaterialId) || (sourceChoice === "materials" && materials.length === 0)} onClick={() => void generateSession()}>Build and start session <ArrowRight size={17} /></button></footer>
+          <footer className="plan-actions"><button className="button ghost" onClick={() => setStep("setup")}><ArrowLeft size={17} /> Back</button><button className="button primary" disabled={!sourceChoice || !goalContext.hasEnoughContext || processingMaterials || linkMaterialWorking || Boolean(removingMaterialId) || (sourceChoice === "materials" && materials.length === 0)} onClick={() => void generateSession()}>Build and start session <ArrowRight size={17} /></button></footer>
         </section>
       )}
 

@@ -98,6 +98,22 @@ const PendingSessionCompletionExportSchema = z.object({
       adaptedAt: z.string().datetime({ offset: true }),
     }).optional(),
   }).nullable(),
+  continuationSession: z.object({
+    id: z.string().uuid(),
+    sequence: z.number().int().positive(),
+    title: z.string().min(1).max(180),
+    objective: z.string().min(1).max(900),
+    method: z.string().min(1).max(180),
+    methodReason: z.string().min(1).max(900),
+    scheduledFor: z.string().datetime({ offset: true }),
+    estimatedMinutes: z.number().int().min(5).max(180),
+    amountLabel: z.string().min(1).max(180),
+    learningMode: z.enum(["learn", "study"]),
+    topicIds: z.array(z.string().uuid()).min(1).max(6),
+    contentTargets: z.array(z.string().min(5).max(180)).min(1).max(4),
+    completionEvidence: z.array(z.string().min(8).max(220)).min(1).max(4),
+    status: z.literal("ready"),
+  }).nullable().default(null),
   queuedAt: z.string().datetime({ offset: true }),
 });
 
@@ -234,5 +250,6 @@ export const AccountExportErrorResponseSchema = z.object({
 }).strict();
 
 export const ResetAccountExportsResultSchema = z.object({
+  learningMaterialPaths: z.array(z.string().min(1).max(1_024)).max(10_000).default([]),
   accountExportPaths: z.array(z.string().min(1).max(500)).max(10_000),
 }).strict();

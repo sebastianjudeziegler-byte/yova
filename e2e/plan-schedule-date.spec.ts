@@ -13,7 +13,9 @@ const onboardingAnswers = [
   "Nothing else for now",
 ] as const;
 
-test.use({ timezoneId: "Europe/London" });
+const TEST_TIME_ZONE = "Europe/London";
+
+test.use({ timezoneId: TEST_TIME_ZONE });
 
 test("a natural deadline and an edited date survive every schedule control", async ({ page }) => {
   await openPreviewApp(page);
@@ -23,7 +25,7 @@ test("a natural deadline and an edited date survive every schedule control", asy
   const writtenDeadline = new Intl.DateTimeFormat("en-US", {
     month: "long",
     day: "numeric",
-    timeZone: "Europe/London",
+    timeZone: TEST_TIME_ZONE,
   }).format(inferred.date);
 
   await page.getByRole("button", { name: /New plan|Build my first plan|Create another plan/ }).first().click();
@@ -84,19 +86,103 @@ test("a historical topic date cannot override the learner's real deadline", asyn
   await expect(page.getByRole("textbox", { name: "Target date" })).toHaveValue(expected.input);
 });
 
+test("an overfull plan returns to its schedule and recovers without a client crash", async ({ page }) => {
+  const pageErrors: string[] = [];
+  let planAttempts = 0;
+  page.on("pageerror", (error) => pageErrors.push(error.message));
+  await page.route("**/api/plans/generate**", async (route) => {
+    const url = new URL(route.request().url());
+    if (url.searchParams.get("mode") === "diagnostic") {
+      await route.continue();
+      return;
+    }
+    planAttempts += 1;
+    if (planAttempts === 1) {
+      await route.fulfill({
+        status: 422,
+        contentType: "application/json",
+        body: JSON.stringify({
+          code: "schedule_capacity",
+          error: "The plan does not fit before the deadline.",
+        }),
+      });
+      return;
+    }
+    await route.fulfill({
+      status: 502,
+      contentType: "application/json",
+      body: JSON.stringify({ error: "Temporary planning service failure." }),
+    });
+  });
+  await openPreviewApp(page);
+
+  await page.getByRole("button", { name: /New plan|Build my first plan|Create another plan/ }).first().click();
+  await page.getByPlaceholder(/I have a biology test/).fill(
+    "I have a biology test tomorrow on cellular respiration.",
+  );
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  await page.getByRole("button", { name: /Create it for me/ }).click();
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  await page.getByRole("button", { name: "1–2 days", exact: true }).click();
+  await page.getByRole("button", { name: "15 minutes", exact: true }).click();
+
+  await finishPlanSetup(page);
+  await page.getByRole("button", { name: "Generate my plan" }).click();
+
+  const capacityGuidance = page.getByRole("alert").filter({
+    hasText: "This plan needs more room before your target date.",
+  });
+  await expect(capacityGuidance).toContainText("Add another study day");
+  await expect(capacityGuidance).toContainText("choose longer sessions");
+  await expect(page.getByRole("heading", { name: "When would you prefer to study this material?" })).toBeVisible();
+
+  // The second attempt exercises the deterministic browser fallback. It must
+  // produce the same expected recovery instead of throwing outside the API
+  // error handler and stranding the loading screen.
+  await finishPlanSetup(page);
+  await page.getByRole("button", { name: "Generate my plan" }).click();
+  await expect(capacityGuidance).toBeVisible();
+  expect(pageErrors).toEqual([]);
+
+  const feasible = futureDate(14);
+  await page.getByRole("textbox", { name: "Target date" }).fill(feasible.input);
+  await page.getByRole("button", { name: "Every day", exact: true }).click();
+  await page.getByRole("button", { name: "60 minutes", exact: true }).click();
+  await finishPlanSetup(page);
+  await page.getByRole("button", { name: "Generate my plan" }).click();
+
+  await expect(page.getByText("Plan ready")).toBeVisible();
+  expect(planAttempts).toBe(3);
+  expect(pageErrors).toEqual([]);
+});
+
 function futureDate(days: number) {
   const now = new Date();
-  const local = new Date(now.getTime());
-  local.setDate(local.getDate() + days);
-  local.setHours(12, 0, 0, 0);
-  const year = local.getFullYear();
-  const month = String(local.getMonth() + 1).padStart(2, "0");
-  const day = String(local.getDate()).padStart(2, "0");
+  const currentCalendarParts = new Intl.DateTimeFormat("en-US", {
+    timeZone: TEST_TIME_ZONE,
+    year: "numeric",
+    month: "numeric",
+    day: "numeric",
+  }).formatToParts(now);
+  const part = (type: Intl.DateTimeFormatPartTypes) => Number(
+    currentCalendarParts.find((candidate) => candidate.type === type)?.value,
+  );
+  const local = new Date(Date.UTC(part("year"), part("month") - 1, part("day") + days, 12));
+  const year = local.getUTCFullYear();
+  const month = String(local.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(local.getUTCDate()).padStart(2, "0");
   return {
     date: local,
     input: `${year}-${month}-${day}`,
-    monthShort: new Intl.DateTimeFormat("en-US", { month: "short" }).format(local),
+    monthShort: new Intl.DateTimeFormat("en-US", { month: "short", timeZone: "UTC" }).format(local),
   };
+}
+
+async function finishPlanSetup(page: Page) {
+  await page.getByRole("button", { name: "Continue" }).click();
+  await expect(page.getByRole("button", { name: "Skip for now" })).toBeVisible();
+  await page.getByRole("button", { name: "Skip for now" }).click();
+  await expect(page.getByRole("heading", { name: "Everything YOVA will use" })).toBeVisible();
 }
 
 async function openPreviewApp(page: Page) {

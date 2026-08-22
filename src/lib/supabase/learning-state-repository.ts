@@ -202,7 +202,8 @@ export async function loadAuthenticatedLearningState(): Promise<CloudLearningSta
     ?? sessionsResult.error
     ?? attemptsResult.error
     ?? materialsResult.error
-    ?? interruptionsResult.error;
+    ?? interruptionsResult.error
+    ?? milestonesResult.error;
   if (error) throw new Error("YOVA could not load your cloud learning data.");
 
   const profile = profileResult.data as ProfileRow | null;
@@ -217,7 +218,7 @@ export async function loadAuthenticatedLearningState(): Promise<CloudLearningSta
   const attemptRows = (attemptsResult.data ?? []) as SessionAttemptRow[];
   const materialRows = (materialsResult.data ?? []) as MaterialRow[];
   const interruptionRows = (interruptionsResult.data ?? []) as LearningEventRow[];
-  const deadlineMilestones = milestonesResult.error ? [] : (milestonesResult.data ?? []).flatMap<DeadlineMilestone>((row) => {
+  const deadlineMilestones = (milestonesResult.data ?? []).flatMap<DeadlineMilestone>((row) => {
     try {
       return [deadlineMilestoneFromRow({
         ...row,
@@ -798,6 +799,7 @@ export async function completeAuthenticatedPlanSession(
   completion: SessionCompletion,
   adaptation?: NextSessionAdaptation | null,
   followUpSession?: LearningPlanSession | null,
+  continuationSession?: LearningPlanSession | null,
 ) {
   if (!isSupabaseConfigured()) return;
   const supabase = createSupabaseBrowserClient();
@@ -811,9 +813,17 @@ export async function completeAuthenticatedPlanSession(
   ) {
     throw new Error("YOVA cannot complete ungraded practice without preserving its required guided verification.");
   }
+  if (completionMode === "unguided_practice" && continuationSession) {
+    throw new Error("YOVA cannot replace the required guided verification with a deferred continuation.");
+  }
+  if (continuationSession && (adaptation || followUpSession)) {
+    throw new Error("YOVA cannot safely combine a deferred continuation with another session rewrite.");
+  }
   const completionRpc = completionMode === "unguided_practice"
     ? "complete_unguided_plan_session"
-    : "complete_plan_session";
+    : continuationSession
+      ? "complete_guided_plan_session_with_continuation"
+      : "complete_plan_session";
   const { error } = await supabase.rpc(completionRpc, {
     payload: {
       attemptId: normalizedCompletion.id,
@@ -847,6 +857,21 @@ export async function completeAuthenticatedPlanSession(
         completionEvidence: followUpSession.completionEvidence ?? [],
         reviewConcept: followUpSession.reviewConcept,
         reviewType: followUpSession.reviewType,
+      } : null,
+      continuationSession: continuationSession ? {
+        id: continuationSession.id,
+        sequence: continuationSession.sequence,
+        title: continuationSession.title,
+        objective: continuationSession.objective,
+        method: continuationSession.method,
+        methodReason: continuationSession.methodReason,
+        scheduledFor: continuationSession.scheduledFor,
+        estimatedMinutes: continuationSession.estimatedMinutes,
+        amountLabel: continuationSession.amountLabel,
+        learningMode: continuationSession.learningMode,
+        topicIds: continuationSession.topicIds ?? [],
+        contentTargets: continuationSession.contentTargets ?? [],
+        completionEvidence: continuationSession.completionEvidence ?? [],
       } : null,
     },
   });

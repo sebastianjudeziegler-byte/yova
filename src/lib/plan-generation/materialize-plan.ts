@@ -7,25 +7,48 @@ import {
 import { teachingFirstSessionCopy } from "@/lib/learning/learning-intent";
 import { resolveLearningTitle, resolveLearningTopic } from "@/lib/intake/interpret";
 import { STREAMED_SESSION_ARCHITECTURE } from "@/lib/session-generation/architecture";
+import {
+  replaceTopicReference,
+  resolveKnowledgeMapSubjectBoundary,
+} from "@/lib/knowledge-map/subject-boundary";
 
 export function materializePlanDraft(
   untrustedDraft: GeneratedPlanDraft,
   request: PlanGenerationRequest,
+  now = new Date(),
 ): LearningPlan {
   const draft = GeneratedPlanDraftSchema.parse(untrustedDraft);
   const planId = makeUuid();
   const topic = resolveLearningTopic(draft.topic, request.goal);
   const title = resolveLearningTitle(draft.title, request.goal || topic);
   const deferredById = new Map(draft.deferredTopics.map((entry) => [entry.topicId, entry.reason]));
-  const knowledgeMap = request.knowledgeMap ? {
-    ...request.knowledgeMap,
-    topics: request.knowledgeMap.topics.map((mappedTopic) => ({
+  const resolvedKnowledgeMap = request.knowledgeMap
+    ? resolveKnowledgeMapSubjectBoundary(request.knowledgeMap, request.goal)
+    : undefined;
+  const topicRepairs = [
+    ...(draft.topic === topic ? [] : [{ original: draft.topic, resolved: topic }]),
+    ...(request.knowledgeMap && resolvedKnowledgeMap
+      ? request.knowledgeMap.topics.flatMap((mappedTopic, index) => {
+          const resolvedTopic = resolvedKnowledgeMap.topics[index]?.title;
+          return resolvedTopic && resolvedTopic !== mappedTopic.title
+            ? [{ original: mappedTopic.title, resolved: resolvedTopic }]
+            : [];
+        })
+      : []),
+  ].sort((left, right) => right.original.length - left.original.length);
+  const repairSubjectCopy = (value: string) => topicRepairs.reduce(
+    (current, repair) => replaceTopicReference(current, repair.original, repair.resolved),
+    value,
+  );
+  const knowledgeMap = resolvedKnowledgeMap ? {
+    ...resolvedKnowledgeMap,
+    topics: resolvedKnowledgeMap.topics.map((mappedTopic) => ({
       ...mappedTopic,
       deferred: deferredById.has(mappedTopic.id) ? { reason: deferredById.get(mappedTopic.id)! } : null,
     })),
   } : undefined;
-  const demonstratedTopics = request.knowledgeMap?.topics.filter((mappedTopic) => mappedTopic.initialEvidence?.outcome === "demonstrated") ?? [];
-  const gapTopics = request.knowledgeMap?.topics.filter((mappedTopic) => mappedTopic.initialEvidence?.outcome === "gap") ?? [];
+  const demonstratedTopics = resolvedKnowledgeMap?.topics.filter((mappedTopic) => mappedTopic.initialEvidence?.outcome === "demonstrated") ?? [];
+  const gapTopics = resolvedKnowledgeMap?.topics.filter((mappedTopic) => mappedTopic.initialEvidence?.outcome === "gap") ?? [];
   const placementSummary = [
     demonstratedTopics.length > 0
       ? `You showed you already know ${demonstratedTopics.map((mappedTopic) => mappedTopic.title).join(", ")}, so ${demonstratedTopics.length === 1 ? "it is" : "they are"} scheduled as a quick check, not a lesson.`
@@ -49,7 +72,7 @@ export function materializePlanDraft(
     creationIntent: request.intent,
     sessionArchitectureVersion: STREAMED_SESSION_ARCHITECTURE,
     rationale: `${placementSummary}${placementSummary ? " " : ""}${draft.rationale}`.slice(0, 1_600),
-    createdAt: new Date().toISOString(),
+    createdAt: now.toISOString(),
     knowledgeMap,
     materials: request.materials.map((material) => ({
       ...material,
@@ -70,14 +93,16 @@ export function materializePlanDraft(
         id: makeUuid(),
         sequence: index + 1,
         ...session,
+        title: repairSubjectCopy(session.title),
+        objective: repairSubjectCopy(session.objective),
         ...(repairedTeachingStart ?? {}),
-        scheduledFor: request.intent === "study_now" ? new Date().toISOString() : session.scheduledFor,
+        scheduledFor: request.intent === "study_now" ? now.toISOString() : session.scheduledFor,
         estimatedMinutes,
         amountLabel: request.intent === "study_now" ? `Focused session · about ${estimatedMinutes} min` : session.amountLabel,
         learningMode,
         topicIds: session.topicIds,
-        contentTargets: session.contentTargets,
-        completionEvidence: session.completionEvidence,
+        contentTargets: session.contentTargets.map(repairSubjectCopy),
+        completionEvidence: session.completionEvidence.map(repairSubjectCopy),
         status: index === 0 ? "ready" as const : "upcoming" as const,
       };
     }),

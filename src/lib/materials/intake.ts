@@ -104,19 +104,37 @@ export async function uploadMaterialFiles(files: File[], existing: LearningMater
   return { accepted, errors, notices };
 }
 
-export async function deleteUploadedMaterial(materialId: string) {
+export async function deleteUploadedMaterial(materialId: string): Promise<"removed" | "cleanup_pending"> {
   const response = await fetch("/api/materials", {
     method: "DELETE",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ materialId }),
+    keepalive: true,
   });
-  if (response.ok) return;
+  if (response.status === 204) return "removed";
+  if (response.status === 202) {
+    const body: unknown = await response.json().catch(() => null);
+    if (readStringProperty(body, "code") === "material_cleanup_pending"
+      && readBooleanProperty(body, "committed") === true) return "cleanup_pending";
+    throw new Error("YOVA could not confirm whether this material was cancelled.");
+  }
 
   const body: unknown = await response.json().catch(() => null);
   const message = typeof body === "object" && body && "error" in body && typeof body.error === "string"
     ? body.error
     : "YOVA could not remove this material.";
   throw new Error(message);
+}
+
+export async function abandonUploadedMaterials(materials: LearningMaterial[]) {
+  const uniqueIds = [...new Set(materials.map((material) => material.id))];
+  const results = await Promise.allSettled(uniqueIds.map((id) => deleteUploadedMaterial(id)));
+  return results.reduce((summary, result) => {
+    if (result.status === "rejected") summary.unconfirmed += 1;
+    else if (result.value === "cleanup_pending") summary.cleanupPending += 1;
+    else summary.removed += 1;
+    return summary;
+  }, { requested: uniqueIds.length, removed: 0, cleanupPending: 0, unconfirmed: 0 });
 }
 
 export async function importLinkedMaterial(url: string, transcript?: string) {
@@ -135,4 +153,16 @@ export async function importLinkedMaterial(url: string, transcript?: string) {
   const parsed = ExternalMaterialResponseSchema.safeParse(body);
   if (!parsed.success) throw new Error("The imported material came back in an unsafe format.");
   return parsed.data;
+}
+
+function readStringProperty(value: unknown, key: string) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const property = (value as Record<string, unknown>)[key];
+  return typeof property === "string" ? property : null;
+}
+
+function readBooleanProperty(value: unknown, key: string) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const property = (value as Record<string, unknown>)[key];
+  return typeof property === "boolean" ? property : null;
 }

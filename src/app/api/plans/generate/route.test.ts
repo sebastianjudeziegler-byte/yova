@@ -315,6 +315,31 @@ describe("plan generation provider failure", () => {
     expect(mocks.generateDiagnostic).not.toHaveBeenCalled();
   });
 
+  it("fails a system fallback truthfully when the plan cannot fit before the deadline", async () => {
+    configureProduction();
+    mocks.rateLimit.mockReturnValueOnce({ allowed: false, retryAfterSeconds: 17 });
+    const deadline = new Date(Date.now() + 24 * 60 * 60 * 1_000);
+    const unavailableDay = new Intl.DateTimeFormat("en-US", {
+      weekday: "long",
+      timeZone: "UTC",
+    }).format(new Date(Date.now() + 3 * 24 * 60 * 60 * 1_000));
+    const { POST } = await import("@/app/api/plans/generate/route");
+
+    const response = await POST(planGenerationRequest({
+      deadline: deadline.toISOString(),
+      timeZone: "UTC",
+      availability: [{ day: unavailableDay, window: "Evening", minutes: 25 }],
+    }));
+
+    expect(response.status).toBe(422);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "schedule_capacity",
+      error: expect.stringMatching(/add another day|longer windows|move the deadline/i),
+    });
+    expect(mocks.generatePlan).not.toHaveBeenCalled();
+    expect(mocks.reserve).not.toHaveBeenCalled();
+  });
+
   it("releases by operation key and does not call the provider when reservation status is unknown", async () => {
     configureProduction();
     mocks.reserve.mockRejectedValueOnce(new Error("reservation receipt lost"));
@@ -406,6 +431,46 @@ describe("plan generation provider failure", () => {
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toMatchObject({ generation: { mode: "openai" } });
+  });
+
+  it("excludes expired staged materials before mapping or provider work", async () => {
+    configureProduction();
+    const gt = vi.fn().mockResolvedValue({ data: [], error: null });
+    const query = {
+      select: vi.fn(),
+      in: vi.fn(),
+      gt,
+    };
+    query.select.mockReturnValue(query);
+    query.in.mockReturnValue(query);
+    mocks.createClient.mockResolvedValue({
+      auth: {
+        getUser: vi.fn().mockResolvedValue({
+          data: { user: { id: "44444444-4444-4444-8444-444444444444" } },
+          error: null,
+        }),
+      },
+      from: vi.fn(() => query),
+    });
+    const { POST } = await import("@/app/api/plans/generate/route");
+
+    const response = await POST(planGenerationRequest({
+      materialMode: "upload",
+      materials: [{
+        id: "22222222-2222-4222-8222-222222222222",
+        name: "calculus-notes.pdf",
+        mimeType: "application/pdf",
+        sizeBytes: 2_048,
+        textContent: null,
+        processingStatus: "ready",
+      }],
+    }));
+
+    expect(response.status).toBe(410);
+    await expect(response.json()).resolves.toMatchObject({ code: "material_staging_expired" });
+    expect(gt).toHaveBeenCalledWith("expires_at", expect.any(String));
+    expect(mocks.reserve).not.toHaveBeenCalled();
+    expect(mocks.generatePlan).not.toHaveBeenCalled();
   });
 });
 

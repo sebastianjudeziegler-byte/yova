@@ -7,7 +7,9 @@ import {
   methodFidelityContractForPrompt,
   validateMethodFidelity,
 } from "@/lib/learning/method-fidelity";
+import { contentBudgetForMinutes } from "@/lib/plan-generation/content-budget";
 import { lessonIdeaCapacityForMinutes } from "@/lib/session-generation/lesson-brief";
+import { sessionLearnerFacingWordCount } from "@/lib/session-generation/time-budget";
 
 type PacingActivity = StreamedGeneratedSessionActivity;
 
@@ -339,6 +341,59 @@ export function validateStreamedTeachingPacing({
   return null;
 }
 
+/**
+ * Streamed teaching delivers its real explanation later from lessonBrief, so
+ * an overlong skeleton is almost always verbose scaffolding, question copy,
+ * or feedback. Bound those learner-facing fields deterministically after the
+ * semantic sequence is assembled. The authoritative teaching claims and
+ * evidence mapping remain byte-for-byte unchanged.
+ */
+export function compactStreamedLearnerTextToBudget({
+  draft,
+  availableMinutes,
+}: {
+  draft: StreamedGeneratedSessionDraft;
+  availableMinutes: number;
+}): StreamedGeneratedSessionDraft {
+  const maximumWords = contentBudgetForMinutes(availableMinutes).maximumLearnerFacingWords;
+  if (sessionLearnerFacingWordCount(draft) <= maximumWords) return draft;
+
+  const activities = draft.activities.map((activity) => {
+    if (activity.methodPhase === "schedule_return") return activity;
+    const shared = {
+      ...activity,
+      title: boundedWords(activity.title, 14),
+      body: boundedWords(
+        activity.body,
+        activity.type === "multiple_choice" || activity.type === "free_response" ? 36 : 22,
+      ),
+    };
+    if (activity.type === "multiple_choice") {
+      const correctIndex = activity.choices.indexOf(activity.correctAnswer ?? "");
+      const choices = activity.choices.map((choice) => boundedWords(choice, 16));
+      if (new Set(choices.map(normalize)).size !== choices.length) return shared;
+      return {
+        ...shared,
+        choices,
+        correctAnswer: correctIndex >= 0 ? choices[correctIndex]! : activity.correctAnswer,
+        feedback: activity.feedback ? boundedWords(activity.feedback, 34) : null,
+      };
+    }
+    if (activity.type === "free_response") {
+      return {
+        ...shared,
+        correctAnswer: activity.correctAnswer ? boundedWords(activity.correctAnswer, 65) : null,
+        feedback: activity.feedback ? boundedWords(activity.feedback, 34) : null,
+      };
+    }
+    return shared;
+  });
+  const compacted = StreamedGeneratedSessionDraftSchema.safeParse({ ...draft, activities });
+  return compacted.success && sessionLearnerFacingWordCount(compacted.data) <= maximumWords
+    ? compacted.data
+    : draft;
+}
+
 function isRequiredQuestion(activity: PacingActivity) {
   return activity.requiredForCompletion
     && (activity.type === "multiple_choice" || activity.type === "free_response");
@@ -386,6 +441,25 @@ function activityWeight(activity: PacingActivity) {
 
 function normalize(value: string) {
   return value.toLocaleLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+function boundedWords(value: string, maximumWords: number) {
+  const normalized = value.trim().replace(/\s+/g, " ");
+  const matches = [...normalized.matchAll(/[\p{L}\p{N}][\p{L}\p{N}'’_-]*/gu)];
+  if (matches.length <= maximumWords) return normalized;
+  const finalMatch = matches[maximumWords - 1]!;
+  const phrasePrefix = normalized.slice(0, finalMatch.index + finalMatch[0].length);
+  const sentenceBoundary = Math.max(
+    phrasePrefix.lastIndexOf(". "),
+    phrasePrefix.lastIndexOf("? "),
+    phrasePrefix.lastIndexOf("! "),
+    phrasePrefix.lastIndexOf("; "),
+  );
+  const minimumUsefulBoundary = Math.floor(phrasePrefix.length * 0.6);
+  const bounded = sentenceBoundary >= minimumUsefulBoundary
+    ? phrasePrefix.slice(0, sentenceBoundary + 1)
+    : phrasePrefix;
+  return `${bounded.trimEnd().replace(/[\s,:;.!?—–-]+$/g, "")}…`;
 }
 
 const GENERATED_ACTIVITY_TITLE_MAX_LENGTH = 140;

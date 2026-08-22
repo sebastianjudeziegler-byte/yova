@@ -113,7 +113,15 @@ export async function POST(request: Request) {
         deadlineAt: mappingDeadlineAt,
       });
     }
-  } catch {
+  } catch (error) {
+    if (readErrorMessage(error).includes("material_staging_expired")) {
+      return attachmentError(
+        "A pending source expired before YOVA could attach it. Add that source again.",
+        requestId,
+        410,
+        "material_staging_expired",
+      );
+    }
     return attachmentError(
       "YOVA could not finish mapping this source, so nothing was attached. Try processing the material again.",
       requestId,
@@ -256,7 +264,8 @@ async function loadSelectedMaterialRows(
     supabase
       .from("material_uploads")
       .select("id,filename,mime_type,byte_size,processing_status,extracted_text,metadata")
-      .in("id", materialIds),
+      .in("id", materialIds)
+      .gt("expires_at", new Date().toISOString()),
     supabase
       .from("materials")
       .select("id,learning_item_id,filename,mime_type,byte_size,processing_status,extracted_text,metadata")
@@ -280,8 +289,8 @@ async function loadSelectedMaterialRows(
   if (rows.length !== materialIds.length) {
     return {
       ok: false,
-      error: "A requested material is missing, belongs to another goal, or is not ready.",
-      status: 409,
+      error: "A requested material expired, is missing, belongs to another goal, or is not ready.",
+      status: 410,
       code: "material_attachment_source_missing",
     };
   }
@@ -428,6 +437,11 @@ function readErrorMessage(value: unknown) {
 }
 
 function attachmentRpcIssue(message: string): { message: string; status: number; code?: string } {
+  if (message.includes("material_staging_expired")) return {
+    message: "A pending source expired before YOVA could attach it. Add that source again.",
+    status: 410,
+    code: "material_staging_expired",
+  };
   if (message.includes("material_attachment_saved_work_protected")) return {
     message: "This plan gained prepared or saved lesson work before the source could attach. Finish that work first.",
     status: 409,

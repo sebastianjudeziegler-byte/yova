@@ -7,6 +7,8 @@ import {
 } from "@/lib/openai/reliable-session-generator";
 import {
   generateSessionWithOpenAI,
+  markSessionGenerationContextPrepared,
+  prepareSessionGenerationContext,
   type SessionGenerationContext,
   type SessionGenerationRuntime,
 } from "@/lib/openai/session-generator";
@@ -19,7 +21,14 @@ import { sessionArchitectureForGeneration, usesStreamedTeaching } from "@/lib/se
  * whose complete learning sequence fits its deterministic activity shape.
  */
 export function sessionGenerationStrategy(context: SessionGenerationContext) {
-  const scopedContext = withSessionConceptScope(context);
+  return sessionGenerationStrategyForPreparedContext(
+    prepareProductionSessionGenerationContext(context),
+  );
+}
+
+function sessionGenerationStrategyForPreparedContext(
+  scopedContext: SessionGenerationContext,
+) {
   const runtimeArchitecture = sessionArchitectureForGeneration({
     storedVersion: scopedContext.sessionArchitectureVersion,
     learningMode: scopedContext.session.learningMode,
@@ -40,7 +49,7 @@ export function generateProductionSessionWithOpenAI(
   context: SessionGenerationContext,
   runtime: SessionGenerationRuntime = {},
 ) {
-  const scopedContext = withSessionConceptScope(context);
+  const scopedContext = prepareProductionSessionGenerationContext(context);
   const generationContext = {
     ...scopedContext,
     sessionArchitectureVersion: sessionArchitectureForGeneration({
@@ -50,11 +59,21 @@ export function generateProductionSessionWithOpenAI(
       reviewType: scopedContext.session.reviewType ?? null,
     }),
   };
-  const strategy = sessionGenerationStrategy(generationContext);
-  if (strategy === "streamed") return generateStreamedTeachingSkeletonWithOpenAI(generationContext);
+  markSessionGenerationContextPrepared(generationContext);
+  const strategy = sessionGenerationStrategyForPreparedContext(generationContext);
+  if (strategy === "streamed") return generateStreamedTeachingSkeletonWithOpenAI(generationContext, runtime);
   return strategy === "reliable"
-    ? generateReliableSessionWithOpenAI(generationContext)
+    ? generateReliableSessionWithOpenAI(generationContext, runtime)
     : generateSessionWithOpenAI(generationContext, runtime);
+}
+
+function prepareProductionSessionGenerationContext(
+  context: SessionGenerationContext,
+) {
+  const preparedContext = prepareSessionGenerationContext(context);
+  return markSessionGenerationContextPrepared(
+    withSessionConceptScope(preparedContext),
+  );
 }
 
 export function withSessionConceptScope(

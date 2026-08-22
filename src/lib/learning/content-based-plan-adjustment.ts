@@ -162,10 +162,44 @@ export function buildProtectedPlanAdjustmentSessions(
     throw new PlanAdjustmentPartLimitError();
   }
 
+  assertProtectedReviewChronology(combined);
   return combined.map((session, index) => ({
     ...session,
     sequence: startingSequence + index,
   }));
+}
+
+/**
+ * A delayed review is evidence about content that precedes it, so immutable
+ * review timestamps are also chronological boundaries. Rebuilding ordinary
+ * content without those rows used to space split parts one day apart and could
+ * leave the last prerequisite parts after the review they were meant to
+ * prepare. This layer does not know the learner's availability or time zone,
+ * so it must never invent replacement times in order to make the sequence fit.
+ * Preserve the schedules derived from the authoritative content rows and fail
+ * without changing anything when they collide with a protected review.
+ */
+function assertProtectedReviewChronology(sessions: PlanAdjustmentSession[]) {
+  let priorEnd = Number.NEGATIVE_INFINITY;
+  for (const session of sessions) {
+    const start = scheduleTime(session.scheduledFor);
+    if (start < priorEnd) {
+      throw new PlanAdjustmentProtectedSessionError(
+        "The scheduled reviews do not leave enough room for the rebuilt prerequisite sessions. Choose a longer session window.",
+      );
+    }
+    priorEnd = start + session.estimatedMinutes * 60_000;
+  }
+}
+
+function scheduleTime(value: string) {
+  const time = new Date(value).getTime();
+  if (!Number.isFinite(time)) {
+    throw new PlanAdjustmentProtectedSessionError(
+      "YOVA cannot safely preserve a session whose schedule is missing.",
+    );
+  }
+  return time;
 }
 
 export function scheduledRetrievalMetadataFromStepData(value: unknown): {

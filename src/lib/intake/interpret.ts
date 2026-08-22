@@ -74,9 +74,9 @@ export function deriveLearningTitle(description: string, itemType: IntakeItemTyp
     .replace(/^(?:my|the|a|an)\s+/i, "")
     .replace(/\bnext\s+(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/gi, "")
     .replace(/\s+(?:is\s+)?(?:due|by|before|on)\s+(?:january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{1,2}(?:,\s*20\d{2})?.*$/i, "")
-    .replace(/\b(?:by|before|due|on)\s+(?:tomorrow|today|next\s+\w+|in\s+\d+\s+(?:days?|weeks?)|\d{1,2}[/-]\d{1,2}(?:[/-]\d{2,4})?).*$/i, "")
+    .replace(/\b(?:by|before|due|on)\s+(?:tomorrow|today|next\s+\w+|in\s+(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|\d+)\s+(?:days?|weeks?)|\d{1,2}[/-]\d{1,2}(?:[/-]\d{2,4})?).*$/i, "")
     .replace(/\s+due(?:\s+and\b.*)?$/i, "")
-    .replace(/\b(?:in|for)\s+(?:two|three|four|\d+)\s+weeks?.*$/i, "")
+    .replace(/\b(?:in|for)\s+(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|\d+)\s+(?:days?|weeks?).*$/i, "")
     .replace(/\b(?:in|for|within)\s+\d{1,3}\s*(?:minutes?|mins?|hours?|hrs?)\b.*$/i, "")
     .replace(/\bwith\s+(?:a|my)\s+(?:study guide|pdf|notes).*$/i, "")
     .replace(/\s{2,}/g, " ")
@@ -97,6 +97,17 @@ export function deriveLearningTitle(description: string, itemType: IntakeItemTyp
 const GENERIC_LEARNING_TITLE = /^(personalized learning plan|personalized study plan|learning plan|study plan|new learning goal|untitled(?: plan)?)$/i;
 const GENERIC_LEARNING_TOPIC = /^(the goal and concepts described by the learner|learning topic|general topic)$/i;
 const LEADING_TOPIC_FRAGMENT = /^(?:[,;:.!?)}\]»]|[-–—]\s)/;
+const OPERATIONAL_TOPIC_METADATA = [
+  /^(?:due|deadline|target date|starting point|not started)[.!]?$/i,
+  /\bdue\s+(?:tomorrow|today|next\s+\w+|in\s+(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|\d+)\s+(?:days?|weeks?)|(?:on\s+)?(?:january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{1,2}|\d{1,2}[/-]\d{1,2}(?:[/-]\d{2,4})?)\b/i,
+  /\bdeadline\s+(?:is\s+)?(?:tomorrow|today|next\s+\w+|in\s+(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|\d+)\s+(?:days?|weeks?))\b/i,
+  /(?:^|[.;]\s*)(?:deadline|target date|starting point)\s*:/i,
+  /\b(?:i|we|the learner)\s+(?:have|has|had)\s+not\s+started\b/i,
+  /\b(?:i|we|the learner)\s+(?:haven't|hasn't|hadn't)\s+started\b/i,
+  /^not\s+started(?:\s+yet)?[.!]?$/i,
+  /^(?:in|within)\s+(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|\d+)\s+(?:days?|weeks?)\b/i,
+  /\b(?:test|exam|quiz|assignment|homework|paper|essay|project|presentation|worksheet|problem set|lab report)\b[\s\S]*\b(?:in|within)\s+(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|\d+)\s+(?:days?|weeks?)\b/i,
+];
 
 /**
  * A generated topic is persisted as the learning item's long-form context. A
@@ -106,10 +117,26 @@ const LEADING_TOPIC_FRAGMENT = /^(?:[,;:.!?)}\]»]|[-–—]\s)/;
  */
 export function resolveLearningTopic(candidate: string, fallback: string) {
   const topic = normalize(candidate);
-  if (isStandaloneLearningTopic(topic)) return topic;
+  if (isStandaloneLearningTopic(topic) && !containsOperationalTopicMetadata(topic)) return topic;
+
+  // Scheduling and progress are important plan inputs, but they are not things
+  // a learner can be taught. Providers occasionally return only the tail of a
+  // request ("in two weeks and I have not started yet") as the topic. When a
+  // candidate contains that metadata, recover its actual subject/object through
+  // the same deterministic title boundary used by Add instead of persisting the
+  // operational clause as curriculum.
+  if (containsOperationalTopicMetadata(topic)) {
+    const subject = deriveSubjectTopic(topic);
+    if (subject) return subject;
+  }
 
   const fallbackTopic = normalize(fallback);
-  if (isStandaloneLearningTopic(fallbackTopic)) return fallbackTopic.slice(0, 300);
+  if (isStandaloneLearningTopic(fallbackTopic) && !containsOperationalTopicMetadata(fallbackTopic)) {
+    return fallbackTopic.slice(0, 300);
+  }
+
+  const fallbackSubject = deriveSubjectTopic(fallbackTopic);
+  if (fallbackSubject) return fallbackSubject;
 
   return "Learning goal";
 }
@@ -149,6 +176,21 @@ function isStandaloneLearningTopic(value: string) {
   return Boolean(value)
     && !GENERIC_LEARNING_TOPIC.test(value)
     && !LEADING_TOPIC_FRAGMENT.test(value);
+}
+
+function containsOperationalTopicMetadata(value: string) {
+  return OPERATIONAL_TOPIC_METADATA.some((pattern) => pattern.test(value));
+}
+
+function deriveSubjectTopic(value: string) {
+  if (!value) return "";
+  const derived = deriveLearningTitle(value);
+  const subject = resolveLearningTitle(derived, value);
+  return subject !== "New learning goal"
+    && isStandaloneLearningTopic(subject)
+    && !containsOperationalTopicMetadata(subject)
+    ? subject
+    : "";
 }
 
 function inferType(description: string): IntakeItemType {

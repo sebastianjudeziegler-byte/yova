@@ -19,6 +19,8 @@ const mocks = vi.hoisted(() => ({
   storageFrom: vi.fn(),
   tableFrom: vi.fn(),
   upload: vi.fn(),
+  cancelStagedMaterial: vi.fn(),
+  rpc: vi.fn(),
 }));
 
 vi.mock("@/lib/materials/external-fetch", () => ({
@@ -30,6 +32,9 @@ vi.mock("@/lib/materials/quality", () => ({ assessMaterialQuality: mocks.assessQ
 vi.mock("@/lib/materials/material-understanding", () => ({
   MATERIAL_MAPPING_ROUTE_BUDGET_MS: 90_000,
   mapAndPersistMaterial: mocks.mapMaterial,
+}));
+vi.mock("@/lib/materials/staged-cleanup", () => ({
+  cancelStagedMaterial: mocks.cancelStagedMaterial,
 }));
 vi.mock("@/lib/server/rate-limit", () => ({
   checkMaterialUploadRateLimit: mocks.checkRateLimit,
@@ -58,12 +63,15 @@ describe("linked material write response", () => {
     mocks.eq.mockResolvedValue({ error: null });
     mocks.remove.mockResolvedValue({ error: null });
     mocks.mapMaterial.mockResolvedValue(undefined);
+    mocks.cancelStagedMaterial.mockResolvedValue({ status: "cleanup_pending", logicalRemovalCommitted: true });
+    mocks.rpc.mockResolvedValue({ data: true, error: null });
     mocks.storageFrom.mockReturnValue({ upload: mocks.upload, remove: mocks.remove });
     mocks.tableFrom.mockReturnValue({ insert: mocks.insert, delete: mocks.delete });
     mocks.createClient.mockResolvedValue({
       auth: { getUser: mocks.getUser },
       from: mocks.tableFrom,
       storage: { from: mocks.storageFrom },
+      rpc: mocks.rpc,
     });
   });
 
@@ -76,14 +84,16 @@ describe("linked material write response", () => {
     expect(response.headers.get("cache-control")).toBe("no-store");
     expect(response.headers.get("x-yova-request-id")).toBeTruthy();
     expect(mocks.upload).toHaveBeenCalledOnce();
-    expect(mocks.insert).toHaveBeenCalledOnce();
-    expect(mocks.insert).toHaveBeenCalledWith(expect.objectContaining({
-      processing_status: "processing",
-      metadata: expect.objectContaining({ mappingStatus: "processing" }),
-    }));
+    expect(mocks.rpc).toHaveBeenCalledWith("create_material_upload", {
+      payload: expect.objectContaining({
+        processingStatus: "processing",
+        metadata: expect.objectContaining({ mappingStatus: "processing" }),
+      }),
+    });
     expect(mocks.mapMaterial).toHaveBeenCalledWith(expect.objectContaining({
       deadlineAt: expect.any(Number),
     }));
+    expect(mocks.rpc.mock.invocationCallOrder[0]).toBeLessThan(mocks.upload.mock.invocationCallOrder[0]);
   });
 
   it("rejects an invalid final canonical URL before Storage or Postgres is mutated", async () => {
@@ -102,7 +112,7 @@ describe("linked material write response", () => {
     expect(response.headers.get("content-type")).toContain("application/json");
     expect(body.error).toBe("YOVA could not import this link. Try again or add the material another way.");
     expect(mocks.upload).not.toHaveBeenCalled();
-    expect(mocks.insert).not.toHaveBeenCalled();
+    expect(mocks.rpc).not.toHaveBeenCalledWith("create_material_upload", expect.anything());
     expect(mocks.remove).not.toHaveBeenCalled();
     errorLog.mockRestore();
   });
@@ -116,18 +126,39 @@ describe("linked material write response", () => {
 
     expect(response.status).toBe(503);
     expect(body).toMatchObject({
-      code: "external_material_mapping_failed_rolled_back",
+      code: "external_material_mapping_failed_cleanup_pending",
+      committed: true,
+      cleanupPending: true,
       retryable: true,
     });
     expect(mocks.upload).toHaveBeenCalledOnce();
-    expect(mocks.insert).toHaveBeenCalledOnce();
-    expect(mocks.delete).toHaveBeenCalledTimes(2);
-    expect(mocks.remove).toHaveBeenCalledOnce();
+    expect(mocks.rpc).toHaveBeenCalledWith("create_material_upload", expect.anything());
+    expect(mocks.cancelStagedMaterial).toHaveBeenCalledWith(expect.anything(), expect.any(String));
     expect(errorLog).toHaveBeenCalledWith(
       "YOVA external material mapping failed",
       expect.objectContaining({ materialId: expect.any(String) }),
     );
     errorLog.mockRestore();
+  });
+
+  it("reports an ambiguous cancellation instead of inviting a duplicate after Storage fails", async () => {
+    mocks.upload.mockResolvedValueOnce({ error: { message: "storage unavailable" } });
+    mocks.cancelStagedMaterial.mockResolvedValueOnce({
+      status: "outcome_unconfirmed",
+      logicalRemovalCommitted: "unknown",
+    });
+
+    const response = await POST(articleRequest());
+    const body = await response.json();
+
+    expect(response.status).toBe(503);
+    expect(body).toMatchObject({
+      code: "external_material_storage_cleanup_outcome_unconfirmed",
+      committed: "unknown",
+    });
+    expect(mocks.rpc).toHaveBeenCalledWith("create_material_upload", expect.anything());
+    expect(mocks.cancelStagedMaterial).toHaveBeenCalledOnce();
+    expect(mocks.mapMaterial).not.toHaveBeenCalled();
   });
 });
 

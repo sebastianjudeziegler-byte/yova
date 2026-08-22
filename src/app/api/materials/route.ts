@@ -9,6 +9,7 @@ import {
   MATERIAL_MAPPING_ROUTE_BUDGET_MS,
   mapAndPersistMaterial,
 } from "@/lib/materials/material-understanding";
+import { cancelStagedMaterial } from "@/lib/materials/staged-cleanup";
 import {
   MaterialDeleteRequestSchema,
   MaterialProcessRequestSchema,
@@ -55,18 +56,19 @@ export async function POST(request: Request) {
   const materialId = crypto.randomUUID();
   const safeName = sanitizeMaterialDisplayName(parsed.data.name);
   const storagePath = materialStoragePath(user.id, materialId, mimeType);
-  const { error: insertError } = await supabase.from("material_uploads").insert({
-    id: materialId,
-    user_id: user.id,
-    filename: safeName,
-    storage_path: storagePath,
-    mime_type: mimeType,
-    byte_size: parsed.data.sizeBytes,
-    processing_status: "processing",
-    metadata: { originalFilename: parsed.data.name.slice(0, 180) },
+  const { data: staged, error: insertError } = await supabase.rpc("create_material_upload", {
+    payload: {
+      id: materialId,
+      filename: safeName,
+      storagePath,
+      mimeType,
+      byteSize: parsed.data.sizeBytes,
+      processingStatus: "processing",
+      metadata: { originalFilename: parsed.data.name.slice(0, 180) },
+    },
   });
 
-  if (insertError) {
+  if (insertError || staged !== true) {
     console.error("YOVA material staging failed", { requestId, reason: "database_insert" });
     return NextResponse.json({ error: "YOVA could not prepare a secure upload.", requestId }, { status: 500, headers: { "X-Yova-Request-Id": requestId } });
   }
@@ -75,8 +77,17 @@ export async function POST(request: Request) {
     .from("learning-materials")
     .createSignedUploadUrl(storagePath);
   if (signedUploadError || !signedUpload?.token) {
-    await supabase.from("material_uploads").delete().eq("id", materialId);
+    const cleanup = await cancelStagedMaterial(supabase, materialId);
     console.error("YOVA material staging failed", { requestId, reason: "signed_upload" });
+    if (cleanup.status === "outcome_unconfirmed" || cleanup.status === "durable") {
+      return NextResponse.json({
+        error: `YOVA could not prepare the secure upload or confirm cancellation. Do not add the file again yet. Contact YOVA Support with reference ${requestId}.`,
+        code: "material_stage_cleanup_outcome_unconfirmed",
+        committed: "unknown",
+        materialId,
+        requestId,
+      }, { status: 503, headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId } });
+    }
     return NextResponse.json({ error: "YOVA could not prepare a secure upload.", requestId }, { status: 500, headers: { "X-Yova-Request-Id": requestId } });
   }
 
@@ -92,21 +103,9 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     const invalidResponseReason = error instanceof Error ? error.name : "unknown";
-    let cleanupFailed = false;
-    let cleanupCode = "unknown";
-    try {
-      const { error: cleanupError } = await supabase
-        .from("material_uploads")
-        .delete()
-        .eq("id", materialId);
-      cleanupFailed = Boolean(cleanupError);
-      cleanupCode = cleanupError?.code ?? "unknown";
-    } catch {
-      cleanupFailed = true;
-      cleanupCode = "cleanup_exception";
-    }
-    if (!cleanupFailed) {
-      console.error("YOVA material staging response was invalid; staging row removed", {
+    const cleanup = await cancelStagedMaterial(supabase, materialId);
+    if (cleanup.status !== "outcome_unconfirmed" && cleanup.status !== "durable") {
+      console.error("YOVA material staging response was invalid; staging row cancelled", {
         requestId,
         materialId,
         reason: invalidResponseReason,
@@ -126,7 +125,7 @@ export async function POST(request: Request) {
       requestId,
       materialId,
       reason: invalidResponseReason,
-      cleanupCode,
+      cleanupStatus: cleanup.status,
     });
     return NextResponse.json({
       error: `YOVA created the pending material upload, but could not return its secure upload instructions. Do not add the file again. Contact YOVA Support with reference ${requestId}.`,
@@ -162,10 +161,15 @@ export async function PUT(request: Request) {
 
   const { data: upload, error: uploadError } = await supabase
     .from("material_uploads")
-    .select("storage_path,mime_type,byte_size")
+    .select("storage_path,mime_type,byte_size,expires_at")
     .eq("id", materialId)
+    .gt("expires_at", new Date().toISOString())
     .maybeSingle();
-  if (uploadError || !upload) return NextResponse.json({ error: "That staged upload was not found." }, { status: 404 });
+  if (uploadError) return NextResponse.json({ error: "YOVA could not load that staged upload." }, { status: 500 });
+  if (!upload) return NextResponse.json({
+    error: "That pending upload expired or is no longer available. Add the file again.",
+    code: "material_staging_expired",
+  }, { status: 410 });
   if (Number(upload.byte_size) !== file.size) return NextResponse.json({ error: "The selected file changed before upload." }, { status: 422 });
 
   const stored = await storePrivateMaterial(
@@ -180,6 +184,40 @@ export async function PUT(request: Request) {
       { error: "YOVA could not securely upload this file. Try again before exporting or changing the document.", requestId },
       { status: 500, headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId } },
     );
+  }
+  const { data: activeUpload, error: activeUploadError } = await supabase
+    .from("material_uploads")
+    .select("id")
+    .eq("id", materialId)
+    .gt("expires_at", new Date().toISOString())
+    .maybeSingle();
+  if (activeUploadError || !activeUpload) {
+    const cleanup = await cancelStagedMaterial(supabase, materialId);
+    if (cleanup.status === "outcome_unconfirmed" || cleanup.status === "durable") {
+      return NextResponse.json({
+        error: `YOVA stored the file but could not confirm whether its pending upload was cancelled. Do not add it again yet. Contact YOVA Support with reference ${requestId}.`,
+        code: "material_upload_cleanup_outcome_unconfirmed",
+        committed: "unknown",
+        materialId,
+        requestId,
+      }, {
+        status: 503,
+        headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId },
+      });
+    }
+    return NextResponse.json({
+      error: activeUploadError
+        ? "YOVA could not confirm the stored upload, so its pending copy was cancelled. It is safe to add the file again."
+        : "That pending upload expired while the file was being stored. Add the file again.",
+      code: activeUploadError ? "material_upload_confirmation_failed_cancelled" : "material_staging_expired",
+      retryable: true,
+      committed: true,
+      ...(cleanup.status === "cleanup_pending" ? { cleanupPending: true } : {}),
+      requestId,
+    }, {
+      status: activeUploadError ? 503 : 410,
+      headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId },
+    });
   }
   return new NextResponse(null, { status: 204, headers: { "X-Yova-Request-Id": requestId } });
 }
@@ -200,21 +238,30 @@ export async function PATCH(request: Request) {
 
   const { data: upload, error: uploadError } = await supabase
     .from("material_uploads")
-    .select("id,filename,storage_path,mime_type,byte_size,processing_status,metadata")
+    .select("id,filename,storage_path,mime_type,byte_size,processing_status,metadata,expires_at")
     .eq("id", parsed.data.materialId)
+    .gt("expires_at", new Date().toISOString())
     .maybeSingle();
   if (uploadError) return NextResponse.json({ error: "YOVA could not load this material." }, { status: 500 });
-  if (!upload) return NextResponse.json({ error: "That staged material was not found." }, { status: 404 });
+  if (!upload) return NextResponse.json({
+    error: "That pending material expired or is no longer available. Add it again.",
+    code: "material_staging_expired",
+  }, { status: 410 });
 
   if (upload.processing_status === "ready") {
     const { data: readyUpload, error: readyError } = await supabase
       .from("material_uploads")
       .select("extracted_text,metadata")
       .eq("id", upload.id)
+      .gt("expires_at", new Date().toISOString())
       .maybeSingle();
-    if (readyError || !readyUpload?.extracted_text) {
+    if (readyError) {
       return NextResponse.json({ error: "YOVA could not reload this material." }, { status: 500 });
     }
+    if (!readyUpload?.extracted_text) return NextResponse.json({
+      error: "That pending material expired before YOVA could finish it. Add it again.",
+      code: "material_staging_expired",
+    }, { status: 410 });
     try {
       if (!hasDurableMaterialMapping(readyUpload.metadata)) {
         await mapAndPersistMaterial({
@@ -289,6 +336,7 @@ export async function PATCH(request: Request) {
 }
 
 export async function DELETE(request: Request) {
+  const requestId = crypto.randomUUID();
   const supabase = await createSupabaseServerClient();
   const { data: { user }, error: userError } = await supabase.auth.getUser();
   if (userError || !user) {
@@ -298,33 +346,47 @@ export async function DELETE(request: Request) {
   const parsed = MaterialDeleteRequestSchema.safeParse(await readJson(request));
   if (!parsed.success) return NextResponse.json({ error: "YOVA could not identify that material." }, { status: 422 });
 
-  const { data: upload, error: uploadError } = await supabase
-    .from("material_uploads")
-    .select("storage_path")
-    .eq("id", parsed.data.materialId)
-    .maybeSingle();
-  if (uploadError) return NextResponse.json({ error: "YOVA could not load that material." }, { status: 500 });
-  if (!upload) return NextResponse.json({ error: "That staged material was not found." }, { status: 404 });
-
-  const { error: storageError } = await supabase.storage.from("learning-materials").remove([upload.storage_path]);
-  if (storageError) return NextResponse.json({ error: "YOVA could not remove the stored file." }, { status: 500 });
-
-  // Chunks intentionally have no foreign key because the same material id
-  // moves from staging to the durable table during attachment. Remove them
-  // explicitly so cancelling a successfully mapped staged upload does not
-  // retain extracted learning content as an orphan.
-  const { error: chunkDeleteError } = await supabase
-    .from("material_chunks")
-    .delete()
-    .eq("material_id", parsed.data.materialId);
-  if (chunkDeleteError) {
-    return NextResponse.json({ error: "YOVA could not finish removing that file's mapped sections." }, { status: 500 });
+  const result = await cancelStagedMaterial(supabase, parsed.data.materialId);
+  if (result.status === "removed") {
+    return new NextResponse(null, {
+      status: 204,
+      headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId },
+    });
   }
-
-  const { error: deleteError } = await supabase.from("material_uploads").delete().eq("id", parsed.data.materialId);
-  if (deleteError) return NextResponse.json({ error: "YOVA could not finish removing that file." }, { status: 500 });
-
-  return new NextResponse(null, { status: 204 });
+  if (result.status === "cleanup_pending") {
+    return NextResponse.json({
+      status: "cleanup_pending",
+      code: "material_cleanup_pending",
+      committed: true,
+      cleanupPending: true,
+      materialId: parsed.data.materialId,
+      requestId,
+    }, {
+      status: 202,
+      headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId },
+    });
+  }
+  if (result.status === "durable") {
+    return NextResponse.json({
+      error: "This material is already attached to a goal and cannot be removed as a pending upload.",
+      code: "material_already_durable",
+      committed: false,
+      requestId,
+    }, {
+      status: 409,
+      headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId },
+    });
+  }
+  return NextResponse.json({
+    error: `YOVA could not confirm whether this pending material was cancelled. Do not add it again yet. Contact YOVA Support with reference ${requestId}.`,
+    code: "material_cleanup_outcome_unconfirmed",
+    committed: "unknown",
+    materialId: parsed.data.materialId,
+    requestId,
+  }, {
+    status: 503,
+    headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId },
+  });
 }
 
 function materialResponse(
@@ -396,21 +458,14 @@ async function materialProcessingFailureResponse({
   requestId: string;
   error: unknown;
 }) {
-  const cleanup = await Promise.allSettled([
-    supabase.storage.from("learning-materials").remove([upload.storage_path]),
-    supabase.from("material_chunks").delete().eq("material_id", upload.id),
-    supabase.from("material_uploads").delete().eq("id", upload.id),
-  ]);
-  const cleanupSucceeded = cleanup.every((result) => (
-    result.status === "fulfilled" && !result.value.error
-  ));
+  const cleanup = await cancelStagedMaterial(supabase, upload.id);
   const isExtractionError = error instanceof MaterialExtractionError;
 
-  if (!cleanupSucceeded) {
+  if (cleanup.status === "outcome_unconfirmed" || cleanup.status === "durable") {
     return NextResponse.json({
-      error: `YOVA saved part of this material but could not finish or remove it. Do not add it again. Contact YOVA Support with reference ${requestId}.`,
-      code: "material_processing_incomplete_committed",
-      committed: true,
+      error: `YOVA could not finish this material or confirm whether its pending copy was cancelled. Do not add it again yet. Contact YOVA Support with reference ${requestId}.`,
+      code: "material_processing_cleanup_outcome_unconfirmed",
+      committed: "unknown",
       materialId: upload.id,
       requestId,
     }, {
@@ -421,10 +476,21 @@ async function materialProcessingFailureResponse({
 
   return NextResponse.json({
     error: isExtractionError
-      ? error.message
-      : "YOVA could not map this file into reliable source sections. The incomplete upload was removed, so it is safe to add the file again.",
-    code: isExtractionError ? "material_extraction_failed_rolled_back" : "material_mapping_failed_rolled_back",
+      ? cleanup.status === "cleanup_pending"
+        ? `${error.message} The pending copy was cancelled and private cleanup will finish automatically.`
+        : error.message
+      : cleanup.status === "cleanup_pending"
+        ? "YOVA could not map this file. Its pending copy was cancelled and private cleanup will finish automatically, so it is safe to add the file again."
+        : "YOVA could not map this file into reliable source sections. The incomplete upload was removed, so it is safe to add the file again.",
+    code: isExtractionError
+      ? cleanup.status === "cleanup_pending"
+        ? "material_extraction_failed_cleanup_pending"
+        : "material_extraction_failed_rolled_back"
+      : cleanup.status === "cleanup_pending"
+        ? "material_mapping_failed_cleanup_pending"
+        : "material_mapping_failed_rolled_back",
     retryable: true,
+    ...(cleanup.status === "cleanup_pending" ? { committed: true, cleanupPending: true } : {}),
     requestId,
   }, {
     status: isExtractionError ? 422 : 503,

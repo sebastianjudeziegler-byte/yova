@@ -12,9 +12,13 @@ import { getOpenAIClient } from "@/lib/openai/client";
 import { getOpenAISessionConfig } from "@/lib/openai/config";
 import { validateSessionSourceGrounding } from "@/lib/materials/grounding";
 import {
+  prepareSessionProviderCall,
+  prepareSessionGenerationContext,
+  resolveSessionGenerationBudget,
   SessionGenerationFailure,
   type OpenAISessionResult,
   type SessionGenerationContext,
+  type SessionGenerationRuntime,
   type SessionGenerationStats,
 } from "@/lib/openai/session-generator";
 import { buildSessionDeliveryPolicy } from "@/lib/personalization/session-delivery-policy";
@@ -101,7 +105,7 @@ export const RELIABLE_SESSION_PROVIDER_TIMEOUT_MS = 28_000;
  * plausible label over the wrong learning sequence.
  */
 export function canGenerateReliableSession(originalContext: SessionGenerationContext) {
-  const context = applyCurrentSessionAdjustment(originalContext);
+  const context = prepareSessionGenerationContext(originalContext);
   if (context.learningGoal.studyMode !== "inside_yova") return false;
   if (context.session.estimatedMinutes > 30) return false;
   // The compact path teaches and checks one coherent subject idea. A session
@@ -129,12 +133,14 @@ export function canGenerateReliableSession(originalContext: SessionGenerationCon
  */
 export async function generateReliableSessionWithOpenAI(
   originalContext: SessionGenerationContext,
+  runtime: SessionGenerationRuntime = {},
 ): Promise<OpenAISessionResult> {
-  const context = applyCurrentSessionAdjustment(originalContext);
+  const context = prepareSessionGenerationContext(originalContext);
   const config = getOpenAISessionConfig();
   if (!config) throw new Error("OpenAI is not configured on the YOVA server.");
 
   const startedAt = Date.now();
+  const generationBudget = resolveSessionGenerationBudget(runtime, startedAt);
   const routing = applyPersonalizedMethodTieToRouting(buildLearningScienceRoutingBrief(sessionRoutingInput(context)), context.personalization);
   const deliveryPolicy = buildSessionDeliveryPolicy({
     learnerProfile: context.learnerProfile,
@@ -159,6 +165,24 @@ export async function generateReliableSessionWithOpenAI(
   let repairDetail: string | null = null;
 
   for (let attempt = 0; attempt < 2; attempt += 1) {
+    const providerCall = prepareSessionProviderCall({
+      budget: generationBudget,
+      preferredTimeoutMs: RELIABLE_SESSION_PROVIDER_TIMEOUT_MS,
+      generationStats: () => ({
+        elapsedMs: Date.now() - startedAt,
+        attempts: usage.attempts,
+        firstAttemptPassed: false,
+        failedValidator: "session_provider_request",
+        repairAttempted: usage.attempts > 0,
+        repairSucceeded: null,
+        repairReason: repairDetail ? "semantic_validation" : "none",
+        repairDetail,
+        inputTokens: usage.inputTokens,
+        cachedInputTokens: usage.cachedInputTokens,
+        cacheWriteTokens: usage.cacheWriteTokens,
+        outputTokens: usage.outputTokens,
+      }),
+    });
     usage.attempts += 1;
     try {
       response = await getOpenAIClient().responses.parse({
@@ -181,13 +205,7 @@ export async function generateReliableSessionWithOpenAI(
         max_output_tokens: 2_200,
         prompt_cache_key: "yova-reliable-lesson-v2",
         store: false,
-      }, {
-        maxRetries: 0,
-        // A valid structured lesson can take longer than a plain chat reply.
-        // Keep this below the route budget while avoiding false failures on
-        // coherent lessons that are still being generated.
-        timeout: RELIABLE_SESSION_PROVIDER_TIMEOUT_MS,
-      });
+      }, providerCall.options);
     } catch (error) {
       if (attempt === 0 && error instanceof Error && error.name === "ZodError") {
         failedValidator = "reliable_lesson_structure";
@@ -208,6 +226,8 @@ export async function generateReliableSessionWithOpenAI(
         cacheWriteTokens: usage.cacheWriteTokens,
         outputTokens: usage.outputTokens,
       });
+    } finally {
+      providerCall.finish();
     }
 
     if (response.usage) {
@@ -522,23 +542,4 @@ function legacyMaterialChunkId(sourceName: string, text: string) {
     .digest("hex")
     .slice(0, 12);
   return `00000000-0000-4000-8000-${suffix}`;
-}
-
-function applyCurrentSessionAdjustment(context: SessionGenerationContext): SessionGenerationContext {
-  const adjustment = context.sessionAdjustment;
-  if (!adjustment) return context;
-  const learningMode = adjustment.familiarity === "need_teaching"
-    ? "learn" as const
-    : adjustment.familiarity === "already_know" || adjustment.familiarity === "challenge_me"
-      ? "study" as const
-      : context.session.learningMode;
-  return {
-    ...context,
-    session: {
-      ...context.session,
-      learningMode,
-      estimatedMinutes: adjustment.availableMinutes ?? context.session.estimatedMinutes,
-      methodReason: `${context.session.methodReason} ${adjustment.note}`.trim(),
-    },
-  };
 }
