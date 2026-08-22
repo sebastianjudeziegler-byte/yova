@@ -62,8 +62,8 @@ begin
               then case
                 when jsonb_array_length(session.step_data #> '{generatedSession,topicIds}') between 1 and 6
                   and jsonb_typeof(session.step_data -> 'topicIds') = 'array'
-                  and session.step_data -> 'topicIds'
-                    @> session.step_data #> '{generatedSession,topicIds}'
+                  and (session.step_data -> 'topicIds')
+                    @> (session.step_data #> '{generatedSession,topicIds}')
                   and not exists (
                     select 1
                     from jsonb_array_elements(

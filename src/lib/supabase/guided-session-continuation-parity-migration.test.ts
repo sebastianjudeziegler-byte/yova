@@ -240,7 +240,7 @@ describe("non-positional guided-continuation migration", () => {
       "session.step_data #> '{generatedSession,topicIds}'",
     );
     expect(migration).toContain(
-      "session.step_data -> 'topicIds'\n                    @> session.step_data #> '{generatedSession,topicIds}'",
+      "(session.step_data -> 'topicIds')\n                    @> (session.step_data #> '{generatedSession,topicIds}')",
     );
     expect(migration).not.toContain(
       "when coalesce(topic.value ->> 'status', 'not_started') = 'taught' then 'taught'",
