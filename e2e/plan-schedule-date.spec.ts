@@ -13,7 +13,9 @@ const onboardingAnswers = [
   "Nothing else for now",
 ] as const;
 
-test.use({ timezoneId: "Europe/London" });
+const TEST_TIME_ZONE = "Europe/London";
+
+test.use({ timezoneId: TEST_TIME_ZONE });
 
 test("a natural deadline and an edited date survive every schedule control", async ({ page }) => {
   await openPreviewApp(page);
@@ -23,7 +25,7 @@ test("a natural deadline and an edited date survive every schedule control", asy
   const writtenDeadline = new Intl.DateTimeFormat("en-US", {
     month: "long",
     day: "numeric",
-    timeZone: "Europe/London",
+    timeZone: TEST_TIME_ZONE,
   }).format(inferred.date);
 
   await page.getByRole("button", { name: /New plan|Build my first plan|Create another plan/ }).first().click();
@@ -156,16 +158,23 @@ test("an overfull plan returns to its schedule and recovers without a client cra
 
 function futureDate(days: number) {
   const now = new Date();
-  const local = new Date(now.getTime());
-  local.setDate(local.getDate() + days);
-  local.setHours(12, 0, 0, 0);
-  const year = local.getFullYear();
-  const month = String(local.getMonth() + 1).padStart(2, "0");
-  const day = String(local.getDate()).padStart(2, "0");
+  const currentCalendarParts = new Intl.DateTimeFormat("en-US", {
+    timeZone: TEST_TIME_ZONE,
+    year: "numeric",
+    month: "numeric",
+    day: "numeric",
+  }).formatToParts(now);
+  const part = (type: Intl.DateTimeFormatPartTypes) => Number(
+    currentCalendarParts.find((candidate) => candidate.type === type)?.value,
+  );
+  const local = new Date(Date.UTC(part("year"), part("month") - 1, part("day") + days, 12));
+  const year = local.getUTCFullYear();
+  const month = String(local.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(local.getUTCDate()).padStart(2, "0");
   return {
     date: local,
     input: `${year}-${month}-${day}`,
-    monthShort: new Intl.DateTimeFormat("en-US", { month: "short" }).format(local),
+    monthShort: new Intl.DateTimeFormat("en-US", { month: "short", timeZone: "UTC" }).format(local),
   };
 }
 
