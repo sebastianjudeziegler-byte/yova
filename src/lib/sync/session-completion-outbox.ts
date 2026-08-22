@@ -66,6 +66,7 @@ const PendingSessionCompletionSchema = z.object({
   completion: SessionCompletionSchema,
   adaptation: NextSessionAdaptationSchema.nullable(),
   followUpSession: FollowUpSessionSchema.nullable().default(null),
+  continuationSession: FollowUpSessionSchema.nullable().default(null),
   queuedAt: z.string().datetime({ offset: true }),
 });
 
@@ -74,6 +75,7 @@ export type PendingSessionCompletion = {
   completion: SessionCompletion;
   adaptation: NextSessionAdaptation | null;
   followUpSession: LearningPlanSession | null;
+  continuationSession?: LearningPlanSession | null;
   queuedAt: string;
 };
 
@@ -146,7 +148,12 @@ export async function flushQueuedSessionCompletions(userId: string) {
 
   for (const entry of queued) {
     try {
-      await completeAuthenticatedPlanSession(entry.completion, entry.adaptation, entry.followUpSession);
+      await completeAuthenticatedPlanSession(
+        entry.completion,
+        entry.adaptation,
+        entry.followUpSession,
+        entry.continuationSession ?? null,
+      );
       removeQueuedSessionCompletion(entry.completion.id);
       synced += 1;
     } catch {

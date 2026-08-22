@@ -22,6 +22,7 @@ import {
   type GeneratedPlanDraft,
   type PlanGenerationRequest,
 } from "@/lib/plan-generation/schema";
+import { resolvePlanRequestSubjectBoundary } from "@/lib/plan-generation/subject-boundary";
 
 // A multi-session learning plan is a larger structured response than a tutor
 // message or a single session. Twelve seconds was causing otherwise healthy
@@ -72,6 +73,7 @@ export async function generatePlanWithOpenAI(
   request: PlanGenerationRequest,
   options: { deadlineAt?: number } = {},
 ): Promise<OpenAIPlanResult> {
+  request = resolvePlanRequestSubjectBoundary(request);
   const startedAt = Date.now();
   const usage = {
     attempts: 0,

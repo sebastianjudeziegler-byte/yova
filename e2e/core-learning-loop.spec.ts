@@ -1156,6 +1156,7 @@ test("the backend rejects an opaque goal even when the browser guard is bypassed
 });
 
 test("plan generation remains a draft until the learner activates it", async ({ request }) => {
+  const deadline = new Date(Date.now() + 14 * 24 * 60 * 60 * 1_000);
   const generationRequest = {
     intent: "plan",
     learningIntent: "learn",
@@ -1163,14 +1164,14 @@ test("plan generation remains a draft until the learner activates it", async ({ 
     materialMode: "none",
     materials: [],
     studyMode: "inside",
-    deadline: "2026-08-14T23:59:00.000Z",
+    deadline: deadline.toISOString(),
     timeZone: "America/Los_Angeles",
     diagnosticResponses: [{
       question: "Where are you starting?",
       answer: "I have not learned this yet",
       evaluation: "self_report",
     }],
-    availability: [{ day: "Monday", window: "Evening", minutes: 25 }],
+    availability: [{ day: "Every day", window: "Evening", minutes: 45 }],
     profileSummary: "The learner prefers direct explanations, examples, and short structured sessions.",
   };
   const generationResponse = await request.post("/api/plans/generate", { data: generationRequest });
@@ -1522,6 +1523,45 @@ test("a saved first-step recall round resumes at the next prompt without persist
     completedSteps: 0,
     evidence: { totalAnswers: 0 },
     activityProgress: { ratings: ["partly"] },
+  });
+  await expect.poll(() => page.evaluate(() => {
+    const snapshotRaw = window.localStorage.getItem("yova.preview.v1");
+    const checkpointsRaw = window.localStorage.getItem("yova.active-session-checkpoints.v1");
+    if (!snapshotRaw || !checkpointsRaw) return null;
+    const snapshot = JSON.parse(snapshotRaw) as {
+      sessionInterruptions?: Array<{
+        id?: string;
+        planSessionId?: string;
+        startedAt?: string;
+        interruptedAt?: string;
+      }>;
+    };
+    const interruption = snapshot.sessionInterruptions?.at(-1);
+    const checkpoints = JSON.parse(checkpointsRaw) as Array<{
+      runId?: string;
+      planSessionId?: string;
+      startedAt?: string;
+      savedAt?: string;
+      resourceFingerprint?: string;
+    }>;
+    const checkpoint = checkpoints.find((candidate) => (
+      candidate.planSessionId === interruption?.planSessionId
+    ));
+    return {
+      freshRun: Boolean(checkpoint?.runId && interruption?.id && checkpoint.runId !== interruption.id),
+      sameSessionStart: checkpoint?.startedAt === interruption?.startedAt,
+      savedAfterExit: Boolean(
+        checkpoint?.savedAt
+        && interruption?.interruptedAt
+        && Date.parse(checkpoint.savedAt) > Date.parse(interruption.interruptedAt),
+      ),
+      fingerprinted: /^sr1:[0-9a-f]{16}$/.test(checkpoint?.resourceFingerprint ?? ""),
+    };
+  })).toEqual({
+    freshRun: true,
+    sameSessionStart: true,
+    savedAfterExit: true,
+    fingerprinted: true,
   });
 
   await page.reload();
@@ -1927,19 +1967,19 @@ test("spent allowance still permits a saved session to continue", async ({ page 
   await expect(page.locator(".guided-session-allowance-notice.home")).toContainText(
     "Daily guided-session allowance used",
   );
-  await expect(page.locator(".recommendation-card").getByRole("button", { name: "Start session" })).toBeEnabled();
+  await expect(page.locator(".recommendation-card").getByRole("button", { name: "Continue session" })).toBeEnabled();
   await expect(page.locator(".quick-actions button").filter({ hasText: "Study something now" })).toBeDisabled();
 
   await page.getByRole("button", { name: "Agenda", exact: true }).click();
   await expect(page.locator(".guided-session-allowance-notice.agenda")).toContainText(
     "Daily guided-session allowance used",
   );
-  await expect(page.locator(".agenda-session-actions").getByRole("button", { name: "Start" })).toBeEnabled();
+  await expect(page.locator(".agenda-session-actions").getByRole("button", { name: "Continue" })).toBeEnabled();
 
   await page.getByRole("button", { name: "Home", exact: true }).click();
-  await page.locator(".recommendation-card").getByRole("button", { name: "Start session" }).click();
-  await confirmSessionSetup(page);
+  await page.locator(".recommendation-card").getByRole("button", { name: "Continue session" }).click();
   await expect(page.getByRole("button", { name: "Change direction" })).toBeVisible();
+  await expect(page.getByText("Your session was recovered.")).toBeVisible();
   expect(generationRequests).toBe(1);
 });
 
@@ -2122,7 +2162,7 @@ test("a planning request outage still produces a reviewable plan from YOVA's sav
   await createPreviewAccount(page);
   await completeOnboarding(page);
 
-  await beginPlanFromAdd(page, "I have a biology test next Friday on cellular respiration.");
+  await beginPlanFromAdd(page, "I have a biology test in two weeks on cellular respiration.");
   await page.getByRole("button", { name: "Continue" }).click();
   await page.getByRole("button", { name: "Skip for now" }).click();
   await page.getByRole("button", { name: "Generate my plan" }).click();
@@ -2254,6 +2294,147 @@ test("legacy split work reopens as an active plan with runnable ten-minute sessi
   await expect(page.getByRole("heading", { name: "Here is how YOVA plans to start." })).toBeVisible();
   await expect(page.locator(".session-current-assumption")).toContainText("about 10 minutes");
   await expect(page.locator(".session-current-assumption")).not.toContainText("about 8 minutes");
+});
+
+test("finishing a shortened guided lesson keeps every deferred target as exact next work", async ({ page }) => {
+  test.setTimeout(60_000);
+  const planId = "67000000-0000-4000-8000-000000000001";
+  const planSessionId = "67000000-0000-4000-8000-000000000011";
+  const topicIds = [
+    "67000000-0000-4000-8000-000000000021",
+    "67000000-0000-4000-8000-000000000022",
+  ];
+  const targets = [
+    "Glycolysis inputs and outputs",
+    "Electron transport chain mechanism",
+  ];
+  const evidence = [
+    "Explain glycolysis inputs and outputs independently",
+    "Explain the electron transport chain mechanism independently",
+  ];
+  await page.route("**/api/sessions/generate", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(deferredGuidedSessionResponse(planSessionId, topicIds[0]!, targets, evidence)),
+    });
+  });
+  await createPreviewAccount(page);
+  await completeOnboarding(page);
+
+  await page.evaluate(({ planId: seededPlanId, planSessionId: seededSessionId, seededTopicIds, seededTargets, seededEvidence }) => {
+    const stored = window.localStorage.getItem("yova.preview.v1");
+    if (!stored) throw new Error("Expected a preview snapshot after onboarding.");
+    const snapshot = JSON.parse(stored) as Record<string, unknown> & { plans: unknown[] };
+    snapshot.plans = [{
+      id: seededPlanId,
+      learningItemId: "67000000-0000-4000-8000-000000000002",
+      title: "Cellular Respiration Continuation",
+      topic: "Stages, locations, and outputs of cellular respiration",
+      kind: "topic",
+      deadline: "2030-06-02T18:00:00.000Z",
+      status: "active",
+      sourceMode: "yova_generated",
+      studyMode: "inside_yova",
+      learningIntent: "study",
+      creationIntent: "plan",
+      sessionArchitectureVersion: "filled_teaching_v1",
+      rationale: "Use a bounded retrieval attempt while preserving every later target.",
+      createdAt: "2026-08-21T12:00:00.000Z",
+      materials: [],
+      sessions: [{
+        id: seededSessionId,
+        sequence: 1,
+        title: "Retrieve cellular respiration stages",
+        objective: "Retrieve the stages, locations, and outputs of cellular respiration.",
+        method: "Retrieval practice",
+        methodReason: "Attempt the current relationship before reviewing and repairing it.",
+        scheduledFor: "2030-06-01T15:00:00.000Z",
+        estimatedMinutes: 20,
+        amountLabel: "Two focused targets · about 20 min",
+        learningMode: "study",
+        topicIds: seededTopicIds,
+        contentTargets: seededTargets,
+        completionEvidence: seededEvidence,
+        status: "ready",
+      }],
+    }];
+    snapshot.updatedAt = new Date().toISOString();
+    window.localStorage.setItem("yova.preview.v1", JSON.stringify(snapshot));
+  }, { planId, planSessionId, seededTopicIds: topicIds, seededTargets: targets, seededEvidence: evidence });
+
+  await page.reload();
+  await page.getByRole("button", { name: "Learning", exact: true }).click();
+  const planCard = page.locator(".learning-goal-card").filter({
+    hasText: "Cellular Respiration Continuation",
+  });
+  await planCard.getByRole("button", { name: "Start next" }).click();
+  const earlyStartDialog = page.getByRole("dialog", {
+    name: "Start Retrieve cellular respiration stages now?",
+  });
+  if (await earlyStartDialog.isVisible()) {
+    await earlyStartDialog.getByRole("button", { name: "Start now, keep dates" }).click();
+  }
+  await confirmSessionSetup(page);
+
+  await expect(page.getByRole("heading", { name: "Recall glycolysis" })).toBeVisible();
+  await page.getByRole("button", { name: "Somewhat sure" }).click();
+  await page.getByRole("button", { name: "Glucose becomes pyruvate in the cytosol" }).click();
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Repair the glycolysis model" })).toBeVisible();
+  await page.getByRole("button", { name: "Connect glucose conversion to pyruvate and ATP production" }).click();
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Name what should return" })).toBeVisible();
+  await page.getByRole("button", { name: "Finish this content" }).click();
+  await expect(page.getByText("SESSION COMPLETE", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Finish and continue" }).click();
+
+  await expect.poll(() => page.evaluate((seededPlanId) => {
+    const stored = window.localStorage.getItem("yova.preview.v1");
+    if (!stored) return null;
+    const snapshot = JSON.parse(stored) as {
+      plans?: Array<{
+        id?: string;
+        status?: string;
+        sessions?: Array<{
+          id?: string;
+          sequence?: number;
+          status?: string;
+          scheduledFor?: string;
+          topicIds?: string[];
+          contentTargets?: string[];
+          completionEvidence?: string[];
+        }>;
+      }>;
+    };
+    const plan = snapshot.plans?.find((candidate) => candidate.id === seededPlanId);
+    return plan ? {
+      status: plan.status,
+      sessions: plan.sessions?.map((session) => ({
+        id: session.id,
+        sequence: session.sequence,
+        status: session.status,
+        scheduledFor: session.scheduledFor,
+        topicIds: session.topicIds,
+        contentTargets: session.contentTargets,
+        completionEvidence: session.completionEvidence,
+      })),
+    } : null;
+  }, planId)).toMatchObject({
+    status: "active",
+    sessions: [{
+      id: planSessionId,
+      sequence: 1,
+      status: "complete",
+      scheduledFor: "2030-06-01T15:00:00.000Z",
+    }, {
+      sequence: 2,
+      status: "ready",
+      topicIds: [topicIds[1]],
+      contentTargets: [targets[1]],
+      completionEvidence: [evidence[1]],
+    }],
+  });
 });
 
 test("adjusting ordinary future work preserves the exact scheduled review contract", async ({ page }) => {
@@ -2422,10 +2603,7 @@ test("a multi-session plan carries one clear source decision from Add to Learnin
   await beginPlanFromAdd(page, "I have a biology test next Friday on cellular respiration.");
 
   await expect(page.getByRole("heading", { name: "When would you prefer to study this material?" })).toBeVisible();
-  const enabledMinuteSelectors = page.locator("select[aria-label$='available minutes']:not([disabled])");
-  for (let index = 0; index < await enabledMinuteSelectors.count(); index += 1) {
-    await enabledMinuteSelectors.nth(index).selectOption("45");
-  }
+  await page.getByRole("button", { name: "45 minutes", exact: true }).click();
   await page.getByRole("button", { name: "Continue" }).click();
   await page.getByRole("button", { name: "Skip for now" }).click();
 
@@ -3124,5 +3302,99 @@ function retrievalRoundResumeSessionResponse() {
         },
       ],
     },
+  });
+}
+
+function deferredGuidedSessionResponse(
+  planSessionId: string,
+  activeTopicId: string,
+  targets: string[],
+  evidence: string[],
+) {
+  const base = retrievalRoundResumeSessionResponse();
+  const activityBase = {
+    topicId: activeTopicId,
+    estimatedMinutes: 4,
+    requiredForCompletion: true,
+    teaching: null,
+    practiceIntent: null,
+    misconceptionSummary: null,
+    methodRuntime: null,
+  } as const;
+  return SessionGenerationResponseSchema.parse({
+    ...base,
+    planSessionId,
+    session: {
+      ...base.session,
+      topicIds: [activeTopicId],
+      rationale: "Use the current ten-minute window for glycolysis and preserve the electron transport target as exact next work.",
+      coverage: {
+        focus: "Retrieve the glycolysis relationship without notes.",
+        essentialIdeas: ["Glycolysis converts glucose into pyruvate in the cytosol."],
+        completionEvidence: [evidence[0]],
+        evidenceMap: [{
+          essentialIdea: "Glycolysis converts glucose into pyruvate in the cytosol.",
+          activityConcept: "Glycolysis",
+        }],
+        deferredContent: [targets[1]],
+      },
+      methodBriefing: {
+        ...base.session.methodBriefing,
+        learningMode: "study",
+        methodId: "retrieval_practice",
+        name: "Retrieval practice",
+        completion: "The learner retrieves and repairs the bounded glycolysis relationship independently.",
+      },
+      activities: [{
+        ...activityBase,
+        methodPhase: "retrieve",
+        type: "multiple_choice",
+        concept: "Glycolysis",
+        label: "Recall",
+        title: "Recall glycolysis",
+        body: "Which statement accurately describes the central glycolysis relationship?",
+        choices: [
+          "Glucose becomes pyruvate in the cytosol",
+          "Pyruvate becomes glucose in the nucleus",
+          "Oxygen becomes glucose in the mitochondrion",
+        ],
+        correctAnswer: "Glucose becomes pyruvate in the cytosol",
+        feedback: "Glycolysis converts glucose into pyruvate in the cytosol before later respiration stages.",
+      }, {
+        ...activityBase,
+        methodPhase: "repair",
+        type: "multiple_choice",
+        concept: "Glycolysis repair",
+        label: "Repair",
+        title: "Repair the glycolysis model",
+        body: "Which relationship completes the bounded model most accurately?",
+        choices: [
+          "Connect glucose conversion to pyruvate and ATP production",
+          "Treat glycolysis as electron transport in the nucleus",
+          "Treat oxygen as the only glycolysis input",
+        ],
+        correctAnswer: "Connect glucose conversion to pyruvate and ATP production",
+        feedback: "The repaired model connects glucose conversion with pyruvate and a bounded ATP output.",
+      }, {
+        ...activityBase,
+        topicId: null,
+        methodPhase: "reflect",
+        estimatedMinutes: 2,
+        requiredForCompletion: false,
+        type: "reflection",
+        concept: null,
+        label: "Reflect",
+        title: "Name what should return",
+        body: "Notice that the electron transport target remains saved as a separate next session.",
+        choices: [],
+        correctAnswer: null,
+        feedback: null,
+      }],
+      cacheContext: {
+        effectiveMinutes: 10,
+        adjustmentFingerprint: "b".repeat(64),
+      },
+    },
+    generation: { mode: "openai", persistence: "browser" },
   });
 }

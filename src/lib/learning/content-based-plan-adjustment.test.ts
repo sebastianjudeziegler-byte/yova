@@ -191,7 +191,7 @@ describe("content-based plan adjustment", () => {
       objective: "Answer three self-contained questions about membrane transport.",
       method: "Independent retrieval verification",
       method_rationale: "This is a delayed return to the exact concept.",
-      scheduled_for: "2026-08-09T18:00:00.000Z",
+      scheduled_for: "2026-08-10T18:00:00.000Z",
       estimated_minutes: 5,
       status: "upcoming" as const,
       step_data: {
@@ -210,7 +210,7 @@ describe("content-based plan adjustment", () => {
       id: "10000000-1000-4000-8000-100000000100",
       sequence: 3,
       status: "upcoming" as const,
-      scheduled_for: "2026-08-10T18:00:00.000Z",
+      scheduled_for: "2026-08-11T18:00:00.000Z",
       estimated_minutes: 20,
     };
 
@@ -219,10 +219,20 @@ describe("content-based plan adjustment", () => {
       15,
       1,
     );
+    const independentlyRebuiltContent = buildContentBasedReplacementSessions(
+      [originalSession, laterContent],
+      15,
+      1,
+    );
     const preserved = sessions.find((session) => session.id === review.id);
     const later = sessions.filter((session) => (
       "originSessionId" in session && session.originSessionId === laterContent.id
     ));
+    const prerequisiteParts = sessions.filter((session) => (
+      "originSessionId" in session && session.originSessionId === originalSession.id
+    ));
+    const reviewStart = new Date(review.scheduled_for).getTime();
+    const reviewEnd = reviewStart + review.estimated_minutes * 60_000;
 
     expect(preserved).toMatchObject({
       id: review.id,
@@ -240,6 +250,72 @@ describe("content-based plan adjustment", () => {
     });
     expect(later).toHaveLength(2);
     expect(later.every((session) => session.status === "upcoming")).toBe(true);
+    expect(prerequisiteParts.every((session) => (
+      new Date(session.scheduledFor).getTime() + session.estimatedMinutes * 60_000 <= reviewStart
+    ))).toBe(true);
+    expect(later.every((session) => new Date(session.scheduledFor).getTime() >= reviewEnd)).toBe(true);
+    expect(sessions.map((session) => new Date(session.scheduledFor).getTime())).toEqual(
+      [...sessions]
+        .map((session) => new Date(session.scheduledFor).getTime())
+        .sort((left, right) => left - right),
+    );
+    expect(sessions.filter((session) => "originSessionId" in session).map((session) => session.scheduledFor))
+      .toEqual(independentlyRebuiltContent.map((session) => session.scheduledFor));
+  });
+
+  it("fails instead of moving rebuilt parts outside their authoritative schedule to precede a review", () => {
+    const review = {
+      ...originalSession,
+      id: "10000000-1000-4000-8000-100000000099",
+      sequence: 2,
+      scheduled_for: "2026-08-09T18:00:00.000Z",
+      estimated_minutes: 5,
+      status: "upcoming" as const,
+      step_data: {
+        learningMode: "study",
+        reviewConcept: "Cellular respiration",
+        reviewType: "verify",
+      },
+    };
+
+    expect(() => buildProtectedPlanAdjustmentSessions(
+      [originalSession, review],
+      15,
+      1,
+    )).toThrow(/do not leave enough room/i);
+  });
+
+  it("fails closed when immutable reviews leave too little chronological room for rebuilt content", () => {
+    const protectedReview = (
+      id: string,
+      sequence: number,
+      scheduledFor: string,
+    ) => ({
+      ...originalSession,
+      id,
+      sequence,
+      scheduled_for: scheduledFor,
+      estimated_minutes: 5,
+      status: "upcoming" as const,
+      step_data: {
+        learningMode: "study",
+        reviewConcept: "Cellular respiration",
+        reviewType: "verify",
+      },
+    });
+
+    expect(() => buildProtectedPlanAdjustmentSessions([
+      protectedReview("10000000-1000-4000-8000-100000000090", 1, "2026-08-09T18:00:00.000Z"),
+      {
+        ...originalSession,
+        id: "10000000-1000-4000-8000-100000000091",
+        sequence: 2,
+        scheduled_for: "2026-08-09T18:05:00.000Z",
+        estimated_minutes: 20,
+        status: "upcoming" as const,
+      },
+      protectedReview("10000000-1000-4000-8000-100000000092", 3, "2026-08-09T18:15:00.000Z"),
+    ], 10, 1)).toThrow(/do not leave enough room/i);
   });
 
   it("counts protected reviews against the plan-wide replacement limit", () => {

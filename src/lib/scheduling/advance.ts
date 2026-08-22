@@ -48,7 +48,7 @@ export function buildAdvancedSchedule(
 
 export function applyAdvancedSchedule(
   plan: LearningPlan,
-  updates: AdvancedScheduleUpdate[],
+  updates: readonly Pick<AdvancedScheduleUpdate, "planSessionId" | "scheduledFor">[],
 ): LearningPlan {
   const bySessionId = new Map(updates.map((update) => [update.planSessionId, update.scheduledFor]));
   return {

@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { alignGeneratedPlanToAvailability } from "@/lib/plan-generation/schedule-plan";
+import {
+  alignGeneratedPlanToAvailability,
+  PlanScheduleCapacityError,
+} from "@/lib/plan-generation/schedule-plan";
 import {
   GeneratedPlanDraftSchema,
   PlanGenerationRequestSchema,
@@ -96,5 +99,34 @@ describe("plan schedule alignment", () => {
     );
 
     expect(new Date(aligned.sessions[1].scheduledFor).getTime() - new Date(aligned.sessions[0].scheduledFor).getTime()).toBe(7 * 60_000);
+  });
+
+  it("fails closed when the complete sequence cannot fit before the deadline", () => {
+    expect(() => alignGeneratedPlanToAvailability(
+      draft,
+      {
+        ...request,
+        deadline: "2026-08-09T23:59:00.000-07:00",
+        availability: [{ day: "Monday", window: "Evening", minutes: 15 }],
+      },
+      new Date("2026-08-08T12:00:00.000-07:00"),
+    )).toThrow(PlanScheduleCapacityError);
+  });
+
+  it("does not let a session run beyond the learner's deadline", () => {
+    const oneSession = {
+      ...draft,
+      sessions: [{ ...draft.sessions[0], estimatedMinutes: 15 }],
+    };
+
+    expect(() => alignGeneratedPlanToAvailability(
+      oneSession,
+      {
+        ...request,
+        deadline: "2026-08-10T19:10:00.000-07:00",
+        availability: [{ day: "Monday", window: "Evening", minutes: 15 }],
+      },
+      new Date("2026-08-08T12:00:00.000-07:00"),
+    )).toThrow(PlanScheduleCapacityError);
   });
 });

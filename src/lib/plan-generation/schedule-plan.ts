@@ -11,6 +11,13 @@ const WINDOW_HOUR: Record<string, number> = {
   now: 12,
 };
 
+export class PlanScheduleCapacityError extends Error {
+  constructor() {
+    super("The selected study windows do not have enough room for this plan before the deadline.");
+    this.name = "PlanScheduleCapacityError";
+  }
+}
+
 /**
  * Dates are a deterministic product concern, not a language-model judgment.
  * The model decides the instructional sequence; YOVA aligns that sequence to
@@ -32,7 +39,7 @@ export function alignGeneratedPlanToAvailability(
   }
 
   const candidates = availableSlots(request, now, Math.max(42, draft.sessions.length * 10));
-  if (candidates.length === 0) return draft;
+  if (candidates.length === 0) throw new PlanScheduleCapacityError();
 
   let slotIndex = 0;
   let usedMinutes = 0;
@@ -45,7 +52,7 @@ export function alignGeneratedPlanToAvailability(
       usedMinutes = 0;
     }
     const slot = candidates[slotIndex];
-    if (!slot) return session;
+    if (!slot) throw new PlanScheduleCapacityError();
     const scheduledFor = new Date(slot.date.getTime() + usedMinutes * 60_000).toISOString();
     usedMinutes += session.estimatedMinutes;
     return { ...session, scheduledFor };
@@ -81,7 +88,12 @@ function availableSlots(
       const date = localDateTimeToUtc(calendarDate, hour, request.timeZone);
       if (date.getTime() < now.getTime() - 60_000) continue;
       if (deadline !== null && date.getTime() > deadline) continue;
-      results.push({ date, minutes: slot.minutes });
+      const minutesBeforeDeadline = deadline === null
+        ? slot.minutes
+        : Math.floor((deadline - date.getTime()) / 60_000);
+      const minutes = Math.min(slot.minutes, minutesBeforeDeadline);
+      if (minutes < 1) continue;
+      results.push({ date, minutes });
     }
   }
 

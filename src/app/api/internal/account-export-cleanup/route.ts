@@ -3,6 +3,8 @@ import { NextResponse } from "next/server";
 import { cleanupDeletedAccountStorage } from "@/lib/account-deletion/cleanup";
 import { cleanupExpiredAccountExports } from "@/lib/account-export/cleanup";
 import { isAccountExportCleanupConfigured } from "@/lib/account-export/config";
+import { cleanupExpiredStagedMaterials } from "@/lib/materials/staged-cleanup";
+import { cleanupPrivateStorageReceipts } from "@/lib/storage-cleanup/private-receipts";
 import {
   createSupabaseAdminClient,
 } from "@/lib/supabase/admin";
@@ -20,11 +22,13 @@ export async function GET(request: Request) {
   }
 
   const admin = createSupabaseAdminClient();
-  const [result, deletionResult] = await Promise.all([
+  const [result, deletionResult, materialResult, receiptResult] = await Promise.all([
     cleanupExpiredAccountExports(admin),
     cleanupDeletedAccountStorage(admin),
+    cleanupExpiredStagedMaterials(admin),
+    cleanupPrivateStorageReceipts(admin),
   ]);
-  if (!result.ok || !deletionResult.ok) {
+  if (!result.ok || !deletionResult.ok || !materialResult.ok || !receiptResult.ok) {
     return json({ error: "Private account-data cleanup could not finish." }, 503);
   }
   return json({
@@ -34,6 +38,12 @@ export async function GET(request: Request) {
     deletionClaimedJobs: deletionResult.claimedJobs,
     deletionRemovedJobs: deletionResult.removedJobs,
     deletionRetryJobs: deletionResult.retryJobs,
+    materialClaimedUploads: materialResult.claimedUploads,
+    materialRemovedUploads: materialResult.removedUploads,
+    materialRetryUploads: materialResult.retryUploads,
+    receiptClaimedPaths: receiptResult.claimedReceipts,
+    receiptSweptPaths: receiptResult.sweptReceipts,
+    receiptRetryPaths: receiptResult.retryReceipts,
   }, 200);
 }
 

@@ -2034,6 +2034,8 @@ h1, h2, h3, p { margin-top: 0; }
 .deadline-card span { margin-bottom: 3px; color: var(--muted); font-size: 11px; }
 .deadline-card input { min-height: 40px; padding: 0 10px; color: var(--text); border: 1px solid var(--border); border-radius: 8px; background: white; font: inherit; }
 .schedule-builder-layout { display: grid; grid-template-columns: minmax(0,1.65fr) minmax(285px,.8fr); gap: 34px; align-items: start; }
+.plan-schedule-capacity { margin: 0 0 22px; font-size: 13px; }
+.plan-schedule-capacity strong { color: #713b11; }
 .schedule-quick-builder { display: grid; gap: 28px; }
 .schedule-question { min-width: 0; margin: 0; padding: 0; border: 0; }
 .schedule-question legend { margin-bottom: 12px; display: flex; align-items: center; gap: 9px; color: var(--navy); font-size: 13px; font-weight: 750; }

@@ -3,16 +3,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
 
 const USER_ID = "11111111-1111-4111-8111-111111111111";
-const EXPORT_ID = "22222222-2222-4222-8222-222222222222";
+const MATERIAL_ID = "22222222-2222-4222-8222-222222222222";
+const EXPORT_ID = "33333333-3333-4333-8333-333333333333";
 
 const mocks = vi.hoisted(() => ({
   createClient: vi.fn(),
   getUser: vi.fn(),
-  from: vi.fn(),
-  materialsSelect: vi.fn(),
-  stagedMaterialsSelect: vi.fn(),
-  storageFrom: vi.fn(),
-  remove: vi.fn(),
   rpc: vi.fn(),
   isAdminConfigured: vi.fn(),
   createAdmin: vi.fn(),
@@ -37,14 +33,10 @@ describe("learning-data reset route", () => {
       data: { user: { id: USER_ID } },
       error: null,
     });
-    mocks.materialsSelect.mockReset().mockResolvedValue({ data: [], error: null });
-    mocks.stagedMaterialsSelect.mockReset().mockResolvedValue({ data: [], error: null });
-    mocks.from.mockReset().mockImplementation((table: string) => ({
-      select: table === "materials" ? mocks.materialsSelect : mocks.stagedMaterialsSelect,
-    }));
-    mocks.remove.mockReset().mockResolvedValue({ data: [], error: null });
-    mocks.storageFrom.mockReset().mockReturnValue({ remove: mocks.remove });
-    mocks.rpc.mockReset().mockResolvedValue({ data: { accountExportPaths: [] }, error: null });
+    mocks.rpc.mockReset().mockResolvedValue({
+      data: { learningMaterialPaths: [], accountExportPaths: [] },
+      error: null,
+    });
     mocks.isAdminConfigured.mockReset().mockReturnValue(true);
     mocks.adminRemove.mockReset().mockResolvedValue({ data: [], error: null });
     mocks.adminStorageFrom.mockReset().mockReturnValue({ remove: mocks.adminRemove });
@@ -53,8 +45,6 @@ describe("learning-data reset route", () => {
     });
     mocks.createClient.mockReset().mockResolvedValue({
       auth: { getUser: mocks.getUser },
-      from: mocks.from,
-      storage: { from: mocks.storageFrom },
       rpc: mocks.rpc,
     });
   });
@@ -75,103 +65,71 @@ describe("learning-data reset route", () => {
     const response = await DELETE(resetRequest());
 
     expect(response.status).toBe(401);
-    await expect(response.json()).resolves.toEqual({
-      error: "Sign in before resetting cloud learning data.",
-    });
-    expect(mocks.from).not.toHaveBeenCalled();
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
 
-  it("treats an authentication lookup error as signed out", async () => {
-    mocks.getUser.mockResolvedValue({
-      data: { user: { id: USER_ID } },
-      error: { message: "session unavailable" },
+  it("commits the transactional logical reset before best-effort Storage sweeps", async () => {
+    const events: string[] = [];
+    const learningPath = `${USER_ID}/${MATERIAL_ID}/source.pdf`;
+    const exportPath = `${USER_ID}/${EXPORT_ID}/yova-data.json`;
+    mocks.rpc.mockImplementation(async () => {
+      events.push("database-reset");
+      return {
+        data: {
+          learningMaterialPaths: [learningPath],
+          accountExportPaths: [exportPath],
+        },
+        error: null,
+      };
+    });
+    mocks.adminRemove.mockImplementation(async () => {
+      events.push("storage-sweep");
+      return { data: [], error: null };
     });
 
     const response = await DELETE(resetRequest());
 
-    expect(response.status).toBe(401);
-    expect(mocks.from).not.toHaveBeenCalled();
+    expect(response.status).toBe(204);
+    expect(events).toEqual(["database-reset", "storage-sweep", "storage-sweep"]);
+    expect(mocks.rpc).toHaveBeenCalledWith("reset_yova_learning_data");
+    expect(mocks.adminStorageFrom).toHaveBeenNthCalledWith(1, "learning-materials");
+    expect(mocks.adminStorageFrom).toHaveBeenNthCalledWith(2, "account-exports");
+    expect(mocks.adminRemove).toHaveBeenNthCalledWith(1, [learningPath]);
+    expect(mocks.adminRemove).toHaveBeenNthCalledWith(2, [exportPath]);
   });
 
-  it.each(["materials", "material_uploads"])(
-    "stops before deleting files when the %s inventory is incomplete",
-    async (table) => {
-      const select = table === "materials" ? mocks.materialsSelect : mocks.stagedMaterialsSelect;
-      select.mockResolvedValue({ data: null, error: { message: "database unavailable" } });
-
-      const response = await DELETE(resetRequest());
-
-      expect(response.status).toBe(500);
-      await expect(response.json()).resolves.toEqual({
-        error: "YOVA could not safely identify all stored learning materials.",
-      });
-      expect(mocks.remove).not.toHaveBeenCalled();
-      expect(mocks.rpc).not.toHaveBeenCalled();
-    },
-  );
-
-  it("de-duplicates owned paths, ignores foreign paths, and deletes in storage-sized batches", async () => {
-    const ownedPaths = Array.from({ length: 205 }, (_, index) => `${USER_ID}/material-${index}.pdf`);
-    mocks.materialsSelect.mockResolvedValue({
-      data: [
-        ...ownedPaths.slice(0, 130).map((storage_path) => ({ storage_path })),
-        { storage_path: ownedPaths[0] },
-        { storage_path: `different-user/private.pdf` },
-        { storage_path: `${USER_ID}-lookalike/private.pdf` },
-        { storage_path: null },
-      ],
-      error: null,
-    });
-    mocks.stagedMaterialsSelect.mockResolvedValue({
-      data: ownedPaths.slice(130).map((storage_path) => ({ storage_path })),
+  it("de-duplicates exact receipt paths and sweeps in bounded Storage batches", async () => {
+    const paths = Array.from(
+      { length: 1_001 },
+      (_, index) => `${USER_ID}/${MATERIAL_ID}/source-${index}.pdf`,
+    );
+    mocks.rpc.mockResolvedValue({
+      data: { learningMaterialPaths: [...paths, paths[0]], accountExportPaths: [] },
       error: null,
     });
 
     const response = await DELETE(resetRequest());
 
     expect(response.status).toBe(204);
-    expect(mocks.from.mock.calls).toEqual([["materials"], ["material_uploads"]]);
-    expect(mocks.storageFrom).toHaveBeenCalledTimes(3);
-    expect(mocks.storageFrom).toHaveBeenNthCalledWith(1, "learning-materials");
-    expect(mocks.remove).toHaveBeenCalledTimes(3);
-    expect(mocks.remove).toHaveBeenNthCalledWith(1, ownedPaths.slice(0, 100));
-    expect(mocks.remove).toHaveBeenNthCalledWith(2, ownedPaths.slice(100, 200));
-    expect(mocks.remove).toHaveBeenNthCalledWith(3, ownedPaths.slice(200));
-    expect(mocks.rpc).toHaveBeenCalledOnce();
-    expect(mocks.rpc).toHaveBeenCalledWith("reset_yova_learning_data");
+    expect(mocks.adminRemove).toHaveBeenCalledTimes(2);
+    expect(mocks.adminRemove).toHaveBeenNthCalledWith(1, paths.slice(0, 1_000));
+    expect(mocks.adminRemove).toHaveBeenNthCalledWith(2, paths.slice(1_000));
   });
 
-  it("does not call storage when the account has no uploaded files", async () => {
-    mocks.isAdminConfigured.mockReturnValue(false);
-
+  it("still clears local data when no private Storage paths exist", async () => {
     const response = await DELETE(resetRequest());
 
     expect(response.status).toBe(204);
     expect(await response.text()).toBe("");
-    expect(mocks.storageFrom).not.toHaveBeenCalled();
-    expect(mocks.remove).not.toHaveBeenCalled();
     expect(mocks.createAdmin).not.toHaveBeenCalled();
-    expect(mocks.rpc).toHaveBeenCalledWith("reset_yova_learning_data");
   });
 
-  it("removes every exact account-export path returned by the atomic reset", async () => {
-    const paths = [
-      `${USER_ID}/${EXPORT_ID}/device-state.json`,
-      `${USER_ID}/${EXPORT_ID}/yova-data.json`,
-    ];
-    mocks.rpc.mockResolvedValue({ data: { accountExportPaths: paths }, error: null });
-
-    const response = await DELETE(resetRequest());
-
-    expect(response.status).toBe(204);
-    expect(mocks.adminStorageFrom).toHaveBeenCalledWith("account-exports");
-    expect(mocks.adminRemove).toHaveBeenCalledWith(paths);
-  });
-
-  it("commits local clearing after reset while ignoring a foreign or non-derived export path", async () => {
+  it("refuses malformed or foreign RPC paths while trusting the durable receipt", async () => {
     mocks.rpc.mockResolvedValue({
-      data: { accountExportPaths: [`33333333-3333-4333-8333-333333333333/${EXPORT_ID}/yova-data.json`] },
+      data: {
+        learningMaterialPaths: [`another-user/${MATERIAL_ID}/source.pdf`],
+        accountExportPaths: [],
+      },
       error: null,
     });
 
@@ -179,12 +137,30 @@ describe("learning-data reset route", () => {
 
     expect(response.status).toBe(204);
     expect(mocks.createAdmin).not.toHaveBeenCalled();
-    expect(mocks.adminRemove).not.toHaveBeenCalled();
   });
 
-  it("returns success so local data clears while cancelled export rows wait for configured cleanup", async () => {
+  it("does not let a legacy opaque owner key block reset or the immediate sweep of safe keys", async () => {
+    const safePath = `${USER_ID}/${MATERIAL_ID}/source.pdf`;
     mocks.rpc.mockResolvedValue({
-      data: { accountExportPaths: [`${USER_ID}/${EXPORT_ID}/yova-data.json`] },
+      data: {
+        learningMaterialPaths: [safePath, `${USER_ID}/../legacy\u0001source`],
+        accountExportPaths: [],
+      },
+      error: null,
+    });
+
+    const response = await DELETE(resetRequest());
+
+    expect(response.status).toBe(204);
+    expect(mocks.adminRemove).toHaveBeenCalledWith([safePath]);
+  });
+
+  it("returns success after commit when admin cleanup is unavailable", async () => {
+    mocks.rpc.mockResolvedValue({
+      data: {
+        learningMaterialPaths: [`${USER_ID}/${MATERIAL_ID}/source.pdf`],
+        accountExportPaths: [],
+      },
       error: null,
     });
     mocks.isAdminConfigured.mockReturnValue(false);
@@ -195,23 +171,28 @@ describe("learning-data reset route", () => {
     expect(mocks.createAdmin).not.toHaveBeenCalled();
   });
 
-  it("returns success after commit when export Storage needs the leased cleanup retry", async () => {
+  it("returns success after commit when the immediate sweep fails", async () => {
     mocks.rpc.mockResolvedValue({
-      data: { accountExportPaths: [`${USER_ID}/${EXPORT_ID}/yova-data.json`] },
+      data: {
+        learningMaterialPaths: [`${USER_ID}/${MATERIAL_ID}/source.pdf`],
+        accountExportPaths: [],
+      },
       error: null,
     });
-    mocks.adminRemove.mockResolvedValue({ data: null, error: { message: "storage unavailable" } });
+    mocks.adminRemove.mockResolvedValue({ data: null, error: { message: "unavailable" } });
 
     const response = await DELETE(resetRequest());
 
     expect(response.status).toBe(204);
     expect(mocks.adminRemove).toHaveBeenCalledOnce();
-    expect(mocks.rpc).toHaveBeenCalledWith("reset_yova_learning_data");
   });
 
   it("still clears local data when post-commit admin initialization throws", async () => {
     mocks.rpc.mockResolvedValue({
-      data: { accountExportPaths: [`${USER_ID}/${EXPORT_ID}/yova-data.json`] },
+      data: {
+        learningMaterialPaths: [`${USER_ID}/${MATERIAL_ID}/source.pdf`],
+        accountExportPaths: [],
+      },
       error: null,
     });
     mocks.createAdmin.mockImplementation(() => {
@@ -221,39 +202,18 @@ describe("learning-data reset route", () => {
     const response = await DELETE(resetRequest());
 
     expect(response.status).toBe(204);
-    expect(mocks.rpc).toHaveBeenCalledWith("reset_yova_learning_data");
   });
 
-  it("stops the database reset if a private file batch cannot be removed", async () => {
-    mocks.materialsSelect.mockResolvedValue({
-      data: [{ storage_path: `${USER_ID}/material.pdf` }],
-      error: null,
-    });
-    mocks.remove.mockResolvedValue({ data: null, error: { message: "storage unavailable" } });
-
-    const response = await DELETE(resetRequest());
-
-    expect(response.status).toBe(500);
-    await expect(response.json()).resolves.toEqual({
-      error: "YOVA stopped because it could not remove every private uploaded file.",
-    });
-    expect(mocks.rpc).not.toHaveBeenCalled();
-  });
-
-  it("reports a partial reset when file deletion succeeds but the RPC fails", async () => {
-    mocks.stagedMaterialsSelect.mockResolvedValue({
-      data: [{ storage_path: `${USER_ID}/staged.pdf` }],
-      error: null,
-    });
+  it("reports a fully rolled-back reset when the transactional RPC fails", async () => {
     mocks.rpc.mockResolvedValue({ data: null, error: { message: "database unavailable" } });
 
     const response = await DELETE(resetRequest());
 
     expect(response.status).toBe(500);
     await expect(response.json()).resolves.toEqual({
-      error: "The files were removed, but YOVA could not finish resetting the learning records. Try again.",
+      error: "YOVA could not reset the learning records. Nothing was changed. Try again.",
     });
-    expect(mocks.remove).toHaveBeenCalledWith([`${USER_ID}/staged.pdf`]);
+    expect(mocks.createAdmin).not.toHaveBeenCalled();
   });
 });
 

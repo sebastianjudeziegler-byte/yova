@@ -28,6 +28,7 @@ const MAX_CHECKPOINTS_PER_ACCOUNT = 12;
 const MAX_STORED_CHECKPOINTS = 48;
 const MAX_STORAGE_CHARACTERS = 500_000;
 const MAX_FUTURE_CLOCK_SKEW_MS = 5 * 60 * 1_000;
+const EXIT_HANDOFF_CLOCK_SKEW_MS = 5 * 60 * 1_000;
 
 export const ACTIVE_SESSION_CHECKPOINT_TTL_MS = 7 * 24 * 60 * 60 * 1_000;
 
@@ -448,6 +449,48 @@ export function fingerprintSessionResource(resource: SessionResource) {
   ));
 }
 
+function sessionResourceFingerprintCandidates(resource: SessionResource) {
+  const candidates = new Set([fingerprintSessionResource(resource)]);
+  const resourceWithoutGeneratedAt = Object.fromEntries(
+    Object.entries(resource).filter(([key]) => key !== "generatedAt"),
+  );
+
+  // Session resources persisted before methodRuntime was introduced did not
+  // contain that property. Accept only the fingerprint that can be derived by
+  // removing that known, non-content compatibility field from today's
+  // otherwise-identical resource.
+  candidates.add(fingerprintCheckpointIdentity({
+    ...resourceWithoutGeneratedAt,
+    activities: resource.activities.map((activity) => Object.fromEntries(
+      Object.entries(activity).filter(([key]) => key !== "methodRuntime"),
+    )),
+  }));
+
+  // The first methodRuntime rollout copied the same runtime onto every
+  // activity. The normalized representation keeps it on the activity that
+  // owns the work. Reconstruct that one deployed representation rather than
+  // accepting an arbitrary fingerprint mismatch.
+  const persistedMethodRuntime = resource.activities.find((activity) => activity.methodRuntime)?.methodRuntime;
+  if (persistedMethodRuntime) {
+    candidates.add(fingerprintCheckpointIdentity({
+      ...resourceWithoutGeneratedAt,
+      activities: resource.activities.map((activity) => ({
+        ...activity,
+        methodRuntime: persistedMethodRuntime,
+      })),
+    }));
+  }
+
+  return candidates;
+}
+
+function timestampsIdentifySameResource(left: string, right: string) {
+  if (left === right) return true;
+  const leftTime = Date.parse(left);
+  const rightTime = Date.parse(right);
+  return Number.isFinite(leftTime) && Number.isFinite(rightTime) && leftTime === rightTime;
+}
+
 export function fingerprintMethodWorkSession({
   studyMode,
   session,
@@ -500,10 +543,10 @@ export function checkpointMatchesSessionResource(
   >,
   resource: SessionResource,
 ) {
-  return fingerprintSessionResource(resource) === checkpoint.resourceFingerprint
+  return sessionResourceFingerprintCandidates(resource).has(checkpoint.resourceFingerprint)
     && (
       checkpoint.resourceGeneratedAt === undefined
-      || checkpoint.resourceGeneratedAt === resource.generatedAt
+      || timestampsIdentifySameResource(checkpoint.resourceGeneratedAt, resource.generatedAt)
     );
 }
 
@@ -550,6 +593,91 @@ export function checkpointToSessionResumePoint(
       completionFeedback: checkpoint.completionFeedback,
     } : {}),
   };
+}
+
+/**
+ * Explicit Exit closes the current attempt id, so that id cannot safely be
+ * reused when the learner continues later. Carry the privacy-bounded
+ * checkpoint into a fresh run id while preserving its exact lesson identity.
+ * The caller supplies a strictly newer timestamp so this handoff wins over
+ * both the terminal checkpoint and the interruption recorded for the old run.
+ */
+export function handoffActiveSessionCheckpointAfterExit(
+  checkpoint: ActiveSessionCheckpointV1,
+  interruption: SessionInterruption,
+  nextRunId: string,
+  savedAt: string,
+): ActiveSessionCheckpointV1 | null {
+  if (
+    checkpoint.status !== "working"
+    || checkpoint.runId !== interruption.id
+    || checkpoint.planId !== interruption.planId
+    || checkpoint.planSessionId !== interruption.planSessionId
+    || checkpoint.plannedMinutes !== interruption.plannedMinutes
+  ) return null;
+  const parsed = ActiveSessionCheckpointV1Schema.safeParse({
+    ...checkpoint,
+    runId: nextRunId,
+    startedAt: interruption.startedAt,
+    savedAt,
+  });
+  if (!parsed.success) return null;
+  if (
+    compareIsoTimestamps(parsed.data.savedAt, checkpoint.savedAt) <= 0
+    || compareIsoTimestamps(parsed.data.savedAt, interruption.interruptedAt) <= 0
+  ) return null;
+  return parsed.data;
+}
+
+/**
+ * The handoff checkpoint proves the exact cached lesson and owns the fresh,
+ * reusable run id. Its immediately preceding interruption owns the richer
+ * exit snapshot (including bounded repair instructions). Combine them only
+ * when the handoff's stable start time and near-adjacent timestamps identify
+ * the same explicit Exit; otherwise keep the checkpoint-only recovery.
+ */
+export function restoreExitProgressThroughCheckpoint(
+  checkpoint: ActiveSessionCheckpointResumePoint,
+  interruptions: readonly SessionInterruption[],
+): ActiveSessionCheckpointResumePoint {
+  if (checkpoint.checkpointStatus !== "working") return checkpoint;
+  const exit = interruptions
+    .filter((interruption) => checkpointHandoffMatchesInterruption(checkpoint, interruption))
+    .sort((left, right) => compareIsoTimestamps(right.interruptedAt, left.interruptedAt))[0] ?? null;
+  if (!exit) return checkpoint;
+
+  return {
+    ...checkpoint,
+    interruptedAt: exit.interruptedAt,
+    actualMinutes: exit.actualMinutes,
+    completedSteps: exit.completedSteps,
+    totalSteps: exit.totalSteps,
+    resumeStep: exit.resumeStep,
+    ...(exit.evidence ? { evidence: exit.evidence } : {}),
+    ...(exit.pendingRepair ? { pendingRepair: exit.pendingRepair } : {}),
+    ...(exit.sessionAdjustment ? { sessionAdjustment: exit.sessionAdjustment } : {}),
+    ...(exit.activityProgress ? { activityProgress: exit.activityProgress } : {}),
+  };
+}
+
+export function checkpointHandoffMatchesInterruption(
+  checkpoint: ActiveSessionCheckpointResumePoint,
+  interruption: SessionInterruption,
+) {
+  const checkpointSavedAt = Date.parse(checkpoint.savedAt);
+  const interruptedAt = Date.parse(interruption.interruptedAt);
+  return checkpoint.checkpointStatus === "working"
+    && interruption.id !== checkpoint.runId
+    && interruption.planId === checkpoint.planId
+    && interruption.planSessionId === checkpoint.planSessionId
+    && interruption.startedAt === checkpoint.startedAt
+    && interruption.plannedMinutes === checkpoint.plannedMinutes
+    && Number.isFinite(interruptedAt)
+    && Number.isFinite(checkpointSavedAt)
+    // The browser stamps Exit while Supabase canonicalizes the checkpoint's
+    // savedAt with server time, so either clock may lead within the accepted
+    // skew window. Stable startedAt plus the new run id identifies the handoff.
+    && Math.abs(checkpointSavedAt - interruptedAt) <= EXIT_HANDOFF_CLOCK_SKEW_MS;
 }
 
 export function chooseLatestSessionResumePoint(

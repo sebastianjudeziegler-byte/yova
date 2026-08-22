@@ -256,13 +256,45 @@ export type SessionGenerationRuntime = {
   signal?: AbortSignal;
 };
 
-type SessionGenerationBudget = {
+const preparedSessionGenerationContexts = new WeakSet<SessionGenerationContext>();
+
+/**
+ * Applies the learner's just-in-time setup choices and then narrows the plan
+ * contract to what can honestly fit in this attempt. Every production
+ * generator must receive this same prepared context so architecture changes
+ * cannot silently bypass duration, target, topic, or completion-evidence
+ * scoping.
+ */
+export function prepareSessionGenerationContext(
+  context: SessionGenerationContext,
+): SessionGenerationContext {
+  if (preparedSessionGenerationContexts.has(context)) return context;
+  const scoped = scopeFullSessionToCurrentWindow(
+    applyCurrentSessionAdjustment(context),
+  );
+  // Never mark a caller-owned object as prepared. Request contexts are
+  // normally immutable, but cloning prevents a later caller mutation from
+  // accidentally bypassing preparation through object identity.
+  const prepared = { ...scoped };
+  preparedSessionGenerationContexts.add(prepared);
+  return prepared;
+}
+
+/** Marks a derived context (for example concept-signal filtering) as already prepared. */
+export function markSessionGenerationContextPrepared(
+  context: SessionGenerationContext,
+): SessionGenerationContext {
+  preparedSessionGenerationContexts.add(context);
+  return context;
+}
+
+export type SessionGenerationBudget = {
   deadlineAt: number;
   settlementReserveMs: number;
   signal?: AbortSignal;
 };
 
-type PreparedSessionProviderCall = {
+export type PreparedSessionProviderCall = {
   options: {
     maxRetries: 0;
     timeout: number;
@@ -284,7 +316,7 @@ type SessionBudgetFailureStats = (
   additionalUsage?: SessionGenerationUsage,
 ) => SessionGenerationStats;
 
-function resolveSessionGenerationBudget(
+export function resolveSessionGenerationBudget(
   runtime: SessionGenerationRuntime,
   generationStartedAt: number,
 ): SessionGenerationBudget {
@@ -304,7 +336,7 @@ function sessionGenerationBudgetFailure(generationStats: SessionGenerationStats)
   );
 }
 
-function prepareSessionProviderCall({
+export function prepareSessionProviderCall({
   budget,
   preferredTimeoutMs,
   generationStats,
@@ -511,9 +543,7 @@ export async function generateSessionWithOpenAI(
   originalContext: SessionGenerationContext,
   runtime: SessionGenerationRuntime = {},
 ): Promise<OpenAISessionResult> {
-  const context = scopeFullSessionToCurrentWindow(
-    applyCurrentSessionAdjustment(originalContext),
-  );
+  const context = prepareSessionGenerationContext(originalContext);
   const quickReviewContract = scheduledRetrievalContract(context.session);
   const config = getOpenAISessionConfig();
   if (!config) throw new Error("OpenAI is not configured on the YOVA server.");

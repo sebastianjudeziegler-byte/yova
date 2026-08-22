@@ -25,62 +25,72 @@ export async function DELETE(request: Request) {
   if (userError || !user) {
     return NextResponse.json({ error: "Sign in before resetting cloud learning data." }, { status: 401 });
   }
-  const [materialsResult, stagedMaterialsResult] = await Promise.all([
-    supabase.from("materials").select("storage_path"),
-    supabase.from("material_uploads").select("storage_path"),
-  ]);
-  if (materialsResult.error || stagedMaterialsResult.error) {
-    return NextResponse.json({ error: "YOVA could not safely identify all stored learning materials." }, { status: 500 });
-  }
-
-  const storagePaths = [...new Set([
-    ...(materialsResult.data ?? []).map((material) => material.storage_path),
-    ...(stagedMaterialsResult.data ?? []).map((material) => material.storage_path),
-  ].filter((path): path is string => typeof path === "string" && path.startsWith(`${user.id}/`)))];
-
-  for (let index = 0; index < storagePaths.length; index += 100) {
-    const { error: storageError } = await supabase.storage.from("learning-materials").remove(storagePaths.slice(index, index + 100));
-    if (storageError) {
-      return NextResponse.json({ error: "YOVA stopped because it could not remove every private uploaded file." }, { status: 500 });
-    }
-  }
-
   const { data: resetData, error: resetError } = await supabase.rpc("reset_yova_learning_data");
   if (resetError) {
-    return NextResponse.json({ error: "The files were removed, but YOVA could not finish resetting the learning records. Try again." }, { status: 500 });
+    return NextResponse.json({ error: "YOVA could not reset the learning records. Nothing was changed. Try again." }, { status: 500 });
   }
 
   try {
     const resetResult = ResetAccountExportsResultSchema.safeParse(resetData);
-    if (!resetResult.success || !resetResult.data.accountExportPaths.every((path) => (
-      validAccountExportResetPath(user.id, path)
-    ))) {
+    if (!resetResult.success) {
       // The database reset is already committed. Returning success is essential:
       // the client must clear its local snapshot/outboxes instead of re-syncing
-      // deleted learning data. Cancelled export rows retain exact cleanup paths.
+      // deleted learning data. Durable cleanup receipts retain the exact paths.
       return resetComplete();
     }
 
-    const accountExportPaths = [...new Set(resetResult.data.accountExportPaths)];
-    if (accountExportPaths.length > 0 && !isSupabaseAdminConfigured()) {
+    // Historical Storage policies admitted unusual but owner-prefixed keys.
+    // The durable worker can remove those database-inventoried opaque keys;
+    // the request only performs immediate best-effort removal for strict keys.
+    const learningMaterialPaths = [...new Set(
+      resetResult.data.learningMaterialPaths.filter((path) => (
+        validLearningMaterialResetPath(user.id, path)
+      )),
+    )];
+    const accountExportPaths = [...new Set(
+      resetResult.data.accountExportPaths.filter((path) => (
+        validAccountExportResetPath(user.id, path)
+      )),
+    )];
+    if (learningMaterialPaths.length + accountExportPaths.length > 0 && !isSupabaseAdminConfigured()) {
       return resetComplete();
     }
-    const exportStorage = accountExportPaths.length > 0
-      ? createSupabaseAdminClient().storage.from(ACCOUNT_EXPORT_BUCKET)
+    const admin = learningMaterialPaths.length + accountExportPaths.length > 0
+      ? createSupabaseAdminClient()
       : null;
-    for (let index = 0; index < accountExportPaths.length; index += 1_000) {
-      const { error: exportStorageError } = await exportStorage!.remove(
-        accountExportPaths.slice(index, index + 1_000),
-      );
-      if (exportStorageError) return resetComplete();
-    }
+    await removeExactPaths(admin, "learning-materials", learningMaterialPaths);
+    await removeExactPaths(admin, ACCOUNT_EXPORT_BUCKET, accountExportPaths);
   } catch {
-    // A cancelled row stays eligible for the leased cleanup worker. Never turn
-    // a post-commit cleanup exception into a reset failure in the browser.
+    // The transactional receipt remains eligible for the leased worker. Never
+    // turn a post-commit cleanup exception into a reset failure in the browser.
     return resetComplete();
   }
 
   return resetComplete();
+}
+
+async function removeExactPaths(
+  admin: ReturnType<typeof createSupabaseAdminClient> | null,
+  bucket: string,
+  paths: string[],
+) {
+  if (!admin || paths.length === 0) return;
+  const storage = admin.storage.from(bucket);
+  for (let index = 0; index < paths.length; index += 1_000) {
+    const { error } = await storage.remove(paths.slice(index, index + 1_000));
+    if (error) return;
+  }
+}
+
+function validLearningMaterialResetPath(userId: string, path: string) {
+  const prefix = `${userId}/`;
+  return path.length > prefix.length
+    && path.length <= 1_024
+    && path.startsWith(prefix)
+    && !path.includes("//")
+    && !path.includes("/../")
+    && !path.includes("/./")
+    && !/[\u0000-\u001f\u007f]/.test(path);
 }
 
 function resetComplete() {

@@ -17,7 +17,7 @@ function matchingDraft() {
     materialMode: "none",
     materials: [],
     studyMode: "inside",
-    deadline: "2026-08-14T23:59:00.000Z",
+    deadline: null,
     timeZone: "America/Los_Angeles",
     diagnosticResponses: [{
       question: "Where are you starting?",

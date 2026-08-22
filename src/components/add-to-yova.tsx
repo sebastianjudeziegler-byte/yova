@@ -24,7 +24,11 @@ import {
   type IntakeInterpretation,
   type IntakeItemType,
 } from "@/lib/intake/schema";
-import { deleteUploadedMaterial, uploadMaterialFiles } from "@/lib/materials/intake";
+import {
+  abandonUploadedMaterials,
+  deleteUploadedMaterial,
+  uploadMaterialFiles,
+} from "@/lib/materials/intake";
 
 type AddStep = "describe" | "review" | "outcome" | "saving";
 
@@ -46,7 +50,9 @@ export function AddToYova({
   const [materials, setMaterials] = useState<LearningMaterial[]>([]);
   const [interpretation, setInterpretation] = useState<IntakeInterpretation | null>(null);
   const [processing, setProcessing] = useState(false);
+  const [linkWorking, setLinkWorking] = useState(false);
   const [removingId, setRemovingId] = useState<string | null>(null);
+  const [abandoning, setAbandoning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -76,6 +82,29 @@ export function AddToYova({
       setError(removeError instanceof Error ? removeError.message : "YOVA could not remove this source.");
     } finally {
       setRemovingId(null);
+    }
+  };
+
+  const abandonMaterials = async () => {
+    const pendingMaterials = materials;
+    if (!pendingMaterials.length) return;
+    setMaterials([]);
+    const cleanup = await abandonUploadedMaterials(pendingMaterials);
+    if (cleanup.unconfirmed > 0) {
+      setNotice("YOVA could not confirm cleanup for every pending source. They cannot be used here and will expire automatically.");
+    } else if (cleanup.cleanupPending > 0) {
+      setNotice("The pending sources were cancelled. Private file cleanup will finish automatically.");
+    }
+  };
+
+  const exitIntake = async () => {
+    if (processing || linkWorking || removingId || abandoning) return;
+    setAbandoning(true);
+    try {
+      await abandonMaterials();
+    } finally {
+      setAbandoning(false);
+      onExit();
     }
   };
 
@@ -121,6 +150,10 @@ export function AddToYova({
         dueAt: seed.dueAt,
         linkedLearningItemId: null,
       });
+      // A deadline-only outcome does not take ownership of source material.
+      // Cancel those staging rows before leaving; plan/session outcomes pass
+      // the same ids forward in their seed and must preserve them instead.
+      await abandonMaterials();
       onExit();
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : "YOVA could not save this deadline yet.");
@@ -129,7 +162,7 @@ export function AddToYova({
   };
 
   return <main className="add-shell">
-    <header className="add-header"><BrandMark /><button className="button ghost" onClick={onExit}>Exit</button></header>
+    <header className="add-header"><BrandMark /><button className="button ghost" disabled={processing || linkWorking || Boolean(removingId) || abandoning} onClick={() => void exitIntake()}>{abandoning ? "Removing sources…" : "Exit"}</button></header>
 
     {step === "describe" && <section className="add-panel add-describe">
       <span className="step-label">ADD TO YOVA</span>
@@ -142,12 +175,12 @@ export function AddToYova({
         placeholder="Example: I have a World War I test in two weeks. I am starting from the beginning and I have a study guide."
       />
       <div className="add-materials-heading"><div><strong>Materials are optional</strong><span>Attach a study guide, notes, slides, article, or video when it helps define the scope.</span></div><PaperclipLabel /></div>
-      <MaterialFileDropzone busy={processing} disabled={Boolean(removingId) || materials.length >= 5} onFiles={addMaterials} />
-      <MaterialLinkImporter existingCount={materials.length} disabled={processing || Boolean(removingId)} onImported={(material, materialNotice) => { setMaterials((current) => [...current, material]); setNotice(materialNotice); }} />
+      <MaterialFileDropzone busy={processing} disabled={linkWorking || Boolean(removingId) || materials.length >= 5} onFiles={addMaterials} />
+      <MaterialLinkImporter existingCount={materials.length} disabled={processing || Boolean(removingId)} onWorkingChange={setLinkWorking} onImported={(material, materialNotice) => { setMaterials((current) => [...current, material]); setNotice(materialNotice); }} />
       <MaterialList materials={materials} removingId={removingId} onRemove={removeMaterial} />
       {notice && <p className="material-notice"><Sparkles size={15} /> {notice}</p>}
       {error && <p className="material-error"><AlertCircle size={15} /> {error}</p>}
-      <footer><button className="button ghost" onClick={onExit}><ArrowLeft size={17} /> Cancel</button><button className="button primary" disabled={description.trim().length < 3 || processing} onClick={() => void interpret()}>{processing ? <span className="button-spinner" /> : null} Organize this <ArrowRight size={17} /></button></footer>
+      <footer><button className="button ghost" disabled={processing || linkWorking || Boolean(removingId) || abandoning} onClick={() => void exitIntake()}><ArrowLeft size={17} /> Cancel</button><button className="button primary" disabled={description.trim().length < 3 || processing || linkWorking || abandoning} onClick={() => void interpret()}>{processing ? <span className="button-spinner" /> : null} Organize this <ArrowRight size={17} /></button></footer>
     </section>}
 
     {step === "review" && interpretation && <section className="add-panel add-review">

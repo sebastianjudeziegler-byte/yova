@@ -22,9 +22,9 @@ export function buildPlanEvaluationCases(now = new Date()): PlanEvaluationCase[]
   const deadline = new Date(now);
   deadline.setUTCDate(deadline.getUTCDate() + 7);
   deadline.setUTCHours(23, 0, 0, 0);
-  const twoWeekDeadline = new Date(now);
-  twoWeekDeadline.setUTCDate(twoWeekDeadline.getUTCDate() + 14);
-  twoWeekDeadline.setUTCHours(23, 0, 0, 0);
+  const threeWeekDeadline = new Date(now);
+  threeWeekDeadline.setUTCDate(threeWeekDeadline.getUTCDate() + 21);
+  threeWeekDeadline.setUTCHours(23, 0, 0, 0);
 
   return [
     evaluationCase({
@@ -109,7 +109,10 @@ export function buildPlanEvaluationCases(now = new Date()): PlanEvaluationCase[]
       taskFamily: "conceptual",
       goal: "Prepare for my World War I unit test from the beginning using my teacher's study guide.",
       learningIntent: "learn",
-      deadline: twoWeekDeadline.toISOString(),
+      // Eight 15-minute mapped sessions need eight of the learner's three
+      // weekly windows. Three weeks is the first deadline that can actually
+      // hold the full sequence without inventing an unavailable study day.
+      deadline: threeWeekDeadline.toISOString(),
       materialMode: "upload",
       materials: [{
         id: "9f758b2d-4768-47af-bd84-f48ce42fa6a2",

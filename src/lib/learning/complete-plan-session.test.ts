@@ -190,6 +190,52 @@ describe("completePlanSession", () => {
     });
   });
 
+  it("inserts deferred guided work as the sole next ready session without moving later timestamps", () => {
+    const next = session(2, "upcoming", {
+      id: "later-session",
+      scheduledFor: "2026-08-10T18:00:00.000Z",
+    });
+    const protectedReview = session(3, "upcoming", {
+      id: "protected-review",
+      scheduledFor: "2026-08-11T18:00:00.000Z",
+      reviewConcept: "Concept 1",
+      reviewType: "verify",
+    });
+    const continuation = session(2, "ready", {
+      id: "deferred-continuation",
+      title: "Continue target 1",
+      scheduledFor: "2026-08-09T18:25:00.000Z",
+      topicIds: ["9a87ade4-678a-4a60-934f-35dc05d08158"],
+      contentTargets: ["Deferred part of concept 1"],
+      completionEvidence: ["Explain the deferred part of concept 1"],
+    });
+
+    const result = completePlanSession({
+      plan: plan([session(1, "ready"), next, protectedReview]),
+      completedSessionId: "session-1",
+      completedAt: "2026-08-09T18:25:00.000Z",
+      continuationSession: continuation,
+    });
+
+    expect(result.sessions.map(({ id, sequence, status }) => ({ id, sequence, status }))).toEqual([
+      { id: "session-1", sequence: 1, status: "complete" },
+      { id: "deferred-continuation", sequence: 2, status: "ready" },
+      { id: "later-session", sequence: 3, status: "upcoming" },
+      { id: "protected-review", sequence: 4, status: "upcoming" },
+    ]);
+    expect(result.sessions.filter((item) => item.status === "ready")).toHaveLength(1);
+    expect(result.sessions.find((item) => item.id === "later-session")?.scheduledFor).toBe(next.scheduledFor);
+    expect(result.sessions.find((item) => item.id === "protected-review")?.scheduledFor).toBe(protectedReview.scheduledFor);
+
+    const replayed = completePlanSession({
+      plan: result,
+      completedSessionId: "session-1",
+      completedAt: "2026-08-09T18:25:00.000Z",
+      continuationSession: continuation,
+    });
+    expect(replayed.sessions).toEqual(result.sessions);
+  });
+
   it("does not shift later sessions again when completion is replayed", () => {
     const verification = session(2, "ready", {
       id: "verification-session",

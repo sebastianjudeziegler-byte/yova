@@ -7,10 +7,15 @@ import {
 import {
   allocateStreamedTeachingMinutes,
   boundedGeneratedActivityTitle,
+  compactStreamedLearnerTextToBudget,
   interleaveStreamedTeachingCycles,
   streamedTeachingPacingContract,
   validateStreamedTeachingPacing,
 } from "@/lib/session-generation/streamed-pacing";
+import {
+  sessionLearnerFacingWordCount,
+  validateSessionTimeBudget,
+} from "@/lib/session-generation/time-budget";
 
 const TOPIC_ID = "11111111-1111-4111-8111-111111111111";
 
@@ -248,6 +253,44 @@ describe("streamed teaching pacing", () => {
     expect(interleaved.activities[0]?.estimatedMinutes).toBeLessThanOrEqual(5);
     expect(interleaved.activities.reduce((sum, activity) => sum + activity.estimatedMinutes, 0)).toBe(15);
     expect(validateStreamedTeachingPacing({ draft: interleaved, availableMinutes: 15 })).toBeNull();
+  });
+
+  it("compacts verbose provider scaffolding without changing the authoritative lesson claims", () => {
+    const ideas = [
+      "Shorter wavelengths scatter more strongly because Rayleigh scattering scales inversely with wavelength.",
+      "Scattered blue light reaches an observer from many directions across the daytime sky.",
+    ];
+    const verbose = "explain light wave angle color cause ".repeat(14).trim();
+    const draft = sessionDraft([
+      instruction("Teach wavelength-dependent scattering", ideas[0]!),
+      { ...question("Wavelength dependence", "explain"), body: verbose, correctAnswer: verbose, feedback: verbose },
+      instruction("Teach why the sky appears blue", ideas[1]!),
+      { ...question("Blue light across the sky", "transfer"), body: verbose, correctAnswer: verbose, feedback: verbose },
+    ], ideas);
+    const interleaved = interleaveStreamedTeachingCycles({
+      draft,
+      availableMinutes: 15,
+      maximumFocusedActivities: 4,
+      maximumFirstActionMinutes: 5,
+    });
+    interleaved.activities = allocateStreamedTeachingMinutes({
+      activities: interleaved.activities,
+      availableMinutes: 15,
+      maximumFirstActionMinutes: 5,
+    });
+
+    expect(sessionLearnerFacingWordCount(interleaved)).toBeGreaterThan(450);
+    const compacted = compactStreamedLearnerTextToBudget({
+      draft: interleaved,
+      availableMinutes: 15,
+    });
+
+    expect(sessionLearnerFacingWordCount(compacted)).toBeLessThanOrEqual(450);
+    expect(compacted.coverage.essentialIdeas).toEqual(ideas);
+    expect(compacted.activities.flatMap((activity) => activity.lessonBrief?.essentialIdeas ?? []))
+      .toEqual(ideas);
+    expect(validateSessionTimeBudget(compacted, 15)).toBeNull();
+    expect(validateStreamedTeachingPacing({ draft: compacted, availableMinutes: 15 })).toBeNull();
   });
 });
 

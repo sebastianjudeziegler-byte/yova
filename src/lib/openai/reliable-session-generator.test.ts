@@ -137,7 +137,11 @@ describe("reliable OpenAI session generation", () => {
     const result = await generateReliableSessionWithOpenAI(context());
 
     expect(parseResponse).toHaveBeenCalledTimes(1);
-    expect(parseResponse.mock.calls[0]?.[1]).toEqual({ maxRetries: 0, timeout: 28_000 });
+    expect(parseResponse.mock.calls[0]?.[1]).toEqual(expect.objectContaining({
+      maxRetries: 0,
+      timeout: 28_000,
+      signal: expect.any(AbortSignal),
+    }));
     expect(result.draft.activities[0]?.teaching?.explanation).toContain("circadian clock");
     const expectedTarget = context().session.contentTargets?.[0];
     expect(expectedTarget).toBeDefined();
@@ -148,6 +152,43 @@ describe("reliable OpenAI session generation", () => {
       "You asked for the big picture first, so YOVA will establish the overall model before the details.",
     );
     expect(result.draft.activities.at(-1)?.methodPhase).toBe("schedule_return");
+  });
+
+  it("stops a reliable provider call at the shared route deadline", async () => {
+    const startedAt = new Date("2026-08-21T14:00:00.000Z");
+    vi.useFakeTimers();
+    vi.setSystemTime(startedAt);
+    parseResponse.mockImplementationOnce((_, options: { signal: AbortSignal }) => (
+      new Promise((_, reject) => {
+        options.signal.addEventListener("abort", () => reject(options.signal.reason), { once: true });
+      })
+    ));
+
+    try {
+      const { generateReliableSessionWithOpenAI } = await import("@/lib/openai/reliable-session-generator");
+      const generation = generateReliableSessionWithOpenAI(context(), {
+        deadlineAt: startedAt.getTime() + 30_000,
+        settlementReserveMs: 12_000,
+      });
+      const rejection = expect(generation).rejects.toMatchObject({
+        name: "SessionGenerationFailure",
+        generationStats: {
+          attempts: 1,
+          failedValidator: "session_provider_request",
+        },
+      });
+
+      await vi.advanceTimersByTimeAsync(18_000);
+      await rejection;
+      expect(parseResponse).toHaveBeenCalledTimes(1);
+      expect(parseResponse.mock.calls[0]?.[1]).toEqual(expect.objectContaining({
+        maxRetries: 0,
+        timeout: 18_000,
+        signal: expect.any(AbortSignal),
+      }));
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("sends teaching decisions through the delivery policy but keeps CSS decisions out", async () => {

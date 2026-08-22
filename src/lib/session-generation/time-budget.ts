@@ -29,7 +29,15 @@ export function validateSessionTimeBudget(
   if (focusedActivityCount > maximumActivities) {
     return `A ${estimatedMinutes}-minute session may contain at most ${maximumActivities} focused activities.`;
   }
-  const learnerFacingWords = draft.activities
+  const learnerFacingWords = sessionLearnerFacingWordCount(draft);
+  if (learnerFacingWords > contentBudget.maximumLearnerFacingWords) {
+    return `The session contains ${learnerFacingWords} learner-facing words, which is too much for a ${estimatedMinutes}-minute guided session. Keep this slice under ${contentBudget.maximumLearnerFacingWords} words and defer the rest.`;
+  }
+  return null;
+}
+
+export function sessionLearnerFacingWordCount(draft: GeneratedSessionDraft) {
+  return draft.activities
     // The return marker is a short scheduling promise shown after the lesson,
     // not part of the content the learner must process in today's window.
     .filter((activity) => activity.methodPhase !== "schedule_return")
@@ -49,10 +57,6 @@ export function validateSessionTimeBudget(
       activity.feedback,
     ].filter(Boolean).join(" "))
     ), 0);
-  if (learnerFacingWords > contentBudget.maximumLearnerFacingWords) {
-    return `The session contains ${learnerFacingWords} learner-facing words, which is too much for a ${estimatedMinutes}-minute guided session. Keep this slice under ${contentBudget.maximumLearnerFacingWords} words and defer the rest.`;
-  }
-  return null;
 }
 
 function countWords(value: string) {

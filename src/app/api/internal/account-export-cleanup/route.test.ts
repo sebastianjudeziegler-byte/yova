@@ -5,6 +5,8 @@ vi.mock("server-only", () => ({}));
 const mocks = vi.hoisted(() => ({
   cleanup: vi.fn(),
   deletionCleanup: vi.fn(),
+  materialCleanup: vi.fn(),
+  receiptCleanup: vi.fn(),
   adminConfigured: vi.fn(),
   createAdmin: vi.fn(),
 }));
@@ -15,6 +17,14 @@ vi.mock("@/lib/account-export/cleanup", () => ({
 
 vi.mock("@/lib/account-deletion/cleanup", () => ({
   cleanupDeletedAccountStorage: mocks.deletionCleanup,
+}));
+
+vi.mock("@/lib/materials/staged-cleanup", () => ({
+  cleanupExpiredStagedMaterials: mocks.materialCleanup,
+}));
+
+vi.mock("@/lib/storage-cleanup/private-receipts", () => ({
+  cleanupPrivateStorageReceipts: mocks.receiptCleanup,
 }));
 
 vi.mock("@/lib/supabase/admin", () => ({
@@ -44,6 +54,18 @@ describe("account-export cleanup cron route", () => {
       removedJobs: 1,
       retryJobs: 0,
     });
+    mocks.materialCleanup.mockReset().mockResolvedValue({
+      ok: true,
+      claimedUploads: 4,
+      removedUploads: 4,
+      retryUploads: 0,
+    });
+    mocks.receiptCleanup.mockReset().mockResolvedValue({
+      ok: true,
+      claimedReceipts: 2,
+      sweptReceipts: 2,
+      retryReceipts: 0,
+    });
   });
 
   afterEach(() => {
@@ -63,6 +85,8 @@ describe("account-export cleanup cron route", () => {
     expect(mocks.createAdmin).not.toHaveBeenCalled();
     expect(mocks.cleanup).not.toHaveBeenCalled();
     expect(mocks.deletionCleanup).not.toHaveBeenCalled();
+    expect(mocks.materialCleanup).not.toHaveBeenCalled();
+    expect(mocks.receiptCleanup).not.toHaveBeenCalled();
   });
 
   it("rejects a CRON_SECRET with surrounding whitespace instead of comparing a trimmed value", async () => {
@@ -73,6 +97,8 @@ describe("account-export cleanup cron route", () => {
     expect(response.status).toBe(503);
     expect(mocks.cleanup).not.toHaveBeenCalled();
     expect(mocks.deletionCleanup).not.toHaveBeenCalled();
+    expect(mocks.materialCleanup).not.toHaveBeenCalled();
+    expect(mocks.receiptCleanup).not.toHaveBeenCalled();
   });
 
   it("rejects missing, wrong-length, and wrong-value Bearer credentials", async () => {
@@ -95,10 +121,18 @@ describe("account-export cleanup cron route", () => {
       deletionClaimedJobs: 1,
       deletionRemovedJobs: 1,
       deletionRetryJobs: 0,
+      materialClaimedUploads: 4,
+      materialRemovedUploads: 4,
+      materialRetryUploads: 0,
+      receiptClaimedPaths: 2,
+      receiptSweptPaths: 2,
+      receiptRetryPaths: 0,
     });
     expect(response.headers.get("Cache-Control")).toContain("no-store");
     expect(mocks.cleanup).toHaveBeenCalledWith({ role: "service" });
     expect(mocks.deletionCleanup).toHaveBeenCalledWith({ role: "service" });
+    expect(mocks.materialCleanup).toHaveBeenCalledWith({ role: "service" });
+    expect(mocks.receiptCleanup).toHaveBeenCalledWith({ role: "service" });
   });
 
   it("retries when deleted-account Storage cleanup cannot finish", async () => {
@@ -122,6 +156,36 @@ describe("account-export cleanup cron route", () => {
       claimedJobs: 1,
       removedJobs: 0,
       retryJobs: 1,
+      privatePath: "must-not-leak",
+    });
+
+    const response = await GET(request(SECRET));
+
+    expect(response.status).toBe(503);
+    expect(await response.text()).not.toContain("must-not-leak");
+  });
+
+  it("retries when expired staged-material cleanup cannot finish", async () => {
+    mocks.materialCleanup.mockResolvedValue({
+      ok: false,
+      claimedUploads: 1,
+      removedUploads: 0,
+      retryUploads: 1,
+      privatePath: "must-not-leak",
+    });
+
+    const response = await GET(request(SECRET));
+
+    expect(response.status).toBe(503);
+    expect(await response.text()).not.toContain("must-not-leak");
+  });
+
+  it("retries when a retained final-sweep receipt cannot finish", async () => {
+    mocks.receiptCleanup.mockResolvedValue({
+      ok: false,
+      claimedReceipts: 1,
+      sweptReceipts: 0,
+      retryReceipts: 1,
       privatePath: "must-not-leak",
     });
 

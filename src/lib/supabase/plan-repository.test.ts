@@ -137,4 +137,15 @@ describe("plan persistence retries", () => {
 
     await expect(persistPlanForAuthenticatedUser(plan, generationRequest)).rejects.toBeInstanceOf(PlanPersistenceError);
   });
+
+  it("surfaces an expired staged source as a non-retryable rebuild condition", async () => {
+    const client = clientWithExistingPlan(null);
+    client.rpc.mockResolvedValue({ error: { message: "material_staging_expired" } });
+    mocks.createSupabaseServerClient.mockResolvedValue(client);
+
+    await expect(persistPlanForAuthenticatedUser(plan, generationRequest)).rejects.toMatchObject({
+      name: "PlanPersistenceError",
+      code: "material_staging_expired",
+    });
+  });
 });

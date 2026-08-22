@@ -117,6 +117,18 @@ describe("active-plan material attachment route", () => {
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
 
+  it("refuses an expired staging row before mapping or attachment", async () => {
+    mocks.createClient.mockResolvedValue(materialClient({ expired: true }));
+
+    const response = await POST(attachRequest());
+    const body = await response.json();
+
+    expect(response.status).toBe(410);
+    expect(body.code).toBe("material_attachment_source_missing");
+    expect(mocks.mapMaterial).not.toHaveBeenCalled();
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
   it("uses an authoritative readback after a committed response is lost", async () => {
     const client = materialClient({ attached: true, planKnowledgeMap: reconciledMap() });
     mocks.createClient.mockResolvedValue(client);
@@ -144,12 +156,24 @@ describe("active-plan material attachment route", () => {
     });
     expect(body.error).toContain("Do not add them again yet");
   });
+
+  it("reports a transaction-time expiry instead of offering a retry", async () => {
+    mocks.rpc.mockResolvedValueOnce({ data: null, error: { message: "material_staging_expired" } });
+
+    const response = await POST(attachRequest());
+    const body = await response.json();
+
+    expect(response.status).toBe(410);
+    expect(body).toMatchObject({ code: "material_staging_expired" });
+    expect(body.error).toContain("expired");
+  });
 });
 
 function materialClient(options: {
   mappingReady?: boolean;
   attached?: boolean;
   planKnowledgeMap?: PlanKnowledgeMap;
+  expired?: boolean;
 } = {}) {
   const stagedMaterial = {
     id: MATERIAL_ID,
@@ -162,6 +186,7 @@ function materialClient(options: {
       mappingStatus: "ready",
       materialUnderstanding: understanding(),
     },
+    expires_at: options.expired ? "2020-01-01T00:00:00.000Z" : "2099-01-01T00:00:00.000Z",
   };
   const plan = {
     id: PLAN_ID,
@@ -202,6 +227,12 @@ function query(sourceRows: Array<Record<string, unknown>>) {
     }),
     in: vi.fn((field: string, values: unknown[]) => {
       selected = selected.filter((row) => values.includes(row[field]));
+      return builder;
+    }),
+    gt: vi.fn((field: string, value: unknown) => {
+      if (selected.some((row) => field in row) && typeof value === "string") {
+        selected = selected.filter((row) => typeof row[field] === "string" && row[field] > value);
+      }
       return builder;
     }),
     order: vi.fn(() => builder),

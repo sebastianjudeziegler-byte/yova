@@ -23,7 +23,11 @@ import { MaterialFileDropzone } from "@/components/material-file-dropzone";
 import { MaterialLinkImporter } from "@/components/material-link-importer";
 import { PlanGenerationNotice } from "@/components/plan-generation-notice";
 import { makeId, type LearningMaterial, type LearningPlan } from "@/lib/domain";
-import { deleteUploadedMaterial, uploadMaterialFiles } from "@/lib/materials/intake";
+import {
+  abandonUploadedMaterials,
+  deleteUploadedMaterial,
+  uploadMaterialFiles,
+} from "@/lib/materials/intake";
 import { userFacingErrorMessage } from "@/lib/errors/user-facing-message";
 import { reportProductError } from "@/lib/monitoring/client";
 import {
@@ -38,6 +42,7 @@ import {
 } from "@/lib/plan-generation/schema";
 import { PlanKnowledgeMapSchema, type PlanKnowledgeMap } from "@/lib/knowledge-map/schema";
 import { generatePreviewPlan } from "@/lib/plan-generation/preview-generator";
+import { planScheduleCapacityGuidance } from "@/lib/plan-generation/capacity-guidance";
 import { LIVE_AI_PLAN_FALLBACK_NOTICE } from "@/lib/plan-generation/fallback";
 import { inferPlanScopeContract } from "@/lib/plan-generation/scope-contract";
 import { buildPlanContentBudget } from "@/lib/plan-generation/content-budget";
@@ -77,7 +82,9 @@ export function PlanCreator({ onExit, onFinish, profileSummary, browserPreviewMo
   const [materialError, setMaterialError] = useState<string | null>(null);
   const [materialNotice, setMaterialNotice] = useState<string | null>(null);
   const [processingMaterials, setProcessingMaterials] = useState(false);
+  const [linkMaterialWorking, setLinkMaterialWorking] = useState(false);
   const [removingMaterialId, setRemovingMaterialId] = useState<string | null>(null);
+  const [abandoningMaterials, setAbandoningMaterials] = useState(false);
   const [scheduleState, dispatchSchedule] = useReducer(planCreatorScheduleReducer, null, () => ({
     deadlineDate: seed?.dueAt
       ? futureDeadlineDateInputFromIso(seed.dueAt, browserTimeZone)
@@ -114,6 +121,7 @@ export function PlanCreator({ onExit, onFinish, profileSummary, browserPreviewMo
   const [generatedPlan, setGeneratedPlan] = useState<PlanGenerationResponse | null>(null);
   const [generatedFrom, setGeneratedFrom] = useState<PlanGenerationRequest | null>(null);
   const [generationError, setGenerationError] = useState<string | null>(null);
+  const [scheduleCapacityError, setScheduleCapacityError] = useState<string | null>(null);
   const [activationError, setActivationError] = useState<string | null>(null);
   const [activating, setActivating] = useState(false);
   const [mapCorrection, setMapCorrection] = useState("");
@@ -184,6 +192,7 @@ export function PlanCreator({ onExit, onFinish, profileSummary, browserPreviewMo
 
   const prepareDiagnostic = async () => {
     setDiagnosticError(null);
+    setScheduleCapacityError(null);
     setStep("diagnostic-loading");
     try {
       const planRequest = buildGenerationRequest({ diagnosticResponses: [], knowledgeMap: undefined });
@@ -231,6 +240,7 @@ export function PlanCreator({ onExit, onFinish, profileSummary, browserPreviewMo
     if (!sourceChoice) return;
 
     setGenerationError(null);
+    setScheduleCapacityError(null);
     setActivationError(null);
     setStep("loading");
     let requestId: string | null = null;
@@ -251,6 +261,11 @@ export function PlanCreator({ onExit, onFinish, profileSummary, browserPreviewMo
       const body: unknown = await response.json();
 
       if (!response.ok) {
+        const capacityGuidance = planScheduleCapacityGuidance(body);
+        if (capacityGuidance) {
+          showScheduleCapacityError(capacityGuidance);
+          return;
+        }
         const message = typeof body === "object" && body && "error" in body && typeof body.error === "string"
           ? body.error
           : "YOVA could not build this plan yet.";
@@ -270,26 +285,44 @@ export function PlanCreator({ onExit, onFinish, profileSummary, browserPreviewMo
         requestId,
       });
       if (planRequest) {
-        const reliablePlan = generatePreviewPlan(planRequest);
-        const reliableResponse = PlanGenerationResponseSchema.parse({
-          plan: reliablePlan,
-          generation: {
-            mode: "system",
-            model: null,
-            notice: LIVE_AI_PLAN_FALLBACK_NOTICE,
-            requestId: requestId ?? makeId("plan_request"),
-            durationMs: 0,
-            persistence: "draft",
-          },
-        });
-        setGeneratedPlan(reliableResponse);
-        setGeneratedFrom(planRequest);
-        setStep("result");
+        try {
+          const reliablePlan = generatePreviewPlan(planRequest);
+          const reliableResponse = PlanGenerationResponseSchema.parse({
+            plan: reliablePlan,
+            generation: {
+              mode: "system",
+              model: null,
+              notice: LIVE_AI_PLAN_FALLBACK_NOTICE,
+              requestId: requestId ?? makeId("plan_request"),
+              durationMs: 0,
+              persistence: "draft",
+            },
+          });
+          setGeneratedPlan(reliableResponse);
+          setGeneratedFrom(planRequest);
+          setStep("result");
+        } catch (fallbackError) {
+          const capacityGuidance = planScheduleCapacityGuidance(fallbackError);
+          if (capacityGuidance) {
+            showScheduleCapacityError(capacityGuidance);
+            return;
+          }
+          setGenerationError(userFacingErrorMessage(fallbackError, "YOVA could not build this plan yet."));
+          setStep("error");
+        }
         return;
       }
       setGenerationError(userFacingErrorMessage(error, "YOVA could not build this plan yet."));
       setStep("error");
     }
+  };
+
+  const showScheduleCapacityError = (guidance: string) => {
+    setGeneratedPlan(null);
+    setGeneratedFrom(null);
+    setGenerationError(null);
+    setScheduleCapacityError(guidance);
+    setStep("schedule");
   };
 
   const addMaterials = async (files: File[]) => {
@@ -324,10 +357,52 @@ export function PlanCreator({ onExit, onFinish, profileSummary, browserPreviewMo
     }
   };
 
+  const abandonMaterials = async () => {
+    const pendingMaterials = materials;
+    if (!pendingMaterials.length) return;
+    setMaterials([]);
+    const cleanup = await abandonUploadedMaterials(pendingMaterials);
+    if (cleanup.unconfirmed > 0) {
+      setMaterialNotice("YOVA could not confirm cleanup for every pending source. They cannot be used here and will expire automatically.");
+    } else if (cleanup.cleanupPending > 0) {
+      setMaterialNotice("The pending sources were cancelled. Private file cleanup will finish automatically.");
+    }
+  };
+
+  const exitCreator = async () => {
+    if (processingMaterials || linkMaterialWorking || abandoningMaterials || removingMaterialId) return;
+    setAbandoningMaterials(true);
+    try {
+      await abandonMaterials();
+    } finally {
+      setAbandoningMaterials(false);
+      onExit();
+    }
+  };
+
+  const chooseSource = async (choice: SourceChoice) => {
+    if (processingMaterials || linkMaterialWorking || abandoningMaterials || removingMaterialId) return;
+    if (choice === "materials") {
+      setSourceChoice(choice);
+      return;
+    }
+    setSourceChoice(choice);
+    setMaterialError(null);
+    setMaterialNotice(null);
+    if (!materials.length) return;
+    setAbandoningMaterials(true);
+    try {
+      await abandonMaterials();
+    } finally {
+      setAbandoningMaterials(false);
+    }
+  };
+
   const reviseGeneratedPlan = (target: "goal" | "source" | "schedule" | "diagnostic") => {
     setGeneratedPlan(null);
     setGeneratedFrom(null);
     setGenerationError(null);
+    setScheduleCapacityError(null);
     setActivationError(null);
     if (target === "goal") {
       setDiagnosticAnswers([]);
@@ -356,7 +431,14 @@ export function PlanCreator({ onExit, onFinish, profileSummary, browserPreviewMo
         body: JSON.stringify(planRequest),
       });
       const body: unknown = await response.json();
-      if (!response.ok) throw new Error(readApiError(body) ?? "YOVA could not update this topic map yet.");
+      if (!response.ok) {
+        const capacityGuidance = planScheduleCapacityGuidance(body);
+        if (capacityGuidance) {
+          setMapCorrectionError(`${capacityGuidance} Use Change schedule below to revise the available time.`);
+          return;
+        }
+        throw new Error(readApiError(body) ?? "YOVA could not update this topic map yet.");
+      }
       const parsed = PlanGenerationResponseSchema.safeParse(body);
       if (!parsed.success || !parsed.data.plan.knowledgeMap) throw new Error("The updated map came back in an unsafe format.");
       setGeneratedPlan(parsed.data);
@@ -436,7 +518,7 @@ export function PlanCreator({ onExit, onFinish, profileSummary, browserPreviewMo
       <header className="plan-header">
         <BrandMark />
         {step !== "result" && <span>Step {stepNumber} of 5</span>}
-        {step !== "result" && <button className="button ghost" onClick={onExit}>Exit</button>}
+        {step !== "result" && <button className="button ghost" disabled={processingMaterials || linkMaterialWorking || abandoningMaterials || Boolean(removingMaterialId)} onClick={() => void exitCreator()}>{abandoningMaterials ? "Removing sources…" : "Exit"}</button>}
       </header>
       {step !== "result" && <div className="plan-progress"><i style={{ width: `${(stepNumber / 5) * 100}%` }} /></div>}
 
@@ -445,7 +527,7 @@ export function PlanCreator({ onExit, onFinish, profileSummary, browserPreviewMo
           <textarea className="goal-input" placeholder="Example: I have a biology test next Friday on photosynthesis and cellular respiration." value={goal} onChange={(event) => setGoal(event.target.value)} />
           <p className="goal-input-hint">Include the topic and, if relevant, the test, deadline, or result you want.</p>
           {!assessGoalContext(goal).hasEnoughContext && <p className="goal-context-warning"><AlertCircle size={16} /> Add the actual topic, or continue and choose Use my materials so YOVA can identify what the class label contains.</p>}
-          <PlanActions onBack={onExit} backLabel="Cancel" onNext={() => setStep("source")} nextDisabled={goal.trim().length < 10} />
+          <PlanActions onBack={() => void exitCreator()} backLabel="Cancel" onNext={() => setStep("source")} nextDisabled={goal.trim().length < 10} />
         </PlanPanel>
       )}
 
@@ -453,19 +535,19 @@ export function PlanCreator({ onExit, onFinish, profileSummary, browserPreviewMo
         <PlanPanel eyebrow="CHOOSE HOW YOVA SHOULD HELP" title="Where should the learning come from?" description="Pick one starting mode. YOVA will use the same choice throughout the plan, and you can still change it later.">
           <div className="plan-goal-echo"><span>YOUR GOAL</span><p>{goal}</p><button className="button ghost" onClick={() => setStep("goal")}>Edit</button></div>
           <div className="mode-cards three-up">
-            <button className={sourceChoice === "materials" ? "selected" : ""} onClick={() => setSourceChoice("materials")}><Upload /><span><strong>Use my materials</strong><small>Build from study guides, PDF slides, notes, review sheets, or textbook excerpts.</small></span>{sourceChoice === "materials" && <Check />}</button>
-            <button className={sourceChoice === "yova" ? "selected" : ""} onClick={() => { setSourceChoice("yova"); setMaterialError(null); setMaterialNotice(null); }}><Sparkles /><span><strong>Create it for me</strong><small>YOVA creates the teaching, examples, and practice from the topic.</small></span>{sourceChoice === "yova" && <Check />}</button>
-            <button className={sourceChoice === "outside" ? "selected" : ""} onClick={() => { setSourceChoice("outside"); setMaterialError(null); setMaterialNotice(null); }}><Layers3 /><span><strong>Guide me outside YOVA</strong><small>YOVA chooses the method and gives exact steps for another trusted source.</small></span>{sourceChoice === "outside" && <Check />}</button>
+            <button disabled={processingMaterials || linkMaterialWorking || abandoningMaterials || Boolean(removingMaterialId)} className={sourceChoice === "materials" ? "selected" : ""} onClick={() => void chooseSource("materials")}><Upload /><span><strong>Use my materials</strong><small>Build from study guides, PDF slides, notes, review sheets, or textbook excerpts.</small></span>{sourceChoice === "materials" && <Check />}</button>
+            <button disabled={processingMaterials || linkMaterialWorking || abandoningMaterials || Boolean(removingMaterialId)} className={sourceChoice === "yova" ? "selected" : ""} onClick={() => void chooseSource("yova")}><Sparkles /><span><strong>Create it for me</strong><small>YOVA creates the teaching, examples, and practice from the topic.</small></span>{sourceChoice === "yova" && <Check />}</button>
+            <button disabled={processingMaterials || linkMaterialWorking || abandoningMaterials || Boolean(removingMaterialId)} className={sourceChoice === "outside" ? "selected" : ""} onClick={() => void chooseSource("outside")}><Layers3 /><span><strong>Guide me outside YOVA</strong><small>YOVA chooses the method and gives exact steps for another trusted source.</small></span>{sourceChoice === "outside" && <Check />}</button>
           </div>
           {sourceChoice === "materials" && <div className="material-uploader">
             <MaterialFileDropzone
               busy={processingMaterials}
-              disabled={Boolean(removingMaterialId) || materials.length >= 5}
+              disabled={linkMaterialWorking || Boolean(removingMaterialId) || materials.length >= 5}
               onFiles={addMaterials}
             />
             <p className="material-examples"><strong>Useful examples:</strong> teacher study guide · lecture slides exported as PDF · class notes · review sheet · readable textbook excerpt</p>
             <p className="material-supplement-note"><Sparkles size={14} /> If a source only lists topics, YOVA can fill in the minimum explanation needed while keeping your material as the scope and showing what it added.</p>
-            <MaterialLinkImporter existingCount={materials.length} disabled={processingMaterials || Boolean(removingMaterialId)} onImported={(material, notice) => { setMaterials((current) => [...current, material]); setMaterialError(null); setMaterialNotice(notice); }} />
+            <MaterialLinkImporter existingCount={materials.length} disabled={processingMaterials || Boolean(removingMaterialId)} onWorkingChange={setLinkMaterialWorking} onImported={(material, notice) => { setMaterials((current) => [...current, material]); setMaterialError(null); setMaterialNotice(notice); }} />
             {materials.length > 0 && <div className="material-files">{materials.map((material) => <div key={material.id}><FileText /><span><strong>{material.name}</strong><small>Securely stored · text ready for YOVA</small></span><button aria-label={`Remove ${material.name}`} disabled={removingMaterialId === material.id} onClick={() => void removeMaterial(material.id)}>{removingMaterialId === material.id ? <span className="button-spinner dark" /> : <Trash2 size={16} />}</button></div>)}<p>{materials.length} {materials.length === 1 ? "material" : "materials"} ready for plan generation</p></div>}
           </div>}
           {materialNotice && <p className="material-notice" role="status"><AlertCircle size={15} /> {materialNotice}</p>}
@@ -477,12 +559,13 @@ export function PlanCreator({ onExit, onFinish, profileSummary, browserPreviewMo
               onUseMaterials={() => setSourceChoice("materials")}
             />
           )}
-          <PlanActions onBack={back} onNext={continueToSchedule} nextDisabled={!sourceChoice || !goalContext.hasEnoughContext || processingMaterials || Boolean(removingMaterialId) || (sourceChoice === "materials" && materials.length === 0)} />
+          <PlanActions onBack={back} onNext={continueToSchedule} nextDisabled={!sourceChoice || !goalContext.hasEnoughContext || processingMaterials || linkMaterialWorking || Boolean(removingMaterialId) || (sourceChoice === "materials" && materials.length === 0)} />
         </PlanPanel>
       )}
 
       {step === "schedule" && !customScheduleOpen && (
         <PlanPanel wide eyebrow="YOUR STUDY RHYTHM" title="When would you prefer to study this material?" description="Choose a realistic pattern. YOVA will build the learning sequence around it and adapt the schedule as your results change.">
+          {scheduleCapacityError && <ScheduleCapacityGuidance guidance={scheduleCapacityError} />}
           <div className="schedule-builder-layout">
             <div className="schedule-quick-builder">
               <fieldset className="schedule-question"><legend><span>1</span> How often can you study?</legend><div className="schedule-choice-grid frequency">{(["every_day", "most_days", "three_four", "one_two"] as StudyFrequency[]).map((frequency) => <button type="button" key={frequency} className={studyFrequency === frequency && !customScheduleOpen ? "selected" : ""} onClick={() => chooseFrequency(frequency)}><CalendarDays size={18} /><strong>{frequencyLabel(frequency)}</strong>{scheduleRecommendation.frequency === frequency && <small>Recommended</small>}</button>)}<button type="button" className={customScheduleOpen ? "selected" : ""} onClick={() => dispatchSchedule({ type: "set_custom_open", open: true })}><SlidersHorizontal size={18} /><strong>Custom</strong><small>Choose each day</small></button></div></fieldset>
@@ -502,6 +585,7 @@ export function PlanCreator({ onExit, onFinish, profileSummary, browserPreviewMo
 
       {step === "schedule" && customScheduleOpen && (
         <PlanPanel wide eyebrow="CUSTOM TIMETABLE" title="Build your study week" description="Choose the exact days, time of day, and maximum session length that work for you.">
+          {scheduleCapacityError && <ScheduleCapacityGuidance guidance={scheduleCapacityError} />}
           <section className="schedule-customizer standalone">
             <header>
               <div><span className="step-label">YOUR AVAILABILITY</span><h2>{availability.length} study {availability.length === 1 ? "window" : "windows"} selected</h2><p>YOVA treats these as limits, not mandatory appointments. The plan will use only the time the material actually needs.</p></div>
@@ -611,6 +695,10 @@ function PlanActions({ onBack, onNext, backLabel = "Back", nextLabel = "Continue
 
 function SummaryFact({ label, value }: { label: string; value: string }) {
   return <div className="summary-fact"><span>{label}</span><strong>{value}</strong></div>;
+}
+
+function ScheduleCapacityGuidance({ guidance }: { guidance: string }) {
+  return <div className="chat-error plan-schedule-capacity" role="alert"><AlertCircle size={18} /><span><strong>This plan needs more room before your target date.</strong><br />{guidance}</span></div>;
 }
 
 function formatSessionDate(value: string) {

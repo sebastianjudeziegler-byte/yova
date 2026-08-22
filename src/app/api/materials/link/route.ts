@@ -13,6 +13,7 @@ import {
   MATERIAL_MAPPING_ROUTE_BUDGET_MS,
   mapAndPersistMaterial,
 } from "@/lib/materials/material-understanding";
+import { cancelStagedMaterial } from "@/lib/materials/staged-cleanup";
 import { checkMaterialUploadRateLimit, requestRateLimitKey } from "@/lib/server/rate-limit";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -97,25 +98,41 @@ export async function POST(request: Request) {
       importedAt: new Date().toISOString(),
       mappingStatus: "processing",
     };
+    const { data: staged, error: insertError } = await supabase.rpc("create_material_upload", {
+      payload: {
+        id: materialId,
+        filename,
+        storagePath,
+        mimeType: "text/plain",
+        byteSize: bytes.byteLength,
+        processingStatus: "processing",
+        extractedText: text,
+        metadata,
+      },
+    });
+    if (insertError || staged !== true) throw new Error("External material record failed");
+
+    // Create the leased staging record before Storage. If Storage fails, the
+    // same cancellation path used by explicit abandonment can expire the row
+    // immediately and let the cron retry exact cleanup without an orphan.
     const { error: storageError } = await supabase.storage
       .from("learning-materials")
       .upload(storagePath, bytes, { contentType: "text/plain", upsert: false });
-    if (storageError) throw new Error("External material storage failed");
-
-    const { error: insertError } = await supabase.from("material_uploads").insert({
-      id: materialId,
-      user_id: user.id,
-      filename,
-      storage_path: storagePath,
-      mime_type: "text/plain",
-      byte_size: bytes.byteLength,
-      processing_status: "processing",
-      extracted_text: text,
-      metadata,
-    });
-    if (insertError) {
-      await supabase.storage.from("learning-materials").remove([storagePath]);
-      throw new Error("External material record failed");
+    if (storageError) {
+      const cleanup = await cancelStagedMaterial(supabase, materialId);
+      if (cleanup.status === "outcome_unconfirmed" || cleanup.status === "durable") {
+        return NextResponse.json({
+          error: `YOVA could not store this source or confirm whether its pending copy was cancelled. Do not add it again yet. Contact YOVA Support with reference ${requestId}.`,
+          code: "external_material_storage_cleanup_outcome_unconfirmed",
+          committed: "unknown",
+          materialId,
+          requestId,
+        }, {
+          status: 503,
+          headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId },
+        });
+      }
+      throw new Error("External material storage failed");
     }
 
     try {
@@ -165,15 +182,8 @@ export async function POST(request: Request) {
         materialId,
         reason: mappingError instanceof Error ? mappingError.name : "unknown",
       });
-      const cleanup = await Promise.allSettled([
-        supabase.from("material_chunks").delete().eq("material_id", materialId),
-        supabase.from("material_uploads").delete().eq("id", materialId),
-        supabase.storage.from("learning-materials").remove([storagePath]),
-      ]);
-      const cleanupSucceeded = cleanup.every((result) => (
-        result.status === "fulfilled" && !result.value.error
-      ));
-      if (cleanupSucceeded) {
+      const cleanup = await cancelStagedMaterial(supabase, materialId);
+      if (cleanup.status === "removed") {
         return NextResponse.json({
           error: "YOVA could not map this source into reliable sections. The incomplete import was removed, so it is safe to try again.",
           code: "external_material_mapping_failed_rolled_back",
@@ -184,10 +194,23 @@ export async function POST(request: Request) {
           headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId },
         });
       }
+      if (cleanup.status === "cleanup_pending") {
+        return NextResponse.json({
+          error: "YOVA could not map this source. Its pending copy was cancelled and private cleanup will finish automatically, so it is safe to try again.",
+          code: "external_material_mapping_failed_cleanup_pending",
+          committed: true,
+          cleanupPending: true,
+          retryable: true,
+          requestId,
+        }, {
+          status: 503,
+          headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId },
+        });
+      }
       return NextResponse.json({
-        error: `YOVA saved part of this source but could not finish or remove it. Do not add it again. Contact YOVA Support with reference ${requestId}.`,
-        code: "external_material_mapping_incomplete_committed",
-        committed: true,
+        error: `YOVA could not finish this source or confirm whether its pending copy was cancelled. Do not add it again yet. Contact YOVA Support with reference ${requestId}.`,
+        code: "external_material_mapping_cleanup_outcome_unconfirmed",
+        committed: "unknown",
         materialId,
         requestId,
       }, {

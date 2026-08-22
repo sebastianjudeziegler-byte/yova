@@ -257,6 +257,44 @@ describe("bounded streamed-skeleton repair policy", () => {
     });
     expect(parseResponse).toHaveBeenCalledTimes(2);
   });
+
+  it("stops a streamed provider call at the shared route deadline", async () => {
+    const startedAt = new Date("2026-08-21T15:00:00.000Z");
+    vi.useFakeTimers();
+    vi.setSystemTime(startedAt);
+    parseResponse.mockReset();
+    parseResponse.mockImplementationOnce((_, options: { signal: AbortSignal }) => (
+      new Promise((_, reject) => {
+        options.signal.addEventListener("abort", () => reject(options.signal.reason), { once: true });
+      })
+    ));
+
+    try {
+      const { generateStreamedTeachingSkeletonWithOpenAI } = await import("@/lib/openai/streamed-teaching-generator");
+      const generation = generateStreamedTeachingSkeletonWithOpenAI(contextWithMaterials([]), {
+        deadlineAt: startedAt.getTime() + 30_000,
+        settlementReserveMs: 12_000,
+      });
+      const rejection = expect(generation).rejects.toMatchObject({
+        name: "SessionGenerationFailure",
+        generationStats: {
+          attempts: 1,
+          failedValidator: "session_provider_request",
+        },
+      });
+
+      await vi.advanceTimersByTimeAsync(18_000);
+      await rejection;
+      expect(parseResponse).toHaveBeenCalledTimes(1);
+      expect(parseResponse.mock.calls[0]?.[1]).toEqual(expect.objectContaining({
+        maxRetries: 0,
+        timeout: 18_000,
+        signal: expect.any(AbortSignal),
+      }));
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
 
 describe("streamed lesson-brief placement normalization", () => {
@@ -1050,6 +1088,16 @@ describe("runtime session-window scoping", () => {
       plannedTargets,
       estimatedMinutes: 15,
       learnerDirection: "Teach the July Crisis first and leave later-war topics for later sessions.",
+    })).toEqual({
+      activeTargets: plannedTargets.slice(0, 2),
+      deferredTargets: plannedTargets.slice(2),
+    });
+
+    expect(buildStreamedCurrentSessionScope({
+      plannedTargets: plannedTargets.slice(0, 2),
+      alreadyDeferredTargets: plannedTargets.slice(2),
+      estimatedMinutes: 15,
+      learnerDirection: null,
     })).toEqual({
       activeTargets: plannedTargets.slice(0, 2),
       deferredTargets: plannedTargets.slice(2),

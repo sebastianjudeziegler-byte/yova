@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { buildPlanEvaluationCases } from "@/evals/plan-cases";
 import { generatePreviewPlan } from "@/lib/plan-generation/preview-generator";
 
@@ -72,6 +72,15 @@ function mappedRequest(id: MatrixCaseId) {
 }
 
 describe("learner journey matrix", () => {
+  beforeAll(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-08T18:00:00.000Z"));
+  });
+
+  afterAll(() => {
+    vi.useRealTimers();
+  });
+
   it("keeps one narrow skill much smaller than an entire course", () => {
     const narrow = generatePreviewPlan(mappedRequest("product_rule_narrow_15"));
     const broad = generatePreviewPlan(mappedRequest("calculus_broad_pathway_30"));

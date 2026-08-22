@@ -71,6 +71,16 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     console.error("YOVA plan activation failed", { requestId });
+    if (error instanceof PlanPersistenceError && error.code === "material_staging_expired") {
+      return NextResponse.json(
+        {
+          error: "A pending source expired before this plan could be activated. Add that source again and rebuild the draft.",
+          code: "material_staging_expired",
+          requestId,
+        },
+        { status: 410, headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId } },
+      );
+    }
     const message = error instanceof PlanPersistenceError
       ? "YOVA could not save this plan safely. Nothing was activated; try again in a moment."
       : "YOVA could not activate this plan. Nothing was changed; try again in a moment.";

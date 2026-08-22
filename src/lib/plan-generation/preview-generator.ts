@@ -9,15 +9,17 @@ import {
   type GeneratedPlanDraft,
   type PlanGenerationRequest,
 } from "@/lib/plan-generation/schema";
+import { alignGeneratedPlanToAvailability } from "@/lib/plan-generation/schedule-plan";
 import {
   inferPlanScopeContract,
   type PlanScopeContract,
 } from "@/lib/plan-generation/scope-contract";
-import { deriveLearningTitle } from "@/lib/intake/interpret";
+import { deriveLearningTitle, resolveLearningTopic } from "@/lib/intake/interpret";
 import {
   buildPlanPreferenceContract,
   type PlanPreferenceContract,
 } from "@/lib/personalization/plan-preference-contract";
+import { resolvePlanRequestSubjectBoundary } from "@/lib/plan-generation/subject-boundary";
 
 type PreviewBlueprint = {
   phaseIndex: number;
@@ -170,14 +172,17 @@ const LEARNING_METHODS = [
   "Spaced retrieval",
 ] as const;
 
-export function generatePreviewPlan(request: PlanGenerationRequest): LearningPlan {
+export function generatePreviewPlan(
+  request: PlanGenerationRequest,
+  now = new Date(),
+): LearningPlan {
+  request = resolvePlanRequestSubjectBoundary(request);
   const derivedTitle = deriveLearningTitle(request.goal);
   const subject = SUBJECTS.find(({ matches }) => matches.test(request.goal))?.subject ?? {
     ...DEFAULT_SUBJECT,
     title: derivedTitle,
     topic: derivePreviewTopic(request.goal, derivedTitle),
   };
-  const deadline = request.deadline ? new Date(request.deadline) : inferDeadline(request.goal);
   const scope = inferPlanScopeContract(request);
   const contentBudget = buildPlanContentBudget(request, scope);
   const preferenceContract = buildPlanPreferenceContract(request.profileSummary);
@@ -198,7 +203,7 @@ export function generatePreviewPlan(request: PlanGenerationRequest): LearningPla
     title: request.knowledgeMap ? derivedTitle : subject.title,
     topic: request.knowledgeMap ? derivePreviewTopic(request.goal, derivedTitle) : subject.topic,
     kind: scope.band === "broad_course" ? "course" : subject.kind,
-    deadline: request.intent === "study_now" ? null : deadline?.toISOString() ?? null,
+    deadline: request.intent === "study_now" ? null : request.deadline,
     rationale: `${buildRationale(request, preferenceContract)} ${scope.explanation}`,
     deferredTopics,
     sessions: sessionBlueprints.map((blueprint, index) => {
@@ -222,7 +227,11 @@ export function generatePreviewPlan(request: PlanGenerationRequest): LearningPla
             : request.learningIntent === "learn"
               ? learningReasonFor(blueprint.phaseIndex)
               : reasonFor(blueprint.phaseIndex, request)} ${preferenceReasonFor(blueprint.learningMode ?? sessionLearningMode(request, blueprint.phaseIndex), blueprint.phaseIndex, preferenceContract)}`,
-        scheduledFor: scheduledDate(index, sessionBlueprints.length, availability.window, deadline).toISOString(),
+        // The draft schema requires a timestamp, but the deterministic
+        // availability scheduler below is the sole authority for plan dates.
+        // Keeping this as a neutral placeholder prevents preview/system
+        // fallback generation from reintroducing server-local calendar math.
+        scheduledFor: now.toISOString(),
         estimatedMinutes: minutes,
         amountLabel: `${blueprint.contentTargets.length} focused ${blueprint.contentTargets.length === 1 ? "target" : "targets"} + evidence check · about ${minutes} min`,
         learningMode: blueprint.learningMode ?? sessionLearningMode(request, blueprint.phaseIndex),
@@ -233,7 +242,11 @@ export function generatePreviewPlan(request: PlanGenerationRequest): LearningPla
     }),
   });
 
-  return materializePlanDraft(draft, request);
+  return materializePlanDraft(
+    alignGeneratedPlanToAvailability(draft, request, now),
+    request,
+    now,
+  );
 }
 
 function buildKnowledgeMappedBlueprints(
@@ -576,7 +589,7 @@ function derivePreviewTopic(goal: string, title: string) {
     .replace(/\s+Starting point:\s.*$/i, "")
     .replace(/\s+/g, " ")
     .trim();
-  const topic = cleaned || goal.trim() || title;
+  const topic = resolveLearningTopic(cleaned, goal.trim() || title);
   return topic.length > 120 ? `${topic.slice(0, 117).trim()}...` : topic;
 }
 
@@ -808,37 +821,6 @@ function reasonFor(index: number, request: PlanGenerationRequest) {
     "A short final retrieval protects recall without adding unnecessary work before the deadline.",
   ];
   return reasons[index];
-}
-
-function upcomingFridayAtNine() {
-  const date = new Date();
-  const daysUntilFriday = (5 - date.getDay() + 7) % 7 || 7;
-  date.setDate(date.getDate() + daysUntilFriday);
-  date.setHours(9, 0, 0, 0);
-  return date;
-}
-
-function inferDeadline(goal: string) {
-  return /next friday|test|exam|quiz|deadline/i.test(goal) ? upcomingFridayAtNine() : null;
-}
-
-function scheduledDate(index: number, totalSessions: number, window: string, deadline: Date | null) {
-  if (deadline && index === totalSessions - 1) {
-    const finalReview = new Date(deadline);
-    finalReview.setHours(8, 0, 0, 0);
-    return finalReview;
-  }
-
-  const date = new Date();
-  const latestDayOffset = deadline
-    ? Math.max(0, Math.floor((deadline.getTime() - date.getTime()) / (24 * 60 * 60 * 1_000)) - 1)
-    : Math.max(0, totalSessions - 1);
-  const dayOffset = totalSessions <= 1 ? 0 : Math.floor((index / (totalSessions - 1)) * latestDayOffset);
-  date.setDate(date.getDate() + dayOffset);
-
-  const hour = /morning/i.test(window) ? 8 : /evening/i.test(window) ? 18 : 15;
-  date.setHours(hour, 30, 0, 0);
-  return date;
 }
 
 function topicIdsForPreviewSession(request: PlanGenerationRequest, index: number, totalSessions: number) {

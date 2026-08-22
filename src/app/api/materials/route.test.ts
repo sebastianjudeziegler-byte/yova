@@ -13,7 +13,10 @@ const mocks = vi.hoisted(() => ({
   eq: vi.fn(),
   storageFrom: vi.fn(),
   createSignedUploadUrl: vi.fn(),
+  rpc: vi.fn(),
   checkRateLimit: vi.fn(),
+  cancelStagedMaterial: vi.fn(),
+  storePrivateMaterial: vi.fn(),
 }));
 
 vi.mock("@/lib/supabase/server", () => ({
@@ -33,14 +36,17 @@ vi.mock("@/lib/materials/quality", () => ({
   assessMaterialQuality: vi.fn(),
 }));
 vi.mock("@/lib/materials/storage-upload", () => ({
-  storePrivateMaterial: vi.fn(),
+  storePrivateMaterial: mocks.storePrivateMaterial,
 }));
 vi.mock("@/lib/materials/material-understanding", () => ({
   MATERIAL_MAPPING_ROUTE_BUDGET_MS: 90_000,
   mapAndPersistMaterial: vi.fn(),
 }));
+vi.mock("@/lib/materials/staged-cleanup", () => ({
+  cancelStagedMaterial: mocks.cancelStagedMaterial,
+}));
 
-import { DELETE, POST } from "@/app/api/materials/route";
+import { DELETE, PATCH, POST, PUT } from "@/app/api/materials/route";
 import { MaterialStageResponseSchema } from "@/lib/materials/schema";
 
 describe("material staging write response", () => {
@@ -62,10 +68,16 @@ describe("material staging write response", () => {
       error: null,
     });
     mocks.checkRateLimit.mockReturnValue({ allowed: true, retryAfterSeconds: 0 });
+    mocks.rpc.mockResolvedValue({ data: true, error: null });
+    mocks.cancelStagedMaterial.mockResolvedValue({
+      status: "cleanup_pending",
+      logicalRemovalCommitted: true,
+    });
     mocks.createClient.mockResolvedValue({
       auth: { getUser: mocks.getUser },
       from: mocks.from,
       storage: { from: mocks.storageFrom },
+      rpc: mocks.rpc,
     });
   });
 
@@ -77,7 +89,12 @@ describe("material staging write response", () => {
     expect(MaterialStageResponseSchema.safeParse(body).success).toBe(true);
     expect(response.headers.get("cache-control")).toBe("no-store");
     expect(response.headers.get("x-yova-request-id")).toBeTruthy();
-    expect(mocks.insert).toHaveBeenCalledOnce();
+    expect(mocks.rpc).toHaveBeenCalledWith("create_material_upload", {
+      payload: expect.objectContaining({
+        storagePath: expect.stringMatching(new RegExp(`^${USER_ID}/`)),
+        processingStatus: "processing",
+      }),
+    });
     expect(mocks.createSignedUploadUrl).toHaveBeenCalledOnce();
   });
 
@@ -101,10 +118,9 @@ describe("material staging write response", () => {
       retryable: true,
       requestId,
     });
-    expect(mocks.insert).toHaveBeenCalledOnce();
-    expect(mocks.delete).toHaveBeenCalledOnce();
+    expect(mocks.cancelStagedMaterial).toHaveBeenCalledOnce();
     expect(errorLog).toHaveBeenCalledWith(
-      "YOVA material staging response was invalid; staging row removed",
+      "YOVA material staging response was invalid; staging row cancelled",
       expect.objectContaining({ requestId: body.requestId }),
     );
     errorLog.mockRestore();
@@ -115,12 +131,15 @@ describe("material staging write response", () => {
       data: { token: { malformed: true } },
       error: null,
     });
-    mocks.eq.mockResolvedValueOnce({ error: { code: "storage_cleanup_failed" } });
+    mocks.cancelStagedMaterial.mockResolvedValueOnce({
+      status: "outcome_unconfirmed",
+      logicalRemovalCommitted: "unknown",
+    });
     const errorLog = vi.spyOn(console, "error").mockImplementation(() => undefined);
 
     const response = await POST(stageRequest());
     const body = await response.json();
-    const insertedRow = mocks.insert.mock.calls[0]?.[0] as { id: string };
+    const createdPayload = mocks.rpc.mock.calls[0]?.[1] as { payload: { id: string } };
     const requestId = response.headers.get("x-yova-request-id");
 
     expect(response.status).toBe(500);
@@ -129,17 +148,16 @@ describe("material staging write response", () => {
       error: `YOVA created the pending material upload, but could not return its secure upload instructions. Do not add the file again. Contact YOVA Support with reference ${requestId}.`,
       code: "material_stage_committed_response_invalid",
       committed: true,
-      materialId: insertedRow.id,
+      materialId: createdPayload.payload.id,
       requestId,
     });
-    expect(mocks.insert).toHaveBeenCalledOnce();
-    expect(mocks.delete).toHaveBeenCalledOnce();
+    expect(mocks.cancelStagedMaterial).toHaveBeenCalledOnce();
     expect(errorLog).toHaveBeenCalledWith(
       "YOVA material staging committed but its response was invalid",
       expect.objectContaining({
-        materialId: insertedRow.id,
+        materialId: createdPayload.payload.id,
         requestId: body.requestId,
-        cleanupCode: "storage_cleanup_failed",
+        cleanupStatus: "outcome_unconfirmed",
       }),
     );
     errorLog.mockRestore();
@@ -147,42 +165,149 @@ describe("material staging write response", () => {
 });
 
 describe("material staging deletion", () => {
-  it("removes durable mapped chunks before deleting the staging row", async () => {
+  beforeEach(() => {
     vi.clearAllMocks();
     mocks.getUser.mockResolvedValue({ data: { user: { id: USER_ID } }, error: null });
-    const materialId = "22222222-2222-4222-8222-222222222222";
-    const chunkDelete = vi.fn();
-    const uploadDelete = vi.fn();
-    const chunkEq = vi.fn().mockResolvedValue({ error: null });
-    const uploadDeleteEq = vi.fn().mockResolvedValue({ error: null });
-    const uploadSelectEq = vi.fn(() => ({
-      maybeSingle: vi.fn().mockResolvedValue({
-        data: { storage_path: `${USER_ID}/${materialId}/notes.txt` },
-        error: null,
-      }),
-    }));
-    const uploadSelect = vi.fn(() => ({ eq: uploadSelectEq }));
-    chunkDelete.mockImplementation(() => ({ eq: chunkEq }));
-    uploadDelete.mockImplementation(() => ({ eq: uploadDeleteEq }));
-    const remove = vi.fn().mockResolvedValue({ error: null });
+    mocks.storePrivateMaterial.mockResolvedValue({ ok: true });
+    mocks.cancelStagedMaterial.mockResolvedValue({ status: "removed", logicalRemovalCommitted: true });
     mocks.createClient.mockResolvedValue({
       auth: { getUser: mocks.getUser },
-      from: vi.fn((table: string) => table === "material_chunks"
-        ? { delete: chunkDelete }
-        : { select: uploadSelect, delete: uploadDelete }),
-      storage: { from: vi.fn(() => ({ remove })) },
+      from: mocks.from,
+      storage: { from: mocks.storageFrom },
     });
+  });
 
-    const response = await DELETE(new Request("https://yova.example/api/materials", {
-      method: "DELETE",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ materialId }),
-    }));
+  it("returns no content after the leased cleanup confirms deletion", async () => {
+    mocks.cancelStagedMaterial.mockResolvedValue({ status: "removed", logicalRemovalCommitted: true });
+
+    const response = await DELETE(deleteRequest());
 
     expect(response.status).toBe(204);
-    expect(chunkEq).toHaveBeenCalledWith("material_id", materialId);
-    expect(uploadDeleteEq).toHaveBeenCalledWith("id", materialId);
-    expect(chunkDelete.mock.invocationCallOrder[0]).toBeLessThan(uploadDelete.mock.invocationCallOrder[0]);
+    expect(mocks.cancelStagedMaterial).toHaveBeenCalledWith(
+      expect.objectContaining({ auth: expect.anything() }),
+      "22222222-2222-4222-8222-222222222222",
+    );
+  });
+
+  it("truthfully reports logical cancellation while physical cleanup is pending", async () => {
+    mocks.cancelStagedMaterial.mockResolvedValue({ status: "cleanup_pending", logicalRemovalCommitted: true });
+
+    const response = await DELETE(deleteRequest());
+    const body = await response.json();
+
+    expect(response.status).toBe(202);
+    expect(body).toEqual(expect.objectContaining({
+      status: "cleanup_pending",
+      code: "material_cleanup_pending",
+      committed: true,
+      cleanupPending: true,
+    }));
+  });
+
+  it("does not claim a deletion when the cancellation outcome is ambiguous", async () => {
+    mocks.cancelStagedMaterial.mockResolvedValue({
+      status: "outcome_unconfirmed",
+      logicalRemovalCommitted: "unknown",
+    });
+
+    const response = await DELETE(deleteRequest());
+    const body = await response.json();
+
+    expect(response.status).toBe(503);
+    expect(body).toEqual(expect.objectContaining({
+      code: "material_cleanup_outcome_unconfirmed",
+      committed: "unknown",
+    }));
+  });
+});
+
+describe("material staging expiration boundaries", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.getUser.mockResolvedValue({ data: { user: { id: USER_ID } }, error: null });
+    mocks.storePrivateMaterial.mockResolvedValue({ ok: true });
+    mocks.cancelStagedMaterial.mockResolvedValue({ status: "removed", logicalRemovalCommitted: true });
+  });
+
+  it("does not upload bytes into an expired staging row", async () => {
+    const gt = vi.fn(() => ({
+      maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+    }));
+    const eq = vi.fn(() => ({ gt }));
+    const select = vi.fn(() => ({ eq }));
+    mocks.createClient.mockResolvedValue({
+      auth: { getUser: mocks.getUser },
+      from: vi.fn(() => ({ select })),
+    });
+    const form = new FormData();
+    form.set("materialId", "22222222-2222-4222-8222-222222222222");
+    form.set("file", new File(["notes"], "notes.txt", { type: "text/plain" }));
+
+    const response = await PUT(new Request("https://yova.example/api/materials", {
+      method: "PUT",
+      body: form,
+    }));
+
+    expect(response.status).toBe(410);
+    await expect(response.json()).resolves.toEqual(expect.objectContaining({ code: "material_staging_expired" }));
+    expect(gt).toHaveBeenCalledWith("expires_at", expect.any(String));
+  });
+
+  it("does not process or map an expired staging row", async () => {
+    const gt = vi.fn(() => ({
+      maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+    }));
+    const eq = vi.fn(() => ({ gt }));
+    const select = vi.fn(() => ({ eq }));
+    mocks.createClient.mockResolvedValue({
+      auth: { getUser: mocks.getUser },
+      from: vi.fn(() => ({ select })),
+    });
+
+    const response = await PATCH(new Request("https://yova.example/api/materials", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ materialId: "22222222-2222-4222-8222-222222222222" }),
+    }));
+
+    expect(response.status).toBe(410);
+    await expect(response.json()).resolves.toEqual(expect.objectContaining({ code: "material_staging_expired" }));
+    expect(gt).toHaveBeenCalledWith("expires_at", expect.any(String));
+  });
+
+  it("cancels an upload that expires while bytes are being stored", async () => {
+    const activeLookup = queryResult({
+      data: { storage_path: `${USER_ID}/22222222-2222-4222-8222-222222222222/source.txt`, mime_type: "text/plain", byte_size: 5 },
+      error: null,
+    });
+    const expiredLookup = queryResult({ data: null, error: null });
+    const from = vi.fn()
+      .mockReturnValueOnce(activeLookup.builder)
+      .mockReturnValueOnce(expiredLookup.builder);
+    mocks.createClient.mockResolvedValue({
+      auth: { getUser: mocks.getUser },
+      from,
+      storage: { from: vi.fn(() => ({})) },
+    });
+    const form = new FormData();
+    form.set("materialId", "22222222-2222-4222-8222-222222222222");
+    form.set("file", new File(["notes"], "notes.txt", { type: "text/plain" }));
+
+    const response = await PUT(new Request("https://yova.example/api/materials", {
+      method: "PUT",
+      body: form,
+    }));
+
+    const responseBody = await response.json();
+    expect(response.status, JSON.stringify(responseBody)).toBe(410);
+    expect(responseBody).toMatchObject({
+      code: "material_staging_expired",
+      committed: true,
+      retryable: true,
+    });
+    expect(mocks.cancelStagedMaterial).toHaveBeenCalledWith(expect.anything(), "22222222-2222-4222-8222-222222222222");
+    expect(activeLookup.gt).toHaveBeenCalledWith("expires_at", expect.any(String));
+    expect(expiredLookup.gt).toHaveBeenCalledWith("expires_at", expect.any(String));
   });
 });
 
@@ -196,4 +321,20 @@ function stageRequest() {
       sizeBytes: 2_048,
     }),
   });
+}
+
+function deleteRequest() {
+  return new Request("https://yova.example/api/materials", {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ materialId: "22222222-2222-4222-8222-222222222222" }),
+  });
+}
+
+function queryResult(result: { data: unknown; error: unknown }) {
+  const maybeSingle = vi.fn().mockResolvedValue(result);
+  const gt = vi.fn(() => ({ maybeSingle }));
+  const eq = vi.fn(() => ({ gt }));
+  const select = vi.fn(() => ({ eq }));
+  return { builder: { select }, gt };
 }

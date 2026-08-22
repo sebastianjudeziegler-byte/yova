@@ -300,6 +300,16 @@ describe("authenticated learning-state startup", () => {
       deadlineMilestones: [],
     });
   });
+
+  it("treats a failed deadline query as an incomplete cloud snapshot instead of an empty list", async () => {
+    mockCloudQueries({
+      profile: { display_name: "Learner", onboarding_completed_at: NOW },
+      milestoneError: { message: "deadline query unavailable" },
+    });
+
+    await expect(loadAuthenticatedLearningState())
+      .rejects.toThrow("could not load your cloud learning data");
+  });
 });
 
 describe("recordAuthenticatedSessionInterruption", () => {
@@ -454,6 +464,103 @@ describe("completeAuthenticatedPlanSession", () => {
     expect(rpc).toHaveBeenCalledWith("complete_plan_session", {
       payload: expect.objectContaining({ completionMode: "guided" }),
     });
+  });
+
+  it("uses the transactional continuation RPC for a time-bounded guided completion", async () => {
+    const continuation = {
+      id: "00000000-0000-4000-8000-000000000051",
+      sequence: 2,
+      title: "Continue cellular respiration",
+      objective: "Learn and explain the remaining saved target: Electron transport chain mechanism.",
+      method: "Guided explanation and retrieval",
+      methodReason: "This continuation preserves the exact remaining plan target.",
+      scheduledFor: "2026-08-17T20:08:00.000Z",
+      estimatedMinutes: 10,
+      amountLabel: "1 saved target · about 10 min",
+      learningMode: "learn" as const,
+      topicIds: ["00000000-0000-4000-8000-000000000052"],
+      contentTargets: ["Electron transport chain mechanism"],
+      completionEvidence: ["Explain the electron transport chain mechanism"],
+      status: "ready" as const,
+    };
+    await completeAuthenticatedPlanSession({
+      id: "00000000-0000-4000-8000-000000000053",
+      planId: "00000000-0000-4000-8000-000000000054",
+      planSessionId: "00000000-0000-4000-8000-000000000055",
+      startedAt: "2026-08-17T20:00:00.000Z",
+      completedAt: "2026-08-17T20:08:00.000Z",
+      plannedMinutes: 10,
+      actualMinutes: 8,
+      correctAnswers: 1,
+      totalAnswers: 1,
+      feedback: "about_right",
+      observedGap: "No major gap detected.",
+      completionMode: "guided",
+      conceptEvidence: [],
+      confidenceEvidence: [],
+    }, null, null, continuation);
+
+    expect(rpc).toHaveBeenCalledWith("complete_guided_plan_session_with_continuation", {
+      payload: expect.objectContaining({
+        completionMode: "guided",
+        nextSessionAdjustment: null,
+        followUpSession: null,
+        continuationSession: expect.objectContaining({
+          id: continuation.id,
+          sequence: continuation.sequence,
+          scheduledFor: continuation.scheduledFor,
+          topicIds: continuation.topicIds,
+          contentTargets: continuation.contentTargets,
+          completionEvidence: continuation.completionEvidence,
+        }),
+      }),
+    });
+  });
+
+  it("refuses to combine a guided continuation with another plan rewrite", async () => {
+    await expect(completeAuthenticatedPlanSession({
+      id: "00000000-0000-4000-8000-000000000061",
+      planId: "00000000-0000-4000-8000-000000000062",
+      planSessionId: "00000000-0000-4000-8000-000000000063",
+      startedAt: "2026-08-17T20:00:00.000Z",
+      completedAt: "2026-08-17T20:08:00.000Z",
+      plannedMinutes: 10,
+      actualMinutes: 8,
+      correctAnswers: 1,
+      totalAnswers: 1,
+      feedback: "about_right",
+      observedGap: "No major gap detected.",
+      completionMode: "guided",
+      conceptEvidence: [],
+      confidenceEvidence: [],
+    }, {
+      planSessionId: "00000000-0000-4000-8000-000000000064",
+      title: "Adapted next session",
+      objective: "Keep the original target while restoring support.",
+      method: "Guided repair",
+      methodReason: "Restore support after a difficult attempt.",
+      estimatedMinutes: 10,
+      amountLabel: "Guided repair · about 10 min",
+      learningMode: "learn",
+      explanation: "Restore support before another independent check.",
+    }, null, {
+      id: "00000000-0000-4000-8000-000000000065",
+      sequence: 2,
+      title: "Continue saved scope",
+      objective: "Learn and explain the remaining saved target.",
+      method: "Guided explanation",
+      methodReason: "Preserve the remaining exact target.",
+      scheduledFor: "2026-08-17T20:08:00.000Z",
+      estimatedMinutes: 10,
+      amountLabel: "1 saved target · about 10 min",
+      learningMode: "learn",
+      topicIds: ["00000000-0000-4000-8000-000000000066"],
+      contentTargets: ["Remaining saved target"],
+      completionEvidence: ["Explain the remaining saved target independently"],
+      status: "ready",
+    })).rejects.toThrow("cannot safely combine");
+
+    expect(rpc).not.toHaveBeenCalled();
   });
 });
 
@@ -928,6 +1035,7 @@ function mockCloudQueries({
   plans = [],
   materials = [],
   milestones = [],
+  milestoneError = null,
 }: {
   profile: { display_name: string; onboarding_completed_at: string | null } | null;
   sessions?: ReturnType<typeof sessionRow>[];
@@ -935,6 +1043,7 @@ function mockCloudQueries({
   plans?: Array<Record<string, unknown>>;
   materials?: Array<Record<string, unknown>>;
   milestones?: Array<Record<string, unknown>>;
+  milestoneError?: unknown;
 }) {
   from.mockImplementation((table: string) => {
     const result = {
@@ -953,7 +1062,7 @@ function mockCloudQueries({
                   : table === "deadline_milestones"
                     ? milestones
                     : [],
-      error: null,
+      error: table === "deadline_milestones" ? milestoneError : null,
     };
     const builder: Record<string, ReturnType<typeof vi.fn>> = {};
     builder.select = vi.fn(() => builder);

@@ -43,12 +43,34 @@ describe("YOVA prototype UI contracts", () => {
 
   it("keeps required verification sessions out of every ungraded recovery path", () => {
     const component = readSource("src/components/yova-prototype.tsx");
+    const startRecovery = readSource("src/lib/learning/session-start-recovery.ts");
 
     expect(component).toContain("&& !isScheduledRetrievalSession(requestedSession)");
     expect(component).toContain("canScheduleUnguidedVerification(sessionRecoverySession, activePlan.sessions.length)");
     expect(component).toContain("allowUnguidedCompletion={canScheduleUnguidedVerification(outsideMethodSession, plan?.sessions.length ?? 0)}");
-    expect(component).toContain("&& restoredFallbackCanComplete");
+    expect(component).toContain("startDecision.cachedResourceRestorable");
+    expect(startRecovery).toContain("canLoadBuiltInFallbackWithCompletion({");
     expect(component).toContain("&& fallbackCanComplete");
+  });
+
+  it("uses one fail-closed recovery decision for labels, allowance, and launch", () => {
+    const component = readSource("src/components/yova-prototype.tsx");
+    const startSessionStart = component.indexOf("const startSession = async");
+    const startSessionEnd = component.indexOf("const requestSessionStart", startSessionStart);
+    const startSession = component.slice(startSessionStart, startSessionEnd);
+    const homeStart = component.indexOf("function HomeScreen");
+    const homeEnd = component.indexOf("function SubjectIcon", homeStart);
+    const home = component.slice(homeStart, homeEnd);
+    const agendaStart = component.indexOf("function AgendaScreen");
+    const agenda = component.slice(agendaStart);
+
+    expect(startSession).toContain("sessionStartRecoveryDecision({");
+    expect(startSession).toContain("startDecision.canStartWithoutGeneration");
+    expect(startSession).toContain("startDecision.advertiseContinue");
+    expect(home).toContain("sessionStartRecoveryDecision({");
+    expect(home).toContain("startDecision?.resumePoint");
+    expect(agenda).toContain("sessionStartRecoveryDecision({");
+    expect(component).not.toContain("chooseLatestSessionResumePoint");
   });
 
   it("does not navigate home when completion cannot preserve verification", () => {

@@ -11,6 +11,7 @@ type CompletePlanSessionInput = {
   completedAt: string;
   adaptation?: NextSessionAdaptation | null;
   followUpSession?: LearningPlanSession | null;
+  continuationSession?: LearningPlanSession | null;
 };
 
 /**
@@ -23,11 +24,13 @@ export function completePlanSession({
   completedAt,
   adaptation = null,
   followUpSession = null,
+  continuationSession = null,
 }: CompletePlanSessionInput): LearningPlan {
   const completedSession = plan.sessions.find((session) => session.id === completedSessionId);
   if (!completedSession) return plan;
 
-  const sessionsWithFollowUp = insertFollowUpOnce(plan.sessions, followUpSession);
+  const sessionsWithContinuation = insertFollowUpOnce(plan.sessions, continuationSession);
+  const sessionsWithFollowUp = insertFollowUpOnce(sessionsWithContinuation, followUpSession);
   const nextSequence = completedSession.sequence + 1;
   const sessions = sessionsWithFollowUp.map((session) => {
     if (session.id === completedSession.id) {

@@ -98,7 +98,9 @@ export function buildAgendaBalanceSuggestion(entries: ScheduledLearningEntry[], 
     const planEntries = entries
       .filter(({ plan }) => plan.id === entry.plan.id)
       .sort((a, b) => a.session.sequence - b.session.sequence);
-    const previousTime = sourceIndex > 0 ? new Date(planEntries[sourceIndex - 1].session.scheduledFor).getTime() : Number.NEGATIVE_INFINITY;
+    const previousEnd = sourceIndex > 0
+      ? scheduledEndTime(planEntries[sourceIndex - 1].session)
+      : Number.NEGATIVE_INFINITY;
     const nextTime = sourceIndex >= 0 && sourceIndex < planEntries.length - 1 ? new Date(planEntries[sourceIndex + 1].session.scheduledFor).getTime() : Number.POSITIVE_INFINITY;
     const sourceMinutesAfterMove = heavy.totalMinutes - entry.session.estimatedMinutes;
     const sourceSessionsAfterMove = heavy.entries.length - 1;
@@ -110,8 +112,10 @@ export function buildAgendaBalanceSuggestion(entries: ScheduledLearningEntry[], 
       const targetGroup = groups.find((group) => group.dateKey === targetKey);
       const targetMinutes = targetGroup?.totalMinutes ?? 0;
       if (loadFor(targetMinutes + entry.session.estimatedMinutes, (targetGroup?.entries.length ?? 0) + 1) === "heavy") continue;
-      if (target.getTime() <= previousTime || target.getTime() >= nextTime) continue;
-      if (entry.plan.deadline && target > new Date(entry.plan.deadline)) continue;
+      const targetStart = target.getTime();
+      const targetEnd = targetStart + entry.session.estimatedMinutes * 60_000;
+      if (targetStart < previousEnd || targetEnd > nextTime) continue;
+      if (entry.plan.deadline && targetEnd > new Date(entry.plan.deadline).getTime()) continue;
 
       return {
         entry,
@@ -278,8 +282,8 @@ function findCapacityMoveTarget(
     .filter(({ plan }) => plan.id === entry.plan.id)
     .sort((left, right) => left.session.sequence - right.session.sequence);
   const sourceIndex = planEntries.findIndex(({ session }) => session.id === entry.session.id);
-  const previousTime = sourceIndex > 0
-    ? new Date(planEntries[sourceIndex - 1].session.scheduledFor).getTime()
+  const previousEnd = sourceIndex > 0
+    ? scheduledEndTime(planEntries[sourceIndex - 1].session)
     : Number.NEGATIVE_INFINITY;
   const nextTime = sourceIndex >= 0 && sourceIndex < planEntries.length - 1
     ? new Date(planEntries[sourceIndex + 1].session.scheduledFor).getTime()
@@ -288,8 +292,10 @@ function findCapacityMoveTarget(
 
   for (let offset = 1; offset <= 7; offset += 1) {
     const target = addLocalDays(source, offset);
-    if (target <= now || target.getTime() <= previousTime || target.getTime() >= nextTime) continue;
-    if (entry.plan.deadline && target > new Date(entry.plan.deadline)) continue;
+    const targetStart = target.getTime();
+    const targetEnd = targetStart + entry.session.estimatedMinutes * 60_000;
+    if (target <= now || targetStart < previousEnd || targetEnd > nextTime) continue;
+    if (entry.plan.deadline && targetEnd > new Date(entry.plan.deadline).getTime()) continue;
     const toDateKey = localDateKey(target);
     const targetGroup = groups.find((group) => group.dateKey === toDateKey);
     const targetMinutes = targetGroup?.totalMinutes ?? 0;
@@ -312,4 +318,8 @@ function addLocalDays(value: Date, days: number) {
   const next = new Date(value);
   next.setDate(next.getDate() + days);
   return next;
+}
+
+function scheduledEndTime(session: LearningPlanSession) {
+  return new Date(session.scheduledFor).getTime() + session.estimatedMinutes * 60_000;
 }

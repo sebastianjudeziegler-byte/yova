@@ -33,6 +33,37 @@ test("a deadline can live in Agenda, be completed, and stay out of Learning", as
   await expect(page.getByText("Lab Report", { exact: true })).toHaveCount(0);
 });
 
+test("an overdue standalone deadline remains reachable and actionable", async ({ page }) => {
+  await openPreviewApp(page);
+  await page.evaluate(() => {
+    const stored = window.localStorage.getItem("yova.preview.v1");
+    if (!stored) throw new Error("Expected a preview snapshot after onboarding.");
+    const snapshot = JSON.parse(stored) as Record<string, unknown>;
+    const dueAt = new Date();
+    dueAt.setDate(dueAt.getDate() - 2);
+    dueAt.setHours(12, 0, 0, 0);
+    snapshot.deadlineMilestones = [{
+      id: "overdue-standalone-deadline",
+      title: "Missed lab deadline",
+      description: "Decide what to do with this overdue work.",
+      dueAt: dueAt.toISOString(),
+      status: "open",
+      linkedLearningItemId: null,
+      createdAt: new Date(dueAt.getTime() - 24 * 60 * 60 * 1_000).toISOString(),
+    }];
+    snapshot.updatedAt = new Date().toISOString();
+    window.localStorage.setItem("yova.preview.v1", JSON.stringify(snapshot));
+  });
+
+  await page.reload();
+  await page.getByRole("button", { name: "Agenda", exact: true }).click();
+  await expect(page.getByText("Overdue deadline", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: /Open overdue Missed lab deadline/ }).click();
+  await expect(page.locator(".agenda-milestones")).toContainText("Missed lab deadline");
+  await page.getByRole("button", { name: "Complete", exact: true }).click();
+  await expect(page.locator(".agenda-milestones article.completed")).toContainText("Missed lab deadline");
+});
+
 test("an outside assignment routes to one outside-YOVA session", async ({ page }) => {
   await openPreviewApp(page);
   await openAdd(page, "I need to complete 20 calculus problems from my textbook by Thursday");
@@ -47,7 +78,7 @@ test("an outside assignment routes to one outside-YOVA session", async ({ page }
 
 test("a multi-session assignment skips an irrelevant knowledge quiz", async ({ page }) => {
   await openPreviewApp(page);
-  await openAdd(page, "I have a 1,500-word history essay due next Friday and I have not started yet");
+  await openAdd(page, "I have a 1,500-word history essay due in 14 days and I have not started yet");
   await page.getByRole("button", { name: /Choose what YOVA should do/ }).click();
   await page.getByRole("button", { name: /Create a plan/ }).click();
 
@@ -62,6 +93,12 @@ test("a multi-session assignment skips an irrelevant knowledge quiz", async ({ p
   await page.getByRole("button", { name: "Use this plan" }).click();
   await expect(page.getByRole("heading", { name: "Your plan" })).toBeVisible();
   await expect(page.getByText("1,500-word History Essay", { exact: true }).first()).toBeVisible();
+  const topicTitles = page.locator(".knowledge-topic-heading strong");
+  await expect(topicTitles.first()).toContainText(/1,500-word history essay/i);
+  expect((await topicTitles.allTextContents()).join(" ")).not.toMatch(/in (?:14 days|two weeks)|not started/i);
+  const sessionTitles = page.locator(".plan-timeline .timeline-row strong");
+  await expect(sessionTitles.first()).toContainText(/history essay/i);
+  expect((await sessionTitles.allTextContents()).join(" ")).not.toMatch(/in (?:14 days|two weeks)|not started/i);
 });
 
 test("general learning stays deadline-free until the user chooses otherwise", async ({ page }) => {
