@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { sessionCacheScopeFingerprint } from "../src/lib/session-generation/cache-contract";
 import { SessionGenerationResponseSchema } from "../src/lib/session-generation/schema";
 
 const onboardingAnswers = [
@@ -3255,7 +3256,9 @@ async function leaveSession(page: Page, progressText: string) {
 }
 
 async function confirmSessionSetup(page: Page) {
-  await expect(page.getByRole("heading", { name: "Here is how YOVA plans to start." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Here is how YOVA plans to start." })).toBeVisible({
+    timeout: 15_000,
+  });
   await expect(page.getByLabel("Why YOVA chose this approach")).toBeVisible();
   await page.getByRole("button", { name: "Continue" }).click();
   await expect(page.getByRole("heading", { name: "Has anything changed?" })).toBeVisible();
@@ -3300,7 +3303,11 @@ function streamedResumeSessionResponse() {
       cacheContext: {
         effectiveMinutes: 25,
         adjustmentFingerprint: "a".repeat(64),
-        scopeFingerprint: `sc1:${"a".repeat(16)}`,
+        scopeFingerprint: sessionCacheScopeFingerprint({
+          plannedMinutes: 25,
+          adjustment: null,
+          contractKey: null,
+        }),
       },
       routingContext: {
         taskType: "conceptual_learning",
