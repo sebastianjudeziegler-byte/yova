@@ -72,6 +72,18 @@ describe("GenerationObservationSchema", () => {
     }).success).toBe(false);
   });
 
+  it("keeps ordinary typed-recall and scheduled-review format failures distinct", () => {
+    for (const issueCode of ["session_required_typed_recall", "scheduled_retrieval_format"] as const) {
+      expect(GenerationObservationSchema.safeParse({
+        ...safeEvent,
+        finalOutcome: "failure",
+        failedValidator: issueCode,
+        repairSucceeded: false,
+        diagnostics: { sessionValidationIssueCode: issueCode },
+      }).success).toBe(true);
+    }
+  });
+
   it("rejects learner content even if a caller tries to add it", () => {
     expect(GenerationObservationSchema.safeParse({
       ...safeEvent,

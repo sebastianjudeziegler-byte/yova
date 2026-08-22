@@ -24,6 +24,11 @@ import {
   inferLearningTaskType,
   methodIdFromText,
 } from "@/lib/learning/method-router";
+import {
+  legacyScheduledRetrievalTopic,
+  learningModeForScheduledRetrieval,
+  scheduledRetrievalAdjustmentIssue,
+} from "@/lib/learning/scheduled-retrieval";
 import { buildScaffoldProgressionSignals } from "@/lib/learning/scaffold-progression";
 import { getOpenAISessionConfig, isOpenAISessionConfigured } from "@/lib/openai/config";
 import {
@@ -52,6 +57,12 @@ import {
   SessionGenerationResponseSchema,
   type SessionGenerationRequest,
 } from "@/lib/session-generation/schema";
+import { cachedSessionActivityContractIssue } from "@/lib/session-generation/cache-activity-contract";
+import {
+  expectedSessionCacheVersion,
+  sessionCacheContractKey,
+} from "@/lib/session-generation/cache-contract";
+import { generatedSessionDefersStoredPlanTargets } from "@/lib/session-generation/deferred-cache-contract";
 import {
   guidedSessionAllowanceExhaustedHeaders,
   guidedSessionAllowanceExhaustedResponse,
@@ -60,8 +71,6 @@ import {
 import {
   resolveSessionArchitectureVersion,
   sessionArchitectureForGeneration,
-  STREAMED_SESSION_ARCHITECTURE,
-  type SessionArchitectureVersion,
 } from "@/lib/session-generation/architecture";
 import { checkSessionGenerationRateLimit, requestRateLimitKey } from "@/lib/server/rate-limit";
 import { aiUsageReservationConflict } from "@/lib/ai-usage/reservation-conflict";
@@ -145,6 +154,21 @@ export async function POST(request: Request) {
   }
   if (!planSession || planSession.plan_id !== parsed.data.planId) {
     return NextResponse.json({ error: "That guided session was not found." }, { status: 404 });
+  }
+  const reviewType = readReviewType(planSession.step_data);
+  const scheduledAdjustmentIssue = scheduledRetrievalAdjustmentIssue(
+    { reviewType },
+    sessionAdjustment,
+  );
+  if (scheduledAdjustmentIssue) {
+    return NextResponse.json({
+      code: "scheduled_review_adjustment_not_supported",
+      error: scheduledAdjustmentIssue,
+      retryable: false,
+    }, {
+      status: 409,
+      headers: responseHeaders(requestId),
+    });
   }
 
   let aiUsageClaimId: string | null = null;
@@ -254,7 +278,34 @@ export async function POST(request: Request) {
       );
     }
     const plannedTopicIds = readStringArrayProperty(planSession.step_data, "topicIds");
-    const selectedTopics = parsedKnowledgeMap.data.topics.filter((topic) => plannedTopicIds.includes(topic.id));
+    const reviewConcept = readTextProperty(planSession.step_data, "reviewConcept") || null;
+    // Preserve the session's persisted topic order. Knowledge-map order is a
+    // separate hierarchy and must never silently become evidence-attribution
+    // order for the session's content targets.
+    const explicitlySelectedTopics = plannedTopicIds.flatMap((topicId) => {
+      const topic = parsedKnowledgeMap.data.topics.find((candidate) => candidate.id === topicId);
+      return topic ? [topic] : [];
+    });
+    const exactExplicitTopicResolution = plannedTopicIds.length === 0 || (
+      new Set(plannedTopicIds).size === plannedTopicIds.length
+      && explicitlySelectedTopics.length === plannedTopicIds.length
+      && explicitlySelectedTopics.every((topic, index) => topic.id === plannedTopicIds[index])
+    );
+    if (!exactExplicitTopicResolution) {
+      return NextResponse.json(
+        { error: "This session's exact topic links changed. Rebuild the plan before starting it." },
+        { status: 409, headers: responseHeaders(requestId) },
+      );
+    }
+    const legacyReviewTopic = plannedTopicIds.length === 0
+      ? legacyScheduledRetrievalTopic({
+        session: { reviewType, reviewConcept },
+        knowledgeTopics: parsedKnowledgeMap.data.topics,
+      })
+      : null;
+    const selectedTopics = explicitlySelectedTopics.length > 0
+      ? explicitlySelectedTopics
+      : legacyReviewTopic ? [legacyReviewTopic] : [];
     if (selectedTopics.length === 0) {
       return NextResponse.json(
         { error: "This session is not linked to a topic in the plan yet." },
@@ -324,12 +375,17 @@ export async function POST(request: Request) {
       planSession.method,
       planSession.objective,
     );
-    const effectiveLearningMode = resolveEffectiveSessionLearningMode({
+    const effectiveSessionAdjustment = sessionAdjustment ?? null;
+    const requestedLearningMode = resolveEffectiveSessionLearningMode({
       planLearningIntent,
       plannedMode: savedLearningMode,
       completedSessionCount: recentAttempts.length,
-      familiarity: sessionAdjustment?.familiarity ?? null,
+      familiarity: effectiveSessionAdjustment?.familiarity ?? null,
     });
+    const effectiveLearningMode = learningModeForScheduledRetrieval(
+      { reviewType },
+      requestedLearningMode,
+    );
     const repairedTeachingStart = effectiveLearningMode === "learn" && savedLearningMode !== "learn"
       ? teachingFirstSessionCopy(learningItem.topic)
       : null;
@@ -337,25 +393,45 @@ export async function POST(request: Request) {
       storedVersion: storedSessionArchitectureVersion,
       learningMode: effectiveLearningMode,
       studyMode: learningItem.study_mode,
-      reviewType: readReviewType(planSession.step_data),
+      reviewType,
     });
     const expectedCacheVersion = expectedSessionCacheVersion({
       sessionArchitectureVersion,
       learningMode: effectiveLearningMode,
       studyMode: learningItem.study_mode,
-      reviewType: readReviewType(planSession.step_data),
+      reviewType,
     });
+    const plannedContentTargets = readStringArrayProperty(planSession.step_data, "contentTargets");
+    const plannedCompletionEvidence = readStringArrayProperty(planSession.step_data, "completionEvidence");
     const requestedCacheContext = buildSessionCacheContext({
       plannedMinutes: planSession.estimated_minutes,
-      adjustment: sessionAdjustment,
+      adjustment: effectiveSessionAdjustment,
+      contractKey: sessionCacheContractKey({
+        reviewType,
+        reviewConcept,
+        title: planSession.title,
+        methodReason: planSession.method_rationale,
+        topicIds: selectedTopics.map((topic) => topic.id),
+        contentTargets: plannedContentTargets,
+        completionEvidence: plannedCompletionEvidence,
+        knowledgeTopics: selectedTopics,
+      }),
     });
     const cached = readCachedSession(planSession.step_data, expectedCacheVersion);
+    const cachedActivityContractIssue = cached
+      ? cachedSessionActivityContractIssue(cached, {
+        reviewType,
+        reviewConcept,
+        estimatedMinutes: planSession.estimated_minutes,
+      })
+      : null;
     if (
       cached
+      && !cachedActivityContractIssue
       && (cached.schemaVersion === 17
         ? sessionCacheContextMatches(cached.cacheContext, requestedCacheContext)
-        : cached.schemaVersion === 15 && !sessionAdjustment && (
-          !cached.cacheContext
+        : cached.schemaVersion === 15 && !effectiveSessionAdjustment && (
+          (!cached.cacheContext && requestedCacheContext.contractFingerprint === undefined)
           || sessionCacheContextMatches(cached.cacheContext, requestedCacheContext)
         ))
       && cached.methodBriefing.learningMode === effectiveLearningMode
@@ -563,10 +639,10 @@ export async function POST(request: Request) {
         estimatedMinutes: planSession.estimated_minutes,
         learningMode: effectiveLearningMode,
         topicIds: selectedTopics.map((topic) => topic.id),
-        contentTargets: readStringArrayProperty(planSession.step_data, "contentTargets"),
-        completionEvidence: readStringArrayProperty(planSession.step_data, "completionEvidence"),
-        reviewConcept: readTextProperty(planSession.step_data, "reviewConcept") || null,
-        reviewType: readReviewType(planSession.step_data),
+        contentTargets: plannedContentTargets,
+        completionEvidence: plannedCompletionEvidence,
+        reviewConcept,
+        reviewType,
       },
       learnerProfile: learnerProfile ? {
         commonBlocker: statedAnswer(0),
@@ -577,7 +653,7 @@ export async function POST(request: Request) {
         primaryImprovementGoal: statedAnswer(7),
         ...expandedProfile,
       } : null,
-      sessionAdjustment: sessionAdjustment ?? null,
+      sessionAdjustment: effectiveSessionAdjustment,
       recentResults: recentAttempts.slice(0, 8).map((attempt) => ({
         methodId: methodIdBySession.get(attempt.plan_session_id) ?? null,
         taskType: comparisonContextBySession.get(attempt.plan_session_id)?.taskType ?? null,
@@ -641,6 +717,25 @@ export async function POST(request: Request) {
         },
         {
           status: 409,
+          headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId },
+        },
+      );
+    }
+
+    if (
+      cacheError
+      && generatedSessionDefersStoredPlanTargets(cachedSession, plannedContentTargets)
+    ) {
+      await releaseFailedGenerationClaim(supabase, aiUsageClaimId, requestId);
+      return NextResponse.json(
+        {
+          code: "deferred_session_persistence_unavailable",
+          error: "YOVA prepared this lesson but could not safely save its remaining targets. Nothing was completed or charged. Try again.",
+          retryable: true,
+          requestId,
+        },
+        {
+          status: 503,
           headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId },
         },
       );
@@ -794,6 +889,20 @@ async function generateBrowserPreviewSession(
       { status: 422, headers: responseHeaders(requestId) },
     );
   }
+  const scheduledAdjustmentIssue = scheduledRetrievalAdjustmentIssue(
+    input.previewContext.session,
+    input.sessionAdjustment,
+  );
+  if (scheduledAdjustmentIssue) {
+    return NextResponse.json({
+      code: "scheduled_review_adjustment_not_supported",
+      error: scheduledAdjustmentIssue,
+      retryable: false,
+    }, {
+      status: 409,
+      headers: responseHeaders(requestId),
+    });
+  }
   if (!isOpenAISessionConfigured()) {
     return NextResponse.json(
       { error: "Live guided-session generation is not connected yet." },
@@ -816,7 +925,7 @@ async function generateBrowserPreviewSession(
   }
 
   try {
-    const previewContext = input.previewContext.learningGoal.sourceMode === "user_materials"
+    const sourceSafePreviewContext = input.previewContext.learningGoal.sourceMode === "user_materials"
       ? {
         ...input.previewContext,
         learningGoal: {
@@ -825,6 +934,17 @@ async function generateBrowserPreviewSession(
         },
       }
       : input.previewContext;
+    const effectiveSessionAdjustment = input.sessionAdjustment ?? null;
+    const previewContext = {
+      ...sourceSafePreviewContext,
+      session: {
+        ...sourceSafePreviewContext.session,
+        learningMode: learningModeForScheduledRetrieval(
+          sourceSafePreviewContext.session,
+          sourceSafePreviewContext.session.learningMode,
+        ),
+      },
+    };
     const runtimeSessionArchitectureVersion = sessionArchitectureForGeneration({
       storedVersion: previewContext.sessionArchitectureVersion,
       learningMode: previewContext.session.learningMode,
@@ -835,7 +955,7 @@ async function generateBrowserPreviewSession(
       ...previewContext,
       sessionArchitectureVersion: runtimeSessionArchitectureVersion,
       materials: [],
-      sessionAdjustment: input.sessionAdjustment ?? null,
+      sessionAdjustment: effectiveSessionAdjustment,
     };
     const generated = await generateProductionSessionWithOpenAI(
       generationContext,
@@ -852,7 +972,17 @@ async function generateBrowserPreviewSession(
       expectedCacheVersion,
       buildSessionCacheContext({
         plannedMinutes: previewContext.session.estimatedMinutes,
-        adjustment: input.sessionAdjustment,
+        adjustment: effectiveSessionAdjustment,
+        contractKey: sessionCacheContractKey({
+          reviewType: previewContext.session.reviewType ?? null,
+          reviewConcept: previewContext.session.reviewConcept ?? null,
+          title: previewContext.session.title,
+          methodReason: previewContext.session.methodReason,
+          topicIds: previewContext.session.topicIds,
+          contentTargets: previewContext.session.contentTargets,
+          completionEvidence: previewContext.session.completionEvidence,
+          knowledgeTopics: previewContext.knowledgeTopics,
+        }),
       }),
     );
     logSuccessfulGeneration(requestId, generated.model, generated.generationStats, "browser");
@@ -993,25 +1123,6 @@ function readCachedSession(stepData: unknown, expectedSchemaVersion?: 15 | 17) {
   const parsed = CachedGeneratedSessionSchema.safeParse(candidate);
   if (!parsed.success) return null;
   return expectedSchemaVersion && parsed.data.schemaVersion !== expectedSchemaVersion ? null : parsed.data;
-}
-
-function expectedSessionCacheVersion({
-  sessionArchitectureVersion,
-  learningMode,
-  studyMode,
-  reviewType,
-}: {
-  sessionArchitectureVersion: SessionArchitectureVersion;
-  learningMode: "learn" | "study";
-  studyMode: string;
-  reviewType: "repair_and_retrieve" | "verify" | "maintenance_transfer" | null;
-}): 15 | 17 {
-  return sessionArchitectureVersion === STREAMED_SESSION_ARCHITECTURE
-    && learningMode === "learn"
-    && studyMode === "inside_yova"
-    && !reviewType
-    ? 17
-    : 15;
 }
 
 function cacheGeneratedSession(

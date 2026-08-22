@@ -14,6 +14,7 @@ import {
 } from "@/lib/learning/active-session-checkpoint";
 import { GENERIC_INSIDE_FALLBACK_METHOD_NAME } from "@/lib/learning/fallback-method-briefing";
 import { canLoadBuiltInFallbackWithCompletion } from "@/lib/learning/unguided-verification";
+import { hydratedSessionResourceCacheIssue } from "@/lib/session-generation/cache-contract";
 import type { SessionAdjustment } from "@/lib/session-generation/schema";
 
 export type SessionStartRecoveryDecision = {
@@ -92,6 +93,11 @@ export function sessionStartRecoveryDecision({
       (Boolean(selectedCheckpoint.methodWork) && selectedCheckpoint.resourceGeneratedAt === undefined)
       || Boolean(
         session.resource
+        && hydratedSessionResourceCacheIssue({
+          plan,
+          session,
+          adjustment: selectedCheckpoint.sessionAdjustment ?? null,
+        }) === null
         && checkpointMatchesSessionResource(selectedCheckpoint, session.resource),
       )
     );
@@ -99,7 +105,12 @@ export function sessionStartRecoveryDecision({
     ? restoreExitProgressThroughCheckpoint(selectedCheckpoint, interruptions)
     : null;
   const cachedResourceRestorable = adjustmentKeepsPersistedContent
-    && cachedResourceCanComplete(plan, session);
+    && cachedResourceCanComplete(plan, session)
+    && hydratedSessionResourceCacheIssue({
+      plan,
+      session,
+      adjustment: null,
+    }) === null;
 
   return {
     resumePoint,

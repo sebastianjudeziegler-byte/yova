@@ -215,6 +215,33 @@ function completedProviderResponse(id: string, output_parsed: unknown) {
   };
 }
 
+function scheduledCalculusQuestionSet() {
+  return {
+    questions: [{
+      targetIndex: 0,
+      title: "Estimate from a nearby interval",
+      body: "For $f(x)=x^2$, which difference quotient estimates the instantaneous rate at $x=2$ using $x=2.1$?",
+      choices: ["$(f(2.1)-f(2))/(2.1-2)$", "$f(2.1)-f(2)$", "$f(2)/2$", "$(2.1-2)/f(2)$"],
+      correctChoiceIndex: 0,
+      feedback: "The difference quotient divides the nearby output change by the corresponding input change.",
+    }, {
+      targetIndex: 0,
+      title: "Interpret the estimate",
+      body: "For $f(x)=x^2$, a nearby-interval slope at $x=2$ is about $4.1$. What does it estimate?",
+      choices: ["Instantaneous rate near $x=2$", "The value $f(2)$", "The interval width", "Average output"],
+      correctChoiceIndex: 0,
+      feedback: "A secant slope over a small interval estimates the tangent slope at the target input.",
+    }, {
+      targetIndex: 0,
+      title: "Use a closer interval",
+      body: "For $f(x)=x^2$, which nearby input would usually refine the rate estimate at $x=2$?",
+      choices: ["$2.01$", "$3$", "$10$", "$-2$"],
+      correctChoiceIndex: 0,
+      feedback: "A closer input creates a smaller interval and usually a better tangent-slope estimate.",
+    }],
+  };
+}
+
 function compactBioRecoveryContent() {
   return {
     targetClaims: [
@@ -586,6 +613,208 @@ describe("guided-session active-recall validation", () => {
     freeResponse!.requiredForCompletion = true;
     expect(validateStandardGuidedSessionActivityMix(draft)).toBeNull();
   });
+
+  it("converts one safe required recognition check without changing its learning evidence", async () => {
+    const { normalizeStandardGuidedSessionActivityMix } = await import("@/lib/openai/session-generator");
+    const base = buildSessionEvaluationCases()
+      .find((candidate) => candidate.id === "startup_funding_foundations")!.context;
+    const draft = learningDraft("model");
+    const original = draft.activities[1]!;
+    draft.activities[1] = {
+      ...original,
+      methodPhase: "explain",
+      type: "multiple_choice",
+      choices: [
+        original.correctAnswer!,
+        "The startup receives permanent revenue without giving any financial right.",
+        "The investor receives operational control without supplying resources.",
+      ],
+    };
+
+    const normalized = normalizeStandardGuidedSessionActivityMix(draft, base.session);
+
+    expect(normalized).not.toBe(draft);
+    expect(normalized.activities[1]).toEqual({
+      ...draft.activities[1],
+      type: "free_response",
+      choices: [],
+      methodRuntime: null,
+    });
+    expect(normalized.activities[2]).toEqual(draft.activities[2]);
+  });
+
+  it("converts an explain-phase MCQ even when another typed response already exists", async () => {
+    const { normalizeStandardGuidedSessionActivityMix } = await import("@/lib/openai/session-generator");
+    const base = buildSessionEvaluationCases()
+      .find((candidate) => candidate.id === "startup_funding_foundations")!.context;
+    const draft = learningDraft("model");
+    draft.activities[1]!.methodPhase = "independent_practice";
+    draft.activities[2] = {
+      ...draft.activities[2]!,
+      methodPhase: "explain",
+      title: "Explain the lender's right",
+      body: "Explain what financial right the lender receives and why it is not automatic ownership.",
+    };
+    draft.activities.push({
+      ...draft.activities[2]!,
+      methodPhase: "transfer",
+      requiredForCompletion: false,
+      title: "Check a second funding case",
+      body: "A new lender requires repayment with interest. What financial right does that arrangement create?",
+    });
+
+    const normalized = normalizeStandardGuidedSessionActivityMix(draft, base.session);
+
+    expect(normalized.activities[1]!.type).toBe("free_response");
+    expect(normalized.activities[2]).toMatchObject({
+      methodPhase: "explain",
+      type: "free_response",
+      choices: [],
+    });
+    expect(normalized.activities[3]!.type).toBe("multiple_choice");
+  });
+
+  it("does not delete choices from an option-dependent prompt", async () => {
+    const { normalizeStandardGuidedSessionActivityMix } = await import("@/lib/openai/session-generator");
+    const base = buildSessionEvaluationCases()
+      .find((candidate) => candidate.id === "startup_funding_foundations")!.context;
+    const draft = learningDraft("model");
+    const original = draft.activities[1]!;
+    draft.activities[1] = {
+      ...original,
+      methodPhase: "explain",
+      type: "multiple_choice",
+      title: "Choose the correct statement",
+      body: "Select the best answer from the choices before viewing the explanation.",
+      choices: [original.correctAnswer!, "No financial exchange occurs", "The investor supplies no resources"],
+    };
+    draft.activities[2]!.requiredForCompletion = false;
+
+    expect(normalizeStandardGuidedSessionActivityMix(draft, base.session)).toBe(draft);
+
+    const answerDependent = structuredClone(draft);
+    answerDependent.activities[1] = {
+      ...answerDependent.activities[1]!,
+      title: "Explain the funding result",
+      body: "State what the startup and investor exchange in this funding arrangement.",
+      choices: ["All of the above", "Capital only", "Control only"],
+      correctAnswer: "All of the above",
+    };
+    expect(normalizeStandardGuidedSessionActivityMix(answerDependent, base.session)).toBe(answerDependent);
+  });
+
+  it.each([
+    ["Which scenario best demonstrates the funding exchange?", "Which scenario best demonstrates capital exchanged for a financial right?"],
+    ["Which example applies?", "Which example applies the funding relationship accurately?"],
+    ["Find the explanation", "What is the best explanation of the investor's financial right?"],
+    ["Check the statement", "What is the correct statement about repayment rights?"],
+    ["Continue", "What happens next?"],
+    ["Find the outcome", "What is the result?"],
+    ["Explain", "Explain your choice."],
+    ["Reason", "Explain your reasoning."],
+    ["Outcome", "Describe the outcome."],
+    ["Solve", "How would you solve it?"],
+    ["Conclusion", "What do you conclude?"],
+    ["Respond", "If this happens, what should you do?"],
+    ["Continue", "Suppose this occurs. What happens?"],
+    ["Situation", "Given this situation. Explain what occurs."],
+  ])("fails closed for a recognition stem that still needs its choices: %s", async (title, body) => {
+    const { normalizeStandardGuidedSessionActivityMix } = await import("@/lib/openai/session-generator");
+    const base = buildSessionEvaluationCases()
+      .find((candidate) => candidate.id === "startup_funding_foundations")!.context;
+    const draft = learningDraft("model");
+    draft.activities[1] = {
+      ...draft.activities[1]!,
+      methodPhase: "explain",
+      type: "multiple_choice",
+      title,
+      body,
+      choices: [
+        draft.activities[1]!.correctAnswer!,
+        "The startup receives no resources.",
+        "The investor receives no financial right.",
+      ],
+    };
+    draft.activities[2]!.requiredForCompletion = false;
+
+    expect(normalizeStandardGuidedSessionActivityMix(draft, base.session)).toBe(draft);
+  });
+
+  it("converts a contextual check only when its body ends in a self-contained open prompt", async () => {
+    const { normalizeStandardGuidedSessionActivityMix } = await import("@/lib/openai/session-generator");
+    const base = buildSessionEvaluationCases()
+      .find((candidate) => candidate.id === "startup_funding_foundations")!.context;
+    const draft = learningDraft("model");
+    draft.activities[1] = {
+      ...draft.activities[1]!,
+      methodPhase: "explain",
+      type: "multiple_choice",
+      title: "Explain a lender's financial right",
+      body: "A lender supplies capital that must be repaid with interest. Explain what financial right the lender receives and why it is not automatic ownership.",
+      choices: [
+        draft.activities[1]!.correctAnswer!,
+        "The lender receives automatic ownership.",
+        "The lender receives no enforceable financial right.",
+      ],
+    };
+
+    expect(normalizeStandardGuidedSessionActivityMix(draft, base.session).activities[1]).toMatchObject({
+      type: "free_response",
+      choices: [],
+    });
+  });
+
+  it("keeps scheduled retrievals multiple-choice only", async () => {
+    const { normalizeStandardGuidedSessionActivityMix } = await import("@/lib/openai/session-generator");
+    const base = buildSessionEvaluationCases()
+      .find((candidate) => candidate.id === "startup_funding_foundations")!.context;
+    const draft = learningDraft("model");
+    draft.activities[1] = {
+      ...draft.activities[1]!,
+      type: "multiple_choice",
+      choices: [draft.activities[1]!.correctAnswer!, "No financial right", "No resources change hands"],
+    };
+
+    expect(normalizeStandardGuidedSessionActivityMix(draft, {
+      ...base.session,
+      reviewType: "verify",
+    })).toBe(draft);
+  });
+
+  it("preserves the retained method runtime while clearing a duplicated runtime on the converted check", async () => {
+    const { normalizeStandardGuidedSessionActivityMix } = await import("@/lib/openai/session-generator");
+    const base = buildSessionEvaluationCases()
+      .find((candidate) => candidate.id === "startup_funding_foundations")!.context;
+    const runtime = {
+      kind: "retrieval_round" as const,
+      sourceClosedReminder: "Close the model before beginning this recall round.",
+      prompts: [
+        { prompt: "State the funding exchange.", expectedAnswer: "Capital now for a financial right later.", hint: null },
+        { prompt: "Name one investor right.", expectedAnswer: "Ownership, repayment, or a future equity claim.", hint: null },
+        { prompt: "Name the startup benefit.", expectedAnswer: "Resources to reach milestones before revenue pays for them.", hint: null },
+      ],
+    };
+    const draft = learningDraft("model");
+    draft.methodBriefing.methodId = "retrieval_practice";
+    draft.activities.forEach((activity) => {
+      activity.methodRuntime = runtime;
+    });
+    const original = draft.activities[1]!;
+    draft.activities[1] = {
+      ...original,
+      methodPhase: "explain",
+      type: "multiple_choice",
+      choices: [original.correctAnswer!, "No resources are exchanged", "Only control is exchanged"],
+    };
+
+    const normalized = normalizeStandardGuidedSessionActivityMix(draft, base.session);
+
+    expect(normalized.activities[0]!.methodRuntime).toEqual(runtime);
+    expect(normalized.activities[1]).toMatchObject({
+      type: "free_response",
+      methodRuntime: null,
+    });
+  });
 });
 
 describe("outside-app guidance validation", () => {
@@ -846,6 +1075,12 @@ describe("session content-volume validation", () => {
       "8ec325f4-0000-4000-8000-000000000022",
       "8ec325f4-0000-4000-8000-000000000023",
     ];
+    const chunkIds = [
+      "8ec325f4-0000-4000-8000-000000000061",
+      "8ec325f4-0000-4000-8000-000000000062",
+      "8ec325f4-0000-4000-8000-000000000063",
+    ];
+    const materialId = "8ec325f4-0000-4000-8000-000000000060";
     const targets = [
       "Osmosis and water potential",
       "Tonicity and cell water movement",
@@ -859,12 +1094,31 @@ describe("session content-volume validation", () => {
         topic: "Osmosis, tonicity, and effects on animal and plant cells",
         sourceMode: "user_materials",
       },
+      materials: targets.map((target, index) => ({
+        materialId,
+        chunkId: chunkIds[index]!,
+        chunkIndex: index,
+        name: "Osmosis notes",
+        text: `Source-grounded explanation of ${target.toLocaleLowerCase()}.`,
+        truncated: false,
+        locationLabel: `Section ${index + 1}`,
+        role: "content_source" as const,
+      })),
       knowledgeTopics: targets.map((target, index) => ({
         ...base!.knowledgeTopics[0]!,
         id: topicIds[index]!,
         title: target,
         description: `Source-grounded explanation of ${target.toLocaleLowerCase()}.`,
         origin: "material" as const,
+        sourceReferences: [{
+          materialId,
+          chunkId: chunkIds[index]!,
+          chunkIndex: index,
+          startCharacter: 0,
+          endCharacter: 100,
+          locationLabel: `Section ${index + 1}`,
+          sectionRole: "content_source" as const,
+        }],
       })),
       session: {
         ...base!.session,
@@ -892,8 +1146,22 @@ describe("session content-volume validation", () => {
     expect(scoped.session.deferredContentTargets).toEqual([targets[2]]);
     expect(scoped.session.topicIds).toEqual(topicIds.slice(0, 2));
     expect(scoped.knowledgeTopics.map((topic) => topic.id)).toEqual(topicIds.slice(0, 2));
+    expect(scoped.materials.map((material) => material.chunkId)).toEqual(chunkIds.slice(0, 2));
     expect(scoped.session.completionEvidence).toHaveLength(2);
     expect(scoped.session.objective).not.toContain(targets[2]!);
+
+    const reordered = scopeFullSessionToCurrentWindow(
+      (await import("@/lib/openai/session-generator")).applyCurrentSessionAdjustment({
+        ...context,
+        session: {
+          ...context.session,
+          topicIds: [topicIds[2]!, topicIds[0]!, topicIds[1]!],
+        },
+      }),
+    );
+    expect(reordered.session.contentTargets).toEqual(targets.slice(0, 2));
+    expect(reordered.session.topicIds).toEqual([topicIds[0], topicIds[1]]);
+    expect(reordered.knowledgeTopics.map((topic) => topic.id)).toEqual(topicIds.slice(0, 2));
 
     const directed = scopeFullSessionToCurrentWindow(
       (await import("@/lib/openai/session-generator")).applyCurrentSessionAdjustment({
@@ -907,6 +1175,7 @@ describe("session content-volume validation", () => {
     expect(directed.session.contentTargets).toEqual(targets.slice(1));
     expect(directed.session.deferredContentTargets).toEqual([targets[0]]);
     expect(directed.session.topicIds).toEqual(topicIds.slice(1));
+    expect(directed.materials.map((material) => material.chunkId)).toEqual(chunkIds.slice(1));
     expect(directed.session.completionEvidence).toEqual([
       `Explain ${targets[1]} without notes.`,
       `Explain ${targets[2]} without notes.`,
@@ -952,6 +1221,166 @@ describe("session content-volume validation", () => {
       `Retrieve or apply ${targets[1]} without notes.`,
       `Retrieve or apply ${targets[2]} without notes.`,
     ]);
+
+    const paraphrasedDeferredOnlyEvidence = scopeFullSessionToCurrentWindow(
+      (await import("@/lib/openai/session-generator")).applyCurrentSessionAdjustment({
+        ...context,
+        session: {
+          ...context.session,
+          completionEvidence: ["State where this process happens and what it produces."],
+        },
+      }),
+    );
+    expect(paraphrasedDeferredOnlyEvidence.session.contentTargets).toEqual(targets.slice(0, 2));
+    expect(paraphrasedDeferredOnlyEvidence.session.completionEvidence).toEqual([
+      `Retrieve or apply ${targets[0]} without notes.`,
+      `Retrieve or apply ${targets[1]} without notes.`,
+    ]);
+
+    const ambiguousTopics = context.knowledgeTopics.map((topic, index) => ({
+      ...topic,
+      title: `General cell process ${index + 1}`,
+      description: "A broad process description used for study and review.",
+      subtopics: [],
+    }));
+    const ambiguousAdjusted = (await import("@/lib/openai/session-generator"))
+      .applyCurrentSessionAdjustment({
+        ...context,
+        knowledgeTopics: ambiguousTopics,
+      });
+    expect(() => scopeFullSessionToCurrentWindow(ambiguousAdjusted)).toThrowError(expect.objectContaining({
+      name: "SessionGenerationFailure",
+      generationStats: expect.objectContaining({
+        attempts: 0,
+        failedValidator: "session_coverage_fidelity",
+      }),
+    }));
+  });
+
+  it("semantically narrows a continuation topic superset even when its targets fit", async () => {
+    const { prepareSessionGenerationContext } = await import("@/lib/openai/session-generator");
+    const base = buildSessionEvaluationCases()
+      .find((candidate) => candidate.id === "bioenergetics_multi_target_study")?.context;
+    expect(base).toBeDefined();
+    const topicIds = [
+      "8ec325f4-0000-4000-8000-000000000031",
+      "8ec325f4-0000-4000-8000-000000000032",
+      "8ec325f4-0000-4000-8000-000000000033",
+    ];
+    const chunkIds = [
+      "8ec325f4-0000-4000-8000-000000000041",
+      "8ec325f4-0000-4000-8000-000000000042",
+      "8ec325f4-0000-4000-8000-000000000043",
+    ];
+    const materialId = "8ec325f4-0000-4000-8000-000000000050";
+    const topicTitles = [
+      "Glycolysis inputs and outputs",
+      "Krebs cycle location and outputs",
+      "Electron transport chain mechanism",
+    ];
+    const deferredTargets = topicTitles.slice(1);
+    const context: SessionGenerationContext = {
+      ...base!,
+      learningGoal: {
+        ...base!.learningGoal,
+        sourceMode: "user_materials",
+      },
+      materials: topicTitles.map((title, index) => ({
+        materialId,
+        chunkId: chunkIds[index]!,
+        chunkIndex: index,
+        name: "Respiration notes",
+        text: `Authoritative source explanation for ${title}.`,
+        truncated: false,
+        locationLabel: `Section ${index + 1}`,
+        role: "content_source" as const,
+      })),
+      knowledgeTopics: topicTitles.map((title, index) => ({
+        ...base!.knowledgeTopics[0]!,
+        id: topicIds[index]!,
+        title,
+        description: `Authoritative model of ${title.toLocaleLowerCase()}.`,
+        subtopics: [title],
+        origin: "material" as const,
+        sourceReferences: [{
+          materialId,
+          chunkId: chunkIds[index]!,
+          chunkIndex: index,
+          startCharacter: 0,
+          endCharacter: 80,
+          locationLabel: `Section ${index + 1}`,
+          sectionRole: "content_source" as const,
+        }],
+      })),
+      session: {
+        ...base!.session,
+        title: "Continue cellular respiration stages",
+        objective: `Retrieve or apply the remaining saved targets: ${deferredTargets.join("; ")}.`,
+        methodReason: `This continuation preserves the exact plan scope that did not fit the previous time window. Complete only these remaining targets before moving to later curriculum: ${deferredTargets.join("; ")}.`,
+        estimatedMinutes: 25,
+        topicIds,
+        contentTargets: deferredTargets,
+        completionEvidence: deferredTargets.map((target) => (
+          `Explain or apply this remaining saved target independently: ${target}`
+        )),
+      },
+      sessionAdjustment: null,
+    };
+
+    const prepared = prepareSessionGenerationContext(context);
+
+    expect(prepared.session.contentTargets).toEqual(deferredTargets);
+    expect(prepared.session.topicIds).toEqual(topicIds.slice(1));
+    expect(prepared.knowledgeTopics.map((topic) => topic.id)).toEqual(topicIds.slice(1));
+    expect(prepared.materials.map((material) => material.chunkId)).toEqual(chunkIds.slice(1));
+    expect(prepared.session.objective).toBe(context.session.objective);
+    expect(prepared.session.completionEvidence).toEqual(context.session.completionEvidence);
+    expect(prepared.session.deferredContentTargets).toBeUndefined();
+
+    const twoTopicContinuation = prepareSessionGenerationContext({
+      ...context,
+      materials: context.materials.slice(0, 2),
+      knowledgeTopics: context.knowledgeTopics.slice(0, 2),
+      session: {
+        ...context.session,
+        topicIds: topicIds.slice(0, 2),
+        contentTargets: [topicTitles[1]!],
+        completionEvidence: [
+          `Explain or apply this remaining saved target independently: ${topicTitles[1]}`,
+        ],
+      },
+    });
+    expect(twoTopicContinuation.session.topicIds).toEqual([topicIds[1]]);
+    expect(twoTopicContinuation.knowledgeTopics.map((topic) => topic.id)).toEqual([topicIds[1]]);
+    expect(twoTopicContinuation.materials.map((material) => material.chunkId)).toEqual([chunkIds[1]]);
+
+    const ambiguous = {
+      ...context,
+      knowledgeTopics: context.knowledgeTopics.map((topic, index) => ({
+        ...topic,
+        title: `General respiration topic ${index + 1}`,
+        description: "Cell respiration processes, locations, mechanisms, and outputs.",
+        subtopics: [],
+      })),
+    };
+    expect(() => prepareSessionGenerationContext(ambiguous)).toThrowError(expect.objectContaining({
+      name: "SessionGenerationFailure",
+      generationStats: expect.objectContaining({
+        attempts: 0,
+        failedValidator: "session_coverage_fidelity",
+      }),
+    }));
+
+    expect(() => prepareSessionGenerationContext({
+      ...context,
+      materials: context.materials.filter((material) => material.chunkId !== chunkIds[2]),
+    })).toThrowError(expect.objectContaining({
+      name: "SessionGenerationFailure",
+      generationStats: expect.objectContaining({
+        attempts: 0,
+        failedValidator: "session_source_grounding",
+      }),
+    }));
   });
 
   it("rejects a wall of content that cannot fit a short guided session", async () => {
@@ -1172,6 +1601,85 @@ describe("outside-YOVA teaching-first generation", () => {
     expect(validateSubstantiveTeaching(result.draft)).toBeNull();
     expect(validateOutsideAppGuidance(result.draft, "outside_yova")).toBeNull();
   });
+
+  it("server-normalizes a recognition-only learn session in one call even when bounded recovery is ineligible", async () => {
+    parseResponse.mockReset();
+    const base = buildSessionEvaluationCases()
+      .find((candidate) => candidate.id === "startup_funding_foundations")!.context;
+    const context: SessionGenerationContext = {
+      ...base,
+      sessionArchitectureVersion: "filled_teaching_v1",
+      learningGoal: {
+        ...base.learningGoal,
+        studyMode: "outside_yova",
+        sourceMode: "yova_generated",
+        learningIntent: "learn",
+      },
+      sessionAdjustment: {
+        familiarity: "as_planned",
+        availableMinutes: 15,
+        knownTargets: [],
+        note: "Keep the funding exchange as the only focus in this attempt.",
+      },
+    };
+    const draft = learningDraft("model");
+    const explanation = draft.activities[1]!;
+    draft.activities[1] = {
+      ...explanation,
+      methodPhase: "explain",
+      type: "multiple_choice",
+      choices: [
+        explanation.correctAnswer!,
+        "The startup receives no capital and gives no financial right.",
+        "The investor receives control without providing any resources.",
+      ],
+    };
+    draft.activities.push({
+      topicId: null,
+      methodPhase: "repair",
+      concept: null,
+      estimatedMinutes: 1,
+      requiredForCompletion: false,
+      label: "Repair",
+      title: "Repair only the missing relationship",
+      body: "Compare your explanation with the source and correct only the relationship you missed.",
+      teaching: null,
+      type: "instruction",
+      choices: [],
+      correctAnswer: null,
+      feedback: null,
+      practiceIntent: null,
+      misconceptionSummary: null,
+    });
+    draft.activities.forEach((activity) => {
+      if (activity.type === "multiple_choice" || activity.type === "free_response") {
+        activity.practiceIntent = "baseline";
+      }
+    });
+    parseResponse.mockResolvedValueOnce(completedProviderResponse("recognition-only-learn", draft));
+
+    const { generateSessionWithOpenAI } = await import("@/lib/openai/session-generator");
+    const result = await generateSessionWithOpenAI(context);
+
+    expect(parseResponse).toHaveBeenCalledTimes(1);
+    expect(result.draft.activities[1]).toMatchObject({
+      methodPhase: "explain",
+      type: "free_response",
+      choices: [],
+      correctAnswer: explanation.correctAnswer,
+      feedback: explanation.feedback,
+      estimatedMinutes: explanation.estimatedMinutes,
+    });
+    expect(result.generationStats).toMatchObject({
+      attempts: 1,
+      firstAttemptPassed: false,
+      failedValidator: "session_required_typed_recall",
+      repairAttempted: true,
+      repairSucceeded: true,
+      repairReason: "semantic_validation",
+      validationIssueCode: "session_required_typed_recall",
+    });
+  });
 });
 
 describe("bounded teaching-first recovery", () => {
@@ -1289,6 +1797,220 @@ describe("bounded teaching-first recovery", () => {
     expect(result.draft.coverage.deferredContent).toEqual([]);
     expect(result.generationStats.recoveryMode).toBe("safe_learn");
     await expectCompleteValidatorPass(result.draft, context, "self_explanation");
+  });
+
+  it("keeps ordinary mixed material and AI targets inside their authoritative source boundaries", async () => {
+    parseResponse.mockReset();
+    const base = economicsLearnContext();
+    const materialTopicId = "75555555-5555-4555-8555-555555555555";
+    const aiTopicId = "76666666-6666-4666-8666-666666666666";
+    const materialId = "77777777-7777-4777-8777-777777777777";
+    const chunkId = "78888888-8888-4888-8888-888888888888";
+    const targets = [
+      "Promoter DNA methylation and reduced transcription",
+      "Histone acetylation and increased chromatin access",
+    ];
+    const materialText = "DNA methylation near a promoter can reduce transcription by limiting transcription-factor access or recruiting repressive chromatin proteins.";
+    const context: SessionGenerationContext = {
+      ...base,
+      learningGoal: {
+        ...base.learningGoal,
+        title: "Understand epigenetic gene regulation",
+        topic: "Explain promoter methylation and histone acetylation",
+        sourceMode: "user_materials",
+        studyMode: "inside_yova",
+      },
+      materials: [{
+        materialId,
+        chunkId,
+        chunkIndex: 0,
+        name: "promoter-notes.txt",
+        text: materialText,
+        truncated: false,
+        locationLabel: "Promoter methylation",
+        role: "content_source",
+      }],
+      knowledgeTopics: [{
+        id: materialTopicId,
+        title: targets[0]!,
+        description: "How promoter methylation changes transcription-factor access and transcription.",
+        subtopics: ["Promoter methylation"],
+        prerequisiteTopicIds: [],
+        status: "not_started",
+        initialEvidence: null,
+        sourceReferences: [{
+          materialId,
+          chunkId,
+          chunkIndex: 0,
+          startCharacter: 0,
+          endCharacter: materialText.length,
+          locationLabel: "Promoter methylation",
+          sectionRole: "content_source",
+        }],
+        origin: "material",
+        deferred: null,
+      }, {
+        id: aiTopicId,
+        title: targets[1]!,
+        description: "How histone acetylation changes chromatin access and transcription.",
+        subtopics: ["Histone acetylation"],
+        prerequisiteTopicIds: [],
+        status: "not_started",
+        initialEvidence: null,
+        sourceReferences: [],
+        origin: "ai_generated",
+        deferred: null,
+      }],
+      session: {
+        ...base.session,
+        title: "Explain two epigenetic controls",
+        objective: "Learn how promoter methylation and histone acetylation regulate transcription.",
+        estimatedMinutes: 10,
+        topicIds: [materialTopicId, aiTopicId],
+        contentTargets: targets,
+        completionEvidence: targets.map((target) => `Explain ${target} without the model visible.`),
+      },
+    };
+    parseResponse
+      .mockResolvedValueOnce(completedProviderResponse("invalid-mixed-initial", {}))
+      .mockResolvedValueOnce(completedProviderResponse("invalid-mixed-repair", {}))
+      .mockResolvedValueOnce(completedProviderResponse("safe-mixed-learn", geneRegulationLearnRecoveryContent()));
+
+    const {
+      generateSessionWithOpenAI,
+      ordinarySessionProvenanceContract,
+      validateMixedProvenanceEvidenceAttribution,
+    } = await import("@/lib/openai/session-generator");
+    const result = await generateSessionWithOpenAI(context);
+    const fullInput = JSON.parse((parseResponse.mock.calls[0]?.[0]?.input as string).split("\n").slice(1).join("\n"));
+    expect(fullInput.sessionProvenanceContract).toMatchObject({
+      version: "mixed_provenance_v1",
+      mode: "mixed_materials_and_ai",
+      targetProvenance: [{
+        targetIndex: 0,
+        topicId: materialTopicId,
+        provenance: "mapped_material",
+        allowedChunkIds: [chunkId],
+      }, {
+        targetIndex: 1,
+        topicId: aiTopicId,
+        provenance: "model_knowledge",
+        allowedChunkIds: [],
+      }],
+      modelKnowledgeTopics: [targets[1]],
+    });
+    const recoveryInput = JSON.parse((parseResponse.mock.calls[2]?.[0]?.input as string).split("\n").slice(1).join("\n"));
+    expect(recoveryInput.targetProvenance).toEqual(fullInput.sessionProvenanceContract.targetProvenance);
+    expect(result.draft.sourceGrounding).toMatchObject({
+      mode: "materials_plus_ai",
+      anchors: [expect.objectContaining({ chunkId })],
+      supplements: [expect.objectContaining({ topic: targets[1] })],
+    });
+    expect(result.generationStats.recoveryMode).toBe("safe_learn");
+    await expectCompleteValidatorPass(result.draft, context, "self_explanation");
+
+    const crossedSourceDraft = structuredClone(result.draft);
+    const firstEvidenceConcept = crossedSourceDraft.coverage.evidenceMap[0]?.activityConcept;
+    const firstEvidenceActivity = crossedSourceDraft.activities.find((activity) => (
+      activity.requiredForCompletion && activity.concept === firstEvidenceConcept
+    ));
+    expect(firstEvidenceActivity).toBeDefined();
+    firstEvidenceActivity!.topicId = aiTopicId;
+    expect(validateMixedProvenanceEvidenceAttribution(
+      crossedSourceDraft,
+      ordinarySessionProvenanceContract(context).targetProvenance,
+      crossedSourceDraft.coverage.evidenceMap.map((mapping, index) => ({
+        essentialIdea: mapping.essentialIdea,
+        target: targets[index]!,
+      })),
+    )).toContain("different topic's source authority");
+  });
+
+  it("fails before a provider call when mixed targets cannot be attributed uniquely", async () => {
+    parseResponse.mockReset();
+    const base = economicsLearnContext();
+    const materialId = "79999999-9999-4999-8999-999999999999";
+    const chunkId = "7aaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    const context: SessionGenerationContext = {
+      ...base,
+      learningGoal: { ...base.learningGoal, sourceMode: "user_materials", studyMode: "inside_yova" },
+      materials: [{
+        materialId,
+        chunkId,
+        chunkIndex: 0,
+        name: "one-topic.txt",
+        text: "Mitosis separates duplicated chromosomes into two daughter nuclei during cell division.",
+        truncated: false,
+        locationLabel: "Mitosis",
+        role: "content_source",
+      }],
+      knowledgeTopics: [{
+        id: base.session.topicIds[0]!,
+        title: "Mitosis chromosome separation",
+        description: "How mitosis separates duplicated chromosomes.",
+        subtopics: [], prerequisiteTopicIds: [], status: "not_started", initialEvidence: null,
+        sourceReferences: [{
+          materialId, chunkId, chunkIndex: 0, startCharacter: 0, endCharacter: 90,
+          locationLabel: "Mitosis", sectionRole: "content_source",
+        }],
+        origin: "material", deferred: null,
+      }, {
+        id: base.session.topicIds[1]!,
+        title: "Meiosis genetic variation",
+        description: "How meiosis creates variation through recombination and assortment.",
+        subtopics: [], prerequisiteTopicIds: [], status: "not_started", initialEvidence: null,
+        sourceReferences: [], origin: "ai_generated", deferred: null,
+      }],
+      session: {
+        ...base.session,
+        topicIds: base.session.topicIds.slice(0, 2),
+        contentTargets: ["Explain the important process and its result"],
+        completionEvidence: ["Explain the process without notes."],
+      },
+    };
+
+    const { generateSessionWithOpenAI } = await import("@/lib/openai/session-generator");
+    await expect(generateSessionWithOpenAI(context)).rejects.toMatchObject({
+      generationStats: {
+        attempts: 0,
+        failedValidator: "session_coverage_fidelity",
+      },
+    });
+    expect(parseResponse).not.toHaveBeenCalled();
+  });
+
+  it("treats an AI-only active continuation as model knowledge after material topics were scoped away", async () => {
+    parseResponse.mockReset();
+    parseResponse.mockRejectedValue(new Error("provider unavailable"));
+    const base = economicsLearnContext();
+    const aiTopic = base.knowledgeTopics[1]!;
+    const aiTarget = base.session.contentTargets![1]!;
+    const context: SessionGenerationContext = {
+      ...base,
+      learningGoal: {
+        ...base.learningGoal,
+        sourceMode: "user_materials",
+        studyMode: "inside_yova",
+      },
+      // A continuation scoper can legitimately remove every completed
+      // material chunk while leaving an AI-origin deferred topic active.
+      materials: [],
+      knowledgeTopics: [aiTopic],
+      session: {
+        ...base.session,
+        topicIds: [aiTopic.id],
+        contentTargets: [aiTarget],
+        completionEvidence: [`Explain ${aiTarget} without the model visible.`],
+      },
+    };
+
+    const { generateSessionWithOpenAI } = await import("@/lib/openai/session-generator");
+    await expect(generateSessionWithOpenAI(context)).rejects.toThrow("provider unavailable");
+    expect(parseResponse).toHaveBeenCalledTimes(1);
+    const providerInput = JSON.parse((parseResponse.mock.calls[0]?.[0]?.input as string).split("\n").slice(1).join("\n"));
+    expect(providerInput.learningGoal.sourceMode).toBe("yova_generated");
+    expect(providerInput.materials).toEqual([]);
+    expect(providerInput.sourceGroundingPolicy).toBeNull();
   });
 
   it("recovers an arbitrary computing lesson with a complete model and fresh independent trace", async () => {
@@ -1526,6 +2248,120 @@ describe("full guided-session personalization prompt", () => {
 });
 
 describe("multi-target study recovery", () => {
+  it("server-normalizes a recognition-only challenge study session without making a recovery call", async () => {
+    parseResponse.mockReset();
+    const base = buildSessionEvaluationCases()
+      .find((candidate) => candidate.id === "bioenergetics_multi_target_study")!.context;
+    const context: SessionGenerationContext = {
+      ...base,
+      sessionArchitectureVersion: "filled_teaching_v1",
+      sessionAdjustment: {
+        familiarity: "challenge_me",
+        availableMinutes: 25,
+        knownTargets: [],
+        note: "Use a demanding but bounded application of the same two targets.",
+      },
+    };
+    const draft = oversizedStudyDraft();
+    draft.topicIds = [...context.session.topicIds];
+    draft.rationale = "Use unsupported bioenergetics recognition before a concise correction and delayed return.";
+    draft.coverage = {
+      focus: "Cellular energy transfer and ATP hydrolysis coupling.",
+      essentialIdeas: [
+        "Cells transfer energy by coupling energy-releasing reactions to energy-requiring cellular work.",
+        "ATP hydrolysis releases free energy that can drive a coupled cellular reaction.",
+      ],
+      completionEvidence: [...(context.session.completionEvidence ?? [])],
+      evidenceMap: [{
+        essentialIdea: "Cells transfer energy by coupling energy-releasing reactions to energy-requiring cellular work.",
+        activityConcept: "Cellular energy transfer",
+      }, {
+        essentialIdea: "ATP hydrolysis releases free energy that can drive a coupled cellular reaction.",
+        activityConcept: "ATP hydrolysis and energy coupling",
+      }],
+      deferredContent: [],
+    };
+    draft.activities[0] = {
+      ...draft.activities[0]!,
+      topicId: context.session.topicIds[0]!,
+      estimatedMinutes: 3,
+      concept: "Cellular energy transfer",
+      title: "Explain cellular energy transfer",
+      body: "Explain how an energy-releasing reaction can drive energy-requiring cellular work.",
+      type: "multiple_choice",
+      choices: [
+        "Cells couple energy-releasing reactions to energy-requiring work",
+        "Cells create new energy whenever work is required",
+        "Cells rely only on heat released by reactions",
+        "Cells store every form of energy permanently",
+      ],
+      correctAnswer: "Cells couple energy-releasing reactions to energy-requiring work",
+      feedback: "The useful relationship is chemical coupling between an energy-releasing process and the cellular work it drives.",
+      practiceIntent: "baseline",
+    };
+    draft.activities[1] = {
+      ...draft.activities[1]!,
+      topicId: context.session.topicIds[0]!,
+      methodPhase: "retrieve",
+      estimatedMinutes: 3,
+      concept: "ATP hydrolysis and energy coupling",
+      title: "Apply ATP coupling",
+      body: "How can ATP hydrolysis help drive an energy-requiring cellular reaction?",
+      choices: [
+        "Coupling makes the combined free-energy change favorable",
+        "ATP creates energy that did not previously exist",
+        "ATP prevents every spontaneous reaction",
+        "Hydrolysis permanently stores energy in water",
+      ],
+      correctAnswer: "Coupling makes the combined free-energy change favorable",
+      feedback: "The favorable free-energy change of ATP hydrolysis can drive a linked energy-requiring reaction without creating energy.",
+      practiceIntent: "baseline",
+    };
+    draft.activities[2] = {
+      ...draft.activities[2]!,
+      estimatedMinutes: 3,
+      title: "Repair the coupling model",
+      body: "Compare both attempts with the corrected energy-coupling model and replace only the exposed gap.",
+      teaching: {
+        keyIdea: "Cells transfer rather than create energy by coupling reactions.",
+        explanation: "An energy-releasing reaction can be chemically linked to energy-requiring cellular work. ATP hydrolysis is a common link because its favorable free-energy change can make the combined process favorable.",
+        example: null,
+        commonMistake: {
+          mistake: "ATP hydrolysis creates new energy for the cell.",
+          correction: "ATP hydrolysis transfers usable free energy through coupling; it does not create energy.",
+        },
+      },
+    };
+    draft.activities[3] = {
+      ...draft.activities[3]!,
+      estimatedMinutes: 1,
+      title: "Return to ATP coupling",
+      body: "YOVA will bring ATP coupling back after a delay for another unsupported retrieval.",
+    };
+    parseResponse.mockResolvedValueOnce(completedProviderResponse("recognition-only-study", draft));
+
+    const { generateSessionWithOpenAI } = await import("@/lib/openai/session-generator");
+    const result = await generateSessionWithOpenAI(context);
+
+    expect(parseResponse).toHaveBeenCalledTimes(1);
+    const typedRecall = result.draft.activities.find((activity) => activity.type === "free_response");
+    expect(typedRecall).toMatchObject({
+      type: "free_response",
+      choices: [],
+      topicId: context.session.topicIds[0],
+      methodPhase: "retrieve",
+      estimatedMinutes: 3,
+    });
+    expect(result.draft.activities.some((activity) => activity.type === "multiple_choice")).toBe(true);
+    expect(result.generationStats).toMatchObject({
+      attempts: 1,
+      failedValidator: "session_required_typed_recall",
+      repairAttempted: true,
+      repairSucceeded: true,
+      validationIssueCode: "session_required_typed_recall",
+    });
+  });
+
   it("uses the bounded source-grounded path directly for a shortened material session", async () => {
     parseResponse.mockReset();
     const base = buildSessionEvaluationCases()
@@ -1892,7 +2728,7 @@ describe("multi-target study recovery", () => {
         ...base!.session,
         title: "Verify Bioenergetics prerequisites",
         objective: "Verify the demonstrated prerequisites and identify any specific repair needed before cellular respiration.",
-        topicIds: [...BIO_TOPIC_IDS],
+        topicIds: [BIO_TOPIC_IDS[2], BIO_TOPIC_IDS[0], BIO_TOPIC_IDS[1]],
         contentTargets: targets,
         completionEvidence: [
           "Explain ATP coupling without support",
@@ -2014,6 +2850,7 @@ describe("scheduled retrieval generation", () => {
       output_parsed: {
         questions: [
           {
+            targetIndex: 0,
             title: "Estimate from a nearby interval",
             body: "For $f(x)=x^2$, use the points at $x=2$ and $x=2.1$. Which value best estimates the instantaneous rate at $x=2$?",
             choices: ["0.4", "4.1", "8", "40"],
@@ -2021,6 +2858,7 @@ describe("scheduled retrieval generation", () => {
             feedback: "The secant slope is $((2.1)^2-2^2)/(2.1-2)=4.1$, which approximates the derivative near $x=2$.",
           },
           {
+            targetIndex: 0,
             title: "Interpret the estimate",
             body: "For $f(x)=x^2$, a nearby-interval slope at $x=2$ is about $4.1$. What does this estimate represent?",
             choices: ["The instantaneous rate of change near $x=2$", "The value $f(2)$", "The interval width", "The average output"],
@@ -2028,6 +2866,7 @@ describe("scheduled retrieval generation", () => {
             feedback: "A secant slope over a very small interval estimates the tangent slope, or instantaneous rate of change.",
           },
           {
+            targetIndex: 0,
             title: "Use a fresh interval",
             body: "For $f(x)=x^2$, which nearby-interval calculation would give another estimate of the instantaneous rate at $x=2$?",
             choices: ["$(f(2.01)-f(2))/(2.01-2)$", "$f(2.01)-f(2)$", "$f(2)/2$", "$(2.01-2)/f(2)$"],
@@ -2045,8 +2884,16 @@ describe("scheduled retrieval generation", () => {
     const context = buildSessionEvaluationCases()
       .find((candidate) => candidate.id === "calculus_delayed_retrieval_self_contained")?.context;
     expect(context).toBeDefined();
+    expect(context!.session.contentTargets ?? []).toEqual([]);
+    expect(context!.session.completionEvidence ?? []).toEqual([]);
     const personalizedContext = {
       ...context!,
+      sessionAdjustment: {
+        familiarity: "already_know" as const,
+        availableMinutes: 10,
+        knownTargets: ["Nearby interval estimate at x = 2"],
+        note: "",
+      },
       personalization: {
         decisions: [{
           id: "decision:support:attempt_safety:private_revisable_attempt",
@@ -2099,6 +2946,257 @@ describe("scheduled retrieval generation", () => {
     expect(result.draft.activities).toHaveLength(3);
     expect(result.draft.activities.every((activity) => activity.type === "multiple_choice")).toBe(true);
     expect(result.draft.activities.every((activity) => activity.concept === "Nearby interval estimate at x = 2")).toBe(true);
+    expect(result.draft.methodBriefing.personalization.join(" ")).toMatch(/already knowing.*verify.*claim/i);
+  });
+
+  it.each([
+    {
+      label: "needs more support",
+      correctAnswers: 1,
+      feedback: "too_difficult" as const,
+      expected: /needs? more support.*smaller steps.*guidance/i,
+    },
+    {
+      label: "promising",
+      correctAnswers: 4,
+      feedback: "about_right" as const,
+      expected: /promising.*independent.*transfer/i,
+    },
+  ])("deterministically surfaces $label retrieval outcomes without a repair call", async ({
+    correctAnswers,
+    feedback,
+    expected,
+  }) => {
+    parseResponse.mockReset();
+    parseResponse.mockResolvedValue(completedProviderResponse(
+      "response-scheduled-method-outcome",
+      scheduledCalculusQuestionSet(),
+    ));
+    const base = buildSessionEvaluationCases()
+      .find((candidate) => candidate.id === "calculus_delayed_retrieval_self_contained")!.context;
+    const comparableResult = {
+      methodId: "retrieval_practice" as const,
+      taskType: "problem_solving" as const,
+      knowledgeStage: "retrieval_ready" as const,
+      correctAnswers,
+      totalAnswers: 4,
+      feedback,
+      observedGap: null,
+      plannedMinutes: 10,
+      actualMinutes: 10,
+      calibrationPattern: "insufficient" as const,
+    };
+
+    const { generateSessionWithOpenAI } = await import("@/lib/openai/session-generator");
+    const result = await generateSessionWithOpenAI({
+      ...base,
+      recentResults: [comparableResult, comparableResult],
+    });
+
+    expect(parseResponse).toHaveBeenCalledTimes(1);
+    expect(result.generationStats.attempts).toBe(1);
+    expect(result.draft.methodBriefing.personalization.join(" ")).toMatch(expected);
+  });
+
+  it("fails before the provider when a scheduled three-question review receives a teaching-first adjustment", async () => {
+    parseResponse.mockReset();
+    const base = buildSessionEvaluationCases()
+      .find((candidate) => candidate.id === "calculus_delayed_retrieval_self_contained")!.context;
+
+    const { generateSessionWithOpenAI } = await import("@/lib/openai/session-generator");
+    await expect(generateSessionWithOpenAI({
+      ...base,
+      sessionAdjustment: {
+        familiarity: "need_teaching",
+        availableMinutes: 10,
+        knownTargets: [],
+        note: "Teach this before checking it.",
+      },
+    })).rejects.toMatchObject({
+      generationStats: {
+        attempts: 0,
+        failedValidator: "session_adjustment_fidelity",
+        repairAttempted: false,
+      },
+    });
+    expect(parseResponse).not.toHaveBeenCalled();
+  });
+
+  it("reports scheduled target-shape failures separately from ordinary typed recall", async () => {
+    parseResponse.mockReset();
+    const invalidTargetSet = {
+      questions: [0, 1, 2].map((index) => ({
+        targetIndex: 2,
+        title: `Invalid scheduled target ${index + 1}`,
+        body: `Which self-contained answer applies to invalid scheduled target ${index + 1}?`,
+        choices: ["Correct relationship", "Reversed relationship", "Unrelated relationship", "Missing relationship"],
+        correctChoiceIndex: 0,
+        feedback: "The correct relationship preserves the supplied scheduled target.",
+      })),
+    };
+    parseResponse.mockResolvedValue(completedProviderResponse(
+      "response-invalid-scheduled-target",
+      invalidTargetSet,
+    ));
+    const context = buildSessionEvaluationCases()
+      .find((candidate) => candidate.id === "calculus_delayed_retrieval_self_contained")!.context;
+
+    const { generateSessionWithOpenAI } = await import("@/lib/openai/session-generator");
+    await expect(generateSessionWithOpenAI(context)).rejects.toMatchObject({
+      generationStats: {
+        attempts: 2,
+        failedValidator: "scheduled_retrieval_format",
+        validationIssueCode: "scheduled_retrieval_format",
+        repairAttempted: true,
+        repairSucceeded: false,
+      },
+    });
+  });
+
+  it("keeps two scheduled targets attached to their distinct topic evidence", async () => {
+    parseResponse.mockReset();
+    const secondTopicId = "55555555-5555-4555-8555-555555555555";
+    const targets = [
+      "Derivative as instantaneous rate of change",
+      "Difference quotient estimates a derivative from a nearby interval",
+    ];
+    parseResponse.mockResolvedValue(completedProviderResponse("response-two-target-review", {
+      questions: [{
+        targetIndex: 0,
+        title: "Interpret the derivative",
+        body: "For a position function $s(t)$, what does $s'(2)$ represent at time $t=2$?",
+        choices: ["Instantaneous velocity", "Position", "Elapsed time", "Average position"],
+        correctChoiceIndex: 0,
+        feedback: "The derivative of position at a time is the instantaneous rate of change, which is velocity.",
+      }, {
+        targetIndex: 1,
+        title: "Build the nearby quotient",
+        body: "For $f(x)=x^2$, which calculation estimates the derivative at $x=2$ using the nearby point $x=2.1$?",
+        choices: ["$(f(2.1)-f(2))/(2.1-2)$", "$f(2.1)-f(2)$", "$f(2)/2$", "$(2.1-2)/f(2.1)$"],
+        correctChoiceIndex: 0,
+        feedback: "A difference quotient divides the nearby change in output by the corresponding change in input.",
+      }, {
+        targetIndex: 1,
+        title: "Use a closer interval",
+        body: "For $f(x)=x^2$, which nearby input would usually refine a difference-quotient estimate at $x=2$?",
+        choices: ["$2.01$", "$3$", "$10$", "$-2$"],
+        correctChoiceIndex: 0,
+        feedback: "Using $2.01$ creates a smaller interval around $2$, so its secant slope better approximates the tangent slope.",
+      }],
+    }));
+    const base = buildSessionEvaluationCases()
+      .find((candidate) => candidate.id === "calculus_delayed_retrieval_self_contained")!.context;
+    const context: SessionGenerationContext = {
+      ...base,
+      // This older signal uses a narrower historical label than the persisted
+      // multi-target review. The scheduled session's exact target contract is
+      // authoritative; server-owned labels must not make it regenerate.
+      conceptSignals: [{
+        topicId: TEST_TOPIC_ID,
+        concept: "Derivative rate interpretation",
+        attempts: 1,
+        secureAttempts: 0,
+        needsReviewAttempts: 1,
+        lastOutcome: "needs_review",
+        lastObservedAt: "2026-08-01T12:00:00.000Z",
+        status: "needs_review",
+      }],
+      knowledgeTopics: [{
+        ...base.knowledgeTopics[0]!,
+        id: TEST_TOPIC_ID,
+        title: targets[0]!,
+        description: targets[0]!,
+      }, {
+        ...base.knowledgeTopics[0]!,
+        id: secondTopicId,
+        title: targets[1]!,
+        description: targets[1]!,
+      }],
+      session: {
+        ...base.session,
+        estimatedMinutes: 10,
+        topicIds: [TEST_TOPIC_ID, secondTopicId],
+        contentTargets: targets,
+        completionEvidence: [
+          "Interpret a derivative as an instantaneous rate.",
+          "Choose a valid nearby-interval difference quotient.",
+        ],
+        reviewConcept: targets[0],
+        reviewType: "verify",
+      },
+    };
+
+    const { generateSessionWithOpenAI } = await import("@/lib/openai/session-generator");
+    const result = await generateSessionWithOpenAI(context);
+
+    expect(result.draft.topicIds).toEqual([TEST_TOPIC_ID, secondTopicId]);
+    expect(result.draft.coverage.essentialIdeas).toEqual(targets);
+    expect(result.draft.coverage.evidenceMap.map((mapping) => mapping.activityConcept)).toEqual(targets);
+    expect(result.draft.activities.map((activity) => activity.topicId)).toEqual([
+      TEST_TOPIC_ID,
+      secondTopicId,
+      secondTopicId,
+    ]);
+    expect(result.generationStats.attempts).toBe(1);
+  });
+
+  it("narrows a legacy topic superset to the uniquely assessed topic and rejects ambiguous attribution", async () => {
+    parseResponse.mockReset();
+    parseResponse.mockResolvedValue(completedProviderResponse(
+      "response-narrowed-topic-review",
+      scheduledCalculusQuestionSet(),
+    ));
+    const base = buildSessionEvaluationCases()
+      .find((candidate) => candidate.id === "calculus_delayed_retrieval_self_contained")!.context;
+    const calculusTopic = base.knowledgeTopics[0]!;
+    const unrelatedTopicId = "88888888-8888-4888-8888-888888888888";
+    const target = "Nearby interval estimate at x = 2";
+    const supersetContext: SessionGenerationContext = {
+      ...base,
+      knowledgeTopics: [{
+        ...calculusTopic,
+        id: unrelatedTopicId,
+        title: "Startup funding rights",
+        description: "How capital exchanges create ownership or repayment rights.",
+        subtopics: ["Debt and equity"],
+      }, calculusTopic],
+      session: {
+        ...base.session,
+        topicIds: [unrelatedTopicId, calculusTopic.id],
+        contentTargets: [target],
+        completionEvidence: ["Estimate the nearby interval rate without notes."],
+        reviewConcept: target,
+      },
+    };
+
+    const { generateSessionWithOpenAI } = await import("@/lib/openai/session-generator");
+    const result = await generateSessionWithOpenAI(supersetContext);
+
+    expect(result.draft.topicIds).toEqual([calculusTopic.id]);
+    expect(result.draft.activities.every((activity) => activity.topicId === calculusTopic.id)).toBe(true);
+    expect(parseResponse).toHaveBeenCalledTimes(1);
+
+    parseResponse.mockReset();
+    await expect(generateSessionWithOpenAI({
+      ...supersetContext,
+      knowledgeTopics: supersetContext.knowledgeTopics.map((topic, index) => ({
+        ...topic,
+        title: `General review area ${index + 1}`,
+        description: "A broad area used for recurring study and practice.",
+        subtopics: [],
+      })),
+      session: {
+        ...supersetContext.session,
+        contentTargets: ["Explain the core idea"],
+        reviewConcept: "Explain the core idea",
+      },
+    })).rejects.toMatchObject({
+      generationStats: {
+        attempts: 0,
+        failedValidator: "session_coverage_fidelity",
+      },
+    });
+    expect(parseResponse).not.toHaveBeenCalled();
   });
 
   it("keeps an outside material-backed verification in YOVA while preserving source grounding", async () => {
@@ -2110,95 +3208,35 @@ describe("scheduled retrieval generation", () => {
     const reviewConcept = "Krebs cycle electron carriers";
     const contentTarget = "The Krebs cycle transfers high-energy electrons to NADH and FADH2";
     const completionEvidence = "Explain how Krebs cycle oxidation reactions produce NADH and FADH2.";
-    const groundedReview = GeneratedSessionDraftOutputSchema.parse({
-      topicIds: [TEST_TOPIC_ID],
-      rationale: "Use three source-grounded questions as the promised in-YOVA verification after the learner's outside-source practice.",
-      coverage: {
-        focus: "How Krebs cycle oxidation reactions produce reduced electron carriers.",
-        essentialIdeas: [contentTarget],
-        completionEvidence: [completionEvidence],
-        evidenceMap: [{
-          essentialIdea: contentTarget,
-          activityConcept: reviewConcept,
-        }],
-        deferredContent: [],
-      },
-      methodBriefing: {
-        learningMode: "study",
-        taskType: "conceptual_learning",
-        methodId: "retrieval_practice",
-        name: "Quick retrieval check",
-        what: "Answer three source-grounded questions before viewing each explanation.",
-        why: "A short unsupported return checks what remains available after the learner studied the source outside YOVA.",
-        how: [
-          "Choose each answer before viewing its feedback.",
-          "Use each explanation to identify only the relationship that needs repair.",
-        ],
-        completion: "Answer all three questions so YOVA can record evidence from the guided check.",
-        personalization: ["The learner already completed the outside-source method work, so this return stays short and focused."],
-      },
-      sourceGrounding: {
-        mode: "materials_only",
-        summary: "The verification questions use the learner's uploaded Krebs cycle notes only.",
-        sourceNames: [materialName],
-        anchors: [{
-          chunkId: materialChunkId,
-          sourceName: materialName,
-          locationLabel: materialLocation,
-          excerpt: "oxidation reactions transfer high-energy electrons to NAD+",
-          usedFor: "The relationship between Krebs cycle oxidation and NADH production.",
-        }],
-        supplements: [],
-      },
-      activities: [{
-        topicId: TEST_TOPIC_ID,
-        methodPhase: "retrieve",
-        concept: reviewConcept,
-        estimatedMinutes: 2,
-        requiredForCompletion: true,
-        label: "Recall",
+    const groundedReview = {
+      questions: [{
+        targetIndex: 0,
         title: "Identify the electron transfer",
         body: "During the Krebs cycle, oxidation reactions remove high-energy electrons. Which molecule accepts those electrons to form NADH?",
-        teaching: null,
-        type: "multiple_choice",
         choices: ["NAD+", "ATP", "Carbon dioxide", "Oxygen"],
-        correctAnswer: "NAD+",
+        correctChoiceIndex: 0,
         feedback: "NAD+ accepts high-energy electrons during Krebs cycle oxidation and is reduced to NADH.",
       }, {
-        topicId: TEST_TOPIC_ID,
-        methodPhase: "discriminate",
-        concept: reviewConcept,
-        estimatedMinutes: 3,
-        requiredForCompletion: true,
-        label: "Distinguish",
+        targetIndex: 0,
         title: "Distinguish the two carriers",
         body: "Which statement correctly distinguishes how the Krebs cycle produces the two reduced electron carriers?",
-        teaching: null,
-        type: "multiple_choice",
         choices: [
           "NAD+ becomes NADH and FAD becomes FADH2",
           "NADH becomes NAD+ and FADH2 becomes FAD",
           "ATP becomes NADH and carbon dioxide becomes FADH2",
           "Oxygen becomes NADH and glucose becomes FADH2",
         ],
-        correctAnswer: "NAD+ becomes NADH and FAD becomes FADH2",
+        correctChoiceIndex: 0,
         feedback: "Both carriers accept electrons: NAD+ is reduced to NADH, while FAD is reduced to FADH2.",
       }, {
-        topicId: TEST_TOPIC_ID,
-        methodPhase: "transfer",
-        concept: reviewConcept,
-        estimatedMinutes: 3,
-        requiredForCompletion: true,
-        label: "Apply",
+        targetIndex: 0,
         title: "Predict a carrier change",
         body: "If a Krebs cycle oxidation cannot transfer electrons to FAD, which product would decrease most directly?",
-        teaching: null,
-        type: "multiple_choice",
         choices: ["FADH2", "NAD+", "Carbon dioxide", "ATP synthase"],
-        correctAnswer: "FADH2",
+        correctChoiceIndex: 0,
         feedback: "FADH2 is produced when FAD accepts electrons, so blocking that transfer directly reduces FADH2 production.",
       }],
-    });
+    };
     parseResponse.mockResolvedValueOnce(completedProviderResponse(
       "response-outside-material-verification",
       groundedReview,
@@ -2270,20 +3308,271 @@ describe("scheduled retrieval generation", () => {
     const result = await generateSessionWithOpenAI(context);
 
     expect(parseResponse).toHaveBeenCalledTimes(1);
-    expect(parseResponse.mock.calls[0]?.[0]?.text?.format?.name).toBe("yova_guided_session");
+    expect(parseResponse.mock.calls[0]?.[0]?.text?.format?.name).toBe("yova_scheduled_retrieval");
     const providerInput = parseResponse.mock.calls[0]?.[0]?.input as string;
-    const prompt = JSON.parse(providerInput.slice(providerInput.indexOf("\n") + 1)) as {
-      outsideAppContract: unknown;
-      quickReviewContract: unknown;
-      sourceGroundingPolicy: unknown;
+    const prompt = JSON.parse(providerInput) as {
+      contentTargets: string[];
+      materialGrounding: {
+        policy: { supplementationAllowed: boolean };
+        excerpts: Array<{ chunkId: string; name: string; text: string }>;
+      };
     };
-    expect(prompt.outsideAppContract).toBeNull();
-    expect(prompt.quickReviewContract).toMatchObject({ reviewType: "verify" });
-    expect(prompt.sourceGroundingPolicy).toMatchObject({ supplementationAllowed: false });
+    expect(prompt.contentTargets).toEqual([contentTarget]);
+    expect(prompt.materialGrounding).toMatchObject({
+      policy: { supplementationAllowed: false },
+      excerpts: [{ chunkId: materialChunkId, name: materialName, text: materialExcerpt }],
+    });
     expect(result.draft.activities).toHaveLength(3);
     expect(result.draft.activities.every((activity) => activity.type === "multiple_choice")).toBe(true);
+    expect(result.draft.coverage.essentialIdeas).toEqual([contentTarget]);
     expect(result.draft.sourceGrounding?.sourceNames).toEqual([materialName]);
     expect(validateOutsideAppGuidance(result.draft, "outside_yova")).toMatch(/must include an instruction/i);
+
+    await expect(generateSessionWithOpenAI({
+      ...context,
+      session: {
+        ...context.session,
+        contentTargets: [
+          contentTarget,
+          "The Krebs cycle transfers carbon atoms into carbon dioxide",
+          "The Krebs cycle produces a small amount of ATP or GTP",
+        ],
+      },
+    })).rejects.toMatchObject({
+      generationStats: {
+        attempts: 0,
+        failedValidator: "session_coverage_fidelity",
+      },
+    });
+    expect(parseResponse).toHaveBeenCalledTimes(1);
+
+    await expect(generateSessionWithOpenAI({
+      ...context,
+      materials: [{
+        name: "legacy-unmapped-notes.txt",
+        text: "A legacy excerpt with no persisted chunk identity cannot be cited authoritatively.",
+        truncated: false,
+        role: "content_source",
+      }, ...context.materials],
+    })).rejects.toMatchObject({
+      generationStats: {
+        attempts: 0,
+        failedValidator: "session_source_grounding",
+      },
+    });
+    expect(parseResponse).toHaveBeenCalledTimes(1);
+  });
+
+  it("balances the authoritative excerpts across every active material topic", async () => {
+    parseResponse.mockReset();
+    const secondTopicId = "66666666-6666-4666-8666-666666666666";
+    const firstMaterialId = "77777777-7777-4777-8777-777777777771";
+    const secondMaterialId = "77777777-7777-4777-8777-777777777772";
+    const firstTopicChunkIds = [
+      "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1",
+      "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2",
+      "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa3",
+      "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa4",
+      "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa5",
+    ];
+    const secondTopicChunkId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1";
+    const firstTarget = "NAD+ accepts electrons during Krebs cycle oxidation to form NADH";
+    const secondTarget = "FAD accepts electrons during Krebs cycle oxidation to form FADH2";
+    const firstTopicMaterials = firstTopicChunkIds.map((chunkId, index) => ({
+      materialId: firstMaterialId,
+      chunkId,
+      chunkIndex: index,
+      name: "nad-carrier-notes.txt",
+      text: index === 0
+        ? "Krebs cycle carrier scope: review how NAD+ and FAD accept electrons."
+        : `Krebs cycle source section ${index + 1}: NAD+ accepts electrons during oxidation and is reduced to NADH.`,
+      truncated: false,
+      locationLabel: `NAD section ${index + 1}`,
+      role: index === 0 ? "scope_outline" as const : "content_source" as const,
+    }));
+    const secondTopicMaterial = {
+      materialId: secondMaterialId,
+      chunkId: secondTopicChunkId,
+      chunkIndex: 0,
+      name: "fad-carrier-notes.txt",
+      text: "During a Krebs cycle oxidation, FAD accepts electrons and is reduced to FADH2.",
+      truncated: false,
+      locationLabel: "FAD section 1",
+      role: "content_source" as const,
+    };
+    const balancedReview = {
+      questions: [{
+        targetIndex: 0,
+        title: "Identify NADH formation",
+        body: "During a Krebs cycle oxidation, which carrier accepts electrons to form NADH?",
+        choices: ["NAD+", "FAD", "ATP", "Oxygen"],
+        correctChoiceIndex: 0,
+        feedback: "NAD+ accepts electrons during the oxidation and is reduced to NADH.",
+      }, {
+        targetIndex: 1,
+        title: "Identify FADH2 formation",
+        body: "During a Krebs cycle oxidation, which carrier accepts electrons to form FADH2?",
+        choices: ["FAD", "NAD+", "Carbon dioxide", "ATP"],
+        correctChoiceIndex: 0,
+        feedback: "FAD accepts electrons during the oxidation and is reduced to FADH2.",
+      }, {
+        targetIndex: 1,
+        title: "Predict a blocked FAD transfer",
+        body: "If FAD cannot accept electrons during its Krebs cycle oxidation, which reduced carrier decreases directly?",
+        choices: ["FADH2", "NADH", "NAD+", "Carbon dioxide"],
+        correctChoiceIndex: 0,
+        feedback: "FADH2 decreases because it forms only when FAD accepts those electrons.",
+      }],
+    };
+    parseResponse.mockResolvedValueOnce(completedProviderResponse(
+      "response-balanced-material-review",
+      balancedReview,
+    ));
+    const base = buildSessionEvaluationCases()
+      .find((candidate) => candidate.id === "calculus_delayed_retrieval_self_contained")!.context;
+    const context: SessionGenerationContext = {
+      ...base,
+      learningGoal: {
+        ...base.learningGoal,
+        title: "Krebs cycle carrier review",
+        topic: "How NAD+ and FAD accept electrons during Krebs cycle oxidation",
+        sourceMode: "user_materials",
+      },
+      materials: [...firstTopicMaterials, secondTopicMaterial],
+      knowledgeTopics: [{
+        ...base.knowledgeTopics[0]!,
+        id: TEST_TOPIC_ID,
+        title: "NADH formation",
+        description: firstTarget,
+        origin: "material",
+        sourceReferences: firstTopicMaterials.map((material) => ({
+          materialId: firstMaterialId,
+          chunkId: material.chunkId,
+          chunkIndex: material.chunkIndex,
+          startCharacter: 0,
+          endCharacter: material.text.length,
+          locationLabel: material.locationLabel,
+          sectionRole: material.role,
+        })),
+      }, {
+        ...base.knowledgeTopics[0]!,
+        id: secondTopicId,
+        title: "FADH2 formation",
+        description: secondTarget,
+        origin: "material",
+        sourceReferences: [{
+          materialId: secondMaterialId,
+          chunkId: secondTopicChunkId,
+          chunkIndex: 0,
+          startCharacter: 0,
+          endCharacter: secondTopicMaterial.text.length,
+          locationLabel: secondTopicMaterial.locationLabel,
+          sectionRole: "content_source",
+        }],
+      }],
+      session: {
+        ...base.session,
+        title: "Verify Krebs cycle electron carriers",
+        objective: `Verify both source-backed targets: ${firstTarget}; ${secondTarget}.`,
+        topicIds: [TEST_TOPIC_ID, secondTopicId],
+        contentTargets: [firstTarget, secondTarget],
+        completionEvidence: [
+          "Identify how NAD+ forms NADH.",
+          "Identify how FAD forms FADH2.",
+        ],
+        reviewConcept: firstTarget,
+        reviewType: "verify",
+      },
+      conceptSignals: [],
+    };
+
+    const { generateSessionWithOpenAI } = await import("@/lib/openai/session-generator");
+    const result = await generateSessionWithOpenAI(context);
+
+    const providerInput = JSON.parse(parseResponse.mock.calls[0]?.[0]?.input as string) as {
+      materialGrounding: { excerpts: Array<{ chunkId: string }> };
+    };
+    const providerChunkIds = providerInput.materialGrounding.excerpts.map((excerpt) => excerpt.chunkId);
+    const anchorChunkIds = result.draft.sourceGrounding?.anchors.map((anchor) => anchor.chunkId) ?? [];
+    expect(providerChunkIds).toHaveLength(4);
+    expect(providerChunkIds).toContain(firstTopicChunkIds[1]);
+    expect(providerChunkIds).toContain(secondTopicChunkId);
+    expect(anchorChunkIds).toEqual(providerChunkIds);
+    expect(result.draft.activities.map((activity) => activity.topicId)).toEqual([
+      TEST_TOPIC_ID,
+      secondTopicId,
+      secondTopicId,
+    ]);
+
+    parseResponse.mockResolvedValue(completedProviderResponse(
+      "response-mixed-provenance-review",
+      balancedReview,
+    ));
+    const mixedContext: SessionGenerationContext = {
+      ...context,
+      materials: firstTopicMaterials,
+      knowledgeTopics: context.knowledgeTopics.map((topic) => (
+        topic.id === secondTopicId
+          ? { ...topic, origin: "ai_generated", sourceReferences: [] }
+          : topic
+      )),
+      session: {
+        ...context.session,
+        // The route may supply knowledge-map order rather than target order.
+        // Evidence attribution must come from the target text, never position.
+        topicIds: [secondTopicId, TEST_TOPIC_ID],
+      },
+    };
+    const mixedResult = await generateSessionWithOpenAI(mixedContext);
+    const mixedProviderInput = JSON.parse(parseResponse.mock.calls[1]?.[0]?.input as string) as {
+      targetContracts: Array<{
+        targetIndex: number;
+        topicId: string;
+        provenance: string;
+        allowedChunkIds: string[];
+      }>;
+      materialGrounding: { policy: { supplementationAllowed: boolean } };
+    };
+    expect(mixedProviderInput.targetContracts).toEqual([
+      expect.objectContaining({
+        targetIndex: 0,
+        topicId: TEST_TOPIC_ID,
+        provenance: "mapped_material",
+        allowedChunkIds: expect.arrayContaining([firstTopicChunkIds[1]]),
+      }),
+      expect.objectContaining({
+        targetIndex: 1,
+        topicId: secondTopicId,
+        provenance: "model_knowledge",
+        allowedChunkIds: [],
+      }),
+    ]);
+    expect(mixedProviderInput.materialGrounding.policy.supplementationAllowed).toBe(true);
+    expect(mixedResult.draft.activities.map((activity) => activity.topicId)).toEqual([
+      TEST_TOPIC_ID,
+      secondTopicId,
+      secondTopicId,
+    ]);
+    expect(mixedResult.draft.sourceGrounding).toMatchObject({
+      mode: "materials_plus_ai",
+      supplements: expect.arrayContaining([
+        expect.objectContaining({ topic: "FADH2 formation" }),
+      ]),
+    });
+
+    await expect(generateSessionWithOpenAI({
+      ...context,
+      materials: firstTopicMaterials,
+      knowledgeTopics: context.knowledgeTopics.map((topic) => (
+        topic.id === secondTopicId ? { ...topic, sourceReferences: [] } : topic
+      )),
+    })).rejects.toMatchObject({
+      generationStats: {
+        attempts: 0,
+        failedValidator: "session_source_grounding",
+      },
+    });
+    expect(parseResponse).toHaveBeenCalledTimes(2);
   });
 });
 

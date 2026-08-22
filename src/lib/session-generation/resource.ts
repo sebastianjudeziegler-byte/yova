@@ -20,6 +20,7 @@ export function toSessionResource(
   );
 
   return {
+    schemaVersion: session.schemaVersion,
     topicIds: session.topicIds,
     rationale: session.rationale,
     coverage: session.coverage,
@@ -29,6 +30,7 @@ export function toSessionResource(
     deliveryInstructions: "deliveryInstructions" in session ? session.deliveryInstructions : undefined,
     supportPlan: session.supportPlan,
     sourceGrounding: session.sourceGrounding ?? undefined,
+    cacheContext: "cacheContext" in session ? session.cacheContext : undefined,
     activities: session.activities.map((activity, index) => ({
       topicId: activity.topicId,
       methodPhase: activity.methodPhase,

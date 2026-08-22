@@ -16,6 +16,7 @@ vi.mock("@/lib/openai/config", () => ({
 const TOPIC_ID = "11111111-1111-4111-8111-111111111111";
 const MATERIAL_ID = "22222222-2222-4222-8222-222222222222";
 const CHUNK_ID = "33333333-3333-4333-8333-333333333333";
+const AI_TOPIC_ID = "44444444-4444-4444-8444-444444444444";
 
 function contextWithMaterials(
   materials: SessionGenerationContext["materials"],
@@ -72,6 +73,53 @@ function contextWithMaterials(
     scaffoldSignals: [],
     topicCalibrationSignals: [],
   };
+}
+
+function mixedStreamedContext(): SessionGenerationContext {
+  const materialTarget = "Alliances widened a local crisis";
+  const aiTarget = "Mobilization timing restricted diplomacy";
+  const context = contextWithMaterials([{
+    materialId: MATERIAL_ID,
+    chunkId: CHUNK_ID,
+    chunkIndex: 0,
+    name: "World War I alliances.pdf",
+    text: "Alliance obligations connected the local July Crisis to mobilization by additional European powers.",
+    truncated: false,
+    locationLabel: "Page 2, Alliances",
+    role: "content_source",
+  }]);
+  context.knowledgeTopics = [{
+    ...context.knowledgeTopics[0]!,
+    title: materialTarget,
+    description: "How alliance obligations widened the July Crisis.",
+    sourceReferences: [{
+      materialId: MATERIAL_ID,
+      chunkId: CHUNK_ID,
+      chunkIndex: 0,
+      startCharacter: 0,
+      endCharacter: 98,
+      locationLabel: "Page 2, Alliances",
+      sectionRole: "content_source",
+    }],
+    origin: "material",
+  }, {
+    ...context.knowledgeTopics[0]!,
+    id: AI_TOPIC_ID,
+    title: aiTarget,
+    description: "How mobilization timing narrowed diplomatic choices during the July Crisis.",
+    sourceReferences: [],
+    origin: "ai_generated",
+  }];
+  context.session = {
+    ...context.session,
+    topicIds: [TOPIC_ID, AI_TOPIC_ID],
+    contentTargets: [materialTarget, aiTarget],
+    completionEvidence: [
+      `Explain ${materialTarget} without notes.`,
+      `Explain ${aiTarget} without notes.`,
+    ],
+  };
+  return context;
 }
 
 describe("bounded streamed-skeleton repair policy", () => {
@@ -134,6 +182,36 @@ describe("bounded streamed-skeleton repair policy", () => {
     });
     expect(prompt).not.toHaveProperty("personalization");
     expect(providerInput).not.toContain("PRIVATE-CSS-ONLY");
+  });
+
+  it("sends exact per-target source authority into an ordinary mixed streamed session", async () => {
+    const { generateStreamedTeachingSkeletonWithOpenAI } = await import("@/lib/openai/streamed-teaching-generator");
+    parseResponse.mockReset();
+    parseResponse.mockRejectedValueOnce(new Error("provider unavailable"));
+
+    await expect(generateStreamedTeachingSkeletonWithOpenAI(mixedStreamedContext())).rejects.toMatchObject({
+      generationStats: { attempts: 1, failedValidator: "session_provider_request" },
+    });
+    const providerInput = parseResponse.mock.calls[0]?.[0]?.input as string;
+    const prompt = JSON.parse(providerInput.slice(providerInput.indexOf("\n") + 1));
+    expect(prompt.sessionProvenanceContract).toMatchObject({
+      version: "mixed_provenance_v1",
+      targetProvenance: [{
+        targetIndex: 0,
+        topicId: TOPIC_ID,
+        provenance: "mapped_material",
+        allowedChunkIds: [CHUNK_ID],
+      }, {
+        targetIndex: 1,
+        topicId: AI_TOPIC_ID,
+        provenance: "model_knowledge",
+        allowedChunkIds: [],
+      }],
+    });
+    expect(prompt.sourceGroundingPolicy).toMatchObject({
+      supplementationAllowed: true,
+      supplementationRequiredForTeaching: true,
+    });
   });
 
   it("retries a real SDK timeout whose Error name is generic", async () => {
@@ -480,6 +558,16 @@ describe("authoritative streamed-session source grounding", () => {
         chunkId: CHUNK_ID,
         locationLabel: "Page 1, Long-term causes",
       }],
+    });
+  });
+
+  it("discloses AI-origin targets without attributing them to the uploaded source", async () => {
+    const { authoritativeSourceGrounding } = await import("@/lib/openai/streamed-teaching-generator");
+
+    expect(authoritativeSourceGrounding(mixedStreamedContext())).toMatchObject({
+      mode: "materials_plus_ai",
+      anchors: [expect.objectContaining({ chunkId: CHUNK_ID })],
+      supplements: [expect.objectContaining({ topic: "Mobilization timing restricted diplomacy" })],
     });
   });
 });

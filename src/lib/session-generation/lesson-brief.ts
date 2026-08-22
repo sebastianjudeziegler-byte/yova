@@ -16,6 +16,16 @@ export type LessonBriefContext = {
   conceptSignals: ConceptSignal[];
   taskType: LearningTaskType;
   deliveryInstructions: LessonDeliveryInstructions;
+  /** Stable idea -> plan-target assignments already validated by the skeleton boundary. */
+  authoritativeTargetAssignments?: AuthoritativeLessonTargetAssignment[];
+  /** Exact source authority for each active plan target in a mixed session. */
+  targetProvenance?: Array<{
+    target: string;
+    topicId: string;
+    topicTitle: string;
+    provenance: "mapped_material" | "model_knowledge";
+    allowedChunkIds: string[];
+  }>;
 };
 
 export type AuthoritativeLessonTargetAssignment = {
@@ -44,11 +54,18 @@ export function enrichStreamedLessonBriefs(
   draft.activities.forEach((activity, index) => {
     if (activity.type !== "instruction" || !activity.lessonBrief) return;
     const capacity = lessonIdeaCapacityForMinutes(activity.estimatedMinutes);
-    const proposedIdeas = unique(activity.lessonBrief.essentialIdeas.flatMap((idea) => {
+    const proposedCandidates = unique(activity.lessonBrief.essentialIdeas.flatMap((idea) => {
       const key = normalize(idea);
       const coverageIdea = coverageIdeaByKey.get(key);
       return coverageIdea && !assignedIdeaKeys.has(key) ? [coverageIdea] : [];
-    })).slice(0, capacity);
+    }));
+    const firstAuthoritativeTopicId = proposedCandidates
+      .map((idea) => authoritativeTopicIdForIdea(idea, context))
+      .find((topicId): topicId is string => Boolean(topicId));
+    const proposedIdeas = proposedCandidates.filter((idea) => (
+      !firstAuthoritativeTopicId
+      || authoritativeTopicIdForIdea(idea, context) === firstAuthoritativeTopicId
+    )).slice(0, capacity);
     proposedIdeas.forEach((idea) => assignedIdeaKeys.add(normalize(idea)));
     ideasByActivity.set(index, proposedIdeas);
   });
@@ -58,11 +75,21 @@ export function enrichStreamedLessonBriefs(
   for (const coverageIdea of draft.coverage.essentialIdeas) {
     const key = normalize(coverageIdea);
     if (assignedIdeaKeys.has(key)) continue;
-    const availableIndex = draft.activities.findIndex((activity, index) => (
-      activity.type === "instruction"
-      && Boolean(activity.lessonBrief)
-      && (ideasByActivity.get(index)?.length ?? 0) < lessonIdeaCapacityForMinutes(activity.estimatedMinutes)
-    ));
+    const authoritativeTopicId = authoritativeTopicIdForIdea(coverageIdea, context);
+    const availableIndex = draft.activities.findIndex((activity, index) => {
+      if (
+        activity.type !== "instruction"
+        || !activity.lessonBrief
+        || (ideasByActivity.get(index)?.length ?? 0) >= lessonIdeaCapacityForMinutes(activity.estimatedMinutes)
+      ) return false;
+      const allocatedTopicIds = unique((ideasByActivity.get(index) ?? []).flatMap((idea) => {
+        const topicId = authoritativeTopicIdForIdea(idea, context);
+        return topicId ? [topicId] : [];
+      }));
+      return !authoritativeTopicId
+        || allocatedTopicIds.length === 0
+        || (allocatedTopicIds.length === 1 && allocatedTopicIds[0] === authoritativeTopicId);
+    });
     if (availableIndex < 0) continue;
     ideasByActivity.set(availableIndex, [
       ...(ideasByActivity.get(availableIndex) ?? []),
@@ -140,8 +167,6 @@ function buildAuthoritativeLessonBrief({
 }): LessonBrief {
   const allowedTopicIds = new Set(context.sessionTopicIds);
   const topicIds = unique(proposed.topicIds.filter((topicId) => allowedTopicIds.has(topicId)));
-  const resolvedTopicIds = topicIds.length ? topicIds : context.sessionTopicIds;
-  const topicSet = new Set(resolvedTopicIds);
   const allowedIdeas = new Map(coverageIdeas.map((idea) => [normalize(idea), idea]));
   const proposedIdeas = proposed.essentialIdeas.flatMap((idea) => {
     const exact = allowedIdeas.get(normalize(idea));
@@ -149,8 +174,21 @@ function buildAuthoritativeLessonBrief({
   });
   const essentialIdeas = unique(proposedIdeas.length ? proposedIdeas : [coverageIdeas[0]!])
     .slice(0, 4);
+  const authoritativeProvenance = essentialIdeas.flatMap((idea) => {
+    const provenance = targetProvenanceForIdea(idea, context);
+    return provenance ? [provenance] : [];
+  });
+  const authoritativeTopicIds = unique(authoritativeProvenance.map((entry) => entry.topicId));
+  const resolvedTopicIds = authoritativeProvenance.length === essentialIdeas.length
+    ? authoritativeTopicIds
+    : topicIds.length ? topicIds : context.sessionTopicIds;
+  const topicSet = new Set(resolvedTopicIds);
+  const allowedChunkIds = new Set(authoritativeProvenance.flatMap((entry) => (
+    entry.provenance === "mapped_material" ? entry.allowedChunkIds : []
+  )));
   const sourceChunks = context.materials.flatMap((material) => {
     if (!material.chunkId || !material.locationLabel || !material.role) return [];
+    if (context.targetProvenance?.length && !allowedChunkIds.has(material.chunkId)) return [];
     return [{
       chunkId: material.chunkId,
       materialId: material.materialId ?? null,
@@ -210,7 +248,7 @@ function buildAuthoritativeLessonBrief({
     topicIds: resolvedTopicIds,
     essentialIdeas,
     sourceChunks,
-    knowledgeSource: knowledgeSource(sourceChunks),
+    knowledgeSource: knowledgeSource(sourceChunks, authoritativeProvenance),
     evidenceContext: {
       confirmedGaps,
       secureKnowledge,
@@ -444,11 +482,39 @@ function meaningfulScopeTokens(value: string) {
     .filter((token) => token.length > 2 && !ignored.has(token)));
 }
 
-function knowledgeSource(sourceChunks: LessonBrief["sourceChunks"]): LessonBrief["knowledgeSource"] {
+function knowledgeSource(
+  sourceChunks: LessonBrief["sourceChunks"],
+  targetProvenance: LessonBriefContext["targetProvenance"] = [],
+): LessonBrief["knowledgeSource"] {
+  const provenanceKinds = new Set(targetProvenance?.map((entry) => entry.provenance) ?? []);
+  if (provenanceKinds.size > 1) return "mixed_material_and_model";
+  if (provenanceKinds.has("model_knowledge")) return "model_knowledge";
   if (sourceChunks.length === 0) return "model_knowledge";
   const roles = new Set(sourceChunks.map((chunk) => chunk.role));
   if (roles.size > 1) return "mixed_material_and_model";
   return roles.has("scope_outline") ? "scope_defined_model_instruction" : "material_content";
+}
+
+function authoritativeTopicIdForIdea(
+  essentialIdea: string,
+  context: LessonBriefContext,
+) {
+  return targetProvenanceForIdea(essentialIdea, context)?.topicId ?? null;
+}
+
+function targetProvenanceForIdea(
+  essentialIdea: string,
+  context: LessonBriefContext,
+) {
+  if (!context.authoritativeTargetAssignments?.length || !context.targetProvenance?.length) return null;
+  const assignment = context.authoritativeTargetAssignments.find((candidate) => (
+    normalize(candidate.essentialIdea) === normalize(essentialIdea)
+  ));
+  if (!assignment) return null;
+  const matching = context.targetProvenance.filter((candidate) => (
+    normalize(candidate.target) === normalize(assignment.target)
+  ));
+  return matching.length === 1 ? matching[0]! : null;
 }
 
 function closestTopicId(concept: string, topics: KnowledgeMapTopic[]) {

@@ -19,6 +19,9 @@ import {
   resolveEffectiveSessionLearningMode,
   teachingFirstSessionCopy,
 } from "@/lib/learning/learning-intent";
+import {
+  learningModeForScheduledRetrieval,
+} from "@/lib/learning/scheduled-retrieval";
 import { buildScaffoldProgressionSignals } from "@/lib/learning/scaffold-progression";
 import {
   expandedLearnerContextFromAnswers,
@@ -74,12 +77,13 @@ export function buildPreviewSessionContext({
   const personalizationInterruptions = recentInterruptions.filter((interruption) => (
     !personalizationState.excludedEvidenceRefs.includes(interruption.id)
   ));
-  const effectiveLearningMode = resolveEffectiveSessionLearningMode({
+  const requestedLearningMode = resolveEffectiveSessionLearningMode({
     planLearningIntent: plan.learningIntent,
     plannedMode: session.learningMode,
     completedSessionCount: recentCompletions.length,
     familiarity: sessionAdjustment?.familiarity ?? null,
   });
+  const effectiveLearningMode = learningModeForScheduledRetrieval(session, requestedLearningMode);
   const repairedTeachingStart = effectiveLearningMode === "learn" && session.learningMode !== "learn"
     ? teachingFirstSessionCopy(plan.topic)
     : null;

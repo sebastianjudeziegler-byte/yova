@@ -22,6 +22,7 @@ import {
   SessionAdjustmentSnapshotSchema,
   SessionEvidenceSnapshotSchema,
 } from "@/lib/learning/session-resume";
+import { stableFingerprint } from "@/lib/stable-fingerprint";
 
 const STORAGE_KEY = "yova.active-session-checkpoints.v1";
 const MAX_CHECKPOINTS_PER_ACCOUNT = 12;
@@ -445,14 +446,18 @@ export function replaceActiveSessionCheckpointsForAccount(
 
 export function fingerprintSessionResource(resource: SessionResource) {
   return fingerprintCheckpointIdentity(Object.fromEntries(
-    Object.entries(resource).filter(([key]) => key !== "generatedAt"),
+    Object.entries(resource).filter(([key]) => (
+      key !== "generatedAt" && key !== "cacheContext" && key !== "schemaVersion"
+    )),
   ));
 }
 
 function sessionResourceFingerprintCandidates(resource: SessionResource) {
   const candidates = new Set([fingerprintSessionResource(resource)]);
   const resourceWithoutGeneratedAt = Object.fromEntries(
-    Object.entries(resource).filter(([key]) => key !== "generatedAt"),
+    Object.entries(resource).filter(([key]) => (
+      key !== "generatedAt" && key !== "cacheContext" && key !== "schemaVersion"
+    )),
   );
 
   // Session resources persisted before methodRuntime was introduced did not
@@ -949,28 +954,6 @@ function writeStoredCheckpoints(
   }
 }
 
-function stableSerialize(value: unknown): string {
-  if (value === null) return "null";
-  if (Array.isArray(value)) return `[${value.map(stableSerialize).join(",")}]`;
-  if (typeof value === "object") {
-    const entries = Object.entries(value)
-      .filter(([, entry]) => entry !== undefined)
-      .sort(([left], [right]) => left.localeCompare(right));
-    return `{${entries.map(([key, entry]) => `${JSON.stringify(key)}:${stableSerialize(entry)}`).join(",")}}`;
-  }
-  return JSON.stringify(value) ?? "null";
-}
-
 function fingerprintCheckpointIdentity(value: unknown) {
-  const serialized = stableSerialize(value);
-  return `sr1:${hash32(serialized, 0x811c9dc5)}${hash32(serialized, 0x9e3779b9)}`;
-}
-
-function hash32(value: string, seed: number) {
-  let hash = seed >>> 0;
-  for (let index = 0; index < value.length; index += 1) {
-    hash ^= value.charCodeAt(index);
-    hash = Math.imul(hash, 0x01000193);
-  }
-  return (hash >>> 0).toString(16).padStart(8, "0");
+  return stableFingerprint(value, "sr1");
 }

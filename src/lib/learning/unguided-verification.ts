@@ -1,10 +1,13 @@
 import {
   type LearningPlanSession,
 } from "@/lib/domain";
+import { contentBudgetForMinutes } from "@/lib/plan-generation/content-budget";
 import { MAX_RUNTIME_PLAN_SESSIONS } from "@/lib/plan-generation/schema";
 import { createSessionAdaptationNote } from "@/lib/personalization/adaptation-note";
 
 const VERIFICATION_MINUTES = 10;
+const VERIFICATION_CONTENT_BUDGET = contentBudgetForMinutes(VERIFICATION_MINUTES);
+const VERIFICATION_TOPIC_COUNT = 1;
 const DAY_IN_MILLISECONDS = 24 * 60 * 60 * 1_000;
 
 /**
@@ -59,12 +62,49 @@ export function canScheduleUnguidedVerification(
   planSessionCount: number,
 ) {
   return !session.reviewType
-    && validItems(session.topicIds, 1, 6, 36, UUID_PATTERN)
-    && validItems(session.contentTargets, 1, 6, 180, null, 5)
-    && validItems(session.completionEvidence, 1, 4, 220, null, 8)
+    && isUnguidedVerificationWithinCapacity(session)
     && Number.isInteger(planSessionCount)
     && planSessionCount >= 1
     && planSessionCount < MAX_RUNTIME_PLAN_SESSIONS;
+}
+
+/**
+ * The required verification is a fixed ten-minute scheduled review. Keep its
+ * upstream eligibility in lockstep with the generator's content budget so an
+ * unguided completion can never create a follow-up that is too large to run.
+ */
+export function isUnguidedVerificationWithinCapacity(
+  session: Pick<LearningPlanSession, "topicIds" | "contentTargets" | "completionEvidence">,
+) {
+  const validTopicIds = validItems(
+    session.topicIds,
+    VERIFICATION_TOPIC_COUNT,
+    VERIFICATION_TOPIC_COUNT,
+    36,
+    UUID_PATTERN,
+  );
+  const validContentTargets = validItems(
+    session.contentTargets,
+    1,
+    VERIFICATION_CONTENT_BUDGET.maximumContentTargets,
+    180,
+    null,
+    5,
+  );
+  const validCompletionEvidence = validItems(
+    session.completionEvidence,
+    1,
+    VERIFICATION_CONTENT_BUDGET.maximumCompletionChecks,
+    220,
+    null,
+    8,
+  );
+
+  return validTopicIds
+    && validContentTargets
+    && validCompletionEvidence
+    && new Set(session.topicIds!.map((topicId) => topicId.trim())).size === session.topicIds!.length
+    && session.topicIds!.length <= session.contentTargets!.length;
 }
 
 export function canLoadBuiltInFallbackWithCompletion({
@@ -102,7 +142,7 @@ function validItems(
       const value = item.trim();
       return value.length >= minimumLength
         && value.length <= maximumLength
-        && (!pattern || pattern.test(value));
+        && (!pattern || (item === value && pattern.test(value)));
     }),
   );
 }

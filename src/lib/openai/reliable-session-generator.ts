@@ -14,6 +14,7 @@ import { validateSessionSourceGrounding } from "@/lib/materials/grounding";
 import {
   prepareSessionProviderCall,
   prepareSessionGenerationContext,
+  ordinarySessionProvenanceContract,
   resolveSessionGenerationBudget,
   SessionGenerationFailure,
   type OpenAISessionResult,
@@ -106,6 +107,15 @@ export const RELIABLE_SESSION_PROVIDER_TIMEOUT_MS = 28_000;
  */
 export function canGenerateReliableSession(originalContext: SessionGenerationContext) {
   const context = prepareSessionGenerationContext(originalContext);
+  const provenance = ordinarySessionProvenanceContract(context);
+  // The compact lesson has one undivided factual-content response. Route a
+  // mixed or source-normalized context to the full contract, which can bind
+  // each target independently before any provider call.
+  if (
+    provenance.issue
+    || provenance.mixed
+    || provenance.effectiveSourceMode !== context.learningGoal.sourceMode
+  ) return false;
   if (context.learningGoal.studyMode !== "inside_yova") return false;
   if (context.session.estimatedMinutes > 30) return false;
   // The compact path teaches and checks one coherent subject idea. A session

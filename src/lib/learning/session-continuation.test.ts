@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { LearningPlanSession } from "@/lib/domain";
 import {
   buildDeferredSessionContinuation,
+  isDeferredSessionContinuation,
   sessionResourceHasDeferredPlanTargets,
 } from "@/lib/learning/session-continuation";
 
@@ -47,7 +48,7 @@ function session(overrides: Partial<LearningPlanSession> = {}): LearningPlanSess
 }
 
 describe("deferred guided-session continuation", () => {
-  it("preserves the exact positional topic, target, and evidence scope before the next session", () => {
+  it("preserves the topic superset and exact deferred targets before the next session", () => {
     const current = session();
     const continuation = buildDeferredSessionContinuation({
       completedSession: current,
@@ -65,9 +66,12 @@ describe("deferred guided-session continuation", () => {
       scheduledFor: "2026-08-21T17:10:00.000Z",
       estimatedMinutes: 15,
       status: "ready",
-      topicIds: [TOPIC_2, TOPIC_3],
+      topicIds: [TOPIC_1, TOPIC_2, TOPIC_3],
       contentTargets: ["Krebs cycle location and outputs", "Electron transport chain mechanism"],
-      completionEvidence: ["Explain the Krebs cycle location and outputs", "Explain the electron transport chain mechanism"],
+      completionEvidence: [
+        "Explain or apply this remaining saved target independently: Krebs cycle location and outputs",
+        "Explain or apply this remaining saved target independently: Electron transport chain mechanism",
+      ],
     });
   });
 
@@ -93,8 +97,8 @@ describe("deferred guided-session continuation", () => {
     );
   });
 
-  it("fails closed when multiple topic ids cannot be mapped positionally to stored targets", () => {
-    expect(buildDeferredSessionContinuation({
+  it("never guesses a target-to-topic mapping from equal-length arrays", () => {
+    const continuation = buildDeferredSessionContinuation({
       completedSession: session({
         topicIds: [TOPIC_1, TOPIC_2],
         completionEvidence: ["Compare every respiration stage and explain how their outputs connect"],
@@ -103,7 +107,32 @@ describe("deferred guided-session continuation", () => {
       plannedMinutes: 10,
       continuationId: CONTINUATION_ID,
       nextUnfinishedSession: { scheduledFor: "2026-08-21T17:30:00.000Z" },
-    })).toBeNull();
+    });
+
+    expect(continuation?.topicIds).toEqual([TOPIC_1, TOPIC_2]);
+    expect(continuation?.completionEvidence).toEqual([
+      "Explain or apply this remaining saved target independently: Krebs cycle location and outputs",
+      "Explain or apply this remaining saved target independently: Electron transport chain mechanism",
+    ]);
+  });
+
+  it("recognizes only the canonical durable continuation markers", () => {
+    const continuation = buildDeferredSessionContinuation({
+      completedSession: session(),
+      completedAt: "2026-08-21T17:10:00.000Z",
+      plannedMinutes: 20,
+      continuationId: CONTINUATION_ID,
+    });
+
+    expect(continuation && isDeferredSessionContinuation(continuation)).toBe(true);
+    expect(isDeferredSessionContinuation({
+      title: "Continue cellular respiration stages",
+      methodReason: "Continue the learner's existing curriculum.",
+    })).toBe(false);
+    expect(isDeferredSessionContinuation({
+      title: "Cellular respiration stages",
+      methodReason: continuation!.methodReason,
+    })).toBe(false);
   });
 
   it("fails closed when an imminent protected review leaves less than ten minutes", () => {
@@ -146,6 +175,23 @@ describe("deferred guided-session continuation", () => {
     })).toBeNull();
     expect(buildDeferredSessionContinuation({
       completedSession: session({ reviewType: "verify" }),
+      completedAt: "2026-08-21T17:10:00.000Z",
+      plannedMinutes: 20,
+      continuationId: CONTINUATION_ID,
+    })).toBeNull();
+  });
+
+  it("does not complete and recreate a session when every stored target was deferred", () => {
+    expect(buildDeferredSessionContinuation({
+      completedSession: session({
+        resource: {
+          ...session().resource!,
+          coverage: {
+            ...session().resource!.coverage!,
+            deferredContent: [...session().contentTargets!],
+          },
+        },
+      }),
       completedAt: "2026-08-21T17:10:00.000Z",
       plannedMinutes: 20,
       continuationId: CONTINUATION_ID,

@@ -444,6 +444,108 @@ describe("completeAuthenticatedPlanSession", () => {
     expect(rpc).not.toHaveBeenCalled();
   });
 
+  it("refuses to sync an unguided completion whose verification exceeds the scheduled-review budget", async () => {
+    const completion = {
+      id: "00000000-0000-4000-8000-000000000071",
+      planId: "00000000-0000-4000-8000-000000000072",
+      planSessionId: "00000000-0000-4000-8000-000000000073",
+      startedAt: "2026-08-17T20:00:00.000Z",
+      completedAt: "2026-08-17T20:08:00.000Z",
+      plannedMinutes: 20,
+      actualMinutes: 8,
+      correctAnswers: 0,
+      totalAnswers: 0,
+      feedback: "about_right" as const,
+      observedGap: "Unguided practice completed; no topic evidence was recorded.",
+      completionMode: "unguided_practice" as const,
+      conceptEvidence: [],
+      confidenceEvidence: [],
+    };
+    const oversizedVerification = {
+      id: completion.id,
+      sequence: 2,
+      title: "Verify thermohaline circulation",
+      objective: "Complete an independent guided check for every original target.",
+      method: "Independent retrieval verification",
+      methodReason: "This work counted as practice, not proof.",
+      scheduledFor: "2026-08-18T20:08:00.000Z",
+      estimatedMinutes: 10,
+      amountLabel: "Required guided verification · about 10 min",
+      learningMode: "study" as const,
+      topicIds: ["00000000-0000-4000-8000-000000000074"],
+      contentTargets: [
+        "Temperature changes seawater density",
+        "Salinity changes seawater density",
+        "Density differences drive deep-water formation",
+      ],
+      completionEvidence: [
+        "Explain the effect of temperature on density.",
+        "Explain the effect of salinity on density.",
+      ],
+      status: "ready" as const,
+      reviewConcept: "Thermohaline circulation",
+      reviewType: "verify" as const,
+    };
+
+    await expect(completeAuthenticatedPlanSession(
+      completion,
+      null,
+      oversizedVerification,
+    )).rejects.toThrow("within the ten-minute review window");
+
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it("refuses an unguided verification with more than one authoritative topic", async () => {
+    const completion = {
+      id: "00000000-0000-4000-8000-000000000081",
+      planId: "00000000-0000-4000-8000-000000000082",
+      planSessionId: "00000000-0000-4000-8000-000000000083",
+      startedAt: "2026-08-17T20:00:00.000Z",
+      completedAt: "2026-08-17T20:08:00.000Z",
+      plannedMinutes: 20,
+      actualMinutes: 8,
+      correctAnswers: 0,
+      totalAnswers: 0,
+      feedback: "about_right" as const,
+      observedGap: "Unguided practice completed; no topic evidence was recorded.",
+      completionMode: "unguided_practice" as const,
+      conceptEvidence: [],
+      confidenceEvidence: [],
+    };
+    const topicIds = [
+      "00000000-0000-4000-8000-000000000084",
+      "00000000-0000-4000-8000-000000000085",
+    ];
+
+    await expect(completeAuthenticatedPlanSession(completion, null, {
+      id: completion.id,
+      sequence: 2,
+      title: "Verify the mapped topic cluster",
+      objective: "Complete an independent guided check for every original target.",
+      method: "Independent retrieval verification",
+      methodReason: "This work counted as practice, not proof.",
+      scheduledFor: "2026-08-18T20:08:00.000Z",
+      estimatedMinutes: 10,
+      amountLabel: "Required guided verification · about 10 min",
+      learningMode: "study",
+      topicIds,
+      contentTargets: [
+        "Explain the first mapped topic relationship",
+        "Explain the second mapped topic relationship",
+      ],
+      completionEvidence: [
+        "Answer one check about the first mapped topic.",
+        "Answer one check about the second mapped topic.",
+      ],
+      status: "ready",
+      reviewConcept: "Mapped topic cluster",
+      reviewType: "verify",
+    })).rejects.toThrow("within the ten-minute review window");
+
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
   it("keeps legacy guided completions on the existing RPC", async () => {
     await completeAuthenticatedPlanSession({
       id: "00000000-0000-4000-8000-000000000041",

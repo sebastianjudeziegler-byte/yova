@@ -377,6 +377,40 @@ describe("reliable OpenAI session generation", () => {
     const multiTargetContext = context("learn");
     expect(canGenerateReliableSession(multiTargetContext)).toBe(false);
 
+    const mixedContext = context("learn");
+    const aiTopicId = "22222222-2222-4222-8222-222222222222";
+    const materialId = "33333333-3333-4333-8333-333333333333";
+    const chunkId = "44444444-4444-4444-8444-444444444444";
+    mixedContext.learningGoal.sourceMode = "user_materials";
+    mixedContext.materials = [{
+      materialId,
+      chunkId,
+      chunkIndex: 0,
+      name: "melatonin-notes.txt",
+      text: "Darkness is interpreted by the circadian clock, which signals increased melatonin release.",
+      truncated: false,
+      locationLabel: "Darkness signal",
+      role: "content_source",
+    }];
+    mixedContext.knowledgeTopics = [{
+      ...mixedContext.knowledgeTopics[0]!,
+      origin: "material",
+      sourceReferences: [{
+        materialId, chunkId, chunkIndex: 0, startCharacter: 0, endCharacter: 90,
+        locationLabel: "Darkness signal", sectionRole: "content_source",
+      }],
+    }, {
+      ...mixedContext.knowledgeTopics[0]!,
+      id: aiTopicId,
+      title: "Melatonin receptor signalling",
+      description: "How receptor signalling carries the biological-night signal.",
+      sourceReferences: [],
+      origin: "ai_generated",
+    }];
+    mixedContext.session.topicIds = [TEST_TOPIC_ID, aiTopicId];
+    mixedContext.session.contentTargets = ["How darkness influences melatonin timing"];
+    expect(canGenerateReliableSession(mixedContext)).toBe(false);
+
     const readingContext = context("learn");
     readingContext.learningGoal = {
       ...readingContext.learningGoal,

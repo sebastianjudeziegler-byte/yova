@@ -17,6 +17,25 @@ describe("YOVA prototype UI contracts", () => {
     expect(styles).toMatch(/\.session-setup-progress strong\s*\{[^}]*display:\s*block/);
   });
 
+  it("locks scheduled-review setup to the backend verification contract", () => {
+    const component = readSource("src/components/yova-prototype.tsx");
+    const setupStart = component.indexOf("function SessionSetup");
+    const setupEnd = component.indexOf("export function formatSessionPreparationTopic", setupStart);
+    const setup = component.slice(setupStart, setupEnd);
+
+    expect(setup).toContain("const scheduledReview = isScheduledRetrievalSession(session)");
+    expect(setup).toContain("if (scheduledReview)");
+    expect(setup).toContain("onStart(null)");
+    expect(setup).toContain("Exactly 3 multiple-choice questions");
+    expect(setup).toContain("This return check has a fixed starting point.");
+    expect(setup).toContain("Open the goal instead");
+    expect(setup).toContain("setupPage === 2 && !scheduledReview");
+    expect(component).toContain('requestedPlan.creationIntent === "study_now"');
+    expect(component).toContain('if (requestedPlan?.status === "archived") return "archive"');
+    expect(component).toContain("if (!resumePoint && adjustment === undefined)");
+    expect(component).not.toContain("adjustment === undefined && !isScheduledRetrievalSession(requestedSession)");
+  });
+
   it("uses one return label throughout the lesson review dialog", () => {
     const component = readSource("src/components/yova-prototype.tsx");
     const dialogStart = component.indexOf('{reviewingModel &&');
@@ -44,13 +63,55 @@ describe("YOVA prototype UI contracts", () => {
   it("keeps required verification sessions out of every ungraded recovery path", () => {
     const component = readSource("src/components/yova-prototype.tsx");
     const startRecovery = readSource("src/lib/learning/session-start-recovery.ts");
+    const guidedStart = component.indexOf("function GuidedSession(");
+    const guidedEnd = component.indexOf("function SessionGuidePanel", guidedStart);
+    const guidedSession = component.slice(guidedStart, guidedEnd);
 
     expect(component).toContain("&& !isScheduledRetrievalSession(requestedSession)");
     expect(component).toContain("canScheduleUnguidedVerification(sessionRecoverySession, activePlan.sessions.length)");
     expect(component).toContain("allowUnguidedCompletion={canScheduleUnguidedVerification(outsideMethodSession, plan?.sessions.length ?? 0)}");
+    expect(component).toContain("hasGuidedQuestionsBelow={false}");
     expect(component).toContain("startDecision.cachedResourceRestorable");
     expect(startRecovery).toContain("canLoadBuiltInFallbackWithCompletion({");
     expect(component).toContain("&& fallbackCanComplete");
+    expect(guidedStart).toBeGreaterThan(-1);
+    expect(guidedEnd).toBeGreaterThan(guidedStart);
+    expect(guidedSession).toContain("const quickScheduledReview = isScheduledRetrievalSession(currentSession)");
+    expect(guidedSession).toContain('plan?.studyMode === "outside_yova" && currentSession && !quickScheduledReview');
+  });
+
+  it("locks every factual help surface until scheduled-review evidence is captured", () => {
+    const component = readSource("src/components/yova-prototype.tsx");
+    const guidedStart = component.indexOf("function GuidedSession(");
+    const guideStart = component.indexOf("function SessionGuidePanel", guidedStart);
+    const tutorStart = component.indexOf("function SessionTutor", guideStart);
+    const guidedSession = component.slice(guidedStart, guideStart);
+    const guidePanel = component.slice(guideStart, tutorStart);
+
+    expect(guidedSession).toContain("const scheduledReviewEvidenceCaptured = quickScheduledReview");
+    expect(guidedSession).toContain("scheduledReviewLearningSupportLocked");
+    expect(guidedSession).toContain('aria-label="Ask YOVA is locked during this scheduled review"');
+    expect(guidedSession).toContain(": !isStreamedInstruction && <SessionTutor");
+    expect(guidePanel).toContain("const factualReviewDetailsLocked = quickScheduledReview && !scheduledReviewEvidenceCaptured");
+    expect(guidePanel).toContain('aria-label="Scheduled review learning support locked"');
+    expect(guidePanel).toContain("Essential ideas, source excerpts, and explanations return after all three answers are recorded.");
+    expect(guidePanel).toContain(": <details className=\"session-guide-details\"><summary>Content and sources</summary>");
+  });
+
+  it("keeps operational unfinished Study Now goals manageable from Recent", () => {
+    const component = readSource("src/components/yova-prototype.tsx");
+    const detailStart = component.indexOf("function LearningPlanDetail(");
+    const detailEnd = component.indexOf("function PlanKnowledgeMapPanel", detailStart);
+    const detail = component.slice(detailStart, detailEnd);
+
+    expect(detail).toContain('const canManagePlan = operational && view !== "archive"');
+    expect(detail).toContain("canManagePlan && hasAdjustableUnfinishedWork");
+    expect(detail).toContain("canManagePlan && showAdjustments");
+    expect(detail).toContain("canExtend={canManagePlan}");
+    expect(detail).toContain("editable={canManagePlan}");
+    expect(component).toContain("adjustableUnfinishedCount");
+    expect(component).toContain("ordinary unfinished");
+    expect(component).toContain('protectedReviewCount === 1 ? "review keeps" : "reviews keep"');
   });
 
   it("uses one fail-closed recovery decision for labels, allowance, and launch", () => {

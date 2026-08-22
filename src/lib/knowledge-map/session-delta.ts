@@ -20,7 +20,15 @@ export function buildSessionMapDelta(
 ): SessionMapDelta[] {
   if (completionMode === "unguided_practice") return [];
   if (!map || !session) return [];
-  const sessionTopicIds = new Set(session.topicIds ?? []);
+  const plannedTopicIds = new Set(session.topicIds ?? []);
+  const generatedTopicIds = session.resource?.topicIds;
+  const hasAuthoritativeGeneratedScope = Boolean(
+    generatedTopicIds?.length
+    && generatedTopicIds.every((topicId) => plannedTopicIds.has(topicId)),
+  );
+  const sessionTopicIds = new Set(
+    hasAuthoritativeGeneratedScope ? generatedTopicIds : session.topicIds ?? [],
+  );
   return map.topics.flatMap((topic) => {
     if (!sessionTopicIds.has(topic.id)) return [];
     const topicEvidence = evidence.filter((item) => item.topicId === topic.id);

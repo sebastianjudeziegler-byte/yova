@@ -13,7 +13,7 @@ describe("guided-session allowance settlement contract", () => {
       'reserveAIRequest(supabase, "session_generation", requestId, aiUsageRecoveryKey)',
     );
     expect(routeSource).toContain("aiUsageClaimId = durableLimit.claimId");
-    expect(routeSource.match(/await releaseFailedGenerationClaim\(/g)).toHaveLength(3);
+    expect(routeSource.match(/await releaseFailedGenerationClaim\(/g)).toHaveLength(4);
 
     const helperBoundary = routeSource.indexOf("async function releaseFailedGenerationClaim");
     const catchBoundary = routeSource.lastIndexOf("  } catch (error) {", helperBoundary);
@@ -148,5 +148,21 @@ describe("guided-session allowance settlement contract", () => {
     expect(helper).toContain("try {");
     expect(helper).toContain("Promise.resolve(recordGenerationObservation(...args)).catch");
     expect(helper).toContain("} catch {");
+  });
+
+  it("does not expose a browser-only lesson when its deferred targets need the cloud continuation receipt", () => {
+    const cacheWrite = routeSource.indexOf('supabase.rpc("cache_generated_session"');
+    const deferredFailure = routeSource.indexOf("generatedSessionDefersStoredPlanTargets(cachedSession, plannedContentTargets)");
+    const browserPersistence = routeSource.indexOf('persistence: cacheError ? "browser" : "supabase"');
+
+    expect(cacheWrite).toBeGreaterThan(-1);
+    expect(deferredFailure).toBeGreaterThan(cacheWrite);
+    expect(deferredFailure).toBeLessThan(browserPersistence);
+    expect(routeSource.slice(deferredFailure, browserPersistence)).toContain(
+      'code: "deferred_session_persistence_unavailable"',
+    );
+    expect(routeSource.slice(deferredFailure, browserPersistence)).toContain(
+      "releaseFailedGenerationClaim(supabase, aiUsageClaimId, requestId)",
+    );
   });
 });

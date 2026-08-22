@@ -1,4 +1,6 @@
 import type { LearningPlanSession } from "@/lib/domain";
+import type { KnowledgeMapTopic } from "@/lib/knowledge-map/schema";
+import { mapTargetsToKnowledgeTopics } from "@/lib/learning/target-topic-mapping";
 import type { SessionDeliveryPolicy } from "@/lib/personalization/session-delivery-policy";
 import type { GeneratedSessionDraft } from "@/lib/session-generation/schema";
 
@@ -20,6 +22,45 @@ export function isScheduledRetrievalSession(
   session: ReviewIdentity | null | undefined,
 ) {
   return Boolean(session?.reviewType);
+}
+
+/** Scheduled returns have a fixed evidence contract. Never silently ignore a
+ * stale client's requested change: reject it before cache or AI accounting. */
+export function scheduledRetrievalAdjustmentIssue<T>(
+  session: ReviewIdentity | null | undefined,
+  adjustment: T | null | undefined,
+): string | null {
+  return isScheduledRetrievalSession(session) && adjustment != null
+    ? "This scheduled review has a fixed verification setup. Start it without changes, or open the goal if you need teaching or a different study session."
+    : null;
+}
+
+export function learningModeForScheduledRetrieval(
+  session: ReviewIdentity | null | undefined,
+  requestedMode: LearningPlanSession["learningMode"],
+) {
+  return isScheduledRetrievalSession(session) ? "study" as const : requestedMode;
+}
+
+/**
+ * Reviews created before exact topic arrays were persisted still exist in
+ * production. A one-topic plan has only one possible authoritative target; a
+ * multi-topic plan must earn a unique lexical match instead of guessing by
+ * array position or inventing a topic outside the persisted knowledge map.
+ */
+export function legacyScheduledRetrievalTopic({
+  session,
+  knowledgeTopics,
+}: {
+  session: ReviewIdentity & { reviewConcept?: string | null };
+  knowledgeTopics: KnowledgeMapTopic[];
+}): KnowledgeMapTopic | null {
+  const concept = session.reviewConcept?.trim() ?? "";
+  if (!session.reviewType || concept.length < 2) return null;
+  if (knowledgeTopics.length === 1) return knowledgeTopics[0]!;
+
+  const mapping = mapTargetsToKnowledgeTopics([concept], knowledgeTopics);
+  return mapping.issue ? null : mapping.assignments[0]?.topic ?? null;
 }
 
 export function scheduledRetrievalContract(session: ReviewSessionDescriptor) {

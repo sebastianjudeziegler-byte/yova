@@ -2,6 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   adaptDeliveryPolicyForScheduledRetrieval,
   isScheduledRetrievalSession,
+  legacyScheduledRetrievalTopic,
+  learningModeForScheduledRetrieval,
+  scheduledRetrievalAdjustmentIssue,
   scheduledRetrievalContract,
   validateScheduledRetrievalSession,
 } from "@/lib/learning/scheduled-retrieval";
@@ -66,6 +69,79 @@ const deliveryPolicy: SessionDeliveryPolicy = {
 };
 
 describe("scheduled retrieval contract", () => {
+  it("rejects unsupported setup changes and keeps an unchanged return practice-first", () => {
+    const adjustment = {
+      familiarity: "need_teaching" as const,
+      availableMinutes: 30,
+      knownTargets: [],
+      note: "Teach this before checking it.",
+    };
+
+    expect(scheduledRetrievalAdjustmentIssue(session, adjustment)).toMatch(/fixed verification setup/i);
+    expect(scheduledRetrievalAdjustmentIssue(session, null)).toBeNull();
+    expect(learningModeForScheduledRetrieval(session, "learn")).toBe("study");
+    expect(scheduledRetrievalAdjustmentIssue({ reviewType: null }, adjustment)).toBeNull();
+    expect(learningModeForScheduledRetrieval({ reviewType: null }, "learn")).toBe("learn");
+  });
+
+  it("keeps a legacy reviewConcept-only row runnable on a sole authoritative topic", () => {
+    const mapped = {
+      id: "11111111-1111-4111-8111-111111111120",
+      title: "Cell energetics",
+      description: "Connect electron movement, proton pumping, and ATP production.",
+      subtopics: [],
+      prerequisiteTopicIds: [],
+      status: "not_started" as const,
+      initialEvidence: null,
+      sourceReferences: [],
+      origin: "ai_generated" as const,
+      deferred: null,
+      curriculumReference: null,
+    };
+    const legacy = legacyScheduledRetrievalTopic({
+      session: {
+        reviewConcept: "Electron transport chain",
+        reviewType: "verify",
+      },
+      knowledgeTopics: [mapped],
+    });
+
+    expect(legacy).toBe(mapped);
+  });
+
+  it("reuses an exact mapped topic for a legacy scheduled-review concept", () => {
+    const mapped = {
+      id: "11111111-1111-4111-8111-111111111120",
+      title: "Electron transport chain",
+      description: "Connect electron movement, proton pumping, and ATP production.",
+      subtopics: [],
+      prerequisiteTopicIds: [],
+      status: "not_started" as const,
+      initialEvidence: null,
+      sourceReferences: [],
+      origin: "ai_generated" as const,
+      deferred: null,
+      curriculumReference: null,
+    };
+    const legacy = legacyScheduledRetrievalTopic({
+      session: {
+        reviewConcept: "  ELECTRON   TRANSPORT CHAIN ",
+        reviewType: "verify",
+      },
+      knowledgeTopics: [
+        {
+          ...mapped,
+          id: "11111111-1111-4111-8111-111111111121",
+          title: "Cell division",
+          description: "Describe mitosis and chromosome separation across cell-cycle stages.",
+        },
+        mapped,
+      ],
+    });
+
+    expect(legacy).toBe(mapped);
+  });
+
   it("accepts a three-question multiple-choice return without typed recall", () => {
     expect(GeneratedSessionDraftSchema.safeParse(draft).success).toBe(true);
     expect(validateScheduledRetrievalSession(draft, session)).toBeNull();

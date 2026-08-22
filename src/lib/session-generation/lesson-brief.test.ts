@@ -163,6 +163,96 @@ describe("authoritative streamed lesson briefs", () => {
     expect(brief?.evidenceContext.priorMisconceptions[0]?.misconception).toContain("mobilization decisions");
   });
 
+  it("isolates mixed material and AI targets into separate authoritative teaching briefs", () => {
+    const aiTopicId = "44444444-4444-4444-8444-444444444444";
+    const materialTarget = "Alliance escalation";
+    const aiTarget = "Mobilization decision timing";
+    const materialIdea = "Alliance obligations connected a local crisis to wider mobilization";
+    const aiIdea = "Mobilization timing can make diplomatic de-escalation harder";
+    const draft = streamedDraft();
+    draft.topicIds = [topicId, aiTopicId];
+    draft.coverage.essentialIdeas = [materialIdea, aiIdea];
+    draft.coverage.evidenceMap.push({ essentialIdea: aiIdea, activityConcept: aiTarget });
+    draft.activities.splice(1, 0, {
+      ...draft.activities[0]!,
+      topicId: aiTopicId,
+      title: "Build the mobilization timing model",
+      lessonBrief: {
+        ...draft.activities[0]!.lessonBrief!,
+        // Deliberately wrong provider metadata: the server must replace it.
+        topicIds: [topicId, aiTopicId],
+        essentialIdeas: [aiIdea],
+      },
+    });
+
+    const result = enrichStreamedLessonBriefs(draft, {
+      sessionTopicIds: [topicId, aiTopicId],
+      materials: [{
+        materialId,
+        chunkId,
+        name: "World War I study guide",
+        text: "Alliances connected the local crisis to wider mobilization after the assassination.",
+        truncated: false,
+        locationLabel: "Page 2",
+        role: "content_source",
+      }],
+      knowledgeTopics: [{
+        id: topicId,
+        title: materialTarget,
+        description: "How alliance obligations widened a local crisis.",
+        subtopics: [], prerequisiteTopicIds: [], status: "not_started", initialEvidence: null,
+        sourceReferences: [], origin: "material", deferred: null,
+      }, {
+        id: aiTopicId,
+        title: aiTarget,
+        description: "How mobilization timing affects diplomatic options.",
+        subtopics: [], prerequisiteTopicIds: [], status: "not_started", initialEvidence: null,
+        sourceReferences: [], origin: "ai_generated", deferred: null,
+      }],
+      conceptSignals: [],
+      taskType: "conceptual_learning",
+      deliveryInstructions: {
+        schemaVersion: 1,
+        explanationDensity: "balanced",
+        tone: "encouraging",
+        analogyUse: "only_when_helpful",
+        workedExamples: "lead_with_example",
+        structure: "overview_first",
+        pacing: { firstActionMinutes: 3, maximumActivities: 5, instruction: "Use separate source-isolated teaching blocks." },
+        learnerContext: [],
+        contentRequirements: { coverAllEssentialIdeas: true, includeConcreteWorkedExample: true, includeCommonMixup: true, preservePrerequisiteOrder: true },
+      },
+      authoritativeTargetAssignments: [
+        { essentialIdea: materialIdea, target: materialTarget },
+        { essentialIdea: aiIdea, target: aiTarget },
+      ],
+      targetProvenance: [{
+        target: materialTarget,
+        topicId,
+        topicTitle: materialTarget,
+        provenance: "mapped_material",
+        allowedChunkIds: [chunkId],
+      }, {
+        target: aiTarget,
+        topicId: aiTopicId,
+        topicTitle: aiTarget,
+        provenance: "model_knowledge",
+        allowedChunkIds: [],
+      }],
+    });
+
+    expect(result.activities[0]?.lessonBrief).toMatchObject({
+      topicIds: [topicId],
+      knowledgeSource: "material_content",
+      sourceChunks: [expect.objectContaining({ chunkId })],
+    });
+    expect(result.activities[1]?.lessonBrief).toMatchObject({
+      topicIds: [aiTopicId],
+      knowledgeSource: "model_knowledge",
+      sourceChunks: [],
+    });
+  });
+
   it("defers WWI ideas that no longer fit after the opening explanation is shortened", () => {
     const draft = streamedDraft();
     const overflowIdea = "The Sarajevo assassination triggered the July Crisis, which led to declarations of war";

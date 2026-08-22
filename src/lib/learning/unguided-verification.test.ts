@@ -4,6 +4,7 @@ import {
   buildUnguidedVerificationSession,
   canLoadBuiltInFallbackWithCompletion,
   canScheduleUnguidedVerification,
+  isUnguidedVerificationWithinCapacity,
 } from "@/lib/learning/unguided-verification";
 import { MAX_RUNTIME_PLAN_SESSIONS } from "@/lib/plan-generation/schema";
 
@@ -20,7 +21,6 @@ const completedSession: LearningPlanSession = {
   learningMode: "study",
   topicIds: [
     "9a87ade4-678a-4a60-934f-35dc05d08158",
-    "45d0c6ae-e018-4edc-afac-aed35e8bc304",
   ],
   contentTargets: [
     "Density changes from temperature and salinity",
@@ -104,6 +104,56 @@ describe("buildUnguidedVerificationSession", () => {
     expect(canScheduleUnguidedVerification({ ...completedSession, contentTargets: [] }, 14)).toBe(false);
     expect(canScheduleUnguidedVerification({ ...completedSession, completionEvidence: [] }, 14)).toBe(false);
     expect(canScheduleUnguidedVerification({ ...completedSession, topicIds: ["not-a-uuid"] }, 14)).toBe(false);
+    expect(canScheduleUnguidedVerification({
+      ...completedSession,
+      topicIds: [` ${completedSession.topicIds![0]}`],
+    }, 14)).toBe(false);
+  });
+
+  it("refuses practice that cannot fit one authoritative ten-minute guided verification", () => {
+    const tooManyTopics = {
+      ...completedSession,
+      topicIds: [
+        ...completedSession.topicIds!,
+        "00000000-0000-4000-8000-000000000001",
+      ],
+    };
+    const duplicateTopics = {
+      ...completedSession,
+      topicIds: [completedSession.topicIds![0]!, completedSession.topicIds![0]!],
+    };
+    const tooManyTargets = {
+      ...completedSession,
+      contentTargets: [
+        "Density changes from temperature",
+        "Density changes from salinity",
+        "Deep-water formation and global circulation",
+      ],
+    };
+    const tooManyChecks = {
+      ...completedSession,
+      completionEvidence: [
+        "Explain how temperature changes seawater density.",
+        "Explain how salinity changes seawater density.",
+        "Apply both mechanisms to polar deep-water formation.",
+      ],
+    };
+
+    expect(isUnguidedVerificationWithinCapacity(completedSession)).toBe(true);
+    expect(isUnguidedVerificationWithinCapacity(tooManyTopics)).toBe(false);
+    expect(isUnguidedVerificationWithinCapacity(duplicateTopics)).toBe(false);
+    expect(isUnguidedVerificationWithinCapacity(tooManyTargets)).toBe(false);
+    expect(isUnguidedVerificationWithinCapacity(tooManyChecks)).toBe(false);
+    expect(canScheduleUnguidedVerification(tooManyTopics, 14)).toBe(false);
+    expect(canScheduleUnguidedVerification(duplicateTopics, 14)).toBe(false);
+    expect(canScheduleUnguidedVerification(tooManyTargets, 14)).toBe(false);
+    expect(canScheduleUnguidedVerification(tooManyChecks, 14)).toBe(false);
+    expect(buildUnguidedVerificationSession({
+      completedSession: tooManyTargets,
+      completedAt: "2026-08-19T16:20:00.000Z",
+      verificationId: "f341ca07-ae20-488c-8b6f-f9fc861f0388",
+      planSessionCount: 14,
+    })).toBeNull();
   });
 
   it("blocks only unguided built-in fallbacks when verification cannot be scheduled", () => {
@@ -118,6 +168,17 @@ describe("buildUnguidedVerificationSession", () => {
     expect(canLoadBuiltInFallbackWithCompletion({
       fallbackKind: "outside_source",
       session: { ...completedSession, completionEvidence: [] },
+      planSessionCount: 14,
+    })).toBe(false);
+    expect(canLoadBuiltInFallbackWithCompletion({
+      fallbackKind: "generic_inside",
+      session: {
+        ...completedSession,
+        contentTargets: [
+          ...completedSession.contentTargets!,
+          "A third target that needs its own verification check",
+        ],
+      },
       planSessionCount: 14,
     })).toBe(false);
   });

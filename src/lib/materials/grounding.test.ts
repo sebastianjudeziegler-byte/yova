@@ -183,6 +183,99 @@ describe("session source grounding", () => {
     })).toMatch(/not justified/i);
   });
 
+  it("allows only explicitly named AI-origin targets beside substantial mapped material", () => {
+    const mixedGrounding = {
+      mode: "materials_plus_ai" as const,
+      summary: "The uploaded notes ground the mapped material target. The AI-origin FADH2 target uses disclosed model knowledge and is not attributed to those notes.",
+      sourceNames: ["complete-notes.txt"],
+      anchors: [{
+        chunkId: "44444444-4444-4444-8444-444444444444",
+        sourceName: "complete-notes.txt",
+        locationLabel: "Characters 1-7000",
+        excerpt: "Section 0 explains how a mechanism changes inputs into outputs",
+        usedFor: "This exact passage grounds the mapped material target.",
+      }],
+      supplements: [{
+        topic: "FADH2 formation",
+        reason: "This target is AI-origin, so it uses disclosed model knowledge rather than the uploaded notes.",
+      }],
+    };
+
+    expect(validateSessionSourceGrounding({
+      sourceMode: "user_materials",
+      materials: explanatoryMaterial,
+      grounding: mixedGrounding,
+      modelKnowledgeTopics: ["FADH2 formation"],
+      materialTopicRequirements: [{
+        topic: "Mapped mechanism",
+        chunkIds: ["44444444-4444-4444-8444-444444444444"],
+      }],
+    })).toBeNull();
+
+    expect(validateSessionSourceGrounding({
+      sourceMode: "user_materials",
+      materials: explanatoryMaterial,
+      grounding: mixedGrounding,
+      modelKnowledgeTopics: ["FADH2 formation"],
+      materialTopicRequirements: [{
+        topic: "Second mapped topic",
+        chunkIds: ["55555555-5555-4555-8555-555555555555"],
+      }],
+    })).toMatch(/outside the active topics|needs at least one authoritative source anchor/i);
+
+    expect(validateSessionSourceGrounding({
+      sourceMode: "user_materials",
+      materials: explanatoryMaterial,
+      grounding: {
+        ...mixedGrounding,
+        supplements: [
+          ...mixedGrounding.supplements,
+          { topic: "Unlisted extension", reason: "This was not part of the authoritative AI-origin target contract." },
+        ],
+      },
+      modelKnowledgeTopics: ["FADH2 formation"],
+    })).toMatch(/only the explicitly named AI-origin targets/i);
+  });
+
+  it("requires a separate authoritative anchor for every active material-backed topic", () => {
+    const secondMaterial = {
+      ...explanatoryMaterial[0]!,
+      materialId: "55555555-5555-4555-8555-555555555555",
+      chunkId: "66666666-6666-4666-8666-666666666666",
+      name: "second-topic-notes.txt",
+      locationLabel: "Second mapped topic",
+      text: "A second explanatory source section gives the mechanism, evidence, and worked relationship for its own active topic.",
+    };
+    expect(validateSessionSourceGrounding({
+      sourceMode: "user_materials",
+      materials: [...explanatoryMaterial, secondMaterial],
+      grounding: {
+        mode: "materials_plus_ai",
+        summary: "The uploaded notes ground mapped targets. AI-origin targets use disclosed model knowledge and are not attributed to those sources.",
+        sourceNames: ["complete-notes.txt"],
+        anchors: [{
+          chunkId: explanatoryMaterial[0]!.chunkId,
+          sourceName: explanatoryMaterial[0]!.name,
+          locationLabel: explanatoryMaterial[0]!.locationLabel,
+          excerpt: explanatoryMaterial[0]!.text.slice(0, 220),
+          usedFor: "This exact source section grounds only the first active material-backed topic.",
+        }],
+        supplements: [{
+          topic: "AI-origin extension",
+          reason: "This exact active target is AI-origin and uses disclosed model knowledge.",
+        }],
+      },
+      modelKnowledgeTopics: ["AI-origin extension"],
+      materialTopicRequirements: [{
+        topic: "First mapped topic",
+        chunkIds: [explanatoryMaterial[0]!.chunkId!],
+      }, {
+        topic: "Second mapped topic",
+        chunkIds: [secondMaterial.chunkId],
+      }],
+    })).toMatch(/second mapped topic.*authoritative source anchor/i);
+  });
+
   it("rejects a supplement that wanders outside the uploaded scope", () => {
     expect(validateSessionSourceGrounding({
       sourceMode: "user_materials",

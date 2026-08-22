@@ -13,15 +13,33 @@ import { sessionStartRecoveryDecision } from "@/lib/learning/session-start-recov
 
 const PLAN_ID = "00000000-0000-4000-8000-000000000001";
 const SESSION_ID = "00000000-0000-4000-8000-000000000002";
+const TOPIC_ID = "00000000-0000-4000-8000-000000000009";
 const GENERATED_AT = "2026-08-20T15:30:00.000Z";
 
 function resource(): SessionResource {
   return {
+    schemaVersion: 15,
+    topicIds: [TOPIC_ID],
     rationale: "Retrieve the main ideas, then explain their relationship.",
+    methodBriefing: {
+      learningMode: "study",
+      taskType: "conceptual_learning",
+      methodId: "retrieval_practice",
+      name: "Retrieval practice",
+      what: "Retrieve the relationship before reviewing the correction.",
+      why: "An unsupported attempt makes the current gap visible.",
+      how: ["Retrieve the relationship.", "Repair the exposed gap."],
+      completion: "Complete the retrieval and typed repair.",
+      personalization: [],
+    },
     generatedAt: GENERATED_AT,
     origin: "generated",
     activities: [
       {
+        topicId: null,
+        methodPhase: "orient",
+        estimatedMinutes: 1,
+        requiredForCompletion: false,
         type: "instruction",
         concept: null,
         label: "Recall",
@@ -41,6 +59,10 @@ function resource(): SessionResource {
         },
       },
       {
+        topicId: TOPIC_ID,
+        methodPhase: "retrieve",
+        estimatedMinutes: 2,
+        requiredForCompletion: true,
         type: "multiple_choice",
         concept: "Model check",
         label: "Check",
@@ -49,6 +71,21 @@ function resource(): SessionResource {
         choices: ["The first answer", "A distractor"],
         correctAnswer: "The first answer",
         feedback: "The first answer preserves the relationship.",
+        methodRuntime: null,
+      },
+      {
+        topicId: TOPIC_ID,
+        methodPhase: "repair",
+        estimatedMinutes: 2,
+        requiredForCompletion: true,
+        type: "free_response",
+        concept: "Model check",
+        label: "Repair",
+        title: "Repair the relationship",
+        body: "Explain the relationship accurately in your own words after checking the correction.",
+        choices: [],
+        correctAnswer: "The first relationship leads to the second through the stated mechanism.",
+        feedback: "A strong repair states both parts of the relationship and the mechanism connecting them.",
         methodRuntime: null,
       },
     ],
@@ -67,6 +104,9 @@ function session(overrides: Partial<LearningPlanSession> = {}): LearningPlanSess
     estimatedMinutes: 15,
     amountLabel: "About 15 minutes",
     learningMode: "study",
+    topicIds: [TOPIC_ID],
+    contentTargets: ["The main model relationship"],
+    completionEvidence: ["Explain the main model relationship accurately without notes"],
     status: "ready",
     ...overrides,
   };
@@ -86,6 +126,36 @@ function plan(planSession: LearningPlanSession): LearningPlan {
     learningIntent: "study",
     rationale: "Use short retrieval sessions to build durable understanding.",
     createdAt: "2026-08-20T15:00:00.000Z",
+    knowledgeMap: {
+      version: 1,
+      scopeJudgment: {
+        band: "focused_skill",
+        label: "Main model relationship",
+        minimumSessions: 1,
+        recommendedSessions: 1,
+        maximumSessions: 2,
+        minimumTeachingSessions: 0,
+        explanation: "This focused relationship fits one short retrieval and repair session.",
+      },
+      topics: [{
+        id: TOPIC_ID,
+        title: "Main model relationship",
+        description: "Explain how the two parts of the main model relate to one another.",
+        subtopics: ["First relationship", "Second relationship"],
+        prerequisiteTopicIds: [],
+        status: "not_started",
+        initialEvidence: null,
+        sourceReferences: [],
+        origin: "ai_generated",
+        deferred: null,
+      }],
+      placementCheck: {
+        status: "available",
+        completedAt: null,
+        demonstratedTopicIds: [],
+        gapTopicIds: [],
+      },
+    },
     sessions: [planSession],
   };
 }

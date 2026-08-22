@@ -64,6 +64,22 @@ describe("StudyMethodPractice", () => {
     expect(html).not.toContain("Finish as ungraded practice");
   });
 
+  it("sends a standalone oversized workpad back to the guided path instead of promising missing questions", () => {
+    const html = renderToStaticMarkup(createElement(StudyMethodPractice, {
+      briefing,
+      session,
+      allowUnguidedCompletion: false,
+      hasGuidedQuestionsBelow: false,
+      onComplete: () => undefined,
+    }));
+
+    expect(html).toContain("This workpad cannot safely complete this session");
+    expect(html).toContain("Return to the goal and start its guided session");
+    expect(html).toContain("without dropping work");
+    expect(html).not.toContain("guided questions below");
+    expect(html).not.toContain("Finish as ungraded practice");
+  });
+
   it("restores checked targets but never restores private workpad notes", () => {
     const html = renderToStaticMarkup(createElement(StudyMethodPractice, {
       briefing,

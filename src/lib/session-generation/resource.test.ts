@@ -199,6 +199,7 @@ const pacedStreamedSession = CachedGeneratedSessionV17Schema.parse({
   cacheContext: {
     effectiveMinutes: 25,
     adjustmentFingerprint: "a".repeat(64),
+    scopeFingerprint: "sc1:0123456789abcdef",
   },
 });
 
