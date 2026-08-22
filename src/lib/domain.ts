@@ -83,6 +83,7 @@ export type SessionSourceGrounding = {
 };
 
 export type SessionResource = {
+  schemaVersion?: 15 | 16 | 17;
   topicIds?: string[];
   rationale: string;
   coverage?: import("@/lib/session-generation/schema").SessionCoverage;
@@ -95,6 +96,12 @@ export type SessionResource = {
   deliveryInstructions?: import("@/lib/personalization/session-delivery-policy").LessonDeliveryInstructions;
   supportPlan?: import("@/lib/learning/scaffold-progression").SessionSupportPlan;
   sourceGrounding?: SessionSourceGrounding;
+  cacheContext?: {
+    effectiveMinutes: number;
+    adjustmentFingerprint: string;
+    contractFingerprint?: string;
+    scopeFingerprint: string;
+  };
   activities: SessionResourceActivity[];
   generatedAt: string;
   origin: "generated" | "built_in";

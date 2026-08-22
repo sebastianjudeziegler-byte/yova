@@ -32,6 +32,7 @@ export type StudyMethodPracticeProps = {
   coverage?: PracticeCoverage | null;
   sourceFirstRequired?: boolean;
   allowUnguidedCompletion?: boolean;
+  hasGuidedQuestionsBelow?: boolean;
   progress?: MethodWorkProgress;
   onProgressChange?: (progress: MethodWorkProgress) => void;
   onComplete: () => void;
@@ -59,6 +60,7 @@ export function StudyMethodPractice({
   coverage = null,
   sourceFirstRequired = false,
   allowUnguidedCompletion = true,
+  hasGuidedQuestionsBelow = true,
   progress,
   onProgressChange,
   onComplete,
@@ -153,7 +155,9 @@ export function StudyMethodPractice({
         <Check size={17} />
         {allowUnguidedCompletion
           ? <p><strong>This completes practice, not a knowledge check.</strong> The session will count as done, but no topic will become taught, evidenced, or secure until YOVA verifies it later.</p>
-          : <p><strong>This session is the required knowledge check.</strong> You can still use the method guide and workpad, but finish the guided questions below so YOVA can record real evidence.</p>}
+          : hasGuidedQuestionsBelow
+            ? <p><strong>This session is the required knowledge check.</strong> You can still use the method guide and workpad, but finish the guided questions below so YOVA can record real evidence.</p>
+            : <p><strong>This workpad cannot safely complete this session.</strong> Return to the goal and start its guided session so YOVA can check every saved target without dropping work.</p>}
       </div>
 
       {allowUnguidedCompletion && <button className="button primary large" type="button" disabled={!canComplete} onClick={onComplete}>

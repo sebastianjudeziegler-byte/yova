@@ -592,6 +592,8 @@ export const CachedGeneratedSessionV15Schema = GeneratedSessionDraftSchema.exten
   cacheContext: z.object({
     effectiveMinutes: z.number().int().min(5).max(180),
     adjustmentFingerprint: z.string().regex(/^[a-f0-9]{64}$/),
+    contractFingerprint: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+    scopeFingerprint: z.string().regex(/^sc1:[a-f0-9]{16}$/),
   }).optional(),
 });
 
@@ -625,6 +627,8 @@ export const CachedGeneratedSessionV17Schema = StreamedGeneratedSessionDraftSche
   cacheContext: z.object({
     effectiveMinutes: z.number().int().min(5).max(180),
     adjustmentFingerprint: z.string().regex(/^[a-f0-9]{64}$/),
+    contractFingerprint: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+    scopeFingerprint: z.string().regex(/^sc1:[a-f0-9]{16}$/),
   }),
 });
 

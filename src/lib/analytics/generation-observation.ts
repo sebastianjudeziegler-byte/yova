@@ -33,6 +33,8 @@ export const SESSION_VALIDATION_ISSUE_CODES = [
   "session_full_structure",
   "session_recovery_structure",
   "session_recovery_validation",
+  "session_required_typed_recall",
+  "scheduled_retrieval_format",
   "streamed_target_assignment_count",
   "streamed_target_assignment_copy",
   "streamed_target_assignment_duplicate",
@@ -61,6 +63,10 @@ export const GenerationValidatorSchema = z.enum([
   "streamed_lesson_scope",
   "learning_science_routing",
   "session_adjustment_fidelity",
+  "session_required_typed_recall",
+  "scheduled_retrieval_format",
+  // Retained for historical observations written before the two activity
+  // contracts had distinct diagnostics.
   "session_activity_mix",
   "session_question_context",
   "session_content_specificity",

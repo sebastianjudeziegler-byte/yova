@@ -568,6 +568,37 @@ describe("buildPreviewSessionContext", () => {
     });
   });
 
+  it("ignores a stale teaching-first adjustment for a scheduled review", () => {
+    const reviewSession = {
+      ...plan.sessions[0],
+      learningMode: "study" as const,
+      reviewConcept: "Calvin cycle",
+      reviewType: "verify" as const,
+    };
+    const result = buildPreviewSessionContext({
+      plan: { ...plan, sessions: [reviewSession] },
+      session: reviewSession,
+      onboardingAnswers: [],
+      completions: [completion],
+      interruptions: [],
+      sessionAdjustment: {
+        familiarity: "need_teaching",
+        availableMinutes: 30,
+        knownTargets: [],
+        note: "Teach the concept before testing it.",
+      },
+    });
+
+    expect(result.session).toMatchObject({
+      learningMode: "study",
+      method: reviewSession.method,
+      objective: reviewSession.objective,
+      reviewType: "verify",
+    });
+    expect(result.knowledgeTopics).toHaveLength(1);
+    expect(result.session.topicIds).toEqual([reviewSession.id]);
+  });
+
   it("repairs an old practice-first first session when the plan says the learner needs teaching", () => {
     const staleSession = {
       ...plan.sessions[0],

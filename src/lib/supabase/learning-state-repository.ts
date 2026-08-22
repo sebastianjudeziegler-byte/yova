@@ -30,6 +30,7 @@ import {
   readSessionPendingRepair,
 } from "@/lib/learning/session-resume";
 import { inferLegacySessionLearningMode } from "@/lib/learning/learning-intent";
+import { isUnguidedVerificationWithinCapacity } from "@/lib/learning/unguided-verification";
 import { resolveLearningTitle, resolveLearningTopic } from "@/lib/intake/interpret";
 import {
   MaterialUnderstandingSchema,
@@ -809,9 +810,10 @@ export async function completeAuthenticatedPlanSession(
     completionMode === "unguided_practice"
     && (!followUpSession
       || followUpSession.reviewType !== "verify"
-      || followUpSession.learningMode !== "study")
+      || followUpSession.learningMode !== "study"
+      || !isUnguidedVerificationWithinCapacity(followUpSession))
   ) {
-    throw new Error("YOVA cannot complete ungraded practice without preserving its required guided verification.");
+    throw new Error("YOVA cannot complete ungraded practice without preserving its required guided verification within the ten-minute review window.");
   }
   if (completionMode === "unguided_practice" && continuationSession) {
     throw new Error("YOVA cannot replace the required guided verification with a deferred continuation.");

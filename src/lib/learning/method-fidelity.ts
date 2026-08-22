@@ -198,7 +198,10 @@ function contractForMode(methodId: CoreMethodId, learningMode: SessionLearningMo
 
 function phaseMatchesActivity(activity: MethodActivity) {
   const activeQuestion = activity.type === "multiple_choice" || activity.type === "free_response";
-  if (["retrieve", "explain", "guided_practice", "independent_practice", "discriminate", "transfer"].includes(activity.methodPhase)) {
+  if (activity.methodPhase === "explain") {
+    return activity.type === "free_response";
+  }
+  if (["retrieve", "guided_practice", "independent_practice", "discriminate", "transfer"].includes(activity.methodPhase)) {
     return activeQuestion;
   }
   if (activity.methodPhase === "model" || activity.methodPhase === "read_source") {

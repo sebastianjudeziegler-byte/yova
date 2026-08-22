@@ -21,6 +21,21 @@ export type DeferredSessionContinuation = LearningPlanSession & {
   reviewConcept?: never;
 };
 
+export const DEFERRED_CONTINUATION_METHOD_REASON_PREFIX =
+  "This continuation preserves the exact plan scope that did not fit the previous time window.";
+
+/**
+ * Durable continuations predate an explicit discriminator in step_data. Require
+ * both canonical markers so an ordinary session whose title happens to start
+ * with “Continue” is never reclassified during cache or generation recovery.
+ */
+export function isDeferredSessionContinuation(
+  session: Pick<LearningPlanSession, "title" | "methodReason">,
+) {
+  return /^Continue\s+/i.test(session.title.trim())
+    && session.methodReason.trim().startsWith(DEFERRED_CONTINUATION_METHOD_REASON_PREFIX);
+}
+
 /**
  * Turns the exact plan targets omitted from a generated time-bounded resource
  * into durable next work. Generated prose is never treated as curriculum here:
@@ -56,7 +71,10 @@ export function buildDeferredSessionContinuation({
   const deferredIndexes = targets.flatMap((target, index) => (
     deferredKeys.has(normalizeTarget(target)) ? [index] : []
   ));
-  if (!deferredIndexes.length) return null;
+  // Completing a resource that deferred every stored target would manufacture
+  // progress without completing any of the persisted curriculum. Require one
+  // bounded target to have actually remained in the completed resource.
+  if (!deferredIndexes.length || deferredIndexes.length >= targets.length) return null;
 
   const deferredTargets = deferredIndexes.map((index) => targets[index]!);
   const topicIds = validTopicIds(completedSession.topicIds);
@@ -68,15 +86,13 @@ export function buildDeferredSessionContinuation({
   );
   if (!topicIds?.length || !completionEvidence?.length) return null;
 
-  const deferredTopicIds = topicIds.length === targets.length
-    ? deferredIndexes.map((index) => topicIds[index]!)
-    : topicIds.length === 1
-      ? topicIds
-      : null;
-  const deferredCompletionEvidence = completionEvidence.length === targets.length
-    ? deferredIndexes.map((index) => completionEvidence[index]!)
-    : synthesizedDeferredEvidence(deferredTargets);
-  if (!deferredTopicIds?.length || !deferredCompletionEvidence.length) return null;
+  // topicIds, contentTargets, and completionEvidence are independent plan
+  // contracts. This layer has no knowledge-map text with which to map them
+  // semantically, so preserve the authoritative topic superset and synthesize
+  // checks from the exact deferred targets instead of guessing by array index.
+  const deferredTopicIds = topicIds;
+  const deferredCompletionEvidence = synthesizedDeferredEvidence(deferredTargets);
+  if (!deferredCompletionEvidence.length) return null;
 
   const scheduledFor = new Date(completedAt);
   if (Number.isNaN(scheduledFor.getTime())) return null;
@@ -98,7 +114,7 @@ export function buildDeferredSessionContinuation({
     title: `Continue ${baseTitle || "the remaining session targets"}`.slice(0, 180),
     objective: continuationObjective(completedSession.learningMode, targetSummary),
     method: completedSession.method,
-    methodReason: `This continuation preserves the exact plan scope that did not fit the previous time window. Complete only these remaining targets before moving to later curriculum: ${targetSummary}.`.slice(0, 900),
+    methodReason: `${DEFERRED_CONTINUATION_METHOD_REASON_PREFIX} Complete only these remaining targets before moving to later curriculum: ${targetSummary}.`.slice(0, 900),
     scheduledFor: scheduledFor.toISOString(),
     estimatedMinutes,
     amountLabel: `${deferredTargets.length} saved ${deferredTargets.length === 1 ? "target" : "targets"} · about ${estimatedMinutes} min`,

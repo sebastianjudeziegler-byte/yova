@@ -56,4 +56,44 @@ describe("generated-session cache context", () => {
     expect(JSON.stringify(context)).not.toContain("private direction");
     expect(context.adjustmentFingerprint).toMatch(/^[a-f0-9]{64}$/);
   });
+
+  it("invalidates an older cache when a versioned generation contract changes", () => {
+    const legacy = buildSessionCacheContext({
+      plannedMinutes: 10,
+      adjustment: null,
+    });
+    const scheduled = buildSessionCacheContext({
+      plannedMinutes: 10,
+      adjustment: null,
+      contractKey: JSON.stringify({
+        contract: "scheduled_review_v1",
+        topicIds: ["11111111-1111-4111-8111-111111111111"],
+        contentTargets: ["Electron transport chain"],
+      }),
+    });
+    const sameScheduled = buildSessionCacheContext({
+      plannedMinutes: 10,
+      adjustment: null,
+      contractKey: JSON.stringify({
+        contract: "scheduled_review_v1",
+        topicIds: ["11111111-1111-4111-8111-111111111111"],
+        contentTargets: ["Electron transport chain"],
+      }),
+    });
+    const changedTarget = buildSessionCacheContext({
+      plannedMinutes: 10,
+      adjustment: null,
+      contractKey: JSON.stringify({
+        contract: "scheduled_review_v1",
+        topicIds: ["11111111-1111-4111-8111-111111111111"],
+        contentTargets: ["Chemiosmosis"],
+      }),
+    });
+
+    expect(scheduled.contractFingerprint).toMatch(/^[a-f0-9]{64}$/);
+    expect(sessionCacheContextMatches(legacy, scheduled)).toBe(false);
+    expect(sessionCacheContextMatches(scheduled, sameScheduled)).toBe(true);
+    expect(sessionCacheContextMatches(scheduled, changedTarget)).toBe(false);
+    expect(JSON.stringify(scheduled)).not.toContain("Electron transport chain");
+  });
 });

@@ -92,10 +92,23 @@ export function validateSessionSourceGrounding({
   sourceMode,
   materials,
   grounding,
+  modelKnowledgeTopics = [],
+  materialTopicRequirements = [],
 }: {
   sourceMode: string;
   materials: MaterialExcerpt[];
   grounding: SessionSourceGrounding | null;
+  /** Exact AI-origin topic labels that may be disclosed as model knowledge. */
+  modelKnowledgeTopics?: string[];
+  /**
+   * Authoritative mapped topics and the exact chunks each topic may use.
+   * Mixed sessions must visibly anchor every material-backed topic instead of
+   * citing one convenient chunk as if it grounded the entire lesson.
+   */
+  materialTopicRequirements?: Array<{
+    topic: string;
+    chunkIds: string[];
+  }>;
 }): string | null {
   if (sourceMode !== "user_materials") {
     return grounding === null ? null : "YOVA-generated sessions must not claim uploaded-source grounding.";
@@ -126,12 +139,55 @@ export function validateSessionSourceGrounding({
     return "The session included a source anchor that could not be verified in the mapped material chunk.";
   }
 
+  if (materialTopicRequirements.length > 0) {
+    const allowedChunkIds = new Set(materialTopicRequirements.flatMap((requirement) => requirement.chunkIds));
+    if (grounding.anchors.some((anchor) => !allowedChunkIds.has(anchor.chunkId))) {
+      return "The session anchored a source chunk outside the active topics' authoritative material mappings.";
+    }
+    const missingMaterialTopic = materialTopicRequirements.find((requirement) => (
+      !grounding.anchors.some((anchor) => requirement.chunkIds.includes(anchor.chunkId))
+    ));
+    if (missingMaterialTopic) {
+      return `The material-backed topic "${missingMaterialTopic.topic}" needs at least one authoritative source anchor.`;
+    }
+  }
+
   const policy = buildMaterialSupportPolicy(materials);
+  const normalizedModelKnowledgeTopics = new Set(
+    modelKnowledgeTopics.map(normalize).filter(Boolean),
+  );
+  if (normalizedModelKnowledgeTopics.size > 0) {
+    if (grounding.mode !== "materials_plus_ai") {
+      return "A mixed-provenance session must disclose that its AI-origin targets use model knowledge.";
+    }
+    const supplementTopics = new Set(grounding.supplements.map((supplement) => normalize(supplement.topic)));
+    const missingModelKnowledgeTopic = [...normalizedModelKnowledgeTopics]
+      .find((topic) => !supplementTopics.has(topic));
+    if (missingModelKnowledgeTopic) {
+      return "Every AI-origin target must appear explicitly in the session's model-knowledge supplements.";
+    }
+    const summary = normalize(grounding.summary);
+    if (!summary.includes("ai") || !summary.includes("origin") || !summary.includes("model knowledge")) {
+      return "A mixed-provenance session must plainly distinguish AI-origin model knowledge from uploaded-source grounding.";
+    }
+  }
   if (policy.supplementationRequiredForTeaching && grounding.mode !== "materials_plus_ai") {
     return "A scope outline defines what to teach, so YOVA must disclose that it supplied the instructional substance.";
   }
-  if (grounding.mode === "materials_plus_ai" && !policy.supplementationAllowed) {
+  if (
+    grounding.mode === "materials_plus_ai"
+    && !policy.supplementationAllowed
+    && normalizedModelKnowledgeTopics.size === 0
+  ) {
     return "The source already contains substantial explanations, so outside supplementation was not justified.";
+  }
+  if (!policy.supplementationAllowed && normalizedModelKnowledgeTopics.size > 0) {
+    const unrelatedSupplement = grounding.supplements.find((supplement) => (
+      !normalizedModelKnowledgeTopics.has(normalize(supplement.topic))
+    ));
+    if (unrelatedSupplement) {
+      return "A mixed-provenance review may supplement only the explicitly named AI-origin targets.";
+    }
   }
   if (policy.supplementationRequiredForTeaching) {
     const summary = normalize(grounding.summary);
@@ -140,6 +196,7 @@ export function validateSessionSourceGrounding({
     }
     const scopeText = normalize(materials.map((material) => material.text).join(" "));
     const unrelatedSupplement = grounding.supplements.find((supplement) => {
+      if (normalizedModelKnowledgeTopics.has(normalize(supplement.topic))) return false;
       const meaningfulWords = normalize(supplement.topic)
         .split(" ")
         .filter((word) => word.length >= 4);

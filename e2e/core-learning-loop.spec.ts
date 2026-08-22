@@ -1,4 +1,9 @@
 import { expect, test, type Page } from "@playwright/test";
+import type { LearningPlan } from "../src/lib/domain";
+import {
+  hydratedSessionResourceCacheIssue,
+  sessionCacheScopeFingerprint,
+} from "../src/lib/session-generation/cache-contract";
 import { SessionGenerationResponseSchema } from "../src/lib/session-generation/schema";
 
 const onboardingAnswers = [
@@ -1091,7 +1096,18 @@ test("an overdue arbitrary inside session splits and loads the generic 10-minute
     expect.objectContaining({ minutes: 10, status: "upcoming" }),
   ]);
 
-  await page.getByRole("button", { name: "Start Part 1 (10 min)", exact: true }).click();
+  await page.getByRole("button", { name: "Learning", exact: true }).click();
+  await page.getByRole("button", { name: /^Recent \d+$/ }).click();
+  const unfinishedStudyNowPlan = page.locator(".learning-goal-card").filter({
+    hasText: /eigenvalues and eigenvectors/i,
+  });
+  await expect(unfinishedStudyNowPlan).toContainText("NEXT SESSION");
+  await expect(unfinishedStudyNowPlan.getByRole("button", { name: "Start next", exact: true })).toBeVisible();
+  await unfinishedStudyNowPlan.getByRole("button", { name: "Open goal", exact: true }).click();
+  const learningDetailStart = page.getByRole("button", { name: "Start next session", exact: true });
+  await expect(page.getByText("Unfinished work", { exact: true })).toBeVisible();
+  await expect(learningDetailStart).toBeVisible();
+  await learningDetailStart.click();
   await expect(page.getByRole("heading", { name: "Here is how YOVA plans to start." })).toBeVisible();
   await expect(setupSummary).toContainText("about 10 minutes");
   await expect(setupSummary).not.toContainText("about 15 minutes");
@@ -1467,7 +1483,16 @@ test("a saved first-step recall round resumes at the next prompt without persist
 
   await page.route("**/api/sessions/generate", async (route) => {
     generationRequests += 1;
-    const fixture = retrievalRoundResumeSessionResponse();
+    const plannedMinutes = await page.evaluate(() => {
+      const raw = window.localStorage.getItem("yova.preview.v1");
+      if (!raw) return 25;
+      const snapshot = JSON.parse(raw) as {
+        plans?: Array<{ sessions?: Array<{ status?: string; estimatedMinutes?: number }> }>;
+      };
+      return snapshot.plans?.at(-1)?.sessions?.find((session) => session.status === "ready")
+        ?.estimatedMinutes ?? 25;
+    });
+    const fixture = retrievalRoundResumeSessionResponse(plannedMinutes);
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -1484,6 +1509,27 @@ test("a saved first-step recall round resumes at the next prompt without persist
   await page.getByRole("button", { name: /Choose how YOVA should help/ }).click();
   await page.getByRole("button", { name: /Create it for me/ }).click();
   await page.getByRole("button", { name: /Build and start session/ }).click();
+  await expect(page.getByRole("heading", { name: "Here is how YOVA plans to start." })).toBeVisible({
+    timeout: 15_000,
+  });
+  await page.evaluate(() => {
+    const raw = window.localStorage.getItem("yova.preview.v1");
+    if (!raw) throw new Error("Expected the Study Now plan before starting its recall round.");
+    const snapshot = JSON.parse(raw) as {
+      plans?: Array<{
+        learningIntent?: string;
+        sessions?: Array<{ status?: string; learningMode?: string }>;
+      }>;
+    };
+    const plan = snapshot.plans?.at(-1);
+    const session = plan?.sessions?.find((candidate) => candidate.status === "ready");
+    if (!plan || !session) throw new Error("Expected one ready Study Now session.");
+    plan.learningIntent = "study";
+    session.learningMode = "study";
+    window.localStorage.setItem("yova.preview.v1", JSON.stringify(snapshot));
+  });
+  await page.reload();
+  await page.getByRole("button", { name: "Start session" }).click();
   await confirmSessionSetup(page);
   await expect(page.getByText("Close your osmosis notes before answering.", { exact: true })).toBeVisible();
   await expect(page.getByText("0 of 3 answered", { exact: true })).toBeVisible();
@@ -1563,6 +1609,29 @@ test("a saved first-step recall round resumes at the next prompt without persist
     savedAfterExit: true,
     fingerprinted: true,
   });
+
+  const hydratedPlan = await page.evaluate(() => {
+    const raw = window.localStorage.getItem("yova.preview.v1");
+    if (!raw) return null;
+    const snapshot = JSON.parse(raw) as { plans?: LearningPlan[] };
+    return snapshot.plans?.at(-1) ?? null;
+  });
+  expect(hydratedPlan).not.toBeNull();
+  const hydratedSession = hydratedPlan?.sessions.find((session) => session.status === "ready");
+  expect(hydratedSession).toBeDefined();
+  const cacheIssue = hydratedSessionResourceCacheIssue({
+    plan: hydratedPlan!,
+    session: hydratedSession!,
+    adjustment: null,
+  });
+  expect(cacheIssue, JSON.stringify({
+    planLearningIntent: hydratedPlan?.learningIntent,
+    planArchitecture: hydratedPlan?.sessionArchitectureVersion,
+    studyMode: hydratedPlan?.studyMode,
+    plannedMode: hydratedSession?.learningMode,
+    resourceSchema: hydratedSession?.resource?.schemaVersion,
+    resourceMode: hydratedSession?.resource?.methodBriefing?.learningMode,
+  })).toBeNull();
 
   await page.reload();
   await page.getByRole("button", { name: "Continue session" }).click();
@@ -2430,9 +2499,11 @@ test("finishing a shortened guided lesson keeps every deferred target as exact n
     }, {
       sequence: 2,
       status: "ready",
-      topicIds: [topicIds[1]],
+      topicIds,
       contentTargets: [targets[1]],
-      completionEvidence: [evidence[1]],
+      completionEvidence: [
+        `Explain or apply this remaining saved target independently: ${targets[1]}`,
+      ],
     }],
   });
 });
@@ -2594,6 +2665,212 @@ test("adjusting ordinary future work preserves the exact scheduled review contra
     .toContainText("5 min");
   await expect(timeline.locator(".timeline-row").filter({ hasText: "Apply evidence at contrasting plate boundaries" }))
     .toHaveCount(2);
+});
+
+test("scheduled-review setup stays fixed and opens the exact active or Study Now goal", async ({ page }) => {
+  const generationRequests: Array<Record<string, unknown>> = [];
+  await page.route("**/api/sessions/allowance", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        status: "available",
+        remainingToday: 3,
+        retryAfterSeconds: 0,
+        resetAt: null,
+      }),
+    });
+  });
+  await page.route("**/api/sessions/generate", async (route) => {
+    generationRequests.push(route.request().postDataJSON() as Record<string, unknown>);
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(scheduledReviewSessionResponse()),
+    });
+  });
+  await createPreviewAccount(page);
+  await completeOnboarding(page);
+
+  await page.evaluate(() => {
+    const stored = window.localStorage.getItem("yova.preview.v1");
+    if (!stored) throw new Error("Expected a preview snapshot after onboarding.");
+    const snapshot = JSON.parse(stored) as Record<string, unknown> & { plans: unknown[] };
+    const scheduledReview = ({
+      id,
+      title,
+      concept,
+      includeExactArrays,
+    }: {
+      id: string;
+      title: string;
+      concept: string;
+      includeExactArrays: boolean;
+    }) => ({
+      id,
+      sequence: 1,
+      title,
+      objective: `Retrieve ${concept} after a delay without reopening the earlier lesson.`,
+      method: "Independent retrieval verification",
+      methodReason: "A delayed check tests whether the relationship remains available.",
+      scheduledFor: "2026-08-20T12:00:00.000Z",
+      estimatedMinutes: 10,
+      amountLabel: "Required guided verification · about 10 min",
+      learningMode: "study",
+      topicIds: includeExactArrays ? [`${id.slice(0, -1)}9`] : [],
+      contentTargets: includeExactArrays ? [concept] : [],
+      completionEvidence: includeExactArrays ? [`Answer exactly three questions about ${concept}`] : [],
+      status: "ready",
+      reviewConcept: concept,
+      reviewType: "verify",
+    });
+    snapshot.plans = [{
+      id: "67000000-0000-4000-8000-000000000001",
+      learningItemId: "67000000-0000-4000-8000-000000000002",
+      title: "Active Plate Motion Goal",
+      topic: "Mantle convection and plate motion",
+      kind: "topic",
+      deadline: null,
+      status: "active",
+      sourceMode: "yova_generated",
+      studyMode: "inside_yova",
+      learningIntent: "study",
+      creationIntent: "plan",
+      sessionArchitectureVersion: "filled_teaching_v1",
+      rationale: "Use a delayed return to check the relationship without reteaching first.",
+      createdAt: "2026-08-20T10:00:00.000Z",
+      materials: [],
+      sessions: [scheduledReview({
+        id: "67000000-0000-4000-8000-000000000011",
+        title: "Verify mantle convection",
+        concept: "Mantle convection and plate motion",
+        includeExactArrays: true,
+      })],
+    }, {
+      id: "68000000-0000-4000-8000-000000000001",
+      learningItemId: "68000000-0000-4000-8000-000000000002",
+      title: "Study Now Osmosis Practice",
+      topic: "Osmosis and water potential",
+      kind: "topic",
+      deadline: null,
+      status: "active",
+      sourceMode: "user_materials",
+      studyMode: "outside_yova",
+      learningIntent: "study",
+      creationIntent: "study_now",
+      sessionArchitectureVersion: "filled_teaching_v1",
+      rationale: "Use a delayed return to check the relationship without reteaching first.",
+      createdAt: "2026-08-20T11:00:00.000Z",
+      materials: [{
+        id: "68000000-0000-4000-8000-000000000003",
+        name: "osmosis-notes.txt",
+        mimeType: "text/plain",
+        sizeBytes: 148,
+        textContent: "Water crosses a selectively permeable membrane toward the side with lower water potential.",
+        processingStatus: "ready",
+      }],
+      sessions: [scheduledReview({
+        id: "68000000-0000-4000-8000-000000000011",
+        title: "Verify osmosis and water potential",
+        concept: "Osmosis and water potential",
+        // Production still contains a legacy reviewConcept-only row. Setup and
+        // preview generation must keep that row usable without inventing an
+        // adjustment or requiring newly persisted arrays.
+        includeExactArrays: false,
+      }), {
+        id: "68000000-0000-4000-8000-000000000012",
+        sequence: 2,
+        title: "Reconnect the idea with a trusted source",
+        objective: "Review the trusted source, then explain the relationship independently.",
+        method: "Read, recall, review",
+        methodReason: "Ordinary unfinished work can provide teaching without changing the scheduled check.",
+        scheduledFor: "2026-08-21T12:00:00.000Z",
+        estimatedMinutes: 15,
+        amountLabel: "One source review and one independent explanation",
+        learningMode: "learn",
+        topicIds: ["68000000-0000-4000-8000-000000000019"],
+        contentTargets: ["Osmosis and water potential"],
+        completionEvidence: ["Explain the relationship without reopening the source"],
+        status: "upcoming",
+      }],
+    }];
+    snapshot.updatedAt = new Date().toISOString();
+    window.localStorage.setItem("yova.preview.v1", JSON.stringify(snapshot));
+  });
+
+  await page.reload();
+  await expect(page.getByLabel("Guided-session allowance")).toContainText("3 guided sessions available today");
+  await page.getByRole("button", { name: "Learning", exact: true }).click();
+
+  const activeCard = page.locator(".learning-goal-card").filter({ hasText: "Active Plate Motion Goal" });
+  await activeCard.getByRole("button", { name: "Start next" }).click();
+  await expect(page.getByRole("heading", { name: "Confirm this quick verification." })).toBeVisible();
+  await page.getByRole("button", { name: "Continue" }).click();
+  await page.getByRole("button", { name: "Open the goal instead" }).click();
+  await expect(page.locator(".tabs").getByRole("button", { name: /^Active/ })).toHaveClass(/active/);
+  await expect(page.getByRole("heading", { name: "Active Plate Motion Goal" })).toBeVisible();
+
+  await page.locator(".tabs").getByRole("button", { name: /^Recent/ }).click();
+  const studyNowCard = page.locator(".learning-goal-card").filter({ hasText: "Study Now Osmosis Practice" });
+  await studyNowCard.getByRole("button", { name: "Open goal" }).click();
+  await page.getByRole("button", { name: "Start next session" }).click();
+  await expect(page.getByText("Exactly 3 multiple-choice questions", { exact: false })).toBeVisible();
+  await page.getByRole("button", { name: "Continue" }).click();
+  await expect(page.getByRole("heading", { name: "This return check has a fixed starting point." })).toBeVisible();
+  await expect(page.getByRole("button", { name: "I need this taught first" })).toHaveCount(0);
+  await expect(page.getByRole("group", { name: "Support for this session" })).toHaveCount(0);
+  await expect(page.getByLabel("Time available right now")).toHaveCount(0);
+  await expect(page.getByLabel("Anything YOVA should account for?")).toHaveCount(0);
+  await page.getByRole("button", { name: "Open the goal instead" }).click();
+  await expect(page.locator(".tabs").getByRole("button", { name: /^Recent/ })).toHaveClass(/active/);
+  await expect(page.getByRole("heading", { name: "Study Now Osmosis Practice" })).toBeVisible();
+  await expect(page.getByLabel("Add source materials")).toBeVisible();
+  await expect(page.getByText("osmosis-notes.txt", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Adjust", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Change the plan without losing progress" })).toBeVisible();
+  await expect(page.getByText("1 scheduled review keeps the original duration, concept, and return time.", { exact: false })).toBeVisible();
+  await page.getByRole("button", { name: "Close", exact: true }).click();
+
+  await page.getByRole("button", { name: "Start next session" }).click();
+  await page.getByRole("button", { name: "Continue" }).click();
+  await page.getByRole("button", { name: "Prepare scheduled review" }).click();
+  await expect.poll(() => generationRequests.length).toBe(1);
+  await expect(page.locator(".session-activity-header").getByRole("heading", { name: "What drives net water movement?" })).toBeVisible();
+  await expect(page.locator(".session-step-meta")).toContainText("STEP 1 OF 3");
+  await expect(page.getByLabel("Study-method workpad")).toHaveCount(0);
+  await expect(page.getByLabel("Guided teaching sequence")).toHaveCount(0);
+  await expect(page.getByLabel("Live YOVA lesson")).toHaveCount(0);
+  await openMobileSessionGuide(page);
+  await expect(page.getByLabel("Scheduled review learning support locked").filter({ visible: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Ask YOVA is locked during this scheduled review" })).toBeDisabled();
+  await expect(page.getByLabel("Quick help options")).toHaveCount(0);
+  await expect(page.getByText("Water moves from higher water potential toward lower water potential.", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("Water crosses a selectively permeable membrane toward the side with lower water potential.", { exact: true })).toHaveCount(0);
+
+  await page.getByRole("button", { name: "The water-potential difference", exact: true }).click();
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  await page.getByRole("button", { name: "Water", exact: true }).click();
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  await page.getByRole("button", { name: "Movement continues both ways with no net change", exact: true }).click();
+
+  await expect(page.getByRole("button", { name: "Ask YOVA", exact: true })).toBeVisible();
+  await openMobileSessionGuide(page);
+  await page.getByText("Content and sources", { exact: true }).filter({ visible: true }).click();
+  await expect(page.getByLabel("Session source coverage").filter({ visible: true })).toContainText("osmosis-notes.txt");
+  await page.getByText("See what YOVA used", { exact: true }).filter({ visible: true }).click();
+  await expect(page.getByLabel("Session source coverage").filter({ visible: true })).toContainText("Water crosses a selectively permeable membrane toward the side with lower water potential.");
+  expect(generationRequests[0]).not.toHaveProperty("sessionAdjustment");
+  expect(generationRequests[0]).toMatchObject({
+    planId: "68000000-0000-4000-8000-000000000001",
+    planSessionId: "68000000-0000-4000-8000-000000000011",
+    previewContext: {
+      session: {
+        learningMode: "study",
+        reviewConcept: "Osmosis and water potential",
+        reviewType: "verify",
+      },
+    },
+  });
 });
 
 test("a multi-session plan carries one clear source decision from Add to Learning", async ({ page }) => {
@@ -3036,7 +3313,9 @@ async function leaveSession(page: Page, progressText: string) {
 }
 
 async function confirmSessionSetup(page: Page) {
-  await expect(page.getByRole("heading", { name: "Here is how YOVA plans to start." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Here is how YOVA plans to start." })).toBeVisible({
+    timeout: 15_000,
+  });
   await expect(page.getByLabel("Why YOVA chose this approach")).toBeVisible();
   await page.getByRole("button", { name: "Continue" }).click();
   await expect(page.getByRole("heading", { name: "Has anything changed?" })).toBeVisible();
@@ -3081,6 +3360,11 @@ function streamedResumeSessionResponse() {
       cacheContext: {
         effectiveMinutes: 25,
         adjustmentFingerprint: "a".repeat(64),
+        scopeFingerprint: sessionCacheScopeFingerprint({
+          plannedMinutes: 25,
+          adjustment: null,
+          contractKey: null,
+        }),
       },
       routingContext: {
         taskType: "conceptual_learning",
@@ -3244,7 +3528,83 @@ function streamedResumeSessionResponse() {
   };
 }
 
-function retrievalRoundResumeSessionResponse() {
+function scheduledReviewSessionResponse() {
+  const response = streamedResumeSessionResponse();
+  const topicId = response.session.topicIds[0];
+  const baseQuestion = response.session.activities[1];
+  const questions = [{
+    title: "What drives net water movement?",
+    body: "Across a selectively permeable membrane, what determines the net movement of water?",
+    choices: ["The water-potential difference", "Only the membrane color", "The container label"],
+    correctAnswer: "The water-potential difference",
+    feedback: "Net movement follows the water-potential difference across the membrane.",
+  }, {
+    title: "What can cross the membrane?",
+    body: "In this osmosis example, which substance crosses the selectively permeable membrane?",
+    choices: ["Water", "Every solute equally", "Neither water nor solute"],
+    correctAnswer: "Water",
+    feedback: "The membrane permits water while restricting the relevant solute.",
+  }, {
+    title: "What happens at equilibrium?",
+    body: "What best describes water movement at dynamic equilibrium?",
+    choices: ["Movement continues both ways with no net change", "All molecular movement stops", "Water moves in only one direction"],
+    correctAnswer: "Movement continues both ways with no net change",
+    feedback: "At dynamic equilibrium, movement continues but the opposing rates balance.",
+  }].map((question) => ({
+    ...baseQuestion,
+    topicId,
+    estimatedMinutes: 1,
+    concept: "Osmosis",
+    label: "Scheduled check",
+    ...question,
+  }));
+
+  return SessionGenerationResponseSchema.parse({
+    ...response,
+    session: {
+      ...response.session,
+      rationale: "Use exactly three self-contained questions to verify delayed retrieval without teaching first.",
+      coverage: {
+        focus: "Verify whether the osmosis relationship remains available after a delay.",
+        essentialIdeas: ["Water moves from higher water potential toward lower water potential."],
+        completionEvidence: ["Answer exactly three multiple-choice questions without teaching first"],
+        evidenceMap: [{
+          essentialIdea: "Water moves from higher water potential toward lower water potential.",
+          activityConcept: "Osmosis",
+        }],
+        deferredContent: [],
+      },
+      sourceGrounding: {
+        mode: "materials_only",
+        summary: "The learner's osmosis notes define the exact relationship checked by this scheduled return.",
+        sourceNames: ["osmosis-notes.txt"],
+        anchors: [{
+          chunkId: "68000000-0000-4000-8000-000000000004",
+          sourceName: "osmosis-notes.txt",
+          locationLabel: "Opening sentence",
+          excerpt: "Water crosses a selectively permeable membrane toward the side with lower water potential.",
+          usedFor: "This source statement anchors the delayed check about net water movement.",
+        }],
+        supplements: [],
+      },
+      methodBriefing: {
+        ...response.session.methodBriefing,
+        learningMode: "study",
+        name: "Scheduled retrieval",
+        what: "Answer three self-contained multiple-choice questions without reopening the lesson.",
+        why: "A delayed unsupported attempt reveals whether the relationship remains available.",
+        how: [
+          "Answer each question before reviewing its feedback.",
+          "Continue until all three delayed checks are complete.",
+        ],
+        completion: "The learner answers all three scheduled questions.",
+      },
+      activities: questions,
+    },
+  });
+}
+
+function retrievalRoundResumeSessionResponse(plannedMinutes = 25) {
   const response = streamedResumeSessionResponse();
   const retrievalActivity = response.session.activities[1]!;
   const repairActivity = response.session.activities[2]!;
@@ -3254,6 +3614,15 @@ function retrievalRoundResumeSessionResponse() {
     session: {
       ...response.session,
       schemaVersion: 15,
+      cacheContext: {
+        ...response.session.cacheContext,
+        effectiveMinutes: plannedMinutes,
+        scopeFingerprint: sessionCacheScopeFingerprint({
+          plannedMinutes,
+          adjustment: null,
+          contractKey: null,
+        }),
+      },
       methodBriefing: {
         ...response.session.methodBriefing,
         learningMode: "study",
@@ -3393,6 +3762,7 @@ function deferredGuidedSessionResponse(
       cacheContext: {
         effectiveMinutes: 10,
         adjustmentFingerprint: "b".repeat(64),
+        scopeFingerprint: `sc1:${"b".repeat(16)}`,
       },
     },
     generation: { mode: "openai", persistence: "browser" },

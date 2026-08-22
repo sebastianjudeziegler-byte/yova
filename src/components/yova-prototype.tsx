@@ -1756,7 +1756,7 @@ export function YovaPrototype({
       return;
     }
 
-    if (!resumePoint && adjustment === undefined && !isScheduledRetrievalSession(requestedSession)) {
+    if (!resumePoint && adjustment === undefined) {
       setSelectedPlanId(requestedPlan.id);
       setPendingSessionPlan(requestedPlan);
       setStage("session-setup");
@@ -3585,6 +3585,15 @@ export function YovaPrototype({
   if (stage === "session-setup") return <SessionSetup plan={pendingSessionPlan ?? activePlan} answers={answers} completions={sessionCompletions} interruptions={sessionInterruptions} onExit={() => {
     setPendingSessionPlan(null);
     setStage("app");
+  }} onOpenGoal={() => {
+    const plan = pendingSessionPlan ?? activePlan;
+    if (plan) {
+      setSelectedPlanId(plan.id);
+      setLearningDetailPlanId(plan.id);
+    }
+    setPendingSessionPlan(null);
+    setActiveTab("Learning");
+    setStage("app");
   }} onStart={(adjustment) => {
     const plan = pendingSessionPlan ?? activePlan;
     if (plan) void startSession(plan.id, plan, adjustment);
@@ -4164,7 +4173,15 @@ function AskBar({ value, onChange, onSubmit, pending = false }: { value: string;
 }
 
 function LearningScreen({ plans, detailPlanId, sessionCompletions, sessionInterruptions, activeSessionCheckpoints, onOpenPlan, onClosePlan, onStart, onCreatePlan, onArchiveStateChange, onDeletePlan, onAdjustPlan, onKnowledgeMapUpdate, onAttachMaterials }: { plans: LearningPlan[]; detailPlanId: string | null; sessionCompletions: SessionCompletion[]; sessionInterruptions: SessionInterruption[]; activeSessionCheckpoints: ActiveSessionCheckpointV1[]; onOpenPlan: (planId: string) => void; onClosePlan: () => void; onStart: (planId: string) => void; onCreatePlan: () => void; onArchiveStateChange: (planId: string, action: "archive" | "restore") => Promise<LearningPlan["status"]>; onDeletePlan: (planId: string) => Promise<void>; onAdjustPlan: (input: PlanAdjustmentRequest) => Promise<void>; onKnowledgeMapUpdate: (planId: string, knowledgeMap: PlanKnowledgeMap) => void; onAttachMaterials: (planId: string, materialIds: string[]) => Promise<void> }) {
-  const [view, setView] = useState<"active" | "recent" | "archive">("active");
+  const [view, setView] = useState<"active" | "recent" | "archive">(() => {
+    const requestedPlan = plans.find((plan) => plan.id === detailPlanId);
+    if (requestedPlan?.status === "archived") return "archive";
+    if (requestedPlan && (
+      requestedPlan.creationIntent === "study_now"
+      || canPresentPlanAsCompleted(requestedPlan)
+    )) return "recent";
+    return "active";
+  });
   const [changingPlanId, setChangingPlanId] = useState<string | null>(null);
   const [statusError, setStatusError] = useState<string | null>(null);
   const visiblePlans = plans.filter((plan) => {
@@ -4241,8 +4258,8 @@ function LearningOverview({ plans, allPlans, view, interruptions, activeSessionC
         <div className="learning-card-top"><SubjectIcon plan={plan} /><span className="learning-card-kind">{plan.kind}</span><span className={`learning-card-status ${displayStatus}`}>{operational ? formatPlanDeadline(plan.deadline) : displayStatus}</span></div>
         <div className="learning-card-copy"><h2>{plan.title}</h2><p>{plan.topic}</p></div>
         <div className="learning-card-progress"><div><span style={{ width: `${progress}%` }} /></div><small>{done} of {plan.sessions.length} sessions complete</small></div>
-        <div className="learning-card-next"><span>{view === "active" ? "NEXT SESSION" : view === "archive" ? "ARCHIVED HISTORY" : "PLAN SUMMARY"}</span><strong>{view === "archive" ? "Saved in your archive" : readySession ? readySession.title : presentAsCompleted ? "Goal completed" : "Saved learning goal"}</strong><small>{view === "archive" ? `${done} of ${plan.sessions.length} sessions completed` : readySession ? `${resumeLabel ?? formatSessionTime(readySession.scheduledFor)} · ${readySession.estimatedMinutes} min` : `${plan.sessions.length} planned sessions`}</small></div>
-        <footer><button className="button secondary" onClick={() => onOpenPlan(plan.id)}>Open goal <ChevronRight size={16} /></button>{view === "active" && readySession && <button className="button primary" onClick={() => onStart(plan.id)}>{resumePoint ? "Continue" : "Start next"}</button>}</footer>
+        <div className="learning-card-next"><span>{view === "archive" ? "ARCHIVED HISTORY" : operational && readySession ? "NEXT SESSION" : "PLAN SUMMARY"}</span><strong>{view === "archive" ? "Saved in your archive" : readySession ? readySession.title : presentAsCompleted ? "Goal completed" : "Saved learning goal"}</strong><small>{view === "archive" ? `${done} of ${plan.sessions.length} sessions completed` : readySession ? `${resumeLabel ?? formatSessionTime(readySession.scheduledFor)} · ${readySession.estimatedMinutes} min` : `${plan.sessions.length} planned sessions`}</small></div>
+        <footer><button className="button secondary" onClick={() => onOpenPlan(plan.id)}>Open goal <ChevronRight size={16} /></button>{view !== "archive" && operational && readySession && <button className="button primary" onClick={() => onStart(plan.id)}>{resumePoint ? "Continue" : "Start next"}</button>}</footer>
       </article>;
     })}</section>
   </>;
@@ -4254,6 +4271,12 @@ function LearningPlanDetail({ plan, view, completions, interruptions, activeSess
   const [mapError, setMapError] = useState<string | null>(null);
   const completeCount = plan.sessions.filter((session) => session.status === "complete").length;
   const presentAsCompleted = canPresentPlanAsCompleted(plan);
+  const operational = isOperationalPlan(plan);
+  const canManagePlan = operational && view !== "archive";
+  const hasAdjustableUnfinishedWork = plan.sessions.some((session) => (
+    (session.status === "ready" || session.status === "upcoming")
+    && !isScheduledRetrievalSession(session)
+  ));
   const readySession = plan.sessions.find((session) => session.status === "ready");
   const resumePoint = readySession ? sessionStartRecoveryDecision({
     plan,
@@ -4288,14 +4311,14 @@ function LearningPlanDetail({ plan, view, completions, interruptions, activeSess
 
   return <>
     <button className="learning-back" onClick={onBack}><ArrowLeft size={16} /> All {view === "recent" ? "recent learning" : view === "archive" ? "archived learning" : "active learning"}</button>
-    <section className="learning-hero"><div><span className="subject-label">{plan.kind.toUpperCase()} · {formatPlanDeadline(plan.deadline)}</span><h2>{plan.title}</h2><p>{plan.topic}</p><span className="learning-approach-badge">{plan.learningIntent === "learn" ? <BookOpen size={14} /> : <Target size={14} />}{plan.learningIntent === "learn" ? "Building understanding, then practice" : "Practice, diagnose, and repair"}</span><div className="progress-line"><div style={{ width: `${(completeCount / plan.sessions.length) * 100}%` }} /></div><small>{resumePoint ? `${resumePoint.completedSteps} of ${resumePoint.totalSteps} sections saved in the current session` : `${completeCount} of ${plan.sessions.length} sessions complete`}</small></div><div className="learning-hero-actions">{view === "active" && readySession && <button className="button primary" onClick={onStart}>{resumePoint ? "Continue session" : "Start next session"}</button>}{view === "active" && <button className="button hero-secondary" onClick={() => setShowAdjustments((value) => !value)}><Settings2 size={16} /> {showAdjustments ? "Close" : "Adjust"}</button>}<button className="button hero-secondary" disabled={changingStatus} onClick={() => onArchiveStateChange(view === "archive" ? "restore" : "archive")}>{changingStatus ? <span className="button-spinner" /> : view === "archive" ? <><RotateCcw size={16} /> Restore</> : <><Archive size={16} /> Archive</>}</button>{view === "archive" && <PlanDeletionControl planTitle={plan.title} onDelete={onDeletePlan} />}</div></section>
-    {view === "active" && showAdjustments && <PlanAdjustmentPanel plan={plan} onCancel={() => setShowAdjustments(false)} onSave={async (input) => { await onAdjustPlan(input); setShowAdjustments(false); }} />}
+    <section className="learning-hero"><div><span className="subject-label">{plan.kind.toUpperCase()} · {formatPlanDeadline(plan.deadline)}</span><h2>{plan.title}</h2><p>{plan.topic}</p><span className="learning-approach-badge">{plan.learningIntent === "learn" ? <BookOpen size={14} /> : <Target size={14} />}{plan.learningIntent === "learn" ? "Building understanding, then practice" : "Practice, diagnose, and repair"}</span><div className="progress-line"><div style={{ width: `${(completeCount / plan.sessions.length) * 100}%` }} /></div><small>{resumePoint ? `${resumePoint.completedSteps} of ${resumePoint.totalSteps} sections saved in the current session` : `${completeCount} of ${plan.sessions.length} sessions complete`}</small></div><div className="learning-hero-actions">{canManagePlan && readySession && <button className="button primary" onClick={onStart}>{resumePoint ? "Continue session" : "Start next session"}</button>}{canManagePlan && hasAdjustableUnfinishedWork && <button className="button hero-secondary" onClick={() => setShowAdjustments((value) => !value)}><Settings2 size={16} /> {showAdjustments ? "Close" : "Adjust"}</button>}<button className="button hero-secondary" disabled={changingStatus} onClick={() => onArchiveStateChange(view === "archive" ? "restore" : "archive")}>{changingStatus ? <span className="button-spinner" /> : view === "archive" ? <><RotateCcw size={16} /> Restore</> : <><Archive size={16} /> Archive</>}</button>{view === "archive" && <PlanDeletionControl planTitle={plan.title} onDelete={onDeletePlan} />}</div></section>
+    {canManagePlan && showAdjustments && <PlanAdjustmentPanel plan={plan} onCancel={() => setShowAdjustments(false)} onSave={async (input) => { await onAdjustPlan(input); setShowAdjustments(false); }} />}
     {view === "recent" && <section className="learning-history-summary"><div><span>{presentAsCompleted ? "Completed" : "Plan state"}</span><strong>{presentAsCompleted ? formatCompletionDate(completions.at(-1)?.completedAt ?? plan.createdAt) : "Unfinished work"}</strong></div><div><span>Knowledge-check accuracy</span><strong>{accuracy}</strong></div><div><span>Last session felt</span><strong>{formatFeedback(completions.at(-1)?.feedback)}</strong></div></section>}
     {view === "archive" && <section className="learning-history-summary" aria-label="Archived goal history"><div><span>Started</span><strong>{formatCompletionDate(plan.createdAt)}</strong></div><div><span>Progress kept</span><strong>{completeCount} of {plan.sessions.length} sessions</strong></div><div><span>Attached materials</span><strong>{plan.materials?.length ?? 0}</strong></div></section>}
-    <PlanKnowledgeMapPanel plan={plan} completions={completions} canExtend={view === "active"} extending={extendingMap} error={mapError} onExtend={() => void extendDeferredTopics()} onAdjustPlan={onAdjustPlan} onKnowledgeMapUpdate={onKnowledgeMapUpdate} />
+    <PlanKnowledgeMapPanel plan={plan} completions={completions} canExtend={canManagePlan} extending={extendingMap} error={mapError} onExtend={() => void extendDeferredTopics()} onAdjustPlan={onAdjustPlan} onKnowledgeMapUpdate={onKnowledgeMapUpdate} />
     <section className="section-block plan-timeline"><div className="section-title"><div><h3>{view === "recent" ? presentAsCompleted ? "What you completed" : "Sessions in this study" : "Your plan"}</h3><p>{view === "recent" && !presentAsCompleted ? "Completed sessions are checked. Unfinished sessions remain listed without being counted as completed." : "The sequence YOVA will guide you through, one session at a time."}</p></div><span>{plan.sessions.length} sessions</span></div><div className="timeline">{plan.sessions.map((session) => <div className={`timeline-row ${session.status}`} key={session.id}><span className="timeline-node">{session.status === "complete" ? <Check size={15} /> : null}</span><div><strong>{session.title}</strong><small><b>{session.learningMode === "learn" ? "Teaching first" : "Practice first"}</b> · {session.method} · {formatSessionTime(session.scheduledFor)}</small></div><span>{session.estimatedMinutes} min</span></div>)}</div></section>
     <PlanAdaptations plan={plan} />
-    <PlanSources plan={plan} editable={view === "active"} onAttach={onAttachMaterials} />
+    <PlanSources plan={plan} editable={canManagePlan} onAttach={onAttachMaterials} />
     <PlanResources plan={plan} />
     <ConceptSignalsPanel signals={conceptSignals} />
   </>;
@@ -4534,7 +4557,10 @@ function PlanAdjustmentPanel({ plan, onCancel, onSave }: { plan: LearningPlan; o
   const [direction, setDirection] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const unfinishedCount = plan.sessions.filter((session) => session.status === "ready" || session.status === "upcoming").length;
+  const adjustableUnfinishedCount = plan.sessions.filter((session) => (
+    (session.status === "ready" || session.status === "upcoming")
+    && !isScheduledRetrievalSession(session)
+  )).length;
   const protectedReviewCount = plan.sessions.filter((session) => (
     (session.status === "ready" || session.status === "upcoming")
     && isScheduledRetrievalSession(session)
@@ -4559,7 +4585,7 @@ function PlanAdjustmentPanel({ plan, onCancel, onSave }: { plan: LearningPlan; o
     }
   };
 
-  return <section className="plan-adjustment-panel"><div className="plan-adjustment-heading"><div><span className="step-label">ADJUST UNFINISHED WORK</span><h3>Change the plan without losing progress</h3><p>Tell YOVA when the course is on the wrong track, or change its timing and study location. Completed sessions stay exactly as they are.</p></div></div><label className={`plan-direction-field ${directionLimit.isOverLimit ? "field-over-limit" : ""}`}><span>What should be different?</span><textarea rows={4} value={direction} disabled={saving} aria-invalid={directionLimit.isOverLimit || undefined} aria-describedby="plan-adjustment-direction-limit" placeholder="Example: Keep this conceptual. I do not want calculation exercises. Focus on founder decisions, investor incentives, and real examples." onChange={(event) => setDirection(event.target.value)} /><small id="plan-adjustment-direction-limit" className={`character-limit-feedback ${directionLimit.isOverLimit ? "over-limit" : ""}`} role={directionLimit.isOverLimit ? "alert" : undefined}>Optional. YOVA will rebuild only unfinished content sessions. Scheduled reviews keep their exact return contract. The next session setup will show the revised target and method. {formatCharacterLimit(directionLimit)}</small><div><button type="button" onClick={() => setDirection("Keep this conceptual. Do not include math or calculation exercises.")}>No calculations</button><button type="button" onClick={() => setDirection("Teach the foundations first, then use concrete examples before practice.")}>Teach it first</button><button type="button" onClick={() => setDirection("Use more real examples and case scenarios before independent work.")}>More examples</button></div></label><div className="plan-adjustment-grid"><label><span>Target date</span><input type="date" min={localDateInput(new Date().toISOString())} value={deadlineDate} disabled={saving} onChange={(event) => setDeadlineDate(event.target.value)} /><small>Optional. Agenda times are changed separately.</small></label><label><span>Future session window</span><select value={minutes} disabled={saving} onChange={(event) => setMinutes(Number(event.target.value))}>{minuteOptions.map((option) => <option value={option} key={option}>{option} minutes</option>)}</select><small>Time controls the size of each content slice, not whether it counts as complete.</small></label></div><div className="adjustment-content-rule"><Target size={18} /><div><strong>Progress stays intact</strong><p>The current {unfinishedCount} unfinished {unfinishedCount === 1 ? "session" : "sessions"} can be adjusted safely. Finished sessions and recorded learning evidence are never erased.{protectedReviewCount > 0 ? ` ${protectedReviewCount} scheduled ${protectedReviewCount === 1 ? "review keeps" : "reviews keep"} the original duration, concept, and return time.` : ""}</p></div></div><div className="adjustment-mode"><span>Where should future sessions happen?</span><div><button className={studyMode === "inside_yova" ? "selected" : ""} disabled={saving} onClick={() => setStudyMode("inside_yova")}><BookOpen size={17} /><strong>Inside YOVA</strong><small>Teaching, questions, and feedback in the app</small></button><button className={studyMode === "outside_yova" ? "selected" : ""} disabled={saving} onClick={() => setStudyMode("outside_yova")}><LibraryBig size={17} /><strong>Outside YOVA</strong><small>Exact instructions for another source or workspace</small></button></div></div>{error && <div className="chat-error"><AlertCircle size={16} /><span>{error}</span></div>}<footer><button className="button ghost" disabled={saving} onClick={onCancel}>Cancel</button><button className="button primary" disabled={saving || unfinishedCount === 0 || directionLimit.isOverLimit} onClick={() => void save()}>{saving ? <span className="button-spinner" /> : <><Check size={16} /> Approve and rebuild plan</>}</button></footer></section>;
+  return <section className="plan-adjustment-panel"><div className="plan-adjustment-heading"><div><span className="step-label">ADJUST UNFINISHED WORK</span><h3>Change the plan without losing progress</h3><p>Tell YOVA when the course is on the wrong track, or change its timing and study location. Completed sessions stay exactly as they are.</p></div></div><label className={`plan-direction-field ${directionLimit.isOverLimit ? "field-over-limit" : ""}`}><span>What should be different?</span><textarea rows={4} value={direction} disabled={saving} aria-invalid={directionLimit.isOverLimit || undefined} aria-describedby="plan-adjustment-direction-limit" placeholder="Example: Keep this conceptual. I do not want calculation exercises. Focus on founder decisions, investor incentives, and real examples." onChange={(event) => setDirection(event.target.value)} /><small id="plan-adjustment-direction-limit" className={`character-limit-feedback ${directionLimit.isOverLimit ? "over-limit" : ""}`} role={directionLimit.isOverLimit ? "alert" : undefined}>Optional. YOVA will rebuild only unfinished content sessions. Scheduled reviews keep their exact return contract. The next session setup will show the revised target and method. {formatCharacterLimit(directionLimit)}</small><div><button type="button" onClick={() => setDirection("Keep this conceptual. Do not include math or calculation exercises.")}>No calculations</button><button type="button" onClick={() => setDirection("Teach the foundations first, then use concrete examples before practice.")}>Teach it first</button><button type="button" onClick={() => setDirection("Use more real examples and case scenarios before independent work.")}>More examples</button></div></label><div className="plan-adjustment-grid"><label><span>Target date</span><input type="date" min={localDateInput(new Date().toISOString())} value={deadlineDate} disabled={saving} onChange={(event) => setDeadlineDate(event.target.value)} /><small>Optional. Agenda times are changed separately.</small></label><label><span>Future session window</span><select value={minutes} disabled={saving} onChange={(event) => setMinutes(Number(event.target.value))}>{minuteOptions.map((option) => <option value={option} key={option}>{option} minutes</option>)}</select><small>Time controls the size of each content slice, not whether it counts as learned.</small></label></div><div className="adjustment-content-rule"><Target size={18} /><div><strong>Progress stays intact</strong><p>The current {adjustableUnfinishedCount} ordinary unfinished {adjustableUnfinishedCount === 1 ? "session" : "sessions"} can be adjusted safely. Finished sessions and recorded learning evidence are never erased.{protectedReviewCount > 0 ? ` ${protectedReviewCount} scheduled ${protectedReviewCount === 1 ? "review keeps" : "reviews keep"} the original duration, concept, and return time.` : ""}</p></div></div><div className="adjustment-mode"><span>Where should future sessions happen?</span><div><button className={studyMode === "inside_yova" ? "selected" : ""} disabled={saving} onClick={() => setStudyMode("inside_yova")}><BookOpen size={17} /><strong>Inside YOVA</strong><small>Teaching, questions, and feedback in the app</small></button><button className={studyMode === "outside_yova" ? "selected" : ""} disabled={saving} onClick={() => setStudyMode("outside_yova")}><LibraryBig size={17} /><strong>Outside YOVA</strong><small>Exact instructions for another source or workspace</small></button></div></div>{error && <div className="chat-error"><AlertCircle size={16} /><span>{error}</span></div>}<footer><button className="button ghost" disabled={saving} onClick={onCancel}>Cancel</button><button className="button primary" disabled={saving || adjustableUnfinishedCount === 0 || directionLimit.isOverLimit} onClick={() => void save()}>{saving ? <span className="button-spinner" /> : <><Check size={16} /> Approve and rebuild plan</>}</button></footer></section>;
 }
 
 function AgendaScreen({ plans, milestones, sessionCompletions, sessionInterruptions, activeSessionCheckpoints, allowance, allowanceChecking, previewMode, onAdd, onStart, onActivateReview, onReschedule, onAdjustDuration, onClassifyRecoveryInterruption, onUpdateMilestone, onDeleteMilestone, onConvertMilestone }: { plans: LearningPlan[]; milestones: DeadlineMilestone[]; sessionCompletions: SessionCompletion[]; sessionInterruptions: SessionInterruption[]; activeSessionCheckpoints: ActiveSessionCheckpointV1[]; allowance: GuidedSessionAllowanceDisplayState; allowanceChecking: boolean; previewMode: boolean; onAdd: () => void; onStart: (planId?: string) => void; onActivateReview: (item: ConceptReviewAgendaItem) => Promise<void>; onReschedule: (planId: string, updates: readonly ScheduleSessionUpdate[]) => void; onAdjustDuration: (planSessionId: string, estimatedMinutes: number) => Promise<void>; onClassifyRecoveryInterruption: (planSessionId: string, excludeFromHabitEvidence: boolean) => void; onUpdateMilestone: (id: string, changes: Partial<Pick<DeadlineMilestone, "title" | "description" | "dueAt" | "status" | "linkedLearningItemId">>) => Promise<void>; onDeleteMilestone: (id: string) => Promise<void>; onConvertMilestone: (milestone: DeadlineMilestone, outcome: "session" | "plan") => void }) {
@@ -5862,7 +5888,7 @@ function isVerifiableKnownTarget(value: string) {
   ].some((pattern) => pattern.test(normalized));
 }
 
-function SessionSetup({ plan, answers, completions, interruptions, onExit, onStart }: { plan: LearningPlan | null; answers: string[]; completions: SessionCompletion[]; interruptions: SessionInterruption[]; onExit: () => void; onStart: (adjustment: SessionAdjustment | null) => void }) {
+function SessionSetup({ plan, answers, completions, interruptions, onExit, onOpenGoal, onStart }: { plan: LearningPlan | null; answers: string[]; completions: SessionCompletion[]; interruptions: SessionInterruption[]; onExit: () => void; onOpenGoal: () => void; onStart: (adjustment: SessionAdjustment | null) => void }) {
   const session = plan?.sessions.find((item) => item.status === "ready") ?? null;
   const [setupPage, setSetupPage] = useState(0);
   const [familiarity, setFamiliarity] = useState<SessionAdjustment["familiarity"]>("as_planned");
@@ -5902,6 +5928,16 @@ function SessionSetup({ plan, answers, completions, interruptions, onExit, onSta
     return <main className="centered-shell"><BrandMark /><section className="plan-error-state"><span><AlertCircle /></span><h1>No unfinished session was found.</h1><p>Return to Learning and choose an active goal with unfinished content.</p><button className="button primary" onClick={onExit}>Return to YOVA</button></section></main>;
   }
 
+  const scheduledReview = isScheduledRetrievalSession(session);
+  const hasOrdinaryUnfinishedWork = plan.sessions.some((candidate) => (
+    (candidate.status === "ready" || candidate.status === "upcoming")
+    && !isScheduledRetrievalSession(candidate)
+  ));
+  const setupSteps = scheduledReview
+    ? ["Review", "Confirm"]
+    : ["Direction", "Starting point", "Today"];
+  const finalSetupPage = setupSteps.length - 1;
+
   const targetChoices = (session.contentTargets ?? [])
     .filter(isVerifiableKnownTarget)
     .filter((target, index, targets) => targets.indexOf(target) === index)
@@ -5926,6 +5962,10 @@ function SessionSetup({ plan, answers, completions, interruptions, onExit, onSta
 
   const start = () => {
     if (noteLimit.isOverLimit) return;
+    if (scheduledReview) {
+      onStart(null);
+      return;
+    }
     const trimmedNote = note.trim();
     const inferredFamiliarity = familiarity === "as_planned"
       ? inferSessionFamiliarityFromText(trimmedNote) ?? familiarity
@@ -5966,22 +6006,28 @@ function SessionSetup({ plan, answers, completions, interruptions, onExit, onSta
     <header><BrandMark /><button className="button ghost" onClick={onExit}>Cancel</button></header>
     <section className="session-setup-card">
       <nav className="session-setup-progress" aria-label="Session setup progress">
-        {["Direction", "Starting point", "Today"].map((label, index) => <div aria-current={index === setupPage ? "step" : undefined} className={index === setupPage ? "current" : index < setupPage ? "complete" : ""} key={label}><span>{index < setupPage ? <Check size={13} /> : index + 1}</span><strong>{label}</strong></div>)}
+        {setupSteps.map((label, index) => <div aria-current={index === setupPage ? "step" : undefined} className={index === setupPage ? "current" : index < setupPage ? "complete" : ""} key={label}><span>{index < setupPage ? <Check size={13} /> : index + 1}</span><strong>{label}</strong></div>)}
       </nav>
 
       {setupPage === 0 && <>
-        <div className="session-setup-copy"><span className="step-label">SESSION DIRECTION</span><h1>Here is how YOVA plans to start.</h1><p>First see the target and method. You can correct the starting point on the next page.</p></div>
-        <section className="session-current-assumption"><div><span>CURRENT TARGET</span><strong>{session.title}</strong><p>{sessionSetupObjective(plan.studyMode, session)}</p></div><div><span>PLANNED APPROACH</span><strong>{session.learningMode === "learn" ? "Teaching before independent work" : "Independent attempt before repair"}</strong><p>{session.method}, about {session.estimatedMinutes} minutes</p></div></section>
-        {taskDecision && <section className="session-decision-spotlight" aria-label="Why YOVA chose this approach"><div className="session-decision-icon"><Sparkles size={19} /></div><div><span>METHOD FOR THIS TASK</span><h2>{taskDecision.title}</h2><p>{taskDecision.detail}</p>{personalDecision && <aside><strong>HOW YOVA CHANGED IT FOR YOU</strong><span>{personalDecision.title}</span><small>{personalDecision.strength === "observed" ? "Evidence: prior checked work" : "Evidence: you told YOVA"}</small></aside>}</div></section>}
+        <div className="session-setup-copy"><span className="step-label">{scheduledReview ? "SCHEDULED RETURN" : "SESSION DIRECTION"}</span><h1>{scheduledReview ? "Confirm this quick verification." : "Here is how YOVA plans to start."}</h1><p>{scheduledReview ? "This return has one fixed purpose: check what is available after time has passed without turning it into another lesson." : "First see the target and method. You can correct the starting point on the next page."}</p></div>
+        <section className="session-current-assumption"><div><span>CURRENT TARGET</span><strong>{session.title}</strong><p>{sessionSetupObjective(plan.studyMode, session)}</p></div><div><span>PLANNED APPROACH</span><strong>{scheduledReview ? "Short scheduled verification" : session.learningMode === "learn" ? "Teaching before independent work" : "Independent attempt before repair"}</strong><p>{scheduledReview ? `Exactly 3 multiple-choice questions, about ${session.estimatedMinutes} minutes, with no teaching before the first answer.` : `${session.method}, about ${session.estimatedMinutes} minutes`}</p></div></section>
+        {!scheduledReview && taskDecision && <section className="session-decision-spotlight" aria-label="Why YOVA chose this approach"><div className="session-decision-icon"><Sparkles size={19} /></div><div><span>METHOD FOR THIS TASK</span><h2>{taskDecision.title}</h2><p>{taskDecision.detail}</p>{personalDecision && <aside><strong>HOW YOVA CHANGED IT FOR YOU</strong><span>{personalDecision.title}</span><small>{personalDecision.strength === "observed" ? "Evidence: prior checked work" : "Evidence: you told YOVA"}</small></aside>}</div></section>}
       </>}
 
-      {setupPage === 1 && <>
+      {setupPage === 1 && scheduledReview && <>
+        <div className="session-setup-copy"><span className="step-label">VERIFICATION CONTRACT</span><h1>This return check has a fixed starting point.</h1><p>YOVA will ask exactly three multiple-choice questions without teaching first. Changing the mode, support, time, or notes here would no longer be the delayed check the plan scheduled.</p></div>
+        <section className="session-current-assumption" aria-label="Scheduled review contract"><div><span>WHAT STAYS FIXED</span><strong>Practice first · exactly 3 questions</strong><p>No typed response, confidence rating, or hidden prerequisite reading.</p></div><div><span>WHAT THE RESULT MEANS</span><strong>A lightweight return signal</strong><p>It can reveal a gap, but it is not proof of permanent mastery.</p></div></section>
+        <section className="session-teaching-unavailable"><BookOpen size={18} /><div><strong>Need the idea taught again?</strong><p>Open the goal instead. This scheduled review will stay ready, and leaving setup will not count as an attempt. {hasOrdinaryUnfinishedWork ? "Review or add a trusted source, or adjust ordinary unfinished work before returning." : "Review an existing resource or add a trusted source before returning."}</p><button className="button secondary" type="button" onClick={onOpenGoal}>Open the goal instead</button></div></section>
+      </>}
+
+      {setupPage === 1 && !scheduledReview && <>
         <div className="session-setup-copy"><span className="step-label">STARTING POINT</span><h1>Has anything changed?</h1><p>Choose the closest answer. YOVA will still verify knowledge through the session.</p></div>
         <fieldset className="session-readiness-options"><legend>Where should this session begin?</legend><div>{options.map((option) => <button type="button" aria-pressed={familiarity === option.value} key={option.value} className={familiarity === option.value ? "selected" : ""} onClick={() => setFamiliarity(option.value)}><span>{familiarity === option.value ? <Check size={16} /> : <Target size={16} />}</span><div><strong>{option.title}</strong><small>{option.description}</small></div></button>)}</div></fieldset>
         {familiarity === "already_know" && <fieldset className="known-targets"><legend>Which parts should YOVA verify first?</legend>{targetChoices.length ? <><p>Select any that may already be familiar. YOVA will skip them only after you demonstrate them.</p><div>{targetChoices.map((target) => <button type="button" aria-pressed={selectedKnownTargets.includes(target)} className={selectedKnownTargets.includes(target) ? "selected" : ""} key={target} onClick={() => toggleKnownTarget(target)}><span>{selectedKnownTargets.includes(target) ? <Check size={15} /> : null}</span>{target}</button>)}</div></> : <p>Name the concepts on the next page. YOVA will check them before deciding what to omit.</p>}</fieldset>}
       </>}
 
-      {setupPage === 2 && <>
+      {setupPage === 2 && !scheduledReview && <>
         <div className="session-setup-copy"><span className="step-label">TODAY&apos;S CONTEXT</span><h1>Set the pace for today.</h1><p>Only add what changed or what YOVA could not know from the plan.</p></div>
         <fieldset className="session-support-dial"><legend>Support for this session</legend><p>This choice applies only today. It will not change your usual profile.</p><div>{SESSION_SUPPORT_OPTIONS.map((option) => <button type="button" key={option.value} aria-pressed={supportLevel === option.value} className={supportLevel === option.value ? "selected" : ""} onClick={() => setSupportLevel(option.value)}><span>{supportLevel === option.value ? <Check size={15} /> : <Settings2 size={15} />}</span><strong>{option.title}</strong><small>{option.description}</small></button>)}</div><small className="session-support-expiry">For today · {sessionSupportExplanation(supportLevel)}</small></fieldset>
         <div className="session-context-row"><label><span>Time available right now</span><select value={availableMinutes ?? ""} onChange={(event) => setAvailableMinutes(event.target.value ? Number(event.target.value) : null)}><option value="">Keep the planned {session.estimatedMinutes} minutes</option>{[10, 15, 20, 25, 30, 45, 60].filter((minutes) => minutes !== session.estimatedMinutes).map((minutes) => <option key={minutes} value={minutes}>{minutes} minutes</option>)}</select><small>Shorter time changes today&apos;s content slice, not what counts as learned.</small></label><label className={noteLimit.isOverLimit ? "field-over-limit" : undefined}><span>Anything YOVA should account for?</span><textarea rows={4} value={note} aria-invalid={noteLimit.isOverLimit || undefined} aria-describedby="session-context-note-limit" placeholder="Optional: what you already know, what was confusing, or what this session must cover." onChange={(event) => setNote(event.target.value)} /><small id="session-context-note-limit" className={`character-limit-feedback ${noteLimit.isOverLimit ? "over-limit" : ""}`} role={noteLimit.isOverLimit ? "alert" : undefined}>{formatCharacterLimit(noteLimit)}</small></label></div>
@@ -5990,9 +6036,9 @@ function SessionSetup({ plan, answers, completions, interruptions, onExit, onSta
 
       <footer>
         <button className="button ghost" onClick={setupPage === 0 ? onExit : () => setSetupPage((current) => Math.max(0, current - 1))}>{setupPage === 0 ? "Not now" : <><ArrowLeft size={17} /> Back</>}</button>
-        {setupPage < 2
-          ? <button className="button primary large" onClick={() => setSetupPage((current) => Math.min(2, current + 1))}>Continue <ArrowRight size={18} /></button>
-          : <button className="button primary large" disabled={noteLimit.isOverLimit} onClick={start}>Prepare this session <ArrowRight size={18} /></button>}
+        {setupPage < finalSetupPage
+          ? <button className="button primary large" onClick={() => setSetupPage((current) => Math.min(finalSetupPage, current + 1))}>Continue <ArrowRight size={18} /></button>
+          : <button className="button primary large" disabled={noteLimit.isOverLimit} onClick={start}>{scheduledReview ? "Prepare scheduled review" : "Prepare this session"} <ArrowRight size={18} /></button>}
       </footer>
     </section>
   </main>;
@@ -6130,6 +6176,7 @@ function StandaloneStudyMethodSession({ plan, session, briefing, coverage, elaps
         coverage={coverage}
         sourceFirstRequired={plan.studyMode === "outside_yova" && session.learningMode === "learn"}
         allowUnguidedCompletion={canScheduleUnguidedVerification(session, plan.sessions.length)}
+        hasGuidedQuestionsBelow={false}
         progress={progress}
         onProgressChange={onProgressChange}
         onComplete={onComplete}
@@ -6204,7 +6251,12 @@ function GuidedSession({ plan, planSessionId, steps, step, selectedAnswer, outco
   const content = steps[step];
   const teachingPage = teachingProgress.step === step ? teachingProgress.page : 0;
   const currentSession = plan?.sessions.find((session) => session.status === "ready") ?? null;
-  const outsideMethodSession = plan?.studyMode === "outside_yova" && currentSession
+  const quickScheduledReview = isScheduledRetrievalSession(currentSession);
+  const scheduledReviewEvidenceCaptured = quickScheduledReview
+    && step === steps.length - 1
+    && outcome !== undefined;
+  const scheduledReviewLearningSupportLocked = quickScheduledReview && !scheduledReviewEvidenceCaptured;
+  const outsideMethodSession = plan?.studyMode === "outside_yova" && currentSession && !quickScheduledReview
     ? {
       ...currentSession,
       learningMode: methodBriefing?.learningMode ?? currentSession.learningMode,
@@ -6213,7 +6265,6 @@ function GuidedSession({ plan, planSessionId, steps, step, selectedAnswer, outco
   const outsideMethodBriefing = plan && outsideMethodSession
     ? buildFallbackMethodBriefing(plan, outsideMethodSession, deliveryPolicy ?? undefined)
     : null;
-  const quickScheduledReview = isScheduledRetrievalSession(currentSession);
   const reviewableTeaching = [...steps.slice(0, step)]
     .reverse()
     .find((candidate) => candidate.teaching)?.teaching ?? null;
@@ -6460,7 +6511,7 @@ function GuidedSession({ plan, planSessionId, steps, step, selectedAnswer, outco
       <div className="session-top-actions"><button className="button ghost session-direction-button" onClick={() => setChangingDirection(true)}><Settings2 size={16} /> Change direction</button><button className="button ghost" onClick={() => setConfirmingExit(true)}>Exit</button></div>
     </header>
     <section className="session-content">
-      <SessionGuidePanel session={currentSession} capacityMinutes={capacityMinutes} coverage={coverage} steps={steps} step={step} methodBriefing={methodBriefing} deliveryPolicy={deliveryPolicy} supportPlan={supportPlan} sourceGrounding={sourceGrounding} rationale={rationale} />
+      <SessionGuidePanel session={currentSession} capacityMinutes={capacityMinutes} coverage={coverage} steps={steps} step={step} methodBriefing={methodBriefing} deliveryPolicy={deliveryPolicy} supportPlan={supportPlan} sourceGrounding={sourceGrounding} rationale={rationale} scheduledReviewEvidenceCaptured={scheduledReviewEvidenceCaptured} />
       <section className="session-workspace">
         {recoveryNotice && <div className="session-issue"><Check size={17} /><span>{recoveryNotice}</span></div>}
         {recoveryIssue && <div className="session-issue"><AlertCircle size={17} /><span>{recoveryIssue}</span></div>}
@@ -6567,14 +6618,16 @@ function GuidedSession({ plan, planSessionId, steps, step, selectedAnswer, outco
         <footer className="session-action-bar">{step === steps.length - 1 && teachingComplete && <p className="completion-rule"><Check size={14} /> Completion is based on the required learning work, not on running out the clock.</p>}<button className="button primary large" onClick={() => void advanceSession()} disabled={advancing || (!canContinue && !nextTeachingPanel)}>{advancing ? <><span className="button-spinner" /> Adapting your next step...</> : <>{isStreamedInstruction ? streamedLessonState?.status === "complete" ? "Answer the question" : "Finishing explanation..." : nextTeachingPanel ? `Next: ${teachingPanelLabel(nextTeachingPanel)}` : outcome === false && !isImmediateRepair ? "Repair this idea" : step === steps.length - 1 ? "Finish this content" : "Continue"} <ArrowRight size={18} /></>}</button></footer>
       </section>
     </section>
-    {!isStreamedInstruction && <SessionTutor
-      plan={plan}
-      activity={content}
-      outcome={outcome}
-      answerRevealed={answerRevealed}
-      selectedAnswer={selectedAnswer}
-      analyticsEnabled={analyticsEnabled}
-    />}
+    {scheduledReviewLearningSupportLocked
+      ? <aside className="session-tutor scheduled-review-support-locked" aria-label="Scheduled review help locked"><button className="session-tutor-launcher" type="button" aria-label="Ask YOVA is locked during this scheduled review" disabled><Target size={18} /><span>Help unlocks after all 3 answers</span></button></aside>
+      : !isStreamedInstruction && <SessionTutor
+        plan={plan}
+        activity={content}
+        outcome={outcome}
+        answerRevealed={answerRevealed}
+        selectedAnswer={selectedAnswer}
+        analyticsEnabled={analyticsEnabled}
+      />}
     {reviewingModel && (reviewableTeaching || (reviewableStreamedLesson && reviewableStreamedLessonState)) && <div className="session-model-review-backdrop"><section className="session-model-review-dialog" role="dialog" aria-modal="true" aria-labelledby="session-model-review-title"><header><div><span className="step-label">PREVIOUS LESSON</span><h2 id="session-model-review-title">Review the lesson, then return to the same question.</h2><p>Your answer and session progress stay exactly where they are.</p></div><button className="button ghost" type="button" onClick={() => setReviewingModel(false)}><X size={17} /> Back to the question</button></header><div className="session-model-review-content">{reviewableStreamedLesson && reviewableStreamedLessonState ? <StreamedLessonReader state={reviewableStreamedLessonState} compact /> : reviewableTeaching ? <TeachingLessonCard teaching={reviewableTeaching} /> : null}</div><footer><button className="button primary" type="button" onClick={() => setReviewingModel(false)}><ArrowLeft size={17} /> Back to the question</button></footer></section></div>}
     {changingDirection && <div className="plan-direction-backdrop"><section className="plan-direction-dialog" role="dialog" aria-modal="true" aria-labelledby="plan-direction-title"><header><span className="plan-direction-icon"><Settings2 size={21} /></span><div><span className="step-label">CHANGE THE COURSE DIRECTION</span><h2 id="plan-direction-title">Tell YOVA what is off track.</h2><p>Completed work and learning evidence will stay. YOVA will rebuild only the unfinished sessions after you approve this change.</p></div></header><label className={directionRequestLimit.isOverLimit ? "field-over-limit" : undefined}><span>What should be different?</span><textarea autoFocus rows={5} value={directionRequest} disabled={directionPending} aria-invalid={directionRequestLimit.isOverLimit || undefined} aria-describedby="course-direction-limit" placeholder="Example: I do not want math exercises. Keep the remaining course conceptual and focus on founder decisions, investors, and real startup examples." onChange={(event) => setDirectionRequest(event.target.value)} /><small id="course-direction-limit" className={`character-limit-feedback ${directionRequestLimit.isOverLimit ? "over-limit" : ""}`} role={directionRequestLimit.isOverLimit ? "alert" : undefined}>{formatCharacterLimit(directionRequestLimit)}</small></label><div className="plan-direction-examples"><button type="button" onClick={() => setDirectionRequest("Keep this conceptual. Do not include math or calculation exercises.")}>No calculations</button><button type="button" onClick={() => setDirectionRequest("Teach the foundations first and use concrete examples before practice.")}>Teach the basics first</button><button type="button" onClick={() => setDirectionRequest("Focus more on real examples and practical decisions.")}>More real examples</button></div>{directionIssue && <div className="chat-error"><AlertCircle size={16} /><span>{directionIssue}</span></div>}<footer><button className="button ghost" disabled={directionPending} onClick={() => { setChangingDirection(false); setDirectionIssue(null); }}>Keep this plan</button><button className="button primary large" disabled={directionPending || directionRequest.trim().length < 5 || directionRequestLimit.isOverLimit} onClick={() => void redirectPlan()}>{directionPending ? <><span className="button-spinner" /> Rebuilding plan</> : <>Approve and rebuild <ArrowRight size={18} /></>}</button></footer></section></div>}
     {confirmingExit && <div className="session-exit-backdrop"><section className="session-exit-dialog" role="dialog" aria-modal="true" aria-labelledby="session-exit-title"><div className="session-exit-icon"><Clock3 size={21} /></div><span className="step-label">LEAVE THIS SESSION?</span><h2 id="session-exit-title">Your plan will stay open.</h2><p>YOVA will remember how long you studied and exactly which content steps you reached. Unfinished answers will not be treated as knowledge evidence.</p><div className="session-exit-summary"><span>{formatElapsedDuration(elapsedSeconds)} studied</span><span>{completedRequiredSteps} of {requiredSteps.length} required steps finished</span></div><div className="session-exit-actions"><button className="button ghost" onClick={() => setConfirmingExit(false)}>Keep studying</button><button className="button primary" onClick={onExit}>Save progress and leave</button></div></section></div>}
@@ -6732,12 +6785,17 @@ function RuntimeRepairSupportCard({ support }: { support: RuntimeRepairSupport }
   </section>;
 }
 
-function SessionGuidePanel({ session, capacityMinutes, coverage, steps, step, methodBriefing, deliveryPolicy, supportPlan, sourceGrounding, rationale }: { session: LearningPlanSession | null; capacityMinutes: number | null; coverage: SessionCoverage | null; steps: LessonStep[]; step: number; methodBriefing: SessionMethodBriefing | null; deliveryPolicy: SessionDeliveryPolicy | null; supportPlan: SessionSupportPlan | null; sourceGrounding: SessionSourceGrounding | null; rationale: string | null }) {
-  const focus = coverage?.focus ?? session?.objective ?? "Complete the next bounded learning objective.";
-  const evidence = coverage?.completionEvidence.length ? coverage.completionEvidence : session?.completionEvidence ?? ["Attempt the required check without hidden support."];
+function SessionGuidePanel({ session, capacityMinutes, coverage, steps, step, methodBriefing, deliveryPolicy, supportPlan, sourceGrounding, rationale, scheduledReviewEvidenceCaptured }: { session: LearningPlanSession | null; capacityMinutes: number | null; coverage: SessionCoverage | null; steps: LessonStep[]; step: number; methodBriefing: SessionMethodBriefing | null; deliveryPolicy: SessionDeliveryPolicy | null; supportPlan: SessionSupportPlan | null; sourceGrounding: SessionSourceGrounding | null; rationale: string | null; scheduledReviewEvidenceCaptured: boolean }) {
+  const quickScheduledReview = isScheduledRetrievalSession(session);
+  const factualReviewDetailsLocked = quickScheduledReview && !scheduledReviewEvidenceCaptured;
+  const focus = factualReviewDetailsLocked
+    ? `Retrieve ${session?.reviewConcept ?? session?.title ?? "the scheduled idea"} without opening learning support.`
+    : coverage?.focus ?? session?.objective ?? "Complete the next bounded learning objective.";
+  const evidence = factualReviewDetailsLocked
+    ? ["Answer all three questions before opening hints, explanations, or source details."]
+    : coverage?.completionEvidence.length ? coverage.completionEvidence : session?.completionEvidence ?? ["Attempt the required check without hidden support."];
   const ideas = coverage?.essentialIdeas.length ? coverage.essentialIdeas : session?.contentTargets ?? [focus];
   const roadmap = buildMethodPhaseRoadmap(steps.map((item) => item.methodPhase));
-  const quickScheduledReview = isScheduledRetrievalSession(session);
   const modeLabel = quickScheduledReview ? "Quick scheduled review" : methodBriefing?.learningMode === "learn" ? "Teaching first" : "Practice first";
   const taskLabel = methodBriefing?.taskType.replaceAll("_", " ") ?? "guided learning";
   const adaptationReasons = (deliveryPolicy?.learnerFacingReasons.length
@@ -6747,16 +6805,18 @@ function SessionGuidePanel({ session, capacityMinutes, coverage, steps, step, me
     <div className="session-guide-focus"><span className="step-label">TODAY&apos;S TARGET</span><h2>{focus}</h2><div><Clock3 size={14} /><span>{capacityMinutes ?? session?.estimatedMinutes ?? 20} minute window</span></div></div>
     <div className="session-guide-method"><div><BookOpen size={16} /><span>{modeLabel}</span></div><strong>{methodBriefing?.name ?? "Guided method"}</strong><small>{taskLabel}</small></div>
     {quickScheduledReview && <div className="session-quick-review-card"><Target size={15} /><p><span>Low-pressure return</span>Three self-contained multiple-choice questions, shown one at a time. No typed response and no confidence rating.</p></div>}
-    {methodBriefing && <section className="session-method-playbook" aria-label={`How to use ${methodBriefing.name}`}><span>WHY THIS METHOD</span><p>{methodBriefing.why}</p><strong>Use it like this</strong><ol>{methodBriefing.how.slice(0, 3).map((instruction) => <li key={instruction}>{instruction}</li>)}</ol></section>}
-    {adaptationReasons.length > 0 && <div className="session-personalization-proof"><Sparkles size={15} /><div><span>How YOVA adapted this method</span><ul>{adaptationReasons.map((reason) => <li key={reason}>{reason}</li>)}</ul></div></div>}
+    {!factualReviewDetailsLocked && methodBriefing && <section className="session-method-playbook" aria-label={`How to use ${methodBriefing.name}`}><span>WHY THIS METHOD</span><p>{methodBriefing.why}</p><strong>Use it like this</strong><ol>{methodBriefing.how.slice(0, 3).map((instruction) => <li key={instruction}>{instruction}</li>)}</ol></section>}
+    {!factualReviewDetailsLocked && adaptationReasons.length > 0 && <div className="session-personalization-proof"><Sparkles size={15} /><div><span>How YOVA adapted this method</span><ul>{adaptationReasons.map((reason) => <li key={reason}>{reason}</li>)}</ul></div></div>}
     <div className="session-guide-path"><strong>Session path</strong>{steps.map((item, index) => {
       const presentation = item.methodPhase ? getMethodPhasePresentation(item.methodPhase) : null;
       const state = index < step ? "complete" : index === step ? "current" : "upcoming";
       return <div key={`${index}-${item.label}-${item.title}`} className={state}><span>{state === "complete" ? <Check size={13} /> : index + 1}</span><p><strong>{polishActivityLabel(item.label) || presentation?.label || "Activity"}</strong><small>{presentation?.label ?? item.title}</small></p></div>;
     })}</div>
     <div className="session-guide-evidence"><Target size={15} /><p><span>Finished means</span>{evidence[0]}</p></div>
-    <details className="session-guide-details"><summary>More about this method</summary>{methodBriefing && <div className="session-guide-explanation"><strong>What you are doing</strong><p>{methodBriefing.what}</p><strong>Completion rule</strong><p>{methodBriefing.completion}</p>{rationale && <><strong>How it fits this plan</strong><p>{rationale}</p></>}</div>}{deliveryPolicy && <div className="session-delivery-details"><strong>Delivery settings</strong><div><span>{deliveryPolicy.presentation.label}</span><span>{deliveryPolicy.repair.label}</span><span>{deliveryPolicy.retention.label}</span></div><small>{deliveryEvidenceLabel(deliveryPolicy.evidenceStatus)}</small></div>}<MethodRoadmap steps={steps} />{supportPlan && <SupportProgressionCard plan={supportPlan} />}</details>
-    <details className="session-guide-details"><summary>Content and sources</summary><div className="session-guide-lists"><strong>In this session</strong><ul>{ideas.map((item, index) => <li key={`${index}-${item}`}>{item}</li>)}</ul>{coverage?.evidenceMap.length ? <><strong>How completion is checked</strong><ul>{coverage.evidenceMap.map((mapping) => <li key={`${mapping.essentialIdea}-${mapping.activityConcept}`}>{mapping.essentialIdea}: checked through {mapping.activityConcept}</li>)}</ul></> : null}{coverage?.deferredContent.length ? <><strong>Saved for later</strong><ul>{coverage.deferredContent.map((item, index) => <li key={`${index}-${item}`}>{item}</li>)}</ul></> : null}</div>{sourceGrounding && <SourceGroundingCard grounding={sourceGrounding} />}</details>
+    {!factualReviewDetailsLocked && <details className="session-guide-details"><summary>More about this method</summary>{methodBriefing && <div className="session-guide-explanation"><strong>What you are doing</strong><p>{methodBriefing.what}</p><strong>Completion rule</strong><p>{methodBriefing.completion}</p>{rationale && <><strong>How it fits this plan</strong><p>{rationale}</p></>}</div>}{deliveryPolicy && <div className="session-delivery-details"><strong>Delivery settings</strong><div><span>{deliveryPolicy.presentation.label}</span><span>{deliveryPolicy.repair.label}</span><span>{deliveryPolicy.retention.label}</span></div><small>{deliveryEvidenceLabel(deliveryPolicy.evidenceStatus)}</small></div>}<MethodRoadmap steps={steps} />{supportPlan && <SupportProgressionCard plan={supportPlan} />}</details>}
+    {factualReviewDetailsLocked
+      ? <div className="session-guide-evidence" aria-label="Scheduled review learning support locked"><Target size={15} /><p><span>Learning support is locked</span>Essential ideas, source excerpts, and explanations return after all three answers are recorded.</p></div>
+      : <details className="session-guide-details"><summary>Content and sources</summary><div className="session-guide-lists"><strong>In this session</strong><ul>{ideas.map((item, index) => <li key={`${index}-${item}`}>{item}</li>)}</ul>{coverage?.evidenceMap.length ? <><strong>How completion is checked</strong><ul>{coverage.evidenceMap.map((mapping) => <li key={`${mapping.essentialIdea}-${mapping.activityConcept}`}>{mapping.essentialIdea}: checked through {mapping.activityConcept}</li>)}</ul></> : null}{coverage?.deferredContent.length ? <><strong>Saved for later</strong><ul>{coverage.deferredContent.map((item, index) => <li key={`${index}-${item}`}>{item}</li>)}</ul></> : null}</div>{sourceGrounding && <SourceGroundingCard grounding={sourceGrounding} />}</details>}
   </>;
   return <aside className="session-guide"><div className="session-guide-desktop">{guide}</div><details className="session-guide-mobile"><summary><span><strong>{methodBriefing?.name ?? "Session path"}</strong><small>{modeLabel} · Step {step + 1} of {steps.length} · {roadmap.length} learning phases</small></span><ChevronRight size={17} /></summary><div>{guide}</div></details></aside>;
 }

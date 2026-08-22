@@ -4,6 +4,7 @@ import { PlanKnowledgeMapSchema } from "@/lib/knowledge-map/schema";
 import { buildSessionMapDelta } from "@/lib/knowledge-map/session-delta";
 
 const topicId = "10000000-1000-4000-8000-000000000001";
+const deferredTopicId = "10000000-1000-4000-8000-000000000002";
 
 function map(status: "not_started" | "taught" | "evidenced" | "secure") {
   return PlanKnowledgeMapSchema.parse({
@@ -92,5 +93,40 @@ describe("post-session knowledge-map delta", () => {
       evidence,
       "unguided_practice",
     )).toEqual([]);
+  });
+
+  it("does not mark a deferred-only planned topic taught after a shortened generated lesson", () => {
+    const currentMap = map("not_started");
+    currentMap.topics.push({
+      ...currentMap.topics[0]!,
+      id: deferredTopicId,
+      title: "Calvin cycle",
+    });
+    const currentSession = session("learn");
+    currentSession.topicIds = [topicId, deferredTopicId];
+    currentSession.resource = {
+      topicIds: [topicId],
+      rationale: "The current time window safely covers only photosynthesis inputs.",
+      coverage: {
+        focus: "Photosynthesis inputs",
+        essentialIdeas: ["Light reactions capture energy."],
+        completionEvidence: ["Explain how light reactions capture energy."],
+        evidenceMap: [{
+          essentialIdea: "Light reactions capture energy.",
+          activityConcept: "Photosynthesis inputs",
+        }],
+        deferredContent: ["Calvin cycle outputs"],
+      },
+      activities: [],
+      generatedAt: "2026-08-22T10:00:00.000Z",
+      origin: "generated",
+    };
+
+    expect(buildSessionMapDelta(currentMap, currentSession, [])).toEqual([{
+      topicId,
+      title: "Photosynthesis",
+      from: "not_started",
+      to: "taught",
+    }]);
   });
 });

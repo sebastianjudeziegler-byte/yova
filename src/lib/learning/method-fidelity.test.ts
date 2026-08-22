@@ -24,6 +24,20 @@ describe("learning-method fidelity", () => {
     })).toBeNull();
   });
 
+  it("requires the explain phase to collect the learner's own words", () => {
+    expect(validateMethodFidelity({
+      methodId: "self_explanation",
+      learningMode: "study",
+      activities: [activity("model"), activity("explain", "multiple_choice", "Funding tradeoff")],
+    })).toMatch(/cannot perform that learning phase/i);
+
+    expect(validateMethodFidelity({
+      methodId: "self_explanation",
+      learningMode: "study",
+      activities: [activity("model"), activity("explain", "free_response", "Funding tradeoff")],
+    })).toBeNull();
+  });
+
   it("rejects a worked example label attached to ordinary quiz questions", () => {
     expect(validateMethodFidelity({
       methodId: "worked_example_fading",
