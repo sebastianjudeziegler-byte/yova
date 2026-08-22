@@ -1,5 +1,9 @@
 import { expect, test, type Page } from "@playwright/test";
-import { sessionCacheScopeFingerprint } from "../src/lib/session-generation/cache-contract";
+import type { LearningPlan } from "../src/lib/domain";
+import {
+  hydratedSessionResourceCacheIssue,
+  sessionCacheScopeFingerprint,
+} from "../src/lib/session-generation/cache-contract";
 import { SessionGenerationResponseSchema } from "../src/lib/session-generation/schema";
 
 const onboardingAnswers = [
@@ -1479,7 +1483,16 @@ test("a saved first-step recall round resumes at the next prompt without persist
 
   await page.route("**/api/sessions/generate", async (route) => {
     generationRequests += 1;
-    const fixture = retrievalRoundResumeSessionResponse();
+    const plannedMinutes = await page.evaluate(() => {
+      const raw = window.localStorage.getItem("yova.preview.v1");
+      if (!raw) return 25;
+      const snapshot = JSON.parse(raw) as {
+        plans?: Array<{ sessions?: Array<{ status?: string; estimatedMinutes?: number }> }>;
+      };
+      return snapshot.plans?.at(-1)?.sessions?.find((session) => session.status === "ready")
+        ?.estimatedMinutes ?? 25;
+    });
+    const fixture = retrievalRoundResumeSessionResponse(plannedMinutes);
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -1496,6 +1509,27 @@ test("a saved first-step recall round resumes at the next prompt without persist
   await page.getByRole("button", { name: /Choose how YOVA should help/ }).click();
   await page.getByRole("button", { name: /Create it for me/ }).click();
   await page.getByRole("button", { name: /Build and start session/ }).click();
+  await expect(page.getByRole("heading", { name: "Here is how YOVA plans to start." })).toBeVisible({
+    timeout: 15_000,
+  });
+  await page.evaluate(() => {
+    const raw = window.localStorage.getItem("yova.preview.v1");
+    if (!raw) throw new Error("Expected the Study Now plan before starting its recall round.");
+    const snapshot = JSON.parse(raw) as {
+      plans?: Array<{
+        learningIntent?: string;
+        sessions?: Array<{ status?: string; learningMode?: string }>;
+      }>;
+    };
+    const plan = snapshot.plans?.at(-1);
+    const session = plan?.sessions?.find((candidate) => candidate.status === "ready");
+    if (!plan || !session) throw new Error("Expected one ready Study Now session.");
+    plan.learningIntent = "study";
+    session.learningMode = "study";
+    window.localStorage.setItem("yova.preview.v1", JSON.stringify(snapshot));
+  });
+  await page.reload();
+  await page.getByRole("button", { name: "Start session" }).click();
   await confirmSessionSetup(page);
   await expect(page.getByText("Close your osmosis notes before answering.", { exact: true })).toBeVisible();
   await expect(page.getByText("0 of 3 answered", { exact: true })).toBeVisible();
@@ -1575,6 +1609,29 @@ test("a saved first-step recall round resumes at the next prompt without persist
     savedAfterExit: true,
     fingerprinted: true,
   });
+
+  const hydratedPlan = await page.evaluate(() => {
+    const raw = window.localStorage.getItem("yova.preview.v1");
+    if (!raw) return null;
+    const snapshot = JSON.parse(raw) as { plans?: LearningPlan[] };
+    return snapshot.plans?.at(-1) ?? null;
+  });
+  expect(hydratedPlan).not.toBeNull();
+  const hydratedSession = hydratedPlan?.sessions.find((session) => session.status === "ready");
+  expect(hydratedSession).toBeDefined();
+  const cacheIssue = hydratedSessionResourceCacheIssue({
+    plan: hydratedPlan!,
+    session: hydratedSession!,
+    adjustment: null,
+  });
+  expect(cacheIssue, JSON.stringify({
+    planLearningIntent: hydratedPlan?.learningIntent,
+    planArchitecture: hydratedPlan?.sessionArchitectureVersion,
+    studyMode: hydratedPlan?.studyMode,
+    plannedMode: hydratedSession?.learningMode,
+    resourceSchema: hydratedSession?.resource?.schemaVersion,
+    resourceMode: hydratedSession?.resource?.methodBriefing?.learningMode,
+  })).toBeNull();
 
   await page.reload();
   await page.getByRole("button", { name: "Continue session" }).click();
@@ -3547,7 +3604,7 @@ function scheduledReviewSessionResponse() {
   });
 }
 
-function retrievalRoundResumeSessionResponse() {
+function retrievalRoundResumeSessionResponse(plannedMinutes = 25) {
   const response = streamedResumeSessionResponse();
   const retrievalActivity = response.session.activities[1]!;
   const repairActivity = response.session.activities[2]!;
@@ -3557,6 +3614,15 @@ function retrievalRoundResumeSessionResponse() {
     session: {
       ...response.session,
       schemaVersion: 15,
+      cacheContext: {
+        ...response.session.cacheContext,
+        effectiveMinutes: plannedMinutes,
+        scopeFingerprint: sessionCacheScopeFingerprint({
+          plannedMinutes,
+          adjustment: null,
+          contractKey: null,
+        }),
+      },
       methodBriefing: {
         ...response.session.methodBriefing,
         learningMode: "study",
