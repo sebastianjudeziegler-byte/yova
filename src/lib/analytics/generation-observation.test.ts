@@ -84,6 +84,30 @@ describe("GenerationObservationSchema", () => {
     }
   });
 
+  it("accepts the privacy-safe deterministic practice-metadata repair code", () => {
+    expect(GenerationObservationSchema.safeParse({
+      ...safeEvent,
+      diagnostics: { sessionValidationIssueCode: "session_practice_metadata" },
+    }).success).toBe(true);
+  });
+
+  it("accepts UUID-only session correlation diagnostics", () => {
+    expect(GenerationObservationSchema.safeParse({
+      ...safeEvent,
+      diagnostics: {
+        sessionRequestId: "d870b3e3-4286-4709-8a16-86bb785edcd9",
+        planSessionId: "c2da486e-5ba0-4bc6-af7d-d8f5bb3d21af",
+      },
+    }).success).toBe(true);
+    expect(GenerationObservationSchema.safeParse({
+      ...safeEvent,
+      diagnostics: {
+        sessionRequestId: "private learner session reference",
+        planSessionId: "not-a-uuid",
+      },
+    }).success).toBe(false);
+  });
+
   it("rejects learner content even if a caller tries to add it", () => {
     expect(GenerationObservationSchema.safeParse({
       ...safeEvent,

@@ -1680,6 +1680,64 @@ describe("outside-YOVA teaching-first generation", () => {
       validationIssueCode: "session_required_typed_recall",
     });
   });
+
+  it("server-normalizes evidence-derived practice metadata before full-session validation", async () => {
+    parseResponse.mockReset();
+    const base = buildSessionEvaluationCases()
+      .find((candidate) => candidate.id === "startup_funding_foundations")!.context;
+    const context: SessionGenerationContext = {
+      ...base,
+      sessionArchitectureVersion: "filled_teaching_v1",
+      learningGoal: {
+        ...base.learningGoal,
+        studyMode: "outside_yova",
+        sourceMode: "yova_generated",
+        learningIntent: "learn",
+      },
+    };
+    const draft = learningDraft("model");
+    draft.activities[1]!.methodPhase = "explain";
+    draft.activities.push({
+      topicId: null,
+      methodPhase: "repair",
+      concept: null,
+      estimatedMinutes: 1,
+      requiredForCompletion: false,
+      label: "Repair",
+      title: "Repair only the missing relationship",
+      body: "Compare your explanation with the source and correct only the relationship you missed.",
+      teaching: null,
+      type: "instruction",
+      choices: [],
+      correctAnswer: null,
+      feedback: null,
+      practiceIntent: null,
+      misconceptionSummary: null,
+    });
+    draft.activities.forEach((activity) => {
+      if (activity.type === "multiple_choice" || activity.type === "free_response") {
+        activity.practiceIntent = "develop_gap";
+      }
+    });
+    parseResponse.mockResolvedValueOnce(completedProviderResponse("wrong-practice-metadata", draft));
+
+    const { generateSessionWithOpenAI } = await import("@/lib/openai/session-generator");
+    const result = await generateSessionWithOpenAI(context);
+
+    expect(parseResponse).toHaveBeenCalledTimes(1);
+    expect(result.draft.activities.filter((activity) => (
+      activity.type === "multiple_choice" || activity.type === "free_response"
+    )).map((activity) => activity.practiceIntent)).toEqual(["baseline", "baseline"]);
+    expect(result.generationStats).toMatchObject({
+      attempts: 1,
+      firstAttemptPassed: false,
+      failedValidator: "session_practice_variation",
+      repairAttempted: true,
+      repairSucceeded: true,
+      repairReason: "semantic_validation",
+      validationIssueCode: "session_practice_metadata",
+    });
+  });
 });
 
 describe("bounded teaching-first recovery", () => {

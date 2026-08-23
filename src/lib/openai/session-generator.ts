@@ -71,6 +71,7 @@ import type {
 } from "@/lib/learning/confidence-calibration";
 import {
   buildPracticeVariationContract,
+  reconcilePracticeIntentMetadata,
   validatePracticeVariation,
 } from "@/lib/learning/practice-variation";
 import {
@@ -848,7 +849,7 @@ export async function generateSessionWithOpenAI(
   let firstSemanticValidator: GenerationValidator | null = null;
   let safeRecoveryMode: SessionGenerationStats["recoveryMode"] | null = null;
   let validationIssueCode: SessionGenerationStats["validationIssueCode"] = null;
-  let deterministicActivityFormatRepair: "missing_typed_recall" | "explain_phase_type" | null = null;
+  let deterministicActivityFormatRepair: "missing_typed_recall" | "explain_phase_type" | "practice_intent" | null = null;
   const generationBudget = resolveSessionGenerationBudget(runtime, generationStartedAt);
   const budgetFailureStats: SessionBudgetFailureStats = (additionalUsage) => ({
     elapsedMs: Date.now() - generationStartedAt,
@@ -1304,7 +1305,9 @@ export async function generateSessionWithOpenAI(
             ? "session_structure"
             : firstSemanticValidator ?? "session_semantic_validation"
         : serverFormatRepair
-          ? deterministicActivityFormatRepair === "missing_typed_recall"
+          ? deterministicActivityFormatRepair === "practice_intent"
+            ? "session_practice_variation"
+            : deterministicActivityFormatRepair === "missing_typed_recall"
             ? "session_required_typed_recall"
             : "session_method_fidelity"
           : null,
@@ -1312,7 +1315,9 @@ export async function generateSessionWithOpenAI(
       repairSucceeded: repairAttempted || serverFormatRepair ? true : null,
       repairReason: serverFormatRepair ? "semantic_validation" : repairReason,
       repairDetail: serverFormatRepair
-        ? deterministicActivityFormatRepair === "missing_typed_recall"
+        ? deterministicActivityFormatRepair === "practice_intent"
+          ? "YOVA restored the evidence-derived practice-intent metadata without changing the question, answer, phase, support, or misconception content, then reran the complete validator."
+          : deterministicActivityFormatRepair === "missing_typed_recall"
           ? "YOVA converted one existing completion-required knowledge check to typed recall and reran the complete validator."
           : "YOVA converted an explain-phase recognition check to typed explanation and reran the complete validator."
         : repairDetail,
@@ -1321,7 +1326,9 @@ export async function generateSessionWithOpenAI(
       cacheWriteTokens: usage.cacheWriteTokens,
       outputTokens: usage.outputTokens,
       validationIssueCode: serverFormatRepair
-        ? deterministicActivityFormatRepair === "missing_typed_recall"
+        ? deterministicActivityFormatRepair === "practice_intent"
+          ? "session_practice_metadata"
+          : deterministicActivityFormatRepair === "missing_typed_recall"
           ? "session_required_typed_recall"
           : null
         : validationIssueCode,
@@ -3176,6 +3183,7 @@ export function applyCurrentSessionAdjustment(context: SessionGenerationContext)
  */
 export function scopeFullSessionToCurrentWindow(
   context: SessionGenerationContext,
+  maximumActiveTargets?: number,
 ): SessionGenerationContext {
   if (context.session.reviewType) return context;
 
@@ -3186,6 +3194,7 @@ export function scopeFullSessionToCurrentWindow(
     plannedTargets.length,
     budget.maximumContentTargets,
     budget.maximumCompletionChecks,
+    Math.max(1, maximumActiveTargets ?? plannedTargets.length),
   );
   const requiresWindowSplit = plannedTargets.length > capacity;
   const isDeferredContinuation = isDeferredSessionContinuation(context.session);
@@ -3474,8 +3483,18 @@ function parseGeneratedSessionDraft(
     orderedActivities,
     buildConceptReviewSchedule(context.conceptSignals),
   );
+  const practiceIntentReconciliation = reconcilePracticeIntentMetadata({
+    contract: buildPracticeVariationContract({
+      topics: context.knowledgeTopics,
+      conceptSignals: context.conceptSignals,
+      scaffoldSignals: context.scaffoldSignals ?? [],
+      calibrationSignals: context.topicCalibrationSignals ?? [],
+      maximumChecks: contentBudgetForMinutes(context.session.estimatedMinutes).maximumCompletionChecks,
+    }),
+    activities: reviewAlignedActivities,
+  });
   const policyAlignedActivities = ensureDelayedRetrievalReturn(
-    reviewAlignedActivities,
+    practiceIntentReconciliation.activities,
     deliveryPolicy,
     context.session.title,
   );
@@ -3542,7 +3561,9 @@ function parseGeneratedSessionDraft(
   return {
     ...GeneratedSessionDraftSchema.safeParse(activityFormatAlignedDraft),
     activityFormatNormalizationReason: activityFormatAlignedDraft === reconciledDraft
-      ? null
+      ? practiceIntentReconciliation.repairedCount > 0
+        ? "practice_intent" as const
+        : null
       : alreadyHasRequiredFreeResponse
         ? "explain_phase_type" as const
         : "missing_typed_recall" as const,
@@ -4073,8 +4094,13 @@ export function validateSessionCoverageFidelity(
 
   const plannedTargets = session.contentTargets ?? [];
   const requiredDeferredTargets = session.deferredContentTargets ?? [];
+  const authoritativeCoveredTargetKeys = new Set(
+    authoritativeCoveredTargets.map(normalizeCoverageTarget),
+  );
   const activeDeferredTarget = requiredDeferredTargets.find((target) => (
-    draft.coverage.essentialIdeas.some((idea) => coverageTargetsMatch(idea, target))
+    authoritativeCoveredTargetKeys.size > 0
+      ? authoritativeCoveredTargetKeys.has(normalizeCoverageTarget(target))
+      : draft.coverage.essentialIdeas.some((idea) => coverageTargetsMatch(idea, target))
   ));
   if (activeDeferredTarget) {
     return `The generated session actively covered a target reserved for later: ${activeDeferredTarget}. Keep it only in deferredContent.`;
@@ -4088,9 +4114,6 @@ export function validateSessionCoverageFidelity(
     return `The generated session lost deferred plan content: ${missingDeferredTargets.join(", ")}. Preserve each exact label in deferredContent.`;
   }
   if (plannedTargets.length === 0) return null;
-  const authoritativeCoveredTargetKeys = new Set(
-    authoritativeCoveredTargets.map(normalizeCoverageTarget),
-  );
   const generatedCoverage = [...draft.coverage.essentialIdeas, ...draft.coverage.deferredContent];
   const missingTargets = plannedTargets.filter((target) => (
     !authoritativeCoveredTargetKeys.has(normalizeCoverageTarget(target))

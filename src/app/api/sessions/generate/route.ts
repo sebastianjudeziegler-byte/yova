@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import type { SessionCompletion, SessionInterruption } from "@/lib/domain";
 import { generationEnvironment } from "@/lib/analytics/generation-observation";
-import { recordGenerationObservation } from "@/lib/analytics/generation-observation-server";
+import { recordGenerationObservationAfterResponse } from "@/lib/analytics/generation-observation-server";
 import { PlanKnowledgeMapSchema } from "@/lib/knowledge-map/schema";
 import {
   buildTopicMaterialExcerpts,
@@ -441,6 +441,10 @@ export async function POST(request: Request) {
         generationType: "session",
         environment: generationEnvironment(),
         finalOutcome: "cache",
+        diagnostics: {
+          sessionRequestId: requestId,
+          planSessionId: planSession.id,
+        },
       });
       return NextResponse.json(SessionGenerationResponseSchema.parse({
         planSessionId: planSession.id,
@@ -783,6 +787,8 @@ export async function POST(request: Request) {
       generated.generationStats,
       generated.model,
       "success",
+      requestId,
+      planSession.id,
     ));
 
     return learnerResponse;
@@ -804,7 +810,13 @@ export async function POST(request: Request) {
     recordGenerationObservationBestEffort(
       supabase,
       user.id,
-      observationFromSessionStats(stats, attemptedModel, "failure"),
+      observationFromSessionStats(
+        stats,
+        attemptedModel,
+        "failure",
+        requestId,
+        planSession.id,
+      ),
     );
     return NextResponse.json(
       {
@@ -868,10 +880,10 @@ function generationRequestId(request: Request) {
 }
 
 function recordGenerationObservationBestEffort(
-  ...args: Parameters<typeof recordGenerationObservation>
+  ...args: Parameters<typeof recordGenerationObservationAfterResponse>
 ) {
   try {
-    void Promise.resolve(recordGenerationObservation(...args)).catch(() => undefined);
+    recordGenerationObservationAfterResponse(...args);
   } catch {
     // Telemetry must never replace a learner-usable or structured route result.
   }
@@ -1067,8 +1079,12 @@ function observationFromSessionStats(
   stats: SessionGenerationStats,
   model: string | null,
   finalOutcome: "success" | "failure",
+  sessionRequestId: string,
+  planSessionId: string,
 ) {
   const diagnostics = {
+    sessionRequestId,
+    planSessionId,
     ...(stats.recoveryMode ? { recoveryMode: stats.recoveryMode } : {}),
     ...(stats.validationIssueCode
       ? { sessionValidationIssueCode: stats.validationIssueCode }

@@ -41,6 +41,11 @@ type PracticeActivity = {
   misconceptionSummary?: string | null;
 };
 
+export type PracticeIntentReconciliation<T extends PracticeActivity> = {
+  activities: T[];
+  repairedCount: number;
+};
+
 export function buildPracticeVariationContract({
   topics,
   conceptSignals,
@@ -228,6 +233,117 @@ export function validatePracticeVariation({
   }
 
   return null;
+}
+
+/**
+ * Reconciles provider-authored practice-intent labels with YOVA's
+ * evidence-derived contract without changing any subject content or learning
+ * phase. The intent is authoritative metadata, so ordinary baseline and gap
+ * labels can be corrected directly. Intents that promise a particular
+ * learning shape are corrected only when that shape already exists; the
+ * semantic validator remains responsible for rejecting missing support,
+ * repeated secure checks, and incomplete misconception discrimination.
+ */
+export function reconcilePracticeIntentMetadata<T extends PracticeActivity>({
+  contract,
+  activities,
+}: {
+  contract: PracticeVariationContract;
+  activities: T[];
+}): PracticeIntentReconciliation<T> {
+  const directiveByTopicId = new Map(
+    contract.directives.map((directive) => [directive.topicId, directive]),
+  );
+  const checksByTopicId = new Map<string, T[]>();
+  for (const activity of activities) {
+    if (!activity.topicId || !isKnowledgeCheck(activity)) continue;
+    checksByTopicId.set(activity.topicId, [
+      ...(checksByTopicId.get(activity.topicId) ?? []),
+      activity,
+    ]);
+  }
+
+  let repairedCount = 0;
+  const reconciled = activities.map((activity, index) => {
+    if (!activity.topicId || !isKnowledgeCheck(activity)) return activity;
+    const directive = directiveByTopicId.get(activity.topicId);
+    if (!directive) return activity;
+    const intentAlreadyMatches = activity.practiceIntent === directive.requiredIntent;
+    const staleMisconceptionSummary = directive.requiredIntent !== "misconception_discrimination"
+      && activity.misconceptionSummary !== null
+      && activity.misconceptionSummary !== undefined;
+    if (intentAlreadyMatches && !staleMisconceptionSummary) return activity;
+    if (
+      !intentAlreadyMatches
+      && !canReconcilePracticeIntent({
+        activity,
+        activityIndex: index,
+        activities,
+        directive,
+        topicChecks: checksByTopicId.get(activity.topicId) ?? [],
+      })
+    ) return activity;
+
+    repairedCount += 1;
+    return {
+      ...activity,
+      practiceIntent: directive.requiredIntent,
+      // Only a misconception-discrimination check may carry learner-specific
+      // misconception evidence. When the server corrects any other intent,
+      // discard stale or provider-invented text instead of preserving it as
+      // though it were authoritative learner history.
+      misconceptionSummary: directive.requiredIntent === "misconception_discrimination"
+        ? activity.misconceptionSummary
+        : null,
+    };
+  });
+
+  return {
+    activities: repairedCount > 0 ? reconciled : activities,
+    repairedCount,
+  };
+}
+
+function canReconcilePracticeIntent<T extends PracticeActivity>({
+  activity,
+  activityIndex,
+  activities,
+  directive,
+  topicChecks,
+}: {
+  activity: T;
+  activityIndex: number;
+  activities: T[];
+  directive: TopicPracticeDirective;
+  topicChecks: T[];
+}) {
+  if (directive.requiredIntent === "misconception_discrimination") {
+    return activity.methodPhase === "discriminate"
+      && Boolean(directive.misconceptionSummary)
+      && activity.misconceptionSummary === directive.misconceptionSummary;
+  }
+  if (directive.requiredIntent === "supported_recheck") {
+    return activities.some((candidate, index) => (
+      index < activityIndex
+      && (candidate.methodPhase === "model" || candidate.methodPhase === "guided_practice")
+    ));
+  }
+  if (directive.requiredIntent === "independent_transfer") {
+    return new Set<MethodPhase>([
+      "retrieve",
+      "explain",
+      "independent_practice",
+      "discriminate",
+      "transfer",
+    ]).has(activity.methodPhase);
+  }
+  if (directive.requiredIntent === "light_verification") {
+    // The validator permits one check only for secure knowledge. Relabeling
+    // one of several checks would hide neither the over-practice nor its
+    // underlying sequence problem, so leave all of them for strict rejection.
+    return topicChecks.length === 1;
+  }
+  return true;
 }
 
 function findByTopicOrConcept<T extends { topicId?: string; concept: string }>(
