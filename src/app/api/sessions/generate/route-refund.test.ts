@@ -138,16 +138,19 @@ describe("guided-session allowance settlement contract", () => {
     expect(release).toBeGreaterThan(catchBoundary);
   });
 
-  it("keeps cache, success, and failure telemetry best-effort", () => {
+  it("keeps cache, success, and failure telemetry after-response and best-effort", () => {
     expect(routeSource).not.toContain("await recordGenerationObservation(");
     expect(routeSource.match(/recordGenerationObservationBestEffort\(/g)).toHaveLength(4);
     const helper = routeSource.slice(
       routeSource.indexOf("function recordGenerationObservationBestEffort"),
       routeSource.indexOf("async function generateBrowserPreviewSession"),
     );
-    expect(helper).toContain("try {");
-    expect(helper).toContain("Promise.resolve(recordGenerationObservation(...args)).catch");
-    expect(helper).toContain("} catch {");
+    expect(helper).toContain("recordGenerationObservationAfterResponse(...args)");
+    expect(routeSource).toContain(
+      'import { recordGenerationObservationAfterResponse } from "@/lib/analytics/generation-observation-server"',
+    );
+    expect(routeSource).toContain("sessionRequestId: requestId");
+    expect(routeSource).toContain("planSessionId: planSession.id");
   });
 
   it("does not expose a browser-only lesson when its deferred targets need the cloud continuation receipt", () => {

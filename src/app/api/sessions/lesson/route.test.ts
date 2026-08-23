@@ -18,6 +18,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("@/lib/analytics/generation-observation-server", () => ({
   recordGenerationObservation: mocks.recordObservation,
+  recordGenerationObservationAfterResponse: mocks.recordObservation,
 }));
 vi.mock("@/lib/openai/config", () => ({
   getOpenAILessonConfig: () => ({ model: "configured-lesson-model" }),

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { KnowledgeMapTopic } from "@/lib/knowledge-map/schema";
 import {
   buildPracticeVariationContract,
+  reconcilePracticeIntentMetadata,
   validatePracticeVariation,
 } from "@/lib/learning/practice-variation";
 
@@ -145,5 +146,128 @@ describe("evidence-driven practice variation", () => {
       maximumChecks: 1,
     });
     expect(validatePracticeVariation({ contract, activities: [], isScheduledReview: true })).toBeNull();
+  });
+
+  it("repairs authoritative intent metadata without changing question content or phase", () => {
+    const contract = buildPracticeVariationContract({
+      topics: [topic(gapId, "Spanish food and restaurant vocabulary", "not_started")],
+      conceptSignals: [],
+      scaffoldSignals: [],
+      calibrationSignals: [],
+      maximumChecks: 2,
+    });
+    const activities = [{
+      topicId: gapId,
+      methodPhase: "explain" as const,
+      type: "free_response" as const,
+      practiceIntent: "develop_gap" as const,
+      misconceptionSummary: "Provider-invented misconception that is not learner evidence.",
+      prompt: "Explain how quisiera combines with a food or drink to make a polite order.",
+    }, {
+      topicId: gapId,
+      methodPhase: "explain" as const,
+      type: "free_response" as const,
+      practiceIntent: "supported_recheck" as const,
+      misconceptionSummary: "Another stale provider-authored misconception.",
+      prompt: "Use restaurant vocabulary to ask for water and a menu.",
+    }];
+
+    const reconciled = reconcilePracticeIntentMetadata({ contract, activities });
+
+    expect(reconciled.repairedCount).toBe(2);
+    expect(reconciled.activities.map((activity) => activity.practiceIntent)).toEqual([
+      "baseline",
+      "baseline",
+    ]);
+    expect(reconciled.activities.map((activity) => [activity.methodPhase, activity.prompt])).toEqual(
+      activities.map((activity) => [activity.methodPhase, activity.prompt]),
+    );
+    expect(reconciled.activities.map((activity) => activity.misconceptionSummary)).toEqual([
+      null,
+      null,
+    ]);
+    expect(validatePracticeVariation({
+      contract,
+      activities: reconciled.activities,
+      isScheduledReview: false,
+    })).toBeNull();
+  });
+
+  it("does not invent support or misconception discrimination while reconciling metadata", () => {
+    const misconception = "Using quiero is always the only way to order politely.";
+    const misconceptionContract = buildPracticeVariationContract({
+      topics: [topic(gapId, "Spanish restaurant requests", "taught")],
+      conceptSignals: [],
+      scaffoldSignals: [],
+      calibrationSignals: [{
+        topicId: gapId,
+        concept: "Spanish restaurant requests",
+        pattern: "possible_misconception",
+        checkedAnswers: 1,
+        highConfidenceMisses: 1,
+        lowConfidenceSuccesses: 0,
+        misconceptionSummary: misconception,
+        feedback: "Contrast quiero with a context-appropriate polite request.",
+      }],
+      maximumChecks: 1,
+    });
+    const unsupported = [{
+      topicId: gapId,
+      methodPhase: "explain" as const,
+      type: "free_response" as const,
+      practiceIntent: "baseline" as const,
+      misconceptionSummary: null,
+    }];
+
+    expect(reconcilePracticeIntentMetadata({
+      contract: misconceptionContract,
+      activities: unsupported,
+    })).toEqual({ activities: unsupported, repairedCount: 0 });
+
+    const supportedContract = buildPracticeVariationContract({
+      topics: [topic(gapId, "Spanish restaurant requests", "taught")],
+      conceptSignals: [],
+      scaffoldSignals: [{
+        topicId: gapId,
+        concept: "Spanish restaurant requests",
+        checks: 2,
+        supportedChecks: 1,
+        independentChecks: 1,
+        secureIndependentChecks: 0,
+        latestOutcome: "needs_review",
+        latestPhase: "independent_practice",
+        status: "restore_support",
+        evidence: "The latest independent check still needs review.",
+        guidance: "Restore one bounded model before another attempt.",
+      }],
+      calibrationSignals: [],
+      maximumChecks: 1,
+    });
+    expect(reconcilePracticeIntentMetadata({
+      contract: supportedContract,
+      activities: unsupported,
+    })).toEqual({ activities: unsupported, repairedCount: 0 });
+  });
+
+  it("removes a provider-invented misconception summary even when the ordinary intent already matches", () => {
+    const contract = buildPracticeVariationContract({
+      topics: [topic(gapId, "Spanish restaurant vocabulary", "not_started")],
+      conceptSignals: [],
+      scaffoldSignals: [],
+      calibrationSignals: [],
+      maximumChecks: 1,
+    });
+    const activity = {
+      topicId: gapId,
+      methodPhase: "explain" as const,
+      type: "free_response" as const,
+      practiceIntent: "baseline" as const,
+      misconceptionSummary: "The learner supposedly confuses every restaurant noun.",
+    };
+
+    expect(reconcilePracticeIntentMetadata({ contract, activities: [activity] })).toEqual({
+      repairedCount: 1,
+      activities: [{ ...activity, misconceptionSummary: null }],
+    });
   });
 });

@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { aiUsageReservationConflict } from "@/lib/ai-usage/reservation-conflict";
 import { generationEnvironment } from "@/lib/analytics/generation-observation";
-import { recordGenerationObservation } from "@/lib/analytics/generation-observation-server";
+import { recordGenerationObservationAfterResponse } from "@/lib/analytics/generation-observation-server";
 import { getOpenAILessonConfig, isOpenAILessonConfigured } from "@/lib/openai/config";
 import {
   buildBoundedFallbackLesson,
@@ -507,10 +507,10 @@ function validatorForLessonFailure(
 }
 
 function recordGenerationObservationBestEffort(
-  ...args: Parameters<typeof recordGenerationObservation>
+  ...args: Parameters<typeof recordGenerationObservationAfterResponse>
 ) {
   try {
-    void Promise.resolve(recordGenerationObservation(...args)).catch(() => undefined);
+    recordGenerationObservationAfterResponse(...args);
   } catch {
     // Telemetry must never replace lesson delivery or skip acknowledgement.
   }

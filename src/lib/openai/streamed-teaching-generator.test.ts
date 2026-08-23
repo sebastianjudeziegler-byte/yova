@@ -17,6 +17,343 @@ const TOPIC_ID = "11111111-1111-4111-8111-111111111111";
 const MATERIAL_ID = "22222222-2222-4222-8222-222222222222";
 const CHUNK_ID = "33333333-3333-4333-8333-333333333333";
 const AI_TOPIC_ID = "44444444-4444-4444-8444-444444444444";
+const RETRIEVAL_TOPIC_IDS = [
+  "55555555-5555-4555-8555-555555555555",
+  "66666666-6666-4666-8666-666666666666",
+  "77777777-7777-4777-8777-777777777777",
+  "88888888-8888-4888-8888-888888888888",
+] as const;
+
+function completedProviderResponse(id: string, output_parsed: unknown) {
+  return {
+    id,
+    model: "gpt-yova-test",
+    status: "completed",
+    output_parsed,
+    usage: {
+      input_tokens: 600,
+      input_tokens_details: { cached_tokens: 0, cache_write_tokens: 0 },
+      output_tokens: 300,
+    },
+  };
+}
+
+function spanishRestaurantContext(estimatedMinutes = 20): SessionGenerationContext {
+  const target = "Spanish food and restaurant vocabulary";
+  return {
+    sessionArchitectureVersion: "streamed_teaching_v1",
+    learningGoal: {
+      title: "Spanish food and restaurant vocabulary",
+      topic: "Explain how Spanish food names and restaurant request phrases work together in a complete exchange",
+      kind: "skill",
+      deadline: null,
+      sourceMode: "yova_generated",
+      studyMode: "inside_yova",
+      learningIntent: "learn",
+    },
+    planRationale: "Build an accurate language model, use it in one concrete exchange, and explain the pattern with less support.",
+    journey: {
+      currentSequence: 1,
+      totalSessions: 3,
+      previousSessions: [],
+      nextSessions: [],
+    },
+    materials: [],
+    knowledgeTopics: [{
+      id: TOPIC_ID,
+      title: target,
+      description: "High-frequency Spanish food nouns and polite restaurant request phrases used in a short exchange.",
+      subtopics: ["foods and drinks", "polite requests", "short restaurant exchange"],
+      prerequisiteTopicIds: [],
+      status: "not_started",
+      initialEvidence: null,
+      sourceReferences: [],
+      origin: "ai_generated",
+      deferred: null,
+    }],
+    session: {
+      title: "Order food in a short Spanish exchange",
+      objective: "Explain how Spanish food words combine with a polite restaurant request, then use the pattern in a short exchange.",
+      method: "Self-explanation",
+      methodReason: "Study one accurate exchange, then explain and use its language pattern without the model visible.",
+      estimatedMinutes,
+      learningMode: "learn",
+      topicIds: [TOPIC_ID],
+      contentTargets: [target],
+      completionEvidence: ["Explain and use the restaurant request pattern without reopening the model"],
+      reviewConcept: null,
+      reviewType: null,
+    },
+    learnerProfile: null,
+    sessionAdjustment: null,
+    recentResults: [],
+    recentInterruptions: [],
+    conceptSignals: [],
+    scaffoldSignals: [],
+    topicCalibrationSignals: [],
+  };
+}
+
+const SPANISH_IDEAS = [
+  "Spanish food vocabulary uses nouns such as agua and sopa to name what a diner may order.",
+  "Spanish restaurant vocabulary combines quisiera with a food or drink to form a polite request.",
+] as const;
+
+function spanishRecoveryItems(itemCount: 1 | 2 = 2) {
+  return {
+    items: SPANISH_IDEAS.slice(0, itemCount).map((essentialIdea, index) => ({
+      essentialIdea,
+      concept: index === 0 ? "Spanish food nouns" : "Spanish polite restaurant requests",
+      check: index === 0 ? {
+        title: "Explain the food words",
+        prompt: "Explain how agua and sopa function in a Spanish restaurant order, and give one short example.",
+        referenceAnswer: "Agua and sopa are food or drink nouns that name the item being requested, as in Quisiera agua, por favor.",
+        feedback: "The answer should connect the Spanish noun to the item requested in a complete restaurant phrase.",
+      } : {
+        title: "Build a polite restaurant request",
+        prompt: "Explain how quisiera combines with a Spanish food or drink noun, then write one complete request.",
+        referenceAnswer: "Quisiera introduces a polite request and is followed by the desired item, as in Quisiera una sopa, por favor.",
+        feedback: "Use quisiera plus the requested food or drink and complete the phrase with context-appropriate wording.",
+      },
+      independentCheck: null,
+    })),
+  };
+}
+
+function workedExampleContext(): SessionGenerationContext {
+  const target = "Use the product rule to differentiate a product of two functions";
+  const context = spanishRestaurantContext(15);
+  return {
+    ...context,
+    learningGoal: {
+      ...context.learningGoal,
+      title: "Solve calculus derivative problems",
+      topic: "Differentiate products of functions with the product rule",
+    },
+    knowledgeTopics: [{
+      ...context.knowledgeTopics[0]!,
+      title: target,
+      description: "How the derivative of a product combines each factor with the derivative of the other factor.",
+      subtopics: ["identify both factors", "differentiate each factor", "combine product-rule terms"],
+    }],
+    session: {
+      ...context.session,
+      title: "Solve one product-rule derivative",
+      objective: "Solve a calculus derivative problem by applying the product rule and simplifying the result.",
+      method: "Worked example fading",
+      methodReason: "Study one complete derivative, then apply the same rule with the worked steps faded.",
+      contentTargets: [target],
+      completionEvidence: ["Differentiate a new product of functions without reopening the worked solution"],
+    },
+  };
+}
+
+function duplicateWorkedExampleRecovery() {
+  const prompt = "Differentiate h(x) = x squared times sine of x, and show how the product rule determines both terms.";
+  const check = {
+    title: "Apply the product rule",
+    prompt,
+    referenceAnswer: "The derivative is 2x sine of x plus x squared cosine of x because each factor is differentiated once.",
+    feedback: "Keep the untouched partner beside each derivative, then add the two resulting product terms.",
+  };
+  return {
+    items: [{
+      essentialIdea: "The product rule differentiates each factor once while preserving the other factor, then adds the two terms.",
+      concept: "Product-rule differentiation",
+      check,
+      independentCheck: { ...check, title: "Independent product-rule application" },
+    }],
+  };
+}
+
+function retrievalRecoveryItems(targets: string[]) {
+  const terms = ["agua", "sopa", "cuenta", "quisiera"];
+  const definitions = ["water", "soup", "bill", "I would like"];
+  return {
+    items: targets.map((target, index) => ({
+      essentialIdea: `${target} and is used as a bounded restaurant-vocabulary recall item.`,
+      concept: `Meaning of ${terms[index] ?? `restaurant term ${index + 1}`}`,
+      check: {
+        title: `Recall restaurant term ${index + 1}`,
+        prompt: `Without notes, state the English meaning of the Spanish restaurant term ${terms[index] ?? `item ${index + 1}`}.`,
+        referenceAnswer: `The Spanish restaurant term ${terms[index] ?? `item ${index + 1}`} means ${definitions[index] ?? "the supplied definition"} in English.`,
+        feedback: "Compare the recalled Spanish term and English meaning, then correct only the missing half of the pair.",
+      },
+      independentCheck: null,
+    })),
+  };
+}
+
+function fourSlotRetrievalContext(): SessionGenerationContext {
+  const targets = [
+    "Spanish restaurant term agua means water",
+    "Spanish restaurant term sopa means soup",
+    "Spanish restaurant term cuenta means bill",
+    "Spanish restaurant phrase quisiera means I would like",
+  ];
+  const context = spanishRestaurantContext(60);
+  return {
+    ...context,
+    learningGoal: {
+      ...context.learningGoal,
+      title: "Memorize Spanish restaurant vocabulary",
+      topic: "Memorize Spanish restaurant terms and definitions for closed-note recall",
+    },
+    knowledgeTopics: targets.map((target, index) => ({
+      ...context.knowledgeTopics[0]!,
+      id: RETRIEVAL_TOPIC_IDS[index]!,
+      title: target,
+      description: `The exact meaning and use of ${target}.`,
+      subtopics: [target],
+    })),
+    session: {
+      ...context.session,
+      title: "Recall four Spanish restaurant terms",
+      objective: "Memorize and recall four Spanish restaurant vocabulary terms and definitions without notes.",
+      method: "Retrieval practice",
+      methodReason: "Use closed-note retrieval for each vocabulary term, then repair only missed definitions.",
+      estimatedMinutes: 60,
+      topicIds: [...RETRIEVAL_TOPIC_IDS],
+      contentTargets: targets,
+      completionEvidence: targets.map((target) => `Recall ${target} without notes`),
+    },
+  };
+}
+
+function twoSlotRetrievalContext(): SessionGenerationContext {
+  const context = fourSlotRetrievalContext();
+  return {
+    ...context,
+    knowledgeTopics: context.knowledgeTopics.slice(0, 2),
+    session: {
+      ...context.session,
+      title: "Recall two Spanish restaurant terms",
+      objective: "Memorize and recall two Spanish restaurant vocabulary terms and definitions without notes.",
+      estimatedMinutes: 15,
+      topicIds: context.session.topicIds.slice(0, 2),
+      contentTargets: context.session.contentTargets?.slice(0, 2),
+      completionEvidence: context.session.completionEvidence?.slice(0, 2),
+    },
+  };
+}
+
+function ambiguousLegacyMultiTopicContext(): SessionGenerationContext {
+  const targets = [
+    "Explain the first core relationship",
+    "Explain the second core relationship",
+    "Explain the third core relationship",
+  ];
+  const context = spanishRestaurantContext(25);
+  return {
+    ...context,
+    learningGoal: {
+      ...context.learningGoal,
+      title: "Understand three related course ideas",
+      topic: "Explain how three related course ideas work",
+    },
+    knowledgeTopics: targets.map((_, index) => ({
+      ...context.knowledgeTopics[0]!,
+      id: RETRIEVAL_TOPIC_IDS[index]!,
+      title: `General course idea ${index + 1}`,
+      description: "A broad course relationship used for explanation and practice.",
+      subtopics: ["core relationship", "related idea"],
+    })),
+    session: {
+      ...context.session,
+      title: "Explain three related ideas",
+      objective: "Explain three related course relationships and how each one works.",
+      method: "Self-explanation",
+      methodReason: "Study each accurate relationship, then explain it without reopening the model.",
+      estimatedMinutes: 25,
+      topicIds: [...RETRIEVAL_TOPIC_IDS.slice(0, 3)],
+      contentTargets: targets,
+      completionEvidence: targets.map((target) => `${target} without reopening the model`),
+    },
+  };
+}
+
+function spanishSkeletonWithWrongPracticeMetadata() {
+  const lessonBrief = (essentialIdea: string) => ({
+    version: 1 as const,
+    topicIds: [TOPIC_ID],
+    essentialIdeas: [essentialIdea],
+    sourceChunks: [],
+    knowledgeSource: "model_knowledge" as const,
+    evidenceContext: { confirmedGaps: [], secureKnowledge: [], priorMisconceptions: [] },
+    contentRequirements: {
+      teachEveryEssentialIdea: true as const,
+      includeConcreteExample: true,
+      includeCommonMixup: true as const,
+      preservePrerequisiteOrder: true as const,
+    },
+  });
+  const items = spanishRecoveryItems(2).items;
+  return {
+    topicIds: [TOPIC_ID],
+    rationale: "Teach two bounded restaurant-language relationships and require a typed explanation after each model.",
+    coverage: {
+      focus: "Combine Spanish food nouns with polite restaurant request phrases.",
+      essentialIdeas: [...SPANISH_IDEAS],
+      completionEvidence: ["Explain and use both language relationships without reopening the model"],
+      evidenceMap: items.map((item) => ({
+        essentialIdea: item.essentialIdea,
+        activityConcept: item.concept,
+      })),
+      deferredContent: [],
+    },
+    methodBriefing: {
+      learningMode: "learn",
+      taskType: "conceptual_learning",
+      methodId: "self_explanation",
+      name: "Self-explanation",
+      what: "Study each accurate language relationship, then explain and apply it from memory.",
+      why: "Explaining the pattern shows whether the words and request structure form one usable model.",
+      how: ["Study one short model.", "Close it and explain the relationship in your own words."],
+      completion: "Explain and use both Spanish restaurant-language relationships without the model visible.",
+      personalization: ["The lesson uses short focused explanations before each typed language check."],
+    },
+    sourceGrounding: null,
+    activities: items.flatMap((item, index) => [{
+      topicId: TOPIC_ID,
+      methodPhase: "model" as const,
+      estimatedMinutes: 5,
+      requiredForCompletion: true,
+      label: "Learn",
+      title: `Learn ${item.concept}`,
+      body: "Read this focused explanation, then answer the typed question before continuing.",
+      teaching: null,
+      lessonBrief: lessonBrief(item.essentialIdea),
+      practiceIntent: null,
+      misconceptionSummary: null,
+      type: "instruction" as const,
+      concept: null,
+      choices: [],
+      correctAnswer: null,
+      feedback: null,
+    }, {
+      topicId: TOPIC_ID,
+      methodPhase: "explain" as const,
+      estimatedMinutes: 5,
+      requiredForCompletion: true,
+      label: "Explain",
+      title: item.check.title,
+      body: item.check.prompt,
+      teaching: null,
+      lessonBrief: null,
+      practiceIntent: index === 0 ? "develop_gap" as const : "supported_recheck" as const,
+      misconceptionSummary: null,
+      type: "free_response" as const,
+      concept: item.concept,
+      choices: [],
+      correctAnswer: item.check.referenceAnswer,
+      feedback: item.check.feedback,
+    }]),
+    targetAssignments: SPANISH_IDEAS.map((essentialIdea) => ({
+      essentialIdea,
+      targetId: "target_1" as const,
+    })),
+  };
+}
 
 function contextWithMaterials(
   materials: SessionGenerationContext["materials"],
@@ -123,6 +460,243 @@ function mixedStreamedContext(): SessionGenerationContext {
 }
 
 describe("bounded streamed-skeleton repair policy", () => {
+  it("repairs both wrong Spanish practice-intent labels in one provider call", async () => {
+    const { generateStreamedTeachingSkeletonWithOpenAI } = await import("@/lib/openai/streamed-teaching-generator");
+    parseResponse.mockReset();
+    parseResponse.mockResolvedValueOnce(completedProviderResponse(
+      "spanish-wrong-practice-metadata",
+      spanishSkeletonWithWrongPracticeMetadata(),
+    ));
+
+    const result = await generateStreamedTeachingSkeletonWithOpenAI(spanishRestaurantContext());
+
+    expect(parseResponse).toHaveBeenCalledTimes(1);
+    expect(result.draft.methodBriefing).toMatchObject({
+      taskType: "conceptual_learning",
+      methodId: "self_explanation",
+    });
+    expect(result.draft.activities.filter((activity) => (
+      activity.type === "multiple_choice" || activity.type === "free_response"
+    )).map((activity) => activity.practiceIntent)).toEqual(["baseline", "baseline"]);
+    expect(result.generationStats).toMatchObject({
+      attempts: 1,
+      firstAttemptPassed: false,
+      failedValidator: "session_practice_variation",
+      repairAttempted: true,
+      repairSucceeded: true,
+      validationIssueCode: "session_practice_metadata",
+    });
+  });
+
+  it("recovers a broader semantic failure with a server-owned compact V17 sequence", async () => {
+    const { generateStreamedTeachingSkeletonWithOpenAI } = await import("@/lib/openai/streamed-teaching-generator");
+    parseResponse.mockReset();
+    parseResponse
+      .mockResolvedValueOnce(completedProviderResponse("invalid-spanish-skeleton", {}))
+      .mockResolvedValueOnce(completedProviderResponse("compact-spanish-recovery", spanishRecoveryItems(2)));
+
+    const result = await generateStreamedTeachingSkeletonWithOpenAI(spanishRestaurantContext());
+
+    expect(parseResponse.mock.calls.map((call) => call[0]?.text?.format?.name)).toEqual([
+      "yova_streamed_teaching_skeleton",
+      "yova_streamed_teaching_recovery",
+    ]);
+    expect(result.generationStats).toMatchObject({
+      attempts: 2,
+      firstAttemptPassed: false,
+      repairAttempted: true,
+      repairSucceeded: true,
+      recoveryMode: "safe_learn",
+    });
+    expect(result.deliveryInstructions).toBeDefined();
+    expect(result.draft.activities.filter((activity) => (
+      "lessonBrief" in activity && activity.lessonBrief
+    ))).toHaveLength(2);
+    expect(result.draft.activities.filter((activity) => activity.type === "free_response")).toHaveLength(2);
+    expect(result.draft.coverage.essentialIdeas).toEqual([...SPANISH_IDEAS]);
+    expect(result.draft.coverage.evidenceMap.map((entry) => entry.activityConcept)).toEqual([
+      "Spanish food nouns",
+      "Spanish polite restaurant requests",
+    ]);
+    const recoveryInput = parseResponse.mock.calls[1]?.[0]?.input as string;
+    const recoveryPrompt = JSON.parse(recoveryInput.slice(recoveryInput.indexOf("\n") + 1));
+    expect(recoveryPrompt.ideaSlots[0]).toMatchObject({
+      topic: "Spanish food and restaurant vocabulary",
+      topicDescription: "High-frequency Spanish food nouns and polite restaurant request phrases used in a short exchange.",
+      topicSubtopics: ["foods and drinks", "polite requests", "short restaurant exchange"],
+    });
+  });
+
+  it("keeps a one-slot self-explanation recovery schema-valid with a bounded reflection", async () => {
+    const { generateStreamedTeachingSkeletonWithOpenAI } = await import("@/lib/openai/streamed-teaching-generator");
+    parseResponse.mockReset();
+    parseResponse
+      .mockResolvedValueOnce(completedProviderResponse("invalid-short-spanish-skeleton", {}))
+      .mockResolvedValueOnce(completedProviderResponse("compact-short-spanish-recovery", spanishRecoveryItems(1)));
+
+    const result = await generateStreamedTeachingSkeletonWithOpenAI(spanishRestaurantContext(15));
+
+    expect(result.generationStats.recoveryMode).toBe("safe_learn");
+    expect(result.draft.activities.map((activity) => [activity.methodPhase, activity.type])).toEqual([
+      ["model", "instruction"],
+      ["explain", "free_response"],
+      ["reflect", "reflection"],
+    ]);
+    expect(result.draft.activities.reduce((sum, activity) => (
+      activity.methodPhase === "schedule_return" ? sum : sum + activity.estimatedMinutes
+    ), 0)).toBe(15);
+  });
+
+  it("reserves settlement headroom for the compact recovery request", async () => {
+    const startedAt = new Date("2026-08-23T09:30:00.000Z");
+    const deadlineAt = startedAt.getTime() + 90_000;
+    vi.useFakeTimers();
+    vi.setSystemTime(startedAt);
+    parseResponse.mockReset();
+    parseResponse
+      .mockImplementationOnce(async () => {
+        vi.setSystemTime(startedAt.getTime() + 35_000);
+        return completedProviderResponse("invalid-before-reserved-recovery", {});
+      })
+      .mockImplementationOnce(async (_request, options: { timeout: number; maxRetries: number }) => {
+        expect(options).toMatchObject({ timeout: 22_000, maxRetries: 0 });
+        expect(Date.now() + options.timeout).toBeLessThanOrEqual(deadlineAt - 12_000);
+        vi.setSystemTime(startedAt.getTime() + 57_000);
+        return completedProviderResponse("reserved-compact-recovery", spanishRecoveryItems(1));
+      });
+
+    try {
+      const { generateStreamedTeachingSkeletonWithOpenAI } = await import("@/lib/openai/streamed-teaching-generator");
+      const result = await generateStreamedTeachingSkeletonWithOpenAI(spanishRestaurantContext(15), {
+        deadlineAt,
+        settlementReserveMs: 12_000,
+      });
+
+      expect(result.generationStats.recoveryMode).toBe("safe_learn");
+      expect(parseResponse).toHaveBeenCalledTimes(2);
+      expect(Date.now()).toBeLessThanOrEqual(deadlineAt - 12_000);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("bounds recovery rationale and focus before strict V17 parsing", async () => {
+    const { generateStreamedTeachingSkeletonWithOpenAI } = await import("@/lib/openai/streamed-teaching-generator");
+    const context = spanishRestaurantContext(15);
+    context.session.objective = `Explain how Spanish food words combine with a polite restaurant request. ${"Connect each restaurant noun to the polite request pattern in a complete exchange. ".repeat(12)}`;
+    parseResponse.mockReset();
+    parseResponse
+      .mockResolvedValueOnce(completedProviderResponse("invalid-long-objective-skeleton", {}))
+      .mockResolvedValueOnce(completedProviderResponse("bounded-long-objective-recovery", spanishRecoveryItems(1)));
+
+    const result = await generateStreamedTeachingSkeletonWithOpenAI(context);
+
+    expect(result.draft.rationale).toHaveLength(700);
+    expect(result.draft.coverage.focus).toHaveLength(240);
+  });
+
+  it("rejects a worked-example recovery that repeats the guided prompt as its independent application", async () => {
+    const { generateStreamedTeachingSkeletonWithOpenAI } = await import("@/lib/openai/streamed-teaching-generator");
+    parseResponse.mockReset();
+    parseResponse
+      .mockResolvedValueOnce(completedProviderResponse("invalid-worked-skeleton", {}))
+      .mockResolvedValueOnce(completedProviderResponse("duplicate-independent-recovery", duplicateWorkedExampleRecovery()));
+
+    await expect(generateStreamedTeachingSkeletonWithOpenAI(workedExampleContext())).rejects.toMatchObject({
+      name: "SessionGenerationFailure",
+      generationStats: {
+        attempts: 2,
+        failedValidator: "session_semantic_validation",
+        recoveryMode: "safe_learn",
+        validationIssueCode: "session_recovery_validation",
+      },
+    });
+    expect(parseResponse.mock.calls.map((call) => call[0]?.text?.format?.name)).toEqual([
+      "yova_streamed_teaching_skeleton",
+      "yova_streamed_teaching_recovery",
+    ]);
+  });
+
+  it("caps compact retrieval at three slots so mapped teach-check cycles plus repair stay within eight activities", async () => {
+    const { generateStreamedTeachingSkeletonWithOpenAI } = await import("@/lib/openai/streamed-teaching-generator");
+    const context = fourSlotRetrievalContext();
+    const targets = context.session.contentTargets!;
+    parseResponse.mockReset();
+    parseResponse
+      .mockResolvedValueOnce(completedProviderResponse("invalid-four-slot-retrieval", {}))
+      .mockResolvedValueOnce(completedProviderResponse(
+        "three-slot-retrieval-recovery",
+        retrievalRecoveryItems(targets.slice(0, 3)),
+      ));
+
+    const result = await generateStreamedTeachingSkeletonWithOpenAI(context);
+
+    expect(parseResponse.mock.calls.map((call) => call[0]?.text?.format?.name)).toEqual([
+      "yova_streamed_teaching_skeleton",
+      "yova_streamed_teaching_recovery",
+    ]);
+    expect(result.draft.coverage.essentialIdeas).toHaveLength(3);
+    expect(result.draft.coverage.deferredContent).toEqual([targets[3]]);
+    expect(result.draft.activities).toHaveLength(7);
+    expect(result.draft.activities.filter((activity) => activity.type === "free_response")).toHaveLength(3);
+  });
+
+  it("reduces a 15-minute two-target retrieval lesson before generation so every retained idea keeps its teach-check pair and repair", async () => {
+    const { generateStreamedTeachingSkeletonWithOpenAI } = await import("@/lib/openai/streamed-teaching-generator");
+    const original = twoSlotRetrievalContext();
+    const targets = original.session.contentTargets!;
+    parseResponse.mockReset();
+    parseResponse
+      .mockResolvedValueOnce(completedProviderResponse("invalid-two-slot-retrieval", {}))
+      .mockResolvedValueOnce(completedProviderResponse(
+        "reduced-two-slot-retrieval",
+        retrievalRecoveryItems([targets[0]!]),
+      ));
+
+    const result = await generateStreamedTeachingSkeletonWithOpenAI(original);
+
+    const firstInput = parseResponse.mock.calls[0]?.[0]?.input as string;
+    const firstPrompt = JSON.parse(firstInput.slice(firstInput.indexOf("\n") + 1));
+    expect(firstPrompt.streamedTeachingPacing.minimumActiveIdeas).toBe(1);
+    expect(firstPrompt.currentSessionScope).toMatchObject({
+      activeTargets: [targets[0]],
+      deferredTargets: [targets[1]],
+    });
+    expect(result.draft.coverage.deferredContent).toEqual([targets[1]]);
+    expect(result.draft.activities.map((activity) => activity.methodPhase)).toEqual([
+      "model",
+      "retrieve",
+      "repair",
+    ]);
+    expect(result.draft.activities).toHaveLength(3);
+  });
+
+  it("preserves an ambiguous legacy multi-topic context instead of guessing which topic and evidence to drop", async () => {
+    const { generateStreamedTeachingSkeletonWithOpenAI } = await import("@/lib/openai/streamed-teaching-generator");
+    const context = ambiguousLegacyMultiTopicContext();
+    parseResponse.mockReset();
+    parseResponse.mockRejectedValueOnce(new Error("provider unavailable"));
+
+    await expect(generateStreamedTeachingSkeletonWithOpenAI(context)).rejects.toMatchObject({
+      name: "SessionGenerationFailure",
+      generationStats: {
+        attempts: 1,
+        failedValidator: "session_provider_request",
+      },
+    });
+    expect(parseResponse).toHaveBeenCalledTimes(1);
+    const input = parseResponse.mock.calls[0]?.[0]?.input as string;
+    const prompt = JSON.parse(input.slice(input.indexOf("\n") + 1));
+    expect(prompt.session.contentTargets).toEqual(context.session.contentTargets);
+    expect(prompt.session.topicIds).toEqual(context.session.topicIds);
+    expect(prompt.knowledgeTopics).toHaveLength(3);
+    expect(prompt.streamedTeachingPacing.minimumActiveIdeas).toBe(3);
+    expect(prompt.currentSessionScope).toMatchObject({
+      activeTargets: context.session.contentTargets,
+      deferredTargets: [],
+    });
+  });
+
   it("reports a raw provider rejection as a structured generation failure", async () => {
     const { generateStreamedTeachingSkeletonWithOpenAI } = await import("@/lib/openai/streamed-teaching-generator");
     parseResponse.mockReset();

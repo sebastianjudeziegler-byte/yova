@@ -10,6 +10,7 @@ import {
 import { contentBudgetForMinutes } from "@/lib/plan-generation/content-budget";
 import { lessonIdeaCapacityForMinutes } from "@/lib/session-generation/lesson-brief";
 import { sessionLearnerFacingWordCount } from "@/lib/session-generation/time-budget";
+import type { CoreMethodId } from "@/lib/learning/method-catalog";
 
 type PacingActivity = StreamedGeneratedSessionActivity;
 
@@ -32,11 +33,13 @@ export function streamedTeachingPacingContract({
   activeIdeaCount,
   maximumFocusedActivities: suppliedMaximumFocusedActivities,
   maximumActiveIdeas: suppliedMaximumActiveIdeas,
+  methodId,
 }: {
   availableMinutes: number;
   activeIdeaCount: number;
   maximumFocusedActivities?: number;
   maximumActiveIdeas?: number;
+  methodId?: CoreMethodId;
 }): StreamedTeachingPacingContract {
   const durationMaximum = availableMinutes <= 15 ? 4 : availableMinutes <= 30 ? 5 : 8;
   const maximumFocusedActivities = Math.min(
@@ -50,9 +53,15 @@ export function streamedTeachingPacingContract({
       : availableMinutes <= 45
         ? 3
         : 4;
+  const methodCycleCapacity = methodId === undefined
+    ? 4
+    : methodId === "retrieval_practice"
+      ? Math.max(1, Math.floor((maximumFocusedActivities - 1) / 2))
+      : Math.max(1, Math.floor(maximumFocusedActivities / 2));
   const maximumActiveIdeas = Math.max(1, Math.min(
     4,
     maximumFocusedActivities - 1,
+    methodCycleCapacity,
     suppliedMaximumActiveIdeas ?? 4,
   ));
   const minimumActiveIdeas = Math.min(
@@ -164,6 +173,7 @@ export function interleaveStreamedTeachingCycles({
     availableMinutes,
     activeIdeaCount: draft.coverage.evidenceMap.length,
     maximumFocusedActivities,
+    methodId: draft.methodBriefing.methodId,
   });
   // A delivery-policy cap applies to whichever teaching block becomes first
   // after interleaving, not merely to the provider's original first activity.
@@ -289,6 +299,7 @@ export function validateStreamedTeachingPacing({
     availableMinutes,
     activeIdeaCount: draft.coverage.essentialIdeas.length,
     maximumFocusedActivities,
+    methodId: draft.methodBriefing.methodId,
   });
   if (focused.length > contract.maximumFocusedActivities) {
     return `This ${availableMinutes}-minute lesson may contain at most ${contract.maximumFocusedActivities} focused teaching and question activities.`;
