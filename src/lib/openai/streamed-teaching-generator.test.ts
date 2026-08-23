@@ -120,6 +120,103 @@ function spanishRecoveryItems(itemCount: 1 | 2 = 2) {
   };
 }
 
+const THREE_TARGET_SPANISH_TARGETS = [
+  "High-frequency foods and drinks",
+  "Restaurant people, objects, and menu terms",
+  "English to Spanish and Spanish to English recall",
+] as const;
+
+const THREE_TARGET_SPANISH_IDEAS = [
+  "High-frequency Spanish foods and drinks include words such as agua, pan, and sopa for common items.",
+  "Restaurant people, objects, and menu terms include camarero, mesa, tenedor, menú, and cuenta.",
+] as const;
+
+function threeTargetSpanishContext(): SessionGenerationContext {
+  const context = spanishRestaurantContext(45);
+  const topicIds = [TOPIC_ID, AI_TOPIC_ID, RETRIEVAL_TOPIC_IDS[0]];
+  return {
+    ...context,
+    learningGoal: {
+      ...context.learningGoal,
+      title: "Spanish food and restaurant vocabulary",
+      topic: "Explain how Spanish food names and restaurant terms work together in common dining contexts",
+    },
+    knowledgeTopics: [{
+      ...context.knowledgeTopics[0]!,
+      id: topicIds[0],
+      title: "Core food vocabulary",
+      description: "High-frequency Spanish words for common foods and drinks, especially items likely to appear on a basic quiz.",
+      subtopics: ["fruits and vegetables", "meats and proteins", "grains and staples", "drinks", "snacks and desserts"],
+    }, {
+      ...context.knowledgeTopics[0]!,
+      id: topicIds[1],
+      title: "Restaurant vocabulary",
+      description: "Words for places, people, and objects you would see in a restaurant or on a menu.",
+      subtopics: ["restaurant and cafe", "menu and bill", "waiter and waitress", "tableware and utensils", "kitchen and dining terms"],
+    }, {
+      ...context.knowledgeTopics[0]!,
+      id: topicIds[2],
+      title: "Quiz-ready recognition and recall",
+      description: "Practice identifying, matching, and producing the target words quickly from English or Spanish prompts.",
+      subtopics: ["Spanish to English", "English to Spanish", "multiple-choice traps", "spelling", "quick self-test"],
+    }],
+    session: {
+      ...context.session,
+      title: "Learn Spanish food and restaurant vocabulary",
+      objective: "Build an accurate first mental model of Spanish food and restaurant vocabulary, use concrete examples, and explain the central relationships.",
+      estimatedMinutes: 45,
+      topicIds,
+      contentTargets: [...THREE_TARGET_SPANISH_TARGETS],
+      completionEvidence: THREE_TARGET_SPANISH_TARGETS.map((target) => `Explain ${target} without reopening the model`),
+    },
+    personalization: {
+      decisions: [{
+        id: "decision:method_delivery:block_length:shorter_rounds",
+        artifact: "method_delivery",
+        setting: "block_length",
+        value: "shorter_rounds",
+        title: "Shorter focused rounds",
+        explanation: "Use shorter focused rounds while preserving the exact learning target.",
+        signalIds: ["signal:shorter_rounds"],
+        evidenceLabel: "You told YOVA",
+        methodCandidates: [],
+        experimental: false,
+      }],
+      methodTie: {
+        state: {
+          controls: { experiments: false },
+          activeExperiment: null,
+          experimentHistory: [],
+        },
+        signals: [],
+      },
+    },
+  };
+}
+
+function threeTargetSpanishRecoveryItems() {
+  return {
+    items: THREE_TARGET_SPANISH_IDEAS.map((essentialIdea, index) => ({
+      essentialIdea,
+      concept: index === 0
+        ? "Spanish food and drink vocabulary"
+        : "Spanish restaurant people and menu terms",
+      check: index === 0 ? {
+        title: "Explain the Spanish food words",
+        prompt: "Explain what agua, pan, and sopa name and how they fit the high-frequency Spanish food and drink category.",
+        referenceAnswer: "Agua names water, pan names bread, and sopa names soup, so each word names a common food or drink item.",
+        feedback: "Connect every Spanish word to its concrete food or drink meaning and keep the category distinction clear.",
+      } : {
+        title: "Explain the restaurant terms",
+        prompt: "Explain how camarero, mesa, tenedor, menú, and cuenta represent people, objects, and menu terms in a restaurant.",
+        referenceAnswer: "Camarero names a waiter, mesa a table, tenedor a fork, menú the menu, and cuenta the bill in a restaurant.",
+        feedback: "Separate the person from the dining objects and the two menu-related terms while preserving each meaning.",
+      },
+      independentCheck: null,
+    })),
+  };
+}
+
 function workedExampleContext(): SessionGenerationContext {
   const target = "Use the product rule to differentiate a product of two functions";
   const context = spanishRestaurantContext(15);
@@ -525,6 +622,65 @@ describe("bounded streamed-skeleton repair policy", () => {
       topicDescription: "High-frequency Spanish food nouns and polite restaurant request phrases used in a short exchange.",
       topicSubtopics: ["foods and drinks", "polite requests", "short restaurant exchange"],
     });
+  });
+
+  it("keeps shared Spanish subject vocabulary active when a personalized compact recovery defers bilingual recall", async () => {
+    const { generateStreamedTeachingSkeletonWithOpenAI } = await import("@/lib/openai/streamed-teaching-generator");
+    const context = threeTargetSpanishContext();
+    parseResponse.mockReset();
+    parseResponse
+      .mockResolvedValueOnce(completedProviderResponse("invalid-three-target-spanish-skeleton", {}))
+      .mockResolvedValueOnce(completedProviderResponse(
+        "compact-three-target-spanish-recovery",
+        threeTargetSpanishRecoveryItems(),
+      ));
+
+    const result = await generateStreamedTeachingSkeletonWithOpenAI(context);
+
+    expect(parseResponse.mock.calls.map((call) => call[0]?.text?.format?.name)).toEqual([
+      "yova_streamed_teaching_skeleton",
+      "yova_streamed_teaching_recovery",
+    ]);
+    const firstInput = parseResponse.mock.calls[0]?.[0]?.input as string;
+    const firstPrompt = JSON.parse(firstInput.slice(firstInput.indexOf("\n") + 1));
+    expect(firstPrompt.currentSessionScope).toEqual({
+      activeTargets: [...THREE_TARGET_SPANISH_TARGETS.slice(0, 2)],
+      deferredTargets: [THREE_TARGET_SPANISH_TARGETS[2]],
+    });
+    expect(firstPrompt.session.contentTargets).toEqual([...THREE_TARGET_SPANISH_TARGETS.slice(0, 2)]);
+    expect(firstPrompt.knowledgeTopics.map((topic: { title: string }) => topic.title)).toEqual([
+      "Core food vocabulary",
+      "Restaurant vocabulary",
+    ]);
+    const recoveryInput = parseResponse.mock.calls[1]?.[0]?.input as string;
+    const recoveryPrompt = JSON.parse(recoveryInput.slice(recoveryInput.indexOf("\n") + 1));
+    expect(recoveryPrompt.ideaSlots.map((slot: { target: string }) => slot.target)).toEqual([
+      ...THREE_TARGET_SPANISH_TARGETS.slice(0, 2),
+    ]);
+    expect(recoveryPrompt.ideaSlots[0]).toMatchObject({
+      topic: "Core food vocabulary",
+      topicDescription: "High-frequency Spanish words for common foods and drinks, especially items likely to appear on a basic quiz.",
+    });
+    expect(recoveryPrompt.deferredTargets).toEqual([THREE_TARGET_SPANISH_TARGETS[2]]);
+    expect(result.generationStats).toMatchObject({
+      attempts: 2,
+      repairAttempted: true,
+      repairSucceeded: true,
+      recoveryMode: "safe_learn",
+    });
+    expect(result.draft.coverage.essentialIdeas).toEqual([...THREE_TARGET_SPANISH_IDEAS]);
+    expect(result.draft.coverage.deferredContent).toEqual([THREE_TARGET_SPANISH_TARGETS[2]]);
+    expect(result.draft.activities.filter((activity) => (
+      "lessonBrief" in activity && activity.lessonBrief
+    ))).toHaveLength(2);
+    expect(result.draft.activities.filter((activity) => activity.type === "free_response")).toHaveLength(2);
+    const activeSurface = JSON.stringify({
+      essentialIdeas: result.draft.coverage.essentialIdeas,
+      evidenceMap: result.draft.coverage.evidenceMap,
+      activities: result.draft.activities,
+    });
+    expect(activeSurface).toMatch(/Spanish/);
+    expect(activeSurface).not.toMatch(/English to Spanish|Spanish to English|bilingual recall/i);
   });
 
   it("keeps a one-slot self-explanation recovery schema-valid with a bounded reflection", async () => {
@@ -1809,6 +1965,7 @@ describe("runtime session-window scoping", () => {
       ...context.knowledgeTopics[0]!,
       title: target,
       description: "How sunlight interacts with air molecules and gets redirected in different directions.",
+      subtopics: ["Air molecules", "Short-wavelength scattering"],
     }];
     context.session.contentTargets = [target];
     const currentSessionScope = { activeTargets: [target], deferredTargets: [] };
@@ -1820,6 +1977,8 @@ describe("runtime session-window scoping", () => {
     expect(targetSubjectReferences).toEqual({
       target_1: [
         "How sunlight interacts with air molecules and gets redirected in different directions.",
+        "Air molecules",
+        "Short-wavelength scattering",
       ],
     });
     expect(validateStreamedTargetAssignments({
@@ -1828,6 +1987,332 @@ describe("runtime session-window scoping", () => {
       currentSessionScope,
       targetSubjectReferences,
     })).toHaveLength(1);
+  });
+
+  it("uses mapped active topic references to distinguish shared Spanish vocabulary from deferred bilingual recall", async () => {
+    const {
+      buildStreamedTargetSubjectReferences,
+      validateStreamedTargetAssignments,
+    } = await import("@/lib/openai/streamed-teaching-generator");
+    const context = threeTargetSpanishContext();
+    context.knowledgeTopics = context.knowledgeTopics.slice(0, 2);
+    context.session.topicIds = context.session.topicIds.slice(0, 2);
+    context.session.contentTargets = [...THREE_TARGET_SPANISH_TARGETS.slice(0, 2)];
+    context.session.deferredContentTargets = [THREE_TARGET_SPANISH_TARGETS[2]];
+    const currentSessionScope = {
+      activeTargets: [...THREE_TARGET_SPANISH_TARGETS.slice(0, 2)],
+      deferredTargets: [THREE_TARGET_SPANISH_TARGETS[2]],
+    };
+    const targetSubjectReferences = buildStreamedTargetSubjectReferences({
+      context,
+      currentSessionScope,
+    });
+
+    expect(targetSubjectReferences).toMatchObject({
+      target_1: expect.arrayContaining([
+        "High-frequency Spanish words for common foods and drinks, especially items likely to appear on a basic quiz.",
+        "drinks",
+      ]),
+      target_2: expect.arrayContaining([
+        "Words for places, people, and objects you would see in a restaurant or on a menu.",
+        "menu and bill",
+      ]),
+    });
+    expect(validateStreamedTargetAssignments({
+      essentialIdeas: [...THREE_TARGET_SPANISH_IDEAS],
+      targetAssignments: THREE_TARGET_SPANISH_IDEAS.map((essentialIdea, index) => ({
+        essentialIdea,
+        targetId: `target_${index + 1}` as "target_1" | "target_2",
+      })),
+      currentSessionScope,
+      targetSubjectReferences,
+    })).toHaveLength(2);
+
+    const bilingualRecallLeak = "Spanish restaurant terms can be recalled by translating each word from English to Spanish.";
+    expect(() => validateStreamedTargetAssignments({
+      essentialIdeas: [THREE_TARGET_SPANISH_IDEAS[0], bilingualRecallLeak],
+      targetAssignments: [{
+        essentialIdea: THREE_TARGET_SPANISH_IDEAS[0],
+        targetId: "target_1",
+      }, {
+        essentialIdea: bilingualRecallLeak,
+        targetId: "target_2",
+      }],
+      currentSessionScope,
+      targetSubjectReferences,
+    })).toThrow(/deferred-session substance/i);
+  });
+
+  it("does not lend a broad one-topic reference that also describes the deferred bilingual target", async () => {
+    const {
+      buildStreamedTargetSubjectReferences,
+      validateStreamedTargetAssignments,
+    } = await import("@/lib/openai/streamed-teaching-generator");
+    const context = spanishRestaurantContext(15);
+    context.knowledgeTopics = [{
+      ...context.knowledgeTopics[0]!,
+      title: "Broad Spanish vocabulary",
+      description: "High-frequency Spanish foods and drinks plus English-to-Spanish and Spanish-to-English recall practice.",
+      subtopics: ["foods and drinks", "English to Spanish", "Spanish to English", "closed-note recall"],
+    }];
+    context.session.contentTargets = [THREE_TARGET_SPANISH_TARGETS[0]];
+    context.session.deferredContentTargets = [THREE_TARGET_SPANISH_TARGETS[2]];
+    const currentSessionScope = {
+      activeTargets: [THREE_TARGET_SPANISH_TARGETS[0]],
+      deferredTargets: [THREE_TARGET_SPANISH_TARGETS[2]],
+    };
+    const targetSubjectReferences = buildStreamedTargetSubjectReferences({
+      context,
+      currentSessionScope,
+    });
+
+    expect(targetSubjectReferences).toEqual({});
+    const bilingualRecallLeak = "High-frequency Spanish foods and drinks are recalled by translating each word from English to Spanish.";
+    expect(() => validateStreamedTargetAssignments({
+      essentialIdeas: [bilingualRecallLeak],
+      targetAssignments: [{ essentialIdea: bilingualRecallLeak, targetId: "target_1" }],
+      currentSessionScope,
+      targetSubjectReferences,
+    })).toThrow(/deferred-session substance/i);
+  });
+
+  it("does not reuse one broad topic reference to authorize claims for multiple active target ids", async () => {
+    const {
+      buildStreamedTargetSubjectReferences,
+      validateStreamedTargetAssignments,
+    } = await import("@/lib/openai/streamed-teaching-generator");
+    const context = spanishRestaurantContext(25);
+    const activeTargets = [
+      "High-frequency foods and drinks",
+      "Restaurant people, objects, and menu terms",
+    ];
+    context.knowledgeTopics = [{
+      ...context.knowledgeTopics[0]!,
+      title: "Broad Spanish restaurant vocabulary",
+      description: "High-frequency Spanish foods and drinks plus words for restaurant people, objects, and menu terms.",
+      subtopics: ["foods and drinks", "restaurant people", "dining objects", "menu terms"],
+    }];
+    context.session.contentTargets = activeTargets;
+    const currentSessionScope = { activeTargets, deferredTargets: [] };
+    const targetSubjectReferences = buildStreamedTargetSubjectReferences({
+      context,
+      currentSessionScope,
+    });
+
+    expect(targetSubjectReferences).toEqual({});
+    const firstTargetIdea = "High-frequency Spanish foods and drinks include agua, pan, and sopa.";
+    const duplicateFirstTargetClaim = "High-frequency Spanish foods and drinks also include leche, arroz, and carne.";
+    expect(() => validateStreamedTargetAssignments({
+      essentialIdeas: [firstTargetIdea, duplicateFirstTargetClaim],
+      targetAssignments: [{ essentialIdea: firstTargetIdea, targetId: "target_1" }, {
+        essentialIdea: duplicateFirstTargetClaim,
+        targetId: "target_2",
+      }],
+      currentSessionScope,
+      targetSubjectReferences,
+    })).toThrow(/does not preserve that target's subject terms/i);
+  });
+
+  it("does not aggregate English and Spanish references across different active target ids", async () => {
+    const { validateStreamedTargetAssignments } = await import("@/lib/openai/streamed-teaching-generator");
+    const activeTargets = [
+      "High-frequency foods and drinks",
+      "Restaurant people, objects, and menu terms",
+    ];
+    const currentSessionScope = {
+      activeTargets,
+      deferredTargets: ["English to Spanish translation practice"],
+    };
+    const firstTargetWithEnglishLeak = "High-frequency Spanish foods and drinks can be paired with English glosses for meaning.";
+    const secondTargetIdea = "Restaurant people, objects, and menu terms distinguish camarero, mesa, and menú.";
+
+    expect(() => validateStreamedTargetAssignments({
+      essentialIdeas: [firstTargetWithEnglishLeak, secondTargetIdea],
+      targetAssignments: [{ essentialIdea: firstTargetWithEnglishLeak, targetId: "target_1" }, {
+        essentialIdea: secondTargetIdea,
+        targetId: "target_2",
+      }],
+      currentSessionScope,
+      targetSubjectReferences: {
+        target_1: ["High-frequency Spanish words for common foods and drinks."],
+        target_2: ["English labels for restaurant people, objects, and menu terms."],
+      },
+    })).toThrow(/deferred-session substance/i);
+  });
+
+  it("excludes exact one- and two-term deferred labels from broad active-topic references", async () => {
+    const {
+      buildStreamedTargetSubjectReferences,
+      validateStreamedTargetAssignments,
+    } = await import("@/lib/openai/streamed-teaching-generator");
+    const activeTarget = "Cell-cycle checkpoints";
+
+    for (const deferredTarget of ["Mitosis", "Calvin cycle"]) {
+      const context = spanishRestaurantContext(15);
+      context.knowledgeTopics = [{
+        ...context.knowledgeTopics[0]!,
+        title: "Broad cell biology",
+        description: `Cell-cycle checkpoints regulate division before a later explanation of ${deferredTarget}.`,
+        subtopics: ["checkpoint signals", deferredTarget],
+      }];
+      context.session.contentTargets = [activeTarget];
+      context.session.deferredContentTargets = [deferredTarget];
+      const currentSessionScope = {
+        activeTargets: [activeTarget],
+        deferredTargets: [deferredTarget],
+      };
+      const targetSubjectReferences = buildStreamedTargetSubjectReferences({
+        context,
+        currentSessionScope,
+      });
+
+      expect(targetSubjectReferences).toEqual({});
+      const contaminatedIdea = `Cell-cycle checkpoints regulate division before ${deferredTarget} begins.`;
+      expect(() => validateStreamedTargetAssignments({
+        essentialIdeas: [contaminatedIdea],
+        targetAssignments: [{ essentialIdea: contaminatedIdea, targetId: "target_1" }],
+        currentSessionScope,
+        targetSubjectReferences,
+      })).toThrow(/deferred-session substance/i);
+    }
+  });
+
+  it("keeps a one-word deferred label in the full-scope fingerprint after rejecting its broad topic reference", async () => {
+    const {
+      buildStreamedTargetSubjectReferences,
+      scopeStreamedSkeletonToCurrentWindow,
+    } = await import("@/lib/openai/streamed-teaching-generator");
+    const { StreamedGeneratedSessionDraftSchema } = await import("@/lib/session-generation/schema");
+    const { streamedTeachingPacingContract } = await import("@/lib/session-generation/streamed-pacing");
+    const activeTarget = "Cell-cycle checkpoints";
+    const deferredTarget = "Mitosis";
+    const activeIdea = "Cell-cycle checkpoints pause division when DNA damage or incomplete replication is detected.";
+    const concept = "Cell-cycle checkpoint control";
+    const context = spanishRestaurantContext(15);
+    context.knowledgeTopics = [{
+      ...context.knowledgeTopics[0]!,
+      title: "Broad cell biology",
+      description: "Cell-cycle checkpoints regulate division before the cell proceeds into Mitosis.",
+      subtopics: ["checkpoint signals", "Mitosis"],
+    }];
+    context.session.contentTargets = [activeTarget];
+    context.session.deferredContentTargets = [deferredTarget];
+    const currentSessionScope = {
+      activeTargets: [activeTarget],
+      deferredTargets: [deferredTarget],
+    };
+    const targetSubjectReferences = buildStreamedTargetSubjectReferences({
+      context,
+      currentSessionScope,
+    });
+    expect(targetSubjectReferences).toEqual({});
+
+    const lessonBrief = {
+      version: 1 as const,
+      topicIds: [TOPIC_ID],
+      essentialIdeas: [activeIdea],
+      sourceChunks: [],
+      knowledgeSource: "model_knowledge" as const,
+      evidenceContext: { confirmedGaps: [], secureKnowledge: [], priorMisconceptions: [] },
+      contentRequirements: {
+        teachEveryEssentialIdea: true as const,
+        includeConcreteExample: true,
+        includeCommonMixup: true as const,
+        preservePrerequisiteOrder: true as const,
+      },
+    };
+    const draft = StreamedGeneratedSessionDraftSchema.parse({
+      topicIds: [TOPIC_ID],
+      rationale: "Teach the active checkpoint relationship before requiring a typed explanation.",
+      coverage: {
+        focus: "Explain how cell-cycle checkpoints regulate division.",
+        essentialIdeas: [activeIdea],
+        completionEvidence: ["Explain cell-cycle checkpoint control without reopening the model"],
+        evidenceMap: [{ essentialIdea: activeIdea, activityConcept: concept }],
+        deferredContent: [deferredTarget],
+      },
+      methodBriefing: {
+        learningMode: "learn",
+        taskType: "conceptual_learning",
+        methodId: "self_explanation",
+        name: "Self-explanation",
+        what: "Study the checkpoint model and explain the active relationship from memory.",
+        why: "Producing the relationship reveals whether the checkpoint mechanism is understood.",
+        how: ["Study the bounded model once.", "Explain the checkpoint relationship without reopening it."],
+        completion: "Explain how cell-cycle checkpoints regulate division without notes.",
+        personalization: ["Mitosis appears in the broader topic map but belongs to a later lesson."],
+      },
+      sourceGrounding: null,
+      activities: [{
+        topicId: TOPIC_ID,
+        methodPhase: "model",
+        estimatedMinutes: 7,
+        requiredForCompletion: true,
+        label: "Learn",
+        title: "Build the checkpoint model",
+        body: "Study the bounded checkpoint relationship before explaining it.",
+        teaching: null,
+        lessonBrief,
+        practiceIntent: null,
+        misconceptionSummary: null,
+        type: "instruction",
+        concept: null,
+        choices: [],
+        correctAnswer: null,
+        feedback: null,
+      }, {
+        topicId: TOPIC_ID,
+        methodPhase: "explain",
+        estimatedMinutes: 7,
+        requiredForCompletion: true,
+        label: "Explain",
+        title: "Explain checkpoint control",
+        body: "Explain how checkpoint signals can pause cell division.",
+        teaching: null,
+        lessonBrief: null,
+        practiceIntent: "baseline",
+        misconceptionSummary: null,
+        type: "free_response",
+        concept,
+        choices: [],
+        correctAnswer: activeIdea,
+        feedback: "Connect the detected problem to the checkpoint signal that pauses division.",
+      }, {
+        topicId: null,
+        methodPhase: "reflect",
+        estimatedMinutes: 1,
+        requiredForCompletion: false,
+        label: "Reflect",
+        title: "Notice the checkpoint relationship",
+        body: "Note which detected problem would cause the checkpoint to pause division.",
+        teaching: null,
+        lessonBrief: null,
+        practiceIntent: null,
+        misconceptionSummary: null,
+        type: "reflection",
+        concept: null,
+        choices: [],
+        correctAnswer: null,
+        feedback: null,
+      }],
+    });
+    const scoped = scopeStreamedSkeletonToCurrentWindow({
+      draft,
+      plannedTargets: [activeTarget, deferredTarget],
+      estimatedMinutes: 15,
+      learnerDirection: null,
+      pacingContract: streamedTeachingPacingContract({
+        availableMinutes: 15,
+        activeIdeaCount: 2,
+        maximumActiveIdeas: 1,
+        methodId: "self_explanation",
+      }),
+      targetAssignments: [{ essentialIdea: activeIdea, targetId: "target_1" }],
+      targetSubjectReferences,
+    });
+
+    expect(scoped.coverage.deferredContent).toEqual([deferredTarget]);
+    expect(scoped.methodBriefing.personalization.join(" ")).not.toMatch(/Mitosis/i);
   });
 
   it("rejects missing, inactive, and unrelated stable target assignments", async () => {

@@ -1603,10 +1603,11 @@ function targetCatalogForScope(scope: StreamedCurrentSessionScope) {
 /**
  * A plan target is often a compact curriculum label while the provider writes
  * a correct explanatory paraphrase from that topic's authoritative
- * description. Preserve the stable target-id boundary, but let that exact
- * matched topic description prove subject identity too. This is deliberately
- * limited to an exact normalized title match; neighboring session topics must
- * not lend their vocabulary to a mislabeled claim.
+ * description. Preserve the stable target-id boundary, but let the
+ * authoritatively mapped active topic's bounded description and subtopics
+ * prove subject identity too. A legacy topic may span both active and deferred
+ * targets, so references that also substantively describe a deferred target
+ * are excluded.
  */
 export function buildStreamedTargetSubjectReferences({
   context,
@@ -1616,24 +1617,76 @@ export function buildStreamedTargetSubjectReferences({
   currentSessionScope: StreamedCurrentSessionScope;
 }): StreamedTargetSubjectReferences {
   const references: StreamedTargetSubjectReferences = {};
-  const sessionTopicIds = new Set(context.session.topicIds);
+  const activeTopics = context.session.topicIds.flatMap((topicId) => {
+    const topic = context.knowledgeTopics.find((candidate) => candidate.id === topicId);
+    return topic ? [topic] : [];
+  });
+  if (
+    activeTopics.length !== context.session.topicIds.length
+    || currentSessionScope.activeTargets.length === 0
+  ) return references;
+  const targetMapping = mapTargetsToKnowledgeTopics(
+    currentSessionScope.activeTargets,
+    activeTopics,
+  );
+  if (targetMapping.issue) return references;
+  const topicByTargetIndex = new Map(
+    targetMapping.assignments.map(({ targetIndex, topic }) => [targetIndex, topic]),
+  );
+  const targetCountByTopicId = targetMapping.assignments.reduce((counts, { topic }) => {
+    counts.set(topic.id, (counts.get(topic.id) ?? 0) + 1);
+    return counts;
+  }, new Map<string, number>());
   for (const entry of targetCatalogForScope(currentSessionScope)) {
     if (!entry.target) continue;
-    const targetKey = normalizedSubjectLabel(entry.target);
-    if (!targetKey) continue;
-    const matchedTopics = context.knowledgeTopics.filter((topic) => (
-      sessionTopicIds.has(topic.id)
-      && normalizedSubjectLabel(topic.title) === targetKey
-    ));
-    // Duplicate normalized titles are ambiguous. Keep the narrower title-only
-    // guard rather than borrowing a potentially unrelated description.
-    if (matchedTopics.length !== 1) continue;
-    const matchedTopic = matchedTopics[0]!;
-    references[entry.targetId] = [matchedTopic.description]
+    const matchedTopic = topicByTargetIndex.get(entry.targetIndex);
+    // One broad legacy topic can map to several distinct plan targets. Its
+    // description cannot prove which target id owns a claim, so keep the
+    // target-label guard rather than lending the same vocabulary to each id.
+    if (!matchedTopic || targetCountByTopicId.get(matchedTopic.id) !== 1) continue;
+    const boundedTopicReferences = [
+      matchedTopic.description.slice(0, 700),
+      ...matchedTopic.subtopics.slice(0, 8).map((subtopic) => subtopic.slice(0, 240)),
+    ]
       .map((value) => value.trim())
       .filter((value, index, values) => value.length > 0 && values.indexOf(value) === index);
+    const combinedTopicReference = boundedTopicReferences.join(" ");
+    const alsoDescribesDeferredTarget = currentSessionScope.deferredTargets.some((deferredTarget) => (
+      topicReferenceDescribesDeferredTarget(combinedTopicReference, deferredTarget)
+    ));
+    if (alsoDescribesDeferredTarget) continue;
+    references[entry.targetId] = boundedTopicReferences;
   }
   return references;
+}
+
+/**
+ * Topic descriptions are broader than provider claims, so the normal bounded
+ * claim matcher is not sufficient here: it deliberately rejects a long claim
+ * for a one-word target. Fail closed when the complete deferred label appears
+ * in the reference, or when every token in a one- or two-term deferred label
+ * is present. The semantic matcher remains the fallback for longer paraphrases.
+ */
+function topicReferenceDescribesDeferredTarget(reference: string, deferredTarget: string) {
+  const referenceKey = normalizedSubjectLabel(reference);
+  const deferredKey = normalizedSubjectLabel(deferredTarget);
+  if (!referenceKey || !deferredKey) return false;
+  if (` ${referenceKey} `.includes(` ${deferredKey} `)) return true;
+
+  const referenceTokens = targetDiscriminatorTokens(reference);
+  const deferredTokens = targetDiscriminatorTokens(deferredTarget);
+  if (
+    deferredTokens.length > 0
+    && deferredTokens.length <= 2
+    && deferredTokens.every((deferredToken) => (
+      referenceTokens.some((referenceToken) => (
+        subjectTokensMatch(referenceToken, deferredToken)
+      ))
+    ))
+  ) return true;
+
+  return lessonIdeaSharesTargetSubject(deferredTarget, reference)
+    || lessonIdeaSharesTargetSubject(reference, deferredTarget);
 }
 
 /**
@@ -1722,6 +1775,7 @@ export function validateStreamedTargetAssignments({
         idea,
         assignedTarget: targetEntry.target,
         deferredTargets: currentSessionScope.deferredTargets,
+        authoritativeAssignedSubjectReferences: targetSubjectReferences?.[assignment.targetId] ?? [],
       })) {
         throw new CurrentSessionScopeError(
           `${currentSessionScopeForRepair(currentSessionScope)} A target-assigned claim also contains deferred-session substance.`,
@@ -1758,17 +1812,22 @@ function lessonIdeaContainsDeferredExclusiveTerms({
   idea,
   assignedTarget,
   deferredTargets,
+  authoritativeAssignedSubjectReferences,
 }: {
   idea: string;
   assignedTarget: string;
   deferredTargets: string[];
+  authoritativeAssignedSubjectReferences: string[];
 }) {
   const ideaTokens = targetDiscriminatorTokens(idea);
-  const assignedTokens = targetDiscriminatorTokens(assignedTarget);
+  const activeOrSharedTokens = targetDiscriminatorTokens([
+    assignedTarget,
+    ...authoritativeAssignedSubjectReferences,
+  ].join(" "));
   return deferredTargets.some((deferredTarget) => {
     const exclusiveTokens = targetDiscriminatorTokens(deferredTarget).filter((deferredToken) => (
-      !assignedTokens.some((assignedToken) => (
-        subjectTokensMatch(deferredToken, assignedToken)
+      !activeOrSharedTokens.some((activeToken) => (
+        subjectTokensMatch(deferredToken, activeToken)
       ))
     ));
     if (exclusiveTokens.length === 0) return false;
@@ -2045,6 +2104,7 @@ export function scopeStreamedSkeletonToCurrentWindow({
     activeTargets: currentSessionScope.activeTargets,
     deferredTargets: currentSessionScope.deferredTargets,
     learnerDirection,
+    targetSubjectReferences,
   });
   const completionEvidence = completionEvidenceForRetainedChecks({
     supplied: draft.coverage.completionEvidence,
@@ -2446,6 +2506,7 @@ function buildDeferredScopeFingerprint({
   activeTargets,
   deferredTargets,
   learnerDirection,
+  targetSubjectReferences,
 }: {
   draft: StreamedGeneratedSessionDraft;
   activeIdeas: string[];
@@ -2453,6 +2514,7 @@ function buildDeferredScopeFingerprint({
   activeTargets: string[];
   deferredTargets: string[];
   learnerDirection: string | null;
+  targetSubjectReferences?: StreamedTargetSubjectReferences;
 }): DeferredScopeFingerprint {
   if (deferredTargets.length === 0) return { strongTokens: new Set() };
 
@@ -2503,6 +2565,7 @@ function buildDeferredScopeFingerprint({
   ].filter((value) => value.trim().length > 0);
   const activeOrSharedTokens = new Set(subjectTokens([
     ...activeTargets,
+    ...Object.values(targetSubjectReferences ?? {}).flat(),
     ...activeEvidenceMap.map((mapping) => mapping.activityConcept),
     learnerDirection ?? "",
   ].join(" ")));
