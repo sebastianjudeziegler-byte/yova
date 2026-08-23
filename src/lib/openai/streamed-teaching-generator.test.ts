@@ -195,8 +195,9 @@ function threeTargetSpanishContext(): SessionGenerationContext {
 }
 
 function threeTargetSpanishRecoveryItems() {
+  const essentialIdeas: string[] = [...THREE_TARGET_SPANISH_IDEAS];
   return {
-    items: THREE_TARGET_SPANISH_IDEAS.map((essentialIdea, index) => ({
+    items: essentialIdeas.map((essentialIdea, index) => ({
       essentialIdea,
       concept: index === 0
         ? "Spanish food and drink vocabulary"
@@ -214,6 +215,77 @@ function threeTargetSpanishRecoveryItems() {
       },
       independentCheck: null,
     })),
+  };
+}
+
+const WORLD_WAR_TARGETS = [
+  "Prewar European alliances and tensions",
+  "The Sarajevo assassination as a decision chain",
+  "Sequence from the July Crisis to declarations of war",
+] as const;
+
+const WORLD_WAR_COMPLETION_EVIDENCE = [
+  "Describe the main alliance blocs and at least three prewar tensions using a specific case example.",
+  "Explain which leaders and governments made key decisions from Sarajevo to the outbreak of war.",
+  "Place the assassination at Sarajevo, the July Crisis, the start of war, U.S. entry, and the armistice in correct order.",
+] as const;
+
+function threeTargetWorldWarContext(): SessionGenerationContext {
+  const context = threeTargetSpanishContext();
+  return {
+    ...context,
+    learningGoal: {
+      ...context.learningGoal,
+      title: "Explain how World War I began",
+      topic: "Trace how prewar tensions and the Sarajevo crisis developed into war",
+    },
+    knowledgeTopics: [{
+      ...context.knowledgeTopics[0]!,
+      id: TOPIC_ID,
+      title: "Baseline Check and WWI Map",
+      description: "Understand the main prewar tensions and build a simple start-to-finish WWI timeline using a concrete example first.",
+      subtopics: [
+        "Prewar European alliances and tensions",
+        "Sequence from Sarajevo assassination to declarations of war",
+        "Basic chronology 1914–1918",
+      ],
+    }],
+    session: {
+      ...context.session,
+      title: "Trace the outbreak of World War I",
+      objective: "Understand the main prewar tensions and use a real diplomatic crisis to trace how war began.",
+      topicIds: [TOPIC_ID],
+      contentTargets: [...WORLD_WAR_TARGETS],
+      completionEvidence: [...WORLD_WAR_COMPLETION_EVIDENCE],
+    },
+  };
+}
+
+function worldWarRecoveryItems() {
+  return {
+    items: [{
+      essentialIdea: "Before 1914, rival alliances and imperial competition created an international crisis risk and made a local war more likely to involve several European powers.",
+      concept: "Prewar alliance tensions",
+      check: {
+        title: "Explain the prewar tension",
+        prompt: "Explain how alliances and imperial competition made a local dispute more dangerous before 1914.",
+        referenceAnswer: "Alliances connected several powers to one another, while imperial competition increased distrust, so a local dispute could draw in rival states.",
+        feedback: "Connect the alliance commitments to the wider risk and distinguish that mechanism from the later declarations of war.",
+      },
+      independentCheck: null,
+    }, {
+      essentialIdea: "The Sarajevo assassination triggered the July Crisis and forced an immediate Austria-Hungary decision about Serbia.",
+      // Provider concept metadata is deliberately contaminated here. Compact
+      // recovery must replace it with the validated server-bound atom.
+      concept: "July Crisis mobilizations and declarations of war",
+      check: {
+        title: "Trace the Sarajevo decision",
+        prompt: "Explain how the Sarajevo assassination changed Austria-Hungary's decisions toward Serbia and why that mattered to allied powers.",
+        referenceAnswer: "The assassination prompted Austria-Hungary to confront Serbia, and the resulting decisions mattered beyond the two states because their allies had competing commitments.",
+        feedback: "Keep the answer on the Sarajevo decision chain and its alliance pressure without turning it into the later declaration chronology.",
+      },
+      independentCheck: null,
+    }],
   };
 }
 
@@ -259,6 +331,27 @@ function duplicateWorkedExampleRecovery() {
       concept: "Product-rule differentiation",
       check,
       independentCheck: { ...check, title: "Independent product-rule application" },
+    }],
+  };
+}
+
+function validWorkedExampleRecovery() {
+  return {
+    items: [{
+      essentialIdea: "The product rule differentiates each factor once while preserving the other factor, then adds the two terms.",
+      concept: "Product-rule differentiation",
+      check: {
+        title: "Complete the guided product derivative",
+        prompt: "Differentiate h(x) = x squared times sine of x, and show how the product rule determines both terms.",
+        referenceAnswer: "The derivative is 2x sine of x plus x squared cosine of x because each factor is differentiated once.",
+        feedback: "Keep the untouched partner beside each derivative, then add the two resulting product terms.",
+      },
+      independentCheck: {
+        title: "Apply the product rule independently",
+        prompt: "Differentiate q(x) = (x + 1) times e to the x without reopening the guided example.",
+        referenceAnswer: "The derivative is e to the x plus (x + 1)e to the x because each factor contributes one product-rule term.",
+        feedback: "Differentiate each factor once, keep the other factor unchanged, and add the two product-rule terms.",
+      },
     }],
   };
 }
@@ -611,10 +704,9 @@ describe("bounded streamed-skeleton repair policy", () => {
     ))).toHaveLength(2);
     expect(result.draft.activities.filter((activity) => activity.type === "free_response")).toHaveLength(2);
     expect(result.draft.coverage.essentialIdeas).toEqual([...SPANISH_IDEAS]);
-    expect(result.draft.coverage.evidenceMap.map((entry) => entry.activityConcept)).toEqual([
-      "Spanish food nouns",
-      "Spanish polite restaurant requests",
-    ]);
+    expect(result.draft.coverage.evidenceMap.map((entry) => entry.activityConcept)).toEqual(
+      SPANISH_IDEAS.map((idea) => idea.slice(0, 120)),
+    );
     const recoveryInput = parseResponse.mock.calls[1]?.[0]?.input as string;
     const recoveryPrompt = JSON.parse(recoveryInput.slice(recoveryInput.indexOf("\n") + 1));
     expect(recoveryPrompt.ideaSlots[0]).toMatchObject({
@@ -627,12 +719,14 @@ describe("bounded streamed-skeleton repair policy", () => {
   it("keeps shared Spanish subject vocabulary active when a personalized compact recovery defers bilingual recall", async () => {
     const { generateStreamedTeachingSkeletonWithOpenAI } = await import("@/lib/openai/streamed-teaching-generator");
     const context = threeTargetSpanishContext();
+    const recovery = threeTargetSpanishRecoveryItems();
+    recovery.items[0]!.essentialIdea = "High-frequency Spanish food vocabulary includes agua, whose English meaning is water, plus pan and sopa for common items.";
     parseResponse.mockReset();
     parseResponse
       .mockResolvedValueOnce(completedProviderResponse("invalid-three-target-spanish-skeleton", {}))
       .mockResolvedValueOnce(completedProviderResponse(
         "compact-three-target-spanish-recovery",
-        threeTargetSpanishRecoveryItems(),
+        recovery,
       ));
 
     const result = await generateStreamedTeachingSkeletonWithOpenAI(context);
@@ -658,17 +752,19 @@ describe("bounded streamed-skeleton repair policy", () => {
       ...THREE_TARGET_SPANISH_TARGETS.slice(0, 2),
     ]);
     expect(recoveryPrompt.ideaSlots[0]).toMatchObject({
-      topic: "Core food vocabulary",
+      topic: THREE_TARGET_SPANISH_TARGETS[0],
       topicDescription: "High-frequency Spanish words for common foods and drinks, especially items likely to appear on a basic quiz.",
     });
-    expect(recoveryPrompt.deferredTargets).toEqual([THREE_TARGET_SPANISH_TARGETS[2]]);
+    expect(recoveryPrompt).not.toHaveProperty("deferredTargets");
+    expect(recoveryPrompt).not.toHaveProperty("learningGoal");
+    expect(recoveryPrompt).not.toHaveProperty("session");
     expect(result.generationStats).toMatchObject({
       attempts: 2,
       repairAttempted: true,
       repairSucceeded: true,
       recoveryMode: "safe_learn",
     });
-    expect(result.draft.coverage.essentialIdeas).toEqual([...THREE_TARGET_SPANISH_IDEAS]);
+    expect(result.draft.coverage.essentialIdeas).toEqual(recovery.items.map((item) => item.essentialIdea));
     expect(result.draft.coverage.deferredContent).toEqual([THREE_TARGET_SPANISH_TARGETS[2]]);
     expect(result.draft.activities.filter((activity) => (
       "lessonBrief" in activity && activity.lessonBrief
@@ -681,6 +777,135 @@ describe("bounded streamed-skeleton repair policy", () => {
     });
     expect(activeSurface).toMatch(/Spanish/);
     expect(activeSurface).not.toMatch(/English to Spanish|Spanish to English|bilingual recall/i);
+  });
+
+  it("structurally recovers the production-shaped World War I lesson without exposing its deferred target", async () => {
+    const { generateStreamedTeachingSkeletonWithOpenAI } = await import("@/lib/openai/streamed-teaching-generator");
+    const context = threeTargetWorldWarContext();
+    parseResponse.mockReset();
+    parseResponse
+      .mockResolvedValueOnce(completedProviderResponse("invalid-world-war-skeleton", {}))
+      .mockResolvedValueOnce(completedProviderResponse("compact-world-war-recovery", worldWarRecoveryItems()));
+
+    const result = await generateStreamedTeachingSkeletonWithOpenAI(context);
+
+    expect(parseResponse.mock.calls.map((call) => call[0]?.text?.format?.name)).toEqual([
+      "yova_streamed_teaching_skeleton",
+      "yova_streamed_teaching_recovery",
+    ]);
+    const recoveryInput = parseResponse.mock.calls[1]?.[0]?.input as string;
+    const recoveryPrompt = JSON.parse(recoveryInput.slice(recoveryInput.indexOf("\n") + 1));
+    expect(recoveryPrompt.ideaSlots.map((slot: { target: string }) => slot.target)).toEqual([
+      ...WORLD_WAR_TARGETS.slice(0, 2),
+    ]);
+    expect(recoveryPrompt.ideaSlots.map((slot: { topic: string }) => slot.topic)).toEqual([
+      ...WORLD_WAR_TARGETS.slice(0, 2),
+    ]);
+    expect(recoveryPrompt.ideaSlots).toEqual(expect.arrayContaining([
+      expect.objectContaining({ topicDescription: "", topicSubtopics: [] }),
+    ]));
+    expect(recoveryPrompt).not.toHaveProperty("deferredTargets");
+    expect(recoveryPrompt).not.toHaveProperty("learningGoal");
+    expect(recoveryPrompt).not.toHaveProperty("session");
+    expect(recoveryPrompt).not.toHaveProperty("learnerDelivery");
+    expect(recoveryPrompt.ideaSlots.every((slot: Record<string, unknown>) => (
+      !("targetId" in slot) && !("practiceIntent" in slot)
+    ))).toBe(true);
+    expect(JSON.stringify(recoveryPrompt)).not.toContain(WORLD_WAR_TARGETS[2]);
+    expect(result.generationStats).toMatchObject({
+      attempts: 2,
+      repairAttempted: true,
+      repairSucceeded: true,
+      recoveryMode: "safe_learn",
+    });
+    expect(result.draft.coverage.essentialIdeas).toEqual(worldWarRecoveryItems().items.map((item) => item.essentialIdea));
+    expect(result.draft.coverage.deferredContent).toEqual([WORLD_WAR_TARGETS[2]]);
+    expect(result.draft.activities.filter((activity) => (
+      "lessonBrief" in activity && activity.lessonBrief
+    ))).toHaveLength(2);
+    expect(result.draft.activities.filter((activity) => activity.type === "free_response")).toHaveLength(2);
+    expect(result.draft.coverage.evidenceMap[0]?.activityConcept).toMatch(
+      /^Before 1914, rival alliances and imperial competition created an international crisis risk and$/,
+    );
+    expect(result.draft.coverage.evidenceMap[1]?.activityConcept).toMatch(
+      /^The Sarajevo assassination triggered the July Crisis and forced an immediate Austria-Hungary$/,
+    );
+    expect(result.draft.coverage.evidenceMap.map((entry) => entry.activityConcept)).not.toContain(
+      "July Crisis mobilizations and declarations of war",
+    );
+    const activeSurface = JSON.stringify({
+      essentialIdeas: result.draft.coverage.essentialIdeas,
+      evidenceMap: result.draft.coverage.evidenceMap,
+      activities: result.draft.activities,
+    });
+    expect(activeSurface).not.toMatch(/mobilizations|declarations of war/i);
+  });
+
+  it("rejects a compact bilingual practice operation while allowing shared language meaning", async () => {
+    const { generateStreamedTeachingSkeletonWithOpenAI } = await import("@/lib/openai/streamed-teaching-generator");
+    const recovery = threeTargetSpanishRecoveryItems();
+    recovery.items[0]!.essentialIdea = "Translate high-frequency food words from English to Spanish, then recall each word from Spanish to English.";
+    parseResponse.mockReset();
+    parseResponse
+      .mockResolvedValueOnce(completedProviderResponse("invalid-bilingual-operation-skeleton", {}))
+      .mockResolvedValueOnce(completedProviderResponse("bilingual-operation-recovery", recovery));
+
+    await expect(generateStreamedTeachingSkeletonWithOpenAI(threeTargetSpanishContext())).rejects.toMatchObject({
+      name: "SessionGenerationFailure",
+      generationStats: {
+        attempts: 2,
+        failedValidator: "streamed_lesson_scope",
+        recoveryMode: "safe_learn",
+        validationIssueCode: "streamed_deferred_content",
+      },
+    });
+  });
+
+  it("rejects a compact World War I atom that crosses into the deferred July Crisis relationship", async () => {
+    const { generateStreamedTeachingSkeletonWithOpenAI } = await import("@/lib/openai/streamed-teaching-generator");
+    const recovery = worldWarRecoveryItems();
+    recovery.items[1]!.essentialIdea = "The Sarajevo assassination as a decision chain moved through the July Crisis and declarations of war.";
+    parseResponse.mockReset();
+    parseResponse
+      .mockResolvedValueOnce(completedProviderResponse("invalid-deferred-world-war-skeleton", {}))
+      .mockResolvedValueOnce(completedProviderResponse("deferred-world-war-recovery", recovery));
+
+    await expect(generateStreamedTeachingSkeletonWithOpenAI(threeTargetWorldWarContext())).rejects.toMatchObject({
+      name: "SessionGenerationFailure",
+      generationStats: {
+        attempts: 2,
+        failedValidator: "streamed_lesson_scope",
+        recoveryMode: "safe_learn",
+        validationIssueCode: "streamed_deferred_content",
+      },
+    });
+  });
+
+  it("still rejects compact recovery atoms swapped across server-owned active target slots", async () => {
+    const { generateStreamedTeachingSkeletonWithOpenAI } = await import("@/lib/openai/streamed-teaching-generator");
+    const [first, second] = worldWarRecoveryItems().items;
+    parseResponse.mockReset();
+    parseResponse
+      .mockResolvedValueOnce(completedProviderResponse("invalid-swapped-world-war-skeleton", {}))
+      .mockResolvedValueOnce(completedProviderResponse("swapped-world-war-recovery", {
+        items: [{
+          ...second,
+          essentialIdea: "The Sarajevo assassination prompted Austria-Hungary to confront Serbia.",
+        }, {
+          ...first,
+          essentialIdea: "Imperial competition increased rivalry among European empires.",
+        }],
+      }));
+
+    await expect(generateStreamedTeachingSkeletonWithOpenAI(threeTargetWorldWarContext())).rejects.toMatchObject({
+      name: "SessionGenerationFailure",
+      generationStats: {
+        attempts: 2,
+        failedValidator: "streamed_lesson_scope",
+        recoveryMode: "safe_learn",
+        validationIssueCode: "streamed_target_subject",
+      },
+    });
   });
 
   it("keeps a one-slot self-explanation recovery schema-valid with a bounded reflection", async () => {
@@ -771,6 +996,77 @@ describe("bounded streamed-skeleton repair policy", () => {
       "yova_streamed_teaching_skeleton",
       "yova_streamed_teaching_recovery",
     ]);
+  });
+
+  it("keeps both guided and independent worked-example checks when a later target is deferred", async () => {
+    const { generateStreamedTeachingSkeletonWithOpenAI } = await import("@/lib/openai/streamed-teaching-generator");
+    const context = workedExampleContext();
+    const deferredTarget = "Use the quotient rule to differentiate a ratio of two functions";
+    context.session.deferredContentTargets = [deferredTarget];
+    parseResponse.mockReset();
+    parseResponse
+      .mockResolvedValueOnce(completedProviderResponse("invalid-deferred-worked-skeleton", {}))
+      .mockResolvedValueOnce(completedProviderResponse("valid-deferred-worked-recovery", validWorkedExampleRecovery()));
+
+    const result = await generateStreamedTeachingSkeletonWithOpenAI(context);
+
+    expect(result.generationStats.recoveryMode).toBe("safe_learn");
+    expect(result.draft.coverage.deferredContent).toEqual([deferredTarget]);
+    const workedChecks = result.draft.activities.filter((activity) => (
+      activity.type === "free_response"
+    ));
+    expect(workedChecks.map((activity) => activity.methodPhase)).toEqual([
+      "guided_practice",
+      "independent_practice",
+    ]);
+    expect(new Set(workedChecks.map((activity) => activity.body)).size).toBe(2);
+    expect(JSON.stringify(result.draft.activities)).not.toMatch(/quotient rule|ratio of two functions/i);
+  });
+
+  it("rejects a multi-slot worked-example independent check that crosses into a deferred target", async () => {
+    const { generateStreamedTeachingSkeletonWithOpenAI } = await import("@/lib/openai/streamed-teaching-generator");
+    const context = workedExampleContext();
+    const productTarget = context.session.contentTargets![0]!;
+    const chainTarget = "Use the chain rule to differentiate a nested function";
+    const quotientTarget = "Use the quotient rule to differentiate a ratio of two functions";
+    context.session.estimatedMinutes = 25;
+    context.session.contentTargets = [productTarget, chainTarget, quotientTarget];
+    context.session.completionEvidence = [
+      "Differentiate a new product without reopening the worked solution",
+      "Differentiate a new nested function without reopening the worked solution",
+      "Differentiate a new quotient without reopening the worked solution",
+    ];
+    const productItem = validWorkedExampleRecovery().items[0]!;
+    const recovery = {
+      items: [{
+        ...productItem,
+        independentCheck: null,
+      }, {
+        essentialIdea: "The chain rule multiplies the outer derivative by the derivative of the inner function.",
+        concept: "Chain-rule differentiation",
+        check: {
+          title: "Differentiate the deferred quotient",
+          prompt: "Use the quotient rule to differentiate a ratio of two functions and simplify the result.",
+          referenceAnswer: "The quotient rule subtracts the denominator times the numerator derivative from the numerator times the denominator derivative over the squared denominator.",
+          feedback: "Keep the quotient-rule numerator order and square the denominator.",
+        },
+        independentCheck: null,
+      }],
+    };
+    parseResponse.mockReset();
+    parseResponse
+      .mockResolvedValueOnce(completedProviderResponse("invalid-multi-worked-skeleton", {}))
+      .mockResolvedValueOnce(completedProviderResponse("deferred-multi-worked-recovery", recovery));
+
+    await expect(generateStreamedTeachingSkeletonWithOpenAI(context)).rejects.toMatchObject({
+      name: "SessionGenerationFailure",
+      generationStats: {
+        attempts: 2,
+        failedValidator: "streamed_lesson_scope",
+        recoveryMode: "safe_learn",
+        validationIssueCode: "streamed_deferred_content",
+      },
+    });
   });
 
   it("caps compact retrieval at three slots so mapped teach-check cycles plus repair stay within eight activities", async () => {
