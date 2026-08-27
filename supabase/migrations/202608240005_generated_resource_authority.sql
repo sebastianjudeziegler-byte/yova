@@ -60,8 +60,11 @@ begin
     return false;
   end if;
 
+  -- Optional type markers use total comparisons so an absent field is false,
+  -- never SQL NULL that can poison the complete OR expression.
   return (
-      pg_catalog.jsonb_typeof(generated_session -> 'schemaVersion') = 'number'
+      pg_catalog.jsonb_typeof(generated_session -> 'schemaVersion')
+        is not distinct from 'number'
       and generated_session ->> 'schemaVersion' = '18'
     )
     or pg_catalog.lower(pg_catalog.btrim(coalesce(
@@ -77,8 +80,10 @@ begin
       ''
     )) = 'blurting_v1'
     or (
-      pg_catalog.jsonb_typeof(generated_session -> 'orderedTargets') = 'array'
-      and pg_catalog.jsonb_typeof(generated_session -> 'phaseEnvelopes') = 'array'
+      pg_catalog.jsonb_typeof(generated_session -> 'orderedTargets')
+        is not distinct from 'array'
+      and pg_catalog.jsonb_typeof(generated_session -> 'phaseEnvelopes')
+        is not distinct from 'array'
     )
     or pg_catalog.lower(pg_catalog.btrim(coalesce(
       generated_session #>> '{methodBriefing,name}',

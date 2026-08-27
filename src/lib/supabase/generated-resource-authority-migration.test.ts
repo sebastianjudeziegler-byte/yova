@@ -76,6 +76,18 @@ describe("generated-resource authority compatibility migration", () => {
   });
 
   it("recognizes both legacy broad signals and the isolated V18 candidate for rejection", () => {
+    expect(broadDetector).toContain([
+      "pg_catalog.jsonb_typeof(generated_session -> 'schemaversion')",
+      "        is not distinct from 'number'",
+    ].join("\n"));
+    expect(broadDetector).toContain([
+      "pg_catalog.jsonb_typeof(generated_session -> 'orderedtargets')",
+      "        is not distinct from 'array'",
+    ].join("\n"));
+    expect(broadDetector).toContain([
+      "pg_catalog.jsonb_typeof(generated_session -> 'phaseenvelopes')",
+      "        is not distinct from 'array'",
+    ].join("\n"));
     expect(broadDetector).toContain(
       "generated_session ->> 'schemaversion' = '18'",
     );

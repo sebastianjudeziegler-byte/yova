@@ -4,7 +4,7 @@ create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public, pg_catalog;
 set local timezone = 'UTC';
 
-select extensions.plan(46);
+select extensions.plan(48);
 
 select extensions.is(
   (
@@ -657,11 +657,28 @@ select extensions.ok(
   'a nested secret-bearing field is invalid'
 );
 
-select extensions.ok(
-  not public.generated_session_has_broad_recall_v1(
+select extensions.is(
+  public.generated_session_has_broad_recall_v1(
     '{"schemaVersion":17,"activities":[]}'::jsonb
   ),
+  false,
   'ordinary generated-session content remains outside broad containment'
+);
+
+select extensions.is(
+  public.generated_session_has_broad_recall_v1(
+    '{"orderedTargets":[]}'::jsonb
+  ),
+  false,
+  'ordered targets alone do not form a broad generated session'
+);
+
+select extensions.is(
+  public.generated_session_has_broad_recall_v1(
+    '{"phaseEnvelopes":[]}'::jsonb
+  ),
+  false,
+  'phase envelopes alone do not form a broad generated session'
 );
 
 select extensions.ok(
