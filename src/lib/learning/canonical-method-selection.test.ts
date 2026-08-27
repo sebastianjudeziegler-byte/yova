@@ -101,13 +101,15 @@ describe("canonical method selection", () => {
   });
 
   it("lets a deliberate learner choice override the recommendation only inside eligibility", () => {
+    const context = personalization();
+    context.preferredMethodIds = ["spaced_retrieval"];
     const selection = selectCanonicalStudyMethod({
       ...baseInput(),
       learnerChoice: {
         methodId: "interleaved_practice",
         evidenceRef: "learner-choice:session-setup",
       },
-      personalization: personalization(),
+      personalization: context,
       observedEvidence: [{
         signal: outcome({ methodId: "spaced_retrieval" }),
         evidenceRefs: ["attempt:spaced-1"],
@@ -145,6 +147,8 @@ describe("canonical method selection", () => {
   });
 
   it("keeps an eligible committed route immutable and rejects an invalid commitment", () => {
+    const context = personalization();
+    context.preferredMethodIds = ["spaced_retrieval"];
     const selection = selectCanonicalStudyMethod({
       ...baseInput(),
       committedRoute: {
@@ -155,6 +159,7 @@ describe("canonical method selection", () => {
         methodId: "spaced_retrieval",
         evidenceRef: "learner-choice:later",
       },
+      personalization: context,
     });
 
     expect(selection.selectedMethodId).toBe("interleaved_practice");
@@ -274,6 +279,62 @@ describe("canonical method selection", () => {
 
     expect(selection.selectedMethodId).toBe("interleaved_practice");
     expect(selection.authority).toBe("observed_outcomes");
+  });
+
+  it("lets stable outcomes outrank a saved method preference", () => {
+    const context = personalization({ code: "unknown" });
+    context.preferredMethodIds = ["spaced_retrieval"];
+    const selection = selectCanonicalStudyMethod({
+      ...baseInput(),
+      personalization: context,
+      observedEvidence: [{
+        signal: outcome({ methodId: "interleaved_practice" }),
+        evidenceRefs: ["attempt:interleaved-1"],
+        distinctStudyDays: 2,
+        latestObservedAt: "2026-08-23T08:00:00.000Z",
+      }],
+    });
+
+    expect(selection.selectedMethodId).toBe("interleaved_practice");
+    expect(selection.authority).toBe("observed_outcomes");
+  });
+
+  it("intersects saved preferences with eligibility in server baseline order", () => {
+    const context = personalization({ code: "unknown" });
+    // Catalog order puts retrieval practice before self-explanation. The
+    // conceptual-novice eligibility policy puts self-explanation first.
+    context.preferredMethodIds = ["retrieval_practice", "self_explanation"];
+    const selection = selectCanonicalStudyMethod({
+      taskType: "conceptual_learning",
+      knowledgeStage: "novice",
+      learningMode: "study",
+      personalization: context,
+    });
+
+    expect(selection.eligibleMethodIds).toEqual([
+      "self_explanation",
+      "read_recall_review",
+      "retrieval_practice",
+    ]);
+    expect(selection.selectedMethodId).toBe("self_explanation");
+    expect(selection.authority).toBe("authorized_declaration");
+    expect(selection.evidenceRefs).toEqual([
+      "profile-method-preference:self_explanation",
+    ]);
+    expect(selection.learnerFacingReason).toMatch(/when it fits/i);
+  });
+
+  it("ignores a saved preference outside the server eligibility set", () => {
+    const context = personalization({ code: "unknown" });
+    context.preferredMethodIds = ["self_explanation"];
+    const selection = selectCanonicalStudyMethod({
+      ...baseInput(),
+      personalization: context,
+    });
+
+    expect(selection.selectedMethodId).toBe("retrieval_practice");
+    expect(selection.authority).toBe("task_baseline");
+    expect(selection.eligibleMethodIds).not.toContain("self_explanation");
   });
 
   it("uses a typed, unpaused declaration only inside the eligible set", () => {

@@ -36,6 +36,7 @@ import { StudyRouteSchema } from "@/lib/study-route/schema";
 import { LEARNING_INTENT_COPY, resolveLearningIntent } from "@/lib/learning/learning-intent";
 import { assessGoalContext } from "@/lib/learning/goal-context";
 import type { AddIntakeSeed } from "@/lib/intake/schema";
+import { developmentPreviewPreferenceRequestInput } from "@/lib/plan-generation/development-preview-preferences";
 
 type StudyNowStep = "setup" | "source" | "loading" | "review" | "error";
 type SourceChoice = "materials" | "yova" | "outside";
@@ -52,17 +53,29 @@ const startingPoints = [
   "I know it and want to test my recall",
 ] as const;
 
+export function studyNowPreviewPreferenceRequestInput(
+  browserPreviewMode: boolean,
+  previewPreferredMethodIds: readonly CoreMethodId[],
+) {
+  return developmentPreviewPreferenceRequestInput(
+    browserPreviewMode,
+    previewPreferredMethodIds,
+  );
+}
+
 export function StudyNowCreator({
   onExit,
   onFinish,
   profileSummary,
   browserPreviewMode = false,
+  previewPreferredMethodIds = [],
   seed = null,
 }: {
   onExit: () => void;
   onFinish: (plan: LearningPlan) => void;
   profileSummary: string;
   browserPreviewMode?: boolean;
+  previewPreferredMethodIds?: readonly CoreMethodId[];
   seed?: AddIntakeSeed | null;
 }) {
   const [step, setStep] = useState<StudyNowStep>(seed ? "source" : "setup");
@@ -241,6 +254,10 @@ export function StudyNowCreator({
           minutes,
         }],
         profileSummary,
+        ...studyNowPreviewPreferenceRequestInput(
+          browserPreviewMode,
+          previewPreferredMethodIds,
+        ),
         ...(methodId ? { methodChoice: { methodId } } : {}),
         ...(methodId && draft?.response.plan.knowledgeMap
           ? { knowledgeMap: draft.response.plan.knowledgeMap }

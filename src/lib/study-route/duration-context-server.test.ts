@@ -3,6 +3,8 @@ import type { LearningPlan } from "@/lib/domain";
 import { encodeAdditionalLearnerContext } from "@/lib/personalization/learner-profile";
 import {
   defaultPersonalizationState,
+  serializePersonalizationState,
+  setPreferredMethodIds,
   writePersonalizationStateToAnswers,
 } from "@/lib/personalization/personalization-state";
 import { adaptLegacySessionToStudyRoute } from "@/lib/study-route/adapters";
@@ -333,6 +335,71 @@ describe("authorized normal-duration server context", () => {
     });
     expect(result.profileVersion).toContain("degraded");
     expect(result.profileVersion).not.toContain("profile_model_v1");
+    expect(client.from).toHaveBeenCalledTimes(1);
+  });
+
+  it("authorizes a canonical current preference state", async () => {
+    const fixture = completeFixture();
+    const state = setPreferredMethodIds(defaultPersonalizationState(), [
+      "retrieval_practice",
+      "self_explanation",
+    ]);
+    fixture.results.learner_profiles = {
+      data: {
+        ...(fixture.results.learner_profiles.data as Record<string, unknown>),
+        additional_context: JSON.stringify({
+          schemaVersion: 3,
+          personalizationState: serializePersonalizationState(state),
+        }),
+      },
+      error: null,
+    };
+
+    const result = await loadInjected(fakeClient(fixture.results));
+
+    expect(result).toMatchObject({
+      status: "ready",
+      reason: "loaded",
+      methodEvidence: {
+        personalization: {
+          preferredMethodIds: ["retrieval_practice", "self_explanation"],
+        },
+      },
+    });
+  });
+
+  it.each([
+    ["an unknown ID", ["retrieval_practice", "unknown_method"]],
+    ["a duplicate ID", ["retrieval_practice", "retrieval_practice"]],
+    ["out-of-order IDs", ["self_explanation", "retrieval_practice"]],
+  ])("rejects a current preference state containing %s", async (_, preferredMethodIds) => {
+    const fixture = completeFixture();
+    const canonicalState = serializePersonalizationState(setPreferredMethodIds(
+      defaultPersonalizationState(),
+      ["retrieval_practice", "self_explanation"],
+    ));
+    const noncanonicalState = JSON.parse(canonicalState) as Record<string, unknown>;
+    noncanonicalState.preferredMethodIds = preferredMethodIds;
+    fixture.results.learner_profiles = {
+      data: {
+        ...(fixture.results.learner_profiles.data as Record<string, unknown>),
+        additional_context: JSON.stringify({
+          schemaVersion: 3,
+          personalizationState: JSON.stringify(noncanonicalState),
+        }),
+      },
+      error: null,
+    };
+    const client = fakeClient(fixture.results);
+
+    const result = await loadInjected(client);
+
+    expect(result).toMatchObject({
+      status: "degraded",
+      reason: "personalization_state_invalid",
+      recentOutcomes: [],
+    });
+    expect(result.methodEvidence.personalization).not.toHaveProperty("preferredMethodIds");
     expect(client.from).toHaveBeenCalledTimes(1);
   });
 

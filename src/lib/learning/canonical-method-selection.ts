@@ -146,7 +146,10 @@ export function selectCanonicalStudyMethod(
       signal.methodId === methodId && !methodOutcomeSupportsMethodRanking(signal)
     ))
   ));
-  const declared = authorizedDeclaredMethod(
+  const declared = authorizedPreferredMethod(
+    personalization,
+    eligibleMethodIds,
+  ) ?? authorizedDeclaredMethod(
     personalization,
     eligibleMethodIds,
     input.taskType,
@@ -274,6 +277,23 @@ function comparableObservedEvidence(
     distinctStudyDays: boundedDistinctStudyDays(item.distinctStudyDays),
     latestObservedAt: z.string().datetime({ offset: true }).parse(item.latestObservedAt),
   }));
+}
+
+function authorizedPreferredMethod(
+  personalization: GenerationPersonalizationContext | null,
+  eligibleMethodIds: readonly CoreMethodId[],
+) {
+  if (!personalization?.preferredMethodIds || eligibleMethodIds.length < 2) {
+    return null;
+  }
+  const preferred = new Set(personalization.preferredMethodIds);
+  const methodId = eligibleMethodIds.find((candidate) => preferred.has(candidate));
+  if (!methodId) return null;
+  return {
+    methodId,
+    learnerFacingReason: `You marked ${CORE_METHOD_CATALOG[methodId].name} as a method you would like YOVA to use when it fits. It is an eligible match for this task and current need.`,
+    signalIds: [`profile-method-preference:${methodId}`],
+  };
 }
 
 function boundedDistinctStudyDays(value: number) {

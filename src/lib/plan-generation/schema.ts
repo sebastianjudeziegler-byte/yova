@@ -3,6 +3,7 @@ import { LEARNING_TITLE_CHARACTER_LIMIT } from "@/lib/learning/title-limits";
 import { resolveLearningIntent } from "@/lib/learning/learning-intent";
 import { CORE_METHOD_IDS } from "@/lib/learning/method-catalog";
 import { MaterialUnderstandingSchema, PlanKnowledgeMapSchema } from "@/lib/knowledge-map/schema";
+import { CanonicalPreferredMethodIdsSchema } from "@/lib/personalization/preferred-method-schema";
 import { SESSION_ARCHITECTURE_VERSIONS } from "@/lib/session-generation/architecture";
 import { StudyRouteSchema } from "@/lib/study-route/schema";
 import { NORMAL_STUDY_DURATION_LEVELS } from "@/lib/study-route/duration-levels";
@@ -94,6 +95,11 @@ export const PlanGenerationRequestSchema = z.object({
   methodChoice: z.object({
     methodId: z.enum(CORE_METHOD_IDS),
   }).strict().optional(),
+  /**
+   * Request-local Method Library choices for the browser-only development
+   * preview. The generation route rejects this field on every cloud request.
+   */
+  previewPreferredMethodIds: CanonicalPreferredMethodIdsSchema.optional(),
   knowledgeMap: PlanKnowledgeMapSchema.optional(),
   mapCorrection: z.string().trim().max(800).optional(),
 }).superRefine((value, context) => {

@@ -201,6 +201,7 @@ describe("learning-science method router", () => {
       plannedMethodAuthority: "legacy_compatibility",
     });
     expect(legacy.suggestedPrimaryMethodId).toBe("retrieval_practice");
+    expect(legacy.preservedLegacyMethodId).toBe("retrieval_practice");
     expect(legacy.decisionBasis.join(" ")).toContain("Legacy compatibility");
   });
 

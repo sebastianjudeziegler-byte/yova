@@ -6,6 +6,7 @@ import type {
 } from "@/lib/domain";
 import {
   CORE_METHOD_IDS,
+  CORE_METHOD_CATALOG,
   learningScienceCatalogForPrompt,
 } from "@/lib/learning/method-catalog";
 import type { CoreMethodId } from "@/lib/learning/method-catalog";
@@ -20,7 +21,11 @@ import {
   type PersonalizationDecision,
   type PersonalizationResolution,
 } from "@/lib/personalization/personalization-evidence";
-import { PERSONALIZATION_EXPERIMENT_VARIABLES } from "@/lib/personalization/personalization-state";
+import {
+  PERSONALIZATION_EXPERIMENT_VARIABLES,
+  preferredMethodIds as readPreferredMethodIds,
+} from "@/lib/personalization/personalization-state";
+import { CanonicalPreferredMethodIdsSchema } from "@/lib/personalization/preferred-method-schema";
 import { STUDY_PROFILE_DIMENSIONS } from "@/lib/study-profile/types";
 
 const PersonalizationDecisionSchema = z.object({
@@ -75,6 +80,7 @@ const PersonalizationMethodTieSignalSchema = z.object({
 
 export const GenerationPersonalizationContextSchema = z.object({
   decisions: z.array(PersonalizationDecisionSchema).max(32),
+  preferredMethodIds: CanonicalPreferredMethodIdsSchema.optional(),
   methodTie: z.object({
     state: z.object({
       controls: z.object({ experiments: z.boolean() }),
@@ -96,8 +102,14 @@ export type GenerationPersonalizationContext = z.infer<
 export function projectPersonalizationForGeneration(
   resolution: PersonalizationResolution,
 ): GenerationPersonalizationContext {
+  const effectivePreferredMethodIds = resolution.state.controls.selfReport
+    ? readPreferredMethodIds(resolution.state)
+    : [];
   return GenerationPersonalizationContextSchema.parse({
     decisions: resolution.decisions,
+    ...(effectivePreferredMethodIds.length > 0
+      ? { preferredMethodIds: effectivePreferredMethodIds }
+      : {}),
     methodTie: {
       state: {
         controls: { experiments: resolution.state.controls.experiments },
@@ -129,6 +141,31 @@ export function projectPersonalizationForGeneration(
         paused: signal.paused,
       })),
     },
+  });
+}
+
+/**
+ * Adds request-local preferences to an already bounded generation projection.
+ * Callers are responsible for authorizing a local development-preview request
+ * before invoking this helper.
+ */
+export function projectPreviewPreferredMethodsForGeneration(
+  personalization: unknown,
+  preferredMethodIds: readonly CoreMethodId[],
+): GenerationPersonalizationContext {
+  const parsedPersonalization = GenerationPersonalizationContextSchema.parse(
+    personalization,
+  );
+  const canonicalMethodIds = CanonicalPreferredMethodIdsSchema.parse([
+    ...preferredMethodIds,
+  ]);
+  const withoutPreferredMethods = { ...parsedPersonalization };
+  delete withoutPreferredMethods.preferredMethodIds;
+  return GenerationPersonalizationContextSchema.parse({
+    ...withoutPreferredMethods,
+    ...(canonicalMethodIds.length > 0
+      ? { preferredMethodIds: canonicalMethodIds }
+      : {}),
   });
 }
 
@@ -179,7 +216,28 @@ export function applyPersonalizedMethodTieToRouting(
       ],
     };
   }
+  if (routing.preservedLegacyMethodId) return routing;
   if (!personalization) return routing;
+  if (routing.methodFit?.scores.some((score) => score.observedScore !== 0)) {
+    return routing;
+  }
+  const preferredMethodId = routing.allowedMethodIds.length > 1
+    ? routing.allowedMethodIds.find((methodId) => (
+      personalization.preferredMethodIds?.includes(methodId)
+    ))
+    : undefined;
+  if (preferredMethodId) {
+    return {
+      ...routing,
+      suggestedPrimaryMethodId: preferredMethodId,
+      allowedMethodIds: [preferredMethodId],
+      methods: learningScienceCatalogForPrompt([preferredMethodId]),
+      decisionBasis: [
+        ...routing.decisionBasis,
+        `Saved method preference: ${CORE_METHOD_CATALOG[preferredMethodId].name} is the first preferred method in the task router's eligible order.`,
+      ],
+    };
+  }
   const tie = selectPersonalizedMethodTie(
     routing.allowedMethodIds,
     {

@@ -75,6 +75,42 @@ describe("Study Now request contract", () => {
       methodChoice: { methodId: "invented_method" },
     }).success).toBe(false);
   });
+
+  it("accepts only the canonical bounded development-preview preference list", () => {
+    const canonical = PlanGenerationRequestSchema.safeParse({
+      ...request,
+      previewPreferredMethodIds: ["retrieval_practice", "self_explanation"],
+    });
+
+    expect(canonical.success).toBe(true);
+    if (canonical.success) {
+      expect(canonical.data.previewPreferredMethodIds).toEqual([
+        "retrieval_practice",
+        "self_explanation",
+      ]);
+    }
+    expect(PlanGenerationRequestSchema.safeParse({
+      ...request,
+      previewPreferredMethodIds: ["self_explanation", "retrieval_practice"],
+    }).success).toBe(false);
+    expect(PlanGenerationRequestSchema.safeParse({
+      ...request,
+      previewPreferredMethodIds: ["retrieval_practice", "retrieval_practice"],
+    }).success).toBe(false);
+    expect(PlanGenerationRequestSchema.safeParse({
+      ...request,
+      previewPreferredMethodIds: ["invented_method"],
+    }).success).toBe(false);
+    expect(PlanGenerationRequestSchema.safeParse({
+      ...request,
+      previewPreferredMethodIds: [
+        "retrieval_practice",
+        "spaced_retrieval",
+        "self_explanation",
+        "worked_example_fading",
+      ],
+    }).success).toBe(false);
+  });
 });
 
 describe("provider plan-content contract", () => {

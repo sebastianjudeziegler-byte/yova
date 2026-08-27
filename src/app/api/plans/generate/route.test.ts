@@ -329,6 +329,43 @@ describe("plan generation route", () => {
       .toContain("You told YOVA");
   });
 
+  it("routes a local-preview Study Now session from request-local Method Library preferences", async () => {
+    const vocabularyMap = studyNowKnowledgeMap();
+    vocabularyMap.topics = [{
+      ...vocabularyMap.topics[0]!,
+      title: "Core biology vocabulary",
+      description: "Recall each biology term and distinguish similar definitions.",
+      status: "taught",
+      prerequisiteTopicIds: [],
+    }];
+    const { POST } = await import("@/app/api/plans/generate/route");
+
+    const response = await POST(studyNowGenerationRequest(25, {
+      goal: "Study biology vocabulary definitions from memory for tomorrow's quiz.",
+      startingContext: "I already learned the terms and need to practice retrieving them.",
+      knowledgeMap: vocabularyMap,
+      previewPreferredMethodIds: ["spaced_retrieval"],
+    }));
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.plan.sessions[0]).toMatchObject({
+      method: "Spaced Repetition",
+      studyRoute: {
+        approach: { primaryMethodId: "spaced_retrieval" },
+        provenance: {
+          evidenceRefs: ["profile-method-preference:spaced_retrieval"],
+          ruleTrace: expect.arrayContaining([
+            expect.objectContaining({
+              ruleId: "canonical_method_selection_v1",
+              result: "authorized_declaration:spaced_retrieval",
+            }),
+          ]),
+        },
+      },
+    });
+  });
+
   it("accepts one explicit eligible learner method choice and records learner authority", async () => {
     const vocabularyMap = studyNowKnowledgeMap();
     vocabularyMap.topics = [{
@@ -643,6 +680,34 @@ describe("plan generation route", () => {
     });
   });
 
+  it("routes normal local-preview composition from request-local Method Library preferences", async () => {
+    const { POST } = await import("@/app/api/plans/generate/route");
+
+    const response = await POST(planGenerationRequest({
+      previewPreferredMethodIds: ["self_explanation"],
+    }));
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.plan.sessions[0]).toMatchObject({
+      method: "Self-explanation",
+      studyRoute: {
+        approach: { primaryMethodId: "self_explanation" },
+        provenance: {
+          evidenceRefs: expect.arrayContaining([
+            "profile-method-preference:self_explanation",
+          ]),
+          ruleTrace: expect.arrayContaining([
+            expect.objectContaining({
+              ruleId: "canonical_method_selection_v1",
+              result: "authorized_declaration:self_explanation",
+            }),
+          ]),
+        },
+      },
+    });
+  });
+
   it("keeps one fixed structure for live copy and fallback copy and never calls the legacy generator", async () => {
     mocks.generatePlan.mockImplementationOnce(async ({ request, composition }) => (
       generatedNormalPlanFillResult(request, composition, (fill) => {
@@ -930,6 +995,63 @@ describe("plan generation route", () => {
     );
   });
 
+  it("keeps local-preview Method Library routing in the reliable no-map fallback", async () => {
+    mocks.rateLimit.mockReturnValueOnce({ allowed: false, retryAfterSeconds: 17 });
+    const { POST } = await import("@/app/api/plans/generate/route");
+
+    const response = await POST(planGenerationRequest({
+      knowledgeMap: undefined,
+      previewPreferredMethodIds: ["interleaved_practice"],
+    }));
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.generation).toMatchObject({ mode: "system" });
+    expect(body.plan.sessions[0]).toMatchObject({
+      method: "Interleaving",
+      studyRoute: {
+        approach: { primaryMethodId: "interleaved_practice" },
+        provenance: {
+          evidenceRefs: expect.arrayContaining([
+            "profile-method-preference:interleaved_practice",
+          ]),
+        },
+      },
+    });
+    expect(mocks.generateKnowledgeMap).not.toHaveBeenCalled();
+    expect(mocks.generatePlan).not.toHaveBeenCalled();
+  });
+
+  it("keeps local-preview Method Library routing in a reliable Study Now fallback", async () => {
+    mocks.rateLimit.mockReturnValueOnce({ allowed: false, retryAfterSeconds: 17 });
+    const { POST } = await import("@/app/api/plans/generate/route");
+
+    const response = await POST(studyNowGenerationRequest(25, {
+      goal: "Study biology vocabulary definitions from memory for tomorrow's quiz.",
+      startingContext: "I already learned the terms and need to practice retrieving them.",
+      knowledgeMap: undefined,
+      previewPreferredMethodIds: ["spaced_retrieval"],
+    }));
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.generation).toMatchObject({ mode: "system" });
+    expect(body.plan.sessions).toHaveLength(1);
+    expect(body.plan.sessions[0]).toMatchObject({
+      method: "Spaced Repetition",
+      studyRoute: {
+        approach: { primaryMethodId: "spaced_retrieval" },
+        provenance: {
+          evidenceRefs: expect.arrayContaining([
+            "profile-method-preference:spaced_retrieval",
+          ]),
+        },
+      },
+    });
+    expect(mocks.generateKnowledgeMap).not.toHaveBeenCalled();
+    expect(mocks.generatePlan).not.toHaveBeenCalled();
+  });
+
   it("fails a system fallback truthfully when the plan cannot fit before the deadline", async () => {
     configureProduction();
     mocks.rateLimit.mockReturnValueOnce({ allowed: false, retryAfterSeconds: 17 });
@@ -1130,6 +1252,24 @@ describe("plan generation route", () => {
     });
     expect(mocks.reserve).not.toHaveBeenCalled();
     expect(mocks.generateKnowledgeMap).not.toHaveBeenCalled();
+    expect(mocks.generatePlan).not.toHaveBeenCalled();
+  });
+
+  it("rejects request-local preview preferences on an authenticated cloud request", async () => {
+    configureProduction();
+    const { POST } = await import("@/app/api/plans/generate/route");
+
+    const response = await POST(planGenerationRequest({
+      previewPreferredMethodIds: ["self_explanation"],
+    }));
+
+    expect(response.status).toBe(422);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "preview_method_preferences_not_allowed",
+      fields: { previewPreferredMethodIds: expect.any(Array) },
+    });
+    expect(mocks.loadDurationContext).not.toHaveBeenCalled();
+    expect(mocks.reserve).not.toHaveBeenCalled();
     expect(mocks.generatePlan).not.toHaveBeenCalled();
   });
 

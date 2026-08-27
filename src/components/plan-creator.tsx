@@ -48,6 +48,7 @@ import { LIVE_AI_PLAN_FALLBACK_NOTICE } from "@/lib/plan-generation/fallback";
 import { inferPlanScopeContract } from "@/lib/plan-generation/scope-contract";
 import { buildPlanContentBudget } from "@/lib/plan-generation/content-budget";
 import { LEARNING_INTENT_COPY, resolveLearningIntent } from "@/lib/learning/learning-intent";
+import type { CoreMethodId } from "@/lib/learning/method-catalog";
 import type { AddIntakeSeed } from "@/lib/intake/schema";
 import { assessGoalContext } from "@/lib/learning/goal-context";
 import {
@@ -73,11 +74,36 @@ import {
   resolveStudyRouteSessionContract,
   selectSessionActiveMinutes,
 } from "@/lib/study-route/selectors";
+import { developmentPreviewPreferenceRequestInput } from "@/lib/plan-generation/development-preview-preferences";
 
 type PlanStep = "goal" | "source" | "schedule" | "diagnostic-loading" | "diagnostic" | "confirm" | "loading" | "error" | "result";
 type SourceChoice = "materials" | "yova" | "outside";
 
-export function PlanCreator({ onExit, onFinish, profileSummary, browserPreviewMode = false, seed = null }: { onExit: () => void; onFinish: (plan: LearningPlan) => void; profileSummary: string; browserPreviewMode?: boolean; seed?: AddIntakeSeed | null }) {
+export function planCreatorPreviewPreferenceRequestInput(
+  browserPreviewMode: boolean,
+  previewPreferredMethodIds: readonly CoreMethodId[],
+) {
+  return developmentPreviewPreferenceRequestInput(
+    browserPreviewMode,
+    previewPreferredMethodIds,
+  );
+}
+
+export function PlanCreator({
+  onExit,
+  onFinish,
+  profileSummary,
+  browserPreviewMode = false,
+  previewPreferredMethodIds = [],
+  seed = null,
+}: {
+  onExit: () => void;
+  onFinish: (plan: LearningPlan) => void;
+  profileSummary: string;
+  browserPreviewMode?: boolean;
+  previewPreferredMethodIds?: readonly CoreMethodId[];
+  seed?: AddIntakeSeed | null;
+}) {
   const scheduleRecommendation = recommendStudySchedule(profileSummary);
   const browserTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
   const [step, setStep] = useState<PlanStep>(seed ? "schedule" : "goal");
@@ -198,6 +224,10 @@ export function PlanCreator({ onExit, onFinish, profileSummary, browserPreviewMo
       diagnosticResponses,
       availability,
       profileSummary,
+      ...planCreatorPreviewPreferenceRequestInput(
+        browserPreviewMode,
+        previewPreferredMethodIds,
+      ),
       ...(diagnosticMap ? { knowledgeMap: diagnosticMap } : {}),
       ...overrides,
     });

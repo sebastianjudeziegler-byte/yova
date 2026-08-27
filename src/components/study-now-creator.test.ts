@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   buildStudyNowRequestSummary,
   StudyNowCreator,
+  studyNowPreviewPreferenceRequestInput,
 } from "@/components/study-now-creator";
 import type { AddIntakeSeed } from "@/lib/intake/schema";
 
@@ -44,5 +45,18 @@ describe("StudyNowCreator request summary", () => {
       objective: "Practice ATP synthesis!",
       scope: "NADH production.",
     })).toBe("DNA review? Practice ATP synthesis! Scope: NADH production.");
+  });
+
+  it("sends canonical method preferences only in browser preview mode", () => {
+    expect(studyNowPreviewPreferenceRequestInput(true, [
+      "retrieval_practice",
+      "self_explanation",
+    ])).toEqual({
+      previewPreferredMethodIds: ["retrieval_practice", "self_explanation"],
+    });
+    expect(studyNowPreviewPreferenceRequestInput(false, [
+      "retrieval_practice",
+    ])).toEqual({});
+    expect(studyNowPreviewPreferenceRequestInput(true, [])).toEqual({});
   });
 });

@@ -1,11 +1,20 @@
 import { describe, expect, it } from "vitest";
 import { learningModeContract } from "@/lib/learning/learning-intent";
-import type { LearningScienceRoutingBrief } from "@/lib/learning/method-router";
+import {
+  buildLearningScienceRoutingBrief,
+  type LearningScienceRoutingBrief,
+} from "@/lib/learning/method-router";
 import {
   applyPersonalizedMethodTieToRouting,
   personalizationDecisions,
+  resolvePersonalizationForGeneration,
   type GenerationPersonalizationContext,
 } from "@/lib/personalization/personalization-generation";
+import {
+  defaultPersonalizationState,
+  setPreferredMethodIds,
+  writePersonalizationStateToAnswers,
+} from "@/lib/personalization/personalization-state";
 
 function routing(
   allowedMethodIds: LearningScienceRoutingBrief["allowedMethodIds"],
@@ -67,11 +76,126 @@ describe("generation personalization", () => {
 
   it("leaves routing unchanged when the preferred method is not task-valid", () => {
     const taskRouting = routing(["self_explanation", "worked_example_fading"]);
+    const context = personalization();
+    context.preferredMethodIds = ["spaced_retrieval"];
 
     expect(applyPersonalizedMethodTieToRouting(
       taskRouting,
-      personalization(),
+      context,
     )).toBe(taskRouting);
+  });
+
+  it("selects a saved preference only inside the task router list and in router order", () => {
+    const context = personalization("unknown");
+    context.preferredMethodIds = ["retrieval_practice", "spaced_retrieval"];
+    const taskRouting = routing(["spaced_retrieval", "retrieval_practice"]);
+    const selected = applyPersonalizedMethodTieToRouting(taskRouting, context);
+
+    expect(selected.suggestedPrimaryMethodId).toBe("spaced_retrieval");
+    expect(selected.allowedMethodIds).toEqual(["spaced_retrieval"]);
+    expect(selected.allowedMethodIds.every((methodId) => (
+      taskRouting.allowedMethodIds.includes(methodId)
+    ))).toBe(true);
+    expect(selected.decisionBasis.at(-1)).toMatch(/saved method preference/i);
+  });
+
+  it("preserves stable observed fit before a conflicting saved preference", () => {
+    const taskRouting: LearningScienceRoutingBrief = {
+      ...routing(["spaced_retrieval", "retrieval_practice"]),
+      suggestedPrimaryMethodId: "retrieval_practice",
+      methodFit: {
+        orderedMethodIds: ["retrieval_practice", "spaced_retrieval"],
+        selectedMethodId: "retrieval_practice",
+        baselineMethodId: "spaced_retrieval",
+        changedFromBaseline: true,
+        learnerFacingReason: "Recent comparable retrieval sessions produced stable checked success.",
+        scores: [
+          {
+            methodId: "retrieval_practice",
+            methodName: "Retrieval Practice",
+            baselineRank: 1,
+            baselineScore: 0,
+            declaredScore: 0,
+            observedScore: 2,
+            total: 2,
+            signals: [{
+              methodId: "retrieval_practice",
+              source: "observed",
+              weight: 2,
+              reason: "recent comparable sessions went well",
+            }],
+          },
+          {
+            methodId: "spaced_retrieval",
+            methodName: "Spaced Repetition",
+            baselineRank: 0,
+            baselineScore: 0.25,
+            declaredScore: 0,
+            observedScore: 0,
+            total: 0.25,
+            signals: [],
+          },
+        ],
+      },
+    };
+    const context = personalization("unknown");
+    context.preferredMethodIds = ["spaced_retrieval"];
+
+    expect(applyPersonalizedMethodTieToRouting(taskRouting, context)).toBe(
+      taskRouting,
+    );
+  });
+
+  it("never renames an eligible method already saved on a legacy route-free session", () => {
+    const legacyRouting = buildLearningScienceRoutingBrief({
+      learningIntent: "study",
+      sessionLearningMode: "study",
+      goalTitle: "Biology vocabulary",
+      goalTopic: "Remember the core biology terms",
+      goalKind: "assessment",
+      sessionTitle: "Vocabulary review",
+      sessionObjective: "Recall each definition without looking",
+      plannedMethod: "Spaced Repetition",
+      plannedMethodReason: "This older saved session already named the method.",
+      plannedMethodAuthority: "legacy_compatibility",
+      learnerProfile: null,
+      recentResults: [],
+      interruptionCount: 0,
+      taskTypeOverride: "memorization",
+      knowledgeStageOverride: "developing",
+    });
+    const context = personalization("unknown");
+    context.preferredMethodIds = ["retrieval_practice"];
+
+    expect(legacyRouting.preservedLegacyMethodId).toBe("spaced_retrieval");
+    expect(applyPersonalizedMethodTieToRouting(legacyRouting, context)).toBe(
+      legacyRouting,
+    );
+    expect(legacyRouting.suggestedPrimaryMethodId).toBe("spaced_retrieval");
+  });
+
+  it("projects saved preferences only while self-report personalization is enabled", () => {
+    const preferred = setPreferredMethodIds(defaultPersonalizationState(), [
+      "spaced_retrieval",
+    ]);
+    const enabled = resolvePersonalizationForGeneration({
+      answers: writePersonalizationStateToAnswers([], preferred),
+      completions: [],
+      interruptions: [],
+      plans: [],
+    });
+    const disabled = resolvePersonalizationForGeneration({
+      answers: writePersonalizationStateToAnswers([], {
+        ...preferred,
+        controls: { ...preferred.controls, selfReport: false },
+      }),
+      completions: [],
+      interruptions: [],
+      plans: [],
+    });
+
+    expect(enabled.preferredMethodIds).toEqual(["spaced_retrieval"]);
+    expect(disabled).not.toHaveProperty("preferredMethodIds");
   });
 
   it("does not let a paused signal choose a method", () => {

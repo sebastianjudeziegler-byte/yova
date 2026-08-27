@@ -57,6 +57,7 @@ import {
 } from "@/components/guided-session-allowance-notice";
 import { LearningContent } from "@/components/learning-content";
 import { MaterialLinkImporter } from "@/components/material-link-importer";
+import { MethodLibrary } from "@/components/method-library";
 import {
   PersonalizationCenter,
   type PersonalizationCenterSignal,
@@ -134,7 +135,7 @@ import {
   getMethodPhasePresentation,
   methodPhasePosition,
 } from "@/lib/learning/method-phase-presentation";
-import type { CoreMethodId } from "@/lib/learning/method-catalog";
+import { CORE_METHOD_IDS, type CoreMethodId } from "@/lib/learning/method-catalog";
 import {
   buildCommittedRouteFallbackMethodBriefing,
   buildFallbackMethodBriefing,
@@ -256,11 +257,13 @@ import {
   evaluateActivePersonalizationExperiment,
   finishPersonalizationExperiment,
   personalizationExperimentAcceptsCompletion,
+  preferredMethodIds,
   readPersonalizationStateFromAnswers,
   recordPersonalizationExperimentCompletion,
   recordPersonalizationWeeklyReview,
   setPersonalizationEvidenceRefExcluded,
   startPersonalizationExperiment,
+  setPreferredMethodIds,
   undoPersonalizationChange,
   updatePersonalizationStateInAnswers,
   type PersonalizationWorkspaceSettings,
@@ -448,6 +451,8 @@ import {
 
 type Stage = "landing" | "account" | "cloud-error" | "onboarding-intro" | "onboarding" | "profile" | "app" | "add" | "plan-creator" | "study-now" | "session-setup" | "session-loading" | "session-error" | "session-quota" | "session-method" | "session" | "complete";
 type Tab = "Home" | "Learning" | "Agenda" | "Ask YOVA" | "You";
+type LearningPlanView = "active" | "recent" | "archive";
+type LearningSection = LearningPlanView | "methods";
 type LessonStep = GuidedSessionStep & {
   lessonBrief?: LessonBrief | null;
   /** Original persisted skeleton index; display indices can shift after a live repair. */
@@ -618,6 +623,10 @@ export function YovaPrototype({
   const [sessionRecoveryNotice, setSessionRecoveryNotice] = useState<string | null>(null);
   const [sessionRecoveryIssue, setSessionRecoveryIssue] = useState<string | null>(null);
   const [cloudSyncIssue, setCloudSyncIssue] = useState<string | null>(null);
+  const [syncedPreferenceSnapshot, setSyncedPreferenceSnapshot] = useState<{
+    accountId: string;
+    preferenceKey: string;
+  } | null>(null);
   const [signingOut, setSigningOut] = useState(false);
   const [signOutIssue, setSignOutIssue] = useState<string | null>(null);
   const [signedOutStorageIssue, setSignedOutStorageIssue] = useState<string | null>(null);
@@ -631,6 +640,7 @@ export function YovaPrototype({
   const [earlySchedulePending, setEarlySchedulePending] = useState(false);
   const [earlyScheduleIssue, setEarlyScheduleIssue] = useState<string | null>(null);
   const cloudRecoveryStatusRef = useRef<CloudRecoveryStatus>("idle");
+  const explicitlySavedProfileAnswersRef = useRef<string[] | null>(null);
   const signOutPendingRef = useRef(false);
   const retainedSignOutAccountIdRef = useRef<string | null>(null);
   const sessionGenerationAbortRef = useRef<AbortController | null>(null);
@@ -718,6 +728,51 @@ export function YovaPrototype({
   const capturedSessionSeconds = Math.max(1, sessionElapsedSeconds);
   const capturedSessionMinutes = Math.max(1, Math.ceil(capturedSessionSeconds / 60));
   const personalizationState = readPersonalizationStateFromAnswers(answers);
+  const savedPreferredMethodIds = preferredMethodIds(personalizationState);
+  const syncedPreferenceKey = account?.identityMode === "supabase"
+    && syncedPreferenceSnapshot?.accountId === account.id
+    ? syncedPreferenceSnapshot.preferenceKey
+    : null;
+  const effectivePreviewPreferredMethodIds = personalizationState.controls.selfReport
+    ? savedPreferredMethodIds
+    : [];
+  const changePreferredMethodIds = async (methodIds: CoreMethodId[]) => {
+    const nextAnswers = updatePersonalizationStateInAnswers(
+      answers,
+      (currentState) => setPreferredMethodIds(currentState, methodIds),
+    );
+    // Keep the choice on this device first, then wait for the exact same
+    // answer snapshot to reach a cloud account before reporting success.
+    if (account?.identityMode === "supabase") {
+      explicitlySavedProfileAnswersRef.current = nextAnswers;
+    }
+    setAnswers(nextAnswers);
+    if (account?.identityMode !== "supabase") return;
+
+    try {
+      await saveAuthenticatedLearnerProfile({
+        accountId: account.id,
+        displayName: account.displayName,
+        onboardingAnswers: nextAnswers,
+      });
+      setSyncedPreferenceSnapshot({
+        accountId: account.id,
+        preferenceKey: preferredMethodIds(
+          readPersonalizationStateFromAnswers(nextAnswers),
+        ).join("|"),
+      });
+      setCloudSyncIssue((current) => (
+        isTemporaryLearnerProfileSyncWarning(current) ? null : current
+      ));
+    } catch (error) {
+      reportProductError({ surface: "cloud_sync", errorCode: "learner_profile_sync_failed" });
+      const issue = error instanceof Error
+        ? error.message
+        : "YOVA could not sync your learning profile.";
+      setCloudSyncIssue(issue);
+      throw error instanceof Error ? error : new Error(issue);
+    }
+  };
   const workspaceExperimentSession = stage === "session" || stage === "session-method"
     ? activePlan?.sessions.find((session) => session.status === "ready") ?? null
     : null;
@@ -1311,6 +1366,12 @@ export function YovaPrototype({
           setCloudSyncIssue(terminalOrProfileIssue);
           return;
         }
+        setSyncedPreferenceSnapshot({
+          accountId: account.id,
+          preferenceKey: preferredMethodIds(
+            readPersonalizationStateFromAnswers(answers),
+          ).join("|"),
+        });
         const checkpointIssues = await Promise.all(
           activeSessionCheckpoints.map(syncCheckpointToAccount),
         );
@@ -1324,6 +1385,11 @@ export function YovaPrototype({
 
   useEffect(() => {
     if (!ready || !onboardingCompleted || account?.identityMode !== "supabase") return;
+    if (explicitlySavedProfileAnswersRef.current === answers) {
+      explicitlySavedProfileAnswersRef.current = null;
+      return;
+    }
+    explicitlySavedProfileAnswersRef.current = null;
     let cancelled = false;
 
     void saveAuthenticatedLearnerProfile({
@@ -1332,6 +1398,12 @@ export function YovaPrototype({
       onboardingAnswers: answers,
     }).then(() => {
       if (!cancelled) {
+        setSyncedPreferenceSnapshot({
+          accountId: account.id,
+          preferenceKey: preferredMethodIds(
+            readPersonalizationStateFromAnswers(answers),
+          ).join("|"),
+        });
         setCloudSyncIssue((current) => (
           isTemporaryLearnerProfileSyncWarning(current)
             ? null
@@ -3534,6 +3606,12 @@ export function YovaPrototype({
       setCloudSyncIssue(terminalOrProfileIssue);
       throw new Error(terminalOrProfileIssue);
     }
+    setSyncedPreferenceSnapshot({
+      accountId: account.id,
+      preferenceKey: preferredMethodIds(
+        readPersonalizationStateFromAnswers(answers),
+      ).join("|"),
+    });
     const checkpointIssues = await Promise.all(
       activeSessionCheckpoints.map(syncCheckpointToAccount),
     );
@@ -3860,7 +3938,7 @@ export function YovaPrototype({
     onCreatePlan={(seed) => { setCreatorSeed(seed); setCreatorMilestoneId(null); setStage("plan-creator"); }}
     onCreateSession={(seed) => { setCreatorSeed(seed); setCreatorMilestoneId(null); setStage("study-now"); }}
   />;
-  if (stage === "plan-creator") return <PlanCreator seed={creatorSeed ?? undefined} browserPreviewMode={browserPreviewMode || account?.identityMode === "preview"} profileSummary={buildPlanProfileSummary(answers)} onExit={() => { setCreatorSeed(null); setCreatorMilestoneId(null); setStage("app"); }} onFinish={(plan) => {
+  if (stage === "plan-creator") return <PlanCreator seed={creatorSeed ?? undefined} browserPreviewMode={browserPreviewMode || account?.identityMode === "preview"} previewPreferredMethodIds={effectivePreviewPreferredMethodIds} profileSummary={buildPlanProfileSummary(answers)} onExit={() => { setCreatorSeed(null); setCreatorMilestoneId(null); setStage("app"); }} onFinish={(plan) => {
     trackProductEvent({
       eventName: "plan_created",
       context: {
@@ -3878,7 +3956,7 @@ export function YovaPrototype({
     setStage("app");
     setActiveTab("Learning");
   }} />;
-  if (stage === "study-now") return <StudyNowCreator seed={creatorSeed} browserPreviewMode={browserPreviewMode || account?.identityMode === "preview"} profileSummary={buildPlanProfileSummary(answers)} onExit={() => { setCreatorSeed(null); setCreatorMilestoneId(null); setStage("app"); }} onFinish={(plan) => {
+  if (stage === "study-now") return <StudyNowCreator seed={creatorSeed} browserPreviewMode={browserPreviewMode || account?.identityMode === "preview"} previewPreferredMethodIds={effectivePreviewPreferredMethodIds} profileSummary={buildPlanProfileSummary(answers)} onExit={() => { setCreatorSeed(null); setCreatorMilestoneId(null); setStage("app"); }} onFinish={(plan) => {
     trackProductEvent({
       eventName: "plan_created",
       context: {
@@ -4043,7 +4121,7 @@ export function YovaPrototype({
   return <>
     <AppShell activeTab={activeTab} onTab={openTab} account={account} cloudSyncIssue={cloudSyncIssue} signOutIssue={signOutIssue} signingOut={signingOut} onRetryCloudSync={retryCloudSync} onAdd={beginAgendaAdd} workspaceClassName={personalizationWorkspaceClassName} onSignOut={signOut}>
       {activeTab === "Home" && <HomeScreen account={account} answers={answers} plans={activePlans} plan={recommendedPlan} sessionCompletions={sessionCompletions} sessionInterruptions={sessionInterruptions} activeSessionCheckpoints={recoverableSessionCheckpoints} allowance={guidedSessionAllowance} allowanceChecking={guidedSessionAllowanceChecking} tutorQuestion={tutorQuestion} onTutorQuestion={setTutorQuestion} onOpenTutor={openAskYova} onOpenYou={() => setActiveTab("You")} onStart={(planId) => requestSessionStart(planId)} onOpenPlan={(planId) => { setSelectedPlanId(planId); setLearningDetailPlanId(planId); setActiveTab("Learning"); }} onCreatePlan={beginPlanCreation} onStudyNow={() => { setCreatorSeed(null); setCreatorMilestoneId(null); setStage("study-now"); }} />}
-      {activeTab === "Learning" && <LearningScreen plans={plans} detailPlanId={learningDetailPlanId} sessionCompletions={sessionCompletions} sessionInterruptions={sessionInterruptions} activeSessionCheckpoints={recoverableSessionCheckpoints} onOpenPlan={(planId) => { setSelectedPlanId(planId); setLearningDetailPlanId(planId); }} onClosePlan={() => setLearningDetailPlanId(null)} onStart={requestSessionStart} onCreatePlan={beginPlanCreation} onArchiveStateChange={changePlanArchiveState} onDeletePlan={deletePlanPermanently} onAdjustPlan={adjustPlan} onKnowledgeMapUpdate={updatePlanKnowledgeMap} onAttachMaterials={attachMaterials} />}
+      {activeTab === "Learning" && <LearningScreen plans={plans} detailPlanId={learningDetailPlanId} sessionCompletions={sessionCompletions} sessionInterruptions={sessionInterruptions} activeSessionCheckpoints={recoverableSessionCheckpoints} preferredMethodIds={savedPreferredMethodIds} syncedPreferenceKey={syncedPreferenceKey} statedPreferencesEnabled={personalizationState.controls.selfReport} onPreferredMethodIdsChange={changePreferredMethodIds} onOpenPlan={(planId) => { setSelectedPlanId(planId); setLearningDetailPlanId(planId); }} onClosePlan={() => setLearningDetailPlanId(null)} onStart={requestSessionStart} onCreatePlan={beginPlanCreation} onArchiveStateChange={changePlanArchiveState} onDeletePlan={deletePlanPermanently} onAdjustPlan={adjustPlan} onKnowledgeMapUpdate={updatePlanKnowledgeMap} onAttachMaterials={attachMaterials} />}
       {activeTab === "Agenda" && <AgendaScreen plans={availablePlans} milestones={agendaMilestones} sessionCompletions={sessionCompletions} sessionInterruptions={sessionInterruptions} activeSessionCheckpoints={recoverableSessionCheckpoints} allowance={guidedSessionAllowance} allowanceChecking={guidedSessionAllowanceChecking} previewMode={account?.identityMode === "preview"} onAdd={beginAgendaAdd} onStart={requestSessionStart} onActivateReview={activateConceptReview} onReschedule={rescheduleSessions} onAdjustDuration={adjustSessionDuration} onClassifyRecoveryInterruption={setRecoveryEvidenceClassification} onUpdateMilestone={updateDeadlineMilestone} onDeleteMilestone={deleteDeadlineMilestone} onConvertMilestone={(milestone, outcome) => { setCreatorSeed({ title: milestone.title, objective: milestone.description || `Complete ${milestone.title}`, itemType: "assignment", dueAt: milestone.dueAt, scope: milestone.description || milestone.title, progress: "", materialsSummary: "No materials attached yet.", missingFields: milestone.description ? [] : ["scope"], description: milestone.description || milestone.title, materials: [] }); setCreatorMilestoneId(milestone.id); setStage(outcome === "session" ? "study-now" : "plan-creator"); }} />}
       {activeTab === "Ask YOVA" && <AskScreen key={tutorEntryKey} plans={availablePlans} question={tutorQuestion} onQuestion={setTutorQuestion} onApplyAction={applyTutorAction} analyticsEnabled={analyticsEnabled} />}
       {activeTab === "You" && <YouScreen account={account} answers={answers} plans={plans} sessionCompletions={sessionCompletions} sessionInterruptions={sessionInterruptions} passwordAccountsEnabled={passwordAccountsEnabled} turnstileSiteKey={turnstileSiteKey} signingOut={signingOut} onAnswersChange={setAnswers} onDisplayNameChange={saveAccountDisplayName} onSignOut={signOut} onReset={resetYovaData} />}
@@ -4170,7 +4248,7 @@ export function AppShell({ activeTab, onTab, account, cloudSyncIssue, signOutIss
       setRetrying(false);
     }
   };
-  return <div className={`app-shell ${workspaceClassName}`}><a className="skip-link" href="#main-content">Skip to main content</a><aside className="sidebar"><BrandMark /><button className="sidebar-create" aria-label="Add to YOVA" onClick={onAdd}><Plus size={18} /><span>Add</span></button><nav aria-label="Main navigation">{navItems.map(({ label, icon: Icon }) => <button key={label} aria-label={label} className={activeTab === label ? "active" : ""} onClick={() => onTab(label)}><Icon size={19} /><span>{label}</span></button>)}</nav><nav className="sidebar-trust-links" aria-label="Trust and support"><Link href="/support">Support</Link><Link href="/privacy">Privacy</Link><Link href="/terms">Terms</Link></nav><div className="sidebar-bottom"><div className="account-dot">{initial}</div><div><strong>{account?.displayName || "YOVA user"}</strong><span>{account?.identityMode === "supabase" ? "Cloud account" : "Private alpha"}</span></div><button aria-label={signingOut ? "Signing out" : "Sign out on this device"} title="Sign out on this device" disabled={signingOut} onClick={() => void onSignOut()}><LogOut size={17} /></button></div></aside><main className="app-content" id="main-content" tabIndex={-1}>{signOutIssue && <div className="account-action-warning" role="alert"><AlertCircle size={18} aria-hidden="true" /><div><strong>Sign-out was not confirmed.</strong><span>{signOutIssue} This screen and its saved recovery state were left intact.</span></div></div>}{cloudSyncIssue && <div className="cloud-sync-warning"><strong>Cloud sync needs attention.</strong><span>{cloudSyncIssue} Your latest work is still saved in this browser.</span><button disabled={retrying} onClick={() => void retry()}>{retrying ? "Retrying…" : "Retry now"}</button></div>}{children}</main></div>;
+  return <div className={`app-shell ${workspaceClassName}`}><a className="skip-link" href="#main-content">Skip to main content</a><aside className="sidebar"><BrandMark /><button className="sidebar-create" aria-label="Add to YOVA" onClick={onAdd}><Plus size={18} /><span>Add</span></button><nav aria-label="Main navigation">{navItems.map(({ label, icon: Icon }) => <button key={label} aria-label={label} className={activeTab === label ? "active" : ""} onClick={() => onTab(label)}><Icon size={19} /><span>{label}</span></button>)}</nav><nav className="sidebar-trust-links" aria-label="Trust and support"><Link href="/support">Support</Link><Link href="/privacy">Privacy</Link><Link href="/terms">Terms</Link></nav><div className="sidebar-bottom"><div className="account-dot">{initial}</div><div><strong>{account?.displayName || "YOVA user"}</strong><span>{account?.identityMode === "supabase" ? "Cloud account" : "Private alpha"}</span></div><button aria-label={signingOut ? "Signing out" : "Sign out on this device"} title="Sign out on this device" disabled={signingOut} onClick={() => void onSignOut()}><LogOut size={17} /></button></div></aside><main className="app-content" id="main-content" tabIndex={-1}>{signOutIssue && <div className="account-action-warning" role="alert"><AlertCircle size={18} aria-hidden="true" /><div><strong>Sign-out was not confirmed.</strong><span>{signOutIssue} This screen and its saved recovery state were left intact.</span></div></div>}{cloudSyncIssue && <div className="cloud-sync-warning"><strong>Cloud sync needs attention.</strong><span>{cloudSyncIssue}</span><button disabled={retrying} onClick={() => void retry()}>{retrying ? "Retrying…" : "Retry now"}</button></div>}{children}</main></div>;
 }
 
 function workspaceClassName(settings: PersonalizationWorkspaceSettings) {
@@ -4496,8 +4574,8 @@ function AskBar({ value, onChange, onSubmit, pending = false }: { value: string;
   return <form className="ask-bar" onSubmit={(event) => { event.preventDefault(); if (value.trim() && !pending) onSubmit(); }}><Sparkles size={20} /><input aria-label="Ask YOVA" placeholder="Ask YOVA anything or describe what you need…" value={value} disabled={pending} onChange={(event) => onChange(event.target.value)} /><button aria-label="Send" type="submit" disabled={!value.trim() || pending}>{pending ? <span className="button-spinner" /> : <Send size={18} />}</button></form>;
 }
 
-function LearningScreen({ plans, detailPlanId, sessionCompletions, sessionInterruptions, activeSessionCheckpoints, onOpenPlan, onClosePlan, onStart, onCreatePlan, onArchiveStateChange, onDeletePlan, onAdjustPlan, onKnowledgeMapUpdate, onAttachMaterials }: { plans: LearningPlan[]; detailPlanId: string | null; sessionCompletions: SessionCompletion[]; sessionInterruptions: SessionInterruption[]; activeSessionCheckpoints: ActiveSessionCheckpoint[]; onOpenPlan: (planId: string) => void; onClosePlan: () => void; onStart: (planId: string) => void; onCreatePlan: () => void; onArchiveStateChange: (planId: string, action: "archive" | "restore") => Promise<LearningPlan["status"]>; onDeletePlan: (planId: string) => Promise<void>; onAdjustPlan: (input: PlanAdjustmentRequest) => Promise<void>; onKnowledgeMapUpdate: (planId: string, knowledgeMap: PlanKnowledgeMap) => void; onAttachMaterials: (planId: string, materialIds: string[]) => Promise<void> }) {
-  const [view, setView] = useState<"active" | "recent" | "archive">(() => {
+function LearningScreen({ plans, detailPlanId, sessionCompletions, sessionInterruptions, activeSessionCheckpoints, preferredMethodIds: selectedPreferredMethodIds, syncedPreferenceKey, statedPreferencesEnabled, onPreferredMethodIdsChange, onOpenPlan, onClosePlan, onStart, onCreatePlan, onArchiveStateChange, onDeletePlan, onAdjustPlan, onKnowledgeMapUpdate, onAttachMaterials }: { plans: LearningPlan[]; detailPlanId: string | null; sessionCompletions: SessionCompletion[]; sessionInterruptions: SessionInterruption[]; activeSessionCheckpoints: ActiveSessionCheckpoint[]; preferredMethodIds: readonly CoreMethodId[]; syncedPreferenceKey: string | null; statedPreferencesEnabled: boolean; onPreferredMethodIdsChange: (methodIds: CoreMethodId[]) => void | Promise<void>; onOpenPlan: (planId: string) => void; onClosePlan: () => void; onStart: (planId: string) => void; onCreatePlan: () => void; onArchiveStateChange: (planId: string, action: "archive" | "restore") => Promise<LearningPlan["status"]>; onDeletePlan: (planId: string) => Promise<void>; onAdjustPlan: (input: PlanAdjustmentRequest) => Promise<void>; onKnowledgeMapUpdate: (planId: string, knowledgeMap: PlanKnowledgeMap) => void; onAttachMaterials: (planId: string, materialIds: string[]) => Promise<void> }) {
+  const [view, setView] = useState<LearningSection>(() => {
     const requestedPlan = plans.find((plan) => plan.id === detailPlanId);
     if (requestedPlan?.status === "archived") return "archive";
     if (requestedPlan && (
@@ -4508,7 +4586,7 @@ function LearningScreen({ plans, detailPlanId, sessionCompletions, sessionInterr
   });
   const [changingPlanId, setChangingPlanId] = useState<string | null>(null);
   const [statusError, setStatusError] = useState<string | null>(null);
-  const visiblePlans = plans.filter((plan) => {
+  const visiblePlans = view === "methods" ? [] : plans.filter((plan) => {
     if (view === "active") return isOperationalPlan(plan) && plan.creationIntent !== "study_now";
     if (view === "recent") return canPresentPlanAsCompleted(plan) || (plan.creationIntent === "study_now" && plan.status !== "archived");
     return plan.status === "archived";
@@ -4535,20 +4613,23 @@ function LearningScreen({ plans, detailPlanId, sessionCompletions, sessionInterr
     }
   };
 
-  const changeView = (nextView: "active" | "recent" | "archive") => {
+  const changeView = (nextView: LearningSection) => {
     setView(nextView);
     onClosePlan();
   };
 
+  const showingMethods = view === "methods";
+
   return <div className="page learning-page">
-    <div className="learning-index-header"><PageHeader eyebrow="LEARNING" title="What you’re working toward" description="Every goal keeps its plan, materials, sessions, and progress in one place." /><button className="button primary" onClick={onCreatePlan}><Plus size={17} /> New plan</button></div>
-    <div className="tabs">
-      <button className={view === "active" ? "active" : ""} onClick={() => changeView("active")}>Active <span>{plans.filter((item) => isOperationalPlan(item) && item.creationIntent !== "study_now").length}</span></button>
-      <button className={view === "recent" ? "active" : ""} onClick={() => changeView("recent")}>Recent <span>{plans.filter((item) => canPresentPlanAsCompleted(item) || (item.creationIntent === "study_now" && item.status !== "archived")).length}</span></button>
-      <button className={view === "archive" ? "active" : ""} onClick={() => changeView("archive")}>Archive <span>{plans.filter((item) => item.status === "archived").length}</span></button>
-    </div>
+    <div className="learning-index-header"><PageHeader eyebrow="LEARNING" title={showingMethods ? "Explore YOVA’s study methods" : "What you’re working toward"} description={showingMethods ? "See what each method is useful for, how it works, and tell YOVA which ones you enjoy." : "Every goal keeps its plan, materials, sessions, and progress in one place."} />{!showingMethods && <button type="button" className="button primary" onClick={onCreatePlan}><Plus size={17} /> New plan</button>}</div>
+    <nav className="tabs" aria-label="Learning sections">
+      <button type="button" aria-current={view === "active" ? "page" : undefined} className={view === "active" ? "active" : ""} onClick={() => changeView("active")}>Active <span>{plans.filter((item) => isOperationalPlan(item) && item.creationIntent !== "study_now").length}</span></button>
+      <button type="button" aria-current={view === "recent" ? "page" : undefined} className={view === "recent" ? "active" : ""} onClick={() => changeView("recent")}>Recent <span>{plans.filter((item) => canPresentPlanAsCompleted(item) || (item.creationIntent === "study_now" && item.status !== "archived")).length}</span></button>
+      <button type="button" aria-current={view === "archive" ? "page" : undefined} className={view === "archive" ? "active" : ""} onClick={() => changeView("archive")}>Archive <span>{plans.filter((item) => item.status === "archived").length}</span></button>
+      <button type="button" aria-current={view === "methods" ? "page" : undefined} className={view === "methods" ? "active" : ""} onClick={() => changeView("methods")}>Methods <span>{CORE_METHOD_IDS.length}</span></button>
+    </nav>
     {statusError && <div className="chat-error"><AlertCircle size={16} /><span>{statusError}</span></div>}
-    {plan ? <LearningPlanDetail plan={plan} view={view} completions={sessionCompletions.filter((completion) => completion.planId === plan.id)} interruptions={sessionInterruptions.filter((interruption) => interruption.planId === plan.id)} activeSessionCheckpoints={activeSessionCheckpoints.filter((checkpoint) => checkpoint.planId === plan.id)} changingStatus={changingPlanId === plan.id} onBack={onClosePlan} onStart={() => onStart(plan.id)} onArchiveStateChange={(action) => void changeArchiveState(plan.id, action)} onDeletePlan={() => onDeletePlan(plan.id)} onAdjustPlan={onAdjustPlan} onKnowledgeMapUpdate={onKnowledgeMapUpdate} onAttachMaterials={onAttachMaterials} /> : visiblePlans.length ? <LearningOverview plans={visiblePlans} allPlans={plans} view={view} interruptions={sessionInterruptions} activeSessionCheckpoints={activeSessionCheckpoints} onOpenPlan={onOpenPlan} onStart={onStart} /> : <section className="learning-empty"><span className="learning-empty-icon"><LibraryBig size={22} /></span><h2>{viewLabels[view].empty}</h2><p>{viewLabels[view].description}</p>{view === "active" && <button className="button primary" onClick={onCreatePlan}>Build your first plan <ArrowRight size={17} /></button>}</section>}
+    {showingMethods ? <MethodLibrary preferredMethodIds={selectedPreferredMethodIds} syncedPreferenceKey={syncedPreferenceKey} statedPreferencesEnabled={statedPreferencesEnabled} onPreferredMethodIdsChange={onPreferredMethodIdsChange} /> : plan ? <LearningPlanDetail plan={plan} view={view} completions={sessionCompletions.filter((completion) => completion.planId === plan.id)} interruptions={sessionInterruptions.filter((interruption) => interruption.planId === plan.id)} activeSessionCheckpoints={activeSessionCheckpoints.filter((checkpoint) => checkpoint.planId === plan.id)} changingStatus={changingPlanId === plan.id} onBack={onClosePlan} onStart={() => onStart(plan.id)} onArchiveStateChange={(action) => void changeArchiveState(plan.id, action)} onDeletePlan={() => onDeletePlan(plan.id)} onAdjustPlan={onAdjustPlan} onKnowledgeMapUpdate={onKnowledgeMapUpdate} onAttachMaterials={onAttachMaterials} /> : visiblePlans.length ? <LearningOverview plans={visiblePlans} allPlans={plans} view={view} interruptions={sessionInterruptions} activeSessionCheckpoints={activeSessionCheckpoints} onOpenPlan={onOpenPlan} onStart={onStart} /> : <section className="learning-empty"><span className="learning-empty-icon"><LibraryBig size={22} /></span><h2>{viewLabels[view].empty}</h2><p>{viewLabels[view].description}</p>{view === "active" && <button className="button primary" onClick={onCreatePlan}>Build your first plan <ArrowRight size={17} /></button>}</section>}
   </div>;
 }
 

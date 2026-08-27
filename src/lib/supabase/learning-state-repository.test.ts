@@ -1325,7 +1325,8 @@ describe("saveAuthenticatedLearnerProfile", () => {
 
     expect(issue).toBeInstanceOf(CloudSyncTemporarilyUnavailableError);
     expect(issue).toMatchObject({ code: "temporarily_unavailable", retryable: true });
-    expect((issue as Error).message).toContain("changes remain saved on this device");
+    expect((issue as Error).message).toContain("still visible here");
+    expect((issue as Error).message).toContain("Retry now before closing or reloading");
     expect((issue as Error).message).not.toContain("account changed");
     expect(rpc).not.toHaveBeenCalled();
   });

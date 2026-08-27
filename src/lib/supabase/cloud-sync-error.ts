@@ -7,10 +7,10 @@ export const ACTIVE_SESSION_RECOVERY_CLOUD_SYNC_WARNING =
   "Recovery is saved on this device. Cloud sync is temporarily unavailable; try syncing again shortly.";
 
 export const LEARNER_PROFILE_IDENTITY_SYNC_WARNING =
-  "YOVA could not verify your account while syncing your learning profile. Your changes remain saved on this device.";
+  "YOVA could not verify your account while syncing your learning profile. Your changes are still visible here; use Retry now before closing or reloading.";
 
 export const LEARNER_PROFILE_SAVE_SYNC_WARNING =
-  "YOVA could not save your learning profile to the cloud. Your changes remain saved on this device.";
+  "YOVA could not save your learning profile to the cloud. Your changes are still visible here; use Retry now before closing or reloading.";
 
 export function isTemporaryLearnerProfileSyncWarning(value: string | null) {
   return value === LEARNER_PROFILE_IDENTITY_SYNC_WARNING

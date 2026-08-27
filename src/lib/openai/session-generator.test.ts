@@ -515,7 +515,7 @@ function economicsLearnContext(): SessionGenerationContext {
 async function expectCompleteValidatorPass(
   draft: GeneratedSessionDraft,
   context: SessionGenerationContext,
-  expectedSuggestedMethod: "self_explanation" | "spaced_retrieval" | "worked_example_fading" = "spaced_retrieval",
+  expectedSuggestedMethod: "retrieval_practice" | "self_explanation" | "spaced_retrieval" | "worked_example_fading" = "retrieval_practice",
 ) {
   const { buildLearningScienceRoutingBrief } = await import("@/lib/learning/method-router");
   const { sessionRoutingInput } = await import("@/lib/learning/session-routing-input");
@@ -2565,7 +2565,7 @@ describe("multi-target study recovery", () => {
 
     expect(parseResponse).toHaveBeenCalledTimes(3);
     expect(parseResponse.mock.calls[2]?.[0]?.text?.format?.name).toBe("yova_safe_study_recovery");
-    expect(result.draft.methodBriefing.methodId).toBe("spaced_retrieval");
+    expect(result.draft.methodBriefing.methodId).toBe("retrieval_practice");
     expect(result.draft.activities.some((activity) => (
       activity.requiredForCompletion && activity.type === "free_response"
     ))).toBe(true);

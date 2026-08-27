@@ -84,6 +84,11 @@ export type LearningScienceRoutingBrief = {
   suggestedPrimaryMethodId: CoreMethodId;
   allowedMethodIds: CoreMethodId[];
   /**
+   * An eligible named method already shown in an older route-free saved plan.
+   * Personalization may change its delivery, but must not silently rename it.
+   */
+  preservedLegacyMethodId?: CoreMethodId;
+  /**
    * How declared answers and observed results ordered the eligible methods.
    * Null when nothing was eligible. Retained so the learner-facing rationale
    * and the developer inspector can both reconstruct the decision.
@@ -189,6 +194,9 @@ export function buildLearningScienceRoutingBrief(input: MethodRoutingInput): Lea
     knowledgeStage,
     suggestedPrimaryMethodId: rankedMethodIds[0],
     allowedMethodIds: rankedMethodIds,
+    ...(preserveLegacyPlannedMethod && plannedMethodId
+      ? { preservedLegacyMethodId: plannedMethodId }
+      : {}),
     methodFit,
     methods: learningScienceCatalogForPrompt(rankedMethodIds),
     deliveryModifiers: inferDeliveryModifiers(input),

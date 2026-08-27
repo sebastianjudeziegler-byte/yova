@@ -39,8 +39,12 @@ import {
   PlanGenerationRequestSchema,
   PlanDiagnosticPreparationResponseSchema,
   PlanGenerationResponseSchema,
+  type PlanGenerationRequest,
   type PlanGenerationResponse,
 } from "@/lib/plan-generation/schema";
+import {
+  projectPreviewPreferredMethodsForGeneration,
+} from "@/lib/personalization/personalization-generation";
 import { checkPlanGenerationRateLimit, requestRateLimitKey } from "@/lib/server/rate-limit";
 import {
   aiUsageReservationConflict,
@@ -59,7 +63,7 @@ import { loadAuthorizedNormalDurationContext } from "@/lib/study-route/duration-
 import { NORMAL_STUDY_DURATION_LEVELS } from "@/lib/study-route/duration-precedence";
 import { integrateInitialPlanMethodRoutes } from "@/lib/study-route/initial-plan-method-routing";
 import { methodSelectionContextForStudyRoute } from "@/lib/study-route/method-plan-integration";
-import { StudyRouteSchema } from "@/lib/study-route/schema";
+import { StudyRouteSchema, type StudyRoute } from "@/lib/study-route/schema";
 import { reconcileStudyNowDuration } from "@/lib/study-route/study-now-duration";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -119,6 +123,27 @@ export async function POST(request: Request) {
         fields: parsedRequest.error.flatten().fieldErrors,
       },
       { status: 422, headers: { "X-Yova-Request-Id": requestId } },
+    );
+  }
+
+  if (
+    parsedRequest.data.previewPreferredMethodIds !== undefined
+    && !developmentPreview
+  ) {
+    return NextResponse.json(
+      {
+        error: "Preview method preferences are available only in the local development preview.",
+        code: "preview_method_preferences_not_allowed",
+        fields: {
+          previewPreferredMethodIds: [
+            "Remove this development-preview-only field before generating a cloud plan.",
+          ],
+        },
+      },
+      {
+        status: 422,
+        headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId },
+      },
     );
   }
 
@@ -501,20 +526,12 @@ export async function POST(request: Request) {
       const durationRoute = StudyRouteSchema.parse(
         durationDecision.plan.sessions[0]!.studyRoute,
       );
-      const methodDecision = {
-        selection: selectCanonicalStudyMethod({
-          ...methodSelectionContextForStudyRoute(durationRoute),
-          learnerChoice: planRequest.methodChoice
-            ? {
-                methodId: planRequest.methodChoice.methodId,
-                evidenceRef: `learner-choice:study-now:${planRequest.methodChoice.methodId}`,
-              }
-            : null,
-          personalization: durationContext.methodEvidence.personalization,
-          observedEvidence: durationContext.methodEvidence.observedEvidence,
-        }),
-        profileVersion: durationContext.methodProfileVersion,
-      };
+      const methodDecision = studyNowMethodDecision({
+        route: durationRoute,
+        planRequest,
+        context: durationContext,
+        developmentPreview,
+      });
       const focusedPlan = generatePreviewPlan(
         planRequest,
         studyNowStartedAt,
@@ -605,7 +622,11 @@ export async function POST(request: Request) {
 
   const methodContext = {
     profileVersion: initialPlanContext.methodProfileVersion,
-    personalization: initialPlanContext.methodEvidence.personalization,
+    personalization: personalizationForPlanRequest(
+      initialPlanContext.methodEvidence.personalization,
+      planRequest,
+      developmentPreview,
+    ),
     observedEvidence: initialPlanContext.methodEvidence.observedEvidence,
   };
   const buildFixedPlan = (fill: unknown) => buildNormalPlanFromFixedEnvelope({
@@ -979,6 +1000,54 @@ function buildDevelopmentPreviewKnowledgeMap(
   };
 }
 
+function personalizationForPlanRequest(
+  personalization: Awaited<ReturnType<
+    typeof loadAuthorizedNormalDurationContext
+  >>["methodEvidence"]["personalization"],
+  planRequest: Pick<PlanGenerationRequest, "previewPreferredMethodIds">,
+  developmentPreview: boolean,
+) {
+  if (
+    !developmentPreview
+    || planRequest.previewPreferredMethodIds === undefined
+  ) return personalization;
+  return projectPreviewPreferredMethodsForGeneration(
+    personalization,
+    planRequest.previewPreferredMethodIds,
+  );
+}
+
+function studyNowMethodDecision({
+  route,
+  planRequest,
+  context,
+  developmentPreview,
+}: {
+  route: StudyRoute;
+  planRequest: PlanGenerationRequest;
+  context: Awaited<ReturnType<typeof loadAuthorizedNormalDurationContext>>;
+  developmentPreview: boolean;
+}) {
+  return {
+    selection: selectCanonicalStudyMethod({
+      ...methodSelectionContextForStudyRoute(route),
+      learnerChoice: planRequest.methodChoice
+        ? {
+            methodId: planRequest.methodChoice.methodId,
+            evidenceRef: `learner-choice:study-now:${planRequest.methodChoice.methodId}`,
+          }
+        : null,
+      personalization: personalizationForPlanRequest(
+        context.methodEvidence.personalization,
+        planRequest,
+        developmentPreview,
+      ),
+      observedEvidence: context.methodEvidence.observedEvidence,
+    }),
+    profileVersion: context.methodProfileVersion,
+  };
+}
+
 async function reliableDraftResponse(
   planRequest: Parameters<typeof generatePreviewPlan>[0],
   requestId: string,
@@ -993,23 +1062,38 @@ async function reliableDraftResponse(
   let reliablePlan: ReturnType<typeof generatePreviewPlan>;
   let resolvedInitialPlanContext = initialPlanContext;
   try {
-    reliablePlan = generatePreviewPlan(planRequest);
+    const reliableNow = new Date(startedAt);
+    reliablePlan = generatePreviewPlan(planRequest, reliableNow);
+    resolvedInitialPlanContext ??= await loadAuthorizedNormalDurationContext(
+      developmentPreview
+        ? { developmentPreview: true, now: reliableNow }
+        : supabase && userId
+          ? { supabase, authenticatedUserId: userId, now: reliableNow }
+          : { now: reliableNow },
+    );
     if (planRequest.intent === "plan") {
-      resolvedInitialPlanContext ??= await loadAuthorizedNormalDurationContext(
-        developmentPreview
-          ? { developmentPreview: true, now: new Date(startedAt) }
-          : supabase && userId
-            ? { supabase, authenticatedUserId: userId, now: new Date(startedAt) }
-            : { now: new Date(startedAt) },
-      );
       reliablePlan = integrateInitialPlanMethodRoutes({
         plan: reliablePlan,
         request: planRequest,
         context: {
           profileVersion: resolvedInitialPlanContext.methodProfileVersion,
-          personalization: resolvedInitialPlanContext.methodEvidence.personalization,
+          personalization: personalizationForPlanRequest(
+            resolvedInitialPlanContext.methodEvidence.personalization,
+            planRequest,
+            developmentPreview,
+          ),
           observedEvidence: resolvedInitialPlanContext.methodEvidence.observedEvidence,
         },
+      });
+    } else {
+      const route = StudyRouteSchema.parse(reliablePlan.sessions[0]!.studyRoute);
+      reliablePlan = generatePreviewPlan(planRequest, reliableNow, {
+        studyNowMethodDecision: studyNowMethodDecision({
+          route,
+          planRequest,
+          context: resolvedInitialPlanContext,
+          developmentPreview,
+        }),
       });
     }
   } catch (error) {
