@@ -36,7 +36,7 @@ describe("real PostgreSQL Blurting boundary gate", () => {
     expect(databaseTest).toContain(
       "set local search_path = extensions, public, pg_catalog;",
     );
-    expect(databaseTest).toContain("select extensions.plan(45);");
+    expect(databaseTest).toContain("select extensions.plan(46);");
     expect(databaseTest).toContain("select * from extensions.finish();");
     expect(databaseTest.trimEnd().endsWith("rollback;")).toBe(true);
     expect(databaseTest).not.toContain("session_replication_role");

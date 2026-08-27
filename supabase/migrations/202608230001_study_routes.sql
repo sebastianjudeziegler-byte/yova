@@ -57,6 +57,17 @@ create table public.study_routes (
       plan_id,
       user_id
     ),
+  -- PostgreSQL requires the referenced columns of a composite foreign key to
+  -- match one non-partial unique key exactly. The wider revision-scope key
+  -- above cannot back plan_sessions_committed_route_owner_fk because it also
+  -- includes route_lineage_id.
+  constraint study_routes_committed_pointer_scope_key
+    unique (
+      route_revision_id,
+      plan_session_id,
+      plan_id,
+      user_id
+    ),
   constraint study_routes_plan_owner_fk
     foreign key (plan_id, user_id)
     references public.plans(id, user_id)

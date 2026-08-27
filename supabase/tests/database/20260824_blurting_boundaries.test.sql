@@ -4,7 +4,7 @@ create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public, pg_catalog;
 set local timezone = 'UTC';
 
-select extensions.plan(45);
+select extensions.plan(46);
 
 select extensions.is(
   (
@@ -22,6 +22,25 @@ select extensions.is(
   ),
   7::bigint,
   'the complete 20260824 migration sequence committed'
+);
+
+select extensions.ok(
+  exists (
+    select 1
+    from pg_catalog.pg_constraint as constraint_row
+    join pg_catalog.pg_class as relation
+      on relation.oid = constraint_row.conrelid
+    join pg_catalog.pg_namespace as namespace
+      on namespace.oid = relation.relnamespace
+    where namespace.nspname = 'public'
+      and relation.relname = 'study_routes'
+      and constraint_row.conname =
+        'study_routes_committed_pointer_scope_key'
+      and constraint_row.contype = 'u'
+      and pg_catalog.pg_get_constraintdef(constraint_row.oid) =
+        'UNIQUE (route_revision_id, plan_session_id, plan_id, user_id)'
+  ),
+  'the committed-route pointer has its exact PostgreSQL unique target key'
 );
 
 select extensions.ok(

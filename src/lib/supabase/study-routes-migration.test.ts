@@ -75,6 +75,15 @@ describe("StudyRoute persistence migration", () => {
     expect(migration).toContain(
       "unique (route_lineage_id, revision_number)",
     );
+    expect(migration).toContain([
+      "constraint study_routes_committed_pointer_scope_key",
+      "    unique (",
+      "      route_revision_id,",
+      "      plan_session_id,",
+      "      plan_id,",
+      "      user_id",
+      "    )",
+    ].join("\n"));
     expect(migration).toContain(
       "create unique index study_routes_one_committed_per_session_idx\non public.study_routes(plan_session_id)\nwhere lifecycle = 'committed'",
     );
