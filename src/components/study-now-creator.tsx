@@ -17,6 +17,7 @@ import { GoalClarification } from "@/components/goal-clarification";
 import { MaterialFileDropzone } from "@/components/material-file-dropzone";
 import { MaterialLinkImporter } from "@/components/material-link-importer";
 import type { LearningMaterial, LearningPlan } from "@/lib/domain";
+import type { CoreMethodId } from "@/lib/learning/method-catalog";
 import {
   abandonUploadedMaterials,
   deleteUploadedMaterial,
@@ -27,15 +28,23 @@ import {
   PlanActivationResponseSchema,
   PlanGenerationRequestSchema,
   PlanGenerationResponseSchema,
+  type PlanGenerationRequest,
+  type PlanGenerationResponse,
 } from "@/lib/plan-generation/schema";
+import { explainStudyRouteDuration } from "@/lib/study-route/duration-explanation";
+import { StudyRouteSchema } from "@/lib/study-route/schema";
 import { LEARNING_INTENT_COPY, resolveLearningIntent } from "@/lib/learning/learning-intent";
 import { assessGoalContext } from "@/lib/learning/goal-context";
 import type { AddIntakeSeed } from "@/lib/intake/schema";
 
-type StudyNowStep = "setup" | "source" | "loading" | "error";
+type StudyNowStep = "setup" | "source" | "loading" | "review" | "error";
 type SourceChoice = "materials" | "yova" | "outside";
+type StudyNowDraft = {
+  response: PlanGenerationResponse;
+  activationRequest: PlanGenerationRequest;
+};
 
-const timeChoices = [15, 20, 25, 40, 60] as const;
+const timeChoices = [10, 15, 25, 45, 60] as const;
 const startingPoints = [
   "I haven't learned this yet",
   "I've seen it, but it doesn't make sense yet",
@@ -47,11 +56,13 @@ export function StudyNowCreator({
   onExit,
   onFinish,
   profileSummary,
+  browserPreviewMode = false,
   seed = null,
 }: {
   onExit: () => void;
   onFinish: (plan: LearningPlan) => void;
   profileSummary: string;
+  browserPreviewMode?: boolean;
   seed?: AddIntakeSeed | null;
 }) {
   const [step, setStep] = useState<StudyNowStep>(seed ? "source" : "setup");
@@ -67,6 +78,8 @@ export function StudyNowCreator({
   const [removingMaterialId, setRemovingMaterialId] = useState<string | null>(null);
   const [abandoningMaterials, setAbandoningMaterials] = useState(false);
   const [generationError, setGenerationError] = useState<string | null>(null);
+  const [draft, setDraft] = useState<StudyNowDraft | null>(null);
+  const [activating, setActivating] = useState(false);
   const goalContext = assessGoalContext(
     goal,
     sourceChoice === "materials" && materials.length > 0,
@@ -142,7 +155,58 @@ export function StudyNowCreator({
     }
   };
 
-  const generateSession = async () => {
+  const activateSession = async (candidate: StudyNowDraft) => {
+    if (activating) return;
+    setActivating(true);
+    let requestId: string | null = null;
+    try {
+      const activationResponse = await fetch("/api/plans/activate", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(browserPreviewMode
+            ? { "X-Yova-Development-Preview": "plan-creator" }
+            : {}),
+        },
+        body: JSON.stringify({
+          plan: candidate.response.plan,
+          generationRequest: candidate.activationRequest,
+          draftReceipt: candidate.response.generation.draftReceipt,
+        }),
+      });
+      requestId = activationResponse.headers.get("X-Yova-Request-Id");
+      const activationBody: unknown = await activationResponse.json();
+      if (!activationResponse.ok) {
+        const message = typeof activationBody === "object" && activationBody && "error" in activationBody && typeof activationBody.error === "string"
+          ? activationBody.error
+          : "YOVA could not save this focused session yet.";
+        throw new Error(message);
+      }
+      const activated = PlanActivationResponseSchema.safeParse(activationBody);
+      if (!activated.success) {
+        throw new Error("The saved session came back in an unsafe format, so YOVA did not open it.");
+      }
+      onFinish(activated.data.plan);
+    } catch (error) {
+      reportProductError({
+        surface: "plan_generation",
+        errorCode: "study_now_generation_failed",
+        requestId,
+      });
+      setGenerationError(error instanceof Error ? error.message : "YOVA could not save this focused session yet.");
+      setStep("error");
+    } finally {
+      setActivating(false);
+    }
+  };
+
+  const generateSession = async ({
+    reviewBeforeStart = false,
+    methodId = null,
+  }: {
+    reviewBeforeStart?: boolean;
+    methodId?: CoreMethodId | null;
+  } = {}) => {
     if (!sourceChoice) return;
     setGenerationError(null);
     setStep("loading");
@@ -167,7 +231,7 @@ export function StudyNowCreator({
           },
           {
             question: "What kind of session do you want right now?",
-            answer: `One focused session lasting ${minutes} minutes`,
+            answer: `Up to ${minutes} minutes are available for this focused session`,
             evaluation: "self_report",
           },
         ],
@@ -177,10 +241,19 @@ export function StudyNowCreator({
           minutes,
         }],
         profileSummary,
+        ...(methodId ? { methodChoice: { methodId } } : {}),
+        ...(methodId && draft?.response.plan.knowledgeMap
+          ? { knowledgeMap: draft.response.plan.knowledgeMap }
+          : {}),
       });
       const response = await fetch("/api/plans/generate", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(browserPreviewMode
+            ? { "X-Yova-Development-Preview": "plan-creator" }
+            : {}),
+        },
         body: JSON.stringify(planRequest),
       });
       requestId = response.headers.get("X-Yova-Request-Id");
@@ -198,22 +271,19 @@ export function StudyNowCreator({
         throw new Error("The session came back in an unsafe format, so YOVA did not open it.");
       }
 
-      const activationResponse = await fetch("/api/plans/activate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ plan: parsed.data.plan, generationRequest: planRequest }),
-      });
-      requestId = activationResponse.headers.get("X-Yova-Request-Id") ?? requestId;
-      const activationBody: unknown = await activationResponse.json();
-      if (!activationResponse.ok) {
-        const message = typeof activationBody === "object" && activationBody && "error" in activationBody && typeof activationBody.error === "string"
-          ? activationBody.error
-          : "YOVA could not save this focused session yet.";
-        throw new Error(message);
+      const candidate = {
+        response: parsed.data,
+        activationRequest: PlanGenerationRequestSchema.parse({
+          ...planRequest,
+          knowledgeMap: parsed.data.plan.knowledgeMap,
+        }),
+      };
+      setDraft(candidate);
+      if (reviewBeforeStart || methodId) {
+        setStep("review");
+        return;
       }
-      const activated = PlanActivationResponseSchema.safeParse(activationBody);
-      if (!activated.success) throw new Error("The saved session came back in an unsafe format, so YOVA did not open it.");
-      onFinish(activated.data.plan);
+      await activateSession(candidate);
     } catch (error) {
       reportProductError({
         surface: "plan_generation",
@@ -225,11 +295,18 @@ export function StudyNowCreator({
     }
   };
 
+  const reviewedSession = draft?.response.plan.sessions[0] ?? null;
+  const reviewedRouteResult = StudyRouteSchema.safeParse(reviewedSession?.studyRoute);
+  const reviewedRoute = reviewedRouteResult.success ? reviewedRouteResult.data : null;
+  const durationExplanation = reviewedRoute
+    ? explainStudyRouteDuration(reviewedRoute.timing)
+    : null;
+
   return (
     <main className="plan-shell study-now-shell">
       <header className="plan-header">
         <BrandMark />
-        {step !== "loading" && step !== "error" && <span>{step === "setup" ? "Step 1 of 2" : "Step 2 of 2"}</span>}
+        {step !== "loading" && step !== "error" && <span>{step === "setup" ? "Step 1 of 2" : step === "source" ? "Step 2 of 2" : "Review"}</span>}
         {step !== "loading" && <button className="button ghost" disabled={processingMaterials || linkMaterialWorking || abandoningMaterials || Boolean(removingMaterialId)} onClick={() => void exitCreator()}>{abandoningMaterials ? "Removing sources…" : "Exit"}</button>}
       </header>
       {step !== "loading" && step !== "error" && <div className="plan-progress"><i style={{ width: step === "setup" ? "50%" : "100%" }} /></div>}
@@ -292,7 +369,31 @@ export function StudyNowCreator({
               onUseMaterials={() => setSourceChoice("materials")}
             />
           )}
-          <footer className="plan-actions"><button className="button ghost" onClick={() => setStep("setup")}><ArrowLeft size={17} /> Back</button><button className="button primary" disabled={!sourceChoice || !goalContext.hasEnoughContext || processingMaterials || linkMaterialWorking || Boolean(removingMaterialId) || (sourceChoice === "materials" && materials.length === 0)} onClick={() => void generateSession()}>Build and start session <ArrowRight size={17} /></button></footer>
+          <footer className="plan-actions"><button className="button ghost" onClick={() => setStep("setup")}><ArrowLeft size={17} /> Back</button><button className="button secondary" disabled={!sourceChoice || !goalContext.hasEnoughContext || processingMaterials || linkMaterialWorking || Boolean(removingMaterialId) || (sourceChoice === "materials" && materials.length === 0)} onClick={() => void generateSession({ reviewBeforeStart: true })}>Review method first</button><button className="button primary" disabled={!sourceChoice || !goalContext.hasEnoughContext || processingMaterials || linkMaterialWorking || Boolean(removingMaterialId) || (sourceChoice === "materials" && materials.length === 0)} onClick={() => void generateSession()}>Build and start session <ArrowRight size={17} /></button></footer>
+        </section>
+      )}
+
+      {step === "review" && draft && reviewedSession && reviewedRoute && (
+        <section className="plan-panel">
+          <span className="step-label">YOUR SESSION RECIPE</span>
+          <h1>{reviewedRoute.agency.selectedBy === "learner" ? "Your method is ready." : "YOVA recommends this method."}</h1>
+          <p className="plan-description">The task and your current starting point limit the safe choices. Pick another option only if you prefer it today.</p>
+          <div className="plan-goal-echo"><span>YOUR REQUEST</span><p>{goal}</p><button className="button ghost" onClick={() => setStep("source")}>Edit</button></div>
+          <div className="study-now-field">
+            <strong>Recommended session</strong>
+            <div className="study-now-options">
+              <button className="selected" aria-pressed="true">
+                <span><strong>{reviewedRoute.approach.visibleMethodName}</strong><small>{reviewedRoute.explanation.shortReason}</small></span>
+                <Check size={16} />
+              </button>
+            </div>
+            <p className="approach-preview"><Sparkles size={15} /><span><strong>{reviewedRoute.timing.activeMinutes} focused minutes.</strong> {durationExplanation}</span></p>
+          </div>
+          {reviewedRoute.agency.alternatives.length > 0 && <div className="study-now-field">
+            <strong>Other methods that also fit</strong>
+            <div className="study-now-options">{reviewedRoute.agency.alternatives.map((alternative) => <button key={alternative.alternativeId} aria-pressed="false" disabled={activating} onClick={() => void generateSession({ reviewBeforeStart: true, methodId: alternative.primaryMethodId })}><span><strong>{alternative.visibleMethodName}</strong><small>{alternative.tradeoff}</small></span></button>)}</div>
+          </div>}
+          <footer className="plan-actions"><button className="button ghost" disabled={activating} onClick={() => setStep("source")}><ArrowLeft size={17} /> Back</button><button className="button primary" disabled={activating} onClick={() => void activateSession(draft)}>{activating ? "Saving…" : "Start this session"} <ArrowRight size={17} /></button></footer>
         </section>
       )}
 

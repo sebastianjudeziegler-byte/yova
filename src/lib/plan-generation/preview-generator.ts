@@ -20,6 +20,17 @@ import {
   type PlanPreferenceContract,
 } from "@/lib/personalization/plan-preference-contract";
 import { resolvePlanRequestSubjectBoundary } from "@/lib/plan-generation/subject-boundary";
+import {
+  parseStudyNowDurationDecision,
+  type StudyNowDurationDecision,
+} from "@/lib/study-route/duration-plan-integration";
+import { CORE_METHOD_CATALOG } from "@/lib/learning/method-catalog";
+import type { StudyRouteMethodDecision } from "@/lib/study-route/method-plan-integration";
+
+export type GeneratePreviewPlanOptions = {
+  readonly studyNowDurationDecision?: StudyNowDurationDecision;
+  readonly studyNowMethodDecision?: StudyRouteMethodDecision;
+};
 
 type PreviewBlueprint = {
   phaseIndex: number;
@@ -175,8 +186,24 @@ const LEARNING_METHODS = [
 export function generatePreviewPlan(
   request: PlanGenerationRequest,
   now = new Date(),
+  options: GeneratePreviewPlanOptions = {},
 ): LearningPlan {
   request = resolvePlanRequestSubjectBoundary(request);
+  const studyNowDurationDecision = options.studyNowDurationDecision
+    ? parsePreviewStudyNowDurationDecision(options.studyNowDurationDecision, request)
+    : undefined;
+  const studyNowMethodDecision = options.studyNowMethodDecision
+    ? parsePreviewStudyNowMethodDecision(options.studyNowMethodDecision, request)
+    : undefined;
+  const budgetingRequest = studyNowDurationDecision
+    ? {
+        ...request,
+        availability: [{
+          ...request.availability[0]!,
+          minutes: studyNowDurationDecision.timing.activeMinutes,
+        }],
+      }
+    : request;
   const derivedTitle = deriveLearningTitle(request.goal);
   const subject = SUBJECTS.find(({ matches }) => matches.test(request.goal))?.subject ?? {
     ...DEFAULT_SUBJECT,
@@ -184,13 +211,23 @@ export function generatePreviewPlan(
     topic: derivePreviewTopic(request.goal, derivedTitle),
   };
   const scope = inferPlanScopeContract(request);
-  const contentBudget = buildPlanContentBudget(request, scope);
+  const contentBudget = buildPlanContentBudget(budgetingRequest, scope);
   const preferenceContract = buildPlanPreferenceContract(request.profileSummary);
   const targetMinutes = contentBudget.typicalSession.minutes;
   const sessionBlueprints: PreviewBlueprint[] = request.knowledgeMap
     ? buildKnowledgeMappedBlueprints(request, scope, contentBudget, targetMinutes)
     : request.intent === "study_now"
-      ? [previewBlueprint(subject, request, 0, 0, 1, targetMinutes)]
+      ? [previewBlueprint(
+          subject,
+          request,
+          0,
+          0,
+          1,
+          targetMinutes,
+          studyNowDurationDecision
+            ? contentBudget.typicalSession.maximumContentTargets
+            : undefined,
+        )]
       : buildScopedBlueprints(subject, request, scope, contentBudget, targetMinutes);
   const scheduledTopicIds = new Set(sessionBlueprints.flatMap((blueprint) => blueprint.topicIds ?? []));
   const deferredTopics = request.knowledgeMap?.topics
@@ -208,23 +245,29 @@ export function generatePreviewPlan(
     deferredTopics,
     sessions: sessionBlueprints.map((blueprint, index) => {
       const availability = request.availability[index % request.availability.length];
-      const minutes = Math.min(availability.minutes, blueprint.minutes);
+      const minutes = studyNowDurationDecision
+        ? studyNowDurationDecision.timing.activeMinutes
+        : Math.min(availability.minutes, blueprint.minutes);
 
       return {
         title: blueprint.title,
         objective: blueprint.objective,
-        method: request.studyMode === "outside"
+        method: studyNowMethodDecision
+          ? CORE_METHOD_CATALOG[studyNowMethodDecision.selection.selectedMethodId].name
+          : request.studyMode === "outside"
           ? outsideMethodFor(request.goal)
           : request.intent === "study_now" && request.learningIntent === "learn"
             ? "Self-explanation with worked example fading"
             : request.learningIntent === "learn"
               ? LEARNING_METHODS[blueprint.phaseIndex]
               : METHODS[blueprint.phaseIndex],
-        methodReason: `${request.studyMode === "outside"
+        methodReason: studyNowMethodDecision
+          ? studyNowMethodDecision.selection.learnerFacingReason
+          : `${request.studyMode === "outside"
           ? outsideMethodReason(request.goal)
           : request.intent === "study_now" && request.learningIntent === "learn"
             ? "The learner has not built this foundation yet, so YOVA should explain the overall model, walk through one concrete example, and then reduce support for a short understanding check."
-            : request.learningIntent === "learn"
+          : request.learningIntent === "learn"
               ? learningReasonFor(blueprint.phaseIndex)
               : reasonFor(blueprint.phaseIndex, request)} ${preferenceReasonFor(blueprint.learningMode ?? sessionLearningMode(request, blueprint.phaseIndex), blueprint.phaseIndex, preferenceContract)}`,
         // The draft schema requires a timestamp, but the deterministic
@@ -246,7 +289,32 @@ export function generatePreviewPlan(
     alignGeneratedPlanToAvailability(draft, request, now),
     request,
     now,
+    { studyNowDurationDecision, studyNowMethodDecision },
   );
+}
+
+function parsePreviewStudyNowDurationDecision(
+  decision: NonNullable<GeneratePreviewPlanOptions["studyNowDurationDecision"]>,
+  request: PlanGenerationRequest,
+) {
+  if (request.intent !== "study_now") {
+    throw new Error("A Study Now duration decision cannot budget a normal plan preview.");
+  }
+  const hardMaximumMinutes = request.availability[0]?.minutes;
+  if (hardMaximumMinutes === undefined) {
+    throw new Error("A Study Now duration decision requires an availability maximum.");
+  }
+  return parseStudyNowDurationDecision(decision, hardMaximumMinutes);
+}
+
+function parsePreviewStudyNowMethodDecision(
+  decision: NonNullable<GeneratePreviewPlanOptions["studyNowMethodDecision"]>,
+  request: PlanGenerationRequest,
+) {
+  if (request.intent !== "study_now") {
+    throw new Error("A Study Now method decision cannot shape a normal plan preview.");
+  }
+  return decision;
 }
 
 function buildKnowledgeMappedBlueprints(
@@ -597,7 +665,15 @@ function escapeRegExp(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-function previewBlueprint(subject: PreviewSubject, request: PlanGenerationRequest, phaseIndex: number, partIndex: number, partCount: number, minutes: number): PreviewBlueprint {
+function previewBlueprint(
+  subject: PreviewSubject,
+  request: PlanGenerationRequest,
+  phaseIndex: number,
+  partIndex: number,
+  partCount: number,
+  minutes: number,
+  maximumContentTargets = 6,
+): PreviewBlueprint {
   if (request.studyMode === "outside") {
     const partLabel = partCount > 1 ? ` · Part ${partIndex + 1} of ${partCount}` : "";
     return {
@@ -614,7 +690,8 @@ function previewBlueprint(subject: PreviewSubject, request: PlanGenerationReques
   }
 
   if (request.intent === "study_now") {
-    const contentTargets = studyNowContentTargets(subject, request.goal);
+    const contentTargets = studyNowContentTargets(subject, request.goal)
+      .slice(0, maximumContentTargets);
     const focusedTopic = contentTargets.join(", ");
     const learningFirst = request.learningIntent === "learn";
     return {

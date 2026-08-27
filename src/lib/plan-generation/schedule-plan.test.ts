@@ -101,6 +101,46 @@ describe("plan schedule alignment", () => {
     expect(new Date(aligned.sessions[1].scheduledFor).getTime() - new Date(aligned.sessions[0].scheduledFor).getTime()).toBe(7 * 60_000);
   });
 
+  it("does not schedule two sessions into duplicate declarations of the same window", () => {
+    const aligned = alignGeneratedPlanToAvailability(
+      { ...draft, sessions: draft.sessions.slice(0, 2) },
+      {
+        ...request,
+        deadline: null,
+        availability: [
+          { day: "Monday", window: "Evening", minutes: 15 },
+          { day: "Monday", window: "Evening", minutes: 15 },
+        ],
+      },
+      new Date("2026-08-08T12:00:00.000-07:00"),
+    );
+
+    expect(aligned.sessions.map((session) => session.scheduledFor)).toEqual([
+      "2026-08-11T02:00:00.000Z",
+      "2026-08-18T02:00:00.000Z",
+    ]);
+  });
+
+  it("lets one session use the full continuous union of overlapping declarations", () => {
+    const aligned = alignGeneratedPlanToAvailability(
+      {
+        ...draft,
+        sessions: [{ ...draft.sessions[0], estimatedMinutes: 25 }],
+      },
+      {
+        ...request,
+        deadline: null,
+        availability: [
+          { day: "Monday", window: "Evening", minutes: 15 },
+          { day: "Monday", window: "Evening", minutes: 30 },
+        ],
+      },
+      new Date("2026-08-08T12:00:00.000-07:00"),
+    );
+
+    expect(aligned.sessions[0]?.scheduledFor).toBe("2026-08-11T02:00:00.000Z");
+  });
+
   it("fails closed when the complete sequence cannot fit before the deadline", () => {
     expect(() => alignGeneratedPlanToAvailability(
       draft,

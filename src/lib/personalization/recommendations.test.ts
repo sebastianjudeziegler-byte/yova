@@ -95,14 +95,14 @@ describe("personalization recommendations", () => {
   });
 
   it("recommends restoring support when repeated method results are weak", () => {
-    const sessions = [1, 2].map((sequence) => ({
+    const sessions = [1, 2, 3, 4].map((sequence) => ({
       id: `00000000-0000-4000-8000-00000000001${sequence}`,
       sequence,
       title: `Product-rule practice ${sequence}`,
       objective: "Choose and apply the product rule independently.",
       method: "Application practice",
       methodReason: "Problems require independent method selection.",
-      scheduledFor: `2026-08-0${6 + sequence}T12:00:00.000Z`,
+      scheduledFor: `2026-08-${String(6 + sequence).padStart(2, "0")}T12:00:00.000Z`,
       estimatedMinutes: 20,
       amountLabel: "Four problems",
       learningMode: "study" as const,
@@ -114,7 +114,7 @@ describe("personalization recommendations", () => {
       planId: methodPlan.id,
       planSessionId: session.id,
       startedAt: "2026-08-06T12:00:00.000Z",
-      completedAt: `2026-08-0${7 + index}T12:20:00.000Z`,
+      completedAt: `2026-08-${String(7 + index).padStart(2, "0")}T12:20:00.000Z`,
       plannedMinutes: 20,
       actualMinutes: 20,
       correctAnswers: 1,

@@ -36,6 +36,15 @@ describe("buildConceptReviewSchedule", () => {
     expect(review.reason).toContain("durable knowledge");
   });
 
+  it("carries the latest evidence route into the scheduled review directive", () => {
+    const routeRevisionId = "11111111-1111-4111-8111-111111111111";
+    const [review] = buildConceptReviewSchedule([
+      signal({ lastRouteRevisionId: routeRevisionId }),
+    ], now);
+
+    expect(review.originRouteRevisionId).toBe(routeRevisionId);
+  });
+
   it("verifies a first success before treating it as stable", () => {
     const [review] = buildConceptReviewSchedule([signal({
       concept: "ATP",

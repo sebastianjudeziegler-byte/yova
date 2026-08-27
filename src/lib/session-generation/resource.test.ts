@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { readSessionResourceFromStepData, toSessionResource } from "@/lib/session-generation/resource";
 import {
+  CachedGeneratedSessionV15Schema,
   CachedGeneratedSessionV16Schema,
   CachedGeneratedSessionV17Schema,
   GeneratedSessionDraftSchema,
@@ -220,6 +221,114 @@ describe("session resources", () => {
       practiceIntent: "misconception_discrimination",
       misconceptionSummary: "Confuses recalling an answer with rereading familiar wording.",
     });
+  });
+
+  it("preserves the route revision that authorized cached content", () => {
+    const routeRevisionId = "99999999-9999-4999-8999-999999999999";
+    const routed = CachedGeneratedSessionV15Schema.parse({
+      ...generatedSession,
+      routeRevisionId,
+      cacheContext: {
+        effectiveMinutes: 25,
+        adjustmentFingerprint: "a".repeat(64),
+        scopeFingerprint: "sc1:0123456789abcdef",
+        routeRevisionId,
+      },
+    });
+
+    expect(toSessionResource(routed)).toMatchObject({
+      routeRevisionId,
+      cacheContext: { routeRevisionId },
+    });
+  });
+
+  it("preserves route identity for streamed resources and leaves legacy resources unbound", () => {
+    const routeRevisionId = "99999999-9999-4999-8999-999999999998";
+    const routedStream = CachedGeneratedSessionV17Schema.parse({
+      ...pacedStreamedSession,
+      routeRevisionId,
+      cacheContext: {
+        ...pacedStreamedSession.cacheContext,
+        routeRevisionId,
+      },
+    });
+
+    expect(toSessionResource(routedStream)).toMatchObject({
+      routeRevisionId,
+      cacheContext: { routeRevisionId },
+    });
+    expect(toSessionResource(generatedSession).routeRevisionId).toBeUndefined();
+    expect(toSessionResource(streamedSession).routeRevisionId).toBeUndefined();
+  });
+
+  it("rejects contradictory route receipts in filled and streamed cached sessions", () => {
+    const routeRevisionId = "99999999-9999-4999-8999-999999999997";
+    const otherRouteRevisionId = "99999999-9999-4999-8999-999999999996";
+    const filledResult = CachedGeneratedSessionV15Schema.safeParse({
+      ...generatedSession,
+      routeRevisionId,
+      cacheContext: {
+        effectiveMinutes: 25,
+        adjustmentFingerprint: "a".repeat(64),
+        scopeFingerprint: "sc1:0123456789abcdef",
+        routeRevisionId: otherRouteRevisionId,
+      },
+    });
+    const streamedResult = CachedGeneratedSessionV17Schema.safeParse({
+      ...pacedStreamedSession,
+      routeRevisionId,
+      cacheContext: {
+        ...pacedStreamedSession.cacheContext,
+        routeRevisionId: otherRouteRevisionId,
+      },
+    });
+
+    expect(filledResult.success).toBe(false);
+    expect(streamedResult.success).toBe(false);
+    for (const result of [filledResult, streamedResult]) {
+      if (!result.success) {
+        expect(result.error.issues).toContainEqual(expect.objectContaining({
+          path: ["cacheContext", "routeRevisionId"],
+        }));
+      }
+    }
+    expect(readSessionResourceFromStepData({
+      generatedSession: {
+        ...generatedSession,
+        routeRevisionId,
+        cacheContext: {
+          effectiveMinutes: 25,
+          adjustmentFingerprint: "a".repeat(64),
+          scopeFingerprint: "sc1:0123456789abcdef",
+          routeRevisionId: otherRouteRevisionId,
+        },
+      },
+    })).toBeUndefined();
+  });
+
+  it("keeps route-free cache context compatible but rejects a one-sided route receipt", () => {
+    const legacyCacheContext = {
+      effectiveMinutes: 25,
+      adjustmentFingerprint: "a".repeat(64),
+      scopeFingerprint: "sc1:0123456789abcdef",
+    };
+
+    expect(CachedGeneratedSessionV15Schema.safeParse({
+      ...generatedSession,
+      cacheContext: legacyCacheContext,
+    }).success).toBe(true);
+    expect(CachedGeneratedSessionV15Schema.safeParse({
+      ...generatedSession,
+      routeRevisionId: "99999999-9999-4999-8999-999999999995",
+      cacheContext: legacyCacheContext,
+    }).success).toBe(false);
+    expect(CachedGeneratedSessionV17Schema.safeParse({
+      ...pacedStreamedSession,
+      cacheContext: {
+        ...pacedStreamedSession.cacheContext,
+        routeRevisionId: "99999999-9999-4999-8999-999999999994",
+      },
+    }).success).toBe(false);
   });
 
   it("reads valid cached content from database step data", () => {

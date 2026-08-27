@@ -158,6 +158,27 @@ describe("plan visibility", () => {
     )).toBe(active);
   });
 
+  it("does not mutate a routed session while recovering obsolete legacy splits", () => {
+    const routedPart = {
+      ...obsoleteSplitSession(
+        "routed-part",
+        "ready",
+        8,
+        1,
+        "Routed part · about 8 min",
+      ),
+      studyRoute: {} as NonNullable<LearningPlan["sessions"][number]["studyRoute"]>,
+    };
+    const active = { ...plan("active"), sessions: [routedPart] };
+
+    expect(recoverRunnablePlanLifecycle(active)).toBe(active);
+    expect(active.sessions[0]).toMatchObject({
+      estimatedMinutes: 8,
+      amountLabel: "Routed part · about 8 min",
+      studyRoute: routedPart.studyRoute,
+    });
+  });
+
   it("does not reopen genuine completed or archived plans", () => {
     const genuinelyComplete = {
       ...plan("completed"),

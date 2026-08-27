@@ -25,6 +25,14 @@ export const CORE_METHOD_IDS = [
 export type CoreMethodId = (typeof CORE_METHOD_IDS)[number];
 export type MethodEvidenceTier = "established" | "supported";
 
+/**
+ * Versions the learner-facing projection separately from method selection,
+ * eligibility, and runtime behavior. A display-name change can therefore be
+ * audited without implying that any learning recipe changed.
+ */
+export const METHOD_PRESENTATION_POLICY_VERSION =
+  "method_presentation_v1" as const;
+
 export type CoreLearningMethod = {
   id: CoreMethodId;
   name: string;
@@ -40,7 +48,7 @@ export type CoreLearningMethod = {
 export const CORE_METHOD_CATALOG: Record<CoreMethodId, CoreLearningMethod> = {
   retrieval_practice: {
     id: "retrieval_practice",
-    name: "Retrieval practice",
+    name: "Active Recall",
     taskTypes: ["memorization", "conceptual_learning", "reading_to_quiz", "mixed_assessment"],
     evidenceTier: "established",
     what: "Produce an answer from memory before looking at the source.",
@@ -56,7 +64,7 @@ export const CORE_METHOD_CATALOG: Record<CoreMethodId, CoreLearningMethod> = {
   },
   spaced_retrieval: {
     id: "spaced_retrieval",
-    name: "Spaced retrieval",
+    name: "Spaced Repetition",
     taskTypes: ["memorization", "conceptual_learning", "reading_to_quiz", "mixed_assessment"],
     evidenceTier: "established",
     what: "Return to important material across separated sessions and retrieve it before reviewing.",
@@ -73,7 +81,7 @@ export const CORE_METHOD_CATALOG: Record<CoreMethodId, CoreLearningMethod> = {
   self_explanation: {
     id: "self_explanation",
     name: "Self-explanation",
-    taskTypes: ["conceptual_learning", "reading_to_quiz", "problem_solving"],
+    taskTypes: ["conceptual_learning", "reading_to_quiz", "problem_solving", "mixed_assessment"],
     evidenceTier: "supported",
     what: "Explain how and why an idea works in your own words, then compare it with an accurate model.",
     why: "Connecting steps, causes, and prior knowledge can expose shallow understanding and build a more useful mental model.",
@@ -88,7 +96,7 @@ export const CORE_METHOD_CATALOG: Record<CoreMethodId, CoreLearningMethod> = {
   },
   worked_example_fading: {
     id: "worked_example_fading",
-    name: "Worked example fading",
+    name: "Worked Examples",
     taskTypes: ["problem_solving", "programming"],
     evidenceTier: "established",
     what: "Study one complete solution, then solve a similar task as support is gradually removed.",
@@ -104,7 +112,7 @@ export const CORE_METHOD_CATALOG: Record<CoreMethodId, CoreLearningMethod> = {
   },
   interleaved_practice: {
     id: "interleaved_practice",
-    name: "Interleaved practice",
+    name: "Interleaving",
     taskTypes: ["problem_solving", "programming", "memorization", "mixed_assessment"],
     evidenceTier: "supported",
     what: "Mix related problem or concept types so the learner must decide which approach applies.",
@@ -136,7 +144,7 @@ export const CORE_METHOD_CATALOG: Record<CoreMethodId, CoreLearningMethod> = {
   },
   retrieval_based_outlining: {
     id: "retrieval_based_outlining",
-    name: "Retrieval-based outlining",
+    name: "Outline from Memory",
     taskTypes: ["writing_argumentation"],
     evidenceTier: "supported",
     what: "Build the claim and structure from memory before returning to sources for evidence and revision.",
@@ -152,7 +160,7 @@ export const CORE_METHOD_CATALOG: Record<CoreMethodId, CoreLearningMethod> = {
   },
   scaffolded_coding: {
     id: "scaffolded_coding",
-    name: "Scaffolded coding with fading",
+    name: "Trace–Code–Test",
     taskTypes: ["programming"],
     evidenceTier: "supported",
     what: "Trace and complete a working code example before writing a comparable solution with less support.",
@@ -168,7 +176,7 @@ export const CORE_METHOD_CATALOG: Record<CoreMethodId, CoreLearningMethod> = {
   },
   practice_test_error_repair: {
     id: "practice_test_error_repair",
-    name: "Practice test and error repair",
+    name: "Practice Tests",
     taskTypes: ["mixed_assessment", "problem_solving", "reading_to_quiz", "memorization"],
     evidenceTier: "established",
     what: "Attempt representative questions under reduced support, then diagnose and repair the specific errors.",
@@ -183,6 +191,34 @@ export const CORE_METHOD_CATALOG: Record<CoreMethodId, CoreLearningMethod> = {
     avoidWhen: "Do not use a high-stakes simulation as first instruction for a learner with no initial model of the material.",
   },
 };
+
+/**
+ * Names already written by the original nine-method catalog. They remain
+ * valid compatibility labels for route-free imports and immutable historical
+ * StudyRoutes, while every new route projects the recognizable catalog name.
+ */
+export const LEGACY_CORE_METHOD_NAMES: Readonly<
+  Partial<Record<CoreMethodId, readonly string[]>>
+> = {
+  retrieval_practice: ["Retrieval practice"],
+  spaced_retrieval: ["Spaced retrieval"],
+  worked_example_fading: ["Worked example fading"],
+  interleaved_practice: ["Interleaved practice"],
+  retrieval_based_outlining: ["Retrieval-based outlining"],
+  scaffolded_coding: ["Scaffolded coding with fading"],
+  practice_test_error_repair: ["Practice test and error repair"],
+};
+
+export function recognizedCoreMethodNames(id: CoreMethodId) {
+  return [CORE_METHOD_CATALOG[id].name, ...(LEGACY_CORE_METHOD_NAMES[id] ?? [])];
+}
+
+export function isRecognizedCoreMethodName(id: CoreMethodId, value: string) {
+  const normalized = normalizeMethodName(value);
+  return recognizedCoreMethodNames(id).some((name) => (
+    normalizeMethodName(name) === normalized
+  ));
+}
 
 export function getCoreLearningMethod(id: CoreMethodId) {
   return CORE_METHOD_CATALOG[id];
@@ -203,4 +239,8 @@ export function learningScienceCatalogForPrompt(ids: CoreMethodId[] = [...CORE_M
       avoid_when: method.avoidWhen,
     };
   });
+}
+
+function normalizeMethodName(value: string) {
+  return value.trim().replace(/\s+/gu, " ").toLocaleLowerCase();
 }

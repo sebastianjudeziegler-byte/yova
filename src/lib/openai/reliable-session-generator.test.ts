@@ -368,7 +368,19 @@ describe("reliable OpenAI session generation", () => {
         signals: [],
       },
     };
-    expect(canGenerateReliableSession(personalizedToUnsupportedCompactMethod)).toBe(false);
+    // Hidden experiments no longer have routing authority.
+    expect(canGenerateReliableSession(personalizedToUnsupportedCompactMethod)).toBe(true);
+
+    const unsupportedCompactMethod = context("learn");
+    unsupportedCompactMethod.learningGoal.title = "Read a chapter for a quiz";
+    unsupportedCompactMethod.learningGoal.topic = "Question-led reading and closed-source recall";
+    unsupportedCompactMethod.session.title = "Read, recall, and review the chapter";
+    unsupportedCompactMethod.session.objective = "Read a bounded section, recall it closed-source, and repair gaps.";
+    unsupportedCompactMethod.session.method = "Read-recall-review";
+    unsupportedCompactMethod.session.contentTargets = [
+      "Recall the chapter's central claim after reading one bounded section",
+    ];
+    expect(canGenerateReliableSession(unsupportedCompactMethod)).toBe(false);
 
     const boundedStudyContext = context("study");
     boundedStudyContext.session.contentTargets = ["Recall the biological-night relationship"];

@@ -1,9 +1,3 @@
-import { getCoreLearningMethod } from "@/lib/learning/method-catalog";
-import {
-  buildLearningScienceRoutingBrief,
-  classifyLearningTask,
-  methodIdFromText,
-} from "@/lib/learning/method-router";
 import type {
   GeneratedPlanDraft,
   PlanGenerationRequest,
@@ -60,10 +54,6 @@ export function inspectGeneratedPlanQuality(
   };
   const scope = inferPlanScopeContract(request);
   const contentBudget = buildPlanContentBudget(request, scope);
-  const originalTask = classifyLearningTask(request.goal);
-  const taskTypeOverride = originalTask.confidence === "clear"
-    ? originalTask.taskType
-    : null;
 
   if (request.intent === "study_now" && draft.sessions.length !== 1) {
     addIssue("session_count", "A study-now request must produce exactly one focused session.");
@@ -160,27 +150,6 @@ export function inspectGeneratedPlanQuality(
       addIssue("completion_evidence", `Session ${index + 1} must define completion through something the learner produces or attempts, not time spent or passive exposure.`);
     }
 
-    const routing = buildLearningScienceRoutingBrief({
-      learningIntent: request.learningIntent,
-      sessionLearningMode: session.learningMode,
-      goalTitle: `${request.goal}. ${draft.title}`,
-      goalTopic: `${request.startingContext ?? ""}. ${draft.topic}`,
-      goalKind: draft.kind,
-      sessionTitle: session.title,
-      sessionObjective: session.objective,
-      plannedMethod: session.method,
-      plannedMethodReason: session.methodReason,
-      learnerProfile: null,
-      recentResults: [],
-      interruptionCount: 0,
-      taskTypeOverride,
-    });
-    const methodId = methodIdFromText(session.method);
-    if (!methodId) {
-      addIssue("method_routing", `Session ${index + 1} must name an approved YOVA learning method instead of a generic activity label.`);
-    } else if (!getCoreLearningMethod(methodId).taskTypes.includes(routing.taskType)) {
-      addIssue("method_routing", `Session ${index + 1} uses ${getCoreLearningMethod(methodId).name}, which does not fit its ${routing.taskType.replaceAll("_", " ")} task.`);
-    }
   }
 
   if (request.intent === "plan") {
@@ -232,8 +201,6 @@ export function inspectGeneratedPlanQuality(
     ...draft.sessions.flatMap((session) => [
       session.title,
       session.objective,
-      session.method,
-      session.methodReason,
       session.amountLabel,
       ...session.contentTargets,
       ...session.completionEvidence,

@@ -1,7 +1,10 @@
 import type { LearningPlan, SessionCompletion, SessionInterruption, YovaPreviewSnapshot } from "@/lib/domain";
 import { ConfidenceEvidenceListSchema } from "@/lib/learning/confidence-calibration";
 import { normalizeSessionCompletionProvenance } from "@/lib/learning/session-completion-provenance";
-import { readSessionActivityProgress } from "@/lib/learning/session-activity-progress";
+import {
+  readSessionActivityProgress,
+  sessionActivityProgressHasRequiredRouteIdentity,
+} from "@/lib/learning/session-activity-progress";
 import { inferLegacySessionLearningMode } from "@/lib/learning/learning-intent";
 import { resolveLearningTitle, resolveLearningTopic } from "@/lib/intake/interpret";
 import {
@@ -16,6 +19,7 @@ import {
   serializePersonalizationState,
 } from "@/lib/personalization/personalization-state";
 import { resolveSessionArchitectureVersion } from "@/lib/session-generation/architecture";
+import { StudyRouteSchema } from "@/lib/study-route/schema";
 
 const STORAGE_KEY = "yova.preview.v1";
 
@@ -69,12 +73,17 @@ function normalizePreviewPlan(plan: LearningPlan): LearningPlan {
     topic,
     learningIntent,
     sessionArchitectureVersion: resolveSessionArchitectureVersion(plan, plan.knowledgeMap),
-    sessions: plan.sessions.map((session) => ({
-      ...session,
-      learningMode: session.learningMode === "learn" || session.learningMode === "study"
-        ? session.learningMode
-        : inferLegacySessionLearningMode(session.method, session.objective),
-    })),
+    sessions: plan.sessions.map((session) => {
+      const { studyRoute: untrustedRoute, ...legacySession } = session;
+      const studyRoute = StudyRouteSchema.safeParse(untrustedRoute);
+      return {
+        ...legacySession,
+        learningMode: session.learningMode === "learn" || session.learningMode === "study"
+          ? session.learningMode
+          : inferLegacySessionLearningMode(session.method, session.objective),
+        ...(studyRoute.success ? { studyRoute: studyRoute.data } : {}),
+      };
+    }),
   };
 }
 
@@ -92,6 +101,10 @@ function readSessionInterruptions(snapshot: YovaPreviewSnapshot | Record<string,
     const pendingRepair = readSessionPendingRepair(raw.pendingRepair);
     const sessionAdjustment = readSessionAdjustmentSnapshot(raw.sessionAdjustment);
     const activityProgress = readSessionActivityProgress(raw.activityProgress);
+    const routeSafeActivityProgress = sessionActivityProgressHasRequiredRouteIdentity(
+      activityProgress,
+      raw.routeRevisionId,
+    ) ? activityProgress : null;
     const resumeStep = raw.resumeStep;
     return [{
       ...interruption as SessionInterruption,
@@ -99,7 +112,7 @@ function readSessionInterruptions(snapshot: YovaPreviewSnapshot | Record<string,
       ...(evidence ? { evidence } : {}),
       ...(pendingRepair ? { pendingRepair } : {}),
       ...(sessionAdjustment ? { sessionAdjustment } : {}),
-      ...(activityProgress ? { activityProgress } : {}),
+      ...(routeSafeActivityProgress ? { activityProgress: routeSafeActivityProgress } : {}),
     }];
   });
 }
@@ -110,6 +123,7 @@ export function savePreviewSnapshot(snapshot: YovaPreviewSnapshot) {
     ...snapshot,
     onboardingAnswers: normalizePreviewAnswers(snapshot.onboardingAnswers),
     plans: snapshot.plans.map(normalizePreviewPlan),
+    sessionInterruptions: readSessionInterruptions(snapshot),
   }));
 }
 

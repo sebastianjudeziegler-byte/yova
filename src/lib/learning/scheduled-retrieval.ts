@@ -127,6 +127,12 @@ export function validateScheduledRetrievalSession(
   if (draft.methodBriefing.methodId !== "retrieval_practice") {
     return "A scheduled retrieval must use the bounded retrieval-practice method contract.";
   }
+  if (draft.activities.some((activity) => (
+    activity.methodRuntime?.kind === "retrieval_round"
+    && activity.methodRuntime.format === "broad_recall_v1"
+  ))) {
+    return "A scheduled retrieval must use the short question-set format, not a full broad-recall recipe.";
+  }
   if (draft.activities.length !== 3) {
     return "A scheduled retrieval must contain exactly three short multiple-choice questions.";
   }

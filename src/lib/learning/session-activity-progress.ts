@@ -1,5 +1,12 @@
 import { z } from "zod";
 import {
+  BroadRecallProgressSchema,
+  broadRecallProgressRank,
+  mergeBroadRecallProgress,
+  readBroadRecallProgress,
+  type BroadRecallProgress,
+} from "@/lib/learning/broad-recall-progress";
+import {
   isRetrievalRoundComplete,
   recordRecall,
   revealActivePrompt,
@@ -38,16 +45,72 @@ export const RetrievalRoundActivityProgressSchema = z.object({
   });
 });
 
-export const SessionActivityProgressSchema = RetrievalRoundActivityProgressSchema;
-
 export type RetrievalRoundActivityProgress = z.infer<
   typeof RetrievalRoundActivityProgressSchema
 >;
-export type SessionActivityProgress = z.infer<typeof SessionActivityProgressSchema>;
+export type SessionActivityProgress = RetrievalRoundActivityProgress | BroadRecallProgress;
+type SessionActivityProgressInput = z.input<typeof RetrievalRoundActivityProgressSchema>
+  | z.input<typeof BroadRecallProgressSchema>;
+
+/**
+ * Keep the deployed retrieval object unchanged while allowing the dedicated
+ * broad-recall recovery marker through the same persistence seams. The schema
+ * output is typed at the pure kernel's readonly boundary; neither branch adds
+ * defaults or fields, so a parsed legacy retrieval marker serializes
+ * byte-for-byte like the input object.
+ */
+export const SessionActivityProgressSchema: z.ZodType<
+  SessionActivityProgress,
+  SessionActivityProgressInput
+> = z.union([
+  RetrievalRoundActivityProgressSchema,
+  BroadRecallProgressSchema,
+]);
+
+export type SessionActivityProgressMergeResult =
+  | Readonly<{
+    kind: "merged";
+    source: "left" | "right" | "equal";
+    progress: SessionActivityProgress | undefined;
+  }>
+  | Readonly<{
+    kind: "conflict";
+    reason: "invalid_progress" | "identity_mismatch" | "event_divergence";
+  }>;
+export type SessionActivityProgressConflictReason = Extract<
+  SessionActivityProgressMergeResult,
+  { kind: "conflict" }
+>["reason"];
 
 export function readSessionActivityProgress(value: unknown): SessionActivityProgress | null {
-  const parsed = SessionActivityProgressSchema.safeParse(value);
-  return parsed.success ? parsed.data : null;
+  const retrieval = RetrievalRoundActivityProgressSchema.safeParse(value);
+  if (retrieval.success) return retrieval.data;
+  return readBroadRecallProgress(value);
+}
+
+export function isRetrievalRoundActivityProgress(
+  progress: SessionActivityProgress | null | undefined,
+): progress is RetrievalRoundActivityProgress {
+  return progress?.kind === "retrieval_round";
+}
+
+export function isBroadRecallActivityProgress(
+  progress: SessionActivityProgress | null | undefined,
+): progress is BroadRecallProgress {
+  return progress?.kind === "broad_recall";
+}
+
+/**
+ * Broad recall is never legacy activity state: its target/evidence bindings are
+ * meaningful only inside an exact committed StudyRoute revision. Retrieval
+ * markers predate route revisions and intentionally retain their old envelope.
+ */
+export function sessionActivityProgressHasRequiredRouteIdentity(
+  progress: SessionActivityProgress | null | undefined,
+  routeRevisionId: unknown,
+) {
+  return !isBroadRecallActivityProgress(progress)
+    || z.string().uuid().safeParse(routeRevisionId).success;
 }
 
 export function restoreRetrievalRoundActivityProgress({
@@ -109,5 +172,77 @@ export function retrievalRoundActivityProgressIsComplete({
 }
 
 export function sessionActivityProgressRank(progress?: SessionActivityProgress) {
-  return progress?.ratings.length ?? 0;
+  if (!progress) return 0;
+  return isRetrievalRoundActivityProgress(progress)
+    ? progress.ratings.length
+    : broadRecallProgressRank(progress);
+}
+
+/**
+ * An empty retrieval marker predates any durable learner action. By contrast,
+ * a broad-recall marker is created only once its privacy-safe activity identity
+ * has been bound, so even its empty event prefix can safely resume at the
+ * initial broad-attempt stage.
+ */
+export function sessionActivityProgressIsResumable(
+  progress: SessionActivityProgress | null | undefined,
+) {
+  if (!progress) return false;
+  return isBroadRecallActivityProgress(progress) || progress.ratings.length > 0;
+}
+
+/**
+ * Reconciles recovery markers as immutable histories. Missing progress is a
+ * valid empty side; malformed values, activity identity changes, and divergent
+ * event/rating histories are explicit conflicts rather than timestamp ties.
+ */
+export function mergeSessionActivityProgress(
+  leftValue: unknown,
+  rightValue: unknown,
+): SessionActivityProgressMergeResult {
+  const leftMissing = leftValue === undefined;
+  const rightMissing = rightValue === undefined;
+  const left = leftMissing ? undefined : readSessionActivityProgress(leftValue) ?? undefined;
+  const right = rightMissing ? undefined : readSessionActivityProgress(rightValue) ?? undefined;
+
+  if ((!leftMissing && !left) || (!rightMissing && !right)) {
+    return Object.freeze({ kind: "conflict", reason: "invalid_progress" });
+  }
+  if (!left && !right) {
+    return Object.freeze({ kind: "merged", source: "equal", progress: undefined });
+  }
+  if (!left && right) {
+    return Object.freeze({ kind: "merged", source: "right", progress: right });
+  }
+  if (left && !right) {
+    return Object.freeze({ kind: "merged", source: "left", progress: left });
+  }
+  if (!left || !right || left.kind !== right.kind) {
+    return Object.freeze({ kind: "conflict", reason: "identity_mismatch" });
+  }
+
+  if (isBroadRecallActivityProgress(left) && isBroadRecallActivityProgress(right)) {
+    return mergeBroadRecallProgress(left, right);
+  }
+  if (
+    !isRetrievalRoundActivityProgress(left)
+    || !isRetrievalRoundActivityProgress(right)
+    || left.activityIndex !== right.activityIndex
+    || left.promptCount !== right.promptCount
+  ) {
+    return Object.freeze({ kind: "conflict", reason: "identity_mismatch" });
+  }
+
+  const sharedLength = Math.min(left.ratings.length, right.ratings.length);
+  for (let index = 0; index < sharedLength; index += 1) {
+    if (left.ratings[index] !== right.ratings[index]) {
+      return Object.freeze({ kind: "conflict", reason: "event_divergence" });
+    }
+  }
+  if (left.ratings.length === right.ratings.length) {
+    return Object.freeze({ kind: "merged", source: "equal", progress: left });
+  }
+  return left.ratings.length > right.ratings.length
+    ? Object.freeze({ kind: "merged", source: "left", progress: left })
+    : Object.freeze({ kind: "merged", source: "right", progress: right });
 }

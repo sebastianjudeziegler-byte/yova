@@ -1,11 +1,18 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { SessionInterruption } from "@/lib/domain";
+import type { LearningPlan, LearningPlanSession, SessionInterruption } from "@/lib/domain";
 import {
   loadActiveSessionCheckpoints,
   saveActiveSessionCheckpoint,
   type ActiveSessionCheckpointV1,
+  type ActiveSessionCheckpointV2,
 } from "@/lib/learning/active-session-checkpoint";
 import { UpdateMilestoneRequestSchema } from "@/lib/milestones/schema";
+import { adaptLegacySessionToStudyRoute } from "@/lib/study-route/adapters";
+import {
+  createCommittedInitialSessionStudyRoute,
+  createCommittedScalarSuccessorStudyRoute,
+} from "@/lib/study-route/session-route-creation";
+import type { StudyRoute } from "@/lib/study-route/schema";
 import {
   defaultPersonalizationState,
   PERSONALIZATION_STATE_ANSWER_INDEX,
@@ -33,6 +40,7 @@ vi.mock("@/lib/supabase/client", () => ({
 import {
   ActiveSessionCheckpointConflictError,
   ActiveSessionCheckpointTerminalError,
+  activateAuthenticatedConceptReviewSession,
   cancelAuthenticatedLearnerProfileWrites,
   completeAuthenticatedPlanSession,
   deleteAuthenticatedActiveSessionCheckpoint,
@@ -45,6 +53,7 @@ import {
 } from "@/lib/supabase/learning-state-repository";
 
 const NOW = "2026-08-17T18:00:00.000Z";
+const ROUTE_REVISION_ID = "00000000-0000-4000-8000-000000000099";
 
 beforeEach(() => {
   vi.useFakeTimers();
@@ -144,6 +153,48 @@ describe("authenticated learning-state startup", () => {
     const state = await loadAuthenticatedLearningState();
 
     expect(state?.activeSessionCheckpoints).toEqual([valid]);
+  });
+
+  it("loads the exact committed route and its matching version-two checkpoint", async () => {
+    const { plan, session, route } = committedRouteFixture();
+    const checkpointV2 = routeCheckpoint({
+      planId: plan.id,
+      planSessionId: session.id,
+      routeRevisionId: route.identity.routeRevisionId,
+    });
+    mockCloudQueries({
+      profile: { display_name: "Learner", onboarding_completed_at: NOW },
+      items: [learningItemRow(plan)],
+      plans: [planRow(plan)],
+      sessions: [{
+        ...planSessionRow(plan, session),
+        step_data: { activeSessionCheckpoint: checkpointV2 },
+        committed_route_revision_id: route.identity.routeRevisionId,
+      }],
+      routes: [studyRouteRow(route)],
+    });
+
+    const state = await loadAuthenticatedLearningState();
+
+    expect(state?.plans[0]?.sessions[0]?.studyRoute).toEqual(route);
+    expect(state?.activeSessionCheckpoints).toEqual([checkpointV2]);
+  });
+
+  it("fails closed when a session pointer cannot resolve its committed route", async () => {
+    const { plan, session, route } = committedRouteFixture();
+    mockCloudQueries({
+      profile: { display_name: "Learner", onboarding_completed_at: NOW },
+      items: [learningItemRow(plan)],
+      plans: [planRow(plan)],
+      sessions: [{
+        ...planSessionRow(plan, session),
+        committed_route_revision_id: route.identity.routeRevisionId,
+      }],
+      routes: [],
+    });
+
+    await expect(loadAuthenticatedLearningState())
+      .rejects.toThrow("could not verify a saved study route");
   });
 
   it("repairs already-persisted dangling titles while loading signed-in learning state", async () => {
@@ -340,7 +391,7 @@ describe("recordAuthenticatedSessionInterruption", () => {
 
     await recordAuthenticatedSessionInterruption(interruption);
 
-    expect(rpc).toHaveBeenCalledWith("record_session_interruption_with_activity_progress", {
+    expect(rpc).toHaveBeenCalledWith("record_session_interruption_with_route", {
       payload: expect.objectContaining({
         attemptId: interruption.id,
         sessionAdjustment: interruption.sessionAdjustment,
@@ -349,7 +400,7 @@ describe("recordAuthenticatedSessionInterruption", () => {
     });
   });
 
-  it("keeps the established interruption RPC for exits without activity progress", async () => {
+  it("uses the route-aware interruption wrapper without inventing activity progress", async () => {
     await recordAuthenticatedSessionInterruption({
       id: "00000000-0000-4000-8000-000000000001",
       planId: "00000000-0000-4000-8000-000000000002",
@@ -362,8 +413,96 @@ describe("recordAuthenticatedSessionInterruption", () => {
       totalSteps: 5,
     });
 
-    expect(rpc).toHaveBeenCalledWith("record_session_interruption", {
+    expect(rpc).toHaveBeenCalledWith("record_session_interruption_with_route", {
       payload: expect.not.objectContaining({ activityProgress: expect.anything() }),
+    });
+  });
+
+  it("sends strict broad-recall progress without adding legacy ratings", async () => {
+    const activityProgress = broadRecallProgress(1);
+    const interrupted: SessionInterruption = {
+      id: "00000000-0000-4000-8000-000000000031",
+      planId: "00000000-0000-4000-8000-000000000032",
+      planSessionId: "00000000-0000-4000-8000-000000000033",
+      routeRevisionId: ROUTE_REVISION_ID,
+      startedAt: "2026-08-11T20:00:00.000Z",
+      interruptedAt: "2026-08-11T20:08:00.000Z",
+      plannedMinutes: 20,
+      actualMinutes: 8,
+      completedSteps: 0,
+      totalSteps: 5,
+      activityProgress,
+    };
+
+    await recordAuthenticatedSessionInterruption(interrupted);
+
+    expect(rpc).toHaveBeenCalledWith("record_session_interruption_with_route", {
+      payload: expect.objectContaining({
+        routeRevisionId: ROUTE_REVISION_ID,
+        activityProgress,
+      }),
+    });
+    expect(rpc.mock.calls[0]?.[1]?.payload.activityProgress).not.toHaveProperty("ratings");
+  });
+
+  it("rejects route-less broad-recall interruption progress before cloud persistence", async () => {
+    const interrupted: SessionInterruption = {
+      id: "00000000-0000-4000-8000-000000000034",
+      planId: "00000000-0000-4000-8000-000000000035",
+      planSessionId: "00000000-0000-4000-8000-000000000036",
+      startedAt: "2026-08-11T20:00:00.000Z",
+      interruptedAt: "2026-08-11T20:08:00.000Z",
+      plannedMinutes: 20,
+      actualMinutes: 8,
+      completedSteps: 0,
+      totalSteps: 5,
+      activityProgress: broadRecallProgress(1),
+    };
+
+    await expect(recordAuthenticatedSessionInterruption(interrupted))
+      .rejects.toThrow("route-less broad-recall");
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it("binds interrupted evidence to the executed route revision", async () => {
+    await recordAuthenticatedSessionInterruption({
+      id: "00000000-0000-4000-8000-000000000011",
+      planId: "00000000-0000-4000-8000-000000000012",
+      planSessionId: "00000000-0000-4000-8000-000000000013",
+      routeRevisionId: ROUTE_REVISION_ID,
+      startedAt: "2026-08-11T20:00:00.000Z",
+      interruptedAt: "2026-08-11T20:08:00.000Z",
+      plannedMinutes: 20,
+      actualMinutes: 8,
+      completedSteps: 1,
+      totalSteps: 5,
+      evidence: {
+        correctAnswers: 1,
+        totalAnswers: 1,
+        conceptEvidence: [{
+          concept: "ATP coupling",
+          outcome: "secure",
+          activityType: "free_response",
+        }],
+        confidenceEvidence: [{
+          concept: "ATP coupling",
+          confidence: "somewhat_sure",
+          correct: true,
+          activityType: "free_response",
+        }],
+        observedGap: "No major gap detected.",
+        completedImmediateRepairs: 0,
+      },
+    });
+
+    expect(rpc).toHaveBeenCalledWith("record_session_interruption_with_route", {
+      payload: expect.objectContaining({
+        routeRevisionId: ROUTE_REVISION_ID,
+        evidence: expect.objectContaining({
+          conceptEvidence: [expect.objectContaining({ routeRevisionId: ROUTE_REVISION_ID })],
+          confidenceEvidence: [expect.objectContaining({ routeRevisionId: ROUTE_REVISION_ID })],
+        }),
+      }),
     });
   });
 });
@@ -405,8 +544,9 @@ describe("completeAuthenticatedPlanSession", () => {
       confidenceEvidence: [],
     }, null, verification);
 
-    expect(rpc).toHaveBeenCalledWith("complete_unguided_plan_session", {
+    expect(rpc).toHaveBeenCalledWith("complete_plan_session_with_route", {
       payload: expect.objectContaining({
+        completionVariant: "unguided_practice",
         completionMode: "unguided_practice",
         correctAnswers: 0,
         totalAnswers: 0,
@@ -546,7 +686,7 @@ describe("completeAuthenticatedPlanSession", () => {
     expect(rpc).not.toHaveBeenCalled();
   });
 
-  it("keeps legacy guided completions on the existing RPC", async () => {
+  it("routes legacy guided completions through the compatibility wrapper", async () => {
     await completeAuthenticatedPlanSession({
       id: "00000000-0000-4000-8000-000000000041",
       planId: "00000000-0000-4000-8000-000000000042",
@@ -563,8 +703,11 @@ describe("completeAuthenticatedPlanSession", () => {
       confidenceEvidence: [],
     });
 
-    expect(rpc).toHaveBeenCalledWith("complete_plan_session", {
-      payload: expect.objectContaining({ completionMode: "guided" }),
+    expect(rpc).toHaveBeenCalledWith("complete_plan_session_with_route", {
+      payload: expect.objectContaining({
+        completionMode: "guided",
+        completionVariant: "guided",
+      }),
     });
   });
 
@@ -602,9 +745,10 @@ describe("completeAuthenticatedPlanSession", () => {
       confidenceEvidence: [],
     }, null, null, continuation);
 
-    expect(rpc).toHaveBeenCalledWith("complete_guided_plan_session_with_continuation", {
+    expect(rpc).toHaveBeenCalledWith("complete_plan_session_with_route", {
       payload: expect.objectContaining({
         completionMode: "guided",
+        completionVariant: "guided_continuation",
         nextSessionAdjustment: null,
         followUpSession: null,
         continuationSession: expect.objectContaining({
@@ -614,6 +758,123 @@ describe("completeAuthenticatedPlanSession", () => {
           topicIds: continuation.topicIds,
           contentTargets: continuation.contentTargets,
           completionEvidence: continuation.completionEvidence,
+        }),
+      }),
+    });
+  });
+
+  it("binds completion evidence to the executed route revision", async () => {
+    await completeAuthenticatedPlanSession({
+      id: "00000000-0000-4000-8000-000000000091",
+      planId: "00000000-0000-4000-8000-000000000092",
+      planSessionId: "00000000-0000-4000-8000-000000000093",
+      routeRevisionId: ROUTE_REVISION_ID,
+      startedAt: "2026-08-17T20:00:00.000Z",
+      completedAt: "2026-08-17T20:08:00.000Z",
+      plannedMinutes: 20,
+      actualMinutes: 8,
+      correctAnswers: 1,
+      totalAnswers: 1,
+      feedback: "about_right",
+      observedGap: "No major gap detected.",
+      conceptEvidence: [{
+        concept: "ATP coupling",
+        outcome: "secure",
+        activityType: "free_response",
+      }],
+      confidenceEvidence: [{
+        concept: "ATP coupling",
+        confidence: "very_sure",
+        correct: true,
+        activityType: "free_response",
+      }],
+    });
+
+    expect(rpc).toHaveBeenCalledWith("complete_plan_session_with_route", {
+      payload: expect.objectContaining({
+        completionVariant: "guided",
+        routeRevisionId: ROUTE_REVISION_ID,
+        conceptEvidence: [expect.objectContaining({ routeRevisionId: ROUTE_REVISION_ID })],
+        confidenceEvidence: [expect.objectContaining({ routeRevisionId: ROUTE_REVISION_ID })],
+      }),
+    });
+  });
+
+  it("sends an adapted next session and its committed successor in one RPC payload", async () => {
+    const { plan, session: completedSession, route: completedRoute } = committedRouteFixture();
+    const nextSession: LearningPlanSession = {
+      ...completedSession,
+      id: "00000000-0000-4000-8000-000000000121",
+      sequence: 2,
+      title: "Apply ATP coupling",
+      objective: "Apply ATP coupling to a new endergonic reaction.",
+      method: "Retrieval practice",
+      methodReason: "Retrieve the mechanism before applying it to a different reaction.",
+      status: "upcoming",
+    };
+    const planWithNext: LearningPlan = { ...plan, sessions: [completedSession, nextSession] };
+    const previousNextRoute = createCommittedInitialSessionStudyRoute({
+      plan: planWithNext,
+      session: nextSession,
+      now: NOW,
+      origin: { source: "plan_activation", reason: "The learner activated this plan." },
+    });
+    const adaptation = {
+      planSessionId: nextSession.id,
+      title: nextSession.title,
+      objective: nextSession.objective,
+      method: "Independent application and mixed practice",
+      methodReason: "A strong independent result supports mixed application on the same target.",
+      estimatedMinutes: nextSession.estimatedMinutes,
+      amountLabel: nextSession.amountLabel,
+      learningMode: "study" as const,
+      explanation: "YOVA increased challenge after a strong independent result.",
+    };
+    const successor = createCommittedScalarSuccessorStudyRoute({
+      plan: planWithNext,
+      session: {
+        ...nextSession,
+        method: adaptation.method,
+        methodReason: adaptation.methodReason,
+        learningMode: adaptation.learningMode,
+      },
+      previousRoute: previousNextRoute,
+      now: "2026-08-17T19:00:00.000Z",
+      changeReason: adaptation.explanation,
+      origin: {
+        source: "post_session_adaptation",
+        reason: adaptation.explanation,
+        evidenceRefs: [`route-revision:${completedRoute.identity.routeRevisionId}`],
+      },
+    });
+
+    await completeAuthenticatedPlanSession({
+      id: "00000000-0000-4000-8000-000000000122",
+      planId: plan.id,
+      planSessionId: completedSession.id,
+      routeRevisionId: completedRoute.identity.routeRevisionId,
+      startedAt: "2026-08-17T17:35:00.000Z",
+      completedAt: NOW,
+      plannedMinutes: 25,
+      actualMinutes: 25,
+      correctAnswers: 2,
+      totalAnswers: 2,
+      feedback: "about_right",
+      observedGap: "No major gap detected.",
+      conceptEvidence: [],
+      confidenceEvidence: [],
+    }, adaptation, null, null, successor);
+
+    expect(rpc).toHaveBeenCalledWith("complete_plan_session_with_route", {
+      payload: expect.objectContaining({
+        routeRevisionId: completedRoute.identity.routeRevisionId,
+        nextSessionAdjustment: adaptation,
+        nextSessionStudyRoute: expect.objectContaining({
+          identity: expect.objectContaining({
+            sessionId: nextSession.id,
+            revisionNumber: 2,
+            supersedesRevisionId: previousNextRoute.identity.routeRevisionId,
+          }),
         }),
       }),
     });
@@ -666,6 +927,65 @@ describe("completeAuthenticatedPlanSession", () => {
   });
 });
 
+describe("authenticated concept-review activation", () => {
+  it("uses the route-aware transaction and preserves a new review lineage", async () => {
+    const { plan, session, route: originRoute } = committedRouteFixture();
+    const routedPlan: LearningPlan = {
+      ...plan,
+      status: "completed",
+      sessions: [{ ...session, status: "complete", studyRoute: originRoute }],
+    };
+    const review: LearningPlanSession = {
+      id: "00000000-0000-4000-8000-000000000111",
+      sequence: 2,
+      title: "Verify ATP coupling",
+      objective: "Retrieve and apply ATP coupling after a delay.",
+      method: "Independent retrieval verification",
+      methodReason: "The earlier result needs one short delayed verification before it is treated as stable.",
+      scheduledFor: NOW,
+      estimatedMinutes: 5,
+      amountLabel: "Verification due · about 5 min",
+      learningMode: "study",
+      topicIds: ["00000000-0000-4000-8000-000000000104"],
+      contentTargets: ["ATP coupling"],
+      completionEvidence: ["Explain ATP coupling without notes."],
+      status: "ready",
+      reviewConcept: "ATP coupling",
+      reviewType: "verify",
+    };
+    const studyRoute = createCommittedInitialSessionStudyRoute({
+      plan: routedPlan,
+      session: review,
+      now: NOW,
+      origin: {
+        source: "concept_review_activation",
+        reason: "Recorded target evidence made a bounded review due.",
+        evidenceRefs: [`route-revision:${originRoute.identity.routeRevisionId}`],
+      },
+    });
+
+    await activateAuthenticatedConceptReviewSession(plan.id, { ...review, studyRoute });
+
+    expect(rpc).toHaveBeenCalledWith("activate_concept_review_with_route", {
+      payload: {
+        planId: plan.id,
+        originRouteRevisionId: originRoute.identity.routeRevisionId,
+        session: expect.objectContaining({
+          id: review.id,
+          studyRoute: expect.objectContaining({
+            identity: expect.objectContaining({
+              planId: plan.id,
+              sessionId: review.id,
+              revisionNumber: 1,
+              lifecycleStatus: "committed",
+            }),
+          }),
+        }),
+      },
+    });
+  });
+});
+
 describe("authenticated active-session checkpoint sync", () => {
   it("sends no client identity or plan identity and returns the server checkpoint", async () => {
     const local = checkpoint({
@@ -691,7 +1011,7 @@ describe("authenticated active-session checkpoint sync", () => {
     await expect(saveAuthenticatedActiveSessionCheckpoint(local)).resolves.toEqual(authoritative);
 
     const payload = rpc.mock.calls[0]?.[1]?.payload as Record<string, unknown>;
-    expect(rpc.mock.calls[0]?.[0]).toBe("save_active_session_checkpoint_with_completion_mode");
+    expect(rpc.mock.calls[0]?.[0]).toBe("save_active_session_checkpoint_with_route");
     expect(payload).toMatchObject({
       runId: local.runId,
       planSessionId: local.planSessionId,
@@ -705,6 +1025,36 @@ describe("authenticated active-session checkpoint sync", () => {
     expect(payload).not.toHaveProperty("sessionAdjustment");
     expect(JSON.stringify(payload)).not.toContain("Private known target");
     expect(JSON.stringify(payload)).not.toContain("Private learner note");
+  });
+
+  it("round-trips a compatible broad-recall prefix and rejects a divergent cloud history", async () => {
+    const local = routeCheckpoint({
+      completedSteps: 0,
+      resumeStep: 0,
+      evidence: undefined,
+      activityProgress: broadRecallProgress(1),
+    });
+    rpc.mockResolvedValueOnce({ data: local, error: null });
+
+    await expect(saveAuthenticatedActiveSessionCheckpoint(local)).resolves.toEqual(local);
+    expect(rpc.mock.calls[0]?.[1]?.payload.activityProgress).toEqual(local.activityProgress);
+    expect(rpc.mock.calls[0]?.[1]?.payload.activityProgress).not.toHaveProperty("ratings");
+
+    const next = {
+      ...local,
+      savedAt: "2026-08-17T18:00:01.000Z",
+      activityProgress: broadRecallProgress(2),
+    } as ActiveSessionCheckpointV2;
+    rpc.mockResolvedValueOnce({
+      data: {
+        ...next,
+        activityProgress: broadRecallProgress(1, ["partial", "missing"]),
+      },
+      error: null,
+    });
+
+    await expect(saveAuthenticatedActiveSessionCheckpoint(next))
+      .rejects.toBeInstanceOf(ActiveSessionCheckpointConflictError);
   });
 
   it("preserves unguided completion provenance in the cloud checkpoint payload", async () => {
@@ -721,9 +1071,35 @@ describe("authenticated active-session checkpoint sync", () => {
     await expect(saveAuthenticatedActiveSessionCheckpoint(local)).resolves.toEqual(local);
 
     expect(rpc).toHaveBeenCalledWith(
-      "save_active_session_checkpoint_with_completion_mode",
+      "save_active_session_checkpoint_with_route",
       { payload: expect.objectContaining({ completionMode: "unguided_practice" }) },
     );
+  });
+
+  it("syncs and verifies the exact route identity for a version-two checkpoint", async () => {
+    const local = routeCheckpoint();
+    rpc.mockResolvedValueOnce({ data: local, error: null });
+
+    await expect(saveAuthenticatedActiveSessionCheckpoint(local)).resolves.toEqual(local);
+    expect(rpc).toHaveBeenCalledWith(
+      "save_active_session_checkpoint_with_route",
+      { payload: expect.objectContaining({
+        version: 2,
+        routeRevisionId: ROUTE_REVISION_ID,
+      }) },
+    );
+
+    rpc.mockResolvedValueOnce({
+      data: {
+        ...local,
+        routeRevisionId: "00000000-0000-4000-8000-000000000098",
+      },
+      error: null,
+    });
+    await expect(saveAuthenticatedActiveSessionCheckpoint({
+      ...local,
+      savedAt: "2026-08-17T18:00:01.000Z",
+    })).rejects.toBeInstanceOf(ActiveSessionCheckpointConflictError);
   });
 
   it("rejects a checkpoint without exact generated lesson identity before calling the cloud", async () => {
@@ -796,6 +1172,64 @@ describe("authenticated active-session checkpoint sync", () => {
       activeSeconds: ahead.activeSeconds,
     });
     expect(results.every((result) => result.completedSteps === ahead.completedSteps)).toBe(true);
+  });
+
+  it("rejects a divergent queued broad-recall history without poisoning the valid save", async () => {
+    const first = routeCheckpoint({
+      completedSteps: 0,
+      resumeStep: 0,
+      evidence: undefined,
+      activityProgress: broadRecallProgress(1),
+    });
+    const divergent = {
+      ...first,
+      savedAt: "2026-08-17T18:00:01.000Z",
+      activityProgress: broadRecallProgress(1, ["partial", "missing"]),
+    } as ActiveSessionCheckpointV2;
+    let releaseFirst!: (value: { data: ActiveSessionCheckpointV2; error: null }) => void;
+    rpc.mockImplementationOnce(() => new Promise((resolve) => {
+      releaseFirst = resolve;
+    }));
+
+    const firstSave = saveAuthenticatedActiveSessionCheckpoint(first);
+    await Promise.resolve();
+    const divergentSave = saveAuthenticatedActiveSessionCheckpoint(divergent);
+
+    await expect(divergentSave).rejects.toBeInstanceOf(ActiveSessionCheckpointConflictError);
+    expect(rpc).toHaveBeenCalledTimes(1);
+    releaseFirst({ data: first, error: null });
+    await expect(firstSave).resolves.toEqual(first);
+  });
+
+  it("does not coalesce a later missing marker over bound empty broad-recall progress", async () => {
+    const bound = routeCheckpoint({
+      completedSteps: 0,
+      resumeStep: 0,
+      activeSeconds: 10,
+      evidence: undefined,
+      activityProgress: broadRecallProgress(0),
+    });
+    const laterWithoutProgress = routeCheckpoint({
+      savedAt: "2026-08-17T18:00:01.000Z",
+      completedSteps: 0,
+      resumeStep: 0,
+      activeSeconds: 100,
+    });
+    let releaseFirst!: (value: { data: ActiveSessionCheckpointV2; error: null }) => void;
+    rpc.mockImplementationOnce(() => new Promise((resolve) => {
+      releaseFirst = resolve;
+    }));
+
+    const firstSave = saveAuthenticatedActiveSessionCheckpoint(bound);
+    await Promise.resolve();
+    const laterSave = saveAuthenticatedActiveSessionCheckpoint(laterWithoutProgress);
+
+    expect(rpc).toHaveBeenCalledTimes(1);
+    releaseFirst({ data: bound, error: null });
+    const results = await Promise.all([firstSave, laterSave]);
+
+    expect(rpc).toHaveBeenCalledTimes(1);
+    expect(results).toEqual([bound, bound]);
   });
 
   it("allows separate lessons to sync concurrently", async () => {
@@ -1102,6 +1536,157 @@ function checkpoint(
   } as ActiveSessionCheckpointV1;
 }
 
+function routeCheckpoint(
+  overrides: Partial<ActiveSessionCheckpointV2> = {},
+): ActiveSessionCheckpointV2 {
+  return {
+    ...checkpoint(),
+    version: 2,
+    routeRevisionId: ROUTE_REVISION_ID,
+    ...overrides,
+  } as ActiveSessionCheckpointV2;
+}
+
+function broadRecallProgress(
+  stage: 0 | 1 | 2 = 0,
+  gapStatuses: Array<"covered" | "partial" | "missing"> = ["covered", "missing"],
+) {
+  return {
+    kind: "broad_recall" as const,
+    format: "broad_recall_v1" as const,
+    activityIndex: 0,
+    gapCount: 2,
+    bindings: [{
+      targetId: "11111111-1111-4111-8111-111111111111",
+      evidenceId: "blurting-final-check:11111111-1111-4111-8111-111111111111",
+    }],
+    events: [
+      ...(stage >= 1 ? [{
+        type: "comparison_completed" as const,
+        gapStatuses,
+      }] : []),
+      ...(stage >= 2 ? [{ type: "correction_completed" as const }] : []),
+    ],
+  };
+}
+
+function committedRouteFixture() {
+  const session: LearningPlanSession = {
+    id: "00000000-0000-4000-8000-000000000103",
+    sequence: 1,
+    title: "Retrieve ATP coupling",
+    objective: "Explain how ATP coupling drives an endergonic reaction.",
+    method: "Retrieval practice",
+    methodReason: "Recall the causal chain before checking the explanation.",
+    scheduledFor: NOW,
+    estimatedMinutes: 25,
+    amountLabel: "25 min",
+    learningMode: "study",
+    topicIds: ["00000000-0000-4000-8000-000000000104"],
+    contentTargets: ["ATP coupling"],
+    completionEvidence: ["Explain ATP coupling without notes."],
+    status: "ready",
+  };
+  const plan = {
+    id: "00000000-0000-4000-8000-000000000102",
+    learningItemId: "00000000-0000-4000-8000-000000000101",
+    title: "Cellular energy",
+    topic: "ATP coupling",
+    kind: "topic",
+    deadline: null,
+    status: "active",
+    sourceMode: "yova_generated",
+    studyMode: "inside_yova",
+    learningIntent: "study",
+    creationIntent: "plan",
+    rationale: "Build durable retrieval.",
+    createdAt: NOW,
+    materials: [],
+    sessions: [session],
+  } as LearningPlan;
+  const route = adaptLegacySessionToStudyRoute({
+    plan,
+    session,
+    adaptedAt: NOW,
+    identity: {
+      routeLineageId: "00000000-0000-4000-8000-000000000105",
+      routeRevisionId: ROUTE_REVISION_ID,
+      lifecycleStatus: "committed",
+      committedAt: NOW,
+    },
+  }).route;
+  if (!route) throw new Error("The test route could not be created.");
+  return { plan, session, route };
+}
+
+function studyRouteRow(route: StudyRoute) {
+  const { identity, ...routePayload } = route;
+  return {
+    route_revision_id: identity.routeRevisionId,
+    route_lineage_id: identity.routeLineageId,
+    revision_number: identity.revisionNumber,
+    schema_version: identity.schemaVersion,
+    lifecycle: identity.lifecycleStatus,
+    plan_id: identity.planId,
+    plan_session_id: identity.sessionId,
+    predecessor_revision_id: identity.supersedesRevisionId ?? null,
+    route_payload: routePayload,
+    created_at: identity.createdAt,
+    committed_at: identity.committedAt ?? null,
+  };
+}
+
+function learningItemRow(plan: LearningPlan) {
+  return {
+    id: plan.learningItemId,
+    title: plan.title,
+    kind: plan.kind,
+    topic: plan.topic,
+    deadline: plan.deadline,
+    source_mode: plan.sourceMode,
+    study_mode: plan.studyMode,
+    created_at: plan.createdAt,
+  };
+}
+
+function planRow(plan: LearningPlan) {
+  return {
+    id: plan.id,
+    learning_item_id: plan.learningItemId,
+    status: plan.status,
+    rationale: plan.rationale,
+    generation_inputs: {
+      learningIntent: plan.learningIntent,
+      intent: plan.creationIntent,
+    },
+    knowledge_map: null,
+    created_at: plan.createdAt,
+  };
+}
+
+function planSessionRow(plan: LearningPlan, session: LearningPlanSession) {
+  return {
+    id: session.id,
+    plan_id: plan.id,
+    sequence: session.sequence,
+    title: session.title,
+    objective: session.objective,
+    method: session.method,
+    method_rationale: session.methodReason,
+    scheduled_for: session.scheduledFor,
+    estimated_minutes: session.estimatedMinutes,
+    status: session.status,
+    step_data: {
+      amountLabel: session.amountLabel,
+      learningMode: session.learningMode,
+      topicIds: session.topicIds,
+      contentTargets: session.contentTargets,
+      completionEvidence: session.completionEvidence,
+    },
+    committed_route_revision_id: null,
+  };
+}
+
 function sessionRow(activeSessionCheckpoint: ActiveSessionCheckpointV1) {
   return {
     id: activeSessionCheckpoint.planSessionId,
@@ -1115,6 +1700,7 @@ function sessionRow(activeSessionCheckpoint: ActiveSessionCheckpointV1) {
     estimated_minutes: 25,
     status: "ready",
     step_data: { activeSessionCheckpoint },
+    committed_route_revision_id: null,
   };
 }
 
@@ -1135,14 +1721,16 @@ function mockCloudQueries({
   sessions = [],
   items = [],
   plans = [],
+  routes = [],
   materials = [],
   milestones = [],
   milestoneError = null,
 }: {
   profile: { display_name: string; onboarding_completed_at: string | null } | null;
-  sessions?: ReturnType<typeof sessionRow>[];
+  sessions?: Array<Record<string, unknown>>;
   items?: Array<Record<string, unknown>>;
   plans?: Array<Record<string, unknown>>;
+  routes?: Array<Record<string, unknown>>;
   materials?: Array<Record<string, unknown>>;
   milestones?: Array<Record<string, unknown>>;
   milestoneError?: unknown;
@@ -1159,6 +1747,8 @@ function mockCloudQueries({
               ? plans
               : table === "materials"
                 ? materials
+                : table === "study_routes"
+                  ? routes
                 : table === "plan_sessions"
                   ? sessions
                   : table === "deadline_milestones"

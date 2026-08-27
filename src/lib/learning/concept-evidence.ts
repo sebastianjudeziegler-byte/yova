@@ -3,6 +3,7 @@ import type { ConceptEvidence, SessionCompletion } from "@/lib/domain";
 import { METHOD_PHASES } from "@/lib/learning/method-fidelity";
 
 export const ConceptEvidenceSchema = z.object({
+  routeRevisionId: z.string().uuid().optional(),
   topicId: z.string().uuid().optional(),
   concept: z.string().trim().min(2).max(120),
   outcome: z.enum(["secure", "needs_review"]),
@@ -16,6 +17,8 @@ export const ConceptEvidenceListSchema = z.array(ConceptEvidenceSchema).max(24);
 
 export type ConceptSignal = {
   topicId?: string;
+  /** Exact route behind the latest observation when route provenance exists. */
+  lastRouteRevisionId?: string;
   concept: string;
   attempts: number;
   secureAttempts: number;
@@ -46,6 +49,7 @@ export function summarizeConceptEvidence(
       const current = signals.get(key);
       signals.set(key, {
         ...(evidence.topicId ? { topicId: evidence.topicId } : current?.topicId ? { topicId: current.topicId } : {}),
+        ...(evidence.routeRevisionId ? { lastRouteRevisionId: evidence.routeRevisionId } : {}),
         concept,
         attempts: (current?.attempts ?? 0) + 1,
         secureAttempts: (current?.secureAttempts ?? 0) + (evidence.outcome === "secure" ? 1 : 0),

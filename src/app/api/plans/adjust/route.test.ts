@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { LearningPlan, LearningPlanSession } from "@/lib/domain";
+import { createCommittedInitialSessionStudyRoute } from "@/lib/study-route/session-route-creation";
 
 vi.mock("server-only", () => ({}));
 
@@ -15,6 +17,7 @@ const mocks = vi.hoisted(() => ({
   from: vi.fn(),
   rpc: vi.fn(),
   sessionRows: [] as Array<Record<string, unknown>>,
+  routeRows: [] as Array<Record<string, unknown>>,
   interruptionRows: [] as Array<{ plan_session_id: string }>,
 }));
 
@@ -28,6 +31,7 @@ describe("protected plan adjustment route", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.sessionRows = [contentRow()];
+    mocks.routeRows = [];
     mocks.interruptionRows = [];
     mocks.getUser.mockResolvedValue({ data: { user: { id: USER_ID } }, error: null });
     mocks.from.mockImplementation((table: string) => {
@@ -44,9 +48,46 @@ describe("protected plan adjustment route", () => {
           select: () => builder,
           eq: () => builder,
           maybeSingle: async () => ({
-            data: { learning_item_id: ITEM_ID, knowledge_map: knowledgeMap() },
+            data: {
+              learning_item_id: ITEM_ID,
+              knowledge_map: knowledgeMap(),
+              status: "active",
+              rationale: "Build the model, then verify it.",
+              generation_inputs: { learningIntent: "learn" },
+              created_at: "2026-08-20T10:00:00.000Z",
+            },
             error: null,
           }),
+        };
+        return builder;
+      }
+      if (table === "learning_items") {
+        const builder = {
+          select: () => builder,
+          eq: () => builder,
+          maybeSingle: async () => ({
+            data: {
+              id: ITEM_ID,
+              title: "Arbitrary causal model",
+              kind: "topic",
+              topic: "Arbitrary causal model",
+              deadline: null,
+              source_mode: "yova_generated",
+              study_mode: "inside_yova",
+              created_at: "2026-08-20T10:00:00.000Z",
+            },
+            error: null,
+          }),
+        };
+        return builder;
+      }
+      if (table === "study_routes") {
+        const builder = {
+          select: () => builder,
+          eq: () => builder,
+          then: (resolve: (result: { data: unknown[]; error: null }) => unknown) => (
+            Promise.resolve({ data: mocks.routeRows, error: null }).then(resolve)
+          ),
         };
         return builder;
       }
@@ -180,6 +221,36 @@ describe("protected plan adjustment route", () => {
     expect(body.sessions.find((session: { id: string }) => session.id === REVIEW_SESSION_ID))
       .toMatchObject({ scheduledFor: authoritativeReviewTime });
   });
+
+  it("atomically sends a successor and an independent split route for a routed plan", async () => {
+    const { sessionRow, routeRow, route } = routedContentFixture();
+    mocks.sessionRows = [sessionRow];
+    mocks.routeRows = [routeRow];
+
+    const response = await PATCH(request());
+
+    expect(response.status).toBe(200);
+    expect(mocks.rpc).toHaveBeenCalledWith("adjust_learning_plan_with_routes", expect.anything());
+    const payload = mocks.rpc.mock.calls[0]?.[1]?.payload as {
+      sessions: Array<LearningPlanSession>;
+    };
+    expect(payload.sessions).toHaveLength(2);
+    expect(payload.sessions[0]?.studyRoute?.identity).toMatchObject({
+      routeLineageId: route.identity.routeLineageId,
+      revisionNumber: 2,
+      supersedesRevisionId: route.identity.routeRevisionId,
+      lifecycleStatus: "committed",
+      sessionId: CONTENT_SESSION_ID,
+    });
+    expect(payload.sessions[1]?.studyRoute?.identity).toMatchObject({
+      revisionNumber: 1,
+      lifecycleStatus: "committed",
+      sessionId: payload.sessions[1]?.id,
+    });
+    expect(payload.sessions[1]?.studyRoute?.identity.routeLineageId).not.toBe(
+      route.identity.routeLineageId,
+    );
+  });
 });
 
 function request() {
@@ -270,6 +341,71 @@ function knowledgeMap() {
       completedAt: null,
       demonstratedTopicIds: [],
       gapTopicIds: [],
+    },
+  };
+}
+
+function routedContentFixture() {
+  const row = contentRow();
+  const session: LearningPlanSession = {
+    id: CONTENT_SESSION_ID,
+    sequence: 1,
+    title: row.title,
+    objective: row.objective,
+    method: row.method,
+    methodReason: row.method_rationale,
+    scheduledFor: row.scheduled_for,
+    estimatedMinutes: row.estimated_minutes,
+    amountLabel: "One model and one check · about 25 min",
+    learningMode: "learn",
+    topicIds: [TOPIC_ID],
+    contentTargets: ["Arbitrary causal model"],
+    completionEvidence: ["Explain and apply the model"],
+    status: "ready",
+  };
+  const plan: LearningPlan = {
+    id: PLAN_ID,
+    learningItemId: ITEM_ID,
+    title: "Arbitrary causal model",
+    topic: "Arbitrary causal model",
+    kind: "topic",
+    deadline: null,
+    status: "active",
+    sourceMode: "yova_generated",
+    studyMode: "inside_yova",
+    learningIntent: "learn",
+    rationale: "Build the model, then verify it.",
+    createdAt: "2026-08-20T10:00:00.000Z",
+    sessions: [session],
+  };
+  const route = createCommittedInitialSessionStudyRoute({
+    plan,
+    session,
+    now: "2026-08-20T10:00:00.000Z",
+    origin: {
+      source: "plan_activation",
+      reason: "The learner activated the original route.",
+    },
+  });
+  const { identity, ...routePayload } = route;
+  return {
+    route,
+    sessionRow: {
+      ...row,
+      committed_route_revision_id: identity.routeRevisionId,
+    },
+    routeRow: {
+      route_revision_id: identity.routeRevisionId,
+      route_lineage_id: identity.routeLineageId,
+      revision_number: identity.revisionNumber,
+      schema_version: identity.schemaVersion,
+      lifecycle: identity.lifecycleStatus,
+      plan_id: identity.planId,
+      plan_session_id: identity.sessionId,
+      predecessor_revision_id: identity.supersedesRevisionId ?? null,
+      route_payload: routePayload,
+      created_at: identity.createdAt,
+      committed_at: identity.committedAt ?? null,
     },
   };
 }

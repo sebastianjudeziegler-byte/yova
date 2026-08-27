@@ -21,6 +21,7 @@ export function toSessionResource(
 
   return {
     schemaVersion: session.schemaVersion,
+    routeRevisionId: session.routeRevisionId,
     topicIds: session.topicIds,
     rationale: session.rationale,
     coverage: session.coverage,

@@ -45,7 +45,7 @@ describe("Study Profile validation and report assembly", () => {
     expect(report.playbook.methods).toHaveLength(3);
     expect(new Set(report.playbook.methods.map(({ id }) => id)).size).toBe(3);
     expect(report.playbook.methods[0]).toMatchObject({
-      name: "Worked example fading",
+      name: "Worked Examples",
       basedOn: ["starting_friction", "structure_need", "mistake_sensitivity"],
     });
     expect(report.playbook.methods[0].steps.length).toBeGreaterThanOrEqual(3);

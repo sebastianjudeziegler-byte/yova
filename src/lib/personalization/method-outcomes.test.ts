@@ -28,24 +28,28 @@ describe("buildMethodOutcomeSignals", () => {
     expect(signal.evidence.toLowerCase()).not.toContain("learns best");
   });
 
-  it("treats repeated strong checks as promising rather than causal proof", () => {
+  it("treats four repeated strong checks as promising rather than causal proof", () => {
     const [signal] = buildMethodOutcomeSignals([
+      { methodId: "worked_example_fading", ...comparable, correctAnswers: 4, totalAnswers: 5, feedback: "about_right" },
+      { methodId: "worked_example_fading", ...comparable, correctAnswers: 5, totalAnswers: 5, feedback: "about_right" },
       { methodId: "worked_example_fading", ...comparable, correctAnswers: 4, totalAnswers: 5, feedback: "about_right" },
       { methodId: "worked_example_fading", ...comparable, correctAnswers: 5, totalAnswers: 5, feedback: "about_right" },
     ], comparison);
 
     expect(signal).toMatchObject({
       methodId: "worked_example_fading",
-      sessions: 2,
-      checkedAnswers: 10,
+      sessions: 4,
+      checkedAnswers: 20,
       accuracyPercent: 90,
       status: "promising",
     });
     expect(signal.evidence).toContain("not proof");
   });
 
-  it("adds support after repeated low accuracy without abandoning the method", () => {
+  it("adds support after four repeated low-accuracy sessions without abandoning the method", () => {
     const [signal] = buildMethodOutcomeSignals([
+      { methodId: "retrieval_practice", ...comparable, correctAnswers: 1, totalAnswers: 4, feedback: "too_difficult" },
+      { methodId: "retrieval_practice", ...comparable, correctAnswers: 2, totalAnswers: 4, feedback: "too_difficult" },
       { methodId: "retrieval_practice", ...comparable, correctAnswers: 1, totalAnswers: 4, feedback: "too_difficult" },
       { methodId: "retrieval_practice", ...comparable, correctAnswers: 2, totalAnswers: 4, feedback: "too_difficult" },
     ], comparison);
@@ -66,8 +70,20 @@ describe("buildMethodOutcomeSignals", () => {
     expect(signals.every((signal) => signal.status === "early_signal")).toBe(true);
   });
 
-  it("requires enough checked answers even when two sessions exist", () => {
+  it("keeps two or three strong sessions as early evidence", () => {
     const [signal] = buildMethodOutcomeSignals([
+      { methodId: "self_explanation", ...comparable, correctAnswers: 4, totalAnswers: 4, feedback: "about_right" },
+      { methodId: "self_explanation", ...comparable, correctAnswers: 4, totalAnswers: 4, feedback: "about_right" },
+      { methodId: "self_explanation", ...comparable, correctAnswers: 4, totalAnswers: 4, feedback: "about_right" },
+    ], comparison);
+
+    expect(signal.status).toBe("early_signal");
+  });
+
+  it("requires enough checked answers even when four sessions exist", () => {
+    const [signal] = buildMethodOutcomeSignals([
+      { methodId: "self_explanation", ...comparable, correctAnswers: 1, totalAnswers: 1, feedback: "about_right" },
+      { methodId: "self_explanation", ...comparable, correctAnswers: 1, totalAnswers: 1, feedback: "about_right" },
       { methodId: "self_explanation", ...comparable, correctAnswers: 1, totalAnswers: 1, feedback: "about_right" },
       { methodId: "self_explanation", ...comparable, correctAnswers: 1, totalAnswers: 1, feedback: "about_right" },
     ], comparison);
@@ -77,6 +93,8 @@ describe("buildMethodOutcomeSignals", () => {
 
   it("requires a concrete support change when repeated outcomes need support", () => {
     const signals = buildMethodOutcomeSignals([
+      { methodId: "retrieval_practice", ...comparable, correctAnswers: 1, totalAnswers: 4, feedback: "too_difficult" },
+      { methodId: "retrieval_practice", ...comparable, correctAnswers: 2, totalAnswers: 4, feedback: "too_difficult" },
       { methodId: "retrieval_practice", ...comparable, correctAnswers: 1, totalAnswers: 4, feedback: "too_difficult" },
       { methodId: "retrieval_practice", ...comparable, correctAnswers: 2, totalAnswers: 4, feedback: "too_difficult" },
     ], comparison);

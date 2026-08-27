@@ -36,6 +36,13 @@ import {
   resolveSessionArchitectureVersion,
   sessionArchitectureForGeneration,
 } from "@/lib/session-generation/architecture";
+import { resolvePlannedStudyRoute } from "@/lib/study-route/selectors";
+import {
+  buildNormalPlanJourneyGenerationCopy,
+  isNormalPlanEnvelopeGenerationRoute,
+  resolveNormalPlanGenerationCopy,
+} from "@/lib/study-route/normal-plan-generation-copy";
+import { activeStudyRouteTargetIds } from "@/lib/study-route/targets";
 
 export function buildPreviewSessionContext({
   plan,
@@ -52,6 +59,14 @@ export function buildPreviewSessionContext({
   interruptions: SessionInterruption[];
   sessionAdjustment?: SessionAdjustment | null;
 }): PreviewSessionGenerationContext {
+  const routeResolution = resolvePlannedStudyRoute(plan, session);
+  const plannedStudyRoute = routeResolution.source === "stored"
+    ? routeResolution.route
+    : null;
+  const studyRoute = plannedStudyRoute?.identity.lifecycleStatus === "committed"
+    ? plannedStudyRoute
+    : null;
+  const normalPlanEnvelopeRoute = isNormalPlanEnvelopeGenerationRoute(plannedStudyRoute);
   const recentCompletions = completions
     .filter((completion) => completion.planId === plan.id)
     .sort((left, right) => right.completedAt.localeCompare(left.completedAt));
@@ -77,18 +92,44 @@ export function buildPreviewSessionContext({
   const personalizationInterruptions = recentInterruptions.filter((interruption) => (
     !personalizationState.excludedEvidenceRefs.includes(interruption.id)
   ));
-  const requestedLearningMode = resolveEffectiveSessionLearningMode({
-    planLearningIntent: plan.learningIntent,
-    plannedMode: session.learningMode,
-    completedSessionCount: recentCompletions.length,
-    familiarity: sessionAdjustment?.familiarity ?? null,
-  });
+  const requestedLearningMode = studyRoute
+    ? studyRoute.approach.mode === "learn" ? "learn" : "study"
+    : resolveEffectiveSessionLearningMode({
+      planLearningIntent: plan.learningIntent,
+      plannedMode: session.learningMode,
+      completedSessionCount: recentCompletions.length,
+      familiarity: sessionAdjustment?.familiarity ?? null,
+    });
   const effectiveLearningMode = learningModeForScheduledRetrieval(session, requestedLearningMode);
-  const repairedTeachingStart = effectiveLearningMode === "learn" && session.learningMode !== "learn"
+  const repairedTeachingStart = !studyRoute
+    && effectiveLearningMode === "learn" && session.learningMode !== "learn"
     ? teachingFirstSessionCopy(plan.topic)
     : null;
-  const mappedTopics = plan.knowledgeMap?.topics.filter((topic) => session.topicIds?.includes(topic.id)) ?? [];
-  const sessionTopics = mappedTopics.length > 0
+  const routeTopicIds = studyRoute ? activeStudyRouteTargetIds(studyRoute) : undefined;
+  const plannedRouteTopicIds = plannedStudyRoute
+    ? activeStudyRouteTargetIds(plannedStudyRoute)
+    : undefined;
+  const mappedTopics = plan.knowledgeMap?.topics.filter((topic) => (
+    (normalPlanEnvelopeRoute ? plannedRouteTopicIds : routeTopicIds ?? session.topicIds)?.includes(topic.id)
+  )) ?? [];
+  const normalPlanTopics = normalPlanEnvelopeRoute
+    ? (plannedRouteTopicIds?.length ? plannedRouteTopicIds : [session.id]).map((topicId, index) => (
+        mappedTopics.find((topic) => topic.id === topicId) ?? {
+          id: topicId,
+          title: (session.contentTargets?.[index] ?? "Assigned learning target").slice(0, 140),
+          description: "The accepted learning target assigned to this guided session.",
+          subtopics: [],
+          prerequisiteTopicIds: [],
+          status: "not_started" as const,
+          initialEvidence: null,
+          sourceReferences: [],
+          origin: "ai_generated" as const,
+          deferred: null,
+          curriculumReference: null,
+        }
+      ))
+    : null;
+  const sessionTopics = normalPlanTopics ?? (mappedTopics.length > 0
     ? mappedTopics
     : [{
       id: session.id,
@@ -102,57 +143,87 @@ export function buildPreviewSessionContext({
       origin: "ai_generated" as const,
       deferred: null,
       curriculumReference: null,
-    }];
+    }]);
+  const normalPlanGenerationCopy = resolveNormalPlanGenerationCopy({
+    route: plannedStudyRoute,
+    selectedTopics: sessionTopics,
+    contentTargets: session.contentTargets ?? [],
+  });
 
   return {
+    ...(studyRoute ? { studyRoute } : {}),
     sessionArchitectureVersion: sessionArchitectureForGeneration({
       storedVersion: resolveSessionArchitectureVersion(plan, plan.knowledgeMap),
       learningMode: effectiveLearningMode,
-      studyMode: plan.studyMode,
+      studyMode: studyRoute?.approach.executionEnvironment ?? plan.studyMode,
       reviewType: session.reviewType ?? null,
     }),
     learningGoal: {
-      title: plan.title,
-      topic: plan.topic,
+      title: normalPlanGenerationCopy?.learningGoalTitle ?? plan.title,
+      topic: normalPlanGenerationCopy?.learningGoalTopic ?? plan.topic,
       kind: plan.kind,
       deadline: plan.deadline,
       sourceMode: plan.sourceMode,
-      studyMode: plan.studyMode,
+      studyMode: studyRoute?.approach.executionEnvironment ?? plan.studyMode,
       learningIntent: plan.learningIntent,
     },
-    planRationale: plan.rationale,
+    planRationale: normalPlanGenerationCopy?.planRationale ?? plan.rationale,
     knowledgeTopics: sessionTopics,
     journey: {
       currentSequence: session.sequence,
       totalSessions: plan.sessions.length,
       previousSessions: plan.sessions
         .filter((candidate) => candidate.sequence < session.sequence)
-        .map((candidate) => ({
-          sequence: candidate.sequence,
-          title: candidate.title,
-          objective: candidate.objective,
-          status: candidate.status,
-          contentTargets: candidate.contentTargets ?? [],
-        })),
+        .map((candidate) => {
+          const generationCopy = normalPlanGenerationCopy
+            ? buildNormalPlanJourneyGenerationCopy({
+                sequence: candidate.sequence,
+                contentTargets: candidate.contentTargets ?? [],
+              })
+            : null;
+          return {
+            sequence: candidate.sequence,
+            title: generationCopy?.title ?? candidate.title,
+            objective: generationCopy?.objective ?? candidate.objective,
+            status: candidate.status,
+            contentTargets: candidate.contentTargets ?? [],
+          };
+        }),
       nextSessions: plan.sessions
         .filter((candidate) => candidate.sequence > session.sequence)
-        .map((candidate) => ({
-          sequence: candidate.sequence,
-          title: candidate.title,
-          objective: candidate.objective,
-          contentTargets: candidate.contentTargets ?? [],
-        })),
+        .map((candidate) => {
+          const generationCopy = normalPlanGenerationCopy
+            ? buildNormalPlanJourneyGenerationCopy({
+                sequence: candidate.sequence,
+                contentTargets: candidate.contentTargets ?? [],
+              })
+            : null;
+          return {
+            sequence: candidate.sequence,
+            title: generationCopy?.title ?? candidate.title,
+            objective: generationCopy?.objective ?? candidate.objective,
+            contentTargets: candidate.contentTargets ?? [],
+          };
+        }),
     },
     session: {
-      title: session.title,
-      objective: repairedTeachingStart?.objective ?? session.objective,
-      method: repairedTeachingStart?.method ?? session.method,
-      methodReason: repairedTeachingStart?.methodReason ?? session.methodReason,
-      estimatedMinutes: session.estimatedMinutes,
+      title: normalPlanGenerationCopy?.sessionTitle ?? session.title,
+      objective: normalPlanGenerationCopy
+        ? plannedStudyRoute?.target.desiredOutcome ?? "Complete the assigned learning targets."
+        : studyRoute?.target.desiredOutcome ?? repairedTeachingStart?.objective ?? session.objective,
+      method: studyRoute?.approach.visibleMethodName ?? repairedTeachingStart?.method ?? session.method,
+      methodReason: studyRoute?.explanation.shortReason ?? repairedTeachingStart?.methodReason ?? session.methodReason,
+      estimatedMinutes: studyRoute?.timing.activeMinutes ?? session.estimatedMinutes,
       learningMode: effectiveLearningMode,
-      topicIds: sessionTopics.map((topic) => topic.id),
+      topicIds: normalPlanGenerationCopy
+        ? plannedRouteTopicIds ?? sessionTopics.map((topic) => topic.id)
+        : routeTopicIds ?? sessionTopics.map((topic) => topic.id),
       contentTargets: session.contentTargets ?? [],
-      completionEvidence: session.completionEvidence ?? [],
+      completionEvidence: normalPlanGenerationCopy
+        ? plannedStudyRoute?.execution.completionEvidence.map((evidence) => evidence.description) ?? []
+        : studyRoute
+          ? studyRoute.execution.completionEvidence.map((evidence) => evidence.description)
+          : session.completionEvidence ?? [],
       reviewConcept: session.reviewConcept?.trim() || null,
       reviewType: session.reviewType ?? null,
     },

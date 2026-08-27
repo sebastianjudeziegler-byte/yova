@@ -1,10 +1,16 @@
 import {
+  CORE_METHOD_IDS,
   CORE_METHOD_CATALOG,
+  isRecognizedCoreMethodName,
   type CoreMethodId,
   type LearningTaskType,
   learningScienceCatalogForPrompt,
 } from "@/lib/learning/method-catalog";
 import type { LearningIntent, SessionLearningMode } from "@/lib/domain";
+import {
+  eligibleMethodIdsFor,
+  type KnowledgeStage,
+} from "@/lib/learning/method-eligibility";
 import { learningModeContract } from "@/lib/learning/learning-intent";
 import {
   rankMethodsByLearnerFit,
@@ -12,7 +18,7 @@ import {
 } from "@/lib/learning/method-preference-fit";
 import type { MethodOutcomeSignal } from "@/lib/personalization/method-outcomes";
 
-export type KnowledgeStage = "novice" | "developing" | "retrieval_ready";
+export type { KnowledgeStage } from "@/lib/learning/method-eligibility";
 
 export type LearningTaskClassification = {
   taskType: LearningTaskType;
@@ -30,6 +36,12 @@ export type MethodRoutingInput = {
   sessionObjective: string;
   plannedMethod: string;
   plannedMethodReason: string;
+  /**
+   * Route-free sessions created before StudyRoute may preserve their valid
+   * plan label as a compatibility commitment. New/uncommitted plan prose is
+   * only a hint and cannot pin the method decision.
+   */
+  plannedMethodAuthority?: "hint" | "legacy_compatibility";
   learnerProfile: {
     commonBlocker: string | null;
     guidancePreference: string | null;
@@ -54,6 +66,8 @@ export type MethodRoutingInput = {
    * used by plan validation so vague generated titles cannot change the task.
    */
   taskTypeOverride?: LearningTaskType | null;
+  /** Immutable target-stage snapshot supplied by a committed StudyRoute. */
+  knowledgeStageOverride?: KnowledgeStage | null;
   /**
    * Outcome signals for methods this learner has already used on comparable
    * work. Supplying them lets repeated results outrank self-report; omitting
@@ -103,61 +117,7 @@ export function validateLearningScienceRoutingSelection({
   return null;
 }
 
-const TASK_METHODS: Record<LearningTaskType, Record<KnowledgeStage, CoreMethodId[]>> = {
-  memorization: {
-    novice: ["retrieval_practice", "spaced_retrieval"],
-    developing: ["retrieval_practice", "spaced_retrieval", "interleaved_practice"],
-    retrieval_ready: ["practice_test_error_repair", "spaced_retrieval", "interleaved_practice"],
-  },
-  conceptual_learning: {
-    novice: ["self_explanation", "read_recall_review", "retrieval_practice"],
-    developing: ["self_explanation", "retrieval_practice", "spaced_retrieval"],
-    retrieval_ready: ["retrieval_practice", "practice_test_error_repair", "spaced_retrieval"],
-  },
-  problem_solving: {
-    novice: ["worked_example_fading", "self_explanation"],
-    developing: ["worked_example_fading", "interleaved_practice", "practice_test_error_repair"],
-    retrieval_ready: ["interleaved_practice", "practice_test_error_repair"],
-  },
-  reading_to_quiz: {
-    novice: ["read_recall_review", "self_explanation", "retrieval_practice"],
-    developing: ["read_recall_review", "retrieval_practice", "spaced_retrieval"],
-    retrieval_ready: ["practice_test_error_repair", "retrieval_practice", "spaced_retrieval"],
-  },
-  writing_argumentation: {
-    novice: ["retrieval_based_outlining", "self_explanation"],
-    developing: ["retrieval_based_outlining", "practice_test_error_repair"],
-    retrieval_ready: ["retrieval_based_outlining", "practice_test_error_repair"],
-  },
-  programming: {
-    novice: ["scaffolded_coding", "worked_example_fading"],
-    developing: ["scaffolded_coding", "interleaved_practice", "practice_test_error_repair"],
-    retrieval_ready: ["interleaved_practice", "practice_test_error_repair", "scaffolded_coding"],
-  },
-  mixed_assessment: {
-    novice: ["self_explanation", "retrieval_practice", "worked_example_fading"],
-    developing: ["retrieval_practice", "interleaved_practice", "practice_test_error_repair"],
-    retrieval_ready: ["practice_test_error_repair", "spaced_retrieval", "interleaved_practice"],
-  },
-};
-
-const TEACHING_FIRST_METHODS = new Set<CoreMethodId>([
-  "self_explanation",
-  "worked_example_fading",
-  "read_recall_review",
-  "retrieval_based_outlining",
-  "scaffolded_coding",
-]);
-
-export function methodFitsSessionMode(
-  methodId: CoreMethodId,
-  taskType: LearningTaskType,
-  learningMode: SessionLearningMode,
-) {
-  if (learningMode === "study") return true;
-  if (taskType === "memorization") return methodId === "retrieval_practice";
-  return TEACHING_FIRST_METHODS.has(methodId);
-}
+export { methodFitsSessionMode } from "@/lib/learning/method-eligibility";
 
 export function buildLearningScienceRoutingBrief(input: MethodRoutingInput): LearningScienceRoutingBrief {
   const taskClassification = input.taskTypeOverride
@@ -184,20 +144,20 @@ export function buildLearningScienceRoutingBrief(input: MethodRoutingInput): Lea
     input.plannedMethodReason,
   ].join(" ");
   const observedKnowledgeStage = inferKnowledgeStage(input.recentResults, combined);
-  const knowledgeStage = input.sessionLearningMode === "learn" ? "novice" : observedKnowledgeStage;
-  const stageMethods = TASK_METHODS[taskType][knowledgeStage];
-  const modeCompatibleMethods = stageMethods.filter((methodId) => (
-    methodFitsSessionMode(methodId, taskType, input.sessionLearningMode)
-  ));
-  const allowedMethodIds = [...(modeCompatibleMethods.length ? modeCompatibleMethods : stageMethods)];
+  const knowledgeStage = input.knowledgeStageOverride
+    ?? (input.sessionLearningMode === "learn" ? "novice" : observedKnowledgeStage);
+  const allowedMethodIds = eligibleMethodIdsFor({
+    taskType,
+    knowledgeStage,
+    learningMode: input.sessionLearningMode,
+  });
   const plannedMethodId = methodIdFromText(input.plannedMethod);
-  const plannedMethodStillValid = Boolean(
-    plannedMethodId
-    && CORE_METHOD_CATALOG[plannedMethodId].taskTypes.includes(taskType)
-    && methodFitsSessionMode(plannedMethodId, taskType, input.sessionLearningMode),
+  const plannedMethodStillValid = Boolean(plannedMethodId && allowedMethodIds.includes(plannedMethodId));
+  const preserveLegacyPlannedMethod = Boolean(
+    plannedMethodStillValid && input.plannedMethodAuthority === "legacy_compatibility",
   );
 
-  if (plannedMethodId && plannedMethodStillValid) {
+  if (plannedMethodId && preserveLegacyPlannedMethod) {
     const existingIndex = allowedMethodIds.indexOf(plannedMethodId);
     if (existingIndex >= 0) allowedMethodIds.splice(existingIndex, 1);
     allowedMethodIds.unshift(plannedMethodId);
@@ -217,7 +177,7 @@ export function buildLearningScienceRoutingBrief(input: MethodRoutingInput): Lea
    * not yet been told what to expect. Re-choosing here would contradict the
    * method already shown on Home, Learning, Agenda, and the session setup.
    */
-  const rankedMethodIds = plannedMethodId && plannedMethodStillValid
+  const rankedMethodIds = plannedMethodId && preserveLegacyPlannedMethod
     ? [plannedMethodId, ...fitOrderedMethodIds.filter((methodId) => methodId !== plannedMethodId)]
     : fitOrderedMethodIds;
   const methodFitDecidedPrimary = Boolean(methodFit && rankedMethodIds[0] === methodFit.selectedMethodId);
@@ -244,8 +204,12 @@ export function buildLearningScienceRoutingBrief(input: MethodRoutingInput): Lea
         : knowledgeStage === "retrieval_ready"
           ? "Knowledge stage: retrieval-ready from repeated strong checks or explicit review intent."
           : "Knowledge stage: developing; combine generation with targeted support and feedback.",
-      plannedMethodId
-        ? `The existing plan named ${CORE_METHOD_CATALOG[plannedMethodId].name}; keep it when it remains task-appropriate.`
+      plannedMethodId && preserveLegacyPlannedMethod
+        ? `Legacy compatibility: preserve the route-free plan's eligible ${CORE_METHOD_CATALOG[plannedMethodId].name} commitment.`
+        : plannedMethodId && plannedMethodStillValid
+          ? `The uncommitted plan proposed ${CORE_METHOD_CATALOG[plannedMethodId].name}; code ranked it with the other eligible methods instead of treating prose as a commitment.`
+        : plannedMethodId
+          ? `The existing plan named ${CORE_METHOD_CATALOG[plannedMethodId].name}, but it is not eligible for this task, stage, and session mode.`
         : "The plan used free-text method language; select the closest evidence-backed method from the catalog.",
       ...(methodFitDecidedPrimary && methodFit?.learnerFacingReason
         ? [`Learner fit: ${methodFit.learnerFacingReason}`]
@@ -386,8 +350,13 @@ export function inferKnowledgeStage(results: MethodRoutingInput["recentResults"]
 }
 
 export function methodIdFromText(text: string): CoreMethodId | null {
+  const exactName = CORE_METHOD_IDS.find((methodId) => (
+    isRecognizedCoreMethodName(methodId, text)
+  ));
+  if (exactName) return exactName;
   const normalized = text.toLowerCase();
   if (/practice test|assessment|error repair|error review|mistake review/.test(normalized)) return "practice_test_error_repair";
+  if (/trace(?:\s*[-–—,]\s*|\s+)code(?:\s*[-–—,]\s*|\s+)test/.test(normalized)) return "scaffolded_coding";
   if (/scaffolded coding|code tracing|parsons|coding/.test(normalized)) return "scaffolded_coding";
   if (/outlin(?:e|ing)|drafting|argument/.test(normalized)) return "retrieval_based_outlining";
   if (/read[- ]recall|read[- ]recite|question-led reading/.test(normalized)) return "read_recall_review";

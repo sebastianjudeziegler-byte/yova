@@ -2,6 +2,8 @@
 
 Updated: August 7, 2026
 
+> **Implementation snapshot:** This document describes the learning-science engine currently in the product. For the canonical next-architecture contract—including deterministic route ownership, profile-aware method selection, duration routing, learner agency, and the staged migration plan—see [`docs/PERSONALIZATION-SYSTEM-SPEC.md`](./PERSONALIZATION-SYSTEM-SPEC.md). Where the two describe different future behavior, the personalization system specification takes precedence; this document remains authoritative for existing behavior until each migration milestone ships.
+
 ## Product thesis
 
 YOVA should not merely ask a language model to “make a personalized study plan.” The product needs its own scientific structure:

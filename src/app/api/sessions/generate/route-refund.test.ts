@@ -13,7 +13,13 @@ describe("guided-session allowance settlement contract", () => {
       'reserveAIRequest(supabase, "session_generation", requestId, aiUsageRecoveryKey)',
     );
     expect(routeSource).toContain("aiUsageClaimId = durableLimit.claimId");
-    expect(routeSource.match(/await releaseFailedGenerationClaim\(/g)).toHaveLength(4);
+    expect(routeSource.match(/await releaseFailedGenerationClaim\(/g)).toHaveLength(5);
+    const routeConflict = routeSource.indexOf("const routeContractIssue = generatedSessionStudyRouteIssue(");
+    const routeConflictRelease = routeSource.indexOf(
+      "await releaseFailedGenerationClaim(supabase, aiUsageClaimId, requestId)",
+      routeConflict,
+    );
+    expect(routeConflictRelease).toBeGreaterThan(routeConflict);
 
     const helperBoundary = routeSource.indexOf("async function releaseFailedGenerationClaim");
     const catchBoundary = routeSource.lastIndexOf("  } catch (error) {", helperBoundary);

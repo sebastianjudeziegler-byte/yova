@@ -15,6 +15,7 @@ import {
 import {
   learningScienceCatalogForPrompt,
   getCoreLearningMethod,
+  isRecognizedCoreMethodName,
   type CoreMethodId,
 } from "@/lib/learning/method-catalog";
 import {
@@ -229,6 +230,7 @@ export function streamedSkeletonRepairAttemptCopy(attempts: number) {
 export function streamedTeachingCycleRouting(
   routing: LearningScienceRoutingBrief,
   personalization?: GenerationPersonalizationContext,
+  committedMethodId?: CoreMethodId | null,
 ): LearningScienceRoutingBrief {
   const preferred: CoreMethodId = routing.taskType === "memorization"
     ? "retrieval_practice"
@@ -252,7 +254,7 @@ export function streamedTeachingCycleRouting(
     suggestedPrimaryMethodId: cycleCandidates[0],
     allowedMethodIds: cycleCandidates,
     methods: learningScienceCatalogForPrompt(cycleCandidates),
-  }, personalization);
+  }, personalization, committedMethodId);
   const methodId = personalizedRouting.suggestedPrimaryMethodId;
   return {
     ...personalizedRouting,
@@ -324,7 +326,7 @@ export async function generateStreamedTeachingSkeletonWithOpenAI(
     // version. Outcome evidence remains available below for practice selection.
     recentResults: [],
     interruptionCount: 0,
-  })), provenanceContext.personalization);
+  })), provenanceContext.personalization, provenanceContext.studyRoute?.approach.primaryMethodId);
   const recommendedMethodFidelityContract = methodFidelityContractForPrompt(
     learningScienceRouting.suggestedPrimaryMethodId,
     "learn",
@@ -1307,7 +1309,9 @@ function buildCompactStreamedRecoveryDraft({
       learningMode: "learn",
       taskType: routing.taskType,
       methodId,
-      name: method.name,
+      name: context.studyRoute?.approach.primaryMethodId === methodId
+        ? context.studyRoute.approach.visibleMethodName
+        : method.name,
       what: method.what,
       why: method.why,
       how: method.how.slice(0, 4),
@@ -1469,6 +1473,9 @@ function finalizeStreamedSkeleton({
       learningMode: "learn" as const,
       taskType: routing.taskType,
       methodId: resolvedMethodId,
+      name: context.studyRoute?.approach.primaryMethodId === resolvedMethodId
+        ? context.studyRoute.approach.visibleMethodName
+        : getCoreLearningMethod(resolvedMethodId).name,
       personalization: deliveryPolicy.learnerFacingReasons.slice(0, 3),
     },
     sourceGrounding,
@@ -2434,7 +2441,9 @@ function canonicalizeCurrentWindowMetadata({
     coverageFocus: boundedText(`Learn and demonstrate ${activeTargetSummary} in this session.`, 240),
     methodBriefing: {
       ...draft.methodBriefing,
-      name: method.name,
+      name: isRecognizedCoreMethodName(method.id, draft.methodBriefing.name)
+        ? draft.methodBriefing.name
+        : method.name,
       what: boundedText(`Use ${method.name.toLocaleLowerCase()} to learn and explain ${activeTargetSummary}.`, 280),
       why: boundedText(
         `This method supports the active targets while keeping the explanation and required checks inside today's time window.`,

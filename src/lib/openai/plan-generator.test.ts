@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  GeneratedPlanDraftSchema,
   PlanGenerationRequestSchema,
+  ProviderGeneratedPlanDraftSchema,
 } from "@/lib/plan-generation/schema";
 
 const TOPIC_ID = "11111111-1111-4111-8111-111111111111";
@@ -38,7 +38,7 @@ function makeDraft(
   completionEvidence: string,
   rationale = "Begin without notes so the session exposes the exact relationship that needs repair.",
 ) {
-  return GeneratedPlanDraftSchema.parse({
+  return ProviderGeneratedPlanDraftSchema.parse({
     title: "Cellular respiration review",
     topic: "How the stages of cellular respiration produce ATP",
     kind: "topic",
@@ -48,8 +48,6 @@ function makeDraft(
     sessions: [{
       title: "Retrieve the respiration sequence",
       objective: "Reconstruct the major stages and explain how they contribute to ATP production.",
-      method: "Retrieval practice",
-      methodReason: "The learner has encountered the material and now needs unsupported evidence of recall.",
       scheduledFor: "2026-08-10T18:00:00.000Z",
       estimatedMinutes: 15,
       amountLabel: "One sequence reconstruction and one explanation check",
@@ -86,7 +84,11 @@ describe("OpenAI plan generation quality repair", () => {
     const result = await generatePlanWithOpenAI(request);
 
     expect(result.responseId).toBe("response-valid");
+    expect(result.draft.sessions[0].method).toBe("Self-explanation");
+    expect(result.draft.sessions[0].methodReason).toMatch(/YOVA selected it/i);
     expect(parseResponse).toHaveBeenCalledTimes(1);
+    expect(parseResponse.mock.calls[0]?.[0]?.instructions).toMatch(/do not choose, name, or justify a learning method/i);
+    expect(parseResponse.mock.calls[0]?.[0]?.instructions).not.toMatch(/approved YOVA learning-science method catalog/i);
     expect(parseResponse.mock.calls[0]?.[1]).toEqual({
       maxRetries: 0,
       timeout: 40_000,

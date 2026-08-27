@@ -8,6 +8,7 @@ import {
   CORE_METHOD_IDS,
   learningScienceCatalogForPrompt,
 } from "@/lib/learning/method-catalog";
+import type { CoreMethodId } from "@/lib/learning/method-catalog";
 import type { LearningScienceRoutingBrief } from "@/lib/learning/method-router";
 import {
   PERSONALIZATION_DECISION_SETTINGS,
@@ -164,11 +165,33 @@ export function resolvePersonalizationForGeneration({
 export function applyPersonalizedMethodTieToRouting(
   routing: LearningScienceRoutingBrief,
   personalization: GenerationPersonalizationContext | null | undefined,
+  committedMethodId?: CoreMethodId | null,
 ): LearningScienceRoutingBrief {
+  if (committedMethodId) {
+    return {
+      ...routing,
+      suggestedPrimaryMethodId: committedMethodId,
+      allowedMethodIds: [committedMethodId],
+      methods: learningScienceCatalogForPrompt([committedMethodId]),
+      decisionBasis: [
+        ...routing.decisionBasis,
+        `Committed StudyRoute: ${committedMethodId} is fixed for this revision.`,
+      ],
+    };
+  }
   if (!personalization) return routing;
   const tie = selectPersonalizedMethodTie(
     routing.allowedMethodIds,
-    personalization.methodTie,
+    {
+      state: {
+        controls: { experiments: false },
+        activeExperiment: null,
+        experimentHistory: [],
+      },
+      signals: personalization.methodTie.signals.filter((signal) => (
+        signal.key !== "experiment_result" && !signal.id.startsWith("experiment:")
+      )),
+    },
     {
       taskType: routing.taskType,
       knowledgeStage: routing.knowledgeStage,
@@ -208,6 +231,10 @@ function decisionAppliesToRouting(
 ) {
   const experimentSignalId = decision.signalIds.find((id) => id.startsWith("experiment:"));
   if (!experimentSignalId) return true;
+  // Milestone 3 does not alternate named learning methods or reuse the old
+  // two-session personal-test winner. Other bounded UI/delivery experiments
+  // remain behind their existing explicit control until their own migration.
+  if (decision.artifact === "method_tie") return false;
   if (!personalization.methodTie.state.controls.experiments) return false;
 
   const experimentId = experimentSignalId.slice("experiment:".length);

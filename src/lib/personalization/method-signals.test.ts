@@ -6,6 +6,7 @@ import type {
   SessionInterruption,
 } from "@/lib/domain";
 import { buildMethodSignals } from "@/lib/personalization/method-signals";
+import { legacyPlanSessionToStudyRoute } from "@/lib/study-route/adapters";
 
 function makeSession(id: string, method: string): LearningPlanSession {
   return {
@@ -82,17 +83,24 @@ describe("buildMethodSignals", () => {
     const plan = makePlan([
       makeSession("session_one", "Active recall"),
       makeSession("session_two", "Targeted retrieval"),
+      makeSession("session_three", "Closed-note retrieval"),
+      makeSession("session_four", "Retrieval practice"),
     ]);
     const signals = buildMethodSignals(
       [plan],
-      [makeCompletion("session_one"), makeCompletion("session_two")],
+      [
+        makeCompletion("session_one"),
+        makeCompletion("session_two"),
+        makeCompletion("session_three"),
+        makeCompletion("session_four"),
+      ],
       [],
     );
 
     expect(signals).toHaveLength(1);
     expect(signals[0]).toMatchObject({
       family: "retrieval",
-      sessions: 2,
+      sessions: 4,
       averageAccuracy: 80,
       status: "promising",
     });
@@ -144,12 +152,16 @@ describe("buildMethodSignals", () => {
     const plan = makePlan([
       makeSession("session_one", "Mixed practice"),
       makeSession("session_two", "Application practice"),
+      makeSession("session_three", "Mixed practice"),
+      makeSession("session_four", "Application practice"),
     ]);
     const signals = buildMethodSignals(
       [plan],
       [
         makeCompletion("session_one", { correctAnswers: 1, feedback: "too_difficult" }),
         makeCompletion("session_two", { correctAnswers: 2, feedback: "too_difficult" }),
+        makeCompletion("session_three", { correctAnswers: 1, feedback: "too_difficult" }),
+        makeCompletion("session_four", { correctAnswers: 2, feedback: "too_difficult" }),
       ],
       [],
     );
@@ -157,7 +169,7 @@ describe("buildMethodSignals", () => {
     expect(signals[0]).toMatchObject({
       family: "practice",
       averageAccuracy: 30,
-      difficultRatings: 2,
+      difficultRatings: 4,
       status: "needs_support",
     });
   });
@@ -212,5 +224,53 @@ describe("buildMethodSignals", () => {
     );
 
     expect(signals).toEqual([]);
+  });
+
+  it("uses the committed route for method family and comparison scope and rejects stale evidence", () => {
+    const sessionId = "00000000-0000-4000-8000-000000000071";
+    const planId = "00000000-0000-4000-8000-000000000072";
+    const routeRevisionId = "00000000-0000-4000-8000-000000000073";
+    const session = makeSession(sessionId, "Active recall");
+    const routedPlan: LearningPlan = {
+      ...makePlan([session]),
+      id: planId,
+      learningItemId: "00000000-0000-4000-8000-000000000074",
+    };
+    const route = legacyPlanSessionToStudyRoute({
+      plan: routedPlan,
+      session,
+      adaptedAt: "2026-08-05T17:00:00.000Z",
+      identity: {
+        routeLineageId: "00000000-0000-4000-8000-000000000075",
+        routeRevisionId,
+        lifecycleStatus: "committed",
+        createdAt: "2026-08-05T16:59:00.000Z",
+        committedAt: "2026-08-05T17:00:00.000Z",
+      },
+    });
+    if (!route) throw new Error("Expected a route for the method-signal test.");
+    session.studyRoute = route;
+    // Route authority wins even if an old scalar label becomes stale.
+    session.method = "Worked examples";
+    const exact = {
+      ...makeCompletion(sessionId),
+      planId,
+      routeRevisionId,
+    };
+
+    const [signal] = buildMethodSignals([routedPlan], [
+      exact,
+      {
+        ...exact,
+        id: "00000000-0000-4000-8000-000000000076",
+        routeRevisionId: "00000000-0000-4000-8000-000000000077",
+      },
+    ], []);
+
+    expect(signal).toMatchObject({
+      family: "retrieval",
+      sessions: 1,
+      taskType: route.target.taskFamily,
+    });
   });
 });

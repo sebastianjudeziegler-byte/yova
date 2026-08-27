@@ -81,11 +81,11 @@ export const METHOD_FIT_WEIGHTS = {
   observedMixed: -0.3,
   observedNeedsSupport: -1,
   /**
-   * One comparable session is an anecdote and carries no weight at all. Weight
-   * ramps in from the second session and reaches full strength at the fourth,
-   * so behaviour overtakes self-report only once it has actually repeated.
+   * Fewer than four comparable sessions may guide support and explanation but
+   * cannot switch the named method. v1 has no causal experiment, so observed
+   * ranking authority begins only at the frozen stability threshold.
    */
-  observedMinimumSessions: 2,
+  observedMinimumSessions: 4,
   observedFullEvidenceSessions: 4,
 } as const;
 
@@ -159,9 +159,9 @@ function declaredProfileText(profile: DeclaredProfileText) {
 }
 
 /**
- * Observed evidence ramps in rather than switching on. A single comparable
- * session is a hint, not a finding, so it cannot outrank a stated preference
- * until enough sessions agree.
+ * Observed evidence is intentionally inert below the frozen four-session
+ * method-change threshold. Delivery can adapt earlier through its separate
+ * support policy without silently changing the named method.
  */
 function observedEvidenceWeight(sessions: number) {
   const { observedMinimumSessions, observedFullEvidenceSessions } = METHOD_FIT_WEIGHTS;

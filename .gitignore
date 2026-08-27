@@ -16,5 +16,8 @@ supabase/.temp
 playwright-report
 test-results
 
+# Disposable local research renders and extraction scratch files.
+/tmp/
+
 # Local social-media and slideshow exports are not part of the application.
 /marketing/

@@ -3,6 +3,7 @@ import type { SessionInterruption, SessionResource } from "@/lib/domain";
 import {
   ACTIVE_SESSION_CHECKPOINT_TTL_MS,
   checkpointToSessionResumePoint,
+  checkpointHandoffMatchesInterruption,
   checkpointMatchesMethodWorkSession,
   checkpointMatchesSessionResource,
   chooseLatestSessionResumePoint,
@@ -21,10 +22,14 @@ import {
   restoreExitProgressThroughCheckpoint,
   restoreCheckpointSessionResources,
   saveActiveSessionCheckpoint,
+  type ActiveSessionCheckpoint,
   type ActiveSessionCheckpointV1,
+  type ActiveSessionCheckpointV2,
 } from "@/lib/learning/active-session-checkpoint";
 
 const NOW = "2026-08-17T18:00:00.000Z";
+const ROUTE_REVISION_ID = "00000000-0000-4000-8000-000000000101";
+const OTHER_ROUTE_REVISION_ID = "00000000-0000-4000-8000-000000000102";
 
 function installMemoryStorage() {
   const values = new Map<string, string>();
@@ -75,6 +80,17 @@ function checkpoint(
   } as ActiveSessionCheckpointV1;
 }
 
+function routeBoundCheckpoint(
+  overrides: Partial<ActiveSessionCheckpointV2> = {},
+): ActiveSessionCheckpointV2 {
+  return {
+    ...checkpoint(),
+    version: 2,
+    routeRevisionId: ROUTE_REVISION_ID,
+    ...overrides,
+  } as ActiveSessionCheckpointV2;
+}
+
 function awaitingFinishCheckpoint(
   overrides: Partial<ActiveSessionCheckpointV1> = {},
 ): ActiveSessionCheckpointV1 {
@@ -88,6 +104,29 @@ function awaitingFinishCheckpoint(
     evidence: evidence(),
     ...overrides,
   } as ActiveSessionCheckpointV1;
+}
+
+function broadRecallProgress(
+  stage: 0 | 1 | 2 = 0,
+  gapStatuses: Array<"covered" | "partial" | "missing"> = ["covered", "missing"],
+) {
+  return {
+    kind: "broad_recall" as const,
+    format: "broad_recall_v1" as const,
+    activityIndex: 0,
+    gapCount: 2,
+    bindings: [{
+      targetId: "11111111-1111-4111-8111-111111111111",
+      evidenceId: "blurting-final-check:11111111-1111-4111-8111-111111111111",
+    }],
+    events: [
+      ...(stage >= 1 ? [{
+        type: "comparison_completed" as const,
+        gapStatuses,
+      }] : []),
+      ...(stage >= 2 ? [{ type: "correction_completed" as const }] : []),
+    ],
+  };
 }
 
 function interruption(overrides: Partial<SessionInterruption> = {}): SessionInterruption {
@@ -141,6 +180,23 @@ describe("active session checkpoint storage", () => {
     expect(legacyLocal.resourceGeneratedAt).toBeUndefined();
     expect(saveActiveSessionCheckpoint(legacyLocal)).toBe(true);
     expect(loadActiveSessionCheckpoints(legacyLocal.accountId)).toEqual([legacyLocal]);
+  });
+
+  it("stores and reloads V1 and route-bound V2 checkpoints without dropping either version", () => {
+    installMemoryStorage();
+    const legacy = checkpoint({
+      savedAt: "2026-08-17T17:58:00.000Z",
+    });
+    const routeBound = routeBoundCheckpoint({
+      planSessionId: "00000000-0000-4000-8000-000000000104",
+      runId: "00000000-0000-4000-8000-000000000105",
+      savedAt: "2026-08-17T17:59:00.000Z",
+    });
+    const expected: ActiveSessionCheckpoint[] = [routeBound, legacy];
+
+    expect(saveActiveSessionCheckpoint(legacy)).toBe(true);
+    expect(saveActiveSessionCheckpoint(routeBound)).toBe(true);
+    expect(loadActiveSessionCheckpoints(legacy.accountId)).toEqual(expected);
   });
 
   it("keeps only the latest checkpoint per account and plan session", () => {
@@ -562,6 +618,32 @@ describe("cloud active session checkpoint reconciliation", () => {
     }))).toBeNull();
   });
 
+  it("keeps V1 readable while requiring a UUID route revision on every V2 checkpoint", () => {
+    const legacy = checkpoint();
+    const routeBound = routeBoundCheckpoint();
+    const routeBoundAwaitingFinish = {
+      ...awaitingFinishCheckpoint(),
+      version: 2 as const,
+      routeRevisionId: ROUTE_REVISION_ID,
+    };
+
+    expect(readActiveSessionCheckpoint(legacy)).toEqual(legacy);
+    expect(readActiveSessionCheckpoint(routeBound)).toEqual(routeBound);
+    expect(readActiveSessionCheckpoint(routeBoundAwaitingFinish)).toEqual(routeBoundAwaitingFinish);
+    expect(readActiveSessionCheckpoint({
+      ...routeBound,
+      routeRevisionId: undefined,
+    })).toBeNull();
+    expect(readActiveSessionCheckpoint({
+      ...routeBound,
+      routeRevisionId: "route_revision_not_a_uuid",
+    })).toBeNull();
+    expect(readActiveSessionCheckpoint({
+      ...legacy,
+      routeRevisionId: ROUTE_REVISION_ID,
+    })).toBeNull();
+  });
+
   it("orders progress before wall-clock recency", () => {
     const base = checkpoint({
       savedAt: "2026-08-17T17:59:00.000Z",
@@ -623,6 +705,142 @@ describe("cloud active session checkpoint reconciliation", () => {
     expect(mergeActiveSessionCheckpoints([local], [cloud]).checkpoints).toEqual([local]);
   });
 
+  it("round-trips strict broad-recall activity progress without a ratings field", () => {
+    const original = routeBoundCheckpoint({
+      completedSteps: 0,
+      resumeStep: 0,
+      evidence: undefined,
+      activityProgress: broadRecallProgress(1),
+    });
+    const routeLessLegacy = {
+      ...checkpoint({ completedSteps: 0, resumeStep: 0 }),
+      activityProgress: broadRecallProgress(1),
+    };
+
+    const restored = readActiveSessionCheckpoint(original);
+
+    expect(restored).toEqual(original);
+    expect(restored?.activityProgress).not.toHaveProperty("ratings");
+    expect(checkpointToSessionResumePoint(restored!)).toMatchObject({
+      activityProgress: broadRecallProgress(1),
+    });
+    expect(readActiveSessionCheckpoint(routeLessLegacy)).toBeNull();
+  });
+
+  it("rejects answer-bearing repair and unverified evidence beside broad progress", () => {
+    const broad = routeBoundCheckpoint({
+      completedSteps: 0,
+      resumeStep: 0,
+      evidence: undefined,
+      activityProgress: broadRecallProgress(1),
+    });
+
+    expect(readActiveSessionCheckpoint({
+      ...broad,
+      pendingRepair: {
+        concept: "Private correction",
+        correctAnswer: "ANSWER KEY THAT MUST NOT ENTER A BROAD CHECKPOINT",
+      },
+    })).toBeNull();
+    expect(readActiveSessionCheckpoint({
+      ...broad,
+      evidence: evidence(),
+    })).toBeNull();
+  });
+
+  it("keeps the longer compatible broad-recall event prefix ahead of wall-clock recency", () => {
+    const local = routeBoundCheckpoint({
+      savedAt: "2026-08-17T17:58:00.000Z",
+      activeSeconds: 100,
+      completedSteps: 0,
+      resumeStep: 0,
+      evidence: undefined,
+      activityProgress: broadRecallProgress(2),
+    });
+    const cloud = routeBoundCheckpoint({
+      savedAt: "2026-08-17T17:59:00.000Z",
+      activeSeconds: 500,
+      completedSteps: 0,
+      resumeStep: 0,
+      evidence: undefined,
+      activityProgress: broadRecallProgress(1),
+    });
+
+    const merged = mergeActiveSessionCheckpoints([local], [cloud]);
+
+    expect(compareActiveSessionCheckpointProgress(local, cloud)).toBeGreaterThan(0);
+    expect(merged.checkpoints).toEqual([local]);
+    expect(merged.checkpointsToUpload).toEqual([local]);
+    expect(merged.activityProgressConflicts).toEqual([]);
+  });
+
+  it("does not let recency overwrite a bound empty broad-recall marker", () => {
+    const localWithoutProgress = routeBoundCheckpoint({
+      savedAt: "2026-08-17T17:59:00.000Z",
+      activeSeconds: 500,
+      completedSteps: 0,
+      resumeStep: 0,
+    });
+    const cloudWithBoundMarker = routeBoundCheckpoint({
+      savedAt: "2026-08-17T17:58:00.000Z",
+      activeSeconds: 100,
+      completedSteps: 0,
+      resumeStep: 0,
+      evidence: undefined,
+      activityProgress: broadRecallProgress(0),
+    });
+
+    const merged = mergeActiveSessionCheckpoints(
+      [localWithoutProgress],
+      [cloudWithBoundMarker],
+    );
+
+    expect(compareActiveSessionCheckpointProgress(
+      localWithoutProgress,
+      cloudWithBoundMarker,
+    )).toBeLessThan(0);
+    expect(merged.checkpoints).toEqual([cloudWithBoundMarker]);
+    expect(merged.checkpointsToUpload).toEqual([]);
+  });
+
+  it("fails closed on broad-recall identity or event divergence", () => {
+    const cloud = routeBoundCheckpoint({
+      completedSteps: 0,
+      resumeStep: 0,
+      evidence: undefined,
+      activityProgress: broadRecallProgress(1),
+    });
+    const identityConflict = {
+      ...cloud,
+      activityProgress: {
+        ...broadRecallProgress(1),
+        activityIndex: 1,
+      },
+    } as ActiveSessionCheckpointV2;
+    const eventConflict = {
+      ...cloud,
+      activityProgress: broadRecallProgress(1, ["partial", "missing"]),
+    } as ActiveSessionCheckpointV2;
+
+    const identityMerged = mergeActiveSessionCheckpoints([identityConflict], [cloud]);
+    const eventMerged = mergeActiveSessionCheckpoints([eventConflict], [cloud]);
+
+    expect(identityMerged.checkpoints).toEqual([cloud]);
+    expect(identityMerged.conflictingLocalRuns).toEqual([identityConflict]);
+    expect(identityMerged.activityProgressConflicts).toMatchObject([{
+      reason: "identity_mismatch",
+      local: identityConflict,
+      cloud,
+    }]);
+    expect(eventMerged.checkpoints).toEqual([cloud]);
+    expect(eventMerged.conflictingLocalRuns).toEqual([eventConflict]);
+    expect(eventMerged.activityProgressConflicts).toMatchObject([{
+      reason: "event_divergence",
+      local: eventConflict,
+      cloud,
+    }]);
+  });
+
   it("uploads a same-run browser checkpoint only when it is ahead", () => {
     const cloud = checkpoint({
       savedAt: "2026-08-17T17:59:00.000Z",
@@ -641,6 +859,66 @@ describe("cloud active session checkpoint reconciliation", () => {
     expect(merged.checkpointsToUpload).toEqual([local]);
     expect(merged.cloudRunIds.size).toBe(0);
     expect(merged.conflictingLocalRuns).toEqual([]);
+  });
+
+  it("merges V2 progress only when both checkpoints bind the same route revision", () => {
+    const cloud = routeBoundCheckpoint({
+      savedAt: "2026-08-17T17:59:00.000Z",
+      completedSteps: 1,
+      resumeStep: 1,
+    });
+    const local = routeBoundCheckpoint({
+      savedAt: "2026-08-17T17:58:00.000Z",
+      completedSteps: 2,
+      resumeStep: 2,
+    });
+
+    const merged = mergeActiveSessionCheckpoints([local], [cloud]);
+
+    expect(merged.checkpoints).toEqual([local]);
+    expect(merged.checkpointsToUpload).toEqual([local]);
+    expect(merged.conflictingLocalRuns).toEqual([]);
+  });
+
+  it("keeps cloud authoritative when same-run V2 checkpoints bind different route revisions", () => {
+    const cloud = routeBoundCheckpoint({
+      routeRevisionId: OTHER_ROUTE_REVISION_ID,
+      completedSteps: 0,
+      resumeStep: 0,
+      activeSeconds: 10,
+    });
+    const local = routeBoundCheckpoint({
+      completedSteps: 3,
+      resumeStep: 3,
+      activeSeconds: 900,
+    });
+
+    const merged = mergeActiveSessionCheckpoints([local], [cloud]);
+
+    expect(merged.checkpoints).toEqual([cloud]);
+    expect(merged.cloudRunIds.has(cloud.runId)).toBe(true);
+    expect(merged.checkpointsToUpload).toEqual([]);
+    expect(merged.conflictingLocalRuns).toEqual([local]);
+  });
+
+  it("treats a V1 checkpoint's unknown route as a conflict with a route-bound V2 run", () => {
+    const local = checkpoint({
+      completedSteps: 3,
+      resumeStep: 3,
+      activeSeconds: 900,
+    });
+    const cloud = routeBoundCheckpoint({
+      completedSteps: 0,
+      resumeStep: 0,
+      activeSeconds: 10,
+    });
+
+    const merged = mergeActiveSessionCheckpoints([local], [cloud]);
+
+    expect(merged.checkpoints).toEqual([cloud]);
+    expect(merged.cloudRunIds.has(cloud.runId)).toBe(true);
+    expect(merged.checkpointsToUpload).toEqual([]);
+    expect(merged.conflictingLocalRuns).toEqual([local]);
   });
 
   it("uses same-run cloud progress when it is equal or ahead", () => {
@@ -860,6 +1138,26 @@ describe("active session resource identity", () => {
     expect(checkpointMatchesSessionResource(exactCheckpoint, regenerated)).toBe(false);
     expect(checkpointMatchesSessionResource(legacyCheckpoint, regenerated)).toBe(true);
   });
+
+  it("does not restore route-bound work into a different route revision", () => {
+    const routeRevisionId = "77777777-7777-4777-8777-777777777777";
+    const exactResource = { ...resource(), routeRevisionId };
+    const exactCheckpoint = routeBoundCheckpoint({
+      routeRevisionId,
+      resourceFingerprint: fingerprintSessionResource(exactResource),
+      resourceGeneratedAt: exactResource.generatedAt,
+    });
+
+    expect(checkpointMatchesSessionResource(exactCheckpoint, exactResource)).toBe(true);
+    expect(checkpointMatchesSessionResource(exactCheckpoint, {
+      ...exactResource,
+      routeRevisionId: "88888888-8888-4888-8888-888888888888",
+    })).toBe(false);
+    expect(checkpointMatchesSessionResource(exactCheckpoint, {
+      ...exactResource,
+      routeRevisionId: undefined,
+    })).toBe(false);
+  });
 });
 
 describe("active session resume selection", () => {
@@ -903,6 +1201,26 @@ describe("active session resume selection", () => {
       activeSeconds: 541,
       activityProgress: terminalRun.activityProgress,
     });
+    const incorrectlyRoutedExit = interruption({
+      id: terminalRun.runId,
+      routeRevisionId: ROUTE_REVISION_ID,
+      startedAt: terminalRun.startedAt,
+      interruptedAt: terminalRun.savedAt,
+      plannedMinutes: terminalRun.plannedMinutes,
+      completedSteps: terminalRun.completedSteps,
+      resumeStep: terminalRun.resumeStep,
+      activityProgress: terminalRun.activityProgress,
+    });
+    expect(handoffActiveSessionCheckpointAfterExit(
+      terminalRun,
+      incorrectlyRoutedExit,
+      "00000000-0000-4000-8000-000000000097",
+      "2026-08-17T17:59:00.002Z",
+    )).toBeNull();
+    expect(checkpointHandoffMatchesInterruption(
+      checkpointToSessionResumePoint(handedOff!),
+      incorrectlyRoutedExit,
+    )).toBe(false);
     expect(handoffActiveSessionCheckpointAfterExit(
       terminalRun,
       interruption({
@@ -913,6 +1231,50 @@ describe("active session resume selection", () => {
       }),
       recoveryRunId,
       terminalRun.savedAt,
+    )).toBeNull();
+  });
+
+  it("preserves a V2 route binding through exit handoff and resume conversion", () => {
+    const terminalRun = routeBoundCheckpoint({
+      savedAt: "2026-08-17T17:59:00.000Z",
+      completedSteps: 2,
+      resumeStep: 2,
+    });
+    const handedOff = handoffActiveSessionCheckpointAfterExit(
+      terminalRun,
+      interruption({
+        id: terminalRun.runId,
+        routeRevisionId: ROUTE_REVISION_ID,
+        startedAt: terminalRun.startedAt,
+        interruptedAt: terminalRun.savedAt,
+        plannedMinutes: terminalRun.plannedMinutes,
+        completedSteps: terminalRun.completedSteps,
+        resumeStep: terminalRun.resumeStep,
+      }),
+      "00000000-0000-4000-8000-000000000106",
+      "2026-08-17T17:59:00.001Z",
+    );
+
+    expect(handedOff).toMatchObject({
+      version: 2,
+      routeRevisionId: ROUTE_REVISION_ID,
+    });
+    expect(checkpointToSessionResumePoint(handedOff!)).toMatchObject({
+      routeRevisionId: ROUTE_REVISION_ID,
+    });
+    expect(handoffActiveSessionCheckpointAfterExit(
+      terminalRun,
+      interruption({
+        id: terminalRun.runId,
+        routeRevisionId: OTHER_ROUTE_REVISION_ID,
+        startedAt: terminalRun.startedAt,
+        interruptedAt: terminalRun.savedAt,
+        plannedMinutes: terminalRun.plannedMinutes,
+        completedSteps: terminalRun.completedSteps,
+        resumeStep: terminalRun.resumeStep,
+      }),
+      "00000000-0000-4000-8000-000000000107",
+      "2026-08-17T17:59:00.002Z",
     )).toBeNull();
   });
 
@@ -963,6 +1325,54 @@ describe("active session resume selection", () => {
     });
     expect(restored.id).toBe(restored.runId);
     expect(restored.id).not.toBe(savedExit.id);
+  });
+
+  it("restores the longer compatible broad prefix and rejects a divergent exit snapshot", () => {
+    const handedOff = routeBoundCheckpoint({
+      runId: "00000000-0000-4000-8000-000000000108",
+      startedAt: "2026-08-17T17:50:00.000Z",
+      savedAt: "2026-08-17T17:59:00.001Z",
+      completedSteps: 0,
+      resumeStep: 0,
+      activityProgress: broadRecallProgress(2),
+    });
+    const compatibleExit = interruption({
+      id: "00000000-0000-4000-8000-000000000109",
+      startedAt: handedOff.startedAt,
+      interruptedAt: "2026-08-17T17:59:00.000Z",
+      plannedMinutes: handedOff.plannedMinutes,
+      completedSteps: 0,
+      resumeStep: 0,
+      routeRevisionId: ROUTE_REVISION_ID,
+      activityProgress: broadRecallProgress(1),
+    });
+    const divergentExit = {
+      ...compatibleExit,
+      activityProgress: broadRecallProgress(1, ["partial", "missing"]),
+    } satisfies SessionInterruption;
+    const checkpointResume = checkpointToSessionResumePoint(handedOff);
+
+    expect(restoreExitProgressThroughCheckpoint(
+      checkpointResume,
+      [compatibleExit],
+    ).activityProgress).toEqual(broadRecallProgress(2));
+    expect(restoreExitProgressThroughCheckpoint(
+      checkpointResume,
+      [divergentExit],
+    )).toEqual(checkpointResume);
+
+    const differentRouteExit = {
+      ...compatibleExit,
+      routeRevisionId: OTHER_ROUTE_REVISION_ID,
+    } satisfies SessionInterruption;
+    expect(checkpointHandoffMatchesInterruption(
+      checkpointResume,
+      differentRouteExit,
+    )).toBe(false);
+    expect(restoreExitProgressThroughCheckpoint(
+      checkpointResume,
+      [differentRouteExit],
+    )).toEqual(checkpointResume);
   });
 
   it("maps a checkpoint to a structurally compatible, privacy-safe resume point", () => {

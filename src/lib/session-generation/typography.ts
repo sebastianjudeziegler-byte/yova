@@ -16,7 +16,10 @@ export function polishGeneratedSessionTypography(draft: GeneratedSessionDraft): 
     },
     methodBriefing: {
       ...draft.methodBriefing,
-      name: polishLearnerText(draft.methodBriefing.name),
+      // Method names are versioned route/catalog identifiers, not generated
+      // prose. Preserve punctuation such as the en dashes in
+      // "Trace–Code–Test" exactly across generation, cache, and resume.
+      name: draft.methodBriefing.name,
       what: polishLearnerText(draft.methodBriefing.what),
       why: polishLearnerText(draft.methodBriefing.why),
       how: draft.methodBriefing.how.map(polishLearnerText),

@@ -10,6 +10,7 @@ import {
   type ActiveSessionCheckpointV1,
 } from "@/lib/learning/active-session-checkpoint";
 import { sessionStartRecoveryDecision } from "@/lib/learning/session-start-recovery";
+import { createCommittedInitialSessionStudyRoute } from "@/lib/study-route/session-route-creation";
 
 const PLAN_ID = "00000000-0000-4000-8000-000000000001";
 const SESSION_ID = "00000000-0000-4000-8000-000000000002";
@@ -160,6 +161,22 @@ function plan(planSession: LearningPlanSession): LearningPlan {
   };
 }
 
+function sessionWithCommittedRoute(
+  overrides: Partial<LearningPlanSession> = {},
+): LearningPlanSession {
+  const unrouted = session({ ...overrides, studyRoute: undefined });
+  const studyRoute = createCommittedInitialSessionStudyRoute({
+    plan: plan(unrouted),
+    session: unrouted,
+    now: "2026-08-20T15:15:00.000Z",
+    origin: {
+      source: "plan_activation",
+      reason: "The activated session committed its learner-visible study route.",
+    },
+  });
+  return { ...unrouted, studyRoute };
+}
+
 function checkpoint(overrides: Partial<ActiveSessionCheckpointV1> = {}): ActiveSessionCheckpointV1 {
   return {
     version: 1,
@@ -297,6 +314,138 @@ describe("session start recovery decision", () => {
       canStartWithoutGeneration: true,
       requiresGeneration: false,
     });
+  });
+
+  it("does not hydrate routed generated or built-in lessons without the exact top-level route receipt", () => {
+    const missingReceipt = sessionWithCommittedRoute({ resource: resource() });
+    const wrongReceipt = {
+      ...missingReceipt,
+      resource: {
+        ...resource(),
+        routeRevisionId: "00000000-0000-4000-8000-000000000099",
+      },
+    };
+    const missingBuiltInReceipt = {
+      ...missingReceipt,
+      resource: { ...resource(), origin: "built_in" as const },
+    };
+    const wrongBuiltInReceipt = {
+      ...wrongReceipt,
+      resource: { ...wrongReceipt.resource, origin: "built_in" as const },
+    };
+
+    for (const readySession of [
+      missingReceipt,
+      wrongReceipt,
+      missingBuiltInReceipt,
+      wrongBuiltInReceipt,
+    ]) {
+      expect(sessionStartRecoveryDecision({
+        plan: plan(readySession),
+        session: readySession,
+        interruptions: [],
+        restorableCheckpoints: [],
+      })).toMatchObject({
+        cachedResourceRestorable: false,
+        canStartWithoutGeneration: false,
+        requiresGeneration: true,
+      });
+    }
+  });
+
+  it("hydrates generated and built-in resources carrying the exact committed route receipt", () => {
+    const routed = sessionWithCommittedRoute();
+    const routeRevisionId = routed.studyRoute!.identity.routeRevisionId;
+    const generated = {
+      ...routed,
+      resource: { ...resource(), routeRevisionId },
+    };
+    const builtIn = {
+      ...routed,
+      resource: { ...resource(), routeRevisionId, origin: "built_in" as const },
+    };
+
+    for (const readySession of [generated, builtIn]) {
+      expect(sessionStartRecoveryDecision({
+        plan: plan(readySession),
+        session: readySession,
+        interruptions: [],
+        restorableCheckpoints: [],
+      })).toMatchObject({
+        cachedResourceRestorable: true,
+        canStartWithoutGeneration: true,
+        requiresGeneration: false,
+      });
+    }
+  });
+
+  it("does not relabel an immutable route through a generated or built-in resource", () => {
+    const routed = sessionWithCommittedRoute();
+    const routeRevisionId = routed.studyRoute!.identity.routeRevisionId;
+
+    for (const origin of ["generated", "built_in"] as const) {
+      const readySession = {
+        ...routed,
+        resource: {
+          ...resource(),
+          origin,
+          routeRevisionId,
+          methodBriefing: {
+            ...resource().methodBriefing!,
+            name: "Active Recall",
+          },
+        },
+      };
+      expect(sessionStartRecoveryDecision({
+        plan: plan(readySession),
+        session: readySession,
+        interruptions: [],
+        restorableCheckpoints: [],
+      })).toMatchObject({
+        cachedResourceRestorable: false,
+        canStartWithoutGeneration: false,
+        requiresGeneration: true,
+      });
+    }
+  });
+
+  it("does not hydrate a routed resource whose cache context omits or changes the route receipt", () => {
+    const routed = sessionWithCommittedRoute();
+    const routeRevisionId = routed.studyRoute!.identity.routeRevisionId;
+    const cacheContext = {
+      effectiveMinutes: 15,
+      adjustmentFingerprint: "a".repeat(64),
+      scopeFingerprint: "sc1:0123456789abcdef",
+    };
+    const missingContextReceipt = {
+      ...routed,
+      resource: { ...resource(), routeRevisionId, cacheContext },
+    };
+    const wrongContextReceipt = {
+      ...routed,
+      resource: {
+        ...resource(),
+        origin: "built_in" as const,
+        routeRevisionId,
+        cacheContext: {
+          ...cacheContext,
+          routeRevisionId: "00000000-0000-4000-8000-000000000098",
+        },
+      },
+    };
+
+    for (const readySession of [missingContextReceipt, wrongContextReceipt]) {
+      expect(sessionStartRecoveryDecision({
+        plan: plan(readySession),
+        session: readySession,
+        interruptions: [],
+        restorableCheckpoints: [],
+      })).toMatchObject({
+        cachedResourceRestorable: false,
+        canStartWithoutGeneration: false,
+        requiresGeneration: true,
+      });
+    }
   });
 
   it("continues an explicit-exit handoff only when its fresh run is bound to the cached lesson", () => {

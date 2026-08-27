@@ -6,6 +6,7 @@ import {
 import { summarizeConfidenceCalibration } from "@/lib/learning/confidence-calibration";
 import { unrepairedObservedGaps } from "@/lib/learning/session-evidence";
 import { createSessionAdaptationNote } from "@/lib/personalization/adaptation-note";
+import { canonicalStudyRouteSessionScalars } from "@/lib/study-route/scalar-contract";
 
 export function buildDelayedVerificationSession(
   completedSession: LearningPlanSession,
@@ -25,10 +26,11 @@ export function buildDelayedVerificationSession(
     : `YOVA scheduled a delayed retrieval check for ${gap}. The original miss remains review evidence until it holds up after time has passed.`;
   const sourceContext = reviewSourceContext(completedSession, gap);
   const contextDirection = sourceContext
-    ? ` Use this original task context to write new, self-contained questions: ${sourceContext}`
+    ? ` New self-contained question context: ${sourceContext}`
     : " Every new question must restate all facts, values, or definitions the learner needs.";
+  const topicIds = delayedReviewTopicIds(completedSession, completion, gap);
 
-  return {
+  return canonicalStudyRouteSessionScalars<LearningPlanSession>({
     id: makeUuid(),
     sequence: completedSession.sequence + 1,
     title: needsMisconceptionRepair
@@ -40,16 +42,53 @@ export function buildDelayedVerificationSession(
     method: needsMisconceptionRepair
       ? "Misconception repair and delayed transfer"
       : "Spaced retrieval and error repair",
-    methodReason: `${explanation}${contextDirection}`.slice(0, 900),
+    methodReason: `${explanation}${contextDirection}`,
     scheduledFor: scheduledFor.toISOString(),
     estimatedMinutes: 10,
     amountLabel: "Delayed verification · about 10 min",
     learningMode: "study",
+    topicIds,
+    contentTargets: [gap],
+    completionEvidence: [
+      `Answer three self-contained questions about ${gap} without using the prior answers.`,
+    ],
     adaptationNote: createSessionAdaptationNote(explanation, completion.completedAt),
     reviewConcept: gap,
     reviewType: needsMisconceptionRepair ? "repair_and_retrieve" : "verify",
     status: "ready",
-  };
+  });
+}
+
+function delayedReviewTopicIds(
+  completedSession: LearningPlanSession,
+  completion: SessionCompletion,
+  gap: string,
+) {
+  const normalizedGap = normalizeConcept(gap);
+  const evidenceIds = completion.conceptEvidence.flatMap((evidence) => (
+    evidence.outcome === "needs_review"
+    && normalizeConcept(evidence.concept) === normalizedGap
+    && evidence.topicId
+    && UUID_PATTERN.test(evidence.topicId)
+      ? [evidence.topicId]
+      : []
+  ));
+  if (evidenceIds.length > 0) return [...new Set(evidenceIds)].slice(0, 6);
+
+  // A routed session's target IDs are the authoritative fallback. Preserve
+  // the bounded target superset instead of guessing a semantic index.
+  const routeTargetIds = completedSession.studyRoute?.target.targetStates
+    .map((target) => target.targetId)
+    .filter((targetId) => UUID_PATTERN.test(targetId)) ?? [];
+  if (routeTargetIds.length > 0) return [...new Set(routeTargetIds)].slice(0, 6);
+
+  return [...new Set((completedSession.topicIds ?? []).filter((topicId) => (
+    UUID_PATTERN.test(topicId)
+  )))].slice(0, 6);
+}
+
+function normalizeConcept(value: string) {
+  return value.trim().replace(/\s+/g, " ").toLocaleLowerCase();
 }
 
 function reviewSourceContext(session: LearningPlanSession, gap: string) {
@@ -75,3 +114,5 @@ function conciseGap(value: string) {
   if (!firstGap || /^no major gap/i.test(firstGap)) return "the missed concept";
   return firstGap.slice(0, 100);
 }
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;

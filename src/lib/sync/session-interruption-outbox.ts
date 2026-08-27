@@ -2,20 +2,44 @@
 
 import { z } from "zod";
 import type { SessionInterruption } from "@/lib/domain";
-import { SessionActivityProgressSchema } from "@/lib/learning/session-activity-progress";
+import { ConceptEvidenceSchema } from "@/lib/learning/concept-evidence";
+import { ConfidenceEvidenceSchema } from "@/lib/learning/confidence-calibration";
+import {
+  SessionActivityProgressSchema,
+  sessionActivityProgressHasRequiredRouteIdentity,
+} from "@/lib/learning/session-activity-progress";
 import {
   SessionAdjustmentSnapshotSchema,
-  SessionEvidenceSnapshotSchema,
   SessionPendingRepairSchema,
 } from "@/lib/learning/session-resume";
 import { recordAuthenticatedSessionInterruption } from "@/lib/supabase/learning-state-repository";
 
 const STORAGE_KEY = "yova.session-interruption-outbox.v1";
 
+const RoutedConceptEvidenceListSchema = z.array(ConceptEvidenceSchema.extend({
+  routeRevisionId: z.string().uuid().optional(),
+})).max(24);
+
+const RoutedConfidenceEvidenceListSchema = z.array(ConfidenceEvidenceSchema.extend({
+  routeRevisionId: z.string().uuid().optional(),
+})).max(24);
+
+// Keep this terminal snapshot compatible with legacy evidence while retaining
+// the route revision on newly routed evidence across the local-storage hop.
+const RoutedSessionEvidenceSnapshotSchema = z.object({
+  correctAnswers: z.number().int().min(0).max(24),
+  totalAnswers: z.number().int().min(0).max(24),
+  conceptEvidence: RoutedConceptEvidenceListSchema,
+  confidenceEvidence: RoutedConfidenceEvidenceListSchema,
+  observedGap: z.string().trim().min(1).max(1_000),
+  completedImmediateRepairs: z.number().int().min(0).max(4),
+}).refine((snapshot) => snapshot.correctAnswers <= snapshot.totalAnswers);
+
 const SessionInterruptionSchema = z.object({
   id: z.string().uuid(),
   planId: z.string().uuid(),
   planSessionId: z.string().uuid(),
+  routeRevisionId: z.string().uuid().optional(),
   startedAt: z.string().datetime({ offset: true }),
   interruptedAt: z.string().datetime({ offset: true }),
   plannedMinutes: z.number().int().min(5).max(180),
@@ -23,10 +47,21 @@ const SessionInterruptionSchema = z.object({
   completedSteps: z.number().int().min(0).max(24),
   totalSteps: z.number().int().min(1).max(24),
   resumeStep: z.number().int().min(0).max(24).optional(),
-  evidence: SessionEvidenceSnapshotSchema.optional(),
+  evidence: RoutedSessionEvidenceSnapshotSchema.optional(),
   pendingRepair: SessionPendingRepairSchema.optional(),
   sessionAdjustment: SessionAdjustmentSnapshotSchema.optional(),
   activityProgress: SessionActivityProgressSchema.optional(),
+}).superRefine((interruption, context) => {
+  if (!sessionActivityProgressHasRequiredRouteIdentity(
+    interruption.activityProgress,
+    interruption.routeRevisionId,
+  )) {
+    context.addIssue({
+      code: "custom",
+      path: ["routeRevisionId"],
+      message: "Broad-recall interruption progress requires an exact route revision.",
+    });
+  }
 });
 
 const PendingSessionInterruptionSchema = z.object({

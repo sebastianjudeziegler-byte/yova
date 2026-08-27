@@ -18,7 +18,7 @@ import {
   type ProviderErrorMetadata,
 } from "@/lib/openai/provider-error";
 import {
-  GeneratedPlanDraftSchema,
+  ProviderGeneratedPlanDraftSchema,
   type GeneratedPlanDraft,
   type PlanGenerationRequest,
 } from "@/lib/plan-generation/schema";
@@ -116,7 +116,7 @@ export async function generatePlanWithOpenAI(
         input,
         reasoning: { effort: "low" },
         text: {
-          format: zodTextFormat(GeneratedPlanDraftSchema, "yova_learning_plan"),
+          format: zodTextFormat(ProviderGeneratedPlanDraftSchema, "yova_learning_plan"),
           verbosity: "low",
         },
         max_output_tokens: 5_000,
@@ -159,7 +159,7 @@ export async function generatePlanWithOpenAI(
         finalIssue = "The model did not finish the complete plan.";
         finalReason = "incomplete";
       } else {
-        const parsedDraft = GeneratedPlanDraftSchema.safeParse(response.output_parsed);
+        const parsedDraft = ProviderGeneratedPlanDraftSchema.safeParse(response.output_parsed);
         if (!parsedDraft.success) {
           failedValidator ??= "plan_structure";
           finalIssue = "The plan did not match YOVA's required data structure.";

@@ -3,6 +3,7 @@ import {
   validateScheduledRetrievalSession,
   type ScheduledRetrievalType,
 } from "@/lib/learning/scheduled-retrieval";
+import { validateAttachedMethodRuntimes } from "@/lib/session-generation/method-runtime";
 import type { GeneratedSessionDraft } from "@/lib/session-generation/schema";
 
 type CachedSessionContractContext = {
@@ -31,6 +32,10 @@ export function cachedSessionActivityContractIssue(
   }
 
   return validateStandardGuidedSessionActivityMix(session)
+    ?? validateAttachedMethodRuntimes(
+      session.methodBriefing.methodId,
+      session.activities.map((activity) => activity.methodRuntime ?? null),
+    )
     ?? validateMethodFidelity({
       methodId: session.methodBriefing.methodId,
       learningMode: session.methodBriefing.learningMode,

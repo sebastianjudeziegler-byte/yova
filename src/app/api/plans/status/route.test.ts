@@ -23,9 +23,9 @@ vi.mock("@/lib/account-export/config", () => ({
 vi.mock("@/lib/supabase/admin", () => ({ createSupabaseAdminClient: mocks.createAdmin }));
 vi.mock("@/lib/account-deletion/cleanup", () => ({ cleanupDeletedAccountStorage: mocks.cleanup }));
 
-import { DELETE } from "@/app/api/plans/status/route";
+import { DELETE, PATCH } from "@/app/api/plans/status/route";
 
-describe("permanent archived-plan deletion route", () => {
+describe("learning-plan status route", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.getUser.mockResolvedValue({ data: { user: { id: USER_ID } }, error: null });
@@ -37,6 +37,32 @@ describe("permanent archived-plan deletion route", () => {
     mocks.cleanupConfigured.mockReturnValue(true);
     mocks.createAdmin.mockReturnValue({ role: "service" });
     mocks.cleanup.mockResolvedValue({ ok: true, claimedJobs: 1, removedJobs: 1, retryJobs: 0 });
+  });
+
+  it.each([
+    ["archive", "archived"],
+    ["restore", "active"],
+  ] as const)("keeps authenticated %s routed through the atomic archive RPC", async (action, status) => {
+    mocks.rpc.mockResolvedValueOnce({
+      data: { planId: PLAN_ID, status },
+      error: null,
+    });
+
+    const response = await PATCH(new Request("https://yova.example/api/plans/status", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ planId: PLAN_ID, action }),
+    }));
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      planId: PLAN_ID,
+      status,
+      persistence: "supabase",
+    });
+    expect(mocks.rpc).toHaveBeenCalledWith("set_learning_plan_archive_state", {
+      payload: { planId: PLAN_ID, action },
+    });
   });
 
   it("rejects missing app proof, cross-site requests, and non-JSON before auth", async () => {

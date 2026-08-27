@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { normalizeGeneratedPlanLearningContract } from "@/lib/plan-generation/normalize-learning-contract";
 import {
-  GeneratedPlanDraftSchema,
   PlanGenerationRequestSchema,
+  ProviderGeneratedPlanDraftSchema,
 } from "@/lib/plan-generation/schema";
 
 const TOPIC_ID = "11111111-1111-4111-8111-111111111111";
@@ -21,7 +21,7 @@ const request = PlanGenerationRequestSchema.parse({
   profileSummary: "The learner wants an overall map and one complete example before trying a problem.",
 });
 
-const draft = GeneratedPlanDraftSchema.parse({
+const draft = ProviderGeneratedPlanDraftSchema.parse({
   title: "Calculus Foundations",
   topic: "Limits, derivatives, and integrals",
   kind: "course",
@@ -31,8 +31,6 @@ const draft = GeneratedPlanDraftSchema.parse({
   sessions: [{
     title: "Build the derivative model",
     objective: "Understand the derivative as an instantaneous rate and calculate one derivative.",
-    method: "Read-recall-review",
-    methodReason: "Read the explanation before looking at an example.",
     scheduledFor: "2026-08-10T19:00:00.000-07:00",
     estimatedMinutes: 30,
     amountLabel: "One derivative model and one example",
@@ -44,48 +42,55 @@ const draft = GeneratedPlanDraftSchema.parse({
 });
 
 describe("generated plan learning contract", () => {
-  it("replaces task-incompatible methods and passive completion with active evidence", () => {
+  it("adds a task-compatible method in code and replaces passive completion with active evidence", () => {
     const normalized = normalizeGeneratedPlanLearningContract(draft, request);
 
-    expect(normalized.sessions[0].method).toBe("Worked example fading");
+    expect(normalized.sessions[0].method).toBe("Worked Examples");
     expect(normalized.sessions[0].methodReason).toMatch(/problem solving/i);
     expect(normalized.sessions[0].completionEvidence[0]).toMatch(/^Solve /);
   });
 
-  it("keeps a reported preference without turning it into a fixed learning claim", () => {
-    const personalizedDraft = GeneratedPlanDraftSchema.parse({
+  it("strips an attempted provider method before deterministic routing", () => {
+    const attemptedMethod = ProviderGeneratedPlanDraftSchema.parse({
       ...draft,
-      rationale: "You learn best with one complete example before practice.",
       sessions: draft.sessions.map((session) => ({
         ...session,
-        method: "Worked example fading",
-        methodReason: "You learn best with one example before an independent attempt.",
+        method: "Scaffolded coding",
+        methodReason: "The provider tried to choose this method.",
+        completionEvidence: ["Solve one representative derivative problem independently"],
       })),
+    });
+
+    expect(attemptedMethod.sessions[0]).not.toHaveProperty("method");
+    expect(attemptedMethod.sessions[0]).not.toHaveProperty("methodReason");
+    const normalized = normalizeGeneratedPlanLearningContract(attemptedMethod, request);
+
+    expect(normalized.sessions[0].method).toBe("Worked Examples");
+    expect(normalized.sessions[0].methodReason).toMatch(/YOVA selected it.*problem solving/i);
+  });
+
+  it("keeps a reported preference without turning it into a fixed learning claim", () => {
+    const personalizedDraft = ProviderGeneratedPlanDraftSchema.parse({
+      ...draft,
+      rationale: "You learn best with one complete example before practice.",
     });
 
     const normalized = normalizeGeneratedPlanLearningContract(personalizedDraft, request);
 
     expect(normalized.rationale).toBe("you currently prefer one complete example before practice.");
     expect(normalized.sessions[0].methodReason).not.toMatch(/learns? best|learning style/i);
-    expect(normalized.sessions[0].methodReason).toMatch(/currently prefer/i);
+    expect(normalized.sessions[0].methodReason).toMatch(/problem solving/i);
   });
 
-  it("normalizes a provider-invented learning-style label without weakening diagnosis checks", () => {
-    const personalizedDraft = GeneratedPlanDraftSchema.parse({
+  it("normalizes a provider-invented learning-style label in its remaining prose", () => {
+    const personalizedDraft = ProviderGeneratedPlanDraftSchema.parse({
       ...draft,
       rationale: "The learner's learning style favors diagrams, and the learner learns best when one example comes first.",
-      sessions: draft.sessions.map((session) => ({
-        ...session,
-        method: "Worked example fading",
-        methodReason: "A visual learner benefits from seeing the relationship before explaining it.",
-        completionEvidence: ["Solve one representative derivative problem and explain each major step"],
-      })),
     });
 
     const normalized = normalizeGeneratedPlanLearningContract(personalizedDraft, request);
 
     expect(normalized.rationale).toBe("the current study preference favors diagrams, and the learner currently prefers learning when one example comes first.");
-    expect(normalized.sessions[0].methodReason).toContain("learner who currently prefers visual examples");
     expect(JSON.stringify(normalized)).not.toMatch(/learning style|visual learner/i);
   });
 
@@ -95,7 +100,7 @@ describe("generated plan learning contract", () => {
       goal: "Plan and draft a comparative history essay using evidence from my notes.",
       studyMode: "outside",
     });
-    const vagueDraft = GeneratedPlanDraftSchema.parse({
+    const vagueDraft = ProviderGeneratedPlanDraftSchema.parse({
       ...draft,
       title: "History project",
       topic: "Organizing the work",
@@ -103,15 +108,13 @@ describe("generated plan learning contract", () => {
         ...session,
         title: "Build the first section",
         objective: "Organize the first section clearly.",
-        method: "Retrieval practice",
-        methodReason: "Recall the structure before beginning.",
         completionEvidence: ["Draft one bounded section and match each claim to evidence"],
       })),
     });
 
     const normalized = normalizeGeneratedPlanLearningContract(vagueDraft, writingRequest);
 
-    expect(normalized.sessions[0].method).toBe("Retrieval-based outlining");
+    expect(normalized.sessions[0].method).toBe("Outline from Memory");
     expect(normalized.sessions[0].methodReason).toMatch(/writing argumentation/i);
   });
 });

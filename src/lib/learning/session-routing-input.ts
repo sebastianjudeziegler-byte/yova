@@ -31,6 +31,16 @@ export type SessionRoutingContext = {
   learnerProfile: MethodRoutingInput["learnerProfile"];
   recentResults: MethodRoutingInput["recentResults"];
   recentInterruptions: readonly unknown[];
+  studyRoute?: {
+    target: {
+      taskFamily: MethodRoutingInput["taskTypeOverride"];
+      targetStates: Array<{
+        targetId: string;
+        stage: NonNullable<MethodRoutingInput["knowledgeStageOverride"]>;
+      }>;
+    };
+    execution?: { deferredTargets: Array<{ targetId: string }> };
+  } | null;
 };
 
 /**
@@ -51,8 +61,23 @@ export function sessionRoutingInput(
   context: SessionRoutingContext,
   overrides: Partial<MethodRoutingInput> = {},
 ): MethodRoutingInput {
+  const deferredTargetIds = new Set(
+    context.studyRoute?.execution?.deferredTargets.map((target) => target.targetId) ?? [],
+  );
+  const routeStages = context.studyRoute?.target.targetStates
+    .filter((target) => !deferredTargetIds.has(target.targetId))
+    .map((target) => target.stage) ?? [];
+  const routeKnowledgeStage = routeStages.includes("novice")
+    ? "novice"
+    : routeStages.includes("developing")
+      ? "developing"
+      : routeStages.includes("retrieval_ready")
+        ? "retrieval_ready"
+        : null;
   return {
-    taskTypeOverride: learnerStatedTaskType(context.learningGoal.topic),
+    taskTypeOverride: context.studyRoute?.target.taskFamily
+      ?? learnerStatedTaskType(context.learningGoal.topic),
+    knowledgeStageOverride: routeKnowledgeStage,
     learningIntent: context.learningGoal.learningIntent,
     sessionLearningMode: context.session.learningMode,
     goalTitle: context.learningGoal.title,
@@ -62,6 +87,7 @@ export function sessionRoutingInput(
     sessionObjective: context.session.objective,
     plannedMethod: context.session.method,
     plannedMethodReason: context.session.methodReason,
+    plannedMethodAuthority: context.studyRoute ? "hint" : "legacy_compatibility",
     learnerProfile: context.learnerProfile,
     recentResults: context.recentResults,
     interruptionCount: context.recentInterruptions.length,

@@ -42,6 +42,20 @@ export async function PATCH(request: Request) {
     const failure = sessionOperationFailure(operationAccess);
     return NextResponse.json({ error: failure.error }, { status: failure.status });
   }
+  const { data: routeBoundSession, error: routeBindingError } = await supabase
+    .from("plan_sessions")
+    .select("committed_route_revision_id")
+    .eq("id", parsed.data.planSessionId)
+    .maybeSingle();
+  if (routeBindingError || !routeBoundSession) {
+    return NextResponse.json({ error: "YOVA could not verify that session's study route." }, { status: 409 });
+  }
+  if (typeof routeBoundSession.committed_route_revision_id === "string") {
+    return NextResponse.json({
+      code: "session_duration_route_revision_required",
+      error: "Change this routed session from the plan adjustment screen so YOVA can revise its method and duration together.",
+    }, { status: 409 });
+  }
 
   const { data, error } = await supabase.rpc("adjust_plan_session_duration", {
     payload: parsed.data,

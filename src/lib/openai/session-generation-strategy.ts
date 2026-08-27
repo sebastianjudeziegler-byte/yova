@@ -14,6 +14,7 @@ import {
 } from "@/lib/openai/session-generator";
 import { generateStreamedTeachingSkeletonWithOpenAI } from "@/lib/openai/streamed-teaching-generator";
 import { sessionArchitectureForGeneration, usesStreamedTeaching } from "@/lib/session-generation/architecture";
+import { supportsStreamedTeachingRouteMethod } from "@/lib/session-generation/method-runtime-capability";
 
 /**
  * Keeps production and live quality evaluations on the same generation path.
@@ -40,6 +41,12 @@ function sessionGenerationStrategyForPreparedContext(
     && scopedContext.session.learningMode === "learn"
     && scopedContext.learningGoal.studyMode === "inside_yova"
     && !scopedContext.session.reviewType
+    && (
+      !scopedContext.studyRoute
+      || supportsStreamedTeachingRouteMethod(
+        scopedContext.studyRoute.approach.primaryMethodId,
+      )
+    )
   ) return "streamed" as const;
   if (isScheduledRetrievalSession(scopedContext.session)) return "full" as const;
   return canGenerateReliableSession(scopedContext) ? "reliable" as const : "full" as const;

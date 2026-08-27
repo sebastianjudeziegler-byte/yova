@@ -122,6 +122,35 @@ describe("resumableSessionProgress", () => {
     ])).toBeNull();
   });
 
+  it("resumes a privacy-safe broad-recall event prefix without a ratings field", () => {
+    const broadRecallStarted = {
+      ...interruption("broad-recall-started", 0, "2026-08-06T18:20:00.000Z"),
+      routeRevisionId: "11111111-1111-4111-8111-111111111111",
+      activityProgress: {
+        kind: "broad_recall" as const,
+        format: "broad_recall_v1" as const,
+        activityIndex: 0,
+        gapCount: 2,
+        bindings: [{
+          targetId: "11111111-1111-4111-8111-111111111111",
+          evidenceId: "blurting-final-check:11111111-1111-4111-8111-111111111111",
+        }],
+        events: [{
+          type: "comparison_completed" as const,
+          gapStatuses: ["covered" as const, "missing" as const],
+        }],
+      },
+    };
+
+    expect(resumableSessionProgress("session-1", [broadRecallStarted]))
+      .toEqual(broadRecallStarted);
+    expect(broadRecallStarted.activityProgress).not.toHaveProperty("ratings");
+    expect(resumableSessionProgress("session-1", [{
+      ...broadRecallStarted,
+      routeRevisionId: undefined,
+    }])).toBeNull();
+  });
+
   it("restores an unfinished repair before the next original activity", () => {
     const baseSteps: GuidedSessionStep[] = [
       {

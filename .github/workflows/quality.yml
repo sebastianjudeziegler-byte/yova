@@ -71,6 +71,9 @@ jobs:
       - name: Lint the migrated database
         run: pnpm exec supabase db lint --local --level warning --fail-on error
 
+      - name: Test migrated database boundaries
+        run: pnpm exec supabase test db --local
+
       - name: Stop isolated database
         if: always()
         continue-on-error: true

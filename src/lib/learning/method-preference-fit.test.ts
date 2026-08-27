@@ -91,6 +91,31 @@ describe("rankMethodsByLearnerFit", () => {
     expect(ranking?.selectedMethodId).toBe("worked_example_fading");
   });
 
+  it("does not switch the named method from two or three comparable sessions", () => {
+    for (const sessions of [2, 3]) {
+      const ranking = rankMethodsByLearnerFit({
+        eligibleMethodIds: ["interleaved_practice", "worked_example_fading"],
+        declaredProfile: exampleLearner,
+        observedSignals: [observedSignal("interleaved_practice", "promising", sessions)],
+      });
+
+      expect(ranking?.selectedMethodId).toBe("worked_example_fading");
+      expect(ranking?.scores.find((score) => score.methodId === "interleaved_practice")?.observedScore)
+        .toBe(0);
+    }
+  });
+
+  it("allows the fourth comparable result to enter method ranking", () => {
+    const ranking = rankMethodsByLearnerFit({
+      eligibleMethodIds: ["interleaved_practice", "worked_example_fading"],
+      declaredProfile: exampleLearner,
+      observedSignals: [observedSignal("interleaved_practice", "promising", 4)],
+    });
+
+    expect(ranking?.selectedMethodId).toBe("interleaved_practice");
+    expect(ranking?.learnerFacingReason).toContain("went well");
+  });
+
   it("lets repeated observed results outweigh what the learner said", () => {
     const ranking = rankMethodsByLearnerFit({
       eligibleMethodIds: ["interleaved_practice", "worked_example_fading"],

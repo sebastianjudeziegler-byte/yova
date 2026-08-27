@@ -23,6 +23,7 @@ Useful checks:
 pnpm exec supabase migration list
 pnpm exec supabase db push --dry-run --include-all
 pnpm exec supabase db lint --linked --level warning
+pnpm exec supabase test db --local
 ```
 
 Never edit an already-applied migration. Add a new migration so local history, Git, and the remote database continue to agree.

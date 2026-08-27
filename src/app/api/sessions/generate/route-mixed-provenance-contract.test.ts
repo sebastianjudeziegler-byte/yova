@@ -26,7 +26,7 @@ describe("ordinary mixed-provenance generation route contract", () => {
     );
     expect(route.slice(generationContext, provider)).toContain("materials: materialExcerpts");
     expect(route.slice(generationContext, provider)).toContain("knowledgeTopics: selectedTopics");
-    expect(route.slice(generationContext, provider)).toContain("topicIds: selectedTopics.map");
+    expect(route.slice(generationContext, provider)).toContain("topicIds: routeGeneration.topicIds");
   });
 
   it("invalidates a pre-contract mixed cache using ordered topic provenance and active targets", () => {
@@ -49,8 +49,10 @@ describe("ordinary mixed-provenance generation route contract", () => {
     const cacheRead = route.indexOf("const cached = readCachedSession", cacheContext);
     const helperSource = cacheContract;
 
-    expect(route.slice(cacheContext, cacheRead)).toContain("title: planSession.title");
-    expect(route.slice(cacheContext, cacheRead)).toContain("methodReason: planSession.method_rationale");
+    expect(route.slice(cacheContext, cacheRead)).toContain(
+      "title: normalPlanGenerationCopy?.sessionTitle ?? planSession.title",
+    );
+    expect(route.slice(cacheContext, cacheRead)).toContain("methodReason: routeGeneration.methodReason");
     expect(helperSource).toContain("isDeferredSessionContinuation({ title, methodReason })");
     expect(helperSource).toContain('contract: "deferred_continuation_v1"');
     expect(helperSource).toContain("topicIds,");

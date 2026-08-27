@@ -9,6 +9,7 @@ import {
 } from "@/lib/learning/method-catalog";
 import { methodIdFromText } from "@/lib/learning/method-router";
 import { onboardingAnswerId } from "@/lib/sample-data";
+import { studyDayWindowForInstant } from "@/lib/scheduling/study-window";
 import {
   deepProfileAnswerId,
   deepProfileAnswerLabel,
@@ -613,7 +614,8 @@ function observedEnergyCandidate(
   const grouped = new Map<string, SessionCompletion[]>();
   for (const completion of completions) {
     if (completion.totalAnswers <= 0) continue;
-    const window = studyWindow(completion.startedAt, timeZone);
+    const window = studyDayWindowForInstant(completion.startedAt, timeZone);
+    if (!window) continue;
     const list = grouped.get(window) ?? [];
     list.push(completion);
     grouped.set(window, list);
@@ -1090,24 +1092,6 @@ function answerAccuracy(completions: SessionCompletion[]) {
   const total = completions.reduce((sum, item) => sum + item.totalAnswers, 0);
   const correct = completions.reduce((sum, item) => sum + Math.min(item.correctAnswers, item.totalAnswers), 0);
   return total ? Math.round((correct / total) * 100) : 0;
-}
-
-function studyWindow(value: string, timeZone: string) {
-  let hour: number;
-  try {
-    const part = new Intl.DateTimeFormat("en-US", {
-      hour: "numeric",
-      hourCycle: "h23",
-      timeZone,
-    }).formatToParts(new Date(value)).find((item) => item.type === "hour")?.value;
-    hour = Number(part);
-  } catch {
-    hour = new Date(value).getUTCHours();
-  }
-  if (hour >= 5 && hour < 12) return "morning";
-  if (hour >= 12 && hour < 17) return "afternoon";
-  if (hour >= 17 && hour < 22) return "evening";
-  return "late_night";
 }
 
 function windowLabel(value: string) {

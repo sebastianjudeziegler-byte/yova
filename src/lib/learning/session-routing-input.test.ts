@@ -75,4 +75,24 @@ describe("building the routing input for a session", () => {
 
     expect(input.interruptionCount).toBe(2);
   });
+
+  it("uses the old plan label only for route-free compatibility", () => {
+    const base = context(memorizeGoal, conceptualWording);
+    expect(sessionRoutingInput(base).plannedMethodAuthority).toBe("legacy_compatibility");
+
+    const routed = sessionRoutingInput({
+      ...base,
+      studyRoute: {
+        target: {
+          taskFamily: "memorization",
+          targetStates: [{
+            targetId: "00000000-0000-4000-8000-000000000001",
+            stage: "novice",
+          }],
+        },
+        execution: { deferredTargets: [] },
+      },
+    });
+    expect(routed.plannedMethodAuthority).toBe("hint");
+  });
 });

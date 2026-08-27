@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { StudyRouteSchema } from "@/lib/study-route/schema";
 
 export const PlanAdjustmentRequestSchema = z.object({
   planId: z.string().uuid(),
@@ -39,6 +40,7 @@ export const PlanAdjustmentResponseSchema = z.object({
     segmentCount: z.number().int().positive().max(180).optional(),
     reviewConcept: z.string().trim().min(1).max(160).optional(),
     reviewType: z.enum(["repair_and_retrieve", "verify", "maintenance_transfer"]).optional(),
+    studyRoute: StudyRouteSchema.optional(),
     status: z.enum(["ready", "upcoming"]),
   })).max(14),
   persistence: z.literal("supabase"),

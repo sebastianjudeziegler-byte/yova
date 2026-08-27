@@ -1,4 +1,5 @@
 import { type LearningPlanSession } from "@/lib/domain";
+import { canonicalStudyRouteSessionScalars } from "@/lib/study-route/scalar-contract";
 
 type ContinuationSourceSession = Pick<
   LearningPlanSession,
@@ -108,13 +109,13 @@ export function buildDeferredSessionContinuation({
   const targetSummary = deferredTargets.join("; ");
   const baseTitle = completedSession.title.replace(/^Continue\s+/i, "").trim();
 
-  return {
+  return canonicalStudyRouteSessionScalars<DeferredSessionContinuation>({
     id: continuationId,
     sequence: completedSession.sequence + 1,
     title: `Continue ${baseTitle || "the remaining session targets"}`.slice(0, 180),
     objective: continuationObjective(completedSession.learningMode, targetSummary),
     method: completedSession.method,
-    methodReason: `${DEFERRED_CONTINUATION_METHOD_REASON_PREFIX} Complete only these remaining targets before moving to later curriculum: ${targetSummary}.`.slice(0, 900),
+    methodReason: `${DEFERRED_CONTINUATION_METHOD_REASON_PREFIX} Complete only these remaining targets before moving to later curriculum: ${targetSummary}.`,
     scheduledFor: scheduledFor.toISOString(),
     estimatedMinutes,
     amountLabel: `${deferredTargets.length} saved ${deferredTargets.length === 1 ? "target" : "targets"} · about ${estimatedMinutes} min`,
@@ -123,7 +124,7 @@ export function buildDeferredSessionContinuation({
     contentTargets: deferredTargets,
     completionEvidence: deferredCompletionEvidence,
     status: "ready",
-  };
+  });
 }
 
 /** True only when the generated resource deferred stored plan targets. */
@@ -140,7 +141,7 @@ function continuationObjective(learningMode: LearningPlanSession["learningMode"]
   const prefix = learningMode === "learn"
     ? "Learn and explain the remaining saved targets"
     : "Retrieve or apply the remaining saved targets without notes";
-  return `${prefix}: ${targets}.`.slice(0, 900);
+  return `${prefix}: ${targets}.`;
 }
 
 function validStrings(

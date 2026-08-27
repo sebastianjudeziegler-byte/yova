@@ -72,7 +72,7 @@ export async function POST(request: Request) {
 
   const { data: sessionRows, error: sessionError } = await supabase
     .from("plan_sessions")
-    .select("id,status,step_data")
+    .select("id,status,step_data,committed_route_revision_id")
     .eq("plan_id", plan.id)
     .eq("user_id", user.id);
   if (sessionError) return attachmentError("YOVA could not load the plan's remaining sessions.", requestId, 500);
@@ -83,6 +83,14 @@ export async function POST(request: Request) {
       requestId,
       409,
       "material_attachment_saved_work_protected",
+    );
+  }
+  if (unfinished.some((session) => typeof session.committed_route_revision_id === "string")) {
+    return attachmentError(
+      "This plan already has committed study routes. Add the source while creating a new plan until YOVA can revise every affected route atomically.",
+      requestId,
+      409,
+      "material_attachment_route_rebuild_required",
     );
   }
   const unfinishedTopicIds = [...new Set(unfinished.flatMap((session) => readTopicIds(session.step_data)))];

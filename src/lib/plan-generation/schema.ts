@@ -1,8 +1,11 @@
 import { z } from "zod";
 import { LEARNING_TITLE_CHARACTER_LIMIT } from "@/lib/learning/title-limits";
 import { resolveLearningIntent } from "@/lib/learning/learning-intent";
+import { CORE_METHOD_IDS } from "@/lib/learning/method-catalog";
 import { MaterialUnderstandingSchema, PlanKnowledgeMapSchema } from "@/lib/knowledge-map/schema";
 import { SESSION_ARCHITECTURE_VERSIONS } from "@/lib/session-generation/architecture";
+import { StudyRouteSchema } from "@/lib/study-route/schema";
+import { NORMAL_STUDY_DURATION_LEVELS } from "@/lib/study-route/duration-levels";
 
 export const MAX_GENERATED_PLAN_SESSIONS = 14;
 // Generated curriculum stays capped above. Runtime-only verification sessions
@@ -83,6 +86,14 @@ export const PlanGenerationRequestSchema = z.object({
     minutes: z.number().int().min(5).max(180),
   })).min(1).max(14),
   profileSummary: z.string().trim().min(10).max(1_600),
+  /**
+   * An explicit one-session learner choice from the server-generated eligible
+   * alternatives. The server recomputes eligibility; this identifier is never
+   * sufficient authority on its own.
+   */
+  methodChoice: z.object({
+    methodId: z.enum(CORE_METHOD_IDS),
+  }).strict().optional(),
   knowledgeMap: PlanKnowledgeMapSchema.optional(),
   mapCorrection: z.string().trim().max(800).optional(),
 }).superRefine((value, context) => {
@@ -91,6 +102,20 @@ export const PlanGenerationRequestSchema = z.object({
   }
   if (value.materialMode === "none" && value.materials.length > 0) {
     context.addIssue({ code: "custom", path: ["materials"], message: "Materials must be empty when no materials is selected." });
+  }
+  if (value.intent === "study_now" && value.availability.length !== 1) {
+    context.addIssue({
+      code: "custom",
+      path: ["availability"],
+      message: "A focused Study Now request must provide exactly one current availability maximum.",
+    });
+  }
+  if (value.intent !== "study_now" && value.methodChoice) {
+    context.addIssue({
+      code: "custom",
+      path: ["methodChoice"],
+      message: "A direct method choice currently applies only to one focused Study Now session.",
+    });
   }
 });
 
@@ -129,6 +154,21 @@ export const GeneratedPlanDraftSchema = z.object({
   sessions: z.array(GeneratedSessionDraftSchema).min(1).max(MAX_GENERATED_PLAN_SESSIONS),
 });
 
+/**
+ * The planning model owns learner-facing content and sequencing, not method
+ * selection. Keeping this provider-only schema separate prevents a generated
+ * label or rationale from becoming an accidental routing input. Code adds the
+ * compatibility method fields before the draft reaches the rest of the app.
+ */
+export const ProviderGeneratedSessionDraftSchema = GeneratedSessionDraftSchema.omit({
+  method: true,
+  methodReason: true,
+});
+
+export const ProviderGeneratedPlanDraftSchema = GeneratedPlanDraftSchema.extend({
+  sessions: z.array(ProviderGeneratedSessionDraftSchema).min(1).max(MAX_GENERATED_PLAN_SESSIONS),
+});
+
 export const LearningPlanSchema = z.object({
   id: z.string().min(1),
   learningItemId: z.string().min(1),
@@ -165,10 +205,11 @@ export const LearningPlanSchema = z.object({
     segmentIndex: z.number().int().positive().max(180).optional(),
     segmentCount: z.number().int().positive().max(180).optional(),
     status: z.enum(["ready", "upcoming", "complete", "skipped"]),
+    studyRoute: StudyRouteSchema.optional(),
   })).min(1).max(MAX_RUNTIME_PLAN_SESSIONS),
 });
 
-const GeneratedLearningPlanSchema = LearningPlanSchema.extend({
+export const GeneratedLearningPlanSchema = LearningPlanSchema.extend({
   sessions: LearningPlanSchema.shape.sessions.max(MAX_GENERATED_PLAN_SESSIONS),
 });
 
@@ -181,12 +222,14 @@ export const PlanGenerationResponseSchema = z.object({
     requestId: z.string().min(1),
     durationMs: z.number().int().nonnegative(),
     persistence: z.literal("draft"),
+    draftReceipt: z.string().trim().min(1).max(512).nullable().optional(),
   }),
 });
 
 export const PlanActivationRequestSchema = z.object({
   plan: GeneratedLearningPlanSchema.extend({ status: z.literal("draft") }),
   generationRequest: PlanGenerationRequestSchema,
+  draftReceipt: z.string().trim().min(1).max(512).nullable().default(null),
 }).superRefine(({ plan, generationRequest }, context) => {
   if (plan.sessions.length > MAX_GENERATED_PLAN_SESSIONS) {
     context.addIssue({
@@ -221,14 +264,111 @@ export const PlanActivationRequestSchema = z.object({
   if (plan.learningIntent !== expectedLearningIntent) {
     context.addIssue({ code: "custom", path: ["plan", "learningIntent"], message: "The draft starting approach no longer matches the request." });
   }
+  if (plan.creationIntent !== generationRequest.intent) {
+    context.addIssue({
+      code: "custom",
+      path: ["plan", "creationIntent"],
+      message: "The draft creation flow no longer matches the generation request.",
+    });
+  }
   if (JSON.stringify(planMaterialIds) !== JSON.stringify(requestMaterialIds)) {
     context.addIssue({ code: "custom", path: ["plan", "materials"], message: "The draft materials no longer match the request." });
   }
   if (generationRequest.intent === "study_now" && plan.sessions.length !== 1) {
     context.addIssue({ code: "custom", path: ["plan", "sessions"], message: "A focused session must contain exactly one session." });
   }
+  if (
+    generationRequest.methodChoice
+    && plan.sessions[0]?.studyRoute?.approach.primaryMethodId
+      !== generationRequest.methodChoice.methodId
+  ) {
+    context.addIssue({
+      code: "custom",
+      path: ["plan", "sessions", 0, "studyRoute", "approach", "primaryMethodId"],
+      message: "The focused-session route no longer matches the learner's reviewed method choice.",
+    });
+  }
   if (![plan.id, plan.learningItemId, ...plan.sessions.map((session) => session.id)].every((id) => z.string().uuid().safeParse(id).success)) {
     context.addIssue({ code: "custom", path: ["plan", "id"], message: "The draft contains an invalid identifier." });
+  }
+  const routedSessionCount = plan.sessions.filter((session) => Boolean(session.studyRoute)).length;
+  if (routedSessionCount !== plan.sessions.length) {
+    context.addIssue({
+      code: "custom",
+      path: ["plan", "sessions"],
+      message: "Every newly generated session must carry its reviewed StudyRoute before activation.",
+    });
+  }
+  const routeRevisionIds = new Set<string>();
+  for (const [index, session] of plan.sessions.entries()) {
+    const route = session.studyRoute;
+    if (!route) continue;
+    if (
+      route.identity.planId !== plan.id
+      || route.identity.sessionId !== session.id
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["plan", "sessions", index, "studyRoute", "identity"],
+        message: "The route identity does not belong to this plan session.",
+      });
+    }
+    if (route.identity.lifecycleStatus !== "provisional") {
+      context.addIssue({
+        code: "custom",
+        path: ["plan", "sessions", index, "studyRoute", "identity", "lifecycleStatus"],
+        message: "Only a provisional route can be activated with a draft.",
+      });
+    }
+    if (routeRevisionIds.has(route.identity.routeRevisionId)) {
+      context.addIssue({
+        code: "custom",
+        path: ["plan", "sessions", index, "studyRoute", "identity", "routeRevisionId"],
+        message: "Every plan session must have a distinct route revision.",
+      });
+    }
+    routeRevisionIds.add(route.identity.routeRevisionId);
+    const projectedLearningMode = route.approach.mode === "learn" ? "learn" : "study";
+    if (
+      projectedLearningMode !== session.learningMode
+      || route.approach.executionEnvironment !== plan.studyMode
+      || route.approach.visibleMethodName !== session.method
+      || route.timing.activeMinutes !== session.estimatedMinutes
+      || route.explanation.shortReason !== session.methodReason
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["plan", "sessions", index, "studyRoute"],
+        message: "The route no longer matches the learner-visible draft promise.",
+      });
+    }
+
+    if (generationRequest.intent === "study_now") {
+      const hardMaximumMinutes = generationRequest.availability[0]!.minutes;
+      const normalDuration = NORMAL_STUDY_DURATION_LEVELS.some((minutes) => (
+        minutes === route.timing.activeMinutes
+      ));
+      const currentDurationSource = ![
+        "scheduled_review",
+        "legacy_reconstruction",
+      ].includes(route.timing.durationSource);
+      const hasDurationTrace = route.provenance.ruleTrace.some((entry) => (
+        entry.ruleId.startsWith("duration.")
+      ));
+      if (
+        !normalDuration
+        || route.timing.activeMinutes > hardMaximumMinutes
+        || route.timing.hardMaximumMinutes !== hardMaximumMinutes
+        || !currentDurationSource
+        || !hasDurationTrace
+      ) {
+        context.addIssue({
+          code: "custom",
+          path: ["plan", "sessions", index, "studyRoute", "timing"],
+          message: "The focused-session duration no longer matches its deterministic availability contract.",
+        });
+      }
+    }
   }
 });
 
@@ -240,11 +380,34 @@ export const PlanActivationResponseSchema = z.object({
   }),
 });
 
+/**
+ * One bounded learner choice against the exact provisional route currently
+ * shown in plan review. The expected revision prevents an older browser
+ * response from overwriting a newer whole-plan draft.
+ */
+export const PlanDraftMethodChoiceSelectionSchema = z.object({
+  sessionId: z.string().uuid(),
+  expectedRouteRevisionId: z.string().uuid(),
+  methodId: z.enum(CORE_METHOD_IDS),
+}).strict();
+
+export const PlanDraftMethodChoiceResponseSchema = z.object({
+  plan: GeneratedLearningPlanSchema.extend({ status: z.literal("draft") }),
+  draftReceipt: z.string().trim().min(1).max(512).nullable(),
+  revision: z.object({
+    status: z.enum(["updated", "unchanged"]),
+    requestId: z.string().uuid(),
+  }).strict(),
+}).strict();
+
 export type PlanGenerationRequest = z.infer<typeof PlanGenerationRequestSchema>;
 export type DiagnosticResponse = z.infer<typeof DiagnosticResponseSchema>;
 export type PlanDiagnosticQuestion = z.infer<typeof PlanDiagnosticQuestionSchema>;
 export type PlanDiagnosticPreparationResponse = z.infer<typeof PlanDiagnosticPreparationResponseSchema>;
 export type GeneratedPlanDraft = z.infer<typeof GeneratedPlanDraftSchema>;
+export type ProviderGeneratedPlanDraft = z.infer<typeof ProviderGeneratedPlanDraftSchema>;
 export type PlanGenerationResponse = z.infer<typeof PlanGenerationResponseSchema>;
 export type PlanActivationRequest = z.infer<typeof PlanActivationRequestSchema>;
 export type PlanActivationResponse = z.infer<typeof PlanActivationResponseSchema>;
+export type PlanDraftMethodChoiceSelection = z.infer<typeof PlanDraftMethodChoiceSelectionSchema>;
+export type PlanDraftMethodChoiceResponse = z.infer<typeof PlanDraftMethodChoiceResponseSchema>;

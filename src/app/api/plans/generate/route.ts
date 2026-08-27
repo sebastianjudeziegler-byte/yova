@@ -4,6 +4,10 @@ import { recordGenerationObservation } from "@/lib/analytics/generation-observat
 import { isOpenAIPlanConfigured } from "@/lib/openai/config";
 import { assessGoalContext } from "@/lib/learning/goal-context";
 import {
+  CanonicalMethodSelectionError,
+  selectCanonicalStudyMethod,
+} from "@/lib/learning/canonical-method-selection";
+import {
   MaterialUnderstandingSchema,
   PlanKnowledgeMapSchema,
   type PlanKnowledgeMap,
@@ -12,17 +16,30 @@ import { generatePlanKnowledgeMap, KnowledgeMapGenerationError } from "@/lib/kno
 import { generateMapDiagnostic, MapDiagnosticGenerationError } from "@/lib/diagnostics/map-diagnostic";
 import { mapAndPersistMaterial } from "@/lib/materials/material-understanding";
 import { resolveLearningIntent } from "@/lib/learning/learning-intent";
-import { generatePlanWithOpenAI, OpenAIPlanGenerationError } from "@/lib/openai/plan-generator";
+import {
+  generateNormalPlanFillWithOpenAI,
+  OpenAINormalPlanFillError,
+} from "@/lib/openai/normal-plan-fill-generator";
+import type { OpenAIPlanGenerationError } from "@/lib/openai/plan-generator";
 import { planFailureDiagnostics } from "@/lib/openai/plan-failure-observation";
-import { materializePlanDraft } from "@/lib/plan-generation/materialize-plan";
+import {
+  composeNormalPlanEnvelopes,
+  NormalPlanEnvelopeComposerError,
+} from "@/lib/plan-generation/normal-plan-envelopes";
+import { buildNormalPlanFromFixedEnvelope } from "@/lib/plan-generation/normal-plan-pipeline";
+import { buildNormalPlanFallbackFill } from "@/lib/plan-generation/normal-plan-provider-fill";
 import { generatePreviewPlan } from "@/lib/plan-generation/preview-generator";
 import { LIVE_AI_PLAN_FALLBACK_NOTICE } from "@/lib/plan-generation/fallback";
 import { inferPlanScopeContract } from "@/lib/plan-generation/scope-contract";
+import { normalizePlanDraftGenerationContract } from "@/lib/plan-generation/draft-contract";
 import { PlanScheduleCapacityError } from "@/lib/plan-generation/schedule-plan";
+import { resolvePlanRequestSubjectBoundary } from "@/lib/plan-generation/subject-boundary";
+import { studyDayWindowForInstant } from "@/lib/scheduling/study-window";
 import {
   PlanGenerationRequestSchema,
   PlanDiagnosticPreparationResponseSchema,
   PlanGenerationResponseSchema,
+  type PlanGenerationResponse,
 } from "@/lib/plan-generation/schema";
 import { checkPlanGenerationRateLimit, requestRateLimitKey } from "@/lib/server/rate-limit";
 import {
@@ -33,14 +50,26 @@ import {
   settleAIRequestClaim,
 } from "@/lib/server/ai-usage";
 import { isDevelopmentPreviewRequest } from "@/lib/server/development-preview";
+import {
+  assertPlanDraftReceiptConfigured,
+  issuePlanDraftReceipt,
+  PlanDraftReceiptConfigurationError,
+} from "@/lib/server/plan-draft-receipt";
+import { loadAuthorizedNormalDurationContext } from "@/lib/study-route/duration-context-server";
+import { NORMAL_STUDY_DURATION_LEVELS } from "@/lib/study-route/duration-precedence";
+import { integrateInitialPlanMethodRoutes } from "@/lib/study-route/initial-plan-method-routing";
+import { methodSelectionContextForStudyRoute } from "@/lib/study-route/method-plan-integration";
+import { StudyRouteSchema } from "@/lib/study-route/schema";
+import { reconcileStudyNowDuration } from "@/lib/study-route/study-now-duration";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
-// Broad learning pathways can require one complete structured generation plus
-// one bounded educational-quality repair. Keep enough server time for both.
+// The ordinary-plan path makes at most one bounded prose-only provider call.
+// The remaining route time covers mapping and deterministic composition.
 export const maxDuration = 120;
 const PLAN_GENERATION_DEADLINE_BUFFER_MS = 10_000;
+const PLAN_DRAFT_RECEIPT_LIFETIME_MS = 60 * 60 * 1_000;
 
 export async function POST(request: Request) {
   const requestId = crypto.randomUUID();
@@ -54,6 +83,20 @@ export async function POST(request: Request) {
 
   if (!developmentPreview && supabase && (userError || !user)) {
     return NextResponse.json({ error: "Sign in before generating a learning plan." }, { status: 401 });
+  }
+
+  if (!diagnosticOnly && !developmentPreview) {
+    if (!supabase || !user) {
+      return draftReceiptUnavailableResponse(requestId);
+    }
+    try {
+      assertPlanDraftReceiptConfigured();
+    } catch (error) {
+      if (error instanceof PlanDraftReceiptConfigurationError) {
+        return draftReceiptUnavailableResponse(requestId);
+      }
+      throw error;
+    }
   }
 
   let body: unknown;
@@ -102,6 +145,15 @@ export async function POST(request: Request) {
     ...parsedRequest.data,
     learningIntent: resolvedApproach.intent,
   };
+  if (
+    planRequest.intent === "study_now"
+    && planRequest.availability[0]!.minutes < NORMAL_STUDY_DURATION_LEVELS[0]
+  ) {
+    return insufficientNormalSessionTimeResponse(
+      planRequest.availability[0]!.minutes,
+      requestId,
+    );
+  }
   if (planRequest.materialMode === "upload") {
     if (!supabase || !user) {
       return NextResponse.json({ error: "Secure material uploads are not connected yet." }, { status: 503 });
@@ -166,7 +218,11 @@ export async function POST(request: Request) {
   // limits. Material-understanding repair above remains part of the separate
   // upload/mapping lifecycle.
   let aiUsageClaimId: string | null = null;
+  let forcedNormalPlanFallbackNotice: string | null = null;
   const aiUsageRecoveryKey = crypto.randomUUID();
+  const canUseAcceptedMapNormalFallback = planRequest.intent === "plan"
+    && !diagnosticOnly
+    && Boolean(planRequest.knowledgeMap);
   const meteredPlanProviderWork = isOpenAIPlanConfigured()
     && (
       !planRequest.knowledgeMap
@@ -189,18 +245,25 @@ export async function POST(request: Request) {
           },
         );
       }
-      return reliableDraftResponse(
-        planRequest,
-        requestId,
-        startedAt,
-        "Live AI planning is temporarily busy, so YOVA created a basic fallback draft from your saved inputs. Retry live planning, or review this fallback carefully before saving it.",
-        supabase,
-        user?.id,
-      );
+      const notice = "Live AI planning is temporarily busy, so YOVA created a basic fallback draft from your saved inputs. Retry live planning, or review this fallback carefully before saving it.";
+      if (canUseAcceptedMapNormalFallback) {
+        forcedNormalPlanFallbackNotice = notice;
+      } else {
+        return reliableDraftResponse(
+          planRequest,
+          requestId,
+          startedAt,
+          notice,
+          supabase,
+          user?.id,
+          undefined,
+          developmentPreview,
+        );
+      }
     }
 
-    if (supabase && user) {
-      let durableLimit: Awaited<ReturnType<typeof reserveAIRequest>>;
+    if (!forcedNormalPlanFallbackNotice && supabase && user) {
+      let durableLimit: Awaited<ReturnType<typeof reserveAIRequest>> | null = null;
       try {
         durableLimit = await reserveAIRequest(
           supabase,
@@ -219,16 +282,23 @@ export async function POST(request: Request) {
             },
           );
         }
-        return reliableDraftResponse(
-          planRequest,
-          requestId,
-          startedAt,
-          "Live AI planning is temporarily unavailable, so YOVA created a basic fallback draft from your saved inputs. Retry live planning, or review this fallback carefully before saving it.",
-          supabase,
-          user?.id,
-        );
+        const notice = "Live AI planning is temporarily unavailable, so YOVA created a basic fallback draft from your saved inputs. Retry live planning, or review this fallback carefully before saving it.";
+        if (canUseAcceptedMapNormalFallback) {
+          forcedNormalPlanFallbackNotice = notice;
+        } else {
+          return reliableDraftResponse(
+            planRequest,
+            requestId,
+            startedAt,
+            notice,
+            supabase,
+            user?.id,
+            undefined,
+            developmentPreview,
+          );
+        }
       }
-      if (!durableLimit.allowed) {
+      if (durableLimit && !durableLimit.allowed) {
         const conflict = aiUsageReservationConflict(durableLimit);
         if (conflict) {
           return NextResponse.json(
@@ -258,16 +328,23 @@ export async function POST(request: Request) {
             },
           );
         }
-        return reliableDraftResponse(
-          planRequest,
-          requestId,
-          startedAt,
-          "Live AI planning is unavailable for this account right now, so YOVA created a basic fallback draft from your saved inputs. Retry later, or review this fallback carefully before saving it.",
-          supabase,
-          user?.id,
-        );
+        const notice = "Live AI planning is unavailable for this account right now, so YOVA created a basic fallback draft from your saved inputs. Retry later, or review this fallback carefully before saving it.";
+        if (canUseAcceptedMapNormalFallback) {
+          forcedNormalPlanFallbackNotice = notice;
+        } else {
+          return reliableDraftResponse(
+            planRequest,
+            requestId,
+            startedAt,
+            notice,
+            supabase,
+            user?.id,
+            undefined,
+            developmentPreview,
+          );
+        }
       }
-      aiUsageClaimId = durableLimit.claimId;
+      if (durableLimit?.allowed) aiUsageClaimId = durableLimit.claimId;
     }
   }
 
@@ -391,8 +468,62 @@ export async function POST(request: Request) {
   // examples, and checks that follow.
   if (planRequest.intent === "study_now") {
     try {
-      const focusedPlan = generatePreviewPlan(planRequest);
-      const response = PlanGenerationResponseSchema.parse({
+      const studyNowStartedAt = new Date(startedAt);
+      const preliminaryPlan = generatePreviewPlan(planRequest, studyNowStartedAt);
+      const durationContext = await loadAuthorizedNormalDurationContext(
+        developmentPreview
+          ? { developmentPreview: true, now: studyNowStartedAt }
+          : supabase && user
+            ? { supabase, authenticatedUserId: user.id, now: studyNowStartedAt }
+            : { now: studyNowStartedAt },
+      );
+      const hardMaximumMinutes = planRequest.availability[0]!.minutes;
+      const durationDecision = reconcileStudyNowDuration({
+        preliminaryPlan,
+        context: durationContext,
+        scheduledWindow: studyDayWindowForInstant(studyNowStartedAt, planRequest.timeZone),
+        hardMaximumMinutes,
+        buildPlan: (decision) => generatePreviewPlan(
+          planRequest,
+          studyNowStartedAt,
+          { studyNowDurationDecision: decision },
+        ),
+      });
+
+      if (durationDecision.status === "insufficient_time") {
+        await releaseFailedPlanClaim(supabase, aiUsageClaimId, requestId);
+        return insufficientNormalSessionTimeResponse(
+          durationDecision.hardMaximumMinutes,
+          requestId,
+        );
+      }
+
+      const durationRoute = StudyRouteSchema.parse(
+        durationDecision.plan.sessions[0]!.studyRoute,
+      );
+      const methodDecision = {
+        selection: selectCanonicalStudyMethod({
+          ...methodSelectionContextForStudyRoute(durationRoute),
+          learnerChoice: planRequest.methodChoice
+            ? {
+                methodId: planRequest.methodChoice.methodId,
+                evidenceRef: `learner-choice:study-now:${planRequest.methodChoice.methodId}`,
+              }
+            : null,
+          personalization: durationContext.methodEvidence.personalization,
+          observedEvidence: durationContext.methodEvidence.observedEvidence,
+        }),
+        profileVersion: durationContext.methodProfileVersion,
+      };
+      const focusedPlan = generatePreviewPlan(
+        planRequest,
+        studyNowStartedAt,
+        {
+          studyNowDurationDecision: durationDecision.decision,
+          studyNowMethodDecision: methodDecision,
+        },
+      );
+      const response = planDraftResponse({
         plan: focusedPlan,
         generation: {
           mode: "system",
@@ -402,6 +533,10 @@ export async function POST(request: Request) {
           durationMs: Date.now() - startedAt,
           persistence: "draft",
         },
+        planRequest,
+        developmentPreview,
+        authenticatedUserId: user?.id ?? null,
+        issuedAtMs: startedAt,
       });
 
       await settleSuccessfulPlanClaim(supabase, aiUsageClaimId, requestId);
@@ -410,6 +545,22 @@ export async function POST(request: Request) {
         generationType: "plan",
         environment: generationEnvironment(),
         finalOutcome: "success",
+        diagnostics: {
+          durationContextStatus: durationContext.status,
+          durationContextReason: durationContext.reason,
+          durationSource: durationDecision.decision.timing.durationSource,
+          durationActiveMinutes: durationDecision.decision.timing.activeMinutes,
+          durationHardMaximumMinutes: hardMaximumMinutes,
+          durationTaskFamily: durationDecision.recommendationContext.taskFamily,
+          durationMode: durationDecision.recommendationContext.mode,
+          methodContextStatus: durationContext.status,
+          methodContextReason: durationContext.reason,
+          methodAuthority: methodDecision.selection.authority,
+          methodId: methodDecision.selection.selectedMethodId,
+          methodTaskFamily: methodDecision.selection.taskType,
+          methodKnowledgeStage: methodDecision.selection.knowledgeStage,
+          methodMode: methodDecision.selection.learningMode,
+        },
       });
       return NextResponse.json(response, {
         headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId },
@@ -420,14 +571,104 @@ export async function POST(request: Request) {
     }
   }
 
+  const normalPlanNow = new Date(startedAt);
+  let initialPlanContext: Awaited<ReturnType<typeof loadAuthorizedNormalDurationContext>>;
+  let normalPlanComposition: ReturnType<typeof composeNormalPlanEnvelopes>;
+  try {
+    // Resolve the accepted subject exactly once before it can influence either
+    // deterministic structure or provider copy.
+    planRequest = resolvePlanRequestSubjectBoundary(planRequest);
+    initialPlanContext = await loadAuthorizedNormalDurationContext(
+      developmentPreview
+        ? { developmentPreview: true, now: normalPlanNow }
+        : supabase && user
+          ? { supabase, authenticatedUserId: user.id, now: normalPlanNow }
+          : { now: normalPlanNow },
+    );
+    normalPlanComposition = composeNormalPlanEnvelopes({
+      request: planRequest,
+      learningIntentRecommendation: {
+        intent: planRequest.learningIntent,
+        basis: resolvedApproach.reason,
+      },
+      durationContext: {
+        profileVersion: initialPlanContext.profileVersion,
+        profile: initialPlanContext.profile,
+        recentOutcomes: initialPlanContext.recentOutcomes,
+      },
+      now: normalPlanNow,
+    });
+  } catch (error) {
+    await releaseFailedPlanClaim(supabase, aiUsageClaimId, requestId);
+    return deterministicPlanFailureResponse(error, requestId);
+  }
+
+  const methodContext = {
+    profileVersion: initialPlanContext.methodProfileVersion,
+    personalization: initialPlanContext.methodEvidence.personalization,
+    observedEvidence: initialPlanContext.methodEvidence.observedEvidence,
+  };
+  const buildFixedPlan = (fill: unknown) => buildNormalPlanFromFixedEnvelope({
+    request: planRequest,
+    composition: normalPlanComposition,
+    fill,
+    now: normalPlanNow,
+    methodContext,
+  });
+
+  if (forcedNormalPlanFallbackNotice) {
+    let plan: ReturnType<typeof buildNormalPlanFromFixedEnvelope>;
+    try {
+      plan = buildFixedPlan(buildNormalPlanFallbackFill({
+        request: planRequest,
+        composition: normalPlanComposition,
+      }));
+    } catch (error) {
+      return deterministicPlanFailureResponse(error, requestId);
+    }
+    const response = planDraftResponse({
+      plan,
+      generation: {
+        mode: "system",
+        model: null,
+        notice: forcedNormalPlanFallbackNotice,
+        requestId,
+        durationMs: Date.now() - startedAt,
+        persistence: "draft",
+      },
+      planRequest,
+      developmentPreview,
+      authenticatedUserId: user?.id ?? null,
+      issuedAtMs: startedAt,
+    });
+    await recordPlanGenerationObservationSafely(supabase, user?.id, {
+      ...emptyPlanObservation(Date.now() - startedAt),
+      generationType: "plan",
+      environment: generationEnvironment(),
+      finalOutcome: "fallback",
+      diagnostics: {
+        scopeBand: planRequest.knowledgeMap?.scopeJudgment.band,
+        methodContextStatus: initialPlanContext.status,
+        methodContextReason: initialPlanContext.reason,
+      },
+    });
+    return NextResponse.json(response, {
+      headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId },
+    });
+  }
+
   if (isOpenAIPlanConfigured()) {
     try {
-      const generated = await generatePlanWithOpenAI(planRequest, {
+      const generated = await generateNormalPlanFillWithOpenAI({
+        request: planRequest,
+        composition: normalPlanComposition,
+        now: normalPlanNow,
+      }, {
         deadlineAt: startedAt + (maxDuration * 1_000) - PLAN_GENERATION_DEADLINE_BUFFER_MS,
       });
-      const plan = materializePlanDraft(generated.draft, planRequest);
+      const plan = buildFixedPlan(generated.fill);
 
-      const response = PlanGenerationResponseSchema.parse({
+      const response = planDraftResponse({
         plan,
         generation: {
           mode: "openai",
@@ -437,6 +678,10 @@ export async function POST(request: Request) {
           durationMs: Date.now() - startedAt,
           persistence: "draft",
         },
+        planRequest,
+        developmentPreview,
+        authenticatedUserId: user?.id ?? null,
+        issuedAtMs: startedAt,
       });
 
       await settleSuccessfulPlanClaim(supabase, aiUsageClaimId, requestId);
@@ -456,7 +701,11 @@ export async function POST(request: Request) {
         cacheWriteTokens: generated.generationStats.cacheWriteTokens,
         outputTokens: generated.generationStats.outputTokens,
         model: generated.model,
-        diagnostics: { scopeBand: planRequest.knowledgeMap?.scopeJudgment.band },
+        diagnostics: {
+          scopeBand: planRequest.knowledgeMap?.scopeJudgment.band,
+          methodContextStatus: initialPlanContext.status,
+          methodContextReason: initialPlanContext.reason,
+        },
       });
 
       return NextResponse.json(response, {
@@ -467,7 +716,7 @@ export async function POST(request: Request) {
       });
     } catch (error) {
       await releaseFailedPlanClaim(supabase, aiUsageClaimId, requestId);
-      const failure = error instanceof OpenAIPlanGenerationError ? error : null;
+      const failure = error instanceof OpenAINormalPlanFillError ? error : null;
       console.error("YOVA plan generation failed", failure ? {
         requestId,
         reason: failure.reason,
@@ -481,25 +730,79 @@ export async function POST(request: Request) {
         reason: "provider_error",
         providerCategory: "unknown",
       });
-      return reliableDraftResponse(
+      let plan: ReturnType<typeof buildNormalPlanFromFixedEnvelope>;
+      try {
+        plan = buildFixedPlan(buildNormalPlanFallbackFill({
+          request: planRequest,
+          composition: normalPlanComposition,
+        }));
+      } catch (fallbackError) {
+        return deterministicPlanFailureResponse(fallbackError, requestId);
+      }
+      const response = planDraftResponse({
+        plan,
+        generation: {
+          mode: "system",
+          model: null,
+          notice: LIVE_AI_PLAN_FALLBACK_NOTICE,
+          requestId,
+          durationMs: Date.now() - startedAt,
+          persistence: "draft",
+        },
         planRequest,
-        requestId,
-        startedAt,
-        LIVE_AI_PLAN_FALLBACK_NOTICE,
-        supabase,
-        user?.id,
-        failure ?? undefined,
-      );
+        developmentPreview,
+        authenticatedUserId: user?.id ?? null,
+        issuedAtMs: startedAt,
+      });
+      const failedStats = failure?.generationStats;
+      await recordPlanGenerationObservationSafely(supabase, user?.id, failedStats ? {
+        generationType: "plan",
+        environment: generationEnvironment(),
+        finalOutcome: "fallback",
+        firstAttemptPassed: failedStats.firstAttemptPassed,
+        failedValidator: failedStats.failedValidator,
+        repairAttempted: false,
+        repairSucceeded: null,
+        elapsedMs: failedStats.elapsedMs,
+        attempts: failedStats.attempts,
+        inputTokens: failedStats.inputTokens,
+        cachedInputTokens: failedStats.cachedInputTokens,
+        cacheWriteTokens: failedStats.cacheWriteTokens,
+        outputTokens: failedStats.outputTokens,
+        model: failedStats.model,
+        diagnostics: {
+          scopeBand: planRequest.knowledgeMap?.scopeJudgment.band,
+          methodContextStatus: initialPlanContext.status,
+          methodContextReason: initialPlanContext.reason,
+          ...planFailureDiagnostics(failure),
+        },
+      } : {
+        ...emptyPlanObservation(Date.now() - startedAt),
+        generationType: "plan",
+        environment: generationEnvironment(),
+        finalOutcome: "fallback",
+        diagnostics: {
+          scopeBand: planRequest.knowledgeMap?.scopeJudgment.band,
+          methodContextStatus: initialPlanContext.status,
+          methodContextReason: initialPlanContext.reason,
+        },
+      });
+      return NextResponse.json(response, {
+        headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId },
+      });
     }
   }
 
-  let previewPlan: ReturnType<typeof generatePreviewPlan>;
+  let previewPlan: ReturnType<typeof buildNormalPlanFromFixedEnvelope>;
   try {
-    previewPlan = generatePreviewPlan(planRequest);
+    previewPlan = buildFixedPlan(buildNormalPlanFallbackFill({
+      request: planRequest,
+      composition: normalPlanComposition,
+    }));
   } catch (error) {
     return deterministicPlanFailureResponse(error, requestId);
   }
-  const response = PlanGenerationResponseSchema.parse({
+  const response = planDraftResponse({
     plan: previewPlan,
     generation: {
       mode: "preview",
@@ -509,6 +812,10 @@ export async function POST(request: Request) {
       durationMs: Date.now() - startedAt,
       persistence: "draft",
     },
+    planRequest,
+    developmentPreview,
+    authenticatedUserId: user?.id ?? null,
+    issuedAtMs: startedAt,
   });
 
   await recordPlanGenerationObservationSafely(supabase, user?.id, {
@@ -516,6 +823,10 @@ export async function POST(request: Request) {
     generationType: "plan",
     environment: generationEnvironment(),
     finalOutcome: "success",
+    diagnostics: {
+      methodContextStatus: initialPlanContext.status,
+      methodContextReason: initialPlanContext.reason,
+    },
   });
 
   return NextResponse.json(response, {
@@ -529,6 +840,21 @@ function expiredMaterialResponse(requestId: string) {
     code: "material_staging_expired",
   }, {
     status: 410,
+    headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId },
+  });
+}
+
+function insufficientNormalSessionTimeResponse(
+  availableMinutes: number,
+  requestId: string,
+) {
+  return NextResponse.json({
+    error: `YOVA needs at least ${NORMAL_STUDY_DURATION_LEVELS[0]} minutes for a normal learning or practice session.`,
+    code: "insufficient_normal_session_time",
+    minimumMinutes: NORMAL_STUDY_DURATION_LEVELS[0],
+    availableMinutes,
+  }, {
+    status: 422,
     headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId },
   });
 }
@@ -592,7 +918,24 @@ function readMaterialUnderstanding(metadata: unknown) {
 function buildDevelopmentPreviewKnowledgeMap(
   request: Parameters<typeof generatePreviewPlan>[0],
 ): Awaited<ReturnType<typeof generatePlanKnowledgeMap>> {
-  const preview = generatePreviewPlan(request);
+  // The preview planner is used here only as a deterministic semantic seed.
+  // Its legacy scheduler must not decide whether the later fixed-envelope
+  // composer has enough capacity: canonical durations can pack more than one
+  // coherent session into a learner window and can explicitly defer tail
+  // targets. Give this semantic-only pass a deadline-free synthetic horizon,
+  // then compose the real schedule from the original request below.
+  const semanticSeedRequest = request.intent === "plan"
+    ? {
+        ...request,
+        deadline: null,
+        availability: [{
+          day: "Every day",
+          window: "Anytime",
+          minutes: 60,
+        }],
+      }
+    : request;
+  const preview = generatePreviewPlan(semanticSeedRequest);
   const titles = Array.from(new Set(
     preview.sessions.flatMap((session) => session.contentTargets ?? [])
       .map((title) => title.trim().slice(0, 140))
@@ -644,14 +987,35 @@ async function reliableDraftResponse(
   supabase: Parameters<typeof recordGenerationObservation>[0],
   userId: string | null | undefined,
   failure?: OpenAIPlanGenerationError,
+  developmentPreview = false,
+  initialPlanContext?: Awaited<ReturnType<typeof loadAuthorizedNormalDurationContext>>,
 ) {
   let reliablePlan: ReturnType<typeof generatePreviewPlan>;
+  let resolvedInitialPlanContext = initialPlanContext;
   try {
     reliablePlan = generatePreviewPlan(planRequest);
+    if (planRequest.intent === "plan") {
+      resolvedInitialPlanContext ??= await loadAuthorizedNormalDurationContext(
+        developmentPreview
+          ? { developmentPreview: true, now: new Date(startedAt) }
+          : supabase && userId
+            ? { supabase, authenticatedUserId: userId, now: new Date(startedAt) }
+            : { now: new Date(startedAt) },
+      );
+      reliablePlan = integrateInitialPlanMethodRoutes({
+        plan: reliablePlan,
+        request: planRequest,
+        context: {
+          profileVersion: resolvedInitialPlanContext.methodProfileVersion,
+          personalization: resolvedInitialPlanContext.methodEvidence.personalization,
+          observedEvidence: resolvedInitialPlanContext.methodEvidence.observedEvidence,
+        },
+      });
+    }
   } catch (error) {
     return deterministicPlanFailureResponse(error, requestId);
   }
-  const response = PlanGenerationResponseSchema.parse({
+  const response = planDraftResponse({
     plan: reliablePlan,
     generation: {
       mode: "system",
@@ -661,6 +1025,10 @@ async function reliableDraftResponse(
       durationMs: Date.now() - startedAt,
       persistence: "draft",
     },
+    planRequest,
+    developmentPreview,
+    authenticatedUserId: userId ?? null,
+    issuedAtMs: startedAt,
   });
 
   const failedStats = failure?.generationStats;
@@ -681,6 +1049,8 @@ async function reliableDraftResponse(
     model: failedStats.model,
     diagnostics: {
       scopeBand: planRequest.knowledgeMap?.scopeJudgment.band,
+      methodContextStatus: resolvedInitialPlanContext?.status,
+      methodContextReason: resolvedInitialPlanContext?.reason,
       ...planFailureDiagnostics(failure),
     },
   } : {
@@ -688,9 +1058,64 @@ async function reliableDraftResponse(
     generationType: "plan",
     environment: generationEnvironment(),
     finalOutcome: "fallback",
+    diagnostics: resolvedInitialPlanContext ? {
+      methodContextStatus: resolvedInitialPlanContext.status,
+      methodContextReason: resolvedInitialPlanContext.reason,
+    } : undefined,
   });
 
   return NextResponse.json(response, {
+    headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId },
+  });
+}
+
+function planDraftResponse({
+  plan,
+  generation,
+  planRequest,
+  developmentPreview,
+  authenticatedUserId,
+  issuedAtMs,
+}: {
+  plan: unknown;
+  generation: Omit<PlanGenerationResponse["generation"], "draftReceipt">;
+  planRequest: Parameters<typeof generatePreviewPlan>[0];
+  developmentPreview: boolean;
+  authenticatedUserId: string | null;
+  issuedAtMs: number;
+}) {
+  const unsigned = PlanGenerationResponseSchema.parse({
+    plan,
+    generation: { ...generation, draftReceipt: null },
+  });
+  if (developmentPreview) return unsigned;
+  if (!authenticatedUserId) {
+    throw new PlanDraftReceiptConfigurationError(
+      "An authenticated account is required to issue a plan draft receipt.",
+    );
+  }
+  const issued = issuePlanDraftReceipt({
+    parsedPlan: unsigned.plan,
+    normalizedGenerationContract: normalizePlanDraftGenerationContract(
+      planRequest,
+      unsigned.plan,
+    ),
+    authenticatedUserId,
+    issuedAt: issuedAtMs,
+    expiresAt: issuedAtMs + PLAN_DRAFT_RECEIPT_LIFETIME_MS,
+  });
+  return PlanGenerationResponseSchema.parse({
+    ...unsigned,
+    generation: { ...unsigned.generation, draftReceipt: issued.receipt },
+  });
+}
+
+function draftReceiptUnavailableResponse(requestId: string) {
+  return NextResponse.json({
+    error: "YOVA cannot secure a plan draft for activation right now. Try again after the server connection is restored.",
+    code: "draft_receipt_unavailable",
+  }, {
+    status: 503,
     headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId },
   });
 }
@@ -718,7 +1143,35 @@ function emptyPlanObservation(elapsedMs: number) {
  * nothing about what to change.
  */
 function deterministicPlanFailureResponse(error: unknown, requestId: string) {
+  if (
+    error instanceof CanonicalMethodSelectionError
+    && error.code === "learner_choice_ineligible"
+  ) {
+    return NextResponse.json(
+      {
+        error: "That method does not fit this session's task and current starting point. Choose one of the alternatives YOVA showed.",
+        code: "method_choice_ineligible",
+      },
+      { status: 422, headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId } },
+    );
+  }
   if (error instanceof PlanScheduleCapacityError) {
+    return NextResponse.json(
+      {
+        error: "Your selected study windows do not have enough room for this plan before the deadline. Add another day, choose longer windows, or move the deadline.",
+        code: "schedule_capacity",
+      },
+      { status: 422, headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId } },
+    );
+  }
+  if (
+    error instanceof NormalPlanEnvelopeComposerError
+    && [
+      "no_normal_session_capacity",
+      "scope_minimum_unreachable",
+      "minimum_teaching_unreachable",
+    ].includes(error.code)
+  ) {
     return NextResponse.json(
       {
         error: "Your selected study windows do not have enough room for this plan before the deadline. Add another day, choose longer windows, or move the deadline.",

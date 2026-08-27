@@ -2,17 +2,30 @@
 
 import { z } from "zod";
 import type { LearningPlanSession, NextSessionAdaptation, SessionCompletion } from "@/lib/domain";
-import { ConceptEvidenceListSchema } from "@/lib/learning/concept-evidence";
-import { ConfidenceEvidenceListSchema } from "@/lib/learning/confidence-calibration";
+import { ConceptEvidenceSchema } from "@/lib/learning/concept-evidence";
+import { ConfidenceEvidenceSchema } from "@/lib/learning/confidence-calibration";
 import { normalizeSessionCompletionProvenance } from "@/lib/learning/session-completion-provenance";
+import { StudyRouteSchema, type StudyRoute } from "@/lib/study-route/schema";
 import { completeAuthenticatedPlanSession } from "@/lib/supabase/learning-state-repository";
 
 const STORAGE_KEY = "yova.cloud-sync-outbox.v1";
+
+// The shared evidence readers still accept pre-route records. The terminal
+// outbox adds the optional route identity explicitly so browser persistence
+// cannot strip it before the outcome reaches the repository.
+const RoutedConceptEvidenceListSchema = z.array(ConceptEvidenceSchema.extend({
+  routeRevisionId: z.string().uuid().optional(),
+})).max(24);
+
+const RoutedConfidenceEvidenceListSchema = z.array(ConfidenceEvidenceSchema.extend({
+  routeRevisionId: z.string().uuid().optional(),
+})).max(24);
 
 const SessionCompletionSchema = z.object({
   id: z.string().uuid(),
   planId: z.string().uuid(),
   planSessionId: z.string().uuid(),
+  routeRevisionId: z.string().uuid().optional(),
   startedAt: z.string().datetime({ offset: true }),
   completedAt: z.string().datetime({ offset: true }),
   plannedMinutes: z.number().int().min(5).max(180),
@@ -22,8 +35,8 @@ const SessionCompletionSchema = z.object({
   feedback: z.enum(["too_easy", "about_right", "too_difficult"]),
   observedGap: z.string().min(1).max(2_000),
   completionMode: z.enum(["guided", "unguided_practice"]).default("guided"),
-  conceptEvidence: ConceptEvidenceListSchema.default([]),
-  confidenceEvidence: ConfidenceEvidenceListSchema.default([]),
+  conceptEvidence: RoutedConceptEvidenceListSchema.default([]),
+  confidenceEvidence: RoutedConfidenceEvidenceListSchema.default([]),
 }).transform(normalizeSessionCompletionProvenance);
 
 const NextSessionAdaptationSchema = z.object({
@@ -59,6 +72,7 @@ const FollowUpSessionSchema = z.object({
     explanation: z.string().min(1).max(900),
     adaptedAt: z.string().datetime({ offset: true }),
   }).optional(),
+  studyRoute: StudyRouteSchema.optional(),
 });
 
 const PendingSessionCompletionSchema = z.object({
@@ -67,7 +81,67 @@ const PendingSessionCompletionSchema = z.object({
   adaptation: NextSessionAdaptationSchema.nullable(),
   followUpSession: FollowUpSessionSchema.nullable().default(null),
   continuationSession: FollowUpSessionSchema.nullable().default(null),
+  nextSessionStudyRoute: StudyRouteSchema.nullable().default(null),
   queuedAt: z.string().datetime({ offset: true }),
+}).superRefine((entry, context) => {
+  const routed = entry.completion.routeRevisionId !== undefined;
+  const routeChildren = [
+    ["followUpSession", entry.followUpSession] as const,
+    ["continuationSession", entry.continuationSession] as const,
+  ];
+
+  if (
+    (routed && Boolean(entry.adaptation) !== Boolean(entry.nextSessionStudyRoute))
+    || (!routed && entry.nextSessionStudyRoute !== null)
+  ) {
+    context.addIssue({
+      code: "custom",
+      path: ["nextSessionStudyRoute"],
+      message: "A queued adaptation and its successor StudyRoute must be preserved together.",
+    });
+  }
+  if (entry.nextSessionStudyRoute) {
+    const identity = entry.nextSessionStudyRoute.identity;
+    if (
+      !routed
+      || identity.lifecycleStatus !== "committed"
+      || identity.planId !== entry.completion.planId
+      || identity.sessionId !== entry.adaptation?.planSessionId
+      || identity.revisionNumber <= 1
+      || !identity.supersedesRevisionId
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["nextSessionStudyRoute"],
+        message: "A queued next-session route must be a committed successor for this routed plan.",
+      });
+    }
+  }
+  for (const [field, session] of routeChildren) {
+    if (!session) continue;
+    const route = session.studyRoute;
+    if (routed !== Boolean(route)) {
+      context.addIssue({
+        code: "custom",
+        path: [field, "studyRoute"],
+        message: "A routed completion must preserve each new session route, while a legacy completion must stay route-free.",
+      });
+      continue;
+    }
+    if (route && (
+      route.identity.lifecycleStatus !== "committed"
+      || route.identity.planId !== entry.completion.planId
+      || route.identity.sessionId !== session.id
+      || route.identity.revisionNumber !== 1
+      || route.identity.supersedesRevisionId
+    )) {
+      context.addIssue({
+        code: "custom",
+        path: [field, "studyRoute"],
+        message: "A queued new session must start its own committed StudyRoute lineage.",
+      });
+    }
+  }
 });
 
 export type PendingSessionCompletion = {
@@ -76,6 +150,7 @@ export type PendingSessionCompletion = {
   adaptation: NextSessionAdaptation | null;
   followUpSession: LearningPlanSession | null;
   continuationSession?: LearningPlanSession | null;
+  nextSessionStudyRoute?: StudyRoute | null;
   queuedAt: string;
 };
 
@@ -153,6 +228,7 @@ export async function flushQueuedSessionCompletions(userId: string) {
         entry.adaptation,
         entry.followUpSession,
         entry.continuationSession ?? null,
+        entry.nextSessionStudyRoute ?? null,
       );
       removeQueuedSessionCompletion(entry.completion.id);
       synced += 1;

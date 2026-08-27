@@ -168,4 +168,35 @@ describe("generation personalization", () => {
 
     expect(applyPersonalizedMethodTieToRouting(taskRouting, context)).toBe(taskRouting);
   });
+
+  it("does not run a matching hidden method experiment in milestone 3", () => {
+    const context = personalization();
+    context.methodTie.state.controls.experiments = true;
+    context.methodTie.state.activeExperiment = {
+      id: "method-test",
+      variable: "method_tie",
+      variantA: "retrieval_practice",
+      variantB: "spaced_retrieval",
+      taskType: "memorization",
+      knowledgeStage: "developing",
+      nextVariant: "b",
+    };
+    context.methodTie.signals = [];
+    context.decisions = [{
+      id: "decision:experiment:method-test:b",
+      artifact: "method_tie",
+      setting: "method_id",
+      value: "spaced_retrieval",
+      title: "Personal test: spaced retrieval",
+      explanation: "Alternate two task-valid methods and compare the checked result cautiously.",
+      signalIds: ["experiment:method-test"],
+      evidenceLabel: "You told YOVA",
+      methodCandidates: ["spaced_retrieval"],
+      experimental: true,
+    }];
+    const taskRouting = routing(["retrieval_practice", "spaced_retrieval"]);
+
+    expect(applyPersonalizedMethodTieToRouting(taskRouting, context)).toBe(taskRouting);
+    expect(personalizationDecisions(context, taskRouting)).toEqual([]);
+  });
 });

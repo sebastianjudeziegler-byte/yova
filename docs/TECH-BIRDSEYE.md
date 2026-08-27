@@ -210,7 +210,7 @@ This is why pushing to GitHub does not automatically make `localhost:3000` avail
 - **Production smoke test:** checks the deployed system with its real configuration.
 - **AI quality evaluation:** scores real generated plans against product-specific learning, timing, safety, and personalization criteria.
 
-YOVA currently has 287 passing unit tests, thirteen foundational browser journeys exercised at both desktop and phone-sized viewports for 26 passing browser runs, and opt-in live OpenAI evaluations for plans, sessions, and typed-answer judgment. The live evaluations consume API credits, so ordinary builds never trigger them. Real authenticated production journeys and broader human output review remain launch work.
+The August 23 Milestone 0 baseline passed 2,065 deterministic tests across 284 files, with 55 opt-in tests skipped across 13 files. Preview Playwright passed 130 checks across desktop and phone-sized projects with eight expected password-auth skips; the isolated password-auth run passed seven checks with one expected project-specific skip. Live OpenAI evaluations for plans, sessions, journeys, and typed-answer judgment remain opt-in because they consume API credits. These counts describe the captured baseline, not learning efficacy or a permanent test total.
 
 ## 13. The next technical systems
 
