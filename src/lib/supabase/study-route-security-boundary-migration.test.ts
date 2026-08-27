@@ -213,6 +213,9 @@ describe("StudyRoute security-boundary migration", () => {
     expect(migration).toContain(
       "projected.completion_evidence\n          is distinct from session.step_data -> 'completionevidence'",
     );
+    expect(migration).toContain(
+      "route.route_payload #>> '{target,desiredoutcome}'\n          is distinct from (\n            case",
+    );
   });
 
   it("checks the exact route/session projection after the pointer is visible", () => {

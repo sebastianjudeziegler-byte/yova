@@ -1355,10 +1355,12 @@ begin
       or existing_attempt.result_data -> 'nextSessionAdjustment'
         is distinct from adjustment
       or existing_attempt.result_data -> 'followUpSession'
-        is distinct from case
-          when follow_up_present then follow_up - 'studyRoute'
-          else follow_up
-        end
+        is distinct from (
+          case
+            when follow_up_present then follow_up - 'studyRoute'
+            else follow_up
+          end
+        )
       or (
         requested_route_revision_id is null
         and existing_attempt.result_data ? 'routeRevisionId'

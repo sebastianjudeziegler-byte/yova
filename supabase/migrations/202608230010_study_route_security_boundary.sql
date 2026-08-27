@@ -1567,22 +1567,24 @@ begin
           else null
         end is distinct from session.step_data ->> 'learningMode'
         or route.route_payload #>> '{target,desiredOutcome}'
-          is distinct from case
-            when pg_catalog.length(coalesce(
-              nullif(pg_catalog.btrim(session.objective), ''),
-              nullif(pg_catalog.btrim(session.title), ''),
-              'Complete this session'
-            )) >= 5 then pg_catalog.left(coalesce(
-              nullif(pg_catalog.btrim(session.objective), ''),
-              nullif(pg_catalog.btrim(session.title), ''),
-              'Complete this session'
-            ), 500)
-            else pg_catalog.left('Learn ' || coalesce(
-              nullif(pg_catalog.btrim(session.objective), ''),
-              nullif(pg_catalog.btrim(session.title), ''),
-              'Complete this session'
-            ), 500)
-          end
+          is distinct from (
+            case
+              when pg_catalog.length(coalesce(
+                nullif(pg_catalog.btrim(session.objective), ''),
+                nullif(pg_catalog.btrim(session.title), ''),
+                'Complete this session'
+              )) >= 5 then pg_catalog.left(coalesce(
+                nullif(pg_catalog.btrim(session.objective), ''),
+                nullif(pg_catalog.btrim(session.title), ''),
+                'Complete this session'
+              ), 500)
+              else pg_catalog.left('Learn ' || coalesce(
+                nullif(pg_catalog.btrim(session.objective), ''),
+                nullif(pg_catalog.btrim(session.title), ''),
+                'Complete this session'
+              ), 500)
+            end
+          )
         or (
           session.status in ('ready', 'upcoming')
           and (

@@ -171,8 +171,10 @@ describe("route-aware plan adjustment migration", () => {
       "when 'trusted_external_source' then 'yova_generated'",
     );
     expect(routeAwareFunction).toContain(
-      "end is distinct from current_source_mode",
+      "        end\n"
+      + "      ) is distinct from current_source_mode",
     );
+    expect(routeAwareFunction).not.toMatch(/\bor\s+case\b/i);
   });
 
   it("requires every new lineage to cite one exact same-plan committed origin", () => {

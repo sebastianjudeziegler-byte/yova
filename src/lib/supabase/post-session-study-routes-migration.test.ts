@@ -141,6 +141,9 @@ describe("post-session StudyRoute migration", () => {
     expect(completion).toContain("current_session.status <> 'complete'");
     expect(completion).toContain("existing_attempt.result_data -> 'nextsessionadjustment'");
     expect(completion).toContain("existing_attempt.result_data -> 'followupsession'");
+    expect(completion).toContain(
+      "existing_attempt.result_data -> 'followupsession'\n        is distinct from (\n          case",
+    );
     expect(completion).toContain("study_route_completion_retry_conflict");
     expect(completion).toContain("event.event_type = 'session_completed'");
     expect(completion).toContain("return requested_plan_id;");

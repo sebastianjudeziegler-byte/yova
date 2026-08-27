@@ -423,12 +423,14 @@ begin
         'scaffolded_coding',
         'practice_test_error_repair'
       )
-      or case requested_route #>> '{target,sourceRequirements,sourceType}'
-        when 'user_materials' then 'user_materials'
-        when 'yova_generated' then 'yova_generated'
-        when 'trusted_external_source' then 'yova_generated'
-        else null
-      end is distinct from current_source_mode then
+      or (
+        case requested_route #>> '{target,sourceRequirements,sourceType}'
+          when 'user_materials' then 'user_materials'
+          when 'yova_generated' then 'yova_generated'
+          when 'trusted_external_source' then 'yova_generated'
+          else null
+        end
+      ) is distinct from current_source_mode then
       raise exception using
         errcode = '40001',
         message = 'plan_adjustment_route_projection_conflict';
