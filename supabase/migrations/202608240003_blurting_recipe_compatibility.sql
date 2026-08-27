@@ -4,6 +4,8 @@
 
 -- Close the preflight race with every route writer before tightening the
 -- previously unused supporting-technique marker into a fail-closed contract.
+begin;
+
 lock table public.study_routes in share row exclusive mode;
 
 do $$
@@ -2562,3 +2564,5 @@ comment on function public.guard_study_route_payload_v1() is
   'Validates every route payload and requires the plan-bound activation permit only for the first Blurting revision after a non-Blurting predecessor.';
 comment on function public.change_plan_session_method_with_route(jsonb) is
   'Commits one exact learner-chosen core-method successor and removes current Blurting recipe state while retaining its trace history.';
+
+commit;

@@ -252,12 +252,22 @@ describe("dormant Blurting V18 canonical-domain migration", () => {
     const addConstraint = lowerMigration.indexOf(
       "add constraint blurting_resources_v18_canonical_domains_check",
     );
+    const transaction = lowerMigration.lastIndexOf("\nbegin;\n", resourceLock);
+    const dependencyCheck = lowerMigration.indexOf(
+      "blurting_canonical_domains_v18_dependency_missing",
+    );
+    const commit = lowerMigration.lastIndexOf("\ncommit;");
 
     expect(resourceLock).toBeGreaterThanOrEqual(0);
+    expect(transaction).toBeGreaterThan(-1);
+    expect(dependencyCheck).toBeGreaterThan(transaction);
+    expect(resourceLock).toBeGreaterThan(transaction);
     expect(deliveryLock).toBeGreaterThan(resourceLock);
     expect(evaluationLock).toBeGreaterThan(deliveryLock);
     expect(unexpectedRows).toBeGreaterThan(evaluationLock);
     expect(addConstraint).toBeGreaterThan(unexpectedRows);
+    expect(commit).toBeGreaterThan(addConstraint);
+    expect(lowerMigration.trimEnd().endsWith("commit;")).toBe(true);
     for (const constraintName of [
       "blurting_resources_v18_canonical_domains_check",
       "blurting_delivery_receipts_v18_canonical_domains_check",

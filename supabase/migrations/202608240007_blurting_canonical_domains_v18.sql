@@ -2,6 +2,8 @@
 -- V18 private store. This migration still exposes no resource writer, reader,
 -- mint, evaluator, runtime flag, or browser/service-role data path.
 
+begin;
+
 -- Migration 006 created an intentionally empty store. Refuse to install these
 -- stricter domains beside a changed or partially exposed predecessor.
 do $$
@@ -849,3 +851,5 @@ comment on function private.blurting_timestamp_text_matches_v18(
 comment on constraint blurting_resources_v18_canonical_domains_check
   on private.blurting_resources_v18 is
   'Dormant V18 resource timestamps and transformable strings use pinned cross-runtime canonical domains.';
+
+commit;

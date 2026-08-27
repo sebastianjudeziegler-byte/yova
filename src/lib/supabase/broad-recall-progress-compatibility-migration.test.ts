@@ -42,13 +42,22 @@ const checkpointGuard = section(
 
 describe("broad-recall progress compatibility migration", () => {
   it("locks every durable progress table and refuses to grandfather unknown broad markers", () => {
-    expect(migration).toContain([
+    const lockStatement = [
       "lock table",
       "  public.plan_sessions,",
       "  public.session_attempts,",
       "  public.learning_events",
       "in share row exclusive mode;",
-    ].join("\n"));
+    ].join("\n");
+    const lock = migration.indexOf(lockStatement);
+    const transaction = migration.lastIndexOf("\nbegin;\n", lock);
+    const commit = migration.lastIndexOf("\ncommit;");
+
+    expect(lock).toBeGreaterThan(-1);
+    expect(transaction).toBeGreaterThan(-1);
+    expect(lock).toBeGreaterThan(transaction);
+    expect(commit).toBeGreaterThan(lock);
+    expect(migration.trimEnd().endsWith("commit;")).toBe(true);
     expect(migration).toContain(
       "'{activesessioncheckpoint,activityprogress,kind}'",
     );

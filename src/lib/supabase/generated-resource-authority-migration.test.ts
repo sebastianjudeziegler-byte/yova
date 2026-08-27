@@ -44,8 +44,12 @@ describe("generated-resource authority compatibility migration", () => {
     const table = migration.indexOf(
       "create table public.generated_resource_authority_permits",
     );
+    const transaction = migration.lastIndexOf("\nbegin;\n", lock);
+    const commit = migration.lastIndexOf("\ncommit;");
 
     expect(lock).toBeGreaterThanOrEqual(0);
+    expect(transaction).toBeGreaterThan(-1);
+    expect(lock).toBeGreaterThan(transaction);
     expect(migration.slice(lock, delegatePreflight)).toContain([
       "public.plans,",
       "  public.learning_items,",
@@ -56,6 +60,8 @@ describe("generated-resource authority compatibility migration", () => {
     expect(delegatePreflight).toBeGreaterThan(lock);
     expect(cohortPreflight).toBeGreaterThan(delegatePreflight);
     expect(table).toBeGreaterThan(cohortPreflight);
+    expect(commit).toBeGreaterThan(table);
+    expect(migration.trimEnd().endsWith("commit;")).toBe(true);
     expect(migration).toContain("pg_get_functiondef(");
     expect(migration).toContain(
       "'public.cache_generated_session(jsonb)'::pg_catalog.regprocedure",

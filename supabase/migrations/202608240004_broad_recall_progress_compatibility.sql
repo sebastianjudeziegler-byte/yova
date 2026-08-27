@@ -8,6 +8,8 @@
 -- was no production broad-recall writer before this migration, so any existing
 -- marker is an unknown/manual value that must be investigated rather than
 -- grandfathered into the new contract.
+begin;
+
 lock table
   public.plan_sessions,
   public.session_attempts,
@@ -1329,3 +1331,5 @@ comment on function public.assert_broad_recall_progress_binding_v1(
   uuid, uuid, jsonb, timestamptz
 ) is
   'Dormant checkpoint boundary: accepts broad-recall progress only for the exact committed Blurting route, generated timestamp, and route-stamped cached broad-recall activity; interruption remains fail closed pending a resource-aware wrapper.';
+
+commit;

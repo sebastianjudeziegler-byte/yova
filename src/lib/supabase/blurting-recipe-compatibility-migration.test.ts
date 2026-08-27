@@ -52,10 +52,16 @@ describe("Blurting recipe compatibility migration", () => {
       "create or replace function public.assert_study_route_blurting_recipe_v1(",
     );
     const compactPreflight = migration.slice(lock, helper).replace(/\s+/gu, " ");
+    const transaction = migration.lastIndexOf("\nbegin;\n", lock);
+    const commit = migration.lastIndexOf("\ncommit;");
 
     expect(lock).toBeGreaterThan(-1);
+    expect(transaction).toBeGreaterThan(-1);
+    expect(lock).toBeGreaterThan(transaction);
     expect(preflight).toBeGreaterThan(lock);
     expect(helper).toBeGreaterThan(preflight);
+    expect(commit).toBeGreaterThan(helper);
+    expect(migration.trimEnd().endsWith("commit;")).toBe(true);
     expect(migration).toContain(
       "where (route.route_payload #> '{approach}')\n"
       + "      ? 'visiblesupportingtechniqueid'",

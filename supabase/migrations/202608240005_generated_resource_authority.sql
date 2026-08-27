@@ -9,6 +9,8 @@
 -- Freeze every row family used by the mature cache writer before inspecting
 -- the dormant cohort or replacing its public wrapper. The order mirrors that
 -- writer: plan, learning item, session, then committed route.
+begin;
+
 lock table
   public.plans,
   public.learning_items,
@@ -530,3 +532,5 @@ comment on function public.cache_generated_session(jsonb) is
 -- The recreated ordinary signature must be visible to PostgREST immediately
 -- after this forward-only compatibility migration commits.
 notify pgrst, 'reload schema';
+
+commit;
