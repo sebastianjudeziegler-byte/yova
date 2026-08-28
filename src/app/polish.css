@@ -822,3 +822,18 @@ a:hover { color: var(--ink); }
   .hg-milestone { flex-direction: column; align-items: flex-start; }
   .hg-milestone-note { white-space: normal; }
 }
+
+/* ---- White Glass: entry landing, study profile shell, auth, system screens ---- */
+.entry-shell { background: #f7f8fc; }
+.centered-shell { background: radial-gradient(circle at 75% 15%, rgba(36,80,199,.07), transparent 25%), #f7f8fc; }
+.session-setup-shell { background: radial-gradient(circle at 50% 12%, rgba(36,80,199,.06), transparent 30%), #f7f8fc; }
+.hero-card { border-radius: 26px; background: linear-gradient(135deg, #182446, #0b1020 78%); }
+.hero-card:after { background: radial-gradient(circle, rgba(47,95,224,.4), rgba(36,80,199,.06) 58%, transparent 70%); }
+.hero-card h1 { font-family: var(--font-newsreader), serif; font-weight: 400; letter-spacing: -.012em; }
+.how-yova-works h2 { font-family: var(--font-newsreader), serif; font-weight: 400; letter-spacing: -.012em; }
+.how-steps h3 { font-family: var(--font-newsreader), serif; font-style: italic; font-weight: 500; letter-spacing: 0; }
+.how-steps article { border-radius: 18px; border-color: #fff; background: rgba(255,255,255,.82); }
+.how-steps article > span { border-radius: 999px; background: var(--grad-primary); font-family: var(--font-mono), monospace; font-size: 13px; }
+.hero-product-preview { border-radius: 20px; box-shadow: 0 26px 70px rgba(11,16,32,.32); }
+.preview-start { border-radius: 999px; background: var(--grad-primary); }
+.account-card { border: 1px solid #fff; border-radius: 20px; background: rgba(255,255,255,.9); box-shadow: var(--shadow-sm); }
