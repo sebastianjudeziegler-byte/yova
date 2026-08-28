@@ -15,7 +15,6 @@ import {
   CalendarDays,
   Calculator,
   Check,
-  ChevronLeft,
   ChevronRight,
   CircleUserRound,
   Clock3,
@@ -4120,7 +4119,7 @@ export function YovaPrototype({
 
   return <>
     <AppShell activeTab={activeTab} onTab={openTab} account={account} cloudSyncIssue={cloudSyncIssue} signOutIssue={signOutIssue} signingOut={signingOut} onRetryCloudSync={retryCloudSync} onAdd={beginAgendaAdd} workspaceClassName={personalizationWorkspaceClassName} onSignOut={signOut}>
-      {activeTab === "Home" && <HomeScreen account={account} answers={answers} plans={activePlans} plan={recommendedPlan} sessionCompletions={sessionCompletions} sessionInterruptions={sessionInterruptions} activeSessionCheckpoints={recoverableSessionCheckpoints} allowance={guidedSessionAllowance} allowanceChecking={guidedSessionAllowanceChecking} tutorQuestion={tutorQuestion} onTutorQuestion={setTutorQuestion} onOpenTutor={openAskYova} onOpenYou={() => setActiveTab("You")} onStart={(planId) => requestSessionStart(planId)} onOpenPlan={(planId) => { setSelectedPlanId(planId); setLearningDetailPlanId(planId); setActiveTab("Learning"); }} onCreatePlan={beginPlanCreation} onStudyNow={() => { setCreatorSeed(null); setCreatorMilestoneId(null); setStage("study-now"); }} />}
+      {activeTab === "Home" && <HomeScreen account={account} answers={answers} plans={activePlans} plan={recommendedPlan} sessionCompletions={sessionCompletions} sessionInterruptions={sessionInterruptions} activeSessionCheckpoints={recoverableSessionCheckpoints} allowance={guidedSessionAllowance} allowanceChecking={guidedSessionAllowanceChecking} tutorQuestion={tutorQuestion} onTutorQuestion={setTutorQuestion} onOpenTutor={openAskYova} onOpenYou={() => setActiveTab("You")} onStart={(planId) => requestSessionStart(planId)} onOpenPlan={(planId) => { setSelectedPlanId(planId); setLearningDetailPlanId(planId); setActiveTab("Learning"); }} onCreatePlan={beginPlanCreation} onStudyNow={() => { setCreatorSeed(null); setCreatorMilestoneId(null); setStage("study-now"); }} milestones={agendaMilestones} onOpenAgenda={() => setActiveTab("Agenda")} />}
       {activeTab === "Learning" && <LearningScreen plans={plans} detailPlanId={learningDetailPlanId} sessionCompletions={sessionCompletions} sessionInterruptions={sessionInterruptions} activeSessionCheckpoints={recoverableSessionCheckpoints} preferredMethodIds={savedPreferredMethodIds} syncedPreferenceKey={syncedPreferenceKey} statedPreferencesEnabled={personalizationState.controls.selfReport} onPreferredMethodIdsChange={changePreferredMethodIds} onOpenPlan={(planId) => { setSelectedPlanId(planId); setLearningDetailPlanId(planId); }} onClosePlan={() => setLearningDetailPlanId(null)} onStart={requestSessionStart} onCreatePlan={beginPlanCreation} onArchiveStateChange={changePlanArchiveState} onDeletePlan={deletePlanPermanently} onAdjustPlan={adjustPlan} onKnowledgeMapUpdate={updatePlanKnowledgeMap} onAttachMaterials={attachMaterials} />}
       {activeTab === "Agenda" && <AgendaScreen plans={availablePlans} milestones={agendaMilestones} sessionCompletions={sessionCompletions} sessionInterruptions={sessionInterruptions} activeSessionCheckpoints={recoverableSessionCheckpoints} allowance={guidedSessionAllowance} allowanceChecking={guidedSessionAllowanceChecking} previewMode={account?.identityMode === "preview"} onAdd={beginAgendaAdd} onStart={requestSessionStart} onActivateReview={activateConceptReview} onReschedule={rescheduleSessions} onAdjustDuration={adjustSessionDuration} onClassifyRecoveryInterruption={setRecoveryEvidenceClassification} onUpdateMilestone={updateDeadlineMilestone} onDeleteMilestone={deleteDeadlineMilestone} onConvertMilestone={(milestone, outcome) => { setCreatorSeed({ title: milestone.title, objective: milestone.description || `Complete ${milestone.title}`, itemType: "assignment", dueAt: milestone.dueAt, scope: milestone.description || milestone.title, progress: "", materialsSummary: "No materials attached yet.", missingFields: milestone.description ? [] : ["scope"], description: milestone.description || milestone.title, materials: [] }); setCreatorMilestoneId(milestone.id); setStage(outcome === "session" ? "study-now" : "plan-creator"); }} />}
       {activeTab === "Ask YOVA" && <AskScreen key={tutorEntryKey} plans={availablePlans} question={tutorQuestion} onQuestion={setTutorQuestion} onApplyAction={applyTutorAction} analyticsEnabled={analyticsEnabled} />}
@@ -4248,7 +4247,7 @@ export function AppShell({ activeTab, onTab, account, cloudSyncIssue, signOutIss
       setRetrying(false);
     }
   };
-  return <div className={`app-shell ${workspaceClassName}`}><a className="skip-link" href="#main-content">Skip to main content</a><aside className="sidebar"><BrandMark /><button className="sidebar-create" aria-label="Add to YOVA" onClick={onAdd}><Plus size={18} /><span>Add</span></button><nav aria-label="Main navigation">{navItems.map(({ label, icon: Icon }) => <button key={label} aria-label={label} className={activeTab === label ? "active" : ""} onClick={() => onTab(label)}><Icon size={19} /><span>{label}</span></button>)}</nav><nav className="sidebar-trust-links" aria-label="Trust and support"><Link href="/support">Support</Link><Link href="/privacy">Privacy</Link><Link href="/terms">Terms</Link></nav><div className="sidebar-bottom"><div className="account-dot">{initial}</div><div><strong>{account?.displayName || "YOVA user"}</strong><span>{account?.identityMode === "supabase" ? "Cloud account" : "Private alpha"}</span></div><button aria-label={signingOut ? "Signing out" : "Sign out on this device"} title="Sign out on this device" disabled={signingOut} onClick={() => void onSignOut()}><LogOut size={17} /></button></div></aside><main className="app-content" id="main-content" tabIndex={-1}>{signOutIssue && <div className="account-action-warning" role="alert"><AlertCircle size={18} aria-hidden="true" /><div><strong>Sign-out was not confirmed.</strong><span>{signOutIssue} This screen and its saved recovery state were left intact.</span></div></div>}{cloudSyncIssue && <div className="cloud-sync-warning"><strong>Cloud sync needs attention.</strong><span>{cloudSyncIssue}</span><button disabled={retrying} onClick={() => void retry()}>{retrying ? "Retrying…" : "Retry now"}</button></div>}{children}</main></div>;
+  return <div className={`app-shell ${workspaceClassName}`}><a className="skip-link" href="#main-content">Skip to main content</a><div className="yv-aurora" aria-hidden="true"><span /><span /></div><header className="topnav"><span className="topnav-brand"><span className="topnav-logo" aria-hidden="true">Y</span><span className="topnav-wordmark">YOVA</span></span><nav aria-label="Main navigation" className="topnav-tabs">{navItems.map(({ label, icon: Icon }) => <button key={label} aria-label={label} className={activeTab === label ? "active" : ""} onClick={() => onTab(label)}><Icon size={16} aria-hidden="true" /><span>{label}</span></button>)}</nav><div className="topnav-right"><button className="topnav-add" aria-label="Add to YOVA" onClick={onAdd}><Plus size={16} /><span>Add</span></button><div className="topnav-account"><span className="account-dot" title={`${account?.displayName || "YOVA user"} · ${account?.identityMode === "supabase" ? "Cloud account" : "Private alpha"}`}>{initial}</span><button aria-label={signingOut ? "Signing out" : "Sign out on this device"} title="Sign out on this device" disabled={signingOut} onClick={() => void onSignOut()}><LogOut size={16} /></button></div></div></header><main className="app-content" id="main-content" tabIndex={-1}>{signOutIssue && <div className="account-action-warning" role="alert"><AlertCircle size={18} aria-hidden="true" /><div><strong>Sign-out was not confirmed.</strong><span>{signOutIssue} This screen and its saved recovery state were left intact.</span></div></div>}{cloudSyncIssue && <div className="cloud-sync-warning"><strong>Cloud sync needs attention.</strong><span>{cloudSyncIssue}</span><button disabled={retrying} onClick={() => void retry()}>{retrying ? "Retrying…" : "Retry now"}</button></div>}{children}</main><footer className="topnav-trust"><nav aria-label="Trust and support"><Link href="/support">Support</Link><Link href="/privacy">Privacy</Link><Link href="/terms">Terms</Link></nav></footer></div>;
 }
 
 function workspaceClassName(settings: PersonalizationWorkspaceSettings) {
@@ -4264,7 +4263,7 @@ function workspaceClassName(settings: PersonalizationWorkspaceSettings) {
 
 function PageHeader({ eyebrow, title, description }: { eyebrow?: string; title: string; description?: string }) { return <header className="page-header">{eyebrow && <span className="step-label">{eyebrow}</span>}<h1>{title}</h1>{description && <p>{description}</p>}</header>; }
 
-function HomeScreen({ account, answers, plans, plan, sessionCompletions, sessionInterruptions, activeSessionCheckpoints, allowance, allowanceChecking, tutorQuestion, onTutorQuestion, onOpenTutor, onOpenYou, onStart, onOpenPlan, onCreatePlan, onStudyNow }: { account: PreviewAccount | null; answers: string[]; plans: LearningPlan[]; plan: LearningPlan | null; sessionCompletions: SessionCompletion[]; sessionInterruptions: SessionInterruption[]; activeSessionCheckpoints: ActiveSessionCheckpoint[]; allowance: GuidedSessionAllowanceDisplayState; allowanceChecking: boolean; tutorQuestion: string; onTutorQuestion: (question: string) => void; onOpenTutor: () => void; onOpenYou: () => void; onStart: (planId?: string) => void; onOpenPlan: (planId: string) => void; onCreatePlan: () => void; onStudyNow: () => void }) {
+function HomeScreen({ account, answers, plans, plan, sessionCompletions, sessionInterruptions, activeSessionCheckpoints, allowance, allowanceChecking, tutorQuestion, onTutorQuestion, onOpenTutor, onOpenYou, onStart, onOpenPlan, onCreatePlan, onStudyNow, milestones, onOpenAgenda }: { account: PreviewAccount | null; answers: string[]; plans: LearningPlan[]; plan: LearningPlan | null; sessionCompletions: SessionCompletion[]; sessionInterruptions: SessionInterruption[]; activeSessionCheckpoints: ActiveSessionCheckpoint[]; allowance: GuidedSessionAllowanceDisplayState; allowanceChecking: boolean; tutorQuestion: string; onTutorQuestion: (question: string) => void; onOpenTutor: () => void; onOpenYou: () => void; onStart: (planId?: string) => void; onOpenPlan: (planId: string) => void; onCreatePlan: () => void; onStudyNow: () => void; milestones: DeadlineMilestone[]; onOpenAgenda: () => void }) {
   const rankedPlans = rankPlansForHome(plans);
   const recoverablePlan = rankedPlans.find((candidate) => {
     const readySession = candidate.sessions.find((session) => session.status === "ready");
@@ -4404,97 +4403,183 @@ function HomeScreen({ account, answers, plans, plan, sessionCompletions, session
     else showPreviousRecommendation();
   };
 
+  const sameDay = (iso: string, day: Date) => new Date(iso).toDateString() === day.toDateString();
+  const daypartWord = (iso: string) => { const hour = new Date(iso).getHours(); return hour < 12 ? "morning" : hour < 17 ? "afternoon" : "evening"; };
+  const daypartShort = (iso: string) => { const hour = new Date(iso).getHours(); return hour < 12 ? "AM" : hour < 17 ? "PM" : "EVE"; };
+  const todayEntries = plans
+    .flatMap((item) => item.sessions
+      .filter((session) => session.status !== "complete" && sameDay(session.scheduledFor, now))
+      .map((session) => ({ plan: item, session })))
+    .sort((a, b) => new Date(a.session.scheduledFor).getTime() - new Date(b.session.scheduledFor).getTime());
+  const recentEvidence = sessionCompletions.slice(-6).flatMap((completion) => completion.conceptEvidence ?? []);
+  const recallAccuracy = recentEvidence.length > 0
+    ? Math.round((100 * recentEvidence.filter((item) => item.outcome === "secure").length) / recentEvidence.length)
+    : null;
+  const openMilestones = milestones
+    .filter((milestone) => milestone.status === "open")
+    .sort((a, b) => new Date(a.dueAt).getTime() - new Date(b.dueAt).getTime());
+  const nextMilestone = openMilestones[0] ?? null;
+  const laterMilestone = openMilestones[1] ?? null;
+  const daysUntil = (iso: string) => Math.max(0, Math.ceil((new Date(iso).getTime() - now.getTime()) / 86400000));
+  const monoDate = (date: Date) => new Intl.DateTimeFormat("en-US", { weekday: "short", month: "short", day: "numeric" }).format(date).toUpperCase().replace(",", " ·");
+  const weekDays = Array.from({ length: 5 }, (_, offset) => {
+    const day = new Date(now);
+    day.setDate(day.getDate() + offset);
+    const entries = plans.flatMap((item) => item.sessions.filter((session) => session.status !== "complete" && sameDay(session.scheduledFor, day)));
+    const due = openMilestones.filter((milestone) => sameDay(milestone.dueAt, day));
+    const minutes = entries.reduce((total, session) => total + (session.estimatedMinutes ?? 0), 0);
+    return { day, entries, due, minutes, offset };
+  });
+  const weekRangeLabel = `${new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(weekDays[0].day)} – ${new Intl.DateTimeFormat("en-US", { day: "numeric" }).format(weekDays[4].day)}`;
+  const resumeThreads = rankedPlans.map((item) => {
+    const ready = item.sessions.find((session) => session.status === "ready");
+    if (!ready) return null;
+    const decision = sessionStartRecoveryDecision({ plan: item, session: ready, interruptions: sessionInterruptions, restorableCheckpoints: activeSessionCheckpoints });
+    if (!decision.advertiseContinue || !decision.resumePoint) return null;
+    const point = decision.resumePoint;
+    return { plan: item, session: ready, point, percent: Math.round((100 * point.completedSteps) / Math.max(1, point.totalSteps)) };
+  }).filter((thread): thread is NonNullable<typeof thread> => thread !== null).slice(0, 3);
+  const standing = plans
+    .filter((item) => (item.knowledgeMap?.topics.length ?? 0) > 0)
+    .slice(0, 2)
+    .map((item) => {
+      const topics = item.knowledgeMap?.topics ?? [];
+      const statuses = topics.map((topic) => ({ topic, status: displayedTopicStatus(topic.id, topic.status, item, sessionCompletions) }));
+      const secure = statuses.filter((entry) => entry.status === "secure").length;
+      const nextTopic = statuses.find((entry) => entry.status !== "secure") ?? null;
+      return { plan: item, secure, total: topics.length, percent: Math.round((100 * secure) / Math.max(1, topics.length)), nextTopic };
+    });
+  const noticedCount = (homeEnergyDecision ? 1 : 0) + (homeWeeklyReview ? 1 : 0) + (!homeWeeklyReview && personalizationRecommendation ? 1 : 0);
+
   return <div className="page home-page">
-    <header className="home-header">
-      <div>
-        <span className="home-date">{formatHomeDate(now)}</span>
-        <h1>{greetingFor(now)}, {firstName}.</h1>
-        <p>{displayedPlan && readySession ? "Here is the clearest next step." : "What would you like to learn or prepare for?"}</p>
-      </div>
-      <button className="button secondary" onClick={onCreatePlan}><Plus size={17} /> New plan</button>
+    <header className="hg-greeting">
+      <span className="hg-date">{formatHomeDate(now).toUpperCase()}</span>
+      <h1>{greetingFor(now)}, <em>{firstName}</em></h1>
     </header>
 
     <GuidedSessionAllowanceNotice allowance={allowance} surface="home" checking={allowanceChecking} />
 
-    {displayedPlan && readySession ? <section
-      className="recommendation-card"
-      aria-label="Recommended learning plan"
-      aria-roledescription="carousel"
-      onTouchStart={(event) => { touchStartX.current = event.changedTouches[0]?.clientX ?? null; }}
-      onTouchEnd={(event) => finishSwipe(event.changedTouches[0]?.clientX ?? 0)}
-    >
-      <div className="rec-top">
-        <span><Target size={14} /> {resumePoint ? "Continue where you left off" : recommendationIndex === 0 ? "Highest priority" : `Next option ${recommendationIndex + 1}`}</span>
-        <div className="rec-carousel-status">
-          <span>{completedCount} of {displayedPlan.sessions.length} sessions complete</span>
-          {recommendations.length > 1 && <div className="rec-carousel-controls">
-            <span>{recommendationIndex + 1} of {recommendations.length}</span>
-            <button aria-label="Show previous recommendation" onClick={showPreviousRecommendation}><ChevronLeft size={16} /></button>
-            <button aria-label="Show next recommendation" onClick={showNextRecommendation}><ChevronRight size={16} /></button>
-          </div>}
-        </div>
-      </div>
-      <div className="rec-slide" key={displayedPlan.id} aria-live="polite">
-      <div className="rec-body">
-        <div className="rec-copy">
-          <span className="subject-label">{displayedPlan.title}</span>
-          {readySession.adaptationNote && <span className="adaptation-proof"><Check size={13} /> Adjusted using your last session</span>}
+    {displayedPlan && readySession ? <div className="hg-hero">
+      <section
+        className="yv-card hero hg-upnext"
+        aria-label="Recommended learning plan"
+        aria-roledescription="carousel"
+        onTouchStart={(event) => { touchStartX.current = event.changedTouches[0]?.clientX ?? null; }}
+        onTouchEnd={(event) => finishSwipe(event.changedTouches[0]?.clientX ?? 0)}
+      >
+        <div className="hg-upnext-slide" key={displayedPlan.id} aria-live="polite">
+          <span className="hg-upnext-kicker">{resumePoint ? (awaitingSessionFinish ? "CONTINUE · READY TO FINISH" : "CONTINUE · PROGRESS SAVED") : `UP NEXT · ${sameDay(readySession.scheduledFor, now) ? `TODAY, ${daypartWord(readySession.scheduledFor).toUpperCase()}` : formatSessionTime(readySession.scheduledFor).toUpperCase()}`}</span>
           <h2>{readySession.title}</h2>
-          <div className="meta-row">
-            <span>{readySession.learningMode === "learn" ? <BookOpen size={16} /> : <Target size={16} />}{readySession.learningMode === "learn" ? "Teaching first" : "Practice first"}</span>
-            <span><Target size={16} /> {readySession.method}</span>
-            <span><Clock3 size={16} /> {readySession.amountLabel}</span>
-            {resumePoint && <span><Check size={16} /> {awaitingSessionFinish ? "Ready to finish" : resumePoint.completedSteps === 0 ? "Place saved" : `${resumePoint.completedSteps} ${resumePoint.completedSteps === 1 ? "section" : "sections"} saved`}</span>}
+          <div className="hg-chip-row">
+            <span className="yv-chip blue">{readySession.method}</span>
+            <span className="yv-chip neutral">{readySession.amountLabel}</span>
+            <span className="yv-chip navy">{displayedPlan.title}</span>
           </div>
-          {visiblePersonalization.length > 0 && <div className="home-personalization-proof"><Sparkles size={14} /><span><strong>Personalized today:</strong> {visiblePersonalization.join(" · ")}</span><button type="button" onClick={onOpenYou}>Why?</button></div>}
+          {(whyNow ?? methodFit) && <p className="hg-why"><strong>{resumePoint ? "WHERE YOU LEFT OFF · " : "WHY THIS · "}</strong>{whyNow ?? methodFit}</p>}
+          {visiblePersonalization.length > 0 && <p className="hg-personalized"><Sparkles size={13} aria-hidden="true" /><span><strong>Personalized today:</strong> {visiblePersonalization.join(" · ")}</span><button type="button" onClick={onOpenYou}>Why?</button></p>}
         </div>
-        <button className="button white large" disabled={displayedStartBlocked} onClick={() => onStart(displayedPlan.id)}>{guidedSessionStartLabel(allowance, awaitingSessionFinish ? "Review and finish" : resumePoint ? "Continue session" : "Start session", displayedSessionHasSavedWork, allowanceChecking)} <ArrowRight size={18} /></button>
-      </div>
-      <div className="rec-rationale">
-        <div><strong>{resumePoint ? "Where you left off" : "Why now"}</strong><p>{whyNow}</p></div>
-        {methodFit && <details><summary>{readySession.adaptationNote ? "See what changed" : "Why this method"}</summary><p>{methodFit}</p></details>}
-      </div>
-      </div>
-      {recommendations.length > 1 && <div className="rec-swipe-hint" aria-hidden="true"><span /><p>Swipe or use the arrows to see other plans</p><span /></div>}
-    </section> : <section className="empty-home">
-      <div className="empty-home-copy"><span className="eyebrow"><BookOpen size={15} /> Start here</span><h2>Turn any goal into a clear next step.</h2><p>Use your own materials, let YOVA create the content, or get a plan for studying somewhere else.</p></div>
-      <div className="empty-home-actions"><button className="button primary large" onClick={onCreatePlan}>Build my first plan <ArrowRight size={18} /></button><button className="button secondary large" disabled={newStudyNowBlocked} onClick={onStudyNow}>Study something now</button></div>
+        <div className="hg-upnext-foot">
+          <button className="yv-pill primary large" disabled={displayedStartBlocked} onClick={() => onStart(displayedPlan.id)}>{guidedSessionStartLabel(allowance, awaitingSessionFinish ? "Review and finish" : resumePoint ? "Continue session" : "Start session", displayedSessionHasSavedWork, allowanceChecking)}</button>
+          {recommendations.length > 1 ? <span className="hg-dots">{recommendations.map((item, index) => <button key={item.id} type="button" className={index === recommendationIndex ? "active" : ""} aria-label={`Show recommendation ${index + 1} of ${recommendations.length}`} aria-pressed={index === recommendationIndex} onClick={() => setSelectedRecommendationId(item.id)} />)}<span className="hg-dots-count">{recommendationIndex + 1} of {recommendations.length}</span></span> : <span className="hg-dots-count">{completedCount} of {displayedPlan.sessions.length} sessions complete</span>}
+        </div>
+      </section>
+      <section className="yv-card hero hg-today">
+        <div className="hg-card-head"><h3 className="yv-serif-heading small">Today</h3><button type="button" className="hg-link" onClick={onOpenAgenda}>Agenda →</button></div>
+        {todayEntries.length > 0 ? todayEntries.slice(0, 3).map(({ plan: entryPlan, session }, index) => <div className="hg-today-row" key={session.id}>
+          <span className={`hg-today-slot ${index === 0 ? "accent" : ""}`}>{daypartShort(session.scheduledFor)}</span>
+          <span className="hg-today-copy"><strong>{session.title}</strong><span>{session.amountLabel}{index === 0 && session.id === readySession.id ? " · up next" : ` · ${entryPlan.title}`}</span></span>
+        </div>) : <p className="hg-today-empty">Nothing else scheduled today.</p>}
+        <div className="hg-stat-row">
+          <span className="hg-stat blue"><strong>{recallAccuracy !== null ? `${recallAccuracy}%` : sessionCompletions.length}</strong><span>{recallAccuracy !== null ? "recall accuracy" : sessionCompletions.length === 1 ? "session completed" : "sessions completed"}</span></span>
+          <span className="hg-stat navy"><strong>{nextMilestone ? new Intl.DateTimeFormat("en-US", { weekday: "short" }).format(new Date(nextMilestone.dueAt)) : plans.length}</strong><span>{nextMilestone ? nextMilestone.title : plans.length === 1 ? "active plan" : "active plans"}</span></span>
+        </div>
+      </section>
+    </div> : <section className="yv-card hero hg-empty">
+      <span className="hg-upnext-kicker">START HERE</span>
+      <h2>Turn any goal into a clear next step.</h2>
+      <p>Use your own materials, let YOVA create the content, or get a plan for studying somewhere else.</p>
+      <div className="hg-empty-actions"><button className="yv-pill primary large" onClick={onCreatePlan}>Build my first plan</button><button className="yv-pill outline" disabled={newStudyNowBlocked} onClick={onStudyNow}>Study something now</button></div>
     </section>}
 
-    <section className="home-command">
-      <span>Ask YOVA</span>
-      <AskBar value={tutorQuestion} onChange={onTutorQuestion} onSubmit={onOpenTutor} />
-    </section>
+    <div className="hg-actionrow">
+      <AskBar value={tutorQuestion} onChange={onTutorQuestion} onSubmit={onOpenTutor} hero />
+      <button type="button" className="hg-tile" onClick={onCreatePlan}><span className="hg-tile-icon blue" aria-hidden="true">+</span><span className="hg-tile-copy"><strong>Add plan</strong><span>Notes, syllabus, link</span></span><span className="hg-tile-arrow" aria-hidden="true">›</span></button>
+      <button type="button" className="hg-tile" disabled={newStudyNowBlocked} onClick={onStudyNow}><span className="hg-tile-icon navy" aria-hidden="true">→</span><span className="hg-tile-copy"><strong>Study now</strong><span>Quick, off-plan</span></span><span className="hg-tile-arrow" aria-hidden="true">›</span></button>
+    </div>
 
-    <section className="home-section">
-      <div className="section-title"><div><h3>Choose a starting point</h3><p>A longer plan or one focused session.</p></div></div>
-      <div className="quick-actions">
-        <button onClick={onCreatePlan}><span className="quick-action-icon"><BookOpen size={19} /></span><span><strong>Create another plan</strong><small>For a test, unit, book, or longer learning goal</small></span><ArrowRight size={17} /></button>
-        <button disabled={newStudyNowBlocked} onClick={onStudyNow}><span className="quick-action-icon"><Target size={19} /></span><span><strong>Study something now</strong><small>Shortcut to one focused session</small></span><ArrowRight size={17} /></button>
+    {noticedCount > 0 && <>
+      <div className="hg-section-head"><h3 className="yv-serif-heading">YOVA noticed</h3><span>from your recent sessions</span></div>
+      <div className="hg-noticed">
+        {homeEnergyDecision && <section className="yv-tint hg-insight">
+          <span className="hg-insight-head"><span className="hg-yava" aria-hidden="true">Y</span><span className="yv-kicker accent">SCHEDULING</span></span>
+          <span className="hg-insight-body"><strong>{homeEnergyDecision.title}.</strong> {homeEnergyDecision.explanation}</span>
+          <span className="hg-insight-actions"><button className="yv-pill outline small" onClick={onOpenYou}>Review</button><span className="hg-insight-note">YOVA will not move a session without you.</span></span>
+        </section>}
+        {homeWeeklyReview && <section className="yv-tint hg-insight">
+          <span className="hg-insight-head"><span className="hg-yava" aria-hidden="true">Y</span><span className="yv-kicker accent">WEEKLY REVIEW</span></span>
+          <span className="hg-insight-body"><strong>{homeWeeklyReview.completedSessions} completed · {formatStudyMinutes(homeWeeklyReview.studiedMinutes)} studied.</strong> {homeWeeklyReview.evidenceHighlights[0] ?? "YOVA is comparing your recent sessions without turning one result into a permanent label."}{homeWeeklyReview.nextSuggestion ? ` Next suggestion: ${homeWeeklyReview.nextSuggestion}` : ""}</span>
+          <span className="hg-insight-actions"><button className="yv-pill primary small" onClick={onOpenYou}>See the evidence</button></span>
+        </section>}
+        {!homeWeeklyReview && personalizationRecommendation && <section className="yv-tint hg-insight">
+          <span className="hg-insight-head"><span className="hg-yava" aria-hidden="true">Y</span><span className="yv-kicker accent">PERSONALIZATION</span></span>
+          <span className="hg-insight-body"><strong>{personalizationRecommendation.title}.</strong> {personalizationRecommendation.explanation} <em>{personalizationRecommendation.evidence}</em></span>
+          <span className="hg-insight-actions">{personalizationRecommendation.action === "improve_profile" ? <button className="yv-pill primary small" onClick={onOpenYou}>{personalizationRecommendation.actionLabel}</button> : personalizationRecommendation.action === "open_learning" && displayedPlan ? <button className="yv-pill primary small" onClick={() => onOpenPlan(displayedPlan.id)}>{personalizationRecommendation.actionLabel}</button> : personalizationRecommendation.action === "start_session" ? <button className="yv-pill primary small" disabled={displayedStartBlocked} onClick={() => onStart(displayedPlan?.id)}>{guidedSessionStartLabel(allowance, personalizationRecommendation.actionLabel ?? "Start session", displayedSessionHasSavedWork, allowanceChecking)}</button> : null}</span>
+        </section>}
       </div>
-    </section>
+    </>}
 
-    {homeWeeklyReview && <section className="home-personalization-recommendation home-weekly-personalization">
-      <div className="home-personalization-icon"><History size={17} /></div>
-      <div><span>Weekly personalization review</span><strong>{homeWeeklyReview.completedSessions} completed · {formatStudyMinutes(homeWeeklyReview.studiedMinutes)} studied</strong><p>{homeWeeklyReview.evidenceHighlights[0] ?? "YOVA is comparing your recent sessions without turning one result into a permanent label."}</p>{homeWeeklyReview.nextSuggestion && <small>Next suggestion: {homeWeeklyReview.nextSuggestion}</small>}</div>
-      <button onClick={onOpenYou}>See the evidence</button>
-    </section>}
+    {plans.length > 0 && <>
+      <div className="hg-section-head"><h3 className="yv-serif-heading">Your week</h3><span>{weekRangeLabel}{nextMilestone ? ` · ${nextMilestone.title.toLowerCase()} in ${daysUntil(nextMilestone.dueAt)} ${daysUntil(nextMilestone.dueAt) === 1 ? "day" : "days"}` : ""}</span></div>
+      <div className="hg-week">
+        {weekDays.map(({ day, entries, due, minutes, offset }) => <section className={`hg-day ${due.length > 0 ? "yv-tint milestone" : "yv-card"}`} key={day.toDateString()}>
+          <span className={`yv-kicker ${offset === 0 || due.length > 0 ? "accent" : ""}`}>{offset === 0 ? `${new Intl.DateTimeFormat("en-US", { weekday: "short" }).format(day).toUpperCase()} · TODAY` : new Intl.DateTimeFormat("en-US", { weekday: "short" }).format(day).toUpperCase()}</span>
+          <strong>{due[0]?.title ?? entries[0]?.title ?? "Open"}</strong>
+          <span className="hg-day-meta">{due.length > 0 ? `${entries.length > 0 ? `${minutes} min · ` : ""}milestone` : entries.length > 0 ? `${minutes} min · ${entries.length} ${entries.length === 1 ? "session" : "sessions"}` : "nothing scheduled"}</span>
+        </section>)}
+      </div>
+    </>}
 
-    {homeEnergyDecision && <section className="home-personalization-recommendation home-energy-personalization">
-      <div className="home-personalization-icon"><SunMedium size={17} /></div>
-      <div><span>Observed timing suggestion</span><strong>{homeEnergyDecision.title}</strong><p>{homeEnergyDecision.explanation}</p><small>YOVA will recommend a time; it will not move a session without you.</small></div>
-      <button onClick={onOpenYou}>Review</button>
-    </section>}
+    {resumeThreads.length > 0 && <>
+      <div className="hg-section-head"><h3 className="yv-serif-heading">Pick up where you left off</h3><span>{resumeThreads.length} open {resumeThreads.length === 1 ? "thread" : "threads"}</span></div>
+      <div className="hg-resume">
+        {resumeThreads.map((thread, index) => <section className={`hg-resume-card ${index === 0 ? "yv-tint" : "yv-card"}`} key={thread.plan.id}>
+          <span className={`yv-kicker ${index === 0 ? "accent" : ""}`}>{thread.plan.title.toUpperCase()}</span>
+          <strong>{thread.session.title}</strong>
+          <span className="hg-resume-meta">{thread.point.completedSteps} of {thread.point.totalSteps} {thread.point.totalSteps === 1 ? "section" : "sections"} saved</span>
+          <span className="hg-bar-row"><span className="yv-bar"><span style={{ width: `${thread.percent}%` }} /></span><span className="hg-bar-pct">{thread.percent}%</span></span>
+          <button className={`yv-pill ${index === 0 ? "primary" : "outline"} small`} disabled={guidedSessionAllowanceBlocksNewStart(allowance, true, allowanceChecking)} onClick={() => onStart(thread.plan.id)}>{index === 0 ? "Resume" : "Continue"}</button>
+        </section>)}
+      </div>
+    </>}
 
-    {!homeWeeklyReview && personalizationRecommendation && <section className="home-personalization-recommendation">
-      <div className="home-personalization-icon"><Settings2 size={17} /></div>
-      <div><span>Personalization suggestion</span><strong>{personalizationRecommendation.title}</strong><p>{personalizationRecommendation.explanation}</p><small>{personalizationRecommendation.evidence}</small></div>
-      {personalizationRecommendation.action === "improve_profile" ? <button onClick={onOpenYou}>{personalizationRecommendation.actionLabel}</button> : personalizationRecommendation.action === "open_learning" && displayedPlan ? <button onClick={() => onOpenPlan(displayedPlan.id)}>{personalizationRecommendation.actionLabel}</button> : personalizationRecommendation.action === "start_session" ? <button disabled={displayedStartBlocked} onClick={() => onStart(displayedPlan?.id)}>{guidedSessionStartLabel(allowance, personalizationRecommendation.actionLabel ?? "Start session", displayedSessionHasSavedWork, allowanceChecking)}</button> : null}
-    </section>}
+    {standing.length > 0 && <>
+      <div className="hg-section-head"><h3 className="yv-serif-heading">Where you stand</h3><span>updates after every session</span></div>
+      <div className="hg-standing">
+        {standing.map(({ plan: item, secure, total, percent, nextTopic }, index) => <button type="button" className="yv-card hg-standing-card" key={item.id} onClick={() => onOpenPlan(item.id)}>
+          <span className="hg-standing-head"><strong>{item.title}</strong><span className={`hg-standing-pct ${index === 0 ? "accent" : ""}`}>{percent}%</span></span>
+          <span className="yv-bar"><span style={{ width: `${percent}%` }} /></span>
+          <span className="hg-standing-note">{nextTopic ? `${secure} of ${total} topics secure · next: ${nextTopic.topic.title.toLowerCase()}` : "all topics secure"}</span>
+        </button>)}
+      </div>
+    </>}
 
-    {plans.length > 0 && <section className="section-block active-learning-block">
-      <div className="section-title"><div><h3>Your learning</h3><p>Plans, sources, and progress.</p></div><span>{plans.length} active</span></div>
-      <div className="compact-items">{plans.map((item) => {
+    {openMilestones.length > 0 && <>
+      <div className="hg-section-head"><h3 className="yv-serif-heading">Milestones</h3><span>{openMilestones.length} coming up</span></div>
+      <div className="hg-milestones">
+        {nextMilestone && <section className="yv-tint hg-milestone">
+          <span className="hg-milestone-copy"><span className="yv-kicker accent">{monoDate(new Date(nextMilestone.dueAt))} · IN {daysUntil(nextMilestone.dueAt)} {daysUntil(nextMilestone.dueAt) === 1 ? "DAY" : "DAYS"}</span><strong>{nextMilestone.title}</strong></span>
+          <button className="yv-pill outline small" onClick={onOpenAgenda}>View in agenda</button>
+        </section>}
+        {laterMilestone && <section className="yv-card hg-milestone">
+          <span className="hg-milestone-copy"><span className="yv-kicker">{monoDate(new Date(laterMilestone.dueAt))}</span><strong className="dim">{laterMilestone.title}</strong></span>
+          <span className="hg-milestone-note">plan adjusts as sessions complete</span>
+        </section>}
+      </div>
+    </>}
+
+    {plans.length > 0 && <>
+      <div className="hg-section-head"><h3 className="yv-serif-heading">Your learning</h3><span>{plans.length} active</span></div>
+      <div className="compact-items hg-plans">{plans.map((item) => {
         const next = item.sessions.find((session) => session.status === "ready");
         const saved = next ? sessionStartRecoveryDecision({
           plan: item,
@@ -4504,7 +4589,7 @@ function HomeScreen({ account, answers, plans, plan, sessionCompletions, session
         }).resumePoint : null;
         return <button className={item.id === displayedPlan?.id ? "selected" : ""} key={item.id} onClick={() => onOpenPlan(item.id)}><SubjectIcon plan={item} compact /><span><strong>{item.title}</strong><small>{next ? saved ? `Continue at section ${Math.min(saved.totalSteps, saved.completedSteps + 1)}` : `${next.learningMode === "learn" ? "Teaching first" : "Practice first"} · ${formatSessionTime(next.scheduledFor)}` : "Plan complete"}</small></span><ChevronRight /></button>;
       })}</div>
-    </section>}
+    </>}
   </div>;
 }
 
@@ -4570,8 +4655,8 @@ function greetingFor(date: Date) {
   return "Good evening";
 }
 
-function AskBar({ value, onChange, onSubmit, pending = false }: { value: string; onChange: (value: string) => void; onSubmit: () => void; pending?: boolean }) {
-  return <form className="ask-bar" onSubmit={(event) => { event.preventDefault(); if (value.trim() && !pending) onSubmit(); }}><Sparkles size={20} /><input aria-label="Ask YOVA" placeholder="Ask YOVA anything or describe what you need…" value={value} disabled={pending} onChange={(event) => onChange(event.target.value)} /><button aria-label="Send" type="submit" disabled={!value.trim() || pending}>{pending ? <span className="button-spinner" /> : <Send size={18} />}</button></form>;
+function AskBar({ value, onChange, onSubmit, pending = false, hero = false }: { value: string; onChange: (value: string) => void; onSubmit: () => void; pending?: boolean; hero?: boolean }) {
+  return <form className={`ask-bar ${hero ? "hero" : ""}`} onSubmit={(event) => { event.preventDefault(); if (value.trim() && !pending) onSubmit(); }}>{!hero && <Sparkles size={20} />}<input aria-label="Ask YOVA" placeholder={hero ? "Ask YOVA about anything you're studying…" : "Ask YOVA anything or describe what you need…"} value={value} disabled={pending} onChange={(event) => onChange(event.target.value)} /><button aria-label="Send" type="submit" disabled={!value.trim() || pending}>{pending ? <span className="button-spinner" /> : hero ? <span className="ask-bar-send-label">Ask</span> : <Send size={18} />}</button></form>;
 }
 
 function LearningScreen({ plans, detailPlanId, sessionCompletions, sessionInterruptions, activeSessionCheckpoints, preferredMethodIds: selectedPreferredMethodIds, syncedPreferenceKey, statedPreferencesEnabled, onPreferredMethodIdsChange, onOpenPlan, onClosePlan, onStart, onCreatePlan, onArchiveStateChange, onDeletePlan, onAdjustPlan, onKnowledgeMapUpdate, onAttachMaterials }: { plans: LearningPlan[]; detailPlanId: string | null; sessionCompletions: SessionCompletion[]; sessionInterruptions: SessionInterruption[]; activeSessionCheckpoints: ActiveSessionCheckpoint[]; preferredMethodIds: readonly CoreMethodId[]; syncedPreferenceKey: string | null; statedPreferencesEnabled: boolean; onPreferredMethodIdsChange: (methodIds: CoreMethodId[]) => void | Promise<void>; onOpenPlan: (planId: string) => void; onClosePlan: () => void; onStart: (planId: string) => void; onCreatePlan: () => void; onArchiveStateChange: (planId: string, action: "archive" | "restore") => Promise<LearningPlan["status"]>; onDeletePlan: (planId: string) => Promise<void>; onAdjustPlan: (input: PlanAdjustmentRequest) => Promise<void>; onKnowledgeMapUpdate: (planId: string, knowledgeMap: PlanKnowledgeMap) => void; onAttachMaterials: (planId: string, materialIds: string[]) => Promise<void> }) {

@@ -26,6 +26,8 @@
   },
   "dependencies": {
     "@fontsource/inter": "latest",
+    "@fontsource/jetbrains-mono": "^5.3.0",
+    "@fontsource/newsreader": "^5.3.0",
     "@fontsource/sora": "latest",
     "@supabase/ssr": "^0.12.4",
     "@supabase/supabase-js": "^2.111.0",
