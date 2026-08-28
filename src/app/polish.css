@@ -612,7 +612,6 @@ input:focus-visible, textarea:focus-visible, select:focus-visible { outline: non
 
 html { background: #f7f8fc; }
 body { color: var(--text); background: #f7f8fc; }
-h1, h2, h3, h4, h5 { color: var(--ink); }
 a { color: var(--link); }
 a:hover { color: var(--ink); }
 
@@ -729,7 +728,7 @@ a:hover { color: var(--ink); }
 .hg-stat strong { font-family: var(--font-newsreader), serif; font-size: 16px; font-weight: 500; color: var(--navy); }
 .hg-stat > span { font-size: 10.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .hg-empty { padding: 30px 34px; display: flex; flex-direction: column; gap: 10px; }
-.hg-empty h2 { margin: 0; font-family: var(--font-newsreader), serif; font-size: 30px; font-weight: 400; letter-spacing: 0; }
+.hg-empty h2 { margin: 0; color: var(--ink); font-family: var(--font-newsreader), serif; font-size: 30px; font-weight: 400; letter-spacing: 0; }
 .hg-empty p { margin: 0; max-width: 520px; color: var(--muted); font-size: 13.5px; line-height: 1.6; }
 .hg-empty-actions { margin-top: 8px; display: flex; gap: 10px; flex-wrap: wrap; }
 .hg-actionrow { display: grid; grid-template-columns: minmax(0,1.5fr) minmax(0,.5fr) minmax(0,.5fr); gap: 13px; }
@@ -787,7 +786,7 @@ a:hover { color: var(--ink); }
 .compact-items.hg-plans > button.selected { background: var(--tint-bg); border-color: var(--tint-border); }
 
 /* ---- Learning / Agenda / Ask / You: restyle-only via existing classes ---- */
-.page-header h1, .learning-page h1, .agenda-page h1, .ask-page h1, .you-page h1 { font-family: var(--font-newsreader), serif; font-weight: 400; letter-spacing: 0; }
+.page-header h1, .learning-page h1, .agenda-page h1, .ask-page h1, .you-page h1 { color: var(--ink); font-family: var(--font-newsreader), serif; font-weight: 400; letter-spacing: 0; }
 .learning-summary > div, .agenda-summary-card, .learning-goal-card, .agenda-recovery, .agenda-balance-card, .agenda-capacity-planner, .ask-context-banner, .tutor-action-card { border: 1px solid var(--glass-border); background: var(--glass-bg); box-shadow: var(--glass-shadow); border-radius: 18px; }
 .agenda-recovery, .agenda-balance-card, .ask-context-banner { background: var(--tint-bg); border-color: rgba(36,80,199,.2); }
 .learning-summary strong { font-family: var(--font-newsreader), serif; font-weight: 500; }
@@ -830,7 +829,7 @@ a:hover { color: var(--ink); }
 .hero-card { border-radius: 26px; background: linear-gradient(135deg, #182446, #0b1020 78%); }
 .hero-card:after { background: radial-gradient(circle, rgba(47,95,224,.4), rgba(36,80,199,.06) 58%, transparent 70%); }
 .hero-card h1 { font-family: var(--font-newsreader), serif; font-weight: 400; letter-spacing: -.012em; }
-.how-yova-works h2 { font-family: var(--font-newsreader), serif; font-weight: 400; letter-spacing: -.012em; }
+.how-yova-works h2 { color: var(--ink); font-family: var(--font-newsreader), serif; font-weight: 400; letter-spacing: -.012em; }
 .how-steps h3 { font-family: var(--font-newsreader), serif; font-style: italic; font-weight: 500; letter-spacing: 0; }
 .how-steps article { border-radius: 18px; border-color: #fff; background: rgba(255,255,255,.82); }
 .how-steps article > span { border-radius: 999px; background: var(--grad-primary); font-family: var(--font-mono), monospace; font-size: 13px; }
