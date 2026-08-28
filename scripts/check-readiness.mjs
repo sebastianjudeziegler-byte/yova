@@ -25,6 +25,7 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY?.trim();
 const supabaseSecretKey = process.env.SUPABASE_SECRET_KEY?.trim();
 const cronSecret = process.env.CRON_SECRET ?? "";
+const draftReceiptSecret = process.env.YOVA_DRAFT_RECEIPT_SECRET ?? "";
 const openAIKey = process.env.OPENAI_API_KEY?.trim();
 const siteUrl = process.env.SITE_URL?.trim();
 const vercelUrl = process.env.VERCEL_PROJECT_PRODUCTION_URL?.trim()
@@ -64,12 +65,21 @@ addCheck(
     ? "remove the public Supabase secret immediately"
     : "the Supabase invitation secret stays server-only",
 );
+addCheck(
+  "No public plan-draft secret",
+  !process.env.NEXT_PUBLIC_YOVA_DRAFT_RECEIPT_SECRET,
+  process.env.NEXT_PUBLIC_YOVA_DRAFT_RECEIPT_SECRET
+    ? "remove NEXT_PUBLIC_YOVA_DRAFT_RECEIPT_SECRET immediately"
+    : "the plan-draft signing key stays server-only",
+);
 
 if (production) {
   addCheck(
-    "Founder invitation secret",
+    "Supabase server secret",
     Boolean(supabaseSecretKey && supabaseSecretKey.length >= 20),
-    supabaseSecretKey ? "configured without exposing its value" : "missing SUPABASE_SECRET_KEY",
+    supabaseSecretKey
+      ? "configured for server-only plan activation permits and administrative workflows"
+      : "missing SUPABASE_SECRET_KEY; production plan activation cannot mint a permit",
   );
   addCheck(
     "Account-export cleanup secret",
@@ -77,6 +87,13 @@ if (production) {
     cronSecret.length >= 32 && cronSecret === cronSecret.trim()
       ? "configured without exposing its value"
       : "missing, short, or surrounded by whitespace in CRON_SECRET",
+  );
+  addCheck(
+    "Plan-draft receipt secret",
+    draftReceiptSecret.length >= 32 && draftReceiptSecret === draftReceiptSecret.trim(),
+    draftReceiptSecret.length >= 32 && draftReceiptSecret === draftReceiptSecret.trim()
+      ? "configured without exposing its value"
+      : "missing, short, or surrounded by whitespace in YOVA_DRAFT_RECEIPT_SECRET",
   );
   if (passwordAccounts) {
     addCheck(

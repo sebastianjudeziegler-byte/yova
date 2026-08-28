@@ -5,6 +5,8 @@ import type {
   NextSessionAdaptation,
 } from "@/lib/domain";
 import { completePlanSession } from "@/lib/learning/complete-plan-session";
+import { preparePostSessionStudyRouteTransition } from "@/lib/study-route/post-session-transition";
+import { createCommittedInitialSessionStudyRoute } from "@/lib/study-route/session-route-creation";
 
 function session(
   sequence: number,
@@ -276,5 +278,107 @@ describe("completePlanSession", () => {
       completedSessionId: "missing",
       completedAt: "2026-08-09T18:25:00.000Z",
     })).toBe(original);
+  });
+
+  it("replaces an adapted session's committed route with the exact successor", () => {
+    const raw: LearningPlan = {
+      ...plan([]),
+      id: "11111111-1111-4111-8111-111111111111",
+      learningItemId: "22222222-2222-4222-8222-222222222222",
+      createdAt: "2026-08-23T08:00:00.000Z",
+      sessions: [
+        session(1, "ready", {
+          id: "33333333-3333-4333-8333-333333333333",
+          method: "Self-explanation",
+          topicIds: ["44444444-4444-4444-8444-444444444444"],
+        }),
+        session(2, "upcoming", {
+          id: "55555555-5555-4555-8555-555555555555",
+          method: "Retrieval practice",
+          topicIds: ["66666666-6666-4666-8666-666666666666"],
+        }),
+      ],
+    };
+    const routed: LearningPlan = {
+      ...raw,
+      sessions: raw.sessions.map((current) => ({
+        ...current,
+        studyRoute: createCommittedInitialSessionStudyRoute({
+          plan: raw,
+          session: current,
+          now: raw.createdAt,
+          origin: { source: "plan_activation", reason: "The learner activated this plan." },
+        }),
+      })),
+    };
+    const approved = {
+      ...adaptation(routed.sessions[1]!),
+      method: "Independent application and mixed practice",
+      methodReason: "A stronger independent result supports mixed application on the same planned target.",
+      learningMode: "study" as const,
+    };
+    const transition = preparePostSessionStudyRouteTransition({
+      plan: routed,
+      completedSessionId: routed.sessions[0]!.id,
+      changedAt: "2026-08-23T09:00:00.000Z",
+      adaptation: approved,
+    });
+
+    const result = completePlanSession({
+      plan: routed,
+      completedSessionId: routed.sessions[0]!.id,
+      completedAt: "2026-08-23T09:00:00.000Z",
+      adaptation: approved,
+      nextSessionStudyRoute: transition.nextSessionStudyRoute,
+    });
+
+    expect(result.sessions[1]?.studyRoute?.identity).toMatchObject({
+      revisionNumber: 2,
+      routeLineageId: routed.sessions[1]!.studyRoute!.identity.routeLineageId,
+      supersedesRevisionId: routed.sessions[1]!.studyRoute!.identity.routeRevisionId,
+      lifecycleStatus: "committed",
+    });
+    expect(result.sessions[1]?.method).toBe("Independent application and mixed practice");
+  });
+
+  it("does not let a route-aware adaptation leave its old route attached", () => {
+    const raw: LearningPlan = {
+      ...plan([]),
+      id: "71111111-1111-4111-8111-111111111111",
+      learningItemId: "72222222-2222-4222-8222-222222222222",
+      createdAt: "2026-08-23T08:00:00.000Z",
+      sessions: [
+        session(1, "ready", {
+          id: "73333333-3333-4333-8333-333333333333",
+          method: "Self-explanation",
+        }),
+        session(2, "upcoming", {
+          id: "74444444-4444-4444-8444-444444444444",
+          method: "Retrieval practice",
+        }),
+      ],
+    };
+    const routed: LearningPlan = {
+      ...raw,
+      sessions: raw.sessions.map((current) => ({
+        ...current,
+        studyRoute: createCommittedInitialSessionStudyRoute({
+          plan: raw,
+          session: current,
+          now: raw.createdAt,
+          origin: { source: "plan_activation", reason: "The learner activated this plan." },
+        }),
+      })),
+    };
+
+    expect(() => completePlanSession({
+      plan: routed,
+      completedSessionId: routed.sessions[0]!.id,
+      completedAt: "2026-08-23T09:00:00.000Z",
+      adaptation: {
+        ...adaptation(routed.sessions[1]!),
+        method: "Independent application and mixed practice",
+      },
+    })).toThrow("requires a committed successor StudyRoute");
   });
 });

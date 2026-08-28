@@ -18,6 +18,41 @@ import type { CoreMethodId } from "@/lib/learning/method-catalog";
 const PromptText = z.string().trim().min(3).max(320);
 const AnswerText = z.string().trim().min(1).max(600);
 
+const RetrievalPromptSchema = z.object({
+  prompt: PromptText,
+  expectedAnswer: AnswerText,
+  /** Offered only after an attempt, never before. */
+  hint: z.string().trim().min(4).max(240).nullable().default(null),
+});
+
+const BroadRecallTransferPromptSchema = z.object({
+  /** The source must be closed again after gap repair. */
+  sourceClosedReminder: z.string().trim().min(10).max(200),
+  prompt: PromptText,
+  expectedAnswer: AnswerText,
+});
+
+/**
+ * Server-owned identity and assessment criteria for one routed Blurting target.
+ * The object is strict because it is later safe to hand to the privacy-preserving
+ * progress/evidence kernels; learner-authored drafts never belong in this block.
+ */
+export const BroadRecallRuntimeTargetBindingSchema = z.object({
+  targetId: z.string().uuid(),
+  evidenceId: z.string().min(1).max(200),
+  concept: z.string().trim().min(2).max(120),
+  comparisonCriterion: z.string().trim().min(8).max(240),
+  transferSuccessCriterion: z.string().trim().min(8).max(240),
+}).strict().superRefine((binding, context) => {
+  if (binding.evidenceId !== broadRecallFinalCheckEvidenceId(binding.targetId)) {
+    context.addIssue({
+      code: "custom",
+      path: ["evidenceId"],
+      message: "A broad-recall target must use its exact final-check evidence identifier.",
+    });
+  }
+});
+
 /**
  * Retrieval practice and spaced retrieval. The learner must produce an answer
  * from memory before anything is revealed, which is the mechanism itself
@@ -25,15 +60,127 @@ const AnswerText = z.string().trim().min(1).max(600);
  */
 export const RetrievalRoundRuntimeSchema = z.object({
   kind: z.literal("retrieval_round"),
+  /** Missing means the original 3-10 prompt-set runtime used by saved sessions. */
+  format: z.literal("broad_recall_v1").nullable().optional(),
   /** Shown before the first prompt so the learner closes the source first. */
   sourceClosedReminder: z.string().trim().min(10).max(200),
-  prompts: z.array(z.object({
-    prompt: PromptText,
-    expectedAnswer: AnswerText,
-    /** Offered only after an attempt, never before. */
-    hint: z.string().trim().min(4).max(240).nullable().default(null),
-  })).min(3).max(10),
+  prompts: z.array(RetrievalPromptSchema).min(1).max(10),
+  /** Shown only after the learner has completed the broad closed-source recall. */
+  comparisonInstructions: z.string().trim().min(10).max(320).nullable().optional(),
+  /** A bounded source-comparison checklist; it never contains learner-authored text. */
+  gapChecklist: z.array(z.string().trim().min(3).max(240)).min(1).max(6).nullable().optional(),
+  correctionInstruction: z.string().trim().min(10).max(320).nullable().optional(),
+  /** One different application after the learner repairs gaps and closes the source again. */
+  transferPrompt: BroadRecallTransferPromptSchema.nullable().optional(),
+  /** Missing on legacy retrieval rounds; mandatory for the dedicated broad-recall format. */
+  targetBindings: z.array(BroadRecallRuntimeTargetBindingSchema)
+    .min(1)
+    .max(3)
+    .nullable()
+    .optional(),
+}).superRefine((runtime, context) => {
+  if (runtime.format !== "broad_recall_v1") {
+    if (runtime.prompts.length < 3) {
+      context.addIssue({
+        code: "custom",
+        path: ["prompts"],
+        message: "The legacy retrieval prompt set requires 3 to 10 prompts.",
+      });
+    }
+    return;
+  }
+
+  if (runtime.prompts.length !== 1) {
+    context.addIssue({
+      code: "custom",
+      path: ["prompts"],
+      message: "Broad recall requires exactly one minimally cued prompt.",
+    });
+  }
+  if (runtime.prompts.some((prompt) => prompt.hint !== null)) {
+    context.addIssue({
+      code: "custom",
+      path: ["prompts", 0, "hint"],
+      message: "Broad recall must not cue the initial blurt with a hint.",
+    });
+  }
+  if (!runtime.comparisonInstructions) {
+    context.addIssue({
+      code: "custom",
+      path: ["comparisonInstructions"],
+      message: "Broad recall requires delayed source-comparison instructions.",
+    });
+  }
+  if (!runtime.gapChecklist) {
+    context.addIssue({
+      code: "custom",
+      path: ["gapChecklist"],
+      message: "Broad recall requires a bounded gap checklist.",
+    });
+  }
+  if (!runtime.correctionInstruction) {
+    context.addIssue({
+      code: "custom",
+      path: ["correctionInstruction"],
+      message: "Broad recall requires a correction instruction.",
+    });
+  }
+  if (!runtime.transferPrompt) {
+    context.addIssue({
+      code: "custom",
+      path: ["transferPrompt"],
+      message: "Broad recall requires one fresh closed-source transfer prompt.",
+    });
+  } else if (
+    runtime.prompts[0]
+    && normalizedPrompt(runtime.transferPrompt.prompt) === normalizedPrompt(runtime.prompts[0].prompt)
+  ) {
+    context.addIssue({
+      code: "custom",
+      path: ["transferPrompt", "prompt"],
+      message: "The transfer prompt must be fresh rather than a repeat of the broad prompt.",
+    });
+  }
+  if (!runtime.targetBindings) {
+    context.addIssue({
+      code: "custom",
+      path: ["targetBindings"],
+      message: "Broad recall requires one to three server-owned target bindings.",
+    });
+  } else {
+    reportDuplicateBroadRecallBindings(runtime.targetBindings, context);
+  }
 });
+
+function normalizedPrompt(value: string) {
+  return value.trim().toLocaleLowerCase().replace(/\s+/g, " ");
+}
+
+function broadRecallFinalCheckEvidenceId(targetId: string) {
+  return `blurting-final-check:${targetId}`;
+}
+
+function reportDuplicateBroadRecallBindings(
+  bindings: readonly z.infer<typeof BroadRecallRuntimeTargetBindingSchema>[],
+  context: z.RefinementCtx,
+) {
+  const targetIds = bindings.map((binding) => binding.targetId);
+  const evidenceIds = bindings.map((binding) => binding.evidenceId);
+  if (new Set(targetIds).size !== targetIds.length) {
+    context.addIssue({
+      code: "custom",
+      path: ["targetBindings"],
+      message: "Broad-recall target bindings must be unique.",
+    });
+  }
+  if (new Set(evidenceIds).size !== evidenceIds.length) {
+    context.addIssue({
+      code: "custom",
+      path: ["targetBindings"],
+      message: "Broad-recall evidence bindings must be unique.",
+    });
+  }
+}
 
 /**
  * Worked examples with guidance fading. The first pass shows a complete
@@ -97,8 +244,12 @@ export const MethodRuntimeSchema = z.discriminatedUnion("kind", [
   ErrorRepairRuntimeSchema,
 ]);
 
-export type MethodRuntime = z.infer<typeof MethodRuntimeSchema>;
+/** Input shape keeps fields defaulted by the parser optional for old resources. */
+export type MethodRuntime = z.input<typeof MethodRuntimeSchema>;
 export type MethodRuntimeKind = MethodRuntime["kind"];
+export type BroadRecallRuntimeTargetBinding = z.infer<
+  typeof BroadRecallRuntimeTargetBindingSchema
+>;
 
 /**
  * Which runtime a routed method should produce. Methods absent from this map
@@ -175,6 +326,7 @@ export function methodRuntimePromptContract(methodId: CoreMethodId) {
 export function methodRuntimeMismatch(
   methodId: CoreMethodId,
   runtime: MethodRuntime | null,
+  options: { allowBroadRecall?: boolean } = {},
 ): string | null {
   const expected = methodRuntimeKindFor(methodId);
   if (!runtime) return null;
@@ -183,6 +335,20 @@ export function methodRuntimeMismatch(
   }
   if (runtime.kind !== expected) {
     return `The session produced a ${runtime.kind} runtime for ${methodId}, which uses ${expected}.`;
+  }
+  if (
+    runtime.kind === "retrieval_round"
+    && runtime.format === "broad_recall_v1"
+    && methodId !== "retrieval_practice"
+  ) {
+    return `The broad_recall_v1 retrieval format is exclusive to retrieval_practice, not ${methodId}.`;
+  }
+  if (
+    runtime.kind === "retrieval_round"
+    && runtime.format === "broad_recall_v1"
+    && options.allowBroadRecall !== true
+  ) {
+    return "The broad_recall_v1 retrieval format is disabled unless the server explicitly allows it.";
   }
   return null;
 }
@@ -196,9 +362,12 @@ export function methodRuntimeMismatch(
 export function validateAttachedMethodRuntimes(
   methodId: CoreMethodId,
   runtimes: readonly (MethodRuntime | null)[],
+  options: { allowBroadRecall?: boolean } = {},
 ): string | null {
   const attached = runtimes.filter((runtime): runtime is MethodRuntime => Boolean(runtime));
-  const mismatched = attached.map((runtime) => methodRuntimeMismatch(methodId, runtime)).find(Boolean);
+  const mismatched = attached
+    .map((runtime) => methodRuntimeMismatch(methodId, runtime, options))
+    .find(Boolean);
   return mismatched ?? null;
 }
 

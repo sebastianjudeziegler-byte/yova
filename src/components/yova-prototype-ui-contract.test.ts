@@ -36,6 +36,49 @@ describe("YOVA prototype UI contracts", () => {
     expect(component).not.toContain("adjustment === undefined && !isScheduledRetrievalSession(requestedSession)");
   });
 
+  it("does not offer controls that silently mutate a committed StudyRoute", () => {
+    const component = readSource("src/components/yova-prototype.tsx");
+    const setupStart = component.indexOf("function SessionSetup");
+    const setupEnd = component.indexOf("export function formatSessionPreparationTopic", setupStart);
+    const setup = component.slice(setupStart, setupEnd);
+    const sourcesStart = component.indexOf("function PlanSources");
+    const sourcesEnd = component.indexOf("function materialAttachmentWasCommitted", sourcesStart);
+    const sources = component.slice(sourcesStart, sourcesEnd);
+
+    expect(setup).toContain('routeContract?.resolution.source === "stored"');
+    expect(setup).toContain("Time in this recipe");
+    expect(setup).toContain("Cancel and use Adjust on the goal to change it visibly before starting.");
+    expect(setup).toContain("availableMinutes: committedStudyRoute ? null : availableMinutes");
+    expect(sources).toContain("const sourceChangeLocked");
+    expect(sources).toContain("Sources are locked for this active plan");
+    expect(sources).toContain("canAddSource && <MaterialLinkImporter");
+  });
+
+  it("keeps ready-session method control bounded, visible, and server-authoritative", () => {
+    const component = readSource("src/components/yova-prototype.tsx");
+    const styles = readSource("src/app/globals.css");
+    const setupStart = component.indexOf("function SessionSetup");
+    const setupEnd = component.indexOf("export function formatSessionPreparationTopic", setupStart);
+    const setup = component.slice(setupStart, setupEnd);
+
+    expect(setup).toContain("onChangeMethod: (selection:");
+    expect(setup).toContain('storedSession?.status === "ready"');
+    expect(setup).toContain("committedStudyRoute.identity.planId === plan.id");
+    expect(setup).toContain("committedStudyRoute.identity.sessionId === session.id");
+    expect(setup).toContain("!storedSession.resource");
+    expect(setup).toContain(").slice(0, 2)");
+    expect(setup).toContain("committedStudyRoute?.approach.visibleMethodName");
+    expect(setup).toContain("committedStudyRoute?.explanation.shortReason");
+    expect(setup).toContain("expectedRouteRevisionId: methodChoiceRoute.identity.routeRevisionId");
+    expect(setup).toContain("aria-expanded={methodChoicesOpen}");
+    expect(setup).toContain("Other methods that also fit for ${session.title}");
+    expect(setup).toContain("Only the method changes. The target,");
+    expect(setup).toContain('role="status" aria-live="polite"');
+    expect(setup).toContain('role="alert"');
+    expect(styles).toContain(".session-method-choice-trigger:focus-visible");
+    expect(styles).toContain(".session-method-options > button:focus-visible");
+  });
+
   it("uses one return label throughout the lesson review dialog", () => {
     const component = readSource("src/components/yova-prototype.tsx");
     const dialogStart = component.indexOf('{reviewingModel &&');

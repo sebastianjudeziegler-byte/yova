@@ -4,6 +4,7 @@ const DAY_IN_MILLISECONDS = 24 * 60 * 60 * 1_000;
 
 export type ConceptReviewDirective = {
   topicId?: string;
+  originRouteRevisionId?: string;
   concept: string;
   evidenceStatus: ConceptSignal["status"];
   reviewType: "repair_and_retrieve" | "verify" | "maintenance_transfer";
@@ -159,6 +160,7 @@ function toReviewDirective(
   if (signal.status === "needs_review") {
     return {
       ...(signal.topicId ? { topicId: signal.topicId } : {}),
+      ...(signal.lastRouteRevisionId ? { originRouteRevisionId: signal.lastRouteRevisionId } : {}),
       concept: signal.concept,
       evidenceStatus: signal.status,
       reviewType: "repair_and_retrieve",
@@ -175,6 +177,7 @@ function toReviewDirective(
   if (signal.status === "showing_strength") {
     return {
       ...(signal.topicId ? { topicId: signal.topicId } : {}),
+      ...(signal.lastRouteRevisionId ? { originRouteRevisionId: signal.lastRouteRevisionId } : {}),
       concept: signal.concept,
       evidenceStatus: signal.status,
       reviewType: "maintenance_transfer",
@@ -190,6 +193,7 @@ function toReviewDirective(
 
   return {
     ...(signal.topicId ? { topicId: signal.topicId } : {}),
+    ...(signal.lastRouteRevisionId ? { originRouteRevisionId: signal.lastRouteRevisionId } : {}),
     concept: signal.concept,
     evidenceStatus: signal.status,
     reviewType: "verify",

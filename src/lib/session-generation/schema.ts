@@ -18,10 +18,13 @@ import { KnowledgeMapTopicSchema } from "@/lib/knowledge-map/schema";
 import { SESSION_ARCHITECTURE_VERSIONS } from "@/lib/session-generation/architecture";
 import { PRACTICE_INTENTS } from "@/lib/learning/practice-variation";
 import { MAX_RUNTIME_PLAN_SESSIONS } from "@/lib/plan-generation/schema";
+import { StudyRouteSchema } from "@/lib/study-route/schema";
 
 export const SessionGenerationRequestSchema = z.object({
   planId: z.string().uuid(),
   planSessionId: z.string().uuid(),
+  /** Exact committed route expected by this generation request. */
+  routeRevisionId: z.string().uuid().optional(),
   sessionAdjustment: z.object({
     familiarity: z.enum(["as_planned", "already_know", "need_teaching", "challenge_me"]),
     availableMinutes: z.number().int().min(10).max(90).nullable(),
@@ -29,6 +32,13 @@ export const SessionGenerationRequestSchema = z.object({
     note: z.string().trim().max(500),
   }).optional(),
   previewContext: z.object({
+    /**
+     * Browser-preview plans have no durable database row to reload at the API
+     * boundary, so the exact committed route travels with the validated
+     * preview context. Authenticated requests continue to load it from
+     * `study_routes` instead of trusting the client copy.
+     */
+    studyRoute: StudyRouteSchema.optional(),
     sessionArchitectureVersion: z.enum(SESSION_ARCHITECTURE_VERSIONS).default("filled_teaching_v1"),
     learningGoal: z.object({
       title: z.string().trim().min(2).max(160),
@@ -141,6 +151,32 @@ export const SessionGenerationRequestSchema = z.object({
     })).max(20).default([]),
     personalization: GenerationPersonalizationContextSchema.optional(),
   }).optional(),
+}).superRefine((request, context) => {
+  const previewRoute = request.previewContext?.studyRoute;
+  if (!request.previewContext) return;
+
+  if (request.routeRevisionId && !previewRoute) {
+    context.addIssue({
+      code: "custom",
+      path: ["previewContext", "studyRoute"],
+      message: "A routed browser preview must include its canonical study route.",
+    });
+    return;
+  }
+  if (!previewRoute) return;
+
+  const routeIdentity = previewRoute.identity;
+  const identityMatches = routeIdentity.lifecycleStatus === "committed"
+    && routeIdentity.planId === request.planId
+    && routeIdentity.sessionId === request.planSessionId
+    && routeIdentity.routeRevisionId === request.routeRevisionId;
+  if (!identityMatches) {
+    context.addIssue({
+      code: "custom",
+      path: ["previewContext", "studyRoute", "identity"],
+      message: "The browser preview route must be the exact committed route requested for this session.",
+    });
+  }
 });
 
 export type SessionGenerationRequest = z.infer<typeof SessionGenerationRequestSchema>;
@@ -581,6 +617,7 @@ export const StreamedGeneratedSessionDraftSchema = StreamedGeneratedSessionDraft
 
 export const CachedGeneratedSessionV15Schema = GeneratedSessionDraftSchema.extend({
   schemaVersion: z.literal(15),
+  routeRevisionId: z.string().uuid().optional(),
   model: z.string().min(1),
   generatedAt: z.string().datetime({ offset: true }),
   routingContext: z.object({
@@ -594,11 +631,13 @@ export const CachedGeneratedSessionV15Schema = GeneratedSessionDraftSchema.exten
     adjustmentFingerprint: z.string().regex(/^[a-f0-9]{64}$/),
     contractFingerprint: z.string().regex(/^[a-f0-9]{64}$/).optional(),
     scopeFingerprint: z.string().regex(/^sc1:[a-f0-9]{16}$/),
+    routeRevisionId: z.string().uuid().optional(),
   }).optional(),
-});
+}).superRefine(requireMatchingCachedRouteRevisionReceipts);
 
 export const CachedGeneratedSessionV16Schema = StreamedGeneratedSessionDraftSchema.extend({
   schemaVersion: z.literal(16),
+  routeRevisionId: z.string().uuid().optional(),
   model: z.string().min(1),
   generatedAt: z.string().datetime({ offset: true }),
   routingContext: z.object({
@@ -615,6 +654,7 @@ export const CachedGeneratedSessionV16Schema = StreamedGeneratedSessionDraftSche
 // whose teaching blocks were not guaranteed to alternate with their checks.
 export const CachedGeneratedSessionV17Schema = StreamedGeneratedSessionDraftSchema.extend({
   schemaVersion: z.literal(17),
+  routeRevisionId: z.string().uuid().optional(),
   model: z.string().min(1),
   generatedAt: z.string().datetime({ offset: true }),
   routingContext: z.object({
@@ -629,8 +669,28 @@ export const CachedGeneratedSessionV17Schema = StreamedGeneratedSessionDraftSche
     adjustmentFingerprint: z.string().regex(/^[a-f0-9]{64}$/),
     contractFingerprint: z.string().regex(/^[a-f0-9]{64}$/).optional(),
     scopeFingerprint: z.string().regex(/^sc1:[a-f0-9]{16}$/),
+    routeRevisionId: z.string().uuid().optional(),
   }),
-});
+}).superRefine(requireMatchingCachedRouteRevisionReceipts);
+
+function requireMatchingCachedRouteRevisionReceipts(
+  session: {
+    routeRevisionId?: string;
+    cacheContext?: { routeRevisionId?: string };
+  },
+  context: z.RefinementCtx,
+) {
+  if (
+    session.cacheContext
+    && session.routeRevisionId !== session.cacheContext.routeRevisionId
+  ) {
+    context.addIssue({
+      code: "custom",
+      path: ["cacheContext", "routeRevisionId"],
+      message: "The cached session and cache context must identify the same study-route revision.",
+    });
+  }
+}
 
 export const CachedGeneratedSessionSchema = z.discriminatedUnion("schemaVersion", [
   CachedGeneratedSessionV15Schema,

@@ -5,6 +5,7 @@ import type {
   SessionInterruption,
 } from "@/lib/domain";
 import type { LearningTaskType } from "@/lib/learning/method-catalog";
+import type { CoreMethodId } from "@/lib/learning/method-catalog";
 import { completionCreatesTopicEvidence } from "@/lib/learning/session-completion-provenance";
 import {
   inferKnowledgeStage,
@@ -46,7 +47,21 @@ const methodLabels: Record<MethodFamily, string> = {
   focused_work: "Focused study",
 };
 
+const routeMethodFamilies: Record<CoreMethodId, MethodFamily> = {
+  retrieval_practice: "retrieval",
+  spaced_retrieval: "retrieval",
+  self_explanation: "guided_explanation",
+  worked_example_fading: "guided_explanation",
+  interleaved_practice: "practice",
+  read_recall_review: "guided_explanation",
+  retrieval_based_outlining: "practice",
+  scaffolded_coding: "practice",
+  practice_test_error_repair: "assessment",
+};
+
 function methodFamily(session: LearningPlanSession): MethodFamily {
+  const committedMethodId = session.studyRoute?.approach.primaryMethodId;
+  if (committedMethodId) return routeMethodFamilies[committedMethodId];
   const method = methodText(session);
 
   if (/guided|explanation|explain|worked example|teach|understand/.test(method)) {
@@ -68,7 +83,7 @@ function signalStatus(
   averageAccuracy: number | null,
   difficultRatings: number,
 ): MethodSignalStatus {
-  if (sessions < 2 || checkedAnswers < 2 || averageAccuracy === null) return "early_signal";
+  if (sessions < 4 || checkedAnswers < 12 || averageAccuracy === null) return "early_signal";
   if (averageAccuracy < 60 || difficultRatings > sessions / 2) return "needs_support";
   if (averageAccuracy >= 75 && difficultRatings <= sessions / 2) return "promising";
   return "early_signal";
@@ -80,10 +95,12 @@ function signalSummary(
   checkedAnswers: number,
   averageAccuracy: number | null,
 ) {
-  if (sessions < 2) {
-    return "One completed session is not enough to judge this method yet.";
+  if (sessions < 4) {
+    return sessions === 1
+      ? "One completed session is not enough to judge this method yet."
+      : `${sessions} comparable sessions are still early evidence; YOVA waits for at least four before changing a method-level recommendation.`;
   }
-  if (checkedAnswers < 2 || averageAccuracy === null) {
+  if (checkedAnswers < 12 || averageAccuracy === null) {
     return "These sessions were completed, but YOVA needs comparable knowledge checks before evaluating the method.";
   }
   if (status === "promising") {
@@ -110,6 +127,7 @@ export function buildMethodSignals(
     const source = sessionsById.get(completion.planSessionId);
     if (!source) continue;
     const { plan, session } = source;
+    if (!eventMatchesCommittedRoute(completion.routeRevisionId, session)) continue;
     const family = methodFamily(session);
     const comparison = personalizationComparisonContext(plan, session);
     const key = `${family}:${comparison.taskType}:${comparison.knowledgeStage}`;
@@ -136,6 +154,7 @@ export function buildMethodSignals(
     const source = sessionsById.get(interruption.planSessionId);
     if (!source) continue;
     const { plan, session } = source;
+    if (!eventMatchesCommittedRoute(interruption.routeRevisionId, session)) continue;
     const family = methodFamily(session);
     const comparison = personalizationComparisonContext(plan, session);
     const current = grouped.get(`${family}:${comparison.taskType}:${comparison.knowledgeStage}`);
@@ -169,6 +188,22 @@ export function personalizationComparisonContext(
   plan: LearningPlan,
   session: LearningPlanSession,
 ) {
+  const route = session.studyRoute;
+  if (route) {
+    const deferredIds = new Set(route.execution.deferredTargets.map((target) => target.targetId));
+    const activeStages = route.target.targetStates
+      .filter((target) => !deferredIds.has(target.targetId))
+      .map((target) => target.stage);
+    const knowledgeStage: KnowledgeStage = activeStages.includes("novice")
+      ? "novice"
+      : activeStages.includes("developing")
+        ? "developing"
+        : "retrieval_ready";
+    return {
+      taskType: route.target.taskFamily,
+      knowledgeStage,
+    };
+  }
   const comparisonText = [plan.title, plan.topic, session.title, session.objective, session.method].join(" ");
   return {
     taskType: session.resource?.routingContext?.taskType
@@ -179,6 +214,14 @@ export function personalizationComparisonContext(
         ? "novice" as const
         : inferKnowledgeStage([], comparisonText)),
   };
+}
+
+function eventMatchesCommittedRoute(
+  routeRevisionId: string | null | undefined,
+  session: LearningPlanSession,
+) {
+  const committedRouteRevisionId = session.studyRoute?.identity.routeRevisionId;
+  return !committedRouteRevisionId || routeRevisionId === committedRouteRevisionId;
 }
 
 function comparisonLabel(taskType: LearningTaskType, knowledgeStage: KnowledgeStage) {

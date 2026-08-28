@@ -23,6 +23,35 @@ describe("GenerationObservationSchema", () => {
     expect(GenerationObservationSchema.safeParse(safeEvent).success).toBe(true);
   });
 
+  it("accepts only bounded non-private duration decision diagnostics", () => {
+    expect(GenerationObservationSchema.safeParse({
+      ...safeEvent,
+      generationType: "plan",
+      diagnostics: {
+        durationContextStatus: "degraded",
+        durationContextReason: "history_read_failed",
+        durationSource: "router_default",
+        durationActiveMinutes: 25,
+        durationHardMaximumMinutes: 45,
+        durationTaskFamily: "conceptual_learning",
+        durationMode: "learn",
+        methodContextStatus: "ready",
+        methodContextReason: "loaded",
+        methodAuthority: "authorized_declaration",
+        methodId: "self_explanation",
+        methodTaskFamily: "conceptual_learning",
+        methodKnowledgeStage: "novice",
+        methodMode: "learn",
+      },
+    }).success).toBe(true);
+    expect(GenerationObservationSchema.safeParse({
+      ...safeEvent,
+      diagnostics: {
+        durationContextReason: "private learner answer: I am exhausted",
+      },
+    }).success).toBe(false);
+  });
+
   it("accepts bounded plan failure diagnostics without provider or learner text", () => {
     expect(GenerationObservationSchema.safeParse({
       ...safeEvent,

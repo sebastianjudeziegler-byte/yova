@@ -21,9 +21,14 @@ import { readConfidenceEvidenceProperty } from "@/lib/learning/confidence-calibr
 import {
   compareActiveSessionCheckpointProgress,
   readActiveSessionCheckpoint,
-  type ActiveSessionCheckpointV1,
+  type ActiveSessionCheckpoint,
 } from "@/lib/learning/active-session-checkpoint";
-import { readSessionActivityProgress } from "@/lib/learning/session-activity-progress";
+import {
+  isBroadRecallActivityProgress,
+  mergeSessionActivityProgress,
+  readSessionActivityProgress,
+  sessionActivityProgressHasRequiredRouteIdentity,
+} from "@/lib/learning/session-activity-progress";
 import {
   readSessionAdjustmentSnapshot,
   readSessionEvidenceSnapshot,
@@ -49,6 +54,7 @@ import {
 } from "@/lib/sample-data";
 import { readSessionResourceFromStepData } from "@/lib/session-generation/resource";
 import { resolveSessionArchitectureVersion } from "@/lib/session-generation/architecture";
+import { StudyRouteSchema, type StudyRoute } from "@/lib/study-route/schema";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import {
@@ -109,6 +115,21 @@ type PlanSessionRow = {
   estimated_minutes: number;
   status: SessionStatus;
   step_data: unknown;
+  committed_route_revision_id: string | null;
+};
+
+type StudyRouteRow = {
+  route_revision_id: string;
+  route_lineage_id: string;
+  revision_number: number;
+  schema_version: number;
+  lifecycle: string;
+  plan_id: string;
+  plan_session_id: string;
+  predecessor_revision_id: string | null;
+  route_payload: unknown;
+  created_at: string;
+  committed_at: string | null;
 };
 
 type SessionAttemptRow = {
@@ -147,7 +168,7 @@ export type CloudLearningState = {
   deadlineMilestones: DeadlineMilestone[];
   sessionCompletions: SessionCompletion[];
   sessionInterruptions: SessionInterruption[];
-  activeSessionCheckpoints: ActiveSessionCheckpointV1[];
+  activeSessionCheckpoints: ActiveSessionCheckpoint[];
 };
 
 const AUTHENTICATED_STATE_RETRY_DELAYS_MS = [150, 400] as const;
@@ -184,12 +205,13 @@ export async function loadAuthenticatedLearningState(): Promise<CloudLearningSta
   const { data: authData, error: authError } = await supabase.auth.getUser();
   if (authError || !authData.user) return null;
 
-  const [profileResult, learnerProfileResult, itemsResult, plansResult, sessionsResult, attemptsResult, materialsResult, interruptionsResult, milestonesResult] = await Promise.all([
+  const [profileResult, learnerProfileResult, itemsResult, plansResult, sessionsResult, routesResult, attemptsResult, materialsResult, interruptionsResult, milestonesResult] = await Promise.all([
     supabase.from("profiles").select("display_name,onboarding_completed_at").maybeSingle(),
     supabase.from("learner_profiles").select("common_blocker,guidance_preference,preferred_session_min,preferred_session_max,explanation_preference,focus_frequency,starting_pattern,energy_window,primary_improvement_goal,additional_context").maybeSingle(),
     supabase.from("learning_items").select("id,title,kind,topic,deadline,source_mode,study_mode,created_at").order("created_at", { ascending: true }),
     supabase.from("plans").select("id,learning_item_id,status,rationale,generation_inputs,knowledge_map,created_at").order("created_at", { ascending: true }),
-    supabase.from("plan_sessions").select("id,plan_id,sequence,title,objective,method,method_rationale,scheduled_for,estimated_minutes,status,step_data").order("sequence", { ascending: true }),
+    supabase.from("plan_sessions").select("id,plan_id,sequence,title,objective,method,method_rationale,scheduled_for,estimated_minutes,status,step_data,committed_route_revision_id").order("sequence", { ascending: true }),
+    supabase.from("study_routes").select("route_revision_id,route_lineage_id,revision_number,schema_version,lifecycle,plan_id,plan_session_id,predecessor_revision_id,route_payload,created_at,committed_at").eq("lifecycle", "committed").order("revision_number", { ascending: true }),
     supabase.from("session_attempts").select("id,plan_session_id,started_at,completed_at,actual_minutes,correct_answers,total_answers,user_feedback,result_data").not("completed_at", "is", null).order("completed_at", { ascending: true }),
     supabase.from("materials").select("id,learning_item_id,filename,mime_type,byte_size,processing_status,metadata").eq("processing_status", "ready").order("created_at", { ascending: true }),
     supabase.from("learning_events").select("plan_session_id,occurred_at,event_data").eq("event_type", "session_interrupted").order("occurred_at", { ascending: true }),
@@ -201,6 +223,7 @@ export async function loadAuthenticatedLearningState(): Promise<CloudLearningSta
     ?? itemsResult.error
     ?? plansResult.error
     ?? sessionsResult.error
+    ?? routesResult.error
     ?? attemptsResult.error
     ?? materialsResult.error
     ?? interruptionsResult.error
@@ -216,6 +239,7 @@ export async function loadAuthenticatedLearningState(): Promise<CloudLearningSta
   const itemRows = (itemsResult.data ?? []) as LearningItemRow[];
   const planRows = (plansResult.data ?? []) as PlanRow[];
   const sessionRows = (sessionsResult.data ?? []) as PlanSessionRow[];
+  const routeRows = (routesResult.data ?? []) as StudyRouteRow[];
   const attemptRows = (attemptsResult.data ?? []) as SessionAttemptRow[];
   const materialRows = (materialsResult.data ?? []) as MaterialRow[];
   const interruptionRows = (interruptionsResult.data ?? []) as LearningEventRow[];
@@ -239,8 +263,14 @@ export async function loadAuthenticatedLearningState(): Promise<CloudLearningSta
   const planIdBySessionId = new Map<string, string>();
   const plannedMinutesBySessionId = new Map<string, number>();
   const materialsByItemId = new Map<string, LearningPlan["materials"]>();
-  const activeSessionCheckpoints: ActiveSessionCheckpointV1[] = [];
+  const activeSessionCheckpoints: ActiveSessionCheckpoint[] = [];
   const checkpointReadAt = Date.now();
+  const committedRoutesById = new Map<string, StudyRoute>();
+
+  for (const row of routeRows) {
+    const route = studyRouteFromRow(row);
+    if (route) committedRoutesById.set(row.route_revision_id, route);
+  }
 
   for (const row of materialRows) {
     const current = materialsByItemId.get(row.learning_item_id) ?? [];
@@ -257,6 +287,26 @@ export async function loadAuthenticatedLearningState(): Promise<CloudLearningSta
   }
 
   for (const row of sessionRows) {
+    const studyRoute = row.committed_route_revision_id
+      ? committedRoutesById.get(row.committed_route_revision_id) ?? null
+      : null;
+    if (
+      row.committed_route_revision_id
+      && (
+        !studyRoute
+        || studyRoute.identity.planId !== row.plan_id
+        || studyRoute.identity.sessionId !== row.id
+        || studyRoute.identity.lifecycleStatus !== "committed"
+      )
+    ) {
+      throw new Error("YOVA could not verify a saved study route in your cloud learning data.");
+    }
+    const storedResource = readSessionResourceFromStepData(row.step_data);
+    const resource = studyRoute
+      ? storedResource?.routeRevisionId === studyRoute.identity.routeRevisionId
+        ? storedResource
+        : undefined
+      : storedResource;
     const amountLabel = readTextProperty(row.step_data, "amountLabel")
       || `${row.estimated_minutes} min`;
     const session: LearningPlanSession = {
@@ -278,7 +328,8 @@ export async function loadAuthenticatedLearningState(): Promise<CloudLearningSta
       segmentIndex: readPositiveIntegerProperty(row.step_data, "segmentIndex"),
       segmentCount: readPositiveIntegerProperty(row.step_data, "segmentCount"),
       status: row.status,
-      resource: readSessionResourceFromStepData(row.step_data),
+      resource,
+      ...(studyRoute ? { studyRoute } : {}),
       adaptationNote: readSessionAdaptationNote(row.step_data),
       reviewConcept: readTextProperty(row.step_data, "reviewConcept") || undefined,
       reviewType: readConceptReviewType(row.step_data),
@@ -300,6 +351,11 @@ export async function loadAuthenticatedLearningState(): Promise<CloudLearningSta
       && activeSessionCheckpoint.accountId === authData.user.id
       && activeSessionCheckpoint.planId === row.plan_id
       && activeSessionCheckpoint.planSessionId === row.id
+      && (
+        activeSessionCheckpoint.version === 1
+          ? row.committed_route_revision_id === null
+          : activeSessionCheckpoint.routeRevisionId === row.committed_route_revision_id
+      )
     ) {
       activeSessionCheckpoints.push(activeSessionCheckpoint);
     }
@@ -337,11 +393,13 @@ export async function loadAuthenticatedLearningState(): Promise<CloudLearningSta
   const sessionCompletions = attemptRows.flatMap<SessionCompletion>((attempt) => {
     const planId = planIdBySessionId.get(attempt.plan_session_id);
     if (!planId || !attempt.completed_at) return [];
+    const routeRevisionId = readUuidProperty(attempt.result_data, "routeRevisionId");
 
     return [normalizeSessionCompletionProvenance({
       id: attempt.id,
       planId,
       planSessionId: attempt.plan_session_id,
+      ...(routeRevisionId ? { routeRevisionId } : {}),
       startedAt: attempt.started_at,
       completedAt: attempt.completed_at,
       plannedMinutes: plannedMinutesBySessionId.get(attempt.plan_session_id) ?? attempt.actual_minutes ?? 1,
@@ -372,12 +430,15 @@ export async function loadAuthenticatedLearningState(): Promise<CloudLearningSta
     const pendingRepair = readSessionPendingRepair(readProperty(event.event_data, "pendingRepair"));
     const sessionAdjustment = readSessionAdjustmentSnapshot(readProperty(event.event_data, "sessionAdjustment"));
     const activityProgress = readSessionActivityProgress(readProperty(event.event_data, "activityProgress"));
+    const routeRevisionId = readUuidProperty(event.event_data, "routeRevisionId");
     if (!planId || !attemptId || !startedAt || plannedMinutes === null || actualMinutes === null || completedSteps === null || totalSteps === null) return [];
+    if (!sessionActivityProgressHasRequiredRouteIdentity(activityProgress, routeRevisionId)) return [];
 
     return [{
       id: attemptId,
       planId,
       planSessionId: event.plan_session_id,
+      ...(routeRevisionId ? { routeRevisionId } : {}),
       startedAt,
       interruptedAt: event.occurred_at,
       plannedMinutes,
@@ -438,11 +499,11 @@ export class ActiveSessionCheckpointTerminalError extends Error {
 }
 
 type ActiveSessionCheckpointWriteWaiter = {
-  resolve: (checkpoint: ActiveSessionCheckpointV1) => void;
+  resolve: (checkpoint: ActiveSessionCheckpoint) => void;
   reject: (reason: unknown) => void;
 };
 
-type CloudSyncActiveSessionCheckpoint = ActiveSessionCheckpointV1 & {
+type CloudSyncActiveSessionCheckpoint = ActiveSessionCheckpoint & {
   resourceGeneratedAt: string;
 };
 
@@ -462,7 +523,7 @@ const activeSessionCheckpointWriteQueues = new Map<string, ActiveSessionCheckpoi
  * drain and receives the final authoritative server checkpoint.
  */
 export function saveAuthenticatedActiveSessionCheckpoint(
-  value: ActiveSessionCheckpointV1,
+  value: ActiveSessionCheckpoint,
 ) {
   const checkpoint = readActiveSessionCheckpoint(value);
   if (!checkpoint || !checkpoint.resourceGeneratedAt) {
@@ -474,9 +535,23 @@ export function saveAuthenticatedActiveSessionCheckpoint(
     resourceGeneratedAt: checkpoint.resourceGeneratedAt,
   };
 
-  return new Promise<ActiveSessionCheckpointV1>((resolve, reject) => {
+  return new Promise<ActiveSessionCheckpoint>((resolve, reject) => {
     const queue = activeSessionCheckpointWriteQueues.get(cloudCheckpoint.planSessionId);
     if (queue) {
+      if (
+        queuedCheckpointIdentityMatches(cloudCheckpoint, queue.latestRequested)
+        && (
+          isBroadRecallActivityProgress(cloudCheckpoint.activityProgress)
+          || isBroadRecallActivityProgress(queue.latestRequested.activityProgress)
+        )
+        && mergeSessionActivityProgress(
+          cloudCheckpoint.activityProgress,
+          queue.latestRequested.activityProgress,
+        ).kind === "conflict"
+      ) {
+        reject(new ActiveSessionCheckpointConflictError());
+        return;
+      }
       if (preferQueuedActiveSessionCheckpoint(cloudCheckpoint, queue.latestRequested)) {
         queue.latestRequested = cloudCheckpoint;
         queue.pending = cloudCheckpoint;
@@ -502,7 +577,7 @@ export function saveAuthenticatedActiveSessionCheckpoint(
 async function drainActiveSessionCheckpointWrites(planSessionId: string) {
   const queue = activeSessionCheckpointWriteQueues.get(planSessionId);
   if (!queue) return;
-  let authoritative: ActiveSessionCheckpointV1 | null = null;
+  let authoritative: ActiveSessionCheckpoint | null = null;
   let finalIssue: unknown = null;
 
   while (queue.pending) {
@@ -532,7 +607,7 @@ async function persistAuthenticatedActiveSessionCheckpoint(
   let data: unknown = null;
   let error: unknown = null;
   try {
-    const result = await supabase.rpc("save_active_session_checkpoint_with_completion_mode", {
+    const result = await supabase.rpc("save_active_session_checkpoint_with_route", {
       payload: activeSessionCheckpointCloudPayload(checkpoint),
     });
     data = result.data;
@@ -568,6 +643,23 @@ async function persistAuthenticatedActiveSessionCheckpoint(
     || authoritative.runId !== checkpoint.runId
     || authoritative.resourceFingerprint !== checkpoint.resourceFingerprint
     || authoritative.resourceGeneratedAt !== checkpoint.resourceGeneratedAt
+    || !hasSameCheckpointRouteIdentity(authoritative, checkpoint)
+  ) {
+    throw new ActiveSessionCheckpointConflictError();
+  }
+  const activityProgressMerge = mergeSessionActivityProgress(
+    authoritative.activityProgress,
+    checkpoint.activityProgress,
+  );
+  if (
+    (
+      isBroadRecallActivityProgress(authoritative.activityProgress)
+      || isBroadRecallActivityProgress(checkpoint.activityProgress)
+    )
+    && (
+      activityProgressMerge.kind === "conflict"
+      || activityProgressMerge.source === "right"
+    )
   ) {
     throw new ActiveSessionCheckpointConflictError();
   }
@@ -594,13 +686,24 @@ function preferQueuedActiveSessionCheckpoint(
   current: CloudSyncActiveSessionCheckpoint,
 ) {
   if (
-    candidate.runId === current.runId
-    && candidate.resourceFingerprint === current.resourceFingerprint
-    && candidate.resourceGeneratedAt === current.resourceGeneratedAt
+    queuedCheckpointIdentityMatches(candidate, current)
   ) {
     return compareActiveSessionCheckpointProgress(candidate, current) > 0;
   }
   return Date.parse(candidate.savedAt) > Date.parse(current.savedAt);
+}
+
+function queuedCheckpointIdentityMatches(
+  left: CloudSyncActiveSessionCheckpoint,
+  right: CloudSyncActiveSessionCheckpoint,
+) {
+  return left.accountId === right.accountId
+    && left.planId === right.planId
+    && left.planSessionId === right.planSessionId
+    && left.runId === right.runId
+    && left.resourceFingerprint === right.resourceFingerprint
+    && left.resourceGeneratedAt === right.resourceGeneratedAt
+    && hasSameCheckpointRouteIdentity(left, right);
 }
 
 function activeSessionCheckpointCloudPayload(checkpoint: CloudSyncActiveSessionCheckpoint) {
@@ -618,6 +721,7 @@ function activeSessionCheckpointCloudPayload(checkpoint: CloudSyncActiveSessionC
     resumeStep: checkpoint.resumeStep,
     resourceFingerprint: checkpoint.resourceFingerprint,
     resourceGeneratedAt: checkpoint.resourceGeneratedAt,
+    ...(checkpoint.version === 2 ? { routeRevisionId: checkpoint.routeRevisionId } : {}),
     ...(checkpoint.completionMode ? { completionMode: checkpoint.completionMode } : {}),
     ...(checkpoint.evidence ? { evidence: checkpoint.evidence } : {}),
     ...(checkpoint.pendingRepair ? { pendingRepair: checkpoint.pendingRepair } : {}),
@@ -627,6 +731,15 @@ function activeSessionCheckpointCloudPayload(checkpoint: CloudSyncActiveSessionC
       completionFeedback: checkpoint.completionFeedback,
     } : {}),
   };
+}
+
+function hasSameCheckpointRouteIdentity(
+  left: ActiveSessionCheckpoint,
+  right: ActiveSessionCheckpoint,
+) {
+  if (left.version !== right.version) return false;
+  return left.version === 1
+    || (right.version === 2 && left.routeRevisionId === right.routeRevisionId);
 }
 
 function isActiveSessionCheckpointConflictIssue(error: unknown) {
@@ -801,6 +914,7 @@ export async function completeAuthenticatedPlanSession(
   adaptation?: NextSessionAdaptation | null,
   followUpSession?: LearningPlanSession | null,
   continuationSession?: LearningPlanSession | null,
+  nextSessionStudyRoute?: StudyRoute | null,
 ) {
   if (!isSupabaseConfigured()) return;
   const supabase = createSupabaseBrowserClient();
@@ -821,15 +935,50 @@ export async function completeAuthenticatedPlanSession(
   if (continuationSession && (adaptation || followUpSession)) {
     throw new Error("YOVA cannot safely combine a deferred continuation with another session rewrite.");
   }
-  const completionRpc = completionMode === "unguided_practice"
-    ? "complete_unguided_plan_session"
+  const routed = normalizedCompletion.routeRevisionId !== undefined;
+  if (routed && Boolean(adaptation) !== Boolean(nextSessionStudyRoute)) {
+    throw new Error("YOVA cannot sync a routed adaptation without its exact successor StudyRoute.");
+  }
+  if (!routed && nextSessionStudyRoute) {
+    throw new Error("YOVA cannot attach a successor StudyRoute to a legacy completion.");
+  }
+  const parsedNextSessionStudyRoute = nextSessionStudyRoute
+    ? StudyRouteSchema.parse(nextSessionStudyRoute)
+    : null;
+  if (parsedNextSessionStudyRoute && (
+    parsedNextSessionStudyRoute.identity.lifecycleStatus !== "committed"
+    || parsedNextSessionStudyRoute.identity.planId !== normalizedCompletion.planId
+    || parsedNextSessionStudyRoute.identity.sessionId !== adaptation?.planSessionId
+    || parsedNextSessionStudyRoute.identity.revisionNumber <= 1
+    || !parsedNextSessionStudyRoute.identity.supersedesRevisionId
+  )) {
+    throw new Error("The next-session StudyRoute is not the committed successor for this plan adaptation.");
+  }
+  const parsedFollowUpRoute = requireNewSessionRouteParity({
+    routed,
+    completionPlanId: normalizedCompletion.planId,
+    session: followUpSession ?? null,
+    label: "follow-up",
+  });
+  const parsedContinuationRoute = requireNewSessionRouteParity({
+    routed,
+    completionPlanId: normalizedCompletion.planId,
+    session: continuationSession ?? null,
+    label: "continuation",
+  });
+  const completionVariant = completionMode === "unguided_practice"
+    ? "unguided_practice" as const
     : continuationSession
-      ? "complete_guided_plan_session_with_continuation"
-      : "complete_plan_session";
-  const { error } = await supabase.rpc(completionRpc, {
+      ? "guided_continuation" as const
+      : "guided" as const;
+  const { error } = await supabase.rpc("complete_plan_session_with_route", {
     payload: {
+      completionVariant,
       attemptId: normalizedCompletion.id,
       planSessionId: normalizedCompletion.planSessionId,
+      ...(normalizedCompletion.routeRevisionId
+        ? { routeRevisionId: normalizedCompletion.routeRevisionId }
+        : {}),
       startedAt: normalizedCompletion.startedAt,
       completedAt: normalizedCompletion.completedAt,
       plannedMinutes: normalizedCompletion.plannedMinutes,
@@ -839,9 +988,16 @@ export async function completeAuthenticatedPlanSession(
       feedback: normalizedCompletion.feedback,
       observedGap: normalizedCompletion.observedGap,
       completionMode,
-      conceptEvidence: normalizedCompletion.conceptEvidence,
-      confidenceEvidence: normalizedCompletion.confidenceEvidence,
+      conceptEvidence: bindConceptEvidenceToRoute(
+        normalizedCompletion.conceptEvidence,
+        normalizedCompletion.routeRevisionId,
+      ),
+      confidenceEvidence: bindConfidenceEvidenceToRoute(
+        normalizedCompletion.confidenceEvidence,
+        normalizedCompletion.routeRevisionId,
+      ),
       nextSessionAdjustment: adaptation ?? null,
+      nextSessionStudyRoute: parsedNextSessionStudyRoute,
       followUpSession: followUpSession ? {
         id: followUpSession.id,
         sequence: followUpSession.sequence,
@@ -859,6 +1015,7 @@ export async function completeAuthenticatedPlanSession(
         completionEvidence: followUpSession.completionEvidence ?? [],
         reviewConcept: followUpSession.reviewConcept,
         reviewType: followUpSession.reviewType,
+        studyRoute: parsedFollowUpRoute,
       } : null,
       continuationSession: continuationSession ? {
         id: continuationSession.id,
@@ -874,18 +1031,40 @@ export async function completeAuthenticatedPlanSession(
         topicIds: continuationSession.topicIds ?? [],
         contentTargets: continuationSession.contentTargets ?? [],
         completionEvidence: continuationSession.completionEvidence ?? [],
+        studyRoute: parsedContinuationRoute,
       } : null,
     },
   });
 
   if (error) throw new Error("YOVA saved this session in your browser but could not sync it to the cloud.");
-  if (adaptation) {
-    const { error: modeError } = await supabase.rpc("set_plan_session_learning_mode", {
-      requested_session_id: adaptation.planSessionId,
-      requested_learning_mode: adaptation.learningMode,
-    });
-    if (modeError) throw new Error("YOVA saved this session but could not sync the next session’s teaching approach.");
+}
+
+function requireNewSessionRouteParity({
+  routed,
+  completionPlanId,
+  session,
+  label,
+}: {
+  routed: boolean;
+  completionPlanId: string;
+  session: LearningPlanSession | null;
+  label: "follow-up" | "continuation";
+}) {
+  if (!session) return null;
+  const route = session.studyRoute ? StudyRouteSchema.parse(session.studyRoute) : null;
+  if (routed !== Boolean(route)) {
+    throw new Error(`YOVA cannot sync a routed ${label} without its own StudyRoute lineage.`);
   }
+  if (route && (
+    route.identity.lifecycleStatus !== "committed"
+    || route.identity.planId !== completionPlanId
+    || route.identity.sessionId !== session.id
+    || route.identity.revisionNumber !== 1
+    || route.identity.supersedesRevisionId
+  )) {
+    throw new Error(`The ${label} StudyRoute is not a valid committed initial route.`);
+  }
+  return route;
 }
 
 export async function activateAuthenticatedConceptReviewSession(
@@ -894,9 +1073,23 @@ export async function activateAuthenticatedConceptReviewSession(
 ) {
   if (!isSupabaseConfigured()) return;
   const supabase = createSupabaseBrowserClient();
-  const { error } = await supabase.rpc("activate_concept_review", {
+  const studyRoute = session.studyRoute ? StudyRouteSchema.parse(session.studyRoute) : null;
+  if (studyRoute && (
+    studyRoute.identity.lifecycleStatus !== "committed"
+    || studyRoute.identity.revisionNumber !== 1
+    || studyRoute.identity.planId !== planId
+    || studyRoute.identity.sessionId !== session.id
+    || studyRoute.identity.supersedesRevisionId
+  )) {
+    throw new Error("YOVA cannot activate a review with an invalid StudyRoute lineage.");
+  }
+  const originRouteRevisionId = studyRoute
+    ? exactOriginRouteRevisionId(studyRoute)
+    : null;
+  const { error } = await supabase.rpc("activate_concept_review_with_route", {
     payload: {
       planId,
+      ...(originRouteRevisionId ? { originRouteRevisionId } : {}),
       session: {
         id: session.id,
         sequence: session.sequence,
@@ -910,8 +1103,11 @@ export async function activateAuthenticatedConceptReviewSession(
         learningMode: session.learningMode,
         explanation: session.adaptationNote?.explanation ?? session.methodReason,
         topicIds: session.topicIds ?? [],
+        contentTargets: session.contentTargets ?? [],
+        completionEvidence: session.completionEvidence ?? [],
         reviewConcept: session.reviewConcept,
         reviewType: session.reviewType,
+        studyRoute,
       },
     },
   });
@@ -919,16 +1115,33 @@ export async function activateAuthenticatedConceptReviewSession(
   if (error) throw new Error("YOVA could not reopen this goal for its scheduled review.");
 }
 
+function exactOriginRouteRevisionId(route: StudyRoute) {
+  const origins = route.provenance.evidenceRefs.flatMap((reference) => {
+    const match = /^route-revision:([0-9a-f-]{36})$/i.exec(reference);
+    return match?.[1] ? [match[1]] : [];
+  });
+  if (origins.length !== 1) {
+    throw new Error("YOVA cannot activate a routed review without one exact origin route.");
+  }
+  return origins[0]!;
+}
+
 export async function recordAuthenticatedSessionInterruption(interruption: SessionInterruption) {
+  if (!sessionActivityProgressHasRequiredRouteIdentity(
+    interruption.activityProgress,
+    interruption.routeRevisionId,
+  )) {
+    throw new Error("YOVA refused to sync route-less broad-recall interruption progress.");
+  }
   if (!isSupabaseConfigured()) return;
   const supabase = createSupabaseBrowserClient();
-  const rpcName = interruption.activityProgress
-    ? "record_session_interruption_with_activity_progress"
-    : "record_session_interruption";
-  const { error } = await supabase.rpc(rpcName, {
+  const { error } = await supabase.rpc("record_session_interruption_with_route", {
     payload: {
       attemptId: interruption.id,
       planSessionId: interruption.planSessionId,
+      ...(interruption.routeRevisionId
+        ? { routeRevisionId: interruption.routeRevisionId }
+        : {}),
       startedAt: interruption.startedAt,
       interruptedAt: interruption.interruptedAt,
       plannedMinutes: interruption.plannedMinutes,
@@ -936,7 +1149,19 @@ export async function recordAuthenticatedSessionInterruption(interruption: Sessi
       completedSteps: interruption.completedSteps,
       totalSteps: interruption.totalSteps,
       resumeStep: interruption.resumeStep,
-      evidence: interruption.evidence,
+      evidence: interruption.evidence
+        ? {
+          ...interruption.evidence,
+          conceptEvidence: bindConceptEvidenceToRoute(
+            interruption.evidence.conceptEvidence,
+            interruption.routeRevisionId,
+          ),
+          confidenceEvidence: bindConfidenceEvidenceToRoute(
+            interruption.evidence.confidenceEvidence,
+            interruption.routeRevisionId,
+          ),
+        }
+        : undefined,
       pendingRepair: interruption.pendingRepair,
       sessionAdjustment: interruption.sessionAdjustment,
       ...(interruption.activityProgress ? { activityProgress: interruption.activityProgress } : {}),
@@ -996,6 +1221,37 @@ function readTextProperty(value: unknown, key: string) {
   return typeof property === "string" ? property : "";
 }
 
+function readUuidProperty(value: unknown, key: string) {
+  const candidate = readTextProperty(value, key);
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(candidate)
+    ? candidate
+    : "";
+}
+
+function bindConceptEvidenceToRoute(
+  evidence: SessionCompletion["conceptEvidence"],
+  routeRevisionId?: string,
+) {
+  return evidence.map((entry) => routeRevisionId
+    ? { ...entry, routeRevisionId }
+    : withoutRouteRevisionId(entry));
+}
+
+function bindConfidenceEvidenceToRoute(
+  evidence: SessionCompletion["confidenceEvidence"],
+  routeRevisionId?: string,
+) {
+  return evidence.map((entry) => routeRevisionId
+    ? { ...entry, routeRevisionId }
+    : withoutRouteRevisionId(entry));
+}
+
+function withoutRouteRevisionId<T extends { routeRevisionId?: string }>(entry: T) {
+  const copy = { ...entry };
+  delete copy.routeRevisionId;
+  return copy;
+}
+
 function readProperty(value: unknown, key: string) {
   if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
   return (value as Record<string, unknown>)[key];
@@ -1024,6 +1280,37 @@ function readStringArrayProperty(value: unknown, key: string) {
 function readPlanKnowledgeMap(value: unknown) {
   const parsed = PlanKnowledgeMapSchema.safeParse(value);
   return parsed.success ? parsed.data : undefined;
+}
+
+function studyRouteFromRow(row: StudyRouteRow) {
+  if (!row.route_payload || typeof row.route_payload !== "object" || Array.isArray(row.route_payload)) {
+    return null;
+  }
+  const parsed = StudyRouteSchema.safeParse({
+    ...(row.route_payload as Record<string, unknown>),
+    identity: {
+      routeLineageId: row.route_lineage_id,
+      routeRevisionId: row.route_revision_id,
+      revisionNumber: row.revision_number,
+      schemaVersion: row.schema_version,
+      lifecycleStatus: row.lifecycle,
+      planId: row.plan_id,
+      sessionId: row.plan_session_id,
+      createdAt: normalizeDatabaseTimestamp(row.created_at),
+      ...(row.committed_at
+        ? { committedAt: normalizeDatabaseTimestamp(row.committed_at) }
+        : {}),
+      ...(row.predecessor_revision_id
+        ? { supersedesRevisionId: row.predecessor_revision_id }
+        : {}),
+    },
+  });
+  return parsed.success ? parsed.data : null;
+}
+
+function normalizeDatabaseTimestamp(value: string) {
+  const timestamp = Date.parse(value);
+  return Number.isFinite(timestamp) ? new Date(timestamp).toISOString() : value;
 }
 
 function readMaterialUnderstanding(value: unknown) {

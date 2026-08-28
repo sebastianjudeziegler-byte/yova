@@ -133,10 +133,12 @@ export function sessionCacheScopeFingerprint({
   plannedMinutes,
   adjustment,
   contractKey,
+  routeRevisionId,
 }: {
   plannedMinutes: number;
   adjustment: SessionAdjustmentSnapshot | null | undefined;
   contractKey: string | null | undefined;
+  routeRevisionId?: string | null;
 }) {
   const effectiveMinutes = adjustment?.availableMinutes ?? plannedMinutes;
   const canonicalAdjustment = adjustment
@@ -156,6 +158,7 @@ export function sessionCacheScopeFingerprint({
     contract: "session_cache_scope_v1",
     adjustment: canonicalAdjustment,
     contractKey: contractKey ?? null,
+    routeRevisionId: routeRevisionId ?? null,
   }, "sc1");
 }
 
@@ -174,7 +177,10 @@ export function hydratedSessionResourceCacheIssue({
   adjustment: SessionAdjustmentSnapshot | null | undefined;
 }): string | null {
   const resource = session.resource;
-  if (!resource || resource.origin !== "generated") return null;
+  if (!resource) return null;
+  const routeIssue = hydratedSessionResourceRouteIssue(session, resource);
+  if (routeIssue) return routeIssue;
+  if (resource.origin !== "generated") return null;
   const effectiveLearningMode = learningModeForScheduledRetrieval(
     session,
     resolveEffectiveSessionLearningMode({
@@ -229,6 +235,7 @@ export function hydratedSessionResourceCacheIssue({
     plannedMinutes: session.estimatedMinutes,
     adjustment,
     contractKey,
+    routeRevisionId: session.studyRoute?.identity.routeRevisionId,
   });
   const cacheContext = resource.cacheContext;
 
@@ -249,6 +256,52 @@ export function hydratedSessionResourceCacheIssue({
     return cacheContext.scopeFingerprint === expectedScopeFingerprint
       ? null
       : "The saved lesson was prepared for a different session setup.";
+  }
+  return null;
+}
+
+/**
+ * Browser hydration is a cache-read boundary in its own right. A generated or
+ * built-in resource may open without reaching the server, so it must prove
+ * that the exact committed route authorized it before any origin-specific
+ * compatibility checks run. Route-free legacy sessions remain compatible
+ * only with route-free legacy resources.
+ */
+function hydratedSessionResourceRouteIssue(
+  session: LearningPlanSession,
+  resource: SessionResource,
+): string | null {
+  if (
+    session.studyRoute
+    && session.studyRoute.identity.lifecycleStatus !== "committed"
+  ) {
+    return "The saved lesson is not bound to a committed study route.";
+  }
+  const expectedRouteRevisionId = session.studyRoute?.identity.lifecycleStatus === "committed"
+    ? session.studyRoute.identity.routeRevisionId
+    : undefined;
+  const resourceRouteRevisionId = resource.routeRevisionId;
+  const contextRouteRevisionId = resource.cacheContext?.routeRevisionId;
+
+  if (expectedRouteRevisionId === undefined) {
+    return resourceRouteRevisionId === undefined && contextRouteRevisionId === undefined
+      ? null
+      : "The saved lesson belongs to a different study route.";
+  }
+  if (resourceRouteRevisionId !== expectedRouteRevisionId) {
+    return "The saved lesson predates or belongs to a different study route.";
+  }
+  if (resource.cacheContext && contextRouteRevisionId !== expectedRouteRevisionId) {
+    return "The saved lesson cache belongs to a different study route.";
+  }
+  if (
+    resource.methodBriefing
+    && (
+      resource.methodBriefing.methodId !== session.studyRoute?.approach.primaryMethodId
+      || resource.methodBriefing.name !== session.studyRoute.approach.visibleMethodName
+    )
+  ) {
+    return "The saved lesson method does not match the committed study route.";
   }
   return null;
 }

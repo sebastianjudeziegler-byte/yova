@@ -24,6 +24,11 @@ import {
   methodRuntimePromptContract,
   validateAttachedMethodRuntimes,
 } from "@/lib/session-generation/method-runtime";
+import {
+  supportsBoundedStudyRecoveryMethod,
+  type BoundedLearnRecoveryMethod,
+  type BoundedStudyRecoveryMethod,
+} from "@/lib/session-generation/method-runtime-capability";
 import { sessionRoutingInput } from "@/lib/learning/session-routing-input";
 import {
   buildLearningScienceRoutingBrief,
@@ -32,6 +37,7 @@ import {
   type LearningScienceRoutingBrief,
 } from "@/lib/learning/method-router";
 import {
+  CORE_METHOD_CATALOG,
   learningScienceCatalogForPrompt,
   type CoreMethodId,
   type LearningTaskType,
@@ -113,6 +119,7 @@ import {
   lessonIdeaMatchesTarget,
   validateStreamedLessonScope,
 } from "@/lib/session-generation/lesson-brief";
+import type { StudyRoute } from "@/lib/study-route/schema";
 
 export { validateSessionTimeBudget } from "@/lib/session-generation/time-budget";
 
@@ -181,6 +188,12 @@ export type SessionGenerationContext = {
     freeformContext?: string | null;
     observationCorrection?: string | null;
   } | null;
+  /**
+   * The immutable decision revision authorizing this generation. Runtime
+   * setup may change delivery support, but it cannot silently rewrite these
+   * route-owned fields under the same revision identifier.
+   */
+  studyRoute?: StudyRoute | null;
   sessionAdjustment?: SessionAdjustment | null;
   recentResults: Array<{
     methodId: CoreMethodId | null;
@@ -907,6 +920,7 @@ export async function generateSessionWithOpenAI(
   const learningScienceRouting = applyPersonalizedMethodTieToRouting(
     taskFirstLearningScienceRouting,
     context.personalization,
+    context.studyRoute?.approach.primaryMethodId,
   );
   const sourceGroundingPolicy = context.learningGoal.sourceMode === "user_materials"
     ? ordinarySourceGroundingPolicy(
@@ -1372,15 +1386,8 @@ type SafeStudyRecoveryTarget = {
   practiceIntent: SafeStudyRecoveryGroup["practiceIntent"];
 };
 
-type SafeStudyRecoveryMethod =
-  | "retrieval_practice"
-  | "spaced_retrieval"
-  | "worked_example_fading";
-
-type SafeLearnRecoveryMethod =
-  | "retrieval_practice"
-  | "self_explanation"
-  | "worked_example_fading";
+type SafeStudyRecoveryMethod = BoundedStudyRecoveryMethod;
+type SafeLearnRecoveryMethod = BoundedLearnRecoveryMethod;
 
 type SafeRecoveryAttempt = {
   draft: GeneratedSessionDraft | null;
@@ -1925,11 +1932,7 @@ function safeStudyRecoveryMethod(
 ): SafeStudyRecoveryMethod | null {
   const suggested = routing.suggestedPrimaryMethodId;
   if (!routing.allowedMethodIds.includes(suggested)) return null;
-  return suggested === "retrieval_practice"
-    || suggested === "spaced_retrieval"
-    || suggested === "worked_example_fading"
-    ? suggested
-    : null;
+  return supportsBoundedStudyRecoveryMethod(suggested) ? suggested : null;
 }
 
 function safeLearnRecoveryMethod(
@@ -3145,13 +3148,18 @@ export function applyCurrentSessionAdjustment(context: SessionGenerationContext)
   if (!adjustment) return context;
 
   const scheduledRetrieval = isScheduledRetrievalSession(context.session);
-  const nextLearningMode = scheduledRetrieval
-    ? "study"
-    : adjustment.familiarity === "need_teaching"
-    ? "learn"
-    : adjustment.familiarity === "already_know" || adjustment.familiarity === "challenge_me"
+  const committedRouteMode = context.studyRoute?.identity.lifecycleStatus === "committed"
+    ? context.studyRoute.approach.mode === "learn" ? "learn" : "study"
+    : null;
+  const nextLearningMode = committedRouteMode ?? (
+    scheduledRetrieval
       ? "study"
-      : context.session.learningMode;
+      : adjustment.familiarity === "need_teaching"
+      ? "learn"
+      : adjustment.familiarity === "already_know" || adjustment.familiarity === "challenge_me"
+        ? "study"
+        : context.session.learningMode
+  );
   const currentUpdate = scheduledRetrieval
     ? "This is a scheduled low-stress retrieval. Keep it multiple-choice only and use the result to decide what should return next."
     : adjustment.familiarity === "already_know"
@@ -3168,7 +3176,9 @@ export function applyCurrentSessionAdjustment(context: SessionGenerationContext)
     session: {
       ...context.session,
       learningMode: nextLearningMode,
-      estimatedMinutes: adjustment.availableMinutes ?? context.session.estimatedMinutes,
+      estimatedMinutes: context.studyRoute?.identity.lifecycleStatus === "committed"
+        ? context.studyRoute.timing.activeMinutes
+        : adjustment.availableMinutes ?? context.session.estimatedMinutes,
       methodReason: `${context.session.methodReason} ${currentUpdate}${note}`.slice(0, 1_400),
     },
   };
@@ -3529,6 +3539,9 @@ function parseGeneratedSessionDraft(
       taskType: routing.taskType,
       personalization: deliveryPolicy.learnerFacingReasons.slice(0, 3),
       methodId: resolvedMethodId,
+      name: context.studyRoute?.approach.primaryMethodId === resolvedMethodId
+        ? context.studyRoute.approach.visibleMethodName
+        : CORE_METHOD_CATALOG[resolvedMethodId].name,
     },
     activities: policyAlignedActivities.map((activity, index) => (
       scheduledConcept && (activity.type === "multiple_choice" || activity.type === "free_response")

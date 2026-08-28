@@ -2,7 +2,11 @@ import { z } from "zod";
 import { ConceptEvidenceListSchema } from "@/lib/learning/concept-evidence";
 import { ConfidenceEvidenceListSchema } from "@/lib/learning/confidence-calibration";
 import { normalizeSessionCompletionProvenance } from "@/lib/learning/session-completion-provenance";
-import { SessionActivityProgressSchema } from "@/lib/learning/session-activity-progress";
+import {
+  RetrievalRoundActivityProgressSchema,
+  SessionActivityProgressSchema,
+  sessionActivityProgressHasRequiredRouteIdentity,
+} from "@/lib/learning/session-activity-progress";
 import {
   SessionAdjustmentSnapshotSchema,
   SessionEvidenceSnapshotSchema,
@@ -49,6 +53,7 @@ const SessionInterruptionExportSchema = z.object({
   id: z.string().uuid(),
   planId: z.string().uuid(),
   planSessionId: z.string().uuid(),
+  routeRevisionId: z.string().uuid().optional(),
   startedAt: z.string().datetime({ offset: true }),
   interruptedAt: z.string().datetime({ offset: true }),
   plannedMinutes: z.number().int().min(5).max(180),
@@ -60,6 +65,17 @@ const SessionInterruptionExportSchema = z.object({
   pendingRepair: SessionPendingRepairSchema.optional(),
   sessionAdjustment: SessionAdjustmentSnapshotSchema.optional(),
   activityProgress: SessionActivityProgressSchema.optional(),
+}).superRefine((interruption, context) => {
+  if (!sessionActivityProgressHasRequiredRouteIdentity(
+    interruption.activityProgress,
+    interruption.routeRevisionId,
+  )) {
+    context.addIssue({
+      code: "custom",
+      path: ["routeRevisionId"],
+      message: "Broad-recall interruption progress requires an exact route revision.",
+    });
+  }
 });
 
 const PendingSessionCompletionExportSchema = z.object({
@@ -123,8 +139,7 @@ const PendingSessionInterruptionExportSchema = z.object({
   queuedAt: z.string().datetime({ offset: true }),
 });
 
-const ActiveSessionCheckpointExportSchema = z.object({
-  version: z.literal(1),
+const ActiveSessionCheckpointExportBaseShape = {
   accountId: z.string().uuid(),
   runId: z.string().uuid(),
   planId: z.string().uuid(),
@@ -148,8 +163,21 @@ const ActiveSessionCheckpointExportSchema = z.object({
   completedAt: z.string().datetime({ offset: true }).optional(),
   completionFeedback: z.enum(["too_easy", "about_right", "too_difficult"]).optional(),
   sessionAdjustment: SessionAdjustmentSnapshotSchema.optional(),
-  activityProgress: SessionActivityProgressSchema.optional(),
-}).strict();
+};
+
+const ActiveSessionCheckpointExportSchema = z.union([
+  z.object({
+    ...ActiveSessionCheckpointExportBaseShape,
+    version: z.literal(1),
+    activityProgress: RetrievalRoundActivityProgressSchema.optional(),
+  }).strict(),
+  z.object({
+    ...ActiveSessionCheckpointExportBaseShape,
+    version: z.literal(2),
+    routeRevisionId: z.string().uuid(),
+    activityProgress: SessionActivityProgressSchema.optional(),
+  }).strict(),
+]);
 
 const PreviewSnapshotExportSchema = z.object({
   version: z.literal(1),

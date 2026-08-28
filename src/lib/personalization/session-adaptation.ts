@@ -5,6 +5,7 @@ import type {
 } from "@/lib/domain";
 import { summarizeConfidenceCalibration } from "@/lib/learning/confidence-calibration";
 import { unrepairedObservedGaps } from "@/lib/learning/session-evidence";
+import { canonicalStudyRouteSessionScalars } from "@/lib/study-route/scalar-contract";
 
 export function buildNextSessionAdaptation(
   nextSession: LearningPlanSession | null,
@@ -29,7 +30,7 @@ export function buildNextSessionAdaptation(
 
   if (!allObservedGapsRepaired && (calibration.pattern === "possible_misconception" || calibration.pattern === "mixed")) {
     const explanation = `YOVA found a high-confidence miss involving ${gap}. The next session will begin with a bounded misconception repair before continuing its original target. The later targets stay in place.${difficultyAdjustment}`;
-    return {
+    return canonicalStudyRouteSessionScalars<NextSessionAdaptation>({
       planSessionId: nextSession.id,
       title: nextSession.title,
       objective: nextSession.objective,
@@ -39,12 +40,12 @@ export function buildNextSessionAdaptation(
       amountLabel: `Bounded repair + planned target · about ${adjustedMinutes} min`,
       learningMode: "learn",
       explanation,
-    };
+    });
   }
 
   if (calibration.pattern === "underestimated_knowledge" && accuracy !== null && accuracy >= 0.8) {
     const explanation = `You answered correctly while feeling unsure. YOVA will begin the next target with one independent confirmation, then continue without reteaching what you already demonstrated.${difficultyAdjustment}`;
-    return {
+    return canonicalStudyRouteSessionScalars<NextSessionAdaptation>({
       planSessionId: nextSession.id,
       title: nextSession.title,
       objective: nextSession.objective,
@@ -54,7 +55,7 @@ export function buildNextSessionAdaptation(
       amountLabel: `Confidence check + planned work · about ${nextSession.estimatedMinutes} min`,
       learningMode: "study",
       explanation,
-    };
+    });
   }
 
   if (needsRepair && !allObservedGapsRepaired) {
@@ -66,7 +67,7 @@ export function buildNextSessionAdaptation(
       ? `YOVA will begin the next session with a short guided repair for ${gap} because the last check showed a meaningful gap. The original next target stays intact.${difficultyAdjustment}`
       : `YOVA will begin with a short retrieval repair for ${gap}, then continue the original next target. The later plan stays intact.`;
 
-    return {
+    return canonicalStudyRouteSessionScalars<NextSessionAdaptation>({
       planSessionId: nextSession.id,
       title: nextSession.title,
       objective: nextSession.objective,
@@ -76,12 +77,12 @@ export function buildNextSessionAdaptation(
       amountLabel: `Short repair + planned target · about ${adjustedMinutes} min`,
       learningMode: needsMoreSupport ? "learn" : "study",
       explanation,
-    };
+    });
   }
 
   if (completion.feedback === "too_difficult") {
     const explanation = `You completed the check, but the session felt too difficult.${difficultyAdjustment}`;
-    return {
+    return canonicalStudyRouteSessionScalars<NextSessionAdaptation>({
       planSessionId: nextSession.id,
       title: nextSession.title,
       objective: nextSession.objective,
@@ -91,12 +92,12 @@ export function buildNextSessionAdaptation(
       amountLabel: `One guided example + planned work · about ${adjustedMinutes} min`,
       learningMode: "learn",
       explanation,
-    };
+    });
   }
 
   if (completion.feedback === "too_easy" && accuracy !== null && accuracy >= 0.8) {
     const explanation = `You answered ${completion.correctAnswers} of ${completion.totalAnswers} checks correctly and marked the session too easy. YOVA will use more independent application next.`;
-    return {
+    return canonicalStudyRouteSessionScalars<NextSessionAdaptation>({
       planSessionId: nextSession.id,
       title: nextSession.title,
       objective: nextSession.objective,
@@ -106,7 +107,7 @@ export function buildNextSessionAdaptation(
       amountLabel: `Higher-challenge practice · about ${nextSession.estimatedMinutes} min`,
       learningMode: "study",
       explanation,
-    };
+    });
   }
 
   return null;

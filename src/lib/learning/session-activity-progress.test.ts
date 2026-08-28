@@ -1,11 +1,37 @@
 import { describe, expect, it } from "vitest";
 import {
   appendRetrievalRoundRating,
+  isBroadRecallActivityProgress,
+  mergeSessionActivityProgress,
   readSessionActivityProgress,
   retrievalRoundActivityProgressIsComplete,
   restoreRetrievalRoundActivityProgress,
+  sessionActivityProgressIsResumable,
+  sessionActivityProgressHasRequiredRouteIdentity,
+  sessionActivityProgressRank,
   type SessionActivityProgress,
 } from "@/lib/learning/session-activity-progress";
+import {
+  completeBroadRecallComparison,
+  completeBroadRecallCorrection,
+  startBroadRecallProgress,
+} from "@/lib/learning/broad-recall-progress";
+import { blurtingFinalCheckEvidenceId } from "@/lib/study-route/method-recipe-contract";
+
+const TARGET_ID = "11111111-1111-4111-8111-111111111111";
+
+function broadRecallProgress() {
+  const progress = startBroadRecallProgress({
+    activityIndex: 2,
+    gapCount: 2,
+    bindings: [{
+      targetId: TARGET_ID,
+      evidenceId: blurtingFinalCheckEvidenceId(TARGET_ID),
+    }],
+  });
+  expect(progress).not.toBeNull();
+  return progress!;
+}
 
 describe("session activity recovery progress", () => {
   it("restores the active prompt and retry queue from ratings alone", () => {
@@ -85,5 +111,122 @@ describe("session activity recovery progress", () => {
       activityIndex: 0,
       promptCount: 3,
     })).toBe(true);
+  });
+
+  it("preserves the deployed retrieval marker shape byte-for-byte", () => {
+    const legacy = {
+      kind: "retrieval_round" as const,
+      activityIndex: 1,
+      promptCount: 3,
+      ratings: ["partly" as const],
+    };
+
+    const restored = readSessionActivityProgress(legacy);
+
+    expect(restored).toEqual(legacy);
+    expect(JSON.stringify(restored)).toBe(JSON.stringify(legacy));
+    expect(restored).not.toHaveProperty("format");
+    expect(restored).not.toHaveProperty("events");
+  });
+
+  it("reads strict broad-recall prefixes without assuming ratings", () => {
+    const initial = broadRecallProgress();
+    const compared = completeBroadRecallComparison(initial, ["covered", "missing"]);
+    expect(compared).not.toBeNull();
+
+    const restored = readSessionActivityProgress(structuredClone(compared));
+
+    expect(isBroadRecallActivityProgress(restored)).toBe(true);
+    expect(sessionActivityProgressRank(restored ?? undefined)).toBe(1);
+    expect(sessionActivityProgressIsResumable(restored)).toBe(true);
+    expect(Object.isFrozen(restored)).toBe(true);
+    expect(Object.isFrozen(restored?.kind === "broad_recall" ? restored.events : null)).toBe(true);
+    expect(readSessionActivityProgress({
+      ...compared,
+      answerDraft: "PRIVATE LEARNER ANSWER",
+    })).toBeNull();
+  });
+
+  it("treats a bound empty broad prefix as resumable but keeps empty retrieval legacy behavior", () => {
+    const broad = broadRecallProgress();
+    const retrieval: SessionActivityProgress = {
+      kind: "retrieval_round",
+      activityIndex: 0,
+      promptCount: 3,
+      ratings: [],
+    };
+
+    expect(sessionActivityProgressIsResumable(broad)).toBe(true);
+    expect(sessionActivityProgressIsResumable(retrieval)).toBe(false);
+    expect(sessionActivityProgressHasRequiredRouteIdentity(broad, undefined)).toBe(false);
+    expect(sessionActivityProgressHasRequiredRouteIdentity(broad, "not-a-route-id")).toBe(false);
+    expect(sessionActivityProgressHasRequiredRouteIdentity(
+      broad,
+      "00000000-0000-4000-8000-000000000101",
+    )).toBe(true);
+    expect(sessionActivityProgressHasRequiredRouteIdentity(retrieval, undefined)).toBe(true);
+  });
+
+  it("merges only compatible immutable prefixes and reports divergence explicitly", () => {
+    const initial = broadRecallProgress();
+    const compared = completeBroadRecallComparison(initial, ["covered", "missing"]);
+    const corrected = compared ? completeBroadRecallCorrection(compared) : null;
+    expect(compared).not.toBeNull();
+    expect(corrected).not.toBeNull();
+
+    expect(mergeSessionActivityProgress(compared, corrected)).toMatchObject({
+      kind: "merged",
+      source: "right",
+      progress: corrected,
+    });
+    expect(mergeSessionActivityProgress(compared, {
+      ...compared,
+      activityIndex: 3,
+    })).toEqual({
+      kind: "conflict",
+      reason: "identity_mismatch",
+    });
+    expect(mergeSessionActivityProgress(compared, {
+      ...compared,
+      events: [{
+        type: "comparison_completed",
+        gapStatuses: ["partial", "missing"],
+      }],
+    })).toEqual({
+      kind: "conflict",
+      reason: "event_divergence",
+    });
+    expect(mergeSessionActivityProgress(compared, {
+      kind: "retrieval_round",
+      activityIndex: 2,
+      promptCount: 3,
+      ratings: ["partly"],
+    })).toEqual({
+      kind: "conflict",
+      reason: "identity_mismatch",
+    });
+  });
+
+  it("distinguishes an absent marker from null or malformed persisted data", () => {
+    const broad = broadRecallProgress();
+
+    expect(mergeSessionActivityProgress(undefined, undefined)).toEqual({
+      kind: "merged",
+      source: "equal",
+      progress: undefined,
+    });
+    expect(mergeSessionActivityProgress(undefined, broad)).toMatchObject({
+      kind: "merged",
+      source: "right",
+      progress: broad,
+    });
+    expect(mergeSessionActivityProgress(null, broad)).toEqual({
+      kind: "conflict",
+      reason: "invalid_progress",
+    });
+    expect(mergeSessionActivityProgress({ kind: "broad_recall" }, undefined)).toEqual({
+      kind: "conflict",
+      reason: "invalid_progress",
+    });
   });
 });

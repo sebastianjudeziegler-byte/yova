@@ -5,6 +5,14 @@ import { LEARNING_TITLE_CHARACTER_LIMIT } from "@/lib/learning/title-limits";
 import { generatePreviewPlan } from "@/lib/plan-generation/preview-generator";
 import { PlanGenerationRequestSchema } from "@/lib/plan-generation/schema";
 import { builtInSessionFallbackKind } from "@/lib/session-generation/built-in-fallback";
+import type { StudyNowDurationDecision } from "@/lib/study-route/duration-plan-integration";
+import { resolveNormalStudyDurationPrecedence } from "@/lib/study-route/duration-precedence";
+import { NORMAL_DURATION_RECOMMENDER_VERSION } from "@/lib/study-route/duration-recommendation";
+import { selectCanonicalStudyMethod } from "@/lib/learning/canonical-method-selection";
+import { CORE_METHOD_CATALOG } from "@/lib/learning/method-catalog";
+import { methodFidelityContractForPrompt } from "@/lib/learning/method-fidelity";
+import type { StudyRouteMethodDecision } from "@/lib/study-route/method-plan-integration";
+import { methodSelectionContextForStudyRoute } from "@/lib/study-route/method-plan-integration";
 
 function knowledgeMap(
   titles: string[],
@@ -66,7 +74,172 @@ function requestWithMinutes(minutes: number) {
   });
 }
 
+function studyNowDurationDecision(): StudyNowDurationDecision {
+  const result = resolveNormalStudyDurationPrecedence({
+    systemRecommendation: {
+      minutes: 25,
+      source: "profile_recommendation",
+      ruleTrace: [{
+        ruleId: "duration.recommendation.sustainable_baseline",
+        result: "baseline_25_minutes",
+        reason: "The learner's authorized sustainable-duration answer sets the baseline.",
+        evidenceRefs: ["profile:sustainable-duration"],
+      }],
+    },
+    learnerOverrideMinutes: null,
+    hardMaximumMinutes: 20,
+  });
+  if (result.status !== "resolved") throw new Error("The fixture must resolve.");
+  return {
+    timing: result.timing,
+    ruleTrace: result.ruleTrace,
+    routerVersion: NORMAL_DURATION_RECOMMENDER_VERSION,
+    profileVersion: "authorized_profile_snapshot:duration-v1",
+  };
+}
+
+function studyNowMethodDecision(): StudyRouteMethodDecision {
+  return {
+    selection: selectCanonicalStudyMethod({
+      taskType: "memorization",
+      knowledgeStage: "developing",
+      learningMode: "study",
+      learnerChoice: {
+        methodId: "spaced_retrieval",
+        evidenceRef: "learner-choice:preview",
+      },
+    }),
+    profileVersion: "authorized_method_context_v1:preview",
+  };
+}
+
 describe("preview plan time windows", () => {
+  it("uses resolved Study Now timing before the final content budget and route materialization", () => {
+    const request = {
+      ...requestWithMinutes(20),
+      intent: "study_now" as const,
+      deadline: null,
+    };
+    const legacyPlan = generatePreviewPlan(request);
+    const routedPlan = generatePreviewPlan(
+      request,
+      new Date("2026-08-23T09:00:00.000Z"),
+      { studyNowDurationDecision: studyNowDurationDecision() },
+    );
+
+    expect(legacyPlan.sessions[0]).toMatchObject({
+      estimatedMinutes: 20,
+      contentTargets: expect.arrayContaining([
+        "Purpose and location of glycolysis",
+        "Citric acid cycle inputs and outputs",
+        "Electron transport and ATP production",
+      ]),
+    });
+    expect(routedPlan.sessions[0]).toMatchObject({
+      estimatedMinutes: 15,
+      amountLabel: "Focused session · about 15 min",
+      studyRoute: {
+        timing: {
+          activeMinutes: 15,
+          elapsedMinutes: 15,
+          durationSource: "availability_cap",
+          hardMaximumMinutes: 20,
+        },
+      },
+    });
+    expect(routedPlan.sessions[0]?.contentTargets).toEqual([
+      "Purpose and location of glycolysis",
+      "Citric acid cycle inputs and outputs",
+    ]);
+    expect(routedPlan.knowledgeMap?.topics.filter((topic) => topic.deferred)).toHaveLength(2);
+    expect(routedPlan.sessions[0]?.studyRoute?.execution.orderedPhases.reduce((sum, phase) => (
+      sum + phase.activeMinutes
+    ), 0)).toBe(15);
+  });
+
+  it("rejects a duration sidecar outside Study Now or with a different hard maximum", () => {
+    expect(() => generatePreviewPlan(
+      requestWithMinutes(20),
+      new Date("2026-08-23T09:00:00.000Z"),
+      { studyNowDurationDecision: studyNowDurationDecision() },
+    )).toThrow("normal plan preview");
+
+    expect(() => generatePreviewPlan(
+      {
+        ...requestWithMinutes(25),
+        intent: "study_now",
+        deadline: null,
+      },
+      new Date("2026-08-23T09:00:00.000Z"),
+      { studyNowDurationDecision: studyNowDurationDecision() },
+    )).toThrow("exact hard maximum");
+  });
+
+  it("makes the deterministic method sidecar authoritative before route materialization", () => {
+    const base = requestWithMinutes(25);
+    const request = {
+      ...base,
+      intent: "study_now" as const,
+      learningIntent: "study" as const,
+      goal: "Memorize biology vocabulary and recall each definition without notes.",
+      deadline: null,
+      knowledgeMap: undefined,
+    };
+    const now = new Date("2026-08-24T08:00:00.000Z");
+    const preliminary = generatePreviewPlan(request, now);
+    const preliminaryRoute = preliminary.sessions[0]?.studyRoute;
+    if (!preliminaryRoute) throw new Error("The fixture needs a provisional route.");
+    const context = methodSelectionContextForStudyRoute(preliminaryRoute);
+    const baseline = selectCanonicalStudyMethod(context);
+    const chosenMethodId = baseline.eligibleMethodIds.at(-1)!;
+    const decision: StudyRouteMethodDecision = {
+      selection: selectCanonicalStudyMethod({
+        ...context,
+        learnerChoice: {
+          methodId: chosenMethodId,
+          evidenceRef: "learner-choice:preview",
+        },
+      }),
+      profileVersion: "authorized_method_context_v1:preview",
+    };
+    const plan = generatePreviewPlan(
+      request,
+      now,
+      { studyNowMethodDecision: decision },
+    );
+
+    expect(plan.sessions[0]).toMatchObject({
+      method: CORE_METHOD_CATALOG[chosenMethodId].name,
+      studyRoute: {
+        approach: {
+          primaryMethodId: chosenMethodId,
+          visibleMethodName: CORE_METHOD_CATALOG[chosenMethodId].name,
+        },
+        agency: {
+          controlMode: "learner_customizes",
+          selectedBy: "learner",
+        },
+        provenance: {
+          profileVersion: "authorized_method_context_v1:preview",
+        },
+      },
+    });
+    expect(plan.sessions[0]?.studyRoute?.execution.orderedPhases.map((phase) => (
+      phase.methodPhase
+    ))).toEqual(methodFidelityContractForPrompt(
+      chosenMethodId,
+      context.learningMode,
+    ).orderedPhases);
+  });
+
+  it("rejects a method sidecar outside Study Now", () => {
+    expect(() => generatePreviewPlan(
+      requestWithMinutes(25),
+      new Date("2026-08-24T08:00:00.000Z"),
+      { studyNowMethodDecision: studyNowMethodDecision() },
+    )).toThrow("normal plan preview");
+  });
+
   it("uses the learner's calendar zone, chosen weekdays, and windows for the system fallback", () => {
     const request = {
       ...requestWithMinutes(15),

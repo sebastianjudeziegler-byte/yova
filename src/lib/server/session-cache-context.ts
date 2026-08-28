@@ -9,6 +9,7 @@ export type SessionCacheContext = {
   adjustmentFingerprint: string;
   contractFingerprint?: string;
   scopeFingerprint: string;
+  routeRevisionId?: string;
 };
 
 /**
@@ -21,6 +22,7 @@ export function buildSessionCacheContext({
   plannedMinutes,
   adjustment,
   contractKey,
+  routeRevisionId,
 }: {
   plannedMinutes: number;
   adjustment: SessionAdjustment | null | undefined;
@@ -30,6 +32,7 @@ export function buildSessionCacheContext({
    * validator is fully backward compatible.
    */
   contractKey?: string | null;
+  routeRevisionId?: string | null;
 }): SessionCacheContext {
   const effectiveMinutes = adjustment?.availableMinutes ?? plannedMinutes;
   const canonicalAdjustment = adjustment
@@ -57,7 +60,9 @@ export function buildSessionCacheContext({
       plannedMinutes,
       adjustment,
       contractKey,
+      routeRevisionId,
     }),
+    ...(routeRevisionId ? { routeRevisionId } : {}),
   };
 }
 
@@ -71,8 +76,31 @@ export function sessionCacheContextMatches(
     && cached.adjustmentFingerprint === requested.adjustmentFingerprint
     && cached.scopeFingerprint === requested.scopeFingerprint
     && (
+      requested.routeRevisionId === undefined
+      || cached.routeRevisionId === requested.routeRevisionId
+    )
+    && (
       requested.contractFingerprint === undefined
       || cached.contractFingerprint === requested.contractFingerprint
     )
   );
+}
+
+/**
+ * The route revision is duplicated at the generated-session boundary and in
+ * its cache context on purpose. Reuse is safe only when both receipts name the
+ * exact requested route. Legacy requests remain compatible with legacy cache
+ * entries, but never inherit content that was authorized by a later route.
+ */
+export function sessionCacheRouteRevisionMatches(
+  cachedSessionRouteRevisionId: string | undefined,
+  cachedContextRouteRevisionId: string | undefined,
+  requestedRouteRevisionId: string | undefined,
+) {
+  if (requestedRouteRevisionId === undefined) {
+    return cachedSessionRouteRevisionId === undefined
+      && cachedContextRouteRevisionId === undefined;
+  }
+  return cachedSessionRouteRevisionId === requestedRouteRevisionId
+    && cachedContextRouteRevisionId === requestedRouteRevisionId;
 }

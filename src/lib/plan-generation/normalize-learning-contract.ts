@@ -2,13 +2,12 @@ import { getCoreLearningMethod } from "@/lib/learning/method-catalog";
 import {
   buildLearningScienceRoutingBrief,
   classifyLearningTask,
-  methodFitsSessionMode,
-  methodIdFromText,
 } from "@/lib/learning/method-router";
 import { isActiveCompletionEvidence } from "@/lib/plan-generation/quality-gate";
 import type {
   GeneratedPlanDraft,
   PlanGenerationRequest,
+  ProviderGeneratedPlanDraft,
 } from "@/lib/plan-generation/schema";
 
 /**
@@ -16,7 +15,7 @@ import type {
  * YOVA's task-to-method rules or treat passive exposure as completion.
  */
 export function normalizeGeneratedPlanLearningContract(
-  draft: GeneratedPlanDraft,
+  draft: ProviderGeneratedPlanDraft,
   request: PlanGenerationRequest,
 ): GeneratedPlanDraft {
   const normalizedDraft = normalizeTentativePreferenceLanguage(draft);
@@ -39,31 +38,20 @@ export function normalizeGeneratedPlanLearningContract(
         goalKind: normalizedDraft.kind,
         sessionTitle: session.title,
         sessionObjective: session.objective,
-        plannedMethod: session.method,
-        plannedMethodReason: session.methodReason,
+        plannedMethod: "",
+        plannedMethodReason: "",
         learnerProfile: null,
         recentResults: [],
         interruptionCount: 0,
         taskTypeOverride,
       });
-      const proposedMethodId = methodIdFromText(session.method);
-      const proposedMethodFits = proposedMethodId
-        ? getCoreLearningMethod(proposedMethodId).taskTypes.includes(routing.taskType)
-          && methodFitsSessionMode(proposedMethodId, routing.taskType, session.learningMode)
-        : false;
-      const method = getCoreLearningMethod(
-        proposedMethodFits && proposedMethodId
-          ? proposedMethodId
-          : routing.suggestedPrimaryMethodId,
-      );
+      const method = getCoreLearningMethod(routing.suggestedPrimaryMethodId);
       const hasPassiveEvidence = session.completionEvidence.some((item) => !isActiveCompletionEvidence(item));
 
       return {
         ...session,
         method: method.name,
-        methodReason: proposedMethodFits
-          ? session.methodReason
-          : `${method.why} YOVA selected it because this session is ${routing.taskType.replaceAll("_", " ")} work.`,
+        methodReason: `${method.why} YOVA selected it because this session is ${routing.taskType.replaceAll("_", " ")} work.`,
         completionEvidence: hasPassiveEvidence
           ? [completionEvidenceFor(routing.taskType, session.learningMode)]
           : session.completionEvidence,
@@ -79,8 +67,8 @@ export function normalizeGeneratedPlanLearningContract(
  * fail the quality gate.
  */
 function normalizeTentativePreferenceLanguage(
-  draft: GeneratedPlanDraft,
-): GeneratedPlanDraft {
+  draft: ProviderGeneratedPlanDraft,
+): ProviderGeneratedPlanDraft {
   const rewrite = (value: string) => value
     .replace(/\byou learn best by\b/gi, "you currently prefer")
     .replace(/\byou learn best with\b/gi, "you currently prefer")
@@ -103,10 +91,6 @@ function normalizeTentativePreferenceLanguage(
   return {
     ...draft,
     rationale: rewrite(draft.rationale),
-    sessions: draft.sessions.map((session) => ({
-      ...session,
-      methodReason: rewrite(session.methodReason),
-    })),
   };
 }
 

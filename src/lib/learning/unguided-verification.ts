@@ -4,6 +4,7 @@ import {
 import { contentBudgetForMinutes } from "@/lib/plan-generation/content-budget";
 import { MAX_RUNTIME_PLAN_SESSIONS } from "@/lib/plan-generation/schema";
 import { createSessionAdaptationNote } from "@/lib/personalization/adaptation-note";
+import { canonicalStudyRouteSessionScalars } from "@/lib/study-route/scalar-contract";
 
 const VERIFICATION_MINUTES = 10;
 const VERIFICATION_CONTENT_BUDGET = contentBudgetForMinutes(VERIFICATION_MINUTES);
@@ -33,13 +34,13 @@ export function buildUnguidedVerificationSession({
   const scheduledFor = new Date(new Date(completedAt).getTime() + DAY_IN_MILLISECONDS).toISOString();
   const explanation = `The method work counted as practice, not proof. YOVA scheduled a guided check of ${target} so these exact targets are verified before the plan moves on.`;
 
-  return {
+  return canonicalStudyRouteSessionScalars<LearningPlanSession>({
     id: verificationId,
     sequence: completedSession.sequence + 1,
     title: `Verify ${target}`.slice(0, 180),
     objective: verificationObjective(completedSession, target),
     method: "Independent retrieval verification",
-    methodReason: explanation.slice(0, 900),
+    methodReason: explanation,
     scheduledFor,
     estimatedMinutes: VERIFICATION_MINUTES,
     amountLabel: "Required guided verification · about 10 min",
@@ -51,7 +52,7 @@ export function buildUnguidedVerificationSession({
     adaptationNote: createSessionAdaptationNote(explanation, completedAt),
     reviewConcept: target,
     reviewType: "verify",
-  };
+  });
 }
 
 export function canScheduleUnguidedVerification(
@@ -160,5 +161,5 @@ function verificationTarget(session: LearningPlanSession) {
 function verificationObjective(session: LearningPlanSession, target: string) {
   const targets = session.contentTargets?.map((item) => item.trim()).filter(Boolean) ?? [];
   const scope = targets.length > 0 ? targets.join("; ") : target;
-  return `Complete an independent guided retrieval or application check for every original target: ${scope}. Record topic evidence only from those checked answers.`.slice(0, 900);
+  return `Complete an independent guided retrieval or application check for every original target: ${scope}. Record topic evidence only from those checked answers.`;
 }

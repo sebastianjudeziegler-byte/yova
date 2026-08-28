@@ -515,29 +515,21 @@ function economicsLearnContext(): SessionGenerationContext {
 async function expectCompleteValidatorPass(
   draft: GeneratedSessionDraft,
   context: SessionGenerationContext,
-  expectedSuggestedMethod: "self_explanation" | "spaced_retrieval" | "worked_example_fading" = "spaced_retrieval",
+  expectedSuggestedMethod: "retrieval_practice" | "self_explanation" | "spaced_retrieval" | "worked_example_fading" = "retrieval_practice",
 ) {
   const { buildLearningScienceRoutingBrief } = await import("@/lib/learning/method-router");
+  const { sessionRoutingInput } = await import("@/lib/learning/session-routing-input");
   const {
     applyPersonalizedMethodTieToRouting,
     personalizationDecisions,
   } = await import("@/lib/personalization/personalization-generation");
   const { buildSessionDeliveryPolicy } = await import("@/lib/personalization/session-delivery-policy");
   const { validateGeneratedSessionWithCode } = await import("@/lib/openai/session-generator");
-  const routing = applyPersonalizedMethodTieToRouting(buildLearningScienceRoutingBrief({
-    learningIntent: context.learningGoal.learningIntent,
-    sessionLearningMode: context.session.learningMode,
-    goalTitle: context.learningGoal.title,
-    goalTopic: context.learningGoal.topic,
-    goalKind: context.learningGoal.kind,
-    sessionTitle: context.session.title,
-    sessionObjective: context.session.objective,
-    plannedMethod: context.session.method,
-    plannedMethodReason: context.session.methodReason,
-    learnerProfile: context.learnerProfile,
-    recentResults: context.recentResults,
-    interruptionCount: context.recentInterruptions.length,
-  }), context.personalization);
+  const routing = applyPersonalizedMethodTieToRouting(
+    buildLearningScienceRoutingBrief(sessionRoutingInput(context)),
+    context.personalization,
+    context.studyRoute?.approach.primaryMethodId,
+  );
   const deliveryPolicy = buildSessionDeliveryPolicy({
     learnerProfile: context.learnerProfile,
     recentResults: context.recentResults,
@@ -2573,7 +2565,7 @@ describe("multi-target study recovery", () => {
 
     expect(parseResponse).toHaveBeenCalledTimes(3);
     expect(parseResponse.mock.calls[2]?.[0]?.text?.format?.name).toBe("yova_safe_study_recovery");
-    expect(result.draft.methodBriefing.methodId).toBe("spaced_retrieval");
+    expect(result.draft.methodBriefing.methodId).toBe("retrieval_practice");
     expect(result.draft.activities.some((activity) => (
       activity.requiredForCompletion && activity.type === "free_response"
     ))).toBe(true);
@@ -3048,7 +3040,12 @@ describe("scheduled retrieval generation", () => {
     const { generateSessionWithOpenAI } = await import("@/lib/openai/session-generator");
     const result = await generateSessionWithOpenAI({
       ...base,
-      recentResults: [comparableResult, comparableResult],
+      recentResults: [
+        comparableResult,
+        comparableResult,
+        comparableResult,
+        comparableResult,
+      ],
     });
 
     expect(parseResponse).toHaveBeenCalledTimes(1);

@@ -40,6 +40,33 @@ describe("readConceptEvidenceProperty", () => {
 });
 
 describe("summarizeConceptEvidence", () => {
+  it("preserves the exact route behind the latest concept observation", () => {
+    const firstRoute = "11111111-1111-4111-8111-111111111111";
+    const latestRoute = "22222222-2222-4222-8222-222222222222";
+    const [signal] = summarizeConceptEvidence([
+      {
+        completedAt: "2026-08-04T16:00:00.000Z",
+        conceptEvidence: [{
+          routeRevisionId: firstRoute,
+          concept: "ATP coupling",
+          outcome: "needs_review",
+          activityType: "free_response",
+        }],
+      },
+      {
+        completedAt: "2026-08-05T16:00:00.000Z",
+        conceptEvidence: [{
+          routeRevisionId: latestRoute,
+          concept: "ATP coupling",
+          outcome: "secure",
+          activityType: "free_response",
+        }],
+      },
+    ]);
+
+    expect(signal?.lastRouteRevisionId).toBe(latestRoute);
+  });
+
   it("merges capitalization and spacing variants of the same concept", () => {
     const result = summarizeConceptEvidence([
       {

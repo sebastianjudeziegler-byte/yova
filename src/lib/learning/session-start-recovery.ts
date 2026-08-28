@@ -5,12 +5,13 @@ import type {
 } from "@/lib/domain";
 import {
   checkpointMatchesSessionResource,
+  checkpointMatchesSessionRoute,
   checkpointHandoffMatchesInterruption,
   checkpointToSessionResumePoint,
   chooseLatestSessionResumePoint,
   restoreExitProgressThroughCheckpoint,
   type ActiveSessionCheckpointResumePoint,
-  type ActiveSessionCheckpointV1,
+  type ActiveSessionCheckpoint,
 } from "@/lib/learning/active-session-checkpoint";
 import { GENERIC_INSIDE_FALLBACK_METHOD_NAME } from "@/lib/learning/fallback-method-briefing";
 import { canLoadBuiltInFallbackWithCompletion } from "@/lib/learning/unguided-verification";
@@ -70,18 +71,21 @@ export function sessionStartRecoveryDecision({
   plan: LearningPlan;
   session: LearningPlanSession;
   interruptions: readonly SessionInterruption[];
-  restorableCheckpoints: readonly ActiveSessionCheckpointV1[];
+  restorableCheckpoints: readonly ActiveSessionCheckpoint[];
   sessionAdjustment?: SessionAdjustment | null;
 }): SessionStartRecoveryDecision {
+  const routeCompatibleCheckpoints = restorableCheckpoints.filter((checkpoint) => (
+    checkpointMatchesSessionRoute(checkpoint, session)
+  ));
   const selected = chooseLatestSessionResumePoint(
     session.id,
     [...interruptions],
-    restorableCheckpoints,
+    routeCompatibleCheckpoints,
   );
   const selectedCheckpoint = isActiveCheckpointResumePoint(selected)
     ? selected
     : selected
-      ? restorableCheckpoints
+      ? routeCompatibleCheckpoints
         .map(checkpointToSessionResumePoint)
         .filter((checkpoint) => checkpointHandoffMatchesInterruption(checkpoint, selected))
         .sort((left, right) => Date.parse(right.savedAt) - Date.parse(left.savedAt))[0] ?? selected

@@ -57,6 +57,7 @@ import {
 } from "@/components/guided-session-allowance-notice";
 import { LearningContent } from "@/components/learning-content";
 import { MaterialLinkImporter } from "@/components/material-link-importer";
+import { MethodLibrary } from "@/components/method-library";
 import {
   PersonalizationCenter,
   type PersonalizationCenterSignal,
@@ -134,7 +135,9 @@ import {
   getMethodPhasePresentation,
   methodPhasePosition,
 } from "@/lib/learning/method-phase-presentation";
+import { CORE_METHOD_IDS, type CoreMethodId } from "@/lib/learning/method-catalog";
 import {
+  buildCommittedRouteFallbackMethodBriefing,
   buildFallbackMethodBriefing,
   buildGenericInsideFallbackMethodBriefing,
   GENERIC_INSIDE_FALLBACK_METHOD_NAME,
@@ -151,6 +154,22 @@ import {
   recoverRunnablePlanLifecycles,
 } from "@/lib/learning/plan-visibility";
 import { completePlanSession } from "@/lib/learning/complete-plan-session";
+import {
+  prepareConceptReviewSessionStudyRoute,
+  preparePostSessionStudyRouteTransition,
+} from "@/lib/study-route/post-session-transition";
+import { preparePlanAdjustmentStudyRoutes } from "@/lib/study-route/plan-adjustment";
+import { createCommittedMethodChoiceSuccessor } from "@/lib/study-route/committed-method-choice";
+import { CommittedMethodChoiceResponseSchema } from "@/lib/study-route/committed-method-choice-schema";
+import { explainStudyRouteDuration } from "@/lib/study-route/duration-explanation";
+import { NORMAL_STUDY_DURATION_LEVELS } from "@/lib/study-route/duration-levels";
+import {
+  resolveStudyRouteSessionContract,
+  selectSessionActiveMinutes,
+  selectSessionLearningMode,
+  selectSessionMethodName,
+} from "@/lib/study-route/selectors";
+import { activeStudyRouteTargetIds } from "@/lib/study-route/targets";
 import {
   buildDeferredSessionContinuation,
   sessionResourceHasDeferredPlanTargets,
@@ -199,8 +218,8 @@ import {
   replaceActiveSessionCheckpointsForAccount,
   restoreCheckpointSessionResources,
   saveActiveSessionCheckpoint,
+  type ActiveSessionCheckpoint,
   type ActiveSessionCheckpointResumePoint,
-  type ActiveSessionCheckpointV1,
 } from "@/lib/learning/active-session-checkpoint";
 import { sessionStartRecoveryDecision } from "@/lib/learning/session-start-recovery";
 import {
@@ -210,6 +229,7 @@ import {
   type MethodWorkProgress,
 } from "@/lib/learning/method-work-progress";
 import {
+  isRetrievalRoundActivityProgress,
   retrievalRoundActivityProgressIsComplete,
   type SessionActivityProgress,
 } from "@/lib/learning/session-activity-progress";
@@ -237,11 +257,13 @@ import {
   evaluateActivePersonalizationExperiment,
   finishPersonalizationExperiment,
   personalizationExperimentAcceptsCompletion,
+  preferredMethodIds,
   readPersonalizationStateFromAnswers,
   recordPersonalizationExperimentCompletion,
   recordPersonalizationWeeklyReview,
   setPersonalizationEvidenceRefExcluded,
   startPersonalizationExperiment,
+  setPreferredMethodIds,
   undoPersonalizationChange,
   updatePersonalizationStateInAnswers,
   type PersonalizationWorkspaceSettings,
@@ -279,7 +301,10 @@ import {
   sessionSupportExplanation,
   type SessionSupportLevel,
 } from "@/lib/personalization/session-support";
-import { buildSessionDecisionSignals } from "@/lib/personalization/session-decision";
+import {
+  buildSessionDecisionSignals,
+  buildStudyRouteMethodDecisionSignal,
+} from "@/lib/personalization/session-decision";
 import {
   buildSessionDeliveryPolicy,
   type LessonDeliveryInstructions,
@@ -426,6 +451,8 @@ import {
 
 type Stage = "landing" | "account" | "cloud-error" | "onboarding-intro" | "onboarding" | "profile" | "app" | "add" | "plan-creator" | "study-now" | "session-setup" | "session-loading" | "session-error" | "session-quota" | "session-method" | "session" | "complete";
 type Tab = "Home" | "Learning" | "Agenda" | "Ask YOVA" | "You";
+type LearningPlanView = "active" | "recent" | "archive";
+type LearningSection = LearningPlanView | "methods";
 type LessonStep = GuidedSessionStep & {
   lessonBrief?: LessonBrief | null;
   /** Original persisted skeleton index; display indices can shift after a live repair. */
@@ -454,26 +481,38 @@ function recoveryMethodContext({
   interruptions: SessionInterruption[];
   adjustment: SessionAdjustment | null;
 }) {
+  const routeContract = resolveStudyRouteSessionContract(plan, session);
   const context = buildPreviewSessionContext({
-    plan,
-    session,
+    plan: routeContract.plan,
+    session: routeContract.session,
     onboardingAnswers,
     completions,
     interruptions,
     sessionAdjustment: adjustment,
   });
-  const availableMinutes = adjustment?.availableMinutes ?? context.session.estimatedMinutes;
+  const committedRoute = routeContract.resolution.route?.identity.lifecycleStatus === "committed"
+    ? routeContract.resolution.route
+    : null;
+  const availableMinutes = committedRoute?.timing.activeMinutes
+    ?? adjustment?.availableMinutes
+    ?? context.session.estimatedMinutes;
   const methodSession: LearningPlanSession = {
     ...session,
     title: context.session.title,
-    objective: context.session.objective,
-    method: context.session.method,
-    methodReason: context.session.methodReason,
+    objective: committedRoute?.target.desiredOutcome ?? context.session.objective,
+    method: committedRoute?.approach.visibleMethodName ?? context.session.method,
+    methodReason: committedRoute?.explanation.shortReason ?? context.session.methodReason,
     estimatedMinutes: availableMinutes,
-    learningMode: context.session.learningMode,
-    topicIds: context.session.topicIds,
+    learningMode: committedRoute
+      ? committedRoute.approach.mode === "learn" ? "learn" : "study"
+      : context.session.learningMode,
+    topicIds: committedRoute
+      ? activeStudyRouteTargetIds(committedRoute)
+      : context.session.topicIds,
     contentTargets: context.session.contentTargets,
-    completionEvidence: context.session.completionEvidence,
+    completionEvidence: committedRoute
+      ? committedRoute.execution.completionEvidence.map((evidence) => evidence.description)
+      : context.session.completionEvidence,
   };
   const deliveryPolicy = buildSessionDeliveryPolicy({
     learnerProfile: context.learnerProfile,
@@ -484,7 +523,7 @@ function recoveryMethodContext({
   });
   const briefing = buildFallbackMethodBriefing(plan, methodSession, deliveryPolicy);
   const topics = methodPracticeTopics(methodSession, null);
-  const sourceFirstRequired = plan.studyMode === "outside_yova"
+  const sourceFirstRequired = routeContract.plan.studyMode === "outside_yova"
     && methodSession.learningMode === "learn";
   return {
     availableMinutes,
@@ -492,9 +531,10 @@ function recoveryMethodContext({
     deliveryPolicy,
     briefing,
     topics,
+    studyMode: routeContract.plan.studyMode,
     sourceFirstRequired,
     fingerprint: fingerprintMethodWorkSession({
-      studyMode: plan.studyMode,
+      studyMode: routeContract.plan.studyMode,
       session: methodSession,
       topics,
       sourceFirstRequired,
@@ -550,7 +590,7 @@ export function YovaPrototype({
   const [learningDetailPlanId, setLearningDetailPlanId] = useState<string | null>(null);
   const [sessionCompletions, setSessionCompletions] = useState<SessionCompletion[]>([]);
   const [sessionInterruptions, setSessionInterruptions] = useState<SessionInterruption[]>([]);
-  const [activeSessionCheckpoints, setActiveSessionCheckpoints] = useState<ActiveSessionCheckpointV1[]>([]);
+  const [activeSessionCheckpoints, setActiveSessionCheckpoints] = useState<ActiveSessionCheckpoint[]>([]);
   const [cloudCheckpointRunIds, setCloudCheckpointRunIds] = useState<Set<string>>(() => new Set());
   const [sessionStep, setSessionStep] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
@@ -583,6 +623,10 @@ export function YovaPrototype({
   const [sessionRecoveryNotice, setSessionRecoveryNotice] = useState<string | null>(null);
   const [sessionRecoveryIssue, setSessionRecoveryIssue] = useState<string | null>(null);
   const [cloudSyncIssue, setCloudSyncIssue] = useState<string | null>(null);
+  const [syncedPreferenceSnapshot, setSyncedPreferenceSnapshot] = useState<{
+    accountId: string;
+    preferenceKey: string;
+  } | null>(null);
   const [signingOut, setSigningOut] = useState(false);
   const [signOutIssue, setSignOutIssue] = useState<string | null>(null);
   const [signedOutStorageIssue, setSignedOutStorageIssue] = useState<string | null>(null);
@@ -596,6 +640,7 @@ export function YovaPrototype({
   const [earlySchedulePending, setEarlySchedulePending] = useState(false);
   const [earlyScheduleIssue, setEarlyScheduleIssue] = useState<string | null>(null);
   const cloudRecoveryStatusRef = useRef<CloudRecoveryStatus>("idle");
+  const explicitlySavedProfileAnswersRef = useRef<string[] | null>(null);
   const signOutPendingRef = useRef(false);
   const retainedSignOutAccountIdRef = useRef<string | null>(null);
   const sessionGenerationAbortRef = useRef<AbortController | null>(null);
@@ -613,10 +658,11 @@ export function YovaPrototype({
     fingerprint: string;
     generatedAt: string;
   }>());
+  const methodChoiceOperationIdsRef = useRef(new Map<string, string>());
   const checkpointSyncEpochRef = useRef(0);
   const discardedCheckpointRunIdsRef = useRef(new Set<string>());
   const writeActiveSessionCheckpointRef = useRef<(
-    statusOverride?: ActiveSessionCheckpointV1["status"],
+    statusOverride?: ActiveSessionCheckpoint["status"],
     completedAtOverride?: string,
     completionModeOverride?: SessionCompletionMode,
   ) => boolean>(() => false);
@@ -630,7 +676,19 @@ export function YovaPrototype({
   const activePlans = filterOperationalPlans(plans);
   const availablePlans = filterAvailablePlans(plans);
   const agendaMilestones = filterAgendaMilestones(deadlineMilestones, plans);
-  const activePlan = activePlans.find((plan) => plan.id === selectedPlanId) ?? activePlans[activePlans.length - 1] ?? null;
+  const storedActivePlan = activePlans.find((plan) => plan.id === selectedPlanId) ?? activePlans[activePlans.length - 1] ?? null;
+  const storedActiveSession = storedActivePlan?.sessions.find((session) => session.status === "ready") ?? null;
+  const activeRouteContract = storedActivePlan && storedActiveSession
+    ? resolveStudyRouteSessionContract(storedActivePlan, storedActiveSession)
+    : null;
+  const activePlan = activeRouteContract && storedActivePlan && storedActiveSession
+    ? {
+      ...activeRouteContract.plan,
+      sessions: storedActivePlan.sessions.map((session) => (
+        session.id === storedActiveSession.id ? activeRouteContract.session : session
+      )),
+    }
+    : storedActivePlan;
   const recoverableSessionCheckpoints = activeSessionCheckpoints.filter((checkpoint) => {
     const plan = activePlans.find((candidate) => candidate.id === checkpoint.planId);
     const session = plan?.sessions.find((candidate) => candidate.id === checkpoint.planSessionId);
@@ -646,7 +704,7 @@ export function YovaPrototype({
       });
       return canScheduleUnguidedVerification(methodContext.session, plan.sessions.length)
         && checkpointMatchesMethodWorkSession(checkpoint, {
-          studyMode: plan.studyMode,
+          studyMode: methodContext.studyMode,
           session: methodContext.session,
           topics: methodContext.topics,
           sourceFirstRequired: methodContext.sourceFirstRequired,
@@ -670,6 +728,51 @@ export function YovaPrototype({
   const capturedSessionSeconds = Math.max(1, sessionElapsedSeconds);
   const capturedSessionMinutes = Math.max(1, Math.ceil(capturedSessionSeconds / 60));
   const personalizationState = readPersonalizationStateFromAnswers(answers);
+  const savedPreferredMethodIds = preferredMethodIds(personalizationState);
+  const syncedPreferenceKey = account?.identityMode === "supabase"
+    && syncedPreferenceSnapshot?.accountId === account.id
+    ? syncedPreferenceSnapshot.preferenceKey
+    : null;
+  const effectivePreviewPreferredMethodIds = personalizationState.controls.selfReport
+    ? savedPreferredMethodIds
+    : [];
+  const changePreferredMethodIds = async (methodIds: CoreMethodId[]) => {
+    const nextAnswers = updatePersonalizationStateInAnswers(
+      answers,
+      (currentState) => setPreferredMethodIds(currentState, methodIds),
+    );
+    // Keep the choice on this device first, then wait for the exact same
+    // answer snapshot to reach a cloud account before reporting success.
+    if (account?.identityMode === "supabase") {
+      explicitlySavedProfileAnswersRef.current = nextAnswers;
+    }
+    setAnswers(nextAnswers);
+    if (account?.identityMode !== "supabase") return;
+
+    try {
+      await saveAuthenticatedLearnerProfile({
+        accountId: account.id,
+        displayName: account.displayName,
+        onboardingAnswers: nextAnswers,
+      });
+      setSyncedPreferenceSnapshot({
+        accountId: account.id,
+        preferenceKey: preferredMethodIds(
+          readPersonalizationStateFromAnswers(nextAnswers),
+        ).join("|"),
+      });
+      setCloudSyncIssue((current) => (
+        isTemporaryLearnerProfileSyncWarning(current) ? null : current
+      ));
+    } catch (error) {
+      reportProductError({ surface: "cloud_sync", errorCode: "learner_profile_sync_failed" });
+      const issue = error instanceof Error
+        ? error.message
+        : "YOVA could not sync your learning profile.";
+      setCloudSyncIssue(issue);
+      throw error instanceof Error ? error : new Error(issue);
+    }
+  };
   const workspaceExperimentSession = stage === "session" || stage === "session-method"
     ? activePlan?.sessions.find((session) => session.status === "ready") ?? null
     : null;
@@ -733,7 +836,7 @@ export function YovaPrototype({
     setStage("add");
   };
 
-  const removeCheckpointFromDevice = useCallback((checkpoint: ActiveSessionCheckpointV1) => {
+  const removeCheckpointFromDevice = useCallback((checkpoint: ActiveSessionCheckpoint) => {
     discardedCheckpointRunIdsRef.current.add(checkpoint.runId);
     removeActiveSessionCheckpoint(
       checkpoint.accountId,
@@ -752,7 +855,7 @@ export function YovaPrototype({
     });
   }, []);
 
-  const rememberAuthoritativeCloudCheckpoint = useCallback((checkpoint: ActiveSessionCheckpointV1) => {
+  const rememberAuthoritativeCloudCheckpoint = useCallback((checkpoint: ActiveSessionCheckpoint) => {
     if (discardedCheckpointRunIdsRef.current.has(checkpoint.runId)) return;
     const current = loadActiveSessionCheckpoints(checkpoint.accountId)
       .find((candidate) => candidate.planSessionId === checkpoint.planSessionId);
@@ -774,7 +877,7 @@ export function YovaPrototype({
     }
   }, []);
 
-  const syncCheckpointToAccount = useCallback(async (checkpoint: ActiveSessionCheckpointV1) => {
+  const syncCheckpointToAccount = useCallback(async (checkpoint: ActiveSessionCheckpoint) => {
     // The deployed cloud contract intentionally accepts lesson progress only,
     // not workpad state. Keep a method-work marker on this device rather than
     // letting the cloud response strip its checked topics. Ordinary generated
@@ -1001,7 +1104,7 @@ export function YovaPrototype({
           const interruptedRunTombstones = new Set(
             pendingSessionInterruptionRunIds(cloudAccount.id),
           );
-          const hasPendingTerminal = (checkpoint: ActiveSessionCheckpointV1) => (
+          const hasPendingTerminal = (checkpoint: ActiveSessionCheckpoint) => (
             completedSessionTombstones.has(checkpoint.planSessionId)
             || interruptedRunTombstones.has(checkpoint.runId)
           );
@@ -1225,7 +1328,7 @@ export function YovaPrototype({
         });
         return !canScheduleUnguidedVerification(methodContext.session, plan.sessions.length)
           || !checkpointMatchesMethodWorkSession(checkpoint, {
-            studyMode: plan.studyMode,
+            studyMode: methodContext.studyMode,
             session: methodContext.session,
             topics: methodContext.topics,
             sourceFirstRequired: methodContext.sourceFirstRequired,
@@ -1263,6 +1366,12 @@ export function YovaPrototype({
           setCloudSyncIssue(terminalOrProfileIssue);
           return;
         }
+        setSyncedPreferenceSnapshot({
+          accountId: account.id,
+          preferenceKey: preferredMethodIds(
+            readPersonalizationStateFromAnswers(answers),
+          ).join("|"),
+        });
         const checkpointIssues = await Promise.all(
           activeSessionCheckpoints.map(syncCheckpointToAccount),
         );
@@ -1276,6 +1385,11 @@ export function YovaPrototype({
 
   useEffect(() => {
     if (!ready || !onboardingCompleted || account?.identityMode !== "supabase") return;
+    if (explicitlySavedProfileAnswersRef.current === answers) {
+      explicitlySavedProfileAnswersRef.current = null;
+      return;
+    }
+    explicitlySavedProfileAnswersRef.current = null;
     let cancelled = false;
 
     void saveAuthenticatedLearnerProfile({
@@ -1284,6 +1398,12 @@ export function YovaPrototype({
       onboardingAnswers: answers,
     }).then(() => {
       if (!cancelled) {
+        setSyncedPreferenceSnapshot({
+          accountId: account.id,
+          preferenceKey: preferredMethodIds(
+            readPersonalizationStateFromAnswers(answers),
+          ).join("|"),
+        });
         setCloudSyncIssue((current) => (
           isTemporaryLearnerProfileSyncWarning(current)
             ? null
@@ -1473,9 +1593,28 @@ export function YovaPrototype({
       ? sessionGenerationAttemptRef.current.adjustment
       : null;
     const activityProgress = sessionActivityProgressRef.current;
-    const checkpoint: ActiveSessionCheckpointV1 = awaitingFinish
+    const checkpointRouteRevisionId = currentSession.resource?.routeRevisionId
+      ?? (currentSession.studyRoute?.identity.lifecycleStatus === "committed"
+        ? currentSession.studyRoute.identity.routeRevisionId
+        : undefined);
+    const checkpointRouteIdentity = checkpointRouteRevisionId
+      ? { version: 2 as const, routeRevisionId: checkpointRouteRevisionId }
+      : { version: 1 as const };
+    const workingCheckpointRouteIdentity = checkpointRouteRevisionId
       ? {
-        version: 1,
+        version: 2 as const,
+        routeRevisionId: checkpointRouteRevisionId,
+        ...(activityProgress ? { activityProgress } : {}),
+      }
+      : {
+        version: 1 as const,
+        ...(isRetrievalRoundActivityProgress(activityProgress)
+          ? { activityProgress }
+          : {}),
+      };
+    const checkpoint: ActiveSessionCheckpoint = awaitingFinish
+      ? {
+        ...checkpointRouteIdentity,
         accountId: account.id,
         runId: activeSessionRunIdRef.current,
         planId: activePlan.id,
@@ -1498,7 +1637,7 @@ export function YovaPrototype({
         completionFeedback: sessionCompletionFeedback,
       }
       : {
-        version: 1,
+        ...workingCheckpointRouteIdentity,
         accountId: account.id,
         runId: activeSessionRunIdRef.current,
         planId: activePlan.id,
@@ -1518,7 +1657,6 @@ export function YovaPrototype({
         ...(checkpointMethodWork ? { methodWork: checkpointMethodWork } : {}),
         ...(sessionAdjustment ? { sessionAdjustment } : {}),
         ...(pendingRepair ? { pendingRepair } : {}),
-        ...(activityProgress ? { activityProgress } : {}),
       };
 
     const saved = saveActiveSessionCheckpoint(checkpoint);
@@ -1729,12 +1867,14 @@ export function YovaPrototype({
     planOverride?: LearningPlan,
     adjustment?: SessionAdjustment | null,
   ) => {
-    const requestedPlan = planOverride ?? activePlans.find((plan) => plan.id === planId) ?? activePlan;
-    if (!requestedPlan) return;
+    const storedRequestedPlan = planOverride ?? activePlans.find((plan) => plan.id === planId) ?? activePlan;
+    if (!storedRequestedPlan) return;
+    const storedRequestedSession = storedRequestedPlan.sessions.find((session) => session.status === "ready");
+    if (!storedRequestedSession) return;
+    const routeContract = resolveStudyRouteSessionContract(storedRequestedPlan, storedRequestedSession);
+    const requestedPlan = routeContract.plan;
+    const requestedSession = routeContract.session;
     const requestedPlanWasStoredAtStart = plansRef.current.some((plan) => plan.id === requestedPlan.id);
-
-    const requestedSession = requestedPlan.sessions.find((session) => session.status === "ready");
-    if (!requestedSession) return;
     const startDecision = sessionStartRecoveryDecision({
       plan: requestedPlan,
       session: requestedSession,
@@ -1763,7 +1903,7 @@ export function YovaPrototype({
       return;
     }
 
-    const effectiveAdjustment = resumePoint && adjustment === undefined
+    const requestedAdjustment = resumePoint && adjustment === undefined
       ? resumedSessionAdjustment({
         interruption: resumePoint,
         plannedSessionMinutes: requestedSession.estimatedMinutes,
@@ -1772,6 +1912,16 @@ export function YovaPrototype({
           : {}),
       })
       : adjustment ?? null;
+    const committedStudyRoute = routeContract.resolution.source === "stored"
+      && routeContract.resolution.route?.identity.lifecycleStatus === "committed"
+      ? routeContract.resolution.route
+      : null;
+    // A committed route is the recipe the learner approved. Temporary setup
+    // context can change delivery support, but changing its duration requires
+    // a visible successor revision rather than silently mutating this one.
+    const effectiveAdjustment = committedStudyRoute && requestedAdjustment
+      ? { ...requestedAdjustment, availableMinutes: null }
+      : requestedAdjustment;
     sessionGenerationAttemptRef.current = {
       planSessionId: requestedSession.id,
       adjustment: effectiveAdjustment,
@@ -1935,6 +2085,9 @@ export function YovaPrototype({
         body: JSON.stringify({
           planId: requestedPlan.id,
           planSessionId: requestedSession.id,
+          ...(requestedSession.studyRoute?.identity.lifecycleStatus === "committed"
+            ? { routeRevisionId: requestedSession.studyRoute.identity.routeRevisionId }
+            : {}),
           ...(effectiveAdjustment ? { sessionAdjustment: effectiveAdjustment } : {}),
           ...(account?.identityMode === "preview" ? {
             previewContext: buildPreviewSessionContext({
@@ -1980,6 +2133,16 @@ export function YovaPrototype({
         });
         generationFailureStatus = 502;
         throw new Error("The generated session came back in an unsafe format.");
+      }
+      const expectedRouteRevisionId = requestedSession.studyRoute?.identity.lifecycleStatus === "committed"
+        ? requestedSession.studyRoute.identity.routeRevisionId
+        : undefined;
+      if (
+        expectedRouteRevisionId
+        && parsed.data.session.routeRevisionId !== expectedRouteRevisionId
+      ) {
+        generationFailureStatus = 409;
+        throw new Error("The generated session belongs to a different study route.");
       }
       trackProductEvent({
         eventName: "session_generated",
@@ -2076,16 +2239,44 @@ export function YovaPrototype({
       const fallbackAvailableMinutes = methodRecovery.availableMinutes;
       const fallbackSession = methodRecovery.session;
       const fallbackDeliveryPolicy = methodRecovery.deliveryPolicy;
+      const methodRecoveryCanStart = !(
+        requestedPlan.studyMode === "inside_yova"
+        && fallbackSession.learningMode === "learn"
+      ) && canScheduleUnguidedVerification(
+        fallbackSession,
+        requestedPlan.sessions.length,
+      );
       const openMethodRecovery = (
         fallbackOutcome: Exclude<BuiltInFallbackOutcome, "loaded">,
       ) => {
-        setSessionFailureState(buildGuidedSessionFailureState({
+        const failureState = buildGuidedSessionFailureState({
           cause: resolvedFailureCause,
           fallbackOutcome,
-        }));
+        });
+        setSessionFailureState(failureState);
         setSessionRecoverySession(fallbackSession);
         setSessionMethodBriefing(methodRecovery.briefing);
         setSessionDeliveryPolicy(fallbackDeliveryPolicy);
+        if (methodRecoveryCanStart) {
+          activeSessionResourceFingerprintRef.current = methodRecovery.fingerprint;
+          activeSessionResourceGeneratedAtRef.current = null;
+          setMethodWorkProgress(emptyMethodWorkProgress());
+          updateSessionActivityProgress(null);
+          setSessionCompletionMode("unguided_practice");
+          setSessionGenerationIssue(null);
+          setSessionRecoveryIssue(null);
+          beginTimedSession(requestedPlan, false, null, "session-method");
+          const recoveryMessage = resolvedFailureCause.kind === "allowance_exhausted"
+            ? guidedSessionAllowanceFallbackNotice(
+                resolvedFailureCause.resetAt,
+                "A safe study-method workpad was loaded instead",
+              )
+            : `${message} A safe study-method workpad was loaded instead. It follows the committed method and counts as practice, not proof of mastery.`;
+          setSessionRecoveryNotice(
+            `${recoveryMessage}${requestId ? ` Reference: ${requestId}.` : ""}`,
+          );
+          return;
+        }
         setSessionGenerationIssue(requestId ? `Reference: ${requestId}.` : null);
         setStage(resolvedFailureCause.kind === "allowance_exhausted" ? "session-quota" : "session-error");
       };
@@ -2205,11 +2396,31 @@ export function YovaPrototype({
         })),
         learningMode: fallbackSession.learningMode,
       });
-      const fallbackMethodBriefing = fallbackSelection?.kind === "generic_inside"
-        ? buildGenericInsideFallbackMethodBriefing(requestedPlan, fallbackSession, fallbackDeliveryPolicy)
-        : buildFallbackMethodBriefing(requestedPlan, fallbackSession, fallbackDeliveryPolicy);
+      const committedFallbackRoute = requestedSession.studyRoute?.identity.lifecycleStatus === "committed"
+        ? requestedSession.studyRoute
+        : null;
+      const fallbackMethodBriefing = committedFallbackRoute && fallbackSelection?.kind !== "generic_inside"
+        ? buildCommittedRouteFallbackMethodBriefing(committedFallbackRoute, fallbackDeliveryPolicy)
+        : fallbackSelection?.kind === "generic_inside"
+          ? buildGenericInsideFallbackMethodBriefing(requestedPlan, fallbackSession, fallbackDeliveryPolicy)
+          : buildFallbackMethodBriefing(requestedPlan, fallbackSession, fallbackDeliveryPolicy);
+      if (
+        committedFallbackRoute
+        && (
+          fallbackMethodBriefing.methodId !== committedFallbackRoute.approach.primaryMethodId
+          || fallbackMethodBriefing.learningMode !== (
+            committedFallbackRoute.approach.mode === "learn" ? "learn" : "study"
+          )
+        )
+      ) {
+        openMethodRecovery("unavailable");
+        return;
+      }
       const fallbackResource = {
         ...reusableResourceFromLessonSteps(fallbackSteps, fallbackSession.methodReason),
+        ...(requestedSession.studyRoute?.identity.lifecycleStatus === "committed"
+          ? { routeRevisionId: requestedSession.studyRoute.identity.routeRevisionId }
+          : {}),
         coverage: fallbackCoverage,
         methodBriefing: fallbackMethodBriefing,
         deliveryPolicy: fallbackDeliveryPolicy,
@@ -2347,7 +2558,13 @@ export function YovaPrototype({
     }
     if (item.action !== "activate_review") return;
 
-    const reviewSession = buildConceptReviewSession(plan, item);
+    const rawReviewSession = buildConceptReviewSession(plan, item);
+    const reviewSession = prepareConceptReviewSessionStudyRoute({
+      plan,
+      session: rawReviewSession,
+      changedAt: rawReviewSession.scheduledFor,
+      originRouteRevisionId: item.originRouteRevisionId,
+    });
     if (account?.identityMode === "supabase") {
       await activateAuthenticatedConceptReviewSession(plan.id, reviewSession);
     }
@@ -2387,10 +2604,15 @@ export function YovaPrototype({
         conceptEvidence: sessionEvidence.conceptEvidence,
         confidenceEvidence: sessionEvidence.confidenceEvidence,
       };
+    const executedRouteRevisionId = currentSession.resource?.routeRevisionId
+      ?? (currentSession.studyRoute?.identity.lifecycleStatus === "committed"
+        ? currentSession.studyRoute.identity.routeRevisionId
+        : undefined);
     const completionDraft: SessionCompletion = {
       id: checkpointRunId ?? makeUuid(),
       planId: activePlan.id,
       planSessionId: currentSession.id,
+      ...(executedRouteRevisionId ? { routeRevisionId: executedRouteRevisionId } : {}),
       startedAt: new Date((Number.isFinite(completedAtMs) ? completedAtMs : Date.now()) - activeSeconds * 1_000).toISOString(),
       completedAt,
       plannedMinutes: sessionCapacityMinutes ?? currentSession.estimatedMinutes,
@@ -2400,8 +2622,14 @@ export function YovaPrototype({
       feedback,
       observedGap: recordedEvidence.observedGap,
       completionMode: sessionCompletionMode,
-      conceptEvidence: recordedEvidence.conceptEvidence,
-      confidenceEvidence: recordedEvidence.confidenceEvidence,
+      conceptEvidence: recordedEvidence.conceptEvidence.map((evidence) => ({
+        ...evidence,
+        ...(executedRouteRevisionId ? { routeRevisionId: executedRouteRevisionId } : {}),
+      })),
+      confidenceEvidence: recordedEvidence.confidenceEvidence.map((evidence) => ({
+        ...evidence,
+        ...(executedRouteRevisionId ? { routeRevisionId: executedRouteRevisionId } : {}),
+      })),
     };
     const completion = sessionCompletionMode === "unguided_practice"
       ? asUnguidedPracticeCompletion(completionDraft)
@@ -2447,6 +2675,22 @@ export function YovaPrototype({
       : { adaptation: null, followUpSession: null };
     const adaptation = approvedChanges.adaptation;
     const delayedVerification = unguidedVerification ?? approvedChanges.followUpSession;
+    let routeTransition;
+    try {
+      routeTransition = preparePostSessionStudyRouteTransition({
+        plan: activePlan,
+        completedSessionId: currentSession.id,
+        changedAt: completion.completedAt,
+        adaptation,
+        followUpSession: delayedVerification,
+        continuationSession: deferredContinuation,
+      });
+    } catch {
+      setSessionRecoveryIssue("YOVA kept this session open because it could not safely preserve the next study route. Try finishing again; your current work is still saved.");
+      return false;
+    }
+    const routedDelayedVerification = routeTransition.followUpSession;
+    const routedDeferredContinuation = routeTransition.continuationSession;
 
     trackProductEvent({
       eventName: "session_completed",
@@ -2468,8 +2712,9 @@ export function YovaPrototype({
           completedSessionId: currentSession.id,
           completedAt: completion.completedAt,
           adaptation,
-          followUpSession: delayedVerification,
-          continuationSession: deferredContinuation,
+          nextSessionStudyRoute: routeTransition.nextSessionStudyRoute,
+          followUpSession: routedDelayedVerification,
+          continuationSession: routedDeferredContinuation,
         })
         : plan
     )));
@@ -2505,8 +2750,9 @@ export function YovaPrototype({
         userId: account.id,
         completion,
         adaptation,
-        followUpSession: delayedVerification,
-        continuationSession: deferredContinuation,
+        followUpSession: routedDelayedVerification,
+        continuationSession: routedDeferredContinuation,
+        nextSessionStudyRoute: routeTransition.nextSessionStudyRoute,
         queuedAt: new Date().toISOString(),
       });
       if (checkpointRunId) {
@@ -2533,8 +2779,9 @@ export function YovaPrototype({
         completeImmediately: () => completeAuthenticatedPlanSession(
           completion,
           adaptation,
-          delayedVerification,
-          deferredContinuation,
+          routedDelayedVerification,
+          routedDeferredContinuation,
+          routeTransition.nextSessionStudyRoute,
         ),
       })
         .then(({ synced }) => {
@@ -2615,10 +2862,15 @@ export function YovaPrototype({
       ? sessionGenerationAttemptRef.current.adjustment
       : null;
     const checkpointRunId = activeSessionRunIdRef.current;
+    const interruptedRouteRevisionId = currentSession.resource?.routeRevisionId
+      ?? (currentSession.studyRoute?.identity.lifecycleStatus === "committed"
+        ? currentSession.studyRoute.identity.routeRevisionId
+        : undefined);
     const interruption: SessionInterruption = {
       id: checkpointRunId ?? makeUuid(),
       planId: activePlan.id,
       planSessionId: currentSession.id,
+      ...(interruptedRouteRevisionId ? { routeRevisionId: interruptedRouteRevisionId } : {}),
       startedAt: new Date(interruptedAt.getTime() - activeSeconds * 1_000).toISOString(),
       interruptedAt: interruptedAt.toISOString(),
       plannedMinutes: sessionCapacityMinutes ?? currentSession.estimatedMinutes,
@@ -2911,6 +3163,121 @@ export function YovaPrototype({
     }
   };
 
+  const changeReadySessionMethod = async (selection: {
+    planId: string;
+    planSessionId: string;
+    expectedRouteRevisionId: string;
+    methodId: CoreMethodId;
+  }) => {
+    const requestedPlan = plansRef.current.find((plan) => plan.id === selection.planId);
+    const requestedSession = requestedPlan?.sessions.find((session) => (
+      session.id === selection.planSessionId
+    ));
+    const requestedRoute = requestedSession?.studyRoute?.identity.lifecycleStatus === "committed"
+      ? requestedSession.studyRoute
+      : null;
+    if (
+      !requestedPlan
+      || !requestedSession
+      || requestedPlan.status !== "active"
+      || requestedSession.status !== "ready"
+      || requestedSession.resource
+      || requestedRoute?.identity.routeRevisionId !== selection.expectedRouteRevisionId
+      || sessionCompletions.some((completion) => completion.planSessionId === selection.planSessionId)
+      || sessionInterruptions.some((interruption) => interruption.planSessionId === selection.planSessionId)
+      || activeSessionCheckpoints.some((checkpoint) => checkpoint.planSessionId === selection.planSessionId)
+    ) {
+      throw new Error("This session is no longer untouched and ready for a method change.");
+    }
+
+    const operationKey = [
+      selection.planId,
+      selection.planSessionId,
+      selection.expectedRouteRevisionId,
+      selection.methodId,
+    ].join(":");
+    const changeRequestId = methodChoiceOperationIdsRef.current.get(operationKey)
+      ?? makeUuid();
+    methodChoiceOperationIdsRef.current.set(operationKey, changeRequestId);
+    let authoritativeSession: {
+      id: string;
+      method: string;
+      methodReason: string;
+      estimatedMinutes: number;
+      studyRoute: NonNullable<LearningPlanSession["studyRoute"]>;
+    };
+
+    if (account?.identityMode === "preview" || browserPreviewMode) {
+      const result = createCommittedMethodChoiceSuccessor({
+        plan: requestedPlan,
+        session: requestedSession,
+        previousRoute: requestedRoute,
+        expectedRouteRevisionId: selection.expectedRouteRevisionId,
+        routeRevisionId: changeRequestId,
+        methodId: selection.methodId,
+        changedAt: new Date().toISOString(),
+      });
+      authoritativeSession = result.session;
+    } else {
+      const response = await fetch("/api/sessions/method-choice", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...selection,
+          changeRequestId,
+        }),
+      });
+      const body: unknown = await response.json();
+      if (!response.ok) {
+        if (response.status >= 400 && response.status < 500) {
+          methodChoiceOperationIdsRef.current.delete(operationKey);
+        }
+        const message = typeof body === "object" && body && "error" in body
+          && typeof body.error === "string"
+          ? body.error
+          : "YOVA could not change this session method. The current recipe is still in place.";
+        throw new Error(message);
+      }
+      const parsed = CommittedMethodChoiceResponseSchema.safeParse(body);
+      if (!parsed.success) {
+        throw new Error("The updated session recipe came back in an unsafe format. Reload this goal before continuing.");
+      }
+      authoritativeSession = parsed.data.session;
+    }
+
+    const currentPlan = plansRef.current.find((plan) => plan.id === selection.planId);
+    const currentSession = currentPlan?.sessions.find((session) => (
+      session.id === selection.planSessionId
+    ));
+    if (
+      !currentPlan
+      || !currentSession
+      || currentSession.studyRoute?.identity.routeRevisionId !== selection.expectedRouteRevisionId
+      || authoritativeSession.studyRoute.identity.supersedesRevisionId !== selection.expectedRouteRevisionId
+    ) {
+      throw new Error("This session changed while YOVA was saving your choice. Reload the goal to see its current recipe.");
+    }
+
+    const replaceMethodSession = (plan: LearningPlan) => plan.id !== selection.planId
+      ? plan
+      : {
+          ...plan,
+          sessions: plan.sessions.map((session) => session.id !== selection.planSessionId
+            ? session
+            : {
+                ...session,
+                method: authoritativeSession.method,
+                methodReason: authoritativeSession.methodReason,
+                estimatedMinutes: authoritativeSession.estimatedMinutes,
+                studyRoute: authoritativeSession.studyRoute,
+              }),
+        };
+    plansRef.current = plansRef.current.map(replaceMethodSession);
+    setPlans((current) => current.map(replaceMethodSession));
+    setPendingSessionPlan((current) => current ? replaceMethodSession(current) : current);
+    methodChoiceOperationIdsRef.current.delete(operationKey);
+  };
+
   const adjustPlan = async (input: PlanAdjustmentRequest) => {
     const requestedPlan = plansRef.current.find((candidate) => candidate.id === input.planId);
     if (!requestedPlan) throw new Error("YOVA could not find that plan.");
@@ -2935,6 +3302,7 @@ export function YovaPrototype({
       let adjustableSessions = unfinishedSessions
         .filter((session) => !isScheduledRetrievalSession(session))
         .map(learningPlanSessionToAdjustableRow);
+      const newSessionOriginIds: Record<string, string> = {};
       if (input.includeDeferred && plan.knowledgeMap) {
         const alreadyIncluded = new Set(unfinishedSessions.flatMap((session) => session.topicIds ?? []));
         const deferred = plan.knowledgeMap.topics.filter((topic) => topic.deferred && !alreadyIncluded.has(topic.id));
@@ -2943,8 +3311,14 @@ export function YovaPrototype({
           (latest, session) => Math.max(latest, new Date(session.scheduledFor).getTime()),
           fallbackScheduleTime,
         );
-        adjustableSessions = [...adjustableSessions, ...deferred.map((topic, index) => ({
-          id: makeUuid(),
+        const exactDeferredOriginId = adjustableSessions.at(-1)?.id
+          ?? unfinishedSessions.at(-1)?.id
+          ?? plan.sessions.at(-1)?.id;
+        adjustableSessions = [...adjustableSessions, ...deferred.map((topic, index) => {
+          const id = makeUuid();
+          if (exactDeferredOriginId) newSessionOriginIds[id] = exactDeferredOriginId;
+          return {
+          id,
           sequence: plan.sessions.length + index + 1,
           title: `Learn ${topic.title}`,
           objective: `Build an accurate model of ${topic.title}, then produce one independent check tied to this topic.`,
@@ -2959,7 +3333,7 @@ export function YovaPrototype({
             contentTargets: [topic.title, ...topic.subtopics.slice(0, 3)],
             completionEvidence: [`Explain ${topic.title} accurately and complete one independent check`],
           },
-        }))];
+        }; })];
       }
       const redirectedSessions = input.direction && adjustableSessions.length
         ? applyPlanDirectionFallback(adjustableSessions, input.direction, plan.topic)
@@ -2975,6 +3349,20 @@ export function YovaPrototype({
       );
       if (!replacements.length) throw new Error("This plan has no unfinished content to adjust.");
       const includedTopicIds = new Set(replacements.flatMap((session) => session.topicIds ?? []));
+      const scalarReplacements = replacements.map((replacement) => {
+        if (!("reviewType" in replacement) || !replacement.reviewType) return replacement;
+        const original = protectedReviews.find((session) => session.id === replacement.id);
+        return original ? { ...original, sequence: replacement.sequence } : replacement;
+      });
+      const routedReplacements = preparePlanAdjustmentStudyRoutes({
+        plan,
+        replacementSessions: scalarReplacements,
+        nextStudyMode: input.studyMode,
+        changedAt: new Date().toISOString(),
+        reason: input.direction
+          ?? "The learner changed the remaining plan schedule, duration, or execution environment.",
+        newSessionOriginIds,
+      });
       setPlans((current) => current.map((candidate) => candidate.id === input.planId ? {
         ...candidate,
         deadline: input.deadline,
@@ -2985,11 +3373,7 @@ export function YovaPrototype({
         } : candidate.knowledgeMap,
         sessions: [
           ...settledSessions,
-          ...replacements.map((replacement) => {
-            if (!("reviewType" in replacement) || !replacement.reviewType) return replacement;
-            const original = protectedReviews.find((session) => session.id === replacement.id);
-            return original ? { ...original, sequence: replacement.sequence } : replacement;
-          }),
+          ...routedReplacements,
         ].sort((left, right) => left.sequence - right.sequence),
       } : candidate));
       return;
@@ -3222,6 +3606,12 @@ export function YovaPrototype({
       setCloudSyncIssue(terminalOrProfileIssue);
       throw new Error(terminalOrProfileIssue);
     }
+    setSyncedPreferenceSnapshot({
+      accountId: account.id,
+      preferenceKey: preferredMethodIds(
+        readPersonalizationStateFromAnswers(answers),
+      ).join("|"),
+    });
     const checkpointIssues = await Promise.all(
       activeSessionCheckpoints.map(syncCheckpointToAccount),
     );
@@ -3548,7 +3938,7 @@ export function YovaPrototype({
     onCreatePlan={(seed) => { setCreatorSeed(seed); setCreatorMilestoneId(null); setStage("plan-creator"); }}
     onCreateSession={(seed) => { setCreatorSeed(seed); setCreatorMilestoneId(null); setStage("study-now"); }}
   />;
-  if (stage === "plan-creator") return <PlanCreator seed={creatorSeed ?? undefined} browserPreviewMode={browserPreviewMode || account?.identityMode === "preview"} profileSummary={buildPlanProfileSummary(answers)} onExit={() => { setCreatorSeed(null); setCreatorMilestoneId(null); setStage("app"); }} onFinish={(plan) => {
+  if (stage === "plan-creator") return <PlanCreator seed={creatorSeed ?? undefined} browserPreviewMode={browserPreviewMode || account?.identityMode === "preview"} previewPreferredMethodIds={effectivePreviewPreferredMethodIds} profileSummary={buildPlanProfileSummary(answers)} onExit={() => { setCreatorSeed(null); setCreatorMilestoneId(null); setStage("app"); }} onFinish={(plan) => {
     trackProductEvent({
       eventName: "plan_created",
       context: {
@@ -3566,7 +3956,7 @@ export function YovaPrototype({
     setStage("app");
     setActiveTab("Learning");
   }} />;
-  if (stage === "study-now") return <StudyNowCreator seed={creatorSeed} profileSummary={buildPlanProfileSummary(answers)} onExit={() => { setCreatorSeed(null); setCreatorMilestoneId(null); setStage("app"); }} onFinish={(plan) => {
+  if (stage === "study-now") return <StudyNowCreator seed={creatorSeed} browserPreviewMode={browserPreviewMode || account?.identityMode === "preview"} previewPreferredMethodIds={effectivePreviewPreferredMethodIds} profileSummary={buildPlanProfileSummary(answers)} onExit={() => { setCreatorSeed(null); setCreatorMilestoneId(null); setStage("app"); }} onFinish={(plan) => {
     trackProductEvent({
       eventName: "plan_created",
       context: {
@@ -3582,7 +3972,7 @@ export function YovaPrototype({
     setSelectedPlanId(plan.id);
     void startSession(plan.id, plan);
   }} />;
-  if (stage === "session-setup") return <SessionSetup plan={pendingSessionPlan ?? activePlan} answers={answers} completions={sessionCompletions} interruptions={sessionInterruptions} onExit={() => {
+  if (stage === "session-setup") return <SessionSetup plan={pendingSessionPlan ?? activePlan} answers={answers} completions={sessionCompletions} interruptions={sessionInterruptions} onChangeMethod={changeReadySessionMethod} onExit={() => {
     setPendingSessionPlan(null);
     setStage("app");
   }} onOpenGoal={() => {
@@ -3731,7 +4121,7 @@ export function YovaPrototype({
   return <>
     <AppShell activeTab={activeTab} onTab={openTab} account={account} cloudSyncIssue={cloudSyncIssue} signOutIssue={signOutIssue} signingOut={signingOut} onRetryCloudSync={retryCloudSync} onAdd={beginAgendaAdd} workspaceClassName={personalizationWorkspaceClassName} onSignOut={signOut}>
       {activeTab === "Home" && <HomeScreen account={account} answers={answers} plans={activePlans} plan={recommendedPlan} sessionCompletions={sessionCompletions} sessionInterruptions={sessionInterruptions} activeSessionCheckpoints={recoverableSessionCheckpoints} allowance={guidedSessionAllowance} allowanceChecking={guidedSessionAllowanceChecking} tutorQuestion={tutorQuestion} onTutorQuestion={setTutorQuestion} onOpenTutor={openAskYova} onOpenYou={() => setActiveTab("You")} onStart={(planId) => requestSessionStart(planId)} onOpenPlan={(planId) => { setSelectedPlanId(planId); setLearningDetailPlanId(planId); setActiveTab("Learning"); }} onCreatePlan={beginPlanCreation} onStudyNow={() => { setCreatorSeed(null); setCreatorMilestoneId(null); setStage("study-now"); }} />}
-      {activeTab === "Learning" && <LearningScreen plans={plans} detailPlanId={learningDetailPlanId} sessionCompletions={sessionCompletions} sessionInterruptions={sessionInterruptions} activeSessionCheckpoints={recoverableSessionCheckpoints} onOpenPlan={(planId) => { setSelectedPlanId(planId); setLearningDetailPlanId(planId); }} onClosePlan={() => setLearningDetailPlanId(null)} onStart={requestSessionStart} onCreatePlan={beginPlanCreation} onArchiveStateChange={changePlanArchiveState} onDeletePlan={deletePlanPermanently} onAdjustPlan={adjustPlan} onKnowledgeMapUpdate={updatePlanKnowledgeMap} onAttachMaterials={attachMaterials} />}
+      {activeTab === "Learning" && <LearningScreen plans={plans} detailPlanId={learningDetailPlanId} sessionCompletions={sessionCompletions} sessionInterruptions={sessionInterruptions} activeSessionCheckpoints={recoverableSessionCheckpoints} preferredMethodIds={savedPreferredMethodIds} syncedPreferenceKey={syncedPreferenceKey} statedPreferencesEnabled={personalizationState.controls.selfReport} onPreferredMethodIdsChange={changePreferredMethodIds} onOpenPlan={(planId) => { setSelectedPlanId(planId); setLearningDetailPlanId(planId); }} onClosePlan={() => setLearningDetailPlanId(null)} onStart={requestSessionStart} onCreatePlan={beginPlanCreation} onArchiveStateChange={changePlanArchiveState} onDeletePlan={deletePlanPermanently} onAdjustPlan={adjustPlan} onKnowledgeMapUpdate={updatePlanKnowledgeMap} onAttachMaterials={attachMaterials} />}
       {activeTab === "Agenda" && <AgendaScreen plans={availablePlans} milestones={agendaMilestones} sessionCompletions={sessionCompletions} sessionInterruptions={sessionInterruptions} activeSessionCheckpoints={recoverableSessionCheckpoints} allowance={guidedSessionAllowance} allowanceChecking={guidedSessionAllowanceChecking} previewMode={account?.identityMode === "preview"} onAdd={beginAgendaAdd} onStart={requestSessionStart} onActivateReview={activateConceptReview} onReschedule={rescheduleSessions} onAdjustDuration={adjustSessionDuration} onClassifyRecoveryInterruption={setRecoveryEvidenceClassification} onUpdateMilestone={updateDeadlineMilestone} onDeleteMilestone={deleteDeadlineMilestone} onConvertMilestone={(milestone, outcome) => { setCreatorSeed({ title: milestone.title, objective: milestone.description || `Complete ${milestone.title}`, itemType: "assignment", dueAt: milestone.dueAt, scope: milestone.description || milestone.title, progress: "", materialsSummary: "No materials attached yet.", missingFields: milestone.description ? [] : ["scope"], description: milestone.description || milestone.title, materials: [] }); setCreatorMilestoneId(milestone.id); setStage(outcome === "session" ? "study-now" : "plan-creator"); }} />}
       {activeTab === "Ask YOVA" && <AskScreen key={tutorEntryKey} plans={availablePlans} question={tutorQuestion} onQuestion={setTutorQuestion} onApplyAction={applyTutorAction} analyticsEnabled={analyticsEnabled} />}
       {activeTab === "You" && <YouScreen account={account} answers={answers} plans={plans} sessionCompletions={sessionCompletions} sessionInterruptions={sessionInterruptions} passwordAccountsEnabled={passwordAccountsEnabled} turnstileSiteKey={turnstileSiteKey} signingOut={signingOut} onAnswersChange={setAnswers} onDisplayNameChange={saveAccountDisplayName} onSignOut={signOut} onReset={resetYovaData} />}
@@ -3858,7 +4248,7 @@ export function AppShell({ activeTab, onTab, account, cloudSyncIssue, signOutIss
       setRetrying(false);
     }
   };
-  return <div className={`app-shell ${workspaceClassName}`}><a className="skip-link" href="#main-content">Skip to main content</a><aside className="sidebar"><BrandMark /><button className="sidebar-create" aria-label="Add to YOVA" onClick={onAdd}><Plus size={18} /><span>Add</span></button><nav aria-label="Main navigation">{navItems.map(({ label, icon: Icon }) => <button key={label} aria-label={label} className={activeTab === label ? "active" : ""} onClick={() => onTab(label)}><Icon size={19} /><span>{label}</span></button>)}</nav><nav className="sidebar-trust-links" aria-label="Trust and support"><Link href="/support">Support</Link><Link href="/privacy">Privacy</Link><Link href="/terms">Terms</Link></nav><div className="sidebar-bottom"><div className="account-dot">{initial}</div><div><strong>{account?.displayName || "YOVA user"}</strong><span>{account?.identityMode === "supabase" ? "Cloud account" : "Private alpha"}</span></div><button aria-label={signingOut ? "Signing out" : "Sign out on this device"} title="Sign out on this device" disabled={signingOut} onClick={() => void onSignOut()}><LogOut size={17} /></button></div></aside><main className="app-content" id="main-content" tabIndex={-1}>{signOutIssue && <div className="account-action-warning" role="alert"><AlertCircle size={18} aria-hidden="true" /><div><strong>Sign-out was not confirmed.</strong><span>{signOutIssue} This screen and its saved recovery state were left intact.</span></div></div>}{cloudSyncIssue && <div className="cloud-sync-warning"><strong>Cloud sync needs attention.</strong><span>{cloudSyncIssue} Your latest work is still saved in this browser.</span><button disabled={retrying} onClick={() => void retry()}>{retrying ? "Retrying…" : "Retry now"}</button></div>}{children}</main></div>;
+  return <div className={`app-shell ${workspaceClassName}`}><a className="skip-link" href="#main-content">Skip to main content</a><aside className="sidebar"><BrandMark /><button className="sidebar-create" aria-label="Add to YOVA" onClick={onAdd}><Plus size={18} /><span>Add</span></button><nav aria-label="Main navigation">{navItems.map(({ label, icon: Icon }) => <button key={label} aria-label={label} className={activeTab === label ? "active" : ""} onClick={() => onTab(label)}><Icon size={19} /><span>{label}</span></button>)}</nav><nav className="sidebar-trust-links" aria-label="Trust and support"><Link href="/support">Support</Link><Link href="/privacy">Privacy</Link><Link href="/terms">Terms</Link></nav><div className="sidebar-bottom"><div className="account-dot">{initial}</div><div><strong>{account?.displayName || "YOVA user"}</strong><span>{account?.identityMode === "supabase" ? "Cloud account" : "Private alpha"}</span></div><button aria-label={signingOut ? "Signing out" : "Sign out on this device"} title="Sign out on this device" disabled={signingOut} onClick={() => void onSignOut()}><LogOut size={17} /></button></div></aside><main className="app-content" id="main-content" tabIndex={-1}>{signOutIssue && <div className="account-action-warning" role="alert"><AlertCircle size={18} aria-hidden="true" /><div><strong>Sign-out was not confirmed.</strong><span>{signOutIssue} This screen and its saved recovery state were left intact.</span></div></div>}{cloudSyncIssue && <div className="cloud-sync-warning"><strong>Cloud sync needs attention.</strong><span>{cloudSyncIssue}</span><button disabled={retrying} onClick={() => void retry()}>{retrying ? "Retrying…" : "Retry now"}</button></div>}{children}</main></div>;
 }
 
 function workspaceClassName(settings: PersonalizationWorkspaceSettings) {
@@ -3874,7 +4264,7 @@ function workspaceClassName(settings: PersonalizationWorkspaceSettings) {
 
 function PageHeader({ eyebrow, title, description }: { eyebrow?: string; title: string; description?: string }) { return <header className="page-header">{eyebrow && <span className="step-label">{eyebrow}</span>}<h1>{title}</h1>{description && <p>{description}</p>}</header>; }
 
-function HomeScreen({ account, answers, plans, plan, sessionCompletions, sessionInterruptions, activeSessionCheckpoints, allowance, allowanceChecking, tutorQuestion, onTutorQuestion, onOpenTutor, onOpenYou, onStart, onOpenPlan, onCreatePlan, onStudyNow }: { account: PreviewAccount | null; answers: string[]; plans: LearningPlan[]; plan: LearningPlan | null; sessionCompletions: SessionCompletion[]; sessionInterruptions: SessionInterruption[]; activeSessionCheckpoints: ActiveSessionCheckpointV1[]; allowance: GuidedSessionAllowanceDisplayState; allowanceChecking: boolean; tutorQuestion: string; onTutorQuestion: (question: string) => void; onOpenTutor: () => void; onOpenYou: () => void; onStart: (planId?: string) => void; onOpenPlan: (planId: string) => void; onCreatePlan: () => void; onStudyNow: () => void }) {
+function HomeScreen({ account, answers, plans, plan, sessionCompletions, sessionInterruptions, activeSessionCheckpoints, allowance, allowanceChecking, tutorQuestion, onTutorQuestion, onOpenTutor, onOpenYou, onStart, onOpenPlan, onCreatePlan, onStudyNow }: { account: PreviewAccount | null; answers: string[]; plans: LearningPlan[]; plan: LearningPlan | null; sessionCompletions: SessionCompletion[]; sessionInterruptions: SessionInterruption[]; activeSessionCheckpoints: ActiveSessionCheckpoint[]; allowance: GuidedSessionAllowanceDisplayState; allowanceChecking: boolean; tutorQuestion: string; onTutorQuestion: (question: string) => void; onOpenTutor: () => void; onOpenYou: () => void; onStart: (planId?: string) => void; onOpenPlan: (planId: string) => void; onCreatePlan: () => void; onStudyNow: () => void }) {
   const rankedPlans = rankPlansForHome(plans);
   const recoverablePlan = rankedPlans.find((candidate) => {
     const readySession = candidate.sessions.find((session) => session.status === "ready");
@@ -3892,8 +4282,20 @@ function HomeScreen({ account, answers, plans, plan, sessionCompletions, session
   const touchStartX = useRef<number | null>(null);
   const selectedRecommendationIndex = recommendations.findIndex((item) => item.id === selectedRecommendationId);
   const recommendationIndex = selectedRecommendationIndex >= 0 ? selectedRecommendationIndex : 0;
-  const displayedPlan = recommendations[recommendationIndex] ?? plan;
-  const readySession = displayedPlan?.sessions.find((session) => session.status === "ready") ?? null;
+  const storedDisplayedPlan = recommendations[recommendationIndex] ?? plan;
+  const storedReadySession = storedDisplayedPlan?.sessions.find((session) => session.status === "ready") ?? null;
+  const displayedRouteContract = storedDisplayedPlan && storedReadySession
+    ? resolveStudyRouteSessionContract(storedDisplayedPlan, storedReadySession)
+    : null;
+  const displayedPlan = displayedRouteContract && storedDisplayedPlan && storedReadySession
+    ? {
+      ...displayedRouteContract.plan,
+      sessions: storedDisplayedPlan.sessions.map((session) => (
+        session.id === storedReadySession.id ? displayedRouteContract.session : session
+      )),
+    }
+    : storedDisplayedPlan;
+  const readySession = displayedRouteContract?.session ?? storedReadySession;
   const startDecision = displayedPlan && readySession ? sessionStartRecoveryDecision({
     plan: displayedPlan,
     session: readySession,
@@ -4172,8 +4574,8 @@ function AskBar({ value, onChange, onSubmit, pending = false }: { value: string;
   return <form className="ask-bar" onSubmit={(event) => { event.preventDefault(); if (value.trim() && !pending) onSubmit(); }}><Sparkles size={20} /><input aria-label="Ask YOVA" placeholder="Ask YOVA anything or describe what you need…" value={value} disabled={pending} onChange={(event) => onChange(event.target.value)} /><button aria-label="Send" type="submit" disabled={!value.trim() || pending}>{pending ? <span className="button-spinner" /> : <Send size={18} />}</button></form>;
 }
 
-function LearningScreen({ plans, detailPlanId, sessionCompletions, sessionInterruptions, activeSessionCheckpoints, onOpenPlan, onClosePlan, onStart, onCreatePlan, onArchiveStateChange, onDeletePlan, onAdjustPlan, onKnowledgeMapUpdate, onAttachMaterials }: { plans: LearningPlan[]; detailPlanId: string | null; sessionCompletions: SessionCompletion[]; sessionInterruptions: SessionInterruption[]; activeSessionCheckpoints: ActiveSessionCheckpointV1[]; onOpenPlan: (planId: string) => void; onClosePlan: () => void; onStart: (planId: string) => void; onCreatePlan: () => void; onArchiveStateChange: (planId: string, action: "archive" | "restore") => Promise<LearningPlan["status"]>; onDeletePlan: (planId: string) => Promise<void>; onAdjustPlan: (input: PlanAdjustmentRequest) => Promise<void>; onKnowledgeMapUpdate: (planId: string, knowledgeMap: PlanKnowledgeMap) => void; onAttachMaterials: (planId: string, materialIds: string[]) => Promise<void> }) {
-  const [view, setView] = useState<"active" | "recent" | "archive">(() => {
+function LearningScreen({ plans, detailPlanId, sessionCompletions, sessionInterruptions, activeSessionCheckpoints, preferredMethodIds: selectedPreferredMethodIds, syncedPreferenceKey, statedPreferencesEnabled, onPreferredMethodIdsChange, onOpenPlan, onClosePlan, onStart, onCreatePlan, onArchiveStateChange, onDeletePlan, onAdjustPlan, onKnowledgeMapUpdate, onAttachMaterials }: { plans: LearningPlan[]; detailPlanId: string | null; sessionCompletions: SessionCompletion[]; sessionInterruptions: SessionInterruption[]; activeSessionCheckpoints: ActiveSessionCheckpoint[]; preferredMethodIds: readonly CoreMethodId[]; syncedPreferenceKey: string | null; statedPreferencesEnabled: boolean; onPreferredMethodIdsChange: (methodIds: CoreMethodId[]) => void | Promise<void>; onOpenPlan: (planId: string) => void; onClosePlan: () => void; onStart: (planId: string) => void; onCreatePlan: () => void; onArchiveStateChange: (planId: string, action: "archive" | "restore") => Promise<LearningPlan["status"]>; onDeletePlan: (planId: string) => Promise<void>; onAdjustPlan: (input: PlanAdjustmentRequest) => Promise<void>; onKnowledgeMapUpdate: (planId: string, knowledgeMap: PlanKnowledgeMap) => void; onAttachMaterials: (planId: string, materialIds: string[]) => Promise<void> }) {
+  const [view, setView] = useState<LearningSection>(() => {
     const requestedPlan = plans.find((plan) => plan.id === detailPlanId);
     if (requestedPlan?.status === "archived") return "archive";
     if (requestedPlan && (
@@ -4184,7 +4586,7 @@ function LearningScreen({ plans, detailPlanId, sessionCompletions, sessionInterr
   });
   const [changingPlanId, setChangingPlanId] = useState<string | null>(null);
   const [statusError, setStatusError] = useState<string | null>(null);
-  const visiblePlans = plans.filter((plan) => {
+  const visiblePlans = view === "methods" ? [] : plans.filter((plan) => {
     if (view === "active") return isOperationalPlan(plan) && plan.creationIntent !== "study_now";
     if (view === "recent") return canPresentPlanAsCompleted(plan) || (plan.creationIntent === "study_now" && plan.status !== "archived");
     return plan.status === "archived";
@@ -4211,24 +4613,27 @@ function LearningScreen({ plans, detailPlanId, sessionCompletions, sessionInterr
     }
   };
 
-  const changeView = (nextView: "active" | "recent" | "archive") => {
+  const changeView = (nextView: LearningSection) => {
     setView(nextView);
     onClosePlan();
   };
 
+  const showingMethods = view === "methods";
+
   return <div className="page learning-page">
-    <div className="learning-index-header"><PageHeader eyebrow="LEARNING" title="What you’re working toward" description="Every goal keeps its plan, materials, sessions, and progress in one place." /><button className="button primary" onClick={onCreatePlan}><Plus size={17} /> New plan</button></div>
-    <div className="tabs">
-      <button className={view === "active" ? "active" : ""} onClick={() => changeView("active")}>Active <span>{plans.filter((item) => isOperationalPlan(item) && item.creationIntent !== "study_now").length}</span></button>
-      <button className={view === "recent" ? "active" : ""} onClick={() => changeView("recent")}>Recent <span>{plans.filter((item) => canPresentPlanAsCompleted(item) || (item.creationIntent === "study_now" && item.status !== "archived")).length}</span></button>
-      <button className={view === "archive" ? "active" : ""} onClick={() => changeView("archive")}>Archive <span>{plans.filter((item) => item.status === "archived").length}</span></button>
-    </div>
+    <div className="learning-index-header"><PageHeader eyebrow="LEARNING" title={showingMethods ? "Explore YOVA’s study methods" : "What you’re working toward"} description={showingMethods ? "See what each method is useful for, how it works, and tell YOVA which ones you enjoy." : "Every goal keeps its plan, materials, sessions, and progress in one place."} />{!showingMethods && <button type="button" className="button primary" onClick={onCreatePlan}><Plus size={17} /> New plan</button>}</div>
+    <nav className="tabs" aria-label="Learning sections">
+      <button type="button" aria-current={view === "active" ? "page" : undefined} className={view === "active" ? "active" : ""} onClick={() => changeView("active")}>Active <span>{plans.filter((item) => isOperationalPlan(item) && item.creationIntent !== "study_now").length}</span></button>
+      <button type="button" aria-current={view === "recent" ? "page" : undefined} className={view === "recent" ? "active" : ""} onClick={() => changeView("recent")}>Recent <span>{plans.filter((item) => canPresentPlanAsCompleted(item) || (item.creationIntent === "study_now" && item.status !== "archived")).length}</span></button>
+      <button type="button" aria-current={view === "archive" ? "page" : undefined} className={view === "archive" ? "active" : ""} onClick={() => changeView("archive")}>Archive <span>{plans.filter((item) => item.status === "archived").length}</span></button>
+      <button type="button" aria-current={view === "methods" ? "page" : undefined} className={view === "methods" ? "active" : ""} onClick={() => changeView("methods")}>Methods <span>{CORE_METHOD_IDS.length}</span></button>
+    </nav>
     {statusError && <div className="chat-error"><AlertCircle size={16} /><span>{statusError}</span></div>}
-    {plan ? <LearningPlanDetail plan={plan} view={view} completions={sessionCompletions.filter((completion) => completion.planId === plan.id)} interruptions={sessionInterruptions.filter((interruption) => interruption.planId === plan.id)} activeSessionCheckpoints={activeSessionCheckpoints.filter((checkpoint) => checkpoint.planId === plan.id)} changingStatus={changingPlanId === plan.id} onBack={onClosePlan} onStart={() => onStart(plan.id)} onArchiveStateChange={(action) => void changeArchiveState(plan.id, action)} onDeletePlan={() => onDeletePlan(plan.id)} onAdjustPlan={onAdjustPlan} onKnowledgeMapUpdate={onKnowledgeMapUpdate} onAttachMaterials={onAttachMaterials} /> : visiblePlans.length ? <LearningOverview plans={visiblePlans} allPlans={plans} view={view} interruptions={sessionInterruptions} activeSessionCheckpoints={activeSessionCheckpoints} onOpenPlan={onOpenPlan} onStart={onStart} /> : <section className="learning-empty"><span className="learning-empty-icon"><LibraryBig size={22} /></span><h2>{viewLabels[view].empty}</h2><p>{viewLabels[view].description}</p>{view === "active" && <button className="button primary" onClick={onCreatePlan}>Build your first plan <ArrowRight size={17} /></button>}</section>}
+    {showingMethods ? <MethodLibrary preferredMethodIds={selectedPreferredMethodIds} syncedPreferenceKey={syncedPreferenceKey} statedPreferencesEnabled={statedPreferencesEnabled} onPreferredMethodIdsChange={onPreferredMethodIdsChange} /> : plan ? <LearningPlanDetail plan={plan} view={view} completions={sessionCompletions.filter((completion) => completion.planId === plan.id)} interruptions={sessionInterruptions.filter((interruption) => interruption.planId === plan.id)} activeSessionCheckpoints={activeSessionCheckpoints.filter((checkpoint) => checkpoint.planId === plan.id)} changingStatus={changingPlanId === plan.id} onBack={onClosePlan} onStart={() => onStart(plan.id)} onArchiveStateChange={(action) => void changeArchiveState(plan.id, action)} onDeletePlan={() => onDeletePlan(plan.id)} onAdjustPlan={onAdjustPlan} onKnowledgeMapUpdate={onKnowledgeMapUpdate} onAttachMaterials={onAttachMaterials} /> : visiblePlans.length ? <LearningOverview plans={visiblePlans} allPlans={plans} view={view} interruptions={sessionInterruptions} activeSessionCheckpoints={activeSessionCheckpoints} onOpenPlan={onOpenPlan} onStart={onStart} /> : <section className="learning-empty"><span className="learning-empty-icon"><LibraryBig size={22} /></span><h2>{viewLabels[view].empty}</h2><p>{viewLabels[view].description}</p>{view === "active" && <button className="button primary" onClick={onCreatePlan}>Build your first plan <ArrowRight size={17} /></button>}</section>}
   </div>;
 }
 
-function LearningOverview({ plans, allPlans, view, interruptions, activeSessionCheckpoints, onOpenPlan, onStart }: { plans: LearningPlan[]; allPlans: LearningPlan[]; view: "active" | "recent" | "archive"; interruptions: SessionInterruption[]; activeSessionCheckpoints: ActiveSessionCheckpointV1[]; onOpenPlan: (planId: string) => void; onStart: (planId: string) => void }) {
+function LearningOverview({ plans, allPlans, view, interruptions, activeSessionCheckpoints, onOpenPlan, onStart }: { plans: LearningPlan[]; allPlans: LearningPlan[]; view: "active" | "recent" | "archive"; interruptions: SessionInterruption[]; activeSessionCheckpoints: ActiveSessionCheckpoint[]; onOpenPlan: (planId: string) => void; onStart: (planId: string) => void }) {
   const activeLearningPlans = allPlans.filter((plan) => isOperationalPlan(plan) && plan.creationIntent !== "study_now");
   const activeCount = activeLearningPlans.length;
   const sessionsAhead = activeLearningPlans.reduce((count, plan) => count + plan.sessions.filter((session) => session.status === "ready" || session.status === "upcoming").length, 0);
@@ -4258,14 +4663,14 @@ function LearningOverview({ plans, allPlans, view, interruptions, activeSessionC
         <div className="learning-card-top"><SubjectIcon plan={plan} /><span className="learning-card-kind">{plan.kind}</span><span className={`learning-card-status ${displayStatus}`}>{operational ? formatPlanDeadline(plan.deadline) : displayStatus}</span></div>
         <div className="learning-card-copy"><h2>{plan.title}</h2><p>{plan.topic}</p></div>
         <div className="learning-card-progress"><div><span style={{ width: `${progress}%` }} /></div><small>{done} of {plan.sessions.length} sessions complete</small></div>
-        <div className="learning-card-next"><span>{view === "archive" ? "ARCHIVED HISTORY" : operational && readySession ? "NEXT SESSION" : "PLAN SUMMARY"}</span><strong>{view === "archive" ? "Saved in your archive" : readySession ? readySession.title : presentAsCompleted ? "Goal completed" : "Saved learning goal"}</strong><small>{view === "archive" ? `${done} of ${plan.sessions.length} sessions completed` : readySession ? `${resumeLabel ?? formatSessionTime(readySession.scheduledFor)} · ${readySession.estimatedMinutes} min` : `${plan.sessions.length} planned sessions`}</small></div>
+        <div className="learning-card-next"><span>{view === "archive" ? "ARCHIVED HISTORY" : operational && readySession ? "NEXT SESSION" : "PLAN SUMMARY"}</span><strong>{view === "archive" ? "Saved in your archive" : readySession ? readySession.title : presentAsCompleted ? "Goal completed" : "Saved learning goal"}</strong><small>{view === "archive" ? `${done} of ${plan.sessions.length} sessions completed` : readySession ? `${resumeLabel ?? formatSessionTime(readySession.scheduledFor)} · ${selectSessionActiveMinutes(plan, readySession)} min` : `${plan.sessions.length} planned sessions`}</small></div>
         <footer><button className="button secondary" onClick={() => onOpenPlan(plan.id)}>Open goal <ChevronRight size={16} /></button>{view !== "archive" && operational && readySession && <button className="button primary" onClick={() => onStart(plan.id)}>{resumePoint ? "Continue" : "Start next"}</button>}</footer>
       </article>;
     })}</section>
   </>;
 }
 
-function LearningPlanDetail({ plan, view, completions, interruptions, activeSessionCheckpoints, changingStatus, onBack, onStart, onArchiveStateChange, onDeletePlan, onAdjustPlan, onKnowledgeMapUpdate, onAttachMaterials }: { plan: LearningPlan; view: "active" | "recent" | "archive"; completions: SessionCompletion[]; interruptions: SessionInterruption[]; activeSessionCheckpoints: ActiveSessionCheckpointV1[]; changingStatus: boolean; onBack: () => void; onStart: () => void; onArchiveStateChange: (action: "archive" | "restore") => void; onDeletePlan: () => Promise<void>; onAdjustPlan: (input: PlanAdjustmentRequest) => Promise<void>; onKnowledgeMapUpdate: (planId: string, knowledgeMap: PlanKnowledgeMap) => void; onAttachMaterials: (planId: string, materialIds: string[]) => Promise<void> }) {
+function LearningPlanDetail({ plan, view, completions, interruptions, activeSessionCheckpoints, changingStatus, onBack, onStart, onArchiveStateChange, onDeletePlan, onAdjustPlan, onKnowledgeMapUpdate, onAttachMaterials }: { plan: LearningPlan; view: "active" | "recent" | "archive"; completions: SessionCompletion[]; interruptions: SessionInterruption[]; activeSessionCheckpoints: ActiveSessionCheckpoint[]; changingStatus: boolean; onBack: () => void; onStart: () => void; onArchiveStateChange: (action: "archive" | "restore") => void; onDeletePlan: () => Promise<void>; onAdjustPlan: (input: PlanAdjustmentRequest) => Promise<void>; onKnowledgeMapUpdate: (planId: string, knowledgeMap: PlanKnowledgeMap) => void; onAttachMaterials: (planId: string, materialIds: string[]) => Promise<void> }) {
   const [showAdjustments, setShowAdjustments] = useState(false);
   const [extendingMap, setExtendingMap] = useState(false);
   const [mapError, setMapError] = useState<string | null>(null);
@@ -4316,7 +4721,7 @@ function LearningPlanDetail({ plan, view, completions, interruptions, activeSess
     {view === "recent" && <section className="learning-history-summary"><div><span>{presentAsCompleted ? "Completed" : "Plan state"}</span><strong>{presentAsCompleted ? formatCompletionDate(completions.at(-1)?.completedAt ?? plan.createdAt) : "Unfinished work"}</strong></div><div><span>Knowledge-check accuracy</span><strong>{accuracy}</strong></div><div><span>Last session felt</span><strong>{formatFeedback(completions.at(-1)?.feedback)}</strong></div></section>}
     {view === "archive" && <section className="learning-history-summary" aria-label="Archived goal history"><div><span>Started</span><strong>{formatCompletionDate(plan.createdAt)}</strong></div><div><span>Progress kept</span><strong>{completeCount} of {plan.sessions.length} sessions</strong></div><div><span>Attached materials</span><strong>{plan.materials?.length ?? 0}</strong></div></section>}
     <PlanKnowledgeMapPanel plan={plan} completions={completions} canExtend={canManagePlan} extending={extendingMap} error={mapError} onExtend={() => void extendDeferredTopics()} onAdjustPlan={onAdjustPlan} onKnowledgeMapUpdate={onKnowledgeMapUpdate} />
-    <section className="section-block plan-timeline"><div className="section-title"><div><h3>{view === "recent" ? presentAsCompleted ? "What you completed" : "Sessions in this study" : "Your plan"}</h3><p>{view === "recent" && !presentAsCompleted ? "Completed sessions are checked. Unfinished sessions remain listed without being counted as completed." : "The sequence YOVA will guide you through, one session at a time."}</p></div><span>{plan.sessions.length} sessions</span></div><div className="timeline">{plan.sessions.map((session) => <div className={`timeline-row ${session.status}`} key={session.id}><span className="timeline-node">{session.status === "complete" ? <Check size={15} /> : null}</span><div><strong>{session.title}</strong><small><b>{session.learningMode === "learn" ? "Teaching first" : "Practice first"}</b> · {session.method} · {formatSessionTime(session.scheduledFor)}</small></div><span>{session.estimatedMinutes} min</span></div>)}</div></section>
+    <section className="section-block plan-timeline"><div className="section-title"><div><h3>{view === "recent" ? presentAsCompleted ? "What you completed" : "Sessions in this study" : "Your plan"}</h3><p>{view === "recent" && !presentAsCompleted ? "Completed sessions are checked. Unfinished sessions remain listed without being counted as completed." : "The sequence YOVA will guide you through, one session at a time."}</p></div><span>{plan.sessions.length} sessions</span></div><div className="timeline">{plan.sessions.map((session) => <div className={`timeline-row ${session.status}`} key={session.id}><span className="timeline-node">{session.status === "complete" ? <Check size={15} /> : null}</span><div><strong>{session.title}</strong><small><b>{selectSessionLearningMode(plan, session) === "learn" ? "Teaching first" : "Practice first"}</b> · {selectSessionMethodName(plan, session)} · {formatSessionTime(session.scheduledFor)}</small></div><span>{selectSessionActiveMinutes(plan, session)} min</span></div>)}</div></section>
     <PlanAdaptations plan={plan} />
     <PlanSources plan={plan} editable={canManagePlan} onAttach={onAttachMaterials} />
     <PlanResources plan={plan} />
@@ -4493,6 +4898,11 @@ function PlanSources({ plan, editable, onAttach }: { plan: LearningPlan; editabl
   const [notice, setNotice] = useState<string | null>(null);
   const materials = plan.materials ?? [];
   const atLimit = materials.length >= 5;
+  const sourceChangeLocked = plan.sessions.some((session) => (
+    (session.status === "ready" || session.status === "upcoming")
+    && session.studyRoute?.identity.lifecycleStatus === "committed"
+  ));
+  const canAddSource = editable && !sourceChangeLocked && !atLimit;
 
   const addFiles = async (files: FileList | null) => {
     if (!files?.length || adding) return;
@@ -4532,7 +4942,7 @@ function PlanSources({ plan, editable, onAttach }: { plan: LearningPlan; editabl
     }
   };
 
-  return <section className="section-block plan-sources"><div className="section-title"><h3>Learning source</h3><div className="source-heading-actions"><span>{plan.sourceMode === "user_materials" ? `${materials.length} uploaded` : "Created by YOVA"}</span>{editable && !atLimit && <label className={`button source-upload ${adding ? "disabled" : ""}`}><Upload size={15} /> {adding ? "Processing…" : "Add files"}<input aria-label="Add source materials" type="file" multiple accept=".pdf,.txt,.md,text/plain,text/markdown,application/pdf" disabled={adding} onChange={(event) => { void addFiles(event.target.files); event.target.value = ""; }} /></label>}</div></div>{materials.length ? <div className="source-material-list">{materials.map((material) => <div key={material.id}><FileText size={18} /><span><strong>{material.name}</strong><small>{formatFileSize(material.sizeBytes)} · Private source for this goal</small></span><span className="data-badge">Ready</span></div>)}</div> : plan.sourceMode === "user_materials" ? <div className="source-empty"><AlertCircle size={17} /><p>This goal expects uploaded sources, but their metadata could not be loaded. Guided sessions will stop rather than silently inventing source content.</p></div> : <div className="source-created"><Sparkles size={18} /><div><strong>YOVA-generated learning content</strong><p>Explanations, questions, and practice are created from the goal. You can add private sources later.</p></div></div>}{editable && !atLimit && <MaterialLinkImporter existingCount={materials.length} disabled={adding} onImported={(material, materialNotice) => { void addLinkedSource(material, materialNotice); }} />}{atLimit && editable && <p className="source-limit">This goal has reached the five-material limit.</p>}{notice && <p className="material-notice"><AlertCircle size={15} /> {notice}</p>}{error && <div className="chat-error"><AlertCircle size={16} /><span>{error}</span></div>}</section>;
+  return <section className="section-block plan-sources"><div className="section-title"><h3>Learning source</h3><div className="source-heading-actions"><span>{plan.sourceMode === "user_materials" ? `${materials.length} uploaded` : "Created by YOVA"}</span>{canAddSource && <label className={`button source-upload ${adding ? "disabled" : ""}`}><Upload size={15} /> {adding ? "Processing…" : "Add files"}<input aria-label="Add source materials" type="file" multiple accept=".pdf,.txt,.md,text/plain,text/markdown,application/pdf" disabled={adding} onChange={(event) => { void addFiles(event.target.files); event.target.value = ""; }} /></label>}</div></div>{materials.length ? <div className="source-material-list">{materials.map((material) => <div key={material.id}><FileText size={18} /><span><strong>{material.name}</strong><small>{formatFileSize(material.sizeBytes)} · Private source for this goal</small></span><span className="data-badge">Ready</span></div>)}</div> : plan.sourceMode === "user_materials" ? <div className="source-empty"><AlertCircle size={17} /><p>This goal expects uploaded sources, but their metadata could not be loaded. Guided sessions will stop rather than silently inventing source content.</p></div> : <div className="source-created"><Sparkles size={18} /><div><strong>YOVA-generated learning content</strong><p>Explanations, questions, and practice are created from the goal. {sourceChangeLocked ? "These sources stay fixed while the current personalized recipes are active." : "You can add private sources before the plan is committed."}</p></div></div>}{canAddSource && <MaterialLinkImporter existingCount={materials.length} disabled={adding} onImported={(material, materialNotice) => { void addLinkedSource(material, materialNotice); }} />}{sourceChangeLocked && editable && <p className="source-limit">Sources are locked for this active plan so each session remains tied to the recipe you approved. Create a new goal if you need different material.</p>}{atLimit && editable && !sourceChangeLocked && <p className="source-limit">This goal has reached the five-material limit.</p>}{notice && <p className="material-notice"><AlertCircle size={15} /> {notice}</p>}{error && <div className="chat-error"><AlertCircle size={16} /><span>{error}</span></div>}</section>;
 }
 
 function materialAttachmentWasCommitted(error: unknown) {
@@ -4549,7 +4959,7 @@ function PlanAdjustmentPanel({ plan, onCancel, onSave }: { plan: LearningPlan; o
   const initialMinutes = firstUnfinished
     ? Math.max(10, Math.min(90, Math.round(firstUnfinished.estimatedMinutes)))
     : 25;
-  const minuteOptions = [...new Set([10, 15, 25, 30, 45, 60, initialMinutes])]
+  const minuteOptions = [...new Set([...NORMAL_STUDY_DURATION_LEVELS, initialMinutes])]
     .sort((left, right) => left - right);
   const [deadlineDate, setDeadlineDate] = useState(plan.deadline ? localDateInput(plan.deadline) : "");
   const [minutes, setMinutes] = useState(initialMinutes);
@@ -4588,7 +4998,7 @@ function PlanAdjustmentPanel({ plan, onCancel, onSave }: { plan: LearningPlan; o
   return <section className="plan-adjustment-panel"><div className="plan-adjustment-heading"><div><span className="step-label">ADJUST UNFINISHED WORK</span><h3>Change the plan without losing progress</h3><p>Tell YOVA when the course is on the wrong track, or change its timing and study location. Completed sessions stay exactly as they are.</p></div></div><label className={`plan-direction-field ${directionLimit.isOverLimit ? "field-over-limit" : ""}`}><span>What should be different?</span><textarea rows={4} value={direction} disabled={saving} aria-invalid={directionLimit.isOverLimit || undefined} aria-describedby="plan-adjustment-direction-limit" placeholder="Example: Keep this conceptual. I do not want calculation exercises. Focus on founder decisions, investor incentives, and real examples." onChange={(event) => setDirection(event.target.value)} /><small id="plan-adjustment-direction-limit" className={`character-limit-feedback ${directionLimit.isOverLimit ? "over-limit" : ""}`} role={directionLimit.isOverLimit ? "alert" : undefined}>Optional. YOVA will rebuild only unfinished content sessions. Scheduled reviews keep their exact return contract. The next session setup will show the revised target and method. {formatCharacterLimit(directionLimit)}</small><div><button type="button" onClick={() => setDirection("Keep this conceptual. Do not include math or calculation exercises.")}>No calculations</button><button type="button" onClick={() => setDirection("Teach the foundations first, then use concrete examples before practice.")}>Teach it first</button><button type="button" onClick={() => setDirection("Use more real examples and case scenarios before independent work.")}>More examples</button></div></label><div className="plan-adjustment-grid"><label><span>Target date</span><input type="date" min={localDateInput(new Date().toISOString())} value={deadlineDate} disabled={saving} onChange={(event) => setDeadlineDate(event.target.value)} /><small>Optional. Agenda times are changed separately.</small></label><label><span>Future session window</span><select value={minutes} disabled={saving} onChange={(event) => setMinutes(Number(event.target.value))}>{minuteOptions.map((option) => <option value={option} key={option}>{option} minutes</option>)}</select><small>Time controls the size of each content slice, not whether it counts as learned.</small></label></div><div className="adjustment-content-rule"><Target size={18} /><div><strong>Progress stays intact</strong><p>The current {adjustableUnfinishedCount} ordinary unfinished {adjustableUnfinishedCount === 1 ? "session" : "sessions"} can be adjusted safely. Finished sessions and recorded learning evidence are never erased.{protectedReviewCount > 0 ? ` ${protectedReviewCount} scheduled ${protectedReviewCount === 1 ? "review keeps" : "reviews keep"} the original duration, concept, and return time.` : ""}</p></div></div><div className="adjustment-mode"><span>Where should future sessions happen?</span><div><button className={studyMode === "inside_yova" ? "selected" : ""} disabled={saving} onClick={() => setStudyMode("inside_yova")}><BookOpen size={17} /><strong>Inside YOVA</strong><small>Teaching, questions, and feedback in the app</small></button><button className={studyMode === "outside_yova" ? "selected" : ""} disabled={saving} onClick={() => setStudyMode("outside_yova")}><LibraryBig size={17} /><strong>Outside YOVA</strong><small>Exact instructions for another source or workspace</small></button></div></div>{error && <div className="chat-error"><AlertCircle size={16} /><span>{error}</span></div>}<footer><button className="button ghost" disabled={saving} onClick={onCancel}>Cancel</button><button className="button primary" disabled={saving || adjustableUnfinishedCount === 0 || directionLimit.isOverLimit} onClick={() => void save()}>{saving ? <span className="button-spinner" /> : <><Check size={16} /> Approve and rebuild plan</>}</button></footer></section>;
 }
 
-function AgendaScreen({ plans, milestones, sessionCompletions, sessionInterruptions, activeSessionCheckpoints, allowance, allowanceChecking, previewMode, onAdd, onStart, onActivateReview, onReschedule, onAdjustDuration, onClassifyRecoveryInterruption, onUpdateMilestone, onDeleteMilestone, onConvertMilestone }: { plans: LearningPlan[]; milestones: DeadlineMilestone[]; sessionCompletions: SessionCompletion[]; sessionInterruptions: SessionInterruption[]; activeSessionCheckpoints: ActiveSessionCheckpointV1[]; allowance: GuidedSessionAllowanceDisplayState; allowanceChecking: boolean; previewMode: boolean; onAdd: () => void; onStart: (planId?: string) => void; onActivateReview: (item: ConceptReviewAgendaItem) => Promise<void>; onReschedule: (planId: string, updates: readonly ScheduleSessionUpdate[]) => void; onAdjustDuration: (planSessionId: string, estimatedMinutes: number) => Promise<void>; onClassifyRecoveryInterruption: (planSessionId: string, excludeFromHabitEvidence: boolean) => void; onUpdateMilestone: (id: string, changes: Partial<Pick<DeadlineMilestone, "title" | "description" | "dueAt" | "status" | "linkedLearningItemId">>) => Promise<void>; onDeleteMilestone: (id: string) => Promise<void>; onConvertMilestone: (milestone: DeadlineMilestone, outcome: "session" | "plan") => void }) {
+function AgendaScreen({ plans, milestones, sessionCompletions, sessionInterruptions, activeSessionCheckpoints, allowance, allowanceChecking, previewMode, onAdd, onStart, onActivateReview, onReschedule, onAdjustDuration, onClassifyRecoveryInterruption, onUpdateMilestone, onDeleteMilestone, onConvertMilestone }: { plans: LearningPlan[]; milestones: DeadlineMilestone[]; sessionCompletions: SessionCompletion[]; sessionInterruptions: SessionInterruption[]; activeSessionCheckpoints: ActiveSessionCheckpoint[]; allowance: GuidedSessionAllowanceDisplayState; allowanceChecking: boolean; previewMode: boolean; onAdd: () => void; onStart: (planId?: string) => void; onActivateReview: (item: ConceptReviewAgendaItem) => Promise<void>; onReschedule: (planId: string, updates: readonly ScheduleSessionUpdate[]) => void; onAdjustDuration: (planSessionId: string, estimatedMinutes: number) => Promise<void>; onClassifyRecoveryInterruption: (planSessionId: string, excludeFromHabitEvidence: boolean) => void; onUpdateMilestone: (id: string, changes: Partial<Pick<DeadlineMilestone, "title" | "description" | "dueAt" | "status" | "linkedLearningItemId">>) => Promise<void>; onDeleteMilestone: (id: string) => Promise<void>; onConvertMilestone: (milestone: DeadlineMilestone, outcome: "session" | "plan") => void }) {
   const [moving, setMoving] = useState<{ planId: string; sessionId: string } | null>(null);
   const [customTime, setCustomTime] = useState("");
   const [saving, setSaving] = useState(false);
@@ -4899,7 +5309,7 @@ function AgendaScreen({ plans, milestones, sessionCompletions, sessionInterrupti
               const overdue = session.status === "ready" && isSessionOverdue(session.scheduledFor);
               const hasSavedWork = startDecision.canStartWithoutGeneration;
               const startBlocked = guidedSessionAllowanceBlocksNewStart(allowance, hasSavedWork, allowanceChecking);
-              return <article className={`${session.status === "ready" ? "ready" : ""} ${overdue ? "overdue" : ""}`} key={session.id}><SubjectIcon plan={plan} compact /><div className="agenda-session-copy"><span>{overdue ? "Overdue" : formatAgendaClock(session.scheduledFor)} · {session.learningMode === "learn" ? "Learn" : "Practice"}</span><strong>{session.title}</strong><small>{plan.title} · {session.method} · {session.estimatedMinutes} min{resumePoint ? ` · Continue at section ${Math.min(resumePoint.totalSteps, resumePoint.completedSteps + 1)}` : ""}</small></div><div className="agenda-session-actions">{session.status === "ready" && <button className="button primary" disabled={startBlocked} onClick={() => onStart(plan.id)}>{guidedSessionStartLabel(allowance, resumePoint ? "Continue" : "Start", hasSavedWork, allowanceChecking)}</button>}<button className="button ghost" onClick={() => openMove(plan.id, session.id, session.scheduledFor)}>Move</button></div></article>;
+              return <article className={`${session.status === "ready" ? "ready" : ""} ${overdue ? "overdue" : ""}`} key={session.id}><SubjectIcon plan={plan} compact /><div className="agenda-session-copy"><span>{overdue ? "Overdue" : formatAgendaClock(session.scheduledFor)} · {selectSessionLearningMode(plan, session) === "learn" ? "Learn" : "Practice"}</span><strong>{session.title}</strong><small>{plan.title} · {selectSessionMethodName(plan, session)} · {selectSessionActiveMinutes(plan, session)} min{resumePoint ? ` · Continue at section ${Math.min(resumePoint.totalSteps, resumePoint.completedSteps + 1)}` : ""}</small></div><div className="agenda-session-actions">{session.status === "ready" && <button className="button primary" disabled={startBlocked} onClick={() => onStart(plan.id)}>{guidedSessionStartLabel(allowance, resumePoint ? "Continue" : "Start", hasSavedWork, allowanceChecking)}</button>}<button className="button ghost" onClick={() => openMove(plan.id, session.id, session.scheduledFor)}>Move</button></div></article>;
             })}</div></section>;
           })}
         </div>
@@ -5888,14 +6298,28 @@ function isVerifiableKnownTarget(value: string) {
   ].some((pattern) => pattern.test(normalized));
 }
 
-function SessionSetup({ plan, answers, completions, interruptions, onExit, onOpenGoal, onStart }: { plan: LearningPlan | null; answers: string[]; completions: SessionCompletion[]; interruptions: SessionInterruption[]; onExit: () => void; onOpenGoal: () => void; onStart: (adjustment: SessionAdjustment | null) => void }) {
-  const session = plan?.sessions.find((item) => item.status === "ready") ?? null;
+function SessionSetup({ plan: storedPlan, answers, completions, interruptions, onExit, onOpenGoal, onChangeMethod, onStart }: { plan: LearningPlan | null; answers: string[]; completions: SessionCompletion[]; interruptions: SessionInterruption[]; onExit: () => void; onOpenGoal: () => void; onChangeMethod: (selection: { planId: string; planSessionId: string; expectedRouteRevisionId: string; methodId: CoreMethodId }) => Promise<void>; onStart: (adjustment: SessionAdjustment | null) => void }) {
+  const storedSession = storedPlan?.sessions.find((item) => item.status === "ready") ?? null;
+  const routeContract = storedPlan && storedSession
+    ? resolveStudyRouteSessionContract(storedPlan, storedSession)
+    : null;
+  const plan = routeContract?.plan ?? storedPlan;
+  const session = routeContract?.session ?? storedSession;
+  const committedStudyRoute = routeContract?.resolution.source === "stored"
+    && routeContract.resolution.route?.identity.lifecycleStatus === "committed"
+    ? routeContract.resolution.route
+    : null;
   const [setupPage, setSetupPage] = useState(0);
   const [familiarity, setFamiliarity] = useState<SessionAdjustment["familiarity"]>("as_planned");
   const [supportLevel, setSupportLevel] = useState<SessionSupportLevel>("usual");
   const [availableMinutes, setAvailableMinutes] = useState<number | null>(null);
   const [selectedKnownTargets, setSelectedKnownTargets] = useState<string[]>([]);
   const [note, setNote] = useState("");
+  const [methodChoicesOpen, setMethodChoicesOpen] = useState(false);
+  const [pendingMethodId, setPendingMethodId] = useState<CoreMethodId | null>(null);
+  const [methodChoiceStatus, setMethodChoiceStatus] = useState<string | null>(null);
+  const [methodChoiceError, setMethodChoiceError] = useState<string | null>(null);
+  const methodChoiceTriggerRef = useRef<HTMLButtonElement>(null);
   const noteLimit = getCharacterLimitState(note);
   const options: Array<{
     value: SessionAdjustment["familiarity"];
@@ -5910,12 +6334,16 @@ function SessionSetup({ plan, answers, completions, interruptions, onExit, onOpe
     {
       value: "already_know",
       title: "I already know some of this",
-      description: "Start with a quick unsupported check and skip only what you demonstrate.",
+      description: committedStudyRoute
+        ? "Use less help inside the planned method and verify what you can do."
+        : "Start with a quick unsupported check and skip only what you demonstrate.",
     },
     {
       value: "need_teaching",
-      title: "I need this taught first",
-      description: "Build the idea accurately before reducing support.",
+      title: committedStudyRoute ? "I need more support first" : "I need this taught first",
+      description: committedStudyRoute
+        ? "Keep the planned method, but make its opening steps more guided."
+        : "Build the idea accurately before reducing support.",
     },
     {
       value: "challenge_me",
@@ -5929,6 +6357,24 @@ function SessionSetup({ plan, answers, completions, interruptions, onExit, onOpe
   }
 
   const scheduledReview = isScheduledRetrievalSession(session);
+  const methodChoiceRoute = (
+    !scheduledReview
+    && storedSession?.status === "ready"
+    && committedStudyRoute
+    && committedStudyRoute.identity.planId === plan.id
+    && committedStudyRoute.identity.sessionId === session.id
+    && !storedSession.resource
+  ) ? committedStudyRoute : null;
+  const methodAlternatives = methodChoiceRoute
+    ? methodChoiceRoute.agency.alternatives.filter((alternative) => (
+      alternative.primaryMethodId !== methodChoiceRoute.approach.primaryMethodId
+      && alternative.mode === methodChoiceRoute.approach.mode
+      && alternative.executionEnvironment === methodChoiceRoute.approach.executionEnvironment
+      && alternative.activeMinutes === methodChoiceRoute.timing.activeMinutes
+    )).slice(0, 2)
+    : [];
+  const methodChoicePending = pendingMethodId !== null;
+  const methodChoiceControlId = `session-method-choices-${session.id}`;
   const hasOrdinaryUnfinishedWork = plan.sessions.some((candidate) => (
     (candidate.status === "ready" || candidate.status === "upcoming")
     && !isScheduledRetrievalSession(candidate)
@@ -5950,9 +6396,48 @@ function SessionSetup({ plan, answers, completions, interruptions, onExit, onOpe
     interruptions: interruptions.filter((interruption) => interruption.planId === plan.id),
   });
   const taskDecision = decisionSignals.find((signal) => signal.kind === "task") ?? decisionSignals[0];
-  const personalDecision = decisionSignals.find((signal) => signal.strength === "observed")
-    ?? decisionSignals.find((signal) => signal.kind === "learner")
-    ?? null;
+  const personalDecision = committedStudyRoute
+    ? buildStudyRouteMethodDecisionSignal(committedStudyRoute)
+    : decisionSignals.find((signal) => signal.strength === "observed")
+      ?? decisionSignals.find((signal) => signal.kind === "learner")
+      ?? null;
+  const durationExplanation = committedStudyRoute
+    ? explainStudyRouteDuration(committedStudyRoute.timing)
+    : null;
+  const visibleMethodName = committedStudyRoute?.approach.visibleMethodName
+    ?? taskDecision?.title
+    ?? session.method;
+  const visibleMethodReason = committedStudyRoute?.explanation.shortReason
+    ?? taskDecision?.detail
+    ?? session.methodReason;
+
+  const changeMethod = async (alternative: (typeof methodAlternatives)[number]) => {
+    if (!methodChoiceRoute || methodChoicePending) return;
+    let methodChanged = false;
+    setPendingMethodId(alternative.primaryMethodId);
+    setMethodChoiceError(null);
+    setMethodChoiceStatus(null);
+    try {
+      await onChangeMethod({
+        planId: plan.id,
+        planSessionId: session.id,
+        expectedRouteRevisionId: methodChoiceRoute.identity.routeRevisionId,
+        methodId: alternative.primaryMethodId,
+      });
+      methodChanged = true;
+      setMethodChoicesOpen(false);
+      setMethodChoiceStatus(`${alternative.visibleMethodName} is now the method for this session.`);
+    } catch (error) {
+      setMethodChoiceError(error instanceof Error
+        ? error.message
+        : "YOVA could not change this session method. The current method is still in place.");
+    } finally {
+      setPendingMethodId(null);
+      if (methodChanged) {
+        window.requestAnimationFrame(() => methodChoiceTriggerRef.current?.focus());
+      }
+    }
+  };
 
   const toggleKnownTarget = (target: string) => {
     setSelectedKnownTargets((current) => current.includes(target)
@@ -5980,7 +6465,7 @@ function SessionSetup({ plan, answers, completions, interruptions, onExit, onOpe
     }
     onStart({
       familiarity: effectiveFamiliarity,
-      availableMinutes,
+      availableMinutes: committedStudyRoute ? null : availableMinutes,
       knownTargets: effectiveFamiliarity === "already_know" ? selectedKnownTargets : [],
       note: trimmedNote,
     });
@@ -5992,7 +6477,15 @@ function SessionSetup({ plan, answers, completions, interruptions, onExit, onOpe
       ? inferSessionFamiliarityFromText(note) ?? familiarity
       : familiarity,
   });
-  const adjustmentExplanation = explainedFamiliarity === "already_know"
+  const adjustmentExplanation = committedStudyRoute
+    ? explainedFamiliarity === "already_know"
+      ? "YOVA will reduce help where appropriate, while keeping the method, sequence, and time shown in your recipe."
+      : explainedFamiliarity === "need_teaching"
+        ? "YOVA will add more guidance inside the planned method. The method, sequence, and time stay fixed unless you visibly adjust the plan."
+        : explainedFamiliarity === "challenge_me"
+          ? "YOVA will reduce scaffolding and emphasize independent application inside the planned recipe."
+          : "YOVA will keep the committed recipe and use today’s context only to tune its delivery."
+    : explainedFamiliarity === "already_know"
     ? selectedKnownTargets.length
       ? `YOVA will verify ${selectedKnownTargets.length === 1 ? "the concept you selected" : `the ${selectedKnownTargets.length} concepts you selected`} without support, then avoid reteaching only what you demonstrate.`
       : "YOVA will begin with evidence, then avoid reteaching anything you can demonstrate."
@@ -6003,7 +6496,7 @@ function SessionSetup({ plan, answers, completions, interruptions, onExit, onOpe
         : "YOVA will keep the plan's current starting point and still adapt future sessions from the result.";
 
   return <main className="session-setup-shell">
-    <header><BrandMark /><button className="button ghost" onClick={onExit}>Cancel</button></header>
+    <header><BrandMark /><button className="button ghost" disabled={methodChoicePending} onClick={onExit}>Cancel</button></header>
     <section className="session-setup-card">
       <nav className="session-setup-progress" aria-label="Session setup progress">
         {setupSteps.map((label, index) => <div aria-current={index === setupPage ? "step" : undefined} className={index === setupPage ? "current" : index < setupPage ? "complete" : ""} key={label}><span>{index < setupPage ? <Check size={13} /> : index + 1}</span><strong>{label}</strong></div>)}
@@ -6011,8 +6504,12 @@ function SessionSetup({ plan, answers, completions, interruptions, onExit, onOpe
 
       {setupPage === 0 && <>
         <div className="session-setup-copy"><span className="step-label">{scheduledReview ? "SCHEDULED RETURN" : "SESSION DIRECTION"}</span><h1>{scheduledReview ? "Confirm this quick verification." : "Here is how YOVA plans to start."}</h1><p>{scheduledReview ? "This return has one fixed purpose: check what is available after time has passed without turning it into another lesson." : "First see the target and method. You can correct the starting point on the next page."}</p></div>
-        <section className="session-current-assumption"><div><span>CURRENT TARGET</span><strong>{session.title}</strong><p>{sessionSetupObjective(plan.studyMode, session)}</p></div><div><span>PLANNED APPROACH</span><strong>{scheduledReview ? "Short scheduled verification" : session.learningMode === "learn" ? "Teaching before independent work" : "Independent attempt before repair"}</strong><p>{scheduledReview ? `Exactly 3 multiple-choice questions, about ${session.estimatedMinutes} minutes, with no teaching before the first answer.` : `${session.method}, about ${session.estimatedMinutes} minutes`}</p></div></section>
-        {!scheduledReview && taskDecision && <section className="session-decision-spotlight" aria-label="Why YOVA chose this approach"><div className="session-decision-icon"><Sparkles size={19} /></div><div><span>METHOD FOR THIS TASK</span><h2>{taskDecision.title}</h2><p>{taskDecision.detail}</p>{personalDecision && <aside><strong>HOW YOVA CHANGED IT FOR YOU</strong><span>{personalDecision.title}</span><small>{personalDecision.strength === "observed" ? "Evidence: prior checked work" : "Evidence: you told YOVA"}</small></aside>}</div></section>}
+        <section className="session-current-assumption"><div><span>CURRENT TARGET</span><strong>{session.title}</strong><p>{sessionSetupObjective(plan.studyMode, session)}</p></div><div><span>PLANNED APPROACH</span><strong>{scheduledReview ? "Short scheduled verification" : session.learningMode === "learn" ? "Teaching before independent work" : "Independent attempt before repair"}</strong><p>{scheduledReview ? `Exactly 3 multiple-choice questions, about ${session.estimatedMinutes} minutes, with no teaching before the first answer.` : `${session.method}, about ${session.estimatedMinutes} minutes.${durationExplanation ? ` ${durationExplanation}` : ""}`}</p></div></section>
+        {!scheduledReview && <section className="session-decision-spotlight" aria-label="Why YOVA chose this approach"><div className="session-decision-icon"><Sparkles size={19} /></div><div><span>METHOD FOR THIS TASK</span><h2>{visibleMethodName}</h2><p>{visibleMethodReason}</p>{personalDecision && <aside><strong>HOW YOVA CHANGED IT FOR YOU</strong><span>{personalDecision.title}</span><small>{personalDecision.strength === "observed" ? "Evidence: prior checked work" : "Evidence: you told YOVA"}</small></aside>}{methodAlternatives.length > 0 && <div className="session-method-choice"><button ref={methodChoiceTriggerRef} className="session-method-choice-trigger" type="button" aria-expanded={methodChoicesOpen} aria-controls={methodChoiceControlId} aria-label={`${methodChoicesOpen ? "Close method choices" : "Change method"} for ${session.title}`} disabled={methodChoicePending} onClick={() => {
+          setMethodChoiceError(null);
+          setMethodChoiceStatus(null);
+          setMethodChoicesOpen((current) => !current);
+        }}>{methodChoicesOpen ? "Close method choices" : "Change method"}</button>{methodChoicesOpen && <div id={methodChoiceControlId} className="session-method-options" role="group" aria-label={`Other methods that also fit for ${session.title}`} aria-busy={methodChoicePending}><small>Only the method changes. The target, {session.learningMode === "learn" ? "Learn" : "Practice"} mode, and {session.estimatedMinutes}-minute session stay the same.</small>{methodAlternatives.map((alternative) => <button type="button" key={alternative.alternativeId} aria-pressed={false} aria-label={`Use ${alternative.visibleMethodName}. ${alternative.tradeoff}`} disabled={methodChoicePending} onClick={() => void changeMethod(alternative)}><strong>{alternative.visibleMethodName}</strong><span>{alternative.tradeoff}</span></button>)}</div>}{methodChoicePending && <p className="session-method-choice-status" role="status" aria-live="polite"><span className="button-spinner" aria-hidden="true" /> Updating this session recipe…</p>}{methodChoiceError && <p className="session-method-choice-error" role="alert">{methodChoiceError}</p>}{methodChoiceStatus && <p className="session-method-choice-status" role="status" aria-live="polite">{methodChoiceStatus}</p>}</div>}</div></section>}
       </>}
 
       {setupPage === 1 && scheduledReview && <>
@@ -6030,15 +6527,15 @@ function SessionSetup({ plan, answers, completions, interruptions, onExit, onOpe
       {setupPage === 2 && !scheduledReview && <>
         <div className="session-setup-copy"><span className="step-label">TODAY&apos;S CONTEXT</span><h1>Set the pace for today.</h1><p>Only add what changed or what YOVA could not know from the plan.</p></div>
         <fieldset className="session-support-dial"><legend>Support for this session</legend><p>This choice applies only today. It will not change your usual profile.</p><div>{SESSION_SUPPORT_OPTIONS.map((option) => <button type="button" key={option.value} aria-pressed={supportLevel === option.value} className={supportLevel === option.value ? "selected" : ""} onClick={() => setSupportLevel(option.value)}><span>{supportLevel === option.value ? <Check size={15} /> : <Settings2 size={15} />}</span><strong>{option.title}</strong><small>{option.description}</small></button>)}</div><small className="session-support-expiry">For today · {sessionSupportExplanation(supportLevel)}</small></fieldset>
-        <div className="session-context-row"><label><span>Time available right now</span><select value={availableMinutes ?? ""} onChange={(event) => setAvailableMinutes(event.target.value ? Number(event.target.value) : null)}><option value="">Keep the planned {session.estimatedMinutes} minutes</option>{[10, 15, 20, 25, 30, 45, 60].filter((minutes) => minutes !== session.estimatedMinutes).map((minutes) => <option key={minutes} value={minutes}>{minutes} minutes</option>)}</select><small>Shorter time changes today&apos;s content slice, not what counts as learned.</small></label><label className={noteLimit.isOverLimit ? "field-over-limit" : undefined}><span>Anything YOVA should account for?</span><textarea rows={4} value={note} aria-invalid={noteLimit.isOverLimit || undefined} aria-describedby="session-context-note-limit" placeholder="Optional: what you already know, what was confusing, or what this session must cover." onChange={(event) => setNote(event.target.value)} /><small id="session-context-note-limit" className={`character-limit-feedback ${noteLimit.isOverLimit ? "over-limit" : ""}`} role={noteLimit.isOverLimit ? "alert" : undefined}>{formatCharacterLimit(noteLimit)}</small></label></div>
+        <div className="session-context-row"><label><span>{committedStudyRoute ? "Time in this recipe" : "Time available right now"}</span>{committedStudyRoute ? <strong>{session.estimatedMinutes} minutes</strong> : <select value={availableMinutes ?? ""} onChange={(event) => setAvailableMinutes(event.target.value ? Number(event.target.value) : null)}><option value="">Keep the planned {session.estimatedMinutes} minutes</option>{[10, 15, 20, 25, 30, 45, 60].filter((minutes) => minutes !== session.estimatedMinutes).map((minutes) => <option key={minutes} value={minutes}>{minutes} minutes</option>)}</select>}<small>{committedStudyRoute ? "This is part of the committed recipe. Cancel and use Adjust on the goal to change it visibly before starting." : "Shorter time changes today’s content slice, not what counts as learned."}</small></label><label className={noteLimit.isOverLimit ? "field-over-limit" : undefined}><span>Anything YOVA should account for?</span><textarea rows={4} value={note} aria-invalid={noteLimit.isOverLimit || undefined} aria-describedby="session-context-note-limit" placeholder="Optional: what you already know, what was confusing, or what this session must cover." onChange={(event) => setNote(event.target.value)} /><small id="session-context-note-limit" className={`character-limit-feedback ${noteLimit.isOverLimit ? "over-limit" : ""}`} role={noteLimit.isOverLimit ? "alert" : undefined}>{formatCharacterLimit(noteLimit)}</small></label></div>
         <div className="session-setup-proof"><Sparkles size={19} /><div><strong>How YOVA will begin</strong><p>{adjustmentExplanation}</p></div></div>
       </>}
 
       <footer>
-        <button className="button ghost" onClick={setupPage === 0 ? onExit : () => setSetupPage((current) => Math.max(0, current - 1))}>{setupPage === 0 ? "Not now" : <><ArrowLeft size={17} /> Back</>}</button>
+        <button className="button ghost" disabled={methodChoicePending} onClick={setupPage === 0 ? onExit : () => setSetupPage((current) => Math.max(0, current - 1))}>{setupPage === 0 ? "Not now" : <><ArrowLeft size={17} /> Back</>}</button>
         {setupPage < finalSetupPage
-          ? <button className="button primary large" onClick={() => setSetupPage((current) => Math.min(finalSetupPage, current + 1))}>Continue <ArrowRight size={18} /></button>
-          : <button className="button primary large" disabled={noteLimit.isOverLimit} onClick={start}>{scheduledReview ? "Prepare scheduled review" : "Prepare this session"} <ArrowRight size={18} /></button>}
+          ? <button className="button primary large" disabled={methodChoicePending} onClick={() => setSetupPage((current) => Math.min(finalSetupPage, current + 1))}>Continue <ArrowRight size={18} /></button>
+          : <button className="button primary large" disabled={methodChoicePending || noteLimit.isOverLimit} onClick={start}>{scheduledReview ? "Prepare scheduled review" : "Prepare this session"} <ArrowRight size={18} /></button>}
       </footer>
     </section>
   </main>;

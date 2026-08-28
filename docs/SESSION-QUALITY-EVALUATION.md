@@ -4,13 +4,9 @@ The plan decides what a learner should do. The guided session determines whether
 
 ## Current evaluation set
 
-The first session suite covers:
+The source-defined session suite now contains 18 cases. It retains the original five journeys—biology teaching from notes, calculus repair, outside-YOVA history writing, scaffolded JavaScript, and practical finance—and adds short and long beginner lessons, mapped multi-target work, delayed retrieval, vocabulary, startup funding, primary-source reasoning, literature close reading, language transfer, and thin-source teaching.
 
-1. initial biology teaching grounded in learner-supplied notes;
-2. targeted calculus repair after a weak knowledge check;
-3. history writing completed from a textbook and notes outside YOVA;
-4. beginner JavaScript practice with support that fades;
-5. practical general-learning personal finance.
+[`src/evals/session-cases.ts`](../src/evals/session-cases.ts) is authoritative for the current case IDs. Historical result tables below describe the smaller suite that was actually run on the recorded date; they are not claims that every later case has received the same live run.
 
 ## What the rubric checks
 
@@ -32,7 +28,7 @@ Required failures fail the case even if the total score is above 80/100.
 
 `pnpm test` checks the rubric against controlled local fixtures without using API credits.
 
-`pnpm eval:sessions` generates and scores all five real OpenAI sessions. It consumes API credits and is never part of a normal build or deployment.
+`pnpm eval:sessions` generates and scores every current OpenAI session case. It consumes API credits and is never part of a normal build or deployment.
 
 To run one case:
 
@@ -60,7 +56,7 @@ On August 5, 2026:
 
 The first calculus run scored 90/100 because it did not preserve the stored concept label. The generation instruction now requires an applicable `needs_review` concept to be reused exactly in at least one question's concept field. The next live run passed. This is a product-memory repair, not cosmetic prompt tuning: consistent concept names allow YOVA to accumulate evidence across sessions.
 
-All five live cases now pass the automated rubric. Human review of factual explanations, distractor quality, tone, and real learner usefulness remains necessary. Future tester failures should become new evaluation cases instead of being treated as isolated anecdotes.
+All five cases in that original live run passed the automated rubric. Human review of factual explanations, distractor quality, tone, and real learner usefulness remains necessary. Future tester failures should become new evaluation cases instead of being treated as isolated anecdotes.
 
 ## Learning-science engine rerun
 

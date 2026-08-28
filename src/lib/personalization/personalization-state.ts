@@ -8,6 +8,10 @@ import {
   type StudyProfileSnapshot,
 } from "@/lib/study-profile/types";
 import { scoreStudyProfile } from "@/lib/study-profile/scoring";
+import {
+  CORE_METHOD_IDS,
+  type CoreMethodId,
+} from "@/lib/learning/method-catalog";
 
 export const PERSONALIZATION_STATE_VERSION = 1 as const;
 export const PERSONALIZATION_STATE_ANSWER_INDEX = 16;
@@ -133,6 +137,12 @@ export type PersonalizationState = {
     completedAt: string | null;
   };
   controls: PersonalizationControls;
+  /**
+   * Methods the learner would like YOVA to favor when they are already valid
+   * for the current task. Absence and an empty list are intentionally the
+   * same so pre-feature v1 states retain their byte-canonical serialization.
+   */
+  preferredMethodIds?: CoreMethodId[];
   pausedSignalIds: string[];
   excludedEvidenceRefs: string[];
   corrections: PersonalizationSignalCorrection[];
@@ -276,6 +286,32 @@ export function withStudyProfileAnswer(
       answers: nextAnswers,
       completedAt: complete ? state.studyProfile.completedAt : null,
     },
+  });
+}
+
+/**
+ * Returns the learner's bounded preference set without exposing the optional
+ * storage representation to callers.
+ */
+export function preferredMethodIds(state: PersonalizationState): CoreMethodId[] {
+  return sanitizePreferredMethodIds(state.preferredMethodIds);
+}
+
+/**
+ * Stores at most three unique catalog methods in canonical catalog order.
+ * These IDs are preferences only; the method selector must still intersect
+ * them with the server-computed task/stage/mode eligibility set.
+ */
+export function setPreferredMethodIds(
+  state: PersonalizationState,
+  methodIds: readonly CoreMethodId[],
+): PersonalizationState {
+  const withoutPreferences = { ...state };
+  delete withoutPreferences.preferredMethodIds;
+  const normalized = sanitizePreferredMethodIds(methodIds);
+  return normalizePersonalizationState({
+    ...withoutPreferences,
+    ...(normalized.length > 0 ? { preferredMethodIds: normalized } : {}),
   });
 }
 
@@ -573,6 +609,9 @@ function normalizePersonalizationState(value: unknown): PersonalizationState {
   const controls = isRecord(value.controls) ? value.controls : {};
   const workspace = isRecord(value.workspace) ? value.workspace : {};
   const answers = sanitizeStudyProfileAnswers(studyProfile.answers);
+  const normalizedPreferredMethodIds = sanitizePreferredMethodIds(
+    value.preferredMethodIds,
+  );
   const complete = STUDY_PROFILE_QUESTION_IDS.every((id) => Boolean(answers[id]));
 
   return {
@@ -593,6 +632,9 @@ function normalizePersonalizationState(value: unknown): PersonalizationState {
       ),
       receipts: booleanOr(controls.receipts, defaults.controls.receipts),
     },
+    ...(normalizedPreferredMethodIds.length > 0
+      ? { preferredMethodIds: normalizedPreferredMethodIds }
+      : {}),
     pausedSignalIds: uniqueBoundedStrings(value.pausedSignalIds, 50, 120),
     excludedEvidenceRefs: uniqueBoundedStrings(value.excludedEvidenceRefs, 50, 120),
     corrections: sanitizeCorrections(value.corrections),
@@ -609,6 +651,15 @@ function normalizePersonalizationState(value: unknown): PersonalizationState {
     changeHistory: sanitizeChangeHistory(value.changeHistory),
     weeklyReviewHistory: sanitizeWeeklyReviewHistory(value.weeklyReviewHistory),
   };
+}
+
+function sanitizePreferredMethodIds(value: unknown): CoreMethodId[] {
+  if (!Array.isArray(value)) return [];
+  const requested = new Set(value.filter((item): item is CoreMethodId => (
+    typeof item === "string"
+    && (CORE_METHOD_IDS as readonly string[]).includes(item)
+  )));
+  return CORE_METHOD_IDS.filter((methodId) => requested.has(methodId)).slice(0, 3);
 }
 
 function sanitizeStudyProfileAnswers(value: unknown): Partial<StudyProfileAnswers> {

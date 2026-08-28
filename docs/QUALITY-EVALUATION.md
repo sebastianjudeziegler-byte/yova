@@ -4,13 +4,9 @@ A plan can satisfy the JSON schema and still be generic, badly sequenced, or mis
 
 ## Current evaluation set
 
-The first plan suite covers five deliberately different journeys:
+The source-defined plan suite now contains 10 cases. It retains the original five journeys—biology from learner notes, calculus problem solving, outside-YOVA history writing, beginner JavaScript, and personal finance—and adds mixed placement evidence, a narrow 15-minute skill, a short-session source-grounded history unit, a broad beginner pathway, and general startup-funding learning.
 
-1. biology test preparation using learner-supplied notes;
-2. calculus problem solving;
-3. history essay work completed outside YOVA;
-4. beginner JavaScript practice;
-5. general-learning personal finance.
+[`src/evals/plan-cases.ts`](../src/evals/plan-cases.ts) is authoritative for the current case IDs. Historical result tables below describe the smaller suite that was actually run on the recorded date.
 
 Each case includes a goal, starting evidence, availability, source choice, execution mode, and bounded learner-profile summary.
 
@@ -38,7 +34,7 @@ When the first generated plan fails, OpenAI receives the complete list of detect
 
 `pnpm test` runs the rubric against controlled local fixtures. It is free, fast, and confirms that the scoring rules behave as intended.
 
-`pnpm eval:plans` sends all five cases to the configured OpenAI model and scores the real generated plans. This command consumes API credits and is intentionally never part of an ordinary build, deployment, or test run.
+`pnpm eval:plans` sends every current case to the configured OpenAI model and scores the real generated plans. This command consumes API credits and is intentionally never part of an ordinary build, deployment, or test run.
 
 The evaluator loads the same server-only `.env.local` configuration as the local app before starting the test process. It checks that an OpenAI key exists without printing the key or making it available to the browser.
 
@@ -71,7 +67,7 @@ This is not proof that every generated plan is high quality or that YOVA improve
 1. Run one case while changing a prompt or routing rule.
 2. Inspect the failed rubric lines, not merely the total score.
 3. Improve the underlying instruction or deterministic rule.
-4. Run the full five-case suite before deploying a meaningful generation change.
+4. Run the full current suite before deploying a meaningful generation change.
 5. Add a new case whenever a real tester exposes a new failure pattern.
 
 This is not proof that YOVA improves grades. It is a repeatable product-quality gate that prevents obvious regressions and turns subjective prompt review into a more disciplined engineering process.

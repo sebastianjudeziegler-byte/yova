@@ -166,6 +166,43 @@ describe("scheduled retrieval contract", () => {
     expect(validateScheduledRetrievalSession(invalid, session)).toMatch(/multiple-choice questions only/i);
   });
 
+  it("keeps the full-session broad-recall recipe out of scheduled reviews", () => {
+    const invalid: GeneratedSessionDraft = {
+      ...draft,
+      activities: [{
+        ...draft.activities[0],
+        methodRuntime: {
+          kind: "retrieval_round",
+          format: "broad_recall_v1",
+          sourceClosedReminder: "Close the source before writing everything you can reconstruct.",
+          prompts: [{
+            prompt: "Reconstruct the role of the electron transport chain from memory.",
+            expectedAnswer: "It uses electron transfer to support proton pumping and ATP production.",
+            hint: null,
+          }],
+          comparisonInstructions: "Only after the recall attempt, reopen the source and compare it line by line.",
+          gapChecklist: ["Which relationship between electron transfer and proton pumping was missing?"],
+          correctionInstruction: "Correct only the missing or inaccurate relationship in your own words.",
+          transferPrompt: {
+            sourceClosedReminder: "Close the source again before answering the transfer question.",
+            prompt: "Predict what happens to ATP production if proton pumping stops.",
+            expectedAnswer: "The proton gradient weakens, so ATP synthase produces less ATP.",
+          },
+          targetBindings: [{
+            targetId: draft.topicIds[0]!,
+            evidenceId: `blurting-final-check:${draft.topicIds[0]!}`,
+            concept: "Electron transport chain",
+            comparisonCriterion: "Connects electron transfer to proton pumping and ATP production.",
+            transferSuccessCriterion: "Predicts the ATP consequence when proton pumping stops.",
+          }],
+        },
+      }, ...draft.activities.slice(1)],
+    };
+
+    expect(GeneratedSessionDraftSchema.safeParse(invalid).success).toBe(true);
+    expect(validateScheduledRetrievalSession(invalid, session)).toMatch(/short question-set format/i);
+  });
+
   it("overrides a full-session delivery policy with a calm one-question-at-a-time format", () => {
     const result = adaptDeliveryPolicyForScheduledRetrieval(deliveryPolicy, session.reviewConcept);
 

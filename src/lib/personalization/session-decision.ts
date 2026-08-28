@@ -11,6 +11,7 @@ import {
   statedOnboardingAnswerForRuntime,
 } from "@/lib/personalization/learner-profile";
 import { readPersonalizationStateFromAnswers } from "@/lib/personalization/personalization-state";
+import { StudyRouteSchema, type StudyRoute } from "@/lib/study-route/schema";
 
 export type SessionDecisionSignal = {
   kind: "task" | "learner" | "evidence" | "source";
@@ -34,7 +35,10 @@ export function buildSessionDecisionSignals({
   interruptions: SessionInterruption[];
 }): SessionDecisionSignal[] {
   const signals: SessionDecisionSignal[] = [taskSignal(session)];
-  const learnerSignal = profileSignal(answers, session.learningMode);
+  const route = storedStudyRoute(session);
+  const learnerSignal = route
+    ? buildStudyRouteMethodDecisionSignal(route)
+    : profileSignal(answers, session.learningMode);
   if (learnerSignal) signals.push(learnerSignal);
   signals.push(evidenceSignal(session, completions, interruptions, answers));
   signals.push(sourceSignal(plan));
@@ -42,6 +46,17 @@ export function buildSessionDecisionSignals({
 }
 
 function taskSignal(session: LearningPlanSession): SessionDecisionSignal {
+  const route = storedStudyRoute(session);
+  if (route) {
+    return {
+      kind: "task",
+      label: "Task decision",
+      title: route.approach.visibleMethodName,
+      detail: route.explanation.taskRequirements[0]
+        ?? route.explanation.shortReason,
+      strength: "direct",
+    };
+  }
   return session.learningMode === "learn"
     ? {
       kind: "task",
@@ -57,6 +72,41 @@ function taskSignal(session: LearningPlanSession): SessionDecisionSignal {
       detail: `${session.method} was selected because this session is checking or strengthening knowledge that has already been introduced.`,
       strength: "direct",
     };
+}
+
+/**
+ * Returns only the personal evidence that actually changed the named route
+ * method. General delivery preferences must not appear as proof that the
+ * learner received a different method.
+ */
+export function buildStudyRouteMethodDecisionSignal(
+  routeInput: StudyRoute,
+): SessionDecisionSignal | null {
+  const route = StudyRouteSchema.parse(routeInput);
+  if (route.explanation.observations.length > 0) {
+    return {
+      kind: "evidence",
+      label: "Prior method evidence",
+      title: route.explanation.shortReason,
+      detail: route.explanation.observations[0]!,
+      strength: "observed",
+    };
+  }
+  if (route.explanation.learnerDeclarations.length > 0) {
+    return {
+      kind: "learner",
+      label: "Your method context",
+      title: route.explanation.shortReason,
+      detail: route.explanation.learnerDeclarations[0]!,
+      strength: "starting_context",
+    };
+  }
+  return null;
+}
+
+function storedStudyRoute(session: LearningPlanSession) {
+  const parsed = StudyRouteSchema.safeParse(session.studyRoute);
+  return parsed.success ? parsed.data : null;
 }
 
 function profileSignal(answers: string[], learningMode: LearningPlanSession["learningMode"]): SessionDecisionSignal | null {

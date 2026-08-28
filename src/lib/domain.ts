@@ -84,6 +84,8 @@ export type SessionSourceGrounding = {
 
 export type SessionResource = {
   schemaVersion?: 15 | 16 | 17;
+  /** Exact StudyRoute revision that authorized this generated or fallback resource. */
+  routeRevisionId?: string;
   topicIds?: string[];
   rationale: string;
   coverage?: import("@/lib/session-generation/schema").SessionCoverage;
@@ -101,6 +103,8 @@ export type SessionResource = {
     adjustmentFingerprint: string;
     contractFingerprint?: string;
     scopeFingerprint: string;
+    /** Prevents structurally similar content from crossing route revisions. */
+    routeRevisionId?: string;
   };
   activities: SessionResourceActivity[];
   generatedAt: string;
@@ -137,6 +141,11 @@ export type LearningPlanSession = {
   adaptationNote?: SessionAdaptationNote;
   reviewConcept?: string;
   reviewType?: "repair_and_retrieve" | "verify" | "maintenance_transfer";
+  /**
+   * Optional during the Milestone 1 dual-read period. New sessions receive a
+   * canonical route; legacy sessions continue through shared adapters.
+   */
+  studyRoute?: import("@/lib/study-route/schema").StudyRoute;
 };
 
 export type LearningPlan = {
@@ -161,6 +170,7 @@ export type LearningPlan = {
 };
 
 export type ConceptEvidence = {
+  routeRevisionId?: string;
   topicId?: string;
   concept: string;
   outcome: "secure" | "needs_review";
@@ -174,6 +184,7 @@ export type ConceptEvidence = {
 export type ConfidenceLevel = "guessing" | "somewhat_sure" | "very_sure";
 
 export type ConfidenceEvidence = {
+  routeRevisionId?: string;
   topicId?: string;
   concept: string;
   confidence: ConfidenceLevel;
@@ -187,6 +198,8 @@ export type SessionCompletion = {
   id: string;
   planId: string;
   planSessionId: string;
+  /** Route that actually ran; absent only on pre-migration outcomes. */
+  routeRevisionId?: string;
   startedAt: string;
   completedAt: string;
   plannedMinutes: number;
@@ -233,6 +246,8 @@ export type SessionInterruption = {
   id: string;
   planId: string;
   planSessionId: string;
+  /** Route frozen under the interrupted run; absent on legacy records. */
+  routeRevisionId?: string;
   startedAt: string;
   interruptedAt: string;
   plannedMinutes: number;

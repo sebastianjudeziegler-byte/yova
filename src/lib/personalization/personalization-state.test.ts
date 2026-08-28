@@ -8,11 +8,13 @@ import {
   evaluateActivePersonalizationExperiment,
   finishPersonalizationExperiment,
   personalizationExperimentAcceptsCompletion,
+  preferredMethodIds,
   readPersonalizationStateFromAnswers,
   readPersonalizationStateValue,
   recordPersonalizationWeeklyReview,
   recordPersonalizationExperimentCompletion,
   setPersonalizationControl,
+  setPreferredMethodIds,
   setPersonalizationWorkspaceSetting,
   serializePersonalizationState,
   setPersonalizationEvidenceRefExcluded,
@@ -71,6 +73,52 @@ describe("personalization state", () => {
       workspace: { layout: "one_step", motion: "reduced" },
       corrections: [{ correctedValue: "Only hard tasks" }],
     });
+  });
+
+  it("stores at most three unique preferred methods in canonical catalog order", () => {
+    const preferred = setPreferredMethodIds(defaultPersonalizationState(), [
+      "practice_test_error_repair",
+      "self_explanation",
+      "retrieval_practice",
+      "self_explanation",
+      "spaced_retrieval",
+    ]);
+
+    expect(preferredMethodIds(preferred)).toEqual([
+      "retrieval_practice",
+      "spaced_retrieval",
+      "self_explanation",
+    ]);
+    expect(readPersonalizationStateValue(serializePersonalizationState(preferred)))
+      .toEqual(preferred);
+
+    const cleared = setPreferredMethodIds(preferred, []);
+    expect(preferredMethodIds(cleared)).toEqual([]);
+    expect(cleared).not.toHaveProperty("preferredMethodIds");
+    expect(serializePersonalizationState(cleared)).not.toContain("preferredMethodIds");
+  });
+
+  it("keeps canonical pre-preference v1 state byte-compatible", () => {
+    const legacyV1 = "{\"version\":1,\"studyProfile\":{\"modelVersion\":\"profile_model_v1\",\"answers\":{},\"completedAt\":null},\"controls\":{\"selfReport\":true,\"behavior\":true,\"timing\":true,\"experiments\":false,\"optionalQuestions\":true,\"receipts\":true},\"pausedSignalIds\":[],\"excludedEvidenceRefs\":[],\"corrections\":[],\"workspace\":{\"layout\":\"automatic\",\"textDensity\":\"automatic\",\"motion\":\"automatic\",\"visualStructure\":\"automatic\",\"checkIns\":\"automatic\"},\"activeExperiment\":null,\"experimentHistory\":[],\"receiptHistory\":[],\"changeHistory\":[],\"weeklyReviewHistory\":[]}";
+    const restored = readPersonalizationStateValue(legacyV1);
+
+    expect(preferredMethodIds(restored)).toEqual([]);
+    expect(restored).not.toHaveProperty("preferredMethodIds");
+    expect(serializePersonalizationState(restored)).toBe(legacyV1);
+  });
+
+  it("drops unknown and duplicate preferred method IDs at the state boundary", () => {
+    const serialized = JSON.stringify({
+      ...defaultPersonalizationState(),
+      preferredMethodIds: [
+        "unknown_method",
+        "worked_example_fading",
+        "worked_example_fading",
+      ],
+    });
+
+    expect(preferredMethodIds(readPersonalizationStateValue(serialized)))
+      .toEqual(["worked_example_fading"]);
   });
 
   it("falls back safely for malformed, oversized, and unknown-version values", () => {

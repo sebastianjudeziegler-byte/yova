@@ -33,6 +33,7 @@ import { reportProductError } from "@/lib/monitoring/client";
 import {
   PlanDiagnosticPreparationResponseSchema,
   PlanActivationResponseSchema,
+  PlanDraftMethodChoiceResponseSchema,
   PlanGenerationRequestSchema,
   PlanGenerationResponseSchema,
   type DiagnosticResponse,
@@ -47,6 +48,7 @@ import { LIVE_AI_PLAN_FALLBACK_NOTICE } from "@/lib/plan-generation/fallback";
 import { inferPlanScopeContract } from "@/lib/plan-generation/scope-contract";
 import { buildPlanContentBudget } from "@/lib/plan-generation/content-budget";
 import { LEARNING_INTENT_COPY, resolveLearningIntent } from "@/lib/learning/learning-intent";
+import type { CoreMethodId } from "@/lib/learning/method-catalog";
 import type { AddIntakeSeed } from "@/lib/intake/schema";
 import { assessGoalContext } from "@/lib/learning/goal-context";
 import {
@@ -68,11 +70,40 @@ import {
   planCreatorScheduleReducer,
   type AvailabilityChoice,
 } from "@/lib/scheduling/plan-creator-schedule";
+import {
+  resolveStudyRouteSessionContract,
+  selectSessionActiveMinutes,
+} from "@/lib/study-route/selectors";
+import { developmentPreviewPreferenceRequestInput } from "@/lib/plan-generation/development-preview-preferences";
 
 type PlanStep = "goal" | "source" | "schedule" | "diagnostic-loading" | "diagnostic" | "confirm" | "loading" | "error" | "result";
 type SourceChoice = "materials" | "yova" | "outside";
 
-export function PlanCreator({ onExit, onFinish, profileSummary, browserPreviewMode = false, seed = null }: { onExit: () => void; onFinish: (plan: LearningPlan) => void; profileSummary: string; browserPreviewMode?: boolean; seed?: AddIntakeSeed | null }) {
+export function planCreatorPreviewPreferenceRequestInput(
+  browserPreviewMode: boolean,
+  previewPreferredMethodIds: readonly CoreMethodId[],
+) {
+  return developmentPreviewPreferenceRequestInput(
+    browserPreviewMode,
+    previewPreferredMethodIds,
+  );
+}
+
+export function PlanCreator({
+  onExit,
+  onFinish,
+  profileSummary,
+  browserPreviewMode = false,
+  previewPreferredMethodIds = [],
+  seed = null,
+}: {
+  onExit: () => void;
+  onFinish: (plan: LearningPlan) => void;
+  profileSummary: string;
+  browserPreviewMode?: boolean;
+  previewPreferredMethodIds?: readonly CoreMethodId[];
+  seed?: AddIntakeSeed | null;
+}) {
   const scheduleRecommendation = recommendStudySchedule(profileSummary);
   const browserTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
   const [step, setStep] = useState<PlanStep>(seed ? "schedule" : "goal");
@@ -124,6 +155,10 @@ export function PlanCreator({ onExit, onFinish, profileSummary, browserPreviewMo
   const [scheduleCapacityError, setScheduleCapacityError] = useState<string | null>(null);
   const [activationError, setActivationError] = useState<string | null>(null);
   const [activating, setActivating] = useState(false);
+  const [methodEditorSessionId, setMethodEditorSessionId] = useState<string | null>(null);
+  const [methodUpdatingSessionId, setMethodUpdatingSessionId] = useState<string | null>(null);
+  const [methodChoiceError, setMethodChoiceError] = useState<{ sessionId: string; message: string } | null>(null);
+  const [methodChoiceNotice, setMethodChoiceNotice] = useState<{ sessionId: string; message: string } | null>(null);
   const [mapCorrection, setMapCorrection] = useState("");
   const [mapUpdating, setMapUpdating] = useState(false);
   const [mapCorrectionError, setMapCorrectionError] = useState<string | null>(null);
@@ -151,7 +186,11 @@ export function PlanCreator({ onExit, onFinish, profileSummary, browserPreviewMo
     ? buildPlanContentBudget(mappedGeneratedFrom, generatedScope)
     : null;
   const preferenceContract = buildPlanPreferenceContract(profileSummary);
-  const generatedPhases = generatedPlan ? groupPlanSessions(generatedPlan.plan.sessions) : [];
+  const generatedPhases = generatedPlan
+    ? groupPlanSessions(generatedPlan.plan.sessions.map((session) => (
+      resolveStudyRouteSessionContract(generatedPlan.plan, session).session
+    )))
+    : [];
 
   const stepNumber = ({ goal: 1, source: 2, schedule: 3, "diagnostic-loading": 4, diagnostic: 4, confirm: 5, loading: 5, error: 5, result: 5 } as Record<PlanStep, number>)[step];
 
@@ -185,6 +224,10 @@ export function PlanCreator({ onExit, onFinish, profileSummary, browserPreviewMo
       diagnosticResponses,
       availability,
       profileSummary,
+      ...planCreatorPreviewPreferenceRequestInput(
+        browserPreviewMode,
+        previewPreferredMethodIds,
+      ),
       ...(diagnosticMap ? { knowledgeMap: diagnosticMap } : {}),
       ...overrides,
     });
@@ -237,7 +280,7 @@ export function PlanCreator({ onExit, onFinish, profileSummary, browserPreviewMo
   };
 
   const generatePlan = async () => {
-    if (!sourceChoice) return;
+    if (!sourceChoice || methodUpdatingSessionId) return;
 
     setGenerationError(null);
     setScheduleCapacityError(null);
@@ -284,7 +327,7 @@ export function PlanCreator({ onExit, onFinish, profileSummary, browserPreviewMo
         errorCode: "plan_generation_failed",
         requestId,
       });
-      if (planRequest) {
+      if (planRequest && browserPreviewMode) {
         try {
           const reliablePlan = generatePreviewPlan(planRequest);
           const reliableResponse = PlanGenerationResponseSchema.parse({
@@ -399,6 +442,7 @@ export function PlanCreator({ onExit, onFinish, profileSummary, browserPreviewMo
   };
 
   const reviseGeneratedPlan = (target: "goal" | "source" | "schedule" | "diagnostic") => {
+    if (methodUpdatingSessionId) return;
     setGeneratedPlan(null);
     setGeneratedFrom(null);
     setGenerationError(null);
@@ -414,7 +458,7 @@ export function PlanCreator({ onExit, onFinish, profileSummary, browserPreviewMo
 
   const updateTopicMapAndPlan = async () => {
     const correction = mapCorrection.trim();
-    if (!correction || mapUpdating) return;
+    if (!correction || mapUpdating || methodUpdatingSessionId) return;
     setMapUpdating(true);
     setMapCorrectionError(null);
     try {
@@ -475,7 +519,7 @@ export function PlanCreator({ onExit, onFinish, profileSummary, browserPreviewMo
   };
 
   const activateGeneratedPlan = async () => {
-    if (!generatedPlan || !mappedGeneratedFrom || activating) return;
+    if (!generatedPlan || !mappedGeneratedFrom || activating || methodUpdatingSessionId) return;
     setActivationError(null);
     setActivating(true);
     let requestId: string | null = null;
@@ -487,7 +531,11 @@ export function PlanCreator({ onExit, onFinish, profileSummary, browserPreviewMo
           "Content-Type": "application/json",
           ...(browserPreviewMode ? { "X-Yova-Development-Preview": "plan-creator" } : {}),
         },
-        body: JSON.stringify({ plan: generatedPlan.plan, generationRequest: mappedGeneratedFrom }),
+        body: JSON.stringify({
+          plan: generatedPlan.plan,
+          generationRequest: mappedGeneratedFrom,
+          draftReceipt: generatedPlan.generation.draftReceipt,
+        }),
       });
       requestId = response.headers.get("X-Yova-Request-Id");
       const body: unknown = await response.json();
@@ -510,6 +558,76 @@ export function PlanCreator({ onExit, onFinish, profileSummary, browserPreviewMo
       setActivationError(userFacingErrorMessage(error, "YOVA could not activate this plan yet."));
     } finally {
       setActivating(false);
+    }
+  };
+
+  const changeDraftSessionMethod = async (
+    sessionId: string,
+    expectedRouteRevisionId: string,
+    methodId: NonNullable<LearningPlan["sessions"][number]["studyRoute"]>["approach"]["primaryMethodId"],
+  ) => {
+    if (!generatedPlan || !mappedGeneratedFrom || methodUpdatingSessionId || activating) return;
+    setMethodUpdatingSessionId(sessionId);
+    setMethodChoiceError(null);
+    setMethodChoiceNotice(null);
+    setActivationError(null);
+    let requestId: string | null = null;
+
+    try {
+      const response = await fetch("/api/plans/method-choice", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(browserPreviewMode ? { "X-Yova-Development-Preview": "plan-creator" } : {}),
+        },
+        body: JSON.stringify({
+          plan: generatedPlan.plan,
+          generationRequest: mappedGeneratedFrom,
+          draftReceipt: generatedPlan.generation.draftReceipt,
+          selection: { sessionId, expectedRouteRevisionId, methodId },
+        }),
+      });
+      requestId = response.headers.get("X-Yova-Request-Id");
+      const body: unknown = await response.json();
+      if (!response.ok) {
+        throw new Error(readApiError(body) ?? "YOVA could not change this method safely.");
+      }
+      const parsed = PlanDraftMethodChoiceResponseSchema.safeParse(body);
+      if (!parsed.success) {
+        throw new Error("The revised plan came back in an unsafe format, so your current draft was kept.");
+      }
+
+      const changedSession = parsed.data.plan.sessions.find((session) => session.id === sessionId);
+      setGeneratedPlan((current) => current ? {
+        ...current,
+        plan: parsed.data.plan,
+        generation: {
+          ...current.generation,
+          draftReceipt: parsed.data.draftReceipt,
+        },
+      } : current);
+      setMethodEditorSessionId(null);
+      setMethodChoiceNotice({
+        sessionId,
+        message: parsed.data.revision.status === "unchanged"
+          ? "That method is already selected."
+          : `${changedSession?.method ?? "The new method"} is now part of this draft.`,
+      });
+    } catch (error) {
+      reportProductError({
+        surface: "plan_generation",
+        errorCode: "plan_method_choice_failed",
+        requestId,
+      });
+      setMethodChoiceError({
+        sessionId,
+        message: userFacingErrorMessage(
+          error,
+          "YOVA could not change this method safely. Your current draft is unchanged.",
+        ),
+      });
+    } finally {
+      setMethodUpdatingSessionId(null);
     }
   };
 
@@ -657,27 +775,39 @@ export function PlanCreator({ onExit, onFinish, profileSummary, browserPreviewMo
               </div>
               <textarea rows={3} maxLength={800} value={mapCorrection} placeholder="Example: Include the causes of World War I, but leave detailed military technology outside this plan." onChange={(event) => setMapCorrection(event.target.value)} />
               {mapCorrectionError && <p className="plan-activation-error"><AlertCircle size={16} /> {mapCorrectionError}</p>}
-              <button type="button" className="button secondary" disabled={!mapCorrection.trim() || mapUpdating} onClick={() => void updateTopicMapAndPlan()}>{mapUpdating ? <><span className="button-spinner" /> Updating map…</> : <>Update map and plan <ArrowRight size={17} /></>}</button>
+              <button type="button" className="button secondary" disabled={!mapCorrection.trim() || mapUpdating || Boolean(methodUpdatingSessionId)} onClick={() => void updateTopicMapAndPlan()}>{mapUpdating ? <><span className="button-spinner" /> Updating map…</> : <>Update map and plan <ArrowRight size={17} /></>}</button>
             </div>
           </section>}
-          <PlanGenerationNotice generation={generatedPlan.generation} onRetry={() => void generatePlan()} />
-          <div className="generated-roadmap" aria-label="Learning roadmap">{generatedPhases.map((phase) => <section className="generated-phase" key={`${phase.key}-${phase.number}`}><header><div><span>{phase.number}</span><div><small>PLAN PHASE</small><h2>{phase.label}</h2></div></div><p>{phase.description}</p></header><div className="generated-timeline">{phase.sessions.map((session) => <article key={session.id}><span>{session.sequence}</span><div><small>{session.learningMode === "learn" ? "TEACHING FIRST" : "PRACTICE FIRST"} · {formatSessionDate(session.scheduledFor)}</small><h3>{session.title}</h3><p>{session.method}</p><p className="generated-session-focus">Focus: {(session.contentTargets ?? []).join("; ")}</p></div><strong>{session.amountLabel}</strong></article>)}</div></section>)}</div>
+          <PlanGenerationNotice generation={generatedPlan.generation} onRetry={() => void generatePlan()} retryDisabled={Boolean(methodUpdatingSessionId)} />
+          <div className="generated-roadmap" aria-label="Learning roadmap">{generatedPhases.map((phase) => <section className="generated-phase" key={`${phase.key}-${phase.number}`}><header><div><span>{phase.number}</span><div><small>PLAN PHASE</small><h2>{phase.label}</h2></div></div><p>{phase.description}</p></header><div className="generated-timeline">{phase.sessions.map((session) => {
+            const route = session.studyRoute;
+            const alternatives = route?.identity.lifecycleStatus === "provisional"
+              ? route.agency.alternatives
+              : [];
+            const editing = methodEditorSessionId === session.id;
+            const updating = methodUpdatingSessionId === session.id;
+            return <article key={session.id} aria-label={`Session ${session.sequence}: ${session.title}`}><span>{session.sequence}</span><div><small>{session.learningMode === "learn" ? "TEACHING FIRST" : "PRACTICE FIRST"} · {formatSessionDate(session.scheduledFor)}</small><h3>{session.title}</h3><p>{session.method}</p><details className="generated-method-reason" aria-label={`Method decision for ${session.title}`}><summary>{route?.agency.selectedBy === "learner" ? "Why this method fits" : "Why YOVA chose this"}</summary><p>{session.methodReason}</p>{alternatives.length > 0 && <div className="draft-method-choice"><button type="button" className="draft-method-choice-trigger" disabled={Boolean(methodUpdatingSessionId) || activating} onClick={() => {
+              setMethodChoiceError(null);
+              setMethodChoiceNotice(null);
+              setMethodEditorSessionId((current) => current === session.id ? null : session.id);
+            }}>{editing ? "Keep current method" : "Change method"}</button>{editing && route && <div className="draft-method-options" role="group" aria-label={`Other methods that also fit for ${session.title}`}>{alternatives.map((alternative) => <button type="button" key={alternative.alternativeId} aria-pressed={false} disabled={Boolean(methodUpdatingSessionId) || activating} onClick={() => void changeDraftSessionMethod(session.id, route.identity.routeRevisionId, alternative.primaryMethodId)}><strong>{alternative.visibleMethodName}</strong><span>{alternative.tradeoff}</span></button>)}</div>}{updating && <p className="draft-method-status" role="status"><span className="button-spinner" /> Updating this recipe…</p>}{methodChoiceError?.sessionId === session.id && <p className="draft-method-error" role="alert">{methodChoiceError.message}</p>}{methodChoiceNotice?.sessionId === session.id && <p className="draft-method-status" role="status">{methodChoiceNotice.message}</p>}</div>}</details><p className="generated-session-focus">Focus: {(session.contentTargets ?? []).join("; ")}</p></div><strong>{session.amountLabel}</strong></article>;
+          })}</div></section>)}</div>
           <section className="plan-alignment-check" aria-labelledby="plan-alignment-title">
             <div className="plan-alignment-heading"><span className="step-label">BEFORE YOVA SAVES THIS</span><h2 id="plan-alignment-title">Does this plan match what you need?</h2><p>Check the content, starting approach, source, and pace. If one part is wrong, change that input and YOVA will rebuild the draft.</p></div>
             <div className="plan-alignment-facts">
               <div><span>CONTENT</span><strong>{generatedPlan.plan.topic}</strong></div>
               <div><span>STARTING APPROACH</span><strong>{generatedPlan.plan.learningIntent === "learn" ? "Teach first, then remove support" : "Practice first, then repair gaps"}</strong></div>
               <div><span>LEARNING SOURCE</span><strong>{sourceChoice === "materials" ? `${materials.length} uploaded ${materials.length === 1 ? "source" : "sources"}` : sourceChoice === "outside" ? "Your trusted source outside YOVA" : "Teaching and practice created by YOVA"}</strong></div>
-              <div><span>PACE</span><strong>{generatedPlan.plan.sessions.length} sessions · {durationLabel(generatedPlan.plan.sessions.map((session) => session.estimatedMinutes), "per-session")}</strong></div>
+              <div><span>PACE</span><strong>{generatedPlan.plan.sessions.length} sessions · {durationLabel(generatedPlan.plan.sessions.map((session) => selectSessionActiveMinutes(generatedPlan.plan, session)), "per-session")}</strong></div>
             </div>
             <div className="plan-revision-actions" aria-label="Change this plan before saving">
-              <button className="button ghost" onClick={() => reviseGeneratedPlan("goal")}>Change content</button>
-              <button className="button ghost" onClick={() => reviseGeneratedPlan("source")}>Change source</button>
-              <button className="button ghost" onClick={() => reviseGeneratedPlan("schedule")}>Change schedule</button>
-              <button className="button ghost" onClick={() => reviseGeneratedPlan("diagnostic")}>Change starting level</button>
+              <button className="button ghost" disabled={Boolean(methodUpdatingSessionId)} onClick={() => reviseGeneratedPlan("goal")}>Change content</button>
+              <button className="button ghost" disabled={Boolean(methodUpdatingSessionId)} onClick={() => reviseGeneratedPlan("source")}>Change source</button>
+              <button className="button ghost" disabled={Boolean(methodUpdatingSessionId)} onClick={() => reviseGeneratedPlan("schedule")}>Change schedule</button>
+              <button className="button ghost" disabled={Boolean(methodUpdatingSessionId)} onClick={() => reviseGeneratedPlan("diagnostic")}>Change starting level</button>
             </div>
             {activationError && <p className="plan-activation-error"><AlertCircle size={16} /> {activationError}</p>}
-            <div className="plan-activation"><div><Check size={18} /><span><strong>Confirm only when this looks right.</strong><small>YOVA will save the plan and make its first session available.</small></span></div><button className="button primary large" disabled={activating} onClick={() => void activateGeneratedPlan()}>{activating ? <><span className="button-spinner" /> Saving plan…</> : <>Use this plan <ArrowRight size={18} /></>}</button></div>
+            <div className="plan-activation"><div><Check size={18} /><span><strong>Confirm only when this looks right.</strong><small>YOVA will save the plan and make its first session available.</small></span></div><button className="button primary large" disabled={activating || Boolean(methodUpdatingSessionId)} onClick={() => void activateGeneratedPlan()}>{activating ? <><span className="button-spinner" /> Saving plan…</> : <>Use this plan <ArrowRight size={18} /></>}</button></div>
           </section>
         </section>
       )}
@@ -738,8 +868,11 @@ function groupPlanSessions(sessions: LearningPlan["sessions"]) {
   }> = [];
 
   sessions.forEach((session, index) => {
-    const methodText = `${session.title} ${session.method}`;
-    const key: PhaseKey = index === sessions.length - 1 || /spaced|review|verify|retain|consolidate/i.test(methodText)
+    // Phase placement belongs to the session contract, not its learner-
+    // selectable method label. Changing an eligible method must never move a
+    // session to a different part of the roadmap.
+    const scheduledReview = Boolean(session.reviewType || session.reviewConcept?.trim());
+    const key: PhaseKey = index === sessions.length - 1 || scheduledReview
       ? "review"
       : session.learningMode === "learn"
         ? index === 0 ? "foundation" : "guided"

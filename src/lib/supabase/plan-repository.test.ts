@@ -5,6 +5,7 @@ import type { PlanGenerationRequest } from "@/lib/plan-generation/schema";
 const mocks = vi.hoisted(() => ({
   isSupabaseConfigured: vi.fn(),
   createSupabaseServerClient: vi.fn(),
+  createSupabaseAdminClient: vi.fn(),
 }));
 
 vi.mock("server-only", () => ({}));
@@ -13,6 +14,9 @@ vi.mock("@/lib/supabase/config", () => ({
 }));
 vi.mock("@/lib/supabase/server", () => ({
   createSupabaseServerClient: mocks.createSupabaseServerClient,
+}));
+vi.mock("@/lib/supabase/admin", () => ({
+  createSupabaseAdminClient: mocks.createSupabaseAdminClient,
 }));
 
 import {
@@ -40,19 +44,14 @@ const generationRequest = {
   profileSummary: "The learner prefers direct explanations and short sessions.",
 } as PlanGenerationRequest;
 
-function clientWithExistingPlan(existingPlan: unknown) {
-  const query = {
-    select: vi.fn(),
-    eq: vi.fn(),
-    maybeSingle: vi.fn().mockResolvedValue({ data: existingPlan, error: null }),
-  };
-  query.select.mockReturnValue(query);
-  query.eq.mockReturnValue(query);
+const activationPermitId = "3dd7abce-dd49-42c4-8961-a8cbb5310171";
+const draftReceiptIssuedAt = "2026-08-24T10:00:00.000Z";
 
+function authenticatedClient() {
   return {
     auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: "user-1" } }, error: null }) },
     rpc: vi.fn().mockResolvedValue({ error: { message: "duplicate key" } }),
-    from: vi.fn().mockReturnValue(query),
+    from: vi.fn(),
   };
 }
 
@@ -60,18 +59,54 @@ describe("plan persistence retries", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.isSupabaseConfigured.mockReturnValue(true);
+    mocks.createSupabaseAdminClient.mockReturnValue({
+      rpc: vi.fn().mockResolvedValue({ data: activationPermitId, error: null }),
+    });
   });
 
-  it("treats the exact existing plan as a successful activation retry", async () => {
-    const client = clientWithExistingPlan({
-      id: plan.id,
-      learning_item_id: plan.learningItemId,
-      status: plan.status,
+  it("mints server-side authority for the exact payload used by the cookie-auth writer", async () => {
+    const client = authenticatedClient();
+    client.rpc.mockResolvedValue({ error: null });
+    mocks.createSupabaseServerClient.mockResolvedValue(client);
+    const admin = mocks.createSupabaseAdminClient();
+
+    await expect(
+      persistPlanForAuthenticatedUser(plan, generationRequest, draftReceiptIssuedAt),
+    ).resolves.toBe("supabase");
+
+    expect(admin.rpc).toHaveBeenCalledWith("mint_plan_activation_permit_v1", {
+      payload: expect.any(Object),
+      requested_user_id: "user-1",
+      draft_receipt_issued_at: draftReceiptIssuedAt,
     });
+    expect(client.rpc).toHaveBeenCalledWith("save_generated_plan_with_routes", {
+      payload: expect.any(Object),
+      activation_permit_id: activationPermitId,
+    });
+    expect(admin.rpc.mock.calls[0]?.[1]?.payload).toBe(client.rpc.mock.calls[0]?.[1]?.payload);
+  });
+
+  it("fails closed before the authenticated writer when permit issuance is unavailable", async () => {
+    const client = authenticatedClient();
+    mocks.createSupabaseServerClient.mockResolvedValue(client);
+    const admin = mocks.createSupabaseAdminClient();
+    admin.rpc.mockResolvedValue({ data: null, error: { message: "unavailable" } });
+
+    await expect(
+      persistPlanForAuthenticatedUser(plan, generationRequest, draftReceiptIssuedAt),
+    ).rejects.toBeInstanceOf(PlanPersistenceError);
+    expect(client.rpc).not.toHaveBeenCalled();
+    expect(client.from).not.toHaveBeenCalled();
+  });
+
+  it("never treats shallow plan rows as authority after an ambiguous writer response", async () => {
+    const client = authenticatedClient();
     mocks.createSupabaseServerClient.mockResolvedValue(client);
 
-    await expect(persistPlanForAuthenticatedUser(plan, generationRequest)).resolves.toBe("supabase");
-    expect(client.from).toHaveBeenCalledWith("plans");
+    await expect(
+      persistPlanForAuthenticatedUser(plan, generationRequest, draftReceiptIssuedAt),
+    ).rejects.toBeInstanceOf(PlanPersistenceError);
+    expect(client.from).not.toHaveBeenCalled();
   });
 
   it("persists the streamed architecture for an older mapped plan without a saved stamp", async () => {
@@ -111,39 +146,31 @@ describe("plan persistence retries", () => {
         curriculum: null,
       },
     } as LearningPlan;
-    const client = clientWithExistingPlan({
-      id: mappedPlan.id,
-      learning_item_id: mappedPlan.learningItemId,
-      status: mappedPlan.status,
-    });
+    const client = authenticatedClient();
+    client.rpc.mockResolvedValue({ error: null });
     mocks.createSupabaseServerClient.mockResolvedValue(client);
 
-    await expect(persistPlanForAuthenticatedUser(mappedPlan, generationRequest)).resolves.toBe("supabase");
-    expect(client.rpc).toHaveBeenCalledWith("save_generated_plan", expect.objectContaining({
+    await expect(
+      persistPlanForAuthenticatedUser(mappedPlan, generationRequest, draftReceiptIssuedAt),
+    ).resolves.toBe("supabase");
+    expect(client.rpc).toHaveBeenCalledWith("save_generated_plan_with_routes", expect.objectContaining({
       payload: expect.objectContaining({
         generationInputs: expect.objectContaining({
           sessionArchitectureVersion: "streamed_teaching_v1",
         }),
       }),
+      activation_permit_id: activationPermitId,
     }));
-  });
-
-  it("still fails when the existing row does not match the requested plan", async () => {
-    mocks.createSupabaseServerClient.mockResolvedValue(clientWithExistingPlan({
-      id: plan.id,
-      learning_item_id: "2ccf4102-6fe2-4545-a225-2f67b22ec3b9",
-      status: plan.status,
-    }));
-
-    await expect(persistPlanForAuthenticatedUser(plan, generationRequest)).rejects.toBeInstanceOf(PlanPersistenceError);
   });
 
   it("surfaces an expired staged source as a non-retryable rebuild condition", async () => {
-    const client = clientWithExistingPlan(null);
+    const client = authenticatedClient();
     client.rpc.mockResolvedValue({ error: { message: "material_staging_expired" } });
     mocks.createSupabaseServerClient.mockResolvedValue(client);
 
-    await expect(persistPlanForAuthenticatedUser(plan, generationRequest)).rejects.toMatchObject({
+    await expect(
+      persistPlanForAuthenticatedUser(plan, generationRequest, draftReceiptIssuedAt),
+    ).rejects.toMatchObject({
       name: "PlanPersistenceError",
       code: "material_staging_expired",
     });

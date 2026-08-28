@@ -52,6 +52,7 @@ jobs:
           SUPABASE_SECRET_KEY: sb_secret_ci_readiness_only
           OPENAI_API_KEY: sk-ci-readiness-only-not-a-real-key
           CRON_SECRET: ci-readiness-only-cron-secret-000000000000
+          YOVA_DRAFT_RECEIPT_SECRET: ci-readiness-only-draft-receipt-secret-000000
           SITE_URL: https://www.yovaapp.com
           AUTH_PASSWORD_ACCOUNTS: "true"
           AUTH_INVITE_ONLY: "false"
@@ -70,6 +71,9 @@ jobs:
 
       - name: Lint the migrated database
         run: pnpm exec supabase db lint --local --level warning --fail-on error
+
+      - name: Test migrated database boundaries
+        run: pnpm exec supabase test db --local
 
       - name: Stop isolated database
         if: always()

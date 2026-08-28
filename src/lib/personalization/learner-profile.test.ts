@@ -17,6 +17,7 @@ import {
   PERSONALIZATION_STATE_ANSWER_INDEX,
   readPersonalizationStateFromAnswers,
   serializePersonalizationState,
+  setPreferredMethodIds,
   writePersonalizationStateToAnswers,
 } from "@/lib/personalization/personalization-state";
 import {
@@ -203,6 +204,21 @@ describe("expanded learner profile", () => {
 
     expect(withHistory.personalizationState).not.toBe(baseline.personalizationState);
     expect(withHistory.generationContext).toEqual(baseline.generationContext);
+  });
+
+  it("persists method preferences without evicting committed-session generation caches", () => {
+    const state = defaultPersonalizationState();
+    const baseline = JSON.parse(encodeAdditionalLearnerContext(
+      writePersonalizationStateToAnswers([], state),
+    )) as Record<string, unknown>;
+    const withPreference = JSON.parse(encodeAdditionalLearnerContext(
+      writePersonalizationStateToAnswers([], setPreferredMethodIds(state, [
+        "spaced_retrieval",
+      ])),
+    )) as Record<string, unknown>;
+
+    expect(withPreference.personalizationState).not.toBe(baseline.personalizationState);
+    expect(withPreference.generationContext).toEqual(baseline.generationContext);
   });
 
   it("changes cache-relevant context when an instructional control changes", () => {

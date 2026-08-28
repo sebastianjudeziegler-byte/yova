@@ -37,7 +37,8 @@ describe("scheduled-review generation route contract", () => {
     expect(mode).toBeGreaterThan(-1);
     expect(cache).toBeGreaterThan(mode);
     expect(generationContext).toBeGreaterThan(cache);
-    expect(route.slice(cache, generationContext)).toContain("adjustment: effectiveSessionAdjustment");
+    expect(route.slice(cache, generationContext)).toContain("adjustment: committedStudyRoute && effectiveSessionAdjustment");
+    expect(route.slice(cache, generationContext)).toContain(": effectiveSessionAdjustment");
     expect(route.slice(generationContext)).toContain("sessionAdjustment: effectiveSessionAdjustment");
   });
 
@@ -77,7 +78,7 @@ describe("scheduled-review generation route contract", () => {
   });
 
   it("resolves a legacy reviewConcept-only row before rejecting an unlinked ordinary session", () => {
-    const plannedTopics = route.indexOf('const plannedTopicIds = readStringArrayProperty(planSession.step_data, "topicIds")');
+    const plannedTopics = route.indexOf("const plannedTopicIds = committedStudyRoute");
     const legacyResolution = route.indexOf("legacyScheduledRetrievalTopic({", plannedTopics);
     const emptyTopicGuard = route.indexOf("if (selectedTopics.length === 0)", plannedTopics);
 
@@ -89,7 +90,7 @@ describe("scheduled-review generation route contract", () => {
   });
 
   it("rejects missing or duplicate explicit topic links instead of silently shrinking the session", () => {
-    const plannedTopics = route.indexOf('const plannedTopicIds = readStringArrayProperty(planSession.step_data, "topicIds")');
+    const plannedTopics = route.indexOf("const plannedTopicIds = committedStudyRoute");
     const exactResolution = route.indexOf("const exactExplicitTopicResolution", plannedTopics);
     const legacyResolution = route.indexOf("legacyScheduledRetrievalTopic({", plannedTopics);
     const selection = route.slice(exactResolution, legacyResolution);

@@ -23,6 +23,7 @@ const validEnvironment: NodeJS.ProcessEnv = {
   NODE_ENV: "test",
   OPENAI_API_KEY: "o".repeat(20),
   SUPABASE_SECRET_KEY: "s".repeat(20),
+  YOVA_DRAFT_RECEIPT_SECRET: "d".repeat(32),
 };
 
 function runReadiness(
@@ -63,6 +64,30 @@ describe("production public site readiness", () => {
     expect(result.status).toBe(0);
     expect(result.stdout).toContain(
       "PASS  Public site origin: SITE_URL is configured with a public HTTPS origin",
+    );
+  });
+
+  it("fails production readiness without a private plan-draft signing key", () => {
+    const result = runReadiness(["--production"], {
+      SITE_URL: "https://www.yovaapp.com",
+      YOVA_DRAFT_RECEIPT_SECRET: undefined,
+    });
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain(
+      "FAIL  Plan-draft receipt secret: missing, short, or surrounded by whitespace in YOVA_DRAFT_RECEIPT_SECRET",
+    );
+  });
+
+  it("fails production readiness without the server-only plan activation permit issuer", () => {
+    const result = runReadiness(["--production"], {
+      SITE_URL: "https://www.yovaapp.com",
+      SUPABASE_SECRET_KEY: undefined,
+    });
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain(
+      "FAIL  Supabase server secret: missing SUPABASE_SECRET_KEY; production plan activation cannot mint a permit",
     );
   });
 

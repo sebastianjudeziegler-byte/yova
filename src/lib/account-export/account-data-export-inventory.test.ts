@@ -24,6 +24,7 @@ const TABLE_INVENTORY = {
     "product_events",
     "profiles",
     "session_attempts",
+    "study_routes",
     "support_requests",
     "tutor_messages",
     "tutor_threads",
@@ -37,6 +38,8 @@ const TABLE_INVENTORY = {
     "account_data_exports",
     "account_deletion_cleanup_jobs",
     "ai_usage_claims",
+    "generated_resource_authority_permits",
+    "plan_activation_permits",
     "private_learning_data_reset_boundaries",
     "private_material_upload_rpc_transactions",
     "private_storage_capability_boundaries",
@@ -63,9 +66,13 @@ describe("account-data export inventory drift", () => {
     const classifiedTables = Object.values(TABLE_INVENTORY).flat();
 
     expect([...createdTables].sort()).toEqual([...classifiedTables].sort());
-    expect(createdTables.size).toBe(29);
+    expect(createdTables.size).toBe(32);
     expect(TABLE_INVENTORY.internalExcluded).toContain("account_data_exports");
     expect(TABLE_INVENTORY.internalExcluded).toContain("account_deletion_cleanup_jobs");
+    expect(TABLE_INVENTORY.internalExcluded).toContain(
+      "generated_resource_authority_permits",
+    );
+    expect(TABLE_INVENTORY.internalExcluded).toContain("plan_activation_permits");
     expect(TABLE_INVENTORY.internalExcluded).toContain("private_storage_cleanup_receipts");
     expect(TABLE_INVENTORY.internalExcluded).toContain("private_storage_capability_boundaries");
     expect(TABLE_INVENTORY.internalExcluded).toContain("private_learning_data_reset_boundaries");

@@ -93,11 +93,11 @@ describe("generated plan quality gate", () => {
     expect(validateGeneratedPlanQuality(draft, makeRequest())).toMatch(/45 planned minutes.*25 total minutes available/i);
   });
 
-  it("rejects a method that does not fit the actual learning task", () => {
+  it("does not ask the provider-quality gate to judge a code-owned method", () => {
     const draft = makeDraft();
     draft.sessions[0].method = "Scaffolded coding";
 
-    expect(validateGeneratedPlanQuality(draft, makeRequest())).toMatch(/does not fit.*conceptual learning/i);
+    expect(validateGeneratedPlanQuality(draft, makeRequest())).toBeNull();
   });
 
   it("rejects passive completion rules that treat exposure as learning", () => {

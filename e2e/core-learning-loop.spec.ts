@@ -1,10 +1,15 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page, type Route } from "@playwright/test";
 import type { LearningPlan } from "../src/lib/domain";
 import {
   hydratedSessionResourceCacheIssue,
   sessionCacheScopeFingerprint,
 } from "../src/lib/session-generation/cache-contract";
 import { SessionGenerationResponseSchema } from "../src/lib/session-generation/schema";
+import { createCommittedInitialSessionStudyRoute } from "../src/lib/study-route/session-route-creation";
+
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+}
 
 const onboardingAnswers = [
   "I struggle to start",
@@ -19,7 +24,44 @@ const onboardingAnswers = [
   "Nothing else for now",
 ] as const;
 
-test("durable allowance exhaustion loads an arbitrary inside session fallback and names the reset", async ({ page }) => {
+test("Study Now lets the learner review and safely choose an eligible method before activation", async ({ page }) => {
+  await createPreviewAccount(page);
+  await completeOnboarding(page);
+
+  await page.getByRole("button", { name: "Study something now", exact: true }).first().click();
+  await page.getByPlaceholder("Example: Help me understand the product rule and practice using it.").fill(
+    "Help me understand why the product rule has two derivative terms and apply it once.",
+  );
+  await page.getByRole("button", { name: "I haven't learned this yet" }).click();
+  await page.getByRole("button", { name: /Choose how YOVA should help/ }).click();
+  await page.getByRole("button", { name: /Create it for me/ }).click();
+  await page.getByRole("button", { name: "Review method first" }).click();
+
+  await expect(page.getByRole("heading", { name: "YOVA recommends this method." })).toBeVisible();
+  const recommended = page.locator(".study-now-field").filter({ hasText: "Recommended session" });
+  await expect(recommended.getByRole("button")).toHaveAttribute("aria-pressed", "true");
+  await expect(recommended).toContainText(/focused minutes/i);
+  const alternative = page.locator(".study-now-field")
+    .filter({ hasText: "Other methods that also fit" })
+    .getByRole("button")
+    .first();
+  const alternativeName = (await alternative.locator("strong").innerText()).trim();
+  await alternative.click();
+
+  await expect(page.getByRole("heading", { name: "Your method is ready." })).toBeVisible();
+  await expect(page.locator(".study-now-field").filter({ hasText: "Recommended session" }))
+    .toContainText(alternativeName);
+  await expect(page.getByText(new RegExp(`You chose ${escapeRegExp(alternativeName)}`, "i"))).toBeVisible();
+  await page.getByRole("button", { name: /Start this session/ }).click();
+
+  await expect(page.getByRole("heading", { name: "Here is how YOVA plans to start." })).toBeVisible();
+  const methodDecision = page.getByLabel("Why YOVA chose this approach");
+  await expect(methodDecision).toContainText(alternativeName);
+  await expect(methodDecision).toContainText("HOW YOVA CHANGED IT FOR YOU");
+  await expect(methodDecision).toContainText(new RegExp(`You chose ${escapeRegExp(alternativeName)}`, "i"));
+});
+
+test("durable allowance exhaustion loads the committed method workpad and names the reset", async ({ page }) => {
   await page.route("**/api/sessions/generate", async (route) => {
     await route.fulfill({
       status: 429,
@@ -49,13 +91,15 @@ test("durable allowance exhaustion loads an arbitrary inside session fallback an
   const allowanceNotice = page.locator(".session-issue").filter({
     hasText: "Your guided-session allowance is used up until",
   });
-  await expect(allowanceNotice).toContainText("A safe built-in session was loaded instead");
+  await expect(allowanceNotice).toContainText("A safe study-method workpad was loaded instead");
   await expect(allowanceNotice).toContainText("Reference: 86948113-b4be-423a-b0bc-d86aaae1ba7b");
-  await expect(page.getByRole("heading", { name: "Use the session target as your comparison frame" })).toBeVisible();
+  const methodWorkpad = page.getByLabel("Study-method workpad");
+  await expect(methodWorkpad).toBeVisible();
+  await expect(methodWorkpad.getByLabel("How to study this")).toContainText("WHY THIS METHOD");
+  await expect(methodWorkpad).toContainText("This completes practice, not a knowledge check.");
+  await expect(page.getByRole("heading", { name: "Use the session target as your comparison frame" })).toHaveCount(0);
   await expect(page.getByText("LESSON SERVICE INTERRUPTED", { exact: true })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Prepare this lesson again" })).toHaveCount(0);
-  await page.getByRole("button", { name: "Continue", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Make an unsupported attempt first" })).toBeVisible();
 });
 
 test("durable allowance exhaustion without a safe fallback has its own non-retryable state", async ({ page }) => {
@@ -110,7 +154,7 @@ test("streamed lesson quota uses its built-in explanation and surfaces the reset
     await route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify(streamedResumeSessionResponse()),
+      body: JSON.stringify(streamedResumeSessionResponse(requestedRouteRevisionId(route))),
     });
   });
   await page.route("**/api/sessions/lesson", async (route) => {
@@ -168,7 +212,11 @@ test("a confident misconception is repaired now without a duplicate follow-up", 
   await page.getByRole("button", { name: /Create it for me/ }).click();
   await page.getByRole("button", { name: /Build and start session/ }).click();
   await expect(page.getByRole("heading", { name: "Here is how YOVA plans to start." })).toBeVisible({ timeout: 15_000 });
-  await expect(page.getByLabel("Why YOVA chose this approach")).toContainText("Start with evidence, then repair only the gap");
+  const setupDecision = page.getByLabel("Why YOVA chose this approach");
+  await expect(setupDecision).toContainText("Self-explanation");
+  await expect(setupDecision).toContainText(
+    /stable evidence-constrained baseline for conceptual learning at the novice stage in Practice mode/i,
+  );
   await page.getByRole("button", { name: "Continue" }).click();
   await page.getByRole("button", { name: "Continue" }).click();
   await page.getByRole("button", { name: "Prepare this session" }).click();
@@ -241,7 +289,7 @@ test("a confident misconception is repaired now without a duplicate follow-up", 
   await expect(page.getByRole("heading", { name: /Good (morning|afternoon|evening), Learner\./ })).toBeVisible();
 });
 
-test("a built-in fallback fails closed for a teaching-first adjustment", async ({ page }) => {
+test("a support request keeps the committed practice recipe when fallback generation fails", async ({ page }) => {
   await page.route("**/api/sessions/generate", async (route) => {
     await route.fulfill({
       status: 502,
@@ -262,15 +310,19 @@ test("a built-in fallback fails closed for a teaching-first adjustment", async (
   await page.getByRole("button", { name: /Build and start session/ }).click();
   await expect(page.getByRole("heading", { name: "Here is how YOVA plans to start." })).toBeVisible();
   await page.getByRole("button", { name: "Continue" }).click();
-  await page.getByRole("button", { name: "I need this taught first" }).click();
+  await page.getByRole("button", { name: "I need more support first" }).click();
   await page.getByRole("button", { name: "Continue" }).click();
-  await expect(page.getByText(/switch this session to teaching first/i)).toBeVisible();
+  await expect(page.getByText(/add more guidance inside the planned method/i)).toBeVisible();
+  await expect(page.getByText("Time in this recipe", { exact: true })).toBeVisible();
+  await expect(page.getByText("25 minutes", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Prepare this session" }).click();
 
-  await expect(page.getByRole("heading", { name: "YOVA could not reach the guided-lesson service." })).toBeVisible();
-  await expect(page.getByText(/subject-specific offline lesson is not available for this session configuration/i)).toBeVisible();
-  await expect(page.getByText(/still needs an initial subject explanation/i)).toBeVisible();
-  await expect(page.getByRole("button", { name: "Review session setup" })).toBeVisible();
+  await expect(page.getByText(/safe study-method workpad was loaded instead/i)).toBeVisible();
+  const methodWorkpad = page.getByLabel("Study-method workpad");
+  await expect(methodWorkpad).toBeVisible();
+  await expect(methodWorkpad.getByLabel("How to study this")).toContainText("Worked Examples");
+  await expect(methodWorkpad.getByLabel("How to study this")).toContainText("Practice first");
+  await expect(methodWorkpad).toContainText("This completes practice, not a knowledge check.");
   await expect(page.getByRole("heading", { name: "See the product rule before using it" })).not.toBeVisible();
   await expect(page.getByText(/safe built-in session was loaded instead/i)).not.toBeVisible();
 });
@@ -304,7 +356,7 @@ test("an inactive-plan generation response cannot open a stale built-in lesson",
   await expect(page.getByText(/safe built-in session was loaded instead/i)).not.toBeVisible();
 });
 
-test("a shortened inside session uses the generic floor when its curated lesson does not fit", async ({ page }) => {
+test("a visibly shortened inside recipe keeps its method in the fallback workpad", async ({ page }) => {
   await page.route("**/api/sessions/generate", async (route) => {
     await route.fulfill({
       status: 502,
@@ -319,18 +371,25 @@ test("a shortened inside session uses the generic floor when its curated lesson 
   await page.getByPlaceholder("Example: Help me understand the product rule and practice using it.").fill(
     "Review the product rule and test what I remember.",
   );
+  await page.getByRole("button", { name: "15 minutes", exact: true }).click();
   await page.getByRole("button", { name: "I understand the basics but need practice" }).click();
   await page.getByRole("button", { name: /Choose how YOVA should help/ }).click();
   await page.getByRole("button", { name: /Create it for me/ }).click();
   await page.getByRole("button", { name: /Build and start session/ }).click();
+  await rebuildLatestStudyNowPlanForMinutes(page, 10);
   await page.getByRole("button", { name: "Continue" }).click();
   await page.getByRole("button", { name: "Continue" }).click();
-  await page.getByLabel("Time available right now").selectOption("10");
+  await expect(page.getByText("Time in this recipe", { exact: true })).toBeVisible();
+  await expect(page.getByText("10 minutes", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Prepare this session" }).click();
 
-  await expect(page.getByText(/safe built-in session was loaded instead/i)).toBeVisible();
-  await expect(page.getByText("STEP 1 OF 3", { exact: true })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Use the session target as your comparison frame" })).toBeVisible();
+  await expect(page.getByText(/safe study-method workpad was loaded instead/i)).toBeVisible();
+  const methodWorkpad = page.getByLabel("Study-method workpad");
+  await expect(methodWorkpad).toBeVisible();
+  await expect(methodWorkpad.getByLabel("How to study this")).toContainText("Worked Examples");
+  await expect(methodWorkpad).toContainText("This completes practice, not a knowledge check.");
+  await expect(page.getByText("STEP 1 OF 3", { exact: true })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Use the session target as your comparison frame" })).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "YOVA already knows what this lesson should cover." })).not.toBeVisible();
 });
 
@@ -357,7 +416,8 @@ test("a built-in fallback never ignores a learner's custom session requirement",
   await page.getByRole("button", { name: /Build and start session/ }).click();
   await page.getByRole("button", { name: "Continue" }).click();
   await page.getByRole("button", { name: "Continue" }).click();
-  await page.getByLabel("Time available right now").selectOption("20");
+  await expect(page.getByText("Time in this recipe", { exact: true })).toBeVisible();
+  await expect(page.getByText("25 minutes", { exact: true })).toBeVisible();
   await page.getByLabel("Anything YOVA should account for?").fill("This session must also cover the quotient rule.");
   await page.getByRole("button", { name: "Prepare this session" }).click();
 
@@ -370,7 +430,7 @@ test("a built-in fallback never ignores a learner's custom session requirement",
   expect(generationBodies[1]?.sessionAdjustment).toEqual(generationBodies[0]?.sessionAdjustment);
   expect(generationBodies[1]?.sessionAdjustment).toMatchObject({
     familiarity: "as_planned",
-    availableMinutes: 20,
+    availableMinutes: null,
     note: "This session must also cover the quotient rule.",
   });
   await expect(page.getByRole("heading", { name: "YOVA could not reach the guided-lesson service." })).toBeVisible();
@@ -669,11 +729,11 @@ test("outside study gives a concrete source-based session instead of pretending 
   await expect(methodBriefing).toContainText("WHY THIS METHOD");
   await expect(methodBriefing).toContainText("Use it like this");
   await expect(methodBriefing).toContainText("Why this fits today");
-  await expect(methodBriefing).toContainText(/learner’s own materials/i);
+  await expect(methodBriefing).toContainText(/outside source remains the source of truth/i);
   await expect(methodWorkpad).toContainText("This completes practice, not a knowledge check.");
   await expect(page.locator(".session-activity-header").getByRole("heading", { name: /How to use/i })).toBeVisible();
   await expect(page.getByText(/move to your own source/i)).toBeVisible();
-  await expect(page.locator("strong:visible").filter({ hasText: /^Retrieval-based outlining$/ })).toBeVisible();
+  await expect(page.locator("strong:visible").filter({ hasText: /^Outline from Memory$/ })).toBeVisible();
 });
 
 test("an arbitrary outside method workpad completes as practice without changing topic evidence", async ({ page }) => {
@@ -829,8 +889,8 @@ test("a fallback method workpad resumes its timer and checked targets after relo
     "Use the current textbook section, so the cached lesson needs replacement.",
   );
   await page.getByRole("button", { name: "Prepare this session" }).click();
-  await expect(page.getByRole("heading", { name: "YOVA could not reach the guided-lesson service." })).toBeVisible();
-  await page.getByRole("button", { name: "Use the study method" }).click();
+  await expect(page.getByText(/safe study-method workpad was loaded instead/i)).toBeVisible();
+  await expect(page.getByRole("button", { name: "Use the study method" })).toHaveCount(0);
 
   const workpad = page.getByLabel("Study-method workpad");
   await expect(workpad).toBeVisible();
@@ -901,16 +961,20 @@ test("a 10-minute outside teaching-first session loads its built-in method lesso
   await page.getByPlaceholder("Example: Help me understand the product rule and practice using it.").fill(
     "I want to understand how the Krebs cycle actually produces NADH and FADH2",
   );
+  await page.getByRole("button", { name: "15 minutes", exact: true }).click();
   await page.getByRole("button", { name: "I haven't learned this yet" }).click();
   await page.getByRole("button", { name: /Choose how YOVA should help/ }).click();
   await page.getByRole("button", { name: /Guide me outside YOVA/ }).click();
   await page.getByRole("button", { name: /Build and start session/ }).click();
+  await rebuildLatestStudyNowPlanForMinutes(page, 10);
 
   await expect(page.getByRole("heading", { name: "Here is how YOVA plans to start." })).toBeVisible();
   await page.getByRole("button", { name: "Continue" }).click();
-  await page.getByRole("button", { name: "I need this taught first" }).click();
+  await page.getByRole("button", { name: "I need more support first" }).click();
   await page.getByRole("button", { name: "Continue" }).click();
-  await page.getByLabel("Time available right now").selectOption("10");
+  await expect(page.getByText(/add more guidance inside the planned method/i)).toBeVisible();
+  await expect(page.getByText("Time in this recipe", { exact: true })).toBeVisible();
+  await expect(page.getByText("10 minutes", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Prepare this session" }).click();
 
   await expect(page.getByText(/safe built-in session was loaded instead/i)).toBeVisible();
@@ -1024,7 +1088,7 @@ test("an overdue outside teaching-first session splits into runnable 10-minute p
   await expect(page.getByRole("heading", { name: "YOVA already knows what this lesson should cover." })).not.toBeVisible();
 });
 
-test("an overdue arbitrary inside session splits and loads the generic 10-minute fallback", async ({ page }) => {
+test("an overdue arbitrary inside session splits and loads a route-faithful 10-minute workpad", async ({ page }) => {
   await createPreviewAccount(page);
   await completeOnboarding(page);
 
@@ -1126,27 +1190,21 @@ test("an overdue arbitrary inside session splits and loads the generic 10-minute
   await page.getByRole("button", { name: "Continue" }).click();
   await page.getByRole("button", { name: "Prepare this session" }).click();
 
-  await expect(page.getByText(/safe built-in session was loaded instead/i)).toBeVisible();
-  await expect(page.getByText("STEP 1 OF 3", { exact: true })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Use the session target as your comparison frame" })).toBeVisible();
-  await expect(page.getByText("Objective check and application", { exact: true }).filter({ visible: true }).first()).toBeVisible();
-  await expect(page.getByLabel("How YOVA adapted this session")).toContainText(
-    "This safe built-in workflow uses the target already saved in your plan.",
-  );
+  await expect(page.getByText(/safe study-method workpad was loaded instead/i)).toBeVisible();
+  const methodWorkpad = page.getByLabel("Study-method workpad");
+  await expect(methodWorkpad).toBeVisible();
+  await expect(methodWorkpad.getByLabel("How to study this")).toContainText("Self-explanation");
+  await expect(methodWorkpad).toContainText("DNA and RNA");
+  await expect(methodWorkpad).toContainText("This completes practice, not a knowledge check.");
+  await expect(page.getByText("STEP 1 OF 3", { exact: true })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Use the session target as your comparison frame" })).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "YOVA already knows what this lesson should cover." })).not.toBeVisible();
-
-  await page.getByRole("button", { name: "Continue" }).click();
-  await page.getByRole("button", { name: "Somewhat sure" }).click();
-  const learnerAttempt = "An eigenvector keeps its direction under a linear transformation, while its eigenvalue describes the scaling factor.";
-  await page.getByLabel("Attempt from memory").fill(learnerAttempt);
-  await page.getByRole("button", { name: "Check my answer" }).click();
-
-  await expect(page.locator(".learner-attempt-card")).toContainText(learnerAttempt);
-  await expect(page.getByText("COMPARISON CHECK", { exact: true })).toBeVisible();
+  await expect(page.getByText("COMPARISON CHECK", { exact: true })).toHaveCount(0);
 });
 
 test("the backend rejects an opaque goal even when the browser guard is bypassed", async ({ request }) => {
   const response = await request.post("/api/plans/generate", {
+    headers: { "X-Yova-Development-Preview": "plan-creator" },
     data: {
       intent: "study_now",
       learningIntent: "learn",
@@ -1190,7 +1248,11 @@ test("plan generation remains a draft until the learner activates it", async ({ 
     availability: [{ day: "Every day", window: "Evening", minutes: 45 }],
     profileSummary: "The learner prefers direct explanations, examples, and short structured sessions.",
   };
-  const generationResponse = await request.post("/api/plans/generate", { data: generationRequest });
+  const previewHeaders = { "X-Yova-Development-Preview": "plan-creator" };
+  const generationResponse = await request.post("/api/plans/generate", {
+    headers: previewHeaders,
+    data: generationRequest,
+  });
   const generated = await generationResponse.json();
 
   expect(generationResponse.status()).toBe(200);
@@ -1198,6 +1260,7 @@ test("plan generation remains a draft until the learner activates it", async ({ 
   expect(generated.generation.persistence).toBe("draft");
 
   const activationResponse = await request.post("/api/plans/activate", {
+    headers: previewHeaders,
     data: { plan: generated.plan, generationRequest },
   });
   const activated = await activationResponse.json();
@@ -1207,6 +1270,7 @@ test("plan generation remains a draft until the learner activates it", async ({ 
   expect(activated.activation.persistence).toBe("browser");
 
   const repeatedActivation = await request.post("/api/plans/activate", {
+    headers: previewHeaders,
     data: { plan: generated.plan, generationRequest },
   });
   const repeated = await repeatedActivation.json();
@@ -1271,7 +1335,7 @@ test("a resumed streamed question can reopen its prior lesson by persisted activ
     await route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify(streamedResumeSessionResponse()),
+      body: JSON.stringify(streamedResumeSessionResponse(requestedRouteRevisionId(route))),
     });
   });
   await page.route("**/api/sessions/lesson", async (route) => {
@@ -1309,6 +1373,27 @@ test("a resumed streamed question can reopen its prior lesson by persisted activ
   await expect(page.getByRole("heading", { name: "Choose the retrieval sequence" })).toBeVisible();
   await leaveSession(page, "1 of 3 required steps finished");
 
+  const storedResumePlan = await page.evaluate(() => {
+    const raw = window.localStorage.getItem("yova.preview.v1");
+    if (!raw) return null;
+    const snapshot = JSON.parse(raw) as { plans?: LearningPlan[] };
+    return snapshot.plans?.at(-1) ?? null;
+  });
+  const storedResumeSession = storedResumePlan?.sessions.find((candidate) => candidate.status === "ready");
+  const storedResumeIssue = storedResumePlan && storedResumeSession
+    ? hydratedSessionResourceCacheIssue({
+        plan: storedResumePlan,
+        session: storedResumeSession,
+        adjustment: null,
+      })
+    : "The preview plan or ready session was not stored.";
+  expect(storedResumeIssue, JSON.stringify({
+    routeMethodId: storedResumeSession?.studyRoute?.approach.primaryMethodId,
+    routeMethodName: storedResumeSession?.studyRoute?.approach.visibleMethodName,
+    resourceMethodId: storedResumeSession?.resource?.methodBriefing?.methodId,
+    resourceMethodName: storedResumeSession?.resource?.methodBriefing?.name,
+  })).toBeNull();
+
   await page.getByRole("button", { name: "Continue session" }).click();
   await expect(page.getByRole("heading", { name: "Choose the retrieval sequence" })).toBeVisible();
   expect(lessonActivityIndexes).toEqual([0]);
@@ -1329,7 +1414,7 @@ test("a refresh recovers semantic progress without saving draft answers or inven
     await route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify(streamedResumeSessionResponse()),
+      body: JSON.stringify(streamedResumeSessionResponse(requestedRouteRevisionId(route))),
     });
   });
   await page.route("**/api/sessions/lesson", async (route) => {
@@ -1492,7 +1577,10 @@ test("a saved first-step recall round resumes at the next prompt without persist
       return snapshot.plans?.at(-1)?.sessions?.find((session) => session.status === "ready")
         ?.estimatedMinutes ?? 25;
     });
-    const fixture = retrievalRoundResumeSessionResponse(plannedMinutes);
+    const fixture = retrievalRoundResumeSessionResponse(
+      plannedMinutes,
+      requestedRouteRevisionId(route),
+    );
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -1512,22 +1600,41 @@ test("a saved first-step recall round resumes at the next prompt without persist
   await expect(page.getByRole("heading", { name: "Here is how YOVA plans to start." })).toBeVisible({
     timeout: 15_000,
   });
-  await page.evaluate(() => {
+  const studyPlan = await page.evaluate(() => {
     const raw = window.localStorage.getItem("yova.preview.v1");
     if (!raw) throw new Error("Expected the Study Now plan before starting its recall round.");
-    const snapshot = JSON.parse(raw) as {
-      plans?: Array<{
-        learningIntent?: string;
-        sessions?: Array<{ status?: string; learningMode?: string }>;
-      }>;
-    };
+    const snapshot = JSON.parse(raw) as { plans?: LearningPlan[] };
     const plan = snapshot.plans?.at(-1);
     const session = plan?.sessions?.find((candidate) => candidate.status === "ready");
     if (!plan || !session) throw new Error("Expected one ready Study Now session.");
-    plan.learningIntent = "study";
-    session.learningMode = "study";
-    window.localStorage.setItem("yova.preview.v1", JSON.stringify(snapshot));
+    return plan;
   });
+  const studySession = studyPlan.sessions.find((candidate) => candidate.status === "ready");
+  if (!studySession) throw new Error("Expected one ready Study Now session.");
+  const routeCreatedAt = studySession.studyRoute?.identity.createdAt ?? studyPlan.createdAt;
+  studyPlan.learningIntent = "study";
+  studySession.learningMode = "study";
+  studySession.method = "Retrieval practice";
+  studySession.methodReason = "An unsupported attempt reveals which osmosis relationships still need repair.";
+  studySession.studyRoute = undefined;
+  studySession.studyRoute = createCommittedInitialSessionStudyRoute({
+    plan: studyPlan,
+    session: studySession,
+    now: routeCreatedAt,
+    origin: {
+      source: "e2e_retrieval_fixture",
+      reason: "This recovery fixture starts from a coherent retrieval route.",
+    },
+  });
+  await page.evaluate((updatedPlan) => {
+    const raw = window.localStorage.getItem("yova.preview.v1");
+    if (!raw) throw new Error("Expected the Study Now plan before storing its retrieval route.");
+    const snapshot = JSON.parse(raw) as { plans?: LearningPlan[] };
+    const planIndex = snapshot.plans?.findIndex((candidate) => candidate.id === updatedPlan.id) ?? -1;
+    if (!snapshot.plans || planIndex < 0) throw new Error("Expected the Study Now plan to remain stored.");
+    snapshot.plans[planIndex] = updatedPlan;
+    window.localStorage.setItem("yova.preview.v1", JSON.stringify(snapshot));
+  }, studyPlan);
   await page.reload();
   await page.getByRole("button", { name: "Start session" }).click();
   await confirmSessionSetup(page);
@@ -1704,7 +1811,7 @@ test("learner text fields keep long pastes visible and block submission until tr
     await route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify(streamedResumeSessionResponse()),
+      body: JSON.stringify(streamedResumeSessionResponse(requestedRouteRevisionId(route))),
     });
   });
   await page.route("**/api/sessions/lesson", async (route) => {
@@ -2016,7 +2123,7 @@ test("spent allowance still permits a saved session to continue", async ({ page 
     await route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify(streamedResumeSessionResponse()),
+      body: JSON.stringify(streamedResumeSessionResponse(requestedRouteRevisionId(route))),
     });
   });
 
@@ -2873,6 +2980,304 @@ test("scheduled-review setup stays fixed and opens the exact active or Study Now
   });
 });
 
+test("normal-plan review changes one offered method without regenerating or rewriting other routes", async ({ page }) => {
+  let planGenerationRequests = 0;
+  page.on("request", (request) => {
+    if (new URL(request.url()).pathname === "/api/plans/generate") {
+      planGenerationRequests += 1;
+    }
+  });
+
+  await createPreviewAccount(page);
+  await completeOnboarding(page);
+
+  await beginPlanFromAdd(page, "I have a biology test next Friday on cellular respiration.");
+  await expect(page.getByRole("heading", { name: "When would you prefer to study this material?" })).toBeVisible();
+  await page.getByRole("button", { name: "45 minutes", exact: true }).click();
+  await page.getByRole("button", { name: "Continue" }).click();
+  await page.getByRole("button", { name: "Skip for now" }).click();
+  await page.getByRole("button", { name: "Generate my plan" }).click();
+  await expect(page.getByText("Plan ready")).toBeVisible();
+
+  const generationCountBeforeChoice = planGenerationRequests;
+  const targetSession = page.getByRole("article", { name: /^Session 1:/ });
+  const methodDecision = targetSession.locator("details.generated-method-reason");
+  const methodName = targetSession.locator(":scope > div > p").first();
+  const methodReason = methodDecision.locator(":scope > p");
+  const originalMethod = (await methodName.innerText()).trim();
+  const originalReason = (await methodReason.innerText()).trim();
+
+  await methodDecision.locator("summary").click();
+  await methodDecision.getByRole("button", { name: "Change method" }).click();
+  const alternatives = methodDecision.getByRole("group", {
+    name: /^Other methods that also fit for /,
+  });
+  const alternative = alternatives.getByRole("button").first();
+  const alternativeName = (await alternative.locator("strong").innerText()).trim();
+  expect(alternativeName).not.toBe(originalMethod);
+
+  const methodChoiceResponsePromise = page.waitForResponse((response) => (
+    new URL(response.url()).pathname === "/api/plans/method-choice"
+    && response.request().method() === "POST"
+  ));
+  await alternative.click();
+  const methodChoiceResponse = await methodChoiceResponsePromise;
+  expect(methodChoiceResponse.ok()).toBe(true);
+
+  const requestPayload = methodChoiceResponse.request().postDataJSON() as {
+    plan: LearningPlan;
+    selection: { sessionId: string; methodId: string };
+  };
+  const responsePayload = await methodChoiceResponse.json() as {
+    plan: LearningPlan;
+    revision: { status: string };
+  };
+  expect(responsePayload.revision.status).toBe("updated");
+  expect(requestPayload.selection.methodId).toBe(
+    responsePayload.plan.sessions.find((session) => session.id === requestPayload.selection.sessionId)
+      ?.studyRoute?.approach.primaryMethodId,
+  );
+
+  const beforeRouteIds = new Map(requestPayload.plan.sessions.map((session) => [
+    session.id,
+    session.studyRoute?.identity.routeRevisionId ?? null,
+  ]));
+  const afterRouteIds = new Map(responsePayload.plan.sessions.map((session) => [
+    session.id,
+    session.studyRoute?.identity.routeRevisionId ?? null,
+  ]));
+  for (const [sessionId, routeRevisionId] of beforeRouteIds) {
+    if (sessionId === requestPayload.selection.sessionId) {
+      expect(afterRouteIds.get(sessionId)).not.toBe(routeRevisionId);
+    } else {
+      expect(afterRouteIds.get(sessionId)).toBe(routeRevisionId);
+    }
+  }
+
+  await expect(methodName).toHaveText(alternativeName);
+  await expect(methodReason).toContainText(`You chose ${alternativeName}`);
+  expect((await methodReason.innerText()).trim()).not.toBe(originalReason);
+  await expect(targetSession.getByRole("status")).toContainText(`${alternativeName} is now part of this draft.`);
+  expect(planGenerationRequests).toBe(generationCountBeforeChoice);
+
+  await page.getByRole("button", { name: "Use this plan" }).click();
+  await expect(page.getByRole("heading", { name: "Your plan" })).toBeVisible();
+
+  const storedPlan = await page.evaluate((planId) => {
+    const raw = window.localStorage.getItem("yova.preview.v1");
+    if (!raw) throw new Error("Expected the activated plan in preview storage.");
+    const snapshot = JSON.parse(raw) as { plans?: LearningPlan[] };
+    const plan = snapshot.plans?.find((candidate) => candidate.id === planId);
+    if (!plan) throw new Error("Expected the revised plan to be activated.");
+    return plan;
+  }, responsePayload.plan.id);
+  const storedTarget = storedPlan.sessions.find((session) => (
+    session.id === requestPayload.selection.sessionId
+  ));
+  expect(storedTarget).toBeDefined();
+  expect(storedTarget?.method).toBe(alternativeName);
+  expect(storedTarget?.studyRoute?.approach.visibleMethodName).toBe(alternativeName);
+  expect(storedTarget?.studyRoute?.identity.lifecycleStatus).toBe("committed");
+  expect(storedTarget?.studyRoute?.identity.routeRevisionId).toBe(
+    afterRouteIds.get(requestPayload.selection.sessionId),
+  );
+  expect(storedTarget?.studyRoute?.agency).toMatchObject({
+    selectedBy: "learner",
+    controlMode: "learner_customizes",
+    override: { changedFields: ["primary_method"] },
+  });
+  for (const storedSession of storedPlan.sessions) {
+    if (storedSession.id === requestPayload.selection.sessionId) continue;
+    expect(storedSession.studyRoute?.identity.routeRevisionId).toBe(beforeRouteIds.get(storedSession.id));
+    expect(storedSession.studyRoute?.agency.selectedBy).toBe("yova");
+  }
+});
+
+test("session setup changes one committed method and generates from its exact successor route", async ({ page }) => {
+  let planGenerationRequests = 0;
+  const sessionGenerationRequests: Array<Record<string, unknown>> = [];
+  page.on("request", (request) => {
+    if (new URL(request.url()).pathname === "/api/plans/generate") {
+      planGenerationRequests += 1;
+    }
+  });
+  await page.route("**/api/sessions/generate", async (route) => {
+    sessionGenerationRequests.push(route.request().postDataJSON() as Record<string, unknown>);
+    await route.fulfill({
+      status: 502,
+      contentType: "application/json",
+      body: JSON.stringify({ error: "Stop after capturing the routed generation request." }),
+    });
+  });
+
+  await createPreviewAccount(page);
+  await completeOnboarding(page);
+
+  await beginPlanFromAdd(page, "I have a biology test next Friday on cellular respiration.");
+  await expect(page.getByRole("heading", { name: "When would you prefer to study this material?" })).toBeVisible();
+  await page.getByRole("button", { name: "45 minutes", exact: true }).click();
+  await page.getByRole("button", { name: "Continue" }).click();
+  await page.getByRole("button", { name: "Skip for now" }).click();
+  await page.getByRole("button", { name: "Generate my plan" }).click();
+  await expect(page.getByText("Plan ready")).toBeVisible();
+  await page.getByRole("button", { name: "Use this plan" }).click();
+  await expect(page.getByRole("heading", { name: "Your plan" })).toBeVisible();
+
+  const beforeChoice = await page.evaluate(() => {
+    const raw = window.localStorage.getItem("yova.preview.v1");
+    if (!raw) throw new Error("Expected the activated plan in preview storage.");
+    const snapshot = JSON.parse(raw) as { plans?: LearningPlan[] };
+    const plan = snapshot.plans?.at(-1);
+    const session = plan?.sessions.find((candidate) => candidate.status === "ready");
+    const route = session?.studyRoute;
+    if (!plan || !session || !route || route.identity.lifecycleStatus !== "committed") {
+      throw new Error("Expected a ready session with a committed StudyRoute.");
+    }
+    const alternative = route.agency.alternatives.find((candidate) => (
+      candidate.primaryMethodId !== route.approach.primaryMethodId
+      && candidate.mode === route.approach.mode
+      && candidate.executionEnvironment === route.approach.executionEnvironment
+      && candidate.activeMinutes === route.timing.activeMinutes
+    ));
+    if (!alternative) throw new Error("Expected an offered method alternative for the ready session.");
+    return {
+      planId: plan.id,
+      sessionId: session.id,
+      sessionTitle: session.title,
+      methodName: route.approach.visibleMethodName,
+      methodReason: route.explanation.shortReason,
+      alternative: {
+        methodId: alternative.primaryMethodId,
+        methodName: alternative.visibleMethodName,
+      },
+      routeId: route.identity.routeRevisionId,
+      routeLineageId: route.identity.routeLineageId,
+      revisionNumber: route.identity.revisionNumber,
+      target: route.target,
+      mode: route.approach.mode,
+      executionEnvironment: route.approach.executionEnvironment,
+      timing: route.timing,
+      routeIds: Object.fromEntries(plan.sessions.map((candidate) => [
+        candidate.id,
+        candidate.studyRoute?.identity.routeRevisionId ?? null,
+      ])),
+    };
+  });
+
+  await page.getByRole("button", { name: "Start next session", exact: true }).click();
+  const earlyStartDialog = page.getByRole("dialog", { name: /^Start .+ now\?$/ });
+  if (await earlyStartDialog.isVisible()) {
+    await earlyStartDialog.getByRole("button", { name: "Start now, keep dates" }).click();
+  }
+  await expect(page.getByRole("heading", { name: "Here is how YOVA plans to start." })).toBeVisible();
+  const methodDecision = page.getByLabel("Why YOVA chose this approach");
+  await expect(methodDecision.getByRole("heading", { name: beforeChoice.methodName })).toBeVisible();
+  await expect(methodDecision).toContainText(beforeChoice.methodReason);
+
+  const planGenerationCountBeforeChoice = planGenerationRequests;
+  const sessionGenerationCountBeforeChoice = sessionGenerationRequests.length;
+  await methodDecision.getByRole("button", {
+    name: `Change method for ${beforeChoice.sessionTitle}`,
+  }).click();
+  const alternatives = methodDecision.getByRole("group", {
+    name: `Other methods that also fit for ${beforeChoice.sessionTitle}`,
+  });
+  await alternatives.getByRole("button", {
+    name: new RegExp(`^Use ${escapeRegExp(beforeChoice.alternative.methodName)}\\.`),
+  }).click();
+
+  await expect(methodDecision.getByRole("status")).toContainText(
+    `${beforeChoice.alternative.methodName} is now the method for this session.`,
+  );
+  await expect(methodDecision.getByRole("heading", {
+    name: beforeChoice.alternative.methodName,
+  })).toBeVisible();
+  expect(planGenerationRequests).toBe(planGenerationCountBeforeChoice);
+  expect(sessionGenerationRequests).toHaveLength(sessionGenerationCountBeforeChoice);
+
+  await expect.poll(async () => page.evaluate(({ planId, sessionId }) => {
+    const raw = window.localStorage.getItem("yova.preview.v1");
+    if (!raw) return null;
+    const snapshot = JSON.parse(raw) as { plans?: LearningPlan[] };
+    return snapshot.plans
+      ?.find((candidate) => candidate.id === planId)
+      ?.sessions.find((candidate) => candidate.id === sessionId)
+      ?.studyRoute?.identity.routeRevisionId ?? null;
+  }, {
+    planId: beforeChoice.planId,
+    sessionId: beforeChoice.sessionId,
+  })).not.toBe(beforeChoice.routeId);
+
+  const afterChoice = await page.evaluate(({ planId, sessionId }) => {
+    const raw = window.localStorage.getItem("yova.preview.v1");
+    if (!raw) throw new Error("Expected the updated plan in preview storage.");
+    const snapshot = JSON.parse(raw) as { plans?: LearningPlan[] };
+    const plan = snapshot.plans?.find((candidate) => candidate.id === planId);
+    const session = plan?.sessions.find((candidate) => candidate.id === sessionId);
+    if (!plan || !session?.studyRoute) throw new Error("Expected the successor route in preview storage.");
+    return {
+      sessionId: session.id,
+      sessionMethod: session.method,
+      sessionMinutes: session.estimatedMinutes,
+      routeId: session.studyRoute.identity.routeRevisionId,
+      supersedesRevisionId: session.studyRoute.identity.supersedesRevisionId ?? null,
+      routeLineageId: session.studyRoute.identity.routeLineageId,
+      revisionNumber: session.studyRoute.identity.revisionNumber,
+      lifecycleStatus: session.studyRoute.identity.lifecycleStatus,
+      methodId: session.studyRoute.approach.primaryMethodId,
+      methodName: session.studyRoute.approach.visibleMethodName,
+      target: session.studyRoute.target,
+      mode: session.studyRoute.approach.mode,
+      executionEnvironment: session.studyRoute.approach.executionEnvironment,
+      timing: session.studyRoute.timing,
+      agency: session.studyRoute.agency,
+      routeIds: Object.fromEntries(plan.sessions.map((candidate) => [
+        candidate.id,
+        candidate.studyRoute?.identity.routeRevisionId ?? null,
+      ])),
+    };
+  }, { planId: beforeChoice.planId, sessionId: beforeChoice.sessionId });
+
+  expect(afterChoice).toMatchObject({
+    sessionId: beforeChoice.sessionId,
+    sessionMethod: beforeChoice.alternative.methodName,
+    sessionMinutes: beforeChoice.timing.activeMinutes,
+    supersedesRevisionId: beforeChoice.routeId,
+    routeLineageId: beforeChoice.routeLineageId,
+    revisionNumber: beforeChoice.revisionNumber + 1,
+    lifecycleStatus: "committed",
+    methodId: beforeChoice.alternative.methodId,
+    methodName: beforeChoice.alternative.methodName,
+    target: beforeChoice.target,
+    mode: beforeChoice.mode,
+    executionEnvironment: beforeChoice.executionEnvironment,
+    timing: beforeChoice.timing,
+    agency: {
+      selectedBy: "learner",
+      controlMode: "learner_customizes",
+      override: { changedFields: ["primary_method"] },
+    },
+  });
+  expect(afterChoice.routeId).not.toBe(beforeChoice.routeId);
+  for (const [sessionId, routeId] of Object.entries(beforeChoice.routeIds)) {
+    expect(afterChoice.routeIds[sessionId]).toBe(
+      sessionId === beforeChoice.sessionId ? afterChoice.routeId : routeId,
+    );
+  }
+
+  await page.getByRole("button", { name: "Continue" }).click();
+  await expect(page.getByRole("heading", { name: "Has anything changed?" })).toBeVisible();
+  await page.getByRole("button", { name: "Continue" }).click();
+  await expect(page.getByRole("heading", { name: "Set the pace for today." })).toBeVisible();
+  await page.getByRole("button", { name: "Prepare this session" }).click();
+  await expect.poll(() => sessionGenerationRequests.length).toBe(1);
+  expect(sessionGenerationRequests[0]).toMatchObject({
+    planId: beforeChoice.planId,
+    planSessionId: beforeChoice.sessionId,
+    routeRevisionId: afterChoice.routeId,
+  });
+});
+
 test("a multi-session plan carries one clear source decision from Add to Learning", async ({ page }) => {
   await createPreviewAccount(page);
   await completeOnboarding(page);
@@ -2904,9 +3309,46 @@ test("a multi-session plan carries one clear source decision from Add to Learnin
   await page.getByRole("button", { name: "Skip for now" }).click();
   await page.getByRole("button", { name: "Generate my plan" }).click();
   await expect(page.getByText("Plan ready")).toBeVisible();
+  const reviewedMethods = (await page.locator(
+    ".generated-timeline article > div > p:not(.generated-session-focus)",
+  ).allTextContents()).map((method) => method.trim());
+  expect(reviewedMethods.length).toBeGreaterThan(0);
+  expect(reviewedMethods.every((method) => method.length > 0)).toBe(true);
+  const reviewedMethodReasons = (await page.locator(
+    ".generated-method-reason > p",
+  ).allTextContents()).map((reason) => reason.trim());
+  expect(reviewedMethodReasons).toHaveLength(reviewedMethods.length);
+  expect(reviewedMethodReasons.every((reason) => reason.length > 0)).toBe(true);
+  const firstMethodReason = page.locator(".generated-method-reason").first();
+  await firstMethodReason.locator("summary").click();
+  await expect(firstMethodReason.locator("p")).toBeVisible();
   await page.getByRole("button", { name: "Use this plan" }).click();
   await expect(page.getByRole("heading", { name: "Your plan" })).toBeVisible();
   await expect(page.getByText("Created by YOVA", { exact: true })).toBeVisible();
+  const persistedMethodContract = await page.evaluate(() => {
+    const raw = window.localStorage.getItem("yova.preview.v1");
+    if (!raw) throw new Error("Expected the activated multi-session plan in preview storage.");
+    const snapshot = JSON.parse(raw) as { plans?: LearningPlan[] };
+    const plan = snapshot.plans?.at(-1);
+    if (!plan) throw new Error("Expected the latest activated multi-session plan.");
+    return plan.sessions.map((session) => ({
+      method: session.method,
+      methodReason: session.methodReason,
+      routeMethod: session.studyRoute?.approach.visibleMethodName ?? null,
+      lifecycle: session.studyRoute?.identity.lifecycleStatus ?? null,
+      selectedBy: session.studyRoute?.agency.selectedBy ?? null,
+      ruleIds: session.studyRoute?.provenance.ruleTrace.map((entry) => entry.ruleId) ?? [],
+    }));
+  });
+  expect(persistedMethodContract.map((session) => session.method)).toEqual(reviewedMethods);
+  expect(persistedMethodContract.map((session) => session.methodReason)).toEqual(reviewedMethodReasons);
+  expect(persistedMethodContract.every((session) => (
+    session.routeMethod === session.method
+    && session.lifecycle === "committed"
+    && session.selectedBy === "yova"
+    && session.ruleIds.includes("initial_plan_method_routing_v1")
+    && session.ruleIds.includes("canonical_method_selection_v1")
+  ))).toBe(true);
 
   const initialSessionCount = await page.locator(".timeline-row").count();
   expect(initialSessionCount).toBeGreaterThan(0);
@@ -3135,6 +3577,24 @@ async function openMobileSessionGuide(page: Page) {
   if (await mobileGuide.isVisible()) await mobileGuide.locator(":scope > summary").click();
 }
 
+async function rebuildLatestStudyNowPlanForMinutes(page: Page, minutes: number) {
+  await expect(page.getByRole("heading", { name: "Here is how YOVA plans to start." })).toBeVisible();
+  await page.getByRole("button", { name: "Not now", exact: true }).click();
+  await page.getByRole("button", { name: "Learning", exact: true }).click();
+  await page.locator(".tabs").getByRole("button", { name: /^Recent/ }).click();
+
+  const latestPlan = page.locator(".learning-goal-card").last();
+  await latestPlan.getByRole("button", { name: "Open goal" }).click();
+  await page.getByRole("button", { name: "Adjust", exact: true }).click();
+
+  const adjustmentPanel = page.locator(".plan-adjustment-panel");
+  await adjustmentPanel.getByRole("combobox", { name: "Future session window" }).selectOption(String(minutes));
+  await adjustmentPanel.getByRole("button", { name: "Approve and rebuild plan" }).click();
+  await expect(adjustmentPanel).toHaveCount(0);
+  await page.getByRole("button", { name: "Start next session", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Here is how YOVA plans to start." })).toBeVisible();
+}
+
 async function beginPlanFromAdd(page: Page, description: string) {
   await page.getByRole("button", { name: "Agenda", exact: true }).click();
   await page.getByRole("button", { name: "Add to Agenda", exact: true }).click();
@@ -3348,11 +3808,12 @@ async function exitSessionWithoutProgress(page: Page) {
   await page.getByRole("button", { name: "Save progress and leave" }).dispatchEvent("click");
 }
 
-function streamedResumeSessionResponse() {
+function streamedResumeSessionResponse(routeRevisionId?: string) {
   const topicId = "30000000-0000-4000-8000-000000000010";
   return {
     planSessionId: "30000000-0000-4000-8000-000000000011",
     session: {
+      ...(routeRevisionId ? { routeRevisionId } : {}),
       topicIds: [topicId],
       schemaVersion: 17,
       model: "test-model",
@@ -3364,7 +3825,9 @@ function streamedResumeSessionResponse() {
           plannedMinutes: 25,
           adjustment: null,
           contractKey: null,
+          routeRevisionId,
         }),
+        ...(routeRevisionId ? { routeRevisionId } : {}),
       },
       routingContext: {
         taskType: "conceptual_learning",
@@ -3384,10 +3847,10 @@ function streamedResumeSessionResponse() {
       methodBriefing: {
         learningMode: "learn",
         taskType: "conceptual_learning",
-        methodId: "retrieval_practice",
-        name: "Retrieval practice",
-        what: "Produce an answer from memory before looking at the explanation.",
-        why: "This makes current knowledge visible before the learner reviews and repairs the answer.",
+        methodId: "self_explanation",
+        name: "Self-explanation",
+        what: "Study the bounded model, then explain why retrieval comes before answer review.",
+        why: "Explaining the sequence in your own words exposes whether the causal relationship is understood.",
         how: [
           "Read the bounded model before the first check.",
           "Attempt the answer from memory, then repair the exposed gap.",
@@ -3503,7 +3966,7 @@ function streamedResumeSessionResponse() {
         },
         {
           topicId,
-          methodPhase: "repair",
+          methodPhase: "explain",
           estimatedMinutes: 3,
           requiredForCompletion: true,
           type: "free_response",
@@ -3590,6 +4053,7 @@ function scheduledReviewSessionResponse() {
       methodBriefing: {
         ...response.session.methodBriefing,
         learningMode: "study",
+        methodId: "retrieval_practice",
         name: "Scheduled retrieval",
         what: "Answer three self-contained multiple-choice questions without reopening the lesson.",
         why: "A delayed unsupported attempt reveals whether the relationship remains available.",
@@ -3604,8 +4068,11 @@ function scheduledReviewSessionResponse() {
   });
 }
 
-function retrievalRoundResumeSessionResponse(plannedMinutes = 25) {
-  const response = streamedResumeSessionResponse();
+function retrievalRoundResumeSessionResponse(
+  plannedMinutes = 25,
+  routeRevisionId?: string,
+) {
+  const response = streamedResumeSessionResponse(routeRevisionId);
   const retrievalActivity = response.session.activities[1]!;
   const repairActivity = response.session.activities[2]!;
   const modelActivity = response.session.activities[0]!;
@@ -3621,15 +4088,19 @@ function retrievalRoundResumeSessionResponse(plannedMinutes = 25) {
           plannedMinutes,
           adjustment: null,
           contractKey: null,
+          routeRevisionId,
         }),
       },
       methodBriefing: {
         ...response.session.methodBriefing,
         learningMode: "study",
+        methodId: "retrieval_practice",
+        name: "Retrieval practice",
       },
       activities: [
         {
           ...retrievalActivity,
+          methodPhase: "retrieve",
           methodRuntime: {
             kind: "retrieval_round",
             sourceClosedReminder: "Close your osmosis notes before answering.",
@@ -3652,7 +4123,10 @@ function retrievalRoundResumeSessionResponse(plannedMinutes = 25) {
             ],
           },
         },
-        repairActivity,
+        {
+          ...repairActivity,
+          methodPhase: "repair",
+        },
         {
           ...modelActivity,
           topicId: null,
@@ -3672,6 +4146,13 @@ function retrievalRoundResumeSessionResponse(plannedMinutes = 25) {
       ],
     },
   });
+}
+
+function requestedRouteRevisionId(route: Route) {
+  const payload: unknown = route.request().postDataJSON();
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) return undefined;
+  const routeRevisionId = (payload as Record<string, unknown>).routeRevisionId;
+  return typeof routeRevisionId === "string" ? routeRevisionId : undefined;
 }
 
 function deferredGuidedSessionResponse(

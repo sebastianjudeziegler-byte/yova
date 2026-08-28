@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { durationLabel } from "@/components/plan-creator";
+import {
+  durationLabel,
+  planCreatorPreviewPreferenceRequestInput,
+} from "@/components/plan-creator";
 
 describe("durationLabel", () => {
   it("collapses uniform plan session lengths to one per-session value", () => {
@@ -13,5 +16,20 @@ describe("durationLabel", () => {
   it("preserves the compact schedule-preview format", () => {
     expect(durationLabel([25, 25])).toBe("25 min");
     expect(durationLabel([40, 25])).toBe("25–40 min");
+  });
+});
+
+describe("PlanCreator development-preview preferences", () => {
+  it("sends canonical method preferences only in browser preview mode", () => {
+    expect(planCreatorPreviewPreferenceRequestInput(true, [
+      "retrieval_practice",
+      "self_explanation",
+    ])).toEqual({
+      previewPreferredMethodIds: ["retrieval_practice", "self_explanation"],
+    });
+    expect(planCreatorPreviewPreferenceRequestInput(false, [
+      "retrieval_practice",
+    ])).toEqual({});
+    expect(planCreatorPreviewPreferenceRequestInput(true, [])).toEqual({});
   });
 });

@@ -4,7 +4,14 @@ import {
   CurriculumMatchConfidenceSchema,
   CurriculumMatchSourceSchema,
 } from "@/lib/curriculum/schema";
+import { METHOD_SELECTION_AUTHORITIES } from "@/lib/learning/canonical-method-selection";
+import { CORE_METHOD_IDS, LEARNING_TASK_TYPES } from "@/lib/learning/method-catalog";
+import { KNOWLEDGE_STAGES } from "@/lib/learning/method-eligibility";
 import { PROVIDER_ERROR_CATEGORIES } from "@/lib/openai/provider-error";
+import {
+  StudyRouteDurationSourceSchema,
+  StudyRouteModeSchema,
+} from "@/lib/study-route/schema";
 
 export const PLAN_FAILURE_REASONS = [
   "refused",
@@ -158,6 +165,20 @@ export const GenerationObservationSchema = z.object({
     providerCode: z.string().regex(/^[a-z0-9][a-z0-9_.-]{0,63}$/).optional(),
     planValidationIssueCode: z.enum(PLAN_QUALITY_ISSUE_CODES).optional(),
     sessionValidationIssueCode: z.enum(SESSION_VALIDATION_ISSUE_CODES).optional(),
+    durationContextStatus: z.enum(["ready", "empty", "degraded"]).optional(),
+    durationContextReason: z.string().regex(/^[a-z][a-z_]{0,47}$/u).optional(),
+    durationSource: StudyRouteDurationSourceSchema.optional(),
+    durationActiveMinutes: z.number().int().min(5).max(180).optional(),
+    durationHardMaximumMinutes: z.number().int().min(1).max(240).optional(),
+    durationTaskFamily: z.enum(LEARNING_TASK_TYPES).optional(),
+    durationMode: StudyRouteModeSchema.optional(),
+    methodContextStatus: z.enum(["ready", "empty", "degraded"]).optional(),
+    methodContextReason: z.string().regex(/^[a-z][a-z_]{0,47}$/u).optional(),
+    methodAuthority: z.enum(METHOD_SELECTION_AUTHORITIES).optional(),
+    methodId: z.enum(CORE_METHOD_IDS).optional(),
+    methodTaskFamily: z.enum(LEARNING_TASK_TYPES).optional(),
+    methodKnowledgeStage: z.enum(KNOWLEDGE_STAGES).optional(),
+    methodMode: z.enum(["learn", "study"]).optional(),
   }).strict().optional(),
 }).strict();
 

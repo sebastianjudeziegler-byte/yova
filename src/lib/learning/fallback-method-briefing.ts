@@ -14,6 +14,7 @@ import {
   methodIdFromText,
 } from "@/lib/learning/method-router";
 import type { SessionDeliveryPolicy } from "@/lib/personalization/session-delivery-policy";
+import type { StudyRoute } from "@/lib/study-route/schema";
 
 const DEFAULT_METHOD_BY_TASK: Record<LearningTaskType, CoreMethodId> = {
   memorization: "retrieval_practice",
@@ -88,6 +89,45 @@ export function buildFallbackMethodBriefing(
     how: method.how,
     completion,
     personalization,
+  };
+}
+
+/**
+ * A committed route has already performed method selection. Recovery may use
+ * simpler deterministic content, but it must not invoke a second router and
+ * relabel the same revision as a different learning method.
+ */
+export function buildCommittedRouteFallbackMethodBriefing(
+  route: StudyRoute,
+  deliveryPolicy?: SessionDeliveryPolicy,
+): SessionMethodBriefing {
+  const method = getCoreLearningMethod(route.approach.primaryMethodId);
+  const routeReason = route.explanation.shortReason.trim();
+  const completionDescription = route.execution.completionEvidence[0]?.description.trim()
+    ?? method.completion;
+  const why = routeReason.length >= 20
+    ? routeReason
+    : `${routeReason} This remains the committed method for the current session.`;
+  const completion = completionDescription.length >= 15
+    ? completionDescription
+    : `${completionDescription} Complete the route's independent evidence check.`;
+  const routeReasonForLearner = `This recovery keeps the committed ${route.approach.visibleMethodName} route instead of selecting a different method.`;
+  const timeReason = `The work remains bounded to the route's ${route.timing.activeMinutes}-minute active window.`;
+
+  return {
+    learningMode: route.approach.mode === "learn" ? "learn" : "study",
+    taskType: route.target.taskFamily,
+    methodId: route.approach.primaryMethodId,
+    name: route.approach.visibleMethodName,
+    what: method.what,
+    why,
+    how: method.how,
+    completion,
+    personalization: uniquePersonalization([
+      routeReasonForLearner,
+      ...(deliveryPolicy?.learnerFacingReasons ?? []),
+      timeReason,
+    ]).slice(0, 3),
   };
 }
 

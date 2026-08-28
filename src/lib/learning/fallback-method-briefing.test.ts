@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { LearningPlan, LearningPlanSession } from "@/lib/domain";
 import {
+  buildCommittedRouteFallbackMethodBriefing,
   buildFallbackMethodBriefing,
   buildGenericInsideFallbackMethodBriefing,
 } from "@/lib/learning/fallback-method-briefing";
 import { buildSessionDeliveryPolicy } from "@/lib/personalization/session-delivery-policy";
+import type { StudyRoute } from "@/lib/study-route/schema";
 
 function makeSession(overrides: Partial<LearningPlanSession> = {}): LearningPlanSession {
   return {
@@ -51,7 +53,7 @@ describe("buildFallbackMethodBriefing", () => {
 
     expect(briefing.taskType).toBe("writing_argumentation");
     expect(briefing.methodId).toBe("retrieval_based_outlining");
-    expect(briefing.name).toBe("Retrieval-based outlining");
+    expect(briefing.name).toBe("Outline from Memory");
     expect(briefing.how).toHaveLength(4);
     expect(briefing.completion).toContain("verified piece of evidence");
     expect(briefing.personalization.join(" ")).toContain("outside source remains the source of truth");
@@ -118,7 +120,7 @@ describe("buildFallbackMethodBriefing", () => {
 
     expect(briefing.taskType).toBe("problem_solving");
     expect(briefing.methodId).toBe("worked_example_fading");
-    expect(briefing.name).toBe("Worked example fading");
+    expect(briefing.name).toBe("Worked Examples");
   });
 
   it("does not let the old method override what the learner is actually doing", () => {
@@ -165,6 +167,41 @@ describe("buildFallbackMethodBriefing", () => {
     expect(briefing.taskType).toBe("conceptual_learning");
     expect(briefing.methodId).toBe("self_explanation");
     expect(briefing.name).toBe("Self-explanation");
+  });
+
+  it("does not reroute a committed fallback through the legacy task classifier", () => {
+    const route = {
+      approach: {
+        mode: "learn",
+        primaryMethodId: "worked_example_fading",
+        visibleMethodName: "Self-explanation with worked example fading",
+      },
+      target: {
+        taskFamily: "conceptual_learning",
+      },
+      timing: { activeMinutes: 25 },
+      execution: {
+        completionEvidence: [{
+          description: "Explain the relationship independently after the faded example.",
+        }],
+      },
+      explanation: {
+        shortReason: "A concrete model should fade into an independent explanation.",
+      },
+    } as unknown as StudyRoute;
+
+    const briefing = buildCommittedRouteFallbackMethodBriefing(route);
+
+    expect(briefing).toMatchObject({
+      learningMode: "learn",
+      taskType: "conceptual_learning",
+      methodId: "worked_example_fading",
+      name: "Self-explanation with worked example fading",
+      completion: "Explain the relationship independently after the faded example.",
+    });
+    expect(briefing.personalization.join(" ")).toContain(
+      "keeps the committed Self-explanation with worked example fading route",
+    );
   });
 
   it("does not start a learn-mode mixed assessment with a practice test", () => {

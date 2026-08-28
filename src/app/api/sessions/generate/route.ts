@@ -89,12 +89,27 @@ import {
 import {
   buildSessionCacheContext,
   sessionCacheContextMatches,
+  sessionCacheRouteRevisionMatches,
   type SessionCacheContext,
 } from "@/lib/server/session-cache-context";
 import { isDevelopmentPreviewRequest } from "@/lib/server/development-preview";
 import { privacySafeErrorDiagnostic } from "@/lib/server/error-diagnostic";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { blurtingSessionGenerationContract } from "@/lib/study-route/blurting-session-generation-contract";
+import {
+  studyRouteFromPersistenceRow,
+  type PersistedStudyRouteRow,
+} from "@/lib/study-route/persistence";
+import type { StudyRoute } from "@/lib/study-route/schema";
+import { generatedSessionStudyRouteIssue } from "@/lib/study-route/generation-contract";
+import { studyRouteGenerationProjection } from "@/lib/study-route/generation-projection";
+import {
+  buildNormalPlanJourneyGenerationCopy,
+  resolveNormalPlanGenerationCopy,
+} from "@/lib/study-route/normal-plan-generation-copy";
+import { activeStudyRouteTargetIds } from "@/lib/study-route/targets";
+import { studyRouteSourceBindingIssue } from "@/lib/study-route/source-contract";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -145,7 +160,7 @@ export async function POST(request: Request) {
 
   const { data: planSession, error: sessionError } = await supabase
     .from("plan_sessions")
-    .select("id,plan_id,sequence,status,title,objective,method,method_rationale,estimated_minutes,step_data,updated_at")
+    .select("id,plan_id,sequence,status,title,objective,method,method_rationale,estimated_minutes,step_data,updated_at,committed_route_revision_id")
     .eq("id", parsed.data.planSessionId)
     .maybeSingle();
 
@@ -154,6 +169,66 @@ export async function POST(request: Request) {
   }
   if (!planSession || planSession.plan_id !== parsed.data.planId) {
     return NextResponse.json({ error: "That guided session was not found." }, { status: 404 });
+  }
+  const committedRouteRevisionId = typeof planSession.committed_route_revision_id === "string"
+    ? planSession.committed_route_revision_id
+    : null;
+  if (committedRouteRevisionId !== (normalizedInput.routeRevisionId ?? null)) {
+    return NextResponse.json({
+      code: "study_route_revision_conflict",
+      error: "This session's study route changed. Return to setup and use the current plan.",
+      retryable: false,
+    }, {
+      status: 409,
+      headers: responseHeaders(requestId),
+    });
+  }
+  let committedStudyRoute: StudyRoute | null = null;
+  if (committedRouteRevisionId) {
+    const { data: routeRow, error: routeError } = await supabase
+      .from("study_routes")
+      .select("route_revision_id,route_lineage_id,revision_number,schema_version,lifecycle,plan_id,plan_session_id,predecessor_revision_id,route_payload,created_at,committed_at")
+      .eq("route_revision_id", committedRouteRevisionId)
+      .eq("plan_session_id", planSession.id)
+      .eq("plan_id", planSession.plan_id)
+      .eq("lifecycle", "committed")
+      .maybeSingle();
+    if (routeError) {
+      return NextResponse.json(
+        { error: "YOVA could not load this session's committed study route." },
+        { status: 500, headers: responseHeaders(requestId) },
+      );
+    }
+    committedStudyRoute = routeRow
+      ? studyRouteFromPersistenceRow(routeRow as PersistedStudyRouteRow)
+      : null;
+    if (
+      !committedStudyRoute
+      || committedStudyRoute.identity.routeRevisionId !== committedRouteRevisionId
+      || committedStudyRoute.identity.planId !== planSession.plan_id
+      || committedStudyRoute.identity.sessionId !== planSession.id
+      || committedStudyRoute.identity.lifecycleStatus !== "committed"
+    ) {
+      return NextResponse.json({
+        code: "study_route_payload_unavailable",
+        error: "This session's committed study route is unavailable. Rebuild the plan before starting it.",
+        retryable: false,
+      }, {
+        status: 409,
+        headers: responseHeaders(requestId),
+      });
+    }
+  }
+  const blurtingGenerationContract = blurtingSessionGenerationContract(
+    committedStudyRoute,
+    {
+      planId: normalizedInput.planId,
+      sessionId: normalizedInput.planSessionId,
+      routeRevisionId: normalizedInput.routeRevisionId ?? "",
+    },
+  );
+  if (blurtingGenerationContract) {
+    return blurtingRuntimeUnavailableResponse(requestId);
   }
   const reviewType = readReviewType(planSession.step_data);
   const scheduledAdjustmentIssue = scheduledRetrievalAdjustmentIssue(
@@ -277,7 +352,9 @@ export async function POST(request: Request) {
         { status: 409 },
       );
     }
-    const plannedTopicIds = readStringArrayProperty(planSession.step_data, "topicIds");
+    const plannedTopicIds = committedStudyRoute
+      ? activeStudyRouteTargetIds(committedStudyRoute)
+      : readStringArrayProperty(planSession.step_data, "topicIds");
     const reviewConcept = readTextProperty(planSession.step_data, "reviewConcept") || null;
     // Preserve the session's persisted topic order. Knowledge-map order is a
     // separate hierarchy and must never silently become evidence-attribution
@@ -346,6 +423,20 @@ export async function POST(request: Request) {
     const effectiveSourceMode = orderedChunkIds.length > 0
       ? "user_materials"
       : "yova_generated";
+    const routeSourceIssue = studyRouteSourceBindingIssue(committedStudyRoute, {
+      readyMaterialIds: (materialRows ?? []).map((material) => material.id),
+      selectedChunkMaterialIds: (chunkResult.data ?? []).map((chunk) => chunk.material_id),
+    });
+    if (routeSourceIssue) {
+      return NextResponse.json({
+        code: "study_route_source_conflict",
+        error: `${routeSourceIssue} Rebuild the plan before starting it.`,
+        retryable: false,
+      }, {
+        status: 409,
+        headers: responseHeaders(requestId),
+      });
+    }
 
     const recentAttempts = attemptsResult.data ?? [];
     const methodIdBySession = new Map(
@@ -370,47 +461,77 @@ export async function POST(request: Request) {
       plan.generation_inputs,
       parsedKnowledgeMap.data,
     );
-    const savedLearningMode = readSessionLearningMode(
-      planSession.step_data,
-      planSession.method,
-      planSession.objective,
-    );
+    const savedLearningMode = committedStudyRoute
+      ? committedStudyRoute.approach.mode === "learn" ? "learn" : "study"
+      : readSessionLearningMode(
+        planSession.step_data,
+        planSession.method,
+        planSession.objective,
+      );
     const effectiveSessionAdjustment = sessionAdjustment ?? null;
-    const requestedLearningMode = resolveEffectiveSessionLearningMode({
-      planLearningIntent,
-      plannedMode: savedLearningMode,
-      completedSessionCount: recentAttempts.length,
-      familiarity: effectiveSessionAdjustment?.familiarity ?? null,
-    });
+    const requestedLearningMode = committedStudyRoute
+      ? savedLearningMode
+      : resolveEffectiveSessionLearningMode({
+        planLearningIntent,
+        plannedMode: savedLearningMode,
+        completedSessionCount: recentAttempts.length,
+        familiarity: effectiveSessionAdjustment?.familiarity ?? null,
+      });
     const effectiveLearningMode = learningModeForScheduledRetrieval(
       { reviewType },
       requestedLearningMode,
     );
-    const repairedTeachingStart = effectiveLearningMode === "learn" && savedLearningMode !== "learn"
+    const repairedTeachingStart = !committedStudyRoute
+      && effectiveLearningMode === "learn" && savedLearningMode !== "learn"
       ? teachingFirstSessionCopy(learningItem.topic)
       : null;
+    const effectiveStudyMode = committedStudyRoute?.approach.executionEnvironment
+      ?? learningItem.study_mode;
     const sessionArchitectureVersion = sessionArchitectureForGeneration({
       storedVersion: storedSessionArchitectureVersion,
       learningMode: effectiveLearningMode,
-      studyMode: learningItem.study_mode,
+      studyMode: effectiveStudyMode,
       reviewType,
     });
     const expectedCacheVersion = expectedSessionCacheVersion({
       sessionArchitectureVersion,
       learningMode: effectiveLearningMode,
-      studyMode: learningItem.study_mode,
+      studyMode: effectiveStudyMode,
       reviewType,
     });
     const plannedContentTargets = readStringArrayProperty(planSession.step_data, "contentTargets");
-    const plannedCompletionEvidence = readStringArrayProperty(planSession.step_data, "completionEvidence");
+    const normalPlanGenerationCopy = resolveNormalPlanGenerationCopy({
+      route: committedStudyRoute,
+      selectedTopics,
+      contentTargets: plannedContentTargets,
+    });
+    const plannedCompletionEvidence = committedStudyRoute
+      ? committedStudyRoute.execution.completionEvidence.map((evidence) => evidence.description)
+      : readStringArrayProperty(planSession.step_data, "completionEvidence");
+    const routeGeneration = studyRouteGenerationProjection({
+      route: committedStudyRoute,
+      legacy: {
+        objective: repairedTeachingStart?.objective ?? planSession.objective,
+        method: repairedTeachingStart?.method ?? planSession.method,
+        methodReason: repairedTeachingStart?.methodReason ?? planSession.method_rationale,
+        activeMinutes: planSession.estimated_minutes,
+        learningMode: effectiveLearningMode,
+        executionEnvironment: effectiveStudyMode,
+        topicIds: selectedTopics.map((topic) => topic.id),
+        completionEvidence: plannedCompletionEvidence,
+      },
+    });
     const requestedCacheContext = buildSessionCacheContext({
-      plannedMinutes: planSession.estimated_minutes,
-      adjustment: effectiveSessionAdjustment,
+      plannedMinutes: routeGeneration.activeMinutes,
+      adjustment: committedStudyRoute && effectiveSessionAdjustment
+        ? { ...effectiveSessionAdjustment, availableMinutes: committedStudyRoute.timing.activeMinutes }
+        : effectiveSessionAdjustment,
+      routeRevisionId: normalizedInput.routeRevisionId,
       contractKey: sessionCacheContractKey({
         reviewType,
         reviewConcept,
-        title: planSession.title,
-        methodReason: planSession.method_rationale,
+        title: normalPlanGenerationCopy?.sessionTitle ?? planSession.title,
+        methodReason: routeGeneration.methodReason,
         topicIds: selectedTopics.map((topic) => topic.id),
         contentTargets: plannedContentTargets,
         completionEvidence: plannedCompletionEvidence,
@@ -422,18 +543,27 @@ export async function POST(request: Request) {
       ? cachedSessionActivityContractIssue(cached, {
         reviewType,
         reviewConcept,
-        estimatedMinutes: planSession.estimated_minutes,
+        estimatedMinutes: routeGeneration.activeMinutes,
       })
+      : null;
+    const cachedRouteContractIssue = cached
+      ? generatedSessionStudyRouteIssue(cached, committedStudyRoute)
       : null;
     if (
       cached
       && !cachedActivityContractIssue
+      && !cachedRouteContractIssue
       && (cached.schemaVersion === 17
         ? sessionCacheContextMatches(cached.cacheContext, requestedCacheContext)
         : cached.schemaVersion === 15 && !effectiveSessionAdjustment && (
           (!cached.cacheContext && requestedCacheContext.contractFingerprint === undefined)
           || sessionCacheContextMatches(cached.cacheContext, requestedCacheContext)
         ))
+      && sessionCacheRouteRevisionMatches(
+        cached.routeRevisionId,
+        "cacheContext" in cached ? cached.cacheContext?.routeRevisionId : undefined,
+        requestedCacheContext.routeRevisionId,
+      )
       && cached.methodBriefing.learningMode === effectiveLearningMode
     ) {
       recordGenerationObservationBestEffort(supabase, user.id, {
@@ -603,51 +733,70 @@ export async function POST(request: Request) {
     const generationContext: SessionGenerationContext = {
       sessionArchitectureVersion,
       learningGoal: {
-        title: learningItem.title,
-        topic: learningItem.topic,
+        title: normalPlanGenerationCopy?.learningGoalTitle ?? learningItem.title,
+        topic: normalPlanGenerationCopy?.learningGoalTopic ?? learningItem.topic,
         kind: learningItem.kind,
         deadline: learningItem.deadline,
         sourceMode: effectiveSourceMode,
-        studyMode: learningItem.study_mode,
+        studyMode: routeGeneration.executionEnvironment,
         learningIntent: planLearningIntent,
       },
-      planRationale: plan.rationale,
+      planRationale: normalPlanGenerationCopy?.planRationale ?? plan.rationale,
       journey: {
         currentSequence: planSession.sequence,
         totalSessions: planSessionRows?.length ?? 1,
         previousSessions: (planSessionRows ?? [])
           .filter((candidate) => candidate.sequence < planSession.sequence)
-          .map((candidate) => ({
-            sequence: candidate.sequence,
-            title: candidate.title,
-            objective: candidate.objective,
-            status: candidate.status,
-            contentTargets: readStringArrayProperty(candidate.step_data, "contentTargets"),
-          })),
+          .map((candidate) => {
+            const contentTargets = readStringArrayProperty(candidate.step_data, "contentTargets");
+            const generationCopy = normalPlanGenerationCopy
+              ? buildNormalPlanJourneyGenerationCopy({
+                  sequence: candidate.sequence,
+                  contentTargets,
+                })
+              : null;
+            return {
+              sequence: candidate.sequence,
+              title: generationCopy?.title ?? candidate.title,
+              objective: generationCopy?.objective ?? candidate.objective,
+              status: candidate.status,
+              contentTargets,
+            };
+          }),
         nextSessions: (planSessionRows ?? [])
           .filter((candidate) => candidate.sequence > planSession.sequence)
-          .map((candidate) => ({
-            sequence: candidate.sequence,
-            title: candidate.title,
-            objective: candidate.objective,
-            contentTargets: readStringArrayProperty(candidate.step_data, "contentTargets"),
-          })),
+          .map((candidate) => {
+            const contentTargets = readStringArrayProperty(candidate.step_data, "contentTargets");
+            const generationCopy = normalPlanGenerationCopy
+              ? buildNormalPlanJourneyGenerationCopy({
+                  sequence: candidate.sequence,
+                  contentTargets,
+                })
+              : null;
+            return {
+              sequence: candidate.sequence,
+              title: generationCopy?.title ?? candidate.title,
+              objective: generationCopy?.objective ?? candidate.objective,
+              contentTargets,
+            };
+          }),
       },
       materials: materialExcerpts,
       knowledgeTopics: selectedTopics,
       session: {
-        title: planSession.title,
-        objective: repairedTeachingStart?.objective ?? planSession.objective,
-        method: repairedTeachingStart?.method ?? planSession.method,
-        methodReason: repairedTeachingStart?.methodReason ?? planSession.method_rationale,
-        estimatedMinutes: planSession.estimated_minutes,
-        learningMode: effectiveLearningMode,
-        topicIds: selectedTopics.map((topic) => topic.id),
+        title: normalPlanGenerationCopy?.sessionTitle ?? planSession.title,
+        objective: routeGeneration.objective,
+        method: routeGeneration.method,
+        methodReason: routeGeneration.methodReason,
+        estimatedMinutes: routeGeneration.activeMinutes,
+        learningMode: routeGeneration.learningMode,
+        topicIds: routeGeneration.topicIds,
         contentTargets: plannedContentTargets,
-        completionEvidence: plannedCompletionEvidence,
+        completionEvidence: routeGeneration.completionEvidence,
         reviewConcept,
         reviewType,
       },
+      studyRoute: committedStudyRoute,
       learnerProfile: learnerProfile ? {
         commonBlocker: statedAnswer(0),
         guidancePreference: statedAnswer(1),
@@ -692,10 +841,27 @@ export async function POST(request: Request) {
       generationContext,
       sessionGenerationRuntime(request, startedAt),
     );
+    const routeContractIssue = generatedSessionStudyRouteIssue(
+      generated.draft,
+      committedStudyRoute,
+    );
+    if (routeContractIssue) {
+      await releaseFailedGenerationClaim(supabase, aiUsageClaimId, requestId);
+      return NextResponse.json({
+        code: "study_route_generation_conflict",
+        error: "YOVA could not prepare content that matches this session's committed route. Nothing was saved or charged; try again.",
+        retryable: true,
+        requestId,
+      }, {
+        status: 503,
+        headers: responseHeaders(requestId),
+      });
+    }
 
     const cachedSession = cacheGeneratedSession(generated, expectedCacheVersion, requestedCacheContext);
     const cachePayload = {
       planSessionId: planSession.id,
+      expectedRouteRevisionId: committedRouteRevisionId,
       generatedSession: cachedSession,
       expectedKnowledgeMap: parsedKnowledgeMap.data,
       expectedSourceMode: learningItem.source_mode,
@@ -901,6 +1067,17 @@ async function generateBrowserPreviewSession(
       { status: 422, headers: responseHeaders(requestId) },
     );
   }
+  const blurtingGenerationContract = blurtingSessionGenerationContract(
+    input.previewContext.studyRoute,
+    {
+      planId: input.planId,
+      sessionId: input.planSessionId,
+      routeRevisionId: input.routeRevisionId ?? "",
+    },
+  );
+  if (blurtingGenerationContract) {
+    return blurtingRuntimeUnavailableResponse(requestId);
+  }
   const scheduledAdjustmentIssue = scheduledRetrievalAdjustmentIssue(
     input.previewContext.session,
     input.sessionAdjustment,
@@ -937,24 +1114,86 @@ async function generateBrowserPreviewSession(
   }
 
   try {
-    const sourceSafePreviewContext = input.previewContext.learningGoal.sourceMode === "user_materials"
+    const committedStudyRoute = input.previewContext.studyRoute ?? null;
+    const previewRouteTopicIds = committedStudyRoute
+      ? activeStudyRouteTargetIds(committedStudyRoute)
+      : [];
+    const selectedPreviewTopics = previewRouteTopicIds.flatMap((topicId) => {
+      const topic = input.previewContext!.knowledgeTopics.find((candidate) => candidate.id === topicId);
+      return topic ? [topic] : [];
+    });
+    const normalPlanGenerationCopy = resolveNormalPlanGenerationCopy({
+      route: committedStudyRoute,
+      selectedTopics: selectedPreviewTopics,
+      contentTargets: input.previewContext.session.contentTargets,
+    });
+    const copySafePreviewContext = normalPlanGenerationCopy
       ? {
-        ...input.previewContext,
+          ...input.previewContext,
+          learningGoal: {
+            ...input.previewContext.learningGoal,
+            title: normalPlanGenerationCopy.learningGoalTitle,
+            topic: normalPlanGenerationCopy.learningGoalTopic,
+          },
+          planRationale: normalPlanGenerationCopy.planRationale,
+          journey: {
+            ...input.previewContext.journey,
+            previousSessions: input.previewContext.journey.previousSessions.map((candidate) => ({
+              ...candidate,
+              ...buildNormalPlanJourneyGenerationCopy(candidate),
+            })),
+            nextSessions: input.previewContext.journey.nextSessions.map((candidate) => ({
+              ...candidate,
+              ...buildNormalPlanJourneyGenerationCopy(candidate),
+            })),
+          },
+          session: {
+            ...input.previewContext.session,
+            title: normalPlanGenerationCopy.sessionTitle,
+          },
+        }
+      : input.previewContext;
+    const sourceSafePreviewContext = copySafePreviewContext.learningGoal.sourceMode === "user_materials"
+      ? {
+        ...copySafePreviewContext,
         learningGoal: {
-          ...input.previewContext.learningGoal,
+          ...copySafePreviewContext.learningGoal,
           sourceMode: "yova_generated" as const,
         },
       }
-      : input.previewContext;
+      : copySafePreviewContext;
     const effectiveSessionAdjustment = input.sessionAdjustment ?? null;
+    const routeGeneration = studyRouteGenerationProjection({
+      route: committedStudyRoute,
+      legacy: {
+        objective: sourceSafePreviewContext.session.objective,
+        method: sourceSafePreviewContext.session.method,
+        methodReason: sourceSafePreviewContext.session.methodReason,
+        activeMinutes: sourceSafePreviewContext.session.estimatedMinutes,
+        learningMode: sourceSafePreviewContext.session.learningMode,
+        executionEnvironment: sourceSafePreviewContext.learningGoal.studyMode,
+        topicIds: sourceSafePreviewContext.session.topicIds,
+        completionEvidence: sourceSafePreviewContext.session.completionEvidence,
+      },
+    });
     const previewContext = {
       ...sourceSafePreviewContext,
+      learningGoal: {
+        ...sourceSafePreviewContext.learningGoal,
+        studyMode: routeGeneration.executionEnvironment,
+      },
       session: {
         ...sourceSafePreviewContext.session,
+        objective: routeGeneration.objective,
+        method: routeGeneration.method,
+        methodReason: routeGeneration.methodReason,
+        estimatedMinutes: routeGeneration.activeMinutes,
         learningMode: learningModeForScheduledRetrieval(
           sourceSafePreviewContext.session,
-          sourceSafePreviewContext.session.learningMode,
+          routeGeneration.learningMode,
         ),
+        topicIds: routeGeneration.topicIds,
+        completionEvidence: routeGeneration.completionEvidence,
       },
     };
     const runtimeSessionArchitectureVersion = sessionArchitectureForGeneration({
@@ -968,11 +1207,25 @@ async function generateBrowserPreviewSession(
       sessionArchitectureVersion: runtimeSessionArchitectureVersion,
       materials: [],
       sessionAdjustment: effectiveSessionAdjustment,
+      studyRoute: committedStudyRoute,
     };
     const generated = await generateProductionSessionWithOpenAI(
       generationContext,
       sessionGenerationRuntime(request, startedAt),
     );
+    const routeContractIssue = committedStudyRoute
+      ? generatedSessionStudyRouteIssue(generated.draft, committedStudyRoute)
+      : null;
+    if (routeContractIssue) {
+      return NextResponse.json({
+        code: "study_route_generation_conflict",
+        error: `YOVA did not produce the committed study route: ${routeContractIssue}`,
+        retryable: true,
+      }, {
+        status: 503,
+        headers: responseHeaders(requestId, generated.generationStats),
+      });
+    }
     const expectedCacheVersion = expectedSessionCacheVersion({
       sessionArchitectureVersion: runtimeSessionArchitectureVersion,
       learningMode: generationContext.session.learningMode,
@@ -983,8 +1236,11 @@ async function generateBrowserPreviewSession(
       generated,
       expectedCacheVersion,
       buildSessionCacheContext({
-        plannedMinutes: previewContext.session.estimatedMinutes,
-        adjustment: effectiveSessionAdjustment,
+        plannedMinutes: routeGeneration.activeMinutes,
+        adjustment: committedStudyRoute && effectiveSessionAdjustment
+          ? { ...effectiveSessionAdjustment, availableMinutes: committedStudyRoute.timing.activeMinutes }
+          : effectiveSessionAdjustment,
+        routeRevisionId: input.routeRevisionId,
         contractKey: sessionCacheContractKey({
           reviewType: previewContext.session.reviewType ?? null,
           reviewConcept: previewContext.session.reviewConcept ?? null,
@@ -1141,6 +1397,17 @@ function readCachedSession(stepData: unknown, expectedSchemaVersion?: 15 | 17) {
   return expectedSchemaVersion && parsed.data.schemaVersion !== expectedSchemaVersion ? null : parsed.data;
 }
 
+function blurtingRuntimeUnavailableResponse(requestId: string) {
+  return NextResponse.json({
+    code: "blurting_runtime_unavailable",
+    error: "Blurting is saved for this session, but its dedicated runtime is not available yet. Choose another method before starting.",
+    retryable: false,
+  }, {
+    status: 409,
+    headers: responseHeaders(requestId),
+  });
+}
+
 function cacheGeneratedSession(
   generated: Awaited<ReturnType<typeof generateProductionSessionWithOpenAI>>,
   expectedSchemaVersion: 15 | 17,
@@ -1148,6 +1415,7 @@ function cacheGeneratedSession(
 ) {
   const shared = {
     ...generated.draft,
+    ...(cacheContext.routeRevisionId ? { routeRevisionId: cacheContext.routeRevisionId } : {}),
     routingContext: generated.routingContext,
     supportPlan: generated.supportPlan,
     deliveryPolicy: generated.deliveryPolicy,

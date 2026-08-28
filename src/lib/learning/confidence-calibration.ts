@@ -13,6 +13,7 @@ export const CALIBRATION_PATTERNS = [
 export type CalibrationPattern = (typeof CALIBRATION_PATTERNS)[number];
 
 export const ConfidenceEvidenceSchema = z.object({
+  routeRevisionId: z.string().uuid().optional(),
   topicId: z.string().uuid().optional(),
   concept: z.string().trim().min(2).max(120),
   confidence: z.enum(CONFIDENCE_LEVELS),

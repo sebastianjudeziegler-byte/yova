@@ -65,12 +65,28 @@ describe("buildDelayedVerificationSession", () => {
       learningMode: "study",
       reviewConcept: "Cellular respiration sequence",
       reviewType: "verify",
+      contentTargets: ["Cellular respiration sequence"],
+      completionEvidence: [expect.stringContaining("three self-contained questions")],
       status: "ready",
     });
     expect(result?.scheduledFor).toBe("2026-08-06T16:25:00.000Z");
     expect(result?.adaptationNote?.explanation).toContain("delayed retrieval");
     expect(result?.objective).toContain("self-contained questions");
     expect(result?.methodReason).toContain("Glycolysis occurs in the cytosol");
+  });
+
+  it("binds the delayed route target to the exact failed evidence topic", () => {
+    const topicId = "10000000-1000-4000-8000-100000000001";
+    const result = buildDelayedVerificationSession(completedSession, completion({
+      conceptEvidence: [{
+        topicId,
+        concept: "Cellular respiration sequence",
+        outcome: "needs_review",
+        activityType: "multiple_choice",
+      }],
+    }));
+
+    expect(result?.topicIds).toEqual([topicId]);
   });
 
   it("keeps a confident-miss return short while preserving the repair signal", () => {

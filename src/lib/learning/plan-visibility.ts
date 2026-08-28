@@ -50,7 +50,8 @@ export function filterOperationalPlans<T extends PlanWithSessions>(plans: readon
  * inside plans that otherwise remained active. Recover only provenance-backed
  * parts at the read boundary so the learner can resume while the database
  * migration repairs the authoritative rows. Scheduled reviews and sessions
- * with a resource, checkpoint, or interruption remain unchanged.
+ * with a committed StudyRoute, resource, checkpoint, or interruption remain
+ * unchanged; route-owned duration can only change with a successor revision.
  */
 export function recoverRunnablePlanLifecycle(
   plan: LearningPlan,
@@ -134,6 +135,7 @@ function isObsoleteUndersizedSplitPart(
   protectedSessionIds: ReadonlySet<string>,
 ) {
   return (session.status === "ready" || session.status === "upcoming")
+    && session.studyRoute === undefined
     && !session.reviewType
     && !session.resource
     && !protectedSessionIds.has(session.id)

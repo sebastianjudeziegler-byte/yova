@@ -13,8 +13,12 @@ import {
   type MethodWorkProgress,
 } from "@/lib/learning/method-work-progress";
 import {
+  isBroadRecallActivityProgress,
+  mergeSessionActivityProgress,
+  RetrievalRoundActivityProgressSchema,
   SessionActivityProgressSchema,
   sessionActivityProgressRank,
+  type SessionActivityProgressConflictReason,
   type SessionActivityProgress,
 } from "@/lib/learning/session-activity-progress";
 import {
@@ -46,8 +50,7 @@ const CheckpointPendingRepairSchema = z.object({
   correctAnswer: z.string().trim().min(1).max(700),
 }).strict();
 
-const CheckpointBaseShape = {
-  version: z.literal(1),
+const CheckpointCommonBaseShape = {
   accountId: SafeIdentifierSchema,
   runId: SafeIdentifierSchema,
   planId: SafeIdentifierSchema,
@@ -66,17 +69,19 @@ const CheckpointBaseShape = {
   sessionAdjustment: SessionAdjustmentSnapshotSchema.optional(),
 };
 
-const WorkingCheckpointSchema = z.object({
-  ...CheckpointBaseShape,
+const WorkingCheckpointV1Schema = z.object({
+  ...CheckpointCommonBaseShape,
+  version: z.literal(1),
   status: z.literal("working"),
   evidence: SessionEvidenceSnapshotSchema.optional(),
   pendingRepair: CheckpointPendingRepairSchema.optional(),
-  activityProgress: SessionActivityProgressSchema.optional(),
+  activityProgress: RetrievalRoundActivityProgressSchema.optional(),
   completedAt: z.never().optional(),
 }).strict();
 
-const AwaitingFinishCheckpointSchema = z.object({
-  ...CheckpointBaseShape,
+const AwaitingFinishCheckpointV1Schema = z.object({
+  ...CheckpointCommonBaseShape,
+  version: z.literal(1),
   status: z.literal("awaiting_finish"),
   evidence: SessionEvidenceSnapshotSchema,
   pendingRepair: z.never().optional(),
@@ -85,10 +90,43 @@ const AwaitingFinishCheckpointSchema = z.object({
   completionFeedback: z.enum(["too_easy", "about_right", "too_difficult"]),
 }).strict();
 
-export const ActiveSessionCheckpointV1Schema = z.discriminatedUnion("status", [
-  WorkingCheckpointSchema,
-  AwaitingFinishCheckpointSchema,
-]).superRefine((checkpoint, context) => {
+const WorkingCheckpointV2Schema = z.object({
+  ...CheckpointCommonBaseShape,
+  version: z.literal(2),
+  routeRevisionId: z.string().uuid(),
+  status: z.literal("working"),
+  evidence: SessionEvidenceSnapshotSchema.optional(),
+  pendingRepair: CheckpointPendingRepairSchema.optional(),
+  activityProgress: SessionActivityProgressSchema.optional(),
+  completedAt: z.never().optional(),
+}).strict();
+
+const AwaitingFinishCheckpointV2Schema = z.object({
+  ...CheckpointCommonBaseShape,
+  version: z.literal(2),
+  routeRevisionId: z.string().uuid(),
+  status: z.literal("awaiting_finish"),
+  evidence: SessionEvidenceSnapshotSchema,
+  pendingRepair: z.never().optional(),
+  activityProgress: z.never().optional(),
+  completedAt: z.string().datetime({ offset: true }),
+  completionFeedback: z.enum(["too_easy", "about_right", "too_difficult"]),
+}).strict();
+
+type CheckpointForWindowValidation = {
+  status: "working" | "awaiting_finish";
+  startedAt: string;
+  savedAt: string;
+  completedSteps: number;
+  totalSteps: number;
+  resumeStep: number;
+  completedAt?: string;
+};
+
+function validateCheckpointWindow(
+  checkpoint: CheckpointForWindowValidation,
+  context: z.RefinementCtx,
+) {
   const startedAt = Date.parse(checkpoint.startedAt);
   const savedAt = Date.parse(checkpoint.savedAt);
 
@@ -121,7 +159,7 @@ export const ActiveSessionCheckpointV1Schema = z.discriminatedUnion("status", [
     });
   }
   if (checkpoint.status === "awaiting_finish") {
-    const completedAt = Date.parse(checkpoint.completedAt);
+    const completedAt = Date.parse(checkpoint.completedAt ?? "");
     if (checkpoint.completedSteps !== checkpoint.totalSteps) {
       context.addIssue({
         code: "custom",
@@ -137,20 +175,56 @@ export const ActiveSessionCheckpointV1Schema = z.discriminatedUnion("status", [
       });
     }
   }
+}
+
+export const ActiveSessionCheckpointV1Schema = z.discriminatedUnion("status", [
+  WorkingCheckpointV1Schema,
+  AwaitingFinishCheckpointV1Schema,
+]).superRefine(validateCheckpointWindow);
+
+export const ActiveSessionCheckpointV2Schema = z.discriminatedUnion("status", [
+  WorkingCheckpointV2Schema,
+  AwaitingFinishCheckpointV2Schema,
+]).superRefine((checkpoint, context) => {
+  validateCheckpointWindow(checkpoint, context);
+  if (
+    checkpoint.status === "working"
+    && isBroadRecallActivityProgress(checkpoint.activityProgress)
+    && (checkpoint.pendingRepair !== undefined || checkpoint.evidence !== undefined)
+  ) {
+    context.addIssue({
+      code: "custom",
+      path: [checkpoint.pendingRepair !== undefined ? "pendingRepair" : "evidence"],
+      message: "Broad-recall progress cannot carry answer-bearing repair or unverified evidence.",
+    });
+  }
 });
 
+export const ActiveSessionCheckpointSchema = z.union([
+  ActiveSessionCheckpointV1Schema,
+  ActiveSessionCheckpointV2Schema,
+]);
+
 export type ActiveSessionCheckpointV1 = z.infer<typeof ActiveSessionCheckpointV1Schema>;
+export type ActiveSessionCheckpointV2 = z.infer<typeof ActiveSessionCheckpointV2Schema>;
+export type ActiveSessionCheckpoint = z.infer<typeof ActiveSessionCheckpointSchema>;
 
 export type ActiveSessionCheckpointMergeResult = {
-  checkpoints: ActiveSessionCheckpointV1[];
+  checkpoints: ActiveSessionCheckpoint[];
   cloudRunIds: Set<string>;
-  checkpointsToUpload: ActiveSessionCheckpointV1[];
-  conflictingLocalRuns: ActiveSessionCheckpointV1[];
+  checkpointsToUpload: ActiveSessionCheckpoint[];
+  conflictingLocalRuns: ActiveSessionCheckpoint[];
+  activityProgressConflicts: Array<{
+    planSessionId: string;
+    reason: SessionActivityProgressConflictReason;
+    local: ActiveSessionCheckpoint;
+    cloud: ActiveSessionCheckpoint;
+  }>;
 };
 
 export type ActiveSessionCheckpointResumePoint = SessionInterruption & {
   source: "active_session_checkpoint";
-  checkpointStatus: ActiveSessionCheckpointV1["status"];
+  checkpointStatus: ActiveSessionCheckpoint["status"];
   runId: string;
   activeSeconds: number;
   savedAt: string;
@@ -161,6 +235,7 @@ export type ActiveSessionCheckpointResumePoint = SessionInterruption & {
   completionFeedback?: "too_easy" | "about_right" | "too_difficult";
   methodWork?: MethodWorkProgress;
   activityProgress?: SessionActivityProgress;
+  routeRevisionId?: string;
 };
 
 /**
@@ -172,10 +247,10 @@ export type ActiveSessionCheckpointResumePoint = SessionInterruption & {
 export function readActiveSessionCheckpoint(
   value: unknown,
   now = Date.now(),
-): ActiveSessionCheckpointV1 | null {
+): ActiveSessionCheckpoint | null {
   if (hasForbiddenCheckpointContent(value)) return null;
   try {
-    const parsed = ActiveSessionCheckpointV1Schema.safeParse(value);
+    const parsed = ActiveSessionCheckpointSchema.safeParse(value);
     return parsed.success && isCheckpointFresh(parsed.data, now) ? parsed.data : null;
   } catch {
     return null;
@@ -188,9 +263,16 @@ export function readActiveSessionCheckpoint(
  * cannot roll back a completed step or the awaiting-finish screen.
  */
 export function compareActiveSessionCheckpointProgress(
-  left: ActiveSessionCheckpointV1,
-  right: ActiveSessionCheckpointV1,
+  left: ActiveSessionCheckpoint,
+  right: ActiveSessionCheckpoint,
 ) {
+  const activityProgressMerge = mergeSessionActivityProgress(
+    left.activityProgress,
+    right.activityProgress,
+  );
+  // Divergent histories are incomparable. Reconciliation callers inspect the
+  // explicit merge result and fail closed instead of reaching time tie-breaks.
+  if (activityProgressMerge.kind === "conflict") return 0;
   const statusDifference = checkpointStatusRank(left.status) - checkpointStatusRank(right.status);
   if (statusDifference !== 0) return statusDifference;
   if (left.completedSteps !== right.completedSteps) {
@@ -203,6 +285,15 @@ export function compareActiveSessionCheckpointProgress(
   const methodWorkDifference = methodWorkProgressRank(left.methodWork)
     - methodWorkProgressRank(right.methodWork);
   if (methodWorkDifference !== 0) return methodWorkDifference;
+  if (
+    (
+      isBroadRecallActivityProgress(left.activityProgress)
+      || isBroadRecallActivityProgress(right.activityProgress)
+    )
+    && activityProgressMerge.source !== "equal"
+  ) {
+    return activityProgressMerge.source === "left" ? 1 : -1;
+  }
   if (left.activeSeconds !== right.activeSeconds) return left.activeSeconds - right.activeSeconds;
   return compareIsoTimestamps(left.savedAt, right.savedAt);
 }
@@ -214,16 +305,17 @@ export function compareActiveSessionCheckpointProgress(
  * the same run and lesson, the checkpoint with the most actual progress wins.
  */
 export function mergeActiveSessionCheckpoints(
-  localValues: readonly ActiveSessionCheckpointV1[],
-  cloudValues: readonly ActiveSessionCheckpointV1[],
+  localValues: readonly ActiveSessionCheckpoint[],
+  cloudValues: readonly ActiveSessionCheckpoint[],
   now = Date.now(),
 ): ActiveSessionCheckpointMergeResult {
   const localBySession = checkpointsBySession(localValues, now);
   const cloudBySession = checkpointsBySession(cloudValues, now);
   const cloudRunIds = new Set<string>();
-  const checkpointsToUpload: ActiveSessionCheckpointV1[] = [];
-  const conflictingLocalRuns: ActiveSessionCheckpointV1[] = [];
-  const checkpoints: ActiveSessionCheckpointV1[] = [];
+  const checkpointsToUpload: ActiveSessionCheckpoint[] = [];
+  const conflictingLocalRuns: ActiveSessionCheckpoint[] = [];
+  const activityProgressConflicts: ActiveSessionCheckpointMergeResult["activityProgressConflicts"] = [];
+  const checkpoints: ActiveSessionCheckpoint[] = [];
   const sessionIds = new Set([...localBySession.keys(), ...cloudBySession.keys()]);
 
   for (const planSessionId of sessionIds) {
@@ -248,10 +340,28 @@ export function mergeActiveSessionCheckpoints(
       || local.runId !== cloud.runId
       || local.resourceFingerprint !== cloud.resourceFingerprint
       || local.resourceGeneratedAt !== cloud.resourceGeneratedAt
+      || !checkpointRouteIdentityMatches(local, cloud)
     ) {
       checkpoints.push(cloud);
       cloudRunIds.add(cloud.runId);
       conflictingLocalRuns.push(local);
+      continue;
+    }
+
+    const activityProgressMerge = mergeSessionActivityProgress(
+      local.activityProgress,
+      cloud.activityProgress,
+    );
+    if (activityProgressMerge.kind === "conflict") {
+      checkpoints.push(cloud);
+      cloudRunIds.add(cloud.runId);
+      conflictingLocalRuns.push(local);
+      activityProgressConflicts.push({
+        planSessionId,
+        reason: activityProgressMerge.reason,
+        local,
+        cloud,
+      });
       continue;
     }
 
@@ -273,11 +383,12 @@ export function mergeActiveSessionCheckpoints(
     cloudRunIds,
     checkpointsToUpload,
     conflictingLocalRuns,
+    activityProgressConflicts,
   };
 }
 
-export function saveActiveSessionCheckpoint(checkpoint: ActiveSessionCheckpointV1) {
-  const parsed = ActiveSessionCheckpointV1Schema.safeParse(checkpoint);
+export function saveActiveSessionCheckpoint(checkpoint: ActiveSessionCheckpoint) {
+  const parsed = ActiveSessionCheckpointSchema.safeParse(checkpoint);
   if (!parsed.success || !isCheckpointFresh(parsed.data, Date.now())) return false;
 
   const storage = browserStorage();
@@ -307,7 +418,7 @@ export function loadActiveSessionCheckpoints(accountId: string) {
 
 /** Fail-closed reader used by the portable current-device export. */
 export function readActiveSessionCheckpointsForExport(accountId: string):
-  | { ok: true; value: ActiveSessionCheckpointV1[] }
+  | { ok: true; value: ActiveSessionCheckpoint[] }
   | { ok: false } {
   const parsedAccountId = SafeIdentifierSchema.safeParse(accountId);
   if (!parsedAccountId.success) return { ok: false };
@@ -324,14 +435,14 @@ export function readActiveSessionCheckpointsForExport(accountId: string):
     }
     const validated = parsed.map((entry) => {
       if (hasForbiddenCheckpointContent(entry)) return null;
-      const result = ActiveSessionCheckpointV1Schema.safeParse(entry);
+      const result = ActiveSessionCheckpointSchema.safeParse(entry);
       return result.success ? result.data : null;
     });
     if (validated.some((checkpoint) => checkpoint === null)) return { ok: false };
     return {
       ok: true,
       value: normalizeStoredCheckpoints(
-        validated.filter((checkpoint): checkpoint is ActiveSessionCheckpointV1 => checkpoint !== null),
+        validated.filter((checkpoint): checkpoint is ActiveSessionCheckpoint => checkpoint !== null),
         Date.now(),
       ).filter((checkpoint) => checkpoint.accountId === parsedAccountId.data)
         .sort((left, right) => compareIsoTimestamps(right.savedAt, left.savedAt)),
@@ -343,7 +454,7 @@ export function readActiveSessionCheckpointsForExport(accountId: string):
 
 export function latestActiveSessionCheckpointFor(
   planSessionId: string,
-  checkpoints: readonly ActiveSessionCheckpointV1[],
+  checkpoints: readonly ActiveSessionCheckpoint[],
 ) {
   return checkpoints
     .filter((checkpoint) => checkpoint.planSessionId === planSessionId)
@@ -418,12 +529,12 @@ export function removeActiveSessionCheckpointsForPlan(accountId: string, planId:
  */
 export function replaceActiveSessionCheckpointsForAccount(
   accountId: string,
-  checkpoints: readonly ActiveSessionCheckpointV1[],
+  checkpoints: readonly ActiveSessionCheckpoint[],
 ) {
   const parsedAccountId = SafeIdentifierSchema.safeParse(accountId);
   if (!parsedAccountId.success) return false;
   const now = Date.now();
-  const parsedCheckpoints: ActiveSessionCheckpointV1[] = [];
+  const parsedCheckpoints: ActiveSessionCheckpoint[] = [];
   for (const value of checkpoints) {
     const parsed = readActiveSessionCheckpoint(value, now);
     if (!parsed || parsed.accountId !== parsedAccountId.data) return false;
@@ -532,7 +643,7 @@ export function fingerprintMethodWorkSession({
 }
 
 export function checkpointMatchesMethodWorkSession(
-  checkpoint: Pick<ActiveSessionCheckpointV1, "resourceFingerprint" | "methodWork">,
+  checkpoint: Pick<ActiveSessionCheckpoint, "resourceFingerprint" | "methodWork">,
   input: Parameters<typeof fingerprintMethodWorkSession>[0],
 ) {
   return Boolean(
@@ -543,20 +654,47 @@ export function checkpointMatchesMethodWorkSession(
 
 export function checkpointMatchesSessionResource(
   checkpoint: Pick<
-    ActiveSessionCheckpointV1,
-    "resourceFingerprint" | "resourceGeneratedAt"
+    ActiveSessionCheckpointResumePoint,
+    "resourceFingerprint" | "resourceGeneratedAt" | "routeRevisionId"
   >,
   resource: SessionResource,
 ) {
-  return sessionResourceFingerprintCandidates(resource).has(checkpoint.resourceFingerprint)
+  return checkpointMatchesRouteRevisionId(checkpoint, resource.routeRevisionId)
+    && sessionResourceFingerprintCandidates(resource).has(checkpoint.resourceFingerprint)
     && (
       checkpoint.resourceGeneratedAt === undefined
       || timestampsIdentifySameResource(checkpoint.resourceGeneratedAt, resource.generatedAt)
     );
 }
 
+export function checkpointMatchesSessionRoute(
+  checkpoint: Pick<
+    ActiveSessionCheckpointResumePoint,
+    "resourceFingerprint" | "routeRevisionId"
+  >,
+  session: Pick<LearningPlanSession, "studyRoute">,
+) {
+  return checkpointMatchesRouteRevisionId(
+    checkpoint,
+    session.studyRoute?.identity.lifecycleStatus === "committed"
+      ? session.studyRoute.identity.routeRevisionId
+      : undefined,
+  );
+}
+
+function checkpointMatchesRouteRevisionId(
+  checkpoint: Pick<
+    ActiveSessionCheckpointResumePoint,
+    "resourceFingerprint" | "routeRevisionId"
+  >,
+  routeRevisionId: string | undefined,
+) {
+  return checkpoint.routeRevisionId === undefined
+    || checkpoint.routeRevisionId === routeRevisionId;
+}
+
 export function checkpointToSessionResumePoint(
-  checkpoint: ActiveSessionCheckpointV1,
+  checkpoint: ActiveSessionCheckpoint,
 ): ActiveSessionCheckpointResumePoint {
   const repairReference = checkpoint.pendingRepair?.correctAnswer.slice(0, 520);
   return {
@@ -593,6 +731,7 @@ export function checkpointToSessionResumePoint(
     completionMode: checkpoint.completionMode ?? "guided",
     ...(checkpoint.methodWork ? { methodWork: checkpoint.methodWork } : {}),
     ...(checkpoint.activityProgress ? { activityProgress: checkpoint.activityProgress } : {}),
+    ...(checkpoint.version === 2 ? { routeRevisionId: checkpoint.routeRevisionId } : {}),
     ...(checkpoint.status === "awaiting_finish" ? {
       completedAt: checkpoint.completedAt,
       completionFeedback: checkpoint.completionFeedback,
@@ -608,19 +747,20 @@ export function checkpointToSessionResumePoint(
  * both the terminal checkpoint and the interruption recorded for the old run.
  */
 export function handoffActiveSessionCheckpointAfterExit(
-  checkpoint: ActiveSessionCheckpointV1,
+  checkpoint: ActiveSessionCheckpoint,
   interruption: SessionInterruption,
   nextRunId: string,
   savedAt: string,
-): ActiveSessionCheckpointV1 | null {
+): ActiveSessionCheckpoint | null {
   if (
     checkpoint.status !== "working"
     || checkpoint.runId !== interruption.id
     || checkpoint.planId !== interruption.planId
     || checkpoint.planSessionId !== interruption.planSessionId
     || checkpoint.plannedMinutes !== interruption.plannedMinutes
+    || !checkpointAndInterruptionRouteIdentityMatch(checkpoint, interruption)
   ) return null;
-  const parsed = ActiveSessionCheckpointV1Schema.safeParse({
+  const parsed = ActiveSessionCheckpointSchema.safeParse({
     ...checkpoint,
     runId: nextRunId,
     startedAt: interruption.startedAt,
@@ -650,6 +790,11 @@ export function restoreExitProgressThroughCheckpoint(
     .filter((interruption) => checkpointHandoffMatchesInterruption(checkpoint, interruption))
     .sort((left, right) => compareIsoTimestamps(right.interruptedAt, left.interruptedAt))[0] ?? null;
   if (!exit) return checkpoint;
+  const activityProgressMerge = mergeSessionActivityProgress(
+    checkpoint.activityProgress,
+    exit.activityProgress,
+  );
+  if (activityProgressMerge.kind === "conflict") return checkpoint;
 
   return {
     ...checkpoint,
@@ -661,7 +806,9 @@ export function restoreExitProgressThroughCheckpoint(
     ...(exit.evidence ? { evidence: exit.evidence } : {}),
     ...(exit.pendingRepair ? { pendingRepair: exit.pendingRepair } : {}),
     ...(exit.sessionAdjustment ? { sessionAdjustment: exit.sessionAdjustment } : {}),
-    ...(exit.activityProgress ? { activityProgress: exit.activityProgress } : {}),
+    ...(activityProgressMerge.progress
+      ? { activityProgress: activityProgressMerge.progress }
+      : {}),
   };
 }
 
@@ -675,6 +822,7 @@ export function checkpointHandoffMatchesInterruption(
     && interruption.id !== checkpoint.runId
     && interruption.planId === checkpoint.planId
     && interruption.planSessionId === checkpoint.planSessionId
+    && checkpointAndInterruptionRouteIdentityMatch(checkpoint, interruption)
     && interruption.startedAt === checkpoint.startedAt
     && interruption.plannedMinutes === checkpoint.plannedMinutes
     && Number.isFinite(interruptedAt)
@@ -685,10 +833,19 @@ export function checkpointHandoffMatchesInterruption(
     && Math.abs(checkpointSavedAt - interruptedAt) <= EXIT_HANDOFF_CLOCK_SKEW_MS;
 }
 
+function checkpointAndInterruptionRouteIdentityMatch(
+  checkpoint: Pick<ActiveSessionCheckpointResumePoint, "planSessionId" | "routeRevisionId">,
+  interruption: Pick<SessionInterruption, "planSessionId" | "routeRevisionId">,
+) {
+  return checkpoint.routeRevisionId === undefined
+    ? interruption.routeRevisionId === undefined
+    : interruption.routeRevisionId === checkpoint.routeRevisionId;
+}
+
 export function chooseLatestSessionResumePoint(
   planSessionId: string,
   interruptions: SessionInterruption[],
-  checkpoints: readonly ActiveSessionCheckpointV1[],
+  checkpoints: readonly ActiveSessionCheckpoint[],
 ): SessionInterruption | ActiveSessionCheckpointResumePoint | null {
   const legacyInterruption = resumableSessionProgress(planSessionId, interruptions);
   const checkpoint = latestActiveSessionCheckpointFor(planSessionId, checkpoints);
@@ -711,7 +868,7 @@ export function chooseLatestSessionResumePoint(
 export function restoreCheckpointSessionResources(
   cloudPlans: readonly LearningPlan[],
   localPlans: readonly LearningPlan[],
-  checkpoints: readonly ActiveSessionCheckpointV1[],
+  checkpoints: readonly ActiveSessionCheckpoint[],
 ) {
   const checkpointBySession = new Map(
     checkpoints.map((checkpoint) => [checkpoint.planSessionId, checkpoint]),
@@ -765,7 +922,7 @@ function browserStorage() {
 
 function readStoredCheckpoints(storage: Storage, now: number): {
   ok: boolean;
-  checkpoints: ActiveSessionCheckpointV1[];
+  checkpoints: ActiveSessionCheckpoint[];
 } {
   let stored: string | null;
   try {
@@ -788,8 +945,8 @@ function readStoredCheckpoints(storage: Storage, now: number): {
     }
     const validated = parsed
       .slice(-MAX_STORED_CHECKPOINTS * 2)
-      .flatMap<ActiveSessionCheckpointV1>((candidate) => {
-        const result = ActiveSessionCheckpointV1Schema.safeParse(candidate);
+      .flatMap<ActiveSessionCheckpoint>((candidate) => {
+        const result = ActiveSessionCheckpointSchema.safeParse(candidate);
         return result.success ? [result.data] : [];
       });
     const normalized = normalizeStoredCheckpoints(validated, now);
@@ -808,10 +965,10 @@ function readStoredCheckpoints(storage: Storage, now: number): {
 }
 
 function normalizeStoredCheckpoints(
-  checkpoints: readonly ActiveSessionCheckpointV1[],
+  checkpoints: readonly ActiveSessionCheckpoint[],
   now: number,
 ) {
-  const latestByAccountAndSession = new Map<string, ActiveSessionCheckpointV1>();
+  const latestByAccountAndSession = new Map<string, ActiveSessionCheckpoint>();
   for (const checkpoint of checkpoints) {
     if (!isCheckpointFresh(checkpoint, now)) continue;
     const key = `${checkpoint.accountId}\u0000${checkpoint.planSessionId}`;
@@ -821,7 +978,7 @@ function normalizeStoredCheckpoints(
     }
   }
 
-  const byAccount = new Map<string, ActiveSessionCheckpointV1[]>();
+  const byAccount = new Map<string, ActiveSessionCheckpoint[]>();
   for (const checkpoint of latestByAccountAndSession.values()) {
     const current = byAccount.get(checkpoint.accountId) ?? [];
     current.push(checkpoint);
@@ -836,13 +993,13 @@ function normalizeStoredCheckpoints(
     .slice(-MAX_STORED_CHECKPOINTS);
 }
 
-function isCheckpointFresh(checkpoint: ActiveSessionCheckpointV1, now: number) {
+function isCheckpointFresh(checkpoint: ActiveSessionCheckpoint, now: number) {
   const savedAt = Date.parse(checkpoint.savedAt);
   return savedAt <= now + MAX_FUTURE_CLOCK_SKEW_MS
     && savedAt >= now - ACTIVE_SESSION_CHECKPOINT_TTL_MS;
 }
 
-function checkpointStatusRank(status: ActiveSessionCheckpointV1["status"]) {
+function checkpointStatusRank(status: ActiveSessionCheckpoint["status"]) {
   return status === "awaiting_finish" ? 1 : 0;
 }
 
@@ -851,10 +1008,10 @@ function methodWorkProgressRank(progress: MethodWorkProgress | undefined) {
 }
 
 function checkpointsBySession(
-  values: readonly ActiveSessionCheckpointV1[],
+  values: readonly ActiveSessionCheckpoint[],
   now: number,
 ) {
-  const checkpoints = new Map<string, ActiveSessionCheckpointV1>();
+  const checkpoints = new Map<string, ActiveSessionCheckpoint>();
   for (const value of values) {
     const checkpoint = readActiveSessionCheckpoint(value, now);
     if (!checkpoint) continue;
@@ -867,17 +1024,39 @@ function checkpointsBySession(
 }
 
 function preferCheckpointWithinSource(
-  candidate: ActiveSessionCheckpointV1,
-  current: ActiveSessionCheckpointV1,
+  candidate: ActiveSessionCheckpoint,
+  current: ActiveSessionCheckpoint,
 ) {
   if (
     candidate.runId === current.runId
     && candidate.resourceFingerprint === current.resourceFingerprint
     && candidate.resourceGeneratedAt === current.resourceGeneratedAt
+    && checkpointRouteIdentityMatches(candidate, current)
   ) {
+    if (
+      mergeSessionActivityProgress(
+        candidate.activityProgress,
+        current.activityProgress,
+      ).kind === "conflict"
+    ) return false;
     return compareActiveSessionCheckpointProgress(candidate, current) > 0;
   }
   return compareIsoTimestamps(candidate.savedAt, current.savedAt) > 0;
+}
+
+/**
+ * A V1 checkpoint predates route revisions, so its route identity is unknown.
+ * Preserve V1-to-V1 recovery behavior, but never treat unknown V1 provenance as
+ * the same route as an explicitly bound V2 checkpoint.
+ */
+function checkpointRouteIdentityMatches(
+  left: ActiveSessionCheckpoint,
+  right: ActiveSessionCheckpoint,
+) {
+  if (left.version === 1 || right.version === 1) {
+    return left.version === 1 && right.version === 1;
+  }
+  return left.routeRevisionId === right.routeRevisionId;
 }
 
 const FORBIDDEN_CHECKPOINT_KEYS = new Set([
@@ -932,7 +1111,7 @@ function compareIsoTimestamps(left: string, right: string) {
 
 function writeStoredCheckpoints(
   storage: Storage,
-  checkpoints: readonly ActiveSessionCheckpointV1[],
+  checkpoints: readonly ActiveSessionCheckpoint[],
 ) {
   try {
     if (checkpoints.length === 0) {

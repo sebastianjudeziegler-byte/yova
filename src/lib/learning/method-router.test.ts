@@ -59,6 +59,29 @@ describe("learning-science method router", () => {
   });
 
   it.each([
+    ["Active Recall", "retrieval_practice"],
+    ["Spaced Repetition", "spaced_retrieval"],
+    ["Worked Examples", "worked_example_fading"],
+    ["Interleaving", "interleaved_practice"],
+    ["Outline from Memory", "retrieval_based_outlining"],
+    ["Trace–Code–Test", "scaffolded_coding"],
+    ["Practice Tests", "practice_test_error_repair"],
+    ["Retrieval practice", "retrieval_practice"],
+    ["Scaffolded coding with fading", "scaffolded_coding"],
+  ] as const)("maps the learner-facing or legacy label %s to %s", (label, methodId) => {
+    expect(methodIdFromText(label)).toBe(methodId);
+  });
+
+  it.each([
+    "Use Trace–Code–Test for this session",
+    "Trace-Code-Test",
+    "Trace, Code, Test",
+    "trace code test",
+  ])("recognizes the Trace–Code–Test presentation across bounded punctuation forms: %s", (label) => {
+    expect(methodIdFromText(label)).toBe("scaffolded_coding");
+  });
+
+  it.each([
     ["Understand the function of mitochondria in cellular respiration", "conceptual_learning"],
     ["Explain the function of proteins in cell membranes", "conceptual_learning"],
     ["Understand the genetic code and how codons map to amino acids", "conceptual_learning"],
@@ -120,6 +143,66 @@ describe("learning-science method router", () => {
     expect(routing.knowledgeStage).toBe("novice");
     expect(routing.suggestedPrimaryMethodId).toBe("self_explanation");
     expect(routing.allowedMethodIds).not.toContain("retrieval_practice");
+  });
+
+  it("does not let a task-valid plan label widen stage eligibility", () => {
+    const routing = buildLearningScienceRoutingBrief({
+      learningIntent: "study",
+      sessionLearningMode: "study",
+      goalTitle: "Product rule practice",
+      goalTopic: "Solve product-rule derivatives",
+      goalKind: "skill",
+      sessionTitle: "First product-rule attempt",
+      sessionObjective: "Study a model and solve one similar problem",
+      plannedMethod: "Interleaved practice",
+      plannedMethodReason: "The generated plan proposed mixed problems.",
+      learnerProfile: null,
+      recentResults: [],
+      interruptionCount: 0,
+      taskTypeOverride: "problem_solving",
+      knowledgeStageOverride: "novice",
+    });
+
+    expect(routing.allowedMethodIds).toEqual(["worked_example_fading", "self_explanation"]);
+    expect(routing.suggestedPrimaryMethodId).toBe("worked_example_fading");
+    expect(routing.decisionBasis.join(" ")).toMatch(/not eligible for this task, stage, and session mode/i);
+  });
+
+  it("preserves an eligible plan label only for an explicit route-free compatibility session", () => {
+    const base = {
+      learningIntent: "study" as const,
+      sessionLearningMode: "study" as const,
+      goalTitle: "Cumulative biology exam",
+      goalTopic: "Review similar biological processes",
+      goalKind: "assessment",
+      sessionTitle: "Mixed process review",
+      sessionObjective: "Distinguish related processes under exam conditions",
+      plannedMethod: "Retrieval practice",
+      plannedMethodReason: "An older route-free plan named this method.",
+      learnerProfile: {
+        commonBlocker: null,
+        guidancePreference: null,
+        explanationPreference: null,
+        focusFrequency: null,
+        startingPattern: null,
+        primaryImprovementGoal: null,
+        memoryChallenge: "I confuse similar ideas",
+      },
+      recentResults: [],
+      interruptionCount: 0,
+      taskTypeOverride: "mixed_assessment" as const,
+      knowledgeStageOverride: "developing" as const,
+    };
+
+    expect(buildLearningScienceRoutingBrief(base).suggestedPrimaryMethodId)
+      .toBe("interleaved_practice");
+    const legacy = buildLearningScienceRoutingBrief({
+      ...base,
+      plannedMethodAuthority: "legacy_compatibility",
+    });
+    expect(legacy.suggestedPrimaryMethodId).toBe("retrieval_practice");
+    expect(legacy.preservedLegacyMethodId).toBe("retrieval_practice");
+    expect(legacy.decisionBasis.join(" ")).toContain("Legacy compatibility");
   });
 
   it("rejects a model-generated task label that contradicts the deterministic router", () => {

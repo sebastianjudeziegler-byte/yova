@@ -35,8 +35,23 @@ export type MethodOutcomeSignal = {
   deliveryGuidance: string;
 };
 
-const MINIMUM_SESSIONS = 2;
-const MINIMUM_CHECKED_ANSWERS = 4;
+export const METHOD_OUTCOME_MINIMUM_SESSIONS = 4;
+export const METHOD_OUTCOME_MINIMUM_CHECKED_ANSWERS = 12;
+
+/**
+ * A positive observational signal may rank one already-eligible method only
+ * after the frozen v1 evidence floor. It is still not a causal or permanent
+ * "best method" claim; the canonical selector preserves that distinction in
+ * its learner-facing explanation.
+ */
+export function methodOutcomeSupportsMethodRanking(signal: MethodOutcomeSignal) {
+  return signal.status === "promising"
+    && signal.sessions >= METHOD_OUTCOME_MINIMUM_SESSIONS
+    && signal.checkedAnswers >= METHOD_OUTCOME_MINIMUM_CHECKED_ANSWERS
+    && signal.accuracyPercent !== null
+    && signal.accuracyPercent >= 80
+    && signal.difficultRatings <= signal.sessions / 2;
+}
 
 export function buildMethodOutcomeSignals(
   attempts: MethodOutcomeAttempt[],
@@ -85,8 +100,8 @@ export function buildMethodOutcomeSignals(
       const accuracyPercent = result.checkedAnswers > 0
         ? Math.round((result.correctAnswers / result.checkedAnswers) * 100)
         : null;
-      const enoughEvidence = result.sessions >= MINIMUM_SESSIONS
-        && result.checkedAnswers >= MINIMUM_CHECKED_ANSWERS
+      const enoughEvidence = result.sessions >= METHOD_OUTCOME_MINIMUM_SESSIONS
+        && result.checkedAnswers >= METHOD_OUTCOME_MINIMUM_CHECKED_ANSWERS
         && accuracyPercent !== null;
       const status: MethodOutcomeStatus = !enoughEvidence
         ? "early_signal"

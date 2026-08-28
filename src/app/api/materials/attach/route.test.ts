@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => ({
   createClient: vi.fn(),
   mapMaterial: vi.fn(),
   rpc: vi.fn(),
+  routeRevisionId: null as string | null,
   sessionStepData: { topicIds: ["11111111-1111-4111-8111-111111111111"] } as Record<string, unknown>,
 }));
 
@@ -31,6 +32,7 @@ describe("active-plan material attachment route", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.sessionStepData = { topicIds: [PLAN_TOPIC_ID] };
+    mocks.routeRevisionId = null;
     const client = materialClient();
     mocks.createClient.mockResolvedValue(client);
     mocks.rpc.mockImplementation(async (_name, input) => ({
@@ -80,6 +82,18 @@ describe("active-plan material attachment route", () => {
 
     expect(response.status).toBe(409);
     expect(body.code).toBe("material_attachment_saved_work_protected");
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it("fails before attachment when the source change would stale committed routes", async () => {
+    mocks.routeRevisionId = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
+    mocks.createClient.mockResolvedValue(materialClient());
+
+    const response = await POST(attachRequest());
+    const body = await response.json();
+
+    expect(response.status).toBe(409);
+    expect(body.code).toBe("material_attachment_route_rebuild_required");
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
 
@@ -205,7 +219,12 @@ function materialClient(options: {
   const rows = {
     plans: [plan],
     learning_items: [{ id: ITEM_ID, source_mode: "user_materials" }],
-    plan_sessions: [{ id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee", status: "ready", step_data: mocks.sessionStepData }],
+    plan_sessions: [{
+      id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+      status: "ready",
+      step_data: mocks.sessionStepData,
+      committed_route_revision_id: mocks.routeRevisionId,
+    }],
     material_uploads: options.attached ? [] : [stagedMaterial],
     materials: options.attached ? [attachedMaterial] : [] as Array<Record<string, unknown>>,
   };
