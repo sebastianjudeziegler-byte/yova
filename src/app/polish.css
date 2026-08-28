@@ -227,7 +227,7 @@ input:focus-visible, textarea:focus-visible, select:focus-visible { outline: non
 .ask-bar { min-height: 58px; padding: 8px 9px 8px 17px; border-color: var(--line-default); border-radius: 15px; box-shadow: var(--shadow-xs); }
 .ask-bar:focus-within { border-color: #aebfff; box-shadow: var(--focus-ring); }
 .ask-bar input { min-height: 44px; font-size: 15px; }
-.ask-bar button, .session-ask button { width: 44px; height: 44px; border-radius: 11px; background: var(--brand-navy); }
+.ask-bar button, .session-ask button { width: 44px; height: 44px; padding: 0; display: grid; place-items: center; border-radius: 11px; background: var(--brand-navy); }
 .quick-actions { gap: 14px; }
 .quick-actions button { min-height: 94px; padding: 18px; border-color: var(--line-subtle); border-radius: 15px; box-shadow: var(--shadow-xs); }
 .quick-actions strong { color: var(--brand-navy); font-size: 15px; }

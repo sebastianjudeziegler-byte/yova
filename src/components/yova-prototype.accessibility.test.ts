@@ -92,5 +92,8 @@ describe("learner-facing accessibility contracts", () => {
     expect(ruleDeclarations(".rec-carousel-controls button").join(" ")).toMatch(/height:\s*44px/);
     expect(ruleDeclarations(".ask-bar button, .session-ask button").join(" ")).toMatch(/width:\s*44px/);
     expect(ruleDeclarations(".ask-bar button, .session-ask button").join(" ")).toMatch(/height:\s*44px/);
+    expect(ruleDeclarations(".ask-bar button, .session-ask button").join(" ")).toMatch(/padding:\s*0/);
+    expect(ruleDeclarations(".ask-bar button, .session-ask button").join(" ")).toMatch(/display:\s*grid/);
+    expect(ruleDeclarations(".ask-bar button, .session-ask button").join(" ")).toMatch(/place-items:\s*center/);
   });
 });
