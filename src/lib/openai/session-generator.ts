@@ -82,7 +82,7 @@ import {
 } from "@/lib/learning/practice-variation";
 import {
   GeneratedSessionDraftSchema,
-  GeneratedSessionDraftOutputSchema,
+  GeneratedSessionDraftProviderOutputSchema,
   type SessionAdjustment,
   type GeneratedSessionDraft,
   type LessonBrief,
@@ -1100,7 +1100,7 @@ export async function generateSessionWithOpenAI(
       })}`,
       reasoning: { effort: "none" },
       text: {
-        format: zodTextFormat(GeneratedSessionDraftOutputSchema, "yova_guided_session"),
+        format: zodTextFormat(GeneratedSessionDraftProviderOutputSchema, "yova_guided_session"),
         verbosity: "low",
       },
       max_output_tokens: 4_000,
@@ -1125,16 +1125,46 @@ export async function generateSessionWithOpenAI(
     return response;
   };
 
+  const requestRepairDraft = async (detail: string) => {
+    try {
+      return await requestDraft(detail);
+    } catch (error) {
+      if (!isZodError(error)) throw error;
+      const failedRepairDetail = sessionStructureRepairDetail(error);
+      throw new SessionGenerationFailure(
+        "OpenAI returned a structurally invalid guided-session repair.",
+        {
+          elapsedMs: Date.now() - generationStartedAt,
+          attempts: usage.attempts,
+          firstAttemptPassed: false,
+          failedValidator: "session_structure",
+          repairAttempted: true,
+          repairSucceeded: false,
+          repairReason: "structured_output",
+          repairDetail: repairDetail
+            ? `${repairDetail.slice(0, 900)} Repair response failure: ${failedRepairDetail.slice(0, 700)}`
+            : failedRepairDetail,
+          inputTokens: usage.inputTokens,
+          cachedInputTokens: usage.cachedInputTokens,
+          cacheWriteTokens: usage.cacheWriteTokens,
+          outputTokens: usage.outputTokens,
+          validationIssueCode: "session_full_structure",
+          ...(safeRecoveryMode ? { recoveryMode: safeRecoveryMode } : {}),
+        },
+      );
+    }
+  };
+
   let response;
   try {
     response = await requestDraft(null);
   } catch (error) {
-    if (!(error instanceof Error) || error.name !== "ZodError") throw error;
+    if (!isZodError(error)) throw error;
     repairAttempted = true;
     repairReason = "structured_output";
     validationIssueCode = "session_full_structure";
     repairDetail = sessionStructureRepairDetail(error);
-    response = await requestDraft(repairDetail);
+    response = await requestRepairDraft(repairDetail);
   }
 
   let parsed = parseGeneratedSessionDraft(response.output_parsed, learningScienceRouting, context, sessionDeliveryPolicy);
@@ -1157,7 +1187,7 @@ export async function generateSessionWithOpenAI(
       : !parsed.success
         ? sessionStructureRepairDetail(parsed.error)
         : semanticIssue?.detail ?? "The structured session shape was invalid or incomplete.";
-    response = await requestDraft(repairDetail);
+    response = await requestRepairDraft(repairDetail);
     parsed = parseGeneratedSessionDraft(response.output_parsed, learningScienceRouting, context, sessionDeliveryPolicy);
     deterministicActivityFormatRepair ??= parsed.activityFormatNormalizationReason;
     if (!parsed.success) validationIssueCode = "session_full_structure";
@@ -1254,7 +1284,7 @@ export async function generateSessionWithOpenAI(
       semanticIssue = safeRecovery.issue ?? semanticIssue;
       validationIssueCode = safeRecovery.validationIssueCode ?? validationIssueCode;
     } else {
-      response = await requestDraft(
+      response = await requestRepairDraft(
         `The prior repair fixed some issues but introduced or retained this failure: ${followupRepairDetail} Preserve the valid subject content and satisfy the complete supplied method-fidelity contract, including every required phase in order. Rebuild the full activity sequence and evidence map together.`,
       );
       parsed = parseGeneratedSessionDraft(response.output_parsed, learningScienceRouting, context, sessionDeliveryPolicy);
@@ -3445,6 +3475,10 @@ function sessionStructureRepairDetail(error: unknown) {
   return `The structured session shape was invalid. Fix these exact schema issues: ${detail}`.slice(0, 700);
 }
 
+function isZodError(error: unknown): error is Error {
+  return error instanceof Error && error.name === "ZodError";
+}
+
 function readZodIssues(error: unknown): Array<{ path: Array<string | number>; message: string }> {
   if (!error || typeof error !== "object" || !("issues" in error)) return [];
   const issues = (error as { issues?: unknown }).issues;
@@ -3475,7 +3509,7 @@ function parseGeneratedSessionDraft(
   context: SessionGenerationContext,
   deliveryPolicy: SessionDeliveryPolicy,
 ) {
-  const parsed = GeneratedSessionDraftOutputSchema.safeParse(value);
+  const parsed = GeneratedSessionDraftProviderOutputSchema.safeParse(value);
   if (!parsed.success) return { ...parsed, activityFormatNormalizationReason: null };
   const scheduledConcept = isScheduledRetrievalSession(context.session)
     ? context.session.reviewConcept?.trim() || null

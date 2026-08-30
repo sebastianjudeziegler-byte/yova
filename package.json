@@ -8,6 +8,7 @@
   },
   "scripts": {
     "dev": "next dev",
+    "prebuild": "node scripts/check-readiness.mjs --deployment",
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
@@ -21,6 +22,7 @@
     "eval:journeys": "node scripts/run-journey-evaluations.mjs",
     "eval:answers": "node scripts/run-answer-evaluations.mjs",
     "readiness": "node scripts/check-readiness.mjs",
+    "readiness:configuration": "node scripts/check-readiness.mjs --production --configuration-only",
     "readiness:production": "node scripts/check-readiness.mjs --production",
     "smoke:production": "node scripts/smoke-deployment.mjs"
   },

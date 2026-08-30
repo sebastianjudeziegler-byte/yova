@@ -33,9 +33,9 @@ test("makes account personalization visible, editable, persistent, and mobile-sa
   await expect(page.getByRole("status")).toHaveText("First name saved.");
 
   await page.getByRole("button", { name: "Home", exact: true }).click();
-  await expect(page.getByRole("heading", { name: /Good (morning|afternoon|evening), Ada\./ })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /^Good (morning|afternoon|evening), Ada$/ })).toBeVisible();
   await page.reload();
-  await expect(page.getByRole("heading", { name: /Good (morning|afternoon|evening), Ada\./ })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /^Good (morning|afternoon|evening), Ada$/ })).toBeVisible();
 
   await page.getByRole("button", { name: "You", exact: true }).click();
   const overflow = await page.locator(".page").evaluate((element) => ({

@@ -157,6 +157,7 @@ export function buildPreviewSessionContext({
       learningMode: effectiveLearningMode,
       studyMode: studyRoute?.approach.executionEnvironment ?? plan.studyMode,
       reviewType: session.reviewType ?? null,
+      selectedMethodId: studyRoute?.approach.primaryMethodId,
     }),
     learningGoal: {
       title: normalPlanGenerationCopy?.learningGoalTitle ?? plan.title,

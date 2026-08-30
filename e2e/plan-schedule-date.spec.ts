@@ -199,5 +199,5 @@ async function openPreviewApp(page: Page) {
   }
 
   await page.getByRole("button", { name: "Open YOVA" }).click();
-  await expect(page.getByRole("heading", { name: /Good (morning|afternoon|evening), Learner\./ })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /^Good (morning|afternoon|evening), Learner$/ })).toBeVisible();
 }

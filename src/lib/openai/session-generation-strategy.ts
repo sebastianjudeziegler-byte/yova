@@ -35,6 +35,7 @@ function sessionGenerationStrategyForPreparedContext(
     learningMode: scopedContext.session.learningMode,
     studyMode: scopedContext.learningGoal.studyMode,
     reviewType: scopedContext.session.reviewType ?? null,
+    selectedMethodId: scopedContext.studyRoute?.approach.primaryMethodId,
   });
   if (
     usesStreamedTeaching({ sessionArchitectureVersion: runtimeArchitecture })
@@ -64,6 +65,7 @@ export function generateProductionSessionWithOpenAI(
       learningMode: scopedContext.session.learningMode,
       studyMode: scopedContext.learningGoal.studyMode,
       reviewType: scopedContext.session.reviewType ?? null,
+      selectedMethodId: scopedContext.studyRoute?.approach.primaryMethodId,
     }),
   };
   markSessionGenerationContextPrepared(generationContext);

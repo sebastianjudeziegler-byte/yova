@@ -1,4 +1,6 @@
 import { PlanKnowledgeMapSchema } from "@/lib/knowledge-map/schema";
+import type { CoreMethodId } from "@/lib/learning/method-catalog";
+import { supportsStreamedTeachingRouteMethod } from "@/lib/session-generation/method-runtime-capability";
 
 export const SESSION_ARCHITECTURE_VERSIONS = [
   "filled_teaching_v1",
@@ -42,6 +44,10 @@ export function usesStreamedTeaching(value: unknown) {
  * Teaching-first is a runtime delivery choice, not a compatibility boundary.
  * Older saved plans can keep their stored schema stamp while ordinary
  * inside-YOVA learn sessions use the current streamed reader and cache shape.
+ * A committed route can select a method whose validated runtime is produced
+ * by the filled generator instead. Those routes must stay on the filled
+ * architecture/cache shape because they do not carry streamed delivery
+ * instructions.
  * Reviews retain their original architecture. Outside-YOVA teaching-first
  * work also stays filled because its concise subject model and external-method
  * handoff are generated and validated as one bounded session.
@@ -51,14 +57,18 @@ export function sessionArchitectureForGeneration({
   learningMode,
   studyMode,
   reviewType,
+  selectedMethodId,
 }: {
   storedVersion?: SessionArchitectureVersion;
   learningMode: "learn" | "study";
   studyMode: string;
   reviewType: "repair_and_retrieve" | "verify" | "maintenance_transfer" | null;
+  selectedMethodId?: CoreMethodId | null;
 }): SessionArchitectureVersion {
   if (learningMode === "learn" && studyMode === "inside_yova" && !reviewType) {
-    return STREAMED_SESSION_ARCHITECTURE;
+    return !selectedMethodId || supportsStreamedTeachingRouteMethod(selectedMethodId)
+      ? STREAMED_SESSION_ARCHITECTURE
+      : LEGACY_SESSION_ARCHITECTURE;
   }
   return storedVersion ?? LEGACY_SESSION_ARCHITECTURE;
 }

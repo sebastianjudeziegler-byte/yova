@@ -45,7 +45,7 @@ function runReadiness(
 
 describe("production public site readiness", () => {
   it("rejects a Vercel deploy URL fallback as the production canonical", () => {
-    const result = runReadiness(["--production"], {
+    const result = runReadiness(["--production", "--configuration-only"], {
       VERCEL_PROJECT_PRODUCTION_URL: "yova-roan.vercel.app",
     });
 
@@ -56,7 +56,7 @@ describe("production public site readiness", () => {
   });
 
   it("accepts an explicit customer-facing SITE_URL in production", () => {
-    const result = runReadiness(["--production"], {
+    const result = runReadiness(["--production", "--configuration-only"], {
       SITE_URL: "https://www.yovaapp.com",
       VERCEL_PROJECT_PRODUCTION_URL: "yova-roan.vercel.app",
     });
@@ -68,19 +68,19 @@ describe("production public site readiness", () => {
   });
 
   it("fails production readiness without a private plan-draft signing key", () => {
-    const result = runReadiness(["--production"], {
+    const result = runReadiness(["--production", "--configuration-only"], {
       SITE_URL: "https://www.yovaapp.com",
       YOVA_DRAFT_RECEIPT_SECRET: undefined,
     });
 
     expect(result.status).toBe(1);
     expect(result.stdout).toContain(
-      "FAIL  Plan-draft receipt secret: missing, short, or surrounded by whitespace in YOVA_DRAFT_RECEIPT_SECRET",
+      "FAIL  Plan-draft receipt secret: missing, outside 32-4096 characters, or surrounded by whitespace in YOVA_DRAFT_RECEIPT_SECRET",
     );
   });
 
   it("fails production readiness without the server-only plan activation permit issuer", () => {
-    const result = runReadiness(["--production"], {
+    const result = runReadiness(["--production", "--configuration-only"], {
       SITE_URL: "https://www.yovaapp.com",
       SUPABASE_SECRET_KEY: undefined,
     });

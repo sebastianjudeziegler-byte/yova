@@ -114,4 +114,21 @@ describe("session architecture versioning", () => {
       reviewType: null,
     })).toBe(LEGACY_SESSION_ARCHITECTURE);
   });
+
+  it("keeps committed Learn methods on the architecture their generator can deliver", () => {
+    expect(sessionArchitectureForGeneration({
+      storedVersion: STREAMED_SESSION_ARCHITECTURE,
+      learningMode: "learn",
+      studyMode: "inside_yova",
+      reviewType: null,
+      selectedMethodId: "read_recall_review",
+    })).toBe(LEGACY_SESSION_ARCHITECTURE);
+    expect(sessionArchitectureForGeneration({
+      storedVersion: LEGACY_SESSION_ARCHITECTURE,
+      learningMode: "learn",
+      studyMode: "inside_yova",
+      reviewType: null,
+      selectedMethodId: "self_explanation",
+    })).toBe(STREAMED_SESSION_ARCHITECTURE);
+  });
 });

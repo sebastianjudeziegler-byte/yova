@@ -25,6 +25,11 @@ import {
 } from "@/lib/materials/intake";
 import { reportProductError } from "@/lib/monitoring/client";
 import {
+  fetchClientJson,
+  GENERATION_REQUEST_TIMEOUT_MS,
+  MUTATION_REQUEST_TIMEOUT_MS,
+} from "@/lib/http/client-json";
+import {
   PlanActivationResponseSchema,
   PlanGenerationRequestSchema,
   PlanGenerationResponseSchema,
@@ -173,7 +178,7 @@ export function StudyNowCreator({
     setActivating(true);
     let requestId: string | null = null;
     try {
-      const activationResponse = await fetch("/api/plans/activate", {
+      const { response: activationResponse, body: activationBody } = await fetchClientJson("/api/plans/activate", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -186,9 +191,12 @@ export function StudyNowCreator({
           generationRequest: candidate.activationRequest,
           draftReceipt: candidate.response.generation.draftReceipt,
         }),
+      }, {
+        timeoutMs: MUTATION_REQUEST_TIMEOUT_MS,
+        timeoutMessage: "Saving this session took too long. Check Learning before trying again so you do not create a duplicate.",
+        invalidResponseMessage: "The session activation service returned an invalid response.",
       });
       requestId = activationResponse.headers.get("X-Yova-Request-Id");
-      const activationBody: unknown = await activationResponse.json();
       if (!activationResponse.ok) {
         const message = typeof activationBody === "object" && activationBody && "error" in activationBody && typeof activationBody.error === "string"
           ? activationBody.error
@@ -263,7 +271,7 @@ export function StudyNowCreator({
           ? { knowledgeMap: draft.response.plan.knowledgeMap }
           : {}),
       });
-      const response = await fetch("/api/plans/generate", {
+      const { response, body } = await fetchClientJson("/api/plans/generate", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -272,10 +280,12 @@ export function StudyNowCreator({
             : {}),
         },
         body: JSON.stringify(planRequest),
+      }, {
+        timeoutMs: GENERATION_REQUEST_TIMEOUT_MS,
+        timeoutMessage: "Session preparation took too long. Nothing was saved; try again when the connection is stable.",
+        invalidResponseMessage: "The session-planning service returned an invalid response.",
       });
       requestId = response.headers.get("X-Yova-Request-Id");
-
-      const body: unknown = await response.json();
       if (!response.ok) {
         const message = typeof body === "object" && body && "error" in body && typeof body.error === "string"
           ? body.error

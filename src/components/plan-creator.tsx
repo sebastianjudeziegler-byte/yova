@@ -29,6 +29,11 @@ import {
   uploadMaterialFiles,
 } from "@/lib/materials/intake";
 import { userFacingErrorMessage } from "@/lib/errors/user-facing-message";
+import {
+  fetchClientJson,
+  GENERATION_REQUEST_TIMEOUT_MS,
+  MUTATION_REQUEST_TIMEOUT_MS,
+} from "@/lib/http/client-json";
 import { reportProductError } from "@/lib/monitoring/client";
 import {
   PlanDiagnosticPreparationResponseSchema,
@@ -239,15 +244,18 @@ export function PlanCreator({
     setStep("diagnostic-loading");
     try {
       const planRequest = buildGenerationRequest({ diagnosticResponses: [], knowledgeMap: undefined });
-      const response = await fetch("/api/plans/generate?mode=diagnostic", {
+      const { response, body } = await fetchClientJson("/api/plans/generate?mode=diagnostic", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           ...(browserPreviewMode ? { "X-Yova-Development-Preview": "plan-creator" } : {}),
         },
         body: JSON.stringify(planRequest),
+      }, {
+        timeoutMs: GENERATION_REQUEST_TIMEOUT_MS,
+        timeoutMessage: "The placement check took too long. Try again when the connection is stable.",
+        invalidResponseMessage: "The placement-check service returned an invalid response.",
       });
-      const body: unknown = await response.json();
       if (!response.ok) throw new Error(readApiError(body) ?? "YOVA could not prepare the placement check.");
       const parsed = PlanDiagnosticPreparationResponseSchema.safeParse(body);
       if (!parsed.success) throw new Error("The placement check came back in an unsafe format.");
@@ -291,17 +299,19 @@ export function PlanCreator({
 
     try {
       planRequest = buildGenerationRequest();
-      const response = await fetch("/api/plans/generate", {
+      const { response, body } = await fetchClientJson("/api/plans/generate", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           ...(browserPreviewMode ? { "X-Yova-Development-Preview": "plan-creator" } : {}),
         },
         body: JSON.stringify(planRequest),
+      }, {
+        timeoutMs: GENERATION_REQUEST_TIMEOUT_MS,
+        timeoutMessage: "Plan generation took too long. Your plan was not saved; try again when the connection is stable.",
+        invalidResponseMessage: "The plan service returned an invalid response, so YOVA did not save anything.",
       });
       requestId = response.headers.get("X-Yova-Request-Id");
-
-      const body: unknown = await response.json();
 
       if (!response.ok) {
         const capacityGuidance = planScheduleCapacityGuidance(body);
@@ -466,15 +476,18 @@ export function PlanCreator({
         knowledgeMap: undefined,
         mapCorrection: correction,
       });
-      const response = await fetch("/api/plans/generate", {
+      const { response, body } = await fetchClientJson("/api/plans/generate", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           ...(browserPreviewMode ? { "X-Yova-Development-Preview": "plan-creator" } : {}),
         },
         body: JSON.stringify(planRequest),
+      }, {
+        timeoutMs: GENERATION_REQUEST_TIMEOUT_MS,
+        timeoutMessage: "The topic-map update took too long. Your current draft is unchanged.",
+        invalidResponseMessage: "The topic-map service returned an invalid response.",
       });
-      const body: unknown = await response.json();
       if (!response.ok) {
         const capacityGuidance = planScheduleCapacityGuidance(body);
         if (capacityGuidance) {
@@ -525,7 +538,7 @@ export function PlanCreator({
     let requestId: string | null = null;
 
     try {
-      const response = await fetch("/api/plans/activate", {
+      const { response, body } = await fetchClientJson("/api/plans/activate", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -536,9 +549,12 @@ export function PlanCreator({
           generationRequest: mappedGeneratedFrom,
           draftReceipt: generatedPlan.generation.draftReceipt,
         }),
+      }, {
+        timeoutMs: MUTATION_REQUEST_TIMEOUT_MS,
+        timeoutMessage: "Plan activation took too long. Check Learning before trying again so you do not create a duplicate.",
+        invalidResponseMessage: "The plan activation service returned an invalid response.",
       });
       requestId = response.headers.get("X-Yova-Request-Id");
-      const body: unknown = await response.json();
       if (!response.ok) {
         const message = typeof body === "object" && body && "error" in body && typeof body.error === "string"
           ? body.error
@@ -574,7 +590,7 @@ export function PlanCreator({
     let requestId: string | null = null;
 
     try {
-      const response = await fetch("/api/plans/method-choice", {
+      const { response, body } = await fetchClientJson("/api/plans/method-choice", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -586,9 +602,12 @@ export function PlanCreator({
           draftReceipt: generatedPlan.generation.draftReceipt,
           selection: { sessionId, expectedRouteRevisionId, methodId },
         }),
+      }, {
+        timeoutMs: MUTATION_REQUEST_TIMEOUT_MS,
+        timeoutMessage: "The method change took too long. Your current draft is unchanged.",
+        invalidResponseMessage: "The method-change service returned an invalid response.",
       });
       requestId = response.headers.get("X-Yova-Request-Id");
-      const body: unknown = await response.json();
       if (!response.ok) {
         throw new Error(readApiError(body) ?? "YOVA could not change this method safely.");
       }

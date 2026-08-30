@@ -94,6 +94,7 @@ import {
 } from "@/lib/server/session-cache-context";
 import { isDevelopmentPreviewRequest } from "@/lib/server/development-preview";
 import { privacySafeErrorDiagnostic } from "@/lib/server/error-diagnostic";
+import { readOptionalSessionPersonalizationHistory } from "@/lib/server/session-personalization-history";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { blurtingSessionGenerationContract } from "@/lib/study-route/blurting-session-generation-contract";
@@ -162,6 +163,7 @@ export async function POST(request: Request) {
     .from("plan_sessions")
     .select("id,plan_id,sequence,status,title,objective,method,method_rationale,estimated_minutes,step_data,updated_at,committed_route_revision_id")
     .eq("id", parsed.data.planSessionId)
+    .eq("user_id", user.id)
     .maybeSingle();
 
   if (sessionError) {
@@ -191,6 +193,7 @@ export async function POST(request: Request) {
       .eq("route_revision_id", committedRouteRevisionId)
       .eq("plan_session_id", planSession.id)
       .eq("plan_id", planSession.plan_id)
+      .eq("user_id", user.id)
       .eq("lifecycle", "committed")
       .maybeSingle();
     if (routeError) {
@@ -253,15 +256,18 @@ export async function POST(request: Request) {
         .from("plans")
         .select("learning_item_id,status,rationale,generation_inputs,knowledge_map,updated_at")
         .eq("id", parsed.data.planId)
+        .eq("user_id", user.id)
         .maybeSingle(),
       supabase
         .from("learner_profiles")
         .select("common_blocker,guidance_preference,explanation_preference,focus_frequency,starting_pattern,primary_improvement_goal,additional_context")
+        .eq("user_id", user.id)
         .maybeSingle(),
       supabase
         .from("plan_sessions")
         .select("id,sequence,status,title,objective,method,step_data")
         .eq("plan_id", parsed.data.planId)
+        .eq("user_id", user.id)
         .order("sequence", { ascending: true }),
     ]);
 
@@ -280,68 +286,37 @@ export async function POST(request: Request) {
 
     const [
       { data: learningItem, error: itemError },
-      attemptsResult,
       { data: materialRows, error: materialsError },
-      interruptionsResult,
-      personalizationAttemptsResult,
-      personalizationInterruptionsResult,
+      personalizationHistory,
     ] = await Promise.all([
       supabase
         .from("learning_items")
         .select("title,topic,kind,deadline,source_mode,study_mode,updated_at")
         .eq("id", plan.learning_item_id)
+        .eq("user_id", user.id)
         .maybeSingle(),
-      planSessionRows?.length
-        ? supabase
-          .from("session_attempts")
-          .select("plan_session_id,correct_answers,total_answers,actual_minutes,user_feedback,result_data,completed_at")
-          .in("plan_session_id", planSessionRows.map((session) => session.id))
-          .not("completed_at", "is", null)
-          .order("completed_at", { ascending: false })
-          .limit(12)
-        : Promise.resolve({ data: [], error: null }),
       supabase
         .from("materials")
         .select("id,filename")
         .eq("learning_item_id", plan.learning_item_id)
+        .eq("user_id", user.id)
         .eq("processing_status", "ready")
         .order("created_at", { ascending: true })
         .limit(5),
-      planSessionRows?.length
-        ? supabase
-          .from("learning_events")
-          .select("occurred_at,event_data")
-          .eq("event_type", "session_interrupted")
-          .in("plan_session_id", planSessionRows.map((session) => session.id))
-          .order("occurred_at", { ascending: false })
-          .limit(6)
-        : Promise.resolve({ data: [], error: null }),
-      supabase
-        .from("session_attempts")
-        .select("id,plan_session_id,started_at,completed_at,actual_minutes,correct_answers,total_answers,user_feedback,result_data")
-        .not("completed_at", "is", null)
-        .order("completed_at", { ascending: true }),
-      supabase
-        .from("learning_events")
-        .select("plan_session_id,occurred_at,event_data")
-        .eq("event_type", "session_interrupted")
-        .order("occurred_at", { ascending: true }),
+      readOptionalSessionPersonalizationHistory(supabase, {
+        userId: user.id,
+        planSessionIds: (planSessionRows ?? []).map((session) => session.id),
+      }),
     ]);
 
-    if (
-      itemError
-      || attemptsResult.error
-      || materialsError
-      || interruptionsResult.error
-      || personalizationAttemptsResult.error
-      || personalizationInterruptionsResult.error
-    ) {
-      throw itemError
-        ?? attemptsResult.error
-        ?? materialsError
-        ?? interruptionsResult.error
-        ?? personalizationAttemptsResult.error
-        ?? personalizationInterruptionsResult.error;
+    if (itemError || materialsError) {
+      throw itemError ?? materialsError;
+    }
+    if (personalizationHistory.degradedSources.length > 0) {
+      console.warn("YOVA generated a session without some optional personalization history", {
+        requestId,
+        sources: personalizationHistory.degradedSources,
+      });
     }
     if (!learningItem) return NextResponse.json({ error: "That learning goal was not found." }, { status: 404 });
 
@@ -396,6 +371,7 @@ export async function POST(request: Request) {
       ? await supabase
         .from("material_chunks")
         .select("id,material_id,chunk_index,location_label,section_role,chunk_text")
+        .eq("user_id", user.id)
         .in("id", orderedChunkIds)
       : { data: [], error: null };
     if (chunkResult.error) throw chunkResult.error;
@@ -438,7 +414,7 @@ export async function POST(request: Request) {
       });
     }
 
-    const recentAttempts = attemptsResult.data ?? [];
+    const recentAttempts = personalizationHistory.planAttempts;
     const methodIdBySession = new Map(
       (planSessionRows ?? []).map((session) => [
         session.id,
@@ -492,6 +468,7 @@ export async function POST(request: Request) {
       learningMode: effectiveLearningMode,
       studyMode: effectiveStudyMode,
       reviewType,
+      selectedMethodId: committedStudyRoute?.approach.primaryMethodId,
     });
     const expectedCacheVersion = expectedSessionCacheVersion({
       sessionArchitectureVersion,
@@ -667,13 +644,13 @@ export async function POST(request: Request) {
     const useObservedCalibration = personalizationState.controls.behavior
       && personalizationSignalAllowsRuntimeInference(personalizationState, "calibration_risk");
     const personalizationInterruptionRows = useObservedPacing
-      ? (interruptionsResult.data ?? []).filter((event) => {
+      ? personalizationHistory.planInterruptions.filter((event) => {
         const attemptId = readTextProperty(event.event_data, "attemptId");
         return !attemptId || !personalizationState.excludedEvidenceRefs.includes(attemptId);
       })
       : [];
     const expandedProfile = expandedLearnerContextFromAnswers(storedLearnerAnswers);
-    const personalizationCompletions = (personalizationAttemptsResult.data ?? [])
+    const personalizationCompletions = personalizationHistory.accountAttempts
       .flatMap<SessionCompletion>((attempt) => {
         if (!attempt.id || !attempt.plan_session_id || !attempt.started_at || !attempt.completed_at) {
           return [];
@@ -695,7 +672,7 @@ export async function POST(request: Request) {
           confidenceEvidence: readConfidenceEvidenceProperty(attempt.result_data),
         }];
       });
-    const personalizationInterruptions = (personalizationInterruptionsResult.data ?? [])
+    const personalizationInterruptions = personalizationHistory.accountInterruptions
       .flatMap<SessionInterruption>((event) => {
         const attemptId = readTextProperty(event.event_data, "attemptId");
         const startedAt = readTextProperty(event.event_data, "startedAt");
@@ -931,6 +908,10 @@ export async function POST(request: Request) {
 
     if (cacheError) console.error("YOVA generated-session cache failed", { requestId });
     if (cacheError && expectedCacheVersion === 17) {
+      // Authenticated streamed teaching steps are opened later by the lesson
+      // route from this cloud cache. Unlike development preview, the signed-in
+      // client does not resend the lesson skeleton, so a browser-only V17
+      // response would open successfully and then fail on its first lesson.
       throw new Error("YOVA could not safely store the streamed lesson before opening it.");
     }
     const learnerResponse = NextResponse.json(SessionGenerationResponseSchema.parse({
@@ -1201,6 +1182,7 @@ async function generateBrowserPreviewSession(
       learningMode: previewContext.session.learningMode,
       studyMode: previewContext.learningGoal.studyMode,
       reviewType: previewContext.session.reviewType ?? null,
+      selectedMethodId: committedStudyRoute?.approach.primaryMethodId,
     });
     const generationContext: SessionGenerationContext = {
       ...previewContext,

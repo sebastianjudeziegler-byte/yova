@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { buildSessionEvaluationCases } from "@/evals/session-cases";
 import {
   GeneratedSessionDraftOutputSchema,
+  GeneratedSessionDraftProviderOutputSchema,
   type FilledGeneratedSessionDraft,
   type GeneratedSessionDraft,
 } from "@/lib/session-generation/schema";
@@ -558,6 +559,52 @@ async function expectCompleteValidatorPass(
 }
 
 describe("substantive teaching validation", () => {
+  it("keeps cross-field misses out of the provider parser and in YOVA's final validator", () => {
+    const draft = structuredClone(learningDraft("model"));
+    draft.activities[0]!.teaching = null;
+    draft.activities[0]!.methodRuntime = {
+      kind: "retrieval_round",
+      format: "broad_recall_v1",
+      sourceClosedReminder: "Close the source before recalling the idea.",
+      prompts: [{
+        prompt: "Recall the central relationship.",
+        expectedAnswer: "The central relationship in a complete sentence.",
+        hint: "Use the relationship named in the lesson.",
+      }],
+      comparisonInstructions: null,
+      gapChecklist: null,
+      correctionInstruction: null,
+      transferPrompt: null,
+      targetBindings: null,
+    };
+    const multipleChoice = draft.activities.find((activity) => activity.type === "multiple_choice");
+    expect(multipleChoice).toBeDefined();
+    multipleChoice!.correctAnswer = "An answer the provider omitted from the choices";
+
+    expect(GeneratedSessionDraftProviderOutputSchema.safeParse(draft).success).toBe(true);
+    const final = GeneratedSessionDraftOutputSchema.safeParse(draft);
+
+    expect(final.success).toBe(false);
+    if (final.success) return;
+    expect(final.error.issues).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        code: "custom",
+        path: ["activities", 0, "teaching"],
+        message: "Model activities need a structured teaching block.",
+      }),
+      expect.objectContaining({
+        code: "custom",
+        path: ["activities", 0, "methodRuntime", "comparisonInstructions"],
+        message: "Broad recall requires delayed source-comparison instructions.",
+      }),
+      expect.objectContaining({
+        code: "custom",
+        path: ["activities", 2, "correctAnswer"],
+        message: "The correct answer must exactly match one choice.",
+      }),
+    ]));
+  });
+
   it("accepts a substantive opening teaching block tagged as orientation", async () => {
     const { validateSubstantiveTeaching } = await import("@/lib/openai/session-generator");
     expect(validateSubstantiveTeaching(learningDraft("orient"))).toBeNull();
@@ -588,6 +635,70 @@ describe("substantive teaching validation", () => {
         message: "Only instruction activities may carry a teaching block.",
       }),
     ]));
+  });
+});
+
+describe("full guided-session structural repair failures", () => {
+  it("never leaks a raw SDK ZodError when both the first response and its repair fail parsing", async () => {
+    parseResponse.mockReset();
+    const context = buildSessionEvaluationCases()
+      .find((candidate) => candidate.id === "bioenergetics_multi_target_study")?.context;
+    expect(context).toBeDefined();
+    const invalidResponse = GeneratedSessionDraftProviderOutputSchema.safeParse({});
+    expect(invalidResponse.success).toBe(false);
+    if (invalidResponse.success) return;
+    parseResponse
+      .mockRejectedValueOnce(invalidResponse.error)
+      .mockRejectedValueOnce(invalidResponse.error);
+
+    const { generateSessionWithOpenAI } = await import("@/lib/openai/session-generator");
+    await expect(generateSessionWithOpenAI(context!)).rejects.toMatchObject({
+      name: "SessionGenerationFailure",
+      generationStats: {
+        attempts: 2,
+        firstAttemptPassed: false,
+        failedValidator: "session_structure",
+        repairAttempted: true,
+        repairSucceeded: false,
+        repairReason: "structured_output",
+        inputTokens: 0,
+        outputTokens: 0,
+        validationIssueCode: "session_full_structure",
+      },
+    });
+    expect(parseResponse).toHaveBeenCalledTimes(2);
+  });
+
+  it("preserves completed-attempt usage when the repair response throws an SDK ZodError", async () => {
+    parseResponse.mockReset();
+    const context = buildSessionEvaluationCases()
+      .find((candidate) => candidate.id === "bioenergetics_multi_target_study")?.context;
+    expect(context).toBeDefined();
+    const invalidRepair = GeneratedSessionDraftProviderOutputSchema.safeParse({});
+    expect(invalidRepair.success).toBe(false);
+    if (invalidRepair.success) return;
+    parseResponse
+      .mockResolvedValueOnce(completedProviderResponse("invalid-full-study", {}))
+      .mockRejectedValueOnce(invalidRepair.error);
+
+    const { generateSessionWithOpenAI } = await import("@/lib/openai/session-generator");
+    await expect(generateSessionWithOpenAI(context!)).rejects.toMatchObject({
+      name: "SessionGenerationFailure",
+      generationStats: {
+        attempts: 2,
+        firstAttemptPassed: false,
+        failedValidator: "session_structure",
+        repairAttempted: true,
+        repairSucceeded: false,
+        repairReason: "structured_output",
+        inputTokens: 600,
+        cachedInputTokens: 0,
+        cacheWriteTokens: 0,
+        outputTokens: 300,
+        validationIssueCode: "session_full_structure",
+      },
+    });
+    expect(parseResponse).toHaveBeenCalledTimes(2);
   });
 });
 

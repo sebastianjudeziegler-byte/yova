@@ -41,11 +41,12 @@ jobs:
       - name: Audit production dependencies
         run: pnpm audit --prod --audit-level high
 
-      - name: Validate production-readiness rules
-        run: pnpm readiness:production
+      - name: Validate production configuration rules
+        run: pnpm readiness:configuration
         # These are deliberately non-secret fixtures. This executes the same
-        # production contract in CI without copying live Vercel credentials
-        # into GitHub; deployment still verifies the real environment.
+        # configuration-shape contract without copying live Vercel credentials
+        # into GitHub. It is explicitly not release approval: the production
+        # build and smoke gates verify the real database capability contract.
         env:
           NEXT_PUBLIC_SUPABASE_URL: https://ci-readiness.supabase.co
           NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: sb_publishable_ci_readiness_only

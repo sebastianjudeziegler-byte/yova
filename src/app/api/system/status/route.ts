@@ -3,14 +3,16 @@ import { isAccountExportCleanupConfigured } from "@/lib/account-export/config";
 import { isOpenAIPlanConfigured, isOpenAISessionConfigured, isOpenAITutorConfigured } from "@/lib/openai/config";
 import { createSupabaseAdminClient, isSupabaseAdminConfigured } from "@/lib/supabase/admin";
 import { getSupabasePublicConfig, isSupabaseConfigured } from "@/lib/supabase/config";
+import { signedInGenerationReadinessStatus } from "@/lib/supabase/signed-in-generation-readiness";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   const supabaseConfig = getSupabasePublicConfig();
-  const [testerInvitations, authSettings] = await Promise.all([
+  const [testerInvitations, authSettings, signedInGeneration] = await Promise.all([
     testerInvitationStatus(),
     publicAuthSettingsStatus(supabaseConfig),
+    signedInGenerationReadinessStatus(),
   ]);
   const passwordAccountsEnabled = process.env.AUTH_PASSWORD_ACCOUNTS === "true";
   const captchaRequested = process.env.AUTH_CAPTCHA_ENABLED === "true";
@@ -22,6 +24,7 @@ export async function GET() {
   return NextResponse.json({
     planGeneration: isOpenAIPlanConfigured() ? "openai" : "preview",
     guidedSessions: isOpenAISessionConfigured() ? "openai" : "unavailable",
+    signedInGeneration,
     tutor: isOpenAITutorConfigured() ? "openai" : "unavailable",
     materials: isSupabaseConfigured() ? "private-supabase" : "unavailable",
     persistence: isSupabaseConfigured() ? "supabase" : "browser",

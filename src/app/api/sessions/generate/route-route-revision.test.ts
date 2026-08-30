@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { LearningPlan, LearningPlanSession } from "@/lib/domain";
 import { buildSessionDeliveryPolicy } from "@/lib/personalization/session-delivery-policy";
 import { buildPreviewSessionContext } from "@/lib/session-generation/preview-context";
+import { hydratedSessionResourceCacheIssue } from "@/lib/session-generation/cache-contract";
 import { toSessionResource } from "@/lib/session-generation/resource";
 import { SessionGenerationResponseSchema } from "@/lib/session-generation/schema";
 import { adaptLegacySessionToStudyRoute } from "@/lib/study-route/adapters";
@@ -48,6 +49,7 @@ import { POST } from "@/app/api/sessions/generate/route";
 const PLAN_ID = "81000000-0000-4000-8000-000000000001";
 const SESSION_ID = "81000000-0000-4000-8000-000000000002";
 const ROUTE_REVISION_ID = "81000000-0000-4000-8000-000000000003";
+const LEARN_ROUTE_REVISION_ID = "81000000-0000-4000-8000-000000000008";
 
 const session: LearningPlanSession = {
   id: SESSION_ID,
@@ -82,6 +84,27 @@ const plan: LearningPlan = {
   createdAt: "2026-08-23T10:00:00.000Z",
   knowledgeMap: knowledgeMap(),
   sessions: [session],
+};
+
+const nonStreamedLearnSession: LearningPlanSession = {
+  ...session,
+  title: "Read, recall, and repair the central relationship",
+  objective: "Read a bounded explanation, recall its central relationship from memory, and repair the missing detail.",
+  method: "Read-recall-review",
+  methodReason: "A bounded read and closed-source recall builds the first accurate model without turning the session into passive rereading.",
+  learningMode: "learn",
+  contentTargets: ["How bounded reading and closed-source recall expose the exact detail that needs repair"],
+  completionEvidence: ["Recall the central relationship without the explanation open, then repair the missing detail"],
+};
+
+const nonStreamedLearnPlan: LearningPlan = {
+  ...plan,
+  title: "Learn from a bounded explanation",
+  topic: "How read-recall-review turns a short explanation into an accurate mental model",
+  learningIntent: "learn",
+  sessionArchitectureVersion: "streamed_teaching_v1",
+  rationale: "Use a bounded source pass, closed-source recall, and focused repair to establish the idea accurately.",
+  sessions: [nonStreamedLearnSession],
 };
 
 describe("guided-session route revision boundary", () => {
@@ -240,6 +263,44 @@ describe("guided-session route revision boundary", () => {
     expect(mocks.generate).toHaveBeenCalledTimes(1);
   });
 
+  it("keeps an authorized exact cache usable when optional personalization history is unavailable", async () => {
+    const seededResponse = await POST(request({
+      planId: PLAN_ID,
+      planSessionId: SESSION_ID,
+      previewContext: previewContext(),
+    }));
+    const seeded = SessionGenerationResponseSchema.parse(await seededResponse.json()).session;
+    const warning = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+
+    try {
+      useAuthenticatedCache(seeded, null, { personalizationHistoryUnavailable: true });
+      mocks.providerConfigured = false;
+
+      const response = await POST(request({
+        planId: PLAN_ID,
+        planSessionId: SESSION_ID,
+      }));
+
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toMatchObject({
+        generation: { mode: "cache", persistence: "supabase" },
+      });
+      expect(warning).toHaveBeenCalledWith(
+        "YOVA generated a session without some optional personalization history",
+        expect.objectContaining({
+          sources: [
+            "plan_attempts",
+            "plan_interruptions",
+            "account_attempts",
+            "account_interruptions",
+          ],
+        }),
+      );
+    } finally {
+      warning.mockRestore();
+    }
+  });
+
   it("rejects browser output that claims a committed route but changes its method", async () => {
     const generated = generatedResult();
     mocks.generate.mockResolvedValueOnce({
@@ -267,6 +328,70 @@ describe("guided-session route revision boundary", () => {
       retryable: true,
     });
   });
+
+  it("uses filled V15 consistently for a committed Learn route whose selected method is not streamed", async () => {
+    mocks.generate.mockResolvedValueOnce(nonStreamedLearnGeneratedResult());
+    const previewResponse = await POST(request({
+      planId: PLAN_ID,
+      planSessionId: SESSION_ID,
+      routeRevisionId: LEARN_ROUTE_REVISION_ID,
+      previewContext: nonStreamedLearnPreviewContext(),
+    }));
+
+    const previewBody = await previewResponse.json();
+    expect(previewResponse.status, JSON.stringify(previewBody)).toBe(200);
+    const preview = SessionGenerationResponseSchema.parse(previewBody);
+    expect(preview.session).toMatchObject({
+      schemaVersion: 15,
+      routeRevisionId: LEARN_ROUTE_REVISION_ID,
+      methodBriefing: {
+        learningMode: "learn",
+        methodId: "read_recall_review",
+      },
+    });
+    expect(preview.session).not.toHaveProperty("deliveryInstructions");
+    expect(mocks.generate.mock.calls[0]?.[0]).toMatchObject({
+      sessionArchitectureVersion: "filled_teaching_v1",
+      studyRoute: {
+        approach: { primaryMethodId: "read_recall_review" },
+      },
+    });
+    const committedRoute = committedNonStreamedLearnRoute();
+    const hydratedSession = {
+      ...nonStreamedLearnSession,
+      studyRoute: committedRoute,
+      resource: toSessionResource(preview.session),
+    };
+    expect(hydratedSessionResourceCacheIssue({
+      plan: { ...nonStreamedLearnPlan, sessions: [hydratedSession] },
+      session: hydratedSession,
+      adjustment: null,
+    })).toBeNull();
+
+    useAuthenticatedCache(
+      preview.session,
+      LEARN_ROUTE_REVISION_ID,
+      {},
+      nonStreamedLearnFixture(),
+    );
+    mocks.providerConfigured = false;
+
+    const authenticatedResponse = await POST(request({
+      planId: PLAN_ID,
+      planSessionId: SESSION_ID,
+      routeRevisionId: LEARN_ROUTE_REVISION_ID,
+    }));
+
+    expect(authenticatedResponse.status).toBe(200);
+    await expect(authenticatedResponse.json()).resolves.toMatchObject({
+      generation: { mode: "cache", persistence: "supabase" },
+      session: {
+        schemaVersion: 15,
+        routeRevisionId: LEARN_ROUTE_REVISION_ID,
+      },
+    });
+    expect(mocks.generate).toHaveBeenCalledTimes(1);
+  });
 });
 
 function previewContext({ routed = false }: { routed?: boolean } = {}) {
@@ -282,6 +407,18 @@ function previewContext({ routed = false }: { routed?: boolean } = {}) {
   });
 }
 
+function nonStreamedLearnPreviewContext() {
+  const route = committedNonStreamedLearnRoute();
+  const routedSession = { ...nonStreamedLearnSession, studyRoute: route };
+  return buildPreviewSessionContext({
+    plan: { ...nonStreamedLearnPlan, sessions: [routedSession] },
+    session: routedSession,
+    onboardingAnswers: [],
+    completions: [],
+    interruptions: [],
+  });
+}
+
 function request(body: unknown) {
   return new Request("https://yova.example/api/sessions/generate", {
     method: "POST",
@@ -290,31 +427,65 @@ function request(body: unknown) {
   });
 }
 
-function useAuthenticatedCache(generatedSession: unknown, committedRouteRevisionId: string | null = null) {
+function useAuthenticatedCache(
+  generatedSession: unknown,
+  committedRouteRevisionId: string | null = null,
+  options: { personalizationHistoryUnavailable?: boolean } = {},
+  fixture: AuthenticatedFixture = defaultAuthenticatedFixture(),
+) {
   mocks.developmentPreview = false;
   mocks.supabaseConfigured = true;
   mocks.createClient.mockImplementation(async () => authenticatedClient(
     generatedSession,
     committedRouteRevisionId,
+    options,
+    fixture,
   ));
 }
 
-function authenticatedClient(generatedSession: unknown, committedRouteRevisionId: string | null) {
+type AuthenticatedFixture = {
+  plan: LearningPlan;
+  session: LearningPlanSession;
+  route: ReturnType<typeof committedRoute> | null;
+};
+
+function defaultAuthenticatedFixture(): AuthenticatedFixture {
+  return { plan, session, route: committedRoute() };
+}
+
+function nonStreamedLearnFixture(): AuthenticatedFixture {
+  return {
+    plan: nonStreamedLearnPlan,
+    session: nonStreamedLearnSession,
+    route: committedNonStreamedLearnRoute(),
+  };
+}
+
+function authenticatedClient(
+  generatedSession: unknown,
+  committedRouteRevisionId: string | null,
+  { personalizationHistoryUnavailable = false }: {
+    personalizationHistoryUnavailable?: boolean;
+  } = {},
+  fixture: AuthenticatedFixture = defaultAuthenticatedFixture(),
+) {
+  const fixturePlan = fixture.plan;
+  const fixtureSession = fixture.session;
   const planSessionRow = {
     id: SESSION_ID,
     plan_id: PLAN_ID,
     sequence: 1,
     status: "ready",
-    title: session.title,
-    objective: session.objective,
-    method: session.method,
-    method_rationale: session.methodReason,
-    estimated_minutes: session.estimatedMinutes,
+    title: fixtureSession.title,
+    objective: fixtureSession.objective,
+    method: fixtureSession.method,
+    method_rationale: fixtureSession.methodReason,
+    estimated_minutes: fixtureSession.estimatedMinutes,
     step_data: {
-      learningMode: "study",
-      topicIds: session.topicIds,
-      contentTargets: session.contentTargets,
-      completionEvidence: session.completionEvidence,
+      learningMode: fixtureSession.learningMode,
+      topicIds: fixtureSession.topicIds,
+      contentTargets: fixtureSession.contentTargets,
+      completionEvidence: fixtureSession.completionEvidence,
       generatedSession,
     },
     updated_at: "2026-08-23T10:00:00.000Z",
@@ -322,28 +493,28 @@ function authenticatedClient(generatedSession: unknown, committedRouteRevisionId
   };
   const rows = new Map<string, unknown[]>([
     ["plan_sessions", [planSessionRow, [planSessionRow]]],
-    ...(committedRouteRevisionId
-      ? [["study_routes", [persistedRouteRow()]] as [string, unknown[]]]
+    ...(committedRouteRevisionId && fixture.route
+      ? [["study_routes", [persistedRouteRow(fixture.route)]] as [string, unknown[]]]
       : []),
     ["plans", [{
-      learning_item_id: plan.learningItemId,
+      learning_item_id: fixturePlan.learningItemId,
       status: "active",
-      rationale: plan.rationale,
+      rationale: fixturePlan.rationale,
       generation_inputs: {
-        learningIntent: "study",
-        sessionArchitectureVersion: "filled_teaching_v1",
+        learningIntent: fixturePlan.learningIntent,
+        sessionArchitectureVersion: fixturePlan.sessionArchitectureVersion,
       },
-      knowledge_map: plan.knowledgeMap,
+      knowledge_map: fixturePlan.knowledgeMap,
       updated_at: "2026-08-23T10:00:00.000Z",
     }]],
     ["learner_profiles", [null]],
     ["learning_items", [{
-      title: plan.title,
-      topic: plan.topic,
-      kind: plan.kind,
-      deadline: plan.deadline,
-      source_mode: plan.sourceMode,
-      study_mode: plan.studyMode,
+      title: fixturePlan.title,
+      topic: fixturePlan.topic,
+      kind: fixturePlan.kind,
+      deadline: fixturePlan.deadline,
+      source_mode: fixturePlan.sourceMode,
+      study_mode: fixturePlan.studyMode,
       updated_at: "2026-08-23T10:00:00.000Z",
     }]],
     ["session_attempts", [[], []]],
@@ -361,13 +532,17 @@ function authenticatedClient(generatedSession: unknown, committedRouteRevisionId
     from: vi.fn((table: string) => {
       const queue = rows.get(table);
       if (!queue?.length) throw new Error(`Unexpected ${table} query`);
-      return queryReturning(queue.shift());
+      const data = queue.shift();
+      const historyError = personalizationHistoryUnavailable
+        && (table === "session_attempts" || table === "learning_events")
+        ? { message: "optional personalization history unavailable" }
+        : null;
+      return queryReturning(data, historyError);
     }),
   };
 }
 
-function persistedRouteRow() {
-  const route = committedRoute();
+function persistedRouteRow(route = committedRoute()) {
   const { identity, ...routePayload } = route;
   return {
     route_revision_id: identity.routeRevisionId,
@@ -398,8 +573,22 @@ function committedRoute() {
   }).route!;
 }
 
-function queryReturning(data: unknown) {
-  const result = Promise.resolve({ data, error: null });
+function committedNonStreamedLearnRoute() {
+  return adaptLegacySessionToStudyRoute({
+    plan: nonStreamedLearnPlan,
+    session: nonStreamedLearnSession,
+    adaptedAt: "2026-08-23T10:00:00.000Z",
+    identity: {
+      routeLineageId: "81000000-0000-4000-8000-000000000009",
+      routeRevisionId: LEARN_ROUTE_REVISION_ID,
+      lifecycleStatus: "committed",
+      committedAt: "2026-08-23T10:00:00.000Z",
+    },
+  }).route!;
+}
+
+function queryReturning(data: unknown, error: unknown = null) {
+  const result = Promise.resolve({ data, error });
   const query: Record<string, unknown> = {};
   for (const method of ["select", "eq", "in", "not", "order", "limit", "maybeSingle"]) {
     query[method] = vi.fn(() => query);
@@ -535,6 +724,148 @@ function generatedResult() {
       recentResults: [],
       recentInterruptions: [],
       learningMode: "study",
+      estimatedMinutes: 15,
+    }),
+    deliveryInstructions: undefined,
+    model: "route-revision-test-model",
+    generationStats: {
+      elapsedMs: 12,
+      attempts: 1,
+      firstAttemptPassed: true,
+      failedValidator: null,
+      repairAttempted: false,
+      repairSucceeded: null,
+      repairReason: "none" as const,
+      repairDetail: null,
+      inputTokens: 120,
+      cachedInputTokens: 0,
+      cacheWriteTokens: 0,
+      outputTokens: 240,
+    },
+  };
+}
+
+function nonStreamedLearnGeneratedResult() {
+  const route = committedNonStreamedLearnRoute();
+  const [modelPhase, readPhase, retrievePhase, repairPhase] = route.execution.orderedPhases;
+  return {
+    draft: {
+      topicIds: [SESSION_ID],
+      rationale: "A bounded explanation followed by closed-source recall makes the first mental model visible and gives the repair step one exact gap to correct.",
+      coverage: {
+        focus: "Use bounded reading, closed-source recall, and repair to build the central relationship accurately.",
+        essentialIdeas: ["Closed-source recall reveals which part of a bounded explanation is actually available from memory"],
+        completionEvidence: ["Recall the relationship without the explanation open and repair the missing detail"],
+        evidenceMap: [{
+          essentialIdea: "Closed-source recall reveals which part of a bounded explanation is actually available from memory",
+          activityConcept: "Bounded reading and recall",
+        }],
+        deferredContent: [],
+      },
+      methodBriefing: {
+        learningMode: "learn" as const,
+        taskType: "reading_to_quiz" as const,
+        methodId: "read_recall_review" as const,
+        name: route.approach.visibleMethodName,
+        what: "Read one bounded explanation, close it, recall the central relationship, and repair only the missing detail.",
+        why: "The closed-source attempt distinguishes an idea that can be produced from one that only feels familiar while visible.",
+        how: [
+          "Read the bounded explanation with one guiding question.",
+          "Close it and state the central relationship from memory.",
+          "Reopen it only to repair the missing or inaccurate detail.",
+        ],
+        completion: "The learner recalls the central relationship without the explanation open and corrects the identified gap.",
+        personalization: ["YOVA is keeping the source pass bounded before asking for a closed-source explanation."],
+      },
+      sourceGrounding: null,
+      activities: [
+        {
+          topicId: null,
+          methodPhase: modelPhase!.methodPhase,
+          estimatedMinutes: modelPhase!.activeMinutes,
+          requiredForCompletion: true,
+          type: "instruction" as const,
+          concept: null,
+          label: "Model",
+          title: "Build the bounded model",
+          body: "Read this short explanation with one question in mind: what does closed-source recall reveal?",
+          teaching: {
+            keyIdea: "Closed-source recall shows which relationship is available from memory after a bounded source pass.",
+            explanation: "Reading provides an accurate first model, but visible wording can create familiarity. Closing the explanation and producing the relationship reveals what the learner can actually retrieve, so the next review can repair one observed gap instead of repeating everything.",
+            example: {
+              setup: "A learner reads a short explanation of why recall precedes review.",
+              steps: [
+                "The learner closes the explanation and states the relationship from memory.",
+                "The learner reopens it and compares only the missing causal detail.",
+              ],
+              takeaway: "The recall attempt turns a vague feeling of familiarity into a specific repair target.",
+            },
+            commonMistake: {
+              mistake: "Keeping the explanation visible while trying to recall it.",
+              correction: "Close the explanation before producing the relationship, then reopen it only for comparison.",
+            },
+          },
+          choices: [],
+          correctAnswer: null,
+          feedback: null,
+        },
+        {
+          topicId: null,
+          methodPhase: readPhase!.methodPhase,
+          estimatedMinutes: readPhase!.activeMinutes,
+          requiredForCompletion: true,
+          type: "instruction" as const,
+          concept: null,
+          label: "Read",
+          title: "Read for the relationship",
+          body: "Use the guiding question to identify the relationship between visible familiarity, recall, and focused repair.",
+          teaching: null,
+          choices: [],
+          correctAnswer: null,
+          feedback: null,
+        },
+        {
+          topicId: SESSION_ID,
+          methodPhase: retrievePhase!.methodPhase,
+          estimatedMinutes: retrievePhase!.activeMinutes,
+          requiredForCompletion: true,
+          type: "free_response" as const,
+          concept: "Bounded reading and recall",
+          label: "Recall",
+          title: "Recall the relationship",
+          body: "Without reopening the explanation, state what closed-source recall reveals after a bounded source pass.",
+          teaching: null,
+          choices: [],
+          correctAnswer: "It reveals which part of the relationship is genuinely available from memory rather than merely familiar while visible.",
+          feedback: "A strong response distinguishes retrievable understanding from familiarity created by visible wording.",
+        },
+        {
+          topicId: SESSION_ID,
+          methodPhase: repairPhase!.methodPhase,
+          estimatedMinutes: repairPhase!.activeMinutes,
+          requiredForCompletion: true,
+          type: "free_response" as const,
+          concept: "Bounded reading and recall",
+          label: "Repair",
+          title: "Repair the missing detail",
+          body: "Compare your recall with the model and state the one detail that needed correction or strengthening.",
+          teaching: null,
+          choices: [],
+          correctAnswer: "The repair should name the missing causal detail and restate the relationship accurately without copying the full explanation.",
+          feedback: "Focused repair corrects the observed gap while preserving the retrieval attempt as evidence.",
+        },
+      ],
+    },
+    routingContext: {
+      taskType: "reading_to_quiz" as const,
+      knowledgeStage: "novice" as const,
+    },
+    supportPlan: undefined,
+    deliveryPolicy: buildSessionDeliveryPolicy({
+      learnerProfile: null,
+      recentResults: [],
+      recentInterruptions: [],
+      learningMode: "learn",
       estimatedMinutes: 15,
     }),
     deliveryInstructions: undefined,

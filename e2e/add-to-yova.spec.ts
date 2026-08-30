@@ -14,11 +14,24 @@ const onboardingAnswers = [
 ] as const;
 
 test("a deadline can live in Agenda, be completed, and stay out of Learning", async ({ page }) => {
+  const futureDeadline = new Date();
+  futureDeadline.setDate(futureDeadline.getDate() + 30);
+  const expectedDeadline = [
+    futureDeadline.getFullYear(),
+    String(futureDeadline.getMonth() + 1).padStart(2, "0"),
+    String(futureDeadline.getDate()).padStart(2, "0"),
+  ].join("-");
+  const deadlinePrompt = new Intl.DateTimeFormat("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  }).format(futureDeadline);
+
   await openPreviewApp(page);
-  await openAdd(page, "My lab report is due August 29, 2026");
+  await openAdd(page, `My lab report is due ${deadlinePrompt}`);
 
   await expect(page.getByLabel("Title")).toHaveValue("Lab Report");
-  await expect(page.getByLabel("Due date, if there is one")).toHaveValue("2026-08-29");
+  await expect(page.getByLabel("Due date, if there is one")).toHaveValue(expectedDeadline);
   await page.getByRole("button", { name: /Choose what YOVA should do/ }).click();
   await page.getByRole("button", { name: /Track the deadline/ }).click();
 
@@ -182,5 +195,5 @@ async function openPreviewApp(page: Page) {
   }
 
   await page.getByRole("button", { name: "Open YOVA" }).click();
-  await expect(page.getByRole("heading", { name: /Good (morning|afternoon|evening), Learner\./ })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /^Good (morning|afternoon|evening), Learner$/ })).toBeVisible();
 }

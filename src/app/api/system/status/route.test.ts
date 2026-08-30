@@ -5,6 +5,14 @@ vi.mock("server-only", () => ({}));
 const mocks = vi.hoisted(() => ({
   adminConfigured: true,
   invitationTableError: null as { code: string } | null,
+  generationReadiness: {
+    contractVersion: "202608300001",
+    ready: true,
+    studyRoutesSchema: true,
+    planSessionsRoutePointer: true,
+    requiredRouteRpcs: true,
+  } as Record<string, unknown> | null,
+  generationReadinessError: null as { code: string } | null,
   publicConfig: {
     url: "https://project.supabase.co",
     publishableKey: "sb_publishable_test",
@@ -27,6 +35,10 @@ vi.mock("@/lib/supabase/admin", () => ({
     from: () => ({
       select: async () => ({ error: mocks.invitationTableError }),
     }),
+    rpc: async () => ({
+      data: mocks.generationReadiness,
+      error: mocks.generationReadinessError,
+    }),
   }),
 }));
 
@@ -36,6 +48,14 @@ describe("system status tester-access readiness", () => {
   beforeEach(() => {
     mocks.adminConfigured = true;
     mocks.invitationTableError = null;
+    mocks.generationReadiness = {
+      contractVersion: "202608300001",
+      ready: true,
+      studyRoutesSchema: true,
+      planSessionsRoutePointer: true,
+      requiredRouteRpcs: true,
+    };
+    mocks.generationReadinessError = null;
     mocks.publicConfig = {
       url: "https://project.supabase.co",
       publishableKey: "sb_publishable_test",
@@ -51,6 +71,10 @@ describe("system status tester-access readiness", () => {
     vi.stubEnv("AUTH_CAPTCHA_ENABLED", "false");
     vi.stubEnv("NEXT_PUBLIC_TURNSTILE_SITE_KEY", "");
     vi.stubEnv("CRON_SECRET", "cron-secret-that-is-at-least-thirty-two-characters");
+    vi.stubEnv(
+      "YOVA_DRAFT_RECEIPT_SECRET",
+      "draft-receipt-secret-that-is-at-least-thirty-two-characters",
+    );
   });
 
   it("reports invite readiness only when storage and the Supabase signup policy are ready", async () => {
@@ -66,12 +90,35 @@ describe("system status tester-access readiness", () => {
       publicSignup: "disabled",
       accountDataExport: "enabled",
       accountDeletion: "enabled",
+      signedInGeneration: "ready",
     });
     expect(status).not.toHaveProperty("supabasePublishableKey");
     expect(mocks.settingsFetch).toHaveBeenCalledWith(
       "https://project.supabase.co/auth/v1/settings",
       expect.objectContaining({ headers: { apikey: "sb_publishable_test" } }),
     );
+  });
+
+  it("fails the signed-in generation signal when its secret or database contract is missing", async () => {
+    vi.stubEnv("YOVA_DRAFT_RECEIPT_SECRET", "");
+    expect((await (await GET()).json()).signedInGeneration).toBe("unavailable");
+
+    vi.stubEnv(
+      "YOVA_DRAFT_RECEIPT_SECRET",
+      "draft-receipt-secret-that-is-at-least-thirty-two-characters",
+    );
+    mocks.generationReadinessError = { code: "PGRST202" };
+    expect((await (await GET()).json()).signedInGeneration).toBe("unavailable");
+
+    mocks.generationReadinessError = null;
+    mocks.generationReadiness = {
+      contractVersion: "202608300001",
+      ready: false,
+      studyRoutesSchema: false,
+      planSessionsRoutePointer: false,
+      requiredRouteRpcs: false,
+    };
+    expect((await (await GET()).json()).signedInGeneration).toBe("unavailable");
   });
 
   it("fails the public readiness signal when the migration or signup lock is missing", async () => {

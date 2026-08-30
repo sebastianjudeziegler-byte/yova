@@ -112,6 +112,7 @@ try {
   const expectedModes = {
     planGeneration: "openai",
     guidedSessions: "openai",
+    signedInGeneration: "ready",
     tutor: "openai",
     materials: "private-supabase",
     persistence: "supabase",

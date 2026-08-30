@@ -6,6 +6,7 @@ import {
   methodFidelityContractForPrompt,
 } from "@/lib/learning/method-fidelity";
 import {
+  MethodRuntimeProviderOutputSchema,
   MethodRuntimeSchema,
   type MethodRuntime,
 } from "@/lib/session-generation/method-runtime";
@@ -334,7 +335,7 @@ const ReflectionActivitySchema = z.object({
   misconceptionSummary: z.null().default(null),
 });
 
-const MultipleChoiceActivitySchema = z.object({
+const MultipleChoiceActivityOutputSchema = z.object({
   ...GeneratedSessionActivityBaseShape,
   type: z.literal("multiple_choice"),
   methodPhase: NonModelMethodPhaseSchema,
@@ -344,10 +345,6 @@ const MultipleChoiceActivitySchema = z.object({
   correctAnswer: z.string().trim().min(1).max(220),
   feedback: z.string().trim().min(20).max(500),
   teaching: NoTeachingBlockSchema,
-}).superRefine((activity, context) => {
-    if (!activity.choices.includes(activity.correctAnswer)) {
-      context.addIssue({ code: "custom", path: ["correctAnswer"], message: "The correct answer must exactly match one choice." });
-    }
 });
 
 const FreeResponseActivitySchema = z.object({
@@ -362,12 +359,32 @@ const FreeResponseActivitySchema = z.object({
   teaching: NoTeachingBlockSchema,
 });
 
+const providerRuntime = MethodRuntimeProviderOutputSchema.nullable().default(null);
+const ProviderInstructionActivitySchema = InstructionActivitySchema.extend({ methodRuntime: providerRuntime });
+const ProviderReflectionActivitySchema = ReflectionActivitySchema.extend({ methodRuntime: providerRuntime });
+const ProviderMultipleChoiceActivitySchema = MultipleChoiceActivityOutputSchema.extend({ methodRuntime: providerRuntime });
+const ProviderFreeResponseActivitySchema = FreeResponseActivitySchema.extend({ methodRuntime: providerRuntime });
+
+// The OpenAI SDK parses the provider response with this schema before YOVA's
+// deterministic normalizers and bounded repair loop can run. Keep cross-field
+// rules out of this boundary: a provider mistake should become a normal YOVA
+// validation result, not a raw SDK ZodError that bypasses generation stats.
+const GeneratedSessionActivityOutputSchema = z.discriminatedUnion("type", [
+  ProviderInstructionActivitySchema,
+  ProviderReflectionActivitySchema,
+  ProviderMultipleChoiceActivitySchema,
+  ProviderFreeResponseActivitySchema,
+]);
+
 const StrictGeneratedSessionActivitySchema = z.discriminatedUnion("type", [
   InstructionActivitySchema,
   ReflectionActivitySchema,
-  MultipleChoiceActivitySchema,
+  MultipleChoiceActivityOutputSchema,
   FreeResponseActivitySchema,
 ]).superRefine((activity, context) => {
+  if (activity.type === "multiple_choice" && !activity.choices.includes(activity.correctAnswer)) {
+    context.addIssue({ code: "custom", path: ["correctAnswer"], message: "The correct answer must exactly match one choice." });
+  }
   if (activity.methodPhase === "model" && !activity.teaching) {
     context.addIssue({ code: "custom", path: ["teaching"], message: "Model activities need a structured teaching block." });
   }
@@ -393,11 +410,10 @@ export type GeneratedSessionActivity = {
 };
 
 // Keep the public TypeScript shape ergonomic for rendering and test fixtures,
-// while the runtime schema remains a strict discriminated union for OpenAI's
-// structured output contract.
+// while the final runtime schema remains a strict discriminated union.
 export const GeneratedSessionActivitySchema = StrictGeneratedSessionActivitySchema as unknown as z.ZodType<GeneratedSessionActivity>;
 
-export const SessionSourceGroundingSchema = z.object({
+const SessionSourceGroundingOutputSchema = z.object({
   mode: z.enum(["materials_only", "materials_plus_ai"]),
   summary: z.string().trim().min(20).max(420),
   sourceNames: z.array(z.string().trim().min(1).max(180)).min(1).max(5),
@@ -412,7 +428,9 @@ export const SessionSourceGroundingSchema = z.object({
     topic: z.string().trim().min(2).max(140),
     reason: z.string().trim().min(15).max(280),
   })).max(3),
-}).superRefine((grounding, context) => {
+});
+
+export const SessionSourceGroundingSchema = SessionSourceGroundingOutputSchema.superRefine((grounding, context) => {
   if (grounding.mode === "materials_only" && grounding.supplements.length > 0) {
     context.addIssue({ code: "custom", path: ["supplements"], message: "Material-only sessions cannot list AI supplements." });
   }
@@ -436,6 +454,20 @@ export const GeneratedSessionDraftOutputSchema = z.object({
   methodBriefing: SessionMethodBriefingSchema,
   sourceGrounding: SessionSourceGroundingSchema.nullable(),
   activities: z.array(GeneratedSessionActivitySchema).min(3).max(8),
+});
+
+/**
+ * Provider-facing full-session schema. It validates JSON shape and field
+ * constraints only; YOVA applies all cross-field invariants after parsing so
+ * structural misses participate in the bounded repair and observation flow.
+ */
+export const GeneratedSessionDraftProviderOutputSchema = z.object({
+  topicIds: z.array(z.string().uuid()).min(1).max(6),
+  rationale: z.string().trim().min(20).max(700),
+  coverage: SessionCoverageSchema,
+  methodBriefing: SessionMethodBriefingSchema,
+  sourceGrounding: SessionSourceGroundingOutputSchema.nullable(),
+  activities: z.array(GeneratedSessionActivityOutputSchema).min(3).max(8),
 });
 
 export const GeneratedSessionDraftSchema = GeneratedSessionDraftOutputSchema.superRefine((session, context) => {

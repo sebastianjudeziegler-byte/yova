@@ -181,25 +181,33 @@ export function hydratedSessionResourceCacheIssue({
   const routeIssue = hydratedSessionResourceRouteIssue(session, resource);
   if (routeIssue) return routeIssue;
   if (resource.origin !== "generated") return null;
+  const committedStudyRoute = session.studyRoute?.identity.lifecycleStatus === "committed"
+    ? session.studyRoute
+    : null;
+  const plannedLearningMode = committedStudyRoute
+    ? committedStudyRoute.approach.mode === "learn" ? "learn" : "study"
+    : session.learningMode;
   const effectiveLearningMode = learningModeForScheduledRetrieval(
     session,
     resolveEffectiveSessionLearningMode({
       planLearningIntent: plan.learningIntent,
-      plannedMode: session.learningMode,
+      plannedMode: plannedLearningMode,
       completedSessionCount: plan.sessions.filter((candidate) => candidate.status === "complete").length,
       familiarity: adjustment?.familiarity ?? null,
     }),
   );
+  const executionEnvironment = committedStudyRoute?.approach.executionEnvironment ?? plan.studyMode;
   const sessionArchitectureVersion = sessionArchitectureForGeneration({
     storedVersion: plan.sessionArchitectureVersion,
     learningMode: effectiveLearningMode,
-    studyMode: plan.studyMode,
+    studyMode: executionEnvironment,
     reviewType: session.reviewType ?? null,
+    selectedMethodId: committedStudyRoute?.approach.primaryMethodId,
   });
   const expectedSchemaVersion = expectedSessionCacheVersion({
     sessionArchitectureVersion,
     learningMode: effectiveLearningMode,
-    studyMode: plan.studyMode,
+    studyMode: executionEnvironment,
     reviewType: session.reviewType ?? null,
   });
   if (

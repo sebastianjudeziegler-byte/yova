@@ -56,6 +56,8 @@ Before a production deployment:
 pnpm readiness:production
 ```
 
+This is a live release gate: it verifies the configured Supabase project has the current StudyRoute schema and activation/cache RPC contract as well as the required server-only credentials. Local `pnpm build` remains a compile check and does not claim that signed-in cloud generation is deployable.
+
 After Vercel provides a public URL:
 
 ```bash
@@ -73,6 +75,7 @@ Copy `.env.example` to `.env.local` and configure:
 - `NEXT_PUBLIC_SUPABASE_URL`: public Supabase project URL
 - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`: browser-safe Supabase key
 - `SUPABASE_SECRET_KEY`: server-only Supabase secret for invitations and private export storage operations
+- `YOVA_DRAFT_RECEIPT_SECRET`: server-only key of at least 32 characters for authenticating generated plan drafts before activation
 - `CRON_SECRET`: server-only random value of at least 32 characters for the scheduled export cleanup route
 - `AUTH_EMAIL_CODE_VERIFICATION`: enables the 6-digit email-code form after custom SMTP and the matching Supabase email template are configured
 - `OPENAI_API_KEY`: server-only OpenAI credential

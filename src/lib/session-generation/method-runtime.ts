@@ -37,13 +37,15 @@ const BroadRecallTransferPromptSchema = z.object({
  * The object is strict because it is later safe to hand to the privacy-preserving
  * progress/evidence kernels; learner-authored drafts never belong in this block.
  */
-export const BroadRecallRuntimeTargetBindingSchema = z.object({
+const BroadRecallRuntimeTargetBindingOutputSchema = z.object({
   targetId: z.string().uuid(),
   evidenceId: z.string().min(1).max(200),
   concept: z.string().trim().min(2).max(120),
   comparisonCriterion: z.string().trim().min(8).max(240),
   transferSuccessCriterion: z.string().trim().min(8).max(240),
-}).strict().superRefine((binding, context) => {
+}).strict();
+
+export const BroadRecallRuntimeTargetBindingSchema = BroadRecallRuntimeTargetBindingOutputSchema.superRefine((binding, context) => {
   if (binding.evidenceId !== broadRecallFinalCheckEvidenceId(binding.targetId)) {
     context.addIssue({
       code: "custom",
@@ -58,7 +60,7 @@ export const BroadRecallRuntimeTargetBindingSchema = z.object({
  * from memory before anything is revealed, which is the mechanism itself
  * rather than a presentation choice.
  */
-export const RetrievalRoundRuntimeSchema = z.object({
+const RetrievalRoundRuntimeOutputSchema = z.object({
   kind: z.literal("retrieval_round"),
   /** Missing means the original 3-10 prompt-set runtime used by saved sessions. */
   format: z.literal("broad_recall_v1").nullable().optional(),
@@ -73,6 +75,14 @@ export const RetrievalRoundRuntimeSchema = z.object({
   /** One different application after the learner repairs gaps and closes the source again. */
   transferPrompt: BroadRecallTransferPromptSchema.nullable().optional(),
   /** Missing on legacy retrieval rounds; mandatory for the dedicated broad-recall format. */
+  targetBindings: z.array(BroadRecallRuntimeTargetBindingOutputSchema)
+    .min(1)
+    .max(3)
+    .nullable()
+    .optional(),
+});
+
+export const RetrievalRoundRuntimeSchema = RetrievalRoundRuntimeOutputSchema.extend({
   targetBindings: z.array(BroadRecallRuntimeTargetBindingSchema)
     .min(1)
     .max(3)
@@ -187,7 +197,7 @@ function reportDuplicateBroadRecallBindings(
  * solution with reasoning; the second removes steps so support visibly
  * decreases within the same session.
  */
-export const WorkedExampleRuntimeSchema = z.object({
+const WorkedExampleRuntimeOutputSchema = z.object({
   kind: z.literal("worked_example"),
   problem: z.string().trim().min(5).max(320),
   steps: z.array(z.object({
@@ -202,7 +212,9 @@ export const WorkedExampleRuntimeSchema = z.object({
     prompt: PromptText.nullable().default(null),
     expectedAnswer: AnswerText.nullable().default(null),
   })).min(2).max(8),
-}).superRefine((runtime, context) => {
+});
+
+export const WorkedExampleRuntimeSchema = WorkedExampleRuntimeOutputSchema.superRefine((runtime, context) => {
   const missing = runtime.fadedSteps.filter((step) => step.prompt !== null);
   if (missing.length === 0) {
     context.addIssue({
@@ -237,6 +249,17 @@ export const ErrorRepairRuntimeSchema = z.object({
   parallelPrompt: PromptText,
   parallelAnswer: AnswerText,
 });
+
+/**
+ * Provider-facing runtime schema. Cross-field method invariants remain in the
+ * strict schemas below so they can enter YOVA's bounded repair flow instead of
+ * surfacing as SDK parsing exceptions.
+ */
+export const MethodRuntimeProviderOutputSchema = z.discriminatedUnion("kind", [
+  RetrievalRoundRuntimeOutputSchema,
+  WorkedExampleRuntimeOutputSchema,
+  ErrorRepairRuntimeSchema,
+]);
 
 export const MethodRuntimeSchema = z.discriminatedUnion("kind", [
   RetrievalRoundRuntimeSchema,

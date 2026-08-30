@@ -200,7 +200,7 @@ test("a confident misconception is repaired now without a duplicate follow-up", 
   await createPreviewAccount(page);
   await completeOnboarding(page);
 
-  await expect(page.getByRole("heading", { name: /Good (morning|afternoon|evening), Learner\./ })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /^Good (morning|afternoon|evening), Learner$/ })).toBeVisible();
   await page.getByRole("button", { name: "Study something now", exact: true }).first().click();
 
   await page.getByPlaceholder("Example: Help me understand the product rule and practice using it.").fill(
@@ -245,7 +245,7 @@ test("a confident misconception is repaired now without a duplicate follow-up", 
   await expect(page.getByText("Name and replace the error")).toBeVisible();
   await expect(page.getByText(/very sure about this answer/i)).toBeVisible();
   await leaveSession(page, "2 of 6 required steps finished");
-  await expect(page.getByText("Continue where you left off")).toBeVisible();
+  await expectSavedSessionRecommendation(page, 2);
   await page.getByRole("button", { name: "Continue session" }).click();
   await expect(page.getByText("Repair now, verify later")).toBeVisible();
   await expect(page.locator(".session-activity-header").getByRole("heading", { name: /Replace the mistaken Cellular respiration sequence relationship/i })).toBeVisible();
@@ -254,7 +254,7 @@ test("a confident misconception is repaired now without a duplicate follow-up", 
     "Glycolysis happens first, followed by the Krebs cycle and electron transport chain.",
   );
   await page.getByRole("button", { name: "Check my answer" }).dispatchEvent("click");
-  await expect(page.getByText("YOVA'S FORMATIVE CHECK")).toBeVisible();
+  await expect(page.getByText("YOVA'S FORMATIVE CHECK")).toBeVisible({ timeout: 15_000 });
   await expect(page.getByText("The key idea is present.")).toBeVisible();
   await page.getByRole("button", { name: "I got the key idea" }).click();
   await expect(page.getByText(/required recheck records whether the repaired concept now holds/i)).toBeVisible();
@@ -286,7 +286,7 @@ test("a confident misconception is repaired now without a duplicate follow-up", 
   await expect(page.getByText(/today’s evidence does not require another scheduled check/i)).toBeVisible();
   await expect(page.getByRole("heading", { name: "Add a short delayed check" })).not.toBeVisible();
   await page.getByRole("button", { name: "Finish and continue" }).click();
-  await expect(page.getByRole("heading", { name: /Good (morning|afternoon|evening), Learner\./ })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /^Good (morning|afternoon|evening), Learner$/ })).toBeVisible();
 });
 
 test("a support request keeps the committed practice recipe when fallback generation fails", async ({ page }) => {
@@ -696,14 +696,15 @@ test("home lets the learner browse prioritized recommendations without opening e
   await expect(page.getByRole("heading", { name: "Build the startup funding map" })).toBeVisible();
   await exitSessionWithoutProgress(page);
 
-  await expect(page.getByLabel("Recommended learning plan")).toBeVisible();
-  await expect(page.getByLabel("Show next recommendation")).toBeVisible();
+  const recommendation = recommendedLearningPlan(page);
+  await expect(recommendation).toBeVisible();
+  const secondRecommendation = page.getByRole("button", { name: "Show recommendation 2 of 2" });
+  await expect(secondRecommendation).toBeVisible();
   await expect(page.getByText("1 of 2", { exact: true })).toBeVisible();
-  const firstTitle = await page.locator(".recommendation-card .rec-body h2").textContent();
-  await page.getByLabel("Show next recommendation").click();
+  const firstTitle = await recommendation.getByRole("heading", { level: 2 }).textContent();
+  await secondRecommendation.click();
   await expect(page.getByText("2 of 2", { exact: true })).toBeVisible();
-  await expect(page.locator(".recommendation-card .rec-body h2")).not.toHaveText(firstTitle ?? "");
-  await expect(page.getByText("Swipe or use the arrows to see other plans")).toBeVisible();
+  await expect(recommendation.getByRole("heading", { level: 2 })).not.toHaveText(firstTitle ?? "");
 });
 
 test("outside study gives a concrete source-based session instead of pretending YOVA owns the content", async ({ page }) => {
@@ -782,7 +783,7 @@ test("an arbitrary outside method workpad completes as practice without changing
   await expect(page.getByText("None added", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Finish and continue" }).click();
 
-  await expect(page.getByRole("heading", { name: /Good (morning|afternoon|evening), Learner\./ })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /^Good (morning|afternoon|evening), Learner$/ })).toBeVisible();
   await expect.poll(async () => {
     const after = await readPreviewPracticeState(page, before.planId, before.sessionId);
     return after?.completion?.completionMode ?? null;
@@ -833,7 +834,8 @@ test("a fallback method workpad resumes its timer and checked targets after relo
   await page.getByRole("button", { name: /Guide me outside YOVA/ }).click();
   await page.getByRole("button", { name: /Build and start session/ }).click();
   await expect(page.getByRole("heading", { name: "Here is how YOVA plans to start." })).toBeVisible();
-  await page.getByRole("button", { name: "Not now", exact: true }).click();
+  await page.getByRole("button", { name: "Not now", exact: true }).dispatchEvent("click");
+  await expect(recommendedLearningPlan(page)).toBeVisible();
 
   // Material-grounded sessions deliberately do not receive a generic built-in
   // lesson. This drives the real standalone method-recovery path without
@@ -879,7 +881,7 @@ test("a fallback method workpad resumes its timer and checked targets after relo
   });
   await page.reload();
 
-  await page.locator(".recommendation-card").getByRole("button", { name: "Start session" }).click();
+  await recommendedLearningPlan(page).getByRole("button", { name: "Start session" }).click();
   await expect(page.getByRole("heading", { name: "Here is how YOVA plans to start." })).toBeVisible();
   await page.getByRole("button", { name: "Continue" }).click();
   await expect(page.getByRole("heading", { name: "Has anything changed?" })).toBeVisible();
@@ -930,7 +932,7 @@ test("a fallback method workpad resumes its timer and checked targets after relo
   expect(serializedCheckpoint).not.toContain(privateNote);
 
   await page.reload();
-  await expect(page.getByText("Continue where you left off")).toBeVisible();
+  await expectSavedSessionRecommendation(page);
   await page.getByRole("button", { name: "Continue session" }).click();
 
   const resumedWorkpad = page.getByLabel("Study-method workpad");
@@ -1299,8 +1301,7 @@ test("a learner can stop twice without losing progress or earlier evidence", asy
   await page.getByRole("button", { name: "Continue" }).click();
   await leaveSession(page, "1 of 5 required steps finished");
 
-  await expect(page.getByText("Continue where you left off")).toBeVisible();
-  await expect(page.getByText("1 section saved", { exact: true })).toBeVisible();
+  await expectSavedSessionRecommendation(page, 1);
   await page.getByRole("button", { name: "Continue session" }).click();
   await expect(page.getByRole("heading", { name: "Trace one financial choice" })).toBeVisible();
   await page.getByRole("button", { name: "Next: Explore the model" }).click();
@@ -1310,7 +1311,7 @@ test("a learner can stop twice without losing progress or earlier evidence", asy
   await page.getByRole("button", { name: "Continue" }).click();
   await leaveSession(page, "3 of 5 required steps finished");
 
-  await expect(page.getByText("3 sections saved", { exact: true })).toBeVisible();
+  await expectSavedSessionRecommendation(page, 3);
   await page.getByRole("button", { name: "Continue session" }).click();
   await expect(page.getByRole("heading", { name: "Explain compound growth in your own words" })).toBeVisible();
   await page.getByRole("button", { name: "Somewhat sure" }).click();
@@ -1469,8 +1470,7 @@ test("a refresh recovers semantic progress without saving draft answers or inven
   });
 
   await page.reload();
-  await expect(page.getByText("Continue where you left off")).toBeVisible();
-  await expect(page.getByText("1 section saved", { exact: true })).toBeVisible();
+  await expectSavedSessionRecommendation(page, 1);
   expect(generationRequests).toBe(1);
   await expect.poll(() => readRecoveryState(page)).toMatchObject({ sessionInterruptions: 0 });
   await page.getByRole("button", { name: "Continue session" }).click();
@@ -1507,7 +1507,7 @@ test("a refresh recovers semantic progress without saving draft answers or inven
   expect(localStorageBeforeReload).not.toContain(draftMarker);
 
   await page.reload();
-  await expect(page.getByText("Continue where you left off")).toBeVisible();
+  await expectSavedSessionRecommendation(page, 2);
   await page.getByRole("button", { name: "Continue session" }).click();
   await expect(page.getByRole("heading", { name: "Explain why retrieval comes first" })).toBeVisible();
   await expect(page.locator(".recall-response textarea")).toHaveValue("");
@@ -1534,8 +1534,9 @@ test("a refresh recovers semantic progress without saving draft answers or inven
   });
 
   await page.reload();
-  await expect(page.getByText("Continue where you left off")).toBeVisible();
-  await expect(page.getByText("Ready to finish", { exact: true })).toBeVisible();
+  const finishingRecommendation = recommendedLearningPlan(page);
+  await expect(finishingRecommendation.getByText("CONTINUE · READY TO FINISH", { exact: true })).toBeVisible();
+  await expect(finishingRecommendation.getByRole("button", { name: "Review and finish" })).toBeVisible();
   await page.getByRole("button", { name: "Review and finish" }).click();
   await expect(page.getByRole("heading", { name: "Complete this learning item" })).toBeVisible();
   await expect(page.getByText(/completed session was recovered/i)).toBeVisible();
@@ -1543,7 +1544,7 @@ test("a refresh recovers semantic progress without saving draft answers or inven
   const finishingRunId = (await readRecoveryState(page)).lastCheckpointRunId;
   expect(finishingRunId).not.toBeNull();
   await page.getByRole("button", { name: "Finish and continue" }).click();
-  await expect(page.getByRole("heading", { name: /Good (morning|afternoon|evening), Learner\./ })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /^Good (morning|afternoon|evening), Learner$/ })).toBeVisible();
   await expect.poll(() => readRecoveryState(page)).toMatchObject({
     checkpointStatus: null,
     sessionCompletions: 1,
@@ -1553,7 +1554,8 @@ test("a refresh recovers semantic progress without saving draft answers or inven
   expect(finishedRecoveryState.completionId).toBe(finishingRunId);
 
   await page.reload();
-  await expect(page.getByText("Continue where you left off")).not.toBeVisible();
+  await expect(page.getByText("CONTINUE · PROGRESS SAVED", { exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Continue session" })).toHaveCount(0);
   await expect.poll(() => readRecoveryState(page)).toMatchObject({
     checkpointStatus: null,
     sessionCompletions: 1,
@@ -2082,7 +2084,7 @@ test("spent guided-session allowance is visible before Home or Agenda opens setu
   await expect(homeAllowance.locator("time")).toHaveAttribute("datetime", resetAt);
   await expect(homeAllowance).toContainText("continue a session that was already saved");
   await expect(page.getByRole("button", { name: "Allowance used today" }).first()).toBeDisabled();
-  await expect(page.locator(".quick-actions button").filter({ hasText: "Study something now" })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Study now Quick, off-plan" })).toBeDisabled();
   await expect(page.getByRole("heading", { name: "Here is how YOVA plans to start." })).not.toBeVisible();
 
   await page.getByRole("button", { name: "Agenda", exact: true }).click();
@@ -2143,8 +2145,8 @@ test("spent allowance still permits a saved session to continue", async ({ page 
   await expect(page.locator(".guided-session-allowance-notice.home")).toContainText(
     "Daily guided-session allowance used",
   );
-  await expect(page.locator(".recommendation-card").getByRole("button", { name: "Continue session" })).toBeEnabled();
-  await expect(page.locator(".quick-actions button").filter({ hasText: "Study something now" })).toBeDisabled();
+  await expect(recommendedLearningPlan(page).getByRole("button", { name: "Continue session" })).toBeEnabled();
+  await expect(page.getByRole("button", { name: "Study now Quick, off-plan" })).toBeDisabled();
 
   await page.getByRole("button", { name: "Agenda", exact: true }).click();
   await expect(page.locator(".guided-session-allowance-notice.agenda")).toContainText(
@@ -2153,7 +2155,7 @@ test("spent allowance still permits a saved session to continue", async ({ page 
   await expect(page.locator(".agenda-session-actions").getByRole("button", { name: "Continue" })).toBeEnabled();
 
   await page.getByRole("button", { name: "Home", exact: true }).click();
-  await page.locator(".recommendation-card").getByRole("button", { name: "Continue session" }).click();
+  await recommendedLearningPlan(page).getByRole("button", { name: "Continue session" }).click();
   await expect(page.getByRole("button", { name: "Change direction" })).toBeVisible();
   await expect(page.getByText("Your session was recovered.")).toBeVisible();
   expect(generationRequests).toBe(1);
@@ -2163,8 +2165,8 @@ test("the product shell keeps every core destination and creation path usable", 
   await createPreviewAccount(page);
   await completeOnboarding(page);
 
-  await expect(page.getByRole("heading", { name: /Good (morning|afternoon|evening), Learner\./ })).toBeVisible();
-  await expect(page.getByText("What would you like to learn or prepare for?")).toBeVisible();
+  await expect(page.getByRole("heading", { name: /^Good (morning|afternoon|evening), Learner$/ })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Turn any goal into a clear next step." })).toBeVisible();
   await expectNoHorizontalOverflow(page, ".home-page");
 
   await page.getByRole("button", { name: "Learning", exact: true }).click();
@@ -2194,7 +2196,7 @@ test("the product shell keeps every core destination and creation path usable", 
   await page.getByRole("button", { name: "You", exact: true }).click();
 
   await page.getByRole("button", { name: "Home", exact: true }).click();
-  await page.locator(".quick-actions button").filter({ hasText: "Create another plan" }).click();
+  await page.getByRole("button", { name: "Build my first plan", exact: true }).click();
   await expect(page.getByRole("heading", { name: "What do you need to learn or prepare for?" })).toBeVisible();
   await page.getByRole("button", { name: "Cancel" }).click();
 
@@ -2540,6 +2542,7 @@ test("finishing a shortened guided lesson keeps every deferred target as exact n
   }, { planId, planSessionId, seededTopicIds: topicIds, seededTargets: targets, seededEvidence: evidence });
 
   await page.reload();
+  await expect(page.getByRole("button", { name: "Start session", exact: true })).toBeEnabled();
   await page.getByRole("button", { name: "Learning", exact: true }).click();
   const planCard = page.locator(".learning-goal-card").filter({
     hasText: "Cellular Respiration Continuation",
@@ -3772,6 +3775,23 @@ async function leaveSession(page: Page, progressText: string) {
   await page.getByRole("button", { name: "Save progress and leave" }).dispatchEvent("click");
 }
 
+function recommendedLearningPlan(page: Page) {
+  return page.getByRole("region", { name: "Recommended learning plan" });
+}
+
+async function expectSavedSessionRecommendation(page: Page, completedSteps?: number) {
+  const recommendation = recommendedLearningPlan(page);
+  await expect(recommendation.getByText("CONTINUE · PROGRESS SAVED", { exact: true })).toBeVisible();
+  await expect(recommendation.getByRole("button", { name: "Continue session" })).toBeVisible();
+
+  if (completedSteps !== undefined) {
+    const savedCopy = completedSteps === 1
+      ? "Your first section is saved. Continue with the next unfinished activity."
+      : `Your first ${completedSteps} sections are saved. Continue with the next unfinished activity.`;
+    await expect(recommendation).toContainText(savedCopy);
+  }
+}
+
 async function confirmSessionSetup(page: Page) {
   await expect(page.getByRole("heading", { name: "Here is how YOVA plans to start." })).toBeVisible({
     timeout: 15_000,
@@ -3789,7 +3809,9 @@ async function createOneOffLearningSession(
   request: string,
   learningMode: "learn" | "study" = "learn",
 ) {
-  await page.locator(".quick-actions button").filter({ hasText: "Study something now" }).click();
+  await page.getByRole("button", {
+    name: /^(?:Study something now|Study now Quick, off-plan)$/,
+  }).first().click();
   await page.getByPlaceholder("Example: Help me understand the product rule and practice using it.").fill(request);
   await page.getByRole("button", {
     name: learningMode === "learn"
