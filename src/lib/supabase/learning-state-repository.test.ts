@@ -387,10 +387,7 @@ describe("recordAuthenticatedSessionInterruption", () => {
       totalSteps: 5,
     })).rejects.toThrow("could not sync the interruption");
 
-    expect(consoleError).toHaveBeenCalledWith(
-      "YOVA session interruption sync failed",
-      { code: "40001" },
-    );
+    expect(consoleError).toHaveBeenCalledWith("YOVA session interruption sync failed [40001]");
     expect(JSON.stringify(consoleError.mock.calls)).not.toContain("private");
   });
 

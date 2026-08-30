@@ -1172,7 +1172,7 @@ export async function recordAuthenticatedSessionInterruption(interruption: Sessi
     const code = typeof error.code === "string" && /^[A-Za-z0-9_]{1,64}$/.test(error.code)
       ? error.code
       : "unknown";
-    console.error("YOVA session interruption sync failed", { code });
+    console.error(`YOVA session interruption sync failed [${code}]`);
     throw new Error("YOVA kept this session open but could not sync the interruption to the cloud.");
   }
 }
