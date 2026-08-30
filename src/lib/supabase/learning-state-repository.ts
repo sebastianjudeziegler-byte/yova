@@ -1168,7 +1168,13 @@ export async function recordAuthenticatedSessionInterruption(interruption: Sessi
     },
   });
 
-  if (error) throw new Error("YOVA kept this session open but could not sync the interruption to the cloud.");
+  if (error) {
+    const code = typeof error.code === "string" && /^[A-Za-z0-9_]{1,64}$/.test(error.code)
+      ? error.code
+      : "unknown";
+    console.error("YOVA session interruption sync failed", { code });
+    throw new Error("YOVA kept this session open but could not sync the interruption to the cloud.");
+  }
 }
 
 function learnerProfileToAnswers(profile: LearnerProfileRow | null) {

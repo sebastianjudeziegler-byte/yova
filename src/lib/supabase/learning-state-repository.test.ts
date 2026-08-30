@@ -364,6 +364,36 @@ describe("authenticated learning-state startup", () => {
 });
 
 describe("recordAuthenticatedSessionInterruption", () => {
+  it("logs only the safe database code when interruption persistence fails", async () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    rpc.mockResolvedValueOnce({
+      data: null,
+      error: {
+        code: "40001",
+        message: "private interruption detail",
+        details: "private database detail",
+      },
+    });
+
+    await expect(recordAuthenticatedSessionInterruption({
+      id: "00000000-0000-4000-8000-000000000001",
+      planId: "00000000-0000-4000-8000-000000000002",
+      planSessionId: "00000000-0000-4000-8000-000000000003",
+      startedAt: "2026-08-11T20:00:00.000Z",
+      interruptedAt: "2026-08-11T20:08:00.000Z",
+      plannedMinutes: 20,
+      actualMinutes: 8,
+      completedSteps: 2,
+      totalSteps: 5,
+    })).rejects.toThrow("could not sync the interruption");
+
+    expect(consoleError).toHaveBeenCalledWith(
+      "YOVA session interruption sync failed",
+      { code: "40001" },
+    );
+    expect(JSON.stringify(consoleError.mock.calls)).not.toContain("private");
+  });
+
   it("sends the exact setup needed to resume the generated lesson", async () => {
     const interruption: SessionInterruption = {
       id: "00000000-0000-4000-8000-000000000001",
