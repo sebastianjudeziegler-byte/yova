@@ -22,6 +22,7 @@ import {
   CloudAccountIdentityMismatchError,
   CloudSyncTemporarilyUnavailableError,
 } from "@/lib/supabase/cloud-sync-error";
+import { UnsupportedBroadRecallInterruptionError } from "@/lib/sync/session-interruption-error";
 
 const { from, getUser, rpc } = vi.hoisted(() => ({
   from: vi.fn(),
@@ -532,6 +533,86 @@ describe("recordAuthenticatedSessionInterruption", () => {
       routeRevisionId: ROUTE_REVISION_ID,
     }));
     expect(rpc.mock.calls[1]?.[1]?.payload).not.toHaveProperty("activityProgress");
+  });
+
+  it("classifies a repeated broad-recall guard as permanently unsupported", async () => {
+    const unsupported = {
+      data: null,
+      error: {
+        code: "55000",
+        message: "broad_recall_interruption_resource_identity_required",
+      },
+    };
+    rpc.mockResolvedValueOnce(unsupported).mockResolvedValueOnce(unsupported);
+
+    await expect(recordAuthenticatedSessionInterruption({
+      id: "00000000-0000-4000-8000-000000000051",
+      planId: "00000000-0000-4000-8000-000000000052",
+      planSessionId: "00000000-0000-4000-8000-000000000053",
+      routeRevisionId: ROUTE_REVISION_ID,
+      startedAt: "2026-08-11T20:00:00.000Z",
+      interruptedAt: "2026-08-11T20:08:00.000Z",
+      plannedMinutes: 20,
+      actualMinutes: 8,
+      completedSteps: 0,
+      totalSteps: 5,
+      activityProgress: broadRecallProgress(1),
+    })).rejects.toBeInstanceOf(UnsupportedBroadRecallInterruptionError);
+    expect(rpc).toHaveBeenCalledTimes(2);
+    expect(rpc.mock.calls[1]?.[1]?.payload).not.toHaveProperty("activityProgress");
+  });
+
+  it("does not downgrade a progress-free interruption from an unexpected broad-recall guard", async () => {
+    rpc.mockResolvedValueOnce({
+      data: null,
+      error: {
+        code: "55000",
+        message: "broad_recall_interruption_resource_identity_required",
+      },
+    });
+
+    await expect(recordAuthenticatedSessionInterruption({
+      id: "00000000-0000-4000-8000-000000000061",
+      planId: "00000000-0000-4000-8000-000000000062",
+      planSessionId: "00000000-0000-4000-8000-000000000063",
+      startedAt: "2026-08-11T20:00:00.000Z",
+      interruptedAt: "2026-08-11T20:08:00.000Z",
+      plannedMinutes: 20,
+      actualMinutes: 8,
+      completedSteps: 0,
+      totalSteps: 5,
+    })).rejects.toThrow("could not sync the interruption");
+    expect(rpc).toHaveBeenCalledOnce();
+  });
+
+  it("keeps a different stripped-retry failure fail-closed", async () => {
+    rpc
+      .mockResolvedValueOnce({
+        data: null,
+        error: {
+          code: "55000",
+          message: "broad_recall_interruption_resource_identity_required",
+        },
+      })
+      .mockResolvedValueOnce({
+        data: null,
+        error: { code: "40001", message: "study_route_interruption_conflict" },
+      });
+
+    await expect(recordAuthenticatedSessionInterruption({
+      id: "00000000-0000-4000-8000-000000000071",
+      planId: "00000000-0000-4000-8000-000000000072",
+      planSessionId: "00000000-0000-4000-8000-000000000073",
+      routeRevisionId: ROUTE_REVISION_ID,
+      startedAt: "2026-08-11T20:00:00.000Z",
+      interruptedAt: "2026-08-11T20:08:00.000Z",
+      plannedMinutes: 20,
+      actualMinutes: 8,
+      completedSteps: 0,
+      totalSteps: 5,
+      activityProgress: broadRecallProgress(1),
+    })).rejects.toThrow("could not sync the interruption");
+    expect(rpc).toHaveBeenCalledTimes(2);
   });
 
   it("rejects route-less broad-recall interruption progress before cloud persistence", async () => {

@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { UnsupportedBroadRecallInterruptionError } from "@/lib/sync/session-interruption-error";
 import type { PendingSessionInterruption } from "@/lib/sync/session-interruption-outbox";
 
 const { recordAuthenticatedSessionInterruption } = vi.hoisted(() => ({
@@ -181,6 +182,47 @@ describe("session interruption outbox", () => {
     expect(window.localStorage.getItem("yova.session-interruption-outbox.v1")).toBeNull();
     expect(recordAuthenticatedSessionInterruption).toHaveBeenCalledOnce();
     expect(recordAuthenticatedSessionInterruption).toHaveBeenCalledWith(supported.interruption);
+  });
+
+  it("discards a server-classified retired marker without blocking a later exit", async () => {
+    installMemoryStorage();
+    recordAuthenticatedSessionInterruption
+      .mockRejectedValueOnce(new UnsupportedBroadRecallInterruptionError())
+      .mockResolvedValueOnce(undefined);
+    const userId = "00000000-0000-4000-8000-000000000061";
+    const first: PendingSessionInterruption = {
+      userId,
+      queuedAt: "2026-08-11T20:08:00.000Z",
+      interruption: {
+        id: "00000000-0000-4000-8000-000000000062",
+        planId: "00000000-0000-4000-8000-000000000063",
+        planSessionId: "00000000-0000-4000-8000-000000000064",
+        startedAt: "2026-08-11T20:00:00.000Z",
+        interruptedAt: "2026-08-11T20:08:00.000Z",
+        plannedMinutes: 20,
+        actualMinutes: 8,
+        completedSteps: 0,
+        totalSteps: 5,
+      },
+    };
+    const second: PendingSessionInterruption = {
+      ...first,
+      queuedAt: "2026-08-11T20:10:00.000Z",
+      interruption: {
+        ...first.interruption,
+        id: "00000000-0000-4000-8000-000000000065",
+        interruptedAt: "2026-08-11T20:10:00.000Z",
+      },
+    };
+    expect(queueSessionInterruption(first)).toBe(true);
+    expect(queueSessionInterruption(second)).toBe(true);
+
+    await expect(flushQueuedSessionInterruptions(userId)).resolves.toEqual({
+      synced: 1,
+      remaining: 0,
+    });
+    expect(recordAuthenticatedSessionInterruption).toHaveBeenNthCalledWith(1, first.interruption);
+    expect(recordAuthenticatedSessionInterruption).toHaveBeenNthCalledWith(2, second.interruption);
   });
 
   it("removes only one account's entries for a permanently deleted plan", () => {

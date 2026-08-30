@@ -55,6 +55,7 @@ import {
 import { readSessionResourceFromStepData } from "@/lib/session-generation/resource";
 import { resolveSessionArchitectureVersion } from "@/lib/session-generation/architecture";
 import { StudyRouteSchema, type StudyRoute } from "@/lib/study-route/schema";
+import { UnsupportedBroadRecallInterruptionError } from "@/lib/sync/session-interruption-error";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import {
@@ -1168,8 +1169,11 @@ export async function recordAuthenticatedSessionInterruption(interruption: Sessi
   let { error } = await supabase.rpc("record_session_interruption_with_route", {
     payload,
   });
+  let unsupportedProgressRetryAttempted = false;
 
   if (
+    Object.hasOwn(payload, "activityProgress")
+    &&
     error?.code === "55000"
     && error.message === "broad_recall_interruption_resource_identity_required"
   ) {
@@ -1178,9 +1182,19 @@ export async function recordAuthenticatedSessionInterruption(interruption: Sessi
     // leaving that unverified within-activity marker in its bound checkpoint.
     const retryPayload = { ...payload };
     delete retryPayload.activityProgress;
+    unsupportedProgressRetryAttempted = true;
     ({ error } = await supabase.rpc("record_session_interruption_with_route", {
       payload: retryPayload,
     }));
+  }
+
+  if (
+    unsupportedProgressRetryAttempted
+    &&
+    error?.code === "55000"
+    && error.message === "broad_recall_interruption_resource_identity_required"
+  ) {
+    throw new UnsupportedBroadRecallInterruptionError();
   }
 
   if (error) {

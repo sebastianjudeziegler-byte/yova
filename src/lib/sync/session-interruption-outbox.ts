@@ -14,6 +14,7 @@ import {
   SessionPendingRepairSchema,
 } from "@/lib/learning/session-resume";
 import { recordAuthenticatedSessionInterruption } from "@/lib/supabase/learning-state-repository";
+import { UnsupportedBroadRecallInterruptionError } from "@/lib/sync/session-interruption-error";
 
 const STORAGE_KEY = "yova.session-interruption-outbox.v1";
 
@@ -154,7 +155,11 @@ export async function flushQueuedSessionInterruptions(userId: string) {
       await recordAuthenticatedSessionInterruption(entry.interruption);
       removeQueuedSessionInterruption(entry.interruption.id);
       synced += 1;
-    } catch {
+    } catch (error) {
+      if (error instanceof UnsupportedBroadRecallInterruptionError) {
+        removeQueuedSessionInterruption(entry.interruption.id);
+        continue;
+      }
       break;
     }
   }
