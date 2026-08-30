@@ -370,7 +370,7 @@ describe("recordAuthenticatedSessionInterruption", () => {
       data: null,
       error: {
         code: "40001",
-        message: "private interruption detail",
+        message: "session_interruption_conflict",
         details: "private database detail",
       },
     });
@@ -387,8 +387,30 @@ describe("recordAuthenticatedSessionInterruption", () => {
       totalSteps: 5,
     })).rejects.toThrow("could not sync the interruption");
 
-    expect(consoleError).toHaveBeenCalledWith("YOVA session interruption sync failed [40001]");
+    expect(consoleError).toHaveBeenCalledWith(
+      "YOVA session interruption sync failed [40001:session_interruption_conflict]",
+    );
     expect(JSON.stringify(consoleError.mock.calls)).not.toContain("private");
+
+    rpc.mockResolvedValueOnce({
+      data: null,
+      error: { code: "55000", message: "private free-form database message" },
+    });
+    await expect(recordAuthenticatedSessionInterruption({
+      id: "00000000-0000-4000-8000-000000000004",
+      planId: "00000000-0000-4000-8000-000000000002",
+      planSessionId: "00000000-0000-4000-8000-000000000003",
+      startedAt: "2026-08-11T20:00:00.000Z",
+      interruptedAt: "2026-08-11T20:08:00.000Z",
+      plannedMinutes: 20,
+      actualMinutes: 8,
+      completedSteps: 2,
+      totalSteps: 5,
+    })).rejects.toThrow("could not sync the interruption");
+    expect(consoleError).toHaveBeenLastCalledWith(
+      "YOVA session interruption sync failed [55000:unclassified]",
+    );
+    expect(JSON.stringify(consoleError.mock.calls)).not.toContain("free-form");
   });
 
   it("sends the exact setup needed to resume the generated lesson", async () => {
