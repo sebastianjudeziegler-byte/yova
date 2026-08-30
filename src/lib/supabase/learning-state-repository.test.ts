@@ -494,6 +494,46 @@ describe("recordAuthenticatedSessionInterruption", () => {
     expect(rpc.mock.calls[0]?.[1]?.payload.activityProgress).not.toHaveProperty("ratings");
   });
 
+  it("preserves the explicit exit when the server cannot bind broad-recall progress", async () => {
+    rpc
+      .mockResolvedValueOnce({
+        data: null,
+        error: {
+          code: "55000",
+          message: "broad_recall_interruption_resource_identity_required",
+        },
+      })
+      .mockResolvedValueOnce({ data: null, error: null });
+    const activityProgress = broadRecallProgress(1);
+    const interrupted: SessionInterruption = {
+      id: "00000000-0000-4000-8000-000000000041",
+      planId: "00000000-0000-4000-8000-000000000042",
+      planSessionId: "00000000-0000-4000-8000-000000000043",
+      routeRevisionId: ROUTE_REVISION_ID,
+      startedAt: "2026-08-11T20:00:00.000Z",
+      interruptedAt: "2026-08-11T20:08:00.000Z",
+      plannedMinutes: 20,
+      actualMinutes: 8,
+      completedSteps: 0,
+      totalSteps: 5,
+      activityProgress,
+    };
+
+    await expect(recordAuthenticatedSessionInterruption(interrupted)).resolves.toBeUndefined();
+
+    expect(rpc).toHaveBeenCalledTimes(2);
+    expect(rpc.mock.calls[0]?.[1]?.payload).toEqual(expect.objectContaining({
+      attemptId: interrupted.id,
+      routeRevisionId: ROUTE_REVISION_ID,
+      activityProgress,
+    }));
+    expect(rpc.mock.calls[1]?.[1]?.payload).toEqual(expect.objectContaining({
+      attemptId: interrupted.id,
+      routeRevisionId: ROUTE_REVISION_ID,
+    }));
+    expect(rpc.mock.calls[1]?.[1]?.payload).not.toHaveProperty("activityProgress");
+  });
+
   it("rejects route-less broad-recall interruption progress before cloud persistence", async () => {
     const interrupted: SessionInterruption = {
       id: "00000000-0000-4000-8000-000000000034",

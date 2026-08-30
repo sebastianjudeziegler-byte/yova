@@ -1135,38 +1135,53 @@ export async function recordAuthenticatedSessionInterruption(interruption: Sessi
   }
   if (!isSupabaseConfigured()) return;
   const supabase = createSupabaseBrowserClient();
-  const { error } = await supabase.rpc("record_session_interruption_with_route", {
-    payload: {
-      attemptId: interruption.id,
-      planSessionId: interruption.planSessionId,
-      ...(interruption.routeRevisionId
-        ? { routeRevisionId: interruption.routeRevisionId }
-        : {}),
-      startedAt: interruption.startedAt,
-      interruptedAt: interruption.interruptedAt,
-      plannedMinutes: interruption.plannedMinutes,
-      actualMinutes: interruption.actualMinutes,
-      completedSteps: interruption.completedSteps,
-      totalSteps: interruption.totalSteps,
-      resumeStep: interruption.resumeStep,
-      evidence: interruption.evidence
-        ? {
-          ...interruption.evidence,
-          conceptEvidence: bindConceptEvidenceToRoute(
-            interruption.evidence.conceptEvidence,
-            interruption.routeRevisionId,
-          ),
-          confidenceEvidence: bindConfidenceEvidenceToRoute(
-            interruption.evidence.confidenceEvidence,
-            interruption.routeRevisionId,
-          ),
-        }
-        : undefined,
-      pendingRepair: interruption.pendingRepair,
-      sessionAdjustment: interruption.sessionAdjustment,
-      ...(interruption.activityProgress ? { activityProgress: interruption.activityProgress } : {}),
-    },
+  const payload = {
+    attemptId: interruption.id,
+    planSessionId: interruption.planSessionId,
+    ...(interruption.routeRevisionId
+      ? { routeRevisionId: interruption.routeRevisionId }
+      : {}),
+    startedAt: interruption.startedAt,
+    interruptedAt: interruption.interruptedAt,
+    plannedMinutes: interruption.plannedMinutes,
+    actualMinutes: interruption.actualMinutes,
+    completedSteps: interruption.completedSteps,
+    totalSteps: interruption.totalSteps,
+    resumeStep: interruption.resumeStep,
+    evidence: interruption.evidence
+      ? {
+        ...interruption.evidence,
+        conceptEvidence: bindConceptEvidenceToRoute(
+          interruption.evidence.conceptEvidence,
+          interruption.routeRevisionId,
+        ),
+        confidenceEvidence: bindConfidenceEvidenceToRoute(
+          interruption.evidence.confidenceEvidence,
+          interruption.routeRevisionId,
+        ),
+      }
+      : undefined,
+    pendingRepair: interruption.pendingRepair,
+    sessionAdjustment: interruption.sessionAdjustment,
+    ...(interruption.activityProgress ? { activityProgress: interruption.activityProgress } : {}),
+  };
+  let { error } = await supabase.rpc("record_session_interruption_with_route", {
+    payload,
   });
+
+  if (
+    error?.code === "55000"
+    && error.message === "broad_recall_interruption_resource_identity_required"
+  ) {
+    // The mature writer deliberately refuses to bind Broad Recall progress
+    // without a generated-resource receipt. Preserve the explicit Exit while
+    // leaving that unverified within-activity marker in its bound checkpoint.
+    const retryPayload = { ...payload };
+    delete retryPayload.activityProgress;
+    ({ error } = await supabase.rpc("record_session_interruption_with_route", {
+      payload: retryPayload,
+    }));
+  }
 
   if (error) {
     const code = typeof error.code === "string" && /^[A-Za-z0-9_]{1,64}$/.test(error.code)
