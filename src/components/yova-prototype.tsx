@@ -1090,6 +1090,9 @@ export function YovaPrototype({
         const localAccountMatches = saved?.account?.id === cloudAccount.id;
 
         try {
+          const startupInterruptionRunTombstones = new Set(
+            pendingSessionInterruptionRunIds(cloudAccount.id),
+          );
           const terminalRetryResult = await flushQueuedSessionTerminals(cloudAccount.id);
           const cloudState = await loadAuthenticatedLearningStateWithRetry();
           if (cancelled) return;
@@ -1104,9 +1107,10 @@ export function YovaPrototype({
           const completedSessionTombstones = new Set(
             pendingSessionCompletionPlanSessionIds(cloudAccount.id),
           );
-          const interruptedRunTombstones = new Set(
-            pendingSessionInterruptionRunIds(cloudAccount.id),
-          );
+          const interruptedRunTombstones = new Set([
+            ...startupInterruptionRunTombstones,
+            ...pendingSessionInterruptionRunIds(cloudAccount.id),
+          ]);
           const hasPendingTerminal = (checkpoint: ActiveSessionCheckpoint) => (
             completedSessionTombstones.has(checkpoint.planSessionId)
             || interruptedRunTombstones.has(checkpoint.runId)

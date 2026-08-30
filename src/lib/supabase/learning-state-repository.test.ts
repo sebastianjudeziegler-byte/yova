@@ -781,7 +781,7 @@ describe("recordAuthenticatedSessionInterruption", () => {
     expect(rpc.mock.calls[1]?.[1]?.payload).not.toHaveProperty("activityProgress");
   });
 
-  it("classifies the server's broad-only guard even when a stale entry has no local marker", async () => {
+  it("keeps a marker-less interruption retryable if a stale server misapplies the Broad Recall guard", async () => {
     rpc.mockResolvedValueOnce({
       data: null,
       error: {
@@ -790,7 +790,7 @@ describe("recordAuthenticatedSessionInterruption", () => {
       },
     });
 
-    await expect(recordAuthenticatedSessionInterruption({
+    const issue = await recordAuthenticatedSessionInterruption({
       id: "00000000-0000-4000-8000-000000000061",
       planId: "00000000-0000-4000-8000-000000000062",
       planSessionId: "00000000-0000-4000-8000-000000000063",
@@ -800,7 +800,13 @@ describe("recordAuthenticatedSessionInterruption", () => {
       actualMinutes: 8,
       completedSteps: 0,
       totalSteps: 5,
-    })).rejects.toBeInstanceOf(UnsupportedBroadRecallInterruptionError);
+    }).catch((error: unknown) => error);
+
+    expect(issue).not.toBeInstanceOf(UnsupportedBroadRecallInterruptionError);
+    expect(issue).toMatchObject({
+      name: "SessionInterruptionCloudSyncError",
+      message: expect.stringContaining("could not sync the interruption"),
+    });
     expect(rpc).toHaveBeenCalledOnce();
   });
 
@@ -1416,18 +1422,26 @@ describe("authenticated active-session checkpoint sync", () => {
     expect(JSON.stringify(payload)).not.toContain("Private learner note");
   });
 
-  it("round-trips a compatible broad-recall prefix and rejects a divergent cloud history", async () => {
+  it("keeps broad-recall recovery local while syncing only the ordinary checkpoint envelope", async () => {
     const local = routeCheckpoint({
       completedSteps: 0,
       resumeStep: 0,
       evidence: undefined,
       activityProgress: broadRecallProgress(1),
     });
-    rpc.mockResolvedValueOnce({ data: local, error: null });
+    const cloudEnvelope = {
+      ...local,
+      savedAt: "2026-08-17T18:00:01.000Z",
+      activeSeconds: local.activeSeconds + 20,
+    } as Partial<ActiveSessionCheckpointV2>;
+    delete cloudEnvelope.activityProgress;
+    rpc.mockResolvedValueOnce({ data: cloudEnvelope, error: null });
 
-    await expect(saveAuthenticatedActiveSessionCheckpoint(local)).resolves.toEqual(local);
-    expect(rpc.mock.calls[0]?.[1]?.payload.activityProgress).toEqual(local.activityProgress);
-    expect(rpc.mock.calls[0]?.[1]?.payload.activityProgress).not.toHaveProperty("ratings");
+    await expect(saveAuthenticatedActiveSessionCheckpoint(local)).resolves.toEqual({
+      ...cloudEnvelope,
+      activityProgress: local.activityProgress,
+    });
+    expect(rpc.mock.calls[0]?.[1]?.payload).not.toHaveProperty("activityProgress");
 
     const next = {
       ...local,
@@ -1443,7 +1457,32 @@ describe("authenticated active-session checkpoint sync", () => {
     });
 
     await expect(saveAuthenticatedActiveSessionCheckpoint(next))
-      .rejects.toBeInstanceOf(ActiveSessionCheckpointConflictError);
+      .resolves.toEqual(next);
+    expect(rpc.mock.calls[1]?.[1]?.payload).not.toHaveProperty("activityProgress");
+  });
+
+  it("accepts the exact production Broad Recall guard as retryable without losing the caller checkpoint", async () => {
+    const local = routeCheckpoint({
+      completedSteps: 0,
+      resumeStep: 0,
+      evidence: undefined,
+      activityProgress: broadRecallProgress(1),
+    });
+    rpc.mockResolvedValueOnce({
+      data: null,
+      error: {
+        code: "22023",
+        message: "broad_recall_progress_binding_conflict",
+      },
+    });
+
+    const issue = await saveAuthenticatedActiveSessionCheckpoint(local)
+      .catch((error: unknown) => error);
+
+    expect(issue).toBeInstanceOf(CloudSyncTemporarilyUnavailableError);
+    expect(issue).toMatchObject({ retryable: true });
+    expect(rpc.mock.calls[0]?.[1]?.payload).not.toHaveProperty("activityProgress");
+    expect(local.activityProgress).toEqual(broadRecallProgress(1));
   });
 
   it("preserves unguided completion provenance in the cloud checkpoint payload", async () => {

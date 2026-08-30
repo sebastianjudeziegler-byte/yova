@@ -220,6 +220,26 @@ describe("YOVA prototype UI contracts", () => {
     );
   });
 
+  it("keeps a just-flushed Exit authoritative during startup checkpoint merge", () => {
+    const component = readSource("src/components/yova-prototype.tsx");
+    const startup = component.slice(
+      component.indexOf("async function openYova()"),
+      component.indexOf("} else if (saved?.signedIn", component.indexOf("async function openYova()")),
+    );
+    const capture = startup.indexOf("const startupInterruptionRunTombstones = new Set(");
+    const flush = startup.indexOf("await flushQueuedSessionTerminals(cloudAccount.id)", capture);
+    const mergedTombstones = startup.indexOf("const interruptedRunTombstones = new Set([", flush);
+    const merge = startup.indexOf("mergeActiveSessionCheckpoints(localCheckpoints, cloudCheckpoints)", mergedTombstones);
+
+    expect(capture).toBeGreaterThan(-1);
+    expect(flush).toBeGreaterThan(capture);
+    expect(mergedTombstones).toBeGreaterThan(flush);
+    expect(merge).toBeGreaterThan(mergedTombstones);
+    expect(startup.slice(mergedTombstones, merge)).toContain(
+      "...startupInterruptionRunTombstones",
+    );
+  });
+
   it("keeps ordinary active-session checkpoint writes cloud-enabled by default", () => {
     const component = readSource("src/components/yova-prototype.tsx");
     const writerStart = component.indexOf("writeActiveSessionCheckpointRef.current = (");
@@ -236,6 +256,23 @@ describe("YOVA prototype UI contracts", () => {
     expect(writer).toContain('account.identityMode === "supabase" && options?.syncToAccount !== false');
     expect(writer).toContain("void syncCheckpointToAccount(checkpoint)");
     expect(ordinaryLifecycleWrite).toBeGreaterThan(writerEnd);
+  });
+
+  it("remembers the device-safe checkpoint returned by the cloud boundary", () => {
+    const component = readSource("src/components/yova-prototype.tsx");
+    const repository = readSource("src/lib/supabase/learning-state-repository.ts");
+    const syncStart = component.indexOf("const syncCheckpointToAccount = useCallback");
+    const syncEnd = component.indexOf("const refreshGuidedSessionAllowance", syncStart);
+    const sync = component.slice(syncStart, syncEnd);
+    const save = sync.indexOf("saveAuthenticatedActiveSessionCheckpoint(checkpoint)");
+    const remember = sync.indexOf("rememberAuthoritativeCloudCheckpoint(authoritative)", save);
+
+    expect(syncStart).toBeGreaterThan(-1);
+    expect(syncEnd).toBeGreaterThan(syncStart);
+    expect(save).toBeGreaterThan(-1);
+    expect(remember).toBeGreaterThan(save);
+    expect(repository).toContain("!isBroadRecallActivityProgress(checkpoint.activityProgress)");
+    expect(repository).toContain("activityProgress: checkpoint.activityProgress");
   });
 
   it("classifies topic-agnostic outside built-in work as unguided practice", () => {

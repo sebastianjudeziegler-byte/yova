@@ -748,7 +748,7 @@ describe("cloud active session checkpoint reconciliation", () => {
     })).toBeNull();
   });
 
-  it("keeps the longer compatible broad-recall event prefix ahead of wall-clock recency", () => {
+  it("keeps a longer compatible Broad Recall prefix local without re-uploading its device-only delta", () => {
     const local = routeBoundCheckpoint({
       savedAt: "2026-08-17T17:58:00.000Z",
       activeSeconds: 100,
@@ -769,9 +769,41 @@ describe("cloud active session checkpoint reconciliation", () => {
     const merged = mergeActiveSessionCheckpoints([local], [cloud]);
 
     expect(compareActiveSessionCheckpointProgress(local, cloud)).toBeGreaterThan(0);
+    expect(merged.checkpoints).toEqual([{
+      ...cloud,
+      activityProgress: local.activityProgress,
+    }]);
+    expect(merged.checkpointsToUpload).toEqual([]);
+    expect(merged.cloudRunIds).toEqual(new Set([cloud.runId]));
+    expect(merged.activityProgressConflicts).toEqual([]);
+  });
+
+  it("still uploads ordinary checkpoint progress when a local Broad Recall marker is present", () => {
+    const local = routeBoundCheckpoint({
+      savedAt: "2026-08-17T17:59:00.000Z",
+      activeSeconds: 500,
+      completedSteps: 1,
+      resumeStep: 1,
+      evidence: undefined,
+      activityProgress: {
+        ...broadRecallProgress(1),
+        activityIndex: 1,
+      },
+    });
+    const cloud = routeBoundCheckpoint({
+      savedAt: "2026-08-17T17:58:00.000Z",
+      activeSeconds: 100,
+      completedSteps: 0,
+      resumeStep: 0,
+      evidence: undefined,
+      activityProgress: undefined,
+    });
+
+    const merged = mergeActiveSessionCheckpoints([local], [cloud]);
+
     expect(merged.checkpoints).toEqual([local]);
     expect(merged.checkpointsToUpload).toEqual([local]);
-    expect(merged.activityProgressConflicts).toEqual([]);
+    expect(merged.cloudRunIds).toEqual(new Set());
   });
 
   it("does not let recency overwrite a bound empty broad-recall marker", () => {

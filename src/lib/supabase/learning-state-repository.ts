@@ -764,11 +764,27 @@ async function persistAuthenticatedActiveSessionCheckpointInAccountLane(
     authoritative.activityProgress,
     checkpoint.activityProgress,
   );
+  if (isBroadRecallActivityProgress(checkpoint.activityProgress)) {
+    // Broad Recall is currently a device-only recovery format. The cloud
+    // writer intentionally receives only the ordinary checkpoint envelope,
+    // so an acknowledgement may omit the marker or still expose an older
+    // stored prefix. Keep the caller's exact local prefix unless the server
+    // proves that the lesson itself advanced beyond this activity step.
+    if (
+      authoritative.status === checkpoint.status
+      && authoritative.completedSteps === checkpoint.completedSteps
+      && authoritative.resumeStep === checkpoint.resumeStep
+      && checkpoint.activityProgress.activityIndex === checkpoint.completedSteps
+    ) {
+      return readActiveSessionCheckpoint({
+        ...authoritative,
+        activityProgress: checkpoint.activityProgress,
+      }) ?? checkpoint;
+    }
+    return authoritative;
+  }
   if (
-    (
-      isBroadRecallActivityProgress(authoritative.activityProgress)
-      || isBroadRecallActivityProgress(checkpoint.activityProgress)
-    )
+    isBroadRecallActivityProgress(authoritative.activityProgress)
     && (
       activityProgressMerge.kind === "conflict"
       || activityProgressMerge.source === "right"
@@ -838,7 +854,10 @@ function activeSessionCheckpointCloudPayload(checkpoint: CloudSyncActiveSessionC
     ...(checkpoint.completionMode ? { completionMode: checkpoint.completionMode } : {}),
     ...(checkpoint.evidence ? { evidence: checkpoint.evidence } : {}),
     ...(checkpoint.pendingRepair ? { pendingRepair: checkpoint.pendingRepair } : {}),
-    ...(checkpoint.activityProgress ? { activityProgress: checkpoint.activityProgress } : {}),
+    ...(checkpoint.activityProgress
+      && !isBroadRecallActivityProgress(checkpoint.activityProgress)
+      ? { activityProgress: checkpoint.activityProgress }
+      : {}),
     ...(checkpoint.status === "awaiting_finish" ? {
       completedAt: checkpoint.completedAt,
       completionFeedback: checkpoint.completionFeedback,
@@ -1288,8 +1307,9 @@ export async function recordAuthenticatedSessionInterruption(
           payload,
         }));
 
+        let retriedWithoutBroadRecallProgress = false;
         if (
-          Object.hasOwn(payload, "activityProgress")
+          isBroadRecallActivityProgress(interruption.activityProgress)
           &&
           error?.code === "55000"
           && error.message === "broad_recall_interruption_resource_identity_required"
@@ -1299,12 +1319,15 @@ export async function recordAuthenticatedSessionInterruption(
           // leaving that unverified within-activity marker in its bound checkpoint.
           const retryPayload = { ...payload };
           delete retryPayload.activityProgress;
+          retriedWithoutBroadRecallProgress = true;
           ({ error } = await run(supabase.rpc("record_session_interruption_with_route", {
             payload: retryPayload,
           })));
         }
 
         if (
+          retriedWithoutBroadRecallProgress
+          &&
           error?.code === "55000"
           && error.message === "broad_recall_interruption_resource_identity_required"
         ) {

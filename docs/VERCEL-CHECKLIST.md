@@ -52,7 +52,7 @@ YOVA deliberately fails closed in production when Supabase or OpenAI is missing.
 
 ### Signed-in generation release order
 
-Apply every pending Supabase migration through `202608300001_signed_in_generation_readiness.sql` **before** deploying this application version. The final migration exposes a read-only, service-only probe that verifies the `study_routes` schema, the `plan_sessions.committed_route_revision_id` pointer, and the exact activation/cache RPC signatures used by signed-in plan and session generation.
+Apply every pending Supabase migration through `202608300002_broad_recall_checkpoint_retry_containment.sql` **before** deploying this application version. Migration `202608300001_signed_in_generation_readiness.sql` exposes the read-only, service-only probe that verifies the `study_routes` schema, the `plan_sessions.committed_route_revision_id` pointer, and the exact activation/cache RPC signatures used by signed-in plan and session generation. The following `202608300002` migration repairs the checkpoint, attempt, and interruption-event guards and prevents deterministic checkpoint conflicts from being amplified by legacy PostgREST transaction retries. Apply it before the client deploy so already-open clients and marker-less Exit writes reach the corrected database boundary.
 
 Then configure `SUPABASE_SECRET_KEY` and `YOVA_DRAFT_RECEIPT_SECRET`, and run:
 

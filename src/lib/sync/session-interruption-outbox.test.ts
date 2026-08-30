@@ -82,8 +82,9 @@ describe("session interruption outbox", () => {
     );
   });
 
-  it("rejects broad-recall interruptions that the deployed writer cannot persist", () => {
+  it("queues a Broad Recall Exit without its device-only activity marker", async () => {
     installMemoryStorage();
+    recordAuthenticatedSessionInterruption.mockResolvedValue(undefined);
     const pending: PendingSessionInterruption = {
       userId: "00000000-0000-4000-8000-000000000041",
       queuedAt: "2026-08-11T20:08:00.000Z",
@@ -115,11 +116,26 @@ describe("session interruption outbox", () => {
       },
     };
 
-    expect(queueSessionInterruption(pending)).toBe(false);
-    expect(loadQueuedSessionInterruptions(pending.userId)).toEqual([]);
+    expect(queueSessionInterruption(pending)).toBe(true);
+    expect(loadQueuedSessionInterruptions(pending.userId)).toEqual([{
+      ...pending,
+      interruption: expect.not.objectContaining({
+        activityProgress: expect.anything(),
+      }),
+    }]);
+    expect(pending.interruption).toHaveProperty("activityProgress");
+
+    await expect(flushQueuedSessionInterruptions(pending.userId)).resolves.toEqual({
+      synced: 1,
+      remaining: 0,
+    });
+    expect(recordAuthenticatedSessionInterruption).toHaveBeenCalledWith(
+      pending.userId,
+      expect.not.objectContaining({ activityProgress: expect.anything() }),
+    );
   });
 
-  it("removes a stale broad-recall entry from storage without blocking a later supported exit", async () => {
+  it("sanitizes a stale Broad Recall entry without blocking a later supported Exit", async () => {
     installMemoryStorage();
     recordAuthenticatedSessionInterruption.mockResolvedValue(undefined);
     const userId = "00000000-0000-4000-8000-000000000051";
@@ -168,23 +184,35 @@ describe("session interruption outbox", () => {
     const storedQueue = JSON.stringify([staleBroad, supported]);
     window.localStorage.setItem("yova.session-interruption-outbox.v1", storedQueue);
 
+    const sanitizedBroad = {
+      ...staleBroad,
+      interruption: { ...staleBroad.interruption },
+    };
+    delete sanitizedBroad.interruption.activityProgress;
     expect(readQueuedSessionInterruptionsForExport(userId)).toEqual({
       ok: true,
-      value: [supported],
+      value: [sanitizedBroad, supported],
     });
     expect(JSON.parse(window.localStorage.getItem("yova.session-interruption-outbox.v1") ?? "[]"))
-      .toEqual([supported]);
+      .toEqual([sanitizedBroad, supported]);
+    expect(recordAuthenticatedSessionInterruption).not.toHaveBeenCalled();
 
     // Re-seed the legacy queue so the normal startup flush, independently of
     // the export reader above, proves the poison pill is migrated on load.
     window.localStorage.setItem("yova.session-interruption-outbox.v1", storedQueue);
     await expect(flushQueuedSessionInterruptions(userId)).resolves.toEqual({
-      synced: 1,
+      synced: 2,
       remaining: 0,
     });
     expect(window.localStorage.getItem("yova.session-interruption-outbox.v1")).toBeNull();
-    expect(recordAuthenticatedSessionInterruption).toHaveBeenCalledOnce();
-    expect(recordAuthenticatedSessionInterruption).toHaveBeenCalledWith(
+    expect(recordAuthenticatedSessionInterruption).toHaveBeenCalledTimes(2);
+    expect(recordAuthenticatedSessionInterruption).toHaveBeenNthCalledWith(
+      1,
+      staleBroad.userId,
+      sanitizedBroad.interruption,
+    );
+    expect(recordAuthenticatedSessionInterruption).toHaveBeenNthCalledWith(
+      2,
       supported.userId,
       supported.interruption,
     );

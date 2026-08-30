@@ -365,9 +365,33 @@ export function mergeActiveSessionCheckpoints(
       continue;
     }
 
+    const broadRecallReconciliation = reconcileDeviceOnlyBroadRecallProgress({
+      local,
+      cloud,
+      activityProgressMerge,
+      now,
+    });
+    if (broadRecallReconciliation) {
+      checkpoints.push(broadRecallReconciliation.checkpoint);
+      if (broadRecallReconciliation.cloudSyncComparison > 0) {
+        checkpointsToUpload.push(broadRecallReconciliation.checkpoint);
+      } else {
+        cloudRunIds.add(cloud.runId);
+      }
+      continue;
+    }
+
     if (compareActiveSessionCheckpointProgress(local, cloud) > 0) {
       checkpoints.push(local);
-      checkpointsToUpload.push(local);
+      if (compareCloudSyncableCheckpointProgress(local, cloud) > 0) {
+        checkpointsToUpload.push(local);
+      } else {
+        // Broad Recall progress is deliberately device-only while its runtime
+        // is dormant. A compatible cloud envelope already protects the
+        // lesson, so do not upload forever just because the browser retains a
+        // longer Broad Recall event prefix than the account copy.
+        cloudRunIds.add(cloud.runId);
+      }
     } else {
       checkpoints.push(cloud);
       cloudRunIds.add(cloud.runId);
@@ -385,6 +409,56 @@ export function mergeActiveSessionCheckpoints(
     conflictingLocalRuns,
     activityProgressConflicts,
   };
+}
+
+function reconcileDeviceOnlyBroadRecallProgress({
+  local,
+  cloud,
+  activityProgressMerge,
+  now,
+}: {
+  local: ActiveSessionCheckpoint;
+  cloud: ActiveSessionCheckpoint;
+  activityProgressMerge: Extract<
+    ReturnType<typeof mergeSessionActivityProgress>,
+    { kind: "merged" }
+  >;
+  now: number;
+}) {
+  const progress = activityProgressMerge.progress;
+  if (!isBroadRecallActivityProgress(progress)) return null;
+  const cloudSyncComparison = compareCloudSyncableCheckpointProgress(local, cloud);
+  const strongerEnvelope = checkpointWithoutLocalOnlyBroadRecallProgress(
+    cloudSyncComparison > 0 ? local : cloud,
+  );
+  if (
+    strongerEnvelope.status !== "working"
+    || strongerEnvelope.completedSteps !== progress.activityIndex
+  ) return null;
+  const checkpoint = readActiveSessionCheckpoint({
+    ...strongerEnvelope,
+    activityProgress: progress,
+  }, now);
+  return checkpoint ? { checkpoint, cloudSyncComparison } : null;
+}
+
+function compareCloudSyncableCheckpointProgress(
+  left: ActiveSessionCheckpoint,
+  right: ActiveSessionCheckpoint,
+) {
+  return compareActiveSessionCheckpointProgress(
+    checkpointWithoutLocalOnlyBroadRecallProgress(left),
+    checkpointWithoutLocalOnlyBroadRecallProgress(right),
+  );
+}
+
+function checkpointWithoutLocalOnlyBroadRecallProgress(
+  checkpoint: ActiveSessionCheckpoint,
+): ActiveSessionCheckpoint {
+  if (!isBroadRecallActivityProgress(checkpoint.activityProgress)) return checkpoint;
+  const cloudSyncable: ActiveSessionCheckpoint = { ...checkpoint };
+  delete cloudSyncable.activityProgress;
+  return cloudSyncable;
 }
 
 export function saveActiveSessionCheckpoint(checkpoint: ActiveSessionCheckpoint) {
