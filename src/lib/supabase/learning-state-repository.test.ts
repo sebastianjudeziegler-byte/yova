@@ -562,7 +562,7 @@ describe("recordAuthenticatedSessionInterruption", () => {
     expect(rpc.mock.calls[1]?.[1]?.payload).not.toHaveProperty("activityProgress");
   });
 
-  it("does not downgrade a progress-free interruption from an unexpected broad-recall guard", async () => {
+  it("classifies the server's broad-only guard even when a stale entry has no local marker", async () => {
     rpc.mockResolvedValueOnce({
       data: null,
       error: {
@@ -581,7 +581,7 @@ describe("recordAuthenticatedSessionInterruption", () => {
       actualMinutes: 8,
       completedSteps: 0,
       totalSteps: 5,
-    })).rejects.toThrow("could not sync the interruption");
+    })).rejects.toBeInstanceOf(UnsupportedBroadRecallInterruptionError);
     expect(rpc).toHaveBeenCalledOnce();
   });
 

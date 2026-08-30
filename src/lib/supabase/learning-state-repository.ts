@@ -1169,7 +1169,6 @@ export async function recordAuthenticatedSessionInterruption(interruption: Sessi
   let { error } = await supabase.rpc("record_session_interruption_with_route", {
     payload,
   });
-  let unsupportedProgressRetryAttempted = false;
 
   if (
     Object.hasOwn(payload, "activityProgress")
@@ -1182,15 +1181,12 @@ export async function recordAuthenticatedSessionInterruption(interruption: Sessi
     // leaving that unverified within-activity marker in its bound checkpoint.
     const retryPayload = { ...payload };
     delete retryPayload.activityProgress;
-    unsupportedProgressRetryAttempted = true;
     ({ error } = await supabase.rpc("record_session_interruption_with_route", {
       payload: retryPayload,
     }));
   }
 
   if (
-    unsupportedProgressRetryAttempted
-    &&
     error?.code === "55000"
     && error.message === "broad_recall_interruption_resource_identity_required"
   ) {
