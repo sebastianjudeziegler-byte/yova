@@ -113,6 +113,57 @@ export function sessionActivityProgressHasRequiredRouteIdentity(
     || z.string().uuid().safeParse(routeRevisionId).success;
 }
 
+type ActivityRuntimeIdentity = Readonly<{
+  sourceActivityIndex?: number;
+  methodRuntime?: Readonly<{
+    kind?: unknown;
+    format?: unknown;
+    prompts?: readonly unknown[];
+    gapChecklist?: readonly unknown[] | null;
+    targetBindings?: readonly Readonly<{
+      targetId?: unknown;
+      evidenceId?: unknown;
+    }>[] | null;
+  }> | null;
+}>;
+
+/**
+ * Recovery progress must remain compatible with the generated runtime that
+ * will consume it. This blocks cross-method, prompt-count, and binding drift;
+ * resource fingerprints remain the authoritative cross-resource boundary.
+ */
+export function sessionActivityProgressMatchesLessonRuntime(
+  progress: SessionActivityProgress | null | undefined,
+  activities: readonly ActivityRuntimeIdentity[],
+) {
+  if (!progress) return true;
+  const activity = activities.find((candidate, displayIndex) => (
+    (candidate.sourceActivityIndex ?? displayIndex) === progress.activityIndex
+  ));
+  const runtime = activity?.methodRuntime;
+  if (!runtime || runtime.kind !== "retrieval_round") return false;
+
+  if (isRetrievalRoundActivityProgress(progress)) {
+    return runtime.format !== "broad_recall_v1"
+      && Array.isArray(runtime.prompts)
+      && runtime.prompts.length === progress.promptCount;
+  }
+
+  if (
+    runtime.format !== "broad_recall_v1"
+    || !Array.isArray(runtime.gapChecklist)
+    || runtime.gapChecklist.length !== progress.gapCount
+    || !Array.isArray(runtime.targetBindings)
+    || runtime.targetBindings.length !== progress.bindings.length
+  ) return false;
+
+  return progress.bindings.every((binding, index) => {
+    const runtimeBinding = runtime.targetBindings?.[index];
+    return runtimeBinding?.targetId === binding.targetId
+      && runtimeBinding.evidenceId === binding.evidenceId;
+  });
+}
+
 export function restoreRetrievalRoundActivityProgress({
   progress,
   activityIndex,

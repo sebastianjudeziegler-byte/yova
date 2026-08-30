@@ -14,6 +14,7 @@ import {
   loadQueuedSessionInterruptions,
   pendingSessionInterruptionRunIds,
   queueSessionInterruption,
+  readQueuedSessionInterruptionsForExport,
   removeQueuedSessionInterruptionsForPlan,
 } from "@/lib/sync/session-interruption-outbox";
 
@@ -77,7 +78,7 @@ describe("session interruption outbox", () => {
     expect(recordAuthenticatedSessionInterruption).toHaveBeenCalledWith(pending.interruption);
   });
 
-  it("round-trips strict broad-recall progress without inventing ratings", () => {
+  it("rejects broad-recall interruptions that the deployed writer cannot persist", () => {
     installMemoryStorage();
     const pending: PendingSessionInterruption = {
       userId: "00000000-0000-4000-8000-000000000041",
@@ -110,20 +111,76 @@ describe("session interruption outbox", () => {
       },
     };
 
-    expect(queueSessionInterruption(pending)).toBe(true);
-    const restored = loadQueuedSessionInterruptions(pending.userId)[0];
+    expect(queueSessionInterruption(pending)).toBe(false);
+    expect(loadQueuedSessionInterruptions(pending.userId)).toEqual([]);
+  });
 
-    expect(restored).toEqual(pending);
-    expect(restored?.interruption.activityProgress).not.toHaveProperty("ratings");
-
-    expect(queueSessionInterruption({
-      ...pending,
+  it("removes a stale broad-recall entry from storage without blocking a later supported exit", async () => {
+    installMemoryStorage();
+    recordAuthenticatedSessionInterruption.mockResolvedValue(undefined);
+    const userId = "00000000-0000-4000-8000-000000000051";
+    const staleBroad: PendingSessionInterruption = {
+      userId,
+      queuedAt: "2026-08-11T20:08:00.000Z",
       interruption: {
-        ...pending.interruption,
-        routeRevisionId: undefined,
+        id: "00000000-0000-4000-8000-000000000052",
+        planId: "00000000-0000-4000-8000-000000000053",
+        planSessionId: "00000000-0000-4000-8000-000000000054",
+        routeRevisionId: "00000000-0000-4000-8000-000000000055",
+        startedAt: "2026-08-11T20:00:00.000Z",
+        interruptedAt: "2026-08-11T20:08:00.000Z",
+        plannedMinutes: 20,
+        actualMinutes: 8,
+        completedSteps: 0,
+        totalSteps: 5,
+        activityProgress: {
+          kind: "broad_recall",
+          format: "broad_recall_v1",
+          activityIndex: 0,
+          gapCount: 2,
+          bindings: [{
+            targetId: "11111111-1111-4111-8111-111111111111",
+            evidenceId: "blurting-final-check:11111111-1111-4111-8111-111111111111",
+          }],
+          events: [],
+        },
       },
-    })).toBe(false);
-    expect(loadQueuedSessionInterruptions(pending.userId)).toEqual([pending]);
+    };
+    const supported: PendingSessionInterruption = {
+      userId,
+      queuedAt: "2026-08-11T20:10:00.000Z",
+      interruption: {
+        id: "00000000-0000-4000-8000-000000000056",
+        planId: "00000000-0000-4000-8000-000000000057",
+        planSessionId: "00000000-0000-4000-8000-000000000058",
+        startedAt: "2026-08-11T20:02:00.000Z",
+        interruptedAt: "2026-08-11T20:10:00.000Z",
+        plannedMinutes: 20,
+        actualMinutes: 8,
+        completedSteps: 2,
+        totalSteps: 5,
+      },
+    };
+    const storedQueue = JSON.stringify([staleBroad, supported]);
+    window.localStorage.setItem("yova.session-interruption-outbox.v1", storedQueue);
+
+    expect(readQueuedSessionInterruptionsForExport(userId)).toEqual({
+      ok: true,
+      value: [supported],
+    });
+    expect(JSON.parse(window.localStorage.getItem("yova.session-interruption-outbox.v1") ?? "[]"))
+      .toEqual([supported]);
+
+    // Re-seed the legacy queue so the normal startup flush, independently of
+    // the export reader above, proves the poison pill is migrated on load.
+    window.localStorage.setItem("yova.session-interruption-outbox.v1", storedQueue);
+    await expect(flushQueuedSessionInterruptions(userId)).resolves.toEqual({
+      synced: 1,
+      remaining: 0,
+    });
+    expect(window.localStorage.getItem("yova.session-interruption-outbox.v1")).toBeNull();
+    expect(recordAuthenticatedSessionInterruption).toHaveBeenCalledOnce();
+    expect(recordAuthenticatedSessionInterruption).toHaveBeenCalledWith(supported.interruption);
   });
 
   it("removes only one account's entries for a permanently deleted plan", () => {

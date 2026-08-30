@@ -8,6 +8,7 @@ import {
   restoreRetrievalRoundActivityProgress,
   sessionActivityProgressIsResumable,
   sessionActivityProgressHasRequiredRouteIdentity,
+  sessionActivityProgressMatchesLessonRuntime,
   sessionActivityProgressRank,
   type SessionActivityProgress,
 } from "@/lib/learning/session-activity-progress";
@@ -165,6 +166,74 @@ describe("session activity recovery progress", () => {
       "00000000-0000-4000-8000-000000000101",
     )).toBe(true);
     expect(sessionActivityProgressHasRequiredRouteIdentity(retrieval, undefined)).toBe(true);
+  });
+
+  it("keeps recovery progress only for its exact generated runtime", () => {
+    const retrieval: SessionActivityProgress = {
+      kind: "retrieval_round",
+      activityIndex: 1,
+      promptCount: 3,
+      ratings: ["partly"],
+    };
+    const retrievalActivities = [{ methodRuntime: null }, {
+      sourceActivityIndex: 1,
+      methodRuntime: {
+        kind: "retrieval_round",
+        prompts: [{}, {}, {}],
+      },
+    }];
+
+    expect(sessionActivityProgressMatchesLessonRuntime(retrieval, retrievalActivities)).toBe(true);
+    expect(sessionActivityProgressMatchesLessonRuntime(retrieval, [
+      { methodRuntime: null },
+      { methodRuntime: { kind: "retrieval_round", prompts: [{}, {}] } },
+    ])).toBe(false);
+    expect(sessionActivityProgressMatchesLessonRuntime(retrieval, [
+      { methodRuntime: null },
+      {
+        methodRuntime: {
+          kind: "retrieval_round",
+          format: "broad_recall_v1",
+          prompts: [{}, {}, {}],
+        },
+      },
+    ])).toBe(false);
+
+    const broad = broadRecallProgress();
+    const broadRuntime = {
+      sourceActivityIndex: 2,
+      methodRuntime: {
+        kind: "retrieval_round",
+        format: "broad_recall_v1",
+        prompts: [{}],
+        gapChecklist: [{}, {}],
+        targetBindings: broad.bindings,
+      },
+    };
+    expect(sessionActivityProgressMatchesLessonRuntime(broad, [
+      { methodRuntime: null },
+      { methodRuntime: null },
+      broadRuntime,
+    ])).toBe(true);
+    expect(sessionActivityProgressMatchesLessonRuntime(broad, [
+      { methodRuntime: null },
+      { methodRuntime: null },
+      {
+        ...broadRuntime,
+        methodRuntime: {
+          ...broadRuntime.methodRuntime,
+          targetBindings: [{
+            ...broad.bindings[0],
+            targetId: "22222222-2222-4222-8222-222222222222",
+          }],
+        },
+      },
+    ])).toBe(false);
+    expect(sessionActivityProgressMatchesLessonRuntime(broad, [
+      { methodRuntime: null },
+      { methodRuntime: null },
+      { methodRuntime: null },
+    ])).toBe(false);
   });
 
   it("merges only compatible immutable prefixes and reports divergence explicitly", () => {

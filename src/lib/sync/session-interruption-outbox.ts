@@ -5,6 +5,7 @@ import type { SessionInterruption } from "@/lib/domain";
 import { ConceptEvidenceSchema } from "@/lib/learning/concept-evidence";
 import { ConfidenceEvidenceSchema } from "@/lib/learning/confidence-calibration";
 import {
+  isBroadRecallActivityProgress,
   SessionActivityProgressSchema,
   sessionActivityProgressHasRequiredRouteIdentity,
 } from "@/lib/learning/session-activity-progress";
@@ -80,6 +81,10 @@ export function queueSessionInterruption(input: PendingSessionInterruption) {
   const parsed = PendingSessionInterruptionSchema.safeParse(input);
   if (!parsed.success) return false;
   const current = loadAllPendingInterruptions();
+  // The deployed interruption writer deliberately rejects broad-recall
+  // progress until it can verify the exact generated resource. Do not add an
+  // entry that can never sync and would block every later terminal behind it.
+  if (isBroadRecallActivityProgress(parsed.data.interruption.activityProgress)) return false;
   const withoutDuplicate = current.filter((entry) => entry.interruption.id !== parsed.data.interruption.id);
   return savePendingInterruptions([...withoutDuplicate, parsed.data].slice(-25));
 }
@@ -115,9 +120,15 @@ export function readQueuedSessionInterruptionsForExport(userId: string):
     if (!Array.isArray(parsed) || parsed.length > 25) return { ok: false };
     const validated = parsed.map((entry) => PendingSessionInterruptionSchema.safeParse(entry));
     if (validated.some((entry) => !entry.success)) return { ok: false };
+    const supported = validated.flatMap((entry) => (
+      entry.success && !isBroadRecallActivityProgress(entry.data.interruption.activityProgress)
+        ? [entry.data]
+        : []
+    ));
+    if (supported.length !== validated.length) savePendingInterruptions(supported);
     return {
       ok: true,
-      value: validated.flatMap((entry) => entry.success && entry.data.userId === userId ? [entry.data] : []),
+      value: supported.filter((entry) => entry.userId === userId),
     };
   } catch {
     return { ok: false };
@@ -162,10 +173,22 @@ function loadAllPendingInterruptions(): PendingSessionInterruption[] {
     if (!stored) return [];
     const parsed: unknown = JSON.parse(stored);
     if (!Array.isArray(parsed)) return [];
-    return parsed.slice(-25).flatMap((entry) => {
+    let removedUnsupportedBroadRecall = false;
+    const supported = parsed.slice(-25).flatMap((entry) => {
       const validated = PendingSessionInterruptionSchema.safeParse(entry);
-      return validated.success ? [validated.data] : [];
+      if (!validated.success) return [];
+      if (isBroadRecallActivityProgress(validated.data.interruption.activityProgress)) {
+        removedUnsupportedBroadRecall = true;
+        return [];
+      }
+      return [validated.data];
     });
+    // Older clients could enqueue broad-recall interruptions even though the
+    // mature SQL boundary has always rejected them. Migrate those poison-pill
+    // entries away on read so one stale exit cannot permanently block newer
+    // supported exits on this device.
+    if (removedUnsupportedBroadRecall) savePendingInterruptions(supported);
+    return supported;
   } catch {
     return [];
   }

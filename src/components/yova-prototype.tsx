@@ -231,6 +231,7 @@ import {
 import {
   isRetrievalRoundActivityProgress,
   retrievalRoundActivityProgressIsComplete,
+  sessionActivityProgressMatchesLessonRuntime,
   type SessionActivityProgress,
 } from "@/lib/learning/session-activity-progress";
 import { cloudCheckpointResponseIsCurrent } from "@/lib/learning/active-session-cloud-sync";
@@ -2831,6 +2832,33 @@ export function YovaPrototype({
       return;
     }
 
+    const checkpointRunId = activeSessionRunIdRef.current;
+    const storedActivityProgress = sessionActivityProgressRef.current;
+    const activityProgress = sessionActivityProgressMatchesLessonRuntime(
+      storedActivityProgress,
+      activeLessonSteps,
+    ) ? storedActivityProgress : null;
+    if (activityProgress !== storedActivityProgress) {
+      updateSessionActivityProgress(activityProgress);
+      if (account && checkpointRunId) {
+        // A same-run checkpoint with stale activity progress otherwise wins
+        // normalization over the clean replacement. Remove it first and
+        // invalidate any in-flight response before writing the exit marker.
+        checkpointSyncEpochRef.current += 1;
+        removeActiveSessionCheckpoint(account.id, currentSession.id, checkpointRunId);
+        setActiveSessionCheckpoints((current) => current.filter((checkpoint) => !(
+          checkpoint.accountId === account.id
+          && checkpoint.planSessionId === currentSession.id
+          && checkpoint.runId === checkpointRunId
+        )));
+        setCloudCheckpointRunIds((current) => {
+          const next = new Set(current);
+          next.delete(checkpointRunId);
+          return next;
+        });
+      }
+    }
+
     const interruptedAt = new Date();
     if (activeSessionClockRef.current) {
       activeSessionClockRef.current = pauseActiveSessionClock(activeSessionClockRef.current, interruptedAt.getTime());
@@ -2861,7 +2889,6 @@ export function YovaPrototype({
     const sessionAdjustment = sessionGenerationAttemptRef.current?.planSessionId === currentSession.id
       ? sessionGenerationAttemptRef.current.adjustment
       : null;
-    const checkpointRunId = activeSessionRunIdRef.current;
     const interruptedRouteRevisionId = currentSession.resource?.routeRevisionId
       ?? (currentSession.studyRoute?.identity.lifecycleStatus === "committed"
         ? currentSession.studyRoute.identity.routeRevisionId
@@ -2881,8 +2908,8 @@ export function YovaPrototype({
       evidence: interruptionEvidence,
       pendingRepair,
       ...(sessionAdjustment ? { sessionAdjustment } : {}),
-      ...(sessionActivityProgressRef.current
-        ? { activityProgress: sessionActivityProgressRef.current }
+      ...(activityProgress
+        ? { activityProgress }
         : {}),
     };
     const exitCheckpointSaved = Boolean(
