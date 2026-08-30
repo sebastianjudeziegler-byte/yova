@@ -362,7 +362,13 @@ const FreeResponseActivitySchema = z.object({
 const providerRuntime = MethodRuntimeProviderOutputSchema.nullable().default(null);
 const ProviderInstructionActivitySchema = InstructionActivitySchema.extend({ methodRuntime: providerRuntime });
 const ProviderReflectionActivitySchema = ReflectionActivitySchema.extend({ methodRuntime: providerRuntime });
-const ProviderMultipleChoiceActivitySchema = MultipleChoiceActivityOutputSchema.extend({ methodRuntime: providerRuntime });
+const ProviderMultipleChoiceActivitySchema = MultipleChoiceActivityOutputSchema
+  .omit({ choices: true, correctAnswer: true })
+  .extend({
+    choices: z.array(z.string().trim().min(1).max(220)).length(4),
+    correctChoiceIndex: z.number().int().min(0).max(3),
+    methodRuntime: providerRuntime,
+  });
 const ProviderFreeResponseActivitySchema = FreeResponseActivitySchema.extend({ methodRuntime: providerRuntime });
 
 // The OpenAI SDK parses the provider response with this schema before YOVA's
@@ -469,6 +475,29 @@ export const GeneratedSessionDraftProviderOutputSchema = z.object({
   sourceGrounding: SessionSourceGroundingOutputSchema.nullable(),
   activities: z.array(GeneratedSessionActivityOutputSchema).min(3).max(8),
 });
+
+export type GeneratedSessionDraftProviderOutput = z.infer<typeof GeneratedSessionDraftProviderOutputSchema>;
+
+/**
+ * Resolves provider-only multiple-choice indexes into YOVA's canonical answer
+ * representation. The provider never gets to repeat or paraphrase the correct
+ * choice, while the final session schema still verifies answer membership.
+ */
+export function materializeGeneratedSessionProviderOutput(
+  provider: GeneratedSessionDraftProviderOutput,
+) {
+  return {
+    ...provider,
+    activities: provider.activities.map((activity) => {
+      if (activity.type !== "multiple_choice") return activity;
+      const { correctChoiceIndex, ...canonical } = activity;
+      return {
+        ...canonical,
+        correctAnswer: activity.choices[correctChoiceIndex]!,
+      };
+    }),
+  };
+}
 
 export const GeneratedSessionDraftSchema = GeneratedSessionDraftOutputSchema.superRefine((session, context) => {
   const firstActivity = session.activities[0];

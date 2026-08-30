@@ -3,6 +3,7 @@ import { buildSessionEvaluationCases } from "@/evals/session-cases";
 import {
   GeneratedSessionDraftOutputSchema,
   GeneratedSessionDraftProviderOutputSchema,
+  materializeGeneratedSessionProviderOutput,
   type FilledGeneratedSessionDraft,
   type GeneratedSessionDraft,
 } from "@/lib/session-generation/schema";
@@ -207,12 +208,43 @@ function completedProviderResponse(id: string, output_parsed: unknown) {
     id,
     model: "gpt-yova-test",
     status: "completed",
-    output_parsed,
+    output_parsed: fullProviderWireFixture(output_parsed),
     usage: {
       input_tokens: 600,
       input_tokens_details: { cached_tokens: 0, cache_write_tokens: 0 },
       output_tokens: 300,
     },
+  };
+}
+
+function fullProviderWireFixture(value: unknown): unknown {
+  if (!value || typeof value !== "object" || !Array.isArray((value as { activities?: unknown }).activities)) {
+    return value;
+  }
+  return {
+    ...value,
+    activities: (value as { activities: unknown[] }).activities.map((candidate) => {
+      if (!candidate || typeof candidate !== "object") return candidate;
+      const activity = candidate as Record<string, unknown>;
+      if (activity.type !== "multiple_choice" || !Array.isArray(activity.choices)) return activity;
+      if (typeof activity.correctChoiceIndex === "number") return activity;
+      if (typeof activity.correctAnswer !== "string") return activity;
+      const suppliedChoices = activity.choices.filter((choice): choice is string => typeof choice === "string");
+      const suppliedCorrectIndex = suppliedChoices.indexOf(activity.correctAnswer);
+      if (suppliedCorrectIndex < 0) return activity;
+      const choices = suppliedChoices.length <= 4
+        ? [...suppliedChoices, ...Array.from(
+          { length: 4 - suppliedChoices.length },
+          (_, index) => `A distinct incorrect alternative ${index + 1}`,
+        )]
+        : suppliedCorrectIndex < 4
+          ? suppliedChoices.slice(0, 4)
+          : [...suppliedChoices.slice(0, 3), activity.correctAnswer];
+      const correctChoiceIndex = choices.indexOf(activity.correctAnswer);
+      const wireActivity = { ...activity };
+      delete wireActivity.correctAnswer;
+      return { ...wireActivity, choices, correctChoiceIndex };
+    }),
   };
 }
 
@@ -559,6 +591,44 @@ async function expectCompleteValidatorPass(
 }
 
 describe("substantive teaching validation", () => {
+  it("materializes provider-owned choice indexes into exact canonical answers", () => {
+    const canonical = learningDraft("model");
+    const wire = GeneratedSessionDraftProviderOutputSchema.parse(fullProviderWireFixture(canonical));
+    const wireAnswer = wire.activities.find((activity) => activity.type === "multiple_choice");
+    expect(wireAnswer?.type).toBe("multiple_choice");
+    if (wireAnswer?.type !== "multiple_choice") return;
+    const materialized = materializeGeneratedSessionProviderOutput(wire);
+    const answer = materialized.activities.find((activity) => activity.type === "multiple_choice");
+
+    expect(answer).toMatchObject({
+      type: "multiple_choice",
+      choices: expect.any(Array),
+    });
+    expect(answer?.type === "multiple_choice" ? answer.correctAnswer : null).toBe(
+      wireAnswer?.type === "multiple_choice" ? wireAnswer.choices[wireAnswer.correctChoiceIndex] : null,
+    );
+    expect(answer).not.toHaveProperty("correctChoiceIndex");
+    expect(GeneratedSessionDraftOutputSchema.safeParse(materialized).success).toBe(true);
+
+    for (const correctChoiceIndex of [0, 1, 2, 3]) {
+      const indexedWire = structuredClone(wire);
+      const indexedAnswer = indexedWire.activities.find((activity) => activity.type === "multiple_choice");
+      expect(indexedAnswer?.type).toBe("multiple_choice");
+      if (indexedAnswer?.type !== "multiple_choice") continue;
+      indexedAnswer.correctChoiceIndex = correctChoiceIndex;
+      const indexedCanonical = materializeGeneratedSessionProviderOutput(indexedWire);
+      const canonicalAnswer = indexedCanonical.activities.find((activity) => activity.type === "multiple_choice");
+      expect(canonicalAnswer?.type === "multiple_choice" ? canonicalAnswer.correctAnswer : null)
+        .toBe(indexedAnswer.choices[correctChoiceIndex]);
+    }
+
+    const invalidIndex = structuredClone(wire) as unknown as Record<string, unknown>;
+    const invalidActivities = invalidIndex.activities as Array<Record<string, unknown>>;
+    const invalidAnswer = invalidActivities.find((activity) => activity.type === "multiple_choice");
+    if (invalidAnswer) invalidAnswer.correctChoiceIndex = 4;
+    expect(GeneratedSessionDraftProviderOutputSchema.safeParse(invalidIndex).success).toBe(false);
+  });
+
   it("keeps cross-field misses out of the provider parser and in YOVA's final validator", () => {
     const draft = structuredClone(learningDraft("model"));
     draft.activities[0]!.teaching = null;
@@ -577,12 +647,16 @@ describe("substantive teaching validation", () => {
       transferPrompt: null,
       targetBindings: null,
     };
-    const multipleChoice = draft.activities.find((activity) => activity.type === "multiple_choice");
+    const providerCandidate = GeneratedSessionDraftProviderOutputSchema.safeParse(fullProviderWireFixture(draft));
+    expect(providerCandidate.success).toBe(true);
+    if (!providerCandidate.success) return;
+    const finalCandidate = materializeGeneratedSessionProviderOutput(providerCandidate.data);
+    const multipleChoice = finalCandidate.activities.find((activity) => activity.type === "multiple_choice");
     expect(multipleChoice).toBeDefined();
-    multipleChoice!.correctAnswer = "An answer the provider omitted from the choices";
-
-    expect(GeneratedSessionDraftProviderOutputSchema.safeParse(draft).success).toBe(true);
-    const final = GeneratedSessionDraftOutputSchema.safeParse(draft);
+    if (multipleChoice?.type === "multiple_choice") {
+      multipleChoice.correctAnswer = "An answer omitted from the choices";
+    }
+    const final = GeneratedSessionDraftOutputSchema.safeParse(finalCandidate);
 
     expect(final.success).toBe(false);
     if (final.success) return;
@@ -665,6 +739,14 @@ describe("full guided-session structural repair failures", () => {
         outputTokens: 0,
         validationIssueCode: "session_full_structure",
       },
+      structuralDiagnostic: {
+        stage: "provider_repair_parse",
+        issueCount: invalidResponse.error.issues.length,
+        issues: expect.arrayContaining([
+          { code: "invalid_type", path: ["topicIds"] },
+        ]),
+        truncated: invalidResponse.error.issues.length > 12,
+      },
     });
     expect(parseResponse).toHaveBeenCalledTimes(2);
   });
@@ -699,6 +781,47 @@ describe("full guided-session structural repair failures", () => {
       },
     });
     expect(parseResponse).toHaveBeenCalledTimes(2);
+  });
+
+  it("preserves the final strict-parse issue paths after bounded repairs fail", async () => {
+    parseResponse.mockReset();
+    const context: SessionGenerationContext = {
+      ...economicsLearnContext(),
+      sessionAdjustment: {
+        familiarity: "as_planned",
+        availableMinutes: 15,
+        knownTargets: [],
+        note: "Keep this fixture ineligible for bounded recovery.",
+      },
+    };
+    const invalidDraft = learningDraft("model");
+    invalidDraft.activities[0]!.teaching = null;
+    parseResponse
+      .mockResolvedValueOnce(completedProviderResponse("strict-initial", invalidDraft))
+      .mockResolvedValueOnce(completedProviderResponse("strict-repair", invalidDraft))
+      .mockResolvedValueOnce(completedProviderResponse("strict-followup", invalidDraft));
+
+    const { generateSessionWithOpenAI } = await import("@/lib/openai/session-generator");
+    await expect(generateSessionWithOpenAI(context)).rejects.toMatchObject({
+      name: "SessionGenerationFailure",
+      generationStats: {
+        attempts: 3,
+        failedValidator: "session_structure",
+        repairAttempted: true,
+        repairSucceeded: false,
+        repairReason: "structured_output",
+        validationIssueCode: "session_full_structure",
+      },
+      structuralDiagnostic: {
+        stage: "draft_followup_parse",
+        issueCount: expect.any(Number),
+        issues: expect.arrayContaining([
+          { code: "custom", path: ["activities", 0, "teaching"] },
+        ]),
+        truncated: false,
+      },
+    });
+    expect(parseResponse).toHaveBeenCalledTimes(3);
   });
 });
 
@@ -1653,6 +1776,22 @@ describe("outside-YOVA teaching-first generation", () => {
         activity.practiceIntent = "baseline";
       }
     });
+    repairedDraft.sourceGrounding = {
+      mode: "materials_plus_ai",
+      summary: "A provider-supplied grounding block must not override YOVA's AI-generated source policy.",
+      sourceNames: ["provider-invented-source.txt"],
+      anchors: [{
+        chunkId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        sourceName: "provider-invented-source.txt",
+        locationLabel: "Invented section",
+        excerpt: "This provider-supplied excerpt is deliberately outside the authoritative context.",
+        usedFor: "Verify that server-owned source policy removes an invented grounding block.",
+      }],
+      supplements: [{
+        topic: "Provider grounding",
+        reason: "This deliberately supplied value proves the server owns AI-generated grounding metadata.",
+      }],
+    };
     const invalidDraft = structuredClone(repairedDraft);
     invalidDraft.activities[0]!.methodPhase = "orient";
     invalidDraft.activities[1]!.methodPhase = "model";
@@ -1701,6 +1840,7 @@ describe("outside-YOVA teaching-first generation", () => {
     );
     expect(result.draft.activities.some((activity) => activity.type === "multiple_choice")).toBe(true);
     expect(result.draft.activities.some((activity) => activity.type === "free_response")).toBe(true);
+    expect(result.draft.sourceGrounding).toBeNull();
     expect(validateSubstantiveTeaching(result.draft)).toBeNull();
     expect(validateOutsideAppGuidance(result.draft, "outside_yova")).toBeNull();
   });

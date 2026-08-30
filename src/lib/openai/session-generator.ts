@@ -83,6 +83,7 @@ import {
 import {
   GeneratedSessionDraftSchema,
   GeneratedSessionDraftProviderOutputSchema,
+  materializeGeneratedSessionProviderOutput,
   type SessionAdjustment,
   type GeneratedSessionDraft,
   type LessonBrief,
@@ -252,8 +253,29 @@ export type SessionGenerationStats = {
   validationIssueCode?: SessionValidationIssueCode | null;
 };
 
+export type SessionStructuralDiagnosticStage =
+  | "provider_initial_parse"
+  | "provider_repair_parse"
+  | "draft_initial_parse"
+  | "draft_repair_parse"
+  | "draft_followup_parse";
+
+export type SessionStructuralDiagnostic = {
+  stage: SessionStructuralDiagnosticStage;
+  issueCount: number;
+  issues: Array<{
+    code: string;
+    path: Array<string | number>;
+  }>;
+  truncated: boolean;
+};
+
 export class SessionGenerationFailure extends Error {
-  constructor(message: string, public readonly generationStats: SessionGenerationStats) {
+  constructor(
+    message: string,
+    public readonly generationStats: SessionGenerationStats,
+    public readonly structuralDiagnostic?: SessionStructuralDiagnostic,
+  ) {
     super(message);
     this.name = "SessionGenerationFailure";
   }
@@ -430,7 +452,7 @@ Requirements:
 - Never misuse a methodPhase label to pass validation. A model activity must contain a complete example or explanation; guided_practice must remove some support; independent_practice must withhold the solution; repair must compare and correct; transfer must use a different prompt or application; schedule_return must name a delayed retrieval point.
 - For a learn session, teach or model the target before the first knowledge check, then fade support toward an independent attempt. The checks verify whether teaching worked; they are not the main content.
 - Every model-phase activity must use type instruction and contain a teaching block. Never tag a multiple-choice or free-response question as model, and always set teaching to null on questions and reflections. In every learn session, the first activity must contain a teaching block. The teaching block must explain the actual subject matter, not the study method: state the key idea and explain the mechanism or procedure in connected prose. For every learn session, include at least one concrete worked example or one plausible misconception with its correction. Do not leave both teaching.example and teaching.commonMistake empty.
-- Keep activity fields type-safe. instruction and reflection must use choices: [], concept: null, correctAnswer: null, and feedback: null. free_response must use choices: [] and include a concept, reference answer, and feedback. multiple_choice must include a concept, 3 to 5 choices, an exactly matching correct answer, and feedback. Never leave question data on a non-question activity.
+- Keep activity fields type-safe. instruction and reflection must use choices: [], concept: null, correctAnswer: null, and feedback: null. free_response must use choices: [] and include a concept, reference answer, and feedback. multiple_choice must include a concept, exactly 4 choices, correctChoiceIndex pointing to the exact correct choice, and feedback. Never leave question data on a non-question activity.
 - Keep body under two short sentences and use it only for the learner's immediate action or setup. Never place a lesson, bullet list, study guide, or example inside body. Put the substantive lesson in teaching so the interface can present the idea, walkthrough, and common mistake as separate visual sections.
 - For mathematics, statistics, physics, chemistry equations, and symbolic logic, format every symbolic expression with KaTeX-compatible LaTeX. Use $...$ for inline expressions and $$...$$ for a standalone equation. Keep explanatory prose outside the delimiters. Do not emit raw \\( ... \\) or \\[ ... \\] delimiters. Write currency as USD 100 when a dollar sign could be confused with a math delimiter.
 - In worked mathematical examples, show the setup, each transformation, and the final result as separate steps. Never compress a multi-step derivation into one prose sentence or provide a formula without explaining what each part does.
@@ -443,12 +465,12 @@ Requirements:
 - Follow sessionContentBudget for the exact idea and check limits. For sessions of 15 minutes or less, use no more than 4 activities and no more than 2 tightly related essential ideas. For 16 to 30 minutes, use no more than 5 activities. Longer sessions may use up to 8 only when the content requires it.
 - Mark the teaching, core attempt, and evidence-producing checks requiredForCompletion. Optional reflection or extension may be false. At least one question must be required.
 - Use concise instructions and one obvious action at a time.
-- Include at least one meaningful multiple-choice knowledge check with 3 to 5 plausible choices.
+- Include at least one meaningful multiple-choice knowledge check with exactly 4 plausible choices.
 - Include at least one free_response activity that makes the learner produce an answer from memory before seeing a concise reference answer.
 - Give every multiple_choice and free_response activity one concise concept name. Set concept to null for instructions and reflections.
 - For free_response, leave choices empty. correctAnswer must directly answer the learner's question with the actual subject facts, relationships, calculation, or procedure. Never write meta language such as "A strong response states," "The learner should mention," or "An accurate answer includes" in correctAnswer. Put grading criteria only in feedback. YOVA uses both for a bounded formative check, and the learner can correct that judgment.
 - For quantitative problem-solving free responses, ask for a concrete calculation or solution and explicitly tell the learner to show the key steps before the final answer. Put the worked result in correctAnswer and name the required method steps in feedback. Do not turn every mathematics prompt into a verbal explanation.
-- For multiple_choice, correctAnswer must exactly match one choice, and feedback must explain the concept rather than merely say correct.
+- For multiple_choice, set correctChoiceIndex to the zero-based position of the correct choice, and make feedback explain the concept rather than merely say correct.
 - Every question's feedback must be a useful explanatory sentence of at least 20 characters. Every free-response reference answer must contain enough substance to compare meaning, not a one-word answer.
 - Put choices in varied order. Do not always place the correct answer first.
 - If the user is studying inside YOVA, include the minimum explanation or example needed before retrieval or application.
@@ -862,6 +884,7 @@ export async function generateSessionWithOpenAI(
   let firstSemanticValidator: GenerationValidator | null = null;
   let safeRecoveryMode: SessionGenerationStats["recoveryMode"] | null = null;
   let validationIssueCode: SessionGenerationStats["validationIssueCode"] = null;
+  let parsedStructuralStage: SessionStructuralDiagnosticStage = "draft_initial_parse";
   let deterministicActivityFormatRepair: "missing_typed_recall" | "explain_phase_type" | "practice_intent" | null = null;
   const generationBudget = resolveSessionGenerationBudget(runtime, generationStartedAt);
   const budgetFailureStats: SessionBudgetFailureStats = (additionalUsage) => ({
@@ -1151,6 +1174,7 @@ export async function generateSessionWithOpenAI(
           validationIssueCode: "session_full_structure",
           ...(safeRecoveryMode ? { recoveryMode: safeRecoveryMode } : {}),
         },
+        sessionStructuralDiagnostic(error, "provider_repair_parse"),
       );
     }
   };
@@ -1165,6 +1189,7 @@ export async function generateSessionWithOpenAI(
     validationIssueCode = "session_full_structure";
     repairDetail = sessionStructureRepairDetail(error);
     response = await requestRepairDraft(repairDetail);
+    parsedStructuralStage = "draft_repair_parse";
   }
 
   let parsed = parseGeneratedSessionDraft(response.output_parsed, learningScienceRouting, context, sessionDeliveryPolicy);
@@ -1189,6 +1214,7 @@ export async function generateSessionWithOpenAI(
         : semanticIssue?.detail ?? "The structured session shape was invalid or incomplete.";
     response = await requestRepairDraft(repairDetail);
     parsed = parseGeneratedSessionDraft(response.output_parsed, learningScienceRouting, context, sessionDeliveryPolicy);
+    parsedStructuralStage = "draft_repair_parse";
     deterministicActivityFormatRepair ??= parsed.activityFormatNormalizationReason;
     if (!parsed.success) validationIssueCode = "session_full_structure";
     semanticIssue = parsed.success
@@ -1288,6 +1314,7 @@ export async function generateSessionWithOpenAI(
         `The prior repair fixed some issues but introduced or retained this failure: ${followupRepairDetail} Preserve the valid subject content and satisfy the complete supplied method-fidelity contract, including every required phase in order. Rebuild the full activity sequence and evidence map together.`,
       );
       parsed = parseGeneratedSessionDraft(response.output_parsed, learningScienceRouting, context, sessionDeliveryPolicy);
+      parsedStructuralStage = "draft_followup_parse";
       deterministicActivityFormatRepair ??= parsed.activityFormatNormalizationReason;
       if (!parsed.success) validationIssueCode = "session_full_structure";
       semanticIssue = parsed.success
@@ -1320,6 +1347,9 @@ export async function generateSessionWithOpenAI(
         validationIssueCode,
         ...(safeRecoveryMode ? { recoveryMode: safeRecoveryMode } : {}),
       },
+      !parsed.success
+        ? sessionStructuralDiagnostic(parsed.error, parsedStructuralStage)
+        : undefined,
     );
   }
 
@@ -3475,23 +3505,71 @@ function sessionStructureRepairDetail(error: unknown) {
   return `The structured session shape was invalid. Fix these exact schema issues: ${detail}`.slice(0, 700);
 }
 
+const SESSION_STRUCTURAL_DIAGNOSTIC_ISSUE_LIMIT = 12;
+
+function sessionStructuralDiagnostic(
+  error: unknown,
+  stage: SessionStructuralDiagnosticStage,
+): SessionStructuralDiagnostic | undefined {
+  const sourceIssues = readZodIssues(error);
+  if (sourceIssues.length === 0) return undefined;
+  const safeIssues = sourceIssues.flatMap((issue) => {
+    if (!safeStructuralIssueCode(issue.code)) return [];
+    const path = safeStructuralIssuePath(issue.path);
+    return path ? [{ code: issue.code, path }] : [];
+  }).slice(0, SESSION_STRUCTURAL_DIAGNOSTIC_ISSUE_LIMIT);
+  return {
+    stage,
+    issueCount: sourceIssues.length,
+    issues: safeIssues,
+    truncated: safeIssues.length !== sourceIssues.length,
+  };
+}
+
 function isZodError(error: unknown): error is Error {
   return error instanceof Error && error.name === "ZodError";
 }
 
-function readZodIssues(error: unknown): Array<{ path: Array<string | number>; message: string }> {
+function readZodIssues(error: unknown): Array<{
+  code: string;
+  path: Array<string | number>;
+  message: string;
+}> {
   if (!error || typeof error !== "object" || !("issues" in error)) return [];
   const issues = (error as { issues?: unknown }).issues;
   if (!Array.isArray(issues)) return [];
   return issues.flatMap((issue) => {
     if (!issue || typeof issue !== "object") return [];
-    const candidate = issue as { path?: unknown; message?: unknown };
-    if (!Array.isArray(candidate.path) || typeof candidate.message !== "string") return [];
-    const path = candidate.path.filter((segment): segment is string | number => (
-      typeof segment === "string" || typeof segment === "number"
-    ));
-    return [{ path, message: candidate.message }];
+    const candidate = issue as { code?: unknown; path?: unknown; message?: unknown };
+    if (
+      typeof candidate.code !== "string"
+      || !Array.isArray(candidate.path)
+      || typeof candidate.message !== "string"
+    ) return [];
+    if (!candidate.path.every((segment) => typeof segment === "string" || typeof segment === "number")) {
+      return [];
+    }
+    const path = candidate.path as Array<string | number>;
+    return [{ code: candidate.code, path, message: candidate.message }];
   });
+}
+
+function safeStructuralIssueCode(code: string) {
+  return /^[a-z][a-z0-9_]{0,63}$/.test(code);
+}
+
+function safeStructuralIssuePath(path: Array<string | number>) {
+  const safePath: Array<string | number> = [];
+  for (const segment of path) {
+    if (typeof segment === "number") {
+      if (!Number.isInteger(segment) || segment < 0 || segment > 10_000) return undefined;
+      safePath.push(segment);
+      continue;
+    }
+    if (!/^[A-Za-z][A-Za-z0-9_-]{0,79}$/.test(segment)) return undefined;
+    safePath.push(segment);
+  }
+  return safePath;
 }
 
 function zodIssuePath(path: Array<string | number>) {
@@ -3511,14 +3589,15 @@ function parseGeneratedSessionDraft(
 ) {
   const parsed = GeneratedSessionDraftProviderOutputSchema.safeParse(value);
   if (!parsed.success) return { ...parsed, activityFormatNormalizationReason: null };
+  const providerDraft = materializeGeneratedSessionProviderOutput(parsed.data);
   const scheduledConcept = isScheduledRetrievalSession(context.session)
     ? context.session.reviewConcept?.trim() || null
     : null;
   const resolvedMethodId = routing.allowedMethodIds.length === 1
     ? routing.allowedMethodIds[0]!
-    : parsed.data.methodBriefing.methodId;
+    : providerDraft.methodBriefing.methodId;
   const orderedActivities = normalizeGeneratedActivityOrder(
-    parsed.data.activities,
+    providerDraft.activities,
     routing.sessionLearningMode,
     resolvedMethodId,
     deliveryPolicy,
@@ -3544,7 +3623,7 @@ function parseGeneratedSessionDraft(
   );
   const completionEvidence = boundedSessionCompletionEvidence({
     planned: context.session.completionEvidence ?? [],
-    generated: parsed.data.coverage.completionEvidence,
+    generated: providerDraft.coverage.completionEvidence,
     estimatedMinutes: context.session.estimatedMinutes,
   });
   const outsideTeachingInstructionIndex = context.learningGoal.studyMode === "outside_yova"
@@ -3556,19 +3635,19 @@ function parseGeneratedSessionDraft(
     ))
     : -1;
   const deterministicMetadata = {
-    ...parsed.data,
+    ...providerDraft,
     sourceGrounding: context.learningGoal.sourceMode === "user_materials"
-      ? bindOrdinarySessionSourceGrounding(context, parsed.data.sourceGrounding)
-      : parsed.data.sourceGrounding,
+      ? bindOrdinarySessionSourceGrounding(context, providerDraft.sourceGrounding)
+      : null,
     coverage: alignSessionCoverageWithPlan({
-      ...parsed.data.coverage,
+      ...providerDraft.coverage,
       // The plan already decided what counts as completion. The lesson model
       // may phrase the checks, but it may not silently add extra requirements
       // that no longer fit the learner's time window.
       completionEvidence,
     }, context.session.contentTargets ?? [], context.session.deferredContentTargets ?? []),
     methodBriefing: {
-      ...parsed.data.methodBriefing,
+      ...providerDraft.methodBriefing,
       learningMode: routing.sessionLearningMode,
       taskType: routing.taskType,
       personalization: deliveryPolicy.learnerFacingReasons.slice(0, 3),

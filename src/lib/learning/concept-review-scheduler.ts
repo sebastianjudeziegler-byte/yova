@@ -35,6 +35,27 @@ export function conceptSignalsForSession({
   topicIds: string[];
   scopeText: string[];
 }): ConceptSignal[] {
+  return evidenceSignalsForSession({ signals, topicIds, scopeText });
+}
+
+/**
+ * Applies the same topic-and-concept boundary to any learner-evidence signal
+ * that can affect session generation. A matching topic id alone is not enough:
+ * one knowledge-map topic can contain several concepts, while a session may
+ * intentionally cover only one of them.
+ */
+export function evidenceSignalsForSession<Signal extends {
+  topicId?: string;
+  concept: string;
+}>({
+  signals,
+  topicIds,
+  scopeText,
+}: {
+  signals: Signal[];
+  topicIds: string[];
+  scopeText: string[];
+}): Signal[] {
   const allowedTopicIds = new Set(topicIds);
   const normalizedScope = scopeText
     .map(normalizeConcept)

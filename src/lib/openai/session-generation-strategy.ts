@@ -1,5 +1,8 @@
 import "server-only";
-import { conceptSignalsForSession } from "@/lib/learning/concept-review-scheduler";
+import {
+  conceptSignalsForSession,
+  evidenceSignalsForSession,
+} from "@/lib/learning/concept-review-scheduler";
 import { isScheduledRetrievalSession } from "@/lib/learning/scheduled-retrieval";
 import {
   canGenerateReliableSession,
@@ -81,24 +84,48 @@ function prepareProductionSessionGenerationContext(
 ) {
   const preparedContext = prepareSessionGenerationContext(context);
   return markSessionGenerationContextPrepared(
-    withSessionConceptScope(preparedContext),
+    withSessionEvidenceScope(preparedContext),
   );
 }
 
-export function withSessionConceptScope(
+export function withSessionEvidenceScope(
   context: SessionGenerationContext,
 ): SessionGenerationContext {
-  const conceptSignals = conceptSignalsForSession({
-    signals: context.conceptSignals,
+  const signalScope = {
     topicIds: context.session.topicIds,
     scopeText: [
       context.session.title,
       context.session.objective,
       ...(context.session.contentTargets ?? []),
     ],
+  };
+  const conceptSignals = conceptSignalsForSession({
+    signals: context.conceptSignals,
+    ...signalScope,
   });
-  return conceptSignals.length === context.conceptSignals.length
-    && conceptSignals.every((signal, index) => signal === context.conceptSignals[index])
-    ? context
-    : { ...context, conceptSignals };
+  const scaffoldSignals = context.scaffoldSignals
+    ? evidenceSignalsForSession({ signals: context.scaffoldSignals, ...signalScope })
+    : undefined;
+  const topicCalibrationSignals = context.topicCalibrationSignals
+    ? evidenceSignalsForSession({ signals: context.topicCalibrationSignals, ...signalScope })
+    : undefined;
+  const conceptSignalsUnchanged = sameSignals(conceptSignals, context.conceptSignals);
+  const scaffoldSignalsUnchanged = context.scaffoldSignals === undefined
+    || sameSignals(scaffoldSignals ?? [], context.scaffoldSignals);
+  const calibrationSignalsUnchanged = context.topicCalibrationSignals === undefined
+    || sameSignals(topicCalibrationSignals ?? [], context.topicCalibrationSignals);
+  if (conceptSignalsUnchanged && scaffoldSignalsUnchanged && calibrationSignalsUnchanged) {
+    return context;
+  }
+  return {
+    ...context,
+    conceptSignals,
+    ...(scaffoldSignals ? { scaffoldSignals } : {}),
+    ...(topicCalibrationSignals ? { topicCalibrationSignals } : {}),
+  };
+}
+
+function sameSignals<Signal>(left: readonly Signal[], right: readonly Signal[]) {
+  return left.length === right.length
+    && left.every((signal, index) => signal === right[index]);
 }
