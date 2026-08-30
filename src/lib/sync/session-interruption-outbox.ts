@@ -152,7 +152,7 @@ export async function flushQueuedSessionInterruptions(userId: string) {
 
   for (const entry of queued) {
     try {
-      await recordAuthenticatedSessionInterruption(entry.interruption);
+      await recordAuthenticatedSessionInterruption(entry.userId, entry.interruption);
       removeQueuedSessionInterruption(entry.interruption.id);
       synced += 1;
     } catch (error) {

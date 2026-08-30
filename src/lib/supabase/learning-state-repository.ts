@@ -173,6 +173,60 @@ export type CloudLearningState = {
 };
 
 const AUTHENTICATED_STATE_RETRY_DELAYS_MS = [150, 400] as const;
+export const AUTHENTICATED_LEARNING_MUTATION_DEADLINE_MS = 12_000;
+
+type AbortableSupabaseMutation<T> = PromiseLike<T> & {
+  abortSignal?: (signal: AbortSignal) => PromiseLike<T>;
+};
+
+class AuthenticatedLearningMutationDeadlineError extends Error {
+  constructor() {
+    super("The authenticated learning mutation exceeded its client deadline.");
+    this.name = "AuthenticatedLearningMutationDeadlineError";
+  }
+}
+
+class SessionInterruptionCloudSyncError extends Error {
+  constructor() {
+    super("YOVA kept this session open but could not sync the interruption to the cloud.");
+    this.name = "SessionInterruptionCloudSyncError";
+  }
+}
+
+/**
+ * Gives every mutation attempt in one logical operation the same absolute
+ * deadline. The abort signal stops a PostgREST fetch when one exists, while
+ * the Promise race still settles if auth/session resolution never reaches the
+ * fetch layer or an older client does not expose `abortSignal`.
+ */
+async function withinAuthenticatedLearningMutationDeadline<T>(
+  operation: (
+    run: <Result>(request: AbortableSupabaseMutation<Result>) => Promise<Result>,
+  ) => Promise<T>,
+): Promise<T> {
+  const controller = new AbortController();
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
+  const deadline = new Promise<never>((_resolve, reject) => {
+    timeoutId = setTimeout(() => {
+      reject(new AuthenticatedLearningMutationDeadlineError());
+      // Reject the deadline first so a signal-aware fetch cannot win the race
+      // with its less-specific AbortError during the same timer callback.
+      controller.abort();
+    }, AUTHENTICATED_LEARNING_MUTATION_DEADLINE_MS);
+  });
+  const run = <Result>(request: AbortableSupabaseMutation<Result>) => {
+    const abortableRequest = typeof request.abortSignal === "function"
+      ? request.abortSignal(controller.signal)
+      : request;
+    return Promise.race([Promise.resolve(abortableRequest), deadline]);
+  };
+
+  try {
+    return await operation(run);
+  } finally {
+    if (timeoutId !== null) clearTimeout(timeoutId);
+  }
+}
 
 export async function loadAuthenticatedLearningStateWithRetry(
   read: () => Promise<CloudLearningState | null> = loadAuthenticatedLearningState,
@@ -516,6 +570,7 @@ type ActiveSessionCheckpointWriteQueue = {
 };
 
 const activeSessionCheckpointWriteQueues = new Map<string, ActiveSessionCheckpointWriteQueue>();
+const authenticatedAccountLearningMutationTails = new Map<string, Promise<void>>();
 
 /**
  * Keeps at most one save in flight for each lesson. Writes queued behind it are
@@ -589,6 +644,13 @@ async function drainActiveSessionCheckpointWrites(planSessionId: string) {
       finalIssue = null;
     } catch (error) {
       finalIssue = error;
+      if (isAuthenticatedLearningMutationDeadlineIssue(error)) {
+        // A timed-out write has an indeterminate server outcome. Stop this
+        // queue generation, reject all of its waiters, and let the caller
+        // explicitly retry the newest local checkpoint in a fresh queue.
+        queue.pending = null;
+        break;
+      }
     }
   }
 
@@ -601,15 +663,65 @@ async function drainActiveSessionCheckpointWrites(planSessionId: string) {
   }
 }
 
+function isAuthenticatedLearningMutationDeadlineIssue(error: unknown) {
+  return error instanceof AuthenticatedLearningMutationDeadlineError
+    || (
+      error instanceof CloudSyncTemporarilyUnavailableError
+      && error.cause instanceof AuthenticatedLearningMutationDeadlineError
+    );
+}
+
 async function persistAuthenticatedActiveSessionCheckpoint(
   checkpoint: CloudSyncActiveSessionCheckpoint,
 ) {
-  const supabase = createSupabaseBrowserClient();
+  return sequenceAuthenticatedAccountLearningMutation(
+    checkpoint.accountId,
+    () => persistAuthenticatedActiveSessionCheckpointInAccountLane(checkpoint),
+  );
+}
+
+/**
+ * Checkpoint and interruption RPCs serialize under a per-account advisory
+ * lock. Mirror that ownership in the browser so separate lesson queues and an
+ * explicit Exit cannot contend for the same database lock. The lane tail
+ * never rejects, and `finally` releases it after every outcome.
+ */
+async function sequenceAuthenticatedAccountLearningMutation<Result>(
+  accountId: string,
+  operation: () => Promise<Result>,
+): Promise<Result> {
+  const predecessor = authenticatedAccountLearningMutationTails.get(accountId);
+  let release!: () => void;
+  const completion = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const tail = predecessor
+    ? predecessor.then(() => completion)
+    : completion;
+  authenticatedAccountLearningMutationTails.set(accountId, tail);
+
+  if (predecessor) await predecessor;
+  try {
+    return await operation();
+  } finally {
+    release();
+    if (authenticatedAccountLearningMutationTails.get(accountId) === tail) {
+      authenticatedAccountLearningMutationTails.delete(accountId);
+    }
+  }
+}
+
+async function persistAuthenticatedActiveSessionCheckpointInAccountLane(
+  checkpoint: CloudSyncActiveSessionCheckpoint,
+) {
   let data: unknown = null;
   let error: unknown = null;
   try {
-    const result = await supabase.rpc("save_active_session_checkpoint_with_route", {
-      payload: activeSessionCheckpointCloudPayload(checkpoint),
+    const result = await withinAuthenticatedLearningMutationDeadline(async (run) => {
+      const supabase = createSupabaseBrowserClient();
+      return run(supabase.rpc("save_active_session_checkpoint_with_route", {
+        payload: activeSessionCheckpointCloudPayload(checkpoint),
+      }));
     });
     data = result.data;
     error = result.error;
@@ -1127,7 +1239,10 @@ function exactOriginRouteRevisionId(route: StudyRoute) {
   return origins[0]!;
 }
 
-export async function recordAuthenticatedSessionInterruption(interruption: SessionInterruption) {
+export async function recordAuthenticatedSessionInterruption(
+  accountId: string,
+  interruption: SessionInterruption,
+) {
   if (!sessionActivityProgressHasRequiredRouteIdentity(
     interruption.activityProgress,
     interruption.routeRevisionId,
@@ -1135,7 +1250,6 @@ export async function recordAuthenticatedSessionInterruption(interruption: Sessi
     throw new Error("YOVA refused to sync route-less broad-recall interruption progress.");
   }
   if (!isSupabaseConfigured()) return;
-  const supabase = createSupabaseBrowserClient();
   const payload = {
     attemptId: interruption.id,
     planSessionId: interruption.planSessionId,
@@ -1166,42 +1280,64 @@ export async function recordAuthenticatedSessionInterruption(interruption: Sessi
     sessionAdjustment: interruption.sessionAdjustment,
     ...(interruption.activityProgress ? { activityProgress: interruption.activityProgress } : {}),
   };
-  let { error } = await supabase.rpc("record_session_interruption_with_route", {
-    payload,
-  });
+  try {
+    await sequenceAuthenticatedAccountLearningMutation(accountId, async () => {
+      await withinAuthenticatedLearningMutationDeadline(async (run) => {
+        const supabase = createSupabaseBrowserClient();
+        let { error } = await run(supabase.rpc("record_session_interruption_with_route", {
+          payload,
+        }));
 
-  if (
-    Object.hasOwn(payload, "activityProgress")
-    &&
-    error?.code === "55000"
-    && error.message === "broad_recall_interruption_resource_identity_required"
-  ) {
-    // The mature writer deliberately refuses to bind Broad Recall progress
-    // without a generated-resource receipt. Preserve the explicit Exit while
-    // leaving that unverified within-activity marker in its bound checkpoint.
-    const retryPayload = { ...payload };
-    delete retryPayload.activityProgress;
-    ({ error } = await supabase.rpc("record_session_interruption_with_route", {
-      payload: retryPayload,
-    }));
-  }
+        if (
+          Object.hasOwn(payload, "activityProgress")
+          &&
+          error?.code === "55000"
+          && error.message === "broad_recall_interruption_resource_identity_required"
+        ) {
+          // The mature writer deliberately refuses to bind Broad Recall progress
+          // without a generated-resource receipt. Preserve the explicit Exit while
+          // leaving that unverified within-activity marker in its bound checkpoint.
+          const retryPayload = { ...payload };
+          delete retryPayload.activityProgress;
+          ({ error } = await run(supabase.rpc("record_session_interruption_with_route", {
+            payload: retryPayload,
+          })));
+        }
 
-  if (
-    error?.code === "55000"
-    && error.message === "broad_recall_interruption_resource_identity_required"
-  ) {
-    throw new UnsupportedBroadRecallInterruptionError();
-  }
+        if (
+          error?.code === "55000"
+          && error.message === "broad_recall_interruption_resource_identity_required"
+        ) {
+          throw new UnsupportedBroadRecallInterruptionError();
+        }
 
-  if (error) {
-    const code = typeof error.code === "string" && /^[A-Za-z0-9_]{1,64}$/.test(error.code)
-      ? error.code
-      : "unknown";
-    const reason = typeof error.message === "string" && /^[a-z0-9_]{1,96}$/.test(error.message)
-      ? error.message
-      : "unclassified";
-    console.error(`YOVA session interruption sync failed [${code}:${reason}]`);
-    throw new Error("YOVA kept this session open but could not sync the interruption to the cloud.");
+        if (error) {
+          const code = typeof error.code === "string" && /^[A-Za-z0-9_]{1,64}$/.test(error.code)
+            ? error.code
+            : "unknown";
+          const reason = typeof error.message === "string" && /^[a-z0-9_]{1,96}$/.test(error.message)
+            ? error.message
+            : "unclassified";
+          console.error(`YOVA session interruption sync failed [${code}:${reason}]`);
+          throw new SessionInterruptionCloudSyncError();
+        }
+      });
+    });
+  } catch (cause) {
+    if (
+      cause instanceof UnsupportedBroadRecallInterruptionError
+      || cause instanceof SessionInterruptionCloudSyncError
+    ) {
+      throw cause;
+    }
+    const reason = cause instanceof AuthenticatedLearningMutationDeadlineError
+      ? "deadline"
+      : "unavailable";
+    console.error(`YOVA session interruption sync failed [client:${reason}]`);
+    throw new CloudSyncTemporarilyUnavailableError(
+      "YOVA kept this session open but could not sync the interruption to the cloud.",
+      cause,
+    );
   }
 }
 

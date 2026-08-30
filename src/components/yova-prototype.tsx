@@ -667,6 +667,7 @@ export function YovaPrototype({
     statusOverride?: ActiveSessionCheckpoint["status"],
     completedAtOverride?: string,
     completionModeOverride?: SessionCompletionMode,
+    options?: { syncToAccount?: boolean },
   ) => boolean>(() => false);
   const protectedTerminalCheckpointRunIdsRef = useRef(new Set<string>());
   const lastLifecycleCheckpointAtRef = useRef(0);
@@ -1485,6 +1486,7 @@ export function YovaPrototype({
     statusOverride,
     completedAtOverride,
     completionModeOverride,
+    options,
   ) => {
     if (
       (
@@ -1671,7 +1673,7 @@ export function YovaPrototype({
         checkpoint,
       ]);
       setSessionRecoveryIssue(null);
-      if (account.identityMode === "supabase") {
+      if (account.identityMode === "supabase" && options?.syncToAccount !== false) {
         void syncCheckpointToAccount(checkpoint).then((issue) => {
           if (issue) setCloudSyncIssue(issue);
         });
@@ -2916,7 +2918,12 @@ export function YovaPrototype({
     const exitCheckpointSaved = Boolean(
       checkpointRunId
       && account
-      && writeActiveSessionCheckpointRef.current(),
+      && writeActiveSessionCheckpointRef.current(
+        undefined,
+        undefined,
+        undefined,
+        { syncToAccount: false },
+      ),
     );
     const terminalCheckpoint = exitCheckpointSaved && checkpointRunId && account
       ? loadActiveSessionCheckpoints(account.id).find((checkpoint) => (
@@ -2992,7 +2999,7 @@ export function YovaPrototype({
           return next;
         });
       }
-      void recordAuthenticatedSessionInterruption(interruption)
+      void recordAuthenticatedSessionInterruption(account.id, interruption)
         .then(async () => {
           removeQueuedSessionInterruption(interruption.id);
           if (checkpointRunId) {

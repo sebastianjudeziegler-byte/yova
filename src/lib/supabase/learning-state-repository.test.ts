@@ -39,6 +39,7 @@ vi.mock("@/lib/supabase/client", () => ({
 }));
 
 import {
+  AUTHENTICATED_LEARNING_MUTATION_DEADLINE_MS,
   ActiveSessionCheckpointConflictError,
   ActiveSessionCheckpointTerminalError,
   activateAuthenticatedConceptReviewSession,
@@ -47,7 +48,7 @@ import {
   deleteAuthenticatedActiveSessionCheckpoint,
   loadAuthenticatedLearningState,
   loadAuthenticatedLearningStateWithRetry,
-  recordAuthenticatedSessionInterruption,
+  recordAuthenticatedSessionInterruption as persistAuthenticatedSessionInterruption,
   saveAuthenticatedActiveSessionCheckpoint,
   saveAuthenticatedLearnerProfile,
   type CloudLearningState,
@@ -55,6 +56,10 @@ import {
 
 const NOW = "2026-08-17T18:00:00.000Z";
 const ROUTE_REVISION_ID = "00000000-0000-4000-8000-000000000099";
+
+function recordAuthenticatedSessionInterruption(interruption: SessionInterruption) {
+  return persistAuthenticatedSessionInterruption("user-1", interruption);
+}
 
 beforeEach(() => {
   vi.useFakeTimers();
@@ -365,6 +370,220 @@ describe("authenticated learning-state startup", () => {
 });
 
 describe("recordAuthenticatedSessionInterruption", () => {
+  it("waits for an in-flight checkpoint on the same account before sending Exit", async () => {
+    const local = checkpoint();
+    const interrupted = sessionInterruption({
+      planId: local.planId,
+      planSessionId: local.planSessionId,
+    });
+    let activeWrites = 0;
+    let maxConcurrentWrites = 0;
+    let releaseCheckpoint!: () => void;
+    rpc.mockImplementation((name: string) => {
+      activeWrites += 1;
+      maxConcurrentWrites = Math.max(maxConcurrentWrites, activeWrites);
+      if (name === "save_active_session_checkpoint_with_route") {
+        return new Promise((resolve) => {
+          releaseCheckpoint = () => {
+            activeWrites -= 1;
+            resolve({ data: local, error: null });
+          };
+        });
+      }
+      activeWrites -= 1;
+      return Promise.resolve({ data: null, error: null });
+    });
+
+    const checkpointSave = saveAuthenticatedActiveSessionCheckpoint(local);
+    const interruptionSave = persistAuthenticatedSessionInterruption(
+      local.accountId,
+      interrupted,
+    );
+
+    expect(rpc).toHaveBeenCalledOnce();
+    expect(maxConcurrentWrites).toBe(1);
+    releaseCheckpoint();
+    await vi.advanceTimersByTimeAsync(0);
+
+    await Promise.all([checkpointSave, interruptionSave]);
+    expect(maxConcurrentWrites).toBe(1);
+    expect(rpc.mock.calls.map((call) => call[0])).toEqual([
+      "save_active_session_checkpoint_with_route",
+      "record_session_interruption_with_route",
+    ]);
+    expect(rpc.mock.calls[1]?.[1]?.payload).not.toHaveProperty("accountId");
+  });
+
+  it("does not make another account's interruption wait for a checkpoint", async () => {
+    const local = checkpoint();
+    const interrupted = sessionInterruption();
+    let activeWrites = 0;
+    let maxConcurrentWrites = 0;
+    const releases: Array<() => void> = [];
+    rpc.mockImplementation((name: string) => new Promise((resolve) => {
+      activeWrites += 1;
+      maxConcurrentWrites = Math.max(maxConcurrentWrites, activeWrites);
+      releases.push(() => {
+        activeWrites -= 1;
+        resolve({
+          data: name === "save_active_session_checkpoint_with_route" ? local : null,
+          error: null,
+        });
+      });
+    }));
+
+    const checkpointSave = saveAuthenticatedActiveSessionCheckpoint(local);
+    const interruptionSave = persistAuthenticatedSessionInterruption("user-2", interrupted);
+
+    expect(rpc).toHaveBeenCalledTimes(2);
+    expect(maxConcurrentWrites).toBe(2);
+    releases.forEach((release) => release());
+    await Promise.all([checkpointSave, interruptionSave]);
+  });
+
+  it("releases a timed-out checkpoint lane so the queued Exit can persist", async () => {
+    const local = checkpoint();
+    const interrupted = sessionInterruption();
+    rpc
+      .mockImplementationOnce(() => ({
+        abortSignal: (signal: AbortSignal) => new Promise((_resolve, reject) => {
+          signal.addEventListener(
+            "abort",
+            () => reject(new DOMException("Aborted", "AbortError")),
+            { once: true },
+          );
+        }),
+      }))
+      .mockResolvedValueOnce({ data: null, error: null });
+
+    const checkpointIssue = saveAuthenticatedActiveSessionCheckpoint(local)
+      .catch((error: unknown) => error);
+    const interruptionSave = persistAuthenticatedSessionInterruption(
+      local.accountId,
+      interrupted,
+    );
+
+    expect(rpc).toHaveBeenCalledOnce();
+    await vi.advanceTimersByTimeAsync(AUTHENTICATED_LEARNING_MUTATION_DEADLINE_MS);
+
+    expect(await checkpointIssue).toBeInstanceOf(CloudSyncTemporarilyUnavailableError);
+    await expect(interruptionSave).resolves.toBeUndefined();
+    expect(rpc).toHaveBeenCalledTimes(2);
+  });
+
+  it("releases a failed checkpoint lane so the queued Exit can persist", async () => {
+    const local = checkpoint();
+    const interrupted = sessionInterruption();
+    rpc
+      .mockResolvedValueOnce({
+        data: null,
+        error: { code: "08006", message: "network unavailable" },
+      })
+      .mockResolvedValueOnce({ data: null, error: null });
+
+    const checkpointIssue = saveAuthenticatedActiveSessionCheckpoint(local)
+      .catch((error: unknown) => error);
+    const interruptionSave = persistAuthenticatedSessionInterruption(
+      local.accountId,
+      interrupted,
+    );
+
+    expect(await checkpointIssue).toBeInstanceOf(CloudSyncTemporarilyUnavailableError);
+    await expect(interruptionSave).resolves.toBeUndefined();
+    expect(rpc).toHaveBeenCalledTimes(2);
+  });
+
+  it("aborts and rejects when auth resolution or the interruption request never settles", async () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    rpc.mockImplementationOnce(() => new Promise(() => undefined));
+
+    const result = recordAuthenticatedSessionInterruption({
+      id: "00000000-0000-4000-8000-000000000091",
+      planId: "00000000-0000-4000-8000-000000000092",
+      planSessionId: "00000000-0000-4000-8000-000000000093",
+      startedAt: "2026-08-11T20:00:00.000Z",
+      interruptedAt: "2026-08-11T20:08:00.000Z",
+      plannedMinutes: 20,
+      actualMinutes: 8,
+      completedSteps: 2,
+      totalSteps: 5,
+    }).catch((error: unknown) => error);
+
+    await vi.advanceTimersByTimeAsync(AUTHENTICATED_LEARNING_MUTATION_DEADLINE_MS);
+    const issue = await result;
+
+    expect(issue).toBeInstanceOf(CloudSyncTemporarilyUnavailableError);
+    expect(issue).toMatchObject({ retryable: true });
+    expect(consoleError).toHaveBeenCalledWith(
+      "YOVA session interruption sync failed [client:deadline]",
+    );
+  });
+
+  it("keeps the broad-recall retry inside the first attempt's absolute deadline", async () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const unsupported = {
+      data: null,
+      error: {
+        code: "55000",
+        message: "broad_recall_interruption_resource_identity_required",
+      },
+    };
+    let firstSignal: AbortSignal | undefined;
+    let retrySignal: AbortSignal | undefined;
+    rpc
+      .mockImplementationOnce(() => ({
+        abortSignal: (signal: AbortSignal) => {
+          firstSignal = signal;
+          return new Promise((resolve) => {
+            setTimeout(
+              () => resolve(unsupported),
+              AUTHENTICATED_LEARNING_MUTATION_DEADLINE_MS - 1_000,
+            );
+          });
+        },
+      }))
+      .mockImplementationOnce(() => ({
+        abortSignal: (signal: AbortSignal) => {
+          retrySignal = signal;
+          return new Promise((_resolve, reject) => {
+            signal.addEventListener(
+              "abort",
+              () => reject(new DOMException("Aborted", "AbortError")),
+              { once: true },
+            );
+          });
+        },
+      }));
+
+    const result = recordAuthenticatedSessionInterruption({
+      id: "00000000-0000-4000-8000-000000000094",
+      planId: "00000000-0000-4000-8000-000000000095",
+      planSessionId: "00000000-0000-4000-8000-000000000096",
+      routeRevisionId: ROUTE_REVISION_ID,
+      startedAt: "2026-08-11T20:00:00.000Z",
+      interruptedAt: "2026-08-11T20:08:00.000Z",
+      plannedMinutes: 20,
+      actualMinutes: 8,
+      completedSteps: 0,
+      totalSteps: 5,
+      activityProgress: broadRecallProgress(1),
+    }).catch((error: unknown) => error);
+
+    await vi.advanceTimersByTimeAsync(AUTHENTICATED_LEARNING_MUTATION_DEADLINE_MS - 1_000);
+    expect(rpc).toHaveBeenCalledTimes(2);
+    expect(rpc.mock.calls[1]?.[1]?.payload).not.toHaveProperty("activityProgress");
+
+    await vi.advanceTimersByTimeAsync(1_000);
+    const issue = await result;
+
+    expect(retrySignal).toBe(firstSignal);
+    expect(retrySignal?.aborted).toBe(true);
+    expect(issue).toBeInstanceOf(CloudSyncTemporarilyUnavailableError);
+    expect(consoleError).toHaveBeenCalledWith(
+      "YOVA session interruption sync failed [client:deadline]",
+    );
+  });
+
   it("logs only the safe database code when interruption persistence fails", async () => {
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
     rpc.mockResolvedValueOnce({
@@ -1402,22 +1621,112 @@ describe("authenticated active-session checkpoint sync", () => {
     expect(results).toEqual([bound, bound]);
   });
 
-  it("allows separate lessons to sync concurrently", async () => {
+  it("serializes every lesson checkpoint write for the same account without dropping one", async () => {
     const first = checkpoint();
     const second = checkpoint({
       planSessionId: "00000000-0000-4000-8000-000000000020",
       runId: "00000000-0000-4000-8000-000000000021",
     });
-    const releases: Array<(value: { data: ActiveSessionCheckpointV1; error: null }) => void> = [];
-    rpc.mockImplementation(() => new Promise((resolve) => releases.push(resolve)));
+    let activeWrites = 0;
+    let maxConcurrentWrites = 0;
+    const releases: Array<() => void> = [];
+    rpc.mockImplementation((
+      _name: string,
+      parameters: { payload: Record<string, unknown> },
+    ) => new Promise((resolve) => {
+      activeWrites += 1;
+      maxConcurrentWrites = Math.max(maxConcurrentWrites, activeWrites);
+      releases.push(() => {
+        activeWrites -= 1;
+        resolve({
+          data: parameters.payload.planSessionId === first.planSessionId ? first : second,
+          error: null,
+        });
+      });
+    }));
+
+    const firstSave = saveAuthenticatedActiveSessionCheckpoint(first);
+    const secondSave = saveAuthenticatedActiveSessionCheckpoint(second);
+
+    expect(rpc).toHaveBeenCalledOnce();
+    expect(maxConcurrentWrites).toBe(1);
+
+    releases[0]?.();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(rpc).toHaveBeenCalledTimes(2);
+    expect(maxConcurrentWrites).toBe(1);
+
+    releases[1]?.();
+    await Promise.all([firstSave, secondSave]);
+
+    expect(rpc.mock.calls.map((call) => call[1]?.payload.planSessionId)).toEqual([
+      first.planSessionId,
+      second.planSessionId,
+    ]);
+  });
+
+  it("allows checkpoint writes for different accounts to proceed independently", async () => {
+    const first = checkpoint();
+    const second = checkpoint({
+      accountId: "user-2",
+      planSessionId: "00000000-0000-4000-8000-000000000022",
+      runId: "00000000-0000-4000-8000-000000000023",
+    });
+    let activeWrites = 0;
+    let maxConcurrentWrites = 0;
+    const releases: Array<() => void> = [];
+    rpc.mockImplementation((
+      _name: string,
+      parameters: { payload: Record<string, unknown> },
+    ) => new Promise((resolve) => {
+      activeWrites += 1;
+      maxConcurrentWrites = Math.max(maxConcurrentWrites, activeWrites);
+      releases.push(() => {
+        activeWrites -= 1;
+        resolve({
+          data: parameters.payload.planSessionId === first.planSessionId ? first : second,
+          error: null,
+        });
+      });
+    }));
 
     const firstSave = saveAuthenticatedActiveSessionCheckpoint(first);
     const secondSave = saveAuthenticatedActiveSessionCheckpoint(second);
 
     expect(rpc).toHaveBeenCalledTimes(2);
-    releases[0]?.({ data: first, error: null });
-    releases[1]?.({ data: second, error: null });
+    expect(maxConcurrentWrites).toBe(2);
+    releases.forEach((release) => release());
     await Promise.all([firstSave, secondSave]);
+  });
+
+  it("releases the account lane after a deadline so another lesson can sync", async () => {
+    const first = checkpoint();
+    const second = checkpoint({
+      planSessionId: "00000000-0000-4000-8000-000000000024",
+      runId: "00000000-0000-4000-8000-000000000025",
+    });
+    rpc
+      .mockImplementationOnce(() => ({
+        abortSignal: (signal: AbortSignal) => new Promise((_resolve, reject) => {
+          signal.addEventListener(
+            "abort",
+            () => reject(new DOMException("Aborted", "AbortError")),
+            { once: true },
+          );
+        }),
+      }))
+      .mockResolvedValueOnce({ data: second, error: null });
+
+    const timedOut = saveAuthenticatedActiveSessionCheckpoint(first)
+      .catch((error: unknown) => error);
+    const following = saveAuthenticatedActiveSessionCheckpoint(second);
+
+    expect(rpc).toHaveBeenCalledOnce();
+    await vi.advanceTimersByTimeAsync(AUTHENTICATED_LEARNING_MUTATION_DEADLINE_MS);
+
+    expect(await timedOut).toBeInstanceOf(CloudSyncTemporarilyUnavailableError);
+    await expect(following).resolves.toEqual(second);
+    expect(rpc).toHaveBeenCalledTimes(2);
   });
 
   it("maps cloud ownership and terminal signals to distinct errors", async () => {
@@ -1465,6 +1774,46 @@ describe("authenticated active-session checkpoint sync", () => {
 
     expect(issue).toBeInstanceOf(CloudSyncTemporarilyUnavailableError);
     expect(issue).toMatchObject({ code: "temporarily_unavailable", retryable: true });
+  });
+
+  it("rejects every waiter and releases the lesson queue after a checkpoint deadline", async () => {
+    const local = checkpoint();
+    const ahead = checkpoint({
+      savedAt: "2026-08-17T18:00:01.000Z",
+      completedSteps: 1,
+      resumeStep: 1,
+      activeSeconds: 60,
+    });
+    let requestSignal: AbortSignal | undefined;
+    rpc.mockImplementationOnce(() => ({
+      abortSignal: (signal: AbortSignal) => {
+        requestSignal = signal;
+        return new Promise((_resolve, reject) => {
+          signal.addEventListener(
+            "abort",
+            () => reject(new DOMException("Aborted", "AbortError")),
+            { once: true },
+          );
+        });
+      },
+    }));
+
+    const first = saveAuthenticatedActiveSessionCheckpoint(local)
+      .catch((error: unknown) => error);
+    const coalesced = saveAuthenticatedActiveSessionCheckpoint(ahead)
+      .catch((error: unknown) => error);
+
+    await vi.advanceTimersByTimeAsync(AUTHENTICATED_LEARNING_MUTATION_DEADLINE_MS);
+    const issues = await Promise.all([first, coalesced]);
+
+    expect(requestSignal?.aborted).toBe(true);
+    expect(issues).toHaveLength(2);
+    expect(issues.every((issue) => issue instanceof CloudSyncTemporarilyUnavailableError)).toBe(true);
+    expect(rpc).toHaveBeenCalledOnce();
+
+    rpc.mockResolvedValueOnce({ data: ahead, error: null });
+    await expect(saveAuthenticatedActiveSessionCheckpoint(ahead)).resolves.toEqual(ahead);
+    expect(rpc).toHaveBeenCalledTimes(2);
   });
 
   it("deletes by server-owned session identity without accepting account or plan ids", async () => {
@@ -1672,6 +2021,23 @@ function cloudState(overrides: Partial<CloudLearningState> = {}): CloudLearningS
     sessionCompletions: [],
     sessionInterruptions: [],
     activeSessionCheckpoints: [],
+    ...overrides,
+  };
+}
+
+function sessionInterruption(
+  overrides: Partial<SessionInterruption> = {},
+): SessionInterruption {
+  return {
+    id: "00000000-0000-4000-8000-000000000081",
+    planId: "00000000-0000-4000-8000-000000000082",
+    planSessionId: "00000000-0000-4000-8000-000000000083",
+    startedAt: "2026-08-17T17:50:00.000Z",
+    interruptedAt: NOW,
+    plannedMinutes: 25,
+    actualMinutes: 10,
+    completedSteps: 1,
+    totalSteps: 5,
     ...overrides,
   };
 }

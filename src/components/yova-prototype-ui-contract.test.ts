@@ -184,6 +184,60 @@ describe("YOVA prototype UI contracts", () => {
     expect(component).toContain("YOVA kept this session open because it could not preserve the required guided verification");
   });
 
+  it("establishes Exit recovery and its outbox before any checkpoint cloud sync", () => {
+    const component = readSource("src/components/yova-prototype.tsx");
+    const interruptionStart = component.indexOf("const interruptActiveSession = () =>");
+    const interruptionEnd = component.indexOf("const resetYovaData = async", interruptionStart);
+    const interruption = component.slice(interruptionStart, interruptionEnd);
+    const terminalCheckpointWrite = interruption.indexOf("const exitCheckpointSaved = Boolean(");
+    const localOnlyOption = interruption.indexOf("{ syncToAccount: false }", terminalCheckpointWrite);
+    const interruptionState = interruption.indexOf("setSessionInterruptions(", localOnlyOption);
+    const interruptionOutbox = interruption.indexOf("queueSessionInterruption({", interruptionState);
+    const interruptionRpc = interruption.indexOf(
+      "recordAuthenticatedSessionInterruption(account.id, interruption)",
+      interruptionOutbox,
+    );
+    const recoveryCheckpointSync = interruption.indexOf(
+      "await syncCheckpointToAccount(latestRecoveryCheckpoint)",
+      interruptionRpc,
+    );
+    const retiredCheckpointSync = interruption.indexOf(
+      "await syncCheckpointToAccount(terminalCheckpoint)",
+      recoveryCheckpointSync,
+    );
+
+    expect(interruptionStart).toBeGreaterThan(-1);
+    expect(interruptionEnd).toBeGreaterThan(interruptionStart);
+    expect(terminalCheckpointWrite).toBeGreaterThan(-1);
+    expect(localOnlyOption).toBeGreaterThan(terminalCheckpointWrite);
+    expect(interruptionState).toBeGreaterThan(localOnlyOption);
+    expect(interruptionOutbox).toBeGreaterThan(interruptionState);
+    expect(interruptionRpc).toBeGreaterThan(interruptionOutbox);
+    expect(recoveryCheckpointSync).toBeGreaterThan(interruptionRpc);
+    expect(retiredCheckpointSync).toBeGreaterThan(recoveryCheckpointSync);
+    expect(interruption.slice(terminalCheckpointWrite, interruptionRpc)).not.toContain(
+      "syncCheckpointToAccount(",
+    );
+  });
+
+  it("keeps ordinary active-session checkpoint writes cloud-enabled by default", () => {
+    const component = readSource("src/components/yova-prototype.tsx");
+    const writerStart = component.indexOf("writeActiveSessionCheckpointRef.current = (");
+    const writerEnd = component.indexOf("useEffect(() =>", writerStart);
+    const writer = component.slice(writerStart, writerEnd);
+    const ordinaryLifecycleWrite = component.indexOf(
+      "void writeActiveSessionCheckpointRef.current();",
+      writerEnd,
+    );
+
+    expect(writerStart).toBeGreaterThan(-1);
+    expect(writerEnd).toBeGreaterThan(writerStart);
+    expect(writer).toContain("options,");
+    expect(writer).toContain('account.identityMode === "supabase" && options?.syncToAccount !== false');
+    expect(writer).toContain("void syncCheckpointToAccount(checkpoint)");
+    expect(ordinaryLifecycleWrite).toBeGreaterThan(writerEnd);
+  });
+
   it("classifies topic-agnostic outside built-in work as unguided practice", () => {
     const component = readSource("src/components/yova-prototype.tsx");
 

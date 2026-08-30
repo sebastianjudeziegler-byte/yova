@@ -76,7 +76,10 @@ describe("session interruption outbox", () => {
       synced: 1,
       remaining: 0,
     });
-    expect(recordAuthenticatedSessionInterruption).toHaveBeenCalledWith(pending.interruption);
+    expect(recordAuthenticatedSessionInterruption).toHaveBeenCalledWith(
+      pending.userId,
+      pending.interruption,
+    );
   });
 
   it("rejects broad-recall interruptions that the deployed writer cannot persist", () => {
@@ -181,7 +184,10 @@ describe("session interruption outbox", () => {
     });
     expect(window.localStorage.getItem("yova.session-interruption-outbox.v1")).toBeNull();
     expect(recordAuthenticatedSessionInterruption).toHaveBeenCalledOnce();
-    expect(recordAuthenticatedSessionInterruption).toHaveBeenCalledWith(supported.interruption);
+    expect(recordAuthenticatedSessionInterruption).toHaveBeenCalledWith(
+      supported.userId,
+      supported.interruption,
+    );
   });
 
   it("discards a server-classified retired marker without blocking a later exit", async () => {
@@ -221,8 +227,16 @@ describe("session interruption outbox", () => {
       synced: 1,
       remaining: 0,
     });
-    expect(recordAuthenticatedSessionInterruption).toHaveBeenNthCalledWith(1, first.interruption);
-    expect(recordAuthenticatedSessionInterruption).toHaveBeenNthCalledWith(2, second.interruption);
+    expect(recordAuthenticatedSessionInterruption).toHaveBeenNthCalledWith(
+      1,
+      first.userId,
+      first.interruption,
+    );
+    expect(recordAuthenticatedSessionInterruption).toHaveBeenNthCalledWith(
+      2,
+      second.userId,
+      second.interruption,
+    );
   });
 
   it("removes only one account's entries for a permanently deleted plan", () => {
@@ -303,6 +317,7 @@ describe("session interruption outbox", () => {
     await flushQueuedSessionInterruptions(pending.userId);
 
     expect(recordAuthenticatedSessionInterruption).toHaveBeenCalledWith(
+      pending.userId,
       expect.objectContaining({
         routeRevisionId,
         evidence: expect.objectContaining({
