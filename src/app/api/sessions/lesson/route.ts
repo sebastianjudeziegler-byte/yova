@@ -6,7 +6,7 @@ import { getOpenAILessonConfig, isOpenAILessonConfigured } from "@/lib/openai/co
 import {
   buildBoundedFallbackLesson,
   StreamedLessonGenerationError,
-  streamGeneratedLesson,
+  streamGeneratedLessonWithRetry,
   type StreamedLessonFailureKind,
   type StreamedLessonInput,
 } from "@/lib/openai/streamed-lesson-generator";
@@ -41,7 +41,7 @@ export const maxDuration = 120;
 // Do not make a learner wait for the platform's hard execution limit. If the
 // provider stalls, replace the partial stream with the bounded lesson fallback
 // while the session is still usable.
-const LESSON_RUNTIME_DEADLINE_MS = 45_000;
+const LESSON_RUNTIME_DEADLINE_MS = 100_000;
 
 const LessonGenerateRequestSchema = z.object({
   action: z.literal("generate").default("generate"),
@@ -223,7 +223,7 @@ export async function POST(request: Request) {
       ]);
       let streamedLessonText = "";
       try {
-        const result = await streamGeneratedLesson(
+        const { attempts, result } = await streamGeneratedLessonWithRetry(
           lessonInput,
           (delta) => {
             streamedLessonText += delta;
@@ -231,6 +231,14 @@ export async function POST(request: Request) {
           },
           runtimeSignal,
         );
+        if ((attempts > 1 || result.truncatedToBudget) && result.content.trim()) {
+          // The learner may have watched a partial or overlong first attempt
+          // stream in; swap in the finished lesson atomically.
+          controller.enqueue(encodeLessonStreamEvent({
+            type: "lesson.replace",
+            content: result.content.slice(0, 12_000),
+          }));
+        }
         await settleSuccessfulLessonClaim(supabase, aiUsageClaimId, requestId);
         controller.enqueue(encodeLessonStreamEvent({
           type: "lesson.complete",
@@ -247,12 +255,12 @@ export async function POST(request: Request) {
           generationType: "lesson",
           environment: generationEnvironment(),
           finalOutcome: "success",
-          firstAttemptPassed: true,
+          firstAttemptPassed: attempts === 1,
           failedValidator: null,
-          repairAttempted: false,
-          repairSucceeded: null,
+          repairAttempted: attempts > 1,
+          repairSucceeded: attempts > 1 ? true : null,
           elapsedMs: result.elapsedMs,
-          attempts: 1,
+          attempts,
           inputTokens: result.inputTokens,
           cachedInputTokens: result.cachedInputTokens,
           cacheWriteTokens: 0,
@@ -263,16 +271,23 @@ export async function POST(request: Request) {
             latencyToFirstTokenMs: result.latencyToFirstTokenMs,
             wordCount: result.wordCount,
             streamCompleted: true,
+            ...(result.truncatedToBudget ? { lessonTruncatedToBudget: true } : {}),
+            ...(result.substanceNote ? { lessonSubstanceNote: result.substanceNote.slice(0, 240) } : {}),
           },
         });
       } catch (error) {
         await releaseFailedLessonClaim(supabase, aiUsageClaimId, requestId);
         const failure = error instanceof StreamedLessonGenerationError ? error.stats : null;
+        const failureAttempts = error instanceof StreamedLessonGenerationError ? error.attemptsMade : 1;
         const failureKind = failure?.failureKind ?? "provider_request_error";
+        const providerMessage = failure?.providerMessage
+          ?? (error instanceof Error ? error.message.slice(0, 240) : null);
         const elapsedMs = failure?.elapsedMs ?? Date.now() - startedAt;
         console.error("YOVA streamed lesson generation failed", {
           requestId,
           failureKind,
+          providerMessage,
+          attempts: failureAttempts,
           elapsedMs,
           latencyToFirstTokenMs: failure?.latencyToFirstTokenMs ?? null,
           wordCount: failure?.wordCount ?? 0,
@@ -309,7 +324,7 @@ export async function POST(request: Request) {
             repairAttempted: true,
             repairSucceeded: true,
             elapsedMs,
-            attempts: 1,
+            attempts: failureAttempts,
             inputTokens: failure?.inputTokens ?? 0,
             cachedInputTokens: failure?.cachedInputTokens ?? 0,
             cacheWriteTokens: 0,
@@ -321,6 +336,7 @@ export async function POST(request: Request) {
               wordCount: fallbackWordCount,
               streamCompleted: true,
               lessonFailureKind: failureKind,
+              ...(providerMessage ? { providerMessage } : {}),
             },
           });
           return;
@@ -335,7 +351,7 @@ export async function POST(request: Request) {
           repairAttempted: false,
           repairSucceeded: null,
           elapsedMs,
-          attempts: 1,
+          attempts: failureAttempts,
           inputTokens: failure?.inputTokens ?? 0,
           cachedInputTokens: failure?.cachedInputTokens ?? 0,
           cacheWriteTokens: 0,

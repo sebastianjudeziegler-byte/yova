@@ -33,7 +33,13 @@ export type StreamedLessonInput = {
 
 export type StreamedLessonResult = {
   model: string;
-  responseId: string;
+  responseId: string | null;
+  /** Final lesson text after any bounded trimming. */
+  content: string;
+  /** True when the stream crossed its word ceiling and was trimmed instead of failed. */
+  truncatedToBudget: boolean;
+  /** Non-fatal quality observation recorded to telemetry instead of failing the lesson. */
+  substanceNote: string | null;
   inputTokens: number;
   cachedInputTokens: number;
   outputTokens: number;
@@ -56,6 +62,8 @@ export type StreamedLessonFailureKind =
 
 export type StreamedLessonFailureStats = {
   failureKind: StreamedLessonFailureKind;
+  /** Raw provider or runtime error text, bounded, for diagnostics only. */
+  providerMessage: string | null;
   model: string;
   responseId: string | null;
   inputTokens: number;
@@ -68,6 +76,8 @@ export type StreamedLessonFailureStats = {
 
 export class StreamedLessonGenerationError extends Error {
   readonly stats: StreamedLessonFailureStats;
+  /** Total generation attempts made before this error surfaced. */
+  attemptsMade = 1;
 
   constructor(message: string, stats: StreamedLessonFailureStats) {
     super(message);
@@ -80,6 +90,8 @@ type ProviderResponseSnapshot = {
   id: string;
   model: string;
   status?: string;
+  error?: { message?: string } | null;
+  incomplete_details?: { reason?: string } | null;
   usage?: {
     input_tokens: number;
     output_tokens: number;
@@ -143,6 +155,7 @@ export async function streamGeneratedLesson(
   let completeResponse: ProviderResponseSnapshot | null = null;
   let terminalResponse: ProviderResponseSnapshot | null = null;
   let fullText = "";
+  let truncatedToBudget = false;
 
   try {
     const stream = await getOpenAIClient().responses.create({
@@ -161,11 +174,18 @@ export async function streamGeneratedLesson(
         firstTokenAt ??= Date.now();
         const nextText = fullText + event.delta;
         fullText = nextText;
-        if (wordCount(nextText) > budget.maximumWords) {
-          // Do not render an overlong lesson and then retract it after the
-          // provider finishes. Stop the stream at the first crossing and let
-          // the route replace any bounded partial text with its safe lesson.
-          throw failureError("The lesson exceeded its planned reading time.", "content_exceeded_time_budget");
+        if (wordCount(nextText) > Math.ceil(budget.maximumWords * 1.15)) {
+          // An overlong lesson is a formatting problem, not a generation
+          // failure. Stop consuming, trim to a complete sentence within the
+          // budget, and deliver the lesson; the route replaces any streamed
+          // overflow with the trimmed text.
+          truncatedToBudget = true;
+          try {
+            (stream as { controller?: { abort: () => void } }).controller?.abort();
+          } catch {
+            // Ending consumption is sufficient when the provider stream cannot be aborted.
+          }
+          break;
         }
         onDelta(event.delta);
         continue;
@@ -197,6 +217,25 @@ export async function streamGeneratedLesson(
     }
 
     const elapsedMs = Date.now() - startedAt;
+    if (truncatedToBudget) {
+      const trimmed = completeBoundedMarkdown(fullText, budget.maximumWords);
+      if (!trimmed) {
+        throw failureError("The lesson stream did not produce usable lesson content.", "stream_ended_without_content");
+      }
+      return {
+        model: completeResponse?.model ?? configuredModel,
+        responseId: completeResponse?.id ?? null,
+        content: trimmed,
+        truncatedToBudget: true,
+        substanceNote: "Lesson exceeded its word ceiling and was trimmed to the budget.",
+        inputTokens: completeResponse?.usage?.input_tokens ?? 0,
+        cachedInputTokens: completeResponse?.usage?.input_tokens_details?.cached_tokens ?? 0,
+        outputTokens: completeResponse?.usage?.output_tokens ?? 0,
+        latencyToFirstTokenMs: firstTokenAt === null ? null : firstTokenAt - startedAt,
+        elapsedMs,
+        wordCount: wordCount(trimmed),
+      };
+    }
     const abortedFailureKind = failureKindForAbortedSignal(signal);
     if (abortedFailureKind) {
       throw failureError("The lesson stream was interrupted.", abortedFailureKind);
@@ -212,12 +251,17 @@ export async function streamGeneratedLesson(
       throw failureError("The lesson stream did not produce lesson content.", "stream_ended_without_content");
     }
     const substanceIssue = completedLessonSubstanceIssue(input, fullText, budget);
-    if (substanceIssue) {
+    if (substanceIssue && wordCount(fullText) < Math.ceil(budget.minimumWords * 0.6)) {
+      // A lesson far below its floor is not teachable; everything else ships
+      // with the observation recorded instead of being replaced by a stub.
       throw failureError(substanceIssue, "content_below_substance_threshold");
     }
     return {
       model: completeResponse.model,
       responseId: completeResponse.id,
+      content: fullText,
+      truncatedToBudget: false,
+      substanceNote: substanceIssue,
       inputTokens: completeResponse.usage?.input_tokens ?? 0,
       cachedInputTokens: completeResponse.usage?.input_tokens_details?.cached_tokens ?? 0,
       outputTokens: completeResponse.usage?.output_tokens ?? 0,
@@ -231,13 +275,25 @@ export async function streamGeneratedLesson(
     throw failureError(
       "The lesson stream could not be completed.",
       abortedFailureKind ?? "provider_request_error",
+      error instanceof Error ? error.message : String(error),
     );
   }
 
-  function failureError(message: string, failureKind: StreamedLessonFailureKind) {
+  function failureError(
+    message: string,
+    failureKind: StreamedLessonFailureKind,
+    runtimeMessage?: string,
+  ) {
     const response = terminalResponse ?? completeResponse;
+    const providerMessage = (
+      runtimeMessage
+      ?? response?.error?.message
+      ?? response?.incomplete_details?.reason
+      ?? null
+    );
     return new StreamedLessonGenerationError(message, {
       failureKind,
+      providerMessage: providerMessage ? providerMessage.slice(0, 240) : null,
       model: response?.model ?? configuredModel,
       responseId: response?.id ?? null,
       inputTokens: response?.usage?.input_tokens ?? 0,
@@ -274,9 +330,11 @@ export function lessonWordBudgetForMinutes(plannedMinutes: number): LessonWordBu
     minimumWords,
     targetWords,
     maximumWords,
-    // Leave room for low-effort model reasoning without allowing a multi-page
-    // response to consume the route's entire runtime window.
-    maximumOutputTokens: clamp(Math.ceil(maximumWords * 2.25), 900, 2_200),
+    // Reasoning models spend internal reasoning tokens from this same cap
+    // before writing a visible word, so the cap needs headroom well beyond
+    // the word budget. The word ceiling (not this cap) bounds what the
+    // learner reads; this cap only bounds spend on a runaway response.
+    maximumOutputTokens: clamp(Math.ceil(maximumWords * 2.25) + 2_800, 3_800, 6_500),
   };
 }
 
@@ -306,6 +364,47 @@ export function buildBoundedFallbackLesson(input: StreamedLessonInput, partialLe
     : "Focus on the cause, relationship, or procedure in this statement. The practice step will ask you to use it without the lesson visible.";
   const fallback = `# ${input.lessonTitle}\n\n## The core model\n\n${lines.join("\n")}\n\n## What to notice\n\n${connection}`;
   return trimAtWordBoundary(fallback, budget.maximumWords);
+}
+
+const RETRYABLE_LESSON_FAILURE_KINDS: ReadonlySet<StreamedLessonFailureKind> = new Set([
+  "provider_failed",
+  "provider_incomplete",
+  "provider_error_event",
+  "provider_request_error",
+  "stream_ended_without_completion",
+  "stream_ended_without_content",
+  "content_below_substance_threshold",
+]);
+
+/**
+ * One bounded retry for transient or quality failures. The second attempt is
+ * buffered rather than streamed, so the route can atomically replace any
+ * partial first-attempt text with the finished lesson. Aborts and runtime
+ * timeouts are never retried: the learner has left or the window is spent.
+ */
+export async function streamGeneratedLessonWithRetry(
+  input: StreamedLessonInput,
+  onDelta: (delta: string) => void,
+  signal?: AbortSignal,
+  retryBudgetMs = 45_000,
+): Promise<{ attempts: 1 | 2; result: StreamedLessonResult }> {
+  const startedAt = Date.now();
+  try {
+    return { attempts: 1, result: await streamGeneratedLesson(input, onDelta, signal) };
+  } catch (error) {
+    if (!(error instanceof StreamedLessonGenerationError)) throw error;
+    const withinBudget = Date.now() - startedAt <= retryBudgetMs;
+    if (!RETRYABLE_LESSON_FAILURE_KINDS.has(error.stats.failureKind) || signal?.aborted || !withinBudget) {
+      throw error;
+    }
+    try {
+      const result = await streamGeneratedLesson(input, () => {}, signal);
+      return { attempts: 2, result };
+    } catch (retryError) {
+      if (retryError instanceof StreamedLessonGenerationError) retryError.attemptsMade = 2;
+      throw retryError;
+    }
+  }
 }
 
 function failureKindForAbortedSignal(signal?: AbortSignal): StreamedLessonFailureKind | null {

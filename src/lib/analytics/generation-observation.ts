@@ -168,6 +168,9 @@ export const GenerationObservationSchema = z.object({
     latencyToFirstTokenMs: z.number().int().min(0).max(300_000).nullable().optional(),
     wordCount: z.number().int().min(0).max(20_000).optional(),
     streamCompleted: z.boolean().optional(),
+    lessonTruncatedToBudget: z.boolean().optional(),
+    lessonSubstanceNote: z.string().trim().min(1).max(240).optional(),
+    providerMessage: z.string().trim().min(1).max(240).optional(),
     lessonFailureKind: z.enum([
       "provider_failed",
       "provider_incomplete",

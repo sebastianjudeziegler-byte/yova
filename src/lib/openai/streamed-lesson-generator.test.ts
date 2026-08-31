@@ -20,6 +20,7 @@ import {
   lessonWordBudgetForMinutes,
   StreamedLessonGenerationError,
   streamGeneratedLesson,
+  streamGeneratedLessonWithRetry,
   type StreamedLessonInput,
 } from "@/lib/openai/streamed-lesson-generator";
 
@@ -97,23 +98,24 @@ describe("streamed lesson prompt", () => {
       minimumWords: 120,
       targetWords: 260,
       maximumWords: 360,
-      maximumOutputTokens: 900,
+      maximumOutputTokens: 3_800,
     });
     expect(openAIMocks.create).toHaveBeenCalledWith(
       expect.objectContaining({
         text: { verbosity: "medium" },
-        max_output_tokens: 900,
+        max_output_tokens: 3_800,
       }),
       { signal: undefined },
     );
   });
 
-  it("rejects a completed lesson that exceeds its reading-time ceiling", async () => {
-    const firstBoundedPart = Array.from({ length: 180 }, (_, index) => `first${index}`).join(" ");
-    const crossingPart = Array.from({ length: 181 }, (_, index) => `second${index}`).join(" ");
+  it("trims a lesson that overruns its reading-time ceiling instead of failing it", async () => {
+    const sentence = "Alliance pressure spread the local crisis wider.";
+    const boundedPart = Array.from({ length: 25 }, () => sentence).join(" ");
+    const overshootPart = Array.from({ length: 40 }, () => sentence).join(" ");
     openAIMocks.create.mockResolvedValue(streamEvents([
-      { type: "response.output_text.delta", delta: firstBoundedPart },
-      { type: "response.output_text.delta", delta: ` ${crossingPart}` },
+      { type: "response.output_text.delta", delta: boundedPart },
+      { type: "response.output_text.delta", delta: ` ${overshootPart}` },
       {
         type: "response.completed",
         response: {
@@ -126,18 +128,14 @@ describe("streamed lesson prompt", () => {
     ]));
 
     let visibleLesson = "";
-    let error: StreamedLessonGenerationError | null = null;
-    try {
-      await streamGeneratedLesson(lessonInput, (delta) => { visibleLesson += delta; });
-    } catch (cause) {
-      if (cause instanceof StreamedLessonGenerationError) error = cause;
-      else throw cause;
-    }
+    const result = await streamGeneratedLesson(lessonInput, (delta) => { visibleLesson += delta; });
 
-    expect(error?.stats.failureKind).toBe("content_exceeded_time_budget");
-    expect(error?.stats.wordCount).toBe(361);
-    expect(visibleLesson.trim().split(/\s+/)).toHaveLength(180);
-    expect(visibleLesson).not.toContain("second0");
+    expect(result.truncatedToBudget).toBe(true);
+    expect(result.wordCount).toBeLessThanOrEqual(360);
+    expect(result.content.endsWith(".")).toBe(true);
+    expect(result.substanceNote).toContain("trimmed");
+    // The overshoot delta is never rendered mid-stream; the route swaps in the trimmed text.
+    expect(visibleLesson.trim().split(/\s+/)).toHaveLength(175);
   });
 
   it("rejects a completed lesson that is too thin for its planned teaching time", async () => {
@@ -288,6 +286,7 @@ describe("streamed lesson prompt", () => {
     expect(error).toBeInstanceOf(StreamedLessonGenerationError);
     expect(error.stats).toEqual({
       failureKind: "provider_incomplete",
+      providerMessage: null,
       model: "provider-lesson-model",
       responseId: "resp_incomplete",
       inputTokens: 120,
@@ -313,6 +312,7 @@ describe("streamed lesson prompt", () => {
     expect(error).toBeInstanceOf(StreamedLessonGenerationError);
     expect(error.stats).toEqual({
       failureKind: "provider_request_error",
+      providerMessage: "Provider connection closed.",
       model: "configured-lesson-model",
       responseId: null,
       inputTokens: 0,
@@ -395,3 +395,46 @@ function throwingStream(events: unknown[]) {
     },
   };
 }
+
+describe("streamGeneratedLessonWithRetry", () => {
+  it("retries once after a retryable failure and returns the second attempt", async () => {
+    const sentence = "Alliance pressure spread the local crisis wider.";
+    const goodLesson = Array.from({ length: 20 }, () => sentence).join(" ");
+    openAIMocks.create
+      .mockResolvedValueOnce(streamEvents([{ type: "error" }]))
+      .mockResolvedValueOnce(streamEvents([
+        { type: "response.output_text.delta", delta: goodLesson },
+        {
+          type: "response.completed",
+          response: {
+            id: "resp_retry",
+            model: "provider-lesson-model",
+            status: "completed",
+            usage: { input_tokens: 100, output_tokens: 200 },
+          },
+        },
+      ]));
+
+    let visible = "";
+    const { attempts, result } = await streamGeneratedLessonWithRetry(lessonInput, (delta) => { visible += delta; });
+
+    expect(attempts).toBe(2);
+    expect(result.wordCount).toBe(140);
+    expect(result.content).toContain("Alliance pressure");
+    // The retry is buffered; the route replaces content atomically instead of double-streaming.
+    expect(visible).toBe("");
+  });
+
+  it("does not retry a learner disconnect", async () => {
+    const controller = new AbortController();
+    openAIMocks.create.mockImplementation(async () => {
+      controller.abort();
+      return streamEvents([{ type: "error" }]);
+    });
+
+    await expect(streamGeneratedLessonWithRetry(lessonInput, () => {}, controller.signal)).rejects.toMatchObject({
+      stats: { failureKind: "request_aborted" },
+    });
+    expect(openAIMocks.create).toHaveBeenCalledTimes(1);
+  });
+});
