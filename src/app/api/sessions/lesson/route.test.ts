@@ -72,6 +72,8 @@ import {
   createLessonRuntimeState,
 } from "@/lib/session-generation/lesson-runtime";
 
+const LESSON_OPERATION_ID = "77777777-7777-4777-8777-777777777777";
+
 describe("streamed lesson route recovery", () => {
   beforeEach(() => {
     mocks.lessonConfigured = true;
@@ -118,6 +120,7 @@ describe("streamed lesson route recovery", () => {
       "lesson.complete",
     ]);
     expect(runtime.status).toBe("complete");
+    expect(runtime.deliveryMode).toBe("bounded_fallback");
     expect(runtime.error).toBeNull();
     expect(runtime.content).toContain("Alliance obligations connected");
     expect(runtime.content).not.toContain("does not finish");
@@ -155,6 +158,7 @@ describe("streamed lesson route recovery", () => {
       "lesson.complete",
     ]);
     expect(runtime.status).toBe("complete");
+    expect(runtime.deliveryMode).toBe("bounded_fallback");
     expect(runtime.content).toContain("Alliance obligations connected a local crisis");
     expect(runtime.content).not.toContain("much too thin");
   });
@@ -270,6 +274,7 @@ describe("streamed lesson route recovery", () => {
       "lesson.complete",
     ]);
     expect(runtime.status).toBe("complete");
+    expect(runtime.deliveryMode).toBe("bounded_fallback");
     expect(runtime.content).toContain("Alliance obligations connected");
     expect(mocks.streamGeneratedLessonWithRetry).not.toHaveBeenCalled();
   });
@@ -352,6 +357,10 @@ describe("streamed lesson route recovery", () => {
       "lesson.replace",
       "lesson.complete",
     ]);
+    expect(events.at(-1)).toMatchObject({
+      type: "lesson.complete",
+      deliveryMode: "bounded_fallback",
+    });
     expect(mocks.streamGeneratedLessonWithRetry).not.toHaveBeenCalled();
     expect(mocks.recordObservation).toHaveBeenCalledWith(
       expect.anything(),
@@ -359,6 +368,9 @@ describe("streamed lesson route recovery", () => {
       expect.objectContaining({
         finalOutcome: "fallback",
         failedValidator: null,
+        attempts: 0,
+        repairAttempted: false,
+        repairSucceeded: null,
         diagnostics: expect.objectContaining({
           lessonFailureKind: "allowance_exhausted",
         }),
@@ -523,6 +535,13 @@ describe("streamed lesson route recovery", () => {
       mocks.supabase,
       "55555555-5555-4555-8555-555555555555",
     );
+    expect(mocks.claimAIRequest).toHaveBeenCalledWith(
+      mocks.supabase,
+      "lesson_generation",
+      LESSON_OPERATION_ID,
+      expect.not.stringMatching(LESSON_OPERATION_ID),
+    );
+    expect(response.headers.get("X-Yova-Request-Id")).toBe(LESSON_OPERATION_ID);
     expect(mocks.releaseAIRequestClaim).not.toHaveBeenCalled();
   });
 
@@ -580,6 +599,7 @@ describe("streamed lesson route recovery", () => {
     await consumeLessonEventStream(response.body!, (event) => events.push(event));
 
     expect(events.at(-1)?.type).toBe("lesson.complete");
+    expect(events.at(-1)).toMatchObject({ deliveryMode: "generated" });
     expect(mocks.releaseAIRequestClaim).not.toHaveBeenCalled();
   });
 });
@@ -587,7 +607,10 @@ describe("streamed lesson route recovery", () => {
 function lessonRequest() {
   return new Request("http://localhost/api/sessions/lesson", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      "X-Yova-Request-Id": LESSON_OPERATION_ID,
+    },
     body: JSON.stringify({
       action: "generate",
       planId: "22222222-2222-4222-8222-222222222222",

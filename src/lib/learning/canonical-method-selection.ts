@@ -6,8 +6,9 @@ import {
   type LearningTaskType,
 } from "@/lib/learning/method-catalog";
 import {
-  eligibleMethodIdsFor,
+  eligibleMethodIdsForPolicyVersion,
   METHOD_ELIGIBILITY_POLICY_VERSION,
+  type MethodEligibilityPolicyVersion,
   type KnowledgeStage,
 } from "@/lib/learning/method-eligibility";
 import {
@@ -59,6 +60,8 @@ export type CanonicalMethodSelectionInput = {
   taskType: LearningTaskType;
   knowledgeStage: KnowledgeStage;
   learningMode: SessionLearningMode;
+  /** Defaults to the current policy; immutable successors pass their stored version. */
+  eligibilityPolicyVersion?: MethodEligibilityPolicyVersion;
   /** An exact accepted route is immutable for the lifetime of that revision. */
   committedRoute?: {
     methodId: CoreMethodId;
@@ -88,7 +91,7 @@ export type CanonicalMethodSelectionInput = {
 
 export type CanonicalMethodSelection = {
   policyVersion: typeof CANONICAL_METHOD_SELECTION_POLICY_VERSION;
-  eligibilityPolicyVersion: typeof METHOD_ELIGIBILITY_POLICY_VERSION;
+  eligibilityPolicyVersion: MethodEligibilityPolicyVersion;
   taskType: LearningTaskType;
   knowledgeStage: KnowledgeStage;
   learningMode: SessionLearningMode;
@@ -142,11 +145,13 @@ const MethodEvidenceComparisonKeySchema = z.string().trim().min(1).max(512);
 export function selectCanonicalStudyMethod(
   input: CanonicalMethodSelectionInput,
 ): CanonicalMethodSelectionResult {
-  const eligibleMethodIds = eligibleMethodIdsFor({
+  const eligibilityPolicyVersion = input.eligibilityPolicyVersion
+    ?? METHOD_ELIGIBILITY_POLICY_VERSION;
+  const eligibleMethodIds = eligibleMethodIdsForPolicyVersion({
     taskType: input.taskType,
     knowledgeStage: input.knowledgeStage,
     learningMode: input.learningMode,
-  });
+  }, eligibilityPolicyVersion);
   const eligible = new Set(eligibleMethodIds);
   const baselineMethodId = eligibleMethodIds[0]!;
   const personalization = input.personalization
@@ -243,6 +248,7 @@ export function selectCanonicalStudyMethod(
   ];
   const ruleTrace = buildRuleTrace({
     input,
+    eligibilityPolicyVersion,
     eligibleMethodIds,
     selectedMethodId,
     authority,
@@ -253,7 +259,7 @@ export function selectCanonicalStudyMethod(
 
   return deepFreeze({
     policyVersion: CANONICAL_METHOD_SELECTION_POLICY_VERSION,
-    eligibilityPolicyVersion: METHOD_ELIGIBILITY_POLICY_VERSION,
+    eligibilityPolicyVersion,
     taskType: input.taskType,
     knowledgeStage: input.knowledgeStage,
     learningMode: input.learningMode,
@@ -496,6 +502,7 @@ function baselineReason(
 
 function buildRuleTrace({
   input,
+  eligibilityPolicyVersion,
   eligibleMethodIds,
   selectedMethodId,
   authority,
@@ -504,6 +511,7 @@ function buildRuleTrace({
   ignoredExperimentalSignalIds,
 }: {
   input: CanonicalMethodSelectionInput;
+  eligibilityPolicyVersion: MethodEligibilityPolicyVersion;
   eligibleMethodIds: readonly CoreMethodId[];
   selectedMethodId: CoreMethodId;
   authority: MethodSelectionAuthority;
@@ -512,7 +520,7 @@ function buildRuleTrace({
   ignoredExperimentalSignalIds: readonly string[];
 }) {
   const entries: StudyRouteRuleTraceEntry[] = [{
-    ruleId: METHOD_ELIGIBILITY_POLICY_VERSION,
+    ruleId: eligibilityPolicyVersion,
     result: eligibleMethodIds.join(","),
     reason: `Task, knowledge stage, and ${input.learningMode === "learn" ? "Learn" : "Practice"} mode limited selection to ${eligibleMethodIds.map((methodId) => CORE_METHOD_CATALOG[methodId].name).join(", ")}.`,
     evidenceRefs: [],

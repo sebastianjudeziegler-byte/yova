@@ -5,6 +5,7 @@ import {
   buildFallbackMethodBriefing,
   buildGenericInsideFallbackMethodBriefing,
 } from "@/lib/learning/fallback-method-briefing";
+import { methodFitsSessionMode } from "@/lib/learning/method-router";
 import { buildSessionDeliveryPolicy } from "@/lib/personalization/session-delivery-policy";
 import type { StudyRoute } from "@/lib/study-route/schema";
 
@@ -119,8 +120,39 @@ describe("buildFallbackMethodBriefing", () => {
     const briefing = buildFallbackMethodBriefing(plan, session);
 
     expect(briefing.taskType).toBe("problem_solving");
-    expect(briefing.methodId).toBe("worked_example_fading");
-    expect(briefing.name).toBe("Worked Examples");
+    expect(briefing.methodId).toBe("practice_problems");
+    expect(briefing.name).toBe("Practice Problems");
+  });
+
+  it("replaces a teaching-first conceptual label with an eligible attempt-first Practice baseline", () => {
+    const session = makeSession({
+      title: "Check the cellular respiration relationship",
+      objective: "Explain how the stages of cellular respiration connect and produce ATP.",
+      method: "Feynman Technique",
+      methodReason: "Build the complete model before asking the learner to explain it.",
+      learningMode: "study",
+    });
+    const plan = makePlan(session, {
+      title: "Cellular respiration",
+      topic: "How cellular respiration stages connect to ATP production",
+      kind: "topic",
+      studyMode: "inside_yova",
+    });
+
+    const briefing = buildFallbackMethodBriefing(plan, session);
+
+    expect(briefing).toMatchObject({
+      taskType: "conceptual_learning",
+      methodId: "concept_mapping",
+      name: "Concept Mapping",
+    });
+    expect(methodFitsSessionMode(
+      briefing.methodId,
+      briefing.taskType,
+      briefing.learningMode,
+    )).toBe(true);
+    expect(briefing.how[0]).toMatch(/retrieve/i);
+    expect(briefing.why).not.toContain("Build the complete model");
   });
 
   it("does not let the old method override what the learner is actually doing", () => {
@@ -201,6 +233,69 @@ describe("buildFallbackMethodBriefing", () => {
     });
     expect(briefing.personalization.join(" ")).toContain(
       "keeps the committed Self-explanation with worked example fading route",
+    );
+  });
+
+  it("preserves a committed v2 Practice Feynman route under current eligibility", () => {
+    const route = {
+      approach: {
+        mode: "practice",
+        primaryMethodId: "self_explanation",
+        visibleMethodName: "Feynman Technique",
+      },
+      target: {
+        taskFamily: "conceptual_learning",
+      },
+      timing: { activeMinutes: 15 },
+      execution: {
+        completionEvidence: [{
+          description: "Explain the relationship independently after checking the saved source.",
+        }],
+      },
+      explanation: {
+        shortReason: "This existing v2 route remains immutable during recovery.",
+      },
+      decisionProvenance: {
+        ruleTrace: ["method_eligibility_v2"],
+      },
+    } as unknown as StudyRoute;
+
+    const briefing = buildCommittedRouteFallbackMethodBriefing(route);
+
+    expect(briefing).toMatchObject({
+      learningMode: "study",
+      taskType: "conceptual_learning",
+      methodId: "self_explanation",
+      name: "Feynman Technique",
+    });
+  });
+
+  it("keeps source authority visible for a committed outside-YOVA recovery", () => {
+    const route = {
+      approach: {
+        mode: "learn",
+        executionEnvironment: "outside_yova",
+        primaryMethodId: "retrieval_based_outlining",
+        visibleMethodName: "Outline from Memory",
+      },
+      target: {
+        taskFamily: "writing_argumentation",
+      },
+      timing: { activeMinutes: 25 },
+      execution: {
+        completionEvidence: [{
+          description: "Draft the claim from memory, then verify every supporting source.",
+        }],
+      },
+      explanation: {
+        shortReason: "The committed route keeps the learner's source authoritative.",
+      },
+    } as unknown as StudyRoute;
+
+    const briefing = buildCommittedRouteFallbackMethodBriefing(route);
+
+    expect(briefing.personalization.join(" ")).toMatch(
+      /outside source remains the source of truth/i,
     );
   });
 

@@ -174,7 +174,7 @@ test("streamed lesson quota uses its built-in explanation and surfaces the reset
         "",
         'data: {"type":"lesson.replace","content":"# Allowance-safe explanation\\n\\nThis bounded explanation came from the validated lesson brief without another AI call."}',
         "",
-        'data: {"type":"lesson.complete","elapsedMs":0,"latencyToFirstTokenMs":null,"inputTokens":0,"cachedInputTokens":0,"outputTokens":0,"wordCount":15,"model":"built-in"}',
+        'data: {"type":"lesson.complete","deliveryMode":"bounded_fallback","elapsedMs":0,"latencyToFirstTokenMs":null,"inputTokens":0,"cachedInputTokens":0,"outputTokens":0,"wordCount":15,"model":"built-in"}',
         "",
         "",
       ].join("\n"),
@@ -186,6 +186,7 @@ test("streamed lesson quota uses its built-in explanation and surfaces the reset
   await createOneOffLearningSession(page, "Help me understand retrieval practice and test the idea.");
 
   await expect(page.getByText("Allowance-safe explanation")).toBeVisible();
+  await expect(page.getByText("Safe built-in lesson", { exact: true })).toBeVisible();
   const allowanceNotice = page.locator(".session-issue").filter({
     hasText: "Your guided-session allowance is used up until",
   });
@@ -217,7 +218,7 @@ test("a confident misconception is repaired now without a duplicate follow-up", 
   await page.getByRole("button", { name: /Build and start session/ }).click();
   await expect(page.getByRole("heading", { name: "Here is how YOVA plans to start." })).toBeVisible({ timeout: 15_000 });
   const setupDecision = page.getByLabel("Why YOVA chose this approach");
-  await expect(setupDecision).toContainText("Feynman Technique");
+  await expect(setupDecision).toContainText("Concept Mapping");
   await expect(setupDecision).toContainText(
     /stable evidence-constrained baseline for conceptual learning at the novice stage in Practice mode/i,
   );
@@ -325,7 +326,7 @@ test("a support request keeps the committed practice recipe when fallback genera
   await expect(page.getByText(/safe study-method workpad was loaded instead/i)).toBeVisible();
   const methodWorkpad = page.getByLabel("Study-method workpad");
   await expect(methodWorkpad).toBeVisible();
-  await expect(methodWorkpad.getByLabel("How to study this")).toContainText("Worked Examples");
+  await expect(methodWorkpad.getByLabel("How to study this")).toContainText("Practice Problems");
   await expect(methodWorkpad.getByLabel("How to study this")).toContainText("Practice first");
   await expect(methodWorkpad).toContainText("This completes practice, not a knowledge check.");
   await expect(page.getByRole("heading", { name: "See the product rule before using it" })).not.toBeVisible();
@@ -391,7 +392,7 @@ test("a visibly shortened inside recipe keeps its method in the fallback workpad
   await expect(page.getByText(/safe study-method workpad was loaded instead/i)).toBeVisible();
   const methodWorkpad = page.getByLabel("Study-method workpad");
   await expect(methodWorkpad).toBeVisible();
-  await expect(methodWorkpad.getByLabel("How to study this")).toContainText("Worked Examples");
+  await expect(methodWorkpad.getByLabel("How to study this")).toContainText("Practice Problems");
   await expect(methodWorkpad).toContainText("This completes practice, not a knowledge check.");
   await expect(page.getByText("STEP 1 OF 3", { exact: true })).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "Use the session target as your comparison frame" })).toHaveCount(0);
@@ -1200,7 +1201,7 @@ test("an overdue arbitrary inside session splits and loads a route-faithful 10-m
   await expect(page.getByText(/safe study-method workpad was loaded instead/i)).toBeVisible();
   const methodWorkpad = page.getByLabel("Study-method workpad");
   await expect(methodWorkpad).toBeVisible();
-  await expect(methodWorkpad.getByLabel("How to study this")).toContainText("Feynman Technique");
+  await expect(methodWorkpad.getByLabel("How to study this")).toContainText("Concept Mapping");
   await expect(methodWorkpad).toContainText("DNA and RNA");
   await expect(methodWorkpad).toContainText("This completes practice, not a knowledge check.");
   await expect(page.getByText("STEP 1 OF 3", { exact: true })).toHaveCount(0);
@@ -1355,7 +1356,7 @@ test("a resumed streamed question can reopen its prior lesson by persisted activ
         "",
         'data: {"type":"lesson.delta","delta":"# Restored streamed explanation\\n\\nRetrieval shows what you can produce before reviewing the answer."}',
         "",
-        'data: {"type":"lesson.complete","elapsedMs":20,"latencyToFirstTokenMs":5,"inputTokens":20,"cachedInputTokens":0,"outputTokens":18,"wordCount":13,"model":"test-model"}',
+        'data: {"type":"lesson.complete","deliveryMode":"generated","elapsedMs":20,"latencyToFirstTokenMs":5,"inputTokens":20,"cachedInputTokens":0,"outputTokens":18,"wordCount":13,"model":"test-model"}',
         "",
         "",
       ].join("\n"),
@@ -1432,7 +1433,7 @@ test("a refresh recovers semantic progress without saving draft answers or inven
         "",
         'data: {"type":"lesson.delta","delta":"# Refresh-safe explanation\\n\\nRetrieval shows what you can produce before reviewing the answer."}',
         "",
-        'data: {"type":"lesson.complete","elapsedMs":20,"latencyToFirstTokenMs":5,"inputTokens":20,"cachedInputTokens":0,"outputTokens":18,"wordCount":13,"model":"test-model"}',
+        'data: {"type":"lesson.complete","deliveryMode":"generated","elapsedMs":20,"latencyToFirstTokenMs":5,"inputTokens":20,"cachedInputTokens":0,"outputTokens":18,"wordCount":13,"model":"test-model"}',
         "",
         "",
       ].join("\n"),
@@ -1846,7 +1847,7 @@ test("learner text fields keep long pastes visible and block submission until tr
         "",
         'data: {"type":"lesson.delta","delta":"# Retrieval practice\\n\\nAttempt the answer before reviewing the explanation."}',
         "",
-        'data: {"type":"lesson.complete","elapsedMs":20,"latencyToFirstTokenMs":5,"inputTokens":20,"cachedInputTokens":0,"outputTokens":12,"wordCount":9,"model":"test-model"}',
+        'data: {"type":"lesson.complete","deliveryMode":"generated","elapsedMs":20,"latencyToFirstTokenMs":5,"inputTokens":20,"cachedInputTokens":0,"outputTokens":12,"wordCount":9,"model":"test-model"}',
         "",
         "",
       ].join("\n"),
@@ -3258,7 +3259,7 @@ test("session setup changes one committed method and generates from its exact su
       ?.studyRoute;
     if (!route) throw new Error("Expected the exact committed route for Other methods.");
     const eligibility = route.provenance.ruleTrace.findLast((entry) => (
-      entry.ruleId === "method_eligibility_v2"
+      entry.ruleId === "method_eligibility_v3"
     ));
     if (!eligibility) throw new Error("Expected immutable method eligibility provenance.");
     return {

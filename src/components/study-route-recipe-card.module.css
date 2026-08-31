@@ -102,7 +102,8 @@
 }
 
 .changed,
-.alternatives {
+.alternatives,
+.rationale {
   padding: 9px;
   display: grid;
   gap: 5px;
@@ -111,8 +112,19 @@
 }
 
 .changed > strong,
-.alternatives > strong {
+.alternatives > strong,
+.rationale > strong {
   color: #433693;
+  font-size: 9px;
+}
+
+.rationale > div {
+  display: grid;
+  gap: 2px;
+}
+
+.rationale b {
+  color: #26344f;
   font-size: 9px;
 }
 

@@ -78,6 +78,14 @@ describe("method runtime capability", () => {
     }).primaryGenerationPath).toBe("reliable_or_full");
 
     expect(methodRuntimeCapabilityFor({
+      methodId: "practice_problems",
+      taskType: "problem_solving",
+      knowledgeStage: "novice",
+      learningMode: "study",
+      executionEnvironment: "inside_yova",
+    }).primaryGenerationPath).toBe("reliable_or_full");
+
+    expect(methodRuntimeCapabilityFor({
       methodId: "spaced_retrieval",
       taskType: "memorization",
       knowledgeStage: "developing",

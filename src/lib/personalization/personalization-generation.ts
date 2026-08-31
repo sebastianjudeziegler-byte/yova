@@ -28,6 +28,7 @@ import {
 import { CanonicalPreferredMethodIdsSchema } from "@/lib/personalization/preferred-method-schema";
 import { STUDY_PROFILE_DIMENSIONS } from "@/lib/study-profile/types";
 import { CanonicalLearnerProfileSchema } from "@/lib/personalization/canonical-profile-schema";
+import { migrateLegacyAnswerVectorToCanonicalProfile } from "@/lib/personalization/canonical-profile-migration";
 
 const PersonalizationDecisionSchema = z.object({
   id: z.string().trim().min(3).max(180),
@@ -184,14 +185,30 @@ export function resolvePersonalizationForGeneration({
   now?: Date;
   timeZone?: string;
 }) {
-  return projectPersonalizationForGeneration(resolveLearnerPersonalization({
+  const resolution = resolveLearnerPersonalization({
     answers,
     completions,
     interruptions,
     plans,
     now,
     timeZone,
-  }));
+  });
+  const projected = projectPersonalizationForGeneration(resolution);
+  if (projected.canonicalProfile || !resolution.state.controls.selfReport) {
+    return projected;
+  }
+
+  // The account screen has always shown the canonical compatibility
+  // projection for older answer vectors. Generation must read the same
+  // projection; otherwise an existing learner can see Help Me Choose in You
+  // while a newly issued route silently falls back to YOVA Decides.
+  const migratedProfile = migrateLegacyAnswerVectorToCanonicalProfile(answers);
+  return GenerationPersonalizationContextSchema.parse({
+    ...projected,
+    ...(migratedProfile.signals.length > 0
+      ? { canonicalProfile: migratedProfile }
+      : {}),
+  });
 }
 
 /**

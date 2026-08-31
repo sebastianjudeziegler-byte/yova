@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { LearningPlan } from "@/lib/domain";
+import { METHOD_ELIGIBILITY_POLICY_VERSION } from "@/lib/learning/method-eligibility";
 import type { GenerationPersonalizationContext } from "@/lib/personalization/personalization-generation";
 import { createCanonicalLearnerProfile } from "@/lib/personalization/canonical-profile-schema";
 import { NORMAL_PLAN_INTERNAL_METHOD_SCAFFOLD } from "@/lib/plan-generation/normal-plan-provider-fill";
@@ -64,7 +65,7 @@ describe("initial multi-session method routing", () => {
       expect(route.provenance.profileVersion).toContain("authorized_profile_context_v1+empty");
       expect(route.provenance.ruleTrace).toEqual(expect.arrayContaining([
         expect.objectContaining({ ruleId: INITIAL_PLAN_METHOD_ROUTING_VERSION }),
-        expect.objectContaining({ ruleId: "method_eligibility_v2" }),
+        expect.objectContaining({ ruleId: METHOD_ELIGIBILITY_POLICY_VERSION }),
         expect.objectContaining({ ruleId: "canonical_method_selection_v1" }),
       ]));
       expect(route.provenance.ruleTrace.find(

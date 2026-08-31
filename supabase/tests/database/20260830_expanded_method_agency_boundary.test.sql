@@ -3,7 +3,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public, pg_catalog;
 
-select extensions.plan(27);
+select extensions.plan(36);
 
 select extensions.is(
   (
@@ -13,6 +13,16 @@ select extensions.is(
   ),
   1::bigint,
   'the expanded method and agency boundary migration committed'
+);
+
+select extensions.is(
+  (
+    select pg_catalog.count(*)
+    from supabase_migrations.schema_migrations as migration
+    where migration.version = '202608310003'
+  ),
+  1::bigint,
+  'the additive method eligibility v3 boundary migration committed'
 );
 
 select extensions.is(
@@ -177,17 +187,21 @@ select extensions.ok(
 select extensions.ok(
   (
     select pg_catalog.lower(pg_catalog.pg_get_functiondef(routine.oid))
-      like '%study_route_agency_mode_controller_v1%'
+      like '%predecessor_route_payload #> ''{provenance,ruletrace}''%'
+      and pg_catalog.lower(pg_catalog.pg_get_functiondef(routine.oid))
+        like '%change_plan_session_method_with_route_v3(payload)%'
       and pg_catalog.lower(pg_catalog.pg_get_functiondef(routine.oid))
         like '%change_plan_session_method_with_route_v2(payload)%'
       and pg_catalog.lower(pg_catalog.pg_get_functiondef(routine.oid))
         like '%change_plan_session_method_with_route_legacy_v1(payload)%'
+      and pg_catalog.lower(pg_catalog.pg_get_functiondef(routine.oid))
+        not like '%successorstudyroute%'
     from pg_catalog.pg_proc as routine
     where routine.oid = pg_catalog.to_regprocedure(
       'public.change_plan_session_method_with_route(jsonb)'
     )
   ),
-  'the public RPC is a narrow legacy/versioned adapter'
+  'the public RPC selects its private writer only from the owned stored predecessor trace'
 );
 
 select extensions.ok(
@@ -216,7 +230,8 @@ select extensions.ok(
       ('public.study_route_method_names_v2(text)'),
       ('public.study_route_method_phases_v2(text,text)'),
       ('public.change_plan_session_method_with_route_legacy_v1(jsonb)'),
-      ('public.change_plan_session_method_with_route_v2(jsonb)')
+      ('public.change_plan_session_method_with_route_v2(jsonb)'),
+      ('public.change_plan_session_method_with_route_v3(jsonb)')
     ) as private_routine(signature)
     cross join (values
       ('anon'),
@@ -736,6 +751,328 @@ select extensions.throws_ok(
   'a forged selection scope cannot widen the stable RPC'
 );
 
+-- A distinct v3 predecessor proves that the stable adapter keeps v2 routes
+-- on v2 while dispatching newly issued routes through the additive v3 writer.
+create temporary table agency_v3_method_fixture (
+  user_id uuid not null,
+  plan_id uuid not null,
+  learning_item_id uuid not null,
+  session_id uuid not null,
+  predecessor jsonb not null,
+  successor jsonb not null
+) on commit drop;
+
+insert into agency_v3_method_fixture
+select
+  fixture.user_id,
+  '14000000-0000-4000-8000-000000000001'::uuid,
+  fixture.learning_item_id,
+  '14000000-0000-4000-8000-000000000002'::uuid,
+  pg_catalog.replace(
+    pg_catalog.replace(
+      pg_catalog.replace(
+        pg_catalog.replace(
+          pg_catalog.replace(
+            fixture.predecessor::text,
+            fixture.plan_id::text,
+            '14000000-0000-4000-8000-000000000001'
+          ),
+          fixture.session_id::text,
+          '14000000-0000-4000-8000-000000000002'
+        ),
+        'a2f090cf-b3fe-4c2a-ad46-632ced029095',
+        '14000000-0000-4000-8000-000000000003'
+      ),
+      '5fc5b507-f9e8-45c3-8b45-cbeafdeeda39',
+      '14000000-0000-4000-8000-000000000004'
+    ),
+    'method_eligibility_v2',
+    'method_eligibility_v3'
+  )::jsonb,
+  pg_catalog.replace(
+    pg_catalog.replace(
+      pg_catalog.replace(
+        pg_catalog.replace(
+          pg_catalog.replace(
+            pg_catalog.replace(
+              fixture.successor::text,
+              fixture.plan_id::text,
+              '14000000-0000-4000-8000-000000000001'
+            ),
+            fixture.session_id::text,
+            '14000000-0000-4000-8000-000000000002'
+          ),
+          'a2f090cf-b3fe-4c2a-ad46-632ced029095',
+          '14000000-0000-4000-8000-000000000003'
+        ),
+        '5fc5b507-f9e8-45c3-8b45-cbeafdeeda39',
+        '14000000-0000-4000-8000-000000000004'
+      ),
+      '91000000-0000-4000-8000-000000000002',
+      '14000000-0000-4000-8000-000000000005'
+    ),
+    'method_eligibility_v2',
+    'method_eligibility_v3'
+  )::jsonb
+from agency_other_method_fixture as fixture;
+
+insert into agency_v3_method_fixture
+with current_format as (
+  select
+    fixture.user_id,
+    fixture.learning_item_id,
+    pg_catalog.replace(
+      pg_catalog.replace(
+        pg_catalog.replace(
+          pg_catalog.replace(
+            fixture.predecessor::text,
+            fixture.plan_id::text,
+            '15000000-0000-4000-8000-000000000001'
+          ),
+          fixture.session_id::text,
+          '15000000-0000-4000-8000-000000000002'
+        ),
+        'a2f090cf-b3fe-4c2a-ad46-632ced029095',
+        '15000000-0000-4000-8000-000000000003'
+      ),
+      '5fc5b507-f9e8-45c3-8b45-cbeafdeeda39',
+      '15000000-0000-4000-8000-000000000004'
+    )::jsonb as predecessor,
+    pg_catalog.replace(
+      pg_catalog.replace(
+        pg_catalog.replace(
+          pg_catalog.replace(
+            pg_catalog.replace(
+              fixture.successor::text,
+              fixture.plan_id::text,
+              '15000000-0000-4000-8000-000000000001'
+            ),
+            fixture.session_id::text,
+            '15000000-0000-4000-8000-000000000002'
+          ),
+          'a2f090cf-b3fe-4c2a-ad46-632ced029095',
+          '15000000-0000-4000-8000-000000000003'
+        ),
+        '5fc5b507-f9e8-45c3-8b45-cbeafdeeda39',
+        '15000000-0000-4000-8000-000000000004'
+      ),
+      '91000000-0000-4000-8000-000000000002',
+      '15000000-0000-4000-8000-000000000005'
+    )::jsonb as successor
+  from agency_other_method_fixture as fixture
+), agency_marker as (
+  select $trace$
+    {
+      "ruleId": "study_route_agency_mode_controller_v1",
+      "result": "ill_customize:legacy_current_format",
+      "reason": "The stored predecessor records the current agency contract but predates explicit eligibility provenance.",
+      "evidenceRefs": []
+    }
+  $trace$::jsonb as value
+)
+select
+  current_format.user_id,
+  '15000000-0000-4000-8000-000000000001'::uuid,
+  current_format.learning_item_id,
+  '15000000-0000-4000-8000-000000000002'::uuid,
+  pg_catalog.jsonb_set(
+    pg_catalog.jsonb_set(
+      current_format.predecessor,
+      '{provenance,ruleTrace,0}',
+      agency_marker.value
+    ),
+    '{agency,alternatives}',
+    pg_catalog.jsonb_build_array(
+      pg_catalog.jsonb_build_object(
+        'alternativeId', 'method-alternative:pretesting',
+        'mode', 'learn',
+        'executionEnvironment', 'inside_yova',
+        'primaryMethodId', 'pretesting',
+        'visibleMethodName', 'Pretesting',
+        'activeMinutes', 25,
+        'tradeoff', public.study_route_method_tradeoff_v2(
+          current_format.predecessor,
+          'pretesting'
+        )
+      )
+    )
+  ),
+  pg_catalog.jsonb_set(
+    pg_catalog.jsonb_set(
+      current_format.successor,
+      '{provenance,ruleTrace,0}',
+      agency_marker.value
+    ),
+    '{provenance,ruleTrace,1,reason}',
+    pg_catalog.to_jsonb(
+      'The learner changed the exact ready session to one of the bounded methods saved on its committed route.'::text
+    )
+  )
+from current_format
+cross join agency_marker;
+
+insert into public.plans (
+  id,
+  user_id,
+  learning_item_id,
+  status,
+  rationale
+)
+select
+  fixture.plan_id,
+  fixture.user_id,
+  fixture.learning_item_id,
+  'active',
+  'Exercise stored-predecessor dispatch for eligibility v3.'
+from agency_v3_method_fixture as fixture;
+
+insert into public.plan_sessions (
+  id,
+  user_id,
+  plan_id,
+  sequence,
+  title,
+  objective,
+  method,
+  method_rationale,
+  scheduled_for,
+  estimated_minutes,
+  status,
+  step_data
+)
+select
+  fixture.session_id,
+  fixture.user_id,
+  fixture.plan_id,
+  1,
+  'Build a first model through eligibility v3',
+  fixture.predecessor #>> '{target,desiredOutcome}',
+  fixture.predecessor #>> '{approach,visibleMethodName}',
+  fixture.predecessor #>> '{explanation,shortReason}',
+  '2026-08-24T20:00:00.000Z',
+  (fixture.predecessor #>> '{timing,activeMinutes}')::integer,
+  'ready',
+  pg_catalog.jsonb_build_object(
+    'learningMode', case fixture.predecessor #>> '{approach,mode}'
+      when 'learn' then 'learn'
+      when 'practice' then 'study'
+      else null
+    end,
+    'topicIds', public.study_route_active_topic_ids_v1(
+      fixture.predecessor
+    ),
+    'completionEvidence', (
+      select coalesce(
+        pg_catalog.jsonb_agg(
+          pg_catalog.to_jsonb(evidence.value ->> 'description')
+          order by evidence.ordinality
+        ),
+        '[]'::jsonb
+      )
+      from pg_catalog.jsonb_array_elements(
+        fixture.predecessor #> '{execution,completionEvidence}'
+      ) with ordinality as evidence(value, ordinality)
+    )
+  )
+from agency_v3_method_fixture as fixture;
+
+do $block$
+declare
+  fixture agency_v3_method_fixture%rowtype;
+begin
+  for fixture in select * from agency_v3_method_fixture
+  loop
+    perform public.commit_study_route_revision(fixture.predecessor);
+  end loop;
+end;
+$block$;
+
+select extensions.throws_ok(
+  $statement$
+    select public.change_plan_session_method_with_route(
+      pg_catalog.jsonb_build_object(
+        'planId', fixture.plan_id,
+        'planSessionId', fixture.session_id,
+        'expectedRouteRevisionId',
+          fixture.predecessor #>> '{identity,routeRevisionId}',
+        'selectionScope', 'other_eligible_method',
+        'successorStudyRoute', pg_catalog.jsonb_set(
+          fixture.successor,
+          '{provenance,ruleTrace,5,ruleId}',
+          '"method_eligibility_v2"'::jsonb
+        )
+      )
+    )
+    from agency_v3_method_fixture as fixture
+    where fixture.plan_id = '14000000-0000-4000-8000-000000000001'
+  $statement$,
+  '22023',
+  'post_commit_method_choice_agency_conflict',
+  'a v3 predecessor rejects a successor that tries to downgrade its appended eligibility trace'
+);
+
+select extensions.is(
+  (
+    select public.change_plan_session_method_with_route(
+      pg_catalog.jsonb_build_object(
+        'planId', fixture.plan_id,
+        'planSessionId', fixture.session_id,
+        'expectedRouteRevisionId',
+          fixture.predecessor #>> '{identity,routeRevisionId}',
+        'selectionScope', 'other_eligible_method',
+        'successorStudyRoute', fixture.successor
+      )
+    ) #>> '{status}'
+    from agency_v3_method_fixture as fixture
+    where fixture.plan_id = '14000000-0000-4000-8000-000000000001'
+  ),
+  'updated',
+  'a stored v3 predecessor dispatches to the private v3 writer'
+);
+
+select extensions.is(
+  (
+    select route.route_payload #>> '{provenance,ruleTrace,5,ruleId}'
+    from public.study_routes as route
+    where route.route_revision_id =
+      '14000000-0000-4000-8000-000000000005'
+      and route.lifecycle = 'committed'
+  ),
+  'method_eligibility_v3',
+  'the exact v3 successor is committed without reinterpreting its eligibility policy'
+);
+
+select extensions.is(
+  (
+    select public.change_plan_session_method_with_route(
+      pg_catalog.jsonb_build_object(
+        'planId', fixture.plan_id,
+        'planSessionId', fixture.session_id,
+        'expectedRouteRevisionId',
+          fixture.predecessor #>> '{identity,routeRevisionId}',
+        'selectionScope', 'stored_alternative',
+        'successorStudyRoute', fixture.successor
+      )
+    ) #>> '{status}'
+    from agency_v3_method_fixture as fixture
+    where fixture.plan_id = '15000000-0000-4000-8000-000000000001'
+  ),
+  'updated',
+  'a current-format no-trace predecessor keeps its exact stored alternative on frozen v2 semantics'
+);
+
+select extensions.is(
+  (
+    select route.route_payload #>> '{provenance,ruleTrace,5,ruleId}'
+    from public.study_routes as route
+    where route.route_revision_id =
+      '15000000-0000-4000-8000-000000000005'
+      and route.lifecycle = 'committed'
+  ),
+  'method_eligibility_v2',
+  'the no-trace compatibility successor records v2 instead of being widened to v3'
+);
+
 -- A Pretesting check is diagnostic baseline information. Even a correct
 -- pretest must not advance the durable topic map; a later repair/transfer
 -- check remains authoritative.
@@ -964,6 +1301,32 @@ select extensions.ok(
   'the expanded readiness contract is stable, security-definer, and service-role-only'
 );
 
+select extensions.ok(
+  pg_catalog.has_function_privilege(
+    'service_role',
+    'public.signed_in_generation_readiness_v3()',
+    'execute'
+  )
+  and not pg_catalog.has_function_privilege(
+    'authenticated',
+    'public.signed_in_generation_readiness_v3()',
+    'execute'
+  )
+  and not pg_catalog.has_function_privilege(
+    'anon',
+    'public.signed_in_generation_readiness_v3()',
+    'execute'
+  )
+  and (
+    select routine.prosecdef and routine.provolatile = 's'
+    from pg_catalog.pg_proc as routine
+    where routine.oid = pg_catalog.to_regprocedure(
+      'public.signed_in_generation_readiness_v3()'
+    )
+  ),
+  'the eligibility-v3 readiness contract is stable, security-definer, and service-role-only'
+);
+
 do $block$
 begin
   perform pg_catalog.set_config(
@@ -987,6 +1350,20 @@ select extensions.is(
   'the migration head certifies the expanded method and agency boundary'
 );
 
+select extensions.is(
+  public.signed_in_generation_readiness_v3(),
+  pg_catalog.jsonb_build_object(
+    'contractVersion', '202608310003',
+    'ready', true,
+    'studyRoutesSchema', true,
+    'planSessionsRoutePointer', true,
+    'requiredRouteRpcs', true,
+    'expandedMethodAgencyBoundary', true,
+    'methodEligibilityV3Boundary', true
+  ),
+  'the migration head certifies the immutable eligibility-v3 boundary'
+);
+
 do $block$
 begin
   perform pg_catalog.set_config(
@@ -1002,6 +1379,13 @@ select extensions.throws_ok(
   '42501',
   'signed_in_generation_readiness_service_role_required',
   'an authenticated learner cannot invoke the expanded deployment probe'
+);
+
+select extensions.throws_ok(
+  'select public.signed_in_generation_readiness_v3()',
+  '42501',
+  'signed_in_generation_readiness_service_role_required',
+  'an authenticated learner cannot invoke the eligibility-v3 deployment probe'
 );
 
 select * from extensions.finish();

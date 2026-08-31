@@ -11,6 +11,15 @@ describe("visible StudyRoute duration explanation", () => {
     })).toBe("YOVA fit this to the 20-minute window you gave it.");
   });
 
+  it("credits the learner's exact selected window before a coincidental profile match", () => {
+    expect(explainStudyRouteDuration({
+      activeMinutes: 15,
+      elapsedMinutes: 15,
+      durationSource: "profile_recommendation",
+      hardMaximumMinutes: 15,
+    })).toBe("This recipe uses the 15-minute window you selected.");
+  });
+
   it.each([
     ["profile_recommendation", "current profile"],
     ["observed_outcome_adjustment", "comparable recent sessions"],

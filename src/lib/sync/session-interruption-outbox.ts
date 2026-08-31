@@ -15,6 +15,17 @@ import {
 import { recordAuthenticatedSessionInterruption } from "@/lib/supabase/learning-state-repository";
 
 const STORAGE_KEY = "yova.session-interruption-outbox.v1";
+const MAX_INTERRUPTION_FLUSH_ATTEMPTS = 25;
+
+type SessionInterruptionFlushResult = Readonly<{
+  synced: number;
+  remaining: number;
+}>;
+
+const activeSessionInterruptionFlushes = new Map<
+  string,
+  Promise<SessionInterruptionFlushResult>
+>();
 
 const RoutedConceptEvidenceListSchema = z.array(ConceptEvidenceSchema.extend({
   routeRevisionId: z.string().uuid().optional(),
@@ -131,17 +142,44 @@ export function pendingSessionInterruptionRunIds(userId: string) {
     .map((entry) => entry.interruption.id);
 }
 
-export async function flushQueuedSessionInterruptions(userId: string) {
-  const queued = loadAllPendingInterruptions().filter((entry) => entry.userId === userId);
-  let synced = 0;
+export function flushQueuedSessionInterruptions(userId: string) {
+  const active = activeSessionInterruptionFlushes.get(userId);
+  if (active) return active;
 
-  for (const entry of queued) {
-    try {
-      await recordAuthenticatedSessionInterruption(entry.userId, entry.interruption);
-      removeQueuedSessionInterruption(entry.interruption.id);
-      synced += 1;
-    } catch {
-      break;
+  const flush = runQueuedSessionInterruptionFlush(userId).finally(() => {
+    if (activeSessionInterruptionFlushes.get(userId) === flush) {
+      activeSessionInterruptionFlushes.delete(userId);
+    }
+  });
+  activeSessionInterruptionFlushes.set(userId, flush);
+  return flush;
+}
+
+async function runQueuedSessionInterruptionFlush(
+  userId: string,
+): Promise<SessionInterruptionFlushResult> {
+  const attemptedIds = new Set<string>();
+  let synced = 0;
+  let failed = false;
+
+  while (!failed && attemptedIds.size < MAX_INTERRUPTION_FLUSH_ATTEMPTS) {
+    const queued = loadAllPendingInterruptions().filter((entry) => (
+      entry.userId === userId
+      && !attemptedIds.has(entry.interruption.id)
+    ));
+    if (queued.length === 0) break;
+
+    for (const entry of queued) {
+      if (attemptedIds.size >= MAX_INTERRUPTION_FLUSH_ATTEMPTS) break;
+      attemptedIds.add(entry.interruption.id);
+      try {
+        await recordAuthenticatedSessionInterruption(entry.userId, entry.interruption);
+        removeQueuedSessionInterruption(entry.interruption.id);
+        synced += 1;
+      } catch {
+        failed = true;
+        break;
+      }
     }
   }
 

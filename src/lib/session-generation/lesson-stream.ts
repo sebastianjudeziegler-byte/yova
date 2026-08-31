@@ -18,6 +18,7 @@ const LessonStreamReplaceEventSchema = z.object({
 
 const LessonStreamCompleteEventSchema = z.object({
   type: z.literal("lesson.complete"),
+  deliveryMode: z.enum(["generated", "bounded_fallback"]),
   elapsedMs: z.number().int().min(0).max(300_000),
   latencyToFirstTokenMs: z.number().int().min(0).max(300_000).nullable(),
   inputTokens: z.number().int().min(0),

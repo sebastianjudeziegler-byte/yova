@@ -46,6 +46,27 @@ describe("YOVA prototype UI contracts", () => {
     );
   });
 
+  it("keeps a committed route authoritative during checkpoint and outage recovery", () => {
+    const component = readSource("src/components/yova-prototype.tsx");
+    const recoveryStart = component.indexOf("function recoveryMethodContext");
+    const recoveryEnd = component.indexOf("// The server may make one bounded repair attempt", recoveryStart);
+    const recovery = component.slice(recoveryStart, recoveryEnd);
+
+    expect(recovery).toContain("const briefing = committedRoute");
+    expect(recovery).toContain("buildCommittedRouteFallbackMethodBriefing(committedRoute, deliveryPolicy)");
+    expect(recovery).toContain(": buildFallbackMethodBriefing(plan, methodSession, deliveryPolicy)");
+
+    const guidedStart = component.indexOf("function GuidedSession(");
+    const guidedEnd = component.indexOf("function SessionGuidePanel", guidedStart);
+    const guidedSession = component.slice(guidedStart, guidedEnd);
+
+    expect(guidedSession).toContain('outsideMethodSession?.studyRoute?.identity.lifecycleStatus === "committed"');
+    expect(guidedSession).toContain(
+      "buildCommittedRouteFallbackMethodBriefing(committedOutsideRoute, deliveryPolicy ?? undefined)",
+    );
+    expect(guidedSession).toContain(": methodBriefing ?? (plan");
+  });
+
   it("lets uncertain or failed semantic checks continue without scoring them", () => {
     const component = readSource("src/components/yova-prototype.tsx");
     const guidedStart = component.indexOf("function GuidedSession(");
@@ -305,8 +326,12 @@ describe("YOVA prototype UI contracts", () => {
     expect(startSession).toContain("sessionStartRecoveryDecision({");
     expect(startSession).toContain("startDecision.canStartWithoutGeneration");
     expect(startSession).toContain("startDecision.advertiseContinue");
+    expect(startSession).toContain("resumePoint && storedRequestedSession.resource");
+    expect(startSession).toContain("resolveExecutedStudyRouteSessionContract(");
     expect(home).toContain("sessionStartRecoveryDecision({");
     expect(home).toContain("startDecision?.resumePoint");
+    expect(home).toContain("resolveExecutedStudyRouteSessionContract(");
+    expect(home).toContain("homeRoute?.approach.visibleMethodName");
     expect(agenda).toContain("sessionStartRecoveryDecision({");
     expect(component).not.toContain("chooseLatestSessionResumePoint");
   });
@@ -353,13 +378,13 @@ describe("YOVA prototype UI contracts", () => {
     const localOnlyOption = interruption.indexOf("{ syncToAccount: false }", terminalCheckpointWrite);
     const interruptionState = interruption.indexOf("setSessionInterruptions(", localOnlyOption);
     const interruptionOutbox = interruption.indexOf("queueSessionInterruption({", interruptionState);
-    const interruptionRpc = interruption.indexOf(
-      "recordAuthenticatedSessionInterruption(account.id, interruption)",
+    const interruptionFlush = interruption.indexOf(
+      "flushQueuedSessionInterruptions(account.id)",
       interruptionOutbox,
     );
     const recoveryCheckpointSync = interruption.indexOf(
       "await syncCheckpointToAccount(latestRecoveryCheckpoint)",
-      interruptionRpc,
+      interruptionFlush,
     );
 
     expect(interruptionStart).toBeGreaterThan(-1);
@@ -368,10 +393,13 @@ describe("YOVA prototype UI contracts", () => {
     expect(localOnlyOption).toBeGreaterThan(terminalCheckpointWrite);
     expect(interruptionState).toBeGreaterThan(localOnlyOption);
     expect(interruptionOutbox).toBeGreaterThan(interruptionState);
-    expect(interruptionRpc).toBeGreaterThan(interruptionOutbox);
-    expect(recoveryCheckpointSync).toBeGreaterThan(interruptionRpc);
-    expect(interruption.slice(terminalCheckpointWrite, interruptionRpc)).not.toContain(
+    expect(interruptionFlush).toBeGreaterThan(interruptionOutbox);
+    expect(recoveryCheckpointSync).toBeGreaterThan(interruptionFlush);
+    expect(interruption.slice(terminalCheckpointWrite, interruptionFlush)).not.toContain(
       "syncCheckpointToAccount(",
+    );
+    expect(interruption.slice(interruptionFlush, recoveryCheckpointSync)).toContain(
+      "entry.interruption.id === interruption.id",
     );
   });
 

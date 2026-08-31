@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { LearningPlan, LearningPlanSession } from "@/lib/domain";
 import {
+  resolveExecutedStudyRouteSessionContract,
   resolveExecutedStudyRoute,
   resolvePlannedStudyRoute,
   resolveStudyRouteSessionContract,
@@ -102,6 +103,8 @@ describe("StudyRoute selectors", () => {
 
     expect(resolvePlannedStudyRoute(plan, session).source).toBe("stored");
     expect(resolveExecutedStudyRoute(plan, session).source).toBe("stored");
+    expect(resolveExecutedStudyRouteSessionContract(plan, session).session.method)
+      .toBe("Stored canonical method name");
     expect(selectSessionMethodName(plan, session)).toBe("Stored canonical method name");
   });
 
@@ -148,5 +151,44 @@ describe("StudyRoute selectors", () => {
       estimatedMinutes: route.timing.activeMinutes,
       learningMode: "study",
     });
+  });
+
+  it("uses the validated executed method only when recovering a route-free legacy resource", () => {
+    const plan = legacyPlan();
+    const legacySession: LearningPlanSession = {
+      ...plan.sessions[0]!,
+      method: "Practice test and error repair",
+      methodReason: "The old plan scalar promised a practice test and targeted repair.",
+      resource: {
+        schemaVersion: 15,
+        topicIds: ["44444444-4444-4444-8444-444444444444"],
+        rationale: "The saved lesson executes an Active Recall round.",
+        methodBriefing: {
+          learningMode: "study",
+          taskType: "conceptual_learning",
+          methodId: "retrieval_practice",
+          name: "Active Recall",
+          what: "Retrieve the relationship before reviewing it.",
+          why: "The saved activity begins with unsupported recall.",
+          how: ["Recall first.", "Check and repair."],
+          completion: "Complete the recall and repair.",
+          personalization: [],
+        },
+        activities: [],
+        generatedAt: "2026-08-23T09:30:00.000Z",
+        origin: "generated",
+      },
+    };
+
+    const planned = resolveStudyRouteSessionContract(plan, legacySession);
+    const recovery = resolveExecutedStudyRouteSessionContract(plan, legacySession);
+
+    expect(planned.resolution.source).toBe("legacy_plan");
+    expect(planned.session.method).toBe("Practice test and error repair");
+    expect(recovery.resolution.source).toBe("executed_resource");
+    expect(recovery.session.method).toBe("Active Recall");
+    expect(recovery.session.methodReason).toBe(
+      "The saved activity begins with unsupported recall.",
+    );
   });
 });

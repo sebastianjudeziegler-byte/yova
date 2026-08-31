@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { buildImmediateRepairAfterMiss } from "@/lib/learning/session-evidence";
 import type { SessionGenerationContext } from "@/lib/openai/session-generator";
 
 const parseResponse = vi.hoisted(() => vi.fn());
@@ -441,7 +442,7 @@ describe("reliable OpenAI session generation", () => {
     expect(canGenerateReliableSession(readingContext)).toBe(false);
   });
 
-  it("turns one observed calculus gap into a model-first repair session", async () => {
+  it("turns one observed calculus gap into attempt-first Practice Problems", async () => {
     const repairLesson = {
       concept: "Quotient rule",
       focus: "Set up the quotient rule correctly for derivatives of fractions",
@@ -474,14 +475,17 @@ describe("reliable OpenAI session generation", () => {
         feedback: "The correct setup follows $(f'g-fg')/g^2$ and keeps the original denominator squared.",
       },
       explainBack: {
-        title: "Explain the quotient-rule setup",
-        prompt: "Explain the order of the two numerator terms and what belongs in the denominator.",
-        modelAnswer: "Multiply the derivative of the numerator by the original denominator, subtract the original numerator times the derivative of the denominator, and divide by the original denominator squared.",
-        feedback: "A correct explanation preserves the crossed order, subtraction, and squared original denominator.",
+        title: "Transfer the quotient rule",
+        prompt: "For $q(x)=(x+1)/(x^2+1)$, use the crossed numerator order and original denominator squared to write the quotient-rule setup before simplifying.",
+        modelAnswer: "Differentiate the numerator times the original denominator, subtract the numerator times the derivative of the denominator, and square the original denominator: $[(1)(x^2+1)-(x+1)(2x)]/(x^2+1)^2$.",
+        feedback: "The changed-context setup should preserve the crossed numerator order and square the original denominator.",
       },
     };
     parseResponse.mockResolvedValueOnce(providerResponse(repairLesson));
-    const { generateReliableSessionWithOpenAI } = await import("@/lib/openai/reliable-session-generator");
+    const {
+      canGenerateReliableSession,
+      generateReliableSessionWithOpenAI,
+    } = await import("@/lib/openai/reliable-session-generator");
     const repairContext = context("study");
     repairContext.learningGoal = {
       ...repairContext.learningGoal,
@@ -491,10 +495,10 @@ describe("reliable OpenAI session generation", () => {
     };
     repairContext.session = {
       ...repairContext.session,
-      title: "Repair the quotient rule",
-      objective: "Use a worked example to repair the quotient-rule setup, then solve a similar derivative independently.",
-      method: "Worked example fading, then retrieval",
-      methodReason: "The previous check showed repeated setup errors on the quotient rule.",
+      title: "Practice the quotient rule",
+      objective: "Attempt one quotient-rule setup independently, then solve a changed-context derivative problem.",
+      method: "Practice Problems",
+      methodReason: "The previous check exposed a quotient-rule setup gap, so begin with an unsupported attempt and repair only an observed miss.",
       estimatedMinutes: 25,
       contentTargets: [],
     };
@@ -520,17 +524,61 @@ describe("reliable OpenAI session generation", () => {
       status: "needs_review",
     }];
 
+    expect(canGenerateReliableSession(repairContext)).toBe(true);
     const result = await generateReliableSessionWithOpenAI(repairContext);
 
-    expect(result.draft.methodBriefing.methodId).toBe("worked_example_fading");
+    expect(result.draft.methodBriefing.methodId).toBe("practice_problems");
     expect(result.draft.activities.map((activity) => activity.methodPhase)).toEqual([
-      "model",
-      "guided_practice",
       "independent_practice",
+      "transfer",
+      "reflect",
       "schedule_return",
     ]);
-    expect(result.draft.activities[1]?.concept).toBe("Quotient rule");
-    expect(result.draft.activities[0]?.teaching?.example?.steps).toHaveLength(3);
+    const attempt = result.draft.activities[0]!;
+    expect(attempt).toMatchObject({
+      type: "multiple_choice",
+      concept: "Quotient rule",
+      teaching: null,
+    });
+    expect(result.draft.activities.some((activity) => (
+      activity.methodPhase === "model" || activity.methodPhase === "repair"
+    ))).toBe(false);
+    expect(result.draft.activities[1]?.body).toContain("q(x)");
+    expect(result.draft.activities[2]).toMatchObject({
+      type: "reflection",
+      requiredForCompletion: false,
+      teaching: null,
+    });
+    expect(result.draft.activities
+      .filter((activity) => activity.requiredForCompletion)
+      .reduce((total, activity) => total + activity.estimatedMinutes, 0)).toBe(25);
+    expect(buildImmediateRepairAfterMiss([{
+      topicId: attempt.topicId,
+      methodPhase: attempt.methodPhase,
+      estimatedMinutes: attempt.estimatedMinutes,
+      requiredForCompletion: attempt.requiredForCompletion,
+      type: attempt.type,
+      concept: attempt.concept,
+      label: attempt.label,
+      title: attempt.title,
+      body: attempt.body,
+      teaching: attempt.teaching,
+      question: attempt.type === "multiple_choice" ? attempt.choices : null,
+      correctAnswer: attempt.correctAnswer,
+      feedback: attempt.feedback,
+    }], 0, { 0: false })).toMatchObject({
+      methodPhase: "repair",
+      evidenceRole: "immediate_repair",
+      concept: "Quotient rule",
+    });
+    const providerInput = JSON.parse(
+      (parseResponse.mock.calls[0]?.[0]?.input as string).split("\n").slice(1).join("\n"),
+    );
+    expect(providerInput.generationMethod).toEqual({
+      methodId: "practice_problems",
+      learningMode: "study",
+    });
+    expect(parseResponse.mock.calls[0]?.[0]?.instructions).toMatch(/changed-context problem/i);
   });
 
   it("reserves the full adaptive engine for longer, external, or evidence-rich sessions", async () => {
@@ -559,23 +607,23 @@ describe("reliable OpenAI session generation", () => {
     }];
     expect(canGenerateReliableSession(evidenceRichSession)).toBe(false);
 
-    const boundedWorkedRepair = context("study");
-    boundedWorkedRepair.learningGoal = {
-      ...boundedWorkedRepair.learningGoal,
+    const boundedAttemptFirstPractice = context("study");
+    boundedAttemptFirstPractice.learningGoal = {
+      ...boundedAttemptFirstPractice.learningGoal,
       title: "Derivative rules",
       topic: "Product rule and quotient rule",
       kind: "skill",
     };
-    boundedWorkedRepair.session = {
-      ...boundedWorkedRepair.session,
-      title: "Repair the quotient rule",
-      objective: "Use a worked example to repair the quotient-rule setup, then solve a similar derivative independently.",
-      method: "Worked example fading, then retrieval",
-      methodReason: "The previous check showed repeated setup errors on the quotient rule.",
+    boundedAttemptFirstPractice.session = {
+      ...boundedAttemptFirstPractice.session,
+      title: "Practice the quotient rule",
+      objective: "Attempt one quotient-rule setup independently, then solve a changed-context derivative problem.",
+      method: "Practice Problems",
+      methodReason: "The previous check exposed a quotient-rule setup gap, so begin with an unsupported attempt and repair only an observed miss.",
       estimatedMinutes: 25,
       contentTargets: [],
     };
-    boundedWorkedRepair.recentResults = [{
+    boundedAttemptFirstPractice.recentResults = [{
       methodId: "worked_example_fading",
       taskType: "problem_solving",
       knowledgeStage: "novice",
@@ -587,7 +635,7 @@ describe("reliable OpenAI session generation", () => {
       actualMinutes: 25,
       calibrationPattern: "possible_misconception",
     }];
-    boundedWorkedRepair.conceptSignals = [{
+    boundedAttemptFirstPractice.conceptSignals = [{
       concept: "Quotient rule",
       attempts: 2,
       secureAttempts: 0,
@@ -596,6 +644,6 @@ describe("reliable OpenAI session generation", () => {
       lastObservedAt: "2026-08-05T18:00:00.000Z",
       status: "needs_review",
     }];
-    expect(canGenerateReliableSession(boundedWorkedRepair)).toBe(true);
+    expect(canGenerateReliableSession(boundedAttemptFirstPractice)).toBe(true);
   });
 });

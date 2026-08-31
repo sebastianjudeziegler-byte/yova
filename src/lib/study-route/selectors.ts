@@ -91,7 +91,34 @@ export function resolveStudyRouteSessionContract(
   plan: LearningPlan,
   session: LearningPlanSession,
 ): { plan: LearningPlan; session: LearningPlanSession; resolution: StudyRouteResolution } {
-  const resolution = resolvePlannedStudyRoute(plan, session);
+  return projectStudyRouteSessionContract(
+    plan,
+    session,
+    resolvePlannedStudyRoute(plan, session),
+  );
+}
+
+/**
+ * Projects the route that an existing validated resource actually executes.
+ * This is reserved for recovery: a committed route still wins, while an old
+ * route-free resource can keep its saved work and method label consistent.
+ */
+export function resolveExecutedStudyRouteSessionContract(
+  plan: LearningPlan,
+  session: LearningPlanSession,
+): { plan: LearningPlan; session: LearningPlanSession; resolution: StudyRouteResolution } {
+  return projectStudyRouteSessionContract(
+    plan,
+    session,
+    resolveExecutedStudyRoute(plan, session),
+  );
+}
+
+function projectStudyRouteSessionContract(
+  plan: LearningPlan,
+  session: LearningPlanSession,
+  resolution: StudyRouteResolution,
+) {
   const route = resolution.route;
   if (!route) return { plan, session, resolution };
   const projectedSession: LearningPlanSession = {

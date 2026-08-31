@@ -368,7 +368,9 @@ describe("authorized method decision evidence", () => {
       selectedMethodId: "spaced_retrieval",
       authority: "authorized_declaration",
     });
-    expect(selection.evidenceRefs).toEqual(["signal:memory_breakdown"]);
+    expect(selection.evidenceRefs).toEqual([
+      "canonical-profile:post_study_breakdown:deep_profile:q2",
+    ]);
   });
 
   it("honors behavior controls, exclusions, stale evidence, and route identity", () => {

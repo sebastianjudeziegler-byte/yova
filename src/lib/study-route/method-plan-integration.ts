@@ -7,8 +7,8 @@ import {
   CANONICAL_METHOD_SELECTION_POLICY_VERSION,
 } from "@/lib/learning/canonical-method-selection";
 import {
-  eligibleMethodIdsFor,
-  METHOD_ELIGIBILITY_POLICY_VERSION,
+  eligibleMethodIdsForPolicyVersion,
+  METHOD_ELIGIBILITY_POLICY_VERSIONS,
   type KnowledgeStage,
 } from "@/lib/learning/method-eligibility";
 import { methodFidelityContractForPrompt } from "@/lib/learning/method-fidelity";
@@ -149,6 +149,7 @@ export function integrateStudyRouteMethodDecision({
       ?? decision.selection.orderedMethodIds,
     selectedMethodId: methodId,
     allowedMethodIds: decision.boundedChoiceMethodIds,
+    eligibilityPolicyVersion: decision.selection.eligibilityPolicyVersion,
   });
   const method = CORE_METHOD_CATALOG[methodId];
   const shortReason = boundedReason(decision.selection.learnerFacingReason);
@@ -376,9 +377,11 @@ function validateSelectionAgainstRoute(
 ) {
   if (
     selection.policyVersion !== CANONICAL_METHOD_SELECTION_POLICY_VERSION
-    || selection.eligibilityPolicyVersion !== METHOD_ELIGIBILITY_POLICY_VERSION
+    || !METHOD_ELIGIBILITY_POLICY_VERSIONS.includes(
+      selection.eligibilityPolicyVersion,
+    )
   ) {
-    throw new Error("The method decision does not use the current canonical policy versions.");
+    throw new Error("The method decision does not use a supported canonical policy version.");
   }
   if (
     selection.taskType !== context.taskType
@@ -387,7 +390,10 @@ function validateSelectionAgainstRoute(
   ) {
     throw new Error("The method decision context does not match the provisional StudyRoute.");
   }
-  const expectedEligible = eligibleMethodIdsFor(context);
+  const expectedEligible = eligibleMethodIdsForPolicyVersion(
+    context,
+    selection.eligibilityPolicyVersion,
+  );
   if (!sameValues(selection.eligibleMethodIds, expectedEligible)) {
     throw new Error("The method decision's eligible set does not match the current eligibility policy.");
   }

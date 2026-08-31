@@ -56,6 +56,12 @@ export function StudyRouteRecipeCard({
               after {visiblePhaseLabel(recipe.expanded.timedBreak.afterPhaseId)}.
             </p>
           )}
+          <RecipeRationale
+            taskRequirements={recipe.expanded.taskRequirements}
+            learnerDeclarations={recipe.expanded.learnerDeclarations}
+            observations={recipe.expanded.observations}
+            uncertainties={recipe.expanded.uncertainties}
+          />
           {recipe.expanded.changedSincePrevious && (
             <div className={styles.changed}>
               <strong>What changed</strong>
@@ -76,6 +82,40 @@ export function StudyRouteRecipeCard({
         </div>
       </details>
     </section>
+  );
+}
+
+function RecipeRationale({
+  taskRequirements,
+  learnerDeclarations,
+  observations,
+  uncertainties,
+}: {
+  taskRequirements: readonly string[];
+  learnerDeclarations: readonly string[];
+  observations: readonly string[];
+  uncertainties: readonly string[];
+}) {
+  const groups = [
+    { label: "What the task requires", values: taskRequirements },
+    { label: "What you told YOVA", values: learnerDeclarations },
+    { label: "What YOVA observed", values: observations },
+    { label: "What YOVA is still unsure about", values: uncertainties },
+  ].filter((group) => group.values.length > 0);
+  if (groups.length === 0) return null;
+
+  return (
+    <div className={styles.rationale}>
+      <strong>Why this recipe</strong>
+      {groups.map((group) => (
+        <div key={group.label}>
+          <b>{group.label}</b>
+          {group.values.map((value, index) => (
+            <p key={`${group.label}-${index}`}>{value}</p>
+          ))}
+        </div>
+      ))}
+    </div>
   );
 }
 

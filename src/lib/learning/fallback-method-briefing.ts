@@ -5,9 +5,8 @@ import type {
 } from "@/lib/domain";
 import {
   getCoreLearningMethod,
-  type CoreMethodId,
-  type LearningTaskType,
 } from "@/lib/learning/method-catalog";
+import { eligibleMethodIdsFor } from "@/lib/learning/method-eligibility";
 import {
   inferLearningTaskType,
   methodFitsSessionMode,
@@ -15,21 +14,6 @@ import {
 } from "@/lib/learning/method-router";
 import type { SessionDeliveryPolicy } from "@/lib/personalization/session-delivery-policy";
 import type { StudyRoute } from "@/lib/study-route/schema";
-
-const DEFAULT_METHOD_BY_TASK: Record<LearningTaskType, CoreMethodId> = {
-  memorization: "retrieval_practice",
-  conceptual_learning: "self_explanation",
-  problem_solving: "worked_example_fading",
-  reading_to_quiz: "read_recall_review",
-  writing_argumentation: "retrieval_based_outlining",
-  programming: "scaffolded_coding",
-  mixed_assessment: "practice_test_error_repair",
-};
-
-const DEFAULT_LEARN_METHOD_BY_TASK: Record<LearningTaskType, CoreMethodId> = {
-  ...DEFAULT_METHOD_BY_TASK,
-  mixed_assessment: "self_explanation",
-};
 
 export const GENERIC_INSIDE_FALLBACK_METHOD_NAME = "Objective check and application";
 
@@ -49,9 +33,11 @@ export function buildFallbackMethodBriefing(
     session.objective,
   ].join(" "));
   const namedMethodId = methodIdFromText(session.method);
-  const defaultMethodId = session.learningMode === "learn"
-    ? DEFAULT_LEARN_METHOD_BY_TASK[taskType]
-    : DEFAULT_METHOD_BY_TASK[taskType];
+  const defaultMethodId = eligibleMethodIdsFor({
+    taskType,
+    knowledgeStage: "novice",
+    learningMode: session.learningMode,
+  })[0]!;
   const namedMethodFits = Boolean(namedMethodId
     && getCoreLearningMethod(namedMethodId).taskTypes.includes(taskType)
     && methodFitsSessionMode(namedMethodId, taskType, session.learningMode));
@@ -125,6 +111,9 @@ export function buildCommittedRouteFallbackMethodBriefing(
     completion,
     personalization: uniquePersonalization([
       routeReasonForLearner,
+      ...(route.approach.executionEnvironment === "outside_yova"
+        ? [OUTSIDE_SOURCE_PERSONALIZATION]
+        : []),
       ...(deliveryPolicy?.learnerFacingReasons ?? []),
       timeReason,
     ]).slice(0, 3),

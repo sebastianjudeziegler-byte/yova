@@ -15,6 +15,7 @@ describe("streamed lesson runtime state", () => {
     const second = applyLessonStreamEvent(first, { type: "lesson.delta", delta: "mental model." });
     const complete = applyLessonStreamEvent(second, {
       type: "lesson.complete",
+      deliveryMode: "generated",
       elapsedMs: 1_200,
       latencyToFirstTokenMs: 180,
       inputTokens: 300,
@@ -26,6 +27,7 @@ describe("streamed lesson runtime state", () => {
 
     expect(complete).toMatchObject({
       status: "complete",
+      deliveryMode: "generated",
       content: "A connected mental model.",
       wordCount: 4,
       latencyToFirstTokenMs: 180,
@@ -53,6 +55,7 @@ describe("streamed lesson runtime state", () => {
     });
     const complete = applyLessonStreamEvent(replaced, {
       type: "lesson.complete",
+      deliveryMode: "bounded_fallback",
       elapsedMs: 3_000,
       latencyToFirstTokenMs: 200,
       inputTokens: 100,
@@ -64,6 +67,7 @@ describe("streamed lesson runtime state", () => {
 
     expect(complete).toMatchObject({
       status: "complete",
+      deliveryMode: "bounded_fallback",
       content: "# The bounded model\n\nA short, complete explanation.",
       error: null,
       wordCount: 7,

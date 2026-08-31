@@ -81,6 +81,132 @@ describe("session interruption outbox", () => {
     );
   });
 
+  it("joins an in-flight Exit flush instead of sending the same terminal twice", async () => {
+    installMemoryStorage();
+    let release!: () => void;
+    recordAuthenticatedSessionInterruption.mockImplementationOnce(() => (
+      new Promise<void>((resolve) => {
+        release = resolve;
+      })
+    ));
+    const pending: PendingSessionInterruption = {
+      userId: "00000000-0000-4000-8000-000000000061",
+      queuedAt: "2026-08-11T20:08:00.000Z",
+      interruption: {
+        id: "00000000-0000-4000-8000-000000000062",
+        planId: "00000000-0000-4000-8000-000000000063",
+        planSessionId: "00000000-0000-4000-8000-000000000064",
+        startedAt: "2026-08-11T20:00:00.000Z",
+        interruptedAt: "2026-08-11T20:08:00.000Z",
+        plannedMinutes: 20,
+        actualMinutes: 8,
+        completedSteps: 2,
+        totalSteps: 5,
+      },
+    };
+    expect(queueSessionInterruption(pending)).toBe(true);
+
+    const exitFlush = flushQueuedSessionInterruptions(pending.userId);
+    const retryFlush = flushQueuedSessionInterruptions(pending.userId);
+
+    expect(exitFlush).toBe(retryFlush);
+    expect(recordAuthenticatedSessionInterruption).toHaveBeenCalledOnce();
+    release();
+    await expect(Promise.all([exitFlush, retryFlush])).resolves.toEqual([
+      { synced: 1, remaining: 0 },
+      { synced: 1, remaining: 0 },
+    ]);
+    expect(recordAuthenticatedSessionInterruption).toHaveBeenCalledOnce();
+  });
+
+  it("drains one Exit queued after the shared flight has already started", async () => {
+    installMemoryStorage();
+    let releaseFirst!: () => void;
+    recordAuthenticatedSessionInterruption
+      .mockImplementationOnce(() => new Promise<void>((resolve) => {
+        releaseFirst = resolve;
+      }))
+      .mockResolvedValue(undefined);
+    const first: PendingSessionInterruption = {
+      userId: "00000000-0000-4000-8000-000000000081",
+      queuedAt: "2026-08-11T20:08:00.000Z",
+      interruption: {
+        id: "00000000-0000-4000-8000-000000000082",
+        planId: "00000000-0000-4000-8000-000000000083",
+        planSessionId: "00000000-0000-4000-8000-000000000084",
+        startedAt: "2026-08-11T20:00:00.000Z",
+        interruptedAt: "2026-08-11T20:08:00.000Z",
+        plannedMinutes: 20,
+        actualMinutes: 8,
+        completedSteps: 2,
+        totalSteps: 5,
+      },
+    };
+    const late: PendingSessionInterruption = {
+      userId: first.userId,
+      queuedAt: "2026-08-11T20:10:00.000Z",
+      interruption: {
+        ...first.interruption,
+        id: "00000000-0000-4000-8000-000000000085",
+        planSessionId: "00000000-0000-4000-8000-000000000086",
+        startedAt: "2026-08-11T20:09:00.000Z",
+        interruptedAt: "2026-08-11T20:10:00.000Z",
+      },
+    };
+    expect(queueSessionInterruption(first)).toBe(true);
+
+    const exitFlush = flushQueuedSessionInterruptions(first.userId);
+    expect(recordAuthenticatedSessionInterruption).toHaveBeenCalledOnce();
+    expect(queueSessionInterruption(late)).toBe(true);
+    const retryFlush = flushQueuedSessionInterruptions(first.userId);
+
+    expect(retryFlush).toBe(exitFlush);
+    releaseFirst();
+    await expect(Promise.all([exitFlush, retryFlush])).resolves.toEqual([
+      { synced: 2, remaining: 0 },
+      { synced: 2, remaining: 0 },
+    ]);
+    expect(recordAuthenticatedSessionInterruption).toHaveBeenCalledTimes(2);
+    expect(recordAuthenticatedSessionInterruption).toHaveBeenNthCalledWith(
+      2,
+      late.userId,
+      late.interruption,
+    );
+  });
+
+  it("starts one fresh Exit flush after the joined attempt fails", async () => {
+    installMemoryStorage();
+    const pending: PendingSessionInterruption = {
+      userId: "00000000-0000-4000-8000-000000000071",
+      queuedAt: "2026-08-11T20:08:00.000Z",
+      interruption: {
+        id: "00000000-0000-4000-8000-000000000072",
+        planId: "00000000-0000-4000-8000-000000000073",
+        planSessionId: "00000000-0000-4000-8000-000000000074",
+        startedAt: "2026-08-11T20:00:00.000Z",
+        interruptedAt: "2026-08-11T20:08:00.000Z",
+        plannedMinutes: 20,
+        actualMinutes: 8,
+        completedSteps: 2,
+        totalSteps: 5,
+      },
+    };
+    expect(queueSessionInterruption(pending)).toBe(true);
+    recordAuthenticatedSessionInterruption
+      .mockRejectedValueOnce(new Error("temporarily unavailable"))
+      .mockResolvedValueOnce(undefined);
+
+    await expect(flushQueuedSessionInterruptions(pending.userId)).resolves.toEqual({
+      synced: 0,
+      remaining: 1,
+    });
+    await expect(flushQueuedSessionInterruptions(pending.userId)).resolves.toEqual({
+      synced: 1,
+      remaining: 0,
+    });
+    expect(recordAuthenticatedSessionInterruption).toHaveBeenCalledTimes(2);
+  });
+
   it("queues an old Exit without its retired activity marker", async () => {
     installMemoryStorage();
     recordAuthenticatedSessionInterruption.mockResolvedValue(undefined);

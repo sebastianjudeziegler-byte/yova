@@ -6,12 +6,13 @@ const mocks = vi.hoisted(() => ({
   adminConfigured: true,
   invitationTableError: null as { code: string } | null,
   generationReadiness: {
-    contractVersion: "202608300003",
+    contractVersion: "202608310003",
     ready: true,
     studyRoutesSchema: true,
     planSessionsRoutePointer: true,
     requiredRouteRpcs: true,
     expandedMethodAgencyBoundary: true,
+    methodEligibilityV3Boundary: true,
   } as Record<string, unknown> | null,
   generationReadinessError: null as { code: string } | null,
   studyProfileReadiness: {
@@ -64,12 +65,13 @@ describe("system status tester-access readiness", () => {
     mocks.adminConfigured = true;
     mocks.invitationTableError = null;
     mocks.generationReadiness = {
-      contractVersion: "202608300003",
+      contractVersion: "202608310003",
       ready: true,
       studyRoutesSchema: true,
       planSessionsRoutePointer: true,
       requiredRouteRpcs: true,
       expandedMethodAgencyBoundary: true,
+      methodEligibilityV3Boundary: true,
     };
     mocks.generationReadinessError = null;
     mocks.studyProfileReadiness = {
@@ -172,12 +174,13 @@ describe("system status tester-access readiness", () => {
 
     mocks.generationReadinessError = null;
     mocks.generationReadiness = {
-      contractVersion: "202608300003",
-      ready: false,
-      studyRoutesSchema: false,
-      planSessionsRoutePointer: false,
-      requiredRouteRpcs: false,
-      expandedMethodAgencyBoundary: false,
+      contractVersion: "202608310003",
+      ready: true,
+      studyRoutesSchema: true,
+      planSessionsRoutePointer: true,
+      requiredRouteRpcs: true,
+      expandedMethodAgencyBoundary: true,
+      methodEligibilityV3Boundary: false,
     };
     expect((await (await GET()).json()).signedInGeneration).toBe("unavailable");
   });

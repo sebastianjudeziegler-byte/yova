@@ -35,7 +35,7 @@ describe("routing the same goal for different learners", () => {
     }
   });
 
-  it("moves a learner who needs examples toward worked examples on a problem-solving task", () => {
+  it("keeps example support in delivery without replacing the attempt-first problem method", () => {
     const problemSolving = {
       goalTitle: "Calculus derivatives test",
       goalTopic: "Differentiating products and composite functions",
@@ -43,8 +43,9 @@ describe("routing the same goal for different learners", () => {
       sessionObjective: "Solve product rule problems accurately",
     };
 
-    expect(routeFor(persona("example_led"), problemSolving).suggestedPrimaryMethodId)
-      .toBe("worked_example_fading");
+    const route = routeFor(persona("example_led"), problemSolving);
+    expect(route.suggestedPrimaryMethodId).toBe("practice_problems");
+    expect(route.deliveryModifiers.join(" ")).toMatch(/concrete example/i);
   });
 
   it("moves a learner who forgets quickly toward retrieval", () => {
@@ -77,7 +78,7 @@ describe("routing the same goal for different learners", () => {
     expect(route.allowedMethodIds).not.toContain("interleaved_practice");
   });
 
-  it("lets repeated results overrule what a learner said about themselves", () => {
+  it("does not let profile or history replace the sole eligible Practice-first method", () => {
     const problemSolving = {
       goalTitle: "Calculus derivatives test",
       goalTopic: "Differentiating products and composite functions",
@@ -88,12 +89,11 @@ describe("routing the same goal for different learners", () => {
     const statedOnly = routeFor(persona("example_led"), problemSolving);
     const contradicted = routeFor(persona("examples_not_working"), problemSolving);
 
-    // Same stated preference, different history, different method.
-    expect(statedOnly.suggestedPrimaryMethodId).toBe("worked_example_fading");
-    expect(contradicted.suggestedPrimaryMethodId).not.toBe("worked_example_fading");
+    expect(statedOnly.suggestedPrimaryMethodId).toBe("practice_problems");
+    expect(contradicted.suggestedPrimaryMethodId).toBe("practice_problems");
   });
 
-  it("explains the learner-state reason whenever it changed the method", () => {
+  it("does not claim learner state changed a method when Practice has one eligible choice", () => {
     const route = routeFor(persona("example_led"), {
       goalTitle: "Calculus derivatives test",
       goalTopic: "Differentiating products and composite functions",
@@ -101,8 +101,10 @@ describe("routing the same goal for different learners", () => {
       sessionObjective: "Solve product rule problems accurately",
     });
 
-    expect(route.methodFit?.learnerFacingReason).toBeTruthy();
-    expect(route.decisionBasis.join(" ")).toContain("Learner fit");
+    expect(route.suggestedPrimaryMethodId).toBe("practice_problems");
+    expect(route.methodFit?.learnerFacingReason).toBeNull();
+    expect(route.decisionBasis.join(" ")).not.toContain("Learner fit");
+    expect(route.deliveryModifiers.join(" ")).toMatch(/concrete example/i);
   });
 
   it("says nothing about learner fit when the learner has told YOVA nothing", () => {
