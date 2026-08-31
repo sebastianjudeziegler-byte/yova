@@ -22,6 +22,8 @@ const validEnvironment: NodeJS.ProcessEnv = {
   NEXT_PUBLIC_SUPABASE_URL: "https://project.supabase.co",
   NODE_ENV: "test",
   OPENAI_API_KEY: "o".repeat(20),
+  RESEND_API_KEY: `re_${"r".repeat(24)}`,
+  STUDY_PROFILE_FROM_EMAIL: "YOVA Study Profile <study-profile@yovaapp.com>",
   SUPABASE_SECRET_KEY: "s".repeat(20),
   YOVA_DRAFT_RECEIPT_SECRET: "d".repeat(32),
   YOVA_PERSONALIZATION_ROLLOUT_PERCENT: "0",

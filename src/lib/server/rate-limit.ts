@@ -3,7 +3,9 @@ import "server-only";
 type RateRecord = { count: number; resetsAt: number };
 
 const WINDOW_MS = 60_000;
+const PRUNE_EVERY_REQUESTS = 128;
 const records = new Map<string, RateRecord>();
+let requestsSincePrune = 0;
 
 export function checkPlanGenerationRateLimit(key: string) {
   return checkRateLimit(`plan:${key}`, 6);
@@ -61,12 +63,23 @@ export function checkStudyProfileWaitlistRateLimit(key: string) {
   return checkRateLimit(`study-profile-waitlist:${key}`, 8);
 }
 
+export function checkStudyProfileWaitlistConfirmationRateLimit(key: string) {
+  return checkRateLimit(`study-profile-waitlist-confirm:${key}`, 20);
+}
+
 export function checkStudyProfileEventRateLimit(key: string) {
   return checkRateLimit(`study-profile-event:${key}`, 120);
 }
 
 function checkRateLimit(key: string, maxRequests: number) {
   const now = Date.now();
+  requestsSincePrune += 1;
+  if (requestsSincePrune >= PRUNE_EVERY_REQUESTS) {
+    requestsSincePrune = 0;
+    for (const [recordKey, record] of records) {
+      if (record.resetsAt <= now) records.delete(recordKey);
+    }
+  }
   const existing = records.get(key);
 
   if (!existing || existing.resetsAt <= now) {
@@ -89,4 +102,15 @@ export function requestRateLimitKey(request: Request) {
   return request.headers.get("x-forwarded-for")?.split(",")[0]?.trim()
     || request.headers.get("x-real-ip")?.trim()
     || "local-alpha";
+}
+
+export function resetRateLimitStateForTesting() {
+  if (process.env.NODE_ENV !== "test") return;
+  records.clear();
+  requestsSincePrune = 0;
+}
+
+export function rateLimitRecordCountForTesting() {
+  if (process.env.NODE_ENV !== "test") return null;
+  return records.size;
 }

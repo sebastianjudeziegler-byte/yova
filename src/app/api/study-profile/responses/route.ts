@@ -81,34 +81,47 @@ export async function POST(request: Request) {
       getSiteUrl(),
     ).toString();
 
-    let emailDelivery: StudyProfileEmailDeliveryResult["status"] = "failed";
+    let emailDelivery: StudyProfileEmailDeliveryResult["status"] | "cooldown" | "daily_cap" = "failed";
+    let emailDeliveryReason: "cooldown" | "daily_cap" | "not_configured" | null = null;
     try {
-      const delivery = await sendStudyProfileReportEmail({
-        to: parsed.data.email,
-        reportUrl,
-        pattern: {
-          name: report.pattern.name,
-          tell: report.pattern.tell,
-        },
-        why: report.whyThisIsHappening.body,
-        matchedMethods: [
-          report.playbook.methods[0].name,
-          report.playbook.methods[1].name,
-          report.playbook.methods[2].name,
-        ],
-        tonightPlan: report.playbook.methods[0].tonightVersion
-          ?? report.playbook.nextSession.title,
-        responseId: saved.storedResponse.id,
-      });
-      emailDelivery = delivery.status;
-      try {
-        await repository.markEmailDelivery(
-          saved.storedResponse.id,
-          delivery.status,
-          "providerMessageId" in delivery ? delivery.providerMessageId : null,
-        );
-      } catch {
-        // Report access must never depend on secondary delivery bookkeeping.
+      const reservation = await repository.reserveReportEmailDelivery(
+        saved.storedResponse.id,
+      );
+      if (!reservation.allowed) {
+        emailDelivery = reservation.reason ?? "cooldown";
+        emailDeliveryReason = reservation.reason ?? "cooldown";
+      } else {
+        const delivery = await sendStudyProfileReportEmail({
+          to: parsed.data.email,
+          reportUrl,
+          pattern: {
+            name: report.pattern.name,
+            tell: report.pattern.tell,
+          },
+          why: report.whyThisIsHappening.body,
+          matchedMethods: [
+            report.playbook.methods[0].name,
+            report.playbook.methods[1].name,
+            report.playbook.methods[2].name,
+          ],
+          tonightPlan: report.playbook.methods[0].tonightVersion
+            ?? report.playbook.nextSession.title,
+          responseId: saved.storedResponse.id,
+        });
+        emailDelivery = delivery.status;
+        emailDeliveryReason = delivery.status === "skipped"
+          && delivery.reason === "not_configured"
+          ? "not_configured"
+          : null;
+        try {
+          await repository.markEmailDelivery(
+            saved.storedResponse.id,
+            delivery.status,
+            "providerMessageId" in delivery ? delivery.providerMessageId : null,
+          );
+        } catch {
+          // Report access must never depend on secondary delivery bookkeeping.
+        }
       }
     } catch {
       // A delivery integration failure must never hide an already-saved report.
@@ -119,8 +132,12 @@ export async function POST(request: Request) {
       reportUrl,
       storedResponse: toStudyProfilePublicStoredResponse(saved.storedResponse),
       report: saved.report,
-      waitlistJoined: saved.waitlistJoined,
+      // A fresh report proves no ownership of the submitted address. Never
+      // expose the normalized lead's shared waitlist membership here.
+      waitlistJoined: false,
+      confirmationPending: false,
       emailDelivery,
+      ...(emailDeliveryReason ? { emailDeliveryReason } : {}),
     }, {
       status: 201,
       headers: { "Cache-Control": "no-store" },

@@ -66,13 +66,19 @@ test.describe("YOVA Study Profile", () => {
     const consent = page.getByRole("checkbox", {
       name: /Join the YOVA waitlist\./,
     });
+    const ageConfirmation = page.getByRole("checkbox", {
+      name: "I confirm I am 13 or older.",
+    });
     await expect(consent).not.toBeChecked();
+    await expect(ageConfirmation).not.toBeChecked();
     const emailInput = page.getByLabel("Email for your private report link");
     const submit = page.getByRole("button", { name: "Send my full report" });
     await expect(submit).toBeDisabled();
     await emailInput.fill("not-an-email");
     await expect(submit).toBeDisabled();
     await emailInput.fill(email);
+    await expect(submit).toBeDisabled();
+    await ageConfirmation.check();
     await expect(submit).toBeEnabled();
     await expect(consent).not.toBeChecked();
 
@@ -90,9 +96,11 @@ test.describe("YOVA Study Profile", () => {
     const requestBody = request.postDataJSON() as {
       answers: Record<string, string>;
       marketingConsent: boolean;
+      ageConfirmed: boolean;
       metadata: Record<string, unknown>;
     };
     expect(requestBody.marketingConsent).toBe(false);
+    expect(requestBody.ageConfirmed).toBe(true);
     expect(requestBody.metadata).toMatchObject({
       energyWindow: "afternoon",
       schoolLevel: "college",
@@ -126,21 +134,43 @@ test.describe("YOVA Study Profile", () => {
       waitlist.request().method() === "POST"
       && new URL(waitlist.url()).pathname.startsWith("/api/study-profile/interest/")
     ));
-    await page.getByRole("button", { name: "Join the waitlist, free" }).click();
+    await page.getByRole("checkbox", { name: "I confirm I am 13 or older." }).first().check();
+    await page.getByRole("button", { name: "Send confirmation email" }).last().click();
     expect((await waitlistResponse).status()).toBe(200);
     expect(interestPosts).toBe(1);
-    const waitlistSuccess = page.getByRole("status").filter({
-      hasText: "You are on the waitlist. We will email you when YOVA is ready.",
+    const waitlistPending = page.getByRole("status").filter({
+      hasText: "Request received.",
     });
-    await expect(waitlistSuccess).toBeVisible();
-    await expect(page.getByRole("button", { name: /Join the waitlist/ })).toHaveCount(0);
+    await expect(waitlistPending).toBeVisible();
+    await expect(page.getByRole("button", {
+      name: "Send confirmation email",
+      exact: true,
+    })).toHaveCount(0);
+    const resendResponse = page.waitForResponse((waitlist) => (
+      waitlist.request().method() === "POST"
+      && new URL(waitlist.url()).pathname.startsWith("/api/study-profile/interest/")
+    ));
+    await page.getByRole("button", { name: "Send confirmation email again" }).first().click();
+    expect((await resendResponse).status()).toBe(200);
+    expect(interestPosts).toBe(2);
+    await expect(page.getByText(
+      "YOVA sends at most one confirmation email every 15 minutes.",
+    ).first()).toBeVisible();
 
     const privateReportPath = privateReportUrl.pathname;
     await page.reload();
     await expect(page).toHaveURL(privateReportPath);
     await expect(page.locator("#report-title")).toBeVisible();
     await expectReportSections(page);
-    await expect(waitlistSuccess).toBeVisible();
+    await expect(page.getByRole("status").filter({
+      hasText: "Request received.",
+    })).toBeVisible();
+    await expect(page.getByRole("button", {
+      name: "Send confirmation email",
+      exact: true,
+    })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Send confirmation email again" }).first())
+      .toBeVisible();
     await expect(page.getByText(/beta/i)).toHaveCount(0);
 
     for (const width of [360, 390]) {
@@ -176,6 +206,7 @@ test.describe("YOVA Study Profile", () => {
     });
     await expect(consent).not.toBeChecked();
     await page.getByLabel("Email for your private report link").fill(email);
+    await page.getByRole("checkbox", { name: "I confirm I am 13 or older." }).check();
     const reportReady = page.locator("#report-title");
     await page.getByRole("button", { name: "Send my full report" }).click();
     await expect(reportReady).toBeVisible();
@@ -187,7 +218,8 @@ test.describe("YOVA Study Profile", () => {
         body: JSON.stringify({ error: "This Study Profile report link is invalid or unavailable." }),
       });
     });
-    await page.getByRole("button", { name: "Join the waitlist, free" }).click();
+    await page.getByRole("checkbox", { name: "I confirm I am 13 or older." }).first().check();
+    await page.getByRole("button", { name: "Send confirmation email" }).last().click();
     await expect(page.locator("p[role='alert']")).toHaveText(
       "This Study Profile report link is invalid or unavailable.",
     );
@@ -203,7 +235,41 @@ test.describe("YOVA Study Profile", () => {
     await expect(page.locator("body")).not.toContainText(unknownToken);
   });
 
+  test("requires an explicit POST to confirm a fragment-only waitlist token", async ({ page }) => {
+    const confirmationToken = "c".repeat(43);
+    let confirmationPosts = 0;
+    page.on("request", (request) => {
+      if (
+        request.method() === "POST"
+        && new URL(request.url()).pathname === "/api/study-profile/waitlist/confirm"
+      ) confirmationPosts += 1;
+    });
+    await page.route("**/api/study-profile/waitlist/confirm", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ waitlistJoined: true }),
+      });
+    });
+
+    await page.goto(`/study-profile/waitlist/confirm#token=${confirmationToken}`);
+    await expect(page.getByRole("heading", {
+      name: "Confirm your place on the waitlist.",
+    })).toBeVisible();
+    await expect.poll(() => new URL(page.url()).hash).toBe("");
+    expect(confirmationPosts).toBe(0);
+    await expect(page.locator("body")).not.toContainText(confirmationToken);
+
+    await page.getByRole("button", { name: "Confirm my place" }).click();
+    expect(confirmationPosts).toBe(1);
+    await expect(page.getByRole("heading", {
+      name: "You are on the YOVA waitlist.",
+    })).toBeVisible();
+    await expect(page).toHaveURL("/study-profile/waitlist/confirm");
+  });
+
   test("routes public Study Profile support and privacy requests to hello@yovaapp.com", async ({ page }) => {
+    test.setTimeout(60_000);
     await page.goto("/study-profile");
     await expect(page.getByRole("link", { name: "Email support" }))
       .toHaveAttribute("href", STUDY_PROFILE_SUPPORT_MAILTO);

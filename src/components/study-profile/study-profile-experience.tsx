@@ -68,7 +68,7 @@ type SubmissionResult = {
   reportUrl?: string;
   storedResponse: StudyProfilePublicStoredResponse;
   report: StudyProfileReport;
-  emailDelivery?: "sent" | "skipped" | "failed" | { status?: "sent" | "skipped" | "failed" };
+  emailDelivery?: "sent" | "skipped" | "failed" | "cooldown" | "daily_cap" | { status?: "sent" | "skipped" | "failed" | "cooldown" | "daily_cap" };
   emailSent?: boolean;
   emailDeliveryQueued?: boolean;
   waitlistJoined?: boolean;
@@ -107,8 +107,11 @@ export function StudyProfileExperience() {
   const [answers, setAnswers] = useState<Partial<StudyProfileAnswers>>({});
   const [metadata, setMetadata] = useState<Partial<StudyProfileMetadata>>({});
   const [email, setEmail] = useState("");
+  const [ageConfirmed, setAgeConfirmed] = useState(false);
   const [marketingConsent, setMarketingConsent] = useState(false);
   const [consentJoinedWaitlist, setConsentJoinedWaitlist] = useState(false);
+  const [consentConfirmationPending, setConsentConfirmationPending] = useState(false);
+  const [consentDailyCapReached, setConsentDailyCapReached] = useState(false);
   const [waitlistOptInError, setWaitlistOptInError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submissionError, setSubmissionError] = useState<string | null>(null);
@@ -203,8 +206,10 @@ export function StudyProfileExperience() {
     setMetadata({});
     setCurrentQuestion(0);
     setEmail("");
+    setAgeConfirmed(false);
     setMarketingConsent(false);
     setConsentJoinedWaitlist(false);
+    setConsentConfirmationPending(false);
     setWaitlistOptInError(null);
     setSubmissionError(null);
     setSubmissionResult(null);
@@ -266,6 +271,10 @@ export function StudyProfileExperience() {
       setSubmissionError("Your saved assessment is incomplete. Go back and finish it first.");
       return;
     }
+    if (!ageConfirmed) {
+      setSubmissionError("Confirm that you are 13 or older to receive your report.");
+      return;
+    }
     setIsSubmitting(true);
     try {
       const visitorId = getStudyProfileVisitorId();
@@ -275,6 +284,7 @@ export function StudyProfileExperience() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           visitorId,
+          ageConfirmed: true,
           email,
           answers: completedAnswers,
           metadata: {
@@ -298,6 +308,8 @@ export function StudyProfileExperience() {
       const result = ((payload.data && typeof payload.data === "object") ? payload.data : payload) as unknown as SubmissionResult;
       if (!result.reportToken || !result.storedResponse || !result.report) throw new Error("Your report was created, but the response was incomplete. Try again.");
       let joinedWaitlist = result.waitlistJoined === true;
+      let confirmationPending = false;
+      let dailyCapReached = false;
       let optInError: string | null = null;
       if (marketingConsent && !joinedWaitlist) {
         try {
@@ -306,27 +318,43 @@ export function StudyProfileExperience() {
             {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ waitlist: true, source: "email_gate" }),
+              body: JSON.stringify({
+                waitlist: true,
+                ageConfirmed: true,
+                source: "email_gate",
+              }),
             },
           );
           const waitlistPayload = await waitlistResponse.json().catch(() => ({})) as {
             error?: unknown;
             waitlistJoined?: unknown;
+            confirmationPending?: unknown;
+            dailyCapReached?: unknown;
           };
-          if (!waitlistResponse.ok || waitlistPayload.waitlistJoined !== true) {
+          if (!waitlistResponse.ok) {
             throw new Error(
               typeof waitlistPayload.error === "string"
                 ? waitlistPayload.error
                 : "YOVA could not confirm your waitlist signup.",
             );
           }
-          joinedWaitlist = true;
+          if (waitlistPayload.dailyCapReached === true) {
+            dailyCapReached = true;
+          } else if (waitlistPayload.waitlistJoined === true) {
+            joinedWaitlist = true;
+          } else if (waitlistPayload.confirmationPending === true) {
+            confirmationPending = true;
+          } else {
+            throw new Error("YOVA could not confirm the waitlist email request.");
+          }
         } catch {
-          optInError = "Your report is ready, but we could not add you to the waitlist. Use the waitlist button in your report to try again.";
+          optInError = "Your report is ready, but we could not send the waitlist confirmation email. Use the waitlist button in your report to try again.";
         }
       }
       setSubmissionResult(result);
       setConsentJoinedWaitlist(joinedWaitlist);
+      setConsentConfirmationPending(confirmationPending);
+      setConsentDailyCapReached(dailyCapReached);
       setWaitlistOptInError(optInError);
       clearStudyProfileDraft();
       const reportPath = result.reportUrl
@@ -335,7 +363,6 @@ export function StudyProfileExperience() {
       window.history.replaceState({}, "", `${reportPath.pathname}${reportPath.search}${reportPath.hash}`);
       setView("report");
       window.requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: "auto" }));
-      void trackStudyProfileEvent("study_profile_report_viewed");
     } catch (error) {
       setSubmissionError(error instanceof Error ? error.message : "We could not save your report. Try again.");
     } finally {
@@ -350,6 +377,8 @@ export function StudyProfileExperience() {
       reportToken={submissionResult.reportToken}
       emailDelivery={resolveEmailDelivery(submissionResult)}
       initialWaitlistJoined={submissionResult.waitlistJoined || consentJoinedWaitlist}
+      initialWaitlistConfirmationPending={consentConfirmationPending}
+      initialWaitlistDailyCapReached={consentDailyCapReached}
       initialWaitlistError={waitlistOptInError}
       autoFocusHeading
     />;
@@ -427,9 +456,10 @@ export function StudyProfileExperience() {
                 </div>
                 <label htmlFor="study-profile-email">Email for your private report link</label>
                 <div className={styles.emailInputWrap}><Mail size={18} aria-hidden="true" /><input id="study-profile-email" name="email" type="email" inputMode="email" autoComplete="email" required maxLength={254} placeholder="you@example.com" value={email} onChange={(event) => setEmail(event.target.value)} aria-describedby="email-consent-note" /></div>
+                <label className={styles.consentRow}><input type="checkbox" checked={ageConfirmed} onChange={(event) => setAgeConfirmed(event.target.checked)} /><span><strong>I confirm I am 13 or older.</strong></span></label>
                 <label className={styles.consentRow}><input type="checkbox" checked={marketingConsent} onChange={(event) => setMarketingConsent(event.target.checked)} /><span><strong>Join the YOVA waitlist.</strong> YOVA turns this profile into a live study plan that adjusts as you go. Free to join. We will email you at launch.</span></label>
                 {submissionError && <p className={styles.formError} role="alert">{submissionError}</p>}
-                <button type="submit" className={styles.primaryButton} disabled={isSubmitting || !emailIsValid}>{isSubmitting ? "Building your report..." : "Send my full report"}{!isSubmitting && <ArrowRight size={17} aria-hidden="true" />}</button>
+                <button type="submit" className={styles.primaryButton} disabled={isSubmitting || !emailIsValid || !ageConfirmed}>{isSubmitting ? "Building your report..." : "Send my full report"}{!isSubmitting && <ArrowRight size={17} aria-hidden="true" />}</button>
                 <span className={styles.srOnly} role="status" aria-live="polite">{isSubmitting ? "Building and saving your Study Profile report." : ""}</span>
                 <p id="email-consent-note" className={styles.emailNote}>No account. No spam. The report is yours either way.</p>
                 <p className={styles.legalNote}>By continuing, you agree to our <Link href="/terms">Terms</Link> and acknowledge our <Link href="/privacy">Privacy Policy</Link>.</p>
@@ -500,7 +530,8 @@ function SamplePatternCard() {
 function LandingWaitlistForm({ idPrefix, compact = false }: { idPrefix: string; compact?: boolean }) {
   const [email, setEmail] = useState("");
   const [consent, setConsent] = useState(false);
-  const [status, setStatus] = useState<"idle" | "submitting" | "joined">("idle");
+  const [ageConfirmed, setAgeConfirmed] = useState(false);
+  const [status, setStatus] = useState<"idle" | "submitting" | "pending" | "joined" | "limited">("idle");
   const [error, setError] = useState<string | null>(null);
   const valid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -509,15 +540,21 @@ function LandingWaitlistForm({ idPrefix, compact = false }: { idPrefix: string; 
     if (!visitorId) { setError("Your browser could not create a private waitlist session. Refresh and try again."); return; }
     setStatus("submitting");
     try {
-      const response = await fetch("/api/study-profile/waitlist", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email, visitorId, consent, attribution: captureStudyProfileAttribution() }) });
-      const payload = await response.json().catch(() => ({})) as { error?: unknown; waitlistJoined?: unknown };
-      if (!response.ok || payload.waitlistJoined !== true) throw new Error(typeof payload.error === "string" ? payload.error : "YOVA could not add you to the waitlist. Try again.");
-      setStatus("joined");
-    } catch (submitError) { setStatus("idle"); setError(submitError instanceof Error ? submitError.message : "YOVA could not add you to the waitlist. Try again."); }
+      const response = await fetch("/api/study-profile/waitlist", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email, visitorId, consent, ageConfirmed, attribution: captureStudyProfileAttribution() }) });
+      const payload = await response.json().catch(() => ({})) as { error?: unknown; waitlistJoined?: unknown; confirmationPending?: unknown; dailyCapReached?: unknown };
+      if (!response.ok) throw new Error(typeof payload.error === "string" ? payload.error : "YOVA could not send the confirmation email. Try again.");
+      if (payload.dailyCapReached === true) setStatus("limited");
+      else if (payload.waitlistJoined === true) setStatus("joined");
+      else if (payload.confirmationPending === true) setStatus("pending");
+      else throw new Error("YOVA could not confirm the email request. Try again.");
+    } catch (submitError) { setStatus("idle"); setError(submitError instanceof Error ? submitError.message : "YOVA could not send the confirmation email. Try again."); }
   }
   if (status === "joined") return <div className={styles.waitlistInlineSuccess} role="status"><CheckCircle2 size={20} aria-hidden="true" /><span><strong>You are on the list.</strong> We will email you when YOVA is ready.</span></div>;
+  if (status === "limited") return <div className={styles.waitlistInlinePending} role="status"><Clock3 size={20} aria-hidden="true" /><span><strong>Try again later.</strong> To protect this inbox, YOVA cannot send another email today.</span></div>;
+  if (status === "pending") return <div className={styles.waitlistInlinePending} role="status"><Mail size={20} aria-hidden="true" /><span><strong>Request received.</strong> If this address still needs confirmation, check the inbox for an email. Already confirmed addresses stay on the list.</span></div>;
   return <form className={`${styles.landingWaitlistForm} ${compact ? styles.landingWaitlistCompact : ""}`} onSubmit={submit}>
-    <label htmlFor={`${idPrefix}-email`}>Email address</label><div><input id={`${idPrefix}-email`} type="email" inputMode="email" autoComplete="email" maxLength={254} required value={email} placeholder="you@example.com" onChange={(event) => setEmail(event.target.value)} /><button type="submit" disabled={!valid || !consent || status === "submitting"}>{status === "submitting" ? "Joining..." : "Join the waitlist"}</button></div>
+    <label htmlFor={`${idPrefix}-email`}>Email address</label><div><input id={`${idPrefix}-email`} type="email" inputMode="email" autoComplete="email" maxLength={254} required value={email} placeholder="you@example.com" onChange={(event) => setEmail(event.target.value)} /><button type="submit" disabled={!valid || !consent || !ageConfirmed || status === "submitting"}>{status === "submitting" ? "Sending..." : "Join the waitlist"}</button></div>
+    <label className={styles.waitlistConsent}><input type="checkbox" checked={ageConfirmed} onChange={(event) => setAgeConfirmed(event.target.checked)} /><span>I confirm I am 13 or older.</span></label>
     <label className={styles.waitlistConsent}><input type="checkbox" checked={consent} onChange={(event) => setConsent(event.target.checked)} /><span>Send me YOVA launch news. Free to join. Unsubscribe anytime.</span></label>{error && <p className={styles.formError} role="alert">{error}</p>}
   </form>;
 }
@@ -551,7 +588,7 @@ function isDraftView(value: unknown): value is Draft["view"] { return value === 
 function isAnswerDraft(value: unknown): value is Partial<StudyProfileAnswers> { return Boolean(value && typeof value === "object"); }
 function isMetadataDraft(value: unknown): value is Partial<StudyProfileMetadata> { return Boolean(value && typeof value === "object"); }
 function clampQuestionIndex(value: unknown) { return typeof value === "number" && Number.isFinite(value) ? Math.max(0, Math.min(STUDY_PROFILE_QUESTIONS.length - 1, Math.floor(value))) : 0; }
-function resolveEmailDelivery(result: SubmissionResult): "sent" | "skipped" | "failed" | undefined { if (typeof result.emailDelivery === "string") return result.emailDelivery; if (result.emailDelivery && typeof result.emailDelivery === "object") return result.emailDelivery.status; if (result.emailSent === false) return "failed"; if (result.emailSent === true) return "sent"; if (result.emailDeliveryQueued === false) return "skipped"; return undefined; }
+function resolveEmailDelivery(result: SubmissionResult): "sent" | "skipped" | "failed" | "cooldown" | "daily_cap" | undefined { if (typeof result.emailDelivery === "string") return result.emailDelivery; if (result.emailDelivery && typeof result.emailDelivery === "object") return result.emailDelivery.status; if (result.emailSent === false) return "failed"; if (result.emailSent === true) return "sent"; if (result.emailDeliveryQueued === false) return "skipped"; return undefined; }
 
 function readStudyProfileDraft(): Partial<Draft> | null {
   try {

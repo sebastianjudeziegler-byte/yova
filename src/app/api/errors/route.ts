@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { sanitizeProductErrorRoutePath } from "@/lib/monitoring/route-privacy";
 import { ErrorReportRequestSchema } from "@/lib/monitoring/schema";
 import { checkErrorReportRateLimit, requestRateLimitKey } from "@/lib/server/rate-limit";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
@@ -32,7 +33,9 @@ export async function POST(request: Request) {
     surface: parsed.data.surface,
     error_code: parsed.data.errorCode,
     error_digest: parsed.data.digest ?? null,
-    route_path: parsed.data.routePath ?? null,
+    route_path: parsed.data.routePath
+      ? sanitizeProductErrorRoutePath(parsed.data.routePath)
+      : null,
     request_id: parsed.data.requestId ?? null,
   });
 

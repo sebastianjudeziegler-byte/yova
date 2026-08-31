@@ -8,6 +8,8 @@ const mocks = vi.hoisted(() => ({
   from: vi.fn(),
   select: vi.fn(),
   eq: vi.fn(),
+  gt: vi.fn(),
+  limit: vi.fn(),
   maybeSingle: vi.fn(),
 }));
 
@@ -51,10 +53,14 @@ describe("Supabase Study Profile save receipts", () => {
     const query = {
       select: mocks.select,
       eq: mocks.eq,
+      gt: mocks.gt,
+      limit: mocks.limit,
       maybeSingle: mocks.maybeSingle,
     };
     mocks.select.mockReset().mockReturnValue(query);
     mocks.eq.mockReset().mockReturnValue(query);
+    mocks.gt.mockReset().mockReturnValue(query);
+    mocks.limit.mockReset().mockReturnValue(query);
     mocks.from.mockReset().mockReturnValue(query);
     mocks.createAdmin.mockReset().mockReturnValue({ rpc: mocks.rpc, from: mocks.from });
   });
@@ -101,10 +107,14 @@ describe("Supabase Study Profile report reloads", () => {
     const query = {
       select: mocks.select,
       eq: mocks.eq,
+      gt: mocks.gt,
+      limit: mocks.limit,
       maybeSingle: mocks.maybeSingle,
     };
     mocks.select.mockReset().mockReturnValue(query);
     mocks.eq.mockReset().mockReturnValue(query);
+    mocks.gt.mockReset().mockReturnValue(query);
+    mocks.limit.mockReset().mockReturnValue(query);
     mocks.from.mockReset().mockReturnValue(query);
     mocks.createAdmin.mockReset().mockReturnValue({ rpc: mocks.rpc, from: mocks.from });
   });
@@ -137,6 +147,24 @@ describe("Supabase Study Profile report reloads", () => {
     expect(loaded?.report.scoringRevision).toBe(STUDY_PROFILE_SCORING_REVISION);
     expect(loaded?.storedResponse.metadata.studyGoal).toBe("upcoming_exams");
     expect(loaded?.waitlistJoined).toBe(true);
+    expect(loaded?.confirmationPending).toBe(false);
+  });
+
+  it("restores a nonexpired pending confirmation on a direct report load", async () => {
+    mockReportLookup({}, "pending");
+
+    const loaded = await new SupabaseStudyProfileRepository()
+      .getReportByToken("pending-report-token-that-is-long-enough");
+
+    expect(loaded).toMatchObject({
+      waitlistJoined: false,
+      confirmationPending: true,
+    });
+    expect(mocks.from).toHaveBeenCalledWith("study_profile_waitlist_confirmations");
+    expect(mocks.eq).toHaveBeenCalledWith("response_id", RESPONSE_ID);
+    expect(mocks.eq).toHaveBeenCalledWith("status", "pending");
+    expect(mocks.gt).toHaveBeenCalledWith("expires_at", expect.any(String));
+    expect(mocks.limit).toHaveBeenCalledWith(1);
   });
 
   it("rejects a malformed persisted report and rebuilds it from the validated current snapshot", async () => {
@@ -198,6 +226,131 @@ describe("Supabase Study Profile report reloads", () => {
   });
 });
 
+describe("Supabase Study Profile public-delivery RPC contracts", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.createAdmin.mockReturnValue({ rpc: mocks.rpc, from: mocks.from });
+  });
+
+  it("requests a pending landing confirmation without passing a raw token", async () => {
+    mocks.rpc.mockResolvedValueOnce({
+      data: {
+        state: "pending",
+        shouldSend: true,
+        confirmationId: "33333333-3333-4333-8333-333333333333",
+        email: "student@example.com",
+        retryAfterSeconds: 0,
+      },
+      error: null,
+    });
+    const confirmationTokenHash = "c".repeat(64);
+
+    await expect(new SupabaseStudyProfileRepository()
+      .requestWaitlistConfirmationByEmail({
+        email: " Student@Example.com ",
+        visitorId: "4d621251-2df6-4fa3-985e-df63b6d27f5f",
+        confirmationTokenHash,
+        attribution: { source: "direct" },
+      })).resolves.toEqual({
+        waitlistJoined: false,
+        confirmationPending: true,
+        dailyCapReached: false,
+        shouldSend: true,
+        confirmationId: "33333333-3333-4333-8333-333333333333",
+        email: "student@example.com",
+        retryAfterSeconds: 0,
+      });
+
+    expect(mocks.rpc).toHaveBeenCalledWith(
+      "request_study_profile_waitlist_confirmation",
+      {
+        payload: expect.objectContaining({
+          email: "student@example.com",
+          confirmationTokenHash,
+          ageConfirmed: true,
+        }),
+      },
+    );
+    expect(JSON.stringify(mocks.rpc.mock.calls[0]))
+      .not.toContain("raw_confirmation_token_never_sent_to_database");
+  });
+
+  it("passes the explicit 13+ evidence into a report confirmation RPC", async () => {
+    mocks.rpc.mockResolvedValueOnce({
+      data: {
+        state: "pending",
+        shouldSend: true,
+        confirmationId: "33333333-3333-4333-8333-333333333333",
+        email: "student@example.com",
+        retryAfterSeconds: 0,
+      },
+      error: null,
+    });
+
+    await new SupabaseStudyProfileRepository().requestWaitlistConfirmation(
+      "report-token-that-is-long-enough-for-the-schema",
+      "report_cta",
+      "f".repeat(64),
+    );
+
+    expect(mocks.rpc).toHaveBeenCalledWith(
+      "request_study_profile_report_waitlist_confirmation",
+      {
+        payload: expect.objectContaining({
+          ageConfirmed: true,
+          consentSource: "report_cta",
+        }),
+      },
+    );
+  });
+
+  it("parses a one-time confirmation result and a report-email cooldown", async () => {
+    mocks.rpc
+      .mockResolvedValueOnce({
+        data: { status: "confirmed", waitlistJoined: true, newlyJoined: true },
+        error: null,
+      })
+      .mockResolvedValueOnce({
+        data: { allowed: false, reason: "cooldown", retryAfterSeconds: 731 },
+        error: null,
+      });
+    const repository = new SupabaseStudyProfileRepository();
+
+    await expect(repository.confirmWaitlist("d".repeat(64))).resolves.toEqual({
+      status: "confirmed",
+      waitlistJoined: true,
+      newlyJoined: true,
+    });
+    await expect(repository.reserveReportEmailDelivery(RESPONSE_ID)).resolves.toEqual({
+      allowed: false,
+      reason: "cooldown",
+      retryAfterSeconds: 731,
+    });
+    expect(mocks.rpc.mock.calls).toEqual([
+      ["confirm_study_profile_waitlist", {
+        payload: { confirmationTokenHash: "d".repeat(64) },
+      }],
+      ["reserve_study_profile_report_email_delivery", {
+        payload: { responseId: RESPONSE_ID },
+      }],
+    ]);
+  });
+
+  it("fails closed on a malformed confirmation receipt", async () => {
+    mocks.rpc.mockResolvedValueOnce({
+      data: { state: "pending", shouldSend: true, email: "student@example.com" },
+      error: null,
+    });
+
+    await expect(new SupabaseStudyProfileRepository()
+      .requestWaitlistConfirmationByEmail({
+        email: "student@example.com",
+        visitorId: "4d621251-2df6-4fa3-985e-df63b6d27f5f",
+        confirmationTokenHash: "e".repeat(64),
+      })).rejects.toThrow("confirmation request");
+  });
+});
+
 function input() {
   const snapshot = scoreStudyProfile(answers);
   return {
@@ -211,7 +364,10 @@ function input() {
   };
 }
 
-function mockReportLookup(overrides: Record<string, unknown>) {
+function mockReportLookup(
+  overrides: Record<string, unknown>,
+  waitlistState: "confirmed" | "pending" | "none" = "confirmed",
+) {
   mocks.maybeSingle
     .mockResolvedValueOnce({
       data: {
@@ -230,7 +386,17 @@ function mockReportLookup(overrides: Record<string, unknown>) {
       error: null,
     })
     .mockResolvedValueOnce({
-      data: { waitlist_status: "joined", beta_interest: null },
+      data: waitlistState === "confirmed"
+        ? { id: "33333333-3333-4333-8333-333333333333" }
+        : null,
       error: null,
     });
+  if (waitlistState !== "confirmed") {
+    mocks.maybeSingle.mockResolvedValueOnce({
+      data: waitlistState === "pending"
+        ? { id: "44444444-4444-4444-8444-444444444444" }
+        : null,
+      error: null,
+    });
+  }
 }

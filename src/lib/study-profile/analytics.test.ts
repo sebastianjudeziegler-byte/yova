@@ -1,11 +1,18 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   StudyProfileAnalyticsEventSchema,
 } from "@/lib/study-profile/analytics";
-import { deriveStudyProfileAttribution } from "@/lib/study-profile/analytics-client";
+import {
+  deriveStudyProfileAttribution,
+  getStudyProfileVisitorId,
+} from "@/lib/study-profile/analytics-client";
 import { STUDY_PROFILE_MODEL_VERSION } from "@/lib/study-profile/types";
 
 const visitorId = "3f4edc20-e169-4f7f-b2c3-2a1a683b74e9";
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 describe("StudyProfileAnalyticsEventSchema", () => {
   it("accepts only the bounded context for each of the eight funnel events", () => {
@@ -160,5 +167,28 @@ describe("deriveStudyProfileAttribution", () => {
     );
 
     expect(attribution.utmContent).toBeNull();
+  });
+});
+
+describe("Study Profile visitor privacy", () => {
+  it("keeps its pseudonymous visitor ID in memory without touching web storage", () => {
+    const localStorageGet = vi.fn(() => {
+      throw new Error("analytics must not read localStorage");
+    });
+    const sessionStorageGet = vi.fn(() => {
+      throw new Error("analytics must not read sessionStorage");
+    });
+    vi.stubGlobal("window", {
+      localStorage: { getItem: localStorageGet },
+      sessionStorage: { getItem: sessionStorageGet },
+    });
+
+    const first = getStudyProfileVisitorId();
+    const second = getStudyProfileVisitorId();
+
+    expect(first).toMatch(/^[0-9a-f-]{36}$/u);
+    expect(second).toBe(first);
+    expect(localStorageGet).not.toHaveBeenCalled();
+    expect(sessionStorageGet).not.toHaveBeenCalled();
   });
 });

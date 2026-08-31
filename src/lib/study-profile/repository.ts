@@ -59,6 +59,7 @@ export type SavedStudyProfileResponse = {
   storedResponse: StudyProfileStoredResponse;
   report: StudyProfileReport;
   waitlistJoined: boolean;
+  confirmationPending: boolean;
   betaInterest: boolean | null;
 };
 
@@ -88,20 +89,61 @@ export type StudyProfileWaitlistJoinState = StudyProfileInterestState & {
   newlyJoined: boolean;
 };
 
+export type StudyProfileWaitlistConfirmationRequestState = {
+  waitlistJoined: boolean;
+  confirmationPending: boolean;
+  dailyCapReached: boolean;
+  shouldSend: boolean;
+  confirmationId: string | null;
+  email: string | null;
+  retryAfterSeconds: number;
+};
+
+export type StudyProfileWaitlistConfirmationResult = {
+  status: "confirmed" | "invalid" | "expired";
+  waitlistJoined: boolean;
+  newlyJoined: boolean;
+};
+
+export type StudyProfileReportEmailReservation = {
+  allowed: boolean;
+  reason: "cooldown" | "daily_cap" | null;
+  retryAfterSeconds: number;
+};
+
 export type JoinStudyProfileWaitlistByEmailInput = {
   email: string;
   visitorId: string;
   attribution?: StudyProfileSubmission["attribution"];
 };
 
+export type RequestStudyProfileWaitlistByEmailInput =
+  JoinStudyProfileWaitlistByEmailInput & {
+    confirmationTokenHash: string;
+  };
+
 export interface StudyProfileRepository {
   saveResponse(input: PersistStudyProfileResponseInput): Promise<SavedStudyProfileResponse>;
   getReportByToken(reportToken: string): Promise<SavedStudyProfileResponse | null>;
-  joinWaitlist(
+  requestWaitlistConfirmation(
     reportToken: string,
-    source?: StudyProfileWaitlistSource,
-  ): Promise<StudyProfileWaitlistJoinState | null>;
-  joinWaitlistByEmail(input: JoinStudyProfileWaitlistByEmailInput): Promise<StudyProfileInterestState>;
+    source: Exclude<StudyProfileWaitlistSource, "landing">,
+    confirmationTokenHash: string,
+  ): Promise<StudyProfileWaitlistConfirmationRequestState | null>;
+  requestWaitlistConfirmationByEmail(
+    input: RequestStudyProfileWaitlistByEmailInput,
+  ): Promise<StudyProfileWaitlistConfirmationRequestState>;
+  markWaitlistConfirmationDelivery(
+    confirmationId: string,
+    status: "sent" | "failed",
+    providerMessageId?: string | null,
+  ): Promise<void>;
+  confirmWaitlist(
+    confirmationTokenHash: string,
+  ): Promise<StudyProfileWaitlistConfirmationResult>;
+  reserveReportEmailDelivery(
+    responseId: string,
+  ): Promise<StudyProfileReportEmailReservation>;
   setBetaInterest(reportToken: string, interested: boolean): Promise<StudyProfileInterestState | null>;
   recordEvent(event: StudyProfileEventRecord): Promise<void>;
   markEmailDelivery(
@@ -154,6 +196,34 @@ type MemoryLead = {
   waitlistConsentCopyVersion: string | null;
   waitlistConsentSource: StudyProfileWaitlistSource | null;
   betaInterest: boolean | null;
+  reportEmailNextAllowedAt: string | null;
+};
+
+type MemoryWaitlistConfirmation = {
+  id: string;
+  leadId: string;
+  responseId: string | null;
+  visitorId: string | null;
+  tokenHash: string | null;
+  consumedTokenHash: string | null;
+  status: "pending" | "confirmed" | "superseded" | "expired" | "delivery_failed";
+  consentCopyVersion: string;
+  consentSource: StudyProfileWaitlistSource;
+  scoringRevision: string;
+  profileModelVersion: string;
+  requestedAt: string;
+  expiresAt: string;
+  resendAfter: string;
+  confirmedAt: string | null;
+  replayExpiresAt: string | null;
+  deliveryStatus: "pending" | "sent" | "failed";
+  attribution?: StudyProfileSubmission["attribution"];
+};
+
+type MemoryEmailDeliveryAttempt = {
+  leadId: string;
+  kind: "report" | "waitlist_confirmation";
+  reservedAt: string;
 };
 
 type MemoryResponse = SavedStudyProfileResponse & {
@@ -165,6 +235,8 @@ type MemoryResponse = SavedStudyProfileResponse & {
 type MemoryState = {
   leadsByEmail: Map<string, MemoryLead>;
   responsesByTokenHash: Map<string, MemoryResponse>;
+  waitlistConfirmations: MemoryWaitlistConfirmation[];
+  emailDeliveryAttempts: MemoryEmailDeliveryAttempt[];
   events: StudyProfileEventRecord[];
 };
 
@@ -179,6 +251,12 @@ const DEFAULT_CLOCK: RepositoryClock = {
   token: generateStudyProfileReportToken,
   uuid: randomUUID,
 };
+
+const STUDY_PROFILE_WAITLIST_CONFIRMATION_TTL_MS = 24 * 60 * 60 * 1_000;
+const STUDY_PROFILE_WAITLIST_RESEND_COOLDOWN_MS = 15 * 60 * 1_000;
+const STUDY_PROFILE_REPORT_EMAIL_COOLDOWN_MS = 15 * 60 * 1_000;
+const STUDY_PROFILE_EMAIL_DAILY_WINDOW_MS = 24 * 60 * 60 * 1_000;
+const STUDY_PROFILE_EMAIL_DAILY_ATTEMPT_LIMIT = 5;
 
 declare global {
   var __yovaStudyProfileMemoryState: MemoryState | undefined;
@@ -209,6 +287,7 @@ export class MemoryStudyProfileRepository implements StudyProfileRepository {
         waitlistConsentCopyVersion: null,
         waitlistConsentSource: null,
         betaInterest: null,
+        reportEmailNextAllowedAt: null,
       };
       this.state.leadsByEmail.set(email, lead);
     } else if (input.marketingConsent) {
@@ -232,6 +311,7 @@ export class MemoryStudyProfileRepository implements StudyProfileRepository {
       tokenHash: hashStudyProfileReportToken(reportToken),
       emailDeliveryStatus: "pending",
       waitlistJoined: lead.waitlistJoined,
+      confirmationPending: false,
       betaInterest: lead.betaInterest,
     };
     this.state.responsesByTokenHash.set(saved.tokenHash, saved);
@@ -250,75 +330,221 @@ export class MemoryStudyProfileRepository implements StudyProfileRepository {
     if (!response) return null;
     const lead = [...this.state.leadsByEmail.values()].find(({ id }) => id === response.leadId);
     if (!lead) return null;
-    return publicMemoryResponse(response, lead, reportToken);
+    const responseId = response.storedResponse.id;
+    const waitlistJoined = this.state.waitlistConfirmations.some((confirmation) => (
+      confirmation.responseId === responseId
+      && confirmation.status === "confirmed"
+    ));
+    const confirmationPending = !waitlistJoined
+      && this.state.waitlistConfirmations.some((confirmation) => (
+        confirmation.responseId === responseId
+        && confirmation.status === "pending"
+        && new Date(confirmation.expiresAt).getTime() > this.clock.now().getTime()
+      ));
+    return publicMemoryResponse(response, lead, reportToken, {
+      waitlistJoined,
+      confirmationPending,
+    });
   }
 
-  async joinWaitlist(
+  async requestWaitlistConfirmation(
     reportToken: string,
-    source: StudyProfileWaitlistSource = "report_cta",
+    source: Exclude<StudyProfileWaitlistSource, "landing">,
+    confirmationTokenHash: string,
   ) {
     const resolved = this.resolveLead(reportToken);
     if (!resolved) return null;
-    let newlyJoined = false;
-    if (!resolved.lead.waitlistJoined) {
-      newlyJoined = true;
-      resolved.lead.waitlistJoined = true;
-      resolved.lead.waitlistJoinedAt = this.clock.now().toISOString();
-      resolved.lead.waitlistConsentCopyVersion =
-        STUDY_PROFILE_WAITLIST_CONSENT_COPY_VERSIONS[source];
-      resolved.lead.waitlistConsentSource = source;
-      this.state.events.push({
-        responseId: resolved.response.storedResponse.id,
-        eventName: "study_profile_waitlist_joined",
-        eventData: {
-          source,
-          scoringRevision: resolved.response.report.scoringRevision,
-        },
-      });
+    const responseId = resolved.response.storedResponse.id;
+    const scopedConfirmed = this.state.waitlistConfirmations.some((confirmation) => (
+      confirmation.responseId === responseId
+      && confirmation.status === "confirmed"
+    ));
+    if (scopedConfirmed) {
+      return {
+        waitlistJoined: true,
+        confirmationPending: false,
+        dailyCapReached: false,
+        shouldSend: false,
+        confirmationId: null,
+        email: null,
+        retryAfterSeconds: 0,
+      };
     }
-    return {
-      waitlistJoined: true,
-      betaInterest: resolved.lead.betaInterest,
-      newlyJoined,
-    };
+    if (resolved.lead.waitlistJoined) {
+      return {
+        waitlistJoined: false,
+        confirmationPending: true,
+        dailyCapReached: false,
+        shouldSend: false,
+        confirmationId: null,
+        email: null,
+        retryAfterSeconds: 0,
+      };
+    }
+    return this.requestConfirmation({
+      lead: resolved.lead,
+      responseId,
+      visitorId: null,
+      confirmationTokenHash,
+      source,
+      scoringRevision: resolved.response.report.scoringRevision,
+      profileModelVersion: resolved.response.storedResponse.profileModelVersion,
+    });
   }
 
-  async joinWaitlistByEmail(input: JoinStudyProfileWaitlistByEmailInput) {
+  async requestWaitlistConfirmationByEmail(
+    input: RequestStudyProfileWaitlistByEmailInput,
+  ) {
     const email = normalizeStudyProfileEmail(input.email);
     let lead = this.state.leadsByEmail.get(email);
-    let newlyJoined = false;
     if (!lead) {
       lead = {
         id: this.clock.uuid(),
         email,
         marketingConsent: false,
-        waitlistJoined: true,
-        waitlistJoinedAt: this.clock.now().toISOString(),
-        waitlistConsentCopyVersion: STUDY_PROFILE_WAITLIST_CONSENT_COPY_VERSIONS.landing,
-        waitlistConsentSource: "landing",
+        waitlistJoined: false,
+        waitlistJoinedAt: null,
+        waitlistConsentCopyVersion: null,
+        waitlistConsentSource: null,
         betaInterest: null,
+        reportEmailNextAllowedAt: null,
       };
       this.state.leadsByEmail.set(email, lead);
-      newlyJoined = true;
-    } else if (!lead.waitlistJoined) {
+    }
+    return this.requestConfirmation({
+      lead,
+      responseId: null,
+      visitorId: input.visitorId,
+      confirmationTokenHash: input.confirmationTokenHash,
+      source: "landing",
+      scoringRevision: STUDY_PROFILE_SCORING_REVISION,
+      profileModelVersion: STUDY_PROFILE_MODEL_VERSION,
+      attribution: input.attribution,
+    });
+  }
+
+  async markWaitlistConfirmationDelivery(
+    confirmationId: string,
+    status: "sent" | "failed",
+  ) {
+    const confirmation = this.state.waitlistConfirmations
+      .find(({ id }) => id === confirmationId);
+    if (!confirmation || confirmation.status !== "pending") return;
+    confirmation.deliveryStatus = status;
+    if (status === "failed") {
+      confirmation.status = "delivery_failed";
+      confirmation.tokenHash = null;
+      confirmation.expiresAt = this.clock.now().toISOString();
+      confirmation.resendAfter = this.clock.now().toISOString();
+    }
+  }
+
+  async confirmWaitlist(confirmationTokenHash: string) {
+    const confirmation = this.state.waitlistConfirmations.find((candidate) => (
+      candidate.status === "pending" && candidate.tokenHash === confirmationTokenHash
+    ));
+    if (!confirmation) {
+      const replay = this.state.waitlistConfirmations.find((candidate) => (
+        candidate.status === "confirmed"
+        && candidate.consumedTokenHash === confirmationTokenHash
+        && candidate.replayExpiresAt !== null
+        && new Date(candidate.replayExpiresAt).getTime() > this.clock.now().getTime()
+      ));
+      if (replay) {
+        return { status: "confirmed" as const, waitlistJoined: true, newlyJoined: false };
+      }
+      return { status: "invalid" as const, waitlistJoined: false, newlyJoined: false };
+    }
+    if (new Date(confirmation.expiresAt).getTime() <= this.clock.now().getTime()) {
+      confirmation.status = "expired";
+      confirmation.tokenHash = null;
+      return { status: "expired" as const, waitlistJoined: false, newlyJoined: false };
+    }
+    const lead = [...this.state.leadsByEmail.values()]
+      .find(({ id }) => id === confirmation.leadId);
+    if (!lead) {
+      return { status: "invalid" as const, waitlistJoined: false, newlyJoined: false };
+    }
+    const newlyJoined = !lead.waitlistJoined;
+    if (newlyJoined) {
       lead.waitlistJoined = true;
       lead.waitlistJoinedAt = this.clock.now().toISOString();
-      lead.waitlistConsentCopyVersion = STUDY_PROFILE_WAITLIST_CONSENT_COPY_VERSIONS.landing;
-      lead.waitlistConsentSource = "landing";
-      newlyJoined = true;
-    }
-    if (newlyJoined) {
+      lead.waitlistConsentCopyVersion = confirmation.consentCopyVersion;
+      lead.waitlistConsentSource = confirmation.consentSource;
       this.state.events.push({
-        visitorId: input.visitorId,
+        ...(confirmation.visitorId ? { visitorId: confirmation.visitorId } : {}),
+        ...(confirmation.responseId ? { responseId: confirmation.responseId } : {}),
         eventName: "study_profile_waitlist_joined",
         eventData: {
-          source: "landing",
-          scoringRevision: STUDY_PROFILE_SCORING_REVISION,
+          source: confirmation.consentSource,
+          scoringRevision: confirmation.scoringRevision,
+          doubleOptIn: true,
         },
-        attribution: input.attribution,
+        attribution: confirmation.attribution,
       });
     }
-    return { waitlistJoined: true, betaInterest: lead.betaInterest };
+    confirmation.status = "confirmed";
+    confirmation.tokenHash = null;
+    confirmation.consumedTokenHash = confirmationTokenHash;
+    confirmation.confirmedAt = this.clock.now().toISOString();
+    confirmation.replayExpiresAt = new Date(Math.min(
+      new Date(confirmation.expiresAt).getTime(),
+      this.clock.now().getTime() + STUDY_PROFILE_WAITLIST_RESEND_COOLDOWN_MS,
+    )).toISOString();
+    return { status: "confirmed" as const, waitlistJoined: true, newlyJoined };
+  }
+
+  async reserveReportEmailDelivery(responseId: string) {
+    const response = [...this.state.responsesByTokenHash.values()]
+      .find(({ storedResponse }) => storedResponse.id === responseId);
+    if (!response) return { allowed: false, reason: "cooldown" as const, retryAfterSeconds: 1 };
+    const lead = [...this.state.leadsByEmail.values()]
+      .find(({ id }) => id === response.leadId);
+    if (!lead) return { allowed: false, reason: "cooldown" as const, retryAfterSeconds: 1 };
+    const now = this.clock.now();
+    const dailyAttempts = this.state.emailDeliveryAttempts
+      .filter((attempt) => (
+        attempt.leadId === lead.id
+        && new Date(attempt.reservedAt).getTime()
+          > now.getTime() - STUDY_PROFILE_EMAIL_DAILY_WINDOW_MS
+      ))
+      .sort((left, right) => left.reservedAt.localeCompare(right.reservedAt));
+    if (dailyAttempts.length >= STUDY_PROFILE_EMAIL_DAILY_ATTEMPT_LIMIT) {
+      response.emailDeliveryStatus = "skipped";
+      const retryAt = new Date(dailyAttempts[0].reservedAt).getTime()
+        + STUDY_PROFILE_EMAIL_DAILY_WINDOW_MS;
+      return {
+        allowed: false,
+        reason: "daily_cap" as const,
+        retryAfterSeconds: Math.min(
+          86_400,
+          Math.max(1, Math.ceil((retryAt - now.getTime()) / 1_000)),
+        ),
+      };
+    }
+    const nextAllowedAt = lead.reportEmailNextAllowedAt
+      ? new Date(lead.reportEmailNextAllowedAt)
+      : null;
+    if (!nextAllowedAt || nextAllowedAt.getTime() <= now.getTime()) {
+      lead.reportEmailNextAllowedAt = new Date(
+        now.getTime() + STUDY_PROFILE_REPORT_EMAIL_COOLDOWN_MS,
+      ).toISOString();
+      this.state.emailDeliveryAttempts.push({
+        leadId: lead.id,
+        kind: "report",
+        reservedAt: now.toISOString(),
+      });
+      return { allowed: true, reason: null, retryAfterSeconds: 0 };
+    }
+    response.emailDeliveryStatus = "skipped";
+    return {
+      allowed: false,
+      reason: "cooldown" as const,
+      retryAfterSeconds: Math.max(
+        1,
+        Math.ceil((nextAllowedAt.getTime() - now.getTime()) / 1_000),
+      ),
+    };
   }
 
   async setBetaInterest(reportToken: string, interested: boolean) {
@@ -357,6 +583,146 @@ export class MemoryStudyProfileRepository implements StudyProfileRepository {
     if (!response) return null;
     const lead = [...this.state.leadsByEmail.values()].find(({ id }) => id === response.leadId);
     return lead ? { response, lead } : null;
+  }
+
+  private requestConfirmation(input: {
+    lead: MemoryLead;
+    responseId: string | null;
+    visitorId: string | null;
+    confirmationTokenHash: string;
+    source: StudyProfileWaitlistSource;
+    scoringRevision: string;
+    profileModelVersion: string;
+    attribution?: StudyProfileSubmission["attribution"];
+  }): StudyProfileWaitlistConfirmationRequestState {
+    if (input.lead.waitlistJoined) {
+      return {
+        waitlistJoined: true,
+        confirmationPending: false,
+        dailyCapReached: false,
+        shouldSend: false,
+        confirmationId: null,
+        email: null,
+        retryAfterSeconds: 0,
+      };
+    }
+    const now = this.clock.now();
+    const pending = this.state.waitlistConfirmations
+      .filter(({ leadId, responseId, status }) => (
+        leadId === input.lead.id
+        && responseId === input.responseId
+        && status === "pending"
+      ))
+      .sort((left, right) => right.requestedAt.localeCompare(left.requestedAt))[0];
+    if (pending && new Date(pending.expiresAt).getTime() > now.getTime()) {
+      if (new Date(pending.resendAfter).getTime() > now.getTime()) {
+        return {
+          waitlistJoined: false,
+          confirmationPending: true,
+          dailyCapReached: false,
+          shouldSend: false,
+          confirmationId: pending.id,
+          email: input.lead.email,
+          retryAfterSeconds: Math.max(
+            1,
+            Math.ceil((new Date(pending.resendAfter).getTime() - now.getTime()) / 1_000),
+          ),
+        };
+      }
+    } else if (pending) {
+      pending.status = "expired";
+      pending.tokenHash = null;
+    }
+    const latestConfirmationAttempt = this.state.emailDeliveryAttempts
+      .filter((attempt) => (
+        attempt.leadId === input.lead.id
+        && attempt.kind === "waitlist_confirmation"
+      ))
+      .sort((left, right) => right.reservedAt.localeCompare(left.reservedAt))[0];
+    if (
+      latestConfirmationAttempt
+      && new Date(latestConfirmationAttempt.reservedAt).getTime()
+        > now.getTime() - STUDY_PROFILE_WAITLIST_RESEND_COOLDOWN_MS
+    ) {
+      const retryAt = new Date(latestConfirmationAttempt.reservedAt).getTime()
+        + STUDY_PROFILE_WAITLIST_RESEND_COOLDOWN_MS;
+      return {
+        waitlistJoined: false,
+        confirmationPending: true,
+        dailyCapReached: false,
+        shouldSend: false,
+        confirmationId: null,
+        email: null,
+        retryAfterSeconds: Math.max(
+          1,
+          Math.ceil((retryAt - now.getTime()) / 1_000),
+        ),
+      };
+    }
+    const dailyAttempts = this.state.emailDeliveryAttempts
+      .filter((attempt) => (
+        attempt.leadId === input.lead.id
+        && new Date(attempt.reservedAt).getTime()
+          > now.getTime() - STUDY_PROFILE_EMAIL_DAILY_WINDOW_MS
+      ))
+      .sort((left, right) => left.reservedAt.localeCompare(right.reservedAt));
+    if (dailyAttempts.length >= STUDY_PROFILE_EMAIL_DAILY_ATTEMPT_LIMIT) {
+      const retryAt = new Date(dailyAttempts[0].reservedAt).getTime()
+        + STUDY_PROFILE_EMAIL_DAILY_WINDOW_MS;
+      return {
+        waitlistJoined: false,
+        confirmationPending: false,
+        dailyCapReached: true,
+        shouldSend: false,
+        confirmationId: null,
+        email: null,
+        retryAfterSeconds: Math.min(
+          86_400,
+          Math.max(1, Math.ceil((retryAt - now.getTime()) / 1_000)),
+        ),
+      };
+    }
+    if (pending && pending.status === "pending") {
+      pending.status = "superseded";
+      pending.tokenHash = null;
+    }
+    const confirmation: MemoryWaitlistConfirmation = {
+      id: this.clock.uuid(),
+      leadId: input.lead.id,
+      responseId: input.responseId,
+      visitorId: input.visitorId,
+      tokenHash: input.confirmationTokenHash,
+      consumedTokenHash: null,
+      status: "pending",
+      consentCopyVersion: STUDY_PROFILE_WAITLIST_CONSENT_COPY_VERSIONS[input.source],
+      consentSource: input.source,
+      scoringRevision: input.scoringRevision,
+      profileModelVersion: input.profileModelVersion,
+      requestedAt: now.toISOString(),
+      expiresAt: new Date(now.getTime() + STUDY_PROFILE_WAITLIST_CONFIRMATION_TTL_MS)
+        .toISOString(),
+      resendAfter: new Date(now.getTime() + STUDY_PROFILE_WAITLIST_RESEND_COOLDOWN_MS)
+        .toISOString(),
+      confirmedAt: null,
+      replayExpiresAt: null,
+      deliveryStatus: "pending",
+      attribution: input.attribution,
+    };
+    this.state.waitlistConfirmations.push(confirmation);
+    this.state.emailDeliveryAttempts.push({
+      leadId: input.lead.id,
+      kind: "waitlist_confirmation",
+      reservedAt: now.toISOString(),
+    });
+    return {
+      waitlistJoined: false,
+      confirmationPending: true,
+      dailyCapReached: false,
+      shouldSend: true,
+      confirmationId: confirmation.id,
+      email: input.lead.email,
+      retryAfterSeconds: 0,
+    };
   }
 }
 
@@ -413,14 +779,12 @@ export class SupabaseStudyProfileRepository implements StudyProfileRepository {
 
     try {
       const responseId = readRpcId(data, "responseId");
-      const leadId = readRpcId(data, "leadId");
-      const interest = await readLeadInterestState(supabase, leadId);
+      readRpcId(data, "leadId");
       return savedStudyProfileResponse(
         input,
         reportToken,
         responseId,
         createdAt,
-        interest,
       );
     } catch (receiptError) {
       // The RPC has already committed at this point. Recover the canonical row
@@ -447,13 +811,7 @@ export class SupabaseStudyProfileRepository implements StudyProfileRepository {
     if (error) throw new Error("YOVA could not load this Study Profile report.", { cause: error });
     if (!row) return null;
 
-    const { data: lead, error: leadError } = await supabase
-      .from("study_profile_leads")
-      .select("waitlist_status, beta_interest")
-      .eq("id", row.lead_id)
-      .maybeSingle();
-    if (leadError) throw new Error("YOVA could not load this Study Profile report.", { cause: leadError });
-    if (!lead) return null;
+    const waitlistState = await readReportWaitlistConfirmationState(supabase, row.id);
 
     const persistedState = readPersistedStudyProfileState(row.report_state);
     const rawAnswers = StudyProfileAnswersSchema.parse(row.raw_answers);
@@ -475,47 +833,96 @@ export class SupabaseStudyProfileRepository implements StudyProfileRepository {
     return {
       storedResponse,
       report: persistedState.report ?? buildStudyProfileReportFromStoredResponse(storedResponse),
-      waitlistJoined: lead.waitlist_status === "joined",
-      betaInterest: typeof lead.beta_interest === "boolean" ? lead.beta_interest : null,
+      waitlistJoined: waitlistState.waitlistJoined,
+      confirmationPending: waitlistState.confirmationPending,
+      betaInterest: null,
     };
   }
 
-  async joinWaitlist(
+  async requestWaitlistConfirmation(
     reportToken: string,
-    source: StudyProfileWaitlistSource = "report_cta",
+    source: Exclude<StudyProfileWaitlistSource, "landing">,
+    confirmationTokenHash: string,
   ) {
     const { data, error } = await createSupabaseAdminClient().rpc(
-      "join_study_profile_report_waitlist",
+      "request_study_profile_report_waitlist_confirmation",
       {
         payload: {
           reportTokenHash: hashStudyProfileReportToken(reportToken),
+          confirmationTokenHash,
+          ageConfirmed: true,
           consentCopyVersion: STUDY_PROFILE_WAITLIST_CONSENT_COPY_VERSIONS[source],
           consentSource: source,
         },
       },
     );
-    if (error) throw new Error("YOVA could not update waitlist signup.", { cause: error });
+    if (error) throw new Error("YOVA could not request waitlist confirmation.", { cause: error });
     if (data === null) return null;
-    return parseWaitlistJoinReceipt(data);
+    return parseWaitlistConfirmationRequestReceipt(data);
   }
 
-  async joinWaitlistByEmail(input: JoinStudyProfileWaitlistByEmailInput) {
+  async requestWaitlistConfirmationByEmail(
+    input: RequestStudyProfileWaitlistByEmailInput,
+  ) {
     const attribution = persistenceAttribution(input.attribution);
     const { data, error } = await createSupabaseAdminClient().rpc(
-      "join_study_profile_waitlist",
+      "request_study_profile_waitlist_confirmation",
       {
         payload: {
           email: normalizeStudyProfileEmail(input.email),
           visitorId: input.visitorId,
+          confirmationTokenHash: input.confirmationTokenHash,
+          ageConfirmed: true,
           consentCopyVersion: STUDY_PROFILE_WAITLIST_CONSENT_COPY_VERSIONS.landing,
-          consentSource: "landing",
           attribution,
         },
       },
     );
-    if (error) throw new Error("YOVA could not update waitlist signup.", { cause: error });
-    parseLandingWaitlistReceipt(data);
-    return { waitlistJoined: true, betaInterest: null };
+    if (error) throw new Error("YOVA could not request waitlist confirmation.", { cause: error });
+    return parseWaitlistConfirmationRequestReceipt(data);
+  }
+
+  async markWaitlistConfirmationDelivery(
+    confirmationId: string,
+    status: "sent" | "failed",
+    providerMessageId?: string | null,
+  ) {
+    const { data, error } = await createSupabaseAdminClient().rpc(
+      "mark_study_profile_waitlist_confirmation_delivery",
+      {
+        payload: {
+          confirmationId,
+          deliveryStatus: status,
+          providerMessageId: providerMessageId || null,
+        },
+      },
+    );
+    if (error) {
+      throw new Error("YOVA could not record waitlist confirmation delivery.", {
+        cause: error,
+      });
+    }
+    if (!data || typeof data !== "object" || (data as Record<string, unknown>).updated !== true) {
+      throw new Error("YOVA could not confirm waitlist email delivery bookkeeping.");
+    }
+  }
+
+  async confirmWaitlist(confirmationTokenHash: string) {
+    const { data, error } = await createSupabaseAdminClient().rpc(
+      "confirm_study_profile_waitlist",
+      { payload: { confirmationTokenHash } },
+    );
+    if (error) throw new Error("YOVA could not confirm that waitlist request.", { cause: error });
+    return parseWaitlistConfirmationResult(data);
+  }
+
+  async reserveReportEmailDelivery(responseId: string) {
+    const { data, error } = await createSupabaseAdminClient().rpc(
+      "reserve_study_profile_report_email_delivery",
+      { payload: { responseId } },
+    );
+    if (error) throw new Error("YOVA could not reserve report email delivery.", { cause: error });
+    return parseReportEmailReservation(data);
   }
 
   async setBetaInterest(reportToken: string, interested: boolean) {
@@ -592,8 +999,11 @@ export class SupabaseStudyProfileRepository implements StudyProfileRepository {
 class UnavailableStudyProfileRepository implements StudyProfileRepository {
   async saveResponse(): Promise<never> { throw new StudyProfilePersistenceUnavailableError(); }
   async getReportByToken(): Promise<never> { throw new StudyProfilePersistenceUnavailableError(); }
-  async joinWaitlist(): Promise<never> { throw new StudyProfilePersistenceUnavailableError(); }
-  async joinWaitlistByEmail(): Promise<never> { throw new StudyProfilePersistenceUnavailableError(); }
+  async requestWaitlistConfirmation(): Promise<never> { throw new StudyProfilePersistenceUnavailableError(); }
+  async requestWaitlistConfirmationByEmail(): Promise<never> { throw new StudyProfilePersistenceUnavailableError(); }
+  async markWaitlistConfirmationDelivery(): Promise<never> { throw new StudyProfilePersistenceUnavailableError(); }
+  async confirmWaitlist(): Promise<never> { throw new StudyProfilePersistenceUnavailableError(); }
+  async reserveReportEmailDelivery(): Promise<never> { throw new StudyProfilePersistenceUnavailableError(); }
   async setBetaInterest(): Promise<never> { throw new StudyProfilePersistenceUnavailableError(); }
   async recordEvent(): Promise<never> { throw new StudyProfilePersistenceUnavailableError(); }
   async markEmailDelivery(): Promise<never> { throw new StudyProfilePersistenceUnavailableError(); }
@@ -640,6 +1050,8 @@ function createMemoryState(): MemoryState {
   return {
     leadsByEmail: new Map(),
     responsesByTokenHash: new Map(),
+    waitlistConfirmations: [],
+    emailDeliveryAttempts: [],
     events: [],
   };
 }
@@ -648,12 +1060,17 @@ function publicMemoryResponse(
   response: MemoryResponse,
   lead: MemoryLead,
   reportToken = response.storedResponse.reportToken,
+  waitlistState: Pick<SavedStudyProfileResponse, "waitlistJoined" | "confirmationPending"> = {
+    waitlistJoined: false,
+    confirmationPending: false,
+  },
 ): SavedStudyProfileResponse {
   return {
     storedResponse: { ...response.storedResponse, reportToken },
     report: response.report,
-    waitlistJoined: lead.waitlistJoined,
-    betaInterest: lead.betaInterest,
+    waitlistJoined: waitlistState.waitlistJoined,
+    confirmationPending: !waitlistState.waitlistJoined && waitlistState.confirmationPending,
+    betaInterest: waitlistState.waitlistJoined ? lead.betaInterest : null,
   };
 }
 
@@ -707,39 +1124,152 @@ function readRpcId(value: unknown, field: string) {
   return id;
 }
 
-function parseLandingWaitlistReceipt(value: unknown) {
+function parseWaitlistConfirmationRequestReceipt(
+  value: unknown,
+): StudyProfileWaitlistConfirmationRequestState {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
-    throw new Error("YOVA could not confirm waitlist signup.");
+    throw new Error("YOVA could not confirm the waitlist confirmation request.");
   }
   const receipt = value as Record<string, unknown>;
-  if (
-    receipt.waitlistJoined !== true
-    || typeof receipt.newlyJoined !== "boolean"
-    || typeof receipt.leadId !== "string"
-    || !isUuid(receipt.leadId)
-  ) {
-    throw new Error("YOVA could not confirm waitlist signup.");
+  if (receipt.state === "joined") {
+    if (
+      receipt.shouldSend !== false
+      || receipt.confirmationId !== null
+      || receipt.email !== null
+      || receipt.retryAfterSeconds !== 0
+    ) {
+      throw new Error("YOVA could not confirm the waitlist confirmation request.");
+    }
+    return {
+      waitlistJoined: true,
+      confirmationPending: false,
+      dailyCapReached: false,
+      shouldSend: false,
+      confirmationId: null,
+      email: null,
+      retryAfterSeconds: 0,
+    };
   }
-  return receipt;
-}
-
-function parseWaitlistJoinReceipt(value: unknown): StudyProfileWaitlistJoinState {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    throw new Error("YOVA could not confirm waitlist signup.");
+  if (receipt.state === "masked") {
+    if (
+      receipt.shouldSend !== false
+      || receipt.confirmationId !== null
+      || receipt.email !== null
+      || !isBoundedRetry(receipt.retryAfterSeconds, 0, 900)
+    ) {
+      throw new Error("YOVA could not confirm the waitlist confirmation request.");
+    }
+    return {
+      waitlistJoined: false,
+      confirmationPending: true,
+      dailyCapReached: false,
+      shouldSend: false,
+      confirmationId: null,
+      email: null,
+      retryAfterSeconds: receipt.retryAfterSeconds,
+    };
   }
-  const receipt = value as Record<string, unknown>;
+  if (receipt.state === "daily_cap") {
+    if (
+      receipt.shouldSend !== false
+      || receipt.confirmationId !== null
+      || receipt.email !== null
+      || !isBoundedRetry(receipt.retryAfterSeconds, 1, 86_400)
+    ) {
+      throw new Error("YOVA could not confirm the waitlist confirmation request.");
+    }
+    return {
+      waitlistJoined: false,
+      confirmationPending: false,
+      dailyCapReached: true,
+      shouldSend: false,
+      confirmationId: null,
+      email: null,
+      retryAfterSeconds: receipt.retryAfterSeconds,
+    };
+  }
   if (
-    receipt.waitlistJoined !== true
-    || typeof receipt.newlyJoined !== "boolean"
-    || (receipt.betaInterest !== null && typeof receipt.betaInterest !== "boolean")
+    receipt.state !== "pending"
+    || typeof receipt.shouldSend !== "boolean"
+    || typeof receipt.confirmationId !== "string"
+    || !isUuid(receipt.confirmationId)
+    || typeof receipt.email !== "string"
+    || !receipt.email.includes("@")
+    || !isBoundedRetry(receipt.retryAfterSeconds, 0, 900)
+    || (receipt.shouldSend && receipt.retryAfterSeconds !== 0)
   ) {
-    throw new Error("YOVA could not confirm waitlist signup.");
+    throw new Error("YOVA could not confirm the waitlist confirmation request.");
   }
   return {
-    waitlistJoined: true,
-    newlyJoined: receipt.newlyJoined,
-    betaInterest: receipt.betaInterest,
+    waitlistJoined: false,
+    confirmationPending: true,
+    dailyCapReached: false,
+    shouldSend: receipt.shouldSend,
+    confirmationId: receipt.confirmationId,
+    email: normalizeStudyProfileEmail(receipt.email),
+    retryAfterSeconds: receipt.retryAfterSeconds,
   };
+}
+
+function parseWaitlistConfirmationResult(
+  value: unknown,
+): StudyProfileWaitlistConfirmationResult {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error("YOVA could not confirm the waitlist confirmation result.");
+  }
+  const receipt = value as Record<string, unknown>;
+  if (receipt.status === "confirmed") {
+    if (receipt.waitlistJoined !== true || typeof receipt.newlyJoined !== "boolean") {
+      throw new Error("YOVA could not confirm the waitlist confirmation result.");
+    }
+    return {
+      status: "confirmed",
+      waitlistJoined: true,
+      newlyJoined: receipt.newlyJoined,
+    };
+  }
+  if (
+    (receipt.status === "invalid" || receipt.status === "expired")
+    && receipt.waitlistJoined === false
+  ) {
+    return {
+      status: receipt.status,
+      waitlistJoined: false,
+      newlyJoined: false,
+    };
+  }
+  throw new Error("YOVA could not confirm the waitlist confirmation result.");
+}
+
+function parseReportEmailReservation(value: unknown): StudyProfileReportEmailReservation {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error("YOVA could not confirm the report email reservation.");
+  }
+  const receipt = value as Record<string, unknown>;
+  if (
+    typeof receipt.allowed !== "boolean"
+    || (receipt.reason !== null && receipt.reason !== "cooldown" && receipt.reason !== "daily_cap")
+    || typeof receipt.retryAfterSeconds !== "number"
+    || !Number.isInteger(receipt.retryAfterSeconds)
+    || receipt.retryAfterSeconds < 0
+    || receipt.retryAfterSeconds > 86_400
+    || (receipt.allowed && (receipt.retryAfterSeconds !== 0 || receipt.reason !== null))
+    || (!receipt.allowed && (receipt.retryAfterSeconds < 1 || receipt.reason === null))
+  ) {
+    throw new Error("YOVA could not confirm the report email reservation.");
+  }
+  return {
+    allowed: receipt.allowed,
+    reason: receipt.reason,
+    retryAfterSeconds: receipt.retryAfterSeconds,
+  };
+}
+
+function isBoundedRetry(value: unknown, minimum: number, maximum: number): value is number {
+  return typeof value === "number"
+    && Number.isInteger(value)
+    && value >= minimum
+    && value <= maximum;
 }
 
 function isUuid(value: string) {
@@ -752,7 +1282,6 @@ function savedStudyProfileResponse(
   reportToken: string,
   responseId: unknown,
   createdAt: unknown,
-  interest: StudyProfileInterestState | null = null,
 ): SavedStudyProfileResponse {
   const storedResponse = StudyProfileStoredResponseSchema.parse({
     id: responseId,
@@ -766,8 +1295,9 @@ function savedStudyProfileResponse(
   return {
     storedResponse,
     report: input.report,
-    waitlistJoined: interest?.waitlistJoined ?? false,
-    betaInterest: interest?.betaInterest ?? null,
+    waitlistJoined: false,
+    confirmationPending: false,
+    betaInterest: null,
   };
 }
 
@@ -789,7 +1319,6 @@ async function recoverSavedStudyProfileResponse(
       .maybeSingle();
     if (error) return { status: "unknown" };
     if (!persisted) return { status: "not_found" };
-    const interest = await readLeadInterestState(supabase, persisted.lead_id);
     return {
       status: "saved",
       value: savedStudyProfileResponse(
@@ -797,7 +1326,6 @@ async function recoverSavedStudyProfileResponse(
         reportToken,
         persisted.id,
         persisted.created_at,
-        interest,
       ),
     };
   } catch {
@@ -805,25 +1333,35 @@ async function recoverSavedStudyProfileResponse(
   }
 }
 
-async function readLeadInterestState(
+async function readReportWaitlistConfirmationState(
   supabase: ReturnType<typeof createSupabaseAdminClient>,
-  leadId: unknown,
-): Promise<StudyProfileInterestState | null> {
-  if (typeof leadId !== "string") return null;
+  responseId: unknown,
+): Promise<Pick<SavedStudyProfileResponse, "waitlistJoined" | "confirmationPending">> {
+  const empty = { waitlistJoined: false, confirmationPending: false };
+  if (typeof responseId !== "string") return empty;
   try {
-    const { data, error } = await supabase
-      .from("study_profile_leads")
-      .select("waitlist_status,beta_interest")
-      .eq("id", leadId)
+    const { data: confirmed, error: confirmedError } = await supabase
+      .from("study_profile_waitlist_confirmations")
+      .select("id")
+      .eq("response_id", responseId)
+      .eq("status", "confirmed")
+      .limit(1)
       .maybeSingle();
-    if (error || !data) return null;
-    return {
-      waitlistJoined: data.waitlist_status === "joined",
-      betaInterest: typeof data.beta_interest === "boolean"
-        ? data.beta_interest
-        : null,
-    };
+    if (confirmedError) return empty;
+    if (confirmed) return { waitlistJoined: true, confirmationPending: false };
+
+    const { data: pending, error: pendingError } = await supabase
+      .from("study_profile_waitlist_confirmations")
+      .select("id")
+      .eq("response_id", responseId)
+      .eq("status", "pending")
+      .gt("expires_at", new Date().toISOString())
+      .limit(1)
+      .maybeSingle();
+    return pendingError
+      ? empty
+      : { waitlistJoined: false, confirmationPending: Boolean(pending) };
   } catch {
-    return null;
+    return empty;
   }
 }

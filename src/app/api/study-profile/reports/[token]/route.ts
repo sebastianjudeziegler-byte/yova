@@ -38,18 +38,11 @@ export async function GET(
     const saved = await repository.getReportByToken(token.data);
     if (!saved) return notFoundResponse();
 
-    void repository.recordEvent({
-      responseId: saved.storedResponse.id,
-      eventName: "study_profile_report_viewed",
-      eventData: { scoringRevision: saved.report.scoringRevision },
-    }).catch(() => {
-      // Analytics must never block a private report.
-    });
-
     return NextResponse.json({
       storedResponse: toStudyProfilePublicStoredResponse(saved.storedResponse),
       report: saved.report,
       waitlistJoined: saved.waitlistJoined,
+      confirmationPending: saved.confirmationPending,
     }, {
       headers: { "Cache-Control": "no-store" },
     });

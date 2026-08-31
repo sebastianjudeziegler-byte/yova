@@ -3,6 +3,7 @@ import {
   StudyProfileInterestRequestSchema,
   StudyProfileLandingWaitlistRequestSchema,
   StudyProfileResponseRequestSchema,
+  StudyProfileWaitlistConfirmationRequestSchema,
 } from "@/lib/study-profile/api-schema";
 
 const answers = Object.fromEntries(
@@ -14,6 +15,7 @@ describe("Study Profile API schemas", () => {
     const result = StudyProfileResponseRequestSchema.safeParse({
       email: " Student@Example.com ",
       visitorId: "4d621251-2df6-4fa3-985e-df63b6d27f5f",
+      ageConfirmed: true,
       answers,
       metadata: {
         energyWindow: "morning",
@@ -35,6 +37,21 @@ describe("Study Profile API schemas", () => {
       expect(result.data.metadata.hardestPart).toBeNull();
       expect(result.data.metadata.studyGoal).toBe("upcoming_exams");
     }
+  });
+
+  it("fails closed when the report email gate lacks a 13+ affirmation", () => {
+    expect(StudyProfileResponseRequestSchema.safeParse({
+      email: "student@example.com",
+      visitorId: "4d621251-2df6-4fa3-985e-df63b6d27f5f",
+      answers,
+      metadata: {
+        energyWindow: "morning",
+        schoolLevel: "college",
+        studyGoal: "upcoming_exams",
+        hardestPart: null,
+      },
+      marketingConsent: false,
+    }).success).toBe(false);
   });
 
   it("rejects incomplete answers and client-computed scores", () => {
@@ -76,6 +93,7 @@ describe("Study Profile API schemas", () => {
     const base = {
       email: "student@example.com",
       visitorId: "4d621251-2df6-4fa3-985e-df63b6d27f5f",
+      ageConfirmed: true,
       answers,
       metadata: { energyWindow: "morning", schoolLevel: "college" },
       marketingConsent: false,
@@ -97,11 +115,20 @@ describe("Study Profile API schemas", () => {
 
   it("accepts only a waitlist signup", () => {
     expect(StudyProfileInterestRequestSchema.safeParse({}).success).toBe(false);
-    expect(StudyProfileInterestRequestSchema.safeParse({ waitlist: true }).success).toBe(true);
+    expect(StudyProfileInterestRequestSchema.safeParse({ waitlist: true }).success).toBe(false);
+    expect(StudyProfileInterestRequestSchema.safeParse({
+      waitlist: true,
+      ageConfirmed: true,
+    }).success).toBe(true);
     expect(StudyProfileInterestRequestSchema.safeParse({ betaInterest: false }).success).toBe(false);
     expect(StudyProfileInterestRequestSchema.safeParse({
       waitlist: true,
+      ageConfirmed: true,
       betaInterest: true,
+    }).success).toBe(false);
+    expect(StudyProfileInterestRequestSchema.safeParse({
+      waitlist: true,
+      ageConfirmed: false,
     }).success).toBe(false);
   });
 
@@ -110,6 +137,7 @@ describe("Study Profile API schemas", () => {
       email: "  Student@Example.COM ",
       visitorId: "4d621251-2df6-4fa3-985e-df63b6d27f5f",
       consent: true,
+      ageConfirmed: true,
       attribution: {
         source: "instagram",
         referrer: "https://www.instagram.com/",
@@ -123,6 +151,7 @@ describe("Study Profile API schemas", () => {
         email: "student@example.com",
         visitorId: "4d621251-2df6-4fa3-985e-df63b6d27f5f",
         consent: true,
+        ageConfirmed: true,
         attribution: {
           source: "instagram",
           referrer: "https://www.instagram.com/",
@@ -167,6 +196,7 @@ describe("Study Profile API schemas", () => {
       email: "student@example.com",
       visitorId: "4d621251-2df6-4fa3-985e-df63b6d27f5f",
       consent: true,
+      ageConfirmed: true,
     };
     const reportToken = "b".repeat(43);
 
@@ -181,5 +211,18 @@ describe("Study Profile API schemas", () => {
         attribution,
       }).success).toBe(false);
     }
+  });
+
+  it("accepts only one opaque waitlist confirmation token", () => {
+    expect(StudyProfileWaitlistConfirmationRequestSchema.safeParse({
+      token: "a".repeat(43),
+    }).success).toBe(true);
+    expect(StudyProfileWaitlistConfirmationRequestSchema.safeParse({
+      token: "short",
+    }).success).toBe(false);
+    expect(StudyProfileWaitlistConfirmationRequestSchema.safeParse({
+      token: "a".repeat(43),
+      email: "student@example.com",
+    }).success).toBe(false);
   });
 });

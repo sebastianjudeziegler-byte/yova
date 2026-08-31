@@ -1,6 +1,9 @@
 "use client";
 
 import type { ErrorSurface } from "@/lib/monitoring/schema";
+import { sanitizeProductErrorRoutePath } from "@/lib/monitoring/route-privacy";
+
+export { sanitizeProductErrorRoutePath } from "@/lib/monitoring/route-privacy";
 
 type ProductErrorSignal = {
   surface: ErrorSurface;
@@ -14,7 +17,7 @@ const recentReports = new Set<string>();
 export function reportProductError(signal: ProductErrorSignal) {
   if (typeof window === "undefined") return;
 
-  const routePath = window.location.pathname;
+  const routePath = sanitizeProductErrorRoutePath(window.location.pathname);
   const reportKey = [signal.surface, signal.errorCode, signal.digest, signal.requestId, routePath].join(":");
   if (recentReports.has(reportKey)) return;
   recentReports.add(reportKey);

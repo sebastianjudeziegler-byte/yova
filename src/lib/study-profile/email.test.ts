@@ -5,9 +5,14 @@ vi.mock("server-only", () => ({}));
 import {
   STUDY_PROFILE_EMAIL_REQUEST_TIMEOUT_MS,
   buildStudyProfileReportEmail,
+  buildStudyProfileWaitlistConfirmationEmail,
   sendStudyProfileReportEmail,
+  sendStudyProfileWaitlistConfirmationEmail,
 } from "@/lib/study-profile/email";
-import type { StudyProfileReportEmailInput } from "@/lib/study-profile/email";
+import type {
+  StudyProfileReportEmailInput,
+  StudyProfileWaitlistConfirmationEmailInput,
+} from "@/lib/study-profile/email";
 
 const reportUrl = "https://www.yovaapp.com/study-profile/report/example-report-reference";
 const input: StudyProfileReportEmailInput = {
@@ -23,6 +28,12 @@ const input: StudyProfileReportEmailInput = {
   responseId: "3f4edc20-e169-4f7f-b2c3-2a1a683b74e9",
 };
 
+const confirmationInput: StudyProfileWaitlistConfirmationEmailInput = {
+  to: "recipient@example.test",
+  confirmationUrl: `https://www.yovaapp.com/study-profile/waitlist/confirm#token=${"a".repeat(43)}`,
+  confirmationId: "3f4edc20-e169-4f7f-b2c3-2a1a683b74e9",
+};
+
 afterEach(() => {
   vi.useRealTimers();
   vi.unstubAllEnvs();
@@ -30,7 +41,7 @@ afterEach(() => {
 });
 
 describe("buildStudyProfileReportEmail", () => {
-  it("builds a named-pattern email with private report and public waitlist links", () => {
+  it("builds a purely transactional named-pattern report email", () => {
     const message = buildStudyProfileReportEmail(input);
 
     expect(message.subject).toBe("Your study profile: The Drifter");
@@ -47,17 +58,11 @@ describe("buildStudyProfileReportEmail", () => {
     expect(message.html).toContain("Your plan for tonight");
     expect(message.html).toContain(input.tonightPlan);
     expect(message.html).toContain(`href="${reportUrl}"`);
-    expect(message.html).toContain('href="https://www.yovaapp.com/study-profile"');
     expect(message.text).toContain(`Open your private report: ${reportUrl}`);
-    expect(message.text).toContain(
-      "See what is coming and join the waitlist: https://www.yovaapp.com/study-profile",
-    );
-
-    const waitlistLine = message.text.split("\n").find((line) => (
-      line.startsWith("YOVA is coming soon.")
-    ));
-    expect(waitlistLine).toBeDefined();
-    expect(waitlistLine).not.toContain("example-report-reference");
+    expect(message.text).toContain("If you did not request this report, you can ignore this email.");
+    expect(message.html).toContain("If you did not request this report, you can ignore this email.");
+    expect(message.text).not.toContain("waitlist");
+    expect(message.html).not.toContain("join the waitlist");
   });
 
   it("escapes every personalized HTML field and URL query value", () => {
@@ -152,6 +157,20 @@ describe("sendStudyProfileReportEmail", () => {
     });
   });
 
+  it("drops a report provider id that cannot fit the database receipt", async () => {
+    vi.stubEnv("RESEND_API_KEY", "re_test_secret");
+    vi.stubEnv("STUDY_PROFILE_FROM_EMAIL", "YOVA <study-profile@yovaapp.com>");
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(
+      JSON.stringify({ id: "x".repeat(201) }),
+      { status: 200, headers: { "Content-Type": "application/json" } },
+    )));
+
+    await expect(sendStudyProfileReportEmail(input)).resolves.toEqual({
+      status: "sent",
+      provider: "resend",
+    });
+  });
+
   it("aborts a stalled provider request after the delivery timeout", async () => {
     vi.useFakeTimers();
     vi.stubEnv("RESEND_API_KEY", "re_test_secret");
@@ -174,5 +193,69 @@ describe("sendStudyProfileReportEmail", () => {
     });
     const [, request] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(request.signal?.aborted).toBe(true);
+  });
+});
+
+describe("Study Profile waitlist confirmation email", () => {
+  it("uses a fragment token and makes the confirmation button step explicit", () => {
+    const message = buildStudyProfileWaitlistConfirmationEmail(confirmationInput);
+
+    expect(message.subject).toBe("Confirm your place on the YOVA waitlist");
+    expect(message.html).toContain(`href="${confirmationInput.confirmationUrl}"`);
+    expect(message.text).toContain("Then select Confirm my place.");
+    expect(message.text).toContain("Opening the link alone will not join the waitlist.");
+    expect(message.text).toContain("expires in 24 hours");
+    const url = new URL(confirmationInput.confirmationUrl);
+    expect(url.search).toBe("");
+    expect(url.hash).toMatch(/^#token=[A-Za-z0-9_-]{43}$/);
+  });
+
+  it("sends with a confirmation-id idempotency key", async () => {
+    vi.stubEnv("RESEND_API_KEY", "re_test_secret");
+    vi.stubEnv("STUDY_PROFILE_FROM_EMAIL", "YOVA <study-profile@yovaapp.com>");
+    const fetchMock = vi.fn().mockResolvedValue(new Response(
+      JSON.stringify({ id: "email_confirmation_123" }),
+      { status: 200, headers: { "Content-Type": "application/json" } },
+    ));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(sendStudyProfileWaitlistConfirmationEmail(confirmationInput))
+      .resolves.toEqual({
+        status: "sent",
+        provider: "resend",
+        providerMessageId: "email_confirmation_123",
+      });
+
+    const [, request] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(request.headers).toMatchObject({
+      "Idempotency-Key": `study-profile-waitlist-confirmation/${confirmationInput.confirmationId}`,
+    });
+    expect(String((request.headers as Record<string, string>)["Idempotency-Key"]))
+      .not.toContain("a".repeat(43));
+  });
+
+  it("drops a confirmation provider id that cannot fit the database receipt", async () => {
+    vi.stubEnv("RESEND_API_KEY", "re_test_secret");
+    vi.stubEnv("STUDY_PROFILE_FROM_EMAIL", "YOVA <study-profile@yovaapp.com>");
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(
+      JSON.stringify({ id: "x".repeat(201) }),
+      { status: 200, headers: { "Content-Type": "application/json" } },
+    )));
+
+    await expect(sendStudyProfileWaitlistConfirmationEmail(confirmationInput))
+      .resolves.toEqual({ status: "sent", provider: "resend" });
+  });
+
+  it("rejects a query-string token and never calls Resend", async () => {
+    vi.stubEnv("RESEND_API_KEY", "re_test_secret");
+    vi.stubEnv("STUDY_PROFILE_FROM_EMAIL", "YOVA <study-profile@yovaapp.com>");
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(sendStudyProfileWaitlistConfirmationEmail({
+      ...confirmationInput,
+      confirmationUrl: `https://www.yovaapp.com/study-profile/waitlist/confirm?token=${"a".repeat(43)}`,
+    })).resolves.toEqual({ status: "failed", reason: "invalid_input" });
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

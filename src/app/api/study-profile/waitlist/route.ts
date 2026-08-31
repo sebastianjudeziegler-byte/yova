@@ -7,8 +7,14 @@ import {
 } from "@/lib/study-profile/request-security";
 import {
   StudyProfilePersistenceUnavailableError,
+  generateStudyProfileReportToken,
   getStudyProfileRepository,
+  hashStudyProfileReportToken,
 } from "@/lib/study-profile/repository";
+import {
+  deliverStudyProfileWaitlistConfirmation,
+  waitForStudyProfileWaitlistPublicResponseFloor,
+} from "@/lib/study-profile/waitlist-confirmation";
 import {
   checkStudyProfileWaitlistRateLimit,
   requestRateLimitKey,
@@ -39,7 +45,7 @@ export async function POST(request: Request) {
 
   const parsed = StudyProfileLandingWaitlistRequestSchema.safeParse(body.value);
   if (!parsed.success) {
-    return jsonError("Add a valid email and confirm that you want to join the waitlist.", 422);
+    return jsonError("Add a valid email, confirm that you want to join, and confirm that you are 13 or older.", 422);
   }
 
   const emailLimit = checkStudyProfileWaitlistRateLimit(`email:${parsed.data.email}`);
@@ -50,13 +56,34 @@ export async function POST(request: Request) {
   }
 
   try {
-    const state = await getStudyProfileRepository().joinWaitlistByEmail({
+    const repository = getStudyProfileRepository();
+    const confirmationToken = generateStudyProfileReportToken();
+    const state = await repository.requestWaitlistConfirmationByEmail({
       email: parsed.data.email,
       visitorId: parsed.data.visitorId,
+      confirmationTokenHash: hashStudyProfileReportToken(confirmationToken),
       attribution: parsed.data.attribution,
     });
-    if (!state.waitlistJoined) throw new Error("Waitlist update did not return a joined state.");
-    return NextResponse.json({ waitlistJoined: true }, {
+    const publicResponseStartedAt = Date.now();
+    try {
+      await deliverStudyProfileWaitlistConfirmation(
+        repository,
+        state,
+        confirmationToken,
+      );
+    } catch (error) {
+      // Provider and post-reservation bookkeeping failures do not change the
+      // generic public receipt. Log only the error class, never recipient data.
+      console.error(
+        "Study Profile landing confirmation delivery failed.",
+        error instanceof Error ? error.name : "UnknownError",
+      );
+    }
+    await waitForStudyProfileWaitlistPublicResponseFloor(publicResponseStartedAt);
+    // The public landing route never reveals whether an address is confirmed,
+    // pending, cooling down, or capped. Those outcomes are intentionally
+    // indistinguishable to prevent recipient membership enumeration.
+    return NextResponse.json(maskedPendingResponse(), {
       headers: { "Cache-Control": "no-store" },
     });
   } catch (error) {
@@ -69,6 +96,15 @@ export async function POST(request: Request) {
     );
     return jsonError("YOVA could not add you to the waitlist. Try again.", 500);
   }
+}
+
+function maskedPendingResponse() {
+  return {
+    waitlistJoined: false,
+    confirmationPending: true,
+    dailyCapReached: false,
+    retryAfterSeconds: 0,
+  };
 }
 
 function jsonError(message: string, status: number, headers?: HeadersInit) {

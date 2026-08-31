@@ -36,6 +36,9 @@ describe("public crawler metadata routes", () => {
     expect(robots()).toMatchObject({
       host: "https://www.yovaapp.com",
       sitemap: "https://www.yovaapp.com/sitemap.xml",
+      rules: {
+        disallow: ["/api/", "/auth/"],
+      },
     });
   });
 });

@@ -14,6 +14,15 @@ const mocks = vi.hoisted(() => ({
     expandedMethodAgencyBoundary: true,
   } as Record<string, unknown> | null,
   generationReadinessError: null as { code: string } | null,
+  studyProfileReadiness: {
+    contractVersion: "202608310002",
+    ready: true,
+    pendingConfirmationColumns: true,
+    confirmationRpcs: true,
+    reportEmailCooldown: true,
+    serviceRoleBoundary: true,
+  } as Record<string, unknown> | null,
+  studyProfileReadinessError: null as { code: string } | null,
   publicConfig: {
     url: "https://project.supabase.co",
     publishableKey: "sb_publishable_test",
@@ -36,10 +45,15 @@ vi.mock("@/lib/supabase/admin", () => ({
     from: () => ({
       select: async () => ({ error: mocks.invitationTableError }),
     }),
-    rpc: async () => ({
-      data: mocks.generationReadiness,
-      error: mocks.generationReadinessError,
-    }),
+    rpc: async (name: string) => name === "study_profile_public_readiness_v1"
+      ? {
+          data: mocks.studyProfileReadiness,
+          error: mocks.studyProfileReadinessError,
+        }
+      : {
+          data: mocks.generationReadiness,
+          error: mocks.generationReadinessError,
+        },
   }),
 }));
 
@@ -58,6 +72,15 @@ describe("system status tester-access readiness", () => {
       expandedMethodAgencyBoundary: true,
     };
     mocks.generationReadinessError = null;
+    mocks.studyProfileReadiness = {
+      contractVersion: "202608310002",
+      ready: true,
+      pendingConfirmationColumns: true,
+      confirmationRpcs: true,
+      reportEmailCooldown: true,
+      serviceRoleBoundary: true,
+    };
+    mocks.studyProfileReadinessError = null;
     mocks.publicConfig = {
       url: "https://project.supabase.co",
       publishableKey: "sb_publishable_test",
@@ -73,6 +96,8 @@ describe("system status tester-access readiness", () => {
     vi.stubEnv("AUTH_CAPTCHA_ENABLED", "false");
     vi.stubEnv("NEXT_PUBLIC_TURNSTILE_SITE_KEY", "");
     vi.stubEnv("YOVA_PERSONALIZATION_ROLLOUT_PERCENT", "0");
+    vi.stubEnv("RESEND_API_KEY", "re_system_status_test_key");
+    vi.stubEnv("STUDY_PROFILE_FROM_EMAIL", "YOVA <reports@updates.yovaapp.com>");
     vi.stubEnv("CRON_SECRET", "cron-secret-that-is-at-least-thirty-two-characters");
     vi.stubEnv(
       "YOVA_DRAFT_RECEIPT_SECRET",
@@ -99,12 +124,39 @@ describe("system status tester-access readiness", () => {
         status: "baseline",
         percent: 0,
       },
+      studyProfilePublic: "ready",
+      studyProfileEmail: "resend",
     });
     expect(status).not.toHaveProperty("supabasePublishableKey");
     expect(mocks.settingsFetch).toHaveBeenCalledWith(
       "https://project.supabase.co/auth/v1/settings",
       expect.objectContaining({ headers: { apikey: "sb_publishable_test" } }),
     );
+  });
+
+  it("reports transactional Study Profile email unavailable when Resend is incomplete", async () => {
+    vi.stubEnv("RESEND_API_KEY", "");
+    expect((await (await GET()).json()).studyProfileEmail).toBe("unavailable");
+
+    vi.stubEnv("RESEND_API_KEY", "re_system_status_test_key");
+    vi.stubEnv("STUDY_PROFILE_FROM_EMAIL", "not-an-address");
+    expect((await (await GET()).json()).studyProfileEmail).toBe("unavailable");
+  });
+
+  it("fails the public Study Profile signal when double opt-in or cooldown protection is missing", async () => {
+    mocks.studyProfileReadinessError = { code: "PGRST202" };
+    expect((await (await GET()).json()).studyProfilePublic).toBe("unavailable");
+
+    mocks.studyProfileReadinessError = null;
+    mocks.studyProfileReadiness = {
+      contractVersion: "202608310002",
+      ready: false,
+      pendingConfirmationColumns: true,
+      confirmationRpcs: true,
+      reportEmailCooldown: false,
+      serviceRoleBoundary: true,
+    };
+    expect((await (await GET()).json()).studyProfilePublic).toBe("unavailable");
   });
 
   it("fails the signed-in generation signal when its secret or database contract is missing", async () => {

@@ -1,6 +1,9 @@
 export const SIGNED_IN_GENERATION_CONTRACT_VERSION = "202608300003";
 
 const PROBE_RPC = "signed_in_generation_readiness_v2";
+export const STUDY_PROFILE_PUBLIC_CONTRACT_VERSION = "202608310002";
+
+const STUDY_PROFILE_PROBE_RPC = "study_profile_public_readiness_v1";
 
 export async function probeSignedInGenerationDatabase({
   supabaseUrl,
@@ -83,6 +86,90 @@ export async function probeSignedInGenerationDatabase({
   return {
     passed: true,
     detail: `StudyRoute schema and RPC contract ${SIGNED_IN_GENERATION_CONTRACT_VERSION} is available`,
+  };
+}
+
+export async function probeStudyProfilePublicDatabase({
+  supabaseUrl,
+  supabaseSecretKey,
+  fetchImpl = fetch,
+  timeoutMs = 10_000,
+}) {
+  const endpoint = `${supabaseUrl.replace(/\/$/u, "")}/rest/v1/rpc/${STUDY_PROFILE_PROBE_RPC}`;
+  const headers = {
+    apikey: supabaseSecretKey,
+    "Content-Type": "application/json",
+    "User-Agent": "YOVA-release-readiness/1.0",
+    ...(isLegacyJwtKey(supabaseSecretKey)
+      ? { Authorization: `Bearer ${supabaseSecretKey}` }
+      : {}),
+  };
+
+  let response;
+  try {
+    response = await fetchImpl(endpoint, {
+      method: "POST",
+      headers,
+      body: "{}",
+      cache: "no-store",
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+  } catch {
+    return {
+      passed: false,
+      detail: "could not reach the configured Supabase project for the Study Profile capability probe",
+    };
+  }
+
+  const payload = await response.json().catch(() => null);
+  if (!response.ok) {
+    const missingProbe = response.status === 404
+      || readString(payload, "code") === "PGRST202";
+    return {
+      passed: false,
+      detail: missingProbe
+        ? `missing Study Profile readiness RPC; apply migration ${STUDY_PROFILE_PUBLIC_CONTRACT_VERSION} after all earlier migrations`
+        : `Study Profile capability probe returned HTTP ${response.status}`,
+    };
+  }
+
+  if (!isRecord(payload)) {
+    return {
+      passed: false,
+      detail: "Study Profile capability probe returned an invalid response",
+    };
+  }
+
+  if (payload.contractVersion !== STUDY_PROFILE_PUBLIC_CONTRACT_VERSION) {
+    return {
+      passed: false,
+      detail: "Study Profile database readiness contract is stale for this application release",
+    };
+  }
+
+  const completeContract = payload.ready === true
+    && payload.pendingConfirmationColumns === true
+    && payload.confirmationRpcs === true
+    && payload.reportEmailCooldown === true
+    && payload.serviceRoleBoundary === true;
+  if (!completeContract) {
+    const missing = [
+      ["pendingConfirmationColumns", "pending-confirmation columns"],
+      ["confirmationRpcs", "double-opt-in RPCs"],
+      ["reportEmailCooldown", "report-email cooldown"],
+      ["serviceRoleBoundary", "service-role-only boundary"],
+    ]
+      .filter(([key]) => payload[key] !== true)
+      .map(([, label]) => label);
+    return {
+      passed: false,
+      detail: `Study Profile database is missing ${missing.join(", ") || "required public-funnel capabilities"}`,
+    };
+  }
+
+  return {
+    passed: true,
+    detail: `double opt-in and abuse controls ${STUDY_PROFILE_PUBLIC_CONTRACT_VERSION} are available`,
   };
 }
 

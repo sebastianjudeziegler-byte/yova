@@ -56,22 +56,13 @@ export default async function StudyProfileReportPage({
     );
   }
 
-  try {
-    await loaded.repository.recordEvent({
-      responseId: loaded.saved.storedResponse.id,
-      eventName: "study_profile_report_viewed",
-      eventData: { scoringRevision: loaded.saved.report.scoringRevision },
-    });
-  } catch {
-    // Analytics failures never prevent a private report from rendering.
-  }
-
   return (
     <StudyProfileReportView
       storedResponse={toStudyProfilePublicStoredResponse(loaded.saved.storedResponse)}
       report={loaded.saved.report}
       reportToken={token.data}
       initialWaitlistJoined={loaded.saved.waitlistJoined}
+      initialWaitlistConfirmationPending={loaded.saved.confirmationPending}
     />
   );
 }
