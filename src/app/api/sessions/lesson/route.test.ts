@@ -92,7 +92,6 @@ describe("streamed lesson route recovery", () => {
       onDelta("A partial provider explanation that does not finish.");
       throw new StreamedLessonGenerationError("Runtime deadline reached", {
         failureKind: "runtime_timeout",
-        providerMessage: null,
         model: "configured-lesson-model",
         responseId: null,
         inputTokens: 120,
@@ -130,7 +129,6 @@ describe("streamed lesson route recovery", () => {
       onDelta("Alliance obligations are important. This answer is much too thin for the planned lesson.");
       throw new StreamedLessonGenerationError("Lesson below substance threshold", {
         failureKind: "content_below_substance_threshold",
-        providerMessage: null,
         model: "configured-lesson-model",
         responseId: "response-thin",
         inputTokens: 100,
@@ -161,6 +159,54 @@ describe("streamed lesson route recovery", () => {
     expect(runtime.content).not.toContain("much too thin");
   });
 
+  it("keeps raw provider and learner-bearing error text out of logs and persisted telemetry", async () => {
+    const privateFailureText = "Provider echoed the learner's private membrane misconception.";
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    mocks.streamGeneratedLessonWithRetry.mockRejectedValue(new StreamedLessonGenerationError(
+      privateFailureText,
+      {
+        failureKind: "provider_failed",
+        model: "configured-lesson-model",
+        responseId: "private-provider-response-id",
+        inputTokens: 170,
+        cachedInputTokens: 20,
+        outputTokens: 60,
+        latencyToFirstTokenMs: 90,
+        elapsedMs: 900,
+        wordCount: 24,
+      },
+      {
+        attemptsMade: 2,
+        initialFailureKind: "provider_request_error",
+      },
+    ));
+
+    const response = await POST(lessonRequest());
+    expect(response.body).not.toBeNull();
+    await consumeLessonEventStream(response.body!, () => undefined);
+
+    const logged = JSON.stringify(consoleError.mock.calls);
+    const observed = JSON.stringify(mocks.recordObservation.mock.calls);
+    expect(logged).not.toContain(privateFailureText);
+    expect(logged).not.toContain("private-provider-response-id");
+    expect(observed).not.toContain(privateFailureText);
+    expect(observed).not.toContain("private-provider-response-id");
+    expect(mocks.recordObservation).toHaveBeenCalledWith(
+      null,
+      undefined,
+      expect.objectContaining({
+        finalOutcome: "fallback",
+        attempts: 2,
+        inputTokens: 170,
+        cachedInputTokens: 20,
+        outputTokens: 60,
+        diagnostics: expect.objectContaining({
+          lessonFailureKind: "provider_failed",
+        }),
+      }),
+    );
+  });
+
   it("caps legacy cached lesson ideas to the activity's real teaching time", async () => {
     mocks.streamGeneratedLessonWithRetry.mockResolvedValue({
       attempts: 1,
@@ -169,7 +215,7 @@ describe("streamed lesson route recovery", () => {
         responseId: "response-1",
         content: "A short but complete lesson body used by this test.",
         truncatedToBudget: false,
-        substanceNote: null,
+        qualityNote: null,
         inputTokens: 100,
         cachedInputTokens: 0,
         outputTokens: 70,
@@ -400,7 +446,6 @@ describe("streamed lesson route recovery", () => {
       "Provider failed",
       {
         failureKind: "provider_request_error",
-        providerMessage: null,
         model: "configured-lesson-model",
         responseId: null,
         inputTokens: 0,
@@ -460,7 +505,7 @@ describe("streamed lesson route recovery", () => {
         responseId: "response-1",
         content: "A short but complete lesson body used by this test.",
         truncatedToBudget: false,
-        substanceNote: null,
+        qualityNote: null,
         inputTokens: 100,
         cachedInputTokens: 0,
         outputTokens: 70,
@@ -519,7 +564,7 @@ describe("streamed lesson route recovery", () => {
         responseId: "response-1",
         content: "A short but complete lesson body used by this test.",
         truncatedToBudget: false,
-        substanceNote: null,
+        qualityNote: null,
         inputTokens: 100,
         cachedInputTokens: 0,
         outputTokens: 70,

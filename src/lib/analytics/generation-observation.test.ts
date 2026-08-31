@@ -191,6 +191,35 @@ describe("GenerationObservationSchema", () => {
     }).success).toBe(true);
   });
 
+  it("rejects raw provider and learner-bearing lesson diagnostics", () => {
+    for (const diagnostics of [
+      { providerMessage: "The provider echoed the learner's private goal." },
+      { lessonSubstanceNote: "The lesson omitted the learner's private essential idea." },
+    ]) {
+      expect(GenerationObservationSchema.safeParse({
+        ...safeEvent,
+        generationType: "lesson",
+        diagnostics,
+      }).success).toBe(false);
+    }
+
+    expect(GenerationObservationSchema.safeParse({
+      ...safeEvent,
+      generationType: "lesson",
+      diagnostics: {
+        lessonTruncatedToBudget: true,
+        lessonQualityNote: "slightly_below_word_floor",
+      },
+    }).success).toBe(true);
+    expect(GenerationObservationSchema.safeParse({
+      ...safeEvent,
+      generationType: "lesson",
+      diagnostics: {
+        lessonQualityNote: "missing the learner's private osmosis target",
+      },
+    }).success).toBe(false);
+  });
+
   it("accepts a bounded lesson failure kind but rejects free-form failure detail", () => {
     expect(GenerationObservationSchema.safeParse({
       ...safeEvent,

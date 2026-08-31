@@ -169,8 +169,7 @@ export const GenerationObservationSchema = z.object({
     wordCount: z.number().int().min(0).max(20_000).optional(),
     streamCompleted: z.boolean().optional(),
     lessonTruncatedToBudget: z.boolean().optional(),
-    lessonSubstanceNote: z.string().trim().min(1).max(240).optional(),
-    providerMessage: z.string().trim().min(1).max(240).optional(),
+    lessonQualityNote: z.enum(["slightly_below_word_floor"]).optional(),
     lessonFailureKind: z.enum([
       "provider_failed",
       "provider_incomplete",
