@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import type { LearningPlan } from "@/lib/domain";
 import { selectCanonicalStudyMethod } from "@/lib/learning/canonical-method-selection";
 import {
-  CORE_METHOD_CATALOG,
   METHOD_PRESENTATION_POLICY_VERSION,
   type CoreMethodId,
 } from "@/lib/learning/method-catalog";
