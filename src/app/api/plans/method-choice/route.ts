@@ -16,6 +16,10 @@ import {
   DraftMethodChoiceError,
   reviseDraftSessionMethod,
 } from "@/lib/study-route/draft-method-choice";
+import {
+  resolveBoundedOtherMethodRequest,
+  type AgencyMethodRequestResolution,
+} from "@/lib/study-route/agency-mode-controller";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -24,8 +28,9 @@ export const runtime = "nodejs";
 /**
  * Deterministically revises one still-provisional method recipe. This route
  * never calls the planning model: it verifies the exact current draft,
- * accepts only a currently offered alternative, and authenticates the whole
- * replacement draft before returning it to the browser.
+ * accepts an exact stored alternative or an I'll Customize method from that
+ * route's immutable eligible cohort, and authenticates the whole replacement
+ * draft before returning it to the browser.
  */
 export async function POST(request: Request) {
   const requestId = crypto.randomUUID();
@@ -95,9 +100,45 @@ export async function POST(request: Request) {
   }
 
   try {
+    let methodRequestResolution: AgencyMethodRequestResolution | null = null;
+    let methodId = selection.data.methodId;
+    if (selection.data.choiceScope === "other_eligible_method") {
+      const selectedSession = draft.data.plan.sessions.find((session) => (
+        session.id === selection.data.sessionId
+      ));
+      if (!selectedSession?.studyRoute) {
+        throw new DraftMethodChoiceError(
+          "route_required",
+          "Other methods requires the exact provisional StudyRoute.",
+        );
+      }
+      try {
+        methodRequestResolution = resolveBoundedOtherMethodRequest({
+          route: selectedSession.studyRoute,
+          requestedMethod: selection.data.requestedMethod!,
+        });
+      } catch {
+        throw new DraftMethodChoiceError(
+          "method_not_offered",
+          "The requested Other method could not be mapped inside this route's eligible set.",
+        );
+      }
+      methodId = methodRequestResolution.selectedMethodId;
+    }
+    if (!methodId) {
+      throw new DraftMethodChoiceError(
+        "method_not_offered",
+        "A draft method choice requires one authorized method.",
+      );
+    }
     const revision = reviseDraftSessionMethod({
       plan: draft.data.plan,
-      selection: selection.data,
+      selection: {
+        sessionId: selection.data.sessionId,
+        expectedRouteRevisionId: selection.data.expectedRouteRevisionId,
+        methodId,
+        choiceScope: selection.data.choiceScope ?? "stored_alternative",
+      },
       changedAt: new Date().toISOString(),
     });
 
@@ -126,6 +167,7 @@ export async function POST(request: Request) {
       plan: revision.plan,
       draftReceipt: draftReceipt ?? null,
       revision: { status: revision.status, requestId },
+      ...(methodRequestResolution ? { methodRequestResolution } : {}),
     });
     return NextResponse.json(response, {
       headers: responseHeaders(requestId),

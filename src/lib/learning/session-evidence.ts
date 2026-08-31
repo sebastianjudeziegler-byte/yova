@@ -5,6 +5,10 @@ import type {
   SessionEvidenceSnapshot,
 } from "@/lib/domain";
 import type { RuntimeRepairSupport } from "@/lib/session-repair/schema";
+import {
+  conceptEvidenceMayUpdateLearningState,
+  learningStateConceptEvidence,
+} from "@/lib/learning/concept-evidence";
 
 export type GuidedSessionStep = {
   topicId?: string | null;
@@ -42,6 +46,7 @@ export function summarizeCompletionConcepts(
   const concepts = new Map<string, { label: string; needsReview: boolean }>();
 
   for (const item of evidence) {
+    if (!conceptEvidenceMayUpdateLearningState(item)) continue;
     const key = item.concept.trim().toLocaleLowerCase();
     if (!key) continue;
     concepts.set(key, {
@@ -76,6 +81,10 @@ export function summarizeSessionEvidence(
       ? recordedAttempts
       : outcome === undefined ? [] : [outcome];
     if (attemptOutcomes.length === 0 || !isKnowledgeCheck(step)) return;
+    // Pretesting exposes a prediction before instruction. It is required
+    // method work, but neither a correct guess nor a miss may become mastery,
+    // gap, calibration, or method-outcome evidence.
+    if (step.methodPhase === "pretest") return;
     const finalOutcome = attemptOutcomes.at(-1)!;
 
     if (step.evidenceRole === "immediate_repair") {
@@ -139,7 +148,9 @@ export function mergeSessionEvidenceSummaries(
   ...summaries: Array<SessionEvidenceSummary | null | undefined>
 ): SessionEvidenceSummary {
   const present = summaries.filter((summary): summary is SessionEvidenceSummary => Boolean(summary));
-  const conceptEvidence = present.flatMap((summary) => summary.conceptEvidence);
+  const conceptEvidence = learningStateConceptEvidence(
+    present.flatMap((summary) => summary.conceptEvidence),
+  );
   return {
     correctAnswers: present.reduce((sum, summary) => sum + summary.correctAnswers, 0),
     totalAnswers: present.reduce((sum, summary) => sum + summary.totalAnswers, 0),
@@ -178,6 +189,7 @@ export function buildImmediateRepairSteps(
       || !step.concept
       || !step.correctAnswer
       || step.evidenceRole === "immediate_repair"
+      || step.methodPhase === "pretest"
       || missedConcepts.has(step.concept.toLocaleLowerCase())
       || missedConcepts.size >= maximumRepairs
     ) return [];
@@ -215,6 +227,7 @@ export function buildImmediateRepairAfterMiss(
     !current
     || outcomes[currentIndex] !== false
     || current.evidenceRole === "immediate_repair"
+    || current.methodPhase === "pretest"
     || !isKnowledgeCheck(current)
   ) return null;
 

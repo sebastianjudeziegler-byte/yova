@@ -38,7 +38,9 @@ import {
   SESSION_GENERATION_SERVER_BUDGET_MS,
   SESSION_GENERATION_SETTLEMENT_RESERVE_MS,
   SessionGenerationFailure,
+  type SessionGenerationCause,
   type SessionGenerationContext,
+  type SessionGenerationStage,
   type SessionGenerationStats,
 } from "@/lib/openai/session-generator";
 import {
@@ -158,6 +160,29 @@ export async function POST(request: Request) {
   if (developmentPreview || !supabase || !user) {
     return generateBrowserPreviewSession(request, normalizedInput, requestId, startedAt);
   }
+  const recordSignedInPreflightFailure = (
+    cause: SessionGenerationCause,
+    planSessionId = parsed.data.planSessionId,
+  ) => {
+    const stats: SessionGenerationStats = {
+      ...emptyGenerationStats(),
+      elapsedMs: Date.now() - startedAt,
+      stage: "preflight",
+      cause,
+    };
+    recordGenerationObservationBestEffort(
+      supabase,
+      user.id,
+      observationFromSessionStats(
+        stats,
+        null,
+        "failure",
+        requestId,
+        planSessionId,
+      ),
+    );
+    return stats;
+  };
 
   const { data: planSession, error: sessionError } = await supabase
     .from("plan_sessions")
@@ -167,22 +192,34 @@ export async function POST(request: Request) {
     .maybeSingle();
 
   if (sessionError) {
-    return NextResponse.json({ error: "YOVA could not load this plan session." }, { status: 500 });
+    const failureStats = recordSignedInPreflightFailure("unexpected");
+    return NextResponse.json(
+      { error: "YOVA could not load this plan session." },
+      { status: 500, headers: responseHeaders(requestId, failureStats) },
+    );
   }
   if (!planSession || planSession.plan_id !== parsed.data.planId) {
-    return NextResponse.json({ error: "That guided session was not found." }, { status: 404 });
+    const failureStats = recordSignedInPreflightFailure("authorization");
+    return NextResponse.json(
+      { error: "That guided session was not found." },
+      { status: 404, headers: responseHeaders(requestId, failureStats) },
+    );
   }
+  const recordPreflightFailure = (cause: SessionGenerationCause) => (
+    recordSignedInPreflightFailure(cause, planSession.id)
+  );
   const committedRouteRevisionId = typeof planSession.committed_route_revision_id === "string"
     ? planSession.committed_route_revision_id
     : null;
   if (committedRouteRevisionId !== (normalizedInput.routeRevisionId ?? null)) {
+    const failureStats = recordPreflightFailure("route_conflict");
     return NextResponse.json({
       code: "study_route_revision_conflict",
       error: "This session's study route changed. Return to setup and use the current plan.",
       retryable: false,
     }, {
       status: 409,
-      headers: responseHeaders(requestId),
+      headers: responseHeaders(requestId, failureStats),
     });
   }
   let committedStudyRoute: StudyRoute | null = null;
@@ -197,9 +234,10 @@ export async function POST(request: Request) {
       .eq("lifecycle", "committed")
       .maybeSingle();
     if (routeError) {
+      const failureStats = recordPreflightFailure("route_conflict");
       return NextResponse.json(
         { error: "YOVA could not load this session's committed study route." },
-        { status: 500, headers: responseHeaders(requestId) },
+        { status: 500, headers: responseHeaders(requestId, failureStats) },
       );
     }
     committedStudyRoute = routeRow
@@ -212,13 +250,14 @@ export async function POST(request: Request) {
       || committedStudyRoute.identity.sessionId !== planSession.id
       || committedStudyRoute.identity.lifecycleStatus !== "committed"
     ) {
+      const failureStats = recordPreflightFailure("route_conflict");
       return NextResponse.json({
         code: "study_route_payload_unavailable",
         error: "This session's committed study route is unavailable. Rebuild the plan before starting it.",
         retryable: false,
       }, {
         status: 409,
-        headers: responseHeaders(requestId),
+        headers: responseHeaders(requestId, failureStats),
       });
     }
   }
@@ -231,6 +270,7 @@ export async function POST(request: Request) {
     },
   );
   if (blurtingGenerationContract) {
+    recordPreflightFailure("route_conflict");
     return blurtingRuntimeUnavailableResponse(requestId);
   }
   const reviewType = readReviewType(planSession.step_data);
@@ -239,17 +279,22 @@ export async function POST(request: Request) {
     sessionAdjustment,
   );
   if (scheduledAdjustmentIssue) {
+    const failureStats = recordPreflightFailure("route_conflict");
     return NextResponse.json({
       code: "scheduled_review_adjustment_not_supported",
       error: scheduledAdjustmentIssue,
       retryable: false,
     }, {
       status: 409,
-      headers: responseHeaders(requestId),
+      headers: responseHeaders(requestId, failureStats),
     });
   }
 
   let aiUsageClaimId: string | null = null;
+  let completedGeneration: {
+    model: string;
+    generationStats: SessionGenerationStats;
+  } | null = null;
   try {
     const [{ data: plan, error: planError }, { data: learnerProfile, error: learnerError }, { data: planSessionRows, error: planSessionsError }] = await Promise.all([
       supabase
@@ -272,7 +317,13 @@ export async function POST(request: Request) {
     ]);
 
     if (planError || learnerError || planSessionsError) throw planError ?? learnerError ?? planSessionsError;
-    if (!plan) return NextResponse.json({ error: "That learning plan was not found." }, { status: 404 });
+    if (!plan) {
+      const failureStats = recordPreflightFailure("authorization");
+      return NextResponse.json(
+        { error: "That learning plan was not found." },
+        { status: 404, headers: responseHeaders(requestId, failureStats) },
+      );
+    }
     const operationAccess = classifyOperationalPlanSession({
       requestedPlanId: parsed.data.planId,
       sessionPlanId: planSession.plan_id,
@@ -281,7 +332,11 @@ export async function POST(request: Request) {
     });
     if (!operationAccess.allowed) {
       const failure = sessionOperationFailure(operationAccess);
-      return NextResponse.json({ error: failure.error }, { status: failure.status });
+      const failureStats = recordPreflightFailure("authorization");
+      return NextResponse.json(
+        { error: failure.error },
+        { status: failure.status, headers: responseHeaders(requestId, failureStats) },
+      );
     }
 
     const [
@@ -318,13 +373,20 @@ export async function POST(request: Request) {
         sources: personalizationHistory.degradedSources,
       });
     }
-    if (!learningItem) return NextResponse.json({ error: "That learning goal was not found." }, { status: 404 });
+    if (!learningItem) {
+      const failureStats = recordPreflightFailure("authorization");
+      return NextResponse.json(
+        { error: "That learning goal was not found." },
+        { status: 404, headers: responseHeaders(requestId, failureStats) },
+      );
+    }
 
     const parsedKnowledgeMap = PlanKnowledgeMapSchema.safeParse(plan.knowledge_map);
     if (!parsedKnowledgeMap.success) {
+      const failureStats = recordPreflightFailure("route_conflict");
       return NextResponse.json(
         { error: "This plan needs its topic map rebuilt before YOVA can prepare the session." },
-        { status: 409 },
+        { status: 409, headers: responseHeaders(requestId, failureStats) },
       );
     }
     const plannedTopicIds = committedStudyRoute
@@ -344,9 +406,10 @@ export async function POST(request: Request) {
       && explicitlySelectedTopics.every((topic, index) => topic.id === plannedTopicIds[index])
     );
     if (!exactExplicitTopicResolution) {
+      const failureStats = recordPreflightFailure("route_conflict");
       return NextResponse.json(
         { error: "This session's exact topic links changed. Rebuild the plan before starting it." },
-        { status: 409, headers: responseHeaders(requestId) },
+        { status: 409, headers: responseHeaders(requestId, failureStats) },
       );
     }
     const legacyReviewTopic = plannedTopicIds.length === 0
@@ -359,9 +422,10 @@ export async function POST(request: Request) {
       ? explicitlySelectedTopics
       : legacyReviewTopic ? [legacyReviewTopic] : [];
     if (selectedTopics.length === 0) {
+      const failureStats = recordPreflightFailure("route_conflict");
       return NextResponse.json(
         { error: "This session is not linked to a topic in the plan yet." },
-        { status: 409 },
+        { status: 409, headers: responseHeaders(requestId, failureStats) },
       );
     }
     const orderedChunkIds = Array.from(new Set(
@@ -378,9 +442,10 @@ export async function POST(request: Request) {
     const returnedChunkIds = new Set((chunkResult.data ?? []).map((chunk) => chunk.id));
     const missingChunkIds = orderedChunkIds.filter((chunkId) => !returnedChunkIds.has(chunkId));
     if (missingChunkIds.length > 0) {
+      const failureStats = recordPreflightFailure("source_unavailable");
       return NextResponse.json(
         { error: "YOVA could not retrieve all of the mapped source sections for this topic. Reprocess the material before starting this session." },
-        { status: 409 },
+        { status: 409, headers: responseHeaders(requestId, failureStats) },
       );
     }
     const materialExcerpts = buildTopicMaterialExcerpts({
@@ -389,9 +454,10 @@ export async function POST(request: Request) {
       orderedChunkIds,
     }).filter((excerpt) => excerpt.text.trim().length >= 12);
     if (orderedChunkIds.length > 0 && materialExcerpts.length !== orderedChunkIds.length) {
+      const failureStats = recordPreflightFailure("source_unavailable");
       return NextResponse.json(
         { error: "A mapped source section is empty. Reprocess the material before starting this session." },
-        { status: 409 },
+        { status: 409, headers: responseHeaders(requestId, failureStats) },
       );
     }
     // A topic with mapped chunks must use those exact chunks. AI-origin topics
@@ -404,13 +470,14 @@ export async function POST(request: Request) {
       selectedChunkMaterialIds: (chunkResult.data ?? []).map((chunk) => chunk.material_id),
     });
     if (routeSourceIssue) {
+      const failureStats = recordPreflightFailure("source_unavailable");
       return NextResponse.json({
         code: "study_route_source_conflict",
         error: `${routeSourceIssue} Rebuild the plan before starting it.`,
         retryable: false,
       }, {
         status: 409,
-        headers: responseHeaders(requestId),
+        headers: responseHeaders(requestId, failureStats),
       });
     }
 
@@ -551,6 +618,7 @@ export async function POST(request: Request) {
         diagnostics: {
           sessionRequestId: requestId,
           planSessionId: planSession.id,
+          sessionPersistence: "cache_hit",
         },
       });
       return NextResponse.json(SessionGenerationResponseSchema.parse({
@@ -561,14 +629,25 @@ export async function POST(request: Request) {
     }
 
     if (!isOpenAISessionConfigured()) {
-      return NextResponse.json({ error: "Live guided-session generation is not connected yet." }, { status: 503 });
+      const failureStats = recordPreflightFailure("provider_unconfigured");
+      return NextResponse.json(
+        { error: "Live guided-session generation is not connected yet." },
+        { status: 503, headers: responseHeaders(requestId, failureStats) },
+      );
     }
 
     const rateLimit = checkSessionGenerationRateLimit(`${user.id}:${requestRateLimitKey(request)}`);
     if (!rateLimit.allowed) {
+      const failureStats = recordPreflightFailure("rate_limit");
       return NextResponse.json(
         { error: "Too many sessions were generated at once. Wait a moment and try again." },
-        { status: 429, headers: { "Retry-After": String(rateLimit.retryAfterSeconds) } },
+        {
+          status: 429,
+          headers: {
+            ...responseHeaders(requestId, failureStats),
+            "Retry-After": String(rateLimit.retryAfterSeconds),
+          },
+        },
       );
     }
 
@@ -578,14 +657,16 @@ export async function POST(request: Request) {
       durableLimit = await reserveAIRequest(supabase, "session_generation", requestId, aiUsageRecoveryKey);
     } catch {
       await recoverUnknownGenerationReservation(supabase, requestId, aiUsageRecoveryKey);
+      const failureStats = recordPreflightFailure("unexpected");
       return NextResponse.json(
         { error: "YOVA paused before using OpenAI because it could not verify the account’s AI budget." },
-        { status: 503, headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId } },
+        { status: 503, headers: responseHeaders(requestId, failureStats) },
       );
     }
     if (!durableLimit.allowed) {
       const conflict = aiUsageReservationConflict(durableLimit);
       if (conflict) {
+        const failureStats = recordPreflightFailure("reservation_conflict");
         return NextResponse.json(
           {
             code: conflict.code,
@@ -595,23 +676,22 @@ export async function POST(request: Request) {
           {
             status: 409,
             headers: {
-              "Cache-Control": "no-store",
+              ...responseHeaders(requestId, failureStats),
               ...(conflict.retryAfterSeconds === null ? {} : {
                 "Retry-After": String(conflict.retryAfterSeconds),
               }),
-              "X-Yova-Request-Id": requestId,
             },
           },
         );
       }
+      const failureStats = recordPreflightFailure("quota_exhausted");
       return NextResponse.json(
         guidedSessionAllowanceExhaustedResponse(durableLimit.retryAfterSeconds),
         {
           status: 429,
           headers: {
-            "Cache-Control": "no-store",
+            ...responseHeaders(requestId, failureStats),
             ...guidedSessionAllowanceExhaustedHeaders(durableLimit.retryAfterSeconds),
-            "X-Yova-Request-Id": requestId,
           },
         },
       );
@@ -818,12 +898,29 @@ export async function POST(request: Request) {
       generationContext,
       sessionGenerationRuntime(request, startedAt),
     );
+    completedGeneration = generated;
     const routeContractIssue = generatedSessionStudyRouteIssue(
       generated.draft,
       committedStudyRoute,
     );
     if (routeContractIssue) {
+      const failureStats = sessionStatsAtStage(
+        generated.generationStats,
+        "validation",
+        "route_conflict",
+      );
       await releaseFailedGenerationClaim(supabase, aiUsageClaimId, requestId);
+      recordGenerationObservationBestEffort(
+        supabase,
+        user.id,
+        observationFromSessionStats(
+          failureStats,
+          generated.model,
+          "failure",
+          requestId,
+          planSession.id,
+        ),
+      );
       return NextResponse.json({
         code: "study_route_generation_conflict",
         error: "YOVA could not prepare content that matches this session's committed route. Nothing was saved or charged; try again.",
@@ -831,7 +928,7 @@ export async function POST(request: Request) {
         requestId,
       }, {
         status: 503,
-        headers: responseHeaders(requestId),
+        headers: responseHeaders(requestId, failureStats),
       });
     }
 
@@ -846,17 +943,28 @@ export async function POST(request: Request) {
       expectedSessionUpdatedAt: planSession.updated_at,
       expectedLearningItemUpdatedAt: learningItem.updated_at,
     };
-    let { error: cacheError } = await supabase.rpc("cache_generated_session", {
+    const { error: cacheError } = await supabase.rpc("cache_generated_session", {
       payload: cachePayload,
     });
-    if (cacheError && expectedCacheVersion === 17) {
-      ({ error: cacheError } = await supabase.rpc("cache_generated_session", {
-        payload: cachePayload,
-      }));
-    }
 
     if (sessionCacheFailureMustFailClosed(cacheError)) {
+      const failureStats = sessionStatsAtStage(
+        generated.generationStats,
+        "persistence",
+        "cache_conflict",
+      );
       await releaseFailedGenerationClaim(supabase, aiUsageClaimId, requestId);
+      recordGenerationObservationBestEffort(
+        supabase,
+        user.id,
+        observationFromSessionStats(
+          failureStats,
+          generated.model,
+          "failure",
+          requestId,
+          planSession.id,
+        ),
+      );
       return NextResponse.json(
         {
           error: "This learning session changed while YOVA was preparing it. Refresh and try again.",
@@ -864,7 +972,7 @@ export async function POST(request: Request) {
         },
         {
           status: 409,
-          headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId },
+          headers: responseHeaders(requestId, failureStats),
         },
       );
     }
@@ -873,7 +981,23 @@ export async function POST(request: Request) {
       cacheError
       && generatedSessionDefersStoredPlanTargets(cachedSession, plannedContentTargets)
     ) {
+      const failureStats = sessionStatsAtStage(
+        generated.generationStats,
+        "persistence",
+        "cache_write",
+      );
       await releaseFailedGenerationClaim(supabase, aiUsageClaimId, requestId);
+      recordGenerationObservationBestEffort(
+        supabase,
+        user.id,
+        observationFromSessionStats(
+          failureStats,
+          generated.model,
+          "failure",
+          requestId,
+          planSession.id,
+        ),
+      );
       return NextResponse.json(
         {
           code: "deferred_session_persistence_unavailable",
@@ -883,7 +1007,7 @@ export async function POST(request: Request) {
         },
         {
           status: 503,
-          headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId },
+          headers: responseHeaders(requestId, failureStats),
         },
       );
     }
@@ -895,12 +1019,28 @@ export async function POST(request: Request) {
       });
       if (!currentAccess.allowed) {
         const failure = sessionOperationFailure(currentAccess);
+        const failureStats = sessionStatsAtStage(
+          generated.generationStats,
+          "persistence",
+          "cache_conflict",
+        );
         await releaseFailedGenerationClaim(supabase, aiUsageClaimId, requestId);
+        recordGenerationObservationBestEffort(
+          supabase,
+          user.id,
+          observationFromSessionStats(
+            failureStats,
+            generated.model,
+            "failure",
+            requestId,
+            planSession.id,
+          ),
+        );
         return NextResponse.json(
           { error: failure.error, requestId },
           {
             status: failure.status,
-            headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId },
+            headers: responseHeaders(requestId, failureStats),
           },
         );
       }
@@ -912,7 +1052,10 @@ export async function POST(request: Request) {
       // route from this cloud cache. Unlike development preview, the signed-in
       // client does not resend the lesson skeleton, so a browser-only V17
       // response would open successfully and then fail on its first lesson.
-      throw new Error("YOVA could not safely store the streamed lesson before opening it.");
+      throw new SessionGenerationFailure(
+        "YOVA could not safely store the streamed lesson before opening it.",
+        sessionStatsAtStage(generated.generationStats, "persistence", "cache_write"),
+      );
     }
     const learnerResponse = NextResponse.json(SessionGenerationResponseSchema.parse({
       planSessionId: planSession.id,
@@ -933,15 +1076,19 @@ export async function POST(request: Request) {
     recordGenerationObservationBestEffort(supabase, user.id, observationFromSessionStats(
       generated.generationStats,
       generated.model,
-      "success",
+      generated.generationStats.degradedMode ? "fallback" : "success",
       requestId,
       planSession.id,
+      {
+        persistence: cacheError ? "browser_only" : "cloud_saved",
+        ...(cacheError ? { persistenceCause: "cache_write" as const } : {}),
+      },
     ));
 
     return learnerResponse;
   } catch (error) {
     await releaseFailedGenerationClaim(supabase, aiUsageClaimId, requestId);
-    const attemptedModel = getOpenAISessionConfig()?.model ?? null;
+    const attemptedModel = completedGeneration?.model ?? getOpenAISessionConfig()?.model ?? null;
     console.error("YOVA guided-session generation failed", {
       requestId,
       model: attemptedModel,
@@ -949,10 +1096,18 @@ export async function POST(request: Request) {
     });
     const stats = error instanceof SessionGenerationFailure
       ? error.generationStats
-      : {
+      : completedGeneration
+        ? sessionStatsAtStage(
+          completedGeneration.generationStats,
+          "persistence",
+          "unexpected",
+        )
+        : {
         ...emptyGenerationStats(),
         elapsedMs: Date.now() - startedAt,
         failedValidator: "session_provider_request" as const,
+        stage: "preflight" as const,
+        cause: "unexpected" as const,
       };
     recordGenerationObservationBestEffort(
       supabase,
@@ -972,7 +1127,7 @@ export async function POST(request: Request) {
         ),
         requestId,
       },
-      { status: 502, headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId } },
+      { status: 502, headers: responseHeaders(requestId, stats) },
     );
   }
 }
@@ -1199,13 +1354,25 @@ async function generateBrowserPreviewSession(
       ? generatedSessionStudyRouteIssue(generated.draft, committedStudyRoute)
       : null;
     if (routeContractIssue) {
+      const failureStats = sessionStatsAtStage(
+        generated.generationStats,
+        "validation",
+        "route_conflict",
+      );
+      console.error("YOVA browser guided-session route validation failed", {
+        requestId,
+        strategy: failureStats.strategy ?? "unknown",
+        stage: failureStats.stage,
+        cause: failureStats.cause,
+        attempts: failureStats.attempts,
+      });
       return NextResponse.json({
         code: "study_route_generation_conflict",
-        error: `YOVA did not produce the committed study route: ${routeContractIssue}`,
+        error: "YOVA did not produce the committed study route.",
         retryable: true,
       }, {
         status: 503,
-        headers: responseHeaders(requestId, generated.generationStats),
+        headers: responseHeaders(requestId, failureStats),
       });
     }
     const expectedCacheVersion = expectedSessionCacheVersion({
@@ -1243,6 +1410,9 @@ async function generateBrowserPreviewSession(
       generation: { mode: "openai", persistence: "browser" },
     }), { headers: responseHeaders(requestId, generated.generationStats) });
   } catch (error) {
+    const stats = error instanceof SessionGenerationFailure
+      ? error.generationStats
+      : undefined;
     console.error("YOVA browser guided-session generation failed", {
       requestId,
       ...privacySafeErrorDiagnostic(error),
@@ -1254,7 +1424,7 @@ async function generateBrowserPreviewSession(
         ),
         requestId,
       },
-      { status: 502, headers: responseHeaders(requestId) },
+      { status: 502, headers: responseHeaders(requestId, stats) },
     );
   }
 }
@@ -1275,9 +1445,20 @@ function responseHeaders(requestId: string, stats?: SessionGenerationStats) {
       "X-Yova-Generation-Ms": String(stats.elapsedMs),
       "X-Yova-Generation-Attempts": String(stats.attempts),
       "X-Yova-Prompt-Cache-Hit": String(stats.cachedInputTokens > 0),
+      ...(stats.strategy ? { "X-Yova-Generation-Strategy": stats.strategy } : {}),
+      ...(stats.stage ? { "X-Yova-Generation-Stage": stats.stage } : {}),
       ...(stats.recoveryMode ? { "X-Yova-Generation-Recovery": stats.recoveryMode.replaceAll("_", "-") } : {}),
+      ...(stats.degradedMode ? { "X-Yova-Generation-Fallback": stats.degradedMode.replaceAll("_", "-") } : {}),
     } : {}),
   };
+}
+
+function sessionStatsAtStage(
+  stats: SessionGenerationStats,
+  stage: SessionGenerationStage,
+  cause: SessionGenerationCause,
+): SessionGenerationStats {
+  return { ...stats, stage, cause };
 }
 
 function emptyGenerationStats(): SessionGenerationStats {
@@ -1316,14 +1497,34 @@ function emptySessionObservation(elapsedMs: number) {
 function observationFromSessionStats(
   stats: SessionGenerationStats,
   model: string | null,
-  finalOutcome: "success" | "failure",
+  finalOutcome: "success" | "fallback" | "failure",
   sessionRequestId: string,
   planSessionId: string,
+  persistence?: {
+    persistence: "cloud_saved" | "browser_only" | "failed";
+    persistenceCause?: "cache_conflict" | "cache_write";
+  },
 ) {
+  const resolvedPersistence = persistence ?? (stats.stage === "persistence"
+    ? {
+      persistence: "failed" as const,
+      ...(stats.cause === "cache_conflict" || stats.cause === "cache_write"
+        ? { persistenceCause: stats.cause }
+        : {}),
+    }
+    : undefined);
   const diagnostics = {
     sessionRequestId,
     planSessionId,
     ...(stats.recoveryMode ? { recoveryMode: stats.recoveryMode } : {}),
+    ...(stats.strategy ? { sessionGenerationStrategy: stats.strategy } : {}),
+    ...(stats.stage ? { sessionGenerationStage: stats.stage } : {}),
+    ...(stats.cause ? { sessionGenerationCause: stats.cause } : {}),
+    ...(stats.degradedMode ? { sessionFallbackMode: stats.degradedMode } : {}),
+    ...(resolvedPersistence ? { sessionPersistence: resolvedPersistence.persistence } : {}),
+    ...(resolvedPersistence?.persistenceCause
+      ? { sessionPersistenceCause: resolvedPersistence.persistenceCause }
+      : {}),
     ...(stats.validationIssueCode
       ? { sessionValidationIssueCode: stats.validationIssueCode }
       : {}),
@@ -1362,6 +1563,10 @@ function logSuccessfulGeneration(
     repairAttempted: stats.repairAttempted,
     repairReason: stats.repairReason,
     recoveryMode: stats.recoveryMode ?? "none",
+    degradedMode: stats.degradedMode ?? "none",
+    strategy: stats.strategy ?? "unknown",
+    stage: stats.stage ?? "complete",
+    cause: stats.cause ?? "none",
     validationIssueCode: stats.validationIssueCode ?? "none",
     ...(process.env.NODE_ENV === "development" ? { repairDetail: stats.repairDetail } : {}),
     inputTokens: stats.inputTokens,

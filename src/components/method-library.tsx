@@ -109,7 +109,7 @@ export function MethodLibrary({
         <div className="method-library-intro-icon" aria-hidden="true"><Sparkles size={20} /></div>
         <div>
           <span className="step-label">YOUR OPTIONS</span>
-          <h2 id="method-library-heading">Nine ways YOVA can help you study</h2>
+          <h2 id="method-library-heading">Twelve ways YOVA can help you study</h2>
           <p>Explore what each method is useful for and what you would actually do in a session.</p>
         </div>
         <div className="method-library-rule">

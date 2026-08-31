@@ -11,7 +11,23 @@ const generateStreamed = vi.hoisted(() => vi.fn(async (
 ) => {
   void context;
   void runtime;
-  return { kind: "streamed" };
+  return {
+    kind: "streamed",
+    generationStats: {
+      elapsedMs: 12,
+      attempts: 1,
+      firstAttemptPassed: true,
+      failedValidator: null,
+      repairAttempted: false,
+      repairSucceeded: null,
+      repairReason: "none" as const,
+      repairDetail: null,
+      inputTokens: 80,
+      cachedInputTokens: 0,
+      cacheWriteTokens: 0,
+      outputTokens: 120,
+    },
+  };
 }));
 
 vi.mock("server-only", () => ({}));

@@ -84,7 +84,7 @@ describe("OpenAI plan generation quality repair", () => {
     const result = await generatePlanWithOpenAI(request);
 
     expect(result.responseId).toBe("response-valid");
-    expect(result.draft.sessions[0].method).toBe("Self-explanation");
+    expect(result.draft.sessions[0].method).toBe("Feynman Technique");
     expect(result.draft.sessions[0].methodReason).toMatch(/YOVA selected it/i);
     expect(parseResponse).toHaveBeenCalledTimes(1);
     expect(parseResponse.mock.calls[0]?.[0]?.instructions).toMatch(/do not choose, name, or justify a learning method/i);

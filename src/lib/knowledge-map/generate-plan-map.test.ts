@@ -145,6 +145,45 @@ describe("plan knowledge-map generation", () => {
     expect(new RegExp(labelPattern!).test("Derivative rules for Calc Unit 3")).toBe(true);
   });
 
+  it("preserves both provider calls and token totals when scope-label repair fails", async () => {
+    parseResponse
+      .mockResolvedValueOnce(response({
+        scopeJudgment: {
+          band: "focused_skill",
+          label: "Product rule and",
+          minimumSessions: 2,
+          recommendedSessions: 3,
+          maximumSessions: 4,
+          minimumTeachingSessions: 1,
+          explanation: "The learner needs one explanation, guided application, and independent evidence.",
+        },
+        topics: [{
+          title: "The product rule",
+          description: "Differentiate a product by combining both factor derivatives correctly.",
+          subtopics: [],
+          prerequisiteTopicIndexes: [],
+          sourceMaterialTopicIds: [],
+        }],
+      }))
+      .mockResolvedValueOnce({
+        ...response({ label: "Product rule application" }),
+        status: "incomplete",
+      });
+    const { generatePlanKnowledgeMap } = await import("@/lib/knowledge-map/generate-plan-map");
+
+    await expect(generatePlanKnowledgeMap(baseRequest)).rejects.toMatchObject({
+      failedValidator: "knowledge_map_response_status",
+      model: "gpt-yova-map-test",
+      generationMetrics: {
+        attempts: 2,
+        inputTokens: 400,
+        outputTokens: 160,
+        firstAttemptPassed: false,
+        failedValidator: "knowledge_map_response_status",
+      },
+    });
+  });
+
   it("rejects a map that silently drops an uploaded material topic", async () => {
     const materialTopicId = "22222222-2222-4222-8222-222222222222";
     const materialRequest = PlanGenerationRequestSchema.parse({

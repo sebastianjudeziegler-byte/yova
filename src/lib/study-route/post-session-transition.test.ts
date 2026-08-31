@@ -4,7 +4,12 @@ import {
   prepareConceptReviewSessionStudyRoute,
   preparePostSessionStudyRouteTransition,
 } from "@/lib/study-route/post-session-transition";
+import { STUDY_ROUTE_AGENCY_MODE_CONTROLLER_VERSION } from "@/lib/study-route/agency-mode-controller";
 import { createCommittedInitialSessionStudyRoute } from "@/lib/study-route/session-route-creation";
+import {
+  StudyRouteSchema,
+  type StudyRouteControlMode,
+} from "@/lib/study-route/schema";
 
 const IDS = {
   plan: "11111111-1111-4111-8111-111111111111",
@@ -64,13 +69,12 @@ function basePlan(): LearningPlan {
   };
 }
 
-function routedPlan() {
+function routedPlan(controlMode: StudyRouteControlMode = "legacy_unknown") {
   const plan = basePlan();
   return {
     ...plan,
-    sessions: plan.sessions.map((current) => ({
-      ...current,
-      studyRoute: createCommittedInitialSessionStudyRoute({
+    sessions: plan.sessions.map((current) => {
+      const route = createCommittedInitialSessionStudyRoute({
         plan,
         session: current,
         now: CREATED_AT,
@@ -78,8 +82,18 @@ function routedPlan() {
           source: "plan_activation",
           reason: "The learner activated this planned session.",
         },
-      }),
-    })),
+      });
+      return {
+        ...current,
+        studyRoute: StudyRouteSchema.parse({
+          ...route,
+          agency: {
+            ...route.agency,
+            controlMode,
+          },
+        }),
+      };
+    }),
   };
 }
 
@@ -158,6 +172,228 @@ describe("post-session StudyRoute transition", () => {
     expect(result.nextSessionStudyRoute?.provenance.evidenceRefs).toContain(
       `route-revision:${plan.sessions[0]!.studyRoute.identity.routeRevisionId}`,
     );
+  });
+
+  it("auto-applies a supported between-session recommendation in YOVA Decides", () => {
+    const plan = routedPlan("yova_decides");
+    const previous = plan.sessions[1]!.studyRoute;
+    const result = preparePostSessionStudyRouteTransition({
+      plan,
+      completedSessionId: IDS.completed,
+      changedAt: CHANGED_AT,
+      adaptation: adaptation(),
+      adaptationAgency: {
+        changeKind: "system_recommendation",
+        support: "sufficient",
+      },
+    });
+
+    expect(result.adaptationAgencyDecision).toMatchObject({
+      policyVersion: STUDY_ROUTE_AGENCY_MODE_CONTROLLER_VERSION,
+      status: "applied",
+      mode: "yova_decides",
+      reasonCode: "agency_policy_applied",
+      supersededRoute: {
+        identity: {
+          routeRevisionId: previous.identity.routeRevisionId,
+          lifecycleStatus: "superseded",
+        },
+      },
+    });
+    expect(result.appliedAdaptation).toEqual(adaptation());
+    expect(result.nextSessionStudyRoute?.identity).toMatchObject({
+      lifecycleStatus: "committed",
+      supersedesRevisionId: previous.identity.routeRevisionId,
+    });
+  });
+
+  it("requires exact confirmation when a historical route did not record agency authority", () => {
+    const plan = routedPlan("legacy_unknown");
+    const result = preparePostSessionStudyRouteTransition({
+      plan,
+      completedSessionId: IDS.completed,
+      changedAt: CHANGED_AT,
+      adaptation: adaptation(),
+      adaptationAgency: {
+        changeKind: "system_recommendation",
+        support: "sufficient",
+      },
+    });
+
+    expect(result.nextSessionStudyRoute).toBeNull();
+    expect(result.appliedAdaptation).toBeNull();
+    expect(result.adaptationAgencyDecision).toMatchObject({
+      status: "confirmation_required",
+      mode: "help_me_choose",
+      reasonCode: "exact_confirmation_required",
+      requiredConfirmation: {
+        expectedRouteRevisionId: plan.sessions[1]!.studyRoute!.identity.routeRevisionId,
+      },
+    });
+  });
+
+  it("keeps the exact Help Me Choose candidate provisional until confirmation", () => {
+    const plan = routedPlan("help_me_choose");
+    const first = preparePostSessionStudyRouteTransition({
+      plan,
+      completedSessionId: IDS.completed,
+      changedAt: CHANGED_AT,
+      adaptation: adaptation(),
+      adaptationAgency: {
+        changeKind: "system_recommendation",
+        support: "sufficient",
+      },
+    });
+    const required = first.adaptationAgencyDecision?.requiredConfirmation;
+    const candidate = first.adaptationAgencyDecision?.candidateRoute;
+
+    expect(first.nextSessionStudyRoute).toBeNull();
+    expect(first.appliedAdaptation).toBeNull();
+    expect(first.adaptationAgencyDecision).toMatchObject({
+      status: "confirmation_required",
+      mode: "help_me_choose",
+      reasonCode: "exact_confirmation_required",
+      candidateRoute: { identity: { lifecycleStatus: "provisional" } },
+    });
+    expect(required).not.toBeNull();
+    expect(candidate).not.toBeNull();
+
+    const confirmedAt = "2026-08-23T10:05:00.000Z";
+    const confirmed = preparePostSessionStudyRouteTransition({
+      plan,
+      completedSessionId: IDS.completed,
+      changedAt: CHANGED_AT,
+      adaptation: adaptation(),
+      adaptationAgency: {
+        changeKind: "system_recommendation",
+        support: "sufficient",
+        candidateRoute: candidate!,
+        confirmation: {
+          policyVersion: STUDY_ROUTE_AGENCY_MODE_CONTROLLER_VERSION,
+          expectedRouteRevisionId: required!.expectedRouteRevisionId,
+          candidateRouteRevisionId: required!.candidateRouteRevisionId,
+          confirmedAt,
+        },
+      },
+    });
+
+    expect(confirmed.adaptationAgencyDecision?.status).toBe("applied");
+    expect(confirmed.appliedAdaptation).toEqual(adaptation());
+    expect(confirmed.nextSessionStudyRoute?.identity).toMatchObject({
+      routeRevisionId: required!.candidateRouteRevisionId,
+      lifecycleStatus: "committed",
+      committedAt: confirmedAt,
+    });
+  });
+
+  it("preserves I'll Customize and offers a system recommendation separately", () => {
+    const plan = routedPlan("learner_customizes");
+    const previous = plan.sessions[1]!.studyRoute;
+    const result = preparePostSessionStudyRouteTransition({
+      plan,
+      completedSessionId: IDS.completed,
+      changedAt: CHANGED_AT,
+      adaptation: adaptation(),
+      adaptationAgency: {
+        changeKind: "system_recommendation",
+        support: "sufficient",
+      },
+    });
+
+    expect(result.nextSessionStudyRoute).toBeNull();
+    expect(result.appliedAdaptation).toBeNull();
+    expect(result.adaptationAgencyDecision).toMatchObject({
+      status: "recommendation_available",
+      mode: "ill_customize",
+      reasonCode: "learner_selection_preserved",
+      currentRoute: {
+        identity: { routeRevisionId: previous.identity.routeRevisionId },
+      },
+      candidateRoute: { identity: { lifecycleStatus: "provisional" } },
+    });
+  });
+
+  it("applies only the exact prepared I'll Customize recommendation after the learner selects it", () => {
+    const plan = routedPlan("learner_customizes");
+    const prepared = preparePostSessionStudyRouteTransition({
+      plan,
+      completedSessionId: IDS.completed,
+      changedAt: CHANGED_AT,
+      adaptation: adaptation(),
+      adaptationAgency: {
+        changeKind: "system_recommendation",
+        support: "sufficient",
+      },
+    });
+    const candidate = prepared.adaptationAgencyDecision?.candidateRoute;
+    expect(candidate).not.toBeNull();
+
+    const applied = preparePostSessionStudyRouteTransition({
+      plan,
+      completedSessionId: IDS.completed,
+      changedAt: CHANGED_AT,
+      adaptation: adaptation(),
+      adaptationAgency: {
+        candidateRoute: candidate!,
+        changeKind: "learner_request",
+        support: "not_required",
+      },
+    });
+
+    expect(applied.adaptationAgencyDecision).toMatchObject({
+      status: "applied",
+      mode: "ill_customize",
+      reasonCode: "agency_policy_applied",
+    });
+    expect(applied.appliedAdaptation).toEqual(adaptation());
+    expect(applied.nextSessionStudyRoute?.identity).toMatchObject({
+      routeRevisionId: candidate!.identity.routeRevisionId,
+      lifecycleStatus: "committed",
+      committedAt: CHANGED_AT,
+    });
+
+    const unrelatedPlan = routedPlan("learner_customizes");
+    const unrelatedCandidate = preparePostSessionStudyRouteTransition({
+      plan: unrelatedPlan,
+      completedSessionId: IDS.completed,
+      changedAt: CHANGED_AT,
+      adaptation: adaptation(),
+      adaptationAgency: {
+        changeKind: "system_recommendation",
+        support: "sufficient",
+      },
+    }).adaptationAgencyDecision?.candidateRoute;
+    expect(() => preparePostSessionStudyRouteTransition({
+      plan,
+      completedSessionId: IDS.completed,
+      changedAt: CHANGED_AT,
+      adaptation: adaptation(),
+      adaptationAgency: {
+        candidateRoute: unrelatedCandidate!,
+        changeKind: "learner_request",
+        support: "not_required",
+      },
+    })).toThrow("direct successor");
+
+    const stalePlan: LearningPlan = {
+      ...plan,
+      sessions: plan.sessions.map((current) => (
+        current.id === IDS.next
+          ? { ...current, studyRoute: applied.nextSessionStudyRoute! }
+          : current
+      )),
+    };
+    expect(() => preparePostSessionStudyRouteTransition({
+      plan: stalePlan,
+      completedSessionId: IDS.completed,
+      changedAt: CHANGED_AT,
+      adaptation: adaptation(),
+      adaptationAgency: {
+        candidateRoute: candidate!,
+        changeKind: "learner_request",
+        support: "not_required",
+      },
+    })).toThrow("direct successor");
   });
 
   it("gives a new follow-up its own committed lineage with origin provenance", () => {

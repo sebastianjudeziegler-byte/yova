@@ -146,7 +146,7 @@ describe("guided-session allowance settlement contract", () => {
 
   it("keeps cache, success, and failure telemetry after-response and best-effort", () => {
     expect(routeSource).not.toContain("await recordGenerationObservation(");
-    expect(routeSource.match(/recordGenerationObservationBestEffort\(/g)).toHaveLength(4);
+    expect(routeSource.match(/recordGenerationObservationBestEffort\(/g)).toHaveLength(9);
     const helper = routeSource.slice(
       routeSource.indexOf("function recordGenerationObservationBestEffort"),
       routeSource.indexOf("async function generateBrowserPreviewSession"),
@@ -157,6 +157,30 @@ describe("guided-session allowance settlement contract", () => {
     );
     expect(routeSource).toContain("sessionRequestId: requestId");
     expect(routeSource).toContain("planSessionId: planSession.id");
+    expect(routeSource).toContain("sessionGenerationStrategy: stats.strategy");
+    expect(routeSource).toContain("sessionGenerationStage: stats.stage");
+    expect(routeSource).toContain("sessionGenerationCause: stats.cause");
+    expect(routeSource).toContain("sessionFallbackMode: stats.degradedMode");
+    expect(routeSource).toContain('sessionPersistence: "cache_hit"');
+    expect(routeSource).toContain('stage: "preflight"');
+    for (const cause of [
+      "authorization",
+      "provider_unconfigured",
+      "rate_limit",
+      "quota_exhausted",
+      "reservation_conflict",
+      "route_conflict",
+      "source_unavailable",
+    ]) {
+      expect(routeSource).toContain(`recordPreflightFailure("${cause}")`);
+    }
+  });
+
+  it("classifies persistence separately and never repeats a model result's cache write", () => {
+    expect(routeSource.match(/supabase\.rpc\("cache_generated_session"/g)).toHaveLength(1);
+    expect(routeSource).toContain('sessionStatsAtStage(generated.generationStats, "persistence", "cache_write")');
+    expect(routeSource).toContain('persistence: cacheError ? "browser_only" : "cloud_saved"');
+    expect(routeSource).toContain('persistence: "failed" as const');
   });
 
   it("does not expose a browser-only lesson when its deferred targets need the cloud continuation receipt", () => {

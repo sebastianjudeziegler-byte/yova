@@ -15,6 +15,24 @@ export const ConceptEvidenceSchema = z.object({
 
 export const ConceptEvidenceListSchema = z.array(ConceptEvidenceSchema).max(24);
 
+/**
+ * A pre-instruction prediction is useful method context, but it is not
+ * mastery, gap, or method-outcome evidence. Keep this boundary shared by
+ * live completion, restored history, map projection, and adaptation inputs so
+ * an old or forged pretest entry cannot advance the learning state.
+ */
+export function conceptEvidenceMayUpdateLearningState(
+  evidence: Pick<ConceptEvidence, "methodPhase">,
+) {
+  return evidence.methodPhase !== "pretest";
+}
+
+export function learningStateConceptEvidence(
+  evidence: readonly ConceptEvidence[],
+) {
+  return evidence.filter(conceptEvidenceMayUpdateLearningState);
+}
+
 export type ConceptSignal = {
   topicId?: string;
   /** Exact route behind the latest observation when route provenance exists. */
@@ -33,7 +51,7 @@ export function readConceptEvidenceProperty(resultData: unknown): ConceptEvidenc
   if (!resultData || typeof resultData !== "object" || Array.isArray(resultData)) return [];
   const candidate = (resultData as Record<string, unknown>).conceptEvidence;
   const parsed = ConceptEvidenceListSchema.safeParse(candidate);
-  return parsed.success ? parsed.data : [];
+  return parsed.success ? learningStateConceptEvidence(parsed.data) : [];
 }
 
 export function summarizeConceptEvidence(
@@ -43,6 +61,7 @@ export function summarizeConceptEvidence(
 
   for (const completion of [...completions].sort((left, right) => left.completedAt.localeCompare(right.completedAt))) {
     for (const evidence of completion.conceptEvidence ?? []) {
+      if (!conceptEvidenceMayUpdateLearningState(evidence)) continue;
       const concept = evidence.concept.trim().replace(/\s+/g, " ");
       if (!concept) continue;
       const key = evidence.topicId ?? concept.toLocaleLowerCase();

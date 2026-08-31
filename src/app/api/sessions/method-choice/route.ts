@@ -13,6 +13,10 @@ import {
   type CommittedMethodChoiceSessionInput,
 } from "@/lib/study-route/committed-method-choice";
 import {
+  resolveBoundedOtherMethodRequest,
+  type AgencyMethodRequestResolution,
+} from "@/lib/study-route/agency-mode-controller";
+import {
   CommittedMethodChoiceRequestSchema,
   CommittedMethodChoiceResponseSchema,
 } from "@/lib/study-route/committed-method-choice-schema";
@@ -49,10 +53,11 @@ type SessionRow = {
 };
 
 /**
- * Changes one already-saved ready session to an alternative that was stored
- * on its exact committed StudyRoute. The planning model and broad Adjust flow
- * are intentionally absent: code constructs one direct successor and the
- * database atomically projects it onto only this session.
+ * Changes one already-saved ready session to an exact stored alternative or,
+ * in I'll Customize, a deliverable method from the committed route's immutable
+ * eligibility cohort. The planning model and broad Adjust flow are absent:
+ * code constructs one direct successor and the database independently
+ * authorizes and atomically projects it onto only this session.
  */
 export async function PATCH(request: Request) {
   const requestId = crypto.randomUUID();
@@ -149,6 +154,28 @@ export async function PATCH(request: Request) {
       code: "session_method_choice_route_unavailable",
     }, 409, requestId);
   }
+  let methodRequestResolution: AgencyMethodRequestResolution | null = null;
+  let requestedMethodId = input.methodId;
+  if (input.selectionScope === "other_eligible_method") {
+    try {
+      methodRequestResolution = resolveBoundedOtherMethodRequest({
+        route: currentRoute,
+        requestedMethod: input.requestedMethod!,
+      });
+      requestedMethodId = methodRequestResolution.selectedMethodId;
+    } catch {
+      return json({
+        error: "That Other-method request cannot be mapped inside this saved route's eligible set.",
+        code: "session_method_choice_not_offered",
+      }, 409, requestId);
+    }
+  }
+  if (!requestedMethodId) {
+    return json({
+      error: "This method choice does not identify an authorized method.",
+      code: "session_method_choice_invalid",
+    }, 422, requestId);
+  }
 
   // A lost response is retried with the same operation/revision ID. Pass the
   // exact stored successor back to the RPC; it verifies the full payload and
@@ -156,7 +183,7 @@ export async function PATCH(request: Request) {
   if (currentRevisionId === input.changeRequestId) {
     if (
       currentRoute.identity.supersedesRevisionId !== input.expectedRouteRevisionId
-      || currentRoute.approach.primaryMethodId !== input.methodId
+      || currentRoute.approach.primaryMethodId !== requestedMethodId
     ) {
       return stale(requestId);
     }
@@ -165,13 +192,31 @@ export async function PATCH(request: Request) {
       requestId,
       input,
       successorStudyRoute: currentRoute,
+      methodRequestResolution,
     });
   }
 
   // Session Setup never offers the active method as a choice. Reject a
   // hand-crafted no-op instead of returning an unlocked read that could become
   // stale while a concurrent successor commits.
-  if (currentRoute.approach.primaryMethodId === input.methodId) {
+  if (currentRoute.approach.primaryMethodId === requestedMethodId) {
+    if (methodRequestResolution) {
+      return NextResponse.json(CommittedMethodChoiceResponseSchema.parse({
+        status: "unchanged",
+        planId: input.planId,
+        planSessionId: input.planSessionId,
+        previousRouteRevisionId: input.expectedRouteRevisionId,
+        session: {
+          id: input.planSessionId,
+          method: currentRoute.approach.visibleMethodName,
+          methodReason: currentRoute.explanation.shortReason,
+          estimatedMinutes: currentRoute.timing.activeMinutes,
+          studyRoute: currentRoute,
+        },
+        requestId,
+        methodRequestResolution,
+      }), { headers: responseHeaders(requestId) });
+    }
     return json({
       error: "That method is already the current saved recipe for this session.",
       code: "session_method_choice_unchanged",
@@ -192,8 +237,9 @@ export async function PATCH(request: Request) {
       previousRoute: currentRoute,
       expectedRouteRevisionId: input.expectedRouteRevisionId,
       routeRevisionId: input.changeRequestId,
-      methodId: input.methodId,
+      methodId: requestedMethodId,
       changedAt: new Date().toISOString(),
+      choiceScope: input.selectionScope ?? "stored_alternative",
     });
     if (choice.status === "unchanged") return stale(requestId);
     return commitChoice({
@@ -201,6 +247,7 @@ export async function PATCH(request: Request) {
       requestId,
       input,
       successorStudyRoute: choice.session.studyRoute,
+      methodRequestResolution,
     });
   } catch (error) {
     if (error instanceof CommittedMethodChoiceError) {
@@ -222,11 +269,13 @@ async function commitChoice({
   requestId,
   input,
   successorStudyRoute,
+  methodRequestResolution,
 }: {
   supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>;
   requestId: string;
   input: ReturnType<typeof CommittedMethodChoiceRequestSchema.parse>;
   successorStudyRoute: StudyRoute;
+  methodRequestResolution: AgencyMethodRequestResolution | null;
 }) {
   let data: unknown;
   let error: unknown;
@@ -239,6 +288,9 @@ async function commitChoice({
           planSessionId: input.planSessionId,
           expectedRouteRevisionId: input.expectedRouteRevisionId,
           successorStudyRoute,
+          ...(input.selectionScope === "other_eligible_method"
+            ? { selectionScope: "other_eligible_method" }
+            : {}),
         },
       },
     );
@@ -266,6 +318,7 @@ async function commitChoice({
   const response = CommittedMethodChoiceResponseSchema.safeParse({
     ...(isRecord(data) ? data : {}),
     requestId,
+    ...(methodRequestResolution ? { methodRequestResolution } : {}),
   });
   if (!response.success) {
     return json({

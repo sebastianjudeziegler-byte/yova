@@ -9,8 +9,13 @@ import {
   type PlanGenerationRequest,
 } from "@/lib/plan-generation/schema";
 import { LIVE_AI_PLAN_FALLBACK_NOTICE } from "@/lib/plan-generation/fallback";
+import { createCanonicalLearnerProfile } from "@/lib/personalization/canonical-profile-schema";
 import type { AuthorizedNormalDurationProfile } from "@/lib/study-route/duration-signals";
-import { buildAuthorizedMethodDecisionEvidence } from "@/lib/study-route/method-decision-evidence";
+import {
+  METHOD_DECISION_EVIDENCE_ADAPTER_VERSION,
+  buildAuthorizedMethodDecisionEvidence,
+} from "@/lib/study-route/method-decision-evidence";
+import { studyRouteProvenanceIncludesRouterComponent } from "@/lib/study-route/method-plan-integration";
 
 const mocks = vi.hoisted(() => ({
   generatePlan: vi.fn(),
@@ -140,6 +145,7 @@ describe("plan generation route", () => {
       "YOVA_DRAFT_RECEIPT_SECRET",
       "plan-generation-route-secret-0123456789-abcdef",
     );
+    vi.stubEnv("YOVA_PERSONALIZATION_ROLLOUT_PERCENT", "100");
     mocks.developmentPreview = true;
     mocks.supabaseConfigured = false;
     mocks.openAIConfigured = true;
@@ -191,9 +197,10 @@ describe("plan generation route", () => {
         },
       },
     });
-    expect(body.plan.sessions[0].studyRoute.provenance.routerVersion).toContain(
+    expect(studyRouteProvenanceIncludesRouterComponent(
+      body.plan.sessions[0].studyRoute.provenance,
       "normal_duration_recommender_v1",
-    );
+    )).toBe(true);
     expect(body.plan.sessions[0].studyRoute.provenance.ruleTrace).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ ruleId: "duration.recommendation.router_baseline" }),
@@ -216,7 +223,7 @@ describe("plan generation route", () => {
     );
     expect(body.plan.sessions[0].studyRoute.provenance.ruleTrace).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ ruleId: "method_decision_evidence_adapter_v1" }),
+        expect.objectContaining({ ruleId: METHOD_DECISION_EVIDENCE_ADAPTER_VERSION }),
       ]),
     );
     expect(mocks.generatePlan).not.toHaveBeenCalled();
@@ -362,6 +369,39 @@ describe("plan generation route", () => {
             }),
           ]),
         },
+      },
+    });
+  });
+
+  it("uses structured canonical agency only for a local-preview route", async () => {
+    const { POST } = await import("@/app/api/plans/generate/route");
+    const previewCanonicalProfile = createCanonicalLearnerProfile([{
+      signalId: "control_mode",
+      value: "help_me_choose",
+      source: "canonical_questionnaire",
+      sourceQuestionId: "profile_control_mode",
+      provenance: "direct_answer",
+    }]);
+
+    const response = await POST(studyNowGenerationRequest(25, {
+      knowledgeMap: studyNowKnowledgeMap(),
+      previewCanonicalProfile,
+    }));
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.plan.sessions[0].studyRoute).toMatchObject({
+      agency: {
+        controlMode: "help_me_choose",
+        selectedBy: "yova",
+      },
+      provenance: {
+        ruleTrace: expect.arrayContaining([
+          expect.objectContaining({
+            ruleId: "study_route_agency_mode_controller_v1",
+            result: expect.stringMatching(/^help_me_choose:canonical_profile:/u),
+          }),
+        ]),
       },
     });
   });
@@ -649,12 +689,12 @@ describe("plan generation route", () => {
       draftReceipt: expect.stringMatching(/^yova-draft\.v1\./u),
     });
     expect(body.plan.sessions[0]).toMatchObject({
-      method: "Self-explanation",
+      method: "Feynman Technique",
       studyRoute: {
         target: { taskFamily: "problem_solving" },
         approach: {
           primaryMethodId: "self_explanation",
-          visibleMethodName: "Self-explanation",
+          visibleMethodName: "Feynman Technique",
         },
         explanation: {
           shortReason: expect.stringMatching(/^You told YOVA/u),
@@ -671,8 +711,8 @@ describe("plan generation route", () => {
         },
       },
     });
-    expect(body.plan.sessions[0].method).toBe("Self-explanation");
-    expect(JSON.stringify(body.plan)).not.toMatch(/feynman|provider-named technique/iu);
+    expect(body.plan.sessions[0].method).toBe("Feynman Technique");
+    expect(JSON.stringify(body.plan)).not.toMatch(/provider-named technique/iu);
     expect(mocks.loadDurationContext).toHaveBeenCalledWith({
       supabase: expect.anything(),
       authenticatedUserId: "44444444-4444-4444-8444-444444444444",
@@ -690,7 +730,7 @@ describe("plan generation route", () => {
 
     expect(response.status).toBe(200);
     expect(body.plan.sessions[0]).toMatchObject({
-      method: "Self-explanation",
+      method: "Feynman Technique",
       studyRoute: {
         approach: { primaryMethodId: "self_explanation" },
         provenance: {
@@ -778,13 +818,16 @@ describe("plan generation route", () => {
           hardMaximumMinutes: expect.any(Number),
         },
         provenance: {
-          routerVersion: expect.stringContaining("normal_plan_envelope_route_integration_v1"),
           ruleTrace: expect.arrayContaining([
             expect.objectContaining({ ruleId: "normal_plan_envelope_composer_v1" }),
             expect.objectContaining({ ruleId: "canonical_method_selection_v1" }),
           ]),
         },
       });
+      expect(studyRouteProvenanceIncludesRouterComponent(
+        session.studyRoute.provenance,
+        "normal_plan_envelope_route_integration_v1",
+      )).toBe(true);
     }
     expect(JSON.stringify(body.plan)).not.toContain("Pending code-owned method");
     expect(mocks.generatePlan).not.toHaveBeenCalled();
@@ -934,23 +977,69 @@ describe("plan generation route", () => {
     expect(mocks.settle).not.toHaveBeenCalled();
   });
 
-  it("reserves before mapping a goal and releases when mapping fails", async () => {
+  it("reserves before mapping and settles a conservative fallback plan when live mapping fails", async () => {
     configureProduction();
-    mocks.generateKnowledgeMap.mockRejectedValueOnce(new Error("provider unavailable"));
+    const { KnowledgeMapGenerationError } = await import("@/lib/knowledge-map/generate-plan-map");
+    mocks.generateKnowledgeMap.mockRejectedValueOnce(new KnowledgeMapGenerationError(
+      "knowledge_map_structure",
+      {
+        attempts: 2,
+        inputTokens: 420,
+        cachedInputTokens: 120,
+        cacheWriteTokens: 0,
+        outputTokens: 96,
+        firstAttemptPassed: false,
+        failedValidator: "knowledge_map_structure",
+      },
+      "gpt-yova-map-test",
+    ));
     const { POST } = await import("@/app/api/plans/generate/route");
 
     const response = await POST(planGenerationRequest({ knowledgeMap: undefined }));
 
-    expect(response.status).toBe(503);
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      generation: {
+        mode: "openai",
+        notice: expect.stringContaining("conservative deterministic map"),
+      },
+      plan: {
+        knowledgeMap: {
+          scopeJudgment: { label: "Unclassified learning plan" },
+          topics: expect.arrayContaining([
+            expect.objectContaining({ origin: "ai_generated" }),
+          ]),
+        },
+      },
+    });
     expect(mocks.reserve.mock.invocationCallOrder[0]).toBeLessThan(
       mocks.generateKnowledgeMap.mock.invocationCallOrder[0],
     );
-    expect(mocks.release).toHaveBeenCalledWith(
+    expect(mocks.release).not.toHaveBeenCalledWith(
       expect.anything(),
       "55555555-5555-4555-8555-555555555555",
     );
-    expect(mocks.generatePlan).not.toHaveBeenCalled();
-    expect(mocks.settle).not.toHaveBeenCalled();
+    expect(mocks.generatePlan).toHaveBeenCalledTimes(1);
+    expect(mocks.settle).toHaveBeenCalledWith(
+      expect.anything(),
+      "55555555-5555-4555-8555-555555555555",
+    );
+    expect(mocks.recordObservation).toHaveBeenCalledWith(
+      expect.anything(),
+      "44444444-4444-4444-8444-444444444444",
+      expect.objectContaining({
+        generationType: "knowledge_map",
+        finalOutcome: "fallback",
+        failedValidator: "knowledge_map_structure",
+        attempts: 2,
+        repairAttempted: true,
+        repairSucceeded: false,
+        inputTokens: 420,
+        cachedInputTokens: 120,
+        outputTokens: 96,
+        model: "gpt-yova-map-test",
+      }),
+    );
   });
 
   it("does not start a placement check when the in-memory rate limit is exhausted", async () => {
@@ -1001,19 +1090,19 @@ describe("plan generation route", () => {
 
     const response = await POST(planGenerationRequest({
       knowledgeMap: undefined,
-      previewPreferredMethodIds: ["interleaved_practice"],
+      previewPreferredMethodIds: ["self_explanation"],
     }));
     const body = await response.json();
 
     expect(response.status).toBe(200);
     expect(body.generation).toMatchObject({ mode: "system" });
     expect(body.plan.sessions[0]).toMatchObject({
-      method: "Interleaving",
+      method: "Feynman Technique",
       studyRoute: {
-        approach: { primaryMethodId: "interleaved_practice" },
+        approach: { primaryMethodId: "self_explanation" },
         provenance: {
           evidenceRefs: expect.arrayContaining([
-            "profile-method-preference:interleaved_practice",
+            "profile-method-preference:self_explanation",
           ]),
         },
       },
@@ -1267,6 +1356,30 @@ describe("plan generation route", () => {
     await expect(response.json()).resolves.toMatchObject({
       code: "preview_method_preferences_not_allowed",
       fields: { previewPreferredMethodIds: expect.any(Array) },
+    });
+    expect(mocks.loadDurationContext).not.toHaveBeenCalled();
+    expect(mocks.reserve).not.toHaveBeenCalled();
+    expect(mocks.generatePlan).not.toHaveBeenCalled();
+  });
+
+  it("rejects request-local canonical profile context on an authenticated cloud request", async () => {
+    configureProduction();
+    const { POST } = await import("@/app/api/plans/generate/route");
+
+    const response = await POST(planGenerationRequest({
+      previewCanonicalProfile: createCanonicalLearnerProfile([{
+        signalId: "control_mode",
+        value: "help_me_choose",
+        source: "canonical_questionnaire",
+        sourceQuestionId: "profile_control_mode",
+        provenance: "direct_answer",
+      }]),
+    }));
+
+    expect(response.status).toBe(422);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "preview_canonical_profile_not_allowed",
+      fields: { previewCanonicalProfile: expect.any(Array) },
     });
     expect(mocks.loadDurationContext).not.toHaveBeenCalled();
     expect(mocks.reserve).not.toHaveBeenCalled();
@@ -1610,9 +1723,10 @@ function expectFullyRoutedNormalFallback(plan: {
   for (const session of plan.sessions) {
     expect(session.studyRoute).toBeDefined();
     expect(session.studyRoute?.identity.lifecycleStatus).toBe("provisional");
-    expect(session.studyRoute?.provenance.routerVersion.split("+")).toContain(
+    expect(studyRouteProvenanceIncludesRouterComponent(
+      session.studyRoute!.provenance as never,
       "normal_plan_envelope_route_integration_v1",
-    );
+    )).toBe(true);
     expect(session.studyRoute?.execution.completionEvidence.map((evidence) => (
       evidence.targetIds
     ))).toEqual(session.topicIds.map((topicId) => [topicId]));

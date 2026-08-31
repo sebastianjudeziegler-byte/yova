@@ -9,6 +9,7 @@ import { sessionRoutingInput } from "@/lib/learning/session-routing-input";
 import { buildSessionSupportPlan } from "@/lib/learning/scaffold-progression";
 import { getOpenAIClient } from "@/lib/openai/client";
 import { getOpenAISessionConfig } from "@/lib/openai/config";
+import { classifyProviderError } from "@/lib/openai/provider-error";
 import { validateSessionSourceGrounding } from "@/lib/materials/grounding";
 import {
   prepareSessionProviderCall,
@@ -16,6 +17,8 @@ import {
   ordinarySessionProvenanceContract,
   resolveSessionGenerationBudget,
   SessionGenerationFailure,
+  sourceGroundedDegradedSessionResult,
+  terminalSourceGroundedFallbackFailure,
   type OpenAISessionResult,
   type SessionGenerationContext,
   type SessionGenerationRuntime,
@@ -221,29 +224,35 @@ export async function generateReliableSessionWithOpenAI(
         store: false,
       }, providerCall.options);
     } catch (error) {
-      if (attempt === 0 && error instanceof Error && error.name === "ZodError") {
-        failedValidator = "reliable_lesson_structure";
-        repairDetail = "The lesson did not match YOVA's required teaching structure.";
-        continue;
-      }
-      throw new SessionGenerationFailure("OpenAI could not prepare the subject lesson.", {
-        elapsedMs: Date.now() - startedAt,
-        attempts: usage.attempts,
-        firstAttemptPassed: false,
-        failedValidator: error instanceof Error && error.name === "ZodError" ? "reliable_lesson_structure" : "session_provider_request",
-        repairAttempted: usage.attempts > 1,
-        repairSucceeded: usage.attempts > 1 ? false : null,
-        repairReason: error instanceof Error && error.name === "ZodError" ? "structured_output" : "none",
-        repairDetail,
-        inputTokens: usage.inputTokens,
-        cachedInputTokens: usage.cachedInputTokens,
-        cacheWriteTokens: usage.cacheWriteTokens,
-        outputTokens: usage.outputTokens,
-      });
+      const providerEndReason = providerCall.endReason();
+      const structuredFailure = error instanceof Error && error.name === "ZodError";
+      failedValidator = structuredFailure
+        ? "reliable_lesson_structure"
+        : "session_provider_request";
+      repairDetail = structuredFailure
+        ? "The lesson did not match YOVA's required teaching structure."
+        : "The lesson provider request failed before YOVA received usable content.";
+      if (
+        attempt === 0
+        && providerEndReason !== "budget_timeout"
+        && providerEndReason !== "caller_abort"
+        && (
+          structuredFailure
+          || providerEndReason === "per_call_timeout"
+          || isRetryableReliableProviderError(error)
+        )
+      ) continue;
+      break;
     } finally {
       providerCall.finish();
     }
 
+    if (!response) {
+      failedValidator = "session_provider_request";
+      repairDetail = "The lesson provider completed without a usable response object.";
+      if (attempt === 0) continue;
+      break;
+    }
     if (response.usage) {
       usage.inputTokens += response.usage.input_tokens;
       usage.cachedInputTokens += response.usage.input_tokens_details.cached_tokens;
@@ -300,14 +309,16 @@ export async function generateReliableSessionWithOpenAI(
   }
 
   if (!response || !lesson || !draft) {
-    throw new SessionGenerationFailure("OpenAI did not return a complete subject lesson after one repair attempt.", {
+    const failureStats: SessionGenerationStats = {
       elapsedMs: Date.now() - startedAt,
       attempts: usage.attempts,
       firstAttemptPassed: false,
       failedValidator: failedValidator ?? "reliable_lesson_structure",
       repairAttempted: usage.attempts > 1,
       repairSucceeded: usage.attempts > 1 ? false : null,
-      repairReason: failedValidator === "reliable_lesson_response_status"
+      repairReason: failedValidator === "session_provider_request"
+        ? "none"
+        : failedValidator === "reliable_lesson_response_status"
         ? "incomplete_response"
         : failedValidator === "session_semantic_validation"
           ? "semantic_validation"
@@ -317,7 +328,40 @@ export async function generateReliableSessionWithOpenAI(
       cachedInputTokens: usage.cachedInputTokens,
       cacheWriteTokens: usage.cacheWriteTokens,
       outputTokens: usage.outputTokens,
+    };
+    const degraded = sourceGroundedDegradedSessionResult({
+      context,
+      routing,
+      deliveryPolicy,
+      architecture: "filled",
+      model: response?.model ?? config.model,
+      generationStats: failureStats,
     });
+    if (degraded) return degraded;
+    const fallbackFailure = terminalSourceGroundedFallbackFailure({
+      context,
+      routing,
+      deliveryPolicy,
+      architecture: "filled",
+      generationStats: failureStats,
+    });
+    if (fallbackFailure) throw fallbackFailure;
+    throw new SessionGenerationFailure(
+      "OpenAI did not return a complete subject lesson after one repair attempt.",
+      {
+        ...failureStats,
+        stage: failureStats.failedValidator === "session_provider_request"
+          ? "provider"
+          : "validation",
+        cause: failureStats.failedValidator === "session_provider_request"
+          ? "provider_request"
+          : failureStats.repairReason === "incomplete_response"
+          ? "incomplete_response"
+          : failureStats.repairReason === "structured_output"
+            ? "invalid_structure"
+            : "semantic_validation",
+      },
+    );
   }
 
   const generationStats: SessionGenerationStats = {
@@ -357,6 +401,15 @@ export async function generateReliableSessionWithOpenAI(
     deliveryPolicy,
     generationStats,
   };
+}
+
+function isRetryableReliableProviderError(error: unknown) {
+  return new Set([
+    "connection",
+    "provider_server_error",
+    "rate_limit",
+    "timeout",
+  ]).has(classifyProviderError(error).category);
 }
 
 function buildReliableDraft({
@@ -439,9 +492,17 @@ function buildReliableDraft({
     feedback: null,
   };
   const modelFirst = learningMode === "learn" || routing.suggestedPrimaryMethodId === "worked_example_fading";
-  const activities: GeneratedSessionDraft["activities"] = modelFirst
-    ? [model, check, explanation]
-    : [check, model, explanation];
+  const activities: GeneratedSessionDraft["activities"] = learningMode === "learn"
+    && routing.suggestedPrimaryMethodId === "self_explanation"
+    ? selfExplanationActivities({
+      model,
+      explanation,
+      lesson,
+      activeMinutes: check.estimatedMinutes + explanation.estimatedMinutes,
+    })
+    : modelFirst
+      ? [model, check, explanation]
+      : [check, model, explanation];
   if (deliveryPolicy.retention.mode === "delayed_retrieval") {
     activities.push({
       topicId: null,
@@ -468,7 +529,9 @@ function buildReliableDraft({
       focus: lesson.focus,
       essentialIdeas: [coverageTarget],
       completionEvidence: [
-        `Choose the accurate relationship for ${lesson.concept} and explain it in your own words.`,
+        routing.suggestedPrimaryMethodId === "self_explanation" && learningMode === "learn"
+          ? `Explain ${lesson.concept}, repair the exposed gap, and explain the corrected relationship again without copying.`
+          : `Choose the accurate relationship for ${lesson.concept} and explain it in your own words.`,
       ],
       evidenceMap: [{
         essentialIdea: coverageTarget,
@@ -496,6 +559,47 @@ function buildReliableDraft({
   };
 
   return GeneratedSessionDraftSchema.parse(polishGeneratedSessionTypography(candidate));
+}
+
+function selfExplanationActivities({
+  model,
+  explanation,
+  lesson,
+  activeMinutes,
+}: {
+  model: GeneratedSessionDraft["activities"][number];
+  explanation: GeneratedSessionDraft["activities"][number];
+  lesson: z.infer<typeof ReliableLessonContentSchema>;
+  activeMinutes: number;
+}): GeneratedSessionDraft["activities"] {
+  const explanationMinutes = Math.max(1, Math.floor(activeMinutes / 3));
+  const repairMinutes = Math.max(1, Math.floor((activeMinutes - explanationMinutes) / 2));
+  const reexplainMinutes = Math.max(1, activeMinutes - explanationMinutes - repairMinutes);
+  const firstExplanation = {
+    ...explanation,
+    methodPhase: "explain" as const,
+    estimatedMinutes: explanationMinutes,
+    label: "Explain",
+  };
+  const repair: GeneratedSessionDraft["activities"][number] = {
+    ...explanation,
+    methodPhase: "repair",
+    estimatedMinutes: repairMinutes,
+    label: "Repair",
+    title: `Repair the ${lesson.concept} explanation`.slice(0, 140),
+    body: `Compare your first explanation with this specific gap and correction. Common gap: ${lesson.commonMistake.mistake} Correct relationship: ${lesson.commonMistake.correction} Now write the corrected relationship once in your own words.`.slice(0, 500),
+    correctAnswer: lesson.commonMistake.correction,
+    feedback: "Keep the correction tied to the stated relationship. Remove any claim the model does not support.",
+  };
+  const reexplain: GeneratedSessionDraft["activities"][number] = {
+    ...explanation,
+    methodPhase: "reexplain",
+    estimatedMinutes: reexplainMinutes,
+    label: "Explain again",
+    title: `Explain ${lesson.concept} again`.slice(0, 140),
+    body: `${lesson.explainBack.prompt} Give the corrected explanation again without copying the model or your repair sentence.`.slice(0, 500),
+  };
+  return [model, firstExplanation, repair, reexplain];
 }
 
 function allocateMinutes(estimatedMinutes: number): [number, number, number] {

@@ -9,8 +9,6 @@ import {
 } from "@/lib/learning/canonical-method-selection";
 import {
   MaterialUnderstandingSchema,
-  PlanKnowledgeMapSchema,
-  type PlanKnowledgeMap,
 } from "@/lib/knowledge-map/schema";
 import { generatePlanKnowledgeMap, KnowledgeMapGenerationError } from "@/lib/knowledge-map/generate-plan-map";
 import { generateMapDiagnostic, MapDiagnosticGenerationError } from "@/lib/diagnostics/map-diagnostic";
@@ -30,7 +28,10 @@ import { buildNormalPlanFromFixedEnvelope } from "@/lib/plan-generation/normal-p
 import { buildNormalPlanFallbackFill } from "@/lib/plan-generation/normal-plan-provider-fill";
 import { generatePreviewPlan } from "@/lib/plan-generation/preview-generator";
 import { LIVE_AI_PLAN_FALLBACK_NOTICE } from "@/lib/plan-generation/fallback";
-import { inferPlanScopeContract } from "@/lib/plan-generation/scope-contract";
+import {
+  buildDeterministicKnowledgeMapFallback,
+  buildDevelopmentPreviewKnowledgeMap,
+} from "@/lib/plan-generation/knowledge-map-fallback";
 import { normalizePlanDraftGenerationContract } from "@/lib/plan-generation/draft-contract";
 import { PlanScheduleCapacityError } from "@/lib/plan-generation/schedule-plan";
 import { resolvePlanRequestSubjectBoundary } from "@/lib/plan-generation/subject-boundary";
@@ -43,6 +44,7 @@ import {
   type PlanGenerationResponse,
 } from "@/lib/plan-generation/schema";
 import {
+  GenerationPersonalizationContextSchema,
   projectPreviewPreferredMethodsForGeneration,
 } from "@/lib/personalization/personalization-generation";
 import { checkPlanGenerationRateLimit, requestRateLimitKey } from "@/lib/server/rate-limit";
@@ -54,6 +56,7 @@ import {
   settleAIRequestClaim,
 } from "@/lib/server/ai-usage";
 import { isDevelopmentPreviewRequest } from "@/lib/server/development-preview";
+import { resolveServerPersonalizationRollout } from "@/lib/server/personalization-rollout";
 import {
   assertPlanDraftReceiptConfigured,
   issuePlanDraftReceipt,
@@ -62,7 +65,16 @@ import {
 import { loadAuthorizedNormalDurationContext } from "@/lib/study-route/duration-context-server";
 import { NORMAL_STUDY_DURATION_LEVELS } from "@/lib/study-route/duration-precedence";
 import { integrateInitialPlanMethodRoutes } from "@/lib/study-route/initial-plan-method-routing";
+import { resolveStudyRouteAgencyMode } from "@/lib/study-route/agency-mode-controller";
 import { methodSelectionContextForStudyRoute } from "@/lib/study-route/method-plan-integration";
+import {
+  methodEvidenceComparisonContextForRoute,
+  methodEvidenceComparisonKey,
+} from "@/lib/study-route/method-evidence-policy";
+import {
+  personalizationInputsForRollout,
+  type PersonalizationRolloutDecision,
+} from "@/lib/study-route/personalization-rollout";
 import { StudyRouteSchema, type StudyRoute } from "@/lib/study-route/schema";
 import { reconcileStudyNowDuration } from "@/lib/study-route/study-now-duration";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
@@ -74,6 +86,10 @@ export const runtime = "nodejs";
 export const maxDuration = 120;
 const PLAN_GENERATION_DEADLINE_BUFFER_MS = 10_000;
 const PLAN_DRAFT_RECEIPT_LIFETIME_MS = 60 * 60 * 1_000;
+const MATERIAL_KNOWLEDGE_MAP_FALLBACK_NOTICE =
+  "YOVA used a conservative deterministic map because live topic mapping was unavailable. Uploaded-material topics and source references were preserved; review the map before saving the plan.";
+const SOURCE_FREE_KNOWLEDGE_MAP_FALLBACK_NOTICE =
+  "YOVA used a conservative deterministic map because live topic mapping was unavailable. No uploaded material was available, so its AI-generated topic labels are a temporary planning scaffold; review them before saving the plan.";
 
 export async function POST(request: Request) {
   const requestId = crypto.randomUUID();
@@ -136,6 +152,26 @@ export async function POST(request: Request) {
         code: "preview_method_preferences_not_allowed",
         fields: {
           previewPreferredMethodIds: [
+            "Remove this development-preview-only field before generating a cloud plan.",
+          ],
+        },
+      },
+      {
+        status: 422,
+        headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId },
+      },
+    );
+  }
+  if (
+    parsedRequest.data.previewCanonicalProfile !== undefined
+    && !developmentPreview
+  ) {
+    return NextResponse.json(
+      {
+        error: "Preview profile context is available only in the local development preview.",
+        code: "preview_canonical_profile_not_allowed",
+        fields: {
+          previewCanonicalProfile: [
             "Remove this development-preview-only field before generating a cloud plan.",
           ],
         },
@@ -244,6 +280,7 @@ export async function POST(request: Request) {
   // upload/mapping lifecycle.
   let aiUsageClaimId: string | null = null;
   let forcedNormalPlanFallbackNotice: string | null = null;
+  let knowledgeMapFallbackNotice: string | null = null;
   const aiUsageRecoveryKey = crypto.randomUUID();
   const canUseAcceptedMapNormalFallback = planRequest.intent === "plan"
     && !diagnosticOnly
@@ -407,33 +444,69 @@ export async function POST(request: Request) {
       });
     }
   } catch (error) {
-    await releaseFailedPlanClaim(supabase, aiUsageClaimId, requestId);
     if (error instanceof PlanScheduleCapacityError) {
+      await releaseFailedPlanClaim(supabase, aiUsageClaimId, requestId);
       return deterministicPlanFailureResponse(error, requestId);
     }
     const validator = error instanceof KnowledgeMapGenerationError
       ? error.failedValidator
       : "knowledge_map_provider_request" as const;
+    const failureMetrics = error instanceof KnowledgeMapGenerationError
+      ? error.generationMetrics
+      : null;
+    const observedAttempts = failureMetrics?.attempts
+      ?? (error instanceof KnowledgeMapGenerationError ? 0 : 1);
+    const observedModel = error instanceof KnowledgeMapGenerationError
+      ? error.model
+      : null;
+    let fallback: Awaited<ReturnType<typeof generatePlanKnowledgeMap>>;
+    try {
+      fallback = buildDeterministicKnowledgeMapFallback(planRequest, validator);
+      planRequest = { ...planRequest, knowledgeMap: fallback.map };
+      knowledgeMapFallbackNotice = knowledgeMapFallbackNoticeFor(planRequest);
+    } catch {
+      await releaseFailedPlanClaim(supabase, aiUsageClaimId, requestId);
+      await recordPlanGenerationObservationSafely(supabase, user?.id, {
+        generationType: "knowledge_map",
+        environment: generationEnvironment(),
+        finalOutcome: "failure",
+        firstAttemptPassed: false,
+        failedValidator: validator,
+        repairAttempted: observedAttempts > 1,
+        repairSucceeded: observedAttempts > 1 ? false : null,
+        elapsedMs: Date.now() - startedAt,
+        attempts: observedAttempts,
+        inputTokens: failureMetrics?.inputTokens ?? 0,
+        cachedInputTokens: failureMetrics?.cachedInputTokens ?? 0,
+        cacheWriteTokens: failureMetrics?.cacheWriteTokens ?? 0,
+        outputTokens: failureMetrics?.outputTokens ?? 0,
+        model: observedModel,
+      });
+      return NextResponse.json(
+        { error: "YOVA could not map this learning goal yet. Try again in a moment.", code: "knowledge_map_failed" },
+        { status: 503, headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId } },
+      );
+    }
     await recordPlanGenerationObservationSafely(supabase, user?.id, {
       generationType: "knowledge_map",
       environment: generationEnvironment(),
-      finalOutcome: "failure",
+      finalOutcome: "fallback",
       firstAttemptPassed: false,
       failedValidator: validator,
-      repairAttempted: false,
-      repairSucceeded: null,
+      repairAttempted: observedAttempts > 1,
+      repairSucceeded: observedAttempts > 1 ? false : null,
       elapsedMs: Date.now() - startedAt,
-      attempts: 1,
-      inputTokens: 0,
-      cachedInputTokens: 0,
-      cacheWriteTokens: 0,
-      outputTokens: 0,
-      model: null,
+      attempts: observedAttempts,
+      inputTokens: failureMetrics?.inputTokens ?? 0,
+      cachedInputTokens: failureMetrics?.cachedInputTokens ?? 0,
+      cacheWriteTokens: failureMetrics?.cacheWriteTokens ?? 0,
+      outputTokens: failureMetrics?.outputTokens ?? 0,
+      model: observedModel,
+      diagnostics: {
+        topicCount: fallback.map.topics.length,
+        scopeBand: fallback.map.scopeJudgment.band,
+      },
     });
-    return NextResponse.json(
-      { error: "YOVA could not map this learning goal yet. Try again in a moment.", code: "knowledge_map_failed" },
-      { status: 503, headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId } },
-    );
   }
 
   if (diagnosticOnly && planRequest.knowledgeMap) {
@@ -531,6 +604,10 @@ export async function POST(request: Request) {
         planRequest,
         context: durationContext,
         developmentPreview,
+        rolloutDecision: personalizationRolloutForNewRoute({
+          authenticatedUserId: user?.id ?? null,
+          developmentPreview,
+        }),
       });
       const focusedPlan = generatePreviewPlan(
         planRequest,
@@ -545,7 +622,7 @@ export async function POST(request: Request) {
         generation: {
           mode: "system",
           model: null,
-          notice: null,
+          notice: knowledgeMapFallbackNotice,
           requestId,
           durationMs: Date.now() - startedAt,
           persistence: "draft",
@@ -628,6 +705,10 @@ export async function POST(request: Request) {
       developmentPreview,
     ),
     observedEvidence: initialPlanContext.methodEvidence.observedEvidence,
+    rolloutDecision: personalizationRolloutForNewRoute({
+      authenticatedUserId: user?.id ?? null,
+      developmentPreview,
+    }),
   };
   const buildFixedPlan = (fill: unknown) => buildNormalPlanFromFixedEnvelope({
     request: planRequest,
@@ -652,7 +733,7 @@ export async function POST(request: Request) {
       generation: {
         mode: "system",
         model: null,
-        notice: forcedNormalPlanFallbackNotice,
+        notice: [forcedNormalPlanFallbackNotice, knowledgeMapFallbackNotice].filter(Boolean).join(" "),
         requestId,
         durationMs: Date.now() - startedAt,
         persistence: "draft",
@@ -694,7 +775,7 @@ export async function POST(request: Request) {
         generation: {
           mode: "openai",
           model: generated.model,
-          notice: null,
+          notice: knowledgeMapFallbackNotice,
           requestId,
           durationMs: Date.now() - startedAt,
           persistence: "draft",
@@ -765,7 +846,7 @@ export async function POST(request: Request) {
         generation: {
           mode: "system",
           model: null,
-          notice: LIVE_AI_PLAN_FALLBACK_NOTICE,
+          notice: [LIVE_AI_PLAN_FALLBACK_NOTICE, knowledgeMapFallbackNotice].filter(Boolean).join(" "),
           requestId,
           durationMs: Date.now() - startedAt,
           persistence: "draft",
@@ -828,7 +909,10 @@ export async function POST(request: Request) {
     generation: {
       mode: "preview",
       model: null,
-      notice: "This plan used YOVA's validated preview engine. Live AI generation becomes available when the server API key is connected.",
+      notice: [
+        "This plan used YOVA's validated preview engine. Live AI generation becomes available when the server API key is connected.",
+        knowledgeMapFallbackNotice,
+      ].filter(Boolean).join(" "),
       requestId,
       durationMs: Date.now() - startedAt,
       persistence: "draft",
@@ -936,85 +1020,38 @@ function readMaterialUnderstanding(metadata: unknown) {
   return parsed.success ? parsed.data : null;
 }
 
-function buildDevelopmentPreviewKnowledgeMap(
-  request: Parameters<typeof generatePreviewPlan>[0],
-): Awaited<ReturnType<typeof generatePlanKnowledgeMap>> {
-  // The preview planner is used here only as a deterministic semantic seed.
-  // Its legacy scheduler must not decide whether the later fixed-envelope
-  // composer has enough capacity: canonical durations can pack more than one
-  // coherent session into a learner window and can explicitly defer tail
-  // targets. Give this semantic-only pass a deadline-free synthetic horizon,
-  // then compose the real schedule from the original request below.
-  const semanticSeedRequest = request.intent === "plan"
-    ? {
-        ...request,
-        deadline: null,
-        availability: [{
-          day: "Every day",
-          window: "Anytime",
-          minutes: 60,
-        }],
-      }
-    : request;
-  const preview = generatePreviewPlan(semanticSeedRequest);
-  const titles = Array.from(new Set(
-    preview.sessions.flatMap((session) => session.contentTargets ?? [])
-      .map((title) => title.trim().slice(0, 140))
-      .filter((title) => title.length >= 2),
-  )).slice(0, 40);
-  const topicTitles = titles.length ? titles : [preview.topic.trim().slice(0, 140)];
-  const ids = topicTitles.map(() => crypto.randomUUID());
-  const map: PlanKnowledgeMap = PlanKnowledgeMapSchema.parse({
-    version: 1,
-    scopeJudgment: inferPlanScopeContract(request),
-    topics: topicTitles.map((title, index) => ({
-      id: ids[index],
-      title,
-      description: `The knowledge and performance needed for ${title}.`.slice(0, 400),
-      subtopics: [],
-      prerequisiteTopicIds: index > 0 ? [ids[index - 1]] : [],
-      status: "not_started",
-      initialEvidence: null,
-      sourceReferences: [],
-      origin: "ai_generated",
-      deferred: null,
-    })),
-  });
-  return {
-    map,
-    stats: {
-      elapsedMs: 0,
-      attempts: 1,
-      inputTokens: 0,
-      cachedInputTokens: 0,
-      cacheWriteTokens: 0,
-      outputTokens: 0,
-      firstAttemptPassed: true,
-      failedValidator: null,
-      model: null,
-      curriculumRecognized: false,
-      curriculumId: null,
-      curriculumMatchSource: null,
-      curriculumMatchConfidence: null,
-    },
-  };
+function knowledgeMapFallbackNoticeFor(request: PlanGenerationRequest) {
+  const preservesMappedMaterial = request.materials.some((material) => (
+    MaterialUnderstandingSchema.safeParse(material.understanding).success
+  ));
+  return preservesMappedMaterial
+    ? MATERIAL_KNOWLEDGE_MAP_FALLBACK_NOTICE
+    : SOURCE_FREE_KNOWLEDGE_MAP_FALLBACK_NOTICE;
 }
 
 function personalizationForPlanRequest(
   personalization: Awaited<ReturnType<
     typeof loadAuthorizedNormalDurationContext
   >>["methodEvidence"]["personalization"],
-  planRequest: Pick<PlanGenerationRequest, "previewPreferredMethodIds">,
+  planRequest: Pick<
+    PlanGenerationRequest,
+    "previewPreferredMethodIds" | "previewCanonicalProfile"
+  >,
   developmentPreview: boolean,
 ) {
-  if (
-    !developmentPreview
-    || planRequest.previewPreferredMethodIds === undefined
-  ) return personalization;
-  return projectPreviewPreferredMethodsForGeneration(
-    personalization,
-    planRequest.previewPreferredMethodIds,
-  );
+  if (!developmentPreview) return personalization;
+  const withPreviewMethods = planRequest.previewPreferredMethodIds === undefined
+    ? GenerationPersonalizationContextSchema.parse(personalization)
+    : projectPreviewPreferredMethodsForGeneration(
+        personalization,
+        planRequest.previewPreferredMethodIds,
+      );
+  return GenerationPersonalizationContextSchema.parse({
+    ...withPreviewMethods,
+    ...(planRequest.previewCanonicalProfile
+      ? { canonicalProfile: planRequest.previewCanonicalProfile }
+      : {}),
+  });
 }
 
 function studyNowMethodDecision({
@@ -1022,30 +1059,57 @@ function studyNowMethodDecision({
   planRequest,
   context,
   developmentPreview,
+  rolloutDecision,
 }: {
   route: StudyRoute;
   planRequest: PlanGenerationRequest;
   context: Awaited<ReturnType<typeof loadAuthorizedNormalDurationContext>>;
   developmentPreview: boolean;
+  rolloutDecision: PersonalizationRolloutDecision;
 }) {
+  const personalization = personalizationForPlanRequest(
+    context.methodEvidence.personalization,
+    planRequest,
+    developmentPreview,
+  );
+  const routedInputs = personalizationInputsForRollout({
+    decision: rolloutDecision,
+    personalization,
+    observedEvidence: context.methodEvidence.observedEvidence,
+  });
   return {
     selection: selectCanonicalStudyMethod({
       ...methodSelectionContextForStudyRoute(route),
+      currentComparisonKey: methodEvidenceComparisonKey(
+        methodEvidenceComparisonContextForRoute(route),
+      ),
       learnerChoice: planRequest.methodChoice
         ? {
             methodId: planRequest.methodChoice.methodId,
             evidenceRef: `learner-choice:study-now:${planRequest.methodChoice.methodId}`,
           }
         : null,
-      personalization: personalizationForPlanRequest(
-        context.methodEvidence.personalization,
-        planRequest,
-        developmentPreview,
-      ),
-      observedEvidence: context.methodEvidence.observedEvidence,
+      ...routedInputs,
     }),
     profileVersion: context.methodProfileVersion,
+    rolloutDecision,
+    agencyMode: resolveStudyRouteAgencyMode(
+      personalization.canonicalProfile,
+    ),
   };
+}
+
+function personalizationRolloutForNewRoute({
+  authenticatedUserId,
+  developmentPreview,
+}: {
+  authenticatedUserId: string | null;
+  developmentPreview: boolean;
+}) {
+  return resolveServerPersonalizationRollout({
+    subjectKey: authenticatedUserId
+      ?? (developmentPreview ? "development_preview" : null),
+  });
 }
 
 async function reliableDraftResponse(
@@ -1061,9 +1125,22 @@ async function reliableDraftResponse(
 ) {
   let reliablePlan: ReturnType<typeof generatePreviewPlan>;
   let resolvedInitialPlanContext = initialPlanContext;
+  let reliablePlanRequest = planRequest;
+  let reliableNotice = notice;
   try {
+    if (!reliablePlanRequest.knowledgeMap) {
+      const mapped = buildDeterministicKnowledgeMapFallback(
+        reliablePlanRequest,
+        "knowledge_map_provider_request",
+      );
+      reliablePlanRequest = {
+        ...reliablePlanRequest,
+        knowledgeMap: mapped.map,
+      };
+      reliableNotice = `${notice} ${knowledgeMapFallbackNoticeFor(reliablePlanRequest)}`;
+    }
     const reliableNow = new Date(startedAt);
-    reliablePlan = generatePreviewPlan(planRequest, reliableNow);
+    reliablePlan = generatePreviewPlan(reliablePlanRequest, reliableNow);
     resolvedInitialPlanContext ??= await loadAuthorizedNormalDurationContext(
       developmentPreview
         ? { developmentPreview: true, now: reliableNow }
@@ -1074,25 +1151,33 @@ async function reliableDraftResponse(
     if (planRequest.intent === "plan") {
       reliablePlan = integrateInitialPlanMethodRoutes({
         plan: reliablePlan,
-        request: planRequest,
+        request: reliablePlanRequest,
         context: {
           profileVersion: resolvedInitialPlanContext.methodProfileVersion,
           personalization: personalizationForPlanRequest(
             resolvedInitialPlanContext.methodEvidence.personalization,
-            planRequest,
+            reliablePlanRequest,
             developmentPreview,
           ),
           observedEvidence: resolvedInitialPlanContext.methodEvidence.observedEvidence,
+          rolloutDecision: personalizationRolloutForNewRoute({
+            authenticatedUserId: userId ?? null,
+            developmentPreview,
+          }),
         },
       });
     } else {
       const route = StudyRouteSchema.parse(reliablePlan.sessions[0]!.studyRoute);
-      reliablePlan = generatePreviewPlan(planRequest, reliableNow, {
+      reliablePlan = generatePreviewPlan(reliablePlanRequest, reliableNow, {
         studyNowMethodDecision: studyNowMethodDecision({
           route,
-          planRequest,
+          planRequest: reliablePlanRequest,
           context: resolvedInitialPlanContext,
           developmentPreview,
+          rolloutDecision: personalizationRolloutForNewRoute({
+            authenticatedUserId: userId ?? null,
+            developmentPreview,
+          }),
         }),
       });
     }
@@ -1104,12 +1189,12 @@ async function reliableDraftResponse(
     generation: {
       mode: "system",
       model: null,
-      notice,
+      notice: reliableNotice,
       requestId,
       durationMs: Date.now() - startedAt,
       persistence: "draft",
     },
-    planRequest,
+    planRequest: reliablePlanRequest,
     developmentPreview,
     authenticatedUserId: userId ?? null,
     issuedAtMs: startedAt,
@@ -1132,7 +1217,7 @@ async function reliableDraftResponse(
     outputTokens: failedStats.outputTokens,
     model: failedStats.model,
     diagnostics: {
-      scopeBand: planRequest.knowledgeMap?.scopeJudgment.band,
+      scopeBand: reliablePlanRequest.knowledgeMap?.scopeJudgment.band,
       methodContextStatus: resolvedInitialPlanContext?.status,
       methodContextReason: resolvedInitialPlanContext?.reason,
       ...planFailureDiagnostics(failure),

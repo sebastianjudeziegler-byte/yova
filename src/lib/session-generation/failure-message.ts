@@ -6,11 +6,23 @@ export const RETRYABLE_GUIDED_SESSION_FAILURE_MESSAGE =
 export const VALIDATION_GUIDED_SESSION_FAILURE_MESSAGE =
   "YOVA could not build a guided session for this setup that passed its learning checks.";
 
+export const SOURCE_UNAVAILABLE_GUIDED_SESSION_FAILURE_MESSAGE =
+  "YOVA could not find readable explanatory material mapped to this session. Attach or reprocess readable material, or review the setup and choose a source-independent route.";
+
+export const FALLBACK_UNAVAILABLE_GUIDED_SESSION_FAILURE_MESSAGE =
+  "YOVA could not build a safe fallback lesson for this setup. Review the setup or choose a source-independent route.";
+
 export const TRANSIENT_GUIDED_SESSION_FAILURE_CODE =
   "guided_session_generation_temporarily_unavailable" as const;
 
 export const VALIDATION_GUIDED_SESSION_FAILURE_CODE =
   "guided_session_quality_checks_failed" as const;
+
+export const SOURCE_UNAVAILABLE_GUIDED_SESSION_FAILURE_CODE =
+  "guided_session_source_unavailable" as const;
+
+export const FALLBACK_UNAVAILABLE_GUIDED_SESSION_FAILURE_CODE =
+  "guided_session_fallback_unavailable" as const;
 
 export const GUIDED_SESSION_ALLOWANCE_EXHAUSTED_CODE =
   "guided_session_allowance_exhausted" as const;
@@ -20,7 +32,7 @@ export const GUIDED_SESSION_ALLOWANCE_EXHAUSTED_MESSAGE =
 
 type FailedGenerationStats = Pick<
   SessionGenerationStats,
-  "repairReason" | "repairSucceeded"
+  "repairReason" | "repairSucceeded" | "cause"
 >;
 
 export type GuidedSessionFailureResponse =
@@ -32,6 +44,13 @@ export type GuidedSessionFailureResponse =
   | {
     error: string;
     code: typeof VALIDATION_GUIDED_SESSION_FAILURE_CODE;
+    retryable: false;
+  }
+  | {
+    error: string;
+    code:
+      | typeof SOURCE_UNAVAILABLE_GUIDED_SESSION_FAILURE_CODE
+      | typeof FALLBACK_UNAVAILABLE_GUIDED_SESSION_FAILURE_CODE;
     retryable: false;
   };
 
@@ -55,6 +74,20 @@ export type GuidedSessionAllowanceExhaustedHeaders = {
 export function guidedSessionFailureResponse(
   stats: FailedGenerationStats | null,
 ): GuidedSessionFailureResponse {
+  if (stats?.cause === "source_unavailable") {
+    return {
+      error: SOURCE_UNAVAILABLE_GUIDED_SESSION_FAILURE_MESSAGE,
+      code: SOURCE_UNAVAILABLE_GUIDED_SESSION_FAILURE_CODE,
+      retryable: false,
+    };
+  }
+  if (stats?.cause === "fallback_unavailable") {
+    return {
+      error: FALLBACK_UNAVAILABLE_GUIDED_SESSION_FAILURE_MESSAGE,
+      code: FALLBACK_UNAVAILABLE_GUIDED_SESSION_FAILURE_CODE,
+      retryable: false,
+    };
+  }
   const exhaustedValidation = stats?.repairSucceeded === false
     && (
       stats.repairReason === "structured_output"

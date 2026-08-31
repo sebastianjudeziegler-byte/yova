@@ -9,6 +9,7 @@ describe("production release readiness command", () => {
   it.each([
     ["SUPABASE_SECRET_KEY", "Supabase server secret"],
     ["YOVA_DRAFT_RECEIPT_SECRET", "Plan-draft receipt secret"],
+    ["YOVA_PERSONALIZATION_ROLLOUT_PERCENT", "Personalization staged rollout decision"],
   ])("fails when %s is absent", (variable, expectedCheck) => {
     const env = productionFixture();
     env[variable] = "";
@@ -39,6 +40,9 @@ describe("production release readiness command", () => {
     expect(result.output).toContain("Database capabilities were not checked");
     expect(result.output).toContain("not production release approval");
     expect(result.output).not.toContain("All production release readiness checks passed");
+    expect(result.output).toContain(
+      "PASS  Personalization staged rollout decision: explicitly set to the task-and-mastery baseline (0%)",
+    );
   });
 
   it("allows local compile builds without claiming cloud readiness", () => {
@@ -130,6 +134,7 @@ function productionFixture(): NodeJS.ProcessEnv {
     CRON_SECRET: "release-test-cron-secret-000000000000000",
     YOVA_DRAFT_RECEIPT_SECRET: "release-test-draft-receipt-secret-000000000",
     YOVA_DRAFT_RECEIPT_PREVIOUS_SECRET: "",
+    YOVA_PERSONALIZATION_ROLLOUT_PERCENT: "0",
     SITE_URL: "https://www.yovaapp.com",
     AUTH_PASSWORD_ACCOUNTS: "true",
     AUTH_INVITE_ONLY: "false",

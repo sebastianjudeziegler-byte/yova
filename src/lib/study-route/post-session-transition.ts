@@ -6,14 +6,36 @@ import type {
 import {
   createCommittedInitialSessionStudyRoute,
   createCommittedScalarSuccessorStudyRoute,
+  createProvisionalScalarSuccessorStudyRoute,
 } from "@/lib/study-route/session-route-creation";
+import {
+  agencyModeForStudyRouteControlMode,
+  resolveStudyRouteAgencyChange,
+  type StudyRouteAgencyChangeKind,
+  type StudyRouteAgencyConfirmation,
+  type StudyRouteAgencyDecision,
+  type StudyRouteAgencySupportLevel,
+} from "@/lib/study-route/agency-mode-controller";
+import { studyRouteToLegacySessionProjection } from "@/lib/study-route/adapters";
 import { StudyRouteSchema, type StudyRoute } from "@/lib/study-route/schema";
 
 export type PostSessionStudyRouteTransition = {
   nextSessionStudyRoute: StudyRoute | null;
   followUpSession: LearningPlanSession | null;
   continuationSession: LearningPlanSession | null;
+  /** Present only when the caller opts into the versioned agency transition. */
+  adaptationAgencyDecision?: StudyRouteAgencyDecision | null;
+  /** The scalar adaptation may be persisted only when the agency decision applied it. */
+  appliedAdaptation?: NextSessionAdaptation | null;
 };
+
+export type PostSessionAdaptationAgencyRequest = Readonly<{
+  changeKind?: StudyRouteAgencyChangeKind;
+  support?: StudyRouteAgencySupportLevel;
+  /** Reuse the exact candidate returned by an earlier confirmation-required decision. */
+  candidateRoute?: StudyRouteAgencyDecision["candidateRoute"];
+  confirmation?: StudyRouteAgencyConfirmation | null;
+}>;
 
 /** Creates the independent route lineage for a review that reopens a plan. */
 export function prepareConceptReviewSessionStudyRoute({
@@ -90,6 +112,7 @@ export function preparePostSessionStudyRouteTransition({
   completedSessionId,
   changedAt,
   adaptation = null,
+  adaptationAgency,
   followUpSession = null,
   continuationSession = null,
 }: {
@@ -97,6 +120,11 @@ export function preparePostSessionStudyRouteTransition({
   completedSessionId: string;
   changedAt: string;
   adaptation?: NextSessionAdaptation | null;
+  /**
+   * Opts this transition into the shared agency controller. Omission retains
+   * the legacy contract in which the caller has already approved `adaptation`.
+   */
+  adaptationAgency?: PostSessionAdaptationAgencyRequest;
   followUpSession?: LearningPlanSession | null;
   continuationSession?: LearningPlanSession | null;
 }): PostSessionStudyRouteTransition {
@@ -107,6 +135,9 @@ export function preparePostSessionStudyRouteTransition({
 
   const routedSessions = plan.sessions.filter((session) => session.studyRoute !== undefined);
   if (routedSessions.length === 0) {
+    if (adaptationAgency) {
+      throw new Error("A legacy completion has no committed StudyRoute for an agency decision.");
+    }
     if (followUpSession?.studyRoute || continuationSession?.studyRoute) {
       throw new Error("A legacy completion cannot introduce an unbound StudyRoute.");
     }
@@ -134,15 +165,30 @@ export function preparePostSessionStudyRouteTransition({
   const originRoute = committedRoutes.get(completedSession.id)!;
   const originEvidence = [`route-revision:${originRoute.identity.routeRevisionId}`];
 
-  const nextSessionStudyRoute = adaptation
-    ? createAdaptedSuccessor({
+  if (adaptationAgency && !adaptation) {
+    throw new Error("A post-session adaptation agency decision requires a candidate adaptation.");
+  }
+  const agencyTransition = adaptation && adaptationAgency
+    ? createAgencyAdaptedSuccessor({
+      plan,
+      adaptation,
+      previousRoute: committedRoutes.get(adaptation.planSessionId) ?? null,
+      changedAt,
+      originEvidence,
+      request: adaptationAgency,
+    })
+    : null;
+  const nextSessionStudyRoute = agencyTransition
+    ? agencyTransition.nextSessionStudyRoute
+    : adaptation
+      ? createAdaptedSuccessor({
       plan,
       adaptation,
       previousRoute: committedRoutes.get(adaptation.planSessionId) ?? null,
       changedAt,
       originEvidence,
     })
-    : null;
+      : null;
 
   return {
     nextSessionStudyRoute,
@@ -164,6 +210,69 @@ export function preparePostSessionStudyRouteTransition({
       reason: "A time-bounded session preserved its remaining planned targets as the next session.",
       originEvidence,
     }),
+    ...(adaptationAgency
+      ? {
+          adaptationAgencyDecision: agencyTransition?.decision ?? null,
+          appliedAdaptation: agencyTransition?.appliedAdaptation ?? null,
+        }
+      : {}),
+  };
+}
+
+/**
+ * Creates or reuses one exact provisional successor, then delegates the
+ * between-session decision to the shared versioned agency controller.
+ * Required verification and continuation sessions are deliberately outside
+ * this method-adaptation policy because they are separate route lineages and
+ * may be safety requirements rather than optional recommendations.
+ */
+function createAgencyAdaptedSuccessor({
+  plan,
+  adaptation,
+  previousRoute,
+  changedAt,
+  originEvidence,
+  request,
+}: {
+  plan: LearningPlan;
+  adaptation: NextSessionAdaptation;
+  previousRoute: StudyRoute | null;
+  changedAt: string;
+  originEvidence: string[];
+  request: PostSessionAdaptationAgencyRequest;
+}) {
+  const existing = plan.sessions.find((session) => session.id === adaptation.planSessionId);
+  if (!existing || !previousRoute) {
+    throw new Error("A route-aware adaptation requires the exact next session and its committed route.");
+  }
+  const candidateRoute = request.candidateRoute
+    ? StudyRouteSchema.parse(request.candidateRoute)
+    : createProvisionalAdaptedSuccessor({
+        plan,
+        adaptation,
+        previousRoute,
+        changedAt,
+        originEvidence,
+      });
+  assertCandidateProjectionMatchesAdaptation(candidateRoute, adaptation);
+  const mode = agencyModeForStudyRouteControlMode(previousRoute.agency.controlMode).mode;
+  const decision = resolveStudyRouteAgencyChange({
+    previousRoute,
+    candidateRoute,
+    mode,
+    changeKind: request.changeKind ?? "system_recommendation",
+    support: request.support ?? "sufficient",
+    timing: "between_sessions",
+    decidedAt: request.confirmation?.confirmedAt ?? changedAt,
+    confirmation: request.confirmation,
+  });
+  const applied = decision.status === "applied";
+  return {
+    decision,
+    appliedAdaptation: applied ? adaptation : null,
+    nextSessionStudyRoute: applied
+      ? StudyRouteSchema.parse(decision.currentRoute)
+      : null,
   };
 }
 
@@ -208,6 +317,71 @@ function createAdaptedSuccessor({
       evidenceRefs: originEvidence,
     },
   });
+}
+
+function createProvisionalAdaptedSuccessor({
+  plan,
+  adaptation,
+  previousRoute,
+  changedAt,
+  originEvidence,
+}: {
+  plan: LearningPlan;
+  adaptation: NextSessionAdaptation;
+  previousRoute: StudyRoute;
+  changedAt: string;
+  originEvidence: string[];
+}) {
+  const existing = plan.sessions.find((session) => session.id === adaptation.planSessionId);
+  if (!existing) {
+    throw new Error("A route-aware adaptation requires the exact next session and its committed route.");
+  }
+  const adaptedSession = adaptedSessionScalars(existing, adaptation);
+  const reason = boundedReason(adaptation.explanation);
+  return createProvisionalScalarSuccessorStudyRoute({
+    plan,
+    session: adaptedSession,
+    previousRoute,
+    now: changedAt,
+    changeReason: reason,
+    origin: {
+      source: "post_session_adaptation",
+      reason,
+      evidenceRefs: originEvidence,
+    },
+  });
+}
+
+function adaptedSessionScalars(
+  existing: LearningPlanSession,
+  adaptation: NextSessionAdaptation,
+): LearningPlanSession {
+  return {
+    ...existing,
+    title: adaptation.title,
+    objective: adaptation.objective,
+    method: adaptation.method,
+    methodReason: adaptation.methodReason,
+    estimatedMinutes: adaptation.estimatedMinutes,
+    amountLabel: adaptation.amountLabel,
+    learningMode: adaptation.learningMode,
+    resource: undefined,
+  };
+}
+
+function assertCandidateProjectionMatchesAdaptation(
+  candidateRoute: StudyRoute,
+  adaptation: NextSessionAdaptation,
+) {
+  const projection = studyRouteToLegacySessionProjection(candidateRoute);
+  if (
+    projection.method !== adaptation.method
+    || projection.methodReason !== adaptation.methodReason
+    || projection.estimatedMinutes !== adaptation.estimatedMinutes
+    || projection.learningMode !== adaptation.learningMode
+  ) {
+    throw new Error("The prepared agency candidate no longer matches the displayed adaptation.");
+  }
 }
 
 function createNewSessionRoute({

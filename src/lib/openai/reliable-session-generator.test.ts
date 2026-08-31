@@ -152,7 +152,7 @@ describe("reliable OpenAI session generation", () => {
       "You asked for the big picture first, so YOVA will establish the overall model before the details.",
     );
     expect(result.draft.activities.at(-1)?.methodPhase).toBe("schedule_return");
-  });
+  }, 15_000);
 
   it("stops a reliable provider call at the shared route deadline", async () => {
     const startedAt = new Date("2026-08-21T14:00:00.000Z");

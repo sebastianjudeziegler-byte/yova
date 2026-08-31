@@ -1,5 +1,6 @@
 import type { LearningPlan, SessionCompletion } from "@/lib/domain";
 import { completionCreatesTopicEvidence } from "@/lib/learning/session-completion-provenance";
+import { learningStateConceptEvidence } from "@/lib/learning/concept-evidence";
 
 type TopicStatus = "not_started" | "taught" | "evidenced" | "secure";
 
@@ -15,7 +16,7 @@ export function displayedTopicStatus(
 ): TopicStatus {
   const evidence = completions
     .filter(completionCreatesTopicEvidence)
-    .flatMap((completion) => completion.conceptEvidence)
+    .flatMap((completion) => learningStateConceptEvidence(completion.conceptEvidence))
     .filter((item) => item.topicId === topicId);
   const secureAttempts = evidence.filter((item) => item.outcome === "secure").length;
   if (storedStatus === "secure" || secureAttempts >= 2) return "secure";

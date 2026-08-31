@@ -1,4 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { LEARNING_TASK_TYPES } from "@/lib/learning/method-catalog";
+import { eligibleMethodIdsFor, KNOWLEDGE_STAGES } from "@/lib/learning/method-eligibility";
+import { methodFidelityContractForPrompt } from "@/lib/learning/method-fidelity";
 import type { PersonalizationDecision } from "@/lib/personalization/personalization-evidence";
 import {
   PERSONALIZATION_DECISION_CHANNELS,
@@ -8,9 +11,11 @@ import {
   buildLessonDeliveryInstructions,
   buildSessionDeliveryPolicy,
   buildStatedPreferenceLessonDelivery,
+  reconcileSessionDeliveryPolicyWithMethodRecipe,
   SessionDeliveryPolicySchema,
   validateSessionDeliveryPolicy,
 } from "@/lib/personalization/session-delivery-policy";
+import { NORMAL_STUDY_DURATION_LEVELS } from "@/lib/study-route/duration-levels";
 
 type DeliveryInput = Parameters<typeof buildSessionDeliveryPolicy>[0];
 type DeliveryPolicyDecisionSetting = {
@@ -24,6 +29,68 @@ const noResults: DeliveryInput["recentResults"] = [];
 const noInterruptions: DeliveryInput["recentInterruptions"] = [];
 
 describe("session delivery policy", () => {
+  it("keeps every eligible method recipe feasible across every normal session duration", () => {
+    const checked = new Set<string>();
+    for (const taskType of LEARNING_TASK_TYPES) {
+      for (const knowledgeStage of KNOWLEDGE_STAGES) {
+        for (const learningMode of ["learn", "study"] as const) {
+          for (const methodId of eligibleMethodIdsFor({ taskType, knowledgeStage, learningMode })) {
+            for (const estimatedMinutes of NORMAL_STUDY_DURATION_LEVELS) {
+              const key = `${methodId}:${learningMode}:${estimatedMinutes}`;
+              if (checked.has(key)) continue;
+              checked.add(key);
+              const requiredPhases = methodFidelityContractForPrompt(methodId, learningMode).requiredPhases;
+              const baseline = buildSessionDeliveryPolicy({
+                learnerProfile: { functionalSupportNeed: "Shorter sections with frequent check-ins" },
+                recentResults: noResults,
+                recentInterruptions: noInterruptions,
+                learningMode,
+                estimatedMinutes,
+              });
+              const reconciled = reconcileSessionDeliveryPolicyWithMethodRecipe({
+                policy: baseline,
+                methodId,
+                learningMode,
+              });
+              const requiredFocusedActivities = requiredPhases.filter((phase) => phase !== "schedule_return").length;
+
+              expect(requiredPhases.length, `${key} minimum active minutes`).toBeLessThanOrEqual(estimatedMinutes);
+              expect(reconciled.pacing.maximumActivities, `${key} required focused phases`)
+                .toBeGreaterThanOrEqual(requiredFocusedActivities);
+              expect(reconciled.pacing.maximumActivities, `${key} renderer ceiling`).toBeLessThanOrEqual(8);
+              expect(reconciled.learnerFacingReasons).toEqual(baseline.learnerFacingReasons);
+              expect(reconciled.signalsUsed).toEqual(baseline.signalsUsed);
+            }
+          }
+        }
+      }
+    }
+  });
+
+  it.each([
+    ["concept_mapping", 5],
+    ["read_recall_review", 6],
+  ] as const)("lets the immutable %s Learn recipe outrank a shorter-section transition cap", (methodId, expectedMaximum) => {
+    for (const estimatedMinutes of [10, 15] as const) {
+      const policy = buildSessionDeliveryPolicy({
+        learnerProfile: { functionalSupportNeed: "Shorter sections with frequent check-ins" },
+        recentResults: noResults,
+        recentInterruptions: noInterruptions,
+        learningMode: "learn",
+        estimatedMinutes,
+      });
+      const reconciled = reconcileSessionDeliveryPolicyWithMethodRecipe({
+        policy,
+        methodId,
+        learningMode: "learn",
+      });
+
+      expect(policy.pacing.maximumActivities).toBe(3);
+      expect(reconciled.pacing.maximumActivities).toBe(expectedMaximum);
+      expect(reconciled.pacing.reason).toContain(`${expectedMaximum} distinct evidence phases`);
+    }
+  });
+
   it("applies every delivery-policy decision to its declared field", () => {
     const examples = {
       first_action: "small_active_start",

@@ -463,10 +463,10 @@ function ambiguousLegacyMultiTopicContext(): SessionGenerationContext {
 }
 
 function spanishSkeletonWithWrongPracticeMetadata() {
-  const lessonBrief = (essentialIdea: string) => ({
+  const lessonBrief = (essentialIdeas: string[]) => ({
     version: 1 as const,
     topicIds: [TOPIC_ID],
-    essentialIdeas: [essentialIdea],
+    essentialIdeas,
     sourceChunks: [],
     knowledgeSource: "model_knowledge" as const,
     evidenceContext: { confirmedGaps: [], secureKnowledge: [], priorMisconceptions: [] },
@@ -478,6 +478,24 @@ function spanishSkeletonWithWrongPracticeMetadata() {
     },
   });
   const items = spanishRecoveryItems(2).items;
+  const checks = items.map((item, index) => ({
+    topicId: TOPIC_ID,
+    methodPhase: "explain" as const,
+    estimatedMinutes: 5,
+    requiredForCompletion: true,
+    label: "Explain",
+    title: item.check.title,
+    body: item.check.prompt,
+    teaching: null,
+    lessonBrief: null,
+    practiceIntent: index === 0 ? "develop_gap" as const : "supported_recheck" as const,
+    misconceptionSummary: null,
+    type: "free_response" as const,
+    concept: item.concept,
+    choices: [],
+    correctAnswer: item.check.referenceAnswer,
+    feedback: item.check.feedback,
+  }));
   return {
     topicIds: [TOPIC_ID],
     rationale: "Teach two bounded restaurant-language relationships and require a typed explanation after each model.",
@@ -503,16 +521,16 @@ function spanishSkeletonWithWrongPracticeMetadata() {
       personalization: ["The lesson uses short focused explanations before each typed language check."],
     },
     sourceGrounding: null,
-    activities: items.flatMap((item, index) => [{
+    activities: [{
       topicId: TOPIC_ID,
       methodPhase: "model" as const,
       estimatedMinutes: 5,
       requiredForCompletion: true,
       label: "Learn",
-      title: `Learn ${item.concept}`,
+      title: "Learn the two restaurant-language relationships",
       body: "Read this focused explanation, then answer the typed question before continuing.",
       teaching: null,
-      lessonBrief: lessonBrief(item.essentialIdea),
+      lessonBrief: lessonBrief([...SPANISH_IDEAS]),
       practiceIntent: null,
       misconceptionSummary: null,
       type: "instruction" as const,
@@ -520,24 +538,41 @@ function spanishSkeletonWithWrongPracticeMetadata() {
       choices: [],
       correctAnswer: null,
       feedback: null,
-    }, {
+    }, ...checks, {
       topicId: TOPIC_ID,
-      methodPhase: "explain" as const,
-      estimatedMinutes: 5,
-      requiredForCompletion: true,
-      label: "Explain",
-      title: item.check.title,
-      body: item.check.prompt,
+      methodPhase: "repair" as const,
+      estimatedMinutes: 2,
+      requiredForCompletion: false,
+      label: "Repair",
+      title: "Repair the first explanation",
+      body: "Compare the first explanation with its reference answer and correct only the missing relationship.",
       teaching: null,
       lessonBrief: null,
-      practiceIntent: index === 0 ? "develop_gap" as const : "supported_recheck" as const,
+      practiceIntent: null,
       misconceptionSummary: null,
       type: "free_response" as const,
-      concept: item.concept,
+      concept: items[0]!.concept,
       choices: [],
-      correctAnswer: item.check.referenceAnswer,
-      feedback: item.check.feedback,
-    }]),
+      correctAnswer: items[0]!.check.referenceAnswer,
+      feedback: items[0]!.check.feedback,
+    }, {
+      topicId: TOPIC_ID,
+      methodPhase: "reexplain" as const,
+      estimatedMinutes: 3,
+      requiredForCompletion: false,
+      label: "Explain again",
+      title: "Explain the corrected relationship again",
+      body: "Explain the first restaurant-language relationship again after the repair without copying the model.",
+      teaching: null,
+      lessonBrief: null,
+      practiceIntent: "develop_gap" as const,
+      misconceptionSummary: null,
+      type: "free_response" as const,
+      concept: items[0]!.concept,
+      choices: [],
+      correctAnswer: items[0]!.check.referenceAnswer,
+      feedback: items[0]!.check.feedback,
+    }],
     targetAssignments: SPANISH_IDEAS.map((essentialIdea) => ({
       essentialIdea,
       targetId: "target_1" as const,
@@ -667,7 +702,9 @@ describe("bounded streamed-skeleton repair policy", () => {
     });
     expect(result.draft.activities.filter((activity) => (
       activity.type === "multiple_choice" || activity.type === "free_response"
-    )).map((activity) => activity.practiceIntent)).toEqual(["baseline", "baseline"]);
+    )).map((activity) => activity.practiceIntent)).toEqual([
+      "baseline", "baseline", "baseline", "baseline",
+    ]);
     expect(result.generationStats).toMatchObject({
       attempts: 1,
       firstAttemptPassed: false,
@@ -676,7 +713,7 @@ describe("bounded streamed-skeleton repair policy", () => {
       repairSucceeded: true,
       validationIssueCode: "session_practice_metadata",
     });
-  });
+  }, 15_000);
 
   it("recovers a broader semantic failure with a server-owned compact V17 sequence", async () => {
     const { generateStreamedTeachingSkeletonWithOpenAI } = await import("@/lib/openai/streamed-teaching-generator");
@@ -701,8 +738,8 @@ describe("bounded streamed-skeleton repair policy", () => {
     expect(result.deliveryInstructions).toBeDefined();
     expect(result.draft.activities.filter((activity) => (
       "lessonBrief" in activity && activity.lessonBrief
-    ))).toHaveLength(2);
-    expect(result.draft.activities.filter((activity) => activity.type === "free_response")).toHaveLength(2);
+    ))).toHaveLength(1);
+    expect(result.draft.activities.filter((activity) => activity.type === "free_response")).toHaveLength(4);
     expect(result.draft.coverage.essentialIdeas).toEqual([...SPANISH_IDEAS]);
     expect(result.draft.coverage.evidenceMap.map((entry) => entry.activityConcept)).toEqual(
       SPANISH_IDEAS.map((idea) => idea.slice(0, 120)),
@@ -768,8 +805,8 @@ describe("bounded streamed-skeleton repair policy", () => {
     expect(result.draft.coverage.deferredContent).toEqual([THREE_TARGET_SPANISH_TARGETS[2]]);
     expect(result.draft.activities.filter((activity) => (
       "lessonBrief" in activity && activity.lessonBrief
-    ))).toHaveLength(2);
-    expect(result.draft.activities.filter((activity) => activity.type === "free_response")).toHaveLength(2);
+    ))).toHaveLength(1);
+    expect(result.draft.activities.filter((activity) => activity.type === "free_response")).toHaveLength(4);
     const activeSurface = JSON.stringify({
       essentialIdeas: result.draft.coverage.essentialIdeas,
       evidenceMap: result.draft.coverage.evidenceMap,
@@ -782,10 +819,11 @@ describe("bounded streamed-skeleton repair policy", () => {
   it("structurally recovers the production-shaped World War I lesson without exposing its deferred target", async () => {
     const { generateStreamedTeachingSkeletonWithOpenAI } = await import("@/lib/openai/streamed-teaching-generator");
     const context = threeTargetWorldWarContext();
+    const recovery = worldWarRecoveryItems();
     parseResponse.mockReset();
     parseResponse
       .mockResolvedValueOnce(completedProviderResponse("invalid-world-war-skeleton", {}))
-      .mockResolvedValueOnce(completedProviderResponse("compact-world-war-recovery", worldWarRecoveryItems()));
+      .mockResolvedValueOnce(completedProviderResponse("compact-world-war-recovery", recovery));
 
     const result = await generateStreamedTeachingSkeletonWithOpenAI(context);
 
@@ -818,12 +856,12 @@ describe("bounded streamed-skeleton repair policy", () => {
       repairSucceeded: true,
       recoveryMode: "safe_learn",
     });
-    expect(result.draft.coverage.essentialIdeas).toEqual(worldWarRecoveryItems().items.map((item) => item.essentialIdea));
+    expect(result.draft.coverage.essentialIdeas).toEqual(recovery.items.map((item) => item.essentialIdea));
     expect(result.draft.coverage.deferredContent).toEqual([WORLD_WAR_TARGETS[2]]);
     expect(result.draft.activities.filter((activity) => (
       "lessonBrief" in activity && activity.lessonBrief
-    ))).toHaveLength(2);
-    expect(result.draft.activities.filter((activity) => activity.type === "free_response")).toHaveLength(2);
+    ))).toHaveLength(1);
+    expect(result.draft.activities.filter((activity) => activity.type === "free_response")).toHaveLength(4);
     expect(result.draft.coverage.evidenceMap[0]?.activityConcept).toMatch(
       /^Before 1914, rival alliances and imperial competition created an international crisis risk and$/,
     );
@@ -921,7 +959,8 @@ describe("bounded streamed-skeleton repair policy", () => {
     expect(result.draft.activities.map((activity) => [activity.methodPhase, activity.type])).toEqual([
       ["model", "instruction"],
       ["explain", "free_response"],
-      ["reflect", "reflection"],
+      ["repair", "free_response"],
+      ["reexplain", "free_response"],
     ]);
     expect(result.draft.activities.reduce((sum, activity) => (
       activity.methodPhase === "schedule_return" ? sum : sum + activity.estimatedMinutes
@@ -1090,7 +1129,7 @@ describe("bounded streamed-skeleton repair policy", () => {
     expect(result.draft.coverage.essentialIdeas).toHaveLength(3);
     expect(result.draft.coverage.deferredContent).toEqual([targets[3]]);
     expect(result.draft.activities).toHaveLength(7);
-    expect(result.draft.activities.filter((activity) => activity.type === "free_response")).toHaveLength(3);
+    expect(result.draft.activities.filter((activity) => activity.type === "free_response")).toHaveLength(4);
   });
 
   it("reduces a 15-minute two-target retrieval lesson before generation so every retained idea keeps its teach-check pair and repair", async () => {
@@ -1214,10 +1253,24 @@ describe("bounded streamed-skeleton repair policy", () => {
     const { generateStreamedTeachingSkeletonWithOpenAI } = await import("@/lib/openai/streamed-teaching-generator");
     parseResponse.mockReset();
     parseResponse.mockRejectedValueOnce(new Error("provider unavailable"));
+    const context = mixedStreamedContext();
+    context.session.estimatedMinutes = 30;
 
-    await expect(generateStreamedTeachingSkeletonWithOpenAI(mixedStreamedContext())).rejects.toMatchObject({
-      generationStats: { attempts: 1, failedValidator: "session_provider_request" },
+    const result = await generateStreamedTeachingSkeletonWithOpenAI(context);
+    expect(result.generationStats).toMatchObject({
+      attempts: 1,
+      failedValidator: "session_provider_request",
+      stage: "fallback",
+      degradedMode: "source_grounded",
     });
+    expect(result.draft.coverage.essentialIdeas).toEqual([
+      "Alliance obligations connected the local July Crisis to mobilization by additional European powers.",
+    ]);
+    expect(result.draft.coverage.deferredContent).toContain("Mobilization timing restricted diplomacy");
+    expect(result.draft.topicIds).toEqual([TOPIC_ID, AI_TOPIC_ID]);
+    expect(result.draft.activities.filter((activity) => activity.topicId).map((activity) => (
+      activity.topicId
+    ))).not.toContain(AI_TOPIC_ID);
     const providerInput = parseResponse.mock.calls[0]?.[0]?.input as string;
     const prompt = JSON.parse(providerInput.slice(providerInput.indexOf("\n") + 1));
     expect(prompt.sessionProvenanceContract).toMatchObject({
@@ -1249,46 +1302,45 @@ describe("bounded streamed-skeleton repair policy", () => {
 
     await expect(generateStreamedTeachingSkeletonWithOpenAI(contextWithMaterials([]))).rejects.toMatchObject({
       name: "SessionGenerationFailure",
+      message: expect.stringMatching(/attach or reprocess readable material|source-independent route/i),
       generationStats: {
         attempts: 2,
         failedValidator: "session_provider_request",
         repairAttempted: true,
         repairSucceeded: false,
         repairDetail: expect.stringContaining("unknown"),
+        stage: "fallback",
+        cause: "source_unavailable",
       },
     });
     expect(parseResponse).toHaveBeenCalledTimes(2);
   });
 
-  it("allows the third call to be the successful scope-only repair", async () => {
+  it("refuses a third provider call even after repeated scope failures", async () => {
     const {
       streamedSkeletonRepairAttemptCopy,
       streamedSkeletonRequestTimeoutMs,
     } = await import("@/lib/openai/streamed-teaching-generator");
     const startedAt = 10_000;
-    const simulatedOutcomes = [
-      "streamed_lesson_scope",
-      "streamed_lesson_scope",
-      null,
-    ] as const;
-    const requestTimes = [startedAt, startedAt + 9_000, startedAt + 18_000];
-    let previousFailedValidator: "streamed_lesson_scope" | null = null;
-    let successfulAttempt = 0;
-
-    simulatedOutcomes.forEach((outcome, attemptIndex) => {
-      const timeout = streamedSkeletonRequestTimeoutMs({
-        attemptIndex,
-        generationStartedAt: startedAt,
-        now: requestTimes[attemptIndex]!,
-        previousFailedValidator,
-      });
-      expect(timeout).not.toBeNull();
-      if (outcome === null) successfulAttempt = attemptIndex + 1;
-      previousFailedValidator = outcome;
-    });
-
-    expect(successfulAttempt).toBe(3);
-    expect(streamedSkeletonRepairAttemptCopy(successfulAttempt)).toBe("2 repair attempts");
+    expect(streamedSkeletonRequestTimeoutMs({
+      attemptIndex: 0,
+      generationStartedAt: startedAt,
+      now: startedAt,
+      previousFailedValidator: null,
+    })).toBe(35_000);
+    expect(streamedSkeletonRequestTimeoutMs({
+      attemptIndex: 1,
+      generationStartedAt: startedAt,
+      now: startedAt + 9_000,
+      previousFailedValidator: "streamed_lesson_scope",
+    })).toBe(35_000);
+    expect(streamedSkeletonRequestTimeoutMs({
+      attemptIndex: 2,
+      generationStartedAt: startedAt,
+      now: startedAt + 18_000,
+      previousFailedValidator: "streamed_lesson_scope",
+    })).toBeNull();
+    expect(streamedSkeletonRepairAttemptCopy(2)).toBe("1 repair attempt");
   });
 
   it("keeps ordinary non-scope failures at the existing two provider calls", async () => {
@@ -1315,7 +1367,7 @@ describe("bounded streamed-skeleton repair policy", () => {
     })).toBeNull();
   });
 
-  it("uses only the remaining total budget and refuses an unviable third call", async () => {
+  it("refuses a third call regardless of remaining total budget", async () => {
     const { streamedSkeletonRequestTimeoutMs } = await import("@/lib/openai/streamed-teaching-generator");
     const startedAt = 30_000;
 
@@ -1324,7 +1376,7 @@ describe("bounded streamed-skeleton repair policy", () => {
       generationStartedAt: startedAt,
       now: startedAt + 40_000,
       previousFailedValidator: "streamed_lesson_scope",
-    })).toBe(18_000);
+    })).toBeNull();
     expect(streamedSkeletonRequestTimeoutMs({
       attemptIndex: 2,
       generationStartedAt: startedAt,
@@ -1632,9 +1684,13 @@ describe("streamed-session activity compaction", () => {
         preservePrerequisiteOrder: true as const,
       },
     };
-    const question = (concept: string, idea: string) => ({
+    const question = (
+      concept: string,
+      idea: string,
+      methodPhase: "guided_practice" | "independent_practice",
+    ) => ({
       topicId: TOPIC_ID,
-      methodPhase: "explain" as const,
+      methodPhase,
       estimatedMinutes: 3,
       requiredForCompletion: true,
       label: "Explain",
@@ -1671,8 +1727,8 @@ describe("streamed-session activity compaction", () => {
       methodBriefing: {
         learningMode: "learn",
         taskType: "conceptual_learning",
-        methodId: "self_explanation",
-        name: "Self-explanation",
+        methodId: "worked_example_fading",
+        name: "Worked example fading",
         what: "Study the causal model, then explain each relationship from memory.",
         why: "Explaining each link reveals whether the causal model is understood.",
         how: ["Study one relationship.", "Explain it before continuing."],
@@ -1697,7 +1753,7 @@ describe("streamed-session activity compaction", () => {
         choices: [],
         correctAnswer: null,
         feedback: null,
-      }, question("Darkness and circadian timing", firstIdea), question("Pineal melatonin release", secondIdea), {
+      }, question("Darkness and circadian timing", firstIdea, "guided_practice"), question("Pineal melatonin release", secondIdea, "independent_practice"), {
         topicId: null,
         methodPhase: "reflect",
         estimatedMinutes: 1,
@@ -1753,7 +1809,7 @@ describe("streamed-session activity compaction", () => {
     };
 
     expect(finalized.activities.map((activity) => activity.methodPhase)).toEqual([
-      "model", "explain", "model", "explain", "schedule_return",
+      "model", "guided_practice", "model", "independent_practice", "schedule_return",
     ]);
     expect(finalized.activities[0]?.estimatedMinutes).toBeLessThanOrEqual(5);
     expect(validateStreamedTeachingPacing({
@@ -2941,7 +2997,7 @@ describe("runtime session-window scoping", () => {
     const scopedMultiBlock = scopeStreamedSkeletonToCurrentWindow({
       draft: multiBlockDraft,
       plannedTargets: [target, secondTarget, "Basic chronology from 1914 to 1918"],
-      estimatedMinutes: 15,
+      estimatedMinutes: 30,
       learnerDirection: null,
     });
     const teachingSurfaces = scopedMultiBlock.activities
@@ -3424,7 +3480,7 @@ describe("runtime session-window scoping", () => {
       estimatedMinutes: 15,
       learnerDirection,
     })).toThrow(new RegExp(
-      "Active targets that must be taught and checked now:.*Prewar European alliances and tensions.*Sequence from the Sarajevo assassination to declarations of war.*Later targets that must remain exact entries in deferredContent:.*Basic chronology from 1914 to 1918",
+      "Active targets that must be taught and checked now:.*Prewar European alliances and tensions.*Later targets that must remain exact entries in deferredContent:.*Sequence from the Sarajevo assassination to declarations of war.*Basic chronology from 1914 to 1918",
       "i",
     ));
 
@@ -3452,12 +3508,12 @@ describe("runtime session-window scoping", () => {
       completionEvidence: adjustedContext.session.completionEvidence,
     };
 
-    expect(finalized.coverage.essentialIdeas).toHaveLength(2);
+    expect(finalized.coverage.essentialIdeas).toHaveLength(1);
     expect(finalized.coverage.essentialIdeas.join(" ")).toMatch(/Sarajevo|July Crisis/i);
     expect(finalized.activities.filter((activity) => (
       activity.requiredForCompletion
       && (activity.type === "multiple_choice" || activity.type === "free_response")
-    )).length).toBeLessThanOrEqual(2);
+    )).length).toBeLessThanOrEqual(1);
     expect(finalized.activities.some((activity) => activity.type === "multiple_choice")).toBe(false);
     expect(finalized.activities.some((activity) => activity.type === "free_response")).toBe(true);
     expect(finalized.activities
@@ -3635,7 +3691,7 @@ describe("runtime session-window scoping", () => {
     const scoped = scopeStreamedSkeletonToCurrentWindow({
       draft,
       plannedTargets: targets,
-      estimatedMinutes: 15,
+      estimatedMinutes: 30,
       learnerDirection: "Teach the July Crisis cause chain first and leave later-war topics for later sessions.",
     });
     const activeSurface = JSON.stringify({
@@ -3658,7 +3714,7 @@ describe("runtime session-window scoping", () => {
     expect(scoped.rationale).toContain("Prewar European alliances and tensions");
     expect(scoped.rationale).toContain("Sequence from the Sarajevo assassination to declarations of war");
     expect(scoped.rationale).toContain("Later plan topics remain deferred");
-    expect(scoped.methodBriefing.name).toBe("Self-explanation");
+    expect(scoped.methodBriefing.name).toBe("Feynman Technique");
     expect(JSON.stringify({
       rationale: scoped.rationale,
       focus: scoped.coverage.focus,
@@ -3673,7 +3729,7 @@ describe("runtime session-window scoping", () => {
       sessionTopicIds: [topicId],
       sessionObjective: "Explain how alliances and mobilization widened the July Crisis.",
       sessionContentTargets: targets,
-      sessionEstimatedMinutes: 15,
+      sessionEstimatedMinutes: 30,
       learnerDirection: "Teach the July Crisis first and leave later-war topics for later sessions.",
     })).toBeNull();
     expect(() => StreamedGeneratedSessionDraftSchema.parse(scoped)).not.toThrow();

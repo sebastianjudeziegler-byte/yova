@@ -8,9 +8,17 @@ import {
   LEARNING_TASK_TYPES,
   METHOD_PRESENTATION_POLICY_VERSION,
 } from "@/lib/learning/method-catalog";
-import { KNOWLEDGE_STAGES } from "@/lib/learning/method-eligibility";
+import {
+  KNOWLEDGE_STAGES,
+  METHOD_ELIGIBILITY_POLICY_VERSION,
+} from "@/lib/learning/method-eligibility";
 import { methodFidelityContractForPrompt } from "@/lib/learning/method-fidelity";
 import { METHOD_RUNTIME_CAPABILITY_POLICY_VERSION } from "@/lib/session-generation/method-runtime-capability";
+import { METHOD_DECISION_EVIDENCE_ADAPTER_VERSION } from "@/lib/study-route/method-decision-evidence";
+import {
+  METHOD_EVIDENCE_COMPARABILITY_POLICY_VERSION,
+  METHOD_EVIDENCE_POLICY_VERSION,
+} from "@/lib/study-route/method-evidence-policy";
 import type { GenerationPersonalizationContext } from "@/lib/personalization/personalization-generation";
 import {
   legacyPlanSessionToStudyRoute,
@@ -163,8 +171,10 @@ describe("StudyRoute method plan integration", () => {
     expect(integrated.provenance.routerVersion.length).toBeLessThanOrEqual(256);
     expect(integrated.provenance.ruleTrace.map((entry) => entry.ruleId)).toEqual(
       expect.arrayContaining([
-        "method_decision_evidence_adapter_v1",
-        "method_eligibility_v1",
+        METHOD_DECISION_EVIDENCE_ADAPTER_VERSION,
+        METHOD_EVIDENCE_POLICY_VERSION,
+        METHOD_EVIDENCE_COMPARABILITY_POLICY_VERSION,
+        METHOD_ELIGIBILITY_POLICY_VERSION,
         "canonical_method_selection_v1",
         METHOD_RUNTIME_CAPABILITY_POLICY_VERSION,
         METHOD_PRESENTATION_POLICY_VERSION,

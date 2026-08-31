@@ -1,16 +1,17 @@
 import { expect, test, type Page } from "@playwright/test";
 
 const onboardingAnswers = [
-  "I struggle to start",
-  "Give me clear structure with flexibility",
+  "Show a short recommendation and alternatives",
+  "I delay a little, then get going",
   "20 to 30 minutes",
-  "A concrete example first",
-  "Sometimes",
-  "I intend to begin but often delay",
-  "Afternoon",
-  "A combination",
+  "A concrete example before the rule",
+  "Recalling it without notes, then checking",
+  "I recognize it but cannot recall it",
+  "Give me a small hint",
+  "Show one step at a time",
+  "Clear checkpoints inside the block",
   "No extra support right now",
-  "Nothing else for now",
+  "Afternoon",
 ] as const;
 
 const TEST_TIME_ZONE = "Europe/London";

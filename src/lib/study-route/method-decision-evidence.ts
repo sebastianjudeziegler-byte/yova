@@ -17,12 +17,21 @@ import {
 } from "@/lib/personalization/personalization-generation";
 import { readPersonalizationStateFromAnswers } from "@/lib/personalization/personalization-state";
 import { methodSelectionContextForStudyRoute } from "@/lib/study-route/method-plan-integration";
+import {
+  methodEvidenceComparisonContextForRoute,
+  methodEvidenceComparisonKey,
+  type MethodEvidenceComparisonContext,
+} from "@/lib/study-route/method-evidence-policy";
 import { StudyRouteSchema, type StudyRoute } from "@/lib/study-route/schema";
 
 export const METHOD_DECISION_EVIDENCE_ADAPTER_VERSION =
-  "method_decision_evidence_adapter_v1" as const;
+  "method_decision_evidence_adapter_v2" as const;
 export const METHOD_DECISION_RECENCY_DAYS = 90 as const;
-export const METHOD_DECISION_MAX_SESSIONS_PER_METHOD = 8 as const;
+export const METHOD_DECISION_MAX_COHORTS_PER_METHOD_CONTEXT = 4 as const;
+export const METHOD_DECISION_MAX_SESSIONS_PER_COHORT = 8 as const;
+/** @deprecated Use METHOD_DECISION_MAX_SESSIONS_PER_COHORT. */
+export const METHOD_DECISION_MAX_SESSIONS_PER_METHOD =
+  METHOD_DECISION_MAX_SESSIONS_PER_COHORT;
 
 export type AuthorizedMethodEvidenceSession = Pick<
   LearningPlanSession,
@@ -50,6 +59,7 @@ type ComparableCompletion = {
   authority: MethodAuthority;
   taskType: StudyRoute["target"]["taskFamily"];
   knowledgeStage: ReturnType<typeof methodSelectionContextForStudyRoute>["knowledgeStage"];
+  comparisonContext: MethodEvidenceComparisonContext;
 };
 
 const IsoTimestampSchema = z.string().datetime({ offset: true });
@@ -113,6 +123,7 @@ export function buildAuthorizedMethodDecisionEvidence({
       authority,
       taskType: context.taskType,
       knowledgeStage: context.knowledgeStage,
+      comparisonContext: methodEvidenceComparisonContextForRoute(authority.route),
     }];
   });
   // Replaying or retrying one route cannot manufacture multiple "sessions" of
@@ -126,31 +137,48 @@ export function buildAuthorizedMethodDecisionEvidence({
   }
   const comparable = [...comparableByRoute.values()];
 
-  const grouped = new Map<string, ComparableCompletion[]>();
+  const cohorts = new Map<string, ComparableCompletion[]>();
   for (const item of comparable) {
-    const key = `${item.taskType}:${item.knowledgeStage}`;
-    const current = grouped.get(key) ?? [];
+    const key = [
+      item.authority.route.approach.primaryMethodId,
+      methodEvidenceComparisonKey(item.comparisonContext),
+    ].join(":");
+    const current = cohorts.get(key) ?? [];
     current.push(item);
-    grouped.set(key, current);
+    cohorts.set(key, current);
   }
 
-  const observedEvidence = [...grouped.entries()].flatMap(([, items]) => {
+  // Never pool unlike work. Keep several separately keyed cohorts so a future
+  // route can select only its exact comparison cohort. Bound the retained
+  // cohort count per method/task/stage to keep the server projection compact.
+  const comparableGroups = new Map<string, ComparableCompletion[][]>();
+  for (const items of cohorts.values()) {
+    const first = items[0]!;
+    const key = [
+      first.taskType,
+      first.knowledgeStage,
+      first.authority.route.approach.primaryMethodId,
+    ].join(":");
+    const current = comparableGroups.get(key) ?? [];
+    current.push(items);
+    comparableGroups.set(key, current);
+  }
+  const retainedCohorts = [...comparableGroups.values()].flatMap((candidates) => (
+    [...candidates]
+      .sort(compareCohortStrength)
+      .slice(0, METHOD_DECISION_MAX_COHORTS_PER_METHOD_CONTEXT)
+  ));
+
+  const observedEvidence = retainedCohorts.flatMap((items) => {
+    const first = items[0]!;
     const comparison = {
-      taskType: items[0]!.taskType,
-      knowledgeStage: items[0]!.knowledgeStage,
+      taskType: first.taskType,
+      knowledgeStage: first.knowledgeStage,
     };
-    const byMethod = new Map<string, ComparableCompletion[]>();
-    for (const item of items) {
-      const methodId = item.authority.route.approach.primaryMethodId;
-      const current = byMethod.get(methodId) ?? [];
-      current.push(item);
-      byMethod.set(methodId, current);
-    }
-    const boundedItems = [...byMethod.values()].flatMap((methodItems) => (
-      [...methodItems]
-        .sort(compareCompletionRecency)
-        .slice(0, METHOD_DECISION_MAX_SESSIONS_PER_METHOD)
-    ));
+    const comparisonKey = methodEvidenceComparisonKey(first.comparisonContext);
+    const boundedItems = [...items]
+      .sort(compareCompletionRecency)
+      .slice(0, METHOD_DECISION_MAX_SESSIONS_PER_COHORT);
     const attempts: MethodOutcomeAttempt[] = boundedItems.map((item) => ({
       methodId: item.authority.route.approach.primaryMethodId,
       taskType: comparison.taskType,
@@ -161,19 +189,17 @@ export function buildAuthorizedMethodDecisionEvidence({
     }));
     const signals = buildMethodOutcomeSignals(attempts, comparison);
     return signals.map((signal): CanonicalObservedMethodEvidence => {
-      const methodItems = boundedItems.filter((item) => (
-        item.authority.route.approach.primaryMethodId === signal.methodId
-      ));
       return {
+        comparisonKey,
         signal,
-        evidenceRefs: unique(methodItems.flatMap((item) => [
+        evidenceRefs: unique(boundedItems.flatMap((item) => [
           item.completion.id,
           routeEvidenceRef(item.authority.route.identity.routeRevisionId),
         ])),
-        distinctStudyDays: new Set(methodItems.map((item) => (
+        distinctStudyDays: new Set(boundedItems.map((item) => (
           item.completion.completedAt.slice(0, 10)
         ))).size,
-        latestObservedAt: methodItems
+        latestObservedAt: boundedItems
           .map((item) => item.completion.completedAt)
           .sort((left, right) => right.localeCompare(left))[0]!,
       };
@@ -182,6 +208,7 @@ export function buildAuthorizedMethodDecisionEvidence({
     left.signal.taskType.localeCompare(right.signal.taskType)
     || left.signal.knowledgeStage.localeCompare(right.signal.knowledgeStage)
     || left.signal.methodId.localeCompare(right.signal.methodId)
+    || left.comparisonKey.localeCompare(right.comparisonKey)
   ));
 
   return deepFreeze({ personalization, observedEvidence });
@@ -257,6 +284,31 @@ function resourceMatchesRoute(
 function compareCompletionRecency(left: ComparableCompletion, right: ComparableCompletion) {
   return Date.parse(right.completion.completedAt) - Date.parse(left.completion.completedAt)
     || left.completion.id.localeCompare(right.completion.id);
+}
+
+function compareCohortStrength(
+  left: readonly ComparableCompletion[],
+  right: readonly ComparableCompletion[],
+) {
+  return right.length - left.length
+    || checkedAnswerCount(right) - checkedAnswerCount(left)
+    || distinctStudyDayCount(right) - distinctStudyDayCount(left)
+    || latestCompletionTime(right) - latestCompletionTime(left)
+    || methodEvidenceComparisonKey(left[0]!.comparisonContext).localeCompare(
+      methodEvidenceComparisonKey(right[0]!.comparisonContext),
+    );
+}
+
+function checkedAnswerCount(items: readonly ComparableCompletion[]) {
+  return items.reduce((sum, item) => sum + item.completion.totalAnswers, 0);
+}
+
+function distinctStudyDayCount(items: readonly ComparableCompletion[]) {
+  return new Set(items.map((item) => item.completion.completedAt.slice(0, 10))).size;
+}
+
+function latestCompletionTime(items: readonly ComparableCompletion[]) {
+  return Math.max(...items.map((item) => Date.parse(item.completion.completedAt)));
 }
 
 function countIds(values: readonly string[]) {

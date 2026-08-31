@@ -11,8 +11,8 @@ describe("learning-method fidelity", () => {
   it("makes the recommended method contract explicit for the generator", () => {
     expect(methodFidelityContractForPrompt("read_recall_review", "learn")).toMatchObject({
       id: "read_recall_review",
-      requiredPhases: ["model", "read_source", "retrieve", "repair"],
-      orderedPhases: ["model", "read_source", "retrieve", "repair"],
+      requiredPhases: ["model", "survey", "question", "read_source", "retrieve", "review"],
+      orderedPhases: ["model", "survey", "question", "read_source", "retrieve", "review"],
     });
   });
 
@@ -28,13 +28,13 @@ describe("learning-method fidelity", () => {
     expect(validateMethodFidelity({
       methodId: "self_explanation",
       learningMode: "study",
-      activities: [activity("model"), activity("explain", "multiple_choice", "Funding tradeoff")],
+      activities: [activity("model"), activity("explain", "multiple_choice", "Funding tradeoff"), activity("repair"), activity("reexplain", "free_response", "Funding tradeoff")],
     })).toMatch(/cannot perform that learning phase/i);
 
     expect(validateMethodFidelity({
       methodId: "self_explanation",
       learningMode: "study",
-      activities: [activity("model"), activity("explain", "free_response", "Funding tradeoff")],
+      activities: [activity("model"), activity("explain", "free_response", "Funding tradeoff"), activity("repair"), activity("reexplain", "free_response", "Funding tradeoff")],
     })).toBeNull();
   });
 
@@ -62,12 +62,59 @@ describe("learning-method fidelity", () => {
     })).toMatch(/distinct question categories/i);
   });
 
-  it("makes practice-first reading retrieve before targeted rereading", () => {
+  it("requires the full SQ3R sequence", () => {
     expect(validateMethodFidelity({
       methodId: "read_recall_review",
       learningMode: "study",
-      activities: [activity("retrieve", "free_response", "Main claim"), activity("read_source"), activity("transfer", "multiple_choice", "Supporting evidence")],
+      activities: [
+        activity("survey"),
+        activity("question", "free_response", "Guiding question"),
+        activity("read_source"),
+        activity("retrieve", "free_response", "Main claim"),
+        activity("review", "reflection"),
+      ],
     })).toBeNull();
+  });
+
+  it("keeps each new method structurally distinct", () => {
+    expect(validateMethodFidelity({
+      methodId: "pretesting",
+      learningMode: "learn",
+      activities: [activity("pretest", "multiple_choice"), activity("model"), activity("transfer", "free_response")],
+    })).toBeNull();
+    expect(validateMethodFidelity({
+      methodId: "concept_mapping",
+      learningMode: "study",
+      activities: [activity("retrieve", "free_response"), activity("connect", "free_response"), activity("evidence_match", "free_response"), activity("repair")],
+    })).toBeNull();
+    expect(validateMethodFidelity({
+      methodId: "practice_problems",
+      learningMode: "study",
+      activities: [activity("independent_practice", "free_response"), activity("transfer", "free_response")],
+    })).toBeNull();
+  });
+
+  it("does not pre-author an error repair before the learner has made an error", () => {
+    expect(validateMethodFidelity({
+      methodId: "practice_problems",
+      learningMode: "study",
+      activities: [
+        activity("independent_practice", "free_response", "Product rule application"),
+        activity("repair", "free_response", "Product rule application"),
+        activity("transfer", "free_response", "Changed product-rule application"),
+      ],
+    })).toMatch(/only after an observed learner miss at runtime/i);
+
+    expect(validateMethodFidelity({
+      methodId: "pretesting",
+      learningMode: "learn",
+      activities: [
+        activity("pretest", "multiple_choice", "Product rule prediction"),
+        activity("model"),
+        activity("repair", "free_response", "Product rule prediction"),
+        activity("transfer", "free_response", "Changed product-rule application"),
+      ],
+    })).toMatch(/only after an observed learner miss at runtime/i);
   });
 
   it("requires an accurate model before retrieval practice when the learner is still learning", () => {

@@ -1,6 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { LearningPlan } from "@/lib/domain";
-import { CORE_METHOD_IDS, type CoreMethodId } from "@/lib/learning/method-catalog";
+import {
+  CORE_METHOD_CATALOG,
+  CORE_METHOD_IDS,
+  type CoreMethodId,
+} from "@/lib/learning/method-catalog";
 import { normalizePlanDraftGenerationContract } from "@/lib/plan-generation/draft-contract";
 import { generatePreviewPlan } from "@/lib/plan-generation/preview-generator";
 import {
@@ -171,6 +175,51 @@ describe("normal-plan draft method-choice route", () => {
     expect(parsed.revision.status).toBe("unchanged");
     expect(parsed.plan).toEqual(plan);
     expect(parsed.draftReceipt).toBe(issued.receipt);
+  });
+
+  it("resolves an I'll Customize Other method inside the signed route eligibility cohort", async () => {
+    const original = routedPlan();
+    const { sessionIndex, session, route: currentRoute, methodId } = offeredChoice(original);
+    const customizeRoute = StudyRouteSchema.parse({
+      ...currentRoute,
+      agency: {
+        ...currentRoute.agency,
+        controlMode: "learner_customizes",
+        alternatives: [],
+      },
+    });
+    const plan: LearningPlan = {
+      ...original,
+      sessions: original.sessions.map((candidate, index) => (
+        index === sessionIndex
+          ? { ...candidate, studyRoute: customizeRoute }
+          : candidate
+      )),
+    };
+    const issued = sign(plan, USER_ID);
+
+    const response = await POST(methodChoiceRequest({
+      plan,
+      draftReceipt: issued.receipt,
+      selection: {
+        sessionId: session.id,
+        expectedRouteRevisionId: customizeRoute.identity.routeRevisionId,
+        choiceScope: "other_eligible_method",
+        requestedMethod: CORE_METHOD_CATALOG[methodId].name,
+      },
+    }));
+    const parsed = PlanDraftMethodChoiceResponseSchema.parse(await response.json());
+
+    expect(response.status).toBe(200);
+    expect(parsed.revision.status).toBe("updated");
+    expect(parsed.methodRequestResolution).toMatchObject({
+      status: "accepted",
+      mappingKind: "exact_method",
+      requestedMethodId: methodId,
+      selectedMethodId: methodId,
+    });
+    expect(route(parsed.plan.sessions[sessionIndex]!.studyRoute).approach.primaryMethodId)
+      .toBe(methodId);
   });
 
   it("rejects a stale route revision and an unoffered method without returning a changed draft", async () => {
@@ -387,8 +436,13 @@ function methodChoiceRequest({
   selection: {
     sessionId: string;
     expectedRouteRevisionId: string;
-    methodId: CoreMethodId;
-  };
+  } & (
+    | { methodId: CoreMethodId; choiceScope?: "stored_alternative" }
+    | {
+        choiceScope: "other_eligible_method";
+        requestedMethod: string;
+      }
+  );
   developmentPreview?: boolean;
 }) {
   return new Request("https://yova.example/api/plans/method-choice", {

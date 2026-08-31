@@ -4,7 +4,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { AppShell, OnboardingQuestion } from "@/components/yova-prototype";
-import { onboardingQuestions } from "@/lib/sample-data";
+import { CANONICAL_PROFILE_QUESTIONS } from "@/lib/personalization/canonical-profile-questionnaire";
 
 vi.mock("@/components/brand-mark", () => ({ BrandMark: () => null }));
 
@@ -51,7 +51,7 @@ describe("learner-facing accessibility contracts", () => {
   });
 
   it("groups onboarding choices and exposes the selected button state", () => {
-    const question = onboardingQuestions[0];
+    const question = CANONICAL_PROFILE_QUESTIONS[0];
     const selected = question.options[1];
     const html = renderToStaticMarkup(createElement(OnboardingQuestion, {
       index: 0,

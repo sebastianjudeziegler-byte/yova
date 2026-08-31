@@ -291,18 +291,24 @@ const GeneratedSessionActivityBaseShape = {
 
 const NonModelMethodPhaseSchema = z.enum([
   "orient",
+  "survey",
+  "question",
+  "pretest",
   "read_source",
   "retrieve",
   "explain",
+  "reexplain",
   "guided_practice",
   "independent_practice",
   "discriminate",
+  "connect",
   "repair",
   "evidence_match",
   "code_trace",
   "transfer",
   "schedule_return",
   "reflect",
+  "review",
 ], { error: "Only instruction activities may use the model phase." });
 
 const NoTeachingBlockSchema = z.null({
@@ -512,8 +518,24 @@ export const GeneratedSessionDraftSchema = GeneratedSessionDraftOutputSchema.sup
       message: `${session.methodBriefing.methodId} sessions must begin with the ${expectedOpeningPhase} phase.`,
     });
   }
-  if (session.methodBriefing.learningMode === "learn" && !firstActivity?.teaching) {
-    context.addIssue({ code: "custom", path: ["activities", 0, "teaching"], message: "Teaching-first sessions must begin with a structured subject lesson, not a paragraph in the instruction field." });
+  if (session.methodBriefing.learningMode === "learn") {
+    const pretestingModelIndex = session.methodBriefing.methodId === "pretesting"
+      && firstActivity?.methodPhase === "pretest"
+      ? session.activities.findIndex((activity, index) => (
+        index > 0 && activity.methodPhase === "model" && Boolean(activity.teaching)
+      ))
+      : -1;
+    if (!firstActivity?.teaching && pretestingModelIndex < 0) {
+      context.addIssue({
+        code: "custom",
+        path: session.methodBriefing.methodId === "pretesting"
+          ? ["activities"]
+          : ["activities", 0, "teaching"],
+        message: session.methodBriefing.methodId === "pretesting"
+          ? "A Learn pretest may come first only when a structured model-phase subject lesson follows it."
+          : "Teaching-first sessions must begin with a structured subject lesson, not a paragraph in the instruction field.",
+      });
+    }
   }
   if (!session.activities.some((activity) => activity.requiredForCompletion && (activity.type === "multiple_choice" || activity.type === "free_response"))) {
     context.addIssue({ code: "custom", path: ["activities"], message: "Completion must require at least one knowledge-producing attempt." });

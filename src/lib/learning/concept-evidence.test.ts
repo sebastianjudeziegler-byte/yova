@@ -37,6 +37,27 @@ describe("readConceptEvidenceProperty", () => {
       ],
     })).toEqual([]);
   });
+
+  it("drops restored pretest entries before they reach learning-state consumers", () => {
+    expect(readConceptEvidenceProperty({
+      conceptEvidence: [
+        {
+          concept: "Electron transport chain",
+          outcome: "secure",
+          activityType: "multiple_choice",
+          methodPhase: "pretest",
+        },
+        {
+          concept: "ATP synthesis",
+          outcome: "secure",
+          activityType: "free_response",
+          methodPhase: "retrieve",
+        },
+      ],
+    })).toEqual([
+      expect.objectContaining({ concept: "ATP synthesis", methodPhase: "retrieve" }),
+    ]);
+  });
 });
 
 describe("summarizeConceptEvidence", () => {
@@ -223,6 +244,39 @@ describe("summarizeConceptEvidence", () => {
     expect(completions.map((completion) => completion.completedAt)).toEqual([
       "2026-08-05T16:00:00.000Z",
       "2026-08-04T16:00:00.000Z",
+    ]);
+  });
+
+  it("ignores pretest history while retaining later evidence for the same concept", () => {
+    const result = summarizeConceptEvidence([
+      {
+        completedAt: "2026-08-04T16:00:00.000Z",
+        conceptEvidence: [{
+          concept: "Glycolysis",
+          outcome: "secure",
+          activityType: "multiple_choice",
+          methodPhase: "pretest",
+        }],
+      },
+      {
+        completedAt: "2026-08-05T16:00:00.000Z",
+        conceptEvidence: [{
+          concept: "Glycolysis",
+          outcome: "needs_review",
+          activityType: "free_response",
+          methodPhase: "retrieve",
+        }],
+      },
+    ]);
+
+    expect(result).toEqual([
+      expect.objectContaining({
+        concept: "Glycolysis",
+        attempts: 1,
+        secureAttempts: 0,
+        needsReviewAttempts: 1,
+        lastOutcome: "needs_review",
+      }),
     ]);
   });
 });

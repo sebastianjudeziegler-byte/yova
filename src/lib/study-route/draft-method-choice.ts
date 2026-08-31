@@ -7,11 +7,14 @@ import {
 } from "@/lib/learning/canonical-method-selection";
 import {
   CORE_METHOD_CATALOG,
-  isRecognizedCoreMethodName,
   METHOD_PRESENTATION_POLICY_VERSION,
   type CoreMethodId,
 } from "@/lib/learning/method-catalog";
 import { studyRouteToLegacySessionProjection } from "@/lib/study-route/adapters";
+import {
+  isAuthorizedOtherMethodChoice,
+  isExactStoredAgencyMethodChoice,
+} from "@/lib/study-route/agency-mode-controller";
 import {
   integrateStudyRouteMethodDecision,
   methodSelectionContextForStudyRoute,
@@ -58,6 +61,7 @@ export type DraftSessionMethodSelection = Readonly<{
   sessionId: string;
   expectedRouteRevisionId: string;
   methodId: CoreMethodId;
+  choiceScope?: "stored_alternative" | "other_eligible_method";
 }>;
 
 export type ReviseDraftSessionMethodResult = Readonly<
@@ -145,20 +149,17 @@ export function reviseDraftSessionMethod({
   }
   const leavingBlurting = isBlurtingStudyRoute(route);
 
-  const offered = route.agency.alternatives.find((alternative) => (
-    alternative.primaryMethodId === selection.methodId
-  ));
+  const otherEligibleChoice = selection.choiceScope === "other_eligible_method";
   if (
-    !offered
-    || offered.mode !== route.approach.mode
-    || offered.executionEnvironment !== route.approach.executionEnvironment
-    || offered.activeMinutes !== route.timing.activeMinutes
-    || !isRecognizedCoreMethodName(selection.methodId, offered.visibleMethodName)
-    || offered.tradeoff !== `${offered.visibleMethodName} also fits this task and stage, but it would use a different practice sequence.`
+    otherEligibleChoice
+      ? !isAuthorizedOtherMethodChoice(route, selection.methodId)
+      : !isExactStoredAgencyMethodChoice(route, selection.methodId)
   ) {
     throw new DraftMethodChoiceError(
       "method_not_offered",
-      "The selected method was not one of the exact method-only alternatives shown for this session.",
+      otherEligibleChoice
+        ? "The requested Other method is outside this customize route's immutable eligible set."
+        : "The selected method was not one of the exact method-only alternatives shown for this session.",
     );
   }
 
@@ -177,6 +178,7 @@ export function reviseDraftSessionMethod({
     choiceEvidenceRef,
     methodId: selection.methodId,
     leavingBlurting,
+    choiceScope: selection.choiceScope ?? "stored_alternative",
   });
   const canonicalSelection = selectCanonicalStudyMethod({
     ...decisionContext,
@@ -232,12 +234,14 @@ function prepareRouteForChoice({
   choiceEvidenceRef,
   methodId,
   leavingBlurting,
+  choiceScope,
 }: {
   route: StudyRoute;
   changedAt: string;
   choiceEvidenceRef: string;
   methodId: CoreMethodId;
   leavingBlurting: boolean;
+  choiceScope: "stored_alternative" | "other_eligible_method";
 }) {
   const priorChoiceBoundary = route.provenance.ruleTrace.findIndex((entry) => (
     entry.ruleId === DRAFT_METHOD_CHOICE_POLICY_VERSION
@@ -256,7 +260,9 @@ function prepareRouteForChoice({
   const choiceTrace = StudyRouteRuleTraceEntrySchema.parse({
     ruleId: DRAFT_METHOD_CHOICE_POLICY_VERSION,
     result: `${route.approach.primaryMethodId}->${methodId}`,
-    reason: "The learner chose one of the bounded method alternatives shown for this uncommitted session recipe.",
+    reason: choiceScope === "other_eligible_method"
+      ? "The learner requested an eligible, deliverable method through I'll Customize Other methods for this uncommitted session recipe."
+      : "The learner chose one of the bounded method alternatives shown for this uncommitted session recipe.",
     evidenceRefs: [choiceEvidenceRef],
   });
   return StudyRouteSchema.parse({

@@ -8,6 +8,7 @@ import { SessionGenerationResponseSchema } from "@/lib/session-generation/schema
 import { adaptLegacySessionToStudyRoute } from "@/lib/study-route/adapters";
 import { NORMAL_PLAN_ENVELOPE_ROUTE_INTEGRATION_VERSION } from "@/lib/study-route/normal-plan-envelope-integration";
 import { NORMAL_PLAN_GENERATION_RATIONALE } from "@/lib/study-route/normal-plan-generation-copy";
+import type { StudyRoute } from "@/lib/study-route/schema";
 
 vi.mock("server-only", () => ({}));
 
@@ -17,6 +18,10 @@ const mocks = vi.hoisted(() => ({
   generate: vi.fn(),
   providerConfigured: true,
   recordObservation: vi.fn(),
+  releaseClaim: vi.fn(),
+  releaseReservation: vi.fn(),
+  reserve: vi.fn(),
+  settle: vi.fn(),
   supabaseConfigured: false,
 }));
 
@@ -29,6 +34,12 @@ vi.mock("@/lib/openai/config", () => ({
 }));
 vi.mock("@/lib/openai/session-generation-strategy", () => ({
   generateProductionSessionWithOpenAI: mocks.generate,
+}));
+vi.mock("@/lib/server/ai-usage", () => ({
+  releaseAIRequestClaim: mocks.releaseClaim,
+  releaseAIRequestReservation: mocks.releaseReservation,
+  reserveAIRequest: mocks.reserve,
+  settleAIRequestClaim: mocks.settle,
 }));
 vi.mock("@/lib/server/development-preview", () => ({
   isDevelopmentPreviewRequest: () => mocks.developmentPreview,
@@ -114,6 +125,18 @@ describe("guided-session route revision boundary", () => {
     mocks.generate.mockReset().mockResolvedValue(generatedResult());
     mocks.providerConfigured = true;
     mocks.recordObservation.mockReset();
+    mocks.releaseClaim.mockReset().mockResolvedValue(true);
+    mocks.releaseReservation.mockReset().mockResolvedValue(true);
+    mocks.reserve.mockReset().mockResolvedValue({
+      allowed: true,
+      claimId: "81000000-0000-4000-8000-000000000011",
+      operationKey: "81000000-0000-4000-8000-000000000012",
+      reservationState: "reserved",
+      replayed: false,
+      retryAfterSeconds: 0,
+      remainingToday: 9,
+    });
+    mocks.settle.mockReset().mockResolvedValue(true);
     mocks.supabaseConfigured = false;
   });
 
@@ -213,6 +236,7 @@ describe("guided-session route revision boundary", () => {
 
     useAuthenticatedCache(seeded, ROUTE_REVISION_ID);
     mocks.providerConfigured = false;
+    mocks.recordObservation.mockClear();
 
     const exact = await POST(request({
       planId: PLAN_ID,
@@ -224,6 +248,20 @@ describe("guided-session route revision boundary", () => {
       generation: { mode: "cache" },
       session: { routeRevisionId: ROUTE_REVISION_ID },
     });
+    expect(mocks.recordObservation).toHaveBeenCalledWith(
+      expect.anything(),
+      "81000000-0000-4000-8000-000000000006",
+      expect.objectContaining({
+        generationType: "session",
+        finalOutcome: "cache",
+        attempts: 0,
+        inputTokens: 0,
+        outputTokens: 0,
+        diagnostics: expect.objectContaining({
+          sessionPersistence: "cache_hit",
+        }),
+      }),
+    );
 
     const successor = await POST(request({
       planId: PLAN_ID,
@@ -327,6 +365,70 @@ describe("guided-session route revision boundary", () => {
       code: "study_route_generation_conflict",
       retryable: true,
     });
+  });
+
+  it("accepts a source-grounded degraded lesson that preserves route identity and explicitly defers the unsupported target", async () => {
+    const fixture = mixedAuthorityRouteFixture();
+    const generated = mixedAuthorityDegradedResult(fixture);
+    mocks.generate.mockResolvedValueOnce(generated);
+
+    const routedSession: LearningPlanSession = {
+      ...fixture.session,
+      studyRoute: fixture.route!,
+    };
+    const response = await POST(request({
+      planId: PLAN_ID,
+      planSessionId: SESSION_ID,
+      routeRevisionId: ROUTE_REVISION_ID,
+      previewContext: buildPreviewSessionContext({
+        plan: { ...fixture.plan, sessions: [routedSession] },
+        session: routedSession,
+        onboardingAnswers: [],
+        completions: [],
+        interruptions: [],
+      }),
+    }));
+
+    const body = await response.json();
+    expect(response.status, JSON.stringify(body)).toBe(200);
+    expect(response.headers.get("X-Yova-Generation-Fallback")).toBe("source-grounded");
+    expect(body.session).toMatchObject({
+      topicIds: fixture.session.topicIds,
+      coverage: {
+        deferredContent: [fixture.session.contentTargets![1]],
+      },
+    });
+  });
+
+  it("accepts the same route-coherent mixed-source degradation for a signed-in persisted session", async () => {
+    const fixture = mixedAuthorityRouteFixture();
+    const generated = mixedAuthorityDegradedResult(fixture);
+    mocks.generate.mockResolvedValueOnce(generated);
+    useAuthenticatedCache(null, ROUTE_REVISION_ID, {}, fixture);
+
+    const response = await POST(request({
+      planId: PLAN_ID,
+      planSessionId: SESSION_ID,
+      routeRevisionId: ROUTE_REVISION_ID,
+    }));
+    const body = await response.json();
+
+    expect(response.status, JSON.stringify(body)).toBe(200);
+    expect(response.headers.get("X-Yova-Generation-Fallback")).toBe("source-grounded");
+    expect(body).toMatchObject({
+      generation: { mode: "openai", persistence: "supabase" },
+      session: {
+        topicIds: fixture.session.topicIds,
+        coverage: { deferredContent: [fixture.session.contentTargets![1]] },
+      },
+    });
+    expect(mocks.generate.mock.calls[0]?.[0]).toMatchObject({
+      learningGoal: { sourceMode: "user_materials" },
+      session: { topicIds: fixture.session.topicIds },
+      materials: [expect.objectContaining({ chunkId: fixture.chunks![0]!.id })],
+    });
+    expect(mocks.settle).toHaveBeenCalledTimes(1);
+    expect(mocks.releaseClaim).not.toHaveBeenCalled();
   });
 
   it("uses filled V15 consistently for a committed Learn route whose selected method is not streamed", async () => {
@@ -446,7 +548,16 @@ function useAuthenticatedCache(
 type AuthenticatedFixture = {
   plan: LearningPlan;
   session: LearningPlanSession;
-  route: ReturnType<typeof committedRoute> | null;
+  route: StudyRoute | null;
+  materials?: Array<{ id: string; filename: string }>;
+  chunks?: Array<{
+    id: string;
+    material_id: string;
+    chunk_index: number;
+    location_label: string;
+    section_role: "content_source";
+    chunk_text: string;
+  }>;
 };
 
 function defaultAuthenticatedFixture(): AuthenticatedFixture {
@@ -458,6 +569,93 @@ function nonStreamedLearnFixture(): AuthenticatedFixture {
     plan: nonStreamedLearnPlan,
     session: nonStreamedLearnSession,
     route: committedNonStreamedLearnRoute(),
+  };
+}
+
+function mixedAuthorityRouteFixture(): AuthenticatedFixture {
+  const secondTopicId = "81000000-0000-4000-8000-000000000010";
+  const materialId = "81000000-0000-4000-8000-000000000013";
+  const chunkId = "81000000-0000-4000-8000-000000000014";
+  const sourceText = "An unsupported attempt before review reveals which relationship the learner can currently retrieve from memory and which gap needs focused feedback.";
+  const baseKnowledgeMap = knowledgeMap();
+  const mixedSession: LearningPlanSession = {
+    ...session,
+    topicIds: [SESSION_ID, secondTopicId],
+    contentTargets: [
+      "The purpose of attempting an answer before review",
+      "How feedback timing changes the next retrieval attempt",
+    ],
+    completionEvidence: [
+      "Explain why the first attempt should happen before answer review",
+      "Explain how feedback timing changes the next attempt",
+    ],
+  };
+  const mixedPlan: LearningPlan = {
+    ...plan,
+    sourceMode: "user_materials",
+    knowledgeMap: {
+      ...baseKnowledgeMap,
+      topics: [
+        {
+          ...baseKnowledgeMap.topics[0]!,
+          origin: "material",
+          sourceReferences: [{
+            materialId,
+            chunkId,
+            chunkIndex: 0,
+            startCharacter: 0,
+            endCharacter: sourceText.length,
+            locationLabel: "Page 1, Retrieval before review",
+            sectionRole: "content_source",
+          }],
+        },
+        {
+          ...baseKnowledgeMap.topics[0]!,
+          id: secondTopicId,
+          title: "Feedback timing",
+          description: "How feedback timing changes the learner's next retrieval attempt.",
+          origin: "ai_generated",
+        },
+      ],
+    },
+    sessions: [mixedSession],
+  };
+  const adaptedRoute = adaptLegacySessionToStudyRoute({
+    plan: mixedPlan,
+    session: mixedSession,
+    adaptedAt: "2026-08-23T10:00:00.000Z",
+    identity: {
+      routeLineageId: "81000000-0000-4000-8000-000000000007",
+      routeRevisionId: ROUTE_REVISION_ID,
+      lifecycleStatus: "committed",
+      committedAt: "2026-08-23T10:00:00.000Z",
+    },
+  }).route!;
+  const route = {
+    ...adaptedRoute,
+    target: {
+      ...adaptedRoute.target,
+      sourceRequirements: {
+        sourceType: "user_materials" as const,
+        requiredSourceIds: [materialId],
+        groundingRequired: true,
+        instructions: ["Use only the mapped explanatory source for material-backed targets."],
+      },
+    },
+  };
+  return {
+    plan: mixedPlan,
+    session: mixedSession,
+    route,
+    materials: [{ id: materialId, filename: "retrieval-notes.txt" }],
+    chunks: [{
+      id: chunkId,
+      material_id: materialId,
+      chunk_index: 0,
+      location_label: "Page 1, Retrieval before review",
+      section_role: "content_source",
+      chunk_text: sourceText,
+    }],
   };
 }
 
@@ -518,7 +716,8 @@ function authenticatedClient(
       updated_at: "2026-08-23T10:00:00.000Z",
     }]],
     ["session_attempts", [[], []]],
-    ["materials", [[]]],
+    ["materials", [fixture.materials ?? []]],
+    ["material_chunks", [fixture.chunks ?? []]],
     ["learning_events", [[], []]],
   ]);
 
@@ -539,6 +738,7 @@ function authenticatedClient(
         : null;
       return queryReturning(data, historyError);
     }),
+    rpc: vi.fn().mockResolvedValue({ data: null, error: null }),
   };
 }
 
@@ -745,9 +945,42 @@ function generatedResult() {
   };
 }
 
+function mixedAuthorityDegradedResult(fixture: AuthenticatedFixture) {
+  const generated = generatedResult();
+  return {
+    ...generated,
+    draft: {
+      ...generated.draft,
+      topicIds: [...(fixture.session.topicIds ?? [])],
+      coverage: {
+        ...generated.draft.coverage,
+        deferredContent: [fixture.session.contentTargets![1]!],
+      },
+    },
+    generationStats: {
+      ...generated.generationStats,
+      firstAttemptPassed: false,
+      failedValidator: "session_provider_request" as const,
+      repairAttempted: true,
+      repairSucceeded: false,
+      repairReason: "none" as const,
+      degradedMode: "source_grounded" as const,
+      stage: "fallback" as const,
+      cause: "provider_request" as const,
+    },
+  };
+}
+
 function nonStreamedLearnGeneratedResult() {
   const route = committedNonStreamedLearnRoute();
-  const [modelPhase, readPhase, retrievePhase, repairPhase] = route.execution.orderedPhases;
+  const [
+    modelPhase,
+    surveyPhase,
+    questionPhase,
+    readPhase,
+    retrievePhase,
+    reviewPhase,
+  ] = route.execution.orderedPhases;
   return {
     draft: {
       topicIds: [SESSION_ID],
@@ -811,6 +1044,36 @@ function nonStreamedLearnGeneratedResult() {
         },
         {
           topicId: null,
+          methodPhase: surveyPhase!.methodPhase,
+          estimatedMinutes: surveyPhase!.activeMinutes,
+          requiredForCompletion: true,
+          type: "instruction" as const,
+          concept: null,
+          label: "Survey",
+          title: "Bound the source",
+          body: "Survey the short explanation and identify where it states the relationship between visible familiarity, recall, and focused repair.",
+          teaching: null,
+          choices: [],
+          correctAnswer: null,
+          feedback: null,
+        },
+        {
+          topicId: SESSION_ID,
+          methodPhase: questionPhase!.methodPhase,
+          estimatedMinutes: questionPhase!.activeMinutes,
+          requiredForCompletion: true,
+          type: "free_response" as const,
+          concept: "Bounded reading and recall",
+          label: "Question",
+          title: "Set the reading question",
+          body: "Before reading closely, state the question the bounded explanation should answer about recall and focused repair.",
+          teaching: null,
+          choices: [],
+          correctAnswer: "What does closed-source recall reveal, and how should the revealed gap focus the next review?",
+          feedback: "The question should connect the recall attempt to the exact repair it makes possible.",
+        },
+        {
+          topicId: null,
           methodPhase: readPhase!.methodPhase,
           estimatedMinutes: readPhase!.activeMinutes,
           requiredForCompletion: true,
@@ -818,7 +1081,7 @@ function nonStreamedLearnGeneratedResult() {
           concept: null,
           label: "Read",
           title: "Read for the relationship",
-          body: "Use the guiding question to identify the relationship between visible familiarity, recall, and focused repair.",
+          body: "Read the bounded explanation for the answer to your question, then close it before recall.",
           teaching: null,
           choices: [],
           correctAnswer: null,
@@ -840,19 +1103,19 @@ function nonStreamedLearnGeneratedResult() {
           feedback: "A strong response distinguishes retrievable understanding from familiarity created by visible wording.",
         },
         {
-          topicId: SESSION_ID,
-          methodPhase: repairPhase!.methodPhase,
-          estimatedMinutes: repairPhase!.activeMinutes,
+          topicId: null,
+          methodPhase: reviewPhase!.methodPhase,
+          estimatedMinutes: reviewPhase!.activeMinutes,
           requiredForCompletion: true,
-          type: "free_response" as const,
-          concept: "Bounded reading and recall",
-          label: "Repair",
-          title: "Repair the missing detail",
-          body: "Compare your recall with the model and state the one detail that needed correction or strengthening.",
+          type: "reflection" as const,
+          concept: null,
+          label: "Review",
+          title: "Review and name the repair",
+          body: "Reopen the bounded explanation, compare it with your recall, and name the one detail that needed correction or strengthening.",
           teaching: null,
           choices: [],
-          correctAnswer: "The repair should name the missing causal detail and restate the relationship accurately without copying the full explanation.",
-          feedback: "Focused repair corrects the observed gap while preserving the retrieval attempt as evidence.",
+          correctAnswer: null,
+          feedback: null,
         },
       ],
     },

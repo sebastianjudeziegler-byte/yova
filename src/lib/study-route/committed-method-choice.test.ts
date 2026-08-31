@@ -102,6 +102,23 @@ describe("committed StudyRoute method choice", () => {
         changedFields: ["primary_method"],
       },
     });
+    const predecessorChoiceSet = new Set([
+      previous.approach.primaryMethodId,
+      ...previous.agency.alternatives.map((alternative) => (
+        alternative.primaryMethodId
+      )),
+    ]);
+    expect(successor.agency.alternatives.every((alternative) => (
+      predecessorChoiceSet.has(alternative.primaryMethodId)
+    ))).toBe(true);
+    expect(successor.agency.alternatives.map((alternative) => (
+      alternative.primaryMethodId
+    ))).toEqual([
+      previous.approach.primaryMethodId,
+      ...previous.agency.alternatives
+        .map((alternative) => alternative.primaryMethodId)
+        .filter((candidate) => candidate !== methodId),
+    ].slice(0, 2));
     expect(successor.explanation.shortReason).toMatch(/^You chose/u);
     expect(materialStudyRouteChanges(previous, successor)).toEqual([
       "primary_method",
@@ -233,6 +250,60 @@ describe("committed StudyRoute method choice", () => {
     ))).toHaveLength(1);
     expect(second.session.studyRoute.provenance.ruleTrace.length)
       .toBeLessThanOrEqual(200);
+  });
+
+  it("authorizes an I'll Customize Other method only from the immutable eligibility cohort", () => {
+    const originalPlan = activeRoutedPlan();
+    const originalSession = readySessionWithAlternative(originalPlan);
+    const originalRoute = route(originalSession.studyRoute);
+    const hiddenMethodId = originalRoute.agency.alternatives[0]!.primaryMethodId;
+    const customizeRoute = StudyRouteSchema.parse({
+      ...originalRoute,
+      agency: {
+        ...originalRoute.agency,
+        controlMode: "learner_customizes",
+        alternatives: [],
+      },
+    });
+    const customizeSession = {
+      ...originalSession,
+      studyRoute: customizeRoute,
+    };
+    const customizePlan = replaceSession(originalPlan, customizeSession);
+
+    expectChoiceError(() => createCommittedMethodChoiceSuccessor({
+      plan: customizePlan,
+      session: customizeSession,
+      previousRoute: customizeRoute,
+      expectedRouteRevisionId: customizeRoute.identity.routeRevisionId,
+      routeRevisionId: FIRST_SUCCESSOR_ID,
+      methodId: hiddenMethodId,
+      changedAt: FIRST_CHANGE,
+    }), "method_not_offered", 409);
+
+    const result = createCommittedMethodChoiceSuccessor({
+      plan: customizePlan,
+      session: customizeSession,
+      previousRoute: customizeRoute,
+      expectedRouteRevisionId: customizeRoute.identity.routeRevisionId,
+      routeRevisionId: FIRST_SUCCESSOR_ID,
+      methodId: hiddenMethodId,
+      changedAt: FIRST_CHANGE,
+      choiceScope: "other_eligible_method",
+    });
+
+    expect(result.status).toBe("updated");
+    expect(result.session.studyRoute.approach.primaryMethodId).toBe(hiddenMethodId);
+    expect(result.session.studyRoute.agency).toMatchObject({
+      controlMode: "learner_customizes",
+      selectedBy: "learner",
+    });
+    expect(result.session.studyRoute.provenance.ruleTrace).toContainEqual(
+      expect.objectContaining({
+        ruleId: COMMITTED_METHOD_CHOICE_POLICY_VERSION,
+        reason: "The learner requested an eligible, deliverable method through I'll Customize Other methods for this exact ready session.",
+      }),
+    );
   });
 
   it("leaves Blurting as one bounded successor and keeps recipe history through a later choice", () => {

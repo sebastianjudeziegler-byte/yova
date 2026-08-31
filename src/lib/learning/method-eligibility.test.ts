@@ -48,7 +48,7 @@ describe("canonical method eligibility", () => {
       taskType: "conceptual_learning",
       knowledgeStage: "novice",
       learningMode: "learn",
-    })).toEqual(["self_explanation", "read_recall_review"]);
+    })).toEqual(["self_explanation", "concept_mapping", "pretesting", "read_recall_review"]);
     expect(eligibleMethodIdsFor({
       taskType: "memorization",
       knowledgeStage: "novice",
@@ -58,10 +58,17 @@ describe("canonical method eligibility", () => {
       taskType: "problem_solving",
       knowledgeStage: "retrieval_ready",
       learningMode: "learn",
-    })).toEqual(["worked_example_fading", "self_explanation"]);
+    })).toEqual(["worked_example_fading", "pretesting", "self_explanation"]);
+  });
+
+  it("keeps new recipes inside their honest Learn or Practice boundary", () => {
+    expect(methodFitsSessionMode("pretesting", "conceptual_learning", "learn")).toBe(true);
+    expect(methodFitsSessionMode("pretesting", "conceptual_learning", "study")).toBe(false);
+    expect(methodFitsSessionMode("practice_problems", "problem_solving", "study")).toBe(true);
+    expect(methodFitsSessionMode("practice_problems", "problem_solving", "learn")).toBe(false);
   });
 
   it("exposes a stable version for route provenance", () => {
-    expect(METHOD_ELIGIBILITY_POLICY_VERSION).toBe("method_eligibility_v1");
+    expect(METHOD_ELIGIBILITY_POLICY_VERSION).toBe("method_eligibility_v2");
   });
 });

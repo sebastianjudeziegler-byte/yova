@@ -6,6 +6,7 @@ import {
   type GuidedSessionFailureState,
 } from "@/lib/session-generation/failure-state";
 import {
+  SOURCE_UNAVAILABLE_GUIDED_SESSION_FAILURE_CODE,
   GUIDED_SESSION_ALLOWANCE_EXHAUSTED_CODE,
   TRANSIENT_GUIDED_SESSION_FAILURE_CODE,
   VALIDATION_GUIDED_SESSION_FAILURE_CODE,
@@ -148,6 +149,26 @@ describe("guided-session generation failure classification", () => {
     expect(state.detail).toMatch(/topic map rebuilt/i);
     expect(state.detail).toMatch(/subject-specific offline lesson is not available/i);
     expect(state.detail).not.toMatch(/study-method guide|ungraded practice/i);
+    expect(actionIds(state)).not.toContain("retry_generation");
+  });
+
+  it("presents source-unavailable generation as actionable setup work, not a provider outage", () => {
+    const cause = classifyGuidedSessionGenerationFailure({
+      response: response(502),
+      body: {
+        code: SOURCE_UNAVAILABLE_GUIDED_SESSION_FAILURE_CODE,
+        error: "Attach or reprocess readable material, or choose a source-independent route.",
+        retryable: false,
+      },
+    });
+
+    expect(cause).toMatchObject({ kind: "request_rejected", retryable: false });
+    const state = buildGuidedSessionFailureState({ cause });
+    expect(state.eyebrow).toBe("SESSION SETUP NEEDS ATTENTION");
+    expect(state.detail).toMatch(/attach or reprocess readable material/i);
+    expect(state.detail).toMatch(/source-independent/i);
+    expect(state.heading).not.toMatch(/service|outage/i);
+    expect(actionIds(state)).toContain("review_session_setup");
     expect(actionIds(state)).not.toContain("retry_generation");
   });
 });

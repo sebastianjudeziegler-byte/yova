@@ -52,6 +52,8 @@ import {
   ordinarySessionProvenanceContract,
   ordinarySourceGroundingPolicy,
   SessionGenerationFailure,
+  sourceGroundedDegradedSessionResult,
+  terminalSourceGroundedFallbackFailure,
   prepareSessionGenerationContext,
   resolveSessionGenerationBudget,
   scopeFullSessionToCurrentWindow,
@@ -185,31 +187,22 @@ Requirements:
 const STREAMED_SKELETON_TOTAL_GENERATION_BUDGET_MS = 58_000;
 const STREAMED_SKELETON_PROVIDER_TIMEOUT_MS = 35_000;
 const STREAMED_SKELETON_MIN_REQUEST_BUDGET_MS = 4_000;
-const STREAMED_SKELETON_MAX_ATTEMPTS = 3;
+const STREAMED_SKELETON_MAX_ATTEMPTS = 2;
 const COMPACT_STREAMED_RECOVERY_PROVIDER_TIMEOUT_MS = 22_000;
 
 /**
- * Ordinary generation keeps its existing initial attempt plus one repair.
- * A third provider call is reserved for the one deterministic failure that a
- * provider can directly repair from YOVA's exact active/deferred lists: the
- * immediately preceding second attempt failed current-session scope. Every
- * call is bounded by the time still available inside the server-side budget,
- * which leaves headroom below the 75-second browser request timeout.
+ * Every skeleton gets one initial provider result and at most one useful
+ * repair. A failed repair may move to deterministic source-grounded content,
+ * but it may never start a third provider request.
  */
-export function streamedSkeletonRequestTimeoutMs({
-  attemptIndex,
-  generationStartedAt,
-  now,
-  previousFailedValidator,
-}: {
+export function streamedSkeletonRequestTimeoutMs(input: {
   attemptIndex: number;
   generationStartedAt: number;
   now: number;
   previousFailedValidator: SessionGenerationStats["failedValidator"];
 }) {
+  const { attemptIndex, generationStartedAt, now } = input;
   if (attemptIndex < 0 || attemptIndex >= STREAMED_SKELETON_MAX_ATTEMPTS) return null;
-  if (attemptIndex === 2 && previousFailedValidator !== "streamed_lesson_scope") return null;
-
   const elapsedMs = Math.max(0, now - generationStartedAt);
   const remainingMs = STREAMED_SKELETON_TOTAL_GENERATION_BUDGET_MS - elapsedMs;
   if (remainingMs < STREAMED_SKELETON_MIN_REQUEST_BUDGET_MS) return null;
@@ -306,6 +299,10 @@ export async function generateStreamedTeachingSkeletonWithOpenAI(
       cachedInputTokens: 0,
       cacheWriteTokens: 0,
       outputTokens: 0,
+      stage: "preflight",
+      cause: initialOrdinaryProvenance.issue.failedValidator === "session_source_grounding"
+        ? "source_unavailable"
+        : "route_conflict",
     });
   }
   const provenanceContext = initialOrdinaryProvenance.effectiveSourceMode !== preparedContext.learningGoal.sourceMode
@@ -336,8 +333,8 @@ export async function generateStreamedTeachingSkeletonWithOpenAI(
     "learn",
   );
   const {
-    policy: deliveryPolicy,
-    instructions: deliveryInstructions,
+    policy: baselineDeliveryPolicy,
+    instructions: baselineDeliveryInstructions,
   } = buildStatedPreferenceLessonDelivery({
     learnerProfile: provenanceContext.learnerProfile,
     estimatedMinutes: provenanceContext.session.estimatedMinutes,
@@ -347,6 +344,37 @@ export async function generateStreamedTeachingSkeletonWithOpenAI(
       learningScienceRouting,
     ),
   });
+  // Long sessions need enough visible turns to fill the selected window
+  // without stretching one answer screen beyond its honest pacing cap. Keep
+  // the preference-driven reduction from the normal eight activities, but do
+  // not let it make the committed method mathematically impossible to run.
+  const minimumLongSessionActivities = provenanceContext.session.estimatedMinutes <= 30
+    ? 3
+    : provenanceContext.session.estimatedMinutes <= 45
+      ? 5
+      : 6;
+  const effectiveMaximumActivities = Math.max(
+    baselineDeliveryPolicy.pacing.maximumActivities,
+    minimumLongSessionActivities,
+  );
+  const deliveryPolicy = effectiveMaximumActivities === baselineDeliveryPolicy.pacing.maximumActivities
+    ? baselineDeliveryPolicy
+    : {
+      ...baselineDeliveryPolicy,
+      pacing: {
+        ...baselineDeliveryPolicy.pacing,
+        maximumActivities: effectiveMaximumActivities,
+      },
+    };
+  const deliveryInstructions = effectiveMaximumActivities === baselineDeliveryInstructions.pacing.maximumActivities
+    ? baselineDeliveryInstructions
+    : {
+      ...baselineDeliveryInstructions,
+      pacing: {
+        ...baselineDeliveryInstructions.pacing,
+        maximumActivities: effectiveMaximumActivities,
+      },
+    };
   const legacyPacingContract = streamedTeachingPacingContract({
     availableMinutes: provenanceContext.session.estimatedMinutes,
     activeIdeaCount: Math.max(1, provenanceContext.session.contentTargets?.length ?? 0),
@@ -400,6 +428,10 @@ export async function generateStreamedTeachingSkeletonWithOpenAI(
       cachedInputTokens: 0,
       cacheWriteTokens: 0,
       outputTokens: 0,
+      stage: "preflight",
+      cause: ordinaryProvenance.issue.failedValidator === "session_source_grounding"
+        ? "source_unavailable"
+        : "route_conflict",
     });
   }
   const context = ordinaryProvenance.effectiveSourceMode !== cycleScopedContext.learningGoal.sourceMode
@@ -455,9 +487,6 @@ export async function generateStreamedTeachingSkeletonWithOpenAI(
       previousFailedValidator,
     });
     if (requestTimeoutMs === null) {
-      if (attempt === 2 && previousFailedValidator === "streamed_lesson_scope") {
-        lastFailureReason = `${lastFailureReason} YOVA did not start another scope repair because the bounded generation time was exhausted.`;
-      }
       break;
     }
 
@@ -478,9 +507,7 @@ export async function generateStreamedTeachingSkeletonWithOpenAI(
     let response;
     try {
       const repairInstruction: string = repairDetail
-        ? attempt === 2
-          ? `SECOND SCOPE REPAIR: ${repairDetail} Rebuild only the coverage, targetAssignments, interleaved teaching/check sequence, and evidence map needed to satisfy the exact authoritative active and deferred target lists above. Copy every essential idea exactly once into targetAssignments, use every active target id, preserve active target order, create exactly ${pacingContract.minimumActiveIdeas} distinct explanatory claims across them, and do not widen today's lesson.`
-          : `REPAIR ATTEMPT: ${repairDetail} Rebuild the coverage, targetAssignments, interleaved teaching/check sequence, and evidence map together inside the authoritative current-session scope above. Copy every essential idea exactly once into targetAssignments, use every active target id, preserve active target order, and create exactly ${pacingContract.minimumActiveIdeas} distinct explanatory claims across the active targets.`
+        ? `REPAIR ATTEMPT: ${repairDetail} Rebuild the coverage, targetAssignments, interleaved teaching/check sequence, and evidence map together inside the authoritative current-session scope above. Copy every essential idea exactly once into targetAssignments, use every active target id, preserve active target order, and create exactly ${pacingContract.minimumActiveIdeas} distinct explanatory claims across the active targets.`
         : "";
       response = await getOpenAIClient().responses.parse({
         model: config.model,
@@ -521,6 +548,7 @@ export async function generateStreamedTeachingSkeletonWithOpenAI(
         store: false,
       }, providerCall.options);
     } catch (error) {
+      const providerEndReason = providerCall.endReason();
       if (error instanceof Error && error.name === "ZodError") {
         repairDetail = `The structured skeleton did not match the required schema: ${error.message.slice(0, 700)}`;
         lastFailureReason = repairDetail;
@@ -530,29 +558,69 @@ export async function generateStreamedTeachingSkeletonWithOpenAI(
         if (attempt === 0 && compactRecoveryEligible) break;
         continue;
       }
-      const providerError = classifyProviderError(error);
+      const providerError = providerEndReason === "per_call_timeout"
+        ? { category: "timeout" as const }
+        : classifyProviderError(error);
       repairDetail = `The lesson-structure request failed before YOVA received a usable response (${providerError.category}).`;
       lastFailureReason = repairDetail;
       lastFailedValidator = "session_provider_request";
       lastValidationIssueCode = null;
       previousFailedValidator = lastFailedValidator;
-      if (attempt === 0 && isRetryableStreamedProviderError(error)) continue;
+      if (
+        attempt === 0
+        && providerEndReason !== "budget_timeout"
+        && providerEndReason !== "caller_abort"
+        && (providerEndReason === "per_call_timeout" || isRetryableStreamedProviderError(error))
+      ) continue;
+      const failureStats = generationStats({
+        startedAt: generationStartedAt,
+        usage,
+        firstAttemptPassed: false,
+        repairDetail,
+        failedValidator: lastFailedValidator,
+        validationIssueCode: lastValidationIssueCode,
+        succeeded: false,
+      });
+      const degraded = sourceGroundedDegradedSessionResult({
+        context,
+        routing: learningScienceRouting,
+        deliveryPolicy,
+        deliveryInstructions,
+        architecture: "streamed",
+        model: config.model,
+        generationStats: failureStats,
+      });
+      if (degraded) return degraded;
+      const fallbackFailure = terminalSourceGroundedFallbackFailure({
+        context,
+        routing: learningScienceRouting,
+        deliveryPolicy,
+        deliveryInstructions,
+        architecture: "streamed",
+        generationStats: failureStats,
+      });
+      if (fallbackFailure) throw fallbackFailure;
       throw new SessionGenerationFailure(
         "OpenAI could not prepare the streamed teaching structure.",
-        generationStats({
-          startedAt: generationStartedAt,
-          usage,
-          firstAttemptPassed: false,
-          repairDetail,
-          failedValidator: lastFailedValidator,
-          validationIssueCode: lastValidationIssueCode,
-          succeeded: false,
-        }),
+        {
+          ...failureStats,
+          stage: "provider",
+          cause: "provider_request",
+        },
       );
     } finally {
       providerCall.finish();
     }
 
+    if (!response) {
+      repairDetail = "The lesson-structure provider completed without a usable response object.";
+      lastFailureReason = repairDetail;
+      lastFailedValidator = "session_provider_request";
+      lastValidationIssueCode = null;
+      previousFailedValidator = lastFailedValidator;
+      if (attempt === 0) continue;
+      break;
+    }
     if (response.usage) {
       usage.inputTokens += response.usage.input_tokens;
       usage.cachedInputTokens += response.usage.input_tokens_details.cached_tokens;
@@ -698,23 +766,25 @@ export async function generateStreamedTeachingSkeletonWithOpenAI(
     };
   }
 
-  const compactRecovery = await generateCompactStreamedTeachingRecovery({
-    context,
-    routing: learningScienceRouting,
-    deliveryPolicy,
-    deliveryInstructions,
-    conceptReviewSchedule,
-    scaffoldProgression,
-    practiceVariation,
-    pacingContract,
-    model: config.model,
-    generationBudget,
-    generationStartedAt,
-    usage,
-    priorRepairDetail: repairDetail,
-    priorFailedValidator: lastFailedValidator,
-    priorValidationIssueCode: lastValidationIssueCode,
-  });
+  const compactRecovery = usage.attempts < STREAMED_SKELETON_MAX_ATTEMPTS
+    ? await generateCompactStreamedTeachingRecovery({
+      context,
+      routing: learningScienceRouting,
+      deliveryPolicy,
+      deliveryInstructions,
+      conceptReviewSchedule,
+      scaffoldProgression,
+      practiceVariation,
+      pacingContract,
+      model: config.model,
+      generationBudget,
+      generationStartedAt,
+      usage,
+      priorRepairDetail: repairDetail,
+      priorFailedValidator: lastFailedValidator,
+      priorValidationIssueCode: lastValidationIssueCode,
+    })
+    : null;
   if (compactRecovery?.success) {
     const recoveryDetail = [
       repairDetail,
@@ -756,18 +826,56 @@ export async function generateStreamedTeachingSkeletonWithOpenAI(
     lastValidationIssueCode = compactRecovery.validationIssueCode;
   }
 
+  const degraded = sourceGroundedDegradedSessionResult({
+    context,
+    routing: learningScienceRouting,
+    deliveryPolicy,
+    deliveryInstructions,
+    architecture: "streamed",
+    model: config.model,
+    generationStats: generationStats({
+      startedAt: generationStartedAt,
+      usage,
+      firstAttemptPassed: false,
+      repairDetail,
+      failedValidator: lastFailedValidator,
+      validationIssueCode: lastValidationIssueCode,
+      succeeded: false,
+    }),
+  });
+  if (degraded) return degraded;
+
+  const terminalStats = generationStats({
+    startedAt: generationStartedAt,
+    usage,
+    firstAttemptPassed: false,
+    repairDetail,
+    failedValidator: lastFailedValidator,
+    validationIssueCode: lastValidationIssueCode,
+    succeeded: false,
+  });
+  const fallbackFailure = terminalSourceGroundedFallbackFailure({
+    context,
+    routing: learningScienceRouting,
+    deliveryPolicy,
+    deliveryInstructions,
+    architecture: "streamed",
+    generationStats: terminalStats,
+  });
+  if (fallbackFailure) throw fallbackFailure;
+
   throw new SessionGenerationFailure(
     `OpenAI did not return a complete streamed teaching skeleton after ${streamedSkeletonRepairAttemptCopy(usage.attempts)}. ${lastFailureReason}`,
     {
-      ...generationStats({
-        startedAt: generationStartedAt,
-        usage,
-        firstAttemptPassed: false,
-        repairDetail,
-        failedValidator: lastFailedValidator,
-        validationIssueCode: lastValidationIssueCode,
-        succeeded: false,
-      }),
+      ...terminalStats,
+      stage: lastFailedValidator === "session_provider_request" ? "provider" : "validation",
+      cause: lastFailedValidator === "session_provider_request"
+        ? "provider_request"
+        : lastFailedValidator === "session_response_status"
+          ? "incomplete_response"
+          : lastFailedValidator === "session_structure"
+            ? "invalid_structure"
+            : "semantic_validation",
       ...(compactRecovery ? { recoveryMode: "safe_learn" as const } : {}),
     },
   );
@@ -858,7 +966,7 @@ async function generateCompactStreamedTeachingRecovery({
     }),
   });
   usage.attempts += 1;
-  let response: Awaited<ReturnType<ReturnType<typeof getOpenAIClient>["responses"]["parse"]>>;
+  let response: Awaited<ReturnType<ReturnType<typeof getOpenAIClient>["responses"]["parse"]>> | undefined;
   try {
     response = await getOpenAIClient().responses.parse({
       model,
@@ -896,6 +1004,14 @@ async function generateCompactStreamedTeachingRecovery({
     providerCall.finish();
   }
 
+  if (!response) {
+    return {
+      success: false,
+      failureDetail: "The compact teaching recovery provider completed without a usable response object.",
+      failedValidator: "session_provider_request",
+      validationIssueCode: null,
+    };
+  }
   if (response.usage) {
     usage.inputTokens += response.usage.input_tokens;
     usage.cachedInputTokens += response.usage.input_tokens_details.cached_tokens;
@@ -904,11 +1020,17 @@ async function generateCompactStreamedTeachingRecovery({
   }
   const parsed = schema.safeParse(response.output_parsed);
   if (response.status !== "completed" || !parsed.success) {
+    const issue = parsed.success ? null : parsed.error.issues[0];
+    const issuePath = issue?.path.every((part) => (
+      typeof part === "number" || /^[A-Za-z][A-Za-z0-9_-]{0,79}$/u.test(String(part))
+    ))
+      ? issue.path.join(".") || "root"
+      : "unknown";
     return {
       success: false,
       failureDetail: response.status !== "completed"
         ? `The compact teaching recovery ended with status ${response.status}.`
-        : "The compact teaching recovery did not match its bounded content schema.",
+        : `The compact teaching recovery did not match its bounded content schema (${issue?.code ?? "unknown"}:${issuePath}).`,
       failedValidator: response.status !== "completed" ? "session_response_status" : "session_structure",
       validationIssueCode: "session_recovery_structure",
     };
@@ -941,6 +1063,7 @@ async function generateCompactStreamedTeachingRecovery({
     };
   }
 
+  let recoveryStage: "draft" | "finalize" | "strict_parse" | "semantic_validation" = "draft";
   try {
     const providerDraft = buildCompactStreamedRecoveryDraft({
       context,
@@ -950,6 +1073,7 @@ async function generateCompactStreamedTeachingRecovery({
       items: parsed.data.items,
       pacingContract,
     });
+    recoveryStage = "finalize";
     const finalized = finalizeStreamedSkeleton({
       draft: providerDraft.draft,
       targetAssignments: providerDraft.targetAssignments,
@@ -961,7 +1085,9 @@ async function generateCompactStreamedTeachingRecovery({
       practiceVariation,
       targetIsolationMode: "server_bounded_recovery",
     });
+    recoveryStage = "strict_parse";
     const validated = StreamedGeneratedSessionDraftSchema.parse(finalized.draft);
+    recoveryStage = "semantic_validation";
     const semanticIssue = validateGeneratedSessionWithCode(
       validated,
       context,
@@ -975,7 +1101,7 @@ async function generateCompactStreamedTeachingRecovery({
     if (semanticIssue) {
       return {
         success: false,
-        failureDetail: "The compact teaching recovery did not pass the complete session validator.",
+        failureDetail: `The compact teaching recovery did not pass the complete session validator (${semanticIssue.failedValidator}).`,
         failedValidator: semanticIssue.failedValidator,
         validationIssueCode: "session_recovery_validation",
       };
@@ -989,7 +1115,7 @@ async function generateCompactStreamedTeachingRecovery({
   } catch (error) {
     return {
       success: false,
-      failureDetail: "The compact teaching recovery could not be finalized inside the authoritative session scope.",
+      failureDetail: `${compactRecoveryFinalizationFailureDetail(error)} Stage: ${recoveryStage}.`,
       failedValidator: error instanceof CurrentSessionScopeError
         ? "streamed_lesson_scope"
         : "session_structure",
@@ -998,6 +1124,22 @@ async function generateCompactStreamedTeachingRecovery({
         : "session_recovery_structure",
     };
   }
+}
+
+function compactRecoveryFinalizationFailureDetail(error: unknown) {
+  if (error instanceof CurrentSessionScopeError) {
+    return `The compact teaching recovery could not be finalized inside the authoritative session scope (${error.code}:${error.boundary}${error.dimensions ? `:${error.dimensions}` : ""}).`;
+  }
+  if (error instanceof z.ZodError) {
+    const issue = error.issues[0];
+    const safePath = issue?.path.every((part) => (
+      typeof part === "number" || /^[A-Za-z][A-Za-z0-9_-]{0,79}$/u.test(String(part))
+    ))
+      ? issue.path.join(".")
+      : "unknown";
+    return `The compact teaching recovery failed structural finalization (${issue?.code ?? "unknown"}:${safePath || "root"}).`;
+  }
+  return "The compact teaching recovery could not be finalized inside the authoritative session scope (unexpected).";
 }
 
 function compactRecoverySlots({
@@ -1180,6 +1322,7 @@ function buildCompactStreamedRecoveryDraft({
         currentSessionScope: currentScope,
       });
     }
+    const itemLessonBrief = lessonBrief(slot, item.essentialIdea);
     const modelActivity: StreamedGeneratedSessionDraft["activities"][number] = {
       topicId: slot.topicId,
       methodPhase: "model",
@@ -1189,7 +1332,13 @@ function buildCompactStreamedRecoveryDraft({
       title: `Learn ${concept}`.slice(0, 140),
       body: "Read this focused explanation, then answer the typed question before continuing.",
       teaching: null,
-      lessonBrief: lessonBrief(slot, item.essentialIdea),
+      lessonBrief: methodId === "self_explanation"
+        ? {
+          ...itemLessonBrief,
+          topicIds: [...new Set(slots.map((candidate) => candidate.topicId))],
+          essentialIdeas: items.map((candidate) => candidate.essentialIdea),
+        }
+        : itemLessonBrief,
       practiceIntent: null,
       misconceptionSummary: null,
       type: "instruction",
@@ -1216,7 +1365,9 @@ function buildCompactStreamedRecoveryDraft({
       correctAnswer: item.check.referenceAnswer,
       feedback: item.check.feedback,
     };
-    return [modelActivity, checkActivity];
+    return methodId === "self_explanation" && index > 0
+      ? [checkActivity]
+      : [modelActivity, checkActivity];
   });
   const singleWorkedExample = methodId === "worked_example_fading" && slots.length === 1
     ? items[0]!.independentCheck
@@ -1251,7 +1402,9 @@ function buildCompactStreamedRecoveryDraft({
       topicId: slots[0]!.topicId,
       methodPhase: "repair",
       estimatedMinutes: 2,
-      requiredForCompletion: true,
+      // Repair is method support for the already-mapped retrieval checks, not
+      // an additional completion requirement for the same concept.
+      requiredForCompletion: false,
       label: "Repair",
       title: "Repair only the exposed gap",
       body: "Compare each typed attempt with its reference answer and correct only the missing term or relationship.",
@@ -1259,31 +1412,51 @@ function buildCompactStreamedRecoveryDraft({
       lessonBrief: null,
       practiceIntent: null,
       misconceptionSummary: null,
-      type: "instruction",
-      concept: null,
+      type: "free_response",
+      concept: conceptLabels[0]!,
       choices: [],
-      correctAnswer: null,
-      feedback: null,
+      correctAnswer: items[0]!.check.referenceAnswer,
+      feedback: items[0]!.check.feedback,
     });
   }
-  if (methodId === "self_explanation" && activities.length < 3) {
+  if (methodId === "self_explanation") {
     activities.push({
-      topicId: null,
-      methodPhase: "reflect",
-      estimatedMinutes: 1,
+      topicId: slots[0]!.topicId,
+      methodPhase: "repair",
+      estimatedMinutes: 2,
+      // The first explanation owns the completion map. Repair and re-explain
+      // preserve method fidelity without duplicating that evidence claim.
       requiredForCompletion: false,
-      label: "Reflect",
-      title: "Name the part that still needs practice",
-      body: "After the typed explanation, name one term, relationship, or example that still needs another pass.",
+      label: "Repair",
+      title: "Repair the first explanation",
+      body: boundedText(`Compare the first explanation with this verified reference: ${items[0]!.check.referenceAnswer} Correct the exposed relationship in your own words without copying the reference.`, 320),
       teaching: null,
       lessonBrief: null,
       practiceIntent: null,
       misconceptionSummary: null,
-      type: "reflection",
-      concept: null,
+      type: "free_response",
+      concept: conceptLabels[0]!,
       choices: [],
-      correctAnswer: null,
-      feedback: null,
+      correctAnswer: items[0]!.check.referenceAnswer,
+      feedback: items[0]!.check.feedback,
+    });
+    activities.push({
+      topicId: slots[0]!.topicId,
+      methodPhase: "reexplain",
+      estimatedMinutes: 2,
+      requiredForCompletion: false,
+      label: "Explain again",
+      title: "Explain the corrected relationship again",
+      body: boundedText(`${items[0]!.check.prompt} Explain it again after the repair without copying the model or reference answer.`, 320),
+      teaching: null,
+      lessonBrief: null,
+      practiceIntent: slots[0]!.practiceIntent,
+      misconceptionSummary: null,
+      type: "free_response",
+      concept: conceptLabels[0]!,
+      choices: [],
+      correctAnswer: items[0]!.check.referenceAnswer,
+      feedback: items[0]!.check.feedback,
     });
   }
 
@@ -1427,6 +1600,7 @@ function finalizeStreamedSkeleton({
     currentSessionScope,
     targetSubjectReferences,
     targetIsolationMode,
+    diagnosticBoundary: "initial_assignment",
   });
   const completionEvidence = boundedSessionCompletionEvidence({
     // A learner can shorten a previously planned 45-minute session to 15
@@ -1511,6 +1685,7 @@ function finalizeStreamedSkeleton({
     currentSessionScope,
     targetSubjectReferences,
     targetIsolationMode,
+    diagnosticBoundary: "time_scoped_assignment",
   });
   const sourceScopedAuthoritativeTargets = sourceScopedAssignments.flatMap((assignment) => (
     assignment.target
@@ -1587,6 +1762,7 @@ function finalizeStreamedSkeleton({
     currentSessionScope,
     targetSubjectReferences,
     targetIsolationMode,
+    diagnosticBoundary: "final_assignment",
   });
 
   return {
@@ -1667,6 +1843,15 @@ class CurrentSessionScopeError extends Error {
   constructor(
     message: string,
     public readonly code: NonNullable<SessionGenerationStats["validationIssueCode"]>,
+    public readonly boundary:
+      | "initial_assignment"
+      | "time_scoped_assignment"
+      | "final_assignment"
+      | "scope_input"
+      | "retained_assignment"
+      | "empty_window"
+      | "other" = "other",
+    public readonly dimensions: string | null = null,
   ) {
     super(message);
     this.name = "CurrentSessionScopeError";
@@ -1784,12 +1969,14 @@ export function validateStreamedTargetAssignments({
   currentSessionScope,
   targetSubjectReferences,
   targetIsolationMode = "lexical",
+  diagnosticBoundary = "other",
 }: {
   essentialIdeas: string[];
   targetAssignments: StreamedTargetAssignment[];
   currentSessionScope: StreamedCurrentSessionScope;
   targetSubjectReferences?: StreamedTargetSubjectReferences;
   targetIsolationMode?: StreamedTargetIsolationMode;
+  diagnosticBoundary?: CurrentSessionScopeError["boundary"];
 }): ResolvedStreamedTargetAssignment[] {
   const ideas = essentialIdeas.map((idea) => idea.trim());
   if (targetAssignments.length !== ideas.length) {
@@ -1887,6 +2074,8 @@ export function validateStreamedTargetAssignments({
     throw new CurrentSessionScopeError(
       `${currentSessionScopeForRepair(currentSessionScope)} The provider omitted ${missingTarget.targetId}; every active target must have a taught, checked claim.`,
       "streamed_target_missing",
+      diagnosticBoundary,
+      `ideas_${ideas.length}_assignments_${targetAssignments.length}_targets_${catalog.length}_represented_${representedTargetIds.size}`,
     );
   }
   return resolved;
@@ -2118,16 +2307,25 @@ export function scopeStreamedSkeletonToCurrentWindow({
     4,
   );
   const questionPhases = new Set([
-    "retrieve", "explain", "guided_practice", "independent_practice",
-    "discriminate", "transfer", "evidence_match", "code_trace",
+    "question", "pretest", "retrieve", "explain", "reexplain",
+    "guided_practice", "independent_practice", "discriminate", "connect",
+    "repair", "transfer", "evidence_match", "code_trace",
   ]);
   const requiredMethodQuestionCount = methodFidelityContractForPrompt(
     draft.methodBriefing.methodId,
     draft.methodBriefing.learningMode,
   ).requiredPhases.filter((phase) => questionPhases.has(phase)).length;
+  const requiredMethodPhases = new Set(methodFidelityContractForPrompt(
+    draft.methodBriefing.methodId,
+    draft.methodBriefing.learningMode,
+  ).requiredPhases);
+  // The generic completion-evidence budget counts distinct assessed targets.
+  // Method-owned repair/re-explanation turns are additional interactions, not
+  // extra plan requirements. Preserve those required phases whenever the
+  // focused activity window can honestly hold them.
   const maximumRequiredChecks = Math.min(
-    contentBudgetForMinutes(estimatedMinutes).maximumCompletionChecks,
-    Math.max(maximumActiveIdeas, requiredMethodQuestionCount),
+    Math.max(1, pacingContract.maximumFocusedActivities - pacingContract.minimumTeachingBlocks),
+    maximumActiveIdeas + Math.max(0, requiredMethodQuestionCount - 1),
   );
   const currentSessionScope = buildStreamedCurrentSessionScope({
     plannedTargets,
@@ -2143,6 +2341,7 @@ export function scopeStreamedSkeletonToCurrentWindow({
         currentSessionScope,
         targetSubjectReferences,
         targetIsolationMode,
+        diagnosticBoundary: "scope_input",
       })
     : null;
   const targetAssignmentByIdea = new Map(
@@ -2241,6 +2440,7 @@ export function scopeStreamedSkeletonToCurrentWindow({
     throw new CurrentSessionScopeError(
       `${currentSessionScopeForRepair(currentSessionScope)} Every active target id needs a retained explanatory claim.`,
       "streamed_target_missing",
+      "retained_assignment",
     );
   }
   // Then use the remaining time-scaled slots for distinct subclaims. This is
@@ -2258,6 +2458,7 @@ export function scopeStreamedSkeletonToCurrentWindow({
     throw new CurrentSessionScopeError(
       currentSessionScopeForRepair(currentSessionScope),
       "streamed_target_missing",
+      "empty_window",
     );
   }
   if (activeAssignments.length === 0) return draft;
@@ -2268,7 +2469,7 @@ export function scopeStreamedSkeletonToCurrentWindow({
   ));
   const activeConceptKeys = new Set(initiallyActiveMap.map((mapping) => normalizedSubjectLabel(mapping.activityConcept)));
   const requiredChecks = draft.activities.filter((activity) => (
-    activity.requiredForCompletion
+    (activity.requiredForCompletion || requiredMethodPhases.has(activity.methodPhase))
     && (activity.type === "multiple_choice" || activity.type === "free_response")
     && activity.concept
     && activeConceptKeys.has(normalizedSubjectLabel(activity.concept))
@@ -2581,6 +2782,33 @@ function bindActivitiesToCurrentScope({
       return activity;
     }
 
+    if (
+      preserveValidatedIndependentPractice
+      && (activity.methodPhase === "repair" || activity.methodPhase === "reexplain")
+      && (activity.type === "multiple_choice" || activity.type === "free_response")
+      && activity.concept
+    ) {
+      const essentialIdea = mappedEssentialIdea(activity.concept, evidenceMap);
+      if (!essentialIdea) return activity;
+      const answer = completeSubjectClaim(essentialIdea);
+      const repairing = activity.methodPhase === "repair";
+      return {
+        ...activity,
+        type: "free_response" as const,
+        label: repairing ? "Repair" : "Explain again",
+        title: boundedText(`${repairing ? "Repair" : "Re-explain"} ${activity.concept}`, 140),
+        body: boundedText(
+          repairing
+            ? `Compare the earlier attempt with this active relationship: ${answer} Then state the corrected relationship in your own words.`
+            : `Without reopening the model, explain ${activity.concept} again in your own words after the repair.`,
+          320,
+        ),
+        choices: [],
+        correctAnswer: boundedText(answer, 600),
+        feedback: boundedText(`Compare your response with this active relationship: ${answer}`, 500),
+      };
+    }
+
     if ((activity.type === "multiple_choice" || activity.type === "free_response") && activity.concept) {
       const essentialIdea = mappedEssentialIdea(activity.concept, evidenceMap);
       if (!essentialIdea) return activity;
@@ -2844,8 +3072,8 @@ function completionEvidenceForRetainedChecks({
   // Completion evidence is learner-facing metadata, not new subject matter.
   // When provider wording cannot be mapped after scoping, name the exact
   // retained checks rather than carrying a requirement from deferred content.
-  return retainedChecks
-    .map((activity) => boundedText(`Demonstrate ${activity.concept ?? activity.title}`, 220))
+  return uniqueSubjectLabels(retainedChecks
+    .map((activity) => boundedText(`Demonstrate ${activity.concept ?? activity.title}`, 220)))
     .slice(0, maximumRequiredChecks);
 }
 
@@ -2941,6 +3169,17 @@ export function compactStreamedActivities({
   for (const phase of requiredPhases) {
     const index = focused.findIndex((activity) => activity.methodPhase === phase);
     if (index >= 0) retained.add(index);
+  }
+  const retainedConcepts = new Set<string>();
+  for (const [index, activity] of focused.entries()) {
+    if (
+      (activity.type !== "multiple_choice" && activity.type !== "free_response")
+      || !activity.concept
+    ) continue;
+    const concept = normalizedSubjectLabel(activity.concept);
+    if (!concept || retainedConcepts.has(concept)) continue;
+    retainedConcepts.add(concept);
+    retained.add(index);
   }
   const firstMultipleChoice = focused.findIndex((activity) => activity.type === "multiple_choice");
   const firstFreeResponse = focused.findIndex((activity) => activity.type === "free_response");

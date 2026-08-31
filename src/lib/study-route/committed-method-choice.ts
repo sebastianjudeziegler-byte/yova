@@ -9,7 +9,6 @@ import {
 import {
   CORE_METHOD_CATALOG,
   CORE_METHOD_IDS,
-  isRecognizedCoreMethodName,
   METHOD_PRESENTATION_POLICY_VERSION,
   type CoreMethodId,
 } from "@/lib/learning/method-catalog";
@@ -17,6 +16,10 @@ import { stableFingerprint } from "@/lib/stable-fingerprint";
 import {
   studyRouteToLegacySessionProjection,
 } from "@/lib/study-route/adapters";
+import {
+  isAuthorizedOtherMethodChoice,
+  isExactStoredAgencyMethodChoice,
+} from "@/lib/study-route/agency-mode-controller";
 import {
   integrateStudyRouteMethodDecision,
   methodSelectionContextForStudyRoute,
@@ -130,6 +133,7 @@ export type CreateCommittedMethodChoiceSuccessorInput = Readonly<{
   routeRevisionId: string;
   methodId: CoreMethodId;
   changedAt: string;
+  choiceScope?: "stored_alternative" | "other_eligible_method";
 }>;
 
 export type CommittedMethodChoiceResult = Readonly<
@@ -157,6 +161,7 @@ export function createCommittedMethodChoiceSuccessor({
   routeRevisionId,
   methodId,
   changedAt,
+  choiceScope = "stored_alternative",
 }: CreateCommittedMethodChoiceSuccessorInput): CommittedMethodChoiceResult {
   if (plan.status !== "active") {
     throw choiceError(
@@ -272,20 +277,17 @@ export function createCommittedMethodChoiceSuccessor({
     );
   }
 
-  const offered = previousRoute.agency.alternatives.find((alternative) => (
-    alternative.primaryMethodId === methodId
-  ));
+  const otherEligibleChoice = choiceScope === "other_eligible_method";
   if (
-    !offered
-    || offered.mode !== previousRoute.approach.mode
-    || offered.executionEnvironment !== previousRoute.approach.executionEnvironment
-    || offered.activeMinutes !== previousRoute.timing.activeMinutes
-    || !isRecognizedCoreMethodName(methodId, offered.visibleMethodName)
-    || offered.tradeoff !== `${offered.visibleMethodName} also fits this task and stage, but it would use a different practice sequence.`
+    otherEligibleChoice
+      ? !isAuthorizedOtherMethodChoice(previousRoute, methodId)
+      : !isExactStoredAgencyMethodChoice(previousRoute, methodId)
   ) {
     throw choiceError(
       "method_not_offered",
-      "The selected method was not one of the exact alternatives saved for this session.",
+      otherEligibleChoice
+        ? "The requested Other method is outside this customize route's immutable eligible set."
+        : "The selected method was not one of the exact alternatives saved for this session.",
     );
   }
 
@@ -310,7 +312,9 @@ export function createCommittedMethodChoiceSuccessor({
     const choiceTrace = StudyRouteRuleTraceEntrySchema.parse({
       ruleId: COMMITTED_METHOD_CHOICE_POLICY_VERSION,
       result: `${previousRoute.approach.primaryMethodId}->${methodId}`,
-      reason: "The learner changed the exact ready session to one of the bounded methods saved on its committed route.",
+      reason: otherEligibleChoice
+        ? "The learner requested an eligible, deliverable method through I'll Customize Other methods for this exact ready session."
+        : "The learner changed the exact ready session to one of the bounded methods saved on its committed route.",
       evidenceRefs: [predecessorEvidenceRef, learnerChoiceEvidenceRef],
     });
     const provisionalBase = StudyRouteSchema.parse({
@@ -357,6 +361,18 @@ export function createCommittedMethodChoiceSuccessor({
         selection,
         // A direct learner choice does not read a new profile snapshot.
         profileVersion: previousRoute.provenance.profileVersion,
+        // A committed route is an authorization boundary. Ordinary choices
+        // rotate only the former primary and visible alternatives. The
+        // explicit Other-method scope may add exactly its selected method,
+        // already authorized from the predecessor eligibility trace, but the
+        // successor still exposes at most two of the predecessor's choices.
+        boundedChoiceMethodIds: unique([
+          methodId,
+          previousRoute.approach.primaryMethodId,
+          ...previousRoute.agency.alternatives.map((alternative) => (
+            alternative.primaryMethodId
+          )),
+        ]),
       },
     });
     const newTrace = integrated.provenance.ruleTrace.slice(

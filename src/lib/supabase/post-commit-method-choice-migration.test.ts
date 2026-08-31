@@ -3,7 +3,6 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { LEARNING_TASK_TYPES } from "@/lib/learning/method-catalog";
 import {
-  eligibleMethodIdsFor,
   KNOWLEDGE_STAGES,
 } from "@/lib/learning/method-eligibility";
 
@@ -325,39 +324,30 @@ describe("post-commit method-choice migration", () => {
     );
   });
 
-  it("reconstructs the complete task-stage-mode eligibility boundary", () => {
+  it("freezes the complete v1 task-stage-mode eligibility boundary", () => {
     const normalizedFunction = methodChoiceFunction
       .replace(/\s+/gu, " ")
       .replace(/array\[ /gu, "array[")
       .replace(/ \]::text\[\]/gu, "]::text[]");
     const expectedContexts: string[] = [];
-    const eligibilityWidths: number[] = [];
     for (const learningMode of ["study", "learn"] as const) {
       for (const taskType of LEARNING_TASK_TYPES) {
         for (const knowledgeStage of KNOWLEDGE_STAGES) {
           const context = `${learningMode}:${taskType}:${knowledgeStage}`;
-          const eligibleMethodIds = eligibleMethodIdsFor({
-            taskType,
-            knowledgeStage,
-            learningMode,
-          });
-          const postgresArray = `array[${eligibleMethodIds.map((methodId) => (
-            `'${methodId}'`
-          )).join(", ")}]::text[]`;
           expectedContexts.push(context);
-          eligibilityWidths.push(eligibleMethodIds.length);
-          expect(eligibleMethodIds.length - 1).toBeLessThanOrEqual(2);
-          expect(normalizedFunction).toContain(
-            `when '${context}' then ${postgresArray}`,
-          );
         }
       }
     }
-    const actualContexts = [...methodChoiceFunction.matchAll(
-      /when '(study|learn):([a-z_]+):(novice|developing|retrieval_ready)'/gu,
-    )].map((match) => `${match[1]}:${match[2]}:${match[3]}`);
+    const eligibilityCases = [...normalizedFunction.matchAll(
+      /when '(study|learn):([a-z_]+):(novice|developing|retrieval_ready)' then array\[([^\]]+)\]::text\[\]/gu,
+    )];
+    const actualContexts = eligibilityCases.map(
+      (match) => `${match[1]}:${match[2]}:${match[3]}`,
+    );
     expect(actualContexts).toEqual(expectedContexts);
-    expect(Math.max(...eligibilityWidths)).toBe(3);
+    expect(Math.max(...eligibilityCases.map((match) => (
+      [...(match[4] ?? "").matchAll(/'[^']+'/gu)].length
+    )))).toBe(3);
     expect(methodChoiceFunction).toContain(
       "a later eligibility or alternative-count change needs a replacement",
     );

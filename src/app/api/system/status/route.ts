@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { isAccountExportCleanupConfigured } from "@/lib/account-export/config";
 import { isOpenAIPlanConfigured, isOpenAISessionConfigured, isOpenAITutorConfigured } from "@/lib/openai/config";
+import { personalizationRolloutConfigurationStatus } from "@/lib/server/personalization-rollout";
 import { createSupabaseAdminClient, isSupabaseAdminConfigured } from "@/lib/supabase/admin";
 import { getSupabasePublicConfig, isSupabaseConfigured } from "@/lib/supabase/config";
 import { signedInGenerationReadinessStatus } from "@/lib/supabase/signed-in-generation-readiness";
@@ -25,6 +26,7 @@ export async function GET() {
     planGeneration: isOpenAIPlanConfigured() ? "openai" : "preview",
     guidedSessions: isOpenAISessionConfigured() ? "openai" : "unavailable",
     signedInGeneration,
+    personalizationRollout: personalizationRolloutConfigurationStatus(),
     tutor: isOpenAITutorConfigured() ? "openai" : "unavailable",
     materials: isSupabaseConfigured() ? "private-supabase" : "unavailable",
     persistence: isSupabaseConfigured() ? "supabase" : "browser",

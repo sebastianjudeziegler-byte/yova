@@ -11,6 +11,10 @@ export type PrivacySafeErrorDiagnostic = {
   attempts?: number;
   repairReason?: string;
   recoveryMode?: string;
+  generationStrategy?: "full" | "reliable" | "streamed";
+  generationStage?: "preflight" | "provider" | "validation" | "fallback" | "persistence" | "complete";
+  generationCause?: "provider_request" | "incomplete_response" | "invalid_structure" | "semantic_validation" | "source_unavailable" | "authorization" | "provider_unconfigured" | "rate_limit" | "quota_exhausted" | "reservation_conflict" | "route_conflict" | "cache_conflict" | "cache_write" | "unexpected";
+  degradedMode?: "source_grounded";
   validationIssueCode?: string;
   structuralDiagnostic?: PrivacySafeStructuralDiagnostic;
 };
@@ -149,6 +153,38 @@ function readGenerationDiagnostic(error: Error) {
   const recoveryMode = stats.recoveryMode === "safe_study" || stats.recoveryMode === "safe_learn"
     ? stats.recoveryMode
     : undefined;
+  const generationStrategy = stats.strategy === "full"
+    || stats.strategy === "reliable"
+    || stats.strategy === "streamed"
+    ? stats.strategy as NonNullable<PrivacySafeErrorDiagnostic["generationStrategy"]>
+    : undefined;
+  const generationStage = stats.stage === "preflight"
+    || stats.stage === "provider"
+    || stats.stage === "validation"
+    || stats.stage === "fallback"
+    || stats.stage === "persistence"
+    || stats.stage === "complete"
+    ? stats.stage as NonNullable<PrivacySafeErrorDiagnostic["generationStage"]>
+    : undefined;
+  const generationCause = stats.cause === "provider_request"
+    || stats.cause === "incomplete_response"
+    || stats.cause === "invalid_structure"
+    || stats.cause === "semantic_validation"
+    || stats.cause === "source_unavailable"
+    || stats.cause === "authorization"
+    || stats.cause === "provider_unconfigured"
+    || stats.cause === "rate_limit"
+    || stats.cause === "quota_exhausted"
+    || stats.cause === "reservation_conflict"
+    || stats.cause === "route_conflict"
+    || stats.cause === "cache_conflict"
+    || stats.cause === "cache_write"
+    || stats.cause === "unexpected"
+    ? stats.cause as NonNullable<PrivacySafeErrorDiagnostic["generationCause"]>
+    : undefined;
+  const degradedMode = stats.degradedMode === "source_grounded"
+    ? stats.degradedMode as NonNullable<PrivacySafeErrorDiagnostic["degradedMode"]>
+    : undefined;
   const validationIssueCode = typeof stats.validationIssueCode === "string"
     ? safeIdentifier(stats.validationIssueCode)
     : undefined;
@@ -157,6 +193,10 @@ function readGenerationDiagnostic(error: Error) {
     ...(attempts === undefined ? {} : { attempts }),
     ...(repairReason ? { repairReason } : {}),
     ...(recoveryMode ? { recoveryMode } : {}),
+    ...(generationStrategy ? { generationStrategy } : {}),
+    ...(generationStage ? { generationStage } : {}),
+    ...(generationCause ? { generationCause } : {}),
+    ...(degradedMode ? { degradedMode } : {}),
     ...(validationIssueCode ? { validationIssueCode } : {}),
   };
 }

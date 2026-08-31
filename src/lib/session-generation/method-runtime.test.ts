@@ -7,6 +7,7 @@ import {
   methodRuntimeMismatch,
   methodRuntimeKeepIndex,
   validateAttachedMethodRuntimes,
+  validateMethodRuntimeActivities,
   type MethodRuntime,
 } from "@/lib/session-generation/method-runtime";
 
@@ -74,6 +75,30 @@ function workedExample(overrides: Partial<Extract<MethodRuntime, { kind: "worked
     ...overrides,
   };
 }
+
+const conceptMap: Extract<MethodRuntime, { kind: "concept_map" }> = {
+  kind: "concept_map",
+  instructions: "Connect each named concept with a precise phrase that explains how the two ideas relate.",
+  nodes: [
+    { id: "glucose", label: "Glucose" },
+    { id: "glycolysis", label: "Glycolysis" },
+    { id: "atp", label: "ATP" },
+  ],
+  connections: [
+    {
+      fromId: "glucose",
+      toId: "glycolysis",
+      prompt: "How does glucose relate to glycolysis?",
+      expectedRelationship: "Glucose is broken down during glycolysis.",
+    },
+    {
+      fromId: "glycolysis",
+      toId: "atp",
+      prompt: "How does glycolysis relate to ATP?",
+      expectedRelationship: "Glycolysis produces a net gain of ATP.",
+    },
+  ],
+};
 
 describe("method runtime schema", () => {
   it("accepts a well-formed retrieval round", () => {
@@ -250,6 +275,32 @@ describe("method runtime schema", () => {
       ],
     }))).toThrow(/expected answer/);
   });
+
+  it("accepts a bounded concept map with explicit factual relationships", () => {
+    expect(MethodRuntimeSchema.parse(conceptMap)).toEqual(conceptMap);
+  });
+
+  it("rejects concept-map links that do not bind to declared unique nodes", () => {
+    expect(() => MethodRuntimeSchema.parse({
+      ...conceptMap,
+      connections: [{
+        ...conceptMap.connections[0],
+        toId: "missing-node",
+      }, conceptMap.connections[1]],
+    })).toThrow(/declared nodes/);
+
+    expect(() => MethodRuntimeSchema.parse({
+      ...conceptMap,
+      nodes: [conceptMap.nodes[0], conceptMap.nodes[0], conceptMap.nodes[2]],
+    })).toThrow(/identifiers must be unique/);
+  });
+
+  it("strips unknown learner-authored fields from provider output but rejects them at the final resource boundary", () => {
+    expect(() => MethodRuntimeSchema.parse({
+      ...conceptMap,
+      learnerDraft: "PRIVATE RELATIONSHIP DRAFT",
+    })).toThrow(/unrecognized key/i);
+  });
 });
 
 describe("method runtime routing", () => {
@@ -258,6 +309,7 @@ describe("method runtime routing", () => {
     expect(methodRuntimeKindFor("spaced_retrieval")).toBe("retrieval_round");
     expect(methodRuntimeKindFor("worked_example_fading")).toBe("worked_example");
     expect(methodRuntimeKindFor("practice_test_error_repair")).toBe("error_repair");
+    expect(methodRuntimeKindFor("concept_mapping")).toBe("concept_map");
   });
 
   it("leaves methods without a runtime on the generic path", () => {
@@ -298,6 +350,11 @@ describe("method runtime routing", () => {
   it("allows a method with a runtime to still generate without one", () => {
     // Generation may fall back to the generic path; that is degraded, not invalid.
     expect(methodRuntimeMismatch("retrieval_practice", null)).toBeNull();
+  });
+
+  it("requires the dedicated concept-map interaction for newly issued concept-mapping sessions", () => {
+    expect(methodRuntimeMismatch("concept_mapping", null)).toContain("dedicated relationship-building runtime");
+    expect(methodRuntimeMismatch("concept_mapping", conceptMap)).toBeNull();
   });
 });
 
@@ -342,6 +399,11 @@ describe("attached method runtimes", () => {
     expect(validateAttachedMethodRuntimes("retrieval_practice", [null, null])).toBeNull();
   });
 
+  it("fails closed when concept mapping is flattened into generic free response", () => {
+    expect(validateAttachedMethodRuntimes("concept_mapping", [null, null]))
+      .toContain("dedicated relationship-building runtime");
+  });
+
   it("does not reject a session merely for over-attaching the same runtime", () => {
     // Over-attaching is a formatting slip. Rejecting it would drop the learner
     // into a degraded fallback for a session that is otherwise correct.
@@ -352,6 +414,30 @@ describe("attached method runtimes", () => {
   it("rejects a runtime belonging to a different method", () => {
     expect(validateAttachedMethodRuntimes("worked_example_fading", [retrievalRound]))
       .toContain("uses worked_example");
+  });
+
+  it("binds the concept-map editor to its connect phase and exact model relationships", () => {
+    const answer = conceptMap.connections.map((connection) => connection.expectedRelationship).join(" ");
+    expect(validateMethodRuntimeActivities("concept_mapping", [{
+      type: "free_response",
+      methodPhase: "connect",
+      correctAnswer: answer,
+      methodRuntime: conceptMap,
+    }])).toBeNull();
+
+    expect(validateMethodRuntimeActivities("concept_mapping", [{
+      type: "free_response",
+      methodPhase: "retrieve",
+      correctAnswer: answer,
+      methodRuntime: conceptMap,
+    }])).toContain("free-response connect phase");
+
+    expect(validateMethodRuntimeActivities("concept_mapping", [{
+      type: "free_response",
+      methodPhase: "connect",
+      correctAnswer: conceptMap.connections[0]!.expectedRelationship,
+      methodRuntime: conceptMap,
+    }])).toContain("every exact reference relationship");
   });
 });
 

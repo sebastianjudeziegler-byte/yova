@@ -35,6 +35,7 @@ import {
   integrateInitialPlanMethodRoutes,
   type InitialPlanMethodRoutingContext,
 } from "@/lib/study-route/initial-plan-method-routing";
+import { studyRouteProvenanceIncludesRouterComponent } from "@/lib/study-route/method-plan-integration";
 import {
   NORMAL_PLAN_ENVELOPE_ROUTE_INTEGRATION_VERSION,
   integrateNormalPlanEnvelopeRoute,
@@ -475,7 +476,6 @@ function validateFinalPlan({
     }
     const route = routeResult.data;
     const projection = studyRouteToLegacySessionProjection(route);
-    const routerVersions = route.provenance.routerVersion.split("+");
     const profileVersions = route.provenance.profileVersion.split("+");
     const envelopeTracePreserved = [
       ...envelope.modeRuleTrace,
@@ -512,9 +512,18 @@ function validateFinalPlan({
       || route.approach.mode !== (envelope.learningMode === "learn" ? "learn" : "practice")
       || !sameJson(route.timing, envelope.timing)
       || !sameSessionProjection(session, projection)
-      || !routerVersions.includes(NORMAL_PLAN_ENVELOPE_ROUTE_INTEGRATION_VERSION)
-      || !routerVersions.includes(NORMAL_PLAN_ENVELOPE_COMPOSER_VERSION)
-      || !routerVersions.includes(envelope.durationRouterVersion)
+      || !studyRouteProvenanceIncludesRouterComponent(
+        route.provenance,
+        NORMAL_PLAN_ENVELOPE_ROUTE_INTEGRATION_VERSION,
+      )
+      || !studyRouteProvenanceIncludesRouterComponent(
+        route.provenance,
+        NORMAL_PLAN_ENVELOPE_COMPOSER_VERSION,
+      )
+      || !studyRouteProvenanceIncludesRouterComponent(
+        route.provenance,
+        envelope.durationRouterVersion,
+      )
       || !envelopeTracePreserved
       || !composerTracePreserved
       || !envelope.prerequisiteEvidenceRefs.every((evidenceRef) => (

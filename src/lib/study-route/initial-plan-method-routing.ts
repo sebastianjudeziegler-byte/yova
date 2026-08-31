@@ -20,11 +20,21 @@ import {
   integrateStudyRouteMethodDecision,
   methodSelectionContextForStudyRoute,
 } from "@/lib/study-route/method-plan-integration";
+import { resolveStudyRouteAgencyMode } from "@/lib/study-route/agency-mode-controller";
+import {
+  methodEvidenceComparisonContextForRoute,
+  methodEvidenceComparisonKey,
+} from "@/lib/study-route/method-evidence-policy";
 import {
   StudyRouteRuleTraceEntrySchema,
   StudyRouteSchema,
   type StudyRoute,
 } from "@/lib/study-route/schema";
+import {
+  personalizationInputsForRollout,
+  resolvePersonalizationRollout,
+  type PersonalizationRolloutDecision,
+} from "@/lib/study-route/personalization-rollout";
 import { NORMAL_PLAN_ENVELOPE_ROUTE_INTEGRATION_VERSION } from "@/lib/study-route/normal-plan-envelope-integration";
 
 export const INITIAL_PLAN_METHOD_ROUTING_VERSION =
@@ -35,6 +45,8 @@ export type InitialPlanMethodRoutingContext = {
   profileVersion: string;
   personalization: DeepReadonly<GenerationPersonalizationContext>;
   observedEvidence: readonly CanonicalObservedMethodEvidence[];
+  /** Server-owned, account-stable assignment for this new route issuance. */
+  rolloutDecision?: PersonalizationRolloutDecision;
 };
 
 /**
@@ -60,6 +72,16 @@ export function integrateInitialPlanMethodRoutes({
     throw new Error("Initial plan methods must be selected before the plan is activated.");
   }
 
+  const rolloutDecision = context.rolloutDecision
+    ?? resolvePersonalizationRollout({
+      rolloutPercent: 0,
+      subjectKey: null,
+    });
+  const routedInputs = personalizationInputsForRollout({
+    decision: rolloutDecision,
+    personalization: context.personalization,
+    observedEvidence: context.observedEvidence,
+  });
   const sessions = plan.sessions.map((session) => {
     if (session.reviewType || session.reviewConcept?.trim()) {
       throw new Error("Initial plan method routing cannot rewrite a scheduled review contract.");
@@ -67,14 +89,20 @@ export function integrateInitialPlanMethodRoutes({
     const route = canonicalDraftRouteScaffold({ plan, request, session });
     const selection = selectCanonicalStudyMethod({
       ...methodSelectionContextForStudyRoute(route),
-      personalization: context.personalization,
-      observedEvidence: context.observedEvidence,
+      currentComparisonKey: methodEvidenceComparisonKey(
+        methodEvidenceComparisonContextForRoute(route),
+      ),
+      ...routedInputs,
     });
     const integratedRoute = integrateStudyRouteMethodDecision({
       route,
       decision: {
         selection,
         profileVersion: context.profileVersion,
+        rolloutDecision,
+        agencyMode: resolveStudyRouteAgencyMode(
+          context.personalization.canonicalProfile,
+        ),
       },
     });
 

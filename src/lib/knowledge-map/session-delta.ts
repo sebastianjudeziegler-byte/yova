@@ -4,6 +4,7 @@ import type {
   SessionCompletionMode,
 } from "@/lib/domain";
 import type { PlanKnowledgeMap } from "@/lib/knowledge-map/schema";
+import { learningStateConceptEvidence } from "@/lib/learning/concept-evidence";
 
 export type SessionMapDelta = {
   topicId: string;
@@ -29,9 +30,10 @@ export function buildSessionMapDelta(
   const sessionTopicIds = new Set(
     hasAuthoritativeGeneratedScope ? generatedTopicIds : session.topicIds ?? [],
   );
+  const authoritativeEvidence = learningStateConceptEvidence(evidence);
   return map.topics.flatMap((topic) => {
     if (!sessionTopicIds.has(topic.id)) return [];
-    const topicEvidence = evidence.filter((item) => item.topicId === topic.id);
+    const topicEvidence = authoritativeEvidence.filter((item) => item.topicId === topic.id);
     let next = topic.status;
     if (topicEvidence.length > 0 && topic.status !== "secure") next = "evidenced";
     else if (session.learningMode === "learn" && topic.status === "not_started") next = "taught";

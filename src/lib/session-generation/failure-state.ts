@@ -1,7 +1,9 @@
 import type { BuiltInFallbackOutcome } from "@/lib/session-generation/fallback-observation";
 import { AI_USAGE_OPERATION_IN_PROGRESS_CODE } from "@/lib/ai-usage/reservation-conflict";
 import {
+  FALLBACK_UNAVAILABLE_GUIDED_SESSION_FAILURE_CODE,
   GUIDED_SESSION_ALLOWANCE_EXHAUSTED_CODE,
+  SOURCE_UNAVAILABLE_GUIDED_SESSION_FAILURE_CODE,
   TRANSIENT_GUIDED_SESSION_FAILURE_CODE,
   VALIDATION_GUIDED_SESSION_FAILURE_CODE,
 } from "@/lib/session-generation/failure-message";
@@ -162,6 +164,17 @@ export function classifyGuidedSessionGenerationFailure({
       kind: "allowance_exhausted",
       apiMessage,
       resetAt: retryAfterResetAt(response?.headers.get("Retry-After") ?? null, now),
+      retryable: false,
+    };
+  }
+
+  const sourceOrFallbackUnavailable = code === SOURCE_UNAVAILABLE_GUIDED_SESSION_FAILURE_CODE
+    || code === FALLBACK_UNAVAILABLE_GUIDED_SESSION_FAILURE_CODE;
+  if (sourceOrFallbackUnavailable) {
+    return {
+      kind: "request_rejected",
+      apiMessage,
+      resetAt: null,
       retryable: false,
     };
   }

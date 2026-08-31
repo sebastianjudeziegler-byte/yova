@@ -58,6 +58,33 @@ export const SESSION_VALIDATION_ISSUE_CODES = [
 
 export type SessionValidationIssueCode = typeof SESSION_VALIDATION_ISSUE_CODES[number];
 
+export const SESSION_GENERATION_STRATEGIES = ["full", "reliable", "streamed"] as const;
+export const SESSION_GENERATION_STAGES = [
+  "preflight",
+  "provider",
+  "validation",
+  "fallback",
+  "persistence",
+  "complete",
+] as const;
+export const SESSION_GENERATION_CAUSES = [
+  "provider_request",
+  "incomplete_response",
+  "invalid_structure",
+  "semantic_validation",
+  "source_unavailable",
+  "fallback_unavailable",
+  "authorization",
+  "provider_unconfigured",
+  "rate_limit",
+  "quota_exhausted",
+  "reservation_conflict",
+  "route_conflict",
+  "cache_conflict",
+  "cache_write",
+  "unexpected",
+] as const;
+
 export const GenerationValidatorSchema = z.enum([
   "plan_response_status",
   "plan_structure",
@@ -159,6 +186,17 @@ export const GenerationObservationSchema = z.object({
     sessionRequestId: z.string().uuid().optional(),
     planSessionId: z.string().uuid().optional(),
     recoveryMode: z.enum(["safe_study", "safe_learn"]).optional(),
+    sessionGenerationStrategy: z.enum(SESSION_GENERATION_STRATEGIES).optional(),
+    sessionGenerationStage: z.enum(SESSION_GENERATION_STAGES).optional(),
+    sessionGenerationCause: z.enum(SESSION_GENERATION_CAUSES).optional(),
+    sessionFallbackMode: z.enum(["source_grounded"]).optional(),
+    sessionPersistence: z.enum([
+      "cache_hit",
+      "cloud_saved",
+      "browser_only",
+      "failed",
+    ]).optional(),
+    sessionPersistenceCause: z.enum(["cache_conflict", "cache_write"]).optional(),
     planFailureReason: z.enum(PLAN_FAILURE_REASONS).optional(),
     providerCategory: z.enum(PROVIDER_ERROR_CATEGORIES).optional(),
     providerStatus: z.number().int().min(100).max(599).optional(),

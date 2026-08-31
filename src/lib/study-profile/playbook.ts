@@ -27,6 +27,9 @@ const METHOD_USE_CASES: Record<CoreMethodId, string> = {
   worked_example_fading: "Use this for math, science, coding, and other tasks with a sequence of steps.",
   interleaved_practice: "Use this after you know the basics of several related problem types.",
   read_recall_review: "Use this for textbook sections, lecture notes, articles, and course modules.",
+  pretesting: "Use this before first instruction when a brief prediction can focus what you notice next.",
+  concept_mapping: "Use this when understanding depends on how several concepts relate, not on an isolated fact list.",
+  practice_problems: "Use this after you have an initial model and need independent application in a changed context.",
   retrieval_based_outlining: "Use this when planning an essay, report, or written argument.",
   scaffolded_coding: "Use this when learning a new programming pattern or debugging approach.",
   practice_test_error_repair: "Use this when preparing for a quiz, exam, or any task with answers you can check.",
@@ -38,6 +41,9 @@ const METHOD_CAUTIONS: Partial<Record<CoreMethodId, string>> = {
   self_explanation: "Keep the explanation focused. If exact facts are the goal, finish with a closed-note recall check.",
   worked_example_fading: "Remove the example once you can complete the steps. Copying a full solution is not independent practice.",
   read_recall_review: "The recall step is the point. Do not turn this into repeated reading or highlighting.",
+  pretesting: "Keep the first attempt brief and ungraded. A miss before instruction is not evidence about ability.",
+  concept_mapping: "Every line needs a meaningful relationship label; a decorative diagram is not a checked map.",
+  practice_problems: "Do not keep the worked solution visible during the independent attempt or repeat only surface-identical items.",
   practice_test_error_repair: "Use representative, low-stakes questions. A practice test should guide the next review, not become a judgment about ability.",
 };
 
@@ -151,6 +157,15 @@ function whyMethodFits(methodId: CoreMethodId, { profile, answers }: ProfileCont
   if (methodId === "read_recall_review") {
     return "Your focus may fade during long or repetitive work. Short reading sections followed by recall change the activity without pulling you away from the same topic.";
   }
+  if (methodId === "pretesting") {
+    return "A brief prediction can make the upcoming explanation more purposeful. YOVA treats the first attempt as an attention-setting diagnostic, never as a judgment about ability.";
+  }
+  if (methodId === "concept_mapping") {
+    return "A checked relationship map makes the structure of an idea visible and exposes exactly which connection still needs repair.";
+  }
+  if (methodId === "practice_problems") {
+    return "Independent problems show whether you can select and apply the procedure without a model remaining visible, while a changed follow-up checks transfer.";
+  }
   if (methodId === "retrieval_practice") {
     if (profile.calibrationDirection === "underconfidence_risk" || answers?.q8 === "d") {
       return "Your confidence may be lower than your results. Recording correct answers gives you evidence of what you can already do and a clear list of what still needs work.";
@@ -213,6 +228,30 @@ function methodSteps(methodId: CoreMethodId, { profile, answers }: ProfileContex
       "Reopen the source, correct the gaps, and move to the next section.",
     ];
   }
+  if (methodId === "pretesting") {
+    return [
+      "Make one or two low-stakes predictions before opening the explanation.",
+      "Study the accurate model and compare it with the initial attempt.",
+      "Repair the exact gap without treating the pretest as a grade.",
+      "Answer a different follow-up after instruction.",
+    ];
+  }
+  if (methodId === "concept_mapping") {
+    return [
+      "Retrieve the important concepts before reopening the source.",
+      "Join them with short relationship phrases that state how each pair connects.",
+      "Verify every important link against the source.",
+      "Repair unsupported links and explain one connection in words.",
+    ];
+  }
+  if (methodId === "practice_problems") {
+    return [
+      "Attempt one representative problem without the solution visible.",
+      "Find the first incorrect decision or step and repair it.",
+      "Hide the repair support again.",
+      "Solve a changed-context problem using the same principle.",
+    ];
+  }
   return [
     "Study one short, accurate explanation or worked example.",
     "Close it and explain how the idea works in your own words.",
@@ -261,6 +300,7 @@ function methodSource(methodId: CoreMethodId, schoolLevel: StudyProfileSchoolLev
     case "scaffolded_coding":
       return source.solved;
     case "practice_test_error_repair":
+    case "practice_problems":
       return source.questions;
     case "read_recall_review":
       return source.reading;
@@ -280,6 +320,9 @@ function schoolExample(methodId: CoreMethodId, schoolLevel: StudyProfileSchoolLe
     self_explanation: `Example: take ${source}, explain how it works without looking, then compare your explanation with the source.`,
     worked_example_fading: `Example: study ${source}, redo it with two steps hidden, then solve a similar problem with nothing in front of you.`,
     read_recall_review: `Example: read ${source}, close it, and write the main idea plus two supporting points from memory.`,
+    pretesting: `Example: predict the answer to two questions about ${source}, study the relevant explanation, then answer a different follow-up.`,
+    concept_mapping: `Example: retrieve five concepts from ${source}, connect them with labeled relationships, then verify each link.`,
+    practice_problems: `Example: solve one question from ${source} without help, repair the first wrong step, then solve a changed version.`,
     practice_test_error_repair: `Example: answer five of ${source} without notes, group what you missed by cause, and redo one question per cause.`,
   };
   return examples[methodId] ?? `Example: apply this method to ${source} and record the result before choosing what to do next.`;
@@ -385,6 +428,9 @@ function dimensionsForMethod(
     self_explanation: ["calibration_risk", "structure_need"],
     worked_example_fading: ["starting_friction", "structure_need", "mistake_sensitivity"],
     read_recall_review: ["attention_variability", "cognitive_stamina"],
+    pretesting: ["starting_friction", "calibration_risk"],
+    concept_mapping: ["structure_need", "calibration_risk"],
+    practice_problems: ["structure_need", "mistake_sensitivity"],
     practice_test_error_repair: ["calibration_risk", "mistake_sensitivity"],
   };
   return mapped[methodId] ?? [profile.primaryPattern.dimension];

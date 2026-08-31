@@ -6,11 +6,12 @@ const mocks = vi.hoisted(() => ({
   adminConfigured: true,
   invitationTableError: null as { code: string } | null,
   generationReadiness: {
-    contractVersion: "202608300001",
+    contractVersion: "202608300003",
     ready: true,
     studyRoutesSchema: true,
     planSessionsRoutePointer: true,
     requiredRouteRpcs: true,
+    expandedMethodAgencyBoundary: true,
   } as Record<string, unknown> | null,
   generationReadinessError: null as { code: string } | null,
   publicConfig: {
@@ -49,11 +50,12 @@ describe("system status tester-access readiness", () => {
     mocks.adminConfigured = true;
     mocks.invitationTableError = null;
     mocks.generationReadiness = {
-      contractVersion: "202608300001",
+      contractVersion: "202608300003",
       ready: true,
       studyRoutesSchema: true,
       planSessionsRoutePointer: true,
       requiredRouteRpcs: true,
+      expandedMethodAgencyBoundary: true,
     };
     mocks.generationReadinessError = null;
     mocks.publicConfig = {
@@ -70,6 +72,7 @@ describe("system status tester-access readiness", () => {
     vi.stubEnv("AUTH_PASSWORD_ACCOUNTS", "false");
     vi.stubEnv("AUTH_CAPTCHA_ENABLED", "false");
     vi.stubEnv("NEXT_PUBLIC_TURNSTILE_SITE_KEY", "");
+    vi.stubEnv("YOVA_PERSONALIZATION_ROLLOUT_PERCENT", "0");
     vi.stubEnv("CRON_SECRET", "cron-secret-that-is-at-least-thirty-two-characters");
     vi.stubEnv(
       "YOVA_DRAFT_RECEIPT_SECRET",
@@ -91,6 +94,11 @@ describe("system status tester-access readiness", () => {
       accountDataExport: "enabled",
       accountDeletion: "enabled",
       signedInGeneration: "ready",
+      personalizationRollout: {
+        policyVersion: "personalization_rollout_v1",
+        status: "baseline",
+        percent: 0,
+      },
     });
     expect(status).not.toHaveProperty("supabasePublishableKey");
     expect(mocks.settingsFetch).toHaveBeenCalledWith(
@@ -112,13 +120,35 @@ describe("system status tester-access readiness", () => {
 
     mocks.generationReadinessError = null;
     mocks.generationReadiness = {
-      contractVersion: "202608300001",
+      contractVersion: "202608300003",
       ready: false,
       studyRoutesSchema: false,
       planSessionsRoutePointer: false,
       requiredRouteRpcs: false,
+      expandedMethodAgencyBoundary: false,
     };
     expect((await (await GET()).json()).signedInGeneration).toBe("unavailable");
+  });
+
+  it("reports staged rollout configuration without treating baseline zero as database-unready", async () => {
+    expect((await (await GET()).json())).toMatchObject({
+      signedInGeneration: "ready",
+      personalizationRollout: { status: "baseline", percent: 0 },
+    });
+
+    vi.stubEnv("YOVA_PERSONALIZATION_ROLLOUT_PERCENT", "35");
+    expect((await (await GET()).json()).personalizationRollout).toEqual({
+      policyVersion: "personalization_rollout_v1",
+      status: "staged",
+      percent: 35,
+    });
+
+    vi.stubEnv("YOVA_PERSONALIZATION_ROLLOUT_PERCENT", "invalid");
+    expect((await (await GET()).json()).personalizationRollout).toEqual({
+      policyVersion: "personalization_rollout_v1",
+      status: "misconfigured",
+      percent: null,
+    });
   });
 
   it("fails the public readiness signal when the migration or signup lock is missing", async () => {

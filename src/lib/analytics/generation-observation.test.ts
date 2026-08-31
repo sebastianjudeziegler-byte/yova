@@ -90,6 +90,40 @@ describe("GenerationObservationSchema", () => {
     }).success).toBe(false);
   });
 
+  it("keeps session strategy, fallback, and persistence diagnostics bounded", () => {
+    expect(GenerationObservationSchema.safeParse({
+      ...safeEvent,
+      finalOutcome: "fallback",
+      diagnostics: {
+        sessionGenerationStrategy: "streamed",
+        sessionGenerationStage: "persistence",
+        sessionGenerationCause: "cache_write",
+        sessionFallbackMode: "source_grounded",
+        sessionPersistence: "browser_only",
+        sessionPersistenceCause: "cache_write",
+      },
+    }).success).toBe(true);
+    for (const cause of ["source_unavailable", "fallback_unavailable"] as const) {
+      expect(GenerationObservationSchema.safeParse({
+        ...safeEvent,
+        finalOutcome: "failure",
+        diagnostics: {
+          sessionGenerationStrategy: "full",
+          sessionGenerationStage: "fallback",
+          sessionGenerationCause: cause,
+        },
+      }).success).toBe(true);
+    }
+    expect(GenerationObservationSchema.safeParse({
+      ...safeEvent,
+      diagnostics: {
+        sessionGenerationStrategy: "learner-chosen private strategy",
+        sessionGenerationCause: "provider included private learner text",
+        sessionPersistence: "saved beside private study notes",
+      },
+    }).success).toBe(false);
+  });
+
   it("accepts only enumerated session validation issue codes", () => {
     expect(GenerationObservationSchema.safeParse({
       ...safeEvent,

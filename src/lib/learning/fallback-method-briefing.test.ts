@@ -166,7 +166,7 @@ describe("buildFallbackMethodBriefing", () => {
 
     expect(briefing.taskType).toBe("conceptual_learning");
     expect(briefing.methodId).toBe("self_explanation");
-    expect(briefing.name).toBe("Self-explanation");
+    expect(briefing.name).toBe("Feynman Technique");
   });
 
   it("does not reroute a committed fallback through the legacy task classifier", () => {
