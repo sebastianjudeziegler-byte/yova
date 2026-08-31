@@ -111,6 +111,9 @@ export function buildCommittedRouteFallbackMethodBriefing(
     completion,
     personalization: uniquePersonalization([
       routeReasonForLearner,
+      ...(route.approach.executionEnvironment === "outside_yova"
+        ? [OUTSIDE_SOURCE_PERSONALIZATION]
+        : []),
       ...(deliveryPolicy?.learnerFacingReasons ?? []),
       timeReason,
     ]).slice(0, 3),

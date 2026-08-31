@@ -270,6 +270,35 @@ describe("buildFallbackMethodBriefing", () => {
     });
   });
 
+  it("keeps source authority visible for a committed outside-YOVA recovery", () => {
+    const route = {
+      approach: {
+        mode: "learn",
+        executionEnvironment: "outside_yova",
+        primaryMethodId: "retrieval_based_outlining",
+        visibleMethodName: "Outline from Memory",
+      },
+      target: {
+        taskFamily: "writing_argumentation",
+      },
+      timing: { activeMinutes: 25 },
+      execution: {
+        completionEvidence: [{
+          description: "Draft the claim from memory, then verify every supporting source.",
+        }],
+      },
+      explanation: {
+        shortReason: "The committed route keeps the learner's source authoritative.",
+      },
+    } as unknown as StudyRoute;
+
+    const briefing = buildCommittedRouteFallbackMethodBriefing(route);
+
+    expect(briefing.personalization.join(" ")).toMatch(
+      /outside source remains the source of truth/i,
+    );
+  });
+
   it("does not start a learn-mode mixed assessment with a practice test", () => {
     const session = makeSession({
       title: "Build the ideas before the mixed exam",
