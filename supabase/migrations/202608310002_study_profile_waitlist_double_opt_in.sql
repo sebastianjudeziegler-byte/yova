@@ -1013,56 +1013,56 @@ as $$
       and pg_catalog.to_regprocedure(
         'public.confirm_study_profile_waitlist(jsonb)'
       ) is not null
-      and pg_catalog.position(
+      and position(
         'daily_attempt_count >= 5' in pg_catalog.lower(pg_catalog.pg_get_functiondef(
           pg_catalog.to_regprocedure(
             'public.request_study_profile_waitlist_confirmation(jsonb)'
           )
         ))
       ) > 0
-      and pg_catalog.position(
+      and position(
         'daily_attempt_count >= 5' in pg_catalog.lower(pg_catalog.pg_get_functiondef(
           pg_catalog.to_regprocedure(
             'public.request_study_profile_report_waitlist_confirmation(jsonb)'
           )
         ))
       ) > 0
-      and pg_catalog.position(
+      and position(
         'interval ''24 hours''' in pg_catalog.lower(pg_catalog.pg_get_functiondef(
           pg_catalog.to_regprocedure(
             'public.request_study_profile_waitlist_confirmation(jsonb)'
           )
         ))
       ) > 0
-      and pg_catalog.position(
+      and position(
         'interval ''24 hours''' in pg_catalog.lower(pg_catalog.pg_get_functiondef(
           pg_catalog.to_regprocedure(
             'public.request_study_profile_report_waitlist_confirmation(jsonb)'
           )
         ))
       ) > 0
-      and pg_catalog.position(
+      and position(
         'delivery_kind = ''waitlist_confirmation''' in pg_catalog.lower(pg_catalog.pg_get_functiondef(
           pg_catalog.to_regprocedure(
             'public.request_study_profile_waitlist_confirmation(jsonb)'
           )
         ))
       ) > 0
-      and pg_catalog.position(
+      and position(
         'delivery_kind = ''waitlist_confirmation''' in pg_catalog.lower(pg_catalog.pg_get_functiondef(
           pg_catalog.to_regprocedure(
             'public.request_study_profile_report_waitlist_confirmation(jsonb)'
           )
         ))
       ) > 0
-      and pg_catalog.position(
+      and position(
         'interval ''15 minutes''' in pg_catalog.lower(pg_catalog.pg_get_functiondef(
           pg_catalog.to_regprocedure(
             'public.request_study_profile_waitlist_confirmation(jsonb)'
           )
         ))
       ) > 0
-      and pg_catalog.position(
+      and position(
         'interval ''15 minutes''' in pg_catalog.lower(pg_catalog.pg_get_functiondef(
           pg_catalog.to_regprocedure(
             'public.request_study_profile_report_waitlist_confirmation(jsonb)'
@@ -1089,21 +1089,21 @@ as $$
           'public.study_profile_email_delivery_attempts'
         )
       ), false)
-      and pg_catalog.position(
+      and position(
         'daily_attempt_count >= 5' in pg_catalog.lower(pg_catalog.pg_get_functiondef(
           pg_catalog.to_regprocedure(
             'public.reserve_study_profile_report_email_delivery(jsonb)'
           )
         ))
       ) > 0
-      and pg_catalog.position(
+      and position(
         'interval ''24 hours''' in pg_catalog.lower(pg_catalog.pg_get_functiondef(
           pg_catalog.to_regprocedure(
             'public.reserve_study_profile_report_email_delivery(jsonb)'
           )
         ))
       ) > 0
-      and pg_catalog.position(
+      and position(
         'interval ''15 minutes''' in pg_catalog.lower(pg_catalog.pg_get_functiondef(
           pg_catalog.to_regprocedure(
             'public.reserve_study_profile_report_email_delivery(jsonb)'

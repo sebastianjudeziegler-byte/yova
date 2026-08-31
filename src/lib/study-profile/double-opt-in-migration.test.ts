@@ -67,5 +67,7 @@ describe("Study Profile waitlist double opt-in migration", () => {
     expect(migration).toContain("'serviceRoleBoundary'");
     expect(migration).toContain("revoke all on function public.study_profile_public_readiness_v1()");
     expect(migration).toContain("grant execute on function public.study_profile_public_readiness_v1()\nto service_role;");
+    expect(migration).toContain("and position(");
+    expect(migration).not.toContain("pg_catalog.position(");
   });
 });
