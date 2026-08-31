@@ -5,16 +5,14 @@ import type { SessionInterruption } from "@/lib/domain";
 import { ConceptEvidenceSchema } from "@/lib/learning/concept-evidence";
 import { ConfidenceEvidenceSchema } from "@/lib/learning/confidence-calibration";
 import {
-  isBroadRecallActivityProgress,
   SessionActivityProgressSchema,
-  sessionActivityProgressHasRequiredRouteIdentity,
+  stripRetiredSessionActivityProgressMarker,
 } from "@/lib/learning/session-activity-progress";
 import {
   SessionAdjustmentSnapshotSchema,
   SessionPendingRepairSchema,
 } from "@/lib/learning/session-resume";
 import { recordAuthenticatedSessionInterruption } from "@/lib/supabase/learning-state-repository";
-import { UnsupportedBroadRecallInterruptionError } from "@/lib/sync/session-interruption-error";
 
 const STORAGE_KEY = "yova.session-interruption-outbox.v1";
 
@@ -37,34 +35,26 @@ const RoutedSessionEvidenceSnapshotSchema = z.object({
   completedImmediateRepairs: z.number().int().min(0).max(4),
 }).refine((snapshot) => snapshot.correctAnswers <= snapshot.totalAnswers);
 
-const SessionInterruptionSchema = z.object({
-  id: z.string().uuid(),
-  planId: z.string().uuid(),
-  planSessionId: z.string().uuid(),
-  routeRevisionId: z.string().uuid().optional(),
-  startedAt: z.string().datetime({ offset: true }),
-  interruptedAt: z.string().datetime({ offset: true }),
-  plannedMinutes: z.number().int().min(5).max(180),
-  actualMinutes: z.number().int().min(1).max(360),
-  completedSteps: z.number().int().min(0).max(24),
-  totalSteps: z.number().int().min(1).max(24),
-  resumeStep: z.number().int().min(0).max(24).optional(),
-  evidence: RoutedSessionEvidenceSnapshotSchema.optional(),
-  pendingRepair: SessionPendingRepairSchema.optional(),
-  sessionAdjustment: SessionAdjustmentSnapshotSchema.optional(),
-  activityProgress: SessionActivityProgressSchema.optional(),
-}).superRefine((interruption, context) => {
-  if (!sessionActivityProgressHasRequiredRouteIdentity(
-    interruption.activityProgress,
-    interruption.routeRevisionId,
-  )) {
-    context.addIssue({
-      code: "custom",
-      path: ["routeRevisionId"],
-      message: "Broad-recall interruption progress requires an exact route revision.",
-    });
-  }
-});
+const SessionInterruptionSchema = z.preprocess(
+  stripRetiredSessionActivityProgressMarker,
+  z.object({
+    id: z.string().uuid(),
+    planId: z.string().uuid(),
+    planSessionId: z.string().uuid(),
+    routeRevisionId: z.string().uuid().optional(),
+    startedAt: z.string().datetime({ offset: true }),
+    interruptedAt: z.string().datetime({ offset: true }),
+    plannedMinutes: z.number().int().min(5).max(180),
+    actualMinutes: z.number().int().min(1).max(360),
+    completedSteps: z.number().int().min(0).max(24),
+    totalSteps: z.number().int().min(1).max(24),
+    resumeStep: z.number().int().min(0).max(24).optional(),
+    evidence: RoutedSessionEvidenceSnapshotSchema.optional(),
+    pendingRepair: SessionPendingRepairSchema.optional(),
+    sessionAdjustment: SessionAdjustmentSnapshotSchema.optional(),
+    activityProgress: SessionActivityProgressSchema.optional(),
+  }),
+);
 
 const PendingSessionInterruptionSchema = z.object({
   userId: z.string().uuid(),
@@ -82,7 +72,7 @@ export function queueSessionInterruption(input: PendingSessionInterruption) {
   const parsed = PendingSessionInterruptionSchema.safeParse(input);
   if (!parsed.success) return false;
   const current = loadAllPendingInterruptions();
-  const pending = pendingInterruptionWithoutBroadRecallProgress(parsed.data);
+  const pending = parsed.data;
   const withoutDuplicate = current.filter((entry) => entry.interruption.id !== pending.interruption.id);
   return savePendingInterruptions([...withoutDuplicate, pending].slice(-25));
 }
@@ -118,10 +108,8 @@ export function readQueuedSessionInterruptionsForExport(userId: string):
     if (!Array.isArray(parsed) || parsed.length > 25) return { ok: false };
     const validated = parsed.map((entry) => PendingSessionInterruptionSchema.safeParse(entry));
     if (validated.some((entry) => !entry.success)) return { ok: false };
-    const sanitized = validated.flatMap((entry) => (
-      entry.success ? [pendingInterruptionWithoutBroadRecallProgress(entry.data)] : []
-    ));
-    if (sanitized.some((entry, index) => entry !== validated[index]?.data)) {
+    const sanitized = validated.flatMap((entry) => (entry.success ? [entry.data] : []));
+    if (JSON.stringify(sanitized) !== JSON.stringify(parsed)) {
       savePendingInterruptions(sanitized);
     }
     return {
@@ -152,11 +140,7 @@ export async function flushQueuedSessionInterruptions(userId: string) {
       await recordAuthenticatedSessionInterruption(entry.userId, entry.interruption);
       removeQueuedSessionInterruption(entry.interruption.id);
       synced += 1;
-    } catch (error) {
-      if (error instanceof UnsupportedBroadRecallInterruptionError) {
-        removeQueuedSessionInterruption(entry.interruption.id);
-        continue;
-      }
+    } catch {
       break;
     }
   }
@@ -175,32 +159,18 @@ function loadAllPendingInterruptions(): PendingSessionInterruption[] {
     if (!stored) return [];
     const parsed: unknown = JSON.parse(stored);
     if (!Array.isArray(parsed)) return [];
-    let sanitizedBroadRecall = false;
     const supported = parsed.slice(-25).flatMap((entry) => {
       const validated = PendingSessionInterruptionSchema.safeParse(entry);
       if (!validated.success) return [];
-      if (isBroadRecallActivityProgress(validated.data.interruption.activityProgress)) {
-        sanitizedBroadRecall = true;
-      }
-      return [pendingInterruptionWithoutBroadRecallProgress(validated.data)];
+      return [validated.data];
     });
-    // Broad Recall's within-activity marker remains in the device checkpoint.
-    // Queue only the terminal envelope so a transient live Exit still has a
-    // durable retry without replaying unsupported progress forever.
-    if (sanitizedBroadRecall) savePendingInterruptions(supported);
+    if (JSON.stringify(supported) !== JSON.stringify(parsed.slice(-25))) {
+      savePendingInterruptions(supported);
+    }
     return supported;
   } catch {
     return [];
   }
-}
-
-function pendingInterruptionWithoutBroadRecallProgress(
-  entry: PendingSessionInterruption,
-): PendingSessionInterruption {
-  if (!isBroadRecallActivityProgress(entry.interruption.activityProgress)) return entry;
-  const interruption: SessionInterruption = { ...entry.interruption };
-  delete interruption.activityProgress;
-  return { ...entry, interruption };
 }
 
 function savePendingInterruptions(entries: PendingSessionInterruption[]) {

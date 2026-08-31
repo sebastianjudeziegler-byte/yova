@@ -3,14 +3,7 @@ import {
   CORE_METHOD_CATALOG,
   CORE_METHOD_IDS,
 } from "@/lib/learning/method-catalog";
-import {
-  FUTURE_BLURTING_LIBRARY_ENTRY,
-  METHOD_LIBRARY_ENTRIES,
-} from "@/lib/learning/method-library-content";
-import {
-  BLURTING_SUPPORTING_TECHNIQUE_ID,
-  BLURTING_VISIBLE_METHOD_NAME,
-} from "@/lib/learning/method-recipes";
+import { METHOD_LIBRARY_ENTRIES } from "@/lib/learning/method-library-content";
 
 describe("method library content", () => {
   it("projects every live core method once in canonical order", () => {
@@ -31,17 +24,6 @@ describe("method library content", () => {
     }
   });
 
-  it("keeps Blurting outside the selectable core catalog", () => {
-    expect(FUTURE_BLURTING_LIBRARY_ENTRY).toMatchObject({
-      id: BLURTING_SUPPORTING_TECHNIQUE_ID,
-      name: BLURTING_VISIBLE_METHOD_NAME,
-      status: "coming_later",
-    });
-    expect(CORE_METHOD_IDS).not.toContain(FUTURE_BLURTING_LIBRARY_ENTRY.id);
-    expect(FUTURE_BLURTING_LIBRARY_ENTRY.availability).toMatch(/not available/i);
-    expect(FUTURE_BLURTING_LIBRARY_ENTRY.how).toHaveLength(4);
-  });
-
   it("freezes the public library projection", () => {
     expect(Object.isFrozen(METHOD_LIBRARY_ENTRIES)).toBe(true);
     expect(METHOD_LIBRARY_ENTRIES.every((method) => (
@@ -49,7 +31,5 @@ describe("method library content", () => {
       && Object.isFrozen(method.how)
       && Object.isFrozen(method.taskLabels)
     ))).toBe(true);
-    expect(Object.isFrozen(FUTURE_BLURTING_LIBRARY_ENTRY)).toBe(true);
-    expect(Object.isFrozen(FUTURE_BLURTING_LIBRARY_ENTRY.how)).toBe(true);
   });
 });

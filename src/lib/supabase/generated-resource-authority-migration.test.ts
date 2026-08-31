@@ -288,9 +288,7 @@ describe("generated-resource authority compatibility migration", () => {
     expect(migration).toContain("notify pgrst, 'reload schema';");
   });
 
-  it("keeps application issuance disabled and the early Blurting generation gate intact", () => {
-    expect(generationRoute).toContain("blurtingRuntimeUnavailableResponse(requestId)");
-    expect(generationRoute).toContain("code: \"blurting_runtime_unavailable\"");
+  it("keeps application resource-authority permit minting disabled", () => {
     expect(generationRoute).not.toContain("mint_generated_resource_authority_permit_v1");
     expect(generationRoute).not.toContain("generated_resource_authority_permit_id");
   });

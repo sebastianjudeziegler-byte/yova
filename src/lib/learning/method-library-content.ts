@@ -4,10 +4,6 @@ import {
   type CoreMethodId,
   type LearningTaskType,
 } from "@/lib/learning/method-catalog";
-import {
-  BLURTING_SUPPORTING_TECHNIQUE_ID,
-  BLURTING_VISIBLE_METHOD_NAME,
-} from "@/lib/learning/method-recipes";
 
 const BEST_FOR: Readonly<Record<CoreMethodId, string>> = {
   retrieval_practice: "Remembering facts and concepts, and preparing for quizzes",
@@ -67,22 +63,3 @@ export const METHOD_LIBRARY_ENTRIES: readonly MethodLibraryEntry[] = Object.free
     });
   }),
 );
-
-/**
- * Blurting is intentionally separate from the twelve core methods. It is a
- * future supporting recipe over Active Recall, not a selectable core method.
- */
-export const FUTURE_BLURTING_LIBRARY_ENTRY = Object.freeze({
-  id: BLURTING_SUPPORTING_TECHNIQUE_ID,
-  name: BLURTING_VISIBLE_METHOD_NAME,
-  status: "coming_later" as const,
-  bestFor: "Source-based concepts after an initial understanding has been built",
-  what: "Recall what you know without looking, compare it with the source, repair the gaps, then complete a fresh closed-source check.",
-  how: Object.freeze([
-    "Close the source and write what you can recall.",
-    "Open the source and compare it with your recall.",
-    "Correct the important gaps in your own words.",
-    "Close the source again and answer a fresh check independently.",
-  ]),
-  availability: "Blurting is not available in plans, sessions, or preferences yet.",
-});

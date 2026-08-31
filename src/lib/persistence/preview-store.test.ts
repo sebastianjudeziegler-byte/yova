@@ -217,35 +217,25 @@ describe("preview interruption persistence", () => {
     expect(loadPreviewSnapshot()?.sessionInterruptions[0]).not.toHaveProperty("activityProgress");
   });
 
-  it("persists broad-recall interruption progress only with an exact route revision", () => {
-    installMemoryStorage();
-    const broadProgress = {
-      kind: "broad_recall" as const,
-      format: "broad_recall_v1" as const,
-      activityIndex: 0,
-      gapCount: 1,
-      bindings: [{
-        targetId: "11111111-1111-4111-8111-111111111111",
-        evidenceId: "blurting-final-check:11111111-1111-4111-8111-111111111111",
-      }],
-      events: [],
+  it("loads an old interruption envelope after dropping its retired activity marker", () => {
+    const localStorage = installMemoryStorage();
+    const stored = snapshot(interruption()) as unknown as Record<string, unknown>;
+    const storedInterruption = (stored.sessionInterruptions as Array<Record<string, unknown>>)[0]!;
+    storedInterruption.completedSteps = 0;
+    storedInterruption.routeRevisionId = ROUTE_REVISION_ID;
+    storedInterruption.activityProgress = {
+      kind: "broad_recall",
+      legacyPayload: "ignored",
     };
-    const routeLess = {
-      ...interruption(),
-      completedSteps: 0,
-      activityProgress: broadProgress,
-    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(stored));
 
-    savePreviewSnapshot(snapshot(routeLess));
+    expect(loadPreviewSnapshot()?.sessionInterruptions[0]).toMatchObject({
+      id: storedInterruption.id,
+      routeRevisionId: ROUTE_REVISION_ID,
+      completedSteps: 0,
+    });
     expect(loadPreviewSnapshot()?.sessionInterruptions[0])
       .not.toHaveProperty("activityProgress");
-
-    const routeBound = { ...routeLess, routeRevisionId: ROUTE_REVISION_ID };
-    savePreviewSnapshot(snapshot(routeBound));
-    expect(loadPreviewSnapshot()?.sessionInterruptions[0]).toMatchObject({
-      routeRevisionId: ROUTE_REVISION_ID,
-      activityProgress: broadProgress,
-    });
   });
 
   it("removes a malformed setup snapshot instead of trusting stored browser data", () => {

@@ -1,12 +1,5 @@
 import { z } from "zod";
 import {
-  BroadRecallProgressSchema,
-  broadRecallProgressRank,
-  mergeBroadRecallProgress,
-  readBroadRecallProgress,
-  type BroadRecallProgress,
-} from "@/lib/learning/broad-recall-progress";
-import {
   isRetrievalRoundComplete,
   recordRecall,
   revealActivePrompt,
@@ -48,24 +41,14 @@ export const RetrievalRoundActivityProgressSchema = z.object({
 export type RetrievalRoundActivityProgress = z.infer<
   typeof RetrievalRoundActivityProgressSchema
 >;
-export type SessionActivityProgress = RetrievalRoundActivityProgress | BroadRecallProgress;
-type SessionActivityProgressInput = z.input<typeof RetrievalRoundActivityProgressSchema>
-  | z.input<typeof BroadRecallProgressSchema>;
+export type SessionActivityProgress = RetrievalRoundActivityProgress;
 
 /**
- * Keep the deployed retrieval object unchanged while allowing the dedicated
- * broad-recall recovery marker through the same persistence seams. The schema
- * output is typed at the pure kernel's readonly boundary; neither branch adds
- * defaults or fields, so a parsed legacy retrieval marker serializes
- * byte-for-byte like the input object.
+ * Keep the deployed retrieval object unchanged. Retired activity markers are
+ * removed from their checkpoint or interruption envelope before this strict
+ * schema is evaluated.
  */
-export const SessionActivityProgressSchema: z.ZodType<
-  SessionActivityProgress,
-  SessionActivityProgressInput
-> = z.union([
-  RetrievalRoundActivityProgressSchema,
-  BroadRecallProgressSchema,
-]);
+export const SessionActivityProgressSchema = RetrievalRoundActivityProgressSchema;
 
 export type SessionActivityProgressMergeResult =
   | Readonly<{
@@ -83,9 +66,8 @@ export type SessionActivityProgressConflictReason = Extract<
 >["reason"];
 
 export function readSessionActivityProgress(value: unknown): SessionActivityProgress | null {
-  const retrieval = RetrievalRoundActivityProgressSchema.safeParse(value);
-  if (retrieval.success) return retrieval.data;
-  return readBroadRecallProgress(value);
+  const retrieval = SessionActivityProgressSchema.safeParse(value);
+  return retrieval.success ? retrieval.data : null;
 }
 
 export function isRetrievalRoundActivityProgress(
@@ -94,36 +76,29 @@ export function isRetrievalRoundActivityProgress(
   return progress?.kind === "retrieval_round";
 }
 
-export function isBroadRecallActivityProgress(
-  progress: SessionActivityProgress | null | undefined,
-): progress is BroadRecallProgress {
-  return progress?.kind === "broad_recall";
+export function isRetiredSessionActivityProgressMarker(value: unknown) {
+  return isRecord(value) && value.kind === "broad_recall";
 }
 
 /**
- * Broad recall is never legacy activity state: its target/evidence bindings are
- * meaningful only inside an exact committed StudyRoute revision. Retrieval
- * markers predate route revisions and intentionally retain their old envelope.
+ * Previously saved checkpoints and interruption outboxes can contain a marker
+ * for a removed activity. Discard only that nested marker and retain the exact
+ * surrounding envelope so Continue, Exit, and Save remain available.
  */
-export function sessionActivityProgressHasRequiredRouteIdentity(
-  progress: SessionActivityProgress | null | undefined,
-  routeRevisionId: unknown,
-) {
-  return !isBroadRecallActivityProgress(progress)
-    || z.string().uuid().safeParse(routeRevisionId).success;
+export function stripRetiredSessionActivityProgressMarker(value: unknown): unknown {
+  if (!isRecord(value) || !isRetiredSessionActivityProgressMarker(value.activityProgress)) {
+    return value;
+  }
+  const sanitized = { ...value };
+  delete sanitized.activityProgress;
+  return sanitized;
 }
 
 type ActivityRuntimeIdentity = Readonly<{
   sourceActivityIndex?: number;
   methodRuntime?: Readonly<{
     kind?: unknown;
-    format?: unknown;
     prompts?: readonly unknown[];
-    gapChecklist?: readonly unknown[] | null;
-    targetBindings?: readonly Readonly<{
-      targetId?: unknown;
-      evidenceId?: unknown;
-    }>[] | null;
   }> | null;
 }>;
 
@@ -143,25 +118,8 @@ export function sessionActivityProgressMatchesLessonRuntime(
   const runtime = activity?.methodRuntime;
   if (!runtime || runtime.kind !== "retrieval_round") return false;
 
-  if (isRetrievalRoundActivityProgress(progress)) {
-    return runtime.format !== "broad_recall_v1"
-      && Array.isArray(runtime.prompts)
-      && runtime.prompts.length === progress.promptCount;
-  }
-
-  if (
-    runtime.format !== "broad_recall_v1"
-    || !Array.isArray(runtime.gapChecklist)
-    || runtime.gapChecklist.length !== progress.gapCount
-    || !Array.isArray(runtime.targetBindings)
-    || runtime.targetBindings.length !== progress.bindings.length
-  ) return false;
-
-  return progress.bindings.every((binding, index) => {
-    const runtimeBinding = runtime.targetBindings?.[index];
-    return runtimeBinding?.targetId === binding.targetId
-      && runtimeBinding.evidenceId === binding.evidenceId;
-  });
+  return Array.isArray(runtime.prompts)
+    && runtime.prompts.length === progress.promptCount;
 }
 
 export function restoreRetrievalRoundActivityProgress({
@@ -223,23 +181,14 @@ export function retrievalRoundActivityProgressIsComplete({
 }
 
 export function sessionActivityProgressRank(progress?: SessionActivityProgress) {
-  if (!progress) return 0;
-  return isRetrievalRoundActivityProgress(progress)
-    ? progress.ratings.length
-    : broadRecallProgressRank(progress);
+  return progress?.ratings.length ?? 0;
 }
 
-/**
- * An empty retrieval marker predates any durable learner action. By contrast,
- * a broad-recall marker is created only once its privacy-safe activity identity
- * has been bound, so even its empty event prefix can safely resume at the
- * initial broad-attempt stage.
- */
+/** An empty retrieval marker predates any durable learner action. */
 export function sessionActivityProgressIsResumable(
   progress: SessionActivityProgress | null | undefined,
 ) {
-  if (!progress) return false;
-  return isBroadRecallActivityProgress(progress) || progress.ratings.length > 0;
+  return Boolean(progress && progress.ratings.length > 0);
 }
 
 /**
@@ -272,9 +221,6 @@ export function mergeSessionActivityProgress(
     return Object.freeze({ kind: "conflict", reason: "identity_mismatch" });
   }
 
-  if (isBroadRecallActivityProgress(left) && isBroadRecallActivityProgress(right)) {
-    return mergeBroadRecallProgress(left, right);
-  }
   if (
     !isRetrievalRoundActivityProgress(left)
     || !isRetrievalRoundActivityProgress(right)
@@ -296,4 +242,8 @@ export function mergeSessionActivityProgress(
   return left.ratings.length > right.ratings.length
     ? Object.freeze({ kind: "merged", source: "left", progress: left })
     : Object.freeze({ kind: "merged", source: "right", progress: right });
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }

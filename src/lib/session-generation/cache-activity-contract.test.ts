@@ -107,46 +107,6 @@ describe("cached session activity contracts", () => {
     })).toMatch(/cannot perform/i);
   });
 
-  it("rejects a broad-recall cache while the server rollout remains disabled", () => {
-    const retrieve = question("multiple_choice", "retrieve");
-    retrieve.methodRuntime = {
-      kind: "retrieval_round",
-      format: "broad_recall_v1",
-      sourceClosedReminder: "Close the source before writing everything you can reconstruct.",
-      prompts: [{
-        prompt: "Reconstruct the relationship from memory before opening the source.",
-        expectedAnswer: "The mechanism links the inputs to the observed cellular-respiration result.",
-        hint: null,
-      }],
-      comparisonInstructions: "Only after the broad attempt, reopen the source and compare each relationship.",
-      gapChecklist: ["Which causal relationship was missing or inaccurate?"],
-      correctionInstruction: "Correct only the missing or inaccurate relationship in your own words.",
-      transferPrompt: {
-        sourceClosedReminder: "Close the source again before answering the fresh question.",
-        prompt: "Apply the repaired relationship to a different cellular-respiration example.",
-        expectedAnswer: "The same mechanism predicts the changed result in the new example.",
-      },
-      targetBindings: [{
-        targetId: topicId,
-        evidenceId: `blurting-final-check:${topicId}`,
-        concept: "Cell respiration",
-        comparisonCriterion: "Identifies the causal relationship missing from the broad response.",
-        transferSuccessCriterion: "Applies the same causal mechanism to the different example.",
-      }],
-    };
-    const session = draft([
-      retrieve,
-      question("free_response", "repair"),
-      question("free_response", "transfer"),
-    ]);
-
-    expect(cachedSessionActivityContractIssue(session, {
-      reviewType: null,
-      reviewConcept: null,
-      estimatedMinutes: 15,
-    })).toMatch(/disabled unless the server explicitly allows it/i);
-  });
-
   it("accepts only the exact three-question scheduled-review cache contract", () => {
     const scheduled = draft([
       question("multiple_choice", "retrieve", "Cell respiration"),

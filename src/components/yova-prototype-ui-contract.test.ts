@@ -361,10 +361,6 @@ describe("YOVA prototype UI contracts", () => {
       "await syncCheckpointToAccount(latestRecoveryCheckpoint)",
       interruptionRpc,
     );
-    const retiredCheckpointSync = interruption.indexOf(
-      "await syncCheckpointToAccount(terminalCheckpoint)",
-      recoveryCheckpointSync,
-    );
 
     expect(interruptionStart).toBeGreaterThan(-1);
     expect(interruptionEnd).toBeGreaterThan(interruptionStart);
@@ -374,7 +370,6 @@ describe("YOVA prototype UI contracts", () => {
     expect(interruptionOutbox).toBeGreaterThan(interruptionState);
     expect(interruptionRpc).toBeGreaterThan(interruptionOutbox);
     expect(recoveryCheckpointSync).toBeGreaterThan(interruptionRpc);
-    expect(retiredCheckpointSync).toBeGreaterThan(recoveryCheckpointSync);
     expect(interruption.slice(terminalCheckpointWrite, interruptionRpc)).not.toContain(
       "syncCheckpointToAccount(",
     );
@@ -431,8 +426,9 @@ describe("YOVA prototype UI contracts", () => {
     expect(syncEnd).toBeGreaterThan(syncStart);
     expect(save).toBeGreaterThan(-1);
     expect(remember).toBeGreaterThan(save);
-    expect(repository).toContain("!isBroadRecallActivityProgress(checkpoint.activityProgress)");
-    expect(repository).toContain("activityProgress: checkpoint.activityProgress");
+    expect(repository).toContain(
+      "...(checkpoint.activityProgress ? { activityProgress: checkpoint.activityProgress } : {})",
+    );
   });
 
   it("classifies topic-agnostic outside built-in work as unguided practice", () => {
@@ -456,80 +452,6 @@ describe("YOVA prototype UI contracts", () => {
     expect(header).toBeGreaterThan(operation);
     expect(terminal).toBeGreaterThan(header);
     expect(clear).toBeGreaterThan(terminal);
-  });
-
-  it("restores the original saved run when a retired interruption cannot sync", () => {
-    const component = readSource("src/components/yova-prototype.tsx");
-    const interruptionStart = component.indexOf("const interruptActiveSession = () =>");
-    const interruptionEnd = component.indexOf("const resetYovaData = async", interruptionStart);
-    const interruption = component.slice(interruptionStart, interruptionEnd);
-    const retiredDisposition = interruption.indexOf(
-      "error instanceof UnsupportedBroadRecallInterruptionError && terminalCheckpoint",
-    );
-    const checkpointRestore = interruption.indexOf(
-      "replaceActiveSessionCheckpointsForAccount(",
-      retiredDisposition,
-    );
-    const queueRemoval = interruption.indexOf(
-      "removeQueuedSessionInterruption(interruption.id)",
-      checkpointRestore,
-    );
-    const originalRunRestored = interruption.indexOf(
-      "discardedCheckpointRunIdsRef.current.delete(terminalCheckpoint.runId)",
-      checkpointRestore,
-    );
-    const checkpointWarning = interruption.indexOf(
-      "setCloudSyncIssue(recoverySyncIssue)",
-      checkpointRestore,
-    );
-    const recoverySync = interruption.indexOf(
-      "await syncCheckpointToAccount(terminalCheckpoint)",
-      checkpointRestore,
-    );
-    const genericFailure = interruption.indexOf(
-      'errorCode: "session_interruption_sync_failed"',
-      recoverySync,
-    );
-
-    expect(interruptionStart).toBeGreaterThan(-1);
-    expect(interruptionEnd).toBeGreaterThan(interruptionStart);
-    expect(retiredDisposition).toBeGreaterThan(-1);
-    expect(checkpointRestore).toBeGreaterThan(retiredDisposition);
-    expect(queueRemoval).toBeGreaterThan(checkpointRestore);
-    expect(originalRunRestored).toBeGreaterThan(checkpointRestore);
-    expect(recoverySync).toBeGreaterThan(originalRunRestored);
-    expect(checkpointWarning).toBeGreaterThan(recoverySync);
-    expect(genericFailure).toBeGreaterThan(recoverySync);
-    expect(interruption.slice(retiredDisposition, genericFailure)).toContain(
-      "discardedCheckpointRunIdsRef.current.add(exitRecoveryCheckpoint.runId)",
-    );
-    expect(interruption.slice(retiredDisposition, checkpointRestore)).toContain(
-      "checkpoint.planSessionId !== currentSession.id",
-    );
-    expect(interruption.slice(retiredDisposition, checkpointRestore)).toContain(
-      "storedSessionCheckpoint.runId === exitRecoveryCheckpoint?.runId",
-    );
-    expect(interruption.slice(retiredDisposition, genericFailure)).toContain(
-      "entry.id !== interruption.id",
-    );
-    expect(interruption.slice(retiredDisposition, genericFailure)).toContain(
-      "const recoveryCheckpointCanSync = !terminalCheckpoint.methodWork",
-    );
-    expect(interruption.slice(retiredDisposition, genericFailure)).toContain(
-      "entry.interruption.planSessionId === terminalCheckpoint.planSessionId",
-    );
-    expect(interruption.slice(retiredDisposition, genericFailure)).toContain(
-      "cloudResourceIdentity?.fingerprint === terminalCheckpoint.resourceFingerprint",
-    );
-    expect(interruption.slice(retiredDisposition, genericFailure)).toContain(
-      "cloudResourceIdentity.generatedAt === terminalCheckpoint.resourceGeneratedAt",
-    );
-    expect(interruption.slice(retiredDisposition, genericFailure)).toContain(
-      ": SESSION_RECOVERY_CLOUD_SYNC_WARNING",
-    );
-    expect(interruption.slice(genericFailure)).toContain(
-      "setCloudSyncIssue(error instanceof Error ? error.message",
-    );
   });
 
   it("keeps a paused canonical profile stored but out of workspace decisions", () => {

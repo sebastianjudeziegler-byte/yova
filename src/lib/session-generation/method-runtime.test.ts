@@ -11,9 +11,6 @@ import {
   type MethodRuntime,
 } from "@/lib/session-generation/method-runtime";
 
-const TARGET_A = "11111111-1111-4111-8111-111111111111";
-const TARGET_B = "22222222-2222-4222-8222-222222222222";
-
 const retrievalRound: MethodRuntime = {
   kind: "retrieval_round",
   sourceClosedReminder: "Close your notes before answering anything below.",
@@ -22,41 +19,6 @@ const retrievalRound: MethodRuntime = {
     { prompt: "Where does the Krebs cycle occur?", expectedAnswer: "Mitochondrial matrix", hint: null },
     { prompt: "What is FADH2 for?", expectedAnswer: "Carrying electrons to complex II", hint: null },
   ],
-};
-
-const broadRecallRound: MethodRuntime = {
-  kind: "retrieval_round",
-  format: "broad_recall_v1",
-  sourceClosedReminder: "Close the source before writing everything you can reconstruct.",
-  prompts: [{
-    prompt: "Reconstruct the complete role of electron carriers in cellular respiration.",
-    expectedAnswer: "NADH and FADH2 carry high-energy electrons to the electron transport chain.",
-    hint: null,
-  }],
-  comparisonInstructions: "Only after the recall attempt, reopen the source and compare it line by line.",
-  gapChecklist: [
-    "Which carriers were named?",
-    "Where does each carrier deliver its electrons?",
-  ],
-  correctionInstruction: "Correct only the missing or inaccurate relationships in your own words.",
-  transferPrompt: {
-    sourceClosedReminder: "Close the source again before answering the transfer question.",
-    prompt: "Predict what changes if complex II can no longer accept electrons from FADH2.",
-    expectedAnswer: "FADH2-derived electrons would not enter through complex II, reducing downstream proton pumping and ATP production.",
-  },
-  targetBindings: [{
-    targetId: TARGET_A,
-    evidenceId: `blurting-final-check:${TARGET_A}`,
-    concept: "Electron-carrier roles",
-    comparisonCriterion: "Names each carrier and its exact delivery point in the pathway.",
-    transferSuccessCriterion: "Predicts the downstream consequence of blocking the carrier pathway.",
-  }, {
-    targetId: TARGET_B,
-    evidenceId: `blurting-final-check:${TARGET_B}`,
-    concept: "Electron transport consequences",
-    comparisonCriterion: "Connects electron transfer to proton pumping and ATP production.",
-    transferSuccessCriterion: "Explains the causal effect on proton pumping and ATP production.",
-  }],
 };
 
 function workedExample(overrides: Partial<Extract<MethodRuntime, { kind: "worked_example" }>> = {}) {
@@ -112,146 +74,12 @@ describe("method runtime schema", () => {
     })).toThrow();
   });
 
-  it("keeps a missing format on the legacy 3-10 prompt-set contract", () => {
+  it("keeps the 3-10 prompt-set contract unchanged", () => {
     const before = JSON.stringify(retrievalRound);
     const parsed = MethodRuntimeSchema.parse(retrievalRound);
 
     expect(parsed).toEqual(retrievalRound);
     expect(JSON.stringify(parsed)).toBe(before);
-    expect(parsed).not.toHaveProperty("format");
-    expect(parsed).not.toHaveProperty("comparisonInstructions");
-    expect(parsed).not.toHaveProperty("gapChecklist");
-    expect(parsed).not.toHaveProperty("correctionInstruction");
-    expect(parsed).not.toHaveProperty("transferPrompt");
-    expect(parsed).not.toHaveProperty("targetBindings");
-  });
-
-  it("accepts one complete broad-recall sequence without retaining learner text", () => {
-    const parsed = MethodRuntimeSchema.parse({
-      ...broadRecallRound,
-      learnerText: "This draft must never enter the resource.",
-      prompts: [{
-        ...broadRecallRound.prompts[0],
-        learnerAnswer: "Neither should this nested draft.",
-      }],
-    });
-
-    expect(parsed).toMatchObject({
-      format: "broad_recall_v1",
-      prompts: [{ prompt: broadRecallRound.prompts[0].prompt }],
-      gapChecklist: broadRecallRound.gapChecklist,
-      transferPrompt: { prompt: broadRecallRound.transferPrompt?.prompt },
-      targetBindings: broadRecallRound.targetBindings,
-    });
-    expect(parsed).not.toHaveProperty("learnerText");
-    expect(parsed.kind).toBe("retrieval_round");
-    if (parsed.kind === "retrieval_round") {
-      expect(parsed.prompts[0]).not.toHaveProperty("learnerAnswer");
-    }
-  });
-
-  it("requires exactly one prompt and every compare-repair-transfer stage for broad recall", () => {
-    expect(() => MethodRuntimeSchema.parse({
-      ...broadRecallRound,
-      prompts: retrievalRound.prompts,
-    })).toThrow(/exactly one minimally cued prompt/);
-  });
-
-  it.each([
-    ["comparisonInstructions", /delayed source-comparison instructions/],
-    ["gapChecklist", /bounded gap checklist/],
-    ["correctionInstruction", /correction instruction/],
-    ["transferPrompt", /fresh closed-source transfer prompt/],
-    ["targetBindings", /server-owned target bindings/],
-  ] as const)("requires the broad-recall %s stage", (field, expectedError) => {
-    expect(() => MethodRuntimeSchema.parse({
-      ...broadRecallRound,
-      [field]: null,
-    })).toThrow(expectedError);
-  });
-
-  it("forbids a hint on the minimally cued broad prompt", () => {
-    expect(() => MethodRuntimeSchema.parse({
-      ...broadRecallRound,
-      prompts: [{
-        ...broadRecallRound.prompts[0],
-        hint: "Think about NADH first.",
-      }],
-    })).toThrow(/must not cue the initial blurt/);
-  });
-
-  it("bounds broad-recall gap checklists to 1-6 items", () => {
-    expect(() => MethodRuntimeSchema.parse({
-      ...broadRecallRound,
-      gapChecklist: [],
-    })).toThrow();
-    expect(() => MethodRuntimeSchema.parse({
-      ...broadRecallRound,
-      gapChecklist: Array.from({ length: 7 }, (_, index) => `Gap ${index + 1}`),
-    })).toThrow();
-  });
-
-  it("requires a fresh transfer prompt after source comparison", () => {
-    expect(() => MethodRuntimeSchema.parse({
-      ...broadRecallRound,
-      transferPrompt: {
-        ...broadRecallRound.transferPrompt,
-        prompt: `  ${broadRecallRound.prompts[0].prompt.toLocaleUpperCase()}  `,
-      },
-    })).toThrow(/must be fresh/);
-  });
-
-  it("keeps one to three ordered server-owned target and evidence bindings", () => {
-    const parsed = MethodRuntimeSchema.parse(broadRecallRound);
-
-    expect(parsed.kind === "retrieval_round" ? parsed.targetBindings : null).toEqual(
-      broadRecallRound.targetBindings,
-    );
-  });
-
-  it("rejects noncanonical and duplicate broad-recall bindings", () => {
-    const bindings = broadRecallRound.kind === "retrieval_round"
-      ? broadRecallRound.targetBindings!
-      : [];
-    expect(() => MethodRuntimeSchema.parse({
-      ...broadRecallRound,
-      targetBindings: [{ ...bindings[0]!, evidenceId: "different-evidence" }],
-    })).toThrow(/exact final-check evidence identifier/);
-    expect(() => MethodRuntimeSchema.parse({
-      ...broadRecallRound,
-      targetBindings: [bindings[0], bindings[0]],
-    })).toThrow(/target bindings must be unique/);
-  });
-
-  it("requires complete bounded binding criteria", () => {
-    const binding = broadRecallRound.kind === "retrieval_round"
-      ? broadRecallRound.targetBindings![0]!
-      : null;
-    expect(() => MethodRuntimeSchema.parse({
-      ...broadRecallRound,
-      targetBindings: [{ ...binding, comparisonCriterion: undefined }],
-    })).toThrow();
-    expect(() => MethodRuntimeSchema.parse({
-      ...broadRecallRound,
-      targetBindings: Array.from({ length: 4 }, (_, index) => ({
-        ...binding,
-        targetId: `${index + 1}1111111-1111-4111-8111-111111111111`,
-        evidenceId: `blurting-final-check:${index + 1}1111111-1111-4111-8111-111111111111`,
-      })),
-    })).toThrow();
-  });
-
-  it("rejects learner-authored text inside a server-owned target binding", () => {
-    const binding = broadRecallRound.kind === "retrieval_round"
-      ? broadRecallRound.targetBindings![0]!
-      : null;
-    expect(() => MethodRuntimeSchema.parse({
-      ...broadRecallRound,
-      targetBindings: [{
-        ...binding,
-        learnerAnswer: "PRIVATE LEARNER ANSWER",
-      }],
-    })).toThrow(/unrecognized key/i);
   });
 
   it("accepts a worked example that fades at least one step", () => {
@@ -321,22 +149,6 @@ describe("method runtime routing", () => {
     expect(methodRuntimeMismatch("retrieval_practice", retrievalRound)).toBeNull();
   });
 
-  it("fails closed on broad recall unless the server explicitly allows it", () => {
-    expect(methodRuntimeMismatch("retrieval_practice", broadRecallRound))
-      .toContain("disabled unless the server explicitly allows it");
-    expect(methodRuntimeMismatch("retrieval_practice", broadRecallRound, {
-      allowBroadRecall: true,
-    })).toBeNull();
-  });
-
-  it("keeps broad recall exclusive to retrieval practice", () => {
-    expect(methodRuntimeMismatch("spaced_retrieval", broadRecallRound, {
-      allowBroadRecall: true,
-    }))
-      .toContain("exclusive to retrieval_practice");
-    expect(methodRuntimeMismatch("spaced_retrieval", retrievalRound)).toBeNull();
-  });
-
   it("catches a session claiming one method and delivering another", () => {
     expect(methodRuntimeMismatch("worked_example_fading", retrievalRound))
       .toContain("uses worked_example");
@@ -385,14 +197,6 @@ describe("attached method runtimes", () => {
   it("accepts exactly one matching runtime", () => {
     expect(validateAttachedMethodRuntimes("retrieval_practice", [null, retrievalRound, null]))
       .toBeNull();
-  });
-
-  it("keeps attached broad recall disabled without an explicit server allowance", () => {
-    expect(validateAttachedMethodRuntimes("retrieval_practice", [broadRecallRound]))
-      .toContain("disabled unless the server explicitly allows it");
-    expect(validateAttachedMethodRuntimes("retrieval_practice", [broadRecallRound], {
-      allowBroadRecall: true,
-    })).toBeNull();
   });
 
   it("accepts a session that fell back to the generic path", () => {

@@ -7,7 +7,6 @@ import {
   selectCanonicalStudyMethod,
 } from "@/lib/learning/canonical-method-selection";
 import {
-  CORE_METHOD_CATALOG,
   CORE_METHOD_IDS,
   METHOD_PRESENTATION_POLICY_VERSION,
   type CoreMethodId,
@@ -25,10 +24,6 @@ import {
   methodSelectionContextForStudyRoute,
   STUDY_ROUTE_METHOD_PLAN_INTEGRATION_VERSION,
 } from "@/lib/study-route/method-plan-integration";
-import {
-  BLURTING_RECIPE_RUNTIME_VERSION,
-  isBlurtingStudyRoute,
-} from "@/lib/study-route/method-recipe-contract";
 import { METHOD_RUNTIME_CAPABILITY_POLICY_VERSION } from "@/lib/session-generation/method-runtime-capability";
 import {
   commitStudyRouteRevision,
@@ -264,7 +259,6 @@ export function createCommittedMethodChoiceSuccessor({
       session: methodChoiceSessionProjection(session, previousRoute),
     });
   }
-  const leavingBlurting = isBlurtingStudyRoute(previousRoute);
   if ([
     plan.id,
     session.id,
@@ -319,17 +313,6 @@ export function createCommittedMethodChoiceSuccessor({
     });
     const provisionalBase = StudyRouteSchema.parse({
       ...previousRoute,
-      ...(leavingBlurting
-        ? {
-            approach: ordinarySelectedMethodApproach(previousRoute, methodId),
-            agency: {
-              ...previousRoute.agency,
-              alternatives: previousRoute.agency.alternatives.filter((alternative) => (
-                alternative.primaryMethodId !== methodId
-              )),
-            },
-          }
-        : {}),
       identity: {
         routeLineageId: previousRoute.identity.routeLineageId,
         routeRevisionId,
@@ -344,10 +327,7 @@ export function createCommittedMethodChoiceSuccessor({
       explanation: currentMethodExplanationBase(previousRoute, context),
       provenance: {
         ...previousRoute.provenance,
-        routerVersion: baseRouterVersion(
-          previousRoute.provenance.routerVersion,
-          leavingBlurting,
-        ),
+        routerVersion: baseRouterVersion(previousRoute.provenance.routerVersion),
         evidenceRefs: unique([
           ...previousRoute.provenance.evidenceRefs,
           predecessorEvidenceRef,
@@ -386,13 +366,6 @@ export function createCommittedMethodChoiceSuccessor({
       changes: {
         approach: {
           ...integrated.approach,
-          ...(previousRoute.approach.visibleSupportingTechniqueId
-            && !leavingBlurting
-            ? {
-                visibleSupportingTechniqueId:
-                  previousRoute.approach.visibleSupportingTechniqueId,
-              }
-            : {}),
         },
         execution: integrated.execution,
         agency: {
@@ -401,7 +374,7 @@ export function createCommittedMethodChoiceSuccessor({
           selectedBy: "learner",
           override: {
             requestedAt: changeTime,
-            changedFields: leavingBlurting
+            changedFields: previousRoute.approach.visibleSupportingTechniqueId
               ? ["primary_method", "method_recipe"]
               : ["primary_method"],
             reason: integrated.explanation.shortReason,
@@ -513,9 +486,8 @@ function assertPlanRouteProjection(
 }
 
 function assertMethodOnlySuccessor(previous: StudyRoute, successor: StudyRoute) {
-  const leavingBlurting = isBlurtingStudyRoute(previous);
   const materialChanges = materialStudyRouteChanges(previous, successor);
-  const expectedMaterialChanges = leavingBlurting
+  const expectedMaterialChanges = previous.approach.visibleSupportingTechniqueId
     ? ["primary_method", "method_recipe", "phase_order"]
     : ["primary_method", "phase_order"];
   if (!sameValue(materialChanges, expectedMaterialChanges)) {
@@ -537,10 +509,7 @@ function assertMethodOnlySuccessor(previous: StudyRoute, successor: StudyRoute) 
     || successor.approach.executionEnvironment
       !== previous.approach.executionEnvironment
     || successor.approach.confidenceLevel !== previous.approach.confidenceLevel
-    || (leavingBlurting
-      ? successor.approach.visibleSupportingTechniqueId !== undefined
-      : successor.approach.visibleSupportingTechniqueId
-        !== previous.approach.visibleSupportingTechniqueId)
+    || successor.approach.visibleSupportingTechniqueId !== undefined
     || successor.execution.difficultyTier !== previous.execution.difficultyTier
     || successor.execution.initialSupport !== previous.execution.initialSupport
     || !sameValue(
@@ -592,27 +561,12 @@ function choiceError(
   return new CommittedMethodChoiceError(code, message, internalCause);
 }
 
-function ordinarySelectedMethodApproach(
-  route: StudyRoute,
-  methodId: CoreMethodId,
-) {
-  return {
-    mode: route.approach.mode,
-    executionEnvironment: route.approach.executionEnvironment,
-    primaryMethodId: methodId,
-    visibleMethodName: CORE_METHOD_CATALOG[methodId].name,
-    confidenceLevel: route.approach.confidenceLevel,
-  };
-}
-
-function baseRouterVersion(value: string, leavingBlurting: boolean) {
+function baseRouterVersion(value: string) {
   const components = unique(value.split("+").filter((component) => (
     component
-    && (leavingBlurting
-      ? component !== BLURTING_RECIPE_RUNTIME_VERSION
-      : component !== STUDY_ROUTE_METHOD_PLAN_INTEGRATION_VERSION
-        && component !== METHOD_RUNTIME_CAPABILITY_POLICY_VERSION
-        && component !== METHOD_PRESENTATION_POLICY_VERSION)
+    && component !== STUDY_ROUTE_METHOD_PLAN_INTEGRATION_VERSION
+    && component !== METHOD_RUNTIME_CAPABILITY_POLICY_VERSION
+    && component !== METHOD_PRESENTATION_POLICY_VERSION
   )));
   if (components.length === 0) {
     throw choiceError(
