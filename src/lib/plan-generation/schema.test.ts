@@ -8,6 +8,7 @@ import {
   PlanGenerationRequestSchema,
   ProviderGeneratedPlanDraftSchema,
 } from "@/lib/plan-generation/schema";
+import { createCanonicalLearnerProfile } from "@/lib/personalization/canonical-profile-schema";
 
 describe("placement question round trip", () => {
   const longQuestion = "In cells, ATP is useful because it can donate a phosphate group to another molecule. ".repeat(4).trim().slice(0, DIAGNOSTIC_QUESTION_MAX_LENGTH);
@@ -109,6 +110,28 @@ describe("Study Now request contract", () => {
         "self_explanation",
         "worked_example_fading",
       ],
+    }).success).toBe(false);
+  });
+
+  it("accepts only a versioned structured canonical profile for development preview", () => {
+    const previewCanonicalProfile = createCanonicalLearnerProfile([{
+      signalId: "control_mode",
+      value: "help_me_choose",
+      source: "canonical_questionnaire",
+      sourceQuestionId: "profile_control_mode",
+      provenance: "direct_answer",
+    }]);
+
+    expect(PlanGenerationRequestSchema.safeParse({
+      ...request,
+      previewCanonicalProfile,
+    }).success).toBe(true);
+    expect(PlanGenerationRequestSchema.safeParse({
+      ...request,
+      previewCanonicalProfile: {
+        ...previewCanonicalProfile,
+        signals: [{ ...previewCanonicalProfile.signals[0], value: "invented_mode" }],
+      },
     }).success).toBe(false);
   });
 });

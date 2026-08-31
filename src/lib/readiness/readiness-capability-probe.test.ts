@@ -14,6 +14,7 @@ describe("signed-in generation release capability probe", () => {
       studyRoutesSchema: true,
       planSessionsRoutePointer: true,
       requiredRouteRpcs: true,
+      expandedMethodAgencyBoundary: true,
     }));
 
     await expect(probeSignedInGenerationDatabase({
@@ -26,7 +27,7 @@ describe("signed-in generation release capability probe", () => {
     });
 
     expect(fetchImpl).toHaveBeenCalledWith(
-      "https://project.supabase.co/rest/v1/rpc/signed_in_generation_readiness_v1",
+      "https://project.supabase.co/rest/v1/rpc/signed_in_generation_readiness_v2",
       expect.objectContaining({
         method: "POST",
         body: "{}",
@@ -64,6 +65,7 @@ describe("signed-in generation release capability probe", () => {
       studyRoutesSchema: true,
       planSessionsRoutePointer: true,
       requiredRouteRpcs: true,
+      expandedMethodAgencyBoundary: true,
     }));
 
     await probeSignedInGenerationDatabase({
@@ -101,11 +103,13 @@ describe("signed-in generation release capability probe", () => {
         studyRoutesSchema: false,
         planSessionsRoutePointer: true,
         requiredRouteRpcs: false,
+        expandedMethodAgencyBoundary: false,
       })),
     });
     expect(partial.passed).toBe(false);
     expect(partial.detail).toContain("StudyRoute table/columns");
     expect(partial.detail).toContain("StudyRoute activation/cache RPCs");
+    expect(partial.detail).toContain("expanded-method agency RPC boundary");
 
     const contradictory = await probeSignedInGenerationDatabase({
       supabaseUrl: "https://project.supabase.co",
@@ -116,6 +120,7 @@ describe("signed-in generation release capability probe", () => {
         studyRoutesSchema: false,
         planSessionsRoutePointer: true,
         requiredRouteRpcs: true,
+        expandedMethodAgencyBoundary: true,
       })),
     });
     expect(contradictory.passed).toBe(false);
@@ -145,19 +150,23 @@ describe("signed-in generation release capability probe", () => {
 });
 
 describe("signed-in generation readiness migration", () => {
-  const migration = readFileSync(
+  const baseMigration = readFileSync(
     resolve(process.cwd(), "supabase/migrations/202608300001_signed_in_generation_readiness.sql"),
+    "utf8",
+  ).toLowerCase();
+  const currentMigration = readFileSync(
+    resolve(process.cwd(), "supabase/migrations/202608300003_expanded_method_agency_boundary.sql"),
     "utf8",
   ).toLowerCase();
 
   it("is read-only, service-only, and verifies every release-critical StudyRoute boundary", () => {
-    expect(migration).toContain("create or replace function public.signed_in_generation_readiness_v1()");
-    expect(migration).toContain("language plpgsql\nstable\nsecurity definer");
-    expect(migration).toContain("auth.role() is distinct from 'service_role'");
-    expect(migration).toContain("pg_catalog.has_table_privilege(");
-    expect(migration).toContain("pg_catalog.has_function_privilege(");
-    expect(migration).toContain("grant execute on function public.signed_in_generation_readiness_v1()\nto service_role");
-    expect(migration).not.toMatch(/\b(?:insert|update|delete|truncate)\s+(?:from\s+|into\s+)?public\./u);
+    expect(baseMigration).toContain("create or replace function public.signed_in_generation_readiness_v1()");
+    expect(baseMigration).toContain("language plpgsql\nstable\nsecurity definer");
+    expect(baseMigration).toContain("auth.role() is distinct from 'service_role'");
+    expect(baseMigration).toContain("pg_catalog.has_table_privilege(");
+    expect(baseMigration).toContain("pg_catalog.has_function_privilege(");
+    expect(baseMigration).toContain("grant execute on function public.signed_in_generation_readiness_v1()\nto service_role");
+    expect(baseMigration).not.toMatch(/\b(?:insert|update|delete|truncate)\s+(?:from\s+|into\s+)?public\./u);
 
     for (const capability of [
       "public.study_routes",
@@ -167,8 +176,30 @@ describe("signed-in generation readiness migration", () => {
       "public.save_generated_plan_with_routes(jsonb,uuid)",
       "public.cache_generated_session(jsonb)",
     ]) {
-      expect(migration).toContain(capability);
+      expect(baseMigration).toContain(capability);
     }
+
+    expect(currentMigration).toContain(
+      "create or replace function public.signed_in_generation_readiness_v2()",
+    );
+    expect(currentMigration).toContain("'contractversion', '202608300003'");
+    expect(currentMigration).toContain("'expandedmethodagencyboundary'");
+    expect(currentMigration).toContain(
+      "grant execute on function public.signed_in_generation_readiness_v2()\n"
+      + "to service_role",
+    );
+    const readinessStart = currentMigration.indexOf(
+      "create or replace function public.signed_in_generation_readiness_v2()",
+    );
+    const readinessEnd = currentMigration.indexOf(
+      "revoke all on function public.signed_in_generation_readiness_v2()",
+      readinessStart,
+    );
+    expect(readinessStart).toBeGreaterThan(-1);
+    expect(readinessEnd).toBeGreaterThan(readinessStart);
+    expect(currentMigration.slice(readinessStart, readinessEnd)).not.toMatch(
+      /\b(?:insert|update|delete|truncate)\s+(?:from\s+|into\s+)?public\./u,
+    );
   });
 
   it("has a real PostgreSQL gate for service-only access and the complete response", () => {
@@ -188,6 +219,16 @@ describe("signed-in generation readiness migration", () => {
     expect(databaseTest).toContain("'authenticated'");
     expect(databaseTest).toContain("'ready', true");
     expect(databaseTest.trimEnd().endsWith("rollback;")).toBe(true);
+
+    const expandedDatabaseTest = readFileSync(
+      resolve(
+        process.cwd(),
+        "supabase/tests/database/20260830_expanded_method_agency_boundary.test.sql",
+      ),
+      "utf8",
+    ).toLowerCase();
+    expect(expandedDatabaseTest).toContain("public.signed_in_generation_readiness_v2()");
+    expect(expandedDatabaseTest).toContain("'expandedmethodagencyboundary', true");
   });
 });
 

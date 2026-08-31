@@ -103,12 +103,12 @@ type DeclaredAffinity = {
 const DECLARED_AFFINITIES: DeclaredAffinity[] = [
   {
     pattern: /example|concrete|practical|show me how/i,
-    methodIds: ["worked_example_fading", "self_explanation"],
+    methodIds: ["worked_example_fading", "self_explanation", "pretesting"],
     reason: "you said a concrete example helps you the most when something is new",
   },
   {
     pattern: /big picture|overview|whole|map first/i,
-    methodIds: ["read_recall_review", "self_explanation"],
+    methodIds: ["read_recall_review", "self_explanation", "concept_mapping"],
     reason: "you said you prefer seeing the whole picture before the details",
   },
   {
@@ -123,7 +123,7 @@ const DECLARED_AFFINITIES: DeclaredAffinity[] = [
   },
   {
     pattern: /cannot apply|can't apply|not independently|only with help|freeze/i,
-    methodIds: ["worked_example_fading", "practice_test_error_repair"],
+    methodIds: ["worked_example_fading", "practice_problems", "practice_test_error_repair"],
     reason: "you said you can follow along but stall when working alone",
   },
   {
@@ -133,12 +133,12 @@ const DECLARED_AFFINITIES: DeclaredAffinity[] = [
   },
   {
     pattern: /least guidance|challenge|too easy|bored|independent/i,
-    methodIds: ["practice_test_error_repair", "interleaved_practice"],
+    methodIds: ["practice_problems", "practice_test_error_repair", "interleaved_practice"],
     reason: "you said you would rather be challenged than walked through",
   },
   {
     pattern: /structure|one step|clear steps|checklist|decide for me/i,
-    methodIds: ["worked_example_fading", "scaffolded_coding"],
+    methodIds: ["worked_example_fading", "scaffolded_coding", "concept_mapping"],
     reason: "you said an explicit sequence makes it easier to keep going",
   },
   {
@@ -148,7 +148,7 @@ const DECLARED_AFFINITIES: DeclaredAffinity[] = [
   },
   {
     pattern: /read|textbook|chapter|notes|study guide/i,
-    methodIds: ["read_recall_review"],
+    methodIds: ["read_recall_review", "concept_mapping"],
     reason: "you said you usually work from written source material",
   },
 ];

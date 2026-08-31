@@ -12,16 +12,17 @@ function escapeRegExp(value: string) {
 }
 
 const onboardingAnswers = [
-  "I struggle to start",
-  "Give me clear structure with flexibility",
+  "Show a short recommendation and alternatives",
+  "I delay a little, then get going",
   "20 to 30 minutes",
-  "A concrete example first",
-  "Sometimes",
-  "I intend to begin but often delay",
-  "Afternoon",
-  "A combination",
+  "A concrete example before the rule",
+  "Recalling it without notes, then checking",
+  "I recognize it but cannot recall it",
+  "Give me a small hint",
+  "Show one step at a time",
+  "Clear checkpoints inside the block",
   "No extra support right now",
-  "Nothing else for now",
+  "Afternoon",
 ] as const;
 
 test("Study Now lets the learner review and safely choose an eligible method before activation", async ({ page }) => {
@@ -37,7 +38,8 @@ test("Study Now lets the learner review and safely choose an eligible method bef
   await page.getByRole("button", { name: /Create it for me/ }).click();
   await page.getByRole("button", { name: "Review method first" }).click();
 
-  await expect(page.getByRole("heading", { name: "YOVA recommends this method." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "YOVA recommends this method." }))
+    .toBeVisible({ timeout: 30_000 });
   const recommended = page.locator(".study-now-field").filter({ hasText: "Recommended session" });
   await expect(recommended.getByRole("button")).toHaveAttribute("aria-pressed", "true");
   await expect(recommended).toContainText(/focused minutes/i);
@@ -51,7 +53,9 @@ test("Study Now lets the learner review and safely choose an eligible method bef
   await expect(page.getByRole("heading", { name: "Your method is ready." })).toBeVisible();
   await expect(page.locator(".study-now-field").filter({ hasText: "Recommended session" }))
     .toContainText(alternativeName);
-  await expect(page.getByText(new RegExp(`You chose ${escapeRegExp(alternativeName)}`, "i"))).toBeVisible();
+  await expect(page.getByLabel(`Study recipe: ${alternativeName}`)).toContainText(
+    new RegExp(`You chose ${escapeRegExp(alternativeName)}`, "i"),
+  );
   await page.getByRole("button", { name: /Start this session/ }).click();
 
   await expect(page.getByRole("heading", { name: "Here is how YOVA plans to start." })).toBeVisible();
@@ -213,7 +217,7 @@ test("a confident misconception is repaired now without a duplicate follow-up", 
   await page.getByRole("button", { name: /Build and start session/ }).click();
   await expect(page.getByRole("heading", { name: "Here is how YOVA plans to start." })).toBeVisible({ timeout: 15_000 });
   const setupDecision = page.getByLabel("Why YOVA chose this approach");
-  await expect(setupDecision).toContainText("Self-explanation");
+  await expect(setupDecision).toContainText("Feynman Technique");
   await expect(setupDecision).toContainText(
     /stable evidence-constrained baseline for conceptual learning at the novice stage in Practice mode/i,
   );
@@ -242,13 +246,14 @@ test("a confident misconception is repaired now without a duplicate follow-up", 
 
   await expect(page.getByText("Repair now, verify later")).toBeVisible({ timeout: 15_000 });
   await expect(page.getByText("YOVA CHANGED THE SUPPORT")).toBeVisible();
-  await expect(page.getByText("Name and replace the error")).toBeVisible();
-  await expect(page.getByText(/very sure about this answer/i)).toBeVisible();
+  const adaptiveRepair = page.getByRole("region", { name: "Adaptive repair: One clue first" });
+  await expect(adaptiveRepair).toBeVisible();
+  await expect(adaptiveRepair).toContainText(/asked for a small hint when stuck/i);
   await leaveSession(page, "2 of 6 required steps finished");
   await expectSavedSessionRecommendation(page, 2);
   await page.getByRole("button", { name: "Continue session" }).click();
   await expect(page.getByText("Repair now, verify later")).toBeVisible();
-  await expect(page.locator(".session-activity-header").getByRole("heading", { name: /Replace the mistaken Cellular respiration sequence relationship/i })).toBeVisible();
+  await expect(page.locator(".session-activity-header").getByRole("heading", { name: /Use one clue, then retry Cellular respiration sequence/i })).toBeVisible();
   await expect(page.getByText(/not saved as proof of mastery/i)).not.toBeVisible();
   await page.getByLabel("Corrected idea in your own words").fill(
     "Glycolysis happens first, followed by the Krebs cycle and electron transport chain.",
@@ -274,7 +279,7 @@ test("a confident misconception is repaired now without a duplicate follow-up", 
 
   await expect(page.getByRole("heading", { name: "Today’s checks held up." })).toBeInViewport();
   await expect(page.getByRole("heading", { name: "The work is done. One part needs another check." })).not.toBeVisible();
-  await expect(page.getByText("2 of 3")).toBeVisible();
+  await expect(page.getByText("2 of 3", { exact: true })).toBeVisible();
   await expect(page.getByText("Initial evidence checks")).toBeVisible();
   await expect(page.getByText("Correct before in-session repair")).toBeVisible();
   await expect(page.getByText("Recorded, not graded")).toBeVisible();
@@ -519,8 +524,8 @@ test("a new topic is taught before YOVA asks for independent performance", async
 
   await expect(page.getByText("Repair now, verify later")).toBeVisible();
   await expect(page.getByText("YOVA CHANGED THE SUPPORT")).toBeVisible();
-  await expect(page.getByText("Restore one step at a time")).toBeVisible();
-  await expect(page.getByText(/marked this answer as uncertain/i)).toBeVisible();
+  await expect(page.getByText("One clue first")).toBeVisible();
+  await expect(page.getByText(/asked for a small hint when stuck/i)).toBeVisible();
   await page.getByLabel("Corrected idea in your own words").fill(
     "Earlier gains stay in the base, so later percentage gains apply to the original amount and its accumulated growth.",
   );
@@ -1195,7 +1200,7 @@ test("an overdue arbitrary inside session splits and loads a route-faithful 10-m
   await expect(page.getByText(/safe study-method workpad was loaded instead/i)).toBeVisible();
   const methodWorkpad = page.getByLabel("Study-method workpad");
   await expect(methodWorkpad).toBeVisible();
-  await expect(methodWorkpad.getByLabel("How to study this")).toContainText("Self-explanation");
+  await expect(methodWorkpad.getByLabel("How to study this")).toContainText("Feynman Technique");
   await expect(methodWorkpad).toContainText("DNA and RNA");
   await expect(methodWorkpad).toContainText("This completes practice, not a knowledge check.");
   await expect(page.getByText("STEP 1 OF 3", { exact: true })).toHaveCount(0);
@@ -1372,7 +1377,7 @@ test("a resumed streamed question can reopen its prior lesson by persisted activ
   await expect(page.getByText("Restored streamed explanation")).toBeVisible();
   await page.getByRole("button", { name: "Answer the question" }).click();
   await expect(page.getByRole("heading", { name: "Choose the retrieval sequence" })).toBeVisible();
-  await leaveSession(page, "1 of 3 required steps finished");
+  await leaveSession(page, "1 of 5 required steps finished");
 
   const storedResumePlan = await page.evaluate(() => {
     const raw = window.localStorage.getItem("yova.preview.v1");
@@ -1524,11 +1529,27 @@ test("a refresh recovers semantic progress without saving draft answers or inven
   await page.getByRole("button", { name: "Check my answer" }).click();
   await expect(page.getByText("YOVA'S FORMATIVE CHECK")).toBeVisible();
   await page.getByRole("button", { name: "I got the key idea" }).click();
+  await page.getByRole("button", { name: "Continue" }).click();
+  await expect(page.getByRole("heading", { name: "Repair the retrieval explanation" })).toBeVisible();
+  await page.getByLabel("Compare and repair").fill(
+    "Retrieval comes before review so the unsupported attempt reveals the exact gap that needs correction.",
+  );
+  await page.getByRole("button", { name: "Check my answer" }).click();
+  await expect(page.getByText("YOVA'S FORMATIVE CHECK")).toBeVisible();
+  await page.getByRole("button", { name: "I got the key idea" }).click();
+  await page.getByRole("button", { name: "Continue" }).click();
+  await expect(page.getByRole("heading", { name: "Explain why retrieval comes first again" })).toBeVisible();
+  await page.getByLabel("Explain it again").fill(
+    "Trying first shows what is available from memory, and checking afterward lets me repair only what was missing.",
+  );
+  await page.getByRole("button", { name: "Check my answer" }).click();
+  await expect(page.getByText("YOVA'S FORMATIVE CHECK")).toBeVisible();
+  await page.getByRole("button", { name: "I got the key idea" }).click();
   await page.getByRole("button", { name: "Finish this content" }).click();
   await expect(page.getByRole("heading", { name: "Complete this learning item" })).toBeVisible();
   await expect.poll(() => readRecoveryState(page)).toMatchObject({
     checkpointStatus: "awaiting_finish",
-    completedSteps: 3,
+    completedSteps: 5,
     sessionCompletions: 0,
     sessionInterruptions: 0,
   });
@@ -2345,7 +2366,7 @@ test("a planning request outage still produces a reviewable plan from YOVA's sav
   await page.getByRole("button", { name: "Skip for now" }).click();
   await page.getByRole("button", { name: "Generate my plan" }).click();
 
-  await expect(page.getByText("Plan ready")).toBeVisible();
+  await expect(page.getByText("Plan ready")).toBeVisible({ timeout: 30_000 });
   const livePlanningIssue = page.locator(".generation-notice[role='alert']");
   await expect(livePlanningIssue).toContainText("Live AI planning failed");
   await expect(livePlanningIssue.getByRole("button", { name: "Retry live planning" })).toBeVisible();
@@ -3000,7 +3021,7 @@ test("normal-plan review changes one offered method without regenerating or rewr
   await page.getByRole("button", { name: "Continue" }).click();
   await page.getByRole("button", { name: "Skip for now" }).click();
   await page.getByRole("button", { name: "Generate my plan" }).click();
-  await expect(page.getByText("Plan ready")).toBeVisible();
+  await expect(page.getByText("Plan ready")).toBeVisible({ timeout: 30_000 });
 
   const generationCountBeforeChoice = planGenerationRequests;
   const targetSession = page.getByRole("article", { name: /^Session 1:/ });
@@ -3185,6 +3206,9 @@ test("session setup changes one committed method and generates from its exact su
   const alternatives = methodDecision.getByRole("group", {
     name: `Other methods that also fit for ${beforeChoice.sessionTitle}`,
   });
+  await expect(methodDecision.getByRole("region", {
+    name: "Other eligible methods",
+  })).toHaveCount(0);
   await alternatives.getByRole("button", {
     name: new RegExp(`^Use ${escapeRegExp(beforeChoice.alternative.methodName)}\\.`),
   }).click();
@@ -3210,6 +3234,68 @@ test("session setup changes one committed method and generates from its exact su
     planId: beforeChoice.planId,
     sessionId: beforeChoice.sessionId,
   })).not.toBe(beforeChoice.routeId);
+
+  await methodDecision.getByRole("button", {
+    name: `Change method for ${beforeChoice.sessionTitle}`,
+  }).click();
+  const otherMethods = methodDecision.getByRole("region", {
+    name: "Other eligible methods",
+  });
+  await expect(otherMethods).toBeVisible();
+  const hiddenMethodButtons = otherMethods.locator(
+    ".session-other-method-list > button[data-method-id]",
+  );
+  const visibleHiddenMethodIds = await hiddenMethodButtons.evaluateAll((buttons) => (
+    buttons.map((button) => button.getAttribute("data-method-id"))
+  ));
+  const otherMethodAuthority = await page.evaluate(({ planId, sessionId }) => {
+    const raw = window.localStorage.getItem("yova.preview.v1");
+    if (!raw) throw new Error("Expected the updated plan in preview storage.");
+    const snapshot = JSON.parse(raw) as { plans?: LearningPlan[] };
+    const route = snapshot.plans
+      ?.find((candidate) => candidate.id === planId)
+      ?.sessions.find((candidate) => candidate.id === sessionId)
+      ?.studyRoute;
+    if (!route) throw new Error("Expected the exact committed route for Other methods.");
+    const eligibility = route.provenance.ruleTrace.findLast((entry) => (
+      entry.ruleId === "method_eligibility_v2"
+    ));
+    if (!eligibility) throw new Error("Expected immutable method eligibility provenance.");
+    return {
+      routeId: route.identity.routeRevisionId,
+      eligibleMethodIds: eligibility.result.split(","),
+      storedMethodIds: [
+        route.approach.primaryMethodId,
+        ...route.agency.alternatives.map((alternative) => alternative.primaryMethodId),
+      ],
+    };
+  }, { planId: beforeChoice.planId, sessionId: beforeChoice.sessionId });
+  expect(visibleHiddenMethodIds.every((methodId) => (
+    methodId
+    && otherMethodAuthority.eligibleMethodIds.includes(methodId)
+    && !otherMethodAuthority.storedMethodIds.some((storedMethodId) => (
+      storedMethodId === methodId
+    ))
+  ))).toBe(true);
+
+  await otherMethods.getByPlaceholder("For example, Blurting or Pomodoro").fill("Pomodoro");
+  await otherMethods.getByRole("button", { name: "Check and use" }).click();
+  const safeMapping = otherMethods.locator(".session-other-method-mapping");
+  await expect(safeMapping).toContainText("timing option");
+  await expect(safeMapping.getByRole("button", { name: /^Use .+ instead$/ })).toBeVisible();
+  const routeIdAfterMappingPreview = await page.evaluate(({ planId, sessionId }) => {
+    const raw = window.localStorage.getItem("yova.preview.v1");
+    if (!raw) return null;
+    const snapshot = JSON.parse(raw) as { plans?: LearningPlan[] };
+    return snapshot.plans
+      ?.find((candidate) => candidate.id === planId)
+      ?.sessions.find((candidate) => candidate.id === sessionId)
+      ?.studyRoute?.identity.routeRevisionId ?? null;
+  }, { planId: beforeChoice.planId, sessionId: beforeChoice.sessionId });
+  expect(routeIdAfterMappingPreview).toBe(otherMethodAuthority.routeId);
+  await methodDecision.getByRole("button", {
+    name: `Close method choices for ${beforeChoice.sessionTitle}`,
+  }).click();
 
   const afterChoice = await page.evaluate(({ planId, sessionId }) => {
     const raw = window.localStorage.getItem("yova.preview.v1");
@@ -3785,10 +3871,7 @@ async function expectSavedSessionRecommendation(page: Page, completedSteps?: num
   await expect(recommendation.getByRole("button", { name: "Continue session" })).toBeVisible();
 
   if (completedSteps !== undefined) {
-    const savedCopy = completedSteps === 1
-      ? "Your first section is saved. Continue with the next unfinished activity."
-      : `Your first ${completedSteps} sections are saved. Continue with the next unfinished activity.`;
-    await expect(recommendation).toContainText(savedCopy);
+    await expect(page.getByText(new RegExp(`^${completedSteps} of \\d+ sections? saved$`))).toBeVisible();
   }
 }
 
@@ -3870,7 +3953,7 @@ function streamedResumeSessionResponse(routeRevisionId?: string) {
         learningMode: "learn",
         taskType: "conceptual_learning",
         methodId: "self_explanation",
-        name: "Self-explanation",
+        name: "Feynman Technique",
         what: "Study the bounded model, then explain why retrieval comes before answer review.",
         why: "Explaining the sequence in your own words exposes whether the causal relationship is understood.",
         how: [
@@ -4003,6 +4086,42 @@ function streamedResumeSessionResponse(routeRevisionId?: string) {
           choices: [],
           correctAnswer: "Trying first reveals which knowledge is available without visible support.",
           feedback: "A strong answer connects the unsupported attempt to finding what needs repair.",
+        },
+        {
+          topicId,
+          methodPhase: "repair",
+          estimatedMinutes: 3,
+          requiredForCompletion: true,
+          type: "free_response",
+          concept: "Retrieval practice",
+          label: "Repair",
+          title: "Repair the retrieval explanation",
+          body: "The first explanation can blur attempting with reviewing. Correct relationship: attempt from memory first so the later comparison exposes the exact gap. Write that corrected relationship in your own words.",
+          teaching: null,
+          lessonBrief: null,
+          practiceIntent: null,
+          misconceptionSummary: "Treats reviewing the answer as if it were the retrieval attempt.",
+          choices: [],
+          correctAnswer: "Retrieval comes before review so the unsupported attempt reveals the exact gap that needs correction.",
+          feedback: "The corrected explanation must keep the unsupported attempt before answer review.",
+        },
+        {
+          topicId,
+          methodPhase: "reexplain",
+          estimatedMinutes: 3,
+          requiredForCompletion: true,
+          type: "free_response",
+          concept: "Retrieval practice",
+          label: "Explain again",
+          title: "Explain why retrieval comes first again",
+          body: "Explain the corrected relationship again in plain language without copying the model or your repair sentence.",
+          teaching: null,
+          lessonBrief: null,
+          practiceIntent: null,
+          misconceptionSummary: null,
+          choices: [],
+          correctAnswer: "Trying first shows what is available from memory, and checking afterward lets you repair only what was missing.",
+          feedback: "The new explanation preserves retrieval before review and identifies why the order matters.",
         },
       ],
     },

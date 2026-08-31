@@ -28,7 +28,7 @@ pnpm readiness:production
 ```
 
 The production readiness command calls the service-only, read-only
-`signed_in_generation_readiness_v1` RPC. It must pass against the target
+`signed_in_generation_readiness_v2` RPC. It must pass against the target
 project before deploying application code that enables signed-in generation.
 
 Never edit an already-applied migration. Add a new migration so local history, Git, and the remote database continue to agree.

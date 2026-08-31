@@ -250,6 +250,70 @@ export const ErrorRepairRuntimeSchema = z.object({
   parallelAnswer: AnswerText,
 });
 
+const ConceptMapNodeSchema = z.object({
+  id: z.string().trim().regex(/^[a-z][a-z0-9_-]{0,39}$/),
+  label: z.string().trim().min(2).max(80),
+}).strict();
+
+const ConceptMapConnectionSchema = z.object({
+  fromId: z.string().trim().min(1).max(40),
+  toId: z.string().trim().min(1).max(40),
+  prompt: z.string().trim().min(8).max(240),
+  expectedRelationship: z.string().trim().min(3).max(240),
+}).strict();
+
+/**
+ * Concept mapping. The resource stores only server-authored concepts and the
+ * factual relationships used to check them. Learner-authored relationship
+ * phrases stay in component state and the one-time answer-evaluation request;
+ * they are never written into the generated resource.
+ */
+const ConceptMapRuntimeOutputSchema = z.object({
+  kind: z.literal("concept_map"),
+  instructions: z.string().trim().min(12).max(320),
+  nodes: z.array(ConceptMapNodeSchema).min(3).max(8),
+  connections: z.array(ConceptMapConnectionSchema).min(2).max(8),
+}).strict();
+
+export const ConceptMapRuntimeSchema = ConceptMapRuntimeOutputSchema.superRefine((runtime, context) => {
+  const ids = runtime.nodes.map((node) => node.id);
+  const labels = runtime.nodes.map((node) => node.label.toLocaleLowerCase());
+  const idSet = new Set(ids);
+  if (idSet.size !== ids.length) {
+    context.addIssue({ code: "custom", path: ["nodes"], message: "Concept-map node identifiers must be unique." });
+  }
+  if (new Set(labels).size !== labels.length) {
+    context.addIssue({ code: "custom", path: ["nodes"], message: "Concept-map node labels must be unique." });
+  }
+
+  const connectionKeys = new Set<string>();
+  runtime.connections.forEach((connection, index) => {
+    if (!idSet.has(connection.fromId) || !idSet.has(connection.toId)) {
+      context.addIssue({
+        code: "custom",
+        path: ["connections", index],
+        message: "Every concept-map connection must reference two declared nodes.",
+      });
+    }
+    if (connection.fromId === connection.toId) {
+      context.addIssue({
+        code: "custom",
+        path: ["connections", index],
+        message: "A concept-map connection must join two different concepts.",
+      });
+    }
+    const key = `${connection.fromId}->${connection.toId}`;
+    if (connectionKeys.has(key)) {
+      context.addIssue({
+        code: "custom",
+        path: ["connections", index],
+        message: "Concept-map connections must be unique.",
+      });
+    }
+    connectionKeys.add(key);
+  });
+});
+
 /**
  * Provider-facing runtime schema. Cross-field method invariants remain in the
  * strict schemas below so they can enter YOVA's bounded repair flow instead of
@@ -259,12 +323,14 @@ export const MethodRuntimeProviderOutputSchema = z.discriminatedUnion("kind", [
   RetrievalRoundRuntimeOutputSchema,
   WorkedExampleRuntimeOutputSchema,
   ErrorRepairRuntimeSchema,
+  ConceptMapRuntimeOutputSchema,
 ]);
 
 export const MethodRuntimeSchema = z.discriminatedUnion("kind", [
   RetrievalRoundRuntimeSchema,
   WorkedExampleRuntimeSchema,
   ErrorRepairRuntimeSchema,
+  ConceptMapRuntimeSchema,
 ]);
 
 /** Input shape keeps fields defaulted by the parser optional for old resources. */
@@ -284,6 +350,7 @@ const METHOD_RUNTIME_BY_METHOD: Partial<Record<CoreMethodId, MethodRuntimeKind>>
   spaced_retrieval: "retrieval_round",
   worked_example_fading: "worked_example",
   practice_test_error_repair: "error_repair",
+  concept_mapping: "concept_map",
 };
 
 export function methodRuntimeKindFor(methodId: CoreMethodId): MethodRuntimeKind | null {
@@ -328,6 +395,17 @@ const RUNTIME_PROMPT_CONTRACTS: Record<MethodRuntimeKind, {
       "correctedExample, parallelPrompt, parallelAnswer: the fix, then a fresh item testing the same rule",
     ],
   },
+  concept_map: {
+    requirement:
+      "Attach methodRuntime to the free-response connect activity. Give the learner three to eight named "
+      + "concept nodes and two to eight factual connections to construct with explicit relationship phrases. "
+      + "Do not include learner-authored text or decorative, uncheckable links.",
+    fields: [
+      "instructions: a short direction to connect the named concepts with relationship phrases",
+      "nodes: unique stable ids and concise learner-facing concept labels",
+      "connections: fromId, toId, a relationship prompt, and the factual expectedRelationship",
+    ],
+  },
 };
 
 /**
@@ -352,7 +430,11 @@ export function methodRuntimeMismatch(
   options: { allowBroadRecall?: boolean } = {},
 ): string | null {
   const expected = methodRuntimeKindFor(methodId);
-  if (!runtime) return null;
+  if (!runtime) {
+    return methodId === "concept_mapping"
+      ? "Concept mapping requires its dedicated relationship-building runtime."
+      : null;
+  }
   if (!expected) {
     return `The session produced a ${runtime.kind} runtime, but ${methodId} does not use a method runtime.`;
   }
@@ -388,10 +470,55 @@ export function validateAttachedMethodRuntimes(
   options: { allowBroadRecall?: boolean } = {},
 ): string | null {
   const attached = runtimes.filter((runtime): runtime is MethodRuntime => Boolean(runtime));
+  if (methodId === "concept_mapping" && attached.length === 0) {
+    return methodRuntimeMismatch(methodId, null, options);
+  }
   const mismatched = attached
     .map((runtime) => methodRuntimeMismatch(methodId, runtime, options))
     .find(Boolean);
   return mismatched ?? null;
+}
+
+export function validateMethodRuntimeActivities(
+  methodId: CoreMethodId,
+  activities: readonly {
+    type: string;
+    methodPhase?: string | null;
+    correctAnswer?: string | null;
+    methodRuntime?: MethodRuntime | null;
+  }[],
+  options: { allowBroadRecall?: boolean } = {},
+): string | null {
+  const runtimeIssue = validateAttachedMethodRuntimes(
+    methodId,
+    activities.map((activity) => activity.methodRuntime ?? null),
+    options,
+  );
+  if (runtimeIssue) return runtimeIssue;
+  if (methodId !== "concept_mapping") return null;
+
+  const mappedActivities = activities.filter((activity) => activity.methodRuntime?.kind === "concept_map");
+  if (mappedActivities.length !== 1) {
+    return "Concept mapping requires exactly one dedicated relationship-building activity.";
+  }
+  const [activity] = mappedActivities;
+  if (activity?.type !== "free_response" || activity.methodPhase !== "connect") {
+    return "The concept-map runtime must be attached to the free-response connect phase.";
+  }
+  const answer = normalizeRuntimeAnswer(activity.correctAnswer ?? "");
+  const missingRelationship = activity.methodRuntime?.kind === "concept_map"
+    ? activity.methodRuntime.connections.find((connection) => (
+      !answer.includes(normalizeRuntimeAnswer(connection.expectedRelationship))
+    ))
+    : null;
+  if (missingRelationship) {
+    return "The concept-map model answer must include every exact reference relationship shown after checking.";
+  }
+  return null;
+}
+
+function normalizeRuntimeAnswer(value: string) {
+  return value.trim().toLocaleLowerCase().replace(/\s+/g, " ");
 }
 
 /**

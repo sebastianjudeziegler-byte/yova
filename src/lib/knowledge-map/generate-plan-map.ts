@@ -75,7 +75,7 @@ export type KnowledgeMapGenerationStats = {
   curriculumMatchConfidence: "exact" | "alias" | null;
 };
 
-type KnowledgeMapProviderMetrics = {
+export type KnowledgeMapProviderMetrics = {
   attempts: number;
   inputTokens: number;
   cachedInputTokens: number;
@@ -196,11 +196,16 @@ async function requestKnowledgeMapOutput<TOutput extends KnowledgeMapProviderOut
       metrics: metrics(),
     };
   } catch (error) {
-    if (error instanceof KnowledgeMapGenerationError) throw error;
-    if (error instanceof Error && error.name === "ZodError") {
-      throw new KnowledgeMapGenerationError("knowledge_map_structure");
-    }
-    throw error;
+    const failureValidator = error instanceof KnowledgeMapGenerationError
+      ? error.failedValidator
+      : error instanceof Error && error.name === "ZodError"
+        ? "knowledge_map_structure"
+        : "knowledge_map_provider_request";
+    throw new KnowledgeMapGenerationError(
+      failureValidator,
+      metrics(),
+      model,
+    );
   }
 }
 
@@ -237,6 +242,7 @@ export async function generatePlanKnowledgeMap(request: PlanGenerationRequest): 
   });
   if (!config) throw new KnowledgeMapGenerationError("knowledge_map_provider_request");
 
+  let latestProviderMetrics: KnowledgeMapProviderMetrics | null = null;
   try {
     if (recognizedCurriculum) {
       return await generateRecognizedCurriculumMap({
@@ -270,6 +276,7 @@ export async function generatePlanKnowledgeMap(request: PlanGenerationRequest): 
       formatName: "yova_knowledge_map",
       maxOutputTokens: 5_000,
     });
+    latestProviderMetrics = generated.metrics;
     const parsed = generated.data;
     const suppliedMaterialTopicIds = new Set(materialTopics.map((topic) => topic.materialTopicId));
     const returnedMaterialTopicIds = new Set(parsed.topics.flatMap((topic) => topic.sourceMaterialTopicIds));
@@ -277,12 +284,20 @@ export async function generatePlanKnowledgeMap(request: PlanGenerationRequest): 
       [...returnedMaterialTopicIds].some((id) => !suppliedMaterialTopicIds.has(id))
       || [...suppliedMaterialTopicIds].some((id) => !returnedMaterialTopicIds.has(id))
     ) {
-      throw new KnowledgeMapGenerationError("knowledge_map_material_coverage");
+      throw new KnowledgeMapGenerationError(
+        "knowledge_map_material_coverage",
+        generated.metrics,
+        config.model,
+      );
     }
     if (parsed.topics.some((topic, index) => (
       topic.prerequisiteTopicIndexes.some((candidate) => candidate >= index)
     ))) {
-      throw new KnowledgeMapGenerationError("knowledge_map_structure");
+      throw new KnowledgeMapGenerationError(
+        "knowledge_map_structure",
+        generated.metrics,
+        config.model,
+      );
     }
     const sourceById = new Map(request.materials.flatMap((material) => {
       const understanding = MaterialUnderstandingSchema.safeParse(material.understanding);
@@ -330,7 +345,13 @@ export async function generatePlanKnowledgeMap(request: PlanGenerationRequest): 
     };
   } catch (error) {
     if (error instanceof KnowledgeMapGenerationError) throw error;
-    throw new KnowledgeMapGenerationError("knowledge_map_provider_request");
+    throw new KnowledgeMapGenerationError(
+      error instanceof z.ZodError
+        ? "knowledge_map_structure"
+        : "knowledge_map_provider_request",
+      latestProviderMetrics,
+      config.model,
+    );
   }
 }
 
@@ -411,7 +432,11 @@ Return exactly one materialAlignments row for every supplied material topic. Use
       || alignment.curriculumTopicCodes.some((code) => !allowedTopicCodes.has(code))
     ))
   ) {
-    throw new KnowledgeMapGenerationError("knowledge_map_curriculum_alignment");
+    throw new KnowledgeMapGenerationError(
+      "knowledge_map_curriculum_alignment",
+      generated.metrics,
+      model,
+    );
   }
 
   const sourceById = new Map(request.materials.flatMap((material) => {
@@ -460,12 +485,21 @@ Return exactly one materialAlignments row for every supplied material topic. Use
       },
     };
   });
-  const map = PlanKnowledgeMapSchema.parse({
-    version: 1,
-    scopeJudgment: parsed.scopeJudgment,
-    topics,
-    curriculum: recognition.planCurriculum,
-  });
+  let map: PlanKnowledgeMap;
+  try {
+    map = PlanKnowledgeMapSchema.parse({
+      version: 1,
+      scopeJudgment: parsed.scopeJudgment,
+      topics,
+      curriculum: recognition.planCurriculum,
+    });
+  } catch {
+    throw new KnowledgeMapGenerationError(
+      "knowledge_map_structure",
+      generated.metrics,
+      model,
+    );
+  }
   return {
     map,
     stats: {
@@ -487,7 +521,21 @@ Return exactly one materialAlignments row for every supplied material topic. Use
 }
 
 export class KnowledgeMapGenerationError extends Error {
-  constructor(public readonly failedValidator: GenerationValidator) {
+  public readonly generationMetrics: KnowledgeMapProviderMetrics | null;
+
+  constructor(
+    public readonly failedValidator: GenerationValidator,
+    generationMetrics: KnowledgeMapProviderMetrics | null = null,
+    public readonly model: string | null = null,
+  ) {
     super("YOVA could not build the knowledge map.");
+    this.name = "KnowledgeMapGenerationError";
+    this.generationMetrics = generationMetrics
+      ? {
+          ...generationMetrics,
+          firstAttemptPassed: false,
+          failedValidator,
+        }
+      : null;
   }
 }

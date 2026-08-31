@@ -24,6 +24,7 @@ const validEnvironment: NodeJS.ProcessEnv = {
   OPENAI_API_KEY: "o".repeat(20),
   SUPABASE_SECRET_KEY: "s".repeat(20),
   YOVA_DRAFT_RECEIPT_SECRET: "d".repeat(32),
+  YOVA_PERSONALIZATION_ROLLOUT_PERCENT: "0",
 };
 
 function runReadiness(

@@ -3,6 +3,7 @@ import {
   durationLabel,
   planCreatorPreviewPreferenceRequestInput,
 } from "@/components/plan-creator";
+import { createCanonicalLearnerProfile } from "@/lib/personalization/canonical-profile-schema";
 
 describe("durationLabel", () => {
   it("collapses uniform plan session lengths to one per-session value", () => {
@@ -21,15 +22,23 @@ describe("durationLabel", () => {
 
 describe("PlanCreator development-preview preferences", () => {
   it("sends canonical method preferences only in browser preview mode", () => {
+    const previewCanonicalProfile = createCanonicalLearnerProfile([{
+      signalId: "control_mode",
+      value: "help_me_choose",
+      source: "canonical_questionnaire",
+      sourceQuestionId: "profile_control_mode",
+      provenance: "direct_answer",
+    }]);
     expect(planCreatorPreviewPreferenceRequestInput(true, [
       "retrieval_practice",
       "self_explanation",
-    ])).toEqual({
+    ], previewCanonicalProfile)).toEqual({
       previewPreferredMethodIds: ["retrieval_practice", "self_explanation"],
+      previewCanonicalProfile,
     });
     expect(planCreatorPreviewPreferenceRequestInput(false, [
       "retrieval_practice",
-    ])).toEqual({});
+    ], previewCanonicalProfile)).toEqual({});
     expect(planCreatorPreviewPreferenceRequestInput(true, [])).toEqual({});
   });
 });

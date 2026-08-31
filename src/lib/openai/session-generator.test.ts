@@ -11,11 +11,6 @@ import type { SessionGenerationContext } from "@/lib/openai/session-generator";
 
 const parseResponse = vi.hoisted(() => vi.fn());
 const TEST_TOPIC_ID = "11111111-1111-4111-8111-111111111111";
-const BIO_TOPIC_IDS = [
-  "22222222-2222-4222-8222-222222222221",
-  "22222222-2222-4222-8222-222222222222",
-  "22222222-2222-4222-8222-222222222223",
-] as const;
 
 vi.mock("server-only", () => ({}));
 vi.mock("@/lib/openai/client", () => ({
@@ -107,6 +102,309 @@ function learningDraft(firstPhase: "orient" | "model") {
     ],
     sourceGrounding: null,
   }) as FilledGeneratedSessionDraft;
+}
+
+function appendSelfExplanationReexplain(draft: FilledGeneratedSessionDraft) {
+  draft.activities.push({
+    topicId: TEST_TOPIC_ID,
+    methodPhase: "reexplain",
+    concept: "Funding tradeoff",
+    estimatedMinutes: 2,
+    requiredForCompletion: true,
+    label: "Explain again",
+    title: "Explain the corrected exchange",
+    body: "With the model closed, explain the funding exchange again after repairing the missing relationship.",
+    teaching: null,
+    type: "free_response",
+    choices: [],
+    correctAnswer: "The startup receives capital now, while the investor receives ownership, repayment rights, or a future equity claim.",
+    feedback: "The second explanation should preserve both the immediate capital and the financial right given in return.",
+    practiceIntent: "baseline",
+    misconceptionSummary: null,
+  });
+}
+
+function validStartupSelfExplanationDraft() {
+  const draft = learningDraft("model");
+  draft.activities[1]!.methodPhase = "explain";
+  draft.activities.push({
+    topicId: null,
+    methodPhase: "repair",
+    concept: null,
+    estimatedMinutes: 1,
+    requiredForCompletion: false,
+    label: "Repair",
+    title: "Repair the missing relationship",
+    body: "Compare the explanation with the model and correct only the relationship that was missing.",
+    teaching: null,
+    type: "instruction",
+    choices: [],
+    correctAnswer: null,
+    feedback: null,
+    practiceIntent: null,
+    misconceptionSummary: null,
+  });
+  appendSelfExplanationReexplain(draft);
+  return draft;
+}
+
+function conceptMappingStudyContext(): SessionGenerationContext {
+  const base = buildSessionEvaluationCases()
+    .find((candidate) => candidate.id === "startup_funding_foundations")!.context;
+  return {
+    ...base,
+    learningGoal: {
+      ...base.learningGoal,
+      learningIntent: "study",
+      studyMode: "inside_yova",
+      sourceMode: "yova_generated",
+    },
+    session: {
+      ...base.session,
+      learningMode: "study",
+      method: "Concept Mapping",
+      methodReason: "Connect the named funding concepts with explicit factual relationships.",
+      estimatedMinutes: 15,
+    },
+    personalization: {
+      decisions: [],
+      preferredMethodIds: ["concept_mapping"],
+      methodTie: {
+        state: {
+          controls: { experiments: false },
+          activeExperiment: null,
+          experimentHistory: [],
+        },
+        signals: [],
+      },
+    },
+  };
+}
+
+function conceptMappingDraft() {
+  const firstRelationship = "Capital flows from the investor to the startup in exchange for a financial claim";
+  const secondRelationship = "An equity claim gives the investor an ownership interest in the startup";
+  return GeneratedSessionDraftOutputSchema.parse({
+    topicIds: [TEST_TOPIC_ID],
+    methodBriefing: {
+      learningMode: "study",
+      taskType: "conceptual_learning",
+      methodId: "concept_mapping",
+      name: "Concept Mapping",
+      what: "Retrieve the important concepts, connect them with factual relationship phrases, and verify each link.",
+      why: "Building the links makes the direction of the funding exchange visible before a separate evidence check.",
+      how: ["Retrieve the concepts without notes.", "Build each named connection.", "Check and repair the links."],
+      completion: "Construct both funding relationships and verify them against a separate evidence check.",
+      personalization: ["The session begins with a bounded unsupported attempt before showing corrective subject content."],
+    },
+    coverage: {
+      focus: "How startup funding connects capital, investors, and ownership claims.",
+      essentialIdeas: ["Funding exchanges resources now for financial rights later"],
+      completionEvidence: ["Build and verify the two factual funding relationships"],
+      evidenceMap: [{
+        essentialIdea: "Funding exchanges resources now for financial rights later",
+        activityConcept: "Funding relationship map",
+      }],
+      deferredContent: [],
+    },
+    rationale: "Retrieve the component concepts, construct their relationships, verify the map, and repair any mismatch.",
+    activities: [{
+      topicId: TEST_TOPIC_ID,
+      methodPhase: "retrieve",
+      concept: "Funding components",
+      estimatedMinutes: 2,
+      requiredForCompletion: true,
+      label: "Retrieve",
+      title: "Recall the funding components",
+      body: "Without notes, which item is the resource a startup receives from an investor?",
+      teaching: null,
+      type: "multiple_choice",
+      choices: ["Capital", "Ownership control", "A customer contract", "A tax refund"],
+      correctAnswer: "Capital",
+      feedback: "Capital is the resource supplied now; the investor receives a defined financial claim in return.",
+    }, {
+      topicId: TEST_TOPIC_ID,
+      methodPhase: "connect",
+      concept: "Funding relationship map",
+      estimatedMinutes: 4,
+      requiredForCompletion: true,
+      label: "Connect",
+      title: "Build the funding map",
+      body: "Connect the named concepts by writing the relationship requested for each link.",
+      teaching: null,
+      type: "free_response",
+      choices: [],
+      correctAnswer: `${firstRelationship}. ${secondRelationship}.`,
+      feedback: "A complete map states the direction of the capital flow and identifies ownership as the equity claim.",
+      methodRuntime: {
+        kind: "concept_map",
+        instructions: "Connect each named concept with the factual relationship phrase that answers the link prompt.",
+        nodes: [
+          { id: "investor", label: "Investor" },
+          { id: "capital", label: "Capital" },
+          { id: "startup", label: "Startup" },
+          { id: "equity", label: "Equity claim" },
+        ],
+        connections: [{
+          fromId: "investor",
+          toId: "startup",
+          prompt: "What flows from the investor, and what is received in return?",
+          expectedRelationship: firstRelationship,
+        }, {
+          fromId: "equity",
+          toId: "startup",
+          prompt: "What factual right does an equity claim represent?",
+          expectedRelationship: secondRelationship,
+        }],
+      },
+    }, {
+      topicId: TEST_TOPIC_ID,
+      methodPhase: "evidence_match",
+      concept: "Funding map evidence",
+      estimatedMinutes: 3,
+      requiredForCompletion: true,
+      label: "Verify",
+      title: "Verify the ownership link",
+      body: "Which statement supplies evidence that the equity link in the map is correct?",
+      teaching: null,
+      type: "multiple_choice",
+      choices: [
+        "Equity represents an ownership interest",
+        "Equity is a required loan repayment",
+        "Equity is customer revenue",
+        "Equity removes every investor right",
+      ],
+      correctAnswer: "Equity represents an ownership interest",
+      feedback: "An equity claim represents ownership, so it supports the map link between the investor claim and the startup.",
+    }, {
+      topicId: null,
+      methodPhase: "repair",
+      concept: null,
+      estimatedMinutes: 2,
+      requiredForCompletion: false,
+      label: "Repair",
+      title: "Repair one mismatched link",
+      body: "Compare each link with the checked relationship and replace only a direction or claim that differs.",
+      teaching: null,
+      type: "instruction",
+      choices: [],
+      correctAnswer: null,
+      feedback: null,
+    }],
+    sourceGrounding: null,
+  });
+}
+
+function pretestingLearnContext(): SessionGenerationContext {
+  const base = buildSessionEvaluationCases()
+    .find((candidate) => candidate.id === "startup_funding_foundations")!.context;
+  return {
+    ...base,
+    sessionArchitectureVersion: "filled_teaching_v1",
+    session: {
+      ...base.session,
+      method: "Pretesting",
+      methodReason: "Use one low-stakes prediction before the complete model, then check transfer on a different case.",
+      estimatedMinutes: 15,
+      learningMode: "learn",
+    },
+    personalization: {
+      decisions: [],
+      preferredMethodIds: ["pretesting"],
+      methodTie: {
+        state: {
+          controls: { experiments: false },
+          activeExperiment: null,
+          experimentHistory: [],
+        },
+        signals: [],
+      },
+    },
+  };
+}
+
+function pretestingDraft() {
+  return GeneratedSessionDraftOutputSchema.parse({
+    topicIds: [TEST_TOPIC_ID],
+    methodBriefing: {
+      learningMode: "learn",
+      taskType: "conceptual_learning",
+      methodId: "pretesting",
+      name: "Pretesting",
+      what: "Make one low-stakes prediction before instruction, study the complete model, and answer a different transfer prompt.",
+      why: "The prediction activates relevant prior knowledge without treating an uninstructed answer as evidence of mastery.",
+      how: ["Make one diagnostic prediction.", "Study the complete subject model.", "Apply it to a different case."],
+      completion: "Complete the diagnostic prediction and explain the funding exchange in a different transfer case.",
+      personalization: ["YOVA is using the current task and session objective as the starting point until your completed work provides more evidence."],
+    },
+    coverage: {
+      focus: "How startup funding exchanges immediate capital for a defined financial claim.",
+      essentialIdeas: ["Funding exchanges resources now for financial rights later"],
+      completionEvidence: ["Explain the funding exchange in a different case after studying the model"],
+      evidenceMap: [{
+        essentialIdea: "Funding exchanges resources now for financial rights later",
+        activityConcept: "Funding transfer",
+      }],
+      deferredContent: [],
+    },
+    rationale: "Use a diagnostic prediction only to activate prior knowledge, then teach the model and require transfer on a different case.",
+    activities: [{
+      topicId: TEST_TOPIC_ID,
+      methodPhase: "pretest",
+      concept: "Funding prediction",
+      estimatedMinutes: 2,
+      requiredForCompletion: true,
+      label: "Predict",
+      title: "Make a low-stakes diagnostic prediction",
+      body: "Before instruction, predict what an investor most commonly receives when providing equity capital to a startup.",
+      teaching: null,
+      type: "multiple_choice",
+      choices: ["An ownership interest", "A guaranteed customer contract", "Automatic founder control", "A tax refund"],
+      correctAnswer: "An ownership interest",
+      feedback: "This diagnostic prediction activates the relationship; it is not prior-mastery evidence, and the complete model follows next.",
+    }, {
+      topicId: null,
+      methodPhase: "model",
+      concept: null,
+      estimatedMinutes: 5,
+      requiredForCompletion: true,
+      label: "Learn",
+      title: "Study the complete funding model",
+      body: "Study the exchange, then close the model before applying it to a different case.",
+      teaching: {
+        keyIdea: "Startup funding exchanges resources now for a defined financial claim later.",
+        explanation: "An investor supplies capital that lets a startup pay for work before its own revenue covers the cost. In return, the startup grants a defined financial claim, such as an ownership interest, a repayment right, or a future right that can convert into equity.",
+        example: {
+          setup: "An investor provides USD 100,000 in exchange for newly issued shares.",
+          steps: [
+            "The capital moves from the investor to the startup.",
+            "The shares give the investor an ownership interest in return.",
+          ],
+          takeaway: "The resource and the financial claim move in opposite directions as part of one exchange.",
+        },
+        commonMistake: null,
+      },
+      type: "instruction",
+      choices: [],
+      correctAnswer: null,
+      feedback: null,
+    }, {
+      topicId: TEST_TOPIC_ID,
+      methodPhase: "transfer",
+      concept: "Funding transfer",
+      estimatedMinutes: 4,
+      requiredForCompletion: true,
+      label: "Apply",
+      title: "Transfer the model to debt funding",
+      body: "A lender supplies capital under a loan agreement. Explain what moves to the startup and what financial claim moves to the lender.",
+      teaching: null,
+      type: "free_response",
+      choices: [],
+      correctAnswer: "Capital moves to the startup, while a contractual repayment right moves to the lender.",
+      feedback: "A complete transfer answer names the immediate capital and the lender's repayment claim without turning it into ownership.",
+    }],
+    sourceGrounding: null,
+  });
 }
 
 function oversizedStudyDraft() {
@@ -314,168 +612,6 @@ function compactBioRecoveryContent() {
       correction: "ATP transfers usable free energy through a coupled reaction; it does not create energy.",
     },
     modelExample: null,
-  };
-}
-
-function calculusFoundationsRecoveryContent() {
-  return {
-    targetClaims: [
-      "The notation f'(a) and dy/dx represent tangent slope and instantaneous rate of change at a specified input.",
-      "For differentiable expressions, the derivative of a constant is 0, the derivative of x^n is n x^(n-1), constants can be pulled out, and derivatives distribute over sums and diffs.",
-    ],
-    topicChecks: [{
-      title: "Interpret derivative notation",
-      prompt: "For a differentiable function f, explain what f'(a) means geometrically and as a rate of change at x = a.",
-      choices: [
-        "It is the tangent slope and instantaneous rate at x = a",
-        "It is the function value f(a)",
-        "It is the average rate from x = 0 to x = a",
-        "It is the area under f from x = 0 to x = a",
-      ],
-      correctChoiceIndex: 0,
-      referenceAnswer: "The value f'(a) is the slope of the tangent line to y = f(x) at x = a and the instantaneous rate of change there.",
-      feedback: "Derivative notation at an input names both the tangent-line slope and the instantaneous rate of change at that input.",
-    }, {
-      title: "Apply the basic rules",
-      prompt: "What is g'(x) for the differentiable function g(x) = 4x^3 - 5x + 7?",
-      choices: ["g'(x) = 12x^2 - 5", "g'(x) = 4x^2 - 5", "g'(x) = 12x^3 - 5x", "g'(x) = 12x^2 + 7"],
-      correctChoiceIndex: 0,
-      referenceAnswer: "The derivative is g'(x) = 12x^2 - 5 because the constant 7 becomes zero and each remaining term differentiates separately.",
-      feedback: "The power rule gives 12x^2, the derivative of -5x is -5, and the constant term differentiates to zero.",
-    }],
-    independentExtension: {
-      title: "Differentiate a fresh function",
-      prompt: "Without reopening the model, differentiate h(x) = -2x^4 + 3x^2 - 9 and state which basic derivative rules you used.",
-      choices: ["h'(x) = -8x^3 + 6x", "h'(x) = -2x^3 + 3x", "h'(x) = -8x^4 + 6x^2", "h'(x) = -8x^3 + 6x - 9"],
-      correctChoiceIndex: 0,
-      referenceAnswer: "The derivative is h'(x) = -8x^3 + 6x. Apply the power and constant-multiple rules term by term, and differentiate -9 to zero.",
-      feedback: "The correct derivative applies the power and constant-multiple rules to both variable terms and sends the constant to zero.",
-    },
-    subjectModel: {
-      keyIdea: "Derivative notation names a rate, while basic rules calculate that rate term by term.",
-      explanation: "At x = a, f'(a) is the tangent-line slope and instantaneous rate of change. To calculate derivatives of basic polynomial expressions, differentiate each term separately: constants become zero, powers use nx^(n-1), and constant factors remain attached.",
-      commonMistake: "Keeping a standalone constant or forgetting to multiply by the original exponent.",
-      correction: "Differentiate every term separately, drop standalone constants, and multiply each power by its exponent before lowering that exponent by one.",
-    },
-    modelExample: {
-      setup: "Differentiate p(x) = 3x^4 - 2x + 6 with the basic derivative rules.",
-      steps: [
-        "Use the power and constant-multiple rules: the derivative of 3x^4 is 12x^3.",
-        "Differentiate -2x to -2 and the constant 6 to zero, then combine the terms.",
-      ],
-      takeaway: "The result is p'(x) = 12x^3 - 2 because each term is differentiated independently.",
-    },
-  };
-}
-
-function economicsLearnRecoveryContent() {
-  return {
-    targetClaims: [
-      "An own-price change causes a movement along a demand curve, while a non-price determinant shifts the entire demand curve.",
-      "An own-price change causes a movement along a supply curve, while a non-price determinant shifts the entire supply curve.",
-      "Higher consumer income can shift demand for a normal good right, while higher input costs can shift supply left.",
-    ],
-    topicChecks: [{
-      title: "Explain a demand movement",
-      prompt: "Explain why a fall in the product's own price is a movement along demand rather than a shift of demand.",
-      choices: ["Own price changes quantity demanded along the existing curve", "Own price shifts the entire demand curve", "Income always changes when price changes", "Supply determines whether demand moves"],
-      correctChoiceIndex: 0,
-      referenceAnswer: "A change in the good's own price changes quantity demanded and therefore moves the chosen point along the existing demand curve.",
-      feedback: "The good's own price selects a different quantity on the existing demand relationship; a separate determinant would shift that relationship.",
-    }, {
-      title: "Distinguish a supply movement",
-      prompt: "A product's market price rises while production technology and costs stay fixed. What happens to its supply curve representation?",
-      choices: ["Quantity supplied rises along the existing curve", "The supply curve shifts right", "The supply curve shifts left", "Demand shifts because price rose"],
-      correctChoiceIndex: 0,
-      referenceAnswer: "The higher own price causes an increase in quantity supplied represented by movement along the existing supply curve.",
-      feedback: "Own price changes quantity supplied along the curve; technology or input-cost changes would shift the curve itself.",
-    }, {
-      title: "Predict two curve shifts",
-      prompt: "For a normal good, consumer income rises while a producer's input costs also rise. Which pair of shifts is expected?",
-      choices: ["Demand shifts right and supply shifts left", "Demand shifts left and supply shifts right", "Both curves shift right", "Neither curve shifts"],
-      correctChoiceIndex: 0,
-      referenceAnswer: "Higher income raises demand for a normal good, shifting demand right, while higher input costs reduce supply, shifting supply left.",
-      feedback: "Income is a demand determinant and input cost is a supply determinant, so they shift different curves in opposite directions here.",
-    }],
-    independentExtension: null,
-    subjectModel: {
-      keyIdea: "Own price moves the market point along a curve; other determinants shift the complete demand or supply relationship.",
-      explanation: "On a demand curve, a change in the good's own price changes quantity demanded along the same curve. On a supply curve, own price changes quantity supplied along the same curve. Income or preferences can shift demand, while technology or input costs can shift supply. For a normal good, higher income shifts demand right; higher input costs shift supply left.",
-      commonMistake: "Calling every price-and-quantity change a shift of the curve.",
-      correction: "First ask whether the good's own price changed. Own price creates movement along the curve; a different determinant shifts it.",
-    },
-    modelExample: null,
-  };
-}
-
-function geneRegulationLearnRecoveryContent() {
-  return {
-    targetClaims: [
-      "DNA methylation near a promoter can reduce transcription by limiting access or recruiting repressive chromatin proteins.",
-      "Histone acetylation often loosens chromatin and increases access of transcription machinery to DNA.",
-    ],
-    topicChecks: [{
-      title: "Explain promoter methylation",
-      prompt: "Explain how DNA methylation near a promoter can reduce transcription of the associated gene.",
-      choices: ["It can reduce factor access or recruit repressive proteins", "It copies the gene into extra chromosomes", "It removes every histone from the chromosome", "It translates the promoter into protein"],
-      correctChoiceIndex: 0,
-      referenceAnswer: "Promoter methylation can reduce transcription by making the promoter less accessible or by recruiting proteins that maintain repressive chromatin.",
-      feedback: "The relevant relationship is between promoter methylation, chromatin access, and transcription rather than DNA copy number or translation.",
-    }, {
-      title: "Predict histone acetylation",
-      prompt: "If histone acetylation increases around a gene, which change is most consistent with the source model?",
-      choices: ["Chromatin becomes more accessible and transcription can increase", "Chromatin always condenses and transcription stops", "The DNA sequence is permanently rewritten", "The gene is translated before it is transcribed"],
-      correctChoiceIndex: 0,
-      referenceAnswer: "Histone acetylation often loosens chromatin, increasing access for transcription machinery and making transcription more likely.",
-      feedback: "Acetylation changes chromatin accessibility; it does not rewrite the DNA sequence or reverse transcription and translation.",
-    }],
-    independentExtension: null,
-    subjectModel: {
-      keyIdea: "Chemical marks can regulate genes by changing how accessible DNA is to the transcription machinery.",
-      explanation: "DNA methylation near a promoter can reduce transcription by blocking access or recruiting repressive chromatin proteins. Histone acetylation usually weakens histone-DNA interactions, loosens chromatin, and increases access for transcription machinery. These marks regulate use of the sequence rather than changing the sequence itself.",
-      commonMistake: "Epigenetic marks change the nucleotide sequence of the gene.",
-      correction: "They usually change chromatin access and gene expression while leaving the underlying DNA sequence intact.",
-    },
-    modelExample: null,
-  };
-}
-
-function callStackLearnRecoveryContent() {
-  return {
-    targetClaims: [
-      "A recursive function pushes a new call frame for each unfinished call and resolves those frames in last-in, first-out order after reaching its base case.",
-    ],
-    topicChecks: [{
-      title: "Trace the guided call stack",
-      prompt: "For factorial(3), which call frame resolves first after factorial(1) reaches the base case?",
-      choices: ["factorial(2)", "factorial(3)", "factorial(1) again", "All frames resolve simultaneously"],
-      correctChoiceIndex: 0,
-      referenceAnswer: "After factorial(1) returns, factorial(2) is the next unfinished frame and resolves before factorial(3).",
-      feedback: "The call stack is last-in, first-out, so the most recently suspended frame resumes first after the base case returns.",
-    }],
-    independentExtension: {
-      title: "Trace a fresh recursive call",
-      prompt: "Trace sumTo(4), where sumTo(n) returns 0 at n = 0 and otherwise returns n + sumTo(n - 1). List the frames in the order they resolve and give the result.",
-      choices: ["0, 1, 2, 3, 4 and result 10", "4, 3, 2, 1, 0 and result 4", "All frames resolve together and result 0", "The function never reaches a base case"],
-      correctChoiceIndex: 0,
-      referenceAnswer: "After sumTo(0) returns 0, the frames resolve as sumTo(1), sumTo(2), sumTo(3), then sumTo(4), producing 1, 3, 6, and finally 10.",
-      feedback: "The base case starts the return chain, and each suspended frame adds its current n as the stack unwinds in last-in, first-out order.",
-    },
-    subjectModel: {
-      keyIdea: "Recursive calls pause in separate stack frames until a base case starts the return sequence.",
-      explanation: "Each recursive call creates a frame that stores its current argument and waits for the nested call. Reaching the base case stops new calls. The newest waiting frame resumes first, so the stack unwinds in last-in, first-out order until the original call returns its result.",
-      commonMistake: "Every recursive frame keeps changing the same shared argument at once.",
-      correction: "Each call frame has its own argument and paused execution point; frames resume one at a time as nested calls return.",
-    },
-    modelExample: {
-      setup: "Trace factorial(3), with factorial(1) as the base case.",
-      steps: [
-        "factorial(3) pauses after calling factorial(2), which pauses after calling factorial(1).",
-        "factorial(1) returns 1, so factorial(2) resumes and returns 2 times 1.",
-        "factorial(3) resumes last and returns 3 times 2, which is 6.",
-      ],
-      takeaway: "The most recently created unfinished frame resumes first when the base case returns.",
-    },
   };
 }
 
@@ -798,22 +934,23 @@ describe("full guided-session structural repair failures", () => {
     invalidDraft.activities[0]!.teaching = null;
     parseResponse
       .mockResolvedValueOnce(completedProviderResponse("strict-initial", invalidDraft))
-      .mockResolvedValueOnce(completedProviderResponse("strict-repair", invalidDraft))
-      .mockResolvedValueOnce(completedProviderResponse("strict-followup", invalidDraft));
+      .mockResolvedValueOnce(completedProviderResponse("strict-repair", invalidDraft));
 
     const { generateSessionWithOpenAI } = await import("@/lib/openai/session-generator");
     await expect(generateSessionWithOpenAI(context)).rejects.toMatchObject({
       name: "SessionGenerationFailure",
       generationStats: {
-        attempts: 3,
+        attempts: 2,
         failedValidator: "session_structure",
         repairAttempted: true,
         repairSucceeded: false,
         repairReason: "structured_output",
+        stage: "validation",
+        cause: "invalid_structure",
         validationIssueCode: "session_full_structure",
       },
       structuralDiagnostic: {
-        stage: "draft_followup_parse",
+        stage: "draft_repair_parse",
         issueCount: expect.any(Number),
         issues: expect.arrayContaining([
           { code: "custom", path: ["activities", 0, "teaching"] },
@@ -821,7 +958,175 @@ describe("full guided-session structural repair failures", () => {
         truncated: false,
       },
     });
-    expect(parseResponse).toHaveBeenCalledTimes(3);
+    expect(parseResponse).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("concept-mapping full generation", () => {
+  it("keeps the dedicated connect runtime and its exact relationships in a cache-safe output", async () => {
+    parseResponse.mockReset();
+    const draft = conceptMappingDraft();
+    parseResponse.mockResolvedValueOnce(completedProviderResponse("concept-map-valid", draft));
+
+    const { generateSessionWithOpenAI } = await import("@/lib/openai/session-generator");
+    const result = await generateSessionWithOpenAI(conceptMappingStudyContext());
+    const cachedDraft = GeneratedSessionDraftOutputSchema.parse(
+      JSON.parse(JSON.stringify(result.draft)),
+    );
+    const mapActivity = cachedDraft.activities.find((activity) => activity.methodRuntime?.kind === "concept_map");
+
+    expect(parseResponse).toHaveBeenCalledTimes(1);
+    expect(result.generationStats.attempts).toBe(1);
+    expect(mapActivity).toMatchObject({ type: "free_response", methodPhase: "connect" });
+    expect(mapActivity?.methodRuntime?.kind).toBe("concept_map");
+    if (mapActivity?.methodRuntime?.kind !== "concept_map") return;
+    for (const connection of mapActivity.methodRuntime.connections) {
+      expect(mapActivity.correctAnswer).toContain(connection.expectedRelationship);
+    }
+    expect(parseResponse.mock.calls[0]?.[0]?.instructions).toMatch(
+      /concept_map runtime belongs only on the free_response activity tagged methodPhase connect/i,
+    );
+  });
+
+  it.each(["missing", "mismatched"] as const)(
+    "routes a %s concept-map runtime through one bounded repair",
+    async (invalidKind) => {
+      parseResponse.mockReset();
+      const invalid = conceptMappingDraft();
+      const connectActivity = invalid.activities.find((activity) => activity.methodPhase === "connect")!;
+      connectActivity.methodRuntime = invalidKind === "missing"
+        ? null
+        : {
+          kind: "error_repair",
+          observedError: "The learner reversed the direction of the funding exchange.",
+          whyItSeemedReasonable: "Both parties receive something, so the direction can look interchangeable.",
+          incorrectRule: "Capital and ownership always move in the same direction.",
+          correctRule: "Capital and the financial claim move in opposite directions.",
+          warningSign: "The map gives both resources to the same party.",
+          correctedExample: "An investor gives capital to a startup and receives an equity claim in return.",
+          parallelPrompt: "Map the direction of capital and the financial claim in a new funding example.",
+          parallelAnswer: "Capital moves to the startup, while the financial claim moves to the investor.",
+        };
+      const repaired = conceptMappingDraft();
+      parseResponse
+        .mockResolvedValueOnce(completedProviderResponse(`concept-map-${invalidKind}`, invalid))
+        .mockResolvedValueOnce(completedProviderResponse(`concept-map-${invalidKind}-repair`, repaired));
+
+      const { generateSessionWithOpenAI } = await import("@/lib/openai/session-generator");
+      const result = await generateSessionWithOpenAI(conceptMappingStudyContext());
+
+      expect(parseResponse).toHaveBeenCalledTimes(2);
+      expect(parseResponse.mock.calls[1]?.[0]?.instructions).toMatch(
+        invalidKind === "missing"
+          ? /dedicated relationship-building runtime/i
+          : /uses concept_map/i,
+      );
+      expect(result.generationStats).toMatchObject({
+        attempts: 2,
+        firstAttemptPassed: false,
+        failedValidator: "session_method_runtime",
+        repairAttempted: true,
+        repairSucceeded: true,
+        repairReason: "semantic_validation",
+      });
+    },
+  );
+});
+
+describe("pretesting full generation", () => {
+  it("keeps the diagnostic pretest before the complete model in a cache-safe output", async () => {
+    parseResponse.mockReset();
+    parseResponse.mockResolvedValueOnce(completedProviderResponse("pretesting-valid", pretestingDraft()));
+
+    const { generateSessionWithOpenAI } = await import("@/lib/openai/session-generator");
+    const result = await generateSessionWithOpenAI(pretestingLearnContext());
+    const cachedDraft = GeneratedSessionDraftOutputSchema.parse(
+      JSON.parse(JSON.stringify(result.draft)),
+    );
+
+    expect(parseResponse).toHaveBeenCalledTimes(1);
+    expect(cachedDraft.methodBriefing.methodId).toBe("pretesting");
+    expect(cachedDraft.activities.map((activity) => activity.methodPhase)).toEqual([
+      "pretest",
+      "model",
+      "transfer",
+    ]);
+    expect(cachedDraft.activities[0]).toMatchObject({
+      type: "multiple_choice",
+      teaching: null,
+      methodPhase: "pretest",
+    });
+    expect(cachedDraft.activities[1]).toMatchObject({
+      type: "instruction",
+      methodPhase: "model",
+      teaching: expect.objectContaining({ keyIdea: expect.any(String) }),
+    });
+    expect(parseResponse.mock.calls[0]?.[0]?.instructions).toMatch(
+      /Pretesting is the sole exception.*low-stakes diagnostic pretest before the complete model/i,
+    );
+  });
+
+  it("repairs a pretest whose required model has no structured teaching instead of accepting it raw", async () => {
+    parseResponse.mockReset();
+    const invalid = pretestingDraft();
+    invalid.activities[1]!.teaching = null;
+    parseResponse
+      .mockResolvedValueOnce(completedProviderResponse("pretesting-missing-model", invalid))
+      .mockResolvedValueOnce(completedProviderResponse("pretesting-model-repair", pretestingDraft()));
+
+    const { generateSessionWithOpenAI } = await import("@/lib/openai/session-generator");
+    const result = await generateSessionWithOpenAI(pretestingLearnContext());
+
+    expect(parseResponse).toHaveBeenCalledTimes(2);
+    expect(parseResponse.mock.calls[1]?.[0]?.instructions).toMatch(
+      /model-phase subject lesson|model activities need a structured teaching block/i,
+    );
+    expect(result.generationStats).toMatchObject({
+      attempts: 2,
+      firstAttemptPassed: false,
+      failedValidator: "session_structure",
+      repairAttempted: true,
+      repairSucceeded: true,
+      repairReason: "structured_output",
+    });
+  });
+
+  it("preserves pretest, model plus outside action, and changed transfer for an outside-YOVA Learn route", async () => {
+    parseResponse.mockReset();
+    const base = pretestingLearnContext();
+    const context: SessionGenerationContext = {
+      ...base,
+      learningGoal: { ...base.learningGoal, studyMode: "outside_yova" },
+    };
+    const draft = pretestingDraft();
+    draft.activities[1]!.body = "Study YOVA's model, then open your textbook and identify one funding exchange there. Return to YOVA for a different transfer check.";
+    parseResponse.mockResolvedValueOnce(completedProviderResponse("pretesting-outside-valid", draft));
+
+    const { generateSessionWithOpenAI } = await import("@/lib/openai/session-generator");
+    const result = await generateSessionWithOpenAI(context);
+    const providerInput = parseResponse.mock.calls[0]?.[0]?.input as string;
+    const prompt = JSON.parse(providerInput.slice(providerInput.indexOf("\n") + 1)) as {
+      outsideAppContract?: { learningSequence?: string; instructionTemplate?: string };
+    };
+
+    expect(parseResponse).toHaveBeenCalledTimes(1);
+    expect(result.draft.activities.map((activity) => activity.methodPhase)).toEqual([
+      "pretest",
+      "model",
+      "transfer",
+    ]);
+    expect(prompt.outsideAppContract?.learningSequence).toMatch(
+      /begin with one brief, low-stakes.*diagnostic pretest.*complete YOVA model.*different transfer check/i,
+    );
+    expect(prompt.outsideAppContract?.instructionTemplate).toMatch(
+      /First make the brief diagnostic prediction.*study YOVA's subject explanation.*different transfer check/i,
+    );
+    expect(parseResponse.mock.calls[0]?.[0]?.instructions).toMatch(
+      /For a learn session other than Pretesting.*Pretesting is the sole exception: open with the brief diagnostic, then provide the complete YOVA model before the external action and transfer check/i,
+    );
+    expect(parseResponse.mock.calls[0]?.[0]?.instructions).not.toMatch(
+      /For a learn session, YOVA must still provide substantive subject teaching in the opening model instruction/i,
+    );
   });
 });
 
@@ -1771,6 +2076,7 @@ describe("outside-YOVA teaching-first generation", () => {
       practiceIntent: null,
       misconceptionSummary: null,
     });
+    appendSelfExplanationReexplain(repairedDraft);
     repairedDraft.activities.forEach((activity) => {
       if (activity.type === "multiple_choice" || activity.type === "free_response") {
         activity.practiceIntent = "baseline";
@@ -1877,23 +2183,21 @@ describe("outside-YOVA teaching-first generation", () => {
         "The investor receives control without providing any resources.",
       ],
     };
-    draft.activities.push({
-      topicId: null,
+    draft.activities[2] = {
+      ...draft.activities[2]!,
       methodPhase: "repair",
-      concept: null,
-      estimatedMinutes: 1,
-      requiredForCompletion: false,
       label: "Repair",
-      title: "Repair only the missing relationship",
-      body: "Compare your explanation with the source and correct only the relationship you missed.",
-      teaching: null,
-      type: "instruction",
-      choices: [],
-      correctAnswer: null,
-      feedback: null,
-      practiceIntent: null,
-      misconceptionSummary: null,
-    });
+      title: "Repair the missing relationship",
+      body: "The first explanation can miss the financial right given in return. Which correction restores that relationship?",
+      choices: [
+        "The investor provides capital and receives ownership, repayment rights, or a future equity claim.",
+        "The investor receives control without providing any resources.",
+        "The startup receives capital without giving any financial right in return.",
+      ],
+      correctAnswer: "The investor provides capital and receives ownership, repayment rights, or a future equity claim.",
+      feedback: "The correction must preserve both the immediate capital and the investor's financial right.",
+    };
+    appendSelfExplanationReexplain(draft);
     draft.activities.forEach((activity) => {
       if (activity.type === "multiple_choice" || activity.type === "free_response") {
         activity.practiceIntent = "baseline";
@@ -1916,11 +2220,11 @@ describe("outside-YOVA teaching-first generation", () => {
     expect(result.generationStats).toMatchObject({
       attempts: 1,
       firstAttemptPassed: false,
-      failedValidator: "session_required_typed_recall",
+      failedValidator: "session_method_fidelity",
       repairAttempted: true,
       repairSucceeded: true,
       repairReason: "semantic_validation",
-      validationIssueCode: "session_required_typed_recall",
+      validationIssueCode: null,
     });
   });
 
@@ -1957,6 +2261,7 @@ describe("outside-YOVA teaching-first generation", () => {
       practiceIntent: null,
       misconceptionSummary: null,
     });
+    appendSelfExplanationReexplain(draft);
     draft.activities.forEach((activity) => {
       if (activity.type === "multiple_choice" || activity.type === "free_response") {
         activity.practiceIntent = "develop_gap";
@@ -1970,7 +2275,7 @@ describe("outside-YOVA teaching-first generation", () => {
     expect(parseResponse).toHaveBeenCalledTimes(1);
     expect(result.draft.activities.filter((activity) => (
       activity.type === "multiple_choice" || activity.type === "free_response"
-    )).map((activity) => activity.practiceIntent)).toEqual(["baseline", "baseline"]);
+    )).map((activity) => activity.practiceIntent)).toEqual(["baseline", "baseline", "baseline"]);
     expect(result.generationStats).toMatchObject({
       attempts: 1,
       firstAttemptPassed: false,
@@ -1983,430 +2288,67 @@ describe("outside-YOVA teaching-first generation", () => {
   });
 });
 
-describe("bounded teaching-first recovery", () => {
-  it("recovers an unrelated outside economics lesson with one narrow subject-model call", async () => {
+describe("bounded full-generator provider budget", () => {
+  it.each([
+    ["connection", Object.assign(new Error("connection lost"), { name: "APIConnectionError", code: "econnreset" })],
+    ["server", Object.assign(new Error("upstream unavailable"), { status: 503 })],
+    ["rate limit", Object.assign(new Error("rate limited"), { status: 429 })],
+    ["timeout", Object.assign(new Error("request timed out"), { name: "APIConnectionTimeoutError" })],
+  ])("retries one transient %s failure and preserves truthful attempt and token totals", async (_label, transientError) => {
     parseResponse.mockReset();
-    const context = economicsLearnContext();
+    const context = buildSessionEvaluationCases()
+      .find((candidate) => candidate.id === "startup_funding_foundations")!.context;
+    const draft = validStartupSelfExplanationDraft();
     parseResponse
-      .mockResolvedValueOnce(completedProviderResponse("invalid-economics-initial", {}))
-      .mockResolvedValueOnce(completedProviderResponse("invalid-economics-repair", {}))
-      .mockResolvedValueOnce(completedProviderResponse("safe-economics-learn", economicsLearnRecoveryContent()));
+      .mockRejectedValueOnce(transientError)
+      .mockResolvedValueOnce(completedProviderResponse("transient-retry-success", draft));
 
-    const {
-      generateSessionWithOpenAI,
-      validateOutsideAppGuidance,
-      validateSubstantiveTeaching,
-    } = await import("@/lib/openai/session-generator");
+    const { generateSessionWithOpenAI } = await import("@/lib/openai/session-generator");
     const result = await generateSessionWithOpenAI(context);
 
-    expect(parseResponse.mock.calls.map((call) => call[0]?.text?.format?.name)).toEqual([
-      "yova_guided_session",
-      "yova_guided_session",
-      "yova_safe_learn_recovery",
-    ]);
+    expect(parseResponse).toHaveBeenCalledTimes(2);
     expect(result.generationStats).toMatchObject({
-      attempts: 3,
-      inputTokens: 1_800,
-      outputTokens: 900,
-      failedValidator: "session_structure",
+      attempts: 2,
+      firstAttemptPassed: false,
+      failedValidator: "session_provider_request",
+      repairAttempted: true,
       repairSucceeded: true,
-      recoveryMode: "safe_learn",
+      repairReason: "none",
+      inputTokens: 600,
+      cachedInputTokens: 0,
+      cacheWriteTokens: 0,
+      outputTokens: 300,
     });
-    expect(result.draft.activities[0]).toMatchObject({
-      methodPhase: "model",
-      type: "instruction",
-      requiredForCompletion: true,
-    });
-    expect(result.draft.activities[0]?.teaching?.explanation).toContain("own price");
-    expect(result.draft.coverage.evidenceMap.map((mapping) => mapping.activityConcept)).toEqual(
-      context.session.contentTargets,
-    );
-    expect(result.draft.activities.some((activity) => activity.type === "free_response" && activity.requiredForCompletion)).toBe(true);
-    expect(validateSubstantiveTeaching(result.draft)).toBeNull();
-    expect(validateOutsideAppGuidance(result.draft, "outside_yova")).toBeNull();
-    await expectCompleteValidatorPass(result.draft, context, "self_explanation");
   });
 
-  it("keeps an arbitrary inside biology lesson grounded in mapped learner material", async () => {
+  it.each([
+    ["authentication", Object.assign(new Error("authentication rejected"), { status: 401 })],
+    ["permission", Object.assign(new Error("permission rejected"), { status: 403 })],
+    ["invalid request", Object.assign(new Error("invalid request"), { status: 400 })],
+    ["semantic SDK error", new Error("unclassified provider exception")],
+  ])("does not retry a permanent %s failure", async (_label, permanentError) => {
     parseResponse.mockReset();
-    const base = economicsLearnContext();
-    const topicIds = [
-      "71111111-1111-4111-8111-111111111111",
-      "72222222-2222-4222-8222-222222222222",
-    ];
-    const targets = [
-      "Promoter DNA methylation and reduced transcription",
-      "Histone acetylation and increased chromatin access",
-    ];
-    const materialText = "DNA methylation near a promoter can reduce transcription by limiting transcription-factor access or recruiting repressive chromatin proteins. Histone acetylation often loosens chromatin and increases access of transcription machinery to DNA. These marks regulate expression without changing the DNA sequence.";
-    const context: SessionGenerationContext = {
-      ...base,
-      learningGoal: {
-        ...base.learningGoal,
-        title: "Understand epigenetic gene regulation",
-        topic: "Explain how promoter methylation and histone acetylation change transcription",
-        sourceMode: "user_materials",
-        studyMode: "inside_yova",
-      },
-      materials: [{
-        materialId: "73333333-3333-4333-8333-333333333333",
-        chunkId: "74444444-4444-4444-8444-444444444444",
-        chunkIndex: 0,
-        name: "gene-regulation-notes.txt",
-        text: materialText,
-        truncated: false,
-        locationLabel: "Epigenetics notes",
-        role: "content_source",
-      }],
-      knowledgeTopics: targets.map((target, index) => ({
-        id: topicIds[index]!,
-        title: target,
-        description: target,
-        subtopics: [],
-        prerequisiteTopicIds: [],
-        status: "not_started" as const,
-        initialEvidence: null,
-        sourceReferences: [],
-        origin: "material" as const,
-        deferred: null,
-      })),
-      session: {
-        ...base.session,
-        title: "Explain two epigenetic controls",
-        objective: "Learn and explain how promoter DNA methylation and histone acetylation change transcription through chromatin access.",
-        estimatedMinutes: 10,
-        topicIds,
-        contentTargets: targets,
-        completionEvidence: targets.map((target) => `Explain ${target} without the model visible.`),
-      },
-    };
-    parseResponse
-      .mockResolvedValueOnce(completedProviderResponse("invalid-epigenetics-initial", {}))
-      .mockResolvedValueOnce(completedProviderResponse("invalid-epigenetics-repair", {}))
-      .mockResolvedValueOnce(completedProviderResponse("safe-epigenetics-learn", geneRegulationLearnRecoveryContent()));
-
-    const { generateSessionWithOpenAI } = await import("@/lib/openai/session-generator");
-    const result = await generateSessionWithOpenAI(context);
-
-    expect(parseResponse.mock.calls[2]?.[0]?.text?.format?.name).toBe("yova_safe_learn_recovery");
-    const recoveryInput = parseResponse.mock.calls[2]?.[0]?.input as string;
-    expect(recoveryInput).toContain(materialText);
-    expect(result.draft.sourceGrounding).toMatchObject({
-      mode: "materials_only",
-      sourceNames: ["gene-regulation-notes.txt"],
-    });
-    expect(result.draft.coverage.deferredContent).toEqual([]);
-    expect(result.generationStats.recoveryMode).toBe("safe_learn");
-    await expectCompleteValidatorPass(result.draft, context, "self_explanation");
-  });
-
-  it("keeps ordinary mixed material and AI targets inside their authoritative source boundaries", async () => {
-    parseResponse.mockReset();
-    const base = economicsLearnContext();
-    const materialTopicId = "75555555-5555-4555-8555-555555555555";
-    const aiTopicId = "76666666-6666-4666-8666-666666666666";
-    const materialId = "77777777-7777-4777-8777-777777777777";
-    const chunkId = "78888888-8888-4888-8888-888888888888";
-    const targets = [
-      "Promoter DNA methylation and reduced transcription",
-      "Histone acetylation and increased chromatin access",
-    ];
-    const materialText = "DNA methylation near a promoter can reduce transcription by limiting transcription-factor access or recruiting repressive chromatin proteins.";
-    const context: SessionGenerationContext = {
-      ...base,
-      learningGoal: {
-        ...base.learningGoal,
-        title: "Understand epigenetic gene regulation",
-        topic: "Explain promoter methylation and histone acetylation",
-        sourceMode: "user_materials",
-        studyMode: "inside_yova",
-      },
-      materials: [{
-        materialId,
-        chunkId,
-        chunkIndex: 0,
-        name: "promoter-notes.txt",
-        text: materialText,
-        truncated: false,
-        locationLabel: "Promoter methylation",
-        role: "content_source",
-      }],
-      knowledgeTopics: [{
-        id: materialTopicId,
-        title: targets[0]!,
-        description: "How promoter methylation changes transcription-factor access and transcription.",
-        subtopics: ["Promoter methylation"],
-        prerequisiteTopicIds: [],
-        status: "not_started",
-        initialEvidence: null,
-        sourceReferences: [{
-          materialId,
-          chunkId,
-          chunkIndex: 0,
-          startCharacter: 0,
-          endCharacter: materialText.length,
-          locationLabel: "Promoter methylation",
-          sectionRole: "content_source",
-        }],
-        origin: "material",
-        deferred: null,
-      }, {
-        id: aiTopicId,
-        title: targets[1]!,
-        description: "How histone acetylation changes chromatin access and transcription.",
-        subtopics: ["Histone acetylation"],
-        prerequisiteTopicIds: [],
-        status: "not_started",
-        initialEvidence: null,
-        sourceReferences: [],
-        origin: "ai_generated",
-        deferred: null,
-      }],
-      session: {
-        ...base.session,
-        title: "Explain two epigenetic controls",
-        objective: "Learn how promoter methylation and histone acetylation regulate transcription.",
-        estimatedMinutes: 10,
-        topicIds: [materialTopicId, aiTopicId],
-        contentTargets: targets,
-        completionEvidence: targets.map((target) => `Explain ${target} without the model visible.`),
-      },
-    };
-    parseResponse
-      .mockResolvedValueOnce(completedProviderResponse("invalid-mixed-initial", {}))
-      .mockResolvedValueOnce(completedProviderResponse("invalid-mixed-repair", {}))
-      .mockResolvedValueOnce(completedProviderResponse("safe-mixed-learn", geneRegulationLearnRecoveryContent()));
-
-    const {
-      generateSessionWithOpenAI,
-      ordinarySessionProvenanceContract,
-      validateMixedProvenanceEvidenceAttribution,
-    } = await import("@/lib/openai/session-generator");
-    const result = await generateSessionWithOpenAI(context);
-    const fullInput = JSON.parse((parseResponse.mock.calls[0]?.[0]?.input as string).split("\n").slice(1).join("\n"));
-    expect(fullInput.sessionProvenanceContract).toMatchObject({
-      version: "mixed_provenance_v1",
-      mode: "mixed_materials_and_ai",
-      targetProvenance: [{
-        targetIndex: 0,
-        topicId: materialTopicId,
-        provenance: "mapped_material",
-        allowedChunkIds: [chunkId],
-      }, {
-        targetIndex: 1,
-        topicId: aiTopicId,
-        provenance: "model_knowledge",
-        allowedChunkIds: [],
-      }],
-      modelKnowledgeTopics: [targets[1]],
-    });
-    const recoveryInput = JSON.parse((parseResponse.mock.calls[2]?.[0]?.input as string).split("\n").slice(1).join("\n"));
-    expect(recoveryInput.targetProvenance).toEqual(fullInput.sessionProvenanceContract.targetProvenance);
-    expect(result.draft.sourceGrounding).toMatchObject({
-      mode: "materials_plus_ai",
-      anchors: [expect.objectContaining({ chunkId })],
-      supplements: [expect.objectContaining({ topic: targets[1] })],
-    });
-    expect(result.generationStats.recoveryMode).toBe("safe_learn");
-    await expectCompleteValidatorPass(result.draft, context, "self_explanation");
-
-    const crossedSourceDraft = structuredClone(result.draft);
-    const firstEvidenceConcept = crossedSourceDraft.coverage.evidenceMap[0]?.activityConcept;
-    const firstEvidenceActivity = crossedSourceDraft.activities.find((activity) => (
-      activity.requiredForCompletion && activity.concept === firstEvidenceConcept
-    ));
-    expect(firstEvidenceActivity).toBeDefined();
-    firstEvidenceActivity!.topicId = aiTopicId;
-    expect(validateMixedProvenanceEvidenceAttribution(
-      crossedSourceDraft,
-      ordinarySessionProvenanceContract(context).targetProvenance,
-      crossedSourceDraft.coverage.evidenceMap.map((mapping, index) => ({
-        essentialIdea: mapping.essentialIdea,
-        target: targets[index]!,
-      })),
-    )).toContain("different topic's source authority");
-  });
-
-  it("fails before a provider call when mixed targets cannot be attributed uniquely", async () => {
-    parseResponse.mockReset();
-    const base = economicsLearnContext();
-    const materialId = "79999999-9999-4999-8999-999999999999";
-    const chunkId = "7aaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
-    const context: SessionGenerationContext = {
-      ...base,
-      learningGoal: { ...base.learningGoal, sourceMode: "user_materials", studyMode: "inside_yova" },
-      materials: [{
-        materialId,
-        chunkId,
-        chunkIndex: 0,
-        name: "one-topic.txt",
-        text: "Mitosis separates duplicated chromosomes into two daughter nuclei during cell division.",
-        truncated: false,
-        locationLabel: "Mitosis",
-        role: "content_source",
-      }],
-      knowledgeTopics: [{
-        id: base.session.topicIds[0]!,
-        title: "Mitosis chromosome separation",
-        description: "How mitosis separates duplicated chromosomes.",
-        subtopics: [], prerequisiteTopicIds: [], status: "not_started", initialEvidence: null,
-        sourceReferences: [{
-          materialId, chunkId, chunkIndex: 0, startCharacter: 0, endCharacter: 90,
-          locationLabel: "Mitosis", sectionRole: "content_source",
-        }],
-        origin: "material", deferred: null,
-      }, {
-        id: base.session.topicIds[1]!,
-        title: "Meiosis genetic variation",
-        description: "How meiosis creates variation through recombination and assortment.",
-        subtopics: [], prerequisiteTopicIds: [], status: "not_started", initialEvidence: null,
-        sourceReferences: [], origin: "ai_generated", deferred: null,
-      }],
-      session: {
-        ...base.session,
-        topicIds: base.session.topicIds.slice(0, 2),
-        contentTargets: ["Explain the important process and its result"],
-        completionEvidence: ["Explain the process without notes."],
-      },
-    };
-
-    const { generateSessionWithOpenAI } = await import("@/lib/openai/session-generator");
-    await expect(generateSessionWithOpenAI(context)).rejects.toMatchObject({
-      generationStats: {
-        attempts: 0,
-        failedValidator: "session_coverage_fidelity",
-      },
-    });
-    expect(parseResponse).not.toHaveBeenCalled();
-  });
-
-  it("treats an AI-only active continuation as model knowledge after material topics were scoped away", async () => {
-    parseResponse.mockReset();
-    parseResponse.mockRejectedValue(new Error("provider unavailable"));
-    const base = economicsLearnContext();
-    const aiTopic = base.knowledgeTopics[1]!;
-    const aiTarget = base.session.contentTargets![1]!;
-    const context: SessionGenerationContext = {
-      ...base,
-      learningGoal: {
-        ...base.learningGoal,
-        sourceMode: "user_materials",
-        studyMode: "inside_yova",
-      },
-      // A continuation scoper can legitimately remove every completed
-      // material chunk while leaving an AI-origin deferred topic active.
-      materials: [],
-      knowledgeTopics: [aiTopic],
-      session: {
-        ...base.session,
-        topicIds: [aiTopic.id],
-        contentTargets: [aiTarget],
-        completionEvidence: [`Explain ${aiTarget} without the model visible.`],
-      },
-    };
-
-    const { generateSessionWithOpenAI } = await import("@/lib/openai/session-generator");
-    await expect(generateSessionWithOpenAI(context)).rejects.toThrow("provider unavailable");
-    expect(parseResponse).toHaveBeenCalledTimes(1);
-    const providerInput = JSON.parse((parseResponse.mock.calls[0]?.[0]?.input as string).split("\n").slice(1).join("\n"));
-    expect(providerInput.learningGoal.sourceMode).toBe("yova_generated");
-    expect(providerInput.materials).toEqual([]);
-    expect(providerInput.sourceGroundingPolicy).toBeNull();
-  });
-
-  it("recovers an arbitrary computing lesson with a complete model and fresh independent trace", async () => {
-    parseResponse.mockReset();
-    const base = buildSessionEvaluationCases()
-      .find((candidate) => candidate.id === "javascript_scaffold_fading")!.context;
-    const target = "Recursive call frames and last-in first-out stack unwinding";
-    const context: SessionGenerationContext = {
-      ...base,
-      sessionArchitectureVersion: "filled_teaching_v1",
-      learningGoal: {
-        ...base.learningGoal,
-        title: "Trace recursive TypeScript functions",
-        topic: "Trace recursive function calls through the call stack and base case",
-      },
-      session: {
-        ...base.session,
-        title: "Trace a recursive call stack",
-        objective: "Learn how recursive calls create stack frames and resolve in last-in, first-out order after the base case.",
-        method: "Worked example fading",
-        methodReason: "A complete call trace should precede a fresh unsupported trace.",
-        estimatedMinutes: 15,
-        topicIds: [TEST_TOPIC_ID],
-        contentTargets: [target],
-        deferredContentTargets: [],
-        completionEvidence: ["Trace a fresh recursive call stack and calculate its return value."],
-        reviewConcept: null,
-        reviewType: null,
-      },
-      knowledgeTopics: [{
-        ...base.knowledgeTopics[0]!,
-        id: TEST_TOPIC_ID,
-        title: target,
-        description: "How recursive call frames pause and unwind after a base case.",
-        subtopics: ["call frames", "base case", "stack unwinding"],
-      }],
-      learnerProfile: null,
-      sessionAdjustment: null,
-      recentResults: [],
-      recentInterruptions: [],
-      conceptSignals: [],
-      scaffoldSignals: [],
-      topicCalibrationSignals: [],
-    };
-    parseResponse
-      .mockResolvedValueOnce(completedProviderResponse("invalid-stack-initial", {}))
-      .mockResolvedValueOnce(completedProviderResponse("invalid-stack-repair", {}))
-      .mockResolvedValueOnce(completedProviderResponse("safe-stack-learn", callStackLearnRecoveryContent()));
-
-    const { generateSessionWithOpenAI } = await import("@/lib/openai/session-generator");
-    const result = await generateSessionWithOpenAI(context);
-
-    expect(result.draft.methodBriefing.methodId).toBe("worked_example_fading");
-    expect(result.draft.activities.map((activity) => activity.methodPhase)).toEqual([
-      "model",
-      "guided_practice",
-      "independent_practice",
-    ]);
-    expect(result.draft.activities[0]?.teaching?.example?.steps).toHaveLength(3);
-    expect(result.draft.activities[2]).toMatchObject({
-      type: "free_response",
-      requiredForCompletion: true,
-    });
-    expect(result.generationStats).toMatchObject({
-      attempts: 3,
-      inputTokens: 1_800,
-      outputTokens: 900,
-      recoveryMode: "safe_learn",
-    });
-    await expectCompleteValidatorPass(result.draft, context, "worked_example_fading");
-  });
-
-  it("fails closed after a provider-level teaching recovery failure so the route can refund the one claim", async () => {
-    parseResponse.mockReset();
-    const context = economicsLearnContext();
-    parseResponse
-      .mockResolvedValueOnce(completedProviderResponse("invalid-refund-initial", {}))
-      .mockResolvedValueOnce(completedProviderResponse("invalid-refund-repair", {}))
-      .mockRejectedValueOnce(new Error("provider unavailable"));
+    const context = buildSessionEvaluationCases()
+      .find((candidate) => candidate.id === "startup_funding_foundations")!.context;
+    parseResponse.mockRejectedValueOnce(permanentError);
 
     const { generateSessionWithOpenAI } = await import("@/lib/openai/session-generator");
     await expect(generateSessionWithOpenAI(context)).rejects.toMatchObject({
       name: "SessionGenerationFailure",
       generationStats: {
-        attempts: 3,
-        inputTokens: 1_200,
-        outputTokens: 600,
-        repairSucceeded: false,
-        recoveryMode: "safe_learn",
+        attempts: 1,
+        failedValidator: "session_provider_request",
+        repairAttempted: false,
+        stage: "provider",
+        cause: "provider_request",
+        inputTokens: 0,
+        outputTokens: 0,
       },
     });
-    expect(parseResponse).toHaveBeenCalledTimes(3);
+    expect(parseResponse).toHaveBeenCalledTimes(1);
   });
 
-  it("does not begin a third provider call when the absolute route budget must be reserved for settlement", async () => {
+  it("keeps both allowed calls inside settlement headroom and never starts a third", async () => {
     parseResponse.mockReset();
     const context = economicsLearnContext();
     const startedAt = new Date("2026-08-21T12:00:00.000Z");
@@ -2414,11 +2356,11 @@ describe("bounded teaching-first recovery", () => {
     vi.setSystemTime(startedAt);
     parseResponse
       .mockImplementationOnce(async () => {
-        vi.setSystemTime(new Date(startedAt.getTime() + 35_000));
+        vi.setSystemTime(startedAt.getTime() + 35_000);
         return completedProviderResponse("invalid-budget-initial", {});
       })
       .mockImplementationOnce(async () => {
-        vi.setSystemTime(new Date(startedAt.getTime() + 70_000));
+        vi.setSystemTime(startedAt.getTime() + 70_000);
         return completedProviderResponse("invalid-budget-repair", {});
       });
 
@@ -2431,9 +2373,10 @@ describe("bounded teaching-first recovery", () => {
         name: "SessionGenerationFailure",
         generationStats: {
           attempts: 2,
-          failedValidator: "session_provider_request",
+          stage: "validation",
+          cause: "invalid_structure",
           repairAttempted: true,
-          repairSucceeded: null,
+          repairSucceeded: false,
         },
       });
 
@@ -2442,6 +2385,54 @@ describe("bounded teaching-first recovery", () => {
         expect.objectContaining({ maxRetries: 0, timeout: 35_000, signal: expect.any(AbortSignal) }),
         expect.objectContaining({ maxRetries: 0, timeout: 35_000, signal: expect.any(AbortSignal) }),
       ]);
+      expect(Date.now()).toBeLessThanOrEqual(startedAt.getTime() + 78_000);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("retries a real first-call timeout when the shared route budget still has room", async () => {
+    parseResponse.mockReset();
+    const context = buildSessionEvaluationCases()
+      .find((candidate) => candidate.id === "startup_funding_foundations")!.context;
+    const startedAt = new Date("2026-08-21T12:30:00.000Z");
+    vi.useFakeTimers();
+    vi.setSystemTime(startedAt);
+    parseResponse
+      .mockImplementationOnce((_, options: { signal: AbortSignal }) => (
+        new Promise((_, reject) => {
+          options.signal.addEventListener("abort", () => reject(options.signal.reason), { once: true });
+        })
+      ))
+      .mockResolvedValueOnce(completedProviderResponse(
+        "real-timeout-retry-success",
+        validStartupSelfExplanationDraft(),
+      ));
+
+    try {
+      const { generateSessionWithOpenAI } = await import("@/lib/openai/session-generator");
+      const generation = generateSessionWithOpenAI(context, {
+        deadlineAt: startedAt.getTime() + 90_000,
+        settlementReserveMs: 12_000,
+      });
+      await vi.advanceTimersByTimeAsync(35_000);
+      const result = await generation;
+
+      expect(parseResponse).toHaveBeenCalledTimes(2);
+      expect(parseResponse.mock.calls.map((call) => call[1])).toEqual([
+        expect.objectContaining({ timeout: 35_000, maxRetries: 0, signal: expect.any(AbortSignal) }),
+        expect.objectContaining({ timeout: 35_000, maxRetries: 0, signal: expect.any(AbortSignal) }),
+      ]);
+      expect(result.generationStats).toMatchObject({
+        attempts: 2,
+        firstAttemptPassed: false,
+        failedValidator: "session_provider_request",
+        repairAttempted: true,
+        repairSucceeded: true,
+        inputTokens: 600,
+        outputTokens: 300,
+      });
+      expect(Date.now()).toBe(startedAt.getTime() + 35_000);
     } finally {
       vi.useRealTimers();
     }
@@ -2471,6 +2462,8 @@ describe("bounded teaching-first recovery", () => {
           attempts: 1,
           failedValidator: "session_provider_request",
           repairSucceeded: null,
+          stage: "provider",
+          cause: "provider_request",
         },
       });
       await vi.advanceTimersByTimeAsync(18_000);
@@ -2534,7 +2527,14 @@ describe("full guided-session personalization prompt", () => {
 
     const { generateSessionWithOpenAI } = await import("@/lib/openai/session-generator");
     await expect(generateSessionWithOpenAI(personalizedContext))
-      .rejects.toThrow("provider unavailable");
+      .rejects.toMatchObject({
+        name: "SessionGenerationFailure",
+        generationStats: {
+          attempts: 1,
+          stage: "provider",
+          cause: "provider_request",
+        },
+      });
 
     const providerInput = parseResponse.mock.calls[0]?.[0]?.input as string;
     const prompt = JSON.parse(providerInput.slice(providerInput.indexOf("\n") + 1)) as Record<string, unknown>;
@@ -2548,8 +2548,54 @@ describe("full guided-session personalization prompt", () => {
   });
 });
 
-describe("multi-target study recovery", () => {
-  it("server-normalizes a recognition-only challenge study session without making a recovery call", async () => {
+describe("bounded study failure behavior", () => {
+  it("uses the one-call compact path for an explicitly shortened material session", async () => {
+    parseResponse.mockReset();
+    const base = buildSessionEvaluationCases()
+      .find((candidate) => candidate.id === "bioenergetics_multi_target_study")!.context;
+    const materialText = "Cells couple energy-releasing reactions to energy-requiring work. ATP hydrolysis releases free energy that can drive a coupled cellular reaction.";
+    const context: SessionGenerationContext = {
+      ...base,
+      learningGoal: { ...base.learningGoal, sourceMode: "user_materials" },
+      materials: [{
+        materialId: "41111111-1111-4111-8111-111111111111",
+        chunkId: "42222222-2222-4222-8222-222222222222",
+        chunkIndex: 0,
+        name: "shortened-bioenergetics-notes.txt",
+        text: materialText,
+        truncated: false,
+        locationLabel: "Uploaded text",
+        role: "content_source",
+      }],
+      session: {
+        ...base.session,
+        estimatedMinutes: 15,
+        deferredContentTargets: ["Membrane transport applications"],
+        completionEvidence: base.session.completionEvidence?.slice(0, 2),
+      },
+    };
+    parseResponse.mockResolvedValueOnce(completedProviderResponse(
+      "direct-material-safe-study",
+      compactBioRecoveryContent(),
+    ));
+
+    const { generateSessionWithOpenAI } = await import("@/lib/openai/session-generator");
+    const result = await generateSessionWithOpenAI(context);
+
+    expect(parseResponse).toHaveBeenCalledTimes(1);
+    expect(parseResponse.mock.calls[0]?.[0]?.text?.format?.name).toBe("yova_safe_study_recovery");
+    expect(result.generationStats).toMatchObject({
+      attempts: 1,
+      firstAttemptPassed: true,
+      repairAttempted: false,
+      recoveryMode: "safe_study",
+    });
+    expect(result.draft.coverage.deferredContent).toEqual(["Membrane transport applications"]);
+    expect(result.draft.sourceGrounding?.sourceNames).toEqual(["shortened-bioenergetics-notes.txt"]);
+    await expectCompleteValidatorPass(result.draft, context);
+  });
+
+  it("server-normalizes a recognition-only challenge session without adding a provider call", async () => {
     parseResponse.mockReset();
     const base = buildSessionEvaluationCases()
       .find((candidate) => candidate.id === "bioenergetics_multi_target_study")!.context;
@@ -2645,8 +2691,7 @@ describe("multi-target study recovery", () => {
     const result = await generateSessionWithOpenAI(context);
 
     expect(parseResponse).toHaveBeenCalledTimes(1);
-    const typedRecall = result.draft.activities.find((activity) => activity.type === "free_response");
-    expect(typedRecall).toMatchObject({
+    expect(result.draft.activities.find((activity) => activity.type === "free_response")).toMatchObject({
       type: "free_response",
       choices: [],
       topicId: context.session.topicIds[0],
@@ -2663,478 +2708,32 @@ describe("multi-target study recovery", () => {
     });
   });
 
-  it("uses the bounded source-grounded path directly for a shortened material session", async () => {
+  it("fails a requested challenge session closed after two calls without entering compact recovery", async () => {
     parseResponse.mockReset();
     const base = buildSessionEvaluationCases()
-      .find((candidate) => candidate.id === "bioenergetics_multi_target_study")?.context;
-    expect(base).toBeDefined();
-    const materialText = "Cells couple energy-releasing reactions to energy-requiring work. ATP hydrolysis releases free energy that can drive a coupled cellular reaction.";
-    const context: SessionGenerationContext = {
-      ...base!,
-      learningGoal: { ...base!.learningGoal, sourceMode: "user_materials" },
-      materials: [{
-        materialId: "41111111-1111-4111-8111-111111111111",
-        chunkId: "42222222-2222-4222-8222-222222222222",
-        chunkIndex: 0,
-        name: "shortened-bioenergetics-notes.txt",
-        text: materialText,
-        truncated: false,
-        locationLabel: "Uploaded text",
-        role: "content_source",
-      }],
-      session: {
-        ...base!.session,
-        estimatedMinutes: 15,
-        deferredContentTargets: ["Membrane transport applications"],
-        completionEvidence: base!.session.completionEvidence?.slice(0, 2),
-      },
-    };
-    parseResponse.mockResolvedValueOnce(completedProviderResponse(
-      "direct-material-safe-study",
-      compactBioRecoveryContent(),
-    ));
-
-    const { generateSessionWithOpenAI } = await import("@/lib/openai/session-generator");
-    const result = await generateSessionWithOpenAI(context);
-
-    expect(parseResponse).toHaveBeenCalledTimes(1);
-    expect(parseResponse.mock.calls[0]?.[0]?.text?.format?.name).toBe("yova_safe_study_recovery");
-    expect(result.generationStats).toMatchObject({
-      attempts: 1,
-      firstAttemptPassed: true,
-      repairAttempted: false,
-      recoveryMode: "safe_study",
-    });
-    expect(result.draft.coverage.deferredContent).toEqual(["Membrane transport applications"]);
-    expect(result.draft.sourceGrounding?.sourceNames).toEqual(["shortened-bioenergetics-notes.txt"]);
-  });
-
-  it("keeps compact recovery source-grounded for mapped learner materials", async () => {
-    parseResponse.mockReset();
-    const base = buildSessionEvaluationCases()
-      .find((candidate) => candidate.id === "bioenergetics_multi_target_study")?.context;
-    expect(base).toBeDefined();
-    const materialText = "Cells couple energy-releasing reactions to energy-requiring work. ATP hydrolysis releases free energy that can drive a coupled cellular reaction.";
-    const context: SessionGenerationContext = {
-      ...base!,
-      learningGoal: {
-        ...base!.learningGoal,
-        sourceMode: "user_materials",
-      },
-      materials: [{
-        materialId: "31111111-1111-4111-8111-111111111111",
-        chunkId: "32222222-2222-4222-8222-222222222222",
-        chunkIndex: 0,
-        name: "bioenergetics-notes.txt",
-        text: materialText,
-        truncated: false,
-        locationLabel: "Uploaded text",
-        role: "content_source",
-      }],
-      knowledgeTopics: base!.knowledgeTopics.map((topic) => ({
-        ...topic,
-        origin: "material" as const,
-      })),
-    };
-    const invalidFullDraft = oversizedStudyDraft();
+      .find((candidate) => candidate.id === "bioenergetics_multi_target_study")!.context;
     parseResponse
-      .mockResolvedValueOnce(completedProviderResponse("invalid-material-initial", invalidFullDraft))
-      .mockResolvedValueOnce(completedProviderResponse("invalid-material-repair", invalidFullDraft))
-      .mockResolvedValueOnce(completedProviderResponse("material-safe-recovery", compactBioRecoveryContent()));
-
-    const { generateSessionWithOpenAI } = await import("@/lib/openai/session-generator");
-    const result = await generateSessionWithOpenAI(context);
-
-    expect(parseResponse.mock.calls[2]?.[0]?.text?.format?.name).toBe("yova_safe_study_recovery");
-    expect(result.generationStats.recoveryMode).toBe("safe_study");
-    expect(result.draft.sourceGrounding).toMatchObject({
-      mode: "materials_only",
-      sourceNames: ["bioenergetics-notes.txt"],
-      anchors: [{
-        chunkId: "32222222-2222-4222-8222-222222222222",
-        excerpt: materialText,
-      }],
-    });
-    const recoveryInput = parseResponse.mock.calls[2]?.[0]?.input as string;
-    expect(recoveryInput).toContain('"sourceMode":"user_materials"');
-    expect(recoveryInput).toContain(materialText);
-    await expectCompleteValidatorPass(result.draft, context);
-  });
-
-  it("recovers the one-topic two-target Bioenergetics session with typed recall and meaningful choice", async () => {
-    parseResponse.mockReset();
-    const context = buildSessionEvaluationCases()
-      .find((candidate) => candidate.id === "bioenergetics_multi_target_study")?.context;
-    expect(context).toBeDefined();
-    const invalidFullDraft = oversizedStudyDraft();
-    const recoveryContent = {
-      targetClaims: [
-        "Cells transfer energy from energy-releasing reactions into energy-requiring cellular work through coupled chemical processes.",
-        "ATP hydrolysis releases free energy that cells couple to energy-requiring reactions and cellular work.",
-      ],
-      topicChecks: [{
-        title: "Explain cellular energy transfer",
-        prompt: "Without notes, explain how cells use and transfer energy from energy-releasing reactions into cellular work.",
-        choices: [
-          "Cells couple energy-releasing reactions to energy-requiring work",
-          "Cells create energy from matter whenever work is required",
-          "Cells use only heat released by spontaneous reactions",
-          "Cells store all usable energy permanently in glucose",
-        ],
-        correctChoiceIndex: 0,
-        referenceAnswer: "Cells transfer energy by coupling energy released by favorable reactions to energy-requiring cellular work through chemical intermediates.",
-        feedback: "A complete explanation connects an energy-releasing reaction to a specific energy-requiring process rather than saying cells create energy.",
-      }, {
-        title: "Check ATP energy coupling",
-        prompt: "Which statement correctly explains how ATP hydrolysis and energy coupling can drive an energy-requiring cellular reaction?",
-        choices: [
-          "ATP hydrolysis is coupled to the reaction so the combined process releases free energy",
-          "ATP hydrolysis raises the activation energy until the reaction becomes favorable",
-          "ATP stores heat that directly changes an endergonic reaction into combustion",
-          "ATP hydrolysis creates new energy that the cell did not previously contain",
-        ],
-        correctChoiceIndex: 0,
-        referenceAnswer: "Cells couple ATP hydrolysis to an energy-requiring reaction so the free-energy change of the combined process is favorable.",
-        feedback: "Coupling links the favorable free-energy change of ATP hydrolysis to the energy-requiring reaction; it does not create energy.",
-      }],
-      independentExtension: null,
-      subjectModel: {
-        keyIdea: "Cells transfer energy by coupling reactions, often through ATP hydrolysis.",
-        explanation: "Energy-releasing reactions can drive energy-requiring cellular work when the processes are chemically coupled. ATP hydrolysis is one common coupling mechanism because its favorable free-energy change can make the combined process favorable.",
-        commonMistake: "ATP hydrolysis creates new energy for the cell.",
-        correction: "ATP transfers usable free energy through a coupled reaction; it does not create energy.",
-      },
-      modelExample: null,
-    };
-    parseResponse
-      .mockResolvedValueOnce(completedProviderResponse("invalid-initial", invalidFullDraft))
-      .mockResolvedValueOnce(completedProviderResponse("invalid-repair", invalidFullDraft))
-      .mockResolvedValueOnce(completedProviderResponse("safe-recovery", recoveryContent));
-
-    const { generateSessionWithOpenAI } = await import("@/lib/openai/session-generator");
-    const result = await generateSessionWithOpenAI(context!);
-
-    expect(parseResponse).toHaveBeenCalledTimes(3);
-    expect(parseResponse.mock.calls[2]?.[0]?.text?.format?.name).toBe("yova_safe_study_recovery");
-    expect(result.draft.methodBriefing.methodId).toBe("retrieval_practice");
-    expect(result.draft.activities.some((activity) => (
-      activity.requiredForCompletion && activity.type === "free_response"
-    ))).toBe(true);
-    const multipleChoice = result.draft.activities.find((activity) => activity.type === "multiple_choice");
-    expect(multipleChoice).toMatchObject({
-      topicId: context!.session.topicIds[0],
-      requiredForCompletion: true,
-      choices: recoveryContent.topicChecks[1]!.choices,
-      correctAnswer: recoveryContent.topicChecks[1]!.choices[0],
-    });
-    expect(result.draft.activities.at(-1)).toMatchObject({
-      methodPhase: "schedule_return",
-      requiredForCompletion: false,
-    });
-    expect(result.generationStats).toMatchObject({
-      attempts: 3,
-      failedValidator: "session_time_budget",
-      repairSucceeded: true,
-      recoveryMode: "safe_study",
-    });
-    const recoveryInput = parseResponse.mock.calls[2]?.[0]?.input as string;
-    expect(recoveryInput).not.toContain('"personalization"');
-    expect(recoveryInput).not.toContain('"recentInterruptions"');
-    expect(recoveryInput).not.toContain('"recentResults"');
-    await expectCompleteValidatorPass(result.draft, context!);
-  });
-
-  it("recovers after repeated structured output failures with the same complete validator", async () => {
-    parseResponse.mockReset();
-    const context = buildSessionEvaluationCases()
-      .find((candidate) => candidate.id === "bioenergetics_multi_target_study")?.context;
-    expect(context).toBeDefined();
-    const schemaFailure = Object.assign(new Error("invalid guided-session schema"), { name: "ZodError" });
-    parseResponse
-      .mockRejectedValueOnce(schemaFailure)
-      .mockResolvedValueOnce(completedProviderResponse("invalid-structured-repair", {}))
-      .mockResolvedValueOnce(completedProviderResponse("valid-safe-recovery", compactBioRecoveryContent()));
-
-    const { generateSessionWithOpenAI } = await import("@/lib/openai/session-generator");
-    const result = await generateSessionWithOpenAI(context!);
-    expect(result.generationStats).toMatchObject({
-      attempts: 3,
-      failedValidator: "session_structure",
-      repairSucceeded: true,
-      repairReason: "structured_output",
-      recoveryMode: "safe_study",
-    });
-    await expectCompleteValidatorPass(result.draft, context!);
-
-    expect(parseResponse).toHaveBeenCalledTimes(3);
-    expect(parseResponse.mock.calls.map((call) => call[0]?.text?.format?.name)).toEqual([
-      "yova_guided_session",
-      "yova_guided_session",
-      "yova_safe_study_recovery",
-    ]);
-  });
-
-  it("recovers the production derivative-foundations session without changing the router-selected method", async () => {
-    parseResponse.mockReset();
-    const context = buildSessionEvaluationCases()
-      .find((candidate) => candidate.id === "calculus_demonstrated_foundations_study_25")?.context;
-    expect(context).toBeDefined();
-    const recoveryContent = calculusFoundationsRecoveryContent();
-    parseResponse
-      .mockResolvedValueOnce(completedProviderResponse("invalid-calculus-initial", {}))
-      .mockResolvedValueOnce(completedProviderResponse("invalid-calculus-repair", {}))
-      .mockResolvedValueOnce(completedProviderResponse("safe-calculus-recovery", recoveryContent));
-
-    const { generateSessionWithOpenAI } = await import("@/lib/openai/session-generator");
-    const result = await generateSessionWithOpenAI(context!);
-
-    expect(parseResponse).toHaveBeenCalledTimes(3);
-    expect(parseResponse.mock.calls.map((call) => call[0]?.text?.format?.name)).toEqual([
-      "yova_guided_session",
-      "yova_guided_session",
-      "yova_safe_study_recovery",
-    ]);
-    expect(result.draft.methodBriefing.methodId).toBe("worked_example_fading");
-    expect(result.draft.activities.map((activity) => activity.methodPhase)).toEqual([
-      "model",
-      "guided_practice",
-      "independent_practice",
-      "independent_practice",
-    ]);
-    expect(result.draft.coverage.essentialIdeas).toEqual(recoveryContent.targetClaims);
-    expect(result.draft.coverage.completionEvidence).toEqual(context!.session.completionEvidence);
-    expect(result.draft.activities.filter((activity) => (
-      activity.topicId === context!.session.topicIds[1]
-      && activity.methodPhase === "independent_practice"
-    ))).toHaveLength(2);
-    expect(result.draft.activities[1]?.body).toMatch(/Cue: use the model/);
-    expect(result.draft.activities[1]?.body).toContain(`Target: ${context!.session.contentTargets![0]}`);
-    expect(result.draft.activities[2]?.body).toContain(`Target: ${context!.session.contentTargets![1]}`);
-    expect(result.draft.activities[2]?.body).toContain("What is g'(x)");
-    expect(result.draft.activities.at(-1)?.body).toMatch(/model closed/i);
-    expect(result.generationStats).toMatchObject({
-      attempts: 3,
-      failedValidator: "session_structure",
-      repairSucceeded: true,
-      repairReason: "structured_output",
-      recoveryMode: "safe_study",
-      validationIssueCode: "session_full_structure",
-    });
-
-    const recoveryInput = parseResponse.mock.calls[2]?.[0]?.input as string;
-    expect(JSON.parse(recoveryInput.slice(recoveryInput.indexOf("\n") + 1))).toMatchObject({
-      recoveryMethodId: "worked_example_fading",
-      session: {
-        title: "Verify derivative foundations",
-        targets: context!.session.contentTargets,
-        completionEvidence: context!.session.completionEvidence,
-      },
-    });
-    expect(recoveryInput).not.toContain('"personalization"');
-    expect(recoveryInput).not.toContain('"recentInterruptions"');
-    expect(recoveryInput).not.toContain('"recentResults"');
-    await expectCompleteValidatorPass(result.draft, context!, "worked_example_fading");
-  });
-
-  it("fails closed when the worked-example recovery omits its model and fresh independent extension", async () => {
-    parseResponse.mockReset();
-    const context = buildSessionEvaluationCases()
-      .find((candidate) => candidate.id === "calculus_demonstrated_foundations_study_25")?.context;
-    expect(context).toBeDefined();
-    const malformedRecovery = {
-      ...calculusFoundationsRecoveryContent(),
-      independentExtension: null,
-      modelExample: null,
-    };
-    parseResponse
-      .mockResolvedValueOnce(completedProviderResponse("invalid-calculus-initial", {}))
-      .mockResolvedValueOnce(completedProviderResponse("invalid-calculus-repair", {}))
-      .mockResolvedValueOnce(completedProviderResponse("incomplete-calculus-recovery", malformedRecovery));
-
-    const { generateSessionWithOpenAI } = await import("@/lib/openai/session-generator");
-    await expect(generateSessionWithOpenAI(context!)).rejects.toMatchObject({
-      name: "SessionGenerationFailure",
-      generationStats: {
-        attempts: 3,
-        failedValidator: "session_structure",
-        repairSucceeded: false,
-        recoveryMode: "safe_study",
-        validationIssueCode: "session_recovery_structure",
-      },
-    });
-    expect(parseResponse).toHaveBeenCalledTimes(3);
-  });
-
-  it("fails closed after a malformed narrow recovery without making a fourth provider call", async () => {
-    parseResponse.mockReset();
-    const context = buildSessionEvaluationCases()
-      .find((candidate) => candidate.id === "bioenergetics_multi_target_study")?.context;
-    expect(context).toBeDefined();
-    const invalidFullDraft = oversizedStudyDraft();
-    parseResponse
-      .mockResolvedValueOnce(completedProviderResponse("invalid-initial", invalidFullDraft))
-      .mockResolvedValueOnce(completedProviderResponse("invalid-repair", invalidFullDraft))
-      .mockResolvedValueOnce(completedProviderResponse("malformed-safe-recovery", {}));
-
-    const { generateSessionWithOpenAI } = await import("@/lib/openai/session-generator");
-    await expect(generateSessionWithOpenAI(context!)).rejects.toMatchObject({
-      name: "SessionGenerationFailure",
-      generationStats: {
-        attempts: 3,
-        failedValidator: "session_time_budget",
-        repairSucceeded: false,
-        recoveryMode: "safe_study",
-      },
-    });
-    expect(parseResponse).toHaveBeenCalledTimes(3);
-  });
-
-  it("recovers three authoritative Bioenergetics topics without collapsing their checks", async () => {
-    parseResponse.mockReset();
-    const base = buildSessionEvaluationCases()
-      .find((candidate) => candidate.id === "bioenergetics_multi_target_study")?.context;
-    expect(base).toBeDefined();
-    const targets = [
-      "ATP coupling in endergonic and exergonic reactions",
-      "Enzyme effects on activation energy and reaction rate",
-      "Oxidation, reduction, NADH, and FADH2",
-    ];
-    const context: SessionGenerationContext = {
-      ...base!,
-      learningGoal: {
-        ...base!.learningGoal,
-        title: "Bioenergetics Test Preparation",
-        topic: "ATP coupling, enzymes, and redox carriers",
-      },
-      knowledgeTopics: [{
-        id: BIO_TOPIC_IDS[0],
-        title: "ATP coupling",
-        description: "How ATP hydrolysis couples endergonic and exergonic reactions.",
-        subtopics: ["Endergonic reactions", "Exergonic reactions", "ATP hydrolysis"],
-        prerequisiteTopicIds: [], status: "not_started", initialEvidence: null, sourceReferences: [], origin: "ai_generated", deferred: null,
-      }, {
-        id: BIO_TOPIC_IDS[1],
-        title: "Enzymes and activation energy",
-        description: "How enzymes change activation energy and reaction rate.",
-        subtopics: ["Activation energy", "Reaction rate"],
-        prerequisiteTopicIds: [], status: "not_started", initialEvidence: null, sourceReferences: [], origin: "ai_generated", deferred: null,
-      }, {
-        id: BIO_TOPIC_IDS[2],
-        title: "Redox electron carriers",
-        description: "Oxidation, reduction, NADH, and FADH2 in energy transfer.",
-        subtopics: ["Oxidation", "Reduction", "NADH", "FADH2"],
-        prerequisiteTopicIds: [], status: "not_started", initialEvidence: null, sourceReferences: [], origin: "ai_generated", deferred: null,
-      }],
-      session: {
-        ...base!.session,
-        title: "Verify Bioenergetics prerequisites",
-        objective: "Verify the demonstrated prerequisites and identify any specific repair needed before cellular respiration.",
-        topicIds: [BIO_TOPIC_IDS[2], BIO_TOPIC_IDS[0], BIO_TOPIC_IDS[1]],
-        contentTargets: targets,
-        completionEvidence: [
-          "Explain ATP coupling without support",
-          "Explain how enzymes change activation energy and rate",
-          "Distinguish oxidation and reduction using NADH or FADH2",
-        ],
-      },
-      recentInterruptions: [{
-        occurredAt: "2026-08-15T10:00:00.000Z",
-        plannedMinutes: 25,
-        actualMinutes: 6,
-        completedSteps: 1,
-        totalSteps: 4,
-      }, {
-        occurredAt: "2026-08-16T10:00:00.000Z",
-        plannedMinutes: 25,
-        actualMinutes: 7,
-        completedSteps: 1,
-        totalSteps: 4,
-      }],
-    };
-    const recoveryContent = {
-      targetClaims: [
-        "ATP hydrolysis is exergonic and can be coupled to an endergonic reaction so the combined free-energy change is favorable.",
-        "Enzymes lower activation energy and increase reaction rate without changing the reaction's overall free-energy change.",
-        "Oxidation loses electrons, reduction gains electrons, and NADH and FADH2 carry high-energy electrons between reactions.",
-      ],
-      topicChecks: [{
-        title: "Explain ATP coupling",
-        prompt: "Without notes, explain how exergonic ATP hydrolysis can be coupled to drive an endergonic cellular reaction.",
-        choices: ["Coupling makes the combined free-energy change favorable", "Coupling makes ATP hydrolysis endergonic", "Coupling removes all activation energy", "Coupling creates energy"],
-        correctChoiceIndex: 0,
-        referenceAnswer: "The exergonic free-energy change of ATP hydrolysis can outweigh the endergonic change when the reactions are coupled, making the combined process favorable.",
-        feedback: "The key relationship is the favorable combined free-energy change, not the creation of energy or removal of activation energy.",
-      }, {
-        title: "Check enzyme effects",
-        prompt: "Which statement correctly relates an enzyme to activation energy and the rate of a biochemical reaction?",
-        choices: ["It lowers activation energy and increases reaction rate", "It raises activation energy and increases reaction rate", "It changes the reaction's overall free-energy change", "It is consumed to supply reaction energy"],
-        correctChoiceIndex: 0,
-        referenceAnswer: "An enzyme lowers the activation-energy barrier and therefore increases reaction rate without changing the overall free-energy change.",
-        feedback: "Enzymes change the kinetic barrier and rate; they do not supply energy or change the reaction's thermodynamic free-energy difference.",
-      }, {
-        title: "Check redox carriers",
-        prompt: "Which statement correctly connects oxidation, reduction, NADH, and FADH2 during cellular energy transfer?",
-        choices: ["Oxidation loses electrons while reduced NADH and FADH2 carry electrons", "Oxidation gains electrons while NADH destroys electrons", "Reduction always releases oxygen while FADH2 stores heat", "NADH and FADH2 are enzymes that lower activation energy"],
-        correctChoiceIndex: 0,
-        referenceAnswer: "Oxidation is electron loss and reduction is electron gain; NADH and FADH2 are reduced carriers that transport high-energy electrons.",
-        feedback: "Redox tracks electron transfer: oxidation loses electrons, reduction gains them, and NADH or FADH2 can carry the reduced electrons.",
-      }],
-      independentExtension: null,
-      subjectModel: {
-        keyIdea: "Bioenergetics links favorable coupling, kinetic enzyme effects, and electron transfer.",
-        explanation: "ATP coupling concerns the combined free-energy change, enzymes lower activation-energy barriers to change rates, and redox reactions transfer electrons through carriers such as NADH and FADH2. These are connected but distinct relationships.",
-        commonMistake: "Enzymes or electron carriers create the energy that reactions need.",
-        correction: "Enzymes change kinetic barriers, carriers transfer electrons, and coupling links favorable and unfavorable free-energy changes.",
-      },
-      modelExample: null,
-    };
-    const invalidFullDraft = oversizedStudyDraft();
-    parseResponse
-      .mockResolvedValueOnce(completedProviderResponse("invalid-initial-old", invalidFullDraft))
-      .mockResolvedValueOnce(completedProviderResponse("invalid-repair-old", invalidFullDraft))
-      .mockResolvedValueOnce(completedProviderResponse("safe-recovery-old", recoveryContent));
-
-    const { generateSessionWithOpenAI } = await import("@/lib/openai/session-generator");
-    const result = await generateSessionWithOpenAI(context);
-
-    expect(parseResponse).toHaveBeenCalledTimes(3);
-    expect(parseResponse.mock.calls[2]?.[0]?.text?.format?.name).toBe("yova_safe_study_recovery");
-    expect(result.draft.activities.filter((activity) => (
-      activity.type === "free_response" || activity.type === "multiple_choice"
-    )).map((activity) => activity.topicId)).toEqual([...BIO_TOPIC_IDS]);
-    expect(result.draft.activities.filter((activity) => activity.methodPhase !== "schedule_return")).toHaveLength(4);
-    expect(result.deliveryPolicy.pacing.maximumActivities).toBe(4);
-    expect(result.generationStats).toMatchObject({
-      attempts: 3,
-      failedValidator: "session_time_budget",
-      repairSucceeded: true,
-      recoveryMode: "safe_study",
-    });
-    await expectCompleteValidatorPass(result.draft, context);
-  });
-
-  it("does not substitute the bounded recovery for a requested challenge session", async () => {
-    parseResponse.mockReset();
-    const base = buildSessionEvaluationCases()
-      .find((candidate) => candidate.id === "bioenergetics_multi_target_study")?.context;
-    expect(base).toBeDefined();
-    const invalidFullDraft = oversizedStudyDraft();
-    parseResponse.mockResolvedValue(completedProviderResponse("invalid-challenge", invalidFullDraft));
+      .mockResolvedValueOnce(completedProviderResponse("invalid-challenge-initial", {}))
+      .mockResolvedValueOnce(completedProviderResponse("invalid-challenge-repair", {}));
 
     const { generateSessionWithOpenAI } = await import("@/lib/openai/session-generator");
     await expect(generateSessionWithOpenAI({
-      ...base!,
+      ...base,
       sessionAdjustment: {
         familiarity: "challenge_me",
         availableMinutes: 25,
         knownTargets: [],
-        note: "",
+        note: "Use a demanding but bounded application of the same targets.",
       },
-    })).rejects.toMatchObject({ name: "SessionGenerationFailure" });
-
-    expect(parseResponse).toHaveBeenCalledTimes(3);
+    })).rejects.toMatchObject({
+      name: "SessionGenerationFailure",
+      generationStats: {
+        attempts: 2,
+        stage: "validation",
+        cause: "invalid_structure",
+      },
+    });
     expect(parseResponse.mock.calls.map((call) => call[0]?.text?.format?.name)).toEqual([
-      "yova_guided_session",
       "yova_guided_session",
       "yova_guided_session",
     ]);
@@ -3263,10 +2862,9 @@ describe("scheduled retrieval generation", () => {
       feedback: "about_right" as const,
       expected: /promising.*independent.*transfer/i,
     },
-  ])("deterministically surfaces $label retrieval outcomes without a repair call", async ({
+  ])("does not grant raw $label retrieval outcomes route-authority during slot filling", async ({
     correctAnswers,
     feedback,
-    expected,
   }) => {
     parseResponse.mockReset();
     parseResponse.mockResolvedValue(completedProviderResponse(
@@ -3301,7 +2899,9 @@ describe("scheduled retrieval generation", () => {
 
     expect(parseResponse).toHaveBeenCalledTimes(1);
     expect(result.generationStats.attempts).toBe(1);
-    expect(result.draft.methodBriefing.personalization.join(" ")).toMatch(expected);
+    const personalization = result.draft.methodBriefing.personalization.join(" ");
+    expect(personalization).not.toMatch(/promising|needs? more support|best method/i);
+    expect(personalization).toMatch(/scheduled return|current task/i);
   });
 
   it("fails before the provider when a scheduled three-question review receives a teaching-first adjustment", async () => {
@@ -3887,7 +3487,14 @@ describe("whose words decide the task type", () => {
     parseResponse.mockReset();
     parseResponse.mockRejectedValue(new Error("provider unavailable"));
     const { generateSessionWithOpenAI } = await import("@/lib/openai/session-generator");
-    await expect(generateSessionWithOpenAI(context)).rejects.toThrow("provider unavailable");
+    await expect(generateSessionWithOpenAI(context)).rejects.toMatchObject({
+      name: "SessionGenerationFailure",
+      generationStats: {
+        attempts: 1,
+        stage: "provider",
+        cause: "provider_request",
+      },
+    });
 
     const providerInput = parseResponse.mock.calls[0]?.[0]?.input as string;
     const prompt = JSON.parse(providerInput.slice(providerInput.indexOf("\n") + 1)) as {

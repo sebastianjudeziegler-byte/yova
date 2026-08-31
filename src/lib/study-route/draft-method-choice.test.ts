@@ -35,6 +35,7 @@ import {
   blurtingRecipeRuntimeTrace,
 } from "@/lib/study-route/method-recipe-contract";
 import { materialStudyRouteChanges } from "@/lib/study-route/revisions";
+import { resolvePersonalizationRollout } from "@/lib/study-route/personalization-rollout";
 import { StudyRouteSchema, type StudyRoute } from "@/lib/study-route/schema";
 
 const NOW = new Date("2026-08-24T12:00:00.000Z");
@@ -124,6 +125,64 @@ describe("normal-plan draft method choice", () => {
         result: `learner_choice:${methodId}`,
       }),
     ]));
+  });
+
+  it("authorizes a hidden eligible method only through I'll Customize Other methods", () => {
+    const original = routedPlan(emptyContext());
+    const originalSession = original.sessions.find((candidate) => (
+      route(candidate.studyRoute).agency.alternatives.length > 0
+    ))!;
+    const originalRoute = route(originalSession.studyRoute);
+    const hiddenMethodId = originalRoute.agency.alternatives[0]!.primaryMethodId;
+    const customizeRoute = StudyRouteSchema.parse({
+      ...originalRoute,
+      agency: {
+        ...originalRoute.agency,
+        controlMode: "learner_customizes",
+        alternatives: [],
+      },
+    });
+    const customizePlan: LearningPlan = {
+      ...original,
+      sessions: original.sessions.map((candidate) => (
+        candidate.id === originalSession.id
+          ? { ...candidate, studyRoute: customizeRoute }
+          : candidate
+      )),
+    };
+
+    expectDraftChoiceError(() => reviseDraftSessionMethod({
+      plan: customizePlan,
+      selection: {
+        sessionId: originalSession.id,
+        expectedRouteRevisionId: customizeRoute.identity.routeRevisionId,
+        methodId: hiddenMethodId,
+      },
+      changedAt: FIRST_CHANGE,
+    }), "method_not_offered");
+
+    const result = reviseDraftSessionMethod({
+      plan: customizePlan,
+      selection: {
+        sessionId: originalSession.id,
+        expectedRouteRevisionId: customizeRoute.identity.routeRevisionId,
+        methodId: hiddenMethodId,
+        choiceScope: "other_eligible_method",
+      },
+      changedAt: FIRST_CHANGE,
+    });
+
+    expect(result.status).toBe("updated");
+    const chosen = route(
+      result.plan.sessions.find((candidate) => candidate.id === originalSession.id)!
+        .studyRoute,
+    );
+    expect(chosen.approach.primaryMethodId).toBe(hiddenMethodId);
+    expect(chosen.agency.controlMode).toBe("learner_customizes");
+    expect(chosen.provenance.ruleTrace).toContainEqual(expect.objectContaining({
+      ruleId: DRAFT_METHOD_CHOICE_POLICY_VERSION,
+      reason: "The learner requested an eligible, deliverable method through I'll Customize Other methods for this uncommitted session recipe.",
+    }));
   });
 
   it("returns the same plan when the selected method is already current", () => {
@@ -594,6 +653,10 @@ function memorySignalContext(): InitialPlanMethodRoutingContext {
       paused: false,
     }),
     observedEvidence: [],
+    rolloutDecision: resolvePersonalizationRollout({
+      rolloutPercent: 100,
+      subjectKey: "draft-method-choice-test",
+    }),
   };
 }
 

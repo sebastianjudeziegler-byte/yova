@@ -165,6 +165,43 @@ describe("privacySafeErrorDiagnostic", () => {
     });
   });
 
+  it("surfaces only enumerated generation stage, cause, strategy, and fallback metadata", () => {
+    const safeError = new Error("private learner content");
+    Object.assign(safeError, {
+      name: "SessionGenerationFailure",
+      generationStats: {
+        attempts: 2,
+        strategy: "streamed",
+        stage: "fallback",
+        cause: "invalid_structure",
+        degradedMode: "source_grounded",
+      },
+    });
+    expect(privacySafeErrorDiagnostic(safeError)).toEqual({
+      reason: "Error",
+      name: "SessionGenerationFailure",
+      attempts: 2,
+      generationStrategy: "streamed",
+      generationStage: "fallback",
+      generationCause: "invalid_structure",
+      degradedMode: "source_grounded",
+    });
+
+    const unsafeError = new Error("private learner content");
+    Object.assign(unsafeError, {
+      generationStats: {
+        attempts: 2,
+        strategy: "private learner strategy",
+        stage: "private learner stage",
+        cause: "private learner answer",
+        degradedMode: "invented from private notes",
+      },
+    });
+    const unsafeDiagnostic = privacySafeErrorDiagnostic(unsafeError);
+    expect(unsafeDiagnostic).toEqual({ reason: "Error", name: "Error", attempts: 2 });
+    expect(JSON.stringify(unsafeDiagnostic)).not.toContain("private learner");
+  });
+
   it("drops a free-form validation issue instead of logging it", () => {
     const error = new Error("private learner content");
     Object.assign(error, {

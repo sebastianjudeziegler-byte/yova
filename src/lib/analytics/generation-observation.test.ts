@@ -90,6 +90,40 @@ describe("GenerationObservationSchema", () => {
     }).success).toBe(false);
   });
 
+  it("keeps session strategy, fallback, and persistence diagnostics bounded", () => {
+    expect(GenerationObservationSchema.safeParse({
+      ...safeEvent,
+      finalOutcome: "fallback",
+      diagnostics: {
+        sessionGenerationStrategy: "streamed",
+        sessionGenerationStage: "persistence",
+        sessionGenerationCause: "cache_write",
+        sessionFallbackMode: "source_grounded",
+        sessionPersistence: "browser_only",
+        sessionPersistenceCause: "cache_write",
+      },
+    }).success).toBe(true);
+    for (const cause of ["source_unavailable", "fallback_unavailable"] as const) {
+      expect(GenerationObservationSchema.safeParse({
+        ...safeEvent,
+        finalOutcome: "failure",
+        diagnostics: {
+          sessionGenerationStrategy: "full",
+          sessionGenerationStage: "fallback",
+          sessionGenerationCause: cause,
+        },
+      }).success).toBe(true);
+    }
+    expect(GenerationObservationSchema.safeParse({
+      ...safeEvent,
+      diagnostics: {
+        sessionGenerationStrategy: "learner-chosen private strategy",
+        sessionGenerationCause: "provider included private learner text",
+        sessionPersistence: "saved beside private study notes",
+      },
+    }).success).toBe(false);
+  });
+
   it("accepts only enumerated session validation issue codes", () => {
     expect(GenerationObservationSchema.safeParse({
       ...safeEvent,
@@ -155,6 +189,35 @@ describe("GenerationObservationSchema", () => {
         streamCompleted: true,
       },
     }).success).toBe(true);
+  });
+
+  it("rejects raw provider and learner-bearing lesson diagnostics", () => {
+    for (const diagnostics of [
+      { providerMessage: "The provider echoed the learner's private goal." },
+      { lessonSubstanceNote: "The lesson omitted the learner's private essential idea." },
+    ]) {
+      expect(GenerationObservationSchema.safeParse({
+        ...safeEvent,
+        generationType: "lesson",
+        diagnostics,
+      }).success).toBe(false);
+    }
+
+    expect(GenerationObservationSchema.safeParse({
+      ...safeEvent,
+      generationType: "lesson",
+      diagnostics: {
+        lessonTruncatedToBudget: true,
+        lessonQualityNote: "slightly_below_word_floor",
+      },
+    }).success).toBe(true);
+    expect(GenerationObservationSchema.safeParse({
+      ...safeEvent,
+      generationType: "lesson",
+      diagnostics: {
+        lessonQualityNote: "missing the learner's private osmosis target",
+      },
+    }).success).toBe(false);
   });
 
   it("accepts a bounded lesson failure kind but rejects free-form failure detail", () => {

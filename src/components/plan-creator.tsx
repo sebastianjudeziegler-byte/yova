@@ -22,6 +22,7 @@ import { GoalClarification } from "@/components/goal-clarification";
 import { MaterialFileDropzone } from "@/components/material-file-dropzone";
 import { MaterialLinkImporter } from "@/components/material-link-importer";
 import { PlanGenerationNotice } from "@/components/plan-generation-notice";
+import { StudyRouteRecipeCard } from "@/components/study-route-recipe-card";
 import { makeId, type LearningMaterial, type LearningPlan } from "@/lib/domain";
 import {
   abandonUploadedMaterials,
@@ -54,6 +55,7 @@ import { inferPlanScopeContract } from "@/lib/plan-generation/scope-contract";
 import { buildPlanContentBudget } from "@/lib/plan-generation/content-budget";
 import { LEARNING_INTENT_COPY, resolveLearningIntent } from "@/lib/learning/learning-intent";
 import type { CoreMethodId } from "@/lib/learning/method-catalog";
+import type { CanonicalLearnerProfile } from "@/lib/personalization/canonical-profile-schema";
 import type { AddIntakeSeed } from "@/lib/intake/schema";
 import { assessGoalContext } from "@/lib/learning/goal-context";
 import {
@@ -79,6 +81,7 @@ import {
   resolveStudyRouteSessionContract,
   selectSessionActiveMinutes,
 } from "@/lib/study-route/selectors";
+import { agencyModeForStudyRouteControlMode } from "@/lib/study-route/agency-mode-controller";
 import { developmentPreviewPreferenceRequestInput } from "@/lib/plan-generation/development-preview-preferences";
 
 type PlanStep = "goal" | "source" | "schedule" | "diagnostic-loading" | "diagnostic" | "confirm" | "loading" | "error" | "result";
@@ -87,10 +90,12 @@ type SourceChoice = "materials" | "yova" | "outside";
 export function planCreatorPreviewPreferenceRequestInput(
   browserPreviewMode: boolean,
   previewPreferredMethodIds: readonly CoreMethodId[],
+  previewCanonicalProfile?: Readonly<CanonicalLearnerProfile> | null,
 ) {
   return developmentPreviewPreferenceRequestInput(
     browserPreviewMode,
     previewPreferredMethodIds,
+    previewCanonicalProfile,
   );
 }
 
@@ -100,6 +105,7 @@ export function PlanCreator({
   profileSummary,
   browserPreviewMode = false,
   previewPreferredMethodIds = [],
+  previewCanonicalProfile = null,
   seed = null,
 }: {
   onExit: () => void;
@@ -107,6 +113,7 @@ export function PlanCreator({
   profileSummary: string;
   browserPreviewMode?: boolean;
   previewPreferredMethodIds?: readonly CoreMethodId[];
+  previewCanonicalProfile?: Readonly<CanonicalLearnerProfile> | null;
   seed?: AddIntakeSeed | null;
 }) {
   const scheduleRecommendation = recommendStudySchedule(profileSummary);
@@ -232,6 +239,7 @@ export function PlanCreator({
       ...planCreatorPreviewPreferenceRequestInput(
         browserPreviewMode,
         previewPreferredMethodIds,
+        previewCanonicalProfile,
       ),
       ...(diagnosticMap ? { knowledgeMap: diagnosticMap } : {}),
       ...overrides,
@@ -801,11 +809,13 @@ export function PlanCreator({
           <div className="generated-roadmap" aria-label="Learning roadmap">{generatedPhases.map((phase) => <section className="generated-phase" key={`${phase.key}-${phase.number}`}><header><div><span>{phase.number}</span><div><small>PLAN PHASE</small><h2>{phase.label}</h2></div></div><p>{phase.description}</p></header><div className="generated-timeline">{phase.sessions.map((session) => {
             const route = session.studyRoute;
             const alternatives = route?.identity.lifecycleStatus === "provisional"
+              && agencyModeForStudyRouteControlMode(route.agency.controlMode).mode
+                !== "yova_decides"
               ? route.agency.alternatives
               : [];
             const editing = methodEditorSessionId === session.id;
             const updating = methodUpdatingSessionId === session.id;
-            return <article key={session.id} aria-label={`Session ${session.sequence}: ${session.title}`}><span>{session.sequence}</span><div><small>{session.learningMode === "learn" ? "TEACHING FIRST" : "PRACTICE FIRST"} · {formatSessionDate(session.scheduledFor)}</small><h3>{session.title}</h3><p>{session.method}</p><details className="generated-method-reason" aria-label={`Method decision for ${session.title}`}><summary>{route?.agency.selectedBy === "learner" ? "Why this method fits" : "Why YOVA chose this"}</summary><p>{session.methodReason}</p>{alternatives.length > 0 && <div className="draft-method-choice"><button type="button" className="draft-method-choice-trigger" disabled={Boolean(methodUpdatingSessionId) || activating} onClick={() => {
+            return <article key={session.id} aria-label={`Session ${session.sequence}: ${session.title}`}><span>{session.sequence}</span><div><small>{session.learningMode === "learn" ? "TEACHING FIRST" : "PRACTICE FIRST"} · {formatSessionDate(session.scheduledFor)}</small><h3>{session.title}</h3><p>{session.method}</p>{route && <StudyRouteRecipeCard route={route} showAlternatives={false} />}<details className="generated-method-reason" aria-label={`Method decision for ${session.title}`}><summary>{route?.agency.selectedBy === "learner" ? "Why this method fits" : "Why YOVA chose this"}</summary><p>{session.methodReason}</p>{alternatives.length > 0 && <div className="draft-method-choice"><button type="button" className="draft-method-choice-trigger" disabled={Boolean(methodUpdatingSessionId) || activating} onClick={() => {
               setMethodChoiceError(null);
               setMethodChoiceNotice(null);
               setMethodEditorSessionId((current) => current === session.id ? null : session.id);

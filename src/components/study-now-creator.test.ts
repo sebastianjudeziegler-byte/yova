@@ -7,6 +7,7 @@ import {
   studyNowPreviewPreferenceRequestInput,
 } from "@/components/study-now-creator";
 import type { AddIntakeSeed } from "@/lib/intake/schema";
+import { createCanonicalLearnerProfile } from "@/lib/personalization/canonical-profile-schema";
 
 vi.mock("@/components/brand-mark", () => ({ BrandMark: () => null }));
 
@@ -48,15 +49,23 @@ describe("StudyNowCreator request summary", () => {
   });
 
   it("sends canonical method preferences only in browser preview mode", () => {
+    const previewCanonicalProfile = createCanonicalLearnerProfile([{
+      signalId: "control_mode",
+      value: "help_me_choose",
+      source: "canonical_questionnaire",
+      sourceQuestionId: "profile_control_mode",
+      provenance: "direct_answer",
+    }]);
     expect(studyNowPreviewPreferenceRequestInput(true, [
       "retrieval_practice",
       "self_explanation",
-    ])).toEqual({
+    ], previewCanonicalProfile)).toEqual({
       previewPreferredMethodIds: ["retrieval_practice", "self_explanation"],
+      previewCanonicalProfile,
     });
     expect(studyNowPreviewPreferenceRequestInput(false, [
       "retrieval_practice",
-    ])).toEqual({});
+    ], previewCanonicalProfile)).toEqual({});
     expect(studyNowPreviewPreferenceRequestInput(true, [])).toEqual({});
   });
 });

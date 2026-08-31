@@ -73,11 +73,11 @@ describe("StudyMethodBriefing", () => {
     expect(html).toContain("How surface currents move warm water");
     expect(html).toContain("How deep currents return colder water");
     expect(html).toContain("Explain the heat-transfer relationship without support");
-    expect(html).toContain("Self-explanation");
-    expect(html).toContain("Explain how and why an idea works in your own words");
+    expect(html).toContain("Feynman Technique");
+    expect(html).toContain("Explain an idea in plain language");
     expect(html).toContain(session.methodReason);
     expect(html).toContain("Study one concise explanation or example");
-    expect(html).toContain("Compare with the source and repair the explanation");
+    expect(html).toContain("Compare with the source, repair the explanation, then teach it back again");
     expect(html).toContain("outside source remains the source of truth");
     expect(html).toContain("counts as practice, not proof of topic mastery");
   });
@@ -110,7 +110,7 @@ describe("StudyMethodBriefing", () => {
 
     expect(html).toContain('data-learning-mode="learn"');
     expect(html).toContain("Teaching first");
-    expect(html).toContain("Self-explanation");
+    expect(html).toContain("Feynman Technique");
     expect(html).toContain("Study one concise explanation or example");
     expect(html).not.toContain("Hide the answer or close the source");
   });

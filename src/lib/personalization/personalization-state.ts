@@ -12,6 +12,10 @@ import {
   CORE_METHOD_IDS,
   type CoreMethodId,
 } from "@/lib/learning/method-catalog";
+import {
+  CanonicalLearnerProfileSchema,
+  type CanonicalLearnerProfile,
+} from "@/lib/personalization/canonical-profile-schema";
 
 export const PERSONALIZATION_STATE_VERSION = 1 as const;
 export const PERSONALIZATION_STATE_ANSWER_INDEX = 16;
@@ -137,6 +141,11 @@ export type PersonalizationState = {
     completedAt: string | null;
   };
   controls: PersonalizationControls;
+  /**
+   * The one editable v1 profile. Omission preserves byte compatibility for
+   * accounts that have not opened or saved the consolidated questionnaire.
+   */
+  canonicalProfile?: CanonicalLearnerProfile;
   /**
    * Methods the learner would like YOVA to favor when they are already valid
    * for the current task. Absence and an empty list are intentionally the
@@ -612,6 +621,9 @@ function normalizePersonalizationState(value: unknown): PersonalizationState {
   const normalizedPreferredMethodIds = sanitizePreferredMethodIds(
     value.preferredMethodIds,
   );
+  const canonicalProfile = CanonicalLearnerProfileSchema.safeParse(
+    value.canonicalProfile,
+  );
   const complete = STUDY_PROFILE_QUESTION_IDS.every((id) => Boolean(answers[id]));
 
   return {
@@ -632,6 +644,9 @@ function normalizePersonalizationState(value: unknown): PersonalizationState {
       ),
       receipts: booleanOr(controls.receipts, defaults.controls.receipts),
     },
+    ...(canonicalProfile.success
+      ? { canonicalProfile: canonicalProfile.data }
+      : {}),
     ...(normalizedPreferredMethodIds.length > 0
       ? { preferredMethodIds: normalizedPreferredMethodIds }
       : {}),

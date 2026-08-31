@@ -16,8 +16,10 @@ import { BrandMark } from "@/components/brand-mark";
 import { GoalClarification } from "@/components/goal-clarification";
 import { MaterialFileDropzone } from "@/components/material-file-dropzone";
 import { MaterialLinkImporter } from "@/components/material-link-importer";
+import { StudyRouteRecipeCard } from "@/components/study-route-recipe-card";
 import type { LearningMaterial, LearningPlan } from "@/lib/domain";
 import type { CoreMethodId } from "@/lib/learning/method-catalog";
+import type { CanonicalLearnerProfile } from "@/lib/personalization/canonical-profile-schema";
 import {
   abandonUploadedMaterials,
   deleteUploadedMaterial,
@@ -37,6 +39,7 @@ import {
   type PlanGenerationResponse,
 } from "@/lib/plan-generation/schema";
 import { explainStudyRouteDuration } from "@/lib/study-route/duration-explanation";
+import { agencyModeForStudyRouteControlMode } from "@/lib/study-route/agency-mode-controller";
 import { StudyRouteSchema } from "@/lib/study-route/schema";
 import { LEARNING_INTENT_COPY, resolveLearningIntent } from "@/lib/learning/learning-intent";
 import { assessGoalContext } from "@/lib/learning/goal-context";
@@ -61,10 +64,12 @@ const startingPoints = [
 export function studyNowPreviewPreferenceRequestInput(
   browserPreviewMode: boolean,
   previewPreferredMethodIds: readonly CoreMethodId[],
+  previewCanonicalProfile?: Readonly<CanonicalLearnerProfile> | null,
 ) {
   return developmentPreviewPreferenceRequestInput(
     browserPreviewMode,
     previewPreferredMethodIds,
+    previewCanonicalProfile,
   );
 }
 
@@ -74,6 +79,7 @@ export function StudyNowCreator({
   profileSummary,
   browserPreviewMode = false,
   previewPreferredMethodIds = [],
+  previewCanonicalProfile = null,
   seed = null,
 }: {
   onExit: () => void;
@@ -81,6 +87,7 @@ export function StudyNowCreator({
   profileSummary: string;
   browserPreviewMode?: boolean;
   previewPreferredMethodIds?: readonly CoreMethodId[];
+  previewCanonicalProfile?: Readonly<CanonicalLearnerProfile> | null;
   seed?: AddIntakeSeed | null;
 }) {
   const [step, setStep] = useState<StudyNowStep>(seed ? "source" : "setup");
@@ -265,6 +272,7 @@ export function StudyNowCreator({
         ...studyNowPreviewPreferenceRequestInput(
           browserPreviewMode,
           previewPreferredMethodIds,
+          previewCanonicalProfile,
         ),
         ...(methodId ? { methodChoice: { methodId } } : {}),
         ...(methodId && draft?.response.plan.knowledgeMap
@@ -325,6 +333,9 @@ export function StudyNowCreator({
   const reviewedSession = draft?.response.plan.sessions[0] ?? null;
   const reviewedRouteResult = StudyRouteSchema.safeParse(reviewedSession?.studyRoute);
   const reviewedRoute = reviewedRouteResult.success ? reviewedRouteResult.data : null;
+  const reviewedAgencyMode = reviewedRoute
+    ? agencyModeForStudyRouteControlMode(reviewedRoute.agency.controlMode).mode
+    : null;
   const durationExplanation = reviewedRoute
     ? explainStudyRouteDuration(reviewedRoute.timing)
     : null;
@@ -403,9 +414,10 @@ export function StudyNowCreator({
       {step === "review" && draft && reviewedSession && reviewedRoute && (
         <section className="plan-panel">
           <span className="step-label">YOUR SESSION RECIPE</span>
-          <h1>{reviewedRoute.agency.selectedBy === "learner" ? "Your method is ready." : "YOVA recommends this method."}</h1>
-          <p className="plan-description">The task and your current starting point limit the safe choices. Pick another option only if you prefer it today.</p>
+          <h1>{reviewedRoute.agency.selectedBy === "learner" ? "Your method is ready." : reviewedAgencyMode === "yova_decides" ? "YOVA selected this method." : reviewedAgencyMode === "ill_customize" ? "Choose your method." : "YOVA recommends this method."}</h1>
+          <p className="plan-description">The task and your current starting point limit the safe choices. {reviewedAgencyMode === "yova_decides" ? "YOVA has selected the strongest supported route." : "Choose another shown option only if you prefer it today."}</p>
           <div className="plan-goal-echo"><span>YOUR REQUEST</span><p>{goal}</p><button className="button ghost" onClick={() => setStep("source")}>Edit</button></div>
+          <StudyRouteRecipeCard route={reviewedRoute} showAlternatives={false} />
           <div className="study-now-field">
             <strong>Recommended session</strong>
             <div className="study-now-options">
@@ -416,11 +428,11 @@ export function StudyNowCreator({
             </div>
             <p className="approach-preview"><Sparkles size={15} /><span><strong>{reviewedRoute.timing.activeMinutes} focused minutes.</strong> {durationExplanation}</span></p>
           </div>
-          {reviewedRoute.agency.alternatives.length > 0 && <div className="study-now-field">
+          {reviewedAgencyMode !== "yova_decides" && reviewedRoute.agency.alternatives.length > 0 && <div className="study-now-field">
             <strong>Other methods that also fit</strong>
             <div className="study-now-options">{reviewedRoute.agency.alternatives.map((alternative) => <button key={alternative.alternativeId} aria-pressed="false" disabled={activating} onClick={() => void generateSession({ reviewBeforeStart: true, methodId: alternative.primaryMethodId })}><span><strong>{alternative.visibleMethodName}</strong><small>{alternative.tradeoff}</small></span></button>)}</div>
           </div>}
-          <footer className="plan-actions"><button className="button ghost" disabled={activating} onClick={() => setStep("source")}><ArrowLeft size={17} /> Back</button><button className="button primary" disabled={activating} onClick={() => void activateSession(draft)}>{activating ? "Saving…" : "Start this session"} <ArrowRight size={17} /></button></footer>
+          <footer className="plan-actions"><button className="button ghost" disabled={activating} onClick={() => setStep("source")}><ArrowLeft size={17} /> Back</button><button className="button primary" disabled={activating} onClick={() => void activateSession(draft)}>{activating ? "Saving…" : reviewedAgencyMode === "help_me_choose" ? "Confirm and start" : "Start this session"} <ArrowRight size={17} /></button></footer>
         </section>
       )}
 

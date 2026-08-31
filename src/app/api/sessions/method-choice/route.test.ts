@@ -21,6 +21,7 @@ const mocks = vi.hoisted(() => ({
   createServer: vi.fn(),
   routeFromRow: vi.fn(),
   createChoice: vi.fn(),
+  resolveOtherMethod: vi.fn(),
   tableResults: new Map<string, { data: unknown; error: unknown }>(),
 }));
 
@@ -34,6 +35,10 @@ vi.mock("@/lib/study-route/persistence", async (importOriginal) => {
 vi.mock("@/lib/study-route/committed-method-choice", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/study-route/committed-method-choice")>();
   return { ...actual, createCommittedMethodChoiceSuccessor: mocks.createChoice };
+});
+vi.mock("@/lib/study-route/agency-mode-controller", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/study-route/agency-mode-controller")>();
+  return { ...actual, resolveBoundedOtherMethodRequest: mocks.resolveOtherMethod };
 });
 
 import { PATCH } from "@/app/api/sessions/method-choice/route";
@@ -67,6 +72,16 @@ describe("saved-session method choice route", () => {
     });
     mocks.routeFromRow.mockReturnValue(previous);
     mocks.createChoice.mockReturnValue({ status: "updated", session: projection });
+    mocks.resolveOtherMethod.mockReturnValue({
+      policyVersion: "study_route_agency_mode_controller_v1",
+      status: "mapped",
+      mappingKind: "recipe_alias",
+      requestedLabel: "Blurting",
+      requestedMethodId: "retrieval_practice",
+      selectedMethodId: "pretesting",
+      selectedMethodName: "Pretesting",
+      conflictExplanation: "Blurting is mapped to the eligible Pretesting implementation for this exact route.",
+    });
     mocks.tableResults.set("plans", {
       data: { id: PLAN_ID, learning_item_id: ITEM_ID, status: "active" },
       error: null,
@@ -152,6 +167,57 @@ describe("saved-session method choice route", () => {
     expect(mocks.rpc).toHaveBeenCalledWith(
       "change_plan_session_method_with_route",
       { payload: expect.objectContaining({ successorStudyRoute: successor }) },
+    );
+  });
+
+  it("maps an Other-method label and sends the bounded scope to the authenticated RPC", async () => {
+    const otherSuccessor = directSuccessor(previous, "pretesting");
+    const otherProjection = {
+      id: SESSION_ID,
+      method: otherSuccessor.approach.visibleMethodName,
+      methodReason: otherSuccessor.explanation.shortReason,
+      estimatedMinutes: otherSuccessor.timing.activeMinutes,
+      studyRoute: otherSuccessor,
+    };
+    mocks.createChoice.mockReturnValue({ status: "updated", session: otherProjection });
+    mocks.rpc.mockResolvedValueOnce({
+      data: {
+        status: "updated",
+        planId: PLAN_ID,
+        planSessionId: SESSION_ID,
+        previousRouteRevisionId: previous.identity.routeRevisionId,
+        session: otherProjection,
+      },
+      error: null,
+    });
+    const response = await PATCH(choiceRequest({
+      methodId: undefined,
+      selectionScope: "other_eligible_method",
+      requestedMethod: "Blurting",
+    }));
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      methodRequestResolution: {
+        status: "mapped",
+        requestedLabel: "Blurting",
+        selectedMethodId: "pretesting",
+      },
+    });
+    expect(mocks.resolveOtherMethod).toHaveBeenCalledWith({
+      route: previous,
+      requestedMethod: "Blurting",
+    });
+    expect(mocks.createChoice).toHaveBeenCalledWith(expect.objectContaining({
+      methodId: "pretesting",
+      choiceScope: "other_eligible_method",
+    }));
+    expect(mocks.rpc).toHaveBeenCalledWith(
+      "change_plan_session_method_with_route",
+      { payload: expect.objectContaining({
+        selectionScope: "other_eligible_method",
+        successorStudyRoute: otherSuccessor,
+      }) },
     );
   });
 
@@ -377,7 +443,13 @@ function committedRoute() {
   return StudyRouteSchema.parse(adaptation.route);
 }
 
-function directSuccessor(previous: StudyRoute) {
+function directSuccessor(
+  previous: StudyRoute,
+  methodId: "self_explanation" | "pretesting" = "self_explanation",
+) {
+  const visibleMethodName = methodId === "pretesting"
+    ? "Pretesting"
+    : "Self-explanation";
   return StudyRouteSchema.parse({
     ...previous,
     identity: {
@@ -391,12 +463,12 @@ function directSuccessor(previous: StudyRoute) {
     },
     approach: {
       ...previous.approach,
-      primaryMethodId: "self_explanation",
-      visibleMethodName: "Self-explanation",
+      primaryMethodId: methodId,
+      visibleMethodName,
     },
     explanation: {
       ...previous.explanation,
-      shortReason: "You chose Self-explanation from the methods that also fit this exact session.",
+      shortReason: `You chose ${visibleMethodName} from the methods that also fit this exact session.`,
     },
   });
 }

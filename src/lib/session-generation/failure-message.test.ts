@@ -5,9 +5,13 @@ import {
   guidedSessionAllowanceExhaustedResponse,
   guidedSessionFailureMessage,
   guidedSessionFailureResponse,
+  FALLBACK_UNAVAILABLE_GUIDED_SESSION_FAILURE_CODE,
+  FALLBACK_UNAVAILABLE_GUIDED_SESSION_FAILURE_MESSAGE,
   GUIDED_SESSION_ALLOWANCE_EXHAUSTED_CODE,
   GUIDED_SESSION_ALLOWANCE_EXHAUSTED_MESSAGE,
   RETRYABLE_GUIDED_SESSION_FAILURE_MESSAGE,
+  SOURCE_UNAVAILABLE_GUIDED_SESSION_FAILURE_CODE,
+  SOURCE_UNAVAILABLE_GUIDED_SESSION_FAILURE_MESSAGE,
   TRANSIENT_GUIDED_SESSION_FAILURE_CODE,
   VALIDATION_GUIDED_SESSION_FAILURE_MESSAGE,
   VALIDATION_GUIDED_SESSION_FAILURE_CODE,
@@ -106,6 +110,25 @@ describe("guidedSessionFailureMessage", () => {
       code: TRANSIENT_GUIDED_SESSION_FAILURE_CODE,
       retryable: true,
     });
+  });
+
+  it("gives missing-source and fallback-unavailable failures setup actions instead of outage copy", () => {
+    const sourceUnavailable = failureStats({ cause: "source_unavailable" });
+    const fallbackUnavailable = failureStats({ cause: "fallback_unavailable" });
+
+    expect(responseForFailure(sourceUnavailable)).toEqual({
+      error: SOURCE_UNAVAILABLE_GUIDED_SESSION_FAILURE_MESSAGE,
+      code: SOURCE_UNAVAILABLE_GUIDED_SESSION_FAILURE_CODE,
+      retryable: false,
+    });
+    expect(SOURCE_UNAVAILABLE_GUIDED_SESSION_FAILURE_MESSAGE).toMatch(/attach|reprocess/i);
+    expect(SOURCE_UNAVAILABLE_GUIDED_SESSION_FAILURE_MESSAGE).toMatch(/source-independent/i);
+    expect(responseForFailure(fallbackUnavailable)).toEqual({
+      error: FALLBACK_UNAVAILABLE_GUIDED_SESSION_FAILURE_MESSAGE,
+      code: FALLBACK_UNAVAILABLE_GUIDED_SESSION_FAILURE_CODE,
+      retryable: false,
+    });
+    expect(FALLBACK_UNAVAILABLE_GUIDED_SESSION_FAILURE_MESSAGE).not.toMatch(/try again|outage/i);
   });
 
   it("retains retry guidance for an incomplete provider response or unclassified error", () => {

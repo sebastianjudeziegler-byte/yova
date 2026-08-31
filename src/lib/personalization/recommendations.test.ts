@@ -5,6 +5,7 @@ import {
   defaultPersonalizationState,
   writePersonalizationStateToAnswers,
 } from "@/lib/personalization/personalization-state";
+import { legacyPlanSessionToStudyRoute } from "@/lib/study-route/adapters";
 
 const plan: LearningPlan = {
   id: "00000000-0000-4000-8000-000000000001",
@@ -100,7 +101,7 @@ describe("personalization recommendations", () => {
       sequence,
       title: `Product-rule practice ${sequence}`,
       objective: "Choose and apply the product rule independently.",
-      method: "Application practice",
+      method: "Practice Problems",
       methodReason: "Problems require independent method selection.",
       scheduledFor: `2026-08-${String(6 + sequence).padStart(2, "0")}T12:00:00.000Z`,
       estimatedMinutes: 20,
@@ -108,11 +109,30 @@ describe("personalization recommendations", () => {
       learningMode: "study" as const,
       status: "complete" as const,
     }));
-    const methodPlan: LearningPlan = { ...plan, sessions };
-    const completions: SessionCompletion[] = sessions.map((session, index) => ({
+    const routeFreePlan: LearningPlan = { ...plan, sessions };
+    const routedSessions = sessions.map((session, index) => {
+      const routeRevisionId = `00000000-0000-4000-8000-0000000001${String(index).padStart(2, "0")}`;
+      const route = legacyPlanSessionToStudyRoute({
+        plan: routeFreePlan,
+        session,
+        adaptedAt: "2026-08-06T11:00:00.000Z",
+        identity: {
+          routeLineageId: `00000000-0000-4000-8000-0000000002${String(index).padStart(2, "0")}`,
+          routeRevisionId,
+          lifecycleStatus: "committed",
+          createdAt: "2026-08-06T10:59:00.000Z",
+          committedAt: "2026-08-06T11:00:00.000Z",
+        },
+      });
+      if (!route) throw new Error("Expected a routed recommendation fixture.");
+      return { ...session, studyRoute: route };
+    });
+    const methodPlan: LearningPlan = { ...routeFreePlan, sessions: routedSessions };
+    const completions: SessionCompletion[] = routedSessions.map((session, index) => ({
       id: `00000000-0000-4000-8000-00000000002${index}`,
       planId: methodPlan.id,
       planSessionId: session.id,
+      routeRevisionId: session.studyRoute!.identity.routeRevisionId,
       startedAt: "2026-08-06T12:00:00.000Z",
       completedAt: `2026-08-${String(7 + index).padStart(2, "0")}T12:20:00.000Z`,
       plannedMinutes: 20,

@@ -55,6 +55,17 @@ describe("buildImmediateRepairSteps", () => {
 
     expect(buildImmediateRepairSteps(repeatedMisses, { 0: false, 1: false, 2: false })).toHaveLength(2);
   });
+
+  it("does not turn a pre-instruction prediction into a diagnosed gap", () => {
+    const pretest: GuidedSessionStep = {
+      ...steps[0],
+      methodPhase: "pretest",
+      label: "PREDICT",
+      title: "Predict before instruction",
+    };
+
+    expect(buildImmediateRepairSteps([pretest], { 0: false })).toEqual([]);
+  });
 });
 
 describe("buildImmediateRepairAfterMiss", () => {
@@ -118,6 +129,15 @@ describe("buildImmediateRepairAfterMiss", () => {
       },
     });
     expect(repair?.body).toContain("State the complete product rule");
+  });
+
+  it("does not insert an immediate repair after a pretest miss", () => {
+    const pretest: GuidedSessionStep = {
+      ...steps[0],
+      methodPhase: "pretest",
+    };
+
+    expect(buildImmediateRepairAfterMiss([pretest], 0, { 0: false })).toBeNull();
   });
 });
 
@@ -201,6 +221,53 @@ describe("summarizeSessionEvidence", () => {
       completedImmediateRepairs: 0,
     });
   });
+
+  it("keeps pretest guesses and misses out of mastery, gap, and calibration evidence", () => {
+    const pretestSteps: GuidedSessionStep[] = [
+      { ...steps[0], methodPhase: "pretest", concept: "Product rule" },
+      { ...steps[1], methodPhase: "retrieve", concept: "Chain rule" },
+    ];
+
+    const summary = summarizeSessionEvidence(
+      pretestSteps,
+      { 0: false, 1: true },
+      { 0: "very_sure", 1: "somewhat_sure" },
+    );
+
+    expect(summary).toMatchObject({
+      correctAnswers: 1,
+      totalAnswers: 1,
+      observedGap: "No major gap detected in the required check",
+      completedImmediateRepairs: 0,
+    });
+    expect(summary.conceptEvidence).toEqual([
+      expect.objectContaining({ concept: "Chain rule", outcome: "secure", methodPhase: "retrieve" }),
+    ]);
+    expect(summary.confidenceEvidence).toEqual([
+      expect.objectContaining({ concept: "Chain rule", confidence: "somewhat_sure", correct: true }),
+    ]);
+  });
+
+  it("removes restored pretest evidence when merging interrupted summaries", () => {
+    const restored = {
+      correctAnswers: 1,
+      totalAnswers: 1,
+      conceptEvidence: [{
+        concept: "Product rule",
+        outcome: "secure" as const,
+        activityType: "multiple_choice" as const,
+        methodPhase: "pretest" as const,
+      }],
+      confidenceEvidence: [],
+      observedGap: "No major gap detected in the required check",
+      completedImmediateRepairs: 0,
+    };
+
+    expect(mergeSessionEvidenceSummaries(restored)).toMatchObject({
+      conceptEvidence: [],
+      observedGap: "No major gap detected in the required check",
+    });
+  });
 });
 
 describe("summarizeCompletionConcepts", () => {
@@ -231,6 +298,16 @@ describe("summarizeCompletionConcepts", () => {
       { concept: "Product rule", outcome: "secure", activityType: "free_response", methodPhase: "repair" },
     ])).toEqual({
       showingStrength: ["Product rule"],
+      needsAnotherCheck: [],
+    });
+  });
+
+  it("does not present pretest outcomes as strengths or review needs", () => {
+    expect(summarizeCompletionConcepts([
+      { concept: "Product rule", outcome: "secure", activityType: "multiple_choice", methodPhase: "pretest" },
+      { concept: "Chain rule", outcome: "needs_review", activityType: "multiple_choice", methodPhase: "pretest" },
+    ])).toEqual({
+      showingStrength: [],
       needsAnotherCheck: [],
     });
   });

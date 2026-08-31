@@ -17,6 +17,9 @@ export const CORE_METHOD_IDS = [
   "worked_example_fading",
   "interleaved_practice",
   "read_recall_review",
+  "pretesting",
+  "concept_mapping",
+  "practice_problems",
   "retrieval_based_outlining",
   "scaffolded_coding",
   "practice_test_error_repair",
@@ -31,7 +34,7 @@ export type MethodEvidenceTier = "established" | "supported";
  * audited without implying that any learning recipe changed.
  */
 export const METHOD_PRESENTATION_POLICY_VERSION =
-  "method_presentation_v1" as const;
+  "method_presentation_v2" as const;
 
 export type CoreLearningMethod = {
   id: CoreMethodId;
@@ -80,16 +83,16 @@ export const CORE_METHOD_CATALOG: Record<CoreMethodId, CoreLearningMethod> = {
   },
   self_explanation: {
     id: "self_explanation",
-    name: "Self-explanation",
+    name: "Feynman Technique",
     taskTypes: ["conceptual_learning", "reading_to_quiz", "problem_solving", "mixed_assessment"],
     evidenceTier: "supported",
-    what: "Explain how and why an idea works in your own words, then compare it with an accurate model.",
+    what: "Explain an idea in plain language, compare it with an accurate source, repair the gaps, and explain it again.",
     why: "Connecting steps, causes, and prior knowledge can expose shallow understanding and build a more useful mental model.",
     how: [
       "Study one concise explanation or example.",
       "Close it and explain the idea in your own words.",
       "Name the cause, relationship, or reason behind each important step.",
-      "Compare with the source and repair the explanation.",
+      "Compare with the source, repair the explanation, then teach it back again without copying.",
     ],
     completion: "The explanation accurately includes the central relationship and at least one supporting reason or example.",
     avoidWhen: "Do not substitute elaborate explanation for direct retrieval when exact terms or facts are the main goal.",
@@ -128,19 +131,67 @@ export const CORE_METHOD_CATALOG: Record<CoreMethodId, CoreLearningMethod> = {
   },
   read_recall_review: {
     id: "read_recall_review",
-    name: "Read-recall-review",
+    name: "SQ3R",
     taskTypes: ["reading_to_quiz", "conceptual_learning"],
     evidenceTier: "supported",
-    what: "Read a short section with a guiding question, close it, recall the main idea, then reopen it to correct gaps.",
+    what: "Survey a bounded source, create a guiding question, read for that answer, recall it closed-source, and review the gaps.",
     why: "Question-led reading and immediate recall reduce passive fluency and reveal what the learner actually retained.",
     how: [
-      "Preview one question the section should answer.",
-      "Read one short, bounded section.",
-      "Close the source and state the main idea plus key support.",
-      "Reopen the source, correct the recall, and record one unclear point.",
+      "Survey the headings, summary, and structure before reading closely.",
+      "Write one question the section should answer.",
+      "Read one short, bounded section for that answer.",
+      "Close the source, recite the answer, then reopen it to review and repair gaps.",
     ],
     completion: "The guiding question is answered from memory and the remaining unclear point is named.",
     avoidWhen: "Do not turn the routine into highlighting or repeated rereading without a closed-source recall attempt.",
+  },
+  pretesting: {
+    id: "pretesting",
+    name: "Pretesting",
+    taskTypes: ["conceptual_learning", "problem_solving", "reading_to_quiz", "mixed_assessment"],
+    evidenceTier: "supported",
+    what: "Make a brief prediction or attempt before instruction, then learn from the gap and answer a changed follow-up.",
+    why: "A bounded first attempt can focus attention on the upcoming explanation and make the initial model visible without treating the miss as failure.",
+    how: [
+      "Attempt one or two diagnostic prompts before seeing the explanation.",
+      "Record the prediction without grading it as prior mastery.",
+      "Study the accurate model and compare it with the initial attempt.",
+      "Repair the gap and answer a different follow-up after instruction.",
+    ],
+    completion: "The initial prediction is compared with instruction and a different follow-up is answered after repair.",
+    avoidWhen: "Do not use a long or high-stakes pretest, and do not count an uninstructed miss as evidence of low ability.",
+  },
+  concept_mapping: {
+    id: "concept_mapping",
+    name: "Concept Mapping",
+    taskTypes: ["conceptual_learning", "reading_to_quiz", "mixed_assessment"],
+    evidenceTier: "supported",
+    what: "Retrieve the important concepts, state labeled relationships between them, verify those links, and repair the map.",
+    why: "Making relationships explicit can reveal a fragmented mental model and supports integration when the content genuinely depends on connected concepts.",
+    how: [
+      "Retrieve the key concepts before reopening the source.",
+      "Connect each pair with a short relationship phrase, not a decorative line.",
+      "Check every important link against the source or accurate model.",
+      "Repair unsupported or missing links and explain one connection in words.",
+    ],
+    completion: "Every required concept has at least one verified, labeled relationship and unsupported links are repaired.",
+    avoidWhen: "Do not use a map for an isolated fact list or present it as a visual learning-style accommodation.",
+  },
+  practice_problems: {
+    id: "practice_problems",
+    name: "Practice Problems",
+    taskTypes: ["problem_solving", "programming", "mixed_assessment"],
+    evidenceTier: "established",
+    what: "Solve a representative problem independently, repair the exact error, then solve a changed-context problem.",
+    why: "Independent application shows whether a procedure can be selected and carried through without the model remaining visible; a changed context checks transfer rather than repetition.",
+    how: [
+      "Attempt a representative problem without the worked solution visible.",
+      "Compare the result and identify the first incorrect decision or step.",
+      "Repair that decision with the smallest justified support.",
+      "Solve a different problem using the same underlying principle.",
+    ],
+    completion: "A representative attempt and a changed-context transfer problem are complete, with any error tied to a specific repair.",
+    avoidWhen: "Do not use unsupported practice as first instruction when the learner has no usable model of the procedure.",
   },
   retrieval_based_outlining: {
     id: "retrieval_based_outlining",
@@ -200,6 +251,8 @@ export const CORE_METHOD_CATALOG: Record<CoreMethodId, CoreLearningMethod> = {
 export const LEGACY_CORE_METHOD_NAMES: Readonly<
   Partial<Record<CoreMethodId, readonly string[]>>
 > = {
+  self_explanation: ["Self-explanation"],
+  read_recall_review: ["Read-recall-review", "Read recall review"],
   retrieval_practice: ["Retrieval practice"],
   spaced_retrieval: ["Spaced retrieval"],
   worked_example_fading: ["Worked example fading"],

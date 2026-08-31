@@ -17,6 +17,7 @@ NEXT_PUBLIC_TURNSTILE_SITE_KEY
 SUPABASE_SECRET_KEY
 CRON_SECRET
 YOVA_DRAFT_RECEIPT_SECRET
+YOVA_PERSONALIZATION_ROLLOUT_PERCENT
 OPENAI_API_KEY
 OPENAI_PLAN_MODEL
 OPENAI_SESSION_MODEL
@@ -29,6 +30,8 @@ SITE_URL
 `CRON_SECRET` must be a Production-only random value of at least 32 characters. Vercel uses it as the Bearer credential for the private account-export cleanup route. Do not enable account-data downloads in an environment where this secret, `SUPABASE_SECRET_KEY`, or scheduled functions are unavailable.
 
 `YOVA_DRAFT_RECEIPT_SECRET` must be a Production-only random value of at least 32 characters. It signs generated plan drafts before activation. Signed-in plan generation is unavailable when it is absent, short, or padded with whitespace.
+
+Set `YOVA_PERSONALIZATION_ROLLOUT_PERCENT` explicitly for every Production release. Use `0` while verification is still in progress, a reviewed integer from `1` to `99` for a stable account cohort, or `100` only after full release approval. Missing or malformed configuration fails the release readiness command; `0` is a valid fail-closed task-and-mastery baseline and does not make the database unready. Existing versioned routes keep their original assignment when this value changes.
 
 Keep `AUTH_EMAIL_CODE_VERIFICATION` set to `false` until custom SMTP is active and the Supabase Magic link or OTP template displays `{{ .Token }}`. Then set it to `true` and redeploy.
 
@@ -52,9 +55,9 @@ YOVA deliberately fails closed in production when Supabase or OpenAI is missing.
 
 ### Signed-in generation release order
 
-Apply every pending Supabase migration through `202608300002_broad_recall_checkpoint_retry_containment.sql` **before** deploying this application version. Migration `202608300001_signed_in_generation_readiness.sql` exposes the read-only, service-only probe that verifies the `study_routes` schema, the `plan_sessions.committed_route_revision_id` pointer, and the exact activation/cache RPC signatures used by signed-in plan and session generation. The following `202608300002` migration repairs the checkpoint, attempt, and interruption-event guards and prevents deterministic checkpoint conflicts from being amplified by legacy PostgREST transaction retries. Apply it before the client deploy so already-open clients and marker-less Exit writes reach the corrected database boundary.
+Apply every pending Supabase migration through `202608300003_expanded_method_agency_boundary.sql` **before** deploying this application version. Migration `202608300001_signed_in_generation_readiness.sql` introduced the base read-only, service-only StudyRoute probe. Migration `202608300002_broad_recall_checkpoint_retry_containment.sql` repairs the checkpoint, attempt, and interruption-event guards so deterministic checkpoint conflicts are not amplified by legacy PostgREST transaction retries. Migration `202608300003` adds the expanded method catalog, null-safe route validation, and secure versioned post-commit method-choice path, then exposes `signed_in_generation_readiness_v2` so this client cannot certify a database that is missing those boundaries.
 
-Then configure `SUPABASE_SECRET_KEY` and `YOVA_DRAFT_RECEIPT_SECRET`, and run:
+Then configure `SUPABASE_SECRET_KEY`, `YOVA_DRAFT_RECEIPT_SECRET`, and an explicit `YOVA_PERSONALIZATION_ROLLOUT_PERCENT` decision, and run:
 
 ```bash
 pnpm readiness:production

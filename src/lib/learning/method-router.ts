@@ -224,7 +224,7 @@ export function buildLearningScienceRoutingBrief(input: MethodRoutingInput): Lea
         : []),
     ],
     guardrails: [
-      "Task type chooses the learning method; learner tendencies only modify delivery, pacing, structure, and representation.",
+      "Task, target stage, and Learn or Practice mode define eligibility; repeated observed outcomes and relevant learner signals may rank only those eligible methods.",
       "Do not infer a fixed learning style, diagnosis, intelligence level, or brain type.",
       "Prefer observed performance over self-report when the two conflict, but require repeated evidence before making strong claims.",
       "The method briefing must tell the learner what they are doing, why, how to do it, and what completion means.",
@@ -363,15 +363,18 @@ export function methodIdFromText(text: string): CoreMethodId | null {
   ));
   if (exactName) return exactName;
   const normalized = text.toLowerCase();
+  if (/practice problems?|problem set|changed[- ]context practice/.test(normalized)) return "practice_problems";
+  if (/concept map|concept mapping|relationship map/.test(normalized)) return "concept_mapping";
+  if (/pretest|pretesting|pre[- ]question|prediction before instruction/.test(normalized)) return "pretesting";
   if (/practice test|assessment|error repair|error review|mistake review/.test(normalized)) return "practice_test_error_repair";
   if (/trace(?:\s*[-–—,]\s*|\s+)code(?:\s*[-–—,]\s*|\s+)test/.test(normalized)) return "scaffolded_coding";
   if (/scaffolded coding|code tracing|parsons|coding/.test(normalized)) return "scaffolded_coding";
   if (/outlin(?:e|ing)|drafting|argument/.test(normalized)) return "retrieval_based_outlining";
-  if (/read[- ]recall|read[- ]recite|question-led reading/.test(normalized)) return "read_recall_review";
+  if (/sq3r|read[- ]recall|read[- ]recite|question-led reading/.test(normalized)) return "read_recall_review";
   if (/worked|faded example|example fading/.test(normalized)) return "worked_example_fading";
   if (/interleav|mixed practice/.test(normalized)) return "interleaved_practice";
   if (/spaced|successive relearning/.test(normalized)) return "spaced_retrieval";
-  if (/self[- ]explan|teach[- ]back|concept model|elaborat/.test(normalized)) return "self_explanation";
+  if (/feynman|self[- ]explan|teach[- ]back|concept model|elaborat/.test(normalized)) return "self_explanation";
   if (/retriev|recall|flashcard|closed-note/.test(normalized)) return "retrieval_practice";
   return null;
 }

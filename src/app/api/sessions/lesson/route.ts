@@ -6,9 +6,10 @@ import { getOpenAILessonConfig, isOpenAILessonConfigured } from "@/lib/openai/co
 import {
   buildBoundedFallbackLesson,
   StreamedLessonGenerationError,
-  streamGeneratedLesson,
+  streamGeneratedLessonWithRetry,
   type StreamedLessonFailureKind,
   type StreamedLessonInput,
+  type StreamedLessonResult,
 } from "@/lib/openai/streamed-lesson-generator";
 import { LessonDeliveryInstructionsSchema } from "@/lib/personalization/session-delivery-policy";
 import { lessonIdeaCapacityForMinutes } from "@/lib/session-generation/lesson-brief";
@@ -41,7 +42,7 @@ export const maxDuration = 120;
 // Do not make a learner wait for the platform's hard execution limit. If the
 // provider stalls, replace the partial stream with the bounded lesson fallback
 // while the session is still usable.
-const LESSON_RUNTIME_DEADLINE_MS = 45_000;
+const LESSON_RUNTIME_DEADLINE_MS = 90_000;
 
 const LessonGenerateRequestSchema = z.object({
   action: z.literal("generate").default("generate"),
@@ -223,7 +224,7 @@ export async function POST(request: Request) {
       ]);
       let streamedLessonText = "";
       try {
-        const result = await streamGeneratedLesson(
+        const { attempts, firstFailureKind, result } = await streamGeneratedLessonWithRetry(
           lessonInput,
           (delta) => {
             streamedLessonText += delta;
@@ -231,6 +232,21 @@ export async function POST(request: Request) {
           },
           runtimeSignal,
         );
+        const abortFailure = abortedLessonResultError(
+          result,
+          runtimeSignal,
+          attempts,
+          firstFailureKind,
+        );
+        if (abortFailure) throw abortFailure;
+        if ((attempts > 1 || result.truncatedToBudget) && result.content.trim()) {
+          // The learner may have watched a partial or overlong first attempt
+          // stream in; swap in the finished lesson atomically.
+          controller.enqueue(encodeLessonStreamEvent({
+            type: "lesson.replace",
+            content: result.content.slice(0, 12_000),
+          }));
+        }
         await settleSuccessfulLessonClaim(supabase, aiUsageClaimId, requestId);
         controller.enqueue(encodeLessonStreamEvent({
           type: "lesson.complete",
@@ -247,12 +263,14 @@ export async function POST(request: Request) {
           generationType: "lesson",
           environment: generationEnvironment(),
           finalOutcome: "success",
-          firstAttemptPassed: true,
-          failedValidator: null,
-          repairAttempted: false,
-          repairSucceeded: null,
+          firstAttemptPassed: attempts === 1,
+          failedValidator: firstFailureKind
+            ? validatorForLessonFailure(firstFailureKind)
+            : null,
+          repairAttempted: attempts > 1,
+          repairSucceeded: attempts > 1 ? true : null,
           elapsedMs: result.elapsedMs,
-          attempts: 1,
+          attempts,
           inputTokens: result.inputTokens,
           cachedInputTokens: result.cachedInputTokens,
           cacheWriteTokens: 0,
@@ -263,16 +281,25 @@ export async function POST(request: Request) {
             latencyToFirstTokenMs: result.latencyToFirstTokenMs,
             wordCount: result.wordCount,
             streamCompleted: true,
+            ...(result.truncatedToBudget ? { lessonTruncatedToBudget: true } : {}),
+            ...(result.qualityNote ? { lessonQualityNote: result.qualityNote } : {}),
+            ...(firstFailureKind ? { lessonFailureKind: firstFailureKind } : {}),
           },
         });
       } catch (error) {
         await releaseFailedLessonClaim(supabase, aiUsageClaimId, requestId);
         const failure = error instanceof StreamedLessonGenerationError ? error.stats : null;
+        const failureAttempts = error instanceof StreamedLessonGenerationError ? error.attemptsMade : 1;
         const failureKind = failure?.failureKind ?? "provider_request_error";
+        const initialFailureKind = error instanceof StreamedLessonGenerationError
+          ? error.initialFailureKind
+          : null;
         const elapsedMs = failure?.elapsedMs ?? Date.now() - startedAt;
         console.error("YOVA streamed lesson generation failed", {
           requestId,
           failureKind,
+          initialFailureKind: initialFailureKind ?? "none",
+          attempts: failureAttempts,
           elapsedMs,
           latencyToFirstTokenMs: failure?.latencyToFirstTokenMs ?? null,
           wordCount: failure?.wordCount ?? 0,
@@ -306,10 +333,10 @@ export async function POST(request: Request) {
             finalOutcome: "fallback",
             firstAttemptPassed: false,
             failedValidator: validatorForLessonFailure(failureKind),
-            repairAttempted: true,
-            repairSucceeded: true,
+            repairAttempted: failureAttempts > 1,
+            repairSucceeded: failureAttempts > 1 ? false : null,
             elapsedMs,
-            attempts: 1,
+            attempts: failureAttempts,
             inputTokens: failure?.inputTokens ?? 0,
             cachedInputTokens: failure?.cachedInputTokens ?? 0,
             cacheWriteTokens: 0,
@@ -332,10 +359,10 @@ export async function POST(request: Request) {
           finalOutcome: "failure",
           firstAttemptPassed: false,
           failedValidator: validatorForLessonFailure(failureKind),
-          repairAttempted: false,
-          repairSucceeded: null,
+          repairAttempted: failureAttempts > 1,
+          repairSucceeded: failureAttempts > 1 ? false : null,
           elapsedMs,
-          attempts: 1,
+          attempts: failureAttempts,
           inputTokens: failure?.inputTokens ?? 0,
           cachedInputTokens: failure?.cachedInputTokens ?? 0,
           cacheWriteTokens: 0,
@@ -592,6 +619,34 @@ function lessonInputFromSource(source: LessonRuntimeSource): StreamedLessonInput
     },
     deliveryInstructions: source.deliveryInstructions,
   };
+}
+
+function abortedLessonResultError(
+  result: StreamedLessonResult,
+  signal: AbortSignal,
+  attemptsMade: 1 | 2,
+  initialFailureKind: StreamedLessonFailureKind | null,
+) {
+  if (!signal.aborted) return null;
+  const failureKind = signal.reason instanceof DOMException
+    && signal.reason.name === "TimeoutError"
+    ? "runtime_timeout" as const
+    : "request_aborted" as const;
+  return new StreamedLessonGenerationError(
+    "The lesson stream was interrupted.",
+    {
+      failureKind,
+      model: result.model,
+      responseId: result.responseId,
+      inputTokens: result.inputTokens,
+      cachedInputTokens: result.cachedInputTokens,
+      outputTokens: result.outputTokens,
+      latencyToFirstTokenMs: result.latencyToFirstTokenMs,
+      elapsedMs: result.elapsedMs,
+      wordCount: result.wordCount,
+    },
+    { attemptsMade, initialFailureKind },
+  );
 }
 
 function countWords(value: string) {

@@ -2,7 +2,9 @@ import { z } from "zod";
 import { LEARNING_TITLE_CHARACTER_LIMIT } from "@/lib/learning/title-limits";
 import { resolveLearningIntent } from "@/lib/learning/learning-intent";
 import { CORE_METHOD_IDS } from "@/lib/learning/method-catalog";
+import { AgencyMethodRequestResolutionSchema } from "@/lib/study-route/agency-mode-controller";
 import { MaterialUnderstandingSchema, PlanKnowledgeMapSchema } from "@/lib/knowledge-map/schema";
+import { CanonicalLearnerProfileSchema } from "@/lib/personalization/canonical-profile-schema";
 import { CanonicalPreferredMethodIdsSchema } from "@/lib/personalization/preferred-method-schema";
 import { SESSION_ARCHITECTURE_VERSIONS } from "@/lib/session-generation/architecture";
 import { StudyRouteSchema } from "@/lib/study-route/schema";
@@ -100,6 +102,11 @@ export const PlanGenerationRequestSchema = z.object({
    * preview. The generation route rejects this field on every cloud request.
    */
   previewPreferredMethodIds: CanonicalPreferredMethodIdsSchema.optional(),
+  /**
+   * Browser-preview-only structured profile. Cloud generation rejects this
+   * field and instead loads the authenticated account's canonical profile.
+   */
+  previewCanonicalProfile: CanonicalLearnerProfileSchema.optional(),
   knowledgeMap: PlanKnowledgeMapSchema.optional(),
   mapCorrection: z.string().trim().max(800).optional(),
 }).superRefine((value, context) => {
@@ -394,8 +401,26 @@ export const PlanActivationResponseSchema = z.object({
 export const PlanDraftMethodChoiceSelectionSchema = z.object({
   sessionId: z.string().uuid(),
   expectedRouteRevisionId: z.string().uuid(),
-  methodId: z.enum(CORE_METHOD_IDS),
-}).strict();
+  choiceScope: z.enum(["stored_alternative", "other_eligible_method"]).optional(),
+  methodId: z.enum(CORE_METHOD_IDS).optional(),
+  requestedMethod: z.string().trim().min(1).max(100).optional(),
+}).strict().superRefine((selection, context) => {
+  const other = selection.choiceScope === "other_eligible_method";
+  if (other !== (selection.requestedMethod !== undefined)) {
+    context.addIssue({
+      code: "custom",
+      path: ["requestedMethod"],
+      message: "Other methods requires one bounded requested label.",
+    });
+  }
+  if (other === (selection.methodId !== undefined)) {
+    context.addIssue({
+      code: "custom",
+      path: ["methodId"],
+      message: "A stored alternative and an Other-method label are mutually exclusive.",
+    });
+  }
+});
 
 export const PlanDraftMethodChoiceResponseSchema = z.object({
   plan: GeneratedLearningPlanSchema.extend({ status: z.literal("draft") }),
@@ -404,6 +429,7 @@ export const PlanDraftMethodChoiceResponseSchema = z.object({
     status: z.enum(["updated", "unchanged"]),
     requestId: z.string().uuid(),
   }).strict(),
+  methodRequestResolution: AgencyMethodRequestResolutionSchema.nullable().optional(),
 }).strict();
 
 export type PlanGenerationRequest = z.infer<typeof PlanGenerationRequestSchema>;

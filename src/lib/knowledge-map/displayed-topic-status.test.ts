@@ -84,4 +84,20 @@ describe("displayedTopicStatus", () => {
       }],
     })])).toBe("evidenced");
   });
+
+  it("does not advance a topic from a correct pretest prediction", () => {
+    const currentPlan = plan();
+    currentPlan.sessions[0]!.status = "ready";
+
+    expect(displayedTopicStatus(topicId, "not_started", currentPlan, [completion({
+      completionMode: "guided",
+      conceptEvidence: [{
+        topicId,
+        concept: "Arbitrary topic",
+        outcome: "secure",
+        activityType: "multiple_choice",
+        methodPhase: "pretest",
+      }],
+    })])).toBe("not_started");
+  });
 });

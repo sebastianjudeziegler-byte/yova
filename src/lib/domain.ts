@@ -23,7 +23,7 @@ export type TeachingBlock = import("@/lib/session-generation/schema").TeachingBl
 export type SessionMethodBriefing = {
   learningMode: SessionLearningMode;
   taskType: "memorization" | "conceptual_learning" | "problem_solving" | "reading_to_quiz" | "writing_argumentation" | "programming" | "mixed_assessment";
-  methodId: "retrieval_practice" | "spaced_retrieval" | "self_explanation" | "worked_example_fading" | "interleaved_practice" | "read_recall_review" | "retrieval_based_outlining" | "scaffolded_coding" | "practice_test_error_repair";
+  methodId: import("@/lib/learning/method-catalog").CoreMethodId;
   name: string;
   what: string;
   why: string;

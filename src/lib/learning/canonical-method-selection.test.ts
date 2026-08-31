@@ -12,12 +12,25 @@ import type { GenerationPersonalizationContext } from "@/lib/personalization/per
 
 const ROUTE_A = "11111111-1111-4111-8111-111111111111";
 const ROUTE_B = "22222222-2222-4222-8222-222222222222";
+const COMPARISON_KEY = "method_compare_v1:memorization:developing:practice:inside_yova:standard:compact:independent_start:single_target:retrieval";
+const MISMATCHED_COMPARISON_KEYS = [
+  ["task family", COMPARISON_KEY.replace(":memorization:", ":conceptual_learning:")],
+  ["knowledge stage", COMPARISON_KEY.replace(":developing:", ":retrieval_ready:")],
+  ["mode", COMPARISON_KEY.replace(":practice:", ":learn:")],
+  ["environment", COMPARISON_KEY.replace(":inside_yova:", ":outside_yova:")],
+  ["difficulty", COMPARISON_KEY.replace(":standard:", ":stretch:")],
+  ["duration", COMPARISON_KEY.replace(":compact:", ":extended:")],
+  ["support", COMPARISON_KEY.replace(":independent_start:", ":fading:")],
+  ["target relationship", COMPARISON_KEY.replace(":single_target:", ":multi_target_same_stage:")],
+  ["assessment", COMPARISON_KEY.replace(":retrieval", ":application")],
+] as const;
 
 function baseInput(): CanonicalMethodSelectionInput {
   return {
     taskType: "memorization",
     knowledgeStage: "developing",
     learningMode: "study",
+    currentComparisonKey: COMPARISON_KEY,
   };
 }
 
@@ -90,7 +103,7 @@ describe("canonical method selection", () => {
 
     expect(first).toEqual(second);
     expect(first.policyVersion).toBe(CANONICAL_METHOD_SELECTION_POLICY_VERSION);
-    expect(first.eligibilityPolicyVersion).toBe("method_eligibility_v1");
+    expect(first.eligibilityPolicyVersion).toBe("method_eligibility_v2");
     expect(first.selectedMethodId).toBe("retrieval_practice");
     expect(first.authority).toBe("task_baseline");
     expect(first.changedFromBaseline).toBe(false);
@@ -111,6 +124,7 @@ describe("canonical method selection", () => {
       },
       personalization: context,
       observedEvidence: [{
+        comparisonKey: COMPARISON_KEY,
         signal: outcome({ methodId: "spaced_retrieval" }),
         evidenceRefs: ["attempt:spaced-1"],
         distinctStudyDays: 2,
@@ -181,6 +195,7 @@ describe("canonical method selection", () => {
     const selection = selectCanonicalStudyMethod({
       ...baseInput(),
       observedEvidence: [{
+        comparisonKey: COMPARISON_KEY,
         signal: outcome({ methodId: "spaced_retrieval" }),
         evidenceRefs: ["attempt:one", "attempt:two", "attempt:three", "attempt:four"],
         distinctStudyDays: 2,
@@ -198,6 +213,7 @@ describe("canonical method selection", () => {
     const tooEarly = selectCanonicalStudyMethod({
       ...baseInput(),
       observedEvidence: [{
+        comparisonKey: COMPARISON_KEY,
         signal: outcome({ methodId: "spaced_retrieval", sessions: 3 }),
         evidenceRefs: ["attempt:one", "attempt:two", "attempt:three"],
         distinctStudyDays: 2,
@@ -207,6 +223,7 @@ describe("canonical method selection", () => {
     const noRefs = selectCanonicalStudyMethod({
       ...baseInput(),
       observedEvidence: [{
+        comparisonKey: COMPARISON_KEY,
         signal: outcome({ methodId: "spaced_retrieval" }),
         evidenceRefs: [],
         distinctStudyDays: 2,
@@ -216,6 +233,7 @@ describe("canonical method selection", () => {
     const needsSupport = selectCanonicalStudyMethod({
       ...baseInput(),
       observedEvidence: [{
+        comparisonKey: COMPARISON_KEY,
         signal: outcome({
           methodId: "spaced_retrieval",
           accuracyPercent: 42,
@@ -239,6 +257,7 @@ describe("canonical method selection", () => {
     const wrongTask = selectCanonicalStudyMethod({
       ...baseInput(),
       observedEvidence: [{
+        comparisonKey: COMPARISON_KEY,
         signal: outcome({
           methodId: "spaced_retrieval",
           taskType: "conceptual_learning",
@@ -251,6 +270,7 @@ describe("canonical method selection", () => {
     const wrongStage = selectCanonicalStudyMethod({
       ...baseInput(),
       observedEvidence: [{
+        comparisonKey: COMPARISON_KEY,
         signal: outcome({
           methodId: "spaced_retrieval",
           knowledgeStage: "retrieval_ready",
@@ -265,11 +285,75 @@ describe("canonical method selection", () => {
     expect(wrongStage.authority).toBe("task_baseline");
   });
 
+  it.each(MISMATCHED_COMPARISON_KEYS)(
+    "does not personalize from a different %s cohort",
+    (_, comparisonKey) => {
+      const selection = selectCanonicalStudyMethod({
+        ...baseInput(),
+        observedEvidence: [{
+          comparisonKey,
+          signal: outcome({ methodId: "spaced_retrieval" }),
+          evidenceRefs: ["attempt:unlike-cohort"],
+          distinctStudyDays: 4,
+          latestObservedAt: "2026-08-23T08:00:00.000Z",
+        }],
+      });
+
+      expect(selection.authority).toBe("task_baseline");
+      expect(selection.selectedMethodId).toBe("retrieval_practice");
+      expect(selection.supportOnlyMethodIds).toEqual([]);
+    },
+  );
+
+  it("fails closed when keyed evidence has no current comparison key", () => {
+    const selection = selectCanonicalStudyMethod({
+      ...baseInput(),
+      currentComparisonKey: null,
+      observedEvidence: [{
+        comparisonKey: COMPARISON_KEY,
+        signal: outcome({ methodId: "spaced_retrieval" }),
+        evidenceRefs: ["attempt:legacy-ambiguity"],
+        distinctStudyDays: 4,
+        latestObservedAt: "2026-08-23T08:00:00.000Z",
+      }],
+    });
+
+    expect(selection.authority).toBe("task_baseline");
+    expect(selection.selectedMethodId).toBe("retrieval_practice");
+  });
+
+  it("accepts multiple same-method cohorts and selects only the exact match", () => {
+    const selection = selectCanonicalStudyMethod({
+      ...baseInput(),
+      observedEvidence: [
+        {
+          comparisonKey: MISMATCHED_COMPARISON_KEYS[4][1],
+          signal: outcome({ methodId: "spaced_retrieval" }),
+          evidenceRefs: ["attempt:stretch-cohort"],
+          distinctStudyDays: 4,
+          latestObservedAt: "2026-08-24T08:00:00.000Z",
+        },
+        {
+          comparisonKey: COMPARISON_KEY,
+          signal: outcome({ methodId: "spaced_retrieval" }),
+          evidenceRefs: ["attempt:exact-cohort"],
+          distinctStudyDays: 4,
+          latestObservedAt: "2026-08-23T08:00:00.000Z",
+        },
+      ],
+    });
+
+    expect(selection.authority).toBe("observed_outcomes");
+    expect(selection.selectedMethodId).toBe("spaced_retrieval");
+    expect(selection.evidenceRefs).toEqual(["attempt:exact-cohort"]);
+  });
+
   it("lets stable outcomes outrank an authorized declaration", () => {
     const selection = selectCanonicalStudyMethod({
       ...baseInput(),
       personalization: personalization(),
       observedEvidence: [{
+        comparisonKey: COMPARISON_KEY,
         signal: outcome({ methodId: "interleaved_practice" }),
         evidenceRefs: ["attempt:interleaved-1"],
         distinctStudyDays: 2,
@@ -288,6 +372,7 @@ describe("canonical method selection", () => {
       ...baseInput(),
       personalization: context,
       observedEvidence: [{
+        comparisonKey: COMPARISON_KEY,
         signal: outcome({ methodId: "interleaved_practice" }),
         evidenceRefs: ["attempt:interleaved-1"],
         distinctStudyDays: 2,
@@ -313,6 +398,7 @@ describe("canonical method selection", () => {
 
     expect(selection.eligibleMethodIds).toEqual([
       "self_explanation",
+      "concept_mapping",
       "read_recall_review",
       "retrieval_practice",
     ]);
@@ -426,6 +512,7 @@ describe("canonical method selection", () => {
       ...baseInput(),
       personalization: personalization(),
       observedEvidence: [{
+        comparisonKey: COMPARISON_KEY,
         signal: outcome({ methodId: "interleaved_practice" }),
         evidenceRefs: ["attempt:one"],
         distinctStudyDays: 2,
@@ -453,12 +540,14 @@ describe("canonical method selection", () => {
       ...baseInput(),
       observedEvidence: [
         {
+          comparisonKey: COMPARISON_KEY,
           signal: outcome({ methodId: "spaced_retrieval" }),
           evidenceRefs: ["attempt:first"],
           distinctStudyDays: 2,
           latestObservedAt: "2026-08-23T08:00:00.000Z",
         },
         {
+          comparisonKey: COMPARISON_KEY,
           signal: outcome({ methodId: "spaced_retrieval" }),
           evidenceRefs: ["attempt:second"],
           distinctStudyDays: 2,

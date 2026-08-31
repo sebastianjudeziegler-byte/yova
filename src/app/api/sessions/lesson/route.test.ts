@@ -13,7 +13,7 @@ const mocks = vi.hoisted(() => ({
   releaseAIRequestReservation: vi.fn(),
   settleAIRequestClaim: vi.fn(),
   recordObservation: vi.fn(),
-  streamGeneratedLesson: vi.fn(),
+  streamGeneratedLessonWithRetry: vi.fn(),
 }));
 
 vi.mock("@/lib/analytics/generation-observation-server", () => ({
@@ -26,7 +26,7 @@ vi.mock("@/lib/openai/config", () => ({
 }));
 vi.mock("@/lib/openai/streamed-lesson-generator", async (importOriginal) => ({
   ...await importOriginal<typeof import("@/lib/openai/streamed-lesson-generator")>(),
-  streamGeneratedLesson: mocks.streamGeneratedLesson,
+  streamGeneratedLessonWithRetry: mocks.streamGeneratedLessonWithRetry,
 }));
 vi.mock("@/lib/session-generation/schema", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/session-generation/schema")>();
@@ -84,11 +84,11 @@ describe("streamed lesson route recovery", () => {
     mocks.releaseAIRequestReservation.mockReset().mockResolvedValue(false);
     mocks.settleAIRequestClaim.mockReset().mockResolvedValue(true);
     mocks.recordObservation.mockReset().mockResolvedValue(undefined);
-    mocks.streamGeneratedLesson.mockReset();
+    mocks.streamGeneratedLessonWithRetry.mockReset();
   });
 
   it("replaces partial output and completes when the provider times out", async () => {
-    mocks.streamGeneratedLesson.mockImplementation(async (_input, onDelta) => {
+    mocks.streamGeneratedLessonWithRetry.mockImplementation(async (_input, onDelta) => {
       onDelta("A partial provider explanation that does not finish.");
       throw new StreamedLessonGenerationError("Runtime deadline reached", {
         failureKind: "runtime_timeout",
@@ -125,7 +125,7 @@ describe("streamed lesson route recovery", () => {
   });
 
   it("replaces a completed but insubstantial lesson with the validated brief", async () => {
-    mocks.streamGeneratedLesson.mockImplementation(async (_input, onDelta) => {
+    mocks.streamGeneratedLessonWithRetry.mockImplementation(async (_input, onDelta) => {
       onDelta("Alliance obligations are important. This answer is much too thin for the planned lesson.");
       throw new StreamedLessonGenerationError("Lesson below substance threshold", {
         failureKind: "content_below_substance_threshold",
@@ -159,16 +159,70 @@ describe("streamed lesson route recovery", () => {
     expect(runtime.content).not.toContain("much too thin");
   });
 
+  it("keeps raw provider and learner-bearing error text out of logs and persisted telemetry", async () => {
+    const privateFailureText = "Provider echoed the learner's private membrane misconception.";
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    mocks.streamGeneratedLessonWithRetry.mockRejectedValue(new StreamedLessonGenerationError(
+      privateFailureText,
+      {
+        failureKind: "provider_failed",
+        model: "configured-lesson-model",
+        responseId: "private-provider-response-id",
+        inputTokens: 170,
+        cachedInputTokens: 20,
+        outputTokens: 60,
+        latencyToFirstTokenMs: 90,
+        elapsedMs: 900,
+        wordCount: 24,
+      },
+      {
+        attemptsMade: 2,
+        initialFailureKind: "provider_request_error",
+      },
+    ));
+
+    const response = await POST(lessonRequest());
+    expect(response.body).not.toBeNull();
+    await consumeLessonEventStream(response.body!, () => undefined);
+
+    const logged = JSON.stringify(consoleError.mock.calls);
+    const observed = JSON.stringify(mocks.recordObservation.mock.calls);
+    expect(logged).not.toContain(privateFailureText);
+    expect(logged).not.toContain("private-provider-response-id");
+    expect(observed).not.toContain(privateFailureText);
+    expect(observed).not.toContain("private-provider-response-id");
+    expect(mocks.recordObservation).toHaveBeenCalledWith(
+      null,
+      undefined,
+      expect.objectContaining({
+        finalOutcome: "fallback",
+        attempts: 2,
+        inputTokens: 170,
+        cachedInputTokens: 20,
+        outputTokens: 60,
+        diagnostics: expect.objectContaining({
+          lessonFailureKind: "provider_failed",
+        }),
+      }),
+    );
+  });
+
   it("caps legacy cached lesson ideas to the activity's real teaching time", async () => {
-    mocks.streamGeneratedLesson.mockResolvedValue({
-      model: "configured-lesson-model",
-      responseId: "response-1",
-      inputTokens: 100,
-      cachedInputTokens: 0,
-      outputTokens: 70,
-      latencyToFirstTokenMs: 100,
-      elapsedMs: 800,
-      wordCount: 30,
+    mocks.streamGeneratedLessonWithRetry.mockResolvedValue({
+      attempts: 1,
+      result: {
+        model: "configured-lesson-model",
+        responseId: "response-1",
+        content: "A short but complete lesson body used by this test.",
+        truncatedToBudget: false,
+        qualityNote: null,
+        inputTokens: 100,
+        cachedInputTokens: 0,
+        outputTokens: 70,
+        latencyToFirstTokenMs: 100,
+        elapsedMs: 800,
+        wordCount: 30,
+      },
     });
     const request = lessonRequest();
     const body = await request.json();
@@ -187,7 +241,7 @@ describe("streamed lesson route recovery", () => {
     expect(response.status).toBe(200);
     if (response.body) await consumeLessonEventStream(response.body, () => undefined);
 
-    expect(mocks.streamGeneratedLesson).toHaveBeenCalledWith(
+    expect(mocks.streamGeneratedLessonWithRetry).toHaveBeenCalledWith(
       expect.objectContaining({
         plannedMinutes: 4,
         essentialIdeas: [
@@ -217,7 +271,7 @@ describe("streamed lesson route recovery", () => {
     ]);
     expect(runtime.status).toBe("complete");
     expect(runtime.content).toContain("Alliance obligations connected");
-    expect(mocks.streamGeneratedLesson).not.toHaveBeenCalled();
+    expect(mocks.streamGeneratedLessonWithRetry).not.toHaveBeenCalled();
   });
 
   it("acknowledges skip-to-practice even when telemetry throws synchronously", async () => {
@@ -247,7 +301,7 @@ describe("streamed lesson route recovery", () => {
     }));
 
     expect(response.status).toBe(204);
-    expect(mocks.streamGeneratedLesson).not.toHaveBeenCalled();
+    expect(mocks.streamGeneratedLessonWithRetry).not.toHaveBeenCalled();
   });
 
   it("serves the bounded lesson fallback with the durable allowance reset interval", async () => {
@@ -298,7 +352,7 @@ describe("streamed lesson route recovery", () => {
       "lesson.replace",
       "lesson.complete",
     ]);
-    expect(mocks.streamGeneratedLesson).not.toHaveBeenCalled();
+    expect(mocks.streamGeneratedLessonWithRetry).not.toHaveBeenCalled();
     expect(mocks.recordObservation).toHaveBeenCalledWith(
       expect.anything(),
       "44444444-4444-4444-8444-444444444444",
@@ -353,7 +407,7 @@ describe("streamed lesson route recovery", () => {
       code: "ai_operation_in_progress",
       retryable: true,
     });
-    expect(mocks.streamGeneratedLesson).not.toHaveBeenCalled();
+    expect(mocks.streamGeneratedLessonWithRetry).not.toHaveBeenCalled();
     expect(mocks.releaseAIRequestClaim).not.toHaveBeenCalled();
     expect(mocks.settleAIRequestClaim).not.toHaveBeenCalled();
   });
@@ -388,7 +442,7 @@ describe("streamed lesson route recovery", () => {
       retryAfterSeconds: 0,
       remainingToday: 9,
     });
-    mocks.streamGeneratedLesson.mockRejectedValue(new StreamedLessonGenerationError(
+    mocks.streamGeneratedLessonWithRetry.mockRejectedValue(new StreamedLessonGenerationError(
       "Provider failed",
       {
         failureKind: "provider_request_error",
@@ -444,15 +498,21 @@ describe("streamed lesson route recovery", () => {
       retryAfterSeconds: 0,
       remainingToday: 9,
     });
-    mocks.streamGeneratedLesson.mockResolvedValue({
-      model: "configured-lesson-model",
-      responseId: "response-1",
-      inputTokens: 100,
-      cachedInputTokens: 0,
-      outputTokens: 70,
-      latencyToFirstTokenMs: 100,
-      elapsedMs: 800,
-      wordCount: 30,
+    mocks.streamGeneratedLessonWithRetry.mockResolvedValue({
+      attempts: 1,
+      result: {
+        model: "configured-lesson-model",
+        responseId: "response-1",
+        content: "A short but complete lesson body used by this test.",
+        truncatedToBudget: false,
+        qualityNote: null,
+        inputTokens: 100,
+        cachedInputTokens: 0,
+        outputTokens: 70,
+        latencyToFirstTokenMs: 100,
+        elapsedMs: 800,
+        wordCount: 30,
+      },
     });
 
     const response = await POST(lessonRequest());
@@ -497,15 +557,21 @@ describe("streamed lesson route recovery", () => {
       remainingToday: 9,
     });
     mocks.settleAIRequestClaim.mockRejectedValueOnce(new Error("settlement receipt lost"));
-    mocks.streamGeneratedLesson.mockResolvedValue({
-      model: "configured-lesson-model",
-      responseId: "response-1",
-      inputTokens: 100,
-      cachedInputTokens: 0,
-      outputTokens: 70,
-      latencyToFirstTokenMs: 100,
-      elapsedMs: 800,
-      wordCount: 30,
+    mocks.streamGeneratedLessonWithRetry.mockResolvedValue({
+      attempts: 1,
+      result: {
+        model: "configured-lesson-model",
+        responseId: "response-1",
+        content: "A short but complete lesson body used by this test.",
+        truncatedToBudget: false,
+        qualityNote: null,
+        inputTokens: 100,
+        cachedInputTokens: 0,
+        outputTokens: 70,
+        latencyToFirstTokenMs: 100,
+        elapsedMs: 800,
+        wordCount: 30,
+      },
     });
 
     const response = await POST(lessonRequest());

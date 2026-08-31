@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
-import { StudyProfileExperience } from "@/components/study-profile/study-profile-experience";
+import { CanonicalStudyProfileExperience } from "@/components/study-profile/canonical-study-profile-experience";
 
-const title = "YOVA Study Profile | Get practical study recommendations";
-const description = "Rereading feels like studying. It usually is not. Answer 14 questions and get study methods matched to how you actually work.";
+const title = "YOVA Study Profile | Build your canonical study setup";
+const description = "Answer 11 optional questions to create the same changeable study profile YOVA uses for valid choices, timing, support, and presentation.";
 
 export const metadata: Metadata = {
   title,
@@ -37,5 +37,5 @@ export const metadata: Metadata = {
 };
 
 export default function StudyProfilePage() {
-  return <StudyProfileExperience />;
+  return <CanonicalStudyProfileExperience />;
 }

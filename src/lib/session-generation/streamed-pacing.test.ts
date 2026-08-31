@@ -96,7 +96,10 @@ describe("streamed teaching pacing", () => {
     const concepts = ["ATP hydrolysis", "Phosphorylation", "Enzyme coupling", "ATP regeneration"].slice(0, claimCount);
     const draft = sessionDraft([
       ...ideas.map((idea, index) => instruction(`Teach ${concepts[index]}`, idea)),
-      ...concepts.map((concept) => question(concept, "explain")),
+      ...concepts.map((concept, index) => question(
+        concept,
+        index === concepts.length - 1 ? "transfer" : "explain",
+      )),
     ], ideas);
 
     const interleaved = interleaveStreamedTeachingCycles({ draft, availableMinutes: minutes });
@@ -150,6 +153,66 @@ describe("streamed teaching pacing", () => {
     expect(interleaved.activities[2]?.lessonBrief?.essentialIdeas).toEqual([secondIdea]);
   });
 
+  it("keeps the complete self-explanation recipe while interleaving its mapped checks", () => {
+    const firstIdea = "Energy coupling links exergonic and endergonic reactions.";
+    const secondIdea = "ATP hydrolysis can drive cellular work through coupled reactions.";
+    const firstCheck = {
+      ...question("Energy coupling", "explain"),
+      methodPhase: "explain" as const,
+    };
+    const secondCheck = {
+      ...question("ATP hydrolysis", "transfer"),
+      methodPhase: "explain" as const,
+    };
+    const repair = {
+      ...question("Energy coupling", "explain"),
+      methodPhase: "repair" as const,
+      requiredForCompletion: false,
+      title: "Repair the first explanation",
+    };
+    const reexplain = {
+      ...question("Energy coupling", "explain"),
+      methodPhase: "reexplain" as const,
+      requiredForCompletion: false,
+      title: "Explain the corrected relationship again",
+    };
+    const draft = sessionDraft([
+      instruction("Teach energy coupling", firstIdea),
+      instruction("Teach ATP hydrolysis", secondIdea),
+      firstCheck,
+      secondCheck,
+      repair,
+      reexplain,
+    ], [firstIdea, secondIdea]);
+    draft.methodBriefing = {
+      ...draft.methodBriefing,
+      methodId: "self_explanation",
+      name: "Self-explanation",
+      what: "Study the verified model, explain it, repair the comparison, and explain it again.",
+      how: ["Read the model.", "Explain it from memory.", "Repair the gap and explain it again."],
+      completion: "Explain the corrected relationship again without copying the model.",
+    };
+
+    const interleaved = interleaveStreamedTeachingCycles({ draft, availableMinutes: 25 });
+    interleaved.activities = allocateStreamedTeachingMinutes({
+      activities: interleaved.activities,
+      availableMinutes: 25,
+    });
+
+    expect(interleaved.activities.map((activity) => activity.methodPhase)).toEqual([
+      "model",
+      "explain",
+      "explain",
+      "repair",
+      "reexplain",
+    ]);
+    expect(interleaved.activities[0]?.lessonBrief?.essentialIdeas).toEqual([
+      firstIdea,
+      secondIdea,
+    ]);
+    expect(validateStreamedTeachingPacing({ draft: interleaved, availableMinutes: 25 })).toBeNull();
+  });
+
   it("builds four teach-then-answer cycles for a 60-minute lesson", () => {
     const ideas = [
       "Glycolysis splits glucose and captures a small amount of usable energy.",
@@ -188,7 +251,10 @@ describe("streamed teaching pacing", () => {
     const concepts = ["Glycolysis", "Pyruvate oxidation", "Citric acid cycle"];
     const draft = sessionDraft([
       ...ideas.map((idea, index) => instruction(`Teach ${concepts[index]}`, idea)),
-      ...concepts.map((concept) => question(concept, "explain")),
+      ...concepts.map((concept, index) => question(
+        concept,
+        index === concepts.length - 1 ? "transfer" : "explain",
+      )),
     ], ideas);
 
     const interleaved = interleaveStreamedTeachingCycles({ draft, availableMinutes: 25 });
@@ -227,7 +293,7 @@ describe("streamed teaching pacing", () => {
       instruction("Teach melatonin release", secondIdea),
       instruction("Teach darkness and timing", firstIdea),
       question("Darkness and circadian timing", "explain"),
-      question("Pineal melatonin release", "explain"),
+      question("Pineal melatonin release", "transfer"),
     ], [firstIdea, secondIdea]);
     draft.coverage.evidenceMap = [
       { essentialIdea: firstIdea, activityConcept: "Darkness and circadian timing" },
@@ -331,7 +397,7 @@ function instruction(title: string, idea: string): StreamedGeneratedSessionActiv
 function question(concept: string, methodPhase: "explain" | "transfer"): StreamedGeneratedSessionActivity {
   return {
     topicId: TOPIC_ID,
-    methodPhase,
+    methodPhase: methodPhase === "explain" ? "independent_practice" : "transfer",
     estimatedMinutes: 4,
     requiredForCompletion: true,
     label: "Explain",
@@ -374,12 +440,12 @@ function sessionDraft(
     methodBriefing: {
       learningMode: "learn",
       taskType: "conceptual_learning",
-      methodId: "self_explanation",
-      name: "Self-explanation",
-      what: "Study a connected model and explain each relationship from memory.",
-      why: "Producing each relationship reveals whether it was understood.",
-      how: ["Read one short model.", "Answer before reading the next model."],
-      completion: "Explain both relationships without reopening the lesson.",
+      methodId: "practice_problems",
+      name: "Practice problems",
+      what: "Study a compact model, attempt representative problems, and finish with changed-context transfer.",
+      why: "Practice reveals whether the learner can use each relationship rather than merely recognize it.",
+      how: ["Read one short model.", "Solve each problem before continuing."],
+      completion: "Solve the representative and changed-context problems without reopening the lesson.",
       personalization: ["The lesson is divided into short teaching and question cycles."],
     },
     sourceGrounding: null,

@@ -21,11 +21,11 @@ function renderLibrary(preferredMethodIds: (typeof CORE_METHOD_IDS)[number][] = 
 }
 
 describe("MethodLibrary", () => {
-  it("renders all nine live methods from the canonical catalog", () => {
+  it("renders all twelve live methods from the canonical catalog", () => {
     const html = renderLibrary();
 
-    expect(html.match(/data-method-id=/g)).toHaveLength(9);
-    expect(html.match(/Available now/g)).toHaveLength(9);
+    expect(html.match(/data-method-id=/g)).toHaveLength(12);
+    expect(html.match(/Available now/g)).toHaveLength(12);
     for (const methodId of CORE_METHOD_IDS) {
       const method = CORE_METHOD_CATALOG[methodId];
       expect(html).toContain(`data-method-id="${methodId}"`);
@@ -41,13 +41,13 @@ describe("MethodLibrary", () => {
   it("exposes native details and named pressed-state preference controls", () => {
     const html = renderLibrary(["retrieval_practice", "scaffolded_coding"]);
 
-    expect(html.match(/<details class="method-library-details">/g)).toHaveLength(9);
-    expect(html.match(/<summary>How it works<\/summary>/g)).toHaveLength(9);
+    expect(html.match(/<details class="method-library-details">/g)).toHaveLength(12);
+    expect(html.match(/<summary>How it works<\/summary>/g)).toHaveLength(12);
     expect(html).toContain('role="list" aria-label="Available study methods"');
-    expect(html.match(/role="listitem"/g)).toHaveLength(9);
+    expect(html.match(/role="listitem"/g)).toHaveLength(12);
     expect(html.match(/aria-pressed="true"/g)).toHaveLength(2);
-    expect(html.match(/aria-pressed="false"/g)).toHaveLength(7);
-    expect(html.match(/Prefer when it fits/g)).toHaveLength(9);
+    expect(html.match(/aria-pressed="false"/g)).toHaveLength(10);
+    expect(html.match(/Prefer when it fits/g)).toHaveLength(12);
     expect(html).toContain('role="status" aria-live="polite" aria-atomic="true"');
     expect(html).toContain("<strong>2</strong> of 3 preferred");
     expect(html).toContain("Changes save automatically.");
@@ -75,7 +75,7 @@ describe("MethodLibrary", () => {
     ]);
 
     expect(html.match(/aria-pressed="true"/g)).toHaveLength(3);
-    expect(html.match(/aria-pressed="false"[^>]* disabled=""/g)).toHaveLength(6);
+    expect(html.match(/aria-pressed="false"[^>]* disabled=""/g)).toHaveLength(9);
     expect(html.match(/aria-pressed="true"[^>]* disabled=""/g)).toBeNull();
     expect(html).toContain("Remove one preference before adding another.");
   });

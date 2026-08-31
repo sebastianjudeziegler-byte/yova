@@ -17,15 +17,32 @@ import {
   METHOD_RUNTIME_CAPABILITY_POLICY_VERSION,
 } from "@/lib/session-generation/method-runtime-capability";
 import {
+  STUDY_ROUTE_AGENCY_MODE_CONTROLLER_VERSION,
+  boundedAgencyMethodAlternatives,
+  resolveStudyRouteAgencyMode,
+  studyRouteControlModeForAgencyMode,
+  type StudyRouteAgencyModeDecision,
+} from "@/lib/study-route/agency-mode-controller";
+import {
   StudyRouteProvenanceSchema,
   StudyRouteRuleTraceEntrySchema,
+  STUDY_ROUTE_ROUTER_VERSION_MAX_LENGTH,
   StudyRouteSchema,
   type StudyRoute,
-  type StudyRouteAlternative,
   type StudyRoutePhase,
 } from "@/lib/study-route/schema";
 import { activeStudyRouteTargetIds } from "@/lib/study-route/targets";
 import { METHOD_DECISION_EVIDENCE_ADAPTER_VERSION } from "@/lib/study-route/method-decision-evidence";
+import {
+  METHOD_EVIDENCE_COMPARABILITY_POLICY_VERSION,
+  METHOD_EVIDENCE_POLICY_VERSION,
+} from "@/lib/study-route/method-evidence-policy";
+import {
+  PERSONALIZATION_ROLLOUT_POLICY_VERSION,
+  appendPersonalizationRolloutVersion,
+  personalizationRouteVersionFromRouterVersion,
+  type PersonalizationRolloutDecision,
+} from "@/lib/study-route/personalization-rollout";
 import {
   STUDY_ROUTE_REASON_MAX_LENGTH,
 } from "@/lib/study-route/scalar-contract";
@@ -33,6 +50,23 @@ import { composeStudyRouteProfileVersion } from "@/lib/study-route/provenance-ve
 
 export const STUDY_ROUTE_METHOD_PLAN_INTEGRATION_VERSION =
   "study_route_method_plan_integration_v1" as const;
+export const STUDY_ROUTE_ROUTER_HISTORY_COMPACTION_VERSION =
+  "study_route.router_history_compaction_v1" as const;
+
+/**
+ * Reads both the bounded current router manifest and any exact predecessor
+ * components archived by the version compactor.
+ */
+export function studyRouteProvenanceIncludesRouterComponent(
+  provenance: Pick<StudyRoute["provenance"], "routerVersion" | "ruleTrace">,
+  component: string,
+) {
+  if (provenance.routerVersion.split("+").includes(component)) return true;
+  return provenance.ruleTrace.some((entry) => (
+    entry.ruleId === STUDY_ROUTE_ROUTER_HISTORY_COMPACTION_VERSION
+    && entry.evidenceRefs.includes(`router-component:${component}`)
+  ));
+}
 
 const LEGACY_AGENCY_UNCERTAINTY =
   "The legacy record does not show who selected the route or which control mode was active.";
@@ -43,6 +77,15 @@ export type StudyRouteMethodDecision = {
   selection: CanonicalMethodSelectionResult;
   /** Authorized profile/evidence snapshot used to create the selection. */
   profileVersion: string;
+  /** Authorized canonical control-mode resolution for this new route. */
+  agencyMode?: StudyRouteAgencyModeDecision;
+  /** Server-owned cohort assignment for new route issuance. */
+  rolloutDecision?: PersonalizationRolloutDecision;
+  /**
+   * Optional immutable predecessor choice set. Post-commit changes use this
+   * to rotate choices without revealing a previously hidden eligible method.
+   */
+  boundedChoiceMethodIds?: readonly CanonicalMethodSelectionResult["selectedMethodId"][];
 };
 
 /**
@@ -100,9 +143,25 @@ export function integrateStudyRouteMethodDecision({
     activeMinutes: phaseMinutes[index]!,
     targetIds,
   }));
-  const alternatives = methodAlternatives(decision.selection, route);
+  const alternatives = boundedAgencyMethodAlternatives({
+    route,
+    orderedMethodIds: decision.boundedChoiceMethodIds
+      ?? decision.selection.orderedMethodIds,
+    selectedMethodId: methodId,
+    allowedMethodIds: decision.boundedChoiceMethodIds,
+  });
   const method = CORE_METHOD_CATALOG[methodId];
   const shortReason = boundedReason(decision.selection.learnerFacingReason);
+  const suppliedAgencyMode = decision.agencyMode
+    ?? resolveStudyRouteAgencyMode();
+  const effectiveAgencyMode = decision.selection.authority === "learner_choice"
+    ? {
+        mode: "ill_customize" as const,
+        source: "learner_choice" as const,
+        uncertainty: null,
+        evidenceRefs: decision.selection.evidenceRefs,
+      }
+    : suppliedAgencyMode;
   const learnerDeclaration = decision.selection.authority === "learner_choice"
     || decision.selection.authority === "authorized_declaration";
   const observed = decision.selection.authority === "observed_outcomes"
@@ -110,6 +169,7 @@ export function integrateStudyRouteMethodDecision({
   const evidenceRefs = unique([
     ...route.provenance.evidenceRefs,
     ...decision.selection.evidenceRefs,
+    ...effectiveAgencyMode.evidenceRefs,
   ]);
   const presentationTrace = StudyRouteRuleTraceEntrySchema.parse({
     ruleId: METHOD_PRESENTATION_POLICY_VERSION,
@@ -117,6 +177,42 @@ export function integrateStudyRouteMethodDecision({
     reason: "Learner-facing method names come from the versioned presentation catalog; method IDs and learning recipes remain unchanged.",
     evidenceRefs: [],
   });
+  const agencyTrace = StudyRouteRuleTraceEntrySchema.parse({
+    ruleId: STUDY_ROUTE_AGENCY_MODE_CONTROLLER_VERSION,
+    result: `${effectiveAgencyMode.mode}:${effectiveAgencyMode.source}:alternatives:${alternatives.map((alternative) => alternative.primaryMethodId).join(",") || "none"}`,
+    reason: effectiveAgencyMode.source === "learner_choice"
+      ? "The learner chose this exact route-bound method, so the shared agency controller recorded learner customization and kept at most two eligible, deliverable alternatives."
+      : effectiveAgencyMode.uncertainty
+        ? `${effectiveAgencyMode.uncertainty} The shared agency controller kept at most two eligible, deliverable alternatives.`
+        : `The authorized canonical control-mode answer selected ${effectiveAgencyMode.mode}; the shared agency controller kept at most two eligible, deliverable alternatives.`,
+    evidenceRefs: effectiveAgencyMode.evidenceRefs,
+  });
+  const rolloutTrace = decision.rolloutDecision
+    ? StudyRouteRuleTraceEntrySchema.parse({
+        ruleId: PERSONALIZATION_ROLLOUT_POLICY_VERSION,
+        result: decision.rolloutDecision.routeVersion,
+        reason: "The server-owned staged rollout selected the version for new route issuance; it did not alternate methods or create method evidence.",
+        evidenceRefs: [],
+      })
+    : null;
+  const existingRolloutTrace = route.provenance.ruleTrace.filter((entry) => (
+    entry.ruleId === PERSONALIZATION_ROLLOUT_POLICY_VERSION
+  ));
+  if (
+    existingRolloutTrace.length > 1
+    || (existingRolloutTrace[0]
+      && rolloutTrace
+      && !sameValues(
+        [
+          existingRolloutTrace[0].result,
+          existingRolloutTrace[0].reason,
+          ...existingRolloutTrace[0].evidenceRefs,
+        ],
+        [rolloutTrace.result, rolloutTrace.reason, ...rolloutTrace.evidenceRefs],
+      ))
+  ) {
+    throw new Error("The StudyRoute has inconsistent personalization-rollout provenance.");
+  }
   const existingPresentationTrace = route.provenance.ruleTrace.filter((entry) => (
     entry.ruleId === METHOD_PRESENTATION_POLICY_VERSION
   ));
@@ -134,12 +230,40 @@ export function integrateStudyRouteMethodDecision({
   ) {
     throw new Error("The StudyRoute has inconsistent method-presentation provenance.");
   }
+  const routerDecision = compositeRouterVersion(
+    route.provenance.routerVersion,
+    decision.rolloutDecision,
+  );
+  const routerCompactionTrace = routerDecision.compactedComponents
+    ? StudyRouteRuleTraceEntrySchema.parse({
+        ruleId: STUDY_ROUTE_ROUTER_HISTORY_COMPACTION_VERSION,
+        result: "prior_router_chain_compacted",
+        reason: "The bounded routerVersion keeps the complete current method and rollout policy set. The exact ordered predecessor router components remain in this trace for audit and rollback.",
+        evidenceRefs: routerDecision.compactedComponents.map((component) => (
+          `router-component:${component}`
+        )),
+      })
+    : null;
   const ruleTrace = [
     ...route.provenance.ruleTrace,
+    ...(rolloutTrace && existingRolloutTrace.length === 0 ? [rolloutTrace] : []),
+    ...(routerCompactionTrace ? [routerCompactionTrace] : []),
     StudyRouteRuleTraceEntrySchema.parse({
       ruleId: METHOD_DECISION_EVIDENCE_ADAPTER_VERSION,
       result: "authorized_context_applied",
       reason: "Only structured learner declarations and exact route-bound outcomes allowed by the learner's personalization controls entered method routing.",
+      evidenceRefs: [],
+    }),
+    StudyRouteRuleTraceEntrySchema.parse({
+      ruleId: METHOD_EVIDENCE_POLICY_VERSION,
+      result: "thresholded_outcome_evidence",
+      reason: "Method outcomes can rank an eligible method only after the versioned session, checked-answer, and distinct-study-day evidence minimums are met.",
+      evidenceRefs: [],
+    }),
+    StudyRouteRuleTraceEntrySchema.parse({
+      ruleId: METHOD_EVIDENCE_COMPARABILITY_POLICY_VERSION,
+      result: "comparison_context_required",
+      reason: "Outcome evidence may enter method routing only after the versioned task, stage, mode, environment, difficulty, duration, support, target-relationship, and assessment context matches.",
       evidenceRefs: [],
     }),
     ...decision.selection.ruleTrace,
@@ -154,6 +278,7 @@ export function integrateStudyRouteMethodDecision({
       evidenceRefs: [],
     }),
     ...(existingPresentationTrace.length === 0 ? [presentationTrace] : []),
+    agencyTrace,
   ];
   if (evidenceRefs.length > 100) {
     throw new Error("The combined StudyRoute method provenance exceeds its evidence-reference limit.");
@@ -180,9 +305,7 @@ export function integrateStudyRouteMethodDecision({
       activityLimit: Math.max(route.execution.activityLimit, orderedPhases.length),
     },
     agency: {
-      controlMode: decision.selection.authority === "learner_choice"
-        ? "learner_customizes"
-        : "yova_decides",
+      controlMode: studyRouteControlModeForAgencyMode(effectiveAgencyMode.mode),
       selectedBy: decision.selection.authority === "learner_choice"
         ? "learner"
         : "yova",
@@ -213,10 +336,14 @@ export function integrateStudyRouteMethodDecision({
       uncertainties: route.explanation.uncertainties.filter((uncertainty) => ![
         LEGACY_AGENCY_UNCERTAINTY,
         LEGACY_PHASE_UNCERTAINTY,
-      ].includes(uncertainty)),
+      ].includes(uncertainty)).concat(
+        effectiveAgencyMode.uncertainty ? [effectiveAgencyMode.uncertainty] : [],
+      ).filter((uncertainty, index, values) => (
+        values.indexOf(uncertainty) === index
+      )).slice(0, 10),
     },
     provenance: {
-      routerVersion: compositeRouterVersion(route.provenance.routerVersion),
+      routerVersion: routerDecision.routerVersion,
       profileVersion: composeStudyRouteProfileVersion(
         route.provenance.profileVersion,
         profileVersion,
@@ -295,23 +422,6 @@ function validateSelectionAgainstRoute(
   }
 }
 
-function methodAlternatives(
-  selection: CanonicalMethodSelectionResult,
-  route: StudyRoute,
-): StudyRouteAlternative[] {
-  return selection.orderedMethodIds.slice(1, 3).map((methodId) => ({
-    alternativeId: `method-alternative:${methodId}`,
-    mode: route.approach.mode,
-    executionEnvironment: route.approach.executionEnvironment,
-    primaryMethodId: methodId,
-    visibleMethodName: CORE_METHOD_CATALOG[methodId].name,
-    activeMinutes: route.timing.activeMinutes,
-    tradeoff: boundedTradeoff(
-      `${CORE_METHOD_CATALOG[methodId].name} also fits this task and stage, but it would use a different practice sequence.`,
-    ),
-  }));
-}
-
 function mostSupportiveStage(stages: readonly KnowledgeStage[]): KnowledgeStage {
   if (stages.includes("novice")) return "novice";
   if (stages.includes("developing")) return "developing";
@@ -334,19 +444,67 @@ function boundedReason(value: string) {
     .slice(0, STUDY_ROUTE_REASON_MAX_LENGTH);
 }
 
-function boundedTradeoff(value: string) {
-  const normalized = value.trim();
-  return (normalized.length >= 8 ? normalized : "This option uses a different eligible sequence.")
-    .slice(0, 300);
-}
-
-function compositeRouterVersion(currentVersion: string) {
-  return StudyRouteProvenanceSchema.shape.routerVersion.parse(unique([
-    ...currentVersion.split("+").filter(Boolean),
+function compositeRouterVersion(
+  currentVersion: string,
+  rolloutDecision?: PersonalizationRolloutDecision,
+) {
+  const currentComponents = unique(currentVersion.split("+").filter(Boolean));
+  const requiredMethodComponents = [
     STUDY_ROUTE_METHOD_PLAN_INTEGRATION_VERSION,
+    METHOD_DECISION_EVIDENCE_ADAPTER_VERSION,
+    METHOD_EVIDENCE_POLICY_VERSION,
+    METHOD_EVIDENCE_COMPARABILITY_POLICY_VERSION,
     METHOD_RUNTIME_CAPABILITY_POLICY_VERSION,
     METHOD_PRESENTATION_POLICY_VERSION,
-  ]).join("+"));
+    STUDY_ROUTE_AGENCY_MODE_CONTROLLER_VERSION,
+  ] as const;
+  const existingRolloutVersion = personalizationRouteVersionFromRouterVersion(
+    currentVersion,
+  );
+  if (
+    rolloutDecision
+    && existingRolloutVersion
+    && existingRolloutVersion !== rolloutDecision.routeVersion
+  ) {
+    throw new Error("A versioned StudyRoute cannot change personalization cohorts in place.");
+  }
+  const rolloutComponents = rolloutDecision
+    ? appendPersonalizationRolloutVersion(
+        requiredMethodComponents.join("+"),
+        rolloutDecision,
+      ).split("+").filter((component) => (
+        !requiredMethodComponents.includes(
+          component as (typeof requiredMethodComponents)[number],
+        )
+      ))
+    : existingRolloutVersion
+      ? [PERSONALIZATION_ROLLOUT_POLICY_VERSION, existingRolloutVersion]
+      : [];
+  const preferredComponents = unique([
+    ...currentComponents,
+    ...requiredMethodComponents,
+    ...rolloutComponents,
+  ]);
+  const preferredVersion = preferredComponents.join("+");
+  if (preferredVersion.length <= STUDY_ROUTE_ROUTER_VERSION_MAX_LENGTH) {
+    return {
+      routerVersion: StudyRouteProvenanceSchema.shape.routerVersion.parse(
+        preferredVersion,
+      ),
+      compactedComponents: null,
+    } as const;
+  }
+
+  const compactedVersion = unique([
+    ...requiredMethodComponents,
+    ...rolloutComponents,
+  ]).join("+");
+  return {
+    routerVersion: StudyRouteProvenanceSchema.shape.routerVersion.parse(
+      compactedVersion,
+    ),
+    compactedComponents: currentComponents,
+  } as const;
 }
 
 function sameValues<T>(left: readonly T[], right: readonly T[]) {

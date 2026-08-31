@@ -20,6 +20,7 @@ import {
   lessonWordBudgetForMinutes,
   StreamedLessonGenerationError,
   streamGeneratedLesson,
+  streamGeneratedLessonWithRetry,
   type StreamedLessonInput,
 } from "@/lib/openai/streamed-lesson-generator";
 
@@ -108,12 +109,13 @@ describe("streamed lesson prompt", () => {
     );
   });
 
-  it("rejects a completed lesson that exceeds its reading-time ceiling", async () => {
-    const firstBoundedPart = Array.from({ length: 180 }, (_, index) => `first${index}`).join(" ");
-    const crossingPart = Array.from({ length: 181 }, (_, index) => `second${index}`).join(" ");
+  it("trims a lesson that overruns its reading-time ceiling instead of failing it", async () => {
+    const sentence = "Concentration gradients guide particles while water movement balances conditions across the membrane.";
+    const boundedPart = Array.from({ length: 25 }, () => sentence).join(" ");
+    const overshootPart = Array.from({ length: 40 }, () => sentence).join(" ");
     openAIMocks.create.mockResolvedValue(streamEvents([
-      { type: "response.output_text.delta", delta: firstBoundedPart },
-      { type: "response.output_text.delta", delta: ` ${crossingPart}` },
+      { type: "response.output_text.delta", delta: boundedPart },
+      { type: "response.output_text.delta", delta: ` ${overshootPart}` },
       {
         type: "response.completed",
         response: {
@@ -126,18 +128,87 @@ describe("streamed lesson prompt", () => {
     ]));
 
     let visibleLesson = "";
-    let error: StreamedLessonGenerationError | null = null;
-    try {
-      await streamGeneratedLesson(lessonInput, (delta) => { visibleLesson += delta; });
-    } catch (cause) {
-      if (cause instanceof StreamedLessonGenerationError) error = cause;
-      else throw cause;
-    }
+    const result = await streamGeneratedLesson(lessonInput, (delta) => { visibleLesson += delta; });
 
-    expect(error?.stats.failureKind).toBe("content_exceeded_time_budget");
-    expect(error?.stats.wordCount).toBe(361);
-    expect(visibleLesson.trim().split(/\s+/)).toHaveLength(180);
-    expect(visibleLesson).not.toContain("second0");
+    expect(result.truncatedToBudget).toBe(true);
+    expect(result.wordCount).toBeLessThanOrEqual(360);
+    expect(result.content.endsWith(".")).toBe(true);
+    expect(result.qualityNote).toBeNull();
+    // The overshoot delta is never rendered mid-stream; the route swaps in the trimmed text.
+    expect(visibleLesson.trim().split(/\s+/)).toHaveLength(300);
+  });
+
+  it("enforces the hard ceiling for a slight one-to-fifteen-percent overrun", async () => {
+    const sentence = "Concentration gradients guide particles while water movement balances conditions across the membrane.";
+    const streamedPrefix = Array.from({ length: 29 }, () => sentence).join(" ");
+    const crossingDelta = Array.from({ length: 2 }, () => sentence).join(" ");
+    openAIMocks.create.mockResolvedValue(streamEvents([
+      { type: "response.output_text.delta", delta: streamedPrefix },
+      { type: "response.output_text.delta", delta: ` ${crossingDelta}` },
+      {
+        type: "response.completed",
+        response: {
+          id: "resp_slight_overrun",
+          model: "provider-lesson-model",
+          status: "completed",
+          usage: {
+            input_tokens: 111,
+            output_tokens: 222,
+            input_tokens_details: { cached_tokens: 33 },
+          },
+        },
+      },
+    ]));
+
+    let visibleLesson = "";
+    const result = await streamGeneratedLesson(lessonInput, (delta) => { visibleLesson += delta; });
+
+    expect(result.truncatedToBudget).toBe(true);
+    expect(result.wordCount).toBe(360);
+    expect(result.inputTokens).toBe(111);
+    expect(result.cachedInputTokens).toBe(33);
+    expect(result.outputTokens).toBe(222);
+    expect(visibleLesson.trim().split(/\s+/)).toHaveLength(348);
+  });
+
+  it("does not treat a bounded overrun prefix as success without a completion event", async () => {
+    const overrun = Array.from(
+      { length: 31 },
+      () => "Concentration gradients guide particles while water movement balances conditions across the membrane.",
+    ).join(" ");
+    openAIMocks.create.mockResolvedValue(streamEvents([
+      { type: "response.output_text.delta", delta: overrun },
+    ]));
+
+    const error = await captureStreamFailure();
+
+    expect(error.stats.failureKind).toBe("stream_ended_without_completion");
+  });
+
+  it("revalidates a trimmed prefix and rejects it when an essential idea only appears after the ceiling", async () => {
+    const firstIdeaOnly = "Concentration gradients direct particles across membranes because concentration differences create directional pressure.";
+    const boundedPrefix = Array.from({ length: 33 }, () => firstIdeaOnly).join(" ");
+    const lateIdea = "Water movement balances dissolved-particle conditions across a selectively permeable membrane.";
+    openAIMocks.create.mockResolvedValue(streamEvents([
+      { type: "response.output_text.delta", delta: boundedPrefix },
+      { type: "response.output_text.delta", delta: ` ${Array.from({ length: 8 }, () => lateIdea).join(" ")}` },
+      {
+        type: "response.completed",
+        response: {
+          id: "resp_trimmed_missing_idea",
+          model: "provider-lesson-model",
+          status: "completed",
+          usage: { input_tokens: 130, output_tokens: 410 },
+        },
+      },
+    ]));
+
+    const error = await captureStreamFailure();
+
+    expect(error.stats.failureKind).toBe("content_below_substance_threshold");
+    expect(error.message).toBe("The lesson did not cover every assigned essential idea.");
+    expect(error.stats.inputTokens).toBe(130);
+    expect(error.stats.outputTokens).toBe(410);
   });
 
   it("rejects a completed lesson that is too thin for its planned teaching time", async () => {
@@ -159,7 +230,78 @@ describe("streamed lesson prompt", () => {
 
     expect(error.stats.failureKind).toBe("content_below_substance_threshold");
     expect(error.stats.responseId).toBe("resp_thin");
-    expect(error.message).toMatch(/below the 120-word minimum/i);
+    expect(error.message).toMatch(/too short/i);
+  });
+
+  it("keeps omitted-essential-idea coverage as a hard failure above the word floor", async () => {
+    const oneIdeaLesson = Array.from(
+      { length: 14 },
+      (_, index) => `Concentration gradients direct particle movement across membranes in worked situation ${index + 1}, making unequal concentrations progressively more even.`,
+    ).join(" ");
+    openAIMocks.create.mockResolvedValue(streamEvents([
+      { type: "response.output_text.delta", delta: oneIdeaLesson },
+      {
+        type: "response.completed",
+        response: {
+          id: "resp_missing_idea",
+          model: "provider-lesson-model",
+          status: "completed",
+          usage: { input_tokens: 100, output_tokens: 260 },
+        },
+      },
+    ]));
+
+    const error = await captureStreamFailure();
+
+    expect(error.stats.wordCount).toBeGreaterThanOrEqual(120);
+    expect(error.stats.failureKind).toBe("content_below_substance_threshold");
+    expect(error.message).not.toContain("Water movement");
+  });
+
+  it("keeps complete explanatory prose as a hard failure", async () => {
+    const unfinishedLesson = Array.from(
+      { length: 12 },
+      () => "Concentration gradients shape particle movement while water movement balances membrane conditions without completing explanatory prose",
+    ).join(" ");
+    openAIMocks.create.mockResolvedValue(streamEvents([
+      { type: "response.output_text.delta", delta: unfinishedLesson },
+      {
+        type: "response.completed",
+        response: {
+          id: "resp_no_complete_prose",
+          model: "provider-lesson-model",
+          status: "completed",
+          usage: { input_tokens: 100, output_tokens: 240 },
+        },
+      },
+    ]));
+
+    const error = await captureStreamFailure();
+
+    expect(error.stats.failureKind).toBe("content_below_substance_threshold");
+    expect(error.message).toMatch(/complete explanatory prose/i);
+  });
+
+  it("accepts only a slight word-floor miss after the hard prose and idea gates pass", async () => {
+    const sentence = "Concentration gradients guide particles while water movement balances conditions across the membrane.";
+    const lesson = Array.from({ length: 9 }, () => sentence).join(" ");
+    openAIMocks.create.mockResolvedValue(streamEvents([
+      { type: "response.output_text.delta", delta: lesson },
+      {
+        type: "response.completed",
+        response: {
+          id: "resp_slight_floor",
+          model: "provider-lesson-model",
+          status: "completed",
+          usage: { input_tokens: 90, output_tokens: 130 },
+        },
+      },
+    ]));
+
+    const result = await streamGeneratedLesson(lessonInput, () => undefined);
+
+    expect(result.wordCount).toBe(108);
+    expect(result.qualityNote).toBe("slightly_below_word_floor");
   });
 
   it("accepts a bounded lesson that substantively covers every assigned idea", async () => {
@@ -395,3 +537,201 @@ function throwingStream(events: unknown[]) {
     },
   };
 }
+
+describe("streamGeneratedLessonWithRetry", () => {
+  it("retries once after a retryable failure and returns the second attempt", async () => {
+    const sentence = "Concentration gradients guide particles while water movement balances conditions across the membrane.";
+    const goodLesson = Array.from({ length: 20 }, () => sentence).join(" ");
+    openAIMocks.create
+      .mockResolvedValueOnce(streamEvents([{ type: "error" }]))
+      .mockResolvedValueOnce(streamEvents([
+        { type: "response.output_text.delta", delta: goodLesson },
+        {
+          type: "response.completed",
+          response: {
+            id: "resp_retry",
+            model: "provider-lesson-model",
+            status: "completed",
+            usage: { input_tokens: 100, output_tokens: 200 },
+          },
+        },
+      ]));
+
+    let visible = "";
+    const { attempts, result } = await streamGeneratedLessonWithRetry(lessonInput, (delta) => { visible += delta; });
+
+    expect(attempts).toBe(2);
+    expect(result.wordCount).toBe(240);
+    expect(result.content).toContain("Concentration gradients");
+    // The retry is buffered; the route replaces content atomically instead of double-streaming.
+    expect(visible).toBe("");
+  });
+
+  it("aggregates tokens, elapsed time, and first-token latency across retry success", async () => {
+    let now = 1_000;
+    vi.spyOn(Date, "now").mockImplementation(() => {
+      const value = now;
+      now += 10;
+      return value;
+    });
+    const goodLesson = Array.from(
+      { length: 12 },
+      () => "Concentration gradients guide particles while water movement balances conditions across the membrane.",
+    ).join(" ");
+    openAIMocks.create
+      .mockResolvedValueOnce(streamEvents([
+        { type: "response.output_text.delta", delta: "A partial lesson reached the learner." },
+        {
+          type: "response.incomplete",
+          response: {
+            id: "resp_first_incomplete",
+            model: "provider-lesson-model",
+            status: "incomplete",
+            usage: {
+              input_tokens: 70,
+              output_tokens: 20,
+              input_tokens_details: { cached_tokens: 10 },
+            },
+          },
+        },
+      ]))
+      .mockResolvedValueOnce(streamEvents([
+        { type: "response.output_text.delta", delta: goodLesson },
+        {
+          type: "response.completed",
+          response: {
+            id: "resp_retry_success",
+            model: "provider-lesson-model",
+            status: "completed",
+            usage: {
+              input_tokens: 100,
+              output_tokens: 180,
+              input_tokens_details: { cached_tokens: 25 },
+            },
+          },
+        },
+      ]));
+
+    const generated = await streamGeneratedLessonWithRetry(lessonInput, () => undefined);
+
+    expect(generated.attempts).toBe(2);
+    expect(generated.firstFailureKind).toBe("provider_incomplete");
+    expect(generated.result).toMatchObject({
+      inputTokens: 170,
+      cachedInputTokens: 35,
+      outputTokens: 200,
+      latencyToFirstTokenMs: 10,
+      elapsedMs: 40,
+    });
+    expect(openAIMocks.create).toHaveBeenCalledTimes(2);
+  });
+
+  it("aggregates both failures and never makes a third provider call", async () => {
+    let now = 2_000;
+    vi.spyOn(Date, "now").mockImplementation(() => {
+      const value = now;
+      now += 10;
+      return value;
+    });
+    openAIMocks.create
+      .mockResolvedValueOnce(streamEvents([
+        { type: "response.output_text.delta", delta: "First partial lesson." },
+        {
+          type: "response.incomplete",
+          response: {
+            id: "resp_first_failure",
+            model: "provider-lesson-model",
+            status: "incomplete",
+            usage: {
+              input_tokens: 60,
+              output_tokens: 15,
+              input_tokens_details: { cached_tokens: 5 },
+            },
+          },
+        },
+      ]))
+      .mockResolvedValueOnce(streamEvents([
+        { type: "response.output_text.delta", delta: "Second partial lesson." },
+        {
+          type: "response.failed",
+          response: {
+            id: "resp_second_failure",
+            model: "provider-lesson-model",
+            status: "failed",
+            usage: {
+              input_tokens: 80,
+              output_tokens: 25,
+              input_tokens_details: { cached_tokens: 7 },
+            },
+          },
+        },
+      ]));
+
+    let failure: StreamedLessonGenerationError | null = null;
+    try {
+      await streamGeneratedLessonWithRetry(lessonInput, () => undefined);
+    } catch (error) {
+      if (error instanceof StreamedLessonGenerationError) failure = error;
+      else throw error;
+    }
+
+    expect(failure).not.toBeNull();
+    expect(failure?.attemptsMade).toBe(2);
+    expect(failure?.initialFailureKind).toBe("provider_incomplete");
+    expect(failure?.stats).toMatchObject({
+      failureKind: "provider_failed",
+      inputTokens: 140,
+      cachedInputTokens: 12,
+      outputTokens: 40,
+      latencyToFirstTokenMs: 10,
+      elapsedMs: 40,
+    });
+    expect(openAIMocks.create).toHaveBeenCalledTimes(2);
+  });
+
+  it("honors an abort racing with overrun completion instead of reporting success", async () => {
+    const controller = new AbortController();
+    const overrun = Array.from(
+      { length: 31 },
+      () => "Concentration gradients guide particles while water movement balances conditions across the membrane.",
+    ).join(" ");
+    openAIMocks.create.mockResolvedValue({
+      async *[Symbol.asyncIterator]() {
+        yield { type: "response.output_text.delta", delta: overrun };
+        controller.abort();
+        yield {
+          type: "response.completed",
+          response: {
+            id: "resp_abort_race",
+            model: "provider-lesson-model",
+            status: "completed",
+            usage: { input_tokens: 100, output_tokens: 300 },
+          },
+        };
+      },
+    });
+
+    await expect(streamGeneratedLessonWithRetry(
+      lessonInput,
+      () => undefined,
+      controller.signal,
+    )).rejects.toMatchObject({
+      attemptsMade: 1,
+      stats: { failureKind: "request_aborted" },
+    });
+    expect(openAIMocks.create).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not retry a learner disconnect", async () => {
+    const controller = new AbortController();
+    openAIMocks.create.mockImplementation(async () => {
+      controller.abort();
+      return streamEvents([{ type: "error" }]);
+    });
+
+    await expect(streamGeneratedLessonWithRetry(lessonInput, () => {}, controller.signal)).rejects.toMatchObject({
+      stats: { failureKind: "request_aborted" },
+    });
+    expect(openAIMocks.create).toHaveBeenCalledTimes(1);
+  });
+});

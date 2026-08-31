@@ -16,6 +16,9 @@ const BEST_FOR: Readonly<Record<CoreMethodId, string>> = {
   worked_example_fading: "Learning new maths, science, or coding procedures",
   interleaved_practice: "Telling similar problem types apart during mixed practice",
   read_recall_review: "Learning from textbooks, notes, and articles",
+  pretesting: "Focusing first instruction with a brief, low-stakes prediction",
+  concept_mapping: "Connecting related concepts into a verified mental model",
+  practice_problems: "Building independent application and changed-context transfer",
   retrieval_based_outlining: "Planning essays, reports, and structured arguments",
   scaffolded_coding: "Programming, tracing, debugging, and independent coding",
   practice_test_error_repair: "Checking exam readiness and finding weak areas",
@@ -66,7 +69,7 @@ export const METHOD_LIBRARY_ENTRIES: readonly MethodLibraryEntry[] = Object.free
 );
 
 /**
- * Blurting is intentionally separate from the nine core methods. It is a
+ * Blurting is intentionally separate from the twelve core methods. It is a
  * future supporting recipe over Active Recall, not a selectable core method.
  */
 export const FUTURE_BLURTING_LIBRARY_ENTRY = Object.freeze({

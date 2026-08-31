@@ -17,6 +17,7 @@ import {
   type PlanGenerationRequest,
 } from "@/lib/plan-generation/schema";
 import type { InitialPlanMethodRoutingContext } from "@/lib/study-route/initial-plan-method-routing";
+import { studyRouteProvenanceIncludesRouterComponent } from "@/lib/study-route/method-plan-integration";
 import { NORMAL_PLAN_ENVELOPE_ROUTE_INTEGRATION_VERSION } from "@/lib/study-route/normal-plan-envelope-integration";
 import { StudyRouteSchema } from "@/lib/study-route/schema";
 
@@ -102,9 +103,10 @@ describe("atomic normal-plan pipeline", () => {
         envelope.learningMode === "learn" ? "learn" : "practice",
       );
       expect(route.timing).toEqual(envelope.timing);
-      expect(route.provenance.routerVersion.split("+")).toContain(
+      expect(studyRouteProvenanceIncludesRouterComponent(
+        route.provenance,
         NORMAL_PLAN_ENVELOPE_ROUTE_INTEGRATION_VERSION,
-      );
+      )).toBe(true);
       for (const trace of [...envelope.modeRuleTrace, ...envelope.durationRuleTrace]) {
         expect(route.provenance.ruleTrace).toContainEqual(trace);
       }

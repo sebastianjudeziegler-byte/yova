@@ -1,0 +1,88 @@
+.panel {
+  margin: 22px 0 28px;
+  overflow: hidden;
+  color: var(--navy);
+  border: 1px solid #cbd7f7;
+  border-radius: 18px;
+  background: linear-gradient(145deg, #fbfcff, #f5f7ff);
+  box-shadow: 0 12px 34px rgba(31, 53, 109, .07);
+}
+
+.header {
+  padding: 16px 18px;
+  display: grid;
+  gap: 6px;
+  border-bottom: 1px solid #dfe5f4;
+  background: rgba(255, 255, 255, .76);
+}
+
+.header > div { display: flex; align-items: center; gap: 8px; color: #4b5fa7; }
+.header span,
+.problem > span,
+.faded > span,
+.repairGrid article > span,
+.corrected > span,
+.transfer span { font-size: 10px; font-weight: 850; letter-spacing: .09em; }
+.header strong { font-size: 16px; }
+
+.problem,
+.faded,
+.corrected { padding: 20px; }
+.problem h2,
+.faded h3 { margin: 7px 0 16px; font-size: 18px; line-height: 1.45; }
+.faded { border-top: 1px solid #dfe5f4; background: #fff; }
+
+.steps,
+.fadedSteps { margin: 0; padding: 0; display: grid; gap: 10px; list-style: none; }
+.steps li,
+.fadedSteps li { display: grid; grid-template-columns: 28px 1fr; gap: 10px; align-items: start; }
+.steps li > span,
+.fadedSteps li > span { width: 28px; height: 28px; display: grid; place-items: center; border-radius: 999px; color: #3d529d; background: #e9edff; font-size: 12px; font-weight: 800; }
+.steps p { margin: 3px 0 0; color: #58647a; line-height: 1.5; }
+.fadedSteps .missing { padding: 12px; border: 1px dashed #96a8e8; border-radius: 12px; background: #f7f9ff; }
+.fadedSteps small { margin-top: 4px; display: block; color: #64708a; line-height: 1.45; }
+
+.repairGrid { display: grid; grid-template-columns: 1fr 1fr; }
+.repairGrid article { min-width: 0; padding: 20px; }
+.repairGrid article + article { border-left: 1px solid #dfe5f4; background: #fff; }
+.repairGrid h3 { margin: 8px 0; font-size: 16px; line-height: 1.5; }
+.repairGrid p { line-height: 1.55; }
+.incorrect,
+.correct { display: flex; gap: 8px; align-items: flex-start; }
+.incorrect { color: #8b3e10; }
+.correct { color: #175c42; }
+.incorrect svg,
+.correct svg { flex: 0 0 auto; margin-top: 3px; }
+
+.warning,
+.transfer { margin: 0 20px 20px; padding: 14px 16px; border-radius: 12px; }
+.warning { border: 1px solid #efd2b8; background: #fff8f1; }
+.warning p { margin: 4px 0 0; line-height: 1.5; }
+.corrected { border-top: 1px solid #dfe5f4; background: #fff; }
+.corrected p { margin: 7px 0 0; line-height: 1.6; }
+.transfer { display: flex; gap: 10px; align-items: flex-start; color: #31437f; background: #eaf0ff; }
+.transfer svg { flex: 0 0 auto; margin-top: 2px; }
+.transfer div { display: grid; gap: 4px; }
+.transfer small { color: #58647a; line-height: 1.45; }
+
+.mapInstructions { padding: 18px 20px 8px; }
+.mapInstructions p { margin: 0 0 5px; line-height: 1.55; }
+.mapInstructions small { color: #64708a; }
+.nodeCloud { padding: 12px 20px 18px; display: flex; flex-wrap: wrap; gap: 8px; border-bottom: 1px solid #dfe5f4; }
+.nodeCloud span { padding: 7px 11px; border: 1px solid #bbc9ef; border-radius: 999px; color: #31437f; background: #fff; font-size: 13px; font-weight: 750; }
+.connectionList { margin: 0; padding: 18px 20px 20px; display: grid; gap: 14px; list-style: none; background: #fff; }
+.connectionList li { padding: 15px; border: 1px solid #dfe5f4; border-radius: 14px; background: #fbfcff; }
+.connectionHeading { display: flex; gap: 8px; align-items: center; color: #31437f; }
+.connectionHeading svg { flex: 0 0 auto; }
+.connectionList label { margin-top: 10px; display: grid; gap: 7px; }
+.connectionList label span { color: #58647a; font-size: 13px; line-height: 1.45; }
+.connectionList input { width: 100%; padding: 11px 12px; color: var(--navy); border: 1px solid #aebde9; border-radius: 10px; background: #fff; font: inherit; }
+.connectionList input:focus { outline: 3px solid rgba(75, 95, 167, .18); border-color: #4b5fa7; }
+.expectedRelationship { margin-top: 12px; padding: 11px 12px; border-radius: 10px; color: #175c42; background: #eaf8f1; }
+.expectedRelationship span { font-size: 10px; font-weight: 850; letter-spacing: .08em; }
+.expectedRelationship p { margin: 4px 0 0; line-height: 1.5; }
+
+@media (max-width: 700px) {
+  .repairGrid { grid-template-columns: 1fr; }
+  .repairGrid article + article { border-top: 1px solid #dfe5f4; border-left: 0; }
+}

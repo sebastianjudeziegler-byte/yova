@@ -16,6 +16,7 @@ describe("production session generation strategy", () => {
 
     expect(strategyFor("calculus_delayed_retrieval_self_contained")).toBe("full");
     expect(strategyFor("bioenergetics_multi_target_study")).toBe("full");
+    expect(strategyFor("calculus_demonstrated_foundations_study_25")).toBe("full");
     expect(strategyFor("history_writing_outside")).toBe("full");
     expect(strategyFor("javascript_scaffold_fading")).toBe("streamed");
     expect(strategyFor("literature_close_reading")).toBe("streamed");

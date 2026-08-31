@@ -4,8 +4,13 @@ import { materialStudyRouteChanges } from "@/lib/study-route/revisions";
 import {
   createCommittedInitialSessionStudyRoute,
   createCommittedScalarSuccessorStudyRoute,
+  createProvisionalScalarSuccessorStudyRoute,
   POST_ACTIVATION_ROUTE_BUILDER_VERSION,
 } from "@/lib/study-route/session-route-creation";
+import {
+  STUDY_ROUTE_ROUTER_VERSION_MAX_LENGTH,
+  StudyRouteSchema,
+} from "@/lib/study-route/schema";
 
 const PLAN_ID = "11111111-1111-4111-8111-111111111111";
 const SESSION_ID = "22222222-2222-4222-8222-222222222222";
@@ -148,6 +153,103 @@ describe("post-activation StudyRoute creation", () => {
       ruleId: "study_route.material_successor",
       reason: "The learner extended the available session window.",
     });
+  });
+
+  it("can leave the exact scalar successor provisional for an agency decision", () => {
+    const originalSession = session();
+    const original = createCommittedInitialSessionStudyRoute({
+      plan: plan(originalSession),
+      session: originalSession,
+      now: FIRST_NOW,
+      origin: {
+        source: "activation",
+        reason: "Create the original session route.",
+      },
+    });
+    const adaptedSession = {
+      ...originalSession,
+      method: "Retrieval practice (Recall → Check → Repair)",
+      methodReason: "Independent retrieval now matches the target state.",
+      learningMode: "study" as const,
+    };
+
+    const candidate = createProvisionalScalarSuccessorStudyRoute({
+      plan: plan(adaptedSession),
+      session: adaptedSession,
+      previousRoute: original,
+      now: NEXT_NOW,
+      changeReason: "New evidence supports a retrieval-first next session.",
+      origin: {
+        source: "post_session_adaptation",
+        reason: "The completed session supplied bounded evidence for this candidate.",
+        evidenceRefs: [`route-revision:${original.identity.routeRevisionId}`],
+      },
+    });
+
+    expect(candidate.identity).toMatchObject({
+      lifecycleStatus: "provisional",
+      routeLineageId: original.identity.routeLineageId,
+      supersedesRevisionId: original.identity.routeRevisionId,
+      revisionNumber: 2,
+    });
+    expect(candidate.identity).not.toHaveProperty("committedAt");
+    expect(materialStudyRouteChanges(original, candidate)).toContain("primary_method");
+  });
+
+  it("archives the post-activation builder when the predecessor router manifest is full", () => {
+    const originalSession = session();
+    const initial = createCommittedInitialSessionStudyRoute({
+      plan: plan(originalSession),
+      session: originalSession,
+      now: FIRST_NOW,
+      origin: { source: "activation", reason: "Create the original session route." },
+    });
+    const fullRouterVersion = [
+      "study_route_method_plan_integration_v1",
+      "method_decision_evidence_adapter_v2",
+      "method_evidence_v1",
+      "method_compare_v1",
+      "method_runtime_capability_v1",
+      "method_presentation_v1",
+      "study_route_agency_mode_controller_v1",
+      "personalization_rollout_v1",
+      "personalized_v1",
+    ].join("+");
+    const original = StudyRouteSchema.parse({
+      ...initial,
+      provenance: {
+        ...initial.provenance,
+        routerVersion: fullRouterVersion,
+      },
+    });
+    const adaptedSession = {
+      ...originalSession,
+      method: "Retrieval practice (Recall → Check → Repair)",
+      methodReason: "Independent retrieval now matches the target state.",
+      learningMode: "study" as const,
+    };
+
+    const successor = createCommittedScalarSuccessorStudyRoute({
+      plan: plan(adaptedSession),
+      session: adaptedSession,
+      previousRoute: original,
+      now: NEXT_NOW,
+      changeReason: "New evidence supports a retrieval-first next session.",
+      origin: {
+        source: "post_session_adaptation",
+        reason: "The completed session supplied bounded evidence for this candidate.",
+      },
+    });
+
+    expect(successor.provenance.routerVersion).toBe(fullRouterVersion);
+    expect(successor.provenance.routerVersion.length).toBeLessThanOrEqual(
+      STUDY_ROUTE_ROUTER_VERSION_MAX_LENGTH,
+    );
+    expect(successor.provenance.ruleTrace).toContainEqual(expect.objectContaining({
+      ruleId: "study_route.router_history_compaction_v1",
+      result: "post_activation_builder_archived",
+      evidenceRefs: [`router-component:${POST_ACTIVATION_ROUTE_BUILDER_VERSION}`],
+    }));
   });
 
   it("rejects a changed duration when the caller supplies no current authority or trace", () => {

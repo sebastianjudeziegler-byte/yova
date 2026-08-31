@@ -1,6 +1,8 @@
 import { z } from "zod";
 import type { SessionLearningMode } from "@/lib/domain";
 import type { CalibrationPattern } from "@/lib/learning/confidence-calibration";
+import type { CoreMethodId } from "@/lib/learning/method-catalog";
+import { methodFidelityContractForPrompt } from "@/lib/learning/method-fidelity";
 import type { PersonalizationDecision } from "@/lib/personalization/personalization-evidence";
 import {
   PERSONALIZATION_DECISION_CHANNELS,
@@ -71,6 +73,39 @@ export const SessionDeliveryPolicySchema = z.object({
 });
 
 export type SessionDeliveryPolicy = z.infer<typeof SessionDeliveryPolicySchema>;
+
+/**
+ * Pacing preferences may reduce optional transitions, but they cannot make an
+ * already-selected learning method impossible to deliver. Required recipe
+ * phases are immutable evidence work; the focused-activity cap is presentation
+ * policy and expands only as far as that recipe requires.
+ */
+export function reconcileSessionDeliveryPolicyWithMethodRecipe({
+  policy,
+  methodId,
+  learningMode,
+}: {
+  policy: SessionDeliveryPolicy;
+  methodId: CoreMethodId;
+  learningMode: SessionLearningMode;
+}): SessionDeliveryPolicy {
+  const requiredFocusedActivities = methodFidelityContractForPrompt(
+    methodId,
+    learningMode,
+  ).requiredPhases.filter((phase) => phase !== "schedule_return").length;
+  if (requiredFocusedActivities <= policy.pacing.maximumActivities) return policy;
+  if (requiredFocusedActivities > 8) {
+    throw new Error(`${methodId} requires more focused activities than one guided session can safely render.`);
+  }
+  return SessionDeliveryPolicySchema.parse({
+    ...policy,
+    pacing: {
+      ...policy.pacing,
+      maximumActivities: requiredFocusedActivities,
+      reason: `${policy.pacing.reason.slice(0, 170)} The selected method requires ${requiredFocusedActivities} distinct evidence phases, so those phases remain intact.`,
+    },
+  });
+}
 
 export const LessonDeliveryInstructionsSchema = z.object({
   schemaVersion: z.literal(1),

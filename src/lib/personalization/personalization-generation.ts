@@ -27,6 +27,7 @@ import {
 } from "@/lib/personalization/personalization-state";
 import { CanonicalPreferredMethodIdsSchema } from "@/lib/personalization/preferred-method-schema";
 import { STUDY_PROFILE_DIMENSIONS } from "@/lib/study-profile/types";
+import { CanonicalLearnerProfileSchema } from "@/lib/personalization/canonical-profile-schema";
 
 const PersonalizationDecisionSchema = z.object({
   id: z.string().trim().min(3).max(180),
@@ -80,6 +81,7 @@ const PersonalizationMethodTieSignalSchema = z.object({
 
 export const GenerationPersonalizationContextSchema = z.object({
   decisions: z.array(PersonalizationDecisionSchema).max(32),
+  canonicalProfile: CanonicalLearnerProfileSchema.optional(),
   preferredMethodIds: CanonicalPreferredMethodIdsSchema.optional(),
   methodTie: z.object({
     state: z.object({
@@ -105,34 +107,32 @@ export function projectPersonalizationForGeneration(
   const effectivePreferredMethodIds = resolution.state.controls.selfReport
     ? readPreferredMethodIds(resolution.state)
     : [];
+  const nonExperimentalDecisions = resolution.decisions.filter((decision) => (
+    !decision.experimental
+    && !decision.signalIds.some((signalId) => signalId.startsWith("experiment:"))
+  ));
+  const nonExperimentalSignals = resolution.signals.filter((signal) => (
+    signal.key !== "experiment_result"
+    && !signal.id.startsWith("experiment:")
+  ));
   return GenerationPersonalizationContextSchema.parse({
-    decisions: resolution.decisions,
+    decisions: nonExperimentalDecisions,
+    ...(resolution.state.controls.selfReport && resolution.state.canonicalProfile
+      ? { canonicalProfile: resolution.state.canonicalProfile }
+      : {}),
     ...(effectivePreferredMethodIds.length > 0
       ? { preferredMethodIds: effectivePreferredMethodIds }
       : {}),
     methodTie: {
       state: {
-        controls: { experiments: resolution.state.controls.experiments },
-        activeExperiment: resolution.state.activeExperiment ? {
-          id: resolution.state.activeExperiment.id,
-          variable: resolution.state.activeExperiment.variable,
-          variantA: resolution.state.activeExperiment.variantA,
-          variantB: resolution.state.activeExperiment.variantB,
-          taskType: resolution.state.activeExperiment.taskType,
-          knowledgeStage: resolution.state.activeExperiment.knowledgeStage,
-          nextVariant: resolution.state.activeExperiment.nextVariant,
-        } : null,
-        experimentHistory: resolution.state.experimentHistory.map((item) => ({
-          id: item.id,
-          variable: item.variable,
-          variantA: item.variantA,
-          variantB: item.variantB,
-          taskType: item.taskType,
-          knowledgeStage: item.knowledgeStage,
-          result: item.result,
-        })),
+        // Canonical personalization v1 does not alternate variants or reuse
+        // a historical experiment winner. Legacy records remain in account
+        // history, but the generation boundary deliberately cannot see them.
+        controls: { experiments: false },
+        activeExperiment: null,
+        experimentHistory: [],
       },
-      signals: resolution.signals.map((signal) => ({
+      signals: nonExperimentalSignals.map((signal) => ({
         id: signal.id,
         key: signal.key,
         title: signal.title,

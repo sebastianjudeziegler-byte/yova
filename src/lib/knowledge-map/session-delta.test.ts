@@ -80,6 +80,18 @@ describe("post-session knowledge-map delta", () => {
     expect(buildSessionMapDelta(map("evidenced"), session("study"), [])).toEqual([]);
   });
 
+  it("does not present a pretest prediction as a knowledge-map movement", () => {
+    const evidence: ConceptEvidence[] = [{
+      topicId,
+      concept: "Photosynthesis",
+      outcome: "secure",
+      activityType: "multiple_choice",
+      methodPhase: "pretest",
+    }];
+
+    expect(buildSessionMapDelta(map("not_started"), session("study"), evidence)).toEqual([]);
+  });
+
   it("never presents self-reported unguided practice as a map update", () => {
     const evidence: ConceptEvidence[] = [{
       topicId,

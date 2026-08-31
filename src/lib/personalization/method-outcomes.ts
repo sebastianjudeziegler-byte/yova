@@ -4,6 +4,11 @@ import {
   type LearningTaskType,
 } from "@/lib/learning/method-catalog";
 import type { KnowledgeStage } from "@/lib/learning/method-router";
+import {
+  METHOD_EVIDENCE_MINIMUM_CHECKED_ANSWERS,
+  METHOD_EVIDENCE_MINIMUM_SESSIONS,
+  methodEvidenceMeetsMinimum,
+} from "@/lib/study-route/method-evidence-policy";
 
 export type MethodOutcomeStatus =
   | "early_signal"
@@ -35,8 +40,11 @@ export type MethodOutcomeSignal = {
   deliveryGuidance: string;
 };
 
-export const METHOD_OUTCOME_MINIMUM_SESSIONS = 4;
-export const METHOD_OUTCOME_MINIMUM_CHECKED_ANSWERS = 12;
+// Compatibility exports. The one canonical threshold now lives with the
+// comparability policy used by the server-authorized evidence adapter.
+export const METHOD_OUTCOME_MINIMUM_SESSIONS = METHOD_EVIDENCE_MINIMUM_SESSIONS;
+export const METHOD_OUTCOME_MINIMUM_CHECKED_ANSWERS =
+  METHOD_EVIDENCE_MINIMUM_CHECKED_ANSWERS;
 
 /**
  * A positive observational signal may rank one already-eligible method only
@@ -46,8 +54,10 @@ export const METHOD_OUTCOME_MINIMUM_CHECKED_ANSWERS = 12;
  */
 export function methodOutcomeSupportsMethodRanking(signal: MethodOutcomeSignal) {
   return signal.status === "promising"
-    && signal.sessions >= METHOD_OUTCOME_MINIMUM_SESSIONS
-    && signal.checkedAnswers >= METHOD_OUTCOME_MINIMUM_CHECKED_ANSWERS
+    && methodEvidenceMeetsMinimum({
+      sessions: signal.sessions,
+      checkedAnswers: signal.checkedAnswers,
+    })
     && signal.accuracyPercent !== null
     && signal.accuracyPercent >= 80
     && signal.difficultRatings <= signal.sessions / 2;
@@ -100,8 +110,10 @@ export function buildMethodOutcomeSignals(
       const accuracyPercent = result.checkedAnswers > 0
         ? Math.round((result.correctAnswers / result.checkedAnswers) * 100)
         : null;
-      const enoughEvidence = result.sessions >= METHOD_OUTCOME_MINIMUM_SESSIONS
-        && result.checkedAnswers >= METHOD_OUTCOME_MINIMUM_CHECKED_ANSWERS
+      const enoughEvidence = methodEvidenceMeetsMinimum({
+        sessions: result.sessions,
+        checkedAnswers: result.checkedAnswers,
+      })
         && accuracyPercent !== null;
       const status: MethodOutcomeStatus = !enoughEvidence
         ? "early_signal"

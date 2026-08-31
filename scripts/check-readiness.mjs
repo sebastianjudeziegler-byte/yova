@@ -79,6 +79,18 @@ const passwordAccounts = process.env.AUTH_PASSWORD_ACCOUNTS === "true";
 const inviteOnly = process.env.AUTH_INVITE_ONLY === "true";
 const captchaEnabled = process.env.AUTH_CAPTCHA_ENABLED === "true";
 const turnstileSiteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY?.trim();
+const personalizationRolloutRaw = process.env.YOVA_PERSONALIZATION_ROLLOUT_PERCENT;
+
+function personalizationRolloutPercent(value) {
+  if (typeof value !== "string" || value.length === 0 || value !== value.trim()) {
+    return null;
+  }
+  if (!/^\d{1,3}$/u.test(value)) return null;
+  const percent = Number(value);
+  return Number.isInteger(percent) && percent >= 0 && percent <= 100
+    ? percent
+    : null;
+}
 
 addCheck(
   "Supabase project URL",
@@ -118,6 +130,18 @@ addCheck(
 );
 
 if (production) {
+  const rolloutPercent = personalizationRolloutPercent(personalizationRolloutRaw);
+  addCheck(
+    "Personalization staged rollout decision",
+    rolloutPercent !== null,
+    rolloutPercent === null
+      ? "set YOVA_PERSONALIZATION_ROLLOUT_PERCENT explicitly to an integer from 0 to 100; 0 is the fail-closed baseline"
+      : rolloutPercent === 0
+        ? "explicitly set to the task-and-mastery baseline (0%)"
+        : rolloutPercent === 100
+          ? "explicitly set to full personalized issuance (100%)"
+          : `explicitly set to a stable ${rolloutPercent}% personalized issuance cohort`,
+  );
   addCheck(
     "Supabase server secret",
     Boolean(supabaseSecretKey && supabaseSecretKey.length >= 20),

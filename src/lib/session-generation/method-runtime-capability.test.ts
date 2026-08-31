@@ -158,6 +158,6 @@ describe("method runtime capability", () => {
     expect(boundedStudy.boundedRecovery).toBe("candidate");
     expect(fullOnly.boundedRecovery).toBe("none");
     expect(outsideStudy.boundedRecovery).toBe("none");
-    expect(CORE_METHOD_IDS).toHaveLength(9);
+    expect(CORE_METHOD_IDS).toHaveLength(12);
   });
 });

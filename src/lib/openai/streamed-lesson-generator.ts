@@ -33,7 +33,13 @@ export type StreamedLessonInput = {
 
 export type StreamedLessonResult = {
   model: string;
-  responseId: string;
+  responseId: string | null;
+  /** Final lesson text after any bounded trimming. */
+  content: string;
+  /** True when the stream crossed its word ceiling and was trimmed instead of failed. */
+  truncatedToBudget: boolean;
+  /** Privacy-safe non-fatal quality classification. Never contains lesson text. */
+  qualityNote: StreamedLessonQualityNote | null;
   inputTokens: number;
   cachedInputTokens: number;
   outputTokens: number;
@@ -41,6 +47,8 @@ export type StreamedLessonResult = {
   elapsedMs: number;
   wordCount: number;
 };
+
+export type StreamedLessonQualityNote = "slightly_below_word_floor";
 
 export type StreamedLessonFailureKind =
   | "provider_failed"
@@ -68,11 +76,24 @@ export type StreamedLessonFailureStats = {
 
 export class StreamedLessonGenerationError extends Error {
   readonly stats: StreamedLessonFailureStats;
+  /** Total generation attempts made before this error surfaced. */
+  readonly attemptsMade: 1 | 2;
+  /** Privacy-safe first-attempt classification when a retry also failed. */
+  readonly initialFailureKind: StreamedLessonFailureKind | null;
 
-  constructor(message: string, stats: StreamedLessonFailureStats) {
+  constructor(
+    message: string,
+    stats: StreamedLessonFailureStats,
+    options: {
+      attemptsMade?: 1 | 2;
+      initialFailureKind?: StreamedLessonFailureKind | null;
+    } = {},
+  ) {
     super(message);
     this.name = "StreamedLessonGenerationError";
     this.stats = stats;
+    this.attemptsMade = options.attemptsMade ?? 1;
+    this.initialFailureKind = options.initialFailureKind ?? null;
   }
 }
 
@@ -80,6 +101,8 @@ type ProviderResponseSnapshot = {
   id: string;
   model: string;
   status?: string;
+  error?: { message?: string } | null;
+  incomplete_details?: { reason?: string } | null;
   usage?: {
     input_tokens: number;
     output_tokens: number;
@@ -143,6 +166,7 @@ export async function streamGeneratedLesson(
   let completeResponse: ProviderResponseSnapshot | null = null;
   let terminalResponse: ProviderResponseSnapshot | null = null;
   let fullText = "";
+  let truncatedToBudget = false;
 
   try {
     const stream = await getOpenAIClient().responses.create({
@@ -157,16 +181,28 @@ export async function streamGeneratedLesson(
     }, { signal });
 
     for await (const event of stream) {
+      const abortedFailureKind = failureKindForAbortedSignal(signal);
+      if (abortedFailureKind) {
+        throw failureError("The lesson stream was interrupted.", abortedFailureKind);
+      }
       if (event.type === "response.output_text.delta" && event.delta) {
         firstTokenAt ??= Date.now();
-        const nextText = fullText + event.delta;
-        fullText = nextText;
-        if (wordCount(nextText) > budget.maximumWords) {
-          // Do not render an overlong lesson and then retract it after the
-          // provider finishes. Stop the stream at the first crossing and let
-          // the route replace any bounded partial text with its safe lesson.
-          throw failureError("The lesson exceeded its planned reading time.", "content_exceeded_time_budget");
+        if (truncatedToBudget) {
+          // Keep reading terminal provider events so usage remains truthful,
+          // but never emit or retain prose beyond the learner's hard ceiling.
+          continue;
         }
+        const nextText = fullText + event.delta;
+        if (wordCount(nextText) > budget.maximumWords) {
+          // An overlong lesson is a bounded formatting repair only when the
+          // prefix still passes every educational-quality check. The crossing
+          // delta is not streamed, and later prose is neither emitted nor
+          // buffered. We continue to the terminal event for exact usage.
+          truncatedToBudget = true;
+          fullText = completeBoundedMarkdown(nextText, budget.maximumWords);
+          continue;
+        }
+        fullText = nextText;
         onDelta(event.delta);
         continue;
       }
@@ -208,16 +244,50 @@ export async function streamGeneratedLesson(
       terminalResponse = completeResponse;
       throw failureError("The lesson stream did not complete.", "provider_incomplete");
     }
+    if (truncatedToBudget) {
+      const trimmed = completeBoundedMarkdown(fullText, budget.maximumWords);
+      if (!trimmed) {
+        throw failureError("The lesson stream did not produce usable lesson content.", "stream_ended_without_content");
+      }
+      const quality = completedLessonQuality(input, trimmed, budget);
+      if (quality.issue) {
+        throw failureError(lessonQualityFailureMessage(quality.issue), "content_below_substance_threshold");
+      }
+      const postValidationAbort = failureKindForAbortedSignal(signal);
+      if (postValidationAbort) {
+        throw failureError("The lesson stream was interrupted.", postValidationAbort);
+      }
+      return {
+        model: completeResponse?.model ?? configuredModel,
+        responseId: completeResponse?.id ?? null,
+        content: trimmed,
+        truncatedToBudget: true,
+        qualityNote: quality.note,
+        inputTokens: completeResponse?.usage?.input_tokens ?? 0,
+        cachedInputTokens: completeResponse?.usage?.input_tokens_details?.cached_tokens ?? 0,
+        outputTokens: completeResponse?.usage?.output_tokens ?? 0,
+        latencyToFirstTokenMs: firstTokenAt === null ? null : firstTokenAt - startedAt,
+        elapsedMs,
+        wordCount: wordCount(trimmed),
+      };
+    }
     if (!fullText.trim()) {
       throw failureError("The lesson stream did not produce lesson content.", "stream_ended_without_content");
     }
-    const substanceIssue = completedLessonSubstanceIssue(input, fullText, budget);
-    if (substanceIssue) {
-      throw failureError(substanceIssue, "content_below_substance_threshold");
+    const quality = completedLessonQuality(input, fullText, budget);
+    if (quality.issue) {
+      throw failureError(lessonQualityFailureMessage(quality.issue), "content_below_substance_threshold");
+    }
+    const postValidationAbort = failureKindForAbortedSignal(signal);
+    if (postValidationAbort) {
+      throw failureError("The lesson stream was interrupted.", postValidationAbort);
     }
     return {
       model: completeResponse.model,
       responseId: completeResponse.id,
+      content: fullText,
+      truncatedToBudget: false,
+      qualityNote: quality.note,
       inputTokens: completeResponse.usage?.input_tokens ?? 0,
       cachedInputTokens: completeResponse.usage?.input_tokens_details?.cached_tokens ?? 0,
       outputTokens: completeResponse.usage?.output_tokens ?? 0,
@@ -234,7 +304,10 @@ export async function streamGeneratedLesson(
     );
   }
 
-  function failureError(message: string, failureKind: StreamedLessonFailureKind) {
+  function failureError(
+    message: string,
+    failureKind: StreamedLessonFailureKind,
+  ) {
     const response = terminalResponse ?? completeResponse;
     return new StreamedLessonGenerationError(message, {
       failureKind,
@@ -274,8 +347,8 @@ export function lessonWordBudgetForMinutes(plannedMinutes: number): LessonWordBu
     minimumWords,
     targetWords,
     maximumWords,
-    // Leave room for low-effort model reasoning without allowing a multi-page
-    // response to consume the route's entire runtime window.
+    // Leave room for low-effort model reasoning without allowing a retry to
+    // multiply a multi-page response into an unbounded cost increase.
     maximumOutputTokens: clamp(Math.ceil(maximumWords * 2.25), 900, 2_200),
   };
 }
@@ -308,6 +381,145 @@ export function buildBoundedFallbackLesson(input: StreamedLessonInput, partialLe
   return trimAtWordBoundary(fallback, budget.maximumWords);
 }
 
+const RETRYABLE_LESSON_FAILURE_KINDS: ReadonlySet<StreamedLessonFailureKind> = new Set([
+  "provider_failed",
+  "provider_incomplete",
+  "provider_error_event",
+  "provider_request_error",
+  "stream_ended_without_completion",
+  "stream_ended_without_content",
+  "content_below_substance_threshold",
+]);
+
+/**
+ * One bounded retry for transient or quality failures. The second attempt is
+ * buffered rather than streamed, so the route can atomically replace any
+ * partial first-attempt text with the finished lesson. Aborts and runtime
+ * timeouts are never retried: the learner has left or the window is spent.
+ */
+export async function streamGeneratedLessonWithRetry(
+  input: StreamedLessonInput,
+  onDelta: (delta: string) => void,
+  signal?: AbortSignal,
+  retryBudgetMs = 45_000,
+): Promise<{
+  attempts: 1 | 2;
+  firstFailureKind: StreamedLessonFailureKind | null;
+  result: StreamedLessonResult;
+}> {
+  const startedAt = Date.now();
+  try {
+    const result = await streamGeneratedLesson(input, onDelta, signal);
+    const abortFailure = abortedResultError(result, signal, 1);
+    if (abortFailure) throw abortFailure;
+    return { attempts: 1, firstFailureKind: null, result };
+  } catch (error) {
+    if (!(error instanceof StreamedLessonGenerationError)) throw error;
+    const withinBudget = Date.now() - startedAt <= retryBudgetMs;
+    const abortFailureKind = failureKindForAbortedSignal(signal);
+    if (abortFailureKind) {
+      throw new StreamedLessonGenerationError(
+        "The lesson stream was interrupted.",
+        { ...error.stats, failureKind: abortFailureKind },
+      );
+    }
+    if (!RETRYABLE_LESSON_FAILURE_KINDS.has(error.stats.failureKind) || !withinBudget) {
+      throw error;
+    }
+    try {
+      const result = await streamGeneratedLesson(input, () => {}, signal);
+      const aggregate = aggregateRetrySuccess(error.stats, result);
+      const retryAbort = abortedResultError(
+        aggregate,
+        signal,
+        2,
+        error.stats.failureKind,
+      );
+      if (retryAbort) throw retryAbort;
+      return {
+        attempts: 2,
+        firstFailureKind: error.stats.failureKind,
+        result: aggregate,
+      };
+    } catch (retryError) {
+      if (retryError instanceof StreamedLessonGenerationError) {
+        if (retryError.attemptsMade === 2) throw retryError;
+        throw new StreamedLessonGenerationError(
+          retryError.message,
+          aggregateRetryFailure(error.stats, retryError.stats),
+          {
+            attemptsMade: 2,
+            initialFailureKind: error.stats.failureKind,
+          },
+        );
+      }
+      throw retryError;
+    }
+  }
+}
+
+function aggregateRetrySuccess(
+  first: StreamedLessonFailureStats,
+  second: StreamedLessonResult,
+): StreamedLessonResult {
+  return {
+    ...second,
+    inputTokens: first.inputTokens + second.inputTokens,
+    cachedInputTokens: first.cachedInputTokens + second.cachedInputTokens,
+    outputTokens: first.outputTokens + second.outputTokens,
+    latencyToFirstTokenMs: aggregateFirstTokenLatency(first, second),
+    elapsedMs: first.elapsedMs + second.elapsedMs,
+  };
+}
+
+function aggregateRetryFailure(
+  first: StreamedLessonFailureStats,
+  second: StreamedLessonFailureStats,
+): StreamedLessonFailureStats {
+  return {
+    ...second,
+    inputTokens: first.inputTokens + second.inputTokens,
+    cachedInputTokens: first.cachedInputTokens + second.cachedInputTokens,
+    outputTokens: first.outputTokens + second.outputTokens,
+    latencyToFirstTokenMs: aggregateFirstTokenLatency(first, second),
+    elapsedMs: first.elapsedMs + second.elapsedMs,
+  };
+}
+
+function aggregateFirstTokenLatency(
+  first: Pick<StreamedLessonFailureStats, "elapsedMs" | "latencyToFirstTokenMs">,
+  second: Pick<StreamedLessonResult, "latencyToFirstTokenMs">,
+) {
+  if (first.latencyToFirstTokenMs !== null) return first.latencyToFirstTokenMs;
+  if (second.latencyToFirstTokenMs === null) return null;
+  return first.elapsedMs + second.latencyToFirstTokenMs;
+}
+
+function abortedResultError(
+  result: StreamedLessonResult,
+  signal: AbortSignal | undefined,
+  attemptsMade: 1 | 2,
+  initialFailureKind: StreamedLessonFailureKind | null = null,
+) {
+  const failureKind = failureKindForAbortedSignal(signal);
+  if (!failureKind) return null;
+  return new StreamedLessonGenerationError(
+    "The lesson stream was interrupted.",
+    {
+      failureKind,
+      model: result.model,
+      responseId: result.responseId,
+      inputTokens: result.inputTokens,
+      cachedInputTokens: result.cachedInputTokens,
+      outputTokens: result.outputTokens,
+      latencyToFirstTokenMs: result.latencyToFirstTokenMs,
+      elapsedMs: result.elapsedMs,
+      wordCount: result.wordCount,
+    },
+    { attemptsMade, initialFailureKind },
+  );
+}
+
 function failureKindForAbortedSignal(signal?: AbortSignal): StreamedLessonFailureKind | null {
   if (!signal?.aborted) return null;
   const reason = signal.reason;
@@ -320,23 +532,47 @@ function wordCount(value: string) {
   return value.trim() ? value.trim().split(/\s+/).length : 0;
 }
 
-function completedLessonSubstanceIssue(
+type CompletedLessonQualityIssue =
+  | "below_word_floor"
+  | "insufficient_complete_prose"
+  | "missing_essential_idea";
+
+function completedLessonQuality(
   input: StreamedLessonInput,
   content: string,
   budget: LessonWordBudget,
-) {
+): {
+  issue: CompletedLessonQualityIssue | null;
+  note: StreamedLessonQualityNote | null;
+} {
   const words = wordCount(content);
+  let note: StreamedLessonQualityNote | null = null;
   if (words < budget.minimumWords) {
-    return `The lesson produced ${words} words, below the ${budget.minimumWords}-word minimum for its planned teaching time.`;
+    const slightFloor = Math.ceil(budget.minimumWords * 0.9);
+    if (words >= slightFloor) {
+      note = "slightly_below_word_floor";
+    } else {
+      return { issue: "below_word_floor", note: null };
+    }
   }
   if (completeProseSentences(content).length < 2) {
-    return "The lesson did not contain enough complete explanatory prose.";
+    return { issue: "insufficient_complete_prose", note: null };
   }
   const uncoveredIdea = input.essentialIdeas.find((idea) => !lessonTextCoversIdea(content, idea));
   if (uncoveredIdea) {
-    return `The lesson did not substantively explain the assigned idea: ${uncoveredIdea}`;
+    return { issue: "missing_essential_idea", note: null };
   }
-  return null;
+  return { issue: null, note };
+}
+
+function lessonQualityFailureMessage(issue: CompletedLessonQualityIssue) {
+  if (issue === "below_word_floor") {
+    return "The lesson was too short for its planned teaching time.";
+  }
+  if (issue === "insufficient_complete_prose") {
+    return "The lesson did not contain enough complete explanatory prose.";
+  }
+  return "The lesson did not cover every assigned essential idea.";
 }
 
 function partialLessonPassesStrictScope(
@@ -344,7 +580,7 @@ function partialLessonPassesStrictScope(
   content: string,
   budget: LessonWordBudget,
 ) {
-  if (completedLessonSubstanceIssue(input, content, budget)) return false;
+  if (completedLessonQuality(input, content, budget).issue) return false;
   const scopeTokens = uniqueTokens(input.essentialIdeas.flatMap(meaningfulLessonTokens));
   if (scopeTokens.length === 0) return false;
   const sentences = completeProseSentences(content);

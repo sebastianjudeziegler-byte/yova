@@ -58,28 +58,24 @@ import {
 import { LearningContent } from "@/components/learning-content";
 import { MaterialLinkImporter } from "@/components/material-link-importer";
 import { MethodLibrary } from "@/components/method-library";
-import {
-  PersonalizationCenter,
-  type PersonalizationCenterSignal,
-  type PersonalizationDecision as PersonalizationCenterDecision,
-  type PersonalizationEnergySuggestion,
-  type PersonalizationEvidenceKind,
-  type PersonalizationHistoryItem as PersonalizationCenterHistoryItem,
-  type PersonalizationOptionalQuestionPrompt,
-  type PersonalizationReceipt as PersonalizationCenterReceipt,
-  type PersonalizationSuggestion as PersonalizationCenterSuggestion,
-  type PersonalizationTendency,
-  type PersonalizationWeeklyReview as PersonalizationCenterWeeklyReview,
-} from "@/components/personalization/personalization-center";
+import { CanonicalProfileCenter } from "@/components/personalization/canonical-profile-center";
 import { PlanCreator } from "@/components/plan-creator";
 import { PlanDeletionControl } from "@/components/plan-deletion-dialog";
+import { PostSessionPersonalizationReceipt } from "@/components/post-session-personalization-receipt";
 import { QuantitativeWorkpad } from "@/components/quantitative-workpad";
 import { StudyMethodBriefing } from "@/components/study-method-briefing";
+import { StudyRouteRecipeCard } from "@/components/study-route-recipe-card";
 import {
   methodPracticeTopics,
   StudyMethodPractice,
 } from "@/components/study-method-practice";
 import { RetrievalRoundRuntime } from "@/components/retrieval-round-runtime";
+import {
+  ConceptMapRuntimePanel,
+  ErrorRepairRuntimePanel,
+  WorkedExampleRuntimePanel,
+  conceptMapDraftIsComplete,
+} from "@/components/method-runtime-panel";
 import { StudyNowCreator } from "@/components/study-now-creator";
 import { TutorMessageContent } from "@/components/tutor-message-content";
 import { trackProductEvent } from "@/lib/analytics/client";
@@ -169,6 +165,12 @@ import {
   selectSessionLearningMode,
   selectSessionMethodName,
 } from "@/lib/study-route/selectors";
+import {
+  agencyModeForStudyRouteControlMode,
+  boundedOtherAgencyMethodOptions,
+  resolveBoundedOtherMethodRequest,
+  type AgencyMethodRequestResolution,
+} from "@/lib/study-route/agency-mode-controller";
 import { activeStudyRouteTargetIds } from "@/lib/study-route/targets";
 import {
   buildDeferredSessionContinuation,
@@ -250,34 +252,38 @@ import { selectFreeResponseMode } from "@/lib/learning/response-mode";
 import { clearPreviewSnapshot, loadPreviewSnapshot, savePreviewSnapshot } from "@/lib/persistence/preview-store";
 import { buildPlanProfileSummary } from "@/lib/personalization/profile-summary";
 import {
+  canonicalLearnerProfileFromAnswers,
+  clearPublicCanonicalProfileDraft,
+  readPublicCanonicalProfileDraft,
+  writeCanonicalLearnerProfileToAnswers,
+} from "@/lib/personalization/canonical-profile-storage";
+import {
+  CANONICAL_PROFILE_QUESTIONS,
+  canonicalProfileWithQuestionAnswer,
+} from "@/lib/personalization/canonical-profile-questionnaire";
+import {
+  canonicalProfileSignal,
+  createCanonicalLearnerProfile,
+} from "@/lib/personalization/canonical-profile-schema";
+import { buildCanonicalLearnerFacingSummary } from "@/lib/personalization/canonical-profile-summary";
+import { consolidatePersonalizationStateForCanonicalV1 } from "@/lib/personalization/canonical-profile-migration";
+import { canonicalProfileWorkspaceSettings } from "@/lib/personalization/canonical-profile-workspace";
+import {
   approvedPostSessionChanges,
   buildPostSessionDecision,
 } from "@/lib/personalization/post-session-decision";
 import {
   effectivePersonalizationWorkspaceSettings,
-  evaluateActivePersonalizationExperiment,
-  finishPersonalizationExperiment,
-  personalizationExperimentAcceptsCompletion,
   preferredMethodIds,
   readPersonalizationStateFromAnswers,
-  recordPersonalizationExperimentCompletion,
-  recordPersonalizationWeeklyReview,
+  setPersonalizationControl,
   setPersonalizationEvidenceRefExcluded,
-  startPersonalizationExperiment,
   setPreferredMethodIds,
-  undoPersonalizationChange,
   updatePersonalizationStateInAnswers,
   type PersonalizationWorkspaceSettings,
 } from "@/lib/personalization/personalization-state";
 import {
-  recordPersonalizationReceipt,
   resolveLearnerPersonalization,
-  selectNextOptionalPersonalizationQuestion,
-  selectPersonalizationReceipt,
-  type LearnerPersonalizationSignal,
-  type PersonalizationDecision,
-  type PersonalizationEvidenceLabel,
-  type PersonalizationResolution,
 } from "@/lib/personalization/personalization-evidence";
 import {
   buildMethodSignals,
@@ -285,10 +291,6 @@ import {
   type MethodSignal,
 } from "@/lib/personalization/method-signals";
 import {
-  DEEP_PROFILE_QUESTIONS,
-  FREEFORM_LEARNING_CONTEXT_INDEX,
-  deepProfileAnswerId,
-  deepProfileAnswerLabel,
   expandedLearnerContextFromAnswers,
   personalizationSignalAllowsRuntimeInference,
   statedOnboardingAnswerForRuntime,
@@ -312,11 +314,6 @@ import {
   type SessionDeliveryPolicy,
 } from "@/lib/personalization/session-delivery-policy";
 import { reportProductError } from "@/lib/monitoring/client";
-import {
-  onboardingAnswerId,
-  onboardingAnswerLabel,
-  onboardingQuestions,
-} from "@/lib/sample-data";
 import { PlanAdjustmentResponseSchema, type PlanAdjustmentRequest } from "@/lib/learning/adjustment-schema";
 import {
   MAX_RUNTIME_PLAN_SESSIONS,
@@ -394,6 +391,7 @@ import {
   AnswerEvaluationResponseSchema,
   type AnswerEvaluationResponse,
 } from "@/lib/session-evaluation/schema";
+import { semanticEvaluationEvidenceDisposition } from "@/lib/session-evaluation/evidence-authority";
 import {
   isSessionGenerationOperationInProgress,
   reusableSessionGenerationOperation,
@@ -467,6 +465,28 @@ function isActiveSessionCheckpointResumePoint(
   return Boolean(value && "source" in value && value.source === "active_session_checkpoint");
 }
 type AgendaEntry = { plan: LearningPlan; session: LearningPlanSession };
+
+type ReadySessionMethodChoiceSelection = {
+  planId: string;
+  planSessionId: string;
+  expectedRouteRevisionId: string;
+} & (
+  | {
+      selectionScope?: "stored_alternative";
+      methodId: CoreMethodId;
+      requestedMethod?: never;
+    }
+  | {
+      selectionScope: "other_eligible_method";
+      requestedMethod: string;
+      methodId?: never;
+    }
+);
+
+type ReadySessionMethodChoiceResult = Readonly<{
+  status: "updated" | "unchanged" | "replayed";
+  methodRequestResolution: AgencyMethodRequestResolution | null;
+}>;
 
 function recoveryMethodContext({
   plan,
@@ -730,7 +750,21 @@ export function YovaPrototype({
   );
   const capturedSessionSeconds = Math.max(1, sessionElapsedSeconds);
   const capturedSessionMinutes = Math.max(1, Math.ceil(capturedSessionSeconds / 60));
-  const personalizationState = readPersonalizationStateFromAnswers(answers);
+  const personalizationState = consolidatePersonalizationStateForCanonicalV1(
+    readPersonalizationStateFromAnswers(answers),
+  );
+  useEffect(() => {
+    setAnswers((currentAnswers) => {
+      const currentState = readPersonalizationStateFromAnswers(currentAnswers);
+      if (!currentState.controls.experiments && !currentState.activeExperiment) {
+        return currentAnswers;
+      }
+      return updatePersonalizationStateInAnswers(
+        currentAnswers,
+        consolidatePersonalizationStateForCanonicalV1,
+      );
+    });
+  }, [answers]);
   const savedPreferredMethodIds = preferredMethodIds(personalizationState);
   const syncedPreferenceKey = account?.identityMode === "supabase"
     && syncedPreferenceSnapshot?.accountId === account.id
@@ -739,6 +773,9 @@ export function YovaPrototype({
   const effectivePreviewPreferredMethodIds = personalizationState.controls.selfReport
     ? savedPreferredMethodIds
     : [];
+  const effectivePreviewCanonicalProfile = personalizationState.controls.selfReport
+    ? canonicalLearnerProfileFromAnswers(answers)
+    : null;
   const changePreferredMethodIds = async (methodIds: CoreMethodId[]) => {
     const nextAnswers = updatePersonalizationStateInAnswers(
       answers,
@@ -783,10 +820,15 @@ export function YovaPrototype({
     ? personalizationComparisonContext(activePlan, workspaceExperimentSession)
     : null;
   const personalizationWorkspaceClassName = workspaceClassName(
-    effectivePersonalizationWorkspaceSettings(
-      personalizationState,
-      workspaceExperimentComparison,
-    ),
+    canonicalProfileWorkspaceSettings({
+      profile: personalizationState.controls.selfReport
+        ? canonicalLearnerProfileFromAnswers(answers)
+        : createCanonicalLearnerProfile([]),
+      base: effectivePersonalizationWorkspaceSettings(
+        personalizationState,
+        workspaceExperimentComparison,
+      ),
+    }),
   );
 
   const setRecoveryEvidenceClassification = (
@@ -2678,23 +2720,86 @@ export function YovaPrototype({
     const decision = sessionCompletionMode === "guided" && !deferredContinuation
       ? buildPostSessionDecision(currentSession, nextSession, completion)
       : null;
+    const adaptationAgencyMode = decision?.kind === "adapt_next_session"
+      && nextSession?.studyRoute?.identity.lifecycleStatus === "committed"
+      ? agencyModeForStudyRouteControlMode(nextSession.studyRoute.agency.controlMode).mode
+      : null;
+    const shouldApplyRecommendedChange = applyRecommendedChange
+      || adaptationAgencyMode === "yova_decides";
     const approvedChanges = decision
-      ? approvedPostSessionChanges(decision, applyRecommendedChange)
+      ? approvedPostSessionChanges(decision, shouldApplyRecommendedChange)
       : { adaptation: null, followUpSession: null };
-    const adaptation = approvedChanges.adaptation;
+    const requestedAdaptation = approvedChanges.adaptation;
     const delayedVerification = unguidedVerification ?? approvedChanges.followUpSession;
     let routeTransition;
     try {
-      routeTransition = preparePostSessionStudyRouteTransition({
+      const transitionInput = {
         plan: activePlan,
         completedSessionId: currentSession.id,
         changedAt: completion.completedAt,
-        adaptation,
+        adaptation: requestedAdaptation,
         followUpSession: delayedVerification,
         continuationSession: deferredContinuation,
-      });
+      };
+      if (!requestedAdaptation || !adaptationAgencyMode) {
+        routeTransition = preparePostSessionStudyRouteTransition(transitionInput);
+      } else {
+        const proposedTransition = preparePostSessionStudyRouteTransition({
+          ...transitionInput,
+          adaptationAgency: {
+            changeKind: "system_recommendation",
+            support: "sufficient",
+          },
+        });
+        const proposedDecision = proposedTransition.adaptationAgencyDecision;
+        if (adaptationAgencyMode === "help_me_choose") {
+          const candidateRoute = proposedDecision?.candidateRoute;
+          const requiredConfirmation = proposedDecision?.requiredConfirmation;
+          if (
+            proposedDecision?.status !== "confirmation_required"
+            || !candidateRoute
+            || !requiredConfirmation
+          ) {
+            throw new Error("The exact post-session route confirmation was not prepared.");
+          }
+          routeTransition = preparePostSessionStudyRouteTransition({
+            ...transitionInput,
+            adaptationAgency: {
+              changeKind: "system_recommendation",
+              support: "sufficient",
+              candidateRoute,
+              confirmation: {
+                ...requiredConfirmation,
+                confirmedAt: completion.completedAt,
+              },
+            },
+          });
+        } else if (adaptationAgencyMode === "ill_customize") {
+          const candidateRoute = proposedDecision?.candidateRoute;
+          if (proposedDecision?.status !== "recommendation_available" || !candidateRoute) {
+            throw new Error("The learner-controlled route recommendation was not prepared.");
+          }
+          routeTransition = preparePostSessionStudyRouteTransition({
+            ...transitionInput,
+            adaptationAgency: {
+              changeKind: "learner_request",
+              support: "not_required",
+              candidateRoute,
+            },
+          });
+        } else {
+          routeTransition = proposedTransition;
+        }
+      }
     } catch {
       setSessionRecoveryIssue("YOVA kept this session open because it could not safely preserve the next study route. Try finishing again; your current work is still saved.");
+      return false;
+    }
+    const adaptation = routeTransition.adaptationAgencyDecision === undefined
+      ? requestedAdaptation
+      : routeTransition.appliedAdaptation ?? null;
+    if (requestedAdaptation && adaptationAgencyMode && !adaptation) {
+      setSessionRecoveryIssue("YOVA kept this session open because the approved route change was not committed exactly. Try finishing again; your current work is still saved.");
       return false;
     }
     const routedDelayedVerification = routeTransition.followUpSession;
@@ -2731,26 +2836,7 @@ export function YovaPrototype({
 
     setAnswers((currentAnswers) => updatePersonalizationStateInAnswers(
       currentAnswers,
-      (currentState) => {
-        if (sessionCompletionMode === "unguided_practice") return currentState;
-        if (!currentState.controls.experiments || !currentState.activeExperiment) {
-          return currentState;
-        }
-        const comparison = personalizationComparisonContext(activePlan, currentSession);
-        if (!personalizationExperimentAcceptsCompletion(currentState.activeExperiment, comparison)) {
-          return currentState;
-        }
-        const recorded = recordPersonalizationExperimentCompletion(currentState, {
-          completionId: completion.id,
-          correctAnswers: completion.correctAnswers,
-          totalAnswers: completion.totalAnswers,
-          feedback: completion.feedback,
-          recordedAt: completion.completedAt,
-        });
-        return evaluateActivePersonalizationExperiment(recorded.activeExperiment).ready
-          ? finishPersonalizationExperiment(recorded, completion.completedAt)
-          : recorded;
-      },
+      consolidatePersonalizationStateForCanonicalV1,
     ));
 
     if (account?.identityMode === "supabase") {
@@ -3252,12 +3338,9 @@ export function YovaPrototype({
     }
   };
 
-  const changeReadySessionMethod = async (selection: {
-    planId: string;
-    planSessionId: string;
-    expectedRouteRevisionId: string;
-    methodId: CoreMethodId;
-  }) => {
+  const changeReadySessionMethod = async (
+    selection: ReadySessionMethodChoiceSelection,
+  ): Promise<ReadySessionMethodChoiceResult> => {
     const requestedPlan = plansRef.current.find((plan) => plan.id === selection.planId);
     const requestedSession = requestedPlan?.sessions.find((session) => (
       session.id === selection.planSessionId
@@ -3279,11 +3362,26 @@ export function YovaPrototype({
       throw new Error("This session is no longer untouched and ready for a method change.");
     }
 
+    let methodRequestResolution: AgencyMethodRequestResolution | null = null;
+    let selectedMethodId: CoreMethodId;
+    if (selection.selectionScope === "other_eligible_method") {
+      methodRequestResolution = resolveBoundedOtherMethodRequest({
+        route: requestedRoute,
+        requestedMethod: selection.requestedMethod,
+      });
+      selectedMethodId = methodRequestResolution.selectedMethodId;
+    } else {
+      selectedMethodId = selection.methodId;
+    }
+
     const operationKey = [
       selection.planId,
       selection.planSessionId,
       selection.expectedRouteRevisionId,
-      selection.methodId,
+      selection.selectionScope ?? "stored_alternative",
+      selection.selectionScope === "other_eligible_method"
+        ? selection.requestedMethod
+        : selection.methodId,
     ].join(":");
     const changeRequestId = methodChoiceOperationIdsRef.current.get(operationKey)
       ?? makeUuid();
@@ -3295,6 +3393,7 @@ export function YovaPrototype({
       estimatedMinutes: number;
       studyRoute: NonNullable<LearningPlanSession["studyRoute"]>;
     };
+    let choiceStatus: ReadySessionMethodChoiceResult["status"];
 
     if (account?.identityMode === "preview" || browserPreviewMode) {
       const result = createCommittedMethodChoiceSuccessor({
@@ -3303,10 +3402,12 @@ export function YovaPrototype({
         previousRoute: requestedRoute,
         expectedRouteRevisionId: selection.expectedRouteRevisionId,
         routeRevisionId: changeRequestId,
-        methodId: selection.methodId,
+        methodId: selectedMethodId,
         changedAt: new Date().toISOString(),
+        choiceScope: selection.selectionScope ?? "stored_alternative",
       });
       authoritativeSession = result.session;
+      choiceStatus = result.status;
     } else {
       const response = await fetch("/api/sessions/method-choice", {
         method: "PATCH",
@@ -3331,7 +3432,24 @@ export function YovaPrototype({
       if (!parsed.success) {
         throw new Error("The updated session recipe came back in an unsafe format. Reload this goal before continuing.");
       }
+      if (
+        selection.selectionScope === "other_eligible_method"
+        && !parsed.data.methodRequestResolution
+      ) {
+        throw new Error("The updated session recipe did not include its verified method mapping. Reload this goal before continuing.");
+      }
       authoritativeSession = parsed.data.session;
+      choiceStatus = parsed.data.status;
+      methodRequestResolution = parsed.data.methodRequestResolution
+        ?? methodRequestResolution;
+    }
+
+    if (
+      methodRequestResolution
+      && authoritativeSession.studyRoute.approach.primaryMethodId
+        !== methodRequestResolution.selectedMethodId
+    ) {
+      throw new Error("The updated session recipe did not match the verified method mapping. Reload this goal before continuing.");
     }
 
     const currentPlan = plansRef.current.find((plan) => plan.id === selection.planId);
@@ -3342,7 +3460,11 @@ export function YovaPrototype({
       !currentPlan
       || !currentSession
       || currentSession.studyRoute?.identity.routeRevisionId !== selection.expectedRouteRevisionId
-      || authoritativeSession.studyRoute.identity.supersedesRevisionId !== selection.expectedRouteRevisionId
+      || (choiceStatus === "unchanged"
+        ? authoritativeSession.studyRoute.identity.routeRevisionId
+          !== selection.expectedRouteRevisionId
+        : authoritativeSession.studyRoute.identity.supersedesRevisionId
+          !== selection.expectedRouteRevisionId)
     ) {
       throw new Error("This session changed while YOVA was saving your choice. Reload the goal to see its current recipe.");
     }
@@ -3365,6 +3487,10 @@ export function YovaPrototype({
     setPlans((current) => current.map(replaceMethodSession));
     setPendingSessionPlan((current) => current ? replaceMethodSession(current) : current);
     methodChoiceOperationIdsRef.current.delete(operationKey);
+    return {
+      status: choiceStatus,
+      methodRequestResolution,
+    };
   };
 
   const adjustPlan = async (input: PlanAdjustmentRequest) => {
@@ -3868,6 +3994,7 @@ export function YovaPrototype({
       && currentSession
       && currentActivity?.concept
       && currentActivity.correctAnswer
+      && currentActivity.methodPhase !== "pretest"
       && sessionDeliveryPolicy
     ) {
       const repairRequest = RuntimeRepairRequestSchema.parse({
@@ -3966,11 +4093,16 @@ export function YovaPrototype({
   if (stage === "cloud-error") return <CloudAccountLoadError issue={cloudSyncIssue} signOutIssue={signOutIssue} signingOut={signingOut} onRetry={() => { setReady(false); setAuthCheckAttempt((attempt) => attempt + 1); }} onSignOut={signOut} />;
   if (stage === "account") {
     return <AccountEntry key={accountMode} mode={accountMode} existingAccount={account} emailCodeVerificationEnabled={emailCodeVerificationEnabled} inviteOnly={inviteOnly} passwordAccountsEnabled={passwordAccountsEnabled} turnstileSiteKey={turnstileSiteKey} browserPreviewMode={browserPreviewMode} onBack={() => setStage("landing")} onModeChange={setAccountMode} onContinue={(nextAccount) => {
+      const publicCanonicalProfile = accountMode === "create"
+        ? readPublicCanonicalProfileDraft(window.localStorage)
+        : null;
       if (accountMode === "create") {
         if (account) clearActiveSessionCheckpoints(account.id);
         clearPreviewSnapshot();
-        setAnswers([]);
-        setOnboardingCompleted(false);
+        setAnswers(publicCanonicalProfile
+          ? writeCanonicalLearnerProfileToAnswers([], publicCanonicalProfile)
+          : []);
+        setOnboardingCompleted(Boolean(publicCanonicalProfile));
         setPlans([]);
         setDeadlineMilestones([]);
         setSessionCompletions([]);
@@ -3983,7 +4115,8 @@ export function YovaPrototype({
       setActiveSessionCheckpoints(loadActiveSessionCheckpoints(nextAccount.id));
       setCloudCheckpointRunIds(new Set());
       setSignedIn(true);
-      if (accountMode === "sign-in" && onboardingCompleted) setStage("app");
+      if (publicCanonicalProfile) setStage("profile");
+      else if (accountMode === "sign-in" && onboardingCompleted) setStage("app");
       else setStage("onboarding-intro");
     }} />;
   }
@@ -3992,21 +4125,31 @@ export function YovaPrototype({
     setStage("onboarding");
   }} />;
   if (stage === "onboarding") {
+    const onboardingProfile = canonicalLearnerProfileFromAnswers(answers);
+    const onboardingQuestion = CANONICAL_PROFILE_QUESTIONS[questionIndex];
     return (
       <OnboardingQuestion
         index={questionIndex}
-        answer={answers[questionIndex]}
+        answer={canonicalProfileSignal(
+          onboardingProfile,
+          onboardingQuestion.signalId,
+        )?.value}
         onBack={() => setQuestionIndex((value) => Math.max(0, value - 1))}
         onAnswer={(answer) => {
-          const next = [...answers];
-          next[questionIndex] = answer;
-          setAnswers(next);
+          setAnswers(writeCanonicalLearnerProfileToAnswers(
+            answers,
+            canonicalProfileWithQuestionAnswer(
+              onboardingProfile,
+              onboardingQuestion.id,
+              answer,
+            ),
+          ));
         }}
         onNext={() => {
-          if (questionIndex === onboardingQuestions.length - 1) {
+          if (questionIndex === CANONICAL_PROFILE_QUESTIONS.length - 1) {
             trackProductEvent({
               eventName: "onboarding_completed",
-              context: { answeredQuestionCount: answers.filter(Boolean).length },
+              context: { answeredQuestionCount: onboardingProfile.signals.length },
             }, analyticsEnabled);
             setOnboardingCompleted(true);
             setStage("profile");
@@ -4017,6 +4160,7 @@ export function YovaPrototype({
     );
   }
   if (stage === "profile") return <ProfileSummary answers={answers} onContinue={() => {
+    clearPublicCanonicalProfileDraft(window.localStorage);
     trackProductEvent({ eventName: "alpha_entered", context: {} }, analyticsEnabled);
     setStage("app");
   }} />;
@@ -4027,7 +4171,7 @@ export function YovaPrototype({
     onCreatePlan={(seed) => { setCreatorSeed(seed); setCreatorMilestoneId(null); setStage("plan-creator"); }}
     onCreateSession={(seed) => { setCreatorSeed(seed); setCreatorMilestoneId(null); setStage("study-now"); }}
   />;
-  if (stage === "plan-creator") return <PlanCreator seed={creatorSeed ?? undefined} browserPreviewMode={browserPreviewMode || account?.identityMode === "preview"} previewPreferredMethodIds={effectivePreviewPreferredMethodIds} profileSummary={buildPlanProfileSummary(answers)} onExit={() => { setCreatorSeed(null); setCreatorMilestoneId(null); setStage("app"); }} onFinish={(plan) => {
+  if (stage === "plan-creator") return <PlanCreator seed={creatorSeed ?? undefined} browserPreviewMode={browserPreviewMode || account?.identityMode === "preview"} previewPreferredMethodIds={effectivePreviewPreferredMethodIds} previewCanonicalProfile={effectivePreviewCanonicalProfile} profileSummary={buildPlanProfileSummary(answers)} onExit={() => { setCreatorSeed(null); setCreatorMilestoneId(null); setStage("app"); }} onFinish={(plan) => {
     trackProductEvent({
       eventName: "plan_created",
       context: {
@@ -4045,7 +4189,7 @@ export function YovaPrototype({
     setStage("app");
     setActiveTab("Learning");
   }} />;
-  if (stage === "study-now") return <StudyNowCreator seed={creatorSeed} browserPreviewMode={browserPreviewMode || account?.identityMode === "preview"} previewPreferredMethodIds={effectivePreviewPreferredMethodIds} profileSummary={buildPlanProfileSummary(answers)} onExit={() => { setCreatorSeed(null); setCreatorMilestoneId(null); setStage("app"); }} onFinish={(plan) => {
+  if (stage === "study-now") return <StudyNowCreator seed={creatorSeed} browserPreviewMode={browserPreviewMode || account?.identityMode === "preview"} previewPreferredMethodIds={effectivePreviewPreferredMethodIds} previewCanonicalProfile={effectivePreviewCanonicalProfile} profileSummary={buildPlanProfileSummary(answers)} onExit={() => { setCreatorSeed(null); setCreatorMilestoneId(null); setStage("app"); }} onFinish={(plan) => {
     trackProductEvent({
       eventName: "plan_created",
       context: {
@@ -4302,18 +4446,23 @@ function consumeAuthCallbackIssue() {
 }
 
 function OnboardingIntro({ onStart }: { onStart: () => void }) {
-  return <main className="centered-shell"><BrandMark /><section className="setup-card"><span className="step-label">SET UP YOUR YOVA</span><h1>Make YOVA fit how you actually study.</h1><p>Ten short questions help YOVA build realistic plans, choose useful methods, and guide you at the right level. About two minutes.</p><div className="info-strip"><Sparkles size={20} /><span>This creates starting preferences, not a brain type. YOVA will update carefully based on what you actually do.</span></div><button className="button primary large full" onClick={onStart}>Personalize YOVA <ArrowRight size={18} /></button></section></main>;
+  return <main className="centered-shell"><BrandMark /><section className="setup-card"><span className="step-label">SET UP YOUR YOVA</span><h1>Make YOVA fit how you actually study.</h1><p>Eleven short, optional questions create the same study profile you can review later in You. About two minutes.</p><div className="info-strip"><Sparkles size={20} /><span>This records changeable preferences, not a brain type. Task requirements and checked work still decide what is valid.</span></div><button className="button primary large full" onClick={onStart}>Personalize YOVA <ArrowRight size={18} /></button></section></main>;
 }
 
 export function OnboardingQuestion({ index, answer, onAnswer, onNext, onBack }: { index: number; answer?: string; onAnswer: (answer: string) => void; onNext: () => void; onBack: () => void }) {
-  const question = onboardingQuestions[index];
-  const selectedId = onboardingAnswerId(index, answer);
+  const question = CANONICAL_PROFILE_QUESTIONS[index];
+  const selectedId = question.options.some((option) => option.id === answer)
+    ? answer
+    : null;
   const questionId = `onboarding-question-${index}`;
-  return <main className="onboarding-shell"><header><BrandMark /><span>{index + 1} of {onboardingQuestions.length}</span></header><div className="progress-track"><div style={{ width: `${((index + 1) / onboardingQuestions.length) * 100}%` }} /></div><section className="question-wrap"><span className="step-label">YOUR STARTING PROFILE</span><h2 id={questionId}>{question.prompt}</h2>{question.optional && <p className="muted">Optional: you can skip this or change it later.</p>}<div className="option-list" role="group" aria-labelledby={questionId}>{question.options.map((option) => <button type="button" aria-pressed={selectedId === option.id} key={option.id} className={`option ${selectedId === option.id ? "selected" : ""}`} onClick={() => onAnswer(option.id)}><span>{option.label}</span>{selectedId === option.id && <Check aria-hidden="true" size={18} />}</button>)}</div><footer className="question-footer"><button type="button" className="button ghost" onClick={onBack} disabled={index === 0}><ArrowLeft size={17} /> Back</button><button type="button" className="button primary" onClick={onNext} disabled={!answer && !question.optional}>{index === onboardingQuestions.length - 1 ? "Build my setup" : "Continue"} <ArrowRight size={17} /></button></footer></section></main>;
+  return <main className="onboarding-shell"><header><BrandMark /><span>{index + 1} of {CANONICAL_PROFILE_QUESTIONS.length}</span></header><div className="progress-track"><div style={{ width: `${((index + 1) / CANONICAL_PROFILE_QUESTIONS.length) * 100}%` }} /></div><section className="question-wrap"><span className="step-label">YOUR CANONICAL STUDY PROFILE</span><h2 id={questionId}>{question.prompt}</h2><p className="muted">Optional: choose Depends or Not sure, skip it, or change it later in You.</p><div className="option-list" role="group" aria-labelledby={questionId}>{question.options.map((option) => <button type="button" aria-pressed={selectedId === option.id} key={option.id} className={`option ${selectedId === option.id ? "selected" : ""}`} onClick={() => onAnswer(option.id)}><span>{option.label}</span>{selectedId === option.id && <Check aria-hidden="true" size={18} />}</button>)}</div><footer className="question-footer"><button type="button" className="button ghost" onClick={onBack} disabled={index === 0}><ArrowLeft size={17} /> Back</button><button type="button" className="button primary" onClick={onNext}>{index === CANONICAL_PROFILE_QUESTIONS.length - 1 ? "Build my setup" : "Continue"} <ArrowRight size={17} /></button></footer></section></main>;
 }
 
 function ProfileSummary({ answers, onContinue }: { answers: string[]; onContinue: () => void }) {
-  return <main className="centered-shell"><BrandMark /><section className="setup-card wide"><span className="eyebrow"><Sparkles size={15} /> Your starting setup</span><h1>YOVA will begin like this.</h1><p>This is a transparent starting point based on your answers. It can change as you update your preferences and complete sessions.</p><div className="profile-grid"><ProfileItem title="Guidance" value={onboardingAnswerLabel(1, answers[1]) || "Not answered yet"} note="Controls how much YOVA decides for you" /><ProfileItem title="Session size" value={onboardingAnswerLabel(2, answers[2]) || "Not answered yet"} note="Used as a starting estimate" /><ProfileItem title="Explanations" value={onboardingAnswerLabel(3, answers[3]) || "Not answered yet"} note="Shapes how difficult material is introduced" /><ProfileItem title="Focus pattern" value={onboardingAnswerLabel(4, answers[4]) || "Not answered yet"} note="Helps YOVA keep sessions manageable" /></div><button className="button primary large full" onClick={onContinue}>Open YOVA <ArrowRight size={18} /></button></section></main>;
+  const summary = buildCanonicalLearnerFacingSummary(
+    canonicalLearnerProfileFromAnswers(answers),
+  );
+  return <main className="centered-shell"><BrandMark /><section className="setup-card wide"><span className="eyebrow"><Sparkles size={15} /> Your starting setup</span><h1>YOVA will begin like this.</h1><p>This is a transparent starting point based on your canonical study profile. It can change when you correct an answer or comparable checked work points elsewhere.</p><div className="profile-grid">{summary.statements.map((statement, index) => <ProfileItem key={statement} title={`Starting decision ${index + 1}`} value={statement} note="A bounded preference, never a fixed learner type" />)}</div><button className="button primary large full" onClick={onContinue}>Open YOVA <ArrowRight size={18} /></button></section></main>;
 }
 
 function ProfileItem({ title, value, note }: { title: string; value: string; note: string }) { return <div className="profile-item"><span>{title}</span><strong>{value}</strong><small>{note}</small></div>; }
@@ -4463,19 +4612,20 @@ function HomeScreen({ account, answers, plans, plan, sessionCompletions, session
   ].filter((value): value is string => Boolean(value)).slice(0, 3) : [];
   const firstName = account?.displayName.split(" ")[0] || "there";
   const now = new Date();
-
-  const whyNow = resumePoint
-    ? awaitingSessionFinish
-      ? "Every required section is complete. Review the result and choose what should happen next."
-      : resumePoint.completedSteps === 0
-        ? "Your session is ready to continue at the first unfinished activity."
-        : resumePoint.completedSteps === 1
-          ? "Your first section is saved. Continue with the next unfinished activity."
-          : `Your first ${resumePoint.completedSteps} sections are saved. Continue with the next unfinished activity.`
-    : displayedPlan && readySession
-      ? recommendationReason(displayedPlan, readySession, now)
-      : null;
-  const methodFit = readySession?.adaptationNote?.explanation ?? readySession?.methodReason ?? null;
+  const homeRoute = displayedRouteContract?.resolution.route ?? null;
+  const homeSessionType = displayedPlan && readySession
+    ? (selectSessionLearningMode(displayedPlan, readySession) === "learn" ? "Learn" : "Practice")
+    : null;
+  const homeMethod = displayedPlan && readySession
+    ? selectSessionMethodName(displayedPlan, readySession)
+    : null;
+  const homeTotalMinutes = homeRoute?.timing.elapsedMinutes
+    ?? readySession?.estimatedMinutes
+    ?? null;
+  const methodFit = homeRoute?.explanation.shortReason
+    ?? readySession?.adaptationNote?.explanation
+    ?? readySession?.methodReason
+    ?? null;
   const showPreviousRecommendation = () => {
     const nextIndex = (recommendationIndex - 1 + recommendations.length) % recommendations.length;
     setSelectedRecommendationId(recommendations[nextIndex]?.id ?? null);
@@ -4561,11 +4711,11 @@ function HomeScreen({ account, answers, plans, plan, sessionCompletions, session
           <span className="hg-upnext-kicker">{resumePoint ? (awaitingSessionFinish ? "CONTINUE · READY TO FINISH" : "CONTINUE · PROGRESS SAVED") : `UP NEXT · ${sameDay(readySession.scheduledFor, now) ? `TODAY, ${daypartWord(readySession.scheduledFor).toUpperCase()}` : formatSessionTime(readySession.scheduledFor).toUpperCase()}`}</span>
           <h2>{readySession.title}</h2>
           <div className="hg-chip-row">
-            <span className="yv-chip blue">{readySession.method}</span>
-            <span className="yv-chip neutral">{readySession.amountLabel}</span>
-            <span className="yv-chip navy">{displayedPlan.title}</span>
+            <span className="yv-chip navy">{homeSessionType}</span>
+            <span className="yv-chip blue">{homeMethod}</span>
+            <span className="yv-chip neutral">{homeTotalMinutes} minutes</span>
           </div>
-          {(whyNow ?? methodFit) && <p className="hg-why"><strong>{resumePoint ? "WHERE YOU LEFT OFF · " : "WHY THIS · "}</strong>{whyNow ?? methodFit}</p>}
+          {methodFit && <p className="hg-why"><strong>WHY THIS · </strong>{methodFit}</p>}
           {visiblePersonalization.length > 0 && <p className="hg-personalized"><Sparkles size={13} aria-hidden="true" /><span><strong>Personalized today:</strong> {visiblePersonalization.join(" · ")}</span><button type="button" onClick={onOpenYou}>Why?</button></p>}
         </div>
         <div className="hg-upnext-foot">
@@ -4706,32 +4856,6 @@ function SubjectIcon({ plan, compact = false }: { plan: LearningPlan; compact?: 
                     : { Icon: BookMarked, theme: "general" };
   const SubjectGlyph = subject.Icon;
   return <span className={`subject-icon ${subject.theme} ${compact ? "compact" : ""}`} aria-hidden="true"><SubjectGlyph size={compact ? 18 : 20} /></span>;
-}
-
-function recommendationReason(plan: LearningPlan, session: LearningPlanSession, now: Date) {
-  const scheduled = new Date(session.scheduledFor);
-  const scheduledDay = scheduled.toDateString();
-  if (scheduled.getTime() <= now.getTime()) {
-    return `This is your earliest ready session and it is due ${formatRelativeSchedule(scheduled, now)}.`;
-  }
-
-  if (plan.deadline) {
-    const deadline = new Date(plan.deadline);
-    const daysRemaining = Math.ceil((deadline.getTime() - now.getTime()) / (24 * 60 * 60 * 1000));
-    if (daysRemaining <= 0) return "This goal’s deadline has arrived, so its next ready session takes priority.";
-    if (daysRemaining <= 3) return `This goal is due in ${daysRemaining} ${daysRemaining === 1 ? "day" : "days"}, so its next ready session takes priority.`;
-  }
-
-  if (scheduledDay === now.toDateString()) return "This is the earliest ready session scheduled for today across your active goals.";
-  return `This is the earliest ready session across your active goals, scheduled for ${formatSessionTime(session.scheduledFor)}.`;
-}
-
-function formatRelativeSchedule(scheduled: Date, now: Date) {
-  if (scheduled.toDateString() === now.toDateString()) return "today";
-  const yesterday = new Date(now);
-  yesterday.setDate(yesterday.getDate() - 1);
-  if (scheduled.toDateString() === yesterday.toDateString()) return "yesterday";
-  return formatSessionTime(scheduled.toISOString());
 }
 
 function formatHomeDate(date: Date) {
@@ -5484,7 +5608,10 @@ function AgendaScreen({ plans, milestones, sessionCompletions, sessionInterrupti
               const overdue = session.status === "ready" && isSessionOverdue(session.scheduledFor);
               const hasSavedWork = startDecision.canStartWithoutGeneration;
               const startBlocked = guidedSessionAllowanceBlocksNewStart(allowance, hasSavedWork, allowanceChecking);
-              return <article className={`${session.status === "ready" ? "ready" : ""} ${overdue ? "overdue" : ""}`} key={session.id}><SubjectIcon plan={plan} compact /><div className="agenda-session-copy"><span>{overdue ? "Overdue" : formatAgendaClock(session.scheduledFor)} · {selectSessionLearningMode(plan, session) === "learn" ? "Learn" : "Practice"}</span><strong>{session.title}</strong><small>{plan.title} · {selectSessionMethodName(plan, session)} · {selectSessionActiveMinutes(plan, session)} min{resumePoint ? ` · Continue at section ${Math.min(resumePoint.totalSteps, resumePoint.completedSteps + 1)}` : ""}</small></div><div className="agenda-session-actions">{session.status === "ready" && <button className="button primary" disabled={startBlocked} onClick={() => onStart(plan.id)}>{guidedSessionStartLabel(allowance, resumePoint ? "Continue" : "Start", hasSavedWork, allowanceChecking)}</button>}<button className="button ghost" onClick={() => openMove(plan.id, session.id, session.scheduledFor)}>Move</button></div></article>;
+              const agendaRoute = resolveStudyRouteSessionContract(plan, session).resolution.route;
+              const agendaTotalMinutes = agendaRoute?.timing.elapsedMinutes ?? session.estimatedMinutes;
+              const agendaReason = agendaRoute?.explanation.shortReason ?? session.methodReason;
+              return <article className={`${session.status === "ready" ? "ready" : ""} ${overdue ? "overdue" : ""}`} key={session.id}><SubjectIcon plan={plan} compact /><div className="agenda-session-copy"><span>{overdue ? "Overdue" : formatAgendaClock(session.scheduledFor)} · {selectSessionLearningMode(plan, session) === "learn" ? "Learn" : "Practice"}</span><strong>{session.title}</strong><small>{selectSessionMethodName(plan, session)} · {agendaTotalMinutes} minutes{resumePoint ? ` · Continue at section ${Math.min(resumePoint.totalSteps, resumePoint.completedSteps + 1)}` : ""}</small><small>{agendaReason}</small></div><div className="agenda-session-actions">{session.status === "ready" && <button className="button primary" disabled={startBlocked} onClick={() => onStart(plan.id)}>{guidedSessionStartLabel(allowance, resumePoint ? "Continue" : "Start", hasSavedWork, allowanceChecking)}</button>}<button className="button ghost" onClick={() => openMove(plan.id, session.id, session.scheduledFor)}>Move</button></div></article>;
             })}</div></section>;
           })}
         </div>
@@ -5700,8 +5827,6 @@ function formatTutorThreadDate(value: string) {
   }).format(date);
 }
 
-const editablePreferenceIndexes = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9] as const;
-
 function MethodEvidencePanel({ signals }: { signals: MethodSignal[] }) {
   const statusLabel: Record<MethodSignal["status"], string> = {
     early_signal: "Early evidence",
@@ -5716,94 +5841,16 @@ function YouScreen({ account, answers, plans, sessionCompletions, sessionInterru
   const [confirmReset, setConfirmReset] = useState(false);
   const [resetting, setResetting] = useState(false);
   const [resetError, setResetError] = useState<string | null>(null);
-  const [editing, setEditing] = useState(false);
-  const [draftAnswers, setDraftAnswers] = useState<string[]>(answers);
-  const methodSignals = buildMethodSignals(plans, sessionCompletions, sessionInterruptions);
-  const personalization = resolveLearnerPersonalization({
-    answers,
+  const methodSignals = buildMethodSignals(
     plans,
-    completions: sessionCompletions,
-    interruptions: sessionInterruptions,
-    timeZone: browserTimeZone(),
-  });
-  const appliedPersonalizationDecisions = personalization.decisions.filter((decision) => (
-    personalizationDecisionIsApplied(decision, personalization.signals)
-  ));
-  const receiptDecision = selectPersonalizationReceipt({
-    state: personalization.state,
-    decisions: appliedPersonalizationDecisions,
-  });
-  const optionalQuestion = selectNextOptionalPersonalizationQuestion(
-    personalization.state,
-    personalization.signals,
+    sessionCompletions,
+    sessionInterruptions,
   );
-  const centerSignals = personalizationCenterSignals(personalization);
-  const centerTendencies = personalizationCenterTendencies(personalization);
-  const centerDecisions = personalizationCenterDecisions(
-    personalization.decisions,
-    personalization.signals,
+  const canonicalProfile = canonicalLearnerProfileFromAnswers(answers);
+  const canonicalState = consolidatePersonalizationStateForCanonicalV1(
+    readPersonalizationStateFromAnswers(answers),
   );
-  const centerReceipt = personalizationCenterReceipt(receiptDecision, personalization.signals);
-  const centerWeeklyReview = personalizationCenterWeeklyReview(personalization);
-  const centerEnergySuggestion = personalizationCenterEnergySuggestion(personalization);
-  const centerHistory: PersonalizationCenterHistoryItem[] = personalization.state.changeHistory
-    .slice()
-    .reverse()
-    .map((item) => ({
-      id: item.id,
-      occurredAt: item.occurredAt,
-      title: item.title,
-      reason: item.reason,
-      status: item.undoneAt ? "Undone" : "Active",
-      canUndo: !item.undoneAt,
-    }));
-  const optionalQuestionPrompt: PersonalizationOptionalQuestionPrompt | null = optionalQuestion
-    ? {
-        questionId: optionalQuestion.question.id,
-        reason: optionalQuestion.reason,
-        changes: optionalQuestion.changes,
-      }
-    : null;
-  const experimentSession = plans
-    .filter((plan) => plan.status === "active")
-    .flatMap((plan) => plan.sessions
-      .filter((session) => session.status === "ready")
-      .map((session) => ({ plan, session })))
-    .at(0) ?? null;
-  const experimentScope = experimentSession
-    ? personalizationComparisonContext(experimentSession.plan, experimentSession.session)
-    : null;
-  const centerSuggestions: PersonalizationCenterSuggestion[] = personalization.state.controls.experiments
-    && !personalization.state.activeExperiment
-    && experimentScope
-    ? [{
-        id: "start-workspace-experiment",
-        title: "Compare one-step and full-path sessions",
-        explanation: `YOVA can alternate the two views only during ${experimentScope.taskType.replaceAll("_", " ")} sessions at the ${experimentScope.knowledgeStage.replaceAll("_", " ")} stage, then compare checked answers and challenge feedback.`,
-        evidence: "Optional personal test · at least two sessions per view",
-        actionLabel: "Start personal test",
-      }]
-    : [];
   const isCloudAccount = account?.identityMode === "supabase";
-  const startEditing = () => {
-    setDraftAnswers([...answers]);
-    setEditing(true);
-  };
-  const cancelEditing = () => {
-    setDraftAnswers([...answers]);
-    setEditing(false);
-  };
-  const savePreferences = () => {
-    onAnswersChange(draftAnswers);
-    setEditing(false);
-  };
-  const updateDraftAnswer = (index: number, answer: string) => {
-    setDraftAnswers((current) => {
-      const next = [...current];
-      next[index] = answer;
-      return next;
-    });
-  };
 
   const confirmDataReset = async () => {
     if (resetting) return;
@@ -5812,243 +5859,124 @@ function YouScreen({ account, answers, plans, sessionCompletions, sessionInterru
     try {
       await onReset();
     } catch (error) {
-      setResetError(error instanceof Error ? error.message : "YOVA could not reset your learning data.");
+      setResetError(error instanceof Error
+        ? error.message
+        : "YOVA could not reset your learning data.");
       setResetting(false);
     }
   };
 
-  const handlePersonalizationSuggestion = (id: string) => {
-    if (id !== "start-workspace-experiment" || !experimentScope) return;
-    onAnswersChange(updatePersonalizationStateInAnswers(answers, (current) => (
-      startPersonalizationExperiment(current, {
-        id: makeUuid(),
-        variable: "workspace",
-        variantA: "one_step",
-        variantB: "full_path",
-        startedAt: new Date().toISOString(),
-        taskType: experimentScope.taskType,
-        knowledgeStage: experimentScope.knowledgeStage,
-      })
-    )));
-  };
-
-  const acknowledgePersonalizationReceipt = () => {
-    if (!receiptDecision) return;
-    onAnswersChange(updatePersonalizationStateInAnswers(answers, (current) => (
-      recordPersonalizationReceipt(current, receiptDecision, new Date().toISOString())
-    )));
-  };
-
-  const acknowledgeWeeklyReview = () => {
-    if (!personalization.weeklyReview.ready) return;
-    onAnswersChange(updatePersonalizationStateInAnswers(answers, (current) => (
-      recordPersonalizationWeeklyReview(
-        current,
-        personalization.weeklyReview.key,
-        new Date().toISOString(),
-      )
-    )));
-  };
-
-  const undoPersonalizationHistory = (id: string) => {
-    onAnswersChange(updatePersonalizationStateInAnswers(answers, (current) => (
-      undoPersonalizationChange(current, id, new Date().toISOString())
-    )));
-  };
-
-  return <div className="page"><PageHeader eyebrow="YOU" title="Your learning, in one place" description="Tell YOVA what tends to help, inspect what it has cautiously noticed, and correct it when context is missing." /><section className="personalization-principle"><Sparkles size={20} /><div><strong>Your profile is a starting hypothesis, not a brain type.</strong><p>The task chooses the learning method. Your context changes how the method begins, how support fades, and what YOVA checks before moving on.</p></div><span>Optional and editable</span></section><PersonalizationCenter answers={answers} onAnswersChange={onAnswersChange} signals={centerSignals} tendencies={centerTendencies} suggestions={centerSuggestions} decisions={centerDecisions} receipt={centerReceipt} weeklyReview={centerWeeklyReview} energySuggestion={centerEnergySuggestion} history={centerHistory} optionalQuestionPrompt={optionalQuestionPrompt} onSuggestionAction={handlePersonalizationSuggestion} onReceiptAction={acknowledgePersonalizationReceipt} onWeeklyReview={acknowledgeWeeklyReview} onUndoHistory={undoPersonalizationHistory} /><div className="you-grid"><section className={`section-block preference-card ${editing ? "editing" : ""}`}><div className="section-title"><div><h3>Your learning context</h3><p>More specific context gives YOVA better starting decisions.</p></div>{editing ? <span className="data-badge">Editing</span> : <button onClick={startEditing}>Add or change context</button>}</div>{editing ? <div className="preference-editor"><div className="profile-editor-group"><strong>Core preferences</strong>{editablePreferenceIndexes.map((index) => { const question = onboardingQuestions[index]; return <label key={question.prompt}><span>{question.prompt}</span><select value={onboardingAnswerId(index, draftAnswers[index]) ?? ""} onChange={(event) => updateDraftAnswer(index, event.target.value)}><option value="">Not answered</option>{question.options.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}</select></label>; })}</div><div className="profile-editor-group deep-profile-editor"><strong>How information tends to work for you</strong><p>These answers adjust delivery. YOVA still checks them against task-specific results.</p>{DEEP_PROFILE_QUESTIONS.map((question) => <label key={question.answerIndex}><span>{question.prompt}</span><small>{question.description}</small><select value={deepProfileAnswerId(question.answerIndex, draftAnswers[question.answerIndex]) ?? ""} onChange={(event) => updateDraftAnswer(question.answerIndex, event.target.value)}><option value="">Not answered</option>{question.options.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}</select></label>)}</div><div className="profile-editor-group"><strong>Tell YOVA what a form cannot capture</strong><label><span>Anything else about how you learn, study, or get stuck?</span><textarea rows={4} maxLength={800} value={draftAnswers[FREEFORM_LEARNING_CONTEXT_INDEX] ?? ""} placeholder="Example: I understand a process when I can see one real example, but I tend to copy procedures without knowing when to use them." onChange={(event) => updateDraftAnswer(FREEFORM_LEARNING_CONTEXT_INDEX, event.target.value)} /><small>{draftAnswers[FREEFORM_LEARNING_CONTEXT_INDEX]?.length ?? 0}/800</small></label></div><div className="preference-actions"><button className="button ghost" onClick={cancelEditing}>Cancel</button><button className="button primary" onClick={savePreferences}><Check size={16} /> Save learning context</button></div><small>For signed-in accounts, saved context is also synced to YOVA’s database.</small></div> : <><ProfileItem title="Main blocker" value={onboardingAnswerLabel(0, answers[0]) || "Not answered yet"} note="Shapes how YOVA helps you begin" /><ProfileItem title="Guidance" value={onboardingAnswerLabel(1, answers[1]) || "Not answered yet"} note="Controls how much YOVA decides for you" /><ProfileItem title="Practical support" value={onboardingAnswerLabel(8, answers[8]) || "Not answered yet"} note="Adjusts pace, text density, and check-ins without labeling you" /><ProfileItem title="New information" value={deepProfileAnswerLabel(10, answers[10]) || onboardingAnswerLabel(3, answers[3]) || "Not answered yet"} note="Changes how teaching begins" /><ProfileItem title="Likely breakdown" value={deepProfileAnswerLabel(11, answers[11]) || "Not answered yet"} note="Changes what YOVA verifies before moving on" /><ProfileItem title="Support after a miss" value={deepProfileAnswerLabel(12, answers[12]) || "Not answered yet"} note="Changes the first repair step" />{answers[14] && <div className="profile-freeform-summary"><span>In your own words</span><p>{answers[14]}</p></div>}<button className="button secondary full" onClick={startEditing}>Deepen your profile</button></>}</section><MethodEvidencePanel signals={methodSignals} />{account && <AccountSecurityCard key={account.id} account={account} passwordAccountsEnabled={passwordAccountsEnabled} signingOut={signingOut} turnstileSiteKey={turnstileSiteKey} onPrepareDataExport={isCloudAccount ? (signal) => prepareAccountDataExport(account.id, { signal }) : undefined} onDisplayNameChange={onDisplayNameChange} onSignOut={onSignOut} />}<section className="section-block alpha-data-card"><div><h3>{isCloudAccount ? "Cloud learning data" : "Private-alpha data"}</h3><p>{isCloudAccount ? "Remove your learning profile, plans, tutor conversations, results, and private uploaded materials. Your login identity will remain available." : "Reset the account, onboarding answers, plans, and session results stored in this browser."}</p></div>{confirmReset ? <div className="reset-confirm"><strong>This cannot be undone.</strong><span>{isCloudAccount ? "YOVA will permanently remove your cloud learning data and uploaded files." : "Only this browser’s private-alpha data will be removed."}</span>{resetError && <span className="reset-error">{resetError}</span>}<div><button className="button ghost" disabled={resetting} onClick={() => { setConfirmReset(false); setResetError(null); }}>Cancel</button><button className="button danger" disabled={resetting} onClick={() => void confirmDataReset()}>{resetting ? <span className="button-spinner" /> : <Trash2 size={16} />} {resetting ? "Resetting…" : isCloudAccount ? "Reset learning data" : "Reset private-alpha data"}</button></div></div> : <button className="button ghost danger-outline" onClick={() => setConfirmReset(true)}><Trash2 size={16} /> {isCloudAccount ? "Reset learning data" : "Reset private-alpha data"}</button>}</section></div></div>;
-}
-
-const PERSONALIZATION_TENDENCY_KEYS = new Set<PersonalizationTendency["id"]>([
-  "starting_friction",
-  "structure_need",
-  "attention_variability",
-  "calibration_risk",
-  "mistake_sensitivity",
-  "cognitive_stamina",
-]);
-
-function personalizationCenterSignals(
-  resolution: PersonalizationResolution,
-): PersonalizationCenterSignal[] {
-  return resolution.signals.map((signal) => {
-    const decision = resolution.decisions.find((candidate) => (
-      candidate.signalIds.includes(signal.id)
-    ));
-    const applied = decision
-      ? personalizationDecisionIsApplied(decision, resolution.signals)
-      : false;
-    const visibleResult = signal.paused
-      ? "YOVA will not use this pattern while it is paused."
-      : signal.evidenceLabel === "Mixed evidence"
-        ? "No stronger change until the evidence becomes clearer."
-        : decision
-          ? `${applied ? "Applied" : "Recommendation"}: ${decision.title}`
-          : "YOVA will keep checking before making a stronger change.";
-    return {
-      id: signal.id,
-      signal: `${signal.title}: ${signal.value}`,
-      visibleResult,
-      evidence: personalizationEvidenceKind(signal.evidenceLabel),
-      evidenceDetail: evidenceCountLabel(signal),
-      explanation: signal.explanation,
-      canCorrect: true,
-      canPause: true,
-    };
-  });
-}
-
-function personalizationCenterTendencies(
-  resolution: PersonalizationResolution,
-): PersonalizationTendency[] {
-  return resolution.signals.flatMap((signal) => {
-    if (!PERSONALIZATION_TENDENCY_KEYS.has(signal.key as PersonalizationTendency["id"])) {
-      return [];
-    }
-    const decision = resolution.decisions.find((candidate) => (
-      candidate.signalIds.includes(signal.id)
-    ));
-    const applied = decision
-      ? personalizationDecisionIsApplied(decision, resolution.signals)
-      : false;
-    return [{
-      id: signal.key as PersonalizationTendency["id"],
-      label: signal.value,
-      summary: signal.explanation,
-      visibleResult: decision
-        ? `${applied ? "Applied" : "Recommendation"}: ${decision.title}`
-        : signal.paused
-          ? "Paused; this tendency will not change a session."
-          : "YOVA is still collecting enough evidence for a stronger change.",
-      evidence: personalizationEvidenceKind(signal.evidenceLabel),
-      evidenceDetail: evidenceCountLabel(signal),
-    }];
-  });
-}
-
-function personalizationCenterDecisions(
-  decisions: readonly PersonalizationDecision[],
-  signals: readonly LearnerPersonalizationSignal[],
-): PersonalizationCenterDecision[] {
-  return decisions
-    .filter((decision) => decision.artifact !== "schedule")
-    .map((decision) => {
-      const applied = personalizationDecisionIsApplied(decision, signals);
-      return {
-        id: decision.id,
-        title: decision.title,
-        explanation: decision.explanation,
-        status: applied ? "applied" as const : "suggested" as const,
-        changes: [personalizationArtifactLabel(decision, applied)],
-      };
-    });
-}
-
-function personalizationDecisionIsApplied(
-  decision: PersonalizationDecision,
-  signals: readonly LearnerPersonalizationSignal[],
-) {
-  // An approved experiment is scheduled for the next matching session; it is
-  // not an applied result until comparable evidence produces a winner.
-  if (decision.experimental) return false;
-  const signal = signals.find((candidate) => decision.signalIds.includes(candidate.id));
-  if (!signal || signal.paused || signal.evidenceLabel === "Mixed evidence" || signal.evidenceLabel === "Seen once") {
-    return false;
-  }
-  if (signal.source === "observation") return false;
-  if (decision.setting === "path_visibility") return decision.value === "one_step";
-  if (decision.setting === "knowledge_check") return decision.value === "closed_note_first";
-  return [
-    "first_action",
-    "block_length",
-    "presentation",
-    "retention",
-    "first_repair",
-    "layout",
-    "text_density",
-    "motion",
-    "visual_structure",
-    "check_ins",
-  ].includes(decision.setting);
-}
-
-function personalizationCenterReceipt(
-  decision: PersonalizationDecision | null,
-  signals: readonly LearnerPersonalizationSignal[],
-): PersonalizationCenterReceipt | null {
-  if (!decision) return null;
-  const signal = signals.find((candidate) => decision.signalIds.includes(candidate.id));
-  return {
-    because: signal
-      ? `${signal.title} is supported by ${signal.evidenceLabel.toLowerCase()}: ${signal.value}.`
-      : `This change now has ${decision.evidenceLabel.toLowerCase()}.`,
-    changed: `${decision.title}. ${decision.explanation}`,
-    check: decision.experimental
-      ? "YOVA will compare at least two comparable sessions per option before calling either one promising."
-      : "You can correct or pause the pattern at any time.",
-    actionLabel: "Got it",
-  };
-}
-
-function personalizationCenterWeeklyReview(
-  resolution: PersonalizationResolution,
-): PersonalizationCenterWeeklyReview | null {
-  const review = resolution.weeklyReview;
-  if (!review.ready) return null;
-  const accuracy = review.accuracyPercent === null
-    ? "Checks are still building"
-    : `${review.accuracyPercent}% checked-answer accuracy`;
-  return {
-    summary: `${review.completedSessions} completed and ${review.interruptedSessions} interrupted in the previous week.`,
-    facts: [
-      `${formatStudyMinutes(review.studiedMinutes)} of completed study time`,
-      accuracy,
-      `${review.activeChanges.length} active personalization ${review.activeChanges.length === 1 ? "change" : "changes"}`,
-    ],
-    pattern: review.evidenceHighlights[0],
-    proposedChange: review.nextSuggestion ?? undefined,
-    actionLabel: "Mark reviewed",
-  };
-}
-
-function personalizationCenterEnergySuggestion(
-  resolution: PersonalizationResolution,
-): PersonalizationEnergySuggestion | null {
-  const decision = resolution.decisions.find((candidate) => (
-    candidate.artifact === "schedule" && candidate.setting === "recommended_window"
-  ));
-  if (!decision) return null;
-  const signal = resolution.signals.find((candidate) => decision.signalIds.includes(candidate.id));
-  return {
-    recommendedWindow: decision.value,
-    explanation: decision.explanation,
-    evidence: signal
-      ? `${signal.evidenceLabel} across ${signal.evidenceCount} checked sessions.`
-      : decision.evidenceLabel,
-  };
-}
-
-function personalizationEvidenceKind(
-  label: PersonalizationEvidenceLabel,
-): PersonalizationEvidenceKind {
-  if (label === "You told YOVA") return "self_report";
-  if (label === "Seen once") return "seen_once";
-  if (label === "Repeated pattern" || label === "Self-report and behavior agree") return "repeated";
-  if (label === "Tested and promising") return "tested";
-  if (label === "Paused by you") return "paused";
-  return "mixed";
-}
-
-function evidenceCountLabel(signal: LearnerPersonalizationSignal) {
-  if (signal.evidenceLabel === "You told YOVA") {
-    return `${signal.evidenceCount} optional or onboarding ${signal.evidenceCount === 1 ? "answer" : "answers"}`;
-  }
-  return `${signal.evidenceCount} relevant ${signal.evidenceCount === 1 ? "observation" : "observations"}`;
-}
-
-function personalizationArtifactLabel(decision: PersonalizationDecision, applied: boolean) {
-  const artifact = decision.artifact.replaceAll("_", " ");
-  return `${applied ? "Visible in" : "Would change"} ${artifact}: ${decision.value.replaceAll("_", " ")}`;
+  return (
+    <div className="page">
+      <PageHeader
+        eyebrow="YOU"
+        title="Your learning, in one place"
+        description="Keep one optional study profile, inspect comparable method evidence, and correct either whenever context is missing."
+      />
+      <section className="personalization-principle">
+        <Sparkles size={20} />
+        <div>
+          <strong>Your profile is a changeable preference record, not a brain type.</strong>
+          <p>
+            Task, stage, time, and checked evidence decide which methods are valid.
+            Your profile can only rank valid options and shape delivery.
+          </p>
+        </div>
+        <span>Optional and editable</span>
+      </section>
+      <CanonicalProfileCenter
+        profile={canonicalProfile}
+        enabled={canonicalState.controls.selfReport}
+        onEnabledChange={(enabled) => onAnswersChange(
+          updatePersonalizationStateInAnswers(answers, (state) => (
+            setPersonalizationControl(
+              consolidatePersonalizationStateForCanonicalV1(state),
+              "selfReport",
+              enabled,
+              new Date().toISOString(),
+            )
+          )),
+        )}
+        onProfileChange={(profile) => onAnswersChange(
+          writeCanonicalLearnerProfileToAnswers(answers, profile),
+        )}
+      />
+      <div className="you-grid">
+        <MethodEvidencePanel signals={methodSignals} />
+        {account && (
+          <AccountSecurityCard
+            key={account.id}
+            account={account}
+            passwordAccountsEnabled={passwordAccountsEnabled}
+            signingOut={signingOut}
+            turnstileSiteKey={turnstileSiteKey}
+            onPrepareDataExport={isCloudAccount
+              ? (signal) => prepareAccountDataExport(account.id, { signal })
+              : undefined}
+            onDisplayNameChange={onDisplayNameChange}
+            onSignOut={onSignOut}
+          />
+        )}
+        <section className="section-block alpha-data-card">
+          <div>
+            <h3>{isCloudAccount ? "Cloud learning data" : "Private-alpha data"}</h3>
+            <p>
+              {isCloudAccount
+                ? "Remove your study profile, plans, tutor conversations, results, and private uploaded materials. Your login identity will remain available."
+                : "Reset the account, study profile, plans, and session results stored in this browser."}
+            </p>
+          </div>
+          {confirmReset ? (
+            <div className="reset-confirm">
+              <strong>This cannot be undone.</strong>
+              <span>
+                {isCloudAccount
+                  ? "YOVA will permanently remove your cloud learning data and uploaded files."
+                  : "Only this browser’s private-alpha data will be removed."}
+              </span>
+              {resetError && <span className="reset-error">{resetError}</span>}
+              <div>
+                <button
+                  className="button ghost"
+                  disabled={resetting}
+                  onClick={() => {
+                    setConfirmReset(false);
+                    setResetError(null);
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="button danger"
+                  disabled={resetting}
+                  onClick={() => void confirmDataReset()}
+                >
+                  {resetting
+                    ? <span className="button-spinner" />
+                    : <Trash2 size={16} />}
+                  {" "}
+                  {resetting
+                    ? "Resetting…"
+                    : isCloudAccount
+                      ? "Reset learning data"
+                      : "Reset private-alpha data"}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              className="button ghost danger-outline"
+              onClick={() => setConfirmReset(true)}
+            >
+              <Trash2 size={16} />
+              {" "}
+              {isCloudAccount ? "Reset learning data" : "Reset private-alpha data"}
+            </button>
+          )}
+        </section>
+      </div>
+    </div>
+  );
 }
 
 function formatStudyMinutes(totalMinutes: number) {
@@ -6473,7 +6401,7 @@ function isVerifiableKnownTarget(value: string) {
   ].some((pattern) => pattern.test(normalized));
 }
 
-function SessionSetup({ plan: storedPlan, answers, completions, interruptions, onExit, onOpenGoal, onChangeMethod, onStart }: { plan: LearningPlan | null; answers: string[]; completions: SessionCompletion[]; interruptions: SessionInterruption[]; onExit: () => void; onOpenGoal: () => void; onChangeMethod: (selection: { planId: string; planSessionId: string; expectedRouteRevisionId: string; methodId: CoreMethodId }) => Promise<void>; onStart: (adjustment: SessionAdjustment | null) => void }) {
+function SessionSetup({ plan: storedPlan, answers, completions, interruptions, onExit, onOpenGoal, onChangeMethod, onStart }: { plan: LearningPlan | null; answers: string[]; completions: SessionCompletion[]; interruptions: SessionInterruption[]; onExit: () => void; onOpenGoal: () => void; onChangeMethod: (selection: ReadySessionMethodChoiceSelection) => Promise<ReadySessionMethodChoiceResult>; onStart: (adjustment: SessionAdjustment | null) => void }) {
   const storedSession = storedPlan?.sessions.find((item) => item.status === "ready") ?? null;
   const routeContract = storedPlan && storedSession
     ? resolveStudyRouteSessionContract(storedPlan, storedSession)
@@ -6491,9 +6419,11 @@ function SessionSetup({ plan: storedPlan, answers, completions, interruptions, o
   const [selectedKnownTargets, setSelectedKnownTargets] = useState<string[]>([]);
   const [note, setNote] = useState("");
   const [methodChoicesOpen, setMethodChoicesOpen] = useState(false);
-  const [pendingMethodId, setPendingMethodId] = useState<CoreMethodId | null>(null);
+  const [pendingMethodId, setPendingMethodId] = useState<string | null>(null);
   const [methodChoiceStatus, setMethodChoiceStatus] = useState<string | null>(null);
   const [methodChoiceError, setMethodChoiceError] = useState<string | null>(null);
+  const [otherMethodRequest, setOtherMethodRequest] = useState("");
+  const [otherMethodPreview, setOtherMethodPreview] = useState<AgencyMethodRequestResolution | null>(null);
   const methodChoiceTriggerRef = useRef<HTMLButtonElement>(null);
   const noteLimit = getCharacterLimitState(note);
   const options: Array<{
@@ -6532,8 +6462,12 @@ function SessionSetup({ plan: storedPlan, answers, completions, interruptions, o
   }
 
   const scheduledReview = isScheduledRetrievalSession(session);
+  const routeAgencyMode = committedStudyRoute
+    ? agencyModeForStudyRouteControlMode(committedStudyRoute.agency.controlMode).mode
+    : null;
   const methodChoiceRoute = (
     !scheduledReview
+    && routeAgencyMode !== "yova_decides"
     && storedSession?.status === "ready"
     && committedStudyRoute
     && committedStudyRoute.identity.planId === plan.id
@@ -6548,6 +6482,19 @@ function SessionSetup({ plan: storedPlan, answers, completions, interruptions, o
       && alternative.activeMinutes === methodChoiceRoute.timing.activeMinutes
     )).slice(0, 2)
     : [];
+  const canChooseOtherMethods = Boolean(
+    methodChoiceRoute && routeAgencyMode === "ill_customize",
+  );
+  let otherMethodsUnavailable = false;
+  let otherMethodOptions: ReturnType<typeof boundedOtherAgencyMethodOptions> = [];
+  if (methodChoiceRoute && canChooseOtherMethods) {
+    try {
+      otherMethodOptions = boundedOtherAgencyMethodOptions(methodChoiceRoute);
+    } catch {
+      otherMethodsUnavailable = true;
+    }
+  }
+  const hasMethodChoices = methodAlternatives.length > 0 || canChooseOtherMethods;
   const methodChoicePending = pendingMethodId !== null;
   const methodChoiceControlId = `session-method-choices-${session.id}`;
   const hasOrdinaryUnfinishedWork = plan.sessions.some((candidate) => (
@@ -6597,6 +6544,7 @@ function SessionSetup({ plan: storedPlan, answers, completions, interruptions, o
         planId: plan.id,
         planSessionId: session.id,
         expectedRouteRevisionId: methodChoiceRoute.identity.routeRevisionId,
+        selectionScope: "stored_alternative",
         methodId: alternative.primaryMethodId,
       });
       methodChanged = true;
@@ -6611,6 +6559,81 @@ function SessionSetup({ plan: storedPlan, answers, completions, interruptions, o
       if (methodChanged) {
         window.requestAnimationFrame(() => methodChoiceTriggerRef.current?.focus());
       }
+    }
+  };
+
+  const applyOtherMethod = async (
+    requestedMethod: string,
+    checkedResolution?: AgencyMethodRequestResolution,
+  ) => {
+    if (!methodChoiceRoute || !canChooseOtherMethods || methodChoicePending) return;
+    let requestApplied = false;
+    setPendingMethodId(`other:${requestedMethod}`);
+    setMethodChoiceError(null);
+    setMethodChoiceStatus(null);
+    try {
+      const result = await onChangeMethod({
+        planId: plan.id,
+        planSessionId: session.id,
+        expectedRouteRevisionId: methodChoiceRoute.identity.routeRevisionId,
+        selectionScope: "other_eligible_method",
+        requestedMethod,
+      });
+      const resolution = result.methodRequestResolution ?? checkedResolution;
+      if (!resolution) {
+        throw new Error("YOVA could not verify the requested method mapping. The current recipe is still in place.");
+      }
+      requestApplied = true;
+      setMethodChoicesOpen(false);
+      setOtherMethodRequest("");
+      setOtherMethodPreview(null);
+      const outcome = result.status === "unchanged"
+        ? `${resolution.selectedMethodName} was already the method for this session.`
+        : `${resolution.selectedMethodName} is now the method for this session.`;
+      setMethodChoiceStatus(resolution.conflictExplanation
+        ? `${resolution.conflictExplanation} ${outcome}`
+        : outcome);
+    } catch (error) {
+      // A checked mapping belongs to one exact predecessor route. Discard it
+      // after any failure so a retry must be checked against current state.
+      setOtherMethodPreview(null);
+      setMethodChoiceError(error instanceof Error
+        ? error.message
+        : "YOVA could not change this session method. The current method is still in place.");
+    } finally {
+      setPendingMethodId(null);
+      if (requestApplied) {
+        window.requestAnimationFrame(() => methodChoiceTriggerRef.current?.focus());
+      }
+    }
+  };
+
+  const checkOtherMethodRequest = () => {
+    if (!methodChoiceRoute || !canChooseOtherMethods || methodChoicePending) return;
+    setMethodChoiceError(null);
+    setMethodChoiceStatus(null);
+    const requestedMethod = otherMethodRequest.trim();
+    if (!requestedMethod) {
+      setOtherMethodPreview(null);
+      setMethodChoiceError("Enter a method name for YOVA to check.");
+      return;
+    }
+    try {
+      const resolution = resolveBoundedOtherMethodRequest({
+        route: methodChoiceRoute,
+        requestedMethod,
+      });
+      if (resolution.status === "mapped") {
+        setOtherMethodPreview(resolution);
+        return;
+      }
+      setOtherMethodPreview(null);
+      void applyOtherMethod(requestedMethod, resolution);
+    } catch (error) {
+      setOtherMethodPreview(null);
+      setMethodChoiceError(error instanceof Error
+        ? error.message
+        : "YOVA could not check that method against this session recipe.");
     }
   };
 
@@ -6680,11 +6703,63 @@ function SessionSetup({ plan: storedPlan, answers, completions, interruptions, o
       {setupPage === 0 && <>
         <div className="session-setup-copy"><span className="step-label">{scheduledReview ? "SCHEDULED RETURN" : "SESSION DIRECTION"}</span><h1>{scheduledReview ? "Confirm this quick verification." : "Here is how YOVA plans to start."}</h1><p>{scheduledReview ? "This return has one fixed purpose: check what is available after time has passed without turning it into another lesson." : "First see the target and method. You can correct the starting point on the next page."}</p></div>
         <section className="session-current-assumption"><div><span>CURRENT TARGET</span><strong>{session.title}</strong><p>{sessionSetupObjective(plan.studyMode, session)}</p></div><div><span>PLANNED APPROACH</span><strong>{scheduledReview ? "Short scheduled verification" : session.learningMode === "learn" ? "Teaching before independent work" : "Independent attempt before repair"}</strong><p>{scheduledReview ? `Exactly 3 multiple-choice questions, about ${session.estimatedMinutes} minutes, with no teaching before the first answer.` : `${session.method}, about ${session.estimatedMinutes} minutes.${durationExplanation ? ` ${durationExplanation}` : ""}`}</p></div></section>
-        {!scheduledReview && <section className="session-decision-spotlight" aria-label="Why YOVA chose this approach"><div className="session-decision-icon"><Sparkles size={19} /></div><div><span>METHOD FOR THIS TASK</span><h2>{visibleMethodName}</h2><p>{visibleMethodReason}</p>{personalDecision && <aside><strong>HOW YOVA CHANGED IT FOR YOU</strong><span>{personalDecision.title}</span><small>{personalDecision.strength === "observed" ? "Evidence: prior checked work" : "Evidence: you told YOVA"}</small></aside>}{methodAlternatives.length > 0 && <div className="session-method-choice"><button ref={methodChoiceTriggerRef} className="session-method-choice-trigger" type="button" aria-expanded={methodChoicesOpen} aria-controls={methodChoiceControlId} aria-label={`${methodChoicesOpen ? "Close method choices" : "Change method"} for ${session.title}`} disabled={methodChoicePending} onClick={() => {
-          setMethodChoiceError(null);
-          setMethodChoiceStatus(null);
-          setMethodChoicesOpen((current) => !current);
-        }}>{methodChoicesOpen ? "Close method choices" : "Change method"}</button>{methodChoicesOpen && <div id={methodChoiceControlId} className="session-method-options" role="group" aria-label={`Other methods that also fit for ${session.title}`} aria-busy={methodChoicePending}><small>Only the method changes. The target, {session.learningMode === "learn" ? "Learn" : "Practice"} mode, and {session.estimatedMinutes}-minute session stay the same.</small>{methodAlternatives.map((alternative) => <button type="button" key={alternative.alternativeId} aria-pressed={false} aria-label={`Use ${alternative.visibleMethodName}. ${alternative.tradeoff}`} disabled={methodChoicePending} onClick={() => void changeMethod(alternative)}><strong>{alternative.visibleMethodName}</strong><span>{alternative.tradeoff}</span></button>)}</div>}{methodChoicePending && <p className="session-method-choice-status" role="status" aria-live="polite"><span className="button-spinner" aria-hidden="true" /> Updating this session recipe…</p>}{methodChoiceError && <p className="session-method-choice-error" role="alert">{methodChoiceError}</p>}{methodChoiceStatus && <p className="session-method-choice-status" role="status" aria-live="polite">{methodChoiceStatus}</p>}</div>}</div></section>}
+        {committedStudyRoute && <StudyRouteRecipeCard route={committedStudyRoute} showAlternatives={false} />}
+        {!scheduledReview && <section className="session-decision-spotlight" aria-label="Why YOVA chose this approach">
+          <div className="session-decision-icon"><Sparkles size={19} /></div>
+          <div>
+            <span>METHOD FOR THIS TASK</span>
+            <h2>{visibleMethodName}</h2>
+            <p>{visibleMethodReason}</p>
+            {personalDecision && <aside><strong>HOW YOVA CHANGED IT FOR YOU</strong><span>{personalDecision.title}</span><small>{personalDecision.strength === "observed" ? "Evidence: prior checked work" : "Evidence: you told YOVA"}</small></aside>}
+            {hasMethodChoices && <div className="session-method-choice">
+              <button ref={methodChoiceTriggerRef} className="session-method-choice-trigger" type="button" aria-expanded={methodChoicesOpen} aria-controls={methodChoiceControlId} aria-label={`${methodChoicesOpen ? "Close method choices" : "Change method"} for ${session.title}`} disabled={methodChoicePending} onClick={() => {
+                setMethodChoiceError(null);
+                setMethodChoiceStatus(null);
+                setOtherMethodPreview(null);
+                setMethodChoicesOpen((current) => !current);
+              }}>{methodChoicesOpen ? "Close method choices" : "Change method"}</button>
+              {methodChoicesOpen && <div id={methodChoiceControlId} className="session-method-options" role="group" aria-label={`Other methods that also fit for ${session.title}`} aria-busy={methodChoicePending}>
+                <small>Only the method changes. The target, {session.learningMode === "learn" ? "Learn" : "Practice"} mode, and {session.estimatedMinutes}-minute session stay the same.</small>
+                {methodAlternatives.map((alternative) => <button type="button" key={alternative.alternativeId} aria-pressed={false} aria-label={`Use ${alternative.visibleMethodName}. ${alternative.tradeoff}`} disabled={methodChoicePending} onClick={() => void changeMethod(alternative)}><strong>{alternative.visibleMethodName}</strong><span>{alternative.tradeoff}</span></button>)}
+                {canChooseOtherMethods && <section className="session-other-methods" aria-label="Other eligible methods">
+                  <div className="session-other-methods-heading">
+                    <strong>Other methods</strong>
+                    <small>Available only because this route uses I&apos;ll Customize.</small>
+                  </div>
+                  {otherMethodsUnavailable
+                    ? <p className="session-other-methods-unavailable" role="alert">This recipe&apos;s eligible-method decision is no longer current. Reload or regenerate the plan before choosing another method.</p>
+                    : <>
+                        {otherMethodOptions.length > 0 && <div className="session-other-method-list" aria-label="Eligible methods not shown above">
+                          {otherMethodOptions.map((option) => <button type="button" key={option.methodId} data-method-id={option.methodId} disabled={methodChoicePending} onClick={() => void applyOtherMethod(option.visibleMethodName)}>{option.visibleMethodName}</button>)}
+                        </div>}
+                        <form className="session-other-method-request" onSubmit={(event) => {
+                          event.preventDefault();
+                          checkOtherMethodRequest();
+                        }}>
+                          <label htmlFor={`session-other-method-${session.id}`}>Looking for a different method?</label>
+                          <small>YOVA will check the name against this exact recipe. Questionable or incompatible methods are explained and mapped before anything changes.</small>
+                          <div>
+                            <input id={`session-other-method-${session.id}`} type="text" maxLength={100} value={otherMethodRequest} disabled={methodChoicePending} placeholder="For example, Blurting or Pomodoro" onChange={(event) => {
+                              setOtherMethodRequest(event.target.value);
+                              setOtherMethodPreview(null);
+                              setMethodChoiceError(null);
+                            }} />
+                            <button type="submit" disabled={methodChoicePending || !otherMethodRequest.trim()}>Check and use</button>
+                          </div>
+                        </form>
+                        {otherMethodPreview && <div className="session-other-method-mapping" role="status" aria-live="polite">
+                          <p>{otherMethodPreview.conflictExplanation}</p>
+                          <button type="button" disabled={methodChoicePending} onClick={() => void applyOtherMethod(otherMethodPreview.requestedLabel, otherMethodPreview)}>Use {otherMethodPreview.selectedMethodName} instead</button>
+                        </div>}
+                      </>}
+                </section>}
+              </div>}
+              {methodChoicePending && <p className="session-method-choice-status" role="status" aria-live="polite"><span className="button-spinner" aria-hidden="true" /> Updating this session recipe…</p>}
+              {methodChoiceError && <p className="session-method-choice-error" role="alert">{methodChoiceError}</p>}
+              {methodChoiceStatus && <p className="session-method-choice-status" role="status" aria-live="polite">{methodChoiceStatus}</p>}
+            </div>}
+          </div>
+        </section>}
       </>}
 
       {setupPage === 1 && scheduledReview && <>
@@ -6995,6 +7070,12 @@ function GuidedSession({ plan, planSessionId, steps, step, selectedAnswer, outco
     ? streamedLessonState?.status === "complete"
     : teachingPanels.length === 0 || teachingPage >= teachingPanels.length - 1;
   const nextTeachingPanel = teachingPanels[teachingPage + 1] ?? null;
+  const evaluationEvidenceDisposition = semanticEvaluationEvidenceDisposition({
+    evaluation: answerEvaluation,
+    evaluationFailed: Boolean(answerEvaluationIssue),
+  });
+  const semanticEvaluationHasNoEvidence = answerRevealed
+    && evaluationEvidenceDisposition === "no_evidence";
   const freeResponseReady = content.type !== "free_response" || answerRevealed;
   const retrievalRoundComplete = content.methodRuntime?.kind === "retrieval_round"
     && retrievalRoundActivityProgressIsComplete({
@@ -7004,7 +7085,9 @@ function GuidedSession({ plan, planSessionId, steps, step, selectedAnswer, outco
     });
   const canContinue = content.methodRuntime?.kind === "retrieval_round"
     ? retrievalRoundComplete && teachingComplete
-    : (!isQuestion || outcome !== undefined) && teachingComplete && freeResponseReady;
+    : (!isQuestion || outcome !== undefined || semanticEvaluationHasNoEvidence)
+      && teachingComplete
+      && freeResponseReady;
   const phase = content.methodPhase ? getMethodPhasePresentation(content.methodPhase) : null;
   const phasePosition = methodPhasePosition(steps.map((item) => item.methodPhase), step);
   const requiredSteps = steps.filter((item) => item.requiredForCompletion !== false);
@@ -7025,6 +7108,8 @@ function GuidedSession({ plan, planSessionId, steps, step, selectedAnswer, outco
       referenceAnswer: content.correctAnswer ?? "",
     })
     : "explanation";
+  const conceptMapDraftComplete = content.methodRuntime?.kind !== "concept_map"
+    || conceptMapDraftIsComplete(content.methodRuntime, selectedAnswer);
   const awaitingRetryChoice = content.type === "free_response"
     && answerEvaluation?.verdict === "needs_review"
     && outcome === false
@@ -7043,7 +7128,7 @@ function GuidedSession({ plan, planSessionId, steps, step, selectedAnswer, outco
   }, [content, onOpenStreamedLesson, persistedActivityIndex, plan, planSessionId, streamedLessonKey]);
 
   const checkFreeResponse = async () => {
-    if (!selectedAnswer?.trim() || answerEvaluationPending) return;
+    if (!selectedAnswer?.trim() || !conceptMapDraftComplete || answerEvaluationPending) return;
     if (!plan || !currentSession || !content.concept || !content.correctAnswer) {
       onReveal();
       return;
@@ -7229,8 +7314,10 @@ function GuidedSession({ plan, planSessionId, steps, step, selectedAnswer, outco
             initialProgress={activityProgress}
             onProgressChange={onActivityProgressChange}
           />}
-        {!content.methodRuntime && requiresConfidence && <ConfidenceCheck value={confidence} locked={outcome !== undefined || answerRevealed} onChange={onConfidence} />}
-        {!content.methodRuntime && content.type === "multiple_choice" && content.question && <div className="answer-grid">{content.question.map((answer) => {
+        {content.methodRuntime?.kind === "worked_example" && <WorkedExampleRuntimePanel runtime={content.methodRuntime} />}
+        {content.methodRuntime?.kind === "error_repair" && <ErrorRepairRuntimePanel runtime={content.methodRuntime} />}
+        {content.methodRuntime?.kind !== "retrieval_round" && requiresConfidence && <ConfidenceCheck value={confidence} locked={outcome !== undefined || answerRevealed} onChange={onConfidence} />}
+        {content.methodRuntime?.kind !== "retrieval_round" && content.type === "multiple_choice" && content.question && <div className="answer-grid">{content.question.map((answer) => {
           const answerState = outcome !== undefined && answer === content.correctAnswer
             ? "correct"
             : outcome !== undefined && selectedAnswer === answer
@@ -7240,9 +7327,17 @@ function GuidedSession({ plan, planSessionId, steps, step, selectedAnswer, outco
                 : "";
           return <button key={answer} className={answerState} disabled={selectedAnswer !== null || (requiresConfidence && !confidence)} onClick={() => { onSelect(answer); onEvaluate(answer === content.correctAnswer); }}><LearningContent content={answer} inline />{answerState === "correct" ? <Check size={18} /> : answerState === "incorrect" ? <X size={18} /> : null}</button>;
         })}</div>}
-      {!content.methodRuntime && content.type === "multiple_choice" && outcome !== undefined && <><div className={`feedback ${isCorrect ? "" : "incorrect"}`}>{isCorrect ? <Check size={20} /> : <AlertCircle size={20} />}<div><strong>{isCorrect ? "Correct." : "Useful miss. Repair it now."}</strong>{explanation && <LearningContent content={explanation} />}</div></div>{confidence && <p className="confidence-result"><Sparkles size={15} /> {confidenceResultMessage(confidence, isCorrect)}</p>}</>}
-      {!content.methodRuntime && content.type === "free_response" && <div className="recall-response">
-        {freeResponseMode === "quantitative_workpad"
+      {content.methodRuntime?.kind !== "retrieval_round" && content.type === "multiple_choice" && outcome !== undefined && <><div className={`feedback ${isCorrect ? "" : "incorrect"}`}>{isCorrect ? <Check size={20} /> : <AlertCircle size={20} />}<div><strong>{isCorrect ? "Correct." : "Useful miss. Repair it now."}</strong>{explanation && <LearningContent content={explanation} />}</div></div>{confidence && <p className="confidence-result"><Sparkles size={15} /> {confidenceResultMessage(confidence, isCorrect)}</p>}</>}
+      {content.methodRuntime?.kind !== "retrieval_round" && content.type === "free_response" && <div className="recall-response">
+        {content.methodRuntime?.kind === "concept_map"
+          ? <ConceptMapRuntimePanel
+            runtime={content.methodRuntime}
+            value={selectedAnswer ?? ""}
+            disabled={outcome !== undefined || answerRevealed || answerEvaluationPending || (requiresConfidence && !confidence)}
+            revealExpected={answerRevealed || outcome !== undefined}
+            onChange={onSelect}
+          />
+          : freeResponseMode === "quantitative_workpad"
           ? <QuantitativeWorkpad
             value={selectedAnswer ?? ""}
             disabled={outcome !== undefined || answerRevealed || answerEvaluationPending || (requiresConfidence && !confidence)}
@@ -7260,7 +7355,7 @@ function GuidedSession({ plan, planSessionId, steps, step, selectedAnswer, outco
             />
           </label>}
         {!answerRevealed && !awaitingRetryChoice ? <div className="recall-submit-actions">
-          <button className="button secondary" disabled={!selectedAnswer?.trim() || answerEvaluationPending || (requiresConfidence && !confidence)} onClick={() => void checkFreeResponse()}>
+          <button className="button secondary" disabled={!selectedAnswer?.trim() || !conceptMapDraftComplete || answerEvaluationPending || (requiresConfidence && !confidence)} onClick={() => void checkFreeResponse()}>
             {answerEvaluationPending
               ? <><span className="button-spinner dark" /> Checking your work...</>
               : freeResponseMode === "quantitative_workpad" ? "Check my work" : "Check my answer"}
@@ -7282,9 +7377,11 @@ function GuidedSession({ plan, planSessionId, steps, step, selectedAnswer, outco
             <LearningContent content={content.correctAnswer ?? ""} className="reference-answer" />
             {content.feedback && <details><summary>What this answer needs to show</summary><LearningContent content={content.feedback} className="reference-rubric" /></details>}
           </section>
-          <div className="recall-actions"><span>{answerEvaluation ? "Confirm or correct YOVA’s check" : "How did your answer compare?"}</span><button className={outcome === true ? "selected" : ""} onClick={() => onEvaluate(true, false)}><Check size={17} /> I got the key idea</button><button className={outcome === false ? "selected needs-work" : ""} onClick={() => onEvaluate(false, false)}><AlertCircle size={17} /> Needs another pass</button></div>
+          {semanticEvaluationHasNoEvidence
+            ? <div className="recall-actions"><span>YOVA did not record a correct or incorrect result from this check. Continue after comparing with the model answer.</span></div>
+            : <div className="recall-actions"><span>{answerEvaluation ? "Confirm or correct YOVA’s check" : "How did your answer compare?"}</span><button className={outcome === true ? "selected" : ""} onClick={() => onEvaluate(true, false)}><Check size={17} /> I got the key idea</button><button className={outcome === false ? "selected needs-work" : ""} onClick={() => onEvaluate(false, false)}><AlertCircle size={17} /> Needs another pass</button></div>}
           {confidence && outcome !== undefined && <p className="confidence-result"><Sparkles size={15} /> {confidenceResultMessage(confidence, outcome)}</p>}
-          <small className="privacy-note">{isImmediateRepair ? "This required recheck records whether the repaired concept now holds. A later review is added only if the pattern continues across sessions." : answerEvaluation ? "Your answer was sent for a one-time AI check and is not saved. YOVA keeps only the concept result, confidence, and support level." : "Your typed answer is not saved. YOVA keeps only the concept result, confidence, and support level."}</small>
+          <small className="privacy-note">{isImmediateRepair ? "This required recheck records whether the repaired concept now holds. A later review is added only if the pattern continues across sessions." : semanticEvaluationHasNoEvidence ? "Your typed answer is not saved, and this uncertain or unavailable check created no concept or method evidence." : answerEvaluation ? "Your answer was sent for a one-time AI check and is not saved. YOVA keeps only the concept result, confidence, and support level." : "Your typed answer is not saved. YOVA keeps only the concept result, confidence, and support level."}</small>
         </div>}
       </div>}
         <footer className="session-action-bar">{step === steps.length - 1 && teachingComplete && <p className="completion-rule"><Check size={14} /> Completion is based on the required learning work, not on running out the clock.</p>}<button className="button primary large" onClick={() => void advanceSession()} disabled={advancing || (!canContinue && !nextTeachingPanel)}>{advancing ? <><span className="button-spinner" /> Adapting your next step...</> : <>{isStreamedInstruction ? streamedLessonState?.status === "complete" ? "Answer the question" : "Finishing explanation..." : nextTeachingPanel ? `Next: ${teachingPanelLabel(nextTeachingPanel)}` : outcome === false && !isImmediateRepair ? "Repair this idea" : step === steps.length - 1 ? "Finish this content" : "Continue"} <ArrowRight size={18} /></>}</button></footer>
@@ -7793,6 +7890,30 @@ function SessionComplete({ currentSession, knowledgeMap, completionMode, complet
   recoveryIssue: string | null;
   onFinish: (feedback: SessionCompletion["feedback"], applyRecommendedChange: boolean) => void;
 }) {
+  const executedRouteRevisionId = currentSession?.resource?.routeRevisionId
+    ?? (currentSession?.studyRoute?.identity.lifecycleStatus === "committed"
+      ? currentSession.studyRoute.identity.routeRevisionId
+      : undefined);
+  const completionPreview: SessionCompletion = {
+    id: "00000000-0000-4000-8000-000000000001",
+    planId: "00000000-0000-4000-8000-000000000002",
+    planSessionId: currentSession?.id ?? "00000000-0000-4000-8000-000000000003",
+    ...(executedRouteRevisionId ? { routeRevisionId: executedRouteRevisionId } : {}),
+    startedAt: "1970-01-01T00:00:00.000Z",
+    completedAt,
+    plannedMinutes: currentSession?.estimatedMinutes ?? actualMinutes,
+    actualMinutes,
+    correctAnswers: completionMode === "unguided_practice" ? 0 : correctAnswers,
+    totalAnswers: completionMode === "unguided_practice" ? 0 : totalAnswers,
+    feedback,
+    observedGap: completionMode === "unguided_practice"
+      ? "Unguided practice completed; no topic evidence was recorded."
+      : observedGap,
+    completionMode,
+    conceptEvidence: completionMode === "unguided_practice" ? [] : conceptEvidence,
+    confidenceEvidence: completionMode === "unguided_practice" ? [] : confidenceEvidence,
+  };
+
   if (completionMode === "unguided_practice") {
     return <main className="centered-shell completion">
       <BrandMark />
@@ -7816,6 +7937,11 @@ function SessionComplete({ currentSession, knowledgeMap, completionMode, complet
           <Target size={18} />
           <div><strong>Your saved target stays open.</strong><p>{currentSession?.completionEvidence?.[0] ?? "A later guided check will decide whether these topics move on the knowledge map."}</p></div>
         </section>
+        <PostSessionPersonalizationReceipt
+          session={currentSession}
+          completion={completionPreview}
+          decision={null}
+        />
         <button className="button primary large full" onClick={() => onFinish(feedback, false)}>Finish and continue <ArrowRight size={18} /></button>
       </section>
     </main>;
@@ -7823,29 +7949,42 @@ function SessionComplete({ currentSession, knowledgeMap, completionMode, complet
 
   const conceptSummary = summarizeCompletionConcepts(conceptEvidence);
   const hasUnresolvedGap = conceptSummary.needsAnotherCheck.length > 0;
-  const completionPreview: SessionCompletion = {
-    id: "00000000-0000-4000-8000-000000000001",
-    planId: "00000000-0000-4000-8000-000000000002",
-    planSessionId: currentSession?.id ?? "00000000-0000-4000-8000-000000000003",
-    startedAt: "1970-01-01T00:00:00.000Z",
-    completedAt,
-    plannedMinutes: currentSession?.estimatedMinutes ?? actualMinutes,
-    actualMinutes,
-    correctAnswers,
-    totalAnswers,
-    feedback,
-    observedGap,
-    completionMode,
-    conceptEvidence,
-    confidenceEvidence,
-  };
   const decision = currentSession && !sessionResourceHasDeferredPlanTargets(currentSession)
     ? buildPostSessionDecision(currentSession, nextSession, completionPreview)
     : null;
   const hasRecommendedChange = decision?.kind === "adapt_next_session" || decision?.kind === "add_delayed_verification";
+  const adaptationAgencyMode = decision?.kind === "adapt_next_session"
+    && nextSession?.studyRoute?.identity.lifecycleStatus === "committed"
+    ? agencyModeForStudyRouteControlMode(nextSession.studyRoute.agency.controlMode).mode
+    : null;
   const keepLabel = decision?.kind === "add_delayed_verification"
     ? "Finish without adding review"
-    : "Keep current plan";
+    : adaptationAgencyMode === "ill_customize"
+      ? "Keep my selected route"
+      : "Keep current plan";
+  const applyLabel = adaptationAgencyMode === "help_me_choose"
+    ? "Confirm and update my plan"
+    : adaptationAgencyMode === "ill_customize"
+      ? "Use this recommendation"
+      : "Update my plan";
+  const decisionEyebrow = !hasRecommendedChange
+    ? "NO CHANGE NEEDED"
+    : adaptationAgencyMode === "yova_decides"
+      ? "YOVA DECIDES · APPLIES ON FINISH"
+      : adaptationAgencyMode === "help_me_choose"
+        ? "HELP ME CHOOSE · CONFIRMATION NEEDED"
+        : adaptationAgencyMode === "ill_customize"
+          ? "I'LL CUSTOMIZE · RECOMMENDATION ONLY"
+          : "YOVA RECOMMENDS";
+  const agencyDecisionNote = decision?.kind !== "adapt_next_session"
+    ? <><strong>Nothing changes until you approve it.</strong> YOVA will add only this delayed check; completed work and other learning targets stay in place.</>
+    : adaptationAgencyMode === "yova_decides"
+      ? <><strong>YOVA Decides will apply this supported change when you finish.</strong> Only the next session recipe changes; its target and later learning targets stay in place.</>
+      : adaptationAgencyMode === "help_me_choose"
+        ? <><strong>Nothing changes until you confirm this exact route.</strong> Your confirmation is bound to the displayed successor; a stale or different revision cannot be committed.</>
+        : adaptationAgencyMode === "ill_customize"
+          ? <><strong>Your selected route stays in place unless you choose this recommendation.</strong> YOVA will not silently replace it.</>
+          : <><strong>Nothing changes until you approve it.</strong> YOVA will change only how the next session begins; later learning targets stay in place.</>;
   const mapDelta = buildSessionMapDelta(knowledgeMap, currentSession, conceptEvidence, completionMode);
 
   return <main className="centered-shell completion">
@@ -7864,8 +8003,18 @@ function SessionComplete({ currentSession, knowledgeMap, completionMode, complet
         ? `You worked on repairing ${repairCount === 1 ? "one idea" : `${repairCount} ideas`} during the session. The latest evidence still shows a gap, so that idea remains open for another check.`
         : `You repaired ${repairCount === 1 ? "one idea" : `${repairCount} ideas`} during the session. YOVA records the original miss as context, but the successful repair means no duplicate follow-up is needed.`}</p></div>}
       <section className="completion-feedback"><div><strong>How did the challenge feel?</strong><p>Your answer can change YOVA’s recommendation below.</p></div><div className="feeling-row"><button className={feedback === "too_easy" ? "selected" : ""} onClick={() => onFeedback("too_easy")}>Too easy</button><button className={feedback === "about_right" ? "selected" : ""} onClick={() => onFeedback("about_right")}>About right</button><button className={feedback === "too_difficult" ? "selected" : ""} onClick={() => onFeedback("too_difficult")}>Too difficult</button></div></section>
-      {decision && <section className={`completion-decision ${hasRecommendedChange ? "recommended" : "unchanged"}`}><header><div className="completion-next-icon">{hasRecommendedChange ? <Sparkles size={20} /> : <Check size={20} />}</div><div><span>{hasRecommendedChange ? "YOVA RECOMMENDS" : "NO CHANGE NEEDED"}</span><h2>{decision.title}</h2><p>{decision.explanation}</p></div></header>{decision.changes.length > 0 && <ol>{decision.changes.map((change) => <li key={change}>{change}</li>)}</ol>}<div className="completion-decision-next"><span>Next</span><strong>{decision.nextTitle}</strong>{nextSession && <small>{formatAgendaTime(nextSession.scheduledFor)} · {nextSession.estimatedMinutes} minutes</small>}</div>{decision.reviewPlan && decision.kind === "adapt_next_session" && <div className="completion-review-return"><RotateCcw size={16} /><div><span>Saved to the review queue</span><strong>{decision.reviewPlan.title}</strong><small>Return after {formatAgendaTime(decision.reviewPlan.scheduledFor)} · YOVA will bring it into a later session</small></div></div>}{hasRecommendedChange && <small className="completion-approval-note"><strong>Nothing changes until you approve it.</strong> {decision.kind === "add_delayed_verification" ? "YOVA will add only this delayed check; completed work and other learning targets stay in place." : "YOVA will change only how the next session begins; later learning targets stay in place."}</small>}</section>}
-      {hasRecommendedChange ? <div className="completion-decision-actions"><button className="button ghost large" onClick={() => onFinish(feedback, false)}>{keepLabel}</button><button className="button primary large" onClick={() => onFinish(feedback, true)}>Update my plan <ArrowRight size={18} /></button></div> : <button className="button primary large full" onClick={() => onFinish(feedback, false)}>Finish and continue <ArrowRight size={18} /></button>}
+      <PostSessionPersonalizationReceipt
+        session={currentSession}
+        completion={completionPreview}
+        decision={decision}
+        adaptationAgencyMode={adaptationAgencyMode}
+      />
+      {decision && <section className={`completion-decision ${hasRecommendedChange ? "recommended" : "unchanged"}`}><header><div className="completion-next-icon">{hasRecommendedChange ? <Sparkles size={20} /> : <Check size={20} />}</div><div><span>{decisionEyebrow}</span><h2>{decision.title}</h2><p>{decision.explanation}</p></div></header>{decision.changes.length > 0 && <ol>{decision.changes.map((change) => <li key={change}>{change}</li>)}</ol>}<div className="completion-decision-next"><span>Next</span><strong>{decision.nextTitle}</strong>{nextSession && <small>{formatAgendaTime(nextSession.scheduledFor)} · {nextSession.estimatedMinutes} minutes</small>}</div>{decision.reviewPlan && decision.kind === "adapt_next_session" && <div className="completion-review-return"><RotateCcw size={16} /><div><span>Saved to the review queue</span><strong>{decision.reviewPlan.title}</strong><small>Return after {formatAgendaTime(decision.reviewPlan.scheduledFor)} · YOVA will bring it into a later session</small></div></div>}{hasRecommendedChange && <small className="completion-approval-note">{agencyDecisionNote}</small>}</section>}
+      {hasRecommendedChange
+        ? adaptationAgencyMode === "yova_decides"
+          ? <button className="button primary large full" onClick={() => onFinish(feedback, true)}>Finish and apply the update <ArrowRight size={18} /></button>
+          : <div className="completion-decision-actions"><button className="button ghost large" onClick={() => onFinish(feedback, false)}>{keepLabel}</button><button className="button primary large" onClick={() => onFinish(feedback, true)}>{applyLabel} <ArrowRight size={18} /></button></div>
+        : <button className="button primary large full" onClick={() => onFinish(feedback, false)}>Finish and continue <ArrowRight size={18} /></button>}
     </section>
   </main>;
 }

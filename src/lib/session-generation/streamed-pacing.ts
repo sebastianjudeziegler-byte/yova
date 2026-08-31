@@ -53,10 +53,17 @@ export function streamedTeachingPacingContract({
       : availableMinutes <= 45
         ? 3
         : 4;
+  const methodExtraActivities = methodId === "self_explanation"
+    ? 2
+    : methodId === "retrieval_practice"
+      ? 1
+      : 0;
   const methodCycleCapacity = methodId === undefined
     ? 4
-    : methodId === "retrieval_practice"
-      ? Math.max(1, Math.floor((maximumFocusedActivities - 1) / 2))
+    : methodId === "self_explanation"
+      ? Math.max(1, maximumFocusedActivities - 3)
+      : methodId === "retrieval_practice"
+        ? Math.max(1, Math.floor((maximumFocusedActivities - 1) / 2))
       : Math.max(1, Math.floor(maximumFocusedActivities / 2));
   const maximumActiveIdeas = Math.max(1, Math.min(
     4,
@@ -71,7 +78,7 @@ export function streamedTeachingPacingContract({
   const minimumTeachingBlocks = Math.min(
     desiredTeachingBlocks,
     minimumActiveIdeas,
-    Math.max(1, maximumFocusedActivities - minimumActiveIdeas),
+    Math.max(1, maximumFocusedActivities - minimumActiveIdeas - methodExtraActivities),
   );
   return {
     availableMinutes,

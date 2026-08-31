@@ -1,21 +1,29 @@
 import type { SessionLearningMode } from "@/lib/domain";
 import type { CoreMethodId } from "@/lib/learning/method-catalog";
 
+export const METHOD_FIDELITY_POLICY_VERSION = "method_fidelity_v2" as const;
+
 export const METHOD_PHASES = [
   "orient",
+  "survey",
+  "question",
+  "pretest",
   "model",
   "read_source",
   "retrieve",
   "explain",
+  "reexplain",
   "guided_practice",
   "independent_practice",
   "discriminate",
+  "connect",
   "repair",
   "evidence_match",
   "code_trace",
   "transfer",
   "schedule_return",
   "reflect",
+  "review",
 ] as const;
 
 export type MethodPhase = (typeof METHOD_PHASES)[number];
@@ -46,9 +54,9 @@ const CONTRACTS: Record<CoreMethodId, MethodFidelityContract> = {
     orderedPhases: ["retrieve", "schedule_return"],
   },
   self_explanation: {
-    purpose: "Study an accurate model, explain the causal relationship from memory, and compare the explanation with the model.",
-    requiredPhases: ["model", "explain"],
-    orderedPhases: ["model", "explain"],
+    purpose: "Study an accurate model, explain it in plain language, repair the comparison, and explain it again without copying.",
+    requiredPhases: ["model", "explain", "repair", "reexplain"],
+    orderedPhases: ["model", "explain", "repair", "reexplain"],
   },
   worked_example_fading: {
     purpose: "Move from a complete worked model to reduced guidance and then a comparable independent attempt.",
@@ -62,9 +70,24 @@ const CONTRACTS: Record<CoreMethodId, MethodFidelityContract> = {
     minimumDistinctQuestionConcepts: 2,
   },
   read_recall_review: {
-    purpose: "Use a guiding prompt, read a bounded source section, recall it closed-source, and repair the comparison.",
-    requiredPhases: ["read_source", "retrieve", "repair"],
-    orderedPhases: ["read_source", "retrieve", "repair"],
+    purpose: "Survey a bounded source, form a guiding question, read for it, recall the answer closed-source, and review the comparison.",
+    requiredPhases: ["survey", "question", "read_source", "retrieve", "review"],
+    orderedPhases: ["survey", "question", "read_source", "retrieve", "review"],
+  },
+  pretesting: {
+    purpose: "Make a brief ungraded prediction before instruction, study an accurate model, and answer a different follow-up. Only an observed follow-up miss may create a repair at runtime.",
+    requiredPhases: ["pretest", "model", "transfer"],
+    orderedPhases: ["pretest", "model", "transfer"],
+  },
+  concept_mapping: {
+    purpose: "Retrieve the important concepts, connect them with explicit relationship phrases, verify the links, and repair the map.",
+    requiredPhases: ["retrieve", "connect", "evidence_match", "repair"],
+    orderedPhases: ["retrieve", "connect", "evidence_match", "repair"],
+  },
+  practice_problems: {
+    purpose: "Attempt a representative problem independently and solve a changed-context transfer problem. Only an observed learner miss may create a repair at runtime.",
+    requiredPhases: ["independent_practice", "transfer"],
+    orderedPhases: ["independent_practice", "transfer"],
   },
   retrieval_based_outlining: {
     purpose: "Generate the claim and structure first, then return to the source to match evidence before drafting.",
@@ -100,19 +123,25 @@ export function methodFidelityContractsForPrompt(ids: CoreMethodId[], learningMo
  */
 const PHASE_REQUIREMENTS: Record<MethodPhase, string> = {
   orient: "An instruction activity stating today's target and what finishing looks like. No teaching content.",
+  survey: "An instruction activity bounding the source and directing attention to its headings, summary, structure, or other high-level organization before close reading.",
+  question: "A free-response activity asking the learner to form the question the bounded source should answer before reading it closely.",
+  pretest: "A low-stakes multiple-choice or free-response attempt made before instruction. It must be labeled diagnostic and cannot be treated as prior mastery evidence.",
   model: "An instruction activity carrying a teaching block that presents the accurate model: the key idea, how it works, and one concrete example or common mistake.",
   read_source: "An instruction activity directing the learner to a bounded part of their own source, naming what to look for.",
   retrieve: "A multiple-choice or free-response question the learner answers from memory, with the source closed and no hint shown first.",
   explain: "A free-response activity asking the learner to state the relationship or reasoning in their own words, then compare it with the model.",
+  reexplain: "A second free-response explanation after repair, phrased in plain language and produced without copying the model.",
   guided_practice: "A question activity that removes some of the support shown in the model while leaving the rest in place.",
   independent_practice: "A question activity that withholds the solution entirely and asks for a complete attempt.",
   discriminate: "A question activity presenting at least two similar cases and asking which applies and why.",
+  connect: "A free-response activity requiring named concepts to be joined with explicit relationship phrases rather than decorative lines or proximity.",
   repair: "An activity that names the specific error or gap the previous attempt exposed, states the correct rule beside it, and asks for one corrected attempt. Feedback written inside an earlier question does not satisfy this; repair is its own activity.",
   evidence_match: "A question activity checking a claim against the stated completion evidence.",
   code_trace: "A question activity walking through what the code does, step by step, before changing it.",
   transfer: "A question activity using a different prompt, example, or context from the one already practiced.",
   schedule_return: "An instruction or reflection activity naming what returns later and roughly when.",
   reflect: "A reflection activity asking what is now clear and what is still shaky.",
+  review: "A reflection or instruction activity reopening the bounded source, comparing it with closed-source recall, and naming the exact repair.",
 };
 
 export function methodFidelityContractForPrompt(id: CoreMethodId, learningMode: SessionLearningMode) {
@@ -148,6 +177,13 @@ export function validateMethodFidelity({
     return `${methodId} is missing required learning phase${missing.length === 1 ? "" : "s"}: ${missing.join(", ")}.`;
   }
 
+  if (
+    (methodId === "pretesting" || methodId === "practice_problems")
+    && activities.some((activity) => activity.methodPhase === "repair")
+  ) {
+    return `${methodId} must create repair only after an observed learner miss at runtime, not pre-author a specific error.`;
+  }
+
   let priorIndex = -1;
   for (const phase of contract.orderedPhases) {
     const index = phases.findIndex((candidate, candidateIndex) => candidateIndex > priorIndex && candidate === phase);
@@ -178,14 +214,6 @@ export function validateMethodFidelity({
 
 function contractForMode(methodId: CoreMethodId, learningMode: SessionLearningMode): MethodFidelityContract {
   const base = CONTRACTS[methodId];
-  if (methodId === "read_recall_review" && learningMode === "study") {
-    return {
-      ...base,
-      requiredPhases: ["retrieve", "read_source", "transfer"],
-      orderedPhases: ["retrieve", "read_source", "transfer"],
-      purpose: "Attempt recall first, reread only the exposed gap, then verify the correction with a different prompt.",
-    };
-  }
   if (learningMode !== "learn" || base.requiredPhases.includes("model")) return base;
 
   return {
@@ -198,16 +226,17 @@ function contractForMode(methodId: CoreMethodId, learningMode: SessionLearningMo
 
 function phaseMatchesActivity(activity: MethodActivity) {
   const activeQuestion = activity.type === "multiple_choice" || activity.type === "free_response";
-  if (activity.methodPhase === "explain") {
+  if (["explain", "reexplain", "question", "connect"].includes(activity.methodPhase)) {
     return activity.type === "free_response";
   }
-  if (["retrieve", "guided_practice", "independent_practice", "discriminate", "transfer"].includes(activity.methodPhase)) {
+  if (["pretest", "retrieve", "guided_practice", "independent_practice", "discriminate", "transfer"].includes(activity.methodPhase)) {
     return activeQuestion;
   }
-  if (activity.methodPhase === "model" || activity.methodPhase === "read_source") {
+  if (["model", "read_source", "survey"].includes(activity.methodPhase)) {
     return activity.type === "instruction";
   }
   if (activity.methodPhase === "reflect") return activity.type === "reflection";
+  if (activity.methodPhase === "review") return activity.type === "reflection" || activity.type === "instruction";
   if (activity.methodPhase === "schedule_return") return activity.type === "instruction" || activity.type === "reflection";
   return true;
 }

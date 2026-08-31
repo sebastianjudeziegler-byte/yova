@@ -1,0 +1,131 @@
+.card {
+  margin-top: 10px;
+  overflow: hidden;
+  color: #26344f;
+  border: 1px solid #dbe2f0;
+  border-radius: 11px;
+  background: #fbfcff;
+}
+
+.card > header {
+  padding: 12px 13px 9px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.card > header > div {
+  display: grid;
+  gap: 4px;
+}
+
+.card > header strong {
+  color: #17223a;
+  font-size: 11px;
+}
+
+.card > header small,
+.card > header p {
+  margin: 0;
+  color: #68748a;
+  font-size: 9px;
+  line-height: 1.5;
+}
+
+.card > header p {
+  max-width: 280px;
+  text-align: right;
+}
+
+.mode {
+  width: fit-content;
+  padding: 4px 7px;
+  color: #5c49bd;
+  border-radius: 6px;
+  background: #f0edff;
+  font-size: 8px;
+  font-weight: 850;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+}
+
+.reason {
+  margin: 0;
+  padding: 0 13px 11px;
+  color: #526078;
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.card details {
+  border-top: 1px solid #e4e8f1;
+}
+
+.card summary {
+  padding: 10px 13px;
+  color: #346bff;
+  cursor: pointer;
+  font-size: 9px;
+  font-weight: 800;
+}
+
+.expanded {
+  padding: 0 13px 13px;
+  display: grid;
+  gap: 8px;
+}
+
+.expanded ol {
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 5px;
+  list-style: none;
+}
+
+.expanded li {
+  padding: 7px 8px;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  border-radius: 7px;
+  background: #fff;
+  font-size: 9px;
+}
+
+.expanded p {
+  margin: 0;
+  color: #68748a;
+  font-size: 9px;
+  line-height: 1.5;
+}
+
+.changed,
+.alternatives {
+  padding: 9px;
+  display: grid;
+  gap: 5px;
+  border-radius: 8px;
+  background: #f4f2ff;
+}
+
+.changed > strong,
+.alternatives > strong {
+  color: #433693;
+  font-size: 9px;
+}
+
+.uncertainty {
+  color: #8a5b12 !important;
+}
+
+@media (max-width: 620px) {
+  .card > header {
+    flex-direction: column;
+  }
+
+  .card > header p {
+    text-align: left;
+  }
+}

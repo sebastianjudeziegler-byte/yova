@@ -12,8 +12,13 @@ import {
 import { adaptLegacySessionToStudyRoute } from "@/lib/study-route/adapters";
 import {
   buildAuthorizedMethodDecisionEvidence,
+  METHOD_DECISION_MAX_COHORTS_PER_METHOD_CONTEXT,
   METHOD_DECISION_MAX_SESSIONS_PER_METHOD,
 } from "@/lib/study-route/method-decision-evidence";
+import {
+  methodEvidenceComparisonContextForRoute,
+  methodEvidenceComparisonKey,
+} from "@/lib/study-route/method-evidence-policy";
 import { commitStudyRouteRevision } from "@/lib/study-route/revisions";
 import { StudyRouteSchema } from "@/lib/study-route/schema";
 
@@ -114,6 +119,12 @@ function evidenceInput(plan: LearningPlan, completions: SessionCompletion[]) {
   };
 }
 
+function comparisonKeyForSession(plan: LearningPlan, sessionIndex = 0) {
+  return methodEvidenceComparisonKey(methodEvidenceComparisonContextForRoute(
+    plan.sessions[sessionIndex]!.studyRoute!,
+  ));
+}
+
 describe("authorized method decision evidence", () => {
   it("turns four exact completions across separate days into bounded method authority", () => {
     const plan = evidencePlan();
@@ -123,6 +134,7 @@ describe("authorized method decision evidence", () => {
     const observed = result.observedEvidence[0];
 
     expect(observed).toMatchObject({
+      comparisonKey: comparisonKeyForSession(plan),
       signal: {
         methodId: "spaced_retrieval",
         taskType: "memorization",
@@ -142,6 +154,7 @@ describe("authorized method decision evidence", () => {
       learningMode: "study",
       personalization: result.personalization,
       observedEvidence: result.observedEvidence,
+      currentComparisonKey: comparisonKeyForSession(plan),
     });
     expect(selection).toMatchObject({
       selectedMethodId: "spaced_retrieval",
@@ -170,10 +183,152 @@ describe("authorized method decision evidence", () => {
       knowledgeStage: "developing",
       learningMode: "study",
       observedEvidence: result.observedEvidence,
+      currentComparisonKey: comparisonKeyForSession(plan),
     });
 
     expect(result.observedEvidence[0]?.distinctStudyDays).toBe(1);
     expect(selection.authority).toBe("task_baseline");
+  });
+
+  it("does not pool a different difficulty cohort into strong method evidence", () => {
+    const plan = evidencePlan();
+    plan.sessions[3] = {
+      ...plan.sessions[3]!,
+      studyRoute: StudyRouteSchema.parse({
+        ...plan.sessions[3]!.studyRoute!,
+        execution: {
+          ...plan.sessions[3]!.studyRoute!.execution,
+          difficultyTier: "stretch",
+        },
+      }),
+    };
+    const result = buildAuthorizedMethodDecisionEvidence(
+      evidenceInput(plan, completionsFor(plan)),
+    );
+    const selection = selectCanonicalStudyMethod({
+      taskType: "memorization",
+      knowledgeStage: "developing",
+      learningMode: "study",
+      observedEvidence: result.observedEvidence,
+      currentComparisonKey: comparisonKeyForSession(plan),
+    });
+
+    expect(result.observedEvidence).toHaveLength(2);
+    const standardEvidence = result.observedEvidence.find(({ comparisonKey }) => (
+      comparisonKey === comparisonKeyForSession(plan)
+    ));
+    const stretchEvidence = result.observedEvidence.find(({ comparisonKey }) => (
+      comparisonKey === comparisonKeyForSession(plan, 3)
+    ));
+    expect(standardEvidence?.signal).toMatchObject({
+      sessions: 3,
+      status: "early_signal",
+    });
+    expect(stretchEvidence?.signal).toMatchObject({
+      sessions: 1,
+      status: "early_signal",
+    });
+    expect(selection.authority).toBe("task_baseline");
+  });
+
+  it("retains multiple bounded same-method cohorts and selects the exact cohort", () => {
+    const plan = evidencePlan(8);
+    for (const index of [4, 5, 6, 7]) {
+      plan.sessions[index] = {
+        ...plan.sessions[index]!,
+        studyRoute: StudyRouteSchema.parse({
+          ...plan.sessions[index]!.studyRoute!,
+          execution: {
+            ...plan.sessions[index]!.studyRoute!.execution,
+            difficultyTier: "stretch",
+          },
+        }),
+      };
+    }
+    const completions = completionsFor(plan, [
+      "2026-08-10",
+      "2026-08-11",
+      "2026-08-12",
+      "2026-08-13",
+      "2026-08-14",
+      "2026-08-15",
+      "2026-08-16",
+      "2026-08-17",
+    ]);
+    const result = buildAuthorizedMethodDecisionEvidence(evidenceInput(plan, completions));
+    const standardKey = comparisonKeyForSession(plan);
+    const stretchKey = comparisonKeyForSession(plan, 4);
+
+    expect(result.observedEvidence).toHaveLength(2);
+    expect(new Set(result.observedEvidence.map(({ comparisonKey }) => comparisonKey))).toEqual(
+      new Set([standardKey, stretchKey]),
+    );
+    expect(result.observedEvidence.map(({ signal }) => signal.sessions)).toEqual([4, 4]);
+
+    const standardSelection = selectCanonicalStudyMethod({
+      taskType: "memorization",
+      knowledgeStage: "developing",
+      learningMode: "study",
+      observedEvidence: result.observedEvidence,
+      currentComparisonKey: standardKey,
+    });
+    const stretchSelection = selectCanonicalStudyMethod({
+      taskType: "memorization",
+      knowledgeStage: "developing",
+      learningMode: "study",
+      observedEvidence: result.observedEvidence,
+      currentComparisonKey: stretchKey,
+    });
+
+    expect(standardSelection).toMatchObject({
+      selectedMethodId: "spaced_retrieval",
+      authority: "observed_outcomes",
+    });
+    expect(stretchSelection).toMatchObject({
+      selectedMethodId: "spaced_retrieval",
+      authority: "observed_outcomes",
+    });
+    expect(standardSelection.evidenceRefs).not.toEqual(stretchSelection.evidenceRefs);
+  });
+
+  it("bounds the number of separately retained cohorts per method context", () => {
+    const plan = evidencePlan(5);
+    const variants = [
+      { difficultyTier: "unknown" as const, initialSupport: "supported_start" as const },
+      { difficultyTier: "foundational" as const, initialSupport: "supported_start" as const },
+      { difficultyTier: "standard" as const, initialSupport: "supported_start" as const },
+      { difficultyTier: "stretch" as const, initialSupport: "supported_start" as const },
+      { difficultyTier: "standard" as const, initialSupport: "fading" as const },
+    ];
+    for (const [index, variant] of variants.entries()) {
+      plan.sessions[index] = {
+        ...plan.sessions[index]!,
+        studyRoute: StudyRouteSchema.parse({
+          ...plan.sessions[index]!.studyRoute!,
+          execution: {
+            ...plan.sessions[index]!.studyRoute!.execution,
+            ...variant,
+          },
+        }),
+      };
+    }
+
+    const result = buildAuthorizedMethodDecisionEvidence(evidenceInput(
+      plan,
+      completionsFor(plan, [
+        "2026-08-10",
+        "2026-08-11",
+        "2026-08-12",
+        "2026-08-13",
+        "2026-08-14",
+      ]),
+    ));
+
+    expect(result.observedEvidence).toHaveLength(
+      METHOD_DECISION_MAX_COHORTS_PER_METHOD_CONTEXT,
+    );
+    expect(new Set(result.observedEvidence.map(({ comparisonKey }) => comparisonKey)).size)
+      .toBe(METHOD_DECISION_MAX_COHORTS_PER_METHOD_CONTEXT);
   });
 
   it("counts at most one completion per immutable route revision", () => {

@@ -14,9 +14,9 @@ import {
 
 describe("method library content", () => {
   it("projects every live core method once in canonical order", () => {
-    expect(METHOD_LIBRARY_ENTRIES).toHaveLength(9);
+    expect(METHOD_LIBRARY_ENTRIES).toHaveLength(12);
     expect(METHOD_LIBRARY_ENTRIES.map((method) => method.id)).toEqual(CORE_METHOD_IDS);
-    expect(new Set(METHOD_LIBRARY_ENTRIES.map((method) => method.id)).size).toBe(9);
+    expect(new Set(METHOD_LIBRARY_ENTRIES.map((method) => method.id)).size).toBe(12);
 
     for (const method of METHOD_LIBRARY_ENTRIES) {
       const canonical = CORE_METHOD_CATALOG[method.id];

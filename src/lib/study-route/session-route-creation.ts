@@ -11,6 +11,7 @@ import {
 } from "@/lib/study-route/revisions";
 import {
   StudyRouteDurationSourceSchema,
+  StudyRouteProvenanceSchema,
   StudyRouteRuleTraceEntrySchema,
   StudyRouteSchema,
   StudyRouteTimingSchema,
@@ -117,6 +118,40 @@ export function createCommittedScalarSuccessorStudyRoute({
   origin: StudyRouteCreationOrigin;
   durationDecision?: StudyRouteSuccessorDurationDecision;
 }): StudyRoute {
+  const provisional = createProvisionalScalarSuccessorStudyRoute({
+    plan,
+    session,
+    previousRoute,
+    now,
+    changeReason,
+    origin,
+    durationDecision,
+  });
+  return StudyRouteSchema.parse(commitStudyRouteRevision(provisional, now));
+}
+
+/**
+ * Builds the exact scalar successor without committing it. Between-session
+ * recommendations use this boundary so the versioned agency controller can
+ * decide whether the candidate is applied, confirmed, or merely offered.
+ */
+export function createProvisionalScalarSuccessorStudyRoute({
+  plan,
+  session,
+  previousRoute,
+  now,
+  changeReason,
+  origin,
+  durationDecision,
+}: {
+  plan: LearningPlan;
+  session: LearningPlanSession;
+  previousRoute: StudyRoute;
+  now: string;
+  changeReason: string;
+  origin: StudyRouteCreationOrigin;
+  durationDecision?: StudyRouteSuccessorDurationDecision;
+}): StudyRoute {
   const previous = StudyRouteSchema.parse(previousRoute);
   assertExactBinding(previous, plan, session);
 
@@ -166,6 +201,20 @@ export function createCommittedScalarSuccessorStudyRoute({
     ...(origin.evidenceRefs ?? []),
     ...durationEntries.flatMap((entry) => entry.evidenceRefs),
   ]);
+  const routerVersion = compositeRouterVersion(
+    previous.provenance.routerVersion,
+    POST_ACTIVATION_ROUTE_BUILDER_VERSION,
+  );
+  const archivedBuilderTrace = routerVersion.split("+").includes(
+    POST_ACTIVATION_ROUTE_BUILDER_VERSION,
+  )
+    ? []
+    : [StudyRouteRuleTraceEntrySchema.parse({
+        ruleId: "study_route.router_history_compaction_v1",
+        result: "post_activation_builder_archived",
+        reason: "The predecessor already used the bounded routerVersion capacity, so the exact post-activation builder component is retained in this immutable trace.",
+        evidenceRefs: [`router-component:${POST_ACTIVATION_ROUTE_BUILDER_VERSION}`],
+      })];
   const changes: StudyRouteSuccessorChanges = {
     target: adapted.target,
     approach: adapted.approach,
@@ -174,17 +223,14 @@ export function createCommittedScalarSuccessorStudyRoute({
     agency: adapted.agency,
     explanation: adapted.explanation,
     provenance: {
-      routerVersion: compositeRouterVersion(
-        previous.provenance.routerVersion,
-        POST_ACTIVATION_ROUTE_BUILDER_VERSION,
-      ),
+      routerVersion,
       profileVersion: durationDecision?.profileVersion
         ?? previous.provenance.profileVersion,
       evidenceRefs: unique([
         ...previous.provenance.evidenceRefs,
         ...newEvidenceRefs,
       ]),
-      ruleTrace: [originEntry, ...durationEntries],
+      ruleTrace: [originEntry, ...archivedBuilderTrace, ...durationEntries],
     },
   };
 
@@ -195,7 +241,7 @@ export function createCommittedScalarSuccessorStudyRoute({
     changeReason,
     changes,
   });
-  return StudyRouteSchema.parse(commitStudyRouteRevision(provisional as StudyRoute, now));
+  return StudyRouteSchema.parse(provisional);
 }
 
 function requireAdaptedRoute({
@@ -305,7 +351,10 @@ function requireSuccessorDurationSource(source: SuccessorDurationSource) {
 }
 
 function compositeRouterVersion(current: string, next: string) {
-  return unique(current.split("+").concat(next)).join("+");
+  const preferred = unique(current.split("+").concat(next)).join("+");
+  const parsed = StudyRouteProvenanceSchema.shape.routerVersion.safeParse(preferred);
+  if (parsed.success) return parsed.data;
+  return StudyRouteProvenanceSchema.shape.routerVersion.parse(current);
 }
 
 function assertExactBinding(

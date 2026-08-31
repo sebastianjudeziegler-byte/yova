@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { LearningPlan } from "@/lib/domain";
 import type { GenerationPersonalizationContext } from "@/lib/personalization/personalization-generation";
+import { createCanonicalLearnerProfile } from "@/lib/personalization/canonical-profile-schema";
 import { NORMAL_PLAN_INTERNAL_METHOD_SCAFFOLD } from "@/lib/plan-generation/normal-plan-provider-fill";
 import { generatePreviewPlan } from "@/lib/plan-generation/preview-generator";
 import { PlanGenerationRequestSchema } from "@/lib/plan-generation/schema";
@@ -10,6 +11,7 @@ import {
   type InitialPlanMethodRoutingContext,
 } from "@/lib/study-route/initial-plan-method-routing";
 import { NORMAL_PLAN_ENVELOPE_ROUTE_INTEGRATION_VERSION } from "@/lib/study-route/normal-plan-envelope-integration";
+import { resolvePersonalizationRollout } from "@/lib/study-route/personalization-rollout";
 import { StudyRouteSchema } from "@/lib/study-route/schema";
 
 const NOW = new Date("2026-08-24T12:00:00.000Z");
@@ -62,7 +64,7 @@ describe("initial multi-session method routing", () => {
       expect(route.provenance.profileVersion).toContain("authorized_profile_context_v1+empty");
       expect(route.provenance.ruleTrace).toEqual(expect.arrayContaining([
         expect.objectContaining({ ruleId: INITIAL_PLAN_METHOD_ROUTING_VERSION }),
-        expect.objectContaining({ ruleId: "method_eligibility_v1" }),
+        expect.objectContaining({ ruleId: "method_eligibility_v2" }),
         expect.objectContaining({ ruleId: "canonical_method_selection_v1" }),
       ]));
       expect(route.provenance.ruleTrace.find(
@@ -95,7 +97,8 @@ describe("initial multi-session method routing", () => {
 
     expect(methodDecisions(changed)).toEqual(methodDecisions(baseline));
     expect(changed.sessions.every((session) => (
-      !/Feynman|Passive rereading/i.test(session.method)
+      session.method !== "Feynman blurting mashup"
+      && session.method !== "Passive rereading"
     ))).toBe(true);
   });
 
@@ -204,11 +207,40 @@ describe("initial multi-session method routing", () => {
         result: expect.stringContaining("authorized_declaration"),
       }),
     ]));
-    expect(route.agency.alternatives).toHaveLength(1);
+    expect(route.agency.alternatives).toHaveLength(2);
     expect(route.agency.alternatives.every((alternative) => (
       alternative.mode === route.approach.mode
       && alternative.executionEnvironment === route.approach.executionEnvironment
     ))).toBe(true);
+  });
+
+  it("issues routes in the exact authorized canonical agency mode", () => {
+    const plan = generatePreviewPlan(request, NOW);
+    for (const [answer, storedMode] of [
+      ["help_me_choose", "help_me_choose"],
+      ["ill_customize", "learner_customizes"],
+    ] as const) {
+      const integrated = integrateInitialPlanMethodRoutes({
+        plan,
+        request,
+        context: contextWithAgencyMode(answer),
+      });
+
+      for (const session of integrated.sessions) {
+        const route = StudyRouteSchema.parse(session.studyRoute);
+        expect(route.agency).toMatchObject({
+          controlMode: storedMode,
+          selectedBy: "yova",
+        });
+        expect(route.provenance.evidenceRefs).toContain(
+          "canonical-profile:control_mode:profile_control_mode",
+        );
+        expect(route.provenance.ruleTrace).toContainEqual(expect.objectContaining({
+          ruleId: "study_route_agency_mode_controller_v1",
+          result: expect.stringMatching(new RegExp(`^${answer}:canonical_profile:`)),
+        }));
+      }
+    }
   });
 
   it("rejects Study Now, activated plans, and scheduled-review contracts", () => {
@@ -264,6 +296,29 @@ function contextWithMemorySignal(
       evidenceLabel: "You told YOVA",
       paused: false,
     }),
+    observedEvidence: [],
+    rolloutDecision: resolvePersonalizationRollout({
+      rolloutPercent: 100,
+      subjectKey: "initial-plan-method-routing-test",
+    }),
+  };
+}
+
+function contextWithAgencyMode(
+  value: "help_me_choose" | "ill_customize",
+): InitialPlanMethodRoutingContext {
+  return {
+    profileVersion: "authorized_profile_context_v1+canonical-control-mode",
+    personalization: {
+      ...personalization(),
+      canonicalProfile: createCanonicalLearnerProfile([{
+        signalId: "control_mode",
+        value,
+        source: "canonical_questionnaire",
+        sourceQuestionId: "profile_control_mode",
+        provenance: "direct_answer",
+      }]),
+    },
     observedEvidence: [],
   };
 }

@@ -17,6 +17,111 @@ describe("YOVA prototype UI contracts", () => {
     expect(styles).toMatch(/\.session-setup-progress strong\s*\{[^}]*display:\s*block/);
   });
 
+  it("renders every dedicated method runtime without disabling its answer surface", () => {
+    const component = readSource("src/components/yova-prototype.tsx");
+    const guidedStart = component.indexOf("function GuidedSession(");
+    const guidedEnd = component.indexOf("function SessionGuidePanel", guidedStart);
+    const guidedSession = component.slice(guidedStart, guidedEnd);
+
+    expect(guidedSession).toContain('content.methodRuntime?.kind === "retrieval_round"');
+    expect(guidedSession).toContain('content.methodRuntime?.kind === "worked_example" && <WorkedExampleRuntimePanel');
+    expect(guidedSession).toContain('content.methodRuntime?.kind === "error_repair" && <ErrorRepairRuntimePanel');
+    expect(guidedSession).toContain('content.methodRuntime?.kind === "concept_map"');
+    expect(guidedSession).toContain('<ConceptMapRuntimePanel');
+    expect(guidedSession).toContain("conceptMapDraftComplete");
+    expect(guidedSession).toContain('content.methodRuntime?.kind !== "retrieval_round" && content.type === "multiple_choice"');
+    expect(guidedSession).toContain('content.methodRuntime?.kind !== "retrieval_round" && content.type === "free_response"');
+    expect(guidedSession).not.toContain("!content.methodRuntime && content.type");
+  });
+
+  it("does not request or insert a repair for an ungraded pretest miss", () => {
+    const component = readSource("src/components/yova-prototype.tsx");
+    const advanceStart = component.indexOf("const advanceActiveSession = async");
+    const advanceEnd = component.indexOf("const completeActiveSession", advanceStart);
+    const advanceSession = component.slice(advanceStart, advanceEnd);
+
+    expect(advanceSession).toContain('currentActivity.methodPhase !== "pretest"');
+    expect(readSource("src/lib/learning/session-evidence.ts")).toContain(
+      'current.methodPhase === "pretest"',
+    );
+  });
+
+  it("lets uncertain or failed semantic checks continue without scoring them", () => {
+    const component = readSource("src/components/yova-prototype.tsx");
+    const guidedStart = component.indexOf("function GuidedSession(");
+    const guidedEnd = component.indexOf("function SessionGuidePanel", guidedStart);
+    const guidedSession = component.slice(guidedStart, guidedEnd);
+
+    expect(guidedSession).toContain(
+      'evaluationEvidenceDisposition === "no_evidence"',
+    );
+    expect(guidedSession).toContain(
+      "outcome !== undefined || semanticEvaluationHasNoEvidence",
+    );
+    expect(guidedSession).toContain(
+      "YOVA did not record a correct or incorrect result from this check.",
+    );
+    expect(guidedSession).toContain(
+      "this uncertain or unavailable check created no concept or method evidence.",
+    );
+  });
+
+  it("exposes one canonical profile and no retired experiment questionnaire", () => {
+    const component = readSource("src/components/yova-prototype.tsx");
+    const youStart = component.indexOf("function YouScreen(");
+    const youEnd = component.indexOf("function browserTimeZone", youStart);
+    const youScreen = component.slice(youStart, youEnd);
+
+    expect(youScreen).toContain("<CanonicalProfileCenter");
+    expect(youScreen).toContain("canonicalLearnerProfileFromAnswers(answers)");
+    expect(youScreen).toContain("writeCanonicalLearnerProfileToAnswers");
+    expect(youScreen).not.toContain("<PersonalizationCenter");
+    expect(youScreen).not.toContain("startPersonalizationExperiment");
+    expect(youScreen).not.toContain("DEEP_PROFILE_QUESTIONS");
+  });
+
+  it("imports a public canonical profile into new-account setup without a second questionnaire", () => {
+    const component = readSource("src/components/yova-prototype.tsx");
+    const accountStart = component.indexOf('if (stage === "account")');
+    const onboardingStart = component.indexOf('if (stage === "onboarding-intro")', accountStart);
+    const accountFlow = component.slice(accountStart, onboardingStart);
+
+    expect(accountFlow).toContain("readPublicCanonicalProfileDraft(window.localStorage)");
+    expect(accountFlow).toContain("writeCanonicalLearnerProfileToAnswers([], publicCanonicalProfile)");
+    expect(accountFlow).toContain('if (publicCanonicalProfile) setStage("profile")');
+    expect(component).toContain("clearPublicCanonicalProfileDraft(window.localStorage)");
+  });
+
+  it("retires legacy experiments at the live profile and completion boundaries", () => {
+    const component = readSource("src/components/yova-prototype.tsx");
+
+    expect(component).toContain(
+      "const personalizationState = consolidatePersonalizationStateForCanonicalV1(",
+    );
+    expect(component).toContain(
+      "consolidatePersonalizationStateForCanonicalV1,",
+    );
+    expect(component).toContain(
+      "if (!currentState.controls.experiments && !currentState.activeExperiment)",
+    );
+    expect(component).toContain("canonicalProfileWorkspaceSettings({");
+    expect(component).not.toContain("evaluateActivePersonalizationExperiment");
+    expect(component).not.toContain("recordPersonalizationExperimentCompletion");
+    expect(component).not.toContain("finishPersonalizationExperiment");
+  });
+
+  it("sends structured profile agency only through the explicit development-preview boundary", () => {
+    const component = readSource("src/components/yova-prototype.tsx");
+    const previewBoundary = readSource(
+      "src/lib/plan-generation/development-preview-preferences.ts",
+    );
+
+    expect(component).toContain("const effectivePreviewCanonicalProfile = personalizationState.controls.selfReport");
+    expect(component).toContain("previewCanonicalProfile={effectivePreviewCanonicalProfile}");
+    expect(previewBoundary).toContain("if (!browserPreviewMode) return {};");
+    expect(previewBoundary).toContain("previewCanonicalProfile: CanonicalLearnerProfileSchema.parse");
+  });
+
   it("locks scheduled-review setup to the backend verification contract", () => {
     const component = readSource("src/components/yova-prototype.tsx");
     const setupStart = component.indexOf("function SessionSetup");
@@ -67,16 +172,45 @@ describe("YOVA prototype UI contracts", () => {
     expect(setup).toContain("committedStudyRoute.identity.sessionId === session.id");
     expect(setup).toContain("!storedSession.resource");
     expect(setup).toContain(").slice(0, 2)");
+    expect(setup).toContain('routeAgencyMode === "ill_customize"');
+    expect(setup).toContain("boundedOtherAgencyMethodOptions(methodChoiceRoute)");
+    expect(setup).toContain("otherMethodOptions.map((option)");
+    expect(setup).toContain('selectionScope: "other_eligible_method"');
+    expect(setup).toContain("requestedMethod,");
+    expect(setup).toContain("resolveBoundedOtherMethodRequest({");
+    expect(setup).toContain('resolution.status === "mapped"');
+    expect(setup).toContain("setOtherMethodPreview(null)");
     expect(setup).toContain("committedStudyRoute?.approach.visibleMethodName");
     expect(setup).toContain("committedStudyRoute?.explanation.shortReason");
     expect(setup).toContain("expectedRouteRevisionId: methodChoiceRoute.identity.routeRevisionId");
     expect(setup).toContain("aria-expanded={methodChoicesOpen}");
     expect(setup).toContain("Other methods that also fit for ${session.title}");
+    expect(setup).toContain("Other eligible methods");
+    expect(setup).toContain("Questionable or incompatible methods are explained and mapped before anything changes.");
+    expect(setup).toContain("Use {otherMethodPreview.selectedMethodName} instead");
+    expect(setup).toContain("This recipe&apos;s eligible-method decision is no longer current.");
     expect(setup).toContain("Only the method changes. The target,");
     expect(setup).toContain('role="status" aria-live="polite"');
     expect(setup).toContain('role="alert"');
     expect(styles).toContain(".session-method-choice-trigger:focus-visible");
     expect(styles).toContain(".session-method-options > button:focus-visible");
+    expect(styles).toContain(".session-other-method-request input:focus-visible");
+    expect(styles).toContain(".session-other-method-mapping button:focus-visible");
+  });
+
+  it("shows the route-owned agency mode and complete recipe before a session starts", () => {
+    const component = readSource("src/components/yova-prototype.tsx");
+    const setupStart = component.indexOf("function SessionSetup");
+    const setupEnd = component.indexOf("export function formatSessionPreparationTopic", setupStart);
+    const setup = component.slice(setupStart, setupEnd);
+    const recipeCard = readSource("src/components/study-route-recipe-card.tsx");
+
+    expect(setup).toContain("<StudyRouteRecipeCard route={committedStudyRoute}");
+    expect(recipeCard).toContain('label: "YOVA Decides"');
+    expect(recipeCard).toContain('label: "Help Me Choose"');
+    expect(recipeCard).toContain('label: "I’ll Customize"');
+    expect(recipeCard).toContain("See the complete recipe");
+    expect(recipeCard).toContain("changedSincePrevious.summary");
   });
 
   it("uses one return label throughout the lesson review dialog", () => {
@@ -182,6 +316,32 @@ describe("YOVA prototype UI contracts", () => {
 
     expect(component).toContain("if (!completeActiveSession(");
     expect(component).toContain("YOVA kept this session open because it could not preserve the required guided verification");
+  });
+
+  it("routes post-session adaptation through the persisted agency contract", () => {
+    const component = readSource("src/components/yova-prototype.tsx");
+    const completionStart = component.indexOf("const completeActiveSession = (");
+    const interruptionStart = component.indexOf("const interruptActiveSession = () =>", completionStart);
+    const completion = component.slice(completionStart, interruptionStart);
+    const receiptStart = component.indexOf("function SessionComplete(");
+    const receiptEnd = component.indexOf("function formatElapsedDuration", receiptStart);
+    const receipt = component.slice(receiptStart, receiptEnd);
+    const controller = readSource("src/lib/study-route/agency-mode-controller.ts");
+
+    expect(completion).toContain('adaptationAgencyMode === "yova_decides"');
+    expect(completion).toContain('changeKind: "system_recommendation"');
+    expect(completion).toContain('proposedDecision?.status !== "confirmation_required"');
+    expect(completion).toContain("...requiredConfirmation");
+    expect(completion).toContain("confirmedAt: completion.completedAt");
+    expect(completion).toContain('changeKind: "learner_request"');
+    expect(completion).toContain('support: "not_required"');
+    expect(completion).toContain("routeTransition.appliedAdaptation ?? null");
+    expect(receipt).toContain("YOVA DECIDES · APPLIES ON FINISH");
+    expect(receipt).toContain("HELP ME CHOOSE · CONFIRMATION NEEDED");
+    expect(receipt).toContain("I'LL CUSTOMIZE · RECOMMENDATION ONLY");
+    expect(receipt).toContain("Finish and apply the update");
+    expect(controller).toContain('mode: "help_me_choose" as const');
+    expect(controller).toContain("any route change requires explicit confirmation");
   });
 
   it("establishes Exit recovery and its outbox before any checkpoint cloud sync", () => {
@@ -370,5 +530,15 @@ describe("YOVA prototype UI contracts", () => {
     expect(interruption.slice(genericFailure)).toContain(
       "setCloudSyncIssue(error instanceof Error ? error.message",
     );
+  });
+
+  it("keeps a paused canonical profile stored but out of workspace decisions", () => {
+    const component = readSource("src/components/yova-prototype.tsx");
+
+    expect(component).toContain("profile: personalizationState.controls.selfReport");
+    expect(component).toContain(": createCanonicalLearnerProfile([])");
+    expect(component).toContain("enabled={canonicalState.controls.selfReport}");
+    expect(component).toContain('"selfReport",');
+    expect(component).toContain("setPersonalizationControl(");
   });
 });

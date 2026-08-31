@@ -23,6 +23,7 @@ import {
   StudyRouteRuleTraceEntrySchema,
   type StudyRouteRuleTraceEntry,
 } from "@/lib/study-route/schema";
+import { METHOD_EVIDENCE_MINIMUM_DISTINCT_STUDY_DAYS } from "@/lib/study-route/method-evidence-policy";
 
 export const CANONICAL_METHOD_SELECTION_POLICY_VERSION =
   "canonical_method_selection_v1" as const;
@@ -41,6 +42,11 @@ export type MethodSelectionAuthority =
   (typeof METHOD_SELECTION_AUTHORITIES)[number];
 
 export type CanonicalObservedMethodEvidence = {
+  /**
+   * Privacy-safe categorical cohort key. It contains no target, source, route,
+   * or learner prose and must exactly match the route currently being chosen.
+   */
+  comparisonKey: string;
   signal: MethodOutcomeSignal;
   /** Durable attempt, event, or route references; never raw learner answers. */
   evidenceRefs: readonly string[];
@@ -64,6 +70,11 @@ export type CanonicalMethodSelectionInput = {
     evidenceRef: string;
   } | null;
   observedEvidence?: readonly CanonicalObservedMethodEvidence[];
+  /**
+   * Exact privacy-safe comparison cohort for the route being selected.
+   * Observed evidence is deliberately inert when this key is absent.
+   */
+  currentComparisonKey?: string | null;
   /** Already-authorized, typed, correctable learner signals. */
   personalization?: DeepReadonly<GenerationPersonalizationContext> | null;
   /** A prior comparable route that remains eligible for this target. */
@@ -122,6 +133,7 @@ export class CanonicalMethodSelectionError extends Error {
 }
 
 const RouteRevisionIdSchema = z.string().uuid();
+const MethodEvidenceComparisonKeySchema = z.string().trim().min(1).max(512);
 
 /**
  * Selects one method without additive pseudo-precision. Each authority is a
@@ -147,6 +159,9 @@ export function selectCanonicalStudyMethod(
     ))
   ));
   const declared = authorizedPreferredMethod(
+    personalization,
+    eligibleMethodIds,
+  ) ?? authorizedCanonicalProfileMethod(
     personalization,
     eligibleMethodIds,
   ) ?? authorizedDeclaredMethod(
@@ -189,7 +204,7 @@ export function selectCanonicalStudyMethod(
       observed.some(({ signal, evidenceRefs: refs, distinctStudyDays }) => (
         signal.methodId === methodId
         && refs.length > 0
-        && distinctStudyDays >= 2
+        && distinctStudyDays >= METHOD_EVIDENCE_MINIMUM_DISTINCT_STUDY_DAYS
         && methodOutcomeSupportsMethodRanking(signal)
       ))
     ));
@@ -261,8 +276,13 @@ function comparableObservedEvidence(
   input: CanonicalMethodSelectionInput,
   eligible: ReadonlySet<CoreMethodId>,
 ) {
-  const observed = (input.observedEvidence ?? []).filter(({ signal }) => (
-    eligible.has(signal.methodId)
+  if (!input.currentComparisonKey) return [];
+  const currentComparisonKey = MethodEvidenceComparisonKeySchema.parse(
+    input.currentComparisonKey,
+  );
+  const observed = (input.observedEvidence ?? []).filter(({ comparisonKey, signal }) => (
+    comparisonKey === currentComparisonKey
+    && eligible.has(signal.methodId)
     && signal.taskType === input.taskType
     && signal.knowledgeStage === input.knowledgeStage
   ));
@@ -272,6 +292,7 @@ function comparableObservedEvidence(
     throw new Error(`Canonical method evidence contains duplicate ${duplicate} outcome signals.`);
   }
   return observed.map((item) => ({
+    comparisonKey: MethodEvidenceComparisonKeySchema.parse(item.comparisonKey),
     signal: item.signal,
     evidenceRefs: unique(item.evidenceRefs),
     distinctStudyDays: boundedDistinctStudyDays(item.distinctStudyDays),
@@ -294,6 +315,84 @@ function authorizedPreferredMethod(
     learnerFacingReason: `You marked ${CORE_METHOD_CATALOG[methodId].name} as a method you would like YOVA to use when it fits. It is an eligible match for this task and current need.`,
     signalIds: [`profile-method-preference:${methodId}`],
   };
+}
+
+function authorizedCanonicalProfileMethod(
+  personalization: GenerationPersonalizationContext | null,
+  eligibleMethodIds: readonly CoreMethodId[],
+) {
+  const profile = personalization?.canonicalProfile;
+  if (!profile || eligibleMethodIds.length < 2) return null;
+  const signals = new Map(profile.signals.map((signal) => [signal.signalId, signal]));
+  const preferences: Array<{
+    signalId: string;
+    sourceQuestionId: string;
+    description: string;
+    methodIds: readonly CoreMethodId[];
+  }> = [];
+  const successful = signals.get("successful_approach");
+  const successfulMethods: Partial<Record<string, readonly CoreMethodId[]>> = {
+    closed_note_retrieval: ["retrieval_practice", "spaced_retrieval"],
+    practice_problems: ["practice_problems", "interleaved_practice"],
+    worked_examples_then_practice: ["worked_example_fading", "practice_problems"],
+    explain_from_memory: ["self_explanation", "concept_mapping"],
+  };
+  if (successful && successfulMethods[successful.value]) {
+    preferences.push({
+      signalId: successful.signalId,
+      sourceQuestionId: successful.sourceQuestionId,
+      description: "this approach has most often kept learning usable for you",
+      methodIds: successfulMethods[successful.value]!,
+    });
+  }
+
+  const breakdown = signals.get("post_study_breakdown");
+  const breakdownMethods: Partial<Record<string, readonly CoreMethodId[]>> = {
+    recognition_without_recall: ["retrieval_practice", "spaced_retrieval"],
+    delayed_forgetting: ["spaced_retrieval", "retrieval_practice"],
+    similar_idea_confusion: ["interleaved_practice", "concept_mapping"],
+    application_gap: ["practice_problems", "worked_example_fading"],
+    support_dependence: ["worked_example_fading", "scaffolded_coding", "practice_problems"],
+  };
+  if (breakdown && breakdownMethods[breakdown.value]) {
+    preferences.push({
+      signalId: breakdown.signalId,
+      sourceQuestionId: breakdown.sourceQuestionId,
+      description: "it directly checks the gap you most often notice after studying",
+      methodIds: breakdownMethods[breakdown.value]!,
+    });
+  }
+
+  const entry = signals.get("unfamiliar_entry");
+  const entryMethods: Partial<Record<string, readonly CoreMethodId[]>> = {
+    simple_explanation: ["self_explanation", "read_recall_review"],
+    concrete_example: ["worked_example_fading", "self_explanation"],
+    big_picture: ["concept_mapping", "read_recall_review", "self_explanation"],
+    small_steps: ["worked_example_fading", "scaffolded_coding"],
+    try_first: ["pretesting", "retrieval_practice"],
+    compare_similar: ["interleaved_practice", "concept_mapping"],
+  };
+  if (entry && entryMethods[entry.value]) {
+    preferences.push({
+      signalId: entry.signalId,
+      sourceQuestionId: entry.sourceQuestionId,
+      description: "it matches the opening you said helps you make a useful first connection",
+      methodIds: entryMethods[entry.value]!,
+    });
+  }
+
+  for (const preference of preferences) {
+    const methodId = preference.methodIds.find((candidate) => (
+      eligibleMethodIds.includes(candidate)
+    ));
+    if (!methodId) continue;
+    return {
+      methodId,
+      learnerFacingReason: `${CORE_METHOD_CATALOG[methodId].name} is eligible for this task, and ${preference.description}.`,
+      signalIds: [`canonical-profile:${preference.signalId}:${preference.sourceQuestionId}`],
+    };
+  }
+  return null;
 }
 
 function boundedDistinctStudyDays(value: number) {

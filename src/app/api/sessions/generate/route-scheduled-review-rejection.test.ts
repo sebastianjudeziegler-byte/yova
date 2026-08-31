@@ -20,7 +20,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@/lib/analytics/generation-observation-server", () => ({
-  recordGenerationObservation: mocks.recordObservation,
+  recordGenerationObservationAfterResponse: mocks.recordObservation,
 }));
 vi.mock("@/lib/openai/config", () => ({
   getOpenAISessionConfig: () => ({ model: "route-test-model" }),
@@ -153,6 +153,7 @@ describe("scheduled-review route adjustment boundary", () => {
       expect(mocks.rateLimit).not.toHaveBeenCalled();
       expect(mocks.reserve).not.toHaveBeenCalled();
       expect(mocks.generate).not.toHaveBeenCalled();
+      expect(mocks.recordObservation).not.toHaveBeenCalled();
     },
   );
 
@@ -206,6 +207,21 @@ describe("scheduled-review route adjustment boundary", () => {
       expect(mocks.rateLimit).not.toHaveBeenCalled();
       expect(mocks.reserve).not.toHaveBeenCalled();
       expect(mocks.generate).not.toHaveBeenCalled();
+      expect(mocks.recordObservation).toHaveBeenCalledWith(
+        expect.anything(),
+        "71000000-0000-4000-8000-000000000004",
+        expect.objectContaining({
+          generationType: "session",
+          finalOutcome: "failure",
+          attempts: 0,
+          inputTokens: 0,
+          outputTokens: 0,
+          diagnostics: expect.objectContaining({
+            sessionGenerationStage: "preflight",
+            sessionGenerationCause: "route_conflict",
+          }),
+        }),
+      );
     },
   );
 });
