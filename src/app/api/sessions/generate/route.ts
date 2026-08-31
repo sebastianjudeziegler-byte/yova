@@ -99,7 +99,6 @@ import { privacySafeErrorDiagnostic } from "@/lib/server/error-diagnostic";
 import { readOptionalSessionPersonalizationHistory } from "@/lib/server/session-personalization-history";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { blurtingSessionGenerationContract } from "@/lib/study-route/blurting-session-generation-contract";
 import {
   studyRouteFromPersistenceRow,
   type PersistedStudyRouteRow,
@@ -260,18 +259,6 @@ export async function POST(request: Request) {
         headers: responseHeaders(requestId, failureStats),
       });
     }
-  }
-  const blurtingGenerationContract = blurtingSessionGenerationContract(
-    committedStudyRoute,
-    {
-      planId: normalizedInput.planId,
-      sessionId: normalizedInput.planSessionId,
-      routeRevisionId: normalizedInput.routeRevisionId ?? "",
-    },
-  );
-  if (blurtingGenerationContract) {
-    recordPreflightFailure("route_conflict");
-    return blurtingRuntimeUnavailableResponse(requestId);
   }
   const reviewType = readReviewType(planSession.step_data);
   const scheduledAdjustmentIssue = scheduledRetrievalAdjustmentIssue(
@@ -1203,17 +1190,6 @@ async function generateBrowserPreviewSession(
       { status: 422, headers: responseHeaders(requestId) },
     );
   }
-  const blurtingGenerationContract = blurtingSessionGenerationContract(
-    input.previewContext.studyRoute,
-    {
-      planId: input.planId,
-      sessionId: input.planSessionId,
-      routeRevisionId: input.routeRevisionId ?? "",
-    },
-  );
-  if (blurtingGenerationContract) {
-    return blurtingRuntimeUnavailableResponse(requestId);
-  }
   const scheduledAdjustmentIssue = scheduledRetrievalAdjustmentIssue(
     input.previewContext.session,
     input.sessionAdjustment,
@@ -1582,17 +1558,6 @@ function readCachedSession(stepData: unknown, expectedSchemaVersion?: 15 | 17) {
   const parsed = CachedGeneratedSessionSchema.safeParse(candidate);
   if (!parsed.success) return null;
   return expectedSchemaVersion && parsed.data.schemaVersion !== expectedSchemaVersion ? null : parsed.data;
-}
-
-function blurtingRuntimeUnavailableResponse(requestId: string) {
-  return NextResponse.json({
-    code: "blurting_runtime_unavailable",
-    error: "Blurting is saved for this session, but its dedicated runtime is not available yet. Choose another method before starting.",
-    retryable: false,
-  }, {
-    status: 409,
-    headers: responseHeaders(requestId),
-  });
 }
 
 function cacheGeneratedSession(

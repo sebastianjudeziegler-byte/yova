@@ -5,7 +5,7 @@ import { normalizeSessionCompletionProvenance } from "@/lib/learning/session-com
 import {
   RetrievalRoundActivityProgressSchema,
   SessionActivityProgressSchema,
-  sessionActivityProgressHasRequiredRouteIdentity,
+  stripRetiredSessionActivityProgressMarker,
 } from "@/lib/learning/session-activity-progress";
 import {
   SessionAdjustmentSnapshotSchema,
@@ -49,34 +49,26 @@ const SessionCompletionExportSchema = z.object({
   confidenceEvidence: ConfidenceEvidenceListSchema.default([]),
 }).transform(normalizeSessionCompletionProvenance);
 
-const SessionInterruptionExportSchema = z.object({
-  id: z.string().uuid(),
-  planId: z.string().uuid(),
-  planSessionId: z.string().uuid(),
-  routeRevisionId: z.string().uuid().optional(),
-  startedAt: z.string().datetime({ offset: true }),
-  interruptedAt: z.string().datetime({ offset: true }),
-  plannedMinutes: z.number().int().min(5).max(180),
-  actualMinutes: z.number().int().min(1).max(360),
-  completedSteps: z.number().int().min(0).max(24),
-  totalSteps: z.number().int().min(1).max(24),
-  resumeStep: z.number().int().min(0).max(24).optional(),
-  evidence: SessionEvidenceSnapshotSchema.optional(),
-  pendingRepair: SessionPendingRepairSchema.optional(),
-  sessionAdjustment: SessionAdjustmentSnapshotSchema.optional(),
-  activityProgress: SessionActivityProgressSchema.optional(),
-}).superRefine((interruption, context) => {
-  if (!sessionActivityProgressHasRequiredRouteIdentity(
-    interruption.activityProgress,
-    interruption.routeRevisionId,
-  )) {
-    context.addIssue({
-      code: "custom",
-      path: ["routeRevisionId"],
-      message: "Broad-recall interruption progress requires an exact route revision.",
-    });
-  }
-});
+const SessionInterruptionExportSchema = z.preprocess(
+  stripRetiredSessionActivityProgressMarker,
+  z.object({
+    id: z.string().uuid(),
+    planId: z.string().uuid(),
+    planSessionId: z.string().uuid(),
+    routeRevisionId: z.string().uuid().optional(),
+    startedAt: z.string().datetime({ offset: true }),
+    interruptedAt: z.string().datetime({ offset: true }),
+    plannedMinutes: z.number().int().min(5).max(180),
+    actualMinutes: z.number().int().min(1).max(360),
+    completedSteps: z.number().int().min(0).max(24),
+    totalSteps: z.number().int().min(1).max(24),
+    resumeStep: z.number().int().min(0).max(24).optional(),
+    evidence: SessionEvidenceSnapshotSchema.optional(),
+    pendingRepair: SessionPendingRepairSchema.optional(),
+    sessionAdjustment: SessionAdjustmentSnapshotSchema.optional(),
+    activityProgress: SessionActivityProgressSchema.optional(),
+  }),
+);
 
 const PendingSessionCompletionExportSchema = z.object({
   userId: z.string().uuid(),
@@ -165,19 +157,22 @@ const ActiveSessionCheckpointExportBaseShape = {
   sessionAdjustment: SessionAdjustmentSnapshotSchema.optional(),
 };
 
-const ActiveSessionCheckpointExportSchema = z.union([
-  z.object({
-    ...ActiveSessionCheckpointExportBaseShape,
-    version: z.literal(1),
-    activityProgress: RetrievalRoundActivityProgressSchema.optional(),
-  }).strict(),
-  z.object({
-    ...ActiveSessionCheckpointExportBaseShape,
-    version: z.literal(2),
-    routeRevisionId: z.string().uuid(),
-    activityProgress: SessionActivityProgressSchema.optional(),
-  }).strict(),
-]);
+const ActiveSessionCheckpointExportSchema = z.preprocess(
+  stripRetiredSessionActivityProgressMarker,
+  z.union([
+    z.object({
+      ...ActiveSessionCheckpointExportBaseShape,
+      version: z.literal(1),
+      activityProgress: RetrievalRoundActivityProgressSchema.optional(),
+    }).strict(),
+    z.object({
+      ...ActiveSessionCheckpointExportBaseShape,
+      version: z.literal(2),
+      routeRevisionId: z.string().uuid(),
+      activityProgress: SessionActivityProgressSchema.optional(),
+    }).strict(),
+  ]),
+);
 
 const PreviewSnapshotExportSchema = z.object({
   version: z.literal(1),

@@ -13,11 +13,11 @@ import {
   type MethodWorkProgress,
 } from "@/lib/learning/method-work-progress";
 import {
-  isBroadRecallActivityProgress,
   mergeSessionActivityProgress,
   RetrievalRoundActivityProgressSchema,
   SessionActivityProgressSchema,
   sessionActivityProgressRank,
+  stripRetiredSessionActivityProgressMarker,
   type SessionActivityProgressConflictReason,
   type SessionActivityProgress,
 } from "@/lib/learning/session-activity-progress";
@@ -185,25 +185,15 @@ export const ActiveSessionCheckpointV1Schema = z.discriminatedUnion("status", [
 export const ActiveSessionCheckpointV2Schema = z.discriminatedUnion("status", [
   WorkingCheckpointV2Schema,
   AwaitingFinishCheckpointV2Schema,
-]).superRefine((checkpoint, context) => {
-  validateCheckpointWindow(checkpoint, context);
-  if (
-    checkpoint.status === "working"
-    && isBroadRecallActivityProgress(checkpoint.activityProgress)
-    && (checkpoint.pendingRepair !== undefined || checkpoint.evidence !== undefined)
-  ) {
-    context.addIssue({
-      code: "custom",
-      path: [checkpoint.pendingRepair !== undefined ? "pendingRepair" : "evidence"],
-      message: "Broad-recall progress cannot carry answer-bearing repair or unverified evidence.",
-    });
-  }
-});
+]).superRefine(validateCheckpointWindow);
 
-export const ActiveSessionCheckpointSchema = z.union([
-  ActiveSessionCheckpointV1Schema,
-  ActiveSessionCheckpointV2Schema,
-]);
+export const ActiveSessionCheckpointSchema = z.preprocess(
+  stripRetiredSessionActivityProgressMarker,
+  z.union([
+    ActiveSessionCheckpointV1Schema,
+    ActiveSessionCheckpointV2Schema,
+  ]),
+);
 
 export type ActiveSessionCheckpointV1 = z.infer<typeof ActiveSessionCheckpointV1Schema>;
 export type ActiveSessionCheckpointV2 = z.infer<typeof ActiveSessionCheckpointV2Schema>;
@@ -248,9 +238,10 @@ export function readActiveSessionCheckpoint(
   value: unknown,
   now = Date.now(),
 ): ActiveSessionCheckpoint | null {
-  if (hasForbiddenCheckpointContent(value)) return null;
+  const sanitized = stripRetiredSessionActivityProgressMarker(value);
+  if (hasForbiddenCheckpointContent(sanitized)) return null;
   try {
-    const parsed = ActiveSessionCheckpointSchema.safeParse(value);
+    const parsed = ActiveSessionCheckpointSchema.safeParse(sanitized);
     return parsed.success && isCheckpointFresh(parsed.data, now) ? parsed.data : null;
   } catch {
     return null;
@@ -285,15 +276,6 @@ export function compareActiveSessionCheckpointProgress(
   const methodWorkDifference = methodWorkProgressRank(left.methodWork)
     - methodWorkProgressRank(right.methodWork);
   if (methodWorkDifference !== 0) return methodWorkDifference;
-  if (
-    (
-      isBroadRecallActivityProgress(left.activityProgress)
-      || isBroadRecallActivityProgress(right.activityProgress)
-    )
-    && activityProgressMerge.source !== "equal"
-  ) {
-    return activityProgressMerge.source === "left" ? 1 : -1;
-  }
   if (left.activeSeconds !== right.activeSeconds) return left.activeSeconds - right.activeSeconds;
   return compareIsoTimestamps(left.savedAt, right.savedAt);
 }
@@ -365,33 +347,9 @@ export function mergeActiveSessionCheckpoints(
       continue;
     }
 
-    const broadRecallReconciliation = reconcileDeviceOnlyBroadRecallProgress({
-      local,
-      cloud,
-      activityProgressMerge,
-      now,
-    });
-    if (broadRecallReconciliation) {
-      checkpoints.push(broadRecallReconciliation.checkpoint);
-      if (broadRecallReconciliation.cloudSyncComparison > 0) {
-        checkpointsToUpload.push(broadRecallReconciliation.checkpoint);
-      } else {
-        cloudRunIds.add(cloud.runId);
-      }
-      continue;
-    }
-
     if (compareActiveSessionCheckpointProgress(local, cloud) > 0) {
       checkpoints.push(local);
-      if (compareCloudSyncableCheckpointProgress(local, cloud) > 0) {
-        checkpointsToUpload.push(local);
-      } else {
-        // Broad Recall progress is deliberately device-only while its runtime
-        // is dormant. A compatible cloud envelope already protects the
-        // lesson, so do not upload forever just because the browser retains a
-        // longer Broad Recall event prefix than the account copy.
-        cloudRunIds.add(cloud.runId);
-      }
+      checkpointsToUpload.push(local);
     } else {
       checkpoints.push(cloud);
       cloudRunIds.add(cloud.runId);
@@ -409,56 +367,6 @@ export function mergeActiveSessionCheckpoints(
     conflictingLocalRuns,
     activityProgressConflicts,
   };
-}
-
-function reconcileDeviceOnlyBroadRecallProgress({
-  local,
-  cloud,
-  activityProgressMerge,
-  now,
-}: {
-  local: ActiveSessionCheckpoint;
-  cloud: ActiveSessionCheckpoint;
-  activityProgressMerge: Extract<
-    ReturnType<typeof mergeSessionActivityProgress>,
-    { kind: "merged" }
-  >;
-  now: number;
-}) {
-  const progress = activityProgressMerge.progress;
-  if (!isBroadRecallActivityProgress(progress)) return null;
-  const cloudSyncComparison = compareCloudSyncableCheckpointProgress(local, cloud);
-  const strongerEnvelope = checkpointWithoutLocalOnlyBroadRecallProgress(
-    cloudSyncComparison > 0 ? local : cloud,
-  );
-  if (
-    strongerEnvelope.status !== "working"
-    || strongerEnvelope.completedSteps !== progress.activityIndex
-  ) return null;
-  const checkpoint = readActiveSessionCheckpoint({
-    ...strongerEnvelope,
-    activityProgress: progress,
-  }, now);
-  return checkpoint ? { checkpoint, cloudSyncComparison } : null;
-}
-
-function compareCloudSyncableCheckpointProgress(
-  left: ActiveSessionCheckpoint,
-  right: ActiveSessionCheckpoint,
-) {
-  return compareActiveSessionCheckpointProgress(
-    checkpointWithoutLocalOnlyBroadRecallProgress(left),
-    checkpointWithoutLocalOnlyBroadRecallProgress(right),
-  );
-}
-
-function checkpointWithoutLocalOnlyBroadRecallProgress(
-  checkpoint: ActiveSessionCheckpoint,
-): ActiveSessionCheckpoint {
-  if (!isBroadRecallActivityProgress(checkpoint.activityProgress)) return checkpoint;
-  const cloudSyncable: ActiveSessionCheckpoint = { ...checkpoint };
-  delete cloudSyncable.activityProgress;
-  return cloudSyncable;
 }
 
 export function saveActiveSessionCheckpoint(checkpoint: ActiveSessionCheckpoint) {

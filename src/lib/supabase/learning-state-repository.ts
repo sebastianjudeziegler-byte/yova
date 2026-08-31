@@ -24,10 +24,7 @@ import {
   type ActiveSessionCheckpoint,
 } from "@/lib/learning/active-session-checkpoint";
 import {
-  isBroadRecallActivityProgress,
-  mergeSessionActivityProgress,
   readSessionActivityProgress,
-  sessionActivityProgressHasRequiredRouteIdentity,
 } from "@/lib/learning/session-activity-progress";
 import {
   readSessionAdjustmentSnapshot,
@@ -55,7 +52,6 @@ import {
 import { readSessionResourceFromStepData } from "@/lib/session-generation/resource";
 import { resolveSessionArchitectureVersion } from "@/lib/session-generation/architecture";
 import { StudyRouteSchema, type StudyRoute } from "@/lib/study-route/schema";
-import { UnsupportedBroadRecallInterruptionError } from "@/lib/sync/session-interruption-error";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import {
@@ -487,7 +483,6 @@ export async function loadAuthenticatedLearningState(): Promise<CloudLearningSta
     const activityProgress = readSessionActivityProgress(readProperty(event.event_data, "activityProgress"));
     const routeRevisionId = readUuidProperty(event.event_data, "routeRevisionId");
     if (!planId || !attemptId || !startedAt || plannedMinutes === null || actualMinutes === null || completedSteps === null || totalSteps === null) return [];
-    if (!sessionActivityProgressHasRequiredRouteIdentity(activityProgress, routeRevisionId)) return [];
 
     return [{
       id: attemptId,
@@ -594,20 +589,6 @@ export function saveAuthenticatedActiveSessionCheckpoint(
   return new Promise<ActiveSessionCheckpoint>((resolve, reject) => {
     const queue = activeSessionCheckpointWriteQueues.get(cloudCheckpoint.planSessionId);
     if (queue) {
-      if (
-        queuedCheckpointIdentityMatches(cloudCheckpoint, queue.latestRequested)
-        && (
-          isBroadRecallActivityProgress(cloudCheckpoint.activityProgress)
-          || isBroadRecallActivityProgress(queue.latestRequested.activityProgress)
-        )
-        && mergeSessionActivityProgress(
-          cloudCheckpoint.activityProgress,
-          queue.latestRequested.activityProgress,
-        ).kind === "conflict"
-      ) {
-        reject(new ActiveSessionCheckpointConflictError());
-        return;
-      }
       if (preferQueuedActiveSessionCheckpoint(cloudCheckpoint, queue.latestRequested)) {
         queue.latestRequested = cloudCheckpoint;
         queue.pending = cloudCheckpoint;
@@ -760,38 +741,6 @@ async function persistAuthenticatedActiveSessionCheckpointInAccountLane(
   ) {
     throw new ActiveSessionCheckpointConflictError();
   }
-  const activityProgressMerge = mergeSessionActivityProgress(
-    authoritative.activityProgress,
-    checkpoint.activityProgress,
-  );
-  if (isBroadRecallActivityProgress(checkpoint.activityProgress)) {
-    // Broad Recall is currently a device-only recovery format. The cloud
-    // writer intentionally receives only the ordinary checkpoint envelope,
-    // so an acknowledgement may omit the marker or still expose an older
-    // stored prefix. Keep the caller's exact local prefix unless the server
-    // proves that the lesson itself advanced beyond this activity step.
-    if (
-      authoritative.status === checkpoint.status
-      && authoritative.completedSteps === checkpoint.completedSteps
-      && authoritative.resumeStep === checkpoint.resumeStep
-      && checkpoint.activityProgress.activityIndex === checkpoint.completedSteps
-    ) {
-      return readActiveSessionCheckpoint({
-        ...authoritative,
-        activityProgress: checkpoint.activityProgress,
-      }) ?? checkpoint;
-    }
-    return authoritative;
-  }
-  if (
-    isBroadRecallActivityProgress(authoritative.activityProgress)
-    && (
-      activityProgressMerge.kind === "conflict"
-      || activityProgressMerge.source === "right"
-    )
-  ) {
-    throw new ActiveSessionCheckpointConflictError();
-  }
   return authoritative;
 }
 
@@ -854,10 +803,7 @@ function activeSessionCheckpointCloudPayload(checkpoint: CloudSyncActiveSessionC
     ...(checkpoint.completionMode ? { completionMode: checkpoint.completionMode } : {}),
     ...(checkpoint.evidence ? { evidence: checkpoint.evidence } : {}),
     ...(checkpoint.pendingRepair ? { pendingRepair: checkpoint.pendingRepair } : {}),
-    ...(checkpoint.activityProgress
-      && !isBroadRecallActivityProgress(checkpoint.activityProgress)
-      ? { activityProgress: checkpoint.activityProgress }
-      : {}),
+    ...(checkpoint.activityProgress ? { activityProgress: checkpoint.activityProgress } : {}),
     ...(checkpoint.status === "awaiting_finish" ? {
       completedAt: checkpoint.completedAt,
       completionFeedback: checkpoint.completionFeedback,
@@ -1262,13 +1208,8 @@ export async function recordAuthenticatedSessionInterruption(
   accountId: string,
   interruption: SessionInterruption,
 ) {
-  if (!sessionActivityProgressHasRequiredRouteIdentity(
-    interruption.activityProgress,
-    interruption.routeRevisionId,
-  )) {
-    throw new Error("YOVA refused to sync route-less broad-recall interruption progress.");
-  }
   if (!isSupabaseConfigured()) return;
+  const activityProgress = readSessionActivityProgress(interruption.activityProgress);
   const payload = {
     attemptId: interruption.id,
     planSessionId: interruption.planSessionId,
@@ -1297,42 +1238,15 @@ export async function recordAuthenticatedSessionInterruption(
       : undefined,
     pendingRepair: interruption.pendingRepair,
     sessionAdjustment: interruption.sessionAdjustment,
-    ...(interruption.activityProgress ? { activityProgress: interruption.activityProgress } : {}),
+    ...(activityProgress ? { activityProgress } : {}),
   };
   try {
     await sequenceAuthenticatedAccountLearningMutation(accountId, async () => {
       await withinAuthenticatedLearningMutationDeadline(async (run) => {
         const supabase = createSupabaseBrowserClient();
-        let { error } = await run(supabase.rpc("record_session_interruption_with_route", {
+        const { error } = await run(supabase.rpc("record_session_interruption_with_route", {
           payload,
         }));
-
-        let retriedWithoutBroadRecallProgress = false;
-        if (
-          isBroadRecallActivityProgress(interruption.activityProgress)
-          &&
-          error?.code === "55000"
-          && error.message === "broad_recall_interruption_resource_identity_required"
-        ) {
-          // The mature writer deliberately refuses to bind Broad Recall progress
-          // without a generated-resource receipt. Preserve the explicit Exit while
-          // leaving that unverified within-activity marker in its bound checkpoint.
-          const retryPayload = { ...payload };
-          delete retryPayload.activityProgress;
-          retriedWithoutBroadRecallProgress = true;
-          ({ error } = await run(supabase.rpc("record_session_interruption_with_route", {
-            payload: retryPayload,
-          })));
-        }
-
-        if (
-          retriedWithoutBroadRecallProgress
-          &&
-          error?.code === "55000"
-          && error.message === "broad_recall_interruption_resource_identity_required"
-        ) {
-          throw new UnsupportedBroadRecallInterruptionError();
-        }
 
         if (error) {
           const code = typeof error.code === "string" && /^[A-Za-z0-9_]{1,64}$/.test(error.code)
@@ -1347,10 +1261,7 @@ export async function recordAuthenticatedSessionInterruption(
       });
     });
   } catch (cause) {
-    if (
-      cause instanceof UnsupportedBroadRecallInterruptionError
-      || cause instanceof SessionInterruptionCloudSyncError
-    ) {
+    if (cause instanceof SessionInterruptionCloudSyncError) {
       throw cause;
     }
     const reason = cause instanceof AuthenticatedLearningMutationDeadlineError

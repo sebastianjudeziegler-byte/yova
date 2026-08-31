@@ -6,17 +6,9 @@ import {
   METHOD_PRESENTATION_POLICY_VERSION,
   type CoreMethodId,
 } from "@/lib/learning/method-catalog";
-import {
-  BLURTING_ORDERED_PHASES,
-  BLURTING_SUPPORTING_TECHNIQUE_ID,
-  BLURTING_VISIBLE_METHOD_NAME,
-  selectMethodRecipe,
-} from "@/lib/learning/method-recipes";
 import type { GenerationPersonalizationContext } from "@/lib/personalization/personalization-generation";
 import { generatePreviewPlan } from "@/lib/plan-generation/preview-generator";
 import { PlanGenerationRequestSchema } from "@/lib/plan-generation/schema";
-import { METHOD_RUNTIME_CAPABILITY_POLICY_VERSION } from "@/lib/session-generation/method-runtime-capability";
-import { studyRouteToLegacySessionProjection } from "@/lib/study-route/adapters";
 import {
   DRAFT_METHOD_CHOICE_POLICY_VERSION,
   DraftMethodChoiceError,
@@ -27,14 +19,6 @@ import {
   type InitialPlanMethodRoutingContext,
 } from "@/lib/study-route/initial-plan-method-routing";
 import { methodSelectionContextForStudyRoute } from "@/lib/study-route/method-plan-integration";
-import {
-  BLURTING_PHASE_IDS,
-  BLURTING_RECIPE_RUNTIME_VERSION,
-  blurtingFinalCheckEvidenceId,
-  blurtingMethodRecipeTrace,
-  blurtingRecipeRuntimeTrace,
-} from "@/lib/study-route/method-recipe-contract";
-import { materialStudyRouteChanges } from "@/lib/study-route/revisions";
 import { resolvePersonalizationRollout } from "@/lib/study-route/personalization-rollout";
 import { StudyRouteSchema, type StudyRoute } from "@/lib/study-route/schema";
 
@@ -315,108 +299,6 @@ describe("normal-plan draft method choice", () => {
     }
   });
 
-  it("leaves Blurting atomically and preserves its recipe history across repeated draft choices", () => {
-    const plan = draftPlanWithBlurtingChoice();
-    const session = plan.sessions.find((candidate) => (
-      route(candidate.studyRoute).approach.visibleSupportingTechniqueId
-        === BLURTING_SUPPORTING_TECHNIQUE_ID
-    ))!;
-    const blurting = route(session.studyRoute);
-    const methodId = blurting.agency.alternatives[0]!.primaryMethodId;
-    const historicalRecipeTraces = blurting.provenance.ruleTrace.filter((entry) => (
-      entry.ruleId === "method_recipe_v1"
-      || entry.ruleId === BLURTING_RECIPE_RUNTIME_VERSION
-    ));
-    const preservedRouterComponents = blurting.provenance.routerVersion
-      .split("+")
-      .filter((component) => component !== BLURTING_RECIPE_RUNTIME_VERSION);
-
-    expect(blurting.agency.alternatives.every((alternative) => (
-      alternative.visibleMethodName !== BLURTING_VISIBLE_METHOD_NAME
-      && alternative.alternativeId !== BLURTING_SUPPORTING_TECHNIQUE_ID
-    ))).toBe(true);
-
-    const first = reviseDraftSessionMethod({
-      plan,
-      selection: {
-        sessionId: session.id,
-        expectedRouteRevisionId: blurting.identity.routeRevisionId,
-        methodId,
-      },
-      changedAt: FIRST_CHANGE,
-    });
-    const ordinary = selectedRoute(first.plan, session.id);
-
-    expect(ordinary.approach).toMatchObject({
-      primaryMethodId: methodId,
-      visibleMethodName: CORE_METHOD_CATALOG[methodId].name,
-    });
-    expect(ordinary.approach).not.toHaveProperty("visibleSupportingTechniqueId");
-    expect(ordinary.agency.alternatives).toEqual(expect.arrayContaining([
-      expect.objectContaining({
-        primaryMethodId: "retrieval_practice",
-        visibleMethodName: CORE_METHOD_CATALOG.retrieval_practice.name,
-      }),
-    ]));
-    expect(ordinary.agency.override?.changedFields).toEqual([
-      "primary_method",
-      "method_recipe",
-    ]);
-    expect(materialStudyRouteChanges(blurting, ordinary)).toEqual([
-      "primary_method",
-      "method_recipe",
-      "phase_order",
-    ]);
-    expect(ordinary.provenance.routerVersion.split("+").filter((component) => (
-      component === BLURTING_RECIPE_RUNTIME_VERSION
-    ))).toHaveLength(0);
-    expect(ordinary.provenance.routerVersion.split("+").filter((component) => (
-      component === METHOD_RUNTIME_CAPABILITY_POLICY_VERSION
-    ))).toHaveLength(1);
-    expect(ordinary.provenance.routerVersion.split("+")).toEqual(
-      expect.arrayContaining(preservedRouterComponents),
-    );
-    expect(ordinary.provenance.routerVersion.length).toBeLessThanOrEqual(256);
-    expect(ordinary.provenance.ruleTrace.filter((entry) => (
-      entry.ruleId === "method_recipe_v1"
-      || entry.ruleId === BLURTING_RECIPE_RUNTIME_VERSION
-    ))).toEqual(historicalRecipeTraces);
-    expect(ordinary.provenance.ruleTrace.findLast((entry) => (
-      entry.ruleId === METHOD_RUNTIME_CAPABILITY_POLICY_VERSION
-      || entry.ruleId === BLURTING_RECIPE_RUNTIME_VERSION
-    ))?.ruleId).toBe(METHOD_RUNTIME_CAPABILITY_POLICY_VERSION);
-
-    const returnAlternative = ordinary.agency.alternatives.find((alternative) => (
-      alternative.primaryMethodId === "retrieval_practice"
-    ));
-    expect(returnAlternative).toBeDefined();
-    const second = reviseDraftSessionMethod({
-      plan: first.plan,
-      selection: {
-        sessionId: session.id,
-        expectedRouteRevisionId: ordinary.identity.routeRevisionId,
-        methodId: returnAlternative!.primaryMethodId,
-      },
-      changedAt: SECOND_CHANGE,
-    });
-    const repeated = selectedRoute(second.plan, session.id);
-
-    expect(repeated.approach).toMatchObject({
-      primaryMethodId: "retrieval_practice",
-      visibleMethodName: CORE_METHOD_CATALOG.retrieval_practice.name,
-    });
-    expect(repeated.approach).not.toHaveProperty("visibleSupportingTechniqueId");
-    expect(repeated.agency.override?.changedFields).toEqual(["primary_method"]);
-    expect(repeated.provenance.ruleTrace.filter((entry) => (
-      entry.ruleId === "method_recipe_v1"
-      || entry.ruleId === BLURTING_RECIPE_RUNTIME_VERSION
-    ))).toEqual(historicalRecipeTraces);
-    expect(repeated.provenance.routerVersion).not.toContain(
-      BLURTING_RECIPE_RUNTIME_VERSION,
-    );
-    expect(repeated.provenance.routerVersion.length).toBeLessThanOrEqual(256);
-  });
-
   it("rejects stale identities, hidden methods, committed routes, reviews, and non-plan drafts", () => {
     const plan = routedPlan(emptyContext());
     const session = plan.sessions.find((candidate) => (
@@ -505,131 +387,6 @@ function routedPlan(context: InitialPlanMethodRoutingContext) {
     plan: generatePreviewPlan(request, NOW),
     request,
     context,
-  });
-}
-
-function draftPlanWithBlurtingChoice(): LearningPlan {
-  const plan = routedPlan(emptyContext());
-  const sessionIndex = plan.sessions.findIndex((session) => (
-    !session.reviewType && route(session.studyRoute).identity.lifecycleStatus === "provisional"
-  ));
-  const session = plan.sessions[sessionIndex]!;
-  const blurting = blurtingChoiceRoute(route(session.studyRoute));
-  const projection = studyRouteToLegacySessionProjection(blurting);
-
-  return {
-    ...plan,
-    sourceMode: "user_materials",
-    sessions: plan.sessions.map((candidate, index) => (
-      index === sessionIndex
-        ? { ...candidate, ...projection, studyRoute: blurting }
-        : candidate
-    )),
-  };
-}
-
-function blurtingChoiceRoute(base: StudyRoute): StudyRoute {
-  const targetStates = base.target.targetStates.slice(0, 2).map((target) => ({
-    ...target,
-    stage: "developing" as const,
-    uncertainty: "medium" as const,
-  }));
-  const targetIds = targetStates.map((target) => target.targetId);
-  const decision = selectMethodRecipe({
-    blurtingEnabled: true,
-    learningMode: "study",
-    primaryMethodId: "retrieval_practice",
-    taskType: "conceptual_learning",
-    knowledgeStage: "developing",
-    isReview: false,
-    activeMinutes: 12,
-    activeTargetCount: targetIds.length,
-    comparisonSourceAvailable: true,
-  });
-  if (decision.kind !== "recipe") throw new Error("Expected eligible Blurting fixture.");
-
-  return StudyRouteSchema.parse({
-    ...base,
-    target: {
-      ...base.target,
-      taskFamily: "conceptual_learning",
-      targetStates,
-      sourceRequirements: {
-        sourceType: "user_materials",
-        requiredSourceIds: ["source:blurting-choice"],
-        groundingRequired: true,
-        instructions: ["Compare the broad recall with the committed source before repairing gaps."],
-      },
-    },
-    approach: {
-      mode: "practice",
-      executionEnvironment: base.approach.executionEnvironment,
-      primaryMethodId: "retrieval_practice",
-      visibleMethodName: BLURTING_VISIBLE_METHOD_NAME,
-      visibleSupportingTechniqueId: BLURTING_SUPPORTING_TECHNIQUE_ID,
-      confidenceLevel: base.approach.confidenceLevel,
-    },
-    timing: {
-      activeMinutes: 12,
-      elapsedMinutes: 12,
-      durationSource: "router_default",
-    },
-    execution: {
-      ...base.execution,
-      orderedPhases: BLURTING_PHASE_IDS.map((phaseId, index) => ({
-        phaseId,
-        methodPhase: BLURTING_ORDERED_PHASES[index],
-        activeMinutes: 4,
-        targetIds,
-      })),
-      initialSupport: "independent_start",
-      activityLimit: Math.max(base.execution.activityLimit, 3),
-      completionEvidence: targetIds.map((targetId) => ({
-        evidenceId: blurtingFinalCheckEvidenceId(targetId),
-        targetIds: [targetId],
-        kind: "verification",
-        description: "Answer one fresh final check without reopening the source.",
-        requiresIndependentAttempt: true,
-      })),
-      deferredTargets: [],
-    },
-    agency: {
-      controlMode: "yova_decides",
-      selectedBy: "yova",
-      alternatives: (["self_explanation", "spaced_retrieval"] as const).map((methodId) => ({
-        alternativeId: `method-alternative:${methodId}`,
-        mode: "practice",
-        executionEnvironment: base.approach.executionEnvironment,
-        primaryMethodId: methodId,
-        visibleMethodName: CORE_METHOD_CATALOG[methodId].name,
-        activeMinutes: 12,
-        tradeoff: `${CORE_METHOD_CATALOG[methodId].name} also fits this task and stage, but it would use a different practice sequence.`,
-      })),
-    },
-    explanation: {
-      shortReason: "Blurting uses broad recall, source comparison, and a fresh transfer check.",
-      taskRequirements: [
-        "Blurting is eligible for this conceptual learning Practice route at the developing stage.",
-      ],
-      learnerDeclarations: [],
-      observations: [],
-      uncertainties: [],
-    },
-    provenance: {
-      ...base.provenance,
-      routerVersion: [
-        ...new Set(base.provenance.routerVersion.split("+").filter((component) => (
-          component !== METHOD_RUNTIME_CAPABILITY_POLICY_VERSION
-          && component !== BLURTING_RECIPE_RUNTIME_VERSION
-        ))),
-        BLURTING_RECIPE_RUNTIME_VERSION,
-      ].join("+"),
-      ruleTrace: [
-        ...base.provenance.ruleTrace,
-        blurtingMethodRecipeTrace(decision),
-        blurtingRecipeRuntimeTrace(base.approach.executionEnvironment),
-      ],
-    },
   });
 }
 

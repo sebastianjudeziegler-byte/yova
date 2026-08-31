@@ -1,5 +1,4 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { UnsupportedBroadRecallInterruptionError } from "@/lib/sync/session-interruption-error";
 import type { PendingSessionInterruption } from "@/lib/sync/session-interruption-outbox";
 
 const { recordAuthenticatedSessionInterruption } = vi.hoisted(() => ({
@@ -82,10 +81,10 @@ describe("session interruption outbox", () => {
     );
   });
 
-  it("queues a Broad Recall Exit without its device-only activity marker", async () => {
+  it("queues an old Exit without its retired activity marker", async () => {
     installMemoryStorage();
     recordAuthenticatedSessionInterruption.mockResolvedValue(undefined);
-    const pending: PendingSessionInterruption = {
+    const pending = {
       userId: "00000000-0000-4000-8000-000000000041",
       queuedAt: "2026-08-11T20:08:00.000Z",
       interruption: {
@@ -101,20 +100,10 @@ describe("session interruption outbox", () => {
         totalSteps: 5,
         activityProgress: {
           kind: "broad_recall",
-          format: "broad_recall_v1",
-          activityIndex: 0,
-          gapCount: 2,
-          bindings: [{
-            targetId: "11111111-1111-4111-8111-111111111111",
-            evidenceId: "blurting-final-check:11111111-1111-4111-8111-111111111111",
-          }],
-          events: [{
-            type: "comparison_completed",
-            gapStatuses: ["covered", "missing"],
-          }],
+          legacyPayload: "ignored",
         },
       },
-    };
+    } as unknown as PendingSessionInterruption;
 
     expect(queueSessionInterruption(pending)).toBe(true);
     expect(loadQueuedSessionInterruptions(pending.userId)).toEqual([{
@@ -135,11 +124,11 @@ describe("session interruption outbox", () => {
     );
   });
 
-  it("sanitizes a stale Broad Recall entry without blocking a later supported Exit", async () => {
+  it("sanitizes a stale retired marker without blocking a later supported Exit", async () => {
     installMemoryStorage();
     recordAuthenticatedSessionInterruption.mockResolvedValue(undefined);
     const userId = "00000000-0000-4000-8000-000000000051";
-    const staleBroad: PendingSessionInterruption = {
+    const staleRetired = {
       userId,
       queuedAt: "2026-08-11T20:08:00.000Z",
       interruption: {
@@ -155,17 +144,10 @@ describe("session interruption outbox", () => {
         totalSteps: 5,
         activityProgress: {
           kind: "broad_recall",
-          format: "broad_recall_v1",
-          activityIndex: 0,
-          gapCount: 2,
-          bindings: [{
-            targetId: "11111111-1111-4111-8111-111111111111",
-            evidenceId: "blurting-final-check:11111111-1111-4111-8111-111111111111",
-          }],
-          events: [],
+          legacyPayload: "ignored",
         },
       },
-    };
+    } as unknown as PendingSessionInterruption;
     const supported: PendingSessionInterruption = {
       userId,
       queuedAt: "2026-08-11T20:10:00.000Z",
@@ -181,20 +163,20 @@ describe("session interruption outbox", () => {
         totalSteps: 5,
       },
     };
-    const storedQueue = JSON.stringify([staleBroad, supported]);
+    const storedQueue = JSON.stringify([staleRetired, supported]);
     window.localStorage.setItem("yova.session-interruption-outbox.v1", storedQueue);
 
-    const sanitizedBroad = {
-      ...staleBroad,
-      interruption: { ...staleBroad.interruption },
+    const sanitizedRetired = {
+      ...staleRetired,
+      interruption: { ...staleRetired.interruption },
     };
-    delete sanitizedBroad.interruption.activityProgress;
+    delete sanitizedRetired.interruption.activityProgress;
     expect(readQueuedSessionInterruptionsForExport(userId)).toEqual({
       ok: true,
-      value: [sanitizedBroad, supported],
+      value: [sanitizedRetired, supported],
     });
     expect(JSON.parse(window.localStorage.getItem("yova.session-interruption-outbox.v1") ?? "[]"))
-      .toEqual([sanitizedBroad, supported]);
+      .toEqual([sanitizedRetired, supported]);
     expect(recordAuthenticatedSessionInterruption).not.toHaveBeenCalled();
 
     // Re-seed the legacy queue so the normal startup flush, independently of
@@ -208,62 +190,13 @@ describe("session interruption outbox", () => {
     expect(recordAuthenticatedSessionInterruption).toHaveBeenCalledTimes(2);
     expect(recordAuthenticatedSessionInterruption).toHaveBeenNthCalledWith(
       1,
-      staleBroad.userId,
-      sanitizedBroad.interruption,
+      staleRetired.userId,
+      sanitizedRetired.interruption,
     );
     expect(recordAuthenticatedSessionInterruption).toHaveBeenNthCalledWith(
       2,
       supported.userId,
       supported.interruption,
-    );
-  });
-
-  it("discards a server-classified retired marker without blocking a later exit", async () => {
-    installMemoryStorage();
-    recordAuthenticatedSessionInterruption
-      .mockRejectedValueOnce(new UnsupportedBroadRecallInterruptionError())
-      .mockResolvedValueOnce(undefined);
-    const userId = "00000000-0000-4000-8000-000000000061";
-    const first: PendingSessionInterruption = {
-      userId,
-      queuedAt: "2026-08-11T20:08:00.000Z",
-      interruption: {
-        id: "00000000-0000-4000-8000-000000000062",
-        planId: "00000000-0000-4000-8000-000000000063",
-        planSessionId: "00000000-0000-4000-8000-000000000064",
-        startedAt: "2026-08-11T20:00:00.000Z",
-        interruptedAt: "2026-08-11T20:08:00.000Z",
-        plannedMinutes: 20,
-        actualMinutes: 8,
-        completedSteps: 0,
-        totalSteps: 5,
-      },
-    };
-    const second: PendingSessionInterruption = {
-      ...first,
-      queuedAt: "2026-08-11T20:10:00.000Z",
-      interruption: {
-        ...first.interruption,
-        id: "00000000-0000-4000-8000-000000000065",
-        interruptedAt: "2026-08-11T20:10:00.000Z",
-      },
-    };
-    expect(queueSessionInterruption(first)).toBe(true);
-    expect(queueSessionInterruption(second)).toBe(true);
-
-    await expect(flushQueuedSessionInterruptions(userId)).resolves.toEqual({
-      synced: 1,
-      remaining: 0,
-    });
-    expect(recordAuthenticatedSessionInterruption).toHaveBeenNthCalledWith(
-      1,
-      first.userId,
-      first.interruption,
-    );
-    expect(recordAuthenticatedSessionInterruption).toHaveBeenNthCalledWith(
-      2,
-      second.userId,
-      second.interruption,
     );
   });
 

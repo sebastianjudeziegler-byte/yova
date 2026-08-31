@@ -6,7 +6,6 @@ import {
   STUDY_ROUTE_OUTCOME_MAX_LENGTH,
   STUDY_ROUTE_REASON_MAX_LENGTH,
 } from "@/lib/study-route/scalar-contract";
-import { blurtingStudyRouteIssue } from "@/lib/study-route/method-recipe-contract";
 
 export const STUDY_ROUTE_SCHEMA_VERSION = 1 as const;
 export const STUDY_ROUTE_ROUTER_VERSION_MAX_LENGTH = 256 as const;
@@ -497,14 +496,6 @@ export const StudyRouteSchema = z.object({
     });
   }
 
-  const blurtingIssue = blurtingStudyRouteIssue(route);
-  if (blurtingIssue) {
-    context.addIssue({
-      code: "custom",
-      path: ["approach", "visibleSupportingTechniqueId"],
-      message: blurtingIssue,
-    });
-  }
 });
 
 export type StudyRouteLifecycleStatus = z.infer<typeof StudyRouteLifecycleStatusSchema>;

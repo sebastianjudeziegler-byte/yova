@@ -1063,7 +1063,6 @@ const QUESTIONABLE_METHOD_ALIASES: Readonly<Record<
   "feynman": { kind: "recipe_alias", methodIds: ["self_explanation"] },
   "feynman technique": { kind: "recipe_alias", methodIds: ["self_explanation"] },
   "sq3r": { kind: "recipe_alias", methodIds: ["read_recall_review", "self_explanation"] },
-  "blurting": { kind: "recipe_alias", methodIds: ["retrieval_practice"] },
   "flashcards": { kind: "recipe_alias", methodIds: ["spaced_retrieval", "retrieval_practice"] },
   "flash cards": { kind: "recipe_alias", methodIds: ["spaced_retrieval", "retrieval_practice"] },
   "pretesting": { kind: "recipe_alias", methodIds: ["retrieval_practice", "self_explanation", "worked_example_fading"] },
