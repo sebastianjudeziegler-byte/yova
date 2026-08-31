@@ -29,6 +29,7 @@ test.describe("YOVA Study Profile private report compatibility", () => {
           hardestPart: null,
         },
         marketingConsent: false,
+        waitlistConsent: true,
         attribution: {
           source: "playwright-report-compatibility",
           utmCampaign: "study-profile-release-integration",

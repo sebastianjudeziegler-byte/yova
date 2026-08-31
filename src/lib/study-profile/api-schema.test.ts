@@ -24,6 +24,7 @@ describe("Study Profile API schemas", () => {
         hardestPart: null,
       },
       marketingConsent: false,
+      waitlistConsent: true,
       attribution: {
         source: "tiktok",
         referrer: "https://www.tiktok.com/",
@@ -51,6 +52,7 @@ describe("Study Profile API schemas", () => {
         hardestPart: null,
       },
       marketingConsent: false,
+      waitlistConsent: true,
     }).success).toBe(false);
   });
 
@@ -61,6 +63,7 @@ describe("Study Profile API schemas", () => {
       answers: { q1: "a" },
       metadata: { energyWindow: "morning", schoolLevel: "college" },
       marketingConsent: false,
+      waitlistConsent: true,
       scores: { starting_friction: 0 },
     }).success).toBe(false);
   });
@@ -72,7 +75,34 @@ describe("Study Profile API schemas", () => {
       answers,
       metadata: { energyWindow: "morning", schoolLevel: "college" },
       marketingConsent: true,
+      waitlistConsent: true,
     }).success).toBe(false);
+  });
+
+  it("requires explicit waitlist consent before creating a report", () => {
+    const request = {
+      email: "student@example.com",
+      visitorId: "4d621251-2df6-4fa3-985e-df63b6d27f5f",
+      ageConfirmed: true,
+      answers,
+      metadata: {
+        energyWindow: "morning",
+        schoolLevel: "college",
+        studyGoal: "upcoming_exams",
+        hardestPart: null,
+      },
+      marketingConsent: false,
+    };
+
+    expect(StudyProfileResponseRequestSchema.safeParse(request).success).toBe(false);
+    expect(StudyProfileResponseRequestSchema.safeParse({
+      ...request,
+      waitlistConsent: false,
+    }).success).toBe(false);
+    expect(StudyProfileResponseRequestSchema.safeParse({
+      ...request,
+      waitlistConsent: true,
+    }).success).toBe(true);
   });
 
   it("does not accept the retired optional free-text field", () => {
@@ -86,6 +116,7 @@ describe("Study Profile API schemas", () => {
         hardestPart: "I keep putting off the first step.",
       },
       marketingConsent: false,
+      waitlistConsent: true,
     }).success).toBe(false);
   });
 
@@ -97,6 +128,7 @@ describe("Study Profile API schemas", () => {
       answers,
       metadata: { energyWindow: "morning", schoolLevel: "college" },
       marketingConsent: false,
+      waitlistConsent: true,
     };
     const reportToken = "a".repeat(43);
 

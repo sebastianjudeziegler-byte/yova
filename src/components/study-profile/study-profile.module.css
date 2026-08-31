@@ -225,6 +225,7 @@
 .questionScreen h1,
 .metadataScreen h1,
 .patternRevealCopy h1,
+.emailGate h1,
 .emailGate h2,
 .reportHeroCopy h1,
 .sectionHeading h2,
@@ -805,8 +806,11 @@
 .freeInsight p { margin: 0; color: var(--secondary, #475069); font-size: 14px; line-height: 1.65; }
 
 .emailGate { margin-top: 14px; padding: 22px; border-radius: var(--sp-hero-radius); }
-.emailGate h2 { margin: 8px 0 5px; font-size: 30px; line-height: 1.1; }
+.emailGate h1,
+.emailGate h2 { margin: 12px 0 7px; font-size: clamp(31px, 8vw, 42px); line-height: 1.08; }
+.emailGate h1:focus { outline: none; }
 .emailGate > p { margin: 0; color: var(--muted, #667085); font-size: 14px; line-height: 1.6; }
+.lockedResultStatus { width: fit-content; padding: 7px 10px; display: inline-flex; align-items: center; gap: 7px; color: var(--blue, #2450c7); border: 1px solid rgba(36, 80, 199, .18); border-radius: 999px; background: rgba(36, 80, 199, .07); font: 700 11px/1.2 var(--font-mono, "JetBrains Mono"), monospace; letter-spacing: .07em; text-transform: uppercase; }
 .unlockList { margin: 18px 0; display: grid; gap: 9px; }
 .unlockList span { display: flex; align-items: flex-start; gap: 8px; color: var(--secondary, #475069); font-size: 13px; line-height: 1.45; }
 .unlockList svg { flex: none; color: var(--sp-success); }
@@ -814,7 +818,7 @@
 .emailInputWrap { min-height: 52px; padding: 0 14px; display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 9px; color: var(--muted, #667085); border: 1px solid rgba(11, 16, 32, .12); border-radius: 13px; background: rgba(255, 255, 255, .76); }
 .emailInputWrap:focus-within { border-color: var(--blue, #2450c7); box-shadow: 0 0 0 4px rgba(36, 80, 199, .1); }
 .emailInputWrap input { width: 100%; min-width: 0; min-height: 50px; color: var(--ink, #0b1020); border: 0; background: transparent; outline: 0; font-size: 16px; }
-.emailGate .primaryButton { width: 100%; margin-top: 16px; }
+.emailGate .primaryButton { width: 100%; margin-top: 16px; padding-block: 13px; }
 .emailNote,
 .legalNote { margin: 9px 0 0; color: var(--muted, #667085); font-size: 11px; line-height: 1.5; text-align: center; }
 .legalNote a { color: var(--secondary, #475069); }
