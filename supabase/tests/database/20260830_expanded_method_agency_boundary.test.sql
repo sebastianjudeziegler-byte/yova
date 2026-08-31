@@ -946,19 +946,32 @@ select
   fixture.plan_id,
   1,
   'Build a first model through eligibility v3',
-  'Build an accurate first mental model and keep its policy immutable.',
-  'Worked Examples',
-  'The fixture baseline is eligible for this exact v3 session.',
+  fixture.predecessor #>> '{target,desiredOutcome}',
+  fixture.predecessor #>> '{approach,visibleMethodName}',
+  fixture.predecessor #>> '{explanation,shortReason}',
   '2026-08-24T20:00:00.000Z',
-  25,
+  (fixture.predecessor #>> '{timing,activeMinutes}')::integer,
   'ready',
   pg_catalog.jsonb_build_object(
-    'learningMode', 'learn',
-    'topicIds', pg_catalog.jsonb_build_array(
-      'b74d81a4-18ae-4f12-9ec8-7f133e3e5309'
+    'learningMode', case fixture.predecessor #>> '{approach,mode}'
+      when 'learn' then 'learn'
+      when 'practice' then 'study'
+      else null
+    end,
+    'topicIds', public.study_route_active_topic_ids_v1(
+      fixture.predecessor
     ),
-    'completionEvidence', pg_catalog.jsonb_build_array(
-      'Explain the central relationship after the model is hidden'
+    'completionEvidence', (
+      select coalesce(
+        pg_catalog.jsonb_agg(
+          pg_catalog.to_jsonb(evidence.value ->> 'description')
+          order by evidence.ordinality
+        ),
+        '[]'::jsonb
+      )
+      from pg_catalog.jsonb_array_elements(
+        fixture.predecessor #> '{execution,completionEvidence}'
+      ) with ordinality as evidence(value, ordinality)
     )
   )
 from agency_v3_method_fixture as fixture;
