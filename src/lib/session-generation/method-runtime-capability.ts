@@ -24,6 +24,7 @@ export const STREAMED_TEACHING_ROUTE_METHOD_IDS = [
 export const RELIABLE_SESSION_METHOD_KEYS = [
   "learn:self_explanation",
   "learn:worked_example_fading",
+  "study:practice_problems",
   "study:retrieval_practice",
   "study:worked_example_fading",
 ] as const satisfies readonly `${SessionLearningMode}:${CoreMethodId}`[];

@@ -327,13 +327,13 @@ describe("plan generation route", () => {
         expect.objectContaining({
           ruleId: "canonical_method_selection_v1",
           result: "authorized_declaration:spaced_retrieval",
-          evidenceRefs: ["signal:memory_breakdown"],
+          evidenceRefs: ["canonical-profile:post_study_breakdown:deep_profile:q2"],
         }),
         expect.objectContaining({ ruleId: "method_runtime_capability_v1" }),
       ]),
     );
     expect(body.plan.sessions[0].studyRoute.explanation.learnerDeclarations[0])
-      .toContain("You told YOVA");
+      .toContain("gap you most often notice after studying");
   });
 
   it("routes a local-preview Study Now session from request-local Method Library preferences", async () => {
@@ -404,6 +404,115 @@ describe("plan generation route", () => {
         ]),
       },
     });
+  });
+
+  it("keeps explicit canonical agency while rollout zero suppresses method and duration personalization", async () => {
+    configureProduction();
+    vi.stubEnv("YOVA_PERSONALIZATION_ROLLOUT_PERCENT", "0");
+    const answers = Array.from({ length: 17 }, () => "");
+    answers[1] = "structured_flexibility";
+    answers[11] = "delayed_forgetting";
+    mocks.loadDurationContext.mockResolvedValueOnce({
+      ...readyDurationContext({
+        ...emptyDurationProfile(),
+        sustainableMinutes: 45,
+        evidenceRefs: {
+          ...emptyDurationProfile().evidenceRefs,
+          sustainableMinutes: ["signal:sustainable_duration"],
+        },
+      }),
+      methodEvidence: buildAuthorizedMethodDecisionEvidence({
+        answers,
+        plans: [],
+        completions: [],
+        now: new Date("2026-08-24T12:00:00.000Z"),
+      }),
+    });
+    const vocabularyMap = studyNowKnowledgeMap();
+    vocabularyMap.topics = [{
+      ...vocabularyMap.topics[0]!,
+      title: "Core biology vocabulary",
+      description: "Recall each biology term and distinguish similar definitions.",
+      status: "taught",
+      prerequisiteTopicIds: [],
+    }];
+    const { POST } = await import("@/app/api/plans/generate/route");
+
+    const response = await POST(studyNowGenerationRequest(60, {
+      goal: "Study biology vocabulary definitions from memory for tomorrow's quiz.",
+      startingContext: "I already learned the terms and need to practice retrieving them.",
+      knowledgeMap: vocabularyMap,
+    }));
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.plan.sessions[0].studyRoute).toMatchObject({
+      timing: {
+        activeMinutes: 25,
+        durationSource: "router_default",
+        hardMaximumMinutes: 60,
+      },
+      agency: {
+        controlMode: "help_me_choose",
+        selectedBy: "yova",
+      },
+      provenance: {
+        ruleTrace: expect.arrayContaining([
+          expect.objectContaining({
+            ruleId: "canonical_method_selection_v1",
+            result: expect.stringMatching(/^task_baseline:/u),
+          }),
+          expect.objectContaining({
+            ruleId: "study_route_agency_mode_controller_v1",
+            result: expect.stringMatching(/^help_me_choose:canonical_profile:/u),
+          }),
+          expect.objectContaining({
+            ruleId: "personalization_rollout_v1",
+            result: "task_mastery_v1",
+          }),
+        ]),
+      },
+    });
+    expect(body.plan.sessions[0].studyRoute.provenance.ruleTrace).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          ruleId: "duration.recommendation.sustainable_baseline",
+        }),
+      ]),
+    );
+  });
+
+  it("keeps ordinary-plan duration routing on the task baseline at rollout zero", async () => {
+    vi.stubEnv("YOVA_PERSONALIZATION_ROLLOUT_PERCENT", "0");
+    mocks.openAIConfigured = false;
+    mocks.loadDurationContext.mockResolvedValueOnce(readyDurationContext({
+      ...emptyDurationProfile(),
+      sustainableMinutes: 45,
+      evidenceRefs: {
+        ...emptyDurationProfile().evidenceRefs,
+        sustainableMinutes: ["signal:sustainable_duration"],
+      },
+    }));
+    const { POST } = await import("@/app/api/plans/generate/route");
+
+    const response = await POST(planGenerationRequest({
+      availability: [{ day: "Every day", window: "Evening", minutes: 60 }],
+    }));
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.plan.sessions[0].studyRoute.timing).toMatchObject({
+      activeMinutes: 25,
+      durationSource: "router_default",
+      hardMaximumMinutes: 60,
+    });
+    expect(body.plan.sessions[0].studyRoute.provenance.ruleTrace).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          ruleId: "duration.recommendation.sustainable_baseline",
+        }),
+      ]),
+    );
   });
 
   it("accepts one explicit eligible learner method choice and records learner authority", async () => {
@@ -663,7 +772,7 @@ describe("plan generation route", () => {
     errorLog.mockRestore();
   });
 
-  it("replaces normal-plan provider method prose with the authorized canonical route", async () => {
+  it("replaces normal-plan provider method prose with the eligible canonical route", async () => {
     configureProduction();
     mocks.loadDurationContext.mockResolvedValueOnce(methodPersonalizedContext());
     mocks.generatePlan.mockImplementationOnce(async ({ request, composition }) => (
@@ -689,29 +798,30 @@ describe("plan generation route", () => {
       draftReceipt: expect.stringMatching(/^yova-draft\.v1\./u),
     });
     expect(body.plan.sessions[0]).toMatchObject({
-      method: "Feynman Technique",
+      method: "Practice Problems",
       studyRoute: {
         target: { taskFamily: "problem_solving" },
         approach: {
-          primaryMethodId: "self_explanation",
-          visibleMethodName: "Feynman Technique",
+          mode: "practice",
+          primaryMethodId: "practice_problems",
+          visibleMethodName: "Practice Problems",
         },
         explanation: {
-          shortReason: expect.stringMatching(/^You told YOVA/u),
-          learnerDeclarations: [expect.stringMatching(/^You told YOVA/u)],
+          shortReason: expect.stringContaining("stable evidence-constrained baseline"),
+          learnerDeclarations: [],
         },
         provenance: {
-          evidenceRefs: expect.arrayContaining(["signal:memory_breakdown"]),
+          evidenceRefs: [],
           ruleTrace: expect.arrayContaining([
             expect.objectContaining({
               ruleId: "canonical_method_selection_v1",
-              result: expect.stringContaining("authorized_declaration"),
+              result: "task_baseline:practice_problems",
             }),
           ]),
         },
       },
     });
-    expect(body.plan.sessions[0].method).toBe("Feynman Technique");
+    expect(body.plan.sessions[0].method).toBe("Practice Problems");
     expect(JSON.stringify(body.plan)).not.toMatch(/provider-named technique/iu);
     expect(mocks.loadDurationContext).toHaveBeenCalledWith({
       supabase: expect.anything(),
@@ -722,8 +832,17 @@ describe("plan generation route", () => {
 
   it("routes normal local-preview composition from request-local Method Library preferences", async () => {
     const { POST } = await import("@/app/api/plans/generate/route");
+    const conceptualMap = structuredClone(planRequest.knowledgeMap!);
+    conceptualMap.topics = [{
+      ...conceptualMap.topics[0]!,
+      title: "Collision theory",
+      description: "Explain why higher temperature changes reaction rate at the particle level.",
+    }];
 
     const response = await POST(planGenerationRequest({
+      goal: "Understand why increasing temperature speeds up a chemical reaction at the particle level.",
+      startingContext: "I have not learned collision theory yet and need it explained from the beginning.",
+      knowledgeMap: conceptualMap,
       previewPreferredMethodIds: ["self_explanation"],
     }));
     const body = await response.json();
@@ -1090,6 +1209,8 @@ describe("plan generation route", () => {
 
     const response = await POST(planGenerationRequest({
       knowledgeMap: undefined,
+      goal: "Understand why increasing temperature speeds up a chemical reaction at the particle level.",
+      startingContext: "I have not learned collision theory yet and need it explained from the beginning.",
       previewPreferredMethodIds: ["self_explanation"],
     }));
     const body = await response.json();

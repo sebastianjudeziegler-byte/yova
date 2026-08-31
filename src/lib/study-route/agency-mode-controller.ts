@@ -7,8 +7,11 @@ import {
   type CoreMethodId,
 } from "@/lib/learning/method-catalog";
 import {
-  eligibleMethodIdsFor,
+  eligibleMethodIdsForPolicyVersion,
+  LEGACY_METHOD_ELIGIBILITY_POLICY_VERSION,
   METHOD_ELIGIBILITY_POLICY_VERSION,
+  METHOD_ELIGIBILITY_POLICY_VERSIONS,
+  type MethodEligibilityPolicyVersion,
 } from "@/lib/learning/method-eligibility";
 import {
   CanonicalLearnerProfileSchema,
@@ -162,6 +165,11 @@ export type AgencyOtherMethodOption = DeepReadonly<{
   visibleMethodName: string;
 }>;
 
+export type ImmutableStudyRouteMethodEligibility = DeepReadonly<{
+  policyVersion: MethodEligibilityPolicyVersion;
+  methodIds: CoreMethodId[];
+}>;
+
 /**
  * Converts the persisted v1 spelling to the learner-facing agency contract.
  * A historical unknown value requires explicit confirmation. Missing
@@ -258,6 +266,7 @@ export function boundedAgencyMethodAlternatives({
   orderedMethodIds,
   selectedMethodId,
   allowedMethodIds,
+  eligibilityPolicyVersion = METHOD_ELIGIBILITY_POLICY_VERSION,
 }: {
   route: StudyRoute;
   orderedMethodIds?: readonly CoreMethodId[];
@@ -268,11 +277,16 @@ export function boundedAgencyMethodAlternatives({
    * not introduce a method that the predecessor did not expose.
    */
   allowedMethodIds?: readonly CoreMethodId[];
+  /** Immutable successors keep the predecessor's exact eligibility version. */
+  eligibilityPolicyVersion?: MethodEligibilityPolicyVersion;
 }): StudyRouteAlternative[] {
   const route = StudyRouteSchema.parse(routeInput);
   const context = methodContext(route);
   const allowed = allowedMethodIds ? new Set(allowedMethodIds) : null;
-  const eligible = eligibleMethodIdsFor(context).filter((methodId) => (
+  const eligible = eligibleMethodIdsForPolicyVersion(
+    context,
+    eligibilityPolicyVersion,
+  ).filter((methodId) => (
     !allowed || allowed.has(methodId)
   ));
   const eligibleSet = new Set(eligible);
@@ -340,15 +354,20 @@ export function resolveAgencyMethodRequest({
   route: routeInput,
   requestedMethod,
   allowedMethodIds,
+  eligibilityPolicyVersion = METHOD_ELIGIBILITY_POLICY_VERSION,
 }: {
   route: StudyRoute;
   requestedMethod: string;
   allowedMethodIds?: readonly CoreMethodId[];
+  eligibilityPolicyVersion?: MethodEligibilityPolicyVersion;
 }): AgencyMethodRequestResolution {
   const route = StudyRouteSchema.parse(routeInput);
   const requestedLabel = z.string().trim().min(1).max(100).parse(requestedMethod);
   const context = methodContext(route);
-  const eligible = eligibleMethodIdsFor(context).filter((methodId) => (
+  const eligible = eligibleMethodIdsForPolicyVersion(
+    context,
+    eligibilityPolicyVersion,
+  ).filter((methodId) => (
     methodRuntimeCapabilityFor({
       methodId,
       ...context,
@@ -453,10 +472,12 @@ export function resolveBoundedOtherMethodRequest({
   if (mode !== "ill_customize") {
     throw new Error("Other methods is available only when the learner chose I'll Customize.");
   }
+  const eligibility = immutableStudyRouteMethodEligibility(route);
   return resolveAgencyMethodRequest({
     route,
     requestedMethod,
-    allowedMethodIds: immutableRouteEligibleMethodIds(route),
+    allowedMethodIds: eligibility.methodIds,
+    eligibilityPolicyVersion: eligibility.policyVersion,
   });
 }
 
@@ -886,11 +907,24 @@ function methodContext(route: StudyRoute) {
   };
 }
 
-function immutableRouteEligibleMethodIds(route: StudyRoute) {
-  const trace = route.provenance.ruleTrace.findLast((entry) => (
-    entry.ruleId === METHOD_ELIGIBILITY_POLICY_VERSION
+export function immutableStudyRouteMethodEligibility(
+  routeInput: StudyRoute,
+): ImmutableStudyRouteMethodEligibility {
+  const route = StudyRouteSchema.parse(routeInput);
+  const traces = route.provenance.ruleTrace.filter((entry) => (
+    METHOD_ELIGIBILITY_POLICY_VERSIONS.includes(
+      entry.ruleId as MethodEligibilityPolicyVersion,
+    )
   ));
-  if (!trace) {
+  const policyVersions = unique(traces.map((entry) => entry.ruleId));
+  if (policyVersions.length > 1) {
+    throw new Error("The immutable route contains conflicting eligibility policy versions.");
+  }
+  const policyVersion = policyVersions[0] as MethodEligibilityPolicyVersion | undefined;
+  const trace = policyVersion
+    ? traces.findLast((entry) => entry.ruleId === policyVersion)
+    : null;
+  if (!policyVersion || !trace) {
     throw new Error("Other methods requires the immutable route eligibility decision.");
   }
   const methodIds = trace.result.split(",").filter(Boolean);
@@ -903,14 +937,42 @@ function immutableRouteEligibleMethodIds(route: StudyRoute) {
     throw new Error("The immutable route eligibility decision is invalid.");
   }
   const authorized = methodIds as CoreMethodId[];
-  const current = eligibleMethodIdsFor(methodContext(route));
+  const current = eligibleMethodIdsForPolicyVersion(
+    methodContext(route),
+    policyVersion,
+  );
   if (
     authorized.length !== current.length
     || authorized.some((methodId, index) => methodId !== current[index])
   ) {
     throw new Error("The immutable route eligibility decision is stale for the current policy.");
   }
-  return authorized;
+  return deepFreeze({ policyVersion, methodIds: authorized });
+}
+
+/**
+ * Historical routes issued before eligibility provenance may still execute an
+ * exact alternative already stored on the route. They use the deployed v2
+ * policy that was current when those routes were created; only Other methods
+ * requires a present immutable trace. A present trace is always validated and
+ * can never fall back after a conflict or stale-cohort failure.
+ */
+export function storedAgencyChoiceEligibilityPolicyVersion(
+  routeInput: StudyRoute,
+): MethodEligibilityPolicyVersion {
+  const route = StudyRouteSchema.parse(routeInput);
+  const hasVersionedTrace = route.provenance.ruleTrace.some((entry) => (
+    METHOD_ELIGIBILITY_POLICY_VERSIONS.includes(
+      entry.ruleId as MethodEligibilityPolicyVersion,
+    )
+  ));
+  return hasVersionedTrace
+    ? immutableStudyRouteMethodEligibility(route).policyVersion
+    : LEGACY_METHOD_ELIGIBILITY_POLICY_VERSION;
+}
+
+function immutableRouteEligibleMethodIds(route: StudyRoute) {
+  return immutableStudyRouteMethodEligibility(route).methodIds;
 }
 
 function methodRequestResult({

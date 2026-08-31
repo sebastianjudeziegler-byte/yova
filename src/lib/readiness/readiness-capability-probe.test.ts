@@ -17,6 +17,7 @@ describe("signed-in generation release capability probe", () => {
       planSessionsRoutePointer: true,
       requiredRouteRpcs: true,
       expandedMethodAgencyBoundary: true,
+      methodEligibilityV3Boundary: true,
     }));
 
     await expect(probeSignedInGenerationDatabase({
@@ -29,7 +30,7 @@ describe("signed-in generation release capability probe", () => {
     });
 
     expect(fetchImpl).toHaveBeenCalledWith(
-      "https://project.supabase.co/rest/v1/rpc/signed_in_generation_readiness_v2",
+      "https://project.supabase.co/rest/v1/rpc/signed_in_generation_readiness_v3",
       expect.objectContaining({
         method: "POST",
         body: "{}",
@@ -68,6 +69,7 @@ describe("signed-in generation release capability probe", () => {
       planSessionsRoutePointer: true,
       requiredRouteRpcs: true,
       expandedMethodAgencyBoundary: true,
+      methodEligibilityV3Boundary: true,
     }));
 
     await probeSignedInGenerationDatabase({
@@ -106,12 +108,14 @@ describe("signed-in generation release capability probe", () => {
         planSessionsRoutePointer: true,
         requiredRouteRpcs: false,
         expandedMethodAgencyBoundary: false,
+        methodEligibilityV3Boundary: false,
       })),
     });
     expect(partial.passed).toBe(false);
     expect(partial.detail).toContain("StudyRoute table/columns");
     expect(partial.detail).toContain("StudyRoute activation/cache RPCs");
     expect(partial.detail).toContain("expanded-method agency RPC boundary");
+    expect(partial.detail).toContain("method-eligibility v3 boundary");
 
     const contradictory = await probeSignedInGenerationDatabase({
       supabaseUrl: "https://project.supabase.co",
@@ -123,6 +127,7 @@ describe("signed-in generation release capability probe", () => {
         planSessionsRoutePointer: true,
         requiredRouteRpcs: true,
         expandedMethodAgencyBoundary: true,
+        methodEligibilityV3Boundary: true,
       })),
     });
     expect(contradictory.passed).toBe(false);
@@ -240,8 +245,12 @@ describe("signed-in generation readiness migration", () => {
     resolve(process.cwd(), "supabase/migrations/202608300001_signed_in_generation_readiness.sql"),
     "utf8",
   ).toLowerCase();
-  const currentMigration = readFileSync(
+  const expandedMethodMigration = readFileSync(
     resolve(process.cwd(), "supabase/migrations/202608300003_expanded_method_agency_boundary.sql"),
+    "utf8",
+  ).toLowerCase();
+  const currentMigration = readFileSync(
+    resolve(process.cwd(), "supabase/migrations/202608310003_method_eligibility_v3.sql"),
     "utf8",
   ).toLowerCase();
 
@@ -265,20 +274,31 @@ describe("signed-in generation readiness migration", () => {
       expect(baseMigration).toContain(capability);
     }
 
-    expect(currentMigration).toContain(
+    expect(expandedMethodMigration).toContain(
       "create or replace function public.signed_in_generation_readiness_v2()",
     );
-    expect(currentMigration).toContain("'contractversion', '202608300003'");
-    expect(currentMigration).toContain("'expandedmethodagencyboundary'");
-    expect(currentMigration).toContain(
+    expect(expandedMethodMigration).toContain("'contractversion', '202608300003'");
+    expect(expandedMethodMigration).toContain("'expandedmethodagencyboundary'");
+    expect(expandedMethodMigration).toContain(
       "grant execute on function public.signed_in_generation_readiness_v2()\n"
       + "to service_role",
     );
+
+    expect(currentMigration).toContain(
+      "create or replace function public.signed_in_generation_readiness_v3()",
+    );
+    expect(currentMigration).toContain("base_readiness := public.signed_in_generation_readiness_v2()");
+    expect(currentMigration).toContain("'contractversion', '202608310003'");
+    expect(currentMigration).toContain("'methodeligibilityv3boundary'");
+    expect(currentMigration).toContain(
+      "grant execute on function public.signed_in_generation_readiness_v3()\n"
+      + "to service_role",
+    );
     const readinessStart = currentMigration.indexOf(
-      "create or replace function public.signed_in_generation_readiness_v2()",
+      "create or replace function public.signed_in_generation_readiness_v3()",
     );
     const readinessEnd = currentMigration.indexOf(
-      "revoke all on function public.signed_in_generation_readiness_v2()",
+      "revoke all on function public.signed_in_generation_readiness_v3()",
       readinessStart,
     );
     expect(readinessStart).toBeGreaterThan(-1);

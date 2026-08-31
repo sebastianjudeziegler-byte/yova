@@ -6,7 +6,16 @@ import {
 } from "@/lib/learning/method-catalog";
 import { expandedMethodIsEnabled } from "@/lib/learning/method-expansion-rollout";
 
-export const METHOD_ELIGIBILITY_POLICY_VERSION = "method_eligibility_v2" as const;
+export const LEGACY_METHOD_ELIGIBILITY_POLICY_VERSION =
+  "method_eligibility_v2" as const;
+export const METHOD_ELIGIBILITY_POLICY_VERSION = "method_eligibility_v3" as const;
+export const METHOD_ELIGIBILITY_POLICY_VERSIONS = [
+  LEGACY_METHOD_ELIGIBILITY_POLICY_VERSION,
+  METHOD_ELIGIBILITY_POLICY_VERSION,
+] as const;
+
+export type MethodEligibilityPolicyVersion =
+  (typeof METHOD_ELIGIBILITY_POLICY_VERSIONS)[number];
 
 export const KNOWLEDGE_STAGES = [
   "novice",
@@ -16,7 +25,7 @@ export const KNOWLEDGE_STAGES = [
 
 export type KnowledgeStage = (typeof KNOWLEDGE_STAGES)[number];
 
-const METHOD_ELIGIBILITY_MATRIX: Readonly<
+const METHOD_ELIGIBILITY_MATRIX_V2: Readonly<
   Record<LearningTaskType, Readonly<Record<KnowledgeStage, readonly CoreMethodId[]>>>
 > = {
   memorization: {
@@ -56,6 +65,17 @@ const METHOD_ELIGIBILITY_MATRIX: Readonly<
   },
 };
 
+const METHOD_ELIGIBILITY_MATRIX_V3: typeof METHOD_ELIGIBILITY_MATRIX_V2 = {
+  ...METHOD_ELIGIBILITY_MATRIX_V2,
+  problem_solving: {
+    ...METHOD_ELIGIBILITY_MATRIX_V2.problem_solving,
+    novice: [
+      ...METHOD_ELIGIBILITY_MATRIX_V2.problem_solving.novice,
+      "practice_problems",
+    ],
+  },
+};
+
 const TEACHING_FIRST_METHODS = new Set<CoreMethodId>([
   "self_explanation",
   "worked_example_fading",
@@ -66,6 +86,23 @@ const TEACHING_FIRST_METHODS = new Set<CoreMethodId>([
   "scaffolded_coding",
 ]);
 
+/**
+ * Recipes whose base fidelity contract begins with an unsupported learner
+ * attempt, retrieval, discrimination, or trace. A Practice route must never
+ * silently prepend a teaching model merely because the selected method needs
+ * one; that would contradict the route promise shown on every surface.
+ */
+const PRACTICE_FIRST_METHODS = new Set<CoreMethodId>([
+  "retrieval_practice",
+  "spaced_retrieval",
+  "interleaved_practice",
+  "concept_mapping",
+  "practice_problems",
+  "retrieval_based_outlining",
+  "scaffolded_coding",
+  "practice_test_error_repair",
+]);
+
 export function methodFitsSessionMode(
   methodId: CoreMethodId,
   taskType: LearningTaskType,
@@ -73,7 +110,7 @@ export function methodFitsSessionMode(
 ) {
   if (methodId === "pretesting") return learningMode === "learn";
   if (methodId === "practice_problems") return learningMode === "study";
-  if (learningMode === "study") return true;
+  if (learningMode === "study") return PRACTICE_FIRST_METHODS.has(methodId);
   if (taskType === "memorization") return methodId === "retrieval_practice";
   return TEACHING_FIRST_METHODS.has(methodId);
 }
@@ -91,11 +128,37 @@ export function eligibleMethodIdsFor({
   knowledgeStage: KnowledgeStage;
   learningMode: SessionLearningMode;
 }): CoreMethodId[] {
-  const eligible = METHOD_ELIGIBILITY_MATRIX[taskType][knowledgeStage].filter((methodId) => (
+  return eligibleMethodIdsForPolicyVersion(
+    { taskType, knowledgeStage, learningMode },
+    METHOD_ELIGIBILITY_POLICY_VERSION,
+  );
+}
+
+export function eligibleMethodIdsForPolicyVersion(
+  {
+    taskType,
+    knowledgeStage,
+    learningMode,
+  }: {
+    taskType: LearningTaskType;
+    knowledgeStage: KnowledgeStage;
+    learningMode: SessionLearningMode;
+  },
+  policyVersion: MethodEligibilityPolicyVersion,
+): CoreMethodId[] {
+  const matrix = policyVersion === LEGACY_METHOD_ELIGIBILITY_POLICY_VERSION
+    ? METHOD_ELIGIBILITY_MATRIX_V2
+    : METHOD_ELIGIBILITY_MATRIX_V3;
+  const eligible = matrix[taskType][knowledgeStage].filter((methodId) => (
     expandedMethodIsEnabled(methodId)
     &&
     CORE_METHOD_CATALOG[methodId].taskTypes.includes(taskType)
-    && methodFitsSessionMode(methodId, taskType, learningMode)
+    && methodFitsSessionModeForPolicyVersion(
+      methodId,
+      taskType,
+      learningMode,
+      policyVersion,
+    )
   ));
   if (eligible.length > 0) return eligible;
 
@@ -104,19 +167,40 @@ export function eligibleMethodIdsFor({
   // Learn mode returns to the task's novice teaching recipe rather than
   // falling through to a practice-only method.
   const teachingFallback = learningMode === "learn"
-    ? METHOD_ELIGIBILITY_MATRIX[taskType].novice.filter((methodId) => (
+    ? matrix[taskType].novice.filter((methodId) => (
       expandedMethodIsEnabled(methodId)
       &&
       CORE_METHOD_CATALOG[methodId].taskTypes.includes(taskType)
-      && methodFitsSessionMode(methodId, taskType, learningMode)
+      && methodFitsSessionModeForPolicyVersion(
+        methodId,
+        taskType,
+        learningMode,
+        policyVersion,
+      )
     ))
     : [];
   if (teachingFallback.length === 0) {
     throw new Error(
-      `No method is eligible for ${taskType}/${knowledgeStage}/${learningMode} under ${METHOD_ELIGIBILITY_POLICY_VERSION}.`,
+      `No method is eligible for ${taskType}/${knowledgeStage}/${learningMode} under ${policyVersion}.`,
     );
   }
   return teachingFallback;
+}
+
+function methodFitsSessionModeForPolicyVersion(
+  methodId: CoreMethodId,
+  taskType: LearningTaskType,
+  learningMode: SessionLearningMode,
+  policyVersion: MethodEligibilityPolicyVersion,
+) {
+  if (policyVersion === METHOD_ELIGIBILITY_POLICY_VERSION) {
+    return methodFitsSessionMode(methodId, taskType, learningMode);
+  }
+  if (methodId === "pretesting") return learningMode === "learn";
+  if (methodId === "practice_problems") return learningMode === "study";
+  if (learningMode === "study") return true;
+  if (taskType === "memorization") return methodId === "retrieval_practice";
+  return TEACHING_FIRST_METHODS.has(methodId);
 }
 
 export function isMethodEligibleFor({

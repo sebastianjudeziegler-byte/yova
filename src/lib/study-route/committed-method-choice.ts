@@ -16,8 +16,10 @@ import {
   studyRouteToLegacySessionProjection,
 } from "@/lib/study-route/adapters";
 import {
+  immutableStudyRouteMethodEligibility,
   isAuthorizedOtherMethodChoice,
   isExactStoredAgencyMethodChoice,
+  storedAgencyChoiceEligibilityPolicyVersion,
 } from "@/lib/study-route/agency-mode-controller";
 import {
   integrateStudyRouteMethodDecision,
@@ -296,8 +298,12 @@ export function createCommittedMethodChoiceSuccessor({
       methodId,
     ].join(":");
     const context = methodSelectionContextForStudyRoute(previousRoute);
+    const eligibilityPolicyVersion = otherEligibleChoice
+      ? immutableStudyRouteMethodEligibility(previousRoute).policyVersion
+      : storedAgencyChoiceEligibilityPolicyVersion(previousRoute);
     const selection = selectCanonicalStudyMethod({
       ...context,
+      eligibilityPolicyVersion,
       learnerChoice: {
         methodId,
         evidenceRef: learnerChoiceEvidenceRef,

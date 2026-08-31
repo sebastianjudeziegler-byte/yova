@@ -69,7 +69,7 @@ const LessonRequestSchema = z.discriminatedUnion("action", [
 ]);
 
 export async function POST(request: Request) {
-  const requestId = crypto.randomUUID();
+  const requestId = lessonRequestId(request);
   const developmentPreview = isDevelopmentPreviewRequest(request);
   const supabase = isSupabaseConfigured() ? await createSupabaseServerClient() : null;
   const { data: { user }, error: userError } = supabase
@@ -250,6 +250,7 @@ export async function POST(request: Request) {
         await settleSuccessfulLessonClaim(supabase, aiUsageClaimId, requestId);
         controller.enqueue(encodeLessonStreamEvent({
           type: "lesson.complete",
+          deliveryMode: "generated",
           elapsedMs: result.elapsedMs,
           latencyToFirstTokenMs: result.latencyToFirstTokenMs,
           inputTokens: result.inputTokens,
@@ -315,6 +316,7 @@ export async function POST(request: Request) {
             }));
             controller.enqueue(encodeLessonStreamEvent({
               type: "lesson.complete",
+              deliveryMode: "bounded_fallback",
               elapsedMs,
               latencyToFirstTokenMs: failure?.latencyToFirstTokenMs ?? null,
               inputTokens: failure?.inputTokens ?? 0,
@@ -469,6 +471,7 @@ function boundedLessonFallbackResponse({
       controller.enqueue(encodeLessonStreamEvent({ type: "lesson.replace", content }));
       controller.enqueue(encodeLessonStreamEvent({
         type: "lesson.complete",
+        deliveryMode: "bounded_fallback",
         elapsedMs: 0,
         latencyToFirstTokenMs: null,
         inputTokens: 0,
@@ -488,8 +491,8 @@ function boundedLessonFallbackResponse({
     failedValidator: fallbackReason === "allowance_exhausted"
       ? null
       : validatorForLessonFailure(failureKind),
-    repairAttempted: true,
-    repairSucceeded: true,
+    repairAttempted: false,
+    repairSucceeded: null,
     elapsedMs: 0,
     attempts: 0,
     inputTokens: 0,
@@ -531,6 +534,12 @@ function validatorForLessonFailure(
     return "lesson_provider_request";
   }
   return "lesson_stream";
+}
+
+function lessonRequestId(request: Request) {
+  const candidate = request.headers.get("X-Yova-Request-Id")?.trim() ?? "";
+  const parsed = z.string().uuid().safeParse(candidate);
+  return parsed.success ? parsed.data : crypto.randomUUID();
 }
 
 function recordGenerationObservationBestEffort(

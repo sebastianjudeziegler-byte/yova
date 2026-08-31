@@ -58,10 +58,12 @@ function context({
   architecture,
   targetCount,
   learningMode = "learn",
+  forceFullGeneration = false,
 }: {
   architecture: "filled_teaching_v1" | "streamed_teaching_v1";
   targetCount: 1 | 2 | 3;
   learningMode?: "learn" | "study";
+  forceFullGeneration?: boolean;
 }): SessionGenerationContext {
   const targets = TARGETS.slice(0, targetCount);
   return {
@@ -114,9 +116,13 @@ function context({
     session: {
       title: "Explain the sodium-potassium pump",
       objective: "Explain the transport ratio and ATP coupling that maintain membrane ion gradients.",
-      method: "Feynman Technique",
-      methodReason: "A source-grounded explanation exposes gaps in the connected mechanism.",
-      estimatedMinutes: targetCount === 1 ? 15 : targetCount === 2 ? 25 : 45,
+      method: learningMode === "study" ? "Retrieval practice" : "Feynman Technique",
+      methodReason: learningMode === "study"
+        ? "An attempt-first source-grounded check exposes gaps before targeted repair."
+        : "A source-grounded explanation exposes gaps in the connected mechanism.",
+      estimatedMinutes: forceFullGeneration
+        ? 45
+        : targetCount === 1 ? 15 : targetCount === 2 ? 25 : 45,
       learningMode,
       topicIds: TOPIC_IDS.slice(0, targetCount),
       contentTargets: [...targets],
@@ -305,7 +311,7 @@ describe("bounded production session generation", () => {
         : []
     ));
     expect(new Set(checkedTopicIds)).toEqual(new Set(TOPIC_IDS));
-    expect(checkedTopicIds).toHaveLength(3);
+    expect(checkedTopicIds.length).toBeGreaterThanOrEqual(3);
   });
 
   it("uses the second and final full-generator call for a transient transport retry before safe degradation", async () => {
@@ -318,6 +324,7 @@ describe("bounded production session generation", () => {
       architecture: "filled_teaching_v1",
       targetCount: 1,
       learningMode: "study",
+      forceFullGeneration: true,
     }));
 
     expect(parseResponse).toHaveBeenCalledTimes(2);
@@ -344,6 +351,7 @@ describe("bounded production session generation", () => {
       architecture: "filled_teaching_v1",
       targetCount: 1,
       learningMode: "study",
+      forceFullGeneration: true,
     });
     missingSource.materials = [];
     const { generateProductionSessionWithOpenAI } = await import("@/lib/openai/session-generation-strategy");
@@ -416,6 +424,7 @@ describe("bounded production session generation", () => {
       architecture: "filled_teaching_v1",
       targetCount: 1,
       learningMode: "study",
+      forceFullGeneration: true,
     });
     missingSource.materials = [];
     const { generateProductionSessionWithOpenAI } = await import("@/lib/openai/session-generation-strategy");

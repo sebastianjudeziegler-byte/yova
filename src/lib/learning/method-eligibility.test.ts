@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { CORE_METHOD_CATALOG, LEARNING_TASK_TYPES } from "@/lib/learning/method-catalog";
+import { methodFidelityContractForPrompt } from "@/lib/learning/method-fidelity";
 import {
   eligibleMethodIdsFor,
+  eligibleMethodIdsForPolicyVersion,
   isMethodEligibleFor,
   KNOWLEDGE_STAGES,
+  LEGACY_METHOD_ELIGIBILITY_POLICY_VERSION,
   METHOD_ELIGIBILITY_POLICY_VERSION,
   methodFitsSessionMode,
 } from "@/lib/learning/method-eligibility";
@@ -40,7 +43,41 @@ describe("canonical method eligibility", () => {
       taskType: "problem_solving",
       knowledgeStage: "novice",
       learningMode: "study",
-    })).toEqual(["worked_example_fading", "self_explanation"]);
+    })).toEqual(["practice_problems"]);
+  });
+
+  it("never assigns a teaching-first recipe to a Practice route", () => {
+    for (const taskType of LEARNING_TASK_TYPES) {
+      for (const knowledgeStage of KNOWLEDGE_STAGES) {
+        const eligible = eligibleMethodIdsFor({
+          taskType,
+          knowledgeStage,
+          learningMode: "study",
+        });
+
+        expect(eligible, `${taskType}/${knowledgeStage}`).not.toContain("self_explanation");
+        expect(eligible, `${taskType}/${knowledgeStage}`).not.toContain("worked_example_fading");
+        expect(eligible, `${taskType}/${knowledgeStage}`).not.toContain("read_recall_review");
+        expect(eligible, `${taskType}/${knowledgeStage}`).not.toContain("pretesting");
+        expect(eligible.every((methodId) => (
+          methodFidelityContractForPrompt(methodId, "study").orderedPhases[0] !== "model"
+        )), `${taskType}/${knowledgeStage} should begin with a learner attempt`).toBe(true);
+      }
+    }
+  });
+
+  it("freezes the deployed v2 cohort while issuing Practice-first v3 routes", () => {
+    const context = {
+      taskType: "problem_solving" as const,
+      knowledgeStage: "novice" as const,
+      learningMode: "study" as const,
+    };
+
+    expect(eligibleMethodIdsForPolicyVersion(
+      context,
+      LEGACY_METHOD_ELIGIBILITY_POLICY_VERSION,
+    )).toEqual(["worked_example_fading", "self_explanation"]);
+    expect(eligibleMethodIdsFor(context)).toEqual(["practice_problems"]);
   });
 
   it("keeps first instruction on teaching-capable methods", () => {
@@ -69,6 +106,7 @@ describe("canonical method eligibility", () => {
   });
 
   it("exposes a stable version for route provenance", () => {
-    expect(METHOD_ELIGIBILITY_POLICY_VERSION).toBe("method_eligibility_v2");
+    expect(LEGACY_METHOD_ELIGIBILITY_POLICY_VERSION).toBe("method_eligibility_v2");
+    expect(METHOD_ELIGIBILITY_POLICY_VERSION).toBe("method_eligibility_v3");
   });
 });

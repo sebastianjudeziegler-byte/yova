@@ -198,6 +198,26 @@ describe("generation personalization", () => {
     expect(disabled).not.toHaveProperty("preferredMethodIds");
   });
 
+  it("projects the same canonical control preference that existing profiles show", () => {
+    const legacyAnswers = Array.from({ length: 17 }, () => "");
+    legacyAnswers[1] = "structured_flexibility";
+
+    const projected = resolvePersonalizationForGeneration({
+      answers: legacyAnswers,
+      completions: [],
+      interruptions: [],
+      plans: [],
+    });
+
+    expect(projected.canonicalProfile?.signals).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        signalId: "control_mode",
+        value: "help_me_choose",
+        sourceQuestionId: "onboarding:q2",
+      }),
+    ]));
+  });
+
   it("does not let a paused signal choose a method", () => {
     const context = personalization();
     context.methodTie.signals[0]!.paused = true;

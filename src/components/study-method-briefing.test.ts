@@ -73,11 +73,11 @@ describe("StudyMethodBriefing", () => {
     expect(html).toContain("How surface currents move warm water");
     expect(html).toContain("How deep currents return colder water");
     expect(html).toContain("Explain the heat-transfer relationship without support");
-    expect(html).toContain("Feynman Technique");
-    expect(html).toContain("Explain an idea in plain language");
-    expect(html).toContain(session.methodReason);
-    expect(html).toContain("Study one concise explanation or example");
-    expect(html).toContain("Compare with the source, repair the explanation, then teach it back again");
+    expect(html).toContain("Concept Mapping");
+    expect(html).toContain("Retrieve the important concepts");
+    expect(html).not.toContain(session.methodReason);
+    expect(html).toContain("Retrieve the key concepts before reopening the source");
+    expect(html).toContain("Repair unsupported or missing links");
     expect(html).toContain("outside source remains the source of truth");
     expect(html).toContain("counts as practice, not proof of topic mastery");
   });

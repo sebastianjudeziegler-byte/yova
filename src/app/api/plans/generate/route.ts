@@ -64,6 +64,7 @@ import {
 } from "@/lib/server/plan-draft-receipt";
 import { loadAuthorizedNormalDurationContext } from "@/lib/study-route/duration-context-server";
 import { NORMAL_STUDY_DURATION_LEVELS } from "@/lib/study-route/duration-precedence";
+import { buildAuthorizedNormalDurationProfile } from "@/lib/study-route/duration-signals";
 import { integrateInitialPlanMethodRoutes } from "@/lib/study-route/initial-plan-method-routing";
 import { resolveStudyRouteAgencyMode } from "@/lib/study-route/agency-mode-controller";
 import { methodSelectionContextForStudyRoute } from "@/lib/study-route/method-plan-integration";
@@ -575,10 +576,14 @@ export async function POST(request: Request) {
             ? { supabase, authenticatedUserId: user.id, now: studyNowStartedAt }
             : { now: studyNowStartedAt },
       );
+      const rolloutDecision = personalizationRolloutForNewRoute({
+        authenticatedUserId: user?.id ?? null,
+        developmentPreview,
+      });
       const hardMaximumMinutes = planRequest.availability[0]!.minutes;
       const durationDecision = reconcileStudyNowDuration({
         preliminaryPlan,
-        context: durationContext,
+        context: durationContextForRollout(durationContext, rolloutDecision),
         scheduledWindow: studyDayWindowForInstant(studyNowStartedAt, planRequest.timeZone),
         hardMaximumMinutes,
         buildPlan: (decision) => generatePreviewPlan(
@@ -604,10 +609,7 @@ export async function POST(request: Request) {
         planRequest,
         context: durationContext,
         developmentPreview,
-        rolloutDecision: personalizationRolloutForNewRoute({
-          authenticatedUserId: user?.id ?? null,
-          developmentPreview,
-        }),
+        rolloutDecision,
       });
       const focusedPlan = generatePreviewPlan(
         planRequest,
@@ -666,6 +668,10 @@ export async function POST(request: Request) {
   }
 
   const normalPlanNow = new Date(startedAt);
+  const normalPlanRolloutDecision = personalizationRolloutForNewRoute({
+    authenticatedUserId: user?.id ?? null,
+    developmentPreview,
+  });
   let initialPlanContext: Awaited<ReturnType<typeof loadAuthorizedNormalDurationContext>>;
   let normalPlanComposition: ReturnType<typeof composeNormalPlanEnvelopes>;
   try {
@@ -685,11 +691,10 @@ export async function POST(request: Request) {
         intent: planRequest.learningIntent,
         basis: resolvedApproach.reason,
       },
-      durationContext: {
-        profileVersion: initialPlanContext.profileVersion,
-        profile: initialPlanContext.profile,
-        recentOutcomes: initialPlanContext.recentOutcomes,
-      },
+      durationContext: durationContextForRollout(
+        initialPlanContext,
+        normalPlanRolloutDecision,
+      ),
       now: normalPlanNow,
     });
   } catch (error) {
@@ -705,10 +710,7 @@ export async function POST(request: Request) {
       developmentPreview,
     ),
     observedEvidence: initialPlanContext.methodEvidence.observedEvidence,
-    rolloutDecision: personalizationRolloutForNewRoute({
-      authenticatedUserId: user?.id ?? null,
-      developmentPreview,
-    }),
+    rolloutDecision: normalPlanRolloutDecision,
   };
   const buildFixedPlan = (fill: unknown) => buildNormalPlanFromFixedEnvelope({
     request: planRequest,
@@ -1110,6 +1112,26 @@ function personalizationRolloutForNewRoute({
     subjectKey: authenticatedUserId
       ?? (developmentPreview ? "development_preview" : null),
   });
+}
+
+function durationContextForRollout(
+  context: Pick<
+    Awaited<ReturnType<typeof loadAuthorizedNormalDurationContext>>,
+    "profile" | "profileVersion" | "recentOutcomes"
+  >,
+  decision: PersonalizationRolloutDecision,
+) {
+  const routedInputs = personalizationInputsForRollout({
+    decision,
+    personalization: context.profile,
+    observedEvidence: context.recentOutcomes,
+  });
+  return {
+    profileVersion: context.profileVersion,
+    profile: routedInputs.personalization
+      ?? buildAuthorizedNormalDurationProfile([]),
+    recentOutcomes: routedInputs.observedEvidence,
+  };
 }
 
 async function reliableDraftResponse(

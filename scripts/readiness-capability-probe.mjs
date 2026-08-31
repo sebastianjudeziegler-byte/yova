@@ -1,6 +1,6 @@
-export const SIGNED_IN_GENERATION_CONTRACT_VERSION = "202608300003";
+export const SIGNED_IN_GENERATION_CONTRACT_VERSION = "202608310003";
 
-const PROBE_RPC = "signed_in_generation_readiness_v2";
+const PROBE_RPC = "signed_in_generation_readiness_v3";
 export const STUDY_PROFILE_PUBLIC_CONTRACT_VERSION = "202608310002";
 
 const STUDY_PROFILE_PROBE_RPC = "study_profile_public_readiness_v1";
@@ -67,13 +67,15 @@ export async function probeSignedInGenerationDatabase({
     && payload.studyRoutesSchema === true
     && payload.planSessionsRoutePointer === true
     && payload.requiredRouteRpcs === true
-    && payload.expandedMethodAgencyBoundary === true;
+    && payload.expandedMethodAgencyBoundary === true
+    && payload.methodEligibilityV3Boundary === true;
   if (!completeContract) {
     const missing = [
       ["studyRoutesSchema", "StudyRoute table/columns"],
       ["planSessionsRoutePointer", "plan-session route pointer"],
       ["requiredRouteRpcs", "StudyRoute activation/cache RPCs"],
       ["expandedMethodAgencyBoundary", "expanded-method agency RPC boundary"],
+      ["methodEligibilityV3Boundary", "method-eligibility v3 boundary"],
     ]
       .filter(([key]) => payload[key] !== true)
       .map(([, label]) => label);

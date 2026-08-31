@@ -160,6 +160,7 @@ import { CommittedMethodChoiceResponseSchema } from "@/lib/study-route/committed
 import { explainStudyRouteDuration } from "@/lib/study-route/duration-explanation";
 import { NORMAL_STUDY_DURATION_LEVELS } from "@/lib/study-route/duration-levels";
 import {
+  resolveExecutedStudyRouteSessionContract,
   resolveStudyRouteSessionContract,
   selectSessionActiveMinutes,
   selectSessionLearningMode,
@@ -354,6 +355,11 @@ import {
   type SessionAdjustment,
 } from "@/lib/session-generation/schema";
 import { consumeLessonEventStream } from "@/lib/session-generation/lesson-stream";
+import {
+  createStreamedLessonAttempt,
+  streamedLessonAttemptHeaders,
+  withinStreamedLessonDeadline,
+} from "@/lib/session-generation/lesson-transport";
 import { sourceActivityIndex } from "@/lib/session-generation/activity-index";
 import {
   applyLessonStreamEvent,
@@ -428,6 +434,7 @@ import {
 } from "@/lib/sync/session-completion-outbox";
 import {
   clearQueuedSessionInterruptions,
+  flushQueuedSessionInterruptions,
   pendingSessionInterruptionRunIds,
   loadQueuedSessionInterruptions,
   queueSessionInterruption,
@@ -542,7 +549,9 @@ function recoveryMethodContext({
     learningMode: methodSession.learningMode,
     estimatedMinutes: availableMinutes,
   });
-  const briefing = buildFallbackMethodBriefing(plan, methodSession, deliveryPolicy);
+  const briefing = committedRoute
+    ? buildCommittedRouteFallbackMethodBriefing(committedRoute, deliveryPolicy)
+    : buildFallbackMethodBriefing(plan, methodSession, deliveryPolicy);
   const topics = methodPracticeTopics(methodSession, null);
   const sourceFirstRequired = routeContract.plan.studyMode === "outside_yova"
     && methodSession.learningMode === "learn";
@@ -1802,9 +1811,12 @@ export function YovaPrototype({
     retry?: boolean;
   }) => {
     if (!activity.lessonBrief || !sessionLessonDeliveryInstructions) return;
+    if (lessonStreamControllersRef.current.has(key)) return;
     if (!retry && lessonStreamsStartedRef.current.has(key)) return;
 
-    lessonStreamControllersRef.current.get(key)?.abort();
+    const attempt = createStreamedLessonAttempt({
+      create: () => crypto.randomUUID(),
+    });
     const controller = new AbortController();
     lessonStreamControllersRef.current.set(key, controller);
     lessonStreamsStartedRef.current.add(key);
@@ -1814,67 +1826,73 @@ export function YovaPrototype({
     }));
 
     try {
-      const response = await fetch("/api/sessions/lesson", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(browserPreviewMode || account?.identityMode === "preview"
-            ? { "X-Yova-Development-Preview": "guided-session" }
-            : {}),
-        },
-        body: JSON.stringify({
-          action: "generate",
-          planId,
-          planSessionId,
-          activityIndex,
-          ...(browserPreviewMode || account?.identityMode === "preview"
-            ? {
-              previewLesson: {
-                activity: {
-                  topicId: activity.topicId,
-                  methodPhase: activity.methodPhase,
-                  estimatedMinutes: activity.estimatedMinutes,
-                  requiredForCompletion: activity.requiredForCompletion ?? false,
-                  type: "instruction",
-                  concept: null,
-                  label: activity.label,
-                  title: activity.title,
-                  body: activity.body,
-                  teaching: null,
-                  lessonBrief: activity.lessonBrief,
-                  practiceIntent: null,
-                  misconceptionSummary: null,
-                  choices: [],
-                  correctAnswer: null,
-                  feedback: null,
-                },
-                deliveryInstructions: sessionLessonDeliveryInstructions,
-              },
-            }
-            : {}),
-        }),
+      await withinStreamedLessonDeadline({
         signal: controller.signal,
-      });
-      const allowanceResetAt = guidedSessionAllowanceResetAtFromHeaders(response.headers);
-      if (allowanceResetAt !== undefined) {
-        setSessionRecoveryNotice(guidedSessionAllowanceFallbackNotice(
-          allowanceResetAt,
-          "A safe built-in explanation was loaded instead",
-        ));
-      }
-      if (!response.ok || !response.body) {
-        const body: unknown = await response.json().catch(() => null);
-        const message = typeof body === "object" && body && "error" in body && typeof body.error === "string"
-          ? body.error
-          : "YOVA could not open this lesson.";
-        throw new Error(message);
-      }
+        run: async (transportSignal) => {
+          const response = await fetch("/api/sessions/lesson", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              ...streamedLessonAttemptHeaders(attempt),
+              ...(browserPreviewMode || account?.identityMode === "preview"
+                ? { "X-Yova-Development-Preview": "guided-session" }
+                : {}),
+            },
+            body: JSON.stringify({
+              action: "generate",
+              planId,
+              planSessionId,
+              activityIndex,
+              ...(browserPreviewMode || account?.identityMode === "preview"
+                ? {
+                  previewLesson: {
+                    activity: {
+                      topicId: activity.topicId,
+                      methodPhase: activity.methodPhase,
+                      estimatedMinutes: activity.estimatedMinutes,
+                      requiredForCompletion: activity.requiredForCompletion ?? false,
+                      type: "instruction",
+                      concept: null,
+                      label: activity.label,
+                      title: activity.title,
+                      body: activity.body,
+                      teaching: null,
+                      lessonBrief: activity.lessonBrief,
+                      practiceIntent: null,
+                      misconceptionSummary: null,
+                      choices: [],
+                      correctAnswer: null,
+                      feedback: null,
+                    },
+                    deliveryInstructions: sessionLessonDeliveryInstructions,
+                  },
+                }
+                : {}),
+            }),
+            signal: transportSignal,
+          });
+          const allowanceResetAt = guidedSessionAllowanceResetAtFromHeaders(response.headers);
+          if (allowanceResetAt !== undefined) {
+            setSessionRecoveryNotice(guidedSessionAllowanceFallbackNotice(
+              allowanceResetAt,
+              "A safe built-in explanation was loaded instead",
+            ));
+          }
+          if (!response.ok || !response.body) {
+            const body: unknown = await response.json().catch(() => null);
+            const message = typeof body === "object" && body && "error" in body && typeof body.error === "string"
+              ? body.error
+              : "YOVA could not open this lesson.";
+            throw new Error(message);
+          }
 
-      await consumeLessonEventStream(response.body, (event) => {
-        setStreamedLessons((current) => ({
-          ...current,
-          [key]: applyLessonStreamEvent(current[key] ?? createLessonRuntimeState(), event),
-        }));
+          await consumeLessonEventStream(response.body, (event) => {
+            setStreamedLessons((current) => ({
+              ...current,
+              [key]: applyLessonStreamEvent(current[key] ?? createLessonRuntimeState(), event),
+            }));
+          });
+        },
       });
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") return;
@@ -1920,19 +1938,28 @@ export function YovaPrototype({
     if (!storedRequestedPlan) return;
     const storedRequestedSession = storedRequestedPlan.sessions.find((session) => session.status === "ready");
     if (!storedRequestedSession) return;
-    const routeContract = resolveStudyRouteSessionContract(storedRequestedPlan, storedRequestedSession);
-    const requestedPlan = routeContract.plan;
-    const requestedSession = routeContract.session;
-    const requestedPlanWasStoredAtStart = plansRef.current.some((plan) => plan.id === requestedPlan.id);
+    const plannedRouteContract = resolveStudyRouteSessionContract(
+      storedRequestedPlan,
+      storedRequestedSession,
+    );
     const startDecision = sessionStartRecoveryDecision({
-      plan: requestedPlan,
-      session: requestedSession,
+      plan: plannedRouteContract.plan,
+      session: plannedRouteContract.session,
       interruptions: sessionInterruptions,
       restorableCheckpoints: recoverableSessionCheckpoints,
       sessionAdjustment: adjustment,
     });
     const resumePoint = startDecision.resumePoint;
     const checkpointResume = resumePoint;
+    const routeContract = resumePoint && storedRequestedSession.resource
+      ? resolveExecutedStudyRouteSessionContract(
+        storedRequestedPlan,
+        storedRequestedSession,
+      )
+      : plannedRouteContract;
+    const requestedPlan = routeContract.plan;
+    const requestedSession = routeContract.session;
+    const requestedPlanWasStoredAtStart = plansRef.current.some((plan) => plan.id === requestedPlan.id);
     if (guidedSessionAllowanceBlocksNewStart(
       guidedSessionAllowance,
       startDecision.canStartWithoutGeneration,
@@ -2082,6 +2109,7 @@ export function YovaPrototype({
       setSessionStep(restoredLesson.step);
       setSessionRationale(requestedSession.resource.rationale);
       setSessionCoverage(requestedSession.resource.coverage ?? null);
+      setSessionRecoverySession(requestedSession);
       setSessionMethodBriefing(requestedSession.resource.methodBriefing ?? null);
       setSessionCompletionMode(
         checkpointResume?.completionMode
@@ -3088,8 +3116,21 @@ export function YovaPrototype({
           return next;
         });
       }
-      void recordAuthenticatedSessionInterruption(account.id, interruption)
-        .then(async () => {
+      const interruptionSync = queued
+        ? flushQueuedSessionInterruptions(account.id).then(() => !(
+          loadQueuedSessionInterruptions(account.id).some((entry) => (
+            entry.interruption.id === interruption.id
+          ))
+        ))
+        : recordAuthenticatedSessionInterruption(account.id, interruption).then(() => true);
+      void interruptionSync
+        .then(async (synced) => {
+          if (!synced) {
+            setCloudSyncIssue(
+              "This interrupted session is saved on this device and is still waiting to sync.",
+            );
+            return;
+          }
           removeQueuedSessionInterruption(interruption.id);
           if (checkpointRunId) {
             removeActiveSessionCheckpoint(account.id, currentSession.id, checkpointRunId);
@@ -4561,12 +4602,23 @@ function HomeScreen({ account, answers, plans, plan, sessionCompletions, session
   ].filter((value): value is string => Boolean(value)).slice(0, 3) : [];
   const firstName = account?.displayName.split(" ")[0] || "there";
   const now = new Date();
-  const homeRoute = displayedRouteContract?.resolution.route ?? null;
+  const homeRouteContract = resumePoint
+    && storedDisplayedPlan
+    && storedReadySession?.resource
+    ? resolveExecutedStudyRouteSessionContract(
+      storedDisplayedPlan,
+      storedReadySession,
+    )
+    : displayedRouteContract;
+  const homeRoute = homeRouteContract?.resolution.route ?? null;
   const homeSessionType = displayedPlan && readySession
-    ? (selectSessionLearningMode(displayedPlan, readySession) === "learn" ? "Learn" : "Practice")
+    ? homeRoute
+      ? homeRoute.approach.mode === "learn" ? "Learn" : "Practice"
+      : selectSessionLearningMode(displayedPlan, readySession) === "learn" ? "Learn" : "Practice"
     : null;
   const homeMethod = displayedPlan && readySession
-    ? selectSessionMethodName(displayedPlan, readySession)
+    ? homeRoute?.approach.visibleMethodName
+      ?? selectSessionMethodName(displayedPlan, readySession)
     : null;
   const homeTotalMinutes = homeRoute?.timing.elapsedMinutes
     ?? readySession?.estimatedMinutes
@@ -6958,8 +7010,15 @@ function GuidedSession({ plan, planSessionId, steps, step, selectedAnswer, outco
       learningMode: methodBriefing?.learningMode ?? currentSession.learningMode,
     }
     : null;
-  const outsideMethodBriefing = plan && outsideMethodSession
-    ? buildFallbackMethodBriefing(plan, outsideMethodSession, deliveryPolicy ?? undefined)
+  const committedOutsideRoute = outsideMethodSession?.studyRoute?.identity.lifecycleStatus === "committed"
+    ? outsideMethodSession.studyRoute
+    : null;
+  const outsideMethodBriefing = outsideMethodSession
+    ? committedOutsideRoute
+      ? buildCommittedRouteFallbackMethodBriefing(committedOutsideRoute, deliveryPolicy ?? undefined)
+      : methodBriefing ?? (plan
+        ? buildFallbackMethodBriefing(plan, outsideMethodSession, deliveryPolicy ?? undefined)
+        : null)
     : null;
   const reviewableTeaching = [...steps.slice(0, step)]
     .reverse()
@@ -7374,7 +7433,7 @@ function StreamedLessonCard({ state, plan, planSessionId, activityIndex, activit
   </section>;
 }
 
-function StreamedLessonReader({ state, compact = false, onRetry }: {
+export function StreamedLessonReader({ state, compact = false, onRetry }: {
   state: LessonRuntimeState;
   compact?: boolean;
   onRetry?: () => void;
@@ -7395,6 +7454,10 @@ function StreamedLessonReader({ state, compact = false, onRetry }: {
   }
 
   return <article className={`streamed-lesson-reader ${compact ? "compact" : ""}`} aria-busy={state.status === "streaming"}>
+    {state.deliveryMode === "bounded_fallback" && <div className="streamed-lesson-fallback-provenance" role="status">
+      <Check size={17} />
+      <div><strong>Safe built-in lesson</strong><p>The live generated lesson was unavailable or did not pass its checks, so YOVA replaced it with this fallback.</p></div>
+    </div>}
     <LearningContent content={state.content} className="streamed-lesson-copy" />
     {state.status === "streaming" && <span className="streamed-lesson-cursor" aria-label="Lesson is still being written" />}
   </article>;

@@ -1688,6 +1688,10 @@ h1, h2, h3, p { margin-top: 0; }
 .streamed-lesson-card { margin: 0 0 22px; border: 1px solid #d8e0ee; border-radius: 18px; background: #fff; box-shadow: 0 12px 34px rgba(25,42,79,.055); overflow: hidden; }
 .streamed-lesson-reader { position: relative; padding: clamp(24px,3.2vw,42px); }
 .streamed-lesson-reader.compact { padding: 8px 2px 18px; }
+.streamed-lesson-fallback-provenance { margin: 0 0 24px; padding: 13px 15px; display: flex; align-items: flex-start; gap: 10px; color: #37526f; border: 1px solid #cbdce8; border-radius: 11px; background: #f4f9fb; }
+.streamed-lesson-fallback-provenance > svg { flex: 0 0 auto; margin-top: 2px; color: #26708a; }
+.streamed-lesson-fallback-provenance strong { display: block; color: var(--navy); font-size: 14px; }
+.streamed-lesson-fallback-provenance p { margin: 3px 0 0; font-size: 13px; line-height: 1.5; }
 .streamed-lesson-copy { max-width: 850px; color: #283854; font-size: 18px; line-height: 1.78; }
 .streamed-lesson-copy h1,
 .streamed-lesson-copy h2,

@@ -11,8 +11,10 @@ import {
 } from "@/lib/learning/method-catalog";
 import { studyRouteToLegacySessionProjection } from "@/lib/study-route/adapters";
 import {
+  immutableStudyRouteMethodEligibility,
   isAuthorizedOtherMethodChoice,
   isExactStoredAgencyMethodChoice,
+  storedAgencyChoiceEligibilityPolicyVersion,
 } from "@/lib/study-route/agency-mode-controller";
 import {
   integrateStudyRouteMethodDecision,
@@ -174,6 +176,9 @@ export function reviseDraftSessionMethod({
   });
   const canonicalSelection = selectCanonicalStudyMethod({
     ...decisionContext,
+    eligibilityPolicyVersion: otherEligibleChoice
+      ? immutableStudyRouteMethodEligibility(route).policyVersion
+      : storedAgencyChoiceEligibilityPolicyVersion(route),
     learnerChoice: {
       methodId: selection.methodId,
       evidenceRef: choiceEvidenceRef,

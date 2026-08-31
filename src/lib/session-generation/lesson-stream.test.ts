@@ -14,6 +14,7 @@ describe("lesson stream protocol", () => {
       { type: "lesson.delta", delta: "explanation." },
       {
         type: "lesson.complete",
+        deliveryMode: "generated",
         elapsedMs: 1200,
         latencyToFirstTokenMs: 180,
         inputTokens: 210,
@@ -50,6 +51,7 @@ describe("lesson stream protocol", () => {
         controller.enqueue(new TextEncoder().encode(
           `data: ${JSON.stringify({
             type: "lesson.complete",
+            deliveryMode: "generated",
             elapsedMs: 100,
             latencyToFirstTokenMs: 20,
             inputTokens: 30,
@@ -114,6 +116,7 @@ describe("lesson stream protocol", () => {
 function completeEvent(): LessonStreamEvent {
   return {
     type: "lesson.complete",
+    deliveryMode: "generated",
     elapsedMs: 1_200,
     latencyToFirstTokenMs: 180,
     inputTokens: 210,

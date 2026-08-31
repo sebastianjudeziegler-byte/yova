@@ -4,6 +4,7 @@ export type LessonRuntimeState = {
   status: "idle" | "streaming" | "complete" | "error";
   content: string;
   error: string | null;
+  deliveryMode: "generated" | "bounded_fallback" | null;
   model: string | null;
   requestId: string | null;
   elapsedMs: number | null;
@@ -19,6 +20,7 @@ export function createLessonRuntimeState(): LessonRuntimeState {
     status: "idle",
     content: "",
     error: null,
+    deliveryMode: null,
     model: null,
     requestId: null,
     elapsedMs: null,
@@ -61,6 +63,7 @@ export function applyLessonStreamEvent(
         ...state,
         status: "complete",
         error: null,
+        deliveryMode: event.deliveryMode,
         model: event.model,
         elapsedMs: event.elapsedMs,
         latencyToFirstTokenMs: event.latencyToFirstTokenMs,

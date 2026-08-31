@@ -39,7 +39,7 @@ describe("learning-science method router", () => {
     });
 
     expect(routing.taskType).toBe("problem_solving");
-    expect(routing.suggestedPrimaryMethodId).toBe("worked_example_fading");
+    expect(routing.suggestedPrimaryMethodId).toBe("practice_problems");
     expect(routing.deliveryModifiers.join(" ")).toMatch(/five minutes|one visible step|concrete example/i);
     expect(routing.deliveryModifiers.join(" ")).toMatch(/independent application|smallest useful hint/i);
   });
@@ -163,8 +163,8 @@ describe("learning-science method router", () => {
       knowledgeStageOverride: "novice",
     });
 
-    expect(routing.allowedMethodIds).toEqual(["worked_example_fading", "self_explanation"]);
-    expect(routing.suggestedPrimaryMethodId).toBe("worked_example_fading");
+    expect(routing.allowedMethodIds).toEqual(["practice_problems"]);
+    expect(routing.suggestedPrimaryMethodId).toBe("practice_problems");
     expect(routing.decisionBasis.join(" ")).toMatch(/not eligible for this task, stage, and session mode/i);
   });
 

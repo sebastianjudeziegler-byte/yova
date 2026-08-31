@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import { CORE_METHOD_CATALOG } from "@/lib/learning/method-catalog";
 import {
   eligibleMethodIdsFor,
+  eligibleMethodIdsForPolicyVersion,
+  LEGACY_METHOD_ELIGIBILITY_POLICY_VERSION,
   METHOD_ELIGIBILITY_POLICY_VERSION,
 } from "@/lib/learning/method-eligibility";
 import { createCanonicalLearnerProfile } from "@/lib/personalization/canonical-profile-schema";
@@ -10,6 +12,7 @@ import {
   agencyModeForStudyRouteControlMode,
   boundedAgencyMethodAlternatives,
   boundedOtherAgencyMethodOptions,
+  immutableStudyRouteMethodEligibility,
   isExactStoredAgencyMethodChoice,
   resolveAgencyMethodRequest,
   resolveBoundedOtherMethodRequest,
@@ -257,6 +260,45 @@ describe("versioned StudyRoute agency controller", () => {
       route: base,
       requestedMethod: "Pomodoro",
     })).toThrow("only when the learner chose I'll Customize");
+  });
+
+  it("reads an old v2 cohort exactly instead of reinterpreting it as v3", () => {
+    const base = committedRoute();
+    const context = {
+      taskType: "problem_solving" as const,
+      knowledgeStage: "novice" as const,
+      learningMode: "study" as const,
+    };
+    const v2MethodIds = eligibleMethodIdsForPolicyVersion(
+      context,
+      LEGACY_METHOD_ELIGIBILITY_POLICY_VERSION,
+    );
+    const route = StudyRouteSchema.parse({
+      ...base,
+      target: { ...base.target, taskFamily: context.taskType },
+      approach: {
+        ...base.approach,
+        mode: "practice",
+        primaryMethodId: "worked_example_fading",
+        visibleMethodName: CORE_METHOD_CATALOG.worked_example_fading.name,
+      },
+      agency: { ...base.agency, alternatives: [] },
+      provenance: {
+        ...base.provenance,
+        ruleTrace: [{
+          ruleId: LEGACY_METHOD_ELIGIBILITY_POLICY_VERSION,
+          result: v2MethodIds.join(","),
+          reason: "The deployed v2 policy authorized this exact historical cohort.",
+          evidenceRefs: [],
+        }],
+      },
+    });
+
+    expect(immutableStudyRouteMethodEligibility(route)).toEqual({
+      policyVersion: LEGACY_METHOD_ELIGIBILITY_POLICY_VERSION,
+      methodIds: ["worked_example_fading", "self_explanation"],
+    });
+    expect(eligibleMethodIdsFor(context)).toEqual(["practice_problems"]);
   });
 
   it("lets YOVA Decides apply only a sufficiently supported between-session successor", () => {

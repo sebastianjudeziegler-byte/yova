@@ -3,6 +3,13 @@ import { StudyRouteTimingSchema, type StudyRouteTiming } from "@/lib/study-route
 /** Short, non-technical copy for the already-visible session recipe. */
 export function explainStudyRouteDuration(timingInput: StudyRouteTiming) {
   const timing = StudyRouteTimingSchema.parse(timingInput);
+  if (
+    timing.hardMaximumMinutes === timing.activeMinutes
+    && timing.durationSource !== "learner_override"
+    && timing.durationSource !== "scheduled_review"
+  ) {
+    return `This recipe uses the ${timing.hardMaximumMinutes}-minute window you selected.`;
+  }
   switch (timing.durationSource) {
     case "availability_cap":
       return timing.hardMaximumMinutes && timing.hardMaximumMinutes > timing.activeMinutes

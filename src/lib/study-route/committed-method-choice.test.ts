@@ -7,6 +7,10 @@ import {
   METHOD_PRESENTATION_POLICY_VERSION,
   type CoreMethodId,
 } from "@/lib/learning/method-catalog";
+import {
+  LEGACY_METHOD_ELIGIBILITY_POLICY_VERSION,
+  METHOD_ELIGIBILITY_POLICY_VERSIONS,
+} from "@/lib/learning/method-eligibility";
 import type { GenerationPersonalizationContext } from "@/lib/personalization/personalization-generation";
 import { generatePreviewPlan } from "@/lib/plan-generation/preview-generator";
 import { PlanGenerationRequestSchema } from "@/lib/plan-generation/schema";
@@ -354,6 +358,44 @@ describe("committed StudyRoute method choice", () => {
     expect(result.session.studyRoute.provenance.ruleTrace.filter((entry) => (
       entry.ruleId === METHOD_PRESENTATION_POLICY_VERSION
     ))).toHaveLength(1);
+  });
+
+  it("keeps an exact stored alternative operable on a legacy route without an eligibility trace", () => {
+    const originalPlan = activeRoutedPlan();
+    const originalSession = readySessionWithAlternative(originalPlan);
+    const originalRoute = route(originalSession.studyRoute);
+    const legacyRoute = StudyRouteSchema.parse({
+      ...originalRoute,
+      provenance: {
+        ...originalRoute.provenance,
+        ruleTrace: originalRoute.provenance.ruleTrace.filter((entry) => (
+          !METHOD_ELIGIBILITY_POLICY_VERSIONS.includes(
+            entry.ruleId as (typeof METHOD_ELIGIBILITY_POLICY_VERSIONS)[number],
+          )
+        )),
+      },
+    });
+    const legacySession = { ...originalSession, studyRoute: legacyRoute };
+    const plan = replaceSession(originalPlan, legacySession);
+    const methodId = legacyRoute.agency.alternatives[0]!.primaryMethodId;
+
+    const result = createCommittedMethodChoiceSuccessor({
+      plan,
+      session: legacySession,
+      previousRoute: legacyRoute,
+      expectedRouteRevisionId: legacyRoute.identity.routeRevisionId,
+      routeRevisionId: FIRST_SUCCESSOR_ID,
+      methodId,
+      changedAt: FIRST_CHANGE,
+    });
+
+    expect(result.status).toBe("updated");
+    expect(result.session.studyRoute.approach.primaryMethodId).toBe(methodId);
+    expect(result.session.studyRoute.provenance.ruleTrace).toContainEqual(
+      expect.objectContaining({
+        ruleId: LEGACY_METHOD_ELIGIBILITY_POLICY_VERSION,
+      }),
+    );
   });
 
   it("rejects stale, hidden, non-ready, review, and saved-work changes with conflict codes", () => {

@@ -6,7 +6,11 @@ import {
   type CanonicalMethodSelectionInput,
 } from "@/lib/learning/canonical-method-selection";
 import type { CoreMethodId, LearningTaskType } from "@/lib/learning/method-catalog";
-import type { KnowledgeStage } from "@/lib/learning/method-eligibility";
+import {
+  LEGACY_METHOD_ELIGIBILITY_POLICY_VERSION,
+  METHOD_ELIGIBILITY_POLICY_VERSION,
+  type KnowledgeStage,
+} from "@/lib/learning/method-eligibility";
 import type { MethodOutcomeSignal } from "@/lib/personalization/method-outcomes";
 import type { GenerationPersonalizationContext } from "@/lib/personalization/personalization-generation";
 
@@ -97,13 +101,36 @@ function outcome({
 }
 
 describe("canonical method selection", () => {
+  it("replays an immutable v2 choice without using the new v3 cohort", () => {
+    const selection = selectCanonicalStudyMethod({
+      taskType: "problem_solving",
+      knowledgeStage: "novice",
+      learningMode: "study",
+      eligibilityPolicyVersion: LEGACY_METHOD_ELIGIBILITY_POLICY_VERSION,
+      learnerChoice: {
+        methodId: "self_explanation",
+        evidenceRef: "learner-choice:immutable-v2-route",
+      },
+    });
+
+    expect(selection.eligibilityPolicyVersion)
+      .toBe(LEGACY_METHOD_ELIGIBILITY_POLICY_VERSION);
+    expect(selection.eligibleMethodIds).toEqual([
+      "worked_example_fading",
+      "self_explanation",
+    ]);
+    expect(selection.ruleTrace[0]?.ruleId)
+      .toBe(LEGACY_METHOD_ELIGIBILITY_POLICY_VERSION);
+    expect(METHOD_ELIGIBILITY_POLICY_VERSION).toBe("method_eligibility_v3");
+  });
+
   it("returns a stable, versioned baseline without manufactured personalization", () => {
     const first = selectCanonicalStudyMethod(baseInput());
     const second = selectCanonicalStudyMethod(baseInput());
 
     expect(first).toEqual(second);
     expect(first.policyVersion).toBe(CANONICAL_METHOD_SELECTION_POLICY_VERSION);
-    expect(first.eligibilityPolicyVersion).toBe("method_eligibility_v2");
+    expect(first.eligibilityPolicyVersion).toBe(METHOD_ELIGIBILITY_POLICY_VERSION);
     expect(first.selectedMethodId).toBe("retrieval_practice");
     expect(first.authority).toBe("task_baseline");
     expect(first.changedFromBaseline).toBe(false);
@@ -386,9 +413,9 @@ describe("canonical method selection", () => {
 
   it("intersects saved preferences with eligibility in server baseline order", () => {
     const context = personalization({ code: "unknown" });
-    // Catalog order puts retrieval practice before self-explanation. The
-    // conceptual-novice eligibility policy puts self-explanation first.
-    context.preferredMethodIds = ["retrieval_practice", "self_explanation"];
+    // Catalog order puts retrieval practice before concept mapping. The
+    // conceptual-novice Practice policy puts concept mapping first.
+    context.preferredMethodIds = ["retrieval_practice", "concept_mapping"];
     const selection = selectCanonicalStudyMethod({
       taskType: "conceptual_learning",
       knowledgeStage: "novice",
@@ -397,15 +424,13 @@ describe("canonical method selection", () => {
     });
 
     expect(selection.eligibleMethodIds).toEqual([
-      "self_explanation",
       "concept_mapping",
-      "read_recall_review",
       "retrieval_practice",
     ]);
-    expect(selection.selectedMethodId).toBe("self_explanation");
+    expect(selection.selectedMethodId).toBe("concept_mapping");
     expect(selection.authority).toBe("authorized_declaration");
     expect(selection.evidenceRefs).toEqual([
-      "profile-method-preference:self_explanation",
+      "profile-method-preference:concept_mapping",
     ]);
     expect(selection.learnerFacingReason).toMatch(/when it fits/i);
   });

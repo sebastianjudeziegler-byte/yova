@@ -30,6 +30,7 @@ import {
   scheduledRetrievalAdjustmentIssue,
 } from "@/lib/learning/scheduled-retrieval";
 import { buildScaffoldProgressionSignals } from "@/lib/learning/scaffold-progression";
+import { isDeferredSessionContinuation } from "@/lib/learning/session-continuation";
 import { getOpenAISessionConfig, isOpenAISessionConfigured } from "@/lib/openai/config";
 import {
   generateProductionSessionWithOpenAI,
@@ -531,6 +532,10 @@ export async function POST(request: Request) {
       reviewType,
     });
     const plannedContentTargets = readStringArrayProperty(planSession.step_data, "contentTargets");
+    const deferredContinuation = isDeferredSessionContinuation({
+      title: planSession.title,
+      methodReason: planSession.method_rationale,
+    });
     const normalPlanGenerationCopy = resolveNormalPlanGenerationCopy({
       route: committedStudyRoute,
       selectedTopics,
@@ -578,7 +583,12 @@ export async function POST(request: Request) {
       })
       : null;
     const cachedRouteContractIssue = cached
-      ? generatedSessionStudyRouteIssue(cached, committedStudyRoute)
+      ? generatedSessionStudyRouteIssue(cached, committedStudyRoute, {
+          plannedTopicIds: routeGeneration.topicIds,
+          plannedContentTargets,
+          knowledgeTopics: selectedTopics,
+          isDeferredContinuation: deferredContinuation,
+        })
       : null;
     if (
       cached
@@ -889,6 +899,12 @@ export async function POST(request: Request) {
     const routeContractIssue = generatedSessionStudyRouteIssue(
       generated.draft,
       committedStudyRoute,
+      {
+        plannedTopicIds: generationContext.session.topicIds,
+        plannedContentTargets: generationContext.session.contentTargets ?? [],
+        knowledgeTopics: generationContext.knowledgeTopics,
+        isDeferredContinuation: deferredContinuation,
+      },
     );
     if (routeContractIssue) {
       const failureStats = sessionStatsAtStage(
@@ -1327,7 +1343,14 @@ async function generateBrowserPreviewSession(
       sessionGenerationRuntime(request, startedAt),
     );
     const routeContractIssue = committedStudyRoute
-      ? generatedSessionStudyRouteIssue(generated.draft, committedStudyRoute)
+      ? generatedSessionStudyRouteIssue(generated.draft, committedStudyRoute, {
+          plannedTopicIds: generationContext.session.topicIds,
+          plannedContentTargets: generationContext.session.contentTargets ?? [],
+          knowledgeTopics: generationContext.knowledgeTopics,
+          isDeferredContinuation: isDeferredSessionContinuation(
+            input.previewContext.session,
+          ),
+        })
       : null;
     if (routeContractIssue) {
       const failureStats = sessionStatsAtStage(

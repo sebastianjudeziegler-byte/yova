@@ -73,10 +73,10 @@ describe("study route recipe card", () => {
       },
       explanation: {
         shortReason: "A model followed by explanation and repair fits this new concept.",
-        taskRequirements: [],
-        learnerDeclarations: [],
-        observations: [],
-        uncertainties: [],
+        taskRequirements: ["A new causal model must be established before independent explanation."],
+        learnerDeclarations: ["You told YOVA that a concrete example helps you start unfamiliar material."],
+        observations: ["YOVA has not observed a comparable completed session yet."],
+        uncertainties: ["YOVA is still unsure how much support you will need after the first attempt."],
       },
       provenance: {
         routerVersion: "router-v1",
@@ -98,6 +98,11 @@ describe("study route recipe card", () => {
     expect(html).toContain("25 minutes total");
     expect(html).toContain("Model");
     expect(html).toContain("Reexplain");
+    expect(html).toContain("Why this recipe");
+    expect(html).toContain("What the task requires");
+    expect(html).toContain("What you told YOVA");
+    expect(html).toContain("What YOVA observed");
+    expect(html).toContain("What YOVA is still unsure about");
   });
 
   it("uses the three exact learner-facing agency labels", () => {
