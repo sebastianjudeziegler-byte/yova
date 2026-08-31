@@ -22,7 +22,6 @@ import {
   CloudAccountIdentityMismatchError,
   CloudSyncTemporarilyUnavailableError,
 } from "@/lib/supabase/cloud-sync-error";
-import { UnsupportedBroadRecallInterruptionError } from "@/lib/sync/session-interruption-error";
 
 const { from, getUser, rpc } = vi.hoisted(() => ({
   from: vi.fn(),
@@ -519,71 +518,6 @@ describe("recordAuthenticatedSessionInterruption", () => {
     );
   });
 
-  it("keeps the broad-recall retry inside the first attempt's absolute deadline", async () => {
-    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
-    const unsupported = {
-      data: null,
-      error: {
-        code: "55000",
-        message: "broad_recall_interruption_resource_identity_required",
-      },
-    };
-    let firstSignal: AbortSignal | undefined;
-    let retrySignal: AbortSignal | undefined;
-    rpc
-      .mockImplementationOnce(() => ({
-        abortSignal: (signal: AbortSignal) => {
-          firstSignal = signal;
-          return new Promise((resolve) => {
-            setTimeout(
-              () => resolve(unsupported),
-              AUTHENTICATED_LEARNING_MUTATION_DEADLINE_MS - 1_000,
-            );
-          });
-        },
-      }))
-      .mockImplementationOnce(() => ({
-        abortSignal: (signal: AbortSignal) => {
-          retrySignal = signal;
-          return new Promise((_resolve, reject) => {
-            signal.addEventListener(
-              "abort",
-              () => reject(new DOMException("Aborted", "AbortError")),
-              { once: true },
-            );
-          });
-        },
-      }));
-
-    const result = recordAuthenticatedSessionInterruption({
-      id: "00000000-0000-4000-8000-000000000094",
-      planId: "00000000-0000-4000-8000-000000000095",
-      planSessionId: "00000000-0000-4000-8000-000000000096",
-      routeRevisionId: ROUTE_REVISION_ID,
-      startedAt: "2026-08-11T20:00:00.000Z",
-      interruptedAt: "2026-08-11T20:08:00.000Z",
-      plannedMinutes: 20,
-      actualMinutes: 8,
-      completedSteps: 0,
-      totalSteps: 5,
-      activityProgress: broadRecallProgress(1),
-    }).catch((error: unknown) => error);
-
-    await vi.advanceTimersByTimeAsync(AUTHENTICATED_LEARNING_MUTATION_DEADLINE_MS - 1_000);
-    expect(rpc).toHaveBeenCalledTimes(2);
-    expect(rpc.mock.calls[1]?.[1]?.payload).not.toHaveProperty("activityProgress");
-
-    await vi.advanceTimersByTimeAsync(1_000);
-    const issue = await result;
-
-    expect(retrySignal).toBe(firstSignal);
-    expect(retrySignal?.aborted).toBe(true);
-    expect(issue).toBeInstanceOf(CloudSyncTemporarilyUnavailableError);
-    expect(consoleError).toHaveBeenCalledWith(
-      "YOVA session interruption sync failed [client:deadline]",
-    );
-  });
-
   it("logs only the safe database code when interruption persistence fails", async () => {
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
     rpc.mockResolvedValueOnce({
@@ -687,9 +621,8 @@ describe("recordAuthenticatedSessionInterruption", () => {
     });
   });
 
-  it("sends strict broad-recall progress without adding legacy ratings", async () => {
-    const activityProgress = broadRecallProgress(1);
-    const interrupted: SessionInterruption = {
+  it("strips a retired activity marker while preserving and saving the Exit envelope", async () => {
+    const interrupted = {
       id: "00000000-0000-4000-8000-000000000031",
       planId: "00000000-0000-4000-8000-000000000032",
       planSessionId: "00000000-0000-4000-8000-000000000033",
@@ -700,163 +633,27 @@ describe("recordAuthenticatedSessionInterruption", () => {
       actualMinutes: 8,
       completedSteps: 0,
       totalSteps: 5,
-      activityProgress,
+      activityProgress: {
+        kind: "broad_recall",
+        legacyPayload: "ignored",
+      },
     };
 
-    await recordAuthenticatedSessionInterruption(interrupted);
+    await persistAuthenticatedSessionInterruption(
+      "user-1",
+      interrupted as unknown as SessionInterruption,
+    );
 
+    expect(rpc).toHaveBeenCalledOnce();
     expect(rpc).toHaveBeenCalledWith("record_session_interruption_with_route", {
       payload: expect.objectContaining({
+        attemptId: interrupted.id,
         routeRevisionId: ROUTE_REVISION_ID,
-        activityProgress,
+        completedSteps: 0,
+        totalSteps: 5,
       }),
     });
-    expect(rpc.mock.calls[0]?.[1]?.payload.activityProgress).not.toHaveProperty("ratings");
-  });
-
-  it("preserves the explicit exit when the server cannot bind broad-recall progress", async () => {
-    rpc
-      .mockResolvedValueOnce({
-        data: null,
-        error: {
-          code: "55000",
-          message: "broad_recall_interruption_resource_identity_required",
-        },
-      })
-      .mockResolvedValueOnce({ data: null, error: null });
-    const activityProgress = broadRecallProgress(1);
-    const interrupted: SessionInterruption = {
-      id: "00000000-0000-4000-8000-000000000041",
-      planId: "00000000-0000-4000-8000-000000000042",
-      planSessionId: "00000000-0000-4000-8000-000000000043",
-      routeRevisionId: ROUTE_REVISION_ID,
-      startedAt: "2026-08-11T20:00:00.000Z",
-      interruptedAt: "2026-08-11T20:08:00.000Z",
-      plannedMinutes: 20,
-      actualMinutes: 8,
-      completedSteps: 0,
-      totalSteps: 5,
-      activityProgress,
-    };
-
-    await expect(recordAuthenticatedSessionInterruption(interrupted)).resolves.toBeUndefined();
-
-    expect(rpc).toHaveBeenCalledTimes(2);
-    expect(rpc.mock.calls[0]?.[1]?.payload).toEqual(expect.objectContaining({
-      attemptId: interrupted.id,
-      routeRevisionId: ROUTE_REVISION_ID,
-      activityProgress,
-    }));
-    expect(rpc.mock.calls[1]?.[1]?.payload).toEqual(expect.objectContaining({
-      attemptId: interrupted.id,
-      routeRevisionId: ROUTE_REVISION_ID,
-    }));
-    expect(rpc.mock.calls[1]?.[1]?.payload).not.toHaveProperty("activityProgress");
-  });
-
-  it("classifies a repeated broad-recall guard as permanently unsupported", async () => {
-    const unsupported = {
-      data: null,
-      error: {
-        code: "55000",
-        message: "broad_recall_interruption_resource_identity_required",
-      },
-    };
-    rpc.mockResolvedValueOnce(unsupported).mockResolvedValueOnce(unsupported);
-
-    await expect(recordAuthenticatedSessionInterruption({
-      id: "00000000-0000-4000-8000-000000000051",
-      planId: "00000000-0000-4000-8000-000000000052",
-      planSessionId: "00000000-0000-4000-8000-000000000053",
-      routeRevisionId: ROUTE_REVISION_ID,
-      startedAt: "2026-08-11T20:00:00.000Z",
-      interruptedAt: "2026-08-11T20:08:00.000Z",
-      plannedMinutes: 20,
-      actualMinutes: 8,
-      completedSteps: 0,
-      totalSteps: 5,
-      activityProgress: broadRecallProgress(1),
-    })).rejects.toBeInstanceOf(UnsupportedBroadRecallInterruptionError);
-    expect(rpc).toHaveBeenCalledTimes(2);
-    expect(rpc.mock.calls[1]?.[1]?.payload).not.toHaveProperty("activityProgress");
-  });
-
-  it("keeps a marker-less interruption retryable if a stale server misapplies the Broad Recall guard", async () => {
-    rpc.mockResolvedValueOnce({
-      data: null,
-      error: {
-        code: "55000",
-        message: "broad_recall_interruption_resource_identity_required",
-      },
-    });
-
-    const issue = await recordAuthenticatedSessionInterruption({
-      id: "00000000-0000-4000-8000-000000000061",
-      planId: "00000000-0000-4000-8000-000000000062",
-      planSessionId: "00000000-0000-4000-8000-000000000063",
-      startedAt: "2026-08-11T20:00:00.000Z",
-      interruptedAt: "2026-08-11T20:08:00.000Z",
-      plannedMinutes: 20,
-      actualMinutes: 8,
-      completedSteps: 0,
-      totalSteps: 5,
-    }).catch((error: unknown) => error);
-
-    expect(issue).not.toBeInstanceOf(UnsupportedBroadRecallInterruptionError);
-    expect(issue).toMatchObject({
-      name: "SessionInterruptionCloudSyncError",
-      message: expect.stringContaining("could not sync the interruption"),
-    });
-    expect(rpc).toHaveBeenCalledOnce();
-  });
-
-  it("keeps a different stripped-retry failure fail-closed", async () => {
-    rpc
-      .mockResolvedValueOnce({
-        data: null,
-        error: {
-          code: "55000",
-          message: "broad_recall_interruption_resource_identity_required",
-        },
-      })
-      .mockResolvedValueOnce({
-        data: null,
-        error: { code: "40001", message: "study_route_interruption_conflict" },
-      });
-
-    await expect(recordAuthenticatedSessionInterruption({
-      id: "00000000-0000-4000-8000-000000000071",
-      planId: "00000000-0000-4000-8000-000000000072",
-      planSessionId: "00000000-0000-4000-8000-000000000073",
-      routeRevisionId: ROUTE_REVISION_ID,
-      startedAt: "2026-08-11T20:00:00.000Z",
-      interruptedAt: "2026-08-11T20:08:00.000Z",
-      plannedMinutes: 20,
-      actualMinutes: 8,
-      completedSteps: 0,
-      totalSteps: 5,
-      activityProgress: broadRecallProgress(1),
-    })).rejects.toThrow("could not sync the interruption");
-    expect(rpc).toHaveBeenCalledTimes(2);
-  });
-
-  it("rejects route-less broad-recall interruption progress before cloud persistence", async () => {
-    const interrupted: SessionInterruption = {
-      id: "00000000-0000-4000-8000-000000000034",
-      planId: "00000000-0000-4000-8000-000000000035",
-      planSessionId: "00000000-0000-4000-8000-000000000036",
-      startedAt: "2026-08-11T20:00:00.000Z",
-      interruptedAt: "2026-08-11T20:08:00.000Z",
-      plannedMinutes: 20,
-      actualMinutes: 8,
-      completedSteps: 0,
-      totalSteps: 5,
-      activityProgress: broadRecallProgress(1),
-    };
-
-    await expect(recordAuthenticatedSessionInterruption(interrupted))
-      .rejects.toThrow("route-less broad-recall");
-    expect(rpc).not.toHaveBeenCalled();
+    expect(rpc.mock.calls[0]?.[1]?.payload).not.toHaveProperty("activityProgress");
   });
 
   it("binds interrupted evidence to the executed route revision", async () => {
@@ -1422,69 +1219,6 @@ describe("authenticated active-session checkpoint sync", () => {
     expect(JSON.stringify(payload)).not.toContain("Private learner note");
   });
 
-  it("keeps broad-recall recovery local while syncing only the ordinary checkpoint envelope", async () => {
-    const local = routeCheckpoint({
-      completedSteps: 0,
-      resumeStep: 0,
-      evidence: undefined,
-      activityProgress: broadRecallProgress(1),
-    });
-    const cloudEnvelope = {
-      ...local,
-      savedAt: "2026-08-17T18:00:01.000Z",
-      activeSeconds: local.activeSeconds + 20,
-    } as Partial<ActiveSessionCheckpointV2>;
-    delete cloudEnvelope.activityProgress;
-    rpc.mockResolvedValueOnce({ data: cloudEnvelope, error: null });
-
-    await expect(saveAuthenticatedActiveSessionCheckpoint(local)).resolves.toEqual({
-      ...cloudEnvelope,
-      activityProgress: local.activityProgress,
-    });
-    expect(rpc.mock.calls[0]?.[1]?.payload).not.toHaveProperty("activityProgress");
-
-    const next = {
-      ...local,
-      savedAt: "2026-08-17T18:00:01.000Z",
-      activityProgress: broadRecallProgress(2),
-    } as ActiveSessionCheckpointV2;
-    rpc.mockResolvedValueOnce({
-      data: {
-        ...next,
-        activityProgress: broadRecallProgress(1, ["partial", "missing"]),
-      },
-      error: null,
-    });
-
-    await expect(saveAuthenticatedActiveSessionCheckpoint(next))
-      .resolves.toEqual(next);
-    expect(rpc.mock.calls[1]?.[1]?.payload).not.toHaveProperty("activityProgress");
-  });
-
-  it("accepts the exact production Broad Recall guard as retryable without losing the caller checkpoint", async () => {
-    const local = routeCheckpoint({
-      completedSteps: 0,
-      resumeStep: 0,
-      evidence: undefined,
-      activityProgress: broadRecallProgress(1),
-    });
-    rpc.mockResolvedValueOnce({
-      data: null,
-      error: {
-        code: "22023",
-        message: "broad_recall_progress_binding_conflict",
-      },
-    });
-
-    const issue = await saveAuthenticatedActiveSessionCheckpoint(local)
-      .catch((error: unknown) => error);
-
-    expect(issue).toBeInstanceOf(CloudSyncTemporarilyUnavailableError);
-    expect(issue).toMatchObject({ retryable: true });
-    expect(rpc.mock.calls[0]?.[1]?.payload).not.toHaveProperty("activityProgress");
-    expect(local.activityProgress).toEqual(broadRecallProgress(1));
-  });
-
   it("preserves unguided completion provenance in the cloud checkpoint payload", async () => {
     const local = checkpoint({
       status: "awaiting_finish",
@@ -1600,64 +1334,6 @@ describe("authenticated active-session checkpoint sync", () => {
       activeSeconds: ahead.activeSeconds,
     });
     expect(results.every((result) => result.completedSteps === ahead.completedSteps)).toBe(true);
-  });
-
-  it("rejects a divergent queued broad-recall history without poisoning the valid save", async () => {
-    const first = routeCheckpoint({
-      completedSteps: 0,
-      resumeStep: 0,
-      evidence: undefined,
-      activityProgress: broadRecallProgress(1),
-    });
-    const divergent = {
-      ...first,
-      savedAt: "2026-08-17T18:00:01.000Z",
-      activityProgress: broadRecallProgress(1, ["partial", "missing"]),
-    } as ActiveSessionCheckpointV2;
-    let releaseFirst!: (value: { data: ActiveSessionCheckpointV2; error: null }) => void;
-    rpc.mockImplementationOnce(() => new Promise((resolve) => {
-      releaseFirst = resolve;
-    }));
-
-    const firstSave = saveAuthenticatedActiveSessionCheckpoint(first);
-    await Promise.resolve();
-    const divergentSave = saveAuthenticatedActiveSessionCheckpoint(divergent);
-
-    await expect(divergentSave).rejects.toBeInstanceOf(ActiveSessionCheckpointConflictError);
-    expect(rpc).toHaveBeenCalledTimes(1);
-    releaseFirst({ data: first, error: null });
-    await expect(firstSave).resolves.toEqual(first);
-  });
-
-  it("does not coalesce a later missing marker over bound empty broad-recall progress", async () => {
-    const bound = routeCheckpoint({
-      completedSteps: 0,
-      resumeStep: 0,
-      activeSeconds: 10,
-      evidence: undefined,
-      activityProgress: broadRecallProgress(0),
-    });
-    const laterWithoutProgress = routeCheckpoint({
-      savedAt: "2026-08-17T18:00:01.000Z",
-      completedSteps: 0,
-      resumeStep: 0,
-      activeSeconds: 100,
-    });
-    let releaseFirst!: (value: { data: ActiveSessionCheckpointV2; error: null }) => void;
-    rpc.mockImplementationOnce(() => new Promise((resolve) => {
-      releaseFirst = resolve;
-    }));
-
-    const firstSave = saveAuthenticatedActiveSessionCheckpoint(bound);
-    await Promise.resolve();
-    const laterSave = saveAuthenticatedActiveSessionCheckpoint(laterWithoutProgress);
-
-    expect(rpc).toHaveBeenCalledTimes(1);
-    releaseFirst({ data: bound, error: null });
-    const results = await Promise.all([firstSave, laterSave]);
-
-    expect(rpc).toHaveBeenCalledTimes(1);
-    expect(results).toEqual([bound, bound]);
   });
 
   it("serializes every lesson checkpoint write for the same account without dropping one", async () => {
@@ -2121,29 +1797,6 @@ function routeCheckpoint(
     routeRevisionId: ROUTE_REVISION_ID,
     ...overrides,
   } as ActiveSessionCheckpointV2;
-}
-
-function broadRecallProgress(
-  stage: 0 | 1 | 2 = 0,
-  gapStatuses: Array<"covered" | "partial" | "missing"> = ["covered", "missing"],
-) {
-  return {
-    kind: "broad_recall" as const,
-    format: "broad_recall_v1" as const,
-    activityIndex: 0,
-    gapCount: 2,
-    bindings: [{
-      targetId: "11111111-1111-4111-8111-111111111111",
-      evidenceId: "blurting-final-check:11111111-1111-4111-8111-111111111111",
-    }],
-    events: [
-      ...(stage >= 1 ? [{
-        type: "comparison_completed" as const,
-        gapStatuses,
-      }] : []),
-      ...(stage >= 2 ? [{ type: "correction_completed" as const }] : []),
-    ],
-  };
 }
 
 function committedRouteFixture() {

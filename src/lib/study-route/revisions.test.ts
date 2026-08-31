@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { selectMethodRecipe } from "@/lib/learning/method-recipes";
 import {
   commitStudyRouteRevision,
   createSuccessorStudyRoute,
@@ -8,13 +7,6 @@ import {
   materialStudyRouteChanges,
   supersedeStudyRouteRevision,
 } from "@/lib/study-route/revisions";
-import {
-  BLURTING_PHASE_IDS,
-  BLURTING_RECIPE_RUNTIME_VERSION,
-  blurtingFinalCheckEvidenceId,
-  blurtingMethodRecipeTrace,
-  blurtingRecipeRuntimeTrace,
-} from "@/lib/study-route/method-recipe-contract";
 import { StudyRouteSchema, type StudyRoute } from "@/lib/study-route/schema";
 
 const REVISION_1 = "22222222-2222-4222-8222-222222222222";
@@ -167,84 +159,6 @@ describe("StudyRoute material changes", () => {
     expect(materialStudyRouteChanges(previous, candidate)).toEqual(["review_contract"]);
   });
 
-  it("treats a supporting method recipe marker as its own material change", () => {
-    const baseline = clone(route());
-    baseline.target.targetStates[0].stage = "developing";
-    baseline.target.sourceRequirements.sourceType = "user_materials";
-    baseline.target.sourceRequirements.requiredSourceIds = ["source:chapter-1"];
-    baseline.target.sourceRequirements.groundingRequired = true;
-    baseline.approach = {
-      ...baseline.approach,
-      mode: "practice",
-      primaryMethodId: "retrieval_practice",
-      visibleMethodName: "Active Recall",
-    };
-    baseline.timing.activeMinutes = 12;
-    baseline.timing.elapsedMinutes = 12;
-    baseline.execution.orderedPhases = [{
-      phaseId: "retrieve",
-      methodPhase: "retrieve",
-      activeMinutes: 6,
-      targetIds: [TARGET_ID],
-    }, {
-      phaseId: "repair",
-      methodPhase: "repair",
-      activeMinutes: 6,
-      targetIds: [TARGET_ID],
-    }];
-    baseline.execution.initialSupport = "independent_start";
-    baseline.execution.completionEvidence = [{
-      evidenceId: blurtingFinalCheckEvidenceId(TARGET_ID),
-      targetIds: [TARGET_ID],
-      kind: "verification",
-      description: "Answer one fresh final check without reopening the source.",
-      requiresIndependentAttempt: true,
-    }];
-    const previous = StudyRouteSchema.parse(baseline);
-    const decision = selectMethodRecipe({
-      blurtingEnabled: true,
-      learningMode: "study",
-      primaryMethodId: "retrieval_practice",
-      taskType: "conceptual_learning",
-      knowledgeStage: "developing",
-      isReview: false,
-      activeMinutes: 12,
-      activeTargetCount: 1,
-      comparisonSourceAvailable: true,
-    });
-    if (decision.kind !== "recipe") throw new Error("Expected eligible Blurting fixture.");
-    const candidate = clone(previous);
-    candidate.approach.visibleMethodName = "Blurting";
-    candidate.approach.visibleSupportingTechniqueId = "blurting_v1";
-    candidate.execution.orderedPhases = [{
-      phaseId: BLURTING_PHASE_IDS[0],
-      methodPhase: "retrieve",
-      activeMinutes: 4,
-      targetIds: [TARGET_ID],
-    }, {
-      phaseId: BLURTING_PHASE_IDS[1],
-      methodPhase: "repair",
-      activeMinutes: 4,
-      targetIds: [TARGET_ID],
-    }, {
-      phaseId: BLURTING_PHASE_IDS[2],
-      methodPhase: "transfer",
-      activeMinutes: 4,
-      targetIds: [TARGET_ID],
-    }];
-    candidate.provenance.routerVersion += `+${BLURTING_RECIPE_RUNTIME_VERSION}`;
-    const recipeTrace = blurtingMethodRecipeTrace(decision);
-    const runtimeTrace = blurtingRecipeRuntimeTrace("inside_yova");
-    candidate.provenance.ruleTrace.push(
-      { ...recipeTrace, evidenceRefs: [...recipeTrace.evidenceRefs] },
-      { ...runtimeTrace, evidenceRefs: [...runtimeTrace.evidenceRefs] },
-    );
-
-    expect(materialStudyRouteChanges(previous, candidate)).toEqual([
-      "method_recipe",
-      "phase_order",
-    ]);
-  });
 });
 
 describe("StudyRoute immutable revision lifecycle", () => {

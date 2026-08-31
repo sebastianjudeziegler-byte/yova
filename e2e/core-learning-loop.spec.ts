@@ -3278,7 +3278,7 @@ test("session setup changes one committed method and generates from its exact su
     ))
   ))).toBe(true);
 
-  await otherMethods.getByPlaceholder("For example, Blurting or Pomodoro").fill("Pomodoro");
+  await otherMethods.getByPlaceholder("For example, Pomodoro or interleaving").fill("Pomodoro");
   await otherMethods.getByRole("button", { name: "Check and use" }).click();
   const safeMapping = otherMethods.locator(".session-other-method-mapping");
   await expect(safeMapping).toContainText("timing option");

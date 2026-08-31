@@ -8,7 +8,6 @@ import type {
 import { ConceptEvidenceListSchema } from "@/lib/learning/concept-evidence";
 import { ConfidenceEvidenceListSchema } from "@/lib/learning/confidence-calibration";
 import {
-  sessionActivityProgressHasRequiredRouteIdentity,
   readSessionActivityProgress,
   sessionActivityProgressIsResumable,
 } from "@/lib/learning/session-activity-progress";
@@ -48,10 +47,6 @@ export function resumableSessionProgress(
     .filter((interruption) => {
       const activityProgress = readSessionActivityProgress(interruption.activityProgress);
       return interruption.planSessionId === planSessionId
-        && sessionActivityProgressHasRequiredRouteIdentity(
-          activityProgress,
-          interruption.routeRevisionId,
-        )
         && (
           interruption.completedSteps >= 1
           || (

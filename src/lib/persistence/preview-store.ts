@@ -1,10 +1,7 @@
 import type { LearningPlan, SessionCompletion, SessionInterruption, YovaPreviewSnapshot } from "@/lib/domain";
 import { ConfidenceEvidenceListSchema } from "@/lib/learning/confidence-calibration";
 import { normalizeSessionCompletionProvenance } from "@/lib/learning/session-completion-provenance";
-import {
-  readSessionActivityProgress,
-  sessionActivityProgressHasRequiredRouteIdentity,
-} from "@/lib/learning/session-activity-progress";
+import { readSessionActivityProgress } from "@/lib/learning/session-activity-progress";
 import { inferLegacySessionLearningMode } from "@/lib/learning/learning-intent";
 import { resolveLearningTitle, resolveLearningTopic } from "@/lib/intake/interpret";
 import {
@@ -101,10 +98,6 @@ function readSessionInterruptions(snapshot: YovaPreviewSnapshot | Record<string,
     const pendingRepair = readSessionPendingRepair(raw.pendingRepair);
     const sessionAdjustment = readSessionAdjustmentSnapshot(raw.sessionAdjustment);
     const activityProgress = readSessionActivityProgress(raw.activityProgress);
-    const routeSafeActivityProgress = sessionActivityProgressHasRequiredRouteIdentity(
-      activityProgress,
-      raw.routeRevisionId,
-    ) ? activityProgress : null;
     const resumeStep = raw.resumeStep;
     return [{
       ...interruption as SessionInterruption,
@@ -112,7 +105,7 @@ function readSessionInterruptions(snapshot: YovaPreviewSnapshot | Record<string,
       ...(evidence ? { evidence } : {}),
       ...(pendingRepair ? { pendingRepair } : {}),
       ...(sessionAdjustment ? { sessionAdjustment } : {}),
-      ...(routeSafeActivityProgress ? { activityProgress: routeSafeActivityProgress } : {}),
+      ...(activityProgress ? { activityProgress } : {}),
     }];
   });
 }

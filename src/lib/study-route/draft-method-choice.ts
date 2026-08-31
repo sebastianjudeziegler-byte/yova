@@ -6,7 +6,6 @@ import {
   selectCanonicalStudyMethod,
 } from "@/lib/learning/canonical-method-selection";
 import {
-  CORE_METHOD_CATALOG,
   METHOD_PRESENTATION_POLICY_VERSION,
   type CoreMethodId,
 } from "@/lib/learning/method-catalog";
@@ -20,10 +19,6 @@ import {
   methodSelectionContextForStudyRoute,
   STUDY_ROUTE_METHOD_PLAN_INTEGRATION_VERSION,
 } from "@/lib/study-route/method-plan-integration";
-import {
-  BLURTING_RECIPE_RUNTIME_VERSION,
-  isBlurtingStudyRoute,
-} from "@/lib/study-route/method-recipe-contract";
 import { METHOD_RUNTIME_CAPABILITY_POLICY_VERSION } from "@/lib/session-generation/method-runtime-capability";
 import {
   StudyRouteRuleTraceEntrySchema,
@@ -147,8 +142,6 @@ export function reviseDraftSessionMethod({
   if (route.approach.primaryMethodId === selection.methodId) {
     return Object.freeze({ status: "unchanged" as const, plan });
   }
-  const leavingBlurting = isBlurtingStudyRoute(route);
-
   const otherEligibleChoice = selection.choiceScope === "other_eligible_method";
   if (
     otherEligibleChoice
@@ -177,7 +170,6 @@ export function reviseDraftSessionMethod({
     changedAt: changeTime,
     choiceEvidenceRef,
     methodId: selection.methodId,
-    leavingBlurting,
     choiceScope: selection.choiceScope ?? "stored_alternative",
   });
   const canonicalSelection = selectCanonicalStudyMethod({
@@ -206,7 +198,7 @@ export function reviseDraftSessionMethod({
       // recommendation. Always record that exact pre-commit override.
       override: {
         requestedAt: changeTime,
-        changedFields: leavingBlurting
+        changedFields: route.approach.visibleSupportingTechniqueId
           ? ["primary_method", "method_recipe"]
           : ["primary_method"],
         reason: integrated.explanation.shortReason,
@@ -233,14 +225,12 @@ function prepareRouteForChoice({
   changedAt,
   choiceEvidenceRef,
   methodId,
-  leavingBlurting,
   choiceScope,
 }: {
   route: StudyRoute;
   changedAt: string;
   choiceEvidenceRef: string;
   methodId: CoreMethodId;
-  leavingBlurting: boolean;
   choiceScope: "stored_alternative" | "other_eligible_method";
 }) {
   const priorChoiceBoundary = route.provenance.ruleTrace.findIndex((entry) => (
@@ -267,17 +257,6 @@ function prepareRouteForChoice({
   });
   return StudyRouteSchema.parse({
     ...route,
-    ...(leavingBlurting
-      ? {
-          approach: ordinarySelectedMethodApproach(route, methodId),
-          agency: {
-            ...route.agency,
-            alternatives: route.agency.alternatives.filter((alternative) => (
-              alternative.primaryMethodId !== methodId
-            )),
-          },
-        }
-      : {}),
     identity: {
       routeLineageId: route.identity.routeLineageId,
       routeRevisionId: makeUuid(),
@@ -299,10 +278,7 @@ function prepareRouteForChoice({
     },
     provenance: {
       ...route.provenance,
-      routerVersion: baseRouterVersion(
-        route.provenance.routerVersion,
-        leavingBlurting,
-      ),
+      routerVersion: baseRouterVersion(route.provenance.routerVersion),
       evidenceRefs: route.provenance.evidenceRefs.filter((reference) => (
         !reference.startsWith("learner-choice:plan-draft:")
       )),
@@ -311,27 +287,12 @@ function prepareRouteForChoice({
   });
 }
 
-function ordinarySelectedMethodApproach(
-  route: StudyRoute,
-  methodId: CoreMethodId,
-) {
-  return {
-    mode: route.approach.mode,
-    executionEnvironment: route.approach.executionEnvironment,
-    primaryMethodId: methodId,
-    visibleMethodName: CORE_METHOD_CATALOG[methodId].name,
-    confidenceLevel: route.approach.confidenceLevel,
-  };
-}
-
-function baseRouterVersion(value: string, leavingBlurting: boolean) {
+function baseRouterVersion(value: string) {
   const components = [...new Set(value.split("+").filter((component) => (
     component
-    && (leavingBlurting
-      ? component !== BLURTING_RECIPE_RUNTIME_VERSION
-      : component !== STUDY_ROUTE_METHOD_PLAN_INTEGRATION_VERSION
-        && component !== METHOD_RUNTIME_CAPABILITY_POLICY_VERSION
-        && component !== METHOD_PRESENTATION_POLICY_VERSION)
+    && component !== STUDY_ROUTE_METHOD_PLAN_INTEGRATION_VERSION
+    && component !== METHOD_RUNTIME_CAPABILITY_POLICY_VERSION
+    && component !== METHOD_PRESENTATION_POLICY_VERSION
   )))];
   if (components.length === 0) {
     throw new DraftMethodChoiceError(

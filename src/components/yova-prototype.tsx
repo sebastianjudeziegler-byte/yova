@@ -434,7 +434,6 @@ import {
   removeQueuedSessionInterruption,
   removeQueuedSessionInterruptionsForPlan,
 } from "@/lib/sync/session-interruption-outbox";
-import { UnsupportedBroadRecallInterruptionError } from "@/lib/sync/session-interruption-error";
 import {
   flushQueuedSessionTerminals,
   syncSessionCompletionAfterTerminals,
@@ -3117,56 +3116,6 @@ export function YovaPrototype({
           setCloudSyncIssue(recoverySyncIssue);
         })
         .catch(async (error: unknown) => {
-          if (error instanceof UnsupportedBroadRecallInterruptionError && terminalCheckpoint) {
-            const storedCheckpoints = loadActiveSessionCheckpoints(account.id);
-            const storedSessionCheckpoint = storedCheckpoints.find((checkpoint) => (
-              checkpoint.planSessionId === currentSession.id
-            )) ?? null;
-            const canRestoreTerminalCheckpoint = !storedSessionCheckpoint
-              || storedSessionCheckpoint.runId === terminalCheckpoint.runId
-              || storedSessionCheckpoint.runId === exitRecoveryCheckpoint?.runId;
-            const restoredCheckpoints = [
-              ...storedCheckpoints.filter((checkpoint) => (
-                checkpoint.planSessionId !== currentSession.id
-              )),
-              terminalCheckpoint,
-            ];
-            const terminalCheckpointRestored = canRestoreTerminalCheckpoint
-              && replaceActiveSessionCheckpointsForAccount(account.id, restoredCheckpoints);
-            if (terminalCheckpointRestored) {
-              checkpointSyncEpochRef.current += 1;
-              if (exitRecoveryCheckpoint) {
-                discardedCheckpointRunIdsRef.current.add(exitRecoveryCheckpoint.runId);
-              }
-              discardedCheckpointRunIdsRef.current.delete(terminalCheckpoint.runId);
-              removeQueuedSessionInterruption(interruption.id);
-              setSessionInterruptions((current) => current.filter((entry) => (
-                entry.id !== interruption.id
-              )));
-              setActiveSessionCheckpoints(loadActiveSessionCheckpoints(account.id));
-              setCloudCheckpointRunIds((current) => {
-                const next = new Set(current);
-                if (exitRecoveryCheckpoint) next.delete(exitRecoveryCheckpoint.runId);
-                next.delete(terminalCheckpoint.runId);
-                return next;
-              });
-              const queuedInterruptionRemains = loadQueuedSessionInterruptions(account.id).some((entry) => (
-                entry.interruption.planSessionId === terminalCheckpoint.planSessionId
-              ));
-              const cloudResourceIdentity = cloudCheckpointResourceIdentitiesRef.current.get(
-                terminalCheckpoint.planSessionId,
-              );
-              const recoveryCheckpointCanSync = !terminalCheckpoint.methodWork
-                && !queuedInterruptionRemains
-                && cloudResourceIdentity?.fingerprint === terminalCheckpoint.resourceFingerprint
-                && cloudResourceIdentity.generatedAt === terminalCheckpoint.resourceGeneratedAt;
-              const recoverySyncIssue = recoveryCheckpointCanSync
-                ? await syncCheckpointToAccount(terminalCheckpoint)
-                : SESSION_RECOVERY_CLOUD_SYNC_WARNING;
-              setCloudSyncIssue(recoverySyncIssue);
-              return;
-            }
-          }
           reportProductError({ surface: "session_completion", errorCode: "session_interruption_sync_failed" });
           setCloudSyncIssue(error instanceof Error ? error.message : "YOVA could not sync the interrupted session.");
         });
@@ -6739,7 +6688,7 @@ function SessionSetup({ plan: storedPlan, answers, completions, interruptions, o
                           <label htmlFor={`session-other-method-${session.id}`}>Looking for a different method?</label>
                           <small>YOVA will check the name against this exact recipe. Questionable or incompatible methods are explained and mapped before anything changes.</small>
                           <div>
-                            <input id={`session-other-method-${session.id}`} type="text" maxLength={100} value={otherMethodRequest} disabled={methodChoicePending} placeholder="For example, Blurting or Pomodoro" onChange={(event) => {
+                            <input id={`session-other-method-${session.id}`} type="text" maxLength={100} value={otherMethodRequest} disabled={methodChoicePending} placeholder="For example, Pomodoro or interleaving" onChange={(event) => {
                               setOtherMethodRequest(event.target.value);
                               setOtherMethodPreview(null);
                               setMethodChoiceError(null);

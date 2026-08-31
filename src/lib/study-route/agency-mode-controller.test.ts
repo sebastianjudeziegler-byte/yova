@@ -147,7 +147,7 @@ describe("versioned StudyRoute agency controller", () => {
       route,
       requestedMethod: route.approach.visibleMethodName,
     });
-    const alias = resolveAgencyMethodRequest({ route, requestedMethod: "Blurting" });
+    const alias = resolveAgencyMethodRequest({ route, requestedMethod: "Flashcards" });
     const timing = resolveAgencyMethodRequest({ route, requestedMethod: "Pomodoro" });
     const unsupported = resolveAgencyMethodRequest({
       route,
@@ -215,7 +215,7 @@ describe("versioned StudyRoute agency controller", () => {
     const allowed = new Set(eligible);
     const questionable = resolveBoundedOtherMethodRequest({
       route,
-      requestedMethod: "Blurting",
+      requestedMethod: "Flashcards",
     });
     const stored = new Set([
       route.approach.primaryMethodId,
@@ -255,7 +255,7 @@ describe("versioned StudyRoute agency controller", () => {
     expect(boundedOtherAgencyMethodOptions(base)).toEqual([]);
     expect(() => resolveBoundedOtherMethodRequest({
       route: base,
-      requestedMethod: "Blurting",
+      requestedMethod: "Pomodoro",
     })).toThrow("only when the learner chose I'll Customize");
   });
 

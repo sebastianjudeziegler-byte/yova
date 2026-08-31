@@ -770,18 +770,19 @@ describe("substantive teaching validation", () => {
     draft.activities[0]!.teaching = null;
     draft.activities[0]!.methodRuntime = {
       kind: "retrieval_round",
-      format: "broad_recall_v1",
       sourceClosedReminder: "Close the source before recalling the idea.",
-      prompts: [{
-        prompt: "Recall the central relationship.",
-        expectedAnswer: "The central relationship in a complete sentence.",
-        hint: "Use the relationship named in the lesson.",
-      }],
-      comparisonInstructions: null,
-      gapChecklist: null,
-      correctionInstruction: null,
-      transferPrompt: null,
-      targetBindings: null,
+      prompts: [
+        {
+          prompt: "Recall the central relationship.",
+          expectedAnswer: "The central relationship in a complete sentence.",
+          hint: "Use the relationship named in the lesson.",
+        },
+        {
+          prompt: "Explain why the relationship matters.",
+          expectedAnswer: "It connects the mechanism to the observed result.",
+          hint: null,
+        },
+      ],
     };
     const providerCandidate = GeneratedSessionDraftProviderOutputSchema.safeParse(fullProviderWireFixture(draft));
     expect(providerCandidate.success).toBe(true);
@@ -804,8 +805,8 @@ describe("substantive teaching validation", () => {
       }),
       expect.objectContaining({
         code: "custom",
-        path: ["activities", 0, "methodRuntime", "comparisonInstructions"],
-        message: "Broad recall requires delayed source-comparison instructions.",
+        path: ["activities", 0, "methodRuntime", "prompts"],
+        message: "The legacy retrieval prompt set requires 3 to 10 prompts.",
       }),
       expect.objectContaining({
         code: "custom",

@@ -11,7 +11,6 @@ import {
   CORE_METHOD_CATALOG,
   CORE_METHOD_IDS,
 } from "@/lib/learning/method-catalog";
-import { FUTURE_BLURTING_LIBRARY_ENTRY } from "@/lib/learning/method-library-content";
 
 function renderLibrary(preferredMethodIds: (typeof CORE_METHOD_IDS)[number][] = []) {
   return renderToStaticMarkup(createElement(MethodLibrary, {
@@ -52,19 +51,6 @@ describe("MethodLibrary", () => {
     expect(html).toContain("<strong>2</strong> of 3 preferred");
     expect(html).toContain("Changes save automatically.");
     expect(html).toContain('aria-busy="false"');
-  });
-
-  it("keeps Blurting clearly separate and nonselectable", () => {
-    const html = renderLibrary();
-    const futureStart = html.indexOf('class="method-library-future"');
-    const future = html.slice(futureStart);
-
-    expect(future).toContain('data-method-status="coming-later"');
-    expect(future).toContain(FUTURE_BLURTING_LIBRARY_ENTRY.name);
-    expect(future).toContain("Not available yet");
-    expect(future).toContain(FUTURE_BLURTING_LIBRARY_ENTRY.availability);
-    expect(future).not.toContain("Prefer when it fits");
-    expect(future).not.toContain("aria-pressed");
   });
 
   it("disables only unselected controls after three preferences", () => {

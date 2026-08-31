@@ -1,13 +1,12 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { Check, Clock3, Sparkles, Star } from "lucide-react";
+import { Check, Sparkles, Star } from "lucide-react";
 import {
   CORE_METHOD_IDS,
   type CoreMethodId,
 } from "@/lib/learning/method-catalog";
 import {
-  FUTURE_BLURTING_LIBRARY_ENTRY,
   METHOD_LIBRARY_ENTRIES,
   type MethodLibraryEntry,
 } from "@/lib/learning/method-library-content";
@@ -164,28 +163,6 @@ export function MethodLibrary({
         ))}
       </div>
 
-      <section className="method-library-future" aria-labelledby="method-library-future-heading">
-        <header>
-          <div><Clock3 size={18} aria-hidden="true" /></div>
-          <span>
-            <span className="step-label">COMING LATER</span>
-            <h2 id="method-library-future-heading">A method YOVA is still finishing safely</h2>
-          </span>
-        </header>
-        <article className="method-library-future-card" data-method-status="coming-later">
-          <div>
-            <span className="method-library-status future">Not available yet</span>
-            <h3>{FUTURE_BLURTING_LIBRARY_ENTRY.name}</h3>
-            <p>{FUTURE_BLURTING_LIBRARY_ENTRY.what}</p>
-            <small><strong>Best for:</strong> {FUTURE_BLURTING_LIBRARY_ENTRY.bestFor}</small>
-          </div>
-          <details>
-            <summary>See the planned steps</summary>
-            <ol>{FUTURE_BLURTING_LIBRARY_ENTRY.how.map((step) => <li key={step}>{step}</li>)}</ol>
-            <p>{FUTURE_BLURTING_LIBRARY_ENTRY.availability}</p>
-          </details>
-        </article>
-      </section>
     </section>
   );
 }

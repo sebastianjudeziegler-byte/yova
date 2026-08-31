@@ -156,69 +156,46 @@ describe("DeviceExportAddendumSchema", () => {
     expect(DeviceExportAddendumSchema.safeParse(unsafe).success).toBe(false);
   });
 
-  it("exports broad-recall recovery only through route-bound envelopes", () => {
+  it("exports old recovery envelopes after dropping their retired activity marker", () => {
     const routeRevisionId = "77777777-7777-4777-8777-777777777777";
-    const broadProgress = {
-      kind: "broad_recall" as const,
-      format: "broad_recall_v1" as const,
-      activityIndex: 0,
-      gapCount: 1,
-      bindings: [{
-        targetId: "88888888-8888-4888-8888-888888888888",
-        evidenceId: "blurting-final-check:88888888-8888-4888-8888-888888888888",
-      }],
-      events: [],
-    };
-    const routeBoundInterruption = {
-      id: "33333333-3333-4333-8333-333333333333",
-      planId: "44444444-4444-4444-8444-444444444444",
-      planSessionId: "55555555-5555-4555-8555-555555555555",
-      routeRevisionId,
-      startedAt: "2026-08-17T00:00:00.000Z",
-      interruptedAt: "2026-08-17T00:01:00.000Z",
-      plannedMinutes: 20,
-      actualMinutes: 1,
-      completedSteps: 0,
-      totalSteps: 4,
-      activityProgress: broadProgress,
-    };
-    const routeBoundCheckpoint = {
-      ...baseCheckpoint(),
-      version: 2 as const,
-      routeRevisionId,
-      activityProgress: broadProgress,
-    };
     const routeBound = {
       ...baseAddendum(),
       pendingSessionInterruptions: [{
         userId: ACCOUNT_ID,
-        interruption: routeBoundInterruption,
+        interruption: {
+          id: "33333333-3333-4333-8333-333333333333",
+          planId: "44444444-4444-4444-8444-444444444444",
+          planSessionId: "55555555-5555-4555-8555-555555555555",
+          routeRevisionId,
+          startedAt: "2026-08-17T00:00:00.000Z",
+          interruptedAt: "2026-08-17T00:01:00.000Z",
+          plannedMinutes: 20,
+          actualMinutes: 1,
+          completedSteps: 0,
+          totalSteps: 4,
+          activityProgress: { kind: "broad_recall", legacyPayload: "ignored" },
+        },
         queuedAt: "2026-08-17T00:01:00.000Z",
       }],
-      activeSessionCheckpoints: [routeBoundCheckpoint],
+      activeSessionCheckpoints: [{
+        ...baseCheckpoint(),
+        version: 2,
+        routeRevisionId,
+        activityProgress: { kind: "broad_recall", legacyPayload: "ignored" },
+      }],
     };
 
-    expect(DeviceExportAddendumSchema.safeParse(routeBound).success).toBe(true);
-    expect(DeviceExportAddendumSchema.safeParse({
-      ...routeBound,
-      pendingSessionInterruptions: [{
-        ...routeBound.pendingSessionInterruptions[0],
-        interruption: {
-          ...routeBoundInterruption,
-          routeRevisionId: undefined,
-        },
-      }],
-    }).success).toBe(false);
-    expect(DeviceExportAddendumSchema.safeParse({
-      ...routeBound,
-      activeSessionCheckpoints: [{
-        ...routeBoundCheckpoint,
-        version: 1,
-        routeRevisionId: undefined,
-      }],
-    }).success).toBe(false);
-  });
+    const parsed = DeviceExportAddendumSchema.parse(routeBound);
 
+    expect(parsed.pendingSessionInterruptions[0]?.interruption).toMatchObject({
+      routeRevisionId,
+      completedSteps: 0,
+      totalSteps: 4,
+    });
+    expect(parsed.pendingSessionInterruptions[0]?.interruption)
+      .not.toHaveProperty("activityProgress");
+    expect(parsed.activeSessionCheckpoints[0]).not.toHaveProperty("activityProgress");
+  });
   it("exports route-bound recovery markers without weakening legacy checkpoint reads", () => {
     const routeRevisionId = "77777777-7777-4777-8777-777777777777";
     const legacyCheckpoint = baseCheckpoint();
