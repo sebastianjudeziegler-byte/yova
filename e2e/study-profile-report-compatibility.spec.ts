@@ -15,6 +15,7 @@ test.describe("YOVA Study Profile private report compatibility", () => {
       data: {
         visitorId: randomUUID(),
         email,
+        ageConfirmed: true,
         answers: Object.fromEntries(
           Array.from({ length: 12 }, (_, index) => [
             `q${index + 1}`,

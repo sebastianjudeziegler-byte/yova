@@ -112,6 +112,8 @@ export function CanonicalStudyProfileExperience() {
       <div className={styles.summaryList}>{summary.statements.map((statement) => <article key={statement}><Check size={17} /><span>{statement}</span></article>)}</div>
       <div className={styles.boundary}><ShieldCheck size={20} /><span>{summary.evidenceBoundary}</span></div>
       {storageIssue && <p className={styles.issue} role="alert">{storageIssue}</p>}
+      {/* A full navigation clears the standalone setup route before entering YOVA. */}
+      {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
       <a className={styles.primary} href="/">Use this profile in YOVA <ArrowRight size={18} /></a>
       <button className={styles.secondary} onClick={() => { setQuestionIndex(0); setView("question"); }}>Review my answers</button>
     </section>
