@@ -60,7 +60,7 @@ export default async function StudyProfileReportPage({
     await loaded.repository.recordEvent({
       responseId: loaded.saved.storedResponse.id,
       eventName: "study_profile_report_viewed",
-      eventData: {},
+      eventData: { scoringRevision: loaded.saved.report.scoringRevision },
     });
   } catch {
     // Analytics failures never prevent a private report from rendering.

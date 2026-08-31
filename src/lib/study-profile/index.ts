@@ -3,6 +3,7 @@ export {
   STUDY_PROFILE_DIMENSION_NAMES,
   STUDY_PROFILE_REPORT_SECTION_HEADINGS,
   STUDY_PROFILE_SALIENCE_ORDER,
+  STUDY_PROFILE_STUDY_GOAL_LABELS,
   STUDY_PROFILE_THRESHOLDS,
   STUDY_PROFILE_USER_FACING_LABELS,
 } from "@/lib/study-profile/config";
@@ -27,12 +28,27 @@ export {
   STUDY_PROFILE_QUESTIONS,
 } from "@/lib/study-profile/questions";
 export {
+  STUDY_PROFILE_METHOD_CATALOG,
+  buildStudyProfileMethodCatalog,
+  selectStudyProfileTopMethods,
+  studyProfileMethodFitLabel,
+} from "@/lib/study-profile/method-catalog";
+export {
+  buildStudyProfileFreeInsight,
+  buildStudyProfileWhySection,
+  resolveStudyProfileNamedPattern,
+  studyProfilePatternCopy,
+} from "@/lib/study-profile/patterns";
+export {
   buildStudyProfileReport,
   buildStudyProfileReportFromStoredResponse,
 } from "@/lib/study-profile/report";
+export { StudyProfileReportSchema } from "@/lib/study-profile/report-schema";
 export {
   buildStudyProfilePlaybook,
+  buildStudyProfileMethodCatalogForProfile,
   buildStudyProfileSessionPlan,
+  selectStudyProfileCatalogMethods,
   selectStudyProfileMethods,
 } from "@/lib/study-profile/playbook";
 export {
@@ -49,6 +65,7 @@ export {
   StudyProfilePublicStoredResponseSchema,
   StudyProfileReportTokenSchema,
   StudyProfileSchoolLevelSchema,
+  StudyProfileStudyGoalSchema,
   StudyProfileSnapshotSchema,
   StudyProfileStoredResponseSchema,
   StudyProfileSubmissionSchema,

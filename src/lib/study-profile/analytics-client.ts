@@ -9,7 +9,10 @@ import {
   type StudyProfileEventProperties,
 } from "@/lib/study-profile/analytics";
 import { sanitizeStudyProfileAttributionValue } from "@/lib/study-profile/attribution-privacy";
-import { STUDY_PROFILE_MODEL_VERSION } from "@/lib/study-profile/types";
+import {
+  STUDY_PROFILE_MODEL_VERSION,
+  STUDY_PROFILE_SCORING_REVISION,
+} from "@/lib/study-profile/types";
 
 const VISITOR_STORAGE_KEY = "yova.study-profile.visitor.v1";
 const ATTRIBUTION_STORAGE_KEY = "yova.study-profile.attribution.v1";
@@ -136,7 +139,7 @@ export function captureStudyProfileAttribution(): StudyProfileAnalyticsAttributi
 }
 
 type PropertyArguments<Name extends StudyProfileEventName> =
-  Name extends "study_profile_question_answered"
+  Name extends "study_profile_question_answered" | "study_profile_share_tapped"
     ? [properties: StudyProfileEventProperties[Name]]
     : [properties?: StudyProfileEventProperties[Name]];
 
@@ -152,6 +155,7 @@ export function trackStudyProfileEvent<Name extends StudyProfileEventName>(
     eventName: name,
     visitorId,
     modelVersion: STUDY_PROFILE_MODEL_VERSION,
+    scoringRevision: STUDY_PROFILE_SCORING_REVISION,
     attribution: captureStudyProfileAttribution(),
     context: properties ?? {},
   });

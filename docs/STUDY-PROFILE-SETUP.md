@@ -4,7 +4,7 @@ The public funnel lives at `/study-profile`. It does not require YOVA authentica
 
 ## Production configuration
 
-Apply the migration in `supabase/migrations/202608110001_study_profile_lead_funnel.sql`, then add these server-only variables to the Vercel project:
+Apply `supabase/migrations/202608110001_study_profile_lead_funnel.sql` and `supabase/migrations/202608310001_study_profile_revamp_waitlist.sql`, then add these server-only variables to the Vercel project:
 
 ```text
 SUPABASE_SECRET_KEY=sb_secret_...
@@ -31,7 +31,7 @@ Use a dedicated sending subdomain such as `updates.yovaapp.com` for Study Profil
 5. After Resend verifies the subdomain, use an address such as `reports@updates.yovaapp.com` for `STUDY_PROFILE_FROM_EMAIL`.
 6. Use an existing monitored Google Workspace mailbox as `STUDY_PROFILE_REPLY_TO` if replies should be accepted.
 
-The report email is transactional. Joining the waitlist is a separate action on the report. Do not send waitlist email until an unsubscribe and suppression workflow is in place.
+The report email is transactional. Joining the waitlist is a separate explicit action at the email gate, on the report, or in the landing-page waitlist form. Do not send waitlist email until an unsubscribe and suppression workflow is in place.
 
 ## Pre-broad-launch decisions
 
@@ -61,12 +61,14 @@ Local:
 
 1. Run `pnpm dev` and open `http://localhost:3000/study-profile`.
 2. Start the assessment, answer several questions, refresh, and confirm progress returns.
-3. Use Back, change an answer, finish all 12 questions, and complete the two context screens.
+3. Use Back, change an answer, finish all 14 numbered steps, and confirm the sequence never switches to a separate context counter.
 4. Submit an email and confirm it is used only to deliver the private report.
 5. Confirm the full report appears even without Resend, and refresh the private `/study-profile/report/<token>` URL.
 6. Join the waitlist and confirm the success message remains after a refresh.
-7. Open an altered token and confirm the generic unavailable-link page.
-8. Repeat at 320, 375, and 390 CSS pixels wide and with a desktop viewport.
+7. Submit the landing-page waitlist form without taking the quiz and confirm it creates one idempotent lead.
+8. Create both share-image formats and confirm neither contains the private report URL.
+9. Open an altered token and confirm the generic unavailable-link page.
+10. Repeat at 360 and 390 CSS pixels wide and with a desktop viewport.
 
 Deployed:
 

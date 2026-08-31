@@ -57,6 +57,10 @@ export function checkStudyProfileInterestRateLimit(key: string) {
   return checkRateLimit(`study-profile-interest:${key}`, 20);
 }
 
+export function checkStudyProfileWaitlistRateLimit(key: string) {
+  return checkRateLimit(`study-profile-waitlist:${key}`, 8);
+}
+
 export function checkStudyProfileEventRateLimit(key: string) {
   return checkRateLimit(`study-profile-event:${key}`, 120);
 }

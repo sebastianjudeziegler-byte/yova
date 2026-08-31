@@ -50,7 +50,7 @@ export async function POST(request: Request) {
 
   const parsed = StudyProfileResponseRequestSchema.safeParse(body.value);
   if (!parsed.success) {
-    return jsonError("Complete all 12 questions and add a valid email to get your report.", 422);
+    return jsonError("Complete all 14 questions and add a valid email to get your report.", 422);
   }
 
   const emailLimit = checkStudyProfileSubmissionRateLimit(`email:${parsed.data.email}`);
@@ -86,8 +86,18 @@ export async function POST(request: Request) {
       const delivery = await sendStudyProfileReportEmail({
         to: parsed.data.email,
         reportUrl,
-        primaryPatternName: report.primaryPattern.name,
-        primaryPatternLabel: report.primaryPattern.label,
+        pattern: {
+          name: report.pattern.name,
+          tell: report.pattern.tell,
+        },
+        why: report.whyThisIsHappening.body,
+        matchedMethods: [
+          report.playbook.methods[0].name,
+          report.playbook.methods[1].name,
+          report.playbook.methods[2].name,
+        ],
+        tonightPlan: report.playbook.methods[0].tonightVersion
+          ?? report.playbook.nextSession.title,
         responseId: saved.storedResponse.id,
       });
       emailDelivery = delivery.status;

@@ -3,6 +3,11 @@ import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { createSupabaseAdminClient, isSupabaseAdminConfigured } from "@/lib/supabase/admin";
 import {
   STUDY_PROFILE_MODEL_VERSION,
+  STUDY_PROFILE_SCORING_REVISION,
+  STUDY_PROFILE_STUDY_GOALS,
+  StudyProfileReportSchema,
+  StudyProfileAnswersSchema,
+  StudyProfileSnapshotSchema,
   StudyProfileStoredResponseSchema,
   buildStudyProfileReportFromStoredResponse,
   normalizeStudyProfileEmail,
@@ -11,11 +16,31 @@ import {
   type StudyProfileReport,
   type StudyProfileSnapshot,
   type StudyProfileStoredResponse,
+  type StudyProfileStudyGoal,
   type StudyProfileSubmission,
 } from "@/lib/study-profile";
 
 export const STUDY_PROFILE_CONSENT_COPY_VERSION = "study-profile-updates-v1";
-export const STUDY_PROFILE_WAITLIST_CONSENT_COPY_VERSION = "study-profile-waitlist-v2";
+export const STUDY_PROFILE_WAITLIST_SOURCES = [
+  "landing",
+  "email_gate",
+  "report_cta",
+] as const;
+export type StudyProfileWaitlistSource = (typeof STUDY_PROFILE_WAITLIST_SOURCES)[number];
+
+export const STUDY_PROFILE_WAITLIST_CONSENT_COPY_VERSIONS: Record<
+  StudyProfileWaitlistSource,
+  string
+> = {
+  landing: "study-profile-waitlist-v3-landing",
+  email_gate: "study-profile-waitlist-v3-email-gate",
+  report_cta: "study-profile-waitlist-v3-report-cta",
+};
+
+// Retained as the default report-CTA version for compatibility with existing
+// repository consumers. New callers should pass an explicit source.
+export const STUDY_PROFILE_WAITLIST_CONSENT_COPY_VERSION =
+  STUDY_PROFILE_WAITLIST_CONSENT_COPY_VERSIONS.report_cta;
 
 export type StudyProfileEmailDeliveryStatus = "pending" | "sent" | "failed" | "skipped";
 
@@ -48,6 +73,7 @@ export type StudyProfileEventRecord = {
     | "study_profile_email_submitted"
     | "study_profile_report_viewed"
     | "study_profile_waitlist_joined"
+    | "study_profile_share_tapped"
     | "study_profile_beta_interest";
   eventData: Record<string, string | number | boolean | null>;
   attribution?: StudyProfileSubmission["attribution"];
@@ -58,10 +84,24 @@ export type StudyProfileInterestState = {
   betaInterest: boolean | null;
 };
 
+export type StudyProfileWaitlistJoinState = StudyProfileInterestState & {
+  newlyJoined: boolean;
+};
+
+export type JoinStudyProfileWaitlistByEmailInput = {
+  email: string;
+  visitorId: string;
+  attribution?: StudyProfileSubmission["attribution"];
+};
+
 export interface StudyProfileRepository {
   saveResponse(input: PersistStudyProfileResponseInput): Promise<SavedStudyProfileResponse>;
   getReportByToken(reportToken: string): Promise<SavedStudyProfileResponse | null>;
-  joinWaitlist(reportToken: string): Promise<StudyProfileInterestState | null>;
+  joinWaitlist(
+    reportToken: string,
+    source?: StudyProfileWaitlistSource,
+  ): Promise<StudyProfileWaitlistJoinState | null>;
+  joinWaitlistByEmail(input: JoinStudyProfileWaitlistByEmailInput): Promise<StudyProfileInterestState>;
   setBetaInterest(reportToken: string, interested: boolean): Promise<StudyProfileInterestState | null>;
   recordEvent(event: StudyProfileEventRecord): Promise<void>;
   markEmailDelivery(
@@ -112,6 +152,7 @@ type MemoryLead = {
   waitlistJoined: boolean;
   waitlistJoinedAt: string | null;
   waitlistConsentCopyVersion: string | null;
+  waitlistConsentSource: StudyProfileWaitlistSource | null;
   betaInterest: boolean | null;
 };
 
@@ -166,6 +207,7 @@ export class MemoryStudyProfileRepository implements StudyProfileRepository {
         waitlistJoined: false,
         waitlistJoinedAt: null,
         waitlistConsentCopyVersion: null,
+        waitlistConsentSource: null,
         betaInterest: null,
       };
       this.state.leadsByEmail.set(email, lead);
@@ -197,7 +239,7 @@ export class MemoryStudyProfileRepository implements StudyProfileRepository {
       visitorId: input.visitorId,
       responseId: storedResponse.id,
       eventName: "study_profile_email_submitted",
-      eventData: {},
+      eventData: { scoringRevision: STUDY_PROFILE_SCORING_REVISION },
       attribution: input.attribution,
     });
     return publicMemoryResponse(saved, lead);
@@ -211,18 +253,72 @@ export class MemoryStudyProfileRepository implements StudyProfileRepository {
     return publicMemoryResponse(response, lead, reportToken);
   }
 
-  async joinWaitlist(reportToken: string) {
+  async joinWaitlist(
+    reportToken: string,
+    source: StudyProfileWaitlistSource = "report_cta",
+  ) {
     const resolved = this.resolveLead(reportToken);
     if (!resolved) return null;
+    let newlyJoined = false;
     if (!resolved.lead.waitlistJoined) {
+      newlyJoined = true;
       resolved.lead.waitlistJoined = true;
       resolved.lead.waitlistJoinedAt = this.clock.now().toISOString();
-      resolved.lead.waitlistConsentCopyVersion = STUDY_PROFILE_WAITLIST_CONSENT_COPY_VERSION;
+      resolved.lead.waitlistConsentCopyVersion =
+        STUDY_PROFILE_WAITLIST_CONSENT_COPY_VERSIONS[source];
+      resolved.lead.waitlistConsentSource = source;
+      this.state.events.push({
+        responseId: resolved.response.storedResponse.id,
+        eventName: "study_profile_waitlist_joined",
+        eventData: {
+          source,
+          scoringRevision: resolved.response.report.scoringRevision,
+        },
+      });
     }
     return {
       waitlistJoined: true,
       betaInterest: resolved.lead.betaInterest,
+      newlyJoined,
     };
+  }
+
+  async joinWaitlistByEmail(input: JoinStudyProfileWaitlistByEmailInput) {
+    const email = normalizeStudyProfileEmail(input.email);
+    let lead = this.state.leadsByEmail.get(email);
+    let newlyJoined = false;
+    if (!lead) {
+      lead = {
+        id: this.clock.uuid(),
+        email,
+        marketingConsent: false,
+        waitlistJoined: true,
+        waitlistJoinedAt: this.clock.now().toISOString(),
+        waitlistConsentCopyVersion: STUDY_PROFILE_WAITLIST_CONSENT_COPY_VERSIONS.landing,
+        waitlistConsentSource: "landing",
+        betaInterest: null,
+      };
+      this.state.leadsByEmail.set(email, lead);
+      newlyJoined = true;
+    } else if (!lead.waitlistJoined) {
+      lead.waitlistJoined = true;
+      lead.waitlistJoinedAt = this.clock.now().toISOString();
+      lead.waitlistConsentCopyVersion = STUDY_PROFILE_WAITLIST_CONSENT_COPY_VERSIONS.landing;
+      lead.waitlistConsentSource = "landing";
+      newlyJoined = true;
+    }
+    if (newlyJoined) {
+      this.state.events.push({
+        visitorId: input.visitorId,
+        eventName: "study_profile_waitlist_joined",
+        eventData: {
+          source: "landing",
+          scoringRevision: STUDY_PROFILE_SCORING_REVISION,
+        },
+        attribution: input.attribution,
+      });
+    }
+    return { waitlistJoined: true, betaInterest: lead.betaInterest };
   }
 
   async setBetaInterest(reportToken: string, interested: boolean) {
@@ -234,7 +330,13 @@ export class MemoryStudyProfileRepository implements StudyProfileRepository {
   }
 
   async recordEvent(event: StudyProfileEventRecord) {
-    this.state.events.push(structuredClone(event));
+    this.state.events.push(structuredClone({
+      ...event,
+      eventData: {
+        scoringRevision: STUDY_PROFILE_SCORING_REVISION,
+        ...event.eventData,
+      },
+    }));
   }
 
   async markEmailDelivery(
@@ -277,7 +379,12 @@ export class SupabaseStudyProfileRepository implements StudyProfileRepository {
           rawAnswers: input.answers,
           profileSnapshot: input.snapshot,
           metadata: input.metadata,
-          reportState: input.report,
+          reportState: {
+            report: input.report,
+            metadata: {
+              studyGoal: input.metadata.studyGoal ?? null,
+            },
+          },
           marketingConsent: input.marketingConsent,
           consentCopyVersion: STUDY_PROFILE_CONSENT_COPY_VERSION,
           attribution,
@@ -305,7 +412,16 @@ export class SupabaseStudyProfileRepository implements StudyProfileRepository {
     }
 
     try {
-      return savedStudyProfileResponse(input, reportToken, readRpcId(data, "responseId"), createdAt);
+      const responseId = readRpcId(data, "responseId");
+      const leadId = readRpcId(data, "leadId");
+      const interest = await readLeadInterestState(supabase, leadId);
+      return savedStudyProfileResponse(
+        input,
+        reportToken,
+        responseId,
+        createdAt,
+        interest,
+      );
     } catch (receiptError) {
       // The RPC has already committed at this point. Recover the canonical row
       // by its unique private token hash so response-envelope drift cannot make
@@ -325,7 +441,7 @@ export class SupabaseStudyProfileRepository implements StudyProfileRepository {
     const supabase = createSupabaseAdminClient();
     const { data: row, error } = await supabase
       .from("study_profile_responses")
-      .select("id, lead_id, profile_model_version, raw_answers, profile_snapshot, energy_window, school_level, optional_free_response, created_at")
+      .select("id, lead_id, profile_model_version, raw_answers, profile_snapshot, report_state, energy_window, school_level, optional_free_response, created_at")
       .eq("report_token_hash", hashStudyProfileReportToken(reportToken))
       .maybeSingle();
     if (error) throw new Error("YOVA could not load this Study Profile report.", { cause: error });
@@ -339,75 +455,67 @@ export class SupabaseStudyProfileRepository implements StudyProfileRepository {
     if (leadError) throw new Error("YOVA could not load this Study Profile report.", { cause: leadError });
     if (!lead) return null;
 
+    const persistedState = readPersistedStudyProfileState(row.report_state);
+    const rawAnswers = StudyProfileAnswersSchema.parse(row.raw_answers);
+    const snapshot = StudyProfileSnapshotSchema.parse(row.profile_snapshot);
     const storedResponse = StudyProfileStoredResponseSchema.parse({
       id: row.id,
       reportToken,
       profileModelVersion: row.profile_model_version,
-      rawAnswers: row.raw_answers,
-      snapshot: row.profile_snapshot,
+      rawAnswers,
+      snapshot,
       metadata: {
         energyWindow: row.energy_window,
         schoolLevel: row.school_level,
+        ...(persistedState.studyGoal ? { studyGoal: persistedState.studyGoal } : {}),
         hardestPart: row.optional_free_response,
       },
       createdAt: row.created_at,
     });
     return {
       storedResponse,
-      report: buildStudyProfileReportFromStoredResponse(storedResponse),
+      report: persistedState.report ?? buildStudyProfileReportFromStoredResponse(storedResponse),
       waitlistJoined: lead.waitlist_status === "joined",
       betaInterest: typeof lead.beta_interest === "boolean" ? lead.beta_interest : null,
     };
   }
 
-  async joinWaitlist(reportToken: string) {
-    const resolved = await this.findLeadByToken(reportToken);
-    if (!resolved) return null;
-    const supabase = createSupabaseAdminClient();
-    const { data: current, error: currentError } = await supabase
-      .from("study_profile_leads")
-      .select("waitlist_status, beta_interest")
-      .eq("id", resolved.leadId)
-      .maybeSingle();
-    if (currentError) throw new Error("YOVA could not update waitlist signup.", { cause: currentError });
-    if (!current) return null;
-    if (current.waitlist_status === "joined") {
-      return {
-        waitlistJoined: true,
-        betaInterest: typeof current.beta_interest === "boolean" ? current.beta_interest : null,
-      };
-    }
-
-    const now = new Date().toISOString();
-    const { data, error } = await supabase
-      .from("study_profile_leads")
-      .update({
-        waitlist_status: "joined",
-        waitlist_joined_at: now,
-        waitlist_consent_copy_version: STUDY_PROFILE_WAITLIST_CONSENT_COPY_VERSION,
-      })
-      .eq("id", resolved.leadId)
-      .eq("waitlist_status", "not_joined")
-      .select("waitlist_status, beta_interest")
-      .maybeSingle();
+  async joinWaitlist(
+    reportToken: string,
+    source: StudyProfileWaitlistSource = "report_cta",
+  ) {
+    const { data, error } = await createSupabaseAdminClient().rpc(
+      "join_study_profile_report_waitlist",
+      {
+        payload: {
+          reportTokenHash: hashStudyProfileReportToken(reportToken),
+          consentCopyVersion: STUDY_PROFILE_WAITLIST_CONSENT_COPY_VERSIONS[source],
+          consentSource: source,
+        },
+      },
+    );
     if (error) throw new Error("YOVA could not update waitlist signup.", { cause: error });
-    if (!data) {
-      const { data: joined, error: joinedError } = await supabase
-        .from("study_profile_leads")
-        .select("waitlist_status, beta_interest")
-        .eq("id", resolved.leadId)
-        .maybeSingle();
-      if (joinedError) throw new Error("YOVA could not update waitlist signup.", { cause: joinedError });
-      if (!joined) return null;
-      return {
-        waitlistJoined: joined.waitlist_status === "joined",
-        betaInterest: typeof joined.beta_interest === "boolean" ? joined.beta_interest : null,
-      };
-    }
-    return {
-      waitlistJoined: data.waitlist_status === "joined",
-      betaInterest: typeof data.beta_interest === "boolean" ? data.beta_interest : null,
-    };
+    if (data === null) return null;
+    return parseWaitlistJoinReceipt(data);
+  }
+
+  async joinWaitlistByEmail(input: JoinStudyProfileWaitlistByEmailInput) {
+    const attribution = persistenceAttribution(input.attribution);
+    const { data, error } = await createSupabaseAdminClient().rpc(
+      "join_study_profile_waitlist",
+      {
+        payload: {
+          email: normalizeStudyProfileEmail(input.email),
+          visitorId: input.visitorId,
+          consentCopyVersion: STUDY_PROFILE_WAITLIST_CONSENT_COPY_VERSIONS.landing,
+          consentSource: "landing",
+          attribution,
+        },
+      },
+    );
+    if (error) throw new Error("YOVA could not update waitlist signup.", { cause: error });
+    parseLandingWaitlistReceipt(data);
+    return { waitlistJoined: true, betaInterest: null };
   }
 
   async setBetaInterest(reportToken: string, interested: boolean) {
@@ -436,7 +544,10 @@ export class SupabaseStudyProfileRepository implements StudyProfileRepository {
       visitor_id: event.visitorId || null,
       response_id: event.responseId || null,
       event_name: event.eventName,
-      event_data: event.eventData,
+      event_data: {
+        scoringRevision: STUDY_PROFILE_SCORING_REVISION,
+        ...event.eventData,
+      },
       profile_model_version: STUDY_PROFILE_MODEL_VERSION,
       traffic_source: attribution.source,
       referrer_host: attribution.referrerHost,
@@ -482,6 +593,7 @@ class UnavailableStudyProfileRepository implements StudyProfileRepository {
   async saveResponse(): Promise<never> { throw new StudyProfilePersistenceUnavailableError(); }
   async getReportByToken(): Promise<never> { throw new StudyProfilePersistenceUnavailableError(); }
   async joinWaitlist(): Promise<never> { throw new StudyProfilePersistenceUnavailableError(); }
+  async joinWaitlistByEmail(): Promise<never> { throw new StudyProfilePersistenceUnavailableError(); }
   async setBetaInterest(): Promise<never> { throw new StudyProfilePersistenceUnavailableError(); }
   async recordEvent(): Promise<never> { throw new StudyProfilePersistenceUnavailableError(); }
   async markEmailDelivery(): Promise<never> { throw new StudyProfilePersistenceUnavailableError(); }
@@ -539,7 +651,7 @@ function publicMemoryResponse(
 ): SavedStudyProfileResponse {
   return {
     storedResponse: { ...response.storedResponse, reportToken },
-    report: buildStudyProfileReportFromStoredResponse(response.storedResponse),
+    report: response.report,
     waitlistJoined: lead.waitlistJoined,
     betaInterest: lead.betaInterest,
   };
@@ -557,6 +669,33 @@ function persistenceAttribution(attribution?: StudyProfileSubmission["attributio
   };
 }
 
+function readPersistedStudyProfileState(value: unknown): {
+  report: StudyProfileReport | null;
+  studyGoal: StudyProfileStudyGoal | null;
+} {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return { report: null, studyGoal: null };
+  }
+  const record = value as Record<string, unknown>;
+  const wrapped = record.report && typeof record.report === "object"
+    ? record.report
+    : record;
+  const metadata = record.metadata && typeof record.metadata === "object"
+    ? record.metadata as Record<string, unknown>
+    : null;
+  const studyGoalCandidate = metadata?.studyGoal;
+  const studyGoal = typeof studyGoalCandidate === "string"
+    && (STUDY_PROFILE_STUDY_GOALS as readonly string[]).includes(studyGoalCandidate)
+    ? studyGoalCandidate as StudyProfileStudyGoal
+    : null;
+
+  const parsedReport = StudyProfileReportSchema.safeParse(wrapped);
+  return {
+    report: parsedReport.success ? parsedReport.data : null,
+    studyGoal,
+  };
+}
+
 function readRpcId(value: unknown, field: string) {
   if (!value || typeof value !== "object" || !(field in value)) {
     throw new Error("YOVA received an invalid Study Profile persistence response.");
@@ -568,11 +707,52 @@ function readRpcId(value: unknown, field: string) {
   return id;
 }
 
+function parseLandingWaitlistReceipt(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error("YOVA could not confirm waitlist signup.");
+  }
+  const receipt = value as Record<string, unknown>;
+  if (
+    receipt.waitlistJoined !== true
+    || typeof receipt.newlyJoined !== "boolean"
+    || typeof receipt.leadId !== "string"
+    || !isUuid(receipt.leadId)
+  ) {
+    throw new Error("YOVA could not confirm waitlist signup.");
+  }
+  return receipt;
+}
+
+function parseWaitlistJoinReceipt(value: unknown): StudyProfileWaitlistJoinState {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error("YOVA could not confirm waitlist signup.");
+  }
+  const receipt = value as Record<string, unknown>;
+  if (
+    receipt.waitlistJoined !== true
+    || typeof receipt.newlyJoined !== "boolean"
+    || (receipt.betaInterest !== null && typeof receipt.betaInterest !== "boolean")
+  ) {
+    throw new Error("YOVA could not confirm waitlist signup.");
+  }
+  return {
+    waitlistJoined: true,
+    newlyJoined: receipt.newlyJoined,
+    betaInterest: receipt.betaInterest,
+  };
+}
+
+function isUuid(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+    .test(value);
+}
+
 function savedStudyProfileResponse(
   input: PersistStudyProfileResponseInput,
   reportToken: string,
   responseId: unknown,
   createdAt: unknown,
+  interest: StudyProfileInterestState | null = null,
 ): SavedStudyProfileResponse {
   const storedResponse = StudyProfileStoredResponseSchema.parse({
     id: responseId,
@@ -586,8 +766,8 @@ function savedStudyProfileResponse(
   return {
     storedResponse,
     report: input.report,
-    waitlistJoined: false,
-    betaInterest: null,
+    waitlistJoined: interest?.waitlistJoined ?? false,
+    betaInterest: interest?.betaInterest ?? null,
   };
 }
 
@@ -604,11 +784,12 @@ async function recoverSavedStudyProfileResponse(
   try {
     const { data: persisted, error } = await supabase
       .from("study_profile_responses")
-      .select("id,created_at")
+      .select("id,lead_id,created_at")
       .eq("report_token_hash", reportTokenHash)
       .maybeSingle();
     if (error) return { status: "unknown" };
     if (!persisted) return { status: "not_found" };
+    const interest = await readLeadInterestState(supabase, persisted.lead_id);
     return {
       status: "saved",
       value: savedStudyProfileResponse(
@@ -616,9 +797,33 @@ async function recoverSavedStudyProfileResponse(
         reportToken,
         persisted.id,
         persisted.created_at,
+        interest,
       ),
     };
   } catch {
     return { status: "unknown" };
+  }
+}
+
+async function readLeadInterestState(
+  supabase: ReturnType<typeof createSupabaseAdminClient>,
+  leadId: unknown,
+): Promise<StudyProfileInterestState | null> {
+  if (typeof leadId !== "string") return null;
+  try {
+    const { data, error } = await supabase
+      .from("study_profile_leads")
+      .select("waitlist_status,beta_interest")
+      .eq("id", leadId)
+      .maybeSingle();
+    if (error || !data) return null;
+    return {
+      waitlistJoined: data.waitlist_status === "joined",
+      betaInterest: typeof data.beta_interest === "boolean"
+        ? data.beta_interest
+        : null,
+    };
+  } catch {
+    return null;
   }
 }

@@ -3,7 +3,10 @@ import {
   createStudyProfileAttributionValueSchema,
   isSensitiveStudyProfileAttributionValue,
 } from "@/lib/study-profile/attribution-privacy";
-import { STUDY_PROFILE_MODEL_VERSION } from "@/lib/study-profile/types";
+import {
+  STUDY_PROFILE_MODEL_VERSION,
+  STUDY_PROFILE_SCORING_REVISION,
+} from "@/lib/study-profile/types";
 
 export const STUDY_PROFILE_EVENT_NAMES = [
   "study_profile_page_viewed",
@@ -13,6 +16,7 @@ export const STUDY_PROFILE_EVENT_NAMES = [
   "study_profile_email_submitted",
   "study_profile_report_viewed",
   "study_profile_waitlist_joined",
+  "study_profile_share_tapped",
 ] as const;
 
 export const StudyProfileEventNameSchema = z.enum(STUDY_PROFILE_EVENT_NAMES);
@@ -59,6 +63,9 @@ export const StudyProfileAnalyticsAttributionSchema = z.object({
 const BaseEventShape = {
   visitorId: StudyProfileVisitorIdSchema,
   modelVersion: z.literal(STUDY_PROFILE_MODEL_VERSION),
+  scoringRevision: z.literal(STUDY_PROFILE_SCORING_REVISION).default(
+    STUDY_PROFILE_SCORING_REVISION,
+  ),
   attribution: StudyProfileAnalyticsAttributionSchema.optional(),
 } as const;
 
@@ -84,7 +91,7 @@ export const StudyProfileAnalyticsEventSchema = z.discriminatedUnion("eventName"
     ...BaseEventShape,
     eventName: z.literal("study_profile_question_answered"),
     context: z.object({
-      questionNumber: z.number().int().min(1).max(12),
+      questionNumber: z.number().int().min(1).max(14),
     }).strict(),
   }).strict(),
   z.object({
@@ -107,6 +114,13 @@ export const StudyProfileAnalyticsEventSchema = z.discriminatedUnion("eventName"
     eventName: z.literal("study_profile_waitlist_joined"),
     context: EmptyContextSchema,
   }).strict(),
+  z.object({
+    ...BaseEventShape,
+    eventName: z.literal("study_profile_share_tapped"),
+    context: z.object({
+      shareFormat: z.enum(["square", "story"]),
+    }).strict(),
+  }).strict(),
 ]);
 
 // Name the request schema explicitly for route handlers while retaining the
@@ -128,4 +142,5 @@ export type StudyProfileEventProperties = {
   study_profile_email_submitted: Record<string, never>;
   study_profile_report_viewed: Record<string, never>;
   study_profile_waitlist_joined: Record<string, never>;
+  study_profile_share_tapped: { shareFormat: "square" | "story" };
 };

@@ -56,7 +56,10 @@ export async function POST(request: Request) {
     await getStudyProfileRepository().recordEvent({
       visitorId: parsed.data.visitorId,
       eventName: parsed.data.eventName,
-      eventData: parsed.data.context,
+      eventData: {
+        ...parsed.data.context,
+        scoringRevision: parsed.data.scoringRevision,
+      },
       attribution: parsed.data.attribution,
     });
   } catch {

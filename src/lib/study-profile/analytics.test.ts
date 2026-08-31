@@ -8,7 +8,7 @@ import { STUDY_PROFILE_MODEL_VERSION } from "@/lib/study-profile/types";
 const visitorId = "3f4edc20-e169-4f7f-b2c3-2a1a683b74e9";
 
 describe("StudyProfileAnalyticsEventSchema", () => {
-  it("accepts only the bounded context for each of the seven funnel events", () => {
+  it("accepts only the bounded context for each of the eight funnel events", () => {
     const base = { visitorId, modelVersion: STUDY_PROFILE_MODEL_VERSION };
     const events = [
       { ...base, eventName: "study_profile_page_viewed", context: {} },
@@ -16,12 +16,22 @@ describe("StudyProfileAnalyticsEventSchema", () => {
       {
         ...base,
         eventName: "study_profile_question_answered",
-        context: { questionNumber: 12 },
+        context: { questionNumber: 14 },
       },
       { ...base, eventName: "study_profile_completed", context: {} },
       { ...base, eventName: "study_profile_email_submitted", context: {} },
       { ...base, eventName: "study_profile_report_viewed", context: {} },
       { ...base, eventName: "study_profile_waitlist_joined", context: {} },
+      {
+        ...base,
+        eventName: "study_profile_share_tapped",
+        context: { shareFormat: "square" },
+      },
+      {
+        ...base,
+        eventName: "study_profile_share_tapped",
+        context: { shareFormat: "story" },
+      },
     ];
 
     for (const event of events) {
@@ -54,7 +64,32 @@ describe("StudyProfileAnalyticsEventSchema", () => {
         visitorId,
         modelVersion: STUDY_PROFILE_MODEL_VERSION,
         eventName: "study_profile_question_answered",
-        context: { questionNumber: 13 },
+        context: { questionNumber: 15 },
+      },
+      {
+        visitorId,
+        modelVersion: STUDY_PROFILE_MODEL_VERSION,
+        eventName: "study_profile_share_tapped",
+        context: { shareFormat: "square", reportToken: "private-token" },
+      },
+      {
+        visitorId,
+        modelVersion: STUDY_PROFILE_MODEL_VERSION,
+        eventName: "study_profile_share_tapped",
+        context: { shareFormat: "story", email: "student@example.com" },
+      },
+      {
+        visitorId,
+        modelVersion: STUDY_PROFILE_MODEL_VERSION,
+        eventName: "study_profile_share_tapped",
+        context: { shareFormat: "landscape" },
+      },
+      {
+        visitorId,
+        modelVersion: STUDY_PROFILE_MODEL_VERSION,
+        eventName: "study_profile_share_tapped",
+        context: { shareFormat: "square" },
+        reportToken: "private-token",
       },
       {
         visitorId,

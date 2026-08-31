@@ -7,12 +7,19 @@ import {
   buildStudyProfileReportEmail,
   sendStudyProfileReportEmail,
 } from "@/lib/study-profile/email";
+import type { StudyProfileReportEmailInput } from "@/lib/study-profile/email";
 
-const input = {
-  to: "student@example.com",
-  reportUrl: "https://www.yovaapp.com/study-profile/report/private_token_12345678901234567890",
-  primaryPatternName: "Starting Friction",
-  primaryPatternLabel: "High",
+const reportUrl = "https://www.yovaapp.com/study-profile/report/example-report-reference";
+const input: StudyProfileReportEmailInput = {
+  to: "recipient@example.test",
+  reportUrl,
+  pattern: {
+    name: "The Drifter",
+    tell: "You can start clean, then your attention leaks out of the session.",
+  },
+  why: "Two answers point to the same focus pattern, so shorter blocks and purposeful format changes should help.",
+  matchedMethods: ["Teach-Back", "Timeboxing", "Interleaving"],
+  tonightPlan: "Run one 20-minute block on a single topic, then stop at the planned finish.",
   responseId: "3f4edc20-e169-4f7f-b2c3-2a1a683b74e9",
 };
 
@@ -23,22 +30,88 @@ afterEach(() => {
 });
 
 describe("buildStudyProfileReportEmail", () => {
-  it("escapes personalized HTML and includes a plain-text private link", () => {
+  it("builds a named-pattern email with private report and public waitlist links", () => {
+    const message = buildStudyProfileReportEmail(input);
+
+    expect(message.subject).toBe("Your study profile: The Drifter");
+    expect(message.html).toContain(">The Drifter</h1>");
+    expect(message.html).toContain(input.pattern.tell);
+    expect(message.html).toContain(">Open my Study Profile</a>");
+    expect(message.html).toContain("Why this pattern fits");
+    expect(message.html).toContain(input.why);
+    expect(message.html).toContain("Matched study methods");
+    for (const method of input.matchedMethods) {
+      expect(message.html).toContain(method);
+      expect(message.text).toContain(method);
+    }
+    expect(message.html).toContain("Your plan for tonight");
+    expect(message.html).toContain(input.tonightPlan);
+    expect(message.html).toContain(`href="${reportUrl}"`);
+    expect(message.html).toContain('href="https://www.yovaapp.com/study-profile"');
+    expect(message.text).toContain(`Open your private report: ${reportUrl}`);
+    expect(message.text).toContain(
+      "See what is coming and join the waitlist: https://www.yovaapp.com/study-profile",
+    );
+
+    const waitlistLine = message.text.split("\n").find((line) => (
+      line.startsWith("YOVA is coming soon.")
+    ));
+    expect(waitlistLine).toBeDefined();
+    expect(waitlistLine).not.toContain("example-report-reference");
+  });
+
+  it("escapes every personalized HTML field and URL query value", () => {
     const message = buildStudyProfileReportEmail({
-      reportUrl: "https://www.yovaapp.com/study-profile/report/private_token?from=email&safe=true",
-      primaryPatternName: "Starting <script>alert(1)</script>",
-      primaryPatternLabel: 'High "confidence"',
+      reportUrl: `${reportUrl}?from=email&safe=true`,
+      pattern: {
+        name: "The Drifter",
+        tell: "Focus <script>alert(1)</script>",
+      },
+      why: 'The result says "pause" & check.',
+      matchedMethods: ["Teach <Back>", "Timeboxing", "Interleaving"],
+      tonightPlan: "Use one block, then check 'the result'.",
     });
 
-    expect(message.subject).toBe("Your YOVA Study Profile is ready");
     expect(message.html).not.toContain("<script>alert(1)</script>");
-    expect(message.html).toContain("Starting &lt;script&gt;alert(1)&lt;/script&gt;");
+    expect(message.html).toContain("Focus &lt;script&gt;alert(1)&lt;/script&gt;");
+    expect(message.html).toContain("&quot;pause&quot; &amp; check.");
+    expect(message.html).toContain("Teach &lt;Back&gt;");
+    expect(message.html).toContain("check &#039;the result&#039;.");
     expect(message.html).toContain("from=email&amp;safe=true");
-    expect(message.text).toContain("View My Study Profile: https://www.yovaapp.com/");
+  });
+
+  it("removes line breaks from the subject pattern name", () => {
+    const message = buildStudyProfileReportEmail({
+      ...input,
+      pattern: {
+        ...input.pattern,
+        name: "The Drifter\r\nBcc: example@example.test",
+      },
+    });
+
+    expect(message.subject).toBe(
+      "Your study profile: The Drifter Bcc: example@example.test",
+    );
   });
 });
 
 describe("sendStudyProfileReportEmail", () => {
+  it("rejects incomplete matched-method content before delivery", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    vi.stubEnv("RESEND_API_KEY", "re_test_secret");
+    vi.stubEnv("STUDY_PROFILE_FROM_EMAIL", "YOVA <study-profile@yovaapp.com>");
+
+    await expect(sendStudyProfileReportEmail({
+      ...input,
+      matchedMethods: ["Teach-Back", "Timeboxing"],
+    } as unknown as StudyProfileReportEmailInput)).resolves.toEqual({
+      status: "failed",
+      reason: "invalid_input",
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it("skips delivery cleanly when Resend is not configured", async () => {
     vi.stubEnv("RESEND_API_KEY", "");
     vi.stubEnv("STUDY_PROFILE_FROM_EMAIL", "");
@@ -73,7 +146,8 @@ describe("sendStudyProfileReportEmail", () => {
     });
     expect(request.body).not.toContain("re_test_secret");
     expect(JSON.parse(String(request.body))).toMatchObject({
-      to: "student@example.com",
+      to: "recipient@example.test",
+      subject: "Your study profile: The Drifter",
       reply_to: "hello@yovaapp.com",
     });
   });

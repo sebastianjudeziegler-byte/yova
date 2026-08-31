@@ -8,6 +8,7 @@ import { StudyProfileAnswersSchema } from "@/lib/study-profile/schema";
 import {
   STUDY_PROFILE_DIMENSIONS,
   STUDY_PROFILE_MODEL_VERSION,
+  STUDY_PROFILE_SCORING_REVISION,
   type StudyProfileAnswers,
   type StudyProfileCalibrationDirection,
   type StudyProfileClassification,
@@ -18,12 +19,6 @@ import {
   type StudyProfileSnapshot,
   type StudyProfileThreshold,
 } from "@/lib/study-profile/types";
-
-const CLASSIFICATION_SALIENCE: Record<StudyProfileClassification, number> = {
-  high: 3,
-  low: 2,
-  moderate: 1,
-};
 
 export function validateStudyProfileScoringConfig(config: StudyProfileScoringConfig) {
   if (!Number.isFinite(config.calibrationFamiliarityRoutingBonus)
@@ -77,6 +72,8 @@ export function scoreStudyProfile(
   validateStudyProfileScoringConfig(config);
   const answers = StudyProfileAnswersSchema.parse(answersInput);
   const rawScores = emptyRawScores();
+  const worstAnswerScores = emptyRawScores();
+  const questionCounts = emptyRawScores();
 
   for (const question of STUDY_PROFILE_QUESTIONS) {
     const answer = answers[question.id];
@@ -85,33 +82,41 @@ export function scoreStudyProfile(
       throw new Error(`Answer ${answer} is not valid for Study Profile question ${question.id}.`);
     }
     rawScores[question.dimension] += option.score;
+    worstAnswerScores[question.dimension] = Math.max(
+      worstAnswerScores[question.dimension],
+      option.score,
+    );
+    questionCounts[question.dimension] += 1;
   }
 
   const calibrationDirection = resolveCalibrationDirection(answers, config);
   const scores = Object.fromEntries(STUDY_PROFILE_DIMENSIONS.map((dimension) => {
     const rawScore = rawScores[dimension];
+    const meanSeverity = rawScore / questionCounts[dimension];
     const classification = classifyStudyProfileScore(rawScore, config.thresholds);
     const score: StudyProfileDimensionScore = {
       dimension,
       rawScore,
-      normalizedScore: Math.round((rawScore / 6) * 100),
+      meanSeverity,
+      normalizedScore: Math.round((meanSeverity / 3) * 100),
       classification,
       userFacingLabel: resolveUserFacingLabel(dimension, classification, calibrationDirection),
-      salienceScore: calculateSalience(dimension, classification, answers, calibrationDirection, config),
+      salienceScore: meanSeverity,
     };
     return [dimension, score];
   })) as Record<StudyProfileDimension, StudyProfileDimensionScore>;
 
-  const [primaryPattern, secondaryPattern] = selectStudyProfilePatterns(scores);
+  const [primaryPattern, secondaryPattern] = selectStudyProfilePatterns(
+    scores,
+    worstAnswerScores,
+  );
   const normalizedScores = mapScores(scores, (score) => score.normalizedScore);
   const classifications = mapScores(scores, (score) => score.classification);
-  const highCount = Object.values(classifications).filter((value) => value === "high").length;
-  const moderateCount = Object.values(classifications).filter((value) => value === "moderate").length;
-  const rawValues = Object.values(rawScores);
-  const range = Math.max(...rawValues) - Math.min(...rawValues);
+  const eligibleDimensions = Object.values(rawScores).filter((value) => value >= 3);
 
   return {
     modelVersion: STUDY_PROFILE_MODEL_VERSION,
+    scoringRevision: STUDY_PROFILE_SCORING_REVISION,
     scores,
     rawScores,
     normalizedScores,
@@ -119,21 +124,34 @@ export function scoreStudyProfile(
     calibrationDirection,
     primaryPattern,
     secondaryPattern,
-    isBalanced: highCount === 0 && (moderateCount >= 4 || range <= 2),
+    isBalanced: eligibleDimensions.length === 0,
+    lowSignal: Object.values(answers).every((answer) => answer === "a"),
   };
 }
 
 export function selectStudyProfilePatterns(
   scores: Record<StudyProfileDimension, StudyProfileDimensionScore>,
+  worstAnswerScores: Record<StudyProfileDimension, number> = Object.fromEntries(
+    STUDY_PROFILE_DIMENSIONS.map((dimension) => [dimension, 0]),
+  ) as Record<StudyProfileDimension, number>,
 ): readonly [StudyProfilePattern, StudyProfilePattern] {
   const priority = new Map(STUDY_PROFILE_SALIENCE_ORDER.map((dimension, index) => [dimension, index]));
   const ranked = STUDY_PROFILE_DIMENSIONS
     .map((dimension) => scores[dimension])
-    .sort((left, right) => right.salienceScore - left.salienceScore
+    .sort((left, right) => meanSeverity(right) - meanSeverity(left)
+      || worstAnswerScores[right.dimension] - worstAnswerScores[left.dimension]
       || (priority.get(left.dimension) ?? Number.MAX_SAFE_INTEGER)
         - (priority.get(right.dimension) ?? Number.MAX_SAFE_INTEGER));
 
   return [toPattern(ranked[0]), toPattern(ranked[1])];
+}
+
+function meanSeverity(score: StudyProfileDimensionScore) {
+  if (score.meanSeverity !== undefined) return score.meanSeverity;
+  const questionCount = STUDY_PROFILE_QUESTIONS.filter(
+    ({ dimension }) => dimension === score.dimension,
+  ).length;
+  return questionCount > 0 ? score.rawScore / questionCount : score.rawScore;
 }
 
 function resolveCalibrationDirection(
@@ -153,23 +171,6 @@ function resolveCalibrationDirection(
     return "overconfidence_risk";
   }
   return option.calibrationDirection;
-}
-
-function calculateSalience(
-  dimension: StudyProfileDimension,
-  classification: StudyProfileClassification,
-  answers: StudyProfileAnswers,
-  calibrationDirection: StudyProfileCalibrationDirection,
-  config: StudyProfileScoringConfig,
-) {
-  let salience = CLASSIFICATION_SALIENCE[classification];
-  if (dimension === "calibration_risk") {
-    if (answers.q7 === config.calibrationFamiliarityAnswer
-      && calibrationDirection !== "underconfidence_risk") {
-      salience += config.calibrationFamiliarityRoutingBonus;
-    }
-  }
-  return salience;
 }
 
 function resolveUserFacingLabel(

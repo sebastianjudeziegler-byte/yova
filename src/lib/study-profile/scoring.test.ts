@@ -109,12 +109,13 @@ describe("Study Profile scoring", () => {
   it("uses stable salience order for true ties", () => {
     const result = scoreStudyProfile(answerEveryQuestion("a"));
 
-    expect(result.primaryPattern.dimension).toBe("starting_friction");
-    expect(result.secondaryPattern.dimension).toBe("structure_need");
+    expect(result.primaryPattern.dimension).toBe("calibration_risk");
+    expect(result.secondaryPattern.dimension).toBe("starting_friction");
     expect(result.isBalanced).toBe(true);
+    expect(result.lowSignal).toBe(true);
   });
 
-  it("does not let a one-point difference inside the same routing band override salience order", () => {
+  it("ranks a higher mean severity first even inside the same routing band", () => {
     const answers = answerEveryQuestion("a");
     answers.q1 = "d";
     answers.q2 = "c"; // starting = 5
@@ -123,8 +124,69 @@ describe("Study Profile scoring", () => {
 
     const result = scoreStudyProfile(answers);
 
+    expect(result.primaryPattern.dimension).toBe("structure_need");
+    expect(result.secondaryPattern.dimension).toBe("starting_friction");
+    expect(result.scores.structure_need.meanSeverity).toBe(3);
+    expect(result.scores.starting_friction.meanSeverity).toBe(2.5);
+  });
+
+  it("uses the worst individual answer after equal mean severity", () => {
+    const answers = answerEveryQuestion("a");
+    answers.q1 = "d"; // starting = 3, worst = 3
+    answers.q3 = "c";
+    answers.q4 = "b"; // structure = 3, worst = 2
+
+    const result = scoreStudyProfile(answers);
+
     expect(result.primaryPattern.dimension).toBe("starting_friction");
     expect(result.secondaryPattern.dimension).toBe("structure_need");
+  });
+
+  it("does not diagnose evidence-based teach-back as a familiarity problem", () => {
+    const answers = answerEveryQuestion("a");
+    answers.q7 = "c";
+    answers.q8 = "b";
+
+    const result = scoreStudyProfile(answers);
+
+    expect(result.rawScores.calibration_risk).toBe(2);
+    expect(result.classifications.calibration_risk).toBe("low");
+    expect(result.isBalanced).toBe(true);
+  });
+
+  it("does not treat a short checklist or planned reset as study friction", () => {
+    const answers = answerEveryQuestion("a");
+    answers.q3 = "b";
+    answers.q6 = "b";
+
+    const result = scoreStudyProfile(answers);
+
+    expect(result.rawScores.structure_need).toBe(0);
+    expect(result.rawScores.attention_variability).toBe(0);
+  });
+
+  it("uses impact order only after severity and worst answer are tied", () => {
+    const answers = answerEveryQuestion("a");
+    answers.q1 = "d";
+    answers.q8 = "c";
+
+    const result = scoreStudyProfile(answers);
+
+    expect(result.primaryPattern.dimension).toBe("calibration_risk");
+    expect(result.secondaryPattern.dimension).toBe("starting_friction");
+  });
+
+  it("marks the profile balanced only when no dimension reaches raw score 3", () => {
+    const belowThreshold = scoreStudyProfile(answerEveryQuestion("b"));
+    const atThresholdAnswers = answerEveryQuestion("a");
+    atThresholdAnswers.q1 = "c";
+    atThresholdAnswers.q2 = "b";
+    const atThreshold = scoreStudyProfile(atThresholdAnswers);
+
+    expect(belowThreshold.isBalanced).toBe(true);
+    expect(belowThreshold.lowSignal).toBe(false);
+    expect(atThreshold.rawScores.starting_friction).toBe(3);
+    expect(atThreshold.isBalanced).toBe(false);
   });
 
   it("accepts every answer option for every question in a complete quiz", () => {

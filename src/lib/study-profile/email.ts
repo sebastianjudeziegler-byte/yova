@@ -4,8 +4,10 @@ import { z } from "zod";
 import { StudyProfileEmailSchema } from "@/lib/study-profile/schema";
 
 const RESEND_EMAIL_ENDPOINT = "https://api.resend.com/emails";
-const EMAIL_SUBJECT = "Your YOVA Study Profile is ready";
 export const STUDY_PROFILE_EMAIL_REQUEST_TIMEOUT_MS = 4_000;
+
+const StudyProfileEmailCopySchema = z.string().trim().min(1).max(700);
+const StudyProfileEmailMethodSchema = z.string().trim().min(1).max(120);
 
 const StudyProfileReportEmailInputSchema = z.object({
   to: StudyProfileEmailSchema,
@@ -17,8 +19,17 @@ const StudyProfileReportEmailInputSchema = z.object({
       return false;
     }
   }, "Report URL must use HTTP(S)"),
-  primaryPatternName: z.string().trim().min(1).max(100),
-  primaryPatternLabel: z.string().trim().min(1).max(100),
+  pattern: z.object({
+    name: z.string().trim().min(1).max(100),
+    tell: StudyProfileEmailCopySchema,
+  }).strict(),
+  why: StudyProfileEmailCopySchema,
+  matchedMethods: z.tuple([
+    StudyProfileEmailMethodSchema,
+    StudyProfileEmailMethodSchema,
+    StudyProfileEmailMethodSchema,
+  ]),
+  tonightPlan: StudyProfileEmailCopySchema,
   responseId: z.string().trim().min(1).max(128).regex(/^[A-Za-z0-9_-]+$/),
 }).strict();
 
@@ -54,46 +65,76 @@ export function escapeStudyProfileEmailHtml(value: string) {
 export function buildStudyProfileReportEmail(
   input: Omit<StudyProfileReportEmailInput, "to" | "responseId">,
 ) {
-  const patternName = input.primaryPatternName.trim();
-  const patternLabel = input.primaryPatternLabel.trim();
+  const patternName = input.pattern.name.trim();
+  const patternTell = input.pattern.tell.trim();
+  const why = input.why.trim();
+  const matchedMethods = input.matchedMethods.map((method) => method.trim());
+  const tonightPlan = input.tonightPlan.trim();
   const reportUrl = new URL(input.reportUrl).toString();
+  const studyProfileUrl = new URL("/study-profile", reportUrl).toString();
   const safePatternName = escapeStudyProfileEmailHtml(patternName);
-  const safePatternLabel = escapeStudyProfileEmailHtml(patternLabel);
+  const safePatternTell = escapeStudyProfileEmailHtml(patternTell);
   const safeReportUrl = escapeStudyProfileEmailHtml(reportUrl);
+  const safeStudyProfileUrl = escapeStudyProfileEmailHtml(studyProfileUrl);
+  const safeWhy = escapeStudyProfileEmailHtml(why);
+  const safeTonightPlan = escapeStudyProfileEmailHtml(tonightPlan);
+  const safeMethods = matchedMethods.map(escapeStudyProfileEmailHtml);
+  const subjectPatternName = patternName.replace(/[\r\n]+/g, " ");
 
   return {
-    subject: EMAIL_SUBJECT,
+    subject: `Your study profile: ${subjectPatternName}`,
     text: [
-      "Your YOVA Study Profile is ready.",
+      "Your study profile",
+      patternName,
       "",
-      "Your top result:",
-      `${patternName}: ${patternLabel}`,
+      patternTell,
       "",
-      "Your report includes study methods and a session plan based on your answers.",
+      `Open your private report: ${reportUrl}`,
       "",
-      `View My Study Profile: ${reportUrl}`,
+      "Why this pattern fits:",
+      why,
       "",
-      "Keep this link private. It opens your report without asking you to sign in.",
+      "Your matched study methods:",
+      ...matchedMethods.map((method, index) => `${index + 1}. ${method}`),
+      "",
+      "Your plan for tonight:",
+      tonightPlan,
+      "",
+      `YOVA is coming soon. See what is coming and join the waitlist: ${studyProfileUrl}`,
+      "",
+      "Keep the report link private. It opens your report without asking you to sign in.",
     ].join("\n"),
     html: `<!doctype html>
 <html lang="en">
-  <body style="margin:0;background:#f8fafc;color:#172033;font-family:Inter,Arial,sans-serif;">
-    <div style="display:none;max-height:0;overflow:hidden;opacity:0;">Your YOVA Study Profile is ready.</div>
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc;padding:32px 16px;">
+  <body style="margin:0;background:#eef3ff;color:#0b1633;font-family:Inter,Arial,sans-serif;">
+    <div style="display:none;max-height:0;overflow:hidden;opacity:0;">Your study profile is ${safePatternName}.</div>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#eef3ff;background-image:linear-gradient(180deg,#f8faff 0%,#eef3ff 100%);padding:32px 16px;">
       <tr>
         <td align="center">
-          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#ffffff;border:1px solid #e5e7eb;border-radius:20px;overflow:hidden;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;background:#ffffff;border:1px solid #d8e3ff;border-radius:24px;overflow:hidden;box-shadow:0 24px 70px rgba(31,67,145,0.14);">
             <tr>
               <td style="padding:32px;">
-                <div style="font-family:Sora,Inter,Arial,sans-serif;font-size:20px;font-weight:800;letter-spacing:-0.03em;color:#5b4bff;">YOVA</div>
-                <h1 style="margin:28px 0 12px;font-family:Sora,Inter,Arial,sans-serif;font-size:26px;line-height:1.25;letter-spacing:-0.03em;color:#172033;">Your Study Profile is ready.</h1>
-                <p style="margin:0 0 24px;font-size:16px;line-height:1.65;color:#5f6b7a;">Your report includes study methods and a session plan based on your answers.</p>
-                <div style="margin:0 0 28px;padding:18px 20px;background:#f3f1ff;border-radius:14px;">
-                  <div style="margin-bottom:6px;font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#6957d9;">Your top result</div>
-                  <div style="font-size:18px;line-height:1.45;font-weight:750;color:#172033;">${safePatternName}: ${safePatternLabel}</div>
+                <div style="font-family:Sora,Inter,Arial,sans-serif;font-size:20px;font-weight:800;letter-spacing:-0.03em;color:#0b1b3e;">YOVA</div>
+                <div style="margin:28px 0 8px;font-size:12px;font-weight:750;letter-spacing:0.12em;text-transform:uppercase;color:#316bff;">Your Study Profile</div>
+                <h1 style="margin:0 0 12px;font-family:Sora,Inter,Arial,sans-serif;font-size:32px;line-height:1.16;letter-spacing:-0.04em;color:#08152f;">${safePatternName}</h1>
+                <p style="margin:0 0 26px;font-size:16px;line-height:1.65;color:#52617f;">${safePatternTell}</p>
+                <a href="${safeReportUrl}" style="display:inline-block;padding:14px 20px;background:#316bff;border-radius:12px;color:#ffffff;text-decoration:none;font-size:15px;font-weight:750;box-shadow:0 10px 24px rgba(49,107,255,0.22);">Open my Study Profile</a>
+                <div style="margin:30px 0 14px;padding:20px;background:#f7f9ff;border:1px solid #dfe7fb;border-radius:16px;">
+                  <div style="margin-bottom:8px;font-size:12px;font-weight:750;letter-spacing:0.08em;text-transform:uppercase;color:#316bff;">Why this pattern fits</div>
+                  <div style="font-size:15px;line-height:1.65;color:#233354;">${safeWhy}</div>
                 </div>
-                <a href="${safeReportUrl}" style="display:inline-block;padding:14px 20px;background:#5b4bff;border-radius:12px;color:#ffffff;text-decoration:none;font-size:15px;font-weight:750;">View My Study Profile</a>
-                <p style="margin:24px 0 0;font-size:13px;line-height:1.6;color:#7a8494;">Keep this link private. It opens your report without asking you to sign in.</p>
+                <div style="margin:0 0 14px;padding:20px;background:#f7f9ff;border:1px solid #dfe7fb;border-radius:16px;">
+                  <div style="margin-bottom:12px;font-size:12px;font-weight:750;letter-spacing:0.08em;text-transform:uppercase;color:#316bff;">Matched study methods</div>
+                  <div style="margin:0 0 8px;font-size:15px;line-height:1.5;color:#0b1633;">1. ${safeMethods[0]}</div>
+                  <div style="margin:0 0 8px;font-size:15px;line-height:1.5;color:#0b1633;">2. ${safeMethods[1]}</div>
+                  <div style="font-size:15px;line-height:1.5;color:#0b1633;">3. ${safeMethods[2]}</div>
+                </div>
+                <div style="margin:0 0 26px;padding:20px;background:#eaf0ff;border:1px solid #cfdcff;border-radius:16px;">
+                  <div style="margin-bottom:8px;font-size:12px;font-weight:750;letter-spacing:0.08em;text-transform:uppercase;color:#2459d6;">Your plan for tonight</div>
+                  <div style="font-size:15px;line-height:1.65;color:#14264b;">${safeTonightPlan}</div>
+                </div>
+                <p style="margin:0;font-size:14px;line-height:1.65;color:#52617f;">YOVA is coming soon. <a href="${safeStudyProfileUrl}" style="color:#2459d6;text-decoration:underline;">See what is coming and join the waitlist</a>.</p>
+                <p style="margin:14px 0 0;font-size:12px;line-height:1.6;color:#77849f;">Keep the report link private. It opens your report without asking you to sign in.</p>
               </td>
             </tr>
           </table>

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   StudyProfileInterestRequestSchema,
+  StudyProfileLandingWaitlistRequestSchema,
   StudyProfileResponseRequestSchema,
 } from "@/lib/study-profile/api-schema";
 
@@ -17,6 +18,7 @@ describe("Study Profile API schemas", () => {
       metadata: {
         energyWindow: "morning",
         schoolLevel: "college",
+        studyGoal: "upcoming_exams",
         hardestPart: null,
       },
       marketingConsent: false,
@@ -31,6 +33,7 @@ describe("Study Profile API schemas", () => {
     if (result.success) {
       expect(result.data.email).toBe("student@example.com");
       expect(result.data.metadata.hardestPart).toBeNull();
+      expect(result.data.metadata.studyGoal).toBe("upcoming_exams");
     }
   });
 
@@ -100,5 +103,83 @@ describe("Study Profile API schemas", () => {
       waitlist: true,
       betaInterest: true,
     }).success).toBe(false);
+  });
+
+  it("accepts an explicit landing waitlist consent and normalizes the email", () => {
+    const result = StudyProfileLandingWaitlistRequestSchema.safeParse({
+      email: "  Student@Example.COM ",
+      visitorId: "4d621251-2df6-4fa3-985e-df63b6d27f5f",
+      consent: true,
+      attribution: {
+        source: "instagram",
+        referrer: "https://www.instagram.com/",
+        utmCampaign: "study-profile-launch",
+      },
+    });
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data).toEqual({
+        email: "student@example.com",
+        visitorId: "4d621251-2df6-4fa3-985e-df63b6d27f5f",
+        consent: true,
+        attribution: {
+          source: "instagram",
+          referrer: "https://www.instagram.com/",
+          utmCampaign: "study-profile-launch",
+        },
+      });
+    }
+  });
+
+  it.each([
+    ["missing consent", {
+      email: "student@example.com",
+      visitorId: "4d621251-2df6-4fa3-985e-df63b6d27f5f",
+    }],
+    ["refused consent", {
+      email: "student@example.com",
+      visitorId: "4d621251-2df6-4fa3-985e-df63b6d27f5f",
+      consent: false,
+    }],
+    ["invalid email", {
+      email: "not-an-email",
+      visitorId: "4d621251-2df6-4fa3-985e-df63b6d27f5f",
+      consent: true,
+    }],
+    ["invalid visitor", {
+      email: "student@example.com",
+      visitorId: "visitor-123",
+      consent: true,
+    }],
+    ["unexpected private state", {
+      email: "student@example.com",
+      visitorId: "4d621251-2df6-4fa3-985e-df63b6d27f5f",
+      consent: true,
+      reportToken: "a".repeat(43),
+    }],
+  ])("rejects landing waitlist input with %s", (_label, input) => {
+    expect(StudyProfileLandingWaitlistRequestSchema.safeParse(input).success).toBe(false);
+  });
+
+  it("rejects identifiers and private report tokens in landing waitlist attribution", () => {
+    const base = {
+      email: "student@example.com",
+      visitorId: "4d621251-2df6-4fa3-985e-df63b6d27f5f",
+      consent: true,
+    };
+    const reportToken = "b".repeat(43);
+
+    for (const attribution of [
+      { source: "another-student@example.com" },
+      { utmCampaign: "another-student%40example.com" },
+      { utmContent: reportToken },
+      { referrer: `https://www.yovaapp.com/study-profile/report/${reportToken}` },
+    ]) {
+      expect(StudyProfileLandingWaitlistRequestSchema.safeParse({
+        ...base,
+        attribution,
+      }).success).toBe(false);
+    }
   });
 });

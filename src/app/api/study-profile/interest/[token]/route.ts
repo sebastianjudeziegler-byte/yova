@@ -64,20 +64,10 @@ export async function POST(
 
   try {
     const repository = getStudyProfileRepository();
-    const report = await repository.getReportByToken(token.data);
-    if (!report) return notFoundResponse();
-
-    const state = await repository.joinWaitlist(token.data);
+    const state = await repository.joinWaitlist(token.data, parsed.data.source);
     if (!state) return notFoundResponse();
     if (!state.waitlistJoined) {
       throw new Error("Study Profile waitlist update did not return a joined state.");
-    }
-    if (!report.waitlistJoined) {
-      void repository.recordEvent({
-        responseId: report.storedResponse.id,
-        eventName: "study_profile_waitlist_joined",
-        eventData: {},
-      }).catch(() => {});
     }
 
     return NextResponse.json({ waitlistJoined: true }, {

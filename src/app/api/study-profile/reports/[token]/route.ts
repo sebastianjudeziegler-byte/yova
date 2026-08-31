@@ -41,7 +41,7 @@ export async function GET(
     void repository.recordEvent({
       responseId: saved.storedResponse.id,
       eventName: "study_profile_report_viewed",
-      eventData: {},
+      eventData: { scoringRevision: saved.report.scoringRevision },
     }).catch(() => {
       // Analytics must never block a private report.
     });
