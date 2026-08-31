@@ -189,6 +189,14 @@ describe("expanded method and agency database boundary migration", () => {
 
   it("keeps stored choices exact and bounds Other methods to the predecessor eligibility cohort", () => {
     expect(versionedWriter).toContain(
+      "predecessor_has_blurting_recipe := predecessor_route.route_payload\n"
+      + "    #>> '{approach,visiblesupportingtechniqueid}'\n"
+      + "      is not distinct from 'blurting_v1'",
+    );
+    expect(versionedWriter).not.toContain(
+      "#>> '{approach,visiblesupportingtechniqueid}' = 'blurting_v1'",
+    );
+    expect(versionedWriter).toContain(
       "predecessor_route.route_payload #> '{agency,alternatives}'",
     );
     expect(versionedWriter).toContain(

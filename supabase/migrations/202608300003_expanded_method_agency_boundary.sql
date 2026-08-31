@@ -948,7 +948,8 @@ begin
   predecessor_method_name := predecessor_route.route_payload
     #>> '{approach,visibleMethodName}';
   predecessor_has_blurting_recipe := predecessor_route.route_payload
-    #>> '{approach,visibleSupportingTechniqueId}' = 'blurting_v1';
+    #>> '{approach,visibleSupportingTechniqueId}'
+      is not distinct from 'blurting_v1';
   expected_method_names := public.study_route_method_names_v2(
     requested_method_id
   );
