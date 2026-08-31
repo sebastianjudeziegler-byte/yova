@@ -4,6 +4,8 @@ const PUBLIC_DRAFT_STORAGE_KEY = "yova.canonical-profile.public-draft.v1";
 const QUESTION_COUNT = 11;
 
 test.describe("YOVA canonical Study Profile", () => {
+  test.describe.configure({ timeout: 90_000 });
+
   test("builds the canonical 11-question profile, imports it into an account, and skips duplicate onboarding", async ({ page }, testInfo) => {
     const email = `canonical-profile-${testInfo.project.name}-${Date.now()}@example.com`;
 
@@ -101,7 +103,7 @@ test.describe("YOVA canonical Study Profile", () => {
         }],
       }));
     }, PUBLIC_DRAFT_STORAGE_KEY);
-    await page.reload();
+    await page.goto("/study-profile/setup");
     await page.getByRole("button", { name: "Build my study profile" }).click();
 
     await expectQuestion(page, 1);
@@ -112,7 +114,7 @@ test.describe("YOVA canonical Study Profile", () => {
     await page.evaluate((key) => {
       window.localStorage.setItem(key, JSON.stringify({ signals: "forged" }));
     }, PUBLIC_DRAFT_STORAGE_KEY);
-    await page.reload();
+    await page.goto("/study-profile/setup");
     await page.getByRole("button", { name: "Build my study profile" }).click();
     await expect(page.getByRole("button", {
       name: "Show a short recommendation and alternatives",
@@ -165,23 +167,38 @@ test.describe("YOVA canonical Study Profile", () => {
     await expect(page.locator('[role="group"]')).toHaveCount(1);
   });
 
-  test("keeps landing, questionnaire, and summary inside narrow mobile viewports", async ({ page }) => {
+  test("keeps landing, questionnaire, and summary inside narrow mobile viewports", async ({ browser }, testInfo) => {
     for (const width of [320, 375, 390]) {
-      await page.setViewportSize({ width, height: 844 });
-      await page.goto("/study-profile/setup");
-      await expect(page.getByRole("heading", {
-        name: "Tell YOVA how you want to work together.",
-      })).toBeVisible();
-      await expectNoHorizontalOverflow(page);
+      const context = await browser.newContext({
+        baseURL: testInfo.project.use.baseURL,
+        deviceScaleFactor: testInfo.project.use.deviceScaleFactor,
+        hasTouch: testInfo.project.use.hasTouch,
+        isMobile: testInfo.project.use.isMobile,
+        userAgent: testInfo.project.use.userAgent,
+        viewport: { width, height: 844 },
+      });
+      const viewportPage = await context.newPage();
 
-      await page.getByRole("button", { name: "Build my study profile" }).click();
-      await expectQuestion(page, 1);
-      await expectNoHorizontalOverflow(page);
+      try {
+        await viewportPage.goto("/study-profile/setup");
+        await expect(viewportPage.getByRole("heading", {
+          name: "Tell YOVA how you want to work together.",
+        })).toBeVisible();
+        await expectNoHorizontalOverflow(viewportPage);
+
+        await viewportPage.getByRole("button", { name: "Build my study profile" }).click();
+        await expectQuestion(viewportPage, 1);
+        await expectNoHorizontalOverflow(viewportPage);
+
+        await finishBySkipping(viewportPage);
+        await expect(viewportPage.getByRole("heading", {
+          name: "How YOVA will work with you",
+        })).toBeVisible();
+        await expectNoHorizontalOverflow(viewportPage);
+      } finally {
+        await context.close();
+      }
     }
-
-    await finishBySkipping(page);
-    await expect(page.getByRole("heading", { name: "How YOVA will work with you" })).toBeVisible();
-    await expectNoHorizontalOverflow(page);
   });
 });
 
