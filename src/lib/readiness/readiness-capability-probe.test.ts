@@ -3,7 +3,9 @@ import { resolve } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import {
   probeSignedInGenerationDatabase,
+  probeStudyProfilePublicDatabase,
   SIGNED_IN_GENERATION_CONTRACT_VERSION,
+  STUDY_PROFILE_PUBLIC_CONTRACT_VERSION,
 } from "../../../scripts/readiness-capability-probe.mjs";
 
 describe("signed-in generation release capability probe", () => {
@@ -146,6 +148,90 @@ describe("signed-in generation release capability probe", () => {
       passed: false,
       detail: "database capability probe returned an invalid response",
     });
+  });
+});
+
+describe("Study Profile public-funnel release capability probe", () => {
+  const completeContract = {
+    contractVersion: STUDY_PROFILE_PUBLIC_CONTRACT_VERSION,
+    ready: true,
+    pendingConfirmationColumns: true,
+    confirmationRpcs: true,
+    reportEmailCooldown: true,
+    serviceRoleBoundary: true,
+  };
+
+  it("accepts only the complete double-opt-in and abuse-control contract", async () => {
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(jsonResponse(completeContract));
+
+    await expect(probeStudyProfilePublicDatabase({
+      supabaseUrl: "https://project.supabase.co/",
+      supabaseSecretKey: "server-secret-value",
+      fetchImpl,
+    })).resolves.toEqual({
+      passed: true,
+      detail: expect.stringContaining(STUDY_PROFILE_PUBLIC_CONTRACT_VERSION),
+    });
+
+    expect(fetchImpl).toHaveBeenCalledWith(
+      "https://project.supabase.co/rest/v1/rpc/study_profile_public_readiness_v1",
+      expect.objectContaining({
+        method: "POST",
+        body: "{}",
+        cache: "no-store",
+        headers: expect.objectContaining({
+          apikey: "server-secret-value",
+          "User-Agent": "YOVA-release-readiness/1.0",
+        }),
+      }),
+    );
+  });
+
+  it("fails closed for a missing, stale, or partial public-funnel contract", async () => {
+    const missing = await probeStudyProfilePublicDatabase({
+      supabaseUrl: "https://project.supabase.co",
+      supabaseSecretKey: "server-secret-value",
+      fetchImpl: vi.fn<typeof fetch>().mockResolvedValue(jsonResponse(
+        { code: "PGRST202", message: "function was not found" },
+        404,
+      )),
+    });
+    expect(missing.detail).toContain(`migration ${STUDY_PROFILE_PUBLIC_CONTRACT_VERSION}`);
+
+    const stale = await probeStudyProfilePublicDatabase({
+      supabaseUrl: "https://project.supabase.co",
+      supabaseSecretKey: "server-secret-value",
+      fetchImpl: vi.fn<typeof fetch>().mockResolvedValue(jsonResponse({
+        ...completeContract,
+        contractVersion: "202608310001",
+      })),
+    });
+    expect(stale.passed).toBe(false);
+    expect(stale.detail).toContain("stale");
+
+    const partial = await probeStudyProfilePublicDatabase({
+      supabaseUrl: "https://project.supabase.co",
+      supabaseSecretKey: "server-secret-value",
+      fetchImpl: vi.fn<typeof fetch>().mockResolvedValue(jsonResponse({
+        ...completeContract,
+        ready: false,
+        reportEmailCooldown: false,
+      })),
+    });
+    expect(partial.passed).toBe(false);
+    expect(partial.detail).toContain("report-email cooldown");
+  });
+
+  it("never exposes the Supabase secret when the probe is unreachable", async () => {
+    const secret = "do-not-print-this-secret";
+    const result = await probeStudyProfilePublicDatabase({
+      supabaseUrl: "https://project.supabase.co",
+      supabaseSecretKey: secret,
+      fetchImpl: vi.fn<typeof fetch>().mockRejectedValue(new Error(secret)),
+    });
+
+    expect(result.passed).toBe(false);
+    expect(result.detail).not.toContain(secret);
   });
 });
 

@@ -10,6 +10,8 @@ describe("production release readiness command", () => {
     ["SUPABASE_SECRET_KEY", "Supabase server secret"],
     ["YOVA_DRAFT_RECEIPT_SECRET", "Plan-draft receipt secret"],
     ["YOVA_PERSONALIZATION_ROLLOUT_PERCENT", "Personalization staged rollout decision"],
+    ["RESEND_API_KEY", "Study Profile transactional email"],
+    ["STUDY_PROFILE_FROM_EMAIL", "Study Profile transactional email"],
   ])("fails when %s is absent", (variable, expectedCheck) => {
     const env = productionFixture();
     env[variable] = "";
@@ -108,6 +110,9 @@ describe("release workflow wiring", () => {
 
   it("requires the deployed app to report signed-in generation readiness", () => {
     expect(smoke).toContain('signedInGeneration: "ready"');
+    expect(smoke).toContain('studyProfilePublic: "ready"');
+    expect(smoke).toContain('studyProfileEmail: "resend"');
+    expect(smoke).toContain("Private Study Profile");
   });
 });
 
@@ -136,6 +141,9 @@ function productionFixture(): NodeJS.ProcessEnv {
     YOVA_DRAFT_RECEIPT_PREVIOUS_SECRET: "",
     YOVA_PERSONALIZATION_ROLLOUT_PERCENT: "0",
     SITE_URL: "https://www.yovaapp.com",
+    RESEND_API_KEY: "re_release_test_not_a_real_key",
+    STUDY_PROFILE_FROM_EMAIL: "YOVA <reports@updates.yovaapp.com>",
+    STUDY_PROFILE_REPLY_TO: "hello@yovaapp.com",
     AUTH_PASSWORD_ACCOUNTS: "true",
     AUTH_INVITE_ONLY: "false",
     AUTH_CAPTCHA_ENABLED: "true",

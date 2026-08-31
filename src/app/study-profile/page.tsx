@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
-import { CanonicalStudyProfileExperience } from "@/components/study-profile/canonical-study-profile-experience";
+import { StudyProfileExperience } from "@/components/study-profile/study-profile-experience";
 
-const title = "YOVA Study Profile | Build your canonical study setup";
-const description = "Answer 11 optional questions to create the same changeable study profile YOVA uses for valid choices, timing, support, and presentation.";
+const title = "Free YOVA Study Profile | Find out how you actually study";
+const description = "Answer 14 quick questions and get your study pattern, a six-habit profile, matched methods, and a plan you can use tonight. Free, with no account.";
 
 export const metadata: Metadata = {
   title,
@@ -17,18 +17,11 @@ export const metadata: Metadata = {
     siteName: "YOVA",
     title,
     description,
-    images: [{
-      url: "/yova-study-profile-social.png",
-      width: 1731,
-      height: 909,
-      alt: "YOVA Study Profile: practical study recommendations based on your answers.",
-    }],
   },
   twitter: {
     card: "summary_large_image",
     title,
     description,
-    images: ["/yova-study-profile-social.png"],
   },
   robots: {
     index: true,
@@ -37,5 +30,5 @@ export const metadata: Metadata = {
 };
 
 export default function StudyProfilePage() {
-  return <CanonicalStudyProfileExperience />;
+  return <StudyProfileExperience />;
 }

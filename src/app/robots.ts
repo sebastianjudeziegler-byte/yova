@@ -8,7 +8,9 @@ export default function robots(): MetadataRoute.Robots {
     rules: {
       userAgent: "*",
       allow: "/",
-      disallow: ["/api/", "/auth/", "/study-profile/report/"],
+      // Private reports publish an X-Robots-Tag noindex header. They must stay
+      // crawlable enough for compliant crawlers to observe that directive.
+      disallow: ["/api/", "/auth/"],
     },
     sitemap: new URL("/sitemap.xml", siteUrl).toString(),
     host: siteUrl.origin,

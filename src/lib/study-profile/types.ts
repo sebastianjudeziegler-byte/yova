@@ -1,5 +1,12 @@
 export const STUDY_PROFILE_MODEL_VERSION = "profile_model_v1" as const;
-export const STUDY_PROFILE_REPORT_CONTENT_VERSION = "study_profile_report_v2" as const;
+export const STUDY_PROFILE_LEGACY_SCORING_REVISION = "study_profile_scoring_v1" as const;
+export const STUDY_PROFILE_SCORING_REVISION = "study_profile_scoring_v2" as const;
+export const STUDY_PROFILE_SCORING_REVISIONS = [
+  STUDY_PROFILE_LEGACY_SCORING_REVISION,
+  STUDY_PROFILE_SCORING_REVISION,
+] as const;
+export type StudyProfileScoringRevision = (typeof STUDY_PROFILE_SCORING_REVISIONS)[number];
+export const STUDY_PROFILE_REPORT_CONTENT_VERSION = "study_profile_report_v3" as const;
 
 export const STUDY_PROFILE_DIMENSIONS = [
   "starting_friction",
@@ -58,6 +65,27 @@ export type StudyProfileEnergyWindow = (typeof STUDY_PROFILE_ENERGY_WINDOWS)[num
 export const STUDY_PROFILE_SCHOOL_LEVELS = ["high_school", "college", "other"] as const;
 export type StudyProfileSchoolLevel = (typeof STUDY_PROFILE_SCHOOL_LEVELS)[number];
 
+export const STUDY_PROFILE_STUDY_GOALS = [
+  "upcoming_exams",
+  "keeping_up",
+  "catching_up",
+  "specific_qualification",
+  "better_habits",
+] as const;
+export type StudyProfileStudyGoal = (typeof STUDY_PROFILE_STUDY_GOALS)[number];
+
+export const STUDY_PROFILE_NAMED_PATTERN_IDS = [
+  "stalled_starter",
+  "scattershot",
+  "drifter",
+  "familiarity_trap",
+  "evidence_doubter",
+  "polisher",
+  "sprinter",
+  "all_rounder",
+] as const;
+export type StudyProfileNamedPatternId = (typeof STUDY_PROFILE_NAMED_PATTERN_IDS)[number];
+
 export type StudyProfileAnswers = Record<StudyProfileQuestionId, StudyProfileAnswerId>;
 
 export type StudyProfileQuestionOption = {
@@ -90,6 +118,8 @@ export type StudyProfileScoringConfig = {
 export type StudyProfileDimensionScore = {
   dimension: StudyProfileDimension;
   rawScore: number;
+  /** Mean answer severity on the 0 through 3 response scale. */
+  meanSeverity?: number;
   normalizedScore: number;
   classification: StudyProfileClassification;
   userFacingLabel: string;
@@ -103,6 +133,8 @@ export type StudyProfilePattern = Pick<
 
 export type StudyProfileSnapshot = {
   modelVersion: typeof STUDY_PROFILE_MODEL_VERSION;
+  /** Absent only on pre-revamp snapshots using the original ranking rules. */
+  scoringRevision?: typeof STUDY_PROFILE_SCORING_REVISION;
   scores: Record<StudyProfileDimension, StudyProfileDimensionScore>;
   rawScores: Record<StudyProfileDimension, number>;
   normalizedScores: Record<StudyProfileDimension, number>;
@@ -111,12 +143,24 @@ export type StudyProfileSnapshot = {
   primaryPattern: StudyProfilePattern;
   secondaryPattern: StudyProfilePattern;
   isBalanced: boolean;
+  /** Internal signal for the all-A speed-run/social-desirability case. */
+  lowSignal?: boolean;
 };
 
 export type StudyProfileMetadata = {
   energyWindow: StudyProfileEnergyWindow;
   schoolLevel: StudyProfileSchoolLevel;
+  studyGoal?: StudyProfileStudyGoal | null;
   hardestPart?: string | null;
+};
+
+export type StudyProfileNamedPattern = {
+  id: StudyProfileNamedPatternId;
+  name: string;
+  dimension: StudyProfileDimension | null;
+  tell: string;
+  twist: string;
+  modifier: string | null;
 };
 
 export type StudyProfileInteractionId =
@@ -186,6 +230,54 @@ export type StudyProfileMethodRecommendation = {
   example: string;
   caution: string;
   basedOn: readonly StudyProfileDimension[];
+  timeCost?: string;
+  tonightVersion?: string;
+  fit?: StudyProfileMethodFit;
+};
+
+export const STUDY_PROFILE_METHOD_FITS = [
+  "strong_fit",
+  "situational",
+  "skip_for_now",
+] as const;
+export type StudyProfileMethodFit = (typeof STUDY_PROFILE_METHOD_FITS)[number];
+
+export const STUDY_PROFILE_METHOD_CATALOG_IDS = [
+  "active_recall",
+  "spaced_practice",
+  "exam_condition_practice",
+  "error_log",
+  "teach_back",
+  "five_minute_start",
+  "implementation_intentions",
+  "timeboxing",
+  "interleaving",
+  "brain_dump",
+  "pretesting",
+  "worked_example_fading",
+  "elaborative_interrogation",
+  "weekly_review",
+  "session_shutdown",
+] as const;
+export type StudyProfileMethodCatalogId = (typeof STUDY_PROFILE_METHOD_CATALOG_IDS)[number];
+
+export type StudyProfileMethodCatalogDefinition = {
+  id: StudyProfileMethodCatalogId;
+  name: string;
+  whatItIs: string;
+  whyItWorks: string;
+  steps: readonly string[];
+  timeCost: string;
+  tonightVersion: string;
+  fitByPattern: Record<StudyProfileNamedPatternId, StudyProfileMethodFit>;
+};
+
+export type StudyProfileMethodCatalogEntry = Omit<
+  StudyProfileMethodCatalogDefinition,
+  "fitByPattern"
+> & {
+  fit: StudyProfileMethodFit;
+  fitLabel: string;
 };
 
 export type StudyProfileSessionPlan = {
@@ -209,8 +301,18 @@ export type StudyProfilePlaybook = {
 
 export type StudyProfileReport = {
   modelVersion: typeof STUDY_PROFILE_MODEL_VERSION;
+  scoringRevision: StudyProfileScoringRevision;
   contentVersion: typeof STUDY_PROFILE_REPORT_CONTENT_VERSION;
   isBalanced: boolean;
+  pattern: StudyProfileNamedPattern;
+  freeInsight: {
+    heading: string;
+    body: string;
+  };
+  whyThisIsHappening: {
+    heading: string;
+    body: string;
+  };
   profileNarrative: {
     heading: string;
     body: string;
@@ -227,6 +329,7 @@ export type StudyProfileReport = {
   };
   overview: readonly StudyProfileDimensionReport[];
   playbook: StudyProfilePlaybook;
+  methodCatalog: readonly StudyProfileMethodCatalogEntry[];
   primaryPattern: StudyProfileDimensionReport;
   secondaryPattern: StudyProfileDimensionReport;
   interactions: readonly StudyProfileInteraction[];

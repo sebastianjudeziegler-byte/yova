@@ -1,11 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
   STUDY_PROFILE_MODEL_VERSION,
+  STUDY_PROFILE_LEGACY_SCORING_REVISION,
+  STUDY_PROFILE_SCORING_REVISION,
   STUDY_PROFILE_DIMENSION_CONTENT,
   STUDY_PROFILE_DIMENSIONS,
   STUDY_PROFILE_QUESTION_IDS,
   StudyProfileAnswersSchema,
   StudyProfileReportTokenSchema,
+  StudyProfileSnapshotSchema,
   StudyProfileStoredResponseSchema,
   StudyProfileSubmissionSchema,
   StudyProfileWaitlistUpdateSchema,
@@ -39,17 +42,30 @@ describe("Study Profile validation and report assembly", () => {
     }, answers);
 
     expect(report.overview).toHaveLength(6);
-    expect(report.contentVersion).toBe("study_profile_report_v2");
+    expect(report.scoringRevision).toBe(STUDY_PROFILE_SCORING_REVISION);
+    expect(report.contentVersion).toBe("study_profile_report_v3");
+    expect(report.pattern).toMatchObject({
+      id: "evidence_doubter",
+      name: "The Evidence Doubter",
+      dimension: "calibration_risk",
+    });
+    expect(report.profileNarrative.heading).toBe("The Evidence Doubter");
+    expect(report.freeInsight.body).toMatch(/confidence|results|chose/i);
+    expect(report.whyThisIsHappening.body).toMatch(/best place to start/i);
     expect(report.sectionHeadings.overview).toBe("What your answers show");
     expect(report.primaryPattern.dimension).toBe(profile.primaryPattern.dimension);
     expect(report.playbook.methods).toHaveLength(3);
     expect(new Set(report.playbook.methods.map(({ id }) => id)).size).toBe(3);
     expect(report.playbook.methods[0]).toMatchObject({
-      name: "Worked Examples",
-      basedOn: ["starting_friction", "structure_need", "mistake_sensitivity"],
+      name: "Active Recall",
+      basedOn: ["calibration_risk"],
+      fit: "strong_fit",
     });
     expect(report.playbook.methods[0].steps.length).toBeGreaterThanOrEqual(3);
-    expect(report.playbook.methods[0].example).toMatch(/lecture|problem set|exam|module/i);
+    expect(report.playbook.methods[0].example).toMatch(/tonight version/i);
+    expect(report.playbook.methods[0].timeCost).toMatch(/minute/i);
+    expect(report.methodCatalog).toHaveLength(15);
+    expect(report.methodCatalog.every(({ fitLabel }) => fitLabel.length > 0)).toBe(true);
     expect(report.playbook.nextSession.bestTime).toMatch(/morning/i);
     expect(report.recommendations.map(({ category }) => category)).toEqual([
       "starting",
@@ -88,8 +104,37 @@ describe("Study Profile validation and report assembly", () => {
     expect(highReport.playbook.nextSession.setupSteps.join(" ")).toMatch(/three steps/i);
     expect(lowReport.playbook.methods.map(({ id }) => id))
       .not.toEqual(highReport.playbook.methods.map(({ id }) => id));
-    expect(lowReport.playbook.methods[0].example).toMatch(/class|chapter|teacher|homework|quiz/i);
-    expect(highReport.playbook.methods[0].example).toMatch(/lecture|problem set|exam|module/i);
+    expect(lowReport.pattern.id).toBe("all_rounder");
+    expect(highReport.pattern.id).toBe("evidence_doubter");
+    expect(lowReport.playbook.methods[0].tonightVersion).not.toBe("");
+    expect(highReport.playbook.methods[0].tonightVersion).not.toBe("");
+  });
+
+  it("uses the study goal to change method order, examples, and the first session step", () => {
+    const answers = {
+      ...answerEveryQuestion("a"),
+      q3: "d",
+      q4: "d",
+    } as StudyProfileAnswers;
+    const profile = scoreStudyProfile(answers);
+    const examReport = buildStudyProfileReport(profile, {
+      energyWindow: "evening",
+      schoolLevel: "college",
+      studyGoal: "upcoming_exams",
+    }, answers);
+    const courseworkReport = buildStudyProfileReport(profile, {
+      energyWindow: "evening",
+      schoolLevel: "college",
+      studyGoal: "keeping_up",
+    }, answers);
+
+    expect(examReport.pattern.id).toBe("scattershot");
+    expect(examReport.playbook.methods[0].id).toBe("spaced_practice");
+    expect(courseworkReport.playbook.methods[0].id).toBe("weekly_review");
+    expect(examReport.playbook.nextSession.setupSteps[0]).toMatch(/exam that comes first/i);
+    expect(courseworkReport.playbook.nextSession.setupSteps[0]).toMatch(/lecture objective/i);
+    expect(examReport.playbook.methods[0].tonightVersion).toMatch(/exam that comes first/i);
+    expect(courseworkReport.playbook.methods[0].tonightVersion).toMatch(/most recent lecture/i);
   });
 
   it("uses different knowledge checks for overconfidence and underconfidence answers", () => {
@@ -107,14 +152,43 @@ describe("Study Profile validation and report assembly", () => {
       underAnswers,
     );
 
-    expect(overReport.playbook.methods.map(({ id }) => id))
-      .toContain("practice_test_error_repair");
+    expect(overReport.pattern.id).toBe("familiarity_trap");
     expect(overReport.playbook.nextSession.checkingRule).toMatch(/predict your score/i);
-    expect(underReport.playbook.methods.map(({ id }) => id))
-      .not.toContain("practice_test_error_repair");
-    expect(underReport.playbook.methods.find(({ id }) => id === "retrieval_practice")?.whyItFits)
-      .toMatch(/recording correct answers/i);
+    expect(underReport.pattern.id).toBe("evidence_doubter");
+    expect(underReport.pattern.name).not.toMatch(/familiarity/i);
     expect(underReport.playbook.nextSession.checkingRule).toMatch(/record correct/i);
+  });
+
+  it("keeps profile_model_v1 snapshots readable when optional v3 fields are absent", () => {
+    const current = scoreStudyProfile(answerEveryQuestion("b"));
+    const legacy = JSON.parse(JSON.stringify(current)) as Record<string, unknown>;
+    delete legacy.lowSignal;
+    delete legacy.scoringRevision;
+    const scores = legacy.scores as Record<string, Record<string, unknown>>;
+    for (const score of Object.values(scores)) delete score.meanSeverity;
+
+    const parsed = StudyProfileSnapshotSchema.parse(legacy);
+    const stored = StudyProfileStoredResponseSchema.parse({
+      id: "086f5df6-73c5-4ea1-8531-56893d2af40d",
+      reportToken: "legacy0123456789legacy0123456789",
+      profileModelVersion: STUDY_PROFILE_MODEL_VERSION,
+      rawAnswers: answerEveryQuestion("b"),
+      snapshot: legacy,
+      metadata: {
+        energyWindow: "varies",
+        schoolLevel: "college",
+        hardestPart: null,
+      },
+      createdAt: "2026-08-12T08:30:00+00:00",
+    });
+    const report = buildStudyProfileReportFromStoredResponse(stored);
+
+    expect(parsed.modelVersion).toBe("profile_model_v1");
+    expect(stored.metadata.studyGoal).toBeUndefined();
+    expect(report.contentVersion).toBe("study_profile_report_v3");
+    expect(report.scoringRevision).toBe(STUDY_PROFILE_LEGACY_SCORING_REVISION);
+    expect(report.pattern.id).toBe("all_rounder");
+    expect(report.whyThisIsHappening.body).not.toContain("You chose");
   });
 
   it("rebuilds the same report from a PostgreSQL timestamp without exposing private data", () => {
@@ -129,6 +203,7 @@ describe("Study Profile validation and report assembly", () => {
       metadata: {
         energyWindow: "varies",
         schoolLevel: "high_school",
+        studyGoal: "better_habits",
         hardestPart: null,
       },
       createdAt: "2026-08-11T12:00:00.123456+00:00",
@@ -146,6 +221,7 @@ describe("Study Profile validation and report assembly", () => {
       metadata: {
         energyWindow: "varies",
         schoolLevel: "high_school",
+        studyGoal: "better_habits",
       },
       createdAt: stored.createdAt,
     });

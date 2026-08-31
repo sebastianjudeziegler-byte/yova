@@ -16,17 +16,25 @@ export const DEFAULT_STUDY_PROFILE_SCORING_CONFIG: StudyProfileScoringConfig = {
 };
 
 /**
- * Used only after classification/salience are equal. This keeps true ties
- * stable and makes model changes auditable.
+ * Impact order used only after mean severity and the worst individual answer
+ * are equal. It must never act as a substitute for the learner's scores.
  */
 export const STUDY_PROFILE_SALIENCE_ORDER: readonly StudyProfileDimension[] = [
-  "starting_friction",
-  "structure_need",
-  "attention_variability",
-  "mistake_sensitivity",
   "calibration_risk",
+  "starting_friction",
+  "attention_variability",
+  "structure_need",
   "cognitive_stamina",
+  "mistake_sensitivity",
 ];
+
+export const STUDY_PROFILE_STUDY_GOAL_LABELS = {
+  upcoming_exams: "Exams coming up",
+  keeping_up: "Keeping up with coursework",
+  catching_up: "Catching up after falling behind",
+  specific_qualification: "A specific test or qualification",
+  better_habits: "Building better study habits",
+} as const;
 
 export const STUDY_PROFILE_DIMENSION_NAMES: Record<StudyProfileDimension, string> = {
   starting_friction: "Getting Started",

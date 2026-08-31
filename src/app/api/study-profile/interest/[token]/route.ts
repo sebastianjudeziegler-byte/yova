@@ -8,8 +8,14 @@ import {
 } from "@/lib/study-profile/request-security";
 import {
   StudyProfilePersistenceUnavailableError,
+  generateStudyProfileReportToken,
   getStudyProfileRepository,
+  hashStudyProfileReportToken,
 } from "@/lib/study-profile/repository";
+import {
+  deliverStudyProfileWaitlistConfirmation,
+  waitForStudyProfileWaitlistPublicResponseFloor,
+} from "@/lib/study-profile/waitlist-confirmation";
 import {
   checkStudyProfileInterestRateLimit,
   requestRateLimitKey,
@@ -56,7 +62,7 @@ export async function POST(
   }
   const parsed = StudyProfileInterestRequestSchema.safeParse(body.value);
   if (!parsed.success) {
-    return NextResponse.json({ error: "Choose whether to join the waitlist." }, {
+    return NextResponse.json({ error: "Confirm that you want to join and that you are 13 or older." }, {
       status: 422,
       headers: { "Cache-Control": "no-store" },
     });
@@ -64,23 +70,41 @@ export async function POST(
 
   try {
     const repository = getStudyProfileRepository();
-    const report = await repository.getReportByToken(token.data);
-    if (!report) return notFoundResponse();
-
-    const state = await repository.joinWaitlist(token.data);
+    const confirmationToken = generateStudyProfileReportToken();
+    const state = await repository.requestWaitlistConfirmation(
+      token.data,
+      parsed.data.source,
+      hashStudyProfileReportToken(confirmationToken),
+    );
     if (!state) return notFoundResponse();
-    if (!state.waitlistJoined) {
-      throw new Error("Study Profile waitlist update did not return a joined state.");
+    const reportScopedJoined = state.waitlistJoined;
+    const publicResponseStartedAt = Date.now();
+    try {
+      await deliverStudyProfileWaitlistConfirmation(
+        repository,
+        state,
+        confirmationToken,
+      );
+    } catch (error) {
+      console.error(
+        "Study Profile report confirmation delivery failed.",
+        safeErrorName(error),
+      );
     }
-    if (!report.waitlistJoined) {
-      void repository.recordEvent({
-        responseId: report.storedResponse.id,
-        eventName: "study_profile_waitlist_joined",
-        eventData: {},
-      }).catch(() => {});
-    }
-
-    return NextResponse.json({ waitlistJoined: true }, {
+    await waitForStudyProfileWaitlistPublicResponseFloor(publicResponseStartedAt);
+    // A report bearer may know only whether this exact response already has
+    // confirmed evidence. Every other recipient state is intentionally
+    // indistinguishable so a fresh report cannot enumerate shared membership
+    // or email caps for the submitted address.
+    return NextResponse.json(
+      reportScopedJoined
+        ? {
+            waitlistJoined: true,
+            confirmationPending: false,
+            dailyCapReached: false,
+            retryAfterSeconds: 0,
+          }
+        : maskedPendingResponse(), {
       headers: { "Cache-Control": "no-store" },
     });
   } catch (error) {
@@ -96,6 +120,15 @@ export async function POST(
       headers: { "Cache-Control": "no-store" },
     });
   }
+}
+
+function maskedPendingResponse() {
+  return {
+    waitlistJoined: false,
+    confirmationPending: true,
+    dailyCapReached: false,
+    retryAfterSeconds: 0,
+  };
 }
 
 function notFoundResponse() {

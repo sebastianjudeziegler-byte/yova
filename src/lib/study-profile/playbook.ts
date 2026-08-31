@@ -2,16 +2,24 @@ import {
   CORE_METHOD_CATALOG,
   type CoreMethodId,
 } from "@/lib/learning/method-catalog";
-import { STUDY_PROFILE_DIMENSION_NAMES } from "@/lib/study-profile/config";
+import {
+  buildStudyProfileMethodCatalog,
+  selectStudyProfileTopMethods,
+} from "@/lib/study-profile/method-catalog";
+import { resolveStudyProfileNamedPattern } from "@/lib/study-profile/patterns";
 import type {
   StudyProfileAnswers,
-  StudyProfileDimension,
+  StudyProfileMethodCatalogEntry,
+  StudyProfileMethodCatalogId,
   StudyProfileMetadata,
   StudyProfileMethodRecommendation,
+  StudyProfileNamedPattern,
   StudyProfilePlaybook,
+  StudyProfileDimension,
   StudyProfileSchoolLevel,
   StudyProfileSessionPlan,
   StudyProfileSnapshot,
+  StudyProfileStudyGoal,
 } from "@/lib/study-profile/types";
 
 type ProfileContext = {
@@ -53,18 +61,30 @@ export function buildStudyProfilePlaybook(
   answers?: StudyProfileAnswers,
 ): StudyProfilePlaybook {
   const context = { profile, metadata, answers };
-  const methods = selectStudyProfileMethods(context).map((methodId) => (
-    buildMethodRecommendation(methodId, context)
+  const namedPattern = resolveStudyProfileNamedPattern(profile);
+  const methods = selectGoalMatchedMethods(
+    namedPattern.id,
+    metadata.studyGoal,
+  ).map((method) => (
+    buildCatalogMethodRecommendation(method, namedPattern, metadata)
   ));
-  const primary = STUDY_PROFILE_DIMENSION_NAMES[profile.primaryPattern.dimension].toLowerCase();
-  const secondary = STUDY_PROFILE_DIMENSION_NAMES[profile.secondaryPattern.dimension].toLowerCase();
 
   return {
     heading: "A study plan you can try today",
-    intro: `Your answers point most strongly to ${primary} and ${secondary}. Use this as a starting experiment, then keep the parts that improve your work.`,
+    intro: namedPattern.id === "all_rounder"
+      ? "No single habit needs a repair plan. Start with these method upgrades, compare the results, and keep the ones that improve your work."
+      : `${namedPattern.name} is the clearest pattern in your answers. Start with the three methods that fit it best, then keep the parts that improve your work.`,
     nextSession: buildStudyProfileSessionPlan(context),
     methods,
   };
+}
+
+export function selectStudyProfileCatalogMethods(profile: StudyProfileSnapshot) {
+  return selectStudyProfileTopMethods(resolveStudyProfileNamedPattern(profile).id);
+}
+
+export function buildStudyProfileMethodCatalogForProfile(profile: StudyProfileSnapshot) {
+  return buildStudyProfileMethodCatalog(resolveStudyProfileNamedPattern(profile).id);
 }
 
 export function selectStudyProfileMethods({ profile }: ProfileContext): readonly CoreMethodId[] {
@@ -115,36 +135,55 @@ export function buildStudyProfileSessionPlan({
   const rounds = shortBlocks || mediumBlocks ? 2 : 1;
 
   return {
-    title: `Start with a ${workMinutes} minute study block`,
+    title: `Start with a ${workMinutes} minute ${goalBlockLabel(metadata.studyGoal)}`,
     workMinutes,
     breakMinutes,
     rounds,
     bestTime: timingPlan(metadata.energyWindow),
-    setupSteps: setupSteps(profile, answers),
+    setupSteps: [
+      goalFirstStep(metadata.studyGoal, metadata.schoolLevel),
+      ...setupSteps(profile, answers),
+    ],
     focusRule: focusRule(profile, answers, workMinutes),
     checkingRule: checkingRule(profile, answers),
     stopRule: stopRule(profile, answers, breakMinutes, rounds),
   };
 }
 
-function buildMethodRecommendation(
-  methodId: CoreMethodId,
-  context: ProfileContext,
+function buildCatalogMethodRecommendation(
+  method: StudyProfileMethodCatalogEntry,
+  pattern: StudyProfileNamedPattern,
+  metadata: Partial<StudyProfileMetadata>,
 ): StudyProfileMethodRecommendation {
-  const method = CORE_METHOD_CATALOG[methodId];
+  const caution = method.fit === "skip_for_now"
+    ? "Leave this method for later. A simpler method above is more likely to help first."
+    : method.fit === "situational"
+      ? "Use this when the task matches the description above. It does not need to become part of every session."
+      : "Try this for two or three sessions and compare the result with your current approach.";
+
+  const tonightVersion = `${method.tonightVersion} ${goalMethodExample(
+    metadata.studyGoal,
+    metadata.schoolLevel,
+  )}`;
+
   return {
     id: method.id,
     name: method.name,
-    useWhen: METHOD_USE_CASES[methodId],
-    whyItFits: whyMethodFits(methodId, context),
-    steps: methodSteps(methodId, context),
-    example: schoolExample(methodId, context.metadata.schoolLevel ?? "other"),
-    caution: METHOD_CAUTIONS[methodId] ?? plainCaution(methodId),
-    basedOn: dimensionsForMethod(methodId, context.profile),
+    useWhen: method.whatItIs,
+    whyItFits: method.fit === "strong_fit"
+      ? `${method.whyItWorks} That makes it a strong fit for ${pattern.name}.`
+      : method.whyItWorks,
+    steps: method.steps,
+    example: `Tonight version: ${tonightVersion}`,
+    caution,
+    basedOn: pattern.dimension ? [pattern.dimension] : [],
+    timeCost: method.timeCost,
+    tonightVersion,
+    fit: method.fit,
   };
 }
 
-function whyMethodFits(methodId: CoreMethodId, { profile, answers }: ProfileContext) {
+function whyLegacyMethodFits(methodId: CoreMethodId, { profile, answers }: ProfileContext) {
   if (methodId === "worked_example_fading") {
     return "Your answers suggest that unclear steps and the risk of a wrong first attempt can make it harder to begin. A complete example gives you a path, then fading the help gets you to independent practice.";
   }
@@ -181,7 +220,127 @@ function whyMethodFits(methodId: CoreMethodId, { profile, answers }: ProfileCont
   return "Explaining an idea in your own words makes understanding visible. It helps you find the exact step or relationship that is still unclear.";
 }
 
-function methodSteps(methodId: CoreMethodId, { profile, answers }: ProfileContext): readonly string[] {
+const GOAL_METHOD_PREFERENCES: Record<
+  StudyProfileStudyGoal,
+  readonly StudyProfileMethodCatalogId[]
+> = {
+  upcoming_exams: ["exam_condition_practice", "active_recall", "error_log", "spaced_practice"],
+  keeping_up: ["weekly_review", "spaced_practice", "session_shutdown", "active_recall"],
+  catching_up: ["five_minute_start", "timeboxing", "weekly_review", "worked_example_fading"],
+  specific_qualification: ["exam_condition_practice", "active_recall", "error_log", "pretesting"],
+  better_habits: ["implementation_intentions", "weekly_review", "session_shutdown", "timeboxing"],
+};
+
+function selectGoalMatchedMethods(
+  patternId: StudyProfileNamedPattern["id"],
+  studyGoal?: StudyProfileStudyGoal | null,
+) {
+  if (!studyGoal) return selectStudyProfileTopMethods(patternId);
+  const fitRank = { strong_fit: 0, situational: 1, skip_for_now: 2 } as const;
+  const goalRank = new Map(
+    GOAL_METHOD_PREFERENCES[studyGoal].map((methodId, index) => [methodId, index]),
+  );
+  return [...buildStudyProfileMethodCatalog(patternId)]
+    .map((method, index) => ({ method, index }))
+    .sort((left, right) => (
+      fitRank[left.method.fit] - fitRank[right.method.fit]
+      || (goalRank.get(left.method.id) ?? Number.MAX_SAFE_INTEGER)
+        - (goalRank.get(right.method.id) ?? Number.MAX_SAFE_INTEGER)
+      || left.index - right.index
+    ))
+    .slice(0, 3)
+    .map(({ method }) => method);
+}
+
+function goalBlockLabel(studyGoal?: StudyProfileStudyGoal | null) {
+  if (studyGoal === "upcoming_exams" || studyGoal === "specific_qualification") {
+    return "exam-practice block";
+  }
+  if (studyGoal === "catching_up") return "catch-up block";
+  if (studyGoal === "keeping_up") return "coursework block";
+  if (studyGoal === "better_habits") return "habit-building block";
+  return "study block";
+}
+
+function goalFirstStep(
+  studyGoal?: StudyProfileStudyGoal | null,
+  schoolLevel?: StudyProfileMetadata["schoolLevel"],
+) {
+  if (studyGoal === "upcoming_exams") {
+    return "Choose the exam that comes first and one topic or question it is likely to test.";
+  }
+  if (studyGoal === "specific_qualification") {
+    return "Choose one objective from the target test or qualification and one question that checks it.";
+  }
+  if (studyGoal === "catching_up") {
+    return "Choose the oldest important gap that is blocking your current work. Ignore the rest for this block.";
+  }
+  if (studyGoal === "keeping_up") {
+    return schoolLevel === "college"
+      ? "Choose one unfinished lecture objective, problem-set item, or reading from this week."
+      : "Choose one unfinished class topic, assignment step, or question from this week.";
+  }
+  if (studyGoal === "better_habits") {
+    return "Choose one small topic you can finish tonight and a time when you will repeat this setup.";
+  }
+  return "Choose one concrete result you want by the end of this block.";
+}
+
+function goalMethodExample(
+  studyGoal?: StudyProfileStudyGoal | null,
+  schoolLevel?: StudyProfileMetadata["schoolLevel"],
+) {
+  if (studyGoal === "upcoming_exams") return "Use material from the exam that comes first.";
+  if (studyGoal === "specific_qualification") return "Use one item from the target test or specification.";
+  if (studyGoal === "catching_up") return "Use the oldest topic that blocks what you are learning now.";
+  if (studyGoal === "keeping_up") {
+    return schoolLevel === "college"
+      ? "Use material from your most recent lecture or problem set."
+      : "Use material from your most recent class or assignment.";
+  }
+  if (studyGoal === "better_habits") {
+    return "Keep the topic small enough to repeat the same setup next time.";
+  }
+  return "Use the most important material in front of you right now.";
+}
+
+/**
+ * Keeps the pre-revamp core-method recommendations available to callers that
+ * still consume the older Study Profile method contract. New public reports
+ * use the named-pattern catalog above.
+ */
+export function buildLegacyStudyProfileMethods(
+  profile: StudyProfileSnapshot,
+  metadata: Partial<StudyProfileMetadata>,
+  answers?: StudyProfileAnswers,
+) {
+  const context = { profile, metadata, answers };
+  return selectStudyProfileMethods(context).map((methodId) => (
+    buildLegacyMethodRecommendation(methodId, context)
+  ));
+}
+
+function buildLegacyMethodRecommendation(
+  methodId: CoreMethodId,
+  context: ProfileContext,
+): StudyProfileMethodRecommendation {
+  const method = CORE_METHOD_CATALOG[methodId];
+  return {
+    id: method.id,
+    name: method.name,
+    useWhen: METHOD_USE_CASES[methodId],
+    whyItFits: whyLegacyMethodFits(methodId, context),
+    steps: legacyMethodSteps(methodId, context),
+    example: legacySchoolExample(methodId, context.metadata.schoolLevel ?? "other"),
+    caution: METHOD_CAUTIONS[methodId] ?? plainLegacyCaution(methodId),
+    basedOn: legacyDimensionsForMethod(methodId, context.profile),
+  };
+}
+
+function legacyMethodSteps(
+  methodId: CoreMethodId,
+  { profile, answers }: ProfileContext,
+): readonly string[] {
   if (methodId === "retrieval_practice") {
     const first = profile.classifications.structure_need === "high"
       ? "Write three to five questions before you start, then hide your notes."
@@ -260,14 +419,7 @@ function methodSteps(methodId: CoreMethodId, { profile, answers }: ProfileContex
   ];
 }
 
-/**
- * Picks the material each method should be practised on.
- *
- * A single shared phrase was reused for every method, so a report showing three
- * methods repeated the same clause three times and read as mail-merge, which
- * undercuts the claim that the methods were matched to the learner.
- */
-function methodSource(methodId: CoreMethodId, schoolLevel: StudyProfileSchoolLevel) {
+function legacyMethodSource(methodId: CoreMethodId, schoolLevel: StudyProfileSchoolLevel) {
   const byLevel = {
     high_school: {
       solved: "a solved problem from class",
@@ -294,7 +446,6 @@ function methodSource(methodId: CoreMethodId, schoolLevel: StudyProfileSchoolLev
 
   const level = schoolLevel === "high_school" || schoolLevel === "college" ? schoolLevel : "other";
   const source = byLevel[level];
-
   switch (methodId) {
     case "worked_example_fading":
     case "scaffolded_coding":
@@ -311,9 +462,8 @@ function methodSource(methodId: CoreMethodId, schoolLevel: StudyProfileSchoolLev
   }
 }
 
-function schoolExample(methodId: CoreMethodId, schoolLevel: StudyProfileSchoolLevel) {
-  const source = methodSource(methodId, schoolLevel);
-
+function legacySchoolExample(methodId: CoreMethodId, schoolLevel: StudyProfileSchoolLevel) {
+  const source = legacyMethodSource(methodId, schoolLevel);
   const examples: Partial<Record<CoreMethodId, string>> = {
     retrieval_practice: `Example: turn ${source} into five questions, close them, and answer all five before checking.`,
     spaced_retrieval: `Example: pick five important items from ${source} and repeat the same closed-note check tomorrow, in three days, and in a week.`,
@@ -326,6 +476,30 @@ function schoolExample(methodId: CoreMethodId, schoolLevel: StudyProfileSchoolLe
     practice_test_error_repair: `Example: answer five of ${source} without notes, group what you missed by cause, and redo one question per cause.`,
   };
   return examples[methodId] ?? `Example: apply this method to ${source} and record the result before choosing what to do next.`;
+}
+
+function legacyDimensionsForMethod(
+  methodId: CoreMethodId,
+  profile: StudyProfileSnapshot,
+): readonly StudyProfileDimension[] {
+  const mapped: Partial<Record<CoreMethodId, readonly StudyProfileDimension[]>> = {
+    retrieval_practice: ["calibration_risk", "mistake_sensitivity"],
+    spaced_retrieval: ["structure_need", "cognitive_stamina"],
+    self_explanation: ["calibration_risk", "structure_need"],
+    worked_example_fading: ["starting_friction", "structure_need", "mistake_sensitivity"],
+    read_recall_review: ["attention_variability", "cognitive_stamina"],
+    pretesting: ["starting_friction", "calibration_risk"],
+    concept_mapping: ["structure_need", "calibration_risk"],
+    practice_problems: ["structure_need", "mistake_sensitivity"],
+    practice_test_error_repair: ["calibration_risk", "mistake_sensitivity"],
+  };
+  return mapped[methodId] ?? [profile.primaryPattern.dimension];
+}
+
+function plainLegacyCaution(methodId: CoreMethodId) {
+  return CORE_METHOD_CATALOG[methodId].avoidWhen
+    .replace("Do not ", "Avoid ")
+    .replace("the learner", "you");
 }
 
 function timingPlan(energyWindow?: StudyProfileMetadata["energyWindow"]) {
@@ -384,8 +558,8 @@ function focusRule(profile: StudyProfileSnapshot, answers: StudyProfileAnswers |
   if (profile.classifications.attention_variability === "high" || answers?.q5 === "d") {
     return `Stay on one topic for the full ${minutes} minutes. At the next round, change the format, such as recall, explanation, or practice questions, but keep the same topic.`;
   }
-  if (answers?.q6 === "b" || profile.classifications.attention_variability === "moderate") {
-    return "Make progress visible. Tally completed questions, recalled ideas, or finished steps at the end of each block.";
+  if (answers?.q6 === "c" || profile.classifications.attention_variability === "moderate") {
+    return "Change format once on purpose, such as moving from questions to explanation, while keeping the same topic.";
   }
   return "Protect one uninterrupted topic. Do not add a format change while your attention is holding.";
 }
@@ -416,28 +590,4 @@ function stopRule(
     return `Take a ${breakMinutes} minute reset after the first block. Continue only if your pace and accuracy still look steady.`;
   }
   return "Stop when the planned result is complete or the quality of your answers drops. More time is not useful if the work is getting worse.";
-}
-
-function dimensionsForMethod(
-  methodId: CoreMethodId,
-  profile: StudyProfileSnapshot,
-): readonly StudyProfileDimension[] {
-  const mapped: Partial<Record<CoreMethodId, readonly StudyProfileDimension[]>> = {
-    retrieval_practice: ["calibration_risk", "mistake_sensitivity"],
-    spaced_retrieval: ["structure_need", "cognitive_stamina"],
-    self_explanation: ["calibration_risk", "structure_need"],
-    worked_example_fading: ["starting_friction", "structure_need", "mistake_sensitivity"],
-    read_recall_review: ["attention_variability", "cognitive_stamina"],
-    pretesting: ["starting_friction", "calibration_risk"],
-    concept_mapping: ["structure_need", "calibration_risk"],
-    practice_problems: ["structure_need", "mistake_sensitivity"],
-    practice_test_error_repair: ["calibration_risk", "mistake_sensitivity"],
-  };
-  return mapped[methodId] ?? [profile.primaryPattern.dimension];
-}
-
-function plainCaution(methodId: CoreMethodId) {
-  return CORE_METHOD_CATALOG[methodId].avoidWhen
-    .replace("Do not ", "Avoid ")
-    .replace("the learner", "you");
 }

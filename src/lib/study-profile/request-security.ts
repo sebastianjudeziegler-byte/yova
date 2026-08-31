@@ -3,6 +3,7 @@ import "server-only";
 export const STUDY_PROFILE_RESPONSE_MAX_BYTES = 32_768;
 export const STUDY_PROFILE_EVENT_MAX_BYTES = 8_192;
 export const STUDY_PROFILE_INTEREST_MAX_BYTES = 2_048;
+export const STUDY_PROFILE_WAITLIST_MAX_BYTES = 4_096;
 
 export type StudyProfileRequestGuardResult =
   | { ok: true }

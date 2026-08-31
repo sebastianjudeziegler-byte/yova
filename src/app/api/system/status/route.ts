@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { isAccountExportCleanupConfigured } from "@/lib/account-export/config";
 import { isOpenAIPlanConfigured, isOpenAISessionConfigured, isOpenAITutorConfigured } from "@/lib/openai/config";
 import { personalizationRolloutConfigurationStatus } from "@/lib/server/personalization-rollout";
+import { studyProfilePublicReadinessStatus } from "@/lib/study-profile/readiness";
 import { createSupabaseAdminClient, isSupabaseAdminConfigured } from "@/lib/supabase/admin";
 import { getSupabasePublicConfig, isSupabaseConfigured } from "@/lib/supabase/config";
 import { signedInGenerationReadinessStatus } from "@/lib/supabase/signed-in-generation-readiness";
@@ -10,10 +11,11 @@ export const dynamic = "force-dynamic";
 
 export async function GET() {
   const supabaseConfig = getSupabasePublicConfig();
-  const [testerInvitations, authSettings, signedInGeneration] = await Promise.all([
+  const [testerInvitations, authSettings, signedInGeneration, studyProfilePublic] = await Promise.all([
     testerInvitationStatus(),
     publicAuthSettingsStatus(supabaseConfig),
     signedInGenerationReadinessStatus(),
+    studyProfilePublicReadinessStatus(),
   ]);
   const passwordAccountsEnabled = process.env.AUTH_PASSWORD_ACCOUNTS === "true";
   const captchaRequested = process.env.AUTH_CAPTCHA_ENABLED === "true";
@@ -27,6 +29,8 @@ export async function GET() {
     guidedSessions: isOpenAISessionConfigured() ? "openai" : "unavailable",
     signedInGeneration,
     personalizationRollout: personalizationRolloutConfigurationStatus(),
+    studyProfilePublic,
+    studyProfileEmail: isStudyProfileEmailConfigured() ? "resend" : "unavailable",
     tutor: isOpenAITutorConfigured() ? "openai" : "unavailable",
     materials: isSupabaseConfigured() ? "private-supabase" : "unavailable",
     persistence: isSupabaseConfigured() ? "supabase" : "browser",
@@ -44,6 +48,15 @@ export async function GET() {
   }, {
     headers: { "Cache-Control": "no-store" },
   });
+}
+
+function isStudyProfileEmailConfigured() {
+  const apiKey = process.env.RESEND_API_KEY?.trim();
+  const sender = process.env.STUDY_PROFILE_FROM_EMAIL?.trim();
+  if (!apiKey?.startsWith("re_") || apiKey.length < 20 || !sender) return false;
+  const bracketed = sender.match(/^[^<>\r\n]{1,100}<([^<>\r\n]+)>$/u);
+  const address = bracketed?.[1]?.trim() || sender;
+  return /^[^\s<>@]+@[^\s<>@]+\.[^\s<>@]+$/u.test(address);
 }
 
 async function testerInvitationStatus() {

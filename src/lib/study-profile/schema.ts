@@ -10,7 +10,9 @@ import {
   STUDY_PROFILE_DIMENSIONS,
   STUDY_PROFILE_ENERGY_WINDOWS,
   STUDY_PROFILE_MODEL_VERSION,
+  STUDY_PROFILE_SCORING_REVISION,
   STUDY_PROFILE_SCHOOL_LEVELS,
+  STUDY_PROFILE_STUDY_GOALS,
 } from "@/lib/study-profile/types";
 
 export const StudyProfileAnswerIdSchema = z.enum(STUDY_PROFILE_ANSWER_IDS);
@@ -21,6 +23,7 @@ export const StudyProfileCalibrationDirectionSchema = z.enum(
 );
 export const StudyProfileEnergyWindowSchema = z.enum(STUDY_PROFILE_ENERGY_WINDOWS);
 export const StudyProfileSchoolLevelSchema = z.enum(STUDY_PROFILE_SCHOOL_LEVELS);
+export const StudyProfileStudyGoalSchema = z.enum(STUDY_PROFILE_STUDY_GOALS);
 
 export const StudyProfileAnswersSchema = z.object({
   q1: StudyProfileAnswerIdSchema,
@@ -54,6 +57,7 @@ const OptionalFreeResponseSchema = z.string()
 export const StudyProfileMetadataSchema = z.object({
   energyWindow: StudyProfileEnergyWindowSchema,
   schoolLevel: StudyProfileSchoolLevelSchema,
+  studyGoal: StudyProfileStudyGoalSchema.optional().nullable(),
   hardestPart: OptionalFreeResponseSchema,
 }).strict();
 
@@ -112,6 +116,7 @@ export const StudyProfileWaitlistUpdateSchema = z.object({
 const DimensionScoreSchema = z.object({
   dimension: StudyProfileDimensionSchema,
   rawScore: z.number().int().min(0).max(6),
+  meanSeverity: z.number().min(0).max(3).optional(),
   normalizedScore: z.number().min(0).max(100),
   classification: StudyProfileClassificationSchema,
   userFacingLabel: z.string().min(1).max(80),
@@ -164,6 +169,7 @@ export const StudyProfilePatternSchema = z.object({
 
 export const StudyProfileSnapshotSchema = z.object({
   modelVersion: z.literal(STUDY_PROFILE_MODEL_VERSION),
+  scoringRevision: z.literal(STUDY_PROFILE_SCORING_REVISION).optional(),
   scores: DimensionScoresSchema,
   rawScores: RawScoresSchema,
   normalizedScores: NormalizedScoresSchema,
@@ -172,6 +178,7 @@ export const StudyProfileSnapshotSchema = z.object({
   primaryPattern: StudyProfilePatternSchema,
   secondaryPattern: StudyProfilePatternSchema,
   isBalanced: z.boolean(),
+  lowSignal: z.boolean().optional(),
 }).strict();
 
 /**
@@ -212,6 +219,7 @@ export const StudyProfilePublicStoredResponseSchema = z.object({
   metadata: z.object({
     energyWindow: StudyProfileEnergyWindowSchema,
     schoolLevel: StudyProfileSchoolLevelSchema,
+    studyGoal: StudyProfileStudyGoalSchema.optional().nullable(),
   }).strict(),
   createdAt: StudyProfileTimestampSchema,
 }).strict().superRefine((value, context) => {
@@ -234,6 +242,7 @@ export function toStudyProfilePublicStoredResponse(
     metadata: {
       energyWindow: value.metadata.energyWindow,
       schoolLevel: value.metadata.schoolLevel,
+      ...(value.metadata.studyGoal ? { studyGoal: value.metadata.studyGoal } : {}),
     },
     createdAt: value.createdAt,
   });

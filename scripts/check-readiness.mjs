@@ -1,4 +1,7 @@
-import { probeSignedInGenerationDatabase } from "./readiness-capability-probe.mjs";
+import {
+  probeSignedInGenerationDatabase,
+  probeStudyProfilePublicDatabase,
+} from "./readiness-capability-probe.mjs";
 
 const deploymentBuild = process.argv.includes("--deployment");
 const configurationOnly = process.argv.includes("--configuration-only");
@@ -41,6 +44,16 @@ function validDraftReceiptSecret(value) {
   return value.length >= 32 && value.length <= 4_096 && value === value.trim();
 }
 
+function validEmailAddress(value) {
+  return /^[^\s<>@]+@[^\s<>@]+\.[^\s<>@]+$/u.test(value);
+}
+
+function validEmailSender(value) {
+  if (!value || value.length > 320 || value !== value.trim()) return false;
+  const bracketed = value.match(/^[^<>\r\n]{1,100}<([^<>\r\n]+)>$/u);
+  return validEmailAddress(bracketed?.[1]?.trim() || value);
+}
+
 async function loadNextEnvironment(development) {
   try {
     const imported = await import("@next/env");
@@ -72,6 +85,15 @@ const draftReceiptSecret = process.env.YOVA_DRAFT_RECEIPT_SECRET ?? "";
 const previousDraftReceiptSecret = process.env.YOVA_DRAFT_RECEIPT_PREVIOUS_SECRET ?? "";
 const openAIKey = process.env.OPENAI_API_KEY?.trim();
 const siteUrl = process.env.SITE_URL?.trim();
+const resendApiKey = process.env.RESEND_API_KEY?.trim();
+const studyProfileFromEmail = process.env.STUDY_PROFILE_FROM_EMAIL ?? "";
+const studyProfileReplyTo = process.env.STUDY_PROFILE_REPLY_TO?.trim() ?? "";
+const studyProfileEmailReady = Boolean(
+  resendApiKey
+  && resendApiKey.startsWith("re_")
+  && resendApiKey.length >= 20
+  && validEmailSender(studyProfileFromEmail),
+);
 const vercelUrl = process.env.VERCEL_PROJECT_PRODUCTION_URL?.trim()
   || process.env.VERCEL_URL?.trim();
 const publicOrigin = siteUrl || (vercelUrl ? `https://${vercelUrl}` : "");
@@ -223,6 +245,22 @@ if (production) {
         ? "missing SITE_URL; a Vercel deploy URL is only a preview fallback, not the production canonical"
         : "missing SITE_URL; production requires the customer-facing HTTPS origin",
   );
+  addCheck(
+    "Study Profile transactional email",
+    studyProfileEmailReady,
+    studyProfileEmailReady
+      ? "Resend and the transactional sender are configured without exposing their values"
+      : "set a valid RESEND_API_KEY and STUDY_PROFILE_FROM_EMAIL for report and confirmation delivery",
+  );
+  addCheck(
+    "Study Profile reply-to",
+    !studyProfileReplyTo || validEmailAddress(studyProfileReplyTo),
+    !studyProfileReplyTo
+      ? "not set; replies will use the configured sender behavior"
+      : validEmailAddress(studyProfileReplyTo)
+        ? "configured with a valid monitored address"
+        : "STUDY_PROFILE_REPLY_TO must be a valid email address when set",
+  );
 
   if (configurationOnly) {
     databaseProbeSkipped = true;
@@ -240,9 +278,23 @@ if (production) {
       databaseCapability.passed,
       databaseCapability.detail,
     );
+    const studyProfileCapability = await probeStudyProfilePublicDatabase({
+      supabaseUrl,
+      supabaseSecretKey,
+    });
+    addCheck(
+      "Study Profile public database contract",
+      studyProfileCapability.passed,
+      studyProfileCapability.detail,
+    );
   } else {
     addCheck(
       "Signed-in generation database contract",
+      false,
+      "not probed because the HTTPS Supabase URL or SUPABASE_SECRET_KEY is unavailable",
+    );
+    addCheck(
+      "Study Profile public database contract",
       false,
       "not probed because the HTTPS Supabase URL or SUPABASE_SECRET_KEY is unavailable",
     );
@@ -273,7 +325,7 @@ if (failed.length) {
   if (configurationOnly) {
     console.log("Configuration shapes passed. Database capabilities were not checked; this is not production release approval.");
   } else if (production) {
-    console.log("All production release readiness checks passed, including the live signed-in generation database contract.");
+    console.log("All production release readiness checks passed, including the live signed-in generation and Study Profile database contracts.");
   } else {
     console.log("All required local configuration checks passed.");
   }

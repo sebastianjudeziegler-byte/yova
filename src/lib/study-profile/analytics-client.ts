@@ -9,12 +9,13 @@ import {
   type StudyProfileEventProperties,
 } from "@/lib/study-profile/analytics";
 import { sanitizeStudyProfileAttributionValue } from "@/lib/study-profile/attribution-privacy";
-import { STUDY_PROFILE_MODEL_VERSION } from "@/lib/study-profile/types";
-
-const VISITOR_STORAGE_KEY = "yova.study-profile.visitor.v1";
-const ATTRIBUTION_STORAGE_KEY = "yova.study-profile.attribution.v1";
+import {
+  STUDY_PROFILE_MODEL_VERSION,
+  STUDY_PROFILE_SCORING_REVISION,
+} from "@/lib/study-profile/types";
 
 let ephemeralVisitorId: string | null = null;
+let ephemeralAttribution: StudyProfileAnalyticsAttribution | null = null;
 
 function createVisitorId() {
   if (typeof globalThis.crypto?.randomUUID === "function") {
@@ -32,23 +33,12 @@ function createVisitorId() {
   return null;
 }
 
-/** Returns a pseudonymous, device-local UUID. It never contains lead data. */
+/** Returns a page-lifetime UUID. It is never written to browser storage. */
 export function getStudyProfileVisitorId(): string | null {
   if (typeof window === "undefined") return null;
-
-  try {
-    const stored = window.localStorage.getItem(VISITOR_STORAGE_KEY);
-    const parsed = StudyProfileVisitorIdSchema.safeParse(stored);
-    if (parsed.success) return parsed.data;
-
-    const created = createVisitorId();
-    if (!created) return null;
-    window.localStorage.setItem(VISITOR_STORAGE_KEY, created);
-    return created;
-  } catch {
-    ephemeralVisitorId ??= createVisitorId();
-    return ephemeralVisitorId;
-  }
+  ephemeralVisitorId ??= createVisitorId();
+  const parsed = StudyProfileVisitorIdSchema.safeParse(ephemeralVisitorId);
+  return parsed.success ? parsed.data : null;
 }
 
 function boundedCampaignValue(value: string | null, maxLength: number) {
@@ -105,38 +95,23 @@ export function deriveStudyProfileAttribution(
 }
 
 /**
- * Captures first-touch attribution for the current tab. Stored data is limited
- * to known UTM fields and a referrer origin with no path or query string.
+ * Captures first-touch attribution for the current page lifetime. It remains
+ * in memory only, with no analytics identifier or attribution written to web
+ * storage before consent.
  */
 export function captureStudyProfileAttribution(): StudyProfileAnalyticsAttribution {
   if (typeof window === "undefined") return { source: "direct" };
+  if (ephemeralAttribution) return ephemeralAttribution;
 
-  try {
-    const saved = window.sessionStorage.getItem(ATTRIBUTION_STORAGE_KEY);
-    if (saved) {
-      const parsed = StudyProfileAnalyticsAttributionSchema.safeParse(JSON.parse(saved));
-      if (parsed.success) return parsed.data;
-    }
-  } catch {
-    // Storage can be unavailable in privacy modes; capture still works in-memory.
-  }
-
-  const attribution = deriveStudyProfileAttribution(
+  ephemeralAttribution = deriveStudyProfileAttribution(
     window.location.href,
     document.referrer,
   );
-
-  try {
-    window.sessionStorage.setItem(ATTRIBUTION_STORAGE_KEY, JSON.stringify(attribution));
-  } catch {
-    // Attribution is optional and must never interrupt the assessment.
-  }
-
-  return attribution;
+  return ephemeralAttribution;
 }
 
 type PropertyArguments<Name extends StudyProfileEventName> =
-  Name extends "study_profile_question_answered"
+  Name extends "study_profile_question_answered" | "study_profile_share_tapped"
     ? [properties: StudyProfileEventProperties[Name]]
     : [properties?: StudyProfileEventProperties[Name]];
 
@@ -152,6 +127,7 @@ export function trackStudyProfileEvent<Name extends StudyProfileEventName>(
     eventName: name,
     visitorId,
     modelVersion: STUDY_PROFILE_MODEL_VERSION,
+    scoringRevision: STUDY_PROFILE_SCORING_REVISION,
     attribution: captureStudyProfileAttribution(),
     context: properties ?? {},
   });

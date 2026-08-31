@@ -55,6 +55,8 @@ jobs:
           CRON_SECRET: ci-readiness-only-cron-secret-000000000000
           YOVA_DRAFT_RECEIPT_SECRET: ci-readiness-only-draft-receipt-secret-000000
           SITE_URL: https://www.yovaapp.com
+          RESEND_API_KEY: re_ci_readiness_only_not_a_real_key
+          STUDY_PROFILE_FROM_EMAIL: YOVA <reports@yovaapp.com>
           YOVA_PERSONALIZATION_ROLLOUT_PERCENT: "0"
           AUTH_PASSWORD_ACCOUNTS: "true"
           AUTH_INVITE_ONLY: "false"

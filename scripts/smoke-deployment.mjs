@@ -113,6 +113,8 @@ try {
     planGeneration: "openai",
     guidedSessions: "openai",
     signedInGeneration: "ready",
+    studyProfilePublic: "ready",
+    studyProfileEmail: "resend",
     tutor: "openai",
     materials: "private-supabase",
     persistence: "supabase",
@@ -162,6 +164,27 @@ try {
   const cacheControl = statusResponse.headers.get("cache-control") || "";
   if (cacheControl.includes("no-store")) pass("Capability status is not publicly cached");
   else fail("Capability status should use Cache-Control: no-store");
+
+  const studyProfileResponse = await request(`${origin}/study-profile`);
+  const studyProfileHtml = await studyProfileResponse.text();
+  if (studyProfileResponse.ok && /Study Profile/i.test(studyProfileHtml)) {
+    pass("Public Study Profile landing page is available");
+  } else {
+    fail(`Study Profile landing page returned ${studyProfileResponse.status} or unexpected content`);
+  }
+
+  const privateReportProbe = await request(
+    `${origin}/study-profile/report/${"x".repeat(43)}`,
+  );
+  for (const [header, expected] of Object.entries({
+    "cache-control": "private, no-store, max-age=0",
+    "referrer-policy": "no-referrer",
+    "x-robots-tag": "noindex, nofollow, noarchive, nosnippet",
+  })) {
+    const actual = privateReportProbe.headers.get(header) || "";
+    if (actual.includes(expected)) pass(`Private Study Profile ${header} is active`);
+    else fail(`Private Study Profile ${header} expected ${expected}, received ${actual || "nothing"}`);
+  }
 
   const exportCleanupProbe = await request(`${origin}/api/internal/account-export-cleanup`, {
     redirect: "manual",

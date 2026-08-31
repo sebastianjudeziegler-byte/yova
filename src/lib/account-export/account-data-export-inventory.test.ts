@@ -46,9 +46,11 @@ const TABLE_INVENTORY = {
     "private_storage_cleanup_receipts",
   ],
   separatePublicStudyProfile: [
+    "study_profile_email_delivery_attempts",
     "study_profile_events",
     "study_profile_leads",
     "study_profile_responses",
+    "study_profile_waitlist_confirmations",
   ],
 } as const;
 
@@ -66,7 +68,7 @@ describe("account-data export inventory drift", () => {
     const classifiedTables = Object.values(TABLE_INVENTORY).flat();
 
     expect([...createdTables].sort()).toEqual([...classifiedTables].sort());
-    expect(createdTables.size).toBe(32);
+    expect(createdTables.size).toBe(34);
     expect(TABLE_INVENTORY.internalExcluded).toContain("account_data_exports");
     expect(TABLE_INVENTORY.internalExcluded).toContain("account_deletion_cleanup_jobs");
     expect(TABLE_INVENTORY.internalExcluded).toContain(
@@ -78,9 +80,11 @@ describe("account-data export inventory drift", () => {
     expect(TABLE_INVENTORY.internalExcluded).toContain("private_learning_data_reset_boundaries");
     expect(TABLE_INVENTORY.internalExcluded).toContain("private_material_upload_rpc_transactions");
     expect(TABLE_INVENTORY.separatePublicStudyProfile).toEqual([
+      "study_profile_email_delivery_attempts",
       "study_profile_events",
       "study_profile_leads",
       "study_profile_responses",
+      "study_profile_waitlist_confirmations",
     ]);
   });
 
