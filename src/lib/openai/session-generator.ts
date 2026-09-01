@@ -574,9 +574,9 @@ const ScheduledRetrievalQuestionSetSchema = z.object({
   })).length(3),
 });
 
-const SAFE_STUDY_RECOVERY_INSTRUCTIONS = `Prepare factual content for a bounded YOVA study-session recovery.
+const SAFE_STUDY_RECOVERY_INSTRUCTIONS = `Prepare factual content for a bounded YOVA study session.
 
-The normal full-session response failed YOVA's structured-output or semantic validator. Return only the smaller content contract requested here. YOVA will assemble the activity sequence and run the same validators again in code.
+YOVA selected this smaller content contract so it can assemble the complete method recipe in code and run the same full-session validators before showing anything to the learner.
 
 Requirements:
 - targetClaims has one concrete, complete explanatory claim for each planned target, in the exact supplied order. Preserve each target's distinctive subject terms.
@@ -1025,6 +1025,35 @@ export async function generateSessionWithOpenAI(
       : learningScienceRouting.suggestedPrimaryMethodId,
     learningMode: quickReviewContract ? "study" : learningScienceRouting.sessionLearningMode,
   });
+
+  // Multi-target, practice-first sessions are a poor fit for the full
+  // free-form session schema: the model has to reproduce every phase, target,
+  // evidence mapping, and delivery field at once. The bounded study builder
+  // asks only for subject claims and checks, then assembles the committed
+  // retrieval/repair recipe in code and runs the complete validator. Use it
+  // as the primary path for eligible YOVA-generated study sessions so a
+  // routine method-fidelity omission cannot strand the learner after two
+  // expensive full-session attempts.
+  if (
+    !quickReviewContract
+    && context.learningGoal.sourceMode === "yova_generated"
+    && context.session.learningMode === "study"
+  ) {
+    const boundedStudySession = await generateDirectSafeStudySession({
+      context,
+      routing: learningScienceRouting,
+      deliveryPolicy: sessionDeliveryPolicy,
+      observedMethodOutcomes,
+      conceptReviewSchedule,
+      scaffoldProgression,
+      practiceVariation,
+      model: config.model,
+      generationBudget,
+      budgetFailureStats,
+      generationStartedAt,
+    });
+    if (boundedStudySession) return boundedStudySession;
+  }
 
   // A shortened material-backed study window already has an authoritative
   // active/deferred split. Use the compact source-grounded path directly so a
@@ -1802,15 +1831,226 @@ type SafeRecoveryAttempt = {
   failureDetail: string | null;
   model: string;
   responseId: string;
+  retryRecommended: boolean;
   validationIssueCode: SessionGenerationStats["validationIssueCode"];
-  usage: {
-    attempts: number;
-    inputTokens: number;
-    cachedInputTokens: number;
-    cacheWriteTokens: number;
-    outputTokens: number;
-  };
+  usage: SessionGenerationUsage;
 };
+
+type DirectSafeStudySessionInput = {
+  context: SessionGenerationContext;
+  routing: LearningScienceRoutingBrief;
+  deliveryPolicy: SessionDeliveryPolicy;
+  observedMethodOutcomes: MethodOutcomeSignal[];
+  conceptReviewSchedule: ConceptReviewDirective[];
+  scaffoldProgression: ScaffoldProgressionSignal[];
+  practiceVariation: ReturnType<typeof buildPracticeVariationContract>;
+  model: string;
+  generationBudget: SessionGenerationBudget;
+  budgetFailureStats: SessionBudgetFailureStats;
+  generationStartedAt: number;
+};
+
+/**
+ * Uses the compact subject-content contract as the primary generator for the
+ * small set of study routes it can represent completely. A failed compact
+ * attempt may receive one compact repair; it never falls through to the full
+ * generator after spending a provider call, so the route-wide ceiling stays
+ * at two calls.
+ */
+async function generateDirectSafeStudySession(
+  input: DirectSafeStudySessionInput,
+): Promise<OpenAISessionResult | null> {
+  const firstAttempt = await generateSafeStudyRecoveryAttempt({
+    ...input,
+    budgetFailureStats: (usage) => ({
+      ...input.budgetFailureStats(usage),
+      recoveryMode: "safe_study",
+    }),
+  });
+  if (!firstAttempt) return null;
+  if (safeStudyRecoveryPassed(firstAttempt)) {
+    return safeStudyRecoveryResult({
+      input,
+      attempt: firstAttempt,
+      firstFailure: null,
+    });
+  }
+
+  if (!firstAttempt.retryRecommended) {
+    throw safeStudyRecoveryFailure({
+      input,
+      attempt: firstAttempt,
+      firstFailure: firstAttempt,
+      repairAttempted: false,
+    });
+  }
+
+  const secondAttempt = await generateSafeStudyRecoveryAttempt({
+    ...input,
+    priorUsage: firstAttempt.usage,
+    repairDetail: safeStudyRecoveryRepairInstruction(firstAttempt),
+    budgetFailureStats: (usage) => ({
+      ...input.budgetFailureStats(usage),
+      firstAttemptPassed: false,
+      failedValidator: safeStudyRecoveryFailedValidator(firstAttempt),
+      repairAttempted: true,
+      repairSucceeded: null,
+      repairReason: safeStudyRecoveryRepairReason(firstAttempt),
+      repairDetail: "The first bounded study attempt failed, and the server generation budget ended during its one allowed retry.",
+      recoveryMode: "safe_study",
+      validationIssueCode: firstAttempt.validationIssueCode,
+    }),
+  });
+  if (!secondAttempt) {
+    throw safeStudyRecoveryFailure({
+      input,
+      attempt: firstAttempt,
+      firstFailure: firstAttempt,
+      repairAttempted: false,
+    });
+  }
+  if (safeStudyRecoveryPassed(secondAttempt)) {
+    return safeStudyRecoveryResult({
+      input,
+      attempt: secondAttempt,
+      firstFailure: firstAttempt,
+    });
+  }
+  throw safeStudyRecoveryFailure({
+    input,
+    attempt: secondAttempt,
+    firstFailure: firstAttempt,
+    repairAttempted: true,
+  });
+}
+
+function safeStudyRecoveryPassed(
+  attempt: SafeRecoveryAttempt,
+): attempt is SafeRecoveryAttempt & { draft: GeneratedSessionDraft; issue: null } {
+  return attempt.draft !== null && attempt.issue === null;
+}
+
+function safeStudyRecoveryResult({
+  input,
+  attempt,
+  firstFailure,
+}: {
+  input: DirectSafeStudySessionInput;
+  attempt: SafeRecoveryAttempt & { draft: GeneratedSessionDraft };
+  firstFailure: SafeRecoveryAttempt | null;
+}): OpenAISessionResult {
+  const repaired = firstFailure !== null;
+  return {
+    draft: attempt.draft,
+    model: attempt.model,
+    responseId: attempt.responseId,
+    routingContext: {
+      taskType: input.routing.taskType,
+      knowledgeStage: input.routing.knowledgeStage,
+    },
+    supportPlan: buildSessionSupportPlan({
+      signals: input.scaffoldProgression,
+      activities: attempt.draft.activities,
+      learningMode: attempt.draft.methodBriefing.learningMode,
+    }),
+    deliveryPolicy: input.deliveryPolicy,
+    generationStats: {
+      elapsedMs: Date.now() - input.generationStartedAt,
+      attempts: attempt.usage.attempts,
+      firstAttemptPassed: !repaired,
+      failedValidator: firstFailure
+        ? safeStudyRecoveryFailedValidator(firstFailure)
+        : null,
+      repairAttempted: repaired,
+      repairSucceeded: repaired ? true : null,
+      repairReason: firstFailure
+        ? safeStudyRecoveryRepairReason(firstFailure)
+        : "none",
+      repairDetail: firstFailure
+        ? safeStudyRecoveryFailedValidator(firstFailure) === "session_provider_request"
+          ? "The first bounded study provider request failed transiently. YOVA retried the same smaller contract once and ran the complete session validator."
+          : "The first bounded study response failed validation. YOVA repaired the smaller content contract once and reran the complete session validator."
+        : null,
+      inputTokens: attempt.usage.inputTokens,
+      cachedInputTokens: attempt.usage.cachedInputTokens,
+      cacheWriteTokens: attempt.usage.cacheWriteTokens,
+      outputTokens: attempt.usage.outputTokens,
+      recoveryMode: "safe_study",
+      validationIssueCode: firstFailure?.validationIssueCode ?? null,
+    },
+  };
+}
+
+function safeStudyRecoveryFailure({
+  input,
+  attempt,
+  firstFailure,
+  repairAttempted,
+}: {
+  input: DirectSafeStudySessionInput;
+  attempt: SafeRecoveryAttempt;
+  firstFailure: SafeRecoveryAttempt;
+  repairAttempted: boolean;
+}) {
+  const failedValidator = safeStudyRecoveryFailedValidator(attempt);
+  const stats: SessionGenerationStats = {
+    elapsedMs: Date.now() - input.generationStartedAt,
+    attempts: attempt.usage.attempts,
+    firstAttemptPassed: false,
+    failedValidator,
+    repairAttempted,
+    repairSucceeded: repairAttempted ? false : null,
+    repairReason: safeStudyRecoveryRepairReason(firstFailure),
+    repairDetail: attempt.failureDetail
+      ?? attempt.issue?.detail
+      ?? "The bounded study response did not pass the complete session validator.",
+    inputTokens: attempt.usage.inputTokens,
+    cachedInputTokens: attempt.usage.cachedInputTokens,
+    cacheWriteTokens: attempt.usage.cacheWriteTokens,
+    outputTokens: attempt.usage.outputTokens,
+    recoveryMode: "safe_study",
+    validationIssueCode: attempt.validationIssueCode ?? firstFailure.validationIssueCode,
+  };
+  return new SessionGenerationFailure(
+    "OpenAI did not return a complete, safe guided session after the bounded study attempts.",
+    {
+      ...stats,
+      stage: failedValidator === "session_provider_request" ? "provider" : "validation",
+      cause: generationCauseForStats(stats),
+    },
+  );
+}
+
+function safeStudyRecoveryFailedValidator(
+  attempt: SafeRecoveryAttempt,
+): GenerationValidator {
+  if (attempt.issue) return attempt.issue.failedValidator;
+  if (attempt.validationIssueCode === "session_recovery_structure") {
+    return "session_structure";
+  }
+  if (
+    attempt.responseId === "safe-study-recovery-failed"
+    || attempt.responseId === "safe-study-recovery-empty"
+  ) return "session_provider_request";
+  return "session_semantic_validation";
+}
+
+function safeStudyRecoveryRepairReason(
+  attempt: SafeRecoveryAttempt,
+): SessionGenerationStats["repairReason"] {
+  const failedValidator = safeStudyRecoveryFailedValidator(attempt);
+  if (failedValidator === "session_provider_request") return "none";
+  return failedValidator === "session_structure"
+    ? "structured_output"
+    : "semantic_validation";
+}
+
+function safeStudyRecoveryRepairInstruction(attempt: SafeRecoveryAttempt) {
+  const detail = attempt.failureDetail ?? attempt.issue?.detail;
+  return detail
+    ? detail.slice(0, 900)
+    : "The previous bounded response did not pass the complete session validator.";
+}
 
 async function generateSafeStudyRecoveryAttempt({
   context,
@@ -1823,6 +2063,8 @@ async function generateSafeStudyRecoveryAttempt({
   model,
   generationBudget,
   budgetFailureStats,
+  priorUsage,
+  repairDetail,
 }: {
   context: SessionGenerationContext;
   routing: LearningScienceRoutingBrief;
@@ -1834,6 +2076,8 @@ async function generateSafeStudyRecoveryAttempt({
   model: string;
   generationBudget: SessionGenerationBudget;
   budgetFailureStats: SessionBudgetFailureStats;
+  priorUsage?: SessionGenerationUsage;
+  repairDetail?: string | null;
 }): Promise<SafeRecoveryAttempt | null> {
   const groups = safeStudyRecoveryGroups(context, practiceVariation);
   const recoveryMethodId = safeStudyRecoveryMethod(routing);
@@ -1847,6 +2091,11 @@ async function generateSafeStudyRecoveryAttempt({
   ));
   const unsupportedWorkedExtension = recoveryMethodId === "worked_example_fading"
     && recoveryTargets.at(-1)?.practiceIntent === "light_verification";
+  const unsupportedRetention = deliveryPolicy.retention.mode === "transfer"
+    || (
+      deliveryPolicy.retention.mode === "fade_support"
+      && recoveryMethodId !== "worked_example_fading"
+    );
   const recoveryActivityCount = recoveryTargets.length + (recoveryMethodId === "worked_example_fading" ? 2 : 1);
   if (
     context.learningGoal.studyMode !== "inside_yova"
@@ -1858,6 +2107,7 @@ async function generateSafeStudyRecoveryAttempt({
     || !groups
     || unsupportedDirective
     || unsupportedWorkedExtension
+    || unsupportedRetention
     || !recoveryMethodId
     || recoveryTargets.length !== targets.length
     || recoveryActivityCount > deliveryPolicy.pacing.maximumActivities
@@ -1870,13 +2120,15 @@ async function generateSafeStudyRecoveryAttempt({
   ) return null;
 
   const schema = safeStudyRecoveryOutputSchema(targets.length);
-  const usage = {
-    attempts: 0,
-    inputTokens: 0,
-    cachedInputTokens: 0,
-    cacheWriteTokens: 0,
-    outputTokens: 0,
-  };
+  const usage: SessionGenerationUsage = priorUsage
+    ? { ...priorUsage }
+    : {
+      attempts: 0,
+      inputTokens: 0,
+      cachedInputTokens: 0,
+      cacheWriteTokens: 0,
+      outputTokens: 0,
+    };
   let response: Awaited<ReturnType<ReturnType<typeof getOpenAIClient>["responses"]["parse"]>>;
   const providerCall = prepareSessionProviderCall({
     budget: generationBudget,
@@ -1887,7 +2139,9 @@ async function generateSafeStudyRecoveryAttempt({
   try {
     response = await getOpenAIClient().responses.parse({
       model,
-      instructions: SAFE_STUDY_RECOVERY_INSTRUCTIONS,
+      instructions: repairDetail
+        ? `${SAFE_STUDY_RECOVERY_INSTRUCTIONS}\n\nBOUNDED REPAIR: The previous compact response failed YOVA's validator: ${repairDetail} Fix that failure while preserving every target, topic check, and method-specific requirement.`
+        : SAFE_STUDY_RECOVERY_INSTRUCTIONS,
       input: `Build the safe study recovery from this bounded context:\n${JSON.stringify({
         learningGoal: {
           title: context.learningGoal.title,
@@ -1912,7 +2166,10 @@ async function generateSafeStudyRecoveryAttempt({
           topicGroup: concept,
           practiceIntent,
         })),
-        targetProvenance: ordinarySessionProvenanceContract(context).targetProvenance,
+        targetProvenance: safeStudyRecoveryTargetProvenance(
+          context,
+          recoveryTargets,
+        ),
         independentTarget: recoveryMethodId === "worked_example_fading"
           ? recoveryTargets.at(-1)
           : null,
@@ -1933,7 +2190,7 @@ async function generateSafeStudyRecoveryAttempt({
         verbosity: "low",
       },
       max_output_tokens: 2_200,
-      prompt_cache_key: "yova-safe-study-recovery-v2",
+      prompt_cache_key: "yova-safe-study-recovery-v3",
       store: false,
     }, providerCall.options);
   } catch (error) {
@@ -1941,15 +2198,23 @@ async function generateSafeStudyRecoveryAttempt({
     if (providerEndReason === "budget_timeout" || providerEndReason === "caller_abort") {
       throw sessionGenerationBudgetFailure(budgetFailureStats(usage));
     }
+    const structuralError = isZodError(error);
     return {
       draft: null,
       issue: null,
-      failureDetail: error instanceof Error
-        ? `The recovery provider request failed (${error.name}).`
-        : "The recovery provider request failed.",
+      failureDetail: structuralError
+        ? sessionStructureRepairDetail(error)
+        : error instanceof Error
+          ? `The recovery provider request failed (${error.name}).`
+          : "The recovery provider request failed.",
       model,
-      responseId: "safe-study-recovery-failed",
-      validationIssueCode: null,
+      responseId: structuralError
+        ? "safe-study-recovery-structure"
+        : "safe-study-recovery-failed",
+      retryRecommended: structuralError
+        || providerEndReason === "per_call_timeout"
+        || isRetryableSessionProviderError(error),
+      validationIssueCode: structuralError ? "session_recovery_structure" : null,
       usage,
     };
   } finally {
@@ -1963,6 +2228,7 @@ async function generateSafeStudyRecoveryAttempt({
       failureDetail: "The recovery provider completed without a usable response object.",
       model,
       responseId: "safe-study-recovery-empty",
+      retryRecommended: true,
       validationIssueCode: null,
       usage,
     };
@@ -1983,6 +2249,7 @@ async function generateSafeStudyRecoveryAttempt({
         : `The recovery response was incomplete: ${provider.success ? "unknown schema failure" : provider.error.issues[0]?.message ?? "unknown schema failure"}.`,
       model: response.model,
       responseId: response.id,
+      retryRecommended: true,
       validationIssueCode: "session_recovery_structure",
       usage,
     };
@@ -1997,6 +2264,7 @@ async function generateSafeStudyRecoveryAttempt({
       failureDetail: "The worked-example recovery omitted its concrete model example or independent extension.",
       model: response.model,
       responseId: response.id,
+      retryRecommended: true,
       validationIssueCode: "session_recovery_structure",
       usage,
     };
@@ -2015,6 +2283,7 @@ async function generateSafeStudyRecoveryAttempt({
       failureDetail: "The worked-example recovery repeated the final target check instead of providing a fresh independent application.",
       model: response.model,
       responseId: response.id,
+      retryRecommended: true,
       validationIssueCode: "session_recovery_validation",
       usage,
     };
@@ -2036,6 +2305,7 @@ async function generateSafeStudyRecoveryAttempt({
       failureDetail: `The recovery draft was structurally invalid: ${parsed.error.issues[0]?.message ?? "unknown schema failure"}.`,
       model: response.model,
       responseId: response.id,
+      retryRecommended: true,
       validationIssueCode: "session_recovery_structure",
       usage,
     };
@@ -2059,6 +2329,7 @@ async function generateSafeStudyRecoveryAttempt({
     failureDetail: null,
     model: response.model,
     responseId: response.id,
+    retryRecommended: Boolean(issue),
     validationIssueCode: issue ? "session_recovery_validation" : null,
     usage,
   };
@@ -2120,6 +2391,25 @@ function safeStudyRecoveryTargets(groups: SafeStudyRecoveryGroup[]): SafeStudyRe
     targetIndex,
     practiceIntent: group.practiceIntent,
   }))).sort((left, right) => left.targetIndex - right.targetIndex);
+}
+
+function safeStudyRecoveryTargetProvenance(
+  context: SessionGenerationContext,
+  recoveryTargets: SafeStudyRecoveryTarget[],
+): OrdinaryTargetProvenance[] {
+  const ordinaryProvenance = ordinarySessionProvenanceContract(context).targetProvenance;
+  if (ordinaryProvenance.length > 0) return ordinaryProvenance;
+  if (context.learningGoal.sourceMode !== "yova_generated") return [];
+  return recoveryTargets.map((recoveryTarget) => ({
+    targetIndex: recoveryTarget.targetIndex,
+    target: recoveryTarget.target,
+    topicId: recoveryTarget.topicId,
+    topicTitle: context.knowledgeTopics.find(
+      (topic) => topic.id === recoveryTarget.topicId,
+    )?.title ?? recoveryTarget.concept,
+    provenance: "model_knowledge",
+    allowedChunkIds: [],
+  }));
 }
 
 function buildSafeStudyRecoveryDraft({
@@ -2267,9 +2557,11 @@ function buildSafeStudyRecoveryDraft({
       learningMode: "study" as const,
       taskType: routing.taskType,
       methodId,
-      name: catalog.name,
+      name: context.studyRoute?.approach.primaryMethodId === methodId
+        ? context.studyRoute.approach.visibleMethodName
+        : catalog.name,
       what: catalog.what,
-      why: `${catalog.why} The recovery keeps the original bounded objective and does not weaken YOVA's validation.`.slice(0, 500),
+      why: `${catalog.why} This bounded session keeps the original objective and does not weaken YOVA's validation.`.slice(0, 500),
       how: catalog.how.slice(0, 4),
       completion: catalog.completion,
       personalization: deliveryPolicy.learnerFacingReasons.slice(0, 3),
