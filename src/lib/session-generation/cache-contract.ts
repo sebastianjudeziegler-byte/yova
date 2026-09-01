@@ -224,6 +224,7 @@ export function hydratedSessionResourceCacheIssue({
     reviewType: session.reviewType ?? null,
     reviewConcept: session.reviewConcept ?? null,
     estimatedMinutes: session.estimatedMinutes,
+    executionEnvironment,
   });
   if (activityIssue) return activityIssue;
 

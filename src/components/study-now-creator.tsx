@@ -41,10 +41,15 @@ import {
 import { explainStudyRouteDuration } from "@/lib/study-route/duration-explanation";
 import { agencyModeForStudyRouteControlMode } from "@/lib/study-route/agency-mode-controller";
 import { StudyRouteSchema } from "@/lib/study-route/schema";
-import { LEARNING_INTENT_COPY, resolveLearningIntent } from "@/lib/learning/learning-intent";
+import {
+  isWorkProductGoal,
+  LEARNING_INTENT_COPY,
+  resolveLearningIntent,
+} from "@/lib/learning/learning-intent";
 import { assessGoalContext } from "@/lib/learning/goal-context";
 import type { AddIntakeSeed } from "@/lib/intake/schema";
 import { developmentPreviewPreferenceRequestInput } from "@/lib/plan-generation/development-preview-preferences";
+import { workProductPlanCopy } from "@/lib/learning/work-product-plan";
 
 type StudyNowStep = "setup" | "source" | "loading" | "review" | "error";
 type SourceChoice = "materials" | "yova" | "outside";
@@ -93,7 +98,7 @@ export function StudyNowCreator({
   const [step, setStep] = useState<StudyNowStep>(seed ? "source" : "setup");
   const [goal, setGoal] = useState(seed ? buildStudyNowRequestSummary(seed) : "");
   const [minutes, setMinutes] = useState<(typeof timeChoices)[number]>(() => seedMinutes(seed));
-  const [startingPoint, setStartingPoint] = useState<(typeof startingPoints)[number]>(seedStartingPoint(seed));
+  const [startingPoint, setStartingPoint] = useState<(typeof startingPoints)[number]>(studyNowStartingPointForSeed(seed));
   const [sourceChoice, setSourceChoice] = useState<SourceChoice | null>(seed ? seedSourceChoice(seed) : null);
   const [materials, setMaterials] = useState<LearningMaterial[]>(seed?.materials ?? []);
   const [materialError, setMaterialError] = useState<string | null>(null);
@@ -109,6 +114,7 @@ export function StudyNowCreator({
     goal,
     sourceChoice === "materials" && materials.length > 0,
   );
+  const workProductCopy = workProductPlanCopy(goal);
 
   const addMaterials = async (files: File[]) => {
     if (!files.length) return;
@@ -370,7 +376,7 @@ export function StudyNowCreator({
           <div className="study-now-field">
             <strong>Which sounds most like you right now?</strong>
             <div className="study-now-options">{startingPoints.map((choice) => <button className={startingPoint === choice ? "selected" : ""} key={choice} onClick={() => setStartingPoint(choice)}>{choice}{startingPoint === choice && <Check size={16} />}</button>)}</div>
-            <p className="approach-preview"><Sparkles size={15} /><span><strong>Starting approach: {LEARNING_INTENT_COPY[resolveLearningIntent({ goal, startingPoint }).intent].shortName}.</strong> {resolveLearningIntent({ goal, startingPoint }).reason}</span></p>
+            <p className="approach-preview"><Sparkles size={15} /><span><strong>Starting approach: {workProductCopy?.startingApproach ?? LEARNING_INTENT_COPY[resolveLearningIntent({ goal, startingPoint }).intent].shortName}.</strong> {resolveLearningIntent({ goal, startingPoint }).reason}</span></p>
           </div>
           <footer className="plan-actions"><button className="button ghost" onClick={() => void exitCreator()}><ArrowLeft size={17} /> Cancel</button><button className="button primary" disabled={goal.trim().length < 10} onClick={() => setStep("source")}>Choose how YOVA should help <ArrowRight size={17} /></button></footer>
         </section>
@@ -384,8 +390,8 @@ export function StudyNowCreator({
           <div className="plan-goal-echo"><span>YOUR REQUEST</span><p>{goal}</p><button className="button ghost" onClick={() => setStep("setup")}>Edit</button></div>
           <div className="mode-cards three-up">
             <button disabled={processingMaterials || linkMaterialWorking || abandoningMaterials || Boolean(removingMaterialId)} className={sourceChoice === "materials" ? "selected" : ""} onClick={() => void chooseSource("materials")}><Upload /><span><strong>Use my materials</strong><small>Study guides, PDF slides, notes, review sheets, or textbook excerpts.</small></span>{sourceChoice === "materials" && <Check />}</button>
-            <button disabled={processingMaterials || linkMaterialWorking || abandoningMaterials || Boolean(removingMaterialId)} className={sourceChoice === "yova" ? "selected" : ""} onClick={() => void chooseSource("yova")}><Sparkles /><span><strong>Create it for me</strong><small>YOVA creates the teaching and practice from the topic.</small></span>{sourceChoice === "yova" && <Check />}</button>
-            <button disabled={processingMaterials || linkMaterialWorking || abandoningMaterials || Boolean(removingMaterialId)} className={sourceChoice === "outside" ? "selected" : ""} onClick={() => void chooseSource("outside")}><Layers3 /><span><strong>Guide me outside YOVA</strong><small>Get a method and exact steps for using another source.</small></span>{sourceChoice === "outside" && <Check />}</button>
+            <button disabled={processingMaterials || linkMaterialWorking || abandoningMaterials || Boolean(removingMaterialId)} className={sourceChoice === "yova" ? "selected" : ""} onClick={() => void chooseSource("yova")}><Sparkles /><span><strong>Create it for me</strong><small>{workProductCopy ? "YOVA creates the structure, criteria, and working steps for the artifact." : "YOVA creates the teaching and practice from the topic."}</small></span>{sourceChoice === "yova" && <Check />}</button>
+            <button disabled={processingMaterials || linkMaterialWorking || abandoningMaterials || Boolean(removingMaterialId)} className={sourceChoice === "outside" ? "selected" : ""} onClick={() => void chooseSource("outside")}><Layers3 /><span><strong>Guide me outside YOVA</strong><small>{workProductCopy ? "Get a method and exact steps for building the artifact with your trusted sources." : "Get a method and exact steps for using another source."}</small></span>{sourceChoice === "outside" && <Check />}</button>
           </div>
           {sourceChoice === "materials" && <div className="material-uploader">
             <MaterialFileDropzone
@@ -443,8 +449,12 @@ export function StudyNowCreator({
   );
 }
 
-function seedStartingPoint(seed: AddIntakeSeed | null): (typeof startingPoints)[number] {
+export function studyNowStartingPointForSeed(seed: AddIntakeSeed | null): (typeof startingPoints)[number] {
   if (!seed?.progress) return "I understand the basics but need practice";
+  const workProductContext = [seed.title, seed.objective, seed.scope, seed.description].join(" ");
+  if (/not started|not begun|haven't started|have not started/i.test(seed.progress) && isWorkProductGoal(workProductContext)) {
+    return "I haven't learned this yet";
+  }
   if (/beginning|ground zero|nothing|new/i.test(seed.progress)) return "I haven't learned this yet";
   if (/exposure|seen|doesn't make sense/i.test(seed.progress)) return "I've seen it, but it doesn't make sense yet";
   if (/review|foundation|basics/i.test(seed.progress)) return "I understand the basics but need practice";

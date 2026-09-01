@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
-import { cachedSessionActivityContractIssue } from "@/lib/session-generation/cache-activity-contract";
+import {
+  cachedSessionActivityContractIssue,
+  validateStandardGuidedSessionActivityMix,
+} from "@/lib/session-generation/cache-activity-contract";
 import type {
   GeneratedSessionActivity,
   GeneratedSessionDraft,
@@ -29,6 +32,42 @@ function question(
     correctAnswer: type === "multiple_choice" ? "First" : "The relationship changes the result through the stated mechanism.",
     feedback: "The relationship changes the result through the mechanism described in the learning target.",
     practiceIntent: "independent_transfer",
+    misconceptionSummary: null,
+    methodRuntime: null,
+  };
+}
+
+function modelInstruction(): GeneratedSessionActivity {
+  return {
+    topicId: null,
+    methodPhase: "model",
+    estimatedMinutes: 4,
+    requiredForCompletion: true,
+    label: "Learn",
+    title: "Build the first model",
+    body: "Study the mechanism and concrete example before completing the recall checks.",
+    teaching: {
+      keyIdea: "Cell respiration links the mechanism to the observed result.",
+      explanation: "The model explains the relationship before asking the learner to retrieve and apply it.",
+      example: {
+        setup: "A concrete case changes one part of the mechanism.",
+        steps: [
+          "Identify the changed part of the mechanism.",
+          "Trace how that change alters the observed result.",
+        ],
+        takeaway: "Changing the mechanism changes the result through the modeled relationship.",
+      },
+      commonMistake: {
+        mistake: "Confusing the mechanism with the result it produces.",
+        correction: "Name the mechanism first, then trace its effect on the result.",
+      },
+    },
+    type: "instruction",
+    concept: null,
+    choices: [],
+    correctAnswer: null,
+    feedback: null,
+    practiceIntent: null,
     misconceptionSummary: null,
     methodRuntime: null,
   };
@@ -132,5 +171,92 @@ describe("cached session activity contracts", () => {
       reviewConcept: "Cell respiration",
       estimatedMinutes: 10,
     })).toMatch(/multiple-choice questions only/i);
+  });
+});
+
+describe("Learn-session recall contracts", () => {
+  function learnDraft(
+    activities: GeneratedSessionActivity[],
+    taskType: GeneratedSessionDraft["methodBriefing"]["taskType"] = "conceptual_learning",
+  ): GeneratedSessionDraft {
+    return {
+      ...draft(activities),
+      methodBriefing: {
+        ...draft(activities).methodBriefing,
+        learningMode: "learn",
+        taskType,
+        methodId: "self_explanation",
+      },
+    };
+  }
+
+  it("rejects a knowledge Learn session that has typed recall but no post-teaching MCQ", () => {
+    const session = learnDraft([
+      modelInstruction(),
+      question("free_response", "explain"),
+      question("free_response", "transfer"),
+    ]);
+
+    expect(validateStandardGuidedSessionActivityMix(session, {
+      executionEnvironment: "inside_yova",
+    })).toMatch(
+      /multiple-choice recall check after the final teaching block/i,
+    );
+  });
+
+  it("does not count a diagnostic MCQ shown before the teaching model", () => {
+    const session = learnDraft([
+      question("multiple_choice", "pretest"),
+      modelInstruction(),
+      question("free_response", "transfer"),
+    ]);
+
+    expect(validateStandardGuidedSessionActivityMix(session, {
+      executionEnvironment: "inside_yova",
+    })).toMatch(
+      /multiple-choice recall check after the final teaching block/i,
+    );
+  });
+
+  it("does not accept a recall MCQ that comes before a later teaching block", () => {
+    const session = learnDraft([
+      modelInstruction(),
+      question("multiple_choice", "explain"),
+      {
+        ...modelInstruction(),
+        title: "Build the second part of the model",
+      },
+      question("free_response", "transfer"),
+    ]);
+
+    expect(validateStandardGuidedSessionActivityMix(session, {
+      executionEnvironment: "inside_yova",
+    })).toMatch(
+      /multiple-choice recall check after the final teaching block/i,
+    );
+  });
+
+  it("accepts a knowledge Learn session with teaching, post-teaching MCQ, and typed recall", () => {
+    const session = learnDraft([
+      modelInstruction(),
+      question("multiple_choice", "explain"),
+      question("free_response", "transfer"),
+    ]);
+
+    expect(validateStandardGuidedSessionActivityMix(session, {
+      executionEnvironment: "inside_yova",
+    })).toBeNull();
+  });
+
+  it("does not force a quiz into a writing or presentation work-product session", () => {
+    const session = learnDraft([
+      modelInstruction(),
+      question("free_response", "independent_practice"),
+      question("free_response", "transfer"),
+    ], "writing_argumentation");
+
+    expect(validateStandardGuidedSessionActivityMix(session, {
+      executionEnvironment: "inside_yova",
+    })).toBeNull();
   });
 });

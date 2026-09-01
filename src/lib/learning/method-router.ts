@@ -243,6 +243,24 @@ type WeightedTaskSignal = {
   evidence: string;
 };
 
+const WRITING_WORK_PRODUCT_NOUN = "(?:essay|paper|report|thesis|speech|presentation|slide deck|slides|talk|debate|script|speaker notes|proposal)";
+const WRITING_WORK_PRODUCT_DETERMINER = "(?:(?:a|an|the|my|our|your|his|her|their|this|that)\\s+)?";
+const WRITING_WORK_PRODUCT_MODIFIERS = "(?:(?!(?:for|from|of|about|on|using|based|before|after|questions?|problems?|material|content|notes?)\\b)[\\w,'-]+\\s+){0,5}";
+const DIRECT_WRITING_WORK_PRODUCT = `${WRITING_WORK_PRODUCT_DETERMINER}${WRITING_WORK_PRODUCT_MODIFIERS}${WRITING_WORK_PRODUCT_NOUN}`;
+const WRITING_PRODUCTION_SIGNAL = new RegExp(
+  `\\b(?:write|draft|revise|compose|prepare|create|build|complete|finish|plan|outline|rehearse|practice|deliver|present)\\s+${DIRECT_WRITING_WORK_PRODUCT}\\b`,
+  "i",
+);
+const WRITING_WORK_PRODUCT_TOPIC_QUALIFIER = "(?:\\s+(?:about|on)\\s+(?:(?!(?:is|are)\\s+due\\b)[\\w,'-]+\\s+){0,7}(?!(?:is|are)\\s+due\\b)[\\w,'-]+)?";
+const WRITING_POSSESSIVE_DUE_SIGNAL = new RegExp(
+  `\\b(?:my|our|your|his|her|their)\\s+${WRITING_WORK_PRODUCT_MODIFIERS}${WRITING_WORK_PRODUCT_NOUN}${WRITING_WORK_PRODUCT_TOPIC_QUALIFIER}\\s+(?:is|are)\\s+due\\b`,
+  "i",
+);
+const WRITING_OWNERSHIP_DUE_SIGNAL = new RegExp(
+  `\\b(?:i|we)\\s+have\\s+${DIRECT_WRITING_WORK_PRODUCT}${WRITING_WORK_PRODUCT_TOPIC_QUALIFIER}\\s+due\\b`,
+  "i",
+);
+
 const TASK_SIGNAL_RULES: Record<LearningTaskType, WeightedTaskSignal[]> = {
   memorization: [
     { pattern: /\b(memorize|memorization|commit .* to memory)\b/i, weight: 7, evidence: "memorization" },
@@ -269,9 +287,12 @@ const TASK_SIGNAL_RULES: Record<LearningTaskType, WeightedTaskSignal[]> = {
     { pattern: /\b(article|chapter|textbook|passage|lecture)\b/i, weight: 1, evidence: "source reading" },
   ],
   writing_argumentation: [
-    { pattern: /\b(write|draft|revise|compose)\b.{0,45}\b(essay|argument|thesis|outline|paragraph|paper|response)\b/i, weight: 8, evidence: "writing production" },
-    { pattern: /\b(essay|argumentative writing|thesis statement|evidence paragraph|writing rubric)\b/i, weight: 6, evidence: "argument or essay" },
-    { pattern: /\b(claim|evidence|reasoning)\b.{0,45}\b(paragraph|essay|argument|rubric)\b/i, weight: 5, evidence: "claim and evidence" },
+    { pattern: WRITING_PRODUCTION_SIGNAL, weight: 8, evidence: "writing or presentation production" },
+    { pattern: WRITING_POSSESSIVE_DUE_SIGNAL, weight: 8, evidence: "work product due" },
+    { pattern: WRITING_OWNERSHIP_DUE_SIGNAL, weight: 8, evidence: "owned work product due" },
+    { pattern: /\b(essay|argumentative writing|thesis statement|evidence paragraph|writing rubric|persuasive speech|oral presentation|debate speech|speech outline|presentation script|speaker notes)\b/i, weight: 6, evidence: "argument, essay, or presentation" },
+    { pattern: /\b(claim|evidence|reasoning)\b.{0,45}\b(paragraph|essay|argument|rubric|speech|presentation|debate)\b/i, weight: 5, evidence: "claim and evidence" },
+    { pattern: /\b(rehears(?:e|al|ing)|delivery|rebuttal)\b.{0,45}\b(speech|presentation|talk|debate|argument)\b|\b(speech|presentation|talk|debate)\b.{0,45}\b(rehears(?:e|al|ing)|delivery|rebuttal)\b/i, weight: 7, evidence: "oral argument or rehearsal" },
   ],
   programming: [
     { pattern: /\b(javascript|typescript|python|java|swift|kotlin|rust|react|sql|html|css|c\+\+)\b/i, weight: 8, evidence: "programming language" },

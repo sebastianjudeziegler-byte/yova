@@ -5,11 +5,13 @@ import {
 } from "@/lib/learning/scheduled-retrieval";
 import { validateAttachedMethodRuntimes } from "@/lib/session-generation/method-runtime";
 import type { GeneratedSessionDraft } from "@/lib/session-generation/schema";
+import type { StudyMode } from "@/lib/domain";
 
 type CachedSessionContractContext = {
   reviewType: ScheduledRetrievalType | null;
   reviewConcept: string | null;
   estimatedMinutes: number;
+  executionEnvironment?: StudyMode;
 };
 
 /**
@@ -31,7 +33,9 @@ export function cachedSessionActivityContractIssue(
     });
   }
 
-  return validateStandardGuidedSessionActivityMix(session)
+  return validateStandardGuidedSessionActivityMix(session, {
+    executionEnvironment: context.executionEnvironment,
+  })
     ?? validateAttachedMethodRuntimes(
       session.methodBriefing.methodId,
       session.activities.map((activity) => activity.methodRuntime ?? null),
@@ -44,11 +48,39 @@ export function cachedSessionActivityContractIssue(
 }
 
 export function validateStandardGuidedSessionActivityMix(
-  draft: Pick<GeneratedSessionDraft, "activities">,
+  draft: Pick<GeneratedSessionDraft, "activities" | "methodBriefing">,
+  context: { executionEnvironment?: StudyMode } = {},
 ) {
-  return draft.activities.some((activity) => (
+  const hasRequiredTypedRecall = draft.activities.some((activity) => (
     activity.type === "free_response" && activity.requiredForCompletion
-  ))
+  ));
+  if (!hasRequiredTypedRecall) {
+    return "A full guided session needs at least one completion-required typed active-recall attempt. Only scheduled retrieval checks may be multiple-choice only.";
+  }
+
+  if (
+    draft.methodBriefing.learningMode !== "learn"
+    || draft.methodBriefing.taskType === "writing_argumentation"
+    || context.executionEnvironment !== "inside_yova"
+  ) {
+    return null;
+  }
+
+  const finalTeachingIndex = draft.activities.findLastIndex((activity) => (
+    activity.methodPhase === "model"
+    && (
+      Boolean(activity.teaching)
+      || ("lessonBrief" in activity && Boolean(activity.lessonBrief))
+    )
+  ));
+  const hasPostTeachingRecognitionCheck = finalTeachingIndex >= 0
+    && draft.activities.some((activity, index) => (
+      index > finalTeachingIndex
+      && activity.type === "multiple_choice"
+      && activity.requiredForCompletion
+    ));
+
+  return hasPostTeachingRecognitionCheck
     ? null
-    : "A full guided session needs at least one completion-required typed active-recall attempt. Only scheduled retrieval checks may be multiple-choice only.";
+    : "A knowledge-focused Learn session needs at least one completion-required multiple-choice recall check after the final teaching block. A diagnostic check before teaching does not count.";
 }

@@ -91,19 +91,30 @@ test("an outside assignment routes to one outside-YOVA session", async ({ page }
 });
 
 test("a multi-session assignment skips an irrelevant knowledge quiz", async ({ page }) => {
+  const diagnosticRequestCount = observeDiagnosticRequests(page);
   await openPreviewApp(page);
   await openAdd(page, "I have a 1,500-word history essay due in 14 days and I have not started yet");
   await page.getByRole("button", { name: /Choose what YOVA should do/ }).click();
   await page.getByRole("button", { name: /Create a plan/ }).click();
 
-  await expect(page.getByRole("heading", { name: "When would you prefer to study this material?" })).toBeVisible();
-  await page.getByRole("button", { name: "Continue" }).click();
-  await page.getByRole("button", { name: "Skip for now" }).click();
+  await expect(page.getByRole("heading", { name: "When would you prefer to work on this?" })).toBeVisible();
+  await expect(page.locator(".plan-header")).toContainText("Step 3 of 4");
+  await page.getByRole("button", { name: "Review plan inputs" }).click();
   await expect(page.getByRole("heading", { name: "Everything YOVA will use" })).toBeVisible();
+  await expect(page.locator(".plan-header")).toContainText("Step 4 of 4");
+  expect(diagnosticRequestCount()).toBe(0);
+  await expect(page.getByRole("button", { name: "Skip for now" })).toHaveCount(0);
   await expect(page.getByText(/STARTING-POINT CHECK/)).toHaveCount(0);
-  await expect(page.getByText("YOVA-guided plan using another trusted source")).toBeVisible();
+  await expect(page.locator(".confirmation-list")).toContainText("Starting point");
+  await expect(page.locator(".confirmation-list")).toContainText("Work mode");
+  await expect(page.getByText("YOVA-guided plan using your trusted artifact sources")).toBeVisible();
   await page.getByRole("button", { name: "Generate my plan" }).click();
   await expect(page.getByText("Plan ready")).toBeVisible();
+  await expect(page.locator(".generated-roadmap")).toContainText("DRAFT AND REFINE");
+  await expect(page.locator(".generated-roadmap")).not.toContainText(/(?:PRACTICE|TEACHING) FIRST/);
+  await expect(page.locator(".generated-roadmap")).toContainText(/Shape the draft|Draft with support|Revise and strengthen/);
+  await expect(page.locator(".plan-alignment-facts")).toContainText("Draft the work, match it to the requirements, and revise it");
+  await expect(page.getByRole("button", { name: "Change starting level" })).toHaveCount(0);
   await page.getByRole("button", { name: "Use this plan" }).click();
   await expect(page.getByRole("heading", { name: "Your plan" })).toBeVisible();
   await expect(page.getByText("1,500-word History Essay", { exact: true }).first()).toBeVisible();
@@ -113,6 +124,51 @@ test("a multi-session assignment skips an irrelevant knowledge quiz", async ({ p
   const sessionTitles = page.locator(".plan-timeline .timeline-row strong");
   await expect(sessionTitles.first()).toContainText(/history essay/i);
   expect((await sessionTitles.allTextContents()).join(" ")).not.toMatch(/in (?:14 days|two weeks)|not started/i);
+});
+
+test("speech and presentation plans bypass placement and use artifact-aware modes", async ({ browser }) => {
+  const scenarios = [
+    {
+      goal: "My persuasive speech about renewable energy is due in 14 days and I have not started it yet",
+      modeLabel: "REHEARSE AND REFINE",
+      startingApproach: "Build the speech, rehearse it, and refine the delivery",
+      phaseLabel: /Shape the speech|Build the speech|Rehearse and refine/,
+    },
+    {
+      goal: "I need to build a biology presentation with slides and speaker notes due in 14 days and I have not started yet",
+      modeLabel: "BUILD AND REHEARSE",
+      startingApproach: "Build the presentation, rehearse it, and refine the delivery",
+      phaseLabel: /Shape the presentation|Build the presentation|Rehearse and refine/,
+    },
+  ] as const;
+
+  for (const scenario of scenarios) {
+    const context = await browser.newContext();
+    const page = await context.newPage();
+    const diagnosticRequestCount = observeDiagnosticRequests(page);
+
+    await openPreviewApp(page);
+    await openAdd(page, scenario.goal);
+    await page.getByRole("button", { name: /Choose what YOVA should do/ }).click();
+    await page.getByRole("button", { name: /Create a plan/ }).click();
+
+    await expect(page.getByRole("heading", { name: "When would you prefer to work on this?" })).toBeVisible();
+    await page.getByRole("button", { name: "Review plan inputs" }).click();
+    await expect(page.getByRole("heading", { name: "Everything YOVA will use" })).toBeVisible();
+    expect(diagnosticRequestCount()).toBe(0);
+    await expect(page.getByRole("button", { name: "Skip for now" })).toHaveCount(0);
+    await expect(page.locator(".confirmation-list")).toContainText("Work mode");
+
+    await page.getByRole("button", { name: "Generate my plan" }).click();
+    await expect(page.getByText("Plan ready")).toBeVisible();
+    await expect(page.locator(".generated-roadmap")).toContainText(scenario.modeLabel);
+    await expect(page.locator(".generated-roadmap")).not.toContainText(/(?:PRACTICE|TEACHING) FIRST/);
+    await expect(page.locator(".generated-roadmap")).toContainText(scenario.phaseLabel);
+    await expect(page.locator(".plan-alignment-facts")).toContainText(scenario.startingApproach);
+    await expect(page.getByRole("button", { name: "Change starting level" })).toHaveCount(0);
+
+    await context.close();
+  }
 });
 
 test("general learning stays deadline-free until the user chooses otherwise", async ({ page }) => {
@@ -180,6 +236,17 @@ async function openAdd(page: Page, description: string) {
   await page.getByPlaceholder(/I have a World War I test/).fill(description);
   await page.getByRole("button", { name: /Organize this/ }).click();
   await expect(page.getByRole("heading", { name: "Here is what YOVA understood." })).toBeVisible();
+}
+
+function observeDiagnosticRequests(page: Page) {
+  let requestCount = 0;
+  page.on("request", (request) => {
+    const url = new URL(request.url());
+    if (url.pathname === "/api/plans/generate" && url.searchParams.get("mode") === "diagnostic") {
+      requestCount += 1;
+    }
+  });
+  return () => requestCount;
 }
 
 async function openPreviewApp(page: Page) {

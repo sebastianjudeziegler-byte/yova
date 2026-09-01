@@ -34,18 +34,29 @@ export function streamedTeachingPacingContract({
   maximumFocusedActivities: suppliedMaximumFocusedActivities,
   maximumActiveIdeas: suppliedMaximumActiveIdeas,
   methodId,
+  reservePostMethodRecognition = false,
 }: {
   availableMinutes: number;
   activeIdeaCount: number;
   maximumFocusedActivities?: number;
   maximumActiveIdeas?: number;
   methodId?: CoreMethodId;
+  reservePostMethodRecognition?: boolean;
 }): StreamedTeachingPacingContract {
   const durationMaximum = availableMinutes <= 15 ? 4 : availableMinutes <= 30 ? 5 : 8;
-  const maximumFocusedActivities = Math.min(
-    durationMaximum,
-    suppliedMaximumFocusedActivities ?? durationMaximum,
-  );
+  const requiredMethodActivities = methodId
+    ? methodFidelityContractForPrompt(methodId, "learn").requiredPhases
+      .filter((phase) => phase !== "schedule_return").length
+    : 0;
+  const immutableLearnMinimum = reservePostMethodRecognition
+    ? Math.min(8, requiredMethodActivities + 1)
+    : 0;
+  const maximumFocusedActivities = reservePostMethodRecognition
+    ? Math.min(8, Math.max(
+      suppliedMaximumFocusedActivities ?? durationMaximum,
+      immutableLearnMinimum,
+    ))
+    : Math.min(durationMaximum, suppliedMaximumFocusedActivities ?? durationMaximum);
   const desiredTeachingBlocks = availableMinutes <= 15
     ? 1
     : availableMinutes <= 30
@@ -53,18 +64,19 @@ export function streamedTeachingPacingContract({
       : availableMinutes <= 45
         ? 3
         : 4;
+  const recognitionActivityCount = reservePostMethodRecognition && methodId ? 1 : 0;
   const methodExtraActivities = methodId === "self_explanation"
-    ? 2
+    ? 2 + recognitionActivityCount
     : methodId === "retrieval_practice"
-      ? 1
-      : 0;
+      ? 1 + recognitionActivityCount
+      : recognitionActivityCount;
   const methodCycleCapacity = methodId === undefined
     ? 4
     : methodId === "self_explanation"
-      ? Math.max(1, maximumFocusedActivities - 3)
+      ? Math.max(1, maximumFocusedActivities - 3 - recognitionActivityCount)
       : methodId === "retrieval_practice"
-        ? Math.max(1, Math.floor((maximumFocusedActivities - 1) / 2))
-      : Math.max(1, Math.floor(maximumFocusedActivities / 2));
+        ? Math.max(1, Math.floor((maximumFocusedActivities - 1 - recognitionActivityCount) / 2))
+      : Math.max(1, Math.floor((maximumFocusedActivities - recognitionActivityCount) / 2));
   const maximumActiveIdeas = Math.max(1, Math.min(
     4,
     maximumFocusedActivities - 1,
@@ -176,11 +188,17 @@ export function interleaveStreamedTeachingCycles({
 
   const usedQuestions = new Set<PacingActivity>();
   const cycles: PacingActivity[] = [];
+  const hasPostMethodRecognition = focused.some((activity) => (
+    activity.methodPhase === "transfer"
+    && activity.type === "multiple_choice"
+    && activity.requiredForCompletion
+  ));
   const contract = streamedTeachingPacingContract({
     availableMinutes,
     activeIdeaCount: draft.coverage.evidenceMap.length,
     maximumFocusedActivities,
     methodId: draft.methodBriefing.methodId,
+    reservePostMethodRecognition: hasPostMethodRecognition,
   });
   // A delivery-policy cap applies to whichever teaching block becomes first
   // after interleaving, not merely to the provider's original first activity.
@@ -302,11 +320,17 @@ export function validateStreamedTeachingPacing({
   maximumFocusedActivities?: number;
 }): string | null {
   const focused = draft.activities.filter((activity) => activity.methodPhase !== "schedule_return");
+  const hasPostMethodRecognition = focused.some((activity) => (
+    activity.methodPhase === "transfer"
+    && activity.type === "multiple_choice"
+    && activity.requiredForCompletion
+  ));
   const contract = streamedTeachingPacingContract({
     availableMinutes,
     activeIdeaCount: draft.coverage.essentialIdeas.length,
     maximumFocusedActivities,
     methodId: draft.methodBriefing.methodId,
+    reservePostMethodRecognition: hasPostMethodRecognition,
   });
   if (focused.length > contract.maximumFocusedActivities) {
     return `This ${availableMinutes}-minute lesson may contain at most ${contract.maximumFocusedActivities} focused teaching and question activities.`;

@@ -53,10 +53,11 @@ describe("session delivery policy", () => {
                 learningMode,
               });
               const requiredFocusedActivities = requiredPhases.filter((phase) => phase !== "schedule_return").length;
+              const completeRequiredActivities = requiredFocusedActivities + (learningMode === "learn" ? 1 : 0);
 
-              expect(requiredPhases.length, `${key} minimum active minutes`).toBeLessThanOrEqual(estimatedMinutes);
+              expect(completeRequiredActivities, `${key} minimum active minutes`).toBeLessThanOrEqual(estimatedMinutes);
               expect(reconciled.pacing.maximumActivities, `${key} required focused phases`)
-                .toBeGreaterThanOrEqual(requiredFocusedActivities);
+                .toBeGreaterThanOrEqual(completeRequiredActivities);
               expect(reconciled.pacing.maximumActivities, `${key} renderer ceiling`).toBeLessThanOrEqual(8);
               expect(reconciled.learnerFacingReasons).toEqual(baseline.learnerFacingReasons);
               expect(reconciled.signalsUsed).toEqual(baseline.signalsUsed);
@@ -68,8 +69,8 @@ describe("session delivery policy", () => {
   });
 
   it.each([
-    ["concept_mapping", 5],
-    ["read_recall_review", 6],
+    ["concept_mapping", 6],
+    ["read_recall_review", 7],
   ] as const)("lets the immutable %s Learn recipe outrank a shorter-section transition cap", (methodId, expectedMaximum) => {
     for (const estimatedMinutes of [10, 15] as const) {
       const policy = buildSessionDeliveryPolicy({
@@ -87,7 +88,7 @@ describe("session delivery policy", () => {
 
       expect(policy.pacing.maximumActivities).toBe(3);
       expect(reconciled.pacing.maximumActivities).toBe(expectedMaximum);
-      expect(reconciled.pacing.reason).toContain(`${expectedMaximum} distinct evidence phases`);
+      expect(reconciled.pacing.reason).toContain(`${expectedMaximum} distinct focused activities`);
     }
   });
 

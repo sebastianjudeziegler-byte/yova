@@ -1,4 +1,5 @@
 import { contentBudgetForMinutes } from "@/lib/plan-generation/content-budget";
+import { methodFidelityContractForPrompt } from "@/lib/learning/method-fidelity";
 import type { GeneratedSessionDraft } from "@/lib/session-generation/schema";
 
 /**
@@ -22,7 +23,14 @@ export function validateSessionTimeBudget(
     return `The activity sequence needs ${totalMinutes} minutes, which does not fit the ${estimatedMinutes}-minute session.`;
   }
 
-  const maximumActivities = estimatedMinutes <= 15 ? 4 : estimatedMinutes <= 30 ? 5 : 8;
+  const durationMaximumActivities = estimatedMinutes <= 15 ? 4 : estimatedMinutes <= 30 ? 5 : 8;
+  const immutableLearnMinimum = draft.methodBriefing.learningMode === "learn"
+    ? learnFocusedActivityMinimum(draft)
+    : 0;
+  const maximumActivities = Math.min(8, Math.max(
+    durationMaximumActivities,
+    immutableLearnMinimum,
+  ));
   // schedule_return is a lightweight future-review marker, not a focused
   // activity the learner must complete during this session.
   const focusedActivityCount = draft.activities.filter((activity) => activity.methodPhase !== "schedule_return").length;
@@ -34,6 +42,37 @@ export function validateSessionTimeBudget(
     return `The session contains ${learnerFacingWords} learner-facing words, which is too much for a ${estimatedMinutes}-minute guided session. Keep this slice under ${contentBudget.maximumLearnerFacingWords} words and defer the rest.`;
   }
   return null;
+}
+
+function learnFocusedActivityMinimum(draft: GeneratedSessionDraft) {
+  const methodId = draft.methodBriefing.methodId;
+  // A few compatibility validators intentionally pass a partial historical
+  // draft without a method id or coverage map. They keep the duration cap;
+  // only a complete routed Learn session earns recipe-capacity expansion.
+  if (!methodId || !draft.coverage?.evidenceMap) return 0;
+  const activeIdeaCount = Math.max(1, draft.coverage.evidenceMap.length);
+  if (methodId === "self_explanation") {
+    const boundedTeachingBlocks = Math.max(1, Math.min(
+      activeIdeaCount,
+      draft.activities.filter((activity) => (
+        activity.methodPhase === "model"
+        && (Boolean(activity.teaching) || ("lessonBrief" in activity && Boolean(activity.lessonBrief)))
+      )).length,
+    ));
+    // One ordinary model can teach several bounded ideas. Mixed provenance
+    // must instead keep each target/topic in its own teaching block, so its
+    // immutable sequence is teaching blocks + typed explains + repair +
+    // re-explain + recognition. The global validator still caps this at 8.
+    return boundedTeachingBlocks + activeIdeaCount + 3;
+  }
+  if (methodId === "retrieval_practice") return (activeIdeaCount * 2) + 2;
+  if (methodId === "worked_example_fading") {
+    return activeIdeaCount === 1 ? 4 : (activeIdeaCount * 2) + 1;
+  }
+  return methodFidelityContractForPrompt(
+    methodId,
+    "learn",
+  ).requiredPhases.filter((phase) => phase !== "schedule_return").length + 1;
 }
 
 export function sessionLearnerFacingWordCount(draft: GeneratedSessionDraft) {
