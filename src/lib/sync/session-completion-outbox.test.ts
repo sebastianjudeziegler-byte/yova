@@ -17,6 +17,7 @@ import {
   loadQueuedSessionCompletions,
   pendingSessionCompletionPlanSessionIds,
   queueSessionCompletion,
+  reconcileQueuedSessionCompletions,
   removeQueuedSessionCompletionsForPlan,
 } from "@/lib/sync/session-completion-outbox";
 
@@ -29,6 +30,41 @@ function installMemoryStorage() {
       removeItem: (key: string) => values.delete(key),
     },
   });
+  return values;
+}
+
+function completionPending({
+  userId,
+  completionId,
+  planSessionId,
+  planId = "20000000-0000-4000-8000-000000000001",
+}: {
+  userId: string;
+  completionId: string;
+  planSessionId: string;
+  planId?: string;
+}): PendingSessionCompletion {
+  return {
+    userId,
+    queuedAt: "2026-08-17T20:08:00.000Z",
+    completion: {
+      id: completionId,
+      planId,
+      planSessionId,
+      startedAt: "2026-08-17T20:00:00.000Z",
+      completedAt: "2026-08-17T20:08:00.000Z",
+      plannedMinutes: 20,
+      actualMinutes: 8,
+      correctAnswers: 2,
+      totalAnswers: 3,
+      feedback: "about_right",
+      observedGap: "One concept needs another retrieval.",
+      conceptEvidence: [],
+      confidenceEvidence: [],
+    },
+    adaptation: null,
+    followUpSession: null,
+  };
 }
 
 afterEach(() => {
@@ -112,6 +148,77 @@ describe("session completion outbox", () => {
 
     expect(removeQueuedSessionCompletionsForPlan(base.userId, base.completion.planId)).toBe(true);
     expect(pendingSessionCompletionPlanSessionIds(base.userId)).toEqual([sibling.completion.planSessionId]);
+  });
+
+  it("reconciles authoritative completion receipts for only the exact account", () => {
+    installMemoryStorage();
+    const userId = "20000000-0000-4000-8000-000000000002";
+    const otherUserId = "20000000-0000-4000-8000-000000000003";
+    const completedPlanSessionId = "20000000-0000-4000-8000-000000000004";
+    const exact = completionPending({
+      userId,
+      completionId: "20000000-0000-4000-8000-000000000005",
+      planSessionId: completedPlanSessionId,
+    });
+    const sameCompletedSession = completionPending({
+      userId,
+      completionId: "20000000-0000-4000-8000-000000000006",
+      planSessionId: completedPlanSessionId,
+    });
+    const retryable = completionPending({
+      userId,
+      completionId: "20000000-0000-4000-8000-000000000007",
+      planSessionId: "20000000-0000-4000-8000-000000000008",
+    });
+    const otherAccount = completionPending({
+      userId: otherUserId,
+      completionId: "20000000-0000-4000-8000-000000000009",
+      planSessionId: completedPlanSessionId,
+    });
+    [exact, sameCompletedSession, retryable, otherAccount].forEach((entry) => {
+      expect(queueSessionCompletion(entry)).toBe(true);
+    });
+
+    expect(reconcileQueuedSessionCompletions(userId, [{
+      id: exact.completion.id,
+      planSessionId: completedPlanSessionId,
+    }])).toEqual({
+      removed: 2,
+      remaining: 1,
+      storageSaved: true,
+    });
+    expect(loadQueuedSessionCompletions(userId).map((entry) => entry.completion.id)).toEqual([
+      retryable.completion.id,
+    ]);
+    expect(loadQueuedSessionCompletions(otherUserId).map((entry) => entry.completion.id)).toEqual([
+      otherAccount.completion.id,
+    ]);
+  });
+
+  it("reports the actual remaining completion count when reconciliation cannot be saved", () => {
+    const values = installMemoryStorage();
+    const pending = completionPending({
+      userId: "20000000-0000-4000-8000-000000000012",
+      completionId: "20000000-0000-4000-8000-000000000013",
+      planSessionId: "20000000-0000-4000-8000-000000000014",
+    });
+    expect(queueSessionCompletion(pending)).toBe(true);
+    vi.stubGlobal("window", {
+      localStorage: {
+        getItem: (key: string) => values.get(key) ?? null,
+        setItem: () => { throw new Error("storage unavailable"); },
+        removeItem: () => { throw new Error("storage unavailable"); },
+      },
+    });
+
+    expect(reconcileQueuedSessionCompletions(pending.userId, [{
+      id: pending.completion.id,
+      planSessionId: pending.completion.planSessionId,
+    }])).toEqual({
+      removed: 0,
+      remaining: 1,
+      storageSaved: false,
+    });
   });
 
   it("preserves unguided practice provenance through a queued cloud sync", async () => {

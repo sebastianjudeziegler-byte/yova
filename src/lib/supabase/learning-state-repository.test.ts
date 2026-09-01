@@ -1640,13 +1640,28 @@ describe("saveAuthenticatedLearnerProfile", () => {
     expect(rpc).toHaveBeenCalledTimes(1);
     expect(releaseFirst).toBeTypeOf("function");
     releaseFirst({ error: null });
-    await Promise.all([first, second, newest]);
+    const [firstReceipt, secondReceipt, newestReceipt] = await Promise.all([
+      first,
+      second,
+      newest,
+    ]);
 
     expect(rpc).toHaveBeenCalledTimes(2);
     expect(rpc.mock.calls[1]?.[1]?.payload).toMatchObject({
       displayName: "Newest",
       commonBlocker: "newest blocker",
     });
+    expect(firstReceipt).toEqual({
+      accountId: "user-1",
+      displayName: "First",
+      onboardingAnswers: ["first blocker"],
+    });
+    expect(secondReceipt).toEqual({
+      accountId: "user-1",
+      displayName: "Newest",
+      onboardingAnswers: ["newest blocker"],
+    });
+    expect(newestReceipt).toEqual(secondReceipt);
   });
 
   it("rejects a stale account-scoped write before calling the profile RPC", async () => {
@@ -1709,7 +1724,11 @@ describe("saveAuthenticatedLearnerProfile", () => {
     await expect(queuedAccountAResult).resolves.toMatchObject({
       message: expect.stringContaining("signed-in account changed"),
     });
-    await expect(accountB).resolves.toBeUndefined();
+    await expect(accountB).resolves.toEqual({
+      accountId: "account-b",
+      displayName: "Account B",
+      onboardingAnswers: ["B blocker"],
+    });
 
     expect(rpc).toHaveBeenCalledTimes(2);
     expect(rpc.mock.calls.map(([name]) => name)).toEqual([

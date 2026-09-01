@@ -409,18 +409,83 @@ describe("YOVA prototype UI contracts", () => {
       component.indexOf("async function openYova()"),
       component.indexOf("} else if (saved?.signedIn", component.indexOf("async function openYova()")),
     );
+    const completionCapture = startup.indexOf("const startupCompletedSessionTombstones = new Set(");
     const capture = startup.indexOf("const startupInterruptionRunTombstones = new Set(");
     const flush = startup.indexOf("await flushQueuedSessionTerminals(cloudAccount.id)", capture);
     const mergedTombstones = startup.indexOf("const interruptedRunTombstones = new Set([", flush);
     const merge = startup.indexOf("mergeActiveSessionCheckpoints(localCheckpoints, cloudCheckpoints)", mergedTombstones);
 
+    expect(completionCapture).toBeGreaterThan(-1);
     expect(capture).toBeGreaterThan(-1);
+    expect(capture).toBeGreaterThan(completionCapture);
     expect(flush).toBeGreaterThan(capture);
     expect(mergedTombstones).toBeGreaterThan(flush);
     expect(merge).toBeGreaterThan(mergedTombstones);
+    expect(startup.slice(flush, merge)).toContain(
+      "...startupCompletedSessionTombstones",
+    );
     expect(startup.slice(mergedTombstones, merge)).toContain(
       "...startupInterruptionRunTombstones",
     );
+  });
+
+  it("reconciles confirmed cloud terminals before reporting startup sync work", () => {
+    const component = readSource("src/components/yova-prototype.tsx");
+    const startup = component.slice(
+      component.indexOf("async function openYova()"),
+      component.indexOf("} else if (saved?.signedIn", component.indexOf("async function openYova()")),
+    );
+    const cloudLoad = startup.indexOf("await loadAuthenticatedLearningStateWithRetry()");
+    const completionReconciliation = startup.indexOf("reconcileQueuedSessionCompletions(", cloudLoad);
+    const interruptionReconciliation = startup.indexOf("reconcileQueuedSessionInterruptions(", completionReconciliation);
+    const merge = startup.indexOf("mergeActiveSessionCheckpoints(localCheckpoints, cloudCheckpoints)", interruptionReconciliation);
+    const pendingEvents = startup.indexOf("const pendingEvents = completionReconciliation.remaining", merge);
+
+    expect(cloudLoad).toBeGreaterThan(-1);
+    expect(completionReconciliation).toBeGreaterThan(cloudLoad);
+    expect(interruptionReconciliation).toBeGreaterThan(completionReconciliation);
+    expect(merge).toBeGreaterThan(interruptionReconciliation);
+    expect(pendingEvents).toBeGreaterThan(merge);
+    expect(startup.slice(completionReconciliation, merge)).toContain(
+      "...authoritativeCompletedSessionIds",
+    );
+    expect(startup.slice(interruptionReconciliation, merge)).toContain(
+      "...cloudState.sessionInterruptions.map((interruption) => interruption.id)",
+    );
+    expect(startup.slice(pendingEvents, pendingEvents + 180)).toContain(
+      "+ interruptionReconciliation.remaining",
+    );
+  });
+
+  it("does not treat an authoritative cloud profile hydration as a learner edit", () => {
+    const component = readSource("src/components/yova-prototype.tsx");
+    const startup = component.slice(
+      component.indexOf("async function openYova()"),
+      component.indexOf("} else if (saved?.signedIn", component.indexOf("async function openYova()")),
+    );
+    const capture = startup.indexOf(
+      "authoritativeLearnerProfileSyncRef.current = captureAuthoritativeLearnerProfileSyncSnapshot(",
+    );
+    const hydrateAnswers = startup.indexOf("setAnswers(cloudState.onboardingAnswers)", capture);
+    const autosaveStart = component.indexOf(
+      'if (!ready || !onboardingCompleted || account?.identityMode !== "supabase") return;',
+      component.indexOf("const retryQueuedWork = () =>"),
+    );
+    const autosaveEnd = component.indexOf("useEffect(() =>", autosaveStart + 1);
+    const autosave = component.slice(autosaveStart, autosaveEnd);
+    const pendingSync = readSource("src/lib/sync/pending-cloud-work.ts");
+    const terminalFlush = pendingSync.indexOf("await flushQueuedSessionTerminals(accountId)");
+    const liveProfileRead = pendingSync.indexOf("const current = readCurrentProfile()", terminalFlush);
+
+    expect(capture).toBeGreaterThan(-1);
+    expect(hydrateAnswers).toBeGreaterThan(capture);
+    expect(autosave).toContain("learnerProfileNeedsSync(");
+    expect(autosave.indexOf("learnerProfileNeedsSync(")).toBeLessThan(
+      autosave.indexOf("saveAuthenticatedLearnerProfile({"),
+    );
+    expect(terminalFlush).toBeGreaterThan(-1);
+    expect(liveProfileRead).toBeGreaterThan(terminalFlush);
+    expect(pendingSync).toContain("learnerProfileNeedsSync(current.profileState");
   });
 
   it("keeps ordinary active-session checkpoint writes cloud-enabled by default", () => {
