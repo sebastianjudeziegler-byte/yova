@@ -855,6 +855,10 @@ describe("full guided-session structural repair failures", () => {
     const context = buildSessionEvaluationCases()
       .find((candidate) => candidate.id === "bioenergetics_multi_target_study")?.context;
     expect(context).toBeDefined();
+    const fullGeneratorContext = {
+      ...context!,
+      learningGoal: { ...context!.learningGoal, studyMode: "outside_yova" as const },
+    };
     const invalidResponse = GeneratedSessionDraftProviderOutputSchema.safeParse({});
     expect(invalidResponse.success).toBe(false);
     if (invalidResponse.success) return;
@@ -863,7 +867,7 @@ describe("full guided-session structural repair failures", () => {
       .mockRejectedValueOnce(invalidResponse.error);
 
     const { generateSessionWithOpenAI } = await import("@/lib/openai/session-generator");
-    await expect(generateSessionWithOpenAI(context!)).rejects.toMatchObject({
+    await expect(generateSessionWithOpenAI(fullGeneratorContext)).rejects.toMatchObject({
       name: "SessionGenerationFailure",
       generationStats: {
         attempts: 2,
@@ -893,6 +897,10 @@ describe("full guided-session structural repair failures", () => {
     const context = buildSessionEvaluationCases()
       .find((candidate) => candidate.id === "bioenergetics_multi_target_study")?.context;
     expect(context).toBeDefined();
+    const fullGeneratorContext = {
+      ...context!,
+      learningGoal: { ...context!.learningGoal, studyMode: "outside_yova" as const },
+    };
     const invalidRepair = GeneratedSessionDraftProviderOutputSchema.safeParse({});
     expect(invalidRepair.success).toBe(false);
     if (invalidRepair.success) return;
@@ -901,7 +909,7 @@ describe("full guided-session structural repair failures", () => {
       .mockRejectedValueOnce(invalidRepair.error);
 
     const { generateSessionWithOpenAI } = await import("@/lib/openai/session-generator");
-    await expect(generateSessionWithOpenAI(context!)).rejects.toMatchObject({
+    await expect(generateSessionWithOpenAI(fullGeneratorContext)).rejects.toMatchObject({
       name: "SessionGenerationFailure",
       generationStats: {
         attempts: 2,
@@ -2585,6 +2593,11 @@ describe("bounded study failure behavior", () => {
 
     expect(parseResponse).toHaveBeenCalledTimes(1);
     expect(parseResponse.mock.calls[0]?.[0]?.text?.format?.name).toBe("yova_safe_study_recovery");
+    const providerInput = parseResponse.mock.calls[0]?.[0]?.input as string;
+    const providerContext = JSON.parse(
+      providerInput.slice(providerInput.indexOf("\n") + 1),
+    ) as { targetProvenance: unknown[] };
+    expect(providerContext.targetProvenance).toEqual([]);
     expect(result.generationStats).toMatchObject({
       attempts: 1,
       firstAttemptPassed: true,
