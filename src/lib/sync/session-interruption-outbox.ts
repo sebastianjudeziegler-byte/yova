@@ -79,6 +79,17 @@ export type PendingSessionInterruption = {
   queuedAt: string;
 };
 
+export type AuthoritativeSessionInterruptionReceipt = Readonly<{
+  id: string;
+  planSessionId: string;
+}>;
+
+export type SessionInterruptionReconciliationResult = Readonly<{
+  removed: number;
+  remaining: number;
+  storageSaved: boolean;
+}>;
+
 export function queueSessionInterruption(input: PendingSessionInterruption) {
   const parsed = PendingSessionInterruptionSchema.safeParse(input);
   if (!parsed.success) return false;
@@ -140,6 +151,41 @@ export function pendingSessionInterruptionRunIds(userId: string) {
   return loadAllPendingInterruptions()
     .filter((entry) => entry.userId === userId)
     .map((entry) => entry.interruption.id);
+}
+
+/**
+ * Clears retries proven durable by cloud state. A later cloud completion also
+ * supersedes an older queued Exit for the same plan session, while unrelated
+ * accounts and retryable terminal events remain untouched.
+ */
+export function reconcileQueuedSessionInterruptions(
+  userId: string,
+  authoritativeInterruptions: readonly AuthoritativeSessionInterruptionReceipt[],
+  completedPlanSessionIds: readonly string[],
+): SessionInterruptionReconciliationResult {
+  const authoritativeIds = new Set(
+    authoritativeInterruptions.map((interruption) => interruption.id),
+  );
+  const completedIds = new Set(completedPlanSessionIds);
+  const current = loadAllPendingInterruptions();
+  const before = current.filter((entry) => entry.userId === userId).length;
+  const retained = current.filter((entry) => (
+    entry.userId !== userId
+    || (
+      !authoritativeIds.has(entry.interruption.id)
+      && !completedIds.has(entry.interruption.planSessionId)
+    )
+  ));
+  const storageSaved = retained.length === current.length
+    ? true
+    : savePendingInterruptions(retained);
+  const remaining = loadAllPendingInterruptions().filter((entry) => entry.userId === userId).length;
+
+  return {
+    removed: Math.max(0, before - remaining),
+    remaining,
+    storageSaved,
+  };
 }
 
 export function flushQueuedSessionInterruptions(userId: string) {

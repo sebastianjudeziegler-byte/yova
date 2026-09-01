@@ -15,6 +15,7 @@ import {
   pendingSessionInterruptionRunIds,
   queueSessionInterruption,
   readQueuedSessionInterruptionsForExport,
+  reconcileQueuedSessionInterruptions,
   removeQueuedSessionInterruptionsForPlan,
 } from "@/lib/sync/session-interruption-outbox";
 
@@ -27,6 +28,35 @@ function installMemoryStorage() {
       removeItem: (key: string) => values.delete(key),
     },
   });
+  return values;
+}
+
+function interruptionPending({
+  userId,
+  interruptionId,
+  planSessionId,
+  planId = "30000000-0000-4000-8000-000000000001",
+}: {
+  userId: string;
+  interruptionId: string;
+  planSessionId: string;
+  planId?: string;
+}): PendingSessionInterruption {
+  return {
+    userId,
+    queuedAt: "2026-08-11T20:08:00.000Z",
+    interruption: {
+      id: interruptionId,
+      planId,
+      planSessionId,
+      startedAt: "2026-08-11T20:00:00.000Z",
+      interruptedAt: "2026-08-11T20:08:00.000Z",
+      plannedMinutes: 20,
+      actualMinutes: 8,
+      completedSteps: 2,
+      totalSteps: 5,
+    },
+  };
 }
 
 afterEach(() => {
@@ -205,6 +235,109 @@ describe("session interruption outbox", () => {
       remaining: 0,
     });
     expect(recordAuthenticatedSessionInterruption).toHaveBeenCalledTimes(2);
+  });
+
+  it("reconciles exact cloud Exit receipts for only the current account", () => {
+    installMemoryStorage();
+    const userId = "30000000-0000-4000-8000-000000000002";
+    const otherUserId = "30000000-0000-4000-8000-000000000003";
+    const planSessionId = "30000000-0000-4000-8000-000000000004";
+    const exact = interruptionPending({
+      userId,
+      interruptionId: "30000000-0000-4000-8000-000000000005",
+      planSessionId,
+    });
+    const retryable = interruptionPending({
+      userId,
+      interruptionId: "30000000-0000-4000-8000-000000000006",
+      planSessionId,
+    });
+    const otherAccount = interruptionPending({
+      userId: otherUserId,
+      interruptionId: "30000000-0000-4000-8000-000000000007",
+      planSessionId,
+    });
+    [exact, retryable, otherAccount].forEach((entry) => {
+      expect(queueSessionInterruption(entry)).toBe(true);
+    });
+
+    expect(reconcileQueuedSessionInterruptions(userId, [{
+      id: exact.interruption.id,
+      planSessionId,
+    }], [])).toEqual({
+      removed: 1,
+      remaining: 1,
+      storageSaved: true,
+    });
+    expect(loadQueuedSessionInterruptions(userId).map((entry) => entry.interruption.id)).toEqual([
+      retryable.interruption.id,
+    ]);
+    expect(loadQueuedSessionInterruptions(otherUserId).map((entry) => entry.interruption.id)).toEqual([
+      otherAccount.interruption.id,
+    ]);
+  });
+
+  it("lets an authoritative completion supersede a queued Exit for the same session", () => {
+    installMemoryStorage();
+    const userId = "30000000-0000-4000-8000-000000000012";
+    const otherUserId = "30000000-0000-4000-8000-000000000013";
+    const completedPlanSessionId = "30000000-0000-4000-8000-000000000014";
+    const superseded = interruptionPending({
+      userId,
+      interruptionId: "30000000-0000-4000-8000-000000000015",
+      planSessionId: completedPlanSessionId,
+    });
+    const retryable = interruptionPending({
+      userId,
+      interruptionId: "30000000-0000-4000-8000-000000000016",
+      planSessionId: "30000000-0000-4000-8000-000000000017",
+    });
+    const otherAccount = interruptionPending({
+      userId: otherUserId,
+      interruptionId: "30000000-0000-4000-8000-000000000018",
+      planSessionId: completedPlanSessionId,
+    });
+    [superseded, retryable, otherAccount].forEach((entry) => {
+      expect(queueSessionInterruption(entry)).toBe(true);
+    });
+
+    expect(reconcileQueuedSessionInterruptions(userId, [], [completedPlanSessionId])).toEqual({
+      removed: 1,
+      remaining: 1,
+      storageSaved: true,
+    });
+    expect(loadQueuedSessionInterruptions(userId).map((entry) => entry.interruption.id)).toEqual([
+      retryable.interruption.id,
+    ]);
+    expect(loadQueuedSessionInterruptions(otherUserId).map((entry) => entry.interruption.id)).toEqual([
+      otherAccount.interruption.id,
+    ]);
+  });
+
+  it("reports the actual remaining Exit count when reconciliation cannot be saved", () => {
+    const values = installMemoryStorage();
+    const pending = interruptionPending({
+      userId: "30000000-0000-4000-8000-000000000021",
+      interruptionId: "30000000-0000-4000-8000-000000000022",
+      planSessionId: "30000000-0000-4000-8000-000000000023",
+    });
+    expect(queueSessionInterruption(pending)).toBe(true);
+    vi.stubGlobal("window", {
+      localStorage: {
+        getItem: (key: string) => values.get(key) ?? null,
+        setItem: () => { throw new Error("storage unavailable"); },
+        removeItem: () => { throw new Error("storage unavailable"); },
+      },
+    });
+
+    expect(reconcileQueuedSessionInterruptions(pending.userId, [{
+      id: pending.interruption.id,
+      planSessionId: pending.interruption.planSessionId,
+    }], [])).toEqual({
+      removed: 0,
+      remaining: 1,
+      storageSaved: false,
+    });
   });
 
   it("queues an old Exit without its retired activity marker", async () => {

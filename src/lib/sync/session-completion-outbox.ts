@@ -154,6 +154,17 @@ export type PendingSessionCompletion = {
   queuedAt: string;
 };
 
+export type AuthoritativeSessionCompletionReceipt = Readonly<{
+  id: string;
+  planSessionId: string;
+}>;
+
+export type SessionCompletionReconciliationResult = Readonly<{
+  removed: number;
+  remaining: number;
+  storageSaved: boolean;
+}>;
+
 export function queueSessionCompletion(input: PendingSessionCompletion) {
   const parsed = PendingSessionCompletionSchema.safeParse(input);
   if (!parsed.success) return false;
@@ -178,6 +189,40 @@ export function removeQueuedSessionCompletionsForPlan(userId: string, planId: st
 
 export function pendingSessionCompletionCount(userId: string) {
   return loadAllPendingCompletions().filter((entry) => entry.userId === userId).length;
+}
+
+/**
+ * Clears retries whose authoritative cloud receipt proves the completion was
+ * already committed. A completed plan session is terminal even when the
+ * browser lost the response carrying the original completion id.
+ */
+export function reconcileQueuedSessionCompletions(
+  userId: string,
+  authoritativeCompletions: readonly AuthoritativeSessionCompletionReceipt[],
+): SessionCompletionReconciliationResult {
+  const authoritativeIds = new Set(authoritativeCompletions.map((completion) => completion.id));
+  const completedPlanSessionIds = new Set(
+    authoritativeCompletions.map((completion) => completion.planSessionId),
+  );
+  const current = loadAllPendingCompletions();
+  const before = current.filter((entry) => entry.userId === userId).length;
+  const retained = current.filter((entry) => (
+    entry.userId !== userId
+    || (
+      !authoritativeIds.has(entry.completion.id)
+      && !completedPlanSessionIds.has(entry.completion.planSessionId)
+    )
+  ));
+  const storageSaved = retained.length === current.length
+    ? true
+    : savePendingCompletions(retained);
+  const remaining = loadAllPendingCompletions().filter((entry) => entry.userId === userId).length;
+
+  return {
+    removed: Math.max(0, before - remaining),
+    remaining,
+    storageSaved,
+  };
 }
 
 /** Returns only validated entries for the requested account. */

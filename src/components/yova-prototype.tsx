@@ -429,6 +429,7 @@ import {
   clearQueuedSessionCompletions,
   pendingSessionCompletionPlanSessionIds,
   queueSessionCompletion,
+  reconcileQueuedSessionCompletions,
   removeQueuedSessionCompletion,
   removeQueuedSessionCompletionsForPlan,
 } from "@/lib/sync/session-completion-outbox";
@@ -438,9 +439,18 @@ import {
   pendingSessionInterruptionRunIds,
   loadQueuedSessionInterruptions,
   queueSessionInterruption,
+  reconcileQueuedSessionInterruptions,
   removeQueuedSessionInterruption,
   removeQueuedSessionInterruptionsForPlan,
 } from "@/lib/sync/session-interruption-outbox";
+import {
+  captureAuthoritativeLearnerProfileSyncSnapshot,
+  learnerProfileNeedsSync,
+  learnerProfileSyncFingerprint,
+  type AuthoritativeLearnerProfileSyncSnapshot,
+  type LearnerProfileSyncState,
+} from "@/lib/sync/learner-profile-sync-snapshot";
+import { syncPendingCloudWork } from "@/lib/sync/pending-cloud-work";
 import {
   flushQueuedSessionTerminals,
   syncSessionCompletionAfterTerminals,
@@ -670,7 +680,12 @@ export function YovaPrototype({
   const [earlySchedulePending, setEarlySchedulePending] = useState(false);
   const [earlyScheduleIssue, setEarlyScheduleIssue] = useState<string | null>(null);
   const cloudRecoveryStatusRef = useRef<CloudRecoveryStatus>("idle");
-  const explicitlySavedProfileAnswersRef = useRef<string[] | null>(null);
+  const explicitlySavedProfileFingerprintRef = useRef<string | null>(null);
+  const authoritativeLearnerProfileSyncRef = useRef<AuthoritativeLearnerProfileSyncSnapshot | null>(null);
+  const latestLearnerProfileSyncStateRef = useRef<Readonly<{
+    onboardingCompleted: boolean;
+    profileState: LearnerProfileSyncState;
+  }> | null>(null);
   const signOutPendingRef = useRef(false);
   const retainedSignOutAccountIdRef = useRef<string | null>(null);
   const sessionGenerationAbortRef = useRef<AbortController | null>(null);
@@ -702,6 +717,28 @@ export function YovaPrototype({
   const lessonStreamsStartedRef = useRef(new Set<string>());
   const lessonStreamControllersRef = useRef(new Map<string, AbortController>());
   const plansRef = useRef(plans);
+  latestLearnerProfileSyncStateRef.current = account?.identityMode === "supabase"
+    ? {
+      onboardingCompleted,
+      profileState: learnerProfileSyncStateFor(account, answers),
+    }
+    : null;
+  const rememberCurrentProfilePreferencesAsSynced = useCallback(() => {
+    const latest = latestLearnerProfileSyncStateRef.current;
+    if (
+      !latest
+      || learnerProfileNeedsSync(
+        latest.profileState,
+        authoritativeLearnerProfileSyncRef.current,
+      )
+    ) return;
+    setSyncedPreferenceSnapshot({
+      accountId: latest.profileState.accountId,
+      preferenceKey: preferredMethodIds(
+        readPersonalizationStateFromAnswers([...latest.profileState.onboardingAnswers]),
+      ).join("|"),
+    });
+  }, []);
   const analyticsEnabled = account?.identityMode === "supabase";
 
   const activePlans = filterOperationalPlans(plans);
@@ -792,21 +829,26 @@ export function YovaPrototype({
     // Keep the choice on this device first, then wait for the exact same
     // answer snapshot to reach a cloud account before reporting success.
     if (account?.identityMode === "supabase") {
-      explicitlySavedProfileAnswersRef.current = nextAnswers;
+      explicitlySavedProfileFingerprintRef.current = learnerProfileSyncFingerprint(
+        learnerProfileSyncStateFor(account, nextAnswers),
+      );
     }
     setAnswers(nextAnswers);
     if (account?.identityMode !== "supabase") return;
 
     try {
-      await saveAuthenticatedLearnerProfile({
+      const savedProfile = await saveAuthenticatedLearnerProfile({
         accountId: account.id,
         displayName: account.displayName,
         onboardingAnswers: nextAnswers,
       });
+      authoritativeLearnerProfileSyncRef.current = captureAuthoritativeLearnerProfileSyncSnapshot(
+        savedProfile,
+      );
       setSyncedPreferenceSnapshot({
         accountId: account.id,
         preferenceKey: preferredMethodIds(
-          readPersonalizationStateFromAnswers(nextAnswers),
+          readPersonalizationStateFromAnswers([...savedProfile.onboardingAnswers]),
         ).join("|"),
       });
       setCloudSyncIssue((current) => (
@@ -1140,10 +1182,13 @@ export function YovaPrototype({
         const localAccountMatches = saved?.account?.id === cloudAccount.id;
 
         try {
+          const startupCompletedSessionTombstones = new Set(
+            pendingSessionCompletionPlanSessionIds(cloudAccount.id),
+          );
           const startupInterruptionRunTombstones = new Set(
             pendingSessionInterruptionRunIds(cloudAccount.id),
           );
-          const terminalRetryResult = await flushQueuedSessionTerminals(cloudAccount.id);
+          await flushQueuedSessionTerminals(cloudAccount.id);
           const cloudState = await loadAuthenticatedLearningStateWithRetry();
           if (cancelled) return;
           cloudRecoveryStatusRef.current = transitionCloudRecovery(
@@ -1154,11 +1199,29 @@ export function YovaPrototype({
           const restoredAccount = cloudState.displayName
             ? { ...cloudAccount, displayName: cloudState.displayName }
             : cloudAccount;
-          const completedSessionTombstones = new Set(
-            pendingSessionCompletionPlanSessionIds(cloudAccount.id),
+          authoritativeLearnerProfileSyncRef.current = captureAuthoritativeLearnerProfileSyncSnapshot(
+            learnerProfileSyncStateFor(restoredAccount, cloudState.onboardingAnswers),
           );
+          const authoritativeCompletedSessionIds = cloudState.sessionCompletions.map(
+            (completion) => completion.planSessionId,
+          );
+          const completionReconciliation = reconcileQueuedSessionCompletions(
+            cloudAccount.id,
+            cloudState.sessionCompletions,
+          );
+          const interruptionReconciliation = reconcileQueuedSessionInterruptions(
+            cloudAccount.id,
+            cloudState.sessionInterruptions,
+            authoritativeCompletedSessionIds,
+          );
+          const completedSessionTombstones = new Set([
+            ...startupCompletedSessionTombstones,
+            ...authoritativeCompletedSessionIds,
+            ...pendingSessionCompletionPlanSessionIds(cloudAccount.id),
+          ]);
           const interruptedRunTombstones = new Set([
             ...startupInterruptionRunTombstones,
+            ...cloudState.sessionInterruptions.map((interruption) => interruption.id),
             ...pendingSessionInterruptionRunIds(cloudAccount.id),
           ]);
           const hasPendingTerminal = (checkpoint: ActiveSessionCheckpoint) => (
@@ -1205,6 +1268,12 @@ export function YovaPrototype({
           setAccount(restoredAccount);
           setSignedIn(true);
           setAnswers(cloudState.onboardingAnswers);
+          setSyncedPreferenceSnapshot({
+            accountId: restoredAccount.id,
+            preferenceKey: preferredMethodIds(
+              readPersonalizationStateFromAnswers(cloudState.onboardingAnswers),
+            ).join("|"),
+          });
           setOnboardingCompleted(cloudOnboardingCompleted);
           setPlans(cloudPlans);
           setDeadlineMilestones(cloudState.deadlineMilestones);
@@ -1213,7 +1282,8 @@ export function YovaPrototype({
           setSessionInterruptions(cloudState.sessionInterruptions);
           setActiveSessionCheckpoints(mergedCheckpoints.checkpoints);
           setCloudCheckpointRunIds(new Set(mergedCheckpoints.cloudRunIds));
-          const pendingEvents = terminalRetryResult.remaining;
+          const pendingEvents = completionReconciliation.remaining
+            + interruptionReconciliation.remaining;
           const startupSyncIssue = pendingEvents > 0
             ? `${pendingEvents} session ${pendingEvents === 1 ? "event is" : "events are"} waiting to sync.`
             : mergedCheckpoints.conflictingLocalRuns.length > 0
@@ -1305,6 +1375,8 @@ export function YovaPrototype({
         }
         clearPreviewSnapshot();
         retainedSignOutAccountIdRef.current = null;
+        explicitlySavedProfileFingerprintRef.current = null;
+        authoritativeLearnerProfileSyncRef.current = null;
         setAccount(null);
         setSignedIn(false);
         setAnswers([]);
@@ -1418,17 +1490,25 @@ export function YovaPrototype({
     if (account?.identityMode !== "supabase") return;
 
     const retryQueuedWork = () => {
-      void syncPendingCloudWork(account, answers, onboardingCompleted).then(async (terminalOrProfileIssue) => {
-        if (terminalOrProfileIssue) {
-          setCloudSyncIssue(terminalOrProfileIssue);
+      void syncPendingCloudWork(account.id, () => {
+        const latest = latestLearnerProfileSyncStateRef.current;
+        return latest
+          ? {
+            ...latest,
+            authoritativeSnapshot: authoritativeLearnerProfileSyncRef.current,
+          }
+          : null;
+      }).then(async ({ issue, syncedProfileState }) => {
+        if (issue) {
+          setCloudSyncIssue(issue);
           return;
         }
-        setSyncedPreferenceSnapshot({
-          accountId: account.id,
-          preferenceKey: preferredMethodIds(
-            readPersonalizationStateFromAnswers(answers),
-          ).join("|"),
-        });
+        if (syncedProfileState) {
+          authoritativeLearnerProfileSyncRef.current = captureAuthoritativeLearnerProfileSyncSnapshot(
+            syncedProfileState,
+          );
+        }
+        rememberCurrentProfilePreferencesAsSynced();
         const checkpointIssues = await Promise.all(
           activeSessionCheckpoints.map(syncCheckpointToAccount),
         );
@@ -1438,27 +1518,36 @@ export function YovaPrototype({
 
     window.addEventListener("online", retryQueuedWork);
     return () => window.removeEventListener("online", retryQueuedWork);
-  }, [account, answers, onboardingCompleted, activeSessionCheckpoints, syncCheckpointToAccount]);
+  }, [account, answers, onboardingCompleted, activeSessionCheckpoints, syncCheckpointToAccount, rememberCurrentProfilePreferencesAsSynced]);
 
   useEffect(() => {
     if (!ready || !onboardingCompleted || account?.identityMode !== "supabase") return;
-    if (explicitlySavedProfileAnswersRef.current === answers) {
-      explicitlySavedProfileAnswersRef.current = null;
+    const profileSyncState = learnerProfileSyncStateFor(account, answers);
+    const profileFingerprint = learnerProfileSyncFingerprint(profileSyncState);
+    if (explicitlySavedProfileFingerprintRef.current === profileFingerprint) {
+      explicitlySavedProfileFingerprintRef.current = null;
       return;
     }
-    explicitlySavedProfileAnswersRef.current = null;
+    explicitlySavedProfileFingerprintRef.current = null;
+    if (!learnerProfileNeedsSync(
+      profileSyncState,
+      authoritativeLearnerProfileSyncRef.current,
+    )) return;
     let cancelled = false;
 
     void saveAuthenticatedLearnerProfile({
       accountId: account.id,
       displayName: account.displayName,
       onboardingAnswers: answers,
-    }).then(() => {
+    }).then((savedProfile) => {
       if (!cancelled) {
+        authoritativeLearnerProfileSyncRef.current = captureAuthoritativeLearnerProfileSyncSnapshot(
+          savedProfile,
+        );
         setSyncedPreferenceSnapshot({
           accountId: account.id,
           preferenceKey: preferredMethodIds(
-            readPersonalizationStateFromAnswers(answers),
+            readPersonalizationStateFromAnswers([...savedProfile.onboardingAnswers]),
           ).join("|"),
         });
         setCloudSyncIssue((current) => (
@@ -3187,6 +3276,8 @@ export function YovaPrototype({
     if (account) clearActiveSessionCheckpoints(account.id);
     checkpointSyncEpochRef.current += 1;
     discardedCheckpointRunIdsRef.current.clear();
+    explicitlySavedProfileFingerprintRef.current = null;
+    authoritativeLearnerProfileSyncRef.current = null;
     clearPreviewSnapshot();
     setOnboardingCompleted(false);
     setQuestionIndex(0);
@@ -3806,17 +3897,25 @@ export function YovaPrototype({
   const retryCloudSync = async () => {
     if (account?.identityMode !== "supabase") return;
 
-    const terminalOrProfileIssue = await syncPendingCloudWork(account, answers, onboardingCompleted);
-    if (terminalOrProfileIssue) {
-      setCloudSyncIssue(terminalOrProfileIssue);
-      throw new Error(terminalOrProfileIssue);
-    }
-    setSyncedPreferenceSnapshot({
-      accountId: account.id,
-      preferenceKey: preferredMethodIds(
-        readPersonalizationStateFromAnswers(answers),
-      ).join("|"),
+    const { issue, syncedProfileState } = await syncPendingCloudWork(account.id, () => {
+      const latest = latestLearnerProfileSyncStateRef.current;
+      return latest
+        ? {
+          ...latest,
+          authoritativeSnapshot: authoritativeLearnerProfileSyncRef.current,
+        }
+        : null;
     });
+    if (issue) {
+      setCloudSyncIssue(issue);
+      throw new Error(issue);
+    }
+    if (syncedProfileState) {
+      authoritativeLearnerProfileSyncRef.current = captureAuthoritativeLearnerProfileSyncSnapshot(
+        syncedProfileState,
+      );
+    }
+    rememberCurrentProfilePreferencesAsSynced();
     const checkpointIssues = await Promise.all(
       activeSessionCheckpoints.map(syncCheckpointToAccount),
     );
@@ -3833,9 +3932,18 @@ export function YovaPrototype({
     if (issue) throw new Error(issue);
     const displayName = normalizeDisplayName(value);
     const previousDisplayName = currentAccount.displayName;
+    const nextProfileSyncState = learnerProfileSyncStateFor(
+      { ...currentAccount, displayName },
+      answers,
+    );
 
     // Update first so any learner-profile autosave queued during this request
     // carries the new name instead of racing it with a stale value.
+    if (currentAccount.identityMode === "supabase") {
+      explicitlySavedProfileFingerprintRef.current = learnerProfileSyncFingerprint(
+        nextProfileSyncState,
+      );
+    }
     setAccount((current) => current?.id === currentAccount.id
       ? { ...current, displayName }
       : current);
@@ -3845,11 +3953,14 @@ export function YovaPrototype({
     try {
       // Use the same serialized queue as every other learner-profile write so
       // an older in-flight autosave cannot overwrite the new account name.
-      await saveAuthenticatedLearnerProfile({
+      const savedProfile = await saveAuthenticatedLearnerProfile({
         accountId: currentAccount.id,
         displayName,
         onboardingAnswers: answers,
       });
+      authoritativeLearnerProfileSyncRef.current = captureAuthoritativeLearnerProfileSyncSnapshot(
+        savedProfile,
+      );
     } catch (error) {
       setAccount((current) => current?.id === currentAccount.id
         && current.displayName === displayName
@@ -3897,6 +4008,8 @@ export function YovaPrototype({
         cloudRecoveryStatusRef.current,
         "explicit-sign-out",
       );
+      explicitlySavedProfileFingerprintRef.current = null;
+      authoritativeLearnerProfileSyncRef.current = null;
       setAccount(null);
       setSignedIn(false);
       setGuidedSessionAllowance({
@@ -4353,29 +4466,15 @@ export function YovaPrototype({
   </>;
 }
 
-async function syncPendingCloudWork(account: PreviewAccount, answers: string[], onboardingCompleted: boolean) {
-  // Terminal work always wins over a recovery marker. Flush it first so a
-  // reconnect cannot upload progress for a session that was already finished
-  // or explicitly exited while offline.
-  const terminalResult = await flushQueuedSessionTerminals(account.id);
-  const pendingEvents = terminalResult.remaining;
-  if (pendingEvents > 0) {
-    return `${pendingEvents} session ${pendingEvents === 1 ? "event is" : "events are"} still waiting to sync.`;
-  }
-
-  let profileIssue: string | null = null;
-  if (onboardingCompleted) {
-    try {
-      await saveAuthenticatedLearnerProfile({
-        accountId: account.id,
-        displayName: account.displayName,
-        onboardingAnswers: answers,
-      });
-    } catch (error) {
-      profileIssue = error instanceof Error ? error.message : "YOVA could not sync your learning profile.";
-    }
-  }
-  return profileIssue;
+function learnerProfileSyncStateFor(
+  account: PreviewAccount,
+  onboardingAnswers: readonly string[],
+): LearnerProfileSyncState {
+  return {
+    accountId: account.id,
+    displayName: account.displayName,
+    onboardingAnswers,
+  };
 }
 
 function LoadingAccount() {

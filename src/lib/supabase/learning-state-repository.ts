@@ -838,11 +838,17 @@ type LearnerProfileSaveInput = {
   onboardingAnswers: string[];
 };
 
+export type LearnerProfileSaveReceipt = Readonly<{
+  accountId: string;
+  displayName: string;
+  onboardingAnswers: readonly string[];
+}>;
+
 type QueuedLearnerProfileWrite = {
   input: LearnerProfileSaveInput;
   cancelled: boolean;
   waiters: Array<{
-    resolve: () => void;
+    resolve: (receipt: LearnerProfileSaveReceipt) => void;
     reject: (reason: unknown) => void;
   }>;
 };
@@ -855,16 +861,17 @@ let learnerProfileWriteRunning = false;
  * Profile edits can arrive close together (for example, a receipt followed by
  * a preference change). Keep one cloud write in flight and coalesce anything
  * waiting behind it so an older request can never finish after a newer one.
+ * Every waiter receives the exact coalesced payload that reached the RPC.
  */
 export function saveAuthenticatedLearnerProfile(input: LearnerProfileSaveInput) {
-  if (!isSupabaseConfigured()) return Promise.resolve();
   const queuedInput = {
     accountId: input.accountId,
     displayName: input.displayName,
     onboardingAnswers: [...input.onboardingAnswers],
   };
+  if (!isSupabaseConfigured()) return Promise.resolve(learnerProfileSaveReceipt(queuedInput));
 
-  return new Promise<void>((resolve, reject) => {
+  return new Promise<LearnerProfileSaveReceipt>((resolve, reject) => {
     const pendingWrite = pendingLearnerProfileWrites.get(input.accountId);
     if (pendingWrite) {
       pendingWrite.input = queuedInput;
@@ -915,7 +922,8 @@ async function drainLearnerProfileWrites() {
       if (write.cancelled) throw new CloudAccountIdentityMismatchError();
       await persistAuthenticatedLearnerProfile(write.input, () => write.cancelled);
       if (write.cancelled) throw new CloudAccountIdentityMismatchError();
-      write.waiters.forEach((waiter) => waiter.resolve());
+      const receipt = learnerProfileSaveReceipt(write.input);
+      write.waiters.forEach((waiter) => waiter.resolve(receipt));
     } catch (error) {
       write.waiters.forEach((waiter) => waiter.reject(error));
     } finally {
@@ -923,6 +931,16 @@ async function drainLearnerProfileWrites() {
     }
   }
   learnerProfileWriteRunning = false;
+}
+
+function learnerProfileSaveReceipt(
+  input: LearnerProfileSaveInput,
+): LearnerProfileSaveReceipt {
+  return {
+    accountId: input.accountId,
+    displayName: input.displayName.trim(),
+    onboardingAnswers: [...input.onboardingAnswers],
+  };
 }
 
 async function persistAuthenticatedLearnerProfile(
