@@ -524,7 +524,7 @@ Requirements:
 - Follow sessionContentBudget for the exact idea and check limits. For sessions of 15 minutes or less, normally use no more than 4 activities and no more than 2 tightly related essential ideas. For 16 to 30 minutes, normally use no more than 5 activities. When the selected method's required phase contract contains more activities, preserve every required phase up to sessionDeliveryPolicy.pacing.maximumActivities and narrow the content instead of deleting or combining a phase. Longer sessions may use up to 8 only when the content requires it.
 - Mark the teaching, core attempt, and evidence-producing checks requiredForCompletion. Optional reflection or extension may be false. At least one question must be required.
 - Use concise instructions and one obvious action at a time.
-- Include at least one meaningful multiple-choice knowledge check with exactly 4 plausible choices.
+- For a knowledge-focused session, include at least one meaningful multiple-choice knowledge check with exactly 4 plausible choices. In an inside-YOVA Learn session, place that required recognition check after the final teaching block. A diagnostic Pretesting question before the model does not satisfy the post-teaching recall check. A writing_argumentation work-product session may use its required typed artifact evidence instead of forcing an unrelated quiz.
 - Include at least one free_response activity that makes the learner produce an answer from memory before seeing a concise reference answer.
 - Give every multiple_choice and free_response activity one concise concept name. Set concept to null for instructions and reflections.
 - For free_response, leave choices empty. correctAnswer must directly answer the learner's question with the actual subject facts, relationships, calculation, or procedure. Never write meta language such as "A strong response states," "The learner should mention," or "An accurate answer includes" in correctAnswer. Put grading criteria only in feedback. YOVA uses both for a bounded formative check, and the learner can correct that judgment.
@@ -1713,6 +1713,9 @@ function sourceGroundedDegradedInput({
     architecture,
     objective: context.session.objective,
     learningMode: context.session.learningMode,
+    executionEnvironment: context.learningGoal.studyMode === "outside_yova"
+      ? "outside_yova"
+      : "inside_yova",
     taskType: routing.taskType,
     methodId: routing.suggestedPrimaryMethodId,
     methodName: context.studyRoute?.approach.primaryMethodId === routing.suggestedPrimaryMethodId
@@ -4233,7 +4236,11 @@ export function validateGeneratedSessionWithCode(
     && !context.session.reviewType;
   const activityFormatCheck: [GenerationValidator, string | null] = scheduledRetrieval
     ? ["scheduled_retrieval_format", validateScheduledRetrievalSession(draft, context.session)]
-    : ["session_required_typed_recall", validateStandardGuidedSessionActivityMix(draft)];
+    : ["session_required_typed_recall", validateStandardGuidedSessionActivityMix(draft, {
+      executionEnvironment: context.learningGoal.studyMode === "inside_yova"
+        ? "inside_yova"
+        : "outside_yova",
+    })];
   const streamedLessonScopeIssue = validateAsStreamedTeaching
     ? validateStreamedLessonScope(draft as StreamedGeneratedSessionDraft, {
       sessionTopicIds: context.session.topicIds,

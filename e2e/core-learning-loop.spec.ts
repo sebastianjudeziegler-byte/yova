@@ -295,6 +295,93 @@ test("a confident misconception is repaired now without a duplicate follow-up", 
   await expect(page.getByRole("heading", { name: /^Good (morning|afternoon|evening), Learner$/ })).toBeVisible();
 });
 
+test("Practice Problems starts with an unsupported written attempt, repairs a miss, then changes context", async ({ page }) => {
+  type ProblemPracticeGenerationRequest = {
+    planSessionId: string;
+    routeRevisionId?: string;
+    previewContext?: {
+      studyRoute?: { approach?: { primaryMethodId?: string } };
+      session?: { topicIds?: string[] };
+    };
+  };
+  const generationRequests: ProblemPracticeGenerationRequest[] = [];
+
+  await page.route("**/api/sessions/generate", async (route) => {
+    const generationRequest = route.request().postDataJSON() as ProblemPracticeGenerationRequest;
+    generationRequests.push(generationRequest);
+    const topicId = generationRequest.previewContext?.session?.topicIds?.[0];
+    if (!generationRequest.planSessionId || !topicId) {
+      throw new Error("Expected the committed problem-practice session and its topic in the generation request.");
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(practiceProblemsSessionResponse({
+        planSessionId: generationRequest.planSessionId,
+        routeRevisionId: generationRequest.routeRevisionId,
+        topicId,
+      })),
+    });
+  });
+  await page.route("**/api/sessions/evaluate", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        verdict: "secure",
+        feedback: "The corrected setup keeps the low-function derivative first and squares the original denominator.",
+        matchedIdeas: ["The quotient-rule numerator order and denominator square are both present."],
+        missingIdeas: [],
+        mode: "preview",
+      }),
+    });
+  });
+
+  await createPreviewAccount(page);
+  await completeOnboarding(page);
+  await page.getByRole("button", { name: "Study something now", exact: true }).first().click();
+  await page.getByPlaceholder("Example: Help me understand the product rule and practice using it.").fill(
+    "Give me quotient-rule practice problems so I can test whether I can solve them independently.",
+  );
+  await page.getByRole("button", { name: "I understand the basics but need practice" }).click();
+  await page.getByRole("button", { name: /Choose how YOVA should help/ }).click();
+  await page.getByRole("button", { name: /Create it for me/ }).click();
+  await page.getByRole("button", { name: /Build and start session/ }).click();
+  await confirmSessionSetup(page);
+
+  expect(generationRequests[0]?.previewContext?.studyRoute?.approach?.primaryMethodId).toBe("practice_problems");
+  await expect(page.getByRole("heading", { name: "Set up the quotient rule without support" })).toBeVisible();
+  await expect(page.getByLabel("Method phase 1 of 3")).toContainText("Perform independently");
+  await expect(page.getByLabel("Show your reasoning")).toBeVisible();
+  await expect(page.locator(".answer-grid")).toHaveCount(0);
+  await expect(page.locator(".teaching-lesson")).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Somewhat sure" }).click();
+  await page.getByRole("button", { name: "I don't know yet" }).click();
+  await expect(page.getByText("MODEL ANSWER")).toBeVisible();
+  await page.getByRole("button", { name: "Repair this idea" }).click();
+
+  await expect(page.getByText("Repair now, verify later")).toBeVisible();
+  const targetedRepair = page.getByRole("region", { name: "Adaptive repair: One clue first" });
+  await expect(targetedRepair).toBeVisible();
+  await expect(targetedRepair).toContainText("Quotient-rule numerator order");
+  await expect(targetedRepair).toContainText(/target has not changed/i);
+  await page.getByLabel("Corrected idea in your own words").fill(
+    "Differentiate the numerator first, keep the denominator, then subtract the numerator times the denominator derivative.",
+  );
+  await page.getByRole("button", { name: "Check my answer" }).click();
+  await expect(page.getByText("The key idea is present.")).toBeVisible();
+  await page.getByRole("button", { name: "I got the key idea" }).click();
+  await page.getByRole("button", { name: "Continue" }).click();
+
+  await expect(page.getByRole("heading", { name: "Transfer the quotient rule to a trigonometric numerator" })).toBeVisible();
+  await expect(page.getByLabel("Method phase 3 of 4")).toContainText("Apply it in a new context");
+  await expect(page.locator(".session-activity-instruction")).toContainText(
+    "Differentiate a different function with the same rule",
+  );
+  await expect(page.getByLabel("Show your reasoning")).toBeVisible();
+});
+
 test("a support request keeps the committed practice recipe when fallback generation fails", async ({ page }) => {
   await page.route("**/api/sessions/generate", async (route) => {
     await route.fulfill({
@@ -3005,6 +3092,65 @@ test("scheduled-review setup stays fixed and opens the exact active or Study Now
   });
 });
 
+test("a normal conceptual plan visibly moves from Learn to later Practice and commits both route modes", async ({ page }) => {
+  await createPreviewAccount(page);
+  await completeOnboarding(page);
+
+  await beginPlanFromAdd(page, "Build me a plan to understand cellular respiration from scratch.");
+  await expect(page.getByRole("heading", { name: "When would you prefer to study this material?" })).toBeVisible();
+  await page.getByRole("button", { name: "45 minutes", exact: true }).click();
+  await page.getByRole("button", { name: "Continue" }).click();
+  await page.getByRole("button", { name: "Skip for now" }).click();
+  await page.getByRole("button", { name: "Generate my plan" }).click();
+  await expect(page.getByText("Plan ready")).toBeVisible({ timeout: 30_000 });
+
+  const visibleDraftRoutes = await page.locator(".generated-timeline article").evaluateAll((articles) => (
+    articles.map((article) => ({
+      title: article.querySelector("h3")?.textContent?.trim() ?? "",
+      modeLabel: article.querySelector("small")?.textContent?.trim() ?? "",
+    }))
+  ));
+  const visibleLearnIndex = visibleDraftRoutes.findIndex((session) => (
+    session.modeLabel.startsWith("TEACHING FIRST")
+  ));
+  const visiblePracticeIndex = visibleDraftRoutes.findIndex((session, index) => (
+    index > visibleLearnIndex && session.modeLabel.startsWith("PRACTICE FIRST")
+  ));
+  expect(visibleLearnIndex, JSON.stringify(visibleDraftRoutes)).toBeGreaterThanOrEqual(0);
+  expect(visiblePracticeIndex, JSON.stringify(visibleDraftRoutes)).toBeGreaterThan(visibleLearnIndex);
+
+  await page.getByRole("button", { name: "Use this plan" }).click();
+  await expect(page.getByRole("heading", { name: "Your plan" })).toBeVisible();
+
+  const activatedRoutes = await page.evaluate(() => {
+    const raw = window.localStorage.getItem("yova.preview.v1");
+    if (!raw) throw new Error("Expected the activated conceptual plan in preview storage.");
+    const snapshot = JSON.parse(raw) as { plans?: LearningPlan[] };
+    const plan = snapshot.plans?.at(-1);
+    if (!plan) throw new Error("Expected the latest activated conceptual plan.");
+    return plan.sessions.map((session) => ({
+      title: session.title,
+      learningMode: session.learningMode,
+      routeMode: session.studyRoute?.approach.mode ?? null,
+      lifecycle: session.studyRoute?.identity.lifecycleStatus ?? null,
+    }));
+  });
+  expect(activatedRoutes.map((session) => session.title)).toEqual(
+    visibleDraftRoutes.map((session) => session.title),
+  );
+  const committedLearnIndex = activatedRoutes.findIndex((session) => (
+    session.learningMode === "learn" && session.routeMode === "learn"
+  ));
+  const committedPracticeIndex = activatedRoutes.findIndex((session, index) => (
+    index > committedLearnIndex
+    && session.learningMode === "study"
+    && session.routeMode === "practice"
+  ));
+  expect(committedLearnIndex, JSON.stringify(activatedRoutes)).toBe(visibleLearnIndex);
+  expect(committedPracticeIndex, JSON.stringify(activatedRoutes)).toBe(visiblePracticeIndex);
+  expect(activatedRoutes.every((session) => session.lifecycle === "committed")).toBe(true);
+});
+
 test("normal-plan review changes one offered method without regenerating or rewriting other routes", async ({ page }) => {
   let planGenerationRequests = 0;
   page.on("request", (request) => {
@@ -3912,6 +4058,112 @@ async function exitSessionWithoutProgress(page: Page) {
   await page.getByRole("button", { name: "Exit" }).dispatchEvent("click");
   await expect(page.getByRole("dialog", { name: "Your plan will stay open." })).toBeVisible();
   await page.getByRole("button", { name: "Save progress and leave" }).dispatchEvent("click");
+}
+
+function practiceProblemsSessionResponse({
+  planSessionId,
+  routeRevisionId,
+  topicId,
+}: {
+  planSessionId: string;
+  routeRevisionId?: string;
+  topicId: string;
+}) {
+  const response = streamedResumeSessionResponse(routeRevisionId);
+  const question = response.session.activities[2]!;
+  const reflection = response.session.activities[0]!;
+
+  return SessionGenerationResponseSchema.parse({
+    ...response,
+    planSessionId,
+    session: {
+      ...response.session,
+      topicIds: [topicId],
+      routingContext: {
+        taskType: "problem_solving",
+        knowledgeStage: "developing",
+      },
+      rationale: "Begin with a complete unsupported quotient-rule setup, repair only an observed miss, and then require a changed-context transfer problem.",
+      coverage: {
+        focus: "Apply the quotient rule independently and preserve its numerator order in a different function.",
+        essentialIdeas: ["The quotient rule differentiates the numerator and denominator in a fixed subtraction order and squares the original denominator."],
+        completionEvidence: ["Set up one representative quotient-rule derivative and one changed-context derivative without a shown solution."],
+        evidenceMap: [{
+          essentialIdea: "The quotient rule differentiates the numerator and denominator in a fixed subtraction order and squares the original denominator.",
+          activityConcept: "Quotient-rule numerator order",
+        }],
+        deferredContent: [],
+      },
+      methodBriefing: {
+        ...response.session.methodBriefing,
+        learningMode: "study",
+        taskType: "problem_solving",
+        methodId: "practice_problems",
+        name: "Practice Problems",
+        what: "Attempt one representative quotient-rule problem before feedback, then solve a changed-context problem.",
+        why: "An unsupported setup shows whether the learner can choose and apply the rule instead of only recognizing it.",
+        how: [
+          "Write the complete quotient-rule setup before looking at the comparison.",
+          "Repair only the exact gap exposed by the attempt.",
+          "Apply the same rule to a different numerator and denominator.",
+        ],
+        completion: "Complete the representative and changed-context problems without seeing either solution first.",
+      },
+      activities: [{
+        ...question,
+        topicId,
+        methodPhase: "independent_practice",
+        estimatedMinutes: 7,
+        type: "free_response",
+        concept: "Quotient-rule numerator order",
+        label: "Practice problem",
+        title: "Set up the quotient rule without support",
+        body: "Differentiate f(x) = (x² + 1) / (x - 3). Show the quotient-rule setup before simplifying.",
+        teaching: null,
+        lessonBrief: null,
+        practiceIntent: "baseline",
+        misconceptionSummary: "Reverses the quotient-rule numerator order or forgets to square the original denominator.",
+        choices: [],
+        correctAnswer: "f'(x) = [2x(x - 3) - (x² + 1)] / (x - 3)².",
+        feedback: "Differentiate the numerator first, keep the denominator, subtract the numerator times the denominator derivative, and square the original denominator.",
+      }, {
+        ...question,
+        topicId,
+        methodPhase: "transfer",
+        estimatedMinutes: 7,
+        type: "free_response",
+        concept: "Quotient-rule transfer",
+        label: "Changed context",
+        title: "Transfer the quotient rule to a trigonometric numerator",
+        body: "Differentiate a different function with the same rule: g(x) = sin(x) / (x² + 1). Show your work and the complete derivative setup.",
+        teaching: null,
+        lessonBrief: null,
+        practiceIntent: "independent_transfer",
+        misconceptionSummary: null,
+        choices: [],
+        correctAnswer: "g'(x) = [cos(x)(x² + 1) - sin(x)(2x)] / (x² + 1)².",
+        feedback: "The changed context keeps the same quotient-rule order while both derivative components and the denominator are different.",
+      }, {
+        ...reflection,
+        topicId: null,
+        methodPhase: "reflect",
+        estimatedMinutes: 2,
+        requiredForCompletion: false,
+        type: "reflection",
+        concept: null,
+        label: "Reflect",
+        title: "Name the rule that stayed fixed",
+        body: "Notice which quotient-rule relationships stayed fixed when the function changed.",
+        teaching: null,
+        lessonBrief: null,
+        practiceIntent: null,
+        misconceptionSummary: null,
+        choices: [],
+        correctAnswer: null,
+        feedback: null,
+      }],
+    },
+  });
 }
 
 function streamedResumeSessionResponse(routeRevisionId?: string) {

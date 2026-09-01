@@ -34,12 +34,73 @@ type StartingEvidence = {
   }>;
 };
 
+const WORK_PRODUCT_NOUN = "(?:essay|paper|report|thesis|speech|presentation|slide deck|slides|talk|debate|script|speaker notes|project|portfolio|proposal)";
+const WORK_PRODUCT_DETERMINER = "(?:(?:a|an|the|my|our|your|his|her|their|this|that)\\s+)?";
+const WORK_PRODUCT_MODIFIERS = "(?:(?!(?:for|from|of|about|on|using|based|before|after|questions?|problems?|material|content|notes?)\\b)[\\w,'-]+\\s+){0,5}";
+const DIRECT_WORK_PRODUCT = `${WORK_PRODUCT_DETERMINER}${WORK_PRODUCT_MODIFIERS}${WORK_PRODUCT_NOUN}`;
+const WORK_PRODUCT_ACTION_PATTERN = new RegExp(
+  `\\b(?:write|draft|revise|compose|create|build|complete|finish|plan|outline|rehearse|practice|deliver|present|prepare)\\s+${DIRECT_WORK_PRODUCT}\\b`,
+  "i",
+);
+const WORK_PRODUCT_REHEARSAL_PATTERN = new RegExp(
+  `\\b(?:practice|rehearse)\\s+(?:(?:a|an|the|my|our|your|his|her|their)\\s+)?(?:delivery|rehearsal|run-through)\\s+of\\s+${DIRECT_WORK_PRODUCT}\\b`,
+  "i",
+);
+const UNSTARTED_WORK_PRODUCT_SOURCE = "(?:not started|not begun|haven't started|have not started|hasn't started|has not started|haven't begun|have not begun|hasn't begun|has not begun)";
+const WORK_PRODUCT_UNSTARTED_BEFORE_PATTERN = new RegExp(
+  `\\b${UNSTARTED_WORK_PRODUCT_SOURCE}\\b(?:\\s+(?:working\\s+)?on)?\\s+${DIRECT_WORK_PRODUCT}\\b`,
+  "i",
+);
+const WORK_PRODUCT_UNSTARTED_AFTER_PATTERN = new RegExp(
+  `\\b${DIRECT_WORK_PRODUCT}\\s+(?:is|remains|hasn't been|has not been)\\s+(?:not started|not begun)\\b`,
+  "i",
+);
+const WORK_PRODUCT_HELP_PATTERN = new RegExp(
+  `\\b(?:need|want|would like|looking for)\\s+(?:some\\s+)?help\\s+(?:with|on)\\s+${DIRECT_WORK_PRODUCT}\\b`,
+  "i",
+);
+const WORK_PRODUCT_TOPIC_QUALIFIER = "(?:\\s+(?:about|on)\\s+(?:(?!(?:is|are)\\s+due\\b)[\\w,'-]+\\s+){0,7}(?!(?:is|are)\\s+due\\b)[\\w,'-]+)?";
+const WORK_PRODUCT_DUE_PATTERN = new RegExp(
+  `\\b(?:my|our|your|his|her|their)\\s+${WORK_PRODUCT_MODIFIERS}${WORK_PRODUCT_NOUN}${WORK_PRODUCT_TOPIC_QUALIFIER}\\s+(?:is|are)\\s+due\\b`,
+  "i",
+);
+const WORK_PRODUCT_OWNERSHIP_DUE_PATTERN = new RegExp(
+  `\\b(?:i|we)\\s+have\\s+${DIRECT_WORK_PRODUCT}${WORK_PRODUCT_TOPIC_QUALIFIER}\\s+due\\b`,
+  "i",
+);
+const UNSTARTED_WORK_PRODUCT_PATTERN = new RegExp(`\\b${UNSTARTED_WORK_PRODUCT_SOURCE}\\b`, "i");
+
+/**
+ * Identifies bounded work-product goals without treating every assignment or
+ * every use of "prepare for" as evidence that the learner needs first
+ * instruction. The internal Learn route is also YOVA's supported-start route,
+ * so it is the honest binary representation for a first draft or rehearsal.
+ */
+export function isWorkProductGoal(value: string) {
+  return WORK_PRODUCT_ACTION_PATTERN.test(value)
+    || WORK_PRODUCT_REHEARSAL_PATTERN.test(value)
+    || WORK_PRODUCT_UNSTARTED_BEFORE_PATTERN.test(value)
+    || WORK_PRODUCT_UNSTARTED_AFTER_PATTERN.test(value)
+    || WORK_PRODUCT_HELP_PATTERN.test(value)
+    || WORK_PRODUCT_DUE_PATTERN.test(value)
+    || WORK_PRODUCT_OWNERSHIP_DUE_PATTERN.test(value);
+}
+
 export function resolveLearningIntent(evidence: StartingEvidence): LearningIntentRecommendation {
   const startingPoint = evidence.startingPoint?.toLowerCase() ?? "";
   if (/haven't learned|have not learned|new to|completely new|know nothing|none yet|never (?:learned|seen)|doesn't make sense|does not make sense|starting from scratch/.test(startingPoint)) {
     return {
       intent: "learn",
       reason: "You said this is new or not yet clear, so YOVA should build understanding before expecting recall.",
+    };
+  }
+  if (
+    isWorkProductGoal(evidence.goal)
+    && UNSTARTED_WORK_PRODUCT_PATTERN.test(`${startingPoint} ${evidence.goal}`)
+  ) {
+    return {
+      intent: "learn",
+      reason: "This work product has not been started yet, so YOVA should begin with a supported model, first draft, or rehearsal before asking for independent production.",
     };
   }
   if (/need practice|test my recall|mostly reviewing|understand the basics|already learned/.test(startingPoint)) {
@@ -126,6 +187,12 @@ export function teachingFirstSessionCopy(topic: string) {
 
 export function recommendLearningIntent(goal: string): LearningIntentRecommendation {
   const normalized = goal.toLowerCase();
+  if (isWorkProductGoal(normalized)) {
+    return {
+      intent: "learn",
+      reason: "This goal is to build or rehearse a work product, so YOVA should begin with a supported model, criteria, or first attempt before independent production.",
+    };
+  }
   const learningSignal = /\b(learn|understand|teach me|explain|new to|from scratch|beginner|how does|fundamentals|foundations)\b/.test(normalized);
   const studySignal = /\b(study|review|prepare|test|exam|quiz|final|recall|remember|practice test|flashcards?|cram)\b/.test(normalized);
 

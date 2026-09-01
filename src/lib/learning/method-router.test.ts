@@ -98,9 +98,29 @@ describe("learning-science method router", () => {
     ["Memorize French vocabulary definitions", "memorization"],
     ["Recall the dates and facts from the Civil War unit", "memorization"],
     ["Draft a comparative essay using the writing rubric", "writing_argumentation"],
+    ["Draft a comparative history thesis using textbook evidence", "writing_argumentation"],
+    ["Prepare a persuasive speech with evidence and a clear conclusion", "writing_argumentation"],
+    ["Build a presentation with speaker notes and an evidence-based argument", "writing_argumentation"],
+    ["Rehearse my debate opening and rebuttal", "writing_argumentation"],
+    ["Practice the delivery of my keynote talk", "writing_argumentation"],
+    ["I have not started my essay", "writing_argumentation"],
+    ["I need help with my persuasive speech", "writing_argumentation"],
+    ["My presentation is due tomorrow", "writing_argumentation"],
+    ["I have a 1,500-word history essay due in 14 days and I have not started yet", "writing_argumentation"],
+    ["My persuasive speech about renewable energy is due in 14 days and I have not started it yet", "writing_argumentation"],
+    ["I need to build a biology presentation with slides and speaker notes due in 14 days and I have not started yet", "writing_argumentation"],
     ["Prepare for a cumulative biology final with a practice test", "mixed_assessment"],
   ] as const)("routes %s as %s", (scenario, expectedTaskType) => {
     expect(classifyLearningTask(scenario).taskType).toBe(expectedTaskType);
+  });
+
+  it.each([
+    "Read and study a research paper due Friday for a quiz",
+    "Practice biology questions from the presentation slides before the final",
+    "Prepare from my presentation slides for the biology exam",
+    "The research paper is assigned reading and I have not started studying it for the quiz",
+  ])("does not confuse a paper or slides used as study material with artifact production: %s", (scenario) => {
+    expect(classifyLearningTask(scenario).taskType).not.toBe("writing_argumentation");
   });
 
   it("uses the session objective instead of letting a source or old method determine the task", () => {

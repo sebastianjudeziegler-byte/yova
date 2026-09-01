@@ -580,6 +580,7 @@ export async function POST(request: Request) {
         reviewType,
         reviewConcept,
         estimatedMinutes: routeGeneration.activeMinutes,
+        executionEnvironment: routeGeneration.executionEnvironment,
       })
       : null;
     const cachedRouteContractIssue = cached

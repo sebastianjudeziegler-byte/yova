@@ -4,6 +4,11 @@ import {
   buildSourceGroundedDegradedSession,
   type SourceGroundedDegradedSessionInput,
 } from "@/lib/session-generation/source-grounded-degraded";
+import { cachedSessionActivityContractIssue } from "@/lib/session-generation/cache-activity-contract";
+import {
+  sessionLearnerFacingWordCount,
+  validateSessionTimeBudget,
+} from "@/lib/session-generation/time-budget";
 
 const TOPIC_ID = "11111111-1111-4111-8111-111111111111";
 const MATERIAL_ID = "22222222-2222-4222-8222-222222222222";
@@ -23,6 +28,7 @@ function input(
     architecture,
     objective: "Explain how the sodium-potassium pump maintains cellular ion gradients.",
     learningMode: "learn",
+    executionEnvironment: "inside_yova",
     taskType: "conceptual_learning",
     methodId: "self_explanation",
     methodName: "Feynman Technique",
@@ -82,7 +88,26 @@ describe("source-grounded degraded session", () => {
       "explain",
       "repair",
       "reexplain",
+      "transfer",
     ]);
+    const recognition = draft?.activities.at(-1);
+    expect(recognition).toMatchObject({
+      type: "multiple_choice",
+      requiredForCompletion: true,
+      choices: expect.any(Array),
+    });
+    expect(recognition?.choices).toHaveLength(4);
+    expect(recognition?.choices).toContain(recognition?.correctAnswer);
+    expect(recognition?.choices.every((choice) => (
+      SOURCE_TEXT.replace(/\s+/gu, " ").includes(choice)
+    ))).toBe(true);
+    const firstAttempt = draft?.activities.find((activity) => (
+      activity.methodPhase === "explain"
+    ));
+    expect(firstAttempt?.body).toMatch(/source closed.*after the attempt, compare with the verified answer/i);
+    expect(firstAttempt?.feedback).toMatch(/compare.*then repair only what the verified text supports/i);
+    expect(sessionLearnerFacingWordCount(draft!)).toBeLessThanOrEqual(450);
+    expect(validateSessionTimeBudget(draft!, 15)).toBeNull();
     expect(draft?.sourceGrounding).toMatchObject({
       mode: "materials_only",
       anchors: [expect.objectContaining({ chunkId: CHUNK_ID })],
@@ -106,6 +131,37 @@ describe("source-grounded degraded session", () => {
         text: SOURCE_TEXT,
       })],
     });
+    const finalTeachingIndex = draft?.activities.findLastIndex((activity) => (
+      "lessonBrief" in activity && Boolean(activity.lessonBrief)
+    )) ?? -1;
+    const recognitionIndex = draft?.activities.findIndex((activity) => (
+      activity.type === "multiple_choice"
+    )) ?? -1;
+    expect(recognitionIndex).toBeGreaterThan(finalTeachingIndex);
+  });
+
+  it("passes the same Learn activity contract when reused from cache and rejects a stripped recognition check", () => {
+    const draft = buildSourceGroundedDegradedSession(input("streamed"));
+    expect(draft).not.toBeNull();
+    expect(cachedSessionActivityContractIssue(draft!, {
+      reviewType: null,
+      reviewConcept: null,
+      estimatedMinutes: 15,
+      executionEnvironment: "inside_yova",
+    })).toBeNull();
+
+    const withoutRecognition = {
+      ...draft!,
+      activities: draft!.activities.filter((activity) => (
+        activity.type !== "multiple_choice"
+      )),
+    };
+    expect(cachedSessionActivityContractIssue(withoutRecognition, {
+      reviewType: null,
+      reviewConcept: null,
+      estimatedMinutes: 15,
+      executionEnvironment: "inside_yova",
+    })).toMatch(/multiple-choice recall check after the final teaching block/i);
   });
 
   it("refuses scope outlines because deterministic fallback cannot invent their teaching", () => {
@@ -141,6 +197,29 @@ describe("source-grounded degraded session", () => {
     expect(buildSourceGroundedDegradedSession(conceptMapping)).toBeNull();
   });
 
+  it.each([
+    { label: "Practice", configure: (candidate: SourceGroundedDegradedSessionInput) => {
+      candidate.learningMode = "study";
+      candidate.methodId = "retrieval_practice";
+      candidate.methodName = "Retrieval Practice";
+    } },
+    { label: "writing", configure: (candidate: SourceGroundedDegradedSessionInput) => {
+      candidate.taskType = "writing_argumentation";
+    } },
+    { label: "outside YOVA", configure: (candidate: SourceGroundedDegradedSessionInput) => {
+      candidate.executionEnvironment = "outside_yova";
+    } },
+  ])("does not force the knowledge-Learn MCQ into $label degradation", ({ configure }) => {
+    const candidate = input();
+    configure(candidate);
+    const draft = buildSourceGroundedDegradedSession(candidate);
+
+    expect(draft).not.toBeNull();
+    expect(draft?.activities.some((activity) => (
+      activity.type === "multiple_choice"
+    ))).toBe(false);
+  });
+
   it("preserves committed route identity while explicitly deferring an unsupported mixed-authority target", () => {
     const mixed = input("streamed");
     const aiTopicId = "44444444-4444-4444-8444-444444444444";
@@ -173,6 +252,14 @@ describe("source-grounded degraded session", () => {
     expect(draft?.activities.filter((activity) => activity.topicId).map((activity) => (
       activity.topicId
     ))).not.toContain(aiTopicId);
+    const recognition = draft?.activities.find((activity) => (
+      activity.type === "multiple_choice"
+    ));
+    expect(recognition).toBeDefined();
+    expect(JSON.stringify(recognition)).not.toContain(aiTarget);
+    expect(recognition?.choices.every((choice) => (
+      SOURCE_TEXT.replace(/\s+/gu, " ").includes(choice)
+    ))).toBe(true);
     expect(JSON.stringify(draft)).not.toContain("neighboring continuation generated");
   });
 });

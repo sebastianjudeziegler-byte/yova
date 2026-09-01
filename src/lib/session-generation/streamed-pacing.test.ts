@@ -83,6 +83,102 @@ describe("streamed teaching pacing", () => {
   });
 
   it.each([
+    { methodId: "self_explanation" as const, minutes: 15, activeIdeas: 1, baselineMaximum: 4, recognitionMaximum: 5 },
+    { methodId: "self_explanation" as const, minutes: 25, activeIdeas: 2, baselineMaximum: 5, recognitionMaximum: 6 },
+    { methodId: "self_explanation" as const, minutes: 45, activeIdeas: 3, baselineMaximum: 8, recognitionMaximum: 8 },
+    { methodId: "retrieval_practice" as const, minutes: 15, activeIdeas: 1, baselineMaximum: 4, recognitionMaximum: 4 },
+    { methodId: "retrieval_practice" as const, minutes: 25, activeIdeas: 2, baselineMaximum: 5, recognitionMaximum: 6 },
+    { methodId: "retrieval_practice" as const, minutes: 45, activeIdeas: 3, baselineMaximum: 8, recognitionMaximum: 8 },
+    { methodId: "worked_example_fading" as const, minutes: 15, activeIdeas: 1, baselineMaximum: 4, recognitionMaximum: 4 },
+    { methodId: "worked_example_fading" as const, minutes: 25, activeIdeas: 2, baselineMaximum: 5, recognitionMaximum: 5 },
+    { methodId: "worked_example_fading" as const, minutes: 45, activeIdeas: 3, baselineMaximum: 8, recognitionMaximum: 8 },
+  ])("reserves honest post-method recognition capacity for $methodId at $minutes minutes without widening scope", ({
+    methodId,
+    minutes,
+    activeIdeas,
+    baselineMaximum,
+    recognitionMaximum,
+  }) => {
+    const baseline = streamedTeachingPacingContract({
+      availableMinutes: minutes,
+      activeIdeaCount: activeIdeas,
+      maximumFocusedActivities: baselineMaximum,
+      methodId,
+    });
+    const withRecognition = streamedTeachingPacingContract({
+      availableMinutes: minutes,
+      activeIdeaCount: activeIdeas,
+      maximumFocusedActivities: recognitionMaximum,
+      maximumActiveIdeas: baseline.minimumActiveIdeas,
+      methodId,
+      reservePostMethodRecognition: true,
+    });
+
+    expect(withRecognition.maximumFocusedActivities).toBe(recognitionMaximum);
+    expect(withRecognition.minimumActiveIdeas).toBe(baseline.minimumActiveIdeas);
+    expect(withRecognition.maximumFocusedActivities).toBeLessThanOrEqual(8);
+  });
+
+  it("lets a 15-minute Learn session keep self-explanation's four phases plus recognition while Practice keeps the normal cap", () => {
+    const idea = "Energy coupling connects an energy-releasing reaction to cellular work.";
+    const explain = {
+      ...question("Energy coupling", "explain"),
+      methodPhase: "explain" as const,
+      estimatedMinutes: 3,
+    };
+    const repair = {
+      ...explain,
+      methodPhase: "repair" as const,
+      estimatedMinutes: 2,
+      requiredForCompletion: false,
+      title: "Repair the explanation",
+    };
+    const reexplain = {
+      ...explain,
+      methodPhase: "reexplain" as const,
+      estimatedMinutes: 2,
+      requiredForCompletion: false,
+      title: "Explain the corrected relationship again",
+    };
+    const recognition: StreamedGeneratedSessionActivity = {
+      ...explain,
+      methodPhase: "transfer",
+      estimatedMinutes: 2,
+      type: "multiple_choice",
+      label: "Recall check",
+      title: "Recognize energy coupling",
+      body: "Which choice identifies the role of energy coupling?",
+      choices: [
+        "It connects released energy to cellular work.",
+        "It prevents all energy-releasing reactions.",
+        "It replaces enzymes with stored energy.",
+        "It removes the need for a coupled reaction.",
+      ],
+      correctAnswer: "It connects released energy to cellular work.",
+      feedback: "Energy coupling uses energy released by one reaction to support cellular work.",
+    };
+    const learnDraft = sessionDraft([
+      { ...instruction("Teach energy coupling", idea), estimatedMinutes: 3 },
+      explain,
+      repair,
+      reexplain,
+      recognition,
+    ], [idea]);
+    learnDraft.methodBriefing = {
+      ...learnDraft.methodBriefing,
+      learningMode: "learn",
+      methodId: "self_explanation",
+      name: "Feynman Technique",
+    };
+
+    expect(validateSessionTimeBudget(learnDraft, 15)).toBeNull();
+    expect(validateSessionTimeBudget({
+      ...learnDraft,
+      methodBriefing: { ...learnDraft.methodBriefing, learningMode: "study" },
+    }, 15)).toMatch(/at most 4 focused activities/i);
+  });
+
+  it.each([
     { minutes: 25, claimCount: 2 },
     { minutes: 45, claimCount: 3 },
     { minutes: 60, claimCount: 4 },

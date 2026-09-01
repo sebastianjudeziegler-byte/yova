@@ -77,8 +77,9 @@ export type SessionDeliveryPolicy = z.infer<typeof SessionDeliveryPolicySchema>;
 /**
  * Pacing preferences may reduce optional transitions, but they cannot make an
  * already-selected learning method impossible to deliver. Required recipe
- * phases are immutable evidence work; the focused-activity cap is presentation
- * policy and expands only as far as that recipe requires.
+ * phases and the post-teaching Learn recognition check are immutable evidence
+ * work; the focused-activity cap is presentation policy and expands only as
+ * far as that complete contract requires.
  */
 export function reconcileSessionDeliveryPolicyWithMethodRecipe({
   policy,
@@ -89,10 +90,12 @@ export function reconcileSessionDeliveryPolicyWithMethodRecipe({
   methodId: CoreMethodId;
   learningMode: SessionLearningMode;
 }): SessionDeliveryPolicy {
-  const requiredFocusedActivities = methodFidelityContractForPrompt(
+  const requiredMethodActivities = methodFidelityContractForPrompt(
     methodId,
     learningMode,
   ).requiredPhases.filter((phase) => phase !== "schedule_return").length;
+  const requiredFocusedActivities = requiredMethodActivities
+    + (learningMode === "learn" ? 1 : 0);
   if (requiredFocusedActivities <= policy.pacing.maximumActivities) return policy;
   if (requiredFocusedActivities > 8) {
     throw new Error(`${methodId} requires more focused activities than one guided session can safely render.`);
@@ -102,7 +105,7 @@ export function reconcileSessionDeliveryPolicyWithMethodRecipe({
     pacing: {
       ...policy.pacing,
       maximumActivities: requiredFocusedActivities,
-      reason: `${policy.pacing.reason.slice(0, 170)} The selected method requires ${requiredFocusedActivities} distinct evidence phases, so those phases remain intact.`,
+      reason: `${policy.pacing.reason.slice(0, 150)} The selected method and Learn recall contract require ${requiredFocusedActivities} distinct focused activities, so those activities remain intact.`,
     },
   });
 }

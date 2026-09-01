@@ -12,11 +12,11 @@ import {
 import {
   methodFidelityContractForPrompt,
   type MethodPhase,
-  validateMethodFidelity,
 } from "@/lib/learning/method-fidelity";
 import { mapTargetsToKnowledgeTopics } from "@/lib/learning/target-topic-mapping";
-import type { SessionLearningMode } from "@/lib/domain";
+import type { SessionLearningMode, StudyMode } from "@/lib/domain";
 import type { LessonDeliveryInstructions } from "@/lib/personalization/session-delivery-policy";
+import { cachedSessionActivityContractIssue } from "@/lib/session-generation/cache-activity-contract";
 import {
   GeneratedSessionDraftSchema,
   StreamedGeneratedSessionDraftSchema,
@@ -36,6 +36,7 @@ export type SourceGroundedDegradedSessionInput = {
   architecture: DegradedArchitecture;
   objective: string;
   learningMode: SessionLearningMode;
+  executionEnvironment: StudyMode;
   taskType: LearningTaskType;
   methodId: CoreMethodId;
   methodName?: string | null;
@@ -236,7 +237,7 @@ function buildTrustedSourceGroundedDegradedSession(
     ideaAssignments.map((assignment) => [assignment.questionIndex, assignment]),
   );
 
-  const activities = phases.map((phase, index) => {
+  const methodActivities = phases.map((phase, index) => {
     const assigned = assignmentByQuestionIndex.get(index)
       ?? ideaAssignments[index % ideaAssignments.length]!;
     return input.architecture === "streamed"
@@ -250,6 +251,17 @@ function buildTrustedSourceGroundedDegradedSession(
       })
       : filledActivity({ phase, index, assigned, input });
   });
+  const recognitionActivity = requiresSourceGroundedLearnRecognition(input)
+    ? sourceGroundedRecognitionActivity({
+      assigned: ideaAssignments.at(-1)!,
+      deferredTargets: input.deferredContentTargets,
+      streamed: input.architecture === "streamed",
+    })
+    : null;
+  if (requiresSourceGroundedLearnRecognition(input) && !recognitionActivity) return null;
+  const activities = recognitionActivity
+    ? insertBeforeDelayedReturn(methodActivities, recognitionActivity)
+    : methodActivities;
   const completionEvidence = uniqueText(input.completionEvidence).slice(0, 3);
   const draft = {
     topicIds: input.routeTopicIds ?? input.topicIds,
@@ -288,10 +300,11 @@ function buildTrustedSourceGroundedDegradedSession(
 
   const routeIssue = sourceGroundedFallbackRouteIssue(parsed.data, input.studyRoute);
   const timeIssue = validateSessionTimeBudget(parsed.data, input.estimatedMinutes);
-  const methodIssue = validateMethodFidelity({
-    methodId: input.methodId,
-    learningMode: input.learningMode,
-    activities: parsed.data.activities,
+  const cacheContractIssue = cachedSessionActivityContractIssue(parsed.data, {
+    reviewType: null,
+    reviewConcept: null,
+    estimatedMinutes: input.estimatedMinutes,
+    executionEnvironment: input.executionEnvironment,
   });
   const runtimeIssue = validateMethodRuntimeActivities(
     input.methodId,
@@ -322,7 +335,7 @@ function buildTrustedSourceGroundedDegradedSession(
       maximumFocusedActivities: input.maximumActivities,
     })
     : null;
-  return routeIssue || timeIssue || methodIssue || runtimeIssue || completionIssue || streamedScopeIssue || streamedPacingIssue
+  return routeIssue || timeIssue || cacheContractIssue || runtimeIssue || completionIssue || streamedScopeIssue || streamedPacingIssue
     ? null
     : parsed.data;
 }
@@ -330,6 +343,8 @@ function buildTrustedSourceGroundedDegradedSession(
 type FallbackPhase = { methodPhase: MethodPhase; activeMinutes: number };
 
 function fallbackPhases(input: SourceGroundedDegradedSessionInput): FallbackPhase[] | null {
+  const recognitionMinutes = requiresSourceGroundedLearnRecognition(input) ? 2 : 0;
+  const methodMinutes = input.estimatedMinutes - recognitionMinutes;
   const routePhases = input.studyRoute?.execution.orderedPhases.map((phase) => ({
     methodPhase: phase.methodPhase,
     activeMinutes: phase.activeMinutes,
@@ -338,15 +353,16 @@ function fallbackPhases(input: SourceGroundedDegradedSessionInput): FallbackPhas
     input.methodId,
     input.learningMode,
   ).orderedPhases;
+  if (methodMinutes < methodPhases.length) return null;
   const routeMinutes = routePhases?.reduce((total, phase) => total + phase.activeMinutes, 0);
   const base = routePhases?.length
-    ? routeMinutes === input.estimatedMinutes
+    ? routeMinutes === methodMinutes
       ? routePhases
       : allocatePhaseMinutes(
         routePhases.map((phase) => phase.methodPhase),
-        input.estimatedMinutes,
+        methodMinutes,
       )
-    : allocatePhaseMinutes(methodPhases, input.estimatedMinutes);
+    : allocatePhaseMinutes(methodPhases, methodMinutes);
   let phases = base.flatMap(splitLongPhase);
 
   const minimumQuestionCount = Math.max(
@@ -383,7 +399,7 @@ function fallbackPhases(input: SourceGroundedDegradedSessionInput): FallbackPhas
   }
 
   const maximumActivities = Math.min(8, input.maximumActivities);
-  return phases.length <= maximumActivities ? phases : null;
+  return phases.length + (recognitionMinutes > 0 ? 1 : 0) <= maximumActivities ? phases : null;
 }
 
 function allocatePhaseMinutes(phases: MethodPhase[], totalMinutes: number): FallbackPhase[] {
@@ -537,6 +553,213 @@ type SourceAssignment = {
   questionIndex: number;
 };
 
+function requiresSourceGroundedLearnRecognition(
+  input: SourceGroundedDegradedSessionInput,
+) {
+  return input.learningMode === "learn"
+    && input.taskType !== "writing_argumentation"
+    && input.executionEnvironment === "inside_yova";
+}
+
+function sourceGroundedRecognitionActivity({
+  assigned,
+  deferredTargets,
+  streamed,
+}: {
+  assigned: SourceAssignment;
+  deferredTargets: string[];
+  streamed: boolean;
+}) {
+  const check = sourceGroundedRecognitionCheck(
+    assigned.source.text,
+    deferredTargets,
+  );
+  if (!check) return null;
+  return {
+    topicId: assigned.topic.id,
+    methodPhase: "transfer" as const,
+    estimatedMinutes: 2,
+    requiredForCompletion: true,
+    label: "Recall",
+    title: "Check the source",
+    body: check.prompt,
+    teaching: null,
+    ...(streamed ? { lessonBrief: null } : {}),
+    type: "multiple_choice" as const,
+    concept: assigned.concept,
+    choices: check.choices,
+    correctAnswer: check.correctAnswer,
+    feedback: check.feedback,
+    practiceIntent: null,
+    misconceptionSummary: null,
+    ...(streamed ? {} : { methodRuntime: null }),
+  };
+}
+
+/**
+ * Builds recognition without inventing a neighboring claim. The prompt is an
+ * exact-source cloze, and every answer choice is an exact contiguous phrase
+ * from the same active mapped chunk. If the chunk cannot safely supply four
+ * distinct choices, deterministic degradation remains unavailable.
+ */
+function sourceGroundedRecognitionCheck(
+  sourceText: string,
+  deferredTargets: string[],
+) {
+  const normalizedSource = sourceText.trim().replace(/\s+/gu, " ");
+  const sourceSentence = sourceSentences(normalizedSource)[0] ?? normalizedSource;
+  const sourceTokens = normalizedSource.split(" ");
+  const sentenceTokens = sourceSentence.split(" ");
+  if (sentenceTokens.length < 4 || sourceTokens.length < 4) return null;
+
+  for (const phraseLength of [3, 2, 1]) {
+    const sourcePhrases = sourcePhraseWindows(sourceTokens, phraseLength);
+    const sentencePhrases = sourcePhraseWindows(sentenceTokens, phraseLength);
+    if (sourcePhrases.length < 4 || sentencePhrases.length === 0) continue;
+
+    const correct = [...sentencePhrases].sort((left, right) => (
+      recognitionPhraseScore(right) - recognitionPhraseScore(left)
+      || left.index - right.index
+    ))[0]!;
+    const correctTokens = new Set(correct.tokens.map(normalizeRecognitionText));
+    const alternatives = sourcePhrases.filter((candidate) => (
+      normalizeRecognitionText(candidate.text) !== normalizeRecognitionText(correct.text)
+    ));
+    const preferredAlternatives = alternatives.filter((candidate) => (
+      candidate.tokens.filter((token) => (
+        correctTokens.has(normalizeRecognitionText(token))
+      )).length <= Math.floor(phraseLength / 2)
+    ));
+    const distractors = uniqueSourcePhrases([
+      ...preferredAlternatives,
+      ...alternatives,
+    ]).slice(0, 3);
+    if (distractors.length < 3) continue;
+
+    const windowStart = Math.max(0, correct.index - 3);
+    const windowEnd = Math.min(
+      sentenceTokens.length,
+      correct.index + phraseLength + 3,
+    );
+    const before = sentenceTokens.slice(windowStart, correct.index).join(" ");
+    const after = sentenceTokens.slice(correct.index + phraseLength, windowEnd).join(" ");
+    const excerpt = [
+      windowStart > 0 ? "…" : "",
+      before,
+      "_____",
+      after,
+      windowEnd < sentenceTokens.length ? "…" : "",
+    ].filter(Boolean).join(" ");
+    const prompt = boundedText(
+      `Complete this mapped-source statement: “${excerpt}”`,
+      280,
+    );
+    const feedback = boundedText(
+      `The exact mapped-source phrase is “${correct.text}.”`,
+      500,
+    );
+    const choices = distractors.map((candidate) => candidate.text);
+    choices.splice(stableCorrectChoiceIndex(correct.text), 0, correct.text);
+    const learnerSurface = [prompt, ...choices, feedback].join(" ");
+    if (containsExactDeferredLabel(learnerSurface, deferredTargets)) continue;
+    if (!choices.every((choice) => normalizedSource.includes(choice))) continue;
+
+    return {
+      prompt,
+      choices,
+      correctAnswer: correct.text,
+      feedback,
+    };
+  }
+
+  return null;
+}
+
+type SourcePhrase = {
+  text: string;
+  index: number;
+  tokens: string[];
+};
+
+function sourcePhraseWindows(
+  sourceTokens: string[],
+  phraseLength: number,
+): SourcePhrase[] {
+  const seen = new Set<string>();
+  return sourceTokens.flatMap((_, index) => {
+    const tokens = sourceTokens.slice(index, index + phraseLength);
+    if (tokens.length !== phraseLength) return [];
+    const text = tokens.join(" ");
+    const key = normalizeRecognitionText(text);
+    if (!key || seen.has(key) || text.length > 220) return [];
+    seen.add(key);
+    return [{
+      text,
+      index,
+      tokens,
+    }];
+  });
+}
+
+function recognitionPhraseScore(phrase: SourcePhrase) {
+  const numberWords = new Set([
+    "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten",
+  ]);
+  return phrase.tokens.reduce((score, token, index) => {
+    const normalized = normalizeRecognitionText(token);
+    const numeric = /^\d+$/u.test(normalized) || numberWords.has(normalized);
+    return score
+      + (numeric ? index === 0 ? 12 : 8 : 0)
+      + (normalized.length >= 6 ? 2 : normalized.length >= 4 ? 1 : 0);
+  }, 0);
+}
+
+function uniqueSourcePhrases(phrases: SourcePhrase[]) {
+  const seen = new Set<string>();
+  return phrases.filter((phrase) => {
+    const key = normalizeRecognitionText(phrase.text);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function stableCorrectChoiceIndex(value: string) {
+  return [...value].reduce((hash, character) => hash + character.codePointAt(0)!, 0) % 4;
+}
+
+function containsExactDeferredLabel(surface: string, deferredTargets: string[]) {
+  const normalizedSurface = ` ${normalizeRecognitionText(surface)} `;
+  return deferredTargets.some((target) => {
+    const normalizedTarget = normalizeRecognitionText(target);
+    return normalizedTarget.length > 0
+      && normalizedSurface.includes(` ${normalizedTarget} `);
+  });
+}
+
+function normalizeRecognitionText(value: string) {
+  return value.toLocaleLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+}
+
+function insertBeforeDelayedReturn<
+  Activity extends { methodPhase: MethodPhase },
+  Recognition extends { methodPhase: MethodPhase },
+>(
+  activities: Activity[],
+  recognition: Recognition,
+): Array<Activity | Recognition> {
+  const returnIndex = activities.findIndex((activity) => (
+    activity.methodPhase === "schedule_return"
+  ));
+  return returnIndex < 0
+    ? [...activities, recognition]
+    : [
+      ...activities.slice(0, returnIndex),
+      recognition,
+      ...activities.slice(returnIndex),
+    ];
+}
+
 function questionActivity({
   phase,
   assigned,
@@ -548,8 +771,8 @@ function questionActivity({
 }) {
   const body = boundedText(
     phase.methodPhase === "repair"
-      ? `Repair the earlier attempt using this verified rule: ${sourceAnswer(assigned.source.text)} Now state the corrected relationship in your own words without adding unsupported detail.`
-      : `Using only the mapped source section, explain or apply this target: ${assigned.idea}. Keep the source closed for the first attempt, then compare your answer with the verified excerpt.`,
+      ? `Repair with this exact mapped-source claim: ${assigned.idea} State the correction in your own words.`
+      : `With the source closed, explain this mapped claim: ${assigned.idea} After the attempt, compare with the verified answer.`,
     320,
   );
   return {
@@ -566,10 +789,7 @@ function questionActivity({
     concept: assigned.concept,
     choices: [],
     correctAnswer: boundedText(sourceAnswer(assigned.source.text), 600),
-    feedback: boundedText(
-      `Compare the meaning and relationship in your answer with the mapped source excerpt for ${assigned.concept}. Repair only what the verified text supports.`,
-      500,
-    ),
+    feedback: "Compare your response with the exact mapped-source answer, then repair only what the verified text supports.",
     practiceIntent: null,
     misconceptionSummary: null,
     ...(streamed ? {} : { methodRuntime: null }),

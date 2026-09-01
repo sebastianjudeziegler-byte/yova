@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   inferSessionFamiliarityFromText,
+  isWorkProductGoal,
   learningModeContract,
   resolveEffectiveSessionLearningMode,
   resolveLearningIntent,
@@ -19,6 +20,68 @@ describe("learning approach router", () => {
       goal: "Help me with derivative rules",
       startingPoint: "I understand the basics but need practice",
     })).toMatchObject({ intent: "study" });
+  });
+
+  it.each([
+    ["Prepare a persuasive speech about climate policy", "Not started"],
+    ["Build a presentation with speaker notes; I have not started it yet", ""],
+    ["Draft a comparative history essay", "I haven't begun"],
+    ["Draft a comparative history thesis using textbook evidence", ""],
+  ])("gives an unstarted work product a supported Learn start: %s", (goal, startingPoint) => {
+    expect(resolveLearningIntent({ goal, startingPoint })).toMatchObject({
+      intent: "learn",
+      reason: expect.stringMatching(/supported model|first draft|rehearsal/i),
+    });
+  });
+
+  it("treats preparation of a work product differently from preparation for an exam", () => {
+    expect(resolveLearningIntent({
+      goal: "Prepare a presentation about the July Crisis",
+    })).toMatchObject({ intent: "learn" });
+    expect(resolveLearningIntent({
+      goal: "Prepare for a biology exam on cellular respiration",
+    })).toMatchObject({ intent: "study" });
+  });
+
+  it("does not treat generic not-started wording as missing knowledge", () => {
+    expect(resolveLearningIntent({
+      goal: "Review derivative rules for tomorrow's exam",
+      startingPoint: "Not started",
+    })).toMatchObject({ intent: "study" });
+  });
+
+  it.each([
+    "I have not started my essay",
+    "I need help with my persuasive speech",
+    "My presentation is due tomorrow",
+    "I have a 1,500-word history essay due in 14 days and I have not started yet",
+    "My persuasive speech about renewable energy is due in 14 days and I have not started it yet",
+    "I need to build a biology presentation with slides and speaker notes due in 14 days and I have not started yet",
+  ])("recognizes an explicitly owned or requested work product: %s", (goal) => {
+    expect(isWorkProductGoal(goal)).toBe(true);
+    expect(resolveLearningIntent({ goal })).toMatchObject({ intent: "learn" });
+  });
+
+  it("lets explicit unstarted artifact evidence override only the generic Study Now practice default", () => {
+    const startingPoint = "I understand the basics but need practice";
+    expect(resolveLearningIntent({
+      goal: "I have not started my essay",
+      startingPoint,
+    })).toMatchObject({ intent: "learn" });
+    expect(resolveLearningIntent({
+      goal: "Revise my existing essay",
+      startingPoint,
+    })).toMatchObject({ intent: "study" });
+  });
+
+  it.each([
+    "Read and study a research paper due Friday for a quiz",
+    "Practice biology questions from the presentation slides before the final",
+    "Prepare from my presentation slides for the biology exam",
+    "The research paper is assigned reading and I have not started studying it for the quiz",
+  ])("keeps a paper or slides used as study material on the ordinary learning path: %s", (goal) => {
+    expect(isWorkProductGoal(goal)).toBe(false);
+    expect(resolveLearningIntent({ goal })).toMatchObject({ intent: "study" });
   });
 
   it("uses demonstrated starting evidence when no plain-language starting point is supplied", () => {

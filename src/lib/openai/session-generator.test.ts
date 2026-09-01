@@ -391,6 +391,20 @@ function pretestingDraft() {
     }, {
       topicId: TEST_TOPIC_ID,
       methodPhase: "transfer",
+      concept: "Funding recognition",
+      estimatedMinutes: 2,
+      requiredForCompletion: true,
+      label: "Recall",
+      title: "Recognize the exchange in a new case",
+      body: "After studying the model, identify the financial claim created when a lender supplies capital under a loan agreement.",
+      teaching: null,
+      type: "multiple_choice",
+      choices: ["A repayment right", "Automatic ownership control", "A customer contract", "A tax refund"],
+      correctAnswer: "A repayment right",
+      feedback: "Debt funding creates a contractual repayment claim rather than an ownership interest or operating contract.",
+    }, {
+      topicId: TEST_TOPIC_ID,
+      methodPhase: "transfer",
       concept: "Funding transfer",
       estimatedMinutes: 4,
       requiredForCompletion: true,
@@ -1059,6 +1073,7 @@ describe("pretesting full generation", () => {
       "pretest",
       "model",
       "transfer",
+      "transfer",
     ]);
     expect(cachedDraft.activities[0]).toMatchObject({
       type: "multiple_choice",
@@ -1122,6 +1137,7 @@ describe("pretesting full generation", () => {
     expect(result.draft.activities.map((activity) => activity.methodPhase)).toEqual([
       "pretest",
       "model",
+      "transfer",
       "transfer",
     ]);
     expect(prompt.outsideAppContract?.learningSequence).toMatch(

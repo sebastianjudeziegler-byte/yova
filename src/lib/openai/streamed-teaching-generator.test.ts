@@ -117,6 +117,29 @@ function spanishRecoveryItems(itemCount: 1 | 2 = 2) {
       },
       independentCheck: null,
     })),
+    recognitionCheck: itemCount === 1 ? {
+      title: "Recognize the Spanish food noun",
+      prompt: "Which choice correctly identifies how agua functions in a basic Spanish restaurant request?",
+      choices: [
+        "Agua names the requested drink.",
+        "Agua introduces the polite request.",
+        "Agua names the person taking the order.",
+        "Agua closes the request with thanks.",
+      ],
+      correctAnswer: "Agua names the requested drink.",
+      feedback: "Agua is the noun for water, so it names the drink requested in the restaurant phrase.",
+    } : {
+      title: "Recognize the polite request pattern",
+      prompt: "Which choice correctly explains how quisiera works with a Spanish food or drink noun?",
+      choices: [
+        "Quisiera introduces a polite request for the named item.",
+        "Quisiera names the item that the diner wants.",
+        "Quisiera turns the food noun into a restaurant location.",
+        "Quisiera replaces the food noun with a greeting.",
+      ],
+      correctAnswer: "Quisiera introduces a polite request for the named item.",
+      feedback: "Quisiera supplies the polite request frame, while the following noun names the desired item.",
+    },
   };
 }
 
@@ -215,6 +238,18 @@ function threeTargetSpanishRecoveryItems() {
       },
       independentCheck: null,
     })),
+    recognitionCheck: {
+      title: "Recognize the restaurant vocabulary roles",
+      prompt: "Which choice correctly separates a Spanish restaurant person from a dining object?",
+      choices: [
+        "Camarero names a waiter, while tenedor names a fork.",
+        "Camarero names a fork, while tenedor names a waiter.",
+        "Camarero names a table, while tenedor names a menu.",
+        "Camarero names a bill, while tenedor names a table.",
+      ],
+      correctAnswer: "Camarero names a waiter, while tenedor names a fork.",
+      feedback: "Camarero is the restaurant person, while tenedor is the dining utensil.",
+    },
   };
 }
 
@@ -286,6 +321,18 @@ function worldWarRecoveryItems() {
       },
       independentCheck: null,
     }],
+    recognitionCheck: {
+      title: "Recognize the Sarajevo decision chain",
+      prompt: "Which choice correctly states the immediate political effect of the Sarajevo assassination?",
+      choices: [
+        "It prompted Austria-Hungary to confront Serbia.",
+        "It prompted Serbia to form the rival alliance blocs.",
+        "It ended imperial competition among European powers.",
+        "It removed alliance pressure from Austria-Hungary's decision.",
+      ],
+      correctAnswer: "It prompted Austria-Hungary to confront Serbia.",
+      feedback: "The assassination immediately changed Austria-Hungary's decisions toward Serbia under existing alliance pressure.",
+    },
   };
 }
 
@@ -332,6 +379,7 @@ function duplicateWorkedExampleRecovery() {
       check,
       independentCheck: { ...check, title: "Independent product-rule application" },
     }],
+    recognitionCheck: productRuleRecognitionCheck(),
   };
 }
 
@@ -353,6 +401,22 @@ function validWorkedExampleRecovery() {
         feedback: "Differentiate each factor once, keep the other factor unchanged, and add the two product-rule terms.",
       },
     }],
+    recognitionCheck: productRuleRecognitionCheck(),
+  };
+}
+
+function productRuleRecognitionCheck() {
+  return {
+    title: "Recognize the product-rule structure",
+    prompt: "Which derivative correctly applies the product rule to h(x) = x squared times sine of x?",
+    choices: [
+      "2x sine of x plus x squared cosine of x",
+      "2x cosine of x plus x squared sine of x",
+      "2x sine of x times x squared cosine of x",
+      "x squared cosine of x only",
+    ],
+    correctAnswer: "2x sine of x plus x squared cosine of x",
+    feedback: "The product rule differentiates each factor once, preserves the other factor, and adds the two terms.",
   };
 }
 
@@ -371,6 +435,18 @@ function retrievalRecoveryItems(targets: string[]) {
       },
       independentCheck: null,
     })),
+    recognitionCheck: {
+      title: `Recognize restaurant term ${targets.length}`,
+      prompt: `Which choice gives the English meaning of the Spanish restaurant term ${terms[targets.length - 1] ?? `item ${targets.length}`}?`,
+      choices: [
+        definitions[targets.length - 1] ?? "the supplied definition",
+        "menu",
+        "table",
+        "waiter",
+      ],
+      correctAnswer: definitions[targets.length - 1] ?? "the supplied definition",
+      feedback: `The term ${terms[targets.length - 1] ?? `item ${targets.length}`} means ${definitions[targets.length - 1] ?? "the supplied definition"} in this restaurant vocabulary set.`,
+    },
   };
 }
 
@@ -477,8 +553,26 @@ function spanishSkeletonWithWrongPracticeMetadata() {
       preservePrerequisiteOrder: true as const,
     },
   });
-  const items = spanishRecoveryItems(2).items;
-  const checks = items.map((item, index) => ({
+  const recovery = spanishRecoveryItems(2);
+  const items = recovery.items;
+  const checks = items.map((item, index) => index === items.length - 1 ? {
+    topicId: TOPIC_ID,
+    methodPhase: "retrieve" as const,
+    estimatedMinutes: 5,
+    requiredForCompletion: true,
+    label: "Recall check",
+    title: recovery.recognitionCheck.title,
+    body: recovery.recognitionCheck.prompt,
+    teaching: null,
+    lessonBrief: null,
+    practiceIntent: "supported_recheck" as const,
+    misconceptionSummary: null,
+    type: "multiple_choice" as const,
+    concept: item.concept,
+    choices: recovery.recognitionCheck.choices,
+    correctAnswer: recovery.recognitionCheck.correctAnswer,
+    feedback: recovery.recognitionCheck.feedback,
+  } : {
     topicId: TOPIC_ID,
     methodPhase: "explain" as const,
     estimatedMinutes: 5,
@@ -488,14 +582,14 @@ function spanishSkeletonWithWrongPracticeMetadata() {
     body: item.check.prompt,
     teaching: null,
     lessonBrief: null,
-    practiceIntent: index === 0 ? "develop_gap" as const : "supported_recheck" as const,
+    practiceIntent: "develop_gap" as const,
     misconceptionSummary: null,
     type: "free_response" as const,
     concept: item.concept,
     choices: [],
     correctAnswer: item.check.referenceAnswer,
     feedback: item.check.feedback,
-  }));
+  });
   return {
     topicIds: [TOPIC_ID],
     rationale: "Teach two bounded restaurant-language relationships and require a typed explanation after each model.",
@@ -684,7 +778,435 @@ function mixedStreamedContext(): SessionGenerationContext {
   return context;
 }
 
+function oneTargetSelfExplanationSkeleton({
+  topicId,
+  target,
+  essentialIdea,
+  concept,
+  knowledgeSource = "model_knowledge",
+  recognitionPrompt,
+  recognitionChoices,
+}: {
+  topicId: string;
+  target: string;
+  essentialIdea: string;
+  concept: string;
+  knowledgeSource?: "model_knowledge" | "material_content";
+  recognitionPrompt: string;
+  recognitionChoices: [string, string, string, string];
+}) {
+  const lessonBrief = {
+    version: 1 as const,
+    topicIds: [topicId],
+    essentialIdeas: [essentialIdea],
+    sourceChunks: [],
+    knowledgeSource,
+    evidenceContext: { confirmedGaps: [], secureKnowledge: [], priorMisconceptions: [] },
+    contentRequirements: {
+      teachEveryEssentialIdea: true as const,
+      includeConcreteExample: true,
+      includeCommonMixup: true as const,
+      preservePrerequisiteOrder: true as const,
+    },
+  };
+  const questionBase = {
+    topicId,
+    estimatedMinutes: 2,
+    teaching: null,
+    lessonBrief: null,
+    practiceIntent: "baseline" as const,
+    misconceptionSummary: null,
+  };
+  return {
+    topicIds: [topicId],
+    rationale: `Teach and check only ${target} inside this bounded learning session.`,
+    coverage: {
+      focus: `Explain and recognize the active relationship in ${target}.`,
+      essentialIdeas: [essentialIdea],
+      completionEvidence: [`Explain ${target} without reopening the model.`],
+      evidenceMap: [{ essentialIdea, activityConcept: concept }],
+      deferredContent: [],
+    },
+    methodBriefing: {
+      learningMode: "learn" as const,
+      taskType: "conceptual_learning" as const,
+      methodId: "self_explanation" as const,
+      name: "Self-explanation",
+      what: "Study one accurate relationship, then explain and recognize it from memory.",
+      why: "Producing the relationship before recognition exposes gaps without adding another topic.",
+      how: ["Study the bounded model once.", "Explain it from memory, repair the gap, and check recognition."],
+      completion: `Explain and recognize ${target} without reopening the model.`,
+      personalization: ["The session keeps one focused explanation and a short post-teaching recognition check."],
+    },
+    sourceGrounding: null,
+    activities: [{
+      ...questionBase,
+      methodPhase: "model" as const,
+      estimatedMinutes: 5,
+      requiredForCompletion: true,
+      label: "Learn",
+      title: `Learn ${target}`,
+      body: "Study this bounded relationship before explaining it from memory and completing the final check.",
+      lessonBrief,
+      practiceIntent: null,
+      type: "instruction" as const,
+      concept: null,
+      choices: [],
+      correctAnswer: null,
+      feedback: null,
+    }, {
+      ...questionBase,
+      methodPhase: "explain" as const,
+      estimatedMinutes: 3,
+      requiredForCompletion: true,
+      label: "Explain",
+      title: `Explain ${concept}`,
+      body: `Without reopening the model, explain the active relationship in ${concept}.`,
+      type: "free_response" as const,
+      concept,
+      choices: [],
+      correctAnswer: essentialIdea,
+      feedback: `Compare the response with this active relationship: ${essentialIdea}`.slice(0, 500),
+    }, {
+      ...questionBase,
+      methodPhase: "repair" as const,
+      requiredForCompletion: false,
+      label: "Repair",
+      title: `Repair ${concept}`,
+      body: "Compare the explanation with the reference and correct only the missing active relationship.",
+      type: "free_response" as const,
+      concept,
+      choices: [],
+      correctAnswer: essentialIdea,
+      feedback: `Use this active relationship for the repair: ${essentialIdea}`.slice(0, 500),
+    }, {
+      ...questionBase,
+      methodPhase: "reexplain" as const,
+      requiredForCompletion: false,
+      label: "Explain again",
+      title: `Re-explain ${concept}`,
+      body: "Explain the corrected active relationship again without copying the reference answer.",
+      type: "free_response" as const,
+      concept,
+      choices: [],
+      correctAnswer: essentialIdea,
+      feedback: `The corrected explanation should preserve this relationship: ${essentialIdea}`.slice(0, 500),
+    }, {
+      ...questionBase,
+      methodPhase: "transfer" as const,
+      requiredForCompletion: true,
+      label: "Check",
+      title: `Recognize ${concept}`,
+      body: recognitionPrompt,
+      type: "multiple_choice" as const,
+      concept,
+      choices: recognitionChoices,
+      correctAnswer: recognitionChoices[0],
+      feedback: `The first choice preserves the active relationship in ${concept} without introducing later content.`,
+    }],
+    targetAssignments: [{ essentialIdea, targetId: "target_1" as const }],
+  };
+}
+
+function mixedDeferredSelfExplanationSkeleton() {
+  const materialTarget = "Alliances widened a local crisis";
+  const aiTarget = "Mobilization timing restricted diplomacy";
+  const materialIdea = "Alliance obligations connected the local July Crisis to mobilization by additional European powers.";
+  const aiIdea = "Mobilization timetables narrowed the time available for diplomacy during the July Crisis.";
+  const materialConcept = "Alliance obligations and escalation";
+  const aiConcept = "Mobilization timing and diplomacy";
+  const lessonBrief = (
+    topicId: string,
+    essentialIdea: string,
+    knowledgeSource: "material_content" | "model_knowledge",
+  ) => ({
+    version: 1 as const,
+    topicIds: [topicId],
+    essentialIdeas: [essentialIdea],
+    sourceChunks: [],
+    knowledgeSource,
+    evidenceContext: { confirmedGaps: [], secureKnowledge: [], priorMisconceptions: [] },
+    contentRequirements: {
+      teachEveryEssentialIdea: true as const,
+      includeConcreteExample: true,
+      includeCommonMixup: true as const,
+      preservePrerequisiteOrder: true as const,
+    },
+  });
+  const question = (
+    topicId: string,
+    phase: "explain" | "repair" | "reexplain",
+    concept: string,
+    idea: string,
+    requiredForCompletion: boolean,
+  ) => ({
+    topicId,
+    methodPhase: phase,
+    estimatedMinutes: phase === "explain" ? 3 : 2,
+    requiredForCompletion,
+    label: phase === "repair" ? "Repair" : phase === "reexplain" ? "Explain again" : "Explain",
+    title: `${phase === "repair" ? "Repair" : "Explain"} ${concept}`,
+    body: `Without adding later topics, ${phase === "repair" ? "correct" : "explain"} the active relationship in ${concept}.`,
+    teaching: null,
+    lessonBrief: null,
+    practiceIntent: "baseline" as const,
+    misconceptionSummary: null,
+    type: "free_response" as const,
+    concept,
+    choices: [],
+    correctAnswer: idea,
+    feedback: `Compare the response with this active relationship: ${idea}`.slice(0, 500),
+  });
+  const teaching = (
+    topicId: string,
+    target: string,
+    idea: string,
+    source: "material_content" | "model_knowledge",
+  ) => ({
+    topicId,
+    methodPhase: "model" as const,
+    estimatedMinutes: 4,
+    requiredForCompletion: true,
+    label: "Learn",
+    title: `Learn ${target}`,
+    body: "Study this source-isolated active relationship before explaining it without the model.",
+    teaching: null,
+    lessonBrief: lessonBrief(topicId, idea, source),
+    practiceIntent: null,
+    misconceptionSummary: null,
+    type: "instruction" as const,
+    concept: null,
+    choices: [],
+    correctAnswer: null,
+    feedback: null,
+  });
+  return {
+    topicIds: [TOPIC_ID, AI_TOPIC_ID],
+    rationale: "Teach one mapped material relationship and one disclosed model-knowledge relationship before checking recall.",
+    coverage: {
+      focus: "Explain how alliance obligations and mobilization timing shaped the active July Crisis decisions.",
+      essentialIdeas: [materialIdea, aiIdea],
+      completionEvidence: [
+        `Explain ${materialTarget} without notes.`,
+        `Explain ${aiTarget} without notes.`,
+      ],
+      evidenceMap: [{ essentialIdea: materialIdea, activityConcept: materialConcept }, {
+        essentialIdea: aiIdea,
+        activityConcept: aiConcept,
+      }],
+      deferredContent: [],
+    },
+    methodBriefing: {
+      learningMode: "learn" as const,
+      taskType: "conceptual_learning" as const,
+      methodId: "self_explanation" as const,
+      name: "Self-explanation",
+      what: "Study each source-isolated relationship, then explain it and complete one final recognition check.",
+      why: "Separate explanations preserve source authority while typed recall reveals gaps in each active relationship.",
+      how: ["Study each bounded relationship.", "Explain it from memory, repair one gap, and finish with recognition."],
+      completion: "Explain both active relationships and complete the final recognition check without later content.",
+      personalization: ["The session uses two bounded explanations and keeps the uploaded and AI-origin evidence separate."],
+    },
+    sourceGrounding: null,
+    activities: [
+      teaching(TOPIC_ID, materialTarget, materialIdea, "material_content"),
+      question(TOPIC_ID, "explain", materialConcept, materialIdea, true),
+      teaching(AI_TOPIC_ID, aiTarget, aiIdea, "model_knowledge"),
+      question(AI_TOPIC_ID, "explain", aiConcept, aiIdea, true),
+      question(TOPIC_ID, "repair", materialConcept, materialIdea, false),
+      question(TOPIC_ID, "reexplain", materialConcept, materialIdea, false),
+      {
+        topicId: AI_TOPIC_ID,
+        methodPhase: "transfer" as const,
+        estimatedMinutes: 2,
+        requiredForCompletion: true,
+        label: "Check",
+        title: "Recognize the mobilization constraint",
+        body: "Which statement best explains how mobilization timing affected diplomacy during the July Crisis?",
+        teaching: null,
+        lessonBrief: null,
+        practiceIntent: "baseline" as const,
+        misconceptionSummary: null,
+        type: "multiple_choice" as const,
+        concept: aiConcept,
+        choices: [
+          "Mobilization timetables narrowed the time available for diplomacy.",
+          "Mobilization timetables guaranteed unlimited time for diplomacy.",
+          "Diplomacy required every mobilization timetable to be cancelled first.",
+          "Mobilization timing had no connection to diplomatic choices.",
+        ],
+        correctAnswer: "Mobilization timetables narrowed the time available for diplomacy.",
+        feedback: "Once mobilization schedules began, leaders faced tighter timing and fewer diplomatic choices during the active crisis.",
+      },
+    ],
+    targetAssignments: [{ essentialIdea: materialIdea, targetId: "target_1" as const }, {
+      essentialIdea: aiIdea,
+      targetId: "target_2" as const,
+    }],
+  };
+}
+
 describe("bounded streamed-skeleton repair policy", () => {
+  it("keeps a safe YOVA-generated recognition check in the active window when later work is deferred", async () => {
+    const { generateStreamedTeachingSkeletonWithOpenAI } = await import("@/lib/openai/streamed-teaching-generator");
+    parseResponse.mockReset();
+    const context = spanishRestaurantContext(15);
+    context.session.deferredContentTargets = ["Write a complete restaurant dialogue"];
+    const essentialIdea = "Spanish restaurant requests combine quisiera with a food or drink noun to name the requested item politely.";
+    const recognitionChoices: [string, string, string, string] = [
+      "Quisiera introduces the polite request and the following noun names the item.",
+      "Quisiera names the food while the following noun introduces politeness.",
+      "The food noun replaces every polite request phrase.",
+      "The request phrase works only when no food or drink is named.",
+    ];
+    parseResponse.mockResolvedValueOnce(completedProviderResponse(
+      "ordinary-yova-deferred-recognition",
+      oneTargetSelfExplanationSkeleton({
+        topicId: TOPIC_ID,
+        target: context.session.contentTargets![0]!,
+        essentialIdea,
+        concept: "Spanish polite restaurant requests",
+        recognitionPrompt: "Which statement correctly explains the active Spanish restaurant request pattern?",
+        recognitionChoices,
+      }),
+    ));
+
+    const result = await generateStreamedTeachingSkeletonWithOpenAI(context);
+    const recognitionIndex = result.draft.activities.findIndex((activity) => (
+      activity.type === "multiple_choice"
+    ));
+    const finalTeachingIndex = result.draft.activities.findLastIndex((activity) => (
+      activity.methodPhase === "model"
+      && "lessonBrief" in activity
+      && Boolean(activity.lessonBrief)
+    ));
+
+    expect(parseResponse).toHaveBeenCalledTimes(1);
+    expect(result.generationStats.attempts).toBe(1);
+    expect(recognitionIndex).toBeGreaterThan(finalTeachingIndex);
+    expect(result.draft.activities.filter((activity) => activity.type === "multiple_choice"))
+      .toHaveLength(1);
+    expect(result.draft.activities[recognitionIndex]).toMatchObject({
+      methodPhase: "transfer",
+      requiredForCompletion: true,
+      choices: recognitionChoices,
+      correctAnswer: recognitionChoices[0],
+    });
+    expect(result.draft.activities.some((activity) => (
+      activity.type === "free_response" && activity.requiredForCompletion
+    ))).toBe(true);
+    expect(result.draft.coverage.deferredContent).toContain("Write a complete restaurant dialogue");
+    expect(JSON.stringify(result.draft.activities)).not.toMatch(/complete restaurant dialogue/i);
+  });
+
+  it("keeps a source-authorized material recognition check while later content remains deferred", async () => {
+    const { generateStreamedTeachingSkeletonWithOpenAI } = await import("@/lib/openai/streamed-teaching-generator");
+    parseResponse.mockReset();
+    const context = contextWithMaterials([{
+      materialId: MATERIAL_ID,
+      chunkId: CHUNK_ID,
+      chunkIndex: 0,
+      name: "World War I alliances.pdf",
+      text: "Alliance obligations connected the local July Crisis to mobilization by additional European powers.",
+      truncated: false,
+      locationLabel: "Page 2, Alliances",
+      role: "content_source",
+    }]);
+    context.session.deferredContentTargets = ["Chronology of the 1918 armistice"];
+    const essentialIdea = "Alliance obligations connected the local July Crisis to mobilization by additional European powers.";
+    const recognitionChoices: [string, string, string, string] = [
+      "Alliance obligations could draw additional European powers into the local crisis.",
+      "Alliance obligations guaranteed that every European power stayed neutral.",
+      "The local crisis ended all alliance obligations immediately.",
+      "Alliance obligations prevented mobilization by every additional power.",
+    ];
+    parseResponse.mockResolvedValueOnce(completedProviderResponse(
+      "ordinary-material-deferred-recognition",
+      oneTargetSelfExplanationSkeleton({
+        topicId: TOPIC_ID,
+        target: context.session.contentTargets![0]!,
+        essentialIdea,
+        concept: "Alliance obligations and escalation",
+        knowledgeSource: "material_content",
+        recognitionPrompt: "Which statement matches the uploaded source's active alliance relationship?",
+        recognitionChoices,
+      }),
+    ));
+
+    const result = await generateStreamedTeachingSkeletonWithOpenAI(context);
+    const recognition = result.draft.activities.find((activity) => activity.type === "multiple_choice");
+
+    expect(parseResponse).toHaveBeenCalledTimes(1);
+    expect(result.generationStats.attempts).toBe(1);
+    expect(recognition).toMatchObject({
+      topicId: TOPIC_ID,
+      methodPhase: "transfer",
+      choices: recognitionChoices,
+      correctAnswer: recognitionChoices[0],
+    });
+    expect(result.draft.sourceGrounding).toMatchObject({
+      mode: "materials_only",
+      anchors: [expect.objectContaining({ chunkId: CHUNK_ID })],
+    });
+    expect(result.draft.coverage.deferredContent).toContain("Chronology of the 1918 armistice");
+    expect(JSON.stringify(result.draft.activities)).not.toMatch(/1918 armistice/i);
+  });
+
+  it("keeps one AI-topic recognition check after both active mixed-source teaching blocks", async () => {
+    const { generateStreamedTeachingSkeletonWithOpenAI } = await import("@/lib/openai/streamed-teaching-generator");
+    parseResponse.mockReset();
+    const context = mixedStreamedContext();
+    const deferredTarget = "Armistice chronology followed later wartime developments";
+    context.session.estimatedMinutes = 30;
+    context.knowledgeTopics.push({
+      ...context.knowledgeTopics[1]!,
+      id: RETRIEVAL_TOPIC_IDS[0],
+      title: deferredTarget,
+      description: "How the later armistice fits the chronology after the opening diplomatic crisis.",
+      subtopics: ["later wartime chronology", "armistice"],
+    });
+    context.session.topicIds = [...context.session.topicIds, RETRIEVAL_TOPIC_IDS[0]];
+    context.session.contentTargets = [...context.session.contentTargets!, deferredTarget];
+    context.session.completionEvidence = [
+      ...context.session.completionEvidence!,
+      `Explain ${deferredTarget} without notes.`,
+    ];
+    parseResponse.mockResolvedValueOnce(completedProviderResponse(
+      "ordinary-mixed-deferred-recognition",
+      mixedDeferredSelfExplanationSkeleton(),
+    ));
+
+    const result = await generateStreamedTeachingSkeletonWithOpenAI(context);
+    const recognitionIndex = result.draft.activities.findIndex((activity) => (
+      activity.type === "multiple_choice"
+    ));
+    const finalTeachingIndex = result.draft.activities.findLastIndex((activity) => (
+      activity.methodPhase === "model"
+      && "lessonBrief" in activity
+      && Boolean(activity.lessonBrief)
+    ));
+
+    expect(parseResponse).toHaveBeenCalledTimes(1);
+    expect(result.generationStats.attempts).toBe(1);
+    expect(result.draft.activities.filter((activity) => activity.methodPhase === "model"))
+      .toHaveLength(2);
+    expect(recognitionIndex).toBeGreaterThan(finalTeachingIndex);
+    expect(result.draft.activities[recognitionIndex]).toMatchObject({
+      topicId: AI_TOPIC_ID,
+      methodPhase: "transfer",
+      requiredForCompletion: true,
+    });
+    expect(result.draft.sourceGrounding).toMatchObject({
+      mode: "materials_plus_ai",
+      anchors: [expect.objectContaining({ chunkId: CHUNK_ID })],
+      supplements: [expect.objectContaining({ topic: "Mobilization timing restricted diplomacy" })],
+    });
+    expect(result.draft.coverage.deferredContent).toContain(deferredTarget);
+    expect(JSON.stringify(result.draft.activities)).not.toMatch(/armistice|later wartime/i);
+    expect(result.draft.activities.filter((activity) => activity.methodPhase !== "schedule_return").length)
+      .toBeLessThanOrEqual(8);
+  });
+
   it("repairs both wrong Spanish practice-intent labels in one provider call", async () => {
     const { generateStreamedTeachingSkeletonWithOpenAI } = await import("@/lib/openai/streamed-teaching-generator");
     parseResponse.mockReset();
@@ -740,6 +1262,19 @@ describe("bounded streamed-skeleton repair policy", () => {
       "lessonBrief" in activity && activity.lessonBrief
     ))).toHaveLength(1);
     expect(result.draft.activities.filter((activity) => activity.type === "free_response")).toHaveLength(4);
+    expect(result.draft.activities.filter((activity) => activity.type === "multiple_choice")).toHaveLength(1);
+    const recognitionIndex = result.draft.activities.findIndex((activity) => activity.type === "multiple_choice");
+    const lastTeachingIndex = result.draft.activities.findLastIndex((activity) => (
+      "lessonBrief" in activity && Boolean(activity.lessonBrief)
+    ));
+    expect(recognitionIndex).toBeGreaterThan(lastTeachingIndex);
+    expect(recognitionIndex).toBe(result.draft.activities.length - 1);
+    expect(result.draft.activities[recognitionIndex]).toMatchObject({
+      methodPhase: "transfer",
+      requiredForCompletion: true,
+      choices: spanishRecoveryItems(2).recognitionCheck.choices,
+      correctAnswer: spanishRecoveryItems(2).recognitionCheck.correctAnswer,
+    });
     expect(result.draft.coverage.essentialIdeas).toEqual([...SPANISH_IDEAS]);
     expect(result.draft.coverage.evidenceMap.map((entry) => entry.activityConcept)).toEqual(
       SPANISH_IDEAS.map((idea) => idea.slice(0, 120)),
@@ -774,6 +1309,11 @@ describe("bounded streamed-skeleton repair policy", () => {
     ]);
     const firstInput = parseResponse.mock.calls[0]?.[0]?.input as string;
     const firstPrompt = JSON.parse(firstInput.slice(firstInput.indexOf("\n") + 1));
+    expect(firstPrompt.streamedTeachingPacing).toMatchObject({
+      minimumActiveIdeas: 2,
+      maximumFocusedActivities: 6,
+    });
+    expect(firstPrompt.sessionDeliveryPolicy.pacing.maximumActivities).toBe(6);
     expect(firstPrompt.currentSessionScope).toEqual({
       activeTargets: [...THREE_TARGET_SPANISH_TARGETS.slice(0, 2)],
       deferredTargets: [THREE_TARGET_SPANISH_TARGETS[2]],
@@ -807,6 +1347,7 @@ describe("bounded streamed-skeleton repair policy", () => {
       "lessonBrief" in activity && activity.lessonBrief
     ))).toHaveLength(1);
     expect(result.draft.activities.filter((activity) => activity.type === "free_response")).toHaveLength(4);
+    expect(result.draft.activities.filter((activity) => activity.type === "multiple_choice")).toHaveLength(1);
     const activeSurface = JSON.stringify({
       essentialIdeas: result.draft.coverage.essentialIdeas,
       evidenceMap: result.draft.coverage.evidenceMap,
@@ -862,6 +1403,7 @@ describe("bounded streamed-skeleton repair policy", () => {
       "lessonBrief" in activity && activity.lessonBrief
     ))).toHaveLength(1);
     expect(result.draft.activities.filter((activity) => activity.type === "free_response")).toHaveLength(4);
+    expect(result.draft.activities.filter((activity) => activity.type === "multiple_choice")).toHaveLength(1);
     expect(result.draft.coverage.evidenceMap[0]?.activityConcept).toMatch(
       /^Before 1914, rival alliances and imperial competition created an international crisis risk and$/,
     );
@@ -919,13 +1461,35 @@ describe("bounded streamed-skeleton repair policy", () => {
     });
   });
 
+  it("rejects deferred-session substance inside a compact recognition distractor", async () => {
+    const { generateStreamedTeachingSkeletonWithOpenAI } = await import("@/lib/openai/streamed-teaching-generator");
+    const recovery = worldWarRecoveryItems();
+    recovery.recognitionCheck.choices[1] = "It completed the sequence from the July Crisis to declarations of war.";
+    parseResponse.mockReset();
+    parseResponse
+      .mockResolvedValueOnce(completedProviderResponse("invalid-recognition-scope-skeleton", {}))
+      .mockResolvedValueOnce(completedProviderResponse("deferred-recognition-recovery", recovery));
+
+    await expect(generateStreamedTeachingSkeletonWithOpenAI(threeTargetWorldWarContext())).rejects.toMatchObject({
+      name: "SessionGenerationFailure",
+      generationStats: {
+        attempts: 2,
+        failedValidator: "streamed_lesson_scope",
+        recoveryMode: "safe_learn",
+        validationIssueCode: "streamed_deferred_content",
+      },
+    });
+  });
+
   it("still rejects compact recovery atoms swapped across server-owned active target slots", async () => {
     const { generateStreamedTeachingSkeletonWithOpenAI } = await import("@/lib/openai/streamed-teaching-generator");
-    const [first, second] = worldWarRecoveryItems().items;
+    const worldWarRecovery = worldWarRecoveryItems();
+    const [first, second] = worldWarRecovery.items;
     parseResponse.mockReset();
     parseResponse
       .mockResolvedValueOnce(completedProviderResponse("invalid-swapped-world-war-skeleton", {}))
       .mockResolvedValueOnce(completedProviderResponse("swapped-world-war-recovery", {
+        recognitionCheck: worldWarRecovery.recognitionCheck,
         items: [{
           ...second,
           essentialIdea: "The Sarajevo assassination prompted Austria-Hungary to confront Serbia.",
@@ -961,10 +1525,37 @@ describe("bounded streamed-skeleton repair policy", () => {
       ["explain", "free_response"],
       ["repair", "free_response"],
       ["reexplain", "free_response"],
+      ["transfer", "multiple_choice"],
     ]);
+    expect(result.draft.activities.filter((activity) => (
+      activity.requiredForCompletion && activity.type === "free_response"
+    ))).toHaveLength(1);
+    expect(result.draft.activities.filter((activity) => (
+      activity.requiredForCompletion && activity.type === "multiple_choice"
+    ))).toHaveLength(1);
     expect(result.draft.activities.reduce((sum, activity) => (
       activity.methodPhase === "schedule_return" ? sum : sum + activity.estimatedMinutes
     ), 0)).toBe(15);
+  });
+
+  it("does not use server-bounded compact recovery when only a null objective slot precedes deferred content", async () => {
+    const { generateStreamedTeachingSkeletonWithOpenAI } = await import("@/lib/openai/streamed-teaching-generator");
+    const context = spanishRestaurantContext(15);
+    context.session.contentTargets = [];
+    context.session.deferredContentTargets = ["Use the restaurant phrases in a complete dialogue"];
+    parseResponse.mockReset();
+    parseResponse
+      .mockResolvedValueOnce(completedProviderResponse("invalid-null-target-skeleton", {}))
+      .mockResolvedValueOnce(completedProviderResponse("invalid-null-target-repair", {}));
+
+    await expect(generateStreamedTeachingSkeletonWithOpenAI(context)).rejects.toMatchObject({
+      name: "SessionGenerationFailure",
+      generationStats: { attempts: 2 },
+    });
+    expect(parseResponse.mock.calls.map((call) => call[0]?.text?.format?.name)).toEqual([
+      "yova_streamed_teaching_skeleton",
+      "yova_streamed_teaching_skeleton",
+    ]);
   });
 
   it("reserves settlement headroom for the compact recovery request", async () => {
@@ -1052,13 +1643,14 @@ describe("bounded streamed-skeleton repair policy", () => {
     expect(result.generationStats.recoveryMode).toBe("safe_learn");
     expect(result.draft.coverage.deferredContent).toEqual([deferredTarget]);
     const workedChecks = result.draft.activities.filter((activity) => (
-      activity.type === "free_response"
+      activity.type === "free_response" || activity.type === "multiple_choice"
     ));
-    expect(workedChecks.map((activity) => activity.methodPhase)).toEqual([
-      "guided_practice",
-      "independent_practice",
+    expect(workedChecks.map((activity) => [activity.methodPhase, activity.type])).toEqual([
+      ["guided_practice", "free_response"],
+      ["independent_practice", "free_response"],
+      ["transfer", "multiple_choice"],
     ]);
-    expect(new Set(workedChecks.map((activity) => activity.body)).size).toBe(2);
+    expect(new Set(workedChecks.map((activity) => activity.body)).size).toBe(3);
     expect(JSON.stringify(result.draft.activities)).not.toMatch(/quotient rule|ratio of two functions/i);
   });
 
@@ -1091,6 +1683,18 @@ describe("bounded streamed-skeleton repair policy", () => {
         },
         independentCheck: null,
       }],
+      recognitionCheck: {
+        title: "Recognize the chain-rule structure",
+        prompt: "Which choice correctly states how the chain rule differentiates a nested function?",
+        choices: [
+          "Multiply the outer derivative by the inner derivative.",
+          "Add the unchanged outer function to the inner derivative.",
+          "Divide the outer derivative by the inner function.",
+          "Differentiate only the inner function and discard the outer function.",
+        ],
+        correctAnswer: "Multiply the outer derivative by the inner derivative.",
+        feedback: "The chain rule combines both layers by multiplying the outer derivative by the derivative of the inner function.",
+      },
     };
     parseResponse.mockReset();
     parseResponse
@@ -1128,8 +1732,9 @@ describe("bounded streamed-skeleton repair policy", () => {
     ]);
     expect(result.draft.coverage.essentialIdeas).toHaveLength(3);
     expect(result.draft.coverage.deferredContent).toEqual([targets[3]]);
-    expect(result.draft.activities).toHaveLength(7);
+    expect(result.draft.activities).toHaveLength(8);
     expect(result.draft.activities.filter((activity) => activity.type === "free_response")).toHaveLength(4);
+    expect(result.draft.activities.filter((activity) => activity.type === "multiple_choice")).toHaveLength(1);
   });
 
   it("reduces a 15-minute two-target retrieval lesson before generation so every retained idea keeps its teach-check pair and repair", async () => {
@@ -1158,8 +1763,21 @@ describe("bounded streamed-skeleton repair policy", () => {
       "model",
       "retrieve",
       "repair",
+      "transfer",
     ]);
-    expect(result.draft.activities).toHaveLength(3);
+    expect(result.draft.activities.map((activity) => activity.type)).toEqual([
+      "instruction",
+      "free_response",
+      "free_response",
+      "multiple_choice",
+    ]);
+    expect(result.draft.activities.filter((activity) => (
+      activity.requiredForCompletion && activity.type === "free_response"
+    ))).toHaveLength(1);
+    expect(result.draft.activities.filter((activity) => (
+      activity.requiredForCompletion && activity.type === "multiple_choice"
+    ))).toHaveLength(1);
+    expect(result.draft.activities).toHaveLength(4);
   });
 
   it("preserves an ambiguous legacy multi-topic context instead of guessing which topic and evidence to drop", async () => {
@@ -3123,7 +3741,7 @@ describe("runtime session-window scoping", () => {
     })).toThrow(/did not map any required knowledge check to an active essential idea/i);
   });
 
-  it("replaces the sole active recognition check with bounded typed recall", async () => {
+  it("preserves one proven post-teaching recognition check beside bounded typed recall", async () => {
     const {
       scopeStreamedSkeletonToCurrentWindow,
     } = await import("@/lib/openai/streamed-teaching-generator");
@@ -3140,7 +3758,7 @@ describe("runtime session-window scoping", () => {
     ];
     const activeBody = "Which condition made a local diplomatic crisis more likely to involve several powers?";
     const activeAnswer = "Alliance commitments";
-    const activeFeedback = "Alliance commitments connected several powers before the assassination triggered the immediate crisis.";
+    const activeFeedback = "Alliance commitments connected several powers before a local dispute escalated into a wider crisis.";
     const lessonBrief = {
       version: 1 as const,
       topicIds: [topicId],
@@ -3203,13 +3821,30 @@ describe("runtime session-window scoping", () => {
         },
         {
           ...activityBase,
-          methodPhase: "guided_practice",
+          methodPhase: "explain",
+          type: "free_response",
+          concept: "Prewar alliance pressure",
+          label: "Explain",
+          title: "Explain the prewar pressure",
+          body: "Without notes, explain why alliance commitments made a local crisis more dangerous.",
+          choices: [],
+          correctAnswer: activeIdea,
+          feedback: "Connect alliance commitments to the risk that several European powers would enter the crisis.",
+        },
+        {
+          ...activityBase,
+          methodPhase: "transfer",
           type: "multiple_choice",
           concept: "Prewar alliance pressure",
           label: "Check",
           title: "Identify the prewar pressure",
           body: activeBody,
-          choices: [activeAnswer, "A completed peace treaty", "A neutral trade agreement"],
+          choices: [
+            activeAnswer,
+            "A neutral state acting alone",
+            "One power ending its commitments",
+            "A local dispute with no allied obligations",
+          ],
           correctAnswer: activeAnswer,
           feedback: activeFeedback,
         },
@@ -3254,10 +3889,10 @@ describe("runtime session-window scoping", () => {
       && (activity.type === "multiple_choice" || activity.type === "free_response")
     ));
 
-    expect(retainedChecks).toHaveLength(1);
+    expect(retainedChecks).toHaveLength(2);
     expect(retainedChecks[0]).toMatchObject({
       type: "free_response",
-      methodPhase: "guided_practice",
+      methodPhase: "explain",
       concept: "Prewar alliance pressure",
       choices: [],
       estimatedMinutes: 3,
@@ -3268,7 +3903,20 @@ describe("runtime session-window scoping", () => {
     expect(retainedChecks[0]?.correctAnswer).toContain(activeIdea);
     expect(retainedChecks[0]?.feedback).toContain(activeIdea);
     expect(retainedChecks[0]?.feedback).not.toBe(activeFeedback);
-    expect(retainedChecks.some((activity) => activity.type === "multiple_choice")).toBe(false);
+    expect(retainedChecks[1]).toMatchObject({
+      type: "multiple_choice",
+      methodPhase: "transfer",
+      concept: "Prewar alliance pressure",
+      body: activeBody,
+      choices: [
+        activeAnswer,
+        "A neutral state acting alone",
+        "One power ending its commitments",
+        "A local dispute with no allied obligations",
+      ],
+      correctAnswer: activeAnswer,
+      feedback: activeFeedback,
+    });
     expect(scoped.activities
       .filter((activity) => activity.requiredForCompletion)
       .reduce((total, activity) => total + activity.estimatedMinutes, 0))
@@ -3539,20 +4187,13 @@ describe("runtime session-window scoping", () => {
     })).toBeNull();
   });
 
-  it("canonicalizes deferred World War I facts out of metadata, choices, and the scheduled return", async () => {
+  it("rejects a post-teaching recognition surface that contains deferred World War I facts", async () => {
     const {
       scopeStreamedSkeletonToCurrentWindow,
     } = await import("@/lib/openai/streamed-teaching-generator");
     const {
       StreamedGeneratedSessionDraftOutputSchema,
-      StreamedGeneratedSessionDraftSchema,
     } = await import("@/lib/session-generation/schema");
-    const {
-      validateSessionCompletionContract,
-    } = await import("@/lib/session-generation/completion-contract");
-    const {
-      validateStreamedLessonScope,
-    } = await import("@/lib/session-generation/lesson-brief");
 
     const topicId = "10000000-0000-4000-8000-000000000001";
     const targets = [
@@ -3647,7 +4288,7 @@ describe("runtime session-window scoping", () => {
         },
         {
           ...activityBase,
-          methodPhase: "explain",
+          methodPhase: "transfer",
           type: "multiple_choice",
           concept: concepts[1],
           label: "Check",
@@ -3688,51 +4329,12 @@ describe("runtime session-window scoping", () => {
       ],
     });
 
-    const scoped = scopeStreamedSkeletonToCurrentWindow({
+    expect(() => scopeStreamedSkeletonToCurrentWindow({
       draft,
       plannedTargets: targets,
       estimatedMinutes: 30,
       learnerDirection: "Teach the July Crisis cause chain first and leave later-war topics for later sessions.",
-    });
-    const activeSurface = JSON.stringify({
-      activities: scoped.activities,
-      completionEvidence: scoped.coverage.completionEvidence,
-    });
-
-    expect(scoped.activities.filter((activity) => (
-      activity.requiredForCompletion
-      && (activity.type === "multiple_choice" || activity.type === "free_response")
-    )).every((activity) => activity.type === "free_response")).toBe(true);
-    expect(activeSurface).not.toMatch(/U\.S\. entry|armistice|1914 to 1918 landmark/i);
-    expect(scoped.activities.find((activity) => activity.methodPhase === "schedule_return")?.body)
-      .toBe("YOVA will bring today's active ideas back after a delay for a short retrieval check.");
-    expect(scoped.coverage.completionEvidence).toEqual([
-      "Demonstrate Prewar escalation pressure",
-      "Demonstrate July Crisis sequence",
-    ]);
-    expect(scoped.coverage.deferredContent).toContain("Basic chronology from 1914 to 1918");
-    expect(scoped.rationale).toContain("Prewar European alliances and tensions");
-    expect(scoped.rationale).toContain("Sequence from the Sarajevo assassination to declarations of war");
-    expect(scoped.rationale).toContain("Later plan topics remain deferred");
-    expect(scoped.methodBriefing.name).toBe("Feynman Technique");
-    expect(JSON.stringify({
-      rationale: scoped.rationale,
-      focus: scoped.coverage.focus,
-      methodBriefing: scoped.methodBriefing,
-    })).not.toMatch(/U\.S\. entry|armistice|full (?:World War I|1914 to 1918) chronology/i);
-    expect(validateSessionCompletionContract({
-      essentialIdeas: scoped.coverage.essentialIdeas,
-      evidenceMap: scoped.coverage.evidenceMap,
-      activities: scoped.activities,
-    })).toBeNull();
-    expect(validateStreamedLessonScope(scoped, {
-      sessionTopicIds: [topicId],
-      sessionObjective: "Explain how alliances and mobilization widened the July Crisis.",
-      sessionContentTargets: targets,
-      sessionEstimatedMinutes: 30,
-      learnerDirection: "Teach the July Crisis first and leave later-war topics for later sessions.",
-    })).toBeNull();
-    expect(() => StreamedGeneratedSessionDraftSchema.parse(scoped)).not.toThrow();
+    })).toThrow(/post-teaching recognition check still contains deferred-session substance/i);
   });
 
   it("rejects an active idea contaminated by facts fingerprinted from removed content", async () => {

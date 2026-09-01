@@ -54,6 +54,10 @@ import { LIVE_AI_PLAN_FALLBACK_NOTICE } from "@/lib/plan-generation/fallback";
 import { inferPlanScopeContract } from "@/lib/plan-generation/scope-contract";
 import { buildPlanContentBudget } from "@/lib/plan-generation/content-budget";
 import { LEARNING_INTENT_COPY, resolveLearningIntent } from "@/lib/learning/learning-intent";
+import {
+  workProductPlanCopy,
+  type WorkProductKind,
+} from "@/lib/learning/work-product-plan";
 import type { CoreMethodId } from "@/lib/learning/method-catalog";
 import type { CanonicalLearnerProfile } from "@/lib/personalization/canonical-profile-schema";
 import type { AddIntakeSeed } from "@/lib/intake/schema";
@@ -186,6 +190,8 @@ export function PlanCreator({
     startingPoint: startingContext,
     diagnosticResponses,
   });
+  const workProductCopy = workProductPlanCopy(goal);
+  const skipsPlacementDiagnostic = workProductCopy !== null;
   const goalContext = assessGoalContext(
     goal,
     sourceChoice === "materials" && materials.length > 0,
@@ -201,12 +207,19 @@ export function PlanCreator({
   const generatedPhases = generatedPlan
     ? groupPlanSessions(generatedPlan.plan.sessions.map((session) => (
       resolveStudyRouteSessionContract(generatedPlan.plan, session).session
-    )))
+    )), workProductCopy?.kind ?? null)
     : [];
 
-  const stepNumber = ({ goal: 1, source: 2, schedule: 3, "diagnostic-loading": 4, diagnostic: 4, confirm: 5, loading: 5, error: 5, result: 5 } as Record<PlanStep, number>)[step];
+  const stepNumber = skipsPlacementDiagnostic
+    ? ({ goal: 1, source: 2, schedule: 3, "diagnostic-loading": 4, diagnostic: 4, confirm: 4, loading: 4, error: 4, result: 4 } as Record<PlanStep, number>)[step]
+    : ({ goal: 1, source: 2, schedule: 3, "diagnostic-loading": 4, diagnostic: 4, confirm: 5, loading: 5, error: 5, result: 5 } as Record<PlanStep, number>)[step];
+  const totalSteps = skipsPlacementDiagnostic ? 4 : 5;
 
   const back = () => {
+    if (step === "confirm" && skipsPlacementDiagnostic) {
+      setStep("schedule");
+      return;
+    }
     const previous: Record<PlanStep, PlanStep> = {
       goal: "goal",
       source: "goal",
@@ -280,6 +293,20 @@ export function PlanCreator({
     } finally {
       setStep("diagnostic");
     }
+  };
+
+  const continueFromSchedule = () => {
+    if (!skipsPlacementDiagnostic) {
+      void prepareDiagnostic();
+      return;
+    }
+    setDiagnosticQuestions([]);
+    setDiagnosticAnswers([]);
+    setDiagnosticResponses([]);
+    setDiagnosticMap(null);
+    setDiagnosticError(null);
+    setDiagnosticLatencyMs(null);
+    setStep("confirm");
   };
 
   const finishDiagnostic = (skipped: boolean) => {
@@ -662,10 +689,10 @@ export function PlanCreator({
     <main className={`plan-shell ${step === "result" ? "plan-result-shell" : ""}`}>
       <header className="plan-header">
         <BrandMark />
-        {step !== "result" && <span>Step {stepNumber} of 5</span>}
+        {step !== "result" && <span>Step {stepNumber} of {totalSteps}</span>}
         {step !== "result" && <button className="button ghost" disabled={processingMaterials || linkMaterialWorking || abandoningMaterials || Boolean(removingMaterialId)} onClick={() => void exitCreator()}>{abandoningMaterials ? "Removing sources…" : "Exit"}</button>}
       </header>
-      {step !== "result" && <div className="plan-progress"><i style={{ width: `${(stepNumber / 5) * 100}%` }} /></div>}
+      {step !== "result" && <div className="plan-progress"><i style={{ width: `${(stepNumber / totalSteps) * 100}%` }} /></div>}
 
       {step === "goal" && (
         <PlanPanel eyebrow="CREATE A PLAN" title="What do you need to learn or prepare for?" description="Write it naturally. YOVA will organize the details before anything is created.">
@@ -677,12 +704,12 @@ export function PlanCreator({
       )}
 
       {step === "source" && (
-        <PlanPanel eyebrow="CHOOSE HOW YOVA SHOULD HELP" title="Where should the learning come from?" description="Pick one starting mode. YOVA will use the same choice throughout the plan, and you can still change it later.">
+        <PlanPanel eyebrow="CHOOSE HOW YOVA SHOULD HELP" title={workProductCopy ? "What should YOVA use to help build it?" : "Where should the learning come from?"} description={workProductCopy ? "Choose what should ground the work. YOVA will keep that source decision throughout the plan." : "Pick one starting mode. YOVA will use the same choice throughout the plan, and you can still change it later."}>
           <div className="plan-goal-echo"><span>YOUR GOAL</span><p>{goal}</p><button className="button ghost" onClick={() => setStep("goal")}>Edit</button></div>
           <div className="mode-cards three-up">
             <button disabled={processingMaterials || linkMaterialWorking || abandoningMaterials || Boolean(removingMaterialId)} className={sourceChoice === "materials" ? "selected" : ""} onClick={() => void chooseSource("materials")}><Upload /><span><strong>Use my materials</strong><small>Build from study guides, PDF slides, notes, review sheets, or textbook excerpts.</small></span>{sourceChoice === "materials" && <Check />}</button>
-            <button disabled={processingMaterials || linkMaterialWorking || abandoningMaterials || Boolean(removingMaterialId)} className={sourceChoice === "yova" ? "selected" : ""} onClick={() => void chooseSource("yova")}><Sparkles /><span><strong>Create it for me</strong><small>YOVA creates the teaching, examples, and practice from the topic.</small></span>{sourceChoice === "yova" && <Check />}</button>
-            <button disabled={processingMaterials || linkMaterialWorking || abandoningMaterials || Boolean(removingMaterialId)} className={sourceChoice === "outside" ? "selected" : ""} onClick={() => void chooseSource("outside")}><Layers3 /><span><strong>Guide me outside YOVA</strong><small>YOVA chooses the method and gives exact steps for another trusted source.</small></span>{sourceChoice === "outside" && <Check />}</button>
+            <button disabled={processingMaterials || linkMaterialWorking || abandoningMaterials || Boolean(removingMaterialId)} className={sourceChoice === "yova" ? "selected" : ""} onClick={() => void chooseSource("yova")}><Sparkles /><span><strong>Create it for me</strong><small>{workProductCopy ? "YOVA creates the structure, criteria, and working steps for the artifact." : "YOVA creates the teaching, examples, and practice from the topic."}</small></span>{sourceChoice === "yova" && <Check />}</button>
+            <button disabled={processingMaterials || linkMaterialWorking || abandoningMaterials || Boolean(removingMaterialId)} className={sourceChoice === "outside" ? "selected" : ""} onClick={() => void chooseSource("outside")}><Layers3 /><span><strong>Guide me outside YOVA</strong><small>{workProductCopy ? "YOVA gives a method and exact steps for building the artifact with your trusted sources." : "YOVA chooses the method and gives exact steps for another trusted source."}</small></span>{sourceChoice === "outside" && <Check />}</button>
           </div>
           {sourceChoice === "materials" && <div className="material-uploader">
             <MaterialFileDropzone
@@ -709,7 +736,7 @@ export function PlanCreator({
       )}
 
       {step === "schedule" && !customScheduleOpen && (
-        <PlanPanel wide eyebrow="YOUR STUDY RHYTHM" title="When would you prefer to study this material?" description="Choose a realistic pattern. YOVA will build the learning sequence around it and adapt the schedule as your results change.">
+        <PlanPanel wide eyebrow={workProductCopy ? "YOUR WORK RHYTHM" : "YOUR STUDY RHYTHM"} title={workProductCopy ? "When would you prefer to work on this?" : "When would you prefer to study this material?"} description={workProductCopy ? "Choose a realistic pattern. YOVA will sequence the artifact work around the time you actually have." : "Choose a realistic pattern. YOVA will build the learning sequence around it and adapt the schedule as your results change."}>
           {scheduleCapacityError && <ScheduleCapacityGuidance guidance={scheduleCapacityError} />}
           <div className="schedule-builder-layout">
             <div className="schedule-quick-builder">
@@ -724,7 +751,7 @@ export function PlanCreator({
               <small className="schedule-preview-note">These are availability limits, not mandatory appointments. YOVA will only schedule the amount of learning the plan actually needs.</small>
             </aside>
           </div>
-          <PlanActions onBack={back} onNext={() => void prepareDiagnostic()} nextLabel="Continue to placement check" nextDisabled={availability.length === 0} />
+          <PlanActions onBack={back} onNext={continueFromSchedule} nextLabel={workProductCopy ? "Review plan inputs" : "Continue to placement check"} nextDisabled={availability.length === 0} />
         </PlanPanel>
       )}
 
@@ -738,7 +765,7 @@ export function PlanCreator({
             </header>
             <div className="availability-list editable">{availabilityChoices.map((choice, index) => <div className={choice.enabled ? "enabled" : ""} key={`${choice.day}-${choice.dateLabel}`}><button className="availability-toggle" type="button" aria-label={`${choice.enabled ? "Remove" : "Add"} ${choice.day}`} aria-pressed={choice.enabled} onClick={() => dispatchSchedule({ type: "toggle_day", index })}>{choice.enabled && <Check size={14} />}</button><div><strong>{choice.day}</strong><small>{choice.dateLabel}</small></div><select aria-label={`${choice.day} time window`} value={choice.window} disabled={!choice.enabled} onChange={(event) => dispatchSchedule({ type: "set_day_window", index, window: event.target.value as AvailabilityChoice["window"] })}><option>Morning</option><option>Afternoon</option><option>Evening</option></select><select aria-label={`${choice.day} available minutes`} value={choice.minutes} disabled={!choice.enabled} onChange={(event) => dispatchSchedule({ type: "set_day_minutes", index, minutes: Number(event.target.value) })}><option value={15}>15 min</option><option value={25}>25 min</option><option value={30}>30 min</option><option value={45}>45 min</option><option value={60}>60 min</option></select></div>)}</div>
           </section>
-          <PlanActions onBack={() => dispatchSchedule({ type: "set_custom_open", open: false })} backLabel="Quick choices" onNext={() => void prepareDiagnostic()} nextLabel="Continue to placement check" nextDisabled={availability.length === 0} />
+          <PlanActions onBack={() => dispatchSchedule({ type: "set_custom_open", open: false })} backLabel="Quick choices" onNext={continueFromSchedule} nextLabel={workProductCopy ? "Review plan inputs" : "Continue to placement check"} nextDisabled={availability.length === 0} />
         </PlanPanel>
       )}
 
@@ -756,12 +783,12 @@ export function PlanCreator({
 
       {step === "confirm" && (
         <PlanPanel eyebrow="FINAL CHECK" title="Everything YOVA will use" description="Review the inputs and change anything before your plan is generated.">
-          <div className="confirmation-list"><SummaryFact label="Goal" value={goal} /><SummaryFact label="Target date" value={deadlineDate ? formatDateOnly(deadlineDate) : "No fixed deadline"} /><SummaryFact label="Placement evidence" value={`${summarizeDiagnosticResponses(diagnosticResponses)}${startingContext.trim() ? `. Your note guides emphasis but is not evidence: ${startingContext.trim()}` : ""}`} /><SummaryFact label="How YOVA will start" value={`${LEARNING_INTENT_COPY[learningApproach.intent].name}: ${learningApproach.reason}`} /><SummaryFact label="Availability" value={`${availability.length} selected ${availability.length === 1 ? "window" : "windows"}: ${availability.map((slot) => `${slot.day} ${slot.window.toLowerCase()} (${slot.minutes} min)`).join(", ")}`} /><SummaryFact label="Learning mode" value={sourceChoice === "outside" ? "YOVA-guided plan using another trusted source" : sourceChoice === "materials" ? "Guided inside YOVA from your uploaded materials" : "Guided inside YOVA with YOVA-created teaching and practice"} /><SummaryFact label="Sources" value={sourceChoice === "materials" ? `${materials.length} ${materials.length === 1 ? "uploaded material" : "uploaded materials"}: ${materials.map((material) => material.name).join(", ")}` : sourceChoice === "outside" ? "The source you choose outside YOVA" : "YOVA-generated content from the goal"} /><SummaryFact label="Saved learning preferences" value={`${preferenceContract.presentation.label}; ${preferenceContract.support.label}; ${preferenceContract.retention.label}; ${preferenceContract.workspace.label}`} /></div>
+          <div className="confirmation-list"><SummaryFact label="Goal" value={goal} /><SummaryFact label="Target date" value={deadlineDate ? formatDateOnly(deadlineDate) : "No fixed deadline"} />{workProductCopy ? <SummaryFact label="Starting point" value={startingContext.trim() ? `Your note guides the first work block: ${startingContext.trim()}` : "No starting-point note was provided; YOVA will begin with a supported artifact step."} /> : <SummaryFact label="Placement evidence" value={`${summarizeDiagnosticResponses(diagnosticResponses)}${startingContext.trim() ? `. Your note guides emphasis but is not evidence: ${startingContext.trim()}` : ""}`} />}<SummaryFact label="How YOVA will start" value={workProductCopy ? `${workProductCopy.confirmationApproach} ${learningApproach.reason}` : `${LEARNING_INTENT_COPY[learningApproach.intent].name}: ${learningApproach.reason}`} /><SummaryFact label="Availability" value={`${availability.length} selected ${availability.length === 1 ? "window" : "windows"}: ${availability.map((slot) => `${slot.day} ${slot.window.toLowerCase()} (${slot.minutes} min)`).join(", ")}`} /><SummaryFact label={workProductCopy ? "Work mode" : "Learning mode"} value={sourceChoice === "outside" ? `YOVA-guided plan using ${workProductCopy ? "your trusted artifact sources" : "another trusted source"}` : sourceChoice === "materials" ? `Guided inside YOVA from your uploaded ${workProductCopy ? "artifact materials" : "materials"}` : workProductCopy ? "Guided artifact plan with YOVA-created structure and work steps" : "Guided inside YOVA with YOVA-created teaching and practice"} /><SummaryFact label="Sources" value={sourceChoice === "materials" ? `${materials.length} ${materials.length === 1 ? "uploaded material" : "uploaded materials"}: ${materials.map((material) => material.name).join(", ")}` : sourceChoice === "outside" ? "The source you choose outside YOVA" : "YOVA-generated content from the goal"} /><SummaryFact label="Saved learning preferences" value={`${preferenceContract.presentation.label}; ${preferenceContract.support.label}; ${preferenceContract.retention.label}; ${preferenceContract.workspace.label}`} /></div>
           <PlanActions onBack={back} onNext={() => void generatePlan()} nextLabel="Generate my plan" />
         </PlanPanel>
       )}
 
-      {step === "loading" && <section className="plan-loading"><span className="loading-orbit"><Sparkles /></span><h1>Building your plan…</h1><p>Separating what needs to be taught from what should be practiced and retrieved.</p><div><span className="done"><Check /> Reviewing your goal</span><span className="done"><Check /> Identifying the starting approach</span><span className="active"><span /> Sequencing teaching and practice</span></div></section>}
+      {step === "loading" && <section className="plan-loading"><span className="loading-orbit"><Sparkles /></span><h1>Building your plan…</h1><p>{workProductCopy?.loadingDescription ?? "Separating what needs to be taught from what should be practiced and retrieved."}</p><div><span className="done"><Check /> Reviewing your goal</span><span className="done"><Check /> Identifying the starting approach</span><span className="active"><span /> {workProductCopy?.loadingStep ?? "Sequencing teaching and practice"}</span></div></section>}
 
       {step === "error" && (
         <section className="plan-error-state">
@@ -780,25 +807,25 @@ export function PlanCreator({
           <div className="generated-heading"><div><span className="eyebrow"><Sparkles size={15} /> Plan ready</span><h1>{generatedPlan.plan.title}</h1><p>{generatedPlan.plan.sessions.length} sessions organized into a coherent path. Nothing is active until you confirm it below.</p></div>{generatedScope && <span className="generated-scope-label">{generatedScope.label}</span>}</div>
           <div className="why-plan"><Sparkles /><div><strong>Why this plan</strong><p>{generatedPlan.plan.rationale}</p></div></div>
           {generatedContentBudget && <section className="generated-plan-contract" aria-label="How YOVA mapped this plan">
-            <div><span>KNOWLEDGE MAP</span><strong>{generatedContentBudget.requiredTopicCount} mapped {generatedContentBudget.requiredTopicCount === 1 ? "topic" : "topics"}</strong><p>Each topic is scheduled or shown explicitly as deferred.</p></div>
-            <div><span>SESSION LOAD</span><strong>Usually {generatedContentBudget.typicalSession.preferredContentTargets} {generatedContentBudget.typicalSession.preferredContentTargets === 1 ? "target" : "targets"} at a time</strong><p>Each target needs an explanation, attempt, or application before it counts as covered.</p></div>
+            <div><span>{workProductCopy ? "WORK MAP" : "KNOWLEDGE MAP"}</span><strong>{generatedContentBudget.requiredTopicCount} mapped {workProductCopy ? generatedContentBudget.requiredTopicCount === 1 ? "part" : "parts" : generatedContentBudget.requiredTopicCount === 1 ? "topic" : "topics"}</strong><p>{workProductCopy ? "Each part is scheduled or shown explicitly as deferred." : "Each topic is scheduled or shown explicitly as deferred."}</p></div>
+            <div><span>SESSION LOAD</span><strong>Usually {generatedContentBudget.typicalSession.preferredContentTargets} {generatedContentBudget.typicalSession.preferredContentTargets === 1 ? "target" : "targets"} at a time</strong><p>{workProductCopy?.sessionLoadContract ?? "Each target needs an explanation, attempt, or application before it counts as covered."}</p></div>
             <div><span>YOUR DELIVERY</span><strong>{preferenceContract.presentation.label}</strong><p>{preferenceContract.support.label} after a miss. {preferenceContract.retention.label} for later review.</p></div>
             <div><span>YOUR SCHEDULE</span><strong>{availability.length} preferred study {availability.length === 1 ? "window" : "windows"}</strong><p>{availability.map((slot) => `${slot.day} ${slot.window.toLowerCase()}, ${slot.minutes} min`).join("; ")}</p></div>
           </section>}
           {generatedPlan.plan.knowledgeMap && <section className="generated-topic-map" aria-labelledby="generated-topic-map-title">
             <header>
-              <div><span className="step-label">TOPIC MAP</span><h2 id="generated-topic-map-title">Check what YOVA plans to cover</h2><p>This is the learning contract behind the schedule. Every included topic must be taught or checked, and anything skipped is shown plainly.</p></div>
+              <div><span className="step-label">{workProductCopy ? "WORK MAP" : "TOPIC MAP"}</span><h2 id="generated-topic-map-title">{workProductCopy ? "Check what YOVA plans to build" : "Check what YOVA plans to cover"}</h2><p>{workProductCopy ? `This is the artifact contract behind the schedule. ${workProductCopy.topicMapContract}` : "This is the learning contract behind the schedule. Every included topic must be taught or checked, and anything skipped is shown plainly."}</p></div>
               <strong>{generatedPlan.plan.knowledgeMap.topics.filter((topic) => !topic.deferred).length} included</strong>
             </header>
             <ol>{generatedPlan.plan.knowledgeMap.topics.map((topic, index) => {
               const sessionCount = generatedPlan.plan.sessions.filter((session) => session.topicIds?.includes(topic.id)).length;
-              const state = topic.deferred ? "Deferred" : topic.initialEvidence?.outcome === "demonstrated" ? "Quick verification" : "Teach and check";
+              const state = topic.deferred ? "Deferred" : workProductCopy ? workProductCopy.topicMapState : topic.initialEvidence?.outcome === "demonstrated" ? "Quick verification" : "Teach and check";
               return <li className={topic.deferred ? "deferred" : ""} key={topic.id}><span>{index + 1}</span><div><strong>{topic.title}</strong><p>{topic.description}</p>{topic.subtopics.length > 0 && <small>{topic.subtopics.slice(0, 4).join(" · ")}</small>}</div><em>{state}{!topic.deferred ? ` · ${sessionCount} ${sessionCount === 1 ? "session" : "sessions"}` : ""}</em></li>;
             })}</ol>
             <div className="topic-map-correction">
-              <div><strong>Something is off?</strong><p>Tell YOVA what is missing, outside your goal, or needs a different emphasis. Saying you know something changes the plan only after a quick verification. It never creates evidence by itself.</p></div>
+              <div><strong>Something is off?</strong><p>{workProductCopy ? "Tell YOVA which required part is missing, outside the brief, already complete, or needs a different emphasis. The draft changes only after you update and review the plan." : "Tell YOVA what is missing, outside your goal, or needs a different emphasis. Saying you know something changes the plan only after a quick verification. It never creates evidence by itself."}</p></div>
               <div className="topic-map-prompts" aria-label="Common topic map changes">
-                {["A topic is missing: ", "I already know this and want a quick verification: ", "This is outside my goal: ", "Change the emphasis toward: "].map((prompt) => <button type="button" key={prompt} onClick={() => setMapCorrection(prompt)}>{prompt.replace(/:\s*$/, "")}</button>)}
+                {(workProductCopy ? ["A required part is missing: ", "This part is already complete: ", "This is outside the brief: ", "Change the emphasis toward: "] : ["A topic is missing: ", "I already know this and want a quick verification: ", "This is outside my goal: ", "Change the emphasis toward: "]).map((prompt) => <button type="button" key={prompt} onClick={() => setMapCorrection(prompt)}>{prompt.replace(/:\s*$/, "")}</button>)}
               </div>
               <textarea rows={3} maxLength={800} value={mapCorrection} placeholder="Example: Include the causes of World War I, but leave detailed military technology outside this plan." onChange={(event) => setMapCorrection(event.target.value)} />
               {mapCorrectionError && <p className="plan-activation-error"><AlertCircle size={16} /> {mapCorrectionError}</p>}
@@ -815,7 +842,7 @@ export function PlanCreator({
               : [];
             const editing = methodEditorSessionId === session.id;
             const updating = methodUpdatingSessionId === session.id;
-            return <article key={session.id} aria-label={`Session ${session.sequence}: ${session.title}`}><span>{session.sequence}</span><div><small>{session.learningMode === "learn" ? "TEACHING FIRST" : "PRACTICE FIRST"} · {formatSessionDate(session.scheduledFor)}</small><h3>{session.title}</h3><p>{session.method}</p>{route && <StudyRouteRecipeCard route={route} showAlternatives={false} />}<details className="generated-method-reason" aria-label={`Method decision for ${session.title}`}><summary>{route?.agency.selectedBy === "learner" ? "Why this method fits" : "Why YOVA chose this"}</summary><p>{session.methodReason}</p>{alternatives.length > 0 && <div className="draft-method-choice"><button type="button" className="draft-method-choice-trigger" disabled={Boolean(methodUpdatingSessionId) || activating} onClick={() => {
+            return <article key={session.id} aria-label={`Session ${session.sequence}: ${session.title}`}><span>{session.sequence}</span><div><small>{workProductCopy?.sessionModeLabel ?? (session.learningMode === "learn" ? "TEACHING FIRST" : "PRACTICE FIRST")} · {formatSessionDate(session.scheduledFor)}</small><h3>{session.title}</h3><p>{session.method}</p>{route && <StudyRouteRecipeCard route={route} showAlternatives={false} />}<details className="generated-method-reason" aria-label={`Method decision for ${session.title}`}><summary>{route?.agency.selectedBy === "learner" ? "Why this method fits" : "Why YOVA chose this"}</summary><p>{session.methodReason}</p>{alternatives.length > 0 && <div className="draft-method-choice"><button type="button" className="draft-method-choice-trigger" disabled={Boolean(methodUpdatingSessionId) || activating} onClick={() => {
               setMethodChoiceError(null);
               setMethodChoiceNotice(null);
               setMethodEditorSessionId((current) => current === session.id ? null : session.id);
@@ -824,16 +851,16 @@ export function PlanCreator({
           <section className="plan-alignment-check" aria-labelledby="plan-alignment-title">
             <div className="plan-alignment-heading"><span className="step-label">BEFORE YOVA SAVES THIS</span><h2 id="plan-alignment-title">Does this plan match what you need?</h2><p>Check the content, starting approach, source, and pace. If one part is wrong, change that input and YOVA will rebuild the draft.</p></div>
             <div className="plan-alignment-facts">
-              <div><span>CONTENT</span><strong>{generatedPlan.plan.topic}</strong></div>
-              <div><span>STARTING APPROACH</span><strong>{generatedPlan.plan.learningIntent === "learn" ? "Teach first, then remove support" : "Practice first, then repair gaps"}</strong></div>
-              <div><span>LEARNING SOURCE</span><strong>{sourceChoice === "materials" ? `${materials.length} uploaded ${materials.length === 1 ? "source" : "sources"}` : sourceChoice === "outside" ? "Your trusted source outside YOVA" : "Teaching and practice created by YOVA"}</strong></div>
+              <div><span>{workProductCopy ? "WORK PRODUCT" : "CONTENT"}</span><strong>{generatedPlan.plan.topic}</strong></div>
+              <div><span>STARTING APPROACH</span><strong>{workProductCopy?.startingApproach ?? (generatedPlan.plan.learningIntent === "learn" ? "Teach first, then remove support" : "Practice first, then repair gaps")}</strong></div>
+              <div><span>{workProductCopy ? "WORK SOURCE" : "LEARNING SOURCE"}</span><strong>{sourceChoice === "materials" ? `${materials.length} uploaded ${materials.length === 1 ? "source" : "sources"}` : sourceChoice === "outside" ? "Your trusted source outside YOVA" : workProductCopy ? "Structure and work steps created by YOVA" : "Teaching and practice created by YOVA"}</strong></div>
               <div><span>PACE</span><strong>{generatedPlan.plan.sessions.length} sessions · {durationLabel(generatedPlan.plan.sessions.map((session) => selectSessionActiveMinutes(generatedPlan.plan, session)), "per-session")}</strong></div>
             </div>
             <div className="plan-revision-actions" aria-label="Change this plan before saving">
               <button className="button ghost" disabled={Boolean(methodUpdatingSessionId)} onClick={() => reviseGeneratedPlan("goal")}>Change content</button>
               <button className="button ghost" disabled={Boolean(methodUpdatingSessionId)} onClick={() => reviseGeneratedPlan("source")}>Change source</button>
               <button className="button ghost" disabled={Boolean(methodUpdatingSessionId)} onClick={() => reviseGeneratedPlan("schedule")}>Change schedule</button>
-              <button className="button ghost" disabled={Boolean(methodUpdatingSessionId)} onClick={() => reviseGeneratedPlan("diagnostic")}>Change starting level</button>
+              {!workProductCopy && <button className="button ghost" disabled={Boolean(methodUpdatingSessionId)} onClick={() => reviseGeneratedPlan("diagnostic")}>Change starting level</button>}
             </div>
             {activationError && <p className="plan-activation-error"><AlertCircle size={16} /> {activationError}</p>}
             <div className="plan-activation"><div><Check size={18} /><span><strong>Confirm only when this looks right.</strong><small>YOVA will save the plan and make its first session available.</small></span></div><button className="button primary large" disabled={activating || Boolean(methodUpdatingSessionId)} onClick={() => void activateGeneratedPlan()}>{activating ? <><span className="button-spinner" /> Saving plan…</> : <>Use this plan <ArrowRight size={18} /></>}</button></div>
@@ -868,26 +895,41 @@ function formatSessionDate(value: string) {
   }).format(new Date(value));
 }
 
-function groupPlanSessions(sessions: LearningPlan["sessions"]) {
-  const phaseDefinitions = {
-    foundation: {
-      label: "Build the foundation",
-      description: "Learn the prerequisite ideas and see how the pieces connect before support is removed.",
+function groupPlanSessions(
+  sessions: LearningPlan["sessions"],
+  workProductKind: WorkProductKind | null = null,
+) {
+  type PhaseKey = "foundation" | "guided" | "practice" | "review";
+  type PhaseDefinitions = Record<PhaseKey, { label: string; description: string }>;
+  const learningPhaseDefinitions: PhaseDefinitions = {
+    foundation: { label: "Build the foundation", description: "Learn the prerequisite ideas and see how the pieces connect before support is removed." },
+    guided: { label: "Learn with guidance", description: "Work through examples and reconstruct the reasoning with progressively less help." },
+    practice: { label: "Practice and apply", description: "Produce answers independently, use the ideas in new situations, and repair exposed gaps." },
+    review: { label: "Verify and retain", description: "Return after a delay and confirm that the important ideas are still available without support." },
+  };
+  const artifactPhaseDefinitions: Record<WorkProductKind, PhaseDefinitions> = {
+    writing: {
+      foundation: { label: "Shape the draft", description: "Set the requirements, claim, and structure before drafting the full work." },
+      guided: { label: "Draft with support", description: "Build the required sections and match claims to evidence or criteria." },
+      practice: { label: "Revise and strengthen", description: "Test the draft against the brief, repair weak sections, and improve the complete artifact." },
+      review: { label: "Review and finish", description: "Complete a final review against the requirements and prepare the work for submission." },
     },
-    guided: {
-      label: "Learn with guidance",
-      description: "Work through examples and reconstruct the reasoning with progressively less help.",
+    speech: {
+      foundation: { label: "Shape the speech", description: "Set the purpose, audience, claim, and speaking structure before full rehearsal." },
+      guided: { label: "Build the speech", description: "Develop the key sections, transitions, evidence, and delivery cues." },
+      practice: { label: "Rehearse and refine", description: "Rehearse the speech, repair weak sections, and improve the delivery." },
+      review: { label: "Review and finish", description: "Run a final rehearsal against the requirements and prepare to deliver it." },
     },
-    practice: {
-      label: "Practice and apply",
-      description: "Produce answers independently, use the ideas in new situations, and repair exposed gaps.",
+    presentation: {
+      foundation: { label: "Shape the presentation", description: "Set the purpose, audience, structure, and required content before building every part." },
+      guided: { label: "Build the presentation", description: "Develop the content, slides, speaker notes, and transitions in a clear sequence." },
+      practice: { label: "Rehearse and refine", description: "Rehearse the presentation, repair weak sections, and improve the delivery." },
+      review: { label: "Review and finish", description: "Run a final review against the requirements and prepare to present it." },
     },
-    review: {
-      label: "Verify and retain",
-      description: "Return after a delay and confirm that the important ideas are still available without support.",
-    },
-  } as const;
-  type PhaseKey = keyof typeof phaseDefinitions;
+  };
+  const phaseDefinitions = workProductKind
+    ? artifactPhaseDefinitions[workProductKind]
+    : learningPhaseDefinitions;
   const groups: Array<{
     key: PhaseKey;
     label: string;

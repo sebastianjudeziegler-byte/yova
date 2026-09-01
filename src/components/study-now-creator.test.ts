@@ -3,10 +3,12 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import {
   buildStudyNowRequestSummary,
+  studyNowStartingPointForSeed,
   StudyNowCreator,
   studyNowPreviewPreferenceRequestInput,
 } from "@/components/study-now-creator";
 import type { AddIntakeSeed } from "@/lib/intake/schema";
+import { resolveLearningIntent } from "@/lib/learning/learning-intent";
 import { createCanonicalLearnerProfile } from "@/lib/personalization/canonical-profile-schema";
 
 vi.mock("@/components/brand-mark", () => ({ BrandMark: () => null }));
@@ -46,6 +48,39 @@ describe("StudyNowCreator request summary", () => {
       objective: "Practice ATP synthesis!",
       scope: "NADH production.",
     })).toBe("DNA review? Practice ATP synthesis! Scope: NADH production.");
+  });
+
+  it("seeds an unstarted speech with a supported start instead of assuming prior knowledge", () => {
+    expect(studyNowStartingPointForSeed({
+      ...seed,
+      title: "Persuasive climate speech",
+      objective: "Prepare and rehearse a persuasive speech using cited evidence",
+      itemType: "assignment",
+      scope: "Claim, evidence, rebuttal, and delivery",
+      progress: "Not started",
+      description: "Prepare a persuasive climate speech due next week",
+    })).toBe("I haven't learned this yet");
+  });
+
+  it("does not treat an untouched problem set as proof that the underlying skill is new", () => {
+    expect(studyNowStartingPointForSeed({
+      ...seed,
+      title: "Calculus problem set",
+      objective: "Complete 20 assigned derivative problems",
+      itemType: "assignment",
+      scope: "Problems 1 through 20",
+      progress: "Not started",
+      description: "Complete 20 calculus problems from the textbook",
+    })).toBe("I understand the basics but need practice");
+  });
+
+  it("keeps an explicit unstarted artifact on Learn with Study Now's unseeded default", () => {
+    const startingPoint = studyNowStartingPointForSeed(null);
+    expect(startingPoint).toBe("I understand the basics but need practice");
+    expect(resolveLearningIntent({
+      goal: "I have not started my essay",
+      startingPoint,
+    })).toMatchObject({ intent: "learn" });
   });
 
   it("sends canonical method preferences only in browser preview mode", () => {
