@@ -83,7 +83,8 @@ test("a historical topic date cannot override the learner's real deadline", asyn
   await page.getByRole("button", { name: /Create it for me/ }).click();
   await page.getByRole("button", { name: "Continue", exact: true }).click();
 
-  await expect(page.getByRole("heading", { name: "When would you prefer to study this material?" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "When would you prefer to work on this?" })).toBeVisible();
+  await expect(page.locator(".plan-header")).toContainText("Step 3 of 4");
   await expect(page.getByRole("textbox", { name: "Target date" })).toHaveValue(expected.input);
 });
 
