@@ -14,6 +14,7 @@ import "@fontsource/jetbrains-mono/700.css";
 import "katex/dist/katex.min.css";
 import "./globals.css";
 import "./polish.css";
+import "./calendar.css";
 import type { Metadata, Viewport } from "next";
 import { getSiteUrl } from "@/lib/site-url";
 

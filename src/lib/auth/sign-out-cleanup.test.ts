@@ -65,4 +65,137 @@ describe("confirmed sign-out storage cleanup", () => {
     expect(clearConfirmedSignOutStorage("user-1")).toEqual({ fullyCleared: false });
     expect(removedKeys).toContain("yova.preview.v1");
   });
+
+  it("retains account-scoped manual Calendar data across sign-out", () => {
+    const calendarState = (accountId: string) => ({
+      version: 1,
+      accountId,
+      manualEvents: [],
+      suggestions: [],
+      availabilityOverrides: [],
+      changeLog: [],
+      ui: {
+        view: "week",
+        anchorDateKey: null,
+        selectedBlockId: null,
+        whyExpanded: false,
+        changeLogExpanded: false,
+      },
+      updatedAt: "2026-09-01T09:00:00.000Z",
+    });
+    const values = new Map<string, string>([[
+      "yova.calendar.prototype.v1",
+      JSON.stringify({
+        version: 1,
+        accounts: {
+          "user-1": calendarState("user-1"),
+          "user-2": calendarState("user-2"),
+        },
+      }),
+    ]]);
+    vi.stubGlobal("window", {
+      localStorage: {
+        getItem: vi.fn((key: string) => values.get(key) ?? null),
+        setItem: vi.fn((key: string, value: string) => values.set(key, value)),
+        removeItem: vi.fn((key: string) => values.delete(key)),
+      },
+    });
+
+    const before = values.get("yova.calendar.prototype.v1");
+    expect(clearConfirmedSignOutStorage("user-1")).toEqual({ fullyCleared: true });
+    expect(JSON.parse(values.get("yova.calendar.prototype.v1")!)).toMatchObject({
+      accounts: {
+        "user-1": { accountId: "user-1" },
+        "user-2": { accountId: "user-2" },
+      },
+    });
+    expect(values.get("yova.calendar.prototype.v1")).toBe(before);
+  });
+
+  it("clears only the deleted account's Calendar bucket after permanent deletion", () => {
+    const calendarState = (accountId: string) => ({
+      version: 1,
+      accountId,
+      manualEvents: [],
+      suggestions: [],
+      availabilityOverrides: [],
+      changeLog: [],
+      ui: {
+        view: "week",
+        anchorDateKey: null,
+        selectedBlockId: null,
+        whyExpanded: false,
+        changeLogExpanded: false,
+      },
+      updatedAt: "2026-09-01T09:00:00.000Z",
+    });
+    const values = new Map<string, string>([[
+      "yova.calendar.prototype.v1",
+      JSON.stringify({
+        version: 1,
+        accounts: {
+          "deleted-user": calendarState("deleted-user"),
+          "other-user": calendarState("other-user"),
+        },
+      }),
+    ]]);
+    vi.stubGlobal("window", {
+      localStorage: {
+        getItem: vi.fn((key: string) => values.get(key) ?? null),
+        setItem: vi.fn((key: string, value: string) => values.set(key, value)),
+        removeItem: vi.fn((key: string) => values.delete(key)),
+      },
+    });
+
+    expect(clearConfirmedSignOutStorage("deleted-user", {
+      clearDeletedAccountCalendar: true,
+    })).toEqual({ fullyCleared: true });
+    expect(JSON.parse(values.get("yova.calendar.prototype.v1")!)).toMatchObject({
+      accounts: {
+        "other-user": { accountId: "other-user" },
+      },
+    });
+    expect(JSON.parse(values.get("yova.calendar.prototype.v1")!).accounts)
+      .not.toHaveProperty("deleted-user");
+  });
+
+  it("uses the existing cleanup warning result when deleted-account Calendar removal fails", () => {
+    vi.stubGlobal("window", {
+      localStorage: {
+        getItem: vi.fn((key: string) => key === "yova.calendar.prototype.v1"
+          ? JSON.stringify({
+            version: 1,
+            accounts: {
+              "deleted-user": {
+                version: 1,
+                accountId: "deleted-user",
+                manualEvents: [],
+                suggestions: [],
+                availabilityOverrides: [],
+                changeLog: [],
+                ui: {
+                  view: "week",
+                  anchorDateKey: null,
+                  selectedBlockId: null,
+                  whyExpanded: false,
+                  changeLogExpanded: false,
+                },
+                updatedAt: "2026-09-01T09:00:00.000Z",
+              },
+            },
+          })
+          : null),
+        setItem: vi.fn(() => {
+          throw new Error("Calendar cleanup rejected");
+        }),
+        removeItem: vi.fn(() => {
+          throw new Error("Calendar cleanup rejected");
+        }),
+      },
+    });
+
+    expect(clearConfirmedSignOutStorage("deleted-user", {
+      clearDeletedAccountCalendar: true,
+    })).toEqual({ fullyCleared: false });
+  });
 });

@@ -6,11 +6,15 @@ const source = readFileSync(
   resolve(process.cwd(), "src/components/yova-prototype.tsx"),
   "utf8",
 );
+const calendarSource = readFileSync(
+  resolve(process.cwd(), "src/components/calendar/calendar-screen.tsx"),
+  "utf8",
+);
 
 describe("visible personalization surfaces", () => {
   it("keeps Home's collapsed route to mode, method, total time, reason, and Start", () => {
     const start = source.indexOf("function HomeScreen(");
-    const end = source.indexOf("function SubjectIcon", start);
+    const end = source.indexOf("function formatHomeDate", start);
     const home = source.slice(start, end);
     const chipsStart = home.indexOf('<div className="hg-chip-row">');
     const chipsEnd = home.indexOf("</div>", chipsStart);
@@ -28,17 +32,21 @@ describe("visible personalization surfaces", () => {
     expect(home).toContain('resumePoint ? "Continue session" : "Start session"');
   });
 
-  it("shows Agenda's collapsed route with total elapsed time and its short reason", () => {
-    const start = source.indexOf("function AgendaScreen(");
-    const end = source.indexOf("function AskScreen", start);
-    const agenda = source.slice(start, end);
+  it("shows Calendar's session mode, bounded time, exact method, and evidence-backed reasons", () => {
+    const start = calendarSource.indexOf("function SelectedBlockDetail(");
+    const end = calendarSource.indexOf("function YourDayCard(", start);
+    const detail = calendarSource.slice(start, end);
+    const labelStart = calendarSource.indexOf("function blockTypeLabel(");
+    const labelEnd = calendarSource.indexOf("function outcomeStatusLabel(", labelStart);
+    const label = calendarSource.slice(labelStart, labelEnd);
 
-    expect(agenda).toContain("agendaRoute?.timing.elapsedMinutes ?? session.estimatedMinutes");
-    expect(agenda).toContain("agendaRoute?.explanation.shortReason ?? session.methodReason");
-    expect(agenda).toContain('=== "learn" ? "Learn" : "Practice"');
-    expect(agenda).toContain("{selectSessionMethodName(plan, session)} · {agendaTotalMinutes} minutes");
-    expect(agenda).toContain("<small>{agendaReason}</small>");
-    expect(agenda).toContain('resumePoint ? "Continue" : "Start"');
+    expect(label).toContain('block.learningMode === "learn" ? "Learn" : "Practice"');
+    expect(detail).toContain("const minutes = blockMinutes(block)");
+    expect(detail).toContain("{formatDateTime(block.startsAt)} · {minutes} min");
+    expect(detail).toContain("<dt>Why here</dt><dd>{reason}</dd>");
+    expect(detail).toContain("<dt>Method</dt><dd>{block.methodName}</dd>");
+    expect(detail).toContain("<dt>Why this method</dt><dd>{block.methodReason}</dd>");
+    expect(detail).toContain('advertiseContinue ? "Continue" : "Start"');
   });
 
   it("renders the evidence-backed receipt after guided and ungraded sessions", () => {

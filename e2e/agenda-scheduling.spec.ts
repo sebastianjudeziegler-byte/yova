@@ -14,7 +14,8 @@ const onboardingAnswers = [
   "Afternoon",
 ] as const;
 
-test("Agenda refuses unchanged and past custom session times", async ({ page }) => {
+test("Calendar refuses unchanged and past custom session times", async ({ page }) => {
+  await page.clock.setFixedTime(new Date("2026-09-02T10:00:00.000Z"));
   await createPreviewAccount(page);
   await completeOnboarding(page);
   await page.evaluate(() => {
@@ -60,28 +61,27 @@ test("Agenda refuses unchanged and past custom session times", async ({ page }) 
   });
 
   await page.reload();
-  await page.getByRole("button", { name: "Agenda", exact: true }).click();
-  await page.locator(".agenda-week-selector button").nth(1).click();
-  const session = page.locator(".agenda-period article").filter({ hasText: "Move this bounded session" });
-  await session.getByRole("button", { name: "Move", exact: true }).click();
+  await page.getByRole("button", { name: "Calendar", exact: true }).click();
+  await page.getByRole("button", { name: /^Move this bounded session, / }).click();
+  const detail = page.locator(".calendar-block-detail").filter({ hasText: "Move this bounded session" });
+  await detail.getByRole("button", { name: "Move", exact: true }).click();
 
-  const panel = page.locator(".agenda-move-panel").filter({ hasText: "Move this bounded session" });
-  const customTime = panel.getByLabel("Custom date and time");
+  const panel = detail.locator(".calendar-move-panel");
+  const customTime = panel.getByLabel("New time");
   const save = panel.getByRole("button", { name: "Save new time" });
-  await expect(panel.getByText("Choose a different date or time before saving.")).toBeVisible();
-  await expect(save).toBeDisabled();
+  await save.click();
+  await expect(page.locator(".calendar-action-error")).toContainText("Choose a different date or time before saving.");
 
   const pastInput = localDateTimeInput(new Date(Date.now() - 24 * 60 * 60 * 1_000));
   await customTime.fill(pastInput);
-  await expect(panel.getByText("Choose a future date and time.")).toBeVisible();
-  await expect(save).toBeDisabled();
+  await save.click();
+  await expect(page.locator(".calendar-action-error")).toContainText("Choose a future date and time.");
 
   const futureInput = localDateTimeInput(new Date(Date.now() + 48 * 60 * 60 * 1_000));
   await customTime.fill(futureInput);
-  await expect(panel.getByText("Choose a future date and time.")).toHaveCount(0);
-  await expect(save).toBeEnabled();
   await save.click();
   await expect(panel).toHaveCount(0);
+  await expect(page.locator(".calendar-action-error")).toHaveCount(0);
 });
 
 async function createPreviewAccount(page: Page) {

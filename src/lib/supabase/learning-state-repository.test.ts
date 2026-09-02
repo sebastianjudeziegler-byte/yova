@@ -306,6 +306,100 @@ describe("authenticated learning-state startup", () => {
     expect(plan?.title).not.toMatch(/Effects on Animal and Plant Cells Using/i);
   });
 
+  it("projects failed and processing materials to Calendar without attaching them to a plan", async () => {
+    mockCloudQueries({
+      profile: { display_name: "Learner", onboarding_completed_at: NOW },
+      items: [{
+        id: "item-material-status",
+        title: "Cell biology review",
+        kind: "test",
+        topic: "Cell biology",
+        deadline: null,
+        source_mode: "user_materials",
+        study_mode: "inside_yova",
+        created_at: NOW,
+      }],
+      plans: [{
+        id: "plan-material-status",
+        learning_item_id: "item-material-status",
+        status: "active",
+        rationale: "Use the ready source only.",
+        generation_inputs: { learningIntent: "study", intent: "plan" },
+        knowledge_map: null,
+        created_at: NOW,
+      }],
+      materials: [
+        {
+          id: "material-ready",
+          learning_item_id: "item-material-status",
+          filename: "ready-notes.pdf",
+          mime_type: "application/pdf",
+          byte_size: 1_024,
+          processing_status: "ready",
+          metadata: null,
+        },
+        {
+          id: "material-processing",
+          learning_item_id: "item-material-status",
+          filename: "mapping-notes.pdf",
+          mime_type: "application/pdf",
+          byte_size: 2_048,
+          processing_status: "processing",
+          metadata: null,
+        },
+        {
+          id: "material-failed",
+          learning_item_id: "item-material-status",
+          filename: "broken-notes.pdf",
+          mime_type: "application/pdf",
+          byte_size: 3_072,
+          processing_status: "failed",
+          metadata: null,
+        },
+        {
+          id: "material-unknown",
+          learning_item_id: "item-material-status",
+          filename: "unknown-notes.pdf",
+          mime_type: "application/pdf",
+          byte_size: 4_096,
+          processing_status: "unexpected_status",
+          metadata: null,
+        },
+      ],
+    });
+
+    const state = await loadAuthenticatedLearningState();
+    const materialQueryIndex = from.mock.calls.findIndex(([table]) => table === "materials");
+    const materialQuery = from.mock.results[materialQueryIndex]?.value as {
+      eq: ReturnType<typeof vi.fn>;
+    } | undefined;
+
+    expect(state?.plans[0]?.materials).toEqual([
+      expect.objectContaining({ id: "material-ready", processingStatus: "ready" }),
+    ]);
+    expect(materialQuery?.eq).not.toHaveBeenCalledWith("processing_status", "ready");
+    expect(state?.calendarMaterials).toEqual([
+      {
+        id: "material-ready",
+        name: "ready-notes.pdf",
+        processingStatus: "ready",
+        learningItemId: "item-material-status",
+      },
+      {
+        id: "material-processing",
+        name: "mapping-notes.pdf",
+        processingStatus: "processing",
+        learningItemId: "item-material-status",
+      },
+      {
+        id: "material-failed",
+        name: "broken-notes.pdf",
+        processingStatus: "failed",
+        learningItemId: "item-material-status",
+      },
+    ]);
+  });
+
   it("normalizes PostgREST milestone timestamps before they can be edited", async () => {
     mockCloudQueries({
       profile: { display_name: "Learner", onboarding_completed_at: NOW },

@@ -72,7 +72,7 @@ describe("plan schedule API client", () => {
     }), { status: 200, headers: { "Content-Type": "application/json" } }));
 
     await expect(persistPlanSchedule(PLAN_ID, updates, { request })).rejects.toThrow(
-      "could not safely confirm every session",
+      "YOVA changed the calendar but could not safely confirm every session",
     );
   });
 

@@ -38,11 +38,11 @@ export async function persistPlanSchedule(
 
   const parsed = ReschedulePlanSessionsResponseSchema.safeParse(body);
   if (!parsed.success || parsed.data.planId !== normalizedPlanId) {
-    throw new Error("YOVA changed the agenda but could not safely confirm it. Reload before making another change.");
+    throw new Error("YOVA changed the calendar but could not safely confirm it. Reload before making another change.");
   }
   const authoritativeIds = new Set(parsed.data.sessions.map((session) => session.planSessionId));
   if (normalizedUpdates.some((update) => !authoritativeIds.has(update.planSessionId))) {
-    throw new Error("YOVA changed the agenda but could not safely confirm every session. Reload before making another change.");
+    throw new Error("YOVA changed the calendar but could not safely confirm every session. Reload before making another change.");
   }
   return parsed.data;
 }

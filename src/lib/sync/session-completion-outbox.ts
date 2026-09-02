@@ -288,6 +288,60 @@ export async function flushQueuedSessionCompletions(userId: string) {
   };
 }
 
+export type SupersedingSessionCompletionFlushResult = Readonly<{
+  committed: boolean;
+  remaining: number;
+}>;
+
+/**
+ * Attempts only the queued completion for one blocked Exit's exact session.
+ *
+ * The terminal coordinator uses this after that Exit has failed. A successful
+ * completion is authoritative for the session, so every duplicate completion
+ * marker for the same session can then be reconciled. A failed or absent
+ * completion leaves the entire queue unchanged, and unrelated completions are
+ * never allowed to jump the blocked terminal ordering boundary.
+ */
+export async function flushQueuedSessionCompletionSupersedingExit(
+  userId: string,
+  planSessionId: string,
+): Promise<SupersedingSessionCompletionFlushResult> {
+  const entry = loadAllPendingCompletions().find((candidate) => (
+    candidate.userId === userId
+    && candidate.completion.planSessionId === planSessionId
+  ));
+  if (!entry) {
+    return {
+      committed: false,
+      remaining: pendingSessionCompletionCount(userId),
+    };
+  }
+
+  try {
+    await completeAuthenticatedPlanSession(
+      entry.completion,
+      entry.adaptation,
+      entry.followUpSession,
+      entry.continuationSession ?? null,
+      entry.nextSessionStudyRoute ?? null,
+    );
+  } catch {
+    return {
+      committed: false,
+      remaining: pendingSessionCompletionCount(userId),
+    };
+  }
+
+  const reconciliation = reconcileQueuedSessionCompletions(userId, [{
+    id: entry.completion.id,
+    planSessionId,
+  }]);
+  return {
+    committed: true,
+    remaining: reconciliation.remaining,
+  };
+}
+
 function loadAllPendingCompletions(): PendingSessionCompletion[] {
   if (typeof window === "undefined") return [];
 

@@ -12,6 +12,7 @@ import type {
   SourceMode,
   StudyMode,
 } from "@/lib/domain";
+import type { CalendarMaterialState } from "@/lib/calendar/types";
 import { readConceptEvidenceProperty } from "@/lib/learning/concept-evidence";
 import {
   normalizeSessionCompletionMode,
@@ -166,6 +167,8 @@ export type CloudLearningState = {
   sessionCompletions: SessionCompletion[];
   sessionInterruptions: SessionInterruption[];
   activeSessionCheckpoints: ActiveSessionCheckpoint[];
+  /** Read-only Calendar projection; never used as plan/session source grounding. */
+  calendarMaterials?: CalendarMaterialState[];
 };
 
 const AUTHENTICATED_STATE_RETRY_DELAYS_MS = [150, 400] as const;
@@ -264,7 +267,7 @@ export async function loadAuthenticatedLearningState(): Promise<CloudLearningSta
     supabase.from("plan_sessions").select("id,plan_id,sequence,title,objective,method,method_rationale,scheduled_for,estimated_minutes,status,step_data,committed_route_revision_id").order("sequence", { ascending: true }),
     supabase.from("study_routes").select("route_revision_id,route_lineage_id,revision_number,schema_version,lifecycle,plan_id,plan_session_id,predecessor_revision_id,route_payload,created_at,committed_at").eq("lifecycle", "committed").order("revision_number", { ascending: true }),
     supabase.from("session_attempts").select("id,plan_session_id,started_at,completed_at,actual_minutes,correct_answers,total_answers,user_feedback,result_data").not("completed_at", "is", null).order("completed_at", { ascending: true }),
-    supabase.from("materials").select("id,learning_item_id,filename,mime_type,byte_size,processing_status,metadata").eq("processing_status", "ready").order("created_at", { ascending: true }),
+    supabase.from("materials").select("id,learning_item_id,filename,mime_type,byte_size,processing_status,metadata").order("created_at", { ascending: true }),
     supabase.from("learning_events").select("plan_session_id,occurred_at,event_data").eq("event_type", "session_interrupted").order("occurred_at", { ascending: true }),
     supabase.from("deadline_milestones").select("id,title,description,due_at,status,linked_learning_item_id,created_at").order("due_at", { ascending: true }),
   ]);
@@ -293,6 +296,16 @@ export async function loadAuthenticatedLearningState(): Promise<CloudLearningSta
   const routeRows = (routesResult.data ?? []) as StudyRouteRow[];
   const attemptRows = (attemptsResult.data ?? []) as SessionAttemptRow[];
   const materialRows = (materialsResult.data ?? []) as MaterialRow[];
+  const calendarMaterials = materialRows.flatMap<CalendarMaterialState>((row) => {
+    const processingStatus = calendarMaterialProcessingStatus(row.processing_status);
+    if (!processingStatus) return [];
+    return [{
+      id: row.id,
+      name: row.filename,
+      processingStatus,
+      learningItemId: row.learning_item_id || null,
+    }];
+  });
   const interruptionRows = (interruptionsResult.data ?? []) as LearningEventRow[];
   const deadlineMilestones = (milestonesResult.data ?? []).flatMap<DeadlineMilestone>((row) => {
     try {
@@ -324,6 +337,7 @@ export async function loadAuthenticatedLearningState(): Promise<CloudLearningSta
   }
 
   for (const row of materialRows) {
+    if (row.processing_status !== "ready") continue;
     const current = materialsByItemId.get(row.learning_item_id) ?? [];
     current.push({
       id: row.id,
@@ -512,7 +526,17 @@ export async function loadAuthenticatedLearningState(): Promise<CloudLearningSta
     sessionCompletions,
     sessionInterruptions,
     activeSessionCheckpoints,
+    calendarMaterials,
   };
+}
+
+function calendarMaterialProcessingStatus(
+  value: string,
+): CalendarMaterialState["processingStatus"] | null {
+  if (value === "uploaded" || value === "processing" || value === "ready" || value === "failed") {
+    return value;
+  }
+  return null;
 }
 
 function delay(milliseconds: number) {

@@ -207,7 +207,7 @@ export function AddToYova({
       <p>YOVA will not turn every request into a large learning plan.</p>
       <div className="add-outcome-summary"><strong>{seed.title}</strong><span>{seed.dueAt ? `Due ${formatDueDate(seed.dueAt)}` : "No fixed deadline"} · {formatItemType(seed.itemType)}{seed.requestedMinutes ? ` · ${seed.requestedMinutes} minutes requested` : ""}</span></div>
       <div className="add-outcome-options">
-        {seed.dueAt && <button disabled={step === "saving"} onClick={() => void trackDeadline()}><CalendarDays /><span><strong>Track the deadline</strong><small>Add it to Agenda without creating study sessions.</small></span><ArrowRight /></button>}
+        {seed.dueAt && <button disabled={step === "saving"} onClick={() => void trackDeadline()}><CalendarDays /><span><strong>Track the deadline</strong><small>Add it to Calendar without creating study sessions.</small></span><ArrowRight /></button>}
         <button disabled={step === "saving"} onClick={() => onCreateSession(seed)}><Clock3 /><span><strong>Create one session</strong><small>Turn this into one focused session.</small></span><ArrowRight /></button>
         <button disabled={step === "saving"} onClick={() => onCreatePlan(seed)}><Layers3 /><span><strong>Create a plan</strong><small>Break this into multiple sessions and schedule them around your availability.</small></span><ArrowRight /></button>
       </div>

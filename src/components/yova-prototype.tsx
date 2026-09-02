@@ -8,43 +8,35 @@ import {
   Archive,
   ArrowLeft,
   ArrowRight,
-  Atom,
-  BadgeDollarSign,
   BookOpen,
-  BookMarked,
   CalendarDays,
-  Calculator,
   Check,
   ChevronLeft,
   ChevronRight,
   CircleUserRound,
   Clock3,
-  Code2,
-  Dna,
   FileText,
-  FlaskConical,
-  Globe2,
   History,
   Home,
-  Landmark,
   LibraryBig,
   LogOut,
   MessageCircleMore,
   MessageSquarePlus,
-  Microscope,
-  Moon,
   Plus,
   RotateCcw,
   Send,
   Settings2,
   Sparkles,
-  SunMedium,
   Target,
   Trash2,
   Upload,
   X,
 } from "lucide-react";
 import { BrandMark } from "@/components/brand-mark";
+import {
+  CalendarScreen,
+  type CalendarPlanBuildContext,
+} from "@/components/calendar/calendar-screen";
 import { AccountEntry, type AccountMode } from "@/components/auth/account-entry";
 import { AccountSecurityCard } from "@/components/auth/account-security-card";
 import { prepareAccountDataExport } from "@/lib/account-export/client";
@@ -61,6 +53,7 @@ import { MethodLibrary } from "@/components/method-library";
 import { CanonicalProfileCenter } from "@/components/personalization/canonical-profile-center";
 import { PlanCreator } from "@/components/plan-creator";
 import { PlanDeletionControl } from "@/components/plan-deletion-dialog";
+import { PageHeader } from "@/components/page-header";
 import { PostSessionPersonalizationReceipt } from "@/components/post-session-personalization-receipt";
 import { QuantitativeWorkpad } from "@/components/quantitative-workpad";
 import { StudyMethodBriefing } from "@/components/study-method-briefing";
@@ -77,6 +70,7 @@ import {
   conceptMapDraftIsComplete,
 } from "@/components/method-runtime-panel";
 import { StudyNowCreator } from "@/components/study-now-creator";
+import { SubjectIcon } from "@/components/subject-icon";
 import { TutorMessageContent } from "@/components/tutor-message-content";
 import { trackProductEvent } from "@/lib/analytics/client";
 import { describeAuthCallbackResult } from "@/lib/auth/callback-result";
@@ -110,7 +104,13 @@ import {
 } from "@/lib/domain";
 import type { AddIntakeSeed } from "@/lib/intake/schema";
 import { DeadlineMilestoneSchema } from "@/lib/milestones/schema";
-import { isMilestoneOverdue, nextActionableMilestone } from "@/lib/milestones/agenda";
+import { calendarPersonalizationReasons } from "@/lib/calendar/model";
+import type { CalendarMaterialState } from "@/lib/calendar/types";
+import {
+  appendCalendarChangeLogEntry,
+  clearCalendarPrototypeState,
+  removeCalendarManualEventAfterPlanCommit,
+} from "@/lib/calendar/persistence";
 import { sessionSetupObjective } from "@/lib/session-setup/objective-copy";
 import {
   formatCharacterLimit,
@@ -119,7 +119,6 @@ import {
 import { summarizeConceptEvidence, type ConceptSignal } from "@/lib/learning/concept-evidence";
 import { inferSessionFamiliarityFromText } from "@/lib/learning/learning-intent";
 import {
-  buildConceptReviewAgenda,
   buildConceptReviewSession,
   type ConceptReviewAgendaItem,
 } from "@/lib/learning/concept-review-agenda";
@@ -404,20 +403,9 @@ import {
   type PendingSessionGenerationOperation,
 } from "@/lib/session-generation/operation-key";
 import { persistPlanSchedule } from "@/lib/scheduling/client";
-import { customScheduleIssue } from "@/lib/scheduling/custom-time";
 import type { ScheduleSessionUpdate } from "@/lib/scheduling/schema";
 import {
-  buildAgendaBalanceSuggestion,
-  buildAgendaDayGroups,
-  buildDailyCapacityPlan,
-  localDateKey,
-  summarizeAgenda,
-} from "@/lib/scheduling/agenda-insights";
-import {
-  isSessionOverdue,
   latestRecoveryInterruptionEvidenceRef,
-  recoverySessionMinutes,
-  tomorrowAtSessionTime,
 } from "@/lib/scheduling/recovery";
 import { canOfferAgendaSessionSplit } from "@/lib/scheduling/split-safety";
 import {
@@ -466,7 +454,7 @@ import {
 } from "@/lib/tutor/schema";
 
 type Stage = "landing" | "account" | "cloud-error" | "onboarding-intro" | "onboarding" | "profile" | "app" | "add" | "plan-creator" | "study-now" | "session-setup" | "session-loading" | "session-error" | "session-quota" | "session-method" | "session" | "complete";
-type Tab = "Home" | "Learning" | "Agenda" | "Ask YOVA" | "You";
+type Tab = "Home" | "Learning" | "Calendar" | "Ask YOVA" | "You";
 type LearningPlanView = "active" | "recent" | "archive";
 type LearningSection = LearningPlanView | "methods";
 type LessonStep = GuidedSessionStep & {
@@ -480,8 +468,6 @@ function isActiveSessionCheckpointResumePoint(
 ): value is ActiveSessionCheckpointResumePoint {
   return Boolean(value && "source" in value && value.source === "active_session_checkpoint");
 }
-type AgendaEntry = { plan: LearningPlan; session: LearningPlanSession };
-
 type ReadySessionMethodChoiceSelection = {
   planId: string;
   planSessionId: string;
@@ -590,7 +576,7 @@ const CLIENT_SESSION_GENERATION_TIMEOUT_MS = 110_000;
 const navItems: Array<{ label: Tab; icon: typeof Home }> = [
   { label: "Home", icon: Home },
   { label: "Learning", icon: LibraryBig },
-  { label: "Agenda", icon: CalendarDays },
+  { label: "Calendar", icon: CalendarDays },
   { label: "Ask YOVA", icon: MessageCircleMore },
   { label: "You", icon: CircleUserRound },
 ];
@@ -624,8 +610,12 @@ export function YovaPrototype({
   const [answers, setAnswers] = useState<string[]>([]);
   const [plans, setPlans] = useState<LearningPlan[]>([]);
   const [deadlineMilestones, setDeadlineMilestones] = useState<DeadlineMilestone[]>([]);
+  const [calendarMaterials, setCalendarMaterials] = useState<CalendarMaterialState[]>([]);
   const [creatorSeed, setCreatorSeed] = useState<AddIntakeSeed | null>(null);
   const [creatorMilestoneId, setCreatorMilestoneId] = useState<string | null>(null);
+  const [creatorCalendarEventId, setCreatorCalendarEventId] = useState<string | null>(null);
+  const [creatorReviewSourceFirst, setCreatorReviewSourceFirst] = useState(false);
+  const [calendarStorageRevision, setCalendarStorageRevision] = useState(0);
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
   const [learningDetailPlanId, setLearningDetailPlanId] = useState<string | null>(null);
   const [sessionCompletions, setSessionCompletions] = useState<SessionCompletion[]>([]);
@@ -677,6 +667,7 @@ export function YovaPrototype({
   const [tutorEntryKey, setTutorEntryKey] = useState(0);
   const [pendingSessionPlan, setPendingSessionPlan] = useState<LearningPlan | null>(null);
   const [earlySessionPlanId, setEarlySessionPlanId] = useState<string | null>(null);
+  const [earlySessionPlanSessionId, setEarlySessionPlanSessionId] = useState<string | null>(null);
   const [earlySchedulePending, setEarlySchedulePending] = useState(false);
   const [earlyScheduleIssue, setEarlyScheduleIssue] = useState<string | null>(null);
   const cloudRecoveryStatusRef = useRef<CloudRecoveryStatus>("idle");
@@ -787,7 +778,9 @@ export function YovaPrototype({
   const earlySessionPlan = earlySessionPlanId
     ? activePlans.find((plan) => plan.id === earlySessionPlanId) ?? null
     : null;
-  const earlySession = earlySessionPlan?.sessions.find((session) => session.status === "ready") ?? null;
+  const earlySession = earlySessionPlan?.sessions.find((session) => (
+    session.id === earlySessionPlanSessionId && session.status === "ready"
+  )) ?? null;
   const activeLessonSteps = generatedLessonSteps ?? lessonStepsFor(activePlan);
   const sessionEvidence = mergeSessionEvidenceSummaries(
     resumedSessionEvidence,
@@ -821,6 +814,14 @@ export function YovaPrototype({
   const effectivePreviewCanonicalProfile = personalizationState.controls.selfReport
     ? canonicalLearnerProfileFromAnswers(answers)
     : null;
+  const calendarReasons = calendarPersonalizationReasons({
+    answers,
+    completions: sessionCompletions,
+    interruptions: sessionInterruptions,
+  });
+  const calendarProfileSummary = effectivePreviewCanonicalProfile
+    ? buildCanonicalLearnerFacingSummary(effectivePreviewCanonicalProfile).statements
+    : [];
   const changePreferredMethodIds = async (methodIds: CoreMethodId[]) => {
     const nextAnswers = updatePersonalizationStateInAnswers(
       answers,
@@ -922,13 +923,17 @@ export function YovaPrototype({
   const beginPlanCreation = () => {
     setCreatorSeed(null);
     setCreatorMilestoneId(null);
+    setCreatorCalendarEventId(null);
+    setCreatorReviewSourceFirst(false);
     setStage("plan-creator");
   };
 
-  const beginAgendaAdd = () => {
-    setCreatorSeed(null);
+  const beginCalendarAdd = (seed?: AddIntakeSeed, context?: CalendarPlanBuildContext) => {
+    setCreatorSeed(seed ?? null);
     setCreatorMilestoneId(null);
-    setStage("add");
+    setCreatorCalendarEventId(context?.manualEventId ?? null);
+    setCreatorReviewSourceFirst(Boolean(seed && context?.reviewSourceFirst));
+    setStage(seed ? "plan-creator" : "add");
   };
 
   const removeCheckpointFromDevice = useCallback((checkpoint: ActiveSessionCheckpoint) => {
@@ -1114,6 +1119,7 @@ export function YovaPrototype({
     discardedCheckpointRunIdsRef.current.clear();
 
     async function openYova() {
+      setCalendarMaterials([]);
       const callbackIssue = consumeAuthCallbackIssue();
       if (callbackIssue) setAuthStartupIssue(callbackIssue);
       const saved = loadPreviewSnapshot();
@@ -1277,6 +1283,7 @@ export function YovaPrototype({
           setOnboardingCompleted(cloudOnboardingCompleted);
           setPlans(cloudPlans);
           setDeadlineMilestones(cloudState.deadlineMilestones);
+          setCalendarMaterials(cloudState.calendarMaterials ?? []);
           setSelectedPlanId(filterOperationalPlans(cloudPlans).at(-1)?.id ?? null);
           setSessionCompletions(cloudState.sessionCompletions);
           setSessionInterruptions(cloudState.sessionInterruptions);
@@ -1345,6 +1352,7 @@ export function YovaPrototype({
             setOnboardingCompleted(false);
             setPlans([]);
             setDeadlineMilestones([]);
+            setCalendarMaterials([]);
             setSelectedPlanId(null);
             setSessionCompletions([]);
             setSessionInterruptions([]);
@@ -1383,6 +1391,7 @@ export function YovaPrototype({
         setOnboardingCompleted(false);
         setPlans([]);
         setDeadlineMilestones([]);
+        setCalendarMaterials([]);
         setSelectedPlanId(null);
         setLearningDetailPlanId(null);
         setSessionCompletions([]);
@@ -2022,10 +2031,16 @@ export function YovaPrototype({
     planId?: string,
     planOverride?: LearningPlan,
     adjustment?: SessionAdjustment | null,
+    planSessionId?: string,
   ) => {
-    const storedRequestedPlan = planOverride ?? activePlans.find((plan) => plan.id === planId) ?? activePlan;
+    const storedRequestedPlan = planOverride
+      ?? (planId ? activePlans.find((plan) => plan.id === planId) ?? null : activePlan);
     if (!storedRequestedPlan) return;
-    const storedRequestedSession = storedRequestedPlan.sessions.find((session) => session.status === "ready");
+    const storedRequestedSession = planSessionId
+      ? storedRequestedPlan.sessions.find((session) => (
+        session.id === planSessionId && session.status === "ready"
+      ))
+      : storedRequestedPlan.sessions.find((session) => session.status === "ready");
     if (!storedRequestedSession) return;
     const plannedRouteContract = resolveStudyRouteSessionContract(
       storedRequestedPlan,
@@ -2651,10 +2666,16 @@ export function YovaPrototype({
     }
   };
 
-  const requestSessionStart = (planId?: string) => {
-    const requestedPlan = activePlans.find((plan) => plan.id === planId) ?? activePlan;
-    const requestedSession = requestedPlan?.sessions.find((session) => session.status === "ready");
-    if (!requestedPlan || !requestedSession) return;
+  const requestSessionStart = (planId?: string, planSessionId?: string) => {
+    const requestedPlan = planId
+      ? activePlans.find((plan) => plan.id === planId) ?? null
+      : activePlan;
+    const readySessions = requestedPlan?.sessions.filter((session) => session.status === "ready") ?? [];
+    const requestedSession = planSessionId
+      ? readySessions.find((session) => session.id === planSessionId) ?? null
+      : readySessions[0] ?? null;
+    if (!requestedPlan || !requestedSession) return false;
+    if (planSessionId && readySessions.length !== 1) return false;
     const startDecision = sessionStartRecoveryDecision({
       plan: requestedPlan,
       session: requestedSession,
@@ -2670,24 +2691,30 @@ export function YovaPrototype({
       setSelectedPlanId(requestedPlan.id);
       setActiveTab("Home");
       setStage("app");
-      return;
+      return true;
     }
     if (!startDecision.advertiseContinue && isSessionAheadOfSchedule(requestedSession)) {
       setEarlySessionPlanId(requestedPlan.id);
+      setEarlySessionPlanSessionId(requestedSession.id);
       setEarlyScheduleIssue(null);
-      return;
+      return true;
     }
-    void startSession(requestedPlan.id);
+    void startSession(requestedPlan.id, undefined, undefined, requestedSession.id);
+    return true;
   };
 
   const startEarlySession = async (shiftRemainingPlan: boolean) => {
     const requestedPlan = activePlans.find((plan) => plan.id === earlySessionPlanId);
-    if (!requestedPlan || earlySchedulePending) return;
+    const requestedSession = requestedPlan?.sessions.find((session) => (
+      session.id === earlySessionPlanSessionId && session.status === "ready"
+    ));
+    if (!requestedPlan || !requestedSession || earlySchedulePending) return;
 
     if (!shiftRemainingPlan) {
       setEarlySessionPlanId(null);
+      setEarlySessionPlanSessionId(null);
       setEarlyScheduleIssue(null);
-      await startSession(requestedPlan.id);
+      await startSession(requestedPlan.id, undefined, undefined, requestedSession.id);
       return;
     }
 
@@ -2697,7 +2724,8 @@ export function YovaPrototype({
       const updates = buildAdvancedSchedule(requestedPlan);
       if (updates.length === 0) {
         setEarlySessionPlanId(null);
-        await startSession(requestedPlan.id, requestedPlan);
+        setEarlySessionPlanSessionId(null);
+        await startSession(requestedPlan.id, requestedPlan, undefined, requestedSession.id);
         return;
       }
       const authoritativeUpdates = account?.identityMode === "supabase"
@@ -2705,8 +2733,36 @@ export function YovaPrototype({
         : updates;
       const advancedPlan = applyAdvancedSchedule(requestedPlan, authoritativeUpdates);
       setPlans((current) => current.map((plan) => plan.id === advancedPlan.id ? advancedPlan : plan));
+      if (typeof window !== "undefined") {
+        const calendarAccountId = account?.id ?? "browser-preview";
+        const firstUpdate = authoritativeUpdates[0];
+        const priorSession = firstUpdate
+          ? requestedPlan.sessions.find((session) => session.id === firstUpdate.planSessionId)
+          : null;
+        if (firstUpdate && priorSession) {
+          const logged = appendCalendarChangeLogEntry(window.localStorage, calendarAccountId, {
+            id: makeUuid(),
+            at: new Date().toISOString(),
+            summary: `Pulled ${authoritativeUpdates.length} ${authoritativeUpdates.length === 1 ? "session" : "sessions"} forward after an early start.`,
+            reason: "You approved Start and adjust calendar. YOVA preserved the saved plan order while moving the remaining schedule forward.",
+            origin: "automatic",
+            undoable: false,
+            undoneAt: null,
+            undo: {
+              kind: "session_schedule",
+              planId: requestedPlan.id,
+              planSessionId: priorSession.id,
+              from: priorSession.scheduledFor,
+              to: firstUpdate.scheduledFor,
+            },
+          });
+          if (logged) setCalendarStorageRevision((current) => current + 1);
+          else setCloudSyncIssue("The plan was moved forward, but its Calendar history could not be saved on this device.");
+        }
+      }
       setEarlySessionPlanId(null);
-      await startSession(advancedPlan.id, advancedPlan);
+      setEarlySessionPlanSessionId(null);
+      await startSession(advancedPlan.id, advancedPlan, undefined, requestedSession.id);
     } catch (error) {
       setEarlyScheduleIssue(error instanceof Error ? error.message : "YOVA could not pull the plan forward.");
     } finally {
@@ -3273,7 +3329,12 @@ export function YovaPrototype({
       clearQueuedSessionCompletions(account.id);
       clearQueuedSessionInterruptions(account.id);
     }
-    if (account) clearActiveSessionCheckpoints(account.id);
+    if (account) {
+      clearActiveSessionCheckpoints(account.id);
+      if (typeof window !== "undefined") {
+        clearCalendarPrototypeState(window.localStorage, account.id);
+      }
+    }
     checkpointSyncEpochRef.current += 1;
     discardedCheckpointRunIdsRef.current.clear();
     explicitlySavedProfileFingerprintRef.current = null;
@@ -3284,6 +3345,7 @@ export function YovaPrototype({
     setAnswers([]);
     setPlans([]);
     setDeadlineMilestones([]);
+    setCalendarMaterials([]);
     setSelectedPlanId(null);
     setSessionCompletions([]);
     setSessionInterruptions([]);
@@ -3871,8 +3933,10 @@ export function YovaPrototype({
   const preserveSeedDeadline = (plan: LearningPlan) => {
     const seed = creatorSeed;
     const milestoneId = creatorMilestoneId;
+    const calendarEventId = creatorCalendarEventId;
     setCreatorSeed(null);
     setCreatorMilestoneId(null);
+    setCreatorCalendarEventId(null);
     if (milestoneId) {
       void updateDeadlineMilestone(milestoneId, { linkedLearningItemId: plan.learningItemId }).catch((error) => {
         setCloudSyncIssue(error instanceof Error
@@ -3882,16 +3946,34 @@ export function YovaPrototype({
       return;
     }
     if (!seed?.dueAt) return;
-    void saveDeadlineMilestone({
-      title: seed.title,
-      description: seed.objective,
-      dueAt: seed.dueAt,
-      linkedLearningItemId: plan.learningItemId,
-    }).catch((error) => {
-      setCloudSyncIssue(error instanceof Error
-        ? error.message
-        : "The learning plan was saved, but its deadline still needs to be added to Agenda.");
-    });
+    const dueAt = seed.dueAt;
+    void (async () => {
+      try {
+        await saveDeadlineMilestone({
+          title: seed.title,
+          description: seed.objective,
+          dueAt,
+          linkedLearningItemId: plan.learningItemId,
+        });
+        if (calendarEventId && typeof window !== "undefined") {
+          const calendarAccountId = account?.id ?? "browser-preview";
+          const removed = removeCalendarManualEventAfterPlanCommit(
+            window.localStorage,
+            calendarAccountId,
+            calendarEventId,
+          );
+          if (!removed) {
+            setCloudSyncIssue("The plan and linked deadline were saved, but the earlier device-only Calendar item could not be removed. Delete that duplicate item manually.");
+          } else {
+            setCalendarStorageRevision((current) => current + 1);
+          }
+        }
+      } catch (error) {
+        setCloudSyncIssue(error instanceof Error
+          ? error.message
+          : "The learning plan was saved, but its deadline still needs to be added to Calendar.");
+      }
+    })();
   };
 
   const retryCloudSync = async () => {
@@ -3999,7 +4081,9 @@ export function YovaPrototype({
     checkpointSyncEpochRef.current += 1;
 
     try {
-      const { fullyCleared } = clearConfirmedSignOutStorage(signingOutAccountId);
+      const { fullyCleared } = clearConfirmedSignOutStorage(signingOutAccountId, {
+        clearDeletedAccountCalendar: accountAlreadyDeleted,
+      });
       if (signingOutAccountId) {
         cancelAuthenticatedLearnerProfileWrites(signingOutAccountId);
       }
@@ -4023,6 +4107,7 @@ export function YovaPrototype({
       setOnboardingCompleted(false);
       setPlans([]);
       setDeadlineMilestones([]);
+      setCalendarMaterials([]);
       setSelectedPlanId(null);
       setSessionCompletions([]);
       setSessionInterruptions([]);
@@ -4208,6 +4293,7 @@ export function YovaPrototype({
         setOnboardingCompleted(Boolean(publicCanonicalProfile));
         setPlans([]);
         setDeadlineMilestones([]);
+        setCalendarMaterials([]);
         setSessionCompletions([]);
         setSessionInterruptions([]);
         setActiveSessionCheckpoints([]);
@@ -4269,12 +4355,12 @@ export function YovaPrototype({
   }} />;
   if (stage === "add") return <AddToYova
     previewMode={browserPreviewMode || account?.identityMode === "preview"}
-    onExit={() => { setCreatorSeed(null); setCreatorMilestoneId(null); setStage("app"); }}
+    onExit={() => { setCreatorSeed(null); setCreatorMilestoneId(null); setCreatorCalendarEventId(null); setStage("app"); }}
     onTrackDeadline={saveDeadlineMilestone}
-    onCreatePlan={(seed) => { setCreatorSeed(seed); setCreatorMilestoneId(null); setStage("plan-creator"); }}
-    onCreateSession={(seed) => { setCreatorSeed(seed); setCreatorMilestoneId(null); setStage("study-now"); }}
+    onCreatePlan={(seed) => { setCreatorSeed(seed); setCreatorMilestoneId(null); setCreatorCalendarEventId(null); setStage("plan-creator"); }}
+    onCreateSession={(seed) => { setCreatorSeed(seed); setCreatorMilestoneId(null); setCreatorCalendarEventId(null); setStage("study-now"); }}
   />;
-  if (stage === "plan-creator") return <PlanCreator seed={creatorSeed ?? undefined} browserPreviewMode={browserPreviewMode || account?.identityMode === "preview"} previewPreferredMethodIds={effectivePreviewPreferredMethodIds} previewCanonicalProfile={effectivePreviewCanonicalProfile} profileSummary={buildPlanProfileSummary(answers)} onExit={() => { setCreatorSeed(null); setCreatorMilestoneId(null); setStage("app"); }} onFinish={(plan) => {
+  if (stage === "plan-creator") return <PlanCreator seed={creatorSeed ?? undefined} initialSeedStep={creatorReviewSourceFirst ? "source" : "schedule"} browserPreviewMode={browserPreviewMode || account?.identityMode === "preview"} previewPreferredMethodIds={effectivePreviewPreferredMethodIds} previewCanonicalProfile={effectivePreviewCanonicalProfile} profileSummary={buildPlanProfileSummary(answers)} onExit={() => { setCreatorSeed(null); setCreatorMilestoneId(null); setCreatorCalendarEventId(null); setCreatorReviewSourceFirst(false); setStage("app"); }} onFinish={(plan) => {
     trackProductEvent({
       eventName: "plan_created",
       context: {
@@ -4286,13 +4372,14 @@ export function YovaPrototype({
       },
     }, analyticsEnabled);
     setPlans((current) => [...current, plan]);
+    setCreatorReviewSourceFirst(false);
     preserveSeedDeadline(plan);
     setSelectedPlanId(plan.id);
     setLearningDetailPlanId(plan.id);
     setStage("app");
     setActiveTab("Learning");
   }} />;
-  if (stage === "study-now") return <StudyNowCreator seed={creatorSeed} browserPreviewMode={browserPreviewMode || account?.identityMode === "preview"} previewPreferredMethodIds={effectivePreviewPreferredMethodIds} previewCanonicalProfile={effectivePreviewCanonicalProfile} profileSummary={buildPlanProfileSummary(answers)} onExit={() => { setCreatorSeed(null); setCreatorMilestoneId(null); setStage("app"); }} onFinish={(plan) => {
+  if (stage === "study-now") return <StudyNowCreator seed={creatorSeed} browserPreviewMode={browserPreviewMode || account?.identityMode === "preview"} previewPreferredMethodIds={effectivePreviewPreferredMethodIds} previewCanonicalProfile={effectivePreviewCanonicalProfile} profileSummary={buildPlanProfileSummary(answers)} onExit={() => { setCreatorSeed(null); setCreatorMilestoneId(null); setCreatorCalendarEventId(null); setStage("app"); }} onFinish={(plan) => {
     trackProductEvent({
       eventName: "plan_created",
       context: {
@@ -4455,14 +4542,66 @@ export function YovaPrototype({
   }
 
   return <>
-    <AppShell activeTab={activeTab} onTab={openTab} account={account} cloudSyncIssue={cloudSyncIssue} signOutIssue={signOutIssue} signingOut={signingOut} onRetryCloudSync={retryCloudSync} onAdd={beginAgendaAdd} workspaceClassName={personalizationWorkspaceClassName} onSignOut={signOut}>
-      {activeTab === "Home" && <HomeScreen account={account} answers={answers} plans={activePlans} plan={recommendedPlan} sessionCompletions={sessionCompletions} sessionInterruptions={sessionInterruptions} activeSessionCheckpoints={recoverableSessionCheckpoints} allowance={guidedSessionAllowance} allowanceChecking={guidedSessionAllowanceChecking} tutorQuestion={tutorQuestion} onTutorQuestion={setTutorQuestion} onOpenTutor={openAskYova} onOpenYou={() => setActiveTab("You")} onStart={(planId) => requestSessionStart(planId)} onOpenPlan={(planId) => { setSelectedPlanId(planId); setLearningDetailPlanId(planId); setActiveTab("Learning"); }} onCreatePlan={beginPlanCreation} onStudyNow={() => { setCreatorSeed(null); setCreatorMilestoneId(null); setStage("study-now"); }} milestones={agendaMilestones} onOpenAgenda={() => setActiveTab("Agenda")} />}
+    <AppShell activeTab={activeTab} onTab={openTab} account={account} cloudSyncIssue={cloudSyncIssue} signOutIssue={signOutIssue} signingOut={signingOut} onRetryCloudSync={retryCloudSync} onAdd={() => beginCalendarAdd()} workspaceClassName={personalizationWorkspaceClassName} onSignOut={signOut}>
+      {activeTab === "Home" && <HomeScreen account={account} answers={answers} plans={activePlans} plan={recommendedPlan} sessionCompletions={sessionCompletions} sessionInterruptions={sessionInterruptions} activeSessionCheckpoints={recoverableSessionCheckpoints} allowance={guidedSessionAllowance} allowanceChecking={guidedSessionAllowanceChecking} tutorQuestion={tutorQuestion} onTutorQuestion={setTutorQuestion} onOpenTutor={openAskYova} onOpenYou={() => setActiveTab("You")} onStart={(planId) => requestSessionStart(planId)} onOpenPlan={(planId) => { setSelectedPlanId(planId); setLearningDetailPlanId(planId); setActiveTab("Learning"); }} onCreatePlan={beginPlanCreation} onStudyNow={() => { setCreatorSeed(null); setCreatorMilestoneId(null); setCreatorCalendarEventId(null); setStage("study-now"); }} milestones={agendaMilestones} onOpenAgenda={() => setActiveTab("Calendar")} />}
       {activeTab === "Learning" && <LearningScreen plans={plans} detailPlanId={learningDetailPlanId} sessionCompletions={sessionCompletions} sessionInterruptions={sessionInterruptions} activeSessionCheckpoints={recoverableSessionCheckpoints} preferredMethodIds={savedPreferredMethodIds} syncedPreferenceKey={syncedPreferenceKey} statedPreferencesEnabled={personalizationState.controls.selfReport} onPreferredMethodIdsChange={changePreferredMethodIds} onOpenPlan={(planId) => { setSelectedPlanId(planId); setLearningDetailPlanId(planId); }} onClosePlan={() => setLearningDetailPlanId(null)} onStart={requestSessionStart} onCreatePlan={beginPlanCreation} onArchiveStateChange={changePlanArchiveState} onDeletePlan={deletePlanPermanently} onAdjustPlan={adjustPlan} onKnowledgeMapUpdate={updatePlanKnowledgeMap} onAttachMaterials={attachMaterials} />}
-      {activeTab === "Agenda" && <AgendaScreen plans={availablePlans} milestones={agendaMilestones} sessionCompletions={sessionCompletions} sessionInterruptions={sessionInterruptions} activeSessionCheckpoints={recoverableSessionCheckpoints} allowance={guidedSessionAllowance} allowanceChecking={guidedSessionAllowanceChecking} previewMode={account?.identityMode === "preview"} onAdd={beginAgendaAdd} onStart={requestSessionStart} onActivateReview={activateConceptReview} onReschedule={rescheduleSessions} onAdjustDuration={adjustSessionDuration} onClassifyRecoveryInterruption={setRecoveryEvidenceClassification} onUpdateMilestone={updateDeadlineMilestone} onDeleteMilestone={deleteDeadlineMilestone} onConvertMilestone={(milestone, outcome) => { setCreatorSeed({ title: milestone.title, objective: milestone.description || `Complete ${milestone.title}`, itemType: "assignment", dueAt: milestone.dueAt, scope: milestone.description || milestone.title, progress: "", materialsSummary: "No materials attached yet.", missingFields: milestone.description ? [] : ["scope"], description: milestone.description || milestone.title, materials: [] }); setCreatorMilestoneId(milestone.id); setStage(outcome === "session" ? "study-now" : "plan-creator"); }} />}
+      {activeTab === "Calendar" && <CalendarScreen
+        key={`${account?.id ?? "browser-preview"}:${calendarStorageRevision}`}
+        accountId={account?.id ?? "browser-preview"}
+        plans={availablePlans}
+        milestones={agendaMilestones}
+        sessionCompletions={sessionCompletions}
+        sessionInterruptions={sessionInterruptions}
+        activeSessionCheckpoints={recoverableSessionCheckpoints}
+        adjustmentProtectedSessionIds={activeSessionCheckpoints.map((checkpoint) => checkpoint.planSessionId)}
+        calendarMaterials={calendarMaterials}
+        personalizationReasons={calendarReasons}
+        personalizationSummary={calendarProfileSummary}
+        allowance={guidedSessionAllowance}
+        allowanceChecking={guidedSessionAllowanceChecking}
+        previewMode={browserPreviewMode || account?.identityMode === "preview"}
+        onOpenAdd={beginCalendarAdd}
+        onOpenPlan={(planId) => {
+          setSelectedPlanId(planId);
+          setLearningDetailPlanId(planId);
+          setActiveTab("Learning");
+        }}
+        onStart={(target) => requestSessionStart(target.planId, target.planSessionId)}
+        onActivateReview={activateConceptReview}
+        onReschedule={rescheduleSessions}
+        onAdjustDuration={adjustSessionDuration}
+        onClassifyRecoveryInterruption={setRecoveryEvidenceClassification}
+        onUpdateMilestone={updateDeadlineMilestone}
+        onDeleteMilestone={deleteDeadlineMilestone}
+        onAskAdjust={() => {
+          setTutorQuestion("Help me adjust this week's calendar around the time I actually have without losing required work.");
+          openAskYova();
+        }}
+        onConvertMilestone={(milestone, outcome) => {
+          setCreatorSeed({
+            title: milestone.title,
+            objective: milestone.description || `Complete ${milestone.title}`,
+            itemType: /\b(exam|test|quiz|midterm|final)\b/i.test(milestone.title)
+              ? "test"
+              : "assignment",
+            dueAt: milestone.dueAt,
+            scope: milestone.description || milestone.title,
+            progress: "",
+            materialsSummary: "No materials attached yet.",
+            missingFields: milestone.description ? [] : ["scope"],
+            description: milestone.description || milestone.title,
+            materials: [],
+          });
+          setCreatorMilestoneId(milestone.id);
+          setCreatorCalendarEventId(null);
+          setCreatorReviewSourceFirst(outcome === "plan");
+          setStage(outcome === "session" ? "study-now" : "plan-creator");
+        }}
+      />}
       {activeTab === "Ask YOVA" && <AskScreen key={tutorEntryKey} plans={availablePlans} question={tutorQuestion} onQuestion={setTutorQuestion} onApplyAction={applyTutorAction} analyticsEnabled={analyticsEnabled} />}
       {activeTab === "You" && <YouScreen account={account} answers={answers} plans={plans} sessionCompletions={sessionCompletions} sessionInterruptions={sessionInterruptions} passwordAccountsEnabled={passwordAccountsEnabled} turnstileSiteKey={turnstileSiteKey} signingOut={signingOut} onAnswersChange={setAnswers} onDisplayNameChange={saveAccountDisplayName} onSignOut={signOut} onReset={resetYovaData} />}
     </AppShell>
-    {earlySessionPlan && earlySession && <EarlySessionDialog plan={earlySessionPlan} session={earlySession} pending={earlySchedulePending} issue={earlyScheduleIssue} onCancel={() => { setEarlySessionPlanId(null); setEarlyScheduleIssue(null); }} onStart={(shiftRemainingPlan) => void startEarlySession(shiftRemainingPlan)} />}
+    {earlySessionPlan && earlySession && <EarlySessionDialog plan={earlySessionPlan} session={earlySession} pending={earlySchedulePending} issue={earlyScheduleIssue} onCancel={() => { setEarlySessionPlanId(null); setEarlySessionPlanSessionId(null); setEarlyScheduleIssue(null); }} onStart={(shiftRemainingPlan) => void startEarlySession(shiftRemainingPlan)} />}
   </>;
 }
 
@@ -4558,7 +4697,7 @@ function ProfileItem({ title, value, note }: { title: string; value: string; not
 
 function EarlySessionDialog({ plan, session, pending, issue, onCancel, onStart }: { plan: LearningPlan; session: LearningPlanSession; pending: boolean; issue: string | null; onCancel: () => void; onStart: (shiftRemainingPlan: boolean) => void }) {
   const unfinishedCount = plan.sessions.filter((item) => item.status === "ready" || item.status === "upcoming").length;
-  return <div className="early-session-backdrop"><section className="early-session-dialog" role="dialog" aria-modal="true" aria-labelledby="early-session-title"><span className="early-session-icon"><CalendarDays size={22} /></span><span className="step-label">YOU ARE AHEAD OF SCHEDULE</span><h2 id="early-session-title">Start {session.title} now?</h2><p>This session is planned for {formatAgendaTime(session.scheduledFor)}. You can move forward now without skipping any unfinished content.</p><div className="early-schedule-choice"><Sparkles size={18} /><div><strong>Recommended: pull the agenda forward</strong><p>YOVA will move this session to now and shift the remaining {Math.max(0, unfinishedCount - 1)} {unfinishedCount - 1 === 1 ? "session" : "sessions"} by the same amount. The learning order and spacing stay intact.</p></div></div>{issue && <div className="chat-error"><AlertCircle size={16} /><span>{issue}</span></div>}<div className="early-session-actions"><button className="button ghost" disabled={pending} onClick={onCancel}>Cancel</button><button className="button secondary" disabled={pending} onClick={() => onStart(false)}>Start now, keep dates</button><button className="button primary" disabled={pending} onClick={() => onStart(true)}>{pending ? <span className="button-spinner" /> : <CalendarDays size={16} />} Start and adjust agenda</button></div></section></div>;
+  return <div className="early-session-backdrop"><section className="early-session-dialog" role="dialog" aria-modal="true" aria-labelledby="early-session-title"><span className="early-session-icon"><CalendarDays size={22} /></span><span className="step-label">YOU ARE AHEAD OF SCHEDULE</span><h2 id="early-session-title">Start {session.title} now?</h2><p>This session is planned for {formatAgendaTime(session.scheduledFor)}. You can move forward now without skipping any unfinished content.</p><div className="early-schedule-choice"><Sparkles size={18} /><div><strong>Recommended: pull the calendar forward</strong><p>YOVA will move this session to now and shift the remaining {Math.max(0, unfinishedCount - 1)} {unfinishedCount - 1 === 1 ? "session" : "sessions"} by the same amount. The learning order and spacing stay intact.</p></div></div>{issue && <div className="chat-error"><AlertCircle size={16} /><span>{issue}</span></div>}<div className="early-session-actions"><button className="button ghost" disabled={pending} onClick={onCancel}>Cancel</button><button className="button secondary" disabled={pending} onClick={() => onStart(false)}>Start now, keep dates</button><button className="button primary" disabled={pending} onClick={() => onStart(true)}>{pending ? <span className="button-spinner" /> : <CalendarDays size={16} />} Start and adjust calendar</button></div></section></div>;
 }
 
 export function AppShell({ activeTab, onTab, account, cloudSyncIssue, signOutIssue, signingOut, onRetryCloudSync, onAdd, onSignOut, workspaceClassName, children }: { activeTab: Tab; onTab: (tab: Tab) => void; account: PreviewAccount | null; cloudSyncIssue: string | null; signOutIssue: string | null; signingOut: boolean; onRetryCloudSync: () => Promise<void>; onAdd: () => void; onSignOut: () => Promise<void>; workspaceClassName: string; children?: React.ReactNode }) {
@@ -4588,8 +4727,6 @@ function workspaceClassName(settings: PersonalizationWorkspaceSettings) {
     settings.checkIns === "more" ? "workspace-more-check-ins" : "",
   ].filter(Boolean).join(" ");
 }
-
-function PageHeader({ eyebrow, title, description }: { eyebrow?: string; title: string; description?: string }) { return <header className="page-header">{eyebrow && <span className="step-label">{eyebrow}</span>}<h1>{title}</h1>{description && <p>{description}</p>}</header>; }
 
 function HomeScreen({ account, answers, plans, plan, sessionCompletions, sessionInterruptions, activeSessionCheckpoints, allowance, allowanceChecking, tutorQuestion, onTutorQuestion, onOpenTutor, onOpenYou, onStart, onOpenPlan, onCreatePlan, onStudyNow, milestones, onOpenAgenda }: { account: PreviewAccount | null; answers: string[]; plans: LearningPlan[]; plan: LearningPlan | null; sessionCompletions: SessionCompletion[]; sessionInterruptions: SessionInterruption[]; activeSessionCheckpoints: ActiveSessionCheckpoint[]; allowance: GuidedSessionAllowanceDisplayState; allowanceChecking: boolean; tutorQuestion: string; onTutorQuestion: (question: string) => void; onOpenTutor: () => void; onOpenYou: () => void; onStart: (planId?: string) => void; onOpenPlan: (planId: string) => void; onCreatePlan: () => void; onStudyNow: () => void; milestones: DeadlineMilestone[]; onOpenAgenda: () => void }) {
   const rankedPlans = rankPlansForHome(plans);
@@ -4824,7 +4961,7 @@ function HomeScreen({ account, answers, plans, plan, sessionCompletions, session
         </div>
       </section>
       <section className="yv-card hero hg-today">
-        <div className="hg-card-head"><h3 className="yv-serif-heading small">Today</h3><button type="button" className="hg-link" onClick={onOpenAgenda}>Agenda →</button></div>
+        <div className="hg-card-head"><h3 className="yv-serif-heading small">Today</h3><button type="button" className="hg-link" onClick={onOpenAgenda}>Calendar →</button></div>
         {todayEntries.length > 0 ? todayEntries.slice(0, 3).map(({ plan: entryPlan, session }, index) => <div className="hg-today-row" key={session.id}>
           <span className={`hg-today-slot ${index === 0 ? "accent" : ""}`}>{daypartShort(session.scheduledFor)}</span>
           <span className="hg-today-copy"><strong>{session.title}</strong><span>{session.amountLabel}{index === 0 && session.id === readySession.id ? " · up next" : ` · ${entryPlan.title}`}</span></span>
@@ -4908,7 +5045,7 @@ function HomeScreen({ account, answers, plans, plan, sessionCompletions, session
       <div className="hg-milestones">
         {nextMilestone && <section className="yv-tint hg-milestone">
           <span className="hg-milestone-copy"><span className="yv-kicker accent">{monoDate(new Date(nextMilestone.dueAt))} · IN {daysUntil(nextMilestone.dueAt)} {daysUntil(nextMilestone.dueAt) === 1 ? "DAY" : "DAYS"}</span><strong>{nextMilestone.title}</strong></span>
-          <button className="yv-pill outline small" onClick={onOpenAgenda}>View in agenda</button>
+          <button className="yv-pill outline small" onClick={onOpenAgenda}>View in calendar</button>
         </section>}
         {laterMilestone && <section className="yv-card hg-milestone">
           <span className="hg-milestone-copy"><span className="yv-kicker">{monoDate(new Date(laterMilestone.dueAt))}</span><strong className="dim">{laterMilestone.title}</strong></span>
@@ -4931,31 +5068,6 @@ function HomeScreen({ account, answers, plans, plan, sessionCompletions, session
       })}</div>
     </>}
   </div>;
-}
-
-function SubjectIcon({ plan, compact = false }: { plan: LearningPlan; compact?: boolean }) {
-  const text = `${plan.title} ${plan.topic}`.toLocaleLowerCase();
-  const subject = /bio|cell|anatom|health|nutrition|photosynth|respirat/.test(text)
-    ? { Icon: Dna, theme: "life" }
-    : /chem|molecule|reaction|organic/.test(text)
-      ? { Icon: FlaskConical, theme: "chemistry" }
-      : /calc|math|algebra|geometry|derivative|statistic/.test(text)
-        ? { Icon: Calculator, theme: "math" }
-        : /physics|force|motion|energy|electric|thermodynam|entropy|heat transfer/.test(text)
-          ? { Icon: Atom, theme: "physics" }
-          : /history|government|politic|civic|law|essay|literature|writing|world war/.test(text)
-            ? { Icon: Landmark, theme: "humanities" }
-            : /finance|business|economic|invest|account/.test(text)
-              ? { Icon: BadgeDollarSign, theme: "finance" }
-              : /code|program|software|computer|javascript|python/.test(text)
-                ? { Icon: Code2, theme: "computing" }
-                : /geograph|world|environment/.test(text)
-                  ? { Icon: Globe2, theme: "world" }
-                  : /science|research|lab/.test(text)
-                    ? { Icon: Microscope, theme: "life" }
-                    : { Icon: BookMarked, theme: "general" };
-  const SubjectGlyph = subject.Icon;
-  return <span className={`subject-icon ${subject.theme} ${compact ? "compact" : ""}`} aria-hidden="true"><SubjectGlyph size={compact ? 18 : 20} /></span>;
 }
 
 function formatHomeDate(date: Date) {
@@ -5394,352 +5506,7 @@ function PlanAdjustmentPanel({ plan, onCancel, onSave }: { plan: LearningPlan; o
     }
   };
 
-  return <section className="plan-adjustment-panel"><div className="plan-adjustment-heading"><div><span className="step-label">ADJUST UNFINISHED WORK</span><h3>Change the plan without losing progress</h3><p>Tell YOVA when the course is on the wrong track, or change its timing and study location. Completed sessions stay exactly as they are.</p></div></div><label className={`plan-direction-field ${directionLimit.isOverLimit ? "field-over-limit" : ""}`}><span>What should be different?</span><textarea rows={4} value={direction} disabled={saving} aria-invalid={directionLimit.isOverLimit || undefined} aria-describedby="plan-adjustment-direction-limit" placeholder="Example: Keep this conceptual. I do not want calculation exercises. Focus on founder decisions, investor incentives, and real examples." onChange={(event) => setDirection(event.target.value)} /><small id="plan-adjustment-direction-limit" className={`character-limit-feedback ${directionLimit.isOverLimit ? "over-limit" : ""}`} role={directionLimit.isOverLimit ? "alert" : undefined}>Optional. YOVA will rebuild only unfinished content sessions. Scheduled reviews keep their exact return contract. The next session setup will show the revised target and method. {formatCharacterLimit(directionLimit)}</small><div><button type="button" onClick={() => setDirection("Keep this conceptual. Do not include math or calculation exercises.")}>No calculations</button><button type="button" onClick={() => setDirection("Teach the foundations first, then use concrete examples before practice.")}>Teach it first</button><button type="button" onClick={() => setDirection("Use more real examples and case scenarios before independent work.")}>More examples</button></div></label><div className="plan-adjustment-grid"><label><span>Target date</span><input type="date" min={localDateInput(new Date().toISOString())} value={deadlineDate} disabled={saving} onChange={(event) => setDeadlineDate(event.target.value)} /><small>Optional. Agenda times are changed separately.</small></label><label><span>Future session window</span><select value={minutes} disabled={saving} onChange={(event) => setMinutes(Number(event.target.value))}>{minuteOptions.map((option) => <option value={option} key={option}>{option} minutes</option>)}</select><small>Time controls the size of each content slice, not whether it counts as learned.</small></label></div><div className="adjustment-content-rule"><Target size={18} /><div><strong>Progress stays intact</strong><p>The current {adjustableUnfinishedCount} ordinary unfinished {adjustableUnfinishedCount === 1 ? "session" : "sessions"} can be adjusted safely. Finished sessions and recorded learning evidence are never erased.{protectedReviewCount > 0 ? ` ${protectedReviewCount} scheduled ${protectedReviewCount === 1 ? "review keeps" : "reviews keep"} the original duration, concept, and return time.` : ""}</p></div></div><div className="adjustment-mode"><span>Where should future sessions happen?</span><div><button className={studyMode === "inside_yova" ? "selected" : ""} disabled={saving} onClick={() => setStudyMode("inside_yova")}><BookOpen size={17} /><strong>Inside YOVA</strong><small>Teaching, questions, and feedback in the app</small></button><button className={studyMode === "outside_yova" ? "selected" : ""} disabled={saving} onClick={() => setStudyMode("outside_yova")}><LibraryBig size={17} /><strong>Outside YOVA</strong><small>Exact instructions for another source or workspace</small></button></div></div>{error && <div className="chat-error"><AlertCircle size={16} /><span>{error}</span></div>}<footer><button className="button ghost" disabled={saving} onClick={onCancel}>Cancel</button><button className="button primary" disabled={saving || adjustableUnfinishedCount === 0 || directionLimit.isOverLimit} onClick={() => void save()}>{saving ? <span className="button-spinner" /> : <><Check size={16} /> Approve and rebuild plan</>}</button></footer></section>;
-}
-
-function AgendaScreen({ plans, milestones, sessionCompletions, sessionInterruptions, activeSessionCheckpoints, allowance, allowanceChecking, previewMode, onAdd, onStart, onActivateReview, onReschedule, onAdjustDuration, onClassifyRecoveryInterruption, onUpdateMilestone, onDeleteMilestone, onConvertMilestone }: { plans: LearningPlan[]; milestones: DeadlineMilestone[]; sessionCompletions: SessionCompletion[]; sessionInterruptions: SessionInterruption[]; activeSessionCheckpoints: ActiveSessionCheckpoint[]; allowance: GuidedSessionAllowanceDisplayState; allowanceChecking: boolean; previewMode: boolean; onAdd: () => void; onStart: (planId?: string) => void; onActivateReview: (item: ConceptReviewAgendaItem) => Promise<void>; onReschedule: (planId: string, updates: readonly ScheduleSessionUpdate[]) => void; onAdjustDuration: (planSessionId: string, estimatedMinutes: number) => Promise<void>; onClassifyRecoveryInterruption: (planSessionId: string, excludeFromHabitEvidence: boolean) => void; onUpdateMilestone: (id: string, changes: Partial<Pick<DeadlineMilestone, "title" | "description" | "dueAt" | "status" | "linkedLearningItemId">>) => Promise<void>; onDeleteMilestone: (id: string) => Promise<void>; onConvertMilestone: (milestone: DeadlineMilestone, outcome: "session" | "plan") => void }) {
-  const [moving, setMoving] = useState<{ planId: string; sessionId: string } | null>(null);
-  const [customTime, setCustomTime] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [recoveryAction, setRecoveryAction] = useState<"shorten" | "move" | null>(null);
-  const [recoveryError, setRecoveryError] = useState<string | null>(null);
-  const [completedRecoverySplit, setCompletedRecoverySplit] = useState<{ sessionId: string; minutes: number } | null>(null);
-  const [recoveryReason, setRecoveryReason] = useState<string | null>(null);
-  const [dismissedRecoverySessionId, setDismissedRecoverySessionId] = useState<string | null>(null);
-  const [reviewAction, setReviewAction] = useState<string | null>(null);
-  const [reviewError, setReviewError] = useState<string | null>(null);
-  const [balanceAction, setBalanceAction] = useState(false);
-  const [balanceError, setBalanceError] = useState<string | null>(null);
-  const [todayCapacity, setTodayCapacity] = useState<number | null>(null);
-  const [capacityAction, setCapacityAction] = useState<"move" | "split" | null>(null);
-  const [capacityError, setCapacityError] = useState<string | null>(null);
-  const [editingMilestone, setEditingMilestone] = useState<DeadlineMilestone | null>(null);
-  const [milestoneAction, setMilestoneAction] = useState<string | null>(null);
-  const [milestoneError, setMilestoneError] = useState<string | null>(null);
-  const operationalPlans = filterOperationalPlans(plans);
-  const conceptReviews = buildConceptReviewAgenda(filterAvailablePlans(plans), sessionCompletions);
-  const newReviewBlocked = guidedSessionAllowanceBlocksNewStart(allowance, false, allowanceChecking);
-  const availableSessions = operationalPlans
-    .flatMap((plan) => plan.sessions.filter((session) => session.status !== "complete" && session.status !== "skipped").map((session) => ({ plan, session })))
-    .sort((a, b) => new Date(a.session.scheduledFor).getTime() - new Date(b.session.scheduledFor).getTime());
-  const overdueEntry = availableSessions.find(({ session }) => (
-    session.status === "ready"
-    && session.id !== dismissedRecoverySessionId
-    && isSessionOverdue(session.scheduledFor)
-  )) ?? null;
-  const overdueStartDecision = overdueEntry ? sessionStartRecoveryDecision({
-    plan: overdueEntry.plan,
-    session: overdueEntry.session,
-    interruptions: sessionInterruptions,
-    restorableCheckpoints: activeSessionCheckpoints,
-  }) : null;
-  const overdueHasSavedWork = overdueStartDecision?.canStartWithoutGeneration ?? false;
-  const overdueStartBlocked = guidedSessionAllowanceBlocksNewStart(
-    allowance,
-    overdueHasSavedWork,
-    allowanceChecking,
-  );
-  const recoveryMinutes = overdueEntry ? recoverySessionMinutes(overdueEntry.session.estimatedMinutes) : null;
-  const selectRecoveryReason = (reason: string) => {
-    if (!overdueEntry) return;
-    const nextReason = recoveryReason === reason ? null : reason;
-    setRecoveryReason(nextReason);
-    onClassifyRecoveryInterruption(
-      overdueEntry.session.id,
-      nextReason === "App problem",
-    );
-  };
-  const movingEntry = moving
-    ? availableSessions.find(({ plan, session }) => plan.id === moving.planId && session.id === moving.sessionId) ?? null
-    : null;
-  const customMoveIssue = movingEntry && customTime
-    ? customScheduleIssue(movingEntry.session.scheduledFor, customTime)
-    : null;
-  const agendaSummary = summarizeAgenda(availableSessions, operationalPlans);
-  const dayGroups = buildAgendaDayGroups(availableSessions);
-  const [selectedDateKey, setSelectedDateKey] = useState(() => localDateKey(new Date()));
-  const groupByDate = new Map(dayGroups.map((group) => [group.dateKey, group]));
-  const weekDays = Array.from({ length: 7 }, (_, index) => {
-    const date = new Date();
-    date.setHours(0, 0, 0, 0);
-    date.setDate(date.getDate() + index);
-    const dateKey = localDateKey(date);
-    const group = groupByDate.get(dateKey);
-    return {
-      date,
-      dateKey,
-      entries: group?.entries ?? [],
-      totalMinutes: group?.totalMinutes ?? 0,
-      load: group?.load ?? "light",
-    };
-  });
-  const selectedGroup = groupByDate.get(selectedDateKey);
-  const selectedDay = weekDays.find((day) => day.dateKey === selectedDateKey) ?? {
-    date: dateFromLocalKey(selectedDateKey),
-    dateKey: selectedDateKey,
-    entries: selectedGroup?.entries ?? [],
-    totalMinutes: selectedGroup?.totalMinutes ?? 0,
-    load: selectedGroup?.load ?? "light",
-  };
-  const selectedMilestones = milestones
-    .filter((milestone) => localDateKey(new Date(milestone.dueAt)) === selectedDay.dateKey)
-    .sort((left, right) => new Date(left.dueAt).getTime() - new Date(right.dueAt).getTime());
-  const nextOpenMilestone = nextActionableMilestone(milestones);
-  const nextOpenMilestoneIsOverdue = nextOpenMilestone
-    ? isMilestoneOverdue(nextOpenMilestone)
-    : false;
-  const balanceSuggestion = buildAgendaBalanceSuggestion(availableSessions);
-  const protectedRewriteSessionIds = new Set([
-    ...sessionInterruptions.map((interruption) => interruption.planSessionId),
-    ...activeSessionCheckpoints.map((checkpoint) => checkpoint.planSessionId),
-  ]);
-  const capacityPlan = todayCapacity === null
-    ? null
-    : buildDailyCapacityPlan(availableSessions, todayCapacity, new Date(), protectedRewriteSessionIds);
-  const [adjustmentsOpen, setAdjustmentsOpen] = useState(
-    agendaSummary.todayMinutes > 75 || agendaSummary.todaySessions >= 3,
-  );
-  const showBalanceSuggestion = balanceSuggestion
-    && (todayCapacity === null || balanceSuggestion.fromDateKey !== localDateKey(new Date()));
-  const completedSplitForOverdue = overdueEntry
-    && completedRecoverySplit?.sessionId === overdueEntry.session.id
-      ? completedRecoverySplit
-      : null;
-  const recoverySplitAvailable = overdueEntry && recoveryMinutes !== null
-    ? canOfferAgendaSessionSplit({
-      plan: overdueEntry.plan,
-      session: overdueEntry.session,
-      targetMinutes: recoveryMinutes,
-      protectedSessionIds: protectedRewriteSessionIds,
-    })
-    : false;
-
-  const openMove = (planId: string, sessionId: string, scheduledFor: string) => {
-    setMoving({ planId, sessionId });
-    setCustomTime(toLocalDateTimeInput(scheduledFor));
-    setError(null);
-  };
-
-  const rescheduleEntry = async (entry: AgendaEntry, scheduledFor: string) => {
-    const updates = [{ planSessionId: entry.session.id, scheduledFor }];
-    if (previewMode) {
-      onReschedule(entry.plan.id, updates);
-      return;
-    }
-    const authoritative = await persistPlanSchedule(entry.plan.id, updates);
-    onReschedule(entry.plan.id, authoritative.sessions);
-  };
-
-  const saveMove = async (scheduledFor: string) => {
-    if (!movingEntry || saving) return;
-    const issue = customScheduleIssue(movingEntry.session.scheduledFor, scheduledFor);
-    if (issue) {
-      setError(issue);
-      return;
-    }
-    setSaving(true);
-    setError(null);
-    try {
-      await rescheduleEntry(movingEntry, scheduledFor);
-      setMoving(null);
-    } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "YOVA could not move that session.");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const splitRecoverySession = async () => {
-    if (!overdueEntry || recoveryMinutes === null || recoveryAction || !recoverySplitAvailable) return;
-    setRecoveryAction("shorten");
-    setRecoveryError(null);
-    try {
-      await onAdjustDuration(overdueEntry.session.id, recoveryMinutes);
-      // Let the adjusted plan render before the learner starts Part 1. Starting
-      // from this event handler would read the pre-split plan from its render.
-      setCompletedRecoverySplit({ sessionId: overdueEntry.session.id, minutes: recoveryMinutes });
-    } catch (requestError) {
-      setRecoveryError(requestError instanceof Error ? requestError.message : "YOVA could not shorten that session.");
-    } finally {
-      setRecoveryAction(null);
-    }
-  };
-
-  const moveOverdueToTomorrow = async () => {
-    if (!overdueEntry || recoveryAction) return;
-    setRecoveryAction("move");
-    setRecoveryError(null);
-    try {
-      await rescheduleEntry(overdueEntry, tomorrowAtSessionTime(overdueEntry.session.scheduledFor));
-    } catch (requestError) {
-      setRecoveryError(requestError instanceof Error ? requestError.message : "YOVA could not move that session.");
-    } finally {
-      setRecoveryAction(null);
-    }
-  };
-
-  const beginConceptReview = async (item: ConceptReviewAgendaItem) => {
-    if (item.action === "scheduled" || reviewAction) return;
-    setReviewAction(`${item.planId}:${item.concept.toLocaleLowerCase()}`);
-    setReviewError(null);
-    try {
-      await onActivateReview(item);
-    } catch (requestError) {
-      setReviewError(requestError instanceof Error ? requestError.message : "YOVA could not start that concept review.");
-      setReviewAction(null);
-    }
-  };
-
-  const applyBalanceSuggestion = async () => {
-    if (!balanceSuggestion || balanceAction) return;
-    setBalanceAction(true);
-    setBalanceError(null);
-    try {
-      await rescheduleEntry(balanceSuggestion.entry, balanceSuggestion.scheduledFor);
-    } catch (requestError) {
-      setBalanceError(requestError instanceof Error ? requestError.message : "YOVA could not rebalance that session.");
-    } finally {
-      setBalanceAction(false);
-    }
-  };
-
-  const applyCapacityMove = async () => {
-    if (capacityPlan?.status !== "move" || !capacityPlan.entry || !capacityPlan.scheduledFor || capacityAction) return;
-    setCapacityAction("move");
-    setCapacityError(null);
-    try {
-      await rescheduleEntry(capacityPlan.entry, capacityPlan.scheduledFor);
-    } catch (requestError) {
-      setCapacityError(requestError instanceof Error ? requestError.message : "YOVA could not adjust today's schedule.");
-    } finally {
-      setCapacityAction(null);
-    }
-  };
-
-  const applyCapacitySplit = async () => {
-    if (capacityPlan?.status !== "split" || !capacityPlan.entry || capacityPlan.splitMinutes === null || capacityAction) return;
-    setCapacityAction("split");
-    setCapacityError(null);
-    try {
-      await onAdjustDuration(capacityPlan.entry.session.id, capacityPlan.splitMinutes);
-    } catch (requestError) {
-      setCapacityError(requestError instanceof Error ? requestError.message : "YOVA could not split that learning content.");
-    } finally {
-      setCapacityAction(null);
-    }
-  };
-
-  const changeMilestone = async (milestone: DeadlineMilestone, changes: Partial<Pick<DeadlineMilestone, "title" | "description" | "dueAt" | "status">>) => {
-    if (milestoneAction) return;
-    setMilestoneAction(milestone.id);
-    setMilestoneError(null);
-    try {
-      await onUpdateMilestone(milestone.id, changes);
-      setEditingMilestone(null);
-    } catch (requestError) {
-      setMilestoneError(requestError instanceof Error ? requestError.message : "YOVA could not update this deadline.");
-    } finally {
-      setMilestoneAction(null);
-    }
-  };
-
-  const removeMilestone = async (milestone: DeadlineMilestone) => {
-    if (milestoneAction || !window.confirm(`Delete ${milestone.title}?`)) return;
-    setMilestoneAction(milestone.id);
-    setMilestoneError(null);
-    try {
-      await onDeleteMilestone(milestone.id);
-    } catch (requestError) {
-      setMilestoneError(requestError instanceof Error ? requestError.message : "YOVA could not delete this deadline.");
-    } finally {
-      setMilestoneAction(null);
-    }
-  };
-
-  return <div className="page agenda-page">
-    <div className="agenda-page-header">
-      <PageHeader eyebrow="AGENDA" title="Your week at a glance" description={`${agendaSummary.weekSessions} planned ${agendaSummary.weekSessions === 1 ? "session" : "sessions"} · ${agendaSummary.weekMinutes} minutes · one learning schedule across every active goal.`} />
-      <button className="button primary agenda-add-button" type="button" onClick={onAdd}><Plus size={18} /> Add to Agenda</button>
-    </div>
-    <GuidedSessionAllowanceNotice allowance={allowance} surface="agenda" checking={allowanceChecking} />
-    <nav className="agenda-week-selector" aria-label="Choose an agenda day">
-      {weekDays.map((day, index) => { const dueCount = milestones.filter((milestone) => milestone.status === "open" && localDateKey(new Date(milestone.dueAt)) === day.dateKey).length; return <button type="button" key={day.dateKey} className={`${selectedDay.dateKey === day.dateKey ? "selected" : ""} ${day.load} ${dueCount ? "has-deadline" : ""}`} aria-pressed={selectedDay.dateKey === day.dateKey} onClick={() => setSelectedDateKey(day.dateKey)}><span>{index === 0 ? "Today" : new Intl.DateTimeFormat("en-US", { weekday: "short" }).format(day.date)}</span><strong>{new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(day.date)}</strong><small>{day.totalMinutes} min</small><em>{dueCount ? `${dueCount} due` : `${day.entries.length} ${day.entries.length === 1 ? "session" : "sessions"}`}</em></button>; })}
-    </nav>
-    <details className="agenda-adjustment-tools" open={adjustmentsOpen} onToggle={(event) => setAdjustmentsOpen(event.currentTarget.open)}>
-      <summary><span className="agenda-capacity-icon"><Settings2 size={19} /></span><div><strong>Adjust today&apos;s plan</strong><small>Tell YOVA how much time you have and review any proposed schedule change.</small></div><ChevronRight size={18} /></summary>
-      <div className="agenda-adjustment-body">
-    <section className="agenda-planning-basis"><Settings2 size={18} /><div><strong>What YOVA is allowed to change</strong><p>YOVA can move or split unfinished sessions. It will preserve the learning order, deadlines, and incomplete content, and it will ask before applying a change.</p></div></section>
-    <section className="agenda-capacity-planner" aria-label="Plan around today's available time">
-      <div className="agenda-capacity-heading"><span className="agenda-capacity-icon"><Clock3 size={20} /></span><div><span className="step-label">TODAY’S REALITY</span><h2>How much time do you actually have today?</h2><p>YOVA will protect urgent work, preserve the learning sequence, and carry unfinished content forward. Time changes the shape of the plan, not what you still need to learn.</p></div></div>
-      <div className="agenda-capacity-options" role="group" aria-label="Available learning time today">{[15, 30, 45, 60, 90].map((minutes) => <button key={minutes} type="button" aria-pressed={todayCapacity === minutes} aria-label={`I have ${minutes} minutes today`} onClick={() => { setTodayCapacity(minutes); setCapacityError(null); }}><span className="duration-value" aria-hidden="true"><span>{minutes}</span><span className="duration-unit">min</span></span></button>)}</div>
-      {capacityPlan && <div className={`agenda-capacity-result ${capacityPlan.status}`} aria-live="polite">
-        <div>
-          <span>{capacityPlan.status === "fits" ? "Today already fits" : capacityPlan.status === "empty" ? "No change needed" : capacityPlan.status === "blocked" ? "Your choice is needed" : "Suggested adjustment"}</span>
-          {capacityPlan.status === "move" && capacityPlan.entry && capacityPlan.toDateKey && <><strong>Move {capacityPlan.entry.session.title} to {agendaDateLabel(capacityPlan.toDateKey)}</strong><p>Today drops from {capacityPlan.todayMinutes} to {capacityPlan.projectedMinutes} minutes. {capacityPlan.reason}</p></>}
-          {capacityPlan.status === "split" && capacityPlan.entry && capacityPlan.splitMinutes !== null && <><strong>Split {capacityPlan.entry.plan.title} into {capacityPlan.splitMinutes}-minute content blocks</strong><p>Today drops from {capacityPlan.todayMinutes} to {capacityPlan.projectedMinutes} minutes. No content is marked complete or deleted. Each part includes its own setup and evidence check. {capacityPlan.reason}</p></>}
-          {(capacityPlan.status === "fits" || capacityPlan.status === "empty" || capacityPlan.status === "blocked") && <><strong>{capacityPlan.status === "fits" ? `${capacityPlan.todayMinutes} minutes of content fits your ${capacityPlan.capacityMinutes}-minute window` : capacityPlan.status === "empty" ? "Your day is open for learning" : "YOVA will not make an unsafe automatic change"}</strong><p>{capacityPlan.reason}</p></>}
-        </div>
-        {capacityPlan.status === "move" && <button className="button primary" disabled={Boolean(capacityAction)} onClick={() => void applyCapacityMove()}>{capacityAction === "move" ? <><span className="button-spinner" /> Moving</> : "Approve move"}</button>}
-        {capacityPlan.status === "split" && <button className="button primary" disabled={Boolean(capacityAction)} onClick={() => void applyCapacitySplit()}>{capacityAction === "split" ? <><span className="button-spinner" /> Rebuilding</> : "Approve content split"}</button>}
-      </div>}
-      {capacityError && <div className="chat-error"><AlertCircle size={16} /><span>{capacityError}</span></div>}
-    </section>
-      </div>
-    </details>
-    {showBalanceSuggestion && <section className="agenda-balance-card" aria-live="polite"><span className="agenda-balance-icon"><CalendarDays size={20} /></span><div><span className="step-label">SUGGESTED SCHEDULE CHANGE</span><h2>Make {agendaDateLabel(balanceSuggestion.fromDateKey)} more realistic</h2><p>Move <strong>{balanceSuggestion.entry.session.title}</strong> to {agendaDateLabel(balanceSuggestion.toDateKey)}. The original day drops from {balanceSuggestion.beforeMinutes} to {balanceSuggestion.afterMinutes} minutes, and the new day becomes {balanceSuggestion.targetMinutes} minutes.</p><small>{balanceSuggestion.reason}</small></div><button className="button primary" disabled={balanceAction} onClick={() => void applyBalanceSuggestion()}>{balanceAction ? <><span className="button-spinner" /> Rebalancing</> : "Approve move"}</button>{balanceError && <div className="chat-error"><AlertCircle size={16} /><span>{balanceError}</span></div>}</section>}
-    {overdueEntry && <section className="agenda-recovery" aria-live="polite"><div className="agenda-recovery-copy"><span className="step-label">A SESSION IS STILL WAITING</span><h2>Choose a useful next move without losing the plan.</h2><p><strong>{overdueEntry.session.title}</strong> for {overdueEntry.plan.title} was planned for {formatAgendaTime(overdueEntry.session.scheduledFor)}. YOVA will preserve the unfinished content whichever option you choose.</p></div>{completedSplitForOverdue && <p className="agenda-recovery-result" role="status"><Check size={16} /> Split applied. Part 1 and each remaining part now have a {completedSplitForOverdue.minutes}-minute window. Start Part 1 when you are ready.</p>}<div className="agenda-recovery-reasons"><strong>What got in the way? <span>Optional</span></strong><div>{["Ran out of time", "Interrupted", "Lost focus", "Too difficult", "Instructions unclear", "Low energy", "App problem"].map((reason) => <button type="button" key={reason} aria-pressed={recoveryReason === reason} className={recoveryReason === reason ? "selected" : ""} onClick={() => selectRecoveryReason(reason)}>{reason}</button>)}</div>{recoveryReason === "App problem" && <small>YOVA will not use an app problem as evidence about your study habits.</small>}{recoveryReason && recoveryReason !== "App problem" && <small>This answer helps YOVA recommend the recovery choice. It does not create a permanent label.</small>}</div><div className="agenda-recovery-actions"><button className="button primary" disabled={Boolean(recoveryAction) || overdueStartBlocked} onClick={() => onStart(overdueEntry.plan.id)}>{guidedSessionStartLabel(allowance, completedSplitForOverdue ? `Start Part 1 (${completedSplitForOverdue.minutes} min)` : recoveryReason === "Too difficult" || recoveryReason === "Instructions unclear" ? "Open setup and choose more support" : "Start it now", overdueHasSavedWork, allowanceChecking)}</button>{recoverySplitAvailable && <button className="button secondary" disabled={Boolean(recoveryAction)} onClick={() => void splitRecoverySession()}>{recoveryAction === "shorten" ? <span className="button-spinner dark" /> : null} {recoveryReason === "Ran out of time" || recoveryReason === "Low energy" ? "Recommended: " : ""}Split into {recoveryMinutes}-min sessions</button>}<button className="button ghost" disabled={Boolean(recoveryAction)} onClick={() => void moveOverdueToTomorrow()}>{recoveryAction === "move" ? <span className="button-spinner dark" /> : null} Move to tomorrow</button><button className="button ghost" disabled={Boolean(recoveryAction)} onClick={() => setDismissedRecoverySessionId(overdueEntry.session.id)}>Keep the original plan</button></div>{recoveryError && <div className="chat-error"><AlertCircle size={16} /><span>{recoveryError}</span></div>}</section>}
-    <div className="agenda-main-grid">
-      <section className="agenda-day-detail">
-        <header><div><span>{agendaDayEyebrow(selectedDay.date)}</span><h2>{agendaFullDate(selectedDay.date)}</h2></div><div><strong>{selectedDay.totalMinutes} min planned</strong><small>{selectedDay.entries.length} {selectedDay.entries.length === 1 ? "session" : "sessions"}</small></div></header>
-        {selectedMilestones.length > 0 && <div className="agenda-milestones"><span className="step-label">DUE THIS DAY</span>{selectedMilestones.map((milestone) => <article className={milestone.status} key={milestone.id}><span className="agenda-milestone-icon"><CalendarDays size={18} /></span><div><strong>{milestone.title}</strong><small>{milestone.description || (milestone.linkedLearningItemId ? "Linked to a learning goal" : "Deadline only")}</small></div><div className="agenda-milestone-actions">{milestone.status === "open" && <button onClick={() => void changeMilestone(milestone, { status: "completed" })} disabled={milestoneAction === milestone.id}><Check size={16} /> Complete</button>}<button onClick={() => setEditingMilestone(milestone)} disabled={Boolean(milestoneAction)}>Edit</button>{!milestone.linkedLearningItemId && <><button onClick={() => onConvertMilestone(milestone, "session")} disabled={Boolean(milestoneAction)}>One session</button><button onClick={() => onConvertMilestone(milestone, "plan")} disabled={Boolean(milestoneAction)}>Create plan</button></>}<button className="danger" aria-label={`Delete ${milestone.title}`} onClick={() => void removeMilestone(milestone)} disabled={Boolean(milestoneAction)}><Trash2 size={16} /></button></div></article>)}</div>}
-        <div className="agenda-periods">
-          {selectedDay.entries.length === 0 ? <div className="agenda-day-empty"><Clock3 size={21} /><div><strong>Nothing planned today</strong><small>Add something you need to learn, prepare for, or complete.</small><button className="button secondary" onClick={onAdd}>+ Add</button></div></div> : (["Morning", "Afternoon", "Evening"] as const).map((period) => {
-            const periodEntries = selectedDay.entries.filter(({ session }) => agendaPeriod(session.scheduledFor) === period);
-            if (!periodEntries.length) return null;
-            return <section className="agenda-period" key={period}><header>{period === "Morning" ? <SunMedium size={17} /> : period === "Evening" ? <Moon size={17} /> : <Clock3 size={17} />}<strong>{period}</strong></header><div>{periodEntries.map(({ plan, session }) => {
-              const startDecision = sessionStartRecoveryDecision({
-                plan,
-                session,
-                interruptions: sessionInterruptions,
-                restorableCheckpoints: activeSessionCheckpoints,
-              });
-              const resumePoint = startDecision.resumePoint;
-              const overdue = session.status === "ready" && isSessionOverdue(session.scheduledFor);
-              const hasSavedWork = startDecision.canStartWithoutGeneration;
-              const startBlocked = guidedSessionAllowanceBlocksNewStart(allowance, hasSavedWork, allowanceChecking);
-              const agendaRoute = resolveStudyRouteSessionContract(plan, session).resolution.route;
-              const agendaTotalMinutes = agendaRoute?.timing.elapsedMinutes ?? session.estimatedMinutes;
-              const agendaReason = agendaRoute?.explanation.shortReason ?? session.methodReason;
-              return <article className={`${session.status === "ready" ? "ready" : ""} ${overdue ? "overdue" : ""}`} key={session.id}><SubjectIcon plan={plan} compact /><div className="agenda-session-copy"><span>{overdue ? "Overdue" : formatAgendaClock(session.scheduledFor)} · {selectSessionLearningMode(plan, session) === "learn" ? "Learn" : "Practice"}</span><strong>{session.title}</strong><small>{selectSessionMethodName(plan, session)} · {agendaTotalMinutes} minutes{resumePoint ? ` · Continue at section ${Math.min(resumePoint.totalSteps, resumePoint.completedSteps + 1)}` : ""}</small><small>{agendaReason}</small></div><div className="agenda-session-actions">{session.status === "ready" && <button className="button primary" disabled={startBlocked} onClick={() => onStart(plan.id)}>{guidedSessionStartLabel(allowance, resumePoint ? "Continue" : "Start", hasSavedWork, allowanceChecking)}</button>}<button className="button ghost" onClick={() => openMove(plan.id, session.id, session.scheduledFor)}>Move</button></div></article>;
-            })}</div></section>;
-          })}
-        </div>
-      </section>
-      <aside className="agenda-summary-rail">
-        <button
-          type="button"
-          className="agenda-summary-card"
-          disabled={!nextOpenMilestone}
-          aria-label={nextOpenMilestone ? `Open ${nextOpenMilestoneIsOverdue ? "overdue " : ""}${nextOpenMilestone.title} deadline` : "No deadline to open"}
-          onClick={() => nextOpenMilestone && setSelectedDateKey(localDateKey(new Date(nextOpenMilestone.dueAt)))}
-        ><CalendarDays size={19} /><div><span>{nextOpenMilestoneIsOverdue ? "Overdue deadline" : "Next deadline"}</span><strong>{nextOpenMilestone ? shortDeadlineDate(new Date(nextOpenMilestone.dueAt)) : agendaSummary.nextDeadline ? shortDeadlineDate(agendaSummary.nextDeadline.date) : "Flexible"}</strong><small>{nextOpenMilestone?.title ?? agendaSummary.nextDeadline?.plan.title ?? "No fixed deadline"}</small></div></button>
-        <section><BookOpen size={19} /><div><span>Active goals</span><strong>{agendaSummary.activeGoals}</strong><small>Combined into this week</small></div></section>
-        <section><Target size={19} /><div><span>This week</span><strong>{agendaSummary.weekMinutes} min</strong><small>{agendaSummary.weekSessions} learning sessions</small></div></section>
-        <section className="agenda-rail-reviews"><header><RotateCcw size={18} /><div><span>Due for review</span><strong>{conceptReviews.filter((item) => item.timing === "due").length} due</strong></div></header>{conceptReviews.slice(0, 3).map((item) => <div key={`${item.planId}:${item.concept}`}><span>{item.concept}</span><small>{item.timingLabel}</small></div>)}</section>
-      </aside>
-    </div>
-    {editingMilestone && <section className="agenda-move-panel milestone-editor" aria-live="polite"><div><span className="step-label">EDIT DEADLINE</span><h3>Keep the due item accurate</h3><p>This changes the Agenda marker. It does not invent a study plan.</p></div><label><span>Title</span><input value={editingMilestone.title} onChange={(event) => setEditingMilestone({ ...editingMilestone, title: event.target.value })} /></label><label><span>Due date</span><input type="date" value={localDateKey(new Date(editingMilestone.dueAt))} onChange={(event) => { const dueAt = new Date(`${event.target.value}T23:59:59`); if (!Number.isNaN(dueAt.getTime())) setEditingMilestone({ ...editingMilestone, dueAt: dueAt.toISOString() }); }} /></label><label><span>Notes</span><textarea rows={3} value={editingMilestone.description} onChange={(event) => setEditingMilestone({ ...editingMilestone, description: event.target.value })} /></label>{milestoneError && <div className="chat-error"><AlertCircle size={16} /><span>{milestoneError}</span></div>}<footer><button className="button ghost" onClick={() => { setEditingMilestone(null); setMilestoneError(null); }} disabled={Boolean(milestoneAction)}>Cancel</button><button className="button primary" onClick={() => void changeMilestone(editingMilestone, { title: editingMilestone.title, description: editingMilestone.description, dueAt: editingMilestone.dueAt })} disabled={Boolean(milestoneAction) || editingMilestone.title.trim().length < 2}>{milestoneAction ? <span className="button-spinner" /> : "Save deadline"}</button></footer></section>}
-    {milestoneError && !editingMilestone && <div className="chat-error"><AlertCircle size={16} /><span>{milestoneError}</span></div>}
-    {movingEntry && <section className="agenda-move-panel" aria-live="polite">
-      <div><span className="step-label">MOVE SESSION</span><h3>{movingEntry.session.title}</h3><p>Choose a new time. The learning order and session content will stay the same.</p></div>
-      <div className="agenda-quick-times"><button onClick={() => void saveMove(moveByDays(movingEntry.session.scheduledFor, 1))} disabled={saving}>Tomorrow</button><button onClick={() => void saveMove(moveByDays(movingEntry.session.scheduledFor, 2))} disabled={saving}>In two days</button><button onClick={() => void saveMove(moveByDays(movingEntry.session.scheduledFor, 7))} disabled={saving}>Next week</button></div>
-      <label><span>Custom date and time</span><input type="datetime-local" min={toLocalDateTimeInput(new Date().toISOString())} value={customTime} disabled={saving} aria-invalid={Boolean(customMoveIssue)} aria-describedby={customMoveIssue ? "custom-session-time-issue" : undefined} onChange={(event) => { setCustomTime(event.target.value); setError(null); }} />{customMoveIssue && <small id="custom-session-time-issue" role="status">{customMoveIssue}</small>}</label>
-      {error && <div className="chat-error"><AlertCircle size={16} /><span>{error}</span></div>}
-      <footer><button className="button ghost" onClick={() => { setMoving(null); setError(null); }} disabled={saving}>Cancel</button><button className="button primary" onClick={() => { const date = new Date(customTime); if (Number.isNaN(date.getTime())) { setError("Choose a valid date and time."); return; } void saveMove(date.toISOString()); }} disabled={!customTime || saving || Boolean(customMoveIssue)}>{saving ? <span className="button-spinner" /> : "Save new time"}</button></footer>
-    </section>}
-    {conceptReviews.length > 0 && <section className="section-block review-agenda"><div className="section-title"><div><h3>Retrieval queue</h3><p>Concepts return when completed checks show that another attempt would be useful.</p></div><span>{conceptReviews.filter((item) => item.timing === "due").length} due</span></div><div className="review-agenda-list">{conceptReviews.slice(0, 6).map((item) => { const actionKey = `${item.planId}:${item.concept.toLocaleLowerCase()}`; const loading = reviewAction === actionKey; return <article className={`${item.priority} ${item.timing}`} key={actionKey}><span className="review-agenda-icon">{item.reviewType === "repair_and_retrieve" ? <RotateCcw size={17} /> : <Target size={17} />}</span><div><span>{formatReviewType(item.reviewType)} · {item.timingLabel}</span><strong>{item.concept}</strong><small>{item.planTitle} · {item.instruction}</small></div>{item.action === "scheduled" ? <em>Scheduled</em> : <button className={item.action === "activate_review" ? "button primary" : "button secondary"} disabled={Boolean(reviewAction) || newReviewBlocked} onClick={() => void beginConceptReview(item)}>{loading ? <span className="button-spinner dark" /> : null}{guidedSessionStartLabel(allowance, item.action === "activate_review" ? "Start short check" : "Start next session")}</button>}</article>; })}</div><small className="concept-review-note">These return dates are transparent review heuristics. A new completed check can move the next return sooner or later.</small>{reviewError && <div className="chat-error"><AlertCircle size={16} /><span>{reviewError}</span></div>}</section>}
-  </div>;
+  return <section className="plan-adjustment-panel"><div className="plan-adjustment-heading"><div><span className="step-label">ADJUST UNFINISHED WORK</span><h3>Change the plan without losing progress</h3><p>Tell YOVA when the course is on the wrong track, or change its timing and study location. Completed sessions stay exactly as they are.</p></div></div><label className={`plan-direction-field ${directionLimit.isOverLimit ? "field-over-limit" : ""}`}><span>What should be different?</span><textarea rows={4} value={direction} disabled={saving} aria-invalid={directionLimit.isOverLimit || undefined} aria-describedby="plan-adjustment-direction-limit" placeholder="Example: Keep this conceptual. I do not want calculation exercises. Focus on founder decisions, investor incentives, and real examples." onChange={(event) => setDirection(event.target.value)} /><small id="plan-adjustment-direction-limit" className={`character-limit-feedback ${directionLimit.isOverLimit ? "over-limit" : ""}`} role={directionLimit.isOverLimit ? "alert" : undefined}>Optional. YOVA will rebuild only unfinished content sessions. Scheduled reviews keep their exact return contract. The next session setup will show the revised target and method. {formatCharacterLimit(directionLimit)}</small><div><button type="button" onClick={() => setDirection("Keep this conceptual. Do not include math or calculation exercises.")}>No calculations</button><button type="button" onClick={() => setDirection("Teach the foundations first, then use concrete examples before practice.")}>Teach it first</button><button type="button" onClick={() => setDirection("Use more real examples and case scenarios before independent work.")}>More examples</button></div></label><div className="plan-adjustment-grid"><label><span>Target date</span><input type="date" min={localDateInput(new Date().toISOString())} value={deadlineDate} disabled={saving} onChange={(event) => setDeadlineDate(event.target.value)} /><small>Optional. Calendar times are changed separately.</small></label><label><span>Future session window</span><select value={minutes} disabled={saving} onChange={(event) => setMinutes(Number(event.target.value))}>{minuteOptions.map((option) => <option value={option} key={option}>{option} minutes</option>)}</select><small>Time controls the size of each content slice, not whether it counts as learned.</small></label></div><div className="adjustment-content-rule"><Target size={18} /><div><strong>Progress stays intact</strong><p>The current {adjustableUnfinishedCount} ordinary unfinished {adjustableUnfinishedCount === 1 ? "session" : "sessions"} can be adjusted safely. Finished sessions and recorded learning evidence are never erased.{protectedReviewCount > 0 ? ` ${protectedReviewCount} scheduled ${protectedReviewCount === 1 ? "review keeps" : "reviews keep"} the original duration, concept, and return time.` : ""}</p></div></div><div className="adjustment-mode"><span>Where should future sessions happen?</span><div><button className={studyMode === "inside_yova" ? "selected" : ""} disabled={saving} onClick={() => setStudyMode("inside_yova")}><BookOpen size={17} /><strong>Inside YOVA</strong><small>Teaching, questions, and feedback in the app</small></button><button className={studyMode === "outside_yova" ? "selected" : ""} disabled={saving} onClick={() => setStudyMode("outside_yova")}><LibraryBig size={17} /><strong>Outside YOVA</strong><small>Exact instructions for another source or workspace</small></button></div></div>{error && <div className="chat-error"><AlertCircle size={16} /><span>{error}</span></div>}<footer><button className="button ghost" disabled={saving} onClick={onCancel}>Cancel</button><button className="button primary" disabled={saving || adjustableUnfinishedCount === 0 || directionLimit.isOverLimit} onClick={() => void save()}>{saving ? <span className="button-spinner" /> : <><Check size={16} /> Approve and rebuild plan</>}</button></footer></section>;
 }
 
 function AskScreen({ plans, question, onQuestion, onApplyAction, analyticsEnabled }: { plans: LearningPlan[]; question: string; onQuestion: (question: string) => void; onApplyAction: (action: TutorProposedAction) => Promise<void>; analyticsEnabled: boolean }) {
@@ -8233,64 +8000,6 @@ function formatAgendaTime(isoDate: string) {
     hour: "numeric",
     minute: "2-digit",
   }).format(new Date(isoDate));
-}
-
-function formatAgendaClock(isoDate: string) {
-  return new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" }).format(new Date(isoDate));
-}
-
-function agendaPeriod(isoDate: string): "Morning" | "Afternoon" | "Evening" {
-  const hour = new Date(isoDate).getHours();
-  if (hour < 12) return "Morning";
-  if (hour < 17) return "Afternoon";
-  return "Evening";
-}
-
-function agendaDayEyebrow(date: Date) {
-  const today = new Date();
-  const tomorrow = new Date(today);
-  tomorrow.setDate(today.getDate() + 1);
-  if (localDateInput(date.toISOString()) === localDateInput(today.toISOString())) return "TODAY";
-  if (localDateInput(date.toISOString()) === localDateInput(tomorrow.toISOString())) return "TOMORROW";
-  return new Intl.DateTimeFormat("en-US", { weekday: "long" }).format(date).toUpperCase();
-}
-
-function agendaFullDate(date: Date) {
-  return new Intl.DateTimeFormat("en-US", { month: "long", day: "numeric" }).format(date);
-}
-
-function agendaDateLabel(dateKey: string) {
-  const [year, month, day] = dateKey.split("-").map(Number);
-  return new Intl.DateTimeFormat("en-US", { weekday: "long", month: "short", day: "numeric" }).format(new Date(year, month - 1, day));
-}
-
-function dateFromLocalKey(dateKey: string) {
-  const [year, month, day] = dateKey.split("-").map(Number);
-  const date = new Date(year, month - 1, day);
-  return Number.isNaN(date.getTime()) ? new Date() : date;
-}
-
-function shortDeadlineDate(date: Date) {
-  return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(date);
-}
-
-function formatReviewType(reviewType: ConceptReviewAgendaItem["reviewType"]) {
-  if (reviewType === "repair_and_retrieve") return "Retrieve and repair";
-  if (reviewType === "maintenance_transfer") return "Light transfer";
-  return "Independent verification";
-}
-
-function moveByDays(isoDate: string, days: number) {
-  const scheduled = new Date(isoDate);
-  const date = scheduled.getTime() > Date.now() ? scheduled : new Date();
-  date.setDate(date.getDate() + days);
-  return date.toISOString();
-}
-
-function toLocalDateTimeInput(isoDate: string) {
-  const date = new Date(isoDate);
-  const pad = (value: number) => String(value).padStart(2, "0");
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
 function localDateInput(isoDate: string) {

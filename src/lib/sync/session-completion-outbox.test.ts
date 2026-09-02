@@ -13,6 +13,7 @@ vi.mock("@/lib/supabase/learning-state-repository", () => ({
 }));
 
 import {
+  flushQueuedSessionCompletionSupersedingExit,
   flushQueuedSessionCompletions,
   loadQueuedSessionCompletions,
   pendingSessionCompletionPlanSessionIds,
@@ -192,6 +193,101 @@ describe("session completion outbox", () => {
     ]);
     expect(loadQueuedSessionCompletions(otherUserId).map((entry) => entry.completion.id)).toEqual([
       otherAccount.completion.id,
+    ]);
+  });
+
+  it("lets only an exact blocked session completion supersede its Exit", async () => {
+    installMemoryStorage();
+    const userId = "20000000-0000-4000-8000-000000000031";
+    const blockedSessionId = "20000000-0000-4000-8000-000000000032";
+    const unrelatedSessionId = "20000000-0000-4000-8000-000000000033";
+    const blocked = completionPending({
+      userId,
+      completionId: "20000000-0000-4000-8000-000000000034",
+      planSessionId: blockedSessionId,
+    });
+    const duplicate = completionPending({
+      userId,
+      completionId: "20000000-0000-4000-8000-000000000035",
+      planSessionId: blockedSessionId,
+    });
+    const unrelated = completionPending({
+      userId,
+      completionId: "20000000-0000-4000-8000-000000000036",
+      planSessionId: unrelatedSessionId,
+    });
+    [unrelated, blocked, duplicate].forEach((entry) => {
+      expect(queueSessionCompletion(entry)).toBe(true);
+    });
+    completeAuthenticatedPlanSession.mockResolvedValue(undefined);
+
+    await expect(flushQueuedSessionCompletionSupersedingExit(
+      userId,
+      blockedSessionId,
+    )).resolves.toEqual({ committed: true, remaining: 1 });
+
+    expect(completeAuthenticatedPlanSession).toHaveBeenCalledOnce();
+    expect(completeAuthenticatedPlanSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: blocked.completion.id,
+        planSessionId: blockedSessionId,
+      }),
+      null,
+      null,
+      null,
+      null,
+    );
+    expect(loadQueuedSessionCompletions(userId).map((entry) => entry.completion.id)).toEqual([
+      unrelated.completion.id,
+    ]);
+  });
+
+  it("retains both the blocked completion and unrelated work when supersession fails", async () => {
+    installMemoryStorage();
+    const userId = "20000000-0000-4000-8000-000000000041";
+    const blockedSessionId = "20000000-0000-4000-8000-000000000042";
+    const blocked = completionPending({
+      userId,
+      completionId: "20000000-0000-4000-8000-000000000043",
+      planSessionId: blockedSessionId,
+    });
+    const unrelated = completionPending({
+      userId,
+      completionId: "20000000-0000-4000-8000-000000000044",
+      planSessionId: "20000000-0000-4000-8000-000000000045",
+    });
+    [blocked, unrelated].forEach((entry) => {
+      expect(queueSessionCompletion(entry)).toBe(true);
+    });
+    completeAuthenticatedPlanSession.mockRejectedValue(new Error("temporarily unavailable"));
+
+    await expect(flushQueuedSessionCompletionSupersedingExit(
+      userId,
+      blockedSessionId,
+    )).resolves.toEqual({ committed: false, remaining: 2 });
+    expect(loadQueuedSessionCompletions(userId).map((entry) => entry.completion.id)).toEqual([
+      blocked.completion.id,
+      unrelated.completion.id,
+    ]);
+  });
+
+  it("does not send an unrelated completion when the blocked Exit has no match", async () => {
+    installMemoryStorage();
+    const userId = "20000000-0000-4000-8000-000000000051";
+    const unrelated = completionPending({
+      userId,
+      completionId: "20000000-0000-4000-8000-000000000052",
+      planSessionId: "20000000-0000-4000-8000-000000000053",
+    });
+    expect(queueSessionCompletion(unrelated)).toBe(true);
+
+    await expect(flushQueuedSessionCompletionSupersedingExit(
+      userId,
+      "20000000-0000-4000-8000-000000000054",
+    )).resolves.toEqual({ committed: false, remaining: 1 });
+    expect(completeAuthenticatedPlanSession).not.toHaveBeenCalled();
+    expect(loadQueuedSessionCompletions(userId).map((entry) => entry.completion.id)).toEqual([
+      unrelated.completion.id,
     ]);
   });
 

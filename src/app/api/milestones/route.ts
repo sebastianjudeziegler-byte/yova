@@ -71,8 +71,8 @@ function committedMilestoneWriteResponse(
     });
     return NextResponse.json({
       error: operation === "created"
-        ? "The deadline was saved, but YOVA could not display its confirmed details. Reload the Agenda instead of adding it again."
-        : "The deadline was updated, but YOVA could not display its confirmed details. Reload the Agenda instead of repeating the change.",
+        ? "The deadline was saved, but YOVA could not display its confirmed details. Reload the Calendar instead of adding it again."
+        : "The deadline was updated, but YOVA could not display its confirmed details. Reload the Calendar instead of repeating the change.",
       code: "milestone_write_committed_response_invalid",
       committed: true,
       milestoneId,

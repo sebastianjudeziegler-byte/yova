@@ -254,7 +254,11 @@ describe("YOVA prototype UI contracts", () => {
 
     expect(preserveStart).toBeGreaterThan(-1);
     expect(preserveEnd).toBeGreaterThan(preserveStart);
-    expect(preserveDeadline.match(/\.catch\(\(error\)/g)).toHaveLength(2);
+    const handledWriteFailures = [
+      ...(preserveDeadline.match(/\.catch\(\(error\)/g) ?? []),
+      ...(preserveDeadline.match(/catch \(error\)/g) ?? []),
+    ];
+    expect(handledWriteFailures).toHaveLength(2);
     expect(preserveDeadline.match(/error\.message/g)).toHaveLength(2);
   });
 
@@ -314,14 +318,13 @@ describe("YOVA prototype UI contracts", () => {
 
   it("uses one fail-closed recovery decision for labels, allowance, and launch", () => {
     const component = readSource("src/components/yova-prototype.tsx");
+    const calendar = readSource("src/components/calendar/calendar-screen.tsx");
     const startSessionStart = component.indexOf("const startSession = async");
     const startSessionEnd = component.indexOf("const requestSessionStart", startSessionStart);
     const startSession = component.slice(startSessionStart, startSessionEnd);
     const homeStart = component.indexOf("function HomeScreen");
-    const homeEnd = component.indexOf("function SubjectIcon", homeStart);
+    const homeEnd = component.indexOf("function formatHomeDate", homeStart);
     const home = component.slice(homeStart, homeEnd);
-    const agendaStart = component.indexOf("function AgendaScreen");
-    const agenda = component.slice(agendaStart);
 
     expect(startSession).toContain("sessionStartRecoveryDecision({");
     expect(startSession).toContain("startDecision.canStartWithoutGeneration");
@@ -332,7 +335,7 @@ describe("YOVA prototype UI contracts", () => {
     expect(home).toContain("startDecision?.resumePoint");
     expect(home).toContain("resolveExecutedStudyRouteSessionContract(");
     expect(home).toContain("homeRoute?.approach.visibleMethodName");
-    expect(agenda).toContain("sessionStartRecoveryDecision({");
+    expect(calendar).toContain("sessionStartRecoveryDecision({");
     expect(component).not.toContain("chooseLatestSessionResumePoint");
   });
 
@@ -555,5 +558,15 @@ describe("YOVA prototype UI contracts", () => {
     expect(component).toContain("enabled={canonicalState.controls.selfReport}");
     expect(component).toContain('"selfReport",');
     expect(component).toContain("setPersonalizationControl(");
+  });
+
+  it("clears local Calendar data only after permanent account deletion", () => {
+    const component = readSource("src/components/yova-prototype.tsx");
+    const signOutStart = component.indexOf("const signOut = async");
+    const signOutEnd = component.indexOf("const beginRecoveryMethodPractice", signOutStart);
+    const signOut = component.slice(signOutStart, signOutEnd);
+
+    expect(signOut).toContain("clearConfirmedSignOutStorage(signingOutAccountId, {");
+    expect(signOut).toContain("clearDeletedAccountCalendar: accountAlreadyDeleted");
   });
 });

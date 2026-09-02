@@ -137,6 +137,7 @@ export function buildDailyCapacityPlan(
   requestedCapacityMinutes: number,
   now = new Date(),
   protectedSessionIds: ReadonlySet<string> = new Set<string>(),
+  dayLabel = "today",
 ): DailyCapacityPlan {
   const capacityMinutes = Math.max(10, Math.min(180, Math.round(requestedCapacityMinutes)));
   const todayKey = localDateKey(now);
@@ -155,7 +156,7 @@ export function buildDailyCapacityPlan(
       scheduledFor: null,
       toDateKey: null,
       splitMinutes: null,
-      reason: "Nothing is scheduled today, so YOVA does not need to move or compress any learning content.",
+      reason: `Nothing is scheduled ${dayLabel}, so YOVA does not need to move or compress any learning content.`,
     };
   }
 
@@ -212,7 +213,7 @@ export function buildDailyCapacityPlan(
       scheduledFor: null,
       toDateKey: null,
       splitMinutes,
-      reason: `The deadline and learning order make a move unsafe. Splitting ${entry.plan.title} keeps only a bounded content block today and carries the unfinished content forward.`,
+      reason: `The deadline and learning order make a move unsafe. Splitting ${entry.plan.title} keeps only a bounded content block ${dayLabel} and carries the unfinished content forward.`,
     };
   }
 

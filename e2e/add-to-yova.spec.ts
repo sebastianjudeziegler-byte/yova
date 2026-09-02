@@ -14,7 +14,7 @@ const onboardingAnswers = [
   "Afternoon",
 ] as const;
 
-test("a deadline can live in Agenda, be completed, and stay out of Learning", async ({ page }) => {
+test("a deadline can live in Calendar, be completed, and stay out of Learning", async ({ page }) => {
   const futureDeadline = new Date();
   futureDeadline.setDate(futureDeadline.getDate() + 30);
   const expectedDeadline = [
@@ -36,13 +36,14 @@ test("a deadline can live in Agenda, be completed, and stay out of Learning", as
   await page.getByRole("button", { name: /Choose what YOVA should do/ }).click();
   await page.getByRole("button", { name: /Track the deadline/ }).click();
 
-  await expect(page.getByRole("heading", { name: "Your week at a glance" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Plan the work that gets you there" })).toBeVisible();
   await page.reload();
-  await page.getByRole("button", { name: "Agenda", exact: true }).click();
-  await page.getByRole("button", { name: "Open Lab Report deadline" }).click();
-  await expect(page.getByText("Lab Report", { exact: true }).first()).toBeVisible();
-  await page.getByRole("button", { name: "Complete", exact: true }).click();
-  await expect(page.locator(".agenda-milestones article.completed")).toContainText("Lab Report");
+  await page.getByRole("button", { name: "Calendar", exact: true }).click();
+  await page.getByRole("tab", { name: "List", exact: true }).click();
+  await page.locator(".calendar-stub-list button").filter({ hasText: "Lab Report" }).click();
+  await expect(page.locator(".calendar-block-detail")).toContainText("Lab Report");
+  await page.getByRole("button", { name: "Mark complete", exact: true }).click();
+  await expect(page.locator(".calendar-outcome-row.complete")).toContainText("Lab Report");
   await page.getByRole("button", { name: "Learning", exact: true }).click();
   await expect(page.getByText("Lab Report", { exact: true })).toHaveCount(0);
 });
@@ -70,12 +71,15 @@ test("an overdue standalone deadline remains reachable and actionable", async ({
   });
 
   await page.reload();
-  await page.getByRole("button", { name: "Agenda", exact: true }).click();
-  await expect(page.getByText("Overdue deadline", { exact: true })).toBeVisible();
-  await page.getByRole("button", { name: /Open overdue Missed lab deadline/ }).click();
-  await expect(page.locator(".agenda-milestones")).toContainText("Missed lab deadline");
-  await page.getByRole("button", { name: "Complete", exact: true }).click();
-  await expect(page.locator(".agenda-milestones article.completed")).toContainText("Missed lab deadline");
+  await page.getByRole("button", { name: "Calendar", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Needs attention" })).toBeVisible();
+  await expect(page.locator(".calendar-issue").filter({ hasText: "Missed lab deadline" }))
+    .toContainText("has no preparation plan");
+  await page.getByRole("tab", { name: "List", exact: true }).click();
+  await page.locator(".calendar-stub-list button").filter({ hasText: "Missed lab deadline" }).click();
+  await expect(page.locator(".calendar-block-detail")).toContainText("Missed lab deadline");
+  await page.getByRole("button", { name: "Mark complete", exact: true }).click();
+  await expect(page.locator(".calendar-outcome-row.complete")).toContainText("Missed lab deadline");
 });
 
 test("an outside assignment routes to one outside-YOVA session", async ({ page }) => {
@@ -216,13 +220,13 @@ test("one account never sees another account's deadline", async ({ browser }) =>
   await openAdd(firstPage, "I have a private World War I test in two weeks");
   await firstPage.getByRole("button", { name: /Choose what YOVA should do/ }).click();
   await firstPage.getByRole("button", { name: /Track the deadline/ }).click();
-  await firstPage.getByRole("button", { name: "Agenda", exact: true }).click();
-  await expect(firstPage.getByText("Private World War I Test", { exact: true })).toBeVisible();
+  await firstPage.getByRole("button", { name: "Calendar", exact: true }).click();
+  await expect(firstPage.getByText("Private World War I Test", { exact: true }).first()).toBeVisible();
 
   const secondContext = await browser.newContext();
   const secondPage = await secondContext.newPage();
   await openPreviewApp(secondPage);
-  await secondPage.getByRole("button", { name: "Agenda", exact: true }).click();
+  await secondPage.getByRole("button", { name: "Calendar", exact: true }).click();
   await expect(secondPage.getByText("Private World War I Test", { exact: true })).toHaveCount(0);
 
   await firstContext.close();
@@ -230,8 +234,8 @@ test("one account never sees another account's deadline", async ({ browser }) =>
 });
 
 async function openAdd(page: Page, description: string) {
-  await page.getByRole("button", { name: "Agenda", exact: true }).click();
-  await page.getByRole("button", { name: "Add to Agenda", exact: true }).click();
+  await page.getByRole("button", { name: "Calendar", exact: true }).click();
+  await page.locator(".calendar-page-header").getByRole("button", { name: "Add to YOVA", exact: true }).click();
   await expect(page.getByRole("heading", { name: "What do you need to learn, prepare for, or complete?" })).toBeVisible();
   await page.getByPlaceholder(/I have a World War I test/).fill(description);
   await page.getByRole("button", { name: /Organize this/ }).click();

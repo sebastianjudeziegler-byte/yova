@@ -28,7 +28,6 @@ describe("typography contract", () => {
     for (const path of [
       "src/components/plan-creator.tsx",
       "src/components/study-now-creator.tsx",
-      "src/components/yova-prototype.tsx",
     ]) {
       const source = readSource(path);
       expect(source).toContain('className="duration-value"');

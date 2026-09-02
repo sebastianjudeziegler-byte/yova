@@ -13,7 +13,7 @@ export async function PATCH(request: Request) {
   const supabase = await createSupabaseServerClient();
   const { data: { user }, error: userError } = await supabase.auth.getUser();
   if (userError || !user) {
-    return NextResponse.json({ error: "Sign in before changing your agenda." }, { status: 401 });
+    return NextResponse.json({ error: "Sign in before changing your calendar." }, { status: 401 });
   }
 
   let body: unknown;
@@ -52,7 +52,7 @@ export async function PATCH(request: Request) {
       || parsed.data.updates.some((update) => !authoritativeIds?.has(update.planSessionId))
     ) {
       return NextResponse.json({
-        error: "YOVA moved the agenda but could not confirm every new time. Reload before making another change.",
+        error: "YOVA moved the calendar but could not confirm every new time. Reload before making another change.",
         code: "schedule_committed_response_invalid",
         committed: true,
       }, { status: 500 });

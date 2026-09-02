@@ -67,6 +67,9 @@ describe("transactional session scheduling route", () => {
     const response = await PATCH(batchRequest());
 
     expect(response.status).toBe(401);
+    await expect(response.json()).resolves.toEqual({
+      error: "Sign in before changing your calendar.",
+    });
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
 
@@ -206,6 +209,7 @@ describe("transactional session scheduling route", () => {
 
     expect(response.status).toBe(500);
     await expect(response.json()).resolves.toMatchObject({
+      error: "YOVA moved the calendar but could not confirm every new time. Reload before making another change.",
       code: "schedule_committed_response_invalid",
       committed: true,
     });

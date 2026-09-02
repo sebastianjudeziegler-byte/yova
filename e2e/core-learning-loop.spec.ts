@@ -1122,7 +1122,7 @@ test("an overdue outside teaching-first session splits into runnable 10-minute p
   });
   await page.reload();
 
-  await page.getByRole("button", { name: "Agenda", exact: true }).click();
+  await page.getByRole("button", { name: "Calendar", exact: true }).click();
   await expect(page.getByText("A SESSION IS STILL WAITING", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Ran out of time", exact: true }).click();
   const splitButton = page.getByRole("button", {
@@ -1226,7 +1226,7 @@ test("an overdue arbitrary inside session splits and loads a route-faithful 10-m
   });
   await page.reload();
 
-  await page.getByRole("button", { name: "Agenda", exact: true }).click();
+  await page.getByRole("button", { name: "Calendar", exact: true }).click();
   await expect(page.getByText("A SESSION IS STILL WAITING", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Ran out of time", exact: true }).click();
   const splitButton = page.getByRole("button", {
@@ -2044,7 +2044,7 @@ test("learner text fields keep long pastes visible and block submission until tr
   await expect(adjustmentPanel.getByRole("button", { name: "Approve and rebuild plan" })).toBeDisabled();
 });
 
-test("Agenda summary cards remain inside their rail at a 375px viewport", async ({ page }) => {
+test("Calendar rail and dense Week grid remain contained at a 375px viewport", async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 844 });
   await createPreviewAccount(page);
   await completeOnboarding(page);
@@ -2119,37 +2119,33 @@ test("Agenda summary cards remain inside their rail at a 375px viewport", async 
     window.localStorage.setItem("yova.preview.v1", JSON.stringify(snapshot));
   });
   await page.reload();
-  await page.getByRole("button", { name: "Agenda", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Your week at a glance" })).toBeVisible();
+  await page.getByRole("button", { name: "Calendar", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Plan the work that gets you there" })).toBeVisible();
 
-  const geometry = await page.locator(".agenda-summary-rail").evaluate((rail) => {
+  const geometry = await page.locator(".calendar-workspace").evaluate((workspace) => {
+    const rail = workspace.querySelector<HTMLElement>(".calendar-rail");
+    const main = workspace.querySelector<HTMLElement>(".calendar-main");
+    if (!rail || !main) return null;
     const railRect = rail.getBoundingClientRect();
+    const mainRect = main.getBoundingClientRect();
     return {
-      clientWidth: rail.clientWidth,
-      scrollWidth: rail.scrollWidth,
-      children: Array.from(rail.children).map((child) => {
-        const rect = child.getBoundingClientRect();
-        return {
-          left: rect.left,
-          right: rect.right,
-          width: rect.width,
-          clientWidth: child.clientWidth,
-          scrollWidth: child.scrollWidth,
-          insideRail: rect.left >= railRect.left - 1 && rect.right <= railRect.right + 1,
-        };
-      }),
+      bodyFits: document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1,
+      workspaceFits: workspace.scrollWidth <= workspace.clientWidth + 1,
+      railFits: rail.scrollWidth <= rail.clientWidth + 1,
+      railBeforeMain: railRect.top <= mainRect.top && railRect.bottom <= mainRect.top + 2,
     };
   });
 
-  expect(geometry.children).toHaveLength(4);
-  expect(geometry.scrollWidth).toBeLessThanOrEqual(geometry.clientWidth + 1);
-  expect(
-    geometry.children.every((card) => card.insideRail && card.scrollWidth <= card.clientWidth + 1),
-    JSON.stringify(geometry),
-  ).toBe(true);
+  expect(geometry).toEqual({
+    bodyFits: true,
+    workspaceFits: true,
+    railFits: true,
+    railBeforeMain: true,
+  });
+  await expect(page.locator(".calendar-week")).toHaveCSS("overflow-x", "auto");
 });
 
-test("spent guided-session allowance is visible before Home or Agenda opens setup", async ({ page }) => {
+test("spent guided-session allowance is visible before Home or Calendar opens setup", async ({ page }) => {
   const resetAt = "2026-08-20T00:00:00.000Z";
   let allowanceExhausted = false;
   await page.route("**/api/sessions/allowance", async (route) => {
@@ -2196,7 +2192,7 @@ test("spent guided-session allowance is visible before Home or Agenda opens setu
   await expect(page.getByRole("button", { name: "Study now Quick, off-plan" })).toBeDisabled();
   await expect(page.getByRole("heading", { name: "Here is how YOVA plans to start." })).not.toBeVisible();
 
-  await page.getByRole("button", { name: "Agenda", exact: true }).click();
+  await page.getByRole("button", { name: "Calendar", exact: true }).click();
   const agendaAllowance = page.locator(".guided-session-allowance-notice.agenda");
   await expect(agendaAllowance).toContainText("Daily guided-session allowance used");
   await expect(agendaAllowance.locator("time")).toHaveAttribute("datetime", resetAt);
@@ -2257,11 +2253,11 @@ test("spent allowance still permits a saved session to continue", async ({ page 
   await expect(recommendedLearningPlan(page).getByRole("button", { name: "Continue session" })).toBeEnabled();
   await expect(page.getByRole("button", { name: "Study now Quick, off-plan" })).toBeDisabled();
 
-  await page.getByRole("button", { name: "Agenda", exact: true }).click();
+  await page.getByRole("button", { name: "Calendar", exact: true }).click();
   await expect(page.locator(".guided-session-allowance-notice.agenda")).toContainText(
     "Daily guided-session allowance used",
   );
-  await expect(page.locator(".agenda-session-actions").getByRole("button", { name: "Continue" })).toBeEnabled();
+  await expect(page.locator(".calendar-your-day").getByRole("button", { name: "Continue" })).toBeEnabled();
 
   await page.getByRole("button", { name: "Home", exact: true }).click();
   await recommendedLearningPlan(page).getByRole("button", { name: "Continue session" }).click();
@@ -2282,8 +2278,8 @@ test("the product shell keeps every core destination and creation path usable", 
   await expect(page.getByRole("heading", { name: "What you’re working toward" })).toBeVisible();
   await expectNoHorizontalOverflow(page, ".page");
 
-  await page.getByRole("button", { name: "Agenda", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Your week at a glance" })).toBeVisible();
+  await page.getByRole("button", { name: "Calendar", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Plan the work that gets you there" })).toBeVisible();
   await expectNoHorizontalOverflow(page, ".page");
 
   await page.getByRole("button", { name: "Ask YOVA", exact: true }).click();
@@ -2309,8 +2305,8 @@ test("the product shell keeps every core destination and creation path usable", 
   await expect(page.getByRole("heading", { name: "What do you need to learn or prepare for?" })).toBeVisible();
   await page.getByRole("button", { name: "Cancel" }).click();
 
-  await page.getByRole("button", { name: "Agenda", exact: true }).click();
-  await page.getByRole("button", { name: "Add to Agenda", exact: true }).click();
+  await page.getByRole("button", { name: "Calendar", exact: true }).click();
+  await page.locator(".calendar-page-header").getByRole("button", { name: "Add to YOVA", exact: true }).click();
   await expect(page.getByRole("heading", { name: "What do you need to learn, prepare for, or complete?" })).toBeVisible();
   await page.getByRole("button", { name: "Cancel" }).click();
   await page.getByRole("button", { name: "Home", exact: true }).click();
@@ -3610,45 +3606,22 @@ test("a multi-session plan carries one clear source decision from Add to Learnin
   await page.getByRole("button", { name: "Ask YOVA", exact: true }).click();
   await expect(page.getByRole("combobox", { name: "Ask YOVA context" })).toHaveValue("general");
 
-  await page.getByRole("button", { name: "Agenda", exact: true }).click();
+  await page.getByRole("button", { name: "Calendar", exact: true }).click();
   const moveOverdue = page.getByRole("button", { name: "Move to tomorrow" });
   if (await moveOverdue.isVisible()) await moveOverdue.click();
-  await expect(page.getByRole("heading", { name: "Your week at a glance" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Plan the work that gets you there" })).toBeVisible();
   const adjustmentTools = page.locator("details.agenda-adjustment-tools");
   if (!(await adjustmentTools.getAttribute("open"))) await adjustmentTools.locator("summary").click();
-  await expect(page.getByText("What YOVA is allowed to change")).toBeVisible();
-  const capacityButtons = page.locator(".agenda-capacity-options button");
-  await expect(capacityButtons).toHaveCount(5);
-  await expect(page.locator(".agenda-capacity-options .duration-value")).toHaveCount(5);
-  await expect(page.locator(".agenda-capacity-options .duration-unit")).toHaveCount(5);
-  const capacityTypography = await page.locator(".agenda-capacity-planner").evaluate((planner) => {
-    const buttons = [...planner.querySelectorAll<HTMLButtonElement>(".agenda-capacity-options button")];
-    const values = [...planner.querySelectorAll<HTMLElement>(".duration-value")];
-    const units = [...planner.querySelectorAll<HTMLElement>(".duration-unit")];
-    const heading = planner.querySelector<HTMLElement>("h2");
-    return {
-      buttonHeights: buttons.map((button) => button.getBoundingClientRect().height),
-      valueFamilies: values.map((value) => getComputedStyle(value).fontFamily),
-      valueLineHeights: values.map((value) => Number.parseFloat(getComputedStyle(value).lineHeight)),
-      valueTracking: values.map((value) => {
-        const tracking = Number.parseFloat(getComputedStyle(value).letterSpacing);
-        return Number.isFinite(tracking) ? tracking : 0;
-      }),
-      unitSizes: units.map((unit) => Number.parseFloat(getComputedStyle(unit).fontSize)),
-      headingTracking: heading ? Math.abs(Number.parseFloat(getComputedStyle(heading).letterSpacing)) : Number.POSITIVE_INFINITY,
-    };
-  });
-  expect(capacityTypography.buttonHeights.every((height) => height >= 44)).toBe(true);
-  expect(capacityTypography.valueFamilies.every((family) => family.includes("Inter"))).toBe(true);
-  expect(capacityTypography.valueLineHeights.every((height) => height >= 17 && height <= 19)).toBe(true);
-  expect(capacityTypography.valueTracking.every((tracking) => Math.abs(tracking) < 0.01)).toBe(true);
-  expect(capacityTypography.unitSizes.every((size) => size >= 12)).toBe(true);
-  expect(capacityTypography.headingTracking).toBeLessThanOrEqual(0.5);
+  await expect(adjustmentTools).toContainText("You stay in control");
+  await adjustmentTools.getByLabel("Minutes available today").fill("15");
+  await adjustmentTools.getByLabel("What changed? Optional").fill("Only a short window is available today");
   await expectNoHorizontalOverflow(page, ".agenda-capacity-planner");
-  await page.getByRole("button", { name: "I have 15 minutes today" }).click();
-  await expect(page.locator(".agenda-capacity-result")).not.toHaveClass(/blocked/);
-  await expect(page.locator(".agenda-capacity-result")).toContainText(/Today already fits|No change needed/);
-  await expect(page.getByText(/planned sessions/).first()).toBeVisible();
+  await adjustmentTools.getByRole("button", { name: "Review options" }).click();
+  const proposal = adjustmentTools.locator(".agenda-capacity-options");
+  await expect(proposal).toContainText("PROPOSED ADJUSTMENT");
+  await expect(proposal).toContainText(
+    /Nothing needs to move|Today already fits|Move one unfinished block|Shorten one safe content block|No safe automatic change/,
+  );
 });
 
 test("archived, draft, and deleted-plan projections stay out of current-work surfaces", async ({ page }) => {
@@ -3660,7 +3633,7 @@ test("archived, draft, and deleted-plan projections stay out of current-work sur
     if (!stored) throw new Error("Expected a preview snapshot after onboarding.");
     const snapshot = JSON.parse(stored) as Record<string, unknown>;
     const now = new Date();
-    // Keep the fixture on the currently selected Agenda day even when the
+    // Keep the fixture on the currently selected Calendar day even when the
     // suite runs late at night. Adding an hour can cross midnight and hide the
     // otherwise-valid active session on tomorrow's card.
     const scheduledFor = now.toISOString();
@@ -3715,7 +3688,7 @@ test("archived, draft, and deleted-plan projections stay out of current-work sur
   await expect(page.getByText("Hidden archived calculus plan")).toHaveCount(0);
   await expect(page.getByText("Hidden draft chemistry plan")).toHaveCount(0);
 
-  await page.getByRole("button", { name: "Agenda", exact: true }).click();
+  await page.getByRole("button", { name: "Calendar", exact: true }).click();
   await expect(page.getByText("Visible active biology plan").first()).toBeVisible();
   await expect(page.getByText("Visible biology deadline").first()).toBeVisible();
   await expect(page.getByText("Hidden archived calculus plan")).toHaveCount(0);
@@ -3832,8 +3805,8 @@ async function rebuildLatestStudyNowPlanForMinutes(page: Page, minutes: number) 
 }
 
 async function beginPlanFromAdd(page: Page, description: string) {
-  await page.getByRole("button", { name: "Agenda", exact: true }).click();
-  await page.getByRole("button", { name: "Add to Agenda", exact: true }).click();
+  await page.getByRole("button", { name: "Calendar", exact: true }).click();
+  await page.locator(".calendar-page-header").getByRole("button", { name: "Add to YOVA", exact: true }).click();
   await page.getByPlaceholder("Example: I have a World War I test in two weeks. I am starting from the beginning and I have a study guide.").fill(description);
   await page.getByRole("button", { name: "Organize this" }).click();
   await expect(page.getByRole("heading", { name: "Here is what YOVA understood." })).toBeVisible();
