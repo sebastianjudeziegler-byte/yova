@@ -18,6 +18,7 @@ import {
   loadQueuedSessionCompletions,
   pendingSessionCompletionPlanSessionIds,
   queueSessionCompletion,
+  readQueuedSessionCompletionsForExport,
   reconcileQueuedSessionCompletions,
   removeQueuedSessionCompletionsForPlan,
 } from "@/lib/sync/session-completion-outbox";
@@ -196,6 +197,148 @@ describe("session completion outbox", () => {
     ]);
   });
 
+  it("continues with unrelated sessions after one completion fails", async () => {
+    installMemoryStorage();
+    const userId = "20000000-0000-4000-8000-000000000061";
+    const blockedSessionId = "20000000-0000-4000-8000-000000000062";
+    const unrelatedSessionId = "20000000-0000-4000-8000-000000000063";
+    const blocked = completionPending({
+      userId,
+      completionId: "20000000-0000-4000-8000-000000000064",
+      planSessionId: blockedSessionId,
+    });
+    const sameSessionLater = completionPending({
+      userId,
+      completionId: "20000000-0000-4000-8000-000000000065",
+      planSessionId: blockedSessionId,
+    });
+    const unrelated = completionPending({
+      userId,
+      completionId: "20000000-0000-4000-8000-000000000066",
+      planSessionId: unrelatedSessionId,
+    });
+    [blocked, sameSessionLater, unrelated].forEach((entry) => {
+      expect(queueSessionCompletion(entry)).toBe(true);
+    });
+    completeAuthenticatedPlanSession.mockImplementation(async (completion) => {
+      if (completion.planSessionId === blockedSessionId) {
+        throw new Error("target temporarily unavailable");
+      }
+    });
+
+    await expect(flushQueuedSessionCompletions(userId)).resolves.toEqual({
+      synced: 1,
+      remaining: 2,
+    });
+    expect(completeAuthenticatedPlanSession).toHaveBeenCalledTimes(2);
+    expect(completeAuthenticatedPlanSession.mock.calls.map(([completion]) => completion.id))
+      .toEqual([blocked.completion.id, unrelated.completion.id]);
+    expect(loadQueuedSessionCompletions(userId).map((entry) => entry.completion.id))
+      .toEqual([blocked.completion.id, sameSessionLater.completion.id]);
+  });
+
+  it("quarantines a non-retryable completion before clearing its active warning", () => {
+    installMemoryStorage();
+    const pending = completionPending({
+      userId: "20000000-0000-4000-8000-000000000071",
+      completionId: "20000000-0000-4000-8000-000000000072",
+      planSessionId: "20000000-0000-4000-8000-000000000073",
+    });
+    expect(queueSessionCompletion(pending)).toBe(true);
+
+    expect(reconcileQueuedSessionCompletions(pending.userId, [], [{
+      planSessionId: pending.completion.planSessionId,
+      reason: "target_skipped",
+    }])).toEqual({ removed: 1, remaining: 0, storageSaved: true });
+    expect(loadQueuedSessionCompletions(pending.userId)).toEqual([]);
+    expect(readQueuedSessionCompletionsForExport(pending.userId)).toMatchObject({
+      ok: true,
+      value: [expect.objectContaining({
+        ...pending,
+        completion: { ...pending.completion, completionMode: "guided" },
+      })],
+    });
+  });
+
+  it("keeps non-retryable work active when quarantine storage fails", () => {
+    const values = installMemoryStorage();
+    const pending = completionPending({
+      userId: "20000000-0000-4000-8000-000000000074",
+      completionId: "20000000-0000-4000-8000-000000000075",
+      planSessionId: "20000000-0000-4000-8000-000000000076",
+    });
+    expect(queueSessionCompletion(pending)).toBe(true);
+    vi.stubGlobal("window", {
+      localStorage: {
+        getItem: (key: string) => values.get(key) ?? null,
+        setItem: (key: string, value: string) => {
+          if (key.startsWith("yova.session-terminal-quarantine.v1")) {
+            throw new Error("quarantine unavailable");
+          }
+          values.set(key, value);
+        },
+        removeItem: (key: string) => values.delete(key),
+      },
+    });
+
+    expect(reconcileQueuedSessionCompletions(pending.userId, [], [{
+      planSessionId: pending.completion.planSessionId,
+      reason: "target_absent",
+    }])).toEqual({ removed: 0, remaining: 1, storageSaved: false });
+    expect(loadQueuedSessionCompletions(pending.userId)).toHaveLength(1);
+  });
+
+  it("cleans quarantined completions by both account and plan", () => {
+    installMemoryStorage();
+    const userId = "20000000-0000-4000-8000-000000000077";
+    const otherUserId = "20000000-0000-4000-8000-000000000078";
+    const planId = "20000000-0000-4000-8000-000000000079";
+    const keptPlanId = "20000000-0000-4000-8000-000000000080";
+    const removed = completionPending({
+      userId,
+      completionId: "20000000-0000-4000-8000-000000000084",
+      planSessionId: "20000000-0000-4000-8000-000000000085",
+      planId,
+    });
+    const kept = completionPending({
+      userId,
+      completionId: "20000000-0000-4000-8000-000000000086",
+      planSessionId: "20000000-0000-4000-8000-000000000087",
+      planId: keptPlanId,
+    });
+    const otherAccount = completionPending({
+      userId: otherUserId,
+      completionId: "20000000-0000-4000-8000-000000000088",
+      planSessionId: "20000000-0000-4000-8000-000000000089",
+      planId,
+    });
+    [removed, kept, otherAccount].forEach((entry) => {
+      expect(queueSessionCompletion(entry)).toBe(true);
+    });
+    expect(reconcileQueuedSessionCompletions(userId, [], [removed, kept].map((entry) => ({
+      planSessionId: entry.completion.planSessionId,
+      reason: "target_absent" as const,
+    }))).remaining).toBe(0);
+    expect(reconcileQueuedSessionCompletions(otherUserId, [], [{
+      planSessionId: otherAccount.completion.planSessionId,
+      reason: "target_absent",
+    }]).remaining).toBe(0);
+
+    expect(removeQueuedSessionCompletionsForPlan(userId, planId)).toBe(true);
+    expect(readQueuedSessionCompletionsForExport(userId)).toMatchObject({
+      ok: true,
+      value: [expect.objectContaining({
+        completion: expect.objectContaining({ id: kept.completion.id }),
+      })],
+    });
+    expect(readQueuedSessionCompletionsForExport(otherUserId)).toMatchObject({
+      ok: true,
+      value: [expect.objectContaining({
+        completion: expect.objectContaining({ id: otherAccount.completion.id }),
+      })],
+    });
+  });
+
   it("lets only an exact blocked session completion supersede its Exit", async () => {
     installMemoryStorage();
     const userId = "20000000-0000-4000-8000-000000000031";
@@ -315,6 +458,30 @@ describe("session completion outbox", () => {
       remaining: 1,
       storageSaved: false,
     });
+  });
+
+  it("retains and counts a completion when server commit succeeds but local removal fails", async () => {
+    const values = installMemoryStorage();
+    const pending = completionPending({
+      userId: "20000000-0000-4000-8000-000000000081",
+      completionId: "20000000-0000-4000-8000-000000000082",
+      planSessionId: "20000000-0000-4000-8000-000000000083",
+    });
+    expect(queueSessionCompletion(pending)).toBe(true);
+    completeAuthenticatedPlanSession.mockResolvedValue(undefined);
+    vi.stubGlobal("window", {
+      localStorage: {
+        getItem: (key: string) => values.get(key) ?? null,
+        setItem: () => { throw new Error("storage unavailable"); },
+        removeItem: () => { throw new Error("storage unavailable"); },
+      },
+    });
+
+    await expect(flushQueuedSessionCompletions(pending.userId)).resolves.toEqual({
+      synced: 0,
+      remaining: 1,
+    });
+    expect(completeAuthenticatedPlanSession).toHaveBeenCalledOnce();
   });
 
   it("preserves unguided practice provenance through a queued cloud sync", async () => {

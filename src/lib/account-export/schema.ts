@@ -14,6 +14,7 @@ import {
 } from "@/lib/learning/session-resume";
 import { DeadlineMilestoneSchema } from "@/lib/milestones/schema";
 import { LearningPlanSchema } from "@/lib/plan-generation/schema";
+import { StudyRouteSchema } from "@/lib/study-route/schema";
 
 export const ACCOUNT_EXPORT_BUCKET = "account-exports";
 export const ACCOUNT_EXPORT_DEVICE_MAX_BYTES = 2 * 1024 * 1024;
@@ -36,6 +37,7 @@ const SessionCompletionExportSchema = z.object({
   id: z.string().uuid(),
   planId: z.string().uuid(),
   planSessionId: z.string().uuid(),
+  routeRevisionId: z.string().uuid().optional(),
   startedAt: z.string().datetime({ offset: true }),
   completedAt: z.string().datetime({ offset: true }),
   plannedMinutes: z.number().int().min(5).max(180),
@@ -105,6 +107,7 @@ const PendingSessionCompletionExportSchema = z.object({
       explanation: z.string().min(1).max(900),
       adaptedAt: z.string().datetime({ offset: true }),
     }).optional(),
+    studyRoute: StudyRouteSchema.optional(),
   }).nullable(),
   continuationSession: z.object({
     id: z.string().uuid(),
@@ -121,7 +124,9 @@ const PendingSessionCompletionExportSchema = z.object({
     contentTargets: z.array(z.string().min(5).max(180)).min(1).max(4),
     completionEvidence: z.array(z.string().min(8).max(220)).min(1).max(4),
     status: z.literal("ready"),
+    studyRoute: StudyRouteSchema.optional(),
   }).nullable().default(null),
+  nextSessionStudyRoute: StudyRouteSchema.nullable().default(null),
   queuedAt: z.string().datetime({ offset: true }),
 });
 

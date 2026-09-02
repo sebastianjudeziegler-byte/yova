@@ -49,6 +49,35 @@ describe("account-export client", () => {
   });
 
   it("sends only canonical current-device JSON through same-origin routes", async () => {
+    const routeRevisionId = "77777777-7777-4777-8777-777777777777";
+    mocks.loadCompletions.mockReturnValue({
+      ok: true,
+      value: [{
+        userId: ACCOUNT_ID,
+        completion: {
+          id: "33333333-3333-4333-8333-333333333333",
+          planId: "44444444-4444-4444-8444-444444444444",
+          planSessionId: "55555555-5555-4555-8555-555555555555",
+          routeRevisionId,
+          startedAt: "2026-08-17T00:00:00.000Z",
+          completedAt: "2026-08-17T00:10:00.000Z",
+          plannedMinutes: 10,
+          actualMinutes: 10,
+          correctAnswers: 0,
+          totalAnswers: 0,
+          feedback: "about_right",
+          observedGap: "No topic evidence recorded.",
+          completionMode: "guided",
+          conceptEvidence: [],
+          confidenceEvidence: [],
+        },
+        adaptation: null,
+        followUpSession: null,
+        continuationSession: null,
+        nextSessionStudyRoute: null,
+        queuedAt: "2026-08-17T00:10:00.000Z",
+      }],
+    });
     const fetch = vi.fn()
       .mockResolvedValueOnce(jsonResponse({
         status: "ready_to_finalize",
@@ -81,12 +110,15 @@ describe("account-export client", () => {
       "X-Yova-Data-Export": "account-data",
       "Content-Type": "application/json",
     });
-    expect(JSON.parse(startInit.body as string)).toEqual({
+    const startBody = JSON.parse(startInit.body as string);
+    expect(startBody).toEqual({
       deviceState: expect.objectContaining({
         accountId: ACCOUNT_ID,
         previewSnapshot: null,
       }),
     });
+    expect(startBody.deviceState.pendingSessionCompletions[0].completion.routeRevisionId)
+      .toBe(routeRevisionId);
     const [, finalizeInit] = fetch.mock.calls[1] as [string, RequestInit];
     expect(finalizeInit.method).toBe("PUT");
     expect(JSON.parse(finalizeInit.body as string)).toEqual({

@@ -342,6 +342,7 @@ import {
   recordAuthenticatedSessionInterruption,
   saveAuthenticatedActiveSessionCheckpoint,
   saveAuthenticatedLearnerProfile,
+  type CloudLearningState,
 } from "@/lib/supabase/learning-state-repository";
 import {
   ACTIVE_SESSION_RECOVERY_CLOUD_SYNC_WARNING,
@@ -417,17 +418,16 @@ import {
   clearQueuedSessionCompletions,
   pendingSessionCompletionPlanSessionIds,
   queueSessionCompletion,
-  reconcileQueuedSessionCompletions,
   removeQueuedSessionCompletion,
   removeQueuedSessionCompletionsForPlan,
 } from "@/lib/sync/session-completion-outbox";
 import {
   clearQueuedSessionInterruptions,
   flushQueuedSessionInterruptions,
+  pendingSessionInterruptionPlanSessionIds,
   pendingSessionInterruptionRunIds,
   loadQueuedSessionInterruptions,
   queueSessionInterruption,
-  reconcileQueuedSessionInterruptions,
   removeQueuedSessionInterruption,
   removeQueuedSessionInterruptionsForPlan,
 } from "@/lib/sync/session-interruption-outbox";
@@ -441,7 +441,9 @@ import {
 import { syncPendingCloudWork } from "@/lib/sync/pending-cloud-work";
 import {
   flushQueuedSessionTerminals,
+  reconcileQueuedSessionTerminalsAgainstAuthority,
   syncSessionCompletionAfterTerminals,
+  type AuthoritativeSessionTerminalInventory,
 } from "@/lib/sync/session-terminal-outbox";
 import {
   TutorHistoryResponseSchema,
@@ -581,6 +583,67 @@ const navItems: Array<{ label: Tab; icon: typeof Home }> = [
   { label: "You", icon: CircleUserRound },
 ];
 
+type AccountAuthoritativeSessionTerminalState = Readonly<{
+  accountId: string;
+  inventory: AuthoritativeSessionTerminalInventory;
+  /** Absence is authoritative only for work that existed during this full read. */
+  coveredPendingPlanSessionIds: ReadonlySet<string>;
+}>;
+
+function sessionTerminalInventoryFromCloudState(
+  cloudState: CloudLearningState,
+): AuthoritativeSessionTerminalInventory {
+  return {
+    sessions: cloudState.sessionTerminalTargets
+      ?? cloudState.plans.flatMap((plan) => plan.sessions.map((session) => ({
+        id: session.id,
+        status: session.status,
+        routeRevisionId: session.studyRoute?.identity.lifecycleStatus === "committed"
+          ? session.studyRoute.identity.routeRevisionId
+          : null,
+      }))),
+    // Raw receipts survive domain reconstruction failures. The fallbacks keep
+    // older test fixtures and a rolling deployment safe during the transition.
+    completions: cloudState.sessionCompletionReceipts
+      ?? cloudState.sessionCompletions.map(({ id, planSessionId }) => ({ id, planSessionId })),
+    interruptions: cloudState.sessionInterruptionReceipts
+      ?? cloudState.sessionInterruptions.map(({ id, planSessionId }) => ({ id, planSessionId })),
+  };
+}
+
+function retrySafeSessionTerminalAuthority(
+  state: AccountAuthoritativeSessionTerminalState | null,
+  accountId: string,
+): AccountAuthoritativeSessionTerminalState | null {
+  if (!state || state.accountId !== accountId) return null;
+
+  const sessions = new Map(
+    state.inventory.sessions.map((session) => [session.id, session] as const),
+  );
+  const currentlyQueuedPlanSessionIds = new Set([
+    ...pendingSessionCompletionPlanSessionIds(accountId),
+    ...pendingSessionInterruptionPlanSessionIds(accountId),
+  ]);
+  currentlyQueuedPlanSessionIds.forEach((planSessionId) => {
+    if (
+      !sessions.has(planSessionId)
+      && !state.coveredPendingPlanSessionIds.has(planSessionId)
+    ) {
+      // This event was queued after the full read. A stale absence is not
+      // deletion evidence, so preserve it as retryable until the next read.
+      sessions.set(planSessionId, { id: planSessionId, status: "ready" });
+    }
+  });
+
+  return {
+    ...state,
+    inventory: {
+      ...state.inventory,
+      sessions: [...sessions.values()],
+    },
+  };
+}
+
 export function YovaPrototype({
   emailCodeVerificationEnabled = false,
   inviteOnly = false,
@@ -673,6 +736,7 @@ export function YovaPrototype({
   const cloudRecoveryStatusRef = useRef<CloudRecoveryStatus>("idle");
   const explicitlySavedProfileFingerprintRef = useRef<string | null>(null);
   const authoritativeLearnerProfileSyncRef = useRef<AuthoritativeLearnerProfileSyncSnapshot | null>(null);
+  const authoritativeSessionTerminalStateRef = useRef<AccountAuthoritativeSessionTerminalState | null>(null);
   const latestLearnerProfileSyncStateRef = useRef<Readonly<{
     onboardingCompleted: boolean;
     profileState: LearnerProfileSyncState;
@@ -730,6 +794,14 @@ export function YovaPrototype({
       ).join("|"),
     });
   }, []);
+  const readCurrentTerminalAuthority = useCallback(() => (
+    account?.identityMode === "supabase"
+      ? retrySafeSessionTerminalAuthority(
+        authoritativeSessionTerminalStateRef.current,
+        account.id,
+      )
+      : null
+  ), [account]);
   const analyticsEnabled = account?.identityMode === "supabase";
 
   const activePlans = filterOperationalPlans(plans);
@@ -1119,6 +1191,7 @@ export function YovaPrototype({
     discardedCheckpointRunIdsRef.current.clear();
 
     async function openYova() {
+      authoritativeSessionTerminalStateRef.current = null;
       setCalendarMaterials([]);
       const callbackIssue = consumeAuthCallbackIssue();
       if (callbackIssue) setAuthStartupIssue(callbackIssue);
@@ -1194,9 +1267,65 @@ export function YovaPrototype({
           const startupInterruptionRunTombstones = new Set(
             pendingSessionInterruptionRunIds(cloudAccount.id),
           );
+          const startupPendingTerminalPlanSessionIds = new Set([
+            ...startupCompletedSessionTombstones,
+            ...pendingSessionInterruptionPlanSessionIds(cloudAccount.id),
+          ]);
           await flushQueuedSessionTerminals(cloudAccount.id);
-          const cloudState = await loadAuthenticatedLearningStateWithRetry();
+          let cloudState = await loadAuthenticatedLearningStateWithRetry();
           if (cancelled) return;
+          let terminalInventory = sessionTerminalInventoryFromCloudState(cloudState);
+          let terminalReconciliation = reconcileQueuedSessionTerminalsAgainstAuthority(
+            cloudAccount.id,
+            terminalInventory,
+          );
+          let terminalRefreshIssue: string | null = null;
+          const reconciledTerminalCount = terminalReconciliation.completions.removed
+            + terminalReconciliation.interruptions.removed;
+          if (reconciledTerminalCount > 0) {
+            const newlyUnblocked = await flushQueuedSessionTerminals(cloudAccount.id);
+            if (cancelled) return;
+            // This count comes directly from durable local storage after the
+            // second flush, so it remains truthful even if the optional view
+            // refresh below is temporarily unavailable.
+            terminalReconciliation = {
+              ...terminalReconciliation,
+              completions: {
+                ...terminalReconciliation.completions,
+                remaining: newlyUnblocked.completions.remaining,
+              },
+              interruptions: {
+                ...terminalReconciliation.interruptions,
+                remaining: newlyUnblocked.interruptions.remaining,
+              },
+              remaining: newlyUnblocked.remaining,
+            };
+            const newlySyncedCount = newlyUnblocked.completions.synced
+              + newlyUnblocked.interruptions.synced;
+            if (newlySyncedCount > 0) {
+              // One bounded reload makes the UI and raw receipts include writes
+              // that became possible only after poison entries were removed.
+              try {
+                cloudState = await loadAuthenticatedLearningStateWithRetry();
+                if (cancelled) return;
+                terminalInventory = sessionTerminalInventoryFromCloudState(cloudState);
+                terminalReconciliation = reconcileQueuedSessionTerminalsAgainstAuthority(
+                  cloudAccount.id,
+                  terminalInventory,
+                );
+              } catch {
+                // The first full read remains safe to hydrate. The terminal
+                // write is already confirmed; disclose the stale view without
+                // misreporting it as pending or discarding the signed-in app.
+                terminalRefreshIssue = "Your session synced. This screen may show the earlier cloud view until the next reload.";
+              }
+            }
+          }
+          authoritativeSessionTerminalStateRef.current = {
+            accountId: cloudAccount.id,
+            inventory: terminalInventory,
+            coveredPendingPlanSessionIds: startupPendingTerminalPlanSessionIds,
+          };
           cloudRecoveryStatusRef.current = transitionCloudRecovery(
             cloudRecoveryStatusRef.current,
             "cloud-restored",
@@ -1208,18 +1337,14 @@ export function YovaPrototype({
           authoritativeLearnerProfileSyncRef.current = captureAuthoritativeLearnerProfileSyncSnapshot(
             learnerProfileSyncStateFor(restoredAccount, cloudState.onboardingAnswers),
           );
-          const authoritativeCompletedSessionIds = cloudState.sessionCompletions.map(
-            (completion) => completion.planSessionId,
-          );
-          const completionReconciliation = reconcileQueuedSessionCompletions(
-            cloudAccount.id,
-            cloudState.sessionCompletions,
-          );
-          const interruptionReconciliation = reconcileQueuedSessionInterruptions(
-            cloudAccount.id,
-            cloudState.sessionInterruptions,
-            authoritativeCompletedSessionIds,
-          );
+          const authoritativeCompletedSessionIds = [...new Set([
+            ...terminalInventory.completions.map((completion) => completion.planSessionId),
+            ...terminalInventory.sessions.flatMap((session) => (
+              session.status === "complete" || session.status === "skipped"
+                ? [session.id]
+                : []
+            )),
+          ])];
           const completedSessionTombstones = new Set([
             ...startupCompletedSessionTombstones,
             ...authoritativeCompletedSessionIds,
@@ -1227,7 +1352,7 @@ export function YovaPrototype({
           ]);
           const interruptedRunTombstones = new Set([
             ...startupInterruptionRunTombstones,
-            ...cloudState.sessionInterruptions.map((interruption) => interruption.id),
+            ...terminalInventory.interruptions.map((interruption) => interruption.id),
             ...pendingSessionInterruptionRunIds(cloudAccount.id),
           ]);
           const hasPendingTerminal = (checkpoint: ActiveSessionCheckpoint) => (
@@ -1289,15 +1414,16 @@ export function YovaPrototype({
           setSessionInterruptions(cloudState.sessionInterruptions);
           setActiveSessionCheckpoints(mergedCheckpoints.checkpoints);
           setCloudCheckpointRunIds(new Set(mergedCheckpoints.cloudRunIds));
-          const pendingEvents = completionReconciliation.remaining
-            + interruptionReconciliation.remaining;
+          const pendingEvents = terminalReconciliation.remaining;
           const startupSyncIssue = pendingEvents > 0
             ? `${pendingEvents} session ${pendingEvents === 1 ? "event is" : "events are"} waiting to sync.`
-            : mergedCheckpoints.conflictingLocalRuns.length > 0
-              ? "YOVA found a different saved version of this lesson in your account and kept the account version."
-              : !localRecoveryStored && mergedCheckpoints.cloudRunIds.size > 0
-                ? "Your account recovery point loaded, but this browser could not keep an offline copy."
-                : null;
+            : terminalRefreshIssue
+              ? terminalRefreshIssue
+              : mergedCheckpoints.conflictingLocalRuns.length > 0
+                ? "YOVA found a different saved version of this lesson in your account and kept the account version."
+                : !localRecoveryStored && mergedCheckpoints.cloudRunIds.size > 0
+                  ? "Your account recovery point loaded, but this browser could not keep an offline copy."
+                  : null;
           setCloudSyncIssue(startupSyncIssue);
 
           if (pendingEvents === 0) {
@@ -1385,6 +1511,7 @@ export function YovaPrototype({
         retainedSignOutAccountIdRef.current = null;
         explicitlySavedProfileFingerprintRef.current = null;
         authoritativeLearnerProfileSyncRef.current = null;
+        authoritativeSessionTerminalStateRef.current = null;
         setAccount(null);
         setSignedIn(false);
         setAnswers([]);
@@ -1507,7 +1634,7 @@ export function YovaPrototype({
             authoritativeSnapshot: authoritativeLearnerProfileSyncRef.current,
           }
           : null;
-      }).then(async ({ issue, syncedProfileState }) => {
+      }, readCurrentTerminalAuthority).then(async ({ issue, syncedProfileState }) => {
         if (issue) {
           setCloudSyncIssue(issue);
           return;
@@ -1527,7 +1654,7 @@ export function YovaPrototype({
 
     window.addEventListener("online", retryQueuedWork);
     return () => window.removeEventListener("online", retryQueuedWork);
-  }, [account, answers, onboardingCompleted, activeSessionCheckpoints, syncCheckpointToAccount, rememberCurrentProfilePreferencesAsSynced]);
+  }, [account, answers, onboardingCompleted, activeSessionCheckpoints, syncCheckpointToAccount, rememberCurrentProfilePreferencesAsSynced, readCurrentTerminalAuthority]);
 
   useEffect(() => {
     if (!ready || !onboardingCompleted || account?.identityMode !== "supabase") return;
@@ -3339,6 +3466,7 @@ export function YovaPrototype({
     discardedCheckpointRunIdsRef.current.clear();
     explicitlySavedProfileFingerprintRef.current = null;
     authoritativeLearnerProfileSyncRef.current = null;
+    authoritativeSessionTerminalStateRef.current = null;
     clearPreviewSnapshot();
     setOnboardingCompleted(false);
     setQuestionIndex(0);
@@ -3978,8 +4106,34 @@ export function YovaPrototype({
 
   const retryCloudSync = async () => {
     if (account?.identityMode !== "supabase") return;
+    const retryAccountId = account.id;
 
-    const { issue, syncedProfileState } = await syncPendingCloudWork(account.id, () => {
+    try {
+      const accountBeforeRead = await getAuthenticatedAccount();
+      if (accountBeforeRead?.id !== retryAccountId) {
+        throw new Error("YOVA could not confirm the same signed-in account for this retry.");
+      }
+      const coveredPendingPlanSessionIds = new Set([
+        ...pendingSessionCompletionPlanSessionIds(retryAccountId),
+        ...pendingSessionInterruptionPlanSessionIds(retryAccountId),
+      ]);
+      const freshCloudState = await loadAuthenticatedLearningStateWithRetry();
+      const accountAfterRead = await getAuthenticatedAccount();
+      if (accountAfterRead?.id !== retryAccountId) {
+        throw new Error("YOVA could not confirm the same signed-in account for this retry.");
+      }
+      authoritativeSessionTerminalStateRef.current = {
+        accountId: retryAccountId,
+        inventory: sessionTerminalInventoryFromCloudState(freshCloudState),
+        coveredPendingPlanSessionIds,
+      };
+    } catch {
+      const refreshIssue = "YOVA could not refresh cloud receipts for this retry. No device recovery data was changed.";
+      setCloudSyncIssue(refreshIssue);
+      throw new Error(refreshIssue);
+    }
+
+    const { issue, syncedProfileState } = await syncPendingCloudWork(retryAccountId, () => {
       const latest = latestLearnerProfileSyncStateRef.current;
       return latest
         ? {
@@ -3987,7 +4141,7 @@ export function YovaPrototype({
           authoritativeSnapshot: authoritativeLearnerProfileSyncRef.current,
         }
         : null;
-    });
+    }, readCurrentTerminalAuthority);
     if (issue) {
       setCloudSyncIssue(issue);
       throw new Error(issue);
@@ -4094,6 +4248,7 @@ export function YovaPrototype({
       );
       explicitlySavedProfileFingerprintRef.current = null;
       authoritativeLearnerProfileSyncRef.current = null;
+      authoritativeSessionTerminalStateRef.current = null;
       setAccount(null);
       setSignedIn(false);
       setGuidedSessionAllowance({

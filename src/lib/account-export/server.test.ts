@@ -41,6 +41,14 @@ describe("finalizeAccountDataArtifact", () => {
   });
 
   it("builds a bounded allowlisted JSON artifact and returns a short direct link", async () => {
+    const routeRevisionId = "77777777-7777-4777-8777-777777777777";
+    download.mockResolvedValue({
+      data: new Blob([JSON.stringify({
+        ...deviceAddendum(),
+        pendingSessionCompletions: [pendingCompletion(routeRevisionId)],
+      })], { type: "application/json" }),
+      error: null,
+    });
     const ready = await finalizeAccountDataArtifact({
       authenticated: { rpc } as never,
       admin: admin as never,
@@ -63,6 +71,9 @@ describe("finalizeAccountDataArtifact", () => {
     );
     const artifact = JSON.parse(await (upload.mock.calls[0][1] as Blob).text()) as {
       account: Record<string, unknown>;
+      deviceState: {
+        pendingSessionCompletions: Array<{ completion: { routeRevisionId?: string } }>;
+      };
       exportScope: Record<string, unknown>;
     };
     expect(artifact.account).toEqual({
@@ -84,6 +95,8 @@ describe("finalizeAccountDataArtifact", () => {
     });
     expect(artifact.account).not.toHaveProperty("role");
     expect(JSON.stringify(artifact.account)).not.toContain("raw-secret");
+    expect(artifact.deviceState.pendingSessionCompletions[0]?.completion.routeRevisionId)
+      .toBe(routeRevisionId);
     expect(artifact.exportScope).toMatchObject({
       originalMaterialFilesIncluded: false,
       signInTokensIncluded: false,
@@ -248,6 +261,34 @@ function pendingInterruption() {
       totalSteps: 4,
     },
     queuedAt: "2026-08-17T11:10:00.000Z",
+  };
+}
+
+function pendingCompletion(routeRevisionId: string) {
+  return {
+    userId: USER_ID,
+    completion: {
+      id: "33333333-3333-4333-8333-333333333333",
+      planId: "44444444-4444-4444-8444-444444444444",
+      planSessionId: "55555555-5555-4555-8555-555555555555",
+      routeRevisionId,
+      startedAt: "2026-08-17T11:00:00.000Z",
+      completedAt: "2026-08-17T11:25:00.000Z",
+      plannedMinutes: 25,
+      actualMinutes: 25,
+      correctAnswers: 3,
+      totalAnswers: 4,
+      feedback: "about_right",
+      observedGap: "One relationship still needs review.",
+      completionMode: "guided",
+      conceptEvidence: [],
+      confidenceEvidence: [],
+    },
+    adaptation: null,
+    followUpSession: null,
+    continuationSession: null,
+    nextSessionStudyRoute: null,
+    queuedAt: "2026-08-17T11:25:01.000Z",
   };
 }
 

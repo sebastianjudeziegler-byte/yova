@@ -1,16 +1,24 @@
 "use client";
 
+import type { SessionStatus } from "@/lib/domain";
 import {
   flushQueuedSessionCompletionSupersedingExit,
   flushQueuedSessionCompletions,
-  pendingSessionCompletionCount,
+  loadQueuedSessionCompletions,
   pendingSessionCompletionPlanSessionIds,
+  reconcileQueuedSessionCompletions,
+  type AuthoritativeSessionCompletionReceipt,
+  type SessionCompletionReconciliationResult,
 } from "@/lib/sync/session-completion-outbox";
 import {
   flushQueuedSessionInterruptions,
   loadQueuedSessionInterruptions,
+  pendingSessionInterruptionPlanSessionIds,
   reconcileQueuedSessionInterruptions,
+  type AuthoritativeSessionInterruptionReceipt,
+  type SessionInterruptionReconciliationResult,
 } from "@/lib/sync/session-interruption-outbox";
+import type { NonRetryableSessionTarget } from "@/lib/sync/session-terminal-quarantine";
 
 const MAX_SUPERSEDED_EXIT_RECONCILIATIONS = 25;
 
@@ -22,72 +30,163 @@ const MAX_SUPERSEDED_EXIT_RECONCILIATIONS = 25;
 export async function flushQueuedSessionTerminals(userId: string) {
   let interruptionSynced = 0;
   let supersedingCompletionsSynced = 0;
-  let interruptions = await flushQueuedSessionInterruptions(userId);
+  const interruptions = await flushQueuedSessionInterruptions(userId);
   interruptionSynced += interruptions.synced;
+  const supersedingCompletionSessions = new Set<string>();
 
-  // A durable Exit can become a poison pill when the exact resumed session
-  // was later completed on this device: Exit-first ordering blocks that newer
-  // completion forever. Do not interpret an ambiguous server error as proof
-  // of success. Instead, allow only the completion for the head Exit's exact
-  // plan session to cross the boundary. Once accepted, that authoritative
-  // terminal result safely supersedes every older Exit for the same session.
-  for (
-    let reconciliationCount = 0;
-    interruptions.remaining > 0
-      && reconciliationCount < MAX_SUPERSEDED_EXIT_RECONCILIATIONS;
-    reconciliationCount += 1
-  ) {
-    const blockedExit = loadQueuedSessionInterruptions(userId)[0];
-    if (!blockedExit) break;
-
+  // Ordering is scoped to one plan session. Once every Exit has had its turn,
+  // a later completion may supersede only the Exit for its exact session. An
+  // Exit that fails for session A must not prevent session B from syncing.
+  const blockedSessionIds = [...new Set(
+    loadQueuedSessionInterruptions(userId)
+      .map((entry) => entry.interruption.planSessionId),
+  )].slice(0, MAX_SUPERSEDED_EXIT_RECONCILIATIONS);
+  for (const planSessionId of blockedSessionIds) {
     const completion = await flushQueuedSessionCompletionSupersedingExit(
       userId,
-      blockedExit.interruption.planSessionId,
+      planSessionId,
     );
-    if (!completion.committed) break;
+    if (!completion.committed) continue;
     supersedingCompletionsSynced += 1;
+    supersedingCompletionSessions.add(planSessionId);
 
     const reconciliation = reconcileQueuedSessionInterruptions(
       userId,
       [],
-      [blockedExit.interruption.planSessionId],
+      [planSessionId],
     );
     if (!reconciliation.storageSaved || reconciliation.removed === 0) {
-      interruptions = {
-        synced: interruptionSynced,
-        remaining: reconciliation.remaining,
-      };
-      break;
+      continue;
     }
-
-    interruptions = await flushQueuedSessionInterruptions(userId);
-    interruptionSynced += interruptions.synced;
   }
 
-  interruptions = {
+  const remainingInterruptions = loadQueuedSessionInterruptions(userId);
+  const finalInterruptions = {
     synced: interruptionSynced,
-    remaining: loadQueuedSessionInterruptions(userId).length,
+    remaining: remainingInterruptions.length,
   };
-  if (interruptions.remaining > 0) {
-    const completions = {
-      synced: supersedingCompletionsSynced,
-      remaining: pendingSessionCompletionCount(userId),
-    };
-    return {
-      interruptions,
-      completions,
-      remaining: interruptions.remaining + completions.remaining,
-    };
-  }
-  const remainingCompletions = await flushQueuedSessionCompletions(userId);
+  const completionBlocks = new Set([
+    ...remainingInterruptions.map((entry) => entry.interruption.planSessionId),
+    ...supersedingCompletionSessions,
+  ]);
+  const remainingCompletions = await flushQueuedSessionCompletions(userId, {
+    blockedPlanSessionIds: completionBlocks,
+  });
   const completions = {
     synced: supersedingCompletionsSynced + remainingCompletions.synced,
     remaining: remainingCompletions.remaining,
   };
   return {
-    interruptions,
+    interruptions: finalInterruptions,
     completions,
-    remaining: interruptions.remaining + completions.remaining,
+    remaining: finalInterruptions.remaining + completions.remaining,
+  };
+}
+
+export type AuthoritativeSessionTerminalInventory = Readonly<{
+  sessions: readonly Readonly<{
+    id: string;
+    status: SessionStatus;
+    /** Undefined means an older caller did not provide route authority. */
+    routeRevisionId?: string | null;
+  }>[];
+  completions: readonly AuthoritativeSessionCompletionReceipt[];
+  interruptions: readonly AuthoritativeSessionInterruptionReceipt[];
+}>;
+
+export type SessionTerminalReconciliationResult = Readonly<{
+  completions: SessionCompletionReconciliationResult;
+  interruptions: SessionInterruptionReconciliationResult;
+  remaining: number;
+  storageSaved: boolean;
+}>;
+
+/**
+ * Reconciles terminal retries only after a successful, complete cloud read.
+ * Missing or terminal targets cannot accept another write, so their payloads
+ * leave the active warning but remain in the account-scoped recovery export.
+ */
+export function reconcileQueuedSessionTerminalsAgainstAuthority(
+  userId: string,
+  authority: AuthoritativeSessionTerminalInventory,
+): SessionTerminalReconciliationResult {
+  const sessionsById = new Map(
+    authority.sessions.map((session) => [session.id, session.status] as const),
+  );
+  const queuedPlanSessionIds = new Set([
+    ...loadQueuedSessionCompletions(userId)
+      .map((entry) => entry.completion.planSessionId),
+    ...loadQueuedSessionInterruptions(userId)
+      .map((entry) => entry.interruption.planSessionId),
+  ]);
+  const nonRetryableTargets: NonRetryableSessionTarget[] = [];
+  queuedPlanSessionIds.forEach((planSessionId) => {
+    const status = sessionsById.get(planSessionId);
+    if (status === "ready" || status === "upcoming") return;
+    nonRetryableTargets.push({
+      planSessionId,
+      reason: status === "complete"
+        ? "target_complete"
+        : status === "skipped"
+          ? "target_skipped"
+          : "target_absent",
+    });
+  });
+
+  const routeMismatchTarget = (
+    eventId: string,
+    planSessionId: string,
+    routeRevisionId: string | undefined,
+  ): NonRetryableSessionTarget[] => {
+    const session = authority.sessions.find((candidate) => candidate.id === planSessionId);
+    if (
+      !session
+      || (session.routeRevisionId !== null && typeof session.routeRevisionId !== "string")
+    ) {
+      return [];
+    }
+    const queuedRouteRevisionId = routeRevisionId ?? null;
+    return queuedRouteRevisionId === session.routeRevisionId
+      ? []
+      : [{
+        eventId,
+        planSessionId,
+        reason: "authoritative_route_mismatch",
+      }];
+  };
+  const completionTargets = [
+    ...nonRetryableTargets,
+    ...loadQueuedSessionCompletions(userId).flatMap((entry) => routeMismatchTarget(
+      entry.completion.id,
+      entry.completion.planSessionId,
+      entry.completion.routeRevisionId,
+    )),
+  ];
+  const interruptionTargets = [
+    ...nonRetryableTargets,
+    ...loadQueuedSessionInterruptions(userId).flatMap((entry) => routeMismatchTarget(
+      entry.interruption.id,
+      entry.interruption.planSessionId,
+      entry.interruption.routeRevisionId,
+    )),
+  ];
+
+  const completions = reconcileQueuedSessionCompletions(
+    userId,
+    authority.completions,
+    completionTargets,
+  );
+  const interruptions = reconcileQueuedSessionInterruptions(
+    userId,
+    authority.interruptions,
+    authority.completions.map((completion) => completion.planSessionId),
+    interruptionTargets,
+  );
+  return {
+    completions,
+    interruptions,
+    remaining: completions.remaining + interruptions.remaining,
+    storageSaved: completions.storageSaved && interruptions.storageSaved,
   };
 }
 
@@ -109,7 +208,7 @@ export async function syncSessionCompletionAfterTerminals({
   completeImmediately: () => Promise<void>;
 }) {
   const terminalResult = await flushQueuedSessionTerminals(userId);
-  if (terminalResult.interruptions.remaining > 0) {
+  if (pendingSessionInterruptionPlanSessionIds(userId).includes(planSessionId)) {
     return { synced: false, terminalResult };
   }
 
