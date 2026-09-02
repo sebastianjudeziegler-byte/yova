@@ -45,7 +45,7 @@ describe("learner-facing accessibility contracts", () => {
       createElement("p", null, "Home content"),
     ));
 
-    for (const label of ["Home", "Learning", "Agenda", "Ask YOVA", "You"]) {
+    for (const label of ["Home", "Learning", "Calendar", "Ask YOVA", "You"]) {
       expect(html).toContain(`aria-label="${label}"`);
     }
   });

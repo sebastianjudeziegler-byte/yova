@@ -111,6 +111,7 @@ export function PlanCreator({
   previewPreferredMethodIds = [],
   previewCanonicalProfile = null,
   seed = null,
+  initialSeedStep = "schedule",
 }: {
   onExit: () => void;
   onFinish: (plan: LearningPlan) => void;
@@ -119,10 +120,11 @@ export function PlanCreator({
   previewPreferredMethodIds?: readonly CoreMethodId[];
   previewCanonicalProfile?: Readonly<CanonicalLearnerProfile> | null;
   seed?: AddIntakeSeed | null;
+  initialSeedStep?: "source" | "schedule";
 }) {
   const scheduleRecommendation = recommendStudySchedule(profileSummary);
   const browserTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
-  const [step, setStep] = useState<PlanStep>(seed ? "schedule" : "goal");
+  const [step, setStep] = useState<PlanStep>(seed ? initialSeedStep : "goal");
   const [goal, setGoal] = useState(seed ? seedGoal(seed) : "");
   const [sourceChoice, setSourceChoice] = useState<SourceChoice | null>(seed ? seedSourceChoice(seed) : null);
   const [materials, setMaterials] = useState<LearningMaterial[]>(seed?.materials ?? []);

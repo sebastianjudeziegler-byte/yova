@@ -6,16 +6,20 @@ const source = readFileSync(
   resolve(process.cwd(), "src/components/yova-prototype.tsx"),
   "utf8",
 );
+const calendarSource = readFileSync(
+  resolve(process.cwd(), "src/components/calendar/calendar-screen.tsx"),
+  "utf8",
+);
 const earlyStart = source.slice(
   source.indexOf("const startEarlySession = async"),
   source.indexOf("const activateConceptReview = async"),
 );
-const agenda = source.slice(
-  source.indexOf("function AgendaScreen("),
-  source.indexOf("function AskScreen("),
+const calendarMove = calendarSource.slice(
+  calendarSource.indexOf("const reschedulePlanBlock = async"),
+  calendarSource.indexOf("const moveBlock = async"),
 );
 
-describe("Agenda transactional scheduling wiring", () => {
+describe("Calendar transactional scheduling wiring", () => {
   it("moves the early-start batch with one advance-now request", () => {
     expect(earlyStart).toContain("persistPlanSchedule(requestedPlan.id, updates, { operationKind: \"advance_now\" })");
     expect(earlyStart).not.toContain("Promise.all(");
@@ -23,13 +27,15 @@ describe("Agenda transactional scheduling wiring", () => {
   });
 
   it("uses the same client for a manual move and applies its authoritative schedule", () => {
-    expect(agenda).toContain("persistPlanSchedule(entry.plan.id, updates)");
-    expect(agenda).toContain("onReschedule(entry.plan.id, authoritative.sessions)");
+    expect(calendarMove).toContain("persistPlanSchedule(block.plan.id, updates)");
+    expect(calendarMove).toContain("onReschedule(block.plan.id, result.sessions)");
+    expect(calendarMove.indexOf("persistPlanSchedule(block.plan.id, updates)"))
+      .toBeLessThan(calendarMove.indexOf("onReschedule(block.plan.id, result.sessions)"));
   });
 
-  it("blocks unchanged and past custom times both before click and at save", () => {
-    expect(agenda).toContain("customScheduleIssue(movingEntry.session.scheduledFor, customTime)");
-    expect(agenda).toContain("customScheduleIssue(movingEntry.session.scheduledFor, scheduledFor)");
-    expect(agenda).toContain("disabled={!customTime || saving || Boolean(customMoveIssue)}");
+  it("rejects unchanged and past custom times before any schedule persistence", () => {
+    expect(calendarMove).toContain("customScheduleIssue(block.session.scheduledFor, scheduledFor)");
+    expect(calendarMove.indexOf("customScheduleIssue(block.session.scheduledFor, scheduledFor)"))
+      .toBeLessThan(calendarMove.indexOf("persistPlanSchedule(block.plan.id, updates)"));
   });
 });
