@@ -3,11 +3,14 @@ import { captureAuthoritativeLearnerProfileSyncSnapshot } from "@/lib/sync/learn
 
 const mocks = vi.hoisted(() => ({
   flushQueuedSessionTerminals: vi.fn(),
+  reconcileQueuedSessionTerminalsAgainstAuthority: vi.fn(),
   saveAuthenticatedLearnerProfile: vi.fn(),
 }));
 
 vi.mock("@/lib/sync/session-terminal-outbox", () => ({
   flushQueuedSessionTerminals: mocks.flushQueuedSessionTerminals,
+  reconcileQueuedSessionTerminalsAgainstAuthority:
+    mocks.reconcileQueuedSessionTerminalsAgainstAuthority,
 }));
 
 vi.mock("@/lib/supabase/learning-state-repository", () => ({
@@ -26,6 +29,12 @@ const profileState = (displayName: string) => ({
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.flushQueuedSessionTerminals.mockResolvedValue({ synced: 0, remaining: 0 });
+  mocks.reconcileQueuedSessionTerminalsAgainstAuthority.mockReturnValue({
+    completions: { removed: 0, remaining: 0, storageSaved: true },
+    interruptions: { removed: 0, remaining: 0, storageSaved: true },
+    remaining: 0,
+    storageSaved: true,
+  });
   mocks.saveAuthenticatedLearnerProfile.mockImplementation(async (input) => ({
     ...input,
     onboardingAnswers: [...input.onboardingAnswers],
@@ -33,6 +42,55 @@ beforeEach(() => {
 });
 
 describe("pending cloud work", () => {
+  it("reconciles a matching full cloud inventory before retrying terminal writes", async () => {
+    const order: string[] = [];
+    const inventory = {
+      sessions: [{
+        id: "10000000-0000-4000-8000-000000000002",
+        status: "ready" as const,
+      }],
+      completions: [],
+      interruptions: [],
+    };
+    mocks.reconcileQueuedSessionTerminalsAgainstAuthority.mockImplementation(() => {
+      order.push("reconcile");
+      return {
+        completions: { removed: 0, remaining: 0, storageSaved: true },
+        interruptions: { removed: 0, remaining: 0, storageSaved: true },
+        remaining: 0,
+        storageSaved: true,
+      };
+    });
+    mocks.flushQueuedSessionTerminals.mockImplementation(async () => {
+      order.push("flush");
+      return { synced: 0, remaining: 0 };
+    });
+
+    await syncPendingCloudWork(
+      accountId,
+      () => null,
+      () => ({ accountId, inventory }),
+    );
+
+    expect(order).toEqual(["reconcile", "flush"]);
+    expect(mocks.reconcileQueuedSessionTerminalsAgainstAuthority)
+      .toHaveBeenCalledWith(accountId, inventory);
+  });
+
+  it("does not trust terminal authority captured for another account", async () => {
+    await syncPendingCloudWork(
+      accountId,
+      () => null,
+      () => ({
+        accountId: "10000000-0000-4000-8000-000000000099",
+        inventory: { sessions: [], completions: [], interruptions: [] },
+      }),
+    );
+
+    expect(mocks.reconcileQueuedSessionTerminalsAgainstAuthority).not.toHaveBeenCalled();
+    expect(mocks.flushQueuedSessionTerminals).toHaveBeenCalledWith(accountId);
+  });
+
   it("reads the latest profile only after terminal flushing settles", async () => {
     let releaseTerminalFlush!: () => void;
     mocks.flushQueuedSessionTerminals.mockReturnValue(new Promise((resolve) => {

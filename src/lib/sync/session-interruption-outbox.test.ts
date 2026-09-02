@@ -237,6 +237,110 @@ describe("session interruption outbox", () => {
     expect(recordAuthenticatedSessionInterruption).toHaveBeenCalledTimes(2);
   });
 
+  it("continues with unrelated sessions after one Exit fails", async () => {
+    installMemoryStorage();
+    const userId = "30000000-0000-4000-8000-000000000091";
+    const blockedSessionId = "30000000-0000-4000-8000-000000000092";
+    const unrelatedSessionId = "30000000-0000-4000-8000-000000000093";
+    const blocked = interruptionPending({
+      userId,
+      interruptionId: "30000000-0000-4000-8000-000000000094",
+      planSessionId: blockedSessionId,
+    });
+    const sameSessionLater = interruptionPending({
+      userId,
+      interruptionId: "30000000-0000-4000-8000-000000000095",
+      planSessionId: blockedSessionId,
+    });
+    const unrelated = interruptionPending({
+      userId,
+      interruptionId: "30000000-0000-4000-8000-000000000096",
+      planSessionId: unrelatedSessionId,
+    });
+    [blocked, sameSessionLater, unrelated].forEach((entry) => {
+      expect(queueSessionInterruption(entry)).toBe(true);
+    });
+    recordAuthenticatedSessionInterruption.mockImplementation(async (_userId, interruption) => {
+      if (interruption.planSessionId === blockedSessionId) {
+        throw new Error("target temporarily unavailable");
+      }
+    });
+
+    await expect(flushQueuedSessionInterruptions(userId)).resolves.toEqual({
+      synced: 1,
+      remaining: 2,
+    });
+    expect(recordAuthenticatedSessionInterruption).toHaveBeenCalledTimes(2);
+    expect(recordAuthenticatedSessionInterruption.mock.calls.map(([, interruption]) => interruption.id))
+      .toEqual([blocked.interruption.id, unrelated.interruption.id]);
+    expect(loadQueuedSessionInterruptions(userId).map((entry) => entry.interruption.id))
+      .toEqual([blocked.interruption.id, sameSessionLater.interruption.id]);
+  });
+
+  it("rejects new Exits that claim the session is already finished", () => {
+    installMemoryStorage();
+    const completed = interruptionPending({
+      userId: "30000000-0000-4000-8000-000000000101",
+      interruptionId: "30000000-0000-4000-8000-000000000102",
+      planSessionId: "30000000-0000-4000-8000-000000000103",
+    });
+    completed.interruption.completedSteps = completed.interruption.totalSteps;
+    expect(queueSessionInterruption(completed)).toBe(false);
+
+    const invalidResume = interruptionPending({
+      userId: "30000000-0000-4000-8000-000000000101",
+      interruptionId: "30000000-0000-4000-8000-000000000104",
+      planSessionId: "30000000-0000-4000-8000-000000000105",
+    });
+    invalidResume.interruption.resumeStep = invalidResume.interruption.totalSteps;
+    expect(queueSessionInterruption(invalidResume)).toBe(false);
+  });
+
+  it("migrates a recognized legacy finished Exit to quarantine and keeps it exportable", () => {
+    const values = installMemoryStorage();
+    const legacy = interruptionPending({
+      userId: "30000000-0000-4000-8000-000000000111",
+      interruptionId: "30000000-0000-4000-8000-000000000112",
+      planSessionId: "30000000-0000-4000-8000-000000000113",
+    });
+    legacy.interruption.completedSteps = legacy.interruption.totalSteps;
+    legacy.interruption.resumeStep = legacy.interruption.totalSteps;
+    values.set("yova.session-interruption-outbox.v1", JSON.stringify([legacy]));
+
+    expect(loadQueuedSessionInterruptions(legacy.userId)).toEqual([]);
+    expect(values.has("yova.session-interruption-outbox.v1")).toBe(false);
+    expect(readQueuedSessionInterruptionsForExport(legacy.userId)).toEqual({
+      ok: true,
+      value: [legacy],
+    });
+    expect(recordAuthenticatedSessionInterruption).not.toHaveBeenCalled();
+  });
+
+  it("keeps a legacy invalid Exit active when quarantine storage is unavailable", () => {
+    const values = installMemoryStorage();
+    const legacy = interruptionPending({
+      userId: "30000000-0000-4000-8000-000000000121",
+      interruptionId: "30000000-0000-4000-8000-000000000122",
+      planSessionId: "30000000-0000-4000-8000-000000000123",
+    });
+    legacy.interruption.completedSteps = legacy.interruption.totalSteps;
+    values.set("yova.session-interruption-outbox.v1", JSON.stringify([legacy]));
+    vi.stubGlobal("window", {
+      localStorage: {
+        getItem: (key: string) => values.get(key) ?? null,
+        setItem: (key: string, value: string) => {
+          if (key.startsWith("yova.session-terminal-quarantine.v1")) {
+            throw new Error("quarantine unavailable");
+          }
+          values.set(key, value);
+        },
+        removeItem: (key: string) => values.delete(key),
+      },
+    });
+
+    expect(loadQueuedSessionInterruptions(legacy.userId)).toEqual([legacy]);
+  });
+
   it("reconciles exact cloud Exit receipts for only the current account", () => {
     installMemoryStorage();
     const userId = "30000000-0000-4000-8000-000000000002";
@@ -314,6 +418,85 @@ describe("session interruption outbox", () => {
     ]);
   });
 
+  it("keeps a non-retryable Exit active when quarantine storage fails", () => {
+    const values = installMemoryStorage();
+    const pending = interruptionPending({
+      userId: "30000000-0000-4000-8000-000000000024",
+      interruptionId: "30000000-0000-4000-8000-000000000025",
+      planSessionId: "30000000-0000-4000-8000-000000000026",
+    });
+    expect(queueSessionInterruption(pending)).toBe(true);
+    vi.stubGlobal("window", {
+      localStorage: {
+        getItem: (key: string) => values.get(key) ?? null,
+        setItem: (key: string, value: string) => {
+          if (key.startsWith("yova.session-terminal-quarantine.v1")) {
+            throw new Error("quarantine unavailable");
+          }
+          values.set(key, value);
+        },
+        removeItem: (key: string) => values.delete(key),
+      },
+    });
+
+    expect(reconcileQueuedSessionInterruptions(pending.userId, [], [], [{
+      planSessionId: pending.interruption.planSessionId,
+      reason: "target_complete",
+    }])).toEqual({ removed: 0, remaining: 1, storageSaved: false });
+    expect(loadQueuedSessionInterruptions(pending.userId)).toHaveLength(1);
+  });
+
+  it("cleans quarantined Exits by both account and plan", () => {
+    installMemoryStorage();
+    const userId = "30000000-0000-4000-8000-000000000027";
+    const otherUserId = "30000000-0000-4000-8000-000000000028";
+    const planId = "30000000-0000-4000-8000-000000000029";
+    const keptPlanId = "30000000-0000-4000-8000-000000000030";
+    const removed = interruptionPending({
+      userId,
+      interruptionId: "30000000-0000-4000-8000-000000000034",
+      planSessionId: "30000000-0000-4000-8000-000000000035",
+      planId,
+    });
+    const kept = interruptionPending({
+      userId,
+      interruptionId: "30000000-0000-4000-8000-000000000036",
+      planSessionId: "30000000-0000-4000-8000-000000000037",
+      planId: keptPlanId,
+    });
+    const otherAccount = interruptionPending({
+      userId: otherUserId,
+      interruptionId: "30000000-0000-4000-8000-000000000038",
+      planSessionId: "30000000-0000-4000-8000-000000000039",
+      planId,
+    });
+    [removed, kept, otherAccount].forEach((entry) => {
+      expect(queueSessionInterruption(entry)).toBe(true);
+    });
+    expect(reconcileQueuedSessionInterruptions(userId, [], [], [removed, kept].map((entry) => ({
+      planSessionId: entry.interruption.planSessionId,
+      reason: "target_absent" as const,
+    }))).remaining).toBe(0);
+    expect(reconcileQueuedSessionInterruptions(otherUserId, [], [], [{
+      planSessionId: otherAccount.interruption.planSessionId,
+      reason: "target_absent",
+    }]).remaining).toBe(0);
+
+    expect(removeQueuedSessionInterruptionsForPlan(userId, planId)).toBe(true);
+    expect(readQueuedSessionInterruptionsForExport(userId)).toMatchObject({
+      ok: true,
+      value: [expect.objectContaining({
+        interruption: expect.objectContaining({ id: kept.interruption.id }),
+      })],
+    });
+    expect(readQueuedSessionInterruptionsForExport(otherUserId)).toMatchObject({
+      ok: true,
+      value: [expect.objectContaining({
+        interruption: expect.objectContaining({ id: otherAccount.interruption.id }),
+      })],
+    });
+  });
+
   it("reports the actual remaining Exit count when reconciliation cannot be saved", () => {
     const values = installMemoryStorage();
     const pending = interruptionPending({
@@ -338,6 +521,30 @@ describe("session interruption outbox", () => {
       remaining: 1,
       storageSaved: false,
     });
+  });
+
+  it("retains and counts an Exit when server commit succeeds but local removal fails", async () => {
+    const values = installMemoryStorage();
+    const pending = interruptionPending({
+      userId: "30000000-0000-4000-8000-000000000131",
+      interruptionId: "30000000-0000-4000-8000-000000000132",
+      planSessionId: "30000000-0000-4000-8000-000000000133",
+    });
+    expect(queueSessionInterruption(pending)).toBe(true);
+    recordAuthenticatedSessionInterruption.mockResolvedValue(undefined);
+    vi.stubGlobal("window", {
+      localStorage: {
+        getItem: (key: string) => values.get(key) ?? null,
+        setItem: () => { throw new Error("storage unavailable"); },
+        removeItem: () => { throw new Error("storage unavailable"); },
+      },
+    });
+
+    await expect(flushQueuedSessionInterruptions(pending.userId)).resolves.toEqual({
+      synced: 0,
+      remaining: 1,
+    });
+    expect(recordAuthenticatedSessionInterruption).toHaveBeenCalledOnce();
   });
 
   it("queues an old Exit without its retired activity marker", async () => {

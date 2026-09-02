@@ -41,6 +41,7 @@ import {
   AUTHENTICATED_LEARNING_MUTATION_DEADLINE_MS,
   ActiveSessionCheckpointConflictError,
   ActiveSessionCheckpointTerminalError,
+  NonRetryableSessionTerminalMutationError,
   activateAuthenticatedConceptReviewSession,
   cancelAuthenticatedLearnerProfileWrites,
   completeAuthenticatedPlanSession,
@@ -182,7 +183,33 @@ describe("authenticated learning-state startup", () => {
     const state = await loadAuthenticatedLearningState();
 
     expect(state?.plans[0]?.sessions[0]?.studyRoute).toEqual(route);
+    expect(state?.sessionTerminalTargets).toEqual([{
+      id: session.id,
+      status: session.status,
+      routeRevisionId: route.identity.routeRevisionId,
+    }]);
     expect(state?.activeSessionCheckpoints).toEqual([checkpointV2]);
+  });
+
+  it("keeps raw terminal route authority when a session has no reconstructed parent plan", async () => {
+    const { plan, session, route } = committedRouteFixture();
+    mockCloudQueries({
+      profile: { display_name: "Learner", onboarding_completed_at: NOW },
+      sessions: [{
+        ...planSessionRow(plan, session),
+        committed_route_revision_id: route.identity.routeRevisionId,
+      }],
+      routes: [studyRouteRow(route)],
+    });
+
+    const state = await loadAuthenticatedLearningState();
+
+    expect(state?.plans).toEqual([]);
+    expect(state?.sessionTerminalTargets).toEqual([{
+      id: session.id,
+      status: session.status,
+      routeRevisionId: route.identity.routeRevisionId,
+    }]);
   });
 
   it("fails closed when a session pointer cannot resolve its committed route", async () => {
@@ -460,9 +487,114 @@ describe("authenticated learning-state startup", () => {
     await expect(loadAuthenticatedLearningState())
       .rejects.toThrow("could not load your cloud learning data");
   });
+
+  it("keeps raw terminal receipts when full domain records cannot be reconstructed", async () => {
+    const completionId = "00000000-0000-4000-8000-000000000061";
+    const completionSessionId = "00000000-0000-4000-8000-000000000062";
+    const interruptionId = "00000000-0000-4000-8000-000000000063";
+    const interruptionSessionId = "00000000-0000-4000-8000-000000000064";
+    mockCloudQueries({
+      profile: { display_name: "Learner", onboarding_completed_at: NOW },
+      attempts: [{
+        id: completionId,
+        plan_session_id: completionSessionId,
+        started_at: "2026-08-17T17:40:00.000Z",
+        completed_at: NOW,
+        actual_minutes: 20,
+        correct_answers: 3,
+        total_answers: 4,
+        user_feedback: "about_right",
+        result_data: { observedGap: "A completed row without a current session projection." },
+      }, {
+        id: completionId,
+        plan_session_id: completionSessionId,
+        started_at: "2026-08-17T17:40:00.000Z",
+        completed_at: NOW,
+        actual_minutes: 20,
+        correct_answers: 3,
+        total_answers: 4,
+        user_feedback: "about_right",
+        result_data: { observedGap: "Duplicate query row." },
+      }],
+      interruptions: [{
+        plan_session_id: interruptionSessionId,
+        occurred_at: NOW,
+        event_data: { attemptId: interruptionId },
+      }, {
+        plan_session_id: interruptionSessionId,
+        occurred_at: NOW,
+        event_data: { attemptId: interruptionId },
+      }],
+    });
+
+    const state = await loadAuthenticatedLearningState();
+
+    expect(state?.sessionCompletions).toEqual([]);
+    expect(state?.sessionInterruptions).toEqual([]);
+    expect(state?.sessionCompletionReceipts).toEqual([{
+      id: completionId,
+      planSessionId: completionSessionId,
+    }]);
+    expect(state?.sessionInterruptionReceipts).toEqual([{
+      id: interruptionId,
+      planSessionId: interruptionSessionId,
+    }]);
+  });
 });
 
 describe("recordAuthenticatedSessionInterruption", () => {
+  it("exposes only an allowlisted permanent route rejection to the outbox", async () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    rpc.mockResolvedValueOnce({
+      data: null,
+      error: {
+        code: "40001",
+        message: "study_route_interruption_conflict",
+        details: "private route detail",
+      },
+    });
+
+    const issue = await recordAuthenticatedSessionInterruption(sessionInterruption())
+      .catch((error: unknown) => error);
+
+    expect(issue).toBeInstanceOf(NonRetryableSessionTerminalMutationError);
+    expect(issue).toMatchObject({
+      disposition: "quarantine",
+      terminalKind: "interruption",
+      rejection: "incompatible_cloud_state",
+    });
+    expect(JSON.stringify(issue)).not.toContain("private route detail");
+    expect(consoleError).toHaveBeenCalledWith(
+      "YOVA session interruption sync failed [40001:study_route_interruption_conflict]",
+    );
+  });
+
+  it("classifies permanently invalid interrupted evidence without logging its details", async () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    rpc.mockResolvedValueOnce({
+      data: null,
+      error: {
+        code: "P0001",
+        message: "Interrupted-session evidence is not valid.",
+        details: "private evidence detail",
+      },
+    });
+
+    const issue = await recordAuthenticatedSessionInterruption(sessionInterruption())
+      .catch((error: unknown) => error);
+
+    expect(issue).toBeInstanceOf(NonRetryableSessionTerminalMutationError);
+    expect(issue).toMatchObject({
+      disposition: "quarantine",
+      terminalKind: "interruption",
+      rejection: "invalid_payload",
+    });
+    expect(consoleError).toHaveBeenCalledWith(
+      "YOVA session interruption sync failed [P0001:unclassified]",
+    );
+    expect(JSON.stringify(consoleError.mock.calls)).not.toContain("private evidence detail");
+  });
+
   it("waits for an in-flight checkpoint on the same account before sending Exit", async () => {
     const local = checkpoint();
     const interrupted = sessionInterruption({
@@ -794,6 +926,105 @@ describe("recordAuthenticatedSessionInterruption", () => {
 });
 
 describe("completeAuthenticatedPlanSession", () => {
+  it("classifies an allowlisted permanent completion conflict without exposing database detail", async () => {
+    rpc.mockResolvedValueOnce({
+      data: null,
+      error: {
+        code: "40001",
+        message: "study_route_completion_retry_conflict",
+        details: "private completion detail",
+      },
+    });
+
+    const issue = await completeAuthenticatedPlanSession({
+      id: "00000000-0000-4000-8000-000000000021",
+      planId: "00000000-0000-4000-8000-000000000022",
+      planSessionId: "00000000-0000-4000-8000-000000000023",
+      startedAt: "2026-08-17T20:00:00.000Z",
+      completedAt: "2026-08-17T20:08:00.000Z",
+      plannedMinutes: 20,
+      actualMinutes: 8,
+      correctAnswers: 1,
+      totalAnswers: 1,
+      feedback: "about_right",
+      observedGap: "No major gap detected.",
+      conceptEvidence: [],
+      confidenceEvidence: [],
+    }).catch((error: unknown) => error);
+
+    expect(issue).toBeInstanceOf(NonRetryableSessionTerminalMutationError);
+    expect(issue).toMatchObject({
+      disposition: "quarantine",
+      terminalKind: "completion",
+      rejection: "incompatible_cloud_state",
+    });
+    expect(JSON.stringify(issue)).not.toContain("private completion detail");
+  });
+
+  it("keeps an ambiguous serialization failure retryable", async () => {
+    rpc.mockResolvedValueOnce({
+      data: null,
+      error: {
+        code: "40001",
+        message: "could not serialize access due to concurrent update",
+      },
+    });
+
+    const issue = await completeAuthenticatedPlanSession({
+      id: "00000000-0000-4000-8000-000000000024",
+      planId: "00000000-0000-4000-8000-000000000025",
+      planSessionId: "00000000-0000-4000-8000-000000000026",
+      startedAt: "2026-08-17T20:00:00.000Z",
+      completedAt: "2026-08-17T20:08:00.000Z",
+      plannedMinutes: 20,
+      actualMinutes: 8,
+      correctAnswers: 1,
+      totalAnswers: 1,
+      feedback: "about_right",
+      observedGap: "No major gap detected.",
+      conceptEvidence: [],
+      confidenceEvidence: [],
+    }).catch((error: unknown) => error);
+
+    expect(issue).toBeInstanceOf(Error);
+    expect(issue).not.toBeInstanceOf(NonRetryableSessionTerminalMutationError);
+    expect(issue).toMatchObject({
+      message: "YOVA saved this session in your browser but could not sync it to the cloud.",
+    });
+  });
+
+  it("classifies a permanent server-side route payload validation failure", async () => {
+    rpc.mockResolvedValueOnce({
+      data: null,
+      error: {
+        code: "22023",
+        message: "study_route_semantic_override_invalid",
+      },
+    });
+
+    const issue = await completeAuthenticatedPlanSession({
+      id: "00000000-0000-4000-8000-000000000027",
+      planId: "00000000-0000-4000-8000-000000000028",
+      planSessionId: "00000000-0000-4000-8000-000000000029",
+      startedAt: "2026-08-17T20:00:00.000Z",
+      completedAt: "2026-08-17T20:08:00.000Z",
+      plannedMinutes: 20,
+      actualMinutes: 8,
+      correctAnswers: 1,
+      totalAnswers: 1,
+      feedback: "about_right",
+      observedGap: "No major gap detected.",
+      conceptEvidence: [],
+      confidenceEvidence: [],
+    }).catch((error: unknown) => error);
+
+    expect(issue).toBeInstanceOf(NonRetryableSessionTerminalMutationError);
+    expect(issue).toMatchObject({
+      terminalKind: "completion",
+      rejection: "invalid_payload",
+    });
+  });
+
   it("uses the evidence-free transactional RPC for unguided practice", async () => {
     const verification = {
       id: "00000000-0000-4000-8000-000000000031",
@@ -1848,6 +2079,9 @@ function cloudState(overrides: Partial<CloudLearningState> = {}): CloudLearningS
     deadlineMilestones: [],
     sessionCompletions: [],
     sessionInterruptions: [],
+    sessionTerminalTargets: [],
+    sessionCompletionReceipts: [],
+    sessionInterruptionReceipts: [],
     activeSessionCheckpoints: [],
     ...overrides,
   };
@@ -2064,6 +2298,8 @@ function mockCloudQueries({
   items = [],
   plans = [],
   routes = [],
+  attempts = [],
+  interruptions = [],
   materials = [],
   milestones = [],
   milestoneError = null,
@@ -2073,6 +2309,8 @@ function mockCloudQueries({
   items?: Array<Record<string, unknown>>;
   plans?: Array<Record<string, unknown>>;
   routes?: Array<Record<string, unknown>>;
+  attempts?: Array<Record<string, unknown>>;
+  interruptions?: Array<Record<string, unknown>>;
   materials?: Array<Record<string, unknown>>;
   milestones?: Array<Record<string, unknown>>;
   milestoneError?: unknown;
@@ -2091,11 +2329,15 @@ function mockCloudQueries({
                 ? materials
                 : table === "study_routes"
                   ? routes
-                : table === "plan_sessions"
-                  ? sessions
-                  : table === "deadline_milestones"
-                    ? milestones
-                    : [],
+                : table === "session_attempts"
+                  ? attempts
+                  : table === "learning_events"
+                    ? interruptions
+                    : table === "plan_sessions"
+                      ? sessions
+                      : table === "deadline_milestones"
+                        ? milestones
+                        : [],
       error: table === "deadline_milestones" ? milestoneError : null,
     };
     const builder: Record<string, ReturnType<typeof vi.fn>> = {};

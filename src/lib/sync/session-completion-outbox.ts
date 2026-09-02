@@ -7,6 +7,16 @@ import { ConfidenceEvidenceSchema } from "@/lib/learning/confidence-calibration"
 import { normalizeSessionCompletionProvenance } from "@/lib/learning/session-completion-provenance";
 import { StudyRouteSchema, type StudyRoute } from "@/lib/study-route/schema";
 import { completeAuthenticatedPlanSession } from "@/lib/supabase/learning-state-repository";
+import { isNonRetryableSessionTerminalMutationError } from "@/lib/sync/session-terminal-mutation-error";
+import {
+  clearQuarantinedSessionTerminals,
+  quarantineSessionTerminal,
+  readQuarantinedSessionTerminalPayloads,
+  removeQuarantinedSessionTerminalsForPlan,
+  type NonRetryableSessionTarget,
+} from "@/lib/sync/session-terminal-quarantine";
+
+export type { NonRetryableSessionTarget } from "@/lib/sync/session-terminal-quarantine";
 
 const STORAGE_KEY = "yova.cloud-sync-outbox.v1";
 
@@ -174,17 +184,29 @@ export function queueSessionCompletion(input: PendingSessionCompletion) {
 }
 
 export function removeQueuedSessionCompletion(completionId: string) {
-  savePendingCompletions(loadAllPendingCompletions().filter((entry) => entry.completion.id !== completionId));
+  return savePendingCompletions(
+    loadAllPendingCompletions().filter((entry) => entry.completion.id !== completionId),
+  );
 }
 
 export function clearQueuedSessionCompletions(userId: string) {
-  return savePendingCompletions(loadAllPendingCompletions().filter((entry) => entry.userId !== userId));
+  const activeSaved = savePendingCompletions(
+    loadAllPendingCompletions().filter((entry) => entry.userId !== userId),
+  );
+  const quarantineSaved = clearQuarantinedSessionTerminals(userId, "completion");
+  return activeSaved && quarantineSaved;
 }
 
 export function removeQueuedSessionCompletionsForPlan(userId: string, planId: string) {
-  return savePendingCompletions(loadAllPendingCompletions().filter((entry) => !(
+  const activeSaved = savePendingCompletions(loadAllPendingCompletions().filter((entry) => !(
     entry.userId === userId && entry.completion.planId === planId
   )));
+  const quarantineSaved = removeQuarantinedSessionTerminalsForPlan(
+    userId,
+    "completion",
+    planId,
+  );
+  return activeSaved && quarantineSaved;
 }
 
 export function pendingSessionCompletionCount(userId: string) {
@@ -199,21 +221,49 @@ export function pendingSessionCompletionCount(userId: string) {
 export function reconcileQueuedSessionCompletions(
   userId: string,
   authoritativeCompletions: readonly AuthoritativeSessionCompletionReceipt[],
+  nonRetryableTargets: readonly NonRetryableSessionTarget[] = [],
 ): SessionCompletionReconciliationResult {
   const authoritativeIds = new Set(authoritativeCompletions.map((completion) => completion.id));
   const completedPlanSessionIds = new Set(
     authoritativeCompletions.map((completion) => completion.planSessionId),
   );
+  const eventDispositions = new Map(
+    nonRetryableTargets.flatMap((target) => (
+      target.eventId ? [[target.eventId, target.reason] as const] : []
+    )),
+  );
+  const sessionDispositions = new Map(
+    nonRetryableTargets.flatMap((target) => (
+      target.eventId ? [] : [[target.planSessionId, target.reason] as const]
+    )),
+  );
   const current = loadAllPendingCompletions();
   const before = current.filter((entry) => entry.userId === userId).length;
-  const retained = current.filter((entry) => (
-    entry.userId !== userId
-    || (
-      !authoritativeIds.has(entry.completion.id)
-      && !completedPlanSessionIds.has(entry.completion.planSessionId)
-    )
-  ));
-  const storageSaved = retained.length === current.length
+  let quarantineFailed = false;
+  const retained = current.filter((entry) => {
+    if (entry.userId !== userId) return true;
+    if (authoritativeIds.has(entry.completion.id)) return false;
+
+    const reason = eventDispositions.get(entry.completion.id)
+      ?? sessionDispositions.get(entry.completion.planSessionId)
+      ?? (completedPlanSessionIds.has(entry.completion.planSessionId)
+        ? "authoritative_completion"
+        : null);
+    if (!reason) return true;
+
+    const quarantined = quarantineSessionTerminal({
+      userId,
+      kind: "completion",
+      eventId: entry.completion.id,
+      planId: entry.completion.planId,
+      planSessionId: entry.completion.planSessionId,
+      reason,
+      payload: entry,
+    });
+    if (!quarantined) quarantineFailed = true;
+    return !quarantined;
+  });
+  const activeSaved = retained.length === current.length
     ? true
     : savePendingCompletions(retained);
   const remaining = loadAllPendingCompletions().filter((entry) => entry.userId === userId).length;
@@ -221,7 +271,7 @@ export function reconcileQueuedSessionCompletions(
   return {
     removed: Math.max(0, before - remaining),
     remaining,
-    storageSaved,
+    storageSaved: activeSaved && !quarantineFailed,
   };
 }
 
@@ -237,14 +287,22 @@ export function readQueuedSessionCompletionsForExport(userId: string):
   if (typeof window === "undefined") return { ok: false };
   try {
     const stored = window.localStorage.getItem(STORAGE_KEY);
-    if (!stored) return { ok: true, value: [] };
-    const parsed: unknown = JSON.parse(stored);
+    const parsed: unknown = stored ? JSON.parse(stored) : [];
     if (!Array.isArray(parsed) || parsed.length > 25) return { ok: false };
-    const validated = parsed.map((entry) => PendingSessionCompletionSchema.safeParse(entry));
+    const quarantined = readQuarantinedSessionTerminalPayloads(userId, "completion");
+    const validated = [...parsed, ...quarantined]
+      .map((entry) => PendingSessionCompletionSchema.safeParse(entry));
     if (validated.some((entry) => !entry.success)) return { ok: false };
+    const byId = new Map<string, PendingSessionCompletion>();
+    validated.forEach((entry) => {
+      if (entry.success && entry.data.userId === userId) {
+        byId.set(entry.data.completion.id, entry.data);
+      }
+    });
+    if (byId.size > 25) return { ok: false };
     return {
       ok: true,
-      value: validated.flatMap((entry) => entry.success && entry.data.userId === userId ? [entry.data] : []),
+      value: [...byId.values()].sort((left, right) => left.queuedAt.localeCompare(right.queuedAt)),
     };
   } catch {
     return { ok: false };
@@ -262,11 +320,17 @@ export function pendingSessionCompletionPlanSessionIds(userId: string) {
     .map((entry) => entry.completion.planSessionId);
 }
 
-export async function flushQueuedSessionCompletions(userId: string) {
+export async function flushQueuedSessionCompletions(
+  userId: string,
+  options: { blockedPlanSessionIds?: ReadonlySet<string> } = {},
+) {
   const queued = loadAllPendingCompletions().filter((entry) => entry.userId === userId);
+  const blockedPlanSessionIds = new Set(options.blockedPlanSessionIds ?? []);
   let synced = 0;
 
   for (const entry of queued) {
+    const planSessionId = entry.completion.planSessionId;
+    if (blockedPlanSessionIds.has(planSessionId)) continue;
     try {
       await completeAuthenticatedPlanSession(
         entry.completion,
@@ -275,10 +339,23 @@ export async function flushQueuedSessionCompletions(userId: string) {
         entry.continuationSession ?? null,
         entry.nextSessionStudyRoute ?? null,
       );
-      removeQueuedSessionCompletion(entry.completion.id);
-      synced += 1;
-    } catch {
-      break;
+      if (removeQueuedSessionCompletion(entry.completion.id)) {
+        synced += 1;
+      } else {
+        // The server accepted the event, but the durable retry marker remains.
+        // Do not send another completion for this session during this pass.
+        blockedPlanSessionIds.add(planSessionId);
+      }
+    } catch (error) {
+      if (
+        isNonRetryableSessionTerminalMutationError(error)
+        && quarantinePermanentlyRejectedCompletion(entry)
+      ) {
+        continue;
+      }
+      // Ordering is a per-session invariant. An incompatible completion may
+      // block a duplicate for its own session, but never unrelated work.
+      blockedPlanSessionIds.add(planSessionId);
     }
   }
 
@@ -325,7 +402,10 @@ export async function flushQueuedSessionCompletionSupersedingExit(
       entry.continuationSession ?? null,
       entry.nextSessionStudyRoute ?? null,
     );
-  } catch {
+  } catch (error) {
+    if (isNonRetryableSessionTerminalMutationError(error)) {
+      quarantinePermanentlyRejectedCompletion(entry);
+    }
     return {
       committed: false,
       remaining: pendingSessionCompletionCount(userId),
@@ -340,6 +420,21 @@ export async function flushQueuedSessionCompletionSupersedingExit(
     committed: true,
     remaining: reconciliation.remaining,
   };
+}
+
+function quarantinePermanentlyRejectedCompletion(
+  entry: PendingSessionCompletion,
+) {
+  const quarantined = quarantineSessionTerminal({
+    userId: entry.userId,
+    kind: "completion",
+    eventId: entry.completion.id,
+    planId: entry.completion.planId,
+    planSessionId: entry.completion.planSessionId,
+    reason: "permanent_server_rejection",
+    payload: entry,
+  });
+  return quarantined && removeQueuedSessionCompletion(entry.completion.id);
 }
 
 function loadAllPendingCompletions(): PendingSessionCompletion[] {

@@ -12,12 +12,18 @@ vi.mock("@/lib/supabase/learning-state-repository", () => repository);
 import {
   loadQueuedSessionCompletions,
   queueSessionCompletion,
+  readQueuedSessionCompletionsForExport,
 } from "@/lib/sync/session-completion-outbox";
 import {
   loadQueuedSessionInterruptions,
   queueSessionInterruption,
+  readQueuedSessionInterruptionsForExport,
 } from "@/lib/sync/session-interruption-outbox";
-import { flushQueuedSessionTerminals } from "@/lib/sync/session-terminal-outbox";
+import { NonRetryableSessionTerminalMutationError } from "@/lib/sync/session-terminal-mutation-error";
+import {
+  flushQueuedSessionTerminals,
+  reconcileQueuedSessionTerminalsAgainstAuthority,
+} from "@/lib/sync/session-terminal-outbox";
 
 const userId = "40000000-0000-4000-8000-000000000001";
 const planId = "40000000-0000-4000-8000-000000000002";
@@ -81,6 +87,51 @@ afterEach(() => {
 });
 
 describe("terminal outbox poison-entry recovery", () => {
+  it("retires two permanently rejected events for a ready session without losing either payload", async () => {
+    installMemoryStorage();
+    const planSessionId = "40000000-0000-4000-8000-000000000009";
+    expect(queueSessionInterruption(pendingExit(planSessionId))).toBe(true);
+    expect(queueSessionCompletion(pendingCompletion(planSessionId))).toBe(true);
+    repository.recordAuthenticatedSessionInterruption.mockRejectedValue(
+      new NonRetryableSessionTerminalMutationError(
+        "interruption",
+        "incompatible_cloud_state",
+      ),
+    );
+    repository.completeAuthenticatedPlanSession.mockRejectedValue(
+      new NonRetryableSessionTerminalMutationError(
+        "completion",
+        "incompatible_cloud_state",
+      ),
+    );
+
+    expect(reconcileQueuedSessionTerminalsAgainstAuthority(userId, {
+      sessions: [{ id: planSessionId, status: "ready" }],
+      completions: [],
+      interruptions: [],
+    })).toMatchObject({ remaining: 2 });
+
+    await expect(flushQueuedSessionTerminals(userId)).resolves.toEqual({
+      interruptions: { synced: 0, remaining: 0 },
+      completions: { synced: 0, remaining: 0 },
+      remaining: 0,
+    });
+    expect(loadQueuedSessionInterruptions(userId)).toEqual([]);
+    expect(loadQueuedSessionCompletions(userId)).toEqual([]);
+    expect(readQueuedSessionInterruptionsForExport(userId)).toMatchObject({
+      ok: true,
+      value: [expect.objectContaining({
+        interruption: expect.objectContaining({ planSessionId }),
+      })],
+    });
+    expect(readQueuedSessionCompletionsForExport(userId)).toMatchObject({
+      ok: true,
+      value: [expect.objectContaining({
+        completion: expect.objectContaining({ planSessionId }),
+      })],
+    });
+  });
+
   it("turns the recurring two-event warning into zero only after exact completion commit", async () => {
     installMemoryStorage();
     const planSessionId = "40000000-0000-4000-8000-000000000005";
@@ -123,7 +174,51 @@ describe("terminal outbox poison-entry recovery", () => {
     expect(loadQueuedSessionCompletions(userId)).toHaveLength(1);
   });
 
-  it("does not send or delete an unmatched completion for another session", async () => {
+  it("keeps and counts both permanent rejections when active-marker removal fails", async () => {
+    const values = new Map<string, string>();
+    let failActiveRemoval = false;
+    vi.stubGlobal("window", {
+      localStorage: {
+        getItem: (key: string) => values.get(key) ?? null,
+        setItem: (key: string, value: string) => values.set(key, value),
+        removeItem: (key: string) => {
+          if (failActiveRemoval && (
+            key === "yova.cloud-sync-outbox.v1"
+            || key === "yova.session-interruption-outbox.v1"
+          )) {
+            throw new Error("storage unavailable");
+          }
+          values.delete(key);
+        },
+      },
+    });
+    const planSessionId = "40000000-0000-4000-8000-000000000010";
+    expect(queueSessionInterruption(pendingExit(planSessionId))).toBe(true);
+    expect(queueSessionCompletion(pendingCompletion(planSessionId))).toBe(true);
+    failActiveRemoval = true;
+    repository.recordAuthenticatedSessionInterruption.mockRejectedValue(
+      new NonRetryableSessionTerminalMutationError(
+        "interruption",
+        "incompatible_cloud_state",
+      ),
+    );
+    repository.completeAuthenticatedPlanSession.mockRejectedValue(
+      new NonRetryableSessionTerminalMutationError(
+        "completion",
+        "incompatible_cloud_state",
+      ),
+    );
+
+    await expect(flushQueuedSessionTerminals(userId)).resolves.toMatchObject({
+      interruptions: { remaining: 1 },
+      completions: { remaining: 1 },
+      remaining: 2,
+    });
+    expect(loadQueuedSessionInterruptions(userId)).toHaveLength(1);
+    expect(loadQueuedSessionCompletions(userId)).toHaveLength(1);
+  });
+
+  it("lets an unrelated completion sync while keeping the failed Exit", async () => {
     installMemoryStorage();
     const blockedSessionId = "40000000-0000-4000-8000-000000000007";
     const unrelatedSessionId = "40000000-0000-4000-8000-000000000008";
@@ -132,16 +227,16 @@ describe("terminal outbox poison-entry recovery", () => {
     repository.recordAuthenticatedSessionInterruption.mockRejectedValue(
       new Error("temporarily unavailable"),
     );
+    repository.completeAuthenticatedPlanSession.mockResolvedValue(undefined);
 
     await expect(flushQueuedSessionTerminals(userId)).resolves.toMatchObject({
       interruptions: { remaining: 1 },
-      completions: { remaining: 1 },
-      remaining: 2,
+      completions: { synced: 1, remaining: 0 },
+      remaining: 1,
     });
-    expect(repository.completeAuthenticatedPlanSession).not.toHaveBeenCalled();
+    expect(repository.completeAuthenticatedPlanSession).toHaveBeenCalledOnce();
     expect(loadQueuedSessionInterruptions(userId)[0]?.interruption.planSessionId)
       .toBe(blockedSessionId);
-    expect(loadQueuedSessionCompletions(userId)[0]?.completion.planSessionId)
-      .toBe(unrelatedSessionId);
+    expect(loadQueuedSessionCompletions(userId)).toEqual([]);
   });
 });

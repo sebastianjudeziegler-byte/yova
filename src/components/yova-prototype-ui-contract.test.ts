@@ -432,32 +432,83 @@ describe("YOVA prototype UI contracts", () => {
     );
   });
 
-  it("reconciles confirmed cloud terminals before reporting startup sync work", () => {
+  it("reconciles full cloud authority, reflushes unblocked work, and hydrates the final state", () => {
     const component = readSource("src/components/yova-prototype.tsx");
     const startup = component.slice(
       component.indexOf("async function openYova()"),
       component.indexOf("} else if (saved?.signedIn", component.indexOf("async function openYova()")),
     );
     const cloudLoad = startup.indexOf("await loadAuthenticatedLearningStateWithRetry()");
-    const completionReconciliation = startup.indexOf("reconcileQueuedSessionCompletions(", cloudLoad);
-    const interruptionReconciliation = startup.indexOf("reconcileQueuedSessionInterruptions(", completionReconciliation);
-    const merge = startup.indexOf("mergeActiveSessionCheckpoints(localCheckpoints, cloudCheckpoints)", interruptionReconciliation);
-    const pendingEvents = startup.indexOf("const pendingEvents = completionReconciliation.remaining", merge);
+    const authority = startup.indexOf("sessionTerminalInventoryFromCloudState(cloudState)", cloudLoad);
+    const reconciliation = startup.indexOf("reconcileQueuedSessionTerminalsAgainstAuthority(", authority);
+    const reflush = startup.indexOf("const newlyUnblocked = await flushQueuedSessionTerminals", reconciliation);
+    const boundedReload = startup.indexOf("cloudState = await loadAuthenticatedLearningStateWithRetry()", reflush);
+    const finalReconciliation = startup.indexOf("terminalReconciliation = reconcileQueuedSessionTerminalsAgainstAuthority(", boundedReload);
+    const refreshFallback = startup.indexOf("terminalRefreshIssue =", boundedReload);
+    const cachedAuthority = startup.indexOf("authoritativeSessionTerminalStateRef.current = {", finalReconciliation);
+    const merge = startup.indexOf("mergeActiveSessionCheckpoints(localCheckpoints, cloudCheckpoints)", cachedAuthority);
+    const pendingEvents = startup.indexOf("const pendingEvents = terminalReconciliation.remaining", merge);
 
     expect(cloudLoad).toBeGreaterThan(-1);
-    expect(completionReconciliation).toBeGreaterThan(cloudLoad);
-    expect(interruptionReconciliation).toBeGreaterThan(completionReconciliation);
-    expect(merge).toBeGreaterThan(interruptionReconciliation);
+    expect(authority).toBeGreaterThan(cloudLoad);
+    expect(reconciliation).toBeGreaterThan(authority);
+    expect(reflush).toBeGreaterThan(reconciliation);
+    expect(boundedReload).toBeGreaterThan(reflush);
+    expect(finalReconciliation).toBeGreaterThan(boundedReload);
+    expect(refreshFallback).toBeGreaterThan(finalReconciliation);
+    expect(cachedAuthority).toBeGreaterThan(refreshFallback);
+    expect(merge).toBeGreaterThan(cachedAuthority);
     expect(pendingEvents).toBeGreaterThan(merge);
-    expect(startup.slice(completionReconciliation, merge)).toContain(
-      "...authoritativeCompletedSessionIds",
+    expect(startup.slice(reflush).match(/cloudState = await loadAuthenticatedLearningStateWithRetry\(\)/g))
+      .toHaveLength(1);
+    expect(startup.slice(authority, reconciliation)).toContain(
+      "cloudState",
     );
-    expect(startup.slice(interruptionReconciliation, merge)).toContain(
-      "...cloudState.sessionInterruptions.map((interruption) => interruption.id)",
+    expect(startup.slice(cachedAuthority, merge)).toContain(
+      "...terminalInventory.interruptions.map((interruption) => interruption.id)",
     );
-    expect(startup.slice(pendingEvents, pendingEvents + 180)).toContain(
-      "+ interruptionReconciliation.remaining",
+    expect(startup.slice(pendingEvents, pendingEvents + 100)).toContain(
+      "terminalReconciliation.remaining",
     );
+    expect(startup.slice(reflush, boundedReload)).toContain(
+      "remaining: newlyUnblocked.remaining",
+    );
+    expect(startup.slice(boundedReload, cachedAuthority)).toContain("} catch {");
+    expect(startup.slice(refreshFallback, pendingEvents)).toContain("terminalRefreshIssue");
+  });
+
+  it("reconciles Retry Now and reconnect against the current account-scoped authority", () => {
+    const component = readSource("src/components/yova-prototype.tsx");
+    const authorityReaderStart = component.indexOf("const readCurrentTerminalAuthority = useCallback(");
+    const onlineStart = component.indexOf("const retryQueuedWork = () =>", authorityReaderStart);
+    const onlineEnd = component.indexOf("useEffect(() =>", onlineStart + 1);
+    const retryStart = component.indexOf("const retryCloudSync = async () =>", onlineEnd);
+    const retryEnd = component.indexOf("const saveAccountDisplayName", retryStart);
+
+    expect(authorityReaderStart).toBeGreaterThan(-1);
+    expect(component.slice(authorityReaderStart, onlineStart)).toContain(
+      "retrySafeSessionTerminalAuthority(",
+    );
+    expect(component.slice(onlineStart, onlineEnd)).toContain(
+      "}, readCurrentTerminalAuthority).then",
+    );
+    expect(component.slice(retryStart, retryEnd)).toContain(
+      "}, readCurrentTerminalAuthority);",
+    );
+    const retry = component.slice(retryStart, retryEnd);
+    const accountBeforeRead = retry.indexOf("const accountBeforeRead = await getAuthenticatedAccount()");
+    const pendingCoverage = retry.indexOf("const coveredPendingPlanSessionIds = new Set([", accountBeforeRead);
+    const freshRead = retry.indexOf("const freshCloudState = await loadAuthenticatedLearningStateWithRetry()", pendingCoverage);
+    const accountAfterRead = retry.indexOf("const accountAfterRead = await getAuthenticatedAccount()", freshRead);
+    const cacheFreshAuthority = retry.indexOf("authoritativeSessionTerminalStateRef.current = {", accountAfterRead);
+    const terminalRetry = retry.indexOf("await syncPendingCloudWork(", cacheFreshAuthority);
+
+    expect(accountBeforeRead).toBeGreaterThan(-1);
+    expect(pendingCoverage).toBeGreaterThan(accountBeforeRead);
+    expect(freshRead).toBeGreaterThan(pendingCoverage);
+    expect(accountAfterRead).toBeGreaterThan(freshRead);
+    expect(cacheFreshAuthority).toBeGreaterThan(accountAfterRead);
+    expect(terminalRetry).toBeGreaterThan(cacheFreshAuthority);
   });
 
   it("does not treat an authoritative cloud profile hydration as a learner edit", () => {

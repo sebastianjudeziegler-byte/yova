@@ -13,6 +13,14 @@ import {
   SessionPendingRepairSchema,
 } from "@/lib/learning/session-resume";
 import { recordAuthenticatedSessionInterruption } from "@/lib/supabase/learning-state-repository";
+import { isNonRetryableSessionTerminalMutationError } from "@/lib/sync/session-terminal-mutation-error";
+import {
+  clearQuarantinedSessionTerminals,
+  quarantineSessionTerminal,
+  readQuarantinedSessionTerminalPayloads,
+  removeQuarantinedSessionTerminalsForPlan,
+  type NonRetryableSessionTarget,
+} from "@/lib/sync/session-terminal-quarantine";
 
 const STORAGE_KEY = "yova.session-interruption-outbox.v1";
 const MAX_INTERRUPTION_FLUSH_ATTEMPTS = 25;
@@ -46,7 +54,7 @@ const RoutedSessionEvidenceSnapshotSchema = z.object({
   completedImmediateRepairs: z.number().int().min(0).max(4),
 }).refine((snapshot) => snapshot.correctAnswers <= snapshot.totalAnswers);
 
-const SessionInterruptionSchema = z.preprocess(
+const StoredSessionInterruptionSchema = z.preprocess(
   stripRetiredSessionActivityProgressMarker,
   z.object({
     id: z.string().uuid(),
@@ -67,11 +75,31 @@ const SessionInterruptionSchema = z.preprocess(
   }),
 );
 
-const PendingSessionInterruptionSchema = z.object({
+const StoredPendingSessionInterruptionSchema = z.object({
   userId: z.string().uuid(),
-  interruption: SessionInterruptionSchema,
+  interruption: StoredSessionInterruptionSchema,
   queuedAt: z.string().datetime({ offset: true }),
 });
+
+const PendingSessionInterruptionSchema = StoredPendingSessionInterruptionSchema.superRefine(
+  (entry, context) => {
+    const { completedSteps, resumeStep, totalSteps } = entry.interruption;
+    if (completedSteps >= totalSteps) {
+      context.addIssue({
+        code: "custom",
+        path: ["interruption", "completedSteps"],
+        message: "An interruption must leave at least one unfinished step.",
+      });
+    }
+    if ((resumeStep ?? completedSteps) >= totalSteps) {
+      context.addIssue({
+        code: "custom",
+        path: ["interruption", "resumeStep"],
+        message: "An interruption must resume before the end of the session.",
+      });
+    }
+  },
+);
 
 export type PendingSessionInterruption = {
   userId: string;
@@ -100,17 +128,29 @@ export function queueSessionInterruption(input: PendingSessionInterruption) {
 }
 
 export function removeQueuedSessionInterruption(interruptionId: string) {
-  savePendingInterruptions(loadAllPendingInterruptions().filter((entry) => entry.interruption.id !== interruptionId));
+  return savePendingInterruptions(
+    loadAllPendingInterruptions().filter((entry) => entry.interruption.id !== interruptionId),
+  );
 }
 
 export function clearQueuedSessionInterruptions(userId: string) {
-  return savePendingInterruptions(loadAllPendingInterruptions().filter((entry) => entry.userId !== userId));
+  const activeSaved = savePendingInterruptions(
+    loadAllPendingInterruptions().filter((entry) => entry.userId !== userId),
+  );
+  const quarantineSaved = clearQuarantinedSessionTerminals(userId, "interruption");
+  return activeSaved && quarantineSaved;
 }
 
 export function removeQueuedSessionInterruptionsForPlan(userId: string, planId: string) {
-  return savePendingInterruptions(loadAllPendingInterruptions().filter((entry) => !(
+  const activeSaved = savePendingInterruptions(loadAllPendingInterruptions().filter((entry) => !(
     entry.userId === userId && entry.interruption.planId === planId
   )));
+  const quarantineSaved = removeQuarantinedSessionTerminalsForPlan(
+    userId,
+    "interruption",
+    planId,
+  );
+  return activeSaved && quarantineSaved;
 }
 
 /** Returns only validated entries for the requested account. */
@@ -125,18 +165,29 @@ export function readQueuedSessionInterruptionsForExport(userId: string):
   if (typeof window === "undefined") return { ok: false };
   try {
     const stored = window.localStorage.getItem(STORAGE_KEY);
-    if (!stored) return { ok: true, value: [] };
-    const parsed: unknown = JSON.parse(stored);
+    const parsed: unknown = stored ? JSON.parse(stored) : [];
     if (!Array.isArray(parsed) || parsed.length > 25) return { ok: false };
-    const validated = parsed.map((entry) => PendingSessionInterruptionSchema.safeParse(entry));
+    const quarantined = readQuarantinedSessionTerminalPayloads(userId, "interruption");
+    const validated = [...parsed, ...quarantined]
+      .map((entry) => StoredPendingSessionInterruptionSchema.safeParse(entry));
     if (validated.some((entry) => !entry.success)) return { ok: false };
-    const sanitized = validated.flatMap((entry) => (entry.success ? [entry.data] : []));
-    if (JSON.stringify(sanitized) !== JSON.stringify(parsed)) {
-      savePendingInterruptions(sanitized);
+    const active = parsed.flatMap((entry) => {
+      const validatedEntry = StoredPendingSessionInterruptionSchema.safeParse(entry);
+      return validatedEntry.success ? [validatedEntry.data] : [];
+    });
+    if (JSON.stringify(active) !== JSON.stringify(parsed)) {
+      savePendingInterruptions(active);
     }
+    const byId = new Map<string, PendingSessionInterruption>();
+    validated.forEach((entry) => {
+      if (entry.success && entry.data.userId === userId) {
+        byId.set(entry.data.interruption.id, entry.data);
+      }
+    });
+    if (byId.size > 25) return { ok: false };
     return {
       ok: true,
-      value: sanitized.filter((entry) => entry.userId === userId),
+      value: [...byId.values()].sort((left, right) => left.queuedAt.localeCompare(right.queuedAt)),
     };
   } catch {
     return { ok: false };
@@ -153,6 +204,12 @@ export function pendingSessionInterruptionRunIds(userId: string) {
     .map((entry) => entry.interruption.id);
 }
 
+export function pendingSessionInterruptionPlanSessionIds(userId: string) {
+  return loadAllPendingInterruptions()
+    .filter((entry) => entry.userId === userId)
+    .map((entry) => entry.interruption.planSessionId);
+}
+
 /**
  * Clears retries proven durable by cloud state. A later cloud completion also
  * supersedes an older queued Exit for the same plan session, while unrelated
@@ -162,21 +219,49 @@ export function reconcileQueuedSessionInterruptions(
   userId: string,
   authoritativeInterruptions: readonly AuthoritativeSessionInterruptionReceipt[],
   completedPlanSessionIds: readonly string[],
+  nonRetryableTargets: readonly NonRetryableSessionTarget[] = [],
 ): SessionInterruptionReconciliationResult {
   const authoritativeIds = new Set(
     authoritativeInterruptions.map((interruption) => interruption.id),
   );
   const completedIds = new Set(completedPlanSessionIds);
+  const eventDispositions = new Map(
+    nonRetryableTargets.flatMap((target) => (
+      target.eventId ? [[target.eventId, target.reason] as const] : []
+    )),
+  );
+  const sessionDispositions = new Map(
+    nonRetryableTargets.flatMap((target) => (
+      target.eventId ? [] : [[target.planSessionId, target.reason] as const]
+    )),
+  );
   const current = loadAllPendingInterruptions();
   const before = current.filter((entry) => entry.userId === userId).length;
-  const retained = current.filter((entry) => (
-    entry.userId !== userId
-    || (
-      !authoritativeIds.has(entry.interruption.id)
-      && !completedIds.has(entry.interruption.planSessionId)
-    )
-  ));
-  const storageSaved = retained.length === current.length
+  let quarantineFailed = false;
+  const retained = current.filter((entry) => {
+    if (entry.userId !== userId) return true;
+    if (authoritativeIds.has(entry.interruption.id)) return false;
+
+    const reason = eventDispositions.get(entry.interruption.id)
+      ?? sessionDispositions.get(entry.interruption.planSessionId)
+      ?? (completedIds.has(entry.interruption.planSessionId)
+        ? "authoritative_completion"
+        : null);
+    if (!reason) return true;
+
+    const quarantined = quarantineSessionTerminal({
+      userId,
+      kind: "interruption",
+      eventId: entry.interruption.id,
+      planId: entry.interruption.planId,
+      planSessionId: entry.interruption.planSessionId,
+      reason,
+      payload: entry,
+    });
+    if (!quarantined) quarantineFailed = true;
+    return !quarantined;
+  });
+  const activeSaved = retained.length === current.length
     ? true
     : savePendingInterruptions(retained);
   const remaining = loadAllPendingInterruptions().filter((entry) => entry.userId === userId).length;
@@ -184,7 +269,7 @@ export function reconcileQueuedSessionInterruptions(
   return {
     removed: Math.max(0, before - remaining),
     remaining,
-    storageSaved,
+    storageSaved: activeSaved && !quarantineFailed,
   };
 }
 
@@ -205,10 +290,10 @@ async function runQueuedSessionInterruptionFlush(
   userId: string,
 ): Promise<SessionInterruptionFlushResult> {
   const attemptedIds = new Set<string>();
+  const blockedPlanSessionIds = new Set<string>();
   let synced = 0;
-  let failed = false;
 
-  while (!failed && attemptedIds.size < MAX_INTERRUPTION_FLUSH_ATTEMPTS) {
+  while (attemptedIds.size < MAX_INTERRUPTION_FLUSH_ATTEMPTS) {
     const queued = loadAllPendingInterruptions().filter((entry) => (
       entry.userId === userId
       && !attemptedIds.has(entry.interruption.id)
@@ -218,13 +303,25 @@ async function runQueuedSessionInterruptionFlush(
     for (const entry of queued) {
       if (attemptedIds.size >= MAX_INTERRUPTION_FLUSH_ATTEMPTS) break;
       attemptedIds.add(entry.interruption.id);
+      const planSessionId = entry.interruption.planSessionId;
+      if (blockedPlanSessionIds.has(planSessionId)) continue;
       try {
         await recordAuthenticatedSessionInterruption(entry.userId, entry.interruption);
-        removeQueuedSessionInterruption(entry.interruption.id);
-        synced += 1;
-      } catch {
-        failed = true;
-        break;
+        if (removeQueuedSessionInterruption(entry.interruption.id)) {
+          synced += 1;
+        } else {
+          // The event is durable remotely but still active locally. Avoid a
+          // duplicate send for this session until a later reconciliation.
+          blockedPlanSessionIds.add(planSessionId);
+        }
+      } catch (error) {
+        if (
+          isNonRetryableSessionTerminalMutationError(error)
+          && quarantinePermanentlyRejectedInterruption(entry)
+        ) {
+          continue;
+        }
+        blockedPlanSessionIds.add(planSessionId);
       }
     }
   }
@@ -235,6 +332,21 @@ async function runQueuedSessionInterruptionFlush(
   };
 }
 
+function quarantinePermanentlyRejectedInterruption(
+  entry: PendingSessionInterruption,
+) {
+  const quarantined = quarantineSessionTerminal({
+    userId: entry.userId,
+    kind: "interruption",
+    eventId: entry.interruption.id,
+    planId: entry.interruption.planId,
+    planSessionId: entry.interruption.planSessionId,
+    reason: "permanent_server_rejection",
+    payload: entry,
+  });
+  return quarantined && removeQueuedSessionInterruption(entry.interruption.id);
+}
+
 function loadAllPendingInterruptions(): PendingSessionInterruption[] {
   if (typeof window === "undefined") return [];
 
@@ -243,18 +355,40 @@ function loadAllPendingInterruptions(): PendingSessionInterruption[] {
     if (!stored) return [];
     const parsed: unknown = JSON.parse(stored);
     if (!Array.isArray(parsed)) return [];
-    const supported = parsed.slice(-25).flatMap((entry) => {
-      const validated = PendingSessionInterruptionSchema.safeParse(entry);
+    const storedEntries = parsed.slice(-25).flatMap((entry) => {
+      const validated = StoredPendingSessionInterruptionSchema.safeParse(entry);
       if (!validated.success) return [];
       return [validated.data];
     });
-    if (JSON.stringify(supported) !== JSON.stringify(parsed.slice(-25))) {
-      savePendingInterruptions(supported);
+
+    const active = storedEntries.filter((entry) => {
+      if (!hasLegacyInvalidProgress(entry)) return true;
+      return !quarantineSessionTerminal({
+        userId: entry.userId,
+        kind: "interruption",
+        eventId: entry.interruption.id,
+        planId: entry.interruption.planId,
+        planSessionId: entry.interruption.planSessionId,
+        reason: "legacy_invalid_progress",
+        payload: entry,
+      });
+    });
+    if (JSON.stringify(active) !== JSON.stringify(parsed.slice(-25))) {
+      if (!savePendingInterruptions(active)) {
+        // Storage still contains the original entries; retain and count every
+        // validated retry rather than reporting an unsaved cleanup as done.
+        return storedEntries;
+      }
     }
-    return supported;
+    return active;
   } catch {
     return [];
   }
+}
+
+function hasLegacyInvalidProgress(entry: PendingSessionInterruption) {
+  const { completedSteps, resumeStep, totalSteps } = entry.interruption;
+  return completedSteps >= totalSteps || (resumeStep ?? completedSteps) >= totalSteps;
 }
 
 function savePendingInterruptions(entries: PendingSessionInterruption[]) {

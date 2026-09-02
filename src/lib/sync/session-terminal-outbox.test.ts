@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   flushQueuedSessionCompletions: vi.fn(),
   flushQueuedSessionInterruptions: vi.fn(),
   loadQueuedSessionInterruptions: vi.fn(),
+  pendingSessionInterruptionPlanSessionIds: vi.fn(),
   pendingSessionCompletionPlanSessionIds: vi.fn(),
   reconcileQueuedSessionInterruptions: vi.fn(),
 }));
@@ -20,6 +21,7 @@ vi.mock("@/lib/sync/session-completion-outbox", () => ({
 vi.mock("@/lib/sync/session-interruption-outbox", () => ({
   flushQueuedSessionInterruptions: mocks.flushQueuedSessionInterruptions,
   loadQueuedSessionInterruptions: mocks.loadQueuedSessionInterruptions,
+  pendingSessionInterruptionPlanSessionIds: mocks.pendingSessionInterruptionPlanSessionIds,
   reconcileQueuedSessionInterruptions: mocks.reconcileQueuedSessionInterruptions,
 }));
 
@@ -50,6 +52,7 @@ beforeEach(() => {
     storageSaved: true,
   });
   mocks.pendingSessionCompletionPlanSessionIds.mockReturnValue([]);
+  mocks.pendingSessionInterruptionPlanSessionIds.mockReturnValue([]);
 });
 
 describe("terminal session outbox ordering", () => {
@@ -63,7 +66,7 @@ describe("terminal session outbox ordering", () => {
     expect(mocks.order).toEqual(["interruption", "completion"]);
   });
 
-  it("does not close the lesson while an older Exit is still waiting", async () => {
+  it("blocks only the completion for the session whose Exit is still waiting", async () => {
     const planSessionId = "00000000-0000-4000-8000-000000000002";
     mocks.flushQueuedSessionInterruptions.mockImplementationOnce(async () => {
       mocks.order.push("interruption");
@@ -79,22 +82,20 @@ describe("terminal session outbox ordering", () => {
         completions: { synced: 0, remaining: 1 },
         remaining: 2,
       });
-    expect(mocks.order).toEqual(["interruption"]);
-    expect(mocks.flushQueuedSessionCompletions).not.toHaveBeenCalled();
+    expect(mocks.order).toEqual(["interruption", "completion"]);
+    expect(mocks.flushQueuedSessionCompletions).toHaveBeenCalledWith(
+      "00000000-0000-4000-8000-000000000001",
+      { blockedPlanSessionIds: new Set([planSessionId]) },
+    );
   });
 
   it("lets the exact later completion clear a poison Exit only after cloud commit", async () => {
     const userId = "00000000-0000-4000-8000-000000000011";
     const planSessionId = "00000000-0000-4000-8000-000000000012";
-    mocks.flushQueuedSessionInterruptions
-      .mockImplementationOnce(async () => {
-        mocks.order.push("blocked-exit");
-        return { synced: 0, remaining: 1 };
-      })
-      .mockImplementationOnce(async () => {
-        mocks.order.push("remaining-exits");
-        return { synced: 0, remaining: 0 };
-      });
+    mocks.flushQueuedSessionInterruptions.mockImplementationOnce(async () => {
+      mocks.order.push("blocked-exit");
+      return { synced: 0, remaining: 1 };
+    });
     mocks.loadQueuedSessionInterruptions
       .mockReturnValueOnce([{ interruption: { planSessionId } }])
       .mockReturnValue([]);
@@ -129,7 +130,6 @@ describe("terminal session outbox ordering", () => {
       "blocked-exit",
       "exact-completion",
       "reconcile-exit",
-      "remaining-exits",
       "remaining-completions",
     ]);
   });
@@ -153,15 +153,19 @@ describe("terminal session outbox ordering", () => {
       remaining: 2,
     });
     expect(mocks.reconcileQueuedSessionInterruptions).not.toHaveBeenCalled();
-    expect(mocks.flushQueuedSessionCompletions).not.toHaveBeenCalled();
+    expect(mocks.flushQueuedSessionCompletions).toHaveBeenCalledWith(
+      "00000000-0000-4000-8000-000000000021",
+      { blockedPlanSessionIds: new Set([planSessionId]) },
+    );
   });
 
-  it("does not bypass an unrelated head Exit with a later completion", async () => {
+  it("checks each blocked session independently and still flushes unrelated completions", async () => {
     const blockedPlanSessionId = "00000000-0000-4000-8000-000000000032";
+    const secondBlockedPlanSessionId = "00000000-0000-4000-8000-000000000033";
     mocks.flushQueuedSessionInterruptions.mockResolvedValueOnce({ synced: 0, remaining: 2 });
     mocks.loadQueuedSessionInterruptions.mockReturnValue([
       { interruption: { planSessionId: blockedPlanSessionId } },
-      { interruption: { planSessionId: "00000000-0000-4000-8000-000000000033" } },
+      { interruption: { planSessionId: secondBlockedPlanSessionId } },
     ]);
     mocks.flushQueuedSessionCompletionSupersedingExit.mockResolvedValueOnce({
       committed: false,
@@ -170,32 +174,57 @@ describe("terminal session outbox ordering", () => {
 
     await flushQueuedSessionTerminals("00000000-0000-4000-8000-000000000031");
 
-    expect(mocks.flushQueuedSessionCompletionSupersedingExit).toHaveBeenCalledOnce();
-    expect(mocks.flushQueuedSessionCompletionSupersedingExit).toHaveBeenCalledWith(
+    expect(mocks.flushQueuedSessionCompletionSupersedingExit).toHaveBeenCalledTimes(2);
+    expect(mocks.flushQueuedSessionCompletionSupersedingExit.mock.calls).toEqual([
+      ["00000000-0000-4000-8000-000000000031", blockedPlanSessionId],
+      ["00000000-0000-4000-8000-000000000031", secondBlockedPlanSessionId],
+    ]);
+    expect(mocks.flushQueuedSessionCompletions).toHaveBeenCalledWith(
       "00000000-0000-4000-8000-000000000031",
-      blockedPlanSessionId,
+      { blockedPlanSessionIds: new Set([blockedPlanSessionId, secondBlockedPlanSessionId]) },
     );
-    expect(mocks.flushQueuedSessionCompletions).not.toHaveBeenCalled();
   });
 
-  it("does not let the live completion bypass an older queued Exit", async () => {
+  it("does not let a live completion bypass a queued Exit for the same session", async () => {
     const completeImmediately = vi.fn(async () => undefined);
+    const planSessionId = "00000000-0000-4000-8000-000000000002";
     mocks.flushQueuedSessionInterruptions.mockResolvedValueOnce({ synced: 0, remaining: 1 });
     mocks.loadQueuedSessionInterruptions.mockReturnValue([{
       interruption: {
-        planSessionId: "00000000-0000-4000-8000-000000000003",
+        planSessionId,
       },
     }]);
+    mocks.pendingSessionInterruptionPlanSessionIds.mockReturnValue([planSessionId]);
 
     await expect(syncSessionCompletionAfterTerminals({
       userId: "00000000-0000-4000-8000-000000000001",
-      planSessionId: "00000000-0000-4000-8000-000000000002",
+      planSessionId,
       completionQueued: false,
       completeImmediately,
     })).resolves.toMatchObject({ synced: false });
 
     expect(completeImmediately).not.toHaveBeenCalled();
-    expect(mocks.flushQueuedSessionCompletions).not.toHaveBeenCalled();
+    expect(mocks.flushQueuedSessionCompletions).toHaveBeenCalled();
+  });
+
+  it("lets a live completion proceed when only an unrelated Exit remains", async () => {
+    const completeImmediately = vi.fn(async () => undefined);
+    const planSessionId = "00000000-0000-4000-8000-000000000042";
+    mocks.flushQueuedSessionInterruptions.mockResolvedValueOnce({ synced: 0, remaining: 1 });
+    mocks.loadQueuedSessionInterruptions.mockReturnValue([{
+      interruption: { planSessionId: "00000000-0000-4000-8000-000000000043" },
+    }]);
+    mocks.pendingSessionInterruptionPlanSessionIds.mockReturnValue([
+      "00000000-0000-4000-8000-000000000043",
+    ]);
+
+    await expect(syncSessionCompletionAfterTerminals({
+      userId: "00000000-0000-4000-8000-000000000041",
+      planSessionId,
+      completionQueued: false,
+      completeImmediately,
+    })).resolves.toMatchObject({ synced: true });
+    expect(completeImmediately).toHaveBeenCalledOnce();
   });
 
   it("uses the ordered outbox instead of a duplicate direct completion", async () => {

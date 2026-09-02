@@ -56,6 +56,11 @@ import { StudyRouteSchema, type StudyRoute } from "@/lib/study-route/schema";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import {
+  NonRetryableSessionTerminalMutationError,
+  type NonRetryableSessionTerminalRejection,
+  type SessionTerminalMutationKind,
+} from "@/lib/sync/session-terminal-mutation-error";
+import {
   CloudAccountIdentityMismatchError,
   CloudSyncTemporarilyUnavailableError,
   LEARNER_PROFILE_IDENTITY_SYNC_WARNING,
@@ -158,6 +163,17 @@ type LearningEventRow = {
   event_data: unknown;
 };
 
+export type SessionTerminalReceipt = Readonly<{
+  id: string;
+  planSessionId: string;
+}>;
+
+export type SessionTerminalTarget = Readonly<{
+  id: string;
+  status: SessionStatus;
+  routeRevisionId: string | null;
+}>;
+
 export type CloudLearningState = {
   displayName: string;
   onboardingCompleted: boolean;
@@ -166,6 +182,9 @@ export type CloudLearningState = {
   deadlineMilestones: DeadlineMilestone[];
   sessionCompletions: SessionCompletion[];
   sessionInterruptions: SessionInterruption[];
+  sessionTerminalTargets: SessionTerminalTarget[];
+  sessionCompletionReceipts: SessionTerminalReceipt[];
+  sessionInterruptionReceipts: SessionTerminalReceipt[];
   activeSessionCheckpoints: ActiveSessionCheckpoint[];
   /** Read-only Calendar projection; never used as plan/session source grounding. */
   calendarMaterials?: CalendarMaterialState[];
@@ -190,6 +209,71 @@ class SessionInterruptionCloudSyncError extends Error {
     super("YOVA kept this session open but could not sync the interruption to the cloud.");
     this.name = "SessionInterruptionCloudSyncError";
   }
+}
+
+export { NonRetryableSessionTerminalMutationError } from "@/lib/sync/session-terminal-mutation-error";
+
+type TerminalMutationServerFailure = Readonly<{
+  code?: unknown;
+  message?: unknown;
+}>;
+
+const NON_RETRYABLE_COMPLETION_SERVER_FAILURES = new Map<string, NonRetryableSessionTerminalRejection>([
+  // 22023 is used here only with these exact machine reasons for payloads the
+  // current RPC will deterministically reject on every identical replay.
+  ["22023:route_bound_completion_shape_invalid", "invalid_payload"],
+  ["22023:route_bound_completion_values_invalid", "invalid_payload"],
+  ["22023:study_route_evidence_invalid", "invalid_payload"],
+  ["22023:post_session_route_write_shape_invalid", "invalid_payload"],
+  ["22023:post_session_variant_conflict", "invalid_payload"],
+  ["22023:post_session_adaptation_identity_invalid", "invalid_payload"],
+  ["22023:post_session_child_identity_invalid", "invalid_payload"],
+  ["22023:post_session_study_route_identity_invalid", "invalid_payload"],
+  ["22023:post_session_study_route_origin_invalid", "invalid_payload"],
+  ["22023:post_session_study_route_no_material_change", "invalid_payload"],
+  ["22023:post_session_study_route_projection_invalid", "invalid_payload"],
+  ["22023:post_session_route_arrays_invalid", "invalid_payload"],
+  ["22023:post_session_request_invalid", "invalid_payload"],
+  ["22023:study_route_payload_too_large", "invalid_payload"],
+  ["22023:study_route_semantic_override_invalid", "invalid_payload"],
+  ["P0001:Session timing is not valid.", "invalid_payload"],
+  ["P0001:The delayed verification session is not valid.", "invalid_payload"],
+
+  // These application-defined 40001 reasons prove that the exact terminal
+  // payload or its immutable receipt conflicts. Other 40001 responses remain
+  // retryable because ordering and real serialization failures are ambiguous.
+  ["40001:study_route_evidence_conflict", "incompatible_cloud_state"],
+  ["40001:study_route_completion_retry_conflict", "incompatible_cloud_state"],
+  ["40001:study_route_completion_conflict", "incompatible_cloud_state"],
+  ["40001:study_route_completion_event_conflict", "incompatible_cloud_state"],
+]);
+
+const NON_RETRYABLE_INTERRUPTION_SERVER_FAILURES = new Map<string, NonRetryableSessionTerminalRejection>([
+  ["P0001:Interrupted-session evidence is not valid.", "invalid_payload"],
+  ["40001:study_route_evidence_conflict", "incompatible_cloud_state"],
+  ["40001:study_route_interruption_conflict", "incompatible_cloud_state"],
+  ["40001:study_route_interruption_event_conflict", "incompatible_cloud_state"],
+]);
+
+function nonRetryableTerminalServerRejection(
+  terminalKind: SessionTerminalMutationKind,
+  error: TerminalMutationServerFailure,
+) {
+  if (typeof error.code !== "string" || typeof error.message !== "string") return null;
+  const failures = terminalKind === "completion"
+    ? NON_RETRYABLE_COMPLETION_SERVER_FAILURES
+    : NON_RETRYABLE_INTERRUPTION_SERVER_FAILURES;
+  return failures.get(`${error.code}:${error.message}`) ?? null;
+}
+
+function nonRetryableCompletionValidation(
+  message: string,
+): NonRetryableSessionTerminalMutationError {
+  return new NonRetryableSessionTerminalMutationError(
+    "completion",
+    "invalid_payload",
+    message,
+  );
 }
 
 /**
@@ -455,6 +539,15 @@ export async function loadAuthenticatedLearningState(): Promise<CloudLearningSta
     }];
   });
 
+  // This terminal projection comes directly from account-owned session rows.
+  // Reconciliation must not infer legacy route compatibility from a domain
+  // plan that could not be reconstructed because its parent metadata changed.
+  const sessionTerminalTargets = sessionRows.map<SessionTerminalTarget>((session) => ({
+    id: session.id,
+    status: session.status,
+    routeRevisionId: session.committed_route_revision_id,
+  }));
+
   const sessionCompletions = attemptRows.flatMap<SessionCompletion>((attempt) => {
     const planId = planIdBySessionId.get(attempt.plan_session_id);
     if (!planId || !attempt.completed_at) return [];
@@ -480,6 +573,26 @@ export async function loadAuthenticatedLearningState(): Promise<CloudLearningSta
       confidenceEvidence: readConfidenceEvidenceProperty(attempt.result_data),
     })];
   });
+
+  // Terminal receipts are projected directly from the account-owned rows.
+  // They intentionally do not depend on a current plan/session projection:
+  // an archived or otherwise unreadable domain record must not leave an
+  // already-durable browser retry stuck forever.
+  const sessionCompletionReceipts = dedupeSessionTerminalReceipts(
+    attemptRows.map<SessionTerminalReceipt>((attempt) => ({
+      id: attempt.id,
+      planSessionId: attempt.plan_session_id,
+    })),
+  );
+
+  const sessionInterruptionReceipts = dedupeSessionTerminalReceipts(
+    interruptionRows.flatMap<SessionTerminalReceipt>((event) => {
+      if (!event.plan_session_id) return [];
+      const attemptId = readUuidProperty(event.event_data, "attemptId");
+      if (!attemptId) return [];
+      return [{ id: attemptId, planSessionId: event.plan_session_id }];
+    }),
+  );
 
   const sessionInterruptions = interruptionRows.flatMap<SessionInterruption>((event) => {
     if (!event.plan_session_id) return [];
@@ -525,9 +638,22 @@ export async function loadAuthenticatedLearningState(): Promise<CloudLearningSta
     deadlineMilestones,
     sessionCompletions,
     sessionInterruptions,
+    sessionTerminalTargets,
+    sessionCompletionReceipts,
+    sessionInterruptionReceipts,
     activeSessionCheckpoints,
     calendarMaterials,
   };
+}
+
+function dedupeSessionTerminalReceipts(
+  receipts: readonly SessionTerminalReceipt[],
+): SessionTerminalReceipt[] {
+  const byId = new Map<string, SessionTerminalReceipt>();
+  for (const receipt of receipts) {
+    if (!byId.has(receipt.id)) byId.set(receipt.id, receipt);
+  }
+  return [...byId.values()];
 }
 
 function calendarMaterialProcessingStatus(
@@ -1047,20 +1173,30 @@ export async function completeAuthenticatedPlanSession(
       || followUpSession.learningMode !== "study"
       || !isUnguidedVerificationWithinCapacity(followUpSession))
   ) {
-    throw new Error("YOVA cannot complete ungraded practice without preserving its required guided verification within the ten-minute review window.");
+    throw nonRetryableCompletionValidation(
+      "YOVA cannot complete ungraded practice without preserving its required guided verification within the ten-minute review window.",
+    );
   }
   if (completionMode === "unguided_practice" && continuationSession) {
-    throw new Error("YOVA cannot replace the required guided verification with a deferred continuation.");
+    throw nonRetryableCompletionValidation(
+      "YOVA cannot replace the required guided verification with a deferred continuation.",
+    );
   }
   if (continuationSession && (adaptation || followUpSession)) {
-    throw new Error("YOVA cannot safely combine a deferred continuation with another session rewrite.");
+    throw nonRetryableCompletionValidation(
+      "YOVA cannot safely combine a deferred continuation with another session rewrite.",
+    );
   }
   const routed = normalizedCompletion.routeRevisionId !== undefined;
   if (routed && Boolean(adaptation) !== Boolean(nextSessionStudyRoute)) {
-    throw new Error("YOVA cannot sync a routed adaptation without its exact successor StudyRoute.");
+    throw nonRetryableCompletionValidation(
+      "YOVA cannot sync a routed adaptation without its exact successor StudyRoute.",
+    );
   }
   if (!routed && nextSessionStudyRoute) {
-    throw new Error("YOVA cannot attach a successor StudyRoute to a legacy completion.");
+    throw nonRetryableCompletionValidation(
+      "YOVA cannot attach a successor StudyRoute to a legacy completion.",
+    );
   }
   const parsedNextSessionStudyRoute = nextSessionStudyRoute
     ? StudyRouteSchema.parse(nextSessionStudyRoute)
@@ -1072,7 +1208,9 @@ export async function completeAuthenticatedPlanSession(
     || parsedNextSessionStudyRoute.identity.revisionNumber <= 1
     || !parsedNextSessionStudyRoute.identity.supersedesRevisionId
   )) {
-    throw new Error("The next-session StudyRoute is not the committed successor for this plan adaptation.");
+    throw nonRetryableCompletionValidation(
+      "The next-session StudyRoute is not the committed successor for this plan adaptation.",
+    );
   }
   const parsedFollowUpRoute = requireNewSessionRouteParity({
     routed,
@@ -1156,7 +1294,13 @@ export async function completeAuthenticatedPlanSession(
     },
   });
 
-  if (error) throw new Error("YOVA saved this session in your browser but could not sync it to the cloud.");
+  if (error) {
+    const rejection = nonRetryableTerminalServerRejection("completion", error);
+    if (rejection) {
+      throw new NonRetryableSessionTerminalMutationError("completion", rejection);
+    }
+    throw new Error("YOVA saved this session in your browser but could not sync it to the cloud.");
+  }
 }
 
 function requireNewSessionRouteParity({
@@ -1173,7 +1317,9 @@ function requireNewSessionRouteParity({
   if (!session) return null;
   const route = session.studyRoute ? StudyRouteSchema.parse(session.studyRoute) : null;
   if (routed !== Boolean(route)) {
-    throw new Error(`YOVA cannot sync a routed ${label} without its own StudyRoute lineage.`);
+    throw nonRetryableCompletionValidation(
+      `YOVA cannot sync a routed ${label} without its own StudyRoute lineage.`,
+    );
   }
   if (route && (
     route.identity.lifecycleStatus !== "committed"
@@ -1182,7 +1328,9 @@ function requireNewSessionRouteParity({
     || route.identity.revisionNumber !== 1
     || route.identity.supersedesRevisionId
   )) {
-    throw new Error(`The ${label} StudyRoute is not a valid committed initial route.`);
+    throw nonRetryableCompletionValidation(
+      `The ${label} StudyRoute is not a valid committed initial route.`,
+    );
   }
   return route;
 }
@@ -1291,6 +1439,7 @@ export async function recordAuthenticatedSessionInterruption(
         }));
 
         if (error) {
+          const rejection = nonRetryableTerminalServerRejection("interruption", error);
           const code = typeof error.code === "string" && /^[A-Za-z0-9_]{1,64}$/.test(error.code)
             ? error.code
             : "unknown";
@@ -1298,12 +1447,18 @@ export async function recordAuthenticatedSessionInterruption(
             ? error.message
             : "unclassified";
           console.error(`YOVA session interruption sync failed [${code}:${reason}]`);
+          if (rejection) {
+            throw new NonRetryableSessionTerminalMutationError("interruption", rejection);
+          }
           throw new SessionInterruptionCloudSyncError();
         }
       });
     });
   } catch (cause) {
-    if (cause instanceof SessionInterruptionCloudSyncError) {
+    if (
+      cause instanceof SessionInterruptionCloudSyncError
+      || cause instanceof NonRetryableSessionTerminalMutationError
+    ) {
       throw cause;
     }
     const reason = cause instanceof AuthenticatedLearningMutationDeadlineError

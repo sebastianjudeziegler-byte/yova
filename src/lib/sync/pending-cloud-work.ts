@@ -4,7 +4,11 @@ import {
   type AuthoritativeLearnerProfileSyncSnapshot,
   type LearnerProfileSyncState,
 } from "@/lib/sync/learner-profile-sync-snapshot";
-import { flushQueuedSessionTerminals } from "@/lib/sync/session-terminal-outbox";
+import {
+  flushQueuedSessionTerminals,
+  reconcileQueuedSessionTerminalsAgainstAuthority,
+  type AuthoritativeSessionTerminalInventory,
+} from "@/lib/sync/session-terminal-outbox";
 
 export type CurrentLearnerProfileSyncState = Readonly<{
   onboardingCompleted: boolean;
@@ -17,6 +21,11 @@ export type PendingCloudWorkResult = Readonly<{
   syncedProfileState: LearnerProfileSyncState | null;
 }>;
 
+export type CurrentAuthoritativeSessionTerminalState = Readonly<{
+  accountId: string;
+  inventory: AuthoritativeSessionTerminalInventory;
+}>;
+
 /**
  * Flushes terminal events before considering a profile retry. The profile is
  * intentionally read only after that await so an edit made while terminal
@@ -25,7 +34,15 @@ export type PendingCloudWorkResult = Readonly<{
 export async function syncPendingCloudWork(
   accountId: string,
   readCurrentProfile: () => CurrentLearnerProfileSyncState | null,
+  readCurrentTerminalAuthority: () => CurrentAuthoritativeSessionTerminalState | null = () => null,
 ): Promise<PendingCloudWorkResult> {
+  const terminalAuthority = readCurrentTerminalAuthority();
+  if (terminalAuthority?.accountId === accountId) {
+    reconcileQueuedSessionTerminalsAgainstAuthority(
+      accountId,
+      terminalAuthority.inventory,
+    );
+  }
   const terminalResult = await flushQueuedSessionTerminals(accountId);
   const pendingEvents = terminalResult.remaining;
   if (pendingEvents > 0) {
