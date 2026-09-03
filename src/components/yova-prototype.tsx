@@ -1,5 +1,6 @@
 "use client";
 
+import { topicDisplayLabel } from "@/lib/learning/topic-display-label";
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
@@ -6814,10 +6815,10 @@ function SessionSetup({ plan: storedPlan, answers, completions, interruptions, o
 }
 
 export function formatSessionPreparationTopic(topic: string | null | undefined) {
-  const displayTopic = topic?.trim() || "your goal";
-  return /[.!?…](?:["'”’)\]])?$/u.test(displayTopic)
-    ? displayTopic
-    : `${displayTopic}.`;
+  // COPY CONTRACT (docs/COPY-CONTRACT.md): goals are sentences; labels are
+  // noun phrases. Normalize before display — never interpolate raw goal
+  // prose into template copy.
+  return topicDisplayLabel(topic);
 }
 
 export function SessionLoading({ plan, onExit }: { plan: LearningPlan | null; onExit: () => void }) {
@@ -6837,7 +6838,7 @@ export function SessionLoading({ plan, onExit }: { plan: LearningPlan | null; on
       ? "Building and checking the guided lesson."
       : "This is taking longer than usual. Keep this page open while YOVA finishes the lesson.";
 
-  return <main className="centered-shell session-loading"><BrandMark /><section><div className="session-loading-orbit" aria-hidden="true"><span className="button-spinner dark" /><Target size={22} /></div><span className="step-label">PREPARING YOUR SESSION</span><h1>Preparing the next part of <em>{formatSessionPreparationTopic(plan?.topic)}</em></h1><p>YOVA is choosing a focused objective, the right amount of support, and a clear way to show what you understood.</p><div className="session-building-list" aria-label="What YOVA is preparing"><article><Target size={18} /><div><strong>Focused content</strong><span>Only the ideas that fit this session</span></div></article><article><Settings2 size={18} /><div><strong>Delivery</strong><span>The task selects the method; your context adjusts the support</span></div></article><article><BookOpen size={18} /><div><strong>Teaching and practice</strong><span>Explanation first when the topic is new</span></div></article><article><Check size={18} /><div><strong>Completion evidence</strong><span>Finished work, not elapsed time</span></div></article></div><div className="session-building-status" role="status" aria-live="polite"><Clock3 size={17} /><div><strong>{status}</strong><span>{formatElapsedDuration(elapsedSeconds)} elapsed</span></div></div><button className="button ghost" onClick={onExit}>Cancel</button></section></main>;
+  return <main className="centered-shell session-loading"><BrandMark /><section><div className="session-loading-orbit" aria-hidden="true"><span className="button-spinner dark" /><Target size={22} /></div><span className="step-label">PREPARING YOUR SESSION</span><h1>Preparing your next section: <em>{formatSessionPreparationTopic(plan?.topic)}</em></h1><p>YOVA is choosing a focused objective, the right amount of support, and a clear way to show what you understood.</p><div className="session-building-list" aria-label="What YOVA is preparing"><article><Target size={18} /><div><strong>Focused content</strong><span>Only the ideas that fit this session</span></div></article><article><Settings2 size={18} /><div><strong>Delivery</strong><span>The task selects the method; your context adjusts the support</span></div></article><article><BookOpen size={18} /><div><strong>Teaching and practice</strong><span>Explanation first when the topic is new</span></div></article><article><Check size={18} /><div><strong>Completion evidence</strong><span>Finished work, not elapsed time</span></div></article></div><div className="session-building-status" role="status" aria-live="polite"><Clock3 size={17} /><div><strong>{status}</strong><span>{formatElapsedDuration(elapsedSeconds)} elapsed</span></div></div><button className="button ghost" onClick={onExit}>Cancel</button></section></main>;
 }
 
 export function SessionGenerationRecovery({ plan, session, briefing, coverage, failureState, issue, canStartMethod, onExit, onOpenGoal, onStartMethod, onRetry, onReviewSetup }: {
