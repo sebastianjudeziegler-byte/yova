@@ -2,9 +2,41 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { getSupabasePublicConfig } from "@/lib/supabase/config";
 
+const PUBLIC_INVITE_ONLY_PATHS = new Set([
+  "/privacy",
+  "/terms",
+  "/support",
+  "/robots.txt",
+  "/sitemap.xml",
+  "/manifest.webmanifest",
+  "/opengraph-image",
+  "/twitter-image",
+  "/study-profile",
+  "/study-profile/waitlist/confirm",
+  "/study-profile/opengraph-image",
+  "/study-profile/twitter-image",
+  "/api/system/status",
+  "/api/errors",
+  "/api/internal/account-export-cleanup",
+  "/api/study-profile/events",
+  "/api/study-profile/responses",
+  "/api/study-profile/waitlist",
+  "/api/study-profile/waitlist/confirm",
+]);
+
+const PUBLIC_STUDY_PROFILE_REPORT_PATH = /^\/study-profile\/report\/[^/]+$/u;
+const PUBLIC_STUDY_PROFILE_TOKEN_API_PATH = /^\/api\/study-profile\/(?:reports|interest)\/[^/]+$/u;
+
 export async function updateSupabaseSession(request: NextRequest) {
+  const inviteOnly = process.env.AUTH_INVITE_ONLY === "true";
+  const publicPath = isPublicInviteOnlyPath(request.nextUrl.pathname);
   const config = getSupabasePublicConfig();
-  if (!config) return NextResponse.next({ request });
+  if (!config) {
+    if (!inviteOnly || publicPath || request.nextUrl.pathname === "/") {
+      return NextResponse.next({ request });
+    }
+    return inviteAccessUnavailableResponse(request);
+  }
 
   let response = NextResponse.next({ request });
   const supabase = createServerClient(config.url, config.publishableKey, {
@@ -24,15 +56,17 @@ export async function updateSupabaseSession(request: NextRequest) {
   const { data: claimsData } = await supabase.auth.getClaims();
   const claims = claimsData?.claims;
 
-  if (process.env.AUTH_INVITE_ONLY !== "true" || isPublicInviteOnlyPath(request.nextUrl.pathname)) {
+  if (!inviteOnly || publicPath) {
     return response;
   }
 
   const authenticated = typeof claims?.sub === "string" && claims.sub.length > 0;
   if (!authenticated) {
-    return request.nextUrl.pathname.startsWith("/api/")
-      ? inviteAccessResponse(request, response, 401)
-      : response;
+    // Keep the marketing shell visible, but do not let signed-out visitors
+    // browse product pages that happen to render without an API request.
+    return request.nextUrl.pathname === "/"
+      ? response
+      : inviteAccessResponse(request, response, 401);
   }
 
   const { data: accessGranted, error: accessError } = await supabase
@@ -59,13 +93,10 @@ function inviteAccessUnavailableResponse(request: NextRequest) {
 }
 
 export function isPublicInviteOnlyPath(pathname: string) {
-  return pathname === "/privacy"
-    || pathname === "/terms"
-    || pathname === "/support"
+  return PUBLIC_INVITE_ONLY_PATHS.has(pathname)
     || pathname.startsWith("/auth/")
-    || pathname === "/api/system/status"
-    || pathname === "/api/errors"
-    || pathname === "/api/support";
+    || PUBLIC_STUDY_PROFILE_REPORT_PATH.test(pathname)
+    || PUBLIC_STUDY_PROFILE_TOKEN_API_PATH.test(pathname);
 }
 
 function inviteAccessResponse(
