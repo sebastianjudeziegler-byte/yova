@@ -376,14 +376,14 @@ export function StudyProfileExperience() {
                 <span className={styles.lockedResultStatus}><LockKeyhole size={15} aria-hidden="true" /> Results ready</span>
                 <h1 id="pattern-reveal-heading" ref={headingRef} tabIndex={-1}>There is a clear pattern in your answers.</h1>
                 <p>Sign up for the YOVA waitlist to unlock your private report and see what to try next. We will email you to confirm your place.</p>
-                <div className={styles.unlockList} aria-label="Full report includes">
-                  <span><CheckCircle2 size={17} aria-hidden="true" /> Your named study pattern</span>
-                  <span><CheckCircle2 size={17} aria-hidden="true" /> The habit most likely getting in your way</span>
-                  <span><CheckCircle2 size={17} aria-hidden="true" /> Three methods matched to how you study</span>
-                  <span><CheckCircle2 size={17} aria-hidden="true" /> A plan you can use tonight</span>
-                </div>
                 <label htmlFor="study-profile-email">Email for your private report link</label>
                 <div className={styles.emailInputWrap}><Mail size={18} aria-hidden="true" /><input id="study-profile-email" name="email" type="email" inputMode="email" autoComplete="email" required maxLength={254} placeholder="you@example.com" value={email} onChange={(event) => setEmail(event.target.value)} aria-describedby="email-consent-note" /></div>
+                <div className={styles.unlockList} aria-label="Full report includes">
+                  <span><CheckCircle2 size={17} aria-hidden="true" /> Your named study pattern</span>
+                  <span><CheckCircle2 size={17} aria-hidden="true" /> Your biggest study barrier</span>
+                  <span><CheckCircle2 size={17} aria-hidden="true" /> Three methods matched to you</span>
+                  <span><CheckCircle2 size={17} aria-hidden="true" /> A plan for tonight</span>
+                </div>
                 <label className={styles.consentRow}><input type="checkbox" required checked={ageConfirmed} onChange={(event) => setAgeConfirmed(event.target.checked)} /><span><strong>I confirm I am 13 or older.</strong></span></label>
                 <label className={styles.consentRow}><input type="checkbox" required checked={marketingConsent} onChange={(event) => setMarketingConsent(event.target.checked)} /><span><strong>Sign up for the YOVA waitlist.</strong> Free to join. We will email you at launch, and you can unsubscribe at any time.</span></label>
                 {submissionError && <p className={styles.formError} role="alert">{submissionError}</p>}

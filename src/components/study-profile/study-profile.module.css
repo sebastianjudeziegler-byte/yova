@@ -11,6 +11,7 @@
   --sp-card-radius: 18px;
   --sp-hero-radius: 22px;
   min-height: 100vh;
+  min-height: 100dvh;
   color: var(--text, #33415f);
   background: var(--off-white, #f7f8fc);
 }
@@ -35,6 +36,7 @@
 .landingPage summary,
 .reportPage summary {
   -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
 }
 
 .landingPage button:focus-visible,
@@ -557,6 +559,7 @@
 
 .waitlistConsent,
 .consentRow {
+  min-height: 44px;
   margin-top: 11px;
   display: grid;
   grid-template-columns: 20px minmax(0, 1fr);
@@ -658,7 +661,11 @@
 .publicFooter a { color: inherit; text-decoration: none; }
 
 /* Assessment */
-.assessmentPage { min-height: 100svh; padding-bottom: 58px; }
+.assessmentPage {
+  min-height: 100svh;
+  min-height: 100dvh;
+  padding-bottom: calc(58px + env(safe-area-inset-bottom, 0px));
+}
 .assessmentHeader { position: relative; z-index: 2; }
 
 .progressShell,
@@ -735,7 +742,7 @@
   transition: border-color .16s ease, background .16s ease, box-shadow .16s ease, transform .16s ease;
 }
 
-.answerList > button { padding: 12px 13px; display: grid; grid-template-columns: 36px minmax(0, 1fr) 24px; align-items: center; gap: 11px; font-size: 14px; line-height: 1.45; }
+.answerList > button { padding: 12px 13px; display: grid; grid-template-columns: 36px minmax(0, 1fr) 24px; align-items: center; gap: 11px; font-size: 15px; line-height: 1.45; }
 .answerKey { width: 34px; height: 34px; display: grid; place-items: center; color: var(--muted, #667085); border: 1px solid rgba(11, 16, 32, .1); border-radius: 10px; background: rgba(255, 255, 255, .72); font: 700 11px/1 var(--font-mono, "JetBrains Mono"), monospace; }
 .answerCheck { width: 22px; height: 22px; display: grid; place-items: center; color: transparent; border: 1px solid rgba(11, 16, 32, .12); border-radius: 50%; }
 .answerSelected .answerKey,
@@ -820,7 +827,7 @@
 .emailInputWrap input { width: 100%; min-width: 0; min-height: 50px; color: var(--ink, #0b1020); border: 0; background: transparent; outline: 0; font-size: 16px; }
 .emailGate .primaryButton { width: 100%; margin-top: 16px; padding-block: 13px; }
 .emailNote,
-.legalNote { margin: 9px 0 0; color: var(--muted, #667085); font-size: 11px; line-height: 1.5; text-align: center; }
+.legalNote { margin: 9px 0 0; color: var(--muted, #667085); font-size: 12px; line-height: 1.5; text-align: center; }
 .legalNote a { color: var(--secondary, #475069); }
 .formError { margin: 11px 0 0; padding: 11px 13px; color: var(--sp-danger); border: 1px solid rgba(163, 50, 66, .12); border-radius: 11px; background: var(--sp-danger-soft); font-size: 13px; line-height: 1.5; }
 .srOnly { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
@@ -853,7 +860,7 @@
 .patternTwist { display: block; margin-top: 9px; color: var(--ink, #0b1020); font-size: 14px; line-height: 1.5; }
 .patternModifier { display: inline-flex; margin-top: 13px; padding: 7px 11px; color: var(--blue, #2450c7); border: 1px solid rgba(36, 80, 199, .16); border-radius: 999px; background: rgba(36, 80, 199, .08); font-size: 12px; font-weight: 650; }
 .contextPills { margin-top: 20px; display: flex; flex-wrap: wrap; gap: 7px; }
-.contextPills span { padding: 8px 10px; display: inline-flex; align-items: center; gap: 6px; color: var(--secondary, #475069); border: 1px solid rgba(11, 16, 32, .08); border-radius: 999px; background: rgba(255, 255, 255, .66); font-size: 11px; line-height: 1.35; }
+.contextPills span { padding: 8px 10px; display: inline-flex; align-items: center; gap: 6px; color: var(--secondary, #475069); border: 1px solid rgba(11, 16, 32, .08); border-radius: 999px; background: rgba(255, 255, 255, .66); font-size: 12px; line-height: 1.35; }
 .contextPills svg { flex: none; color: var(--blue, #2450c7); }
 .productThread { margin: 19px 0 0; padding-top: 16px; color: var(--muted, #667085); border-top: var(--hairline, 1px solid rgba(11, 16, 32, .06)); font-size: 14px; line-height: 1.6; }
 
@@ -866,7 +873,7 @@
 .waitlistBanner strong { display: block; color: var(--ink, #0b1020); font-size: 16px; }
 .waitlistBanner span { display: block; margin-top: 3px; color: var(--secondary, #475069); font-size: 13px; line-height: 1.5; }
 .waitlistBanner .primaryButton { width: 100%; }
-.waitlistAgeConsent { margin-top: 10px; display: grid; grid-template-columns: 20px minmax(0, 1fr); align-items: start; gap: 8px; color: var(--secondary, #475069); font-size: 12px; line-height: 1.5; cursor: pointer; }
+.waitlistAgeConsent { min-height: 44px; margin-top: 10px; padding-block: 6px; display: grid; grid-template-columns: 20px minmax(0, 1fr); align-items: center; gap: 8px; color: var(--secondary, #475069); font-size: 12px; line-height: 1.5; cursor: pointer; }
 .waitlistAgeConsent input { width: 18px; height: 18px; margin: 1px 0 0; accent-color: var(--blue, #2450c7); }
 .waitlistBanner .waitlistAgeConsent span { margin-top: 0; font-size: 12px; }
 
@@ -983,12 +990,13 @@
 .waitlistCopy p { margin: 0; color: var(--muted, #667085); font-size: 14px; line-height: 1.6; }
 .waitlistCopy p + p { margin-top: 7px; }
 .waitlistSection > .primaryButton { width: 100%; }
-.interestSuccess:focus-visible { outline: 3px solid rgba(36, 80, 199, .35); outline-offset: 3px; }
-.interestPending:focus-visible { outline: 3px solid rgba(36, 80, 199, .35); outline-offset: 3px; }
+.interestSuccess:focus-visible { outline: 3px solid var(--blue, #2450c7); outline-offset: 3px; }
+.interestPending:focus-visible { outline: 3px solid var(--blue, #2450c7); outline-offset: 3px; }
 .waitlistSection > .formError { margin: 0; }
 
 .confirmationPage {
   min-height: 100svh;
+  min-height: 100dvh;
   display: grid;
   place-items: center;
   padding: 28px 18px;
@@ -1016,7 +1024,7 @@
 .confirmationCard h1 {
   margin: 10px 0 12px;
   color: var(--ink, #0b1020);
-  font-family: var(--font-display), Georgia, serif;
+  font-family: var(--font-newsreader, "Newsreader"), Georgia, serif;
   font-size: clamp(34px, 8vw, 54px);
   line-height: 1.02;
   letter-spacing: -.045em;
@@ -1047,6 +1055,88 @@
 .methodology p { margin: 0; font-size: 13px; line-height: 1.6; }
 .researchAreas { color: var(--faint, #8b95a7); }
 .methodology p.researchAreas { margin-top: 7px; color: var(--faint, #8b95a7); font-size: 12px; }
+
+@media (max-width: 599px) {
+  .publicHeader,
+  .assessmentHeader { min-height: 66px; }
+
+  .landingHero { padding: 18px 0 48px; gap: 27px; }
+  .heroCopy h1 { margin-block: 17px 13px; font-size: clamp(39px, 11vw, 46px); }
+  .heroCopy > p { line-height: 1.62; }
+  .heroActions { margin-top: 21px; }
+  .heroActions .primaryButton,
+  .sampleResultCopy .secondaryCta,
+  .finalCtaSection .primaryButton { width: 100%; }
+  .heroTrust { gap: 8px 13px; }
+  .reportPreview { padding: 21px; }
+
+  .valueSection,
+  .howItWorks { padding-block: 46px; }
+  .proofGrid article { min-height: 0; padding: 20px; }
+  .proofGrid h3 { margin-top: 16px; }
+  .sampleResultSection,
+  .yovaIntroSection,
+  .researchStrip,
+  .finalCtaSection { margin-block: 46px; }
+  .sampleResultSection,
+  .yovaIntroSection,
+  .finalCtaSection { padding: 22px; }
+  .researchStrip { padding: 20px; }
+  .finalCtaSection { margin-bottom: 54px; }
+  .landingWaitlistCompact { padding-top: 18px; }
+
+  .progressShell { margin-top: 1px; }
+  .assessmentMain { margin-top: 8px; }
+  .questionScreen,
+  .metadataScreen { padding: 22px 18px; }
+  .questionScreen h1,
+  .metadataScreen h1 { font-size: clamp(29px, 8.5vw, 35px); }
+  .answerList,
+  .metadataOptions { margin-top: 19px; gap: 8px; }
+  .metadataOptions > button { min-height: 64px; }
+  .metadataOptions > button > small { font-size: 13px; }
+  .contextGroups { margin-top: 19px; gap: 18px; }
+  .contextChoices { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .contextChoices > button:last-child:nth-child(odd) { grid-column: 1 / -1; }
+
+  .emailGate { margin-top: 5px; padding: 20px 18px; }
+  .emailGate h1,
+  .emailGate h2 { font-size: clamp(29px, 8.5vw, 34px); }
+  .emailGate > p { line-height: 1.55; }
+  .emailGate > label:not(.consentRow) { margin-top: 14px; }
+  .unlockList { margin-block: 15px 10px; gap: 8px; }
+  .unlockList span { font-size: 13px; }
+  .consentRow,
+  .waitlistConsent { margin-top: 4px; padding-block: 7px; align-items: center; }
+  .emailGate .primaryButton { min-height: 52px; margin-top: 12px; }
+
+  .deliveryNotice,
+  .reportBody { width: calc(100% - 24px); }
+  .reportHero { width: calc(100% - 24px); padding: 27px 18px; gap: 22px; }
+  .reportHeroCopy h1 { font-size: clamp(37px, 10.5vw, 47px); }
+  .whySection { margin-top: 44px; padding: 22px 18px; }
+  .reportSection { padding-top: 58px; }
+  .topMethodGrid,
+  .methodCatalogGrid,
+  .dimensionGrid,
+  .warningGrid { margin-top: 22px; }
+  .topMethodCard { padding: 20px 18px; }
+  .catalogCard summary { min-height: 0; padding: 18px; }
+  .catalogCard summary > span { font-size: 12px; }
+  .catalogDetail { padding-inline: 18px; }
+  .sessionPlan,
+  .shareSection,
+  .waitlistSection { margin-top: 58px; padding: 22px 18px; }
+  .methodology { margin-bottom: calc(48px + env(safe-area-inset-bottom, 0px)); }
+  .methodology p.researchAreas { color: var(--muted, #667085); }
+
+  .confirmationPage {
+    padding: max(16px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) max(16px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
+  }
+  .confirmationCard { padding: 24px; backdrop-filter: blur(16px); }
+  .confirmationCard > svg { margin-top: 24px; }
+  .confirmationCard h1 { font-size: clamp(32px, 9vw, 42px); }
+}
 
 @media (hover: hover) and (pointer: fine) {
   .primaryButton:hover:not(:disabled) { transform: translateY(-2px); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .25), 0 14px 32px rgba(36, 80, 199, .42); }
@@ -1158,7 +1248,7 @@
   .brandLink :global(.brand-word) { display: none; }
   .progressMeta { align-items: flex-start; flex-direction: column; gap: 3px; }
   .progressMeta small { max-width: none; text-align: left; }
-  .contextChoices { grid-template-columns: 1fr; }
+  .contextChoices { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .patternReveal { min-height: 425px; }
   .habitChartRow,
   .habitChartCompact .habitChartRow { grid-template-columns: minmax(82px, 1fr) minmax(82px, .85fr) minmax(66px, .65fr); }

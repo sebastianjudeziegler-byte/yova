@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 
 const DRAFT_STORAGE_KEY = "yova.study-profile.draft.v2";
 const STUDY_PROFILE_SUPPORT_MAILTO = "mailto:hello@yovaapp.com?subject=YOVA%20Study%20Profile%20support";
@@ -182,10 +182,28 @@ test.describe("YOVA Study Profile", () => {
       .toBeVisible();
     await expect(page.getByText(/beta/i)).toHaveCount(0);
 
-    for (const width of [360, 390]) {
+    for (const width of [320, 360, 390, 430]) {
       await page.setViewportSize({ width, height: 844 });
       await expectNoHorizontalOverflow(page);
+      await expectSingleColumn(page.locator('section[aria-labelledby="report-title"] > div'));
+      await expectSingleColumn(page.getByTestId("study-method-card"));
+      await expectMinimumTapTargets(
+        page.locator('section[aria-labelledby="catalog-heading"] details > summary').first(),
+      );
+      await expectSingleColumn(
+        page.locator('section[aria-labelledby="share-heading"] button'),
+      );
+      await expectMinimumTapTargets(
+        page.locator('section[aria-labelledby="share-heading"] button'),
+      );
     }
+
+    const firstCatalogItem = page
+      .locator('section[aria-labelledby="catalog-heading"] details')
+      .first();
+    await firstCatalogItem.locator("summary").click();
+    await expect(firstCatalogItem).toHaveAttribute("open", "");
+    await expectNoHorizontalOverflow(page);
 
     await seedStaleStudyProfileDraft(page);
     await page.getByRole("link", { name: "Retake" }).click();
@@ -272,11 +290,23 @@ test.describe("YOVA Study Profile", () => {
     expect(confirmationPosts).toBe(0);
     await expect(page.locator("body")).not.toContainText(confirmationToken);
 
-    await page.getByRole("button", { name: "Confirm my place" }).click();
+    await page.setViewportSize({ width: 360, height: 640 });
+    await expectNoHorizontalOverflow(page);
+    const confirmButton = page.getByRole("button", { name: "Confirm my place" });
+    await expect(confirmButton).toBeEnabled();
+    await expectMinimumTapTargets(confirmButton);
+    await confirmButton.scrollIntoViewIfNeeded();
+    await expectFullyInViewport(page, confirmButton);
+    await confirmButton.click();
     expect(confirmationPosts).toBe(1);
     await expect(page.getByRole("heading", {
       name: "You are on the YOVA waitlist.",
     })).toBeVisible();
+    const backToProfile = page.getByRole("link", { name: "Back to Study Profile" });
+    await expectMinimumTapTargets(backToProfile);
+    await backToProfile.scrollIntoViewIfNeeded();
+    await expectFullyInViewport(page, backToProfile);
+    await expectNoHorizontalOverflow(page);
     await expect(page).toHaveURL("/study-profile/waitlist/confirm");
   });
 
@@ -292,9 +322,10 @@ test.describe("YOVA Study Profile", () => {
     await expect(page.getByText("YOVA privacy or deletion request", { exact: false })).toBeVisible();
   });
 
-  test("keeps the landing and reveal layouts within 360px and 390px viewports", async ({ browser }, testInfo) => {
-    test.setTimeout(90_000);
-    for (const width of [360, 390]) {
+  test("keeps every pre-report screen usable on common phone widths", async ({ browser }, testInfo) => {
+    test.skip(testInfo.project.name !== "mobile-chromium", "Mobile-only geometry coverage.");
+    test.setTimeout(120_000);
+    for (const width of [320, 360, 390, 430]) {
       const context = await browser.newContext({
         baseURL: testInfo.project.use.baseURL,
         deviceScaleFactor: testInfo.project.use.deviceScaleFactor,
@@ -312,9 +343,73 @@ test.describe("YOVA Study Profile", () => {
         })).toBeVisible();
         await expectNoHorizontalOverflow(viewportPage);
 
-        await viewportPage.getByRole("button", { name: "Get my free study profile" }).first().click();
-        await completeAssessmentToReveal(viewportPage);
+        const startButton = viewportPage
+          .getByRole("button", { name: "Get my free study profile" })
+          .first();
+        await expectMinimumTapTargets(startButton);
+        await startButton.tap();
+
+        await expectOnlyQuestion(viewportPage, 1);
+        const firstAnswers = viewportPage
+          .getByRole("radiogroup", { name: "Answers for question 1" })
+          .getByRole("radio");
+        await expectMinimumTapTargets(firstAnswers);
+        await expectNoHorizontalOverflow(viewportPage);
+        await firstAnswers.first().tap();
+        for (let questionNumber = 2; questionNumber <= 12; questionNumber += 1) {
+          await answerQuestion(viewportPage, questionNumber, 0);
+        }
+
+        await expectStudyGoalStep(viewportPage);
+        const goalOptions = viewportPage.locator("main section button").filter({
+          has: viewportPage.locator("small"),
+        });
+        await expectSingleColumn(goalOptions);
+        await expectMinimumTapTargets(goalOptions);
+        await expectNoElementOverlap(goalOptions);
+        await expectNoHorizontalOverflow(viewportPage);
+        await viewportPage.getByRole("button", { name: /^Exams coming up/ }).tap();
+
+        await expectCombinedContextStep(viewportPage);
+        const contextOptions = viewportPage.locator("fieldset button");
+        await expectMinimumTapTargets(contextOptions);
+        await expectNoElementOverlap(contextOptions);
+        await expectNoHorizontalOverflow(viewportPage);
+        await viewportPage.getByRole("button", { name: "Morning", exact: true }).tap();
+        await viewportPage.getByRole("button", { name: "High school", exact: true }).tap();
+        const finishButton = viewportPage.getByRole("button", {
+          name: "Finish and unlock my results",
+        });
+        await expectMinimumTapTargets(finishButton);
+        await finishButton.tap();
+
         await expectLockedReveal(viewportPage);
+        await expectNoHorizontalOverflow(viewportPage);
+        const emailInput = viewportPage.getByLabel("Email for your private report link");
+        await expect.poll(async () => emailInput.evaluate((element) => (
+          Number.parseFloat(window.getComputedStyle(element).fontSize)
+        ))).toBeGreaterThanOrEqual(16);
+        const ageLabel = viewportPage.locator("label").filter({
+          has: viewportPage.getByRole("checkbox", { name: "I confirm I am 13 or older." }),
+        });
+        const waitlistLabel = viewportPage.locator("label").filter({
+          has: viewportPage.getByRole("checkbox", { name: /Sign up for the YOVA waitlist\./ }),
+        });
+        await expectMinimumTapTargets(ageLabel);
+        await expectMinimumTapTargets(waitlistLabel);
+        await expectMinimumTapTargets(
+          viewportPage.getByRole("button", { name: "Sign up and see my results" }),
+        );
+
+        await viewportPage.setViewportSize({ width, height: 480 });
+        await emailInput.focus();
+        await emailInput.scrollIntoViewIfNeeded();
+        await expectFullyInViewport(viewportPage, emailInput);
+        const submitButton = viewportPage.getByRole("button", {
+          name: "Sign up and see my results",
+        });
+        await submitButton.scrollIntoViewIfNeeded();
+        await expectFullyInViewport(viewportPage, submitButton);
         await expectNoHorizontalOverflow(viewportPage);
       } finally {
         await context.close();
@@ -386,8 +481,11 @@ async function expectOnlyQuestion(page: Page, questionNumber: number) {
   await expect(currentGroup).toBeVisible();
   await expect(currentGroup.getByRole("radio")).toHaveCount(4);
   await expect(page.getByRole("radiogroup", { name: /^Answers for question \d+$/ })).toHaveCount(1);
-  await expect(page.getByText("Keyboard: press 1 to 4, A to D, or use arrow keys"))
-    .toHaveText("Keyboard: press 1 to 4, A to D, or use arrow keys");
+  const keyboardHint = page.getByText("Keyboard: press 1 to 4, A to D, or use arrow keys");
+  await expect(keyboardHint).toHaveText("Keyboard: press 1 to 4, A to D, or use arrow keys");
+  const usesCoarsePointer = await page.evaluate(() => window.matchMedia("(pointer: coarse)").matches);
+  if (usesCoarsePointer) await expect(keyboardHint).toBeHidden();
+  else await expect(keyboardHint).toBeVisible();
   await expectNoPercentOrContextSwitch(page);
 }
 
@@ -587,4 +685,66 @@ async function expectNoHorizontalOverflow(page: Page) {
     overflow.scrollWidth,
     `Horizontal overflow at ${await page.evaluate(() => window.innerWidth)}px: ${JSON.stringify(overflow.offenders)}`,
   ).toBeLessThanOrEqual(overflow.clientWidth + 1);
+}
+
+async function expectMinimumTapTargets(locator: Locator, minimum = 44) {
+  const sizes = await locator.evaluateAll((elements) => elements
+    .filter((element) => {
+      const htmlElement = element as HTMLElement;
+      const style = window.getComputedStyle(htmlElement);
+      return style.display !== "none" && style.visibility !== "hidden";
+    })
+    .map((element) => {
+      const bounds = element.getBoundingClientRect();
+      return { width: bounds.width, height: bounds.height, text: element.textContent?.trim() ?? "" };
+    }));
+
+  expect(sizes.length).toBeGreaterThan(0);
+  for (const size of sizes) {
+    expect(size.width, `Tap target is too narrow: ${size.text}`).toBeGreaterThanOrEqual(minimum);
+    expect(size.height, `Tap target is too short: ${size.text}`).toBeGreaterThanOrEqual(minimum);
+  }
+}
+
+async function expectNoElementOverlap(locator: Locator) {
+  const boxes = await locator.evaluateAll((elements) => elements.map((element) => {
+    const bounds = element.getBoundingClientRect();
+    return { left: bounds.left, right: bounds.right, top: bounds.top, bottom: bounds.bottom };
+  }));
+
+  for (let firstIndex = 0; firstIndex < boxes.length; firstIndex += 1) {
+    for (let secondIndex = firstIndex + 1; secondIndex < boxes.length; secondIndex += 1) {
+      const first = boxes[firstIndex];
+      const second = boxes[secondIndex];
+      const overlapsHorizontally = first.left < second.right - 1 && first.right > second.left + 1;
+      const overlapsVertically = first.top < second.bottom - 1 && first.bottom > second.top + 1;
+      expect(overlapsHorizontally && overlapsVertically).toBe(false);
+    }
+  }
+}
+
+async function expectSingleColumn(locator: Locator) {
+  const boxes = await locator.evaluateAll((elements) => elements.map((element) => {
+    const bounds = element.getBoundingClientRect();
+    return { left: bounds.left, width: bounds.width, top: bounds.top, bottom: bounds.bottom };
+  }));
+
+  expect(boxes.length).toBeGreaterThan(0);
+  for (let index = 0; index < boxes.length; index += 1) {
+    expect(Math.abs(boxes[index].left - boxes[0].left)).toBeLessThanOrEqual(1);
+    expect(Math.abs(boxes[index].width - boxes[0].width)).toBeLessThanOrEqual(1);
+    if (index > 0) expect(boxes[index].top).toBeGreaterThanOrEqual(boxes[index - 1].bottom - 1);
+  }
+}
+
+async function expectFullyInViewport(page: Page, locator: Locator) {
+  const box = await locator.boundingBox();
+  const viewport = page.viewportSize();
+  expect(box).not.toBeNull();
+  expect(viewport).not.toBeNull();
+  if (!box || !viewport) return;
+  expect(box.x).toBeGreaterThanOrEqual(0);
+  expect(box.y).toBeGreaterThanOrEqual(0);
+  expect(box.x + box.width).toBeLessThanOrEqual(viewport.width + 1);
+  expect(box.y + box.height).toBeLessThanOrEqual(viewport.height + 1);
 }
