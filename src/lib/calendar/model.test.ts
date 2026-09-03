@@ -343,7 +343,7 @@ describe("calendar derived model", () => {
       },
       topics: [{
         id: "10000000-1000-4000-8000-000000000001",
-        title: "Deferred causation",
+        title: "in opposite directions in the two hemispheres, so I can explain the mechanism in plain language.",
         description: "Explain the deferred causal relationship accurately.",
         subtopics: [],
         prerequisiteTopicIds: [],
@@ -376,6 +376,8 @@ describe("calendar derived model", () => {
       "fixed_event_conflict",
       "deferred_content_unscheduled",
     ]));
+    expect(model.issues.find((issue) => issue.kind === "deferred_content_unscheduled")?.reason)
+      .toBe("Opposite directions in the two hemispheres: The current deadline cannot fit this topic safely.");
     expect(model.issues.every((issue) => issue.reason.length >= 8 && issue.action.label.length > 0)).toBe(true);
   });
 

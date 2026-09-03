@@ -1,4 +1,5 @@
 import type { DeadlineMilestone, LearningPlan } from "@/lib/domain";
+import { topicDisplayLabel } from "@/lib/learning/topic-display-label";
 import { isOperationalPlan } from "@/lib/learning/plan-visibility";
 import { isSessionOverdue } from "@/lib/scheduling/recovery";
 import type {
@@ -226,7 +227,7 @@ export function deriveCalendarIssues(input: {
       kind: "deferred_content_unscheduled",
       severity: "warning",
       title: `${deferred.length} ${deferred.length === 1 ? "topic is" : "topics are"} outside ${plan.title}'s schedule`,
-      reason: deferred.slice(0, 2).map((topic) => `${topic.title}: ${topic.deferred!.reason}`).join(" "),
+      reason: deferred.slice(0, 2).map((topic) => `${topicDisplayLabel(topic.title)}: ${topic.deferred!.reason}`).join(" "),
       action: { kind: "review_deferred_content", label: "Review deferred content", targetId: plan.id },
     });
   }
