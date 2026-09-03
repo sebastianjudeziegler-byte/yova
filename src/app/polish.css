@@ -836,3 +836,19 @@ a:hover { color: var(--ink); }
 .hero-product-preview { border-radius: 20px; box-shadow: 0 26px 70px rgba(11,16,32,.32); }
 .preview-start { border-radius: 999px; background: var(--grad-primary); }
 .account-card { border: 1px solid #fff; border-radius: 20px; background: rgba(255,255,255,.9); box-shadow: var(--shadow-sm); }
+
+
+/* ---- Calendar rail: "Next up" order-of-business queue ---- */
+.calendar-next-up { display: flex; flex-direction: column; gap: 12px; }
+.calendar-next-up-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.calendar-next-up-item { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--glass-border); border-radius: 14px; background: rgba(255,255,255,.7); }
+.calendar-next-up-item.overdue { border-color: rgba(200,60,60,.35); background: linear-gradient(180deg, rgba(200,60,60,.06), rgba(200,60,60,.02)); }
+.calendar-next-up-item.today { border-color: var(--tint-border); background: var(--tint-bg); }
+.calendar-next-up-open { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; border: 0; background: none; padding: 0; text-align: left; }
+.calendar-next-up-tag { flex: 0 0 auto; font-family: var(--font-mono), monospace; font-size: 8.5px; font-weight: 700; letter-spacing: .06em; padding: 3px 7px; border-radius: 999px; color: var(--faint); background: rgba(11,16,32,.05); }
+.calendar-next-up-tag.overdue { color: #b0333a; background: rgba(200,60,60,.1); }
+.calendar-next-up-tag.today { color: var(--blue); background: rgba(36,80,199,.1); }
+.calendar-next-up-copy { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.calendar-next-up-copy strong { font-size: 12.5px; color: var(--navy); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.calendar-next-up-copy > span { font-size: 10.5px; color: var(--faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.calendar-next-up-start { flex: 0 0 auto; font-size: 12px; padding: 7px 14px; }

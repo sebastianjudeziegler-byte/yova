@@ -51,6 +51,7 @@ import type { ConceptReviewAgendaItem } from "@/lib/learning/concept-review-agen
 import { buildConceptReviewAgenda } from "@/lib/learning/concept-review-agenda";
 import type { ActiveSessionCheckpoint } from "@/lib/learning/active-session-checkpoint";
 import { sessionStartRecoveryDecision } from "@/lib/learning/session-start-recovery";
+import { buildNextUpQueue } from "@/lib/calendar/next-up-queue";
 import {
   deriveCalendarModel,
   previewCourseSeedsForEmptyState,
@@ -325,6 +326,16 @@ export function CalendarScreen(props: CalendarScreenProps) {
   const upcomingBlock = todaysBlocks.find((block) => !block.done && Date.parse(block.endsAt) >= now.getTime())
     ?? todaysBlocks.find((block) => !block.done)
     ?? null;
+  const nextUpItems = useMemo(() => buildNextUpQueue(model.blocks, now, 8), [model.blocks, now]);
+  const nextUpBucketLabel = (bucket: "overdue" | "today" | "upcoming") =>
+    bucket === "overdue" ? "OVERDUE" : bucket === "today" ? "TODAY" : "UPCOMING";
+  const nextUpTimeLabel = (iso: string) => {
+    const date = new Date(iso);
+    const sameDay = date.toDateString() === now.toDateString();
+    return sameDay
+      ? new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" }).format(date)
+      : new Intl.DateTimeFormat(undefined, { weekday: "short", hour: "numeric", minute: "2-digit" }).format(date);
+  };
   const nearestOutcome = model.outcomes
     .filter((outcome) => outcome.status !== "complete" && Date.parse(outcome.dueAt) >= startOfDay(now).getTime())
     .sort((left, right) => Date.parse(left.dueAt) - Date.parse(right.dueAt))[0] ?? null;
@@ -1401,6 +1412,55 @@ export function CalendarScreen(props: CalendarScreenProps) {
             <button type="button" className="button ghost" disabled={Boolean(pendingAction)} onClick={() => setDismissedRecoverySessionId(overdueEntry.session.id)}>Keep the original plan</button>
           </div>
         </section>}
+
+        <section className="section-block calendar-next-up" aria-labelledby="calendar-next-up-title">
+          <div className="section-title">
+            <div>
+              <span className="step-label">NEXT UP</span>
+              <h3 id="calendar-next-up-title">Your order of business</h3>
+              <p>What to do next, most urgent first.</p>
+            </div>
+          </div>
+          {nextUpItems.length === 0
+            ? <p className="calendar-empty-copy">Nothing waiting right now. Add a plan or a deadline and YOVA will queue the work here.</p>
+            : <ol className="calendar-next-up-list">
+              {nextUpItems.map((item, index) => {
+                const block = item.block;
+                const decision = sessionStartRecoveryDecision({
+                  plan: block.plan,
+                  session: block.session,
+                  interruptions: sessionInterruptions,
+                  restorableCheckpoints: activeSessionCheckpoints,
+                });
+                const startBlocked = guidedSessionAllowanceBlocksNewStart(
+                  allowance,
+                  decision.canStartWithoutGeneration,
+                  allowanceChecking,
+                );
+                const label = guidedSessionStartLabel(
+                  allowance,
+                  decision.advertiseContinue ? "Continue" : "Start",
+                  decision.canStartWithoutGeneration,
+                  allowanceChecking,
+                );
+                return <li key={block.id} className={`calendar-next-up-item ${item.bucket}`}>
+                  <button type="button" className="calendar-next-up-open" onClick={() => selectBlock(block.id)}>
+                    <span className={`calendar-next-up-tag ${item.bucket}`}>{nextUpBucketLabel(item.bucket)}</span>
+                    <span className="calendar-next-up-copy">
+                      <strong>{block.title}</strong>
+                      <span>{block.methodName} · {block.session.amountLabel} · {nextUpTimeLabel(item.startsAt)}</span>
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    className={`button ${index === 0 ? "primary" : "secondary"} calendar-next-up-start`}
+                    disabled={startBlocked || Boolean(pendingAction)}
+                    onClick={() => startBlock(block)}
+                  >{label}</button>
+                </li>;
+              })}
+            </ol>}
+        </section>
       </aside>
 
       <main className="calendar-main">
