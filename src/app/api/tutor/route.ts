@@ -432,6 +432,73 @@ function readBoundedString(value: unknown, max: number) {
   return typeof value === "string" && value.trim() ? value.trim().slice(0, max) : null;
 }
 
+
+const AGENDA_SESSION_LIMIT = 8;
+
+async function loadTutorAgendaSnapshot(supabase: SupabaseClient) {
+  const [{ data: planRows, error: planError }, { data: milestoneRows, error: milestoneError }] = await Promise.all([
+    supabase
+      .from("plans")
+      .select("id,learning_item_id,status")
+      .limit(40),
+    supabase
+      .from("deadline_milestones")
+      .select("title,due_at,status")
+      .eq("status", "open")
+      .order("due_at", { ascending: true })
+      .limit(3),
+  ]);
+  if (planError || milestoneError) return null;
+  const availablePlans = (planRows ?? []).filter((row) => isAvailablePlanStatus(row.status));
+  const planIds = availablePlans.map((row) => row.id);
+
+  let sessionRows: Array<{ plan_id: string; title: string; method: string; estimated_minutes: number; scheduled_for: string | null }> = [];
+  let itemTitles = new Map<string, string>();
+  if (planIds.length > 0) {
+    const [{ data: sessions, error: sessionsError }, titles] = await Promise.all([
+      supabase
+        .from("plan_sessions")
+        .select("plan_id,title,method,estimated_minutes,scheduled_for,status")
+        .in("plan_id", planIds)
+        .in("status", ["ready", "upcoming"])
+        .order("scheduled_for", { ascending: true })
+        .limit(AGENDA_SESSION_LIMIT),
+      loadAvailableLearningItemTitles(supabase, availablePlans.map((row) => row.learning_item_id)),
+    ]);
+    if (!sessionsError) sessionRows = sessions ?? [];
+    itemTitles = titles;
+  }
+
+  const planTitle = (planId: string) => {
+    const learningItemId = availablePlans.find((row) => row.id === planId)?.learning_item_id;
+    return (learningItemId ? itemTitles.get(learningItemId) : null) ?? "your plan";
+  };
+  const now = Date.now();
+  const isToday = (iso: string | null) => iso !== null && new Date(iso).toDateString() === new Date().toDateString();
+  const clip = (value: string) => value.slice(0, 120);
+
+  const todaySessions = sessionRows.filter((row) => isToday(row.scheduled_for)).slice(0, 4).map((row) => ({
+    plan: clip(planTitle(row.plan_id)),
+    title: clip(row.title),
+    method: clip(row.method),
+    minutes: row.estimated_minutes,
+    scheduledFor: row.scheduled_for ?? "",
+  }));
+  const upcomingSessions = sessionRows.filter((row) => !isToday(row.scheduled_for)).slice(0, 4).map((row) => ({
+    plan: clip(planTitle(row.plan_id)),
+    title: clip(row.title),
+    scheduledFor: row.scheduled_for ?? "",
+    minutes: row.estimated_minutes,
+  }));
+  const milestones = (milestoneRows ?? []).map((row) => ({
+    title: clip(row.title),
+    dueInDays: Math.max(0, Math.ceil((new Date(row.due_at).getTime() - now) / 86_400_000)),
+  }));
+
+  if (todaySessions.length === 0 && upcomingSessions.length === 0 && milestones.length === 0) return null;
+  return { todaySessions, upcomingSessions, milestones };
+}
+
 async function loadTutorContext(supabase: SupabaseClient, planId: string | null): Promise<TutorContextResult> {
   const { data: learnerProfile, error: learnerError } = await supabase
     .from("learner_profiles")
@@ -457,6 +524,7 @@ async function loadTutorContext(supabase: SupabaseClient, planId: string | null)
         materials: [],
         currentSession: null,
         learnerProfile: profile,
+        agenda: await loadTutorAgendaSnapshot(supabase),
       },
     };
   }
@@ -517,6 +585,7 @@ async function loadTutorContext(supabase: SupabaseClient, planId: string | null)
         estimatedMinutes: currentSessionRow.estimated_minutes,
       } : null,
       learnerProfile: profile,
+      agenda: await loadTutorAgendaSnapshot(supabase),
     },
   };
 }
