@@ -98,12 +98,12 @@ describe("streamed lesson prompt", () => {
       minimumWords: 120,
       targetWords: 260,
       maximumWords: 360,
-      maximumOutputTokens: 900,
+      maximumOutputTokens: 3_800,
     });
     expect(openAIMocks.create).toHaveBeenCalledWith(
       expect.objectContaining({
         text: { verbosity: "medium" },
-        max_output_tokens: 900,
+        max_output_tokens: 3_800,
       }),
       { signal: undefined },
     );
@@ -733,5 +733,14 @@ describe("streamGeneratedLessonWithRetry", () => {
       stats: { failureKind: "request_aborted" },
     });
     expect(openAIMocks.create).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("token budget regression guard", () => {
+  it("gives the reasoning model headroom beyond the word budget", () => {
+    // This exact regression shipped twice and silently killed every Learn
+    // lesson both times. Reasoning tokens share this cap with the lesson.
+    const budget = lessonWordBudgetForMinutes(4);
+    expect(budget.maximumOutputTokens).toBeGreaterThanOrEqual(3_800);
   });
 });

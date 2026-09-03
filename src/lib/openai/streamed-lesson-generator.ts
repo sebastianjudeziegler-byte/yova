@@ -349,7 +349,12 @@ export function lessonWordBudgetForMinutes(plannedMinutes: number): LessonWordBu
     maximumWords,
     // Leave room for low-effort model reasoning without allowing a retry to
     // multiply a multi-page response into an unbounded cost increase.
-    maximumOutputTokens: clamp(Math.ceil(maximumWords * 2.25), 900, 2_200),
+    // REGRESSION GUARD — never lower this cap back toward ~900-2,200. Reasoning
+    // models spend hidden reasoning tokens from this same budget before the
+    // first visible word; a words-only cap starves every Learn lesson into
+    // provider_incomplete. This exact regression has shipped twice. The word
+    // ceiling bounds what the learner reads; this cap only bounds spend.
+    maximumOutputTokens: clamp(Math.ceil(maximumWords * 2.25) + 2_800, 3_800, 6_500),
   };
 }
 
