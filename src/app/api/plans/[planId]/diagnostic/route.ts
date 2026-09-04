@@ -9,8 +9,8 @@ import { getOpenAIKnowledgeMapConfig } from "@/lib/openai/config";
 import { PlanDiagnosticQuestionSchema } from "@/lib/plan-generation/schema";
 import { checkPlanGenerationRateLimit, requestRateLimitKey } from "@/lib/server/rate-limit";
 import {
-  releaseAIRequestClaim,
-  releaseAIRequestReservation,
+  consumeAIRequestClaimAfterProviderFailure,
+  refundAIRequestReservationBeforeProvider,
   reserveAIRequest,
   settleAIRequestClaim,
 } from "@/lib/server/ai-usage";
@@ -133,7 +133,7 @@ export async function GET(request: Request, context: { params: Promise<{ planId:
     });
     return NextResponse.json(response, { headers: diagnosticHeaders(requestId) });
   } catch (error) {
-    await releaseFailedDiagnosticClaim(supabase, aiUsageClaimId, requestId);
+    await consumeFailedDiagnosticClaim(supabase, aiUsageClaimId, requestId);
     const failedValidator = error instanceof MapDiagnosticGenerationError ? error.failedValidator : "diagnostic_provider_request" as const;
     await recordDiagnosticObservationSafely(supabase, user.id, {
       generationType: "diagnostic",
@@ -172,7 +172,13 @@ export async function POST(request: Request, context: { params: Promise<{ planId
     return NextResponse.json({ error: "The placement check no longer matches this plan." }, { status: 409 });
   }
   const result = applyDiagnosticAnswers(loaded.map, submission.data.questions, submission.data.answers, false);
-  const { error: updateError } = await supabase.from("plans").update({ knowledge_map: result.map }).eq("id", planId).eq("user_id", user.id);
+  const { error: updateError } = await supabase.rpc(
+    "update_plan_diagnostic_knowledge_map_v1",
+    {
+      requested_plan_id: planId,
+      requested_knowledge_map: result.map,
+    },
+  );
   if (updateError) return NextResponse.json({ error: "YOVA could not save the placement evidence." }, { status: 409 });
 
   const demonstratedTopicIds = new Set<string>(result.responses.filter((response) => response.evaluation === "correct").map((response) => response.topicId));
@@ -229,18 +235,17 @@ async function settleSuccessfulDiagnosticClaim(
   }
 }
 
-async function releaseFailedDiagnosticClaim(
+async function consumeFailedDiagnosticClaim(
   supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
   claimId: string | null,
   requestId: string,
 ) {
   if (!claimId) return;
   try {
-    await releaseAIRequestClaim(supabase, claimId);
+    await consumeAIRequestClaimAfterProviderFailure(supabase, claimId);
   } catch {
-    // The database lease remains the final recovery boundary if the release
-    // receipt cannot be confirmed.
-    console.error("YOVA could not return a failed placement-check allowance claim", { requestId });
+    // Lease expiry also consumes if this settlement receipt is lost.
+    console.error("YOVA could not consume a failed placement-check allowance claim", { requestId });
   }
 }
 
@@ -250,7 +255,7 @@ async function recoverUnknownDiagnosticReservation(
   recoveryKey: string,
 ) {
   try {
-    await releaseAIRequestReservation(
+    await refundAIRequestReservationBeforeProvider(
       supabase,
       "plan_generation",
       operationKey,

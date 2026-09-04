@@ -39,8 +39,7 @@ test("a deadline can live in Calendar, be completed, and stay out of Learning", 
   await expect(page.getByRole("heading", { name: "Plan the work that gets you there" })).toBeVisible();
   await page.reload();
   await page.getByRole("button", { name: "Calendar", exact: true }).click();
-  await page.getByRole("tab", { name: "List", exact: true }).click();
-  await page.locator(".calendar-stub-list button").filter({ hasText: "Lab Report" }).click();
+  await inspectOutcomeInWeek(page, "Lab Report", "next", 6);
   await expect(page.locator(".calendar-block-detail")).toContainText("Lab Report");
   await page.getByRole("button", { name: "Mark complete", exact: true }).click();
   await expect(page.locator(".calendar-outcome-row.complete")).toContainText("Lab Report");
@@ -75,8 +74,7 @@ test("an overdue standalone deadline remains reachable and actionable", async ({
   await expect(page.getByRole("heading", { name: "Needs attention" })).toBeVisible();
   await expect(page.locator(".calendar-issue").filter({ hasText: "Missed lab deadline" }))
     .toContainText("has no preparation plan");
-  await page.getByRole("tab", { name: "List", exact: true }).click();
-  await page.locator(".calendar-stub-list button").filter({ hasText: "Missed lab deadline" }).click();
+  await inspectOutcomeInWeek(page, "Missed lab deadline", "previous", 2);
   await expect(page.locator(".calendar-block-detail")).toContainText("Missed lab deadline");
   await page.getByRole("button", { name: "Mark complete", exact: true }).click();
   await expect(page.locator(".calendar-outcome-row.complete")).toContainText("Missed lab deadline");
@@ -251,6 +249,31 @@ function observeDiagnosticRequests(page: Page) {
     }
   });
   return () => requestCount;
+}
+
+async function inspectOutcomeInWeek(
+  page: Page,
+  title: string,
+  direction: "next" | "previous",
+  maxPeriods: number,
+) {
+  const dueChip = page.locator(".calendar-due-chip").filter({ hasText: title });
+  const range = page.locator("#calendar-board-title");
+  const navigation = page.getByRole("button", {
+    name: direction === "next" ? "Next calendar period" : "Previous calendar period",
+  });
+
+  for (let period = 0; period <= maxPeriods; period += 1) {
+    if (await dueChip.count()) {
+      await dueChip.click();
+      return;
+    }
+    const previousRange = await range.innerText();
+    await navigation.click();
+    await expect.poll(() => range.innerText()).not.toBe(previousRange);
+  }
+
+  throw new Error(`Could not find ${title} within ${maxPeriods} calendar periods.`);
 }
 
 async function openPreviewApp(page: Page) {

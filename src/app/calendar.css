@@ -733,29 +733,18 @@
   display: none;
 }
 
-.calendar-view-switcher button {
+.calendar-view-switcher > span {
   min-height: 34px;
   padding: 7px 11px;
-  flex: 0 0 auto;
-  color: var(--ink-muted);
-  border: 0;
+  display: inline-flex;
+  align-items: center;
+  color: #fff;
   border-radius: 999px;
-  background: transparent;
+  background: var(--grad-primary, linear-gradient(135deg, var(--brand-blue), var(--brand-violet)));
+  box-shadow: 0 5px 14px rgba(52, 107, 255, .18);
   font-size: 11px;
   font-weight: 700;
   white-space: nowrap;
-}
-
-.calendar-view-switcher button:hover {
-  color: var(--brand-navy);
-  background: #fff;
-}
-
-.calendar-view-switcher button.selected,
-.calendar-view-switcher button[aria-selected="true"] {
-  color: #fff;
-  background: var(--grad-primary, linear-gradient(135deg, var(--brand-blue), var(--brand-violet)));
-  box-shadow: 0 5px 14px rgba(52, 107, 255, .18);
 }
 
 .calendar-date-navigation {
@@ -1198,7 +1187,7 @@
   left: 0;
   top: var(--calendar-now-top, 0);
   height: 2px;
-  background: #e24d3f;
+  background: #c43b30;
   pointer-events: none;
 }
 
@@ -1213,7 +1202,7 @@
   padding: 2px 4px;
   color: #fff;
   border-radius: 4px;
-  background: #e24d3f;
+  background: #c43b30;
   font-size: 8px;
   line-height: 1;
   white-space: nowrap;
@@ -1227,7 +1216,7 @@
   width: 9px;
   height: 9px;
   border-radius: 50%;
-  background: #e24d3f;
+  background: #c43b30;
 }
 
 .calendar-legend {
@@ -1264,64 +1253,6 @@
 .calendar-legend i.yova { border-color: #9ab5f1; background: #eaf1ff; }
 .calendar-legend i.suggested { border-style: dashed; border-color: #8d82cb; background: #f7f5ff; }
 .calendar-legend i.done { border-color: #a9cfbd; background: #f3f7f5; }
-
-.calendar-view-stub {
-  min-height: 340px;
-  padding: 34px 24px;
-  display: grid;
-  align-content: center;
-  justify-items: center;
-  gap: 13px;
-  color: var(--ink-muted);
-  text-align: center;
-  background: linear-gradient(145deg, rgba(250, 251, 252, .76), rgba(255, 255, 255, .96));
-}
-
-.calendar-view-stub > svg {
-  color: var(--brand-blue);
-}
-
-.calendar-view-stub h3 {
-  margin: 0;
-  color: var(--brand-navy);
-  font-size: 20px;
-}
-
-.calendar-view-stub p {
-  max-width: 520px;
-  margin: 0;
-  font-size: 13px;
-  line-height: 1.6;
-}
-
-.calendar-stub-list {
-  width: min(100%, 620px);
-  display: grid;
-  gap: 7px;
-  text-align: left;
-}
-
-.calendar-stub-list button {
-  width: 100%;
-  padding: 10px 12px;
-  display: grid;
-  gap: 3px;
-  color: var(--ink-default);
-  border: 1px solid var(--line-subtle);
-  border-radius: 10px;
-  background: #fff;
-  text-align: left;
-}
-
-.calendar-stub-list button span {
-  color: var(--ink-muted);
-  font-size: 9px;
-}
-
-.calendar-stub-list button strong {
-  color: var(--brand-navy);
-  font-size: 12px;
-}
 
 /* Viability, outcomes, reviews, and reasons */
 
@@ -1741,10 +1672,6 @@
 
   .calendar-view-switcher {
     width: 100%;
-  }
-
-  .calendar-view-switcher button {
-    flex: 1 0 auto;
   }
 
   .calendar-outcome-row {

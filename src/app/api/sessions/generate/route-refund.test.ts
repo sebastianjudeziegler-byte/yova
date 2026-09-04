@@ -8,32 +8,32 @@ const routeSource = readFileSync(
 );
 
 describe("guided-session allowance settlement contract", () => {
-  it("captures the allowed claim and returns it before every failed response", () => {
+  it("captures the allowed claim and consumes it before every failed response", () => {
     expect(routeSource).toContain(
       'reserveAIRequest(supabase, "session_generation", requestId, aiUsageRecoveryKey)',
     );
     expect(routeSource).toContain("aiUsageClaimId = durableLimit.claimId");
-    expect(routeSource.match(/await releaseFailedGenerationClaim\(/g)).toHaveLength(5);
+    expect(routeSource.match(/await consumeFailedGenerationClaim\(/g)).toHaveLength(5);
     const routeConflict = routeSource.indexOf("const routeContractIssue = generatedSessionStudyRouteIssue(");
     const routeConflictRelease = routeSource.indexOf(
-      "await releaseFailedGenerationClaim(supabase, aiUsageClaimId, requestId)",
+      "await consumeFailedGenerationClaim(supabase, aiUsageClaimId, requestId)",
       routeConflict,
     );
     expect(routeConflictRelease).toBeGreaterThan(routeConflict);
 
-    const helperBoundary = routeSource.indexOf("async function releaseFailedGenerationClaim");
+    const helperBoundary = routeSource.indexOf("async function consumeFailedGenerationClaim");
     const catchBoundary = routeSource.lastIndexOf("  } catch (error) {", helperBoundary);
     const failureResponse = routeSource.indexOf("guidedSessionFailureResponse(", catchBoundary);
-    const release = routeSource.indexOf("await releaseFailedGenerationClaim(", catchBoundary);
+    const consume = routeSource.indexOf("await consumeFailedGenerationClaim(", catchBoundary);
     expect(catchBoundary).toBeGreaterThan(0);
-    expect(release).toBeGreaterThan(catchBoundary);
-    expect(release).toBeLessThan(failureResponse);
+    expect(consume).toBeGreaterThan(catchBoundary);
+    expect(consume).toBeLessThan(failureResponse);
   });
 
-  it("settles, rather than releases, the claim on a validated successful response", () => {
+  it("uses the successful settlement path for a validated response", () => {
     const successStart = routeSource.indexOf("const learnerResponse = NextResponse.json(");
     const successEnd = routeSource.indexOf("} catch (error) {", successStart);
-    expect(routeSource.slice(successStart, successEnd)).not.toContain("releaseFailedGenerationClaim");
+    expect(routeSource.slice(successStart, successEnd)).not.toContain("consumeFailedGenerationClaim");
     expect(routeSource.slice(successStart, successEnd)).toContain(
       "await settleSuccessfulGenerationClaim(supabase, aiUsageClaimId, requestId)",
     );
@@ -60,7 +60,7 @@ describe("guided-session allowance settlement contract", () => {
     expect(recovery).toBeGreaterThan(reservationCatch);
     expect(recovery).toBeLessThan(gateFailure);
     expect(routeSource).toContain(
-      'releaseAIRequestReservation(supabase, "session_generation", operationKey, recoveryKey)',
+      'refundAIRequestReservationBeforeProvider(supabase, "session_generation", operationKey, recoveryKey)',
     );
   });
 
@@ -115,13 +115,13 @@ describe("guided-session allowance settlement contract", () => {
     expect(helper).not.toContain("throw");
   });
 
-  it("refunds a failed claim before inspecting recovery diagnostics", () => {
-    const helperBoundary = routeSource.indexOf("async function releaseFailedGenerationClaim");
+  it("consumes a failed claim before inspecting recovery diagnostics", () => {
+    const helperBoundary = routeSource.indexOf("async function consumeFailedGenerationClaim");
     const catchBoundary = routeSource.lastIndexOf("  } catch (error) {", helperBoundary);
     const failureResponse = routeSource.indexOf("guidedSessionFailureResponse(", catchBoundary);
     const failedRequestPath = routeSource.slice(catchBoundary, failureResponse);
 
-    expect(failedRequestPath).toContain("await releaseFailedGenerationClaim(");
+    expect(failedRequestPath).toContain("await consumeFailedGenerationClaim(");
     expect(failedRequestPath).not.toContain("recoveryMode");
   });
 
@@ -135,13 +135,13 @@ describe("guided-session allowance settlement contract", () => {
       "sessionGenerationRuntime(request, startedAt)",
       claim,
     );
-    const helperBoundary = routeSource.indexOf("async function releaseFailedGenerationClaim");
+    const helperBoundary = routeSource.indexOf("async function consumeFailedGenerationClaim");
     const catchBoundary = routeSource.lastIndexOf("  } catch (error) {", helperBoundary);
-    const release = routeSource.indexOf("await releaseFailedGenerationClaim(", catchBoundary);
+    const consume = routeSource.indexOf("await consumeFailedGenerationClaim(", catchBoundary);
 
     expect(generated).toBeGreaterThan(claim);
     expect(catchBoundary).toBeGreaterThan(generated);
-    expect(release).toBeGreaterThan(catchBoundary);
+    expect(consume).toBeGreaterThan(catchBoundary);
   });
 
   it("keeps cache, success, and failure telemetry after-response and best-effort", () => {
@@ -195,7 +195,7 @@ describe("guided-session allowance settlement contract", () => {
       'code: "deferred_session_persistence_unavailable"',
     );
     expect(routeSource.slice(deferredFailure, browserPersistence)).toContain(
-      "releaseFailedGenerationClaim(supabase, aiUsageClaimId, requestId)",
+      "consumeFailedGenerationClaim(supabase, aiUsageClaimId, requestId)",
     );
   });
 });

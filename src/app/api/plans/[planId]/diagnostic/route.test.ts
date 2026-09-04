@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   release: vi.fn(),
   releaseOperation: vi.fn(),
   settle: vi.fn(),
+  updateDiagnostic: vi.fn(),
 }));
 
 vi.mock("server-only", () => ({}));
@@ -31,15 +32,15 @@ vi.mock("@/lib/server/rate-limit", () => ({
 }));
 vi.mock("@/lib/server/ai-usage", () => ({
   reserveAIRequest: mocks.reserve,
-  releaseAIRequestClaim: mocks.release,
-  releaseAIRequestReservation: mocks.releaseOperation,
+  consumeAIRequestClaimAfterProviderFailure: mocks.release,
+  refundAIRequestReservationBeforeProvider: mocks.releaseOperation,
   settleAIRequestClaim: mocks.settle,
 }));
 vi.mock("@/lib/supabase/server", () => ({
   createSupabaseServerClient: mocks.createClient,
 }));
 
-import { GET } from "@/app/api/plans/[planId]/diagnostic/route";
+import { GET, POST } from "@/app/api/plans/[planId]/diagnostic/route";
 
 const USER_ID = "11111111-1111-4111-8111-111111111111";
 const PLAN_ID = "22222222-2222-4222-8222-222222222222";
@@ -110,6 +111,7 @@ describe("standalone plan diagnostic allowance lifecycle", () => {
     mocks.release.mockReset().mockResolvedValue(true);
     mocks.releaseOperation.mockReset().mockResolvedValue(false);
     mocks.settle.mockReset().mockResolvedValue(true);
+    mocks.updateDiagnostic.mockReset().mockResolvedValue({ data: true, error: null });
   });
 
   it("shares the planning gate and settles only after a validated diagnostic exists", async () => {
@@ -136,7 +138,7 @@ describe("standalone plan diagnostic allowance lifecycle", () => {
     expect(mocks.release).not.toHaveBeenCalled();
   });
 
-  it("releases the exact claim when provider generation fails, even if telemetry also fails", async () => {
+  it("consumes the exact claim when provider generation fails, even if telemetry also fails", async () => {
     mocks.generateDiagnostic.mockRejectedValueOnce(new Error("provider unavailable"));
     mocks.recordObservation.mockRejectedValueOnce(new Error("telemetry unavailable"));
 
@@ -147,10 +149,12 @@ describe("standalone plan diagnostic allowance lifecycle", () => {
       error: "YOVA could not prepare this placement check yet.",
     });
     expect(mocks.release).toHaveBeenCalledWith(expect.anything(), CLAIM_ID);
+    expect(mocks.generateDiagnostic.mock.invocationCallOrder[0])
+      .toBeLessThan(mocks.release.mock.invocationCallOrder[0]!);
     expect(mocks.settle).not.toHaveBeenCalled();
   });
 
-  it("releases instead of charging for an unusable provider result", async () => {
+  it("consumes the paid attempt for an unusable provider result", async () => {
     mocks.generateDiagnostic.mockResolvedValueOnce({
       ...generatedDiagnostic(),
       questions: [],
@@ -160,6 +164,8 @@ describe("standalone plan diagnostic allowance lifecycle", () => {
 
     expect(response.status).toBe(503);
     expect(mocks.release).toHaveBeenCalledWith(expect.anything(), CLAIM_ID);
+    expect(mocks.generateDiagnostic.mock.invocationCallOrder[0])
+      .toBeLessThan(mocks.release.mock.invocationCallOrder[0]!);
     expect(mocks.settle).not.toHaveBeenCalled();
   });
 
@@ -257,6 +263,29 @@ describe("standalone plan diagnostic allowance lifecycle", () => {
     expect(mocks.reserve).not.toHaveBeenCalled();
     expect(mocks.settle).not.toHaveBeenCalled();
   });
+
+  it("saves placement evidence through the bounded knowledge-map RPC", async () => {
+    const response = await POST(new Request(
+      `https://yova.example/api/plans/${PLAN_ID}/diagnostic`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ questions: [question], answers: ["Demand increases"] }),
+      },
+    ), routeContext());
+
+    expect(response.status).toBe(200);
+    expect(mocks.updateDiagnostic).toHaveBeenCalledWith(
+      "update_plan_diagnostic_knowledge_map_v1",
+      {
+        requested_plan_id: PLAN_ID,
+        requested_knowledge_map: expect.objectContaining({
+          version: 1,
+          placementCheck: expect.objectContaining({ status: "completed" }),
+        }),
+      },
+    );
+  });
 });
 
 function diagnosticRequest() {
@@ -301,8 +330,12 @@ function supabaseClient() {
       if (table === "learning_items") {
         return selectQuery({ title: "Economics exam", topic: "Supply and demand" });
       }
+      if (table === "plan_sessions") {
+        return listQuery([]);
+      }
       throw new Error(`Unexpected table ${table}`);
     }),
+    rpc: mocks.updateDiagnostic,
   };
 }
 
@@ -311,6 +344,17 @@ function selectQuery(data: unknown) {
     select: vi.fn(),
     eq: vi.fn(),
     maybeSingle: vi.fn().mockResolvedValue({ data, error: null }),
+  };
+  query.select.mockReturnValue(query);
+  query.eq.mockReturnValue(query);
+  return query;
+}
+
+function listQuery(data: unknown[]) {
+  const query = {
+    select: vi.fn(),
+    eq: vi.fn(),
+    in: vi.fn().mockResolvedValue({ data, error: null }),
   };
   query.select.mockReturnValue(query);
   query.eq.mockReturnValue(query);

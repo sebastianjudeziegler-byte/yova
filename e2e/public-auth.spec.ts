@@ -82,6 +82,47 @@ test("keeps password errors generic and password recovery non-enumerating", asyn
   await expect(page.getByText("YOVA does not reveal whether an email address has an account.")).toBeVisible();
 });
 
+test("keeps the standalone email-confirmation page at AA text contrast", async ({ page }) => {
+  await page.goto(`/auth/confirm?token_hash=${"a".repeat(32)}&type=signup`);
+
+  await expect(page.getByRole("heading", { name: "Confirm your YOVA account." })).toBeVisible();
+  const contrastRatios = await page.evaluate(() => {
+    const relativeLuminance = (color: string) => {
+      const channels = color.match(/[\d.]+/g)?.slice(0, 3).map(Number) ?? [];
+      if (channels.length !== 3) return 0;
+      const linear = channels.map((channel) => {
+        const value = channel / 255;
+        return value <= 0.04045
+          ? value / 12.92
+          : ((value + 0.055) / 1.055) ** 2.4;
+      });
+      return (0.2126 * linear[0]) + (0.7152 * linear[1]) + (0.0722 * linear[2]);
+    };
+    const ratio = (foreground: string, background: string) => {
+      const lighter = Math.max(relativeLuminance(foreground), relativeLuminance(background));
+      const darker = Math.min(relativeLuminance(foreground), relativeLuminance(background));
+      return (lighter + 0.05) / (darker + 0.05);
+    };
+    const card = document.querySelector<HTMLElement>(".card");
+    if (!card) return [];
+    const cardBackground = getComputedStyle(card).backgroundColor;
+    return [".eyebrow", ".button", ".note"].map((selector) => {
+      const element = document.querySelector<HTMLElement>(selector);
+      if (!element) return 0;
+      const style = getComputedStyle(element);
+      const elementBackground = style.backgroundColor;
+      const background = elementBackground === "transparent"
+        || /rgba\([^)]*,\s*0\s*\)$/.test(elementBackground)
+        ? cardBackground
+        : elementBackground;
+      return ratio(style.color, background);
+    });
+  });
+
+  expect(contrastRatios).toHaveLength(3);
+  for (const ratio of contrastRatios) expect(ratio).toBeGreaterThanOrEqual(4.5);
+});
+
 test("fits the public account form on a phone-sized viewport", async ({ page }, testInfo) => {
   test.skip(!testInfo.project.name.includes("mobile"), "Mobile-only layout assertion.");
 

@@ -64,6 +64,18 @@ After Vercel provides a public URL:
 pnpm smoke:production -- https://YOUR-YOVA-DOMAIN
 ```
 
+For an authorized release canary with the production Supabase server secret,
+run the isolated account lifecycle. It creates temporary test identities,
+checks real authentication, cloud persistence, AI-usage state, material quota,
+private export, and self-service deletion, then removes every canary identity.
+`--smtp-probe` additionally sends one invitation to Resend's designated
+delivered test address; it never sends to a person.
+
+```bash
+pnpm smoke:production:lifecycle -- https://YOUR-YOVA-DOMAIN \
+  --acknowledge-production-writes --smtp-probe
+```
+
 See [`docs/VERCEL-CHECKLIST.md`](docs/VERCEL-CHECKLIST.md) for the production environment, Supabase redirect, and sign-in email checklist.
 
 The readiness command reports whether required connections exist without printing secret values.

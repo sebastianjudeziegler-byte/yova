@@ -170,6 +170,7 @@ export function AddToYova({
       <p>Describe a goal, assignment, deadline, or something you want to study.</p>
       <textarea
         autoFocus
+        aria-label="Describe what you need to learn or complete"
         value={description}
         onChange={(event) => setDescription(event.target.value)}
         placeholder="Example: I have a World War I test in two weeks. I am starting from the beginning and I have a study guide."

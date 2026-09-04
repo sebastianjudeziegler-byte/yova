@@ -50,8 +50,8 @@ import {
 import { checkPlanGenerationRateLimit, requestRateLimitKey } from "@/lib/server/rate-limit";
 import {
   aiUsageReservationConflict,
-  releaseAIRequestClaim,
-  releaseAIRequestReservation,
+  consumeAIRequestClaimAfterProviderFailure,
+  refundAIRequestReservationBeforeProvider,
   reserveAIRequest,
   settleAIRequestClaim,
 } from "@/lib/server/ai-usage";
@@ -446,7 +446,7 @@ export async function POST(request: Request) {
     }
   } catch (error) {
     if (error instanceof PlanScheduleCapacityError) {
-      await releaseFailedPlanClaim(supabase, aiUsageClaimId, requestId);
+      await consumeFailedPlanClaim(supabase, aiUsageClaimId, requestId);
       return deterministicPlanFailureResponse(error, requestId);
     }
     const validator = error instanceof KnowledgeMapGenerationError
@@ -466,7 +466,7 @@ export async function POST(request: Request) {
       planRequest = { ...planRequest, knowledgeMap: fallback.map };
       knowledgeMapFallbackNotice = knowledgeMapFallbackNoticeFor(planRequest);
     } catch {
-      await releaseFailedPlanClaim(supabase, aiUsageClaimId, requestId);
+      await consumeFailedPlanClaim(supabase, aiUsageClaimId, requestId);
       await recordPlanGenerationObservationSafely(supabase, user?.id, {
         generationType: "knowledge_map",
         environment: generationEnvironment(),
@@ -545,7 +545,7 @@ export async function POST(request: Request) {
         headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId },
       });
     } catch (error) {
-      await releaseFailedPlanClaim(supabase, aiUsageClaimId, requestId);
+      await consumeFailedPlanClaim(supabase, aiUsageClaimId, requestId);
       const failedValidator = error instanceof MapDiagnosticGenerationError
         ? error.failedValidator
         : "diagnostic_provider_request" as const;
@@ -594,7 +594,7 @@ export async function POST(request: Request) {
       });
 
       if (durationDecision.status === "insufficient_time") {
-        await releaseFailedPlanClaim(supabase, aiUsageClaimId, requestId);
+        await consumeFailedPlanClaim(supabase, aiUsageClaimId, requestId);
         return insufficientNormalSessionTimeResponse(
           durationDecision.hardMaximumMinutes,
           requestId,
@@ -662,7 +662,7 @@ export async function POST(request: Request) {
         headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId },
       });
     } catch (error) {
-      await releaseFailedPlanClaim(supabase, aiUsageClaimId, requestId);
+      await consumeFailedPlanClaim(supabase, aiUsageClaimId, requestId);
       return deterministicPlanFailureResponse(error, requestId);
     }
   }
@@ -698,7 +698,7 @@ export async function POST(request: Request) {
       now: normalPlanNow,
     });
   } catch (error) {
-    await releaseFailedPlanClaim(supabase, aiUsageClaimId, requestId);
+    await consumeFailedPlanClaim(supabase, aiUsageClaimId, requestId);
     return deterministicPlanFailureResponse(error, requestId);
   }
 
@@ -819,7 +819,7 @@ export async function POST(request: Request) {
         },
       });
     } catch (error) {
-      await releaseFailedPlanClaim(supabase, aiUsageClaimId, requestId);
+      await consumeFailedPlanClaim(supabase, aiUsageClaimId, requestId);
       const failure = error instanceof OpenAINormalPlanFillError ? error : null;
       console.error("YOVA plan generation failed", failure ? {
         requestId,
@@ -991,16 +991,16 @@ async function recordPlanGenerationObservationSafely(
   }
 }
 
-async function releaseFailedPlanClaim(
+async function consumeFailedPlanClaim(
   supabase: Awaited<ReturnType<typeof createSupabaseServerClient>> | null,
   claimId: string | null,
   requestId: string,
 ) {
   if (!supabase || !claimId) return;
   try {
-    await releaseAIRequestClaim(supabase, claimId);
+    await consumeAIRequestClaimAfterProviderFailure(supabase, claimId);
   } catch {
-    console.error("YOVA could not return a failed plan-generation allowance claim", { requestId });
+    console.error("YOVA could not consume a failed plan-generation allowance claim", { requestId });
   }
 }
 
@@ -1010,7 +1010,7 @@ async function recoverUnknownPlanReservation(
   recoveryKey: string,
 ) {
   try {
-    await releaseAIRequestReservation(supabase, "plan_generation", operationKey, recoveryKey);
+    await refundAIRequestReservationBeforeProvider(supabase, "plan_generation", operationKey, recoveryKey);
   } catch {
     // Its short database lease remains the final recovery boundary.
   }

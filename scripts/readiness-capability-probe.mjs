@@ -2,8 +2,10 @@ export const SIGNED_IN_GENERATION_CONTRACT_VERSION = "202608310003";
 
 const PROBE_RPC = "signed_in_generation_readiness_v3";
 export const STUDY_PROFILE_PUBLIC_CONTRACT_VERSION = "202608310002";
+export const PUBLIC_LAUNCH_ABUSE_CONTRACT_VERSION = "202609040002";
 
 const STUDY_PROFILE_PROBE_RPC = "study_profile_public_readiness_v1";
+const PUBLIC_LAUNCH_ABUSE_PROBE_RPC = "public_launch_abuse_readiness_v1";
 
 export async function probeSignedInGenerationDatabase({
   supabaseUrl,
@@ -172,6 +174,92 @@ export async function probeStudyProfilePublicDatabase({
   return {
     passed: true,
     detail: `double opt-in and abuse controls ${STUDY_PROFILE_PUBLIC_CONTRACT_VERSION} are available`,
+  };
+}
+
+export async function probePublicLaunchAbuseDatabase({
+  supabaseUrl,
+  supabaseSecretKey,
+  fetchImpl = fetch,
+  timeoutMs = 10_000,
+}) {
+  const endpoint = `${supabaseUrl.replace(/\/$/u, "")}/rest/v1/rpc/${PUBLIC_LAUNCH_ABUSE_PROBE_RPC}`;
+  const headers = {
+    apikey: supabaseSecretKey,
+    "Content-Type": "application/json",
+    "User-Agent": "YOVA-release-readiness/1.0",
+    ...(isLegacyJwtKey(supabaseSecretKey)
+      ? { Authorization: `Bearer ${supabaseSecretKey}` }
+      : {}),
+  };
+
+  let response;
+  try {
+    response = await fetchImpl(endpoint, {
+      method: "POST",
+      headers,
+      body: "{}",
+      cache: "no-store",
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+  } catch {
+    return {
+      passed: false,
+      detail: "could not reach the configured Supabase project for the public-launch abuse-control probe",
+    };
+  }
+
+  const payload = await response.json().catch(() => null);
+  if (!response.ok) {
+    const missingProbe = response.status === 404
+      || readString(payload, "code") === "PGRST202";
+    return {
+      passed: false,
+      detail: missingProbe
+        ? `missing public-launch abuse-control RPC; apply migration ${PUBLIC_LAUNCH_ABUSE_CONTRACT_VERSION} after all earlier migrations`
+        : `public-launch abuse-control probe returned HTTP ${response.status}`,
+    };
+  }
+
+  if (!isRecord(payload)) {
+    return {
+      passed: false,
+      detail: "public-launch abuse-control probe returned an invalid response",
+    };
+  }
+
+  if (payload.contractVersion !== PUBLIC_LAUNCH_ABUSE_CONTRACT_VERSION) {
+    return {
+      passed: false,
+      detail: "public-launch abuse-control contract is stale for this application release",
+    };
+  }
+
+  const completeContract = payload.ready === true
+    && payload.aiActionsCovered === true
+    && payload.materialUploadQuota === true
+    && payload.materialChunkWriteBoundary === true
+    && payload.untrustedInsertQuotas === true
+    && payload.tutorWriteBoundary === true;
+  if (!completeContract) {
+    const missing = [
+      ["aiActionsCovered", "durable AI-action reservations"],
+      ["materialUploadQuota", "material upload quotas"],
+      ["materialChunkWriteBoundary", "material-chunk write boundary"],
+      ["untrustedInsertQuotas", "untrusted insert quotas"],
+      ["tutorWriteBoundary", "tutor write boundary"],
+    ]
+      .filter(([key]) => payload[key] !== true)
+      .map(([, label]) => label);
+    return {
+      passed: false,
+      detail: `database is missing ${missing.join(", ") || "required public-launch abuse controls"}`,
+    };
+  }
+
+  return {
+    passed: true,
+    detail: `AI, storage, and direct-write abuse controls ${PUBLIC_LAUNCH_ABUSE_CONTRACT_VERSION} are available`,
   };
 }
 

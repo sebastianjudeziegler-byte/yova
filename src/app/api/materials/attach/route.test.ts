@@ -114,7 +114,10 @@ describe("active-plan material attachment route", () => {
     expect(body.knowledgeMap.topics[0].sourceReferences).toEqual([
       expect.objectContaining({ materialId: MATERIAL_ID, chunkId: CHUNK_ID }),
     ]);
-    expect(mocks.mapMaterial).toHaveBeenCalledOnce();
+    expect(mocks.mapMaterial).toHaveBeenCalledWith(expect.objectContaining({
+      materialId: MATERIAL_ID,
+      table: "material_uploads",
+    }));
     expect(mocks.rpc).toHaveBeenCalledOnce();
   });
 

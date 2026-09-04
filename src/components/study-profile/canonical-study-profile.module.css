@@ -12,7 +12,7 @@
 .hero > p,
 .question > p,
 .summary > p { color: #5a657b; font-size: 17px; line-height: 1.65; }
-.hero > small { display: block; margin-top: 16px; color: #70798c; }
+.hero > small { display: block; margin-top: 16px; color: #667085; }
 .eyebrow { display: inline-flex; gap: 7px; align-items: center; color: #4d5fa4; font-size: 11px; font-weight: 850; letter-spacing: .09em; }
 .boundary { margin: 24px 0; padding: 15px 17px; display: flex; gap: 11px; align-items: flex-start; color: #30416e; border: 1px solid #ccd6f2; border-radius: 14px; background: #f4f7ff; line-height: 1.5; }
 .boundary svg { flex: 0 0 auto; }

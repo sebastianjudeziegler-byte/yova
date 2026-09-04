@@ -1,5 +1,8 @@
 export type AIUsageAction =
   | "plan_generation"
+  | "plan_adjustment"
+  | "intake_interpretation"
+  | "material_processing"
   | "session_generation"
   | "lesson_generation"
   | "answer_evaluation"
@@ -14,6 +17,11 @@ type PublicAccountEnvironment = {
 
 const INVITE_ONLY_LIMITS: Record<AIUsageAction, AIUsageLimit> = {
   plan_generation: { minute: 5, day: 20 },
+  plan_adjustment: { minute: 5, day: 20 },
+  intake_interpretation: { minute: 10, day: 80 },
+  // One material can fan out to twelve mapping batches, so the operation
+  // allowance is deliberately much smaller than the single-call AI routes.
+  material_processing: { minute: 2, day: 10 },
   session_generation: { minute: 8, day: 40 },
   lesson_generation: { minute: 12, day: 80 },
   answer_evaluation: { minute: 20, day: 120 },
@@ -23,6 +31,9 @@ const INVITE_ONLY_LIMITS: Record<AIUsageAction, AIUsageLimit> = {
 
 const PUBLIC_ACCOUNT_LIMITS: Record<AIUsageAction, AIUsageLimit> = {
   plan_generation: { minute: 3, day: 5 },
+  plan_adjustment: { minute: 3, day: 8 },
+  intake_interpretation: { minute: 6, day: 30 },
+  material_processing: { minute: 1, day: 3 },
   session_generation: { minute: 5, day: 10 },
   lesson_generation: { minute: 8, day: 20 },
   answer_evaluation: { minute: 12, day: 40 },

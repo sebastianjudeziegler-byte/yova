@@ -12,8 +12,8 @@ import { generateTutorAnswer, type TutorLearningContext } from "@/lib/openai/tut
 import { isOpenAITutorConfigured } from "@/lib/openai/config";
 import { checkTutorRateLimit, requestRateLimitKey } from "@/lib/server/rate-limit";
 import {
-  releaseAIRequestClaim,
-  releaseAIRequestReservation,
+  consumeAIRequestClaimAfterProviderFailure,
+  refundAIRequestReservationBeforeProvider,
   reserveAIRequest,
   settleAIRequestClaim,
 } from "@/lib/server/ai-usage";
@@ -336,7 +336,7 @@ export async function POST(request: Request) {
       },
     });
   } catch (error) {
-    await releaseFailedTutorClaim(supabase, aiUsageClaimId, requestId);
+    await consumeFailedTutorClaim(supabase, aiUsageClaimId, requestId);
     const message = error instanceof TutorPlanNotFoundError
       ? error.message
       : "Ask YOVA could not answer right now. Try again in a moment.";
@@ -360,16 +360,16 @@ async function settleSuccessfulTutorClaim(
   }
 }
 
-async function releaseFailedTutorClaim(
+async function consumeFailedTutorClaim(
   supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
   claimId: string | null,
   requestId: string,
 ) {
   if (!claimId) return;
   try {
-    await releaseAIRequestClaim(supabase, claimId);
+    await consumeAIRequestClaimAfterProviderFailure(supabase, claimId);
   } catch {
-    console.error("YOVA could not return a failed tutor allowance claim", { requestId });
+    console.error("YOVA could not consume a failed tutor allowance claim", { requestId });
   }
 }
 
@@ -379,7 +379,7 @@ async function recoverUnknownTutorReservation(
   recoveryKey: string,
 ) {
   try {
-    await releaseAIRequestReservation(supabase, "tutor_message", operationKey, recoveryKey);
+    await refundAIRequestReservationBeforeProvider(supabase, "tutor_message", operationKey, recoveryKey);
   } catch {
     // Its short database lease remains the final recovery boundary.
   }

@@ -9,8 +9,8 @@ const mocks = vi.hoisted(() => ({
   rpc: vi.fn(),
   generateTutorAnswer: vi.fn(),
   claimAIRequest: vi.fn(),
-  releaseAIRequestClaim: vi.fn(),
-  releaseAIRequestReservation: vi.fn(),
+  consumeFailedAIRequestClaim: vi.fn(),
+  refundAIRequestReservationBeforeProvider: vi.fn(),
   settleAIRequestClaim: vi.fn(),
 }));
 
@@ -26,8 +26,8 @@ vi.mock("@/lib/server/rate-limit", () => ({
 }));
 vi.mock("@/lib/server/ai-usage", () => ({
   reserveAIRequest: mocks.claimAIRequest,
-  releaseAIRequestClaim: mocks.releaseAIRequestClaim,
-  releaseAIRequestReservation: mocks.releaseAIRequestReservation,
+  consumeAIRequestClaimAfterProviderFailure: mocks.consumeFailedAIRequestClaim,
+  refundAIRequestReservationBeforeProvider: mocks.refundAIRequestReservationBeforeProvider,
   settleAIRequestClaim: mocks.settleAIRequestClaim,
 }));
 
@@ -70,8 +70,8 @@ describe("tutor plan visibility", () => {
       claimId: "12121212-1212-4212-8212-121212121212",
       retryAfterSeconds: 0,
     });
-    mocks.releaseAIRequestClaim.mockReset().mockResolvedValue(true);
-    mocks.releaseAIRequestReservation.mockReset().mockResolvedValue(false);
+    mocks.consumeFailedAIRequestClaim.mockReset().mockResolvedValue(true);
+    mocks.refundAIRequestReservationBeforeProvider.mockReset().mockResolvedValue(false);
     mocks.settleAIRequestClaim.mockReset().mockResolvedValue(true);
     mocks.createClient.mockReset().mockResolvedValue({
       auth: { getUser: mocks.getUser },
@@ -123,7 +123,7 @@ describe("tutor plan visibility", () => {
     expect(mocks.from).not.toHaveBeenCalledWith("tutor_messages");
   });
 
-  it("validates a generated exchange before writing it to the tutor thread", async () => {
+  it("consumes the paid attempt when a generated exchange fails response validation", async () => {
     mocks.generateTutorAnswer.mockResolvedValueOnce({
       answer: "x".repeat(12_001),
       model: "gpt-test",
@@ -138,10 +138,12 @@ describe("tutor plan visibility", () => {
 
     expect(response.status).toBe(502);
     expect(mocks.rpc).not.toHaveBeenCalledWith("save_tutor_exchange", expect.anything());
-    expect(mocks.releaseAIRequestClaim).toHaveBeenCalledWith(
+    expect(mocks.consumeFailedAIRequestClaim).toHaveBeenCalledWith(
       expect.anything(),
       "12121212-1212-4212-8212-121212121212",
     );
+    expect(mocks.generateTutorAnswer.mock.invocationCallOrder[0])
+      .toBeLessThan(mocks.consumeFailedAIRequestClaim.mock.invocationCallOrder[0]!);
     expect(mocks.settleAIRequestClaim).not.toHaveBeenCalled();
   });
 
@@ -157,7 +159,7 @@ describe("tutor plan visibility", () => {
       expect.anything(),
       "12121212-1212-4212-8212-121212121212",
     );
-    expect(mocks.releaseAIRequestClaim).not.toHaveBeenCalled();
+    expect(mocks.consumeFailedAIRequestClaim).not.toHaveBeenCalled();
   });
 
   it("returns a valid tutor answer when settlement cannot be confirmed", async () => {
@@ -170,7 +172,7 @@ describe("tutor plan visibility", () => {
     }));
 
     expect(response.status).toBe(200);
-    expect(mocks.releaseAIRequestClaim).not.toHaveBeenCalled();
+    expect(mocks.consumeFailedAIRequestClaim).not.toHaveBeenCalled();
   });
 
   it("does not start tutor generation for a live operation-key replay", async () => {
@@ -196,7 +198,7 @@ describe("tutor plan visibility", () => {
       retryable: true,
     });
     expect(mocks.generateTutorAnswer).not.toHaveBeenCalled();
-    expect(mocks.releaseAIRequestClaim).not.toHaveBeenCalled();
+    expect(mocks.consumeFailedAIRequestClaim).not.toHaveBeenCalled();
     expect(mocks.settleAIRequestClaim).not.toHaveBeenCalled();
   });
 });

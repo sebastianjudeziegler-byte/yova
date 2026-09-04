@@ -5,8 +5,8 @@ import { getOpenAIClient } from "@/lib/openai/client";
 import { getOpenAISessionConfig } from "@/lib/openai/config";
 import { checkSessionGenerationRateLimit, requestRateLimitKey } from "@/lib/server/rate-limit";
 import {
-  releaseAIRequestClaim,
-  releaseAIRequestReservation,
+  consumeAIRequestClaimAfterProviderFailure,
+  refundAIRequestReservationBeforeProvider,
   reserveAIRequest,
   settleAIRequestClaim,
 } from "@/lib/server/ai-usage";
@@ -103,7 +103,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ imageDataUrl: `data:image/webp;base64,${imageCall.result}` }, { headers: { "Cache-Control": "private, max-age=3600", "X-Yova-Request-Id": requestId } });
   } catch {
     if (supabase && aiUsageClaimId) {
-      await releaseFailedVisualClaim(supabase, aiUsageClaimId, requestId);
+      await consumeFailedVisualClaim(supabase, aiUsageClaimId, requestId);
     }
     return NextResponse.json({ error: "YOVA could not create this visual right now." }, { status: 503, headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId } });
   }
@@ -123,15 +123,15 @@ async function settleSuccessfulVisualClaim(
   }
 }
 
-async function releaseFailedVisualClaim(
+async function consumeFailedVisualClaim(
   supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
   claimId: string,
   requestId: string,
 ) {
   try {
-    await releaseAIRequestClaim(supabase, claimId);
+    await consumeAIRequestClaimAfterProviderFailure(supabase, claimId);
   } catch {
-    console.error("YOVA could not return a failed teaching-visual allowance claim", { requestId });
+    console.error("YOVA could not consume a failed teaching-visual allowance claim", { requestId });
   }
 }
 
@@ -141,7 +141,7 @@ async function recoverUnknownVisualReservation(
   recoveryKey: string,
 ) {
   try {
-    await releaseAIRequestReservation(supabase, "teaching_visual", operationKey, recoveryKey);
+    await refundAIRequestReservationBeforeProvider(supabase, "teaching_visual", operationKey, recoveryKey);
   } catch {
     // Its short database lease remains the final recovery boundary.
   }

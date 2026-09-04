@@ -6,21 +6,35 @@ const USER_ID = "11111111-1111-4111-8111-111111111111";
 
 const mocks = vi.hoisted(() => ({
   createClient: vi.fn(),
+  createAdmin: vi.fn(),
+  isAdminConfigured: vi.fn(),
   getUser: vi.fn(),
   from: vi.fn(),
   insert: vi.fn(),
   delete: vi.fn(),
   eq: vi.fn(),
   storageFrom: vi.fn(),
+  adminStorageFrom: vi.fn(),
   createSignedUploadUrl: vi.fn(),
   rpc: vi.fn(),
   checkRateLimit: vi.fn(),
   cancelStagedMaterial: vi.fn(),
   storePrivateMaterial: vi.fn(),
+  extractMaterialWithRecovery: vi.fn(),
+  assessMaterialQuality: vi.fn(),
+  mapAndPersistMaterial: vi.fn(),
+  reserve: vi.fn(),
+  settle: vi.fn(),
+  release: vi.fn(),
+  recover: vi.fn(),
 }));
 
 vi.mock("@/lib/supabase/server", () => ({
   createSupabaseServerClient: mocks.createClient,
+}));
+vi.mock("@/lib/supabase/admin", () => ({
+  createSupabaseAdminClient: mocks.createAdmin,
+  isSupabaseAdminConfigured: mocks.isAdminConfigured,
 }));
 vi.mock("@/lib/server/rate-limit", () => ({
   checkMaterialUploadRateLimit: mocks.checkRateLimit,
@@ -30,24 +44,38 @@ vi.mock("@/lib/materials/extract", () => ({
   MaterialExtractionError: class MaterialExtractionError extends Error {},
 }));
 vi.mock("@/lib/materials/extract-with-recovery", () => ({
-  extractMaterialWithRecovery: vi.fn(),
+  extractMaterialWithRecovery: mocks.extractMaterialWithRecovery,
 }));
 vi.mock("@/lib/materials/quality", () => ({
-  assessMaterialQuality: vi.fn(),
+  assessMaterialQuality: mocks.assessMaterialQuality,
 }));
 vi.mock("@/lib/materials/storage-upload", () => ({
   storePrivateMaterial: mocks.storePrivateMaterial,
 }));
 vi.mock("@/lib/materials/material-understanding", () => ({
   MATERIAL_MAPPING_ROUTE_BUDGET_MS: 90_000,
-  mapAndPersistMaterial: vi.fn(),
+  mapAndPersistMaterialWithConsumedAIUsage: mocks.mapAndPersistMaterial,
 }));
 vi.mock("@/lib/materials/staged-cleanup", () => ({
   cancelStagedMaterial: mocks.cancelStagedMaterial,
 }));
+vi.mock("@/lib/server/ai-usage", () => ({
+  reserveAIRequest: mocks.reserve,
+  settleAIRequestClaim: mocks.settle,
+  refundAIRequestClaimBeforeProvider: mocks.release,
+  refundAIRequestReservationBeforeProvider: mocks.recover,
+}));
 
 import { DELETE, PATCH, POST, PUT } from "@/app/api/materials/route";
 import { MaterialStageResponseSchema } from "@/lib/materials/schema";
+
+beforeEach(() => {
+  mocks.isAdminConfigured.mockReturnValue(true);
+  mocks.adminStorageFrom.mockReturnValue({ admin: true });
+  mocks.createAdmin.mockReturnValue({
+    storage: { from: mocks.adminStorageFrom },
+  });
+});
 
 describe("material staging write response", () => {
   beforeEach(() => {
@@ -251,6 +279,73 @@ describe("material staging expiration boundaries", () => {
     expect(response.status).toBe(410);
     await expect(response.json()).resolves.toEqual(expect.objectContaining({ code: "material_staging_expired" }));
     expect(gt).toHaveBeenCalledWith("expires_at", expect.any(String));
+    expect(mocks.createAdmin).not.toHaveBeenCalled();
+  });
+
+  it("fails closed when the verified same-origin fallback has no admin storage boundary", async () => {
+    const activeLookup = queryResult({
+      data: {
+        storage_path: `${USER_ID}/22222222-2222-4222-8222-222222222222/source.txt`,
+        mime_type: "text/plain",
+        byte_size: 5,
+      },
+      error: null,
+    });
+    mocks.createClient.mockResolvedValue({
+      auth: { getUser: mocks.getUser },
+      from: vi.fn(() => activeLookup.builder),
+    });
+    mocks.isAdminConfigured.mockReturnValue(false);
+    const form = new FormData();
+    form.set("materialId", "22222222-2222-4222-8222-222222222222");
+    form.set("file", new File(["notes"], "notes.txt", { type: "text/plain" }));
+
+    const response = await PUT(new Request("https://yova.example/api/materials", {
+      method: "PUT",
+      body: form,
+    }));
+
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toEqual(expect.objectContaining({
+      error: expect.stringContaining("secure upload fallback"),
+      requestId: expect.any(String),
+    }));
+    expect(mocks.createAdmin).not.toHaveBeenCalled();
+    expect(mocks.storePrivateMaterial).not.toHaveBeenCalled();
+  });
+
+  it("requires cancel and re-stage when the exact Storage path already conflicts", async () => {
+    const activeLookup = queryResult({
+      data: {
+        storage_path: `${USER_ID}/22222222-2222-4222-8222-222222222222/source.txt`,
+        mime_type: "text/plain",
+        byte_size: 5,
+      },
+      error: null,
+    });
+    mocks.createClient.mockResolvedValue({
+      auth: { getUser: mocks.getUser },
+      from: vi.fn(() => activeLookup.builder),
+    });
+    mocks.storePrivateMaterial.mockResolvedValueOnce({
+      ok: false,
+      reason: "object-conflict",
+    });
+    const form = new FormData();
+    form.set("materialId", "22222222-2222-4222-8222-222222222222");
+    form.set("file", new File(["notes"], "notes.txt", { type: "text/plain" }));
+
+    const response = await PUT(new Request("https://yova.example/api/materials", {
+      method: "PUT",
+      body: form,
+    }));
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "material_storage_object_conflict",
+      retryable: false,
+    });
+    expect(mocks.cancelStagedMaterial).not.toHaveBeenCalled();
   });
 
   it("does not process or map an expired staging row", async () => {
@@ -305,10 +400,191 @@ describe("material staging expiration boundaries", () => {
       committed: true,
       retryable: true,
     });
+    expect(mocks.adminStorageFrom).toHaveBeenCalledWith("learning-materials");
+    expect(mocks.storePrivateMaterial).toHaveBeenCalledWith(
+      { admin: true },
+      `${USER_ID}/22222222-2222-4222-8222-222222222222/source.txt`,
+      expect.any(File),
+      "text/plain",
+    );
     expect(mocks.cancelStagedMaterial).toHaveBeenCalledWith(expect.anything(), "22222222-2222-4222-8222-222222222222");
     expect(activeLookup.gt).toHaveBeenCalledWith("expires_at", expect.any(String));
     expect(expiredLookup.gt).toHaveBeenCalledWith("expires_at", expect.any(String));
   });
+});
+
+describe("material processing AI allowance and single flight", () => {
+  const materialId = "22222222-2222-4222-8222-222222222222";
+  const claimId = "33333333-3333-4333-8333-333333333333";
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.getUser.mockResolvedValue({ data: { user: { id: USER_ID } }, error: null });
+    mocks.reserve.mockResolvedValue({
+      allowed: true,
+      claimId,
+      operationKey: materialId,
+      reservationState: "reserved",
+      replayed: false,
+      retryAfterSeconds: 0,
+      remainingToday: 2,
+    });
+    mocks.settle.mockResolvedValue(true);
+    mocks.release.mockResolvedValue(true);
+    mocks.recover.mockResolvedValue(false);
+    mocks.mapAndPersistMaterial.mockResolvedValue({ role: "content_source" });
+    mocks.assessMaterialQuality.mockReturnValue({
+      status: "ready",
+      wordCount: 24,
+      notice: null,
+    });
+    mocks.cancelStagedMaterial.mockResolvedValue({
+      status: "removed",
+      logicalRemovalCommitted: true,
+    });
+  });
+
+  it("uses the material id as a durable lease before mapping and settles success", async () => {
+    configureReadyMaterial();
+
+    const response = await PATCH(processRequest(materialId));
+
+    expect(response.status).toBe(200);
+    expect(mocks.reserve).toHaveBeenCalledWith(
+      expect.anything(),
+      "material_processing",
+      materialId,
+      expect.any(String),
+    );
+    expect(mocks.reserve.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.settle.mock.invocationCallOrder[0],
+    );
+    expect(mocks.settle.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.mapAndPersistMaterial.mock.invocationCallOrder[0],
+    );
+    expect(mocks.settle).toHaveBeenCalledWith(expect.anything(), claimId);
+    expect(mocks.release).not.toHaveBeenCalled();
+  });
+
+  it("rejects a concurrent duplicate before any provider mapping work", async () => {
+    configureReadyMaterial();
+    mocks.reserve.mockResolvedValueOnce({
+      allowed: false,
+      claimId: null,
+      operationKey: materialId,
+      denialReason: "operation_in_progress",
+      retryAfterSeconds: 37,
+      remainingToday: 2,
+    });
+
+    const response = await PATCH(processRequest(materialId));
+
+    expect(response.status).toBe(409);
+    expect(response.headers.get("retry-after")).toBe("37");
+    await expect(response.json()).resolves.toMatchObject({
+      code: "ai_operation_in_progress",
+      retryable: true,
+    });
+    expect(mocks.mapAndPersistMaterial).not.toHaveBeenCalled();
+    expect(mocks.settle).not.toHaveBeenCalled();
+  });
+
+  it("returns a retryable quota response without mapping or cancelling the upload", async () => {
+    configureReadyMaterial();
+    mocks.reserve.mockResolvedValueOnce({
+      allowed: false,
+      claimId: null,
+      operationKey: materialId,
+      denialReason: "usage_limit",
+      retryAfterSeconds: 600,
+      remainingToday: 0,
+    });
+
+    const response = await PATCH(processRequest(materialId));
+
+    expect(response.status).toBe(429);
+    expect(response.headers.get("retry-after")).toBe("600");
+    expect(mocks.mapAndPersistMaterial).not.toHaveBeenCalled();
+    expect(mocks.cancelStagedMaterial).not.toHaveBeenCalled();
+  });
+
+  it("keeps failed provider mapping consumed before cleaning up", async () => {
+    configureReadyMaterial();
+    mocks.mapAndPersistMaterial.mockRejectedValueOnce(new Error("provider unavailable"));
+    const errorLog = vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    const response = await PATCH(processRequest(materialId));
+
+    expect(response.status).toBe(503);
+    expect(mocks.settle).toHaveBeenCalledWith(expect.anything(), claimId);
+    expect(mocks.release).not.toHaveBeenCalled();
+    expect(mocks.cancelStagedMaterial).toHaveBeenCalledOnce();
+    errorLog.mockRestore();
+  });
+
+  it("releases failure known to occur before any provider-capable work", async () => {
+    const upload = queryResult({
+      data: {
+        id: materialId,
+        filename: "biology.txt",
+        storage_path: `${USER_ID}/${materialId}/source.txt`,
+        mime_type: "text/plain",
+        byte_size: 2,
+        processing_status: "processing",
+        metadata: {},
+        expires_at: "2026-09-05T12:00:00.000Z",
+      },
+      error: null,
+    });
+    mocks.createClient.mockResolvedValue({
+      auth: { getUser: mocks.getUser },
+      from: vi.fn(() => upload.builder),
+      storage: {
+        from: vi.fn(() => ({
+          download: vi.fn().mockResolvedValue({ data: new Blob(["x"]), error: null }),
+        })),
+      },
+    });
+    const errorLog = vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    const response = await PATCH(processRequest(materialId));
+
+    expect(response.status).toBe(422);
+    expect(mocks.release).toHaveBeenCalledWith(expect.anything(), claimId);
+    expect(mocks.settle).not.toHaveBeenCalled();
+    expect(mocks.extractMaterialWithRecovery).not.toHaveBeenCalled();
+    errorLog.mockRestore();
+  });
+
+  function configureReadyMaterial() {
+    const upload = queryResult({
+      data: {
+        id: materialId,
+        filename: "biology.txt",
+        storage_path: `${USER_ID}/${materialId}/source.txt`,
+        mime_type: "text/plain",
+        byte_size: 200,
+        processing_status: "ready",
+        metadata: { mappingStatus: "failed" },
+        expires_at: "2026-09-05T12:00:00.000Z",
+      },
+      error: null,
+    });
+    const extracted = queryResult({
+      data: {
+        extracted_text: "Cell respiration converts stored chemical energy into ATP through several linked stages.",
+        metadata: { mappingStatus: "failed", pageCount: null, textTruncated: false },
+      },
+      error: null,
+    });
+    const from = vi.fn()
+      .mockReturnValueOnce(upload.builder)
+      .mockReturnValueOnce(extracted.builder);
+    mocks.createClient.mockResolvedValue({
+      auth: { getUser: mocks.getUser },
+      from,
+    });
+  }
 });
 
 function stageRequest() {
@@ -328,6 +604,14 @@ function deleteRequest() {
     method: "DELETE",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ materialId: "22222222-2222-4222-8222-222222222222" }),
+  });
+}
+
+function processRequest(materialId: string) {
+  return new Request("https://yova.example/api/materials", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ materialId }),
   });
 }
 

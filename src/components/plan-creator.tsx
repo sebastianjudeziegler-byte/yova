@@ -699,7 +699,7 @@ export function PlanCreator({
 
       {step === "goal" && (
         <PlanPanel eyebrow="CREATE A PLAN" title="What do you need to learn or prepare for?" description="Write it naturally. YOVA will organize the details before anything is created.">
-          <textarea className="goal-input" placeholder="Example: I have a biology test next Friday on photosynthesis and cellular respiration." value={goal} onChange={(event) => setGoal(event.target.value)} />
+          <textarea className="goal-input" aria-label="Learning goal or deadline" placeholder="Example: I have a biology test next Friday on photosynthesis and cellular respiration." value={goal} onChange={(event) => setGoal(event.target.value)} />
           <p className="goal-input-hint">Include the topic and, if relevant, the test, deadline, or result you want.</p>
           {!assessGoalContext(goal).hasEnoughContext && <p className="goal-context-warning"><AlertCircle size={16} /> Add the actual topic, or continue and choose Use my materials so YOVA can identify what the class label contains.</p>}
           <PlanActions onBack={() => void exitCreator()} backLabel="Cancel" onNext={() => setStep("source")} nextDisabled={goal.trim().length < 10} />
@@ -830,7 +830,7 @@ export function PlanCreator({
               <div className="topic-map-prompts" aria-label="Common topic map changes">
                 {(workProductCopy ? ["A required part is missing: ", "This part is already complete: ", "This is outside the brief: ", "Change the emphasis toward: "] : ["A topic is missing: ", "I already know this and want a quick verification: ", "This is outside my goal: ", "Change the emphasis toward: "]).map((prompt) => <button type="button" key={prompt} onClick={() => setMapCorrection(prompt)}>{prompt.replace(/:\s*$/, "")}</button>)}
               </div>
-              <textarea rows={3} maxLength={800} value={mapCorrection} placeholder="Example: Include the causes of World War I, but leave detailed military technology outside this plan." onChange={(event) => setMapCorrection(event.target.value)} />
+              <textarea aria-label="Requested topic map change" rows={3} maxLength={800} value={mapCorrection} placeholder="Example: Include the causes of World War I, but leave detailed military technology outside this plan." onChange={(event) => setMapCorrection(event.target.value)} />
               {mapCorrectionError && <p className="plan-activation-error"><AlertCircle size={16} /> {mapCorrectionError}</p>}
               <button type="button" className="button secondary" disabled={!mapCorrection.trim() || mapUpdating || Boolean(methodUpdatingSessionId)} onClick={() => void updateTopicMapAndPlan()}>{mapUpdating ? <><span className="button-spinner" /> Updating map…</> : <>Update map and plan <ArrowRight size={17} /></>}</button>
             </div>

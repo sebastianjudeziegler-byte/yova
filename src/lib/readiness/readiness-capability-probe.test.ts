@@ -2,8 +2,10 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import {
+  probePublicLaunchAbuseDatabase,
   probeSignedInGenerationDatabase,
   probeStudyProfilePublicDatabase,
+  PUBLIC_LAUNCH_ABUSE_CONTRACT_VERSION,
   SIGNED_IN_GENERATION_CONTRACT_VERSION,
   STUDY_PROFILE_PUBLIC_CONTRACT_VERSION,
 } from "../../../scripts/readiness-capability-probe.mjs";
@@ -237,6 +239,78 @@ describe("Study Profile public-funnel release capability probe", () => {
 
     expect(result.passed).toBe(false);
     expect(result.detail).not.toContain(secret);
+  });
+});
+
+describe("public-launch abuse-control release capability probe", () => {
+  const completeContract = {
+    contractVersion: PUBLIC_LAUNCH_ABUSE_CONTRACT_VERSION,
+    ready: true,
+    aiActionsCovered: true,
+    materialUploadQuota: true,
+    materialChunkWriteBoundary: true,
+    untrustedInsertQuotas: true,
+    tutorWriteBoundary: true,
+  };
+
+  it("accepts only the current complete abuse-control contract", async () => {
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(jsonResponse(completeContract));
+
+    await expect(probePublicLaunchAbuseDatabase({
+      supabaseUrl: "https://project.supabase.co/",
+      supabaseSecretKey: "server-secret-value",
+      fetchImpl,
+    })).resolves.toEqual({
+      passed: true,
+      detail: expect.stringContaining(PUBLIC_LAUNCH_ABUSE_CONTRACT_VERSION),
+    });
+
+    expect(fetchImpl).toHaveBeenCalledWith(
+      "https://project.supabase.co/rest/v1/rpc/public_launch_abuse_readiness_v1",
+      expect.objectContaining({ method: "POST", body: "{}", cache: "no-store" }),
+    );
+  });
+
+  it("fails closed for a missing, stale, partial, or unreachable contract", async () => {
+    const missing = await probePublicLaunchAbuseDatabase({
+      supabaseUrl: "https://project.supabase.co",
+      supabaseSecretKey: "server-secret-value",
+      fetchImpl: vi.fn<typeof fetch>().mockResolvedValue(jsonResponse(
+        { code: "PGRST202", message: "function was not found" },
+        404,
+      )),
+    });
+    expect(missing.detail).toContain(`migration ${PUBLIC_LAUNCH_ABUSE_CONTRACT_VERSION}`);
+
+    const stale = await probePublicLaunchAbuseDatabase({
+      supabaseUrl: "https://project.supabase.co",
+      supabaseSecretKey: "server-secret-value",
+      fetchImpl: vi.fn<typeof fetch>().mockResolvedValue(jsonResponse({
+        ...completeContract,
+        contractVersion: "202609040001",
+      })),
+    });
+    expect(stale.detail).toContain("stale");
+
+    const partial = await probePublicLaunchAbuseDatabase({
+      supabaseUrl: "https://project.supabase.co",
+      supabaseSecretKey: "server-secret-value",
+      fetchImpl: vi.fn<typeof fetch>().mockResolvedValue(jsonResponse({
+        ...completeContract,
+        ready: false,
+        materialUploadQuota: false,
+      })),
+    });
+    expect(partial.detail).toContain("material upload quotas");
+
+    const secret = "do-not-print-this-secret";
+    const unreachable = await probePublicLaunchAbuseDatabase({
+      supabaseUrl: "https://project.supabase.co",
+      supabaseSecretKey: secret,
+      fetchImpl: vi.fn<typeof fetch>().mockRejectedValue(new Error(secret)),
+    });
+    expect(unreachable.passed).toBe(false);
+    expect(unreachable.detail).not.toContain(secret);
   });
 });
 

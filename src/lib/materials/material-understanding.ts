@@ -16,6 +16,12 @@ import { chunkMaterialText, type MaterialTextChunk } from "@/lib/materials/chunk
 import { persistMaterialMappingResult } from "@/lib/materials/material-mapping-persistence";
 import { getOpenAIClient } from "@/lib/openai/client";
 import { getOpenAIKnowledgeMapConfig } from "@/lib/openai/config";
+import {
+  refundAIRequestClaimBeforeProvider,
+  refundAIRequestReservationBeforeProvider,
+  reserveAIRequest,
+  settleAIRequestClaim,
+} from "@/lib/server/ai-usage";
 
 const CHUNKS_PER_BATCH = 4;
 const MAPPING_CONCURRENCY = 3;
@@ -55,11 +61,24 @@ export type MaterialMappingStats = {
   model: string | null;
 };
 
-export async function mapMaterialText(input: {
+type MaterialMappingInput = {
   materialId: string;
   filename: string;
   text: string;
   deadlineAt?: number;
+};
+
+type MaterialPersistenceInput = MaterialMappingInput & {
+  supabase: SupabaseClient;
+  table?: "material_uploads" | "materials";
+};
+
+export async function mapMaterialText(input: MaterialMappingInput) {
+  return mapMaterialTextInternal(input);
+}
+
+async function mapMaterialTextInternal(input: MaterialMappingInput & {
+  beforeProviderRequest?: () => Promise<void>;
 }): Promise<{ understanding: MaterialUnderstanding; chunks: Array<MaterialTextChunk & { sectionRole: MaterialSectionRole }>; stats: MaterialMappingStats }> {
   const startedAt = Date.now();
   const chunks = chunkMaterialText(input.materialId, input.text);
@@ -73,9 +92,16 @@ export async function mapMaterialText(input: {
   );
   const mappedBatches: z.infer<typeof MaterialBatchMapSchema>[] = [];
   const deadlineAt = input.deadlineAt ?? startedAt + MATERIAL_MAPPING_ROUTE_BUDGET_MS;
+  let providerAuthorized = false;
 
   for (let start = 0; start < batches.length; start += MAPPING_CONCURRENCY) {
-    const wave = await Promise.all(batches.slice(start, start + MAPPING_CONCURRENCY).map(async (batch) => {
+    const waveBatches = batches.slice(start, start + MAPPING_CONCURRENCY);
+    if (deadlineAt - Date.now() < MINIMUM_BATCH_TIME_MS) throw new MaterialMappingDeadlineError();
+    if (!providerAuthorized) {
+      await input.beforeProviderRequest?.();
+      providerAuthorized = true;
+    }
+    const wave = await Promise.all(waveBatches.map(async (batch) => {
       const remainingMs = deadlineAt - Date.now();
       if (remainingMs < MINIMUM_BATCH_TIME_MS) throw new MaterialMappingDeadlineError();
       usage.attempts += 1;
@@ -147,18 +173,73 @@ export async function mapMaterialText(input: {
   };
 }
 
-export async function mapAndPersistMaterial(input: {
-  supabase: SupabaseClient;
-  materialId: string;
-  filename: string;
-  text: string;
-  table?: "material_uploads" | "materials";
-  deadlineAt?: number;
-}) {
+/**
+ * The default material mapper owns its durable allowance. The material UUID is
+ * the stable operation key, so every route and server instance shares one
+ * single-flight decision before any mapping provider request can begin.
+ */
+export async function mapAndPersistMaterial(input: MaterialPersistenceInput) {
+  const recoveryKey = crypto.randomUUID();
+  let reservation: Awaited<ReturnType<typeof reserveAIRequest>>;
+  try {
+    reservation = await reserveAIRequest(
+      input.supabase,
+      "material_processing",
+      input.materialId,
+      recoveryKey,
+    );
+  } catch {
+    await recoverUnknownMaterialMappingReservation(input, recoveryKey);
+    throw new MaterialMappingAllowanceError("allowance_unverified");
+  }
+
+  if (!reservation.allowed) {
+    throw new MaterialMappingAllowanceError(
+      reservation.denialReason,
+      reservation.retryAfterSeconds,
+    );
+  }
+
+  let allowanceConsumed = false;
+  try {
+    return await mapAndPersistMaterialInternal(input, async () => {
+      let consumed = false;
+      try {
+        consumed = await settleAIRequestClaim(input.supabase, reservation.claimId);
+      } catch {
+        // The exact release below safely distinguishes a live reservation from
+        // a consumption whose receipt was lost.
+      }
+      if (!consumed) {
+        throw new MaterialMappingAllowanceError("allowance_settlement_unconfirmed");
+      }
+      allowanceConsumed = true;
+    });
+  } catch (error) {
+    if (!allowanceConsumed) {
+      await refundKnownMaterialMappingReservationBeforeProvider(input, reservation.claimId);
+    }
+    throw error;
+  }
+}
+
+/**
+ * Only for a caller that already consumed material_processing allowance for
+ * this exact material before an earlier provider-capable phase (currently PDF
+ * recovery in /api/materials). All other callers use mapAndPersistMaterial.
+ */
+export async function mapAndPersistMaterialWithConsumedAIUsage(input: MaterialPersistenceInput) {
+  return mapAndPersistMaterialInternal(input);
+}
+
+async function mapAndPersistMaterialInternal(
+  input: MaterialPersistenceInput,
+  beforeProviderRequest?: () => Promise<void>,
+) {
   const table = input.table ?? "material_uploads";
   const startedAt = Date.now();
   try {
-    const mapped = await mapMaterialText(input);
+    const mapped = await mapMaterialTextInternal({ ...input, beforeProviderRequest });
     const persisted = await persistMaterialMappingResult({
       supabase: input.supabase,
       table,
@@ -219,6 +300,43 @@ export async function mapAndPersistMaterial(input: {
       }),
     }).catch(() => false);
     throw error;
+  }
+}
+
+export class MaterialMappingAllowanceError extends Error {
+  constructor(
+    public readonly denialReason: string,
+    public readonly retryAfterSeconds: number | null = null,
+  ) {
+    super("YOVA could not authorize this material-mapping attempt.");
+    this.name = "MaterialMappingAllowanceError";
+  }
+}
+
+async function recoverUnknownMaterialMappingReservation(
+  input: MaterialPersistenceInput,
+  recoveryKey: string,
+) {
+  try {
+    await refundAIRequestReservationBeforeProvider(
+      input.supabase,
+      "material_processing",
+      input.materialId,
+      recoveryKey,
+    );
+  } catch {
+    // Ambiguous expiry is consumed by the database rather than refunded.
+  }
+}
+
+async function refundKnownMaterialMappingReservationBeforeProvider(
+  input: MaterialPersistenceInput,
+  claimId: string,
+) {
+  try {
+    await refundAIRequestClaimBeforeProvider(input.supabase, claimId);
+  } catch {
+    // An unconfirmed release becomes a consumed attempt when its lease expires.
   }
 }
 

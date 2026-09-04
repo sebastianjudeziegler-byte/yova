@@ -10,6 +10,8 @@ const ITEM_ID = "33333333-3333-4333-8333-333333333333";
 const TOPIC_ID = "44444444-4444-4444-8444-444444444444";
 const CONTENT_SESSION_ID = "55555555-5555-4555-8555-555555555555";
 const REVIEW_SESSION_ID = "66666666-6666-4666-8666-666666666666";
+const OPERATION_ID = "77777777-7777-4777-8777-777777777777";
+const CLAIM_ID = "88888888-8888-4888-8888-888888888888";
 
 const mocks = vi.hoisted(() => ({
   createClient: vi.fn(),
@@ -19,10 +21,28 @@ const mocks = vi.hoisted(() => ({
   sessionRows: [] as Array<Record<string, unknown>>,
   routeRows: [] as Array<Record<string, unknown>>,
   interruptionRows: [] as Array<{ plan_session_id: string }>,
+  openAIConfigured: vi.fn(),
+  redirect: vi.fn(),
+  reserve: vi.fn(),
+  settle: vi.fn(),
+  release: vi.fn(),
+  recover: vi.fn(),
 }));
 
 vi.mock("@/lib/supabase/server", () => ({
   createSupabaseServerClient: mocks.createClient,
+}));
+vi.mock("@/lib/openai/config", () => ({
+  isOpenAISessionConfigured: mocks.openAIConfigured,
+}));
+vi.mock("@/lib/openai/plan-redirector", () => ({
+  redirectPlanWithOpenAI: mocks.redirect,
+}));
+vi.mock("@/lib/server/ai-usage", () => ({
+  reserveAIRequest: mocks.reserve,
+  settleAIRequestClaim: mocks.settle,
+  refundAIRequestClaimBeforeProvider: mocks.release,
+  refundAIRequestReservationBeforeProvider: mocks.recover,
 }));
 
 import { PATCH } from "@/app/api/plans/adjust/route";
@@ -34,6 +54,19 @@ describe("protected plan adjustment route", () => {
     mocks.routeRows = [];
     mocks.interruptionRows = [];
     mocks.getUser.mockResolvedValue({ data: { user: { id: USER_ID } }, error: null });
+    mocks.openAIConfigured.mockReturnValue(false);
+    mocks.reserve.mockResolvedValue({
+      allowed: true,
+      claimId: CLAIM_ID,
+      operationKey: OPERATION_ID,
+      reservationState: "reserved",
+      replayed: false,
+      retryAfterSeconds: 0,
+      remainingToday: 6,
+    });
+    mocks.settle.mockResolvedValue(true);
+    mocks.release.mockResolvedValue(true);
+    mocks.recover.mockResolvedValue(false);
     mocks.from.mockImplementation((table: string) => {
       if (table === "plan_sessions") {
         const builder = {
@@ -251,18 +284,114 @@ describe("protected plan adjustment route", () => {
       route.identity.routeLineageId,
     );
   });
+
+  it("reserves before an AI plan redirect and settles the successful provider call", async () => {
+    mocks.openAIConfigured.mockReturnValueOnce(true);
+    mocks.redirect.mockImplementationOnce(async (input: { sessions: Array<Record<string, unknown>> }) => input.sessions);
+
+    const response = await PATCH(request({ direction: "Use conceptual examples and no calculations." }));
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("x-yova-request-id")).toBe(OPERATION_ID);
+    expect(mocks.reserve).toHaveBeenCalledWith(
+      expect.anything(),
+      "plan_adjustment",
+      OPERATION_ID,
+      expect.any(String),
+    );
+    expect(mocks.reserve.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.settle.mock.invocationCallOrder[0],
+    );
+    expect(mocks.settle.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.redirect.mock.invocationCallOrder[0],
+    );
+    expect(mocks.settle).toHaveBeenCalledWith(expect.anything(), CLAIM_ID);
+    expect(mocks.release).not.toHaveBeenCalled();
+  });
+
+  it("uses the deterministic redirect without provider work when quota is exhausted", async () => {
+    mocks.openAIConfigured.mockReturnValueOnce(true);
+    mocks.reserve.mockResolvedValueOnce({
+      allowed: false,
+      claimId: null,
+      operationKey: OPERATION_ID,
+      denialReason: "usage_limit",
+      retryAfterSeconds: 60,
+      remainingToday: 0,
+    });
+
+    const response = await PATCH(request({ direction: "Use conceptual examples and no calculations." }));
+
+    expect(response.status).toBe(200);
+    expect(mocks.redirect).not.toHaveBeenCalled();
+    expect(mocks.rpc).toHaveBeenCalledWith("adjust_learning_plan_with_routes", expect.anything());
+  });
+
+  it("does not mutate or repeat provider work while the same operation is in progress", async () => {
+    mocks.openAIConfigured.mockReturnValueOnce(true);
+    mocks.reserve.mockResolvedValueOnce({
+      allowed: false,
+      claimId: null,
+      operationKey: OPERATION_ID,
+      denialReason: "operation_in_progress",
+      retryAfterSeconds: 45,
+      remainingToday: 6,
+    });
+
+    const response = await PATCH(request({ direction: "Use conceptual examples and no calculations." }));
+
+    expect(response.status).toBe(409);
+    expect(response.headers.get("retry-after")).toBe("45");
+    await expect(response.json()).resolves.toMatchObject({ code: "ai_operation_in_progress" });
+    expect(mocks.redirect).not.toHaveBeenCalled();
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it("keeps a failed provider attempt consumed before applying the safe redirect fallback", async () => {
+    mocks.openAIConfigured.mockReturnValueOnce(true);
+    mocks.redirect.mockRejectedValueOnce(new Error("provider unavailable"));
+
+    const response = await PATCH(request({ direction: "Use conceptual examples and no calculations." }));
+
+    expect(response.status).toBe(200);
+    expect(mocks.settle).toHaveBeenCalledWith(expect.anything(), CLAIM_ID);
+    expect(mocks.release).not.toHaveBeenCalled();
+    expect(mocks.rpc).toHaveBeenCalledWith("adjust_learning_plan_with_routes", expect.anything());
+  });
+
+  it("fails closed before provider work when claim consumption cannot be confirmed", async () => {
+    mocks.openAIConfigured.mockReturnValueOnce(true);
+    mocks.settle.mockRejectedValueOnce(new Error("settlement receipt unavailable"));
+    const errorLog = vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    const response = await PATCH(request({ direction: "Use conceptual examples and no calculations." }));
+
+    expect(response.status).toBe(200);
+    expect(mocks.redirect).not.toHaveBeenCalled();
+    expect(mocks.recover).toHaveBeenCalledWith(
+      expect.anything(),
+      "plan_adjustment",
+      OPERATION_ID,
+      expect.any(String),
+    );
+    expect(mocks.rpc).toHaveBeenCalledWith("adjust_learning_plan_with_routes", expect.anything());
+    errorLog.mockRestore();
+  });
 });
 
-function request() {
+function request(overrides: { direction?: string | null } = {}) {
   return new Request("https://yova.example/api/plans/adjust", {
     method: "PATCH",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      "X-Yova-Request-Id": OPERATION_ID,
+    },
     body: JSON.stringify({
       planId: PLAN_ID,
       deadline: new Date(Date.now() + 14 * 24 * 60 * 60 * 1_000).toISOString(),
       studyMode: "inside_yova",
       futureSessionMinutes: 15,
-      direction: null,
+      direction: overrides.direction ?? null,
     }),
   });
 }

@@ -78,8 +78,8 @@ import {
 import { checkSessionGenerationRateLimit, requestRateLimitKey } from "@/lib/server/rate-limit";
 import { aiUsageReservationConflict } from "@/lib/ai-usage/reservation-conflict";
 import {
-  releaseAIRequestClaim,
-  releaseAIRequestReservation,
+  consumeAIRequestClaimAfterProviderFailure,
+  refundAIRequestReservationBeforeProvider,
   reserveAIRequest,
   settleAIRequestClaim,
 } from "@/lib/server/ai-usage";
@@ -913,7 +913,7 @@ export async function POST(request: Request) {
         "validation",
         "route_conflict",
       );
-      await releaseFailedGenerationClaim(supabase, aiUsageClaimId, requestId);
+      await consumeFailedGenerationClaim(supabase, aiUsageClaimId, requestId);
       recordGenerationObservationBestEffort(
         supabase,
         user.id,
@@ -927,7 +927,7 @@ export async function POST(request: Request) {
       );
       return NextResponse.json({
         code: "study_route_generation_conflict",
-        error: "YOVA could not prepare content that matches this session's committed route. Nothing was saved or charged; try again.",
+        error: "YOVA could not prepare content that matches this session's committed route. Nothing was saved; try again.",
         retryable: true,
         requestId,
       }, {
@@ -957,7 +957,7 @@ export async function POST(request: Request) {
         "persistence",
         "cache_conflict",
       );
-      await releaseFailedGenerationClaim(supabase, aiUsageClaimId, requestId);
+      await consumeFailedGenerationClaim(supabase, aiUsageClaimId, requestId);
       recordGenerationObservationBestEffort(
         supabase,
         user.id,
@@ -990,7 +990,7 @@ export async function POST(request: Request) {
         "persistence",
         "cache_write",
       );
-      await releaseFailedGenerationClaim(supabase, aiUsageClaimId, requestId);
+      await consumeFailedGenerationClaim(supabase, aiUsageClaimId, requestId);
       recordGenerationObservationBestEffort(
         supabase,
         user.id,
@@ -1005,7 +1005,7 @@ export async function POST(request: Request) {
       return NextResponse.json(
         {
           code: "deferred_session_persistence_unavailable",
-          error: "YOVA prepared this lesson but could not safely save its remaining targets. Nothing was completed or charged. Try again.",
+          error: "YOVA prepared this lesson but could not safely save its remaining targets. Nothing was completed. Try again.",
           retryable: true,
           requestId,
         },
@@ -1028,7 +1028,7 @@ export async function POST(request: Request) {
           "persistence",
           "cache_conflict",
         );
-        await releaseFailedGenerationClaim(supabase, aiUsageClaimId, requestId);
+        await consumeFailedGenerationClaim(supabase, aiUsageClaimId, requestId);
         recordGenerationObservationBestEffort(
           supabase,
           user.id,
@@ -1091,7 +1091,7 @@ export async function POST(request: Request) {
 
     return learnerResponse;
   } catch (error) {
-    await releaseFailedGenerationClaim(supabase, aiUsageClaimId, requestId);
+    await consumeFailedGenerationClaim(supabase, aiUsageClaimId, requestId);
     const attemptedModel = completedGeneration?.model ?? getOpenAISessionConfig()?.model ?? null;
     console.error("YOVA guided-session generation failed", {
       requestId,
@@ -1136,16 +1136,16 @@ export async function POST(request: Request) {
   }
 }
 
-async function releaseFailedGenerationClaim(
+async function consumeFailedGenerationClaim(
   supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
   claimId: string | null,
   requestId: string,
 ) {
   if (!claimId) return;
   try {
-    await releaseAIRequestClaim(supabase, claimId);
+    await consumeAIRequestClaimAfterProviderFailure(supabase, claimId);
   } catch {
-    console.error("YOVA could not return a failed guided-session allowance claim", { requestId });
+    console.error("YOVA could not consume a failed guided-session allowance claim", { requestId });
   }
 }
 
@@ -1172,7 +1172,7 @@ async function recoverUnknownGenerationReservation(
   recoveryKey: string,
 ) {
   try {
-    await releaseAIRequestReservation(supabase, "session_generation", operationKey, recoveryKey);
+    await refundAIRequestReservationBeforeProvider(supabase, "session_generation", operationKey, recoveryKey);
   } catch {
     // Its short database lease remains the final recovery boundary.
   }

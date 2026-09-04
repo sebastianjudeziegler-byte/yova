@@ -31,8 +31,8 @@ vi.mock("@/lib/openai/session-generation-strategy", () => ({
 }));
 vi.mock("@/lib/server/ai-usage", () => ({
   reserveAIRequest: mocks.reserve,
-  releaseAIRequestClaim: mocks.release,
-  releaseAIRequestReservation: mocks.releaseOperation,
+  consumeAIRequestClaimAfterProviderFailure: mocks.release,
+  refundAIRequestReservationBeforeProvider: mocks.releaseOperation,
   settleAIRequestClaim: mocks.settle,
 }));
 vi.mock("@/lib/server/development-preview", () => ({

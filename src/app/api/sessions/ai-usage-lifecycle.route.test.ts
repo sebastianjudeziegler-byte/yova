@@ -8,8 +8,8 @@ const mocks = vi.hoisted(() => ({
   evaluate: vi.fn(),
   repair: vi.fn(),
   reserve: vi.fn(),
-  release: vi.fn(),
-  releaseOperation: vi.fn(),
+  consumeFailure: vi.fn(),
+  refundOperationBeforeProvider: vi.fn(),
   settle: vi.fn(),
 }));
 
@@ -24,8 +24,8 @@ vi.mock("@/lib/openai/config", () => ({
 }));
 vi.mock("@/lib/server/ai-usage", () => ({
   reserveAIRequest: mocks.reserve,
-  releaseAIRequestClaim: mocks.release,
-  releaseAIRequestReservation: mocks.releaseOperation,
+  consumeAIRequestClaimAfterProviderFailure: mocks.consumeFailure,
+  refundAIRequestReservationBeforeProvider: mocks.refundOperationBeforeProvider,
   settleAIRequestClaim: mocks.settle,
 }));
 vi.mock("@/lib/server/development-preview", () => ({
@@ -65,8 +65,8 @@ describe("answer evaluation and repair allowance lifecycle", () => {
       retryAfterSeconds: 0,
       remainingToday: 9,
     });
-    mocks.release.mockReset().mockResolvedValue(true);
-    mocks.releaseOperation.mockReset().mockResolvedValue(false);
+    mocks.consumeFailure.mockReset().mockResolvedValue(true);
+    mocks.refundOperationBeforeProvider.mockReset().mockResolvedValue(false);
     mocks.settle.mockReset().mockResolvedValue(true);
     mocks.evaluate.mockReset().mockResolvedValue({
       verdict: "secure",
@@ -87,21 +87,23 @@ describe("answer evaluation and repair allowance lifecycle", () => {
     });
   });
 
-  it("settles a validated answer evaluation and does not release it", async () => {
+  it("settles a validated answer evaluation without failure cleanup", async () => {
     const response = await evaluateAnswer(jsonRequest("/api/sessions/evaluate", evaluationBody()));
 
     expect(response.status).toBe(200);
     expect(mocks.settle).toHaveBeenCalledWith(expect.anything(), CLAIM_ID);
-    expect(mocks.release).not.toHaveBeenCalled();
+    expect(mocks.consumeFailure).not.toHaveBeenCalled();
   });
 
-  it("releases the exact evaluation reservation when provider work fails", async () => {
+  it("consumes the exact evaluation reservation after provider work fails", async () => {
     mocks.evaluate.mockRejectedValueOnce(new Error("provider unavailable"));
 
     const response = await evaluateAnswer(jsonRequest("/api/sessions/evaluate", evaluationBody()));
 
     expect(response.status).toBe(502);
-    expect(mocks.release).toHaveBeenCalledWith(expect.anything(), CLAIM_ID);
+    expect(mocks.consumeFailure).toHaveBeenCalledWith(expect.anything(), CLAIM_ID);
+    expect(mocks.evaluate.mock.invocationCallOrder[0])
+      .toBeLessThan(mocks.consumeFailure.mock.invocationCallOrder[0]!);
     expect(mocks.settle).not.toHaveBeenCalled();
   });
 
@@ -111,7 +113,7 @@ describe("answer evaluation and repair allowance lifecycle", () => {
     const response = await evaluateAnswer(jsonRequest("/api/sessions/evaluate", evaluationBody()));
 
     expect(response.status).toBe(200);
-    expect(mocks.release).not.toHaveBeenCalled();
+    expect(mocks.consumeFailure).not.toHaveBeenCalled();
   });
 
   it("settles a validated generated repair", async () => {
@@ -120,17 +122,19 @@ describe("answer evaluation and repair allowance lifecycle", () => {
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toMatchObject({ generation: { mode: "openai" } });
     expect(mocks.settle).toHaveBeenCalledWith(expect.anything(), CLAIM_ID);
-    expect(mocks.release).not.toHaveBeenCalled();
+    expect(mocks.consumeFailure).not.toHaveBeenCalled();
   });
 
-  it("releases failed repair generation before returning the system fallback", async () => {
+  it("consumes failed repair generation before returning the system fallback", async () => {
     mocks.repair.mockRejectedValueOnce(new Error("provider unavailable"));
 
     const response = await generateRepair(jsonRequest("/api/sessions/repair", repairBody()));
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toMatchObject({ generation: { mode: "fallback" } });
-    expect(mocks.release).toHaveBeenCalledWith(expect.anything(), CLAIM_ID);
+    expect(mocks.consumeFailure).toHaveBeenCalledWith(expect.anything(), CLAIM_ID);
+    expect(mocks.repair.mock.invocationCallOrder[0])
+      .toBeLessThan(mocks.consumeFailure.mock.invocationCallOrder[0]!);
     expect(mocks.settle).not.toHaveBeenCalled();
   });
 
@@ -141,7 +145,7 @@ describe("answer evaluation and repair allowance lifecycle", () => {
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toMatchObject({ generation: { mode: "openai" } });
-    expect(mocks.release).not.toHaveBeenCalled();
+    expect(mocks.consumeFailure).not.toHaveBeenCalled();
   });
 
   it.each([
@@ -171,7 +175,7 @@ describe("answer evaluation and repair allowance lifecycle", () => {
       retryable: true,
     });
     expect(provider).not.toHaveBeenCalled();
-    expect(mocks.release).not.toHaveBeenCalled();
+    expect(mocks.consumeFailure).not.toHaveBeenCalled();
     expect(mocks.settle).not.toHaveBeenCalled();
   });
 
@@ -183,13 +187,13 @@ describe("answer evaluation and repair allowance lifecycle", () => {
     expect(response.status).toBe(503);
     const operationKey = response.headers.get("X-Yova-Request-Id");
     expect(operationKey).toMatch(/^[0-9a-f-]{36}$/i);
-    expect(mocks.releaseOperation).toHaveBeenCalledWith(
+    expect(mocks.refundOperationBeforeProvider).toHaveBeenCalledWith(
       expect.anything(),
       "answer_evaluation",
       operationKey,
       expect.stringMatching(/^[0-9a-f-]{36}$/i),
     );
-    const recoveryKey = mocks.releaseOperation.mock.calls[0]?.[3];
+    const recoveryKey = mocks.refundOperationBeforeProvider.mock.calls[0]?.[3];
     expect(recoveryKey).not.toBe(operationKey);
     expect(mocks.evaluate).not.toHaveBeenCalled();
   });

@@ -12,29 +12,17 @@ import {
   publicPasswordAccountsAreOpen,
   type AIUsageAction,
 } from "@/lib/server/ai-usage-policy";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 export type { AIUsageAction } from "@/lib/server/ai-usage-policy";
 
-const AllowedAIUsageClaimSchema = z.object({
-  allowed: z.literal(true),
-  // Optional only during the migration rollout. Once the refundable-claim
-  // migration is live, every allowed claim includes this private id.
-  claimId: z.string().uuid().optional(),
-  retryAfterSeconds: z.literal(0),
-  remainingToday: z.number().int().min(0),
-});
-
-const LimitedAIUsageClaimSchema = z.object({
-  allowed: z.literal(false),
-  claimId: z.null().optional(),
-  retryAfterSeconds: z.number().int().min(0).max(86_400),
-  remainingToday: z.number().int().min(0),
-});
-
-const AIUsageClaimSchema = z.discriminatedUnion("allowed", [
-  AllowedAIUsageClaimSchema,
-  LimitedAIUsageClaimSchema,
-]);
+// The allowance-status RPC predates strict operation reservations. Keep its
+// TypeScript surface aligned with the legacy database allowlist instead of
+// implying it supports the newly added strict-only actions.
+type LegacyAIUsageAction = Exclude<
+  AIUsageAction,
+  "plan_adjustment" | "intake_interpretation" | "material_processing"
+>;
 
 const AllowedAIUsageReservationSchema = z.object({
   allowed: z.literal(true),
@@ -67,11 +55,8 @@ const AIUsageReservationSchema = z.discriminatedUnion("allowed", [
 
 export type AIUsageReservation = z.infer<typeof AIUsageReservationSchema>;
 
-// Long enough for every currently metered route deadline, but bounded so a
-// platform termination or lost response cannot consume the daily balance
-// indefinitely. Provider calls still need their own shorter absolute timeout.
-export const AI_USAGE_RESERVATION_LEASE_SECONDS = 180;
 export const AI_USAGE_RPC_TIMEOUT_MS = 3_000;
+const authenticatedUserIdCache = new WeakMap<object, Promise<string>>();
 
 type AIUsageRPCResult = {
   data: unknown;
@@ -146,24 +131,11 @@ export class AIUsageGateError extends Error {
   }
 }
 
-export async function claimAIRequest(supabase: SupabaseClient, action: AIUsageAction) {
-  const limit = aiUsageLimitFor(action, publicPasswordAccountsAreOpen());
-  const { data, error } = await boundedAIUsageRPC(supabase.rpc("claim_ai_request", {
-    request_action: action,
-    minute_limit: limit.minute,
-    day_limit: limit.day,
-  }));
-  if (error) throw new AIUsageGateError();
-
-  const parsed = AIUsageClaimSchema.safeParse(data);
-  if (!parsed.success) throw new AIUsageGateError();
-  return parsed.data;
-}
-
 /**
  * Reserves one durable request with a caller-owned idempotency key. Unlike the
  * compatibility claim API, every allowed result from this strict path has an
- * exact claim id that must be either settled or released.
+ * exact claim id that must be consumed, or explicitly refunded before any
+ * provider invocation begins.
  */
 export async function reserveAIRequest(
   supabase: SupabaseClient,
@@ -179,14 +151,14 @@ export async function reserveAIRequest(
     || parsedOperationKey.data === parsedRecoveryKey.data
   ) throw new AIUsageGateError();
 
-  const limit = aiUsageLimitFor(action, publicPasswordAccountsAreOpen());
-  const { data, error } = await boundedAIUsageRPC(supabase.rpc("reserve_ai_request", {
+  const userId = await authenticatedAIUsageUserId(supabase);
+  const admin = createAIUsageAdminClient();
+  const { data, error } = await boundedAIUsageRPC(admin.rpc("reserve_ai_request_for_user", {
+    target_user_id: userId,
     request_action: action,
-    minute_limit: limit.minute,
-    day_limit: limit.day,
     request_operation_key: parsedOperationKey.data,
     request_recovery_key: parsedRecoveryKey.data,
-    lease_seconds: AI_USAGE_RESERVATION_LEASE_SECONDS,
+    request_public_accounts: publicPasswordAccountsAreOpen(),
   }));
   if (error) throw new AIUsageGateError();
 
@@ -195,20 +167,26 @@ export async function reserveAIRequest(
   return parsed.data;
 }
 
-/** Marks one exact learner-usable reservation as consumed. */
+/**
+ * Irreversibly consumes one exact reservation. Call immediately before a
+ * provider boundary where practical, or after any attempt that may be billed.
+ */
 export async function settleAIRequestClaim(
   supabase: SupabaseClient,
   claimId: string,
 ) {
   const parsedClaimId = z.string().uuid().safeParse(claimId);
   if (!parsedClaimId.success) throw new AIUsageGateError();
+  const userId = await authenticatedAIUsageUserId(supabase);
+  const admin = createAIUsageAdminClient();
 
   // Consumption is idempotent in the database. Retry one ambiguous transport
   // or receipt failure so a committed transition whose response was lost can
   // be confirmed without charging or settling a second claim.
   for (let attempt = 0; attempt < 2; attempt += 1) {
     try {
-      const { data, error } = await boundedAIUsageRPC(supabase.rpc("consume_ai_request_claim", {
+      const { data, error } = await boundedAIUsageRPC(admin.rpc("consume_ai_request_claim_for_user", {
+        target_user_id: userId,
         usage_claim_id: parsedClaimId.data,
       }));
       if (!error && typeof data === "boolean") return data;
@@ -220,17 +198,32 @@ export async function settleAIRequestClaim(
 }
 
 /**
- * Returns one exact pre-provider reservation when generation produced no
- * learner-usable result. The database makes this operation owner-scoped and
- * idempotent, so a duplicated catch path cannot refund another request.
+ * Failure cleanup for any path that may have crossed a provider boundary.
+ * Consumption is the safe default: provider refusals, invalid output, lost
+ * receipts, validation failures and persistence conflicts may still be billed.
  */
-export async function releaseAIRequestClaim(
+export async function consumeAIRequestClaimAfterProviderFailure(
+  supabase: SupabaseClient,
+  claimId: string,
+) {
+  return settleAIRequestClaim(supabase, claimId);
+}
+
+/**
+ * Refunds one exact reservation only when the caller proves no provider
+ * invocation started. Keep this deliberately explicit and rare; ordinary
+ * provider/post-provider catches use consumeAIRequestClaimAfterProviderFailure.
+ */
+export async function refundAIRequestClaimBeforeProvider(
   supabase: SupabaseClient,
   claimId: string,
 ) {
   const parsedClaimId = z.string().uuid().safeParse(claimId);
   if (!parsedClaimId.success) throw new AIUsageGateError();
-  const { data, error } = await boundedAIUsageRPC(supabase.rpc("release_ai_request_claim", {
+  const userId = await authenticatedAIUsageUserId(supabase);
+  const admin = createAIUsageAdminClient();
+  const { data, error } = await boundedAIUsageRPC(admin.rpc("release_ai_request_claim_for_user", {
+    target_user_id: userId,
     usage_claim_id: parsedClaimId.data,
   }));
   if (error || typeof data !== "boolean") throw new AIUsageGateError();
@@ -238,11 +231,11 @@ export async function releaseAIRequestClaim(
 }
 
 /**
- * Recovers the ambiguous reserve-RPC case: the database may have committed a
- * reservation even though its response never reached the route. Releasing by
- * the operation key is owner/action scoped and cannot refund another request.
+ * Recovers an ambiguous reserve/settle receipt before provider work begins.
+ * The operation and private recovery keys scope the refund to the caller's
+ * exact reservation; expiry or a prior consumption can never be refunded.
  */
-export async function releaseAIRequestReservation(
+export async function refundAIRequestReservationBeforeProvider(
   supabase: SupabaseClient,
   action: AIUsageAction,
   operationKey: string,
@@ -255,7 +248,10 @@ export async function releaseAIRequestReservation(
     || !parsedRecoveryKey.success
     || parsedOperationKey.data === parsedRecoveryKey.data
   ) throw new AIUsageGateError();
-  const { data, error } = await boundedAIUsageRPC(supabase.rpc("release_ai_request_reservation", {
+  const userId = await authenticatedAIUsageUserId(supabase);
+  const admin = createAIUsageAdminClient();
+  const { data, error } = await boundedAIUsageRPC(admin.rpc("release_ai_request_reservation_for_user", {
+    target_user_id: userId,
     request_action: action,
     request_operation_key: parsedOperationKey.data,
     request_recovery_key: parsedRecoveryKey.data,
@@ -271,7 +267,7 @@ export async function releaseAIRequestReservation(
  */
 export async function readAIUsageStatus(
   supabase: SupabaseClient,
-  action: AIUsageAction,
+  action: LegacyAIUsageAction,
 ): Promise<AIUsageStatus> {
   const limit = aiUsageLimitFor(action, publicPasswordAccountsAreOpen());
   const { data, error } = await boundedAIUsageRPC(supabase.rpc("read_ai_usage_status", {
@@ -288,4 +284,30 @@ export async function readAIUsageStatus(
     ...parsed.data,
     resetAt: new Date(parsed.data.resetAt).toISOString(),
   };
+}
+
+function createAIUsageAdminClient() {
+  try {
+    return createSupabaseAdminClient();
+  } catch {
+    throw new AIUsageGateError();
+  }
+}
+
+function authenticatedAIUsageUserId(supabase: SupabaseClient) {
+  const cached = authenticatedUserIdCache.get(supabase);
+  if (cached) return cached;
+  const loading = (async () => {
+    try {
+      const { data: { user }, error } = await supabase.auth.getUser();
+      const parsed = z.string().uuid().safeParse(user?.id);
+      if (error || !parsed.success) throw new AIUsageGateError();
+      return parsed.data;
+    } catch (error) {
+      if (error instanceof AIUsageGateError) throw error;
+      throw new AIUsageGateError();
+    }
+  })();
+  authenticatedUserIdCache.set(supabase, loading);
+  return loading;
 }

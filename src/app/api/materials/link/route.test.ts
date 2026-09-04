@@ -90,7 +90,11 @@ describe("linked material write response", () => {
         metadata: expect.objectContaining({ mappingStatus: "processing" }),
       }),
     });
+    const createPayload = mocks.rpc.mock.calls.find(([name]) => (
+      name === "create_material_upload"
+    ))?.[1]?.payload;
     expect(mocks.mapMaterial).toHaveBeenCalledWith(expect.objectContaining({
+      materialId: createPayload.id,
       deadlineAt: expect.any(Number),
     }));
     expect(mocks.rpc.mock.invocationCallOrder[0]).toBeLessThan(mocks.upload.mock.invocationCallOrder[0]);

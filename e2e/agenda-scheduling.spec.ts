@@ -1,5 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 
+const FIXED_NOW = new Date("2026-09-02T10:00:00.000Z");
+
 const onboardingAnswers = [
   "Show a short recommendation and alternatives",
   "I delay a little, then get going",
@@ -15,7 +17,7 @@ const onboardingAnswers = [
 ] as const;
 
 test("Calendar refuses unchanged and past custom session times", async ({ page }) => {
-  await page.clock.setFixedTime(new Date("2026-09-02T10:00:00.000Z"));
+  await page.clock.setFixedTime(FIXED_NOW);
   await createPreviewAccount(page);
   await completeOnboarding(page);
   await page.evaluate(() => {
@@ -72,12 +74,12 @@ test("Calendar refuses unchanged and past custom session times", async ({ page }
   await save.click();
   await expect(page.locator(".calendar-action-error")).toContainText("Choose a different date or time before saving.");
 
-  const pastInput = localDateTimeInput(new Date(Date.now() - 24 * 60 * 60 * 1_000));
+  const pastInput = localDateTimeInput(new Date(FIXED_NOW.getTime() - 24 * 60 * 60 * 1_000));
   await customTime.fill(pastInput);
   await save.click();
   await expect(page.locator(".calendar-action-error")).toContainText("Choose a future date and time.");
 
-  const futureInput = localDateTimeInput(new Date(Date.now() + 48 * 60 * 60 * 1_000));
+  const futureInput = localDateTimeInput(new Date(FIXED_NOW.getTime() + 48 * 60 * 60 * 1_000));
   await customTime.fill(futureInput);
   await save.click();
   await expect(panel).toHaveCount(0);

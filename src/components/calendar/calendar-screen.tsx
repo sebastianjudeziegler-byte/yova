@@ -13,7 +13,6 @@ import {
 import {
   AlertCircle,
   ArrowRight,
-  CalendarDays,
   Check,
   ChevronDown,
   ChevronLeft,
@@ -78,7 +77,6 @@ import type {
   CalendarPrototypeState,
   CalendarReason,
   CalendarSuggestion,
-  CalendarView,
   ManualCalendarEvent,
 } from "@/lib/calendar/types";
 import { persistPlanSchedule } from "@/lib/scheduling/client";
@@ -95,15 +93,6 @@ import type { ScheduleSessionUpdate } from "@/lib/scheduling/schema";
 const HOUR_START = 8;
 const HOUR_END = 22;
 const DEFAULT_EVENT_MINUTES = 30;
-const DAY_MS = 24 * 60 * 60 * 1_000;
-const VIEW_LABELS: ReadonlyArray<{ id: CalendarView; label: string }> = [
-  { id: "day", label: "Day" },
-  { id: "week", label: "Week" },
-  { id: "month", label: "Month" },
-  { id: "semester", label: "Semester" },
-  { id: "list", label: "List" },
-];
-
 type CalendarQuickAddDraft = NonNullable<ReturnType<typeof parseCalendarQuickAdd>>;
 
 type DragState = {
@@ -215,7 +204,12 @@ export function CalendarScreen(props: CalendarScreenProps) {
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      const nextState = loadCalendarPrototypeState(window.localStorage, accountId);
+      const loadedState = loadCalendarPrototypeState(window.localStorage, accountId);
+      // Week is the only complete calendar surface in this release. Normalize
+      // stale browser state from earlier previews instead of reopening a stub.
+      const nextState = loadedState.ui.view === "week"
+        ? loadedState
+        : { ...loadedState, ui: { ...loadedState.ui, view: "week" as const } };
       calendarStateRef.current = nextState;
       setCalendarState(nextState);
       setSelectedBlockId(nextState.ui.selectedBlockId);
@@ -376,16 +370,9 @@ export function CalendarScreen(props: CalendarScreenProps) {
   }, [updateUi]);
 
   const navigateCalendar = useCallback((direction: -1 | 1) => {
-    const step = calendarState.ui.view === "day"
-      ? 1
-      : calendarState.ui.view === "month"
-        ? 28
-        : calendarState.ui.view === "semester"
-          ? 112
-          : 7;
-    const next = addDays(anchorDate, direction * step);
+    const next = addDays(anchorDate, direction * 7);
     updateUi({ anchorDateKey: dateKey(next) });
-  }, [anchorDate, calendarState.ui.view, updateUi]);
+  }, [anchorDate, updateUi]);
 
   useEffect(() => {
     const handleKeyDown = (event: globalThis.KeyboardEvent) => {
@@ -416,8 +403,6 @@ export function CalendarScreen(props: CalendarScreenProps) {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [navigateCalendar, quickAddDraft, selectBlock]);
-
-  const setView = (view: CalendarView) => updateUi({ view });
 
   const parseQuickAdd = () => {
     const input = quickAdd.trim();
@@ -1463,22 +1448,15 @@ export function CalendarScreen(props: CalendarScreenProps) {
         </section>
       </aside>
 
-      <main className="calendar-main">
+      <div className="calendar-main">
         <section className="section-block calendar-board" aria-labelledby="calendar-board-title">
           <header className="calendar-board-toolbar">
             <div>
               <span className="step-label">SCHEDULE</span>
               <h2 id="calendar-board-title">{formatWeekRange(weekStart, weekEnd)}</h2>
             </div>
-            <div className="calendar-view-switcher" role="tablist" aria-label="Calendar view">
-              {VIEW_LABELS.map((view) => <button
-                type="button"
-                role="tab"
-                aria-selected={calendarState.ui.view === view.id}
-                className={calendarState.ui.view === view.id ? "selected" : ""}
-                key={view.id}
-                onClick={() => setView(view.id)}
-              >{view.label}</button>)}
+            <div className="calendar-view-switcher">
+              <span aria-current="page">Week view</span>
             </div>
           </header>
           <div className="calendar-date-navigation">
@@ -1487,7 +1465,7 @@ export function CalendarScreen(props: CalendarScreenProps) {
             <button type="button" aria-label="Next calendar period" onClick={() => navigateCalendar(1)}><ChevronRight size={18} /></button>
           </div>
 
-          {calendarState.ui.view === "week" ? <WeekCalendar
+          <WeekCalendar
             weekDays={weekDays}
             blocks={model.blocks}
             outcomes={model.outcomes}
@@ -1505,14 +1483,7 @@ export function CalendarScreen(props: CalendarScreenProps) {
               event.dataTransfer.effectAllowed = mode === "move" ? "move" : "link";
               event.dataTransfer.setData("text/plain", block.id);
             }}
-          /> : <CalendarViewStub
-            view={calendarState.ui.view}
-            blocks={model.blocks}
-            outcomes={model.outcomes}
-            anchorDate={anchorDate}
-            onSelect={selectBlock}
-            onReturnToWeek={() => setView("week")}
-          />}
+          />
         </section>
 
         <section className="calendar-attention" aria-labelledby="calendar-attention-title">
@@ -1563,7 +1534,7 @@ export function CalendarScreen(props: CalendarScreenProps) {
           <p>{previewCourses.map((course) => course.label).join(" · ")}</p>
           <small>These labels appear only in an empty browser preview. Signed-in calendars use authoritative courses and plans.</small>
         </section>}
-      </main>
+      </div>
     </div>
   </div>;
 }
@@ -1939,35 +1910,6 @@ function WeekCalendar({
     </div>
     <footer className="calendar-legend" aria-label="Calendar legend"><span><i className="fixed" /> Fixed</span><span><i className="deadline" /> Exam or deadline</span><span><i className="yova" /> YOVA block</span><span><i className="suggested" /> Suggested</span><span><i className="done" /> Done</span><small>Drag movable blocks. Manual and suggested blocks have a resize handle; shorten YOVA work safely from Details. Click an empty hour to add.</small></footer>
   </div>;
-}
-
-function CalendarViewStub({
-  view,
-  blocks,
-  outcomes,
-  anchorDate,
-  onSelect,
-  onReturnToWeek,
-}: {
-  view: Exclude<CalendarView, "week">;
-  blocks: CalendarBlock[];
-  outcomes: CalendarOutcome[];
-  anchorDate: Date;
-  onSelect: (id: string) => void;
-  onReturnToWeek: () => void;
-}) {
-  const label = VIEW_LABELS.find((candidate) => candidate.id === view)?.label ?? view;
-  const nearbyBlocks = blocks
-    .filter((block) => Math.abs(Date.parse(block.startsAt) - anchorDate.getTime()) <= 35 * DAY_MS)
-    .slice(0, 8);
-  return <section className="calendar-view-stub" aria-label={`${label} calendar view`}>
-    <CalendarDays size={26} />
-    <h3>{label} view is routed but not interactive yet</h3>
-    <p>Week is the complete planning surface in this release. This view does not pretend to support moving or resizing.</p>
-    {view === "list" && nearbyBlocks.length > 0 && <div className="calendar-stub-list">{nearbyBlocks.map((block) => <button type="button" key={block.id} onClick={() => onSelect(block.id)}><span>{formatDateTime(block.startsAt)}</span><strong>{block.title}</strong></button>)}</div>}
-    {view !== "list" && <p><strong>{outcomes.filter((outcome) => outcome.status !== "complete").length}</strong> open outcomes remain visible in Coming up below.</p>}
-    <button type="button" className="button primary" onClick={onReturnToWeek}>Return to Week</button>
-  </section>;
 }
 
 function OutcomeRow({

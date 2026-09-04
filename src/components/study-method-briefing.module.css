@@ -215,6 +215,10 @@
   line-height: 1.55;
 }
 
+:global(.plan-error-state) .practiceBoundary {
+  color: #435170;
+}
+
 @media (max-width: 760px) {
   .grid,
   .personalization {

@@ -1,4 +1,5 @@
 import {
+  probePublicLaunchAbuseDatabase,
   probeSignedInGenerationDatabase,
   probeStudyProfilePublicDatabase,
 } from "./readiness-capability-probe.mjs";
@@ -287,6 +288,15 @@ if (production) {
       studyProfileCapability.passed,
       studyProfileCapability.detail,
     );
+    const publicLaunchAbuseCapability = await probePublicLaunchAbuseDatabase({
+      supabaseUrl,
+      supabaseSecretKey,
+    });
+    addCheck(
+      "Public-launch abuse-control database contract",
+      publicLaunchAbuseCapability.passed,
+      publicLaunchAbuseCapability.detail,
+    );
   } else {
     addCheck(
       "Signed-in generation database contract",
@@ -295,6 +305,11 @@ if (production) {
     );
     addCheck(
       "Study Profile public database contract",
+      false,
+      "not probed because the HTTPS Supabase URL or SUPABASE_SECRET_KEY is unavailable",
+    );
+    addCheck(
+      "Public-launch abuse-control database contract",
       false,
       "not probed because the HTTPS Supabase URL or SUPABASE_SECRET_KEY is unavailable",
     );
@@ -325,7 +340,7 @@ if (failed.length) {
   if (configurationOnly) {
     console.log("Configuration shapes passed. Database capabilities were not checked; this is not production release approval.");
   } else if (production) {
-    console.log("All production release readiness checks passed, including the live signed-in generation and Study Profile database contracts.");
+    console.log("All production release readiness checks passed, including the live signed-in generation, Study Profile, and public-launch abuse-control database contracts.");
   } else {
     console.log("All required local configuration checks passed.");
   }

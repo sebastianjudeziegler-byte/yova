@@ -24,7 +24,8 @@
     "readiness": "node scripts/check-readiness.mjs",
     "readiness:configuration": "node scripts/check-readiness.mjs --production --configuration-only",
     "readiness:production": "node scripts/check-readiness.mjs --production",
-    "smoke:production": "node scripts/smoke-deployment.mjs"
+    "smoke:production": "node scripts/smoke-deployment.mjs",
+    "smoke:production:lifecycle": "node scripts/smoke-production-lifecycle.mjs"
   },
   "dependencies": {
     "@fontsource/inter": "latest",

@@ -33,6 +33,7 @@ const mocks = vi.hoisted(() => ({
   settle: vi.fn(),
   loadDurationContext: vi.fn(),
   openAIConfigured: true,
+  mapMaterial: vi.fn(),
 }));
 
 vi.mock("server-only", () => ({}));
@@ -65,13 +66,16 @@ vi.mock("@/lib/server/rate-limit", () => ({
 vi.mock("@/lib/server/development-preview", () => ({
   isDevelopmentPreviewRequest: () => mocks.developmentPreview,
 }));
+vi.mock("@/lib/materials/material-understanding", () => ({
+  mapAndPersistMaterial: mocks.mapMaterial,
+}));
 vi.mock("@/lib/server/ai-usage", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/lib/server/ai-usage")>();
   return {
     ...original,
     reserveAIRequest: mocks.reserve,
-    releaseAIRequestClaim: mocks.release,
-    releaseAIRequestReservation: mocks.releaseOperation,
+    consumeAIRequestClaimAfterProviderFailure: mocks.release,
+    refundAIRequestReservationBeforeProvider: mocks.releaseOperation,
     settleAIRequestClaim: mocks.settle,
   };
 });
@@ -168,6 +172,7 @@ describe("plan generation route", () => {
     mocks.releaseOperation.mockReset().mockResolvedValue(false);
     mocks.settle.mockReset().mockResolvedValue(true);
     mocks.loadDurationContext.mockReset().mockResolvedValue(emptyDurationContext());
+    mocks.mapMaterial.mockReset();
   });
 
   it("lets deterministic duration own Study Now timing and content budget under the availability cap", async () => {
@@ -1004,7 +1009,7 @@ describe("plan generation route", () => {
     expect(mocks.generateLegacyPlan).not.toHaveBeenCalled();
   });
 
-  it("releases a production reservation when plan generation falls back", async () => {
+  it("consumes a production reservation when paid plan generation falls back", async () => {
     configureProduction();
     mocks.generatePlan.mockRejectedValueOnce(new Error("provider unavailable"));
     const errorLog = vi.spyOn(console, "error").mockImplementation(() => undefined);
@@ -1029,6 +1034,8 @@ describe("plan generation route", () => {
       expect.anything(),
       "55555555-5555-4555-8555-555555555555",
     );
+    expect(mocks.generatePlan.mock.invocationCallOrder[0])
+      .toBeLessThan(mocks.release.mock.invocationCallOrder[0]!);
     expect(mocks.settle).not.toHaveBeenCalled();
     expect(mocks.generatePlan).toHaveBeenCalledTimes(1);
     expect(mocks.generateLegacyPlan).not.toHaveBeenCalled();
@@ -1078,7 +1085,7 @@ describe("plan generation route", () => {
     expect(mocks.loadDurationContext).not.toHaveBeenCalled();
   });
 
-  it("releases the reservation when a placement check cannot produce a usable response", async () => {
+  it("consumes the reservation when a paid placement check is unusable", async () => {
     configureProduction();
     mocks.generateDiagnostic.mockResolvedValueOnce({
       ...generatedDiagnostic(),
@@ -1093,6 +1100,8 @@ describe("plan generation route", () => {
       expect.anything(),
       "55555555-5555-4555-8555-555555555555",
     );
+    expect(mocks.generateDiagnostic.mock.invocationCallOrder[0])
+      .toBeLessThan(mocks.release.mock.invocationCallOrder[0]!);
     expect(mocks.settle).not.toHaveBeenCalled();
   });
 
@@ -1543,6 +1552,63 @@ describe("plan generation route", () => {
     expect(response.status).toBe(410);
     await expect(response.json()).resolves.toMatchObject({ code: "material_staging_expired" });
     expect(gt).toHaveBeenCalledWith("expires_at", expect.any(String));
+    expect(mocks.reserve).not.toHaveBeenCalled();
+    expect(mocks.generatePlan).not.toHaveBeenCalled();
+  });
+
+  it("routes legacy material repair through the metered central mapper before plan AI", async () => {
+    configureProduction();
+    const materialId = "22222222-2222-4222-8222-222222222222";
+    const gt = vi.fn().mockResolvedValue({
+      data: [{
+        id: materialId,
+        filename: "calculus-notes.pdf",
+        mime_type: "application/pdf",
+        byte_size: 2_048,
+        processing_status: "ready",
+        extracted_text: "The derivative is the local rate of change of a function.",
+        metadata: {},
+        expires_at: "2099-01-01T00:00:00.000Z",
+      }],
+      error: null,
+    });
+    const query = {
+      select: vi.fn(),
+      in: vi.fn(),
+      gt,
+    };
+    query.select.mockReturnValue(query);
+    query.in.mockReturnValue(query);
+    const client = {
+      auth: {
+        getUser: vi.fn().mockResolvedValue({
+          data: { user: { id: "44444444-4444-4444-8444-444444444444" } },
+          error: null,
+        }),
+      },
+      from: vi.fn(() => query),
+    };
+    mocks.createClient.mockResolvedValue(client);
+    mocks.mapMaterial.mockRejectedValueOnce(new Error("material allowance unavailable"));
+    const { POST } = await import("@/app/api/plans/generate/route");
+
+    const response = await POST(planGenerationRequest({
+      materialMode: "upload",
+      materials: [{
+        id: materialId,
+        name: "calculus-notes.pdf",
+        mimeType: "application/pdf",
+        sizeBytes: 2_048,
+        textContent: null,
+        processingStatus: "ready",
+      }],
+    }));
+
+    expect(response.status).toBe(409);
+    expect(mocks.mapMaterial).toHaveBeenCalledWith(expect.objectContaining({
+      supabase: client,
+      materialId,
+    }));
     expect(mocks.reserve).not.toHaveBeenCalled();
     expect(mocks.generatePlan).not.toHaveBeenCalled();
   });

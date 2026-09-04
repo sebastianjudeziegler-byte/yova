@@ -57,6 +57,14 @@ YOVA deliberately fails closed in production when Supabase or OpenAI is missing.
 
 Apply every pending Supabase migration through `202608310003_method_eligibility_v3.sql` **before** deploying this application version. Migration `202608300001_signed_in_generation_readiness.sql` introduced the base read-only, service-only StudyRoute probe. Migration `202608300002_broad_recall_checkpoint_retry_containment.sql` repairs the checkpoint, attempt, and interruption-event guards so deterministic checkpoint conflicts are not amplified by legacy PostgREST transaction retries. Migration `202608300003` adds the expanded method catalog, null-safe route validation, and secure versioned post-commit method-choice path. Migration `202608310003` preserves the v2 writer and readiness RPC for older clients, adds the immutable `method_eligibility_v3` writer and predecessor-trace dispatcher, and exposes `signed_in_generation_readiness_v3` so this client cannot certify a database that is missing the additive v3 boundary.
 
+Public-account releases must also apply `202609040001_expand_ai_usage_cost_controls.sql`
+and `202609040002_storage_and_untrusted_write_quotas.sql` before application
+deployment. The final migration exposes the service-role-only
+`public_launch_abuse_readiness_v1` probe. Production builds fail closed unless
+that probe confirms durable reservations for every OpenAI path, material
+upload quotas, protected material chunks, bounded untrusted inserts, and the
+tutor write boundary.
+
 Then configure `SUPABASE_SECRET_KEY`, `YOVA_DRAFT_RECEIPT_SECRET`, and an explicit `YOVA_PERSONALIZATION_ROLLOUT_PERCENT` decision, and run:
 
 ```bash
@@ -123,3 +131,24 @@ Account → email link → onboarding → learning goal → plan
 ```
 
 Then repeat on a phone-sized browser. This catches interaction and email issues that a server-only smoke test cannot see.
+
+## 6. Run the isolated production lifecycle canary
+
+With an explicitly supplied production `SUPABASE_SECRET_KEY`, run:
+
+```bash
+pnpm smoke:production:lifecycle -- https://YOUR-YOVA-DOMAIN \
+  --acknowledge-production-writes --smtp-probe
+```
+
+The command uses unique release-test accounts only. It verifies CAPTCHA
+rejection without a token, asks Supabase SMTP to deliver an invitation to
+Resend's documented `delivered+label@resend.dev` test address, verifies a real
+one-time authentication token, checks authenticated cloud persistence and AI
+allowance state, exercises the material staging quota, downloads and revokes a
+private account export, and finally deletes the canary account through YOVA.
+The cleanup path also removes test identities if an intermediate check fails.
+
+This canary does not replace the human email-link and mobile-browser journey:
+CAPTCHAs must not be bypassed, and only a person can confirm the rendered email
+and device handoff.

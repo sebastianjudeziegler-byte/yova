@@ -5,17 +5,25 @@ import { personalizationRolloutConfigurationStatus } from "@/lib/server/personal
 import { studyProfilePublicReadinessStatus } from "@/lib/study-profile/readiness";
 import { createSupabaseAdminClient, isSupabaseAdminConfigured } from "@/lib/supabase/admin";
 import { getSupabasePublicConfig, isSupabaseConfigured } from "@/lib/supabase/config";
+import { publicLaunchAbuseReadinessStatus } from "@/lib/supabase/public-launch-abuse-readiness";
 import { signedInGenerationReadinessStatus } from "@/lib/supabase/signed-in-generation-readiness";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   const supabaseConfig = getSupabasePublicConfig();
-  const [testerInvitations, authSettings, signedInGeneration, studyProfilePublic] = await Promise.all([
+  const [
+    testerInvitations,
+    authSettings,
+    signedInGeneration,
+    studyProfilePublic,
+    launchAbuseProtection,
+  ] = await Promise.all([
     testerInvitationStatus(),
     publicAuthSettingsStatus(supabaseConfig),
     signedInGenerationReadinessStatus(),
     studyProfilePublicReadinessStatus(),
+    publicLaunchAbuseReadinessStatus(),
   ]);
   const passwordAccountsEnabled = process.env.AUTH_PASSWORD_ACCOUNTS === "true";
   const captchaRequested = process.env.AUTH_CAPTCHA_ENABLED === "true";
@@ -28,6 +36,7 @@ export async function GET() {
     planGeneration: isOpenAIPlanConfigured() ? "openai" : "preview",
     guidedSessions: isOpenAISessionConfigured() ? "openai" : "unavailable",
     signedInGeneration,
+    launchAbuseProtection,
     personalizationRollout: personalizationRolloutConfigurationStatus(),
     studyProfilePublic,
     studyProfileEmail: isStudyProfileEmailConfigured() ? "resend" : "unavailable",

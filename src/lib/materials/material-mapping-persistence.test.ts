@@ -16,7 +16,7 @@ vi.mock("@/lib/openai/config", () => ({
   getOpenAIKnowledgeMapConfig: () => ({ apiKey: "test-key", model: "test-model" }),
 }));
 
-import { mapAndPersistMaterial } from "@/lib/materials/material-understanding";
+import { mapAndPersistMaterialWithConsumedAIUsage } from "@/lib/materials/material-understanding";
 
 const observation: GenerationObservation = {
   generationType: "material_mapping",
@@ -71,7 +71,7 @@ describe("material mapping persistence", () => {
     const rpc = vi.fn().mockResolvedValue({ data: false, error: null });
     const from = vi.fn();
 
-    await expect(mapAndPersistMaterial({
+    await expect(mapAndPersistMaterialWithConsumedAIUsage({
       supabase: { rpc, from } as unknown as SupabaseClient,
       materialId: "22222222-2222-4222-8222-222222222222",
       filename: "notes.txt",

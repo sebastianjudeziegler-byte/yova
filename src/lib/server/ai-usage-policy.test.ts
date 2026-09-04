@@ -4,11 +4,17 @@ import { aiUsageLimitFor, publicPasswordAccountsAreOpen } from "@/lib/server/ai-
 describe("AI usage policy", () => {
   it("keeps the existing tester allowance while access is invite-only", () => {
     expect(aiUsageLimitFor("plan_generation", false)).toEqual({ minute: 5, day: 20 });
+    expect(aiUsageLimitFor("plan_adjustment", false)).toEqual({ minute: 5, day: 20 });
+    expect(aiUsageLimitFor("intake_interpretation", false)).toEqual({ minute: 10, day: 80 });
+    expect(aiUsageLimitFor("material_processing", false)).toEqual({ minute: 2, day: 10 });
     expect(aiUsageLimitFor("teaching_visual", false)).toEqual({ minute: 2, day: 12 });
   });
 
   it("uses conservative per-account allowances when public password accounts are open", () => {
     expect(aiUsageLimitFor("plan_generation", true)).toEqual({ minute: 3, day: 5 });
+    expect(aiUsageLimitFor("plan_adjustment", true)).toEqual({ minute: 3, day: 8 });
+    expect(aiUsageLimitFor("intake_interpretation", true)).toEqual({ minute: 6, day: 30 });
+    expect(aiUsageLimitFor("material_processing", true)).toEqual({ minute: 1, day: 3 });
     expect(aiUsageLimitFor("session_generation", true)).toEqual({ minute: 5, day: 10 });
     expect(aiUsageLimitFor("lesson_generation", true)).toEqual({ minute: 8, day: 20 });
     expect(aiUsageLimitFor("answer_evaluation", true)).toEqual({ minute: 12, day: 40 });

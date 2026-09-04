@@ -362,6 +362,7 @@ export function StudyNowCreator({
           <p className="plan-description">Describe the result you want. YOVA will turn it into one focused session, not a multi-day plan.</p>
           <textarea
             className="goal-input"
+            aria-label="Study Now topic or result"
             placeholder="Example: Help me understand the product rule and practice using it."
             value={goal}
             onChange={(event) => setGoal(event.target.value)}

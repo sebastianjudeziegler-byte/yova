@@ -3,8 +3,8 @@ import { isOpenAIAnswerEvaluationConfigured } from "@/lib/openai/config";
 import { generateRuntimeRepairWithOpenAI } from "@/lib/openai/runtime-repair-generator";
 import { aiUsageReservationConflict } from "@/lib/ai-usage/reservation-conflict";
 import {
-  releaseAIRequestClaim,
-  releaseAIRequestReservation,
+  consumeAIRequestClaimAfterProviderFailure,
+  refundAIRequestReservationBeforeProvider,
   reserveAIRequest,
   settleAIRequestClaim,
 } from "@/lib/server/ai-usage";
@@ -115,7 +115,7 @@ export async function POST(request: Request) {
     await settleSuccessfulRepairClaim(supabase, aiUsageClaimId, requestId);
     return response(learnerResponse, requestId);
   } catch (error) {
-    await releaseFailedRepairClaim(supabase, aiUsageClaimId, requestId);
+    await consumeFailedRepairClaim(supabase, aiUsageClaimId, requestId);
     console.error("YOVA runtime repair generation failed", {
       requestId,
       reason: error instanceof Error ? error.name : "unknown",
@@ -141,16 +141,16 @@ async function settleSuccessfulRepairClaim(
   }
 }
 
-async function releaseFailedRepairClaim(
+async function consumeFailedRepairClaim(
   supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
   claimId: string | null,
   requestId: string,
 ) {
   if (!claimId) return;
   try {
-    await releaseAIRequestClaim(supabase, claimId);
+    await consumeAIRequestClaimAfterProviderFailure(supabase, claimId);
   } catch {
-    console.error("YOVA could not return a failed repair allowance claim", { requestId });
+    console.error("YOVA could not consume a failed repair allowance claim", { requestId });
   }
 }
 
@@ -160,7 +160,7 @@ async function recoverUnknownRepairReservation(
   recoveryKey: string,
 ) {
   try {
-    await releaseAIRequestReservation(supabase, "answer_evaluation", operationKey, recoveryKey);
+    await refundAIRequestReservationBeforeProvider(supabase, "answer_evaluation", operationKey, recoveryKey);
   } catch {
     // Its short database lease remains the final recovery boundary.
   }

@@ -22,8 +22,8 @@ import {
   type LessonBrief,
 } from "@/lib/session-generation/schema";
 import {
-  releaseAIRequestClaim,
-  releaseAIRequestReservation,
+  consumeAIRequestClaimAfterProviderFailure,
+  refundAIRequestReservationBeforeProvider,
   reserveAIRequest,
   settleAIRequestClaim,
 } from "@/lib/server/ai-usage";
@@ -288,7 +288,7 @@ export async function POST(request: Request) {
           },
         });
       } catch (error) {
-        await releaseFailedLessonClaim(supabase, aiUsageClaimId, requestId);
+        await consumeFailedLessonClaim(supabase, aiUsageClaimId, requestId);
         const failure = error instanceof StreamedLessonGenerationError ? error.stats : null;
         const failureAttempts = error instanceof StreamedLessonGenerationError ? error.attemptsMade : 1;
         const failureKind = failure?.failureKind ?? "provider_request_error";
@@ -403,16 +403,16 @@ export async function POST(request: Request) {
   });
 }
 
-async function releaseFailedLessonClaim(
+async function consumeFailedLessonClaim(
   supabase: Awaited<ReturnType<typeof createSupabaseServerClient>> | null,
   claimId: string | null,
   requestId: string,
 ) {
   if (!supabase || !claimId) return;
   try {
-    await releaseAIRequestClaim(supabase, claimId);
+    await consumeAIRequestClaimAfterProviderFailure(supabase, claimId);
   } catch {
-    console.error("YOVA could not return a failed streamed-lesson allowance claim", { requestId });
+    console.error("YOVA could not consume a failed streamed-lesson allowance claim", { requestId });
   }
 }
 
@@ -437,7 +437,7 @@ async function recoverUnknownLessonReservation(
   recoveryKey: string,
 ) {
   try {
-    await releaseAIRequestReservation(supabase, "lesson_generation", operationKey, recoveryKey);
+    await refundAIRequestReservationBeforeProvider(supabase, "lesson_generation", operationKey, recoveryKey);
   } catch {
     // Its short database lease remains the final recovery boundary.
   }

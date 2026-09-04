@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { aiUsageReservationConflict } from "@/lib/ai-usage/reservation-conflict";
 import { MaterialUnderstandingSchema } from "@/lib/knowledge-map/schema";
 import { MaterialExtractionError } from "@/lib/materials/extract";
 import { extractMaterialWithRecovery } from "@/lib/materials/extract-with-recovery";
@@ -7,7 +8,7 @@ import { materialStoragePath, sanitizeMaterialDisplayName } from "@/lib/material
 import { storePrivateMaterial } from "@/lib/materials/storage-upload";
 import {
   MATERIAL_MAPPING_ROUTE_BUDGET_MS,
-  mapAndPersistMaterial,
+  mapAndPersistMaterialWithConsumedAIUsage,
 } from "@/lib/materials/material-understanding";
 import { cancelStagedMaterial } from "@/lib/materials/staged-cleanup";
 import {
@@ -17,7 +18,17 @@ import {
   MaterialStageResponseSchema,
   MaterialUploadResponseSchema,
 } from "@/lib/materials/schema";
+import {
+  refundAIRequestClaimBeforeProvider,
+  refundAIRequestReservationBeforeProvider,
+  reserveAIRequest,
+  settleAIRequestClaim,
+} from "@/lib/server/ai-usage";
 import { checkMaterialUploadRateLimit, requestRateLimitKey } from "@/lib/server/rate-limit";
+import {
+  createSupabaseAdminClient,
+  isSupabaseAdminConfigured,
+} from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
@@ -172,14 +183,44 @@ export async function PUT(request: Request) {
   }, { status: 410 });
   if (Number(upload.byte_size) !== file.size) return NextResponse.json({ error: "The selected file changed before upload." }, { status: 422 });
 
+  // The owner-scoped row lookup above is the authorization boundary. Storage
+  // writes use the server credential so authenticated clients need no DELETE
+  // or UPDATE policy that could be replayed directly against this exact path.
+  if (!isSupabaseAdminConfigured()) {
+    return NextResponse.json(
+      { error: "YOVA's secure upload fallback is not configured. Try the direct upload again.", requestId },
+      { status: 503, headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId } },
+    );
+  }
+  let adminStorage: ReturnType<typeof createSupabaseAdminClient>["storage"];
+  try {
+    adminStorage = createSupabaseAdminClient().storage;
+  } catch {
+    return NextResponse.json(
+      { error: "YOVA's secure upload fallback is unavailable. Try the direct upload again.", requestId },
+      { status: 503, headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId } },
+    );
+  }
+
   const stored = await storePrivateMaterial(
-    supabase.storage.from("learning-materials"),
+    adminStorage.from("learning-materials"),
     upload.storage_path,
     file,
     upload.mime_type,
   );
   if (!stored.ok) {
     console.error("YOVA same-origin material upload failed", { requestId, reason: stored.reason });
+    if (stored.reason === "object-conflict") {
+      return NextResponse.json({
+        error: "A different object already occupies this pending upload. Cancel it and add the file again.",
+        code: "material_storage_object_conflict",
+        retryable: false,
+        requestId,
+      }, {
+        status: 409,
+        headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId },
+      });
+    }
     return NextResponse.json(
       { error: "YOVA could not securely upload this file. Try again before exporting or changing the document.", requestId },
       { status: 500, headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId } },
@@ -248,8 +289,9 @@ export async function PATCH(request: Request) {
     code: "material_staging_expired",
   }, { status: 410 });
 
+  let readyUpload: { extracted_text: string; metadata: unknown } | null = null;
   if (upload.processing_status === "ready") {
-    const { data: readyUpload, error: readyError } = await supabase
+    const { data, error: readyError } = await supabase
       .from("material_uploads")
       .select("extracted_text,metadata")
       .eq("id", upload.id)
@@ -258,29 +300,100 @@ export async function PATCH(request: Request) {
     if (readyError) {
       return NextResponse.json({ error: "YOVA could not reload this material." }, { status: 500 });
     }
-    if (!readyUpload?.extracted_text) return NextResponse.json({
+    if (!data?.extracted_text) return NextResponse.json({
       error: "That pending material expired before YOVA could finish it. Add it again.",
       code: "material_staging_expired",
     }, { status: 410 });
-    try {
-      if (!hasDurableMaterialMapping(readyUpload.metadata)) {
-        await mapAndPersistMaterial({
-          supabase,
-          materialId: upload.id,
-          filename: upload.filename,
-          text: readyUpload.extracted_text,
-          deadlineAt: mappingDeadlineAt,
-        });
-      }
+    readyUpload = { extracted_text: data.extracted_text, metadata: data.metadata };
+    if (hasDurableMaterialMapping(readyUpload.metadata)) {
       return NextResponse.json(materialResponse(upload, readyUpload.extracted_text, readyUpload.metadata), {
         headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId },
       });
-    } catch (error) {
-      return materialProcessingFailureResponse({ supabase, upload, requestId, error });
     }
   }
 
+  // The material id is stable across duplicate PATCH requests. The durable AI
+  // reservation's owner/action/operation-key uniqueness therefore acts as a
+  // cross-instance single-flight lease before either PDF recovery or mapping
+  // can contact OpenAI.
+  const recoveryKey = crypto.randomUUID();
+  let reservation: Awaited<ReturnType<typeof reserveAIRequest>>;
   try {
+    reservation = await reserveAIRequest(
+      supabase,
+      "material_processing",
+      upload.id,
+      recoveryKey,
+    );
+  } catch (error) {
+    await recoverUnknownMaterialReservation(supabase, upload.id, recoveryKey);
+    console.error("YOVA paused material processing before provider work", {
+      requestId,
+      materialId: upload.id,
+      reason: "ai_usage_gate",
+    });
+    // A stable material operation key is terminal after recovery. Cancel the
+    // staged copy so the learner is never left with an upload that cannot be
+    // safely retried under a new id.
+    return materialProcessingFailureResponse({ supabase, upload, requestId, error });
+  }
+  if (!reservation.allowed) {
+    const conflict = aiUsageReservationConflict(reservation);
+    if (conflict) {
+      return NextResponse.json({
+        code: conflict.code,
+        error: conflict.error,
+        retryable: conflict.retryable,
+        requestId,
+      }, {
+        status: 409,
+        headers: {
+          "Cache-Control": "no-store",
+          ...(conflict.retryAfterSeconds === null ? {} : {
+            "Retry-After": String(conflict.retryAfterSeconds),
+          }),
+          "X-Yova-Request-Id": requestId,
+        },
+      });
+    }
+    return NextResponse.json({
+      error: "This account has reached its material-processing allowance. Try again after the allowance resets.",
+      code: "material_processing_allowance_exhausted",
+      retryable: true,
+      requestId,
+    }, {
+      status: 429,
+      headers: {
+        "Cache-Control": "no-store",
+        "Retry-After": String(reservation.retryAfterSeconds),
+        "X-Yova-Request-Id": requestId,
+      },
+    });
+  }
+
+  let providerAllowanceConsumed = false;
+  try {
+    if (readyUpload) {
+      providerAllowanceConsumed = await consumeMaterialClaim(
+        supabase,
+        reservation.claimId,
+        requestId,
+      );
+      if (!providerAllowanceConsumed) {
+        throw new Error("Material AI allowance settlement could not be confirmed.");
+      }
+      await mapAndPersistMaterialWithConsumedAIUsage({
+        supabase,
+        materialId: upload.id,
+        filename: upload.filename,
+        text: readyUpload.extracted_text,
+        deadlineAt: mappingDeadlineAt,
+      });
+      return NextResponse.json(materialResponse(upload, readyUpload.extracted_text, readyUpload.metadata), {
+        headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId },
+      });
+    }
+
     const { data: storedFile, error: downloadError } = await supabase.storage
       .from("learning-materials")
       .download(upload.storage_path);
@@ -289,6 +402,19 @@ export async function PATCH(request: Request) {
     const bytes = new Uint8Array(await storedFile.arrayBuffer());
     if (bytes.byteLength !== Number(upload.byte_size)) throw new MaterialExtractionError("The uploaded file size did not match the selected file.");
 
+    // PDF recovery can contact OpenAI from inside the extraction helper. For
+    // text formats, local extraction remains free and can still release the
+    // reservation if it fails before the mapper is reached.
+    if (upload.mime_type === "application/pdf") {
+      providerAllowanceConsumed = await consumeMaterialClaim(
+        supabase,
+        reservation.claimId,
+        requestId,
+      );
+      if (!providerAllowanceConsumed) {
+        throw new Error("Material AI allowance settlement could not be confirmed.");
+      }
+    }
     const { extracted, aiAssistedExtraction } = await extractMaterialWithRecovery(
       bytes,
       upload.mime_type as SupportedMimeType,
@@ -314,7 +440,17 @@ export async function PATCH(request: Request) {
     // source chunks all exist durably before the browser may attach the file.
     // This removes the race where attachment moved the staging row while an
     // after-response mapper was still trying to update it.
-    await mapAndPersistMaterial({
+    if (!providerAllowanceConsumed) {
+      providerAllowanceConsumed = await consumeMaterialClaim(
+        supabase,
+        reservation.claimId,
+        requestId,
+      );
+      if (!providerAllowanceConsumed) {
+        throw new Error("Material AI allowance settlement could not be confirmed.");
+      }
+    }
+    await mapAndPersistMaterialWithConsumedAIUsage({
       supabase,
       materialId: upload.id,
       filename: upload.filename,
@@ -326,6 +462,9 @@ export async function PATCH(request: Request) {
       headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId },
     });
   } catch (error) {
+    if (!providerAllowanceConsumed) {
+      await refundFailedMaterialClaimBeforeProvider(supabase, reservation.claimId, requestId);
+    }
     console.error("YOVA material processing failed", {
       requestId,
       reason: error instanceof Error ? error.name : "unknown",
@@ -496,4 +635,51 @@ async function materialProcessingFailureResponse({
     status: isExtractionError ? 422 : 503,
     headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId },
   });
+}
+
+async function consumeMaterialClaim(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  claimId: string,
+  requestId: string,
+) {
+  try {
+    const consumed = await settleAIRequestClaim(supabase, claimId);
+    if (!consumed) {
+      console.error("YOVA could not settle a material-processing allowance claim", { requestId });
+    }
+    return consumed;
+  } catch {
+    console.error("YOVA could not settle a material-processing allowance claim", { requestId });
+    return false;
+  }
+}
+
+async function refundFailedMaterialClaimBeforeProvider(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  claimId: string,
+  requestId: string,
+) {
+  try {
+    await refundAIRequestClaimBeforeProvider(supabase, claimId);
+  } catch {
+    console.error("YOVA could not refund a pre-provider material-processing allowance claim", { requestId });
+  }
+}
+
+async function recoverUnknownMaterialReservation(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  operationKey: string,
+  recoveryKey: string,
+) {
+  try {
+    await refundAIRequestReservationBeforeProvider(
+      supabase,
+      "material_processing",
+      operationKey,
+      recoveryKey,
+    );
+  } catch {
+    // If recovery cannot be confirmed, lease expiry conservatively consumes
+    // the attempt so an ambiguous provider charge can never be refunded.
+  }
 }

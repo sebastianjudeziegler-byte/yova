@@ -2,6 +2,7 @@ type StorageResult<T> = Promise<{ data: T | null; error: unknown | null }>;
 
 export type PrivateMaterialBucket = {
   download: (path: string) => StorageResult<Blob>;
+  // Present on Supabase's bucket API, but deliberately never called here.
   remove: (paths: string[]) => StorageResult<unknown>;
   upload: (
     path: string,
@@ -11,17 +12,21 @@ export type PrivateMaterialBucket = {
 };
 
 export type StoredMaterialResult =
-  | { ok: true; disposition: "uploaded" | "already-present" | "replaced-partial" }
-  | { ok: false; reason: "remove-partial" | "upload" };
+  | { ok: true; disposition: "uploaded" | "already-present" }
+  | { ok: false; reason: "object-conflict" | "upload" };
 
 /**
  * Completes the same-origin upload fallback without requiring an UPDATE.
  *
  * A browser privacy extension can report that a signed upload failed after
- * Supabase already received the object. We first verify that case. If an
- * interrupted upload left a partial object, we remove it and perform a fresh
- * owner-scoped INSERT. This works with the base private-storage policies and
- * avoids stranding a learner on an opaque upload error.
+ * Supabase already received the object. We first verify that case. If a
+ * different object already occupies the path, fail closed and require a new
+ * stage instead of deleting through a service credential. The staging row can
+ * be promoted or cancelled while Storage I/O is in flight, so this helper must
+ * never infer that an existing object is still a disposable partial upload.
+ * The route verifies the owner-scoped staging row first, then supplies a
+ * server-authorized bucket so browser credentials never need replayable
+ * Storage UPDATE or DELETE policies.
  */
 export async function storePrivateMaterial(
   bucket: PrivateMaterialBucket,
@@ -30,16 +35,12 @@ export async function storePrivateMaterial(
   contentType: string,
 ): Promise<StoredMaterialResult> {
   const existing = await bucket.download(storagePath);
-  let replacedPartial = false;
 
   if (!existing.error && existing.data) {
     if (existing.data.size === file.size) {
       return { ok: true, disposition: "already-present" };
     }
-
-    const removed = await bucket.remove([storagePath]);
-    if (removed.error) return { ok: false, reason: "remove-partial" };
-    replacedPartial = true;
+    return { ok: false, reason: "object-conflict" };
   }
 
   const uploaded = await bucket.upload(storagePath, file, {
@@ -47,7 +48,7 @@ export async function storePrivateMaterial(
     upsert: false,
   });
   if (!uploaded.error) {
-    return { ok: true, disposition: replacedPartial ? "replaced-partial" : "uploaded" };
+    return { ok: true, disposition: "uploaded" };
   }
 
   // A concurrent signed upload may have completed between the first check and
@@ -55,6 +56,9 @@ export async function storePrivateMaterial(
   const afterFailure = await bucket.download(storagePath);
   if (!afterFailure.error && afterFailure.data?.size === file.size) {
     return { ok: true, disposition: "already-present" };
+  }
+  if (!afterFailure.error && afterFailure.data) {
+    return { ok: false, reason: "object-conflict" };
   }
 
   return { ok: false, reason: "upload" };

@@ -3,8 +3,8 @@ import { evaluateAnswerWithOpenAI } from "@/lib/openai/answer-evaluator";
 import { isOpenAIAnswerEvaluationConfigured } from "@/lib/openai/config";
 import { aiUsageReservationConflict } from "@/lib/ai-usage/reservation-conflict";
 import {
-  releaseAIRequestClaim,
-  releaseAIRequestReservation,
+  consumeAIRequestClaimAfterProviderFailure,
+  refundAIRequestReservationBeforeProvider,
   reserveAIRequest,
   settleAIRequestClaim,
 } from "@/lib/server/ai-usage";
@@ -121,7 +121,7 @@ export async function POST(request: Request) {
     await settleSuccessfulEvaluationClaim(supabase, aiUsageClaimId, requestId);
     return response(learnerResponse, requestId);
   } catch (error) {
-    await releaseFailedEvaluationClaim(supabase, aiUsageClaimId, requestId);
+    await consumeFailedEvaluationClaim(supabase, aiUsageClaimId, requestId);
     console.error("YOVA answer evaluation failed", {
       requestId,
       reason: error instanceof Error ? error.name : "unknown",
@@ -144,16 +144,16 @@ async function settleSuccessfulEvaluationClaim(
   }
 }
 
-async function releaseFailedEvaluationClaim(
+async function consumeFailedEvaluationClaim(
   supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
   claimId: string | null,
   requestId: string,
 ) {
   if (!claimId) return;
   try {
-    await releaseAIRequestClaim(supabase, claimId);
+    await consumeAIRequestClaimAfterProviderFailure(supabase, claimId);
   } catch {
-    console.error("YOVA could not return a failed answer-checking allowance claim", { requestId });
+    console.error("YOVA could not consume a failed answer-checking allowance claim", { requestId });
   }
 }
 
@@ -163,7 +163,7 @@ async function recoverUnknownEvaluationReservation(
   recoveryKey: string,
 ) {
   try {
-    await releaseAIRequestReservation(supabase, "answer_evaluation", operationKey, recoveryKey);
+    await refundAIRequestReservationBeforeProvider(supabase, "answer_evaluation", operationKey, recoveryKey);
   } catch {
     // Its short database lease remains the final recovery boundary.
   }

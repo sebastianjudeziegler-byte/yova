@@ -87,7 +87,7 @@
 
 .signalHead {
   padding: 2px 16px 0;
-  color: #8992a3;
+  color: #667085;
   font-size: 11px;
   font-weight: 800;
   letter-spacing: .08em;
@@ -173,7 +173,7 @@
 .evidenceBadge small {
   flex-basis: 100%;
   padding-left: 18px;
-  color: #75809a;
+  color: #667085;
   font-size: 11px;
   font-weight: 500;
   line-height: 1.4;
@@ -452,7 +452,7 @@
   background: #f2f5fb;
 }
 
-.tendencyResult span { color: #71809c; font-size: 11px; font-weight: 750; letter-spacing: .05em; text-transform: uppercase; }
+.tendencyResult span { color: #667085; font-size: 11px; font-weight: 750; letter-spacing: .05em; text-transform: uppercase; }
 .tendencyResult strong { color: #374661; font-size: 11px; line-height: 1.5; }
 .textAction { width: fit-content; margin-top: auto; color: var(--blue, #346bff); border-color: #d9e3ff; }
 
@@ -646,7 +646,7 @@
 .experiment p { max-width: 680px; margin: 0 0 10px; color: #6d6280; font-size: 12px; line-height: 1.5; }
 .experimentCopy > div { display: grid; gap: 2px; }
 .experimentCopy > div strong { font-size: 11px; }
-.experimentCopy > div small { color: #7b708e; font-size: 11px; line-height: 1.4; }
+.experimentCopy > div small { color: #667085; font-size: 11px; line-height: 1.4; }
 .experiment > button { color: #62428f; border: 1px solid #d3c3eb; background: white; }
 
 .workspaceList {
@@ -757,7 +757,7 @@
 .historyList article:last-child { border-bottom: 0; }
 .historyList article > span { width: 28px; height: 28px; display: grid; place-items: center; color: #61708a; border-radius: 8px; background: #f1f3f7; }
 .historyList article > div { min-width: 0; display: grid; gap: 3px; }
-.historyList small { color: #737f92; font-size: 11px; line-height: 1.4; }
+.historyList small { color: #667085; font-size: 11px; line-height: 1.4; }
 .historyList strong { font-size: 12px; text-transform: capitalize; }
 .historyList p { margin: 0; color: var(--muted, #667085); font-size: 12px; line-height: 1.5; }
 

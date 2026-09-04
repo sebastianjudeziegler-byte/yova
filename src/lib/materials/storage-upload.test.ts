@@ -43,17 +43,18 @@ describe("same-origin material storage fallback", () => {
     expect(storage.upload).not.toHaveBeenCalled();
   });
 
-  it("removes and replaces an incomplete object", async () => {
+  it("never service-deletes a conflicting object at the staged path", async () => {
     const file = uploadFile(256);
     const storage = bucket({
       download: vi.fn().mockResolvedValue({ data: new Blob([new Uint8Array(12)]), error: null }),
     });
 
     await expect(storePrivateMaterial(storage, "user/material/file.pdf", file, file.type)).resolves.toEqual({
-      ok: true,
-      disposition: "replaced-partial",
+      ok: false,
+      reason: "object-conflict",
     });
-    expect(storage.remove).toHaveBeenCalledWith(["user/material/file.pdf"]);
+    expect(storage.remove).not.toHaveBeenCalled();
+    expect(storage.upload).not.toHaveBeenCalled();
   });
 
   it("verifies a late signed-upload success after the fallback insert races", async () => {
@@ -81,5 +82,22 @@ describe("same-origin material storage fallback", () => {
       ok: false,
       reason: "upload",
     });
+  });
+
+  it("fails closed without deleting when a conflicting object wins the insert race", async () => {
+    const file = uploadFile(256);
+    const download = vi.fn()
+      .mockResolvedValueOnce({ data: null, error: new Error("not found") })
+      .mockResolvedValueOnce({ data: new Blob([new Uint8Array(12)]), error: null });
+    const storage = bucket({
+      download,
+      upload: vi.fn().mockResolvedValue({ data: null, error: new Error("duplicate") }),
+    });
+
+    await expect(storePrivateMaterial(storage, "user/material/file.pdf", file, file.type)).resolves.toEqual({
+      ok: false,
+      reason: "object-conflict",
+    });
+    expect(storage.remove).not.toHaveBeenCalled();
   });
 });

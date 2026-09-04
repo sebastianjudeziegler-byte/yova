@@ -113,6 +113,7 @@ try {
     planGeneration: "openai",
     guidedSessions: "openai",
     signedInGeneration: "ready",
+    launchAbuseProtection: "ready",
     studyProfilePublic: "ready",
     studyProfileEmail: "resend",
     tutor: "openai",
@@ -176,14 +177,16 @@ try {
   const privateReportProbe = await request(
     `${origin}/study-profile/report/${"x".repeat(43)}`,
   );
-  for (const [header, expected] of Object.entries({
-    "cache-control": "private, no-store, max-age=0",
-    "referrer-policy": "no-referrer",
-    "x-robots-tag": "noindex, nofollow, noarchive, nosnippet",
+  for (const [header, expectedDirectives] of Object.entries({
+    "cache-control": ["private", "no-store", "max-age=0"],
+    "referrer-policy": ["no-referrer"],
+    "x-robots-tag": ["noindex", "nofollow", "noarchive", "nosnippet"],
   })) {
     const actual = privateReportProbe.headers.get(header) || "";
-    if (actual.includes(expected)) pass(`Private Study Profile ${header} is active`);
-    else fail(`Private Study Profile ${header} expected ${expected}, received ${actual || "nothing"}`);
+    const actualDirectives = new Set(actual.toLowerCase().split(",").map((part) => part.trim()));
+    const missingDirectives = expectedDirectives.filter((directive) => !actualDirectives.has(directive));
+    if (missingDirectives.length === 0) pass(`Private Study Profile ${header} is active`);
+    else fail(`Private Study Profile ${header} missing ${missingDirectives.join(", ")}; received ${actual || "nothing"}`);
   }
 
   const exportCleanupProbe = await request(`${origin}/api/internal/account-export-cleanup`, {

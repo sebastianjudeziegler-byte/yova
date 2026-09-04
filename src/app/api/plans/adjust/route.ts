@@ -18,7 +18,14 @@ import {
   planDirectionConflictsWithRequest,
 } from "@/lib/learning/plan-direction";
 import { PlanKnowledgeMapSchema } from "@/lib/knowledge-map/schema";
+import { isOpenAISessionConfigured } from "@/lib/openai/config";
 import { redirectPlanWithOpenAI } from "@/lib/openai/plan-redirector";
+import { aiUsageReservationConflict } from "@/lib/ai-usage/reservation-conflict";
+import {
+  refundAIRequestReservationBeforeProvider,
+  reserveAIRequest,
+  settleAIRequestClaim,
+} from "@/lib/server/ai-usage";
 import { preparePlanAdjustmentStudyRoutes } from "@/lib/study-route/plan-adjustment";
 import { StudyRouteSchema, type StudyRoute } from "@/lib/study-route/schema";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -26,6 +33,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 export const runtime = "nodejs";
 
 export async function PATCH(request: Request) {
+  const requestId = operationRequestId(request);
   const supabase = await createSupabaseServerClient();
   const { data: { user }, error: userError } = await supabase.auth.getUser();
   if (userError || !user) {
@@ -145,19 +153,60 @@ export async function PATCH(request: Request) {
 
   let redirectedUnfinished = adjustableUnfinished;
   if (parsed.data.direction && adjustableUnfinished.length) {
-    try {
-      const generated = await redirectPlanWithOpenAI({
-        title: itemRow.title,
-        topic: itemRow.topic,
-        direction: parsed.data.direction,
-        sessions: adjustableUnfinished,
-      });
-      redirectedUnfinished = planDirectionConflictsWithRequest(generated, parsed.data.direction)
-        ? applyPlanDirectionFallback(adjustableUnfinished, parsed.data.direction, itemRow.topic)
-        : generated;
-    } catch {
-      redirectedUnfinished = applyPlanDirectionFallback(adjustableUnfinished, parsed.data.direction, itemRow.topic);
+    let generated: AdjustableSessionRow[] | null = null;
+    if (isOpenAISessionConfigured()) {
+      const recoveryKey = crypto.randomUUID();
+      let reservation: Awaited<ReturnType<typeof reserveAIRequest>> | null = null;
+      try {
+        reservation = await reserveAIRequest(
+          supabase,
+          "plan_adjustment",
+          requestId,
+          recoveryKey,
+        );
+      } catch {
+        await recoverUnknownPlanAdjustmentReservation(supabase, requestId, recoveryKey);
+      }
+      if (reservation && !reservation.allowed) {
+        const conflict = aiUsageReservationConflict(reservation);
+        if (conflict) {
+          return NextResponse.json({
+            code: conflict.code,
+            error: conflict.error,
+            retryable: conflict.retryable,
+          }, {
+            status: 409,
+            headers: {
+              "Cache-Control": "no-store",
+              ...(conflict.retryAfterSeconds === null ? {} : {
+                "Retry-After": String(conflict.retryAfterSeconds),
+              }),
+              "X-Yova-Request-Id": requestId,
+            },
+          });
+        }
+      }
+      if (reservation?.allowed) {
+        if (await consumePlanAdjustmentClaim(supabase, reservation.claimId, requestId)) {
+          try {
+            generated = await redirectPlanWithOpenAI({
+              title: itemRow.title,
+              topic: itemRow.topic,
+              direction: parsed.data.direction,
+              sessions: adjustableUnfinished,
+            });
+          } catch {
+            // Paid provider attempts stay consumed even when the response is
+            // unavailable or invalid, preventing repeated denial-of-wallet.
+          }
+        } else {
+          await recoverUnknownPlanAdjustmentReservation(supabase, requestId, recoveryKey);
+        }
+      }
     }
+    redirectedUnfinished = generated && !planDirectionConflictsWithRequest(generated, parsed.data.direction)
+      ? generated
+      : applyPlanDirectionFallback(adjustableUnfinished, parsed.data.direction, itemRow.topic);
   }
 
   const newSessionOriginIds: Record<string, string> = {};
@@ -262,7 +311,51 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: "YOVA updated the plan but could not confirm every change." }, { status: 500 });
   }
 
-  return NextResponse.json(response.data, { headers: { "Cache-Control": "no-store" } });
+  return NextResponse.json(response.data, {
+    headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId },
+  });
+}
+
+async function consumePlanAdjustmentClaim(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  claimId: string,
+  requestId: string,
+) {
+  try {
+    const consumed = await settleAIRequestClaim(supabase, claimId);
+    if (!consumed) {
+      console.error("YOVA could not settle a plan-adjustment allowance claim", { requestId });
+    }
+    return consumed;
+  } catch {
+    console.error("YOVA could not settle a plan-adjustment allowance claim", { requestId });
+    return false;
+  }
+}
+
+async function recoverUnknownPlanAdjustmentReservation(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  operationKey: string,
+  recoveryKey: string,
+) {
+  try {
+    await refundAIRequestReservationBeforeProvider(
+      supabase,
+      "plan_adjustment",
+      operationKey,
+      recoveryKey,
+    );
+  } catch {
+    // If recovery cannot be confirmed, lease expiry conservatively consumes
+    // the attempt so an ambiguous provider charge can never be refunded.
+  }
+}
+
+function operationRequestId(request: Request) {
+  const candidate = request.headers.get("X-Yova-Request-Id")?.trim() ?? "";
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(candidate)
+    ? candidate
+    : crypto.randomUUID();
 }
 
 function readTopicIds(value: unknown) {

@@ -20,17 +20,17 @@ test.beforeEach(async ({ page }) => {
   await page.clock.setFixedTime(FIXED_NOW);
 });
 
-test("Calendar exposes the complete Week surface, honest routed views, and bounded keyboard navigation", async ({ page }) => {
+test("Calendar exposes only the complete Week surface with bounded keyboard navigation", async ({ page }) => {
   await openPreviewCalendar(page);
 
   await expect(page.getByRole("heading", { name: "Plan the work that gets you there" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Put something on your calendar" })).toBeVisible();
+  await expect(page.locator("main")).toHaveCount(1);
 
-  const viewTabs = page.getByRole("tablist", { name: "Calendar view" });
-  for (const label of ["Day", "Week", "Month", "Semester", "List"]) {
-    await expect(viewTabs.getByRole("tab", { name: label, exact: true })).toBeVisible();
+  await expect(page.getByText("Week view", { exact: true })).toHaveAttribute("aria-current", "page");
+  for (const unfinishedView of ["Day", "Month", "Semester", "List"]) {
+    await expect(page.getByRole("tab", { name: unfinishedView, exact: true })).toHaveCount(0);
   }
-  await expect(viewTabs.getByRole("tab", { name: "Week", exact: true })).toHaveAttribute("aria-selected", "true");
   await expect(page.getByRole("heading", { name: "Coming up" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Why this week looks like this" })).toBeVisible();
   await expect(page.getByText(/Your week is on track\.|Needs attention/).first()).toBeVisible();
@@ -47,12 +47,6 @@ test("Calendar exposes the complete Week surface, honest routed views, and bound
   await page.getByRole("button", { name: "Today", exact: true }).focus();
   await page.keyboard.press("ArrowRight");
   await expect(page.locator("#calendar-board-title")).not.toHaveText(initialRange);
-
-  await viewTabs.getByRole("tab", { name: "Month", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Month view is routed but not interactive yet" })).toBeVisible();
-  await expect(page.getByText("Week is the complete planning surface in this release.")).toBeVisible();
-  await page.getByRole("button", { name: "Return to Week" }).click();
-  await expect(viewTabs.getByRole("tab", { name: "Week", exact: true })).toHaveAttribute("aria-selected", "true");
 
   await page.setViewportSize({ width: 375, height: 844 });
   const containment = await page.locator(".calendar-workspace").evaluate((workspace) => {
@@ -170,9 +164,9 @@ test("finishing a quick-add plan replaces the manual deadline with one linked au
 
   await page.getByLabel("Quick add a calendar item").fill("cellular respiration exam due friday, 90 min tonight");
   await page.getByLabel("Quick add a calendar item").press("Enter");
-  await page.getByRole("dialog", { name: "Confirm quick add" })
-    .getByRole("button", { name: "Save and build plan" })
-    .click();
+  const confirmation = page.getByRole("dialog", { name: "Confirm quick add" });
+  await confirmation.getByLabel("Due time").fill(await futureLocalDateTime(page, 9));
+  await confirmation.getByRole("button", { name: "Save and build plan" }).click();
 
   await chooseCalendarGeneratedSource(page);
   const reviewInputs = page.getByRole("button", { name: "Review plan inputs" });
@@ -359,6 +353,16 @@ async function openPreviewCalendar(page: Page) {
   await createPreviewAccount(page);
   await completeOnboarding(page);
   await openCalendarTab(page);
+}
+
+async function futureLocalDateTime(page: Page, daysAhead: number) {
+  return page.evaluate((offset) => {
+    const date = new Date(Date.now());
+    date.setDate(date.getDate() + offset);
+    date.setHours(18, 0, 0, 0);
+    const part = (value: number) => String(value).padStart(2, "0");
+    return `${date.getFullYear()}-${part(date.getMonth() + 1)}-${part(date.getDate())}T${part(date.getHours())}:${part(date.getMinutes())}`;
+  }, daysAhead);
 }
 
 async function openCalendarTab(page: Page) {

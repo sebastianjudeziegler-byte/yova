@@ -9,8 +9,8 @@ const mocks = vi.hoisted(() => ({
   cachedSession: null as unknown,
   supabase: null as unknown,
   claimAIRequest: vi.fn(),
-  releaseAIRequestClaim: vi.fn(),
-  releaseAIRequestReservation: vi.fn(),
+  consumeFailedAIRequestClaim: vi.fn(),
+  refundAIRequestReservationBeforeProvider: vi.fn(),
   settleAIRequestClaim: vi.fn(),
   recordObservation: vi.fn(),
   streamGeneratedLessonWithRetry: vi.fn(),
@@ -40,8 +40,8 @@ vi.mock("@/lib/session-generation/schema", async (importOriginal) => {
 });
 vi.mock("@/lib/server/ai-usage", () => ({
   reserveAIRequest: mocks.claimAIRequest,
-  releaseAIRequestClaim: mocks.releaseAIRequestClaim,
-  releaseAIRequestReservation: mocks.releaseAIRequestReservation,
+  consumeAIRequestClaimAfterProviderFailure: mocks.consumeFailedAIRequestClaim,
+  refundAIRequestReservationBeforeProvider: mocks.refundAIRequestReservationBeforeProvider,
   settleAIRequestClaim: mocks.settleAIRequestClaim,
 }));
 vi.mock("@/lib/server/development-preview", () => ({
@@ -82,8 +82,8 @@ describe("streamed lesson route recovery", () => {
     mocks.cachedSession = null;
     mocks.supabase = null;
     mocks.claimAIRequest.mockReset();
-    mocks.releaseAIRequestClaim.mockReset().mockResolvedValue(true);
-    mocks.releaseAIRequestReservation.mockReset().mockResolvedValue(false);
+    mocks.consumeFailedAIRequestClaim.mockReset().mockResolvedValue(true);
+    mocks.refundAIRequestReservationBeforeProvider.mockReset().mockResolvedValue(false);
     mocks.settleAIRequestClaim.mockReset().mockResolvedValue(true);
     mocks.recordObservation.mockReset().mockResolvedValue(undefined);
     mocks.streamGeneratedLessonWithRetry.mockReset();
@@ -420,11 +420,11 @@ describe("streamed lesson route recovery", () => {
       retryable: true,
     });
     expect(mocks.streamGeneratedLessonWithRetry).not.toHaveBeenCalled();
-    expect(mocks.releaseAIRequestClaim).not.toHaveBeenCalled();
+    expect(mocks.consumeFailedAIRequestClaim).not.toHaveBeenCalled();
     expect(mocks.settleAIRequestClaim).not.toHaveBeenCalled();
   });
 
-  it("returns the durable claim when provider generation falls back", async () => {
+  it("consumes the durable claim when paid provider generation falls back", async () => {
     const query = {
       select: vi.fn(),
       eq: vi.fn(),
@@ -473,10 +473,12 @@ describe("streamed lesson route recovery", () => {
     expect(response.body).not.toBeNull();
     await consumeLessonEventStream(response.body!, () => undefined);
 
-    expect(mocks.releaseAIRequestClaim).toHaveBeenCalledWith(
+    expect(mocks.consumeFailedAIRequestClaim).toHaveBeenCalledWith(
       mocks.supabase,
       "55555555-5555-4555-8555-555555555555",
     );
+    expect(mocks.streamGeneratedLessonWithRetry.mock.invocationCallOrder[0])
+      .toBeLessThan(mocks.consumeFailedAIRequestClaim.mock.invocationCallOrder[0]!);
     expect(mocks.settleAIRequestClaim).not.toHaveBeenCalled();
   });
 
@@ -542,7 +544,7 @@ describe("streamed lesson route recovery", () => {
       expect.not.stringMatching(LESSON_OPERATION_ID),
     );
     expect(response.headers.get("X-Yova-Request-Id")).toBe(LESSON_OPERATION_ID);
-    expect(mocks.releaseAIRequestClaim).not.toHaveBeenCalled();
+    expect(mocks.consumeFailedAIRequestClaim).not.toHaveBeenCalled();
   });
 
   it("finishes a valid streamed lesson when settlement cannot be confirmed", async () => {
@@ -600,7 +602,7 @@ describe("streamed lesson route recovery", () => {
 
     expect(events.at(-1)?.type).toBe("lesson.complete");
     expect(events.at(-1)).toMatchObject({ deliveryMode: "generated" });
-    expect(mocks.releaseAIRequestClaim).not.toHaveBeenCalled();
+    expect(mocks.consumeFailedAIRequestClaim).not.toHaveBeenCalled();
   });
 });
 

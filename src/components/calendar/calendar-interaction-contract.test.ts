@@ -16,9 +16,20 @@ const prototype = readFileSync(
 );
 
 describe("Calendar outcome inspection and session-order controls", () => {
+  it("exposes only the complete Week view without nesting a second main landmark", () => {
+    expect(source).toContain('<div className="calendar-main">');
+    expect(source).not.toContain('<main className="calendar-main">');
+    expect(source).toContain('<span aria-current="page">Week view</span>');
+    expect(source).not.toContain("CalendarViewStub");
+    expect(source).not.toContain("VIEW_LABELS");
+    expect(source).not.toContain('role="tablist" aria-label="Calendar view"');
+    expect(source).toContain('loadedState.ui.view === "week"');
+    expect(source).toContain('{ ...loadedState.ui, view: "week" as const }');
+  });
+
   it("keeps milestones out of the timed grid while making due outcomes inspectable", () => {
     const start = source.indexOf("function WeekCalendar(");
-    const end = source.indexOf("function CalendarViewStub(", start);
+    const end = source.indexOf("function OutcomeRow(", start);
     const week = source.slice(start, end);
     const helperStart = source.indexOf("function outcomeInspectionBlockId(");
     const helperEnd = source.indexOf("function blockMinutes(", helperStart);
@@ -124,7 +135,7 @@ describe("Calendar outcome inspection and session-order controls", () => {
 
   it("does not offer a drag resize handle for plan-wide learning adjustments", () => {
     const start = source.indexOf("function WeekCalendar(");
-    const end = source.indexOf("function CalendarViewStub(", start);
+    const end = source.indexOf("function OutcomeRow(", start);
     const week = source.slice(start, end);
     const detailStart = source.indexOf("function SelectedBlockDetail(");
     const detailEnd = source.indexOf("function YourDayCard(", detailStart);

@@ -111,6 +111,33 @@ test("startup retires a stale routed completion from a ready session using cloud
   });
 });
 
+test("cloud-only private-export metadata keeps AA text contrast", async ({ page }) => {
+  await installMockedCloud(page);
+  await openSignedInAccount(page);
+  await page.getByRole("button", { name: "You", exact: true }).click();
+
+  const metadata = page.getByText("JSON · generated when you request it · may contain private study information");
+  await expect(metadata).toBeVisible();
+  const ratio = await metadata.evaluate((element) => {
+    const luminance = (color: string) => {
+      const channels = color.match(/[\d.]+/g)?.slice(0, 3).map(Number) ?? [];
+      const linear = channels.map((channel) => {
+        const value = channel / 255;
+        return value <= 0.04045
+          ? value / 12.92
+          : ((value + 0.055) / 1.055) ** 2.4;
+      });
+      return (0.2126 * linear[0]) + (0.7152 * linear[1]) + (0.0722 * linear[2]);
+    };
+    const foreground = luminance(getComputedStyle(element).color);
+    const background = luminance("rgb(255, 255, 255)");
+    return (Math.max(foreground, background) + 0.05)
+      / (Math.min(foreground, background) + 0.05);
+  });
+
+  expect(ratio).toBeGreaterThanOrEqual(4.5);
+});
+
 async function installMockedCloud(page: Page, options: MockCloudOptions = {}) {
   const state: {
     failureMode: FailureMode;

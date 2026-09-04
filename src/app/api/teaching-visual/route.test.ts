@@ -19,8 +19,8 @@ vi.mock("@/lib/openai/config", () => ({
 }));
 vi.mock("@/lib/server/ai-usage", () => ({
   reserveAIRequest: mocks.reserve,
-  releaseAIRequestClaim: mocks.release,
-  releaseAIRequestReservation: mocks.releaseOperation,
+  consumeAIRequestClaimAfterProviderFailure: mocks.release,
+  refundAIRequestReservationBeforeProvider: mocks.releaseOperation,
   settleAIRequestClaim: mocks.settle,
 }));
 vi.mock("@/lib/server/development-preview", () => ({
@@ -74,13 +74,15 @@ describe("teaching visual allowance lifecycle", () => {
     expect(mocks.release).not.toHaveBeenCalled();
   });
 
-  it("releases the exact reservation when the provider returns no image", async () => {
+  it("consumes the exact reservation when the paid provider returns no image", async () => {
     mocks.createVisual.mockResolvedValueOnce({ output: [] });
 
     const response = await POST(visualRequest());
 
     expect(response.status).toBe(503);
     expect(mocks.release).toHaveBeenCalledWith(expect.anything(), CLAIM_ID);
+    expect(mocks.createVisual.mock.invocationCallOrder[0])
+      .toBeLessThan(mocks.release.mock.invocationCallOrder[0]!);
     expect(mocks.settle).not.toHaveBeenCalled();
   });
 

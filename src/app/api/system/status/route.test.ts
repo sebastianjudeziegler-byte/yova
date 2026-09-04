@@ -24,6 +24,16 @@ const mocks = vi.hoisted(() => ({
     serviceRoleBoundary: true,
   } as Record<string, unknown> | null,
   studyProfileReadinessError: null as { code: string } | null,
+  publicLaunchAbuseReadiness: {
+    contractVersion: "202609040002",
+    ready: true,
+    aiActionsCovered: true,
+    materialUploadQuota: true,
+    materialChunkWriteBoundary: true,
+    untrustedInsertQuotas: true,
+    tutorWriteBoundary: true,
+  } as Record<string, unknown> | null,
+  publicLaunchAbuseReadinessError: null as { code: string } | null,
   publicConfig: {
     url: "https://project.supabase.co",
     publishableKey: "sb_publishable_test",
@@ -46,15 +56,24 @@ vi.mock("@/lib/supabase/admin", () => ({
     from: () => ({
       select: async () => ({ error: mocks.invitationTableError }),
     }),
-    rpc: async (name: string) => name === "study_profile_public_readiness_v1"
-      ? {
+    rpc: async (name: string) => {
+      if (name === "study_profile_public_readiness_v1") {
+        return {
           data: mocks.studyProfileReadiness,
           error: mocks.studyProfileReadinessError,
-        }
-      : {
-          data: mocks.generationReadiness,
-          error: mocks.generationReadinessError,
-        },
+        };
+      }
+      if (name === "public_launch_abuse_readiness_v1") {
+        return {
+          data: mocks.publicLaunchAbuseReadiness,
+          error: mocks.publicLaunchAbuseReadinessError,
+        };
+      }
+      return {
+        data: mocks.generationReadiness,
+        error: mocks.generationReadinessError,
+      };
+    },
   }),
 }));
 
@@ -83,6 +102,16 @@ describe("system status tester-access readiness", () => {
       serviceRoleBoundary: true,
     };
     mocks.studyProfileReadinessError = null;
+    mocks.publicLaunchAbuseReadiness = {
+      contractVersion: "202609040002",
+      ready: true,
+      aiActionsCovered: true,
+      materialUploadQuota: true,
+      materialChunkWriteBoundary: true,
+      untrustedInsertQuotas: true,
+      tutorWriteBoundary: true,
+    };
+    mocks.publicLaunchAbuseReadinessError = null;
     mocks.publicConfig = {
       url: "https://project.supabase.co",
       publishableKey: "sb_publishable_test",
@@ -121,6 +150,7 @@ describe("system status tester-access readiness", () => {
       accountDataExport: "enabled",
       accountDeletion: "enabled",
       signedInGeneration: "ready",
+      launchAbuseProtection: "ready",
       personalizationRollout: {
         policyVersion: "personalization_rollout_v1",
         status: "baseline",
@@ -159,6 +189,23 @@ describe("system status tester-access readiness", () => {
       serviceRoleBoundary: true,
     };
     expect((await (await GET()).json()).studyProfilePublic).toBe("unavailable");
+  });
+
+  it("fails the public-launch signal when durable abuse controls are missing", async () => {
+    mocks.publicLaunchAbuseReadiness = {
+      contractVersion: "202609040002",
+      ready: false,
+      aiActionsCovered: true,
+      materialUploadQuota: false,
+      materialChunkWriteBoundary: true,
+      untrustedInsertQuotas: true,
+      tutorWriteBoundary: true,
+    };
+
+    expect((await (await GET()).json()).launchAbuseProtection).toBe("unavailable");
+
+    mocks.publicLaunchAbuseReadinessError = { code: "PGRST202" };
+    expect((await (await GET()).json()).launchAbuseProtection).toBe("unavailable");
   });
 
   it("fails the signed-in generation signal when its secret or database contract is missing", async () => {
