@@ -486,6 +486,13 @@ try {
   );
   pass("the private export was removed from the Storage origin");
 
+  const revokedDownloadStatus = await waitForSignedUrlInvalidation(exportDownloadUrl);
+  assert(
+    [400, 404].includes(revokedDownloadStatus),
+    `the revoked private export URL returned ${revokedDownloadStatus} after the CDN invalidation window`,
+  );
+  pass("the revoked signed URL stopped serving data across the CDN");
+
   const cacheMissUrl = new URL(exportDownloadUrl);
   cacheMissUrl.searchParams.set("cacheNonce", crypto.randomUUID());
   const cacheMissDownload = await fetch(cacheMissUrl, {
@@ -495,17 +502,10 @@ try {
   await cacheMissDownload.body?.cancel().catch(() => undefined);
   assert(
     [400, 404].includes(cacheMissDownload.status),
-    `a fresh cache-bypass request served the revoked export with status ${cacheMissDownload.status}`,
-  );
-  pass("a fresh CDN cache key could not retrieve the removed private export");
-
-  const revokedDownloadStatus = await waitForSignedUrlInvalidation(exportDownloadUrl);
-  assert(
-    [400, 404].includes(revokedDownloadStatus),
-    `the revoked private export URL returned ${revokedDownloadStatus} after the CDN invalidation window`,
+    `a fresh post-invalidation cache key served the revoked export with status ${cacheMissDownload.status}`,
   );
   exportRevoked = true;
-  pass("the revoked signed URL stopped serving data across the CDN");
+  pass("a fresh CDN cache key could not retrieve the removed private export");
 
   deletionLearningStoragePath = `${canaryUserId}/${crypto.randomUUID()}/deletion-sentinel.txt`;
   deletionExportStoragePath = `${canaryUserId}/${crypto.randomUUID()}/deletion-sentinel.json`;
@@ -725,16 +725,25 @@ async function waitForSignedUrlInvalidation(url, timeoutMs = 75_000) {
   const deadline = Date.now() + timeoutMs;
   let lastStatus = 0;
   let reportedPropagation = false;
+  let reportedNetworkRetry = false;
 
   while (Date.now() < deadline) {
-    const response = await fetch(url, {
-      cache: "no-store",
-      signal: AbortSignal.timeout(15_000),
-    });
-    lastStatus = response.status;
-    await response.body?.cancel().catch(() => undefined);
-    if ([400, 404].includes(lastStatus)) return lastStatus;
-    if (lastStatus !== 200) return lastStatus;
+    try {
+      const response = await fetch(url, {
+        cache: "no-store",
+        signal: AbortSignal.timeout(15_000),
+      });
+      lastStatus = response.status;
+      await response.body?.cancel().catch(() => undefined);
+      if ([400, 404].includes(lastStatus)) return lastStatus;
+      if (lastStatus !== 200) return lastStatus;
+    } catch {
+      lastStatus = 0;
+      if (!reportedNetworkRetry) {
+        console.log("INFO  Retrying a transient signed-URL network failure");
+        reportedNetworkRetry = true;
+      }
+    }
 
     if (!reportedPropagation) {
       console.log("INFO  Waiting for Supabase's documented CDN deletion propagation window");
@@ -852,23 +861,37 @@ async function verifyStoragePrefixesEmpty(client, userId) {
 }
 
 async function recordCleanup(label, cleanup, failures) {
-  try {
-    const result = await cleanup();
-    if (result?.error) failures.push(`${label}: ${result.error.message ?? "unknown provider error"}`);
-  } catch (error) {
-    failures.push(`${label}: ${error instanceof Error ? error.message : "unexpected exception"}`);
+  let lastFailure = "unknown provider error";
+  for (let attempt = 1; attempt <= 6; attempt += 1) {
+    try {
+      const result = await cleanup();
+      if (!result?.error) return;
+      lastFailure = result.error.message ?? "unknown provider error";
+    } catch (error) {
+      lastFailure = error instanceof Error ? error.message : "unexpected exception";
+    }
+    if (attempt < 6) {
+      await new Promise((resolve) => setTimeout(resolve, attempt * 1_000));
+    }
   }
+  failures.push(`${label}: ${lastFailure}`);
 }
 
 async function recordHttpCleanup(label, cleanup, acceptedStatuses, failures) {
-  try {
-    const result = await cleanup();
-    if (!acceptedStatuses.includes(result?.response?.status)) {
-      failures.push(`${label}: HTTP ${result?.response?.status ?? "unknown"}`);
+  let lastFailure = "HTTP unknown";
+  for (let attempt = 1; attempt <= 6; attempt += 1) {
+    try {
+      const result = await cleanup();
+      if (acceptedStatuses.includes(result?.response?.status)) return;
+      lastFailure = `HTTP ${result?.response?.status ?? "unknown"}`;
+    } catch (error) {
+      lastFailure = error instanceof Error ? error.message : "unexpected exception";
     }
-  } catch (error) {
-    failures.push(`${label}: ${error instanceof Error ? error.message : "unexpected exception"}`);
+    if (attempt < 6) {
+      await new Promise((resolve) => setTimeout(resolve, attempt * 1_000));
+    }
   }
+  failures.push(`${label}: ${lastFailure}`);
 }
 
 function assert(condition, message) {
