@@ -2170,7 +2170,17 @@ test("spent guided-session allowance is visible before Home or Calendar opens se
   });
 
   await createPreviewAccount(page);
+  const initialAllowanceResponse = page.waitForResponse((response) => (
+    response.url().includes("/api/sessions/allowance")
+  ));
   await completeOnboarding(page);
+  await initialAllowanceResponse;
+  await expect(page.getByRole("button", { name: "Study now Quick, off-plan" })).toBeEnabled();
+  await expect(page.getByLabel("Guided-session allowance")).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Calendar", exact: true }).click();
+  await expect(page.getByLabel("Guided-session allowance")).toHaveCount(0);
+  await page.getByRole("button", { name: "Home", exact: true }).click();
   await page.getByRole("button", { name: "Study something now", exact: true }).first().click();
   await page.getByPlaceholder("Example: Help me understand the product rule and practice using it.").fill(
     "Review how plate boundaries shape ocean basins.",
@@ -3013,8 +3023,13 @@ test("scheduled-review setup stays fixed and opens the exact active or Study Now
     window.localStorage.setItem("yova.preview.v1", JSON.stringify(snapshot));
   });
 
+  const allowanceResponse = page.waitForResponse((response) => (
+    response.url().includes("/api/sessions/allowance")
+  ));
   await page.reload();
-  await expect(page.getByLabel("Guided-session allowance")).toContainText("3 guided sessions available today");
+  await allowanceResponse;
+  await expect(page.getByRole("button", { name: "Study now Quick, off-plan" })).toBeEnabled();
+  await expect(page.getByLabel("Guided-session allowance")).toHaveCount(0);
   await page.getByRole("button", { name: "Learning", exact: true }).click();
 
   const activeCard = page.locator(".learning-goal-card").filter({ hasText: "Active Plate Motion Goal" });

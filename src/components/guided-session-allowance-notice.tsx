@@ -35,51 +35,25 @@ export function guidedSessionStartLabel(
 export function GuidedSessionAllowanceNotice({
   allowance,
   surface,
-  checking = false,
 }: {
   allowance: GuidedSessionAllowanceDisplayState;
   surface: "home" | "agenda";
   checking?: boolean;
 }) {
-  if (allowance.kind === "unavailable" && !checking) return null;
-
-  if (checking && allowance.kind === "unavailable") {
-    return <section
-      className={`guided-session-allowance-notice checking ${surface}`}
-      aria-label="Guided-session allowance"
-      role="status"
-    >
-      <span className="guided-session-allowance-icon" aria-hidden="true"><Clock3 size={18} /></span>
-      <div>
-        <span>GUIDED SESSION ALLOWANCE</span>
-        <strong>Checking today&apos;s guided-session allowance</strong>
-        <p>New session starts will be available as soon as this private server check finishes.</p>
-      </div>
-    </section>;
-  }
+  if (allowance.kind !== "exhausted") return null;
 
   const resetLabel = formatGuidedSessionAllowanceReset(allowance.resetAt);
-  const heading = allowance.kind === "available"
-    ? `${allowance.remainingToday} guided ${allowance.remainingToday === 1 ? "session" : "sessions"} available today`
-    : allowance.kind === "temporarily_limited"
-      ? "Guided-session preparation is briefly paused"
-      : "Daily guided-session allowance used";
-  const detail = allowance.kind === "available"
-    ? "YOVA checks this server count again after preparing a guided session."
-    : allowance.kind === "temporarily_limited"
-      ? `${allowance.remainingToday} guided ${allowance.remainingToday === 1 ? "session remains" : "sessions remain"} today.`
-      : "You can still continue a session that was already saved.";
 
   return <section
-    className={`guided-session-allowance-notice ${allowance.kind} ${surface}`}
+    className={`guided-session-allowance-notice exhausted ${surface}`}
     aria-label="Guided-session allowance"
     role="status"
   >
     <span className="guided-session-allowance-icon" aria-hidden="true"><Clock3 size={18} /></span>
     <div>
       <span>GUIDED SESSION ALLOWANCE</span>
-      <strong>{heading}</strong>
-      <p>{detail}{resetLabel && <> New guided sessions are available after <time dateTime={allowance.resetAt ?? undefined}>{resetLabel}</time>.</>}</p>
+      <strong>Daily guided-session allowance used</strong>
+      <p>You can still continue a session that was already saved.{resetLabel && <> New guided sessions are available after <time dateTime={allowance.resetAt}>{resetLabel}</time>.</>}</p>
     </div>
   </section>;
 }

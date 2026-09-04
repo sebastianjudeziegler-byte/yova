@@ -8,7 +8,7 @@ import {
 } from "@/components/guided-session-allowance-notice";
 
 describe("GuidedSessionAllowanceNotice", () => {
-  it("shows the durable remaining count while new sessions are available", () => {
+  it("hides the allowance while new sessions are available", () => {
     const allowance = {
       kind: "available" as const,
       remainingToday: 3,
@@ -20,7 +20,7 @@ describe("GuidedSessionAllowanceNotice", () => {
       surface: "home",
     }));
 
-    expect(html).toContain("3 guided sessions available today");
+    expect(html).toBe("");
     expect(guidedSessionAllowanceBlocksNewStart(allowance)).toBe(false);
     expect(guidedSessionStartLabel(allowance, "Start session")).toBe("Start session");
   });
@@ -46,7 +46,7 @@ describe("GuidedSessionAllowanceNotice", () => {
     expect(guidedSessionStartLabel(allowance, "Continue", true)).toBe("Continue");
   });
 
-  it("distinguishes a short server pause from daily exhaustion", () => {
+  it("hides a short server pause while still blocking new work", () => {
     const allowance = {
       kind: "temporarily_limited" as const,
       remainingToday: 4,
@@ -58,13 +58,11 @@ describe("GuidedSessionAllowanceNotice", () => {
       surface: "home",
     }));
 
-    expect(html).toContain("briefly paused");
-    expect(html).toContain("4 guided sessions remain today");
-    expect(html).not.toContain("allowance used");
+    expect(html).toBe("");
     expect(guidedSessionAllowanceBlocksNewStart(allowance)).toBe(true);
   });
 
-  it("blocks only new work while the initial server preflight is pending", () => {
+  it("hides the initial server preflight while blocking only new work", () => {
     const allowance = {
       kind: "unavailable" as const,
       remainingToday: null,
@@ -77,7 +75,7 @@ describe("GuidedSessionAllowanceNotice", () => {
       checking: true,
     }));
 
-    expect(html).toContain("Checking today&#x27;s guided-session allowance");
+    expect(html).toBe("");
     expect(guidedSessionAllowanceBlocksNewStart(allowance, false, true)).toBe(true);
     expect(guidedSessionAllowanceBlocksNewStart(allowance, true, true)).toBe(false);
     expect(guidedSessionStartLabel(allowance, "Start", false, true)).toBe("Checking allowance…");
