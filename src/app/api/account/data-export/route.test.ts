@@ -75,6 +75,15 @@ describe("account data-export route", () => {
       if (name === "fail_account_data_export") {
         return Promise.resolve({ data: true, error: null });
       }
+      if (name === "revoke_account_data_export") {
+        return Promise.resolve({
+          data: {
+            tempStoragePath: `${USER_ID}/${EXPORT_ID}/device-state.json`,
+            finalStoragePath: `${USER_ID}/${EXPORT_ID}/yova-data.json`,
+          },
+          error: null,
+        });
+      }
       return Promise.resolve({ data: null, error: null });
     });
     mocks.createServer.mockReset().mockResolvedValue({ rpc: mocks.rpc });
@@ -345,6 +354,70 @@ describe("account data-export route", () => {
       `${USER_ID}/${EXPORT_ID}/device-state.json`,
       `${USER_ID}/${EXPORT_ID}/yova-data.json`,
     ]);
+  });
+
+  it("does not report successful revocation when private Storage deletion fails", async () => {
+    mocks.remove.mockResolvedValueOnce({ data: null, error: { message: "storage unavailable" } });
+
+    const response = await DELETE(mutationRequest("DELETE", { exportId: EXPORT_ID }));
+
+    expect(response.status).toBe(503);
+    expect(response.headers.get("Retry-After")).toBe("5");
+    await expect(response.json()).resolves.toMatchObject({
+      code: "failed",
+      error: expect.stringContaining("private-file cleanup has not finished"),
+    });
+  });
+
+  it("maps a thrown Storage transport failure to the same retryable revocation response", async () => {
+    mocks.remove.mockRejectedValueOnce(new TypeError("fetch failed"));
+
+    const response = await DELETE(mutationRequest("DELETE", { exportId: EXPORT_ID }));
+
+    expect(response.status).toBe(503);
+    expect(response.headers.get("Retry-After")).toBe("5");
+  });
+
+  it("lets a caller retry the same cancelled receipt after a transient Storage failure", async () => {
+    mocks.remove
+      .mockResolvedValueOnce({ data: null, error: { message: "storage unavailable" } })
+      .mockResolvedValueOnce({ data: [], error: null });
+
+    const first = await DELETE(mutationRequest("DELETE", { exportId: EXPORT_ID }));
+    const retry = await DELETE(mutationRequest("DELETE", { exportId: EXPORT_ID }));
+
+    expect(first.status).toBe(503);
+    expect(retry.status).toBe(204);
+    expect(mocks.rpc).toHaveBeenCalledTimes(2);
+    expect(mocks.remove).toHaveBeenCalledTimes(2);
+  });
+
+  it("refuses to delete paths that do not exactly match the authenticated account receipt", async () => {
+    mocks.rpc.mockResolvedValueOnce({
+      data: {
+        tempStoragePath: `33333333-3333-4333-8333-333333333333/${EXPORT_ID}/device-state.json`,
+        finalStoragePath: `33333333-3333-4333-8333-333333333333/${EXPORT_ID}/yova-data.json`,
+      },
+      error: null,
+    });
+
+    const response = await DELETE(mutationRequest("DELETE", { exportId: EXPORT_ID }));
+
+    expect(response.status).toBe(503);
+    expect(mocks.remove).not.toHaveBeenCalled();
+  });
+
+  it("keeps revocation idempotent without touching Storage when the receipt is already gone", async () => {
+    mocks.rpc.mockResolvedValueOnce({
+      data: { tempStoragePath: null, finalStoragePath: null },
+      error: null,
+    });
+
+    const response = await DELETE(mutationRequest("DELETE", { exportId: EXPORT_ID }));
+
+    expect(response.status).toBe(204);
+    expect(mocks.createAdmin).not.toHaveBeenCalled();
+    expect(mocks.remove).not.toHaveBeenCalled();
   });
 });
 

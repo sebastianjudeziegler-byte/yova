@@ -31,11 +31,14 @@ if (!supabaseUrl || !publishableKey || !secretKey) {
 }
 
 const runId = `${Date.now()}-${crypto.randomUUID().slice(0, 8)}`;
+const smtpEmail = `delivered+smtp-${runId}@resend.dev`;
+const canaryEmail = `release-canary-${runId}@resend.dev`;
 const admin = createClient(supabaseUrl, secretKey, {
   auth: { autoRefreshToken: false, detectSessionInUrl: false, persistSession: false },
 });
 
 let smtpProbeUserId = null;
+let canaryInviteId = null;
 let canaryUserId = null;
 let stagedMaterialId = null;
 let stagedMaterialStoragePath = null;
@@ -43,6 +46,7 @@ let rejectedStoragePath = null;
 let deletionLearningStoragePath = null;
 let deletionExportStoragePath = null;
 let exportId = null;
+let exportRevoked = false;
 let sessionCookie = null;
 let accountDeletedByYova = false;
 const cleanupFailures = [];
@@ -58,6 +62,11 @@ try {
   })) {
     assert(status.body?.[key] === expected, `${key} expected ${expected}`);
   }
+  assert(
+    ["invite-only", "open"].includes(status.body?.testerAccess),
+    "testerAccess expected invite-only or open",
+  );
+  const inviteOnlyAccess = status.body.testerAccess === "invite-only";
   pass("deployed lifecycle and abuse-control capabilities are ready");
 
   const captchaProbe = createClient(supabaseUrl, publishableKey, {
@@ -80,7 +89,6 @@ try {
   pass("Supabase enforces CAPTCHA before an authentication email is sent");
 
   if (runSmtpProbe) {
-    const smtpEmail = `delivered+smtp-${runId}@resend.dev`;
     const { data, error } = await admin.auth.admin.inviteUserByEmail(smtpEmail, {
       redirectTo: `${origin}/auth/confirm`,
       data: { display_name: "YOVA release SMTP canary" },
@@ -90,7 +98,50 @@ try {
     pass("Supabase SMTP accepted an invitation through Resend's delivered test address");
   }
 
-  const canaryEmail = `release-canary-${runId}@resend.dev`;
+  let invitationJoinedByAuthTrigger = false;
+  if (inviteOnlyAccess) {
+    const { data: founder, error: founderError } = await admin
+      .from("founder_accounts")
+      .select("user_id")
+      .order("created_at", { ascending: true })
+      .order("user_id", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    assert(
+      !founderError && founder?.user_id,
+      "invite-only production needs an existing founder for the canary invitation",
+    );
+
+    // Allocate the compensating-cleanup key before the write so a lost response
+    // cannot leave an otherwise successful insert behind.
+    canaryInviteId = crypto.randomUUID();
+    const { data: invite, error: inviteError } = await admin
+      .from("tester_invites")
+      .insert({
+        id: canaryInviteId,
+        email: canaryEmail,
+        display_name: "YOVA release canary",
+        invited_by: founder.user_id,
+        status: "pending",
+        send_count: 1,
+        auth_user_id: null,
+        joined_at: null,
+      })
+      .select("id,email,status,send_count,auth_user_id,joined_at")
+      .single();
+    assert(
+      !inviteError
+        && invite?.id === canaryInviteId
+        && invite.email === canaryEmail
+        && invite.status === "pending"
+        && invite.send_count > 0
+        && invite.auth_user_id === null
+        && invite.joined_at === null,
+      "the canary tester invitation was not durably created in a claimable pending state",
+    );
+    pass("a founder-backed pending tester invitation was created for the canary");
+  }
+
   const { data: created, error: createError } = await admin.auth.admin.createUser({
     email: canaryEmail,
     email_confirm: true,
@@ -236,6 +287,32 @@ try {
   );
   pass("Supabase rejected an authenticated unstaged private-file write");
 
+  if (canaryInviteId) {
+    const { data: pendingInvite, error: pendingInviteError } = await admin
+      .from("tester_invites")
+      .select("status,send_count,auth_user_id,joined_at")
+      .eq("id", canaryInviteId)
+      .single();
+    const pendingForMiddleware = pendingInvite?.status === "pending"
+      && pendingInvite.send_count > 0
+      && pendingInvite.auth_user_id === null
+      && pendingInvite.joined_at === null;
+    const joinedByAuthTrigger = pendingInvite?.status === "joined"
+      && pendingInvite.send_count > 0
+      && pendingInvite.auth_user_id === canaryUserId
+      && typeof pendingInvite.joined_at === "string";
+    assert(
+      !pendingInviteError
+        && (pendingForMiddleware || joinedByAuthTrigger),
+      "the tester invitation was neither pending nor validly joined to the canary account",
+    );
+    invitationJoinedByAuthTrigger = joinedByAuthTrigger;
+    pass(
+      invitationJoinedByAuthTrigger
+        ? "the Auth confirmation trigger joined the tester invitation to the canary"
+        : "the tester invitation remained pending for the deployed middleware",
+    );
+  }
   const allowance = await fetch(`${origin}/api/sessions/allowance`, {
     headers: { Cookie: sessionCookie },
     cache: "no-store",
@@ -246,6 +323,26 @@ try {
     `signed-in allowance check returned ${allowance.status}`,
   );
   pass("the deployed server authenticated the canary and read durable AI usage state");
+  if (canaryInviteId) {
+    const { data: claimedInvite, error: claimedInviteError } = await admin
+      .from("tester_invites")
+      .select("status,send_count,auth_user_id,joined_at")
+      .eq("id", canaryInviteId)
+      .single();
+    assert(
+      !claimedInviteError
+        && claimedInvite?.status === "joined"
+        && claimedInvite.send_count > 0
+        && claimedInvite.auth_user_id === canaryUserId
+        && typeof claimedInvite.joined_at === "string",
+      "the tester invitation was not joined and bound after invite-only authentication",
+    );
+    pass(
+      invitationJoinedByAuthTrigger
+        ? "invite-only middleware accepted the Auth-trigger-joined tester invitation"
+        : "invite-only middleware claimed the founder-backed tester invitation",
+    );
+  }
 
   const staged = await requestJson(`${origin}/api/materials`, {
     method: "POST",
@@ -379,16 +476,36 @@ try {
     body: { exportId },
   });
   assert(revokedExport.response.status === 204, `account-export revocation returned ${revokedExport.response.status}`);
-  const revokedDownload = await fetch(exportDownloadUrl, {
+  const revokedExportFolder = `${canaryUserId}/${exportId}`;
+  const { data: remainingExportObjects, error: remainingExportObjectsError } = await admin.storage
+    .from("account-exports")
+    .list(revokedExportFolder, { limit: 100 });
+  assert(
+    !remainingExportObjectsError && remainingExportObjects.length === 0,
+    "the revoked private export remained at the Storage origin",
+  );
+  pass("the private export was removed from the Storage origin");
+
+  const cacheMissUrl = new URL(exportDownloadUrl);
+  cacheMissUrl.searchParams.set("cacheNonce", crypto.randomUUID());
+  const cacheMissDownload = await fetch(cacheMissUrl, {
     cache: "no-store",
     signal: AbortSignal.timeout(15_000),
   });
+  await cacheMissDownload.body?.cancel().catch(() => undefined);
   assert(
-    [400, 404].includes(revokedDownload.status),
-    `the revoked private export URL returned ${revokedDownload.status}`,
+    [400, 404].includes(cacheMissDownload.status),
+    `a fresh cache-bypass request served the revoked export with status ${cacheMissDownload.status}`,
   );
-  exportId = null;
-  pass("the private export was revoked and its signed URL stopped serving data");
+  pass("a fresh CDN cache key could not retrieve the removed private export");
+
+  const revokedDownloadStatus = await waitForSignedUrlInvalidation(exportDownloadUrl);
+  assert(
+    [400, 404].includes(revokedDownloadStatus),
+    `the revoked private export URL returned ${revokedDownloadStatus} after the CDN invalidation window`,
+  );
+  exportRevoked = true;
+  pass("the revoked signed URL stopped serving data across the CDN");
 
   deletionLearningStoragePath = `${canaryUserId}/${crypto.randomUUID()}/deletion-sentinel.txt`;
   deletionExportStoragePath = `${canaryUserId}/${crypto.randomUUID()}/deletion-sentinel.json`;
@@ -478,7 +595,7 @@ try {
       cleanupFailures,
     );
   }
-  if (canaryUserId && sessionCookie && exportId) {
+  if (canaryUserId && sessionCookie && exportId && !exportRevoked) {
     await recordHttpCleanup(
       "account-export receipt",
       () => requestJson(`${origin}/api/account/data-export`, {
@@ -495,7 +612,7 @@ try {
   if (smtpProbeUserId) {
     await recordCleanup(
       "SMTP probe identity",
-      () => admin.auth.admin.deleteUser(smtpProbeUserId),
+      () => deleteAuthUserIfPresent(admin, smtpProbeUserId),
       cleanupFailures,
     );
   }
@@ -532,7 +649,29 @@ try {
   if (canaryUserId && !accountDeletedByYova) {
     await recordCleanup(
       "canary identity",
-      () => admin.auth.admin.deleteUser(canaryUserId),
+      () => deleteAuthUserIfPresent(admin, canaryUserId),
+      cleanupFailures,
+    );
+  }
+  await recordCleanup(
+    "release-test identities by exact email",
+    () => deleteAuthUsersByExactEmail(
+      admin,
+      runSmtpProbe ? [smtpEmail, canaryEmail] : [canaryEmail],
+    ),
+    cleanupFailures,
+  );
+  if (canaryUserId) {
+    await recordCleanup(
+      "release-test private Storage prefixes",
+      () => verifyStoragePrefixesEmpty(admin, canaryUserId),
+      cleanupFailures,
+    );
+  }
+  if (canaryInviteId) {
+    await recordCleanup(
+      "canary tester invitation",
+      () => deleteTesterInvite(admin, canaryInviteId),
       cleanupFailures,
     );
   }
@@ -582,6 +721,31 @@ async function readJson(url, options = {}) {
   return { response, body };
 }
 
+async function waitForSignedUrlInvalidation(url, timeoutMs = 75_000) {
+  const deadline = Date.now() + timeoutMs;
+  let lastStatus = 0;
+  let reportedPropagation = false;
+
+  while (Date.now() < deadline) {
+    const response = await fetch(url, {
+      cache: "no-store",
+      signal: AbortSignal.timeout(15_000),
+    });
+    lastStatus = response.status;
+    await response.body?.cancel().catch(() => undefined);
+    if ([400, 404].includes(lastStatus)) return lastStatus;
+    if (lastStatus !== 200) return lastStatus;
+
+    if (!reportedPropagation) {
+      console.log("INFO  Waiting for Supabase's documented CDN deletion propagation window");
+      reportedPropagation = true;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 3_000));
+  }
+
+  return lastStatus;
+}
+
 async function assertNoAccountRows(client, accountId, inventories) {
   for (const [table, ownerColumn] of inventories) {
     const { count, error } = await client
@@ -590,6 +754,101 @@ async function assertNoAccountRows(client, accountId, inventories) {
       .eq(ownerColumn, accountId);
     assert(!error && count === 0, `${table} retained rows for the deleted canary account`);
   }
+}
+
+async function deleteTesterInvite(client, inviteId) {
+  const { error: deleteError } = await client
+    .from("tester_invites")
+    .delete()
+    .eq("id", inviteId);
+  if (deleteError) return { error: deleteError };
+
+  const { count, error: verifyError } = await client
+    .from("tester_invites")
+    .select("id", { count: "exact", head: true })
+    .eq("id", inviteId);
+  if (verifyError) return { error: verifyError };
+  return {
+    error: count === 0 ? null : new Error("tester invitation remained after cleanup"),
+  };
+}
+
+async function deleteAuthUserIfPresent(client, userId) {
+  const existing = await client.auth.admin.getUserById(userId);
+  if (isMissingAuthUserError(existing.error)) return { error: null };
+  if (existing.error) return { error: existing.error };
+  if (!existing.data?.user) return { error: null };
+
+  const deleted = await client.auth.admin.deleteUser(userId);
+  if (deleted.error && !isMissingAuthUserError(deleted.error)) {
+    return { error: deleted.error };
+  }
+
+  const verified = await client.auth.admin.getUserById(userId);
+  if (isMissingAuthUserError(verified.error)) return { error: null };
+  if (verified.error) return { error: verified.error };
+  return {
+    error: verified.data?.user
+      ? new Error(`Auth identity ${userId} remained after cleanup`)
+      : null,
+  };
+}
+
+async function deleteAuthUsersByExactEmail(client, emails) {
+  const safeEmailPattern = /^(?:release-canary-|delivered\+smtp-)[a-z0-9-]+@resend\.dev$/i;
+  if (!emails.every((email) => safeEmailPattern.test(email))) {
+    return { error: new Error("refused unsafe release-test email cleanup") };
+  }
+
+  const expectedEmails = new Set(emails.map((email) => email.toLowerCase()));
+  const matchedUserIds = new Set();
+  const perPage = 1_000;
+  let reachedEnd = false;
+  for (let page = 1; page <= 100; page += 1) {
+    const { data, error } = await client.auth.admin.listUsers({ page, perPage });
+    if (error) return { error };
+    const users = Array.isArray(data?.users) ? data.users : [];
+    for (const user of users) {
+      if (user.email && expectedEmails.has(user.email.toLowerCase())) {
+        matchedUserIds.add(user.id);
+      }
+    }
+    if (users.length < perPage) {
+      reachedEnd = true;
+      break;
+    }
+  }
+  if (!reachedEnd) {
+    return { error: new Error("could not prove the complete Auth cleanup inventory") };
+  }
+
+  for (const userId of matchedUserIds) {
+    const result = await deleteAuthUserIfPresent(client, userId);
+    if (result.error) return result;
+  }
+  return { error: null };
+}
+
+function isMissingAuthUserError(error) {
+  return Boolean(
+    error
+      && (
+        error.status === 404
+        || error.code === "user_not_found"
+        || /user not found/i.test(error.message ?? "")
+      ),
+  );
+}
+
+async function verifyStoragePrefixesEmpty(client, userId) {
+  for (const bucket of ["learning-materials", "account-exports"]) {
+    const { data, error } = await client.storage.from(bucket).list(userId, { limit: 1 });
+    if (error) return { error };
+    if (data.length > 0) {
+      return { error: new Error(`${bucket} retained objects under the canary account prefix`) };
+    }
+  }
+  return { error: null };
 }
 
 async function recordCleanup(label, cleanup, failures) {

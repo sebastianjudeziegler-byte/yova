@@ -238,22 +238,52 @@ export async function DELETE(request: Request) {
   const auth = await authenticateAccountExportFinalize(supabase);
   if (!auth.ok) return authError(auth.reason);
 
-  const { error: revokeError } = await supabase.rpc("revoke_account_data_export", {
+  const { data: revoked, error: revokeError } = await supabase.rpc("revoke_account_data_export", {
     requested_export_id: exportId,
   });
   if (revokeError) return failed("YOVA could not close the temporary account copy. Try again.");
 
-  const admin = createSupabaseAdminClient();
-  const paths = [
+  const expectedPaths = [
     accountExportTempPath(auth.context.user.id, exportId),
     accountExportFinalPath(auth.context.user.id, exportId),
-  ];
-  const { error: removeError } = await admin.storage.from(ACCOUNT_EXPORT_BUCKET).remove(paths);
-  // The revoked row remains as a bounded cleanup receipt. The service-role
-  // cleanup lease removes it; authenticated routes cannot bypass that lease.
-  void removeError;
+  ] as const;
+  const revokedPaths = parseRevokedExportPaths(revoked);
+  if (revokedPaths === "missing") {
+    return new NextResponse(null, { status: 204, headers: privateHeaders() });
+  }
+  if (
+    !revokedPaths
+    || revokedPaths[0] !== expectedPaths[0]
+    || revokedPaths[1] !== expectedPaths[1]
+  ) {
+    return exportRevocationCleanupPending();
+  }
+
+  const admin = createSupabaseAdminClient();
+  try {
+    const { error: removeError } = await admin.storage
+      .from(ACCOUNT_EXPORT_BUCKET)
+      .remove([...expectedPaths]);
+    // The revoked row remains as a bounded cleanup receipt. The service-role
+    // cleanup lease removes it; authenticated routes cannot bypass that lease.
+    // A failed request can be retried safely because the cancelled receipt keeps
+    // returning the same account-bound paths.
+    if (removeError) return exportRevocationCleanupPending();
+  } catch {
+    return exportRevocationCleanupPending();
+  }
 
   return new NextResponse(null, { status: 204, headers: privateHeaders() });
+}
+
+function parseRevokedExportPaths(value: unknown): readonly [string, string] | "missing" | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const receipt = value as Record<string, unknown>;
+  const tempPath = receipt.tempStoragePath;
+  const finalPath = receipt.finalStoragePath;
+  if (tempPath === null && finalPath === null) return "missing";
+  if (typeof tempPath !== "string" || typeof finalPath !== "string") return null;
+  return [tempPath, finalPath];
 }
 
 async function failExport(
@@ -364,6 +394,15 @@ function failed(message: string) {
 function unreconciledExport() {
   return failed(
     "YOVA could not confirm whether the account-copy request started or close a possible receipt. Do not start another copy yet. Wait for this request to expire, then try again.",
+  );
+}
+
+function exportRevocationCleanupPending() {
+  return jsonError(
+    "YOVA closed the account copy, but private-file cleanup has not finished. Try closing it again.",
+    503,
+    "failed",
+    { "Retry-After": "5" },
   );
 }
 
