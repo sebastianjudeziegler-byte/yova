@@ -10,6 +10,8 @@
 -- profile trigger next needs profiles). NOWAIT makes a busy deploy fail fast
 -- with lock_not_available; retrying during a quiet/drained window is safe and
 -- cannot strand either the migration or an application transaction.
+begin;
+
 lock table
   public.plan_sessions,
   public.plans,
@@ -1916,3 +1918,5 @@ comment on function public.public_launch_abuse_readiness_v1() is
   'Read-only release gate for public-launch AI, material, Storage and untrusted-write abuse boundaries.';
 
 notify pgrst, 'reload schema';
+
+commit;
