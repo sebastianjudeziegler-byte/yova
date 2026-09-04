@@ -5,7 +5,7 @@ vi.mock("server-only", () => ({}));
 const mocks = vi.hoisted(() => ({
   saveResponse: vi.fn(),
   requestWaitlistConfirmation: vi.fn(),
-  deliverConfirmation: vi.fn(),
+  queueConfirmation: vi.fn(),
   reserveReportEmailDelivery: vi.fn(),
   markEmailDelivery: vi.fn(),
   sendReportEmail: vi.fn(),
@@ -91,7 +91,7 @@ vi.mock("@/lib/study-profile/repository", () => {
 });
 
 vi.mock("@/lib/study-profile/waitlist-confirmation", () => ({
-  deliverStudyProfileWaitlistConfirmation: mocks.deliverConfirmation,
+  queueStudyProfileWaitlistConfirmationDelivery: mocks.queueConfirmation,
 }));
 
 vi.mock("@/lib/server/rate-limit", () => ({
@@ -101,9 +101,10 @@ vi.mock("@/lib/server/rate-limit", () => ({
 
 import { POST } from "@/app/api/study-profile/responses/route";
 
-describe("Study Profile response waitlist gate", () => {
+describe("Study Profile response and optional waitlist", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    requestData.waitlistConsent = true;
     mocks.saveResponse.mockResolvedValue({
       storedResponse: {
         id: "response-id",
@@ -120,12 +121,7 @@ describe("Study Profile response waitlist gate", () => {
       email: "student@example.com",
       retryAfterSeconds: 0,
     });
-    mocks.deliverConfirmation.mockResolvedValue({
-      waitlistJoined: false,
-      confirmationPending: true,
-      dailyCapReached: false,
-      retryAfterSeconds: 0,
-    });
+    mocks.queueConfirmation.mockReturnValue(true);
     mocks.reserveReportEmailDelivery.mockResolvedValue({
       allowed: false,
       reason: "cooldown",
@@ -133,7 +129,38 @@ describe("Study Profile response waitlist gate", () => {
     });
   });
 
-  it("releases the report only after an accepted waitlist request", async () => {
+  it("creates the report and requests confirmation after an explicit waitlist opt-in", async () => {
+    mocks.reserveReportEmailDelivery.mockResolvedValueOnce({
+      allowed: true,
+      reason: null,
+      retryAfterSeconds: 0,
+    });
+    mocks.sendReportEmail.mockResolvedValueOnce({
+      status: "sent",
+      provider: "resend",
+      providerMessageId: "report-message-id",
+    });
+
+    const response = await POST(responseRequest());
+
+    expect(response.status).toBe(201);
+    await expect(response.json()).resolves.toMatchObject({
+      reportToken: "r".repeat(43),
+      report,
+      emailDelivery: "sent",
+      waitlistJoined: false,
+      confirmationPending: true,
+    });
+    expect(mocks.sendReportEmail).toHaveBeenCalledOnce();
+    expect(mocks.queueConfirmation).toHaveBeenCalledOnce();
+    expect(mocks.reserveReportEmailDelivery).toHaveBeenCalledOnce();
+    expect(mocks.sendReportEmail.mock.invocationCallOrder[0])
+      .toBeLessThan(mocks.requestWaitlistConfirmation.mock.invocationCallOrder[0]);
+  });
+
+  it("creates the report without requesting waitlist confirmation when the option is unchecked", async () => {
+    requestData.waitlistConsent = false;
+
     const response = await POST(responseRequest());
 
     expect(response.status).toBe(201);
@@ -141,45 +168,55 @@ describe("Study Profile response waitlist gate", () => {
       reportToken: "r".repeat(43),
       report,
       waitlistJoined: false,
-      confirmationPending: true,
+      confirmationPending: false,
     });
-    expect(mocks.deliverConfirmation).toHaveBeenCalledOnce();
+    expect(mocks.requestWaitlistConfirmation).not.toHaveBeenCalled();
+    expect(mocks.queueConfirmation).not.toHaveBeenCalled();
     expect(mocks.reserveReportEmailDelivery).toHaveBeenCalledOnce();
   });
 
-  it("keeps results locked when the recipient has reached the daily cap", async () => {
-    mocks.deliverConfirmation.mockResolvedValueOnce({
+  it("does not lock the report when the waitlist recipient reaches the daily cap", async () => {
+    mocks.requestWaitlistConfirmation.mockResolvedValueOnce({
       waitlistJoined: false,
       confirmationPending: false,
       dailyCapReached: true,
+      shouldSend: false,
+      confirmationId: null,
+      email: null,
       retryAfterSeconds: 86_400,
     });
 
     const response = await POST(responseRequest());
     const body = await response.json();
 
-    expect(response.status).toBe(503);
-    expect(body).toEqual({
-      error: "Your answers were saved, but YOVA could not finish the waitlist signup, so your results are still locked. Try again later.",
-      code: "waitlist_signup_unavailable",
+    expect(response.status).toBe(201);
+    expect(body).toMatchObject({
+      reportToken: "r".repeat(43),
+      report,
+      waitlistJoined: false,
+      confirmationPending: false,
+      waitlistError:
+        "YOVA could not complete the waitlist email step. Check your inbox, or try again from this report.",
     });
-    expect(body).not.toHaveProperty("reportToken");
-    expect(body).not.toHaveProperty("report");
-    expect(mocks.reserveReportEmailDelivery).not.toHaveBeenCalled();
+    expect(mocks.reserveReportEmailDelivery).toHaveBeenCalledOnce();
   });
 
-  it("reports a truthful locked state when confirmation delivery fails after save", async () => {
-    vi.spyOn(console, "error").mockImplementation(() => {});
-    mocks.deliverConfirmation.mockRejectedValueOnce(new Error("provider rejected"));
+  it("does not lock the report when confirmation delivery cannot be queued after save", async () => {
+    mocks.queueConfirmation.mockReturnValueOnce(false);
 
     const response = await POST(responseRequest());
     const body = await response.json();
 
-    expect(response.status).toBe(503);
-    expect(body.code).toBe("waitlist_signup_unavailable");
-    expect(body).not.toHaveProperty("reportToken");
-    expect(body).not.toHaveProperty("report");
-    expect(mocks.reserveReportEmailDelivery).not.toHaveBeenCalled();
+    expect(response.status).toBe(201);
+    expect(body).toMatchObject({
+      reportToken: "r".repeat(43),
+      report,
+      waitlistJoined: false,
+      confirmationPending: false,
+      waitlistError:
+        "YOVA could not complete the waitlist email step. Check your inbox, or try again from this report.",
+    });
+    expect(mocks.reserveReportEmailDelivery).toHaveBeenCalledOnce();
   });
 });
 

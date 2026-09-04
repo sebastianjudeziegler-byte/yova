@@ -1,5 +1,6 @@
 import "server-only";
 
+import { after } from "next/server";
 import { getSiteUrl } from "@/lib/site-url";
 import {
   STUDY_PROFILE_EMAIL_REQUEST_TIMEOUT_MS,
@@ -35,6 +36,34 @@ export class StudyProfileWaitlistConfirmationDeliveryError extends Error {
   constructor() {
     super("YOVA could not send the waitlist confirmation email.");
     this.name = "StudyProfileWaitlistConfirmationDeliveryError";
+  }
+}
+
+export function queueStudyProfileWaitlistConfirmationDelivery(
+  repository: StudyProfileRepository,
+  state: StudyProfileWaitlistConfirmationRequestState,
+  rawConfirmationToken: string,
+) {
+  try {
+    after(async () => {
+      try {
+        await deliverStudyProfileWaitlistConfirmation(
+          repository,
+          state,
+          rawConfirmationToken,
+        );
+      } catch (error) {
+        console.error(
+          "Study Profile waitlist confirmation delivery failed after response.",
+          error instanceof Error ? error.name : "UnknownError",
+        );
+      }
+    });
+    return true;
+  } catch {
+    // This only occurs outside a live Next request context. The caller can
+    // return an honest retry state without withholding the saved report.
+    return false;
   }
 }
 

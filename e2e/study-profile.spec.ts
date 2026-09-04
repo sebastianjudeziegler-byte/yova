@@ -5,7 +5,7 @@ const STUDY_PROFILE_SUPPORT_MAILTO = "mailto:hello@yovaapp.com?subject=YOVA%20St
 const PRIVACY_REQUEST_MAILTO = "mailto:hello@yovaapp.com?subject=YOVA%20privacy%20or%20deletion%20request";
 
 test.describe("YOVA Study Profile", () => {
-  test("requires waitlist signup before revealing a private report", async ({ page }) => {
+  test("reveals a private report without requiring the optional waitlist", async ({ page }) => {
     test.setTimeout(90_000);
     const email = `study-profile-${Date.now()}@example.com`;
     let interestPosts = 0;
@@ -37,6 +37,13 @@ test.describe("YOVA Study Profile", () => {
 
     await expect.poll(() => page.evaluate((key) => window.localStorage.getItem(key), DRAFT_STORAGE_KEY))
       .toContain('"q1":"d"');
+    const savedDraft = await page.evaluate((key) => {
+      const raw = window.localStorage.getItem(key);
+      return raw ? JSON.parse(raw) as Record<string, unknown> : null;
+    }, DRAFT_STORAGE_KEY);
+    expect(savedDraft).not.toBeNull();
+    expect(savedDraft?.savedAt).toEqual(expect.any(Number));
+    expect(savedDraft).not.toHaveProperty("email");
     await page.reload();
     await expectOnlyQuestion(page, 2);
 
@@ -63,26 +70,24 @@ test.describe("YOVA Study Profile", () => {
     await unlockResults.click();
 
     await expectLockedReveal(page);
-    const consent = page.getByRole("checkbox", {
-      name: /Sign up for the YOVA waitlist\./,
+    const optionalWaitlist = page.getByRole("checkbox", {
+      name: /Also add me to the YOVA waitlist\./,
     });
     const ageConfirmation = page.getByRole("checkbox", {
       name: "I confirm I am 13 or older.",
     });
-    await expect(consent).not.toBeChecked();
+    await expect(optionalWaitlist).not.toBeChecked();
     await expect(ageConfirmation).not.toBeChecked();
     const emailInput = page.getByLabel("Email for your private report link");
-    const submit = page.getByRole("button", { name: "Sign up and see my results" });
+    const submit = page.getByRole("button", { name: "Email my report and see results" });
     await expect(submit).toBeDisabled();
     await emailInput.fill("not-an-email");
     await expect(submit).toBeDisabled();
     await emailInput.fill(email);
     await expect(submit).toBeDisabled();
     await ageConfirmation.check();
-    await expect(submit).toBeDisabled();
-    await expect(consent).not.toBeChecked();
-    await consent.check();
     await expect(submit).toBeEnabled();
+    await expect(optionalWaitlist).not.toBeChecked();
 
     const submissionRequest = page.waitForRequest((request) => (
       request.method() === "POST"
@@ -103,7 +108,7 @@ test.describe("YOVA Study Profile", () => {
       metadata: Record<string, unknown>;
     };
     expect(requestBody.marketingConsent).toBe(false);
-    expect(requestBody.waitlistConsent).toBe(true);
+    expect(requestBody.waitlistConsent).toBe(false);
     expect(requestBody.ageConfirmed).toBe(true);
     expect(requestBody.metadata).toMatchObject({
       energyWindow: "afternoon",
@@ -117,7 +122,7 @@ test.describe("YOVA Study Profile", () => {
     expect(response.status()).toBe(201);
     await expect(response.json()).resolves.toMatchObject({
       emailDelivery: "skipped",
-      confirmationPending: true,
+      confirmationPending: false,
     });
     expect(interestPosts).toBe(0);
 
@@ -137,32 +142,30 @@ test.describe("YOVA Study Profile", () => {
     await expectReportSections(page);
     await expectNoTypographicDashes(page);
 
-    const waitlistPending = page.getByRole("status").filter({
-      hasText: "Request received.",
-    });
-    await expect(waitlistPending).toBeVisible();
-    await expect(page.getByRole("button", {
+    const sendConfirmation = page.getByRole("button", {
       name: "Send confirmation email",
       exact: true,
-    })).toHaveCount(0);
+    });
+    await expect(sendConfirmation.first()).toBeVisible();
 
     const privateReportPath = privateReportUrl.pathname;
     await page.reload();
     await expect(page).toHaveURL(privateReportPath);
     await expect(page.locator("#report-title")).toBeVisible();
-    await expect(page.getByRole("status").filter({
-      hasText: "Request received.",
-    })).toBeVisible();
+    await expect(sendConfirmation.first()).toBeVisible();
     expect(interestPosts).toBe(0);
 
     await page.getByRole("checkbox", { name: "I confirm I am 13 or older." }).first().check();
-    const resendResponse = page.waitForResponse((waitlist) => (
+    const waitlistResponse = page.waitForResponse((waitlist) => (
       waitlist.request().method() === "POST"
       && new URL(waitlist.url()).pathname.startsWith("/api/study-profile/interest/")
     ));
-    await page.getByRole("button", { name: "Send confirmation email again" }).first().click();
-    expect((await resendResponse).status()).toBe(200);
+    await sendConfirmation.first().click();
+    expect((await waitlistResponse).status()).toBe(200);
     expect(interestPosts).toBe(1);
+    await expect(page.getByRole("status").filter({
+      hasText: "Request received.",
+    }).first()).toBeVisible();
     await expect(page.getByText(
       "YOVA sends at most one confirmation email every 15 minutes.",
     ).first()).toBeVisible();
@@ -221,6 +224,66 @@ test.describe("YOVA Study Profile", () => {
     await expectFreshRetake(page);
   });
 
+  test("honors an explicit optional waitlist choice without delaying the report", async ({ page }) => {
+    test.setTimeout(90_000);
+    const email = `study-profile-opt-in-${Date.now()}@example.com`;
+
+    await page.goto("/study-profile");
+    await page.getByRole("button", { name: "Get my free study profile" }).first().click();
+    await completeAssessmentToReveal(page);
+    await expectLockedReveal(page);
+
+    await page.getByLabel("Email for your private report link").fill(email);
+    await page.getByRole("checkbox", { name: "I confirm I am 13 or older." }).check();
+    const optionalWaitlist = page.getByRole("checkbox", {
+      name: /Also add me to the YOVA waitlist\./,
+    });
+    await optionalWaitlist.check();
+
+    const submissionRequest = page.waitForRequest((request) => (
+      request.method() === "POST"
+      && new URL(request.url()).pathname === "/api/study-profile/responses"
+    ));
+    const submissionResponse = page.waitForResponse((response) => (
+      response.request().method() === "POST"
+      && new URL(response.url()).pathname === "/api/study-profile/responses"
+    ));
+    await page.getByRole("button", { name: "Email my report and see results" }).click();
+
+    const requestBody = (await submissionRequest).postDataJSON() as {
+      waitlistConsent: boolean;
+    };
+    expect(requestBody.waitlistConsent).toBe(true);
+
+    const response = await submissionResponse;
+    expect(response.status()).toBe(201);
+    const responseBody = await response.json() as {
+      reportToken?: unknown;
+      confirmationPending?: unknown;
+      waitlistError?: unknown;
+    };
+    expect(responseBody.reportToken).toEqual(expect.any(String));
+    await expect(page.locator("#report-title")).toBeVisible();
+    await expect(page).toHaveURL(/\/study-profile\/report\/[A-Za-z0-9_-]{32,}$/);
+    if (responseBody.confirmationPending === true) {
+      await expect(page.getByRole("status").filter({
+        hasText: "Request received.",
+      }).first()).toBeVisible();
+      await expect(page.getByRole("button", {
+        name: "Send confirmation email again",
+      }).first()).toBeVisible();
+    } else {
+      expect(responseBody.waitlistError).toEqual(expect.any(String));
+      await expect(page.getByRole("alert").filter({
+        hasText: String(responseBody.waitlistError),
+      })).toBeVisible();
+      await expect(page.getByRole("button", {
+        name: "Send confirmation email",
+        exact: true,
+      }).first()).toBeVisible();
+    }
+  });
+
   test("keeps results locked when report creation fails", async ({ page }) => {
     test.setTimeout(60_000);
     const email = `study-profile-stale-${Date.now()}@example.com`;
@@ -228,13 +291,12 @@ test.describe("YOVA Study Profile", () => {
     await page.getByRole("button", { name: "Get my free study profile" }).first().click();
     await completeAssessmentToReveal(page);
 
-    const consent = page.getByRole("checkbox", {
-      name: /Sign up for the YOVA waitlist\./,
+    const optionalWaitlist = page.getByRole("checkbox", {
+      name: /Also add me to the YOVA waitlist\./,
     });
-    await expect(consent).not.toBeChecked();
+    await expect(optionalWaitlist).not.toBeChecked();
     await page.getByLabel("Email for your private report link").fill(email);
     await page.getByRole("checkbox", { name: "I confirm I am 13 or older." }).check();
-    await consent.check();
     await page.route("**/api/study-profile/responses", async (route) => {
       await route.fulfill({
         status: 503,
@@ -243,14 +305,14 @@ test.describe("YOVA Study Profile", () => {
       });
     });
     await page.getByRole("button", {
-      name: "Sign up and see my results",
+      name: "Email my report and see results",
     }).click();
     await expect(page.locator("p[role='alert']")).toHaveText(
       "Study Profile saving is temporarily unavailable. Try again shortly.",
     );
     await expect(page.locator("#report-title")).toHaveCount(0);
     await expect(page.getByRole("heading", {
-      name: "There is a clear pattern in your answers.",
+      name: "Your answers point to a study pattern.",
     })).toBeVisible();
     await expect(page).toHaveURL(/\/study-profile$/);
   });
@@ -284,15 +346,16 @@ test.describe("YOVA Study Profile", () => {
 
     await page.goto(`/study-profile/waitlist/confirm#token=${confirmationToken}`);
     await expect(page.getByRole("heading", {
-      name: "Confirm your place on the waitlist.",
+      name: "Confirm YOVA launch emails.",
     })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Privacy Notice" })).toHaveAttribute("href", "/privacy");
     await expect.poll(() => new URL(page.url()).hash).toBe("");
     expect(confirmationPosts).toBe(0);
     await expect(page.locator("body")).not.toContainText(confirmationToken);
 
     await page.setViewportSize({ width: 360, height: 640 });
     await expectNoHorizontalOverflow(page);
-    const confirmButton = page.getByRole("button", { name: "Confirm my place" });
+    const confirmButton = page.getByRole("button", { name: "Confirm launch emails" });
     await expect(confirmButton).toBeEnabled();
     await expectMinimumTapTargets(confirmButton);
     await confirmButton.scrollIntoViewIfNeeded();
@@ -315,6 +378,7 @@ test.describe("YOVA Study Profile", () => {
     await page.goto("/study-profile");
     await expect(page.getByRole("link", { name: "Email support" }))
       .toHaveAttribute("href", STUDY_PROFILE_SUPPORT_MAILTO);
+    await expect(page.getByRole("link", { name: "Privacy Notice" })).toHaveCount(2);
 
     await page.goto("/privacy");
     const privacyContact = page.getByRole("link", { name: "hello@yovaapp.com" });
@@ -393,12 +457,12 @@ test.describe("YOVA Study Profile", () => {
           has: viewportPage.getByRole("checkbox", { name: "I confirm I am 13 or older." }),
         });
         const waitlistLabel = viewportPage.locator("label").filter({
-          has: viewportPage.getByRole("checkbox", { name: /Sign up for the YOVA waitlist\./ }),
+          has: viewportPage.getByRole("checkbox", { name: /Also add me to the YOVA waitlist\./ }),
         });
         await expectMinimumTapTargets(ageLabel);
         await expectMinimumTapTargets(waitlistLabel);
         await expectMinimumTapTargets(
-          viewportPage.getByRole("button", { name: "Sign up and see my results" }),
+          viewportPage.getByRole("button", { name: "Email my report and see results" }),
         );
 
         await viewportPage.setViewportSize({ width, height: 480 });
@@ -406,7 +470,7 @@ test.describe("YOVA Study Profile", () => {
         await emailInput.scrollIntoViewIfNeeded();
         await expectFullyInViewport(viewportPage, emailInput);
         const submitButton = viewportPage.getByRole("button", {
-          name: "Sign up and see my results",
+          name: "Email my report and see results",
         });
         await submitButton.scrollIntoViewIfNeeded();
         await expectFullyInViewport(viewportPage, submitButton);
@@ -429,6 +493,30 @@ test.describe("YOVA Study Profile", () => {
     await expectOnlyQuestion(page, 1);
     await page.getByRole("radio").first().click();
     await expectOnlyQuestion(page, 2);
+  });
+
+  test("clears expired, future-dated, and timestamp-free browser drafts", async ({ page }) => {
+    for (const savedAt of [Date.now() - (8 * 24 * 60 * 60 * 1000), Date.now() + 60_000, null]) {
+      await page.goto("/study-profile");
+      await page.evaluate(({ key, timestamp }) => {
+        window.localStorage.setItem(key, JSON.stringify({
+          version: "study_profile_draft_v2",
+          view: "question",
+          currentQuestion: 5,
+          answers: { q1: "a", q2: "b" },
+          metadata: {},
+          ...(timestamp === null ? {} : { savedAt: timestamp }),
+        }));
+      }, { key: DRAFT_STORAGE_KEY, timestamp: savedAt });
+
+      await page.reload();
+      await expect(page.getByRole("heading", {
+        name: "Find out how you actually study.",
+      })).toBeVisible();
+      await expect.poll(() => page.evaluate((key) => (
+        window.localStorage.getItem(key)
+      ), DRAFT_STORAGE_KEY)).toBeNull();
+    }
   });
 
   test("exposes semantic 14-step progress and dynamic radio keyboard help", async ({ page }) => {
@@ -524,7 +612,7 @@ async function expectLockedReveal(page: Page) {
   await expect(progress).toHaveAttribute("aria-valuenow", "14");
   await expect(progress).toHaveAttribute("aria-valuetext", "Profile complete");
   const heading = page.getByRole("heading", {
-    name: "There is a clear pattern in your answers.",
+    name: "Your answers point to a study pattern.",
   });
   await expect(heading).toBeVisible();
   await expect(heading).toBeFocused();

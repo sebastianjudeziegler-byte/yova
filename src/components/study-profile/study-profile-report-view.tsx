@@ -253,7 +253,7 @@ export function StudyProfileReportView({
 
         <div className={styles.reportBody}>
           <section className={styles.waitlistBanner} aria-label="YOVA waitlist status">
-            <div><strong>Want YOVA to build around this profile?</strong><span>Join the waitlist with the email connected to this report. Free to join.</span>{!hasJoinedWaitlist && !hasReachedDailyCap && <WaitlistAgeAffirmation checked={waitlistAgeConfirmed} onChange={setWaitlistAgeConfirmed} />}</div>
+            <div><strong>Want YOVA to build around this profile?</strong><span>Join the waitlist with the email connected to this report. We will send YOVA launch emails, and you can unsubscribe at any time. See our <Link href="/privacy">Privacy Notice</Link>.</span>{!hasJoinedWaitlist && !hasReachedDailyCap && <WaitlistAgeAffirmation checked={waitlistAgeConfirmed} onChange={setWaitlistAgeConfirmed} />}</div>
             {!hasJoinedWaitlist && !hasPendingConfirmation && !hasReachedDailyCap ? (
               <button type="button" className={styles.primaryButton} onClick={() => void joinWaitlist("banner")} disabled={isInterestRequesting || !waitlistAgeConfirmed} aria-busy={isInterestRequesting}>{isInterestRequesting ? "Sending..." : "Send confirmation email"}</button>
             ) : hasJoinedWaitlist ? (
@@ -350,7 +350,7 @@ export function StudyProfileReportView({
               <span className={styles.sectionEyebrow}>YOVA waitlist</span>
               <h2 id="waitlist-heading">Your profile is a snapshot. It is already aging.</h2>
               <p>Habits shift and deadlines move. YOVA builds your plan around your goal, materials, and schedule, then updates it from what you actually do.</p>
-              <p>Free to join. Launch news only. Unsubscribe anytime.</p>
+              <p>Free to join. YOVA launch emails only. Unsubscribe at any time. See our <Link href="/privacy">Privacy Notice</Link>.</p>
               {!hasJoinedWaitlist && !hasReachedDailyCap && <WaitlistAgeAffirmation checked={waitlistAgeConfirmed} onChange={setWaitlistAgeConfirmed} />}
             </div>
             {!hasJoinedWaitlist && !hasPendingConfirmation && !hasReachedDailyCap ? <button type="button" className={styles.primaryButton} onClick={() => void joinWaitlist("closing")} disabled={isInterestRequesting || !waitlistAgeConfirmed} aria-busy={isInterestRequesting}>{isInterestRequesting ? "Sending..." : "Send confirmation email"}<ArrowRight size={17} aria-hidden="true" /></button> : hasJoinedWaitlist ? <div className={styles.interestSuccess} role={interestLocation === "closing" ? "status" : undefined} ref={closingWaitlistStatusRef} tabIndex={interestLocation === "closing" ? -1 : undefined}><CheckCircle2 size={20} aria-hidden="true" /><span><strong>You are on the waitlist.</strong> We will email you when YOVA is ready.</span></div> : hasReachedDailyCap ? <LimitedWaitlistStatus location="closing" activeLocation={interestLocation} statusRef={closingWaitlistStatusRef} /> : <PendingWaitlistStatus location="closing" activeLocation={interestLocation} statusRef={closingWaitlistStatusRef} requesting={isInterestRequesting} canRequest={waitlistAgeConfirmed} onRetry={() => void joinWaitlist("closing")} />}

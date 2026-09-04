@@ -200,10 +200,13 @@ describe("Study Profile waitlist confirmation email", () => {
   it("uses a fragment token and makes the confirmation button step explicit", () => {
     const message = buildStudyProfileWaitlistConfirmationEmail(confirmationInput);
 
-    expect(message.subject).toBe("Confirm your place on the YOVA waitlist");
+    expect(message.subject).toBe("Confirm YOVA launch emails");
     expect(message.html).toContain(`href="${confirmationInput.confirmationUrl}"`);
-    expect(message.text).toContain("Then select Confirm my place.");
+    expect(message.text).toContain("You asked to receive YOVA launch emails.");
+    expect(message.text).toContain("Then select Confirm launch emails.");
     expect(message.text).toContain("Opening the link alone will not join the waitlist.");
+    expect(message.text).toContain("Privacy Notice: https://www.yovaapp.com/privacy");
+    expect(message.html).toContain('href="https://www.yovaapp.com/privacy"');
     expect(message.text).toContain("expires in 24 hours");
     const url = new URL(confirmationInput.confirmationUrl);
     expect(url.search).toBe("");

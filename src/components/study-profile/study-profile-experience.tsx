@@ -59,6 +59,10 @@ type Draft = {
   metadata: Partial<StudyProfileMetadata>;
 };
 
+type StoredDraft = Draft & {
+  savedAt: number;
+};
+
 type SubmissionResult = {
   reportToken: string;
   reportUrl?: string;
@@ -69,11 +73,13 @@ type SubmissionResult = {
   emailDeliveryQueued?: boolean;
   waitlistJoined?: boolean;
   confirmationPending?: boolean;
+  waitlistError?: string | null;
 };
 
 const STUDY_PROFILE_DRAFT_VERSION = "study_profile_draft_v2" as const;
 const DRAFT_STORAGE_KEY = "yova.study-profile.draft.v2";
 const LEGACY_DRAFT_STORAGE_KEY = "yova.study-profile.draft.v1";
+const STUDY_PROFILE_DRAFT_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const TOTAL_STUDY_PROFILE_STEPS = 14;
 
 const ENERGY_OPTIONS: readonly { value: StudyProfileEnergyWindow; label: string }[] = [
@@ -105,7 +111,7 @@ export function StudyProfileExperience() {
   const [metadata, setMetadata] = useState<Partial<StudyProfileMetadata>>({});
   const [email, setEmail] = useState("");
   const [ageConfirmed, setAgeConfirmed] = useState(false);
-  const [marketingConsent, setMarketingConsent] = useState(false);
+  const [waitlistConsent, setWaitlistConsent] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submissionError, setSubmissionError] = useState<string | null>(null);
   const [submissionResult, setSubmissionResult] = useState<SubmissionResult | null>(null);
@@ -196,7 +202,7 @@ export function StudyProfileExperience() {
     setCurrentQuestion(0);
     setEmail("");
     setAgeConfirmed(false);
-    setMarketingConsent(false);
+    setWaitlistConsent(false);
     setSubmissionError(null);
     setSubmissionResult(null);
     completionTrackedRef.current = false;
@@ -261,10 +267,6 @@ export function StudyProfileExperience() {
       setSubmissionError("Confirm that you are 13 or older to receive your report.");
       return;
     }
-    if (!marketingConsent) {
-      setSubmissionError("Sign up for the YOVA waitlist to unlock your results.");
-      return;
-    }
     setIsSubmitting(true);
     try {
       const visitorId = getStudyProfileVisitorId();
@@ -284,7 +286,7 @@ export function StudyProfileExperience() {
             hardestPart: null,
           },
           marketingConsent: false,
-          waitlistConsent: true,
+          waitlistConsent,
           attribution: attributionRef.current,
         }),
       });
@@ -321,6 +323,7 @@ export function StudyProfileExperience() {
       emailDelivery={resolveEmailDelivery(submissionResult)}
       initialWaitlistJoined={submissionResult.waitlistJoined}
       initialWaitlistConfirmationPending={submissionResult.confirmationPending}
+      initialWaitlistError={submissionResult.waitlistError}
       autoFocusHeading
     />;
   }
@@ -333,7 +336,7 @@ export function StudyProfileExperience() {
       <header className={styles.assessmentHeader}>
         <Link href="/" aria-label="YOVA home" className={styles.brandLink}><BrandMark /></Link>
         <div className={styles.assessmentHeaderActions}>
-          <span><LockKeyhole size={13} aria-hidden="true" /> Saved on this device</span>
+          <span><LockKeyhole size={13} aria-hidden="true" /> Draft saved for 7 days</span>
           <button type="button" onClick={restartAssessment}><RefreshCw size={14} aria-hidden="true" /> Restart</button>
         </div>
       </header>
@@ -374,23 +377,23 @@ export function StudyProfileExperience() {
             <section className={styles.teaserScreen} aria-labelledby="pattern-reveal-heading">
               <form className={styles.emailGate} onSubmit={submitEmail} aria-busy={isSubmitting}>
                 <span className={styles.lockedResultStatus}><LockKeyhole size={15} aria-hidden="true" /> Results ready</span>
-                <h1 id="pattern-reveal-heading" ref={headingRef} tabIndex={-1}>There is a clear pattern in your answers.</h1>
-                <p>Sign up for the YOVA waitlist to unlock your private report and see what to try next. We will email you to confirm your place.</p>
+                <h1 id="pattern-reveal-heading" ref={headingRef} tabIndex={-1}>Your answers point to a study pattern.</h1>
+                <p>Enter your email to open your private report. We will send a private link so you can return to it. Joining the waitlist is optional.</p>
                 <label htmlFor="study-profile-email">Email for your private report link</label>
                 <div className={styles.emailInputWrap}><Mail size={18} aria-hidden="true" /><input id="study-profile-email" name="email" type="email" inputMode="email" autoComplete="email" required maxLength={254} placeholder="you@example.com" value={email} onChange={(event) => setEmail(event.target.value)} aria-describedby="email-consent-note" /></div>
                 <div className={styles.unlockList} aria-label="Full report includes">
                   <span><CheckCircle2 size={17} aria-hidden="true" /> Your named study pattern</span>
-                  <span><CheckCircle2 size={17} aria-hidden="true" /> Your biggest study barrier</span>
-                  <span><CheckCircle2 size={17} aria-hidden="true" /> Three methods matched to you</span>
+                  <span><CheckCircle2 size={17} aria-hidden="true" /> The study habit to focus on first</span>
+                  <span><CheckCircle2 size={17} aria-hidden="true" /> Three suggested methods to try</span>
                   <span><CheckCircle2 size={17} aria-hidden="true" /> A plan for tonight</span>
                 </div>
                 <label className={styles.consentRow}><input type="checkbox" required checked={ageConfirmed} onChange={(event) => setAgeConfirmed(event.target.checked)} /><span><strong>I confirm I am 13 or older.</strong></span></label>
-                <label className={styles.consentRow}><input type="checkbox" required checked={marketingConsent} onChange={(event) => setMarketingConsent(event.target.checked)} /><span><strong>Sign up for the YOVA waitlist.</strong> Free to join. We will email you at launch, and you can unsubscribe at any time.</span></label>
+                <label className={styles.consentRow}><input type="checkbox" checked={waitlistConsent} onChange={(event) => setWaitlistConsent(event.target.checked)} /><span><strong>Also add me to the YOVA waitlist.</strong> I agree to receive YOVA launch emails. I can unsubscribe at any time. Optional.</span></label>
                 {submissionError && <p className={styles.formError} role="alert">{submissionError}</p>}
-                <button type="submit" className={styles.primaryButton} disabled={isSubmitting || !emailIsValid || !ageConfirmed || !marketingConsent}>{isSubmitting ? "Building your report..." : "Sign up and see my results"}{!isSubmitting && <ArrowRight size={17} aria-hidden="true" />}</button>
+                <button type="submit" className={styles.primaryButton} disabled={isSubmitting || !emailIsValid || !ageConfirmed}>{isSubmitting ? "Building your report..." : "Email my report and see results"}{!isSubmitting && <ArrowRight size={17} aria-hidden="true" />}</button>
                 <span className={styles.srOnly} role="status" aria-live="polite">{isSubmitting ? "Building and saving your Study Profile report." : ""}</span>
-                <p id="email-consent-note" className={styles.emailNote}>No account. Free to join. Unsubscribe at any time.</p>
-                <p className={styles.legalNote}>By continuing, you agree to our <Link href="/terms">Terms</Link> and acknowledge our <Link href="/privacy">Privacy Policy</Link>.</p>
+                <p id="email-consent-note" className={styles.emailNote}>We use this email to send your private report link. No account is created.</p>
+                <p className={styles.legalNote}>By continuing, you agree to our <Link href="/terms">Terms</Link> and acknowledge our <Link href="/privacy">Privacy Notice</Link>.</p>
               </form>
             </section>
           )}
@@ -411,9 +414,9 @@ function StudyProfileLanding({ onStart }: { onStart: () => void }) {
       <main id="study-profile-landing" tabIndex={-1}>
         <section className={styles.landingHero}>
           <div className={styles.heroCopy}>
-            <span className={styles.heroEyebrow}>Free Study Profile · 3 minutes</span>
+            <span className={styles.heroEyebrow}>Free Study Profile · about 3 minutes</span>
             <h1>Find out how you actually study.</h1>
-            <p>14 quick questions. No account. You get your study pattern, what is quietly costing you marks, and the exact methods that fit how you work. Free.</p>
+            <p>14 quick questions. No account. You get a study pattern, a clearer view of what may be getting in the way, and practical methods selected from your answers. Free.</p>
             <div className={styles.heroActions}><button type="button" className={styles.primaryButton} onClick={onStart}>Get my free study profile <ArrowRight size={18} aria-hidden="true" /></button><span><Clock3 size={16} aria-hidden="true" /> 14 questions · about 3 minutes · no account needed</span></div>
             <div className={styles.heroTrust}><span><Check size={14} aria-hidden="true" /> Free full report</span><span><Check size={14} aria-hidden="true" /> Practical steps for tonight</span><span><ShieldCheck size={14} aria-hidden="true" /> Private report link</span></div>
           </div>
@@ -422,26 +425,26 @@ function StudyProfileLanding({ onStart }: { onStart: () => void }) {
         <section className={styles.valueSection} aria-labelledby="value-heading">
           <header className={styles.landingSectionHeading}><span className={styles.sectionEyebrow}>What you get</span><h2 id="value-heading">A report that gives you something to do next.</h2></header>
           <div className={styles.proofGrid}>
-            <article><span><SearchCheck size={20} aria-hidden="true" /></span><h3>See what is actually costing you.</h3><p>Your answers map six habits. You see which one is the leak.</p></article>
-            <article><span><BookOpenCheck size={20} aria-hidden="true" /></span><h3>Get methods that fit, with exact steps.</h3><p>Not just “use active recall.” You get the version that fits your pattern.</p></article>
-            <article><span><TimerReset size={20} aria-hidden="true" /></span><h3>Walk away with tonight&apos;s session.</h3><p>Block length, break timing, how to start, and when to stop.</p></article>
+            <article><span><SearchCheck size={20} aria-hidden="true" /></span><h3>See what may be getting in the way.</h3><p>Your answers are scored across six study habits and highlight the area most worth trying first.</p></article>
+            <article><span><BookOpenCheck size={20} aria-hidden="true" /></span><h3>Get practical methods with clear steps.</h3><p>The report turns broad advice, such as retrieval practice, into a concrete way to try it.</p></article>
+            <article><span><TimerReset size={20} aria-hidden="true" /></span><h3>Walk away with tonight&apos;s session.</h3><p>A suggested block length, break timing, first step, and stopping point.</p></article>
           </div>
         </section>
         <section className={styles.howItWorks} aria-labelledby="how-heading">
-          <header className={styles.landingSectionHeading}><span className={styles.sectionEyebrow}>How it works</span><h2 id="how-heading">Three minutes. A plan you can use tonight.</h2></header>
-          <ol><li><span>01</span><div><strong>Answer honestly.</strong><p>14 quick questions about how you actually study, not how you wish you studied.</p></div></li><li><span>02</span><div><strong>Finish your profile.</strong><p>Your answers form a named pattern across six study habits.</p></div></li><li><span>03</span><div><strong>Unlock your results.</strong><p>Join the free waitlist to see your report, matched methods, and tonight&apos;s plan.</p></div></li></ol>
+          <header className={styles.landingSectionHeading}><span className={styles.sectionEyebrow}>How it works</span><h2 id="how-heading">About three minutes. A plan you can use tonight.</h2></header>
+          <ol><li><span>01</span><div><strong>Answer honestly.</strong><p>14 quick questions about how you actually study, not how you wish you studied.</p></div></li><li><span>02</span><div><strong>Finish your profile.</strong><p>Your answers form a named pattern across six study habits.</p></div></li><li><span>03</span><div><strong>Unlock your results.</strong><p>Enter your email to open your private report. Joining the waitlist is optional.</p></div></li></ol>
         </section>
         <section className={styles.sampleResultSection} aria-labelledby="sample-heading">
-          <div className={styles.sampleResultCopy}><span className={styles.lightEyebrow}>A real result looks like this</span><h2 id="sample-heading">Maya&apos;s pattern: The Familiarity Trap.</h2><p>She rereads until it feels easy, then rarely checks without notes. Her first fix takes ten minutes to set up.</p><button type="button" className={styles.secondaryCta} onClick={onStart}>Find my pattern <ArrowRight size={17} aria-hidden="true" /></button></div>
+          <div className={styles.sampleResultCopy}><span className={styles.lightEyebrow}>An example result</span><h2 id="sample-heading">Example: The Familiarity Trap.</h2><p>This learner rereads until the material feels easy, then rarely checks without notes. The first suggested step takes ten minutes to set up.</p><button type="button" className={styles.secondaryCta} onClick={onStart}>Find my pattern <ArrowRight size={17} aria-hidden="true" /></button></div>
           <div className={styles.sampleReportCard} aria-label="Example Familiarity Trap report"><span>YOVA Study Profile</span><h3>The Familiarity Trap</h3><p>Feels easy is not the same as known.</p><div><strong>Best first method</strong><span>Brain dump, then check the gaps</span></div></div>
         </section>
         <section id="what-is-yova" className={styles.yovaIntroSection} aria-labelledby="yova-heading">
           <div><span className={styles.sectionEyebrow}>What is YOVA?</span><h2 id="yova-heading">This profile is chapter one.</h2><p>YOVA builds your plan and runs your study sessions around your goal, materials, schedule, and this profile. The quiz asks how you work. The app finds out from what you actually do and keeps the plan current.</p><p>YOVA is coming soon. The profile is free, and so is the waitlist.</p></div>
           <LandingWaitlistForm idPrefix="yova-intro" />
         </section>
-        <section className={styles.researchStrip} aria-label="Study Profile methodology summary"><Target size={23} aria-hidden="true" /><div><strong>Built on the boring, proven stuff.</strong><p>Retrieval practice, spaced practice, and interleaving, matched to your habits instead of handed out generically. This is not a diagnosis or a personality test.</p></div></section>
+        <section className={styles.researchStrip} aria-label="Study Profile methodology summary"><Target size={23} aria-hidden="true" /><div><strong>Draws on established study techniques.</strong><p>Retrieval practice, spaced practice, and interleaving inform the suggestions. The match is a starting point based on your answers, not a diagnosis or personality test.</p></div></section>
         <section className={styles.finalCtaSection} aria-labelledby="final-cta-heading">
-          <div><span className={styles.heroEyebrow}>Free · 3 minutes · no account</span><h2 id="final-cta-heading">Ready to see what fits you?</h2><button type="button" className={styles.primaryButton} onClick={onStart}>Get my free study profile <ArrowRight size={18} aria-hidden="true" /></button></div>
+          <div><span className={styles.heroEyebrow}>Free · about 3 minutes · no account</span><h2 id="final-cta-heading">Ready to see what your answers suggest?</h2><button type="button" className={styles.primaryButton} onClick={onStart}>Get my free study profile <ArrowRight size={18} aria-hidden="true" /></button></div>
           <div><p>Not ready for the quiz? Join the YOVA waitlist instead.</p><LandingWaitlistForm idPrefix="final-waitlist" compact /></div>
         </section>
       </main>
@@ -477,13 +480,14 @@ function LandingWaitlistForm({ idPrefix, compact = false }: { idPrefix: string; 
       else throw new Error("YOVA could not confirm the email request. Try again.");
     } catch (submitError) { setStatus("idle"); setError(submitError instanceof Error ? submitError.message : "YOVA could not send the confirmation email. Try again."); }
   }
-  if (status === "joined") return <div className={styles.waitlistInlineSuccess} role="status"><CheckCircle2 size={20} aria-hidden="true" /><span><strong>You are on the list.</strong> We will email you when YOVA is ready.</span></div>;
+  if (status === "joined") return <div className={styles.waitlistInlineSuccess} role="status"><CheckCircle2 size={20} aria-hidden="true" /><span><strong>You are on the list.</strong> We will email you when YOVA is ready. You can unsubscribe at any time.</span></div>;
   if (status === "limited") return <div className={styles.waitlistInlinePending} role="status"><Clock3 size={20} aria-hidden="true" /><span><strong>Try again later.</strong> To protect this inbox, YOVA cannot send another email today.</span></div>;
-  if (status === "pending") return <div className={styles.waitlistInlinePending} role="status"><Mail size={20} aria-hidden="true" /><span><strong>Request received.</strong> If this address still needs confirmation, check the inbox for an email. Already confirmed addresses stay on the list.</span></div>;
+  if (status === "pending") return <div className={styles.waitlistInlinePending} role="status"><Mail size={20} aria-hidden="true" /><span><strong>Request received.</strong> If this address still needs confirmation, check the inbox for an email about YOVA launch updates. Already confirmed addresses stay on the list.</span></div>;
   return <form className={`${styles.landingWaitlistForm} ${compact ? styles.landingWaitlistCompact : ""}`} onSubmit={submit}>
     <label htmlFor={`${idPrefix}-email`}>Email address</label><div><input id={`${idPrefix}-email`} type="email" inputMode="email" autoComplete="email" maxLength={254} required value={email} placeholder="you@example.com" onChange={(event) => setEmail(event.target.value)} /><button type="submit" disabled={!valid || !consent || !ageConfirmed || status === "submitting"}>{status === "submitting" ? "Sending..." : "Join the waitlist"}</button></div>
-    <label className={styles.waitlistConsent}><input type="checkbox" checked={ageConfirmed} onChange={(event) => setAgeConfirmed(event.target.checked)} /><span>I confirm I am 13 or older.</span></label>
-    <label className={styles.waitlistConsent}><input type="checkbox" checked={consent} onChange={(event) => setConsent(event.target.checked)} /><span>Send me YOVA launch news. Free to join. Unsubscribe anytime.</span></label>{error && <p className={styles.formError} role="alert">{error}</p>}
+    <label className={styles.waitlistConsent}><input type="checkbox" required checked={ageConfirmed} onChange={(event) => setAgeConfirmed(event.target.checked)} /><span>I confirm I am 13 or older.</span></label>
+    <label className={styles.waitlistConsent}><input type="checkbox" required checked={consent} onChange={(event) => setConsent(event.target.checked)} /><span>Email me when YOVA launches. I can unsubscribe at any time.</span></label>
+    <p className={styles.legalNote}>See how YOVA uses your email in the <Link href="/privacy">Privacy Notice</Link>.</p>{error && <p className={styles.formError} role="alert">{error}</p>}
   </form>;
 }
 
@@ -522,6 +526,17 @@ function readStudyProfileDraft(): Partial<Draft> | null {
   try {
     const saved = window.localStorage.getItem(DRAFT_STORAGE_KEY); if (!saved) return null;
     const raw = JSON.parse(saved) as Record<string, unknown>;
+    const savedAt = raw.savedAt;
+    const now = Date.now();
+    if (
+      typeof savedAt !== "number"
+      || !Number.isFinite(savedAt)
+      || savedAt > now
+      || now - savedAt > STUDY_PROFILE_DRAFT_TTL_MS
+    ) {
+      clearStudyProfileDraft();
+      return null;
+    }
     const view = raw.view === "hardest" || raw.view === "energy" || raw.view === "school" ? "context" : raw.view;
     if (raw.version === STUDY_PROFILE_DRAFT_VERSION && isDraftView(view)) return { ...raw, view } as Partial<Draft>;
     clearStudyProfileDraft();
@@ -529,7 +544,14 @@ function readStudyProfileDraft(): Partial<Draft> | null {
   return null;
 }
 
-function persistStudyProfileDraft(draft: Draft) { try { window.localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(draft)); } catch { /* Storage is best effort. */ } }
+function persistStudyProfileDraft(draft: Draft) {
+  try {
+    const stored: StoredDraft = { ...draft, savedAt: Date.now() };
+    window.localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(stored));
+  } catch {
+    // Storage is best effort.
+  }
+}
 function clearStudyProfileDraft() { try { window.localStorage.removeItem(DRAFT_STORAGE_KEY); window.localStorage.removeItem(LEGACY_DRAFT_STORAGE_KEY); } catch { /* Clearing must never interrupt the flow. */ } }
 function consumeRetakeRequest() { const url = new URL(window.location.href); clearStudyProfileDraft(); url.searchParams.delete("retake"); window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`); }
 function hasRetakeRequest() { return new URL(window.location.href).searchParams.get("retake") === "1"; }

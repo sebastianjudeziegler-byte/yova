@@ -165,15 +165,21 @@ export function buildStudyProfileWaitlistConfirmationEmail(
 ) {
   const confirmationUrl = new URL(input.confirmationUrl).toString();
   const safeConfirmationUrl = escapeStudyProfileEmailHtml(confirmationUrl);
+  const privacyUrl = new URL("/privacy", confirmationUrl).toString();
+  const safePrivacyUrl = escapeStudyProfileEmailHtml(privacyUrl);
   return {
-    subject: "Confirm your place on the YOVA waitlist",
+    subject: "Confirm YOVA launch emails",
     text: [
-      "Confirm your YOVA waitlist signup",
+      "Confirm YOVA launch emails",
+      "",
+      "You asked to receive YOVA launch emails. You can unsubscribe at any time.",
       "",
       "Open this private confirmation page:",
       confirmationUrl,
       "",
-      "Then select Confirm my place. Opening the link alone will not join the waitlist.",
+      "Then select Confirm launch emails. Opening the link alone will not join the waitlist.",
+      "",
+      `Privacy Notice: ${privacyUrl}`,
       "",
       "This link expires in 24 hours. If you did not request this, you can ignore this email.",
     ].join("\n"),
@@ -189,10 +195,10 @@ export function buildStudyProfileWaitlistConfirmationEmail(
               <td style="padding:32px;">
                 <div style="font-family:Sora,Inter,Arial,sans-serif;font-size:20px;font-weight:800;letter-spacing:-0.03em;color:#0b1b3e;">YOVA</div>
                 <div style="margin:28px 0 8px;font-size:12px;font-weight:750;letter-spacing:0.12em;text-transform:uppercase;color:#316bff;">YOVA waitlist</div>
-                <h1 style="margin:0 0 12px;font-family:Sora,Inter,Arial,sans-serif;font-size:32px;line-height:1.16;letter-spacing:-0.04em;color:#08152f;">Confirm your place</h1>
-                <p style="margin:0 0 26px;font-size:16px;line-height:1.65;color:#52617f;">Open the private page below, then select <strong>Confirm my place</strong>. Opening the link alone will not join the waitlist.</p>
+                <h1 style="margin:0 0 12px;font-family:Sora,Inter,Arial,sans-serif;font-size:32px;line-height:1.16;letter-spacing:-0.04em;color:#08152f;">Confirm launch emails</h1>
+                <p style="margin:0 0 26px;font-size:16px;line-height:1.65;color:#52617f;">You asked to receive YOVA launch emails. Open the private page below, then select <strong>Confirm launch emails</strong>. You can unsubscribe at any time. Opening the link alone will not join the waitlist.</p>
                 <a href="${safeConfirmationUrl}" style="display:inline-block;padding:14px 20px;background:#316bff;border-radius:12px;color:#ffffff;text-decoration:none;font-size:15px;font-weight:750;box-shadow:0 10px 24px rgba(49,107,255,0.22);">Open confirmation page</a>
-                <p style="margin:26px 0 0;font-size:13px;line-height:1.65;color:#66758f;">This link expires in 24 hours. If you did not request this, you can ignore this email.</p>
+                <p style="margin:26px 0 0;font-size:13px;line-height:1.65;color:#66758f;">Read the <a href="${safePrivacyUrl}" style="color:#2459d6;">YOVA Privacy Notice</a>. This link expires in 24 hours. If you did not request this, you can ignore this email.</p>
               </td>
             </tr>
           </table>

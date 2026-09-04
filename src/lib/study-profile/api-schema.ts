@@ -11,7 +11,7 @@ export const StudyProfileResponseRequestSchema = StudyProfileSubmissionSchema.ex
   visitorId: z.string().uuid(),
   ageConfirmed: z.literal(true),
   marketingConsent: z.literal(false).default(false),
-  waitlistConsent: z.literal(true),
+  waitlistConsent: z.boolean().default(false),
   metadata: StudyProfileMetadataSchema.extend({
     studyGoal: StudyProfileStudyGoalSchema,
     hardestPart: z.null().optional(),

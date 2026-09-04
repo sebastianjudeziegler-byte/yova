@@ -78,7 +78,7 @@ export function StudyProfileWaitlistConfirmation() {
             <CheckCircle2 size={34} aria-hidden="true" />
             <span className={styles.sectionEyebrow}>Email confirmed</span>
             <h1 id="confirmation-heading">You are on the YOVA waitlist.</h1>
-            <p>We will email you when YOVA is ready. You can unsubscribe at any time.</p>
+            <p>We will email you about YOVA&apos;s launch. You can unsubscribe at any time. See our <Link href="/privacy">Privacy Notice</Link>.</p>
             <Link className={styles.primaryButton} href="/study-profile">Back to Study Profile</Link>
           </>
         ) : state === "invalid" ? (
@@ -93,8 +93,8 @@ export function StudyProfileWaitlistConfirmation() {
           <>
             <MailCheck size={34} aria-hidden="true" />
             <span className={styles.sectionEyebrow}>One final step</span>
-            <h1 id="confirmation-heading">Confirm your place on the waitlist.</h1>
-            <p>Select the button below to confirm this email address. Opening this page alone does not join the waitlist.</p>
+            <h1 id="confirmation-heading">Confirm YOVA launch emails.</h1>
+            <p>Select the button below to confirm that you want YOVA launch emails at the address you entered. You can unsubscribe at any time. Opening this page alone does not join the waitlist. See our <Link href="/privacy">Privacy Notice</Link>.</p>
             <button
               type="button"
               className={styles.primaryButton}
@@ -102,7 +102,7 @@ export function StudyProfileWaitlistConfirmation() {
               aria-busy={state === "submitting"}
               onClick={() => void confirm()}
             >
-              {state === "submitting" ? "Confirming..." : "Confirm my place"}
+              {state === "submitting" ? "Confirming..." : "Confirm launch emails"}
             </button>
             {error && <p className={styles.formError} role="alert">{error}</p>}
           </>

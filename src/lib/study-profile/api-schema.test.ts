@@ -79,7 +79,7 @@ describe("Study Profile API schemas", () => {
     }).success).toBe(false);
   });
 
-  it("requires explicit waitlist consent before creating a report", () => {
+  it("keeps waitlist consent optional and defaults it to false", () => {
     const request = {
       email: "student@example.com",
       visitorId: "4d621251-2df6-4fa3-985e-df63b6d27f5f",
@@ -94,15 +94,28 @@ describe("Study Profile API schemas", () => {
       marketingConsent: false,
     };
 
-    expect(StudyProfileResponseRequestSchema.safeParse(request).success).toBe(false);
-    expect(StudyProfileResponseRequestSchema.safeParse({
+    const omitted = StudyProfileResponseRequestSchema.safeParse(request);
+    const declined = StudyProfileResponseRequestSchema.safeParse({
       ...request,
       waitlistConsent: false,
-    }).success).toBe(false);
-    expect(StudyProfileResponseRequestSchema.safeParse({
+    });
+    const accepted = StudyProfileResponseRequestSchema.safeParse({
       ...request,
       waitlistConsent: true,
-    }).success).toBe(true);
+    });
+
+    expect(omitted.success).toBe(true);
+    expect(declined.success).toBe(true);
+    expect(accepted.success).toBe(true);
+    if (omitted.success && declined.success && accepted.success) {
+      expect(omitted.data.waitlistConsent).toBe(false);
+      expect(declined.data.waitlistConsent).toBe(false);
+      expect(accepted.data.waitlistConsent).toBe(true);
+    }
+    expect(StudyProfileResponseRequestSchema.safeParse({
+      ...request,
+      waitlistConsent: "yes",
+    }).success).toBe(false);
   });
 
   it("does not accept the retired optional free-text field", () => {

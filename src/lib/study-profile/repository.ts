@@ -32,9 +32,9 @@ export const STUDY_PROFILE_WAITLIST_CONSENT_COPY_VERSIONS: Record<
   StudyProfileWaitlistSource,
   string
 > = {
-  landing: "study-profile-waitlist-v3-landing",
-  email_gate: "study-profile-waitlist-v3-email-gate",
-  report_cta: "study-profile-waitlist-v3-report-cta",
+  landing: "study-profile-waitlist-v4-landing",
+  email_gate: "study-profile-waitlist-v4-email-gate",
+  report_cta: "study-profile-waitlist-v4-report-cta",
 };
 
 // Retained as the default report-CTA version for compatibility with existing

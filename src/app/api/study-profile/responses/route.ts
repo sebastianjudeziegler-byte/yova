@@ -23,7 +23,7 @@ import {
   getStudyProfileRepository,
   hashStudyProfileReportToken,
 } from "@/lib/study-profile/repository";
-import { deliverStudyProfileWaitlistConfirmation } from "@/lib/study-profile/waitlist-confirmation";
+import { queueStudyProfileWaitlistConfirmationDelivery } from "@/lib/study-profile/waitlist-confirmation";
 import {
   checkStudyProfileSubmissionRateLimit,
   requestRateLimitKey,
@@ -53,7 +53,7 @@ export async function POST(request: Request) {
 
   const parsed = StudyProfileResponseRequestSchema.safeParse(body.value);
   if (!parsed.success) {
-    return jsonError("Complete all 14 questions, add a valid email, and join the waitlist to get your report.", 422);
+    return jsonError("Complete all 14 questions, add a valid email, and confirm your age to get your report.", 422);
   }
 
   const emailLimit = checkStudyProfileSubmissionRateLimit(`email:${parsed.data.email}`);
@@ -79,31 +79,6 @@ export async function POST(request: Request) {
       marketingConsent: parsed.data.marketingConsent,
       attribution: parsed.data.attribution,
     });
-
-    const confirmationToken = generateStudyProfileReportToken();
-    let waitlistAccess;
-    try {
-      const waitlistState = await repository.requestWaitlistConfirmation(
-        saved.storedResponse.reportToken,
-        "email_gate",
-        hashStudyProfileReportToken(confirmationToken),
-      );
-      if (!waitlistState) return savedButWaitlistUnavailable();
-      waitlistAccess = await deliverStudyProfileWaitlistConfirmation(
-        repository,
-        waitlistState,
-        confirmationToken,
-      );
-    } catch (error) {
-      console.error(
-        "Study Profile email-gate waitlist request failed after save.",
-        safeErrorName(error),
-      );
-      return savedButWaitlistUnavailable();
-    }
-    if (!waitlistAccess.waitlistJoined && !waitlistAccess.confirmationPending) {
-      return savedButWaitlistUnavailable();
-    }
 
     const reportUrl = new URL(
       `/study-profile/report/${saved.storedResponse.reportToken}`,
@@ -156,6 +131,50 @@ export async function POST(request: Request) {
       // A delivery integration failure must never hide an already-saved report.
     }
 
+    let confirmationPending = false;
+    let waitlistError: string | null = null;
+    if (parsed.data.waitlistConsent) {
+      const confirmationToken = generateStudyProfileReportToken();
+      try {
+        const waitlistState = await repository.requestWaitlistConfirmation(
+          saved.storedResponse.reportToken,
+          "email_gate",
+          hashStudyProfileReportToken(confirmationToken),
+        );
+        if (!waitlistState) {
+          throw new Error("Saved Study Profile report could not be resolved for waitlist confirmation.");
+        }
+        if (waitlistState.dailyCapReached) {
+          waitlistError = waitlistRetryMessage();
+        } else if (waitlistState.waitlistJoined || waitlistState.confirmationPending) {
+          // The browser only needs a generic receipt. Do not expose whether the
+          // normalized address was already on the shared waitlist.
+          confirmationPending = true;
+          if (
+            waitlistState.shouldSend
+            && !queueStudyProfileWaitlistConfirmationDelivery(
+              repository,
+              waitlistState,
+              confirmationToken,
+            )
+          ) {
+            confirmationPending = false;
+            waitlistError = waitlistRetryMessage();
+          }
+        } else {
+          waitlistError = waitlistRetryMessage();
+        }
+      } catch (error) {
+        console.error(
+          "Study Profile optional email-gate waitlist request failed after save.",
+          safeErrorName(error),
+        );
+        // Keep the response generic on delivery ambiguity and expose a retry
+        // from the report without withholding the report itself.
+        waitlistError = waitlistRetryMessage();
+      }
+    }
+
     return NextResponse.json({
       reportToken: saved.storedResponse.reportToken,
       reportUrl,
@@ -164,7 +183,8 @@ export async function POST(request: Request) {
       // A fresh report proves no ownership of the submitted address. Never
       // expose the normalized lead's shared waitlist membership here.
       waitlistJoined: false,
-      confirmationPending: true,
+      confirmationPending,
+      ...(waitlistError ? { waitlistError } : {}),
       emailDelivery,
       ...(emailDeliveryReason ? { emailDeliveryReason } : {}),
     }, {
@@ -217,14 +237,8 @@ function jsonError(message: string, status: number, headers?: HeadersInit) {
   });
 }
 
-function savedButWaitlistUnavailable() {
-  return NextResponse.json({
-    error: "Your answers were saved, but YOVA could not finish the waitlist signup, so your results are still locked. Try again later.",
-    code: "waitlist_signup_unavailable",
-  }, {
-    status: 503,
-    headers: { "Cache-Control": "no-store" },
-  });
+function waitlistRetryMessage() {
+  return "YOVA could not complete the waitlist email step. Check your inbox, or try again from this report.";
 }
 
 function safeErrorName(error: unknown) {

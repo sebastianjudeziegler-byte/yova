@@ -56,7 +56,7 @@ Use a dedicated sending subdomain such as `updates.yovaapp.com` for Study Profil
 5. After Resend verifies the subdomain, use an address such as `reports@updates.yovaapp.com` for `STUDY_PROFILE_FROM_EMAIL`.
 6. Use an existing monitored Google Workspace mailbox as `STUDY_PROFILE_REPLY_TO` if replies should be accepted.
 
-The report and waitlist confirmation emails are transactional responses to a user request. Joining the waitlist is a separate explicit action at the email gate, on the report, or in the landing-page waitlist form. The user must affirm that they are at least 13, request a confirmation email, open its private page, and select the confirmation button. Opening the link alone does not join the waitlist.
+The report and waitlist confirmation emails are transactional responses to a user request. A valid email and the 13-or-older affirmation are required to create and deliver a report. Joining the waitlist is optional and never controls report access. The waitlist choice at the email gate is unchecked by default, and the report and landing page provide separate opt-in actions. To join, the user must explicitly request YOVA launch emails, open the private confirmation page, and select the confirmation button. Opening the link alone does not join the waitlist.
 
 Do not send marketing waitlist campaigns until every marketing email has a working unsubscribe control and Resend bounce and complaint suppression is in place and tested. A confirmed waitlist record is not permission to skip those controls.
 
@@ -94,6 +94,8 @@ No external analytics provider is required. Funnel events are written to `study_
 
 The browser creates the Study Profile visitor ID in page memory. It does not write that ID or first-touch attribution to `localStorage` or `sessionStorage`. A new page load creates a new browser-side visitor ID. The bounded identifier sent with accepted events may still be stored in the database with those event records and associated with a response or waitlist request created from the same page.
 
+The browser separately stores an unfinished Study Profile draft in `localStorage` so a refresh can restore answers and context. The draft does not contain the user's email. Each save records its time, and a draft older than seven days is deleted instead of restored. Completion, restart, and retake clear it sooner.
+
 Do not send public traffic until the distributed edge-protection step above is complete and verified.
 
 ## Manual verification
@@ -103,9 +105,9 @@ Local:
 1. Run `pnpm dev` and open `http://localhost:3000/study-profile`.
 2. Start the assessment, answer several questions, refresh, and confirm progress returns.
 3. Use Back, change an answer, finish all 14 numbered steps, and confirm the sequence never switches to a separate context counter.
-4. Submit an email, affirm that you are at least 13, and confirm the email is used to deliver the private report.
-5. Confirm the full report appears even without Resend, and refresh the private `/study-profile/report/<token>` URL.
-6. Request to join the waitlist and confirm the page says to check your email. Confirm that the lead is not marked as joined yet.
+4. Submit an email, affirm that you are at least 13, leave the optional waitlist choice unchecked, and confirm the private report appears.
+5. Confirm no waitlist confirmation was requested, the report still appears even without Resend, and the private `/study-profile/report/<token>` URL survives refresh.
+6. Repeat with the optional waitlist choice checked. Confirm the report still appears and the page says to check your email without claiming that the address is already joined.
 7. Open the confirmation email. Confirm that opening its private page does not join the waitlist, then select the confirmation button and confirm the joined state.
 8. Submit the landing-page waitlist form without taking the quiz, including the 13-or-older affirmation, and complete the same confirmation flow.
 9. Request another report email for the same normalized address inside the 15-minute delivery cooldown and confirm no second email is sent.

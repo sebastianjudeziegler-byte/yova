@@ -4,6 +4,11 @@ vi.mock("server-only", () => ({}));
 
 const mocks = vi.hoisted(() => ({
   send: vi.fn(),
+  after: vi.fn(),
+}));
+
+vi.mock("next/server", () => ({
+  after: mocks.after,
 }));
 
 vi.mock("@/lib/site-url", () => ({
@@ -19,6 +24,7 @@ import {
   STUDY_PROFILE_WAITLIST_PUBLIC_RESPONSE_FLOOR_MS,
   StudyProfileWaitlistConfirmationDeliveryError,
   deliverStudyProfileWaitlistConfirmation,
+  queueStudyProfileWaitlistConfirmationDelivery,
   waitForStudyProfileWaitlistPublicResponseFloor,
 } from "@/lib/study-profile/waitlist-confirmation";
 import type {
@@ -44,6 +50,45 @@ describe("Study Profile waitlist confirmation delivery", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  it("queues provider delivery after the route response", async () => {
+    let scheduled: (() => Promise<void>) | undefined;
+    mocks.after.mockImplementationOnce((callback: () => Promise<void>) => {
+      scheduled = callback;
+    });
+    mocks.send.mockResolvedValueOnce({
+      status: "sent",
+      provider: "resend",
+      providerMessageId: "email_after_response",
+    });
+
+    expect(queueStudyProfileWaitlistConfirmationDelivery(
+      repository,
+      pendingState,
+      "d".repeat(43),
+    )).toBe(true);
+    expect(mocks.send).not.toHaveBeenCalled();
+
+    await scheduled?.();
+    expect(mocks.send).toHaveBeenCalledOnce();
+    expect(markDelivery).toHaveBeenCalledWith(
+      pendingState.confirmationId,
+      "sent",
+      "email_after_response",
+    );
+  });
+
+  it("reports when after-response delivery cannot be scheduled", () => {
+    mocks.after.mockImplementationOnce(() => {
+      throw new Error("missing request context");
+    });
+
+    expect(queueStudyProfileWaitlistConfirmationDelivery(
+      repository,
+      pendingState,
+      "e".repeat(43),
+    )).toBe(false);
   });
 
   it("pads a public response beyond the provider timeout", async () => {
