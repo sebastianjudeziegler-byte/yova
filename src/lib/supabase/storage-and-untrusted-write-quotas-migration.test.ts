@@ -11,18 +11,21 @@ const migration = readFileSync(
 
 describe("storage and untrusted-write quota migration", () => {
   it("preflights every live DDL target without waiting on a partial lock set", () => {
-    const transactionStart = migration.indexOf("begin;\n\nlock table\n");
+    const lockBlockStart = migration.indexOf("do $migration_lock$\nbegin\n");
     const lockStart = migration.indexOf("lock table\n");
     const lockEnd = migration.indexOf("in access exclusive mode nowait;", lockStart);
+    const lockBlockEnd = migration.indexOf("end;\n$migration_lock$;", lockEnd);
     const firstSchemaChange = migration.indexOf(
       "create table private.account_daily_write_usage_v1",
     );
 
-    expect(transactionStart).toBeGreaterThan(-1);
-    expect(lockStart).toBeGreaterThan(transactionStart);
+    expect(lockBlockStart).toBeGreaterThan(-1);
+    expect(lockStart).toBeGreaterThan(lockBlockStart);
     expect(lockEnd).toBeGreaterThan(lockStart);
+    expect(lockBlockEnd).toBeGreaterThan(lockEnd);
+    expect(lockBlockEnd).toBeLessThan(firstSchemaChange);
     expect(lockEnd).toBeLessThan(firstSchemaChange);
-    expect(migration.trimEnd().endsWith("commit;")).toBe(true);
+    expect(migration).not.toMatch(/^\s*(?:begin|commit)\s*;/gim);
     const lockSet = migration.slice(lockStart, lockEnd);
     for (const relation of [
       "public.plan_sessions",

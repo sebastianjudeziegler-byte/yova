@@ -9,30 +9,37 @@
 -- plan_sessions and next needs plans (or a signup holding auth.users whose
 -- profile trigger next needs profiles). NOWAIT makes a busy deploy fail fast
 -- with lock_not_available; retrying during a quiet/drained window is safe and
--- cannot strand either the migration or an application transaction.
-begin;
-
-lock table
-  public.plan_sessions,
-  public.plans,
-  public.learning_items,
-  public.study_routes,
-  public.session_attempts,
-  public.learning_events,
-  public.material_uploads,
-  public.materials,
-  public.material_chunks,
-  public.profiles,
-  public.learner_profiles,
-  public.deadline_milestones,
-  public.tutor_threads,
-  public.tutor_messages,
-  public.product_events,
-  public.error_reports,
-  public.support_requests,
-  storage.objects,
-  auth.users
-in access exclusive mode nowait;
+-- cannot strand either the migration or an application transaction. The CLI's
+-- local replay path uses an implicitly transactional statement batch, but
+-- PostgreSQL rejects a top-level LOCK unless it sees an explicit transaction
+-- block. Running the lock inside PL/pgSQL satisfies that check without adding
+-- BEGIN/COMMIT statements that could split the CLI's atomic migration/history
+-- batch. Locks acquired here remain held until that surrounding batch ends.
+do $migration_lock$
+begin
+  lock table
+    public.plan_sessions,
+    public.plans,
+    public.learning_items,
+    public.study_routes,
+    public.session_attempts,
+    public.learning_events,
+    public.material_uploads,
+    public.materials,
+    public.material_chunks,
+    public.profiles,
+    public.learner_profiles,
+    public.deadline_milestones,
+    public.tutor_threads,
+    public.tutor_messages,
+    public.product_events,
+    public.error_reports,
+    public.support_requests,
+    storage.objects,
+    auth.users
+  in access exclusive mode nowait;
+end;
+$migration_lock$;
 
 create table private.account_daily_write_usage_v1 (
   user_id uuid not null references auth.users(id) on delete cascade,
@@ -1918,5 +1925,3 @@ comment on function public.public_launch_abuse_readiness_v1() is
   'Read-only release gate for public-launch AI, material, Storage and untrusted-write abuse boundaries.';
 
 notify pgrst, 'reload schema';
-
-commit;
