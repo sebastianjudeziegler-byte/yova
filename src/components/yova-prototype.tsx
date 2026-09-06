@@ -683,6 +683,7 @@ export function YovaPrototype({
   const [plans, setPlans] = useState<LearningPlan[]>([]);
   const [deadlineMilestones, setDeadlineMilestones] = useState<DeadlineMilestone[]>([]);
   const [calendarMaterials, setCalendarMaterials] = useState<CalendarMaterialState[]>([]);
+  const [calendarDescription, setCalendarDescription] = useState<string | null>(null);
   const [creatorSeed, setCreatorSeed] = useState<AddIntakeSeed | null>(null);
   const [creatorMilestoneId, setCreatorMilestoneId] = useState<string | null>(null);
   const [creatorCalendarEventId, setCreatorCalendarEventId] = useState<string | null>(null);
@@ -2872,7 +2873,7 @@ export function YovaPrototype({
           ? requestedPlan.sessions.find((session) => session.id === firstUpdate.planSessionId)
           : null;
         if (firstUpdate && priorSession) {
-          const logged = appendCalendarChangeLogEntry(window.localStorage, calendarAccountId, {
+          const logged = await appendCalendarChangeLogEntry(window.localStorage, calendarAccountId, {
             id: makeUuid(),
             at: new Date().toISOString(),
             summary: `Pulled ${authoritativeUpdates.length} ${authoritativeUpdates.length === 1 ? "session" : "sessions"} forward after an early start.`,
@@ -4112,7 +4113,7 @@ export function YovaPrototype({
         });
         if (calendarEventId && typeof window !== "undefined") {
           const calendarAccountId = account?.id ?? "browser-preview";
-          const removed = removeCalendarManualEventAfterPlanCommit(
+          const removed = await removeCalendarManualEventAfterPlanCommit(
             window.localStorage,
             calendarAccountId,
             calendarEventId,
@@ -4536,6 +4537,7 @@ export function YovaPrototype({
     setStage("app");
   }} />;
   if (stage === "add") return <AddToYova
+    onCreateCalendarItem={(description) => { setCalendarDescription(description); setActiveTab("Calendar"); setStage("app"); }}
     previewMode={browserPreviewMode || account?.identityMode === "preview"}
     onExit={() => { setCreatorSeed(null); setCreatorMilestoneId(null); setCreatorCalendarEventId(null); setStage("app"); }}
     onTrackDeadline={saveDeadlineMilestone}
@@ -4728,6 +4730,8 @@ export function YovaPrototype({
       {activeTab === "Home" && <HomeScreen account={account} answers={answers} plans={activePlans} plan={recommendedPlan} sessionCompletions={sessionCompletions} sessionInterruptions={sessionInterruptions} activeSessionCheckpoints={recoverableSessionCheckpoints} allowance={guidedSessionAllowance} allowanceChecking={guidedSessionAllowanceChecking} tutorQuestion={tutorQuestion} onTutorQuestion={setTutorQuestion} onOpenTutor={openAskYova} onOpenYou={() => setActiveTab("You")} onStart={(planId) => requestSessionStart(planId)} onOpenPlan={(planId) => { setSelectedPlanId(planId); setLearningDetailPlanId(planId); setActiveTab("Learning"); }} onCreatePlan={beginPlanCreation} onStudyNow={() => { setCreatorSeed(null); setCreatorMilestoneId(null); setCreatorCalendarEventId(null); setStage("study-now"); }} milestones={agendaMilestones} onOpenAgenda={() => setActiveTab("Calendar")} />}
       {activeTab === "Learning" && <LearningScreen plans={plans} detailPlanId={learningDetailPlanId} sessionCompletions={sessionCompletions} sessionInterruptions={sessionInterruptions} activeSessionCheckpoints={recoverableSessionCheckpoints} preferredMethodIds={savedPreferredMethodIds} syncedPreferenceKey={syncedPreferenceKey} statedPreferencesEnabled={personalizationState.controls.selfReport} onPreferredMethodIdsChange={changePreferredMethodIds} onOpenPlan={(planId) => { setSelectedPlanId(planId); setLearningDetailPlanId(planId); }} onClosePlan={() => setLearningDetailPlanId(null)} onStart={requestSessionStart} onCreatePlan={beginPlanCreation} onArchiveStateChange={changePlanArchiveState} onDeletePlan={deletePlanPermanently} onAdjustPlan={adjustPlan} onKnowledgeMapUpdate={updatePlanKnowledgeMap} onAttachMaterials={attachMaterials} />}
       {activeTab === "Calendar" && <CalendarScreen
+        initialCalendarDescription={calendarDescription}
+        onCalendarDescriptionConsumed={() => setCalendarDescription(null)}
         key={`${account?.id ?? "browser-preview"}:${calendarStorageRevision}`}
         accountId={account?.id ?? "browser-preview"}
         plans={availablePlans}

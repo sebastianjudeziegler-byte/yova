@@ -9,6 +9,7 @@ import {
   type CSSProperties,
   type DragEvent,
   type KeyboardEvent,
+  type ReactNode,
 } from "react";
 import {
   AlertCircle,
@@ -36,6 +37,12 @@ import {
   guidedSessionStartLabel,
   type GuidedSessionAllowanceDisplayState,
 } from "@/components/guided-session-allowance-notice";
+import { ManualEventEditor } from "@/components/calendar/manual-event-editor";
+import { RecurrenceFields, RecurrencePreview } from "@/components/calendar/recurrence-fields";
+import { changeRecurringOccurrence, firstCalendarBlockId, recurrenceSummary } from "@/lib/calendar/recurrence";
+import { CalendarRecurrenceSchema } from "@/lib/calendar/recurrence-schema";
+import { CalendarInspector } from "@/components/calendar/calendar-inspector";
+import { isTimedCalendarBlock, layoutCalendarDay, occupiesCalendarTime } from "@/lib/calendar/layout";
 import { PageHeader } from "@/components/page-header";
 import { SubjectIcon } from "@/components/subject-icon";
 import {
@@ -61,14 +68,19 @@ import {
   markCalendarChangeUndone,
 } from "@/lib/calendar/insights";
 import {
+  CALENDAR_PROTOTYPE_STORAGE_KEY,
+  commitCalendarPrototypeState,
+  withCalendarStorageLock,
   emptyCalendarPrototypeState,
   loadCalendarPrototypeState,
+  hasSavedCalendarPrototypeState,
   saveCalendarPrototypeState,
 } from "@/lib/calendar/persistence";
 import { parseCalendarQuickAdd } from "@/lib/calendar/quick-add";
 import { CalendarPrototypeStateSchema } from "@/lib/calendar/types";
 import type {
   CalendarBlock,
+  ManualCalendarBlock,
   CalendarChangeLogEntry,
   CalendarDayLoad,
   CalendarIssue,
@@ -81,7 +93,7 @@ import type {
 } from "@/lib/calendar/types";
 import { persistPlanSchedule } from "@/lib/scheduling/client";
 import { customScheduleIssue } from "@/lib/scheduling/custom-time";
-import { buildDailyCapacityPlan } from "@/lib/scheduling/agenda-insights";
+import { buildDailyCapacityPlan, type DailyCapacityPlan } from "@/lib/scheduling/agenda-insights";
 import {
   isSessionOverdue,
   recoverySessionMinutes,
@@ -90,8 +102,8 @@ import {
 import { canOfferAgendaSessionSplit } from "@/lib/scheduling/split-safety";
 import type { ScheduleSessionUpdate } from "@/lib/scheduling/schema";
 
-const HOUR_START = 8;
-const HOUR_END = 22;
+const HOUR_START = 0;
+const HOUR_END = 24;
 const DEFAULT_EVENT_MINUTES = 30;
 type CalendarQuickAddDraft = NonNullable<ReturnType<typeof parseCalendarQuickAdd>>;
 
@@ -117,6 +129,8 @@ export type CalendarSessionStartTarget = {
 
 export type CalendarScreenProps = {
   accountId: string;
+  initialCalendarDescription?: string | null;
+  onCalendarDescriptionConsumed?: () => void;
   plans: LearningPlan[];
   milestones: DeadlineMilestone[];
   sessionCompletions: SessionCompletion[];
@@ -149,6 +163,8 @@ export type CalendarScreenProps = {
 export function CalendarScreen(props: CalendarScreenProps) {
   const {
     accountId,
+    initialCalendarDescription,
+    onCalendarDescriptionConsumed,
     plans,
     milestones,
     sessionCompletions,
@@ -177,8 +193,14 @@ export function CalendarScreen(props: CalendarScreenProps) {
   ));
   const calendarStateRef = useRef(calendarState);
   const [stateLoaded, setStateLoaded] = useState(false);
-  const [quickAdd, setQuickAdd] = useState("");
-  const [quickAddDraft, setQuickAddDraft] = useState<CalendarQuickAddDraft | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
+  const [quickAddSaving, setQuickAddSaving] = useState(false);
+  const [outcomeQuery, setOutcomeQuery] = useState("");
+  const [outcomeStatus, setOutcomeStatus] = useState("open");
+  const [allOutcomes, setAllOutcomes] = useState(false);
+  const [quickAdd, setQuickAdd] = useState(initialCalendarDescription ?? "");
+  const [quickAddDraft, setQuickAddDraft] = useState<CalendarQuickAddDraft | null>(() => initialCalendarDescription ? parseCalendarQuickAdd(initialCalendarDescription) : null);
+  useEffect(() => { if (initialCalendarDescription) onCalendarDescriptionConsumed?.(); }, [initialCalendarDescription, onCalendarDescriptionConsumed]);
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
   const [movePanel, setMovePanel] = useState<MovePanelState | null>(null);
   const [pendingAction, setPendingAction] = useState<string | null>(null);
@@ -193,6 +215,7 @@ export function CalendarScreen(props: CalendarScreenProps) {
   const [availabilityReason, setAvailabilityReason] = useState("");
   const [capacityDateKey, setCapacityDateKey] = useState<string | null>(null);
   const [adjustmentsOpen, setAdjustmentsOpen] = useState(false);
+  const [reviewedCapacityPlan, setReviewedCapacityPlan] = useState<DailyCapacityPlan | null>(null);
   const [capacityPreviewOpen, setCapacityPreviewOpen] = useState(false);
   const [editingMilestone, setEditingMilestone] = useState<DeadlineMilestone | null>(null);
   const [milestoneTitle, setMilestoneTitle] = useState("");
@@ -203,55 +226,65 @@ export function CalendarScreen(props: CalendarScreenProps) {
   const timeZone = useMemo(() => resolvedTimeZone(), []);
 
   useEffect(() => {
-    const timer = window.setTimeout(() => {
-      const loadedState = loadCalendarPrototypeState(window.localStorage, accountId);
-      // Week is the only complete calendar surface in this release. Normalize
-      // stale browser state from earlier previews instead of reopening a stub.
-      const nextState = loadedState.ui.view === "week"
-        ? loadedState
-        : { ...loadedState, ui: { ...loadedState.ui, view: "week" as const } };
-      calendarStateRef.current = nextState;
-      setCalendarState(nextState);
-      setSelectedBlockId(nextState.ui.selectedBlockId);
-      setStateLoaded(true);
-    }, 0);
-    return () => window.clearTimeout(timer);
+    let active = true;
+    const load = async () => {
+      try {
+        const next = await withCalendarStorageLock(() => {
+          const existing = hasSavedCalendarPrototypeState(window.localStorage, accountId);
+          const loaded = loadCalendarPrototypeState(window.localStorage, accountId);
+          const next = { ...loaded, ui: { ...loaded.ui, view: (!existing && window.matchMedia("(max-width: 760px)").matches ? "list" : loaded.ui.view === "list" ? "list" : "week") as "list" | "week" } };
+          if (!saveCalendarPrototypeState(window.localStorage, accountId, next)) throw new Error("Calendar storage is unavailable on this device.");
+          return next;
+        });
+        if (!active) return;
+        calendarStateRef.current = next;
+        setCalendarState(next);
+        setStateLoaded(true);
+      } catch (error) {
+        if (active) setActionError(error instanceof Error ? error.message : "Calendar could not load.");
+      }
+    };
+    void load();
+    const refresh = (event: StorageEvent) => {
+      if (event.key !== CALENDAR_PROTOTYPE_STORAGE_KEY) return;
+      const next = loadCalendarPrototypeState(window.localStorage, accountId);
+      // Each tab keeps its own selection and current view while sharing data.
+      next.ui = calendarStateRef.current.ui;
+      calendarStateRef.current = next;
+      setCalendarState(next);
+    };
+    window.addEventListener("storage", refresh);
+    return () => { active = false; window.removeEventListener("storage", refresh); };
   }, [accountId]);
-
-  useEffect(() => {
-    if (!stateLoaded || calendarState.accountId !== accountId || typeof window === "undefined") return;
-    saveCalendarPrototypeState(window.localStorage, accountId, calendarState);
-  }, [accountId, calendarState, stateLoaded]);
 
   useEffect(() => {
     const interval = window.setInterval(() => setNow(new Date()), 60_000);
     return () => window.clearInterval(interval);
   }, []);
 
-  const commitCalendarState = useCallback((
+  const commitCalendarState = useCallback(async (
     update: (current: CalendarPrototypeState) => CalendarPrototypeState,
   ) => {
-    const candidate = {
-      ...update(calendarStateRef.current),
-      updatedAt: new Date().toISOString(),
-    };
-    const parsed = CalendarPrototypeStateSchema.safeParse(candidate);
-    if (!parsed.success) {
-      setActionError("That calendar change was not saved because one of its values is invalid.");
+    const before = calendarStateRef.current;
+    try {
+      if (before.accountId !== accountId) throw new Error("The calendar account changed. Reopen Calendar before saving.");
+      const candidate = CalendarPrototypeStateSchema.parse({ ...update(before), updatedAt: new Date().toISOString() });
+      const next = await commitCalendarPrototypeState(window.localStorage, before, candidate);
+      // Data is shared; navigation and view selection belong to this tab.
+      next.ui = candidate.ui;
+      calendarStateRef.current = next;
+      setCalendarState(next);
+      const receipt = candidate.changeLog.at(-1);
+      if (receipt && receipt.id !== before.changeLog.at(-1)?.id) setToast(receipt.summary);
+      return true;
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : "This calendar change could not be saved.");
       return false;
     }
-    const next = parsed.data;
-    calendarStateRef.current = next;
-    const saved = typeof window !== "undefined"
-      && next.accountId === accountId
-      && saveCalendarPrototypeState(window.localStorage, accountId, next);
-    setCalendarState(next);
-    if (!saved) setActionError("This calendar change is visible now but could not be saved on this device.");
-    return saved;
   }, [accountId]);
 
   const updateUi = useCallback((changes: Partial<CalendarPrototypeState["ui"]>) => {
-    commitCalendarState((current) => ({
+    void commitCalendarState((current) => ({
       ...current,
       ui: { ...current.ui, ...changes },
     }));
@@ -278,6 +311,7 @@ export function CalendarScreen(props: CalendarScreenProps) {
     now,
     timeZone,
     personalizationReasons,
+    visibleRange: { start: weekStart, end: addDays(weekEnd, 1) },
     executedSessionIds: plans.flatMap((plan) => plan.sessions.flatMap((session) => {
       if (!session.resource) return [];
       const decision = sessionStartRecoveryDecision({
@@ -298,6 +332,8 @@ export function CalendarScreen(props: CalendarScreenProps) {
     now,
     timeZone,
     personalizationReasons,
+    weekStart,
+    weekEnd,
     activeSessionCheckpoints,
   ]);
   const selectedBlock = selectedBlockId
@@ -381,6 +417,7 @@ export function CalendarScreen(props: CalendarScreenProps) {
         quickAddRef.current?.focus();
         return;
       }
+      if (event.target instanceof Element && event.target.closest("dialog[open]")) return;
       if (event.key === "Escape") {
         if (quickAddDraft) {
           setQuickAddDraft(null);
@@ -432,15 +469,16 @@ export function CalendarScreen(props: CalendarScreenProps) {
     });
   };
 
-  const confirmQuickAdd = (draft: CalendarQuickAddDraft) => {
+  const confirmQuickAdd = async (draft: CalendarQuickAddDraft) => {
     const title = draft.title.trim().slice(0, 160);
-    const startsAt = draft.startsAt ?? draft.dueAt;
+    const deadlineOnly = !draft.startsAt && Boolean(draft.dueAt) && (draft.eventType === "deadline" || draft.eventType === "exam");
+    const startsAt = draft.startsAt ?? (deadlineOnly ? draft.dueAt : null);
     if (!title || !startsAt) {
       setActionError("Add a title and a time before saving this calendar item.");
       return null;
     }
     const start = new Date(startsAt);
-    const end = draft.endsAt
+    const end = deadlineOnly ? new Date(start.getTime() + 60_000) : draft.endsAt
       ? new Date(draft.endsAt)
       : new Date(start.getTime() + (draft.durationMinutes ?? DEFAULT_EVENT_MINUTES) * 60_000);
     if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end <= start) {
@@ -456,6 +494,8 @@ export function CalendarScreen(props: CalendarScreenProps) {
       endsAt: end.toISOString(),
       dueAt: draft.dueAt,
       fixed: draft.fixed,
+      deadlineOnly,
+      recurrence: draft.recurrence ?? undefined,
       done: false,
       courseId: null,
       courseLabel: draft.courseLabel,
@@ -463,20 +503,35 @@ export function CalendarScreen(props: CalendarScreenProps) {
       createdAt: timestamp,
       updatedAt: timestamp,
     };
-    const log = manualChangeEntry({ before: null, after: event }, `Added ${title} to the calendar.`);
+    if (draft.recurrenceNeedsReview || (event.recurrence && (!CalendarRecurrenceSchema.safeParse(event.recurrence).success || !firstCalendarBlockId(event)))) {
+      setActionError("Review the repeat schedule and choose a valid first date before saving."); return null;
+    }
+    const selectedId = firstCalendarBlockId(event);
+    const log = manualChangeEntry({ before: null, after: event }, event.recurrence ? `Added the ${title} repeating series.` : `Added ${title} to the calendar.`);
     setActionError(null);
-    const saved = commitCalendarState((current) => ({
+    setQuickAddSaving(true);
+    const saved = await commitCalendarState((current) => ({
       ...current,
       manualEvents: [...current.manualEvents, event],
       changeLog: appendChange(current.changeLog, log),
-      ui: { ...current.ui, selectedBlockId: `manual:${event.id}` },
+      ui: { ...current.ui, selectedBlockId: selectedId, ...(event.recurrence ? { anchorDateKey: dateKey(start) } : {}) },
     }));
+    setQuickAddSaving(false);
+    if (!saved) return null;
     setQuickAdd("");
     setQuickAddDraft(null);
-    setSelectedBlockId(`manual:${event.id}`);
+    setSelectedBlockId(selectedId);
     setMovePanel(null);
     return saved ? event : null;
   };
+
+  const availableEntries = useMemo(() => plans
+    .filter((plan) => plan.status === "active")
+    .map((plan) => ({ ...plan, deadline: model.outcomes.find((outcome) => outcome.planId === plan.id)?.dueAt ?? plan.deadline }))
+    .flatMap((plan) => plan.sessions
+      .filter((session) => session.status !== "complete" && session.status !== "skipped")
+      .map((session) => ({ plan, session })))
+    .sort((left, right) => Date.parse(left.session.scheduledFor) - Date.parse(right.session.scheduledFor)), [plans, model.outcomes]);
 
   const reschedulePlanBlock = async (
     block: Extract<CalendarBlock, { source: "plan_session" }>,
@@ -486,33 +541,59 @@ export function CalendarScreen(props: CalendarScreenProps) {
   ) => {
     const issue = customScheduleIssue(block.session.scheduledFor, scheduledFor);
     if (issue) throw new Error(issue);
-    const updates = [{ planSessionId: block.session.id, scheduledFor }];
-    if (previewMode) {
-      onReschedule(block.plan.id, updates);
-    } else {
-      const result = await persistPlanSchedule(block.plan.id, updates);
-      onReschedule(block.plan.id, result.sessions);
-    }
-    const entry: CalendarChangeLogEntry = {
-      id: makeUuid(),
-      at: new Date().toISOString(),
-      summary: `Moved ${block.title} ${formatShortDateTime(block.startsAt)} → ${formatShortDateTime(scheduledFor)}`,
-      reason,
-      origin,
-      undoable: true,
-      undoneAt: null,
-      undo: {
-        kind: "session_schedule",
-        planId: block.plan.id,
-        planSessionId: block.session.id,
-        from: block.startsAt,
-        to: scheduledFor,
-      },
-    };
-    commitCalendarState((current) => ({
-      ...current,
-      changeLog: appendChange(current.changeLog, entry),
-    }));
+    await withCalendarStorageLock(async () => {
+      const current = loadCalendarPrototypeState(window.localStorage, accountId);
+      const start = Date.parse(scheduledFor);
+      const end = start + blockMinutes(block) * 60_000;
+      const freshModel = deriveCalendarModel({ plans, milestones, completions: sessionCompletions, interruptions: sessionInterruptions, localState: current, now: new Date(), timeZone, visibleRange: { start: new Date(start), end: new Date(end) } });
+      const conflict = freshModel.blocks.find((other) => other.id !== block.id && occupiesCalendarTime(other) && Date.parse(other.startsAt) < end && Date.parse(other.endsAt) > start);
+      if (conflict) throw new Error(`That time overlaps ${conflict.title}. Choose another time.`);
+      const ordered = block.plan.sessions.filter((session) => session.status !== "skipped").sort((a, b) => a.sequence - b.sequence);
+      const index = ordered.findIndex((session) => session.id === block.session.id);
+      const previous = ordered[index - 1];
+      const following = ordered[index + 1];
+      const dueAt = freshModel.outcomes.find((outcome) => outcome.planId === block.plan.id)?.dueAt ?? block.plan.deadline;
+      if ((previous && start < Date.parse(previous.scheduledFor) + previous.estimatedMinutes * 60_000) || (following && end > Date.parse(following.scheduledFor))) throw new Error("Choose a time after the previous session and before the next session.");
+      if (dueAt && end > Date.parse(dueAt)) throw new Error("Choose a time that finishes before this goal’s deadline.");
+      if (origin === "automatic") {
+        const storedCapacity = current.availabilityOverrides.find((day) => day.dateKey === activeCapacityDateKey)?.availableMinutes;
+        const fresh = buildDailyCapacityPlan(availableEntries, storedCapacity ?? 0, capacityReferenceDate, protectedSessionIds, capacityDayLabel, { blocks: freshModel.blocks, availabilityOverrides: current.availabilityOverrides, timeZone });
+        if (!reviewedCapacityPlan || fresh.status !== "move" || fresh.scheduledFor !== scheduledFor || fresh.entry?.session.id !== block.session.id || fresh.todayMinutes !== reviewedCapacityPlan.todayMinutes || fresh.targetAfterMinutes !== reviewedCapacityPlan.targetAfterMinutes) {
+          throw new Error("Your calendar changed after this proposal. Review options again before approving a new time.");
+        }
+      }
+      const updates = [{ planSessionId: block.session.id, scheduledFor }];
+      if (previewMode) onReschedule(block.plan.id, updates);
+      else {
+        const result = await persistPlanSchedule(block.plan.id, updates);
+        onReschedule(block.plan.id, result.sessions);
+      }
+      const entry: CalendarChangeLogEntry = {
+        id: makeUuid(), at: new Date().toISOString(),
+        summary: `Moved ${block.title} ${formatShortDateTime(block.startsAt)} → ${formatShortDateTime(scheduledFor)}`,
+        reason, origin, undoable: true, undoneAt: null,
+        undo: { kind: "session_schedule", planId: block.plan.id, planSessionId: block.session.id, from: block.startsAt, to: scheduledFor },
+      };
+      const next = { ...current, ui: calendarStateRef.current.ui, changeLog: appendChange(current.changeLog, entry), updatedAt: new Date().toISOString() };
+      if (!saveCalendarPrototypeState(window.localStorage, accountId, next)) throw new Error("The session moved, but its undo history could not be saved on this device.");
+      calendarStateRef.current = next;
+      setCalendarState(next);
+      setToast(entry.summary);
+    });
+  };
+
+  const commitManualChange = async (block: ManualCalendarBlock, after: ManualCalendarEvent | null, summary: string, scope: "occurrence" | "series" = "occurrence") => {
+    const before = block.series?.master ?? block.event;
+    const next = block.series && scope === "occurrence" ? changeRecurringOccurrence(block, after) : after;
+    const focusEvent = scope === "series" ? next : block.series ? after : null;
+    const saved = await commitCalendarState((current) => {
+      const latest = current.manualEvents.find((item) => item.id === before.id);
+      if (JSON.stringify(latest) !== JSON.stringify(before)) throw new Error("This item changed in another tab. Cancel editing to review its latest details, then try again.");
+      return { ...current, manualEvents: next ? replaceById(current.manualEvents, next) : current.manualEvents.filter((item) => item.id !== before.id),
+        ui: focusEvent ? { ...current.ui, anchorDateKey: dateKey(new Date(focusEvent.startsAt)) } : current.ui,
+        changeLog: appendChange(current.changeLog, manualChangeEntry({ before, after: next }, summary)) };
+    });
+    return saved;
   };
 
   const moveBlock = async (
@@ -528,6 +609,10 @@ export function CalendarScreen(props: CalendarScreenProps) {
       const previousStart = new Date(block.startsAt);
       const nextStart = new Date(scheduledFor);
       if (Number.isNaN(nextStart.getTime())) throw new Error("Choose a valid date and time.");
+      const nextEnd = nextStart.getTime() + Date.parse(block.endsAt) - Date.parse(block.startsAt);
+      const destinationModel = deriveCalendarModel({ plans, milestones, completions: sessionCompletions, interruptions: sessionInterruptions, localState: calendarStateRef.current, now, timeZone, visibleRange: { start: nextStart, end: new Date(nextEnd) } });
+      const collision = destinationModel.blocks.find((other) => other.id !== block.id && occupiesCalendarTime(other) && Date.parse(other.startsAt) < nextEnd && Date.parse(other.endsAt) > nextStart.getTime());
+      if (occupiesCalendarTime(block) && collision) throw new Error(`That time overlaps ${collision.title}. Choose another time.`);
       if (block.source === "plan_session") {
         await reschedulePlanBlock(block, nextStart.toISOString(), origin, reason);
       } else if (block.source === "manual") {
@@ -538,15 +623,8 @@ export function CalendarScreen(props: CalendarScreenProps) {
           endsAt: new Date(nextStart.getTime() + duration).toISOString(),
           updatedAt: new Date().toISOString(),
         };
-        const log = manualChangeEntry(
-          { before: block.event, after: updated },
-          `Moved ${block.title} ${formatShortDateTime(previousStart.toISOString())} → ${formatShortDateTime(updated.startsAt)}`,
-        );
-        commitCalendarState((current) => ({
-          ...current,
-          manualEvents: replaceById(current.manualEvents, updated),
-          changeLog: appendChange(current.changeLog, log),
-        }));
+        const saved = await commitManualChange(block, updated, `Moved ${block.title} ${formatShortDateTime(previousStart.toISOString())} → ${formatShortDateTime(updated.startsAt)}`);
+        if (!saved) return;
       } else {
         const prior = block.suggestion;
         const updated = {
@@ -557,11 +635,12 @@ export function CalendarScreen(props: CalendarScreenProps) {
           updatedAt: new Date().toISOString(),
         };
         const log = suggestionChangeEntry(prior, updated, `Pinned ${block.title} at ${formatShortDateTime(updated.startsAt)}`);
-        commitCalendarState((current) => ({
+        const saved = await commitCalendarState((current) => ({
           ...current,
           suggestions: replaceById(current.suggestions, updated),
           changeLog: appendChange(current.changeLog, log),
         }));
+        if (!saved) return;
       }
       setMovePanel(null);
     } catch (error) {
@@ -598,7 +677,7 @@ export function CalendarScreen(props: CalendarScreenProps) {
             to: block.startsAt,
           },
         };
-        commitCalendarState((current) => ({
+        await commitCalendarState((current) => ({
           ...current,
           changeLog: appendChange(current.changeLog, entry),
         }));
@@ -608,21 +687,14 @@ export function CalendarScreen(props: CalendarScreenProps) {
           endsAt: new Date(Date.parse(block.startsAt) + boundedMinutes * 60_000).toISOString(),
           updatedAt: new Date().toISOString(),
         };
-        commitCalendarState((current) => ({
-          ...current,
-          manualEvents: replaceById(current.manualEvents, updated),
-          changeLog: appendChange(current.changeLog, manualChangeEntry(
-            { before: block.event, after: updated },
-            `Changed ${block.title} to ${boundedMinutes} minutes.`,
-          )),
-        }));
+        await commitManualChange(block, updated, `Changed ${block.title} to ${boundedMinutes} minutes.`);
       } else {
         const updated = {
           ...block.suggestion,
           durationMinutes: boundedMinutes,
           updatedAt: new Date().toISOString(),
         };
-        commitCalendarState((current) => ({
+        await commitCalendarState((current) => ({
           ...current,
           suggestions: replaceById(current.suggestions, updated),
           changeLog: appendChange(current.changeLog, suggestionChangeEntry(
@@ -639,14 +711,8 @@ export function CalendarScreen(props: CalendarScreenProps) {
     }
   };
 
-  const availableEntries = useMemo(() => plans
-    .filter((plan) => plan.status === "active")
-    .flatMap((plan) => plan.sessions
-      .filter((session) => session.status !== "complete" && session.status !== "skipped")
-      .map((session) => ({ plan, session })))
-    .sort((left, right) => Date.parse(left.session.scheduledFor) - Date.parse(right.session.scheduledFor)), [plans]);
   const requestedCapacity = availableMinutes === "" ? null : Number(availableMinutes);
-  const capacityPlan = requestedCapacity === null || !Number.isFinite(requestedCapacity)
+  const candidateCapacityPlan = requestedCapacity === null || !Number.isFinite(requestedCapacity)
     ? null
     : buildDailyCapacityPlan(
       availableEntries,
@@ -654,7 +720,9 @@ export function CalendarScreen(props: CalendarScreenProps) {
       capacityReferenceDate,
       protectedSessionIds,
       capacityDayLabel,
+      { blocks: model.blocks, availabilityOverrides: calendarState.availabilityOverrides, timeZone },
     );
+  const capacityPlan = reviewedCapacityPlan;
   const overdueEntry = availableEntries.find(({ session }) => (
     session.status === "ready"
       && session.id !== dismissedRecoverySessionId
@@ -701,7 +769,7 @@ export function CalendarScreen(props: CalendarScreenProps) {
     now,
   ), [plans, sessionCompletions, now]);
 
-  const saveAvailability = () => {
+  const saveAvailability = async () => {
     if (requestedCapacity === null || !Number.isFinite(requestedCapacity)) {
       setActionError("Choose how many minutes you actually have today.");
       return;
@@ -738,7 +806,7 @@ export function CalendarScreen(props: CalendarScreenProps) {
         afterMinutes: minutes,
       },
     };
-    commitCalendarState((current) => ({
+    const saved = await commitCalendarState((current) => ({
       ...current,
       availabilityOverrides: [
         ...current.availabilityOverrides.filter((override) => override.dateKey !== activeCapacityDateKey),
@@ -746,6 +814,8 @@ export function CalendarScreen(props: CalendarScreenProps) {
       ],
       changeLog: appendChange(current.changeLog, log),
     }));
+    if (!saved) return;
+    setReviewedCapacityPlan(candidateCapacityPlan);
     setCapacityPreviewOpen(true);
     setActionError(null);
   };
@@ -784,7 +854,7 @@ export function CalendarScreen(props: CalendarScreenProps) {
             to: block.startsAt,
           },
         };
-        commitCalendarState((current) => ({
+        await commitCalendarState((current) => ({
           ...current,
           changeLog: appendChange(current.changeLog, entry),
         }));
@@ -837,7 +907,7 @@ export function CalendarScreen(props: CalendarScreenProps) {
           to: overdueBlock.startsAt,
         },
       };
-      commitCalendarState((current) => ({
+      await commitCalendarState((current) => ({
         ...current,
         changeLog: appendChange(current.changeLog, entry),
       }));
@@ -855,7 +925,7 @@ export function CalendarScreen(props: CalendarScreenProps) {
     }
   };
 
-  const setSuggestionStatus = (
+  const setSuggestionStatus = async (
     block: Extract<CalendarBlock, { source: "suggestion" }>,
     status: "accepted" | "dismissed",
   ) => {
@@ -864,7 +934,7 @@ export function CalendarScreen(props: CalendarScreenProps) {
       status,
       updatedAt: new Date().toISOString(),
     };
-    commitCalendarState((current) => ({
+    const saved = await commitCalendarState((current) => ({
       ...current,
       suggestions: replaceById(current.suggestions, updated),
       changeLog: appendChange(current.changeLog, suggestionChangeEntry(
@@ -873,33 +943,32 @@ export function CalendarScreen(props: CalendarScreenProps) {
         `${status === "accepted" ? "Kept" : "Dismissed"} ${block.title}.`,
       )),
     }));
-    if (status === "dismissed") selectBlock(null);
+    if (saved && status === "dismissed") selectBlock(null);
   };
 
-  const toggleManualDone = (block: Extract<CalendarBlock, { source: "manual" }>) => {
+  const toggleManualDone = async (block: Extract<CalendarBlock, { source: "manual" }>) => {
     const updated = {
       ...block.event,
       done: !block.done,
       updatedAt: new Date().toISOString(),
     };
-    commitCalendarState((current) => ({
-      ...current,
-      manualEvents: replaceById(current.manualEvents, updated),
-      changeLog: appendChange(current.changeLog, manualChangeEntry(
-        { before: block.event, after: updated },
-        `${updated.done ? "Completed" : "Reopened"} ${block.title}.`,
-      )),
-    }));
+    await commitManualChange(block, updated, `${updated.done ? "Completed" : "Reopened"} ${block.title}${block.series ? " (this occurrence)" : ""}.`);
   };
 
-  const deleteManualEvent = (block: Extract<CalendarBlock, { source: "manual" }>) => {
-    const log = manualChangeEntry({ before: block.event, after: null }, `Removed ${block.title} from the calendar.`);
-    commitCalendarState((current) => ({
-      ...current,
-      manualEvents: current.manualEvents.filter((event) => event.id !== block.event.id),
-      changeLog: appendChange(current.changeLog, log),
-    }));
-    selectBlock(null);
+  const deleteManualEvent = async (block: ManualCalendarBlock, scope: "occurrence" | "series" = "occurrence") => {
+    const saved = await commitManualChange(block, null, `Removed ${block.title}${block.series ? scope === "series" ? " (entire series)" : " (this occurrence)" : ""}.`, scope);
+    if (saved) selectBlock(null);
+  };
+
+  const saveManualEvent = async (before: ManualCalendarEvent, after: ManualCalendarEvent, scope: "occurrence" | "series", series?: ManualCalendarBlock["series"]) => {
+    setActionError(null);
+    const block: ManualCalendarBlock = { source: "manual", blockType: before.eventType, id: `manual:${before.id}`, title: before.title, startsAt: before.startsAt, endsAt: before.endsAt, done: before.done, fixed: before.fixed, courseId: before.courseId, courseLabel: before.courseLabel, outcomeId: before.outcomeId, event: before, series };
+    const saved = await commitManualChange(block, after, `Updated ${after.title}${series ? scope === "series" ? " (entire series)" : " (this occurrence)" : ""}.`, scope);
+    if (saved && (!series || scope === "series")) {
+      const selectedId = firstCalendarBlockId(after);
+      setSelectedBlockId(selectedId);
+    }
+    return saved;
   };
 
   const completeMilestone = async (block: Extract<CalendarBlock, { source: "milestone" }>) => {
@@ -939,6 +1008,7 @@ export function CalendarScreen(props: CalendarScreenProps) {
       setActionError(eligibility.reason);
       return;
     }
+    setToast(null);
     setPendingAction("undo");
     setActionError(null);
     try {
@@ -957,7 +1027,7 @@ export function CalendarScreen(props: CalendarScreenProps) {
           onReschedule(block.plan.id, result.sessions);
         }
       }
-      commitCalendarState((current) => {
+      await commitCalendarState((current) => {
         let next = current;
         if (command.kind === "restore_manual_event") {
           const without = current.manualEvents.filter((event) => event.id !== command.eventId);
@@ -1018,6 +1088,7 @@ export function CalendarScreen(props: CalendarScreenProps) {
   };
 
   const openMovePanel = (block: CalendarBlock) => {
+    setSelectedBlockId(block.id);
     setMovePanel({ blockId: block.id, value: toLocalDateTimeInput(block.startsAt) });
     setActionError(null);
   };
@@ -1170,6 +1241,15 @@ export function CalendarScreen(props: CalendarScreenProps) {
     ? calendarChangeUndoEligibility(latestActiveChange, { state: calendarState, plans, now })
     : null;
 
+  const matchingOutcomes = model.outcomes.filter((outcome) => {
+    if (outcomeStatus === "open" && outcome.status === "complete") return false;
+    if (outcomeStatus === "complete" && outcome.status !== "complete") return false;
+    const course = model.blocks.find((block) => block.outcomeId === outcome.id)?.courseLabel ?? "";
+    return `${outcome.title} ${course}`.toLocaleLowerCase().includes(outcomeQuery.trim().toLocaleLowerCase());
+  });
+  const shownOutcomes = allOutcomes || outcomeQuery.trim() ? matchingOutcomes : matchingOutcomes.slice(0, 5);
+  const confirmation = toast && <div className="calendar-action-toast" role="status"><span>{toast}</span>{latestUndoEligibility?.canUndo && <button type="button" disabled={pendingAction === "undo"} onClick={() => void undoLatestChange()}>Undo calendar change</button>}<button type="button" aria-label="Dismiss calendar confirmation" onClick={() => setToast(null)}><X size={16} /></button></div>;
+
   return <div className="page agenda-page calendar-page">
     <div className="agenda-page-header calendar-page-header">
       <PageHeader
@@ -1182,13 +1262,14 @@ export function CalendarScreen(props: CalendarScreenProps) {
       </button>
     </div>
     <GuidedSessionAllowanceNotice allowance={allowance} surface="agenda" checking={allowanceChecking} />
-    {actionError && <div className="chat-error calendar-action-error" role="alert">
+    {actionError && !selectedBlock && !quickAddDraft && <div className="chat-error calendar-action-error" role="alert">
       <AlertCircle size={16} />
       <span>{actionError}</span>
       <button type="button" aria-label="Dismiss calendar error" onClick={() => setActionError(null)}><X size={15} /></button>
     </div>}
 
-    <div className="calendar-workspace">
+    {!selectedBlock && confirmation}
+    <div className="calendar-workspace" aria-busy={!stateLoaded}>
       <aside className="calendar-rail" aria-label="Calendar tools and today">
         <section className="section-block calendar-quick-add" aria-labelledby="calendar-quick-add-title">
           <div className="calendar-rail-heading">
@@ -1203,7 +1284,7 @@ export function CalendarScreen(props: CalendarScreenProps) {
               ref={quickAddRef}
               maxLength={500}
               value={quickAdd}
-              placeholder="stats pset due friday, 90 min tonight"
+              placeholder="Communications class every Mon and Wed, 11:30–12"
               aria-label="Quick add a calendar item"
               onChange={(event) => setQuickAdd(event.target.value.slice(0, 500))}
               onKeyDown={(event: KeyboardEvent<HTMLInputElement>) => {
@@ -1219,13 +1300,15 @@ export function CalendarScreen(props: CalendarScreenProps) {
           <small>Describe the item in your own words. YOVA shows what it understood before saving. Manual items stay on this device; learning plans and deadlines keep their existing sync.</small>
           {quickAddDraft && <QuickAddConfirmation
             draft={quickAddDraft}
+            error={actionError}
             onChange={setQuickAddDraft}
             onCancel={() => setQuickAddDraft(null)}
-            onConfirm={() => confirmQuickAdd(quickAddDraft)}
-            onBuildPlan={() => {
+            saving={quickAddSaving}
+            onConfirm={() => void confirmQuickAdd(quickAddDraft)}
+            onBuildPlan={async () => {
               const dueAt = quickAddDraft.dueAt;
               const duration = quickAddDraft.durationMinutes;
-              const manualEvent = confirmQuickAdd(quickAddDraft);
+              const manualEvent = await confirmQuickAdd(quickAddDraft);
               if (!manualEvent) return;
               onOpenAdd(buildPlanSeed({
                 title: quickAddDraft.title,
@@ -1239,6 +1322,9 @@ export function CalendarScreen(props: CalendarScreenProps) {
 
         {selectedBlock ? <SelectedBlockDetail
           block={selectedBlock}
+          confirmation={confirmation}
+          error={actionError}
+          onSaveManual={saveManualEvent}
           outcome={selectedOutcome}
           pending={pendingAction}
           movePanel={movePanel?.blockId === selectedBlock.id ? movePanel : null}
@@ -1275,8 +1361,8 @@ export function CalendarScreen(props: CalendarScreenProps) {
             }
           }}
           onToggleDone={() => selectedBlock.source === "manual" && toggleManualDone(selectedBlock)}
-          onDelete={() => {
-            if (selectedBlock.source === "manual") deleteManualEvent(selectedBlock);
+          onDelete={(scope) => {
+            if (selectedBlock.source === "manual") deleteManualEvent(selectedBlock, scope);
             if (selectedBlock.source === "milestone") void deleteMilestone(selectedBlock);
           }}
           onKeepSuggestion={() => selectedBlock.source === "suggestion" && setSuggestionStatus(selectedBlock, "accepted")}
@@ -1295,6 +1381,7 @@ export function CalendarScreen(props: CalendarScreenProps) {
           }}
           onEditMilestone={() => {
             if (selectedBlock.source !== "milestone") return;
+            setSelectedBlockId(null);
             setEditingMilestone(selectedBlock.milestone);
             setMilestoneTitle(selectedBlock.milestone.title);
             setMilestoneDueAt(toLocalDateTimeInput(selectedBlock.milestone.dueAt));
@@ -1305,7 +1392,8 @@ export function CalendarScreen(props: CalendarScreenProps) {
           onStudyNow={() => {
             if (selectedBlock.source === "milestone") onConvertMilestone(selectedBlock.milestone, "session");
           }}
-        /> : <YourDayCard
+        /> : null}
+        <YourDayCard
           blocks={todaysBlocks}
           upNextId={upcomingBlock?.id ?? null}
           now={now}
@@ -1322,10 +1410,11 @@ export function CalendarScreen(props: CalendarScreenProps) {
           }}
           onKeep={(block) => setSuggestionStatus(block, "accepted")}
           onMove={openMovePanel}
-        />}
+        />
 
-        {editingMilestone && <section className="section-block agenda-milestones calendar-milestone-editor" aria-label="Edit deadline">
-          <div className="section-title"><div><h3>Edit outcome</h3><p>Keep the real due time authoritative.</p></div><button type="button" onClick={() => setEditingMilestone(null)} aria-label="Close outcome editor"><X size={16} /></button></div>
+        {editingMilestone && <CalendarInspector onClose={() => setEditingMilestone(null)}><section className="section-block agenda-milestones calendar-milestone-editor" aria-label="Edit deadline">
+          <div className="section-title"><div><h2 id="calendar-block-detail-title" tabIndex={-1}>Edit outcome</h2><p>Keep the real due time authoritative.</p></div><button type="button" onClick={() => setEditingMilestone(null)} aria-label="Close outcome editor"><X size={16} /></button></div>
+          {actionError && <p className="calendar-inline-error" role="alert">{actionError}</p>}
           <label><span>Title</span><input value={milestoneTitle} onChange={(event) => setMilestoneTitle(event.target.value)} /></label>
           <label><span>Due</span><input type="datetime-local" value={milestoneDueAt} onChange={(event) => setMilestoneDueAt(event.target.value)} /></label>
           <div className="calendar-inline-actions">
@@ -1344,7 +1433,7 @@ export function CalendarScreen(props: CalendarScreenProps) {
               ));
             }}>Save outcome</button>
           </div>
-        </section>}
+        </section></CalendarInspector>}
 
         <NearestOutcomeCard outcome={nearestOutcome} onOpenPlan={onOpenPlan} onBuildPlan={buildPlanForOutcome} />
 
@@ -1357,7 +1446,7 @@ export function CalendarScreen(props: CalendarScreenProps) {
           <div className="agenda-adjustment-body">
             <section className="agenda-planning-basis">
               <Settings2 size={17} />
-              <div><strong>You stay in control</strong><p>YOVA can propose moving or safely splitting unfinished work. It never changes the calendar until you approve.</p></div>
+              <div><strong>You stay in control</strong><p>YOVA can propose moving unfinished work around your saved commitments. It never changes the calendar until you approve.</p></div>
             </section>
             <section className="agenda-capacity-planner">
               <label><span>{activeCapacityDateKey === todayKey ? "Minutes available today" : `Minutes available ${formatDateLabel(capacityReferenceDate.toISOString())}`}</span><input type="number" min={0} max={720} step={5} value={availableMinutes} onChange={(event) => setAvailableMinutes(event.target.value)} /></label>
@@ -1368,6 +1457,8 @@ export function CalendarScreen(props: CalendarScreenProps) {
               <span className="step-label">PROPOSED ADJUSTMENT</span>
               <h3>{capacityHeading(capacityPlan.status)}</h3>
               <p>{capacityPlan.reason}</p>
+              {capacityPlan.entry && <div className="calendar-capacity-preview-times"><strong>{capacityPlan.entry.session.title}</strong><span>From: {formatDateTime(capacityPlan.entry.session.scheduledFor)}</span>{capacityPlan.scheduledFor && <><span>To: {formatDateTime(capacityPlan.scheduledFor)}</span><span>Destination workload: {capacityPlan.targetBeforeMinutes ?? 0} → {capacityPlan.targetAfterMinutes ?? 0} minutes</span></>}</div>}
+              {capacityPlan.status === "blocked" && model.blocks.filter((block) => block.source === "manual" && !block.done && isTimedCalendarBlock(block) && dateKey(new Date(block.startsAt)) === activeCapacityDateKey).map((block) => <button type="button" className="button secondary" key={block.id} onClick={() => openMovePanel(block)}>Move {block.title}</button>)}
               <small>{capacityPlan.todayMinutes} minutes planned · {capacityPlan.capacityMinutes} minutes available{capacityPlan.projectedMinutes !== capacityPlan.todayMinutes ? ` · ${capacityPlan.projectedMinutes} minutes after change` : ""}</small>
               {(capacityPlan.status === "move" || capacityPlan.status === "split") && <div className="calendar-inline-actions">
                 <button type="button" className="button ghost" onClick={() => setCapacityPreviewOpen(false)}>Keep current plan</button>
@@ -1456,16 +1547,18 @@ export function CalendarScreen(props: CalendarScreenProps) {
               <h2 id="calendar-board-title">{formatWeekRange(weekStart, weekEnd)}</h2>
             </div>
             <div className="calendar-view-switcher">
-              <span aria-current="page">Week view</span>
+              <button type="button" aria-pressed={calendarState.ui.view === "list"} onClick={() => updateUi({ view: "list" })}>Agenda</button>
+              <button type="button" aria-pressed={calendarState.ui.view === "week"} onClick={() => updateUi({ view: "week" })}>Week</button>
             </div>
           </header>
           <div className="calendar-date-navigation">
             <button type="button" aria-label="Previous calendar period" onClick={() => navigateCalendar(-1)}><ChevronLeft size={18} /></button>
             <button type="button" className="button ghost" onClick={() => updateUi({ anchorDateKey: dateKey(now) })}>Today</button>
             <button type="button" aria-label="Next calendar period" onClick={() => navigateCalendar(1)}><ChevronRight size={18} /></button>
+            <label className="calendar-jump-date">Jump to date<input type="date" value={dateKey(anchorDate)} onChange={(event) => { if (event.target.value) updateUi({ anchorDateKey: event.target.value }); }} /></label>
           </div>
 
-          <WeekCalendar
+          {calendarState.ui.view === "list" ? <AgendaCalendar blocks={model.blocks} days={weekDays} now={now} onSelect={selectBlock} /> : <WeekCalendar
             weekDays={weekDays}
             blocks={model.blocks}
             outcomes={model.outcomes}
@@ -1483,7 +1576,7 @@ export function CalendarScreen(props: CalendarScreenProps) {
               event.dataTransfer.effectAllowed = mode === "move" ? "move" : "link";
               event.dataTransfer.setData("text/plain", block.id);
             }}
-          />
+          />}
         </section>
 
         <section className="calendar-attention" aria-labelledby="calendar-attention-title">
@@ -1512,7 +1605,9 @@ export function CalendarScreen(props: CalendarScreenProps) {
 
         <section className="section-block agenda-milestones calendar-outcomes" aria-labelledby="calendar-outcomes-title">
           <div className="section-title"><div><h2 id="calendar-outcomes-title">Coming up</h2><p>Major outcomes and the preparation blocks that lead to them.</p></div><span>{model.outcomes.filter((outcome) => outcome.status !== "complete").length} open</span></div>
-          {model.outcomes.length === 0 ? <p className="calendar-empty-copy">Add an exam, paper, or deadline to connect this week’s work to an outcome.</p> : <div className="calendar-outcome-list">{model.outcomes.slice(0, 5).map((outcome) => <OutcomeRow key={outcome.id} outcome={outcome} onOpenPlan={onOpenPlan} onBuildPlan={buildPlanForOutcome} />)}</div>}
+          <div className="calendar-outcome-filters"><label>Search deadlines<input type="search" value={outcomeQuery} placeholder="Title or course" onChange={(event) => setOutcomeQuery(event.target.value)} /></label><label>Deadline status<select value={outcomeStatus} onChange={(event) => setOutcomeStatus(event.target.value)}><option value="open">Open</option><option value="complete">Complete</option><option value="all">All</option></select></label></div>
+          {matchingOutcomes.length === 0 ? <p className="calendar-empty-copy">{model.outcomes.length ? "No deadlines match these filters." : "Add an exam, paper, or deadline to connect this week’s work to an outcome."}</p> : <div className="calendar-outcome-list">{shownOutcomes.map((outcome) => <OutcomeRow key={outcome.id} outcome={outcome} onInspect={() => { const id = outcomeInspectionBlockId(outcome, model.blocks); if (id) selectBlock(id); else if (outcome.planId) onOpenPlan(outcome.planId); }} onOpenPlan={onOpenPlan} onBuildPlan={buildPlanForOutcome} />)}</div>}
+          {matchingOutcomes.length > 5 && !outcomeQuery.trim() && <button type="button" className="button ghost" onClick={() => setAllOutcomes(!allOutcomes)}>{allOutcomes ? "Show fewer deadlines" : `View all ${matchingOutcomes.length} deadlines`}</button>}
         </section>
 
         <section className="section-block calendar-week-reasons" aria-labelledby="calendar-reasons-title">
@@ -1541,12 +1636,16 @@ export function CalendarScreen(props: CalendarScreenProps) {
 
 function QuickAddConfirmation({
   draft,
+  error,
   onChange,
   onCancel,
   onConfirm,
   onBuildPlan,
+  saving,
 }: {
   draft: CalendarQuickAddDraft;
+  error: string | null;
+  saving: boolean;
   onChange: (draft: CalendarQuickAddDraft) => void;
   onCancel: () => void;
   onConfirm: () => void;
@@ -1576,30 +1675,40 @@ function QuickAddConfirmation({
         : draft.endsAt,
     });
   };
-  const canSave = Boolean(draft.title.trim() && draft.startsAt);
   const isOutcome = draft.eventType === "deadline" || draft.eventType === "exam";
+  const validRepeat = !draft.recurrenceNeedsReview && (!draft.recurrence || (!isOutcome && Boolean(draft.startsAt) && CalendarRecurrenceSchema.safeParse(draft.recurrence).success));
+  const canSave = !saving && validRepeat && Boolean(draft.title.trim() && (draft.startsAt || (isOutcome && draft.dueAt)));
 
-  return <div className="calendar-quick-confirm" role="dialog" aria-label="Confirm quick add">
-    <div className="calendar-quick-confirm-heading"><strong>Confirm what YOVA understood</strong><button type="button" aria-label="Cancel quick add" onClick={onCancel}><X size={15} /></button></div>
-    <label><span>Title</span><input autoFocus maxLength={160} value={draft.title} onChange={(event) => onChange({ ...draft, title: event.target.value.slice(0, 160) })} /></label>
+  return <CalendarInspector onClose={onCancel} label="Confirm quick add" className="calendar-create-dialog"><div className="calendar-quick-confirm">
+    <div className="calendar-quick-confirm-heading"><h2 tabIndex={-1}>Confirm what YOVA understood</h2><button type="button" aria-label="Cancel quick add" onClick={onCancel}><X size={15} /></button></div>
+    {error && <p className="calendar-inline-error" role="alert">{error}</p>}
+    {draft.startsAt && draft.endsAt && <p className="calendar-confirm-note">{formatDateTime(draft.startsAt)}–{formatTime(draft.endsAt)} · {draft.durationMinutes ?? DEFAULT_EVENT_MINUTES} minutes</p>}
+    <label><span>Title</span><input maxLength={160} value={draft.title} onChange={(event) => onChange({ ...draft, title: event.target.value.slice(0, 160) })} /></label>
     <div className="calendar-quick-confirm-grid">
       <label><span>Type</span><select value={draft.eventType} onChange={(event) => onChange({ ...draft, eventType: event.target.value as CalendarQuickAddDraft["eventType"] })}><option value="class">Class</option><option value="exam">Exam</option><option value="deadline">Deadline</option><option value="personal">Personal</option><option value="free_block">Free block</option></select></label>
       <label><span>Duration</span><input type="number" min={5} max={360} step={5} value={draft.durationMinutes ?? ""} onChange={(event) => updateDuration(event.target.value)} /></label>
     </div>
     <label><span>Calendar time</span><input type="datetime-local" value={draft.startsAt ? toLocalDateTimeInput(draft.startsAt) : ""} onChange={(event) => updateStart(event.target.value)} /></label>
     {isOutcome && <label><span>Due time</span><input type="datetime-local" value={draft.dueAt ? toLocalDateTimeInput(draft.dueAt) : ""} onChange={(event) => onChange({ ...draft, dueAt: event.target.value ? new Date(event.target.value).toISOString() : null })} /></label>}
+    <RecurrenceFields value={draft.recurrence ?? null} startsAt={draft.startsAt} onChange={(recurrence) => onChange({ ...draft, recurrence, recurrenceNeedsReview: false })} />
+    {draft.recurrenceNeedsReview && <p className="calendar-inline-error" role="alert">I could not interpret that repeat pattern. Choose how this repeats above before saving.</p>}
+    {draft.recurrence && isOutcome && <p className="calendar-inline-error" role="alert">Choose Class, Personal or Free block for a repeating timetable item.</p>}
+    <RecurrencePreview draft={draft} />
     <label className="calendar-checkbox"><input type="checkbox" checked={draft.fixed} onChange={(event) => onChange({ ...draft, fixed: event.target.checked })} /><span>Fixed time</span></label>
-    {draft.startsAt === null && <p className="calendar-confirm-note">No study time was found. Choose when this block should appear; the due time remains separate.</p>}
+    {draft.startsAt === null && <p className="calendar-confirm-note">{isOutcome ? "Save just the deadline, or choose a Calendar time to add preparation work too." : "Choose the event’s date and time before saving."}</p>}
     <div className="calendar-inline-actions">
       <button type="button" className="button ghost" onClick={onCancel}>Cancel</button>
       {isOutcome && <button type="button" className="button secondary" disabled={!canSave || !draft.dueAt} onClick={onBuildPlan}>Save and build plan</button>}
-      <button type="button" className="button primary" disabled={!canSave} onClick={onConfirm}>Save to calendar</button>
+      <button type="button" className="button primary" disabled={!canSave} onClick={onConfirm}>{saving ? "Saving…" : "Save to calendar"}</button>
     </div>
-  </div>;
+  </div></CalendarInspector>;
 }
 
 function SelectedBlockDetail({
   block,
+  confirmation,
+  error,
+  onSaveManual,
   outcome,
   pending,
   movePanel,
@@ -1629,6 +1738,9 @@ function SelectedBlockDetail({
   onStudyNow,
 }: {
   block: CalendarBlock;
+  confirmation: ReactNode;
+  error: string | null;
+  onSaveManual: (before: ManualCalendarEvent, after: ManualCalendarEvent, scope: "occurrence" | "series", series?: ManualCalendarBlock["series"]) => Promise<boolean>;
   outcome: CalendarOutcome | null;
   pending: string | null;
   movePanel: MovePanelState | null;
@@ -1649,7 +1761,7 @@ function SelectedBlockDetail({
   onSkip: () => void;
   onOpenPlan: () => void;
   onToggleDone: () => void;
-  onDelete: () => void;
+  onDelete: (scope?: "occurrence" | "series") => void;
   onKeepSuggestion: () => void;
   onDismissSuggestion: () => void;
   onBuildPlan: () => void;
@@ -1657,10 +1769,12 @@ function SelectedBlockDetail({
   onCompleteMilestone: () => void;
   onStudyNow: () => void;
 }) {
+  const [editing, setEditing] = useState(false);
+  const [deleteScope, setDeleteScope] = useState<"occurrence" | "series">("occurrence");
   const minutes = blockMinutes(block);
   const shortenedMinutes = Math.max(10, Math.min(20, Math.floor(minutes / 2 / 5) * 5));
   const reason = blockPlacementReason(block);
-  const canMove = !block.done && block.source !== "milestone";
+  const canMove = !block.done && isTimedCalendarBlock(block);
   const readyToStart = block.source === "plan_session" && block.session.status === "ready";
   const milestoneHasLinkedPlan = block.source === "milestone" && Boolean(outcome?.planId);
   const completingMilestone = block.source === "milestone"
@@ -1671,14 +1785,18 @@ function SelectedBlockDetail({
     ? guidedSessionAllowanceBlocksNewStart(allowance, canStartWithoutGeneration, allowanceChecking)
     : false;
 
-  return <section className={`section-block calendar-block-detail ${block.source} ${block.blockType}`} aria-labelledby="calendar-block-detail-title">
+  return <CalendarInspector onClose={onClose}><section className={`section-block calendar-block-detail ${block.source} ${block.blockType}`} aria-labelledby="calendar-block-detail-title">
     <div className="calendar-detail-heading">
       <span className={`calendar-block-type ${block.blockType}`}>{blockTypeLabel(block)}</span>
       <button type="button" aria-label="Close calendar detail" onClick={onClose}><X size={17} /></button>
     </div>
-    <h2 id="calendar-block-detail-title">{block.title}</h2>
-    <p className="calendar-detail-time"><Clock3 size={15} /> {formatDateTime(block.startsAt)} · {minutes} min {block.fixed && <><LockKeyhole size={13} /> fixed</>}</p>
+    <h2 id="calendar-block-detail-title" tabIndex={-1}>{block.title}</h2>
+    {error && <p className="calendar-inline-error" role="alert">{error}</p>}
+    {!editing && confirmation}
+    {editing && block.source === "manual" ? <ManualEventEditor event={block.event} series={block.series} onCancel={() => setEditing(false)} onSave={async (before, after, scope, series) => { if (await onSaveManual(before, after, scope, series)) setEditing(false); }} /> : <>
+    <p className="calendar-detail-time"><Clock3 size={15} /> {block.source === "manual" && block.event.deadlineOnly ? `Due ${formatDateTime(block.event.dueAt!)}` : `${formatDateTime(block.startsAt)} · ${minutes} min`} {block.fixed && <><LockKeyhole size={13} /> fixed</>}</p>
     {block.courseLabel && <div className="calendar-detail-course">{block.source === "plan_session" && <SubjectIcon plan={block.plan} compact />}<span>{block.courseLabel}</span></div>}
+    {block.source === "manual" && block.series && <p className="calendar-series-description">{recurrenceSummary(block.series.master.recurrence!)}. Move, resize and Mark done apply to this occurrence.</p>}
     <dl className="calendar-detail-facts">
       <div><dt>Why here</dt><dd>{reason}</dd></div>
       {block.source === "plan_session" && <><div><dt>Method</dt><dd>{block.methodName}</dd></div><div><dt>Why this method</dt><dd>{block.methodReason}</dd></div></>}
@@ -1688,8 +1806,10 @@ function SelectedBlockDetail({
     {hasRecoveryRecord && <p className="calendar-recovery-note"><RotateCcw size={15} /> A recovery record remains attached if you move this session. Continue appears only when the saved work can be restored safely.</p>}
     {block.source === "plan_session" && !block.done && canShorten && <p className="calendar-recovery-note calendar-shorten-note"><Clock3 size={15} /> Shorten safely rebuilds every unfinished ordinary session in this plan into {shortenedMinutes}-minute content blocks. It does not merely resize this one calendar event.</p>}
     {block.source === "plan_session" && block.session.status === "upcoming" && <p className="calendar-plan-order-note"><LockKeyhole size={14} /> This is upcoming work. It stays visible on your calendar, but follows the earlier unfinished sessions in this plan.</p>}
+    {block.source === "manual" && block.series && <label className="calendar-delete-scope">Delete applies to<select value={deleteScope} onChange={(event) => setDeleteScope(event.target.value as typeof deleteScope)}><option value="occurrence">This occurrence only</option><option value="series">Entire series</option></select></label>}
     <div className="calendar-detail-actions agenda-session-actions">
       {readyToStart && <button type="button" className="button primary" disabled={startBlocked} onClick={onStart}>{guidedSessionStartLabel(allowance, advertiseContinue ? "Continue" : "Start", canStartWithoutGeneration, allowanceChecking)}</button>}
+      {block.source === "manual" && <button type="button" className="button secondary" onClick={() => setEditing(true)}>Edit</button>}
       {block.source === "manual" && <button type="button" className="button primary" onClick={onToggleDone}>{block.done ? "Mark open" : "Mark done"}</button>}
       {block.source === "suggestion" && <button type="button" className="button primary" onClick={onKeepSuggestion}>Keep</button>}
       {canMove && <button type="button" className="button secondary" onClick={onMove}><Move size={15} /> Move</button>}
@@ -1697,18 +1817,19 @@ function SelectedBlockDetail({
       {canSkip && <button type="button" className="button ghost" onClick={onSkip}>Skip</button>}
       {block.source === "plan_session" && <button type="button" className="button ghost" onClick={onOpenPlan}>Open plan</button>}
       {block.source === "manual" && block.event.dueAt && <button type="button" className="button secondary" onClick={onBuildPlan}>Build plan</button>}
-      {block.source === "manual" && <button type="button" className="button ghost danger" onClick={onDelete}><Trash2 size={15} /> Delete</button>}
+      {block.source === "manual" && <button type="button" className="button ghost danger" onClick={() => onDelete(deleteScope)}><Trash2 size={15} /> Delete</button>}
       {block.source === "suggestion" && <button type="button" className="button ghost" onClick={onDismissSuggestion}>Dismiss</button>}
       {block.source === "milestone" && <>{milestoneHasLinkedPlan
         ? <button type="button" className="button primary" disabled={completingMilestone || deletingMilestone} onClick={onOpenPlan}>Open plan</button>
         : <><button type="button" className="button primary" disabled={completingMilestone || deletingMilestone} onClick={onBuildPlan}>Build plan</button><button type="button" className="button secondary" disabled={completingMilestone || deletingMilestone} onClick={onStudyNow}>Study now</button></>}
-      <button type="button" className="button ghost" disabled={completingMilestone || deletingMilestone} onClick={onEditMilestone}>Edit</button>{!block.done && <button type="button" className="button ghost" disabled={completingMilestone || deletingMilestone} onClick={onCompleteMilestone}>{completingMilestone ? "Saving…" : "Mark complete"}</button>}<button type="button" className="button ghost danger" disabled={completingMilestone || deletingMilestone} onClick={onDelete}>{deletingMilestone ? "Deleting…" : <><Trash2 size={15} /> Delete</>}</button></>}
+      <button type="button" className="button ghost" disabled={completingMilestone || deletingMilestone} onClick={onEditMilestone}>Edit</button>{!block.done && <button type="button" className="button ghost" disabled={completingMilestone || deletingMilestone} onClick={onCompleteMilestone}>{completingMilestone ? "Saving…" : "Mark complete"}</button>}<button type="button" className="button ghost danger" disabled={completingMilestone || deletingMilestone} onClick={() => onDelete()}>{deletingMilestone ? "Deleting…" : <><Trash2 size={15} /> Delete</>}</button></>}
     </div>
     {movePanel && <div className="agenda-move-panel calendar-move-panel">
       <label><span>New time</span><input type="datetime-local" value={movePanel.value} onChange={(event) => onMoveValue(event.target.value)} /></label>
       <div className="calendar-inline-actions"><button type="button" className="button ghost" onClick={onCancelMove}>Cancel</button><button type="button" className="button primary" disabled={pending === `move:${block.id}`} onClick={onSaveMove}>{pending === `move:${block.id}` ? "Saving…" : "Save new time"}</button></div>
     </div>}
-  </section>;
+    </>}
+  </section></CalendarInspector>;
 }
 
 function YourDayCard({
@@ -1783,6 +1904,17 @@ function NearestOutcomeCard({
   </section>;
 }
 
+function AgendaCalendar({ blocks, days, now, onSelect }: { blocks: CalendarBlock[]; days: Date[]; now: Date; onSelect: (id: string) => void }) {
+  const start = startOfDay(days[0]);
+  const end = addDays(days[6], 1);
+  const visible = blocks.filter((block) => !block.done && new Date(block.startsAt) < end && (new Date(block.endsAt) > start || new Date(block.endsAt) < now));
+  const groups = Map.groupBy(visible, (block) => dateKey(new Date(block.startsAt)));
+  return <div className="calendar-agenda" aria-label="Agenda">
+    {visible.length === 0 && <p className="calendar-empty-copy">No work scheduled this week. Add a deadline or calendar item below.</p>}
+    {[...groups].map(([key, items]) => <section key={key} className="calendar-agenda-day"><h3>{key === dateKey(now) ? "Today" : key < dateKey(now) ? `Earlier · ${formatDateLabel(items[0].startsAt)}` : formatDateLabel(items[0].startsAt)}</h3>{items.map((block) => <button type="button" key={block.id} className="calendar-agenda-item" aria-label={`${block.title}, ${formatTime(block.startsAt)}, ${blockTypeLabel(block)}`} onClick={() => onSelect(block.id)}><span>{isTimedCalendarBlock(block) ? formatTime(block.startsAt) : "Due"}</span><div><strong>{block.title}</strong><small>{blockTypeLabel(block)}{isTimedCalendarBlock(block) ? ` · ${blockMinutes(block)} min` : ""}{block.courseLabel ? ` · ${block.courseLabel}` : ""}</small></div><ChevronRight size={17} /></button>)}</section>)}
+  </div>;
+}
+
 function WeekCalendar({
   weekDays,
   blocks,
@@ -1812,15 +1944,16 @@ function WeekCalendar({
   onDrop: (event: DragEvent<HTMLElement>, day: Date, hour: number) => void;
   onDragStart: (event: DragEvent<HTMLElement>, block: CalendarBlock, mode: DragState["mode"]) => void;
 }) {
-  const weekKeys = new Set(weekDays.map(dateKey));
+  const scroll = useRef<HTMLDivElement>(null);
+  const weekKey = dateKey(weekDays[0]);
+  useEffect(() => {
+    if (scroll.current) scroll.current.scrollTop = 8 * 54;
+  }, [weekKey]);
   const visibleOutcomes = calendarOutcomesWithMilestones(outcomes, blocks);
-  const visibleBlocks = blocks.filter((block) => (
-    weekKeys.has(dateKey(new Date(block.startsAt))) && block.source !== "milestone"
-  ));
   const nowMinutes = now.getHours() * 60 + now.getMinutes();
   const currentTop = ((nowMinutes - HOUR_START * 60) / ((HOUR_END - HOUR_START) * 60)) * 100;
 
-  return <div className="calendar-week">
+  return <div className="calendar-week" ref={scroll}>
     <nav className="agenda-week-selector calendar-week-headers" aria-label="Week days">
       <span className="calendar-time-corner" aria-hidden="true" />
       {weekDays.map((day) => {
@@ -1858,11 +1991,11 @@ function WeekCalendar({
 
     <div className="calendar-time-grid">
       <div className="calendar-time-labels" aria-hidden="true">
-        {Array.from({ length: HOUR_END - HOUR_START + 1 }, (_, index) => HOUR_START + index).map((hour) => <span className="calendar-hour-label" key={hour}>{formatHour(hour)}</span>)}
+        {Array.from({ length: HOUR_END - HOUR_START + 1 }, (_, index) => HOUR_START + index).map((hour) => <span className="calendar-hour-label" style={{ top: `${(hour / 24) * 100}%` }} key={hour}>{formatHour(hour)}</span>)}
       </div>
       {weekDays.map((day) => {
         const key = dateKey(day);
-        const dayBlocks = visibleBlocks.filter((block) => dateKey(new Date(block.startsAt)) === key);
+        const daySegments = layoutCalendarDay(blocks, day);
         const hasExam = visibleOutcomes.some((outcome) => dateKey(new Date(outcome.dueAt)) === key && /\b(exam|test|quiz|midterm|final)\b/i.test(outcome.title));
         return <div className={`calendar-day-column ${key === todayKey ? "today" : ""} ${hasExam ? "exam-day" : ""}`} key={key}>
           {Array.from({ length: HOUR_END - HOUR_START }, (_, index) => HOUR_START + index).map((hour) => <button
@@ -1875,17 +2008,16 @@ function WeekCalendar({
             onDrop={(event) => onDrop(event, day, hour)}
           />)}
           {key === todayKey && currentTop >= 0 && currentTop <= 100 && <span className="calendar-current-time" style={{ "--calendar-now-top": `${currentTop}%` } as CSSProperties}><i /> <small>{formatTime(now.toISOString())}</small></span>}
-          {dayBlocks.map((block) => {
-            const start = new Date(block.startsAt);
-            const startMinutes = start.getHours() * 60 + start.getMinutes();
-            const top = ((startMinutes - HOUR_START * 60) / ((HOUR_END - HOUR_START) * 60)) * 100;
-            const height = Math.max(2.4, (blockMinutes(block) / ((HOUR_END - HOUR_START) * 60)) * 100);
+          {daySegments.map((segment) => {
+            const block = segment.block;
+            const top = segment.startMinute / 1440 * 100;
+            const height = (segment.endMinute - segment.startMinute) / 1440 * 100;
             const draggable = !block.done && block.source !== "milestone";
             const resizable = draggable && block.source !== "plan_session";
             return <button
               type="button"
               className={`calendar-block ${block.source} ${block.blockType} ${block.done ? "done" : ""} ${selectedBlockId === block.id ? "selected" : ""}`}
-              style={{ "--calendar-block-top": `${Math.max(0, Math.min(98, top))}%`, "--calendar-block-height": `${Math.min(100 - Math.max(0, top), height)}%` } as CSSProperties}
+              style={{ "--calendar-block-top": `${top}%`, "--calendar-block-height": `${Math.max(0, height)}%`, left: `calc(${segment.lane / segment.laneCount * 100}% + 3px)`, width: `calc(${100 / segment.laneCount}% - 6px)`, right: "auto" } as CSSProperties}
               draggable={draggable}
               aria-pressed={selectedBlockId === block.id}
               aria-label={`${block.title}, ${formatTime(block.startsAt)}, ${blockTypeLabel(block)}`}
@@ -1893,8 +2025,8 @@ function WeekCalendar({
               onClick={(event) => { event.stopPropagation(); onSelect(block.id); }}
               onDragStart={(event) => onDragStart(event, block, "move")}
             >
-              <strong>{block.done && <Check size={12} />}{block.fixed && <LockKeyhole size={11} />}{block.title}</strong>
-              <small>{formatTime(block.startsAt)} · {blockTypeLabel(block)}</small>
+              <strong>{segment.continuesBefore && "↳ "}{block.done && <Check size={12} />}{block.fixed && <LockKeyhole size={11} />}{block.title}</strong>
+              <small>{segment.continuesBefore ? "Continued" : formatTime(block.startsAt)} · {blockTypeLabel(block)}{segment.continuesAfter ? " · continues tomorrow" : ""}</small>
               {resizable && <span
                 className="calendar-resize-handle"
                 draggable
@@ -1914,16 +2046,18 @@ function WeekCalendar({
 
 function OutcomeRow({
   outcome,
+  onInspect,
   onOpenPlan,
   onBuildPlan,
 }: {
   outcome: CalendarOutcome;
+  onInspect: () => void;
   onOpenPlan: (planId: string) => void;
   onBuildPlan: (outcome: CalendarOutcome) => void;
 }) {
   const meaningfulProgress = outcome.totalBlocks !== null && outcome.doneBlocks !== null;
   return <article className={`calendar-outcome-row ${outcome.status}`}>
-    <div className="calendar-outcome-copy"><span>{formatDateLabel(outcome.dueAt)}</span><strong>{outcome.title}</strong><p>{outcome.remainingSummary}</p></div>
+    <div className="calendar-outcome-copy"><span>{formatDateLabel(outcome.dueAt)}</span><button type="button" className="calendar-outcome-title" onClick={onInspect}>{outcome.title}</button><p>{outcome.remainingSummary}</p></div>
     <div className="calendar-outcome-progress">{meaningfulProgress ? <><SegmentedProgress done={outcome.doneBlocks ?? 0} total={outcome.totalBlocks ?? 0} /><small>{outcome.doneBlocks} of {outcome.totalBlocks} preparation blocks complete</small></> : <small>Preparation block count not available yet</small>}</div>
     <span className={`calendar-outcome-status ${outcome.status}`}>{outcomeStatusLabel(outcome.status)}</span>
     <button type="button" className="button secondary" onClick={() => outcome.planId ? onOpenPlan(outcome.planId) : onBuildPlan(outcome)}>{outcome.planId ? "Open plan" : "Build plan"}</button>

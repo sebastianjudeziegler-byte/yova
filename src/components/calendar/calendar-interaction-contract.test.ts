@@ -16,15 +16,15 @@ const prototype = readFileSync(
 );
 
 describe("Calendar outcome inspection and session-order controls", () => {
-  it("exposes only the complete Week view without nesting a second main landmark", () => {
+  it("exposes complete Week and Agenda views without nesting a second main landmark", () => {
     expect(source).toContain('<div className="calendar-main">');
     expect(source).not.toContain('<main className="calendar-main">');
-    expect(source).toContain('<span aria-current="page">Week view</span>');
+    expect(source).toContain('onClick={() => updateUi({ view: "week" })}>Week</button>');
+    expect(source).toContain('onClick={() => updateUi({ view: "list" })}>Agenda</button>');
     expect(source).not.toContain("CalendarViewStub");
     expect(source).not.toContain("VIEW_LABELS");
     expect(source).not.toContain('role="tablist" aria-label="Calendar view"');
-    expect(source).toContain('loadedState.ui.view === "week"');
-    expect(source).toContain('{ ...loadedState.ui, view: "week" as const }');
+
   });
 
   it("keeps milestones out of the timed grid while making due outcomes inspectable", () => {
@@ -35,7 +35,7 @@ describe("Calendar outcome inspection and session-order controls", () => {
     const helperEnd = source.indexOf("function blockMinutes(", helperStart);
     const helper = source.slice(helperStart, helperEnd);
 
-    expect(week).toContain('block.source !== "milestone"');
+    expect(week).toContain("layoutCalendarDay(blocks, day)");
     expect(week).toContain("const visibleOutcomes = calendarOutcomesWithMilestones(outcomes, blocks);");
     expect(week).toContain("const outcomeBlockId = outcomeInspectionBlockId(outcome, blocks);");
     expect(week).toContain('className={`calendar-due-chip ${outcome.status} ${selected ? "selected" : ""}`}');

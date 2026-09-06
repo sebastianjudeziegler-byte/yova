@@ -1,3 +1,5 @@
+import { isTimedCalendarBlock, occupiesCalendarTime } from "@/lib/calendar/layout";
+import { calendarDateAtTime } from "@/lib/intake/deadline";
 import type { DeadlineMilestone, LearningPlan } from "@/lib/domain";
 import { topicDisplayLabel } from "@/lib/learning/topic-display-label";
 import { isOperationalPlan } from "@/lib/learning/plan-visibility";
@@ -22,24 +24,34 @@ export function deriveCalendarDayLoads(
   timeZone: string,
 ): CalendarDayLoad[] {
   const overrideByDate = new Map(overrides.map((override) => [override.dateKey, override]));
-  const byDate = new Map<string, CalendarBlock[]>();
+  const byDate = new Map<string, Array<{ block: CalendarBlock; minutes: number }>>();
   for (const block of blocks) {
-    if (block.source === "milestone") continue;
-    const dateKey = calendarDateKey(block.startsAt, timeZone);
-    const current = byDate.get(dateKey) ?? [];
-    current.push(block);
-    byDate.set(dateKey, current);
+    if (!isTimedCalendarBlock(block) || block.done) continue;
+    let cursor = Date.parse(block.startsAt);
+    const end = Date.parse(block.endsAt);
+    while (cursor < end) {
+      const dateKey = calendarDateKey(new Date(cursor), timeZone);
+      const nextDay = new Date(`${dateKey}T12:00:00Z`);
+      nextDay.setUTCDate(nextDay.getUTCDate() + 1);
+      const midnight = calendarDateAtTime(nextDay.toISOString().slice(0, 10), 0, 0, timeZone);
+      const boundary = midnight ? Math.min(end, Date.parse(midnight)) : end;
+      if (boundary <= cursor) break;
+      const current = byDate.get(dateKey) ?? [];
+      current.push({ block, minutes: Math.round((boundary - cursor) / 60_000) });
+      byDate.set(dateKey, current);
+      cursor = boundary;
+    }
   }
   for (const dateKey of overrideByDate.keys()) {
     if (!byDate.has(dateKey)) byDate.set(dateKey, []);
   }
 
   return [...byDate.entries()].map(([dateKey, dayBlocks]) => {
-    const workBlocks = dayBlocks.filter(countsTowardFlexibleLoad);
-    const plannedMinutes = workBlocks.reduce((sum, block) => sum + blockMinutes(block), 0);
+    const workBlocks = dayBlocks.filter(({ block }) => countsTowardFlexibleLoad(block));
+    const plannedMinutes = workBlocks.reduce((sum, part) => sum + part.minutes, 0);
     const fixedMinutes = dayBlocks
-      .filter((block) => block.fixed)
-      .reduce((sum, block) => sum + blockMinutes(block), 0);
+      .filter(({ block }) => block.fixed)
+      .reduce((sum, part) => sum + part.minutes, 0);
     const availableMinutes = overrideByDate.get(dateKey)?.availableMinutes ?? null;
     const overloaded = availableMinutes === null
       ? plannedMinutes > 75 || workBlocks.length >= 3
@@ -198,9 +210,9 @@ export function deriveCalendarIssues(input: {
   }
 
   for (const [left, right] of calendarConflicts(input.blocks)) {
-    const fixedWithYova = left.source === "manual" && right.source === "plan_session"
+    const fixedWithYova = left.source === "manual" && left.fixed && right.source === "plan_session"
       ? { fixed: left, yova: right }
-      : right.source === "manual" && left.source === "plan_session"
+      : right.source === "manual" && right.fixed && left.source === "plan_session"
         ? { fixed: right, yova: left }
         : null;
     issues.push({
@@ -210,11 +222,11 @@ export function deriveCalendarIssues(input: {
       title: `${left.title} conflicts with ${right.title}`,
       reason: fixedWithYova
         ? `${fixedWithYova.fixed.title} is fixed and overlaps YOVA work from ${formatTime(maxIso(left.startsAt, right.startsAt), input.timeZone)} to ${formatTime(minIso(left.endsAt, right.endsAt), input.timeZone)}.`
-        : `Both are fixed and overlap from ${formatTime(maxIso(left.startsAt, right.startsAt), input.timeZone)} to ${formatTime(minIso(left.endsAt, right.endsAt), input.timeZone)}.`,
+        : `These commitments overlap from ${formatTime(maxIso(left.startsAt, right.startsAt), input.timeZone)} to ${formatTime(minIso(left.endsAt, right.endsAt), input.timeZone)}.`,
       action: {
         kind: "resolve_conflict",
         label: "Resolve conflict",
-        targetId: fixedWithYova ? fixedWithYova.yova.id : left.id,
+        targetId: fixedWithYova ? fixedWithYova.yova.id : (!left.fixed ? left.id : right.id),
       },
     });
   }
@@ -401,45 +413,28 @@ function deadlineCapacityReason(
   return null;
 }
 
-function calendarConflicts(blocks: readonly CalendarBlock[]) {
-  const fixed = blocks
-    .filter((block) => block.fixed && !block.done && block.source !== "milestone")
-    .sort((left, right) => Date.parse(left.startsAt) - Date.parse(right.startsAt));
+export function calendarConflicts(blocks: readonly CalendarBlock[]) {
+  const occupied = blocks.filter(occupiesCalendarTime)
+    .sort((a, b) => Date.parse(a.startsAt) - Date.parse(b.startsAt));
   const pairs: Array<[CalendarBlock, CalendarBlock]> = [];
-  for (let leftIndex = 0; leftIndex < fixed.length; leftIndex += 1) {
-    for (let rightIndex = leftIndex + 1; rightIndex < fixed.length; rightIndex += 1) {
-      const left = fixed[leftIndex]!;
-      const right = fixed[rightIndex]!;
-      if (Date.parse(right.startsAt) >= Date.parse(left.endsAt)) break;
-      if (Date.parse(left.startsAt) < Date.parse(right.endsAt)) pairs.push([left, right]);
-    }
-  }
-  const fixedManual = fixed.filter((block) => block.source === "manual");
-  const actionableYova = blocks.filter((block) => (
-    block.source === "plan_session"
-    && !block.done
-    && (block.session.status === "ready" || block.session.status === "upcoming")
-  ));
-  for (const commitment of fixedManual) {
-    for (const yova of actionableYova) {
-      if (
-        Date.parse(commitment.startsAt) < Date.parse(yova.endsAt)
-        && Date.parse(yova.startsAt) < Date.parse(commitment.endsAt)
-      ) {
-        pairs.push([commitment, yova]);
-      }
+  for (let i = 0; i < occupied.length; i += 1) {
+    for (let j = i + 1; j < occupied.length; j += 1) {
+      if (Date.parse(occupied[j].startsAt) >= Date.parse(occupied[i].endsAt)) break;
+      pairs.push([occupied[i], occupied[j]]);
     }
   }
   return pairs;
 }
 
-function countsTowardFlexibleLoad(block: CalendarBlock) {
-  return block.source === "plan_session"
+export function countsTowardFlexibleLoad(block: CalendarBlock) {
+  return isTimedCalendarBlock(block) && !block.done && (
+    block.source === "plan_session"
     || block.source === "suggestion"
     || (block.source === "manual"
       && block.blockType !== "class"
       && block.blockType !== "exam"
-      && block.blockType !== "free_block");
+      && block.blockType !== "free_block")
+  );
 }
 
 function linkedCalendarMilestone(
@@ -470,10 +465,6 @@ function loadLevel(
   }
   if (minutes >= 60 || blocks >= 2) return "focused";
   return "light";
-}
-
-function blockMinutes(block: CalendarBlock) {
-  return Math.max(0, Math.round((Date.parse(block.endsAt) - Date.parse(block.startsAt)) / 60_000));
 }
 
 function issueOrder(left: CalendarIssue, right: CalendarIssue) {

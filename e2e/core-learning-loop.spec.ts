@@ -2060,7 +2060,7 @@ test("learner text fields keep long pastes visible and block submission until tr
   await expect(adjustmentPanel.getByRole("button", { name: "Approve and rebuild plan" })).toBeDisabled();
 });
 
-test("Calendar rail and dense Week grid remain contained at a 375px viewport", async ({ page }) => {
+test("Calendar Agenda stays first and contained at a 375px viewport", async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 844 });
   await createPreviewAccount(page);
   await completeOnboarding(page);
@@ -2139,8 +2139,8 @@ test("Calendar rail and dense Week grid remain contained at a 375px viewport", a
   await expect(page.getByRole("heading", { name: "Plan the work that gets you there" })).toBeVisible();
 
   const geometry = await page.locator(".calendar-workspace").evaluate((workspace) => {
-    const rail = workspace.querySelector<HTMLElement>(".calendar-rail");
-    const main = workspace.querySelector<HTMLElement>(".calendar-main");
+    const rail = workspace.querySelector<HTMLElement>(".calendar-quick-add");
+    const main = workspace.querySelector<HTMLElement>(".calendar-board");
     if (!rail || !main) return null;
     const railRect = rail.getBoundingClientRect();
     const mainRect = main.getBoundingClientRect();
@@ -2148,7 +2148,7 @@ test("Calendar rail and dense Week grid remain contained at a 375px viewport", a
       bodyFits: document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1,
       workspaceFits: workspace.scrollWidth <= workspace.clientWidth + 1,
       railFits: rail.scrollWidth <= rail.clientWidth + 1,
-      railBeforeMain: railRect.top <= mainRect.top && railRect.bottom <= mainRect.top + 2,
+      boardBeforeQuickAdd: mainRect.bottom <= railRect.top + 2,
     };
   });
 
@@ -2156,9 +2156,9 @@ test("Calendar rail and dense Week grid remain contained at a 375px viewport", a
     bodyFits: true,
     workspaceFits: true,
     railFits: true,
-    railBeforeMain: true,
+    boardBeforeQuickAdd: true,
   });
-  await expect(page.locator(".calendar-week")).toHaveCSS("overflow-x", "auto");
+  await expect(page.getByRole("button", { name: "Agenda", exact: true })).toHaveAttribute("aria-pressed", "true");
 });
 
 test("spent guided-session allowance is visible before Home or Calendar opens setup", async ({ page }) => {
@@ -2333,7 +2333,7 @@ test("the product shell keeps every core destination and creation path usable", 
 
   await page.getByRole("button", { name: "Calendar", exact: true }).click();
   await page.locator(".calendar-page-header").getByRole("button", { name: "Add to YOVA", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "What do you need to learn, prepare for, or complete?" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "What would you like to add?" })).toBeVisible();
   await page.getByRole("button", { name: "Cancel" }).click();
   await page.getByRole("button", { name: "Home", exact: true }).click();
 
@@ -3838,7 +3838,7 @@ async function rebuildLatestStudyNowPlanForMinutes(page: Page, minutes: number) 
 async function beginPlanFromAdd(page: Page, description: string) {
   await page.getByRole("button", { name: "Calendar", exact: true }).click();
   await page.locator(".calendar-page-header").getByRole("button", { name: "Add to YOVA", exact: true }).click();
-  await page.getByPlaceholder("Example: I have a World War I test in two weeks. I am starting from the beginning and I have a study guide.").fill(description);
+  await page.getByRole("textbox", { name: "Describe what you want to add" }).fill(description);
   await page.getByRole("button", { name: "Organize this" }).click();
   await expect(page.getByRole("heading", { name: "Here is what YOVA understood." })).toBeVisible();
   await page.getByRole("button", { name: "Choose what YOVA should do" }).click();

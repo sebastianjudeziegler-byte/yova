@@ -11,6 +11,69 @@ export const CALENDAR_PROTOTYPE_STORAGE_KEY = "yova.calendar.prototype.v1" as co
 type ReadableStorage = Pick<Storage, "getItem">;
 type WritableStorage = Pick<Storage, "getItem" | "setItem" | "removeItem">;
 
+/** All browser writers share this lock, including writers for other accounts. */
+export async function withCalendarStorageLock<T>(work: () => T | Promise<T>): Promise<T> {
+  if (typeof window === "undefined") return work();
+  if (!navigator.locks) {
+    throw new Error("This browser cannot safely save calendar changes. Open YOVA in an up-to-date browser using HTTPS.");
+  }
+  return navigator.locks.request(CALENDAR_PROTOTYPE_STORAGE_KEY, work);
+}
+
+/** Apply only the user's edits; never replace unrelated changes from another tab. */
+export function mergeCalendarChanges(
+  before: CalendarPrototypeState,
+  edited: CalendarPrototypeState,
+  current: CalendarPrototypeState,
+): CalendarPrototypeState {
+  if (before.accountId !== current.accountId || edited.accountId !== current.accountId) {
+    throw new Error("The calendar account changed. Reopen Calendar before saving.");
+  }
+  const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+  const merge = <T,>(oldItems: T[], nextItems: T[], currentItems: T[], key: (item: T) => string): T[] => {
+    const old = new Map(oldItems.map((item) => [key(item), item]));
+    const next = new Map(nextItems.map((item) => [key(item), item]));
+    const result = new Map(currentItems.map((item) => [key(item), item]));
+    for (const id of new Set([...old.keys(), ...next.keys()])) {
+      if (same(old.get(id), next.get(id))) continue;
+      if (!same(old.get(id), result.get(id)) && !same(next.get(id), result.get(id))) {
+        throw new Error("This item changed in another tab. Your edit was not saved. Review the latest details and try again.");
+      }
+      if (next.has(id)) result.set(id, next.get(id)!);
+      else result.delete(id);
+    }
+    return [...result.values()];
+  };
+  const ui = { ...current.ui };
+  for (const key of Object.keys(edited.ui) as Array<keyof typeof ui>) {
+    if (!same(before.ui[key], edited.ui[key])) Object.assign(ui, { [key]: edited.ui[key] });
+  }
+  return CalendarPrototypeStateSchema.parse({
+    ...current,
+    manualEvents: merge(before.manualEvents, edited.manualEvents, current.manualEvents, (item) => item.id),
+    suggestions: merge(before.suggestions, edited.suggestions, current.suggestions, (item) => item.id),
+    availabilityOverrides: merge(before.availabilityOverrides, edited.availabilityOverrides, current.availabilityOverrides, (item) => item.dateKey),
+    changeLog: merge(before.changeLog, edited.changeLog, current.changeLog, (item) => item.id).slice(-200),
+    ui,
+    updatedAt: new Date().toISOString(),
+  });
+}
+
+export async function commitCalendarPrototypeState(
+  storage: WritableStorage,
+  before: CalendarPrototypeState,
+  edited: CalendarPrototypeState,
+) {
+  return withCalendarStorageLock(() => {
+    const current = loadCalendarPrototypeState(storage, before.accountId);
+    const merged = mergeCalendarChanges(before, edited, current);
+    if (!saveCalendarPrototypeState(storage, before.accountId, merged)) {
+      throw new Error("This calendar change could not be saved on this device. Your edit is still open; free some browser storage and try again.");
+    }
+    return merged;
+  });
+}
+
 const CalendarStorageEnvelopeSchema = z.object({
   version: z.literal(CALENDAR_STORAGE_VERSION),
   accounts: z.record(z.string(), CalendarPrototypeStateSchema),
@@ -44,6 +107,10 @@ export function emptyCalendarPrototypeState(
  * copied into this store; those continue to come from their authoritative
  * repositories.
  */
+export function hasSavedCalendarPrototypeState(storage: ReadableStorage, accountId: string) {
+  return Boolean(readEnvelope(storage).accounts[accountId]);
+}
+
 export function loadCalendarPrototypeState(
   storage: ReadableStorage,
   accountId: string,
@@ -108,43 +175,47 @@ export function clearCalendarPrototypeState(
  * is account-scoped so finishing one account's plan can never alter another
  * signed-in account's calendar bucket.
  */
-export function removeCalendarManualEventAfterPlanCommit(
+export async function removeCalendarManualEventAfterPlanCommit(
   storage: WritableStorage,
   accountId: string,
   eventId: string,
   now = new Date(),
 ) {
-  const state = loadCalendarPrototypeState(storage, accountId, now);
-  if (!state.manualEvents.some((event) => event.id === eventId)) return true;
+  return withCalendarStorageLock(() => {
+    const state = loadCalendarPrototypeState(storage, accountId, now);
+    if (!state.manualEvents.some((event) => event.id === eventId)) return true;
 
-  return saveCalendarPrototypeState(storage, accountId, {
-    ...state,
-    manualEvents: state.manualEvents.filter((event) => event.id !== eventId),
-    ui: {
-      ...state.ui,
-      selectedBlockId: state.ui.selectedBlockId === `manual:${eventId}`
-        ? null
-        : state.ui.selectedBlockId,
-    },
-    updatedAt: now.toISOString(),
+    return saveCalendarPrototypeState(storage, accountId, {
+      ...state,
+      manualEvents: state.manualEvents.filter((event) => event.id !== eventId),
+      ui: {
+        ...state.ui,
+        selectedBlockId: state.ui.selectedBlockId === `manual:${eventId}`
+          ? null
+          : state.ui.selectedBlockId,
+      },
+      updatedAt: now.toISOString(),
+    });
   });
 }
 
 /** Appends one bounded, account-scoped Calendar history record. */
-export function appendCalendarChangeLogEntry(
+export async function appendCalendarChangeLogEntry(
   storage: WritableStorage,
   accountId: string,
   entry: CalendarChangeLogEntry,
   now = new Date(),
 ) {
-  const state = loadCalendarPrototypeState(storage, accountId, now);
-  return saveCalendarPrototypeState(storage, accountId, {
-    ...state,
-    changeLog: [
-      ...state.changeLog.filter((candidate) => candidate.id !== entry.id),
-      entry,
-    ].slice(-200),
-    updatedAt: now.toISOString(),
+  return withCalendarStorageLock(() => {
+    const state = loadCalendarPrototypeState(storage, accountId, now);
+    return saveCalendarPrototypeState(storage, accountId, {
+      ...state,
+      changeLog: [
+        ...state.changeLog.filter((candidate) => candidate.id !== entry.id),
+        entry,
+      ].slice(-200),
+      updatedAt: now.toISOString(),
+    });
   });
 }
 

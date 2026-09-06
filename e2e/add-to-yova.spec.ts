@@ -42,6 +42,9 @@ test("a deadline can live in Calendar, be completed, and stay out of Learning", 
   await inspectOutcomeInWeek(page, "Lab Report", "next", 6);
   await expect(page.locator(".calendar-block-detail")).toContainText("Lab Report");
   await page.getByRole("button", { name: "Mark complete", exact: true }).click();
+  await expect(page.locator(".calendar-block-detail")).toContainText("Complete");
+  await page.getByRole("button", { name: "Close calendar detail" }).click();
+  await page.getByLabel("Deadline status").selectOption("complete");
   await expect(page.locator(".calendar-outcome-row.complete")).toContainText("Lab Report");
   await page.getByRole("button", { name: "Learning", exact: true }).click();
   await expect(page.getByText("Lab Report", { exact: true })).toHaveCount(0);
@@ -77,6 +80,9 @@ test("an overdue standalone deadline remains reachable and actionable", async ({
   await inspectOutcomeInWeek(page, "Missed lab deadline", "previous", 2);
   await expect(page.locator(".calendar-block-detail")).toContainText("Missed lab deadline");
   await page.getByRole("button", { name: "Mark complete", exact: true }).click();
+  await expect(page.locator(".calendar-block-detail")).toContainText("Complete");
+  await page.getByRole("button", { name: "Close calendar detail" }).click();
+  await page.getByLabel("Deadline status").selectOption("complete");
   await expect(page.locator(".calendar-outcome-row.complete")).toContainText("Missed lab deadline");
 });
 
@@ -234,8 +240,8 @@ test("one account never sees another account's deadline", async ({ browser }) =>
 async function openAdd(page: Page, description: string) {
   await page.getByRole("button", { name: "Calendar", exact: true }).click();
   await page.locator(".calendar-page-header").getByRole("button", { name: "Add to YOVA", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "What do you need to learn, prepare for, or complete?" })).toBeVisible();
-  await page.getByPlaceholder(/I have a World War I test/).fill(description);
+  await expect(page.getByRole("heading", { name: "What would you like to add?" })).toBeVisible();
+  await page.getByRole("textbox", { name: "Describe what you want to add" }).fill(description);
   await page.getByRole("button", { name: /Organize this/ }).click();
   await expect(page.getByRole("heading", { name: "Here is what YOVA understood." })).toBeVisible();
 }
@@ -257,6 +263,8 @@ async function inspectOutcomeInWeek(
   direction: "next" | "previous",
   maxPeriods: number,
 ) {
+  await page.getByRole("button", { name: "Week", exact: true }).click();
+  await expect(page.locator(".calendar-week")).toBeVisible();
   const dueChip = page.locator(".calendar-due-chip").filter({ hasText: title });
   const range = page.locator("#calendar-board-title");
   const navigation = page.getByRole("button", {

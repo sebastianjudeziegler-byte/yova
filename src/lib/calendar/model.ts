@@ -1,3 +1,4 @@
+import { expandRecurringEvent } from "@/lib/calendar/recurrence";
 import { CalendarReasonSchema, CalendarPrototypeStateSchema } from "@/lib/calendar/types";
 import type { SessionCompletion, SessionInterruption } from "@/lib/domain";
 import {
@@ -96,20 +97,11 @@ export function deriveCalendarModel(input: CalendarModelInput): CalendarModel {
     };
   });
 
-  const manualBlocks = localState.manualEvents.map((event) => ({
-    id: `manual:${event.id}`,
-    source: "manual" as const,
-    blockType: event.eventType,
-    title: event.title,
-    startsAt: event.startsAt,
-    endsAt: event.endsAt,
-    done: event.done,
-    fixed: event.fixed,
-    courseId: event.courseId,
-    courseLabel: event.courseLabel,
-    outcomeId: event.outcomeId,
-    event,
-  }));
+  const currentRange = { start: new Date(now.getTime() - 86_400_000), end: new Date(now.getTime() + 14 * 86_400_000) };
+  const manualBlocks = [...new Map(localState.manualEvents.flatMap((event) => [
+    ...expandRecurringEvent(event, currentRange.start, currentRange.end),
+    ...(input.visibleRange ? expandRecurringEvent(event, input.visibleRange.start, input.visibleRange.end) : []),
+  ]).map((block) => [block.id, block])).values()];
 
   const suggestionBlocks = localState.suggestions.flatMap<SuggestedCalendarBlock>((suggestion) => {
     if (suggestion.status === "dismissed" || !suggestion.startsAt) return [];

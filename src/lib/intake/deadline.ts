@@ -40,13 +40,71 @@ export type DeadlineInferenceOptions = {
   timeZone?: string;
 };
 
+// A date mention is shared by Calendar and intake; interpreting a bare date
+// is only allowed when the caller is already collecting calendar information.
+const DATE_MENTION = new RegExp(`\\b(?:20\\d{2}-\\d{1,2}-\\d{1,2}|(?:${MONTH_NAME})\\.?\\s+\\d{1,2}(?:st|nd|rd|th)?(?:,?\\s+20\\d{2})?|\\d{1,2}[/-]\\d{1,2}(?:[/-]20\\d{2})?|(?:next\\s+)?(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)|today|tomorrow|tonight|(?:in|within)\\s+(?:a|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|\\d+)\\s+(?:days?|weeks?))\\b`, "i");
+
+export function findCalendarDateMention(text: string, options: DeadlineInferenceOptions = {}) {
+  const match = text.match(DATE_MENTION);
+  if (!match) return null;
+  return {
+    text: match[0],
+    index: match.index ?? 0,
+    date: inferDateFromCuedText(`due ${match[0].replace(/tonight/i, "today")}`, options),
+  };
+}
+
+export function readCalendarClock(value: string) {
+  const twelve = value.match(/\b(?:at\s+)?(\d{1,2})(?::(\d{2}))?\s*(a\.?m\.?|p\.?m\.?)\b/i);
+  if (twelve) {
+    const hour = Number(twelve[1]);
+    const minute = Number(twelve[2] ?? 0);
+    if (hour < 1 || hour > 12 || minute > 59) return null;
+    return { hour: hour % 12 + (twelve[3].toLowerCase().startsWith("p") ? 12 : 0), minute };
+  }
+  const clock = value.match(/\bat\s+([01]?\d|2[0-3]):([0-5]\d)\b/i);
+  return clock ? { hour: Number(clock[1]), minute: Number(clock[2]) } : null;
+}
+
+export function calendarDateAtTime(dateInput: string, hour: number, minute: number, requestedTimeZone: string) {
+  const date = parseDateInput(dateInput);
+  if (!date || hour < 0 || hour > 23 || minute < 0 || minute > 59) return null;
+  const timeZone = validTimeZone(requestedTimeZone);
+  const requested = Date.UTC(date.year, date.month - 1, date.day, hour, minute);
+  let candidate = requested;
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    const observed = calendarDateTimeInTimeZone(new Date(candidate), timeZone);
+    const correction = requested - Date.UTC(observed.year, observed.month - 1, observed.day, observed.hour, observed.minute, observed.second);
+    if (correction === 0) return new Date(candidate).toISOString();
+    candidate += correction;
+  }
+  // Nonexistent spring-forward times must be chosen explicitly, not normalized.
+  return null;
+}
+
+function deadlinePhrase(description: string) {
+  const explicit = description.match(new RegExp(`\\b${DEADLINE_CUE}\\s+`, "i"));
+  if (explicit) return description.slice((explicit.index ?? 0) + explicit[0].length);
+  const assessment = description.match(new RegExp(`\\b${ASSESSMENT_CUE}\\b`, "i"));
+  return assessment ? description.slice((assessment.index ?? 0) + assessment[0].length) : description;
+}
+
+export function inferDeadlineDate(description: string, options: DeadlineInferenceOptions = {}) {
+  const phrase = deadlinePhrase(description);
+  if (phrase !== description) {
+    const mention = findCalendarDateMention(phrase, options);
+    if (mention) return mention.date;
+  }
+  return inferDateFromCuedText(description, options);
+}
+
 /**
  * Returns the learner's intended calendar deadline without first converting it
  * through the machine's local time zone. A single parser serves both universal
  * intake and the plan creator so the schedule preview cannot disagree with the
  * generated plan about the same words.
  */
-export function inferDeadlineDate(
+function inferDateFromCuedText(
   description: string,
   options: DeadlineInferenceOptions = {},
 ) {
@@ -130,7 +188,14 @@ export function inferDeadlineDueAt(
 ) {
   const timeZone = validTimeZone(options.timeZone ?? resolvedTimeZone());
   const dateInput = inferDeadlineDate(description, { ...options, timeZone });
-  return dateInput ? deadlineAtEndOfDay(dateInput, timeZone) : null;
+  if (!dateInput) return null;
+  const phrase = deadlinePhrase(description);
+  const mention = findCalendarDateMention(phrase, options);
+  const afterDate = mention ? phrase.slice(mention.index + mention.text.length) : "";
+  // A clock in a later work clause (", study tonight at 7pm") is not the due time.
+  const deadlineClockText = afterDate.split(/[,;]|\b(?:study|work|review|practice|tomorrow|tonight)\b/i)[0];
+  const clock = readCalendarClock(deadlineClockText);
+  return clock ? calendarDateAtTime(dateInput, clock.hour, clock.minute, timeZone) : deadlineAtEndOfDay(dateInput, timeZone);
 }
 
 export function deadlineAtEndOfDay(dateInput: string, requestedTimeZone: string) {

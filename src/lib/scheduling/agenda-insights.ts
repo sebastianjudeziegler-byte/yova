@@ -1,3 +1,12 @@
+import type { CalendarAvailabilityOverride, CalendarBlock } from "@/lib/calendar/types";
+import { deriveCalendarDayLoads } from "@/lib/calendar/insights";
+import { occupiesCalendarTime } from "@/lib/calendar/layout";
+
+export type CalendarCapacityContext = {
+  blocks: readonly CalendarBlock[];
+  availabilityOverrides: readonly CalendarAvailabilityOverride[];
+  timeZone: string;
+};
 import type { LearningPlan, LearningPlanSession } from "@/lib/domain";
 import { canOfferAgendaSessionSplit } from "@/lib/scheduling/split-safety";
 
@@ -32,6 +41,8 @@ export type DailyCapacityPlan = {
   toDateKey: string | null;
   splitMinutes: number | null;
   reason: string;
+  targetBeforeMinutes?: number;
+  targetAfterMinutes?: number;
 };
 
 export function buildAgendaDayGroups(entries: ScheduledLearningEntry[], now = new Date(), days = 14) {
@@ -138,15 +149,17 @@ export function buildDailyCapacityPlan(
   now = new Date(),
   protectedSessionIds: ReadonlySet<string> = new Set<string>(),
   dayLabel = "today",
+  calendar?: CalendarCapacityContext,
 ): DailyCapacityPlan {
-  const capacityMinutes = Math.max(10, Math.min(180, Math.round(requestedCapacityMinutes)));
+  const capacityMinutes = Math.max(0, Math.min(720, Math.round(requestedCapacityMinutes)));
   const todayKey = localDateKey(now);
   const todayEntries = entries
     .filter(({ session }) => localDateKey(new Date(session.scheduledFor)) === todayKey)
     .sort((left, right) => capacityPriority(left, right));
-  const todayMinutes = sumMinutes(todayEntries);
+  const calendarLoads = calendar ? deriveCalendarDayLoads(calendar.blocks, calendar.availabilityOverrides, calendar.timeZone) : null;
+  const todayMinutes = calendarLoads ? calendarLoads.find((day) => day.dateKey === todayKey)?.plannedMinutes ?? 0 : sumMinutes(todayEntries);
 
-  if (!todayEntries.length) {
+  if (todayMinutes === 0) {
     return {
       status: "empty",
       capacityMinutes,
@@ -177,9 +190,13 @@ export function buildDailyCapacityPlan(
   const groups = buildAgendaDayGroups(entries, now, 10);
   const candidates = [...todayEntries].sort(capacityMovePriority);
   for (const entry of candidates) {
-    const projectedMinutes = todayMinutes - entry.session.estimatedMinutes;
+    const sourceBlock = calendar?.blocks.find((block) => block.source === "plan_session" && block.session.id === entry.session.id);
+    const sourceMinutes = sourceBlock && calendar
+      ? deriveCalendarDayLoads([sourceBlock], [], calendar.timeZone).find((day) => day.dateKey === todayKey)?.plannedMinutes ?? 0
+      : entry.session.estimatedMinutes;
+    const projectedMinutes = todayMinutes - sourceMinutes;
     if (projectedMinutes > capacityMinutes) continue;
-    const target = findCapacityMoveTarget(entry, entries, groups, now);
+    const target = findCapacityMoveTarget(entry, entries, groups, now, calendar);
     if (!target) continue;
     return {
       status: "move",
@@ -191,10 +208,15 @@ export function buildDailyCapacityPlan(
       toDateKey: target.toDateKey,
       splitMinutes: null,
       reason: target.reason,
+      targetBeforeMinutes: target.beforeMinutes,
+      targetAfterMinutes: target.afterMinutes,
     };
   }
 
   for (const entry of [...todayEntries].sort((left, right) => right.session.estimatedMinutes - left.session.estimatedMinutes)) {
+    // A content rebuild changes multiple sessions. Without a complete placement
+    // preview, Calendar cannot promise those new slots avoid other commitments.
+    if (calendar) continue;
     const minutesWithoutEntry = todayMinutes - entry.session.estimatedMinutes;
     const splitMinutes = capacityMinutes - minutesWithoutEntry;
     if (splitMinutes < 10 || splitMinutes >= entry.session.estimatedMinutes) continue;
@@ -226,7 +248,9 @@ export function buildDailyCapacityPlan(
     scheduledFor: null,
     toDateKey: null,
     splitMinutes: null,
-    reason: "YOVA could not find a safe automatic change that preserves the current deadlines and learning order. Move a session manually or update a goal deadline.",
+    reason: calendar && todayMinutes > sumMinutes(todayEntries)
+      ? "Your manual commitments are included in this workload. Move a manual block below, or free more time; YOVA cannot safely fit the whole day with one learning-plan change."
+      : "YOVA could not find a safe automatic change that respects your commitments, availability, deadlines and learning order. Move a session manually or update a goal deadline.",
   };
 }
 
@@ -278,6 +302,7 @@ function findCapacityMoveTarget(
   entries: ScheduledLearningEntry[],
   groups: AgendaDayGroup[],
   now: Date,
+  calendar?: CalendarCapacityContext,
 ) {
   const planEntries = entries
     .filter(({ plan }) => plan.id === entry.plan.id)
@@ -290,6 +315,7 @@ function findCapacityMoveTarget(
     ? new Date(planEntries[sourceIndex + 1].session.scheduledFor).getTime()
     : Number.POSITIVE_INFINITY;
   const source = new Date(entry.session.scheduledFor);
+  const calendarLoads = calendar ? deriveCalendarDayLoads(calendar.blocks, calendar.availabilityOverrides, calendar.timeZone) : null;
 
   for (let offset = 1; offset <= 7; offset += 1) {
     const target = addLocalDays(source, offset);
@@ -299,13 +325,30 @@ function findCapacityMoveTarget(
     if (entry.plan.deadline && targetEnd > new Date(entry.plan.deadline).getTime()) continue;
     const toDateKey = localDateKey(target);
     const targetGroup = groups.find((group) => group.dateKey === toDateKey);
-    const targetMinutes = targetGroup?.totalMinutes ?? 0;
+    const load = calendarLoads?.find((day) => day.dateKey === toDateKey);
+    const targetMinutes = load?.plannedMinutes ?? targetGroup?.totalMinutes ?? 0;
     const targetSessions = targetGroup?.entries.length ?? 0;
-    if (loadFor(targetMinutes + entry.session.estimatedMinutes, targetSessions + 1) === "heavy") continue;
+    let afterMinutes = targetMinutes + entry.session.estimatedMinutes;
+    if (calendar) {
+      const movingBlock = calendar.blocks.find((block) => block.source === "plan_session" && block.session.id === entry.session.id);
+      if (!movingBlock) continue;
+      const moved = { ...movingBlock, startsAt: target.toISOString(), endsAt: new Date(targetEnd).toISOString() };
+      const projected = deriveCalendarDayLoads(calendar.blocks.map((block) => block.id === moved.id ? moved : block), calendar.availabilityOverrides, calendar.timeZone);
+      const destinationDays = deriveCalendarDayLoads([moved], [], calendar.timeZone);
+      if (destinationDays.some((day) => projected.find((candidate) => candidate.dateKey === day.dateKey)?.overloaded)) continue;
+      afterMinutes = projected.find((day) => day.dateKey === toDateKey)?.plannedMinutes ?? 0;
+    } else if (loadFor(afterMinutes, targetSessions + 1) === "heavy") continue;
+    if (calendar?.blocks.some((block) => occupiesCalendarTime(block)
+      && !(block.source === "plan_session" && block.session.id === entry.session.id)
+      && Date.parse(block.startsAt) < targetEnd && Date.parse(block.endsAt) > targetStart)) continue;
+    // The legacy caller still needs cross-plan overlap protection.
+    if (entries.some(({session}) => session.id !== entry.session.id && Date.parse(session.scheduledFor) < targetEnd && scheduledEndTime(session) > targetStart)) continue;
     return {
       scheduledFor: target.toISOString(),
       toDateKey,
-      reason: `This protects the more urgent work, keeps ${entry.plan.title} in sequence, and avoids creating another crowded day.`,
+      beforeMinutes: targetMinutes,
+      afterMinutes,
+      reason: `This keeps ${entry.plan.title} in sequence and fits the saved commitments and availability on the destination day.`,
     };
   }
   return null;

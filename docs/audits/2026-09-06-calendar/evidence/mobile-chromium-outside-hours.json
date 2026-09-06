@@ -1,0 +1,14 @@
+[
+  {
+    "label": "Early commute, 6:30 AM, Personal",
+    "style": "--calendar-block-top: 0%; --calendar-block-height: 5.357142857142857%;",
+    "height": 40.5,
+    "top": 0
+  },
+  {
+    "label": "Late revision, 11:00 PM, Personal",
+    "style": "--calendar-block-top: 98%; --calendar-block-height: -7.142857142857139%;",
+    "height": 26,
+    "top": 740.875
+  }
+]

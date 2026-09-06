@@ -1,0 +1,24 @@
+[WebServer] (node:11083) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] $ next dev --hostname 127.0.0.1 --port 3100
+[WebServer] (node:11095) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] (node:11101) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+Running 8 tests using 1 worker
+
+(node:11212) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  1 [desktop-chromium] › e2e/core-learning-loop.spec.ts:1081:5 › an overdue outside teaching-first session splits into runnable 10-minute parts (3.4s)
+  ✓  2 [desktop-chromium] › e2e/core-learning-loop.spec.ts:1186:5 › an overdue arbitrary inside session splits and loads a route-faithful 10-minute workpad (2.7s)
+  ✓  3 [desktop-chromium] › e2e/core-learning-loop.spec.ts:2063:5 › Calendar Agenda stays first and contained at a 375px viewport (1.6s)
+  ✓  4 [desktop-chromium] › e2e/core-learning-loop.spec.ts:2230:5 › spent allowance still permits a saved session to continue (2.4s)
+(node:11329) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  5 [mobile-chromium] › e2e/core-learning-loop.spec.ts:1081:5 › an overdue outside teaching-first session splits into runnable 10-minute parts (2.8s)
+  ✓  6 [mobile-chromium] › e2e/core-learning-loop.spec.ts:1186:5 › an overdue arbitrary inside session splits and loads a route-faithful 10-minute workpad (2.7s)
+  ✓  7 [mobile-chromium] › e2e/core-learning-loop.spec.ts:2063:5 › Calendar Agenda stays first and contained at a 375px viewport (1.9s)
+  ✓  8 [mobile-chromium] › e2e/core-learning-loop.spec.ts:2230:5 › spent allowance still permits a saved session to continue (2.4s)
+
+  8 passed (23.5s)

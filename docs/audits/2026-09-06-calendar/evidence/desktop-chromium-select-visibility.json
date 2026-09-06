@@ -1,0 +1,14 @@
+{
+  "initial": {
+    "top": 223.203125,
+    "viewport": 720,
+    "pageHeight": 1790
+  },
+  "afterSelect": {
+    "top": -211.484375,
+    "bottom": 126.140625,
+    "viewport": 720,
+    "focusInDetails": false,
+    "scrollY": 702
+  }
+}

@@ -1,0 +1,970 @@
+{
+  "config": {
+    "argv": [
+      "/usr/local/bin/node",
+      "/Users/sebastianziegler/Documents/YOVA/node_modules/@playwright/test/cli.js",
+      "test",
+      "--config",
+      "docs/audits/2026-09-06-calendar/playwright.config.ts"
+    ],
+    "configFile": "/Users/sebastianziegler/Documents/YOVA/docs/audits/2026-09-06-calendar/playwright.config.ts",
+    "rootDir": "/Users/sebastianziegler/Documents/YOVA/docs/audits/2026-09-06-calendar",
+    "failOnFlakyTests": false,
+    "forbidOnly": false,
+    "fullyParallel": false,
+    "globalSetup": null,
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {
+      "actualWorkers": 1
+    },
+    "preserveOutput": "always",
+    "projects": [
+      {
+        "outputDir": "/Users/sebastianziegler/Documents/YOVA/docs/audits/2026-09-06-calendar/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "desktop-chromium",
+        "name": "desktop-chromium",
+        "testDir": "/Users/sebastianziegler/Documents/YOVA/docs/audits/2026-09-06-calendar",
+        "testIgnore": [],
+        "testMatch": [
+          "*journeys.spec.ts"
+        ],
+        "timeout": 60000
+      },
+      {
+        "outputDir": "/Users/sebastianziegler/Documents/YOVA/docs/audits/2026-09-06-calendar/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "mobile-chromium",
+        "name": "mobile-chromium",
+        "testDir": "/Users/sebastianziegler/Documents/YOVA/docs/audits/2026-09-06-calendar",
+        "testIgnore": [],
+        "testMatch": [
+          "*journeys.spec.ts"
+        ],
+        "timeout": 60000
+      }
+    ],
+    "quiet": false,
+    "reporter": [
+      [
+        "list",
+        null
+      ],
+      [
+        "json",
+        {
+          "outputFile": "./docs/audits/2026-09-06-calendar/evidence/results.json"
+        }
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.62.1",
+    "workers": 1,
+    "webServer": {
+      "command": "pnpm dev --hostname 127.0.0.1 --port 3100",
+      "url": "http://127.0.0.1:3100",
+      "reuseExistingServer": true,
+      "timeout": 120000,
+      "env": {
+        "CODEX_SANDBOX_NETWORK_DISABLED": "1",
+        "RUST_LOG": "warn",
+        "SHELL": "/bin/zsh",
+        "TERM": "dumb",
+        "TMPDIR": "/var/folders/6g/f_6s5bsj5_9bspsksgj3_vdw0000gn/T/",
+        "MallocNanoZone": "0",
+        "NO_COLOR": "1",
+        "LC_ALL": "C.UTF-8",
+        "USER": "sebastianziegler",
+        "COMMAND_MODE": "unix2003",
+        "SSH_AUTH_SOCK": "/private/tmp/com.apple.launchd.FceZ3j6B4c/Listeners",
+        "CODEX_PERMISSION_PROFILE": ":workspace",
+        "__CF_USER_TEXT_ENCODING": "0x1F5:0x0:0x0",
+        "PAGER": "cat",
+        "PATH": "./node_modules/.bin:/Users/sebastianziegler/Documents/YOVA/node_modules/.bin:/usr/local/bin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin:/Applications/VMware Fusion.app/Contents/Public:/Users/sebastianziegler/.codex/tmp/arg0/codex-arg0pecEIr:/Users/sebastianziegler/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/override:/Users/sebastianziegler/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/fallback:/Applications/ChatGPT.app/Contents/Resources",
+        "ZSH_TMUX_AUTOSTART": "false",
+        "LaunchInstanceID": "489A5032-8FC2-4B3E-99FA-CECA147ED7BD",
+        "CODEX_THREAD_ID": "01a0777a-e8e1-7533-b7b0-71f5e42a0b47",
+        "npm_command": "exec",
+        "PWD": "/Users/sebastianziegler/Documents/YOVA",
+        "pnpm_config_pm_on_fail": "ignore",
+        "DISABLE_AUTO_UPDATE": "true",
+        "LANG": "C.UTF-8",
+        "NODE_PATH": "/Users/sebastianziegler/Documents/YOVA/node_modules/.pnpm/@playwright+test@1.62.1/node_modules/@playwright/test/node_modules:/Users/sebastianziegler/Documents/YOVA/node_modules/.pnpm/@playwright+test@1.62.1/node_modules:/Users/sebastianziegler/Documents/YOVA/node_modules/.pnpm/node_modules",
+        "XPC_FLAGS": "0x0",
+        "CODEX_CI": "1",
+        "ZSH_TMUX_AUTOSTARTED": "true",
+        "pnpm_config_verify_deps_before_run": "false",
+        "XPC_SERVICE_NAME": "0",
+        "HOME": "/Users/sebastianziegler",
+        "SHLVL": "1",
+        "CODEX_SHELL": "1",
+        "LOG_FORMAT": "json",
+        "CODEX_SAGE_BACKFILL_TRACKER_TAB_REUSE": "1",
+        "GH_PAGER": "cat",
+        "CODEX_MCP_NODE_PATH": "/Applications/ChatGPT.app/Contents/Resources/cua_node/bin/node",
+        "LOGNAME": "sebastianziegler",
+        "PNPM_PACKAGE_NAME": "yova",
+        "LC_CTYPE": "C.UTF-8",
+        "npm_config_user_agent": "pnpm/11.19.0 npm/? node/v24.19.0 darwin arm64",
+        "NODE_REPL_TRUSTED_BROWSER_CLIENT_SHA256S": "7fe0e1c59da4bc68f9d6ab81ae8d349b53fee44b074f49be0effbc1105a5f1d3",
+        "CODEX_SESSION_ID": "01a0777a-e8e1-7533-b7b0-71f5e42a0b47",
+        "GIT_PAGER": "cat",
+        "SECURITYSESSIONID": "186b0",
+        "CODEX_APP_TOOLS_PIPE_PATH": "/tmp/codex-browser-use/e05afd98-f0f3-46a9-a07c-b88f0dd859ec.sock",
+        "CODEX_INTERNAL_ORIGINATOR_OVERRIDE": "Codex Desktop",
+        "COLORTERM": "",
+        "NEXT_PUBLIC_SUPABASE_URL": "",
+        "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY": "",
+        "OPENAI_API_KEY": "",
+        "RESEND_API_KEY": "",
+        "STUDY_PROFILE_FROM_EMAIL": "",
+        "AUTH_EMAIL_CODE_VERIFICATION": "false",
+        "AUTH_INVITE_ONLY": "false",
+        "AUTH_PASSWORD_ACCOUNTS": "false",
+        "AUTH_CAPTCHA_ENABLED": "false",
+        "NEXT_PUBLIC_TURNSTILE_SITE_KEY": "",
+        "SITE_URL": "http://127.0.0.1:3100",
+        "YOVA_E2E": "1"
+      }
+    }
+  },
+  "suites": [
+    {
+      "title": "browser-journeys.spec.ts",
+      "file": "browser-journeys.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "weekday quick-add interpretation",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "desktop-chromium",
+              "projectName": "desktop-chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 3758,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-06T16:17:09.070Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "5aeb2f5c95869498b0bc-08f30bdf2af72dbfc95c",
+          "file": "browser-journeys.spec.ts",
+          "line": 57,
+          "column": 5
+        },
+        {
+          "title": "capture a deadline without allocating study time",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "desktop-chromium",
+              "projectName": "desktop-chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1961,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-06T16:17:14.468Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "5aeb2f5c95869498b0bc-773b252126c19465b078",
+          "file": "browser-journeys.spec.ts",
+          "line": 68,
+          "column": 5
+        },
+        {
+          "title": "correct a saved class and recover a deleted one",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "desktop-chromium",
+              "projectName": "desktop-chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 2335,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-06T16:17:16.436Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "5aeb2f5c95869498b0bc-1bb934c68a17381e74bb",
+          "file": "browser-journeys.spec.ts",
+          "line": 76,
+          "column": 5
+        },
+        {
+          "title": "two tabs can overwrite a saved calendar event",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "desktop-chromium",
+              "projectName": "desktop-chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 3704,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-06T16:17:18.777Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "5aeb2f5c95869498b0bc-30a6244ce97d73de95f8",
+          "file": "browser-journeys.spec.ts",
+          "line": 90,
+          "column": 5
+        },
+        {
+          "title": "phone selection opens details outside the viewport",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "desktop-chromium",
+              "projectName": "desktop-chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 2489,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-06T16:17:22.486Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "5aeb2f5c95869498b0bc-49b378f144dad1c66cda",
+          "file": "browser-journeys.spec.ts",
+          "line": 108,
+          "column": 5
+        },
+        {
+          "title": "overlapping personal commitments are stacked without a conflict",
+          "ok": false,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "desktop-chromium",
+              "projectName": "desktop-chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "failed",
+                  "duration": 2363,
+                  "error": {
+                    "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m\"blocked by overlapping event\"\u001b[39m\nReceived: \u001b[31m\"clickable\"\u001b[39m",
+                    "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m\"blocked by overlapping event\"\u001b[39m\nReceived: \u001b[31m\"clickable\"\u001b[39m\n    at /Users/sebastianziegler/Documents/YOVA/docs/audits/2026-09-06-calendar/browser-journeys.spec.ts:131:23",
+                    "location": {
+                      "file": "/Users/sebastianziegler/Documents/YOVA/docs/audits/2026-09-06-calendar/browser-journeys.spec.ts",
+                      "column": 23,
+                      "line": 131
+                    },
+                    "snippet": "  129 |   expect(issues).not.toContain(\"conflicts with\");\n  130 |   await evidence(page,\"overlap\",{rectangles,issues,clickResult});\n> 131 |   expect(clickResult).toBe(\"blocked by overlapping event\");\n      |                       ^\n  132 | });\n  133 |\n  134 | test(\"early and late commitments have clamped grid positions\", async ({page}) => {"
+                  },
+                  "errors": [
+                    {
+                      "location": {
+                        "file": "/Users/sebastianziegler/Documents/YOVA/docs/audits/2026-09-06-calendar/browser-journeys.spec.ts",
+                        "column": 23,
+                        "line": 131
+                      },
+                      "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m\"blocked by overlapping event\"\u001b[39m\nReceived: \u001b[31m\"clickable\"\u001b[39m\n\n  129 |   expect(issues).not.toContain(\"conflicts with\");\n  130 |   await evidence(page,\"overlap\",{rectangles,issues,clickResult});\n> 131 |   expect(clickResult).toBe(\"blocked by overlapping event\");\n      |                       ^\n  132 | });\n  133 |\n  134 | test(\"early and late commitments have clamped grid positions\", async ({page}) => {\n    at /Users/sebastianziegler/Documents/YOVA/docs/audits/2026-09-06-calendar/browser-journeys.spec.ts:131:23"
+                    }
+                  ],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-06T16:17:24.982Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "screenshot",
+                      "contentType": "image/png",
+                      "path": "/Users/sebastianziegler/Documents/YOVA/docs/audits/2026-09-06-calendar/test-results/browser-journeys-overlappi-04bd8--stacked-without-a-conflict-desktop-chromium/test-failed-1.png"
+                    },
+                    {
+                      "name": "video",
+                      "contentType": "video/webm",
+                      "path": "/Users/sebastianziegler/Documents/YOVA/docs/audits/2026-09-06-calendar/test-results/browser-journeys-overlappi-04bd8--stacked-without-a-conflict-desktop-chromium/video.webm"
+                    },
+                    {
+                      "name": "error-context",
+                      "contentType": "text/markdown",
+                      "path": "/Users/sebastianziegler/Documents/YOVA/docs/audits/2026-09-06-calendar/test-results/browser-journeys-overlappi-04bd8--stacked-without-a-conflict-desktop-chromium/error-context.md"
+                    },
+                    {
+                      "name": "trace",
+                      "contentType": "application/zip",
+                      "path": "/Users/sebastianziegler/Documents/YOVA/docs/audits/2026-09-06-calendar/test-results/browser-journeys-overlappi-04bd8--stacked-without-a-conflict-desktop-chromium/trace.zip"
+                    }
+                  ],
+                  "errorLocation": {
+                    "file": "/Users/sebastianziegler/Documents/YOVA/docs/audits/2026-09-06-calendar/browser-journeys.spec.ts",
+                    "column": 23,
+                    "line": 131
+                  }
+                }
+              ],
+              "status": "unexpected"
+            }
+          ],
+          "id": "5aeb2f5c95869498b0bc-a7d4f04d2b6f4413b18a",
+          "file": "browser-journeys.spec.ts",
+          "line": 119,
+          "column": 5
+        },
+        {
+          "title": "early and late commitments have clamped grid positions",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "desktop-chromium",
+              "projectName": "desktop-chromium",
+              "results": [
+                {
+                  "workerIndex": 1,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 3402,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-06T16:17:28.734Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "5aeb2f5c95869498b0bc-9a86a3d4809d43d7c384",
+          "file": "browser-journeys.spec.ts",
+          "line": 134,
+          "column": 5
+        },
+        {
+          "title": "coming-up overview stops after five outcomes",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "desktop-chromium",
+              "projectName": "desktop-chromium",
+              "results": [
+                {
+                  "workerIndex": 1,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 3722,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-06T16:17:33.335Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "5aeb2f5c95869498b0bc-3e22b677cbf2ce49df2f",
+          "file": "browser-journeys.spec.ts",
+          "line": 145,
+          "column": 5
+        },
+        {
+          "title": "suggestion Move in Your Day does not reveal a move editor",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "desktop-chromium",
+              "projectName": "desktop-chromium",
+              "results": [
+                {
+                  "workerIndex": 1,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 2598,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-06T16:17:37.062Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "5aeb2f5c95869498b0bc-c8d515201deebcee9bd6",
+          "file": "browser-journeys.spec.ts",
+          "line": 155,
+          "column": 5
+        },
+        {
+          "title": "weekday quick-add interpretation",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "mobile-chromium",
+              "projectName": "mobile-chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 2282,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-06T16:17:45.285Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "5aeb2f5c95869498b0bc-f62a345536843943616e",
+          "file": "browser-journeys.spec.ts",
+          "line": 57,
+          "column": 5
+        },
+        {
+          "title": "capture a deadline without allocating study time",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "mobile-chromium",
+              "projectName": "mobile-chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1811,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-06T16:17:47.698Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "5aeb2f5c95869498b0bc-ae7f012319b2f83d5f9f",
+          "file": "browser-journeys.spec.ts",
+          "line": 68,
+          "column": 5
+        },
+        {
+          "title": "correct a saved class and recover a deleted one",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "mobile-chromium",
+              "projectName": "mobile-chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1826,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-06T16:17:49.515Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "5aeb2f5c95869498b0bc-acc17e566022d523bb1a",
+          "file": "browser-journeys.spec.ts",
+          "line": 76,
+          "column": 5
+        },
+        {
+          "title": "two tabs can overwrite a saved calendar event",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "mobile-chromium",
+              "projectName": "mobile-chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 3205,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-06T16:17:51.346Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "5aeb2f5c95869498b0bc-c9a42a4fca7e6bb3c93e",
+          "file": "browser-journeys.spec.ts",
+          "line": 90,
+          "column": 5
+        },
+        {
+          "title": "phone selection opens details outside the viewport",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "mobile-chromium",
+              "projectName": "mobile-chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1818,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-06T16:17:54.556Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "5aeb2f5c95869498b0bc-4d093ebbd72c45028b4e",
+          "file": "browser-journeys.spec.ts",
+          "line": 108,
+          "column": 5
+        },
+        {
+          "title": "overlapping personal commitments are stacked without a conflict",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "mobile-chromium",
+              "projectName": "mobile-chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 4125,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-06T16:17:56.379Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "5aeb2f5c95869498b0bc-a1c526941501a07d888c",
+          "file": "browser-journeys.spec.ts",
+          "line": 119,
+          "column": 5
+        },
+        {
+          "title": "early and late commitments have clamped grid positions",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "mobile-chromium",
+              "projectName": "mobile-chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 2278,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-06T16:18:00.510Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "5aeb2f5c95869498b0bc-c04acf6de2eeaf6fa379",
+          "file": "browser-journeys.spec.ts",
+          "line": 134,
+          "column": 5
+        },
+        {
+          "title": "coming-up overview stops after five outcomes",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "mobile-chromium",
+              "projectName": "mobile-chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 3585,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-06T16:18:02.793Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "5aeb2f5c95869498b0bc-12670d4c99a30daa254e",
+          "file": "browser-journeys.spec.ts",
+          "line": 145,
+          "column": 5
+        },
+        {
+          "title": "suggestion Move in Your Day does not reveal a move editor",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "mobile-chromium",
+              "projectName": "mobile-chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1976,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-06T16:18:06.385Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "5aeb2f5c95869498b0bc-38d045309c79ff6748d1",
+          "file": "browser-journeys.spec.ts",
+          "line": 155,
+          "column": 5
+        }
+      ]
+    },
+    {
+      "title": "capacity-journeys.spec.ts",
+      "file": "capacity-journeys.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "approved capacity move lands on a fixed class and a zero-availability day",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "desktop-chromium",
+              "projectName": "desktop-chromium",
+              "results": [
+                {
+                  "workerIndex": 1,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 3295,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-06T16:17:39.672Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "e5effc2f7bcd09bb6640-4fea370f34ef843ad9e7",
+          "file": "capacity-journeys.spec.ts",
+          "line": 141,
+          "column": 5
+        },
+        {
+          "title": "availability planner excludes visible manual workload",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "desktop-chromium",
+              "projectName": "desktop-chromium",
+              "results": [
+                {
+                  "workerIndex": 1,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1976,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-06T16:17:42.972Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "e5effc2f7bcd09bb6640-cfbea68b4264fd5ac1fa",
+          "file": "capacity-journeys.spec.ts",
+          "line": 166,
+          "column": 5
+        },
+        {
+          "title": "approved capacity move lands on a fixed class and a zero-availability day",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "mobile-chromium",
+              "projectName": "mobile-chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 2608,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-06T16:18:08.378Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "e5effc2f7bcd09bb6640-1de8942028750875ad58",
+          "file": "capacity-journeys.spec.ts",
+          "line": 141,
+          "column": 5
+        },
+        {
+          "title": "availability planner excludes visible manual workload",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "mobile-chromium",
+              "projectName": "mobile-chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 2494,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-06T16:18:10.990Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "e5effc2f7bcd09bb6640-df02c3cd40333e04f587",
+          "file": "capacity-journeys.spec.ts",
+          "line": 166,
+          "column": 5
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-09-06T16:17:04.345Z",
+    "duration": 69269.91600000001,
+    "expected": 21,
+    "skipped": 0,
+    "unexpected": 1,
+    "flaky": 0
+  }
+}

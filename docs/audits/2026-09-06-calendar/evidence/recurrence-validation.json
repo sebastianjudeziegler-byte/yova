@@ -1,0 +1,52 @@
+{
+  "date": "2026-09-06",
+  "scope": "Natural-language calendar series, Add handoff, and calendar regression checks",
+  "browser": {
+    "uniqueChecksPassed": 98,
+    "projects": [
+      "desktop-chromium",
+      "mobile-chromium"
+    ],
+    "broadRun": {
+      "command": "pnpm exec playwright test e2e/calendar-recurring.spec.ts e2e/calendar-journeys.spec.ts e2e/calendar-safety.spec.ts e2e/calendar-tab.spec.ts e2e/agenda-scheduling.spec.ts e2e/plan-schedule-date.spec.ts e2e/add-to-yova.spec.ts",
+      "result": "93 passed; one mobile deadline test checked for a due chip before the asynchronous switch from Agenda to Week had rendered. The test now waits for Week to appear. The complete Add and recurring suites passed on the subsequent run.",
+      "log": "recurrence-regression.txt"
+    },
+    "finalAffectedRun": {
+      "command": "pnpm exec playwright test e2e/calendar-recurring.spec.ts e2e/add-to-yova.spec.ts",
+      "result": "36 passed, including all 18 recurring-calendar checks and all 18 existing Add checks. This run includes the final preview footer fix and complete-button visibility assertion.",
+      "log": "recurrence-final-ui.txt"
+    },
+    "shellRun": {
+      "command": "pnpm exec playwright test e2e/core-learning-loop.spec.ts --grep 'the product shell keeps|Calendar Agenda stays first'",
+      "result": "4 passed",
+      "log": "recurrence-shell.txt"
+    },
+    "data": "Isolated preview accounts with real browser clicks, reloads, navigation and simultaneous tabs. No live cloud account writes.",
+    "visualReview": [
+      "desktop-chromium-recurring-form.png",
+      "desktop-chromium-recurring-preview.png",
+      "mobile-chromium-recurring-form.png",
+      "mobile-chromium-recurring-preview.png"
+    ]
+  },
+  "unit": {
+    "command": "pnpm exec vitest run src/lib/calendar src/lib/scheduling src/lib/intake src/components/calendar src/components/yova-prototype.accessibility.test.ts",
+    "result": "210 passed across 21 files; 31 tests in the recurring-calendar suite",
+    "log": "recurrence-unit.txt"
+  },
+  "typescript": {
+    "command": "pnpm exec tsc --noEmit",
+    "exitCode": 0
+  },
+  "lint": {
+    "command": "pnpm exec eslint src/lib/calendar src/lib/intake/deadline.ts src/lib/scheduling/agenda-insights.ts src/components/calendar src/components/add-to-yova.tsx src/components/yova-prototype.tsx src/components/yova-prototype.accessibility.test.ts e2e/calendar-recurring.spec.ts e2e/calendar-journeys.spec.ts e2e/calendar-safety.spec.ts e2e/calendar-tab.spec.ts e2e/agenda-scheduling.spec.ts e2e/helpers/calendar.ts e2e/add-to-yova.spec.ts e2e/core-learning-loop.spec.ts",
+    "exitCode": 0
+  },
+  "limits": [
+    "Manual calendar storage is account-scoped on this browser/device.",
+    "Daily and weekly repeats only; unsupported patterns require correction.",
+    "Chromium desktop and emulation tested, not physical devices or other browser engines.",
+    "Not deployed."
+  ]
+}

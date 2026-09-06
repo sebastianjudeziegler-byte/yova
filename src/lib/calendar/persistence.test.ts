@@ -74,7 +74,7 @@ describe("calendar prototype persistence", () => {
     expect(storage.values.has(CALENDAR_PROTOTYPE_STORAGE_KEY)).toBe(false);
   });
 
-  it("removes only the local deadline upgraded by a committed plan", () => {
+  it("removes only the local deadline upgraded by a committed plan", async () => {
     const storage = memoryStorage();
     const now = new Date("2026-09-02T10:00:00.000Z");
     const manualEvent = {
@@ -107,7 +107,7 @@ describe("calendar prototype persistence", () => {
     expect(saveCalendarPrototypeState(storage, "account-a", first)).toBe(true);
     expect(saveCalendarPrototypeState(storage, "account-b", second)).toBe(true);
 
-    expect(removeCalendarManualEventAfterPlanCommit(
+    expect(await removeCalendarManualEventAfterPlanCommit(
       storage,
       "account-a",
       "stats-deadline",
@@ -122,13 +122,13 @@ describe("calendar prototype persistence", () => {
       .toHaveLength(1);
   });
 
-  it("appends an automatic schedule receipt only to the active account bucket", () => {
+  it("appends an automatic schedule receipt only to the active account bucket", async () => {
     const storage = memoryStorage();
     const now = new Date("2026-09-02T10:00:00.000Z");
     expect(saveCalendarPrototypeState(storage, "account-a", emptyCalendarPrototypeState("account-a", now))).toBe(true);
     expect(saveCalendarPrototypeState(storage, "account-b", emptyCalendarPrototypeState("account-b", now))).toBe(true);
 
-    expect(appendCalendarChangeLogEntry(storage, "account-a", {
+    expect(await appendCalendarChangeLogEntry(storage, "account-a", {
       id: "advance-receipt",
       at: now.toISOString(),
       summary: "Pulled two sessions forward after an early start.",

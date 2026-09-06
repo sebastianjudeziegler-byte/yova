@@ -1,0 +1,240 @@
+{
+  "config": {
+    "argv": [
+      "/usr/local/bin/node",
+      "/Users/sebastianziegler/Documents/YOVA/node_modules/@playwright/test/cli.js",
+      "test",
+      "--config",
+      "docs/audits/2026-09-06-calendar/playwright.config.ts",
+      "--grep",
+      "overlapping personal commitments"
+    ],
+    "configFile": "/Users/sebastianziegler/Documents/YOVA/docs/audits/2026-09-06-calendar/playwright.config.ts",
+    "rootDir": "/Users/sebastianziegler/Documents/YOVA/docs/audits/2026-09-06-calendar",
+    "failOnFlakyTests": false,
+    "forbidOnly": false,
+    "fullyParallel": false,
+    "globalSetup": null,
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {
+      "actualWorkers": 1
+    },
+    "preserveOutput": "always",
+    "projects": [
+      {
+        "outputDir": "/Users/sebastianziegler/Documents/YOVA/docs/audits/2026-09-06-calendar/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "desktop-chromium",
+        "name": "desktop-chromium",
+        "testDir": "/Users/sebastianziegler/Documents/YOVA/docs/audits/2026-09-06-calendar",
+        "testIgnore": [],
+        "testMatch": [
+          "*journeys.spec.ts"
+        ],
+        "timeout": 60000
+      },
+      {
+        "outputDir": "/Users/sebastianziegler/Documents/YOVA/docs/audits/2026-09-06-calendar/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "mobile-chromium",
+        "name": "mobile-chromium",
+        "testDir": "/Users/sebastianziegler/Documents/YOVA/docs/audits/2026-09-06-calendar",
+        "testIgnore": [],
+        "testMatch": [
+          "*journeys.spec.ts"
+        ],
+        "timeout": 60000
+      }
+    ],
+    "quiet": false,
+    "reporter": [
+      [
+        "list",
+        null
+      ],
+      [
+        "json",
+        {
+          "outputFile": "./docs/audits/2026-09-06-calendar/evidence/overlap-results.json"
+        }
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.62.1",
+    "workers": 1,
+    "webServer": {
+      "command": "pnpm dev --hostname 127.0.0.1 --port 3100",
+      "url": "http://127.0.0.1:3100",
+      "reuseExistingServer": true,
+      "timeout": 120000,
+      "env": {
+        "CODEX_SANDBOX_NETWORK_DISABLED": "1",
+        "RUST_LOG": "warn",
+        "SHELL": "/bin/zsh",
+        "TERM": "dumb",
+        "TMPDIR": "/var/folders/6g/f_6s5bsj5_9bspsksgj3_vdw0000gn/T/",
+        "MallocNanoZone": "0",
+        "NO_COLOR": "1",
+        "LC_ALL": "C.UTF-8",
+        "USER": "sebastianziegler",
+        "COMMAND_MODE": "unix2003",
+        "CALENDAR_AUDIT_REPORT": "overlap-results.json",
+        "SSH_AUTH_SOCK": "/private/tmp/com.apple.launchd.FceZ3j6B4c/Listeners",
+        "CODEX_PERMISSION_PROFILE": ":workspace",
+        "__CF_USER_TEXT_ENCODING": "0x1F5:0x0:0x0",
+        "PAGER": "cat",
+        "PATH": "./node_modules/.bin:/Users/sebastianziegler/Documents/YOVA/node_modules/.bin:/usr/local/bin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin:/Applications/VMware Fusion.app/Contents/Public:/Users/sebastianziegler/.codex/tmp/arg0/codex-arg0pecEIr:/Users/sebastianziegler/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/override:/Users/sebastianziegler/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/fallback:/Applications/ChatGPT.app/Contents/Resources",
+        "ZSH_TMUX_AUTOSTART": "false",
+        "LaunchInstanceID": "489A5032-8FC2-4B3E-99FA-CECA147ED7BD",
+        "CODEX_THREAD_ID": "01a0777a-e8e1-7533-b7b0-71f5e42a0b47",
+        "npm_command": "exec",
+        "PWD": "/Users/sebastianziegler/Documents/YOVA",
+        "pnpm_config_pm_on_fail": "ignore",
+        "DISABLE_AUTO_UPDATE": "true",
+        "LANG": "C.UTF-8",
+        "NODE_PATH": "/Users/sebastianziegler/Documents/YOVA/node_modules/.pnpm/@playwright+test@1.62.1/node_modules/@playwright/test/node_modules:/Users/sebastianziegler/Documents/YOVA/node_modules/.pnpm/@playwright+test@1.62.1/node_modules:/Users/sebastianziegler/Documents/YOVA/node_modules/.pnpm/node_modules",
+        "XPC_FLAGS": "0x0",
+        "CODEX_CI": "1",
+        "ZSH_TMUX_AUTOSTARTED": "true",
+        "pnpm_config_verify_deps_before_run": "false",
+        "XPC_SERVICE_NAME": "0",
+        "HOME": "/Users/sebastianziegler",
+        "SHLVL": "1",
+        "CODEX_SHELL": "1",
+        "LOG_FORMAT": "json",
+        "CODEX_SAGE_BACKFILL_TRACKER_TAB_REUSE": "1",
+        "GH_PAGER": "cat",
+        "CODEX_MCP_NODE_PATH": "/Applications/ChatGPT.app/Contents/Resources/cua_node/bin/node",
+        "LOGNAME": "sebastianziegler",
+        "PNPM_PACKAGE_NAME": "yova",
+        "LC_CTYPE": "C.UTF-8",
+        "npm_config_user_agent": "pnpm/11.19.0 npm/? node/v24.19.0 darwin arm64",
+        "NODE_REPL_TRUSTED_BROWSER_CLIENT_SHA256S": "7fe0e1c59da4bc68f9d6ab81ae8d349b53fee44b074f49be0effbc1105a5f1d3",
+        "CODEX_SESSION_ID": "01a0777a-e8e1-7533-b7b0-71f5e42a0b47",
+        "GIT_PAGER": "cat",
+        "SECURITYSESSIONID": "186b0",
+        "CODEX_APP_TOOLS_PIPE_PATH": "/tmp/codex-browser-use/e05afd98-f0f3-46a9-a07c-b88f0dd859ec.sock",
+        "CODEX_INTERNAL_ORIGINATOR_OVERRIDE": "Codex Desktop",
+        "COLORTERM": "",
+        "NEXT_PUBLIC_SUPABASE_URL": "",
+        "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY": "",
+        "OPENAI_API_KEY": "",
+        "RESEND_API_KEY": "",
+        "STUDY_PROFILE_FROM_EMAIL": "",
+        "AUTH_EMAIL_CODE_VERIFICATION": "false",
+        "AUTH_INVITE_ONLY": "false",
+        "AUTH_PASSWORD_ACCOUNTS": "false",
+        "AUTH_CAPTCHA_ENABLED": "false",
+        "NEXT_PUBLIC_TURNSTILE_SITE_KEY": "",
+        "SITE_URL": "http://127.0.0.1:3100",
+        "YOVA_E2E": "1"
+      }
+    }
+  },
+  "suites": [
+    {
+      "title": "browser-journeys.spec.ts",
+      "file": "browser-journeys.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "overlapping personal commitments are stacked without a conflict",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "desktop-chromium",
+              "projectName": "desktop-chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 3116,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-06T16:19:31.269Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "5aeb2f5c95869498b0bc-a7d4f04d2b6f4413b18a",
+          "file": "browser-journeys.spec.ts",
+          "line": 119,
+          "column": 5
+        },
+        {
+          "title": "overlapping personal commitments are stacked without a conflict",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "mobile-chromium",
+              "projectName": "mobile-chromium",
+              "results": [
+                {
+                  "workerIndex": 1,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 4227,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-06T16:19:35.307Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "5aeb2f5c95869498b0bc-a1c526941501a07d888c",
+          "file": "browser-journeys.spec.ts",
+          "line": 119,
+          "column": 5
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-09-06T16:19:27.179Z",
+    "duration": 12551.649,
+    "expected": 2,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  }
+}

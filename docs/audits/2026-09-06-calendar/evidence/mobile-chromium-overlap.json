@@ -1,0 +1,18 @@
+{
+  "rectangles": {
+    "first": {
+      "x": 154,
+      "y": 392.625,
+      "width": 101,
+      "height": 53.984375
+    },
+    "second": {
+      "x": 154,
+      "y": 392.625,
+      "width": 101,
+      "height": 53.984375
+    }
+  },
+  "issues": "Needs attention\n\nThese are viability problems derived from the work and time currently saved.\n\n1\nSep 3 is overloaded\n\n120 minutes across several flexible work blocks makes this a crowded study day.\n\nAdjust this day",
+  "clickResult": "blocked by overlapping event"
+}

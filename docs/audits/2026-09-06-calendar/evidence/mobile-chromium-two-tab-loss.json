@@ -1,0 +1,56 @@
+{
+  "firstSaved": [
+    {
+      "id": "4a5b519b-03ae-443e-b82d-aadc71d72db2",
+      "title": "Read lab notes",
+      "eventType": "personal",
+      "startsAt": "2026-09-03T10:00:00.000Z",
+      "endsAt": "2026-09-03T10:30:00.000Z",
+      "dueAt": null,
+      "fixed": true,
+      "done": false,
+      "courseId": null,
+      "courseLabel": null,
+      "outcomeId": null,
+      "createdAt": "2026-09-02T10:00:00.000Z",
+      "updatedAt": "2026-09-02T10:00:00.000Z",
+      "durationMinutes": 30
+    }
+  ],
+  "afterSecondTab": [
+    {
+      "id": "d6779821-a44f-485d-98d5-d359d3e9fa51",
+      "title": "Meet study group",
+      "eventType": "personal",
+      "startsAt": "2026-09-03T14:00:00.000Z",
+      "endsAt": "2026-09-03T14:30:00.000Z",
+      "dueAt": null,
+      "fixed": false,
+      "done": false,
+      "courseId": null,
+      "courseLabel": null,
+      "outcomeId": null,
+      "createdAt": "2026-09-02T10:00:00.000Z",
+      "updatedAt": "2026-09-02T10:00:00.000Z",
+      "durationMinutes": 30
+    }
+  ],
+  "afterReload": [
+    {
+      "id": "d6779821-a44f-485d-98d5-d359d3e9fa51",
+      "title": "Meet study group",
+      "eventType": "personal",
+      "startsAt": "2026-09-03T14:00:00.000Z",
+      "endsAt": "2026-09-03T14:30:00.000Z",
+      "dueAt": null,
+      "fixed": false,
+      "done": false,
+      "courseId": null,
+      "courseLabel": null,
+      "outcomeId": null,
+      "createdAt": "2026-09-02T10:00:00.000Z",
+      "updatedAt": "2026-09-02T10:00:00.000Z",
+      "durationMinutes": 30
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+[
+  {
+    "phrase": "Chemistry class Friday at 2pm for 60 minutes",
+    "title": "Chemistry Class Friday",
+    "calendarTime": "2026-09-02T14:00",
+    "dueTime": null
+  },
+  {
+    "phrase": "Meet tutor next Monday at 10am",
+    "title": "Meet Tutor Next Monday",
+    "calendarTime": "2026-09-02T10:00",
+    "dueTime": null
+  },
+  {
+    "phrase": "Review biology September 10 at 6pm for 45 minutes",
+    "title": "Review Biology September 10",
+    "calendarTime": "2026-09-02T18:00",
+    "dueTime": null
+  },
+  {
+    "phrase": "Biology exam due Friday at 2pm",
+    "title": "Biology Exam",
+    "calendarTime": "2026-09-02T14:00",
+    "dueTime": "2026-09-04T23:59"
+  }
+]

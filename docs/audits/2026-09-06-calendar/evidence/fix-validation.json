@@ -1,0 +1,44 @@
+{
+  "date": "2026-09-06",
+  "status": "passed",
+  "browserChecks": 66,
+  "unitTests": 171,
+  "runs": [
+    {
+      "name": "calendar_browser",
+      "passed": 58,
+      "failed": 0,
+      "command": "pnpm exec playwright test e2e/calendar-journeys.spec.ts e2e/calendar-safety.spec.ts e2e/calendar-tab.spec.ts e2e/agenda-scheduling.spec.ts e2e/plan-schedule-date.spec.ts",
+      "output": "fix-calendar_browser.txt"
+    },
+    {
+      "name": "recovery_browser",
+      "passed": 8,
+      "failed": 0,
+      "command": "pnpm exec playwright test e2e/core-learning-loop.spec.ts --grep 'an overdue outside teaching-first|an overdue arbitrary inside|spent allowance still permits|Calendar Agenda stays first'",
+      "output": "fix-recovery_browser.txt"
+    },
+    {
+      "name": "calendar_scheduling_intake_units",
+      "passed": 171,
+      "failed": 0,
+      "command": "pnpm exec vitest run src/lib/calendar src/lib/scheduling src/lib/intake src/components/calendar",
+      "output": "fix-calendar_scheduling_intake_units.txt"
+    }
+  ],
+  "visualReview": [
+    "desktop-chromium-fixed-agenda.png",
+    "desktop-chromium-fixed-editor.png",
+    "desktop-chromium-fixed-week.png",
+    "mobile-chromium-fixed-agenda.png",
+    "mobile-chromium-fixed-editor.png",
+    "mobile-chromium-fixed-week.png"
+  ],
+  "limitations": [
+    "Local preview accounts only; no live cloud write validation",
+    "Manual calendar data remains device-local",
+    "Chromium desktop and mobile emulation; no physical-device or touch-drag validation"
+  ],
+  "typescript": "passed",
+  "eslint_changed_typescript": "passed"
+}

@@ -1,0 +1,174 @@
+{
+  "auditedCommit": "fa801f5",
+  "auditDate": "2026-09-06",
+  "existingBrowserRegressions": {
+    "passed": 32,
+    "failed": 0
+  },
+  "calendarAndSchedulingUnitTests": {
+    "passed": 100,
+    "failed": 0
+  },
+  "auditCharacterizations": {
+    "uniqueCases": 22,
+    "latestPassed": 22,
+    "cases": [
+      {
+        "file": "browser-journeys.spec.ts",
+        "journey": "weekday quick-add interpretation",
+        "browser": "desktop-chromium",
+        "status": "passed",
+        "sourceReport": "results.json"
+      },
+      {
+        "file": "browser-journeys.spec.ts",
+        "journey": "capture a deadline without allocating study time",
+        "browser": "desktop-chromium",
+        "status": "passed",
+        "sourceReport": "results.json"
+      },
+      {
+        "file": "browser-journeys.spec.ts",
+        "journey": "correct a saved class and recover a deleted one",
+        "browser": "desktop-chromium",
+        "status": "passed",
+        "sourceReport": "results.json"
+      },
+      {
+        "file": "browser-journeys.spec.ts",
+        "journey": "two tabs can overwrite a saved calendar event",
+        "browser": "desktop-chromium",
+        "status": "passed",
+        "sourceReport": "results.json"
+      },
+      {
+        "file": "browser-journeys.spec.ts",
+        "journey": "phone selection opens details outside the viewport",
+        "browser": "desktop-chromium",
+        "status": "passed",
+        "sourceReport": "results.json"
+      },
+      {
+        "file": "browser-journeys.spec.ts",
+        "journey": "overlapping personal commitments are stacked without a conflict",
+        "browser": "desktop-chromium",
+        "status": "passed",
+        "sourceReport": "overlap-results.json"
+      },
+      {
+        "file": "browser-journeys.spec.ts",
+        "journey": "early and late commitments have clamped grid positions",
+        "browser": "desktop-chromium",
+        "status": "passed",
+        "sourceReport": "results.json"
+      },
+      {
+        "file": "browser-journeys.spec.ts",
+        "journey": "coming-up overview stops after five outcomes",
+        "browser": "desktop-chromium",
+        "status": "passed",
+        "sourceReport": "results.json"
+      },
+      {
+        "file": "browser-journeys.spec.ts",
+        "journey": "suggestion Move in Your Day does not reveal a move editor",
+        "browser": "desktop-chromium",
+        "status": "passed",
+        "sourceReport": "results.json"
+      },
+      {
+        "file": "browser-journeys.spec.ts",
+        "journey": "weekday quick-add interpretation",
+        "browser": "mobile-chromium",
+        "status": "passed",
+        "sourceReport": "results.json"
+      },
+      {
+        "file": "browser-journeys.spec.ts",
+        "journey": "capture a deadline without allocating study time",
+        "browser": "mobile-chromium",
+        "status": "passed",
+        "sourceReport": "results.json"
+      },
+      {
+        "file": "browser-journeys.spec.ts",
+        "journey": "correct a saved class and recover a deleted one",
+        "browser": "mobile-chromium",
+        "status": "passed",
+        "sourceReport": "results.json"
+      },
+      {
+        "file": "browser-journeys.spec.ts",
+        "journey": "two tabs can overwrite a saved calendar event",
+        "browser": "mobile-chromium",
+        "status": "passed",
+        "sourceReport": "results.json"
+      },
+      {
+        "file": "browser-journeys.spec.ts",
+        "journey": "phone selection opens details outside the viewport",
+        "browser": "mobile-chromium",
+        "status": "passed",
+        "sourceReport": "results.json"
+      },
+      {
+        "file": "browser-journeys.spec.ts",
+        "journey": "overlapping personal commitments are stacked without a conflict",
+        "browser": "mobile-chromium",
+        "status": "passed",
+        "sourceReport": "overlap-results.json"
+      },
+      {
+        "file": "browser-journeys.spec.ts",
+        "journey": "early and late commitments have clamped grid positions",
+        "browser": "mobile-chromium",
+        "status": "passed",
+        "sourceReport": "results.json"
+      },
+      {
+        "file": "browser-journeys.spec.ts",
+        "journey": "coming-up overview stops after five outcomes",
+        "browser": "mobile-chromium",
+        "status": "passed",
+        "sourceReport": "results.json"
+      },
+      {
+        "file": "browser-journeys.spec.ts",
+        "journey": "suggestion Move in Your Day does not reveal a move editor",
+        "browser": "mobile-chromium",
+        "status": "passed",
+        "sourceReport": "results.json"
+      },
+      {
+        "file": "capacity-journeys.spec.ts",
+        "journey": "approved capacity move lands on a fixed class and a zero-availability day",
+        "browser": "desktop-chromium",
+        "status": "passed",
+        "sourceReport": "results.json"
+      },
+      {
+        "file": "capacity-journeys.spec.ts",
+        "journey": "availability planner excludes visible manual workload",
+        "browser": "desktop-chromium",
+        "status": "passed",
+        "sourceReport": "results.json"
+      },
+      {
+        "file": "capacity-journeys.spec.ts",
+        "journey": "approved capacity move lands on a fixed class and a zero-availability day",
+        "browser": "mobile-chromium",
+        "status": "passed",
+        "sourceReport": "results.json"
+      },
+      {
+        "file": "capacity-journeys.spec.ts",
+        "journey": "availability planner excludes visible manual workload",
+        "browser": "mobile-chromium",
+        "status": "passed",
+        "sourceReport": "results.json"
+      }
+    ]
+  },
+  "interpretation": "Audit passes reproduce documented behaviour, including defects. The full-run report includes a pointer-access assertion later narrowed because access varied with stacking/hover. The focused overlap rerun verifies identical geometry and missing overlap diagnosis; the latest result per case is shown here.",
+  "checks": "Audit TypeScript files passed ESLint; project TypeScript check passed."
+}

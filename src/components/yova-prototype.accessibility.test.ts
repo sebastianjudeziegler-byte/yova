@@ -102,7 +102,7 @@ describe("learner-facing accessibility contracts", () => {
 
   it("gives every previously implicit writing surface an accessible name", () => {
     expect(readFileSync(resolve(process.cwd(), "src/components/add-to-yova.tsx"), "utf8"))
-      .toContain('aria-label="Describe what you need to learn or complete"');
+      .toContain('aria-label="Describe what you want to add"');
     expect(readFileSync(resolve(process.cwd(), "src/components/study-now-creator.tsx"), "utf8"))
       .toContain('aria-label="Study Now topic or result"');
     const planCreator = readFileSync(resolve(process.cwd(), "src/components/plan-creator.tsx"), "utf8");

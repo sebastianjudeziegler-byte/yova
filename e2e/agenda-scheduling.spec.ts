@@ -72,18 +72,18 @@ test("Calendar refuses unchanged and past custom session times", async ({ page }
   const customTime = panel.getByLabel("New time");
   const save = panel.getByRole("button", { name: "Save new time" });
   await save.click();
-  await expect(page.locator(".calendar-action-error")).toContainText("Choose a different date or time before saving.");
+  await expect(page.locator(".calendar-inspector").getByRole("alert")).toContainText("Choose a different date or time before saving.");
 
   const pastInput = localDateTimeInput(new Date(FIXED_NOW.getTime() - 24 * 60 * 60 * 1_000));
   await customTime.fill(pastInput);
   await save.click();
-  await expect(page.locator(".calendar-action-error")).toContainText("Choose a future date and time.");
+  await expect(page.locator(".calendar-inspector").getByRole("alert")).toContainText("Choose a future date and time.");
 
   const futureInput = localDateTimeInput(new Date(FIXED_NOW.getTime() + 48 * 60 * 60 * 1_000));
   await customTime.fill(futureInput);
   await save.click();
   await expect(panel).toHaveCount(0);
-  await expect(page.locator(".calendar-action-error")).toHaveCount(0);
+  await expect(page.locator(".calendar-inspector").getByRole("alert")).toHaveCount(0);
 });
 
 async function createPreviewAccount(page: Page) {

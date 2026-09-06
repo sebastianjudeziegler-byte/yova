@@ -42,7 +42,7 @@ describe("visible personalization surfaces", () => {
 
     expect(label).toContain('block.learningMode === "learn" ? "Learn" : "Practice"');
     expect(detail).toContain("const minutes = blockMinutes(block)");
-    expect(detail).toContain("{formatDateTime(block.startsAt)} · {minutes} min");
+    expect(detail).toContain("${formatDateTime(block.startsAt)} · ${minutes} min");
     expect(detail).toContain("<dt>Why here</dt><dd>{reason}</dd>");
     expect(detail).toContain("<dt>Method</dt><dd>{block.methodName}</dd>");
     expect(detail).toContain("<dt>Why this method</dt><dd>{block.methodReason}</dd>");

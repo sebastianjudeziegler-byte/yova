@@ -1,0 +1,33 @@
+{
+  "preview": "PROPOSED ADJUSTMENT\nMove one unfinished block\n\nThis protects the more urgent work, keeps History Midterm in sequence, and avoids creating another crowded day.\n\n40 minutes planned · 10 minutes available · 0 minutes after change\nKeep current plan\nApprove change",
+  "after": "Needs attention\n\nThese are viability problems derived from the work and time currently saved.\n\n3\nMandatory lab conflicts with Causal map review\n\nMandatory lab is fixed and overlaps YOVA work from 6:00 PM to 6:40 PM.\n\nResolve conflict\nSep 3 is overloaded\n\n40 minutes are planned, but you said 0 minutes are available.\n\nAdjust this day\nUnplanned term paper has no preparation plan\n\nThe deadline is tracked for Sep 4, but no active learning plan is linked to it.\n\nBuild plan",
+  "state": [
+    {
+      "title": "History Midterm",
+      "sessions": [
+        {
+          "id": "causal-map-session",
+          "sequence": 1,
+          "title": "Causal map review",
+          "objective": "Explain how alliance commitments raised escalation risk.",
+          "method": "Concept Mapping",
+          "methodReason": "A cause map exposes missing links before retrieval.",
+          "scheduledFor": "2026-09-03T17:00:00.000Z",
+          "estimatedMinutes": 40,
+          "amountLabel": "One causal map and evidence check · about 40 min",
+          "learningMode": "study",
+          "topicIds": [
+            "alliances-topic"
+          ],
+          "contentTargets": [
+            "Alliance escalation"
+          ],
+          "completionEvidence": [
+            "Explain two linked causes without notes"
+          ],
+          "status": "ready"
+        }
+      ]
+    }
+  ]
+}

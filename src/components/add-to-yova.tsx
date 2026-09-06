@@ -17,6 +17,7 @@ import { BrandMark } from "@/components/brand-mark";
 import { MaterialFileDropzone } from "@/components/material-file-dropzone";
 import { MaterialLinkImporter } from "@/components/material-link-importer";
 import type { DeadlineMilestone, LearningMaterial } from "@/lib/domain";
+import { isCalendarDescription } from "@/lib/calendar/recurrence-parser";
 import { interpretIntake } from "@/lib/intake/interpret";
 import {
   IntakeInterpretationSchema,
@@ -38,8 +39,10 @@ export function AddToYova({
   onTrackDeadline,
   onCreatePlan,
   onCreateSession,
+  onCreateCalendarItem,
 }: {
   previewMode: boolean;
+  onCreateCalendarItem: (description: string) => void;
   onExit: () => void;
   onTrackDeadline: (draft: Omit<DeadlineMilestone, "id" | "status" | "createdAt">) => Promise<unknown>;
   onCreatePlan: (seed: AddIntakeSeed) => void;
@@ -109,6 +112,11 @@ export function AddToYova({
   };
 
   const interpret = async () => {
+    if (isCalendarDescription(description)) {
+      if (materials.length) { setError("Remove the study materials before adding a timetable item. Calendar events use the description and repeat schedule."); return; }
+      if (description.length > 500) { setError("Keep this calendar description under 500 characters so YOVA can review the complete schedule."); return; }
+      onCreateCalendarItem(description); return;
+    }
     setProcessing(true);
     setError(null);
     try {
@@ -166,14 +174,14 @@ export function AddToYova({
 
     {step === "describe" && <section className="add-panel add-describe">
       <span className="step-label">ADD TO YOVA</span>
-      <h1>What do you need to learn, prepare for, or complete?</h1>
-      <p>Describe a goal, assignment, deadline, or something you want to study.</p>
+      <h1>What would you like to add?</h1>
+      <p>Describe a class, recurring commitment, deadline, or learning goal. YOVA will organize it for you.</p>
       <textarea
         autoFocus
-        aria-label="Describe what you need to learn or complete"
+        aria-label="Describe what you want to add"
         value={description}
         onChange={(event) => setDescription(event.target.value)}
-        placeholder="Example: I have a World War I test in two weeks. I am starting from the beginning and I have a study guide."
+        placeholder="Example: I have a communications class from 11:30 to 12 every Monday and Wednesday. Or: I have a biology test in two weeks."
       />
       <div className="add-materials-heading"><div><strong>Materials are optional</strong><span>Attach a study guide, notes, slides, article, or video when it helps define the scope.</span></div><PaperclipLabel /></div>
       <MaterialFileDropzone busy={processing} disabled={linkWorking || Boolean(removingId) || materials.length >= 5} onFiles={addMaterials} />

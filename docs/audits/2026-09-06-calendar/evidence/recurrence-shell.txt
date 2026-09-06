@@ -1,0 +1,20 @@
+[WebServer] (node:17737) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] $ next dev --hostname 127.0.0.1 --port 3100
+[WebServer] (node:17749) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] (node:17755) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+Running 4 tests using 1 worker
+
+(node:17876) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  1 [desktop-chromium] › e2e/core-learning-loop.spec.ts:2063:5 › Calendar Agenda stays first and contained at a 375px viewport (1.9s)
+  ✓  2 [desktop-chromium] › e2e/core-learning-loop.spec.ts:2295:5 › the product shell keeps every core destination and creation path usable (2.1s)
+(node:18008) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  3 [mobile-chromium] › e2e/core-learning-loop.spec.ts:2063:5 › Calendar Agenda stays first and contained at a 375px viewport (1.7s)
+  ✓  4 [mobile-chromium] › e2e/core-learning-loop.spec.ts:2295:5 › the product shell keeps every core destination and creation path usable (2.0s)
+
+  4 passed (11.4s)

@@ -20,14 +20,15 @@ test.beforeEach(async ({ page }) => {
   await page.clock.setFixedTime(FIXED_NOW);
 });
 
-test("Calendar exposes only the complete Week surface with bounded keyboard navigation", async ({ page }) => {
+test("Calendar exposes Week and Agenda surfaces with bounded keyboard navigation", async ({ page }) => {
   await openPreviewCalendar(page);
 
   await expect(page.getByRole("heading", { name: "Plan the work that gets you there" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Put something on your calendar" })).toBeVisible();
   await expect(page.locator("main")).toHaveCount(1);
 
-  await expect(page.getByText("Week view", { exact: true })).toHaveAttribute("aria-current", "page");
+  await expect(page.getByRole("button", { name: "Week", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByRole("button", { name: "Agenda", exact: true })).toBeVisible();
   for (const unfinishedView of ["Day", "Month", "Semester", "List"]) {
     await expect(page.getByRole("tab", { name: unfinishedView, exact: true })).toHaveCount(0);
   }
@@ -50,18 +51,18 @@ test("Calendar exposes only the complete Week surface with bounded keyboard navi
 
   await page.setViewportSize({ width: 375, height: 844 });
   const containment = await page.locator(".calendar-workspace").evaluate((workspace) => {
-    const rail = workspace.querySelector<HTMLElement>(".calendar-rail");
-    const main = workspace.querySelector<HTMLElement>(".calendar-main");
+    const rail = workspace.querySelector<HTMLElement>(".calendar-quick-add");
+    const main = workspace.querySelector<HTMLElement>(".calendar-board");
     if (!rail || !main) return null;
     const railRect = rail.getBoundingClientRect();
     const mainRect = main.getBoundingClientRect();
     return {
       bodyFits: document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1,
-      railBeforeMain: railRect.top <= mainRect.top && railRect.bottom <= mainRect.top + 2,
+      boardBeforeQuickAdd: mainRect.bottom <= railRect.top + 2,
       workspaceFits: workspace.scrollWidth <= workspace.clientWidth + 1,
     };
   });
-  expect(containment).toEqual({ bodyFits: true, railBeforeMain: true, workspaceFits: true });
+  expect(containment).toEqual({ bodyFits: true, boardBeforeQuickAdd: true, workspaceFits: true });
   await expect(page.locator(".calendar-week")).toHaveCSS("overflow-x", "auto");
 });
 
@@ -104,6 +105,7 @@ test("quick add confirms its interpretation, persists by account, and can be und
   await expect(detail).toContainText("Fully editable because you added it manually.");
   await expect(detail.getByRole("button", { name: "Build plan" })).toBeVisible();
 
+  await detail.getByRole("button", { name: "Close calendar detail" }).click();
   const changes = page.locator(".calendar-change-log");
   await changes.getByText(/Recent schedule changes/).click();
   await expect(changes).toContainText("Added Stats Pset to the calendar.");
@@ -219,6 +221,7 @@ test("authoritative plans, unplanned outcomes, evidence-backed reasons, and opt-
   await expect(detail.getByRole("button", { name: "Move", exact: true })).toBeVisible();
   await expect(detail.getByRole("button", { name: "Open plan", exact: true })).toBeVisible();
 
+  await detail.getByRole("button", { name: "Close calendar detail" }).click();
   const attention = page.locator(".calendar-attention");
   await expect(attention.getByRole("heading", { name: "Needs attention" })).toBeVisible();
   const unplannedIssue = attention.locator(".calendar-issue").filter({ hasText: "Unplanned term paper" });
@@ -265,7 +268,7 @@ test("Calendar Start opens the exact ready session and fails closed on an ambigu
   await page.getByRole("button", { name: /^Causal map review, / }).click();
   await page.locator(".calendar-block-detail").getByRole("button", { name: "Start", exact: true }).click();
 
-  await expect(page.locator(".calendar-action-error")).toContainText(
+  await expect(page.locator(".calendar-inspector").getByRole("alert")).toContainText(
     "That exact learning block is no longer ready. Reload Calendar to use the current plan order.",
   );
   await expect(page.getByRole("heading", { name: "Here is how YOVA plans to start." })).toHaveCount(0);
@@ -367,6 +370,9 @@ async function futureLocalDateTime(page: Page, daysAhead: number) {
 
 async function openCalendarTab(page: Page) {
   await page.getByRole("button", { name: "Calendar", exact: true }).click();
+  await expect(page.locator(".calendar-workspace")).toHaveAttribute("aria-busy", "false");
+  await page.getByRole("button", { name: "Week", exact: true }).click();
+  await expect(page.locator(".calendar-week")).toBeVisible();
   await expect(page.getByRole("heading", { name: "Plan the work that gets you there" })).toBeVisible();
 }
 

@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { CalendarDateKeySchema, CalendarRecurrenceSchema } from "@/lib/calendar/recurrence-schema";
+import { deadlineDateInputFromIso } from "@/lib/intake/deadline";
 import type {
   DeadlineMilestone,
   LearningPlan,
@@ -40,7 +42,7 @@ export const CalendarReasonSchema = z.object({
   evidenceRefs: z.array(z.string().trim().min(1).max(180)).max(12).default([]),
 }).strict();
 
-export const ManualCalendarEventSchema = z.object({
+const ManualCalendarEventFieldsSchema = z.object({
   id: z.string().trim().min(1).max(128),
   title: z.string().trim().min(1).max(160),
   eventType: ManualCalendarEventTypeSchema,
@@ -48,13 +50,34 @@ export const ManualCalendarEventSchema = z.object({
   endsAt: z.string().datetime({ offset: true }),
   dueAt: z.string().datetime({ offset: true }).nullable().default(null),
   fixed: z.boolean(),
+  deadlineOnly: z.boolean().optional(),
   done: z.boolean().default(false),
   courseId: z.string().trim().min(1).max(128).nullable().default(null),
   courseLabel: z.string().trim().min(1).max(120).nullable().default(null),
   outcomeId: z.string().trim().min(1).max(128).nullable().default(null),
   createdAt: z.string().datetime({ offset: true }),
   updatedAt: z.string().datetime({ offset: true }),
+}).strict();
+
+export const ManualCalendarEventSchema = ManualCalendarEventFieldsSchema.extend({
+  recurrence: CalendarRecurrenceSchema.optional(),
+  recurrenceExceptions: z.array(z.object({
+    dateKey: CalendarDateKeySchema,
+    event: ManualCalendarEventFieldsSchema.nullable(),
+  }).strict()).max(1000).optional(),
 }).strict().superRefine((event, context) => {
+  if (event.recurrence?.until && event.recurrence.until < deadlineDateInputFromIso(event.startsAt, event.recurrence.timeZone)) {
+    context.addIssue({ code: "custom", path: ["recurrence", "until"], message: "The last repeat date must be on or after the first occurrence." });
+  }
+  if (event.recurrence && (event.deadlineOnly || event.eventType === "exam" || event.eventType === "deadline")) {
+    context.addIssue({ code: "custom", path: ["recurrence"], message: "Repeating items need a class, personal or free-time event." });
+  }
+  if (new Set(event.recurrenceExceptions?.map((item) => item.dateKey)).size !== (event.recurrenceExceptions?.length ?? 0)) {
+    context.addIssue({ code: "custom", path: ["recurrenceExceptions"], message: "Each occurrence may have only one exception." });
+  }
+  if (event.deadlineOnly && (!event.dueAt || !["exam", "deadline"].includes(event.eventType))) {
+    context.addIssue({ code: "custom", path: ["dueAt"], message: "A deadline-only item needs an outcome type and a due date." });
+  }
   if (Date.parse(event.endsAt) <= Date.parse(event.startsAt)) {
     context.addIssue({
       code: "custom",
@@ -248,6 +271,7 @@ export type ManualCalendarBlock = CalendarBlockBase & {
   source: "manual";
   blockType: z.infer<typeof ManualCalendarEventTypeSchema>;
   event: ManualCalendarEvent;
+  series?: { master: ManualCalendarEvent; dateKey: string };
 };
 
 export type SuggestedCalendarBlock = CalendarBlockBase & {
@@ -366,6 +390,7 @@ export type CalendarModelInput = {
   now?: Date;
   timeZone?: string;
   personalizationReasons?: readonly CalendarReason[];
+  visibleRange?: { start: Date; end: Date };
 };
 
 export type CalendarModel = {

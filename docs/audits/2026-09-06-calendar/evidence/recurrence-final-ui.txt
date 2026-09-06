@@ -1,0 +1,52 @@
+[WebServer] (node:17255) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] $ next dev --hostname 127.0.0.1 --port 3100
+[WebServer] (node:17269) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] (node:17276) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+Running 36 tests using 1 worker
+
+(node:17406) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   1 [desktop-chromium] › e2e/add-to-yova.spec.ts:17:5 › a deadline can live in Calendar, be completed, and stay out of Learning (3.4s)
+  ✓   2 [desktop-chromium] › e2e/add-to-yova.spec.ts:53:5 › an overdue standalone deadline remains reachable and actionable (2.4s)
+  ✓   3 [desktop-chromium] › e2e/add-to-yova.spec.ts:89:5 › an outside assignment routes to one outside-YOVA session (1.6s)
+  ✓   4 [desktop-chromium] › e2e/add-to-yova.spec.ts:101:5 › a multi-session assignment skips an irrelevant knowledge quiz (2.1s)
+  ✓   5 [desktop-chromium] › e2e/add-to-yova.spec.ts:137:5 › speech and presentation plans bypass placement and use artifact-aware modes (3.5s)
+  ✓   6 [desktop-chromium] › e2e/add-to-yova.spec.ts:182:5 › general learning stays deadline-free until the user chooses otherwise (1.6s)
+  ✓   7 [desktop-chromium] › e2e/add-to-yova.spec.ts:192:5 › a timed product-rule request becomes a specific one-off session (1.4s)
+  ✓   8 [desktop-chromium] › e2e/add-to-yova.spec.ts:203:5 › an unfinished one-off session stays out of ongoing Learning goals (2.1s)
+  ✓   9 [desktop-chromium] › e2e/add-to-yova.spec.ts:220:5 › one account never sees another account's deadline (3.3s)
+  ✓  10 [desktop-chromium] › e2e/calendar-recurring.spec.ts:19:5 › Add recognizes the communications timetable and saves a lasting Monday/Wednesday series (2.8s)
+  ✓  11 [desktop-chromium] › e2e/calendar-recurring.spec.ts:53:5 › every two days supports a finite occurrence count and stops on the right date (1.7s)
+  ✓  12 [desktop-chromium] › e2e/calendar-recurring.spec.ts:67:5 › one occurrence can move, be cancelled and be restored without changing the series (2.6s)
+  ✓  13 [desktop-chromium] › e2e/calendar-recurring.spec.ts:86:5 › the whole series can be edited and deleted with one undoable action (2.4s)
+  ✓  14 [desktop-chromium] › e2e/calendar-recurring.spec.ts:112:5 › missing times and unsupported patterns stay editable instead of saving a guessed schedule (2.0s)
+  ✓  15 [desktop-chromium] › e2e/calendar-recurring.spec.ts:124:5 › the class keeps 11:30 local time after daylight saving ends (1.7s)
+  ✓  16 [desktop-chromium] › e2e/calendar-recurring.spec.ts:132:5 › moving an occurrence to a different month keeps its details in view (2.1s)
+  ✓  17 [desktop-chromium] › e2e/calendar-recurring.spec.ts:145:5 › moving an item into a future recurring class detects the conflict beyond the current week (2.2s)
+  ✓  18 [desktop-chromium] › e2e/calendar-recurring.spec.ts:156:5 › concurrent edits to a recurring series preserve the second tab's unsaved draft (2.4s)
+(node:17631) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  19 [mobile-chromium] › e2e/add-to-yova.spec.ts:17:5 › a deadline can live in Calendar, be completed, and stay out of Learning (3.4s)
+  ✓  20 [mobile-chromium] › e2e/add-to-yova.spec.ts:53:5 › an overdue standalone deadline remains reachable and actionable (2.2s)
+  ✓  21 [mobile-chromium] › e2e/add-to-yova.spec.ts:89:5 › an outside assignment routes to one outside-YOVA session (1.6s)
+  ✓  22 [mobile-chromium] › e2e/add-to-yova.spec.ts:101:5 › a multi-session assignment skips an irrelevant knowledge quiz (1.8s)
+  ✓  23 [mobile-chromium] › e2e/add-to-yova.spec.ts:137:5 › speech and presentation plans bypass placement and use artifact-aware modes (3.9s)
+  ✓  24 [mobile-chromium] › e2e/add-to-yova.spec.ts:182:5 › general learning stays deadline-free until the user chooses otherwise (1.4s)
+  ✓  25 [mobile-chromium] › e2e/add-to-yova.spec.ts:192:5 › a timed product-rule request becomes a specific one-off session (1.6s)
+  ✓  26 [mobile-chromium] › e2e/add-to-yova.spec.ts:203:5 › an unfinished one-off session stays out of ongoing Learning goals (2.1s)
+  ✓  27 [mobile-chromium] › e2e/add-to-yova.spec.ts:220:5 › one account never sees another account's deadline (3.1s)
+  ✓  28 [mobile-chromium] › e2e/calendar-recurring.spec.ts:19:5 › Add recognizes the communications timetable and saves a lasting Monday/Wednesday series (2.7s)
+  ✓  29 [mobile-chromium] › e2e/calendar-recurring.spec.ts:53:5 › every two days supports a finite occurrence count and stops on the right date (1.8s)
+  ✓  30 [mobile-chromium] › e2e/calendar-recurring.spec.ts:67:5 › one occurrence can move, be cancelled and be restored without changing the series (2.5s)
+  ✓  31 [mobile-chromium] › e2e/calendar-recurring.spec.ts:86:5 › the whole series can be edited and deleted with one undoable action (2.0s)
+  ✓  32 [mobile-chromium] › e2e/calendar-recurring.spec.ts:112:5 › missing times and unsupported patterns stay editable instead of saving a guessed schedule (1.6s)
+  ✓  33 [mobile-chromium] › e2e/calendar-recurring.spec.ts:124:5 › the class keeps 11:30 local time after daylight saving ends (1.6s)
+  ✓  34 [mobile-chromium] › e2e/calendar-recurring.spec.ts:132:5 › moving an occurrence to a different month keeps its details in view (1.9s)
+  ✓  35 [mobile-chromium] › e2e/calendar-recurring.spec.ts:145:5 › moving an item into a future recurring class detects the conflict beyond the current week (1.9s)
+  ✓  36 [mobile-chromium] › e2e/calendar-recurring.spec.ts:156:5 › concurrent edits to a recurring series preserve the second tab's unsaved draft (2.7s)
+
+  36 passed (1.4m)

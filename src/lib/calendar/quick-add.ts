@@ -1,5 +1,7 @@
 import { z } from "zod";
-import { inferDeadlineDueAt } from "@/lib/intake/deadline";
+import { CalendarRecurrenceSchema } from "@/lib/calendar/recurrence-schema";
+import { parseRecurrence, readCalendarTimeRange } from "@/lib/calendar/recurrence-parser";
+import { calendarDateAtTime, deadlineDateInputFromIso, findCalendarDateMention, inferDeadlineDueAt, readCalendarClock } from "@/lib/intake/deadline";
 import { ManualCalendarEventTypeSchema } from "@/lib/calendar/types";
 
 export const CalendarQuickAddDraftSchema = z.object({
@@ -13,6 +15,8 @@ export const CalendarQuickAddDraftSchema = z.object({
   fixed: z.boolean(),
   courseLabel: z.string().trim().min(1).max(120).nullable(),
   needsConfirmation: z.literal(true),
+  recurrence: CalendarRecurrenceSchema.nullable().optional(),
+  recurrenceNeedsReview: z.boolean().optional(),
 }).strict().superRefine((draft, context) => {
   if ((draft.startsAt === null) !== (draft.endsAt === null)) {
     context.addIssue({
@@ -45,8 +49,10 @@ export function parseCalendarQuickAdd(
   const dueAt = hasDeadlineIntent(raw)
     ? inferDeadlineDueAt(raw, { now, timeZone })
     : null;
-  const durationMinutes = inferDurationMinutes(raw);
-  const start = inferBlockStart(raw, { now, timeZone, durationMinutes });
+  const repeating = parseRecurrence(raw, now, timeZone);
+  const range = readCalendarTimeRange(raw);
+  const durationMinutes = inferDurationMinutes(raw) ?? range?.durationMinutes ?? null;
+  const start = repeating ? repeating.startsAt ? new Date(repeating.startsAt) : null : inferBlockStart(raw, { now, timeZone, eventType, dueAt });
   const blockDuration = start ? durationMinutes ?? 30 : null;
   const endsAt = start && blockDuration
     ? new Date(start.getTime() + blockDuration * 60_000).toISOString()
@@ -54,7 +60,7 @@ export function parseCalendarQuickAdd(
 
   return CalendarQuickAddDraftSchema.parse({
     raw,
-    title: quickAddTitle(raw),
+    title: quickAddTitle(repeating?.titleText ?? raw),
     eventType,
     dueAt,
     durationMinutes,
@@ -63,6 +69,8 @@ export function parseCalendarQuickAdd(
     fixed: eventType === "class" || eventType === "exam",
     courseLabel: inferCourseLabel(raw),
     needsConfirmation: true,
+    recurrence: repeating?.recurrence ?? null,
+    recurrenceNeedsReview: repeating?.needsReview ?? false,
   });
 }
 
@@ -93,52 +101,55 @@ function boundedDuration(value: number) {
 
 function inferBlockStart(
   value: string,
-  input: { now: Date; timeZone: string; durationMinutes: number | null },
+  input: { now: Date; timeZone: string; eventType: string; dueAt: string | null },
 ) {
-  const lower = value.toLocaleLowerCase();
-  const tonight = /\btonight\b/.test(lower);
-  const tomorrow = /\btomorrow\b/.test(lower);
-  const dueTomorrow = /\b(?:due|deadline(?:\s+is)?|by)\s+tomorrow\b/.test(lower);
-  const explicitClock = readClock(value);
-  const tomorrowDescribesBlock = tomorrow && (
-    !dueTomorrow
-    || tonight
-    || explicitClock !== null
-    || /\b(?:study|work|block|class|meeting|practice|review)\b/i.test(value)
-  );
-  if (!tonight && !tomorrowDescribesBlock && !explicitClock) return null;
-
-  const current = calendarParts(input.now, input.timeZone);
-  const target = tomorrowDescribesBlock && !tonight
-    ? addCalendarDays(current, 1)
-    : current;
-  const clock = explicitClock ?? (tonight ? { hour: 19, minute: 0 } : { hour: 17, minute: 0 });
-  let candidate = localDateTimeToUtc(target, clock.hour, clock.minute, input.timeZone);
-
-  if (tonight && candidate.getTime() <= input.now.getTime()) {
-    const rounded = Math.ceil(input.now.getTime() / (30 * 60_000)) * 30 * 60_000;
-    candidate = new Date(rounded);
+  // Remove the deadline clause before looking for a preparation time.
+  const cue = value.match(/\b(?:due(?:\s+(?:on|by))?|deadline(?:\s+(?:is|on))?|by|before)\s+/i);
+  let work = value;
+  if (cue) {
+    const prefix = value.slice(0, cue.index);
+    const suffix = value.slice((cue.index ?? 0) + cue[0].length);
+    const mention = findCalendarDateMention(suffix, input);
+    if (mention) {
+      let remaining = suffix.slice(mention.index + mention.text.length);
+      remaining = remaining.replace(/^\s*(?:at\s+)?\d{1,2}(?::\d{2})?\s*(?:a\.?m\.?|p\.?m\.?)\b/i, "")
+        .replace(/^\s*at\s+\d{1,2}:\d{2}\b/i, "");
+      work = `${prefix} ${remaining}`;
+    } else return null;
   }
-  return candidate;
-}
-
-function readClock(value: string) {
-  const twelveHour = value.match(/\b(?:at\s+)?(\d{1,2})(?::(\d{2}))?\s*(a\.?m\.?|p\.?m\.?)\b/i);
-  if (twelveHour) {
-    const rawHour = Number(twelveHour[1]);
-    const minute = Number(twelveHour[2] ?? 0);
-    if (rawHour < 1 || rawHour > 12 || minute > 59) return null;
-    const afternoon = twelveHour[3]!.toLocaleLowerCase().startsWith("p");
-    return { hour: rawHour % 12 + (afternoon ? 12 : 0), minute };
+  const mention = findCalendarDateMention(work, input);
+  const clock = readCalendarTimeRange(work) ?? readCalendarClock(work);
+  // A timed exam is an event as well as an outcome. A deadline alone is not work.
+  if (!mention && !clock) {
+    if (input.eventType === "exam" && input.dueAt && readCalendarClock(value)) return new Date(input.dueAt);
+    return null;
   }
-  const twentyFourHour = value.match(/\bat\s+([01]?\d|2[0-3]):([0-5]\d)\b/i);
-  return twentyFourHour
-    ? { hour: Number(twentyFourHour[1]), minute: Number(twentyFourHour[2]) }
-    : null;
+  if (mention && !mention.date) return null;
+  // Unsupported date language must not silently become today.
+  if (!mention && /\b(next|on|this|in|week|month|year)\b/i.test(work)) return null;
+  const date = mention?.date ?? deadlineDateInputFromIso(input.now.toISOString(), input.timeZone);
+  const tonight = /\btonight\b/i.test(work);
+  const time = clock ?? { hour: tonight ? 19 : 17, minute: 0 };
+  const iso = calendarDateAtTime(date, time.hour, time.minute, input.timeZone);
+  if (!iso) return null;
+  let candidate = new Date(iso);
+  if (tonight && !clock && candidate <= input.now) {
+    candidate = new Date(Math.ceil((input.now.getTime() + 1) / (30 * 60_000)) * 30 * 60_000);
+  }
+  return candidate > input.now ? candidate : null;
 }
 
 function quickAddTitle(value: string) {
-  const cleaned = value
+  const range = readCalendarTimeRange(value);
+  let withoutDates = (range ? value.replace(range.text, " ") : value)
+    .replace(/^(?:oh[, ]+)?(?:i\s+(?:have|have got|attend|go to)|i[’']ve got|add|schedule)\s+(?:a\s+|an\s+)?/i, "");
+  for (let index = 0; index < 4; index += 1) {
+    const mention = findCalendarDateMention(withoutDates);
+    if (!mention) break;
+    withoutDates = withoutDates.slice(0, mention.index) + withoutDates.slice(mention.index + mention.text.length);
+  }
+  const cleaned = withoutDates
+    .replace(/\b(?:due|deadline(?:\s+is)?|by|before|on|next)\s*(?=,|$)/gi, "")
     .replace(/\b(?:due|deadline(?:\s+is)?|by)\s+(?:today|tomorrow|(?:next\s+)?(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)|20\d{2}-\d{1,2}-\d{1,2}|\d{1,2}[/-]\d{1,2}(?:[/-]20\d{2})?)\b/gi, "")
     .replace(/\b\d{1,3}\s*(?:minutes?|mins?|min)\b/gi, "")
     .replace(/\b\d{1,2}(?:\.\d)?\s*(?:hours?|hrs?|hr)\b/gi, "")
@@ -148,10 +159,11 @@ function quickAddTitle(value: string) {
     .replace(/\s*[,;]+\s*/g, " ")
     .replace(/\s{2,}/g, " ")
     .trim()
-    .replace(/\b(?:for|in|at)\s*$/i, "")
+    .replace(/\b(?:for|in|at|due|by|before|on)\s*$/i, "")
     .replace(/[-–—,:]+$/g, "")
     .trim();
-  return titleCase(cleaned || "New calendar item").slice(0, 160);
+  const namedClass = cleaned.replace(/^(class|lecture|seminar|lab)\s+(?:on|in|for)\s+(.+)$/i, "$2 $1");
+  return titleCase(namedClass || "New calendar item").slice(0, 160);
 }
 
 function inferCourseLabel(value: string) {
@@ -163,55 +175,6 @@ function inferCourseLabel(value: string) {
 
 function titleCase(value: string) {
   return value.replace(/\b[a-z]/gi, (letter) => letter.toLocaleUpperCase());
-}
-
-type CalendarDate = { year: number; month: number; day: number };
-
-function calendarParts(value: Date, timeZone: string): CalendarDate {
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone,
-    year: "numeric",
-    month: "numeric",
-    day: "numeric",
-  }).formatToParts(value);
-  const number = (type: "year" | "month" | "day") => Number(parts.find((part) => part.type === type)?.value);
-  return { year: number("year"), month: number("month"), day: number("day") };
-}
-
-function addCalendarDays(value: CalendarDate, days: number): CalendarDate {
-  const date = new Date(Date.UTC(value.year, value.month - 1, value.day + days, 12));
-  return { year: date.getUTCFullYear(), month: date.getUTCMonth() + 1, day: date.getUTCDate() };
-}
-
-function localDateTimeToUtc(
-  date: CalendarDate,
-  hour: number,
-  minute: number,
-  timeZone: string,
-) {
-  const guess = Date.UTC(date.year, date.month - 1, date.day, hour, minute);
-  const observed = new Intl.DateTimeFormat("en-US", {
-    timeZone,
-    hourCycle: "h23",
-    year: "numeric",
-    month: "numeric",
-    day: "numeric",
-    hour: "numeric",
-    minute: "numeric",
-    second: "numeric",
-  }).formatToParts(new Date(guess));
-  const number = (type: "year" | "month" | "day" | "hour" | "minute" | "second") => (
-    Number(observed.find((part) => part.type === type)?.value)
-  );
-  const observedAsUtc = Date.UTC(
-    number("year"),
-    number("month") - 1,
-    number("day"),
-    number("hour"),
-    number("minute"),
-    number("second"),
-  );
-  return new Date(guess - (observedAsUtc - guess));
 }
 
 function validTimeZone(value: string) {
