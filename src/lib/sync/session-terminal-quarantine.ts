@@ -92,6 +92,38 @@ export function readQuarantinedSessionTerminalPayloads(
     .map((entry) => entry.payload);
 }
 
+export function quarantinedSessionTerminalReason(
+  userId: string,
+  kind: SessionTerminalKind,
+  eventId: string,
+) {
+  return loadQuarantinedSessionTerminals(userId).find((entry) => (
+    entry.kind === kind && entry.eventId === eventId
+  ))?.reason ?? null;
+}
+
+/**
+ * A corrected terminal envelope may intentionally reuse its stable event id.
+ * Remove only that prior recovery copy after the corrected active marker has
+ * been stored, so the new attempt never creates a gap in durable recovery.
+ */
+export function removeQuarantinedSessionTerminal(
+  userId: string,
+  kind: SessionTerminalKind,
+  eventId: string,
+) {
+  const current = loadQuarantinedSessionTerminals(userId);
+  if (!current.some((entry) => entry.kind === kind && entry.eventId === eventId)) {
+    return true;
+  }
+  return saveQuarantinedSessionTerminals(
+    userId,
+    current.filter((entry) => !(
+      entry.kind === kind && entry.eventId === eventId
+    )),
+  );
+}
+
 export function clearQuarantinedSessionTerminals(
   userId: string,
   kind: SessionTerminalKind,

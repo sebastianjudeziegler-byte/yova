@@ -166,6 +166,7 @@ import {
   selectSessionActiveMinutes,
   selectSessionLearningMode,
   selectSessionMethodName,
+  selectSessionTerminalRouteRevisionId,
 } from "@/lib/study-route/selectors";
 import {
   agencyModeForStudyRouteControlMode,
@@ -418,9 +419,9 @@ import {
 } from "@/lib/scheduling/advance";
 import {
   clearQueuedSessionCompletions,
+  finalizeCommittedSessionCompletion,
   pendingSessionCompletionPlanSessionIds,
   queueSessionCompletion,
-  removeQueuedSessionCompletion,
   removeQueuedSessionCompletionsForPlan,
 } from "@/lib/sync/session-completion-outbox";
 import {
@@ -444,6 +445,7 @@ import { syncPendingCloudWork } from "@/lib/sync/pending-cloud-work";
 import {
   flushQueuedSessionTerminals,
   reconcileQueuedSessionTerminalsAgainstAuthority,
+  sessionCompletionSyncIssue,
   syncSessionCompletionAfterTerminals,
   type AuthoritativeSessionTerminalInventory,
 } from "@/lib/sync/session-terminal-outbox";
@@ -1348,7 +1350,6 @@ export function YovaPrototype({
             )),
           ])];
           const completedSessionTombstones = new Set([
-            ...startupCompletedSessionTombstones,
             ...authoritativeCompletedSessionIds,
             ...pendingSessionCompletionPlanSessionIds(cloudAccount.id),
           ]);
@@ -1878,10 +1879,7 @@ export function YovaPrototype({
       ? sessionGenerationAttemptRef.current.adjustment
       : null;
     const activityProgress = sessionActivityProgressRef.current;
-    const checkpointRouteRevisionId = currentSession.resource?.routeRevisionId
-      ?? (currentSession.studyRoute?.identity.lifecycleStatus === "committed"
-        ? currentSession.studyRoute.identity.routeRevisionId
-        : undefined);
+    const checkpointRouteRevisionId = selectSessionTerminalRouteRevisionId(currentSession);
     const checkpointRouteIdentity = checkpointRouteRevisionId
       ? { version: 2 as const, routeRevisionId: checkpointRouteRevisionId }
       : { version: 1 as const };
@@ -2930,7 +2928,7 @@ export function YovaPrototype({
     await startSession(plan.id, activatedPlan);
   };
 
-  const completeActiveSession = (correctAnswers: number, totalAnswers: number, feedback: SessionCompletion["feedback"], actualMinutes: number, applyRecommendedChange: boolean) => {
+  const completeActiveSession = async (correctAnswers: number, totalAnswers: number, feedback: SessionCompletion["feedback"], actualMinutes: number, applyRecommendedChange: boolean) => {
     if (!activePlan) return false;
     const currentSession = activePlan.sessions.find((session) => session.status === "ready");
     if (!currentSession) return false;
@@ -2939,7 +2937,6 @@ export function YovaPrototype({
     const completedAtMs = Date.parse(completedAt);
     const activeSeconds = Math.max(1, sessionElapsedSeconds);
     const checkpointRunId = activeSessionRunIdRef.current;
-    if (checkpointRunId) discardedCheckpointRunIdsRef.current.add(checkpointRunId);
     const recordedEvidence = sessionCompletionMode === "unguided_practice"
       ? {
         correctAnswers: 0,
@@ -2955,10 +2952,7 @@ export function YovaPrototype({
         conceptEvidence: sessionEvidence.conceptEvidence,
         confidenceEvidence: sessionEvidence.confidenceEvidence,
       };
-    const executedRouteRevisionId = currentSession.resource?.routeRevisionId
-      ?? (currentSession.studyRoute?.identity.lifecycleStatus === "committed"
-        ? currentSession.studyRoute.identity.routeRevisionId
-        : undefined);
+    const executedRouteRevisionId = selectSessionTerminalRouteRevisionId(currentSession);
     const completionDraft: SessionCompletion = {
       id: checkpointRunId ?? makeUuid(),
       planId: activePlan.id,
@@ -3106,6 +3100,66 @@ export function YovaPrototype({
     const routedDelayedVerification = routeTransition.followUpSession;
     const routedDeferredContinuation = routeTransition.continuationSession;
 
+    if (account?.identityMode === "supabase") {
+      const queued = queueSessionCompletion({
+        userId: account.id,
+        completion,
+        adaptation,
+        followUpSession: routedDelayedVerification,
+        continuationSession: routedDeferredContinuation,
+        nextSessionStudyRoute: routeTransition.nextSessionStudyRoute,
+        queuedAt: new Date().toISOString(),
+      });
+      if (checkpointRunId) {
+        // Until the cloud confirms this exact terminal event, the awaiting-
+        // finish checkpoint remains the authoritative recovery surface.
+        protectedTerminalCheckpointRunIdsRef.current.add(checkpointRunId);
+      }
+
+      try {
+        const syncResult = await syncSessionCompletionAfterTerminals({
+          userId: account.id,
+          planSessionId: currentSession.id,
+          completionId: completion.id,
+          completionQueued: queued,
+          completeImmediately: () => completeAuthenticatedPlanSession(
+            completion,
+            adaptation,
+            routedDelayedVerification,
+            routedDeferredContinuation,
+            routeTransition.nextSessionStudyRoute,
+            account.id,
+          ),
+        });
+        if (syncResult.disposition !== "committed") {
+          const issue = sessionCompletionSyncIssue(syncResult);
+          reportProductError({
+            surface: "session_completion",
+            errorCode: syncResult.disposition === "rejected"
+              ? "session_completion_rejected"
+              : "session_completion_pending",
+          });
+          setSessionRecoveryIssue(issue);
+          setCloudSyncIssue(issue);
+          return false;
+        }
+      } catch {
+        reportProductError({ surface: "session_completion", errorCode: "session_completion_sync_failed" });
+        const issue = "YOVA could not confirm this completion in the cloud. Your finish checkpoint is still saved on this device; try again.";
+        setSessionRecoveryIssue(issue);
+        setCloudSyncIssue(issue);
+        return false;
+      }
+
+      finalizeCommittedSessionCompletion(account.id, completion.id);
+      setCloudSyncIssue(null);
+      setSessionRecoveryIssue(null);
+    }
+
+    // Authenticated progress changes only after the cloud has committed the
+    // completion. Preview mode has no remote source of truth.
+    if (checkpointRunId) discardedCheckpointRunIdsRef.current.add(checkpointRunId);
+
     trackProductEvent({
       eventName: "session_completed",
       context: {
@@ -3140,71 +3194,19 @@ export function YovaPrototype({
       consolidatePersonalizationStateForCanonicalV1,
     ));
 
-    if (account?.identityMode === "supabase") {
-      const queued = queueSessionCompletion({
-        userId: account.id,
-        completion,
-        adaptation,
-        followUpSession: routedDelayedVerification,
-        continuationSession: routedDeferredContinuation,
-        nextSessionStudyRoute: routeTransition.nextSessionStudyRoute,
-        queuedAt: new Date().toISOString(),
+    if (account?.identityMode === "supabase" && checkpointRunId) {
+      protectedTerminalCheckpointRunIdsRef.current.delete(checkpointRunId);
+      removeActiveSessionCheckpoint(account.id, currentSession.id, checkpointRunId);
+      setActiveSessionCheckpoints((current) => current.filter((checkpoint) => !(
+        checkpoint.accountId === account.id
+        && checkpoint.planSessionId === currentSession.id
+        && checkpoint.runId === checkpointRunId
+      )));
+      setCloudCheckpointRunIds((current) => {
+        const next = new Set(current);
+        next.delete(checkpointRunId);
+        return next;
       });
-      if (checkpointRunId) {
-        if (queued) protectedTerminalCheckpointRunIdsRef.current.delete(checkpointRunId);
-        else protectedTerminalCheckpointRunIdsRef.current.add(checkpointRunId);
-      }
-      if (queued && checkpointRunId) {
-        removeActiveSessionCheckpoint(account.id, currentSession.id, checkpointRunId);
-        setActiveSessionCheckpoints((current) => current.filter((checkpoint) => !(
-          checkpoint.accountId === account.id
-          && checkpoint.planSessionId === currentSession.id
-          && checkpoint.runId === checkpointRunId
-        )));
-        setCloudCheckpointRunIds((current) => {
-          const next = new Set(current);
-          next.delete(checkpointRunId);
-          return next;
-        });
-      }
-      void syncSessionCompletionAfterTerminals({
-        userId: account.id,
-        planSessionId: currentSession.id,
-        completionQueued: queued,
-        completeImmediately: () => completeAuthenticatedPlanSession(
-          completion,
-          adaptation,
-          routedDelayedVerification,
-          routedDeferredContinuation,
-          routeTransition.nextSessionStudyRoute,
-        ),
-      })
-        .then(({ synced }) => {
-          if (!synced) {
-            setCloudSyncIssue("This completed session is saved on this device and will sync after an earlier session exit.");
-            return;
-          }
-          removeQueuedSessionCompletion(completion.id);
-          if (checkpointRunId) {
-            protectedTerminalCheckpointRunIdsRef.current.delete(checkpointRunId);
-            removeActiveSessionCheckpoint(account.id, currentSession.id, checkpointRunId);
-            setActiveSessionCheckpoints((current) => current.filter((checkpoint) => !(
-              checkpoint.accountId === account.id
-              && checkpoint.planSessionId === currentSession.id
-              && checkpoint.runId === checkpointRunId
-            )));
-            setCloudCheckpointRunIds((current) => {
-              const next = new Set(current);
-              next.delete(checkpointRunId);
-              return next;
-            });
-          }
-          setCloudSyncIssue(null);
-        })
-        .catch((error: unknown) => {
-          reportProductError({ surface: "session_completion", errorCode: "session_completion_sync_failed" });
-          setCloudSyncIssue(error instanceof Error ? error.message : "YOVA could not sync this session.");
-        });
     }
     activeSessionClockRef.current = null;
     cloudCheckpointResourceIdentitiesRef.current.delete(currentSession.id);
@@ -3267,6 +3269,27 @@ export function YovaPrototype({
       summarizeSessionEvidence(completedLessonSteps, sessionOutcomes, sessionConfidence, sessionAttempts),
     );
     const resumeStep = completedLessonSteps.filter((step) => step.evidenceRole !== "immediate_repair").length;
+    const standaloneMethodWork = stage === "session-method";
+    const methodSession = standaloneMethodWork ? sessionRecoverySession : null;
+    const methodTopics = methodSession
+      ? methodPracticeTopics(methodSession, sessionCoverage)
+      : [];
+    const sourceFirstRequired = Boolean(
+      methodSession
+      && activePlan.studyMode === "outside_yova"
+      && methodSession.learningMode === "learn",
+    );
+    const checkpointMethodWork = methodSession
+      ? boundedMethodWorkProgress(methodWorkProgress, methodTopics)
+      : null;
+    const methodCounts = checkpointMethodWork
+      ? methodWorkCheckpointCounts({
+        progress: checkpointMethodWork,
+        topics: methodTopics,
+        sourceFirstRequired,
+        awaitingFinish: false,
+      })
+      : null;
     const currentStep = activeLessonSteps[sessionStep];
     const pendingRepair = currentStep?.evidenceRole === "immediate_repair"
       && currentStep.concept
@@ -3283,10 +3306,7 @@ export function YovaPrototype({
     const sessionAdjustment = sessionGenerationAttemptRef.current?.planSessionId === currentSession.id
       ? sessionGenerationAttemptRef.current.adjustment
       : null;
-    const interruptedRouteRevisionId = currentSession.resource?.routeRevisionId
-      ?? (currentSession.studyRoute?.identity.lifecycleStatus === "committed"
-        ? currentSession.studyRoute.identity.routeRevisionId
-        : undefined);
+    const interruptedRouteRevisionId = selectSessionTerminalRouteRevisionId(currentSession);
     const interruption: SessionInterruption = {
       id: checkpointRunId ?? makeUuid(),
       planId: activePlan.id,
@@ -3296,9 +3316,9 @@ export function YovaPrototype({
       interruptedAt: interruptedAt.toISOString(),
       plannedMinutes: sessionCapacityMinutes ?? currentSession.estimatedMinutes,
       actualMinutes,
-      completedSteps: Math.min(sessionStep, activeLessonSteps.length),
-      totalSteps: activeLessonSteps.length,
-      resumeStep,
+      completedSteps: methodCounts?.completedSteps ?? Math.min(sessionStep, activeLessonSteps.length),
+      totalSteps: methodCounts?.totalSteps ?? activeLessonSteps.length,
+      resumeStep: methodCounts?.resumeStep ?? resumeStep,
       evidence: interruptionEvidence,
       pendingRepair,
       ...(sessionAdjustment ? { sessionAdjustment } : {}),
@@ -4695,7 +4715,7 @@ export function YovaPrototype({
     const nextSession = currentSession && activePlan
       ? nextUnfinishedSessionAfter(activePlan.sessions, currentSession.sequence)
       : null;
-    return <SessionComplete currentSession={currentSession} knowledgeMap={activePlan?.knowledgeMap} completionMode={sessionCompletionMode} completedAt={sessionCompletedAt ?? new Date().toISOString()} requiredContentCount={activeLessonSteps.filter((step) => step.requiredForCompletion !== false).length} repairCount={sessionEvidence.completedImmediateRepairs} elapsedSeconds={capturedSessionSeconds} actualMinutes={capturedSessionMinutes} correctAnswers={sessionEvidence.correctAnswers} totalAnswers={sessionEvidence.totalAnswers} observedGap={sessionEvidence.observedGap} conceptEvidence={sessionEvidence.conceptEvidence} confidenceEvidence={sessionEvidence.confidenceEvidence} nextSession={nextSession} feedback={sessionCompletionFeedback} onFeedback={setSessionCompletionFeedback} recoveryNotice={sessionRecoveryNotice} recoveryIssue={sessionRecoveryIssue} onFinish={(feedback, applyRecommendedChange) => { if (!completeActiveSession(sessionEvidence.correctAnswers, sessionEvidence.totalAnswers, feedback, capturedSessionMinutes, applyRecommendedChange)) return; setStage("app"); setActiveTab("Home"); }} />;
+    return <SessionComplete currentSession={currentSession} knowledgeMap={activePlan?.knowledgeMap} completionMode={sessionCompletionMode} completedAt={sessionCompletedAt ?? new Date().toISOString()} requiredContentCount={activeLessonSteps.filter((step) => step.requiredForCompletion !== false).length} repairCount={sessionEvidence.completedImmediateRepairs} elapsedSeconds={capturedSessionSeconds} actualMinutes={capturedSessionMinutes} correctAnswers={sessionEvidence.correctAnswers} totalAnswers={sessionEvidence.totalAnswers} observedGap={sessionEvidence.observedGap} conceptEvidence={sessionEvidence.conceptEvidence} confidenceEvidence={sessionEvidence.confidenceEvidence} nextSession={nextSession} feedback={sessionCompletionFeedback} onFeedback={setSessionCompletionFeedback} recoveryNotice={sessionRecoveryNotice} recoveryIssue={sessionRecoveryIssue} onFinish={async (feedback, applyRecommendedChange) => { if (!await completeActiveSession(sessionEvidence.correctAnswers, sessionEvidence.totalAnswers, feedback, capturedSessionMinutes, applyRecommendedChange)) return; setStage("app"); setActiveTab("Home"); }} />;
   }
 
   return <>
@@ -7985,12 +8005,21 @@ function SessionComplete({ currentSession, knowledgeMap, completionMode, complet
   onFeedback: (feedback: SessionCompletion["feedback"]) => void;
   recoveryNotice: string | null;
   recoveryIssue: string | null;
-  onFinish: (feedback: SessionCompletion["feedback"], applyRecommendedChange: boolean) => void;
+  onFinish: (feedback: SessionCompletion["feedback"], applyRecommendedChange: boolean) => Promise<void>;
 }) {
-  const executedRouteRevisionId = currentSession?.resource?.routeRevisionId
-    ?? (currentSession?.studyRoute?.identity.lifecycleStatus === "committed"
-      ? currentSession.studyRoute.identity.routeRevisionId
-      : undefined);
+  const [finishing, setFinishing] = useState(false);
+  const finish = async (applyRecommendedChange: boolean) => {
+    if (finishing) return;
+    setFinishing(true);
+    try {
+      await onFinish(feedback, applyRecommendedChange);
+    } finally {
+      setFinishing(false);
+    }
+  };
+  const executedRouteRevisionId = currentSession
+    ? selectSessionTerminalRouteRevisionId(currentSession)
+    : undefined;
   const completionPreview: SessionCompletion = {
     id: "00000000-0000-4000-8000-000000000001",
     planId: "00000000-0000-4000-8000-000000000002",
@@ -8039,7 +8068,7 @@ function SessionComplete({ currentSession, knowledgeMap, completionMode, complet
           completion={completionPreview}
           decision={null}
         />
-        <button className="button primary large full" onClick={() => onFinish(feedback, false)}>Finish and continue <ArrowRight size={18} /></button>
+        <button className="button primary large full" disabled={finishing} onClick={() => void finish(false)}>{finishing ? "Saving…" : "Finish and continue"} {!finishing && <ArrowRight size={18} />}</button>
       </section>
     </main>;
   }
@@ -8099,7 +8128,7 @@ function SessionComplete({ currentSession, knowledgeMap, completionMode, complet
       {repairCount > 0 && <div className="completion-repair-note"><RotateCcw size={17} /><p>{hasUnresolvedGap
         ? `You worked on repairing ${repairCount === 1 ? "one idea" : `${repairCount} ideas`} during the session. The latest evidence still shows a gap, so that idea remains open for another check.`
         : `You repaired ${repairCount === 1 ? "one idea" : `${repairCount} ideas`} during the session. YOVA records the original miss as context, but the successful repair means no duplicate follow-up is needed.`}</p></div>}
-      <section className="completion-feedback"><div><strong>How did the challenge feel?</strong><p>Your answer can change YOVA’s recommendation below.</p></div><div className="feeling-row"><button className={feedback === "too_easy" ? "selected" : ""} onClick={() => onFeedback("too_easy")}>Too easy</button><button className={feedback === "about_right" ? "selected" : ""} onClick={() => onFeedback("about_right")}>About right</button><button className={feedback === "too_difficult" ? "selected" : ""} onClick={() => onFeedback("too_difficult")}>Too difficult</button></div></section>
+      <section className="completion-feedback"><div><strong>How did the challenge feel?</strong><p>Your answer can change YOVA’s recommendation below.</p></div><div className="feeling-row"><button disabled={finishing} className={feedback === "too_easy" ? "selected" : ""} onClick={() => onFeedback("too_easy")}>Too easy</button><button disabled={finishing} className={feedback === "about_right" ? "selected" : ""} onClick={() => onFeedback("about_right")}>About right</button><button disabled={finishing} className={feedback === "too_difficult" ? "selected" : ""} onClick={() => onFeedback("too_difficult")}>Too difficult</button></div></section>
       <PostSessionPersonalizationReceipt
         session={currentSession}
         completion={completionPreview}
@@ -8109,9 +8138,9 @@ function SessionComplete({ currentSession, knowledgeMap, completionMode, complet
       {decision && <section className={`completion-decision ${hasRecommendedChange ? "recommended" : "unchanged"}`}><header><div className="completion-next-icon">{hasRecommendedChange ? <Sparkles size={20} /> : <Check size={20} />}</div><div><span>{decisionEyebrow}</span><h2>{decision.title}</h2><p>{decision.explanation}</p></div></header>{decision.changes.length > 0 && <ol>{decision.changes.map((change) => <li key={change}>{change}</li>)}</ol>}<div className="completion-decision-next"><span>Next</span><strong>{decision.nextTitle}</strong>{nextSession && <small>{formatAgendaTime(nextSession.scheduledFor)} · {nextSession.estimatedMinutes} minutes</small>}</div>{decision.reviewPlan && decision.kind === "adapt_next_session" && <div className="completion-review-return"><RotateCcw size={16} /><div><span>Saved to the review queue</span><strong>{decision.reviewPlan.title}</strong><small>Return after {formatAgendaTime(decision.reviewPlan.scheduledFor)} · YOVA will bring it into a later session</small></div></div>}{hasRecommendedChange && <small className="completion-approval-note">{agencyDecisionNote}</small>}</section>}
       {hasRecommendedChange
         ? adaptationAgencyMode === "yova_decides"
-          ? <button className="button primary large full" onClick={() => onFinish(feedback, true)}>Finish and apply the update <ArrowRight size={18} /></button>
-          : <div className="completion-decision-actions"><button className="button ghost large" onClick={() => onFinish(feedback, false)}>{keepLabel}</button><button className="button primary large" onClick={() => onFinish(feedback, true)}>{applyLabel} <ArrowRight size={18} /></button></div>
-        : <button className="button primary large full" onClick={() => onFinish(feedback, false)}>Finish and continue <ArrowRight size={18} /></button>}
+          ? <button className="button primary large full" disabled={finishing} onClick={() => void finish(true)}>{finishing ? "Saving…" : "Finish and apply the update"} {!finishing && <ArrowRight size={18} />}</button>
+          : <div className="completion-decision-actions"><button className="button ghost large" disabled={finishing} onClick={() => void finish(false)}>{finishing ? "Saving…" : keepLabel}</button><button className="button primary large" disabled={finishing} onClick={() => void finish(true)}>{finishing ? "Saving…" : applyLabel} {!finishing && <ArrowRight size={18} />}</button></div>
+        : <button className="button primary large full" disabled={finishing} onClick={() => void finish(false)}>{finishing ? "Saving…" : "Finish and continue"} {!finishing && <ArrowRight size={18} />}</button>}
     </section>
   </main>;
 }

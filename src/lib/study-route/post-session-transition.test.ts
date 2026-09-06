@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { LearningPlan, LearningPlanSession, NextSessionAdaptation } from "@/lib/domain";
 import {
+  CORE_METHOD_CATALOG,
+  recognizedCoreMethodNames,
+} from "@/lib/learning/method-catalog";
+import { completePlanSession } from "@/lib/learning/complete-plan-session";
+import { buildUnguidedVerificationSession } from "@/lib/learning/unguided-verification";
+import {
   prepareConceptReviewSessionStudyRoute,
   preparePostSessionStudyRouteTransition,
 } from "@/lib/study-route/post-session-transition";
@@ -419,6 +425,64 @@ describe("post-session StudyRoute transition", () => {
       result: "completion_follow_up",
       evidenceRefs: [`route-revision:${plan.sessions[0]!.studyRoute.identity.routeRevisionId}`],
     }));
+  });
+
+  it("creates a DB-catalog-compatible route for the production unguided verification follow-up", () => {
+    const plan = routedPlan();
+    const verification = buildUnguidedVerificationSession({
+      completedSession: plan.sessions[0]!,
+      completedAt: CHANGED_AT,
+      verificationId: IDS.followUp,
+      planSessionCount: plan.sessions.length,
+    });
+    expect(verification).not.toBeNull();
+    expect(verification?.method).toBe("Independent retrieval verification");
+
+    const result = preparePostSessionStudyRouteTransition({
+      plan,
+      completedSessionId: IDS.completed,
+      changedAt: CHANGED_AT,
+      followUpSession: verification,
+    });
+    const route = StudyRouteSchema.parse(result.followUpSession?.studyRoute);
+
+    expect(route.approach).toMatchObject({
+      primaryMethodId: "retrieval_practice",
+      visibleMethodName: CORE_METHOD_CATALOG.retrieval_practice.name,
+    });
+    expect(result.followUpSession?.method).toBe(CORE_METHOD_CATALOG.retrieval_practice.name);
+
+    const locallyCompleted = completePlanSession({
+      plan,
+      completedSessionId: IDS.completed,
+      completedAt: CHANGED_AT,
+      followUpSession: result.followUpSession,
+    });
+    expect(locallyCompleted.sessions.find((session) => session.id === IDS.followUp))
+      .toMatchObject({
+        method: CORE_METHOD_CATALOG.retrieval_practice.name,
+        studyRoute: {
+          approach: {
+            primaryMethodId: "retrieval_practice",
+            visibleMethodName: CORE_METHOD_CATALOG.retrieval_practice.name,
+          },
+        },
+      });
+
+    const methodPairs = [
+      {
+        methodId: route.approach.primaryMethodId,
+        methodName: route.approach.visibleMethodName,
+      },
+      ...route.agency.alternatives.map((alternative) => ({
+        methodId: alternative.primaryMethodId,
+        methodName: alternative.visibleMethodName,
+      })),
+    ];
+    for (const { methodId, methodName } of methodPairs) {
+      expect(methodName).toBe(CORE_METHOD_CATALOG[methodId].name);
+      expect(recognizedCoreMethodNames(methodId)).toContain(methodName);
+    }
   });
 
   it("fails closed when only part of a plan carries canonical routes", () => {

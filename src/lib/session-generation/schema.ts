@@ -482,6 +482,30 @@ export const GeneratedSessionDraftProviderOutputSchema = z.object({
   activities: z.array(GeneratedSessionActivityOutputSchema).min(3).max(8),
 });
 
+/**
+ * Applies the already-computed session content budget at the provider
+ * boundary. The base schema remains the canonical cache/read shape, while the
+ * schema sent to OpenAI must never advertise more active ideas, evidence-map
+ * entries, or completion checks than YOVA's duration validator will accept.
+ */
+export function generatedSessionDraftProviderOutputSchemaForBudget({
+  maximumContentTargets,
+  maximumCompletionChecks,
+}: {
+  maximumContentTargets: number;
+  maximumCompletionChecks: number;
+}) {
+  const boundedContentTargets = Math.max(1, Math.min(4, Math.floor(maximumContentTargets)));
+  const boundedCompletionChecks = Math.max(1, Math.min(3, Math.floor(maximumCompletionChecks)));
+  return GeneratedSessionDraftProviderOutputSchema.extend({
+    coverage: SessionCoverageSchema.extend({
+      essentialIdeas: SessionCoverageSchema.shape.essentialIdeas.max(boundedContentTargets),
+      completionEvidence: SessionCoverageSchema.shape.completionEvidence.max(boundedCompletionChecks),
+      evidenceMap: SessionCoverageSchema.shape.evidenceMap.max(boundedContentTargets),
+    }),
+  });
+}
+
 export type GeneratedSessionDraftProviderOutput = z.infer<typeof GeneratedSessionDraftProviderOutputSchema>;
 
 /**

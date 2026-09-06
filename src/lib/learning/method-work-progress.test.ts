@@ -43,4 +43,34 @@ describe("method-work recovery progress", () => {
       resumeStep: 4,
     });
   });
+
+  it("gives an Exit from standalone method work the same resumable counts as its checkpoint", () => {
+    expect(methodWorkCheckpointCounts({
+      progress: {
+        checkedTopics: [],
+        sourceReviewed: false,
+      },
+      topics: ["Redox carriers", "ATP synthesis"],
+      sourceFirstRequired: true,
+      awaitingFinish: false,
+    })).toEqual({
+      completedSteps: 0,
+      totalSteps: 4,
+      resumeStep: 0,
+    });
+
+    expect(methodWorkCheckpointCounts({
+      progress: {
+        checkedTopics: ["Redox carriers"],
+        sourceReviewed: true,
+      },
+      topics: ["Redox carriers", "ATP synthesis"],
+      sourceFirstRequired: true,
+      awaitingFinish: false,
+    })).toEqual({
+      completedSteps: 2,
+      totalSteps: 4,
+      resumeStep: 2,
+    });
+  });
 });

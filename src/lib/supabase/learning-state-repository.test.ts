@@ -993,12 +993,51 @@ describe("completeAuthenticatedPlanSession", () => {
     });
   });
 
-  it("classifies a permanent server-side route payload validation failure", async () => {
+  it("bounds an unresponsive completion request and emits only a safe client reason", async () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    rpc.mockImplementationOnce(() => ({
+      abortSignal: (signal: AbortSignal) => new Promise((_resolve, reject) => {
+        signal.addEventListener(
+          "abort",
+          () => reject(new DOMException("Aborted", "AbortError")),
+          { once: true },
+        );
+      }),
+    }));
+
+    const result = completeAuthenticatedPlanSession({
+      id: "00000000-0000-4000-8000-000000000074",
+      planId: "00000000-0000-4000-8000-000000000075",
+      planSessionId: "00000000-0000-4000-8000-000000000076",
+      startedAt: "2026-08-17T20:00:00.000Z",
+      completedAt: "2026-08-17T20:08:00.000Z",
+      plannedMinutes: 20,
+      actualMinutes: 8,
+      correctAnswers: 1,
+      totalAnswers: 1,
+      feedback: "about_right",
+      observedGap: "No major gap detected.",
+      conceptEvidence: [],
+      confidenceEvidence: [],
+    }, null, null, null, null, "user-1").catch((error: unknown) => error);
+
+    await vi.advanceTimersByTimeAsync(AUTHENTICATED_LEARNING_MUTATION_DEADLINE_MS);
+    const issue = await result;
+
+    expect(issue).toBeInstanceOf(CloudSyncTemporarilyUnavailableError);
+    expect(consoleError).toHaveBeenCalledWith(
+      "YOVA session completion sync failed [client:deadline]",
+    );
+  });
+
+  it("classifies and safely diagnoses the production method-catalog rejection", async () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
     rpc.mockResolvedValueOnce({
       data: null,
       error: {
         code: "22023",
-        message: "study_route_semantic_override_invalid",
+        message: "study_route_semantic_method_catalog_invalid",
+        details: "private route payload and learner data",
       },
     });
 
@@ -1023,15 +1062,20 @@ describe("completeAuthenticatedPlanSession", () => {
       terminalKind: "completion",
       rejection: "invalid_payload",
     });
+    expect(consoleError).toHaveBeenCalledWith(
+      "YOVA session completion sync failed [22023:study_route_semantic_method_catalog_invalid]",
+    );
+    expect(consoleError.mock.calls.flat().join(" ")).not.toContain("private route payload");
+    consoleError.mockRestore();
   });
 
-  it("uses the evidence-free transactional RPC for unguided practice", async () => {
+  it("adapts the canonical verification method only at the legacy unguided RPC boundary", async () => {
     const verification = {
       id: "00000000-0000-4000-8000-000000000031",
       sequence: 2,
       title: "Verify thermohaline circulation",
       objective: "Complete an independent guided check for every original target.",
-      method: "Independent retrieval verification",
+      method: "Active Recall",
       methodReason: "This work counted as practice, not proof.",
       scheduledFor: "2026-08-18T20:08:00.000Z",
       estimatedMinutes: 10,
@@ -1071,6 +1115,7 @@ describe("completeAuthenticatedPlanSession", () => {
         confidenceEvidence: [],
         followUpSession: expect.objectContaining({
           id: verification.id,
+          method: "Independent retrieval verification",
           topicIds: verification.topicIds,
           contentTargets: verification.contentTargets,
           completionEvidence: verification.completionEvidence,

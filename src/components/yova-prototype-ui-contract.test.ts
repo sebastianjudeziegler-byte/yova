@@ -342,13 +342,13 @@ describe("YOVA prototype UI contracts", () => {
   it("does not navigate home when completion cannot preserve verification", () => {
     const component = readSource("src/components/yova-prototype.tsx");
 
-    expect(component).toContain("if (!completeActiveSession(");
+    expect(component).toContain("if (!await completeActiveSession(");
     expect(component).toContain("YOVA kept this session open because it could not preserve the required guided verification");
   });
 
   it("routes post-session adaptation through the persisted agency contract", () => {
     const component = readSource("src/components/yova-prototype.tsx");
-    const completionStart = component.indexOf("const completeActiveSession = (");
+    const completionStart = component.indexOf("const completeActiveSession = async (");
     const interruptionStart = component.indexOf("const interruptActiveSession = () =>", completionStart);
     const completion = component.slice(completionStart, interruptionStart);
     const receiptStart = component.indexOf("function SessionComplete(");
@@ -406,7 +406,7 @@ describe("YOVA prototype UI contracts", () => {
     );
   });
 
-  it("keeps a just-flushed Exit authoritative during startup checkpoint merge", () => {
+  it("keeps only current or authoritative completions terminal during startup checkpoint merge", () => {
     const component = readSource("src/components/yova-prototype.tsx");
     const startup = component.slice(
       component.indexOf("async function openYova()"),
@@ -424,12 +424,56 @@ describe("YOVA prototype UI contracts", () => {
     expect(flush).toBeGreaterThan(capture);
     expect(mergedTombstones).toBeGreaterThan(flush);
     expect(merge).toBeGreaterThan(mergedTombstones);
-    expect(startup.slice(flush, merge)).toContain(
+    expect(startup.slice(flush, merge)).not.toContain(
       "...startupCompletedSessionTombstones",
+    );
+    expect(startup.slice(flush, merge)).toContain(
+      "...pendingSessionCompletionPlanSessionIds(cloudAccount.id)",
     );
     expect(startup.slice(mergedTombstones, merge)).toContain(
       "...startupInterruptionRunTombstones",
     );
+  });
+
+  it("does not show authenticated completion progress before the exact cloud commit", () => {
+    const component = readSource("src/components/yova-prototype.tsx");
+    const completionStart = component.indexOf("const completeActiveSession = async (");
+    const interruptionStart = component.indexOf("const interruptActiveSession = () =>", completionStart);
+    const completion = component.slice(completionStart, interruptionStart);
+    const queue = completion.indexOf("const queued = queueSessionCompletion({");
+    const sync = completion.indexOf("await syncSessionCompletionAfterTerminals({", queue);
+    const disposition = completion.indexOf('syncResult.disposition !== "committed"', sync);
+    const planProgress = completion.indexOf("setPlans((currentPlans)", disposition);
+    const checkpointRemoval = completion.indexOf("removeActiveSessionCheckpoint(", disposition);
+
+    expect(completionStart).toBeGreaterThan(-1);
+    expect(queue).toBeGreaterThan(-1);
+    expect(sync).toBeGreaterThan(queue);
+    expect(disposition).toBeGreaterThan(sync);
+    expect(planProgress).toBeGreaterThan(disposition);
+    expect(checkpointRemoval).toBeGreaterThan(planProgress);
+    expect(completion).toContain("completionId: completion.id");
+    expect(completion).toContain("sessionCompletionSyncIssue(syncResult)");
+    expect(completion).toContain("account.id,");
+    expect(component).toContain("if (!await completeActiveSession(");
+    expect(component).toContain("setFinishing(false)");
+    expect(component).toContain('onClick={() => void finish(false)}');
+  });
+
+  it("uses committed route identity and method-work counts for every terminal event", () => {
+    const component = readSource("src/components/yova-prototype.tsx");
+    const completionStart = component.indexOf("const completeActiveSession = async (");
+    const interruptionStart = component.indexOf("const interruptActiveSession = () =>", completionStart);
+    const interruptionEnd = component.indexOf("const resetYovaData = async", interruptionStart);
+    const completion = component.slice(completionStart, interruptionStart);
+    const interruption = component.slice(interruptionStart, interruptionEnd);
+
+    expect(completion).toContain("selectSessionTerminalRouteRevisionId(currentSession)");
+    expect(interruption).toContain("selectSessionTerminalRouteRevisionId(currentSession)");
+    expect(interruption).toContain("methodWorkCheckpointCounts({");
+    expect(interruption).toContain("completedSteps: methodCounts?.completedSteps");
+    expect(interruption).toContain("totalSteps: methodCounts?.totalSteps");
+    expect(interruption).toContain("resumeStep: methodCounts?.resumeStep");
   });
 
   it("reconciles full cloud authority, reflushes unblocked work, and hydrates the final state", () => {

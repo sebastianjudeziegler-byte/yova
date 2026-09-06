@@ -211,6 +211,13 @@ class SessionInterruptionCloudSyncError extends Error {
   }
 }
 
+class SessionCompletionCloudSyncError extends Error {
+  constructor() {
+    super("YOVA saved this session in your browser but could not sync it to the cloud.");
+    this.name = "SessionCompletionCloudSyncError";
+  }
+}
+
 export { NonRetryableSessionTerminalMutationError } from "@/lib/sync/session-terminal-mutation-error";
 
 type TerminalMutationServerFailure = Readonly<{
@@ -236,6 +243,7 @@ const NON_RETRYABLE_COMPLETION_SERVER_FAILURES = new Map<string, NonRetryableSes
   ["22023:post_session_request_invalid", "invalid_payload"],
   ["22023:study_route_payload_too_large", "invalid_payload"],
   ["22023:study_route_semantic_override_invalid", "invalid_payload"],
+  ["22023:study_route_semantic_method_catalog_invalid", "invalid_payload"],
   ["P0001:Session timing is not valid.", "invalid_payload"],
   ["P0001:The delayed verification session is not valid.", "invalid_payload"],
 
@@ -246,6 +254,22 @@ const NON_RETRYABLE_COMPLETION_SERVER_FAILURES = new Map<string, NonRetryableSes
   ["40001:study_route_completion_retry_conflict", "incompatible_cloud_state"],
   ["40001:study_route_completion_conflict", "incompatible_cloud_state"],
   ["40001:study_route_completion_event_conflict", "incompatible_cloud_state"],
+  ["40001:study_route_revision_conflict", "incompatible_cloud_state"],
+  ["40001:post_session_study_route_coverage_conflict", "incompatible_cloud_state"],
+  ["40001:study_route_completion_session_not_ready", "incompatible_cloud_state"],
+  ["40001:post_session_adaptation_target_conflict", "incompatible_cloud_state"],
+  ["P0002:study_route_session_not_found", "incompatible_cloud_state"],
+  ["P0002:study_route_plan_not_found", "incompatible_cloud_state"],
+  ["P0001:Unguided completion identity is not valid.", "invalid_payload"],
+  ["P0001:The required guided verification is not valid or exceeds its ten-minute review capacity.", "invalid_payload"],
+  ["P0001:A required verification cannot be completed as ungraded practice.", "invalid_payload"],
+  ["P0001:The requested session was not found.", "incompatible_cloud_state"],
+  ["P0001:The requested session is not ready for a new attempt.", "incompatible_cloud_state"],
+  ["P0001:Unguided completion identity conflicts with an existing attempt.", "incompatible_cloud_state"],
+  ["P0001:The required guided verification was not preserved.", "incompatible_cloud_state"],
+  ["P0001:This plan has no safe room for another verification session.", "incompatible_cloud_state"],
+  ["P0001:This plan cannot shift another session safely.", "incompatible_cloud_state"],
+  ["P0001:The verification identity is already in use.", "incompatible_cloud_state"],
 ]);
 
 const NON_RETRYABLE_INTERRUPTION_SERVER_FAILURES = new Map<string, NonRetryableSessionTerminalRejection>([
@@ -1161,9 +1185,9 @@ export async function completeAuthenticatedPlanSession(
   followUpSession?: LearningPlanSession | null,
   continuationSession?: LearningPlanSession | null,
   nextSessionStudyRoute?: StudyRoute | null,
+  accountId?: string,
 ) {
   if (!isSupabaseConfigured()) return;
-  const supabase = createSupabaseBrowserClient();
   const normalizedCompletion = normalizeSessionCompletionProvenance(completion);
   const completionMode = normalizeSessionCompletionMode(normalizedCompletion.completionMode);
   if (
@@ -1229,77 +1253,118 @@ export async function completeAuthenticatedPlanSession(
     : continuationSession
       ? "guided_continuation" as const
       : "guided" as const;
-  const { error } = await supabase.rpc("complete_plan_session_with_route", {
-    payload: {
-      completionVariant,
-      attemptId: normalizedCompletion.id,
-      planSessionId: normalizedCompletion.planSessionId,
-      ...(normalizedCompletion.routeRevisionId
-        ? { routeRevisionId: normalizedCompletion.routeRevisionId }
-        : {}),
-      startedAt: normalizedCompletion.startedAt,
-      completedAt: normalizedCompletion.completedAt,
-      plannedMinutes: normalizedCompletion.plannedMinutes,
-      actualMinutes: normalizedCompletion.actualMinutes,
-      correctAnswers: normalizedCompletion.correctAnswers,
-      totalAnswers: normalizedCompletion.totalAnswers,
-      feedback: normalizedCompletion.feedback,
-      observedGap: normalizedCompletion.observedGap,
-      completionMode,
-      conceptEvidence: bindConceptEvidenceToRoute(
-        normalizedCompletion.conceptEvidence,
-        normalizedCompletion.routeRevisionId,
-      ),
-      confidenceEvidence: bindConfidenceEvidenceToRoute(
-        normalizedCompletion.confidenceEvidence,
-        normalizedCompletion.routeRevisionId,
-      ),
-      nextSessionAdjustment: adaptation ?? null,
-      nextSessionStudyRoute: parsedNextSessionStudyRoute,
-      followUpSession: followUpSession ? {
-        id: followUpSession.id,
-        sequence: followUpSession.sequence,
-        title: followUpSession.title,
-        objective: followUpSession.objective,
-        method: followUpSession.method,
-        methodReason: followUpSession.methodReason,
-        scheduledFor: followUpSession.scheduledFor,
-        estimatedMinutes: followUpSession.estimatedMinutes,
-        amountLabel: followUpSession.amountLabel,
-        learningMode: followUpSession.learningMode,
-        explanation: followUpSession.adaptationNote?.explanation ?? followUpSession.methodReason,
-        topicIds: followUpSession.topicIds ?? [],
-        contentTargets: followUpSession.contentTargets ?? [],
-        completionEvidence: followUpSession.completionEvidence ?? [],
-        reviewConcept: followUpSession.reviewConcept,
-        reviewType: followUpSession.reviewType,
-        studyRoute: parsedFollowUpRoute,
-      } : null,
-      continuationSession: continuationSession ? {
-        id: continuationSession.id,
-        sequence: continuationSession.sequence,
-        title: continuationSession.title,
-        objective: continuationSession.objective,
-        method: continuationSession.method,
-        methodReason: continuationSession.methodReason,
-        scheduledFor: continuationSession.scheduledFor,
-        estimatedMinutes: continuationSession.estimatedMinutes,
-        amountLabel: continuationSession.amountLabel,
-        learningMode: continuationSession.learningMode,
-        topicIds: continuationSession.topicIds ?? [],
-        contentTargets: continuationSession.contentTargets ?? [],
-        completionEvidence: continuationSession.completionEvidence ?? [],
-        studyRoute: parsedContinuationRoute,
-      } : null,
-    },
+  const payload = {
+    completionVariant,
+    attemptId: normalizedCompletion.id,
+    planSessionId: normalizedCompletion.planSessionId,
+    ...(normalizedCompletion.routeRevisionId
+      ? { routeRevisionId: normalizedCompletion.routeRevisionId }
+      : {}),
+    startedAt: normalizedCompletion.startedAt,
+    completedAt: normalizedCompletion.completedAt,
+    plannedMinutes: normalizedCompletion.plannedMinutes,
+    actualMinutes: normalizedCompletion.actualMinutes,
+    correctAnswers: normalizedCompletion.correctAnswers,
+    totalAnswers: normalizedCompletion.totalAnswers,
+    feedback: normalizedCompletion.feedback,
+    observedGap: normalizedCompletion.observedGap,
+    completionMode,
+    conceptEvidence: bindConceptEvidenceToRoute(
+      normalizedCompletion.conceptEvidence,
+      normalizedCompletion.routeRevisionId,
+    ),
+    confidenceEvidence: bindConfidenceEvidenceToRoute(
+      normalizedCompletion.confidenceEvidence,
+      normalizedCompletion.routeRevisionId,
+    ),
+    nextSessionAdjustment: adaptation ?? null,
+    nextSessionStudyRoute: parsedNextSessionStudyRoute,
+    followUpSession: followUpSession ? {
+      id: followUpSession.id,
+      sequence: followUpSession.sequence,
+      title: followUpSession.title,
+      objective: followUpSession.objective,
+      // The mature unguided writer still validates its historical transport
+      // discriminator before the route-aware wrapper projects the canonical
+      // learner-visible method onto the inserted session. Keep this adapter at
+      // the RPC boundary; domain state and the durable outbox remain aligned
+      // with the authoritative StudyRoute (for example, "Active Recall").
+      method: completionMode === "unguided_practice"
+        ? "Independent retrieval verification"
+        : followUpSession.method,
+      methodReason: followUpSession.methodReason,
+      scheduledFor: followUpSession.scheduledFor,
+      estimatedMinutes: followUpSession.estimatedMinutes,
+      amountLabel: followUpSession.amountLabel,
+      learningMode: followUpSession.learningMode,
+      explanation: followUpSession.adaptationNote?.explanation ?? followUpSession.methodReason,
+      topicIds: followUpSession.topicIds ?? [],
+      contentTargets: followUpSession.contentTargets ?? [],
+      completionEvidence: followUpSession.completionEvidence ?? [],
+      reviewConcept: followUpSession.reviewConcept,
+      reviewType: followUpSession.reviewType,
+      studyRoute: parsedFollowUpRoute,
+    } : null,
+    continuationSession: continuationSession ? {
+      id: continuationSession.id,
+      sequence: continuationSession.sequence,
+      title: continuationSession.title,
+      objective: continuationSession.objective,
+      method: continuationSession.method,
+      methodReason: continuationSession.methodReason,
+      scheduledFor: continuationSession.scheduledFor,
+      estimatedMinutes: continuationSession.estimatedMinutes,
+      amountLabel: continuationSession.amountLabel,
+      learningMode: continuationSession.learningMode,
+      topicIds: continuationSession.topicIds ?? [],
+      contentTargets: continuationSession.contentTargets ?? [],
+      completionEvidence: continuationSession.completionEvidence ?? [],
+      studyRoute: parsedContinuationRoute,
+    } : null,
+  };
+  const saveCompletion = () => withinAuthenticatedLearningMutationDeadline(async (run) => {
+    const supabase = createSupabaseBrowserClient();
+    const { error } = await run(supabase.rpc("complete_plan_session_with_route", {
+      payload,
+    }));
+
+    if (error) {
+      const rejection = nonRetryableTerminalServerRejection("completion", error);
+      const code = typeof error.code === "string" && /^[A-Za-z0-9_]{1,64}$/.test(error.code)
+        ? error.code
+        : "unknown";
+      const reason = typeof error.message === "string" && /^[a-z0-9_]{1,96}$/.test(error.message)
+        ? error.message
+        : "unclassified";
+      console.error(`YOVA session completion sync failed [${code}:${reason}]`);
+      if (rejection) {
+        throw new NonRetryableSessionTerminalMutationError("completion", rejection);
+      }
+      throw new SessionCompletionCloudSyncError();
+    }
   });
 
-  if (error) {
-    const rejection = nonRetryableTerminalServerRejection("completion", error);
-    if (rejection) {
-      throw new NonRetryableSessionTerminalMutationError("completion", rejection);
+  try {
+    if (accountId) {
+      await sequenceAuthenticatedAccountLearningMutation(accountId, saveCompletion);
+    } else {
+      await saveCompletion();
     }
-    throw new Error("YOVA saved this session in your browser but could not sync it to the cloud.");
+  } catch (cause) {
+    if (
+      cause instanceof SessionCompletionCloudSyncError
+      || cause instanceof NonRetryableSessionTerminalMutationError
+    ) {
+      throw cause;
+    }
+    const reason = cause instanceof AuthenticatedLearningMutationDeadlineError
+      ? "deadline"
+      : "unavailable";
+    console.error(`YOVA session completion sync failed [client:${reason}]`);
+    throw new CloudSyncTemporarilyUnavailableError(
+      "YOVA saved this session in your browser but could not sync it to the cloud.",
+      cause,
+    );
   }
 }
 

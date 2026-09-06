@@ -83,6 +83,26 @@ export function selectSessionExecutionEnvironment(
 }
 
 /**
+ * Returns the immutable route identity that terminal learning records must use.
+ *
+ * A generated resource is a cache of lesson delivery, not route authority. It
+ * may legitimately outlive a route rewrite in a browser snapshot. Prefer the
+ * validated stored route whenever one exists and consult a resource only for a
+ * route-free legacy session.
+ */
+export function selectSessionTerminalRouteRevisionId(
+  session: LearningPlanSession,
+) {
+  const stored = storedStudyRoute(session);
+  if (stored) {
+    return stored.identity.lifecycleStatus === "committed"
+      ? stored.identity.routeRevisionId
+      : undefined;
+  }
+  return session.resource?.routeRevisionId;
+}
+
+/**
  * Projects the canonical route back into the current legacy plan/session
  * contract at integration boundaries. This keeps existing generators and UI
  * components behavior-compatible while giving them one route authority.

@@ -11,9 +11,12 @@ import { isNonRetryableSessionTerminalMutationError } from "@/lib/sync/session-t
 import {
   clearQuarantinedSessionTerminals,
   quarantineSessionTerminal,
+  quarantinedSessionTerminalReason,
   readQuarantinedSessionTerminalPayloads,
+  removeQuarantinedSessionTerminal,
   removeQuarantinedSessionTerminalsForPlan,
   type NonRetryableSessionTarget,
+  type SessionTerminalQuarantineReason,
 } from "@/lib/sync/session-terminal-quarantine";
 
 export type { NonRetryableSessionTarget } from "@/lib/sync/session-terminal-quarantine";
@@ -169,6 +172,12 @@ export type AuthoritativeSessionCompletionReceipt = Readonly<{
   planSessionId: string;
 }>;
 
+export type SessionCompletionFlushOutcome = Readonly<{
+  completionId: string;
+  planSessionId: string;
+  disposition: "committed" | "rejected";
+}>;
+
 export type SessionCompletionReconciliationResult = Readonly<{
   removed: number;
   remaining: number;
@@ -180,13 +189,39 @@ export function queueSessionCompletion(input: PendingSessionCompletion) {
   if (!parsed.success) return false;
   const current = loadAllPendingCompletions();
   const withoutDuplicate = current.filter((entry) => entry.completion.id !== parsed.data.completion.id);
-  return savePendingCompletions([...withoutDuplicate, parsed.data].slice(-25));
+  const saved = savePendingCompletions([...withoutDuplicate, parsed.data].slice(-25));
+  if (!saved) return false;
+  // The active marker is now the durable recovery copy. A prior rejected
+  // envelope with the same stable id must not make this corrected retry appear
+  // rejected to the terminal coordinator.
+  removeQuarantinedSessionTerminal(
+    parsed.data.userId,
+    "completion",
+    parsed.data.completion.id,
+  );
+  return true;
 }
 
 export function removeQueuedSessionCompletion(completionId: string) {
   return savePendingCompletions(
     loadAllPendingCompletions().filter((entry) => entry.completion.id !== completionId),
   );
+}
+
+/**
+ * Retires a cloud-confirmed completion without ever leaving a stale rejection
+ * as the only durable record. The active marker stays in place unless the old
+ * quarantine copy was removed first; a later idempotent retry can therefore
+ * finish cleanup after browser storage recovers.
+ */
+export function finalizeCommittedSessionCompletion(
+  userId: string,
+  completionId: string,
+) {
+  if (!removeQuarantinedSessionTerminal(userId, "completion", completionId)) {
+    return false;
+  }
+  return removeQueuedSessionCompletion(completionId);
 }
 
 export function clearQueuedSessionCompletions(userId: string) {
@@ -211,6 +246,30 @@ export function removeQueuedSessionCompletionsForPlan(userId: string, planId: st
 
 export function pendingSessionCompletionCount(userId: string) {
   return loadAllPendingCompletions().filter((entry) => entry.userId === userId).length;
+}
+
+export type SessionCompletionOutboxDisposition =
+  | { kind: "pending" }
+  | { kind: "quarantined"; reason: SessionTerminalQuarantineReason }
+  | { kind: "absent" };
+
+export function sessionCompletionOutboxDisposition(
+  userId: string,
+  completionId: string,
+): SessionCompletionOutboxDisposition {
+  if (loadAllPendingCompletions().some((entry) => (
+    entry.userId === userId && entry.completion.id === completionId
+  ))) {
+    return { kind: "pending" };
+  }
+  const reason = quarantinedSessionTerminalReason(
+    userId,
+    "completion",
+    completionId,
+  );
+  return reason
+    ? { kind: "quarantined", reason }
+    : { kind: "absent" };
 }
 
 /**
@@ -240,9 +299,18 @@ export function reconcileQueuedSessionCompletions(
   const current = loadAllPendingCompletions();
   const before = current.filter((entry) => entry.userId === userId).length;
   let quarantineFailed = false;
+  let committedCleanupFailed = false;
   const retained = current.filter((entry) => {
     if (entry.userId !== userId) return true;
-    if (authoritativeIds.has(entry.completion.id)) return false;
+    if (authoritativeIds.has(entry.completion.id)) {
+      const quarantineRemoved = removeQuarantinedSessionTerminal(
+        userId,
+        "completion",
+        entry.completion.id,
+      );
+      if (!quarantineRemoved) committedCleanupFailed = true;
+      return !quarantineRemoved;
+    }
 
     const reason = eventDispositions.get(entry.completion.id)
       ?? sessionDispositions.get(entry.completion.planSessionId)
@@ -271,7 +339,7 @@ export function reconcileQueuedSessionCompletions(
   return {
     removed: Math.max(0, before - remaining),
     remaining,
-    storageSaved: activeSaved && !quarantineFailed,
+    storageSaved: activeSaved && !quarantineFailed && !committedCleanupFailed,
   };
 }
 
@@ -322,7 +390,10 @@ export function pendingSessionCompletionPlanSessionIds(userId: string) {
 
 export async function flushQueuedSessionCompletions(
   userId: string,
-  options: { blockedPlanSessionIds?: ReadonlySet<string> } = {},
+  options: {
+    blockedPlanSessionIds?: ReadonlySet<string>;
+    onOutcome?: (outcome: SessionCompletionFlushOutcome) => void;
+  } = {},
 ) {
   const queued = loadAllPendingCompletions().filter((entry) => entry.userId === userId);
   const blockedPlanSessionIds = new Set(options.blockedPlanSessionIds ?? []);
@@ -331,6 +402,18 @@ export async function flushQueuedSessionCompletions(
   for (const entry of queued) {
     const planSessionId = entry.completion.planSessionId;
     if (blockedPlanSessionIds.has(planSessionId)) continue;
+    // A corrected retry can coexist with an older quarantined envelope only
+    // when browser storage failed during queueing. The active marker is the
+    // recovery copy, so clear the stale rejection before sending. If cleanup
+    // is still unavailable, do not commit and create an ambiguous dual state.
+    if (!removeQuarantinedSessionTerminal(
+      entry.userId,
+      "completion",
+      entry.completion.id,
+    )) {
+      blockedPlanSessionIds.add(planSessionId);
+      continue;
+    }
     try {
       await completeAuthenticatedPlanSession(
         entry.completion,
@@ -338,8 +421,14 @@ export async function flushQueuedSessionCompletions(
         entry.followUpSession,
         entry.continuationSession ?? null,
         entry.nextSessionStudyRoute ?? null,
+        entry.userId,
       );
-      if (removeQueuedSessionCompletion(entry.completion.id)) {
+      options.onOutcome?.({
+        completionId: entry.completion.id,
+        planSessionId,
+        disposition: "committed",
+      });
+      if (finalizeCommittedSessionCompletion(entry.userId, entry.completion.id)) {
         synced += 1;
       } else {
         // The server accepted the event, but the durable retry marker remains.
@@ -347,11 +436,13 @@ export async function flushQueuedSessionCompletions(
         blockedPlanSessionIds.add(planSessionId);
       }
     } catch (error) {
-      if (
-        isNonRetryableSessionTerminalMutationError(error)
-        && quarantinePermanentlyRejectedCompletion(entry)
-      ) {
-        continue;
+      if (isNonRetryableSessionTerminalMutationError(error)) {
+        options.onOutcome?.({
+          completionId: entry.completion.id,
+          planSessionId,
+          disposition: "rejected",
+        });
+        if (quarantinePermanentlyRejectedCompletion(entry)) continue;
       }
       // Ordering is a per-session invariant. An incompatible completion may
       // block a duplicate for its own session, but never unrelated work.
@@ -382,12 +473,26 @@ export type SupersedingSessionCompletionFlushResult = Readonly<{
 export async function flushQueuedSessionCompletionSupersedingExit(
   userId: string,
   planSessionId: string,
+  options: {
+    onOutcome?: (outcome: SessionCompletionFlushOutcome) => void;
+  } = {},
 ): Promise<SupersedingSessionCompletionFlushResult> {
   const entry = loadAllPendingCompletions().find((candidate) => (
     candidate.userId === userId
     && candidate.completion.planSessionId === planSessionId
   ));
   if (!entry) {
+    return {
+      committed: false,
+      remaining: pendingSessionCompletionCount(userId),
+    };
+  }
+
+  if (!removeQuarantinedSessionTerminal(
+    entry.userId,
+    "completion",
+    entry.completion.id,
+  )) {
     return {
       committed: false,
       remaining: pendingSessionCompletionCount(userId),
@@ -401,9 +506,20 @@ export async function flushQueuedSessionCompletionSupersedingExit(
       entry.followUpSession,
       entry.continuationSession ?? null,
       entry.nextSessionStudyRoute ?? null,
+      entry.userId,
     );
+    options.onOutcome?.({
+      completionId: entry.completion.id,
+      planSessionId,
+      disposition: "committed",
+    });
   } catch (error) {
     if (isNonRetryableSessionTerminalMutationError(error)) {
+      options.onOutcome?.({
+        completionId: entry.completion.id,
+        planSessionId,
+        disposition: "rejected",
+      });
       quarantinePermanentlyRejectedCompletion(entry);
     }
     return {

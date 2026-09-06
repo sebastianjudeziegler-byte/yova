@@ -1011,6 +1011,67 @@ describe("concept-mapping full generation", () => {
     );
   });
 
+  it("binds both provider attempts to the 15-minute content budget for one planned target", async () => {
+    parseResponse.mockReset();
+    const target = "Funding exchanges resources now for financial rights later";
+    const context = conceptMappingStudyContext();
+    context.session.contentTargets = [target];
+    context.session.completionEvidence = ["Build and verify the funding relationship without notes"];
+    context.knowledgeTopics = [{
+      ...context.knowledgeTopics[0]!,
+      title: "Startup funding exchange",
+      description: target,
+      subtopics: [target],
+    }];
+
+    const overBudgetInitial = conceptMappingDraft();
+    overBudgetInitial.coverage.essentialIdeas.push(
+      "Equity gives an investor an ownership interest in the startup",
+      "Debt gives a lender a contractual repayment right against the startup",
+    );
+    overBudgetInitial.coverage.evidenceMap.push({
+      essentialIdea: "Equity gives an investor an ownership interest in the startup",
+      activityConcept: "Funding map evidence",
+    }, {
+      essentialIdea: "Debt gives a lender a contractual repayment right against the startup",
+      activityConcept: "Funding components",
+    });
+    const repaired = conceptMappingDraft();
+    parseResponse
+      .mockResolvedValueOnce(completedProviderResponse("concept-map-over-budget", overBudgetInitial))
+      .mockResolvedValueOnce(completedProviderResponse("concept-map-budget-repair", repaired));
+
+    const { generateSessionWithOpenAI } = await import("@/lib/openai/session-generator");
+    const result = await generateSessionWithOpenAI(context);
+    const coverageSchemas = parseResponse.mock.calls.map((call) => (
+      call[0]?.text?.format?.schema?.properties?.coverage?.properties
+    ));
+
+    expect(parseResponse).toHaveBeenCalledTimes(2);
+    expect(coverageSchemas).toEqual([
+      expect.objectContaining({
+        essentialIdeas: expect.objectContaining({ maxItems: 2 }),
+        completionEvidence: expect.objectContaining({ maxItems: 2 }),
+        evidenceMap: expect.objectContaining({ maxItems: 2 }),
+      }),
+      expect.objectContaining({
+        essentialIdeas: expect.objectContaining({ maxItems: 2 }),
+        completionEvidence: expect.objectContaining({ maxItems: 2 }),
+        evidenceMap: expect.objectContaining({ maxItems: 2 }),
+      }),
+    ]);
+    expect(parseResponse.mock.calls[1]?.[0]?.instructions).toMatch(/coverage\.essentialIdeas/i);
+    expect(result.draft.coverage.essentialIdeas).toEqual([target]);
+    expect(result.generationStats).toMatchObject({
+      attempts: 2,
+      firstAttemptPassed: false,
+      failedValidator: "session_structure",
+      repairAttempted: true,
+      repairSucceeded: true,
+      repairReason: "structured_output",
+    });
+  });
+
   it.each(["missing", "mismatched"] as const)(
     "routes a %s concept-map runtime through one bounded repair",
     async (invalidKind) => {

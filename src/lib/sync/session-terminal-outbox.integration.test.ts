@@ -23,6 +23,7 @@ import { NonRetryableSessionTerminalMutationError } from "@/lib/sync/session-ter
 import {
   flushQueuedSessionTerminals,
   reconcileQueuedSessionTerminalsAgainstAuthority,
+  syncSessionCompletionAfterTerminals,
 } from "@/lib/sync/session-terminal-outbox";
 
 const userId = "40000000-0000-4000-8000-000000000001";
@@ -37,6 +38,7 @@ function installMemoryStorage() {
       removeItem: (key: string) => values.delete(key),
     },
   });
+  return values;
 }
 
 function pendingExit(planSessionId: string): PendingSessionInterruption {
@@ -87,6 +89,113 @@ afterEach(() => {
 });
 
 describe("terminal outbox poison-entry recovery", () => {
+  it("does not claim completion when another tab removes the marker during a failed RPC", async () => {
+    const values = installMemoryStorage();
+    const planSessionId = "40000000-0000-4000-8000-000000000013";
+    const completion = pendingCompletion(planSessionId);
+    expect(queueSessionCompletion(completion)).toBe(true);
+    repository.completeAuthenticatedPlanSession.mockImplementationOnce(async () => {
+      // Simulate another tab or storage eviction racing with this failed
+      // request. Local absence is not a server receipt.
+      values.delete("yova.cloud-sync-outbox.v1");
+      throw new Error("temporarily unavailable");
+    });
+
+    await expect(syncSessionCompletionAfterTerminals({
+      userId,
+      planSessionId,
+      completionId: completion.completion.id,
+      completionQueued: true,
+      completeImmediately: vi.fn(),
+    })).resolves.toEqual({
+      disposition: "not_durable",
+      reason: "unconfirmed_absence",
+      pendingEvents: 0,
+    });
+    expect(loadQueuedSessionCompletions(userId)).toEqual([]);
+  });
+
+  it("survives fallback Exit at zero, resumed ungraded completion, retry, and reload", async () => {
+    installMemoryStorage();
+    const planSessionId = "40000000-0000-4000-8000-000000000011";
+    const exit = pendingExit(planSessionId);
+    exit.interruption.completedSteps = 0;
+    repository.recordAuthenticatedSessionInterruption.mockResolvedValue(undefined);
+    expect(queueSessionInterruption(exit)).toBe(true);
+
+    // The explicit Exit is durable and reaches the server before the resumed
+    // run can create its later completion.
+    await expect(flushQueuedSessionTerminals(userId)).resolves.toMatchObject({
+      interruptions: { synced: 1, remaining: 0 },
+    });
+
+    const completion = pendingCompletion(planSessionId);
+    completion.completion = {
+      ...completion.completion,
+      completionMode: "unguided_practice",
+      correctAnswers: 0,
+      totalAnswers: 0,
+      observedGap: "Unguided practice completed; no topic evidence was recorded.",
+    };
+    completion.followUpSession = {
+      id: completion.completion.id,
+      sequence: 2,
+      title: "Verify the fallback practice",
+      objective: "Complete an independent guided check for the original target.",
+      method: "Active Recall",
+      methodReason: "This work counted as practice, not proof.",
+      scheduledFor: "2026-09-02T09:20:00.000Z",
+      estimatedMinutes: 10,
+      amountLabel: "Required guided verification · about 10 min",
+      learningMode: "study",
+      topicIds: ["40000000-0000-4000-8000-000000000012"],
+      contentTargets: ["Explain the original target independently"],
+      completionEvidence: ["Explain the original target without notes."],
+      reviewConcept: "Original target",
+      reviewType: "verify",
+      status: "ready",
+    };
+    expect(queueSessionCompletion(completion)).toBe(true);
+    repository.completeAuthenticatedPlanSession.mockRejectedValueOnce(
+      new Error("temporarily unavailable"),
+    );
+
+    await expect(syncSessionCompletionAfterTerminals({
+      userId,
+      planSessionId,
+      completionId: completion.completion.id,
+      completionQueued: true,
+      completeImmediately: vi.fn(),
+    })).resolves.toEqual({
+      disposition: "queued",
+      reason: "retryable_failure",
+      pendingEvents: 1,
+    });
+    expect(loadQueuedSessionCompletions(userId)).toHaveLength(1);
+
+    repository.completeAuthenticatedPlanSession.mockResolvedValueOnce(undefined);
+    await expect(syncSessionCompletionAfterTerminals({
+      userId,
+      planSessionId,
+      completionId: completion.completion.id,
+      completionQueued: true,
+      completeImmediately: vi.fn(),
+    })).resolves.toEqual({
+      disposition: "committed",
+      pendingEvents: 0,
+    });
+
+    // A fresh startup sees the cloud terminal receipt and cannot regress the
+    // plan session to ready or resurrect either browser event.
+    expect(reconcileQueuedSessionTerminalsAgainstAuthority(userId, {
+      sessions: [{ id: planSessionId, status: "complete" }],
+      completions: [{ id: completion.completion.id, planSessionId }],
+      interruptions: [{ id: exit.interruption.id, planSessionId }],
+    })).toMatchObject({ remaining: 0, storageSaved: true });
+    expect(loadQueuedSessionInterruptions(userId)).toEqual([]);
+    expect(loadQueuedSessionCompletions(userId)).toEqual([]);
+  });
+
   it("retires two permanently rejected events for a ready session without losing either payload", async () => {
     installMemoryStorage();
     const planSessionId = "40000000-0000-4000-8000-000000000009";
@@ -115,6 +224,11 @@ describe("terminal outbox poison-entry recovery", () => {
       interruptions: { synced: 0, remaining: 0 },
       completions: { synced: 0, remaining: 0 },
       remaining: 0,
+      completionOutcomes: [{
+        completionId: "40000000-0000-4000-8000-000000000004",
+        planSessionId,
+        disposition: "rejected",
+      }],
     });
     expect(loadQueuedSessionInterruptions(userId)).toEqual([]);
     expect(loadQueuedSessionCompletions(userId)).toEqual([]);
@@ -146,6 +260,11 @@ describe("terminal outbox poison-entry recovery", () => {
       interruptions: { synced: 0, remaining: 0 },
       completions: { synced: 1, remaining: 0 },
       remaining: 0,
+      completionOutcomes: [{
+        completionId: "40000000-0000-4000-8000-000000000004",
+        planSessionId,
+        disposition: "committed",
+      }],
     });
     expect(repository.recordAuthenticatedSessionInterruption).toHaveBeenCalledOnce();
     expect(repository.completeAuthenticatedPlanSession).toHaveBeenCalledOnce();

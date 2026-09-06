@@ -8,6 +8,7 @@ import {
   createCommittedScalarSuccessorStudyRoute,
   createProvisionalScalarSuccessorStudyRoute,
 } from "@/lib/study-route/session-route-creation";
+import { CORE_METHOD_CATALOG } from "@/lib/learning/method-catalog";
 import {
   agencyModeForStudyRouteControlMode,
   resolveStudyRouteAgencyChange,
@@ -16,7 +17,10 @@ import {
   type StudyRouteAgencyDecision,
   type StudyRouteAgencySupportLevel,
 } from "@/lib/study-route/agency-mode-controller";
-import { studyRouteToLegacySessionProjection } from "@/lib/study-route/adapters";
+import {
+  legacyMethodIdFromText,
+  studyRouteToLegacySessionProjection,
+} from "@/lib/study-route/adapters";
 import { StudyRouteSchema, type StudyRoute } from "@/lib/study-route/schema";
 
 export type PostSessionStudyRouteTransition = {
@@ -413,12 +417,20 @@ function createNewSessionRoute({
     ) {
       throw new Error("The existing post-session StudyRoute is not a valid initial lineage.");
     }
-    return session;
+    return {
+      ...session,
+      ...studyRouteToLegacySessionProjection(route),
+      studyRoute: route,
+    };
   }
 
+  const methodId = legacyMethodIdFromText(session.method);
+  const routeSession = methodId
+    ? { ...session, method: CORE_METHOD_CATALOG[methodId].name }
+    : session;
   const route = createCommittedInitialSessionStudyRoute({
     plan,
-    session,
+    session: routeSession,
     now: changedAt,
     origin: {
       source,
@@ -429,7 +441,15 @@ function createNewSessionRoute({
   if (route.identity.routeLineageId === originRoute.identity.routeLineageId) {
     throw new Error("A new post-session must not reuse its origin StudyRoute lineage.");
   }
-  return { ...session, studyRoute: route };
+  // The returned child is applied to client state immediately after the cloud
+  // transaction. Keep that visible session byte-for-byte aligned with its
+  // authoritative route; the repository owns any legacy wire adaptation that
+  // the mature unguided insertion RPC still requires.
+  return {
+    ...session,
+    ...studyRouteToLegacySessionProjection(route),
+    studyRoute: route,
+  };
 }
 
 function boundedReason(value: string) {

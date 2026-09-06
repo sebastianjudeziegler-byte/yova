@@ -82,7 +82,7 @@ import {
 } from "@/lib/learning/practice-variation";
 import {
   GeneratedSessionDraftSchema,
-  GeneratedSessionDraftProviderOutputSchema,
+  generatedSessionDraftProviderOutputSchemaForBudget,
   materializeGeneratedSessionProviderOutput,
   type SessionAdjustment,
   type GeneratedSessionDraft,
@@ -1211,6 +1211,8 @@ export async function generateSessionWithOpenAI(
       constraint: "The source, external action, and return direction must appear together in the body of an instruction activity. For learn sessions, keep substantive subject teaching in that instruction's teaching block and make the body explicitly place the outside action after it. Make the external action take no more than five minutes.",
     }
     : null;
+  const sessionContentBudget = contentBudgetForMinutes(context.session.estimatedMinutes);
+  const providerOutputSchema = generatedSessionDraftProviderOutputSchemaForBudget(sessionContentBudget);
 
   const requestDraft = async (repairInstruction: string | null) => {
     const providerCall = prepareSessionProviderCall({
@@ -1230,7 +1232,7 @@ export async function generateSessionWithOpenAI(
         ...context,
         personalization: undefined,
         scaffoldSignals: undefined,
-        sessionContentBudget: contentBudgetForMinutes(context.session.estimatedMinutes),
+        sessionContentBudget,
         learningScienceRouting,
         recommendedMethodFidelityContract,
         methodFidelityContracts,
@@ -1247,7 +1249,7 @@ export async function generateSessionWithOpenAI(
       })}`,
       reasoning: { effort: "none" },
       text: {
-        format: zodTextFormat(GeneratedSessionDraftProviderOutputSchema, "yova_guided_session"),
+        format: zodTextFormat(providerOutputSchema, "yova_guided_session"),
         verbosity: "low",
       },
       max_output_tokens: 4_000,
@@ -3758,7 +3760,10 @@ function parseGeneratedSessionDraft(
   context: SessionGenerationContext,
   deliveryPolicy: SessionDeliveryPolicy,
 ) {
-  const parsed = GeneratedSessionDraftProviderOutputSchema.safeParse(value);
+  const providerOutputSchema = generatedSessionDraftProviderOutputSchemaForBudget(
+    contentBudgetForMinutes(context.session.estimatedMinutes),
+  );
+  const parsed = providerOutputSchema.safeParse(value);
   if (!parsed.success) return { ...parsed, activityFormatNormalizationReason: null };
   const providerDraft = materializeGeneratedSessionProviderOutput(parsed.data);
   const scheduledConcept = isScheduledRetrievalSession(context.session)

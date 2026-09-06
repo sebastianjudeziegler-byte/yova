@@ -10,6 +10,7 @@ import {
   selectSessionLearningMode,
   selectSessionMethodName,
   selectSessionMethodReason,
+  selectSessionTerminalRouteRevisionId,
 } from "@/lib/study-route/selectors";
 
 function legacyPlan(): LearningPlan {
@@ -106,6 +107,68 @@ describe("StudyRoute selectors", () => {
     expect(resolveExecutedStudyRouteSessionContract(plan, session).session.method)
       .toBe("Stored canonical method name");
     expect(selectSessionMethodName(plan, session)).toBe("Stored canonical method name");
+  });
+
+  it("uses the committed route identity for terminal writes even when a cached resource is stale", () => {
+    const plan = legacyPlan();
+    const legacySession = plan.sessions[0]!;
+    const route = resolvePlannedStudyRoute(plan, legacySession).route!;
+    const session: LearningPlanSession = {
+      ...legacySession,
+      studyRoute: route,
+      resource: {
+        rationale: "This cached delivery belongs to an older route revision.",
+        activities: [],
+        generatedAt: "2026-08-23T09:30:00.000Z",
+        origin: "built_in",
+        routeRevisionId: "55555555-5555-4555-8555-555555555555",
+      },
+    };
+
+    expect(selectSessionTerminalRouteRevisionId(session))
+      .toBe(route.identity.routeRevisionId);
+  });
+
+  it("retains resource route identity only for a route-free legacy session", () => {
+    const session: LearningPlanSession = {
+      ...legacyPlan().sessions[0]!,
+      resource: {
+        rationale: "Legacy routed lesson cache.",
+        activities: [],
+        generatedAt: "2026-08-23T09:30:00.000Z",
+        origin: "built_in",
+        routeRevisionId: "55555555-5555-4555-8555-555555555555",
+      },
+    };
+
+    expect(selectSessionTerminalRouteRevisionId(session))
+      .toBe("55555555-5555-4555-8555-555555555555");
+  });
+
+  it("does not let a resource make a provisional stored route terminal", () => {
+    const plan = legacyPlan();
+    const legacySession = plan.sessions[0]!;
+    const route = resolvePlannedStudyRoute(plan, legacySession).route!;
+    const session: LearningPlanSession = {
+      ...legacySession,
+      studyRoute: {
+        ...route,
+        identity: {
+          ...route.identity,
+          lifecycleStatus: "provisional",
+          committedAt: undefined,
+        },
+      },
+      resource: {
+        rationale: "A cached resource cannot commit a provisional route.",
+        activities: [],
+        generatedAt: "2026-08-23T09:30:00.000Z",
+        origin: "built_in",
+        routeRevisionId: "55555555-5555-4555-8555-555555555555",
+      },
+    };
+
+    expect(selectSessionTerminalRouteRevisionId(session)).toBeUndefined();
   });
 
   it("ignores a malformed stored route and retains a safe legacy fallback", () => {

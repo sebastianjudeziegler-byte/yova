@@ -1,22 +1,19 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 
-const fontDirectory = join(process.cwd(), "node_modules", "@fontsource");
-const interBold = readFile(
-  join(fontDirectory, "inter", "files", "inter-latin-700-normal.woff"),
-);
-const newsreaderMedium = readFile(
-  join(fontDirectory, "newsreader", "files", "newsreader-latin-500-normal.woff"),
-);
-const jetbrainsMonoBold = readFile(
-  join(fontDirectory, "jetbrains-mono", "files", "jetbrains-mono-latin-700-normal.woff"),
-);
+let studyProfileSocialFontsPromise: ReturnType<typeof readStudyProfileSocialFonts> | undefined;
 
-export async function loadStudyProfileSocialFonts() {
+export function loadStudyProfileSocialFonts() {
+  studyProfileSocialFontsPromise ??= readStudyProfileSocialFonts();
+  return studyProfileSocialFontsPromise;
+}
+
+async function readStudyProfileSocialFonts() {
+  const fontDirectory = join(process.cwd(), "assets", "fonts", "study-profile");
   const [inter, newsreader, jetbrainsMono] = await Promise.all([
-    interBold,
-    newsreaderMedium,
-    jetbrainsMonoBold,
+    readFile(join(fontDirectory, "inter-latin-700-normal.woff")),
+    readFile(join(fontDirectory, "newsreader-latin-500-normal.woff")),
+    readFile(join(fontDirectory, "jetbrains-mono-latin-700-normal.woff")),
   ]);
 
   return [
