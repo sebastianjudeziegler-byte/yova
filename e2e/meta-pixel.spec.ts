@@ -70,6 +70,26 @@ test.describe("production Meta Pixel boundary", () => {
       .toBe(false);
   });
 
+  test("never initializes outside the explicit public route allowlist", async ({ page }) => {
+    let libraryRequests = 0;
+    await installFakeMetaLibrary(page, () => {
+      libraryRequests += 1;
+    });
+
+    for (const pathname of [
+      "/",
+      "/study-profile/setup",
+      "/study-profile/setup/preferences",
+      "/study-profile-evil",
+    ]) {
+      await page.goto(pathname);
+      await page.waitForTimeout(100);
+      expect(libraryRequests).toBe(0);
+      expect(await page.evaluate(() => window.__yovaMetaPixelConfigured === true))
+        .toBe(false);
+    }
+  });
+
   test("unloads Meta before opening a non-measurement page", async ({ page }) => {
     const events: unknown[][] = [];
     let libraryRequests = 0;

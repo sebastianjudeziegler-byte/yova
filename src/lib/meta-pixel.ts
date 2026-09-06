@@ -31,7 +31,9 @@ declare global {
   }
 }
 
-const META_PIXEL_ROUTES = new Set([
+// Keep this as an exact opt-in list. Prefix matching would expose future,
+// authenticated, setup, or private bearer-token routes to Meta by default.
+const META_PIXEL_ALLOWED_PATHNAMES = new Set([
   "/study-profile",
   "/study-profile/waitlist/confirm",
 ]);
@@ -56,9 +58,9 @@ export function shouldLoadMetaPixel(
     && isValidMetaPixelId(pixelId);
 }
 
-/** Only the two public Study Profile measurement routes initialize Meta. */
+/** Only explicitly approved public Study Profile pathnames initialize Meta. */
 export function isMetaPixelRouteAllowed(pathname: string) {
-  return META_PIXEL_ROUTES.has(normalizeMetaPathname(pathname));
+  return META_PIXEL_ALLOWED_PATHNAMES.has(normalizeMetaPathname(pathname));
 }
 
 /** Installs Meta's standard queue stub and initializes exactly one configured ID. */

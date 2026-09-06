@@ -88,9 +88,9 @@ const openAIKey = process.env.OPENAI_API_KEY?.trim();
 const siteUrl = process.env.SITE_URL?.trim();
 const metaPixelIdRaw = process.env.NEXT_PUBLIC_META_PIXEL_ID ?? "";
 const metaPixelId = metaPixelIdRaw.trim();
-const metaPixelIdReady = Boolean(
-  metaPixelId
-  && metaPixelIdRaw === metaPixelId
+const metaPixelIdConfigured = metaPixelIdRaw.length > 0;
+const metaPixelIdReady = !metaPixelIdConfigured || Boolean(
+  metaPixelIdRaw === metaPixelId
   && /^\d{5,32}$/u.test(metaPixelId),
 );
 const resendApiKey = process.env.RESEND_API_KEY?.trim();
@@ -256,7 +256,9 @@ if (production) {
   addCheck(
     "Meta Pixel ID",
     metaPixelIdReady,
-    metaPixelIdReady
+    !metaPixelIdConfigured
+      ? "not set; Meta Pixel tracking is disabled"
+      : metaPixelIdReady
       ? "configured as a numeric public Pixel ID"
       : "set NEXT_PUBLIC_META_PIXEL_ID to the exact numeric ID from Meta Events Manager without surrounding whitespace",
   );

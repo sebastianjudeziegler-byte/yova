@@ -24,14 +24,18 @@ describe("Meta Pixel environment and route boundary", () => {
     expect(shouldLoadMetaPixel(undefined, "123456789012345", "production")).toBe(false);
   });
 
-  it("excludes private report and operational routes", () => {
+  it("uses an exact allowlist for public Study Profile measurement routes", () => {
     expect(isMetaPixelRouteAllowed("/study-profile")).toBe(true);
     expect(isMetaPixelRouteAllowed("/study-profile/")).toBe(true);
     expect(isMetaPixelRouteAllowed("/study-profile/waitlist/confirm")).toBe(true);
     expect(isMetaPixelRouteAllowed("/")).toBe(false);
     expect(isMetaPixelRouteAllowed("/support")).toBe(false);
     expect(isMetaPixelRouteAllowed("/study-profile/setup")).toBe(false);
+    expect(isMetaPixelRouteAllowed("/study-profile/setup/preferences")).toBe(false);
     expect(isMetaPixelRouteAllowed("/study-profile/report/private-token")).toBe(false);
+    expect(isMetaPixelRouteAllowed("/study-profile-evil")).toBe(false);
+    expect(isMetaPixelRouteAllowed("/other/study-profile")).toBe(false);
+    expect(isMetaPixelRouteAllowed("/api/study-profile")).toBe(false);
     expect(isMetaPixelRouteAllowed("/auth/callback")).toBe(false);
     expect(isMetaPixelRouteAllowed("/api/system/status")).toBe(false);
   });

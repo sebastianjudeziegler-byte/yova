@@ -22,10 +22,12 @@ RESEND_API_KEY=re_...
 STUDY_PROFILE_FROM_EMAIL=YOVA <reports@updates.yovaapp.com>
 STUDY_PROFILE_REPLY_TO=optional-monitored-address@yovaapp.com
 SITE_URL=https://www.yovaapp.com
-NEXT_PUBLIC_META_PIXEL_ID=your-numeric-pixel-id
+NEXT_PUBLIC_META_PIXEL_ID=optional-numeric-pixel-id
 ```
 
 `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` remain required by the existing app. `SUPABASE_SECRET_KEY` must never use the `NEXT_PUBLIC_` prefix.
+
+`NEXT_PUBLIC_META_PIXEL_ID` is optional and must not block a deployment when omitted. When configured, it is accepted only as a numeric ID and the client loads it only on the explicitly approved Study Profile measurement paths.
 
 Without the Supabase secret key, production submissions fail closed instead of pretending that a lead was saved. In local development and Playwright, the feature uses a process-local repository so the complete flow can be tested without cloud credentials. That fallback is not used as production persistence.
 

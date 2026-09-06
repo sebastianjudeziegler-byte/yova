@@ -71,6 +71,18 @@ describe("production public site readiness", () => {
     );
   });
 
+  it("allows production deployment with Meta Pixel tracking disabled", () => {
+    const result = runReadiness(["--production", "--configuration-only"], {
+      SITE_URL: "https://www.yovaapp.com",
+      NEXT_PUBLIC_META_PIXEL_ID: undefined,
+    });
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain(
+      "PASS  Meta Pixel ID: not set; Meta Pixel tracking is disabled",
+    );
+  });
+
   it("rejects whitespace around the Meta Pixel ID", () => {
     const result = runReadiness(["--production", "--configuration-only"], {
       SITE_URL: "https://www.yovaapp.com",
