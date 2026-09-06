@@ -13,6 +13,7 @@ import {
 } from "@/lib/openai/streamed-lesson-generator";
 import { LessonDeliveryInstructionsSchema } from "@/lib/personalization/session-delivery-policy";
 import { lessonIdeaCapacityForMinutes } from "@/lib/session-generation/lesson-brief";
+import { conciseTeachingActivityTitle } from "@/lib/session-generation/activity-copy";
 import { encodeLessonStreamEvent } from "@/lib/session-generation/lesson-stream";
 import { guidedSessionAllowanceExhaustedHeaders } from "@/lib/session-generation/failure-message";
 import {
@@ -583,10 +584,13 @@ async function loadLessonRuntimeSource(
 
 function lessonInputFromSource(source: LessonRuntimeSource): StreamedLessonInput {
   const brief: LessonBrief = source.activity.lessonBrief!;
+  const lessonTitle = conciseTeachingActivityTitle({
+    preferredTitle: source.activity.title,
+  });
   return {
-    lessonTitle: source.activity.title,
+    lessonTitle,
     plannedMinutes: source.activity.estimatedMinutes,
-    topicTitles: [source.activity.title],
+    topicTitles: [lessonTitle],
     // Older cached sessions may predate lesson-brief allocation and contain a
     // whole plan's targets in one short teaching activity. Defensively cap the
     // retry input so existing learners get the fixed behavior immediately.

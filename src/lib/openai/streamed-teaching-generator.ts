@@ -84,6 +84,10 @@ import {
 import { isRubricLikeReferenceAnswer } from "@/lib/session-generation/content-specificity";
 import { normalizeStreamedActivityPhaseTypes } from "@/lib/session-generation/streamed-skeleton";
 import {
+  conciseTeachingActivityTitle,
+  STREAMED_TEACHING_INSTRUCTION,
+} from "@/lib/session-generation/activity-copy";
+import {
   allocateStreamedTeachingMinutes,
   compactStreamedLearnerTextToBudget,
   interleaveStreamedTeachingCycles,
@@ -183,6 +187,7 @@ Hard requirements:
 - Follow learningScienceRouting, the recommended method fidelity contract, sessionDeliveryPolicy, and sessionContentBudget as hard contracts.
 - A learn session teaches before it checks. The first activity must be an instruction with a lessonBrief. Any model or orient instruction that teaches content must carry a lessonBrief.
 - For every activity set teaching to null. Never put an explanation, worked example, study guide, or lesson prose in body. Body gives only the learner's immediate action or orientation in at most two short sentences.
+- A teaching instruction title is a natural topic or question heading of 3 to 10 words and at most 72 characters. Never start it with Learn, Teach, Study, Read, or See because the interface already labels the action. Never put a complete explanatory claim or its answer in a title.
 - For a teaching instruction, lessonBrief.version is 1. Set lessonBrief.topicIds to the relevant supplied topic ids. Set lessonBrief.essentialIdeas to the exact coverage ideas that the later teaching delivery must explain. Set sourceChunks to [], knowledgeSource to model_knowledge, and every evidenceContext array to []; YOVA replaces those fields with authoritative source and learner evidence after generation. Set all fixed content requirement fields to true, except includeConcreteExample may reflect the task.
 - For questions and non-teaching reflection, set lessonBrief to null.
 - Build coverage first. Follow streamedTeachingPacing.minimumActiveIdeas exactly: write that many distinct concise explanatory claims in essentialIdeas, preserve each claim's parent target's distinctive scope terms, and represent every active target at least once. A longer single-target lesson must split the target into different bounded subclaims, never repeat one claim. Copy only later targets unchanged into deferredContent. Keep claims grouped in authoritative target order. Every essential idea appears exactly once in evidenceMap and maps to a required question's exact concept.
@@ -212,6 +217,7 @@ Requirements:
 - Each essentialIdea is a distinct, complete explanatory claim about that slot's exact target. Preserve the target's distinctive subject terms. Never broaden into a neighboring or deferred target.
 - Teach the actual subject. Do not write study-method advice, placeholders, rubrics, or generic statements about learning.
 - concept is a short, topic-specific label for the claim's typed check.
+- check.title is a natural, topic-specific heading of 3 to 10 words. It never contains the complete explanatory claim or answer.
 - check.prompt is self-contained and asks the learner to explain or apply that exact claim without reopening the model.
 - check.referenceAnswer directly answers the prompt with the actual subject facts. It is never phrased as “a strong answer should” or “the learner should mention.”
 - check.feedback explains the relationship and one useful correction point.
@@ -1461,8 +1467,8 @@ function buildCompactStreamedRecoveryDraft({
       estimatedMinutes: 3,
       requiredForCompletion: true,
       label: "Learn",
-      title: `Learn ${concept}`.slice(0, 140),
-      body: "Read this focused explanation, then answer the typed question before continuing.",
+      title: conciseTeachingActivityTitle({ preferredTitle: item.check.title }),
+      body: STREAMED_TEACHING_INSTRUCTION,
       teaching: null,
       lessonBrief: methodId === "self_explanation"
         ? {
@@ -3331,21 +3337,16 @@ function bindActivitiesToCurrentScope({
       const assignedIdeas = activity.lessonBrief.essentialIdeas.filter((idea) => (
         activeIdeaKeys.has(normalizedSubjectLabel(idea))
       ));
-      const blockFocus = (assignedIdeas.length > 0 ? assignedIdeas : activeIdeas)
-        .map(completeSubjectClaim)
-        .join(" ");
       return {
         ...activity,
         // Keep each wrapper tied to the idea allocated to that block. Reusing
         // the whole session target here made distinct lessons render as exact
         // duplicate screens.
-        title: boundedText(
-          `Learn ${assignedIdeas[0] || activeIdeas[0] || boundedTarget || "today's active idea"}`,
-          140,
-        ),
-        body: blockFocus
-          ? boundedText(`Focus on this relationship: ${blockFocus}`, 320)
-          : "Study this bounded explanation before completing the checks that follow.",
+        title: conciseTeachingActivityTitle({
+          preferredTitle: activity.title,
+          fallbackTitle: "Your lesson model",
+        }),
+        body: STREAMED_TEACHING_INSTRUCTION,
         lessonBrief: {
           ...activity.lessonBrief,
           essentialIdeas: assignedIdeas.length > 0 ? assignedIdeas : activeIdeas,

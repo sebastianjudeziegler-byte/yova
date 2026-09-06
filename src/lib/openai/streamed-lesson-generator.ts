@@ -3,6 +3,7 @@ import "server-only";
 import { getOpenAIClient } from "@/lib/openai/client";
 import { getOpenAILessonConfig } from "@/lib/openai/config";
 import type { LessonDeliveryInstructions } from "@/lib/personalization/session-delivery-policy";
+import { conciseTeachingActivityTitle } from "@/lib/session-generation/activity-copy";
 
 export type StreamedLessonInput = {
   lessonTitle: string;
@@ -127,7 +128,8 @@ Content contract:
 Presentation contract:
 - Follow the delivery instructions only for presentation. They never override the content contract.
 - Write a genuinely useful lesson sized to the planned teaching time. Prefer one clear causal model over an encyclopedic survey.
-- Use Markdown headings, short paragraphs, and lists only when they improve comprehension.
+- Begin with exactly one level-1 Markdown heading of 3 to 10 words and at most 72 characters. It names the topic or question without stating the complete explanatory answer, and it never starts with Learn, Teach, Study, Read, or See.
+- After that opening heading, use only level-2 or lower Markdown headings, short paragraphs, and lists when they improve comprehension.
 - Use inline mathematics between single dollar signs and display mathematics between double dollar signs.
 - Do not use raw backslash-parenthesis or backslash-bracket LaTeX delimiters.
 - Do not use em dashes or en dashes.
@@ -367,6 +369,7 @@ export function buildBoundedFallbackLesson(input: StreamedLessonInput, partialLe
   const budget = lessonWordBudgetForMinutes(input.plannedMinutes);
   const recoveredPartial = completeBoundedMarkdown(partialLesson, budget.maximumWords);
   if (partialLessonPassesStrictScope(input, recoveredPartial, budget)) return recoveredPartial;
+  const lessonTitle = conciseTeachingActivityTitle({ preferredTitle: input.lessonTitle });
 
   const explanatoryIdeas = input.essentialIdeas.filter(isExplanatoryIdea);
   const sourceIdeas = input.sourceChunks
@@ -376,13 +379,13 @@ export function buildBoundedFallbackLesson(input: StreamedLessonInput, partialLe
     .filter(isExplanatoryIdea);
   const ideas = [...explanatoryIdeas, ...sourceIdeas].slice(0, 4);
   if (ideas.length === 0) {
-    return `# ${input.lessonTitle}\n\nThe live explanation was interrupted before YOVA could safely finish it. Continue to the guided activity to work through this lesson's central idea with support.`;
+    return `# ${lessonTitle}\n\nThe live explanation was interrupted before YOVA could safely finish it. Continue to the guided activity to work through this lesson's central idea with support.`;
   }
   const lines = ideas.map((idea, index) => `${index + 1}. ${ensureSentence(idea)}`);
   const connection = ideas.length > 1
     ? "Read these ideas in order and ask how each one changes the conditions for the next. That connection is the model you will use in the practice step."
     : "Focus on the cause, relationship, or procedure in this statement. The practice step will ask you to use it without the lesson visible.";
-  const fallback = `# ${input.lessonTitle}\n\n## The core model\n\n${lines.join("\n")}\n\n## What to notice\n\n${connection}`;
+  const fallback = `# ${lessonTitle}\n\n## The core model\n\n${lines.join("\n")}\n\n## What to notice\n\n${connection}`;
   return trimAtWordBoundary(fallback, budget.maximumWords);
 }
 

@@ -11,6 +11,10 @@ import { contentBudgetForMinutes } from "@/lib/plan-generation/content-budget";
 import { lessonIdeaCapacityForMinutes } from "@/lib/session-generation/lesson-brief";
 import { sessionLearnerFacingWordCount } from "@/lib/session-generation/time-budget";
 import type { CoreMethodId } from "@/lib/learning/method-catalog";
+import {
+  conciseTeachingActivityTitle,
+  STREAMED_TEACHING_INSTRUCTION,
+} from "@/lib/session-generation/activity-copy";
 
 type PacingActivity = StreamedGeneratedSessionActivity;
 
@@ -169,7 +173,7 @@ export function allocateStreamedTeachingMinutes({
  * question, YOVA can pair them deterministically without inventing content.
  */
 export function interleaveStreamedTeachingCycles({
-  draft,
+  draft: suppliedDraft,
   availableMinutes,
   maximumFocusedActivities,
   maximumFirstActionMinutes,
@@ -179,6 +183,7 @@ export function interleaveStreamedTeachingCycles({
   maximumFocusedActivities?: number;
   maximumFirstActionMinutes?: number;
 }): StreamedGeneratedSessionDraft {
+  const draft = polishStreamedTeachingActivityCopy(suppliedDraft);
   if (draft.coverage.evidenceMap.length < 2) return draft;
 
   const focused = draft.activities.filter((activity) => activity.methodPhase !== "schedule_return");
@@ -244,8 +249,11 @@ export function interleaveStreamedTeachingCycles({
       methodPhase: position === 0 ? sourceTeaching.methodPhase : "model",
       topicId: topicIds[0] ?? sourceTeaching.topicId,
       label: "Learn",
-      title: boundedGeneratedActivityTitle(`Learn ${essentialIdeas.join(" and ")}`),
-      body: "Read this focused explanation, then answer the question that follows before continuing.",
+      title: conciseTeachingActivityTitle({
+        preferredTitle: resolvedQuestions[0]?.title,
+        alternateTitle: sourceTeaching.title,
+      }),
+      body: STREAMED_TEACHING_INSTRUCTION,
       lessonBrief: {
         ...sourceLessonBrief,
         topicIds: topicIds.length > 0 ? topicIds : sourceLessonBrief.topicIds,
@@ -294,6 +302,36 @@ export function interleaveStreamedTeachingCycles({
     activities: candidate.activities,
   })) return draft;
   return candidate;
+}
+
+/**
+ * Applies the title/body contract even when pacing does not need to interleave
+ * a single-idea session or exits early for another valid sequence shape.
+ */
+export function polishStreamedTeachingActivityCopy(draft: StreamedGeneratedSessionDraft) {
+  const activities = draft.activities.map((activity) => {
+    if (activity.type !== "instruction" || !activity.lessonBrief) return activity;
+    const mappedConcepts = activity.lessonBrief.essentialIdeas.flatMap((idea) => {
+      const mapping = draft.coverage.evidenceMap.find((candidate) => (
+        normalize(candidate.essentialIdea) === normalize(idea)
+      ));
+      return mapping ? [mapping.activityConcept] : [];
+    });
+    const mappedCheck = draft.activities.find((candidate) => (
+      isRequiredQuestion(candidate)
+      && mappedConcepts.some((concept) => normalize(candidate.concept ?? "") === normalize(concept))
+    ));
+    return {
+      ...activity,
+      title: conciseTeachingActivityTitle({
+        preferredTitle: mappedCheck?.title,
+        alternateTitle: activity.title,
+      }),
+      body: STREAMED_TEACHING_INSTRUCTION,
+    };
+  });
+
+  return { ...draft, activities };
 }
 
 function evidenceGroups<T>(values: T[], groupCount: number) {
@@ -502,58 +540,4 @@ function boundedWords(value: string, maximumWords: number) {
     ? phrasePrefix.slice(0, sentenceBoundary + 1)
     : phrasePrefix;
   return `${bounded.trimEnd().replace(/[\s,:;.!?—–-]+$/g, "")}…`;
-}
-
-const GENERATED_ACTIVITY_TITLE_MAX_LENGTH = 140;
-const MINIMUM_USEFUL_TITLE_BOUNDARY = 48;
-const TRAILING_CONNECTOR = /(?:^|\s)(?:a|an|the|and|or|but|for|nor|so|yet|to|of|in|on|at|by|with|from|into|through|during|without|under|over|between|among|around|as|than|that|which|who|whose|when|where|while|because)$/i;
-
-/**
- * The activity schema deliberately keeps a 140-character title ceiling. When
- * YOVA synthesizes a heading from complete explanatory claims, shorten only
- * the heading at a readable phrase boundary; the claims in lessonBrief remain
- * complete and continue through the existing semantic validators unchanged.
- */
-export function boundedGeneratedActivityTitle(value: string) {
-  const normalized = value.trim().replace(/\s+/g, " ");
-  if (normalized.length <= GENERATED_ACTIVITY_TITLE_MAX_LENGTH) return normalized;
-
-  // Reserve one character for an ellipsis so a shortened heading is visibly
-  // abbreviated rather than looking like a malformed complete sentence.
-  const prefix = normalized.slice(0, GENERATED_ACTIVITY_TITLE_MAX_LENGTH);
-  const phraseLimit = GENERATED_ACTIVITY_TITLE_MAX_LENGTH - 1;
-  const phrasePrefix = prefix.slice(0, phraseLimit);
-  const sentenceBoundary = lastBoundaryIndex(phrasePrefix, /[.!?;](?=\s|$)/g, true);
-  const clauseBoundary = lastBoundaryIndex(phrasePrefix, /[:,]|[—–](?=\s|$)/g, false);
-  const connectorBoundary = lastBoundaryIndex(
-    phrasePrefix,
-    /\s(?:and|but|while|whereas|because|so that|which|who|when)\s/gi,
-    false,
-  );
-  const boundary = [sentenceBoundary, clauseBoundary, connectorBoundary]
-    .find((candidate) => candidate >= MINIMUM_USEFUL_TITLE_BOUNDARY) ?? -1;
-  const lastWordBoundary = phrasePrefix.lastIndexOf(" ");
-
-  let shortened = boundary >= MINIMUM_USEFUL_TITLE_BOUNDARY
-    ? phrasePrefix.slice(0, boundary)
-    : lastWordBoundary >= MINIMUM_USEFUL_TITLE_BOUNDARY
-      ? phrasePrefix.slice(0, lastWordBoundary)
-      : phrasePrefix;
-  shortened = shortened.trimEnd().replace(/[\s,:;.!?—–-]+$/g, "");
-
-  // With prose that contains no punctuation or clause marker, the word
-  // boundary fallback must still avoid visibly dangling function words.
-  while (shortened.length > MINIMUM_USEFUL_TITLE_BOUNDARY && TRAILING_CONNECTOR.test(shortened)) {
-    shortened = shortened.slice(0, shortened.lastIndexOf(" ")).trimEnd();
-  }
-
-  return `${shortened}…`;
-}
-
-function lastBoundaryIndex(value: string, pattern: RegExp, includeMatch: boolean) {
-  let boundary = -1;
-  for (const match of value.matchAll(pattern)) {
-    boundary = match.index + (includeMatch ? match[0].length : 0);
-  }
-  return boundary;
 }

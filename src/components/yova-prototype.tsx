@@ -365,6 +365,11 @@ import {
 } from "@/lib/session-generation/lesson-transport";
 import { sourceActivityIndex } from "@/lib/session-generation/activity-index";
 import {
+  conciseTeachingActivityTitle,
+  streamedLessonPresentation,
+  STREAMED_TEACHING_INSTRUCTION,
+} from "@/lib/session-generation/activity-copy";
+import {
   applyLessonStreamEvent,
   createLessonRuntimeState,
   type LessonRuntimeState,
@@ -7151,6 +7156,27 @@ function GuidedSession({ plan, planSessionId, steps, step, selectedAnswer, outco
   const streamedLessonState = streamedLessonKey
     ? streamedLessons[streamedLessonKey] ?? createLessonRuntimeState()
     : null;
+  const activeStreamedLessonPresentation = isStreamedInstruction
+    ? streamedLessonPresentation({
+      activityTitle: content.title,
+      lessonContent: streamedLessonState?.content,
+      streaming: streamedLessonState?.status === "streaming",
+    })
+    : null;
+  const reviewableStreamedLessonPresentation = reviewableStreamedLesson
+    ? streamedLessonPresentation({
+      activityTitle: reviewableStreamedLesson.title,
+      lessonContent: reviewableStreamedLessonState?.content,
+      streaming: reviewableStreamedLessonState?.status === "streaming",
+    })
+    : null;
+  const activityHeading = activeStreamedLessonPresentation?.title
+    ?? (content.type === "instruction" && content.teaching
+      ? conciseTeachingActivityTitle({ preferredTitle: content.title })
+      : content.title);
+  const activityInstruction = isStreamedInstruction
+    ? STREAMED_TEACHING_INSTRUCTION
+    : content.body;
   const isQuestion = content.type === "multiple_choice" || content.type === "free_response";
   const isImmediateRepair = content.evidenceRole === "immediate_repair";
   const normalizedConcept = content.concept?.trim().toLocaleLowerCase() ?? null;
@@ -7401,8 +7427,8 @@ function GuidedSession({ plan, planSessionId, steps, step, selectedAnswer, outco
         {quickScheduledReview && <div className="quick-review-promise"><Target size={17} /><div><strong>Why this is appearing now</strong><p>YOVA is checking whether {currentSession?.reviewConcept ?? "this idea"} is still available after time has passed. Each question includes all the context you need. Nothing is graded.</p></div></div>}
         {isImmediateRepair && <div className="immediate-repair-note"><RotateCcw size={17} /><div><strong>Repair now, verify later</strong><p>Correct the idea now. YOVA will still check it again later because an immediate retry is not proof that it will stick.</p></div></div>}
         {isImmediateRepair && content.repairSupport && <RuntimeRepairSupportCard support={content.repairSupport} />}
-        <header className="session-activity-header"><div className="session-step-meta"><div><span>STEP {step + 1} OF {steps.length}</span><strong>{activityLabel}</strong></div>{content.estimatedMinutes && <span><Clock3 size={13} /> About {content.estimatedMinutes} min</span>}</div><h1><LearningContent content={content.title} inline /></h1>{content.body && <LearningContent content={content.body} className="session-activity-instruction" />}</header>
-        {(reviewableTeaching || reviewableStreamedLesson) && isQuestion && <div className="session-model-reference"><BookOpen size={18} /><div><span>PREVIOUS LESSON AVAILABLE</span><strong><LearningContent content={reviewableStreamedLesson?.title ?? reviewableTeaching?.keyIdea ?? "Review the lesson"} inline /></strong><small>Open it without losing this question or your place.</small></div><button className="button secondary" type="button" onClick={openReviewableLesson}>Review the lesson</button></div>}
+        <header className="session-activity-header"><div className="session-step-meta"><div><span>STEP {step + 1} OF {steps.length}</span><strong>{activityLabel}</strong></div>{content.estimatedMinutes && <span><Clock3 size={13} /> About {content.estimatedMinutes} min</span>}</div><h1><LearningContent content={activityHeading} inline /></h1>{activityInstruction && <LearningContent content={activityInstruction} className="session-activity-instruction" />}</header>
+        {(reviewableTeaching || reviewableStreamedLesson) && isQuestion && <div className="session-model-reference"><BookOpen size={18} /><div><span>PREVIOUS LESSON AVAILABLE</span><strong><LearningContent content={reviewableStreamedLessonPresentation?.title ?? reviewableTeaching?.keyIdea ?? "Review the lesson"} inline /></strong><small>Open it without losing this question or your place.</small></div><button className="button secondary" type="button" onClick={openReviewableLesson}>Review the lesson</button></div>}
         {isStreamedInstruction && streamedLessonState && streamedLessonKey && plan && planSessionId && <StreamedLessonCard
           state={streamedLessonState}
           plan={plan}
@@ -7526,7 +7552,7 @@ function StreamedLessonCard({ state, plan, planSessionId, activityIndex, activit
   onRetry: () => void;
 }) {
   return <section className="streamed-lesson-card" aria-label="Live YOVA lesson">
-    <StreamedLessonReader state={state} onRetry={onRetry} />
+    <StreamedLessonReader state={state} activityTitle={activity.title} omitLeadingHeading onRetry={onRetry} />
     {state.status === "complete" && <LessonAskAboutThis
       plan={plan}
       planSessionId={planSessionId}
@@ -7538,9 +7564,11 @@ function StreamedLessonCard({ state, plan, planSessionId, activityIndex, activit
   </section>;
 }
 
-export function StreamedLessonReader({ state, compact = false, onRetry }: {
+export function StreamedLessonReader({ state, activityTitle = "Your lesson model", compact = false, omitLeadingHeading = false, onRetry }: {
   state: LessonRuntimeState;
+  activityTitle?: string;
   compact?: boolean;
+  omitLeadingHeading?: boolean;
   onRetry?: () => void;
 }) {
   if (state.status === "error") {
@@ -7558,12 +7586,20 @@ export function StreamedLessonReader({ state, compact = false, onRetry }: {
     </div>;
   }
 
+  const visibleContent = omitLeadingHeading
+    ? streamedLessonPresentation({
+      activityTitle,
+      lessonContent: state.content,
+      streaming: state.status === "streaming",
+    }).content
+    : state.content;
+
   return <article className={`streamed-lesson-reader ${compact ? "compact" : ""}`} aria-busy={state.status === "streaming"}>
     {state.deliveryMode === "bounded_fallback" && <div className="streamed-lesson-fallback-provenance" role="status">
       <Check size={17} />
       <div><strong>Safe built-in lesson</strong><p>The live generated lesson was unavailable or did not pass its checks, so YOVA replaced it with this fallback.</p></div>
     </div>}
-    <LearningContent content={state.content} className="streamed-lesson-copy" />
+    {visibleContent && <LearningContent content={visibleContent} className="streamed-lesson-copy" />}
     {state.status === "streaming" && <span className="streamed-lesson-cursor" aria-label="Lesson is still being written" />}
   </article>;
 }

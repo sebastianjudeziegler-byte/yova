@@ -39,12 +39,12 @@ import { validateSessionContentSpecificity } from "@/lib/session-generation/cont
 import { validateSessionQuestionContext } from "@/lib/session-generation/question-context";
 import { validateSessionTimeBudget } from "@/lib/session-generation/time-budget";
 import { supportsReliableSessionMethod } from "@/lib/session-generation/method-runtime-capability";
+import { conciseTeachingActivityTitle } from "@/lib/session-generation/activity-copy";
 
 const ReliableLessonContentSchema = z.object({
   concept: z.string().trim().min(2).max(100),
-  // This becomes the learner-facing title of the opening activity, whose
-  // runtime contract is intentionally capped at 140 characters.
-  focus: z.string().trim().min(10).max(140),
+  // This becomes the learner-facing title of the opening activity.
+  focus: z.string().trim().min(10).max(72),
   essentialIdea: z.string().trim().min(10).max(180),
   keyIdea: z.string().trim().min(10).max(220),
   explanation: z.string().trim().min(80).max(650),
@@ -80,7 +80,7 @@ Requirements:
 - Teach the actual subject, not the study method.
 - When session.contentTargets contains an exact target, explicitly state and explain that target in the teaching model. Do not merely test it later.
 - State the key relationship, mechanism, sequence, or procedure in clear connected prose.
-- Keep focus under 130 characters. It is a short learner-facing activity title.
+- Write focus as a natural topic or question heading of 3 to 10 words and at most 72 characters. Do not start it with Learn, Teach, Study, Read, or See, and do not put the complete explanatory answer in it.
 - Keep essentialIdea under 160 characters and finish it as a complete sentence.
 - Keep explanation under 550 characters and modelAnswer under 450 characters. Finish both as complete sentences.
 - Include one concrete example with visible steps and one plausible misconception with a direct correction.
@@ -491,7 +491,10 @@ function buildReliableDraft({
     estimatedMinutes: minutes[0],
     requiredForCompletion: true,
     label: learningMode === "learn" ? "Learn" : "Repair",
-    title: lesson.focus,
+    title: conciseTeachingActivityTitle({
+      preferredTitle: lesson.focus,
+      alternateTitle: lesson.concept,
+    }),
     body: learningMode === "learn"
       ? "Build the model first. Then use it without support in the next activities."
       : "Compare this model with your first attempt, then retry without the model visible.",

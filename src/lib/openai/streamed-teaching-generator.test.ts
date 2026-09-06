@@ -3623,8 +3623,8 @@ describe("runtime session-window scoping", () => {
       .map((activity) => `${activity.title} ${activity.body}`);
 
     expect(teachingSurfaces).toEqual([
-      `Learn ${idea} Focus on this relationship: ${idea}`,
-      `Learn ${secondIdea} Focus on this relationship: ${secondIdea}`,
+      "The prewar pressure model Read the explanation, then answer the next question from memory.",
+      "The Sarajevo escalation Read the explanation, then answer the next question from memory.",
     ]);
     expect(new Set(teachingSurfaces).size).toBe(teachingSurfaces.length);
   });

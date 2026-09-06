@@ -1426,10 +1426,12 @@ test("a learner can stop twice without losing progress or earlier evidence", asy
 test("a resumed streamed question can reopen its prior lesson by persisted activity index", async ({ page }) => {
   const lessonActivityIndexes: number[] = [];
   await page.route("**/api/sessions/generate", async (route) => {
+    const response = streamedResumeSessionResponse(requestedRouteRevisionId(route));
+    response.session.activities[0]!.title = "Learn Western Front trenches formed because repeated attacks under machine gun and artillery fire produced stalemate...";
     await route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify(streamedResumeSessionResponse(requestedRouteRevisionId(route))),
+      body: JSON.stringify(response),
     });
   });
   await page.route("**/api/sessions/lesson", async (route) => {
@@ -1441,7 +1443,7 @@ test("a resumed streamed question can reopen its prior lesson by persisted activ
       body: [
         'data: {"type":"lesson.meta","requestId":"30000000-0000-4000-8000-000000000001","model":"test-model"}',
         "",
-        'data: {"type":"lesson.delta","delta":"# Restored streamed explanation\\n\\nRetrieval shows what you can produce before reviewing the answer."}',
+        'data: {"type":"lesson.delta","delta":"# Why Trenches Formed on the Western Front\\n\\nRetrieval shows what you can produce before reviewing the answer."}',
         "",
         'data: {"type":"lesson.complete","deliveryMode":"generated","elapsedMs":20,"latencyToFirstTokenMs":5,"inputTokens":20,"cachedInputTokens":0,"outputTokens":18,"wordCount":13,"model":"test-model"}',
         "",
@@ -1462,7 +1464,21 @@ test("a resumed streamed question can reopen its prior lesson by persisted activ
   await page.getByRole("button", { name: /Build and start session/ }).click();
   await confirmSessionSetup(page);
 
-  await expect(page.getByText("Restored streamed explanation")).toBeVisible();
+  const activityHeader = page.locator(".session-activity-header");
+  await expect(activityHeader.getByRole("heading", {
+    name: "Why Trenches Formed on the Western Front",
+  })).toBeVisible();
+  await expect(activityHeader).toContainText(
+    "Read the explanation, then answer the next question from memory.",
+  );
+  await expect(activityHeader).not.toContainText("Learn Western Front trenches formed because");
+  await expect(page.getByLabel("Live YOVA lesson").getByRole("heading")).toHaveCount(0);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(activityHeader.getByRole("heading", {
+    name: "Why Trenches Formed on the Western Front",
+  })).toBeVisible();
+  await page.setViewportSize({ width: 1440, height: 900 });
   await page.getByRole("button", { name: "Answer the question" }).click();
   await expect(page.getByRole("heading", { name: "Choose the retrieval sequence" })).toBeVisible();
   await leaveSession(page, "1 of 5 required steps finished");
@@ -1496,7 +1512,7 @@ test("a resumed streamed question can reopen its prior lesson by persisted activ
   await expect.poll(() => lessonActivityIndexes.length).toBe(2);
   expect(lessonActivityIndexes).toEqual([0, 0]);
   await expect(page.getByRole("dialog", { name: /Review the lesson, then return to the same question/i }))
-    .toContainText("Restored streamed explanation");
+    .toContainText("Why Trenches Formed on the Western Front");
 });
 
 test("a refresh recovers semantic progress without saving draft answers or inventing an interruption", async ({ page }) => {

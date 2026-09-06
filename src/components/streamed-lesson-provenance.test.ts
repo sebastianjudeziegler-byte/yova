@@ -35,4 +35,21 @@ describe("streamed lesson provenance", () => {
     expect(html).not.toContain("Safe built-in lesson");
     expect(html).not.toContain("streamed-lesson-fallback-provenance");
   });
+
+  it("removes a lifted opening heading from the main lesson card", () => {
+    const html = renderToStaticMarkup(createElement(StreamedLessonReader, {
+      state: {
+        ...createLessonRuntimeState(),
+        status: "complete",
+        content: "# Why Trenches Formed on the Western Front\n\n## Start with the causal chain\n\nFollow each cause in order.",
+        deliveryMode: "generated",
+      },
+      activityTitle: "Learn Western Front trenches formed because repeated attacks produced stalemate...",
+      omitLeadingHeading: true,
+    }));
+
+    expect(html).not.toContain("<h1");
+    expect(html).not.toContain("Why Trenches Formed on the Western Front");
+    expect(html).toContain("<h2>Start with the causal chain</h2>");
+  });
 });
