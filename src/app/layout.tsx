@@ -16,6 +16,8 @@ import "./globals.css";
 import "./polish.css";
 import "./calendar.css";
 import type { Metadata, Viewport } from "next";
+import { MetaPixel } from "@/components/meta-pixel";
+import { shouldLoadMetaPixel } from "@/lib/meta-pixel";
 import { getSiteUrl } from "@/lib/site-url";
 
 const title = "YOVA · Know What to Study Next";
@@ -61,9 +63,21 @@ export const viewport: Viewport = {
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+  const configuredPixelId = process.env.NEXT_PUBLIC_META_PIXEL_ID?.trim();
+  const pixelId = shouldLoadMetaPixel(
+    process.env.VERCEL_ENV,
+    configuredPixelId,
+    process.env.NODE_ENV,
+  )
+    ? configuredPixelId
+    : null;
+
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        {children}
+        {pixelId ? <MetaPixel pixelId={pixelId} /> : null}
+      </body>
     </html>
   );
 }

@@ -26,8 +26,16 @@ import {
   type StudyProfilePublicStoredResponse,
   type StudyProfileReport,
 } from "@/lib/study-profile";
-import { trackStudyProfileEvent } from "@/lib/study-profile/analytics-client";
+import {
+  captureStudyProfileAttribution,
+  restoreStudyProfileVisitorId,
+  trackStudyProfileEvent,
+} from "@/lib/study-profile/analytics-client";
 import { STUDY_PROFILE_SUPPORT_MAILTO } from "@/lib/public-contact";
+import {
+  consumeStudyProfileReportTransition,
+  type StudyProfileReportDeliveryState,
+} from "@/lib/study-profile/report-transition";
 import { StudyProfileHabitChart } from "./study-profile-habit-chart";
 import {
   createStudyProfileShareImage,
@@ -39,7 +47,7 @@ type ReportViewProps = {
   storedResponse: StudyProfilePublicStoredResponse;
   report: StudyProfileReport;
   reportToken: string;
-  emailDelivery?: "sent" | "skipped" | "failed" | "cooldown" | "daily_cap";
+  emailDelivery?: StudyProfileReportDeliveryState;
   initialWaitlistJoined?: boolean;
   initialWaitlistConfirmationPending?: boolean;
   initialWaitlistDailyCapReached?: boolean;
@@ -50,7 +58,6 @@ type ReportViewProps = {
 type InterestState = "idle" | "pending" | "joined" | "limited";
 type InterestLocation = "banner" | "closing";
 type ShareState = "idle" | "working";
-
 const ENERGY_LABELS: Record<StudyProfilePublicStoredResponse["metadata"]["energyWindow"], string> = {
   morning: "Morning",
   afternoon: "Afternoon",
@@ -76,6 +83,10 @@ export function StudyProfileReportView({
   initialWaitlistError = null,
   autoFocusHeading = false,
 }: ReportViewProps) {
+  const [resolvedEmailDelivery, setResolvedEmailDelivery] = useState(emailDelivery);
+  const [resolvedInitialWaitlistError, setResolvedInitialWaitlistError] = useState(
+    initialWaitlistError,
+  );
   const [interestState, setInterestState] = useState<InterestState>(
     initialWaitlistJoined
       ? "joined"
@@ -105,16 +116,26 @@ export function StudyProfileReportView({
   const hasTrackedReportViewRef = useRef(false);
 
   useEffect(() => {
-    if (hasTrackedReportViewRef.current) return;
-    hasTrackedReportViewRef.current = true;
-    void trackStudyProfileEvent("study_profile_report_viewed");
-  }, []);
-
-  useEffect(() => {
-    if (!autoFocusHeading) return;
-    const frame = window.requestAnimationFrame(() => reportHeadingRef.current?.focus());
+    const transition = consumeStudyProfileReportTransition(storedResponse.id);
+    if (transition?.visitorId) {
+      restoreStudyProfileVisitorId(transition.visitorId);
+    }
+    if (!hasTrackedReportViewRef.current) {
+      hasTrackedReportViewRef.current = true;
+      void trackStudyProfileEvent("study_profile_report_viewed");
+    }
+    if (!autoFocusHeading && !transition) return;
+    const frame = window.requestAnimationFrame(() => {
+      if (transition?.emailDelivery) {
+        setResolvedEmailDelivery(transition.emailDelivery);
+      }
+      if (transition?.waitlistError) {
+        setResolvedInitialWaitlistError(transition.waitlistError);
+      }
+      reportHeadingRef.current?.focus();
+    });
     return () => window.cancelAnimationFrame(frame);
-  }, [autoFocusHeading]);
+  }, [autoFocusHeading, storedResponse.id]);
 
   useEffect(() => {
     if (
@@ -147,6 +168,7 @@ export function StudyProfileReportView({
           waitlist: true,
           ageConfirmed: true,
           source: "report_cta",
+          attribution: captureStudyProfileAttribution(),
         }),
       });
       const payload = await response.json().catch(() => ({})) as { error?: unknown; waitlistJoined?: unknown; confirmationPending?: unknown; dailyCapReached?: unknown };
@@ -206,28 +228,28 @@ export function StudyProfileReportView({
       </header>
 
       <main id="study-profile-report" className={styles.reportMain} tabIndex={-1}>
-        {emailDelivery === "cooldown" && (
+        {resolvedEmailDelivery === "cooldown" && (
           <div className={`${styles.deliveryNotice} ${styles.deliveryInfo}`} role="status">
             <Clock3 size={18} aria-hidden="true" />
             <div><strong>Your report is ready here.</strong><span>YOVA sent a recent report to this email, so we skipped another copy to protect your inbox. Save this private link if you want to return.</span></div>
           </div>
         )}
-        {emailDelivery === "daily_cap" && (
+        {resolvedEmailDelivery === "daily_cap" && (
           <div className={`${styles.deliveryNotice} ${styles.deliveryInfo}`} role="status">
             <Clock3 size={18} aria-hidden="true" />
             <div><strong>Your report is ready here.</strong><span>To protect this inbox, YOVA did not send another email today. Save this private link and try again later if you need another copy.</span></div>
           </div>
         )}
-        {(emailDelivery === "failed" || emailDelivery === "skipped") && (
+        {(resolvedEmailDelivery === "failed" || resolvedEmailDelivery === "skipped") && (
           <div className={styles.deliveryNotice} role="status">
             <TriangleAlert size={18} aria-hidden="true" />
             <div><strong>Your report is ready here.</strong><span>We could not send the email copy, so save this private link if you want to return.</span></div>
           </div>
         )}
-        {initialWaitlistError && !hasJoinedWaitlist && (
+        {resolvedInitialWaitlistError && !hasJoinedWaitlist && (
           <div className={styles.deliveryNotice} role="alert">
             <TriangleAlert size={18} aria-hidden="true" />
-            <div><strong>Your report is ready.</strong><span>{initialWaitlistError}</span></div>
+            <div><strong>Your report is ready.</strong><span>{resolvedInitialWaitlistError}</span></div>
           </div>
         )}
 

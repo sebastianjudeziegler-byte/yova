@@ -125,6 +125,7 @@ describe("StudyProfileAnalyticsEventSchema", () => {
       { utmCampaign: "student%40example.com" },
       { utmContent: reportToken },
       { referrer: `https://www.yovaapp.com/study-profile/report/${reportToken}` },
+      { fbclid: "meta_click_should_not_enter_progress_events" },
     ]) {
       expect(StudyProfileAnalyticsEventSchema.safeParse({
         ...base,
@@ -147,6 +148,17 @@ describe("deriveStudyProfileAttribution", () => {
       utmCampaign: "fall_launch",
       utmContent: null,
       utmTerm: null,
+    });
+  });
+
+  it("captures Meta click attribution without treating it as a campaign label", () => {
+    expect(deriveStudyProfileAttribution(
+      "https://www.yovaapp.com/study-profile?utm_source=instagram&fbclid=IwAR_meta.click-123",
+      null,
+    )).toMatchObject({
+      source: "instagram",
+      utmSource: "instagram",
+      fbclid: "IwAR_meta.click-123",
     });
   });
 

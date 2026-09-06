@@ -129,6 +129,7 @@ export interface StudyProfileRepository {
     reportToken: string,
     source: Exclude<StudyProfileWaitlistSource, "landing">,
     confirmationTokenHash: string,
+    attribution?: StudyProfileSubmission["attribution"],
   ): Promise<StudyProfileWaitlistConfirmationRequestState | null>;
   requestWaitlistConfirmationByEmail(
     input: RequestStudyProfileWaitlistByEmailInput,
@@ -351,6 +352,7 @@ export class MemoryStudyProfileRepository implements StudyProfileRepository {
     reportToken: string,
     source: Exclude<StudyProfileWaitlistSource, "landing">,
     confirmationTokenHash: string,
+    attribution?: StudyProfileSubmission["attribution"],
   ) {
     const resolved = this.resolveLead(reportToken);
     if (!resolved) return null;
@@ -389,6 +391,7 @@ export class MemoryStudyProfileRepository implements StudyProfileRepository {
       source,
       scoringRevision: resolved.response.report.scoringRevision,
       profileModelVersion: resolved.response.storedResponse.profileModelVersion,
+      attribution,
     });
   }
 
@@ -736,7 +739,7 @@ export class SupabaseStudyProfileRepository implements StudyProfileRepository {
     let data: unknown = null;
     let rpcFailure: unknown = null;
     try {
-      const result = await supabase.rpc("save_study_profile_response", {
+      const result = await supabase.rpc("save_study_profile_response_attributed", {
         payload: {
           email: normalizeStudyProfileEmail(input.email),
           visitorId: input.visitorId,
@@ -843,9 +846,11 @@ export class SupabaseStudyProfileRepository implements StudyProfileRepository {
     reportToken: string,
     source: Exclude<StudyProfileWaitlistSource, "landing">,
     confirmationTokenHash: string,
+    inputAttribution?: StudyProfileSubmission["attribution"],
   ) {
+    const attribution = persistenceAttribution(inputAttribution);
     const { data, error } = await createSupabaseAdminClient().rpc(
-      "request_study_profile_report_waitlist_confirmation",
+      "request_study_profile_report_waitlist_confirmation_attributed",
       {
         payload: {
           reportTokenHash: hashStudyProfileReportToken(reportToken),
@@ -853,6 +858,7 @@ export class SupabaseStudyProfileRepository implements StudyProfileRepository {
           ageConfirmed: true,
           consentCopyVersion: STUDY_PROFILE_WAITLIST_CONSENT_COPY_VERSIONS[source],
           consentSource: source,
+          attribution,
         },
       },
     );
@@ -866,7 +872,7 @@ export class SupabaseStudyProfileRepository implements StudyProfileRepository {
   ) {
     const attribution = persistenceAttribution(input.attribution);
     const { data, error } = await createSupabaseAdminClient().rpc(
-      "request_study_profile_waitlist_confirmation",
+      "request_study_profile_waitlist_confirmation_attributed",
       {
         payload: {
           email: normalizeStudyProfileEmail(input.email),
@@ -1083,6 +1089,7 @@ function persistenceAttribution(attribution?: StudyProfileSubmission["attributio
     utmCampaign: attribution?.utmCampaign || null,
     utmContent: attribution?.utmContent || null,
     utmTerm: attribution?.utmTerm || null,
+    fbclid: attribution?.fbclid || null,
   };
 }
 

@@ -1,10 +1,10 @@
 export const SIGNED_IN_GENERATION_CONTRACT_VERSION = "202608310003";
 
 const PROBE_RPC = "signed_in_generation_readiness_v3";
-export const STUDY_PROFILE_PUBLIC_CONTRACT_VERSION = "202608310002";
+export const STUDY_PROFILE_PUBLIC_CONTRACT_VERSION = "202609060002";
 export const PUBLIC_LAUNCH_ABUSE_CONTRACT_VERSION = "202609040002";
 
-const STUDY_PROFILE_PROBE_RPC = "study_profile_public_readiness_v1";
+const STUDY_PROFILE_PROBE_RPC = "study_profile_public_readiness_v3";
 const PUBLIC_LAUNCH_ABUSE_PROBE_RPC = "public_launch_abuse_readiness_v1";
 
 export async function probeSignedInGenerationDatabase({
@@ -155,13 +155,17 @@ export async function probeStudyProfilePublicDatabase({
     && payload.pendingConfirmationColumns === true
     && payload.confirmationRpcs === true
     && payload.reportEmailCooldown === true
-    && payload.serviceRoleBoundary === true;
+    && payload.serviceRoleBoundary === true
+    && payload.attributionCapture === true
+    && payload.attributionFirstTouch === true;
   if (!completeContract) {
     const missing = [
       ["pendingConfirmationColumns", "pending-confirmation columns"],
       ["confirmationRpcs", "double-opt-in RPCs"],
       ["reportEmailCooldown", "report-email cooldown"],
       ["serviceRoleBoundary", "service-role-only boundary"],
+      ["attributionCapture", "30-day ad attribution persistence"],
+      ["attributionFirstTouch", "first tagged-touch preservation"],
     ]
       .filter(([key]) => payload[key] !== true)
       .map(([, label]) => label);

@@ -29,6 +29,7 @@ describe("Study Profile API schemas", () => {
         source: "tiktok",
         referrer: "https://www.tiktok.com/",
         utmCampaign: "prelaunch",
+        fbclid: "IwAR_test.click-123",
       },
     });
 
@@ -164,6 +165,11 @@ describe("Study Profile API schemas", () => {
     expect(StudyProfileInterestRequestSchema.safeParse({
       waitlist: true,
       ageConfirmed: true,
+      attribution: {
+        utmSource: "instagram",
+        utmMedium: "paid_social",
+        fbclid: "IwAR_test.click-123",
+      },
     }).success).toBe(true);
     expect(StudyProfileInterestRequestSchema.safeParse({ betaInterest: false }).success).toBe(false);
     expect(StudyProfileInterestRequestSchema.safeParse({
@@ -187,6 +193,7 @@ describe("Study Profile API schemas", () => {
         source: "instagram",
         referrer: "https://www.instagram.com/",
         utmCampaign: "study-profile-launch",
+        fbclid: "IwAR_test.click-123",
       },
     });
 
@@ -201,6 +208,7 @@ describe("Study Profile API schemas", () => {
           source: "instagram",
           referrer: "https://www.instagram.com/",
           utmCampaign: "study-profile-launch",
+          fbclid: "IwAR_test.click-123",
         },
       });
     }

@@ -4,6 +4,7 @@ const EMAIL_LIKE_PATTERN = /\b[^\s@/:]+@[^\s@/:]+\.[^\s@/:]+\b/i;
 const REPORT_LINK_PATTERN = /study-profile(?:%2f|\/)report(?:%2f|\/)[A-Za-z0-9_-]{32,128}/i;
 const LABELED_TOKEN_PATTERN = /(?:report|token)[^A-Za-z0-9_-]{0,12}[A-Za-z0-9_-]{32,128}/i;
 const LONG_URL_SAFE_VALUE_PATTERN = /(?:^|[^A-Za-z0-9_-])[A-Za-z0-9_-]{40,}(?:$|[^A-Za-z0-9_-])/;
+const META_CLICK_ID_PATTERN = /^[A-Za-z0-9._-]{1,500}$/;
 
 function decodedAttributionVariants(value: string) {
   const variants = [value];
@@ -54,3 +55,16 @@ export function createStudyProfileAttributionValueSchema(
     "Attribution must not contain an email address or private report token.",
   );
 }
+
+/** Meta click IDs are intentionally longer than ordinary campaign labels. */
+export function sanitizeStudyProfileMetaClickId(value: string | null | undefined) {
+  if (!value) return null;
+  const normalized = value.replace(/[\u0000-\u001f\u007f]/g, "").trim();
+  return META_CLICK_ID_PATTERN.test(normalized) ? normalized : null;
+}
+
+export const StudyProfileMetaClickIdSchema = z.string()
+  .trim()
+  .min(1)
+  .max(500)
+  .regex(META_CLICK_ID_PATTERN, "Invalid Meta click identifier.");

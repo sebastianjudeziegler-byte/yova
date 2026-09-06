@@ -75,6 +75,23 @@ describe("Supabase Study Profile save receipts", () => {
       "report_token_hash",
       hashStudyProfileReportToken(saved.storedResponse.reportToken),
     );
+    expect(mocks.rpc).toHaveBeenCalledWith(
+      "save_study_profile_response_attributed",
+      {
+        payload: expect.objectContaining({
+          attribution: {
+            source: "instagram",
+            referrerHost: null,
+            utmSource: "instagram",
+            utmMedium: "paid_social",
+            utmCampaign: "study_profile_quiz",
+            utmContent: "static_v1",
+            utmTerm: "student_planner",
+            fbclid: "meta_click_123",
+          },
+        }),
+      },
+    );
   });
 
   it("distinguishes an unrecoverable committed write from a save failure", async () => {
@@ -250,7 +267,15 @@ describe("Supabase Study Profile public-delivery RPC contracts", () => {
         email: " Student@Example.com ",
         visitorId: "4d621251-2df6-4fa3-985e-df63b6d27f5f",
         confirmationTokenHash,
-        attribution: { source: "direct" },
+        attribution: {
+          source: "instagram",
+          utmSource: "instagram",
+          utmMedium: "paid_social",
+          utmCampaign: "study_profile_quiz",
+          utmContent: "static_v1",
+          utmTerm: "student_planner",
+          fbclid: "meta_click_123",
+        },
       })).resolves.toEqual({
         waitlistJoined: false,
         confirmationPending: true,
@@ -262,12 +287,22 @@ describe("Supabase Study Profile public-delivery RPC contracts", () => {
       });
 
     expect(mocks.rpc).toHaveBeenCalledWith(
-      "request_study_profile_waitlist_confirmation",
+      "request_study_profile_waitlist_confirmation_attributed",
       {
         payload: expect.objectContaining({
           email: "student@example.com",
           confirmationTokenHash,
           ageConfirmed: true,
+          attribution: {
+            source: "instagram",
+            referrerHost: null,
+            utmSource: "instagram",
+            utmMedium: "paid_social",
+            utmCampaign: "study_profile_quiz",
+            utmContent: "static_v1",
+            utmTerm: "student_planner",
+            fbclid: "meta_click_123",
+          },
         }),
       },
     );
@@ -291,14 +326,28 @@ describe("Supabase Study Profile public-delivery RPC contracts", () => {
       "report-token-that-is-long-enough-for-the-schema",
       "report_cta",
       "f".repeat(64),
+      {
+        utmSource: "instagram",
+        utmMedium: "paid_social",
+        utmCampaign: "study_profile_quiz",
+        utmContent: "static_v1",
+        fbclid: "meta_click_123",
+      },
     );
 
     expect(mocks.rpc).toHaveBeenCalledWith(
-      "request_study_profile_report_waitlist_confirmation",
+      "request_study_profile_report_waitlist_confirmation_attributed",
       {
         payload: expect.objectContaining({
           ageConfirmed: true,
           consentSource: "report_cta",
+          attribution: expect.objectContaining({
+            utmSource: "instagram",
+            utmMedium: "paid_social",
+            utmCampaign: "study_profile_quiz",
+            utmContent: "static_v1",
+            fbclid: "meta_click_123",
+          }),
         }),
       },
     );
@@ -361,6 +410,15 @@ function input() {
     metadata,
     report: buildStudyProfileReport(snapshot, metadata, answers),
     marketingConsent: false,
+    attribution: {
+      source: "instagram",
+      utmSource: "instagram",
+      utmMedium: "paid_social",
+      utmCampaign: "study_profile_quiz",
+      utmContent: "static_v1",
+      utmTerm: "student_planner",
+      fbclid: "meta_click_123",
+    },
   };
 }
 

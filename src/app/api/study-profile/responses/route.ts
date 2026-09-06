@@ -140,6 +140,7 @@ export async function POST(request: Request) {
           saved.storedResponse.reportToken,
           "email_gate",
           hashStudyProfileReportToken(confirmationToken),
+          parsed.data.attribution,
         );
         if (!waitlistState) {
           throw new Error("Saved Study Profile report could not be resolved for waitlist confirmation.");

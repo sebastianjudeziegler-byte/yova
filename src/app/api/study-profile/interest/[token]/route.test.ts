@@ -69,11 +69,30 @@ describe("Study Profile report waitlist route", () => {
       waitlist: true,
       ageConfirmed: true,
       source: "report_cta",
+      attribution: {
+        utmSource: "instagram",
+        utmMedium: "paid_social",
+        utmCampaign: "study_profile_quiz",
+        utmContent: "static_v1",
+        fbclid: "meta_click_123",
+      },
     }), CONTEXT);
 
     expect(response.status).toBe(200);
     expect(mocks.deliverConfirmation).toHaveBeenCalledOnce();
     expect(mocks.waitForFloor).toHaveBeenCalledOnce();
+    expect(mocks.requestConfirmation).toHaveBeenCalledWith(
+      REPORT_TOKEN,
+      "report_cta",
+      "b".repeat(64),
+      expect.objectContaining({
+        utmSource: "instagram",
+        utmMedium: "paid_social",
+        utmCampaign: "study_profile_quiz",
+        utmContent: "static_v1",
+        fbclid: "meta_click_123",
+      }),
+    );
   });
 
   it("fails closed without a literal 13+ affirmation", async () => {

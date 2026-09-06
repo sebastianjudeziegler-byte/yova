@@ -8,6 +8,7 @@ test.describe("YOVA Study Profile", () => {
   test("reveals a private report without requiring the optional waitlist", async ({ page }) => {
     test.setTimeout(90_000);
     const email = `study-profile-${Date.now()}@example.com`;
+    await installMetaEventRecorder(page);
     let interestPosts = 0;
     page.on("request", (request) => {
       const pathname = new URL(request.url()).pathname;
@@ -16,7 +17,7 @@ test.describe("YOVA Study Profile", () => {
       }
     });
 
-    await page.goto("/study-profile?utm_source=playwright&utm_campaign=study-profile-e2e");
+    await page.goto("/study-profile?utm_source=instagram&utm_medium=paid_social&utm_campaign=study_profile_quiz&utm_content=static_v1&utm_term=student_planner&fbclid=meta_click_e2e");
 
     await expect(page.getByRole("heading", {
       name: "Find out how you actually study.",
@@ -106,6 +107,7 @@ test.describe("YOVA Study Profile", () => {
       waitlistConsent: boolean;
       ageConfirmed: boolean;
       metadata: Record<string, unknown>;
+      attribution: Record<string, unknown>;
     };
     expect(requestBody.marketingConsent).toBe(false);
     expect(requestBody.waitlistConsent).toBe(false);
@@ -116,6 +118,15 @@ test.describe("YOVA Study Profile", () => {
       studyGoal: "keeping_up",
       hardestPart: null,
     });
+    expect(requestBody.attribution).toMatchObject({
+      source: "instagram",
+      utmSource: "instagram",
+      utmMedium: "paid_social",
+      utmCampaign: "study_profile_quiz",
+      utmContent: "static_v1",
+      utmTerm: "student_planner",
+      fbclid: "meta_click_e2e",
+    });
     expect(Object.keys(requestBody.answers)).toHaveLength(12);
 
     const response = await submissionResponse;
@@ -125,6 +136,12 @@ test.describe("YOVA Study Profile", () => {
       confirmationPending: false,
     });
     expect(interestPosts).toBe(0);
+    await expect.poll(() => readMetaConversionEvents(page, "Lead")).toHaveLength(1);
+    expect((await readMetaConversionEvents(page, "Lead"))[0]).toMatchObject({
+      eventName: "Lead",
+      parameters: { content_name: "study_profile_report" },
+      eventId: expect.stringMatching(/^study_profile_report_[0-9a-f]{48}$/u),
+    });
 
     await expect(page.locator("#report-title")).toBeVisible();
     await expect(page.locator("#report-title")).toBeFocused();
@@ -156,11 +173,25 @@ test.describe("YOVA Study Profile", () => {
     expect(interestPosts).toBe(0);
 
     await page.getByRole("checkbox", { name: "I confirm I am 13 or older." }).first().check();
+    const waitlistRequest = page.waitForRequest((waitlist) => (
+      waitlist.method() === "POST"
+      && new URL(waitlist.url()).pathname.startsWith("/api/study-profile/interest/")
+    ));
     const waitlistResponse = page.waitForResponse((waitlist) => (
       waitlist.request().method() === "POST"
       && new URL(waitlist.url()).pathname.startsWith("/api/study-profile/interest/")
     ));
     await sendConfirmation.first().click();
+    expect((await waitlistRequest).postDataJSON()).toMatchObject({
+      attribution: {
+        utmSource: "instagram",
+        utmMedium: "paid_social",
+        utmCampaign: "study_profile_quiz",
+        utmContent: "static_v1",
+        utmTerm: "student_planner",
+        fbclid: "meta_click_e2e",
+      },
+    });
     expect((await waitlistResponse).status()).toBe(200);
     expect(interestPosts).toBe(1);
     await expect(page.getByRole("status").filter({
@@ -287,6 +318,7 @@ test.describe("YOVA Study Profile", () => {
   test("keeps results locked when report creation fails", async ({ page }) => {
     test.setTimeout(60_000);
     const email = `study-profile-stale-${Date.now()}@example.com`;
+    await installMetaEventRecorder(page);
     await page.goto("/study-profile");
     await page.getByRole("button", { name: "Get my free study profile" }).first().click();
     await completeAssessmentToReveal(page);
@@ -315,6 +347,7 @@ test.describe("YOVA Study Profile", () => {
       name: "Your answers point to a study pattern.",
     })).toBeVisible();
     await expect(page).toHaveURL(/\/study-profile$/);
+    expect(await readMetaConversionEvents(page, "Lead")).toHaveLength(0);
   });
 
   test("uses a generic not-found screen for an unknown private token", async ({ page }) => {
@@ -329,6 +362,7 @@ test.describe("YOVA Study Profile", () => {
 
   test("requires an explicit POST to confirm a fragment-only waitlist token", async ({ page }) => {
     const confirmationToken = "c".repeat(43);
+    await installMetaEventRecorder(page);
     let confirmationPosts = 0;
     page.on("request", (request) => {
       if (
@@ -365,6 +399,14 @@ test.describe("YOVA Study Profile", () => {
     await expect(page.getByRole("heading", {
       name: "You are on the YOVA waitlist.",
     })).toBeVisible();
+    await expect.poll(() => readMetaConversionEvents(page, "CompleteRegistration"))
+      .toHaveLength(1);
+    expect((await readMetaConversionEvents(page, "CompleteRegistration"))[0])
+      .toMatchObject({
+        eventName: "CompleteRegistration",
+        parameters: { content_name: "waitlist" },
+        eventId: expect.stringMatching(/^study_profile_waitlist_[0-9a-f]{48}$/u),
+      });
     const backToProfile = page.getByRole("link", { name: "Back to Study Profile" });
     await expectMinimumTapTargets(backToProfile);
     await backToProfile.scrollIntoViewIfNeeded();
@@ -541,6 +583,36 @@ test.describe("YOVA Study Profile", () => {
     await expect(progress).toHaveAttribute("aria-valuetext", "Question 2 of 14");
   });
 });
+
+async function installMetaEventRecorder(page: Page) {
+  await page.addInitScript(() => {
+    const testWindow = window as typeof window & {
+      __yovaMetaTestEvents?: unknown[][];
+      fbq?: (...args: unknown[]) => void;
+    };
+    testWindow.__yovaMetaTestEvents = [];
+    testWindow.__yovaMetaPixelConfigured = true;
+    testWindow.__yovaMetaPixelReady = true;
+    testWindow.fbq = (...args: unknown[]) => {
+      testWindow.__yovaMetaTestEvents?.push(args);
+    };
+  });
+}
+
+async function readMetaConversionEvents(page: Page, eventName: string) {
+  return page.evaluate((expectedEventName) => {
+    const events = (window as typeof window & {
+      __yovaMetaTestEvents?: unknown[][];
+    }).__yovaMetaTestEvents ?? [];
+    return events
+      .filter((entry) => entry[0] === "track" && entry[1] === expectedEventName)
+      .map((entry) => ({
+        eventName: entry[1],
+        parameters: entry[2],
+        eventId: (entry[3] as { eventID?: unknown } | undefined)?.eventID,
+      }));
+  }, eventName);
+}
 
 async function completeAssessmentToReveal(page: Page) {
   for (let questionNumber = 1; questionNumber <= 12; questionNumber += 1) {

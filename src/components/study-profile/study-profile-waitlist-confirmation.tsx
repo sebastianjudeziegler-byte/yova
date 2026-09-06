@@ -1,9 +1,14 @@
 "use client";
+/* eslint-disable @next/next/no-html-link-for-pages -- Full page exits unload Meta before non-measurement routes render. */
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { CheckCircle2, MailCheck, TriangleAlert } from "lucide-react";
 import { BrandMark } from "@/components/brand-mark";
+import {
+  createMetaEventId,
+  trackMetaConversionOnce,
+} from "@/lib/meta-pixel";
 import styles from "./study-profile.module.css";
 
 type ConfirmationState = "loading" | "ready" | "submitting" | "confirmed" | "invalid";
@@ -13,12 +18,17 @@ export function StudyProfileWaitlistConfirmation() {
   const [state, setState] = useState<ConfirmationState>("loading");
   const [error, setError] = useState<string | null>(null);
   const initialTokenRef = useRef<string | null>(null);
+  const metaEventIdRef = useRef<Promise<string | null> | null>(null);
 
   useEffect(() => {
     const parameters = new URLSearchParams(window.location.hash.slice(1));
     const fragmentToken = initialTokenRef.current ?? parameters.get("token");
     if (fragmentToken && /^[A-Za-z0-9_-]{43}$/.test(fragmentToken)) {
       initialTokenRef.current = fragmentToken;
+      metaEventIdRef.current ??= createMetaEventId(
+        "study_profile_waitlist",
+        fragmentToken,
+      ).catch(() => null);
       clearConfirmationFragment();
     }
     const frame = window.requestAnimationFrame(() => {
@@ -53,8 +63,19 @@ export function StudyProfileWaitlistConfirmation() {
             : "YOVA could not confirm your place. Try again.",
         );
       }
+      if (metaEventIdRef.current) {
+        const metaEventId = await metaEventIdRef.current;
+        if (metaEventId) {
+          trackMetaConversionOnce(
+            "CompleteRegistration",
+            { content_name: "waitlist" },
+            metaEventId,
+          );
+        }
+      }
       setToken(null);
       initialTokenRef.current = null;
+      metaEventIdRef.current = null;
       clearConfirmationFragment();
       setState("confirmed");
     } catch (confirmationError) {
@@ -70,15 +91,15 @@ export function StudyProfileWaitlistConfirmation() {
   return (
     <main className={styles.confirmationPage}>
       <section className={styles.confirmationCard} aria-labelledby="confirmation-heading">
-        <Link href="/" aria-label="YOVA home" className={styles.brandLink}>
+        <a href="/" aria-label="YOVA home" className={styles.brandLink}>
           <BrandMark />
-        </Link>
+        </a>
         {state === "confirmed" ? (
           <>
             <CheckCircle2 size={34} aria-hidden="true" />
             <span className={styles.sectionEyebrow}>Email confirmed</span>
             <h1 id="confirmation-heading">You are on the YOVA waitlist.</h1>
-            <p>We will email you about YOVA&apos;s launch. You can unsubscribe at any time. See our <Link href="/privacy">Privacy Notice</Link>.</p>
+            <p>We will email you about YOVA&apos;s launch. You can unsubscribe at any time. See our <a href="/privacy">Privacy Notice</a>.</p>
             <Link className={styles.primaryButton} href="/study-profile">Back to Study Profile</Link>
           </>
         ) : state === "invalid" ? (
@@ -94,7 +115,7 @@ export function StudyProfileWaitlistConfirmation() {
             <MailCheck size={34} aria-hidden="true" />
             <span className={styles.sectionEyebrow}>One final step</span>
             <h1 id="confirmation-heading">Confirm YOVA launch emails.</h1>
-            <p>Select the button below to confirm that you want YOVA launch emails at the address you entered. You can unsubscribe at any time. Opening this page alone does not join the waitlist. See our <Link href="/privacy">Privacy Notice</Link>.</p>
+            <p>Select the button below to confirm that you want YOVA launch emails at the address you entered. You can unsubscribe at any time. Opening this page alone does not join the waitlist. See our <a href="/privacy">Privacy Notice</a>.</p>
             <button
               type="button"
               className={styles.primaryButton}

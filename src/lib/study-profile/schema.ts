@@ -2,6 +2,7 @@ import { z } from "zod";
 import {
   createStudyProfileAttributionValueSchema,
   isSensitiveStudyProfileAttributionValue,
+  StudyProfileMetaClickIdSchema,
 } from "@/lib/study-profile/attribution-privacy";
 import {
   STUDY_PROFILE_ANSWER_IDS,
@@ -78,6 +79,7 @@ export const StudyProfileAttributionSchema = z.object({
   utmCampaign: createStudyProfileAttributionValueSchema(160).optional().nullable(),
   utmContent: createStudyProfileAttributionValueSchema(160).optional().nullable(),
   utmTerm: createStudyProfileAttributionValueSchema(160).optional().nullable(),
+  fbclid: StudyProfileMetaClickIdSchema.optional().nullable(),
 }).strict();
 
 export function normalizeStudyProfileEmail(email: string) {

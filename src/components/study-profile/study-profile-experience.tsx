@@ -1,6 +1,6 @@
 "use client";
+/* eslint-disable @next/next/no-html-link-for-pages -- Full page exits unload Meta before non-measurement routes render. */
 
-import Link from "next/link";
 import {
   useEffect,
   useMemo,
@@ -29,6 +29,12 @@ import {
 } from "lucide-react";
 import { BrandMark } from "@/components/brand-mark";
 import {
+  createMetaEventId,
+  isMetaPixelConfigured,
+  trackMetaConversionOnce,
+  waitForMetaPixelReady,
+} from "@/lib/meta-pixel";
+import {
   captureStudyProfileAttribution,
   getStudyProfileVisitorId,
   trackStudyProfileEvent,
@@ -46,6 +52,7 @@ import {
   type StudyProfileStudyGoal,
 } from "@/lib/study-profile";
 import { STUDY_PROFILE_SUPPORT_MAILTO } from "@/lib/public-contact";
+import { storeStudyProfileReportTransition } from "@/lib/study-profile/report-transition";
 import { StudyProfileReportView } from "./study-profile-report-view";
 import styles from "./study-profile.module.css";
 
@@ -294,18 +301,50 @@ export function StudyProfileExperience() {
       if (!response.ok) {
         if ((payload.code === "saved_response_unavailable" || payload.code === "save_outcome_unknown") && typeof payload.reportUrl === "string") {
           const reportPath = new URL(payload.reportUrl, window.location.href);
-          window.history.replaceState({}, "", `${reportPath.pathname}${reportPath.search}${reportPath.hash}`);
+          const reportHref = `${reportPath.pathname}${reportPath.search}${reportPath.hash}`;
+          if (isMetaPixelConfigured()) {
+            window.location.replace(reportHref);
+            return;
+          }
+          window.history.replaceState({}, "", reportHref);
         }
         throw new Error(typeof payload.error === "string" ? payload.error : "We could not save your report. Check your email and try again.");
       }
       const result = ((payload.data && typeof payload.data === "object") ? payload.data : payload) as unknown as SubmissionResult;
       if (!result.reportToken || !result.storedResponse || !result.report) throw new Error("Your report was created, but the response was incomplete. Try again.");
+      try {
+        const metaEventId = await createMetaEventId(
+          "study_profile_report",
+          result.storedResponse.id,
+        );
+        const conversionQueued = trackMetaConversionOnce(
+          "Lead",
+          { content_name: "study_profile_report" },
+          metaEventId,
+        );
+        if (conversionQueued && isMetaPixelConfigured()) {
+          await waitForMetaPixelReady();
+        }
+      } catch {
+        // Advertising measurement must never block access to a saved report.
+      }
       setSubmissionResult(result);
       clearStudyProfileDraft();
       const reportPath = result.reportUrl
         ? new URL(result.reportUrl, window.location.href)
         : new URL(`/study-profile/report/${encodeURIComponent(result.reportToken)}`, window.location.href);
-      window.history.replaceState({}, "", `${reportPath.pathname}${reportPath.search}${reportPath.hash}`);
+      const reportHref = `${reportPath.pathname}${reportPath.search}${reportPath.hash}`;
+      if (isMetaPixelConfigured()) {
+        storeStudyProfileReportTransition({
+          responseId: result.storedResponse.id,
+          visitorId,
+          emailDelivery: resolveEmailDelivery(result),
+          waitlistError: result.waitlistError,
+        });
+        window.location.replace(reportHref);
+        return;
+      }
+      window.history.replaceState({}, "", reportHref);
       setView("report");
       window.requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: "auto" }));
     } catch (error) {
@@ -334,7 +373,7 @@ export function StudyProfileExperience() {
     <div className={styles.assessmentPage}>
       <a className={styles.skipLink} href="#assessment-content">Skip to question</a>
       <header className={styles.assessmentHeader}>
-        <Link href="/" aria-label="YOVA home" className={styles.brandLink}><BrandMark /></Link>
+        <a href="/" aria-label="YOVA home" className={styles.brandLink}><BrandMark /></a>
         <div className={styles.assessmentHeaderActions}>
           <span><LockKeyhole size={13} aria-hidden="true" /> Draft saved for 7 days</span>
           <button type="button" onClick={restartAssessment}><RefreshCw size={14} aria-hidden="true" /> Restart</button>
@@ -393,7 +432,7 @@ export function StudyProfileExperience() {
                 <button type="submit" className={styles.primaryButton} disabled={isSubmitting || !emailIsValid || !ageConfirmed}>{isSubmitting ? "Building your report..." : "Email my report and see results"}{!isSubmitting && <ArrowRight size={17} aria-hidden="true" />}</button>
                 <span className={styles.srOnly} role="status" aria-live="polite">{isSubmitting ? "Building and saving your Study Profile report." : ""}</span>
                 <p id="email-consent-note" className={styles.emailNote}>We use this email to send your private report link. No account is created.</p>
-                <p className={styles.legalNote}>By continuing, you agree to our <Link href="/terms">Terms</Link> and acknowledge our <Link href="/privacy">Privacy Notice</Link>.</p>
+                <p className={styles.legalNote}>By continuing, you agree to our <a href="/terms">Terms</a> and acknowledge our <a href="/privacy">Privacy Notice</a>.</p>
               </form>
             </section>
           )}
@@ -408,7 +447,7 @@ function StudyProfileLanding({ onStart }: { onStart: () => void }) {
     <div className={styles.landingPage}>
       <a className={styles.skipLink} href="#study-profile-landing">Skip to main content</a>
       <header className={styles.publicHeader}>
-        <Link href="/" aria-label="YOVA home" className={styles.brandLink}><BrandMark /></Link>
+        <a href="/" aria-label="YOVA home" className={styles.brandLink}><BrandMark /></a>
         <nav className={styles.landingNav} aria-label="Study Profile"><a href="#what-is-yova">What is YOVA?</a><span>Free</span><button type="button" onClick={onStart}>Start the profile</button></nav>
       </header>
       <main id="study-profile-landing" tabIndex={-1}>
@@ -448,7 +487,7 @@ function StudyProfileLanding({ onStart }: { onStart: () => void }) {
           <div><p>Not ready for the quiz? Join the YOVA waitlist instead.</p><LandingWaitlistForm idPrefix="final-waitlist" compact /></div>
         </section>
       </main>
-      <footer className={styles.publicFooter}><BrandMark compact /><p>© {new Date().getFullYear()} YOVA. Your study system should adapt to you.</p><nav aria-label="Legal"><Link href="/privacy">Privacy</Link><Link href="/terms">Terms</Link><a href={STUDY_PROFILE_SUPPORT_MAILTO}>Email support</a></nav></footer>
+      <footer className={styles.publicFooter}><BrandMark compact /><p>© {new Date().getFullYear()} YOVA. Your study system should adapt to you.</p><nav aria-label="Legal"><a href="/privacy">Privacy</a><a href="/terms">Terms</a><a href={STUDY_PROFILE_SUPPORT_MAILTO}>Email support</a></nav></footer>
     </div>
   );
 }
@@ -487,7 +526,7 @@ function LandingWaitlistForm({ idPrefix, compact = false }: { idPrefix: string; 
     <label htmlFor={`${idPrefix}-email`}>Email address</label><div><input id={`${idPrefix}-email`} type="email" inputMode="email" autoComplete="email" maxLength={254} required value={email} placeholder="you@example.com" onChange={(event) => setEmail(event.target.value)} /><button type="submit" disabled={!valid || !consent || !ageConfirmed || status === "submitting"}>{status === "submitting" ? "Sending..." : "Join the waitlist"}</button></div>
     <label className={styles.waitlistConsent}><input type="checkbox" required checked={ageConfirmed} onChange={(event) => setAgeConfirmed(event.target.checked)} /><span>I confirm I am 13 or older.</span></label>
     <label className={styles.waitlistConsent}><input type="checkbox" required checked={consent} onChange={(event) => setConsent(event.target.checked)} /><span>Email me when YOVA launches. I can unsubscribe at any time.</span></label>
-    <p className={styles.legalNote}>See how YOVA uses your email in the <Link href="/privacy">Privacy Notice</Link>.</p>{error && <p className={styles.formError} role="alert">{error}</p>}
+    <p className={styles.legalNote}>See how YOVA uses your email in the <a href="/privacy">Privacy Notice</a>.</p>{error && <p className={styles.formError} role="alert">{error}</p>}
   </form>;
 }
 

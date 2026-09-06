@@ -4,18 +4,34 @@ import {
   StudyProfileAnalyticsAttributionSchema,
   StudyProfileAnalyticsEventSchema,
   StudyProfileVisitorIdSchema,
-  type StudyProfileAnalyticsAttribution,
   type StudyProfileEventName,
   type StudyProfileEventProperties,
 } from "@/lib/study-profile/analytics";
-import { sanitizeStudyProfileAttributionValue } from "@/lib/study-profile/attribution-privacy";
+import {
+  sanitizeStudyProfileAttributionValue,
+  sanitizeStudyProfileMetaClickId,
+} from "@/lib/study-profile/attribution-privacy";
+import {
+  StudyProfileAttributionSchema,
+  type StudyProfileAttribution,
+} from "@/lib/study-profile/schema";
 import {
   STUDY_PROFILE_MODEL_VERSION,
   STUDY_PROFILE_SCORING_REVISION,
 } from "@/lib/study-profile/types";
 
 let ephemeralVisitorId: string | null = null;
-let ephemeralAttribution: StudyProfileAnalyticsAttribution | null = null;
+let ephemeralAttribution: StudyProfileAttribution | null = null;
+let ephemeralAttributionCapturedAt: number | null = null;
+
+const ATTRIBUTION_STORAGE_KEY = "yova.study-profile.attribution.v1";
+const ATTRIBUTION_TTL_MS = 30 * 24 * 60 * 60 * 1_000;
+
+type StoredAttribution = {
+  version: 1;
+  capturedAt: number;
+  attribution: StudyProfileAttribution;
+};
 
 function createVisitorId() {
   if (typeof globalThis.crypto?.randomUUID === "function") {
@@ -33,12 +49,18 @@ function createVisitorId() {
   return null;
 }
 
-/** Returns a page-lifetime UUID. It is never written to browser storage. */
+/** Returns an in-memory UUID. It is transferred once to the private report when needed. */
 export function getStudyProfileVisitorId(): string | null {
   if (typeof window === "undefined") return null;
   ephemeralVisitorId ??= createVisitorId();
   const parsed = StudyProfileVisitorIdSchema.safeParse(ephemeralVisitorId);
   return parsed.success ? parsed.data : null;
+}
+
+/** Restores the anonymous funnel ID after the privacy-safe report page reload. */
+export function restoreStudyProfileVisitorId(visitorId: string) {
+  const parsed = StudyProfileVisitorIdSchema.safeParse(visitorId);
+  if (parsed.success) ephemeralVisitorId = parsed.data;
 }
 
 function boundedCampaignValue(value: string | null, maxLength: number) {
@@ -60,7 +82,7 @@ function safeReferrerOrigin(referrer: string | null | undefined) {
 export function deriveStudyProfileAttribution(
   pageUrl: string,
   referrer?: string | null,
-): StudyProfileAnalyticsAttribution {
+): StudyProfileAttribution {
   let params: URLSearchParams;
   try {
     params = new URL(pageUrl).searchParams;
@@ -71,6 +93,7 @@ export function deriveStudyProfileAttribution(
   const safeReferrer = safeReferrerOrigin(referrer);
   const utmSource = boundedCampaignValue(params.get("utm_source"), 100);
   const explicitSource = boundedCampaignValue(params.get("source"), 100);
+  const fbclid = sanitizeStudyProfileMetaClickId(params.get("fbclid"));
   let referrerHost: string | null = null;
   if (safeReferrer) {
     try {
@@ -88,26 +111,130 @@ export function deriveStudyProfileAttribution(
     utmCampaign: boundedCampaignValue(params.get("utm_campaign"), 160),
     utmContent: boundedCampaignValue(params.get("utm_content"), 160),
     utmTerm: boundedCampaignValue(params.get("utm_term"), 160),
+    ...(fbclid ? { fbclid } : {}),
   };
 
-  const parsed = StudyProfileAnalyticsAttributionSchema.safeParse(candidate);
+  const parsed = StudyProfileAttributionSchema.safeParse(candidate);
   return parsed.success ? parsed.data : { source: "direct" };
 }
 
 /**
- * Captures first-touch attribution for the current page lifetime. It remains
- * in memory only, with no analytics identifier or attribution written to web
- * storage before consent.
+ * Captures first-touch attribution and keeps it for 30 days. A valid stored
+ * first touch always wins over later campaign URLs.
  */
-export function captureStudyProfileAttribution(): StudyProfileAnalyticsAttribution {
+export function captureStudyProfileAttribution(): StudyProfileAttribution {
   if (typeof window === "undefined") return { source: "direct" };
-  if (ephemeralAttribution) return ephemeralAttribution;
+  const now = Date.now();
+  if (
+    ephemeralAttribution
+    && ephemeralAttributionCapturedAt !== null
+    && ephemeralAttributionCapturedAt <= now
+    && now - ephemeralAttributionCapturedAt <= ATTRIBUTION_TTL_MS
+  ) {
+    return ephemeralAttribution;
+  }
+  if (ephemeralAttributionCapturedAt !== null) {
+    ephemeralAttribution = null;
+    ephemeralAttributionCapturedAt = null;
+  }
+
+  let storage: Storage | null = null;
+  try {
+    storage = window.localStorage;
+  } catch {
+    // Some privacy modes deny access to the storage object itself.
+  }
+  const persisted = storage
+    ? readStoredStudyProfileAttributionEntry(storage, now)
+    : null;
+  if (persisted) {
+    ephemeralAttribution = {
+      source: persisted.attribution.utmSource
+        ?? (persisted.attribution.fbclid ? "meta" : "direct"),
+      ...persisted.attribution,
+    };
+    ephemeralAttributionCapturedAt = persisted.capturedAt;
+    return ephemeralAttribution;
+  }
 
   ephemeralAttribution = deriveStudyProfileAttribution(
     window.location.href,
     document.referrer,
   );
+  const campaignAttribution = toStoredCampaignAttribution(ephemeralAttribution);
+  ephemeralAttributionCapturedAt = campaignAttribution ? now : null;
+  try {
+    if (!campaignAttribution) return ephemeralAttribution;
+    const stored: StoredAttribution = {
+      version: 1,
+      capturedAt: now,
+      attribution: campaignAttribution,
+    };
+    storage?.setItem(ATTRIBUTION_STORAGE_KEY, JSON.stringify(stored));
+  } catch {
+    // Storage can be unavailable; in-memory attribution still covers this visit.
+  }
   return ephemeralAttribution;
+}
+
+export function readStoredStudyProfileAttribution(
+  storage: Pick<Storage, "getItem" | "removeItem">,
+  now: number,
+) {
+  return readStoredStudyProfileAttributionEntry(storage, now)?.attribution ?? null;
+}
+
+function readStoredStudyProfileAttributionEntry(
+  storage: Pick<Storage, "getItem" | "removeItem">,
+  now: number,
+): StoredAttribution | null {
+  try {
+    const raw = storage.getItem(ATTRIBUTION_STORAGE_KEY);
+    if (!raw) return null;
+    const candidate = JSON.parse(raw) as Partial<StoredAttribution>;
+    const capturedAt = candidate.capturedAt;
+    const parsed = StudyProfileAttributionSchema.safeParse(candidate.attribution);
+    if (
+      candidate.version !== 1
+      || typeof capturedAt !== "number"
+      || !Number.isFinite(capturedAt)
+      || capturedAt > now
+      || now - capturedAt > ATTRIBUTION_TTL_MS
+      || !parsed.success
+    ) {
+      storage.removeItem(ATTRIBUTION_STORAGE_KEY);
+      return null;
+    }
+    const campaignAttribution = toStoredCampaignAttribution(parsed.data);
+    if (!campaignAttribution) {
+      storage.removeItem(ATTRIBUTION_STORAGE_KEY);
+      return null;
+    }
+    return {
+      version: 1,
+      capturedAt,
+      attribution: campaignAttribution,
+    };
+  } catch {
+    try {
+      storage.removeItem(ATTRIBUTION_STORAGE_KEY);
+    } catch {
+      // Ignore browsers that deny storage access entirely.
+    }
+    return null;
+  }
+}
+
+function toStoredCampaignAttribution(attribution: StudyProfileAttribution) {
+  const candidate = {
+    ...(attribution.utmSource ? { utmSource: attribution.utmSource } : {}),
+    ...(attribution.utmMedium ? { utmMedium: attribution.utmMedium } : {}),
+    ...(attribution.utmCampaign ? { utmCampaign: attribution.utmCampaign } : {}),
+    ...(attribution.utmContent ? { utmContent: attribution.utmContent } : {}),
+    ...(attribution.utmTerm ? { utmTerm: attribution.utmTerm } : {}),
+    ...(attribution.fbclid ? { fbclid: attribution.fbclid } : {}),
+  };
+  return Object.keys(candidate).length > 0 ? candidate : null;
 }
 
 type PropertyArguments<Name extends StudyProfileEventName> =
@@ -122,13 +249,24 @@ export function trackStudyProfileEvent<Name extends StudyProfileEventName>(
 ) {
   const visitorId = getStudyProfileVisitorId();
   if (!visitorId) return;
+  const capturedAttribution = captureStudyProfileAttribution();
+  const eventAttribution = StudyProfileAnalyticsAttributionSchema.safeParse({
+    source: capturedAttribution.source,
+    referrer: capturedAttribution.referrer,
+    utmSource: capturedAttribution.utmSource,
+    utmMedium: capturedAttribution.utmMedium,
+    utmCampaign: capturedAttribution.utmCampaign,
+    utmContent: capturedAttribution.utmContent,
+    utmTerm: capturedAttribution.utmTerm,
+  });
+  if (!eventAttribution.success) return;
 
   const event = StudyProfileAnalyticsEventSchema.safeParse({
     eventName: name,
     visitorId,
     modelVersion: STUDY_PROFILE_MODEL_VERSION,
     scoringRevision: STUDY_PROFILE_SCORING_REVISION,
-    attribution: captureStudyProfileAttribution(),
+    attribution: eventAttribution.data,
     context: properties ?? {},
   });
   if (!event.success) return;

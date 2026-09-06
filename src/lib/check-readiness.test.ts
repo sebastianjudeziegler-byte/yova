@@ -20,6 +20,7 @@ const validEnvironment: NodeJS.ProcessEnv = {
   FORCE_COLOR: "0",
   NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "p".repeat(20),
   NEXT_PUBLIC_SUPABASE_URL: "https://project.supabase.co",
+  NEXT_PUBLIC_META_PIXEL_ID: "123456789012345",
   NODE_ENV: "test",
   OPENAI_API_KEY: "o".repeat(20),
   RESEND_API_KEY: `re_${"r".repeat(24)}`,
@@ -67,6 +68,18 @@ describe("production public site readiness", () => {
     expect(result.status).toBe(0);
     expect(result.stdout).toContain(
       "PASS  Public site origin: SITE_URL is configured with a public HTTPS origin",
+    );
+  });
+
+  it("rejects whitespace around the Meta Pixel ID", () => {
+    const result = runReadiness(["--production", "--configuration-only"], {
+      SITE_URL: "https://www.yovaapp.com",
+      NEXT_PUBLIC_META_PIXEL_ID: " 123456789012345 ",
+    });
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain(
+      "FAIL  Meta Pixel ID: set NEXT_PUBLIC_META_PIXEL_ID to the exact numeric ID from Meta Events Manager without surrounding whitespace",
     );
   });
 

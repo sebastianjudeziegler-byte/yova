@@ -75,6 +75,7 @@ export async function POST(
       token.data,
       parsed.data.source,
       hashStudyProfileReportToken(confirmationToken),
+      parsed.data.attribution,
     );
     if (!state) return notFoundResponse();
     const reportScopedJoined = state.waitlistJoined;

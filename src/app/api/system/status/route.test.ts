@@ -16,12 +16,14 @@ const mocks = vi.hoisted(() => ({
   } as Record<string, unknown> | null,
   generationReadinessError: null as { code: string } | null,
   studyProfileReadiness: {
-    contractVersion: "202608310002",
+    contractVersion: "202609060002",
     ready: true,
     pendingConfirmationColumns: true,
     confirmationRpcs: true,
     reportEmailCooldown: true,
     serviceRoleBoundary: true,
+    attributionCapture: true,
+    attributionFirstTouch: true,
   } as Record<string, unknown> | null,
   studyProfileReadinessError: null as { code: string } | null,
   publicLaunchAbuseReadiness: {
@@ -57,7 +59,7 @@ vi.mock("@/lib/supabase/admin", () => ({
       select: async () => ({ error: mocks.invitationTableError }),
     }),
     rpc: async (name: string) => {
-      if (name === "study_profile_public_readiness_v1") {
+      if (name === "study_profile_public_readiness_v3") {
         return {
           data: mocks.studyProfileReadiness,
           error: mocks.studyProfileReadinessError,
@@ -94,12 +96,14 @@ describe("system status tester-access readiness", () => {
     };
     mocks.generationReadinessError = null;
     mocks.studyProfileReadiness = {
-      contractVersion: "202608310002",
+      contractVersion: "202609060002",
       ready: true,
       pendingConfirmationColumns: true,
       confirmationRpcs: true,
       reportEmailCooldown: true,
       serviceRoleBoundary: true,
+      attributionCapture: true,
+      attributionFirstTouch: true,
     };
     mocks.studyProfileReadinessError = null;
     mocks.publicLaunchAbuseReadiness = {

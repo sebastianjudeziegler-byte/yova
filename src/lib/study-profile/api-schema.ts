@@ -22,6 +22,7 @@ export const StudyProfileInterestRequestSchema = z.object({
   waitlist: z.literal(true),
   ageConfirmed: z.literal(true),
   source: z.enum(["email_gate", "report_cta"]).default("report_cta"),
+  attribution: StudyProfileAttributionSchema.optional(),
 }).strict();
 
 export const StudyProfileLandingWaitlistRequestSchema = z.object({

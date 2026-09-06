@@ -26,6 +26,13 @@ const requestData = {
   },
   marketingConsent: false,
   waitlistConsent: true,
+  attribution: {
+    utmSource: "instagram",
+    utmMedium: "paid_social",
+    utmCampaign: "study_profile_quiz",
+    utmContent: "static_v1",
+    fbclid: "meta_click_123",
+  },
 };
 
 const report = {
@@ -156,6 +163,12 @@ describe("Study Profile response and optional waitlist", () => {
     expect(mocks.reserveReportEmailDelivery).toHaveBeenCalledOnce();
     expect(mocks.sendReportEmail.mock.invocationCallOrder[0])
       .toBeLessThan(mocks.requestWaitlistConfirmation.mock.invocationCallOrder[0]);
+    expect(mocks.requestWaitlistConfirmation).toHaveBeenCalledWith(
+      "r".repeat(43),
+      "email_gate",
+      "h".repeat(64),
+      requestData.attribution,
+    );
   });
 
   it("creates the report without requesting waitlist confirmation when the option is unchecked", async () => {
