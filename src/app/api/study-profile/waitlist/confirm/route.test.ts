@@ -38,6 +38,7 @@ describe("Study Profile waitlist confirmation route", () => {
       status: "confirmed",
       waitlistJoined: true,
       newlyJoined: true,
+      metaConversionEligible: true,
     });
   });
 
@@ -50,10 +51,30 @@ describe("Study Profile waitlist confirmation route", () => {
     expect(response.headers.get("x-robots-tag"))
       .toBe("noindex, nofollow, noarchive, nosnippet");
     const payload = await response.json();
-    expect(payload).toEqual({ waitlistJoined: true });
+    expect(payload).toEqual({
+      waitlistJoined: true,
+      metaConversionEligible: true,
+    });
     expect(JSON.stringify(payload)).not.toContain(rawToken);
     expect(mocks.hashToken).toHaveBeenCalledWith(rawToken);
     expect(mocks.confirmWaitlist).toHaveBeenCalledWith(tokenHash);
+  });
+
+  it("returns a false Meta conversion flag for an under-18 confirmation", async () => {
+    mocks.confirmWaitlist.mockResolvedValueOnce({
+      status: "confirmed",
+      waitlistJoined: true,
+      newlyJoined: true,
+      metaConversionEligible: false,
+    });
+
+    const response = await POST(confirmationRequest({ token: rawToken }));
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      waitlistJoined: true,
+      metaConversionEligible: false,
+    });
   });
 
   it("rejects malformed and extra input before persistence", async () => {

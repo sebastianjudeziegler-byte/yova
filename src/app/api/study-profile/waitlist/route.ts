@@ -61,6 +61,7 @@ export async function POST(request: Request) {
     const state = await repository.requestWaitlistConfirmationByEmail({
       email: parsed.data.email,
       visitorId: parsed.data.visitorId,
+      under18: parsed.data.under18,
       confirmationTokenHash: hashStudyProfileReportToken(confirmationToken),
       attribution: parsed.data.attribution,
     });

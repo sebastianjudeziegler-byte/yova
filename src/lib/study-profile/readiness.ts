@@ -5,7 +5,7 @@ import {
   isSupabaseAdminConfigured,
 } from "@/lib/supabase/admin";
 
-export const STUDY_PROFILE_PUBLIC_CONTRACT_VERSION = "202609060002";
+export const STUDY_PROFILE_PUBLIC_CONTRACT_VERSION = "202609060003";
 
 type StudyProfileReadinessPayload = {
   contractVersion?: unknown;
@@ -16,6 +16,7 @@ type StudyProfileReadinessPayload = {
   serviceRoleBoundary?: unknown;
   attributionCapture?: unknown;
   attributionFirstTouch?: unknown;
+  minorConversionSuppression?: unknown;
 };
 
 export async function studyProfilePublicReadinessStatus(): Promise<"ready" | "unavailable"> {
@@ -23,7 +24,7 @@ export async function studyProfilePublicReadinessStatus(): Promise<"ready" | "un
 
   try {
     const { data, error } = await createSupabaseAdminClient().rpc(
-      "study_profile_public_readiness_v3",
+      "study_profile_public_readiness_v4",
     );
     if (error || !isReadinessPayload(data)) return "unavailable";
 
@@ -35,6 +36,7 @@ export async function studyProfilePublicReadinessStatus(): Promise<"ready" | "un
       && data.serviceRoleBoundary === true
       && data.attributionCapture === true
       && data.attributionFirstTouch === true
+      && data.minorConversionSuppression === true
       ? "ready"
       : "unavailable";
   } catch {

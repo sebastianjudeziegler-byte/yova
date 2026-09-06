@@ -58,7 +58,10 @@ export async function POST(request: Request) {
     if (result.status === "invalid") {
       return jsonError("This confirmation link is invalid or has already been used.", 404);
     }
-    return NextResponse.json({ waitlistJoined: true }, {
+    return NextResponse.json({
+      waitlistJoined: true,
+      metaConversionEligible: result.metaConversionEligible,
+    }, {
       headers: confirmationHeaders(),
     });
   } catch (error) {

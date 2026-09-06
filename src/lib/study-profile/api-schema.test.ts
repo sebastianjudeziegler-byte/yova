@@ -16,6 +16,7 @@ describe("Study Profile API schemas", () => {
       email: " Student@Example.com ",
       visitorId: "4d621251-2df6-4fa3-985e-df63b6d27f5f",
       ageConfirmed: true,
+      under18: false,
       answers,
       metadata: {
         energyWindow: "morning",
@@ -45,6 +46,7 @@ describe("Study Profile API schemas", () => {
     expect(StudyProfileResponseRequestSchema.safeParse({
       email: "student@example.com",
       visitorId: "4d621251-2df6-4fa3-985e-df63b6d27f5f",
+      under18: false,
       answers,
       metadata: {
         energyWindow: "morning",
@@ -61,6 +63,8 @@ describe("Study Profile API schemas", () => {
     expect(StudyProfileResponseRequestSchema.safeParse({
       email: "student@example.com",
       visitorId: "4d621251-2df6-4fa3-985e-df63b6d27f5f",
+      ageConfirmed: true,
+      under18: false,
       answers: { q1: "a" },
       metadata: { energyWindow: "morning", schoolLevel: "college" },
       marketingConsent: false,
@@ -73,6 +77,8 @@ describe("Study Profile API schemas", () => {
     expect(StudyProfileResponseRequestSchema.safeParse({
       email: "student@example.com",
       visitorId: "4d621251-2df6-4fa3-985e-df63b6d27f5f",
+      ageConfirmed: true,
+      under18: false,
       answers,
       metadata: { energyWindow: "morning", schoolLevel: "college" },
       marketingConsent: true,
@@ -85,6 +91,7 @@ describe("Study Profile API schemas", () => {
       email: "student@example.com",
       visitorId: "4d621251-2df6-4fa3-985e-df63b6d27f5f",
       ageConfirmed: true,
+      under18: false,
       answers,
       metadata: {
         energyWindow: "morning",
@@ -119,10 +126,42 @@ describe("Study Profile API schemas", () => {
     }).success).toBe(false);
   });
 
+  it("requires an explicit boolean minor status on report unlock submissions", () => {
+    const request = {
+      email: "student@example.com",
+      visitorId: "4d621251-2df6-4fa3-985e-df63b6d27f5f",
+      ageConfirmed: true,
+      answers,
+      metadata: {
+        energyWindow: "morning",
+        schoolLevel: "college",
+        studyGoal: "upcoming_exams",
+        hardestPart: null,
+      },
+      marketingConsent: false,
+    };
+
+    expect(StudyProfileResponseRequestSchema.safeParse({
+      ...request,
+      under18: false,
+    }).success).toBe(true);
+    expect(StudyProfileResponseRequestSchema.safeParse({
+      ...request,
+      under18: true,
+    }).success).toBe(true);
+    expect(StudyProfileResponseRequestSchema.safeParse(request).success).toBe(false);
+    expect(StudyProfileResponseRequestSchema.safeParse({
+      ...request,
+      under18: "false",
+    }).success).toBe(false);
+  });
+
   it("does not accept the retired optional free-text field", () => {
     expect(StudyProfileResponseRequestSchema.safeParse({
       email: "student@example.com",
       visitorId: "4d621251-2df6-4fa3-985e-df63b6d27f5f",
+      ageConfirmed: true,
+      under18: false,
       answers,
       metadata: {
         energyWindow: "morning",
@@ -139,6 +178,7 @@ describe("Study Profile API schemas", () => {
       email: "student@example.com",
       visitorId: "4d621251-2df6-4fa3-985e-df63b6d27f5f",
       ageConfirmed: true,
+      under18: false,
       answers,
       metadata: { energyWindow: "morning", schoolLevel: "college" },
       marketingConsent: false,
@@ -189,6 +229,7 @@ describe("Study Profile API schemas", () => {
       visitorId: "4d621251-2df6-4fa3-985e-df63b6d27f5f",
       consent: true,
       ageConfirmed: true,
+      under18: false,
       attribution: {
         source: "instagram",
         referrer: "https://www.instagram.com/",
@@ -204,6 +245,7 @@ describe("Study Profile API schemas", () => {
         visitorId: "4d621251-2df6-4fa3-985e-df63b6d27f5f",
         consent: true,
         ageConfirmed: true,
+        under18: false,
         attribution: {
           source: "instagram",
           referrer: "https://www.instagram.com/",
@@ -214,30 +256,63 @@ describe("Study Profile API schemas", () => {
     }
   });
 
+  it("requires an explicit boolean minor status on landing waitlist submissions", () => {
+    const request = {
+      email: "student@example.com",
+      visitorId: "4d621251-2df6-4fa3-985e-df63b6d27f5f",
+      consent: true,
+      ageConfirmed: true,
+    };
+
+    expect(StudyProfileLandingWaitlistRequestSchema.safeParse({
+      ...request,
+      under18: false,
+    }).success).toBe(true);
+    expect(StudyProfileLandingWaitlistRequestSchema.safeParse({
+      ...request,
+      under18: true,
+    }).success).toBe(true);
+    expect(StudyProfileLandingWaitlistRequestSchema.safeParse(request).success).toBe(false);
+    expect(StudyProfileLandingWaitlistRequestSchema.safeParse({
+      ...request,
+      under18: 0,
+    }).success).toBe(false);
+  });
+
   it.each([
     ["missing consent", {
       email: "student@example.com",
       visitorId: "4d621251-2df6-4fa3-985e-df63b6d27f5f",
+      ageConfirmed: true,
+      under18: false,
     }],
     ["refused consent", {
       email: "student@example.com",
       visitorId: "4d621251-2df6-4fa3-985e-df63b6d27f5f",
       consent: false,
+      ageConfirmed: true,
+      under18: false,
     }],
     ["invalid email", {
       email: "not-an-email",
       visitorId: "4d621251-2df6-4fa3-985e-df63b6d27f5f",
       consent: true,
+      ageConfirmed: true,
+      under18: false,
     }],
     ["invalid visitor", {
       email: "student@example.com",
       visitorId: "visitor-123",
       consent: true,
+      ageConfirmed: true,
+      under18: false,
     }],
     ["unexpected private state", {
       email: "student@example.com",
       visitorId: "4d621251-2df6-4fa3-985e-df63b6d27f5f",
       consent: true,
+      ageConfirmed: true,
+      under18: false,
       reportToken: "a".repeat(43),
     }],
   ])("rejects landing waitlist input with %s", (_label, input) => {
@@ -250,6 +325,7 @@ describe("Study Profile API schemas", () => {
       visitorId: "4d621251-2df6-4fa3-985e-df63b6d27f5f",
       consent: true,
       ageConfirmed: true,
+      under18: false,
     };
     const reportToken = "b".repeat(43);
 

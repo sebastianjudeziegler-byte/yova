@@ -168,6 +168,7 @@ describe("Study Profile public-funnel release capability probe", () => {
     serviceRoleBoundary: true,
     attributionCapture: true,
     attributionFirstTouch: true,
+    minorConversionSuppression: true,
   };
 
   it("accepts only the complete double-opt-in and abuse-control contract", async () => {
@@ -183,7 +184,7 @@ describe("Study Profile public-funnel release capability probe", () => {
     });
 
     expect(fetchImpl).toHaveBeenCalledWith(
-      "https://project.supabase.co/rest/v1/rpc/study_profile_public_readiness_v3",
+      "https://project.supabase.co/rest/v1/rpc/study_profile_public_readiness_v4",
       expect.objectContaining({
         method: "POST",
         body: "{}",
@@ -229,6 +230,18 @@ describe("Study Profile public-funnel release capability probe", () => {
     });
     expect(partial.passed).toBe(false);
     expect(partial.detail).toContain("report-email cooldown");
+
+    const missingMinorSuppression = await probeStudyProfilePublicDatabase({
+      supabaseUrl: "https://project.supabase.co",
+      supabaseSecretKey: "server-secret-value",
+      fetchImpl: vi.fn<typeof fetch>().mockResolvedValue(jsonResponse({
+        ...completeContract,
+        ready: false,
+        minorConversionSuppression: false,
+      })),
+    });
+    expect(missingMinorSuppression.passed).toBe(false);
+    expect(missingMinorSuppression.detail).toContain("under-18 conversion suppression");
   });
 
   it("never exposes the Supabase secret when the probe is unreachable", async () => {

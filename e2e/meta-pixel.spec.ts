@@ -7,7 +7,11 @@ test.describe("production Meta Pixel boundary", () => {
   test.skip(!productionPixelMode, "Runs against a production build with a test Pixel ID.");
   test.skip(!/^\d{5,32}$/u.test(testPixelId), "Set a numeric test Pixel ID.");
 
-  test("loads once, sanitizes the page address, and ignores same-route quiz steps", async ({ page }) => {
+  test.beforeEach(async ({ page }) => {
+    await page.setExtraHTTPHeaders({ "x-vercel-ip-country": "US" });
+  });
+
+  test("loads by default for a US visitor, sanitizes the address, and ignores same-route quiz steps", async ({ page }) => {
     const events: unknown[][] = [];
     let libraryRequests = 0;
     await page.exposeFunction("__recordYovaMetaEvent", (...args: unknown[]) => {
@@ -54,6 +58,101 @@ test.describe("production Meta Pixel boundary", () => {
     });
     await page.waitForTimeout(100);
     expect(metaEvents(events, "PageView")).toHaveLength(2);
+  });
+
+  test("waits for GB consent and remembers Accept for 12 months", async ({ page }) => {
+    const events: unknown[][] = [];
+    let libraryRequests = 0;
+    await page.setExtraHTTPHeaders({ "x-vercel-ip-country": "GB" });
+    await page.exposeFunction("__recordYovaMetaEvent", (...args: unknown[]) => {
+      events.push(args);
+    });
+    await installFakeMetaLibrary(page, () => {
+      libraryRequests += 1;
+    });
+
+    await page.goto("/study-profile");
+
+    const banner = page.locator("aside[aria-label='Advertising measurement choice']");
+    await expect(banner).toBeVisible();
+    await page.waitForTimeout(150);
+    expect(libraryRequests).toBe(0);
+    expect(metaEvents(events, "PageView")).toHaveLength(0);
+    expect(await page.evaluate(() => typeof window.fbq === "undefined")).toBe(true);
+
+    await banner.getByRole("button", { name: "Accept", exact: true }).click();
+    await expect(banner).toBeHidden();
+    await expect.poll(() => metaEvents(events, "PageView")).toHaveLength(1);
+    expect(libraryRequests).toBe(1);
+
+    await page.reload();
+    await expect(banner).toHaveCount(0);
+    await expect.poll(() => metaEvents(events, "PageView")).toHaveLength(2);
+    expect(libraryRequests).toBe(2);
+  });
+
+  test("keeps Meta unloaded after a GB visitor declines", async ({ page }) => {
+    const events: unknown[][] = [];
+    let libraryRequests = 0;
+    await page.setExtraHTTPHeaders({ "x-vercel-ip-country": "GB" });
+    await page.exposeFunction("__recordYovaMetaEvent", (...args: unknown[]) => {
+      events.push(args);
+    });
+    await installFakeMetaLibrary(page, () => {
+      libraryRequests += 1;
+    });
+
+    await page.goto("/study-profile");
+
+    const banner = page.locator("aside[aria-label='Advertising measurement choice']");
+    await expect(banner).toBeVisible();
+    await banner.getByRole("button", { name: "Decline", exact: true }).click();
+    await expect(banner).toBeHidden();
+    await page.waitForTimeout(150);
+    expect(libraryRequests).toBe(0);
+    expect(metaEvents(events, "PageView")).toHaveLength(0);
+
+    await page.reload();
+    await expect(banner).toHaveCount(0);
+    await page.waitForTimeout(150);
+    expect(libraryRequests).toBe(0);
+    expect(metaEvents(events, "PageView")).toHaveLength(0);
+    expect(await page.evaluate(() => typeof window.fbq === "undefined")).toBe(true);
+  });
+
+  test("uses the Privacy Notice switch to persist a US opt-out and opt back in", async ({ page }) => {
+    const events: unknown[][] = [];
+    let libraryRequests = 0;
+    await page.exposeFunction("__recordYovaMetaEvent", (...args: unknown[]) => {
+      events.push(args);
+    });
+    await installFakeMetaLibrary(page, () => {
+      libraryRequests += 1;
+    });
+
+    await page.goto("/privacy");
+    const preference = page.getByRole("switch");
+    await expect(preference).toBeChecked();
+    await preference.uncheck();
+    await expect(preference).not.toBeChecked();
+    await expect(page.getByText("Disabled for this browser", { exact: true })).toBeVisible();
+
+    await page.goto("/study-profile");
+    await page.waitForTimeout(150);
+    expect(libraryRequests).toBe(0);
+    expect(metaEvents(events, "PageView")).toHaveLength(0);
+    await expect(page.locator("aside[aria-label='Advertising measurement choice']"))
+      .toHaveCount(0);
+
+    await page.goto("/privacy");
+    const storedPreference = page.getByRole("switch");
+    await expect(storedPreference).not.toBeChecked();
+    await storedPreference.check();
+    await expect(storedPreference).toBeChecked();
+
+    await page.goto("/study-profile");
+    await expect.poll(() => metaEvents(events, "PageView")).toHaveLength(1);
+    expect(libraryRequests).toBe(1);
   });
 
   test("never initializes on a private report route", async ({ page }) => {
@@ -207,7 +306,10 @@ test.describe("production Meta Pixel boundary", () => {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify({ waitlistJoined: true }),
+        body: JSON.stringify({
+          waitlistJoined: true,
+          metaConversionEligible: true,
+        }),
       });
     });
 
@@ -238,6 +340,76 @@ test.describe("production Meta Pixel boundary", () => {
       { content_name: "waitlist" },
       { eventID: expect.stringMatching(/^study_profile_waitlist_[0-9a-f]{48}$/u) },
     ]);
+  });
+
+  test("does not emit Lead when the saved under-18 response is ineligible", async ({ page }) => {
+    test.setTimeout(90_000);
+    const events: unknown[][] = [];
+    await page.exposeFunction("__recordYovaMetaEvent", (...args: unknown[]) => {
+      events.push(args);
+    });
+    await installFakeMetaLibrary(page, () => {});
+
+    await page.goto("/study-profile");
+    await expect.poll(() => metaEvents(events, "PageView")).toHaveLength(1);
+    await page.getByRole("button", { name: "Get my free study profile" }).first().click();
+    for (let question = 1; question <= 12; question += 1) {
+      await page
+        .getByRole("radiogroup", { name: `Answers for question ${question}` })
+        .getByRole("radio")
+        .first()
+        .click();
+    }
+    await page.getByRole("button", { name: /^Exams coming up/ }).click();
+    await page.getByRole("button", { name: "Morning", exact: true }).click();
+    await page.getByRole("button", { name: "High school", exact: true }).click();
+    await page.getByRole("button", { name: "Finish and unlock my results" }).click();
+    await page.getByLabel("Email for your private report link")
+      .fill(`meta-under-18-${Date.now()}@example.com`);
+    await page.getByRole("checkbox", { name: "I confirm I am 13 or older." }).check();
+    await page.getByRole("checkbox", { name: "I am under 18." }).check();
+
+    const reportRequest = page.waitForRequest((request) => (
+      request.method() === "POST"
+      && new URL(request.url()).pathname === "/api/study-profile/responses"
+    ));
+    await page.getByRole("button", { name: "Email my report and see results" }).click();
+
+    expect((await reportRequest).postDataJSON()).toMatchObject({ under18: true });
+    await expect(page).toHaveURL(/\/study-profile\/report\/[A-Za-z0-9_-]{32,}$/u);
+    await page.waitForTimeout(200);
+    expect(metaEvents(events, "Lead")).toHaveLength(0);
+  });
+
+  test("does not emit CompleteRegistration when confirmation is ineligible", async ({ page }) => {
+    const events: unknown[][] = [];
+    await page.exposeFunction("__recordYovaMetaEvent", (...args: unknown[]) => {
+      events.push(args);
+    });
+    await installFakeMetaLibrary(page, () => {});
+    await page.route("**/api/study-profile/waitlist/confirm", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          waitlistJoined: true,
+          metaConversionEligible: false,
+        }),
+      });
+    });
+
+    await page.goto(
+      `/study-profile/waitlist/confirm#token=${"d".repeat(43)}`,
+      { waitUntil: "domcontentloaded" },
+    );
+    await expect.poll(() => metaEvents(events, "PageView")).toHaveLength(1);
+    await page.getByRole("button", { name: "Confirm launch emails" }).click();
+
+    await expect(page.getByRole("heading", {
+      name: "You are on the YOVA waitlist.",
+    })).toBeVisible();
+    await page.waitForTimeout(200);
+    expect(metaEvents(events, "CompleteRegistration")).toHaveLength(0);
   });
 });
 

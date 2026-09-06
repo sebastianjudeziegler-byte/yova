@@ -1,5 +1,6 @@
 import { Suspense, type ReactNode } from "react";
 import { MetaPixel } from "@/components/meta-pixel";
+import { getMetaConsentRequestContext } from "@/lib/meta-consent-server";
 import { shouldLoadMetaPixel } from "@/lib/meta-pixel";
 
 export default function StudyProfileLayout({
@@ -19,9 +20,14 @@ export default function StudyProfileLayout({
       {children}
       {pixelId ? (
         <Suspense fallback={null}>
-          <MetaPixel pixelId={pixelId} />
+          <RequestScopedMetaPixel pixelId={pixelId} />
         </Suspense>
       ) : null}
     </>
   );
+}
+
+async function RequestScopedMetaPixel({ pixelId }: { pixelId: string }) {
+  const consent = await getMetaConsentRequestContext();
+  return <MetaPixel pixelId={pixelId} {...consent} />;
 }

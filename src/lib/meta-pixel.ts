@@ -28,6 +28,7 @@ declare global {
     __yovaMetaPixelReady?: boolean;
     __yovaMetaPixelFailed?: boolean;
     __yovaMetaPixelId?: string;
+    __yovaMetaConsentGranted?: boolean;
   }
 }
 
@@ -65,7 +66,11 @@ export function isMetaPixelRouteAllowed(pathname: string) {
 
 /** Installs Meta's standard queue stub and initializes exactly one configured ID. */
 export function initializeMetaPixel(pixelId: string) {
-  if (typeof window === "undefined" || !isValidMetaPixelId(pixelId)) return false;
+  if (
+    typeof window === "undefined"
+    || window.__yovaMetaConsentGranted !== true
+    || !isValidMetaPixelId(pixelId)
+  ) return false;
 
   if (!window.fbq) {
     const queueFunction = ((...args: unknown[]) => {
@@ -101,10 +106,30 @@ export function initializeMetaPixel(pixelId: string) {
   }
 }
 
+/** Keeps YOVA events behind consent and forwards later withdrawals to Meta. */
+export function setMetaPixelConsent(granted: boolean) {
+  if (typeof window === "undefined") return false;
+  window.__yovaMetaConsentGranted = granted;
+  if (window.fbq && window.__yovaMetaPixelConfigured === true) {
+    try {
+      window.fbq("consent", granted ? "grant" : "revoke");
+    } catch {
+      return false;
+    }
+  }
+  return true;
+}
+
+export function isMetaPixelConsentGranted() {
+  return typeof window !== "undefined"
+    && window.__yovaMetaConsentGranted === true;
+}
+
 /** Marks the external Meta library ready only after it has executed. */
 export function markMetaPixelReady() {
   if (
     typeof window === "undefined"
+    || window.__yovaMetaConsentGranted !== true
     || window.__yovaMetaPixelConfigured !== true
     || !window.fbq
   ) {
@@ -166,6 +191,7 @@ export function trackMetaPageViewOnce(pathname: string) {
   const normalizedPathname = normalizeMetaPathname(pathname);
   if (
     typeof window === "undefined"
+    || window.__yovaMetaConsentGranted !== true
     || window.__yovaMetaPixelConfigured !== true
     || !window.fbq
     || !isMetaPixelRouteAllowed(normalizedPathname)
@@ -195,6 +221,7 @@ export function trackMetaConversionOnce(
 ) {
   if (
     typeof window === "undefined"
+    || window.__yovaMetaConsentGranted !== true
     || window.__yovaMetaPixelConfigured !== true
     || !window.fbq
     || !isMetaPixelRouteAllowed(window.location.pathname)

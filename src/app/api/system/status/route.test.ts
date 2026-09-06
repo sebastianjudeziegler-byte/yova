@@ -16,7 +16,7 @@ const mocks = vi.hoisted(() => ({
   } as Record<string, unknown> | null,
   generationReadinessError: null as { code: string } | null,
   studyProfileReadiness: {
-    contractVersion: "202609060002",
+    contractVersion: "202609060003",
     ready: true,
     pendingConfirmationColumns: true,
     confirmationRpcs: true,
@@ -24,6 +24,7 @@ const mocks = vi.hoisted(() => ({
     serviceRoleBoundary: true,
     attributionCapture: true,
     attributionFirstTouch: true,
+    minorConversionSuppression: true,
   } as Record<string, unknown> | null,
   studyProfileReadinessError: null as { code: string } | null,
   publicLaunchAbuseReadiness: {
@@ -59,7 +60,7 @@ vi.mock("@/lib/supabase/admin", () => ({
       select: async () => ({ error: mocks.invitationTableError }),
     }),
     rpc: async (name: string) => {
-      if (name === "study_profile_public_readiness_v3") {
+      if (name === "study_profile_public_readiness_v4") {
         return {
           data: mocks.studyProfileReadiness,
           error: mocks.studyProfileReadinessError,
@@ -96,7 +97,7 @@ describe("system status tester-access readiness", () => {
     };
     mocks.generationReadinessError = null;
     mocks.studyProfileReadiness = {
-      contractVersion: "202609060002",
+      contractVersion: "202609060003",
       ready: true,
       pendingConfirmationColumns: true,
       confirmationRpcs: true,
@@ -104,6 +105,7 @@ describe("system status tester-access readiness", () => {
       serviceRoleBoundary: true,
       attributionCapture: true,
       attributionFirstTouch: true,
+      minorConversionSuppression: true,
     };
     mocks.studyProfileReadinessError = null;
     mocks.publicLaunchAbuseReadiness = {
@@ -179,7 +181,7 @@ describe("system status tester-access readiness", () => {
     expect((await (await GET()).json()).studyProfileEmail).toBe("unavailable");
   });
 
-  it("fails the public Study Profile signal when double opt-in or cooldown protection is missing", async () => {
+  it("fails the public Study Profile signal when a required funnel capability is missing", async () => {
     mocks.studyProfileReadinessError = { code: "PGRST202" };
     expect((await (await GET()).json()).studyProfilePublic).toBe("unavailable");
 
@@ -191,6 +193,19 @@ describe("system status tester-access readiness", () => {
       confirmationRpcs: true,
       reportEmailCooldown: false,
       serviceRoleBoundary: true,
+    };
+    expect((await (await GET()).json()).studyProfilePublic).toBe("unavailable");
+
+    mocks.studyProfileReadiness = {
+      contractVersion: "202609060003",
+      ready: true,
+      pendingConfirmationColumns: true,
+      confirmationRpcs: true,
+      reportEmailCooldown: true,
+      serviceRoleBoundary: true,
+      attributionCapture: true,
+      attributionFirstTouch: true,
+      minorConversionSuppression: false,
     };
     expect((await (await GET()).json()).studyProfilePublic).toBe("unavailable");
   });

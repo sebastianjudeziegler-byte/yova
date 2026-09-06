@@ -75,6 +75,7 @@ type SubmissionResult = {
   reportUrl?: string;
   storedResponse: StudyProfilePublicStoredResponse;
   report: StudyProfileReport;
+  metaConversionEligible?: boolean;
   emailDelivery?: "sent" | "skipped" | "failed" | "cooldown" | "daily_cap" | { status?: "sent" | "skipped" | "failed" | "cooldown" | "daily_cap" };
   emailSent?: boolean;
   emailDeliveryQueued?: boolean;
@@ -118,6 +119,7 @@ export function StudyProfileExperience() {
   const [metadata, setMetadata] = useState<Partial<StudyProfileMetadata>>({});
   const [email, setEmail] = useState("");
   const [ageConfirmed, setAgeConfirmed] = useState(false);
+  const [under18, setUnder18] = useState(false);
   const [waitlistConsent, setWaitlistConsent] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submissionError, setSubmissionError] = useState<string | null>(null);
@@ -209,6 +211,7 @@ export function StudyProfileExperience() {
     setCurrentQuestion(0);
     setEmail("");
     setAgeConfirmed(false);
+    setUnder18(false);
     setWaitlistConsent(false);
     setSubmissionError(null);
     setSubmissionResult(null);
@@ -284,6 +287,7 @@ export function StudyProfileExperience() {
         body: JSON.stringify({
           visitorId,
           ageConfirmed: true,
+          under18,
           email,
           answers: completedAnswers,
           metadata: {
@@ -312,21 +316,23 @@ export function StudyProfileExperience() {
       }
       const result = ((payload.data && typeof payload.data === "object") ? payload.data : payload) as unknown as SubmissionResult;
       if (!result.reportToken || !result.storedResponse || !result.report) throw new Error("Your report was created, but the response was incomplete. Try again.");
-      try {
-        const metaEventId = await createMetaEventId(
-          "study_profile_report",
-          result.storedResponse.id,
-        );
-        const conversionQueued = trackMetaConversionOnce(
-          "Lead",
-          { content_name: "study_profile_report" },
-          metaEventId,
-        );
-        if (conversionQueued && isMetaPixelConfigured()) {
-          await waitForMetaPixelReady();
+      if (result.metaConversionEligible === true) {
+        try {
+          const metaEventId = await createMetaEventId(
+            "study_profile_report",
+            result.storedResponse.id,
+          );
+          const conversionQueued = trackMetaConversionOnce(
+            "Lead",
+            { content_name: "study_profile_report" },
+            metaEventId,
+          );
+          if (conversionQueued && isMetaPixelConfigured()) {
+            await waitForMetaPixelReady();
+          }
+        } catch {
+          // Advertising measurement must never block access to a saved report.
         }
-      } catch {
-        // Advertising measurement must never block access to a saved report.
       }
       setSubmissionResult(result);
       clearStudyProfileDraft();
@@ -427,6 +433,7 @@ export function StudyProfileExperience() {
                   <span><CheckCircle2 size={17} aria-hidden="true" /> A plan for tonight</span>
                 </div>
                 <label className={styles.consentRow}><input type="checkbox" required checked={ageConfirmed} onChange={(event) => setAgeConfirmed(event.target.checked)} /><span><strong>I confirm I am 13 or older.</strong></span></label>
+                <label className={styles.consentRow}><input type="checkbox" checked={under18} onChange={(event) => setUnder18(event.target.checked)} /><span><strong>I am under 18.</strong></span></label>
                 <label className={styles.consentRow}><input type="checkbox" checked={waitlistConsent} onChange={(event) => setWaitlistConsent(event.target.checked)} /><span><strong>Also add me to the YOVA waitlist.</strong> I agree to receive YOVA launch emails. I can unsubscribe at any time. Optional.</span></label>
                 {submissionError && <p className={styles.formError} role="alert">{submissionError}</p>}
                 <button type="submit" className={styles.primaryButton} disabled={isSubmitting || !emailIsValid || !ageConfirmed}>{isSubmitting ? "Building your report..." : "Email my report and see results"}{!isSubmitting && <ArrowRight size={17} aria-hidden="true" />}</button>
@@ -501,6 +508,7 @@ function LandingWaitlistForm({ idPrefix, compact = false }: { idPrefix: string; 
   const [email, setEmail] = useState("");
   const [consent, setConsent] = useState(false);
   const [ageConfirmed, setAgeConfirmed] = useState(false);
+  const [under18, setUnder18] = useState(false);
   const [status, setStatus] = useState<"idle" | "submitting" | "pending" | "joined" | "limited">("idle");
   const [error, setError] = useState<string | null>(null);
   const valid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
@@ -510,7 +518,7 @@ function LandingWaitlistForm({ idPrefix, compact = false }: { idPrefix: string; 
     if (!visitorId) { setError("Your browser could not create a private waitlist session. Refresh and try again."); return; }
     setStatus("submitting");
     try {
-      const response = await fetch("/api/study-profile/waitlist", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email, visitorId, consent, ageConfirmed, attribution: captureStudyProfileAttribution() }) });
+      const response = await fetch("/api/study-profile/waitlist", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email, visitorId, consent, ageConfirmed, under18, attribution: captureStudyProfileAttribution() }) });
       const payload = await response.json().catch(() => ({})) as { error?: unknown; waitlistJoined?: unknown; confirmationPending?: unknown; dailyCapReached?: unknown };
       if (!response.ok) throw new Error(typeof payload.error === "string" ? payload.error : "YOVA could not send the confirmation email. Try again.");
       if (payload.dailyCapReached === true) setStatus("limited");
@@ -525,6 +533,7 @@ function LandingWaitlistForm({ idPrefix, compact = false }: { idPrefix: string; 
   return <form className={`${styles.landingWaitlistForm} ${compact ? styles.landingWaitlistCompact : ""}`} onSubmit={submit}>
     <label htmlFor={`${idPrefix}-email`}>Email address</label><div><input id={`${idPrefix}-email`} type="email" inputMode="email" autoComplete="email" maxLength={254} required value={email} placeholder="you@example.com" onChange={(event) => setEmail(event.target.value)} /><button type="submit" disabled={!valid || !consent || !ageConfirmed || status === "submitting"}>{status === "submitting" ? "Sending..." : "Join the waitlist"}</button></div>
     <label className={styles.waitlistConsent}><input type="checkbox" required checked={ageConfirmed} onChange={(event) => setAgeConfirmed(event.target.checked)} /><span>I confirm I am 13 or older.</span></label>
+    <label className={styles.waitlistConsent}><input type="checkbox" checked={under18} onChange={(event) => setUnder18(event.target.checked)} /><span>I am under 18.</span></label>
     <label className={styles.waitlistConsent}><input type="checkbox" required checked={consent} onChange={(event) => setConsent(event.target.checked)} /><span>Email me when YOVA launches. I can unsubscribe at any time.</span></label>
     <p className={styles.legalNote}>See how YOVA uses your email in the <a href="/privacy">Privacy Notice</a>.</p>{error && <p className={styles.formError} role="alert">{error}</p>}
   </form>;

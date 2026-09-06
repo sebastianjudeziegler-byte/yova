@@ -79,6 +79,7 @@ describe("Supabase Study Profile save receipts", () => {
       "save_study_profile_response_attributed",
       {
         payload: expect.objectContaining({
+          under18: false,
           attribution: {
             source: "instagram",
             referrerHost: null,
@@ -163,6 +164,7 @@ describe("Supabase Study Profile report reloads", () => {
     expect(loaded?.report.freeInsight).toEqual(report.freeInsight);
     expect(loaded?.report.scoringRevision).toBe(STUDY_PROFILE_SCORING_REVISION);
     expect(loaded?.storedResponse.metadata.studyGoal).toBe("upcoming_exams");
+    expect(loaded?.under18).toBe(false);
     expect(loaded?.waitlistJoined).toBe(true);
     expect(loaded?.confirmationPending).toBe(false);
   });
@@ -182,6 +184,16 @@ describe("Supabase Study Profile report reloads", () => {
     expect(mocks.eq).toHaveBeenCalledWith("status", "pending");
     expect(mocks.gt).toHaveBeenCalledWith("expires_at", expect.any(String));
     expect(mocks.limit).toHaveBeenCalledWith(1);
+  });
+
+  it("keeps legacy report rows with no minor status ineligible by returning null", async () => {
+    mockReportLookup({ under_18: null });
+
+    const loaded = await new SupabaseStudyProfileRepository()
+      .getReportByToken("legacy-age-status-token-that-is-long-enough");
+
+    expect(loaded?.under18).toBeNull();
+    expect(mocks.select).toHaveBeenCalledWith(expect.stringContaining("under_18"));
   });
 
   it("rejects a malformed persisted report and rebuilds it from the validated current snapshot", async () => {
@@ -266,6 +278,7 @@ describe("Supabase Study Profile public-delivery RPC contracts", () => {
       .requestWaitlistConfirmationByEmail({
         email: " Student@Example.com ",
         visitorId: "4d621251-2df6-4fa3-985e-df63b6d27f5f",
+        under18: true,
         confirmationTokenHash,
         attribution: {
           source: "instagram",
@@ -293,6 +306,7 @@ describe("Supabase Study Profile public-delivery RPC contracts", () => {
           email: "student@example.com",
           confirmationTokenHash,
           ageConfirmed: true,
+          under18: true,
           attribution: {
             source: "instagram",
             referrerHost: null,
@@ -356,7 +370,12 @@ describe("Supabase Study Profile public-delivery RPC contracts", () => {
   it("parses a one-time confirmation result and a report-email cooldown", async () => {
     mocks.rpc
       .mockResolvedValueOnce({
-        data: { status: "confirmed", waitlistJoined: true, newlyJoined: true },
+        data: {
+          status: "confirmed",
+          waitlistJoined: true,
+          newlyJoined: true,
+          metaConversionEligible: true,
+        },
         error: null,
       })
       .mockResolvedValueOnce({
@@ -369,6 +388,7 @@ describe("Supabase Study Profile public-delivery RPC contracts", () => {
       status: "confirmed",
       waitlistJoined: true,
       newlyJoined: true,
+      metaConversionEligible: true,
     });
     await expect(repository.reserveReportEmailDelivery(RESPONSE_ID)).resolves.toEqual({
       allowed: false,
@@ -376,11 +396,50 @@ describe("Supabase Study Profile public-delivery RPC contracts", () => {
       retryAfterSeconds: 731,
     });
     expect(mocks.rpc.mock.calls).toEqual([
-      ["confirm_study_profile_waitlist", {
+      ["confirm_study_profile_waitlist_measured", {
         payload: { confirmationTokenHash: "d".repeat(64) },
       }],
       ["reserve_study_profile_report_email_delivery", {
         payload: { responseId: RESPONSE_ID },
+      }],
+    ]);
+  });
+
+  it("uses only the measured confirmation receipt for minor conversion eligibility", async () => {
+    mocks.rpc
+      .mockResolvedValueOnce({
+        data: {
+          status: "confirmed",
+          waitlistJoined: true,
+          newlyJoined: true,
+          metaConversionEligible: false,
+        },
+        error: null,
+      })
+      .mockResolvedValueOnce({
+        data: {
+          status: "confirmed",
+          waitlistJoined: true,
+          newlyJoined: true,
+        },
+        error: null,
+      });
+    const repository = new SupabaseStudyProfileRepository();
+
+    await expect(repository.confirmWaitlist("a".repeat(64))).resolves.toEqual({
+      status: "confirmed",
+      waitlistJoined: true,
+      newlyJoined: true,
+      metaConversionEligible: false,
+    });
+    await expect(repository.confirmWaitlist("b".repeat(64)))
+      .rejects.toThrow("confirmation result");
+    expect(mocks.rpc.mock.calls).toEqual([
+      ["confirm_study_profile_waitlist_measured", {
+        payload: { confirmationTokenHash: "a".repeat(64) },
+      }],
+      ["confirm_study_profile_waitlist_measured", {
+        payload: { confirmationTokenHash: "b".repeat(64) },
       }],
     ]);
   });
@@ -395,6 +454,7 @@ describe("Supabase Study Profile public-delivery RPC contracts", () => {
       .requestWaitlistConfirmationByEmail({
         email: "student@example.com",
         visitorId: "4d621251-2df6-4fa3-985e-df63b6d27f5f",
+        under18: false,
         confirmationTokenHash: "e".repeat(64),
       })).rejects.toThrow("confirmation request");
   });
@@ -410,6 +470,7 @@ function input() {
     metadata,
     report: buildStudyProfileReport(snapshot, metadata, answers),
     marketingConsent: false,
+    under18: false,
     attribution: {
       source: "instagram",
       utmSource: "instagram",
@@ -438,6 +499,7 @@ function mockReportLookup(
         energy_window: metadata.energyWindow,
         school_level: metadata.schoolLevel,
         optional_free_response: null,
+        under_18: false,
         created_at: "2026-08-19T12:34:56.123+00:00",
         ...overrides,
       },

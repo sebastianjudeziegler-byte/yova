@@ -15,6 +15,7 @@ const requestData = {
   email: "student@example.com",
   visitorId: "4d621251-2df6-4fa3-985e-df63b6d27f5f",
   ageConfirmed: true,
+  under18: false,
   answers: Object.fromEntries(
     Array.from({ length: 12 }, (_, index) => [`q${index + 1}`, "a"]),
   ),
@@ -111,6 +112,7 @@ import { POST } from "@/app/api/study-profile/responses/route";
 describe("Study Profile response and optional waitlist", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    requestData.under18 = false;
     requestData.waitlistConsent = true;
     mocks.saveResponse.mockResolvedValue({
       storedResponse: {
@@ -118,6 +120,7 @@ describe("Study Profile response and optional waitlist", () => {
         reportToken: "r".repeat(43),
       },
       report,
+      under18: false,
     });
     mocks.requestWaitlistConfirmation.mockResolvedValue({
       waitlistJoined: false,
@@ -155,6 +158,7 @@ describe("Study Profile response and optional waitlist", () => {
       reportToken: "r".repeat(43),
       report,
       emailDelivery: "sent",
+      metaConversionEligible: true,
       waitlistJoined: false,
       confirmationPending: true,
     });
@@ -168,6 +172,31 @@ describe("Study Profile response and optional waitlist", () => {
       "email_gate",
       "h".repeat(64),
       requestData.attribution,
+    );
+    expect(mocks.saveResponse).toHaveBeenCalledWith(
+      expect.objectContaining({ under18: false }),
+    );
+  });
+
+  it("marks an under-18 report as ineligible for a Meta Lead", async () => {
+    requestData.under18 = true;
+    mocks.saveResponse.mockResolvedValueOnce({
+      storedResponse: {
+        id: "response-id",
+        reportToken: "r".repeat(43),
+      },
+      report,
+      under18: true,
+    });
+
+    const response = await POST(responseRequest());
+
+    expect(response.status).toBe(201);
+    await expect(response.json()).resolves.toMatchObject({
+      metaConversionEligible: false,
+    });
+    expect(mocks.saveResponse).toHaveBeenCalledWith(
+      expect.objectContaining({ under18: true }),
     );
   });
 

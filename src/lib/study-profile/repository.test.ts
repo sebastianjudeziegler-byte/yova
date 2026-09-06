@@ -85,11 +85,13 @@ describe("Study Profile repository", () => {
       status: "confirmed",
       waitlistJoined: true,
       newlyJoined: true,
+      metaConversionEligible: true,
     });
     await expect(repository.confirmWaitlist(confirmationHash)).resolves.toEqual({
       status: "confirmed",
       waitlistJoined: true,
       newlyJoined: false,
+      metaConversionEligible: true,
     });
     expect(await repository.getReportByToken(token)).toMatchObject({
       waitlistJoined: true,
@@ -103,6 +105,49 @@ describe("Study Profile repository", () => {
     expect(lead.waitlistConsentSource).toBe("report_cta");
   });
 
+  it("persists minor status and suppresses conversion eligibility through report confirmation", async () => {
+    const saved = await repository.saveResponse(input(
+      "minor@example.com",
+      false,
+      true,
+    ));
+    expect(saved.under18).toBe(true);
+    await expect(repository.getReportByToken(saved.storedResponse.reportToken))
+      .resolves.toMatchObject({ under18: true });
+
+    const confirmationHash = hashStudyProfileReportToken(
+      "confirmation_token_that_is_long_enough_minor",
+    );
+    const requested = await repository.requestWaitlistConfirmation(
+      saved.storedResponse.reportToken,
+      "report_cta",
+      confirmationHash,
+    );
+    expect(repository.inspect().waitlistConfirmations).toEqual([
+      expect.objectContaining({
+        responseId: saved.storedResponse.id,
+        under18: true,
+      }),
+    ]);
+
+    await repository.markWaitlistConfirmationDelivery(
+      requested?.confirmationId ?? "",
+      "sent",
+    );
+    await expect(repository.confirmWaitlist(confirmationHash)).resolves.toEqual({
+      status: "confirmed",
+      waitlistJoined: true,
+      newlyJoined: true,
+      metaConversionEligible: false,
+    });
+    await expect(repository.confirmWaitlist(confirmationHash)).resolves.toEqual({
+      status: "confirmed",
+      waitlistJoined: true,
+      newlyJoined: false,
+      metaConversionEligible: false,
+    });
+  });
+
   it("creates a normalized pending lead and preserves consent only after confirmation", async () => {
     const confirmationHash = hashStudyProfileReportToken(
       "confirmation_token_that_is_long_enough_0002",
@@ -110,6 +155,7 @@ describe("Study Profile repository", () => {
     const requested = await repository.requestWaitlistConfirmationByEmail({
       email: "  New.Student@Example.COM ",
       visitorId: "4d621251-2df6-4fa3-985e-df63b6d27f5f",
+      under18: true,
       confirmationTokenHash: confirmationHash,
       attribution: {
         source: "instagram",
@@ -145,7 +191,12 @@ describe("Study Profile repository", () => {
     await expect(repository.confirmWaitlist(confirmationHash)).resolves.toMatchObject({
       status: "confirmed",
       waitlistJoined: true,
+      metaConversionEligible: false,
     });
+
+    expect(state.waitlistConfirmations).toEqual([
+      expect.objectContaining({ under18: true }),
+    ]);
 
     const event = state.events.find(({ eventName }) => (
       eventName === "study_profile_waitlist_joined"
@@ -177,6 +228,7 @@ describe("Study Profile repository", () => {
     const requested = await repository.requestWaitlistConfirmationByEmail({
       email: " STUDENT@EXAMPLE.COM ",
       visitorId: "8c81ab87-262d-4dab-bd92-318aca7ac09c",
+      under18: false,
       confirmationTokenHash: confirmationHash,
       attribution: { source: "direct" },
     });
@@ -208,6 +260,7 @@ describe("Study Profile repository", () => {
     const request = {
       email: "student@example.com",
       visitorId: "4d621251-2df6-4fa3-985e-df63b6d27f5f",
+      under18: false,
       confirmationTokenHash: hashStudyProfileReportToken(
         "confirmation_token_that_is_long_enough_0004",
       ),
@@ -380,7 +433,7 @@ describe("Study Profile repository", () => {
   });
 });
 
-function input(email: string, marketingConsent: boolean) {
+function input(email: string, marketingConsent: boolean, under18 = false) {
   const snapshot = scoreStudyProfile(answers);
   return {
     email,
@@ -390,5 +443,6 @@ function input(email: string, marketingConsent: boolean) {
     metadata,
     report: buildStudyProfileReport(snapshot, metadata),
     marketingConsent,
+    under18,
   };
 }

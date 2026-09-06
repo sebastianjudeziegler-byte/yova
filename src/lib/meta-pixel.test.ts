@@ -2,11 +2,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   createMetaEventId,
   initializeMetaPixel,
+  isMetaPixelConsentGranted,
   isMetaPixelRouteAllowed,
   isValidMetaPixelId,
   markMetaPixelFailed,
   markMetaPixelReady,
   metaSafeStudyProfilePath,
+  setMetaPixelConsent,
   shouldLoadMetaPixel,
   trackMetaConversionOnce,
   trackMetaPageViewOnce,
@@ -48,6 +50,7 @@ describe("Meta Pixel client events", () => {
     vi.stubGlobal("window", {
       fbq,
       location: { pathname: "/study-profile" },
+      __yovaMetaConsentGranted: true,
       __yovaMetaPixelConfigured: true,
       __yovaMetaPixelReady: true,
     });
@@ -118,6 +121,21 @@ describe("Meta Pixel client events", () => {
     );
   });
 
+  it("refuses page views and conversions after consent is withdrawn", () => {
+    expect(setMetaPixelConsent(false)).toBe(true);
+    expect(isMetaPixelConsentGranted()).toBe(false);
+    expect(fbq).toHaveBeenCalledWith("consent", "revoke");
+    fbq.mockClear();
+
+    expect(trackMetaPageViewOnce("/study-profile")).toBe(false);
+    expect(trackMetaConversionOnce(
+      "Lead",
+      { content_name: "study_profile_report" },
+      "study_profile_report_no_consent",
+    )).toBe(false);
+    expect(fbq).not.toHaveBeenCalled();
+  });
+
   it("hashes stable source values instead of putting tokens in event IDs", async () => {
     const token = "sensitive-confirmation-token";
     const first = await createMetaEventId("study_profile_waitlist", token);
@@ -138,6 +156,7 @@ describe("Meta Pixel bootstrap and URL privacy", () => {
   it("initializes one numeric pixel ID before marking the library ready", () => {
     vi.stubGlobal("window", {
       location: { pathname: "/study-profile" },
+      __yovaMetaConsentGranted: true,
     });
 
     expect(initializeMetaPixel("123456789012345")).toBe(true);
@@ -154,11 +173,24 @@ describe("Meta Pixel bootstrap and URL privacy", () => {
     expect(window.__yovaMetaPixelReady).toBe(true);
   });
 
+  it("does not create the Meta queue before consent is granted", () => {
+    vi.stubGlobal("window", {
+      location: { pathname: "/study-profile" },
+      __yovaMetaConsentGranted: false,
+    });
+
+    expect(initializeMetaPixel("123456789012345")).toBe(false);
+    expect(window.fbq).toBeUndefined();
+    expect(window._fbq).toBeUndefined();
+    expect(window.__yovaMetaPixelConfigured).not.toBe(true);
+  });
+
   it("resolves a bounded readiness wait when the external library executes", async () => {
     const target = new EventTarget();
     vi.stubGlobal("window", Object.assign(target, {
       location: { pathname: "/study-profile" },
       fbq: vi.fn(),
+      __yovaMetaConsentGranted: true,
       __yovaMetaPixelConfigured: true,
       __yovaMetaPixelReady: false,
       setTimeout,
@@ -175,6 +207,7 @@ describe("Meta Pixel bootstrap and URL privacy", () => {
     vi.stubGlobal("window", Object.assign(target, {
       location: { pathname: "/study-profile" },
       fbq: vi.fn(),
+      __yovaMetaConsentGranted: true,
       __yovaMetaPixelConfigured: true,
       __yovaMetaPixelReady: false,
       setTimeout,

@@ -10,6 +10,7 @@ import {
 export const StudyProfileResponseRequestSchema = StudyProfileSubmissionSchema.extend({
   visitorId: z.string().uuid(),
   ageConfirmed: z.literal(true),
+  under18: z.boolean(),
   marketingConsent: z.literal(false).default(false),
   waitlistConsent: z.boolean().default(false),
   metadata: StudyProfileMetadataSchema.extend({
@@ -30,6 +31,7 @@ export const StudyProfileLandingWaitlistRequestSchema = z.object({
   visitorId: z.string().uuid(),
   consent: z.literal(true),
   ageConfirmed: z.literal(true),
+  under18: z.boolean(),
   attribution: StudyProfileAttributionSchema.optional(),
 }).strict();
 

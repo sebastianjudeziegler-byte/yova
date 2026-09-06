@@ -77,6 +77,7 @@ export async function POST(request: Request) {
       metadata: parsed.data.metadata,
       report,
       marketingConsent: parsed.data.marketingConsent,
+      under18: parsed.data.under18,
       attribution: parsed.data.attribution,
     });
 
@@ -181,6 +182,7 @@ export async function POST(request: Request) {
       reportUrl,
       storedResponse: toStudyProfilePublicStoredResponse(saved.storedResponse),
       report: saved.report,
+      metaConversionEligible: saved.under18 === false,
       // A fresh report proves no ownership of the submitted address. Never
       // expose the normalized lead's shared waitlist membership here.
       waitlistJoined: false,

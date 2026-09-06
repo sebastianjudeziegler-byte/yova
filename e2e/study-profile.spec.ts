@@ -374,7 +374,10 @@ test.describe("YOVA Study Profile", () => {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify({ waitlistJoined: true }),
+        body: JSON.stringify({
+          waitlistJoined: true,
+          metaConversionEligible: true,
+        }),
       });
     });
 
@@ -591,6 +594,7 @@ async function installMetaEventRecorder(page: Page) {
       fbq?: (...args: unknown[]) => void;
     };
     testWindow.__yovaMetaTestEvents = [];
+    testWindow.__yovaMetaConsentGranted = true;
     testWindow.__yovaMetaPixelConfigured = true;
     testWindow.__yovaMetaPixelReady = true;
     testWindow.fbq = (...args: unknown[]) => {

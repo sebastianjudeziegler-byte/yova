@@ -55,6 +55,7 @@ export function StudyProfileWaitlistConfirmation() {
       const payload = await response.json().catch(() => ({})) as {
         error?: unknown;
         waitlistJoined?: unknown;
+        metaConversionEligible?: unknown;
       };
       if (!response.ok || payload.waitlistJoined !== true) {
         throw new Error(
@@ -63,7 +64,7 @@ export function StudyProfileWaitlistConfirmation() {
             : "YOVA could not confirm your place. Try again.",
         );
       }
-      if (metaEventIdRef.current) {
+      if (payload.metaConversionEligible === true && metaEventIdRef.current) {
         const metaEventId = await metaEventIdRef.current;
         if (metaEventId) {
           trackMetaConversionOnce(

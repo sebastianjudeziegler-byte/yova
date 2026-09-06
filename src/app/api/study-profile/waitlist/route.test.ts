@@ -74,6 +74,7 @@ describe("Study Profile landing waitlist route", () => {
       visitorId: "4d621251-2df6-4fa3-985e-df63b6d27f5f",
       consent: true,
       ageConfirmed: true,
+      under18: false,
     }));
 
     expect(response.status).toBe(200);
@@ -93,6 +94,7 @@ describe("Study Profile landing waitlist route", () => {
       visitorId: "4d621251-2df6-4fa3-985e-df63b6d27f5f",
       consent: true,
       ageConfirmed: true,
+      under18: true,
       attribution: {
         source: "instagram",
         referrer: "https://www.instagram.com/",
@@ -116,6 +118,7 @@ describe("Study Profile landing waitlist route", () => {
     expect(mocks.requestWaitlistConfirmationByEmail).toHaveBeenCalledWith({
       email: "student@example.com",
       visitorId: "4d621251-2df6-4fa3-985e-df63b6d27f5f",
+      under18: true,
       confirmationTokenHash: "b".repeat(64),
       attribution: {
         source: "instagram",
@@ -151,6 +154,12 @@ describe("Study Profile landing waitlist route", () => {
       visitorId: "4d621251-2df6-4fa3-985e-df63b6d27f5f",
       consent: true,
     }],
+    ["missing under-18 status", {
+      email: "student@example.com",
+      visitorId: "4d621251-2df6-4fa3-985e-df63b6d27f5f",
+      consent: true,
+      ageConfirmed: true,
+    }],
   ])("returns 422 for %s", async (_label, body) => {
     const response = await POST(waitlistRequest(body));
 
@@ -172,6 +181,7 @@ describe("Study Profile landing waitlist route", () => {
       visitorId: "4d621251-2df6-4fa3-985e-df63b6d27f5f",
       consent: true,
       ageConfirmed: true,
+      under18: false,
     }));
 
     expect(response.status).toBe(503);
@@ -191,6 +201,7 @@ describe("Study Profile landing waitlist route", () => {
       visitorId: "4d621251-2df6-4fa3-985e-df63b6d27f5f",
       consent: true,
       ageConfirmed: true,
+      under18: false,
     }));
 
     expect(response.status).toBe(200);
