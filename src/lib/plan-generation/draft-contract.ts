@@ -1,3 +1,5 @@
+import { diagnosticResponsesFromMap } from "@/lib/diagnostics/placement-summary";
+import { resolveLearningIntent } from "@/lib/learning/learning-intent";
 import type { LearningPlan } from "@/lib/domain";
 import type { PlanGenerationRequest } from "@/lib/plan-generation/schema";
 
@@ -17,7 +19,7 @@ export function normalizePlanDraftGenerationContract(
   return {
     version: PLAN_DRAFT_GENERATION_CONTRACT_VERSION,
     intent: request.intent,
-    learningIntent: request.learningIntent,
+    learningIntent: resolveLearningIntent({goal: request.goal, startingPoint: request.startingContext, diagnosticResponses: diagnosticResponsesFromMap(plan.knowledgeMap ?? request.knowledgeMap, request.diagnosticResponses)}).intent,
     goal: request.goal,
     startingContext: request.startingContext ?? null,
     materialMode: request.materialMode,
@@ -31,7 +33,7 @@ export function normalizePlanDraftGenerationContract(
     studyMode: request.studyMode,
     deadline: request.deadline,
     timeZone: request.timeZone,
-    diagnosticResponses: request.diagnosticResponses.map((response) => ({
+    diagnosticResponses: diagnosticResponsesFromMap(plan.knowledgeMap ?? request.knowledgeMap, request.diagnosticResponses).map((response) => ({
       questionId: response.questionId ?? null,
       topicId: response.topicId ?? null,
       question: response.question,

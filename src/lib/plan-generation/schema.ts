@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { diagnosticResponsesFromMap } from "@/lib/diagnostics/placement-summary";
 import { LEARNING_TITLE_CHARACTER_LIMIT } from "@/lib/learning/title-limits";
 import { resolveLearningIntent } from "@/lib/learning/learning-intent";
 import { CORE_METHOD_IDS } from "@/lib/learning/method-catalog";
@@ -53,9 +54,19 @@ export const PlanDiagnosticQuestionSchema = z.object({
   correctAnswer: z.string().trim().min(1).max(DIAGNOSTIC_OPTION_MAX_LENGTH),
 });
 
+export const PublicPlanDiagnosticQuestionSchema = PlanDiagnosticQuestionSchema.omit({ correctAnswer: true });
+
+export const PlanDiagnosticScoreResponseSchema = z.object({
+  knowledgeMap: PlanKnowledgeMapSchema,
+  knowledgeMapReceipt: z.string().min(1).max(512),
+  responses: z.array(DiagnosticResponseSchema).max(12),
+});
+
 export const PlanDiagnosticPreparationResponseSchema = z.object({
   knowledgeMap: PlanKnowledgeMapSchema,
-  questions: z.array(PlanDiagnosticQuestionSchema).min(1).max(8),
+  questions: z.array(PublicPlanDiagnosticQuestionSchema).min(1).max(8),
+  challengeToken: z.string().min(1).max(1_000_000),
+  knowledgeMapReceipt: z.string().min(1).max(512),
   generation: z.object({
     requestId: z.string().uuid(),
     durationMs: z.number().int().nonnegative(),
@@ -108,6 +119,7 @@ export const PlanGenerationRequestSchema = z.object({
    */
   previewCanonicalProfile: CanonicalLearnerProfileSchema.optional(),
   knowledgeMap: PlanKnowledgeMapSchema.optional(),
+  knowledgeMapReceipt: z.string().min(1).max(512).optional(),
   mapCorrection: z.string().trim().max(800).optional(),
 }).superRefine((value, context) => {
   if (value.materialMode === "upload" && value.materials.length === 0) {
@@ -240,6 +252,7 @@ export const PlanGenerationResponseSchema = z.object({
     durationMs: z.number().int().nonnegative(),
     persistence: z.literal("draft"),
     draftReceipt: z.string().trim().min(1).max(512).nullable().optional(),
+    knowledgeMapReceipt: z.string().min(1).max(512).nullable().optional(),
   }),
 });
 
@@ -266,7 +279,7 @@ export const PlanActivationRequestSchema = z.object({
   const expectedLearningIntent = resolveLearningIntent({
     goal: generationRequest.goal,
     startingPoint: generationRequest.startingContext,
-    diagnosticResponses: generationRequest.diagnosticResponses,
+    diagnosticResponses: diagnosticResponsesFromMap(generationRequest.knowledgeMap, generationRequest.diagnosticResponses),
   }).intent;
 
   if (plan.sourceMode !== expectedSourceMode) {
@@ -447,3 +460,5 @@ export type PlanActivationRequest = z.infer<typeof PlanActivationRequestSchema>;
 export type PlanActivationResponse = z.infer<typeof PlanActivationResponseSchema>;
 export type PlanDraftMethodChoiceSelection = z.infer<typeof PlanDraftMethodChoiceSelectionSchema>;
 export type PlanDraftMethodChoiceResponse = z.infer<typeof PlanDraftMethodChoiceResponseSchema>;
+
+export type PublicPlanDiagnosticQuestion = z.infer<typeof PublicPlanDiagnosticQuestionSchema>;

@@ -87,7 +87,7 @@ const AwaitingFinishCheckpointV1Schema = z.object({
   pendingRepair: z.never().optional(),
   activityProgress: z.never().optional(),
   completedAt: z.string().datetime({ offset: true }),
-  completionFeedback: z.enum(["too_easy", "about_right", "too_difficult"]),
+  completionFeedback: z.enum(["too_easy", "about_right", "too_difficult"]).nullable(),
 }).strict();
 
 const WorkingCheckpointV2Schema = z.object({
@@ -110,7 +110,7 @@ const AwaitingFinishCheckpointV2Schema = z.object({
   pendingRepair: z.never().optional(),
   activityProgress: z.never().optional(),
   completedAt: z.string().datetime({ offset: true }),
-  completionFeedback: z.enum(["too_easy", "about_right", "too_difficult"]),
+  completionFeedback: z.enum(["too_easy", "about_right", "too_difficult"]).nullable(),
 }).strict();
 
 type CheckpointForWindowValidation = {
@@ -222,7 +222,7 @@ export type ActiveSessionCheckpointResumePoint = SessionInterruption & {
   resourceGeneratedAt?: string;
   completionMode: SessionCompletionMode;
   completedAt?: string;
-  completionFeedback?: "too_easy" | "about_right" | "too_difficult";
+  completionFeedback?: "too_easy" | "about_right" | "too_difficult" | null;
   methodWork?: MethodWorkProgress;
   activityProgress?: SessionActivityProgress;
   routeRevisionId?: string;

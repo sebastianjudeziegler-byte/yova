@@ -192,7 +192,9 @@ export function bindNormalPlanProviderFill({
     topic: safeFill.plan.topic,
     kind: resolveNormalPlanKindFromParsedRequest(boundary.request),
     deadline: boundary.request.deadline,
-    rationale: safeFill.plan.rationale,
+    rationale: boundary.composition.capacityRecovery
+      ? boundary.composition.capacityRecovery.explanation
+      : safeFill.plan.rationale,
     deferredTopics: boundary.composition.deferrals.map((deferral) => ({
       topicId: deferral.topicId,
       reason: safeFallbackText(

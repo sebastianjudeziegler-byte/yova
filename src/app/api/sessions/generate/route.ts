@@ -744,7 +744,7 @@ export async function POST(request: Request) {
           actualMinutes,
           correctAnswers: attempt.correct_answers ?? 0,
           totalAnswers: attempt.total_answers ?? 0,
-          feedback: readSessionFeedback(attempt.user_feedback) ?? "about_right",
+          feedback: readSessionFeedback(attempt.user_feedback) ?? null,
           observedGap: readTextProperty(attempt.result_data, "observedGap"),
           conceptEvidence: readConceptEvidenceProperty(attempt.result_data),
           confidenceEvidence: readConfidenceEvidenceProperty(attempt.result_data),

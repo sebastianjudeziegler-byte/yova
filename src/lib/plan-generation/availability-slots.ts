@@ -59,15 +59,14 @@ export function enumeratePlanAvailabilitySlots(
 
       const hour = WINDOW_HOUR[window.window.toLocaleLowerCase()] ?? 17;
       const date = localDateTimeToUtc(calendarDate, hour, input.timeZone);
-      if (date.getTime() < now.getTime() - 60_000) continue;
-      if (deadline !== null && date.getTime() > deadline) continue;
       const windowEnd = date.getTime() + window.minutes * 60_000;
       const exactEnd = deadline === null ? windowEnd : Math.min(windowEnd, deadline);
-      const minutes = Math.floor((exactEnd - date.getTime()) / 60_000);
+      const startsAt = Math.max(date.getTime(), now.getTime());
+      const minutes = Math.floor((exactEnd - startsAt) / 60_000);
       if (minutes < 1) continue;
 
       results.push({
-        startsAt: date.toISOString(),
+        startsAt: new Date(startsAt).toISOString(),
         endsAt: new Date(exactEnd).toISOString(),
         minutes,
         dayIndex,

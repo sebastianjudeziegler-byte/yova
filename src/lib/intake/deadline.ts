@@ -83,7 +83,13 @@ export function calendarDateAtTime(dateInput: string, hour: number, minute: numb
 }
 
 function deadlinePhrase(description: string) {
-  const explicit = description.match(new RegExp(`\\b${DEADLINE_CUE}\\s+`, "i"));
+  // "before independent practice" and "solve by substitution" are not dates.
+  // Only prefer an explicit cue when it directly introduces a date phrase.
+  const explicit = [...description.matchAll(new RegExp(`\\b${DEADLINE_CUE}\\s+`, "gi"))].find((candidate) => {
+    const rest = description.slice((candidate.index ?? 0) + candidate[0].length);
+    const date = rest.match(DATE_MENTION);
+    return date && /^(?:(?:on|the)\s+)*$/i.test(rest.slice(0, date.index ?? 0));
+  });
   if (explicit) return description.slice((explicit.index ?? 0) + explicit[0].length);
   const assessment = description.match(new RegExp(`\\b${ASSESSMENT_CUE}\\b`, "i"));
   return assessment ? description.slice((assessment.index ?? 0) + assessment[0].length) : description;

@@ -77,7 +77,7 @@ export type PersonalizationExperimentObservation = {
   variant: "a" | "b";
   correctAnswers: number;
   totalAnswers: number;
-  feedback: "too_easy" | "about_right" | "too_difficult";
+  feedback: "too_easy" | "about_right" | "too_difficult" | null;
   recordedAt: string;
 };
 
@@ -814,7 +814,7 @@ function sanitizeExperimentObservations(value: unknown): PersonalizationExperime
     const recordedAt = nullableIsoDate(item.recordedAt);
     const totalAnswers = boundedInteger(item.totalAnswers, 0, 1_000, -1);
     const correctAnswers = boundedInteger(item.correctAnswers, 0, Math.max(0, totalAnswers), -1);
-    if (!completionId || !variant || !feedback || !recordedAt || totalAnswers < 0 || correctAnswers < 0) continue;
+    if (!completionId || !variant || (item.feedback !== null && !feedback) || !recordedAt || totalAnswers < 0 || correctAnswers < 0) continue;
     byCompletion.set(completionId, {
       completionId,
       variant,

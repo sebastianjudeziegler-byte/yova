@@ -1,4 +1,5 @@
 import "server-only";
+import { generatedSessionDefersAllStoredPlanTargets } from "@/lib/session-generation/deferred-cache-contract";
 import { z } from "zod";
 import { zodTextFormat } from "openai/helpers/zod";
 import { getOpenAIClient } from "@/lib/openai/client";
@@ -4032,7 +4033,16 @@ export function alignSessionCoverageWithPlan(
 
   const availableTargets = [...plannedTargets];
   const essentialIdeas = coverage.essentialIdeas.map((idea) => {
-    takeCoverageMatch(idea, availableTargets);
+    const matched = takeCoverageMatch(idea, availableTargets);
+    if (!matched) {
+      // A concrete teaching claim may be narrower than its parent target label.
+      // Its explicit evidence-map concept is also checked against required
+      // activities by the completion validator; use that exact binding before
+      // treating an actually assessed parent target as omitted.
+      const mapping = coverage.evidenceMap.find(entry =>
+        normalizeCoverageTarget(entry.essentialIdea) === normalizeCoverageTarget(idea));
+      if (mapping) takeCoverageMatch(mapping.activityConcept, availableTargets);
+    }
     // Plan targets are scope labels. Keep the model's concrete explanatory
     // claim as the teachable idea instead of replacing it with a chapter-like
     // label such as "Prewar alliances and tensions."
@@ -4401,6 +4411,10 @@ export function validateSessionCoverageFidelity(
   }
 
   const plannedTargets = session.contentTargets ?? [];
+  if (generatedSessionDefersAllStoredPlanTargets(draft, plannedTargets)) {
+    return "The session defers every saved target and cannot be completed safely. Teach and check at least one exact planned target now; do not list that same target as deferred.";
+  }
+
   const requiredDeferredTargets = session.deferredContentTargets ?? [];
   const authoritativeCoveredTargetKeys = new Set(
     authoritativeCoveredTargets.map(normalizeCoverageTarget),
@@ -4422,7 +4436,13 @@ export function validateSessionCoverageFidelity(
     return `The generated session lost deferred plan content: ${missingDeferredTargets.join(", ")}. Preserve each exact label in deferredContent.`;
   }
   if (plannedTargets.length === 0) return null;
-  const generatedCoverage = [...draft.coverage.essentialIdeas, ...draft.coverage.deferredContent];
+  const assessedConcepts = draft.coverage.evidenceMap.filter(mapping =>
+    draft.coverage.essentialIdeas.some(idea => normalizeCoverageTarget(idea) === normalizeCoverageTarget(mapping.essentialIdea))
+    && draft.activities.some(activity => activity.requiredForCompletion
+      && (activity.type === "multiple_choice" || activity.type === "free_response")
+      && normalizeCoverageTarget(activity.concept ?? "") === normalizeCoverageTarget(mapping.activityConcept)))
+    .map(mapping => mapping.activityConcept);
+  const generatedCoverage = [...draft.coverage.essentialIdeas, ...assessedConcepts, ...draft.coverage.deferredContent];
   const missingTargets = plannedTargets.filter((target) => (
     !authoritativeCoveredTargetKeys.has(normalizeCoverageTarget(target))
     && !generatedCoverage.some((idea) => targetMatches(idea, target))

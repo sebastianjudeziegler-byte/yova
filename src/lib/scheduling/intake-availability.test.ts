@@ -8,6 +8,11 @@ function fallback(): PlanCreatorScheduleState {
 const days = (state: PlanCreatorScheduleState) => state.availabilityChoices.filter(choice => choice.enabled).map(choice => choice.day);
 
 describe("availability from learner intake", () => {
+  it("uses each weekday as five explicit evening windows", () => {
+    const selected = scheduleFromIntake(fallback(), "A speech is due next Friday. I have 15 minutes each weekday evening.");
+    expect(days(selected)).toEqual(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]);
+    expect(selected.availabilityChoices.filter(choice => choice.enabled).every(choice => choice.window === "Evening" && choice.minutes === 15)).toBe(true);
+  });
   it("preserves the audited Monday/Wednesday/Friday afternoons and duration", () => {
     const selected = scheduleFromIntake(fallback(), "Biology exam September 21. I can study Monday, Wednesday and Friday afternoons for 25 minutes.");
     expect(days(selected)).toEqual(["Monday", "Wednesday", "Friday"]);

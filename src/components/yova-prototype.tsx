@@ -1,6 +1,7 @@
 "use client";
 
-import { getCoreLearningMethod } from "@/lib/learning/method-catalog";
+import { generatedSessionDefersAllStoredPlanTargets } from "@/lib/session-generation/deferred-cache-contract";
+import { deferredTopicSessionFields } from "@/lib/learning/deferred-topic-session";
 import { fetchClientJson, GENERATION_REQUEST_TIMEOUT_MS, readClientStateBeforeDeadline } from "@/lib/http/client-json";
 import { topicDisplayLabel } from "@/lib/learning/topic-display-label";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -322,8 +323,8 @@ import { reportProductError } from "@/lib/monitoring/client";
 import { PlanAdjustmentResponseSchema, type PlanAdjustmentRequest } from "@/lib/learning/adjustment-schema";
 import {
   MAX_RUNTIME_PLAN_SESSIONS,
-  PlanDiagnosticQuestionSchema,
-  type PlanDiagnosticQuestion,
+  PublicPlanDiagnosticQuestionSchema,
+  type PublicPlanDiagnosticQuestion,
 } from "@/lib/plan-generation/schema";
 import {
   buildProtectedPlanAdjustmentSessions,
@@ -720,7 +721,7 @@ export function YovaPrototype({
   const [sessionStartedAt, setSessionStartedAt] = useState<number | null>(null);
   const [sessionCompletedAt, setSessionCompletedAt] = useState<string | null>(null);
   const [sessionCompletionMode, setSessionCompletionMode] = useState<SessionCompletionMode>("guided");
-  const [sessionCompletionFeedback, setSessionCompletionFeedback] = useState<SessionCompletion["feedback"]>("about_right");
+  const [sessionCompletionFeedback, setSessionCompletionFeedback] = useState<SessionCompletion["feedback"]>(null);
   const [sessionElapsedSeconds, setSessionElapsedSeconds] = useState(0);
   const [methodWorkProgress, setMethodWorkProgress] = useState<MethodWorkProgress>(emptyMethodWorkProgress);
   const [sessionActivityProgress, setSessionActivityProgress] = useState<SessionActivityProgress | null>(null);
@@ -1756,7 +1757,7 @@ export function YovaPrototype({
     activeSessionRunIdRef.current = checkpoint?.runId ?? activeSessionRunIdRef.current ?? makeUuid();
     setSessionStartedAt(now - activeSeconds * 1_000);
     setSessionCompletedAt(awaitingFinish ? checkpoint?.completedAt ?? new Date(now).toISOString() : null);
-    setSessionCompletionFeedback(checkpoint?.completionFeedback ?? "about_right");
+    setSessionCompletionFeedback(checkpoint?.completionFeedback ?? null);
     setSessionElapsedSeconds(activeSeconds);
     const recoveredFromAccount = Boolean(checkpoint && cloudCheckpointRunIds.has(checkpoint.runId));
     setSessionRecoveryNotice(checkpoint
@@ -2277,7 +2278,7 @@ export function YovaPrototype({
     setSessionStartedAt(null);
     setSessionCompletedAt(null);
     setSessionCompletionMode("guided");
-    setSessionCompletionFeedback("about_right");
+    setSessionCompletionFeedback(null);
     setSessionElapsedSeconds(0);
     setMethodWorkProgress(checkpointResume?.methodWork ?? emptyMethodWorkProgress());
     updateSessionActivityProgress(resumePoint?.activityProgress ?? null);
@@ -3002,7 +3003,9 @@ export function YovaPrototype({
       })
       : null;
     if (deferredContinuationRequired && !deferredContinuation) {
-      setSessionRecoveryIssue("YOVA kept this session open because the saved remaining targets do not fit safely before the next session, protected review, or deadline. Reschedule the next item or extend the deadline, then finish again; no target was removed.");
+      setSessionRecoveryIssue(generatedSessionDefersAllStoredPlanTargets(currentSession.resource ?? {}, currentSession.contentTargets ?? [])
+        ? "YOVA could not finish this lesson because it lists the same work as completed and still to do. Your session remains open. This needs a lesson repair; changing your calendar will not help."
+        : "YOVA kept this session open because the saved remaining targets do not fit safely before the next session, protected review, or deadline. Reschedule the next item or extend the deadline, then finish again; no target was removed.");
       return false;
     }
 
@@ -3392,7 +3395,7 @@ export function YovaPrototype({
     setSessionInterruptions((current) => [...current, interruption]);
     setSessionStartedAt(null);
     setSessionCompletedAt(null);
-    setSessionCompletionFeedback("about_right");
+    setSessionCompletionFeedback(null);
     setSessionElapsedSeconds(0);
     setResumedSessionEvidence(null);
     activeSessionClockRef.current = null;
@@ -3836,19 +3839,10 @@ export function YovaPrototype({
           return {
           id,
           sequence: plan.sessions.length + index + 1,
-          title: `Learn ${topic.title}`,
-          objective: `Build an accurate model of ${topic.title}, then produce one independent check tied to this topic.`,
-          method: getCoreLearningMethod("self_explanation").name,
-          method_rationale: "This topic was outside the original time budget, so YOVA will teach it before asking for independent evidence.",
+          ...deferredTopicSessionFields(topic, plan.topic),
           scheduled_for: new Date(latestTime + (index + 1) * 24 * 60 * 60 * 1000).toISOString(),
           estimated_minutes: input.futureSessionMinutes,
           status: "upcoming" as const,
-          step_data: {
-            learningMode: "learn" as const,
-            topicIds: [topic.id],
-            contentTargets: [topic.title, ...topic.subtopics.slice(0, 3)],
-            completionEvidence: [`Explain ${topic.title} accurately and complete one independent check`],
-          },
         }; })];
       }
       const redirectedSessions = input.direction && adjustableSessions.length
@@ -5157,7 +5151,7 @@ function HomeScreen({ account, answers, plans, plan, sessionCompletions, session
     .filter((item) => (item.knowledgeMap?.topics.length ?? 0) > 0)
     .slice(0, 2)
     .map((item) => {
-      const topics = item.knowledgeMap?.topics ?? [];
+      const topics = item.knowledgeMap?.topics.filter((topic) => !topic.deferred) ?? [];
       const statuses = topics.map((topic) => ({ topic, status: displayedTopicStatus(topic.id, topic.status, item, sessionCompletions) }));
       const secure = statuses.filter((entry) => entry.status === "secure").length;
       const nextTopic = statuses.find((entry) => entry.status !== "secure") ?? null;
@@ -5481,7 +5475,8 @@ function PlanKnowledgeMapPanel({ plan, completions, canExtend, extending, error,
   const placementOperationRef = useRef<string | null>(null);
   const [placementOpen, setPlacementOpen] = useState(false);
   const [placementLoading, setPlacementLoading] = useState(false);
-  const [placementQuestions, setPlacementQuestions] = useState<PlanDiagnosticQuestion[]>([]);
+  const [placementQuestions, setPlacementQuestions] = useState<PublicPlanDiagnosticQuestion[]>([]);
+  const [placementToken, setPlacementToken] = useState<string | null>(null);
   const [placementAnswers, setPlacementAnswers] = useState<string[]>([]);
   const [placementIndex, setPlacementIndex] = useState(0);
   const [placementError, setPlacementError] = useState<string | null>(null);
@@ -5515,10 +5510,13 @@ function PlanKnowledgeMapPanel({ plan, completions, canExtend, extending, error,
       });
       const body: unknown = await response.json();
       if (!response.ok) throw new Error(readApiError(body) ?? "YOVA could not prepare the placement check.");
-      const questions = PlanDiagnosticQuestionSchema.array().min(1).max(8).safeParse(readApiProperty(body, "questions"));
+      const questions = PublicPlanDiagnosticQuestionSchema.array().min(1).max(8).safeParse(readApiProperty(body, "questions"));
       if (!questions.success) throw new Error("The placement check came back in an unsafe format.");
       const durationMs = readApiProperty(body, "durationMs");
       setPlacementLatencyMs(typeof durationMs === "number" && Number.isFinite(durationMs) ? durationMs : null);
+      const token = readApiProperty(body, "challengeToken");
+      if (typeof token !== "string") throw new Error("The placement check could not be verified.");
+      setPlacementToken(token);
       setPlacementQuestions(questions.data);
     } catch (placementFailure) {
       setPlacementError(placementFailure instanceof Error ? placementFailure.message : "YOVA could not prepare the placement check.");
@@ -5538,7 +5536,7 @@ function PlanKnowledgeMapPanel({ plan, completions, canExtend, extending, error,
       const response = await fetch(`/api/plans/${plan.id}/diagnostic`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ questions: placementQuestions, answers: placementAnswers }),
+        body: JSON.stringify({ challengeToken: placementToken, answers: placementAnswers }),
       });
       const body: unknown = await response.json();
       if (!response.ok) throw new Error(readApiError(body) ?? "YOVA could not save the placement evidence.");
@@ -8186,7 +8184,7 @@ function SessionComplete({ currentSession, knowledgeMap, completionMode, complet
     <section className="completion-card">
       {recoveryNotice && <div className="session-issue"><Check size={17} /><span>{recoveryNotice}</span></div>}
       {recoveryIssue && <div className="session-issue"><AlertCircle size={17} /><span>{recoveryIssue}</span></div>}
-      {mapDelta.length > 0 && <section className="completion-map-delta"><header><Sparkles size={17} /><div><span>KNOWLEDGE MAP UPDATED</span><strong>What moved in this session</strong></div></header><ul>{mapDelta.map((change) => <li key={change.topicId}><strong>{change.title}</strong><span>{topicStatusLabel(change.from)} <ArrowRight size={14} /> {topicStatusLabel(change.to)}</span></li>)}</ul></section>}
+      {mapDelta.length > 0 && <section className="completion-map-delta"><header><Sparkles size={17} /><div><span>READY TO SAVE</span><strong>What this session will record</strong></div></header><ul>{mapDelta.map((change) => <li key={change.topicId}><strong>{change.title}</strong><span>{topicStatusLabel(change.from)} <ArrowRight size={14} /> {topicStatusLabel(change.to)}</span></li>)}</ul></section>}
       <header className="completion-heading">
         <div className={`completion-icon ${hasUnresolvedGap ? "needs-review" : ""}`}>{hasUnresolvedGap ? <RotateCcw size={27} /> : <Check size={28} />}</div>
         <div><span className="step-label">SESSION COMPLETE</span><h1>{hasUnresolvedGap ? "The work is done. One part needs another check." : "Today’s checks held up."}</h1><p>You completed every required step. YOVA uses the work you produced, not the clock, to decide what should happen next.</p></div>
@@ -8196,7 +8194,7 @@ function SessionComplete({ currentSession, knowledgeMap, completionMode, complet
       {repairCount > 0 && <div className="completion-repair-note"><RotateCcw size={17} /><p>{hasUnresolvedGap
         ? `You worked on repairing ${repairCount === 1 ? "one idea" : `${repairCount} ideas`} during the session. The latest evidence still shows a gap, so that idea remains open for another check.`
         : `You repaired ${repairCount === 1 ? "one idea" : `${repairCount} ideas`} during the session. YOVA records the original miss as context, but the successful repair means no duplicate follow-up is needed.`}</p></div>}
-      <section className="completion-feedback"><div><strong>How did the challenge feel?</strong><p>Your answer can change YOVA’s recommendation below.</p></div><div className="feeling-row"><button disabled={finishing} className={feedback === "too_easy" ? "selected" : ""} onClick={() => onFeedback("too_easy")}>Too easy</button><button disabled={finishing} className={feedback === "about_right" ? "selected" : ""} onClick={() => onFeedback("about_right")}>About right</button><button disabled={finishing} className={feedback === "too_difficult" ? "selected" : ""} onClick={() => onFeedback("too_difficult")}>Too difficult</button></div></section>
+      <section className="completion-feedback"><div><strong>How did the challenge feel?</strong><p>Optional. Your answer can change YOVA’s recommendation below.</p></div><div className="feeling-row"><button disabled={finishing} className={feedback === "too_easy" ? "selected" : ""} onClick={() => onFeedback("too_easy")}>Too easy</button><button disabled={finishing} className={feedback === "about_right" ? "selected" : ""} onClick={() => onFeedback("about_right")}>About right</button><button disabled={finishing} className={feedback === "too_difficult" ? "selected" : ""} onClick={() => onFeedback("too_difficult")}>Too difficult</button></div></section>
       <PostSessionPersonalizationReceipt
         session={currentSession}
         completion={completionPreview}

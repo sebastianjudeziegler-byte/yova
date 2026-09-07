@@ -66,6 +66,8 @@ export type NormalStudyDurationRecommendationInput = {
   };
   schedule: {
     window: DurationPlanningWindow | null;
+    /** A bounded retry under deadline pressure; never changes the saved profile. */
+    capacityMaximumMinutes?: NormalStudyDurationMinutes;
   };
   recentOutcomes: readonly NormalDurationOutcome[];
 };
@@ -199,6 +201,7 @@ const NormalStudyDurationRecommendationInputSchema = z.object({
   profile: NormalStudyDurationProfileSchema,
   schedule: z.object({
     window: DurationPlanningWindowSchema.nullable(),
+    capacityMaximumMinutes: NormalStudyDurationSchema.optional(),
   }).strict(),
   recentOutcomes: z.array(NormalDurationOutcomeSchema).max(100),
 }).strict().superRefine((value, context) => {
@@ -315,6 +318,17 @@ export function recommendNormalStudyDuration(
     }
   }
 
+  const capacityMaximum = parsed.schedule.capacityMaximumMinutes;
+  if (capacityMaximum !== undefined && minutes > capacityMaximum) {
+    minutes = capacityMaximum;
+    source = "router_default";
+    ruleTrace.push(durationRecommendationTrace({
+      ruleId: "duration.recommendation.deadline_capacity",
+      result: `shortened_to_${minutes}_minutes`,
+      reason: `The time before your deadline cannot hold the longer sessions, so this plan uses ${minutes}-minute sessions with fewer targets at a time. Your usual focus preference stays unchanged.`,
+      evidenceRefs: [],
+    }));
+  }
   return deepFreeze({ minutes, source, ruleTrace });
 }
 

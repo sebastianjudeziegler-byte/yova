@@ -8,6 +8,22 @@ import {
 } from "@/lib/learning/learning-intent";
 
 describe("learning approach router", () => {
+  it.each([
+    "I have never studied cell biology. Teach me cell membranes from scratch, then exam-style practice. I can study Tuesday and Thursday.",
+    "Prepare me for a quiz. Brackets are new. Teach those before independent practice.",
+    "I am new to calculus and have an exam in two weeks.",
+  ])("preserves explicit beginner intent despite exam and availability language: %s", (goal) => {
+    expect(resolveLearningIntent({ goal })).toMatchObject({ intent: "learn" });
+  });
+
+  it.each([
+    "Review what I already learned from scratch last year for my exam.",
+    "Don't teach me from scratch; test my recall for the exam.",
+    "Skip the basics. I can study three times a week for the exam.",
+  ])("keeps an explicit review request on practice: %s", (goal) => {
+    expect(resolveLearningIntent({ goal })).toMatchObject({ intent: "study" });
+  });
+
   it("turns a concrete starting point into teaching-first without asking for technical terminology", () => {
     expect(resolveLearningIntent({
       goal: "Help me with derivative rules",

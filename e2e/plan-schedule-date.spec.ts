@@ -18,6 +18,75 @@ const TEST_TIME_ZONE = "Europe/London";
 
 test.use({ timezoneId: TEST_TIME_ZONE });
 
+for (const {days, priorityMinutes} of [{days:1,priorityMinutes:0},{days:3,priorityMinutes:0},{days:1,priorityMinutes:3}]) test(`consolidated: ${priorityMinutes ? "a three-minute priority records no completion" : `a ${days}-day deadline survives placement, plan review and activation`}`, async ({ page }, testInfo) => {
+  const titles = ["ATP and energy transfer", "Glycolysis", "Link reaction", "Krebs cycle", "Electron transport chain", "Chemiosmosis"];
+  const knowledgeMap = {
+    version:1, scopeJudgment:{band:"unit_or_exam",label:"Cellular respiration",minimumSessions:12,recommendedSessions:12,maximumSessions:12,minimumTeachingSessions:6,explanation:"Learn each part of respiration and practise applying it independently."},
+    topics:titles.map((title,index)=>({id:`90000000-0000-4000-8000-${String(index+1).padStart(12,"0")}`,title,description:`Explain ${title} and how it contributes to cellular respiration.`,subtopics:[],prerequisiteTopicIds:[],status:"not_started",initialEvidence:null,sourceReferences:[],origin:"ai_generated",deferred:null})),
+    placementCheck:{status:"available",completedAt:null,demonstratedTopicIds:[],gapTopicIds:[]},
+  };
+  // Supply the accepted six-topic audit fixture. Scoring, receipts, composition,
+  // routing, UI rendering and activation all use the real local endpoints.
+  await page.route("**/api/plans/generate**", async route => {
+    const body = route.request().postDataJSON();
+    const boundary = new Date();
+    boundary.setUTCDate(boundary.getUTCDate()+1);
+    boundary.setUTCHours(19,priorityMinutes,0,0);
+    // Exercise a real server deadline clipping a future study window to three
+    // minutes; no server clock override or fabricated generation response.
+    const tinyWindow = priorityMinutes && !route.request().url().includes("?mode=diagnostic") ? {
+      deadline:boundary.toISOString(),timeZone:"UTC",
+      availability:[{day:new Intl.DateTimeFormat("en-US",{weekday:"long",timeZone:"UTC"}).format(boundary),window:"Evening",minutes:45}],
+    } : {};
+    await route.continue({postData:JSON.stringify({...body,...(!body.knowledgeMap?{knowledgeMap}:{}),...tinyWindow})});
+  });
+  await openPreviewApp(page);
+  await page.getByRole("button", {name:/New plan|Build my first plan|Create another plan/}).first().click();
+  await page.getByPlaceholder(/I have a biology test/).fill("Teach me cellular respiration from scratch for my test. I can study Monday, Wednesday and Friday evenings for 45 minutes.");
+  await page.getByRole("button", {name:"Continue",exact:true}).click();
+  await page.getByRole("button", {name:/Create it for me/}).click();
+  await page.getByRole("button", {name:"Continue",exact:true}).click();
+  const deadline = futureDate(days).input;
+  await page.getByRole("textbox",{name:/^(Custom target date|Target date)$/}).fill(deadline);
+  const preparedResponse = page.waitForResponse(response=>response.url().includes("/api/plans/generate?mode=diagnostic"));
+  await page.getByRole("button",{name:"Continue to placement check"}).click();
+  const prepared = await (await preparedResponse).json();
+  expect(prepared.questions).toHaveLength(8);
+  expect(prepared.questions.every((question: Record<string,unknown>)=>!("correctAnswer" in question))).toBe(true);
+  if (days === 1) await page.getByRole("button",{name:"Skip for now"}).click();
+  else {
+    for (let index=0;index<prepared.questions.length;index+=1) {
+      const answer = index<2 ? knowledgeMap.topics[0]!.description.replace(/[.!?]+$/, "") : "I don't know yet";
+      await page.getByRole("button",{name:answer,exact:true}).click();
+      await page.getByRole("button",{name:index===prepared.questions.length-1?"Use my answers":"Next question",exact:true}).click();
+    }
+  }
+  await expect(page.getByRole("heading",{name:"Everything YOVA will use"})).toBeVisible();
+  const generatedResponse = page.waitForResponse(response=>new URL(response.url()).pathname==="/api/plans/generate" && !new URL(response.url()).search);
+  await page.getByRole("button",{name:"Generate my plan"}).click();
+  const generated = await (await generatedResponse).json();
+  if (priorityMinutes) {
+    expect(generated).toMatchObject({kind:"deadline_priority",priority:{minutes:3,progressCredit:false}});
+    await expect(page.getByRole("heading",{name:"Focus on ATP and energy transfer"})).toBeVisible();
+    await expect(page.getByText("This card does not record a completed session or mark the topic as learned.",{exact:true})).toBeVisible();
+    await expect(page.getByRole("button",{name:"Use this plan"})).toHaveCount(0);
+    await page.screenshot({path:`docs/audits/2026-09-07-plan-creation/consolidated/evidence/priority-${testInfo.project.name}.png`,fullPage:true});
+    await page.getByRole("button",{name:"Done",exact:true}).click();
+    expect(await page.evaluate(()=>JSON.parse(localStorage.getItem("yova.preview.v1")??"{}").sessionCompletions??[])).toHaveLength(0);
+    return;
+  }
+  expect(generated.plan, JSON.stringify(generated)).toBeTruthy();
+  await expect(page.getByText("Plan ready",{exact:true})).toBeVisible();
+  await expect(page.getByText(generated.plan.rationale,{exact:true})).toBeVisible();
+  expect(generated.plan.sessions.length).toBeGreaterThan(0);
+  expect(generated.plan.sessions.every((session:{scheduledFor:string;estimatedMinutes:number})=>Date.parse(session.scheduledFor)+session.estimatedMinutes*60_000<=Date.parse(generated.plan.deadline))).toBe(true);
+  if (days===1) await expect(page.locator(".generated-topic-map li.deferred").first()).toBeVisible();
+  else await expect(page.locator(".generated-topic-map li").filter({hasText:titles[0]})).toContainText("Quick verification");
+  await page.screenshot({path:`docs/audits/2026-09-07-plan-creation/consolidated/evidence/deadline-${days}-browser.png`,fullPage:true});
+  await page.getByRole("button",{name:"Use this plan"}).click();
+  await expect(page.getByRole("heading",{name:"Your plan",exact:true})).toBeVisible();
+});
+
 test("a natural deadline and an edited date survive every schedule control", async ({ page }) => {
   await openPreviewApp(page);
 

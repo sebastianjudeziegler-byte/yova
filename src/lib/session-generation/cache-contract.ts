@@ -1,3 +1,4 @@
+import { generatedSessionDefersAllStoredPlanTargets } from "@/lib/session-generation/deferred-cache-contract";
 import type {
   LearningPlan,
   LearningPlanSession,
@@ -178,6 +179,9 @@ export function hydratedSessionResourceCacheIssue({
 }): string | null {
   const resource = session.resource;
   if (!resource) return null;
+  if (generatedSessionDefersAllStoredPlanTargets(resource, session.contentTargets ?? [])) {
+    return "The saved lesson defers every planned target and cannot finish safely. Prepare a new lesson before starting.";
+  }
   const routeIssue = hydratedSessionResourceRouteIssue(session, resource);
   if (routeIssue) return routeIssue;
   if (resource.origin !== "generated") return null;

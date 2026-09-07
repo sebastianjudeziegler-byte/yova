@@ -44,7 +44,7 @@ const SessionCompletionExportSchema = z.object({
   actualMinutes: z.number().int().min(1).max(360),
   correctAnswers: z.number().int().min(0),
   totalAnswers: z.number().int().min(0),
-  feedback: z.enum(["too_easy", "about_right", "too_difficult"]),
+  feedback: z.enum(["too_easy", "about_right", "too_difficult"]).nullable(),
   observedGap: z.string().min(1).max(2_000),
   completionMode: z.enum(["guided", "unguided_practice"]).default("guided"),
   conceptEvidence: ConceptEvidenceListSchema.default([]),
@@ -158,7 +158,7 @@ const ActiveSessionCheckpointExportBaseShape = {
     correctAnswer: z.string().trim().min(1).max(700),
   }).strict().optional(),
   completedAt: z.string().datetime({ offset: true }).optional(),
-  completionFeedback: z.enum(["too_easy", "about_right", "too_difficult"]).optional(),
+  completionFeedback: z.enum(["too_easy", "about_right", "too_difficult"]).nullable().optional(),
   sessionAdjustment: SessionAdjustmentSnapshotSchema.optional(),
 };
 

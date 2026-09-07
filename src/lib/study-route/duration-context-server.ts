@@ -830,7 +830,7 @@ function readIntegerProperty(value: unknown, key: string) {
 }
 
 function isSessionFeedback(value: unknown): value is SessionCompletion["feedback"] {
-  return value === "too_easy" || value === "about_right" || value === "too_difficult";
+  return value === null || value === "too_easy" || value === "about_right" || value === "too_difficult";
 }
 
 function boundedPositiveInteger(value: unknown, maximum: number) {

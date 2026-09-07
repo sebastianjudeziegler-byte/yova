@@ -562,7 +562,7 @@ function legacyKnowledgeStage(status: "not_started" | "taught" | "evidenced" | "
 function issueExplanations(issues: LegacyStudyRouteIssue[]) {
   const copy: Record<LegacyStudyRouteIssue, string> = {
     agency_unknown: "The legacy record does not show who selected the route or which control mode was active.",
-    difficulty_unknown: "The legacy record does not contain a canonical difficulty decision.",
+    difficulty_unknown: "The difficulty has not been confirmed yet. YOVA will use your attempts to adjust it.",
     duration_provenance_unknown: "The duration is preserved, but the legacy record does not show how it was chosen.",
     legacy_identity_canonicalized: "A non-UUID legacy identifier was converted to a deterministic compatibility identifier.",
     legacy_route_time_reconstructed: "The route timestamp is reconstructed because the legacy record has no route creation time.",
@@ -571,7 +571,7 @@ function issueExplanations(issues: LegacyStudyRouteIssue[]) {
     source_identity_missing: "The plan requires learner material but its legacy record has no material identifier.",
     synthetic_target_id: "The legacy session has no trustworthy target identifier, so this compatibility target is synthetic.",
     target_stage_inferred_from_mode: "The target stage is a conservative compatibility baseline because no target state was stored.",
-    target_state_reconstructed: "Target state is a current legacy snapshot, not proof of the state when the route first ran.",
+    target_state_reconstructed: "This starting point uses the available topic information; it has not been confirmed by an attempt in this session.",
     task_family_inferred: "The task family is derived from legacy task text rather than a stored routing decision.",
   };
   return issues

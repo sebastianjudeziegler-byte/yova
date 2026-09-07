@@ -86,9 +86,19 @@ export function isWorkProductGoal(value: string) {
     || WORK_PRODUCT_OWNERSHIP_DUE_PATTERN.test(value);
 }
 
+// Explicit requests for a first explanation outrank exam and timetable words.
+// Those words describe the outcome or availability, not prior knowledge.
+function explicitlyNeedsTeaching(value: string) {
+  return value.split(/[.!?;]/).some((part) => {
+    if (/\b(?:don't|do not|no need to)\s+(?:teach|explain)|\b(?:already learned|already know|skip the basics)\b/i.test(part)) return false;
+    return /\b(?:never (?:studied|learned|seen)|(?:have not|haven't) (?:studied|learned)|completely new|new to|know nothing|from scratch|beginner)\b/i.test(part)
+      || /\bteach\b[^.!?;]*\bbefore\b[^.!?;]*\b(?:practice|independent|test|attempt)/i.test(part);
+  });
+}
+
 export function resolveLearningIntent(evidence: StartingEvidence): LearningIntentRecommendation {
   const startingPoint = evidence.startingPoint?.toLowerCase() ?? "";
-  if (/haven't learned|have not learned|new to|completely new|know nothing|none yet|never (?:learned|seen)|doesn't make sense|does not make sense|starting from scratch/.test(startingPoint)) {
+  if (explicitlyNeedsTeaching(startingPoint) || explicitlyNeedsTeaching(evidence.goal) || /none yet|doesn't make sense|does not make sense/.test(startingPoint)) {
     return {
       intent: "learn",
       reason: "You said this is new or not yet clear, so YOVA should build understanding before expecting recall.",
@@ -116,7 +126,7 @@ export function resolveLearningIntent(evidence: StartingEvidence): LearningInten
     .filter((response) => response.evaluation === "self_report")
     .map((response) => response.answer.toLowerCase())
     .join(" ");
-  const selfReportSignalsMissingFoundation = /do not know|don't know|know nothing|no idea|none yet|completely new|have not learned|haven't learned|not learned this yet|cannot explain|can't explain|not confident|starting from scratch|never (?:learned|seen)|doesn't make sense|does not make sense/.test(selfReportText);
+  const selfReportSignalsMissingFoundation = /do not know|don't know|know nothing|no idea|none yet|completely new|have not learned|haven't learned|not learned this yet|cannot explain|can't explain|not confident|starting from scratch|never (?:studied|learned|seen)|doesn't make sense|does not make sense/.test(selfReportText);
   const allChecksIncorrect = objectiveChecks.length >= 2
     && objectiveChecks.every((response) => response.evaluation === "incorrect");
   if (selfReportSignalsMissingFoundation || allChecksIncorrect) {
@@ -141,7 +151,7 @@ export function resolveLearningIntent(evidence: StartingEvidence): LearningInten
 export function inferSessionFamiliarityFromText(note: string) {
   const normalized = note.trim().toLowerCase();
   if (!normalized) return null;
-  if (/\b(ground zero|know (?:nothing|very little)|completely new|brand new|never (?:learned|seen)|start from (?:scratch|the basics)|teach (?:me|this)|need (?:this|it) taught|do not understand|don't understand|no foundation)\b/.test(normalized)) {
+  if (/\b(ground zero|know (?:nothing|very little)|completely new|brand new|never (?:studied|learned|seen)|start from (?:scratch|the basics)|teach (?:me|this)|need (?:this|it) taught|do not understand|don't understand|no foundation)\b/.test(normalized)) {
     return "need_teaching" as const;
   }
   if (/\b(already know|already learned|skip the basics|mostly review|just review|challenge me|make it harder)\b/.test(normalized)) {
@@ -187,6 +197,9 @@ export function teachingFirstSessionCopy(topic: string) {
 
 export function recommendLearningIntent(goal: string): LearningIntentRecommendation {
   const normalized = goal.toLowerCase();
+  if (explicitlyNeedsTeaching(normalized)) {
+    return { intent: "learn", reason: "You asked to build the foundation first, so YOVA should teach before independent practice." };
+  }
   if (isWorkProductGoal(normalized)) {
     return {
       intent: "learn",

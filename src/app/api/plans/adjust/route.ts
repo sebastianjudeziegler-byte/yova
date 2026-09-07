@@ -1,5 +1,5 @@
+import { deferredTopicSessionFields } from "@/lib/learning/deferred-topic-session";
 import { NextResponse } from "next/server";
-import { getCoreLearningMethod } from "@/lib/learning/method-catalog";
 import type { LearningPlan, LearningPlanSession } from "@/lib/domain";
 import {
   PlanAdjustmentRequestSchema,
@@ -197,6 +197,7 @@ export async function PATCH(request: Request) {
               topic: itemRow.topic,
               direction: parsed.data.direction,
               sessions: adjustableUnfinished,
+              topics: knowledgeMap.data.topics,
             });
           } catch {
             // Paid provider attempts stay consumed even when the response is
@@ -231,19 +232,10 @@ export async function PATCH(request: Request) {
       return {
       id,
       sequence: sessionRows.length + index + 1,
-      title: `Learn ${topic.title}`,
-      objective: `Build an accurate model of ${topic.title}, then produce one independent check tied to this topic.`,
-      method: getCoreLearningMethod("self_explanation").name,
-      method_rationale: "This topic was outside the original time budget, so YOVA will teach it before asking for independent evidence.",
+      ...deferredTopicSessionFields(topic, itemRow.topic),
       scheduled_for: new Date(lastScheduled + (index + 1) * 24 * 60 * 60 * 1000).toISOString(),
       estimated_minutes: parsed.data.futureSessionMinutes,
       status: "upcoming",
-      step_data: {
-        learningMode: "learn",
-        topicIds: [topic.id],
-        contentTargets: [topic.title, ...topic.subtopics.slice(0, 3)],
-        completionEvidence: [`Explain ${topic.title} accurately and complete one independent check`],
-      },
     }; });
     redirectedUnfinished = [...redirectedUnfinished, ...appended];
   }

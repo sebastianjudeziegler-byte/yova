@@ -25,6 +25,7 @@ const KnowledgeMapOutputSchema = z.object({
     subtopics: z.array(z.string().trim().min(2).max(500)).max(12),
     prerequisiteTopicIndexes: z.array(z.number().int().nonnegative()).max(12),
     sourceMaterialTopicIds: z.array(z.string().uuid()).max(20),
+    carriedFromTopicId: z.string().uuid().nullable(),
   })).min(1).max(40),
 });
 
@@ -54,6 +55,8 @@ Return topics in prerequisite order. Scope the map to the learner's stated outco
 When materials exist, sourceMaterialTopicIds must reference the supplied material-topic ids whenever a topic comes from them. A scope outline defines what belongs in the map but does not provide instructional substance. You may add ai-generated prerequisite topics only when needed to make the requested learning path coherent. Never invent completed knowledge or omit requested material topics silently.
 
 The learner may provide a mapCorrection after reviewing a draft map. Treat it as an explicit request about scope or emphasis. Add genuinely missing topics, remove topics outside the stated goal, or change emphasis when requested. A claim that the learner already knows a topic may reduce its planned teaching and lead to a short verification, but it must never create evidence or advance a topic status by itself.
+
+When currentMap is supplied, preserve every topic outside the requested change. For an unchanged topic, set carriedFromTopicId to its exact supplied id and copy its title, description and subtopics exactly. Set carriedFromTopicId to null for a new topic or one whose learning scope changes. Never reuse one carried id twice. The server alone carries prior knowledge evidence forward; do not generate evidence or statuses.
 
 Write scopeJudgment.label as a short, natural standalone phrase that names the learning scope. Aim for 3-8 words. Summarize the goal instead of copying, compressing, or mechanically truncating the learner's wording. The label must read as complete and must not end with a conjunction, preposition, or article such as "and", "the", "of", "to", or "on".
 
@@ -244,7 +247,7 @@ export async function generatePlanKnowledgeMap(request: PlanGenerationRequest): 
 
   let latestProviderMetrics: KnowledgeMapProviderMetrics | null = null;
   try {
-    if (recognizedCurriculum) {
+    if (recognizedCurriculum && !request.mapCorrection) {
       return await generateRecognizedCurriculumMap({
         request,
         materialTopics,
@@ -265,6 +268,7 @@ export async function generatePlanKnowledgeMap(request: PlanGenerationRequest): 
         diagnosticResponses: request.diagnosticResponses,
         availability: request.availability,
         mapCorrection: request.mapCorrection ?? null,
+        currentMap: request.mapCorrection ? request.knowledgeMap?.topics.map(({ id, title, description, subtopics }) => ({ id, title, description, subtopics })) ?? null : null,
         materials: materialTopics,
       }),
       labelContext: {
@@ -303,7 +307,18 @@ export async function generatePlanKnowledgeMap(request: PlanGenerationRequest): 
       const understanding = MaterialUnderstandingSchema.safeParse(material.understanding);
       return understanding.success ? understanding.data.topics.map((topic) => [topic.id, topic] as const) : [];
     }));
-    const ids = parsed.topics.map(() => crypto.randomUUID());
+    const previousTopics = new Map((request.mapCorrection ? request.knowledgeMap?.topics ?? [] : []).map(topic => [topic.id, topic]));
+    const carriedIds = parsed.topics.flatMap(topic => topic.carriedFromTopicId ? [topic.carriedFromTopicId] : []);
+    if (new Set(carriedIds).size !== carriedIds.length || carriedIds.some(id => !previousTopics.has(id))) {
+      throw new KnowledgeMapGenerationError("knowledge_map_structure", generated.metrics, config.model);
+    }
+    const keptTopics = parsed.topics.map(topic => {
+      const previous = topic.carriedFromTopicId ? previousTopics.get(topic.carriedFromTopicId) : undefined;
+      // A changed scope must not inherit an old demonstration merely by naming its id.
+      return previous && previous.title === topic.title && previous.description === topic.description
+        && JSON.stringify(previous.subtopics) === JSON.stringify(topic.subtopics) ? previous : undefined;
+    });
+    const ids = parsed.topics.map((_, index) => keptTopics[index]?.id ?? crypto.randomUUID());
     const topics: KnowledgeMapTopic[] = parsed.topics.map((topic, index) => {
       const sourceTopics = topic.sourceMaterialTopicIds.map((id) => sourceById.get(id)).filter(Boolean);
       return {
@@ -314,15 +329,24 @@ export async function generatePlanKnowledgeMap(request: PlanGenerationRequest): 
         prerequisiteTopicIds: topic.prerequisiteTopicIndexes
           .filter((candidate) => candidate >= 0 && candidate < index)
           .map((candidate) => ids[candidate]),
-        status: "not_started",
-        initialEvidence: null,
+        status: keptTopics[index]?.status ?? "not_started",
+        initialEvidence: keptTopics[index]?.initialEvidence ?? null,
         sourceReferences: sourceTopics.flatMap((source) => source?.sourceReferences ?? []),
         origin: sourceTopics.length ? "material" : "ai_generated",
         deferred: null,
       };
     });
     const map = resolveKnowledgeMapSubjectBoundary(
-      PlanKnowledgeMapSchema.parse({ version: 1, scopeJudgment: parsed.scopeJudgment, topics }),
+      PlanKnowledgeMapSchema.parse({
+        version: 1, scopeJudgment: parsed.scopeJudgment, topics,
+        ...(request.mapCorrection && request.knowledgeMap?.placementCheck ? {
+          placementCheck: {
+            ...request.knowledgeMap.placementCheck,
+            demonstratedTopicIds: request.knowledgeMap.placementCheck.demonstratedTopicIds.filter(id => ids.includes(id)),
+            gapTopicIds: request.knowledgeMap.placementCheck.gapTopicIds.filter(id => ids.includes(id)),
+          },
+        } : {}),
+      }),
       request.goal,
     );
     return {

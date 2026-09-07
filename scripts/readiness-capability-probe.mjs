@@ -1,6 +1,6 @@
-export const SIGNED_IN_GENERATION_CONTRACT_VERSION = "202608310003";
+export const SIGNED_IN_GENERATION_CONTRACT_VERSION = "20260907160001";
 
-const PROBE_RPC = "signed_in_generation_readiness_v3";
+const PROBE_RPC = "signed_in_generation_readiness_v4";
 export const STUDY_PROFILE_PUBLIC_CONTRACT_VERSION = "202609060003";
 export const PUBLIC_LAUNCH_ABUSE_CONTRACT_VERSION = "202609040002";
 
@@ -70,7 +70,9 @@ export async function probeSignedInGenerationDatabase({
     && payload.planSessionsRoutePointer === true
     && payload.requiredRouteRpcs === true
     && payload.expandedMethodAgencyBoundary === true
-    && payload.methodEligibilityV3Boundary === true;
+    && payload.methodEligibilityV3Boundary === true
+    && payload.placementEvidenceBoundary === true
+    && payload.unansweredCompletionFeedback === true;
   if (!completeContract) {
     const missing = [
       ["studyRoutesSchema", "StudyRoute table/columns"],
@@ -78,6 +80,8 @@ export async function probeSignedInGenerationDatabase({
       ["requiredRouteRpcs", "StudyRoute activation/cache RPCs"],
       ["expandedMethodAgencyBoundary", "expanded-method agency RPC boundary"],
       ["methodEligibilityV3Boundary", "method-eligibility v3 boundary"],
+      ["placementEvidenceBoundary", "server-scored placement and revision boundary"],
+      ["unansweredCompletionFeedback", "unanswered completion feedback"],
     ]
       .filter(([key]) => payload[key] !== true)
       .map(([, label]) => label);

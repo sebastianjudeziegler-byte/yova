@@ -93,6 +93,19 @@ function completion(
 }
 
 describe("buildPostSessionPersonalizationReceipt", () => {
+  it("shows an unanswered challenge rating without inventing learner feedback", () => {
+    const session = routedSession();
+    const result = completion(session, { feedback: null });
+    const receipt = buildPostSessionPersonalizationReceipt({
+      session, completion: result,
+      decision: buildPostSessionDecision(session, nextSession, result),
+      adaptationAgencyMode: "help_me_choose",
+    });
+    expect(receipt.youSaid.map(item => item.text).join(" ")).not.toContain("Challenge felt");
+    expect(receipt.notSureYet.map(item => item.text)).toContain("You have not rated how the challenge felt.");
+    expect(receipt.yovaSaw.map(item => item.text)).toContain("Recorded checks: 2 of 3 correct.");
+  });
+
   it("separates declarations, observations, the deterministic next rule, and uncertainty", () => {
     const session = routedSession();
     const result = completion(session);

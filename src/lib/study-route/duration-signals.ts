@@ -411,7 +411,7 @@ function completionOutcome(
       correctAnswers: completion.correctAnswers,
       totalAnswers: completion.totalAnswers,
     } : {}),
-    feedback: completion.feedback,
+    ...(completion.feedback !== null ? { feedback: completion.feedback } : {}),
     evidenceRef,
   };
 }
@@ -490,8 +490,8 @@ function validStepCounts(completed: number, total: number) {
     && completed <= total;
 }
 
-function validFeedback(value: string) {
-  return value === "too_easy" || value === "about_right" || value === "too_difficult";
+function validFeedback(value: SessionCompletion["feedback"]) {
+  return value === null || value === "too_easy" || value === "about_right" || value === "too_difficult";
 }
 
 function countEvidenceRefs(

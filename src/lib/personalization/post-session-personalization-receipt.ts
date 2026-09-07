@@ -61,14 +61,22 @@ export function buildPostSessionPersonalizationReceipt({
       ));
     });
   }
-  youSaid.push(entry(
-    `Challenge felt: ${challengeLabel(completion.feedback)}.`,
-    `completion:${completion.id}:feedback`,
-  ));
+  if (completion.feedback !== null) {
+    youSaid.push(entry(
+      `Challenge felt: ${challengeLabel(completion.feedback)}.`,
+      `completion:${completion.id}:feedback`,
+    ));
+  }
 
   const yovaSaw = observedEvidenceEntries(completion);
   const nextChange = decisionEntries(decision, completion, adaptationAgencyMode);
   const notSureYet: PersonalizationReceiptEntry[] = [];
+  if (completion.feedback === null) {
+    notSureYet.push(entry(
+      "You have not rated how the challenge felt.",
+      `completion:${completion.id}:feedback_unanswered`,
+    ));
+  }
 
   if (routeBasis === "mismatch") {
     notSureYet.push(entry(

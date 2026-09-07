@@ -86,8 +86,8 @@ export function materializePlanDraft(
       deferred: deferredById.has(mappedTopic.id) ? { reason: deferredById.get(mappedTopic.id)! } : null,
     })),
   } : undefined;
-  const demonstratedTopics = resolvedKnowledgeMap?.topics.filter((mappedTopic) => mappedTopic.initialEvidence?.outcome === "demonstrated") ?? [];
-  const gapTopics = resolvedKnowledgeMap?.topics.filter((mappedTopic) => mappedTopic.initialEvidence?.outcome === "gap") ?? [];
+  const demonstratedTopics = knowledgeMap?.topics.filter((mappedTopic) => !mappedTopic.deferred && mappedTopic.initialEvidence?.outcome === "demonstrated") ?? [];
+  const gapTopics = knowledgeMap?.topics.filter((mappedTopic) => !mappedTopic.deferred && mappedTopic.initialEvidence?.outcome === "gap") ?? [];
   const placementSummary = [
     demonstratedTopics.length > 0
       ? `You showed you already know ${demonstratedTopics.map((mappedTopic) => mappedTopic.title).join(", ")}, so ${demonstratedTopics.length === 1 ? "it is" : "they are"} scheduled as a quick check, not a lesson.`

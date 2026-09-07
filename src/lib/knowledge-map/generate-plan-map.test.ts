@@ -29,7 +29,9 @@ const baseRequest = PlanGenerationRequestSchema.parse({
 function response(outputParsed: unknown) {
   return {
     status: "completed",
-    output_parsed: outputParsed,
+    output_parsed: typeof outputParsed === "object" && outputParsed && "topics" in outputParsed && Array.isArray(outputParsed.topics)
+      ? { ...outputParsed, topics: outputParsed.topics.map(topic => ({ carriedFromTopicId: null, ...topic })) }
+      : outputParsed,
     usage: {
       input_tokens: 200,
       input_tokens_details: { cached_tokens: 0, cache_write_tokens: 0 },
@@ -40,6 +42,45 @@ function response(outputParsed: unknown) {
 
 describe("plan knowledge-map generation", () => {
   beforeEach(() => parseResponse.mockReset());
+
+  it("keeps demonstrated knowledge visible when a correction adds a different topic", async () => {
+    const knownId = "90000000-0000-4000-8000-000000000021";
+    const known = { id: knownId, title: "The product rule", description: "Differentiate a product by combining both factor derivatives correctly.", subtopics: [], prerequisiteTopicIds: [], status: "evidenced" as const, initialEvidence: { source: "placement_check" as const, outcome: "demonstrated" as const, observedAt: "2026-09-07T08:00:00.000Z" }, sourceReferences: [], origin: "ai_generated" as const, deferred: null };
+    const scopeJudgment = { band: "focused_skill" as const, label: "Product and chain rules", minimumSessions: 1, recommendedSessions: 3, maximumSessions: 5, minimumTeachingSessions: 1, explanation: "Check the demonstrated product rule and teach the new chain rule." };
+    const currentMap = { version: 1 as const, scopeJudgment, topics: [known], placementCheck: { status: "completed" as const, completedAt: known.initialEvidence.observedAt, demonstratedTopicIds: [knownId], gapTopicIds: [] } };
+    parseResponse.mockResolvedValue(response({ scopeJudgment, topics: [
+      { title: known.title, description: known.description, subtopics: [], prerequisiteTopicIndexes: [], sourceMaterialTopicIds: [], carriedFromTopicId: knownId },
+      { title: "The chain rule", description: "Differentiate a composition by combining its inner and outer derivatives.", subtopics: [], prerequisiteTopicIndexes: [], sourceMaterialTopicIds: [], carriedFromTopicId: null },
+    ] }));
+    const { generatePlanKnowledgeMap } = await import("@/lib/knowledge-map/generate-plan-map");
+    const result = await generatePlanKnowledgeMap({ ...baseRequest, knowledgeMap: currentMap, mapCorrection: "Add the chain rule; keep the product rule I demonstrated." });
+    const visible = result.map.topics.map(topic => ({ title: topic.title, action: topic.initialEvidence?.outcome === "demonstrated" ? "Quick verification" : "Teach and check" }));
+    console.info(JSON.stringify({ case: "kept-placement-after-map-correction", visible }));
+    expect(visible).toEqual([{ title: "The product rule", action: "Quick verification" }, { title: "The chain rule", action: "Teach and check" }]);
+    expect(result.map.topics[0]).toMatchObject(known);
+    expect(result.map.placementCheck?.demonstratedTopicIds).toEqual([knownId]);
+    expect(parseResponse.mock.calls[0]?.[0]?.input).toContain(knownId);
+  });
+
+  it.each(["changed scope", "removed topic", "unknown identity", "duplicate identity"])("does not misapply placement evidence after %s", async kind => {
+    const id = "90000000-0000-4000-8000-000000000021";
+    const scopeJudgment = {band:"focused_skill" as const,label:"Derivative rules",minimumSessions:1,recommendedSessions:3,maximumSessions:5,minimumTeachingSessions:1,explanation:"Verify familiar rules and teach the newly added rule."};
+    const known = {id,title:"The product rule",description:"Differentiate a product by combining both factor derivatives correctly.",subtopics:[],prerequisiteTopicIds:[],status:"evidenced" as const,initialEvidence:{source:"placement_check" as const,outcome:"demonstrated" as const,observedAt:"2026-09-07T08:00:00.000Z"},sourceReferences:[],origin:"ai_generated" as const,deferred:null};
+    const knowledgeMap = {version:1 as const,scopeJudgment,topics:[known],placementCheck:{status:"completed" as const,completedAt:known.initialEvidence.observedAt,demonstratedTopicIds:[id],gapTopicIds:[]}};
+    const candidate = {title:"The chain rule",description:"Differentiate a composition using its inner and outer derivatives.",subtopics:[],prerequisiteTopicIndexes:[],sourceMaterialTopicIds:[],carriedFromTopicId:kind==="removed topic"?null:kind==="unknown identity"?"90000000-0000-4000-8000-000000000099":id};
+    parseResponse.mockResolvedValue(response({scopeJudgment,topics:kind==="duplicate identity"?[candidate,{...candidate}]:[candidate]}));
+    const {generatePlanKnowledgeMap} = await import("@/lib/knowledge-map/generate-plan-map");
+    const operation = generatePlanKnowledgeMap({...baseRequest,knowledgeMap,mapCorrection:"Replace the product rule with the chain rule."});
+    if (kind==="unknown identity" || kind==="duplicate identity") {
+      await expect(operation).rejects.toMatchObject({failedValidator:"knowledge_map_structure"});
+    } else {
+      const result = await operation;
+      expect(result.map.topics[0]!.id).not.toBe(id);
+      expect(result.map.topics[0]!.initialEvidence).toBeNull();
+      expect(result.map.placementCheck.demonstratedTopicIds).toEqual([]);
+      console.info(JSON.stringify({case:kind,title:result.map.topics[0]!.title,action:"Teach and check",removedDemonstratedTopic:known.title}));
+    }
+  });
 
   it("builds a prerequisite-ordered map for a no-material goal", async () => {
     parseResponse.mockResolvedValue(response({

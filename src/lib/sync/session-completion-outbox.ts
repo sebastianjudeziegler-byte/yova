@@ -45,7 +45,7 @@ const SessionCompletionSchema = z.object({
   actualMinutes: z.number().int().min(1).max(360),
   correctAnswers: z.number().int().min(0),
   totalAnswers: z.number().int().min(0),
-  feedback: z.enum(["too_easy", "about_right", "too_difficult"]),
+  feedback: z.enum(["too_easy", "about_right", "too_difficult"]).nullable(),
   observedGap: z.string().min(1).max(2_000),
   completionMode: z.enum(["guided", "unguided_practice"]).default("guided"),
   conceptEvidence: RoutedConceptEvidenceListSchema.default([]),

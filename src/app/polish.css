@@ -533,7 +533,7 @@ input:focus-visible, textarea:focus-visible, select:focus-visible { outline: non
   .learning-goal-card footer { align-items: stretch; flex-direction: column; }
   .learning-goal-card footer .button { width: 100%; }
   .learning-hero-actions { width: 100%; flex-wrap: wrap; }
-  .learning-hero-actions .button { flex: 1 1 140px; }
+  .learning-hero-actions .button { flex: 0 0 auto; min-height: 44px; }
   .agenda-main-grid { gap: 14px; }
   .agenda-period article { grid-template-columns: 38px minmax(0, 1fr); }
   .agenda-session-actions { grid-column: 1 / -1; justify-content: flex-end; }

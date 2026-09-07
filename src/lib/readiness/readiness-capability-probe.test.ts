@@ -20,6 +20,8 @@ describe("signed-in generation release capability probe", () => {
       requiredRouteRpcs: true,
       expandedMethodAgencyBoundary: true,
       methodEligibilityV3Boundary: true,
+      placementEvidenceBoundary: true,
+      unansweredCompletionFeedback: true,
     }));
 
     await expect(probeSignedInGenerationDatabase({
@@ -32,7 +34,7 @@ describe("signed-in generation release capability probe", () => {
     });
 
     expect(fetchImpl).toHaveBeenCalledWith(
-      "https://project.supabase.co/rest/v1/rpc/signed_in_generation_readiness_v3",
+      "https://project.supabase.co/rest/v1/rpc/signed_in_generation_readiness_v4",
       expect.objectContaining({
         method: "POST",
         body: "{}",
@@ -72,6 +74,8 @@ describe("signed-in generation release capability probe", () => {
       requiredRouteRpcs: true,
       expandedMethodAgencyBoundary: true,
       methodEligibilityV3Boundary: true,
+      placementEvidenceBoundary: true,
+      unansweredCompletionFeedback: true,
     }));
 
     await probeSignedInGenerationDatabase({
@@ -130,6 +134,8 @@ describe("signed-in generation release capability probe", () => {
         requiredRouteRpcs: true,
         expandedMethodAgencyBoundary: true,
         methodEligibilityV3Boundary: true,
+      placementEvidenceBoundary: true,
+      unansweredCompletionFeedback: true,
       })),
     });
     expect(contradictory.passed).toBe(false);

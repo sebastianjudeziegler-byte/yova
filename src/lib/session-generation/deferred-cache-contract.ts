@@ -16,3 +16,13 @@ export function generatedSessionDefersStoredPlanTargets(
 function normalizeTarget(value: string) {
   return value.trim().replace(/\s+/g, " ").toLocaleLowerCase();
 }
+
+/** A lesson cannot finish safely if every saved target is still deferred. */
+export function generatedSessionDefersAllStoredPlanTargets(
+  session: { coverage?: { deferredContent: string[] } },
+  storedTargets: readonly string[],
+) {
+  if (storedTargets.length === 0) return false;
+  const deferred = new Set((session.coverage?.deferredContent ?? []).map(normalizeTarget));
+  return storedTargets.every(target => deferred.has(normalizeTarget(target)));
+}
