@@ -5,6 +5,7 @@ import {
 } from "@/lib/plan-generation/schema";
 import { normalizePlanDraftGenerationContract } from "@/lib/plan-generation/draft-contract";
 import { isDevelopmentPreviewRequest } from "@/lib/server/development-preview";
+import { resolveRequestNow } from "@/lib/server/test-clock";
 import { verifyPlanDraftReceipt } from "@/lib/server/plan-draft-receipt";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import {
@@ -92,7 +93,7 @@ export async function POST(request: Request) {
 
   const activePlan = commitPlanStudyRoutes(
     { ...parsed.data.plan, status: "active" as const },
-    verifiedReceiptIssuedAt ?? new Date().toISOString(),
+    verifiedReceiptIssuedAt ?? new Date(resolveRequestNow(request)).toISOString(),
   );
   // Both possible response shapes are validated before the persistence RPC.
   // A future response-contract change therefore cannot commit a plan and then

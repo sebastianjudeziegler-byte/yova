@@ -58,6 +58,7 @@ import {
   settleAIRequestClaim,
 } from "@/lib/server/ai-usage";
 import { isDevelopmentPreviewRequest } from "@/lib/server/development-preview";
+import { resolveRequestNow } from "@/lib/server/test-clock";
 import { resolveServerPersonalizationRollout } from "@/lib/server/personalization-rollout";
 import {
   assertPlanDraftReceiptConfigured,
@@ -97,6 +98,10 @@ const SOURCE_FREE_KNOWLEDGE_MAP_FALLBACK_NOTICE =
 export async function POST(request: Request) {
   const requestId = crypto.randomUUID();
   const startedAt = Date.now();
+  // Scheduling clock: real time in production; overridable only for
+  // development-preview requests so browser tests are deterministic.
+  // `startedAt` stays real so elapsed-time metrics are unaffected.
+  const scheduleNowMs = resolveRequestNow(request, startedAt);
   const developmentPreview = isDevelopmentPreviewRequest(request);
   const diagnosticOnly = new URL(request.url).searchParams.get("mode") === "diagnostic";
   const supabase = isSupabaseConfigured() ? await createSupabaseServerClient() : null;
@@ -290,7 +295,7 @@ export async function POST(request: Request) {
   // limits. Material-understanding repair above remains part of the separate
   // upload/mapping lifecycle.
   const acceptedMapPriority = !diagnosticOnly && !planRequest.mapCorrection
-    ? buildDeadlinePriority(planRequest, new Date(startedAt)) : null;
+    ? buildDeadlinePriority(planRequest, new Date(scheduleNowMs)) : null;
   if (acceptedMapPriority) return NextResponse.json(acceptedMapPriority, {
     headers: {"Cache-Control":"no-store", "X-Yova-Request-Id":requestId},
   });
@@ -331,6 +336,7 @@ export async function POST(request: Request) {
           planRequest,
           requestId,
           startedAt,
+          scheduleNowMs,
           notice,
           supabase,
           user?.id,
@@ -368,6 +374,7 @@ export async function POST(request: Request) {
             planRequest,
             requestId,
             startedAt,
+            scheduleNowMs,
             notice,
             supabase,
             user?.id,
@@ -414,6 +421,7 @@ export async function POST(request: Request) {
             planRequest,
             requestId,
             startedAt,
+            scheduleNowMs,
             notice,
             supabase,
             user?.id,
@@ -560,7 +568,7 @@ export async function POST(request: Request) {
   // examples, and checks that follow.
   if (planRequest.intent === "study_now") {
     try {
-      const studyNowStartedAt = new Date(startedAt);
+      const studyNowStartedAt = new Date(scheduleNowMs);
       const preliminaryPlan = generatePreviewPlan(planRequest, studyNowStartedAt);
       const durationContext = await loadAuthorizedNormalDurationContext(
         developmentPreview
@@ -660,7 +668,7 @@ export async function POST(request: Request) {
     }
   }
 
-  const normalPlanNow = new Date(startedAt);
+  const normalPlanNow = new Date(scheduleNowMs);
   const normalPlanRolloutDecision = personalizationRolloutForNewRoute({
     authenticatedUserId: user?.id ?? null,
     developmentPreview,
@@ -1136,6 +1144,7 @@ async function reliableDraftResponse(
   planRequest: Parameters<typeof generatePreviewPlan>[0],
   requestId: string,
   startedAt: number,
+  scheduleNowMs: number,
   notice: string,
   supabase: Parameters<typeof recordGenerationObservation>[0],
   userId: string | null | undefined,
@@ -1162,7 +1171,7 @@ async function reliableDraftResponse(
       };
       reliableNotice = `${notice} ${knowledgeMapFallbackNoticeFor(reliablePlanRequest)}`;
     }
-    const reliableNow = new Date(startedAt);
+    const reliableNow = new Date(scheduleNowMs);
     reliablePlan = generatePreviewPlan(reliablePlanRequest, reliableNow);
     resolvedInitialPlanContext ??= await loadAuthorizedNormalDurationContext(
       developmentPreview
