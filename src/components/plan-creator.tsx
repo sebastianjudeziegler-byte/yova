@@ -174,6 +174,7 @@ export function PlanCreator({
   const [diagnosticMap, setDiagnosticMap] = useState<PlanKnowledgeMap | null>(null);
   const [diagnosticError, setDiagnosticError] = useState<string | null>(null);
   const [diagnosticLatencyMs, setDiagnosticLatencyMs] = useState<number | null>(null);
+  const [scopeChangeNotice, setScopeChangeNotice] = useState<string | null>(null);
   const [startingContext, setStartingContext] = useState(seed?.progress ?? "");
   const [generatedPlan, setGeneratedPlan] = useState<PlanGenerationResponse | null>(null);
   const [deadlinePriority, setDeadlinePriority] = useState<DeadlinePriorityResponse | null>(null);
@@ -249,6 +250,36 @@ export function PlanCreator({
     setStep(previous[step]);
   };
 
+  const invalidateAcceptedScope = () => {
+    if (diagnosticMap || generatedPlan) {
+      setScopeChangeNotice("Your goal or sources changed. YOVA will build a fresh topic map; previous placement answers will not be used for the new scope.");
+    }
+    setDiagnosticMap(null);
+    setKnowledgeMapReceipt(null);
+    setDiagnosticToken(null);
+    setDiagnosticQuestions([]);
+    setDiagnosticAnswers([]);
+    setDiagnosticResponses([]);
+    setDiagnosticLatencyMs(null);
+    setDiagnosticIndex(0);
+    setDiagnosticError(null);
+    setGeneratedPlan(null);
+    setGeneratedFrom(null);
+    setDeadlinePriority(null);
+    setActivationError(null);
+    setMethodEditorSessionId(null);
+    setMethodChoiceError(null);
+    setMethodChoiceNotice(null);
+    setMapCorrection("");
+    setMapRevisionNotice(null);
+    setMapCorrectionError(null);
+  };
+
+  const changeGoal = (nextGoal: string) => {
+    if (nextGoal !== goal) invalidateAcceptedScope();
+    setGoal(nextGoal);
+  };
+
   const buildGenerationRequest = (overrides: Partial<PlanGenerationRequest> = {}) => {
     if (!sourceChoice) throw new Error("Choose how YOVA should build this plan.");
     return PlanGenerationRequestSchema.parse({
@@ -299,6 +330,7 @@ export function PlanCreator({
       if (!response.ok) throw new Error(readApiError(body) ?? "YOVA could not prepare the placement check.");
       const parsed = PlanDiagnosticPreparationResponseSchema.safeParse(body);
       if (!parsed.success) throw new Error("The placement check came back in an unsafe format.");
+      setScopeChangeNotice(null);
       setDiagnosticQuestions(parsed.data.questions);
       setDiagnosticToken(parsed.data.challengeToken);
       setKnowledgeMapReceipt(parsed.data.knowledgeMapReceipt);
@@ -469,7 +501,10 @@ export function PlanCreator({
       const { accepted, errors, notices } = await uploadMaterialFiles(files, materials);
       setMaterialError(errors[0] ?? null);
       setMaterialNotice(notices[0] ?? null);
-      if (accepted.length) setMaterials((current) => [...current, ...accepted]);
+      if (accepted.length) {
+        invalidateAcceptedScope();
+        setMaterials((current) => [...current, ...accepted]);
+      }
     } finally {
       setProcessingMaterials(false);
     }
@@ -481,6 +516,7 @@ export function PlanCreator({
     setMaterialNotice(null);
     try {
       await deleteUploadedMaterial(id);
+      invalidateAcceptedScope();
       setMaterials((current) => current.filter((material) => material.id !== id));
     } catch (error) {
       setMaterialError(userFacingErrorMessage(error, "YOVA could not remove this material."));
@@ -514,6 +550,7 @@ export function PlanCreator({
 
   const chooseSource = async (choice: SourceChoice) => {
     if (processingMaterials || linkMaterialWorking || abandoningMaterials || removingMaterialId) return;
+    if (choice !== sourceChoice) invalidateAcceptedScope();
     if (choice === "materials") {
       setSourceChoice(choice);
       return;
@@ -537,14 +574,7 @@ export function PlanCreator({
     setGenerationError(null);
     setScheduleCapacityError(null);
     setActivationError(null);
-    if (target === "goal" || target === "source") {
-      setDiagnosticMap(null);
-      setDiagnosticQuestions([]);
-      setDiagnosticAnswers([]);
-      setDiagnosticResponses([]);
-      setDiagnosticLatencyMs(null);
-      setDiagnosticIndex(0);
-    }
+    // Opening an editor preserves accepted scope. Actual goal/source edits invalidate it.
     if (target === "diagnostic") {
       void prepareDiagnostic();
       return;
@@ -766,9 +796,11 @@ export function PlanCreator({
       </header>
       {step !== "result" && <div className="plan-progress"><i style={{ width: `${(stepNumber / totalSteps) * 100}%` }} /></div>}
 
+      {scopeChangeNotice && <p className="goal-input-hint" role="status">{scopeChangeNotice}</p>}
+
       {step === "goal" && (
         <PlanPanel eyebrow="CREATE A PLAN" title="What do you need to learn or prepare for?" description="Write it naturally. YOVA will organize the details before anything is created.">
-          <textarea className="goal-input" aria-label="Learning goal or deadline" placeholder="Example: I have a biology test next Friday on photosynthesis and cellular respiration." value={goal} onChange={(event) => setGoal(event.target.value)} />
+          <textarea className="goal-input" aria-label="Learning goal or deadline" placeholder="Example: I have a biology test next Friday on photosynthesis and cellular respiration." value={goal} onChange={(event) => changeGoal(event.target.value)} />
           <p className="goal-input-hint">Include the topic and, if relevant, the test, deadline, or result you want.</p>
           {!assessGoalContext(goal).hasEnoughContext && <p className="goal-context-warning"><AlertCircle size={16} /> Add the actual topic, or continue and choose Use my materials so YOVA can identify what the class label contains.</p>}
           <PlanActions onBack={() => void exitCreator()} backLabel="Cancel" onNext={() => setStep("source")} nextDisabled={goal.trim().length < 10} />
@@ -791,7 +823,7 @@ export function PlanCreator({
             />
             <p className="material-examples"><strong>Useful examples:</strong> teacher study guide · lecture slides exported as PDF · class notes · review sheet · readable textbook excerpt</p>
             <p className="material-supplement-note"><Sparkles size={14} /> If a source only lists topics, YOVA can fill in the minimum explanation needed while keeping your material as the scope and showing what it added.</p>
-            <MaterialLinkImporter existingCount={materials.length} disabled={processingMaterials || Boolean(removingMaterialId)} onWorkingChange={setLinkMaterialWorking} onImported={(material, notice) => { setMaterials((current) => [...current, material]); setMaterialError(null); setMaterialNotice(notice); }} />
+            <MaterialLinkImporter existingCount={materials.length} disabled={processingMaterials || Boolean(removingMaterialId)} onWorkingChange={setLinkMaterialWorking} onImported={(material, notice) => { invalidateAcceptedScope(); setMaterials((current) => [...current, material]); setMaterialError(null); setMaterialNotice(notice); }} />
             {materials.length > 0 && <div className="material-files">{materials.map((material) => <div key={material.id}><FileText /><span><strong>{material.name}</strong><small>Securely stored · text ready for YOVA</small></span><button aria-label={`Remove ${material.name}`} disabled={removingMaterialId === material.id} onClick={() => void removeMaterial(material.id)}>{removingMaterialId === material.id ? <span className="button-spinner dark" /> : <Trash2 size={16} />}</button></div>)}<p>{materials.length} {materials.length === 1 ? "material" : "materials"} ready for plan generation</p></div>}
           </div>}
           {materialNotice && <p className="material-notice" role="status"><AlertCircle size={15} /> {materialNotice}</p>}
@@ -799,8 +831,8 @@ export function PlanCreator({
           {sourceChoice && sourceChoice !== "materials" && !goalContext.hasEnoughContext && (
             <GoalClarification
               goal={goal}
-              onClarify={(detail) => setGoal(`${goal.trim().replace(/[.:]\s*$/, "")}: ${detail}`)}
-              onUseMaterials={() => setSourceChoice("materials")}
+              onClarify={(detail) => changeGoal(`${goal.trim().replace(/[.:]\s*$/, "")}: ${detail}`)}
+              onUseMaterials={() => void chooseSource("materials")}
             />
           )}
           <PlanActions onBack={back} onNext={continueToSchedule} nextDisabled={!sourceChoice || !goalContext.hasEnoughContext || processingMaterials || linkMaterialWorking || Boolean(removingMaterialId) || (sourceChoice === "materials" && materials.length === 0)} />
