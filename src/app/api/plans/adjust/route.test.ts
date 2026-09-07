@@ -21,6 +21,7 @@ const mocks = vi.hoisted(() => ({
   sessionRows: [] as Array<Record<string, unknown>>,
   routeRows: [] as Array<Record<string, unknown>>,
   interruptionRows: [] as Array<{ plan_session_id: string }>,
+  generationInputs: {} as Record<string, unknown>,
   openAIConfigured: vi.fn(),
   redirect: vi.fn(),
   reserve: vi.fn(),
@@ -53,6 +54,7 @@ describe("protected plan adjustment route", () => {
     mocks.sessionRows = [contentRow()];
     mocks.routeRows = [];
     mocks.interruptionRows = [];
+    mocks.generationInputs = { learningIntent: "learn" };
     mocks.getUser.mockResolvedValue({ data: { user: { id: USER_ID } }, error: null });
     mocks.openAIConfigured.mockReturnValue(false);
     mocks.reserve.mockResolvedValue({
@@ -86,7 +88,7 @@ describe("protected plan adjustment route", () => {
               knowledge_map: knowledgeMap(),
               status: "active",
               rationale: "Build the model, then verify it.",
-              generation_inputs: { learningIntent: "learn" },
+              generation_inputs: mocks.generationInputs,
               created_at: "2026-08-20T10:00:00.000Z",
             },
             error: null,
@@ -167,6 +169,30 @@ describe("protected plan adjustment route", () => {
       planSessionId: CONTENT_SESSION_ID,
     });
     expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it("rejects an impossible availability change before persisting replacement routes", async () => {
+    mocks.generationInputs = {
+      learningIntent: "learn", intent: "plan", timeZone: "Europe/London",
+      availability: [{ day: "Monday", window: "Morning", minutes: 10 }],
+    };
+    const response = await PATCH(request());
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({ error: expect.stringContaining("selected study windows") });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it("uses the saved weekly availability when persisting a duration split", async () => {
+    mocks.generationInputs = {
+      learningIntent: "learn", intent: "plan", timeZone: "Europe/London",
+      availability: ["Monday", "Wednesday", "Friday"].map((day) => ({ day, window: "Morning", minutes: 25 })),
+    };
+    const response = await PATCH(request());
+    expect(response.status).toBe(200);
+    const sessions = mocks.rpc.mock.calls[0]?.[1]?.payload.sessions as Array<{ scheduledFor: string }>;
+    const formatter = new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/London", weekday: "long", hour: "numeric" });
+    expect(sessions).toHaveLength(2);
+    for (const session of sessions) expect(formatter.format(new Date(session.scheduledFor))).toMatch(/^(Monday|Wednesday|Friday),? 09$/);
   });
 
   it("fails before the mutation when a durable interruption exists", async () => {

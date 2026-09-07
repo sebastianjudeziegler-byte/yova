@@ -30,6 +30,7 @@ import {
 import { preparePlanAdjustmentStudyRoutes } from "@/lib/study-route/plan-adjustment";
 import { StudyRouteSchema, type StudyRoute } from "@/lib/study-route/schema";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { readPlanSchedulePreferences } from "@/lib/scheduling/plan-schedule-preferences";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -249,11 +250,13 @@ export async function PATCH(request: Request) {
 
   let replacementSessions: ReturnType<typeof buildProtectedPlanAdjustmentSessions>;
   try {
+    const schedulePreferences = readPlanSchedulePreferences(planRow.generation_inputs);
     replacementSessions = buildProtectedPlanAdjustmentSessions(
       [...redirectedUnfinished, ...protectedReviews],
       parsed.data.futureSessionMinutes,
       Math.max(0, ...settledSequences) + 1,
       MAX_ADJUSTED_PLAN_SESSIONS - settledSequences.length,
+      schedulePreferences ? { ...schedulePreferences, deadline: parsed.data.deadline } : undefined,
     );
   } catch (error) {
     if (error instanceof PlanAdjustmentPartLimitError) {

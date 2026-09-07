@@ -194,6 +194,10 @@ export const LearningPlanSchema = z.object({
   studyMode: z.enum(["inside_yova", "outside_yova"]),
   learningIntent: z.enum(["learn", "study"]),
   creationIntent: z.enum(["plan", "study_now"]).default("plan"),
+  schedulePreferences: z.object({
+    timeZone: PlanGenerationRequestSchema.shape.timeZone,
+    availability: PlanGenerationRequestSchema.shape.availability,
+  }).optional(),
   sessionArchitectureVersion: z.enum(SESSION_ARCHITECTURE_VERSIONS).default("filled_teaching_v1"),
   rationale: z.string().min(1),
   createdAt: z.string().datetime({ offset: true }),

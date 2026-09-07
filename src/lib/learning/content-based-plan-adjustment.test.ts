@@ -37,6 +37,58 @@ function adjustableRow(
 }
 
 describe("content-based plan adjustment", () => {
+  const schedule = {
+    timeZone: "Europe/London",
+    availability: ["Monday", "Wednesday", "Friday"].map((day) => ({ day, window: "Morning", minutes: 25 })),
+    deadline: null,
+    now: new Date("2026-09-07T10:00:00.000Z"),
+  };
+
+  it("keeps split parts inside explicit study days and daily capacity", () => {
+    const rows = [0, 1].map((index) => ({
+      ...originalSession,
+      id: `10000000-1000-4000-8000-10000000000${index + 1}`,
+      sequence: index + 1,
+      estimated_minutes: 25,
+      scheduled_for: index === 0 ? "2026-09-09T08:00:00.000Z" : "2026-09-11T08:00:00.000Z",
+    }));
+    const sessions = buildProtectedPlanAdjustmentSessions(rows, 15, 1, 14, schedule);
+    expect(sessions.map((session) => session.scheduledFor)).toEqual([
+      "2026-09-09T08:00:00.000Z", "2026-09-11T08:00:00.000Z",
+      "2026-09-14T08:00:00.000Z", "2026-09-16T08:00:00.000Z",
+    ]);
+    expect(sessions.every((session) => session.estimatedMinutes === 15)).toBe(true);
+  });
+
+  it("rejects a split that cannot fit before the deadline instead of inventing availability", () => {
+    const row = { ...originalSession, estimated_minutes: 25, scheduled_for: "2026-09-09T08:00:00.000Z" };
+    const before = structuredClone(row);
+    expect(() => buildProtectedPlanAdjustmentSessions([row], 15, 1, 14, {
+      ...schedule, deadline: "2026-09-10T22:59:59.000Z",
+    })).toThrow(/selected study windows/);
+    expect(row).toEqual(before);
+  });
+
+  it("keeps the learner's local hour across daylight saving changes", () => {
+    const sessions = buildProtectedPlanAdjustmentSessions([{
+      ...originalSession, estimated_minutes: 25, scheduled_for: "2026-10-23T08:00:00.000Z",
+    }], 15, 1, 14, { ...schedule, now: new Date("2026-10-23T07:00:00.000Z") });
+    expect(sessions.map((session) => session.scheduledFor)).toEqual([
+      "2026-10-23T08:00:00.000Z", "2026-10-26T09:00:00.000Z",
+    ]);
+  });
+
+  it("does not move a protected review to make extra parts fit", () => {
+    expect(() => buildProtectedPlanAdjustmentSessions([
+      { ...originalSession, estimated_minutes: 25, scheduled_for: "2026-09-09T08:00:00.000Z" },
+      {
+        ...originalSession, id: "10000000-1000-4000-8000-100000000099", sequence: 2,
+        scheduled_for: "2026-09-10T08:00:00.000Z", estimated_minutes: 5,
+        step_data: { reviewType: "verify" },
+      },
+    ], 15, 1, 14, schedule)).toThrow(/saved review/);
+  });
+
   it("turns one 45-minute content block into three 15-minute slices", () => {
     const sessions = buildContentBasedReplacementSessions([originalSession], 15, 1);
 

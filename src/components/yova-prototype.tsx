@@ -3862,6 +3862,7 @@ export function YovaPrototype({
         input.futureSessionMinutes,
         Math.max(0, ...settledSessions.map((session) => session.sequence)) + 1,
         MAX_ADJUSTED_PLAN_SESSIONS - settledSessions.length,
+        plan.schedulePreferences ? { ...plan.schedulePreferences, deadline: input.deadline } : undefined,
       );
       if (!replacements.length) throw new Error("This plan has no unfinished content to adjust.");
       const includedTopicIds = new Set(replacements.flatMap((session) => session.topicIds ?? []));

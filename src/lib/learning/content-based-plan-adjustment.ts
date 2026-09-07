@@ -1,4 +1,9 @@
 import { makeUuid, type LearningPlanSession, type SessionLearningMode } from "@/lib/domain";
+import {
+  canonicalizePlanAvailabilitySlots,
+  enumeratePlanAvailabilitySlots,
+  type PlanAvailabilityInput,
+} from "@/lib/plan-generation/availability-slots";
 
 export type AdjustableSessionRow = {
   id: string;
@@ -111,6 +116,7 @@ export function buildProtectedPlanAdjustmentSessions(
   targetMinutes: number,
   startingSequence: number,
   maximumReplacementSessions = MAX_ADJUSTED_PLAN_SESSIONS,
+  schedule?: PlanAvailabilityInput & { now?: Date },
 ) {
   const orderedRows = [...rows].sort((left, right) => left.sequence - right.sequence);
   const protectedRows = orderedRows.filter((row) => scheduledRetrievalMetadataFromStepData(row.step_data));
@@ -162,11 +168,57 @@ export function buildProtectedPlanAdjustmentSessions(
     throw new PlanAdjustmentPartLimitError();
   }
 
-  assertProtectedReviewChronology(combined);
-  return combined.map((session, index) => ({
+  const scheduled = schedule ? alignAdjustedSessionsToAvailability(combined, contentRows, schedule) : combined;
+  assertProtectedReviewChronology(scheduled);
+  return scheduled.map((session, index) => ({
     ...session,
     sequence: startingSequence + index,
   }));
+}
+
+function alignAdjustedSessionsToAvailability(
+  sessions: PlanAdjustmentSession[],
+  rows: AdjustableSessionRow[],
+  input: PlanAvailabilityInput & { now?: Date },
+) {
+  const now = input.now ?? new Date();
+  const slots = canonicalizePlanAvailabilitySlots(
+    enumeratePlanAvailabilitySlots(input, now, Math.max(42, sessions.length * 10)),
+    now,
+  );
+  const originStarts = new Map<string, number>();
+  for (const row of rows) {
+    const originId = readText(row.step_data, "originSessionId") || row.id;
+    const start = row.scheduled_for ? scheduleTime(row.scheduled_for) : now.getTime();
+    originStarts.set(originId, Math.min(originStarts.get(originId) ?? Infinity, start));
+  }
+  let cursor = now.getTime();
+  let slotIndex = 0;
+  return sessions.map((session) => {
+    if ("protected" in session) {
+      if (scheduleTime(session.scheduledFor) < cursor) {
+        throw new PlanAdjustmentProtectedSessionError(
+          "Your selected study windows do not leave enough room before a saved review. Keep the current session length.",
+        );
+      }
+      cursor = scheduleTime(session.scheduledFor) + session.estimatedMinutes * 60_000;
+      return session;
+    }
+    const earliest = Math.max(cursor, originStarts.get(session.originSessionId) ?? cursor);
+    while (slotIndex < slots.length) {
+      const slot = slots[slotIndex]!;
+      const start = Math.max(earliest, Date.parse(slot.startsAt));
+      const end = start + session.estimatedMinutes * 60_000;
+      if (end <= Date.parse(slot.endsAt)) {
+        cursor = end;
+        return { ...session, scheduledFor: new Date(start).toISOString() };
+      }
+      slotIndex += 1;
+    }
+    throw new PlanAdjustmentProtectedSessionError(
+      "This change does not fit your selected study windows before the target date. Choose a later target date or keep the current session length. Nothing was changed.",
+    );
+  });
 }
 
 /**
@@ -174,10 +226,10 @@ export function buildProtectedPlanAdjustmentSessions(
  * review timestamps are also chronological boundaries. Rebuilding ordinary
  * content without those rows used to space split parts one day apart and could
  * leave the last prerequisite parts after the review they were meant to
- * prepare. This layer does not know the learner's availability or time zone,
- * so it must never invent replacement times in order to make the sequence fit.
- * Preserve the schedules derived from the authoritative content rows and fail
- * without changing anything when they collide with a protected review.
+ * prepare. When saved availability is present, allocation above uses those
+ * windows and the learner's time zone. Legacy plans keep schedules derived
+ * from the authoritative rows. Neither path may move an immutable review to
+ * make the sequence fit; fail without changing anything on a collision.
  */
 function assertProtectedReviewChronology(sessions: PlanAdjustmentSession[]) {
   let priorEnd = Number.NEGATIVE_INFINITY;

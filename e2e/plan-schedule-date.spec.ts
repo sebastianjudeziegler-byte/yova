@@ -115,6 +115,47 @@ test("a historical topic date cannot override the learner's real deadline", asyn
   await expect(page.getByRole("textbox", { name: "Target date" })).toHaveValue(expected.input);
 });
 
+test("shorter sessions preserve weekly availability and explain insufficient time", async ({ page }) => {
+  await openPreviewApp(page);
+  await page.getByRole("button", { name: /New plan|Build my first plan|Create another plan/ }).first().click();
+  await page.getByPlaceholder(/I have a biology test/).fill("Prepare for a biology test on cell membranes and diffusion in six weeks. I can study only Monday, Wednesday and Friday afternoons for 25 minutes.");
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  await page.getByRole("button", { name: /Create it for me/ }).click();
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  await page.getByRole("button", { name: "Continue to placement check" }).click();
+  await page.getByRole("button", { name: "Skip for now" }).click();
+  await page.getByRole("button", { name: "Generate my plan" }).click();
+  await page.getByRole("button", { name: "Use this plan" }).click();
+  await expect(page.getByRole("heading", { name: "Your plan", exact: true })).toBeVisible();
+  const originalCount = await page.locator(".timeline-row").count();
+  await page.getByRole("button", { name: "Adjust", exact: true }).click();
+  const panel = page.locator(".plan-adjustment-panel");
+  await panel.getByRole("combobox", { name: /Future session window/ }).selectOption("15");
+  await panel.getByRole("textbox", { name: /^Target date/ }).fill(futureDate(1).input);
+  await panel.getByRole("button", { name: "Approve and rebuild plan" }).click();
+  await expect(panel).toContainText("This change does not fit your selected study windows");
+  await expect(page.locator(".timeline-row")).toHaveCount(originalCount);
+  await panel.getByRole("textbox", { name: /^Target date/ }).fill(futureDate(47).input);
+  await panel.getByRole("button", { name: "Approve and rebuild plan" }).click();
+  await expect(panel).toHaveCount(0);
+  const schedule = await page.evaluate(() => {
+    const snapshot = JSON.parse(localStorage.getItem("yova.preview.v1") ?? "{}");
+    const plan = snapshot.plans.at(-1);
+    return { preferences: plan.schedulePreferences, sessions: plan.sessions.map((session: { scheduledFor: string; estimatedMinutes: number }) => ({ at: session.scheduledFor, minutes: session.estimatedMinutes })) };
+  });
+  expect(schedule.preferences.availability.map((window: { day: string }) => window.day)).toEqual(["Monday", "Wednesday", "Friday"]);
+  expect(schedule.sessions.length).toBeGreaterThan(originalCount);
+  const days = new Map<string, number>();
+  for (const session of schedule.sessions) {
+    const at = new Date(session.at);
+    expect(new Intl.DateTimeFormat("en-GB", { timeZone: TEST_TIME_ZONE, weekday: "long" }).format(at)).toMatch(/^(Monday|Wednesday|Friday)$/);
+    const date = new Intl.DateTimeFormat("en-CA", { timeZone: TEST_TIME_ZONE }).format(at);
+    days.set(date, (days.get(date) ?? 0) + session.minutes);
+    expect(session.minutes).toBe(15);
+  }
+  expect([...days.values()].every((minutes) => minutes <= 25)).toBe(true);
+});
+
 test("an overfull plan returns to its schedule and recovers without a client crash", async ({ page }) => {
   const pageErrors: string[] = [];
   let planAttempts = 0;

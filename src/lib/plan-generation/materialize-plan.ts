@@ -109,6 +109,9 @@ export function materializePlanDraft(
     studyMode: request.studyMode === "outside" ? "outside_yova" : "inside_yova",
     learningIntent: request.learningIntent,
     creationIntent: request.intent,
+    ...(request.intent === "plan" ? {
+      schedulePreferences: { timeZone: request.timeZone, availability: request.availability },
+    } : {}),
     sessionArchitectureVersion: STREAMED_SESSION_ARCHITECTURE,
     rationale: `${placementSummary}${placementSummary ? " " : ""}${draft.rationale}`.slice(0, 1_600),
     createdAt: now.toISOString(),

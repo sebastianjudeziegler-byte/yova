@@ -160,6 +160,7 @@ export type LearningPlan = {
   studyMode: StudyMode;
   learningIntent: LearningIntent;
   creationIntent?: "plan" | "study_now";
+  schedulePreferences?: Pick<import("@/lib/plan-generation/schema").PlanGenerationRequest, "timeZone" | "availability">;
   /** Missing on plans created before streamed teaching and therefore treated as legacy. */
   sessionArchitectureVersion?: SessionArchitectureVersion;
   rationale: string;

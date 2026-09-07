@@ -1,5 +1,7 @@
 "use client";
 
+import { readPlanSchedulePreferences } from "@/lib/scheduling/plan-schedule-preferences";
+
 import type {
   DeadlineMilestone,
   LearningPlan,
@@ -554,6 +556,7 @@ export async function loadAuthenticatedLearningState(): Promise<CloudLearningSta
       studyMode: item.study_mode,
       learningIntent: readLearningIntent(planRow.generation_inputs),
       creationIntent: readCreationIntent(planRow.generation_inputs),
+      schedulePreferences: readPlanSchedulePreferences(planRow.generation_inputs),
       sessionArchitectureVersion: resolveSessionArchitectureVersion(planRow.generation_inputs, knowledgeMap),
       rationale: planRow.rationale,
       createdAt: planRow.created_at || item.created_at,
