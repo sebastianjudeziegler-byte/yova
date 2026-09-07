@@ -126,7 +126,7 @@ describe("streamed teaching pacing", () => {
     expect(withRecognition.maximumFocusedActivities).toBeLessThanOrEqual(8);
   });
 
-  it("lets a 15-minute Learn session keep self-explanation's four phases plus recognition while Practice keeps the normal cap", () => {
+  it.each([10, 15])("lets a %i-minute Learn session keep self-explanation's four phases plus recognition while Practice keeps the normal cap", (minutes) => {
     const idea = "Energy coupling connects an energy-releasing reaction to cellular work.";
     const explain = {
       ...question("Energy coupling", "explain"),
@@ -178,11 +178,17 @@ describe("streamed teaching pacing", () => {
       name: "Feynman Technique",
     };
 
-    expect(validateSessionTimeBudget(learnDraft, 15)).toBeNull();
+    learnDraft.activities = allocateStreamedTeachingMinutes({
+      activities: learnDraft.activities,
+      availableMinutes: minutes,
+    });
+    expect(learnDraft.activities.reduce((total, activity) => total + activity.estimatedMinutes, 0))
+      .toBe(minutes);
+    expect(validateSessionTimeBudget(learnDraft, minutes)).toBeNull();
     expect(validateSessionTimeBudget({
       ...learnDraft,
       methodBriefing: { ...learnDraft.methodBriefing, learningMode: "study" },
-    }, 15)).toMatch(/at most 4 focused activities/i);
+    }, minutes)).toMatch(/at most 4 focused activities/i);
   });
 
   it.each([

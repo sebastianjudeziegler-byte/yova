@@ -497,7 +497,10 @@ function baselineReason(
   input: Pick<CanonicalMethodSelectionInput, "taskType" | "knowledgeStage" | "learningMode">,
   baselineMethodId: CoreMethodId,
 ) {
-  return `${CORE_METHOD_CATALOG[baselineMethodId].name} is YOVA's stable evidence-constrained baseline for ${input.taskType.replaceAll("_", " ")} at the ${input.knowledgeStage.replaceAll("_", " ")} stage in ${input.learningMode === "learn" ? "Learn" : "Practice"} mode.`;
+  const purpose = input.learningMode === "learn"
+    ? "build understanding before you try it yourself"
+    : "practise using what you know and find gaps to work on";
+  return `${CORE_METHOD_CATALOG[baselineMethodId].name} fits this task and your starting point. It helps you ${purpose}.`;
 }
 
 function buildRuleTrace({

@@ -320,7 +320,7 @@ export function StudyNowCreator({
         }),
       };
       setDraft(candidate);
-      if (reviewBeforeStart || methodId) {
+      if (reviewBeforeStart || methodId || parsed.data.plan.knowledgeMap?.topics.some((topic) => topic.deferred)) {
         setStep("review");
         return;
       }
@@ -424,6 +424,15 @@ export function StudyNowCreator({
           <h1>{reviewedRoute.agency.selectedBy === "learner" ? "Your method is ready." : reviewedAgencyMode === "yova_decides" ? "YOVA selected this method." : reviewedAgencyMode === "ill_customize" ? "Choose your method." : "YOVA recommends this method."}</h1>
           <p className="plan-description">The task and your current starting point limit the safe choices. {reviewedAgencyMode === "yova_decides" ? "YOVA has selected the strongest supported route." : "Choose another shown option only if you prefer it today."}</p>
           <div className="plan-goal-echo"><span>YOUR REQUEST</span><p>{goal}</p><button className="button ghost" onClick={() => setStep("source")}>Edit</button></div>
+          {draft.response.plan.knowledgeMap?.topics.some((topic) => topic.deferred) && <section className="study-now-field" aria-label="Session scope">
+            <h2>What fits today</h2>
+            <p>This {reviewedSession.estimatedMinutes}-minute session covers:</p>
+            <ul>{draft.response.plan.knowledgeMap.topics.filter((topic) => !topic.deferred).map((topic) => <li key={topic.id}>{topic.title}</li>)}</ul>
+            <h3>Saved for later</h3>
+            <ul>{draft.response.plan.knowledgeMap.topics.filter((topic) => topic.deferred).map((topic) => <li key={topic.id}>{topic.title}</li>)}</ul>
+            <p>These topics will stay in your goal for a later session. To include more now, increase your available time and rebuild.</p>
+            <button className="button ghost" disabled={activating} onClick={() => setStep("setup")}>Change available time</button>
+          </section>}
           <StudyRouteRecipeCard route={reviewedRoute} showAlternatives={false} />
           <div className="study-now-field">
             <strong>Recommended session</strong>

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { fetchClientJson } from "@/lib/http/client-json";
+import { fetchClientJson, readClientStateBeforeDeadline } from "@/lib/http/client-json";
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -59,3 +59,36 @@ function requestOptions(overrides: Partial<Parameters<typeof fetchClientJson>[2]
     ...overrides,
   };
 }
+
+describe("bounded mutation recovery reads", () => {
+  it("returns a timely snapshot and clears the deadline", async () => {
+    vi.useFakeTimers();
+    await expect(readClientStateBeforeDeadline(async () => ({ id: "saved-plan" }), 100))
+      .resolves.toEqual({ id: "saved-plan" });
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("releases the caller when recovery stalls and ignores a late snapshot", async () => {
+    vi.useFakeTimers();
+    let finishRead!: (value: string) => void;
+    const read = new Promise<string>((resolve) => { finishRead = resolve; });
+    const applied: Array<string | null> = [];
+    const pending = readClientStateBeforeDeadline(() => read, 100)
+      .then((value) => { applied.push(value); });
+    await vi.advanceTimersByTimeAsync(100);
+    await pending;
+    expect(applied).toEqual([null]);
+    finishRead("late-plan");
+    await vi.advanceTimersByTimeAsync(1);
+    expect(applied).toEqual([null]);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("preserves a read error and clears the deadline", async () => {
+    vi.useFakeTimers();
+    await expect(readClientStateBeforeDeadline(async () => {
+      throw new Error("Offline");
+    }, 100)).rejects.toThrow("Offline");
+    expect(vi.getTimerCount()).toBe(0);
+  });
+});

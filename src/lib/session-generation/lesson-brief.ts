@@ -439,7 +439,19 @@ export function lessonIdeaSharesTargetSubject(
   // instead of requiring generic label copy. This lets a correct claim such as
   // "Differentiate a product by..." satisfy "Product rule" without weakening
   // the unrelated-content and deferred-target checks around this boundary.
-  if (targetTokens.length === 1) return lessonIdeaMatchesTarget(idea, target);
+  if (targetTokens.length === 1) {
+    // An authoritative target id already binds this claim. A one-word label
+    // such as "Osmosis" needs room for a complete causal sentence just as a
+    // two-word label does. Deferred-content checks still run independently.
+    const words = normalize(idea).split(" ");
+    const coordinatesAnotherSubject = words.some((word, index) => (
+      scopeTokensMatch(word, targetTokens[0]!)
+      && ["and", "or", "versus", "vs"].includes(words[index + 1] ?? "")
+    ));
+    return !coordinatesAnotherSubject
+      && ideaTokens.some((token) => scopeTokensMatch(token, targetTokens[0]!))
+      && ideaTokens.length <= 13;
+  }
   if (targetTokens.length === 2) {
     const genericTargetTerms = new Set([
       "approach", "concept", "example", "meaning", "method", "notation",

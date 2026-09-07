@@ -71,6 +71,33 @@ test("a natural deadline and an edited date survive every schedule control", asy
   await expect(targetDate).toHaveValue(manual.input);
 });
 
+test("explicit study days survive intake and later time changes", async ({ page }) => {
+  await openPreviewApp(page);
+  await page.getByRole("button", { name: /New plan|Build my first plan|Create another plan/ }).first().click();
+  await page.getByPlaceholder(/I have a biology test/).fill("Prepare for a biology exam on cell transport in two weeks. I can study Monday, Wednesday and Friday afternoons for 25 minutes.");
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  await page.getByRole("button", { name: /Create it for me/ }).click();
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  for (const day of ["Monday", "Wednesday", "Friday"]) {
+    await expect(page.getByRole("button", { name: `Remove ${day}`, exact: true })).toBeVisible();
+    await expect(page.getByLabel(`${day} time window`, { exact: true })).toHaveValue("Afternoon");
+  }
+  for (const day of ["Tuesday", "Thursday", "Saturday", "Sunday"]) await expect(page.getByRole("button", { name: `Add ${day}`, exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Quick choices", exact: true }).click();
+  await page.getByRole("button", { name: "15 minutes", exact: true }).click();
+  await expect(page.getByText("3 study windows available")).toBeVisible();
+  await page.getByRole("button", { name: /Custom Choose each day/ }).click();
+  for (const day of ["Monday", "Wednesday", "Friday"]) {
+    await expect(page.getByRole("button", { name: `Remove ${day}`, exact: true })).toBeVisible();
+    await expect(page.getByLabel(`${day} available minutes`, { exact: true })).toHaveValue("15");
+  }
+  await page.getByRole("button", { name: "Quick choices", exact: true }).click();
+  await page.getByRole("button", { name: "Back", exact: true }).click();
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  await expect(page.getByText("3 study windows available")).toBeVisible();
+  await expect(page.locator(".schedule-preview-windows")).toContainText("15 min");
+});
+
 test("a historical topic date cannot override the learner's real deadline", async ({ page }) => {
   await openPreviewApp(page);
 

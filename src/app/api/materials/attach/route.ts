@@ -18,6 +18,8 @@ import {
   mapAndPersistMaterial,
 } from "@/lib/materials/material-understanding";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { sourceAttachmentSuccessor } from "@/lib/materials/attachment-routes";
+import { StudyRouteSchema, type StudyRoute } from "@/lib/study-route/schema";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -83,14 +85,6 @@ export async function POST(request: Request) {
       requestId,
       409,
       "material_attachment_saved_work_protected",
-    );
-  }
-  if (unfinished.some((session) => typeof session.committed_route_revision_id === "string")) {
-    return attachmentError(
-      "This plan already has committed study routes. Add the source while creating a new plan until YOVA can revise every affected route atomically.",
-      requestId,
-      409,
-      "material_attachment_route_rebuild_required",
     );
   }
   const unfinishedTopicIds = [...new Set(unfinished.flatMap((session) => readTopicIds(session.step_data)))];
@@ -180,6 +174,32 @@ export async function POST(request: Request) {
     return attachmentError(expectedReceipt.error, requestId, expectedReceipt.status);
   }
 
+  const studyRoutes: StudyRoute[] = [];
+  const routed = unfinished.filter((session) => typeof session.committed_route_revision_id === "string");
+  if (routed.length) {
+    const { data: rows, error: routeError } = await supabase.from("study_routes")
+      .select("route_revision_id,route_lineage_id,revision_number,schema_version,lifecycle,plan_id,plan_session_id,created_at,committed_at,predecessor_revision_id,route_payload")
+      .eq("plan_id", plan.id).eq("user_id", user.id)
+      .in("route_revision_id", routed.map((session) => session.committed_route_revision_id));
+    if (routeError || rows?.length !== routed.length || routed.length !== unfinished.length) {
+      return attachmentError("YOVA could not verify the remaining sessions. Reload this goal and try again.", requestId, 409, "material_attachment_route_rebuild_required");
+    }
+    try {
+      for (const row of rows) {
+        const previous = StudyRouteSchema.parse({ ...row.route_payload, identity: {
+          routeRevisionId: row.route_revision_id, routeLineageId: row.route_lineage_id,
+          revisionNumber: row.revision_number, schemaVersion: row.schema_version,
+          lifecycleStatus: row.lifecycle, planId: row.plan_id, sessionId: row.plan_session_id,
+          createdAt: new Date(row.created_at).toISOString(), committedAt: new Date(row.committed_at).toISOString(),
+          ...(row.predecessor_revision_id ? { supersedesRevisionId: row.predecessor_revision_id } : {}),
+        } });
+        studyRoutes.push(sourceAttachmentSuccessor(previous, expectedReceipt.receipt.materials.map((material) => material.id), new Date().toISOString()));
+      }
+    } catch {
+      return attachmentError("YOVA could not prepare the source update safely. Nothing was attached.", requestId, 409, "material_attachment_route_rebuild_required");
+    }
+  }
+
   let data: unknown = null;
   let error: unknown = null;
   try {
@@ -187,6 +207,7 @@ export async function POST(request: Request) {
       payload: {
         ...parsed.data,
         knowledgeMap: reconciledMap,
+        ...(studyRoutes.length ? { studyRoutes } : {}),
       },
     }));
   } catch {
@@ -196,6 +217,7 @@ export async function POST(request: Request) {
       learningItemId: plan.learning_item_id,
       materialIds: parsed.data.materialIds,
       knowledgeMap: reconciledMap,
+      studyRoutes,
     });
     if (confirmed) return jsonReceipt(confirmed, requestId);
 
@@ -219,6 +241,7 @@ export async function POST(request: Request) {
       learningItemId: plan.learning_item_id,
       materialIds: parsed.data.materialIds,
       knowledgeMap: reconciledMap,
+      studyRoutes,
     });
     if (confirmed) return jsonReceipt(confirmed, requestId);
     const issue = attachmentRpcIssue(readErrorMessage(error));
@@ -229,7 +252,8 @@ export async function POST(request: Request) {
     ...(data && typeof data === "object" && !Array.isArray(data) ? data : {}),
     persistence: "supabase",
   });
-  if (rpcReceipt.success && sameMap(rpcReceipt.data.knowledgeMap, reconciledMap)) {
+  if (rpcReceipt.success && sameMap(rpcReceipt.data.knowledgeMap, reconciledMap)
+    && (!studyRoutes.length || studyRoutes.every(expected => rpcReceipt.data.studyRoutes?.some(actual => sameMap(actual, expected))))) {
     return jsonReceipt(rpcReceipt.data, requestId);
   }
 
@@ -242,6 +266,7 @@ export async function POST(request: Request) {
     learningItemId: plan.learning_item_id,
     materialIds: parsed.data.materialIds,
     knowledgeMap: reconciledMap,
+    studyRoutes,
   });
   if (confirmed) return jsonReceipt(confirmed, requestId);
 
@@ -371,12 +396,14 @@ async function readCommittedAttachment({
   learningItemId,
   materialIds,
   knowledgeMap,
+  studyRoutes,
 }: {
   supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>;
   planId: string;
   learningItemId: string;
   materialIds: string[];
   knowledgeMap: PlanKnowledgeMap;
+  studyRoutes: StudyRoute[];
 }) {
   const [
     { data: plan, error: planError },
@@ -399,7 +426,18 @@ async function readCommittedAttachment({
     || learningItem?.source_mode !== "user_materials"
     || !sameMap(storedMap.data, knowledgeMap)
     || !materialIds.every((id) => storedIds.has(id))) return null;
+  if (studyRoutes.length) {
+    const { data: routes, error: routeError } = await supabase.from("study_routes")
+      .select("route_revision_id,route_payload").eq("plan_id", planId).eq("lifecycle", "committed")
+      .in("route_revision_id", studyRoutes.map(route => route.identity.routeRevisionId));
+    if (routeError || routes?.length !== studyRoutes.length || !studyRoutes.every(expected => {
+      const row = routes.find(row => row.route_revision_id === expected.identity.routeRevisionId);
+      const payload = Object.fromEntries(Object.entries(expected).filter(([key]) => key !== "identity"));
+      return row && sameMap(row.route_payload, payload);
+    })) return null;
+  }
   const receipt = MaterialAttachmentResponseSchema.safeParse({
+    ...(studyRoutes.length ? { studyRoutes } : {}),
     planId,
     sourceMode: "user_materials",
     materials: (materials ?? []).map((row) => ({
@@ -476,7 +514,7 @@ function attachmentRpcIssue(message: string): { message: string; status: number;
   };
 }
 
-function sameMap(left: PlanKnowledgeMap, right: PlanKnowledgeMap) {
+function sameMap(left: unknown, right: unknown) {
   return canonicalJson(left) === canonicalJson(right);
 }
 

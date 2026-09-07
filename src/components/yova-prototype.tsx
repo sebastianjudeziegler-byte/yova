@@ -1,5 +1,7 @@
 "use client";
 
+import { getCoreLearningMethod } from "@/lib/learning/method-catalog";
+import { fetchClientJson, GENERATION_REQUEST_TIMEOUT_MS, readClientStateBeforeDeadline } from "@/lib/http/client-json";
 import { topicDisplayLabel } from "@/lib/learning/topic-display-label";
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
@@ -3836,7 +3838,7 @@ export function YovaPrototype({
           sequence: plan.sessions.length + index + 1,
           title: `Learn ${topic.title}`,
           objective: `Build an accurate model of ${topic.title}, then produce one independent check tied to this topic.`,
-          method: "Guided explanation and self-explanation",
+          method: getCoreLearningMethod("self_explanation").name,
           method_rationale: "This topic was outside the original time budget, so YOVA will teach it before asking for independent evidence.",
           scheduled_for: new Date(latestTime + (index + 1) * 24 * 60 * 60 * 1000).toISOString(),
           estimated_minutes: input.futureSessionMinutes,
@@ -3893,45 +3895,70 @@ export function YovaPrototype({
       return;
     }
 
-    const response = await fetch("/api/plans/adjust", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(input),
-    });
-    const body: unknown = await response.json();
-    if (!response.ok) {
-      const message = typeof body === "object" && body && "error" in body && typeof body.error === "string"
-        ? body.error
-        : "YOVA could not adjust that plan.";
-      throw new Error(message);
+    try {
+      const { response, body } = await fetchClientJson("/api/plans/adjust", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(input),
+      }, {
+        timeoutMs: input.direction ? GENERATION_REQUEST_TIMEOUT_MS : 30_000,
+        timeoutMessage: "YOVA could not confirm the update in time. Reload this goal before trying again; your saved progress is safe.",
+        invalidResponseMessage: "YOVA could not confirm the plan update. Reload this goal to check its schedule.",
+      });
+      if (!response.ok) {
+        const message = typeof body === "object" && body && "error" in body && typeof body.error === "string"
+          ? body.error
+          : "YOVA could not adjust that plan.";
+        throw new Error(message);
+      }
+      const parsed = PlanAdjustmentResponseSchema.safeParse(body);
+      if (!parsed.success) throw new Error("The adjusted plan came back in an unsafe format.");
+      const includedTopicIds = new Set(parsed.data.sessions.flatMap((session) => session.topicIds));
+      setPlans((current) => current.map((plan) => {
+        if (plan.id !== parsed.data.planId) return plan;
+        const settledSessions = plan.sessions.filter((session) => session.status === "complete" || session.status === "skipped");
+        const protectedReviews = new Map(plan.sessions
+          .filter(isScheduledRetrievalSession)
+          .map((session) => [session.id, session]));
+        return {
+          ...plan,
+          deadline: parsed.data.deadline,
+          studyMode: parsed.data.studyMode,
+          knowledgeMap: input.includeDeferred && plan.knowledgeMap ? {
+            ...plan.knowledgeMap,
+            topics: plan.knowledgeMap.topics.map((topic) => includedTopicIds.has(topic.id) ? { ...topic, deferred: null } : topic),
+          } : plan.knowledgeMap,
+          sessions: [
+            ...settledSessions,
+            ...parsed.data.sessions.map((session) => {
+              if (!isScheduledRetrievalSession(session)) return session;
+              const original = protectedReviews.get(session.id);
+              return mergeAuthoritativeProtectedPlanAdjustmentSession(original, session);
+            }),
+          ].sort((left, right) => left.sequence - right.sequence),
+        };
+      }));
+    } catch (error) {
+      try {
+        const expectedAccountId = account?.id;
+        if (expectedAccountId) {
+          const fresh = await readClientStateBeforeDeadline(async () => {
+            if ((await getAuthenticatedAccount())?.id !== expectedAccountId) return null;
+            const snapshot = await loadAuthenticatedLearningStateWithRetry();
+            return (await getAuthenticatedAccount())?.id === expectedAccountId ? snapshot : null;
+          }, 8_000);
+          const saved = fresh?.plans.find(plan => plan.id === input.planId);
+          const pending = new Set([...pendingSessionCompletionPlanSessionIds(expectedAccountId), ...pendingSessionInterruptionPlanSessionIds(expectedAccountId)]);
+          if (saved && !saved.sessions.some(session => pending.has(session.id))) {
+            setPlans(current => current.map(plan => plan.id === saved.id ? saved : plan));
+          }
+        }
+      } catch {
+        // A failed readback cannot establish whether the write committed.
+        // Preserve the local view and the request's reload guidance.
+      }
+      throw error;
     }
-    const parsed = PlanAdjustmentResponseSchema.safeParse(body);
-    if (!parsed.success) throw new Error("The adjusted plan came back in an unsafe format.");
-    const includedTopicIds = new Set(parsed.data.sessions.flatMap((session) => session.topicIds));
-    setPlans((current) => current.map((plan) => {
-      if (plan.id !== parsed.data.planId) return plan;
-      const settledSessions = plan.sessions.filter((session) => session.status === "complete" || session.status === "skipped");
-      const protectedReviews = new Map(plan.sessions
-        .filter(isScheduledRetrievalSession)
-        .map((session) => [session.id, session]));
-      return {
-        ...plan,
-        deadline: parsed.data.deadline,
-        studyMode: parsed.data.studyMode,
-        knowledgeMap: input.includeDeferred && plan.knowledgeMap ? {
-          ...plan.knowledgeMap,
-          topics: plan.knowledgeMap.topics.map((topic) => includedTopicIds.has(topic.id) ? { ...topic, deferred: null } : topic),
-        } : plan.knowledgeMap,
-        sessions: [
-          ...settledSessions,
-          ...parsed.data.sessions.map((session) => {
-            if (!isScheduledRetrievalSession(session)) return session;
-            const original = protectedReviews.get(session.id);
-            return mergeAuthoritativeProtectedPlanAdjustmentSession(original, session);
-          }),
-        ].sort((left, right) => left.sequence - right.sequence),
-      };
-    }));
   };
 
   const updatePlanKnowledgeMap = (planId: string, knowledgeMap: PlanKnowledgeMap) => {
@@ -3969,7 +3996,7 @@ export function YovaPrototype({
       materials: parsed.data.materials,
       knowledgeMap: parsed.data.knowledgeMap,
       sessions: plan.sessions.map((session) => session.status === "ready" || session.status === "upcoming"
-        ? { ...session, resource: undefined }
+        ? { ...session, resource: undefined, studyRoute: parsed.data.studyRoutes?.find((route) => route.identity.sessionId === session.id) ?? session.studyRoute }
         : session),
     } : plan));
   };
@@ -4577,7 +4604,7 @@ export function YovaPrototype({
     setPlans((current) => [...current, plan]);
     preserveSeedDeadline(plan);
     setSelectedPlanId(plan.id);
-    void startSession(plan.id, plan);
+    void startSession(plan.id, plan, null);
   }} />;
   if (stage === "session-setup") return <SessionSetup plan={pendingSessionPlan ?? activePlan} answers={answers} completions={sessionCompletions} interruptions={sessionInterruptions} onChangeMethod={changeReadySessionMethod} onExit={() => {
     setPendingSessionPlan(null);
@@ -4892,14 +4919,14 @@ export function OnboardingQuestion({ index, answer, onAnswer, onNext, onBack }: 
     ? answer
     : null;
   const questionId = `onboarding-question-${index}`;
-  return <main className="onboarding-shell"><header><BrandMark /><span>{index + 1} of {CANONICAL_PROFILE_QUESTIONS.length}</span></header><div className="progress-track"><div style={{ width: `${((index + 1) / CANONICAL_PROFILE_QUESTIONS.length) * 100}%` }} /></div><section className="question-wrap"><span className="step-label">YOUR CANONICAL STUDY PROFILE</span><h2 id={questionId}>{question.prompt}</h2><p className="muted">Optional: choose Depends or Not sure, skip it, or change it later in You.</p><div className="option-list" role="group" aria-labelledby={questionId}>{question.options.map((option) => <button type="button" aria-pressed={selectedId === option.id} key={option.id} className={`option ${selectedId === option.id ? "selected" : ""}`} onClick={() => onAnswer(option.id)}><span>{option.label}</span>{selectedId === option.id && <Check aria-hidden="true" size={18} />}</button>)}</div><footer className="question-footer"><button type="button" className="button ghost" onClick={onBack} disabled={index === 0}><ArrowLeft size={17} /> Back</button><button type="button" className="button primary" onClick={onNext}>{index === CANONICAL_PROFILE_QUESTIONS.length - 1 ? "Build my setup" : "Continue"} <ArrowRight size={17} /></button></footer></section></main>;
+  return <main className="onboarding-shell"><header><BrandMark /><span>{index + 1} of {CANONICAL_PROFILE_QUESTIONS.length}</span></header><div className="progress-track"><div style={{ width: `${((index + 1) / CANONICAL_PROFILE_QUESTIONS.length) * 100}%` }} /></div><section className="question-wrap"><span className="step-label">YOUR STUDY PREFERENCES</span><h2 id={questionId}>{question.prompt}</h2><p className="muted">Optional: choose Depends or Not sure, skip it, or change it later in You.</p><div className="option-list" role="group" aria-labelledby={questionId}>{question.options.map((option) => <button type="button" aria-pressed={selectedId === option.id} key={option.id} className={`option ${selectedId === option.id ? "selected" : ""}`} onClick={() => onAnswer(option.id)}><span>{option.label}</span>{selectedId === option.id && <Check aria-hidden="true" size={18} />}</button>)}</div><footer className="question-footer"><button type="button" className="button ghost" onClick={onBack} disabled={index === 0}><ArrowLeft size={17} /> Back</button><button type="button" className="button primary" onClick={onNext}>{index === CANONICAL_PROFILE_QUESTIONS.length - 1 ? "Build my setup" : "Continue"} <ArrowRight size={17} /></button></footer></section></main>;
 }
 
 function ProfileSummary({ answers, onContinue }: { answers: string[]; onContinue: () => void }) {
   const summary = buildCanonicalLearnerFacingSummary(
     canonicalLearnerProfileFromAnswers(answers),
   );
-  return <main className="centered-shell"><BrandMark /><section className="setup-card wide"><span className="eyebrow"><Sparkles size={15} /> Your starting setup</span><h1>YOVA will begin like this.</h1><p>This is a transparent starting point based on your canonical study profile. It can change when you correct an answer or comparable checked work points elsewhere.</p><div className="profile-grid">{summary.statements.map((statement, index) => <ProfileItem key={statement} title={`Starting decision ${index + 1}`} value={statement} note="A bounded preference, never a fixed learner type" />)}</div><button className="button primary large full" onClick={onContinue}>Open YOVA <ArrowRight size={18} /></button></section></main>;
+  return <main className="centered-shell"><BrandMark /><section className="setup-card wide"><span className="eyebrow"><Sparkles size={15} /> Your starting setup</span><h1>YOVA will begin like this.</h1><p>These starting choices come from your answers. You can change them anytime, and YOVA can adjust as you practise.</p><div className="profile-grid">{summary.statements.map((statement, index) => <ProfileItem key={statement} title={`Starting decision ${index + 1}`} value={statement} note="You can change this anytime" />)}</div><button className="button primary large full" onClick={onContinue}>Open YOVA <ArrowRight size={18} /></button></section></main>;
 }
 
 function ProfileItem({ title, value, note }: { title: string; value: string; note: string }) { return <div className="profile-item"><span>{title}</span><strong>{value}</strong><small>{note}</small></div>; }
@@ -5623,7 +5650,7 @@ function PlanSources({ plan, editable, onAttach }: { plan: LearningPlan; editabl
   const atLimit = materials.length >= 5;
   const sourceChangeLocked = plan.sessions.some((session) => (
     (session.status === "ready" || session.status === "upcoming")
-    && session.studyRoute?.identity.lifecycleStatus === "committed"
+    && Boolean(session.resource)
   ));
   const canAddSource = editable && !sourceChangeLocked && !atLimit;
 
@@ -5665,7 +5692,7 @@ function PlanSources({ plan, editable, onAttach }: { plan: LearningPlan; editabl
     }
   };
 
-  return <section className="section-block plan-sources"><div className="section-title"><h3>Learning source</h3><div className="source-heading-actions"><span>{plan.sourceMode === "user_materials" ? `${materials.length} uploaded` : "Created by YOVA"}</span>{canAddSource && <label className={`button source-upload ${adding ? "disabled" : ""}`}><Upload size={15} /> {adding ? "Processing…" : "Add files"}<input aria-label="Add source materials" type="file" multiple accept=".pdf,.txt,.md,text/plain,text/markdown,application/pdf" disabled={adding} onChange={(event) => { void addFiles(event.target.files); event.target.value = ""; }} /></label>}</div></div>{materials.length ? <div className="source-material-list">{materials.map((material) => <div key={material.id}><FileText size={18} /><span><strong>{material.name}</strong><small>{formatFileSize(material.sizeBytes)} · Private source for this goal</small></span><span className="data-badge">Ready</span></div>)}</div> : plan.sourceMode === "user_materials" ? <div className="source-empty"><AlertCircle size={17} /><p>This goal expects uploaded sources, but their metadata could not be loaded. Guided sessions will stop rather than silently inventing source content.</p></div> : <div className="source-created"><Sparkles size={18} /><div><strong>YOVA-generated learning content</strong><p>Explanations, questions, and practice are created from the goal. {sourceChangeLocked ? "These sources stay fixed while the current personalized recipes are active." : "You can add private sources before the plan is committed."}</p></div></div>}{canAddSource && <MaterialLinkImporter existingCount={materials.length} disabled={adding} onImported={(material, materialNotice) => { void addLinkedSource(material, materialNotice); }} />}{sourceChangeLocked && editable && <p className="source-limit">Sources are locked for this active plan so each session remains tied to the recipe you approved. Create a new goal if you need different material.</p>}{atLimit && editable && !sourceChangeLocked && <p className="source-limit">This goal has reached the five-material limit.</p>}{notice && <p className="material-notice"><AlertCircle size={15} /> {notice}</p>}{error && <div className="chat-error"><AlertCircle size={16} /><span>{error}</span></div>}</section>;
+  return <section className="section-block plan-sources"><div className="section-title"><h3>Learning source</h3><div className="source-heading-actions"><span>{plan.sourceMode === "user_materials" ? `${materials.length} uploaded` : "Created by YOVA"}</span>{canAddSource && <label className={`button source-upload ${adding ? "disabled" : ""}`}><Upload size={15} /> {adding ? "Processing…" : "Add files"}<input aria-label="Add source materials" type="file" multiple accept=".pdf,.txt,.md,text/plain,text/markdown,application/pdf" disabled={adding} onChange={(event) => { void addFiles(event.target.files); event.target.value = ""; }} /></label>}</div></div>{materials.length ? <div className="source-material-list">{materials.map((material) => <div key={material.id}><FileText size={18} /><span><strong>{material.name}</strong><small>{formatFileSize(material.sizeBytes)} · Private source for this goal</small></span><span className="data-badge">Ready</span></div>)}</div> : plan.sourceMode === "user_materials" ? <div className="source-empty"><AlertCircle size={17} /><p>This goal expects uploaded sources, but their metadata could not be loaded. Guided sessions will stop rather than silently inventing source content.</p></div> : <div className="source-created"><Sparkles size={18} /><div><strong>YOVA-generated learning content</strong><p>Explanations, questions, and practice are created from the goal. {sourceChangeLocked ? "Finish the prepared lesson before changing its sources." : "Add private sources to use in future sessions. Completed progress stays saved. New topics appear in Saved for later; use Adjust to include them."}</p></div></div>}{canAddSource && <MaterialLinkImporter existingCount={materials.length} disabled={adding} onImported={(material, materialNotice) => { void addLinkedSource(material, materialNotice); }} />}{sourceChangeLocked && editable && <p className="source-limit">Finish your prepared lesson before adding sources. Your completed sessions will stay saved.</p>}{atLimit && editable && !sourceChangeLocked && <p className="source-limit">This goal has reached the five-material limit.</p>}{notice && <p className="material-notice"><AlertCircle size={15} /> {notice}</p>}{error && <div className="chat-error"><AlertCircle size={16} /><span>{error}</span></div>}</section>;
 }
 
 function materialAttachmentWasCommitted(error: unknown) {
@@ -5718,7 +5745,7 @@ function PlanAdjustmentPanel({ plan, onCancel, onSave }: { plan: LearningPlan; o
     }
   };
 
-  return <section className="plan-adjustment-panel"><div className="plan-adjustment-heading"><div><span className="step-label">ADJUST UNFINISHED WORK</span><h3>Change the plan without losing progress</h3><p>Tell YOVA when the course is on the wrong track, or change its timing and study location. Completed sessions stay exactly as they are.</p></div></div><label className={`plan-direction-field ${directionLimit.isOverLimit ? "field-over-limit" : ""}`}><span>What should be different?</span><textarea rows={4} value={direction} disabled={saving} aria-invalid={directionLimit.isOverLimit || undefined} aria-describedby="plan-adjustment-direction-limit" placeholder="Example: Keep this conceptual. I do not want calculation exercises. Focus on founder decisions, investor incentives, and real examples." onChange={(event) => setDirection(event.target.value)} /><small id="plan-adjustment-direction-limit" className={`character-limit-feedback ${directionLimit.isOverLimit ? "over-limit" : ""}`} role={directionLimit.isOverLimit ? "alert" : undefined}>Optional. YOVA will rebuild only unfinished content sessions. Scheduled reviews keep their exact return contract. The next session setup will show the revised target and method. {formatCharacterLimit(directionLimit)}</small><div><button type="button" onClick={() => setDirection("Keep this conceptual. Do not include math or calculation exercises.")}>No calculations</button><button type="button" onClick={() => setDirection("Teach the foundations first, then use concrete examples before practice.")}>Teach it first</button><button type="button" onClick={() => setDirection("Use more real examples and case scenarios before independent work.")}>More examples</button></div></label><div className="plan-adjustment-grid"><label><span>Target date</span><input type="date" min={localDateInput(new Date().toISOString())} value={deadlineDate} disabled={saving} onChange={(event) => setDeadlineDate(event.target.value)} /><small>Optional. Calendar times are changed separately.</small></label><label><span>Future session window</span><select value={minutes} disabled={saving} onChange={(event) => setMinutes(Number(event.target.value))}>{minuteOptions.map((option) => <option value={option} key={option}>{option} minutes</option>)}</select><small>Time controls the size of each content slice, not whether it counts as learned.</small></label></div><div className="adjustment-content-rule"><Target size={18} /><div><strong>Progress stays intact</strong><p>The current {adjustableUnfinishedCount} ordinary unfinished {adjustableUnfinishedCount === 1 ? "session" : "sessions"} can be adjusted safely. Finished sessions and recorded learning evidence are never erased.{protectedReviewCount > 0 ? ` ${protectedReviewCount} scheduled ${protectedReviewCount === 1 ? "review keeps" : "reviews keep"} the original duration, concept, and return time.` : ""}</p></div></div><div className="adjustment-mode"><span>Where should future sessions happen?</span><div><button className={studyMode === "inside_yova" ? "selected" : ""} disabled={saving} onClick={() => setStudyMode("inside_yova")}><BookOpen size={17} /><strong>Inside YOVA</strong><small>Teaching, questions, and feedback in the app</small></button><button className={studyMode === "outside_yova" ? "selected" : ""} disabled={saving} onClick={() => setStudyMode("outside_yova")}><LibraryBig size={17} /><strong>Outside YOVA</strong><small>Exact instructions for another source or workspace</small></button></div></div>{error && <div className="chat-error"><AlertCircle size={16} /><span>{error}</span></div>}<footer><button className="button ghost" disabled={saving} onClick={onCancel}>Cancel</button><button className="button primary" disabled={saving || adjustableUnfinishedCount === 0 || directionLimit.isOverLimit} onClick={() => void save()}>{saving ? <span className="button-spinner" /> : <><Check size={16} /> Approve and rebuild plan</>}</button></footer></section>;
+  return <section className="plan-adjustment-panel"><div className="plan-adjustment-heading"><div><span className="step-label">ADJUST UNFINISHED WORK</span><h3>Change the plan without losing progress</h3><p>Tell YOVA when the course is on the wrong track, or change its timing and study location. Completed sessions stay exactly as they are.</p></div></div><label className={`plan-direction-field ${directionLimit.isOverLimit ? "field-over-limit" : ""}`}><span>What should be different?</span><textarea rows={4} value={direction} disabled={saving} aria-invalid={directionLimit.isOverLimit || undefined} aria-describedby="plan-adjustment-direction-limit" placeholder="Example: Keep this conceptual. I do not want calculation exercises. Focus on founder decisions, investor incentives, and real examples." onChange={(event) => setDirection(event.target.value)} /><small id="plan-adjustment-direction-limit" className={`character-limit-feedback ${directionLimit.isOverLimit ? "over-limit" : ""}`} role={directionLimit.isOverLimit ? "alert" : undefined}>Optional. YOVA will rebuild only unfinished content sessions. Scheduled reviews keep their exact return contract. The next session setup will show the revised target and method. {formatCharacterLimit(directionLimit)}</small><div><button type="button" onClick={() => setDirection("Keep this conceptual. Do not include math or calculation exercises.")}>No calculations</button><button type="button" onClick={() => setDirection("Teach the foundations first, then use concrete examples before practice.")}>Teach it first</button><button type="button" onClick={() => setDirection("Use more real examples and case scenarios before independent work.")}>More examples</button></div></label><div className="plan-adjustment-grid"><label><span>Target date</span><input type="date" min={localDateInput(new Date().toISOString())} value={deadlineDate} disabled={saving} onChange={(event) => setDeadlineDate(event.target.value)} /><small>Optional. Calendar times are changed separately.</small></label><label><span>Future session window</span><select value={minutes} disabled={saving} onChange={(event) => setMinutes(Number(event.target.value))}>{minuteOptions.map((option) => <option value={option} key={option}>{option} minutes</option>)}</select><small>Time controls the size of each content slice, not whether it counts as learned.</small></label></div><div className="adjustment-content-rule"><Target size={18} /><div><strong>Progress stays intact</strong><p>The current {adjustableUnfinishedCount} ordinary unfinished {adjustableUnfinishedCount === 1 ? "session" : "sessions"} can be adjusted safely. Finished sessions and recorded learning evidence are never erased.{protectedReviewCount > 0 ? ` ${protectedReviewCount} scheduled ${protectedReviewCount === 1 ? "review keeps" : "reviews keep"} the original duration, concept, and return time.` : ""}</p></div></div><div className="adjustment-mode"><span>Where should future sessions happen?</span><div><button className={studyMode === "inside_yova" ? "selected" : ""} disabled={saving} onClick={() => setStudyMode("inside_yova")}><BookOpen size={17} /><strong>Inside YOVA</strong><small>Teaching, questions, and feedback in the app</small></button><button className={studyMode === "outside_yova" ? "selected" : ""} disabled={saving} onClick={() => setStudyMode("outside_yova")}><LibraryBig size={17} /><strong>Outside YOVA</strong><small>Exact instructions for another source or workspace</small></button></div></div>{error && <div className="chat-error"><AlertCircle size={16} /><span>{error}</span></div>}<footer><button className="button ghost" disabled={saving} onClick={onCancel}>Cancel</button><button className="button primary" disabled={saving || adjustableUnfinishedCount === 0 || directionLimit.isOverLimit} onClick={() => void save()}>{saving ? <><span className="button-spinner" aria-hidden="true" /><span role="status">Updating plan…</span></> : <><Check size={16} /> Approve and rebuild plan</>}</button></footer></section>;
 }
 
 function AskScreen({ plans, question, onQuestion, onApplyAction, analyticsEnabled }: { plans: LearningPlan[]; question: string; onQuestion: (question: string) => void; onApplyAction: (action: TutorProposedAction) => Promise<void>; analyticsEnabled: boolean }) {
@@ -6797,7 +6824,7 @@ function SessionSetup({ plan: storedPlan, answers, completions, interruptions, o
         ? "YOVA will add more guidance inside the planned method. The method, sequence, and time stay fixed unless you visibly adjust the plan."
         : explainedFamiliarity === "challenge_me"
           ? "YOVA will reduce scaffolding and emphasize independent application inside the planned recipe."
-          : "YOVA will keep the committed recipe and use today’s context only to tune its delivery."
+          : "YOVA will keep your chosen method and use today’s update to adjust the support."
     : explainedFamiliarity === "already_know"
     ? selectedKnownTargets.length
       ? `YOVA will verify ${selectedKnownTargets.length === 1 ? "the concept you selected" : `the ${selectedKnownTargets.length} concepts you selected`} without support, then avoid reteaching only what you demonstrate.`
@@ -6892,7 +6919,7 @@ function SessionSetup({ plan: storedPlan, answers, completions, interruptions, o
       {setupPage === 2 && !scheduledReview && <>
         <div className="session-setup-copy"><span className="step-label">TODAY&apos;S CONTEXT</span><h1>Set the pace for today.</h1><p>Only add what changed or what YOVA could not know from the plan.</p></div>
         <fieldset className="session-support-dial"><legend>Support for this session</legend><p>This choice applies only today. It will not change your usual profile.</p><div>{SESSION_SUPPORT_OPTIONS.map((option) => <button type="button" key={option.value} aria-pressed={supportLevel === option.value} className={supportLevel === option.value ? "selected" : ""} onClick={() => setSupportLevel(option.value)}><span>{supportLevel === option.value ? <Check size={15} /> : <Settings2 size={15} />}</span><strong>{option.title}</strong><small>{option.description}</small></button>)}</div><small className="session-support-expiry">For today · {sessionSupportExplanation(supportLevel)}</small></fieldset>
-        <div className="session-context-row"><label><span>{committedStudyRoute ? "Time in this recipe" : "Time available right now"}</span>{committedStudyRoute ? <strong>{session.estimatedMinutes} minutes</strong> : <select value={availableMinutes ?? ""} onChange={(event) => setAvailableMinutes(event.target.value ? Number(event.target.value) : null)}><option value="">Keep the planned {session.estimatedMinutes} minutes</option>{[10, 15, 20, 25, 30, 45, 60].filter((minutes) => minutes !== session.estimatedMinutes).map((minutes) => <option key={minutes} value={minutes}>{minutes} minutes</option>)}</select>}<small>{committedStudyRoute ? "This is part of the committed recipe. Cancel and use Adjust on the goal to change it visibly before starting." : "Shorter time changes today’s content slice, not what counts as learned."}</small></label><label className={noteLimit.isOverLimit ? "field-over-limit" : undefined}><span>Anything YOVA should account for?</span><textarea rows={4} value={note} aria-invalid={noteLimit.isOverLimit || undefined} aria-describedby="session-context-note-limit" placeholder="Optional: what you already know, what was confusing, or what this session must cover." onChange={(event) => setNote(event.target.value)} /><small id="session-context-note-limit" className={`character-limit-feedback ${noteLimit.isOverLimit ? "over-limit" : ""}`} role={noteLimit.isOverLimit ? "alert" : undefined}>{formatCharacterLimit(noteLimit)}</small></label></div>
+        <div className="session-context-row"><label><span>{committedStudyRoute ? "Time in this recipe" : "Time available right now"}</span>{committedStudyRoute ? <strong>{session.estimatedMinutes} minutes</strong> : <select value={availableMinutes ?? ""} onChange={(event) => setAvailableMinutes(event.target.value ? Number(event.target.value) : null)}><option value="">Keep the planned {session.estimatedMinutes} minutes</option>{[10, 15, 20, 25, 30, 45, 60].filter((minutes) => minutes !== session.estimatedMinutes).map((minutes) => <option key={minutes} value={minutes}>{minutes} minutes</option>)}</select>}<small>{committedStudyRoute ? "To change this time, cancel and choose Adjust on the goal before starting." : "Shorter time changes today’s content slice, not what counts as learned."}</small></label><label className={noteLimit.isOverLimit ? "field-over-limit" : undefined}><span>Anything YOVA should account for?</span><textarea rows={4} value={note} aria-invalid={noteLimit.isOverLimit || undefined} aria-describedby="session-context-note-limit" placeholder="Optional: what you already know, what was confusing, or what this session must cover." onChange={(event) => setNote(event.target.value)} /><small id="session-context-note-limit" className={`character-limit-feedback ${noteLimit.isOverLimit ? "over-limit" : ""}`} role={noteLimit.isOverLimit ? "alert" : undefined}>{formatCharacterLimit(noteLimit)}</small></label></div>
         <div className="session-setup-proof"><Sparkles size={19} /><div><strong>How YOVA will begin</strong><p>{adjustmentExplanation}</p></div></div>
       </>}
 

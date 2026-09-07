@@ -153,9 +153,19 @@ const CompactStreamedRecoveryItemSchema = z.object({
   independentCheck: CompactStreamedRecoveryCheckSchema.nullable(),
 });
 
-function compactStreamedRecoverySchema(itemCount: number) {
+function compactStreamedRecoverySchema(itemCount: number, minutes: number) {
+  const shortCheck = CompactStreamedRecoveryCheckSchema.extend({
+    title: z.string().trim().min(3).max(70),
+    prompt: z.string().trim().min(15).max(160),
+    referenceAnswer: z.string().trim().min(20).max(250),
+    feedback: z.string().trim().min(20).max(180),
+  });
+  const itemSchema = minutes <= 15 ? CompactStreamedRecoveryItemSchema.extend({
+    check: shortCheck,
+    independentCheck: shortCheck.nullable(),
+  }) : CompactStreamedRecoveryItemSchema;
   return z.object({
-    items: z.array(CompactStreamedRecoveryItemSchema).length(itemCount),
+    items: z.array(itemSchema).length(itemCount),
     recognitionCheck: CompactStreamedRecoveryRecognitionCheckSchema,
   });
 }
@@ -428,6 +438,12 @@ export async function generateStreamedTeachingSkeletonWithOpenAI(
     minimumLongSessionActivities,
   );
   const contentMaximumActiveIdeas = Math.min(
+    // Each idea needs real teaching and an answer, alongside the method's
+    // repair/recognition turns. Activity counts alone admitted two five-minute
+    // cycles plus recognition into a ten-minute session.
+    Math.max(1, Math.floor((provenanceContext.session.estimatedMinutes
+      - (learningScienceRouting.suggestedPrimaryMethodId === "self_explanation" ? 5
+        : learningScienceRouting.suggestedPrimaryMethodId === "retrieval_practice" ? 3 : 1)) / 5)),
     contentBudgetForMinutes(provenanceContext.session.estimatedMinutes).maximumContentTargets,
     contentBudgetForMinutes(provenanceContext.session.estimatedMinutes).maximumCompletionChecks,
   );
@@ -1046,7 +1062,7 @@ async function generateCompactStreamedTeachingRecovery({
   const slots = compactRecoverySlots({ context, routing, practiceVariation, pacingContract });
   if (!slots) return null;
 
-  const schema = compactStreamedRecoverySchema(slots.length);
+  const schema = compactStreamedRecoverySchema(slots.length, context.session.estimatedMinutes);
   const providerCall = prepareSessionProviderCall({
     budget: generationBudget,
     preferredTimeoutMs: COMPACT_STREAMED_RECOVERY_PROVIDER_TIMEOUT_MS,
@@ -1068,7 +1084,7 @@ async function generateCompactStreamedTeachingRecovery({
   try {
     response = await getOpenAIClient().responses.parse({
       model,
-      instructions: COMPACT_STREAMED_RECOVERY_INSTRUCTIONS,
+      instructions: `${COMPACT_STREAMED_RECOVERY_INSTRUCTIONS}\nAvailable time: ${context.session.estimatedMinutes} minutes. Keep prompts to one sentence, answers to one or two concise sentences, and feedback to one short sentence. Each essentialIdea must name its target's distinctive subject and state one bounded relationship in no more than 16 words.`,
       input: `Build the compact streamed teaching recovery from this bounded context:\n${JSON.stringify({
         methodId: routing.suggestedPrimaryMethodId,
         ideaSlots: slots.map((slot, index) => ({
@@ -1090,6 +1106,14 @@ async function generateCompactStreamedTeachingRecovery({
       store: false,
     }, providerCall.options);
   } catch (error) {
+    if (error instanceof Error && error.name === "ZodError") {
+      return {
+        success: false,
+        failureDetail: "The compact teaching recovery did not match its bounded content schema.",
+        failedValidator: "session_structure",
+        validationIssueCode: "session_recovery_structure",
+      };
+    }
     return {
       success: false,
       failureDetail: providerCall.ended()

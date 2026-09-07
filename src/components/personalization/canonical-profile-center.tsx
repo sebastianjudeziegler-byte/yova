@@ -34,11 +34,11 @@ export function CanonicalProfileCenter({
     <section className={styles.center} aria-labelledby="canonical-profile-heading">
       <header className={styles.header}>
         <div>
-          <span className={styles.eyebrow}>YOUR CANONICAL STUDY PROFILE</span>
+          <span className={styles.eyebrow}>YOUR STUDY PREFERENCES</span>
           <h2 id="canonical-profile-heading">{summary.heading}</h2>
           <p>
-            One optional profile now controls preference hints across plans,
-            sessions, and the study workspace.
+            Your optional answers help YOVA choose study methods, session lengths,
+            and the support you see while learning.
           </p>
         </div>
         <div className={styles.headerActions}>
@@ -68,7 +68,7 @@ export function CanonicalProfileCenter({
               Profile use is paused. Your saved answers remain editable here,
               but they do not influence method, duration, or workspace decisions.
             </p>
-            <small>Turn profile use back on whenever you want YOVA to consider these declarations again.</small>
+            <small>Turn profile use back on whenever you want YOVA to use these answers again.</small>
           </>
         )}
       </div>

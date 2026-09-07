@@ -27,7 +27,7 @@ describe("canonical profile center", () => {
       onEnabledChange: () => undefined,
     }));
 
-    expect(html).toContain("YOUR CANONICAL STUDY PROFILE");
+    expect(html).toContain("YOUR STUDY PREFERENCES");
     expect(html).toContain("1/11 answered");
     expect(html).toContain("Migrated from existing answers");
     expect(html).toContain("It depends on the task");

@@ -85,7 +85,7 @@ describe("active-plan material attachment route", () => {
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
 
-  it("fails before attachment when the source change would stale committed routes", async () => {
+  it("fails before attachment when the committed route cannot be loaded", async () => {
     mocks.routeRevisionId = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
     mocks.createClient.mockResolvedValue(materialClient());
 
@@ -233,7 +233,7 @@ function materialClient(options: {
   };
   return {
     auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: USER_ID } }, error: null }) },
-    from: vi.fn((table: keyof typeof rows) => query(rows[table])),
+    from: vi.fn((table: keyof typeof rows) => query(rows[table] ?? [])),
     rpc: mocks.rpc,
     __stagedMaterial: stagedMaterial,
   };

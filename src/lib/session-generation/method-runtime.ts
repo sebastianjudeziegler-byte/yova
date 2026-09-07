@@ -123,7 +123,7 @@ const ConceptMapConnectionSchema = z.object({
  * phrases stay in component state and the one-time answer-evaluation request;
  * they are never written into the generated resource.
  */
-const ConceptMapRuntimeOutputSchema = z.object({
+export const ConceptMapRuntimeOutputSchema = z.object({
   kind: z.literal("concept_map"),
   instructions: z.string().trim().min(12).max(320),
   nodes: z.array(ConceptMapNodeSchema).min(3).max(8),

@@ -135,7 +135,7 @@ describe("canonical method selection", () => {
     expect(first.authority).toBe("task_baseline");
     expect(first.changedFromBaseline).toBe(false);
     expect(first.evidenceRefs).toEqual([]);
-    expect(first.learnerFacingReason).toMatch(/stable evidence-constrained baseline/i);
+    expect(first.learnerFacingReason).toMatch(/fits this task and your starting point/i);
     expect(Object.isFrozen(first)).toBe(true);
     expect(Object.isFrozen(first.ruleTrace)).toBe(true);
   });

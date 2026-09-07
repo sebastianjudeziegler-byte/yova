@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-  MaterialPlanRebuildRequiredError,
   reconcileMappedMaterialsIntoActivePlan,
 } from "@/lib/materials/active-plan-attachment";
 import {
@@ -75,16 +74,20 @@ describe("active-plan material reconciliation", () => {
     })).toBeNull();
   });
 
-  it("fails closed when the source adds a topic outside the current plan", () => {
-    expect(() => reconcileMappedMaterialsIntoActivePlan({
-      knowledgeMap: map(),
-      understandings: [understanding({
-        title: "Plate tectonics and subduction zones",
-        description: "Explain how convergent plate boundaries recycle oceanic crust.",
-        subtopics: ["Mantle convection"],
-      })],
+  it("adds newly mapped topics as deferred scope without changing existing progress", () => {
+    const original = map();
+    const reconciled = reconcileMappedMaterialsIntoActivePlan({
+      knowledgeMap: original,
+      understandings: [understanding({ title: "Plate tectonics and subduction zones", description: "Explain how convergent plate boundaries recycle oceanic crust.", subtopics: ["Mantle convection"] })],
       unfinishedTopicIds: [PLAN_TOPIC_ID],
-    })).toThrow(MaterialPlanRebuildRequiredError);
+    });
+    expect(reconciled.topics.slice(0, original.topics.length)).toEqual(original.topics);
+    expect(reconciled.topics.at(-1)).toMatchObject({ id: MATERIAL_TOPIC_ID, status: "not_started", initialEvidence: null, deferred: { reason: expect.stringContaining("Review and include") } });
+    expect(reconcileMappedMaterialsIntoActivePlan({
+      knowledgeMap: reconciled,
+      understandings: [understanding({ title: "Plate tectonics and subduction zones", description: "Explain how convergent plate boundaries recycle oceanic crust.", subtopics: ["Mantle convection"] })],
+      unfinishedTopicIds: [PLAN_TOPIC_ID],
+    })).toEqual(reconciled);
   });
 
   it("does not rewrite completed-only scope and call it attached", () => {

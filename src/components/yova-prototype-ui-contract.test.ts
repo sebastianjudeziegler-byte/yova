@@ -173,10 +173,10 @@ describe("YOVA prototype UI contracts", () => {
 
     expect(setup).toContain('routeContract?.resolution.source === "stored"');
     expect(setup).toContain("Time in this recipe");
-    expect(setup).toContain("Cancel and use Adjust on the goal to change it visibly before starting.");
+    expect(setup).toContain("To change this time, cancel and choose Adjust on the goal before starting.");
     expect(setup).toContain("availableMinutes: committedStudyRoute ? null : availableMinutes");
     expect(sources).toContain("const sourceChangeLocked");
-    expect(sources).toContain("Sources are locked for this active plan");
+    expect(sources).toContain("Finish your prepared lesson before adding sources");
     expect(sources).toContain("canAddSource && <MaterialLinkImporter");
   });
 

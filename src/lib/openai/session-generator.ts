@@ -320,8 +320,9 @@ export class SessionGenerationFailure extends Error {
     message: string,
     public readonly generationStats: SessionGenerationStats,
     public readonly structuralDiagnostic?: SessionStructuralDiagnostic,
+    cause?: unknown,
   ) {
-    super(message);
+    super(message, cause === undefined ? undefined : { cause });
     this.name = "SessionGenerationFailure";
   }
 }
@@ -1212,7 +1213,7 @@ export async function generateSessionWithOpenAI(
     }
     : null;
   const sessionContentBudget = contentBudgetForMinutes(context.session.estimatedMinutes);
-  const providerOutputSchema = generatedSessionDraftProviderOutputSchemaForBudget(sessionContentBudget);
+  const providerOutputSchema = generatedSessionDraftProviderOutputSchemaForBudget(sessionContentBudget, learningScienceRouting.suggestedPrimaryMethodId);
 
   const requestDraft = async (repairInstruction: string | null) => {
     const providerCall = prepareSessionProviderCall({
@@ -3762,6 +3763,7 @@ function parseGeneratedSessionDraft(
 ) {
   const providerOutputSchema = generatedSessionDraftProviderOutputSchemaForBudget(
     contentBudgetForMinutes(context.session.estimatedMinutes),
+    routing.suggestedPrimaryMethodId,
   );
   const parsed = providerOutputSchema.safeParse(value);
   if (!parsed.success) return { ...parsed, activityFormatNormalizationReason: null };

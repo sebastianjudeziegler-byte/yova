@@ -97,8 +97,8 @@ export function buildCommittedRouteFallbackMethodBriefing(
   const completion = completionDescription.length >= 15
     ? completionDescription
     : `${completionDescription} Complete the route's independent evidence check.`;
-  const routeReasonForLearner = `This recovery keeps the committed ${route.approach.visibleMethodName} route instead of selecting a different method.`;
-  const timeReason = `The work remains bounded to the route's ${route.timing.activeMinutes}-minute active window.`;
+  const routeReasonForLearner = `You can continue with your chosen method: ${route.approach.visibleMethodName}.`;
+  const timeReason = `This work is designed for your ${route.timing.activeMinutes}-minute session.`;
 
   return {
     learningMode: route.approach.mode === "learn" ? "learn" : "study",

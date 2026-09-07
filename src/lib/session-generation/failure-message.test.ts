@@ -94,6 +94,11 @@ describe("guidedSessionFailureMessage", () => {
     });
   });
 
+  it("does not mislabel a provider outage during repair as exhausted content validation", () => {
+    const stats = failureStats({ cause: "provider_request", stage: "provider", failedValidator: "session_provider_request" });
+    expect(responseForFailure(stats)).toMatchObject({ code: TRANSIENT_GUIDED_SESSION_FAILURE_CODE, retryable: true });
+  });
+
   it("retains retry guidance for a transient provider failure", () => {
     const stats = failureStats({
       attempts: 1,

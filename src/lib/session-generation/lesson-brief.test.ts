@@ -4,6 +4,7 @@ import {
   isCompleteLessonClaim,
   lessonIdeaCapacityForMinutes,
   validateStreamedLessonScope,
+  lessonIdeaSharesTargetSubject,
 } from "@/lib/session-generation/lesson-brief";
 import { StreamedGeneratedSessionDraftSchema } from "@/lib/session-generation/schema";
 
@@ -539,6 +540,26 @@ describe("authoritative streamed lesson briefs", () => {
       sessionContentTargets: ["Alliance commitments"],
       sessionEstimatedMinutes: 15,
     })).toBeNull();
+  });
+
+  it("accepts a concise causal explanation for a single-word osmosis target", () => {
+    const draft = streamedDraft();
+    const idea = "Osmosis moves water across a selectively permeable membrane toward higher solute concentration.";
+    draft.coverage.essentialIdeas = [idea];
+    draft.activities[0]!.lessonBrief!.essentialIdeas = [idea];
+
+    expect(validateStreamedLessonScope(draft, {
+      sessionTopicIds: [topicId],
+      sessionObjective: "Explain osmosis.",
+      sessionContentTargets: ["Osmosis"],
+      sessionEstimatedMinutes: 10,
+      authoritativeTargetAssignments: [{ essentialIdea: idea, target: "Osmosis" }],
+    })).toBeNull();
+    expect(lessonIdeaSharesTargetSubject(idea, "Osmosis")).toBe(true);
+    expect(lessonIdeaSharesTargetSubject(
+      "Photosynthesis and cellular respiration exchange gases while ecosystems recycle matter and energy.",
+      "Photosynthesis",
+    )).toBe(false);
   });
 
   it("still rejects a short target padded with neighboring subject matter", () => {

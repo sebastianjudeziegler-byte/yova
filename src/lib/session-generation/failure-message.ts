@@ -89,6 +89,7 @@ export function guidedSessionFailureResponse(
     };
   }
   const exhaustedValidation = stats?.repairSucceeded === false
+    && stats.cause !== "provider_request"
     && (
       stats.repairReason === "structured_output"
       || stats.repairReason === "semantic_validation"

@@ -37,3 +37,25 @@ export async function fetchClientJson(
     clearTimeout(timeout);
   }
 }
+
+/**
+ * A failed write must not leave its controls waiting indefinitely for a
+ * recovery read. Apply state only after this returns: a late result is ignored.
+ * The read callback must not mutate UI or server state.
+ */
+export async function readClientStateBeforeDeadline<T>(
+  read: () => Promise<T>,
+  timeoutMs: number,
+): Promise<T | null> {
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      Promise.resolve().then(read),
+      new Promise<null>((resolve) => {
+        timeout = setTimeout(() => resolve(null), timeoutMs);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timeout);
+  }
+}

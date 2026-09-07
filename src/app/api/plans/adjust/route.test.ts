@@ -146,7 +146,7 @@ describe("protected plan adjustment route", () => {
     mocks.createClient.mockResolvedValue({
       auth: { getUser: mocks.getUser },
       from: mocks.from,
-      rpc: mocks.rpc,
+      rpc: (...args: unknown[]) => ({ abortSignal: () => mocks.rpc(...args) }),
     });
   });
 

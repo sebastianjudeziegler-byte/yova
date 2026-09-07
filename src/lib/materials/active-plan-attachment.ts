@@ -15,9 +15,9 @@ export class MaterialPlanRebuildRequiredError extends Error {
 
 /**
  * Adds authoritative mapped chunk references to the existing topic identities
- * used by unfinished sessions. The function deliberately refuses to invent a
- * semantic match: a source that adds a new topic needs a plan rebuild instead
- * of being labelled attached while later sessions silently ignore it.
+ * used by unfinished sessions. New topics are staged as deferred scope, with
+ * no invented match or mastery and no changes to completed learner history.
+ * The learner can include them in a later explicit plan adjustment.
  */
 export function reconcileMappedMaterialsIntoActivePlan(input: {
   knowledgeMap: PlanKnowledgeMap;
@@ -29,6 +29,7 @@ export function reconcileMappedMaterialsIntoActivePlan(input: {
     MaterialUnderstandingSchema.parse(understanding)
   ));
   const unfinishedTopicIds = new Set(input.unfinishedTopicIds);
+  const addedTopics: KnowledgeMapTopic[] = [];
   const referencesByTopicId = new Map<string, KnowledgeMapTopic["sourceReferences"]>();
 
   for (const understanding of understandings) {
@@ -48,12 +49,31 @@ export function reconcileMappedMaterialsIntoActivePlan(input: {
         .filter((candidate) => candidate.score >= 0.58)
         .sort((left, right) => right.score - left.score);
       const candidates = alignedCandidates.filter(({ planTopic }) => unfinishedTopicIds.has(planTopic.id));
+      // A response-lost retry can find its newly added topic already deferred
+      // in the map. Recognize the exact attached chunks without changing it.
+      if (!candidates.length && alignedCandidates.some(({ planTopic }) => planTopic.deferred
+        && materialTopic.sourceReferences.every(reference => planTopic.sourceReferences.some(existing => existing.materialId === reference.materialId && existing.chunkId === reference.chunkId)))) {
+        mapsToUnfinishedScope = true;
+        continue;
+      }
       // The source may repeat material the learner already completed. Keep the
       // completed topic byte-for-byte and reconcile only future session scope.
       if (candidates.length === 0 && alignedCandidates.length > 0) continue;
       const bestScore = candidates[0]?.score ?? 0;
       const bestMatches = candidates.filter((candidate) => candidate.score >= bestScore - 0.04);
-      if (bestMatches.length === 0) throw new MaterialPlanRebuildRequiredError();
+      if (bestMatches.length === 0) {
+        if (knowledgeMap.topics.some(topic => topic.id === materialTopic.id)) throw new MaterialPlanRebuildRequiredError("This source has a conflicting topic identity. Reprocess it before attaching.");
+        if (!addedTopics.some(topic => topic.id === materialTopic.id)) addedTopics.push({
+          ...materialTopic,
+          prerequisiteTopicIds: [],
+          status: "not_started",
+          initialEvidence: null,
+          origin: "material",
+          deferred: { reason: "Added from a new source. Review and include this topic when you adjust the remaining plan." },
+        });
+        mapsToUnfinishedScope = true;
+        continue;
+      }
 
       for (const { planTopic } of bestMatches) {
         if (unfinishedTopicIds.has(planTopic.id)) mapsToUnfinishedScope = true;
@@ -73,7 +93,7 @@ export function reconcileMappedMaterialsIntoActivePlan(input: {
 
   return PlanKnowledgeMapSchema.parse({
     ...knowledgeMap,
-    topics: knowledgeMap.topics.map((topic) => {
+    topics: [...knowledgeMap.topics.map((topic) => {
       const newReferences = referencesByTopicId.get(topic.id);
       if (!newReferences) return topic;
       return {
@@ -84,7 +104,7 @@ export function reconcileMappedMaterialsIntoActivePlan(input: {
           ...newReferences,
         ]),
       };
-    }),
+    }), ...addedTopics],
   });
 }
 

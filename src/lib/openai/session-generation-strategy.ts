@@ -110,6 +110,7 @@ export async function generateProductionSessionWithOpenAI(
           cause: stats.cause ?? generationCauseForStats(stats),
         },
         error.structuralDiagnostic,
+        error.cause,
       );
     }
     throw new SessionGenerationFailure(
@@ -131,6 +132,8 @@ export async function generateProductionSessionWithOpenAI(
         stage: "preflight",
         cause: "unexpected",
       },
+      undefined,
+      error,
     );
   }
 }

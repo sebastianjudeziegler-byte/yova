@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getCoreLearningMethod } from "@/lib/learning/method-catalog";
 import type { LearningPlan, LearningPlanSession } from "@/lib/domain";
 import {
   PlanAdjustmentRequestSchema,
@@ -31,6 +32,7 @@ import { StudyRouteSchema, type StudyRoute } from "@/lib/study-route/schema";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
+export const maxDuration = 120;
 
 export async function PATCH(request: Request) {
   const requestId = operationRequestId(request);
@@ -230,7 +232,7 @@ export async function PATCH(request: Request) {
       sequence: sessionRows.length + index + 1,
       title: `Learn ${topic.title}`,
       objective: `Build an accurate model of ${topic.title}, then produce one independent check tied to this topic.`,
-      method: "Guided explanation and self-explanation",
+      method: getCoreLearningMethod("self_explanation").name,
       method_rationale: "This topic was outside the original time budget, so YOVA will teach it before asking for independent evidence.",
       scheduled_for: new Date(lastScheduled + (index + 1) * 24 * 60 * 60 * 1000).toISOString(),
       estimated_minutes: parsed.data.futureSessionMinutes,
@@ -291,15 +293,26 @@ export async function PATCH(request: Request) {
     }, { status: 409 });
   }
 
-  const { data, error } = await supabase.rpc("adjust_learning_plan_with_routes", {
-    payload: {
-      ...parsed.data,
-      sessions: routedReplacementSessions,
-      knowledgeMap: revisedKnowledgeMap,
-    },
-  });
+  let data: unknown;
+  let error: { code?: string; message?: string } | null;
+  try {
+    ({ data, error } = await supabase.rpc("adjust_learning_plan_with_routes", {
+      payload: { ...parsed.data, sessions: routedReplacementSessions, knowledgeMap: revisedKnowledgeMap },
+    }).abortSignal(AbortSignal.timeout(20_000)));
+  } catch {
+    data = null;
+    error = { code: "transport_unconfirmed" };
+  }
   if (error || !data) {
-    return NextResponse.json({ error: "YOVA could not adjust that plan." }, { status: 409 });
+    console.error("YOVA plan adjustment could not be confirmed", { requestId, code: error?.code ?? "empty_response" });
+    const rolledBack = Boolean(error?.code && /^[0-9A-Z]{5}$/.test(error.code));
+    return NextResponse.json({
+      error: rolledBack
+        ? "YOVA could not save this adjustment. Your previous plan is unchanged. Reload the goal and try again."
+        : "YOVA could not confirm this adjustment. Reload the goal to check the saved plan before trying again.",
+      code: rolledBack ? "plan_adjustment_not_saved" : "plan_adjustment_outcome_unconfirmed",
+      requestId,
+    }, { status: rolledBack ? 409 : 503, headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId } });
   }
 
   const response = PlanAdjustmentResponseSchema.safeParse({

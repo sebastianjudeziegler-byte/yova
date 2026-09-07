@@ -56,13 +56,40 @@ test("Study Now lets the learner review and safely choose an eligible method bef
   await expect(page.getByLabel(`Study recipe: ${alternativeName}`)).toContainText(
     new RegExp(`You chose ${escapeRegExp(alternativeName)}`, "i"),
   );
+  const generation = page.waitForRequest(request => request.url().endsWith("/api/sessions/generate"));
   await page.getByRole("button", { name: /Start this session/ }).click();
+  const sent = (await generation).postDataJSON();
+  expect(sent.previewContext.session.method).toBe(alternativeName);
+  await expect(page.getByRole("heading", { name: "Here is how YOVA plans to start." })).not.toBeVisible();
 
-  await expect(page.getByRole("heading", { name: "Here is how YOVA plans to start." })).toBeVisible();
-  const methodDecision = page.getByLabel("Why YOVA chose this approach");
-  await expect(methodDecision).toContainText(alternativeName);
-  await expect(methodDecision).toContainText("HOW YOVA CHANGED IT FOR YOU");
-  await expect(methodDecision).toContainText(new RegExp(`You chose ${escapeRegExp(alternativeName)}`, "i"));
+});
+
+test("Study Now discloses omitted scope before starting and lets the learner change time", async ({ page }) => {
+  let sessionRequests = 0;
+  await page.route("**/api/sessions/generate", async route => { sessionRequests += 1; await route.abort(); });
+  await page.route("**/api/plans/generate", async route => {
+    const response = await route.fetch();
+    const body = await response.json();
+    const topic = body.plan.knowledgeMap.topics[0];
+    body.plan.knowledgeMap.topics.push({ ...topic, id: crypto.randomUUID(), title: "Differentiate x squared times sin x", sourceReferences: [], prerequisiteTopicIds: [], status: "not_started", initialEvidence: null, deferred: { reason: "Needs another practice block beyond today's ten minutes." } });
+    await route.fulfill({ response, json: body });
+  });
+  await createPreviewAccount(page);
+  await completeOnboarding(page);
+  await page.getByRole("button", { name: "Study something now", exact: true }).first().click();
+  await page.getByLabel("Study Now topic or result").fill("Explain the product rule, then practise differentiating x squared times sin x.");
+  await page.getByRole("button", { name: "10 minutes", exact: true }).click();
+  await page.getByRole("button", { name: "I haven't learned this yet" }).click();
+  await page.getByRole("button", { name: /Choose how YOVA should help/ }).click();
+  await page.getByRole("button", { name: /Create it for me/ }).click();
+  await page.getByRole("button", { name: /Build and start session/ }).click();
+  await expect(page.getByLabel("Session scope")).toContainText("What fits today");
+  await expect(page.getByLabel("Session scope")).toContainText("Saved for later");
+  await expect(page.getByLabel("Session scope")).toContainText("Differentiate x squared times sin x");
+  expect(sessionRequests).toBe(0);
+  await page.getByRole("button", { name: "Change available time" }).click();
+  await expect(page.getByLabel("Study Now topic or result")).toContainText("product rule");
+  await page.getByRole("button", { name: "25 minutes", exact: true }).click();
 });
 
 test("durable allowance exhaustion loads the committed method workpad and names the reset", async ({ page }) => {
@@ -134,12 +161,7 @@ test("durable allowance exhaustion without a safe fallback has its own non-retry
   await page.getByRole("button", { name: /Choose how YOVA should help/ }).click();
   await page.getByRole("button", { name: /Create it for me/ }).click();
   await page.getByRole("button", { name: /Build and start session/ }).click();
-  await page.getByRole("button", { name: "Continue" }).click();
-  await page.getByRole("button", { name: "Continue" }).click();
-  await page.getByLabel("Anything YOVA should account for?").fill(
-    "Use my instructor's private rubric for every comparison.",
-  );
-  await page.getByRole("button", { name: "Prepare this session" }).click();
+
 
   const quotaState = page.locator(".session-quota-state");
   await expect(quotaState).toContainText("GUIDED SESSION ALLOWANCE USED");
@@ -216,15 +238,7 @@ test("a confident misconception is repaired now without a duplicate follow-up", 
   await page.getByRole("button", { name: /Choose how YOVA should help/ }).click();
   await page.getByRole("button", { name: /Create it for me/ }).click();
   await page.getByRole("button", { name: /Build and start session/ }).click();
-  await expect(page.getByRole("heading", { name: "Here is how YOVA plans to start." })).toBeVisible({ timeout: 15_000 });
-  const setupDecision = page.getByLabel("Why YOVA chose this approach");
-  await expect(setupDecision).toContainText("Concept Mapping");
-  await expect(setupDecision).toContainText(
-    /stable evidence-constrained baseline for conceptual learning at the novice stage in Practice mode/i,
-  );
-  await page.getByRole("button", { name: "Continue" }).click();
-  await page.getByRole("button", { name: "Continue" }).click();
-  await page.getByRole("button", { name: "Prepare this session" }).click();
+
 
   await expect(page.getByRole("heading", { name: "Closed-note retrieval" })).toBeVisible();
   await openMobileSessionGuide(page);
@@ -401,6 +415,7 @@ test("a support request keeps the committed practice recipe when fallback genera
   await page.getByRole("button", { name: /Choose how YOVA should help/ }).click();
   await page.getByRole("button", { name: /Create it for me/ }).click();
   await page.getByRole("button", { name: /Build and start session/ }).click();
+  await openExistingStudyNowSetup(page);
   await expect(page.getByRole("heading", { name: "Here is how YOVA plans to start." })).toBeVisible();
   await page.getByRole("button", { name: "Continue" }).click();
   await page.getByRole("button", { name: "I need more support first" }).click();
@@ -416,7 +431,7 @@ test("a support request keeps the committed practice recipe when fallback genera
   await expect(methodWorkpad.getByLabel("How to study this")).toContainText("Practice Problems");
   await expect(methodWorkpad.getByLabel("How to study this")).toContainText("Practice first");
   await expect(methodWorkpad).toContainText("This completes practice, not a knowledge check.");
-  await expect(page.getByRole("heading", { name: "See the product rule before using it" })).not.toBeVisible();
+  await expect(page.getByRole("heading", { name: "The product rule before using it" })).not.toBeVisible();
   await expect(page.getByText(/safe built-in session was loaded instead/i)).not.toBeVisible();
 });
 
@@ -439,9 +454,6 @@ test("an inactive-plan generation response cannot open a stale built-in lesson",
   await page.getByRole("button", { name: /Choose how YOVA should help/ }).click();
   await page.getByRole("button", { name: /Create it for me/ }).click();
   await page.getByRole("button", { name: /Build and start session/ }).click();
-  await page.getByRole("button", { name: "Continue" }).click();
-  await page.getByRole("button", { name: "Continue" }).click();
-  await page.getByRole("button", { name: "Prepare this session" }).click();
 
   await expect(page.getByRole("heading", { name: "YOVA could not prepare a guided lesson for this session setup." })).toBeVisible();
   await expect(page.getByText("That learning plan is no longer active.")).toBeVisible();
@@ -507,6 +519,7 @@ test("a built-in fallback never ignores a learner's custom session requirement",
   await page.getByRole("button", { name: /Choose how YOVA should help/ }).click();
   await page.getByRole("button", { name: /Create it for me/ }).click();
   await page.getByRole("button", { name: /Build and start session/ }).click();
+  await openExistingStudyNowSetup(page);
   await page.getByRole("button", { name: "Continue" }).click();
   await page.getByRole("button", { name: "Continue" }).click();
   await expect(page.getByText("Time in this recipe", { exact: true })).toBeVisible();
@@ -518,10 +531,12 @@ test("a built-in fallback never ignores a learner's custom session requirement",
   await expect(page.getByText(/subject-specific offline lesson is not available for this session configuration/i)).toBeVisible();
   await expect(page.getByText(/safe built-in session was loaded instead/i)).not.toBeVisible();
 
+  const initialRequestCount = generationBodies.length;
+  const requestedAdjustment = generationBodies.at(-1)?.sessionAdjustment;
   await page.getByRole("button", { name: "Try preparing the guided lesson again" }).click();
-  await expect.poll(() => generationBodies.length).toBe(2);
-  expect(generationBodies[1]?.sessionAdjustment).toEqual(generationBodies[0]?.sessionAdjustment);
-  expect(generationBodies[1]?.sessionAdjustment).toMatchObject({
+  await expect.poll(() => generationBodies.length).toBe(initialRequestCount + 1);
+  expect(generationBodies.at(-1)?.sessionAdjustment).toEqual(requestedAdjustment);
+  expect(generationBodies.at(-1)?.sessionAdjustment).toMatchObject({
     familiarity: "as_planned",
     availableMinutes: null,
     note: "This session must also cover the quotient rule.",
@@ -579,7 +594,7 @@ test("a new topic is taught before YOVA asks for independent performance", async
   await expect(interactiveVisual).toContainText("2 of 3");
   await page.getByRole("button", { name: "Continue" }).click();
 
-  await expect(page.getByRole("heading", { name: "Trace one financial choice" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "One financial choice" })).toBeVisible();
   await expect(page.getByText(/If \$100 earns 10%/).first()).toBeVisible();
   await expect(page.getByRole("group", { name: /One quick confidence check/ })).not.toBeVisible();
   await page.getByRole("button", { name: "Next: Explore the model" }).click();
@@ -643,7 +658,7 @@ test("a World War I beginner receives real teaching and a direct model answer", 
   await page.getByRole("button", { name: /Build and start session/ }).click();
   await confirmSessionSetup(page);
 
-  await expect(page.getByRole("heading", { name: "Build the World War I cause map" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /^Trace the sequence from the Sarajevo assassination/ })).toBeVisible();
   await expect(page.getByText(/On June 28, 1914/)).toBeVisible();
   await page.getByRole("button", { name: "Next: Core idea" }).click();
   await expect(page.getByText(/Militarism increased armies/)).toBeVisible();
@@ -692,7 +707,7 @@ test("an opaque class label is stopped until the learner names the actual calcul
   await page.getByRole("button", { name: /Build and start session/ }).click();
   await confirmSessionSetup(page);
 
-  await expect(page.getByRole("heading", { name: "See the product rule before using it" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "The product rule before using it" })).toBeVisible();
   await expect(page.getByText(/teaching first/i).filter({ visible: true }).first()).toBeVisible();
   const renderedFormula = page.locator(".teaching-core .katex").first();
   await expect(renderedFormula).toBeVisible();
@@ -765,7 +780,7 @@ test("a temporary AI failure loads a subject-specific startup funding lesson", a
   await page.getByRole("button", { name: /Build and start session/ }).click();
   await confirmSessionSetup(page);
 
-  await expect(page.getByRole("heading", { name: "Build the startup funding map" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "The startup funding map" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Follow one founder from an idea to an early company." })).toBeVisible();
   await page.getByRole("button", { name: /Core idea/ }).click();
   await expect(page.getByText(/bootstrapping uses founder money or company revenue/i)).toBeVisible();
@@ -786,7 +801,7 @@ test("home lets the learner browse prioritized recommendations without opening e
   await exitSessionWithoutProgress(page);
 
   await createOneOffLearningSession(page, "Teach me startup funding stages, instruments, investors, and dilution from the beginning.");
-  await expect(page.getByRole("heading", { name: "Build the startup funding map" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "The startup funding map" })).toBeVisible();
   await exitSessionWithoutProgress(page);
 
   const recommendation = recommendedLearningPlan(page);
@@ -926,6 +941,7 @@ test("a fallback method workpad resumes its timer and checked targets after relo
   await page.getByRole("button", { name: /Choose how YOVA should help/ }).click();
   await page.getByRole("button", { name: /Guide me outside YOVA/ }).click();
   await page.getByRole("button", { name: /Build and start session/ }).click();
+  await openExistingStudyNowSetup(page);
   await expect(page.getByRole("heading", { name: "Here is how YOVA plans to start." })).toBeVisible();
   await page.getByRole("button", { name: "Not now", exact: true }).dispatchEvent("click");
   await expect(recommendedLearningPlan(page)).toBeVisible();
@@ -1091,6 +1107,7 @@ test("an overdue outside teaching-first session splits into runnable 10-minute p
   await page.getByRole("button", { name: /Choose how YOVA should help/ }).click();
   await page.getByRole("button", { name: /Guide me outside YOVA/ }).click();
   await page.getByRole("button", { name: /Build and start session/ }).click();
+  await openExistingStudyNowSetup(page);
 
   const setupSummary = page.locator(".session-current-assumption");
   await expect(page.getByRole("heading", { name: "Here is how YOVA plans to start." })).toBeVisible();
@@ -1196,6 +1213,7 @@ test("an overdue arbitrary inside session splits and loads a route-faithful 10-m
   await page.getByRole("button", { name: /Choose how YOVA should help/ }).click();
   await page.getByRole("button", { name: /Create it for me/ }).click();
   await page.getByRole("button", { name: /Build and start session/ }).click();
+  await openExistingStudyNowSetup(page);
 
   const setupSummary = page.locator(".session-current-assumption");
   await expect(page.getByRole("heading", { name: "Here is how YOVA plans to start." })).toBeVisible();
@@ -1396,7 +1414,7 @@ test("a learner can stop twice without losing progress or earlier evidence", asy
 
   await expectSavedSessionRecommendation(page, 1);
   await page.getByRole("button", { name: "Continue session" }).click();
-  await expect(page.getByRole("heading", { name: "Trace one financial choice" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "One financial choice" })).toBeVisible();
   await page.getByRole("button", { name: "Next: Explore the model" }).click();
   await page.getByRole("button", { name: "Continue" }).click();
   await page.getByRole("button", { name: "The earlier gain remains in the base" }).click();
@@ -1724,6 +1742,7 @@ test("a saved first-step recall round resumes at the next prompt without persist
   await page.getByRole("button", { name: /Choose how YOVA should help/ }).click();
   await page.getByRole("button", { name: /Create it for me/ }).click();
   await page.getByRole("button", { name: /Build and start session/ }).click();
+  await openExistingStudyNowSetup(page);
   await expect(page.getByRole("heading", { name: "Here is how YOVA plans to start." })).toBeVisible({
     timeout: 15_000,
   });
@@ -1763,6 +1782,7 @@ test("a saved first-step recall round resumes at the next prompt without persist
     window.localStorage.setItem("yova.preview.v1", JSON.stringify(snapshot));
   }, studyPlan);
   await page.reload();
+  const generationRequestsBeforeRecall = generationRequests;
   await page.getByRole("button", { name: "Start session" }).click();
   await confirmSessionSetup(page);
   await expect(page.getByText("Close your osmosis notes before answering.", { exact: true })).toBeVisible();
@@ -1873,7 +1893,7 @@ test("a saved first-step recall round resumes at the next prompt without persist
   await expect(page.getByText("What determines the net direction of water movement?", { exact: true })).toBeVisible();
   await expect(page.getByPlaceholder("Write what you can recall. An incomplete answer is still useful."))
     .toHaveValue("");
-  expect(generationRequests).toBe(1);
+  expect(generationRequests).toBe(generationRequestsBeforeRecall + 1);
 
   await page.getByPlaceholder("Write what you can recall. An incomplete answer is still useful.").fill(
     "Water moves toward the side with lower water potential.",
@@ -1967,6 +1987,7 @@ test("learner text fields keep long pastes visible and block submission until tr
   await page.getByRole("button", { name: /Choose how YOVA should help/ }).click();
   await page.getByRole("button", { name: /Create it for me/ }).click();
   await page.getByRole("button", { name: /Build and start session/ }).click();
+  await openExistingStudyNowSetup(page);
   await page.getByRole("button", { name: "Continue" }).click();
   await page.getByRole("button", { name: "Continue" }).click();
 
@@ -2205,6 +2226,7 @@ test("spent guided-session allowance is visible before Home or Calendar opens se
   await page.getByRole("button", { name: /Choose how YOVA should help/ }).click();
   await page.getByRole("button", { name: /Create it for me/ }).click();
   await page.getByRole("button", { name: /Build and start session/ }).click();
+  await openExistingStudyNowSetup(page);
   await page.getByRole("button", { name: "Not now", exact: true }).click();
 
   allowanceExhausted = true;
@@ -3817,7 +3839,32 @@ async function openMobileSessionGuide(page: Page) {
   if (await mobileGuide.isVisible()) await mobileGuide.locator(":scope > summary").click();
 }
 
+async function openExistingStudyNowSetup(page: Page) {
+  if (await page.locator(".session-setup-shell").isVisible()) return;
+  await expect.poll(() => page.evaluate(() => {
+    const raw = localStorage.getItem("yova.preview.v1");
+    return raw ? JSON.parse(raw).plans?.length ?? 0 : 0;
+  })).toBeGreaterThan(0);
+  // These tests cover a returning learner changing setup. Seed an unstarted
+  // saved goal, rather than expecting Study Now to repeat three setup screens.
+  await page.reload();
+  await page.evaluate(() => {
+    const raw = localStorage.getItem("yova.preview.v1");
+    if (!raw) throw new Error("Expected the newly created goal.");
+    const snapshot = JSON.parse(raw);
+    const plan = snapshot.plans.at(-1);
+    for (const session of plan.sessions) delete session.resource;
+    snapshot.updatedAt = new Date().toISOString();
+    localStorage.setItem("yova.preview.v1", JSON.stringify(snapshot));
+    localStorage.removeItem("yova.active-session-checkpoints.v1");
+  });
+  await page.reload();
+  await page.getByRole("button", { name: "Start session", exact: true }).click();
+  await expect(page.locator(".session-setup-shell")).toBeVisible();
+}
+
 async function rebuildLatestStudyNowPlanForMinutes(page: Page, minutes: number) {
+  await openExistingStudyNowSetup(page);
   await expect(page.getByRole("heading", { name: "Here is how YOVA plans to start." })).toBeVisible();
   await page.getByRole("button", { name: "Not now", exact: true }).click();
   await page.getByRole("button", { name: "Learning", exact: true }).click();
@@ -4027,6 +4074,10 @@ async function expectSavedSessionRecommendation(page: Page, completedSteps?: num
 }
 
 async function confirmSessionSetup(page: Page) {
+  const review = page.getByRole("button", { name: /Start this session/ });
+  await expect(page.locator(".session-setup-shell, .session-shell, .method-session-shell, .session-recovery-shell").or(review)).toBeVisible({ timeout: 30_000 });
+  if (await review.isVisible()) { await review.click(); return; }
+  if (!await page.locator(".session-setup-shell").isVisible()) return;
   await expect(page.getByRole("heading", { name: "Here is how YOVA plans to start." })).toBeVisible({
     timeout: 15_000,
   });
@@ -4055,7 +4106,9 @@ async function createOneOffLearningSession(
   await page.getByRole("button", { name: /Choose how YOVA should help/ }).click();
   await page.getByRole("button", { name: /Create it for me/ }).click();
   await page.getByRole("button", { name: /Build and start session/ }).click();
-  await confirmSessionSetup(page);
+  const ready = page.getByRole("button", { name: /Start this session/ });
+  await expect(ready.or(page.locator(".session-shell, .method-session-shell")).or(page.getByRole("button", { name: "Return to YOVA", exact: true }))).toBeVisible({ timeout: 30_000 });
+  if (await ready.isVisible()) await ready.click();
 }
 
 async function exitSessionWithoutProgress(page: Page) {

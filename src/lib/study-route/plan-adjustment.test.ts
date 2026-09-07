@@ -368,7 +368,7 @@ describe("route-aware plan adjustments", () => {
     }));
   });
 
-  it("accepts an explicit transaction-only origin for a newly included deferred target", () => {
+  it.each([false, true])("accepts an explicit transaction-only origin for a newly included deferred target (slicer metadata: %s)", (slicerMetadata) => {
     const plan = routedPlan();
     const deferred: LearningPlanSession = {
       ...ordinarySession(),
@@ -376,6 +376,7 @@ describe("route-aware plan adjustments", () => {
       topicIds: [IDS.missing],
       title: "Learn the newly included deferred target",
       status: "upcoming",
+      ...(slicerMetadata ? { originSessionId: IDS.split, originalContentMinutes: 25, segmentIndex: 1, segmentCount: 1 } : {}),
     };
 
     const [result] = preparePlanAdjustmentStudyRoutes({

@@ -1101,17 +1101,15 @@ describe("concept-mapping full generation", () => {
 
       expect(parseResponse).toHaveBeenCalledTimes(2);
       expect(parseResponse.mock.calls[1]?.[0]?.instructions).toMatch(
-        invalidKind === "missing"
-          ? /dedicated relationship-building runtime/i
-          : /uses concept_map/i,
+        /activities\[1\].*Invalid input/i,
       );
       expect(result.generationStats).toMatchObject({
         attempts: 2,
         firstAttemptPassed: false,
-        failedValidator: "session_method_runtime",
+        failedValidator: "session_structure",
         repairAttempted: true,
         repairSucceeded: true,
-        repairReason: "semantic_validation",
+        repairReason: "structured_output",
       });
     },
   );

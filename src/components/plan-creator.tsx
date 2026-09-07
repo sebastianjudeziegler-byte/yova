@@ -61,6 +61,7 @@ import {
 import type { CoreMethodId } from "@/lib/learning/method-catalog";
 import type { CanonicalLearnerProfile } from "@/lib/personalization/canonical-profile-schema";
 import type { AddIntakeSeed } from "@/lib/intake/schema";
+import { scheduleFromIntake } from "@/lib/scheduling/intake-availability";
 import { assessGoalContext } from "@/lib/learning/goal-context";
 import { topicDisplayLabel } from "@/lib/learning/topic-display-label";
 import {
@@ -127,6 +128,7 @@ export function PlanCreator({
   const browserTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
   const [step, setStep] = useState<PlanStep>(seed ? initialSeedStep : "goal");
   const [goal, setGoal] = useState(seed ? seedGoal(seed) : "");
+  const [scheduledGoal, setScheduledGoal] = useState(seed ? seedGoal(seed) : "");
   const [sourceChoice, setSourceChoice] = useState<SourceChoice | null>(seed ? seedSourceChoice(seed) : null);
   const [materials, setMaterials] = useState<LearningMaterial[]>(seed?.materials ?? []);
   const [materialError, setMaterialError] = useState<string | null>(null);
@@ -135,7 +137,7 @@ export function PlanCreator({
   const [linkMaterialWorking, setLinkMaterialWorking] = useState(false);
   const [removingMaterialId, setRemovingMaterialId] = useState<string | null>(null);
   const [abandoningMaterials, setAbandoningMaterials] = useState(false);
-  const [scheduleState, dispatchSchedule] = useReducer(planCreatorScheduleReducer, null, () => ({
+  const [scheduleState, dispatchSchedule] = useReducer(planCreatorScheduleReducer, null, () => scheduleFromIntake({
     deadlineDate: seed?.dueAt
       ? futureDeadlineDateInputFromIso(seed.dueAt, browserTimeZone)
       : "",
@@ -151,7 +153,7 @@ export function PlanCreator({
       scheduleRecommendation.window,
     ),
     recommendedWindow: scheduleRecommendation.window,
-  }));
+  }, seed?.description ?? "", seed?.requestedMinutes));
   const {
     deadlineDate,
     studyFrequency,
@@ -560,6 +562,10 @@ export function PlanCreator({
   };
 
   const continueToSchedule = () => {
+    if (goal !== scheduledGoal) {
+      dispatchSchedule({ type: "apply_intake", description: goal });
+      setScheduledGoal(goal);
+    }
     if (!deadlineDate) {
       const inferredDeadline = deadlineDateFromGoal(goal, new Date(), browserTimeZone);
       if (inferredDeadline) {
@@ -766,7 +772,7 @@ export function PlanCreator({
               <div><span className="step-label">YOUR AVAILABILITY</span><h2>{availability.length} study {availability.length === 1 ? "window" : "windows"} selected</h2><p>YOVA treats these as limits, not mandatory appointments. The plan will use only the time the material actually needs.</p></div>
               <label className="custom-deadline"><span>Target date</span><input aria-label="Custom target date" type="date" min={todayDateInput()} value={deadlineDate} onChange={(event) => dispatchSchedule({ type: "set_deadline", deadlineDate: event.target.value })} /></label>
             </header>
-            <div className="availability-list editable">{availabilityChoices.map((choice, index) => <div className={choice.enabled ? "enabled" : ""} key={`${choice.day}-${choice.dateLabel}`}><button className="availability-toggle" type="button" aria-label={`${choice.enabled ? "Remove" : "Add"} ${choice.day}`} aria-pressed={choice.enabled} onClick={() => dispatchSchedule({ type: "toggle_day", index })}>{choice.enabled && <Check size={14} />}</button><div><strong>{choice.day}</strong><small>{choice.dateLabel}</small></div><select aria-label={`${choice.day} time window`} value={choice.window} disabled={!choice.enabled} onChange={(event) => dispatchSchedule({ type: "set_day_window", index, window: event.target.value as AvailabilityChoice["window"] })}><option>Morning</option><option>Afternoon</option><option>Evening</option></select><select aria-label={`${choice.day} available minutes`} value={choice.minutes} disabled={!choice.enabled} onChange={(event) => dispatchSchedule({ type: "set_day_minutes", index, minutes: Number(event.target.value) })}><option value={15}>15 min</option><option value={25}>25 min</option><option value={30}>30 min</option><option value={45}>45 min</option><option value={60}>60 min</option></select></div>)}</div>
+            <div className="availability-list editable">{availabilityChoices.map((choice, index) => <div className={choice.enabled ? "enabled" : ""} key={`${choice.day}-${choice.dateLabel}`}><button className="availability-toggle" type="button" aria-label={`${choice.enabled ? "Remove" : "Add"} ${choice.day}`} aria-pressed={choice.enabled} onClick={() => dispatchSchedule({ type: "toggle_day", index })}>{choice.enabled && <Check size={14} />}</button><div><strong>{choice.day}</strong><small>{choice.dateLabel}</small></div><select aria-label={`${choice.day} time window`} value={choice.window} disabled={!choice.enabled} onChange={(event) => dispatchSchedule({ type: "set_day_window", index, window: event.target.value as AvailabilityChoice["window"] })}><option>Morning</option><option>Afternoon</option><option>Evening</option></select><select aria-label={`${choice.day} available minutes`} value={choice.minutes} disabled={!choice.enabled} onChange={(event) => dispatchSchedule({ type: "set_day_minutes", index, minutes: Number(event.target.value) })}>{![15, 25, 30, 45, 60].includes(choice.minutes) && <option value={choice.minutes}>{choice.minutes} min</option>}<option value={15}>15 min</option><option value={25}>25 min</option><option value={30}>30 min</option><option value={45}>45 min</option><option value={60}>60 min</option></select></div>)}</div>
           </section>
           <PlanActions onBack={() => dispatchSchedule({ type: "set_custom_open", open: false })} backLabel="Quick choices" onNext={continueFromSchedule} nextLabel={workProductCopy ? "Review plan inputs" : "Continue to placement check"} nextDisabled={availability.length === 0} />
         </PlanPanel>

@@ -8,6 +8,7 @@ import {
 import {
   MethodRuntimeProviderOutputSchema,
   MethodRuntimeSchema,
+  ConceptMapRuntimeOutputSchema,
   type MethodRuntime,
 } from "@/lib/session-generation/method-runtime";
 import {
@@ -494,16 +495,48 @@ export function generatedSessionDraftProviderOutputSchemaForBudget({
 }: {
   maximumContentTargets: number;
   maximumCompletionChecks: number;
-}) {
+}, methodId?: (typeof CORE_METHOD_IDS)[number]) {
   const boundedContentTargets = Math.max(1, Math.min(4, Math.floor(maximumContentTargets)));
   const boundedCompletionChecks = Math.max(1, Math.min(3, Math.floor(maximumCompletionChecks)));
-  return GeneratedSessionDraftProviderOutputSchema.extend({
+  const schema = GeneratedSessionDraftProviderOutputSchema.extend({
     coverage: SessionCoverageSchema.extend({
       essentialIdeas: SessionCoverageSchema.shape.essentialIdeas.max(boundedContentTargets),
       completionEvidence: SessionCoverageSchema.shape.completionEvidence.max(boundedCompletionChecks),
       evidenceMap: SessionCoverageSchema.shape.evidenceMap.max(boundedContentTargets),
     }),
   });
+  if (methodId === "concept_mapping") {
+    const mapRuntime = ConceptMapRuntimeOutputSchema.extend({
+      connections: ConceptMapRuntimeOutputSchema.shape.connections.element.extend({
+        expectedRelationship: z.string().trim().min(3).max(120),
+      }).array().min(2).max(4),
+    });
+    return schema.extend({
+      // Every required phase has an executable interaction. The model fills
+      // facts and prompts; normal method validation still enforces the sequence.
+      activities: z.array(z.union([
+        ProviderFreeResponseActivitySchema.extend({
+          methodPhase: z.literal("retrieve"), methodRuntime: z.null(),
+        }),
+        ProviderMultipleChoiceActivitySchema.extend({
+          methodPhase: z.literal("retrieve"), methodRuntime: z.null(),
+        }),
+        ProviderFreeResponseActivitySchema.extend({
+          methodPhase: z.literal("connect"), methodRuntime: mapRuntime,
+        }),
+        ProviderMultipleChoiceActivitySchema.extend({
+          methodPhase: z.literal("evidence_match"), methodRuntime: z.null(),
+        }),
+        ProviderFreeResponseActivitySchema.extend({
+          methodPhase: z.literal("repair"), methodRuntime: z.null(),
+        }),
+        ProviderInstructionActivitySchema.extend({
+          methodPhase: z.literal("repair"), methodRuntime: z.null(),
+        }),
+      ])).length(4),
+    });
+  }
+  return schema;
 }
 
 export type GeneratedSessionDraftProviderOutput = z.infer<typeof GeneratedSessionDraftProviderOutputSchema>;
@@ -519,7 +552,18 @@ export function materializeGeneratedSessionProviderOutput(
   return {
     ...provider,
     activities: provider.activities.map((activity) => {
-      if (activity.type !== "multiple_choice") return activity;
+      if (activity.type !== "multiple_choice") {
+        if (activity.type === "free_response" && activity.methodRuntime?.kind === "concept_map") {
+          // The map's factual relationships are the answer key. Deriving the
+          // displayed reference from those exact facts prevents a second,
+          // independently generated paraphrase from contradicting the map.
+          return {
+            ...activity,
+            correctAnswer: activity.methodRuntime.connections.map((connection) => connection.expectedRelationship).join(" "),
+          };
+        }
+        return activity;
+      }
       const { correctChoiceIndex, ...canonical } = activity;
       return {
         ...canonical,

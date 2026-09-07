@@ -1,3 +1,4 @@
+import { scheduleFromIntake } from "./intake-availability";
 import {
   frequencyIndexes,
   type StudyFrequency,
@@ -17,13 +18,14 @@ export type PlanCreatorScheduleState = {
   deadlineDate: string;
   studyFrequency: StudyFrequency;
   preferredWindows: StudyWindow[];
-  sessionLength: StudySessionLength;
+  sessionLength: number;
   customScheduleOpen: boolean;
   availabilityChoices: AvailabilityChoice[];
   recommendedWindow: StudyWindow;
 };
 
 export type PlanCreatorScheduleAction =
+  | { type: "apply_intake"; description: string }
   | { type: "set_deadline"; deadlineDate: string }
   | { type: "choose_frequency"; frequency: StudyFrequency }
   | { type: "toggle_window"; window: StudyWindow }
@@ -42,6 +44,7 @@ export function planCreatorScheduleReducer(
   state: PlanCreatorScheduleState,
   action: PlanCreatorScheduleAction,
 ): PlanCreatorScheduleState {
+  if (action.type === "apply_intake") return scheduleFromIntake(state, action.description);
   if (action.type === "set_deadline") {
     return { ...state, deadlineDate: action.deadlineDate };
   }
@@ -101,7 +104,7 @@ export function configureAvailability(
   choices: AvailabilityChoice[],
   frequency: StudyFrequency,
   windows: StudyWindow[],
-  minutes: StudySessionLength,
+  minutes: number,
   recommendedWindow: StudyWindow,
 ) {
   const enabledIndexes = frequencyIndexes(frequency);
@@ -121,22 +124,24 @@ function rebuildQuickSchedule(
   next: {
     frequency: StudyFrequency;
     windows: StudyWindow[];
-    minutes: StudySessionLength;
+    minutes: number;
   },
 ): PlanCreatorScheduleState {
+  const choices = configureAvailability(
+    state.availabilityChoices, next.frequency, next.windows, next.minutes, state.recommendedWindow,
+  );
   return {
     ...state,
     studyFrequency: next.frequency,
     preferredWindows: next.windows,
     sessionLength: next.minutes,
     customScheduleOpen: false,
-    availabilityChoices: configureAvailability(
-      state.availabilityChoices,
-      next.frequency,
-      next.windows,
-      next.minutes,
-      state.recommendedWindow,
-    ),
+    availabilityChoices: choices.map((choice, index) => ({
+      ...choice,
+      // A time/length edit must not silently replace explicitly chosen days.
+      enabled: next.frequency === state.studyFrequency
+        ? state.availabilityChoices[index]!.enabled : choice.enabled,
+    })),
   };
 }
 

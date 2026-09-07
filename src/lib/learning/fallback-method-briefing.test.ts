@@ -232,7 +232,7 @@ describe("buildFallbackMethodBriefing", () => {
       completion: "Explain the relationship independently after the faded example.",
     });
     expect(briefing.personalization.join(" ")).toContain(
-      "keeps the committed Self-explanation with worked example fading route",
+      "continue with your chosen method: Self-explanation with worked example fading",
     );
   });
 

@@ -812,7 +812,7 @@ describe("plan generation route", () => {
           visibleMethodName: "Practice Problems",
         },
         explanation: {
-          shortReason: expect.stringContaining("stable evidence-constrained baseline"),
+          shortReason: expect.stringContaining("fits this task and your starting point"),
           learnerDeclarations: [],
         },
         provenance: {

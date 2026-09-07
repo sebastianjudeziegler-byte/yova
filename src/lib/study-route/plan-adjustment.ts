@@ -80,6 +80,17 @@ export function preparePlanAdjustmentStudyRoutes({
   return replacementSessions.map((replacementInput) => {
     const replacement = canonicalStudyRouteSessionScalars(replacementInput);
     const current = currentById.get(replacement.id);
+    // The content slicer annotates even an unsplit new topic with a self-origin.
+    // It has no persisted route yet. Keep its transaction-only route authority
+    // separate from durable split groups, so later rebuilds cannot merge it
+    // into the older topic that authorized the addition.
+    if (!current && newSessionOriginIds?.[replacement.id]
+      && replacement.originSessionId === replacement.id && replacement.segmentCount === 1) {
+      delete replacement.originSessionId;
+      delete replacement.originalContentMinutes;
+      delete replacement.segmentIndex;
+      delete replacement.segmentCount;
+    }
     if (current) {
       const previousRoute = routeBySessionId.get(current.id)!;
       assertSuppliedRouteIsCurrent(replacement, previousRoute);

@@ -487,7 +487,9 @@ function minimumMinutes(activity: PacingActivity) {
     return 3;
   }
   if (activity.type === "free_response") return 2;
-  if (activity.type === "multiple_choice") return 2;
+  // One bounded recognition choice can fit in a minute. Reserving two made
+  // the five-step self-explanation recipe impossible in a ten-minute window.
+  if (activity.type === "multiple_choice") return 1;
   return 1;
 }
 
