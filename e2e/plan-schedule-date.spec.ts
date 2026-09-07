@@ -18,6 +18,27 @@ const TEST_TIME_ZONE = "Europe/London";
 
 test.use({ timezoneId: TEST_TIME_ZONE });
 
+for (const minutes of [1, 3, 5, 9]) test(`explicit ${minutes}-minute availability remains a priority card`, async ({ page }) => {
+  const tomorrow = futureDate(1);
+  const weekday = new Intl.DateTimeFormat("en-US", {weekday:"long",timeZone:TEST_TIME_ZONE}).format(tomorrow.date);
+  await openPreviewApp(page);
+  await page.getByRole("button", {name:/New plan|Build my first plan|Create another plan/}).first().click();
+  await page.getByPlaceholder(/I have a biology test/).fill(`Teach me ATP and energy transfer for my biology test tomorrow. I can study ${weekday} evening for ${minutes} minutes.`);
+  await page.getByRole("button", {name:"Continue",exact:true}).click();
+  await page.getByRole("button", {name:/Create it for me/}).click();
+  await page.getByRole("button", {name:"Continue",exact:true}).click();
+  await expect(page.getByLabel(`${weekday} available minutes`)).toHaveValue(String(minutes));
+  await page.getByRole("button", {name:"Continue to placement check"}).click();
+  await page.getByRole("button", {name:"Skip for now"}).click();
+  const response = page.waitForResponse(response => new URL(response.url()).pathname === "/api/plans/generate" && !new URL(response.url()).search);
+  await page.getByRole("button", {name:"Generate my plan"}).click();
+  const result = await (await response).json();
+  expect(result).toMatchObject({kind:"deadline_priority",priority:{minutes,progressCredit:false}});
+  await expect(page.getByRole("heading", {name:result.priority.title})).toBeVisible();
+  await expect(page.getByText("This card does not record a completed session or mark the topic as learned.", {exact:true})).toBeVisible();
+  await expect(page.getByRole("button", {name:"Use this plan"})).toHaveCount(0);
+});
+
 for (const {days, priorityMinutes} of [{days:1,priorityMinutes:0},{days:3,priorityMinutes:0},{days:1,priorityMinutes:3}]) test(`consolidated: ${priorityMinutes ? "a three-minute priority records no completion" : `a ${days}-day deadline survives placement, plan review and activation`}`, async ({ page }, testInfo) => {
   const titles = ["ATP and energy transfer", "Glycolysis", "Link reaction", "Krebs cycle", "Electron transport chain", "Chemiosmosis"];
   const knowledgeMap = {

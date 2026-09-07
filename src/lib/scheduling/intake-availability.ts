@@ -28,7 +28,7 @@ export function scheduleFromIntake(
   const window = windowMatch ? `${windowMatch[0]!.toUpperCase()}${windowMatch.slice(1).toLowerCase()}` as "Morning" | "Afternoon" | "Evening" : null;
   const minutesMatch = clause.match(/\b(\d{1,2})\s*(?:minutes?|mins?)\b/i)?.[1];
   const parsedMinutes = minutesMatch ? Number(minutesMatch) : requestedMinutes;
-  const minutes = parsedMinutes && parsedMinutes >= 10 && parsedMinutes <= 90 ? parsedMinutes : fallback.sessionLength;
+  const minutes = parsedMinutes && parsedMinutes >= 1 && parsedMinutes <= 90 ? parsedMinutes : fallback.sessionLength;
   if (!selectedDays.size && !window && minutes === fallback.sessionLength) return fallback;
   return {
     ...fallback,

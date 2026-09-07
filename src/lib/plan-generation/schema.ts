@@ -97,7 +97,7 @@ export const PlanGenerationRequestSchema = z.object({
   availability: z.array(z.object({
     day: z.string().trim().min(1).max(20),
     window: z.string().trim().min(1).max(40),
-    minutes: z.number().int().min(5).max(180),
+    minutes: z.number().int().min(1).max(180),
   })).min(1).max(14),
   profileSummary: z.string().trim().min(10).max(1_600),
   /**
