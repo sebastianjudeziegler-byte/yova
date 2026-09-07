@@ -1,4 +1,5 @@
 import type { LearningPlanSession, SessionCompletion } from "@/lib/domain";
+import { summarizeCompletionConcepts } from "@/lib/learning/session-evidence";
 import type { PostSessionDecision } from "@/lib/personalization/post-session-decision";
 import type { StudyRouteAgencyMode } from "@/lib/study-route/agency-mode-controller";
 import { StudyRouteSchema } from "@/lib/study-route/schema";
@@ -85,6 +86,11 @@ export function buildPostSessionPersonalizationReceipt({
     ));
   } else if (matchedRoute) {
     matchedRoute.explanation.uncertainties.slice(0, 2).forEach((uncertainty, index) => {
+      // This adapter statement describes the route before execution. A
+      // recorded check supersedes it; other method/retention limits remain.
+      if (completion.completionMode !== "unguided_practice"
+        && completion.totalAnswers > 0
+        && uncertainty === "This starting point uses the available topic information; it has not been confirmed by an attempt in this session.") return;
       notSureYet.push(entry(
         uncertainty,
         `route:${matchedRoute.identity.routeRevisionId}:uncertainty:${index}`,
@@ -134,7 +140,8 @@ function observedEvidenceEntries(completion: SessionCompletion) {
     ));
   }
 
-  const secureConcepts = uniqueConcepts(completion, "secure");
+  const concepts = summarizeCompletionConcepts(completion.conceptEvidence);
+  const secureConcepts = concepts.showingStrength.slice(0, 3);
   if (secureConcepts.length > 0) {
     entries.push(entry(
       `Showing strength in this session: ${secureConcepts.join(", ")}.`,
@@ -142,7 +149,7 @@ function observedEvidenceEntries(completion: SessionCompletion) {
     ));
   }
 
-  const reviewConcepts = uniqueConcepts(completion, "needs_review");
+  const reviewConcepts = concepts.needsAnotherCheck.slice(0, 3);
   if (reviewConcepts.length > 0) {
     entries.push(entry(
       `Needs another check: ${reviewConcepts.join(", ")}.`,
@@ -233,17 +240,6 @@ function decisionEntries(
       `completion:${completion.id}:decision:${decision.kind}:change:${index}`,
     )),
   ];
-}
-
-function uniqueConcepts(
-  completion: SessionCompletion,
-  outcome: SessionCompletion["conceptEvidence"][number]["outcome"],
-) {
-  return [...new Set(completion.conceptEvidence
-    .filter((evidence) => evidence.outcome === outcome)
-    .map((evidence) => evidence.concept.trim())
-    .filter(Boolean))]
-    .slice(0, 3);
 }
 
 function challengeLabel(feedback: SessionCompletion["feedback"]) {

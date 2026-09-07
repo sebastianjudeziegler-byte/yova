@@ -299,6 +299,10 @@ test("a confident misconception is repaired now without a duplicate follow-up", 
   await expect(page.getByText("Correct before in-session repair")).toBeVisible();
   await expect(page.getByText("Recorded, not graded")).toBeVisible();
   await expect(page.getByText("No gap remains after today’s required repairs.")).toBeVisible();
+  const receipt = page.getByRole("region", { name: "What this session can change" });
+  await expect(receipt).toContainText("Showing strength in this session: Cellular respiration sequence");
+  await expect(receipt).not.toContainText("Needs another check: Cellular respiration sequence");
+  await expect(receipt).not.toContainText("not been confirmed by an attempt in this session");
   await expect(page.getByText(/the successful repair means no duplicate follow-up is needed/i)).toBeVisible();
   await expect(page.getByText("Cellular respiration sequence", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("NO CHANGE NEEDED")).toBeVisible();
@@ -3985,8 +3989,11 @@ async function openExistingStudyNowSetup(page: Page) {
   })).toBeGreaterThan(0);
   // These tests cover a returning learner changing setup. Seed an unstarted
   // saved goal, rather than expecting Study Now to repeat three setup screens.
-  await page.reload();
-  await page.evaluate(() => {
+  // Seed before React reads storage. Mutating a hydrated app's snapshot can
+  // race its persistence effect and bring the prepared resource back.
+  await page.addInitScript(() => {
+    if (sessionStorage.getItem("yova.e2e.seed-unstarted") !== "1") return;
+    sessionStorage.removeItem("yova.e2e.seed-unstarted");
     const raw = localStorage.getItem("yova.preview.v1");
     if (!raw) throw new Error("Expected the newly created goal.");
     const snapshot = JSON.parse(raw);
@@ -3996,7 +4003,13 @@ async function openExistingStudyNowSetup(page: Page) {
     localStorage.setItem("yova.preview.v1", JSON.stringify(snapshot));
     localStorage.removeItem("yova.active-session-checkpoints.v1");
   });
+  await page.evaluate(() => sessionStorage.setItem("yova.e2e.seed-unstarted", "1"));
   await page.reload();
+  await expect(page.getByRole("button", { name: "Start session", exact: true })).toBeVisible();
+  expect(await page.evaluate(() => {
+    const snapshot = JSON.parse(localStorage.getItem("yova.preview.v1") ?? "{}");
+    return snapshot.plans.at(-1).sessions.some((session: { resource?: unknown }) => Boolean(session.resource));
+  })).toBe(false);
   await page.getByRole("button", { name: "Start session", exact: true }).click();
   await expect(page.locator(".session-setup-shell")).toBeVisible();
 }

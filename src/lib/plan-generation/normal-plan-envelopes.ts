@@ -49,6 +49,7 @@ import {
 
 export const NORMAL_PLAN_ENVELOPE_COMPOSER_VERSION =
   "normal_plan_envelope_composer_v1" as const;
+export const NORMAL_PLAN_SESSION_RESET_MINUTES = 5;
 
 export const NORMAL_PLAN_ENVELOPE_ERROR_CODES = [
   "invalid_request",
@@ -653,13 +654,15 @@ function placeSession({
   taskFamily: LearningTaskType;
 }): Placement | null {
   let slotIndex = cursor.slotIndex;
-  let usedMinutes = cursor.usedMinutes;
+  const notBefore = slots[slotIndex]
+    ? Date.parse(slots[slotIndex]!.startsAt) + cursor.usedMinutes * 60_000
+    : Number.POSITIVE_INFINITY;
   while (slotIndex < slots.length) {
     const slot = slots[slotIndex]!;
+    const usedMinutes = Math.max(0, Math.ceil((notBefore - Date.parse(slot.startsAt)) / 60_000));
     const remaining = slot.minutes - usedMinutes;
     if (remaining < 10) {
       slotIndex += 1;
-      usedMinutes = 0;
       continue;
     }
     const scheduledFor = new Date(
@@ -685,12 +688,13 @@ function placeSession({
     const duration = resolvedDuration;
     if (duration.status === "insufficient_time") {
       slotIndex += 1;
-      usedMinutes = 0;
       continue;
     }
     const activeMinutes = duration.timing.activeMinutes;
     return {
-      cursor: { slotIndex, usedMinutes: usedMinutes + activeMinutes },
+      // Separate sessions include a reset inside the learner's availability.
+      // Reserving it here makes deadline recovery account for the real time.
+      cursor: { slotIndex, usedMinutes: usedMinutes + activeMinutes + NORMAL_PLAN_SESSION_RESET_MINUTES },
       slot,
       scheduledFor,
       hardMaximumMinutes: remaining,

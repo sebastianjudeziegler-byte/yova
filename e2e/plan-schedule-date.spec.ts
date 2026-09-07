@@ -106,13 +106,25 @@ for (const {days, priorityMinutes} of [{days:1,priorityMinutes:0},{days:3,priori
   await expect(page.getByText(generated.plan.rationale,{exact:true})).toBeVisible();
   expect(generated.plan.sessions.length).toBeGreaterThan(0);
   expect(generated.plan.sessions.every((session:{scheduledFor:string;estimatedMinutes:number})=>Date.parse(session.scheduledFor)+session.estimatedMinutes*60_000<=Date.parse(generated.plan.deadline))).toBe(true);
+  const scheduled = [...generated.plan.sessions].sort((left, right) => left.scheduledFor.localeCompare(right.scheduledFor));
+  for (let index = 1; index < scheduled.length; index += 1) {
+    const previous = scheduled[index - 1]!;
+    const next = scheduled[index]!;
+    const breakMinutes = (Date.parse(next.scheduledFor) - Date.parse(previous.scheduledFor)) / 60_000 - previous.estimatedMinutes;
+    expect(breakMinutes, `${previous.title} ends before ${next.title} begins`).toBeGreaterThanOrEqual(5);
+  }
   if (days===1) await expect(page.locator(".generated-topic-map li.deferred").first()).toBeVisible();
   else {
     const checkedTopic = generated.plan.knowledgeMap.topics.find((topic:{id:string}) => topic.id === knowledgeMap.topics[0]!.id);
     expect(checkedTopic.initialEvidence).toMatchObject({source:"placement_check",outcome:"demonstrated"});
     const topicRow = page.locator(".generated-topic-map li").filter({hasText:titles[0]});
     await expect(topicRow).toContainText(checkedTopic.deferred ? "Previously checked · not scheduled" : "Quick verification");
-    if (checkedTopic.deferred) await expect(topicRow).toContainText("Your placement result is kept");
+    if (checkedTopic.deferred) {
+      await expect(topicRow).toContainText("Your placement result is kept");
+      const onlyCheckedDeferred = generated.plan.knowledgeMap.topics.filter((topic: {deferred: unknown}) => topic.deferred)
+        .every((topic: {initialEvidence?: {outcome: string}}) => topic.initialEvidence?.outcome === "demonstrated");
+      if (onlyCheckedDeferred) await expect(page.getByRole("region",{name:"Plan coverage"})).toContainText("Some follow-up checks are not scheduled");
+    }
   }
   await page.screenshot({path:`docs/audits/2026-09-07-plan-creation/consolidated/evidence/deadline-${days}-browser.png`,fullPage:true});
   await page.getByRole("button",{name:"Use this plan"}).click();
