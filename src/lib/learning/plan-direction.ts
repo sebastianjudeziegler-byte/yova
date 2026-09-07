@@ -66,7 +66,7 @@ const VERIFIED_FALLBACK_DIRECTIONS = new Set([
 
 export class UnverifiedPlanDirectionError extends Error {
   constructor() {
-    super("YOVA could not verify that content change. Your plan is unchanged. Try again, or choose one of the suggested adjustments.");
+    super("YOVA could not verify that content change. Your plan is unchanged. Choose one of the suggested adjustments. Free-text topic changes are not available in an active plan.");
     this.name = "UnverifiedPlanDirectionError";
   }
 }
