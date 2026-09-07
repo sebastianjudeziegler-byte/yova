@@ -41,6 +41,21 @@ const privateStudyProfileReportHeaders = [
   },
 ];
 
+const privateFounderHeaders = [
+  {
+    key: "Cache-Control",
+    value: "private, no-store, max-age=0",
+  },
+  {
+    key: "Referrer-Policy",
+    value: "no-referrer",
+  },
+  {
+    key: "X-Robots-Tag",
+    value: "noindex, nofollow, noarchive, nosnippet",
+  },
+];
+
 if (process.env.NODE_ENV === "production") {
   securityHeaders.push({
     key: "Strict-Transport-Security",
@@ -61,6 +76,14 @@ const nextConfig: NextConfig = {
       {
         source: "/:path*",
         headers: securityHeaders,
+      },
+      {
+        source: "/founder/:path*",
+        headers: privateFounderHeaders,
+      },
+      {
+        source: "/api/founder/:path*",
+        headers: privateFounderHeaders,
       },
       // The assessment replaces this document's URL with the private report
       // path after saving. Attach no-referrer to the original response so the
