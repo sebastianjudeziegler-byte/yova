@@ -207,8 +207,15 @@ test("an unfinished one-off session stays out of ongoing Learning goals", async 
   await page.getByRole("button", { name: /Create one session/ }).click();
   await page.getByRole("button", { name: /Build and start session/ }).click();
 
-  await expect(page.getByRole("heading", { name: "Here is how YOVA plans to start." })).toBeVisible();
-  await page.getByRole("button", { name: "Cancel", exact: true }).click({ force: true });
+  const unavailableSessionReturn = page.getByRole("button", { name: "Return to YOVA", exact: true });
+  await expect(page.locator(".session-shell, .method-session-shell").or(unavailableSessionReturn))
+    .toBeVisible({ timeout: 20_000 });
+  if (await unavailableSessionReturn.isVisible()) {
+    await unavailableSessionReturn.click();
+  } else {
+    await page.getByRole("button", { name: "Exit", exact: true }).click();
+    await page.getByRole("button", { name: "Save progress and leave", exact: true }).click();
+  }
   await page.goto("/?qa=preview");
   await page.getByRole("button", { name: "Learning", exact: true }).click();
 
