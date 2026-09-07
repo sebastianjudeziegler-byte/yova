@@ -1,6 +1,7 @@
 "use client";
 
 import { coreRecallKnowledgeForLesson, includeCoreRecallKnowledge } from "@/lib/session-generation/lesson-assessment-contract";
+import { SavedLessonReview, type SavedLessonReviewIdentity } from "@/components/saved-lesson-review";
 
 import { generatedSessionDefersAllStoredPlanTargets } from "@/lib/session-generation/deferred-cache-contract";
 import { deferredTopicSessionFields } from "@/lib/learning/deferred-topic-session";
@@ -5618,14 +5619,14 @@ function PlanResources({ plan }: { plan: LearningPlan }) {
     const resource = session.resource as SessionResource;
     const teachingCount = resource.activities.filter((activity) => activity.type === "instruction").length;
     const practiceCount = resource.activities.filter((activity) => activity.type === "multiple_choice" || activity.type === "free_response").length;
-    return <details className="resource-pack" key={session.id}><summary><div><span>{session.method}</span><strong>{session.title}</strong></div><small>{teachingCount ? `${teachingCount} teaching` : ""}{teachingCount && practiceCount ? " · " : ""}{practiceCount ? `${practiceCount} practice` : ""}</small></summary><div className="resource-pack-content"><p className="resource-rationale">{resource.rationale}</p>{resource.activities.filter((activity) => activity.type !== "reflection").map((activity, index) => <ResourceActivityCard activity={activity} key={`${activity.title}-${index}`} />)}</div></details>;
+    return <details className="resource-pack" key={session.id}><summary><div><span>{session.method}</span><strong>{session.title}</strong></div><small>{teachingCount ? `${teachingCount} teaching` : ""}{teachingCount && practiceCount ? " · " : ""}{practiceCount ? `${practiceCount} practice` : ""}</small></summary><div className="resource-pack-content"><p className="resource-rationale">{resource.rationale}</p>{resource.activities.flatMap((activity, index) => activity.type === "reflection" ? [] : [<ResourceActivityCard activity={activity} lessonReview={activity.lessonBrief ? { planId: plan.id, planSessionId: session.id, activityIndex: index, generatedAt: resource.generatedAt, routeRevisionId: resource.routeRevisionId } : undefined} key={`${resource.routeRevisionId}:${resource.generatedAt}:${index}`} />])}</div></details>;
   })}</div></section>;
 }
 
-function ResourceActivityCard({ activity }: { activity: SessionResourceActivity }) {
+function ResourceActivityCard({ activity, lessonReview }: { activity: SessionResourceActivity; lessonReview?: SavedLessonReviewIdentity }) {
   const isQuestion = activity.type === "multiple_choice" || activity.type === "free_response";
   const phase = activity.methodPhase ? getMethodPhasePresentation(activity.methodPhase) : null;
-  return <article className={isQuestion ? "resource-activity resource-practice" : "resource-activity resource-note"}><span className="resource-activity-label">{phase?.label ?? (isQuestion ? activity.type === "multiple_choice" ? "Knowledge check" : "Active recall" : activity.label)}</span><h4><LearningContent content={activity.title} inline /></h4>{activity.teaching ? <TeachingLessonCard teaching={activity.teaching} /> : <LearningContent content={activity.body} className="resource-activity-body" />}{phase && <small className="resource-phase-purpose">{phase.instruction}</small>}{activity.choices.length > 0 && <ol className="resource-choices">{activity.choices.map((choice) => <li key={choice}><LearningContent content={choice} inline /></li>)}</ol>}{isQuestion && activity.correctAnswer && <details className="resource-answer"><summary>Show answer</summary><LearningContent content={activity.correctAnswer} />{activity.feedback && <LearningContent content={activity.feedback} className="resource-answer-feedback" />}</details>}</article>;
+  return <article className={isQuestion ? "resource-activity resource-practice" : "resource-activity resource-note"}><span className="resource-activity-label">{phase?.label ?? (isQuestion ? activity.type === "multiple_choice" ? "Knowledge check" : "Active recall" : activity.label)}</span><h4><LearningContent content={activity.title} inline /></h4>{lessonReview ? <SavedLessonReview identity={lessonReview} /> : activity.teaching ? <TeachingLessonCard teaching={activity.teaching} /> : <LearningContent content={activity.body} className="resource-activity-body" />}{phase && <small className="resource-phase-purpose">{phase.instruction}</small>}{activity.choices.length > 0 && <ol className="resource-choices">{activity.choices.map((choice) => <li key={choice}><LearningContent content={choice} inline /></li>)}</ol>}{isQuestion && activity.correctAnswer && <details className="resource-answer"><summary>Show answer</summary><LearningContent content={activity.correctAnswer} />{activity.feedback && <LearningContent content={activity.feedback} className="resource-answer-feedback" />}</details>}</article>;
 }
 
 function ConceptSignalsPanel({ signals }: { signals: ConceptSignal[] }) {
@@ -7637,6 +7638,7 @@ export function StreamedLessonReader({ state, activityTitle = "Your lesson model
       <Check size={17} />
       <div><strong>Safe built-in lesson</strong><p>The live generated lesson was unavailable or did not pass its checks, so YOVA replaced it with this fallback.</p></div>
     </div>}
+    {state.status === "complete" && state.persisted === false && <p role="alert">This explanation could not be saved for later. Keep this session open if you need to refer to it.</p>}
     {visibleContent && <LearningContent content={visibleContent} className="streamed-lesson-copy" />}
     {state.status === "streaming" && <span className="streamed-lesson-cursor" aria-label="Lesson is still being written" />}
   </article>;

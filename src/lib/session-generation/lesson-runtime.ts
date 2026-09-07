@@ -5,6 +5,7 @@ export type LessonRuntimeState = {
   content: string;
   error: string | null;
   deliveryMode: "generated" | "bounded_fallback" | null;
+  persisted?: boolean;
   model: string | null;
   requestId: string | null;
   elapsedMs: number | null;
@@ -64,6 +65,7 @@ export function applyLessonStreamEvent(
         status: "complete",
         error: null,
         deliveryMode: event.deliveryMode,
+        persisted: event.persisted,
         model: event.model,
         elapsedMs: event.elapsedMs,
         latencyToFirstTokenMs: event.latencyToFirstTokenMs,

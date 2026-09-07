@@ -1448,6 +1448,17 @@ test("a learner can stop twice without losing progress or earlier evidence", asy
 test("a lesson and its reopened model teach every fact required by the glycolysis recall check", async ({ page }) => {
   const idea = "Glycolysis splits glucose into two pyruvate molecules and yields a net 2 ATP.";
   const reference = "Glycolysis produces two pyruvate molecules, two NADH, and a net gain of 2 ATP per glucose.";
+  let savedReviewRequests = 0;
+  await page.route("**/api/sessions/lesson?**", async route => {
+    const query = new URL(route.request().url()).searchParams;
+    expect(query.get("activityIndex")).toBe("0");
+    expect(query.get("generatedAt")).toBeTruthy();
+    expect(query.get("routeRevisionId")).toBeTruthy();
+    savedReviewRequests += 1;
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({
+      saved: true, content: `# Glycolysis\n\n${idea}\n\n${reference}`,
+    }) });
+  });
   await page.route("**/api/sessions/generate", async (route) => {
     const response = streamedResumeSessionResponse(requestedRouteRevisionId(route));
     response.session.coverage.essentialIdeas = [idea];
@@ -1491,6 +1502,16 @@ test("a lesson and its reopened model teach every fact required by the glycolysi
   await page.getByRole("button", { name: "Answer the question" }).click();
   await page.getByRole("button", { name: "Review the lesson" }).click();
   await expect(page.getByRole("dialog", { name: /Review the lesson, then return to the same question/i })).toContainText(reference);
+  await page.getByRole("button", { name: "Back to the question", exact: true }).first().click();
+  await leaveSession(page, "1 of 5 required steps finished");
+  await page.reload();
+  await page.getByRole("button", { name: "Learning", exact: true }).click();
+  await page.locator(".tabs").getByRole("button", { name: /^Recent/ }).click();
+  await page.getByRole("button", { name: "Open goal", exact: true }).first().click();
+  await page.locator(".resource-pack summary").first().click();
+  await page.getByRole("button", { name: "Read this explanation", exact: true }).first().click();
+  await expect(page.locator(".saved-lesson-review")).toContainText(reference);
+  expect(savedReviewRequests).toBe(1);
 });
 
 test("a resumed streamed question can reopen its prior lesson by persisted activity index", async ({ page }) => {

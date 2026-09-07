@@ -7,6 +7,16 @@ import { createLessonRuntimeState } from "@/lib/session-generation/lesson-runtim
 vi.mock("@/components/brand-mark", () => ({ BrandMark: () => null }));
 
 describe("streamed lesson provenance", () => {
+  it("keeps delivered teaching visible and warns if it could not be saved", () => {
+    const html = renderToStaticMarkup(createElement(StreamedLessonReader, { state: {
+      ...createLessonRuntimeState(), status: "complete", content: "Two NADH carry electrons from glycolysis.",
+      deliveryMode: "generated", persisted: false,
+    } }));
+    expect(html).toContain("Two NADH carry electrons from glycolysis.");
+    expect(html).toContain("This explanation could not be saved for later.");
+    expect(html).toContain('role="alert"');
+  });
+
   it("labels a bounded fallback as built-in rather than generated content", () => {
     const html = renderToStaticMarkup(createElement(StreamedLessonReader, {
       state: {

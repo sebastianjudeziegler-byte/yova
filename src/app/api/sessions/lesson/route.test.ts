@@ -8,6 +8,11 @@ const mocks = vi.hoisted(() => ({
   supabaseConfigured: false,
   cachedSession: null as unknown,
   supabase: null as unknown,
+  admin: null as unknown,
+  deliveries: [] as Array<Record<string, unknown>>,
+  readDeliveryError: false,
+  saveDeliveryError: false,
+  verifySession: vi.fn(),
   claimAIRequest: vi.fn(),
   consumeFailedAIRequestClaim: vi.fn(),
   refundAIRequestReservationBeforeProvider: vi.fn(),
@@ -52,7 +57,7 @@ vi.mock("@/lib/server/rate-limit", () => ({
   requestRateLimitKey: () => "route-test",
 }));
 vi.mock("@/lib/server/session-operation-guard", () => ({
-  verifyOperationalPlanSession: () => ({ allowed: true }),
+  verifyOperationalPlanSession: mocks.verifySession,
 }));
 vi.mock("@/lib/supabase/config", () => ({
   isSupabaseConfigured: () => mocks.supabaseConfigured,
@@ -60,8 +65,9 @@ vi.mock("@/lib/supabase/config", () => ({
 vi.mock("@/lib/supabase/server", () => ({
   createSupabaseServerClient: () => mocks.supabase,
 }));
+vi.mock("@/lib/supabase/admin", () => ({ createSupabaseAdminClient: () => mocks.admin }));
 
-import { POST } from "@/app/api/sessions/lesson/route";
+import { GET, POST } from "@/app/api/sessions/lesson/route";
 import { StreamedLessonGenerationError } from "@/lib/openai/streamed-lesson-generator";
 import {
   consumeLessonEventStream,
@@ -81,12 +87,62 @@ describe("streamed lesson route recovery", () => {
     mocks.supabaseConfigured = false;
     mocks.cachedSession = null;
     mocks.supabase = null;
+    mocks.admin = null;
+    mocks.deliveries = [];
+    mocks.readDeliveryError = false;
+    mocks.saveDeliveryError = false;
+    mocks.verifySession.mockReset().mockReturnValue({ allowed: true });
     mocks.claimAIRequest.mockReset();
     mocks.consumeFailedAIRequestClaim.mockReset().mockResolvedValue(true);
     mocks.refundAIRequestReservationBeforeProvider.mockReset().mockResolvedValue(false);
     mocks.settleAIRequestClaim.mockReset().mockResolvedValue(true);
     mocks.recordObservation.mockReset().mockResolvedValue(undefined);
     mocks.streamGeneratedLessonWithRetry.mockReset();
+  });
+
+  it("offers an honestly reconstructed review for a completed historical lesson without using AI", async () => {
+    await storedLessonFixture();
+    mocks.verifySession.mockReturnValue({ allowed: false, reason: "session_not_ready" });
+    const response = await GET(reviewRequest());
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.saved).toBe(false);
+    expect(body.notice).toContain("The original explanation was not saved");
+    expect(body.content).toContain("Alliance obligations connected");
+    expect(mocks.verifySession).not.toHaveBeenCalled();
+    expect(mocks.claimAIRequest).not.toHaveBeenCalled();
+    expect(mocks.streamGeneratedLessonWithRetry).not.toHaveBeenCalled();
+  });
+
+  it("does not spend another credit when the saved-lesson lookup is unavailable", async () => {
+    await storedLessonFixture();
+    mocks.readDeliveryError = true;
+    expect((await POST(lessonRequest())).status).toBe(503);
+    expect((await GET(reviewRequest())).status).toBe(503);
+    expect(mocks.claimAIRequest).not.toHaveBeenCalled();
+    expect(mocks.streamGeneratedLessonWithRetry).not.toHaveBeenCalled();
+  });
+
+  it("delivers the bounded lesson with an unsaved flag when persistence fails", async () => {
+    await storedLessonFixture();
+    mocks.lessonConfigured = false;
+    mocks.saveDeliveryError = true;
+    const response = await POST(lessonRequest());
+    const events: LessonStreamEvent[] = [];
+    await consumeLessonEventStream(response.body!, event => events.push(event));
+    const runtime = events.reduce(applyLessonStreamEvent, createLessonRuntimeState());
+    expect(runtime.status).toBe("complete");
+    expect(runtime.content).toContain("Alliance obligations connected");
+    expect(runtime.persisted).toBe(false);
+    expect(mocks.deliveries).toHaveLength(0);
+  });
+
+  it("requires an owned resource before looking up saved prose", async () => {
+    expect((await GET(reviewRequest())).status).toBe(401);
+    const query = await storedLessonFixture();
+    query.maybeSingle.mockResolvedValue({ data: null, error: null });
+    expect((await GET(reviewRequest())).status).toBe(404);
+    expect(mocks.claimAIRequest).not.toHaveBeenCalled();
   });
 
   it("replaces partial output and completes when the provider times out", async () => {
@@ -221,6 +277,8 @@ describe("streamed lesson route recovery", () => {
     mocks.supabaseConfigured = true;
     mocks.lessonConfigured = providerEnabled;
     mocks.cachedSession = {
+      generatedAt: "2026-09-07T10:00:00.000Z",
+      routeRevisionId: "88888888-8888-4888-8888-888888888888",
       activities: [activity, {
         ...activity, type: "free_response", methodPhase: "explain", lessonBrief: null,
         concept: idea, body: "What are the main products and net energy gain of glycolysis?",
@@ -235,8 +293,9 @@ describe("streamed lesson route recovery", () => {
     };
     mocks.supabase = {
       auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: "44444444-4444-4444-8444-444444444444" } }, error: null }) },
-      from: vi.fn(() => query),
+      from: vi.fn((table: string) => table === "session_lesson_deliveries" ? deliveryQuery() : query),
     };
+    mocks.admin = { from: vi.fn(() => deliveryQuery()) };
     mocks.claimAIRequest.mockResolvedValue({ allowed: true, claimId: "55555555-5555-4555-8555-555555555555", retryAfterSeconds: 0, remainingToday: 9 });
     mocks.streamGeneratedLessonWithRetry.mockImplementation(async (_input, onDelta) => {
       onDelta(`# Glycolysis\n\n${idea}`);
@@ -253,6 +312,25 @@ describe("streamed lesson route recovery", () => {
     expect(runtime.status).toBe("complete");
     expect(runtime.content).toContain(reference);
     expect(runtime.content).not.toContain("What are the main products");
+    expect(mocks.deliveries).toHaveLength(1);
+    expect(mocks.deliveries[0]?.content).toBe(runtime.content);
+    expect(runtime.persisted).toBe(true);
+
+    const reopen = await POST(lessonRequest());
+    const reopenedEvents: LessonStreamEvent[] = [];
+    await consumeLessonEventStream(reopen.body!, event => reopenedEvents.push(event));
+    expect(reopenedEvents.reduce(applyLessonStreamEvent, createLessonRuntimeState()).content).toBe(runtime.content);
+    expect(mocks.streamGeneratedLessonWithRetry).toHaveBeenCalledTimes(providerEnabled ? 1 : 0);
+    expect(mocks.claimAIRequest).toHaveBeenCalledTimes(providerEnabled ? 1 : 0);
+
+    const originalRequest = await lessonRequest().json();
+    const reviewQuery = new URLSearchParams({ planId: originalRequest.planId, planSessionId: originalRequest.planSessionId,
+      activityIndex: "0", generatedAt: "2026-09-07T10:00:00.000Z", routeRevisionId: "88888888-8888-4888-8888-888888888888" });
+    const review = await GET(new Request(`http://localhost/api/sessions/lesson?${reviewQuery}`));
+    expect(review.status).toBe(200);
+    expect(await review.json()).toEqual({ saved: true, content: runtime.content });
+    reviewQuery.set("generatedAt", "2026-09-07T09:00:00.000Z");
+    expect((await GET(new Request(`http://localhost/api/sessions/lesson?${reviewQuery}`))).status).toBe(409);
   });
 
   it("caps legacy cached lesson ideas to the activity's real teaching time", async () => {
@@ -375,7 +453,7 @@ describe("streamed lesson route recovery", () => {
           error: null,
         }),
       },
-      from: vi.fn(() => query),
+      from: vi.fn((table: string) => table === "session_lesson_deliveries" ? deliveryQuery() : query),
     };
     mocks.claimAIRequest.mockResolvedValue({
       allowed: false,
@@ -444,7 +522,7 @@ describe("streamed lesson route recovery", () => {
           error: null,
         }),
       },
-      from: vi.fn(() => query),
+      from: vi.fn((table: string) => table === "session_lesson_deliveries" ? deliveryQuery() : query),
     };
     mocks.claimAIRequest.mockResolvedValue({
       allowed: false,
@@ -490,7 +568,7 @@ describe("streamed lesson route recovery", () => {
           error: null,
         }),
       },
-      from: vi.fn(() => query),
+      from: vi.fn((table: string) => table === "session_lesson_deliveries" ? deliveryQuery() : query),
     };
     mocks.claimAIRequest.mockResolvedValue({
       allowed: true,
@@ -548,7 +626,7 @@ describe("streamed lesson route recovery", () => {
           error: null,
         }),
       },
-      from: vi.fn(() => query),
+      from: vi.fn((table: string) => table === "session_lesson_deliveries" ? deliveryQuery() : query),
     };
     mocks.claimAIRequest.mockResolvedValue({
       allowed: true,
@@ -613,7 +691,7 @@ describe("streamed lesson route recovery", () => {
           error: null,
         }),
       },
-      from: vi.fn(() => query),
+      from: vi.fn((table: string) => table === "session_lesson_deliveries" ? deliveryQuery() : query),
     };
     mocks.claimAIRequest.mockResolvedValue({
       allowed: true,
@@ -649,6 +727,45 @@ describe("streamed lesson route recovery", () => {
     expect(mocks.consumeFailedAIRequestClaim).not.toHaveBeenCalled();
   });
 });
+
+function deliveryQuery() {
+  const filters: Record<string, unknown> = {};
+  return {
+    select() { return this; },
+    eq(key: string, value: unknown) { filters[key] = value; return this; },
+    async upsert(row: Record<string, unknown>) {
+      if (mocks.saveDeliveryError) return { error: { code: "test_unavailable" } };
+      if (!mocks.deliveries.some(item => item.plan_session_id === row.plan_session_id && item.resource_fingerprint === row.resource_fingerprint && item.activity_index === row.activity_index)) mocks.deliveries.push(row);
+      return { error: null };
+    },
+    async maybeSingle() {
+      if (mocks.readDeliveryError) return { data: null, error: { code: "test_unavailable" } };
+      return { data: mocks.deliveries.find(row => Object.entries(filters).every(([key, value]) => row[key] === value)) ?? null, error: null };
+    },
+  };
+}
+
+async function storedLessonFixture() {
+  mocks.developmentPreview = false;
+  mocks.supabaseConfigured = true;
+  mocks.cachedSession = {
+    generatedAt: "2026-09-07T10:00:00.000Z", routeRevisionId: "88888888-8888-4888-8888-888888888888",
+    activities: [lessonActivity()], coverage: { evidenceMap: [] },
+    deliveryInstructions: (await lessonRequest().json()).previewLesson.deliveryInstructions,
+  };
+  const query = { select: vi.fn().mockReturnThis(), eq: vi.fn().mockReturnThis(),
+    maybeSingle: vi.fn().mockResolvedValue({ data: { step_data: { generatedSession: {} } }, error: null }) };
+  mocks.supabase = {
+    auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: "44444444-4444-4444-8444-444444444444" } }, error: null }) },
+    from: vi.fn((table: string) => table === "session_lesson_deliveries" ? deliveryQuery() : query),
+  };
+  mocks.admin = { from: vi.fn(() => deliveryQuery()) };
+  return query;
+}
+
+function reviewRequest() {
+  return new Request("http://localhost/api/sessions/lesson?planId=22222222-2222-4222-8222-222222222222&planSessionId=33333333-3333-4333-8333-333333333333&activityIndex=0&generatedAt=2026-09-07T10%3A00%3A00.000Z&routeRevisionId=88888888-8888-4888-8888-888888888888");
+}
 
 function lessonRequest() {
   return new Request("http://localhost/api/sessions/lesson", {
