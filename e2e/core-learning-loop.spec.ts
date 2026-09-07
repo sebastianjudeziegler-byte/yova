@@ -299,6 +299,10 @@ test("a confident misconception is repaired now without a duplicate follow-up", 
   await expect(page.getByText("Correct before in-session repair")).toBeVisible();
   await expect(page.getByText("Recorded, not graded")).toBeVisible();
   await expect(page.getByText("No gap remains after today’s required repairs.")).toBeVisible();
+  const receipt = page.getByRole("region", { name: "What this session can change" });
+  await expect(receipt).toContainText("Showing strength in this session: Cellular respiration sequence");
+  await expect(receipt).not.toContainText("Needs another check: Cellular respiration sequence");
+  await expect(receipt).not.toContainText("not been confirmed by an attempt in this session");
   await expect(page.getByText(/the successful repair means no duplicate follow-up is needed/i)).toBeVisible();
   await expect(page.getByText("Cellular respiration sequence", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("NO CHANGE NEEDED")).toBeVisible();

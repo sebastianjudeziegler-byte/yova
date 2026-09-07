@@ -40,6 +40,25 @@ const completion: SessionCompletion = {
 };
 
 describe("PostSessionPersonalizationReceipt", () => {
+  it("does not label a successfully repaired concept as both a strength and an unresolved gap", () => {
+    const html = renderToStaticMarkup(createElement(PostSessionPersonalizationReceipt, {
+      session,
+      completion: {
+        ...completion,
+        feedback: null,
+        conceptEvidence: [
+          { concept: "Glycolysis", outcome: "needs_review", activityType: "free_response", methodPhase: "explain", attempt: 1 },
+          { concept: "Glycolysis", outcome: "secure", activityType: "free_response", methodPhase: "explain", attempt: 2 },
+          { concept: "Glycolysis", outcome: "secure", activityType: "free_response", methodPhase: "reexplain" },
+        ],
+      },
+      decision: null,
+    }));
+    expect(html).toContain("Showing strength in this session: Glycolysis.");
+    expect(html).not.toContain("Needs another check: Glycolysis.");
+    expect(html).toContain("Whether today’s result holds after a delay is not known yet.");
+  });
+
   it("renders the four required receipt sections without claiming a route revision", () => {
     const html = renderToStaticMarkup(createElement(PostSessionPersonalizationReceipt, {
       session,

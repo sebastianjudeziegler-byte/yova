@@ -93,6 +93,31 @@ function completion(
 }
 
 describe("buildPostSessionPersonalizationReceipt", () => {
+  it("does not repeat the initial no-attempt uncertainty after recording a check", () => {
+    const session = routedSession();
+    session.studyRoute!.explanation.uncertainties.unshift("This starting point uses the available topic information; it has not been confirmed by an attempt in this session.");
+    const receipt = buildPostSessionPersonalizationReceipt({ session, completion: completion(session), decision: null });
+    expect(receipt.yovaSaw.map(item => item.text)).toContain("Recorded checks: 2 of 3 correct.");
+    expect(receipt.notSureYet.map(item => item.text).join(" ")).not.toContain("not been confirmed by an attempt in this session");
+    expect(receipt.notSureYet.map(item => item.text)).toContain("There is not enough comparable evidence to prefer one valid method.");
+  });
+
+  it("keeps a later unresolved miss and ignores pre-instruction guesses", () => {
+    const session = routedSession();
+    const result = completion(session, { conceptEvidence: [
+      { concept: "Glycolysis", outcome: "secure", activityType: "free_response", methodPhase: "explain" },
+      { concept: "glycolysis", outcome: "needs_review", activityType: "free_response", methodPhase: "reexplain" },
+      { concept: "Glycolysis", outcome: "secure", activityType: "multiple_choice", methodPhase: "pretest" },
+      { concept: "Electron transport chain", outcome: "secure", activityType: "multiple_choice", methodPhase: "pretest" },
+    ] });
+    const before = JSON.stringify(result.conceptEvidence);
+    const receipt = buildPostSessionPersonalizationReceipt({ session, completion: result, decision: null });
+    expect(receipt.yovaSaw.map(item => item.text)).toContain("Needs another check: Glycolysis.");
+    expect(receipt.yovaSaw.map(item => item.text).join(" ")).not.toContain("Showing strength");
+    expect(receipt.yovaSaw.map(item => item.text).join(" ")).not.toContain("Electron transport chain");
+    expect(JSON.stringify(result.conceptEvidence)).toBe(before);
+  });
+
   it("shows an unanswered challenge rating without inventing learner feedback", () => {
     const session = routedSession();
     const result = completion(session, { feedback: null });
