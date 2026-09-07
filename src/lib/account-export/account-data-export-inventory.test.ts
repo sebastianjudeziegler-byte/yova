@@ -24,6 +24,7 @@ const TABLE_INVENTORY = {
     "product_events",
     "profiles",
     "session_attempts",
+    "session_lesson_deliveries",
     "study_routes",
     "support_requests",
     "tutor_messages",
@@ -68,7 +69,7 @@ describe("account-data export inventory drift", () => {
     const classifiedTables = Object.values(TABLE_INVENTORY).flat();
 
     expect([...createdTables].sort()).toEqual([...classifiedTables].sort());
-    expect(createdTables.size).toBe(34);
+    expect(createdTables.size).toBe(classifiedTables.length);
     expect(TABLE_INVENTORY.internalExcluded).toContain("account_data_exports");
     expect(TABLE_INVENTORY.internalExcluded).toContain("account_deletion_cleanup_jobs");
     expect(TABLE_INVENTORY.internalExcluded).toContain(

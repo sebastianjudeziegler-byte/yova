@@ -35,6 +35,7 @@ import {
   sessionOperationFailure,
   verifyOperationalPlanSession,
 } from "@/lib/server/session-operation-guard";
+import { readSavedLesson, saveDeliveredLesson, savedLessonResourceFingerprint, type SavedLesson, type SavedLessonIdentity } from "@/lib/server/saved-lessons";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -69,6 +70,58 @@ const LessonRequestSchema = z.discriminatedUnion("action", [
   LessonGenerateRequestSchema,
   LessonSkipRequestSchema,
 ]);
+
+const LessonReviewRequestSchema = z.object({
+  planId: z.string().uuid(), planSessionId: z.string().uuid(),
+  activityIndex: z.coerce.number().int().min(0).max(40),
+  generatedAt: z.string().datetime({ offset: true }),
+  routeRevisionId: z.string().uuid().optional(),
+}).strict();
+
+/** Read-only review also works after completion or archiving, without AI usage. */
+export async function GET(request: Request) {
+  const supabase = isSupabaseConfigured() ? await createSupabaseServerClient() : null;
+  const auth = supabase ? await supabase.auth.getUser() : null;
+  const user = auth?.data.user;
+  if (!supabase || auth?.error || !user) return Response.json({ error: "Sign in to review this lesson." }, { status: 401 });
+  const parsed = LessonReviewRequestSchema.safeParse(Object.fromEntries(new URL(request.url).searchParams));
+  if (!parsed.success) return Response.json({ error: "YOVA could not identify this saved lesson." }, { status: 422 });
+  const source = await loadLessonRuntimeSource(supabase, parsed.data.planId, parsed.data.planSessionId, parsed.data.activityIndex);
+  if (!source?.resourceFingerprint) return Response.json({ error: "That lesson was not found." }, { status: 404 });
+  if (source.generatedAt !== parsed.data.generatedAt || source.routeRevisionId !== parsed.data.routeRevisionId) {
+    return Response.json({ error: "This session has changed. Reload the goal to open its current resources." }, { status: 409 });
+  }
+  try {
+    const saved = await readSavedLesson(supabase, { ...parsed.data, userId: user.id, resourceFingerprint: source.resourceFingerprint });
+    return Response.json(saved ? { saved: true, content: saved.content } : {
+      saved: false,
+      content: buildBoundedFallbackLesson(lessonInputFromSource(source)),
+      notice: "The original explanation was not saved. This review uses the session’s saved learning points.",
+    }, { headers: { "Cache-Control": "private, no-store" } });
+  } catch {
+    return Response.json({ error: "YOVA could not load your saved explanation. Try again." }, { status: 503 });
+  }
+}
+
+async function persistLesson(identity: SavedLessonIdentity | undefined, lesson: SavedLesson) {
+  if (!identity) return { ...lesson, persisted: undefined };
+  try {
+    return { ...await saveDeliveredLesson(identity, lesson), persisted: true };
+  } catch {
+    return { ...lesson, persisted: false };
+  }
+}
+
+function savedLessonResponse(saved: SavedLesson, requestId: string) {
+  return new Response(new ReadableStream<Uint8Array>({ start(controller) {
+    controller.enqueue(encodeLessonStreamEvent({ type: "lesson.meta", requestId, model: saved.model }));
+    controller.enqueue(encodeLessonStreamEvent({ type: "lesson.replace", content: saved.content }));
+    controller.enqueue(encodeLessonStreamEvent({ type: "lesson.complete", deliveryMode: saved.delivery_mode,
+      persisted: true, elapsedMs: 0, latencyToFirstTokenMs: null, inputTokens: 0, cachedInputTokens: 0,
+      outputTokens: 0, wordCount: countWords(saved.content), model: saved.model }));
+    controller.close();
+  } }), { headers: { "Content-Type": "text/event-stream; charset=utf-8", "Cache-Control": "no-store, no-transform" } });
+}
 
 export async function POST(request: Request) {
   const requestId = lessonRequestId(request);
@@ -146,11 +199,24 @@ export async function POST(request: Request) {
   if (!lesson?.activity.lessonBrief) {
     return Response.json({ error: "This teaching step does not have a streamed lesson." }, { status: 409 });
   }
+  const savedIdentity: SavedLessonIdentity | undefined = !developmentPreview && user && lesson.resourceFingerprint ? {
+    userId: user.id, planId: parsed.data.planId, planSessionId: parsed.data.planSessionId,
+    activityIndex: parsed.data.activityIndex, resourceFingerprint: lesson.resourceFingerprint,
+  } : undefined;
+  if (savedIdentity && supabase) {
+    try {
+      const saved = await readSavedLesson(supabase, savedIdentity);
+      if (saved) return savedLessonResponse(saved, requestId);
+    } catch {
+      return Response.json({ error: "YOVA could not check your saved lesson. Try again before preparing another explanation." }, { status: 503 });
+    }
+  }
   const model = getOpenAILessonConfig()?.model ?? "lesson-model";
   const lessonInput = lessonInputFromSource(lesson);
   if (!isOpenAILessonConfigured()) {
     return boundedLessonFallbackResponse({
       lessonInput,
+      savedIdentity,
       requestId,
       model,
       supabase,
@@ -162,6 +228,7 @@ export async function POST(request: Request) {
   if (!rateLimit.allowed) {
     return boundedLessonFallbackResponse({
       lessonInput,
+      savedIdentity,
       requestId,
       model,
       supabase,
@@ -194,6 +261,7 @@ export async function POST(request: Request) {
         }
         return boundedLessonFallbackResponse({
           lessonInput,
+          savedIdentity,
           requestId,
           model,
           supabase,
@@ -207,6 +275,7 @@ export async function POST(request: Request) {
       await recoverUnknownLessonReservation(supabase, requestId, aiUsageRecoveryKey);
       return boundedLessonFallbackResponse({
         lessonInput,
+        savedIdentity,
         requestId,
         model,
         supabase,
@@ -241,7 +310,11 @@ export async function POST(request: Request) {
           firstFailureKind,
         );
         if (abortFailure) throw abortFailure;
-        const teachingContent = includeCoreRecallKnowledge(result.content, lessonInput.coreRecallKnowledge);
+        const delivered = await persistLesson(savedIdentity, {
+          content: includeCoreRecallKnowledge(result.content, lessonInput.coreRecallKnowledge).slice(0, 12_000),
+          delivery_mode: "generated", model: result.model,
+        });
+        const teachingContent = delivered.content;
         const teachingWordCount = countWords(teachingContent);
         if ((attempts > 1 || result.truncatedToBudget || teachingContent !== streamedLessonText) && teachingContent.trim()) {
           // The learner may have watched a partial or overlong first attempt
@@ -254,7 +327,8 @@ export async function POST(request: Request) {
         await settleSuccessfulLessonClaim(supabase, aiUsageClaimId, requestId);
         controller.enqueue(encodeLessonStreamEvent({
           type: "lesson.complete",
-          deliveryMode: "generated",
+          deliveryMode: delivered.delivery_mode,
+          persisted: delivered.persisted,
           elapsedMs: result.elapsedMs,
           latencyToFirstTokenMs: result.latencyToFirstTokenMs,
           inputTokens: result.inputTokens,
@@ -311,7 +385,11 @@ export async function POST(request: Request) {
           model: failure?.model ?? model,
         });
         if (failureKind !== "request_aborted") {
-          const fallbackLesson = buildBoundedFallbackLesson(lessonInput, streamedLessonText);
+          const delivered = await persistLesson(savedIdentity, {
+            content: buildBoundedFallbackLesson(lessonInput, streamedLessonText),
+            delivery_mode: "bounded_fallback", model: failure?.model ?? model,
+          });
+          const fallbackLesson = delivered.content;
           const fallbackWordCount = countWords(fallbackLesson);
           try {
             controller.enqueue(encodeLessonStreamEvent({
@@ -320,7 +398,8 @@ export async function POST(request: Request) {
             }));
             controller.enqueue(encodeLessonStreamEvent({
               type: "lesson.complete",
-              deliveryMode: "bounded_fallback",
+              deliveryMode: delivered.delivery_mode,
+              persisted: delivered.persisted,
               elapsedMs,
               latencyToFirstTokenMs: failure?.latencyToFirstTokenMs ?? null,
               inputTokens: failure?.inputTokens ?? 0,
@@ -447,8 +526,9 @@ async function recoverUnknownLessonReservation(
   }
 }
 
-function boundedLessonFallbackResponse({
+async function boundedLessonFallbackResponse({
   lessonInput,
+  savedIdentity,
   requestId,
   model,
   supabase,
@@ -457,6 +537,7 @@ function boundedLessonFallbackResponse({
   allowanceRetryAfterSeconds,
 }: {
   lessonInput: StreamedLessonInput;
+  savedIdentity?: SavedLessonIdentity;
   requestId: string;
   model: string;
   supabase: Awaited<ReturnType<typeof createSupabaseServerClient>> | null;
@@ -464,7 +545,10 @@ function boundedLessonFallbackResponse({
   failureKind: StreamedLessonFailureKind;
   allowanceRetryAfterSeconds?: number;
 }) {
-  const content = buildBoundedFallbackLesson(lessonInput);
+  const delivered = await persistLesson(savedIdentity, {
+    content: buildBoundedFallbackLesson(lessonInput), delivery_mode: "bounded_fallback", model,
+  });
+  const content = delivered.content;
   const wordCount = countWords(content);
   const fallbackReason = allowanceRetryAfterSeconds === undefined
     ? failureKind
@@ -475,7 +559,8 @@ function boundedLessonFallbackResponse({
       controller.enqueue(encodeLessonStreamEvent({ type: "lesson.replace", content }));
       controller.enqueue(encodeLessonStreamEvent({
         type: "lesson.complete",
-        deliveryMode: "bounded_fallback",
+        deliveryMode: delivered.delivery_mode,
+        persisted: delivered.persisted,
         elapsedMs: 0,
         latencyToFirstTokenMs: null,
         inputTokens: 0,
@@ -557,6 +642,9 @@ function recordGenerationObservationBestEffort(
 }
 
 type LessonRuntimeSource = {
+  resourceFingerprint?: string;
+  generatedAt?: string;
+  routeRevisionId?: string;
   coreRecallKnowledge?: string[];
   activity: z.infer<typeof StreamedGeneratedSessionActivitySchema>;
   deliveryInstructions: z.infer<typeof LessonDeliveryInstructionsSchema>;
@@ -584,6 +672,9 @@ async function loadLessonRuntimeSource(
   const activity = parsed.data.activities[activityIndex];
   if (!activity || activity.type !== "instruction" || !activity.lessonBrief) return null;
   return {
+    resourceFingerprint: savedLessonResourceFingerprint(parsed.data),
+    generatedAt: parsed.data.generatedAt,
+    routeRevisionId: parsed.data.routeRevisionId,
     activity,
     deliveryInstructions: parsed.data.deliveryInstructions,
     coreRecallKnowledge: coreRecallKnowledgeForLesson(parsed.data.activities, parsed.data.coverage, activityIndex),
