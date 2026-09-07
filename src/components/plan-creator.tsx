@@ -38,18 +38,20 @@ import {
 import { reportProductError } from "@/lib/monitoring/client";
 import {
   PlanDiagnosticPreparationResponseSchema,
+  PlanDiagnosticScoreResponseSchema,
   PlanActivationResponseSchema,
   PlanDraftMethodChoiceResponseSchema,
   PlanGenerationRequestSchema,
   PlanGenerationResponseSchema,
   type DiagnosticResponse,
-  type PlanDiagnosticQuestion,
+  type PublicPlanDiagnosticQuestion,
   type PlanGenerationRequest,
   type PlanGenerationResponse,
 } from "@/lib/plan-generation/schema";
-import { PlanKnowledgeMapSchema, type PlanKnowledgeMap } from "@/lib/knowledge-map/schema";
+import { type PlanKnowledgeMap } from "@/lib/knowledge-map/schema";
 import { generatePreviewPlan } from "@/lib/plan-generation/preview-generator";
 import { planScheduleCapacityGuidance } from "@/lib/plan-generation/capacity-guidance";
+import { DeadlinePriorityResponseSchema, type DeadlinePriorityResponse } from "@/lib/plan-generation/deadline-priority";
 import { LIVE_AI_PLAN_FALLBACK_NOTICE } from "@/lib/plan-generation/fallback";
 import { inferPlanScopeContract } from "@/lib/plan-generation/scope-contract";
 import { buildPlanContentBudget } from "@/lib/plan-generation/content-budget";
@@ -164,13 +166,17 @@ export function PlanCreator({
   } = scheduleState;
   const [diagnosticIndex, setDiagnosticIndex] = useState(0);
   const [diagnosticAnswers, setDiagnosticAnswers] = useState<string[]>([]);
-  const [diagnosticQuestions, setDiagnosticQuestions] = useState<PlanDiagnosticQuestion[]>([]);
+  const [diagnosticQuestions, setDiagnosticQuestions] = useState<PublicPlanDiagnosticQuestion[]>([]);
   const [diagnosticResponses, setDiagnosticResponses] = useState<DiagnosticResponse[]>([]);
+  const [diagnosticToken, setDiagnosticToken] = useState<string | null>(null);
+  const [knowledgeMapReceipt, setKnowledgeMapReceipt] = useState<string | null>(null);
+  const [diagnosticSaving, setDiagnosticSaving] = useState(false);
   const [diagnosticMap, setDiagnosticMap] = useState<PlanKnowledgeMap | null>(null);
   const [diagnosticError, setDiagnosticError] = useState<string | null>(null);
   const [diagnosticLatencyMs, setDiagnosticLatencyMs] = useState<number | null>(null);
   const [startingContext, setStartingContext] = useState(seed?.progress ?? "");
   const [generatedPlan, setGeneratedPlan] = useState<PlanGenerationResponse | null>(null);
+  const [deadlinePriority, setDeadlinePriority] = useState<DeadlinePriorityResponse | null>(null);
   const [generatedFrom, setGeneratedFrom] = useState<PlanGenerationRequest | null>(null);
   const [generationError, setGenerationError] = useState<string | null>(null);
   const [scheduleCapacityError, setScheduleCapacityError] = useState<string | null>(null);
@@ -183,6 +189,8 @@ export function PlanCreator({
   const [mapCorrection, setMapCorrection] = useState("");
   const [mapUpdating, setMapUpdating] = useState(false);
   const [mapCorrectionError, setMapCorrectionError] = useState<string | null>(null);
+  const [mapRevisionNotice, setMapRevisionNotice] = useState<string | null>(null);
+  const draftBusy = mapUpdating || activating || Boolean(methodUpdatingSessionId);
   const availability = availabilityChoices
     .filter((choice) => choice.enabled)
     .map(({ day, window, minutes }) => ({ day, window, minutes }));
@@ -204,6 +212,7 @@ export function PlanCreator({
   const mappedGeneratedFrom = generatedFrom && generatedPlan?.plan.knowledgeMap
     ? { ...generatedFrom, knowledgeMap: generatedPlan.plan.knowledgeMap }
     : generatedFrom;
+  const deferredDraftTopics = generatedPlan?.plan.knowledgeMap?.topics.filter((topic) => topic.deferred) ?? [];
   const generatedScope = mappedGeneratedFrom ? inferPlanScopeContract(mappedGeneratedFrom) : null;
   const generatedContentBudget = mappedGeneratedFrom && generatedScope
     ? buildPlanContentBudget(mappedGeneratedFrom, generatedScope)
@@ -259,17 +268,21 @@ export function PlanCreator({
         previewPreferredMethodIds,
         previewCanonicalProfile,
       ),
-      ...(diagnosticMap ? { knowledgeMap: diagnosticMap } : {}),
+      ...(diagnosticMap ? { knowledgeMap: diagnosticMap, knowledgeMapReceipt: knowledgeMapReceipt ?? undefined } : {}),
       ...overrides,
     });
   };
 
   const prepareDiagnostic = async () => {
+    setDiagnosticQuestions([]);
+    setDiagnosticAnswers([]);
+    setDiagnosticResponses([]);
+    setDiagnosticLatencyMs(null);
     setDiagnosticError(null);
     setScheduleCapacityError(null);
     setStep("diagnostic-loading");
     try {
-      const planRequest = buildGenerationRequest({ diagnosticResponses: [], knowledgeMap: undefined });
+      const planRequest = buildGenerationRequest({ diagnosticResponses: [] });
       const { response, body } = await fetchClientJson("/api/plans/generate?mode=diagnostic", {
         method: "POST",
         headers: {
@@ -286,6 +299,8 @@ export function PlanCreator({
       const parsed = PlanDiagnosticPreparationResponseSchema.safeParse(body);
       if (!parsed.success) throw new Error("The placement check came back in an unsafe format.");
       setDiagnosticQuestions(parsed.data.questions);
+      setDiagnosticToken(parsed.data.challengeToken);
+      setKnowledgeMapReceipt(parsed.data.knowledgeMapReceipt);
       setDiagnosticMap(parsed.data.knowledgeMap);
       setDiagnosticLatencyMs(parsed.data.generation.durationMs);
       setDiagnosticIndex(0);
@@ -293,7 +308,8 @@ export function PlanCreator({
       setDiagnosticResponses([]);
     } catch (error) {
       setDiagnosticQuestions([]);
-      setDiagnosticMap(null);
+      // Keep the accepted scope even if fresh placement questions are unavailable.
+
       setDiagnosticError(userFacingErrorMessage(error, "YOVA could not prepare the placement check."));
     } finally {
       setStep("diagnostic");
@@ -314,22 +330,37 @@ export function PlanCreator({
     setStep("confirm");
   };
 
-  const finishDiagnostic = (skipped: boolean) => {
+  const finishDiagnostic = async (skipped: boolean) => {
+    if (diagnosticSaving) return;
     if (skipped || !diagnosticMap) {
-      setDiagnosticResponses([]);
-      if (diagnosticMap) setDiagnosticMap(markDiagnosticSkipped(diagnosticMap));
       setStep("confirm");
       return;
     }
-    const result = scoreDiagnostic(diagnosticMap, diagnosticQuestions, diagnosticAnswers);
-    setDiagnosticResponses(result.responses);
-    setDiagnosticMap(result.map);
-    setStep("confirm");
+    setDiagnosticSaving(true);
+    setDiagnosticError(null);
+    try {
+      const { response, body } = await fetchClientJson("/api/plans/diagnostic/score", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...(browserPreviewMode ? { "X-Yova-Development-Preview": "plan-creator" } : {}) },
+        body: JSON.stringify({ challengeToken: diagnosticToken, answers: diagnosticAnswers }),
+      }, { timeoutMs: MUTATION_REQUEST_TIMEOUT_MS, timeoutMessage: "Saving this check took too long. Try again.", invalidResponseMessage: "The placement result could not be read." });
+      if (!response.ok) throw new Error(readApiError(body) ?? "YOVA could not verify this check.");
+      const result = PlanDiagnosticScoreResponseSchema.parse(body);
+      setDiagnosticResponses(result.responses);
+      setDiagnosticMap(result.knowledgeMap);
+      setKnowledgeMapReceipt(result.knowledgeMapReceipt);
+      setStep("confirm");
+    } catch (error) {
+      setDiagnosticError(userFacingErrorMessage(error, "YOVA could not verify this check."));
+    } finally {
+      setDiagnosticSaving(false);
+    }
   };
 
   const generatePlan = async () => {
-    if (!sourceChoice || methodUpdatingSessionId) return;
+    if (!sourceChoice || draftBusy) return;
 
+    setDeadlinePriority(null);
     setGenerationError(null);
     setScheduleCapacityError(null);
     setActivationError(null);
@@ -365,6 +396,13 @@ export function PlanCreator({
         throw new Error(message);
       }
 
+      const priority = DeadlinePriorityResponseSchema.safeParse(body);
+      if (priority.success) {
+        setGeneratedPlan(null);
+        setDeadlinePriority(priority.data);
+        setStep("result");
+        return;
+      }
       const parsed = PlanGenerationResponseSchema.safeParse(body);
       if (!parsed.success) throw new Error("The plan came back in an unsafe format, so YOVA did not save it.");
 
@@ -492,28 +530,37 @@ export function PlanCreator({
   };
 
   const reviseGeneratedPlan = (target: "goal" | "source" | "schedule" | "diagnostic") => {
-    if (methodUpdatingSessionId) return;
+    if (draftBusy) return;
     setGeneratedPlan(null);
     setGeneratedFrom(null);
     setGenerationError(null);
     setScheduleCapacityError(null);
     setActivationError(null);
-    if (target === "goal") {
+    if (target === "goal" || target === "source") {
+      setDiagnosticMap(null);
+      setDiagnosticQuestions([]);
       setDiagnosticAnswers([]);
+      setDiagnosticResponses([]);
+      setDiagnosticLatencyMs(null);
       setDiagnosticIndex(0);
     }
-    if (target === "diagnostic") setDiagnosticIndex(0);
+    if (target === "diagnostic") {
+      void prepareDiagnostic();
+      return;
+    }
     setStep(target);
   };
 
   const updateTopicMapAndPlan = async () => {
     const correction = mapCorrection.trim();
-    if (!correction || mapUpdating || methodUpdatingSessionId) return;
+    if (!correction || draftBusy) return;
     setMapUpdating(true);
     setMapCorrectionError(null);
     try {
       const planRequest = buildGenerationRequest({
-        knowledgeMap: undefined,
+        knowledgeMap: generatedPlan?.plan.knowledgeMap ?? diagnosticMap ?? undefined,
+        knowledgeMapReceipt: generatedPlan?.generation.knowledgeMapReceipt ?? knowledgeMapReceipt ?? undefined,
+        diagnosticResponses: [],
         mapCorrection: correction,
       });
       const { response, body } = await fetchClientJson("/api/plans/generate", {
@@ -541,6 +588,21 @@ export function PlanCreator({
       setGeneratedPlan(parsed.data);
       setGeneratedFrom({ ...planRequest, knowledgeMap: parsed.data.plan.knowledgeMap });
       setDiagnosticMap(parsed.data.plan.knowledgeMap);
+      setKnowledgeMapReceipt(parsed.data.generation.knowledgeMapReceipt ?? null);
+      setDiagnosticQuestions([]);
+      setDiagnosticAnswers([]);
+      setDiagnosticResponses([]);
+      setDiagnosticLatencyMs(null);
+      setDiagnosticIndex(0);
+      setMethodEditorSessionId(null);
+      setMethodChoiceNotice(null);
+      const beforeTitles = new Set(generatedPlan?.plan.knowledgeMap?.topics.map((topic) => topic.title) ?? []);
+      const afterTitles = new Set(parsed.data.plan.knowledgeMap.topics.map((topic) => topic.title));
+      const added = [...afterTitles].filter((title) => !beforeTitles.has(title)).length;
+      const removed = [...beforeTitles].filter((title) => !afterTitles.has(title)).length;
+      const retainedIds = new Set(parsed.data.plan.knowledgeMap.topics.map(topic => topic.id));
+      const removedDemonstrated = generatedPlan?.plan.knowledgeMap?.topics.filter(topic => topic.initialEvidence?.outcome === "demonstrated" && !retainedIds.has(topic.id)).map(topic => topic.title) ?? [];
+      setMapRevisionNotice(`Map updated: ${added} topic names added, ${removed} removed. Review all ${parsed.data.plan.sessions.length} rebuilt sessions and their methods. Verified starting knowledge is preserved for unchanged topics. Old questions were cleared; use Change starting level for a fresh check.${removedDemonstrated.length ? ` Previously demonstrated topics removed or changed: ${removedDemonstrated.join(", ")}. Their earlier evidence does not apply to new scope.` : ""}`);
       setMapCorrection("");
     } catch (error) {
       setMapCorrectionError(userFacingErrorMessage(error, "YOVA could not update this topic map yet."));
@@ -576,7 +638,7 @@ export function PlanCreator({
   };
 
   const activateGeneratedPlan = async () => {
-    if (!generatedPlan || !mappedGeneratedFrom || activating || methodUpdatingSessionId) return;
+    if (!generatedPlan || !mappedGeneratedFrom || draftBusy) return;
     setActivationError(null);
     setActivating(true);
     let requestId: string | null = null;
@@ -626,7 +688,7 @@ export function PlanCreator({
     expectedRouteRevisionId: string,
     methodId: NonNullable<LearningPlan["sessions"][number]["studyRoute"]>["approach"]["primaryMethodId"],
   ) => {
-    if (!generatedPlan || !mappedGeneratedFrom || methodUpdatingSessionId || activating) return;
+    if (!generatedPlan || !mappedGeneratedFrom || draftBusy) return;
     setMethodUpdatingSessionId(sessionId);
     setMethodChoiceError(null);
     setMethodChoiceNotice(null);
@@ -786,7 +848,7 @@ export function PlanCreator({
           {diagnosticQuestions[diagnosticIndex] && <div className="diagnostic-options">{diagnosticQuestions[diagnosticIndex].options.map((option) => <button className={diagnosticAnswers[diagnosticIndex] === option ? "selected" : ""} key={option} onClick={() => { const next = [...diagnosticAnswers]; next[diagnosticIndex] = option; setDiagnosticAnswers(next); }}>{option}{diagnosticAnswers[diagnosticIndex] === option && <Check />}</button>)}</div>}
           {diagnosticIndex === 0 && <label className="starting-context-field"><span>Anything YOVA should account for?</span><textarea rows={4} maxLength={800} value={startingContext} placeholder="Optional: what you already understand, where you feel lost, or what this plan must focus on." onChange={(event) => setStartingContext(event.target.value)} /><small>Your note can change emphasis, but it never counts as proof that a topic is known. {startingContext.length}/800</small></label>}
           {diagnosticLatencyMs !== null && <small className="diagnostic-generation-note">Built from {diagnosticMap?.topics.length ?? 0} mapped topics in {(diagnosticLatencyMs / 1_000).toFixed(1)} seconds.</small>}
-          <footer className="plan-actions"><button className="button ghost" onClick={diagnosticIndex === 0 ? back : () => setDiagnosticIndex((value) => value - 1)}><ArrowLeft size={17} /> Back</button><div className="diagnostic-actions"><button className="button ghost" onClick={() => finishDiagnostic(true)}>Skip for now</button>{diagnosticQuestions.length > 0 && <button className="button primary" onClick={() => { if (diagnosticIndex === diagnosticQuestions.length - 1) finishDiagnostic(false); else setDiagnosticIndex((value) => value + 1); }} disabled={!diagnosticAnswers[diagnosticIndex]}>{diagnosticIndex === diagnosticQuestions.length - 1 ? "Use my answers" : "Next question"} <ArrowRight size={17} /></button>}</div></footer>
+          <footer className="plan-actions"><button className="button ghost" onClick={diagnosticIndex === 0 ? back : () => setDiagnosticIndex((value) => value - 1)}><ArrowLeft size={17} /> Back</button><div className="diagnostic-actions"><button className="button ghost" disabled={diagnosticSaving} onClick={() => void finishDiagnostic(true)}>Skip for now</button>{diagnosticQuestions.length > 0 && <button className="button primary" onClick={() => { if (diagnosticIndex === diagnosticQuestions.length - 1) finishDiagnostic(false); else setDiagnosticIndex((value) => value + 1); }} disabled={diagnosticSaving || !diagnosticAnswers[diagnosticIndex]}>{diagnosticIndex === diagnosticQuestions.length - 1 ? "Use my answers" : "Next question"} <ArrowRight size={17} /></button>}</div></footer>
         </PlanPanel>
       )}
 
@@ -811,12 +873,25 @@ export function PlanCreator({
         </section>
       )}
 
+      {step === "result" && deadlinePriority && (
+        <PlanPanel eyebrow="A QUICK PRIORITY" title={deadlinePriority.priority.title} description={deadlinePriority.priority.explanation}>
+          <div className="why-plan"><Clock3 /><div><strong>{deadlinePriority.priority.minutes} {deadlinePriority.priority.minutes === 1 ? "minute" : "minutes"} · {formatSessionDate(deadlinePriority.priority.startsAt)}</strong><p>{deadlinePriority.priority.action}</p></div></div>
+          <p>This card does not record a completed session or mark the topic as learned.</p>
+          {deadlinePriority.priority.remainingTopics.length > 0 && <div className="generation-notice"><div><strong>Beyond this quick step</strong><p>{deadlinePriority.priority.remainingTopics.join("; ")}</p></div></div>}
+          <footer className="plan-actions"><button className="button ghost" onClick={() => setStep("schedule")}><ArrowLeft size={17} /> Review available time</button><button className="button primary" onClick={onExit}>Done</button></footer>
+        </PlanPanel>
+      )}
+
       {step === "result" && generatedPlan && (
         <section className="generated-plan">
           <div className="generated-heading"><div><span className="eyebrow"><Sparkles size={15} /> Plan ready</span><h1>{generatedPlan.plan.title}</h1><p>{generatedPlan.plan.sessions.length} sessions organized into a coherent path. Nothing is active until you confirm it below.</p></div>{generatedScope && <span className="generated-scope-label">{generatedScope.label}</span>}</div>
+          {deferredDraftTopics.length > 0 && <section className="generation-notice" aria-label="Plan coverage">
+            <div><strong>This plan covers part of your goal.</strong><p>{deferredDraftTopics.length} {workProductCopy ? "parts" : "topics"} are saved for later: {deferredDraftTopics.map(topic => topicDisplayLabel(topic.title)).join("; ")}. Change the available time or scope if you need these included before your deadline.</p></div>
+            <button className="button ghost" disabled={draftBusy} onClick={() => reviseGeneratedPlan("schedule")}>Make room for remaining scope</button>
+          </section>}
           <div className="why-plan"><Sparkles /><div><strong>Why this plan</strong><p>{generatedPlan.plan.rationale}</p></div></div>
           {generatedContentBudget && <section className="generated-plan-contract" aria-label="How YOVA mapped this plan">
-            <div><span>{workProductCopy ? "WORK MAP" : "KNOWLEDGE MAP"}</span><strong>{generatedContentBudget.requiredTopicCount} mapped {workProductCopy ? generatedContentBudget.requiredTopicCount === 1 ? "part" : "parts" : generatedContentBudget.requiredTopicCount === 1 ? "topic" : "topics"}</strong><p>{workProductCopy ? "Each part is scheduled or shown explicitly as deferred." : "Each topic is scheduled or shown explicitly as deferred."}</p></div>
+            <div><span>{workProductCopy ? "WORK MAP" : "KNOWLEDGE MAP"}</span><strong>{generatedPlan.plan.knowledgeMap?.topics.length ?? generatedContentBudget.requiredTopicCount} mapped {workProductCopy ? generatedContentBudget.requiredTopicCount === 1 ? "part" : "parts" : generatedContentBudget.requiredTopicCount === 1 ? "topic" : "topics"}</strong><p>{workProductCopy ? "Each part is scheduled or shown explicitly as deferred." : "Each topic is scheduled or shown explicitly as deferred."}</p></div>
             <div><span>SESSION LOAD</span><strong>Usually {generatedContentBudget.typicalSession.preferredContentTargets} {generatedContentBudget.typicalSession.preferredContentTargets === 1 ? "target" : "targets"} at a time</strong><p>{workProductCopy?.sessionLoadContract ?? "Each target needs an explanation, attempt, or application before it counts as covered."}</p></div>
             <div><span>YOUR DELIVERY</span><strong>{preferenceContract.presentation.label}</strong><p>{preferenceContract.support.label} after a miss. {preferenceContract.retention.label} for later review.</p></div>
             <div><span>YOUR SCHEDULE</span><strong>{availability.length} preferred study {availability.length === 1 ? "window" : "windows"}</strong><p>{availability.map((slot) => `${slot.day} ${slot.window.toLowerCase()}, ${slot.minutes} min`).join("; ")}</p></div>
@@ -828,20 +903,23 @@ export function PlanCreator({
             </header>
             <ol>{generatedPlan.plan.knowledgeMap.topics.map((topic, index) => {
               const sessionCount = generatedPlan.plan.sessions.filter((session) => session.topicIds?.includes(topic.id)).length;
-              const state = topic.deferred ? "Deferred" : workProductCopy ? workProductCopy.topicMapState : topic.initialEvidence?.outcome === "demonstrated" ? "Quick verification" : "Teach and check";
-              return <li className={topic.deferred ? "deferred" : ""} key={topic.id}><span>{index + 1}</span><div><strong>{topicDisplayLabel(topic.title, workProductCopy ? "This part" : "This topic")}</strong><p>{topic.description}</p>{topic.subtopics.length > 0 && <small>{topic.subtopics.slice(0, 4).map((subtopic) => topicDisplayLabel(subtopic, workProductCopy ? "This part" : "This topic")).join(" · ")}</small>}</div><em>{state}{!topic.deferred ? ` · ${sessionCount} ${sessionCount === 1 ? "session" : "sessions"}` : ""}</em></li>;
+              const teachesTopic = generatedPlan.plan.sessions.some((session) => session.topicIds?.includes(topic.id) && session.learningMode === "learn");
+              const state = topic.deferred ? "Deferred" : workProductCopy ? workProductCopy.topicMapState : teachesTopic ? "Teach and check" : topic.initialEvidence?.outcome === "demonstrated" ? "Quick verification" : "Practice and check";
+              return <li className={topic.deferred ? "deferred" : ""} key={topic.id}><span>{index + 1}</span><div><strong>{topicDisplayLabel(topic.title, workProductCopy ? "This part" : "This topic")}</strong><p>{topic.description}</p>{topic.subtopics.length > 0 && <small>{topic.subtopics.slice(0, 4).map((subtopic) => topicDisplayLabel(subtopic, workProductCopy ? "This part" : "This topic")).join(" · ")}</small>}{topic.deferred && <p>Saved for later: {topic.deferred.reason}</p>}</div><em>{state}{!topic.deferred ? ` · ${sessionCount} ${sessionCount === 1 ? "session" : "sessions"}` : ""}</em></li>;
             })}</ol>
             <div className="topic-map-correction">
               <div><strong>Something is off?</strong><p>{workProductCopy ? "Tell YOVA which required part is missing, outside the brief, already complete, or needs a different emphasis. The draft changes only after you update and review the plan." : "Tell YOVA what is missing, outside your goal, or needs a different emphasis. Saying you know something changes the plan only after a quick verification. It never creates evidence by itself."}</p></div>
               <div className="topic-map-prompts" aria-label="Common topic map changes">
-                {(workProductCopy ? ["A required part is missing: ", "This part is already complete: ", "This is outside the brief: ", "Change the emphasis toward: "] : ["A topic is missing: ", "I already know this and want a quick verification: ", "This is outside my goal: ", "Change the emphasis toward: "]).map((prompt) => <button type="button" key={prompt} onClick={() => setMapCorrection(prompt)}>{prompt.replace(/:\s*$/, "")}</button>)}
+                {(workProductCopy ? ["A required part is missing: ", "This part is already complete: ", "This is outside the brief: ", "Change the emphasis toward: "] : ["A topic is missing: ", "I already know this and want a quick verification: ", "This is outside my goal: ", "Change the emphasis toward: "]).map((prompt) => <button type="button" disabled={draftBusy} key={prompt} onClick={() => setMapCorrection(prompt)}>{prompt.replace(/:\s*$/, "")}</button>)}
               </div>
-              <textarea aria-label="Requested topic map change" rows={3} maxLength={800} value={mapCorrection} placeholder="Example: Include the causes of World War I, but leave detailed military technology outside this plan." onChange={(event) => setMapCorrection(event.target.value)} />
+              <textarea disabled={draftBusy} aria-label="Requested topic map change" rows={3} maxLength={800} value={mapCorrection} placeholder="Example: Include the causes of World War I, but leave detailed military technology outside this plan." onChange={(event) => setMapCorrection(event.target.value)} />
+              <p>Updating the map rebuilds the sessions and chooses their methods again. Review any methods you previously customized.</p>
+              {mapRevisionNotice && <p role="status">{mapRevisionNotice}</p>}
               {mapCorrectionError && <p className="plan-activation-error"><AlertCircle size={16} /> {mapCorrectionError}</p>}
-              <button type="button" className="button secondary" disabled={!mapCorrection.trim() || mapUpdating || Boolean(methodUpdatingSessionId)} onClick={() => void updateTopicMapAndPlan()}>{mapUpdating ? <><span className="button-spinner" /> Updating map…</> : <>Update map and plan <ArrowRight size={17} /></>}</button>
+              <button type="button" className="button secondary" disabled={!mapCorrection.trim() || draftBusy} onClick={() => void updateTopicMapAndPlan()}>{mapUpdating ? <><span className="button-spinner" /> Updating map…</> : <>Update map and plan <ArrowRight size={17} /></>}</button>
             </div>
           </section>}
-          <PlanGenerationNotice generation={generatedPlan.generation} onRetry={() => void generatePlan()} retryDisabled={Boolean(methodUpdatingSessionId)} />
+          <PlanGenerationNotice generation={generatedPlan.generation} onRetry={() => void generatePlan()} retryDisabled={draftBusy} />
           <div className="generated-roadmap" aria-label="Learning roadmap">{generatedPhases.map((phase) => <section className="generated-phase" key={`${phase.key}-${phase.number}`}><header><div><span>{phase.number}</span><div><small>PLAN PHASE</small><h2>{phase.label}</h2></div></div><p>{phase.description}</p></header><div className="generated-timeline">{phase.sessions.map((session) => {
             const route = session.studyRoute;
             const alternatives = route?.identity.lifecycleStatus === "provisional"
@@ -851,28 +929,28 @@ export function PlanCreator({
               : [];
             const editing = methodEditorSessionId === session.id;
             const updating = methodUpdatingSessionId === session.id;
-            return <article key={session.id} aria-label={`Session ${session.sequence}: ${session.title}`}><span>{session.sequence}</span><div><small>{workProductCopy?.sessionModeLabel ?? (session.learningMode === "learn" ? "TEACHING FIRST" : "PRACTICE FIRST")} · {formatSessionDate(session.scheduledFor)}</small><h3>{session.title}</h3><p>{session.method}</p>{route && <StudyRouteRecipeCard route={route} showAlternatives={false} />}<details className="generated-method-reason" aria-label={`Method decision for ${session.title}`}><summary>{route?.agency.selectedBy === "learner" ? "Why this method fits" : "Why YOVA chose this"}</summary><p>{session.methodReason}</p>{alternatives.length > 0 && <div className="draft-method-choice"><button type="button" className="draft-method-choice-trigger" disabled={Boolean(methodUpdatingSessionId) || activating} onClick={() => {
+            return <article key={session.id} aria-label={`Session ${session.sequence}: ${session.title}`}><span>{session.sequence}</span><div><small>{workProductCopy ? (session.learningMode === "learn" ? "BUILD WITH GUIDANCE" : "APPLY AND REFINE") : (session.learningMode === "learn" ? "TEACHING FIRST" : "PRACTICE FIRST")} · {formatSessionDate(session.scheduledFor)}</small><h3>{session.title}</h3><p>{session.method}</p>{route && <StudyRouteRecipeCard route={route} showAlternatives={false} />}<details className="generated-method-reason" aria-label={`Method decision for ${session.title}`}><summary>{route?.agency.selectedBy === "learner" ? "Why this method fits" : "Why YOVA chose this"}</summary><p>{session.methodReason}</p>{alternatives.length > 0 && <div className="draft-method-choice"><button type="button" className="draft-method-choice-trigger" disabled={draftBusy} onClick={() => {
               setMethodChoiceError(null);
               setMethodChoiceNotice(null);
               setMethodEditorSessionId((current) => current === session.id ? null : session.id);
-            }}>{editing ? "Keep current method" : "Change method"}</button>{editing && route && <div className="draft-method-options" role="group" aria-label={`Other methods that also fit for ${session.title}`}>{alternatives.map((alternative) => <button type="button" key={alternative.alternativeId} aria-pressed={false} disabled={Boolean(methodUpdatingSessionId) || activating} onClick={() => void changeDraftSessionMethod(session.id, route.identity.routeRevisionId, alternative.primaryMethodId)}><strong>{alternative.visibleMethodName}</strong><span>{alternative.tradeoff}</span></button>)}</div>}{updating && <p className="draft-method-status" role="status"><span className="button-spinner" /> Updating this recipe…</p>}{methodChoiceError?.sessionId === session.id && <p className="draft-method-error" role="alert">{methodChoiceError.message}</p>}{methodChoiceNotice?.sessionId === session.id && <p className="draft-method-status" role="status">{methodChoiceNotice.message}</p>}</div>}</details><p className="generated-session-focus">Focus: {(session.contentTargets ?? []).map((target) => topicDisplayLabel(target, "This target")).join("; ")}</p></div><strong>{session.amountLabel}</strong></article>;
+            }}>{editing ? "Keep current method" : "Change method"}</button>{editing && route && <div className="draft-method-options" role="group" aria-label={`Other methods that also fit for ${session.title}`}>{alternatives.map((alternative) => <button type="button" key={alternative.alternativeId} aria-pressed={false} disabled={draftBusy} onClick={() => void changeDraftSessionMethod(session.id, route.identity.routeRevisionId, alternative.primaryMethodId)}><strong>{alternative.visibleMethodName}</strong><span>{alternative.tradeoff}</span></button>)}</div>}{updating && <p className="draft-method-status" role="status"><span className="button-spinner" /> Updating this recipe…</p>}{methodChoiceError?.sessionId === session.id && <p className="draft-method-error" role="alert">{methodChoiceError.message}</p>}{methodChoiceNotice?.sessionId === session.id && <p className="draft-method-status" role="status">{methodChoiceNotice.message}</p>}</div>}</details><p className="generated-session-focus">Focus: {(session.contentTargets ?? []).map((target) => topicDisplayLabel(target, "This target")).join("; ")}</p></div><strong>{session.amountLabel}</strong></article>;
           })}</div></section>)}</div>
           <section className="plan-alignment-check" aria-labelledby="plan-alignment-title">
             <div className="plan-alignment-heading"><span className="step-label">BEFORE YOVA SAVES THIS</span><h2 id="plan-alignment-title">Does this plan match what you need?</h2><p>Check the content, starting approach, source, and pace. If one part is wrong, change that input and YOVA will rebuild the draft.</p></div>
             <div className="plan-alignment-facts">
               <div><span>{workProductCopy ? "WORK PRODUCT" : "CONTENT"}</span><strong>{topicDisplayLabel(generatedPlan.plan.topic)}</strong></div>
-              <div><span>STARTING APPROACH</span><strong>{workProductCopy?.startingApproach ?? (generatedPlan.plan.learningIntent === "learn" ? "Teach first, then remove support" : "Practice first, then repair gaps")}</strong></div>
+              <div><span>STARTING APPROACH</span><strong>{workProductCopy?.startingApproach ?? (generatedPlan.plan.sessions[0]?.learningMode === "learn" ? "Teach first, then remove support" : "Practice first, then repair gaps")}</strong></div>
               <div><span>{workProductCopy ? "WORK SOURCE" : "LEARNING SOURCE"}</span><strong>{sourceChoice === "materials" ? `${materials.length} uploaded ${materials.length === 1 ? "source" : "sources"}` : sourceChoice === "outside" ? "Your trusted source outside YOVA" : workProductCopy ? "Structure and work steps created by YOVA" : "Teaching and practice created by YOVA"}</strong></div>
               <div><span>PACE</span><strong>{generatedPlan.plan.sessions.length} sessions · {durationLabel(generatedPlan.plan.sessions.map((session) => selectSessionActiveMinutes(generatedPlan.plan, session)), "per-session")}</strong></div>
             </div>
             <div className="plan-revision-actions" aria-label="Change this plan before saving">
-              <button className="button ghost" disabled={Boolean(methodUpdatingSessionId)} onClick={() => reviseGeneratedPlan("goal")}>Change content</button>
-              <button className="button ghost" disabled={Boolean(methodUpdatingSessionId)} onClick={() => reviseGeneratedPlan("source")}>Change source</button>
-              <button className="button ghost" disabled={Boolean(methodUpdatingSessionId)} onClick={() => reviseGeneratedPlan("schedule")}>Change schedule</button>
-              {!workProductCopy && <button className="button ghost" disabled={Boolean(methodUpdatingSessionId)} onClick={() => reviseGeneratedPlan("diagnostic")}>Change starting level</button>}
+              <button className="button ghost" disabled={draftBusy} onClick={() => reviseGeneratedPlan("goal")}>Change content</button>
+              <button className="button ghost" disabled={draftBusy} onClick={() => reviseGeneratedPlan("source")}>Change source</button>
+              <button className="button ghost" disabled={draftBusy} onClick={() => reviseGeneratedPlan("schedule")}>Change schedule</button>
+              {!workProductCopy && <button className="button ghost" disabled={draftBusy} onClick={() => reviseGeneratedPlan("diagnostic")}>Change starting level</button>}
             </div>
             {activationError && <p className="plan-activation-error"><AlertCircle size={16} /> {activationError}</p>}
-            <div className="plan-activation"><div><Check size={18} /><span><strong>Confirm only when this looks right.</strong><small>YOVA will save the plan and make its first session available.</small></span></div><button className="button primary large" disabled={activating || Boolean(methodUpdatingSessionId)} onClick={() => void activateGeneratedPlan()}>{activating ? <><span className="button-spinner" /> Saving plan…</> : <>Use this plan <ArrowRight size={18} /></>}</button></div>
+            <div className="plan-activation"><div><Check size={18} /><span><strong>Confirm only when this looks right.</strong><small>YOVA will save the plan and make its first session available.</small></span></div><button className="button primary large" disabled={draftBusy} onClick={() => void activateGeneratedPlan()}>{activating ? <><span className="button-spinner" /> Saving plan…</> : <>Use this plan <ArrowRight size={18} /></>}</button></div>
           </section>
         </section>
       )}
@@ -926,13 +1004,13 @@ function groupPlanSessions(
     speech: {
       foundation: { label: "Shape the speech", description: "Set the purpose, audience, claim, and speaking structure before full rehearsal." },
       guided: { label: "Build the speech", description: "Develop the key sections, transitions, evidence, and delivery cues." },
-      practice: { label: "Rehearse and refine", description: "Rehearse the speech, repair weak sections, and improve the delivery." },
+      practice: { label: "Apply and refine", description: "Work independently on the included parts, then check and strengthen them." },
       review: { label: "Review and finish", description: "Run a final rehearsal against the requirements and prepare to deliver it." },
     },
     presentation: {
       foundation: { label: "Shape the presentation", description: "Set the purpose, audience, structure, and required content before building every part." },
       guided: { label: "Build the presentation", description: "Develop the content, slides, speaker notes, and transitions in a clear sequence." },
-      practice: { label: "Rehearse and refine", description: "Rehearse the presentation, repair weak sections, and improve the delivery." },
+      practice: { label: "Apply and refine", description: "Work independently on the included parts, then check and strengthen them." },
       review: { label: "Review and finish", description: "Run a final review against the requirements and prepare to present it." },
     },
   };
@@ -952,7 +1030,7 @@ function groupPlanSessions(
     // selectable method label. Changing an eligible method must never move a
     // session to a different part of the roadmap.
     const scheduledReview = Boolean(session.reviewType || session.reviewConcept?.trim());
-    const key: PhaseKey = index === sessions.length - 1 || scheduledReview
+    const key: PhaseKey = scheduledReview
       ? "review"
       : session.learningMode === "learn"
         ? index === 0 ? "foundation" : "guided"
@@ -1005,41 +1083,6 @@ export function durationLabel(minutes: number[], variant: "compact" | "per-sessi
   }
   if (unique.length === 1) return `${unique[0]} min`;
   return `${unique[0]}–${unique.at(-1)} min`;
-}
-
-function markDiagnosticSkipped(map: PlanKnowledgeMap): PlanKnowledgeMap {
-  return PlanKnowledgeMapSchema.parse({
-    ...map,
-    placementCheck: {
-      status: "skipped",
-      completedAt: null,
-      demonstratedTopicIds: [],
-      gapTopicIds: [],
-    },
-  });
-}
-
-function scoreDiagnostic(map: PlanKnowledgeMap, questions: PlanDiagnosticQuestion[], answers: string[]) {
-  const observedAt = new Date().toISOString();
-  const responses: DiagnosticResponse[] = questions.map((question, index) => ({
-    questionId: question.id,
-    topicId: question.topicId,
-    question: question.prompt,
-    answer: answers[index] ?? "I don't know yet",
-    evaluation: answers[index] === question.correctAnswer ? "correct" : "incorrect",
-  }));
-  const demonstratedTopicIds = [...new Set(responses.filter((response) => response.evaluation === "correct").map((response) => response.topicId))];
-  const gapTopicIds = [...new Set(responses.filter((response) => response.evaluation === "incorrect").map((response) => response.topicId))];
-  const scoredMap = PlanKnowledgeMapSchema.parse({
-    ...map,
-    placementCheck: { status: "completed", completedAt: observedAt, demonstratedTopicIds, gapTopicIds },
-    topics: map.topics.map((topic) => {
-      if (demonstratedTopicIds.includes(topic.id)) return { ...topic, status: "evidenced", initialEvidence: { source: "placement_check", outcome: "demonstrated", observedAt } };
-      if (gapTopicIds.includes(topic.id)) return { ...topic, status: "not_started", initialEvidence: { source: "placement_check", outcome: "gap", observedAt } };
-      return topic;
-    }),
-  });
-  return { map: scoredMap, responses };
 }
 
 function summarizeDiagnosticResponses(responses: DiagnosticResponse[]) {

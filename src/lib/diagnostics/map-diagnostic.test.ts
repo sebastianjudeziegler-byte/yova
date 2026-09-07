@@ -8,6 +8,7 @@ vi.mock("@/lib/openai/client", () => ({
 }));
 vi.mock("@/lib/openai/config", () => ({
   getOpenAIKnowledgeMapConfig: () => ({ model: "gpt-yova-diagnostic-test" }),
+  getOpenAIPlanConfig: () => ({ model: "gpt-yova-validation-test" }),
 }));
 
 import {
@@ -60,6 +61,39 @@ function map(origin: "material" | "ai_generated") {
 describe("knowledge-map diagnostics", () => {
   beforeEach(() => {
     parseResponse.mockReset();
+    parseResponse.mockImplementation(async (request) => {
+      const input = JSON.parse(request.input);
+      return { ...providerResponse([]), output_parsed: { judgments: input.questions.map((_: unknown,index: number)=>({questionIndex:index,testsAssignedTopic:true,selfContained:true,factuallyAccurate:true,independentEvidence:true,validChoiceIndices:[0],explanation:"Only the first choice satisfies the question as written."})) } };
+    });
+  });
+
+  it("does not skip teaching after one correct multiple-choice answer", () => {
+    const knowledgeMap = map("ai_generated");
+    const question = buildPreviewMapDiagnostic(knowledgeMap)[0]!;
+    const result = applyDiagnosticAnswers(knowledgeMap, [question], [question.correctAnswer], false);
+    const topic = result.map.topics.find(topic => topic.id === question.topicId)!;
+    expect(topic.initialEvidence?.outcome === "demonstrated" ? "Quick verification" : "Teach and check").toBe("Teach and check");
+  });
+
+  it("rejects the elimination question with two mathematically valid answers", async () => {
+    const knowledgeMap = map("ai_generated");
+    const questions = buildPreviewMapDiagnostic(knowledgeMap).map((question, index) => providerQuestion(`topic_${index+1}`, question.prompt, question.correctAnswer));
+    questions[0] = {
+      topicAlias: "topic_1", prompt: "For 2x + y = 11 and 2x - y = 1, which operation eliminates a variable?",
+      options: ["Add the equations to eliminate y", "Subtract the equations to eliminate x", "Multiply both equations by zero", "I don't know yet"], correctChoiceIndex: 0,
+    };
+    parseResponse.mockResolvedValueOnce(providerResponse(questions));
+    parseResponse.mockResolvedValueOnce({ ...providerResponse([]), output_parsed: { judgments: questions.map((_, index) => ({questionIndex:index, testsAssignedTopic:true,selfContained:true, validChoiceIndices:index===0?[0,1]:[0], explanation:index===0?"Adding eliminates y and subtracting eliminates x, so both choices satisfy the question.":"Only the first choice satisfies the stated question."})) } });
+    await expect(generateMapDiagnostic(knowledgeMap, "Solve simultaneous linear equations")).rejects.toMatchObject({failedValidator:"diagnostic_structure"});
+  });
+
+  it("rejects the live glycolysis question whose premise asks for the product of each half but the key counts a whole glucose", async () => {
+    const knowledgeMap = map("ai_generated");
+    const questions = buildPreviewMapDiagnostic(knowledgeMap).map((question,index)=>providerQuestion(`topic_${index+1}`,question.prompt,question.correctAnswer));
+    questions[0] = {topicAlias:"topic_1",prompt:"In glycolysis, one glucose molecule is split. What is made from each half of glucose?",options:["Two molecules of pyruvate","Two molecules of oxygen","One acetyl-CoA","I don't know yet"],correctChoiceIndex:0};
+    parseResponse.mockResolvedValueOnce(providerResponse(questions));
+    parseResponse.mockResolvedValueOnce({...providerResponse([]),output_parsed:{judgments:questions.map((_,index)=>({questionIndex:index,testsAssignedTopic:true,selfContained:true,factuallyAccurate:index!==0,independentEvidence:true,validChoiceIndices:[0],explanation:index===0?"Each three-carbon half produces one pyruvate; the keyed answer incorrectly counts both halves.":"The question and keyed choice agree with the facts."}))}});
+    await expect(generateMapDiagnostic(knowledgeMap,"Learn glycolysis")).rejects.toMatchObject({failedValidator:"diagnostic_structure"});
   });
 
   it.each(["material", "ai_generated"] as const)(
@@ -86,7 +120,7 @@ describe("knowledge-map diagnostics", () => {
 
     const questions = buildPreviewMapDiagnostic(knowledgeMap);
 
-    expect(questions).toHaveLength(4);
+    expect(questions).toHaveLength(2);
     expect(questions.every((question) => new Set(question.options).size === 4)).toBe(true);
   });
 
@@ -107,7 +141,7 @@ describe("knowledge-map diagnostics", () => {
     const knowledgeMap = map("material");
     const questions = buildPreviewMapDiagnostic(knowledgeMap);
     const answers = questions.map((question, index) => (
-      index % 2 === 0 ? question.correctAnswer : "I don't know yet"
+      index < 2 ? question.correctAnswer : "I don't know yet"
     ));
     const result = applyDiagnosticAnswers(knowledgeMap, questions, answers, false);
 
@@ -151,12 +185,12 @@ describe("knowledge-map diagnostics", () => {
     const input = JSON.parse(parseResponse.mock.calls[0]?.[0]?.input) as {
       assignedTopics: Array<Record<string, unknown>>;
     };
-    expect(input.assignedTopics).toHaveLength(4);
+    expect(input.assignedTopics).toHaveLength(8);
     expect(input.assignedTopics.map((topic) => topic.topicAlias)).toEqual([
       "topic_1",
       "topic_2",
       "topic_3",
-      "topic_4",
+      "topic_4", "topic_5", "topic_6", "topic_7", "topic_8",
     ]);
     expect(input.assignedTopics.some((topic) => "id" in topic || "topicId" in topic)).toBe(false);
     expect(parseResponse).toHaveBeenCalledWith(
@@ -165,7 +199,7 @@ describe("knowledge-map diagnostics", () => {
     );
   });
 
-  it("replaces unknown and duplicate provider aliases without crossing topic ownership", async () => {
+  it("rejects unknown and duplicate provider aliases without preview substitution", async () => {
     const knowledgeMap = map("ai_generated");
     const assigned = buildPreviewMapDiagnostic(knowledgeMap);
     const firstPrompt = "Which answer correctly explains the first assigned topic?";
@@ -179,27 +213,10 @@ describe("knowledge-map diagnostics", () => {
       providerQuestion("topic_3", thirdPrompt, assigned[2]!.correctAnswer),
     ]));
 
-    const result = await generateMapDiagnostic(knowledgeMap, "Prepare for the mapped unit test");
-
-    expect(result.questions).toHaveLength(4);
-    expect(result.questions.map((question) => question.topicId)).toEqual(
-      assigned.map((question) => question.topicId),
-    );
-    expect(result.questions[0]?.prompt).toBe(firstPrompt);
-    expect(result.questions[1]?.prompt).toContain(knowledgeMap.topics[1]!.title);
-    expect(result.questions[2]?.prompt).toBe(thirdPrompt);
-    expect(result.questions[3]?.prompt).toContain(knowledgeMap.topics[3]!.title);
-    expect(result.questions.map((question) => question.prompt)).not.toContain(duplicateCrossTopicPrompt);
-    expect(result.questions.map((question) => question.prompt)).not.toContain(unknownAliasPrompt);
-    expect(result.questions.every((question) => question.options.at(-1) === "I don't know yet")).toBe(true);
-    expect(result.stats).toMatchObject({
-      firstAttemptPassed: false,
-      failedValidator: "diagnostic_topic_coverage",
-      model: "gpt-yova-diagnostic-test",
-    });
+    await expect(generateMapDiagnostic(knowledgeMap, "Prepare for the mapped unit test")).rejects.toMatchObject({failedValidator:"diagnostic_topic_coverage"});
   });
 
-  it("keeps server-assigned placement work capped at eight topics", async () => {
+  it("keeps placement to two checks per topic and eight questions overall", async () => {
     const knowledgeMap = PlanKnowledgeMapSchema.parse({
       ...map("ai_generated"),
       topics: Array.from({ length: 10 }, (_, index) => ({
@@ -217,19 +234,20 @@ describe("knowledge-map diagnostics", () => {
         deferred: null,
       })),
     });
-    parseResponse.mockResolvedValueOnce(providerResponse([]));
+    const assigned = buildPreviewMapDiagnostic(knowledgeMap);
+    parseResponse.mockResolvedValueOnce(providerResponse(assigned.map((question,index)=>providerQuestion(`topic_${index+1}`,question.prompt,question.correctAnswer))));
 
     const result = await generateMapDiagnostic(knowledgeMap, "Prepare for the mapped cumulative test");
 
     expect(result.questions).toHaveLength(8);
-    expect(new Set(result.questions.map((question) => question.topicId)).size).toBe(8);
+    expect(new Set(result.questions.map((question) => question.topicId)).size).toBe(4);
     const input = JSON.parse(parseResponse.mock.calls[0]?.[0]?.input) as {
       assignedTopics: unknown[];
     };
     expect(input.assignedTopics).toHaveLength(8);
     expect(result.stats).toMatchObject({
-      firstAttemptPassed: false,
-      failedValidator: "diagnostic_topic_coverage",
+      firstAttemptPassed: true,
+      failedValidator: null,
     });
   });
 });

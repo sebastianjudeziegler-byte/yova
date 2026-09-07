@@ -469,6 +469,21 @@ describe("guided-session route revision boundary", () => {
       session: hydratedSession,
       adjustment: null,
     })).toBeNull();
+    const contradictorySession = {
+      ...hydratedSession,
+      resource: {
+        ...hydratedSession.resource,
+        coverage: {
+          ...hydratedSession.resource.coverage!,
+          deferredContent: [...hydratedSession.contentTargets!],
+        },
+      },
+    };
+    expect(hydratedSessionResourceCacheIssue({
+      plan: { ...nonStreamedLearnPlan, sessions: [contradictorySession] },
+      session: contradictorySession,
+      adjustment: null,
+    })).toContain("every planned target");
 
     useAuthenticatedCache(
       preview.session,

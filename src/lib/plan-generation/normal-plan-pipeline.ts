@@ -164,9 +164,27 @@ function assertCompositionMatchesRequest({
   }
 
   const scope = request.knowledgeMap.scopeJudgment;
+  const recovery = composition.capacityRecovery;
+  if (recovery) {
+    const learnCount = resolveInitialPlanSessionModes({
+      learningIntentRecommendation:{intent:request.learningIntent,basis:"Use the accepted starting evidence."},
+      knowledgeMap:request.knowledgeMap,
+      sessions:request.knowledgeMap.topics.filter(topic=>!topic.deferred).map(topic=>({key:topic.id,topicIds:[topic.id]})),
+    }).filter(decision=>decision.learningMode==="learn").length;
+    const reduced = recovery.stage === "reduced_scope" || recovery.stage === "triage";
+    const expectedTeaching = Math.min(reduced ? 1 : scope.minimumTeachingSessions, learnCount);
+    const expectedPractice = recovery.stage === "triage" ? "none" : recovery.stage === "shorter_sessions" ? scope.maximumSessions > 1 ? "all" : "none" : "last_teaching";
+    if (!request.deadline || !["shorter_sessions","last_teaching_practice","reduced_scope","triage"].includes(recovery.stage)
+      || recovery.minimumTeachingSessions !== expectedTeaching || recovery.practiceRequirement !== expectedPractice
+      || typeof recovery.explanation !== "string" || recovery.explanation.length < 10 || recovery.explanation.length > 900
+      || composition.envelopes.some(envelope=>envelope.timing.activeMinutes>(recovery.stage==="shorter_sessions"?45:10))
+      || (recovery.stage==="triage" && (composition.envelopes.length!==1 || composition.envelopes[0]!.topicIds.length!==1))) {
+      throw pipelineError("The deadline recovery no longer matches its bounded teaching and practice policy.");
+    }
+  }
   const maximumSessions = Math.min(scope.maximumSessions, MAX_GENERATED_PLAN_SESSIONS);
   if (
-    composition.envelopes.length < scope.minimumSessions
+    composition.envelopes.length < (composition.capacityRecovery ? 1 : scope.minimumSessions)
     || composition.envelopes.length > maximumSessions
   ) {
     throw pipelineError("The envelope count no longer matches the accepted scope limits.");
@@ -359,7 +377,7 @@ function validateCoveragePolicy({
   const learnTargetCount = initialEnvelopes.reduce((count, envelope) => (
     count + envelope.targetModeDecisions.filter((target) => target.learningMode === "learn").length
   ), 0);
-  const minimumTeaching = Math.min(
+  const minimumTeaching = composition.capacityRecovery?.minimumTeachingSessions ?? Math.min(
     request.knowledgeMap.scopeJudgment.minimumTeachingSessions,
     learnTargetCount,
   );
@@ -369,10 +387,13 @@ function validateCoveragePolicy({
   if (initialTargetIds.size === 0) {
     throw pipelineError("A runnable normal plan requires at least one initially covered target.");
   }
-  if (request.knowledgeMap.scopeJudgment.maximumSessions > 1) {
-    for (const envelope of initialEnvelopes.filter((candidate) => (
+  const practiceRequirement = composition.capacityRecovery?.practiceRequirement ?? (request.knowledgeMap.scopeJudgment.maximumSessions > 1 ? "all" : "none");
+  if (composition.capacityRecovery && !request.deadline) throw pipelineError("Capacity recovery needs a real deadline.");
+  if (practiceRequirement !== "none") {
+    const teachingEnvelopes = initialEnvelopes.filter((candidate) => (
       candidate.learningMode === "learn"
-    ))) {
+    ));
+    for (const envelope of practiceRequirement === "last_teaching" ? teachingEnvelopes.slice(-1) : teachingEnvelopes) {
       for (const topicId of envelope.topicIds) {
         if (!composition.envelopes.some((candidate) => (
           candidate.sequence > envelope.sequence

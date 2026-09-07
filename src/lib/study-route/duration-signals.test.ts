@@ -261,6 +261,17 @@ describe("authorized normal-duration profile adapter", () => {
 });
 
 describe("authorized normal-duration outcome adapter", () => {
+  it("keeps observed timing and answers when the learner leaves the rating unanswered", () => {
+    const plan = routedPlan();
+    const outcomes = buildAuthorizedNormalDurationOutcomes({
+      answers: writePersonalizationStateToAnswers([], defaultPersonalizationState()),
+      plans: [plan], completions: [completionFor(plan, { feedback: null })], interruptions: [],
+    });
+    expect(outcomes).toHaveLength(1);
+    expect(outcomes[0]).toMatchObject({ kind: "completion", actualMinutes: 25, correctAnswers: 4, totalAnswers: 5 });
+    expect(outcomes[0]).not.toHaveProperty("feedback");
+  });
+
   it("normalizes exact committed route evidence without inferring task family or mode", () => {
     const plan = routedPlan();
     const completion = completionFor(plan, {

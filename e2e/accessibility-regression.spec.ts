@@ -2,7 +2,8 @@ import { expect, test, type Page } from "@playwright/test";
 import { createRequire } from "node:module";
 
 const requireFromTest = createRequire(__filename);
-const jsxA11yPackagePath = requireFromTest.resolve("eslint-plugin-jsx-a11y/package.json");
+const requireFromNextLint = createRequire(requireFromTest.resolve("eslint-config-next"));
+const jsxA11yPackagePath = requireFromNextLint.resolve("eslint-plugin-jsx-a11y/package.json");
 const axePath = createRequire(jsxA11yPackagePath).resolve("axe-core/axe.min.js");
 
 const FIXED_NOW = new Date("2026-09-02T10:00:00.000Z");

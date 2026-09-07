@@ -1830,7 +1830,7 @@
 .calendar-action-toast { position: fixed; z-index: 80; bottom: 20px; right: 24px; max-width: min(520px, calc(100vw - 32px)); display: flex; align-items: center; gap: 12px; padding: 14px; border: 1px solid var(--line-default); border-radius: 14px; background: white; box-shadow: var(--shadow-md); font-size: 13px; }
 .calendar-action-toast button { border: 0; background: transparent; color: var(--brand-blue); font-weight: 600; min-height: 40px; flex-shrink: 0; }
 .calendar-inspector .calendar-action-toast { position: static; max-width: 100%; margin: 12px 0; padding: 8px 12px; flex-wrap: wrap; box-shadow: none; background: var(--surface-blue); }
-.calendar-view-switcher button { min-height: 40px; padding: 8px 16px; border: 0; border-radius: 20px; background: transparent; color: var(--ink-muted); font: inherit; }
+.calendar-view-switcher button { min-height: 40px; padding: 8px 16px; border: 0; border-radius: 20px; background: transparent; color: var(--ink-muted); font: inherit; transition: none; }
 .calendar-view-switcher button[aria-pressed=true] { background: var(--brand-blue); color: white; }
 .calendar-date-navigation { flex-wrap: wrap; }
 .calendar-jump-date { margin-left: auto; text-align: left; }

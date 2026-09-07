@@ -118,7 +118,7 @@ test("a multi-session assignment skips an irrelevant knowledge quiz", async ({ p
   await expect(page.getByText("YOVA-guided plan using your trusted artifact sources")).toBeVisible();
   await page.getByRole("button", { name: "Generate my plan" }).click();
   await expect(page.getByText("Plan ready")).toBeVisible();
-  await expect(page.locator(".generated-roadmap")).toContainText("DRAFT AND REFINE");
+  await expect(page.locator(".generated-roadmap")).toContainText("BUILD WITH GUIDANCE");
   await expect(page.locator(".generated-roadmap")).not.toContainText(/(?:PRACTICE|TEACHING) FIRST/);
   await expect(page.locator(".generated-roadmap")).toContainText(/Shape the draft|Draft with support|Revise and strengthen/);
   await expect(page.locator(".plan-alignment-facts")).toContainText("Draft the work, match it to the requirements, and revise it");
@@ -138,13 +138,13 @@ test("speech and presentation plans bypass placement and use artifact-aware mode
   const scenarios = [
     {
       goal: "My persuasive speech about renewable energy is due in 14 days and I have not started it yet",
-      modeLabel: "REHEARSE AND REFINE",
+      modeLabel: "BUILD WITH GUIDANCE",
       startingApproach: "Build the speech, rehearse it, and refine the delivery",
       phaseLabel: /Shape the speech|Build the speech|Rehearse and refine/,
     },
     {
       goal: "I need to build a biology presentation with slides and speaker notes due in 14 days and I have not started yet",
-      modeLabel: "BUILD AND REHEARSE",
+      modeLabel: "BUILD WITH GUIDANCE",
       startingApproach: "Build the presentation, rehearse it, and refine the delivery",
       phaseLabel: /Shape the presentation|Build the presentation|Rehearse and refine/,
     },

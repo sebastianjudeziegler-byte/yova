@@ -4,9 +4,12 @@ import { generationEnvironment } from "@/lib/analytics/generation-observation";
 import { recordGenerationObservation } from "@/lib/analytics/generation-observation-server";
 import { aiUsageReservationConflict } from "@/lib/ai-usage/reservation-conflict";
 import { applyDiagnosticAnswers, generateMapDiagnostic, MapDiagnosticGenerationError } from "@/lib/diagnostics/map-diagnostic";
+import { DiagnosticSubmissionSchema, prepareDiagnosticChallenge, readDiagnosticChallenge } from "@/lib/diagnostics/diagnostic-authority";
 import { PlanKnowledgeMapSchema } from "@/lib/knowledge-map/schema";
 import { getOpenAIKnowledgeMapConfig } from "@/lib/openai/config";
-import { PlanDiagnosticQuestionSchema } from "@/lib/plan-generation/schema";
+import { PublicPlanDiagnosticQuestionSchema } from "@/lib/plan-generation/schema";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { claimDiagnosticAnswers } from "@/lib/diagnostics/scoring-receipt";
 import { checkPlanGenerationRateLimit, requestRateLimitKey } from "@/lib/server/rate-limit";
 import {
   consumeAIRequestClaimAfterProviderFailure,
@@ -21,17 +24,11 @@ export const maxDuration = 60;
 const OBSERVATION_BUDGET_MS = 1_000;
 
 const DiagnosticPreparationResponseSchema = z.object({
-  questions: z.array(PlanDiagnosticQuestionSchema).min(1).max(8),
+  questions: z.array(PublicPlanDiagnosticQuestionSchema).min(1).max(8),
+  challengeToken: z.string().min(1).max(1_000_000),
   durationMs: z.number().int().min(0),
   requestId: z.string().uuid(),
 }).strict();
-
-const SubmissionSchema = z.object({
-  questions: z.array(PlanDiagnosticQuestionSchema).min(1).max(8),
-  answers: z.array(z.string().trim().min(1).max(180)).min(1).max(8),
-}).refine((value) => value.questions.length === value.answers.length, {
-  message: "Every placement question needs one answer.",
-});
 
 export async function GET(request: Request, context: { params: Promise<{ planId: string }> }) {
   const startedAt = Date.now();
@@ -109,7 +106,7 @@ export async function GET(request: Request, context: { params: Promise<{ planId:
   try {
     const generated = await generateMapDiagnostic(loaded.map, `${loaded.title}. ${loaded.topic}`);
     const response = DiagnosticPreparationResponseSchema.parse({
-      questions: generated.questions,
+      ...prepareDiagnosticChallenge({userId: user.id, planId, map: loaded.map, questions: generated.questions}),
       durationMs: Date.now() - startedAt,
       requestId,
     });
@@ -163,25 +160,37 @@ export async function POST(request: Request, context: { params: Promise<{ planId
   const supabase = await createSupabaseServerClient();
   const { data: { user }, error: userError } = await supabase.auth.getUser();
   if (userError || !user) return NextResponse.json({ error: "Sign in before saving placement evidence." }, { status: 401 });
-  const submission = SubmissionSchema.safeParse(await request.json().catch(() => null));
+  const submission = DiagnosticSubmissionSchema.safeParse(await request.json().catch(() => null));
   if (!submission.success) return NextResponse.json({ error: "Complete each placement question before saving it." }, { status: 422 });
   const loaded = await loadPlanMap(supabase, user.id, planId);
   if (!loaded) return NextResponse.json({ error: "YOVA could not load this plan's topic map." }, { status: 404 });
-  const validTopicIds = new Set(loaded.map.topics.map((topic) => topic.id));
-  if (submission.data.questions.some((question) => !validTopicIds.has(question.topicId))) {
-    return NextResponse.json({ error: "The placement check no longer matches this plan." }, { status: 409 });
+  let challenge: ReturnType<typeof readDiagnosticChallenge>;
+  try {
+    challenge = readDiagnosticChallenge(submission.data.challengeToken, user.id, planId);
+  } catch {
+    return NextResponse.json({error:"This placement check expired or could not be verified. Start a fresh check."}, {status:409});
   }
-  const result = applyDiagnosticAnswers(loaded.map, submission.data.questions, submission.data.answers, false);
-  const { error: updateError } = await supabase.rpc(
-    "update_plan_diagnostic_knowledge_map_v1",
+  if (JSON.stringify(challenge.map) !== JSON.stringify(loaded.map)) return NextResponse.json({error:"This plan changed while you were answering. Start a fresh check."}, {status:409});
+  if (challenge.questions.length !== submission.data.answers.length || challenge.questions.some((question,index) => !question.options.includes(submission.data.answers[index]!))) return NextResponse.json({error:"Choose one of the answers for every question."}, {status:422});
+  try {
+    const claimed = await claimDiagnosticAnswers({token:submission.data.challengeToken,answers:submission.data.answers,userId:user.id,expiresAt:challenge.expiresAt});
+    if (!claimed) return NextResponse.json({error:"You already submitted answers for this check. Start a fresh check to try again."},{status:409});
+  } catch {
+    return NextResponse.json({error:"YOVA could not save this check yet. Your answers are still here; try again."},{status:503});
+  }
+  const result = applyDiagnosticAnswers(loaded.map, challenge.questions, submission.data.answers, false);
+  const { error: updateError } = await createSupabaseAdminClient().rpc(
+    "save_server_scored_plan_diagnostic_v1",
     {
       requested_plan_id: planId,
+      requested_user_id: user.id,
+      expected_knowledge_map: loaded.map,
       requested_knowledge_map: result.map,
     },
   );
   if (updateError) return NextResponse.json({ error: "YOVA could not save the placement evidence." }, { status: 409 });
 
-  const demonstratedTopicIds = new Set<string>(result.responses.filter((response) => response.evaluation === "correct").map((response) => response.topicId));
+  const demonstratedTopicIds = new Set<string>(result.map.placementCheck.demonstratedTopicIds);
   const demonstratedTitles = result.map.topics.filter((topic) => demonstratedTopicIds.has(topic.id)).map((topic) => topic.title);
   const { data: unfinishedRows } = await supabase.from("plan_sessions").select("id,step_data").eq("plan_id", planId).eq("user_id", user.id).in("status", ["ready", "upcoming"]);
   const affectedSessionCount = (unfinishedRows ?? []).filter((row) => {

@@ -2719,7 +2719,14 @@ test("finishing a shortened guided lesson keeps every deferred target as exact n
   await expect(page.getByRole("heading", { name: "Name what should return" })).toBeVisible();
   await page.getByRole("button", { name: "Finish this content" }).click();
   await expect(page.getByText("SESSION COMPLETE", { exact: true })).toBeVisible();
+  await expect(page.locator(".completion-feedback .selected")).toHaveCount(0);
+  await expect(page.getByText("Challenge felt: About right.", { exact: true })).toHaveCount(0);
   await page.getByRole("button", { name: "Finish and continue" }).click();
+
+  await expect.poll(() => page.evaluate((sessionId) => {
+    const snapshot = JSON.parse(localStorage.getItem("yova.preview.v1") ?? "{}");
+    return snapshot.sessionCompletions?.find((completion: { planSessionId: string }) => completion.planSessionId === sessionId);
+  }, planSessionId)).toMatchObject({ feedback: null });
 
   await expect.poll(() => page.evaluate((seededPlanId) => {
     const stored = window.localStorage.getItem("yova.preview.v1");
@@ -3145,7 +3152,7 @@ test("a normal conceptual plan visibly moves from Learn to later Practice and co
   await createPreviewAccount(page);
   await completeOnboarding(page);
 
-  await beginPlanFromAdd(page, "Build me a plan to understand cellular respiration from scratch.");
+  await beginPlanFromAdd(page, "I have never studied cellular respiration. Teach me from scratch for my exam in three weeks.");
   await expect(page.getByRole("heading", { name: "When would you prefer to study this material?" })).toBeVisible();
   await page.getByRole("button", { name: "45 minutes", exact: true }).click();
   await page.getByRole("button", { name: "Continue" }).click();
@@ -3198,6 +3205,55 @@ test("a normal conceptual plan visibly moves from Learn to later Practice and co
   expect(committedLearnIndex, JSON.stringify(activatedRoutes)).toBe(visibleLearnIndex);
   expect(committedPracticeIndex, JSON.stringify(activatedRoutes)).toBe(visiblePracticeIndex);
   expect(activatedRoutes.every((session) => session.lifecycle === "committed")).toBe(true);
+});
+
+test("map revision cannot activate a stale draft and fresh placement uses the revised map", async ({ page }) => {
+  let releaseUpdate: (() => void) | undefined;
+  let updateStarted = false;
+  let activated = 0;
+  let revisedMap: LearningPlan["knowledgeMap"];
+  const diagnosticMaps: unknown[] = [];
+  page.on("request", request => {
+    if (new URL(request.url()).pathname === "/api/plans/activate") activated += 1;
+  });
+  await page.route("**/api/plans/generate*", async route => {
+    const url = new URL(route.request().url());
+    const input = route.request().postDataJSON();
+    if (url.searchParams.get("mode") === "diagnostic") diagnosticMaps.push(input.knowledgeMap);
+    if (input.mapCorrection && url.searchParams.get("mode") !== "diagnostic") {
+      updateStarted = true;
+      await new Promise<void>(resolve => { releaseUpdate = resolve; });
+      const response = await route.fetch();
+      const body = await response.json();
+      revisedMap = body.plan.knowledgeMap;
+      await route.fulfill({ response, json: body });
+    } else await route.continue();
+  });
+  await createPreviewAccount(page);
+  await completeOnboarding(page);
+  await beginPlanFromAdd(page, "Build me a plan to understand cellular respiration from scratch.");
+  await page.getByRole("button", { name: "45 minutes", exact: true }).click();
+  await page.getByRole("button", { name: "Continue" }).click();
+  await page.getByRole("button", { name: "Skip for now" }).click();
+  await page.getByRole("button", { name: "Generate my plan" }).click();
+  await expect(page.getByText("Plan ready", { exact: true })).toBeVisible({ timeout: 30_000 });
+  await page.getByLabel("Requested topic map change").fill("Include a comparison of aerobic and anaerobic respiration.");
+  await page.getByRole("button", { name: "Update map and plan" }).click();
+  await expect.poll(() => updateStarted).toBe(true);
+  try {
+    await expect(page.getByRole("button", { name: "Use this plan" })).toBeDisabled();
+    for (const name of ["Change content", "Change source", "Change schedule", "Change starting level"]) {
+      await expect(page.getByRole("button", { name, exact: true })).toBeDisabled();
+    }
+    expect(activated).toBe(0);
+  } finally { releaseUpdate?.(); }
+  await expect(page.getByRole("status").filter({ hasText: "Map updated:" })).toBeVisible({ timeout: 30_000 });
+  await page.getByRole("button", { name: "Change starting level" }).click();
+  await expect(page.getByRole("button", { name: "Skip for now" })).toBeVisible({ timeout: 30_000 });
+  expect(diagnosticMaps.length).toBe(2);
+  expect((diagnosticMaps[1] as NonNullable<LearningPlan["knowledgeMap"]>).topics.map(topic => topic.id))
+    .toEqual(revisedMap?.topics.map(topic => topic.id));
+  expect(activated).toBe(0);
 });
 
 test("normal-plan review changes one offered method without regenerating or rewriting other routes", async ({ page }) => {
@@ -3563,7 +3619,7 @@ test("session setup changes one committed method and generates from its exact su
   });
 });
 
-test("a multi-session plan carries one clear source decision from Add to Learning", async ({ page }) => {
+test("a multi-session plan carries one clear source decision from Add to Learning", async ({ page }, testInfo) => {
   await createPreviewAccount(page);
   await completeOnboarding(page);
 
@@ -3634,6 +3690,10 @@ test("a multi-session plan carries one clear source decision from Add to Learnin
     && session.ruleIds.includes("initial_plan_method_routing_v1")
     && session.ruleIds.includes("canonical_method_selection_v1")
   ))).toBe(true);
+
+  const actionHeights = await page.locator(".learning-hero-actions .button").evaluateAll(buttons => buttons.map(button => button.getBoundingClientRect().height));
+  expect(actionHeights.every(height => height >= 44 && height <= 80)).toBe(true);
+  await page.locator(".learning-hero").screenshot({ path: testInfo.outputPath("plan-actions.png") });
 
   const initialSessionCount = await page.locator(".timeline-row").count();
   expect(initialSessionCount).toBeGreaterThan(0);

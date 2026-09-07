@@ -594,7 +594,7 @@ export async function loadAuthenticatedLearningState(): Promise<CloudLearningSta
       actualMinutes: attempt.actual_minutes ?? 1,
       correctAnswers: attempt.correct_answers ?? 0,
       totalAnswers: attempt.total_answers ?? 0,
-      feedback: isSessionFeedback(attempt.user_feedback) ? attempt.user_feedback : "about_right",
+      feedback: isSessionFeedback(attempt.user_feedback) ? attempt.user_feedback : null,
       observedGap: readTextProperty(attempt.result_data, "observedGap") || "No observation recorded",
       completionMode: normalizeSessionCompletionMode(
         readTextProperty(attempt.result_data, "completionMode"),

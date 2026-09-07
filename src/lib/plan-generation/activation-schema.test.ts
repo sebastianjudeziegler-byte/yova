@@ -14,6 +14,7 @@ function matchingDraft() {
     intent: "plan",
     learningIntent: "learn",
     goal: "Understand photosynthesis and cellular respiration for my biology test.",
+    startingContext: "I have not learned this yet.",
     materialMode: "none",
     materials: [],
     studyMode: "inside",

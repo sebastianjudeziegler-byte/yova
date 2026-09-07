@@ -1,4 +1,5 @@
 import type { SessionLearningMode } from "@/lib/domain";
+import { NORMAL_STUDY_DURATION_LEVELS, type NormalStudyDurationMinutes } from "@/lib/study-route/duration-levels";
 import type { LearningTaskType } from "@/lib/learning/method-catalog";
 import {
   classifyLearningTask,
@@ -84,6 +85,7 @@ export type NormalPlanDurationContext = Readonly<{
   profileVersion: string;
   profile: NormalStudyDurationRecommendationInput["profile"];
   recentOutcomes: readonly NormalDurationOutcome[];
+  capacityMaximumMinutes?: NormalStudyDurationMinutes;
 }>;
 
 export type NormalPlanEnvelopeInput = Readonly<{
@@ -151,6 +153,12 @@ export type NormalPlanEnvelopeComposition = Readonly<{
   profileVersion: string;
   envelopes: readonly NormalPlanSessionEnvelope[];
   deferrals: readonly NormalPlanTargetDeferral[];
+  capacityRecovery?: Readonly<{
+    stage: "shorter_sessions" | "last_teaching_practice" | "reduced_scope" | "triage";
+    minimumTeachingSessions: number;
+    practiceRequirement: "all" | "last_teaching" | "none";
+    explanation: string;
+  }>;
 }>;
 
 type Target = Readonly<{
@@ -274,28 +282,69 @@ export function composeNormalPlanEnvelopes(
   );
   let selected: InitialComposition | null = null;
   let coveredTargetCount = 0;
-  for (let count = targets.length; count >= 1; count -= 1) {
-    const candidateTargets = targets.slice(0, count);
-    if (
-      candidateTargets.filter((target) => target.firstMode === "learn").length
-        < minimumTeachingSessions
-    ) continue;
-    const candidate = composeInitialAndRequiredPractice({
-      targets: candidateTargets,
-      slots,
-      request,
-      durationContext: input.durationContext,
-      maximumSessions,
-      minimumTeachingSessions,
-      allowUnrepeatedLearn: maximumSessions === 1,
-    });
-    if (!candidate) continue;
-    selected = candidate;
-    coveredTargetCount = count;
-    break;
+  let effectiveMinimumTeaching = minimumTeachingSessions;
+  let effectivePractice: "all" | "last_teaching" | "none" = maximumSessions === 1 ? "none" : "all";
+  let selectedDurationContext = input.durationContext;
+  let capacityRecovery: NormalPlanEnvelopeComposition["capacityRecovery"];
+  let scopeMinimumMissed = false;
+  const stages: Array<{
+    stage?: NonNullable<NormalPlanEnvelopeComposition["capacityRecovery"]>["stage"];
+    cap?: NormalStudyDurationMinutes;
+    teaching: number;
+    practice: "all" | "last_teaching" | "none";
+    targetLimit: number;
+  }> = [{ teaching: minimumTeachingSessions, practice: effectivePractice, targetLimit: targets.length }];
+  if (request.deadline) {
+    for (const cap of [...NORMAL_STUDY_DURATION_LEVELS].reverse().filter(value => value < 60)) {
+      stages.push({ stage: "shorter_sessions", cap, teaching: minimumTeachingSessions, practice: effectivePractice, targetLimit: targets.length });
+    }
+    stages.push(
+      { stage: "last_teaching_practice", cap: 10, teaching: minimumTeachingSessions, practice: "last_teaching", targetLimit: targets.length },
+      { stage: "reduced_scope", cap: 10, teaching: Math.min(1, learnTargetCount), practice: "last_teaching", targetLimit: targets.length },
+      { stage: "triage", cap: 10, teaching: Math.min(1, learnTargetCount), practice: "none", targetLimit: 1 },
+    );
+  }
+  for (const stage of stages) {
+    const durationContext = { ...input.durationContext, ...(stage.cap ? { capacityMaximumMinutes: stage.cap } : {}) };
+    for (let count = stage.targetLimit; count >= 1; count -= 1) {
+      const candidateTargets = targets.slice(0, count);
+      if (candidateTargets.filter(target => target.firstMode === "learn").length < stage.teaching) continue;
+      const candidate = composeInitialAndRequiredPractice({
+        targets: candidateTargets, slots, request, durationContext, maximumSessions,
+        minimumTeachingSessions: stage.teaching,
+        practiceRequirement: stage.practice,
+      });
+      if (!candidate) continue;
+      const completed = addOptionalPractice({
+        composition: candidate, targets: candidateTargets, slots, request, durationContext, maximumSessions,
+        recommendedSessions: stage.stage === "triage" ? 1 : Math.min(knowledgeMap.scopeJudgment.recommendedSessions, maximumSessions),
+      });
+      if (!stage.stage && completed.envelopes.length < knowledgeMap.scopeJudgment.minimumSessions) {
+        scopeMinimumMissed = true;
+        continue;
+      }
+      selected = completed;
+      coveredTargetCount = count;
+      effectiveMinimumTeaching = stage.teaching;
+      effectivePractice = stage.practice;
+      selectedDurationContext = durationContext;
+      if (stage.stage) capacityRecovery = {
+        stage: stage.stage, minimumTeachingSessions: stage.teaching, practiceRequirement: stage.practice,
+        explanation: stage.stage === "triage"
+          ? "Your deadline leaves time for one focused first step. Learn and check this priority now; the remaining topics and later practice are saved for after the deadline."
+          : stage.stage === "reduced_scope"
+            ? "Your deadline leaves time for part of the unit. Start with the included topics and check the final teaching session independently; the remaining topics are saved for later."
+            : stage.stage === "last_teaching_practice"
+              ? "To fit your deadline, these shorter lessons include checks as you learn. The final teaching session keeps a separate practice attempt, with extra practice where time fits. Not every lesson has a later retention check in this plan."
+              : "Your deadline needs shorter sessions. Included new topics keep a separate practice attempt, and demonstrated topics start with verification. Your usual focus preference stays unchanged.",
+      };
+      break;
+    }
+    if (selected) break;
   }
 
   if (!selected) {
+    if (scopeMinimumMissed) throw new NormalPlanEnvelopeComposerError("scope_minimum_unreachable", "The available time cannot hold the requested session count.");
     if (minimumTeachingSessions > 0) {
       throw new NormalPlanEnvelopeComposerError(
         "minimum_teaching_unreachable",
@@ -309,24 +358,7 @@ export function composeNormalPlanEnvelopes(
   }
 
   const selectedTargets = targets.slice(0, coveredTargetCount);
-  const withOptionalPractice = addOptionalPractice({
-    composition: selected,
-    targets: selectedTargets,
-    slots,
-    request,
-    durationContext: input.durationContext,
-    maximumSessions,
-    recommendedSessions: Math.min(
-      knowledgeMap.scopeJudgment.recommendedSessions,
-      maximumSessions,
-    ),
-  });
-  if (withOptionalPractice.envelopes.length < knowledgeMap.scopeJudgment.minimumSessions) {
-    throw new NormalPlanEnvelopeComposerError(
-      "scope_minimum_unreachable",
-      `The learner's availability can hold ${withOptionalPractice.envelopes.length} normal sessions, fewer than the accepted minimum of ${knowledgeMap.scopeJudgment.minimumSessions}.`,
-    );
-  }
+  const withOptionalPractice = selected;
   const nextUnscheduledTarget = targets[coveredTargetCount] ?? null;
   const deadlineLimitedAvailability = nextUnscheduledTarget
     ? deadlineRestrictsAvailability({
@@ -335,7 +367,7 @@ export function composeNormalPlanEnvelopes(
         searchDays,
         boundedSlots: slots,
         cursor: withOptionalPractice.cursor,
-        durationContext: input.durationContext,
+        durationContext: selectedDurationContext,
         learningMode: nextUnscheduledTarget.firstMode,
         taskFamily: nextUnscheduledTarget.taskClassification.taskType,
       })
@@ -350,8 +382,8 @@ export function composeNormalPlanEnvelopes(
     envelopes,
     scheduledTargets: selectedTargets,
     maximumSessions,
-    minimumTeachingSessions,
-    allowUnrepeatedLearn: maximumSessions === 1,
+    minimumTeachingSessions: effectiveMinimumTeaching,
+    practiceRequirement: effectivePractice,
   });
 
   const deferrals = buildDeferrals({
@@ -373,6 +405,7 @@ export function composeNormalPlanEnvelopes(
     profileVersion,
     envelopes,
     deferrals,
+    ...(capacityRecovery ? { capacityRecovery } : {}),
   });
 }
 
@@ -383,7 +416,7 @@ function composeInitialAndRequiredPractice({
   durationContext,
   maximumSessions,
   minimumTeachingSessions,
-  allowUnrepeatedLearn,
+  practiceRequirement,
 }: {
   targets: readonly Target[];
   slots: readonly PlanAvailabilitySlot[];
@@ -391,7 +424,7 @@ function composeInitialAndRequiredPractice({
   durationContext: NormalPlanDurationContext;
   maximumSessions: number;
   minimumTeachingSessions: number;
-  allowUnrepeatedLearn: boolean;
+  practiceRequirement: "all" | "last_teaching" | "none";
 }): InitialComposition | null {
   const failed = new Set<string>();
   const visit = (
@@ -407,8 +440,9 @@ function composeInitialAndRequiredPractice({
         failed.add(key);
         return null;
       }
-      if (allowUnrepeatedLearn) return { envelopes, cursor };
-      const learned = targets.filter((target) => target.firstMode === "learn");
+      if (practiceRequirement === "none") return { envelopes, cursor };
+      const lastTeachingTargets = envelopes.filter(item => item.learningMode === "learn").at(-1)?.targets ?? [];
+      const learned = practiceRequirement === "last_teaching" ? lastTeachingTargets : targets.filter((target) => target.firstMode === "learn");
       const practice = composeRequiredPractice({
         targets: learned,
         targetIndex: 0,
@@ -447,6 +481,7 @@ function composeInitialAndRequiredPractice({
       compatibleCount,
       budget.maximumContentTargets,
       budget.maximumCompletionChecks,
+      durationContext.capacityMaximumMinutes === 10 ? 1 : Infinity,
     );
     let sizes = preferredThenLarger(
       Math.min(maximumSize, budget.preferredContentTargets),
@@ -524,6 +559,7 @@ function composeRequiredPractice({
     compatibleCount,
     placement.contentBudget.maximumContentTargets,
     placement.contentBudget.maximumCompletionChecks,
+    durationContext.capacityMaximumMinutes === 10 ? 1 : Infinity,
   );
   const sizes = preferredThenLarger(
     Math.min(maximumSize, placement.contentBudget.preferredContentTargets),
@@ -587,6 +623,7 @@ function addOptionalPractice({
       compatibleCount,
       placement.contentBudget.preferredContentTargets,
       placement.contentBudget.maximumCompletionChecks,
+      durationContext.capacityMaximumMinutes === 10 ? 1 : Infinity,
     ));
     envelopes.push({
       kind: "additional_practice",
@@ -636,14 +673,16 @@ function placeSession({
       profile: durationContext.profile,
       schedule: {
         window: studyDayWindowForInstant(scheduledFor, request.timeZone),
+        capacityMaximumMinutes: durationContext.capacityMaximumMinutes,
       },
       recentOutcomes: durationContext.recentOutcomes,
     });
-    const duration = resolveNormalStudyDurationPrecedence({
+    const resolvedDuration = resolveNormalStudyDurationPrecedence({
       systemRecommendation: recommendation,
       learnerOverrideMinutes: null,
       hardMaximumMinutes: remaining,
     });
+    const duration = resolvedDuration;
     if (duration.status === "insufficient_time") {
       slotIndex += 1;
       usedMinutes = 0;
@@ -735,13 +774,13 @@ function assertCoverageInvariants({
   scheduledTargets,
   maximumSessions,
   minimumTeachingSessions,
-  allowUnrepeatedLearn,
+  practiceRequirement,
 }: {
   envelopes: readonly NormalPlanSessionEnvelope[];
   scheduledTargets: readonly Target[];
   maximumSessions: number;
   minimumTeachingSessions: number;
-  allowUnrepeatedLearn: boolean;
+  practiceRequirement: "all" | "last_teaching" | "none";
 }) {
   if (envelopes.length > maximumSessions) {
     throw new Error("The composer exceeded the accepted session maximum.");
@@ -767,10 +806,9 @@ function assertCoverageInvariants({
   if (teachingCount < minimumTeachingSessions && scheduledTargets.length > 0) {
     throw new Error("The composer did not honor the accepted minimum teaching-session count.");
   }
-  if (!allowUnrepeatedLearn) {
-    for (const envelope of envelopes.filter((item) => (
-      item.kind === "initial_coverage" && item.learningMode === "learn"
-    ))) {
+  if (practiceRequirement !== "none") {
+    const teaching = envelopes.filter(item => item.kind === "initial_coverage" && item.learningMode === "learn");
+    for (const envelope of practiceRequirement === "last_teaching" ? teaching.slice(-1) : teaching) {
       for (const topicId of envelope.topicIds) {
         const laterPractice = envelopes.some((candidate) => (
           candidate.sequence > envelope.sequence

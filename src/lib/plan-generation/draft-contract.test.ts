@@ -49,9 +49,6 @@ describe("plan draft generation receipt contract", () => {
     });
     expect(contract.materials[0]).not.toHaveProperty("textContent");
     expect(contract.materials[0]).not.toHaveProperty("understanding");
-    expect(contract.diagnosticResponses[0]).toMatchObject({
-      questionId: null,
-      topicId: null,
-    });
+    expect(contract.diagnosticResponses).toEqual([{questionId:null,topicId:null,question:"Where are you starting?",answer:"I know the terms",evaluation:"self_report"}]);
   });
 });

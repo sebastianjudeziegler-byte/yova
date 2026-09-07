@@ -11,7 +11,9 @@ import {
   MaterialUnderstandingSchema,
 } from "@/lib/knowledge-map/schema";
 import { generatePlanKnowledgeMap, KnowledgeMapGenerationError } from "@/lib/knowledge-map/generate-plan-map";
+import { diagnosticResponsesFromMap } from "@/lib/diagnostics/placement-summary";
 import { generateMapDiagnostic, MapDiagnosticGenerationError } from "@/lib/diagnostics/map-diagnostic";
+import { issueKnowledgeMapReceipt, mapClaimsEvidence, prepareDiagnosticChallenge, verifyKnowledgeMapReceipt } from "@/lib/diagnostics/diagnostic-authority";
 import { mapAndPersistMaterial } from "@/lib/materials/material-understanding";
 import { resolveLearningIntent } from "@/lib/learning/learning-intent";
 import {
@@ -26,10 +28,10 @@ import {
 } from "@/lib/plan-generation/normal-plan-envelopes";
 import { buildNormalPlanFromFixedEnvelope } from "@/lib/plan-generation/normal-plan-pipeline";
 import { buildNormalPlanFallbackFill } from "@/lib/plan-generation/normal-plan-provider-fill";
+import { buildDeadlinePriority } from "@/lib/plan-generation/deadline-priority";
 import { generatePreviewPlan } from "@/lib/plan-generation/preview-generator";
 import { LIVE_AI_PLAN_FALLBACK_NOTICE } from "@/lib/plan-generation/fallback";
 import {
-  buildDeterministicKnowledgeMapFallback,
   buildDevelopmentPreviewKnowledgeMap,
 } from "@/lib/plan-generation/knowledge-map-fallback";
 import { normalizePlanDraftGenerationContract } from "@/lib/plan-generation/draft-contract";
@@ -106,7 +108,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Sign in before generating a learning plan." }, { status: 401 });
   }
 
-  if (!diagnosticOnly && !developmentPreview) {
+  if (!developmentPreview) {
     if (!supabase || !user) {
       return draftReceiptUnavailableResponse(requestId);
     }
@@ -201,11 +203,19 @@ export async function POST(request: Request) {
   const resolvedApproach = resolveLearningIntent({
     goal: parsedRequest.data.goal,
     startingPoint: parsedRequest.data.startingContext,
-    diagnosticResponses: parsedRequest.data.diagnosticResponses,
+    diagnosticResponses: parsedRequest.data.diagnosticResponses.filter(response=>response.evaluation === "self_report"),
   });
-  let planRequest = {
+  const evidenceUserId = developmentPreview ? "development-preview" : user!.id;
+  if (parsedRequest.data.knowledgeMap && mapClaimsEvidence(parsedRequest.data.knowledgeMap)
+    && !verifyKnowledgeMapReceipt(parsedRequest.data.knowledgeMap, parsedRequest.data.knowledgeMapReceipt, evidenceUserId, developmentPreview)) {
+    return NextResponse.json({error: "YOVA could not verify this placement evidence. Retake the check before using it to skip teaching.", code: "placement_evidence_unverified"}, {status: 422});
+  }
+  const verifiedResponses = diagnosticResponsesFromMap(parsedRequest.data.knowledgeMap, parsedRequest.data.diagnosticResponses);
+  const verifiedApproach = verifiedResponses.length ? resolveLearningIntent({goal: parsedRequest.data.goal, startingPoint: parsedRequest.data.startingContext, diagnosticResponses: verifiedResponses}) : resolvedApproach;
+  let planRequest: PlanGenerationRequest = {
     ...parsedRequest.data,
-    learningIntent: resolvedApproach.intent,
+    diagnosticResponses: verifiedResponses,
+    learningIntent: verifiedApproach.intent,
   };
   if (
     planRequest.intent === "study_now"
@@ -279,13 +289,18 @@ export async function POST(request: Request) {
   // earlier knowledge-map/diagnostic calls outside both durable and in-memory
   // limits. Material-understanding repair above remains part of the separate
   // upload/mapping lifecycle.
+  const acceptedMapPriority = !diagnosticOnly && !planRequest.mapCorrection
+    ? buildDeadlinePriority(planRequest, new Date(startedAt)) : null;
+  if (acceptedMapPriority) return NextResponse.json(acceptedMapPriority, {
+    headers: {"Cache-Control":"no-store", "X-Yova-Request-Id":requestId},
+  });
   let aiUsageClaimId: string | null = null;
   let forcedNormalPlanFallbackNotice: string | null = null;
-  let knowledgeMapFallbackNotice: string | null = null;
+  const knowledgeMapFallbackNotice: string | null = null;
   const aiUsageRecoveryKey = crypto.randomUUID();
   const canUseAcceptedMapNormalFallback = planRequest.intent === "plan"
     && !diagnosticOnly
-    && Boolean(planRequest.knowledgeMap);
+    && Boolean(planRequest.knowledgeMap) && !planRequest.mapCorrection;
   const meteredPlanProviderWork = isOpenAIPlanConfigured()
     && (
       !planRequest.knowledgeMap
@@ -412,7 +427,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const mapped = planRequest.knowledgeMap
+    const mapped = planRequest.knowledgeMap && !planRequest.mapCorrection
       ? null
       : !isOpenAIPlanConfigured() && (developmentPreview || process.env.NODE_ENV === "development")
         ? buildDevelopmentPreviewKnowledgeMap(planRequest)
@@ -460,38 +475,11 @@ export async function POST(request: Request) {
     const observedModel = error instanceof KnowledgeMapGenerationError
       ? error.model
       : null;
-    let fallback: Awaited<ReturnType<typeof generatePlanKnowledgeMap>>;
-    try {
-      fallback = buildDeterministicKnowledgeMapFallback(planRequest, validator);
-      planRequest = { ...planRequest, knowledgeMap: fallback.map };
-      knowledgeMapFallbackNotice = knowledgeMapFallbackNoticeFor(planRequest);
-    } catch {
-      await consumeFailedPlanClaim(supabase, aiUsageClaimId, requestId);
-      await recordPlanGenerationObservationSafely(supabase, user?.id, {
-        generationType: "knowledge_map",
-        environment: generationEnvironment(),
-        finalOutcome: "failure",
-        firstAttemptPassed: false,
-        failedValidator: validator,
-        repairAttempted: observedAttempts > 1,
-        repairSucceeded: observedAttempts > 1 ? false : null,
-        elapsedMs: Date.now() - startedAt,
-        attempts: observedAttempts,
-        inputTokens: failureMetrics?.inputTokens ?? 0,
-        cachedInputTokens: failureMetrics?.cachedInputTokens ?? 0,
-        cacheWriteTokens: failureMetrics?.cacheWriteTokens ?? 0,
-        outputTokens: failureMetrics?.outputTokens ?? 0,
-        model: observedModel,
-      });
-      return NextResponse.json(
-        { error: "YOVA could not map this learning goal yet. Try again in a moment.", code: "knowledge_map_failed" },
-        { status: 503, headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId } },
-      );
-    }
+    await consumeFailedPlanClaim(supabase, aiUsageClaimId, requestId);
     await recordPlanGenerationObservationSafely(supabase, user?.id, {
       generationType: "knowledge_map",
       environment: generationEnvironment(),
-      finalOutcome: "fallback",
+      finalOutcome: "failure",
       firstAttemptPassed: false,
       failedValidator: validator,
       repairAttempted: observedAttempts > 1,
@@ -503,20 +491,25 @@ export async function POST(request: Request) {
       cacheWriteTokens: failureMetrics?.cacheWriteTokens ?? 0,
       outputTokens: failureMetrics?.outputTokens ?? 0,
       model: observedModel,
-      diagnostics: {
-        topicCount: fallback.map.topics.length,
-        scopeBand: fallback.map.scopeJudgment.band,
-      },
     });
+    return NextResponse.json(
+      { error: "YOVA could not map this learning goal yet. Try again in a moment.", code: "knowledge_map_failed" },
+      { status: 503, headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId } },
+    );
   }
+
+  planRequest = { ...planRequest, diagnosticResponses: diagnosticResponsesFromMap(planRequest.knowledgeMap, planRequest.diagnosticResponses) };
+  const mappedApproach = resolveLearningIntent({goal: planRequest.goal, startingPoint: planRequest.startingContext, diagnosticResponses: planRequest.diagnosticResponses});
+  planRequest.learningIntent = mappedApproach.intent;
 
   if (diagnosticOnly && planRequest.knowledgeMap) {
     const diagnosticStartedAt = Date.now();
     try {
-      const generated = await generateMapDiagnostic(planRequest.knowledgeMap, planRequest.goal);
+      const generated = await generateMapDiagnostic(planRequest.knowledgeMap, planRequest.goal, {developmentPreview});
       const diagnosticResponse = PlanDiagnosticPreparationResponseSchema.parse({
         knowledgeMap: planRequest.knowledgeMap,
-        questions: generated.questions,
+        knowledgeMapReceipt: issueKnowledgeMapReceipt(planRequest.knowledgeMap, evidenceUserId, developmentPreview),
+        ...prepareDiagnosticChallenge({userId: evidenceUserId, planId: null, map: planRequest.knowledgeMap, questions: generated.questions, preview: developmentPreview}),
         generation: {
           requestId,
           durationMs: Date.now() - diagnosticStartedAt,
@@ -678,6 +671,11 @@ export async function POST(request: Request) {
     // Resolve the accepted subject exactly once before it can influence either
     // deterministic structure or provider copy.
     planRequest = resolvePlanRequestSubjectBoundary(planRequest);
+    const priority = buildDeadlinePriority(planRequest, normalPlanNow);
+    if (priority) {
+      await settleSuccessfulPlanClaim(supabase, aiUsageClaimId, requestId);
+      return NextResponse.json(priority, {headers:{"Cache-Control":"no-store", "X-Yova-Request-Id":requestId}});
+    }
     initialPlanContext = await loadAuthorizedNormalDurationContext(
       developmentPreview
         ? { developmentPreview: true, now: normalPlanNow }
@@ -689,7 +687,7 @@ export async function POST(request: Request) {
       request: planRequest,
       learningIntentRecommendation: {
         intent: planRequest.learningIntent,
-        basis: resolvedApproach.reason,
+        basis: mappedApproach.reason,
       },
       durationContext: durationContextForRollout(
         initialPlanContext,
@@ -1149,12 +1147,15 @@ async function reliableDraftResponse(
   let resolvedInitialPlanContext = initialPlanContext;
   let reliablePlanRequest = planRequest;
   let reliableNotice = notice;
+  if ((!reliablePlanRequest.knowledgeMap && !developmentPreview) || reliablePlanRequest.mapCorrection) {
+    return NextResponse.json(
+      { error: "YOVA could not map this learning goal yet. Try again in a moment.", code: "knowledge_map_failed" },
+      { status: 503, headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId } },
+    );
+  }
   try {
     if (!reliablePlanRequest.knowledgeMap) {
-      const mapped = buildDeterministicKnowledgeMapFallback(
-        reliablePlanRequest,
-        "knowledge_map_provider_request",
-      );
+      const mapped = buildDevelopmentPreviewKnowledgeMap(reliablePlanRequest);
       reliablePlanRequest = {
         ...reliablePlanRequest,
         knowledgeMap: mapped.map,
@@ -1279,6 +1280,7 @@ function planDraftResponse({
     plan,
     generation: { ...generation, draftReceipt: null },
   });
+  if (unsigned.plan.knowledgeMap) unsigned.generation.knowledgeMapReceipt = issueKnowledgeMapReceipt(unsigned.plan.knowledgeMap, developmentPreview ? "development-preview" : authenticatedUserId!, developmentPreview);
   if (developmentPreview) return unsigned;
   if (!authenticatedUserId) {
     throw new PlanDraftReceiptConfigurationError(

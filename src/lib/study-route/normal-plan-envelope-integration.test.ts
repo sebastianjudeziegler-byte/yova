@@ -120,7 +120,7 @@ describe("normal-plan envelope route integration", () => {
       "The legacy record does not show who selected the route or which control mode was active.",
     );
     expect(result.route.explanation.uncertainties).toContain(
-      "The legacy record does not contain a canonical difficulty decision.",
+      "The difficulty has not been confirmed yet. YOVA will use your attempts to adjust it.",
     );
   });
 

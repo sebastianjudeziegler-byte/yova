@@ -8,7 +8,7 @@ export function scheduleFromIntake(
   description: string,
   requestedMinutes?: number | null,
 ): PlanCreatorScheduleState {
-  const match = description.match(/\b(?:can\s+(?:study|practice|work)|(?:am\s+)?available|study\s+(?:on|every|for)|practice\s+on)\b([^.!?;]*)/i);
+  const match = description.match(/\b(?:can\s+(?:study|practice|work)|(?:am\s+)?available|study\s+(?:on|every|for)|practice\s+on|(?:I\s+)?have\s+\d{1,2}\s*(?:minutes?|mins?)\s+(?:each|every))\b([^.!?;]*)/i);
   const prefix = description.slice(0, match?.index ?? 0);
   const clause = /\b(?:not|never|cannot|can't)\s+(?:\w+\s+){0,2}$/i.test(prefix) ? null : match?.[0];
   if (!clause) return fallback;
@@ -19,8 +19,8 @@ export function scheduleFromIntake(
     const end = DAYS.findIndex((day) => day.toLowerCase() === range[2]!.toLowerCase());
     for (let offset = 0; offset <= (end - start + 7) % 7; offset += 1) explicitDays.push(DAYS[(start + offset) % 7]!);
   }
-  if (/\bweekdays\b/i.test(clause)) explicitDays.push(...DAYS.slice(0, 5));
-  if (/\bweekends\b/i.test(clause)) explicitDays.push(...DAYS.slice(5));
+  if (/\bweekdays?\b/i.test(clause)) explicitDays.push(...DAYS.slice(0, 5));
+  if (/\bweekends?\b/i.test(clause)) explicitDays.push(...DAYS.slice(5));
   if (/\bevery\s+day|\bdaily\b/i.test(clause)) explicitDays.push(...DAYS);
   const excludedClause = clause.match(/\b(?:except|but not|not on|excluding)\b(.*)/i)?.[1] ?? "";
   const selectedDays = new Set(explicitDays.filter((day) => !new RegExp(`\\b${day}s?\\b`, "i").test(excludedClause)));
@@ -28,7 +28,7 @@ export function scheduleFromIntake(
   const window = windowMatch ? `${windowMatch[0]!.toUpperCase()}${windowMatch.slice(1).toLowerCase()}` as "Morning" | "Afternoon" | "Evening" : null;
   const minutesMatch = clause.match(/\b(\d{1,2})\s*(?:minutes?|mins?)\b/i)?.[1];
   const parsedMinutes = minutesMatch ? Number(minutesMatch) : requestedMinutes;
-  const minutes = parsedMinutes && parsedMinutes >= 10 && parsedMinutes <= 90 ? parsedMinutes : fallback.sessionLength;
+  const minutes = parsedMinutes && parsedMinutes >= 1 && parsedMinutes <= 90 ? parsedMinutes : fallback.sessionLength;
   if (!selectedDays.size && !window && minutes === fallback.sessionLength) return fallback;
   return {
     ...fallback,

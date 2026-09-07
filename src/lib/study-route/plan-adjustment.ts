@@ -166,6 +166,7 @@ export function preparePlanAdjustmentStudyRoutes({
     assertExactCommittedRoute(originRoute, plan.id, originSession.id);
 
     const studyRoute = createCommittedInitialSessionStudyRoute({
+      controlMode: originRoute.agency.controlMode,
       plan: adjustedPlan,
       session: replacement,
       now: changedAt,

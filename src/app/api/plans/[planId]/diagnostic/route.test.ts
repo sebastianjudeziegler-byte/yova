@@ -36,6 +36,7 @@ vi.mock("@/lib/server/ai-usage", () => ({
   refundAIRequestReservationBeforeProvider: mocks.releaseOperation,
   settleAIRequestClaim: mocks.settle,
 }));
+vi.mock("@/lib/supabase/admin", () => ({ createSupabaseAdminClient: () => ({ rpc: mocks.updateDiagnostic }) }));
 vi.mock("@/lib/supabase/server", () => ({
   createSupabaseServerClient: mocks.createClient,
 }));
@@ -94,6 +95,7 @@ const question = PlanDiagnosticQuestionSchema.parse({
 
 describe("standalone plan diagnostic allowance lifecycle", () => {
   beforeEach(() => {
+    vi.stubEnv("YOVA_DRAFT_RECEIPT_SECRET", "diagnostic-route-secret-0123456789-abcdef");
     mocks.configured = true;
     mocks.createClient.mockReset().mockResolvedValue(supabaseClient());
     mocks.generateDiagnostic.mockReset().mockResolvedValue(generatedDiagnostic());
@@ -136,6 +138,24 @@ describe("standalone plan diagnostic allowance lifecycle", () => {
     );
     expect(mocks.settle).toHaveBeenCalledWith(expect.anything(), CLAIM_ID);
     expect(mocks.release).not.toHaveBeenCalled();
+  });
+
+  it("does not reveal the correct answer in the learner's placement response", async () => {
+    const response = await GET(diagnosticRequest(), routeContext());
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.questions[0].prompt).toBe(question.prompt);
+    expect(body.questions[0]).not.toHaveProperty("correctAnswer");
+    expect(body.challengeToken).toEqual(expect.any(String));
+  });
+
+  it("rejects fabricated client questions instead of recording Quick verification", async () => {
+    const response = await POST(new Request(`https://yova.example/api/plans/${PLAN_ID}/diagnostic`, {
+      method: "POST", headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({questions:[{...question,correctAnswer:"Demand decreases"}],answers:["Demand decreases"]}),
+    }), routeContext());
+    expect(response.status).toBe(422);
+    expect(mocks.updateDiagnostic).not.toHaveBeenCalled();
   });
 
   it("consumes the exact claim when provider generation fails, even if telemetry also fails", async () => {
@@ -264,21 +284,24 @@ describe("standalone plan diagnostic allowance lifecycle", () => {
     expect(mocks.settle).not.toHaveBeenCalled();
   });
 
-  it("saves placement evidence through the bounded knowledge-map RPC", async () => {
+  it("saves server-scored placement evidence through the private exact-map writer", async () => {
+    const preparation = await (await GET(diagnosticRequest(), routeContext())).json();
     const response = await POST(new Request(
       `https://yova.example/api/plans/${PLAN_ID}/diagnostic`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ questions: [question], answers: ["Demand increases"] }),
+        body: JSON.stringify({ challengeToken: preparation.challengeToken, answers: ["Demand increases"] }),
       },
     ), routeContext());
 
     expect(response.status).toBe(200);
     expect(mocks.updateDiagnostic).toHaveBeenCalledWith(
-      "update_plan_diagnostic_knowledge_map_v1",
+      "save_server_scored_plan_diagnostic_v1",
       {
         requested_plan_id: PLAN_ID,
+        requested_user_id: USER_ID,
+        expected_knowledge_map: knowledgeMap,
         requested_knowledge_map: expect.objectContaining({
           version: 1,
           placementCheck: expect.objectContaining({ status: "completed" }),

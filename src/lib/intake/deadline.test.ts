@@ -9,6 +9,14 @@ import {
 
 describe("natural-language deadline contract", () => {
   it.each([
+    "Prepare me for a linear equations quiz in two weeks. Teach those before independent practice. I can study Monday, Wednesday and Friday evenings.",
+    "My exam is in two weeks. Solve by substitution on Monday.",
+    "Practise before bed on Monday for a quiz in two weeks.",
+  ])("does not confuse learning instructions with deadline cues: %s", (description) => {
+    expect(inferDeadlineDate(description, { now: new Date("2026-09-07T12:00:00Z"), timeZone: "Europe/London" })).toBe("2026-09-21");
+  });
+
+  it.each([
     ["My chemistry practical is due September 4", "2026-09-04"],
     ["I have an economics exam on Sept. 12th", "2026-09-12"],
     ["The literature paper deadline is 10/6/2026", "2026-10-06"],

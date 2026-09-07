@@ -5,7 +5,7 @@ import {
   isSupabaseAdminConfigured,
 } from "@/lib/supabase/admin";
 
-export const SIGNED_IN_GENERATION_CONTRACT_VERSION = "202608310003";
+export const SIGNED_IN_GENERATION_CONTRACT_VERSION = "20260907160001";
 
 type ReadinessPayload = {
   contractVersion?: unknown;
@@ -15,6 +15,8 @@ type ReadinessPayload = {
   requiredRouteRpcs?: unknown;
   expandedMethodAgencyBoundary?: unknown;
   methodEligibilityV3Boundary?: unknown;
+  placementEvidenceBoundary?: unknown;
+  unansweredCompletionFeedback?: unknown;
 };
 
 export async function signedInGenerationReadinessStatus(): Promise<"ready" | "unavailable"> {
@@ -24,7 +26,7 @@ export async function signedInGenerationReadinessStatus(): Promise<"ready" | "un
 
   try {
     const { data, error } = await createSupabaseAdminClient().rpc(
-      "signed_in_generation_readiness_v3",
+      "signed_in_generation_readiness_v4",
     );
     if (error || !isReadinessPayload(data)) return "unavailable";
 
@@ -35,6 +37,8 @@ export async function signedInGenerationReadinessStatus(): Promise<"ready" | "un
       && data.requiredRouteRpcs === true
       && data.expandedMethodAgencyBoundary === true
       && data.methodEligibilityV3Boundary === true
+      && data.placementEvidenceBoundary === true
+      && data.unansweredCompletionFeedback === true
       ? "ready"
       : "unavailable";
   } catch {

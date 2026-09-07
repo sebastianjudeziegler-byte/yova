@@ -33,7 +33,7 @@ describe("deployed signed-in generation readiness", () => {
 
   it("reports ready only after the service-only database contract passes", async () => {
     await expect(signedInGenerationReadinessStatus()).resolves.toBe("ready");
-    expect(mocks.rpc).toHaveBeenCalledWith("signed_in_generation_readiness_v3");
+    expect(mocks.rpc).toHaveBeenCalledWith("signed_in_generation_readiness_v4");
   });
 
   it("fails before probing when either server-only prerequisite is absent", async () => {
@@ -94,5 +94,7 @@ function completeReadinessPayload() {
     requiredRouteRpcs: true,
     expandedMethodAgencyBoundary: true,
     methodEligibilityV3Boundary: true,
+      placementEvidenceBoundary: true,
+      unansweredCompletionFeedback: true,
   };
 }

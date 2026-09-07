@@ -56,6 +56,14 @@ function plan(currentSession = session()): LearningPlan {
 }
 
 describe("post-activation StudyRoute creation", () => {
+  it("retains the learner customization mode when revising the session", () => {
+    const originalSession = session();
+    const currentPlan = plan(originalSession);
+    const previous = createCommittedInitialSessionStudyRoute({ plan: currentPlan, session: originalSession, now: FIRST_NOW, controlMode: "learner_customizes", origin: { source: "plan_adjustment_deferred", reason: "The learner included another topic." } });
+    const revised = createCommittedScalarSuccessorStudyRoute({ plan: currentPlan, session: { ...originalSession, objective: "Explain the mechanism using a new concrete example." }, previousRoute: previous, now: NEXT_NOW, changeReason: "The learner requested a new example.", origin: { source: "plan_adjustment", reason: "The learner requested a new example." } });
+    expect(previous.agency.controlMode).toBe("learner_customizes");
+    expect(revised.agency.controlMode).toBe("learner_customizes");
+  });
   it("commits an initial route with fresh identity, exact binding, time, and origin provenance", () => {
     const currentSession = session();
     const route = createCommittedInitialSessionStudyRoute({

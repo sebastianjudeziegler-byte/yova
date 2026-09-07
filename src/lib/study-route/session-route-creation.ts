@@ -58,12 +58,14 @@ export function createCommittedInitialSessionStudyRoute({
   now,
   origin,
   durationDecision,
+  controlMode,
 }: {
   plan: LearningPlan;
   session: LearningPlanSession;
   now: string;
   origin: StudyRouteCreationOrigin;
   durationDecision?: StudyRouteSuccessorDurationDecision;
+  controlMode?: StudyRoute["agency"]["controlMode"];
 }): StudyRoute {
   if (session.studyRoute) {
     throw new Error("An initial StudyRoute can be created only for a session without a route.");
@@ -92,7 +94,8 @@ export function createCommittedInitialSessionStudyRoute({
   const provisional = durationDecision
     ? withInitialDurationDecision(routedOrigin, durationDecision)
     : routedOrigin;
-  return StudyRouteSchema.parse(commitStudyRouteRevision(provisional, now));
+  const controlled = controlMode ? { ...provisional, agency: { ...provisional.agency, controlMode } } : provisional;
+  return StudyRouteSchema.parse(commitStudyRouteRevision(controlled, now));
 }
 
 /**
@@ -220,7 +223,7 @@ export function createProvisionalScalarSuccessorStudyRoute({
     approach: adapted.approach,
     timing,
     execution: adapted.execution,
-    agency: adapted.agency,
+    agency: { ...adapted.agency, controlMode: previous.agency.controlMode },
     explanation: adapted.explanation,
     provenance: {
       routerVersion,

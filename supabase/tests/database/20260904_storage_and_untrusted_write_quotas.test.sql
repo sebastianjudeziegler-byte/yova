@@ -192,13 +192,19 @@ select extensions.is(
 );
 
 select extensions.ok(
-  pg_catalog.has_function_privilege(
+  not pg_catalog.has_function_privilege(
     'authenticated',
     'public.update_plan_diagnostic_knowledge_map_v1(uuid,jsonb)',
     'execute'
   )
-  and pg_catalog.has_column_privilege(
+  and not pg_catalog.has_column_privilege(
     'authenticated', 'public.plans', 'knowledge_map', 'update'
+  )
+  and pg_catalog.has_function_privilege(
+    'service_role', 'public.save_server_scored_plan_diagnostic_v1(uuid,uuid,jsonb,jsonb)', 'execute'
+  )
+  and not pg_catalog.has_function_privilege(
+    'authenticated', 'public.save_server_scored_plan_diagnostic_v1(uuid,uuid,jsonb,jsonb)', 'execute'
   )
   and not pg_catalog.has_column_privilege(
     'authenticated', 'public.plans', 'rationale', 'update'
@@ -209,7 +215,7 @@ select extensions.ok(
     where trigger_row.tgname = 'guard_plan_knowledge_map_update_v1'
       and not trigger_row.tgisinternal
   ),
-  'diagnostic map updates use one bounded RPC with quota-backed rollout compatibility'
+  'diagnostic map updates require server scoring and retain the quota trigger'
 );
 
 select extensions.ok(

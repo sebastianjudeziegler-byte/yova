@@ -1,7 +1,6 @@
 import type { GenerationValidator } from "@/lib/analytics/generation-observation";
 import type { KnowledgeMapGenerationStats } from "@/lib/knowledge-map/generate-plan-map";
 import {
-  MaterialUnderstandingSchema,
   PlanKnowledgeMapSchema,
   type PlanKnowledgeMap,
 } from "@/lib/knowledge-map/schema";
@@ -14,70 +13,14 @@ export type DeterministicKnowledgeMapResult = {
   stats: KnowledgeMapGenerationStats;
 };
 
-/**
- * Builds a conservative map without inventing source-backed facts. Existing
- * material understanding remains authoritative, including every source
- * reference. A source-free request receives only a plainly labelled temporary
- * scope map that the learner must review before activation.
- */
+/** Production mapping failures must never become preview-derived curricula. */
 export function buildDeterministicKnowledgeMapFallback(
-  request: PlanGenerationRequest,
-  failedValidator: GenerationValidator,
+  _request: PlanGenerationRequest,
+  _failedValidator: GenerationValidator,
 ): DeterministicKnowledgeMapResult {
-  const materialTopics = request.materials.flatMap((material) => {
-    const understanding = MaterialUnderstandingSchema.safeParse(material.understanding);
-    return understanding.success
-      ? understanding.data.topics.map((topic) => ({
-          materialId: material.id,
-          topic,
-        }))
-      : [];
-  });
-
-  if (materialTopics.length === 0) {
-    const preview = buildDevelopmentPreviewKnowledgeMap(request);
-    return {
-      ...preview,
-      stats: {
-        ...preview.stats,
-        firstAttemptPassed: false,
-        failedValidator,
-      },
-    };
-  }
-
-  // Never silently drop accepted source topics merely to fit the map cap.
-  if (materialTopics.length > 40) {
-    throw new Error("The mapped material topics exceed the safe fallback map capacity.");
-  }
-
-  const remappedIdByMaterialTopic = new Map(
-    materialTopics.map(({ materialId, topic }) => [
-      `${materialId}:${topic.id}`,
-      crypto.randomUUID(),
-    ] as const),
-  );
-  const map = PlanKnowledgeMapSchema.parse({
-    version: 1,
-    scopeJudgment: inferPlanScopeContract(request),
-    topics: materialTopics.map(({ materialId, topic }) => ({
-      ...topic,
-      id: remappedIdByMaterialTopic.get(`${materialId}:${topic.id}`),
-      prerequisiteTopicIds: topic.prerequisiteTopicIds.flatMap((prerequisiteTopicId) => {
-        const remappedId = remappedIdByMaterialTopic.get(`${materialId}:${prerequisiteTopicId}`);
-        return remappedId ? [remappedId] : [];
-      }),
-      // Material understanding is not learner evidence. A new plan must still
-      // begin from an unevidenced state even if stale metadata says otherwise.
-      status: "not_started",
-      initialEvidence: null,
-    })),
-  });
-
-  return {
-    map,
-    stats: emptyFallbackStats(failedValidator),
-  };
+  void _request;
+  void _failedValidator;
+  throw new Error("YOVA could not map this learning goal yet. Try again in a moment.");
 }
 
 export function buildDevelopmentPreviewKnowledgeMap(

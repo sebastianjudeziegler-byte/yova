@@ -150,6 +150,15 @@ afterEach(() => {
 });
 
 describe("active session checkpoint storage", () => {
+  it("resumes an unrated completion without choosing a challenge rating", () => {
+    installMemoryStorage();
+    const unrated = awaitingFinishCheckpoint({ completionFeedback: null });
+    expect(saveActiveSessionCheckpoint(unrated)).toBe(true);
+    const saved = loadActiveSessionCheckpoints(unrated.accountId);
+    expect(saved).toHaveLength(1);
+    expect(checkpointToSessionResumePoint(saved[0]!).completionFeedback).toBeNull();
+  });
+
   it("keeps an already-deployed local checkpoint without generated lesson identity readable", () => {
     installMemoryStorage();
     const legacyLocal = checkpoint();

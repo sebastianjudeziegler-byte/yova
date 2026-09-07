@@ -9,7 +9,7 @@ const FIRST_CHUNK_ID = "33333333-3333-4333-8333-333333333331";
 const SECOND_CHUNK_ID = "33333333-3333-4333-8333-333333333332";
 
 describe("deterministic knowledge-map fallback", () => {
-  it("preserves accepted material facts and source references while remapping route identity", () => {
+  it("reports a mapping failure instead of silently inventing a new map from material metadata", () => {
     const request = baseRequest({
       materialMode: "upload",
       materials: [{
@@ -47,52 +47,14 @@ describe("deterministic knowledge-map fallback", () => {
       }],
     });
 
-    const result = buildDeterministicKnowledgeMapFallback(
-      request,
-      "knowledge_map_provider_request",
-    );
+    expect(() => buildDeterministicKnowledgeMapFallback(request, "knowledge_map_provider_request"))
+      .toThrow("YOVA could not map this learning goal yet. Try again in a moment.");
 
-    expect(result.stats).toMatchObject({
-      attempts: 1,
-      firstAttemptPassed: false,
-      failedValidator: "knowledge_map_provider_request",
-      model: null,
-    });
-    expect(result.map.topics.map((topic) => topic.id)).not.toContain(FIRST_TOPIC_ID);
-    expect(result.map.topics).toHaveLength(2);
-    expect(result.map.topics[0]).toMatchObject({
-      title: "Glycolysis inputs and outputs",
-      description: "The notes explain the inputs, outputs, and location of glycolysis.",
-      origin: "material",
-      status: "not_started",
-      initialEvidence: null,
-      sourceReferences: [{
-        materialId: MATERIAL_ID,
-        chunkId: FIRST_CHUNK_ID,
-        chunkIndex: 0,
-        sectionRole: "content_source",
-      }],
-    });
-    expect(result.map.topics[1]!.prerequisiteTopicIds).toEqual([
-      result.map.topics[0]!.id,
-    ]);
   });
 
-  it("labels source-free fallback topics as AI generated and reports the failed boundary", () => {
-    const result = buildDeterministicKnowledgeMapFallback(
-      baseRequest(),
-      "knowledge_map_structure",
-    );
-
-    expect(result.map.scopeJudgment.label).toBe("Unclassified learning plan");
-    expect(result.map.topics.length).toBeGreaterThan(0);
-    expect(result.map.topics.every((topic) => (
-      topic.origin === "ai_generated" && topic.sourceReferences.length === 0
-    ))).toBe(true);
-    expect(result.stats).toMatchObject({
-      firstAttemptPassed: false,
-      failedValidator: "knowledge_map_structure",
-    });
+  it("reports a retryable source-free mapping failure without preview topics", () => {
+    expect(() => buildDeterministicKnowledgeMapFallback(baseRequest(), "knowledge_map_structure"))
+      .toThrow("YOVA could not map this learning goal yet. Try again in a moment.");
   });
 });
 

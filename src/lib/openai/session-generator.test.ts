@@ -1454,6 +1454,40 @@ describe("outside-app guidance validation", () => {
 });
 
 describe("session content-volume validation", () => {
+  it("does not defer a parent target that has explicit mapped assessment evidence", async () => {
+    const { alignSessionCoverageWithPlan } = await import("@/lib/openai/session-generator");
+    const coverage = {
+      focus: "Choose a claim for a food waste speech.",
+      essentialIdeas: ["State one specific claim", "Match the claim to the audience"],
+      evidenceMap: [
+        { essentialIdea: "State one specific claim", activityConcept: "Choose a clear persuasive claim" },
+        { essentialIdea: "Match the claim to the audience", activityConcept: "Choose a clear persuasive claim" },
+      ],
+      deferredContent: ["Avoid broad or split-focus topics"],
+      completionEvidence: ["Write a specific audience-focused claim independently"],
+    };
+    const aligned = alignSessionCoverageWithPlan(coverage, ["Choose a clear persuasive claim"]);
+    const { sessionResourceHasDeferredPlanTargets } = await import("@/lib/learning/session-continuation");
+    const session = { contentTargets:["Choose a clear persuasive claim"], resource:{coverage:aligned} };
+    const learnerResult = {requiredSteps:"4 of 4",evidenceChecks:"3 of 3",nextAction:sessionResourceHasDeferredPlanTargets(session as Parameters<typeof sessionResourceHasDeferredPlanTargets>[0])?"Cannot finish: required target still deferred":"Finish and continue",evidence:aligned.completionEvidence};
+    console.info(JSON.stringify({case:"speech-parent-target-completion",learnerResult}));
+    expect(learnerResult.nextAction).toBe("Finish and continue");
+    expect(aligned.deferredContent).toEqual(["Avoid broad or split-focus topics"]);
+    expect(aligned.essentialIdeas).toEqual(coverage.essentialIdeas);
+    const unrelated = alignSessionCoverageWithPlan({ ...coverage, evidenceMap: [] }, ["Choose a clear persuasive claim"]);
+    expect(unrelated.deferredContent).toContain("Choose a clear persuasive claim");
+  });
+  it("rejects a lesson that defers its only saved target before a learner can start it", async () => {
+    const { validateSessionCoverageFidelity } = await import("@/lib/openai/session-generator");
+    const draft = learningDraft("model");
+    draft.coverage.deferredContent = ["Choose a clear persuasive claim"];
+    expect(validateSessionCoverageFidelity(draft, {
+      title: "Write a persuasive claim", objective: "Write a specific audience action about food waste.",
+      method: "Outline from Memory", methodReason: "Build a claim before supporting it with evidence.",
+      estimatedMinutes: 15, learningMode: "learn", topicIds: [TEST_TOPIC_ID],
+      contentTargets: ["Choose a clear persuasive claim"], completionEvidence: ["Write a specific claim independently"],
+    })).toMatch(/defers every saved target/);
+  });
   it("maps explanatory Bioenergetics claims back to concise plan labels", async () => {
     const { coverageTargetsMatch } = await import("@/lib/openai/session-generator");
 

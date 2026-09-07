@@ -1,3 +1,4 @@
+import { issueKnowledgeMapReceipt } from "@/lib/diagnostics/diagnostic-authority";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { NormalPlanEnvelopeComposition } from "@/lib/plan-generation/normal-plan-envelopes";
 import {
@@ -145,6 +146,7 @@ const planRequest = PlanGenerationRequestSchema.parse({
 
 describe("plan generation route", () => {
   beforeEach(() => {
+    vi.stubEnv("NODE_ENV", "development");
     vi.stubEnv(
       "YOVA_DRAFT_RECEIPT_SECRET",
       "plan-generation-route-secret-0123456789-abcdef",
@@ -173,6 +175,36 @@ describe("plan generation route", () => {
     mocks.settle.mockReset().mockResolvedValue(true);
     mocks.loadDurationContext.mockReset().mockResolvedValue(emptyDurationContext());
     mocks.mapMaterial.mockReset();
+  });
+
+  it.each([1, 4, 5, 9])("offers a priority card when only %i minutes remain, without claiming a lesson was completed", async (minutes) => {
+    const clock = vi.spyOn(Date, "now").mockReturnValue(Date.parse("2026-09-07T19:00:00Z"));
+    try {
+      const { POST } = await import("@/app/api/plans/generate/route");
+      const response = await POST(planGenerationRequest({
+        deadline: new Date(Date.parse("2026-09-07T19:00:00Z") + minutes * 60_000).toISOString(),
+        availability: [{day:"Monday",window:"Evening",minutes:45}],
+      }));
+      const body = await response.json();
+      console.info(JSON.stringify({case:`${minutes}-minute-priority`,status:response.status,visible:body}));
+      expect(response.status).toBe(200);
+      expect(body).toMatchObject({kind:"deadline_priority",priority:{minutes,title:"Focus on Product rule",progressCredit:false,action:expect.stringMatching(/example|notes/i),explanation:expect.stringContaining("ten-minute")}});
+      expect(body).not.toHaveProperty("plan");
+      expect(mocks.generatePlan).not.toHaveBeenCalled();
+    } finally {clock.mockRestore();}
+  });
+
+  it("rejects client-claimed knowledge before it can remove teaching from the plan", async () => {
+    configureProduction();
+    const forgedMap = structuredClone(planRequest.knowledgeMap!);
+    forgedMap.topics[0]!.status = "evidenced";
+    forgedMap.topics[0]!.initialEvidence = {source:"placement_check",outcome:"demonstrated",observedAt:new Date().toISOString()};
+    const { POST } = await import("@/app/api/plans/generate/route");
+    const response = await POST(planGenerationRequest({knowledgeMap:forgedMap,knowledgeMapReceipt:undefined}));
+    expect(response.status).toBe(422);
+    expect(await response.json()).toMatchObject({code:"placement_evidence_unverified",error:expect.stringContaining("skip teaching")});
+    expect(mocks.generatePlan).not.toHaveBeenCalled();
+    expect(mocks.reserve).not.toHaveBeenCalled();
   });
 
   it("lets deterministic duration own Study Now timing and content budget under the availability cap", async () => {
@@ -1105,7 +1137,7 @@ describe("plan generation route", () => {
     expect(mocks.settle).not.toHaveBeenCalled();
   });
 
-  it("reserves before mapping and settles a conservative fallback plan when live mapping fails", async () => {
+  it("reports a retryable error and no plan when live mapping fails", async () => {
     configureProduction();
     const { KnowledgeMapGenerationError } = await import("@/lib/knowledge-map/generate-plan-map");
     mocks.generateKnowledgeMap.mockRejectedValueOnce(new KnowledgeMapGenerationError(
@@ -1125,39 +1157,25 @@ describe("plan generation route", () => {
 
     const response = await POST(planGenerationRequest({ knowledgeMap: undefined }));
 
-    expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toMatchObject({
-      generation: {
-        mode: "openai",
-        notice: expect.stringContaining("conservative deterministic map"),
-      },
-      plan: {
-        knowledgeMap: {
-          scopeJudgment: { label: "Unclassified learning plan" },
-          topics: expect.arrayContaining([
-            expect.objectContaining({ origin: "ai_generated" }),
-          ]),
-        },
-      },
-    });
+    expect(response.status).toBe(503);
+    const body = await response.json();
+    expect(body).toMatchObject({ code: "knowledge_map_failed", error: "YOVA could not map this learning goal yet. Try again in a moment." });
+    expect(body).not.toHaveProperty("plan");
     expect(mocks.reserve.mock.invocationCallOrder[0]).toBeLessThan(
       mocks.generateKnowledgeMap.mock.invocationCallOrder[0],
     );
-    expect(mocks.release).not.toHaveBeenCalledWith(
+    expect(mocks.release).toHaveBeenCalledWith(
       expect.anything(),
       "55555555-5555-4555-8555-555555555555",
     );
-    expect(mocks.generatePlan).toHaveBeenCalledTimes(1);
-    expect(mocks.settle).toHaveBeenCalledWith(
-      expect.anything(),
-      "55555555-5555-4555-8555-555555555555",
-    );
+    expect(mocks.generatePlan).not.toHaveBeenCalled();
+    expect(mocks.settle).not.toHaveBeenCalled();
     expect(mocks.recordObservation).toHaveBeenCalledWith(
       expect.anything(),
       "44444444-4444-4444-8444-444444444444",
       expect.objectContaining({
         generationType: "knowledge_map",
-        finalOutcome: "fallback",
+        finalOutcome: "failure",
         failedValidator: "knowledge_map_structure",
         attempts: 2,
         repairAttempted: true,
@@ -1628,10 +1646,13 @@ function configureProduction() {
 }
 
 function planGenerationRequest(overrides: Record<string, unknown> = {}) {
+  const payload = PlanGenerationRequestSchema.parse({ ...planRequest, ...overrides });
+  // Existing route fixtures represent previously accepted server maps.
+  if (payload.knowledgeMap && (mocks.developmentPreview || process.env.YOVA_DRAFT_RECEIPT_SECRET) && !("knowledgeMapReceipt" in overrides)) payload.knowledgeMapReceipt = issueKnowledgeMapReceipt(payload.knowledgeMap, mocks.developmentPreview ? "development-preview" : "44444444-4444-4444-8444-444444444444", mocks.developmentPreview);
   return new Request("http://localhost/api/plans/generate", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ ...planRequest, ...overrides }),
+    body: JSON.stringify(payload),
   });
 }
 

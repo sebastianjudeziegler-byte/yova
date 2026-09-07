@@ -207,7 +207,7 @@ export type SessionCompletion = {
   actualMinutes: number;
   correctAnswers: number;
   totalAnswers: number;
-  feedback: "too_easy" | "about_right" | "too_difficult";
+  feedback: "too_easy" | "about_right" | "too_difficult" | null;
   observedGap: string;
   /**
    * Whether this completion included YOVA-observed knowledge evidence.
