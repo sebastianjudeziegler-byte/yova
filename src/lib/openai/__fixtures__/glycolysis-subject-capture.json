@@ -1,0 +1,177 @@
+[
+  {
+    "topicIds": [
+      "11111111-1111-4111-8111-111111111111"
+    ],
+    "rationale": "Single-target novice learn session, taught then checked in a tight self-explanation cycle. One active idea is covered with one teaching block, one required free-response check, one repair, and one reexplain check, staying within time and avoiding deferred scope.",
+    "coverage": {
+      "focus": "Glycolysis overall outcome",
+      "essentialIdeas": [
+        "One glucose is split into two pyruvate and the net gain is two ATP and two NADH."
+      ],
+      "completionEvidence": [
+        "State the net products of glycolysis from one glucose in your own words.",
+        "Correct a gap about the net outcome after the model.",
+        "Restate the outcome clearly after repair."
+      ],
+      "evidenceMap": [
+        {
+          "essentialIdea": "One glucose is split into two pyruvate and the net gain is two ATP and two NADH.",
+          "activityConcept": "Glycolysis overall outcome"
+        }
+      ],
+      "deferredContent": [
+        "What net ATP from glycolysis is used for"
+      ]
+    },
+    "methodBriefing": {
+      "learningMode": "learn",
+      "taskType": "conceptual_learning",
+      "methodId": "self_explanation",
+      "name": "Feynman Technique",
+      "what": "Study a concise model, explain it in plain language, repair any gap, then explain it again.",
+      "why": "Explaining the relationship helps turn a memorized list into a usable mental model.",
+      "how": [
+        "Read the model once.",
+        "Answer from memory in your own words.",
+        "Compare your answer with the model and fix the missing part.",
+        "Give a second plain-language explanation without copying."
+      ],
+      "completion": "You can state the net products accurately, repair a missing part, and restate the idea clearly.",
+      "personalization": [
+        "Use one focused idea.",
+        "Keep each attempt short and concrete.",
+        "The first check is a free response because the session must produce the idea from memory."
+      ]
+    },
+    "sourceGrounding": null,
+    "activities": [
+      {
+        "topicId": "11111111-1111-4111-8111-111111111111",
+        "methodPhase": "model",
+        "estimatedMinutes": 4,
+        "requiredForCompletion": true,
+        "label": "model",
+        "title": "Glycolysis outcome",
+        "body": "Read the model and note the net products. Then move on.",
+        "teaching": null,
+        "lessonBrief": {
+          "version": 1,
+          "topicIds": [
+            "11111111-1111-4111-8111-111111111111"
+          ],
+          "essentialIdeas": [
+            "One glucose is split into two pyruvate and the net gain is two ATP and two NADH."
+          ],
+          "sourceChunks": [],
+          "knowledgeSource": "model_knowledge",
+          "evidenceContext": {
+            "confirmedGaps": [],
+            "secureKnowledge": [],
+            "priorMisconceptions": []
+          },
+          "contentRequirements": {
+            "teachEveryEssentialIdea": true,
+            "includeConcreteExample": false,
+            "includeCommonMixup": true,
+            "preservePrerequisiteOrder": true
+          }
+        },
+        "practiceIntent": null,
+        "misconceptionSummary": null,
+        "type": "instruction",
+        "concept": null,
+        "choices": [],
+        "correctAnswer": null,
+        "feedback": null
+      },
+      {
+        "topicId": "11111111-1111-4111-8111-111111111111",
+        "methodPhase": "explain",
+        "estimatedMinutes": 4,
+        "requiredForCompletion": true,
+        "label": "explain",
+        "title": "Say the outcome from memory",
+        "body": "In your own words, name the net products from one glucose. Keep it to one short response.",
+        "teaching": null,
+        "lessonBrief": null,
+        "practiceIntent": "baseline",
+        "misconceptionSummary": null,
+        "type": "free_response",
+        "concept": "Glycolysis overall outcome",
+        "choices": [],
+        "correctAnswer": "One glucose is split into two pyruvate, with a net gain of two ATP and two NADH.",
+        "feedback": "A complete answer names two pyruvate, net two ATP, and two NADH. If one part is missing, repair the whole outcome together."
+      },
+      {
+        "topicId": "11111111-1111-4111-8111-111111111111",
+        "methodPhase": "repair",
+        "estimatedMinutes": 3,
+        "requiredForCompletion": true,
+        "label": "repair",
+        "title": "Fix the missing part",
+        "body": "Use the model to correct any gap in your answer. Then give one corrected version.",
+        "teaching": null,
+        "lessonBrief": null,
+        "practiceIntent": "supported_recheck",
+        "misconceptionSummary": "Leaving out one of the net products or giving the gross ATP count instead of the net outcome.",
+        "type": "free_response",
+        "concept": "Glycolysis overall outcome",
+        "choices": [],
+        "correctAnswer": "One glucose becomes two pyruvate, and the net outcome is two ATP and two NADH.",
+        "feedback": "The correction should include all three net products and keep the net result, not the gross ATP made during the pathway."
+      },
+      {
+        "topicId": "11111111-1111-4111-8111-111111111111",
+        "methodPhase": "reexplain",
+        "estimatedMinutes": 4,
+        "requiredForCompletion": true,
+        "label": "reexplain",
+        "title": "Restate the whole outcome",
+        "body": "Give a fresh explanation in plain language. Do not copy the model wording.",
+        "teaching": null,
+        "lessonBrief": null,
+        "practiceIntent": "independent_transfer",
+        "misconceptionSummary": null,
+        "type": "free_response",
+        "concept": "Glycolysis overall outcome",
+        "choices": [],
+        "correctAnswer": "Glycolysis turns one glucose into two pyruvate and leaves a net gain of two ATP and two NADH.",
+        "feedback": "A strong restatement is complete, concise, and uses your own words. It should keep the split into two pyruvate and the net energy products together."
+      }
+    ],
+    "targetAssignments": [
+      {
+        "essentialIdea": "One glucose is split into two pyruvate and the net gain is two ATP and two NADH.",
+        "targetId": "target_1"
+      }
+    ]
+  },
+  {
+    "items": [
+      {
+        "essentialIdea": "Glycolysis converts one glucose into two pyruvate, producing a net two ATP and two NADH.",
+        "concept": "overall outcome",
+        "check": {
+          "title": "Glycolysis product balance",
+          "prompt": "What is the net product outcome of glycolysis from one glucose molecule?",
+          "referenceAnswer": "One glucose is converted into two pyruvate, with a net gain of two ATP and two NADH.",
+          "feedback": "This combines carbon splitting with the net energy and electron carriers produced."
+        },
+        "independentCheck": null
+      }
+    ],
+    "recognitionCheck": {
+      "title": "Glycolysis net result",
+      "prompt": "Which statement best describes the overall outcome of glycolysis?",
+      "choices": [
+        "One glucose becomes two pyruvate with a net gain of two ATP and two NADH.",
+        "One glucose becomes one pyruvate with a net gain of four ATP and two NADH.",
+        "Two glucose become four pyruvate with a net gain of two ATP and one NADH.",
+        "One glucose becomes two pyruvate with no net ATP gain and two NADH."
+      ],
+      "correctAnswer": "One glucose becomes two pyruvate with a net gain of two ATP and two NADH.",
+      "feedback": "The correct outcome includes two pyruvate plus the net ATP and NADH yield."
+    }
+  }
+]
