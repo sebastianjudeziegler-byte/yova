@@ -36,11 +36,28 @@ describe("plan direction", () => {
     expect(redirected[0].objective).toContain("conceptual understanding");
   });
 
-  it("records a custom learner direction in every unfinished session", () => {
-    const redirected = applyPlanDirectionFallback(rows, "Focus on investor incentives and founder control", "startup funding");
-    expect(redirected[0].objective).toContain("investor incentives and founder control");
-    expect(redirected[0].step_data).toMatchObject({
-      learnerDirection: "Focus on investor incentives and founder control",
-    });
+  it("does not convert an unverified freeform request into authoritative session objectives", () => {
+    const before = structuredClone(rows);
+    expect(() => applyPlanDirectionFallback(rows, "Focus on investor incentives and founder control", "startup funding"))
+      .toThrow("Your plan is unchanged");
+    expect(rows).toEqual(before);
+  });
+
+  it.each([
+    "Teach photosynthesis instead of the link reaction.",
+    "No calculations, and replace respiration with photosynthesis.",
+    "More examples of chloroplasts instead of cellular respiration.",
+  ])("rejects mixed scope requests rather than matching one familiar keyword: %s", direction => {
+    expect(() => applyPlanDirectionFallback(rows, direction, "cellular respiration")).toThrow("Your plan is unchanged");
+  });
+
+  it.each([
+    "Keep this conceptual. Do not include math or calculation exercises.",
+    "Teach the foundations first, then use concrete examples before practice.",
+    "Use more real examples and case scenarios before independent work.",
+  ])("keeps the suggested adjustment available without the provider: %s", direction => {
+    const result = applyPlanDirectionFallback(rows, direction, "startup funding and dilution");
+    expect(result[0].id).toBe(rows[0].id);
+    expect(result[0].objective).not.toContain("Follow this learner-approved direction");
   });
 });

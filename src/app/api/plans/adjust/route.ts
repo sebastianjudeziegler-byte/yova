@@ -16,6 +16,7 @@ import {
 } from "@/lib/learning/content-based-plan-adjustment";
 import {
   applyPlanDirectionFallback,
+  UnverifiedPlanDirectionError,
   planDirectionConflictsWithRequest,
 } from "@/lib/learning/plan-direction";
 import { PlanKnowledgeMapSchema } from "@/lib/knowledge-map/schema";
@@ -208,9 +209,16 @@ export async function PATCH(request: Request) {
         }
       }
     }
-    redirectedUnfinished = generated && !planDirectionConflictsWithRequest(generated, parsed.data.direction)
-      ? generated
-      : applyPlanDirectionFallback(adjustableUnfinished, parsed.data.direction, itemRow.topic);
+    try {
+      redirectedUnfinished = generated && !planDirectionConflictsWithRequest(generated, parsed.data.direction)
+        ? generated
+        : applyPlanDirectionFallback(adjustableUnfinished, parsed.data.direction, itemRow.topic);
+    } catch (error) {
+      if (error instanceof UnverifiedPlanDirectionError) {
+        return NextResponse.json({ error: error.message, code: "plan_direction_unverified" }, { status: 409 });
+      }
+      throw error;
+    }
   }
 
   const newSessionOriginIds: Record<string, string> = {};

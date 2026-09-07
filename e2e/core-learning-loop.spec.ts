@@ -2129,6 +2129,35 @@ test("learner text fields keep long pastes visible and block submission until tr
   await expect(adjustmentPanel.getByRole("button", { name: "Approve and rebuild plan" })).toBeDisabled();
 });
 
+test("an unverified topic rewrite leaves the learner's saved plan and completed progress unchanged", async ({ page }) => {
+  await createPreviewAccount(page);
+  await completeOnboarding(page);
+  const planId = "64000000-0000-4000-8000-000000000001";
+  await page.evaluate((id) => {
+    const snapshot = JSON.parse(localStorage.getItem("yova.preview.v1")!);
+    const topicIds = ["64000000-0000-4000-8000-000000000002", "64000000-0000-4000-8000-000000000003"];
+    snapshot.plans = [{
+      id, learningItemId: "64000000-0000-4000-8000-000000000004", title: "Respiration revision audit", topic: "Cellular respiration", kind: "topic", deadline: null, status: "active", sourceMode: "yova_generated", studyMode: "inside_yova", learningIntent: "learn", creationIntent: "plan", sessionArchitectureVersion: "streamed_teaching_v1", rationale: "Learn the remaining stages while keeping the completed work.", createdAt: new Date().toISOString(), materials: [],
+      knowledgeMap: { version: 1, topics: ["Glycolysis", "Link reaction"].map((title, index) => ({ id: topicIds[index], title, description: `Understand the products and purpose of ${title}.`, subtopics: [], prerequisiteTopicIds: [], status: index === 0 ? "secure" : "not_started", initialEvidence: null, sourceReferences: [], origin: "ai_generated", deferred: null })), placementCheck: { status: "skipped", completedAt: null, demonstratedTopicIds: [], gapTopicIds: [] } },
+      sessions: ["Glycolysis", "Link reaction"].map((title, index) => ({ id: `64000000-0000-4000-8000-00000000000${index + 5}`, sequence: index + 1, title: `Explain ${title}`, objective: `Explain the carbon products and energy carriers in ${title}.`, method: "Feynman Technique", methodReason: "Build an accurate model before independent recall.", scheduledFor: new Date(Date.now() + index * 60 * 60 * 1000).toISOString(), estimatedMinutes: 25, amountLabel: "One explanation and check", learningMode: "learn", topicIds: [topicIds[index]], contentTargets: [title], completionEvidence: [`Explain the products of ${title} without notes`], status: index === 0 ? "complete" : "ready" })),
+    }];
+    localStorage.setItem("yova.preview.v1", JSON.stringify(snapshot));
+  }, planId);
+  await page.reload();
+  await page.getByRole("button", { name: "Learning", exact: true }).click();
+  await page.getByRole("button", { name: "Open goal" }).click();
+  const savedPlan = () => page.evaluate(id => JSON.parse(localStorage.getItem("yova.preview.v1")!).plans.find((plan: LearningPlan) => plan.id === id), planId);
+  const before = await savedPlan();
+  await page.getByRole("button", { name: "Adjust", exact: true }).click();
+  const panel = page.locator(".plan-adjustment-panel");
+  await panel.getByLabel("What should be different?").fill("Replace the next Link reaction session with photosynthesis and chloroplasts instead. Leave my completed Glycolysis session unchanged.");
+  await panel.getByRole("button", { name: "Approve and rebuild plan" }).click();
+  await expect(panel).toContainText("YOVA could not verify that content change. Your plan is unchanged.");
+  expect(await savedPlan()).toEqual(before);
+  await panel.getByRole("button", { name: "Cancel", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Respiration revision audit" })).toBeVisible();
+});
+
 test("Calendar Agenda stays first and contained at a 375px viewport", async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 844 });
   await createPreviewAccount(page);
