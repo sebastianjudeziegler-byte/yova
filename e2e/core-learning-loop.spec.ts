@@ -3989,8 +3989,11 @@ async function openExistingStudyNowSetup(page: Page) {
   })).toBeGreaterThan(0);
   // These tests cover a returning learner changing setup. Seed an unstarted
   // saved goal, rather than expecting Study Now to repeat three setup screens.
-  await page.reload();
-  await page.evaluate(() => {
+  // Seed before React reads storage. Mutating a hydrated app's snapshot can
+  // race its persistence effect and bring the prepared resource back.
+  await page.addInitScript(() => {
+    if (sessionStorage.getItem("yova.e2e.seed-unstarted") !== "1") return;
+    sessionStorage.removeItem("yova.e2e.seed-unstarted");
     const raw = localStorage.getItem("yova.preview.v1");
     if (!raw) throw new Error("Expected the newly created goal.");
     const snapshot = JSON.parse(raw);
@@ -4000,7 +4003,13 @@ async function openExistingStudyNowSetup(page: Page) {
     localStorage.setItem("yova.preview.v1", JSON.stringify(snapshot));
     localStorage.removeItem("yova.active-session-checkpoints.v1");
   });
+  await page.evaluate(() => sessionStorage.setItem("yova.e2e.seed-unstarted", "1"));
   await page.reload();
+  await expect(page.getByRole("button", { name: "Start session", exact: true })).toBeVisible();
+  expect(await page.evaluate(() => {
+    const snapshot = JSON.parse(localStorage.getItem("yova.preview.v1") ?? "{}");
+    return snapshot.plans.at(-1).sessions.some((session: { resource?: unknown }) => Boolean(session.resource));
+  })).toBe(false);
   await page.getByRole("button", { name: "Start session", exact: true }).click();
   await expect(page.locator(".session-setup-shell")).toBeVisible();
 }
