@@ -211,6 +211,50 @@ describe("streamed lesson route recovery", () => {
     );
   });
 
+  it.each([true, false])("teaches every fact required by the saved recall check (provider enabled: %s)", async (providerEnabled) => {
+    const activity = lessonActivity();
+    const idea = "Glycolysis splits glucose into two pyruvate molecules and yields a net 2 ATP.";
+    activity.title = "Glycolysis: From Glucose to Pyruvate";
+    activity.lessonBrief.essentialIdeas = [idea];
+    const reference = "Glycolysis produces two pyruvate molecules, two NADH, and a net gain of 2 ATP per glucose.";
+    mocks.developmentPreview = false;
+    mocks.supabaseConfigured = true;
+    mocks.lessonConfigured = providerEnabled;
+    mocks.cachedSession = {
+      activities: [activity, {
+        ...activity, type: "free_response", methodPhase: "explain", lessonBrief: null,
+        concept: idea, body: "What are the main products and net energy gain of glycolysis?",
+        correctAnswer: reference,
+      }],
+      coverage: { evidenceMap: [{ essentialIdea: idea, activityConcept: idea }] },
+      deliveryInstructions: (await lessonRequest().json()).previewLesson.deliveryInstructions,
+    };
+    const query = {
+      select: vi.fn().mockReturnThis(), eq: vi.fn().mockReturnThis(),
+      maybeSingle: vi.fn().mockResolvedValue({ data: { step_data: { generatedSession: {} } }, error: null }),
+    };
+    mocks.supabase = {
+      auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: "44444444-4444-4444-8444-444444444444" } }, error: null }) },
+      from: vi.fn(() => query),
+    };
+    mocks.claimAIRequest.mockResolvedValue({ allowed: true, claimId: "55555555-5555-4555-8555-555555555555", retryAfterSeconds: 0, remainingToday: 9 });
+    mocks.streamGeneratedLessonWithRetry.mockImplementation(async (_input, onDelta) => {
+      onDelta(`# Glycolysis\n\n${idea}`);
+      return { attempts: 1, result: {
+      model: "configured-lesson-model", responseId: "response-1", content: `# Glycolysis\n\n${idea}`,
+      truncatedToBudget: false, qualityNote: null, inputTokens: 100, cachedInputTokens: 0,
+      outputTokens: 70, latencyToFirstTokenMs: 100, elapsedMs: 800, wordCount: 18,
+    } }; });
+    const response = await POST(lessonRequest());
+    expect(response.status).toBe(200);
+    const events: LessonStreamEvent[] = [];
+    await consumeLessonEventStream(response.body!, (event) => events.push(event));
+    const runtime = events.reduce(applyLessonStreamEvent, createLessonRuntimeState());
+    expect(runtime.status).toBe("complete");
+    expect(runtime.content).toContain(reference);
+    expect(runtime.content).not.toContain("What are the main products");
+  });
+
   it("caps legacy cached lesson ideas to the activity's real teaching time", async () => {
     mocks.streamGeneratedLessonWithRetry.mockResolvedValue({
       attempts: 1,

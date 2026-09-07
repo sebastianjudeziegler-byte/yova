@@ -1441,6 +1441,54 @@ test("a learner can stop twice without losing progress or earlier evidence", asy
   await expect(page.getByText("Evidence checks", { exact: true })).toBeVisible();
 });
 
+test("a lesson and its reopened model teach every fact required by the glycolysis recall check", async ({ page }) => {
+  const idea = "Glycolysis splits glucose into two pyruvate molecules and yields a net 2 ATP.";
+  const reference = "Glycolysis produces two pyruvate molecules, two NADH, and a net gain of 2 ATP per glucose.";
+  await page.route("**/api/sessions/generate", async (route) => {
+    const response = streamedResumeSessionResponse(requestedRouteRevisionId(route));
+    response.session.coverage.essentialIdeas = [idea];
+    response.session.coverage.evidenceMap = [{ essentialIdea: idea, activityConcept: "Glycolysis products" }];
+    response.session.activities[0]!.title = "Glycolysis: From Glucose to Pyruvate";
+    response.session.activities[0]!.lessonBrief!.essentialIdeas = [idea];
+    for (const activity of response.session.activities.slice(1)) {
+      activity.concept = "Glycolysis products";
+      activity.title = "Check glycolysis products";
+      activity.body = "What are the main products and net energy gain of glycolysis?";
+      activity.feedback = "Include both the carbon products and the energy carriers.";
+      if (activity.type === "free_response") activity.correctAnswer = reference;
+      else {
+        activity.choices = ["Two pyruvate", "One glucose", "Six carbon dioxide"];
+        activity.correctAnswer = "Two pyruvate";
+      }
+    }
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(response) });
+  });
+  await page.route("**/api/sessions/lesson", async (route) => {
+    // Replay the pre-fix production prose: it never introduced NADH.
+    const events = [
+      { type: "lesson.meta", requestId: "30000000-0000-4000-8000-000000000001", model: "test-model" },
+      { type: "lesson.delta", delta: `# Glycolysis\n\n${idea}` },
+      { type: "lesson.complete", deliveryMode: "generated", elapsedMs: 20, latencyToFirstTokenMs: 5, inputTokens: 20, cachedInputTokens: 0, outputTokens: 18, wordCount: 18, model: "test-model" },
+    ];
+    await route.fulfill({ status: 200, contentType: "text/event-stream", body: events.map(event => `data: ${JSON.stringify(event)}\n\n`).join("") });
+  });
+  await createPreviewAccount(page);
+  await completeOnboarding(page);
+  await page.getByRole("button", { name: "Study something now", exact: true }).first().click();
+  await page.getByLabel("Study Now topic or result").fill("Help me understand glycolysis and its main products.");
+  await page.getByRole("button", { name: "I haven't learned this yet" }).click();
+  await page.getByRole("button", { name: /Choose how YOVA should help/ }).click();
+  await page.getByRole("button", { name: /Create it for me/ }).click();
+  await page.getByRole("button", { name: /Build and start session/ }).click();
+  await confirmSessionSetup(page);
+  const lesson = page.getByLabel("Live YOVA lesson");
+  await expect(lesson).toContainText(reference);
+  await expect(lesson).not.toContainText("What are the main products");
+  await page.getByRole("button", { name: "Answer the question" }).click();
+  await page.getByRole("button", { name: "Review the lesson" }).click();
+  await expect(page.getByRole("dialog", { name: /Review the lesson, then return to the same question/i })).toContainText(reference);
+});
+
 test("a resumed streamed question can reopen its prior lesson by persisted activity index", async ({ page }) => {
   const lessonActivityIndexes: number[] = [];
   await page.route("**/api/sessions/generate", async (route) => {
@@ -1490,7 +1538,7 @@ test("a resumed streamed question can reopen its prior lesson by persisted activ
     "Read the explanation, then answer the next question from memory.",
   );
   await expect(activityHeader).not.toContainText("Learn Western Front trenches formed because");
-  await expect(page.getByLabel("Live YOVA lesson").getByRole("heading")).toHaveCount(0);
+  await expect(page.getByLabel("Live YOVA lesson").getByRole("heading", { level: 1 })).toHaveCount(0);
 
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(activityHeader.getByRole("heading", {

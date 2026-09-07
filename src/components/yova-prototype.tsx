@@ -1,5 +1,7 @@
 "use client";
 
+import { coreRecallKnowledgeForLesson, includeCoreRecallKnowledge } from "@/lib/session-generation/lesson-assessment-contract";
+
 import { generatedSessionDefersAllStoredPlanTargets } from "@/lib/session-generation/deferred-cache-contract";
 import { deferredTopicSessionFields } from "@/lib/learning/deferred-topic-session";
 import { fetchClientJson, GENERATION_REQUEST_TIMEOUT_MS, readClientStateBeforeDeadline } from "@/lib/http/client-json";
@@ -7178,13 +7180,13 @@ function GuidedSession({ plan, planSessionId, steps, step, selectedAnswer, outco
     ? `${planSessionId}:${reviewableStreamedLessonSourceIndex}`
     : null;
   const reviewableStreamedLessonState = reviewableStreamedLessonKey
-    ? streamedLessons[reviewableStreamedLessonKey] ?? createLessonRuntimeState()
+    ? lessonStateWithCoreKnowledge(streamedLessons[reviewableStreamedLessonKey] ?? createLessonRuntimeState(), coreRecallKnowledgeForLesson(steps, coverage, reviewableStreamedLessonIndex))
     : null;
   const isStreamedInstruction = content.type === "instruction" && Boolean(content.lessonBrief);
   const persistedActivityIndex = sourceActivityIndex(content, step);
   const streamedLessonKey = isStreamedInstruction && planSessionId ? `${planSessionId}:${persistedActivityIndex}` : null;
   const streamedLessonState = streamedLessonKey
-    ? streamedLessons[streamedLessonKey] ?? createLessonRuntimeState()
+    ? lessonStateWithCoreKnowledge(streamedLessons[streamedLessonKey] ?? createLessonRuntimeState(), coreRecallKnowledgeForLesson(steps, coverage, step))
     : null;
   const activeStreamedLessonPresentation = isStreamedInstruction
     ? streamedLessonPresentation({
@@ -7570,6 +7572,12 @@ function GuidedSession({ plan, planSessionId, steps, step, selectedAnswer, outco
     {changingDirection && <AccessibleModalDialog className="plan-direction-backdrop" labelledBy="plan-direction-title" describedBy="plan-direction-description" dismissible={!directionPending} onDismiss={() => { setChangingDirection(false); setDirectionIssue(null); }}><section className="plan-direction-dialog"><header><span className="plan-direction-icon"><Settings2 size={21} /></span><div><span className="step-label">CHANGE THE COURSE DIRECTION</span><h2 id="plan-direction-title">Tell YOVA what is off track.</h2><p id="plan-direction-description">Completed work and learning evidence will stay. YOVA will rebuild only the unfinished sessions after you approve this change.</p></div></header><label className={directionRequestLimit.isOverLimit ? "field-over-limit" : undefined}><span>What should be different?</span><textarea data-modal-initial-focus rows={5} value={directionRequest} disabled={directionPending} aria-invalid={directionRequestLimit.isOverLimit || undefined} aria-describedby="course-direction-limit" placeholder="Example: I do not want math exercises. Keep the remaining course conceptual and focus on founder decisions, investors, and real startup examples." onChange={(event) => setDirectionRequest(event.target.value)} /><small id="course-direction-limit" className={`character-limit-feedback ${directionRequestLimit.isOverLimit ? "over-limit" : ""}`} role={directionRequestLimit.isOverLimit ? "alert" : undefined}>{formatCharacterLimit(directionRequestLimit)}</small></label><div className="plan-direction-examples"><button type="button" onClick={() => setDirectionRequest("Keep this conceptual. Do not include math or calculation exercises.")}>No calculations</button><button type="button" onClick={() => setDirectionRequest("Teach the foundations first and use concrete examples before practice.")}>Teach the basics first</button><button type="button" onClick={() => setDirectionRequest("Focus more on real examples and practical decisions.")}>More real examples</button></div>{directionIssue && <div className="chat-error"><AlertCircle size={16} /><span>{directionIssue}</span></div>}<footer><button className="button ghost" disabled={directionPending} onClick={() => { setChangingDirection(false); setDirectionIssue(null); }}>Keep this plan</button><button className="button primary large" disabled={directionPending || directionRequest.trim().length < 5 || directionRequestLimit.isOverLimit} onClick={() => void redirectPlan()}>{directionPending ? <><span className="button-spinner" /> Rebuilding plan</> : <>Approve and rebuild <ArrowRight size={18} /></>}</button></footer></section></AccessibleModalDialog>}
     {confirmingExit && <AccessibleModalDialog className="session-exit-backdrop" labelledBy="session-exit-title" describedBy="session-exit-description" onDismiss={() => setConfirmingExit(false)}><section className="session-exit-dialog"><div className="session-exit-icon"><Clock3 size={21} /></div><span className="step-label">LEAVE THIS SESSION?</span><h2 id="session-exit-title">Your plan will stay open.</h2><p id="session-exit-description">YOVA will remember how long you studied and exactly which content steps you reached. Unfinished answers will not be treated as knowledge evidence.</p><div className="session-exit-summary"><span>{formatElapsedDuration(elapsedSeconds)} studied</span><span>{completedRequiredSteps} of {requiredSteps.length} required steps finished</span></div><div className="session-exit-actions"><button className="button ghost" data-modal-initial-focus onClick={() => setConfirmingExit(false)}>Keep studying</button><button className="button primary" onClick={onExit}>Save progress and leave</button></div></section></AccessibleModalDialog>}
   </main>;
+}
+
+function lessonStateWithCoreKnowledge(state: LessonRuntimeState, knowledge: string[]): LessonRuntimeState {
+  return state.status === "complete"
+    ? { ...state, content: includeCoreRecallKnowledge(state.content, knowledge) }
+    : state;
 }
 
 function StreamedLessonCard({ state, plan, planSessionId, activityIndex, activity, analyticsEnabled, onRetry }: {
