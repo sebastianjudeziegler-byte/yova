@@ -12,6 +12,7 @@ import {
   type StreamedLessonResult,
 } from "@/lib/openai/streamed-lesson-generator";
 import { LessonDeliveryInstructionsSchema } from "@/lib/personalization/session-delivery-policy";
+import { coreRecallKnowledgeForLesson, includeCoreRecallKnowledge } from "@/lib/session-generation/lesson-assessment-contract";
 import { lessonIdeaCapacityForMinutes } from "@/lib/session-generation/lesson-brief";
 import { conciseTeachingActivityTitle } from "@/lib/session-generation/activity-copy";
 import { encodeLessonStreamEvent } from "@/lib/session-generation/lesson-stream";
@@ -240,12 +241,14 @@ export async function POST(request: Request) {
           firstFailureKind,
         );
         if (abortFailure) throw abortFailure;
-        if ((attempts > 1 || result.truncatedToBudget) && result.content.trim()) {
+        const teachingContent = includeCoreRecallKnowledge(result.content, lessonInput.coreRecallKnowledge);
+        const teachingWordCount = countWords(teachingContent);
+        if ((attempts > 1 || result.truncatedToBudget || teachingContent !== streamedLessonText) && teachingContent.trim()) {
           // The learner may have watched a partial or overlong first attempt
           // stream in; swap in the finished lesson atomically.
           controller.enqueue(encodeLessonStreamEvent({
             type: "lesson.replace",
-            content: result.content.slice(0, 12_000),
+            content: teachingContent.slice(0, 12_000),
           }));
         }
         await settleSuccessfulLessonClaim(supabase, aiUsageClaimId, requestId);
@@ -257,7 +260,7 @@ export async function POST(request: Request) {
           inputTokens: result.inputTokens,
           cachedInputTokens: result.cachedInputTokens,
           outputTokens: result.outputTokens,
-          wordCount: result.wordCount,
+          wordCount: teachingWordCount,
           model: result.model,
         }));
         controller.close();
@@ -281,7 +284,7 @@ export async function POST(request: Request) {
           diagnostics: {
             lessonRequestId: requestId,
             latencyToFirstTokenMs: result.latencyToFirstTokenMs,
-            wordCount: result.wordCount,
+            wordCount: teachingWordCount,
             streamCompleted: true,
             ...(result.truncatedToBudget ? { lessonTruncatedToBudget: true } : {}),
             ...(result.qualityNote ? { lessonQualityNote: result.qualityNote } : {}),
@@ -554,6 +557,7 @@ function recordGenerationObservationBestEffort(
 }
 
 type LessonRuntimeSource = {
+  coreRecallKnowledge?: string[];
   activity: z.infer<typeof StreamedGeneratedSessionActivitySchema>;
   deliveryInstructions: z.infer<typeof LessonDeliveryInstructionsSchema>;
 };
@@ -579,7 +583,11 @@ async function loadLessonRuntimeSource(
   if (!parsed.success) return null;
   const activity = parsed.data.activities[activityIndex];
   if (!activity || activity.type !== "instruction" || !activity.lessonBrief) return null;
-  return { activity, deliveryInstructions: parsed.data.deliveryInstructions };
+  return {
+    activity,
+    deliveryInstructions: parsed.data.deliveryInstructions,
+    coreRecallKnowledge: coreRecallKnowledgeForLesson(parsed.data.activities, parsed.data.coverage, activityIndex),
+  };
 }
 
 function lessonInputFromSource(source: LessonRuntimeSource): StreamedLessonInput {
@@ -589,6 +597,7 @@ function lessonInputFromSource(source: LessonRuntimeSource): StreamedLessonInput
   });
   return {
     lessonTitle,
+    coreRecallKnowledge: source.coreRecallKnowledge ?? [],
     plannedMinutes: source.activity.estimatedMinutes,
     topicTitles: [lessonTitle],
     // Older cached sessions may predate lesson-brief allocation and contain a
