@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { APIConnectionTimeoutError } from "openai";
 import { z } from "zod";
 import type { SessionGenerationContext } from "@/lib/openai/session-generator";
+import glycolysisSubjectCapture from "./__fixtures__/glycolysis-subject-capture.json";
 
 const parseResponse = vi.hoisted(() => vi.fn());
 
@@ -3011,6 +3012,55 @@ describe("runtime session-window scoping", () => {
       currentSessionScope,
       targetSubjectReferences,
     })).toThrow(/deferred-session substance/i);
+  });
+
+  it("accepts the captured glycolysis yield claims without treating shared ATP vocabulary as deferred ATP-use content", async () => {
+    const { buildStreamedTargetSubjectReferences, validateStreamedTargetAssignments } = await import("@/lib/openai/streamed-teaching-generator");
+    const context = contextWithMaterials([]);
+    const activeTarget = "Glycolysis overall outcome";
+    const deferredTarget = "What net ATP from glycolysis is used for";
+    context.knowledgeTopics = [{ ...context.knowledgeTopics[0]!, title: activeTarget,
+      description: "State what one glucose becomes after glycolysis and summarize the net products.",
+      subtopics: ["One glucose is split into two 3-carbon pyruvate molecules", "The net products are 2 pyruvate, 2 ATP, and 2 NADH", "Know that 4 ATP are made but 2 ATP are used, for a net gain of 2 ATP"],
+    }];
+    context.session.contentTargets = [activeTarget];
+    context.session.deferredContentTargets = [deferredTarget];
+    const currentSessionScope = { activeTargets: [activeTarget], deferredTargets: [deferredTarget] };
+    const targetSubjectReferences = buildStreamedTargetSubjectReferences({ context, currentSessionScope });
+    for (const essentialIdea of [
+      "One glucose is split into two pyruvate and the net gain is two ATP and two NADH.",
+      "Glycolysis converts one glucose into two pyruvate, producing a net two ATP and two NADH.",
+    ]) {
+      const resolved = validateStreamedTargetAssignments({ essentialIdeas: [essentialIdea], targetAssignments: [{ essentialIdea, targetId: "target_1" }], currentSessionScope, targetSubjectReferences });
+      expect(resolved[0]?.target).toBe(activeTarget);
+    }
+    for (const essentialIdea of ["Photosynthesis converts sunlight into chemical energy in chloroplasts.", "What net ATP from glycolysis is used for is powering active transport and muscle contraction."]) {
+      expect(() => validateStreamedTargetAssignments({ essentialIdeas: [essentialIdea], targetAssignments: [{ essentialIdea, targetId: "target_1" }], currentSessionScope, targetSubjectReferences })).toThrow();
+    }
+  });
+
+  it("delivers the captured glycolysis teaching and checks through the full recovery pipeline", async () => {
+    const { generateStreamedTeachingSkeletonWithOpenAI } = await import("@/lib/openai/streamed-teaching-generator");
+    const context = contextWithMaterials([]);
+    context.learningGoal = { ...context.learningGoal, title: "Learn glycolysis net products", topic: "Glycolysis", sourceMode: "yova_generated" };
+    context.knowledgeTopics = [{ ...context.knowledgeTopics[0]!, title: "Glycolysis overall outcome", origin: "ai_generated",
+      description: "State what one glucose becomes after glycolysis and summarize the net products.",
+      subtopics: ["One glucose is split into two 3-carbon pyruvate molecules", "The net products are 2 pyruvate, 2 ATP, and 2 NADH", "Know that 4 ATP are made but 2 ATP are used, for a net gain of 2 ATP"],
+    }];
+    context.planRationale = "Teach the net products before asking for independent recall.";
+    context.session = { ...context.session, title: "Learn glycolysis overall outcome", objective: "Explain the net products of glycolysis from one glucose.", contentTargets: ["Glycolysis overall outcome"], deferredContentTargets: ["What net ATP from glycolysis is used for"] };
+    parseResponse.mockReset();
+    for (const [index, output] of glycolysisSubjectCapture.entries()) parseResponse.mockResolvedValueOnce(completedProviderResponse(`captured_${index}`, output));
+    const result = await generateStreamedTeachingSkeletonWithOpenAI(context);
+    const { StreamedGeneratedSessionDraftSchema } = await import("@/lib/session-generation/schema");
+    const draft = StreamedGeneratedSessionDraftSchema.parse(result.draft);
+    expect(draft.coverage.essentialIdeas.join(" ")).toContain("two NADH");
+    const lesson = draft.activities.find(activity => activity.type === "instruction");
+    expect(lesson?.lessonBrief?.essentialIdeas.join(" ")).toContain("two NADH");
+    const recall = result.draft.activities.find(activity => activity.type === "free_response" && activity.methodPhase === "explain");
+    expect(recall?.correctAnswer).toContain("two NADH");
+    expect(result.draft.coverage.deferredContent).toContain("What net ATP from glycolysis is used for");
+    expect(result.generationStats.repairSucceeded).toBe(true);
   });
 
   it("does not lend a broad one-topic reference that also describes the deferred bilingual target", async () => {

@@ -2149,6 +2149,21 @@ export function buildStreamedTargetSubjectReferences({
     ]
       .map((value) => value.trim())
       .filter((value, index, values) => value.length > 0 && values.indexOf(value) === index);
+    // A separately mapped exact topic can share subject words with a later
+    // topic without teaching its relation: ATP yield is not ATP use. Check
+    // each authoritative reference for the deferred relation, rather than
+    // dropping all the active knowledge on loose shared vocabulary. Broad
+    // legacy topic matches still use the more conservative boundary below.
+    if (normalizedSubjectLabel(matchedTopic.title) === normalizedSubjectLabel(entry.target)) {
+      const scopedReferences = boundedTopicReferences.filter((reference) => !lessonIdeaContainsDeferredRelationAnchor({
+        idea: reference,
+        assignedTarget: entry.target!,
+        deferredTargets: currentSessionScope.deferredTargets,
+        authoritativeAssignedSubjectReferences: [],
+      }));
+      if (scopedReferences.length > 0) references[entry.targetId] = scopedReferences;
+      continue;
+    }
     const combinedTopicReference = boundedTopicReferences.join(" ");
     const alsoDescribesDeferredTarget = currentSessionScope.deferredTargets.some((deferredTarget) => (
       topicReferenceDescribesDeferredTarget(combinedTopicReference, deferredTarget)
@@ -2411,6 +2426,13 @@ function lessonIdeaContainsDeferredExclusiveTerms({
   deferredTargets: string[];
   authoritativeAssignedSubjectReferences: string[];
 }) {
+  // References can legitimately share every subject word with a later
+  // relation. They must never erase an explicit deferred-topic statement.
+  const ideaKey = normalizedSubjectLabel(idea);
+  if (deferredTargets.some(target => {
+    const key = normalizedSubjectLabel(target);
+    return key && ` ${ideaKey} `.includes(` ${key} `);
+  })) return true;
   const ideaTokens = targetDiscriminatorTokens(idea);
   const activeOrSharedTokens = targetDiscriminatorTokens([
     assignedTarget,
