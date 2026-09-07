@@ -50,11 +50,34 @@ export function interpretPlanDirection(request: string): PlanDirection {
   };
 }
 
+// These scope-free requests have fully implemented deterministic transforms.
+// A keyword such as "teach" is not evidence that an arbitrary request is safe.
+const VERIFIED_FALLBACK_DIRECTIONS = new Set([
+  "keep this conceptual. do not include math or calculation exercises",
+  "teach the foundations first, then use concrete examples before practice",
+  "use more real examples and case scenarios before independent work",
+  "no calculations",
+  "no math or calculations",
+  "use conceptual examples and no calculations",
+  "teach it first",
+  "more examples",
+  "more practice",
+]);
+
+export class UnverifiedPlanDirectionError extends Error {
+  constructor() {
+    super("YOVA could not verify that content change. Your plan is unchanged. Try again, or choose one of the suggested adjustments.");
+    this.name = "UnverifiedPlanDirectionError";
+  }
+}
+
 export function applyPlanDirectionFallback(
   rows: AdjustableSessionRow[],
   request: string,
   topic: string,
 ): AdjustableSessionRow[] {
+  const normalizedRequest = request.trim().replace(/\s+/g, " ").replace(/[.!?]+$/, "").toLocaleLowerCase();
+  if (!VERIFIED_FALLBACK_DIRECTIONS.has(normalizedRequest)) throw new UnverifiedPlanDirectionError();
   const direction = interpretPlanDirection(request);
   return rows.map((row, index) => {
     const stepData = readStepData(row.step_data);
@@ -120,16 +143,7 @@ export function applyPlanDirectionFallback(
       };
     }
 
-    return {
-      ...row,
-      objective: `${row.objective} Follow this learner-approved direction for the remaining work: ${direction.request}`,
-      method_rationale: `${row.method_rationale} The learner also asked YOVA to follow this direction: ${direction.request}`,
-      step_data: {
-        ...stepData,
-        learnerDirection: direction.request,
-        learnerDirectionLabel: direction.learnerFacingLabel,
-      },
-    };
+    throw new UnverifiedPlanDirectionError();
   });
 }
 

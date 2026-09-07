@@ -311,6 +311,26 @@ describe("protected plan adjustment route", () => {
     );
   });
 
+  it.each([false, true])("leaves the plan unchanged when a custom topic rewrite is unverified (provider: %s)", async (providerEnabled) => {
+    mocks.openAIConfigured.mockReturnValue(providerEnabled);
+    mocks.redirect.mockRejectedValueOnce(new Error("The revised content did not preserve the unfinished topic map."));
+    const before = structuredClone(mocks.sessionRows);
+    const response = await PATCH(request({ direction: "Replace the next Link reaction session with photosynthesis and chloroplasts instead. Leave my completed Glycolysis session unchanged." }));
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "plan_direction_unverified",
+      error: expect.stringContaining("Your plan is unchanged"),
+    });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+    expect(mocks.sessionRows).toEqual(before);
+  });
+
+  it("does not treat a scope-changing request containing teach as a safe preset", async () => {
+    const response = await PATCH(request({ direction: "Teach photosynthesis instead of the link reaction." }));
+    expect(response.status).toBe(409);
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
   it("reserves before an AI plan redirect and settles the successful provider call", async () => {
     mocks.openAIConfigured.mockReturnValueOnce(true);
     mocks.redirect.mockImplementationOnce(async (input: { sessions: Array<Record<string, unknown>> }) => input.sessions);
