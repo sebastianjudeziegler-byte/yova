@@ -18,6 +18,20 @@ const questions = [
 
 describe("placement evidence authority", () => {
   beforeEach(()=>vi.stubEnv("YOVA_DRAFT_RECEIPT_SECRET","placement-authority-test-secret-0123456789"));
+  it("keeps the learner's Quick verification result when the clock ticks while signing", () => {
+    const result = applyDiagnosticAnswers(map, questions, ["Add the equations", "Subtract the equations"], false);
+    const currentTime = Date.now();
+    const clock = vi.spyOn(Date, "now")
+      .mockReturnValueOnce(currentTime)
+      .mockReturnValue(currentTime + 1);
+    try {
+      const receipt = issueKnowledgeMapReceipt(result.map, userId);
+      expect(verifyKnowledgeMapReceipt(result.map, receipt, userId)).toBe(true);
+      expect(result.map.topics[0]!.initialEvidence?.outcome === "demonstrated" ? "Quick verification" : "Teach and check").toBe("Quick verification");
+    } finally {
+      clock.mockRestore();
+    }
+  });
   it("hides the answer key, scores two different questions, and authenticates the resulting map",()=>{
     const prepared = prepareDiagnosticChallenge({userId,planId:null,map,questions});
     expect(prepared.questions[0]).not.toHaveProperty("correctAnswer");

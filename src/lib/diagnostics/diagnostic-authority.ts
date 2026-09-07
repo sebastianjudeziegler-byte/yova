@@ -66,9 +66,10 @@ export function readDiagnosticChallenge(token: string, userId: string, planId: s
 
 const MAP_CONTRACT = { kind: "verified_placement_map", version: 1 };
 export function issueKnowledgeMapReceipt(map: PlanKnowledgeMap, userId: string, preview = false) {
+  const issuedAt = Date.now();
   return issuePlanDraftReceipt({
     parsedPlan: map, normalizedGenerationContract: MAP_CONTRACT, authenticatedUserId: userId,
-    issuedAt: Date.now(), expiresAt: Date.now() + 24 * 60 * 60_000,
+    issuedAt, expiresAt: issuedAt + 24 * 60 * 60_000,
   }, { secrets: secrets(preview) }).receipt;
 }
 
@@ -82,4 +83,3 @@ export function mapClaimsEvidence(map: PlanKnowledgeMap) {
     || map.placementCheck.status === "completed"
     || map.placementCheck.demonstratedTopicIds.length > 0 || map.placementCheck.gapTopicIds.length > 0;
 }
-
