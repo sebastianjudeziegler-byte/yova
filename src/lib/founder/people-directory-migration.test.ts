@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 
 const migration = readFileSync(
   new URL(
-    "../../../supabase/migrations/202609070005_founder_people_directory.sql",
+    "../../../supabase/migrations/202609070006_fix_founder_people_directory.sql",
     import.meta.url,
   ),
   "utf8",
@@ -32,7 +32,10 @@ describe("founder people directory migration", () => {
     expect(directory).toContain("cursor_email text default null");
     expect(directory).toContain("result_limit integer default 25");
     expect(directory).toContain("returns jsonb");
-    expect(directory).toContain("pg_catalog.least(pg_catalog.coalesce(result_limit, 25), 100)");
+    expect(directory).toContain("least(coalesce(result_limit, 25), 100)");
+    expect(directory).not.toMatch(
+      /pg_catalog\.(?:coalesce|nullif|greatest|least)\b/,
+    );
     expect(directory).toContain("pg_catalog.char_length(normalized_search) > 120");
     expect(directory).toContain("pg_catalog.char_length(normalized_cursor_email) > 320");
   });

@@ -9,10 +9,10 @@ select extensions.is(
   (
     select pg_catalog.count(*)
     from supabase_migrations.schema_migrations as migration
-    where migration.version = '202609070005'
+    where migration.version = '202609070006'
   ),
   1::bigint,
-  'the founder people directory migration committed'
+  'the corrected founder people directory migration committed'
 );
 
 select extensions.ok(
