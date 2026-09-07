@@ -331,98 +331,42 @@ describe("protected plan adjustment route", () => {
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
 
-  it("reserves before an AI plan redirect and settles the successful provider call", async () => {
-    mocks.openAIConfigured.mockReturnValueOnce(true);
-    mocks.redirect.mockImplementationOnce(async (input: { sessions: Array<Record<string, unknown>> }) => input.sessions);
-
-    const response = await PATCH(request({ direction: "Use conceptual examples and no calculations." }));
-
-    expect(response.status).toBe(200);
-    expect(response.headers.get("x-yova-request-id")).toBe(OPERATION_ID);
-    expect(mocks.reserve).toHaveBeenCalledWith(
-      expect.anything(),
-      "plan_adjustment",
-      OPERATION_ID,
-      expect.any(String),
-    );
-    expect(mocks.reserve.mock.invocationCallOrder[0]).toBeLessThan(
-      mocks.settle.mock.invocationCallOrder[0],
-    );
-    expect(mocks.settle.mock.invocationCallOrder[0]).toBeLessThan(
-      mocks.redirect.mock.invocationCallOrder[0],
-    );
-    expect(mocks.settle).toHaveBeenCalledWith(expect.anything(), CLAIM_ID);
-    expect(mocks.release).not.toHaveBeenCalled();
-  });
-
-  it("uses the deterministic redirect without provider work when quota is exhausted", async () => {
-    mocks.openAIConfigured.mockReturnValueOnce(true);
-    mocks.reserve.mockResolvedValueOnce({
-      allowed: false,
-      claimId: null,
-      operationKey: OPERATION_ID,
-      denialReason: "usage_limit",
-      retryAfterSeconds: 60,
-      remainingToday: 0,
-    });
-
-    const response = await PATCH(request({ direction: "Use conceptual examples and no calculations." }));
-
-    expect(response.status).toBe(200);
-    expect(mocks.redirect).not.toHaveBeenCalled();
-    expect(mocks.rpc).toHaveBeenCalledWith("adjust_learning_plan_with_routes", expect.anything());
-  });
-
-  it("does not mutate or repeat provider work while the same operation is in progress", async () => {
-    mocks.openAIConfigured.mockReturnValueOnce(true);
-    mocks.reserve.mockResolvedValueOnce({
-      allowed: false,
-      claimId: null,
-      operationKey: OPERATION_ID,
-      denialReason: "operation_in_progress",
-      retryAfterSeconds: 45,
-      remainingToday: 6,
-    });
-
-    const response = await PATCH(request({ direction: "Use conceptual examples and no calculations." }));
-
+  it("rejects a provider-accepted wrong-topic rewrite without charging or changing the saved plan", async () => {
+    mocks.openAIConfigured.mockReturnValue(true);
+    mocks.redirect.mockImplementation(async (input: { sessions: Array<Record<string, unknown>> }) => input.sessions.map(row => ({
+      ...row,
+      title: "Photosynthesis: Purpose and Chloroplast Location",
+      objective: "Explain photosynthesis and chloroplasts with one concrete example.",
+      step_data: { ...(row.step_data as Record<string, unknown>), contentTargets: ["What photosynthesis is and where it happens"], completionEvidence: ["Explain how photosynthesis happens in chloroplasts"] },
+    })));
+    const before = structuredClone(mocks.sessionRows);
+    const response = await PATCH(request({ direction: "Replace the next glycolysis session with photosynthesis and chloroplasts instead. Keep the same schedule." }));
     expect(response.status).toBe(409);
-    expect(response.headers.get("retry-after")).toBe("45");
-    await expect(response.json()).resolves.toMatchObject({ code: "ai_operation_in_progress" });
-    expect(mocks.redirect).not.toHaveBeenCalled();
+    await expect(response.json()).resolves.toMatchObject({ error: expect.stringContaining("Your plan is unchanged") });
     expect(mocks.rpc).not.toHaveBeenCalled();
-  });
-
-  it("keeps a failed provider attempt consumed before applying the safe redirect fallback", async () => {
-    mocks.openAIConfigured.mockReturnValueOnce(true);
-    mocks.redirect.mockRejectedValueOnce(new Error("provider unavailable"));
-
-    const response = await PATCH(request({ direction: "Use conceptual examples and no calculations." }));
-
-    expect(response.status).toBe(200);
-    expect(mocks.settle).toHaveBeenCalledWith(expect.anything(), CLAIM_ID);
-    expect(mocks.release).not.toHaveBeenCalled();
-    expect(mocks.rpc).toHaveBeenCalledWith("adjust_learning_plan_with_routes", expect.anything());
-  });
-
-  it("fails closed before provider work when claim consumption cannot be confirmed", async () => {
-    mocks.openAIConfigured.mockReturnValueOnce(true);
-    mocks.settle.mockRejectedValueOnce(new Error("settlement receipt unavailable"));
-    const errorLog = vi.spyOn(console, "error").mockImplementation(() => undefined);
-
-    const response = await PATCH(request({ direction: "Use conceptual examples and no calculations." }));
-
-    expect(response.status).toBe(200);
+    expect(mocks.sessionRows).toEqual(before);
+    expect(mocks.reserve).not.toHaveBeenCalled();
     expect(mocks.redirect).not.toHaveBeenCalled();
-    expect(mocks.recover).toHaveBeenCalledWith(
-      expect.anything(),
-      "plan_adjustment",
-      OPERATION_ID,
-      expect.any(String),
-    );
-    expect(mocks.rpc).toHaveBeenCalledWith("adjust_learning_plan_with_routes", expect.anything());
-    errorLog.mockRestore();
   });
+
+  it.each([
+    "Keep this conceptual. Do not include math or calculation exercises.",
+    "Teach the foundations first, then use concrete examples before practice.",
+    "Use more real examples and case scenarios before independent work.",
+  ])("applies the supported adjustment without an AI rewrite or credit: %s", async direction => {
+    mocks.openAIConfigured.mockReturnValue(true);
+    const response = await PATCH(request({ direction }));
+    expect(response.status).toBe(200);
+    const result = await response.json();
+    expect(result.sessions[0].topicIds).toEqual([TOPIC_ID]);
+    expect(result.sessions[0].objective).not.toContain("photosynthesis");
+    expect(result.sessions[0].methodReason.length).toBeGreaterThan(10);
+    expect(mocks.rpc).toHaveBeenCalledWith("adjust_learning_plan_with_routes", expect.anything());
+    expect(mocks.reserve).not.toHaveBeenCalled();
+    expect(mocks.settle).not.toHaveBeenCalled();
+    expect(mocks.redirect).not.toHaveBeenCalled();
+  });
+
 });
 
 function request(overrides: { direction?: string | null } = {}) {

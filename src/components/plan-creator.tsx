@@ -213,6 +213,7 @@ export function PlanCreator({
     ? { ...generatedFrom, knowledgeMap: generatedPlan.plan.knowledgeMap }
     : generatedFrom;
   const deferredDraftTopics = generatedPlan?.plan.knowledgeMap?.topics.filter((topic) => topic.deferred) ?? [];
+  const deferredUncheckedTopics = deferredDraftTopics.filter((topic) => topic.initialEvidence?.outcome !== "demonstrated");
   const generatedScope = mappedGeneratedFrom ? inferPlanScopeContract(mappedGeneratedFrom) : null;
   const generatedContentBudget = mappedGeneratedFrom && generatedScope
     ? buildPlanContentBudget(mappedGeneratedFrom, generatedScope)
@@ -886,7 +887,7 @@ export function PlanCreator({
         <section className="generated-plan">
           <div className="generated-heading"><div><span className="eyebrow"><Sparkles size={15} /> Plan ready</span><h1>{generatedPlan.plan.title}</h1><p>{generatedPlan.plan.sessions.length} sessions organized into a coherent path. Nothing is active until you confirm it below.</p></div>{generatedScope && <span className="generated-scope-label">{generatedScope.label}</span>}</div>
           {deferredDraftTopics.length > 0 && <section className="generation-notice" aria-label="Plan coverage">
-            <div><strong>This plan covers part of your goal.</strong><p>{deferredDraftTopics.length} {workProductCopy ? "parts" : "topics"} are saved for later: {deferredDraftTopics.map(topic => topicDisplayLabel(topic.title)).join("; ")}. Change the available time or scope if you need these included before your deadline.</p></div>
+            <div><strong>{deferredUncheckedTopics.length > 0 ? "This plan covers part of your goal." : "Some follow-up checks are not scheduled."}</strong><p>{deferredUncheckedTopics.length > 0 ? `${deferredUncheckedTopics.length} ${workProductCopy ? "parts" : "topics"} are saved for later: ${deferredUncheckedTopics.map(topic => topicDisplayLabel(topic.title)).join("; ")}. Change the available time or scope if you need these included before your deadline.` : `You already demonstrated ${deferredDraftTopics.map(topic => topicDisplayLabel(topic.title)).join("; ")} in placement. Those results are kept. This schedule prioritizes the topics you still need to learn; later retention of the checked topics is not yet verified.`}</p></div>
             <button className="button ghost" disabled={draftBusy} onClick={() => reviseGeneratedPlan("schedule")}>Make room for remaining scope</button>
           </section>}
           <div className="why-plan"><Sparkles /><div><strong>Why this plan</strong><p>{generatedPlan.plan.rationale}</p></div></div>
@@ -904,8 +905,9 @@ export function PlanCreator({
             <ol>{generatedPlan.plan.knowledgeMap.topics.map((topic, index) => {
               const sessionCount = generatedPlan.plan.sessions.filter((session) => session.topicIds?.includes(topic.id)).length;
               const teachesTopic = generatedPlan.plan.sessions.some((session) => session.topicIds?.includes(topic.id) && session.learningMode === "learn");
-              const state = topic.deferred ? "Deferred" : workProductCopy ? workProductCopy.topicMapState : teachesTopic ? "Teach and check" : topic.initialEvidence?.outcome === "demonstrated" ? "Quick verification" : "Practice and check";
-              return <li className={topic.deferred ? "deferred" : ""} key={topic.id}><span>{index + 1}</span><div><strong>{topicDisplayLabel(topic.title, workProductCopy ? "This part" : "This topic")}</strong><p>{topic.description}</p>{topic.subtopics.length > 0 && <small>{topic.subtopics.slice(0, 4).map((subtopic) => topicDisplayLabel(subtopic, workProductCopy ? "This part" : "This topic")).join(" · ")}</small>}{topic.deferred && <p>Saved for later: {topic.deferred.reason}</p>}</div><em>{state}{!topic.deferred ? ` · ${sessionCount} ${sessionCount === 1 ? "session" : "sessions"}` : ""}</em></li>;
+              const previouslyChecked = topic.initialEvidence?.outcome === "demonstrated";
+              const state = topic.deferred ? previouslyChecked ? "Previously checked · not scheduled" : "Deferred" : workProductCopy ? workProductCopy.topicMapState : teachesTopic ? "Teach and check" : previouslyChecked ? "Quick verification" : "Practice and check";
+              return <li className={topic.deferred ? "deferred" : ""} key={topic.id}><span>{index + 1}</span><div><strong>{topicDisplayLabel(topic.title, workProductCopy ? "This part" : "This topic")}</strong><p>{topic.description}</p>{topic.subtopics.length > 0 && <small>{topic.subtopics.slice(0, 4).map((subtopic) => topicDisplayLabel(subtopic, workProductCopy ? "This part" : "This topic")).join(" · ")}</small>}{topic.deferred && <p>{previouslyChecked ? "Your placement result is kept. A follow-up check is saved for later" : "Saved for later"}: {topic.deferred.reason}</p>}</div><em>{state}{!topic.deferred ? ` · ${sessionCount} ${sessionCount === 1 ? "session" : "sessions"}` : ""}</em></li>;
             })}</ol>
             <div className="topic-map-correction">
               <div><strong>Something is off?</strong><p>{workProductCopy ? "Tell YOVA which required part is missing, outside the brief, already complete, or needs a different emphasis. The draft changes only after you update and review the plan." : "Tell YOVA what is missing, outside your goal, or needs a different emphasis. Saying you know something changes the plan only after a quick verification. It never creates evidence by itself."}</p></div>

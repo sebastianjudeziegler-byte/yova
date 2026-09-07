@@ -17,17 +17,8 @@ import {
 import {
   applyPlanDirectionFallback,
   UnverifiedPlanDirectionError,
-  planDirectionConflictsWithRequest,
 } from "@/lib/learning/plan-direction";
 import { PlanKnowledgeMapSchema } from "@/lib/knowledge-map/schema";
-import { isOpenAISessionConfigured } from "@/lib/openai/config";
-import { redirectPlanWithOpenAI } from "@/lib/openai/plan-redirector";
-import { aiUsageReservationConflict } from "@/lib/ai-usage/reservation-conflict";
-import {
-  refundAIRequestReservationBeforeProvider,
-  reserveAIRequest,
-  settleAIRequestClaim,
-} from "@/lib/server/ai-usage";
 import { preparePlanAdjustmentStudyRoutes } from "@/lib/study-route/plan-adjustment";
 import { StudyRouteSchema, type StudyRoute } from "@/lib/study-route/schema";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -157,62 +148,11 @@ export async function PATCH(request: Request) {
 
   let redirectedUnfinished = adjustableUnfinished;
   if (parsed.data.direction && adjustableUnfinished.length) {
-    let generated: AdjustableSessionRow[] | null = null;
-    if (isOpenAISessionConfigured()) {
-      const recoveryKey = crypto.randomUUID();
-      let reservation: Awaited<ReturnType<typeof reserveAIRequest>> | null = null;
-      try {
-        reservation = await reserveAIRequest(
-          supabase,
-          "plan_adjustment",
-          requestId,
-          recoveryKey,
-        );
-      } catch {
-        await recoverUnknownPlanAdjustmentReservation(supabase, requestId, recoveryKey);
-      }
-      if (reservation && !reservation.allowed) {
-        const conflict = aiUsageReservationConflict(reservation);
-        if (conflict) {
-          return NextResponse.json({
-            code: conflict.code,
-            error: conflict.error,
-            retryable: conflict.retryable,
-          }, {
-            status: 409,
-            headers: {
-              "Cache-Control": "no-store",
-              ...(conflict.retryAfterSeconds === null ? {} : {
-                "Retry-After": String(conflict.retryAfterSeconds),
-              }),
-              "X-Yova-Request-Id": requestId,
-            },
-          });
-        }
-      }
-      if (reservation?.allowed) {
-        if (await consumePlanAdjustmentClaim(supabase, reservation.claimId, requestId)) {
-          try {
-            generated = await redirectPlanWithOpenAI({
-              title: itemRow.title,
-              topic: itemRow.topic,
-              direction: parsed.data.direction,
-              sessions: adjustableUnfinished,
-              topics: knowledgeMap.data.topics,
-            });
-          } catch {
-            // Paid provider attempts stay consumed even when the response is
-            // unavailable or invalid, preventing repeated denial-of-wallet.
-          }
-        } else {
-          await recoverUnknownPlanAdjustmentReservation(supabase, requestId, recoveryKey);
-        }
-      }
-    }
+    // A provider-supplied topic alias cannot prove that new prose belongs to
+    // that topic. Until map-changing revisions have a reviewed proposal, only
+    // the implemented scope-preserving adjustments can reach persistence.
     try {
-      redirectedUnfinished = generated && !planDirectionConflictsWithRequest(generated, parsed.data.direction)
-        ? generated
-        : applyPlanDirectionFallback(adjustableUnfinished, parsed.data.direction, itemRow.topic);
+      redirectedUnfinished = applyPlanDirectionFallback(adjustableUnfinished, parsed.data.direction, itemRow.topic);
     } catch (error) {
       if (error instanceof UnverifiedPlanDirectionError) {
         return NextResponse.json({ error: error.message, code: "plan_direction_unverified" }, { status: 409 });
@@ -330,41 +270,6 @@ export async function PATCH(request: Request) {
   return NextResponse.json(response.data, {
     headers: { "Cache-Control": "no-store", "X-Yova-Request-Id": requestId },
   });
-}
-
-async function consumePlanAdjustmentClaim(
-  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
-  claimId: string,
-  requestId: string,
-) {
-  try {
-    const consumed = await settleAIRequestClaim(supabase, claimId);
-    if (!consumed) {
-      console.error("YOVA could not settle a plan-adjustment allowance claim", { requestId });
-    }
-    return consumed;
-  } catch {
-    console.error("YOVA could not settle a plan-adjustment allowance claim", { requestId });
-    return false;
-  }
-}
-
-async function recoverUnknownPlanAdjustmentReservation(
-  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
-  operationKey: string,
-  recoveryKey: string,
-) {
-  try {
-    await refundAIRequestReservationBeforeProvider(
-      supabase,
-      "plan_adjustment",
-      operationKey,
-      recoveryKey,
-    );
-  } catch {
-    // If recovery cannot be confirmed, lease expiry conservatively consumes
-    // the attempt so an ambiguous provider charge can never be refunded.
-  }
 }
 
 function operationRequestId(request: Request) {

@@ -1,5 +1,5 @@
 import { issueKnowledgeMapReceipt } from "@/lib/diagnostics/diagnostic-authority";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { NormalPlanEnvelopeComposition } from "@/lib/plan-generation/normal-plan-envelopes";
 import {
   buildNormalPlanFallbackFill,
@@ -145,7 +145,13 @@ const planRequest = PlanGenerationRequestSchema.parse({
 });
 
 describe("plan generation route", () => {
+  afterEach(() => vi.useRealTimers());
+
   beforeEach(() => {
+    // Keep both requests before the same study window. Wall-clock evening
+    // runs otherwise compare shrinking capacity and different start instants.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-09-07T10:00:00.000Z"));
     vi.stubEnv("NODE_ENV", "development");
     vi.stubEnv(
       "YOVA_DRAFT_RECEIPT_SECRET",

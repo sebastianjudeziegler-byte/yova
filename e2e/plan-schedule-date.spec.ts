@@ -63,7 +63,12 @@ for (const {days, priorityMinutes} of [{days:1,priorityMinutes:0},{days:3,priori
   });
   await openPreviewApp(page);
   await page.getByRole("button", {name:/New plan|Build my first plan|Create another plan/}).first().click();
-  await page.getByPlaceholder(/I have a biology test/).fill("Teach me cellular respiration from scratch for my test. I can study Monday, Wednesday and Friday evenings for 45 minutes.");
+  // Keep a real future window in the one-day browser journey. Fixed M/W/F
+  // has zero capacity after Monday evening when the deadline is Tuesday.
+  // The clock-controlled unit fixtures separately exercise exact M/W/F cases.
+  const tomorrowWeekday = new Intl.DateTimeFormat("en-US", { weekday: "long", timeZone: TEST_TIME_ZONE }).format(futureDate(1).date);
+  const availableDays = days === 1 ? tomorrowWeekday : "Monday, Wednesday and Friday";
+  await page.getByPlaceholder(/I have a biology test/).fill(`Teach me cellular respiration from scratch for my test. I can study ${availableDays} evenings for 45 minutes.`);
   await page.getByRole("button", {name:"Continue",exact:true}).click();
   await page.getByRole("button", {name:/Create it for me/}).click();
   await page.getByRole("button", {name:"Continue",exact:true}).click();
@@ -102,7 +107,13 @@ for (const {days, priorityMinutes} of [{days:1,priorityMinutes:0},{days:3,priori
   expect(generated.plan.sessions.length).toBeGreaterThan(0);
   expect(generated.plan.sessions.every((session:{scheduledFor:string;estimatedMinutes:number})=>Date.parse(session.scheduledFor)+session.estimatedMinutes*60_000<=Date.parse(generated.plan.deadline))).toBe(true);
   if (days===1) await expect(page.locator(".generated-topic-map li.deferred").first()).toBeVisible();
-  else await expect(page.locator(".generated-topic-map li").filter({hasText:titles[0]})).toContainText("Quick verification");
+  else {
+    const checkedTopic = generated.plan.knowledgeMap.topics.find((topic:{id:string}) => topic.id === knowledgeMap.topics[0]!.id);
+    expect(checkedTopic.initialEvidence).toMatchObject({source:"placement_check",outcome:"demonstrated"});
+    const topicRow = page.locator(".generated-topic-map li").filter({hasText:titles[0]});
+    await expect(topicRow).toContainText(checkedTopic.deferred ? "Previously checked · not scheduled" : "Quick verification");
+    if (checkedTopic.deferred) await expect(topicRow).toContainText("Your placement result is kept");
+  }
   await page.screenshot({path:`docs/audits/2026-09-07-plan-creation/consolidated/evidence/deadline-${days}-browser.png`,fullPage:true});
   await page.getByRole("button",{name:"Use this plan"}).click();
   await expect(page.getByRole("heading",{name:"Your plan",exact:true})).toBeVisible();

@@ -2150,6 +2150,7 @@ test("an unverified topic rewrite leaves the learner's saved plan and completed 
   const before = await savedPlan();
   await page.getByRole("button", { name: "Adjust", exact: true }).click();
   const panel = page.locator(".plan-adjustment-panel");
+  await expect(panel).toContainText("Free-text topic changes are not available in an active plan.");
   await panel.getByLabel("What should be different?").fill("Replace the next Link reaction session with photosynthesis and chloroplasts instead. Leave my completed Glycolysis session unchanged.");
   await panel.getByRole("button", { name: "Approve and rebuild plan" }).click();
   await expect(panel).toContainText("YOVA could not verify that content change. Your plan is unchanged.");
