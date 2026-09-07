@@ -999,6 +999,9 @@ export class SupabaseStudyProfileRepository implements StudyProfileRepository {
         scoringRevision: STUDY_PROFILE_SCORING_REVISION,
         ...event.eventData,
       },
+      device_type: typeof event.eventData.deviceType === "string"
+        ? event.eventData.deviceType
+        : "unknown",
       profile_model_version: STUDY_PROFILE_MODEL_VERSION,
       traffic_source: attribution.source,
       referrer_host: attribution.referrerHost,

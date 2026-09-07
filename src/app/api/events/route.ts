@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { ProductEventRequestSchema } from "@/lib/analytics/schema";
+import { classifyAnalyticsDevice } from "@/lib/analytics/device";
 import { checkProductEventRateLimit, requestRateLimitKey } from "@/lib/server/rate-limit";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -39,6 +40,7 @@ export async function POST(request: Request) {
     user_id: user.id,
     event_name: parsed.data.eventName,
     event_data: parsed.data.context,
+    device_type: classifyAnalyticsDevice(request.headers),
   });
   if (error) {
     return NextResponse.json({ error: "YOVA could not record that product event." }, { status: 500 });

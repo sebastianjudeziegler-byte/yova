@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { classifyAnalyticsDevice } from "@/lib/analytics/device";
 import { StudyProfileAnalyticsEventRequestSchema } from "@/lib/study-profile/analytics";
 import { getStudyProfileRepository } from "@/lib/study-profile/repository";
 import {
@@ -59,6 +60,7 @@ export async function POST(request: Request) {
       eventData: {
         ...parsed.data.context,
         scoringRevision: parsed.data.scoringRevision,
+        deviceType: classifyAnalyticsDevice(request.headers),
       },
       attribution: parsed.data.attribution,
     });
