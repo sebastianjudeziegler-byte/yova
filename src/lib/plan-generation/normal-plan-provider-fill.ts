@@ -570,8 +570,14 @@ function fallbackSessionTitle(envelope: NormalPlanSessionEnvelope, focus: string
       : envelope.kind === "additional_practice"
         ? "Apply"
         : "Practice";
+  const title = `${prefix} ${focus}`;
+  // Include the next character so an exact word-boundary fit stays intact.
+  // A topic name that cannot fit even one whole word uses the generic title.
+  const bounded = title.length <= LEARNING_TITLE_CHARACTER_LIMIT
+    ? title
+    : title.slice(0, LEARNING_TITLE_CHARACTER_LIMIT + 1).replace(/\s+\S*$/u, "").trim();
   return safeFallbackText(
-    `${prefix} ${focus}`,
+    bounded.length > prefix.length ? bounded : "",
     envelope.learningMode === "learn" ? "Build the next foundation" : "Practice the next target",
     3,
     LEARNING_TITLE_CHARACTER_LIMIT,

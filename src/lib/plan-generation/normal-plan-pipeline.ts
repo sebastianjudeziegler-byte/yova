@@ -14,6 +14,7 @@ import { materializePlanDraft } from "@/lib/plan-generation/materialize-plan";
 import {
   NORMAL_PLAN_DEFERRAL_REASON_CODES,
   NORMAL_PLAN_ENVELOPE_COMPOSER_VERSION,
+  NORMAL_PLAN_SESSION_RESET_MINUTES,
   type NormalPlanEnvelopeComposition,
   type NormalPlanSessionEnvelope,
 } from "@/lib/plan-generation/normal-plan-envelopes";
@@ -427,9 +428,13 @@ function validateAvailabilityAllocation({
     now,
   );
   let slotIndex = 0;
-  let usedMinutes = 0;
+  let notBefore = now.getTime();
+  const unavailableMinutes = (index: number) => slots[index]
+    ? Math.max(0, Math.ceil((notBefore - Date.parse(slots[index]!.startsAt)) / 60_000))
+    : 0;
 
   for (const envelope of composition.envelopes) {
+    let usedMinutes = unavailableMinutes(slotIndex);
     while (
       slotIndex < slots.length
       && slots[slotIndex]!.startsAt !== envelope.availabilityStartsAt
@@ -442,7 +447,7 @@ function validateAvailabilityAllocation({
         throw pipelineError("The composition skipped usable availability or moved backwards in time.");
       }
       slotIndex += 1;
-      usedMinutes = 0;
+      usedMinutes = unavailableMinutes(slotIndex);
     }
     const slot = slots[slotIndex];
     if (!slot) {
@@ -463,7 +468,8 @@ function validateAvailabilityAllocation({
     ) {
       throw pipelineError("An envelope schedule or hard maximum no longer matches canonical availability.");
     }
-    usedMinutes += envelope.timing.activeMinutes;
+    notBefore = Date.parse(envelope.scheduledFor)
+      + (envelope.timing.activeMinutes + NORMAL_PLAN_SESSION_RESET_MINUTES) * 60_000;
   }
 }
 

@@ -313,10 +313,10 @@ describe("normal plan envelope composition", () => {
       sourceWindow: envelope.availabilityWindowIndex,
     }))).toEqual([
       { at: "2026-08-10T09:00:00.000Z", minutes: 25, hardMaximum: 60, sourceWindow: 0 },
-      { at: "2026-08-10T09:25:00.000Z", minutes: 25, hardMaximum: 35, sourceWindow: 0 },
-      { at: "2026-08-10T09:50:00.000Z", minutes: 10, hardMaximum: 10, sourceWindow: 0 },
+      { at: "2026-08-10T09:30:00.000Z", minutes: 25, hardMaximum: 30, sourceWindow: 0 },
     ]);
     expect(result.deferrals).toEqual([
+      expect.objectContaining({ topicId: IDS[2], reasonCode: "availability_capacity" }),
       expect.objectContaining({ topicId: IDS[3], reasonCode: "availability_capacity" }),
     ]);
     expect(result.status).toBe("partial");
@@ -628,7 +628,7 @@ describe("normal plan envelope composition", () => {
       ],
       deadline: "2026-08-10T09:15:00.000Z",
       scope: scope({ recommendedSessions: 2, maximumSessions: 2 }),
-      availability: [{ day: "Monday", window: "Morning", minutes: 25 }],
+      availability: [{ day: "Monday", window: "Morning", minutes: 40 }],
     }));
 
     expect(result.envelopes).toHaveLength(1);
