@@ -327,6 +327,61 @@ test("an overfull plan returns to its schedule and recovers without a client cra
   expect(pageErrors).toEqual([]);
 });
 
+test("changing the goal through Back replaces the old placement map", async ({ page }) => {
+  await page.route("**/api/plans/generate**", async route => {
+    const request = route.request().postDataJSON();
+    if (request.knowledgeMap) return route.continue();
+    const photosynthesis = request.goal.includes("photosynthesis");
+    const title = photosynthesis ? "Photosynthesis and chloroplasts" : "Glycolysis products";
+    const id = photosynthesis ? "91000000-0000-4000-8000-000000000002" : "91000000-0000-4000-8000-000000000001";
+    const knowledgeMap = {
+      version: 1, scopeJudgment: { band: "focused_skill", label: title, minimumSessions: 2, recommendedSessions: 2, maximumSessions: 4, minimumTeachingSessions: 1, explanation: "Learn this mapped idea, then check it independently without notes." },
+      topics: [{ id, title, description: photosynthesis ? "Explain how chloroplasts use light energy to make glucose during photosynthesis." : "Explain that glycolysis turns glucose into two pyruvate, net two ATP and two NADH.", subtopics: [], prerequisiteTopicIds: [], status: "not_started", initialEvidence: null, sourceReferences: [], origin: "ai_generated", deferred: null }],
+      placementCheck: { status: "available", completedAt: null, demonstratedTopicIds: [], gapTopicIds: [] },
+    };
+    await route.continue({ postData: JSON.stringify({ ...request, knowledgeMap }) });
+  });
+  await openPreviewApp(page);
+  await page.getByRole("button", { name: /New plan|Build my first plan|Create another plan/ }).first().click();
+  await page.getByPlaceholder(/I have a biology test/).fill("Learn glycolysis: where it happens and the net ATP, NADH and pyruvate products.");
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  await page.getByRole("button", { name: /Create it for me/ }).click();
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  const firstResponse = page.waitForResponse(response => response.url().includes("/api/plans/generate?mode=diagnostic"));
+  await page.getByRole("button", { name: "Continue to placement check" }).click();
+  const first = await (await firstResponse).json();
+  expect(first.knowledgeMap.topics.length).toBeGreaterThan(0);
+  await expect(page.getByRole("button", { name: "Skip for now" })).toBeVisible();
+  // A timing edit reuses accepted scope instead of discarding it.
+  await page.getByRole("button", { name: "Back", exact: true }).click();
+  await page.getByRole("button", { name: "45 minutes", exact: true }).click();
+  const timedResponse = page.waitForResponse(response => response.url().includes("/api/plans/generate?mode=diagnostic"));
+  await page.getByRole("button", { name: "Continue to placement check" }).click();
+  const timed = await (await timedResponse).json();
+  expect(timed.knowledgeMap.topics).toEqual(first.knowledgeMap.topics);
+  await expect(page.getByRole("heading", { name: timed.questions[0].prompt, exact: true })).toBeVisible();
+  for (let step = 0; step < 3; step += 1) await page.getByRole("button", { name: "Back", exact: true }).click();
+  await page.getByPlaceholder(/I have a biology test/).fill("Learn photosynthesis: chloroplasts, light absorption and glucose production.");
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  const secondResponse = page.waitForResponse(response => response.url().includes("/api/plans/generate?mode=diagnostic"));
+  await page.getByRole("button", { name: "Continue to placement check" }).click();
+  const second = await (await secondResponse).json();
+  await expect(page.getByRole("button", { name: "Skip for now" })).toBeVisible();
+  console.info(JSON.stringify({oldTopics:first.knowledgeMap.topics.map((topic:{title:string})=>topic.title),newTopics:second.knowledgeMap.topics.map((topic:{title:string})=>topic.title),visibleQuestion:second.questions[0]?.prompt}));
+  await expect(page.getByRole("heading", { name: second.questions[0].prompt, exact: true })).toBeVisible();
+  expect(second.questions[0].prompt).toContain("Photosynthesis and chloroplasts");
+  const originalIds = first.knowledgeMap.topics.map((topic:{id:string})=>topic.id);
+  expect(second.knowledgeMap.topics.every((topic:{id:string})=>!originalIds.includes(topic.id)), "The new photosynthesis quiz must not reuse glycolysis identities").toBe(true);
+  await page.getByRole("button", { name: "Skip for now" }).click();
+  const planResponse = page.waitForResponse(response => new URL(response.url()).pathname === "/api/plans/generate" && !new URL(response.url()).search);
+  await page.getByRole("button", { name: "Generate my plan" }).click();
+  const generated = await (await planResponse).json();
+  await expect(page.getByText("Plan ready", { exact: true })).toBeVisible();
+  await expect(page.locator(".generated-topic-map")).toContainText(/photosynthesis|chloroplast/i);
+  expect(JSON.stringify(generated.plan.sessions)).not.toMatch(/glycolysis/i);
+});
+
 function futureDate(days: number) {
   const now = new Date();
   const currentCalendarParts = new Intl.DateTimeFormat("en-US", {
