@@ -212,6 +212,26 @@ describe("authenticated learning-state startup", () => {
     }]);
   });
 
+  it("keeps retired split parts out of the plan after reload without losing terminal authority", async () => {
+    const { plan, session, route } = committedRouteFixture();
+    const retiredId = "00000000-0000-4000-8000-000000000091";
+    const skippedId = "00000000-0000-4000-8000-000000000092";
+    mockCloudQueries({
+      profile: { display_name: "Learner", onboarding_completed_at: NOW },
+      items: [learningItemRow(plan)],
+      plans: [planRow(plan)],
+      sessions: [
+        { ...planSessionRow(plan, session), committed_route_revision_id: route.identity.routeRevisionId },
+        { ...planSessionRow(plan, session), id: retiredId, sequence: 2, status: "skipped", committed_route_revision_id: null, step_data: { routeAdjustmentRetiredAt: NOW } },
+        { ...planSessionRow(plan, session), id: skippedId, sequence: 3, status: "skipped", committed_route_revision_id: null, step_data: {} },
+      ],
+      routes: [studyRouteRow(route)],
+    });
+    const state = await loadAuthenticatedLearningState();
+    expect(state?.plans[0]?.sessions.map((row) => row.id)).toEqual([session.id, skippedId]);
+    expect(state?.sessionTerminalTargets).toContainEqual({ id: retiredId, status: "skipped", routeRevisionId: null });
+  });
+
   it("fails closed when a session pointer cannot resolve its committed route", async () => {
     const { plan, session, route } = committedRouteFixture();
     mockCloudQueries({
