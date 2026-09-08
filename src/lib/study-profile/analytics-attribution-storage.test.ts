@@ -13,7 +13,7 @@ describe("Study Profile first-touch attribution storage", () => {
     const values = new Map<string, string>();
     const storage = storageFor(values);
     const location = {
-      href: "https://www.yovaapp.com/study-profile?utm_source=instagram&utm_medium=paid_social&utm_campaign=study_profile_quiz&utm_content=static_v1&fbclid=click_first",
+      href: "https://www.yovaapp.com/study-profile?utm_source=instagram&utm_medium=organic_social&utm_campaign=study_profile_quiz&utm_content=static_v1&fbclid=ignored_click_id",
     };
     vi.stubGlobal("window", { location, localStorage: storage });
     vi.stubGlobal("document", { referrer: "" });
@@ -27,19 +27,18 @@ describe("Study Profile first-touch attribution storage", () => {
 
     expect(first).toMatchObject({
       utmSource: "instagram",
-      utmMedium: "paid_social",
+      utmMedium: "organic_social",
       utmCampaign: "study_profile_quiz",
       utmContent: "static_v1",
-      fbclid: "click_first",
     });
+    expect(first).not.toHaveProperty("fbclid");
     expect(second).toEqual(first);
     expect(storage.setItem).toHaveBeenCalledTimes(1);
     expect(JSON.parse(values.get(STORAGE_KEY) ?? "{}").attribution).toEqual({
       utmSource: "instagram",
-      utmMedium: "paid_social",
+      utmMedium: "organic_social",
       utmCampaign: "study_profile_quiz",
       utmContent: "static_v1",
-      fbclid: "click_first",
     });
   });
 
@@ -62,15 +61,41 @@ describe("Study Profile first-touch attribution storage", () => {
     });
     expect(storage.setItem).not.toHaveBeenCalled();
 
-    location.href = "https://www.yovaapp.com/study-profile?utm_source=instagram&fbclid=click_later";
+    location.href = "https://www.yovaapp.com/study-profile?utm_source=instagram&fbclid=ignored_click_id";
     vi.resetModules();
     const secondModule = await import("@/lib/study-profile/analytics-client");
     expect(secondModule.captureStudyProfileAttribution()).toMatchObject({
       source: "instagram",
       utmSource: "instagram",
-      fbclid: "click_later",
     });
+    expect(secondModule.captureStudyProfileAttribution()).not.toHaveProperty("fbclid");
     expect(storage.setItem).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not capture or persist Meta click identifiers", async () => {
+    const values = new Map<string, string>();
+    const storage = storageFor(values);
+    vi.stubGlobal("window", {
+      location: {
+        href: "https://www.yovaapp.com/study-profile?fbclid=ignored_click_id",
+      },
+      localStorage: storage,
+    });
+    vi.stubGlobal("document", { referrer: "" });
+    const { captureStudyProfileAttribution } = await import(
+      "@/lib/study-profile/analytics-client"
+    );
+
+    expect(captureStudyProfileAttribution()).toEqual({
+      source: "direct",
+      referrer: null,
+      utmSource: null,
+      utmMedium: null,
+      utmCampaign: null,
+      utmContent: null,
+      utmTerm: null,
+    });
+    expect(storage.setItem).not.toHaveBeenCalled();
   });
 
   it("expires a first touch after 30 days", async () => {

@@ -86,13 +86,6 @@ const draftReceiptSecret = process.env.YOVA_DRAFT_RECEIPT_SECRET ?? "";
 const previousDraftReceiptSecret = process.env.YOVA_DRAFT_RECEIPT_PREVIOUS_SECRET ?? "";
 const openAIKey = process.env.OPENAI_API_KEY?.trim();
 const siteUrl = process.env.SITE_URL?.trim();
-const metaPixelIdRaw = process.env.NEXT_PUBLIC_META_PIXEL_ID ?? "";
-const metaPixelId = metaPixelIdRaw.trim();
-const metaPixelIdConfigured = metaPixelIdRaw.length > 0;
-const metaPixelIdReady = !metaPixelIdConfigured || Boolean(
-  metaPixelIdRaw === metaPixelId
-  && /^\d{5,32}$/u.test(metaPixelId),
-);
 const resendApiKey = process.env.RESEND_API_KEY?.trim();
 const studyProfileFromEmail = process.env.STUDY_PROFILE_FROM_EMAIL ?? "";
 const studyProfileReplyTo = process.env.STUDY_PROFILE_REPLY_TO?.trim() ?? "";
@@ -252,15 +245,6 @@ if (production) {
       : vercelUrl
         ? "missing SITE_URL; a Vercel deploy URL is only a preview fallback, not the production canonical"
         : "missing SITE_URL; production requires the customer-facing HTTPS origin",
-  );
-  addCheck(
-    "Meta Pixel ID",
-    metaPixelIdReady,
-    !metaPixelIdConfigured
-      ? "not set; Meta Pixel tracking is disabled"
-      : metaPixelIdReady
-      ? "configured as a numeric public Pixel ID"
-      : "set NEXT_PUBLIC_META_PIXEL_ID to the exact numeric ID from Meta Events Manager without surrounding whitespace",
   );
   addCheck(
     "Study Profile transactional email",

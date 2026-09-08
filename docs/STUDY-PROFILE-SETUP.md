@@ -22,12 +22,9 @@ RESEND_API_KEY=re_...
 STUDY_PROFILE_FROM_EMAIL=YOVA <reports@updates.yovaapp.com>
 STUDY_PROFILE_REPLY_TO=optional-monitored-address@yovaapp.com
 SITE_URL=https://www.yovaapp.com
-NEXT_PUBLIC_META_PIXEL_ID=optional-numeric-pixel-id
 ```
 
 `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` remain required by the existing app. `SUPABASE_SECRET_KEY` must never use the `NEXT_PUBLIC_` prefix.
-
-`NEXT_PUBLIC_META_PIXEL_ID` is optional and must not block a deployment when omitted. When configured, it is accepted only as a numeric ID and the client loads it only on the explicitly approved Study Profile measurement paths.
 
 Without the Supabase secret key, production submissions fail closed instead of pretending that a lead was saved. In local development and Playwright, the feature uses a process-local repository so the complete flow can be tested without cloud credentials. That fallback is not used as production persistence.
 
@@ -97,9 +94,9 @@ Keep the existing application and database limits in place as additional layers.
 
 ## Analytics
 
-Funnel events are written to `study_profile_events`, and captured responses provide profile-distribution data. The public event schema is closed and privacy-bounded. Meta Pixel loads only in Vercel Production, never locally or in preview deployments, and is disabled on private report and operational routes. It sends `PageView` once per public pathname, `Lead` after the report-email submission succeeds, and `CompleteRegistration` after successful waitlist confirmation using a stable deduplication ID. Those events never include an email address, quiz answer, report token, or confirmation token.
+Funnel events are written to `study_profile_events`, and captured responses provide profile-distribution data. The public event schema is closed and privacy-bounded.
 
-The browser creates the Study Profile visitor ID in page memory. When a completed quiz opens its private report in a new page load, the browser places that anonymous ID in `sessionStorage` for a one-time handoff, removes it when the matching report loads, and uses it to keep the report-view event connected to the same funnel. If the navigation is interrupted, the handoff can remain until the tab closes or site data is cleared. Other new page loads create a new browser-side visitor ID. The first tagged `utm_source`, `utm_medium`, `utm_campaign`, `utm_content`, `utm_term`, and `fbclid` values are stored in `localStorage`, treated as expired after 30 days, and deleted the next time YOVA reads them. They are attached to report-email and waitlist requests while current. Later campaign URLs do not overwrite an unexpired first tagged touch. `fbclid` is not sent with progress-event requests. The bounded visitor ID may still be stored with accepted event records and associated with a response or waitlist request created from the same funnel.
+The browser creates the Study Profile visitor ID in page memory. When a completed quiz opens its private report in a new page load, the browser places that anonymous ID in `sessionStorage` for a one-time handoff, removes it when the matching report loads, and uses it to keep the report-view event connected to the same funnel. If the navigation is interrupted, the handoff can remain until the tab closes or site data is cleared. Other new page loads create a new browser-side visitor ID. The first tagged `utm_source`, `utm_medium`, `utm_campaign`, `utm_content`, and `utm_term` values are stored in `localStorage`, treated as expired after 30 days, and deleted the next time YOVA reads them. They are attached to report-email and waitlist requests while current. Later campaign URLs do not overwrite an unexpired first tagged touch. The bounded visitor ID may still be stored with accepted event records and associated with a response or waitlist request created from the same funnel.
 
 The browser separately stores an unfinished Study Profile draft in `localStorage` so a refresh can restore answers and context. The draft does not contain the user's email. Each save records its time, and a draft older than seven days is deleted instead of restored. Completion, restart, and retake clear it sooner.
 
@@ -122,25 +119,14 @@ Local:
 11. Open an altered token and confirm the generic unavailable-link page.
 12. Repeat at 360 and 390 CSS pixels wide and with a desktop viewport.
 
-Automated Meta boundary check with a test-only numeric Pixel ID:
-
-```sh
-YOVA_E2E=1 VERCEL_ENV=production NEXT_PUBLIC_META_PIXEL_ID=123456789012345 NEXT_PUBLIC_SUPABASE_URL= NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY= OPENAI_API_KEY= RESEND_API_KEY= STUDY_PROFILE_FROM_EMAIL= SITE_URL=http://127.0.0.1:3111 pnpm exec next build
-YOVA_E2E=1 VERCEL_ENV=production NEXT_PUBLIC_META_PIXEL_ID=123456789012345 NEXT_PUBLIC_SUPABASE_URL= NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY= OPENAI_API_KEY= RESEND_API_KEY= STUDY_PROFILE_FROM_EMAIL= SITE_URL=http://127.0.0.1:3111 pnpm exec next start --hostname 127.0.0.1 --port 3111
-YOVA_E2E=1 YOVA_E2E_META_PIXEL=1 YOVA_E2E_BASE_URL=http://127.0.0.1:3111 NEXT_PUBLIC_META_PIXEL_ID=123456789012345 pnpm exec playwright test e2e/meta-pixel.spec.ts --project=desktop-chromium
-```
-
-Run the second command in a separate terminal and stop it after Playwright completes. The suite intercepts Meta's library locally; it does not send test activity to Meta.
-
 Deployed:
 
 1. Apply all migrations through `202609060002`, set the Vercel variables, configure the Vercel Firewall rules, and redeploy.
 2. Confirm the deployment readiness check reports the exact `202609060002` Study Profile database contract and all seven fields are true.
-3. Open `https://www.yovaapp.com/study-profile?utm_source=instagram&utm_medium=paid_social&utm_campaign=study_profile_quiz&utm_content=static_v1&fbclid=test_click_id` and submit a fresh profile.
+3. Open `https://www.yovaapp.com/study-profile?utm_source=tiktok&utm_medium=organic_social&utm_campaign=study_profile_quiz&utm_content=video_v1` and submit a fresh profile.
 4. Confirm one lead and one response were created, the report email was delivered, and its link opens the same stored report in a private browser window.
 5. Retake with the same email and confirm one lead now owns two response rows and both old and new links work.
 6. Request the waitlist confirmation, verify the pending state, and complete it using the explicit confirmation button.
-7. Confirm the response and confirmation rows contain the test campaign values and Meta click ID, and event rows contain only supported names and bounded context.
-8. Use Meta Test Events to confirm one `PageView`, one `Lead` with `content_name=study_profile_report`, and one `CompleteRegistration` with `content_name=waitlist`.
-9. Confirm Vercel Firewall logs show the intended rules and that a controlled excess request receives `429` without affecting normal use.
-10. Confirm the Resend dashboard shows the report and confirmation messages as transactional mail. Do not start a marketing campaign during this check.
+7. Confirm the response and confirmation rows contain the test campaign values, and event rows contain only supported names and bounded context.
+8. Confirm Vercel Firewall logs show the intended rules and that a controlled excess request receives `429` without affecting normal use.
+9. Confirm the Resend dashboard shows the report and confirmation messages as transactional mail. Do not start a marketing campaign during this check.

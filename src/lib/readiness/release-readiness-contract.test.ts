@@ -134,7 +134,6 @@ function productionFixture(): NodeJS.ProcessEnv {
     ...process.env,
     NEXT_PUBLIC_SUPABASE_URL: "https://127.0.0.1:1",
     NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "sb_publishable_release_test",
-    NEXT_PUBLIC_META_PIXEL_ID: "123456789012345",
     SUPABASE_SECRET_KEY: "sb_secret_release_test_value",
     OPENAI_API_KEY: "sk-release-test-not-a-real-key",
     CRON_SECRET: "release-test-cron-secret-000000000000000",

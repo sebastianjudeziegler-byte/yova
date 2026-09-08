@@ -1061,19 +1061,31 @@
   .assessmentHeader { min-height: 66px; }
 
   .landingHero { padding: 18px 0 48px; gap: 27px; }
+  .heroCopy,
+  .landingSectionHeading,
+  .sampleResultCopy,
+  .yovaIntroSection,
+  .finalCtaSection { text-align: center; }
+  .heroEyebrow,
+  .sectionEyebrow { margin-inline: auto; }
   .heroCopy h1 { margin-block: 17px 13px; font-size: clamp(39px, 11vw, 46px); }
+  .heroCopy h1,
+  .heroCopy > p,
+  .landingSectionHeading { margin-inline: auto; }
   .heroCopy > p { line-height: 1.62; }
   .heroActions { margin-top: 21px; }
   .heroActions .primaryButton,
   .sampleResultCopy .secondaryCta,
   .finalCtaSection .primaryButton { width: 100%; }
-  .heroTrust { gap: 8px 13px; }
+  .heroTrust { justify-content: center; gap: 8px 13px; }
   .reportPreview { padding: 21px; }
 
   .valueSection,
   .howItWorks { padding-block: 46px; }
-  .proofGrid article { min-height: 0; padding: 20px; }
+  .proofGrid article { min-height: 0; padding: 20px; text-align: center; }
+  .proofGrid article > span { margin-inline: auto; }
   .proofGrid h3 { margin-top: 16px; }
+  .howItWorks li { grid-template-columns: 1fr; justify-items: center; text-align: center; }
   .sampleResultSection,
   .yovaIntroSection,
   .researchStrip,
@@ -1084,18 +1096,35 @@
   .researchStrip { padding: 20px; }
   .finalCtaSection { margin-bottom: 54px; }
   .landingWaitlistCompact { padding-top: 18px; }
+  .landingWaitlistForm > label:first-child { text-align: center; }
+  .landingWaitlistForm > div { width: min(100%, 430px); margin-inline: auto; }
+  .waitlistConsent { width: fit-content; max-width: 100%; margin-inline: auto; text-align: left; }
 
   .progressShell { margin-top: 1px; }
   .assessmentMain { margin-top: 8px; }
+  .progressMeta { align-items: center; flex-direction: column; justify-content: center; gap: 3px; text-align: center; }
+  .progressMeta small { max-width: none; text-align: center; }
+  .backButton { margin-left: 0; }
+  .questionScreen,
+  .metadataScreen,
+  .emailGate { text-align: center; }
   .questionScreen,
   .metadataScreen { padding: 22px 18px; }
   .questionScreen h1,
   .metadataScreen h1 { font-size: clamp(29px, 8.5vw, 35px); }
+  .questionHint,
+  .emailGate > p { margin-inline: auto; }
   .answerList,
   .metadataOptions { margin-top: 19px; gap: 8px; }
+  .answerList > button { grid-template-columns: 36px minmax(0, 1fr) 36px; text-align: center; }
   .metadataOptions > button { min-height: 64px; }
+  .metadataOptions > button { grid-template-columns: 32px minmax(0, 1fr) 32px; text-align: center; }
+  .metadataOptions > button > span,
+  .metadataOptions > button > small { grid-column: 2; }
+  .metadataOptions > button > svg { grid-column: 3; }
   .metadataOptions > button > small { font-size: 13px; }
   .contextGroups { margin-top: 19px; gap: 18px; }
+  .contextGroups legend { text-align: center; }
   .contextChoices { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .contextChoices > button:last-child:nth-child(odd) { grid-column: 1 / -1; }
 
@@ -1103,12 +1132,17 @@
   .emailGate h1,
   .emailGate h2 { font-size: clamp(29px, 8.5vw, 34px); }
   .emailGate > p { line-height: 1.55; }
-  .emailGate > label:not(.consentRow) { margin-top: 14px; }
-  .unlockList { margin-block: 15px 10px; gap: 8px; }
+  .lockedResultStatus { margin-inline: auto; }
+  .emailGate > label:not(.consentRow) { margin-top: 14px; text-align: center; }
+  .emailInputWrap {
+    width: min(100%, 500px);
+    margin-inline: auto;
+  }
+  .unlockList { width: fit-content; max-width: 100%; margin: 15px auto 10px; gap: 8px; text-align: left; }
   .unlockList span { font-size: 13px; }
   .consentRow,
-  .waitlistConsent { margin-top: 4px; padding-block: 7px; align-items: center; }
-  .emailGate .primaryButton { min-height: 52px; margin-top: 12px; }
+  .waitlistConsent { width: fit-content; max-width: 100%; margin: 4px auto 0; padding-block: 7px; align-items: center; text-align: left; }
+  .emailGate .primaryButton { width: min(100%, 500px); min-height: 52px; margin: 12px auto 0; }
 
   .deliveryNotice,
   .reportBody { width: calc(100% - 24px); }
@@ -1133,8 +1167,8 @@
   .confirmationPage {
     padding: max(16px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) max(16px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
   }
-  .confirmationCard { padding: 24px; backdrop-filter: blur(16px); }
-  .confirmationCard > svg { margin-top: 24px; }
+  .confirmationCard { padding: 24px; text-align: center; backdrop-filter: blur(16px); }
+  .confirmationCard > svg { margin: 24px auto 18px; }
   .confirmationCard h1 { font-size: clamp(32px, 9vw, 42px); }
 }
 
@@ -1246,8 +1280,6 @@
   .landingNav button { padding-inline: 11px; font-size: 11px; }
   .landingNav > span { padding-inline: 8px; }
   .brandLink :global(.brand-word) { display: none; }
-  .progressMeta { align-items: flex-start; flex-direction: column; gap: 3px; }
-  .progressMeta small { max-width: none; text-align: left; }
   .contextChoices { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .patternReveal { min-height: 425px; }
   .habitChartRow,
@@ -1279,7 +1311,7 @@
   .metadataScreen { padding: 20px 16px; }
   .questionScreen h1,
   .metadataScreen h1 { font-size: 28px; }
-  .answerList > button { padding-inline: 9px; grid-template-columns: 32px minmax(0, 1fr) 21px; gap: 8px; }
+  .answerList > button { padding-inline: 9px; grid-template-columns: 32px minmax(0, 1fr) 32px; gap: 8px; }
   .answerKey { width: 31px; height: 31px; }
   .patternReveal { min-height: 420px; padding: 19px 17px; }
   .patternRevealCopy h1 { font-size: 34px; }

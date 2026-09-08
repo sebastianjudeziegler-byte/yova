@@ -7,10 +7,7 @@ import {
   type StudyProfileEventName,
   type StudyProfileEventProperties,
 } from "@/lib/study-profile/analytics";
-import {
-  sanitizeStudyProfileAttributionValue,
-  sanitizeStudyProfileMetaClickId,
-} from "@/lib/study-profile/attribution-privacy";
+import { sanitizeStudyProfileAttributionValue } from "@/lib/study-profile/attribution-privacy";
 import {
   StudyProfileAttributionSchema,
   type StudyProfileAttribution,
@@ -93,7 +90,6 @@ export function deriveStudyProfileAttribution(
   const safeReferrer = safeReferrerOrigin(referrer);
   const utmSource = boundedCampaignValue(params.get("utm_source"), 100);
   const explicitSource = boundedCampaignValue(params.get("source"), 100);
-  const fbclid = sanitizeStudyProfileMetaClickId(params.get("fbclid"));
   let referrerHost: string | null = null;
   if (safeReferrer) {
     try {
@@ -111,7 +107,6 @@ export function deriveStudyProfileAttribution(
     utmCampaign: boundedCampaignValue(params.get("utm_campaign"), 160),
     utmContent: boundedCampaignValue(params.get("utm_content"), 160),
     utmTerm: boundedCampaignValue(params.get("utm_term"), 160),
-    ...(fbclid ? { fbclid } : {}),
   };
 
   const parsed = StudyProfileAttributionSchema.safeParse(candidate);
@@ -149,8 +144,7 @@ export function captureStudyProfileAttribution(): StudyProfileAttribution {
     : null;
   if (persisted) {
     ephemeralAttribution = {
-      source: persisted.attribution.utmSource
-        ?? (persisted.attribution.fbclid ? "meta" : "direct"),
+      source: persisted.attribution.utmSource ?? "direct",
       ...persisted.attribution,
     };
     ephemeralAttributionCapturedAt = persisted.capturedAt;
@@ -232,7 +226,6 @@ function toStoredCampaignAttribution(attribution: StudyProfileAttribution) {
     ...(attribution.utmCampaign ? { utmCampaign: attribution.utmCampaign } : {}),
     ...(attribution.utmContent ? { utmContent: attribution.utmContent } : {}),
     ...(attribution.utmTerm ? { utmTerm: attribution.utmTerm } : {}),
-    ...(attribution.fbclid ? { fbclid: attribution.fbclid } : {}),
   };
   return Object.keys(candidate).length > 0 ? candidate : null;
 }

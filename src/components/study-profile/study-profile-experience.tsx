@@ -1,6 +1,5 @@
 "use client";
-/* eslint-disable @next/next/no-html-link-for-pages -- Full page exits unload Meta before non-measurement routes render. */
-
+import Link from "next/link";
 import {
   useEffect,
   useMemo,
@@ -98,7 +97,6 @@ export function StudyProfileExperience() {
   const [metadata, setMetadata] = useState<Partial<StudyProfileMetadata>>({});
   const [email, setEmail] = useState("");
   const [ageConfirmed, setAgeConfirmed] = useState(false);
-  const [under18, setUnder18] = useState(false);
   const [waitlistConsent, setWaitlistConsent] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submissionError, setSubmissionError] = useState<string | null>(null);
@@ -190,7 +188,6 @@ export function StudyProfileExperience() {
     setCurrentQuestion(0);
     setEmail("");
     setAgeConfirmed(false);
-    setUnder18(false);
     setWaitlistConsent(false);
     setSubmissionError(null);
     setConfirmationPending(false);
@@ -270,7 +267,7 @@ export function StudyProfileExperience() {
         body: JSON.stringify({
           visitorId,
           ageConfirmed: true,
-          under18,
+          under18: false,
           email,
           answers: completedAnswers,
           metadata: {
@@ -310,7 +307,7 @@ export function StudyProfileExperience() {
     <div className={styles.assessmentPage}>
       <a className={styles.skipLink} href="#assessment-content">Skip to question</a>
       <header className={styles.assessmentHeader}>
-        <a href="/" aria-label="YOVA home" className={styles.brandLink}><BrandMark /></a>
+        <Link href="/" aria-label="YOVA home" className={styles.brandLink}><BrandMark /></Link>
         <div className={styles.assessmentHeaderActions}>
           <span><LockKeyhole size={13} aria-hidden="true" /> Draft saved for 7 days</span>
           <button type="button" onClick={restartAssessment}><RefreshCw size={14} aria-hidden="true" /> Restart</button>
@@ -381,7 +378,6 @@ export function StudyProfileExperience() {
                   <span><CheckCircle2 size={17} aria-hidden="true" /> A plan for tonight</span>
                 </div>
                 <label className={styles.consentRow}><input type="checkbox" required checked={ageConfirmed} onChange={(event) => setAgeConfirmed(event.target.checked)} /><span><strong>I confirm I am 13 or older.</strong></span></label>
-                <label className={styles.consentRow}><input type="checkbox" checked={under18} onChange={(event) => setUnder18(event.target.checked)} /><span><strong>I am under 18.</strong></span></label>
                 <label className={styles.consentRow}><input type="checkbox" required checked={waitlistConsent} onChange={(event) => setWaitlistConsent(event.target.checked)} /><span><strong>Confirm my place on the YOVA waitlist and email me about YOVA&apos;s launch.</strong> I can unsubscribe at any time.</span></label>
                 {submissionError && <p className={styles.formError} role="alert">{submissionError}</p>}
                 <button type="submit" className={styles.primaryButton} disabled={isSubmitting || !emailIsValid || !ageConfirmed || !waitlistConsent}>{isSubmitting ? "Sending your confirmation link..." : "Send my confirmation link"}{!isSubmitting && <ArrowRight size={17} aria-hidden="true" />}</button>
@@ -402,7 +398,7 @@ function StudyProfileLanding({ onStart }: { onStart: () => void }) {
     <div className={styles.landingPage}>
       <a className={styles.skipLink} href="#study-profile-landing">Skip to main content</a>
       <header className={styles.publicHeader}>
-        <a href="/" aria-label="YOVA home" className={styles.brandLink}><BrandMark /></a>
+        <Link href="/" aria-label="YOVA home" className={styles.brandLink}><BrandMark /></Link>
         <nav className={styles.landingNav} aria-label="Study Profile"><a href="#what-is-yova">What is YOVA?</a><span>Free</span><button type="button" onClick={onStart}>Start the profile</button></nav>
       </header>
       <main id="study-profile-landing" tabIndex={-1}>
@@ -456,7 +452,6 @@ function LandingWaitlistForm({ idPrefix, compact = false }: { idPrefix: string; 
   const [email, setEmail] = useState("");
   const [consent, setConsent] = useState(false);
   const [ageConfirmed, setAgeConfirmed] = useState(false);
-  const [under18, setUnder18] = useState(false);
   const [status, setStatus] = useState<"idle" | "submitting" | "pending" | "joined" | "limited">("idle");
   const [error, setError] = useState<string | null>(null);
   const valid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
@@ -466,7 +461,7 @@ function LandingWaitlistForm({ idPrefix, compact = false }: { idPrefix: string; 
     if (!visitorId) { setError("Your browser could not create a private waitlist session. Refresh and try again."); return; }
     setStatus("submitting");
     try {
-      const response = await fetch("/api/study-profile/waitlist", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email, visitorId, consent, ageConfirmed, under18, attribution: captureStudyProfileAttribution() }) });
+      const response = await fetch("/api/study-profile/waitlist", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email, visitorId, consent, ageConfirmed, under18: false, attribution: captureStudyProfileAttribution() }) });
       const payload = await response.json().catch(() => ({})) as { error?: unknown; waitlistJoined?: unknown; confirmationPending?: unknown; dailyCapReached?: unknown };
       if (!response.ok) throw new Error(typeof payload.error === "string" ? payload.error : "YOVA could not send the confirmation email. Try again.");
       if (payload.dailyCapReached === true) setStatus("limited");
@@ -481,7 +476,6 @@ function LandingWaitlistForm({ idPrefix, compact = false }: { idPrefix: string; 
   return <form className={`${styles.landingWaitlistForm} ${compact ? styles.landingWaitlistCompact : ""}`} onSubmit={submit}>
     <label htmlFor={`${idPrefix}-email`}>Email address</label><div><input id={`${idPrefix}-email`} type="email" inputMode="email" autoComplete="email" maxLength={254} required value={email} placeholder="you@example.com" onChange={(event) => setEmail(event.target.value)} /><button type="submit" disabled={!valid || !consent || !ageConfirmed || status === "submitting"}>{status === "submitting" ? "Sending..." : "Join the waitlist"}</button></div>
     <label className={styles.waitlistConsent}><input type="checkbox" required checked={ageConfirmed} onChange={(event) => setAgeConfirmed(event.target.checked)} /><span>I confirm I am 13 or older.</span></label>
-    <label className={styles.waitlistConsent}><input type="checkbox" checked={under18} onChange={(event) => setUnder18(event.target.checked)} /><span>I am under 18.</span></label>
     <label className={styles.waitlistConsent}><input type="checkbox" required checked={consent} onChange={(event) => setConsent(event.target.checked)} /><span>Email me when YOVA launches. I can unsubscribe at any time.</span></label>
     <p className={styles.legalNote}>See how YOVA uses your email in the <a href="/privacy">Privacy Notice</a>.</p>{error && <p className={styles.formError} role="alert">{error}</p>}
   </form>;

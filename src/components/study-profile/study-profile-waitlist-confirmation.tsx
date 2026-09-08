@@ -1,16 +1,9 @@
 "use client";
-/* eslint-disable @next/next/no-html-link-for-pages -- Full page exits unload Meta before the private report renders. */
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { CheckCircle2, MailCheck, TriangleAlert } from "lucide-react";
 import { BrandMark } from "@/components/brand-mark";
-import {
-  createMetaEventId,
-  isMetaPixelConfigured,
-  trackMetaConversionOnce,
-  waitForMetaPixelReady,
-} from "@/lib/meta-pixel";
 import { getStudyProfileVisitorId } from "@/lib/study-profile/analytics-client";
 import { storeStudyProfileReportTransition } from "@/lib/study-profile/report-transition";
 import styles from "./study-profile.module.css";
@@ -29,9 +22,6 @@ type ConfirmationResponse = {
   reportUnlocked?: unknown;
   reportUrl?: unknown;
   responseId?: unknown;
-  metaLeadEligible?: unknown;
-  metaRegistrationEligible?: unknown;
-  metaConversionEligible?: unknown;
 };
 
 const PRIVATE_TOKEN_PATTERN = /^[A-Za-z0-9_-]{43}$/;
@@ -111,44 +101,6 @@ export function StudyProfileWaitlistConfirmation() {
         throw new Error("Your waitlist place was confirmed, but YOVA could not unlock this report. Try the confirmation button again.");
       }
 
-      let conversionQueued = false;
-      try {
-        const registrationEligible = reportToken
-          ? payload.metaRegistrationEligible === true
-          : payload.metaConversionEligible === true;
-        if (registrationEligible) {
-          const registrationEventId = await createMetaEventId(
-            "study_profile_waitlist",
-            token,
-          );
-          conversionQueued = trackMetaConversionOnce(
-            "CompleteRegistration",
-            { content_name: "waitlist" },
-            registrationEventId,
-          ) || conversionQueued;
-        }
-        if (
-          reportToken
-          && payload.metaLeadEligible === true
-          && typeof payload.responseId === "string"
-        ) {
-          const leadEventId = await createMetaEventId(
-            "study_profile_report",
-            payload.responseId,
-          );
-          conversionQueued = trackMetaConversionOnce(
-            "Lead",
-            { content_name: "study_profile_report" },
-            leadEventId,
-          ) || conversionQueued;
-        }
-        if (conversionQueued && isMetaPixelConfigured()) {
-          await waitForMetaPixelReady();
-        }
-      } catch {
-        // Advertising measurement must never block an unlocked report.
-      }
-
       setToken(null);
       initialLinkRef.current = null;
       clearConfirmationFragment();
@@ -182,9 +134,9 @@ export function StudyProfileWaitlistConfirmation() {
   return (
     <main className={styles.confirmationPage}>
       <section className={styles.confirmationCard} aria-labelledby="confirmation-heading">
-        <a href="/" aria-label="YOVA home" className={styles.brandLink}>
+        <Link href="/" aria-label="YOVA home" className={styles.brandLink}>
           <BrandMark />
-        </a>
+        </Link>
         {state === "confirmed" ? (
           <>
             <CheckCircle2 size={34} aria-hidden="true" />

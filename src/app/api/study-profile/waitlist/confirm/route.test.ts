@@ -63,7 +63,6 @@ describe("Study Profile waitlist confirmation route", () => {
     const payload = await response.json();
     expect(payload).toEqual({
       waitlistJoined: true,
-      metaConversionEligible: true,
     });
     expect(JSON.stringify(payload)).not.toContain(rawConfirmationToken);
     expect(mocks.hashToken).toHaveBeenCalledWith(rawConfirmationToken);
@@ -102,12 +101,8 @@ describe("Study Profile waitlist confirmation route", () => {
       waitlistJoined: true,
       reportUnlocked: true,
       responseId,
-      metaLeadEligible: true,
-      metaRegistrationEligible: true,
     });
     expect(Object.keys(payload).sort()).toEqual([
-      "metaLeadEligible",
-      "metaRegistrationEligible",
       "reportUnlocked",
       "reportUrl",
       "responseId",
@@ -122,7 +117,7 @@ describe("Study Profile waitlist confirmation route", () => {
     expect(mocks.confirmWaitlist).not.toHaveBeenCalled();
   });
 
-  it("keeps both Meta eligibility signals false for an under-18 bound confirmation", async () => {
+  it("does not expose internal eligibility fields for an under-18 bound confirmation", async () => {
     mocks.confirmWaitlistForReport.mockResolvedValueOnce({
       status: "confirmed",
       waitlistJoined: true,
@@ -139,11 +134,12 @@ describe("Study Profile waitlist confirmation route", () => {
     }));
 
     expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toMatchObject({
-      metaLeadEligible: false,
-      metaRegistrationEligible: false,
+    const payload = await response.json() as Record<string, unknown>;
+    expect(payload).toMatchObject({
       reportUnlocked: true,
     });
+    expect(payload).not.toHaveProperty("metaLeadEligible");
+    expect(payload).not.toHaveProperty("metaRegistrationEligible");
   });
 
   it("rejects malformed, unbound, and extra input before persistence", async () => {
