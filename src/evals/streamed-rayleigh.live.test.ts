@@ -118,7 +118,13 @@ describe.skipIf(!liveEvaluationEnabled)("live streamed Rayleigh-scattering sessi
           })),
         });
 
-        expect(draft.coverage.essentialIdeas).toHaveLength(2);
+        // The method-bounded 15-minute slice teaches the prerequisite first.
+        expect(draft.coverage.essentialIdeas).toHaveLength(1);
+        expect(draft.coverage.essentialIdeas.join(" ")).toMatch(/light|sunlight/i);
+        expect(draft.coverage.essentialIdeas.join(" ")).toMatch(/air|molecul|atmospher/i);
+        expect(draft.coverage.deferredContent).toContain("Why the sky looks blue during the day");
+        expect(draft.activities.filter(activity => activity.methodPhase !== "schedule_return")
+          .reduce((total, activity) => total + activity.estimatedMinutes, 0)).toBe(15);
         expect(draft.coverage.deferredContent).not.toContain(
           "Why sunsets look red and orange",
         );

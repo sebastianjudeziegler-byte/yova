@@ -12,7 +12,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
-    "test": "vitest run",
+    "test": "vitest run && node --test --test-concurrency=1 scripts/live-gate/*.test.mjs",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "test:e2e:auth": "YOVA_E2E_PASSWORD_AUTH=1 playwright test e2e/public-auth.spec.ts e2e/cloud-sync-recovery.spec.ts",
@@ -25,7 +25,9 @@
     "readiness:configuration": "node scripts/check-readiness.mjs --production --configuration-only",
     "readiness:production": "node scripts/check-readiness.mjs --production",
     "smoke:production": "node scripts/smoke-deployment.mjs",
-    "smoke:production:lifecycle": "node scripts/smoke-production-lifecycle.mjs"
+    "smoke:production:lifecycle": "node scripts/smoke-production-lifecycle.mjs",
+    "test:live": "node scripts/run-live-gate.mjs",
+    "test:live:runner": "node --test --test-concurrency=1 scripts/live-gate/*.test.mjs"
   },
   "dependencies": {
     "@fontsource/inter": "latest",

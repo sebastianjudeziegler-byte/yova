@@ -127,6 +127,31 @@ const strongSession = GeneratedSessionDraftSchema.parse({
 });
 
 describe("session quality rubric", () => {
+  it("accepts a fifteen-minute model, explanation, repair, re-explanation and recognition sequence", () => {
+    const draft = GeneratedSessionDraftSchema.parse({
+      ...strongSession,
+      activities: [
+        ...strongSession.activities.map((activity) => ({ ...activity, estimatedMinutes: 3 })),
+        {
+          ...strongSession.activities[1], type: "multiple_choice", methodPhase: "transfer", estimatedMinutes: 3,
+          title: "Recognize where energy is stored", body: "Which process stores light energy in glucose?",
+          choices: ["Photosynthesis", "Cellular respiration", "Glycolysis"], correctAnswer: "Photosynthesis",
+          feedback: "Photosynthesis stores light energy in glucose; cellular respiration transfers stored energy into ATP.",
+        },
+      ],
+    });
+    const context = { ...biologyCase.context, session: { ...biologyCase.context.session, estimatedMinutes: 15 } };
+    const pacing = evaluateSessionDraft(draft, context, biologyCase.taskFamily, biologyCase.expectedSourceTerms)
+      .checks.find((item) => item.id === "activity_pacing");
+    expect(draft.activities.map(({ title }) => title)).toContain("Recognize where energy is stored");
+    expect(pacing?.passed).toBe(true);
+    // Extra exercises and extra minutes still fail: the recipe is no excuse for overload.
+    const overloaded = { ...draft, activities: Array.from({ length: 9 }, (_, index) => ({ ...draft.activities[index % 5]!, estimatedMinutes: 1 })) };
+    expect(evaluateSessionDraft(overloaded, context, biologyCase.taskFamily, []).checks.find((item) => item.id === "activity_pacing")?.passed).toBe(false);
+    const overtime = { ...draft, activities: draft.activities.map((activity) => ({ ...activity, estimatedMinutes: 4 })) };
+    expect(evaluateSessionDraft(overtime, context, biologyCase.taskFamily, []).requiredFailures).toContain("Required content fits the stated time window");
+  });
+
   it("passes a grounded session with support followed by retrieval", () => {
     const result = evaluateSessionDraft(
       strongSession,
@@ -293,14 +318,14 @@ describe("session quality rubric", () => {
 
     const result = evaluateSessionDraft(
       sessionWithReturn,
-      { ...biologyCase.context, session: { ...biologyCase.context.session, estimatedMinutes: 12 } },
+      { ...biologyCase.context, session: { ...biologyCase.context.session, estimatedMinutes: 15 } },
       biologyCase.taskFamily,
       biologyCase.expectedSourceTerms,
     );
 
     const pacing = result.checks.find((item) => item.id === "activity_pacing");
     expect(pacing?.passed).toBe(true);
-    expect(pacing?.detail).toContain("4/4 maximum focused activities");
+    expect(pacing?.detail).toContain("4 focused activities; production time budget passed");
   });
 
   it("accepts two focused retrieval checks plus a delayed return for a study session", () => {
@@ -349,7 +374,7 @@ describe("session quality rubric", () => {
     });
     expect(result.checks.find((item) => item.id === "activity_pacing")).toMatchObject({
       passed: true,
-      detail: "2/5 maximum focused activities for 25 minutes",
+      detail: "2 focused activities; production time budget passed for 25 minutes",
     });
   });
 });

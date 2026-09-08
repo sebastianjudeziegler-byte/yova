@@ -11,6 +11,7 @@ import {
 } from "@/lib/learning/method-fidelity";
 import { isScheduledRetrievalSession } from "@/lib/learning/scheduled-retrieval";
 import { validateSessionCompletionContract } from "@/lib/session-generation/completion-contract";
+import { validateSessionTimeBudget } from "@/lib/session-generation/time-budget";
 import { validateSessionQuestionContext } from "@/lib/session-generation/question-context";
 import { validateSessionContentSpecificity } from "@/lib/session-generation/content-specificity";
 import {
@@ -94,12 +95,9 @@ export function evaluateSessionDraft(
     .map((activity, index) => ({ activity, index }))
     .filter(({ activity }) => activity.type === "multiple_choice" || activity.type === "free_response")
     .map(({ index }) => index);
-  // Keep this in lockstep with the product's real time-budget validator.
-  const maximumActivities = context.session.estimatedMinutes <= 15
-    ? 4
-    : context.session.estimatedMinutes <= 30
-      ? 5
-      : 8;
+  // The product reserves room for the committed Learn method and recognition.
+  // Reuse that validator so a copied 4/5 cap cannot reject a valid recipe.
+  const productionTimeBudgetIssue = validateSessionTimeBudget(draft, context.session.estimatedMinutes);
   const questionIntegrity = questions.every((activity) => {
     if (!activity.concept || !activity.correctAnswer || !activity.feedback || activity.feedback.length < 20) return false;
     if (activity.type === "free_response") return activity.correctAnswer.length >= 15 && activity.choices.length === 0;
@@ -229,7 +227,7 @@ export function evaluateSessionDraft(
   );
 
   const checks: SessionQualityCheck[] = [
-    check("activity_pacing", "Activity count fits the session", focusedActivities.length >= 2 && focusedActivities.length <= maximumActivities, 10, true, `${focusedActivities.length}/${maximumActivities} maximum focused activities for ${context.session.estimatedMinutes} minutes`),
+    check("activity_pacing", "Activity count fits the session", focusedActivities.length >= 2 && productionTimeBudgetIssue === null, 10, true, productionTimeBudgetIssue ?? `${focusedActivities.length} focused activities; production time budget passed for ${context.session.estimatedMinutes} minutes`),
     check("active_practice", "Session requires active learner effort", questions.length >= 2, 15, true, `${questions.length} retrieval or knowledge-check activities`),
     check("answer_integrity", "Questions include usable answers and feedback", questionIntegrity, 15, true, `${questions.length} question activities inspected`),
     check("task_alignment", "Activities fit the learning task", scheduledRetrieval || alignedActivities >= Math.ceil(draft.activities.length * 0.5), 15, true, scheduledRetrieval ? "Scheduled reviews use the bounded retrieval format" : `${alignedActivities} of ${draft.activities.length} activities align with ${taskFamily.replace("_", " ")}`),
