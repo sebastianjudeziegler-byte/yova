@@ -6,6 +6,7 @@ import styles from "@/components/founder-dashboard.module.css";
 
 const links = [
   { href: "/founder/overview", label: "Overview" },
+  { href: "/founder/people", label: "Users & leads" },
   { href: "/founder/study-profile", label: "Study Profile" },
   { href: "/founder/reliability", label: "Reliability" },
   { href: "/founder/testers", label: "Testers" },
