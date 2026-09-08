@@ -5,9 +5,8 @@ vi.mock("server-only", () => ({}));
 const mocks = vi.hoisted(() => ({
   saveResponse: vi.fn(),
   requestWaitlistConfirmation: vi.fn(),
-  queueConfirmation: vi.fn(),
-  reserveReportEmailDelivery: vi.fn(),
-  markEmailDelivery: vi.fn(),
+  deliverConfirmation: vi.fn(),
+  waitForPublicResponseFloor: vi.fn(),
   sendReportEmail: vi.fn(),
 }));
 
@@ -26,7 +25,7 @@ const requestData = {
     hardestPart: null,
   },
   marketingConsent: false,
-  waitlistConsent: true,
+  waitlistConsent: true as boolean | undefined,
   attribution: {
     utmSource: "instagram",
     utmMedium: "paid_social",
@@ -36,6 +35,9 @@ const requestData = {
   },
 };
 
+const reportToken = "r".repeat(43);
+const confirmationToken = "c".repeat(43);
+const confirmationTokenHash = "h".repeat(64);
 const report = {
   pattern: { name: "The All-Rounder", tell: "Your habits are balanced." },
   whyThisIsHappening: { body: "No single habit dominates your answers." },
@@ -49,19 +51,19 @@ const report = {
   },
 };
 
-vi.mock("@/lib/site-url", () => ({
-  getSiteUrl: () => "https://www.yovaapp.com",
-}));
-
 vi.mock("@/lib/study-profile", () => ({
   scoreStudyProfile: () => ({ scoringRevision: "study_profile_scoring_v2" }),
   buildStudyProfileReport: () => report,
-  toStudyProfilePublicStoredResponse: () => ({ id: "response-id" }),
 }));
 
 vi.mock("@/lib/study-profile/api-schema", () => ({
   StudyProfileResponseRequestSchema: {
-    safeParse: () => ({ success: true, data: requestData }),
+    safeParse: (value: unknown) => {
+      const candidate = value as { waitlistConsent?: unknown };
+      return candidate.waitlistConsent === true
+        ? { success: true, data: candidate }
+        : { success: false, error: new Error("waitlist consent required") };
+    },
   },
 }));
 
@@ -87,19 +89,18 @@ vi.mock("@/lib/study-profile/repository", () => {
     StudyProfilePersistenceUnavailableError,
     StudyProfileCommittedWriteError,
     StudyProfileSaveOutcomeUnknownError,
-    generateStudyProfileReportToken: () => "c".repeat(43),
-    hashStudyProfileReportToken: () => "h".repeat(64),
+    generateStudyProfileReportToken: () => confirmationToken,
+    hashStudyProfileReportToken: () => confirmationTokenHash,
     getStudyProfileRepository: () => ({
       saveResponse: mocks.saveResponse,
       requestWaitlistConfirmation: mocks.requestWaitlistConfirmation,
-      reserveReportEmailDelivery: mocks.reserveReportEmailDelivery,
-      markEmailDelivery: mocks.markEmailDelivery,
     }),
   };
 });
 
 vi.mock("@/lib/study-profile/waitlist-confirmation", () => ({
-  queueStudyProfileWaitlistConfirmationDelivery: mocks.queueConfirmation,
+  deliverStudyProfileWaitlistConfirmation: mocks.deliverConfirmation,
+  waitForStudyProfileWaitlistPublicResponseFloor: mocks.waitForPublicResponseFloor,
 }));
 
 vi.mock("@/lib/server/rate-limit", () => ({
@@ -109,15 +110,15 @@ vi.mock("@/lib/server/rate-limit", () => ({
 
 import { POST } from "@/app/api/study-profile/responses/route";
 
-describe("Study Profile response and optional waitlist", () => {
+describe("Study Profile response confirmation gate", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     requestData.under18 = false;
     requestData.waitlistConsent = true;
     mocks.saveResponse.mockResolvedValue({
       storedResponse: {
-        id: "response-id",
-        reportToken: "r".repeat(43),
+        id: "11111111-1111-4111-8111-111111111111",
+        reportToken,
       },
       report,
       under18: false,
@@ -127,97 +128,78 @@ describe("Study Profile response and optional waitlist", () => {
       confirmationPending: true,
       dailyCapReached: false,
       shouldSend: true,
-      confirmationId: "11111111-1111-4111-8111-111111111111",
+      confirmationId: "22222222-2222-4222-8222-222222222222",
       email: "student@example.com",
       retryAfterSeconds: 0,
     });
-    mocks.queueConfirmation.mockReturnValue(true);
-    mocks.reserveReportEmailDelivery.mockResolvedValue({
-      allowed: false,
-      reason: "cooldown",
-      retryAfterSeconds: 900,
-    });
-  });
-
-  it("creates the report and requests confirmation after an explicit waitlist opt-in", async () => {
-    mocks.reserveReportEmailDelivery.mockResolvedValueOnce({
-      allowed: true,
-      reason: null,
-      retryAfterSeconds: 0,
-    });
-    mocks.sendReportEmail.mockResolvedValueOnce({
-      status: "sent",
-      provider: "resend",
-      providerMessageId: "report-message-id",
-    });
-
-    const response = await POST(responseRequest());
-
-    expect(response.status).toBe(201);
-    await expect(response.json()).resolves.toMatchObject({
-      reportToken: "r".repeat(43),
-      report,
-      emailDelivery: "sent",
-      metaConversionEligible: true,
+    mocks.deliverConfirmation.mockResolvedValue({
       waitlistJoined: false,
       confirmationPending: true,
+      dailyCapReached: false,
+      retryAfterSeconds: 0,
     });
-    expect(mocks.sendReportEmail).toHaveBeenCalledOnce();
-    expect(mocks.queueConfirmation).toHaveBeenCalledOnce();
-    expect(mocks.reserveReportEmailDelivery).toHaveBeenCalledOnce();
-    expect(mocks.sendReportEmail.mock.invocationCallOrder[0])
-      .toBeLessThan(mocks.requestWaitlistConfirmation.mock.invocationCallOrder[0]);
-    expect(mocks.requestWaitlistConfirmation).toHaveBeenCalledWith(
-      "r".repeat(43),
-      "email_gate",
-      "h".repeat(64),
-      requestData.attribution,
-    );
-    expect(mocks.saveResponse).toHaveBeenCalledWith(
-      expect.objectContaining({ under18: false }),
-    );
+    mocks.waitForPublicResponseFloor.mockResolvedValue(undefined);
   });
 
-  it("marks an under-18 report as ineligible for a Meta Lead", async () => {
+  it("sends the report-bound confirmation before returning only a pending receipt", async () => {
+    const response = await POST(responseRequest());
+
+    expect(response.status).toBe(202);
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    const payload = await response.json();
+    expect(payload).toEqual({ confirmationPending: true });
+    expect(Object.keys(payload)).toEqual(["confirmationPending"]);
+    expect(JSON.stringify(payload)).not.toContain(reportToken);
+    expect(JSON.stringify(payload)).not.toContain("study-profile/report");
+    expect(JSON.stringify(payload)).not.toContain(report.pattern.name);
+
+    expect(mocks.requestWaitlistConfirmation).toHaveBeenCalledWith(
+      reportToken,
+      "email_gate",
+      confirmationTokenHash,
+      requestData.attribution,
+    );
+    expect(mocks.deliverConfirmation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        saveResponse: mocks.saveResponse,
+        requestWaitlistConfirmation: mocks.requestWaitlistConfirmation,
+      }),
+      expect.objectContaining({ confirmationPending: true, shouldSend: true }),
+      confirmationToken,
+      reportToken,
+    );
+    expect(mocks.waitForPublicResponseFloor).toHaveBeenCalledOnce();
+    expect(mocks.sendReportEmail).not.toHaveBeenCalled();
+  });
+
+  it("rejects a response when waitlist consent is omitted or refused", async () => {
+    for (const waitlistConsent of [undefined, false]) {
+      requestData.waitlistConsent = waitlistConsent;
+      const response = await POST(responseRequest());
+
+      expect(response.status).toBe(422);
+      expect(await response.json()).toEqual({
+        error: "Complete all 14 questions, add a valid email, confirm your age, and agree to join the YOVA waitlist to get your report.",
+      });
+    }
+    expect(mocks.saveResponse).not.toHaveBeenCalled();
+    expect(mocks.deliverConfirmation).not.toHaveBeenCalled();
+    expect(mocks.sendReportEmail).not.toHaveBeenCalled();
+  });
+
+  it("persists minor status without exposing ad eligibility or report state", async () => {
     requestData.under18 = true;
-    mocks.saveResponse.mockResolvedValueOnce({
-      storedResponse: {
-        id: "response-id",
-        reportToken: "r".repeat(43),
-      },
-      report,
-      under18: true,
-    });
 
     const response = await POST(responseRequest());
 
-    expect(response.status).toBe(201);
-    await expect(response.json()).resolves.toMatchObject({
-      metaConversionEligible: false,
-    });
+    expect(response.status).toBe(202);
+    await expect(response.json()).resolves.toEqual({ confirmationPending: true });
     expect(mocks.saveResponse).toHaveBeenCalledWith(
       expect.objectContaining({ under18: true }),
     );
   });
 
-  it("creates the report without requesting waitlist confirmation when the option is unchecked", async () => {
-    requestData.waitlistConsent = false;
-
-    const response = await POST(responseRequest());
-
-    expect(response.status).toBe(201);
-    await expect(response.json()).resolves.toMatchObject({
-      reportToken: "r".repeat(43),
-      report,
-      waitlistJoined: false,
-      confirmationPending: false,
-    });
-    expect(mocks.requestWaitlistConfirmation).not.toHaveBeenCalled();
-    expect(mocks.queueConfirmation).not.toHaveBeenCalled();
-    expect(mocks.reserveReportEmailDelivery).toHaveBeenCalledOnce();
-  });
-
-  it("does not lock the report when the waitlist recipient reaches the daily cap", async () => {
+  it("withholds the report when the confirmation daily cap is reached", async () => {
     mocks.requestWaitlistConfirmation.mockResolvedValueOnce({
       waitlistJoined: false,
       confirmationPending: false,
@@ -229,36 +211,27 @@ describe("Study Profile response and optional waitlist", () => {
     });
 
     const response = await POST(responseRequest());
-    const body = await response.json();
+    const payload = await response.json();
 
-    expect(response.status).toBe(201);
-    expect(body).toMatchObject({
-      reportToken: "r".repeat(43),
-      report,
-      waitlistJoined: false,
-      confirmationPending: false,
-      waitlistError:
-        "YOVA could not complete the waitlist email step. Check your inbox, or try again from this report.",
-    });
-    expect(mocks.reserveReportEmailDelivery).toHaveBeenCalledOnce();
+    expect(response.status).toBe(429);
+    expect(response.headers.get("retry-after")).toBe("86400");
+    expect(JSON.stringify(payload)).not.toContain(reportToken);
+    expect(JSON.stringify(payload)).not.toContain(report.pattern.name);
+    expect(mocks.deliverConfirmation).not.toHaveBeenCalled();
+    expect(mocks.sendReportEmail).not.toHaveBeenCalled();
   });
 
-  it("does not lock the report when confirmation delivery cannot be queued after save", async () => {
-    mocks.queueConfirmation.mockReturnValueOnce(false);
+  it("withholds the report when synchronous confirmation delivery fails", async () => {
+    mocks.deliverConfirmation.mockRejectedValueOnce(new Error("provider unavailable"));
 
     const response = await POST(responseRequest());
-    const body = await response.json();
+    const payload = await response.json();
 
-    expect(response.status).toBe(201);
-    expect(body).toMatchObject({
-      reportToken: "r".repeat(43),
-      report,
-      waitlistJoined: false,
-      confirmationPending: false,
-      waitlistError:
-        "YOVA could not complete the waitlist email step. Check your inbox, or try again from this report.",
-    });
-    expect(mocks.reserveReportEmailDelivery).toHaveBeenCalledOnce();
+    expect(response.status).toBe(503);
+    expect(JSON.stringify(payload)).not.toContain(reportToken);
+    expect(JSON.stringify(payload)).not.toContain(report.pattern.name);
+    expect(mocks.waitForPublicResponseFloor).toHaveBeenCalledOnce();
+    expect(mocks.sendReportEmail).not.toHaveBeenCalled();
   });
 });
 

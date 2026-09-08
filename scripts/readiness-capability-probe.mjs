@@ -1,10 +1,10 @@
 export const SIGNED_IN_GENERATION_CONTRACT_VERSION = "20260907160001";
 
 const PROBE_RPC = "signed_in_generation_readiness_v4";
-export const STUDY_PROFILE_PUBLIC_CONTRACT_VERSION = "202609060003";
+export const STUDY_PROFILE_PUBLIC_CONTRACT_VERSION = "202609080001";
 export const PUBLIC_LAUNCH_ABUSE_CONTRACT_VERSION = "202609040002";
 
-const STUDY_PROFILE_PROBE_RPC = "study_profile_public_readiness_v4";
+const STUDY_PROFILE_PROBE_RPC = "study_profile_public_readiness_v5";
 const PUBLIC_LAUNCH_ABUSE_PROBE_RPC = "public_launch_abuse_readiness_v1";
 
 export async function probeSignedInGenerationDatabase({
@@ -162,7 +162,10 @@ export async function probeStudyProfilePublicDatabase({
     && payload.serviceRoleBoundary === true
     && payload.attributionCapture === true
     && payload.attributionFirstTouch === true
-    && payload.minorConversionSuppression === true;
+    && payload.minorConversionSuppression === true
+    && payload.reportScopedReconfirmation === true
+    && payload.boundReportConfirmation === true
+    && payload.landingConfirmationIsolation === true;
   if (!completeContract) {
     const missing = [
       ["pendingConfirmationColumns", "pending-confirmation columns"],
@@ -172,6 +175,9 @@ export async function probeStudyProfilePublicDatabase({
       ["attributionCapture", "30-day ad attribution persistence"],
       ["attributionFirstTouch", "first tagged-touch preservation"],
       ["minorConversionSuppression", "under-18 conversion suppression"],
+      ["reportScopedReconfirmation", "response-scoped waitlist reconfirmation"],
+      ["boundReportConfirmation", "atomic report-bound confirmation"],
+      ["landingConfirmationIsolation", "landing-only token confirmation"],
     ]
       .filter(([key]) => payload[key] !== true)
       .map(([, label]) => label);
@@ -183,7 +189,7 @@ export async function probeStudyProfilePublicDatabase({
 
   return {
     passed: true,
-    detail: `double opt-in and abuse controls ${STUDY_PROFILE_PUBLIC_CONTRACT_VERSION} are available`,
+    detail: `double opt-in, response-scoped report confirmation, and abuse controls ${STUDY_PROFILE_PUBLIC_CONTRACT_VERSION} are available`,
   };
 }
 

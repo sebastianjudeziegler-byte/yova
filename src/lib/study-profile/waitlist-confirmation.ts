@@ -43,6 +43,7 @@ export function queueStudyProfileWaitlistConfirmationDelivery(
   repository: StudyProfileRepository,
   state: StudyProfileWaitlistConfirmationRequestState,
   rawConfirmationToken: string,
+  reportToken?: string,
 ) {
   try {
     after(async () => {
@@ -51,6 +52,7 @@ export function queueStudyProfileWaitlistConfirmationDelivery(
           repository,
           state,
           rawConfirmationToken,
+          reportToken,
         );
       } catch (error) {
         console.error(
@@ -71,6 +73,7 @@ export async function deliverStudyProfileWaitlistConfirmation(
   repository: StudyProfileRepository,
   state: StudyProfileWaitlistConfirmationRequestState,
   rawConfirmationToken: string,
+  reportToken?: string,
 ): Promise<StudyProfileWaitlistPublicRequestState> {
   if (state.dailyCapReached) {
     return {
@@ -104,7 +107,9 @@ export async function deliverStudyProfileWaitlistConfirmation(
   }
 
   const confirmationPage = new URL("/study-profile/waitlist/confirm", getSiteUrl());
-  const confirmationUrl = `${confirmationPage.toString()}#token=${encodeURIComponent(rawConfirmationToken)}`;
+  const confirmationParameters = new URLSearchParams({ token: rawConfirmationToken });
+  if (reportToken) confirmationParameters.set("report", reportToken);
+  const confirmationUrl = `${confirmationPage.toString()}#${confirmationParameters.toString()}`;
   const delivery = await sendStudyProfileWaitlistConfirmationEmail({
     to: state.email,
     confirmationUrl,

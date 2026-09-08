@@ -37,6 +37,7 @@ export async function GET(
     const repository = getStudyProfileRepository();
     const saved = await repository.getReportByToken(token.data);
     if (!saved) return notFoundResponse();
+    if (!saved.waitlistJoined) return lockedResponse();
 
     return NextResponse.json({
       storedResponse: toStudyProfilePublicStoredResponse(saved.storedResponse),
@@ -59,6 +60,15 @@ export async function GET(
       headers: { "Cache-Control": "no-store" },
     });
   }
+}
+
+function lockedResponse() {
+  return NextResponse.json({
+    error: "Confirm the email connected to this Study Profile before opening the report.",
+  }, {
+    status: 403,
+    headers: { "Cache-Control": "no-store" },
+  });
 }
 
 function notFoundResponse() {

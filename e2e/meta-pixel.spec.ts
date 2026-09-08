@@ -209,61 +209,59 @@ test.describe("production Meta Pixel boundary", () => {
       .toBe(false);
   });
 
-  test("emits Lead after a confirmed save and unloads Meta before the report", async ({ page }) => {
-    test.setTimeout(90_000);
+  test("emits Lead only after a bound confirmation succeeds", async ({ page }) => {
     const events: unknown[][] = [];
-    const responseVisitorIds: string[] = [];
-    const reportViewVisitorIds: string[] = [];
     let libraryRequests = 0;
+    const confirmationToken = "c".repeat(43);
+    const reportToken = "r".repeat(43);
+    const responseId = "11111111-1111-4111-8111-111111111111";
     await page.exposeFunction("__recordYovaMetaEvent", (...args: unknown[]) => {
       events.push(args);
-    });
-    page.on("request", (request) => {
-      if (request.method() !== "POST") return;
-      let body: Record<string, unknown>;
-      try {
-        body = request.postDataJSON() as Record<string, unknown>;
-      } catch {
-        return;
-      }
-      const pathname = new URL(request.url()).pathname;
-      if (pathname === "/api/study-profile/responses" && typeof body.visitorId === "string") {
-        responseVisitorIds.push(body.visitorId);
-      }
-      if (
-        pathname === "/api/study-profile/events"
-        && body.eventName === "study_profile_report_viewed"
-        && typeof body.visitorId === "string"
-      ) {
-        reportViewVisitorIds.push(body.visitorId);
-      }
     });
     await installFakeMetaLibrary(page, () => {
       libraryRequests += 1;
     });
+    await page.route("**/api/study-profile/waitlist/confirm", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          waitlistJoined: true,
+          reportUnlocked: true,
+          reportUrl: `/study-profile/report/${reportToken}`,
+          responseId,
+          metaLeadEligible: true,
+          metaRegistrationEligible: true,
+        }),
+      });
+    });
+    await page.route(`**/study-profile/report/${reportToken}`, async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "text/html",
+        body: "<!doctype html><html><body><h1 id='report-title'>Unlocked report</h1></body></html>",
+      });
+    });
 
     await page.goto(
-      "/study-profile?utm_source=instagram&utm_medium=paid_social&utm_campaign=study_profile_quiz&utm_content=static_v1&fbclid=meta_click_e2e",
+      `/study-profile/waitlist/confirm#token=${confirmationToken}&report=${reportToken}`,
+      { waitUntil: "domcontentloaded" },
     );
+    await expect.poll(() => new URL(page.url()).hash).toBe("");
     await expect.poll(() => metaEvents(events, "PageView")).toHaveLength(1);
-    await page.getByRole("button", { name: "Get my free study profile" }).first().click();
-    for (let question = 1; question <= 12; question += 1) {
-      await page
-        .getByRole("radiogroup", { name: `Answers for question ${question}` })
-        .getByRole("radio")
-        .first()
-        .click();
-    }
-    await page.getByRole("button", { name: /^Exams coming up/ }).click();
-    await page.getByRole("button", { name: "Morning", exact: true }).click();
-    await page.getByRole("button", { name: "High school", exact: true }).click();
-    await page.getByRole("button", { name: "Finish and unlock my results" }).click();
-    await page.getByLabel("Email for your private report link")
-      .fill(`meta-production-${Date.now()}@example.com`);
-    await page.getByRole("checkbox", { name: "I confirm I am 13 or older." }).check();
-    await page.getByRole("button", { name: "Email my report and see results" }).click();
+    expect(metaEvents(events, "Lead")).toHaveLength(0);
+    expect(metaEvents(events, "CompleteRegistration")).toHaveLength(0);
 
-    await expect(page).toHaveURL(/\/study-profile\/report\/[A-Za-z0-9_-]{32,}$/u);
+    const confirmationRequest = page.waitForRequest((request) => (
+      request.method() === "POST"
+      && new URL(request.url()).pathname === "/api/study-profile/waitlist/confirm"
+    ));
+    await page.getByRole("button", { name: "Confirm and view my results" }).click();
+    expect((await confirmationRequest).postDataJSON()).toEqual({
+      token: confirmationToken,
+      reportToken,
+    });
+    await expect(page).toHaveURL(`/study-profile/report/${reportToken}`);
     await expect.poll(() => metaEvents(events, "Lead")).toHaveLength(1);
     expect(metaEvents(events, "Lead")[0]).toMatchObject([
       "track",
@@ -273,13 +271,8 @@ test.describe("production Meta Pixel boundary", () => {
     ]);
     expect(metaEvents(events, "PageView")).toHaveLength(1);
     expect(libraryRequests).toBe(1);
-    await expect.poll(() => reportViewVisitorIds).toHaveLength(1);
-    expect(responseVisitorIds).toHaveLength(1);
-    expect(reportViewVisitorIds[0]).toBe(responseVisitorIds[0]);
-    await expect(page.locator("#report-title")).toBeFocused();
-    await expect(page.getByText(
-      "We could not send the email copy, so save this private link if you want to return.",
-    )).toBeVisible();
+    await expect.poll(() => metaEvents(events, "CompleteRegistration")).toHaveLength(1);
+    await expect(page.locator("#report-title")).toHaveText("Unlocked report");
   });
 
   test("emits CompleteRegistration only after confirmation succeeds", async ({ page }) => {
@@ -319,11 +312,11 @@ test.describe("production Meta Pixel boundary", () => {
     );
     await expect.poll(() => new URL(page.url()).hash).toBe("");
     expect(metaEvents(events, "CompleteRegistration")).toHaveLength(0);
-    await page.getByRole("button", { name: "Confirm launch emails" }).click();
+    await page.getByRole("button", { name: "Confirm my waitlist place" }).click();
 
     await expect(page.getByText("Temporary confirmation failure.", { exact: true })).toBeVisible();
     expect(metaEvents(events, "CompleteRegistration")).toHaveLength(0);
-    await page.getByRole("button", { name: "Confirm launch emails" }).click();
+    await page.getByRole("button", { name: "Confirm my waitlist place" }).click();
 
     await expect(page.getByRole("heading", {
       name: "You are on the YOVA waitlist.",
@@ -342,7 +335,7 @@ test.describe("production Meta Pixel boundary", () => {
     ]);
   });
 
-  test("does not emit Lead when the saved under-18 response is ineligible", async ({ page }) => {
+  test("keeps an under-18 submission locked and emits no conversion", async ({ page }) => {
     test.setTimeout(90_000);
     const events: unknown[][] = [];
     await page.exposeFunction("__recordYovaMetaEvent", (...args: unknown[]) => {
@@ -363,22 +356,29 @@ test.describe("production Meta Pixel boundary", () => {
     await page.getByRole("button", { name: /^Exams coming up/ }).click();
     await page.getByRole("button", { name: "Morning", exact: true }).click();
     await page.getByRole("button", { name: "High school", exact: true }).click();
-    await page.getByRole("button", { name: "Finish and unlock my results" }).click();
-    await page.getByLabel("Email for your private report link")
+    await page.getByRole("button", { name: "Finish my profile" }).click();
+    await page.getByLabel("Email for your confirmation link")
       .fill(`meta-under-18-${Date.now()}@example.com`);
     await page.getByRole("checkbox", { name: "I confirm I am 13 or older." }).check();
     await page.getByRole("checkbox", { name: "I am under 18." }).check();
+    await page.getByRole("checkbox", {
+      name: /Confirm my place on the YOVA waitlist/,
+    }).check();
 
     const reportRequest = page.waitForRequest((request) => (
       request.method() === "POST"
       && new URL(request.url()).pathname === "/api/study-profile/responses"
     ));
-    await page.getByRole("button", { name: "Email my report and see results" }).click();
+    await page.getByRole("button", { name: "Send my confirmation link" }).click();
 
     expect((await reportRequest).postDataJSON()).toMatchObject({ under18: true });
-    await expect(page).toHaveURL(/\/study-profile\/report\/[A-Za-z0-9_-]{32,}$/u);
+    await expect(page).toHaveURL(/\/study-profile$/u);
+    await expect(page.getByRole("heading", {
+      name: "Check your email to unlock your report.",
+    })).toBeVisible();
     await page.waitForTimeout(200);
     expect(metaEvents(events, "Lead")).toHaveLength(0);
+    expect(metaEvents(events, "CompleteRegistration")).toHaveLength(0);
   });
 
   test("does not emit CompleteRegistration when confirmation is ineligible", async ({ page }) => {
@@ -403,7 +403,7 @@ test.describe("production Meta Pixel boundary", () => {
       { waitUntil: "domcontentloaded" },
     );
     await expect.poll(() => metaEvents(events, "PageView")).toHaveLength(1);
-    await page.getByRole("button", { name: "Confirm launch emails" }).click();
+    await page.getByRole("button", { name: "Confirm my waitlist place" }).click();
 
     await expect(page.getByRole("heading", {
       name: "You are on the YOVA waitlist.",

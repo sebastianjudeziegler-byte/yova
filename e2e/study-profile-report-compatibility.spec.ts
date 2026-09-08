@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { expect, test } from "@playwright/test";
 
 test.describe("YOVA Study Profile private report compatibility", () => {
-  test("keeps a saved token report available through the direct route and API", async ({ page }, testInfo) => {
+  test("keeps report credentials server-side until email confirmation", async ({ page }, testInfo) => {
     test.setTimeout(60_000);
     const email = `report-compatibility-${testInfo.project.name}-${Date.now()}@example.com`;
     await page.goto("/study-profile");
@@ -38,35 +38,15 @@ test.describe("YOVA Study Profile private report compatibility", () => {
       },
     });
 
-    expect(submission.status()).toBe(201);
-    const created = await submission.json() as {
-      reportToken: string;
-      reportUrl: string;
-    };
-    expect(created.reportToken).toMatch(/^[A-Za-z0-9_-]{32,}$/);
-
-    const reportUrl = new URL(created.reportUrl);
-    expect(reportUrl.search).toBe("");
-    expect(reportUrl.hash).toBe("");
-    expect(decodeURIComponent(reportUrl.href)).not.toContain(email);
-
-    const apiResponse = await page.request.get(
-      `/api/study-profile/reports/${created.reportToken}`,
-    );
-    expect(apiResponse.status()).toBe(200);
-
-    await page.goto(reportUrl.pathname);
-    await expect(page.locator("#report-title")).toBeVisible();
-    await expect(page.locator("body")).not.toContainText(email);
-
-    await page.reload();
-    await expect(page).toHaveURL(reportUrl.pathname);
-    await expect(page.locator("#report-title")).toBeVisible();
-
-    await page.getByRole("link", { name: "Retake" }).click();
-    await expect(page.getByRole("heading", {
-      name: "Find out how you actually study.",
-    })).toBeVisible();
+    expect(submission.status()).toBe(202);
+    expect(submission.headers()["cache-control"]).toBe("no-store");
+    const created = await submission.json() as Record<string, unknown>;
+    expect(created).toEqual({ confirmationPending: true });
+    expect(created).not.toHaveProperty("reportToken");
+    expect(created).not.toHaveProperty("reportUrl");
+    expect(created).not.toHaveProperty("report");
+    expect(created).not.toHaveProperty("storedResponse");
+    expect(JSON.stringify(created)).not.toContain(email);
   });
 
   test("keeps unknown-token failures generic through the API and report route", async ({ page, request }) => {

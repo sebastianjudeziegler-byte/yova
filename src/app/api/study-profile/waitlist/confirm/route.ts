@@ -49,9 +49,32 @@ export async function POST(request: Request) {
   }
 
   try {
-    const result = await getStudyProfileRepository().confirmWaitlist(
-      hashStudyProfileReportToken(parsed.data.token),
-    );
+    const repository = getStudyProfileRepository();
+    const confirmationTokenHash = hashStudyProfileReportToken(parsed.data.token);
+    if (parsed.data.reportToken) {
+      const result = await repository.confirmWaitlistForReport(
+        confirmationTokenHash,
+        parsed.data.reportToken,
+      );
+      if (result.status === "expired") {
+        return jsonError("This confirmation link has expired. Request a new email from the Study Profile page.", 410);
+      }
+      if (result.status === "invalid" || result.status === "mismatch") {
+        return jsonError("This confirmation link is invalid or does not match this report.", 404);
+      }
+      return NextResponse.json({
+        waitlistJoined: true,
+        reportUnlocked: result.reportUnlocked,
+        reportUrl: `/study-profile/report/${encodeURIComponent(parsed.data.reportToken)}`,
+        responseId: result.responseId,
+        metaLeadEligible: result.under18 === false,
+        metaRegistrationEligible: result.metaRegistrationEligible,
+      }, {
+        headers: confirmationHeaders(),
+      });
+    }
+
+    const result = await repository.confirmWaitlist(confirmationTokenHash);
     if (result.status === "expired") {
       return jsonError("This confirmation link has expired. Request a new email from the Study Profile page.", 410);
     }

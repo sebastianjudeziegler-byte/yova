@@ -3,6 +3,7 @@ import {
   StudyProfileAttributionSchema,
   StudyProfileEmailSchema,
   StudyProfileMetadataSchema,
+  StudyProfileReportTokenSchema,
   StudyProfileStudyGoalSchema,
   StudyProfileSubmissionSchema,
 } from "@/lib/study-profile/schema";
@@ -12,7 +13,7 @@ export const StudyProfileResponseRequestSchema = StudyProfileSubmissionSchema.ex
   ageConfirmed: z.literal(true),
   under18: z.boolean(),
   marketingConsent: z.literal(false).default(false),
-  waitlistConsent: z.boolean().default(false),
+  waitlistConsent: z.literal(true),
   metadata: StudyProfileMetadataSchema.extend({
     studyGoal: StudyProfileStudyGoalSchema,
     hardestPart: z.null().optional(),
@@ -41,6 +42,7 @@ export const StudyProfileWaitlistConfirmationTokenSchema = z.string()
 
 export const StudyProfileWaitlistConfirmationRequestSchema = z.object({
   token: StudyProfileWaitlistConfirmationTokenSchema,
+  reportToken: StudyProfileReportTokenSchema.optional(),
 }).strict();
 
 export type StudyProfileResponseRequest = z.infer<typeof StudyProfileResponseRequestSchema>;

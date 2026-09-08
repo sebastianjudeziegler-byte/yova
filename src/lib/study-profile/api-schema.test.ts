@@ -86,7 +86,7 @@ describe("Study Profile API schemas", () => {
     }).success).toBe(false);
   });
 
-  it("keeps waitlist consent optional and defaults it to false", () => {
+  it("requires explicit waitlist consent before accepting a report request", () => {
     const request = {
       email: "student@example.com",
       visitorId: "4d621251-2df6-4fa3-985e-df63b6d27f5f",
@@ -112,12 +112,10 @@ describe("Study Profile API schemas", () => {
       waitlistConsent: true,
     });
 
-    expect(omitted.success).toBe(true);
-    expect(declined.success).toBe(true);
+    expect(omitted.success).toBe(false);
+    expect(declined.success).toBe(false);
     expect(accepted.success).toBe(true);
-    if (omitted.success && declined.success && accepted.success) {
-      expect(omitted.data.waitlistConsent).toBe(false);
-      expect(declined.data.waitlistConsent).toBe(false);
+    if (accepted.success) {
       expect(accepted.data.waitlistConsent).toBe(true);
     }
     expect(StudyProfileResponseRequestSchema.safeParse({
@@ -139,6 +137,7 @@ describe("Study Profile API schemas", () => {
         hardestPart: null,
       },
       marketingConsent: false,
+      waitlistConsent: true,
     };
 
     expect(StudyProfileResponseRequestSchema.safeParse({
@@ -342,12 +341,20 @@ describe("Study Profile API schemas", () => {
     }
   });
 
-  it("accepts only one opaque waitlist confirmation token", () => {
+  it("accepts landing and report-bound waitlist confirmations", () => {
     expect(StudyProfileWaitlistConfirmationRequestSchema.safeParse({
       token: "a".repeat(43),
     }).success).toBe(true);
     expect(StudyProfileWaitlistConfirmationRequestSchema.safeParse({
+      token: "a".repeat(43),
+      reportToken: "b".repeat(43),
+    }).success).toBe(true);
+    expect(StudyProfileWaitlistConfirmationRequestSchema.safeParse({
       token: "short",
+    }).success).toBe(false);
+    expect(StudyProfileWaitlistConfirmationRequestSchema.safeParse({
+      token: "a".repeat(43),
+      reportToken: "short",
     }).success).toBe(false);
     expect(StudyProfileWaitlistConfirmationRequestSchema.safeParse({
       token: "a".repeat(43),

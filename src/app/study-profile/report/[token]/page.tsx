@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, MailCheck } from "lucide-react";
 import { ZodError } from "zod";
 import { BrandMark } from "@/components/brand-mark";
 import { StudyProfileReportView } from "@/components/study-profile/study-profile-report-view";
@@ -48,6 +48,24 @@ export default async function StudyProfileReportPage({
           <Link className="button primary large" href={`/study-profile/report/${token.data}`}>
             Try again
           </Link>
+          <Link className="button ghost" href="/study-profile">
+            <ArrowLeft size={17} /> Back to Study Profile
+          </Link>
+        </section>
+      </main>
+    );
+  }
+  if (!loaded.saved.waitlistJoined) {
+    return (
+      <main className="centered-shell">
+        <Link href="/study-profile" aria-label="Return to YOVA Study Profile">
+          <BrandMark />
+        </Link>
+        <section className="setup-card">
+          <MailCheck size={30} aria-hidden="true" />
+          <span className="step-label">PRIVATE REPORT LOCKED</span>
+          <h1>Confirm your email to unlock this report.</h1>
+          <p>Open the confirmation email from YOVA and select the confirmation button. Your results stay private until that step is complete.</p>
           <Link className="button ghost" href="/study-profile">
             <ArrowLeft size={17} /> Back to Study Profile
           </Link>

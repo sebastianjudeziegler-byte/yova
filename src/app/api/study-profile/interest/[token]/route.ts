@@ -85,6 +85,7 @@ export async function POST(
         repository,
         state,
         confirmationToken,
+        token.data,
       );
     } catch (error) {
       console.error(

@@ -1,15 +1,9 @@
 import { NextResponse } from "next/server";
-import { getSiteUrl } from "@/lib/site-url";
 import {
   buildStudyProfileReport,
   scoreStudyProfile,
-  toStudyProfilePublicStoredResponse,
 } from "@/lib/study-profile";
 import { StudyProfileResponseRequestSchema } from "@/lib/study-profile/api-schema";
-import {
-  sendStudyProfileReportEmail,
-  type StudyProfileEmailDeliveryResult,
-} from "@/lib/study-profile/email";
 import {
   STUDY_PROFILE_RESPONSE_MAX_BYTES,
   readStudyProfileBoundedJson,
@@ -23,7 +17,10 @@ import {
   getStudyProfileRepository,
   hashStudyProfileReportToken,
 } from "@/lib/study-profile/repository";
-import { queueStudyProfileWaitlistConfirmationDelivery } from "@/lib/study-profile/waitlist-confirmation";
+import {
+  deliverStudyProfileWaitlistConfirmation,
+  waitForStudyProfileWaitlistPublicResponseFloor,
+} from "@/lib/study-profile/waitlist-confirmation";
 import {
   checkStudyProfileSubmissionRateLimit,
   requestRateLimitKey,
@@ -53,7 +50,7 @@ export async function POST(request: Request) {
 
   const parsed = StudyProfileResponseRequestSchema.safeParse(body.value);
   if (!parsed.success) {
-    return jsonError("Complete all 14 questions, add a valid email, and confirm your age to get your report.", 422);
+    return jsonError("Complete all 14 questions, add a valid email, confirm your age, and agree to join the YOVA waitlist to get your report.", 422);
   }
 
   const emailLimit = checkStudyProfileSubmissionRateLimit(`email:${parsed.data.email}`);
@@ -81,117 +78,65 @@ export async function POST(request: Request) {
       attribution: parsed.data.attribution,
     });
 
-    const reportUrl = new URL(
-      `/study-profile/report/${saved.storedResponse.reportToken}`,
-      getSiteUrl(),
-    ).toString();
-
-    let emailDelivery: StudyProfileEmailDeliveryResult["status"] | "cooldown" | "daily_cap" = "failed";
-    let emailDeliveryReason: "cooldown" | "daily_cap" | "not_configured" | null = null;
-    try {
-      const reservation = await repository.reserveReportEmailDelivery(
-        saved.storedResponse.id,
+    const confirmationToken = generateStudyProfileReportToken();
+    const publicResponseStartedAt = Date.now();
+    const waitlistState = await repository.requestWaitlistConfirmation(
+      saved.storedResponse.reportToken,
+      "email_gate",
+      hashStudyProfileReportToken(confirmationToken),
+      parsed.data.attribution,
+    );
+    if (!waitlistState) {
+      throw new Error("Saved Study Profile report could not be resolved for waitlist confirmation.");
+    }
+    if (waitlistState.dailyCapReached) {
+      await waitForStudyProfileWaitlistPublicResponseFloor(publicResponseStartedAt);
+      return jsonError(
+        "YOVA could not send another confirmation email right now. Wait and try again later.",
+        429,
+        { "Retry-After": String(Math.max(1, waitlistState.retryAfterSeconds)) },
       );
-      if (!reservation.allowed) {
-        emailDelivery = reservation.reason ?? "cooldown";
-        emailDeliveryReason = reservation.reason ?? "cooldown";
-      } else {
-        const delivery = await sendStudyProfileReportEmail({
-          to: parsed.data.email,
-          reportUrl,
-          pattern: {
-            name: report.pattern.name,
-            tell: report.pattern.tell,
-          },
-          why: report.whyThisIsHappening.body,
-          matchedMethods: [
-            report.playbook.methods[0].name,
-            report.playbook.methods[1].name,
-            report.playbook.methods[2].name,
-          ],
-          tonightPlan: report.playbook.methods[0].tonightVersion
-            ?? report.playbook.nextSession.title,
-          responseId: saved.storedResponse.id,
-        });
-        emailDelivery = delivery.status;
-        emailDeliveryReason = delivery.status === "skipped"
-          && delivery.reason === "not_configured"
-          ? "not_configured"
-          : null;
-        try {
-          await repository.markEmailDelivery(
-            saved.storedResponse.id,
-            delivery.status,
-            "providerMessageId" in delivery ? delivery.providerMessageId : null,
-          );
-        } catch {
-          // Report access must never depend on secondary delivery bookkeeping.
-        }
-      }
-    } catch {
-      // A delivery integration failure must never hide an already-saved report.
     }
-
-    let confirmationPending = false;
-    let waitlistError: string | null = null;
-    if (parsed.data.waitlistConsent) {
-      const confirmationToken = generateStudyProfileReportToken();
-      try {
-        const waitlistState = await repository.requestWaitlistConfirmation(
-          saved.storedResponse.reportToken,
-          "email_gate",
-          hashStudyProfileReportToken(confirmationToken),
-          parsed.data.attribution,
-        );
-        if (!waitlistState) {
-          throw new Error("Saved Study Profile report could not be resolved for waitlist confirmation.");
-        }
-        if (waitlistState.dailyCapReached) {
-          waitlistError = waitlistRetryMessage();
-        } else if (waitlistState.waitlistJoined || waitlistState.confirmationPending) {
-          // The browser only needs a generic receipt. Do not expose whether the
-          // normalized address was already on the shared waitlist.
-          confirmationPending = true;
-          if (
-            waitlistState.shouldSend
-            && !queueStudyProfileWaitlistConfirmationDelivery(
-              repository,
-              waitlistState,
-              confirmationToken,
-            )
-          ) {
-            confirmationPending = false;
-            waitlistError = waitlistRetryMessage();
-          }
-        } else {
-          waitlistError = waitlistRetryMessage();
-        }
-      } catch (error) {
-        console.error(
-          "Study Profile optional email-gate waitlist request failed after save.",
-          safeErrorName(error),
-        );
-        // Keep the response generic on delivery ambiguity and expose a retry
-        // from the report without withholding the report itself.
-        waitlistError = waitlistRetryMessage();
-      }
+    if (!waitlistState.waitlistJoined && !waitlistState.confirmationPending) {
+      await waitForStudyProfileWaitlistPublicResponseFloor(publicResponseStartedAt);
+      return jsonError("YOVA could not prepare your confirmation email. Try again.", 503);
     }
+    if (
+      waitlistState.confirmationPending
+      && !waitlistState.shouldSend
+      && waitlistState.confirmationId === null
+    ) {
+      await waitForStudyProfileWaitlistPublicResponseFloor(publicResponseStartedAt);
+      return jsonError(
+        "YOVA could not send a new report confirmation yet. Wait 15 minutes and try again.",
+        429,
+        { "Retry-After": String(Math.max(1, waitlistState.retryAfterSeconds || 900)) },
+      );
+    }
+    try {
+      await deliverStudyProfileWaitlistConfirmation(
+        repository,
+        waitlistState,
+        confirmationToken,
+        saved.storedResponse.reportToken,
+      );
+    } catch (error) {
+      console.error(
+        "Study Profile report-unlock confirmation delivery failed.",
+        safeErrorName(error),
+      );
+      await waitForStudyProfileWaitlistPublicResponseFloor(publicResponseStartedAt);
+      return jsonError(
+        "YOVA could not send your confirmation email. Your answers are still saved in this browser, so try again.",
+        503,
+      );
+    }
+    await waitForStudyProfileWaitlistPublicResponseFloor(publicResponseStartedAt);
 
     return NextResponse.json({
-      reportToken: saved.storedResponse.reportToken,
-      reportUrl,
-      storedResponse: toStudyProfilePublicStoredResponse(saved.storedResponse),
-      report: saved.report,
-      metaConversionEligible: saved.under18 === false,
-      // A fresh report proves no ownership of the submitted address. Never
-      // expose the normalized lead's shared waitlist membership here.
-      waitlistJoined: false,
-      confirmationPending,
-      ...(waitlistError ? { waitlistError } : {}),
-      emailDelivery,
-      ...(emailDeliveryReason ? { emailDeliveryReason } : {}),
+      confirmationPending: true,
     }, {
-      status: 201,
+      status: 202,
       headers: { "Cache-Control": "no-store" },
     });
   } catch (error) {
@@ -199,30 +144,20 @@ export async function POST(request: Request) {
       return jsonError("Study Profile saving is temporarily unavailable. Try again shortly.", 503);
     }
     if (error instanceof StudyProfileCommittedWriteError) {
-      const reportUrl = new URL(
-        `/study-profile/report/${error.reportToken}`,
-        getSiteUrl(),
-      ).toString();
       console.error("Study Profile save receipt recovery failed.", safeErrorName(error));
       return NextResponse.json({
-        error: "Your Study Profile was saved, but YOVA could not open it right now. Do not submit it again. Reload this report in a moment.",
+        error: "Your Study Profile may have been saved, but YOVA could not prepare the confirmation email. Wait a moment before trying again.",
         code: "saved_response_unavailable",
-        reportUrl,
       }, {
         status: 500,
         headers: { "Cache-Control": "no-store" },
       });
     }
     if (error instanceof StudyProfileSaveOutcomeUnknownError) {
-      const reportUrl = new URL(
-        `/study-profile/report/${error.reportToken}`,
-        getSiteUrl(),
-      ).toString();
       console.error("Study Profile save outcome recovery failed.", safeErrorName(error));
       return NextResponse.json({
-        error: "YOVA could not confirm whether your Study Profile was saved. Do not submit it again yet. Reload this private report in a moment.",
+        error: "YOVA could not confirm whether your Study Profile was saved. Wait a moment before trying again.",
         code: "save_outcome_unknown",
-        reportUrl,
       }, {
         status: 500,
         headers: { "Cache-Control": "no-store" },
@@ -238,10 +173,6 @@ function jsonError(message: string, status: number, headers?: HeadersInit) {
     status,
     headers: { "Cache-Control": "no-store", ...headers },
   });
-}
-
-function waitlistRetryMessage() {
-  return "YOVA could not complete the waitlist email step. Check your inbox, or try again from this report.";
 }
 
 function safeErrorName(error: unknown) {
