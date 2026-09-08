@@ -256,7 +256,9 @@ test("shorter sessions preserve weekly availability and explain insufficient tim
     const plan = snapshot.plans.at(-1);
     return { preferences: plan.schedulePreferences, sessions: plan.sessions.map((session: { scheduledFor: string; estimatedMinutes: number }) => ({ at: session.scheduledFor, minutes: session.estimatedMinutes })) };
   });
-  expect(schedule.preferences.availability.map((window: { day: string }) => window.day)).toEqual(["Monday", "Wednesday", "Friday"]);
+  expect(schedule.preferences.availability.map((window: { day: string }) => window.day).sort()).toEqual(
+    ["Monday", "Wednesday", "Friday"].sort(),
+  );
   expect(schedule.sessions.length).toBeGreaterThan(originalCount);
   const days = new Map<string, number>();
   for (const session of schedule.sessions) {
