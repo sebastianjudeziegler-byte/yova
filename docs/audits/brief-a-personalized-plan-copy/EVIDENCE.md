@@ -1,6 +1,6 @@
 # Brief A evidence
 
-Branch: `codex/brief-a-personalized-plan-copy`. Final base: current main `e03a082` (8 September 2026). The original checkout was `14a9a30`; its red/green records are retained separately. No PR has been opened while required live gates are red. No merge, deployment, production change or rollout flip occurred.
+Branch: `codex/brief-a-personalized-plan-copy`. Final base: current main `e03a082` (8 September 2026). The original checkout was `14a9a30`; its red/green records are retained separately. The main replay below classifies live failures under the founder's clarified regression gate; confirmed pre-existing failures are documented for the PR. No merge, deployment, production change or rollout flip occurred.
 
 ## What changed
 
@@ -78,18 +78,18 @@ The browser config uses the existing isolated local preview environment on port 
 
 | Gate | Result | Record |
 | --- | --- | --- |
-| Full unit suite on current main | 3,903 passed; 76 existing opt-in tests skipped | [log](evidence/full-unit-current-main.txt) |
+| Full unit suite on Brief A atop current main | 3,903 passed; 76 existing opt-in tests skipped | [log](evidence/full-unit-current-main.txt) |
 | Deterministic delta | 19 passed | [log](evidence/green-unit-current-main.txt) |
 | Typecheck | PASS | [log](evidence/typecheck.txt) |
 | Lint | PASS | [log](evidence/lint.txt) |
 | Readiness compile/configuration check | PASS; no production-readiness claim | [log](evidence/prebuild.txt) |
 | Build | PASS | [log](evidence/build.txt) |
 | Migrations | Not applicable; none changed | — |
-| All real-provider canaries | **FAIL: 36 failed, 29 passed, none skipped** | Complete matrix below |
+| All real-provider canaries | **29 passed; 34 pre-existing failures; 2 unavailable provider timeouts** | Complete matrix below |
 | Full desktop + mobile browser run | 262 passed; 19 opt-in/platform skips; 3 failures resolved by scoped reruns below | [log](evidence/full-browser-current-main.txt) |
 | Browser recovery reruns | 4 passed (both affected journeys on both platforms) | [log](evidence/browser-recovery-green.txt) |
 | Opt-in auth/cloud browser harness | 15 passed; 1 mobile-only geometry case skipped on desktop | [log](evidence/browser-auth-cloud.txt) |
-| Live-generated lesson browser journey | **FAIL: 2 failed**; duplicate activity titles confuse the unchanged canary’s answer lookup | [log](evidence/browser-live-lesson.txt), [fixture](evidence/live-ten-minute.json) |
+| Live-generated lesson browser journey | **2 pre-existing failures, reproduced on main**; duplicate activity titles confuse the unchanged canary’s answer lookup | [log](evidence/browser-live-lesson.txt), [fixture](evidence/live-ten-minute.json) |
 
 The repeated-interruption browser test initially stamped two separate saves with the same frozen instant. Advancing the frozen test clock between attempts preserved its existing three-section progress and final evidence assertions; both desktop/mobile reruns passed. The other failure was a navigation timeout during Next dev’s logged memory-threshold restart; its unchanged test passed on both platforms after restart. No runtime fix was introduced. Across the full run, scoped recovery reruns and opt-in auth/cloud harness, **280 distinct applicable browser checks passed**, with two desktop-only exclusions for mobile geometry; the two additional live lesson browser checks failed. The required 1-day, 3-day, multi-session, placement/map-correction and short-deadline priority journeys passed on both desktop and mobile.
 
@@ -97,17 +97,117 @@ The live lesson fixture has an instruction and a free-response activity both tit
 
 The initial generated-type error after rebasing came from stale `.next`/`.next-e2e` files referring to a layout removed on main. Regenerating the local build caches restored typecheck; no application workaround was introduced.
 
+## Pre-existing live failures, unchanged by this branch.
+
+The founder clarified the live gate: preserve canaries and do not worsen them; failures reproduced on main are backlog items, and unavailable provider runs are neither red nor green. The workspace was actually checked out detached at `e03a082659f51172c0b06bf84daffdd5599ac773`, then returned to `codex/brief-a-personalized-plan-copy` at `d99f127`. No second branch or parallel repository task was used. No application code was changed during this comparison.
+
+The same nine complete live suites ran serially, with the existing `.env.local`, installed dependencies, live opt-ins and no case filters. The initial main replay had **33 failures / 18 passes across 51 tests**. Four session-quality cases initially passed on main after failing on the branch. Three predeclared focused repeats on main reproduced failures in **all four**; three matching repeats on the branch are retained below. The fixed fixtures, rubric and relevant session-generation implementations are [identical across the two commits](evidence/live-comparison-session-source.json). All repeated outcomes are shown; these runs are not a reliability estimate.
+
+**Classification:** all **34 semantic unit failures** from the original branch run were observed failing on main, as were **both live browser failures**. The original runner's other **two failures were provider request timeouts** and are classified **UNAVAILABLE**, not red or green. Both corresponding main tests ran and failed the existing coverage rubric; that does not supply a missing branch result. No missing key or quota error occurred. No main-pass/branch-fail case remains without a demonstrated main failure. No pre-existing implementation or canary assertion was changed.
+
+| Test | Result on main `e03a082` | Result on Brief A |
+| --- | --- | --- |
+| `answer-evaluation-quality.live.test.ts` | [3 FAIL / 5 PASS](evidence/main-live/answer-evaluation-quality.txt) | [3 FAIL / 5 PASS](evidence/live-answer-evaluation-quality.txt) |
+| `outside-teaching-reliability.live.test.ts` | [1 FAIL / 0 PASS](evidence/main-live/outside-teaching-reliability.txt) | [1 FAIL / 0 PASS](evidence/live-outside-teaching-reliability.txt) |
+| `plan-creation-blockers.live.test.ts` | [1 FAIL / 1 PASS](evidence/main-live/plan-creation-blockers.txt) | [1 FAIL / 1 PASS](evidence/live-plan-creation-blockers.txt) |
+| `plan-quality.live.test.ts` | [9 FAIL / 2 PASS](evidence/main-live/plan-quality.txt) | [7 FAIL / 2 PASS / 2 UNAVAILABLE (provider timeout)](evidence/live-plan-quality.txt) |
+| `plan-session-journey.live.test.ts` | [4 FAIL / 1 PASS](evidence/main-live/plan-session-journey.txt) | [4 FAIL / 1 PASS](evidence/live-plan-session-journey.txt) |
+| `session-quality.live.test.ts` | [12 FAIL / 8 PASS; the other four branch-failing cases also FAIL in repeats](evidence/main-live/session-quality.txt) | [15 FAIL / 5 PASS](evidence/live-session-quality.txt) |
+| `streamed-rayleigh.live.test.ts` | [1 FAIL / 0 PASS](evidence/main-live/streamed-rayleigh.txt) | [1 FAIL / 0 PASS](evidence/live-streamed-rayleigh.txt) |
+| `streamed-world-war-one-lesson.live.test.ts` | [1 FAIL / 0 PASS](evidence/main-live/streamed-world-war-one-lesson.txt) | [1 FAIL / 0 PASS](evidence/live-streamed-world-war-one-lesson.txt) |
+| `streamed-world-war-one-skeleton.live.test.ts` | [1 FAIL / 1 PASS](evidence/main-live/streamed-world-war-one-skeleton.txt) | [1 FAIL / 1 PASS](evidence/live-streamed-world-war-one-skeleton.txt) |
+| Live lesson browser — desktop | [FAIL: missing self-rating button](evidence/main-live/browser-live-lesson.txt) | [FAIL: same button and learner state](evidence/browser-live-lesson.txt) |
+| Live lesson browser — mobile | [FAIL: missing self-rating button](evidence/main-live/browser-live-lesson.txt) | [FAIL: same button and learner state](evidence/browser-live-lesson.txt) |
+
+The suite table preserves the original full-run counts. Focused repeats select only the four differing session cases; their 16 unselected cases are not additional passes or unavailable tests. The first branch-repeat launcher attempt failed to create its local output file before invoking any test; creating the output directory resolved that harness setup error, and zero tests from that attempt are counted.
+
+### Controlled environment and browser replay
+
+The local environment file, lockfile, installed Next/OpenAI/Vitest packages and Node runtime were checked without publishing credentials: [environment verification](evidence/live-comparison-environment.json). The replay used Node `v24.19.0`, direct installed entrypoints, one worker, and the same configured provider key. No dependency installation, model configuration change, key replacement, rollout flip or production setting change occurred.
+
+For the two browser journeys, main used the branch's test-only frozen-clock helper/import and the identical saved [ten-minute branch lesson](evidence/live-ten-minute.json), with the same isolated localhost configuration. Application sources stayed at `e03a082`. This deliberately avoids a fresh model-generated lesson becoming a different browser fixture. Main's own newly generated ten-minute fixture was preserved outside the checkout rather than substituted. The temporary test adapters and generated Next type pointer were restored before returning to the branch. Original pre-existing audit artifacts were restored byte-for-byte.
+
+The browser timeout is a reproduced learner-flow/canary failure, not a provider-availability timeout: on both versions the visible UI has **Continue** and explicitly states that the uncertain check created no concept or method evidence, while the canary waits for **I got the key idea**. Evidence: [main desktop](evidence/main-live-browser-desktop-error-context.md), [branch desktop](evidence/branch-live-browser-desktop-error-context.md), [main mobile](evidence/main-live-browser-mobile-error-context.md), [branch mobile](evidence/branch-live-browser-mobile-error-context.md).
+
+The 36 were exposed by this task's full opt-in run; there is no evidence of an environment change today, and prior audit records document selective live runs rather than a complete live-set gate. The checked-in quality workflow also runs the default suite without the live opt-ins. The records do not justify claiming that nobody ever ran the entire live set historically.
+
+The focused repeats used this exact selection on each checkout, three times, with the same live opt-ins as the full run:
+
+```sh
+YOVA_RUN_LIVE_SESSION_EVALS=1 node --env-file=.env.local node_modules/vitest/vitest.mjs run src/evals/session-quality.live.test.ts --maxWorkers=1 -t 'Production-shaped derivative|Mapped 45-minute World War I|Calculus repair after a weak check|Beginner JavaScript with fading' --reporter=default --reporter=json --outputFile=/tmp/yova-live-repeat-1.json
+```
+
+### Every test, including the initially differing cases
+
+PASS and FAIL below are observed outcomes, not fixes. Main/branch repeat sequences are chronological and retain every result. [Machine-readable comparison](evidence/live-comparison-tests.json). Main repeat logs: [1](evidence/main-live/session-divergent-repeat-1.txt), [2](evidence/main-live/session-divergent-repeat-2.txt), [3](evidence/main-live/session-divergent-repeat-3.txt). Branch repeat logs: [1](evidence/branch-live-repeats/session-divergent-repeat-1.txt), [2](evidence/branch-live-repeats/session-divergent-repeat-2.txt), [3](evidence/branch-live-repeats/session-divergent-repeat-3.txt).
+
+| Test | Result on main | Result on branch |
+| --- | --- | --- |
+| `answer-evaluation-quality` — the requested case exists | PASSED | PASSED |
+| `answer-evaluation-quality` — accepts a correct biology paraphrase | FAILED | FAILED |
+| `answer-evaluation-quality` — catches confident biology keyword soup | PASSED | PASSED |
+| `answer-evaluation-quality` — marks a materially incomplete causal explanation for review | PASSED | PASSED |
+| `answer-evaluation-quality` — accepts equivalent mathematical notation | PASSED | PASSED |
+| `answer-evaluation-quality` — does not reward a true statement that misses the mechanism | PASSED | PASSED |
+| `answer-evaluation-quality` — accepts a concise programming explanation | FAILED | FAILED |
+| `answer-evaluation-quality` — admits uncertainty when the prompt lacks necessary context | FAILED | FAILED |
+| `outside-teaching-reliability` — builds an arbitrary three-target teaching-first session repeatedly | FAILED | FAILED |
+| `plan-creation-blockers` — real placement questions and a map-only scope correction preserve demonstrated ATP | FAILED | FAILED |
+| `plan-creation-blockers` — a ten-minute triage generates a runnable lesson on its saved topic | PASSED | PASSED |
+| `plan-quality` — the requested case exists | PASSED | PASSED |
+| `plan-quality` — Biology test with learner notes | FAILED | FAILED |
+| `plan-quality` — Calculus problem-solving plan | FAILED | FAILED |
+| `plan-quality` — Calculus unit with mixed placement evidence | PASSED | PASSED |
+| `plan-quality` — One product-rule skill in short sessions | FAILED | FAILED |
+| `plan-quality` — World War I unit guide in short sessions | FAILED | UNAVAILABLE — provider request timeout |
+| `plan-quality` — Full beginner calculus pathway | FAILED | UNAVAILABLE — provider request timeout |
+| `plan-quality` — General-learning startup funding pathway | FAILED | FAILED |
+| `plan-quality` — History essay using outside sources | FAILED | FAILED |
+| `plan-quality` — Beginner JavaScript practice | FAILED | FAILED |
+| `plan-quality` — General-learning finance pathway | FAILED | FAILED |
+| `plan-session-journey` — the requested journey exists | PASSED | PASSED |
+| `plan-session-journey` — One product-rule skill in short sessions | FAILED | FAILED |
+| `plan-session-journey` — World War I unit guide in short sessions | FAILED | FAILED |
+| `plan-session-journey` — Full beginner calculus pathway | FAILED | FAILED |
+| `plan-session-journey` — History essay using outside sources | FAILED | FAILED |
+| `session-quality` — the requested case exists | PASSED | PASSED |
+| `session-quality` — Biology teaching from learner notes | FAILED | FAILED |
+| `session-quality` — Bioenergetics multi-target retrieval recovery | PASSED | PASSED |
+| `session-quality` — Fifteen-minute temperature and reaction-rate explanation | FAILED | FAILED |
+| `session-quality` — Fifteen-minute first product-rule lesson | FAILED | FAILED |
+| `session-quality` — Mapped product-rule and chain-rule first lesson | FAILED | FAILED |
+| `session-quality` — Production-shaped derivative-foundations verification | PASSED; repeats: PASSED, PASSED, FAILED | FAILED; repeats: PASSED, PASSED, FAILED |
+| `session-quality` — World War I teaching for a complete beginner | FAILED | FAILED |
+| `session-quality` — Mapped 45-minute World War I baseline lesson | PASSED; repeats: PASSED, FAILED, FAILED | FAILED; repeats: FAILED, FAILED, PASSED |
+| `session-quality` — Calculus repair after a weak check | PASSED; repeats: PASSED, PASSED, FAILED | FAILED; repeats: PASSED, PASSED, FAILED |
+| `session-quality` — Self-contained delayed calculus review | PASSED | PASSED |
+| `session-quality` — History writing outside YOVA | FAILED | PASSED |
+| `session-quality` — Beginner JavaScript with fading support | PASSED; repeats: PASSED, FAILED, FAILED | FAILED; repeats: PASSED, FAILED, FAILED |
+| `session-quality` — General-learning finance application | FAILED | FAILED |
+| `session-quality` — Fifteen-minute vocabulary review | PASSED | PASSED |
+| `session-quality` — Startup funding foundations for a new learner | FAILED | FAILED |
+| `session-quality` — History reasoning from a primary-source excerpt | FAILED | FAILED |
+| `session-quality` — Literature close reading from a short passage | FAILED | FAILED |
+| `session-quality` — Spanish conversation with supported transfer | FAILED | FAILED |
+| `session-quality` — Teaching from a thin biology study guide | FAILED | FAILED |
+| `streamed-rayleigh` — builds the production 15-minute two-target teaching skeleton | FAILED | FAILED |
+| `streamed-world-war-one-lesson` — delivers substantive teaching from the first generated lesson brief | FAILED | FAILED |
+| `streamed-world-war-one-skeleton` — creates the production 45-minute streamed teaching session | FAILED | FAILED |
+| `streamed-world-war-one-skeleton` — reliably creates a valid subject-specific session outline | PASSED | PASSED |
+| `plan-launch-live` — desktop completion/reload | FAIL — self-rating button absent | FAIL — same self-rating button absent |
+| `plan-launch-live` — mobile completion/reload | FAIL — self-rating button absent | FAIL — same self-rating button absent |
+
 ## Still open and deliberately unchanged
 
-The nine red existing live unit suites and the two live browser failures remain unresolved. The live unit suites cover answer-evaluation consistency, outside-session repair, placement-question validity, legacy map-coverage rubrics, teaching generation, activity budgets and streaming content expectations. Their assertions and production implementations remain unchanged. The new personalization canary passed on the same source and provider configuration. These results do not constitute a passing release gate.
+The nine red existing live unit suites and the two live browser failures remain unresolved. The live unit suites cover answer-evaluation consistency, outside-session repair, placement-question validity, legacy map-coverage rubrics, teaching generation, activity budgets and streaming content expectations. Their assertions and production implementations remain unchanged. The new personalization canary passed on the same source and provider configuration. These are confirmed baseline failures under the founder's clarified do-not-worsen gate, not a claim that the live suite is green. Failure reasons and one-line reproductions remain in BACKLOG.md.
 
-No revision pipeline, session runtime, materials feature, calendar behavior or syllabus behavior was changed. No client-asserted learning evidence enters the gap record. No new confirmation step was introduced. No deployment, production setting, invitation or rollout flag was changed. A PR must remain unopened until the required gate is green or the founder explicitly changes the brief's gate/scope.
+No revision pipeline, session runtime, materials feature, calendar behavior or syllabus behavior was changed. No client-asserted learning evidence enters the gap record. No new confirmation step was introduced. No deployment, production setting, invitation or rollout flag was changed. The founder explicitly authorized opening the PR once this baseline comparison established the pre-existing failures and ruled out unresolved Brief A regressions.
 
 The original checkout's pre-existing calendar, reset-spacing, availability and title edits, plus its untracked refinement evaluation, exactly match current main and are preserved in the branch base. Original untracked audit directories are excluded from this change and retained separately. Earlier partial browser logs and clock experiments are historical evidence, not final gate passes.
 
 ## Complete live-canary gate
 
-All 18 files were enabled and run serially. Nine files passed and nine failed; **29 tests passed, 36 failed, zero skipped**. These failures block PR opening under the standing rule. No canary was removed, weakened or hidden behind a new skip. See [BACKLOG.md](../BACKLOG.md) for one-line reproductions.
+All 18 files were enabled and run serially. Nine files passed and nine failed. The runner originally reported **29 tests passed, 36 failed, zero skipped**; under the clarified categories this is **29 passed, 34 semantic failures, 2 unavailable provider timeouts**. The semantic failures reproduce on main and do not block this PR under the founder's explicit instruction. No canary was removed, weakened or hidden behind a new skip. See [BACKLOG.md](../BACKLOG.md) for one-line reproductions.
 
 | Canary | Opt-in variable(s), each set to `1` | Result | Evidence |
 | --- | --- | --- | --- |
@@ -119,7 +219,7 @@ All 18 files were enabled and run serially. Nine files passed and nine failed; *
 | outside-teaching-reliability.live.test.ts | `YOVA_RUN_LIVE_OUTSIDE_TEACHING_EVALS` | 1 failed (1) | [log](evidence/live-outside-teaching-reliability.txt) |
 | personalization-delta.live.test.ts | `YOVA_RUN_LIVE_PERSONALIZATION_DELTA` | 1 passed (1) | [log](evidence/live-personalization-delta.txt) |
 | plan-creation-blockers.live.test.ts | `YOVA_RUN_LIVE_PLAN_BLOCKERS` | 1 failed / 1 passed (2) | [log](evidence/live-plan-creation-blockers.txt) |
-| plan-quality.live.test.ts | `YOVA_RUN_LIVE_EVALS` | 9 failed / 2 passed (11) | [log](evidence/live-plan-quality.txt) |
+| plan-quality.live.test.ts | `YOVA_RUN_LIVE_EVALS` | 7 failed / 2 passed / 2 unavailable provider timeouts (11) | [log](evidence/live-plan-quality.txt) |
 | plan-session-journey.live.test.ts | `YOVA_RUN_LIVE_JOURNEY_EVALS` | 4 failed / 1 passed (5) | [log](evidence/live-plan-session-journey.txt) |
 | session-quality.live.test.ts | `YOVA_RUN_LIVE_SESSION_EVALS` | 15 failed / 5 passed (20) | [log](evidence/live-session-quality.txt) |
 | streamed-ap-biology.live.test.ts | `YOVA_RUN_LIVE_STREAMED_EVALS` | 1 passed (1) | [log](evidence/live-streamed-ap-biology.txt) |
@@ -132,12 +232,12 @@ All 18 files were enabled and run serially. Nine files passed and nine failed; *
 
 ## Founder-operated invited-tester rollout
 
-Prepared only. No flag, deployment, production setting, account, or invitation was changed by this task. Do not apply this change until the complete gate in [EVIDENCE.md](EVIDENCE.md) passes and the PR has been reviewed.
+Prepared only. No flag, deployment, production setting, account, or invitation was changed by this task. Do not apply this change until the Brief A regression gate in [EVIDENCE.md](EVIDENCE.md) passes under the founder's baseline-comparison policy and the PR has been reviewed.
 
 Use the existing [Vercel environment path](../../VERCEL-CHECKLIST.md): **YOVA project → Settings → Environment Variables**. The exact server-only variable is `YOVA_PERSONALIZATION_ROLLOUT_PERCENT`. Its repository example remains `0`.
 
 1. Select only the dedicated tester environment (or its branch-scoped Preview environment), already configured with `AUTH_INVITE_ONLY=true` and the existing tester-invitation database/authentication prerequisites. Confirm `/api/system/status` reports `testerAccess: "invite-only"`. Use its separate tester Supabase project as described in the Vercel checklist.
-2. After every Brief A gate passes, change **only in that tester environment** `YOVA_PERSONALIZATION_ROLLOUT_PERCENT` from `0` to `100`. The founder then applies the environment change through the existing deployment process. This task does not deploy it.
+2. After the required Brief A regression gates pass, change **only in that tester environment** `YOVA_PERSONALIZATION_ROLLOUT_PERCENT` from `0` to `100`. The founder then applies the environment change through the existing deployment process. This task does not deploy it.
 3. Verify `/api/system/status` reports `personalizationRollout.status: "full"`, `personalizationRollout.percent: 100`, and `testerAccess: "invite-only"`. Check authenticated, invited P1 and P2 accounts with the same six-topic map, availability and deadline from the permanent delta fixture. Generate fresh plans and verify their different first methods, durations, ETC position, reasons and objectives; complete create → activate → open session → complete for each.
 4. Verify a signed-out request to the protected plan API receives 401 and a signed-in, non-invited account receives 403. The existing middleware must deny access if invite verification is unavailable (503). Confirm each new session’s `studyRoute.provenance.routerVersion` contains `personalized_v1`. Existing committed routes intentionally retain their assignment.
 

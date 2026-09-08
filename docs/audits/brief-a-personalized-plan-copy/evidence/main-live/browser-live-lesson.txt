@@ -1,0 +1,86 @@
+[WebServer] (node:78345) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] (node:78346) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+Running 2 tests using 1 worker
+
+(node:78369) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  1 [desktop-chromium] › e2e/plan-launch-live.spec.ts:7:5 › a live-generated deadline lesson streams, finishes unrated and preserves completion on reload (1.3m)
+(node:78419) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  2 [mobile-chromium] › e2e/plan-launch-live.spec.ts:7:5 › a live-generated deadline lesson streams, finishes unrated and preserves completion on reload (1.3m)
+
+
+  1) [desktop-chromium] › e2e/plan-launch-live.spec.ts:7:5 › a live-generated deadline lesson streams, finishes unrated and preserves completion on reload
+
+    TimeoutError: locator.click: Timeout 60000ms exceeded.
+    Call log:
+      - waiting for getByRole('button', { name: 'I got the key idea', exact: true })
+
+
+      55 |       await written.fill(current?.correctAnswer??"ATP hydrolysis forms ADP and inorganic phosphate. This reaction releases free energy that can be coupled to cellular work.");
+      56 |       await page.getByRole("button",{name:"Check my answer",exact:true}).click();
+    > 57 |       await page.getByRole("button",{name:"I got the key idea",exact:true}).click({timeout:60_000});
+         |                                                                             ^
+      58 |     } else if(current?.correctAnswer && await page.locator(".answer-grid").isVisible()) {
+      59 |       await page.locator(".answer-grid").getByRole("button",{name:current.correctAnswer,exact:true}).click();
+      60 |     }
+        at /Users/sebastianziegler/Documents/YOVA/e2e/plan-launch-live.spec.ts:57:77
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/plan-launch-live-a-live-ge-b159d-serves-completion-on-reload-desktop-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results/plan-launch-live-a-live-ge-b159d-serves-completion-on-reload-desktop-chromium/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/plan-launch-live-a-live-ge-b159d-serves-completion-on-reload-desktop-chromium/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/plan-launch-live-a-live-ge-b159d-serves-completion-on-reload-desktop-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/plan-launch-live-a-live-ge-b159d-serves-completion-on-reload-desktop-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2) [mobile-chromium] › e2e/plan-launch-live.spec.ts:7:5 › a live-generated deadline lesson streams, finishes unrated and preserves completion on reload
+
+    TimeoutError: locator.click: Timeout 60000ms exceeded.
+    Call log:
+      - waiting for getByRole('button', { name: 'I got the key idea', exact: true })
+
+
+      55 |       await written.fill(current?.correctAnswer??"ATP hydrolysis forms ADP and inorganic phosphate. This reaction releases free energy that can be coupled to cellular work.");
+      56 |       await page.getByRole("button",{name:"Check my answer",exact:true}).click();
+    > 57 |       await page.getByRole("button",{name:"I got the key idea",exact:true}).click({timeout:60_000});
+         |                                                                             ^
+      58 |     } else if(current?.correctAnswer && await page.locator(".answer-grid").isVisible()) {
+      59 |       await page.locator(".answer-grid").getByRole("button",{name:current.correctAnswer,exact:true}).click();
+      60 |     }
+        at /Users/sebastianziegler/Documents/YOVA/e2e/plan-launch-live.spec.ts:57:77
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/plan-launch-live-a-live-ge-b159d-serves-completion-on-reload-mobile-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results/plan-launch-live-a-live-ge-b159d-serves-completion-on-reload-mobile-chromium/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/plan-launch-live-a-live-ge-b159d-serves-completion-on-reload-mobile-chromium/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/plan-launch-live-a-live-ge-b159d-serves-completion-on-reload-mobile-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/plan-launch-live-a-live-ge-b159d-serves-completion-on-reload-mobile-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2 failed
+    [desktop-chromium] › e2e/plan-launch-live.spec.ts:7:5 › a live-generated deadline lesson streams, finishes unrated and preserves completion on reload
+    [mobile-chromium] › e2e/plan-launch-live.spec.ts:7:5 › a live-generated deadline lesson streams, finishes unrated and preserves completion on reload
